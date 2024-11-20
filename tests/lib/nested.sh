@@ -1298,12 +1298,12 @@ nested_start_core_vm_unit() {
         fi
 
         if os.query is-arm; then
-            if [ -z "$NESTED_KEEP_FIRMWARE_STATE" ] || ! [ -e "$NESTED_ASSETS_DIR/AAVMF_VARS.fd" ]; then
+            if [ -z "${NESTED_KEEP_FIRMWARE_STATE-}" ] || ! [ -e "$NESTED_ASSETS_DIR/AAVMF_VARS.fd" ]; then
                 cp -f "/usr/share/AAVMF/AAVMF_VARS.fd" "$NESTED_ASSETS_DIR/AAVMF_VARS.fd"
             fi
             PARAM_BIOS="-drive file=/usr/share/AAVMF/AAVMF_CODE.fd,if=pflash,format=raw,unit=0,readonly=on -drive file=$NESTED_ASSETS_DIR/AAVMF_VARS.fd,if=pflash,format=raw"
         else
-            if [ -z "$NESTED_KEEP_FIRMWARE_STATE" ] || ! [ -e "$NESTED_ASSETS_DIR/OVMF_VARS${OVMF_VARS}.fd" ]; then
+            if [ -z "${NESTED_KEEP_FIRMWARE_STATE-}" ] || ! [ -e "$NESTED_ASSETS_DIR/OVMF_VARS${OVMF_VARS}.fd" ]; then
                 cp -f "/usr/share/OVMF/OVMF_VARS${OVMF_VARS}.fd" "$NESTED_ASSETS_DIR/OVMF_VARS${OVMF_VARS}.fd"
             fi
             PARAM_BIOS="-drive file=/usr/share/OVMF/OVMF_CODE${OVMF_CODE}.fd,if=pflash,format=raw,unit=0,readonly=on -drive file=$NESTED_ASSETS_DIR/OVMF_VARS${OVMF_VARS}.fd,if=pflash,format=raw"
@@ -1312,7 +1312,7 @@ nested_start_core_vm_unit() {
 
         if nested_is_tpm_enabled; then
             if snap list test-snapd-swtpm >/dev/null; then
-                if [ -z "$NESTED_KEEP_FIRMWARE_STATE" ]; then
+                if [ -z "${NESTED_KEEP_FIRMWARE_STATE-}" ]; then
                     # reset the tpm state
                     snap stop test-snapd-swtpm > /dev/null
                     rm /var/snap/test-snapd-swtpm/current/tpm2-00.permall || true
