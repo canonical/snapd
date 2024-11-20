@@ -172,6 +172,35 @@ func doValidateComponent(t *state.Task, _ *tomb.Tomb) error {
 		return fmt.Errorf("internal error: cannot obtain snap setup: %s", err)
 	}
 
+	// if the component is coming from the store, then we should do a full
+	// validation
+	if compsup.DownloadInfo != nil {
+		return fetchAssertsAndValidateComponent(st, compsup, snapsup, t)
+	}
+
+	// otherwise, we just want to verify that a snap-resource-pair assertion
+	// exists for this component and snap revision. we don't need to validate
+	// the component itself since that must have already happened when deriving
+	// the component's revision.
+
+	db := DB(st)
+	retrieve := func(ref *asserts.Ref) (asserts.Assertion, error) {
+		return ref.Resolve(db.Find)
+	}
+	fetcher := asserts.NewFetcher(db, retrieve, func(asserts.Assertion) error {
+		return nil
+	})
+
+	return snapasserts.FetchResourcePairAssertion(
+		fetcher,
+		snapsup.SideInfo,
+		compsup.ComponentName(),
+		compsup.Revision(),
+		snapsup.ExpectedProvenance,
+	)
+}
+
+func fetchAssertsAndValidateComponent(st *state.State, compsup *snapstate.ComponentSetup, snapsup *snapstate.SnapSetup, t *state.Task) error {
 	sha3_384, compSize, err := asserts.SnapFileSHA3_384(compsup.CompPath)
 	if err != nil {
 		return err

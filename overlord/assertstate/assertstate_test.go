@@ -528,7 +528,11 @@ version: %d
 	return snaptest.MakeTestSnapWithFiles(c, yaml, nil)
 }
 
-func (s *assertMgrSuite) prereqSnapAssertions(c *C, provenance string, revisions ...int) (paths map[int]string, digests map[int]string) {
+func (s *assertMgrSuite) prereqSnapAssertions(c *C, db *asserts.Database, provenance string, revisions ...int) (paths map[int]string, digests map[int]string) {
+	if db == nil {
+		db = s.storeSigning.Database
+	}
+
 	headers := map[string]interface{}{
 		"series":       "16",
 		"snap-id":      "snap-id-1",
@@ -549,7 +553,7 @@ func (s *assertMgrSuite) prereqSnapAssertions(c *C, provenance string, revisions
 
 	snapDecl, err := s.storeSigning.Sign(asserts.SnapDeclarationType, headers, nil, "")
 	c.Assert(err, IsNil)
-	err = s.storeSigning.Add(snapDecl)
+	err = db.Add(snapDecl)
 	c.Assert(err, IsNil)
 
 	paths = make(map[int]string)
@@ -578,7 +582,7 @@ func (s *assertMgrSuite) prereqSnapAssertions(c *C, provenance string, revisions
 
 		snapRev, err := signer.Sign(asserts.SnapRevisionType, headers, nil, "")
 		c.Assert(err, IsNil)
-		err = s.storeSigning.Add(snapRev)
+		err = db.Add(snapRev)
 		c.Assert(err, IsNil)
 	}
 
@@ -659,7 +663,7 @@ version: 1.0.2
 }
 
 func (s *assertMgrSuite) TestDoFetch(c *C) {
-	_, digests := s.prereqSnapAssertions(c, "", 10)
+	_, digests := s.prereqSnapAssertions(c, nil, "", 10)
 
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -680,7 +684,7 @@ func (s *assertMgrSuite) TestDoFetch(c *C) {
 }
 
 func (s *assertMgrSuite) TestFetchIdempotent(c *C) {
-	_, digests := s.prereqSnapAssertions(c, "", 10, 11)
+	_, digests := s.prereqSnapAssertions(c, nil, "", 10, 11)
 
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -836,7 +840,7 @@ func (s *assertMgrSuite) setupModelAndStore(c *C) *asserts.Store {
 }
 
 func (s *assertMgrSuite) TestValidateSnap(c *C) {
-	paths, digests := s.prereqSnapAssertions(c, "", 10)
+	paths, digests := s.prereqSnapAssertions(c, nil, "", 10)
 	snapPath := paths[10]
 
 	s.state.Lock()
@@ -883,7 +887,7 @@ func (s *assertMgrSuite) TestValidateSnap(c *C) {
 }
 
 func (s *assertMgrSuite) TestValidateSnapStoreNotFound(c *C) {
-	paths, digests := s.prereqSnapAssertions(c, "", 10)
+	paths, digests := s.prereqSnapAssertions(c, nil, "", 10)
 
 	snapPath := paths[10]
 
@@ -975,7 +979,7 @@ func (s *assertMgrSuite) TestValidateSnapNotFound(c *C) {
 }
 
 func (s *assertMgrSuite) TestValidateSnapCrossCheckFail(c *C) {
-	paths, _ := s.prereqSnapAssertions(c, "", 10)
+	paths, _ := s.prereqSnapAssertions(c, nil, "", 10)
 
 	snapPath := paths[10]
 
@@ -5341,7 +5345,7 @@ type testValidateComponentOpts struct {
 func (s *assertMgrSuite) testValidateComponent(c *C, opts testValidateComponentOpts) {
 	snapRev, compRev := snap.R(10), snap.R(20)
 
-	paths, _ := s.prereqSnapAssertions(c, opts.provenance, 10)
+	paths, _ := s.prereqSnapAssertions(c, nil, opts.provenance, 10)
 	snapPath := paths[10]
 
 	blobProvenance := opts.provenance
@@ -5382,6 +5386,9 @@ func (s *assertMgrSuite) testValidateComponent(c *C, opts testValidateComponentO
 		CompSideInfo: &snap.ComponentSideInfo{
 			Component: naming.NewComponentRef("foo", "standard-component"),
 			Revision:  compRev,
+		},
+		DownloadInfo: &snap.DownloadInfo{
+			DownloadURL: "http://example.com/snap-download",
 		},
 	}
 	t.Set("snap-setup", snapsup)
@@ -5428,6 +5435,87 @@ func (s *assertMgrSuite) testValidateComponent(c *C, opts testValidateComponentO
 	c.Assert(err, IsNil)
 }
 
+func (s *assertMgrSuite) TestValidateLocalComponent(c *C) {
+	const invalid = false
+	s.testValidateLocalComponent(c, invalid)
+}
+
+func (s *assertMgrSuite) TestValidateLocalComponentInvalidPair(c *C) {
+	const invalid = true
+	s.testValidateLocalComponent(c, invalid)
+}
+
+func (s *assertMgrSuite) testValidateLocalComponent(c *C, invalid bool) {
+	snapRev, compRev := snap.R(10), snap.R(20)
+
+	db, err := asserts.OpenDatabase(&asserts.DatabaseConfig{
+		Backstore: asserts.NewMemoryBackstore(),
+		Trusted:   s.storeSigning.Trusted,
+	})
+	c.Assert(err, IsNil)
+
+	assertstest.AddMany(db, s.storeSigning.StoreAccountKey(""), s.dev1Acct, s.dev1AcctKey)
+
+	paths, _ := s.prereqSnapAssertions(c, db, "", 10)
+	snapPath := paths[10]
+
+	headers := map[string]interface{}{
+		"snap-id":           "snap-id-1",
+		"resource-name":     "comp",
+		"resource-revision": compRev.String(),
+		"snap-revision":     snapRev.String(),
+		"developer-id":      s.dev1Acct.AccountID(),
+		"timestamp":         time.Now().Format(time.RFC3339),
+	}
+
+	signer := assertstest.SignerDB(s.storeSigning)
+	pair, err := signer.Sign(asserts.SnapResourcePairType, headers, nil, "")
+	c.Assert(err, IsNil)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	assertstate.ReplaceDB(s.state, db)
+	assertstest.AddMany(db, pair)
+
+	chg := s.state.NewChange("install", "...")
+	t := s.state.NewTask("validate-component", "Fetch and check snap assertions")
+	setupSnapRev := snapRev
+	if invalid {
+		setupSnapRev = snap.R(11)
+	}
+	snapsup := snapstate.SnapSetup{
+		SnapPath: snapPath,
+		UserID:   0,
+		SideInfo: &snap.SideInfo{
+			RealName: "foo",
+			SnapID:   "snap-id-1",
+			Revision: setupSnapRev,
+		},
+	}
+	compsup := snapstate.ComponentSetup{
+		CompPath: "/some/path",
+		CompSideInfo: &snap.ComponentSideInfo{
+			Component: naming.NewComponentRef("foo", "comp"),
+			Revision:  compRev,
+		},
+	}
+	t.Set("snap-setup", snapsup)
+	t.Set("component-setup", compsup)
+	chg.AddTask(t)
+
+	s.state.Unlock()
+	defer s.se.Stop()
+	s.settle(c)
+	s.state.Lock()
+
+	if invalid {
+		c.Assert(chg.Err(), ErrorMatches, `(?s).*snap-resource-pair \(11; snap-id:snap-id-1 resource-name:comp resource-revision:20\) not found.*`)
+	} else {
+		c.Assert(chg.Err(), IsNil)
+	}
+}
+
 func (s *assertMgrSuite) setupRegistry(c *C) *snap.SideInfo {
 	extraHeaders := map[string]interface{}{
 		"revision": "1",
@@ -5464,7 +5552,7 @@ func (s *assertMgrSuite) TestFetchRegistryAssertion(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	paths, _ := s.prereqSnapAssertions(c, "", 10)
+	paths, _ := s.prereqSnapAssertions(c, nil, "", 10)
 	snapPath := paths[10]
 	si := s.setupRegistry(c)
 
