@@ -43,6 +43,8 @@ import (
 const (
 	// Install from local file
 	compOptIsLocal = 1 << iota
+	// Component doesn't have a revision from the store
+	compOptUnassertedComponent
 	// Component revision is already in snaps folder and mounted
 	compOptRevisionPresent
 	// Component revision is used by the currently active snap revision
@@ -70,7 +72,13 @@ func expectedComponentInstallTasksSplit(opts int) (beforeLink, link, postOpHooks
 	if opts&compOptIsLocal != 0 {
 		beforeLink = []string{"prepare-component"}
 	} else {
-		beforeLink = []string{"download-component", "validate-component"}
+		beforeLink = []string{"download-component"}
+	}
+
+	// if the revision is asserted, then we must run validate-component, since
+	// it will at least verify the presence of a snap-resource-pair assertion
+	if opts&compOptUnassertedComponent == 0 {
+		beforeLink = append(beforeLink, "validate-component")
 	}
 
 	// Revision is not the same as the current one installed
@@ -267,12 +275,19 @@ func setStateWithComponents(st *state.State, snapName string,
 	})
 }
 
-func (s *snapmgrTestSuite) TestInstallComponentPath(c *C) {
+func (s *snapmgrTestSuite) TestInstallComponentPathNoRevision(c *C) {
 	s.testInstallComponentPath(c, testInstallComponentPathOpts{})
+}
+
+func (s *snapmgrTestSuite) TestInstallComponentPath(c *C) {
+	s.testInstallComponentPath(c, testInstallComponentPathOpts{
+		revision: snap.R(33),
+	})
 }
 
 func (s *snapmgrTestSuite) TestInstallComponentPathWithLane(c *C) {
 	s.testInstallComponentPath(c, testInstallComponentPathOpts{
+		revision:    snap.R(33),
 		lane:        1,
 		transaction: client.TransactionAllSnaps,
 	})
@@ -281,17 +296,20 @@ func (s *snapmgrTestSuite) TestInstallComponentPathWithLane(c *C) {
 func (s *snapmgrTestSuite) TestInstallComponentPathTransactionAllSnaps(c *C) {
 	s.testInstallComponentPath(c, testInstallComponentPathOpts{
 		transaction: client.TransactionAllSnaps,
+		revision:    snap.R(33),
 	})
 }
 
 func (s *snapmgrTestSuite) TestInstallComponentPathTransactionPerSnap(c *C) {
 	s.testInstallComponentPath(c, testInstallComponentPathOpts{
 		transaction: client.TransactionPerSnap,
+		revision:    snap.R(33),
 	})
 }
 
 type testInstallComponentPathOpts struct {
 	lane        int
+	revision    snap.Revision
 	transaction client.TransactionType
 }
 
@@ -299,6 +317,10 @@ func (s *snapmgrTestSuite) testInstallComponentPath(c *C, opts testInstallCompon
 	const snapName = "mysnap"
 	const compName = "mycomp"
 	snapRev := snap.R(1)
+	if opts.revision.Unset() {
+		snapRev = snap.R(-1)
+	}
+
 	info := createTestSnapInfoForComponent(c, snapName, snapRev, compName)
 	_, compPath := createTestComponent(c, snapName, compName, info)
 
@@ -308,7 +330,7 @@ func (s *snapmgrTestSuite) testInstallComponentPath(c *C, opts testInstallCompon
 	setStateWithOneSnap(s.state, snapName, snapRev)
 
 	csi := snap.NewComponentSideInfo(naming.ComponentRef{
-		SnapName: snapName, ComponentName: compName}, snap.R(33))
+		SnapName: snapName, ComponentName: compName}, opts.revision)
 
 	installOpts := snapstate.Options{
 		Flags: snapstate.Flags{
@@ -330,7 +352,12 @@ func (s *snapmgrTestSuite) testInstallComponentPath(c *C, opts testInstallCompon
 		c.Assert(t.Lanes(), DeepEquals, []int{expectedLane})
 	}
 
-	verifyComponentInstallTasks(c, compOptIsLocal, ts)
+	compOpts := compOptIsLocal
+	if opts.revision.Unset() {
+		compOpts |= compOptUnassertedComponent
+	}
+
+	verifyComponentInstallTasks(c, compOpts, ts)
 	c.Assert(s.state.TaskCount(), Equals, len(ts.Tasks()))
 	// File is not deleted
 	c.Assert(osutil.FileExists(compPath), Equals, true)

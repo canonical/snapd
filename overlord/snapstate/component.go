@@ -347,6 +347,9 @@ func doInstallComponent(st *state.State, snapst *SnapState, compSetup ComponentS
 	if fromStore {
 		prepare = st.NewTask("download-component", fmt.Sprintf(i18n.G("Download component %q%s"), compSetup.ComponentName(), revisionStr))
 	} else {
+		// if we're not downloading the component, then we can clear out any
+		// download info that might exist from the calling code
+		compSetup.DownloadInfo = nil
 		prepare = st.NewTask("prepare-component", fmt.Sprintf(i18n.G("Prepare component %q%s"), compSetup.CompPath, revisionStr))
 	}
 
@@ -373,7 +376,11 @@ func doInstallComponent(st *state.State, snapst *SnapState, compSetup ComponentS
 
 	componentTS.beforeLinkTasks = append(componentTS.beforeLinkTasks, prepare)
 
-	if fromStore {
+	// if the caller indicates that this component has an asserted revision,
+	// then we will validate the component. however, if the component doesn't
+	// come from the store, then validate-component will just verify that the
+	// pairing of the snap and component is valid.
+	if compSetup.Revision().Store() {
 		validate := st.NewTask("validate-component", fmt.Sprintf(
 			i18n.G("Fetch and check assertions for component %q%s"), compSetup.ComponentName(), revisionStr),
 		)

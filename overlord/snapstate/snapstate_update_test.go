@@ -14599,7 +14599,21 @@ func (s *snapmgrTestSuite) testRevertWithComponents(c *C, undo bool) {
 	// note the absence of link-component tasks. that is because we do not need
 	// to link components when reverting, since they should already be linked,
 	// as they were part of a the previous revision
-	expected := fakeOps{
+	var expected fakeOps
+	for _, cs := range seq.Revisions[0].Components {
+		compName := cs.SideInfo.Component.ComponentName
+		compRev := cs.SideInfo.Revision
+		expected = append(expected, fakeOp{
+			op:                "validate-component:Doing",
+			name:              instanceName,
+			revno:             prevSnapRev,
+			componentName:     compName,
+			componentRev:      compRev,
+			componentSideInfo: *cs.SideInfo,
+		})
+	}
+
+	expected = append(expected, fakeOps{
 		{
 			op:   "remove-snap-aliases",
 			name: instanceName,
@@ -14647,7 +14661,7 @@ func (s *snapmgrTestSuite) testRevertWithComponents(c *C, undo bool) {
 			currentComps: currentKmodComps,
 			finalComps:   prevKmodComps,
 		},
-	}
+	}...)
 
 	if undo {
 		expected = append(expected, []fakeOp{
@@ -16519,14 +16533,24 @@ components:
 	}
 
 	for _, cs := range expectedComponentStates {
-		containerName := fmt.Sprintf("%s+%s", instanceName, cs.SideInfo.Component.ComponentName)
-		filename := fmt.Sprintf("%s_%v.comp", containerName, cs.SideInfo.Revision)
+		compName := cs.SideInfo.Component.ComponentName
+		compRev := cs.SideInfo.Revision
+		containerName := fmt.Sprintf("%s+%s", instanceName, compName)
+		filename := fmt.Sprintf("%s_%v.comp", containerName, compRev)
 
-		expected = append(expected, fakeOp{
+		expected = append(expected, []fakeOp{{
+			op:                "validate-component:Doing",
+			name:              instanceName,
+			revno:             newSnapRev,
+			componentName:     compName,
+			componentPath:     components[cs.SideInfo],
+			componentRev:      compRev,
+			componentSideInfo: *cs.SideInfo,
+		}, {
 			op:                "setup-component",
 			containerName:     containerName,
 			containerFileName: filename,
-		})
+		}}...)
 	}
 
 	expected = append(expected, fakeOps{

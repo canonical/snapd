@@ -7042,14 +7042,25 @@ components:
 		revno: snapRevision,
 	}}
 
-	for i, compName := range compNames {
+	for _, cs := range componentStates {
+		compName := cs.SideInfo.Component.ComponentName
+		compRev := cs.SideInfo.Revision
 		containerName := fmt.Sprintf("%s+%s", instanceName, compName)
-		filename := fmt.Sprintf("%s_%d.comp", containerName, i+1)
-		expected = append(expected, fakeOp{
+		filename := fmt.Sprintf("%s_%d.comp", containerName, compRev.N)
+
+		expected = append(expected, []fakeOp{{
+			op:                "validate-component:Doing",
+			name:              instanceName,
+			revno:             snapRevision,
+			componentName:     compName,
+			componentPath:     components[cs.SideInfo],
+			componentRev:      compRev,
+			componentSideInfo: *cs.SideInfo,
+		}, {
 			op:                "setup-component",
 			containerName:     containerName,
 			containerFileName: filename,
-		})
+		}}...)
 	}
 
 	expected = append(expected, []fakeOp{{
