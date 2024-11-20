@@ -135,6 +135,7 @@ create_vm() {
 
     local NESTED_PARAM_CD NESTED_CPUS NESTED_MEM NESTED_PARAM_EXTRA NESTED_KEEP_FIRMWARE_STATE
     while [ $# -gt 0 ]; do
+        # TODO all alternative OVMF vars parameter
         case "$1" in
             --param-cdrom)
                 NESTED_PARAM_CD="$2"
