@@ -210,7 +210,7 @@ execute: |
   fi
 
   # make sure that the system reports the expected available optional snaps
-  remote.exec "sudo snap debug api /v2/systems/$LABEL" > available.json
+  remote.exec "sudo snap debug api /v2/systems/$LABEL" > system-info.json
   cat <<EOF > expected-available.json
   {
     "snaps": ["snap-with-comps"],
@@ -220,7 +220,7 @@ execute: |
   }
   EOF
   # gojq sorts keys by default
-  diff -u <(gojq  . available.json) <(gojq . expected-available.json)
+  diff -u <(gojq  '.result.["available-optional"]' system-info.json) <(gojq . expected-available.json)
 
   muinstaller_args="-label $LABEL -device $install_disk"
   if [ -f optional-install.json ]; then
