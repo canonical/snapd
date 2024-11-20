@@ -95,8 +95,11 @@ execute: |
   echo "Check that the refresh failed"
   remote.exec sudo snap changes | grep "${REMOTE_CHG_ID}" | MATCH Error
   case "$PROBLEM_TYPE" in
-      empty|zeros)
-          remote.exec sudo snap tasks "${REMOTE_CHG_ID}" | MATCH "cannot set next boot: cannot reseal the encryption key:"
+      empty)
+          remote.exec sudo snap tasks "${REMOTE_CHG_ID}" | MATCH "cannot decode image: EOF"
+          ;;
+      zeros)
+          remote.exec sudo snap tasks "${REMOTE_CHG_ID}" | MATCH "cannot measure secure boot event:"
           ;;
       *)
           remote.exec sudo snap tasks "${REMOTE_CHG_ID}" | MATCH "cannot finish .* installation, there was a rollback across reboot"
