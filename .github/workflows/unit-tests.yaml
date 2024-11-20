@@ -92,7 +92,7 @@ jobs:
           ./run-checks --unit
 
     - name: Upload the coverage results
-      if: ${{ inputs.gochannel != 'latest/stable' && ! inputs.go-test-race }}
+      if: ${{ inputs.gochannel != 'latest/stable' && ! inputs.skip-coverage }}
       uses: actions/upload-artifact@v4
       with:
         include-hidden-files: true
