@@ -386,6 +386,66 @@ func (s *doSystemdMountSuite) TestDoSystemdMount(c *C) {
 			expErr:  `cannot mount "what" at "where": workdir overlayfs mount option contains forbidden characters. "` + regexp.QuoteMeta(`/work\\,:\" `) + `" contains one of "` + regexp.QuoteMeta(`\\,:\" `) + `".`,
 			comment: "disallow use of \\,:\" and space in the overlayfs workdir mount option",
 		},
+		{
+			what:  "/run/mnt/data/some.snap",
+			where: "/run/mnt/base",
+			opts: &main.SystemdMountOptions{
+				VerityHashDevice: "test.verity",
+				VerityRootHash:   "00000000000000000000000000000000",
+				VerityHashOffset: 4096,
+			},
+			timeNowTimes:     []time.Time{testStart, testStart},
+			isMountedReturns: []bool{true},
+			comment:          "happy with attached dm-verity data",
+		},
+		{
+			what:  "/run/mnt/data/some.snap",
+			where: "/run/mnt/base",
+			opts: &main.SystemdMountOptions{
+				VerityHashDevice: "test.verity",
+				VerityRootHash:   "00000000000000000000000000000000",
+			},
+			timeNowTimes:     []time.Time{testStart, testStart},
+			isMountedReturns: []bool{true},
+			comment:          "happy without specifying a verity offset",
+		},
+		{
+			what:  "what",
+			where: "where",
+			opts: &main.SystemdMountOptions{
+				VerityHashDevice: "test.verity",
+			},
+			expErr:  "cannot mount \"what\" at \"where\": mount with dm-verity was requested but a root hash was not specified",
+			comment: "verity hash device specified without specifying a verity root hash",
+		},
+		{
+			what:  "what",
+			where: "where",
+			opts: &main.SystemdMountOptions{
+				VerityRootHash: "00000000000000000000000000000000",
+			},
+			expErr:  "cannot mount \"what\" at \"where\": mount with dm-verity was requested but a hash device was not specified",
+			comment: "verity root hash specified without specifying a verity hash device",
+		},
+		{
+			what:  "what",
+			where: "where",
+			opts: &main.SystemdMountOptions{
+				VerityHashOffset: 4096,
+			},
+			expErr:  "cannot mount \"what\" at \"where\": mount with dm-verity was requested but a hash device and root hash were not specified",
+			comment: "verity hash offset specified without specifying a verity root hash and a verity hash device",
+		},
+		{
+			what:  "what",
+			where: "where",
+			opts: &main.SystemdMountOptions{
+				VerityHashDevice: "test.verity\\,:\" ",
+				VerityRootHash:   "00000000000000000000000000000000",
+			},
+			expErr:  `cannot mount "what" at "where": dm-verity hash device path contains forbidden characters. "` + regexp.QuoteMeta(`test.verity\\,:\" `) + `" contains one of "` + regexp.QuoteMeta(`\\,:\" `) + `".`,
+			comment: "disallow use of \\,:\": and space in the dm-verity hash device option",
+		},
 	}
 
 	for _, t := range tt {
@@ -478,6 +538,9 @@ func (s *doSystemdMountSuite) TestDoSystemdMount(c *C) {
 			foundOverlayLowerDir := false
 			foundOverlayUpperDir := false
 			foundOverlayWorkDir := false
+			foundVerityHashDevice := false
+			foundVerityRootHash := false
+			foundVerityHashOffset := false
 
 			for _, arg := range call[len(args):] {
 				switch {
@@ -514,13 +577,19 @@ func (s *doSystemdMountSuite) TestDoSystemdMount(c *C) {
 							foundOverlayUpperDir = true
 						case strings.HasPrefix(opt, "workdir="):
 							foundOverlayWorkDir = true
+						case strings.HasPrefix(opt, "verity.hashdevice="):
+							foundVerityHashDevice = true
+						case strings.HasPrefix(opt, "verity.roothash="):
+							foundVerityRootHash = true
+						case strings.HasPrefix(opt, "verity.hashoffset="):
+							foundVerityHashOffset = true
 						default:
-							c.Logf("Option '%s' unexpected", opt)
+							c.Logf("Option %q unexpected", opt)
 							c.Fail()
 						}
 					}
 				default:
-					c.Logf("Argument '%s' unexpected", arg)
+					c.Logf("Argument %q unexpected", arg)
 					c.Fail()
 				}
 			}
@@ -539,6 +608,9 @@ func (s *doSystemdMountSuite) TestDoSystemdMount(c *C) {
 			c.Assert(foundOverlayLowerDir, Equals, len(opts.LowerDirs) > 0)
 			c.Assert(foundOverlayUpperDir, Equals, len(opts.UpperDir) > 0)
 			c.Assert(foundOverlayWorkDir, Equals, len(opts.WorkDir) > 0)
+			c.Assert(foundVerityHashDevice, Equals, len(opts.VerityHashDevice) > 0)
+			c.Assert(foundVerityRootHash, Equals, len(opts.VerityRootHash) > 0)
+			c.Assert(foundVerityHashOffset, Equals, opts.VerityHashOffset > 0)
 
 			// check that the overrides are present if opts.Ephemeral is false,
 			// or check the overrides are not present if opts.Ephemeral is true
