@@ -31,7 +31,6 @@ import (
 	"github.com/snapcore/snapd/arch"
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/assertstest"
-	"github.com/snapcore/snapd/asserts/sysdb"
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/dirs"
@@ -49,13 +48,23 @@ import (
 	"github.com/snapcore/snapd/seed/seedtest"
 	"github.com/snapcore/snapd/seed/seedwriter"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/testutil"
 	"github.com/snapcore/snapd/timings"
 )
 
-type deviceMgrInstallAPISuite struct {
+type deviceMgrInstallSuite struct {
 	deviceMgrBaseSuite
 	*seedtest.TestingSeed20
+}
+
+func (s *deviceMgrInstallSuite) SetUpTest(c *C) {
+	s.TestingSeed20 = &seedtest.TestingSeed20{}
+	s.SeedDir = dirs.SnapSeedDir
+}
+
+type deviceMgrInstallAPISuite struct {
+	deviceMgrInstallSuite
 }
 
 var _ = Suite(&deviceMgrInstallAPISuite{})
@@ -63,6 +72,7 @@ var _ = Suite(&deviceMgrInstallAPISuite{})
 func (s *deviceMgrInstallAPISuite) SetUpTest(c *C) {
 	classic := true
 	s.deviceMgrBaseSuite.setupBaseTest(c, classic)
+	s.deviceMgrInstallSuite.SetUpTest(c)
 
 	// We uncompress a gadget with grub, and prefer not to mock in this case
 	bootloader.Force(nil)
@@ -71,9 +81,6 @@ func (s *deviceMgrInstallAPISuite) SetUpTest(c *C) {
 		return "fake system label", nil
 	})
 	s.AddCleanup(restore)
-
-	s.TestingSeed20 = &seedtest.TestingSeed20{}
-	s.SeedDir = dirs.SnapSeedDir
 
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -87,9 +94,8 @@ func unpackSnap(snapBlob, targetDir string) error {
 	return nil
 }
 
-func (s *deviceMgrInstallAPISuite) setupSystemSeed(c *C, sysLabel, gadgetYaml string, isClassic bool) *asserts.Model {
+func (s *deviceMgrInstallSuite) setupSystemSeed(c *C, sysLabel, gadgetYaml string, isClassic bool, kModsRevs map[string]snap.Revision) (*asserts.Model, map[string]interface{}) {
 	s.StoreSigning = assertstest.NewStoreStack("can0nical", nil)
-	s.AddCleanup(sysdb.InjectTrusted(s.StoreSigning.Trusted))
 
 	s.Brands = assertstest.NewSigningAccounts(s.StoreSigning)
 	s.Brands.Register("my-brand", brandPrivKey, nil)
@@ -109,35 +115,49 @@ func (s *deviceMgrInstallAPISuite) setupSystemSeed(c *C, sysLabel, gadgetYaml st
 	assertstest.AddMany(s.StoreSigning.Database, s.Brands.AccountsAndKeys("my-brand")...)
 
 	s.MakeAssertedSnap(c, seedtest.SampleSnapYaml["snapd"], nil, snap.R(1), "my-brand", s.StoreSigning.Database)
-	s.MakeAssertedSnap(c, seedtest.SampleSnapYaml["pc-kernel=22"],
-		[][]string{{"kernel.efi", ""}}, snap.R(1), "my-brand", s.StoreSigning.Database)
-	s.MakeAssertedSnap(c, seedtest.SampleSnapYaml["core22"], nil, snap.R(1), "my-brand", s.StoreSigning.Database)
-	s.MakeAssertedSnap(c, seedtest.SampleSnapYaml["pc=22"],
+	s.MakeAssertedSnap(c, seedtest.SampleSnapYaml["core24"], nil, snap.R(1), "my-brand", s.StoreSigning.Database)
+	s.MakeAssertedSnap(c, seedtest.SampleSnapYaml["pc=24"],
 		[][]string{
 			{"meta/gadget.yaml", gadgetYaml},
 			{"pc-boot.img", ""}, {"pc-core.img", ""}, {"grubx64.efi", ""},
 			{"shim.efi.signed", ""}, {"grub.conf", ""}},
 		snap.R(1), "my-brand", s.StoreSigning.Database)
+	if len(kModsRevs) > 0 {
+		s.MakeAssertedSnapWithComps(c,
+			seedtest.SampleSnapYaml["pc-kernel=24+kmods"],
+			[][]string{{"kernel.efi", ""}}, snap.R(1), kModsRevs, "my-brand", s.StoreSigning.Database)
+	} else {
+		s.MakeAssertedSnap(c, seedtest.SampleSnapYaml["pc-kernel=24"],
+			[][]string{{"kernel.efi", ""}}, snap.R(1), "my-brand", s.StoreSigning.Database)
+	}
 
-	s.MakeAssertedSnapWithComps(c, seedtest.SampleSnapYaml["optional22"], nil, snap.R(1), nil, "my-brand", s.StoreSigning.Database)
+	s.MakeAssertedSnapWithComps(c, seedtest.SampleSnapYaml["optional24"], nil, snap.R(1), nil, "my-brand", s.StoreSigning.Database)
 
+	var kmods map[string]interface{}
+	if len(kModsRevs) > 0 {
+		kmods = map[string]interface{}{
+			"kcomp1": "required",
+			"kcomp2": "required",
+		}
+	}
 	model := map[string]interface{}{
 		"display-name": "my model",
 		"architecture": "amd64",
-		"base":         "core22",
+		"base":         "core24",
 		"grade":        "dangerous",
 		"snaps": []interface{}{
 			map[string]interface{}{
 				"name":            "pc-kernel",
 				"id":              s.AssertedSnapID("pc-kernel"),
 				"type":            "kernel",
-				"default-channel": "20",
+				"default-channel": "24",
+				"components":      kmods,
 			},
 			map[string]interface{}{
 				"name":            "pc",
 				"id":              s.AssertedSnapID("pc"),
 				"type":            "gadget",
-				"default-channel": "20",
+				"default-channel": "24",
 			},
 			map[string]interface{}{
 				"name": "snapd",
@@ -145,13 +165,13 @@ func (s *deviceMgrInstallAPISuite) setupSystemSeed(c *C, sysLabel, gadgetYaml st
 				"type": "snapd",
 			},
 			map[string]interface{}{
-				"name": "core22",
-				"id":   s.AssertedSnapID("core22"),
+				"name": "core24",
+				"id":   s.AssertedSnapID("core24"),
 				"type": "base",
 			},
 			map[string]interface{}{
-				"name": "optional22",
-				"id":   s.AssertedSnapID("optional22"),
+				"name": "optional24",
+				"id":   s.AssertedSnapID("optional24"),
 				"components": map[string]interface{}{
 					"comp1": "optional",
 				},
@@ -165,10 +185,10 @@ func (s *deviceMgrInstallAPISuite) setupSystemSeed(c *C, sysLabel, gadgetYaml st
 
 	return s.MakeSeed(c, sysLabel, "my-brand", "my-model", model, []*seedwriter.OptionsSnap{
 		{
-			Name:       "optional22",
+			Name:       "optional24",
 			Components: []seedwriter.OptionsComponent{{Name: "comp1"}},
 		},
-	})
+	}), model
 }
 
 type finishStepOpts struct {
@@ -176,21 +196,31 @@ type finishStepOpts struct {
 	installClassic     bool
 	hasPartial         bool
 	hasSystemSeed      bool
+	hasKernelModsComps bool
 	optionalContainers *seed.OptionalContainers
 }
 
-func (s *deviceMgrInstallAPISuite) mockSystemSeedWithLabel(c *C, label string, isClassic, hasSystemSeed, hasPartial bool, seedCopyFn func(string, seed.CopyOptions, timings.Measurer) error) (gadgetSnapPath, kernelSnapPath string, ginfo *gadget.Info, mountCmd *testutil.MockCmd) {
+type mockSystemSeedWithLabelOpts struct {
+	isClassic       bool
+	hasSystemSeed   bool
+	hasPartial      bool
+	preseedArtifact bool
+	kModsRevs       map[string]snap.Revision
+	types           []snap.Type
+}
+
+func (s *deviceMgrInstallSuite) mockSystemSeedWithLabel(c *C, label string, seedCopyFn func(string, seed.CopyOptions, timings.Measurer) error, opts mockSystemSeedWithLabelOpts) (gadgetSnapPath, kernelSnapPath string, kCompsPaths []string, ginfo *gadget.Info, mountCmd *testutil.MockCmd, rawModel map[string]interface{}) {
 	// Mock partitioned disk
 	gadgetYaml := gadgettest.SingleVolumeUC20GadgetYaml
-	if isClassic {
-		if hasSystemSeed {
+	if opts.isClassic {
+		if opts.hasSystemSeed {
 			gadgetYaml = gadgettest.SingleVolumeClassicWithModesAndSystemSeedGadgetYaml
 		} else {
 			gadgetYaml = gadgettest.SingleVolumeClassicWithModesGadgetYaml
 		}
 	}
 	seedGadget := gadgetYaml
-	if hasPartial {
+	if opts.hasPartial {
 		// This is the gadget provided by the installer, that must have
 		// filled the partial information.
 		gadgetYaml = gadgettest.SingleVolumeClassicWithModesFilledPartialGadgetYaml
@@ -203,41 +233,72 @@ func (s *deviceMgrInstallAPISuite) mockSystemSeedWithLabel(c *C, label string, i
 	s.AddCleanup(restore)
 
 	// now create a label with snaps/assertions
-	model := s.setupSystemSeed(c, label, seedGadget, isClassic)
+	model, rawModel := s.setupSystemSeed(c, label, seedGadget, opts.isClassic, opts.kModsRevs)
 	c.Check(model, NotNil)
 
 	// Create fake seed that will return information from the label we created
 	// (TODO: needs to be in sync with setupSystemSeed, fix that)
 	kernelSnapPath = filepath.Join(s.SeedDir, "snaps", "pc-kernel_1.snap")
-	baseSnapPath := filepath.Join(s.SeedDir, "snaps", "core22_1.snap")
+	baseSnapPath := filepath.Join(s.SeedDir, "snaps", "core24_1.snap")
 	gadgetSnapPath = filepath.Join(s.SeedDir, "snaps", "pc_1.snap")
+
+	var kernComps []seed.Component
+	if len(opts.kModsRevs) > 0 {
+		kernComps = []seed.Component{
+			{
+				Path: filepath.Join(s.SeedDir, "snaps", "pc-kernel+kcomp1_"+opts.kModsRevs["kcomp1"].String()+".comp"),
+				CompSideInfo: snap.ComponentSideInfo{
+					Component: naming.NewComponentRef("pc-kernel", "kcomp1"),
+					Revision:  opts.kModsRevs["kcomp1"]},
+			},
+			{
+				Path: filepath.Join(s.SeedDir, "snaps", "pc-kernel+kcomp2_"+opts.kModsRevs["kcomp2"].String()+".comp"),
+				CompSideInfo: snap.ComponentSideInfo{
+					Component: naming.NewComponentRef("pc-kernel", "kcomp2"),
+					Revision:  opts.kModsRevs["kcomp2"]},
+			},
+		}
+		kCompsPaths = []string{kernComps[0].Path, kernComps[1].Path}
+	}
+	essentialSnaps := make([]*seed.Snap, 0, len(opts.types))
+	for _, typ := range opts.types {
+		switch typ {
+		case snap.TypeKernel:
+			essentialSnaps = append(essentialSnaps, &seed.Snap{
+				Path: kernelSnapPath,
+				SideInfo: &snap.SideInfo{RealName: "pc-kernel",
+					Revision: snap.R(1), SnapID: s.SeedSnaps.AssertedSnapID("pc-kernel")},
+				EssentialType: snap.TypeKernel,
+				Components:    kernComps,
+			})
+		case snap.TypeBase:
+			essentialSnaps = append(essentialSnaps, &seed.Snap{
+				Path: baseSnapPath,
+				SideInfo: &snap.SideInfo{RealName: "core24",
+					Revision: snap.R(1), SnapID: s.SeedSnaps.AssertedSnapID("core24")},
+				EssentialType: snap.TypeBase,
+			})
+		case snap.TypeGadget:
+			essentialSnaps = append(essentialSnaps, &seed.Snap{
+				Path: gadgetSnapPath,
+				SideInfo: &snap.SideInfo{RealName: "pc",
+					Revision: snap.R(1), SnapID: s.SeedSnaps.AssertedSnapID("pc")},
+				EssentialType: snap.TypeGadget,
+			})
+		}
+	}
 
 	restore = devicestate.MockSeedOpen(func(seedDir, label string) (seed.Seed, error) {
 		return &fakeSeedCopier{
 			copyFn: seedCopyFn,
 			optionalContainers: seed.OptionalContainers{
-				Snaps:      []string{"optional22"},
-				Components: map[string][]string{"optional22": {"comp1"}},
+				Snaps:      []string{"optional24"},
+				Components: map[string][]string{"optional24": {"comp1"}},
 			},
 			fakeSeed: fakeSeed{
-				essentialSnaps: []*seed.Snap{
-					{
-						Path:          kernelSnapPath,
-						SideInfo:      &snap.SideInfo{RealName: "pc-kernel", Revision: snap.R(1), SnapID: s.SeedSnaps.AssertedSnapID("pc-kernel")},
-						EssentialType: snap.TypeKernel,
-					},
-					{
-						Path:          baseSnapPath,
-						SideInfo:      &snap.SideInfo{RealName: "core22", Revision: snap.R(1), SnapID: s.SeedSnaps.AssertedSnapID("core22")},
-						EssentialType: snap.TypeBase,
-					},
-					{
-						Path:          gadgetSnapPath,
-						SideInfo:      &snap.SideInfo{RealName: "pc", Revision: snap.R(1), SnapID: s.SeedSnaps.AssertedSnapID("pc")},
-						EssentialType: snap.TypeGadget,
-					},
-				},
-				model: model,
+				essentialSnaps:  essentialSnaps,
+				model:           model,
+				preseedArtifact: opts.preseedArtifact,
 			},
 		}, nil
 	})
@@ -247,7 +308,7 @@ func (s *deviceMgrInstallAPISuite) mockSystemSeedWithLabel(c *C, label string, i
 	mountCmd = testutil.MockCommand(c, "systemd-mount", "")
 	s.AddCleanup(func() { mountCmd.Restore() })
 
-	return gadgetSnapPath, kernelSnapPath, ginfo, mountCmd
+	return gadgetSnapPath, kernelSnapPath, kCompsPaths, ginfo, mountCmd, rawModel
 }
 
 func mockDiskVolume(opts finishStepOpts) *gadget.OnDiskVolume {
@@ -526,7 +587,19 @@ func (s *deviceMgrInstallAPISuite) testInstallFinishStep(c *C, opts finishStepOp
 		}
 	}
 
-	gadgetSnapPath, kernelSnapPath, ginfo, mountCmd := s.mockSystemSeedWithLabel(c, label, opts.installClassic, opts.hasSystemSeed, opts.hasPartial, seedCopyFn)
+	var kModsRevs map[string]snap.Revision
+	if opts.hasKernelModsComps {
+		kModsRevs = map[string]snap.Revision{"kcomp1": snap.R(77), "kcomp2": snap.R(77)}
+	}
+	seedOpts := mockSystemSeedWithLabelOpts{
+		isClassic:     opts.installClassic,
+		hasSystemSeed: opts.hasSystemSeed,
+		hasPartial:    opts.hasPartial,
+		kModsRevs:     kModsRevs,
+		types:         []snap.Type{snap.TypeKernel, snap.TypeBase, snap.TypeGadget},
+	}
+	gadgetSnapPath, kernelSnapPath, kCompsPaths, ginfo, mountCmd, _ := s.mockSystemSeedWithLabel(
+		c, label, seedCopyFn, seedOpts)
 
 	// Unpack gadget snap from seed where it would have been mounted
 	gadgetDir := filepath.Join(dirs.SnapRunDir, "snap-content/gadget")
@@ -534,6 +607,10 @@ func (s *deviceMgrInstallAPISuite) testInstallFinishStep(c *C, opts finishStepOp
 	c.Assert(err, IsNil)
 	err = unpackSnap(filepath.Join(s.SeedDir, "snaps/pc_1.snap"), gadgetDir)
 	c.Assert(err, IsNil)
+
+	kernelMountDir := filepath.Join(dirs.SnapRunDir, "snap-content/kernel")
+	kcomp1MountDir := filepath.Join(dirs.SnapRunDir, "snap-content/pc-kernel+kcomp1")
+	kcomp2MountDir := filepath.Join(dirs.SnapRunDir, "snap-content/pc-kernel+kcomp2")
 
 	// Mock writing of contents
 	writeContentCalls := 0
@@ -561,6 +638,29 @@ func (s *deviceMgrInstallAPISuite) testInstallFinishStep(c *C, opts finishStepOp
 		} else {
 			c.Check(encSetupData, IsNil)
 		}
+		modulesComps := []install.KernelModulesComponentInfo{}
+		if opts.hasKernelModsComps {
+			modulesComps = []install.KernelModulesComponentInfo{
+				{
+					Name:       "kcomp1",
+					Revision:   snap.R(77),
+					MountPoint: kcomp1MountDir,
+				},
+				{
+					Name:       "kcomp2",
+					Revision:   snap.R(77),
+					MountPoint: kcomp2MountDir,
+				},
+			}
+		}
+		c.Check(kSnapInfo, DeepEquals, &install.KernelSnapInfo{
+			Name:             "pc-kernel",
+			Revision:         snap.R(1),
+			MountPoint:       kernelMountDir,
+			IsCore:           false,
+			ModulesComps:     modulesComps,
+			NeedsDriversTree: true,
+		})
 		return nil, nil
 	})
 	s.AddCleanup(restore)
@@ -606,7 +706,6 @@ func (s *deviceMgrInstallAPISuite) testInstallFinishStep(c *C, opts finishStepOp
 			gadgetToDiskMap, err := gadget.EnsureVolumeCompatibility(
 				vol, diskVolume, volCompatOpts)
 			if err != nil {
-				fmt.Println("HERE", err)
 				return nil, err
 			}
 			volToGadgetToDiskStruct[name] = gadgetToDiskMap
@@ -704,16 +803,30 @@ func (s *deviceMgrInstallAPISuite) testInstallFinishStep(c *C, opts finishStepOp
 	c.Assert(chg.Err(), IsNil)
 
 	// Checks now
-	kernelDir := filepath.Join(dirs.SnapRunDir, "snap-content/kernel")
-	c.Check(mountCmd.Calls(), DeepEquals, [][]string{
-		{"systemd-mount", gadgetSnapPath, gadgetDir},
-		{"systemd-mount", kernelSnapPath, kernelDir},
-		{"systemd-mount", "--umount", gadgetDir},
-		{"systemd-mount", "--umount", kernelDir},
-	})
+	mountCalls := [][]string{
+		{"systemd-mount", kernelSnapPath, kernelMountDir},
+		{"systemd-mount", gadgetSnapPath, gadgetDir}}
+	if opts.hasKernelModsComps {
+		mountCalls = append(mountCalls,
+			[]string{"systemd-mount", kCompsPaths[0], kcomp1MountDir},
+			[]string{"systemd-mount", kCompsPaths[1], kcomp2MountDir})
+	}
+	mountCalls = append(mountCalls,
+		[]string{"systemd-mount", "--umount", kernelMountDir},
+		[]string{"systemd-mount", "--umount", gadgetDir})
+	if opts.hasKernelModsComps {
+		mountCalls = append(mountCalls,
+			[]string{"systemd-mount", "--umount", kcomp1MountDir},
+			[]string{"systemd-mount", "--umount", kcomp2MountDir})
+	}
+	c.Check(mountCmd.Calls(), DeepEquals, mountCalls)
 	c.Check(writeContentCalls, Equals, 1)
 	c.Check(mountVolsCalls, Equals, 1)
 	c.Check(saveStorageTraitsCalls, Equals, 1)
+
+	if !opts.installClassic {
+		c.Check(seedCopyCalled, Equals, true)
+	}
 
 	snapdVarDir := "mnt/ubuntu-data/system-data/var/lib/snapd"
 	if opts.installClassic {
@@ -728,18 +841,21 @@ func (s *deviceMgrInstallAPISuite) testInstallFinishStep(c *C, opts finishStepOp
 		filepath.Join(dirs.RunDir, "mnt/ubuntu-boot/EFI/ubuntu/kernel.efi"),
 		filepath.Join(dirs.RunDir, "mnt/ubuntu-boot/device/model"),
 		filepath.Join(dirs.RunDir, snapdVarDir, "modeenv"),
-		filepath.Join(dirs.RunDir, snapdVarDir, "snaps/core22_1.snap"),
+		filepath.Join(dirs.RunDir, snapdVarDir, "snaps/core24_1.snap"),
 		filepath.Join(dirs.RunDir, snapdVarDir, "snaps/pc_1.snap"),
 		filepath.Join(dirs.RunDir, snapdVarDir, "snaps/pc-kernel_1.snap"),
-	}
-	if !opts.installClassic {
-		c.Check(seedCopyCalled, Equals, true)
 	}
 	if opts.encrypted {
 		expectedFiles = append(expectedFiles, dirs.RunDir,
 			filepath.Join(dirs.RunDir, snapdVarDir, "device/fde/marker"),
 			filepath.Join(dirs.RunDir, snapdVarDir, "device/fde/ubuntu-save.key"),
 			filepath.Join(dirs.RunDir, "mnt/ubuntu-save/device/fde/marker"))
+	}
+	if opts.hasKernelModsComps {
+		expectedFiles = append(expectedFiles,
+			filepath.Join(dirs.RunDir, snapdVarDir, "snaps/pc-kernel+kcomp1_77.comp"),
+			filepath.Join(dirs.RunDir, snapdVarDir, "snaps/pc-kernel+kcomp2_77.comp"),
+		)
 	}
 	for _, f := range expectedFiles {
 		c.Check(f, testutil.FilePresent)
@@ -752,6 +868,11 @@ func (s *deviceMgrInstallAPISuite) TestInstallClassicFinishNoEncryptionHappy(c *
 
 func (s *deviceMgrInstallAPISuite) TestInstallClassicFinishEncryptionHappy(c *C) {
 	s.testInstallFinishStep(c, finishStepOpts{encrypted: true, installClassic: true})
+}
+
+func (s *deviceMgrInstallAPISuite) TestInstallClassicFinishNoEncryptionWithKModsHappy(c *C) {
+	s.testInstallFinishStep(c, finishStepOpts{
+		encrypted: false, installClassic: true, hasKernelModsComps: true})
 }
 
 func (s *deviceMgrInstallAPISuite) TestInstallClassicFinishEncryptionAndSystemSeedHappy(c *C) {
@@ -779,8 +900,8 @@ func (s *deviceMgrInstallAPISuite) TestInstallCoreFinishWithOptionalContainers(c
 		encrypted:      true,
 		installClassic: false,
 		optionalContainers: &seed.OptionalContainers{
-			Snaps:      []string{"optional22"},
-			Components: map[string][]string{"optional22": {"comp1"}},
+			Snaps:      []string{"optional24"},
+			Components: map[string][]string{"optional24": {"comp1"}},
 		},
 	})
 }
@@ -826,7 +947,14 @@ func (s *deviceMgrInstallAPISuite) testInstallSetupStorageEncryption(c *C, hasTP
 	seedCopyFn := func(seedDir string, opts seed.CopyOptions, tm timings.Measurer) error {
 		return fmt.Errorf("unexpected copy call")
 	}
-	gadgetSnapPath, kernelSnapPath, ginfo, mountCmd := s.mockSystemSeedWithLabel(c, label, isClassic, false, false, seedCopyFn)
+	seedOpts := mockSystemSeedWithLabelOpts{
+		isClassic:     isClassic,
+		hasSystemSeed: false,
+		hasPartial:    false,
+		types:         []snap.Type{snap.TypeKernel, snap.TypeBase, snap.TypeGadget},
+	}
+	gadgetSnapPath, kernelSnapPath, _, ginfo, mountCmd, _ := s.mockSystemSeedWithLabel(
+		c, label, seedCopyFn, seedOpts)
 
 	// Simulate system with TPM
 	if hasTPM {
@@ -895,10 +1023,10 @@ func (s *deviceMgrInstallAPISuite) testInstallSetupStorageEncryption(c *C, hasTP
 	gadgetDir := filepath.Join(dirs.SnapRunDir, "snap-content/gadget")
 	kernelDir := filepath.Join(dirs.SnapRunDir, "snap-content/kernel")
 	c.Check(mountCmd.Calls(), DeepEquals, [][]string{
-		{"systemd-mount", gadgetSnapPath, gadgetDir},
 		{"systemd-mount", kernelSnapPath, kernelDir},
-		{"systemd-mount", "--umount", gadgetDir},
+		{"systemd-mount", gadgetSnapPath, gadgetDir},
 		{"systemd-mount", "--umount", kernelDir},
+		{"systemd-mount", "--umount", gadgetDir},
 	})
 	c.Check(encrytpPartCalls, Equals, 1)
 	// Check that some data has been stored in the change

@@ -2221,7 +2221,13 @@ type systemAndEssentialSnaps struct {
 	*System
 	Seed            seed.Seed
 	InfosByType     map[snap.Type]*snap.Info
+	CompsByType     map[snap.Type][]compSeedInfo
 	SeedSnapsByType map[snap.Type]*seed.Snap
+}
+
+type compSeedInfo struct {
+	CompInfo *snap.ComponentInfo
+	CompSeed *seed.Component
 }
 
 // DefaultRecoverySystem returns the default recovery system, if there is one.
@@ -2273,6 +2279,7 @@ func (m *DeviceManager) loadSystemAndEssentialSnaps(wantedSystemLabel string, ty
 	// like "snapd" will be skipped and not part of the EssentialSnaps list
 	//
 	snapInfos := make(map[snap.Type]*snap.Info)
+	compInfos := make(map[snap.Type][]compSeedInfo)
 	seedSnaps := make(map[snap.Type]*seed.Snap)
 	for _, seedSnap := range s.EssentialSnaps() {
 		typ := seedSnap.EssentialType
@@ -2290,8 +2297,27 @@ func (m *DeviceManager) loadSystemAndEssentialSnaps(wantedSystemLabel string, ty
 		if snapInfo.SnapType != typ {
 			return nil, fmt.Errorf("cannot use snap info, expected %s but got %s", typ, snapInfo.SnapType)
 		}
+		// Read components in the seed too
+		compInfosForType := make([]compSeedInfo, 0, len(seedSnap.Components))
+		for _, sc := range seedSnap.Components {
+			seedComp := sc
+			compf, err := snapfile.Open(seedComp.Path)
+			if err != nil {
+				return nil, fmt.Errorf("cannot open snap from %q: %v", seedSnap.Path, err)
+			}
+			compInfo, err := snap.ReadComponentInfoFromContainer(
+				compf, snapInfo, &seedComp.CompSideInfo)
+			if err != nil {
+				return nil, err
+			}
+			compInfosForType = append(compInfosForType, compSeedInfo{
+				CompInfo: compInfo,
+				CompSeed: &seedComp,
+			})
+		}
 		seedSnaps[typ] = seedSnap
 		snapInfos[typ] = snapInfo
+		compInfos[typ] = compInfosForType
 	}
 	if len(snapInfos) != len(types) {
 		return nil, fmt.Errorf("internal error: retrieved snap infos (%d) does not match number of types (%d)", len(snapInfos), len(types))
@@ -2301,6 +2327,7 @@ func (m *DeviceManager) loadSystemAndEssentialSnaps(wantedSystemLabel string, ty
 		System:          sys,
 		Seed:            s,
 		InfosByType:     snapInfos,
+		CompsByType:     compInfos,
 		SeedSnapsByType: seedSnaps,
 	}, nil
 }

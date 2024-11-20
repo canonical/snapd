@@ -183,11 +183,28 @@ confinement: devmode
 type: base
 version: 1.0
 `,
+	"core24": `name: core24
+type: base
+version: 1.0
+`,
 	"pc-kernel=22": `name: pc-kernel
 type: kernel
 version: 1.0
 `,
+	"pc-kernel=24": `name: pc-kernel
+type: kernel
+version: 1.0
+`,
 	"pc-kernel=22+kmods": `name: pc-kernel
+type: kernel
+version: 1.0
+components:
+  kcomp1:
+    type: kernel-modules
+  kcomp2:
+    type: kernel-modules
+`,
+	"pc-kernel=24+kmods": `name: pc-kernel
 type: kernel
 version: 1.0
 components:
@@ -209,6 +226,11 @@ type: gadget
 base: core22
 version: 1.0
 `,
+	"pc=24": `name: pc
+type: gadget
+base: core24
+version: 1.0
+`,
 	"optional22": `name: optional22
 type: app
 base: core22
@@ -218,6 +240,18 @@ components:
     type: standard
 `,
 	"optional22+comp1": `component: optional22+comp1
+type: standard
+version: 1.0
+`,
+	"optional24": `name: optional24
+type: app
+base: core24
+version: 1.0
+components:
+  comp1:
+    type: standard
+`,
+	"optional24+comp1": `component: optional24+comp1
 type: standard
 version: 1.0
 `,
