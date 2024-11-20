@@ -187,6 +187,23 @@ version: 1.0
 type: kernel
 version: 1.0
 `,
+	"pc-kernel=22+kmods": `name: pc-kernel
+type: kernel
+version: 1.0
+components:
+  kcomp1:
+    type: kernel-modules
+  kcomp2:
+    type: kernel-modules
+`,
+	"pc-kernel+kcomp1": `component: pc-kernel+kcomp1
+type: kernel-modules
+version: 1.0
+`,
+	"pc-kernel+kcomp2": `component: pc-kernel+kcomp2
+type: kernel-modules
+version: 1.0
+`,
 	"pc=22": `name: pc
 type: gadget
 base: core22
