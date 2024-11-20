@@ -70,7 +70,7 @@ jobs:
           mkdir -p "$TEST_RESULTS_DIR"
 
     - name: Prepare nested env vars
-      if: contains(github.event.pull_request.labels.*.name, 'Run nested') && startsWith(matrix.group, 'nested-')
+      if: contains(github.event.pull_request.labels.*.name, 'Run nested') && startsWith(inputs.group, 'nested-')
       run: |
           echo "RUN_NESTED=true" >> "$GITHUB_ENV"
 
