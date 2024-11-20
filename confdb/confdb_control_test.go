@@ -72,23 +72,23 @@ func (s *confdbCtrlSuite) TestAddGroupFail(c *C) {
 		err   string
 	}
 	tcs := []testcase{
-		{err: `"authentication" must be a non-empty list`},
-		{auth: []string{"magic"}, err: "invalid authentication method: magic"},
-		{auth: []string{"store"}, err: `"views" must be a non-empty list`},
+		{err: `cannot add group: "auth" must be a non-empty list`},
+		{auth: []string{"magic"}, err: "cannot add group: invalid authentication method: magic"},
+		{auth: []string{"store"}, err: `cannot add group: "views" must be a non-empty list`},
 		{
 			views: []string{"a/b/c/d"},
 			auth:  []string{"store"},
-			err:   `"a/b/c/d" must be in the format account/confdb/view`,
+			err:   `view "a/b/c/d" must be in the format account/confdb/view`,
 		},
 		{
 			views: []string{"a/b"},
 			auth:  []string{"store"},
-			err:   `"a/b" must be in the format account/confdb/view`,
+			err:   `view "a/b" must be in the format account/confdb/view`,
 		},
 		{
 			views: []string{"ab/"},
 			auth:  []string{"store"},
-			err:   `"ab/" must be in the format account/confdb/view`,
+			err:   `view "ab/" must be in the format account/confdb/view`,
 		},
 		{
 			views: []string{"@foo/network/control-device"},

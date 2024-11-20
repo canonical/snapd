@@ -20,6 +20,7 @@
 package confdb
 
 import (
+	"errors"
 	"fmt"
 	"regexp"
 	"sort"
@@ -79,24 +80,24 @@ type Group struct {
 }
 
 // AddGroup adds the group to an operator under the given authentication.
-func (op *Operator) AddGroup(views []string, auth []string) error {
+func (op *Operator) AddGroup(views, auth []string) error {
 	if len(auth) == 0 {
-		return fmt.Errorf(`"authentication" must be a non-empty list`)
+		return errors.New(`cannot add group: "auth" must be a non-empty list`)
 	}
 
 	authentication, err := convertToAuthenticationMethod(auth)
 	if err != nil {
-		return err
+		return fmt.Errorf("cannot add group: %w", err)
 	}
 
 	if len(views) == 0 {
-		return fmt.Errorf(`"views" must be a non-empty list`)
+		return errors.New(`cannot add group: "views" must be a non-empty list`)
 	}
 
 	for _, view := range views {
 		viewPath := strings.Split(view, "/")
 		if len(viewPath) != 3 {
-			return fmt.Errorf(`"%s" must be in the format account/confdb/view`, view)
+			return fmt.Errorf(`view "%s" must be in the format account/confdb/view`, view)
 		}
 
 		if !validAccountID.MatchString(viewPath[0]) {
