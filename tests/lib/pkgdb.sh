@@ -692,6 +692,7 @@ pkg_dependencies_fedora_centos_common(){
         git
         golang
         jq
+        iptables
         iptables-services
         man
         net-tools
