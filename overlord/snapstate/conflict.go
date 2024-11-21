@@ -66,12 +66,16 @@ var (
 	affectedSnapsByKind = make(map[string]AffectedSnapsFunc)
 )
 
-// RegisterAffectedSnapsByAttr registers an AffectedSnapsFunc for returning the affected snaps for tasks sporting the given identifying attribute, to use in conflicts detection.
+// RegisterAffectedSnapsByAttr registers an AffectedSnapsFunc for returning the
+// affected snaps for tasks sporting the given identifying attribute, to use in
+// conflicts detection.
 func RegisterAffectedSnapsByAttr(attr string, f AffectedSnapsFunc) {
 	affectedSnapsByAttr[attr] = f
 }
 
-// RegisterAffectedSnapsByKind registers an AffectedSnapsFunc for returning the affected snaps for tasks of the given kind, to use in conflicts detection. Whenever possible using RegisterAffectedSnapsByAttr should be preferred.
+// RegisterAffectedSnapsByKind registers an AffectedSnapsFunc for returning the
+// affected snaps for tasks of the given kind, to use in conflicts detection.
+// Whenever possible using RegisterAffectedSnapsByAttr should be preferred.
 func RegisterAffectedSnapsByKind(kind string, f AffectedSnapsFunc) {
 	affectedSnapsByKind[kind] = f
 }
