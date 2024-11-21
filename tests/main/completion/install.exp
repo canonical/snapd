@@ -1,7 +1,7 @@
 source lib.exp0
 
-# install completes directories and snaps
-chat "snap ins\t./\t\t" "bar.snap*testdir/"
+# install completes directories, snaps, and components
+chat "snap ins\t./\t\t" "bar.snap*baz.comp*testdir/"
 cancel
 
 # install also completes store stuff

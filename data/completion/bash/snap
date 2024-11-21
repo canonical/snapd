@@ -58,7 +58,7 @@ _complete_snap() {
 
     case $command in
         install|info|sign-build)
-            _filedir "snap"
+            _filedir '@(snap|comp)'
             ;;
         ack)
             _filedir
