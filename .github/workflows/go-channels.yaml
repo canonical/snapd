@@ -1,0 +1,167 @@
+# This workflow resolves the required Go snap channels by considering the
+# following inputs:
+# - (optional) include the Go channel used for building the Snapd snap
+# - (optional) include the Go channel used for building the Snapd snap for FIPS
+# - (optional) the latest stable channel (if version differs from former two)
+# - (optional) list of specific Go channels
+#
+# The output is a single line JSON array that can be used with fromJson(...)
+# to populate YAML arrays.
+
+name: Resolve Go snap channels
+
+on:
+  workflow_call:
+    inputs:
+      include-snapd-build-go-channel:
+        description: 'Flag instructing to include the channel of Go snap used to build Snapd snap'
+        required: false
+        type: boolean
+      include-snapd-build-fips-go-channel:
+        description: 'Flag instructing to include the channel of Go snap used to build Snapd snap for FIPS'
+        required: false
+        type: string
+      include-latest-go-channel: 
+        description: 'Flag instructing to include the latest channel of Go snap'
+        required: false
+        type: boolean
+      specific-go-channels:
+        description: 'Space separated list of required Go snap channels'
+        required: false
+        type: string       
+    outputs:
+      go-channels:
+        description: 'JSON list of Go snap channels'
+        value: ${{ jobs.resolve-go-channels.outputs.go-channels }}
+
+jobs:
+  resolve-go-channels:
+    runs-on: ubuntu-latest
+    outputs:
+      go-channels: ${{ steps.resolve.outputs.go-channels }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+   
+      - name: Resolve Go snap channels
+        id: resolve
+        run: |
+          # Get the Go version for a channel in the Go snap specific format <version>[/<risk>]
+          # For <version> without optional risk, it assumes stable
+          go_version_from_channel() {
+            channel=$1
+            version=""
+            # Retrieve Go version for valid channel format
+            if [[ "$channel" =~ ^([0-9]+\.[0-9]+|[0-9]+\.[0-9]+-fips|latest)/(stable|candidate|beta|edge)$ ]]; then
+              version=$(snap info go | grep "$channel:" | awk '/\/.*:/ {print $2}' | awk "NR==1")
+            elif [[ "$channel" =~ ^([0-9]+\.[0-9]+|[0-9]+\.[0-9]+-fips|latest)$ ]]; then
+              version=$(snap info go | grep "$channel/stable:" | awk '/\/.*:/ {print $2}' | awk "NR==1")
+            else
+              # Invalid channel format
+              echo "Cannot use Go channel \"$channel\""
+              return 1
+            fi
+
+            # Validate Go version
+            if ! [[ "$version" =~ ^[0-9]+\.[0-9]+ ]]; then
+              echo "Invalid Go version \"$version\""
+              return 1 
+            fi
+            
+            # Return version
+            echo "$version"
+          }
+
+          go_version_snapd_build=""
+          go_version_snapd_build_fips=""
+          go_channels=()
+
+          echo "Considering Go channel used to build Snapd snap"
+          if [ "${{ inputs.include-snapd-build-go-channel }}" = "true" ]; then
+            channel=""
+            yaml="build-aux/snap/snapcraft.yaml"
+            if ! channel=$(yq '.parts.snapd.build-snaps[]' $yaml | grep "go/.*/.*"); then
+              echo "Error: Cannot find valid Snapd build Go channel"
+              exit 1
+            fi
+            channel=$(yq '.parts.snapd.build-snaps[] | select(. == "go/*/*") | sub("^go/", "")' $yaml) 
+
+            if output=$(go_version_from_channel "$channel"); then
+              echo "Adding Go channel $channel"
+              go_version_snapd_build=$output
+              go_channels+=("$channel")
+            else
+              echo "Error: $output"
+              exit 1
+            fi
+          else
+            echo "Not requested"
+          fi
+
+
+          # Optionally consider FIPS channel
+          echo "Considering Go channel used to build Snapd snap for FIPS"
+          if [ "${{ inputs.include-snapd-build-fips-go-channel }}" = "true" ]; then
+            channel=""
+            yaml="build-aux/snap/snapcraft.yaml"
+            if ! channel=$(yq '.parts.snapd.override-build' $yaml | grep "GO_TOOLCHAIN_FIPS_CHANNEL=\".*\""); then
+              echo "Error: Cannot find valid Snapd FIPS build Go channel"
+              exit 1
+            fi
+            channel=$(echo $channel | sed -n 's/^GO_TOOLCHAIN_FIPS_CHANNEL="\([^"]*\)"/\1/p')
+
+            if output=$(go_version_from_channel "$channel"); then
+               if [[ "$output" != "$go_version_snapd_build" ]]; then
+                 echo "Adding Go channel $channel"
+                 go_version_snapd_build_fips=$output
+                 go_channels+=("$channel")
+               else
+                 echo "Version duplicate detected, not adding FIPS Go channel $channel"
+               fi
+            else
+              echo "Error: $output"
+              exit 1
+            fi
+          else
+            echo "Not requested"
+          fi
+
+          echo "Considering latest stable Go channel"
+          if [ "${{ inputs.include-latest-go-channel }}" = "true" ]; then
+            channel="latest/stable"
+            if output=$(go_version_from_channel "$channel"); then
+               if [[ "$output" != "$go_version_snapd_build" && "$output" != "$go_version_snapd_build_fips" ]]; then
+                 echo "Adding Go channel $channel"
+                 go_channels+=("$channel")
+               else
+                 echo "Version duplicate detected, not adding latest stable Go channel $channel"
+               fi 
+            else
+              echo "Error: $output"
+              exit 1
+            fi
+          else
+            echo "Not requested"
+          fi
+
+          echo "Considering specific Go channels"
+          if [ -n "${{ inputs.specific-go-channels }}" ]; then
+            for channel in ${{ inputs.specific-go-channels }}; do
+              echo "Adding Go channel $channel"
+              go_channels+=("$channel")
+            done
+          else
+            echo "Not requested"
+          fi
+
+          # Convert to single line JSON array and remove duplicates
+          unique_go_channels="[]"
+          if [[ ${#go_channels[@]} -gt 0 ]]; then
+            unique_go_channels=$(printf '%s\n' "${go_channels[@]}" | sort -u | jq -R . | jq -s -c .)
+          fi
+          echo "Unique Go channels: $unique_go_channels"
+
+          # Output the single line JSON array
+          echo "go-channels=$unique_go_channels" >> "$GITHUB_OUTPUT"

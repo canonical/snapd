@@ -10,6 +10,14 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  go-channels:
+    uses: ./.github/workflows/go-channels.yaml
+    with:
+      include-snapd-build-go-channel: true
+      include-snapd-build-fips-go-channel: true
+      include-latest-go-channel: true
+      specific-go-channels: 1.18
+
   snap-builds:
     uses: ./.github/workflows/snap-builds.yaml
     with:
@@ -68,7 +76,9 @@ jobs:
 
   static-checks:
     uses: ./.github/workflows/static-checks.yaml
-    needs: [cache-build-deps]
+    needs:
+      - go-channels
+      - cache-build-deps
     with:
       runs-on: ubuntu-latest
       gochannel: ${{ matrix.gochannel }}
@@ -77,9 +87,7 @@ jobs:
       # we cache successful runs so it's fine to keep going
       fail-fast: false      
       matrix:
-        gochannel:
-          - 1.18
-          - latest/stable
+        gochannel: ${{ fromJson(needs.go-channels.outputs.go-channels) }}
 
   branch-static-checks:
     runs-on: ubuntu-latest
@@ -102,9 +110,42 @@ jobs:
         test "$system_daily" == "$current_daily"
       shell: bash
 
+  required-static-checks:
+    runs-on: ubuntu-latest
+    needs:
+      - static-checks
+      - branch-static-checks
+    if: always()
+    steps:
+      - name: Confirm required static checks passed
+        env:
+          NEEDS_JSON: ${{ toJSON(needs) }}
+        run: |
+          # Parse job names and results using jq
+          echo "$NEEDS_JSON" | jq -r 'to_entries[] | "\(.key) \(.value.result)"' > needs_results.txt
+
+          # Check each job result
+          failed="false"
+          while read -r job result; do
+            echo "Job \"$job\" returned result \"$result\""
+            if [[ "$result" != "success" ]]; then
+              failed="true"
+            fi
+          done < needs_results.txt
+          rm needs_results.txt
+
+          if [[ "$failed" == "false" ]]; then
+            echo "All required static checks passed!"
+          else
+            echo "All required static checks did not pass"
+            exit 1
+          fi
+
   unit-tests:
     uses: ./.github/workflows/unit-tests.yaml
-    needs: [static-checks]
+    needs:
+      - go-channels
+      - static-checks 
     name: "unit-tests default ${{ matrix.gochannel }}"
     with:
       runs-on: ubuntu-22.04
@@ -114,14 +155,14 @@ jobs:
       # we cache successful runs so it's fine to keep going
       fail-fast: false      
       matrix:
-        gochannel:
-          - 1.18
-          - latest/stable
+        gochannel: ${{ fromJson(needs.go-channels.outputs.go-channels) }}
 
   # TODO run unit tests of C code
   unit-tests-special:
     uses: ./.github/workflows/unit-tests.yaml
-    needs: [static-checks]
+    needs:
+      - go-channels
+      - static-checks
     name: "unit-tests (${{ matrix.gochannel }} ${{ matrix.test-case.go-build-tags }}
           ${{ matrix.test-case.go-test-race && ' test-race' || ''}}
           ${{ matrix.test-case.snapd-debug && ' snapd-debug' || ''}})"
@@ -136,9 +177,7 @@ jobs:
       # we cache successful runs so it's fine to keep going
       fail-fast: false
       matrix:
-        gochannel:
-          - 1.18
-          - latest/stable
+        gochannel: ${{ fromJson(needs.go-channels.outputs.go-channels) }}
         test-case:
           - { go-build-tags: snapd_debug,           skip-coverage: false, snapd-debug: true,  go-test-race: false}
           - { go-build-tags: withbootassetstesting, skip-coverage: false, snapd-debug: false, go-test-race: false}
@@ -161,6 +200,38 @@ jobs:
           # TODO add arch?
           - fedora:latest
           - opensuse/tumbleweed
+
+  required-unit-tests:
+    runs-on: ubuntu-latest
+    needs:
+      - unit-tests
+      - unit-tests-special
+      - unit-tests-cross-distro
+    if: always()
+    steps:
+      - name: Confirm required unit tests passed
+        env:
+          NEEDS_JSON: ${{ toJSON(needs) }}
+        run: |
+          # Parse job names and results using jq
+          echo "$NEEDS_JSON" | jq -r 'to_entries[] | "\(.key) \(.value.result)"' > needs_results.txt
+
+          # Check each job result
+          failed="false"
+          while read -r job result; do
+            echo "Job \"$job\" returned result \"$result\""
+            if [[ "$result" != "success" ]]; then
+              failed="true"
+            fi
+          done < needs_results.txt
+          rm needs_results.txt
+
+          if [[ "$failed" == "false" ]]; then
+            echo "All required unit tests passed!"
+          else
+            echo "All required unit tests did not pass"
+            exit 1
+          fi
 
   code-coverage:
     needs: [unit-tests, unit-tests-special]
