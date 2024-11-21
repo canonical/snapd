@@ -25,7 +25,7 @@ execute: |
 
     REMOTE=ubuntu
     # There isn't an official image for noble yet, let's use the daily one
-    if os.query is-ubuntu 24.04; then
+    if os.query is-ubuntu 25.04; then
         REMOTE=ubuntu-daily
     fi
     VERSION_ID="$(. /etc/os-release && echo "$VERSION_ID" )"
