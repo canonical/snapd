@@ -28,6 +28,7 @@ import (
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/configstate"
 	"github.com/snapcore/snapd/overlord/configstate/config"
+	"github.com/snapcore/snapd/overlord/configstate/configcore"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/strutil"
@@ -78,6 +79,12 @@ func getSnapConf(c *Command, r *http.Request, user *auth.UserState) Response {
 				return InternalError("%v", err)
 			}
 		}
+
+		// Hide experimental features that are no longer required because it was
+		// either accepted or rejected
+		if snapName == "core" {
+			value = pruneExperimentalFlags(key, value)
+		}
 		if key == "" {
 			if len(keys) > 1 {
 				return BadRequest("keys contains zero-length string")
@@ -89,6 +96,50 @@ func getSnapConf(c *Command, r *http.Request, user *auth.UserState) Response {
 	}
 
 	return SyncResponse(currentConfValues)
+}
+
+// pruneExperimentalFlags returns a copy of val with unsupported experimental
+// features removed from the experimental configuration. This applies to
+// generic queries, where the key is either an empty string ("") or "experimental".
+// Exact queries (e.g. "core.experimental.old-flag") are not pruned to avoid breaking
+// snaps that gate some behaviour behind a flag check.
+//
+// This helper should only be called for core configurations. Any errors when parsing
+// core config are ignored and val is returned without modification.
+func pruneExperimentalFlags(key string, val interface{}) interface{} {
+	if val == nil {
+		return val
+	}
+
+	if key != "" && key != "experimental" {
+		// We only care about config that might contain old experimental features
+		// and exact queries (e.g. core.experimental.old-flag) are not pruned to
+		// avoid breaking snaps that gate some behaviour behind a flag check.
+		return val
+	}
+
+	experimentalFlags, ok := val.(map[string]interface{})
+	if !ok {
+		// XXX: This should never happen, skip cleaning
+		return val
+	}
+	if key == "" {
+		experimentalFlags, ok = experimentalFlags["experimental"].(map[string]interface{})
+		if !ok {
+			// No experimental key, do nothing
+			return val
+		}
+	}
+
+	for flag := range experimentalFlags {
+		if !configcore.IsSupportedExperimentalFlag(flag) {
+			// Hide the no longer supported experimental flag
+			delete(experimentalFlags, flag)
+		}
+	}
+
+	// Changes in experimentalFlags should reflect in values
+	return val
 }
 
 func setSnapConf(c *Command, r *http.Request, user *auth.UserState) Response {
