@@ -67,7 +67,7 @@ import (
 	"github.com/snapcore/snapd/testutil"
 )
 
-func expectedDoInstallTasks(typ snap.Type, opts, discards int, startTasks []string, components []string, filterOut map[string]bool) []string {
+func expectedDoInstallTasks(typ snap.Type, opts, compOpts, discards int, startTasks []string, components []string, filterOut map[string]bool) []string {
 	if !release.OnClassic || opts&isHybrid != 0 {
 		switch typ {
 		case snap.TypeGadget:
@@ -104,7 +104,7 @@ func expectedDoInstallTasks(typ snap.Type, opts, discards int, startTasks []stri
 
 	var tasksBeforePreRefreshHook, tasksAfterLinkSnap, tasksAfterPostOpHook, tasksBeforeDiscard []string
 	for range components {
-		compOpts := compOptMultiCompInstall
+		compOpts |= compOptMultiCompInstall
 		if opts&localSnap != 0 {
 			compOpts |= compOptIsLocal
 		}
@@ -210,7 +210,7 @@ func verifyInstallTasks(c *C, typ snap.Type, opts, discards int, ts *state.TaskS
 func verifyInstallTasksWithComponents(c *C, typ snap.Type, opts, discards int, components []string, ts *state.TaskSet) {
 	kinds := taskKinds(ts.Tasks())
 
-	expected := expectedDoInstallTasks(typ, opts, discards, nil, components, nil)
+	expected := expectedDoInstallTasks(typ, opts, 0, discards, nil, components, nil)
 
 	c.Assert(kinds, DeepEquals, expected)
 
@@ -6492,26 +6492,31 @@ func undoOps(instanceName string, newSequence, prevSequence *sequence.RevisionSi
 		containerName := fmt.Sprintf("%s+%s", instanceName, compName)
 		filename := fmt.Sprintf("%s_%v.comp", containerName, compRev)
 
+		var oldCS *sequence.ComponentState
+		if prevSequence != nil {
+			oldCS = prevSequence.FindComponent(csi.Component)
+		}
+
 		// if the snap revision isn't changing, then we need to re-link the old
 		// component
 		if snapRevision == prevRevision {
-			oldCS := prevSequence.FindComponent(csi.Component)
-
 			ops = append(ops, []fakeOp{{
 				op:   "link-component",
 				path: snap.ComponentMountDir(compName, oldCS.SideInfo.Revision, instanceName),
 			}}...)
 		}
 
-		ops = append(ops, []fakeOp{{
-			op:                "undo-setup-component",
-			containerName:     containerName,
-			containerFileName: filename,
-		}, {
-			op:                "remove-component-dir",
-			containerName:     containerName,
-			containerFileName: filename,
-		}}...)
+		if oldCS == nil || oldCS.SideInfo.Revision != csi.Revision {
+			ops = append(ops, []fakeOp{{
+				op:                "undo-setup-component",
+				containerName:     containerName,
+				containerFileName: filename,
+			}, {
+				op:                "remove-component-dir",
+				containerName:     containerName,
+				containerFileName: filename,
+			}}...)
+		}
 	}
 
 	if snapRevision != prevRevision {
