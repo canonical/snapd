@@ -11,9 +11,6 @@ systems:
   - ubuntu-1*
   - ubuntu-2*
 
-prepare: |
-    snap install jq
-
 execute: |
     # Manually pack the test snap instead of using the snaps-state tool here
     # as we want to append some command line arguments. We also make sure to test
@@ -37,7 +34,7 @@ execute: |
     dd if=./snap.combined of=./snap.data bs=4K count="$HDROFFSET" iflag=count_bytes
     dd if=./snap.combined of=./snap.header bs=4K skip="$HDROFFSET" count=4K iflag=skip_bytes,count_bytes
     dd if=./snap.combined of=./snap.hashed bs=4K skip="$HASHOFFSET" count="$DIFFSIZE" iflag=skip_bytes,count_bytes
-    ROOT_HASH=$(cut -c 8- < snap.header | jq -n 'input | ."dm-verity"."root-hash"' | tr -d '"')
+    ROOT_HASH=$(cut -c 8- < snap.header | gojq -n 'input | ."dm-verity"."root-hash"' | tr -d '"')
 
     # Use veritysetup verify to verify the hashed data
     veritysetup verify ./snap.data ./snap.hashed "$ROOT_HASH"

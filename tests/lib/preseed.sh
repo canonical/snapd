@@ -77,25 +77,25 @@ inject_snap_into_seed() {
     # XXX: this is very simplistic and will break easily, refactor to use the 
     #      iterative seed modification prepare-image args when those exist
 
-    snapsWithName=$(yaml2json < "$SEED_YAML" | jq -r --arg NAME "$SNAP_NAME" '[.snaps[] | select(.name == $NAME)] | length')
+    # shellcheck disable=SC2016
+    snapsWithName=$(gojq --yaml-input -r --arg NAME "$SNAP_NAME" '[.snaps[] | select(.name == $NAME)] | length' < "$SEED_YAML")
     if [ "$snapsWithName" != "0" ]; then
         # get the snap file name so we can delete it from the seed
-        old_name=$(yaml2json < "$SEED_YAML" | \
-            jq -r --arg NAME "$SNAP_NAME" '.snaps[] | select(.name == $NAME) | .file')
+        # shellcheck disable=SC2016
+        old_name=$(gojq --yaml-input -r --arg NAME "$SNAP_NAME" '.snaps[] | select(.name == $NAME) | .file' < "$SEED_YAML")
         rm "$SEED_SNAPS_DIR/$old_name"
 
         # now drop the entry from the seed.yaml so we can add the new one easily
-        yaml2json < "$SEED_YAML" | \
-            jq --arg NAME "$SNAP_NAME" 'del(.snaps[] | select(.name == $NAME))' | \
-                json2yaml > "$SEED_YAML.tmp"
+        # shellcheck disable=SC2016
+        gojq --yaml-input --yaml-output --arg NAME "$SNAP_NAME" \
+            'del(.snaps[] | select(.name == $NAME))' < "$SEED_YAML" > "$SEED_YAML.tmp"
         mv "$SEED_YAML.tmp" "$SEED_YAML"
     fi
 
     # now add the desired snap as an unasserted snap with some jq magic™
-    yaml2json < "$SEED_YAML"| \
-        jq --arg FILE "$SNAP_FILE" --arg NAME "$SNAP_NAME" \
-            '.snaps[.snaps| length] |= .  + {"channel":"stable","unasserted":true,"name":$NAME,"file":$FILE}' | \
-                json2yaml > "$SEED_YAML.tmp"
+    # shellcheck disable=SC2016
+    gojq --yaml-input --yaml-output --arg FILE "$SNAP_FILE" --arg NAME "$SNAP_NAME" \
+        '.snaps[.snaps| length] |= .  + {"channel":"stable","unasserted":true,"name":$NAME,"file":$FILE}' < "$SEED_YAML" > "$SEED_YAML.tmp"
     mv "$SEED_YAML.tmp" "$SEED_YAML"
 
     # and remember to copy the new snap file to the seed

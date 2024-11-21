@@ -9,7 +9,6 @@ systems: [ -ubuntu-16.04 ]
 
 prepare: |
   snap set system experimental.registries=true
-  snap install --edge jq
 
 execute: |
   changeAfterID() {

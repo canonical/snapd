@@ -15,12 +15,10 @@ environment:
     SNAPD_INHIBIT_DIR: "/var/lib/snapd/inhibit"
     # not all terminals support UTF-8, but Python tries to be smart and attempts
     # to guess the encoding as if the output would go to the terminal, but in
-    # fact all the test does is pipe the output to jq
+    # fact all the test does is pipe the output to gojq
     PYTHONIOENCODING: utf-8
 
 prepare: |
-    snap install --edge jq
-
     echo "Install snap with marker snap-refresh-observe interface connected"
     "$TESTSTOOLS"/snaps-state install-local api-client
     snap connect api-client:snap-refresh-observe
@@ -41,7 +39,6 @@ restore: |
     snap remove --purge test-snapd-tools
 
     snap remove --purge api-client
-    snap remove --purge jq
 
 execute: |
     echo "Try running inhibited snap"
@@ -51,7 +48,8 @@ execute: |
     NOMATCH "hi" < output
 
     # Notice is recorded for inhibition
-    api-client --socket /run/snapd-snap.socket "/v2/notices?types=snap-run-inhibit&keys=test-snapd-tools" | jq '.result[0].occurrences' | MATCH '^1$'
+    api-client --socket /run/snapd-snap.socket "/v2/notices?types=snap-run-inhibit&keys=test-snapd-tools" | \
+        gojq '.result[0].occurrences' | MATCH '^1$'
 
     echo "Mark snap as no longer inhibited"
     echo -n "" > $SNAPD_INHIBIT_DIR/test-snapd-tools.lock

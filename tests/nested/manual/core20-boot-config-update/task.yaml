@@ -78,17 +78,17 @@ execute: |
 
   remote.exec sudo cat /var/lib/snapd/device/fde/boot-chains > boot-chains-before.json
   SEALED_KEY_MTIME_1="$(remote.exec sudo stat --format="%Y" /run/mnt/ubuntu-boot/device/fde/ubuntu-data.sealed-key)"
-  RESEAL_COUNT_1="$(jq -r '.["reseal-count"]' < boot-chains-before.json )"
-  jq -r '.["boot-chains"][]["kernel-cmdlines"][]' < boot-chains-before.json | NOMATCH ' bootassetstesting'
+  RESEAL_COUNT_1="$(gojq -r '.["reseal-count"]' < boot-chains-before.json )"
+  gojq -r '.["boot-chains"][]["kernel-cmdlines"][]' < boot-chains-before.json | NOMATCH ' bootassetstesting'
   case "$VARIANT" in
     gadget-extra)
-      jq -r '.["boot-chains"][]["kernel-cmdlines"][]' < boot-chains-before.json | MATCH 'snapd.debug=1 hello from test'
+      gojq -r '.["boot-chains"][]["kernel-cmdlines"][]' < boot-chains-before.json | MATCH 'snapd.debug=1 hello from test'
       ;;
     gadget-full)
-      jq -r '.["boot-chains"][]["kernel-cmdlines"][]' < boot-chains-before.json | MATCH ' full hello from test'
+      gojq -r '.["boot-chains"][]["kernel-cmdlines"][]' < boot-chains-before.json | MATCH ' full hello from test'
       ;;
     no-gadget)
-      jq -r '.["boot-chains"][]["kernel-cmdlines"][]' < boot-chains-before.json | NOMATCH 'hello from test'
+      gojq -r '.["boot-chains"][]["kernel-cmdlines"][]' < boot-chains-before.json | NOMATCH 'hello from test'
       ;;
   esac
 
@@ -135,11 +135,11 @@ execute: |
   esac
 
   remote.exec sudo cat /var/lib/snapd/device/fde/boot-chains > boot-chains-after.json
-  RESEAL_COUNT_2="$(jq -r '.["reseal-count"]' < boot-chains-after.json )"
+  RESEAL_COUNT_2="$(gojq -r '.["reseal-count"]' < boot-chains-after.json )"
   case "$VARIANT" in
     no-gadget|gadget-extra)
       test "$RESEAL_COUNT_2" -gt "$RESEAL_COUNT_1"
-      jq -r '.["boot-chains"][]["kernel-cmdlines"][]' < boot-chains-after.json | MATCH ' bootassetstesting'
+      gojq -r '.["boot-chains"][]["kernel-cmdlines"][]' < boot-chains-after.json | MATCH ' bootassetstesting'
       ;;
     gadget-full)
       # but we already know that as the file was not modified

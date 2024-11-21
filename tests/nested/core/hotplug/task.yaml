@@ -11,13 +11,6 @@ prepare: |
     snap pack "$TESTSLIB"/snaps/serial-port-hotplug
     remote.push serial-port-hotplug_1.0_all.snap
 
-    if nested_is_core_18_system; then
-        remote.exec "sudo snap install --devmode jq-core18"
-        remote.exec "sudo snap alias jq-core18.jq jq"
-    else
-        remote.exec "sudo snap install --devmode jq"
-    fi
-
 restore: |
     rm -f /tmp/serialport{0,1}
 
@@ -25,7 +18,7 @@ debug: |
     remote.exec "snap connections --all" || true
     remote.exec "snap list" || true
     remote.exec "dmesg" || true
-    remote.exec 'sudo jq -r ".data[\"hotplug-slots\"]" /var/lib/snapd/state.json' || true
+    remote.exec 'sudo cat /var/lib/snapd/state.json' | gojq -r '.data["hotplug-slots"]' || true
 
 execute: |
     #shellcheck source=tests/lib/nested.sh

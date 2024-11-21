@@ -11,13 +11,7 @@ details: |
 systems:
   - ubuntu-core-2*
 
-prepare: |
-    snap install jq
-    snap install yq
-
 restore: |
-    snap remove jq
-    snap remove yq
     ip link del br54 || true
 
 execute: |
@@ -25,7 +19,7 @@ execute: |
     snap get system system.network.netplan.network.version | MATCH "^2$"
 
     echo "Getting the full document works and it is valid json"
-    snap get -d system system.network.netplan | jq .
+    snap get -d system system.network.netplan | gojq .
 
     echo "Check that setting adding a br54 interface via netplan works"
     # set dhcp4=false avoids that networkd waits for a valid dhcp record
@@ -36,22 +30,22 @@ execute: |
     netplan get | MATCH br54
     ip link | MATCH br54
     echo "Check that the setting is written to the expected yaml file"
-    res=$(yq e '.network.bridges.br54.dhcp4' - < /etc/netplan/90-snapd-config.yaml)
+    res=$(gojq --yaml-input -r '.network.bridges.br54.dhcp4' - < /etc/netplan/90-snapd-config.yaml)
     # yp returns "false" as expected for this setting (note that if
     # the key was missing it would return "null")
     [ "$res" = "false" ]
 
     echo "Now add dhcp6"
     snap set system system.network.netplan.network.bridges.br54.dhcp6=false
-    res=$(yq e '.network.bridges.br54.dhcp6' - < /etc/netplan/90-snapd-config.yaml)
+    res=$(gojq --yaml-input -r '.network.bridges.br54.dhcp6' - < /etc/netplan/90-snapd-config.yaml)
     [ "$res" = "false" ]
     echo "And the dhcp4 setting is preserved and it is still set to false"
-    res=$(yq e '.network.bridges.br54.dhcp4' - < /etc/netplan/90-snapd-config.yaml)
+    res=$(gojq --yaml-input -r '.network.bridges.br54.dhcp4' - < /etc/netplan/90-snapd-config.yaml)
     [ "$res" = "false" ]
 
     echo "Check that unset works"
     snap unset system system.network.netplan.network.bridges.br54.dhcp6
-    res=$(yq e '.network.bridges.br54.dhcp6' - < /etc/netplan/90-snapd-config.yaml)
+    res=$(gojq --yaml-input -r '.network.bridges.br54.dhcp6' - < /etc/netplan/90-snapd-config.yaml)
     if [ "$res" != "null" ]; then
         echo "getting the .network.bridges.br54.dhcp6 should fail"
         cat /etc/netplan/90-snapd-config.yaml

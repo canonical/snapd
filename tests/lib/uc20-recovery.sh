@@ -128,11 +128,8 @@ prepare_recover_mode() {
     # wait till the system seeding is finished
     snap wait system seed.loaded
 
-    # we're running in an ephemeral system and thus have to re-install snaps
-    snap install --edge jq
-
     MATCH 'snapd_recovery_mode=recover' < /proc/cmdline
     # verify we are in recovery mode via the API
     snap debug api /v2/system-info > system-info
-    jq -r '.result["system-mode"]' < system-info | MATCH 'recover'
+    gojq -r '.result["system-mode"]' < system-info | MATCH 'recover'
 }

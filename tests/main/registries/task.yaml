@@ -9,7 +9,6 @@ systems: [ -ubuntu-16.04 ]
 
 prepare: |
   snap set system experimental.registries=true
-  snap install --edge jq
 
 execute: |
   if [ "$TRUST_TEST_KEYS" = "false" ]; then
@@ -42,7 +41,7 @@ execute: |
 
   # check writing and reading different types
   snap set -t developer1/network/wifi-setup ssids='["one", 2]'
-  snap get -d developer1/network/wifi-setup ssids | jq -c .ssids | MATCH '["one", 2]'
+  snap get -d developer1/network/wifi-setup ssids | gojq -c .ssids | MATCH '["one", 2]'
 
   # check access control
   snap set developer1/network/wifi-setup status=foo 2>&1 | tr -d '\n' | tr -s '  ' ' ' | MATCH 'cannot set "status" through developer1/network/wifi-setup: no matching rule'

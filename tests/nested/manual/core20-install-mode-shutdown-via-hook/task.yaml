@@ -12,10 +12,6 @@ environment:
     NESTED_ENABLE_SECURE_BOOT: true
 
 prepare: |
-    # needed for inspecting the partitions
-    snap install jq
-    tests.cleanup defer snap remove jq
-
     KEY_NAME=$(tests.nested download snakeoil-key)
     SNAKEOIL_KEY="$PWD/$KEY_NAME.key"
     SNAKEOIL_CERT="$PWD/$KEY_NAME.pem"
@@ -63,7 +59,7 @@ execute: |
     tests.systemd wait-for-service -n 180 --state inactive "$NESTED_VM"
 
     echo "Check that the partitions were created on the VM's disk"
-    sfdisk --json "$IMAGE_FILE" | jq -r '.partitiontable.partitions | .[].name' > partitions.txt
+    sfdisk --json "$IMAGE_FILE" | gojq -r '.partitiontable.partitions | .[].name' > partitions.txt
     # note that ubuntu-data and ubuntu-save have partition labels without the 
     # -enc suffix, but have filesystem labels of ubuntu-data-enc etc, here we
     # are just seeing the partition labels, we check the filesystem labels and
