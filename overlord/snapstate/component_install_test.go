@@ -69,7 +69,7 @@ func expectedComponentInstallTasks(opts int) []string {
 }
 
 func expectedComponentInstallTasksSplit(opts int) (beforeLink, link, postOpHooksAndAfter, discard []string) {
-	if opts&compOptIsLocal != 0 {
+	if opts&compOptIsLocal != 0 || opts&compOptRevisionPresent != 0 {
 		beforeLink = []string{"prepare-component"}
 	} else {
 		beforeLink = []string{"download-component"}

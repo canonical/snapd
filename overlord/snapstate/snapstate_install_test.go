@@ -67,7 +67,7 @@ import (
 	"github.com/snapcore/snapd/testutil"
 )
 
-func expectedDoInstallTasks(typ snap.Type, opts, discards int, startTasks []string, components []string, filterOut map[string]bool) []string {
+func expectedDoInstallTasks(typ snap.Type, opts, compOpts, discards int, startTasks []string, components []string, filterOut map[string]bool) []string {
 	if !release.OnClassic || opts&isHybrid != 0 {
 		switch typ {
 		case snap.TypeGadget:
@@ -104,7 +104,7 @@ func expectedDoInstallTasks(typ snap.Type, opts, discards int, startTasks []stri
 
 	var tasksBeforePreRefreshHook, tasksAfterLinkSnap, tasksAfterPostOpHook, tasksBeforeDiscard []string
 	for range components {
-		compOpts := compOptMultiCompInstall
+		compOpts |= compOptMultiCompInstall
 		if opts&localSnap != 0 {
 			compOpts |= compOptIsLocal
 		}
@@ -210,7 +210,7 @@ func verifyInstallTasks(c *C, typ snap.Type, opts, discards int, ts *state.TaskS
 func verifyInstallTasksWithComponents(c *C, typ snap.Type, opts, discards int, components []string, ts *state.TaskSet) {
 	kinds := taskKinds(ts.Tasks())
 
-	expected := expectedDoInstallTasks(typ, opts, discards, nil, components, nil)
+	expected := expectedDoInstallTasks(typ, opts, 0, discards, nil, components, nil)
 
 	c.Assert(kinds, DeepEquals, expected)
 
