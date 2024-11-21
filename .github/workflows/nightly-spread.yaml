@@ -17,7 +17,7 @@ jobs:
       backend: google
       systems: 'ALL'
       tasks: 'tests/nightly/...'
-      rules: 'nightly'
+      rules: ''
       use-master-snap: true
 
   spread-test-build-from-current:
@@ -29,7 +29,7 @@ jobs:
       backend: ${{ matrix.backend }}
       systems: ${{ matrix.systems }}
       tasks: 'tests/...'
-      rules: 'main'
+      rules: ''
       use-master-snap: true
       spread-snapd-deb-from-repo: false
     strategy:
@@ -52,7 +52,7 @@ jobs:
       backend: 'google'
       systems: 'ubuntu-18.04-64 ubuntu-20.04-64 ubuntu-21.10-64 ubuntu-core-20-64'
       tasks: 'tests/...'
-      rules: 'main'
+      rules: ''
       use-master-snap: true
       spread-experimental-features: gate-auto-refresh-hook
 
@@ -65,5 +65,5 @@ jobs:
       backend: 'openstack'
       systems: 'ALL'
       tasks: 'tests/main/...'
-      rules: 'main'
+      rules: ''
       use-master-snap: true

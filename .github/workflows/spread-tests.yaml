@@ -131,19 +131,21 @@ jobs:
     - name: Setup run tests variable
       if: "!contains(github.event.pull_request.labels.*.name, 'Skip spread')"
       run: |
-          get_new_tests() {
+          get_new_tasks() {
+            local prefix=$1
+            local changes_param=$2
             # The tests are just filtered when the change is a PR
             # When 'Run Nested' label is added in a PR, all the nested tests have to be executed
-            TESTS_TO_RUN=""
+            TASKS_TO_RUN=""
             if [ -z "${{ github.event.number }}" ] || [ "$RUN_NESTED" = 'true' ]; then
-                for TESTS in ${{ inputs.tasks }}; do
-                    TESTS_TO_RUN="$TESTS_TO_RUN ${{ inputs.backend }}$1:$TESTS"
+                for TASKS in ${{ inputs.tasks }}; do
+                    TASKS_TO_RUN="$TASKS_TO_RUN $prefix:$TASKS"
                 done
             else
-                NEW_TESTS="$(./tests/lib/external/snapd-testing-tools/utils/spread-filter -r ./tests/lib/spread/rules/${{ inputs.rules }}.yaml -p "${{ inputs.backend }}$1" $2)"
-                TESTS_TO_RUN="$NEW_TESTS"
+                NEW_TASKS="$(./tests/lib/external/snapd-testing-tools/utils/spread-filter -r ./tests/lib/spread/rules/${{ inputs.rules }}.yaml -p "$prefix" $changes_param)"
+                TASKS_TO_RUN="$NEW_TASKS"
             fi
-            echo "$TESTS_TO_RUN"
+            echo "$TASKS_TO_RUN"
           }
 
           CHANGES_PARAM=""
@@ -155,14 +157,14 @@ jobs:
           if [ -n "$FAILED_TESTS" ]; then
               RUN_TESTS="$FAILED_TESTS"
           elif [ "${{ inputs.systems }}" == "ALL" ]; then
-              RUN_TESTS=$(get_new_tests "" "$CHANGES_PARAM")
+              RUN_TESTS=$(get_new_tasks "${{ inputs.backend }}" "$CHANGES_PARAM")
           elif [ "${{ inputs.systems }}" != "NONE" ]; then
               for SYSTEM in ${{ inputs.systems }}; do
-                NEW_TESTS="$(get_new_tests ":$SYSTEM" "$CHANGES_PARAM")"
+                NEW_TASKS="$(get_new_tasks "${{ inputs.backend }}:$SYSTEM" "$CHANGES_PARAM")"
                 if [ -z "$RUN_TESTS" ]; then
-                    RUN_TESTS="$NEW_TESTS"
+                    RUN_TESTS="$NEW_TASKS"
                 else
-                    RUN_TESTS="$RUN_TESTS $NEW_TESTS"
+                    RUN_TESTS="$RUN_TESTS $NEW_TASKS"
                 fi
               done
           fi
