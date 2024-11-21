@@ -1,7 +1,6 @@
 package devicestate_test
 
 import (
-	"bytes"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -22,7 +21,7 @@ import (
 
 type cloudInitBaseSuite struct {
 	deviceMgrBaseSuite
-	logbuf *bytes.Buffer
+	logbuf logger.MockedLogger
 }
 
 type cloudInitSuite struct {

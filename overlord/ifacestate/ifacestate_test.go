@@ -20,7 +20,6 @@
 package ifacestate_test
 
 import (
-	"bytes"
 	"errors"
 	"fmt"
 	"os"
@@ -180,7 +179,7 @@ type interfaceManagerSuite struct {
 	extraBackends  []interfaces.SecurityBackend
 	secBackend     *ifacetest.TestSecurityBackend
 	mockSnapCmd    *testutil.MockCmd
-	log            *bytes.Buffer
+	log            logger.MockedLogger
 	coreSnap       *interfaces.SnapAppSet
 	snapdSnap      *interfaces.SnapAppSet
 
@@ -7010,9 +7009,7 @@ func (s *interfaceManagerSuite) TestInitInterfacesRequestsManagerError(c *C) {
 	running := mgr.AppArmorPromptingRunning()
 	c.Check(running, Equals, false)
 
-	logger.WithLoggerLock(func() {
-		c.Check(logbuf.String(), testutil.Contains, fmt.Sprintf("%v", createError))
-	})
+	c.Check(logbuf.String(), testutil.Contains, fmt.Sprintf("%v", createError))
 }
 
 func (s *interfaceManagerSuite) TestStopInterfacesRequestsManagerError(c *C) {

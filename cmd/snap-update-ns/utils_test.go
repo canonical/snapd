@@ -20,7 +20,6 @@
 package main_test
 
 import (
-	"bytes"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -40,7 +39,7 @@ import (
 type utilsSuite struct {
 	testutil.BaseTest
 	sys *testutil.SyscallRecorder
-	log *bytes.Buffer
+	log logger.MockedLogger
 	as  *update.Assumptions
 }
 

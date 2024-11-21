@@ -20,7 +20,6 @@
 package main_test
 
 import (
-	"bytes"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -257,7 +256,7 @@ func (s *mainSuite) TestValidateArgs(c *C) {
 type integrationSuite struct {
 	testutil.BaseTest
 
-	logBuf    *bytes.Buffer
+	logBuf    logger.MockedLogger
 	parserCmd *testutil.MockCmd
 }
 
