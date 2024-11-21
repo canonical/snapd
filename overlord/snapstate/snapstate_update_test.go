@@ -16135,8 +16135,8 @@ func (s *snapmgrTestSuite) testUpdateWithComponentsRunThroughShareComponents(c *
 	s.enableRefreshAppAwarenessUX()
 
 	const (
-		snapName = "some-snap"
-		snapID   = "some-snap-id"
+		snapName = "kernel"
+		snapID   = "kernel-id"
 	)
 
 	channel := "channel-for-components"
@@ -16177,7 +16177,7 @@ func (s *snapmgrTestSuite) testUpdateWithComponentsRunThroughShareComponents(c *
 		SnapID:   snapID,
 		Channel:  channel,
 	}
-	snaptest.MockSnapInstance(c, snapName, fmt.Sprintf("name: %s", snapName), &si)
+	snaptest.MockSnapInstance(c, snapName, fmt.Sprintf("name: %s\ntype: kernel", snapName), &si)
 	fi, err := os.Stat(snap.MountFile(snapName, si.Revision))
 	c.Assert(err, IsNil)
 
@@ -16374,6 +16374,11 @@ func (s *snapmgrTestSuite) testUpdateWithComponentsRunThroughShareComponents(c *
 			unlinkSkipBinaries: true,
 		},
 		{
+			op:    "update-gadget-assets:Doing",
+			name:  snapName,
+			revno: newSnapRev,
+		},
+		{
 			op:   "copy-data",
 			path: filepath.Join(dirs.SnapMountDir, snapName, newSnapRev.String()),
 			old:  filepath.Join(dirs.SnapMountDir, snapName, currentSnapRev.String()),
@@ -16501,8 +16506,8 @@ func (s *snapmgrTestSuite) testUpdateWithComponentsRunThroughShareComponents(c *
 
 		SnapPath:  filepath.Join(dirs.SnapBlobDir, fmt.Sprintf("%s_%v.snap", snapName, newSnapRev)),
 		SideInfo:  snapsup.SideInfo,
-		Type:      snap.TypeApp,
-		Version:   "some-snapVer",
+		Type:      snap.TypeKernel,
+		Version:   "kernelVer",
 		PlugsOnly: true,
 		Flags: snapstate.Flags{
 			Transaction: client.TransactionPerSnap,
