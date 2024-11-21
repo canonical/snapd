@@ -256,7 +256,7 @@ jobs:
             tasks: 'tests/...'
             rules: 'main'
           - group: opensuse
-            backend: google-distro-2
+            backend: openstack
             systems: 'opensuse-15.5-64 opensuse-15.6-64 opensuse-tumbleweed-64'
             tasks: 'tests/...'
             rules: 'main'
