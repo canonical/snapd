@@ -29,7 +29,6 @@ import (
 	"github.com/snapcore/snapd/kernel"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/snap"
-	"github.com/snapcore/snapd/snap/integrity"
 	"github.com/snapcore/snapd/snap/snapdir"
 	"github.com/snapcore/snapd/snap/squashfs"
 )
@@ -192,8 +191,6 @@ type Options struct {
 	SnapName string
 	// Compression method to use
 	Compression string
-	// Integrity requests appending integrity data to the snap when set
-	Integrity bool
 }
 
 var Defaults *Options = nil
@@ -281,13 +278,6 @@ func mksquashfs(sourceDir, fName, snapType string, opts *Options) error {
 		ExcludeFiles: []string{excludes},
 	}); err != nil {
 		return err
-	}
-
-	if opts.Integrity {
-		err := integrity.GenerateAndAppend(fName)
-		if err != nil {
-			return err
-		}
 	}
 
 	return nil
