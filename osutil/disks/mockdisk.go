@@ -119,25 +119,6 @@ func (d *MockDiskMapping) HasPartitions() bool {
 	return d.DiskHasPartitions
 }
 
-// MountPointIsFromDisk returns if the disk that the specified mount point comes
-// from is the same disk as the object. Part of the Disk interface.
-func (d *MockDiskMapping) MountPointIsFromDisk(mountpoint string, opts *Options) (bool, error) {
-	osutil.MustBeTestBinary("mock disks only to be used in tests")
-
-	// this is relying on the fact that DiskFromMountPoint should have been
-	// mocked for us to be using this mockDisk method anyways
-	otherDisk, err := DiskFromMountPoint(mountpoint, opts)
-	if err != nil {
-		return false, err
-	}
-
-	if otherDisk.Dev() == d.Dev() && otherDisk.HasPartitions() == d.HasPartitions() {
-		return true, nil
-	}
-
-	return false, nil
-}
-
 // Dev returns a unique representation of the mock disk that is suitable for
 // comparing two mock disks to see if they are the same. Part of the Disk
 // interface.
@@ -175,7 +156,7 @@ func (d *MockDiskMapping) SizeInBytes() (uint64, error) {
 
 // Mountpoint is a combination of a mountpoint location and whether that
 // mountpoint is a decrypted device. It is only used in identifying mount points
-// with MountPointIsFromDisk and DiskFromMountPoint with
+// with DiskFromMountPoint with
 // MockMountPointDisksToPartitionMapping.
 type Mountpoint struct {
 	Mountpoint        string
@@ -355,8 +336,7 @@ func MockDevicePathToDiskMapping(mockedDisks map[string]*MockDiskMapping) (resto
 // MockMountPointDisksToPartitionMapping will mock DiskFromMountPoint such that
 // the specified mapping is returned/used. Specifically, keys in the provided
 // map are mountpoints, and the values for those keys are the disks that will
-// be returned from DiskFromMountPoint or used internally in
-// MountPointIsFromDisk.
+// be returned from DiskFromMountPoint.
 func MockMountPointDisksToPartitionMapping(mockedMountPoints map[Mountpoint]*MockDiskMapping) (restore func()) {
 	osutil.MustBeTestBinary("mock disks only to be used in tests")
 
