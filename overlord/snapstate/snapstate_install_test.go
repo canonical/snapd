@@ -7428,14 +7428,14 @@ components:
 	c.Assert(err, ErrorMatches, fmt.Sprintf(`invalid snap name: "%s"`, componentName))
 }
 
-func (s *snapmgrTestSuite) TestInstallWithRegistry(c *C) {
+func (s *snapmgrTestSuite) TestInstallWithConfdb(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
 	chg := s.state.NewChange("test", "test change")
-	ts, err := snapstate.Install(context.Background(), s.state, "some-snap", &snapstate.RevisionOptions{Channel: "channel-for-registry"}, s.user.ID, snapstate.Flags{})
+	ts, err := snapstate.Install(context.Background(), s.state, "some-snap", &snapstate.RevisionOptions{Channel: "channel-for-confdb"}, s.user.ID, snapstate.Flags{})
 	c.Assert(err, IsNil)
 	chg.AddAll(ts)
 
-	checkSnapsupHasRegistry(ts, c)
+	checkSnapsupHasConfdb(ts, c)
 }

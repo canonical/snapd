@@ -2510,11 +2510,11 @@ apps:
 	})
 }
 
-func (s *infoSuite) TestRegistryPlugAttrs(c *C) {
+func (s *infoSuite) TestConfdbPlugAttrs(c *C) {
 	plug := &snap.PlugInfo{
 		Snap:      &snap.Info{SuggestedName: "test-snap"},
 		Name:      "test-plug",
-		Interface: "registry",
+		Interface: "confdb",
 		Attrs: map[string]interface{}{
 			"account": "foo",
 			"view":    "bar/baz",
@@ -2522,14 +2522,14 @@ func (s *infoSuite) TestRegistryPlugAttrs(c *C) {
 		},
 	}
 
-	account, registry, view, err := snap.RegistryPlugAttrs(plug)
+	account, confdb, view, err := snap.ConfdbPlugAttrs(plug)
 	c.Assert(err, IsNil)
 	c.Assert(account, Equals, "foo")
-	c.Assert(registry, Equals, "bar")
+	c.Assert(confdb, Equals, "bar")
 	c.Assert(view, Equals, "baz")
 }
 
-func (s *infoSuite) TestRegistryPlugAttrsInvalid(c *C) {
+func (s *infoSuite) TestConfdbPlugAttrsInvalid(c *C) {
 	type testcase struct {
 		iface   string
 		account string
@@ -2540,14 +2540,14 @@ func (s *infoSuite) TestRegistryPlugAttrsInvalid(c *C) {
 	tcs := []testcase{
 		{
 			iface: "other-thing",
-			err:   "must be registry plug: other-thing",
+			err:   "must be confdb plug: other-thing",
 		},
 
 		{
-			iface:   "registry",
+			iface:   "confdb",
 			account: "my-acc",
 			view:    "reg",
-			err:     "\"view\" must conform to <registry>/<view>: reg",
+			err:     "\"view\" must conform to <confdb>/<view>: reg",
 		},
 	}
 
@@ -2562,7 +2562,7 @@ func (s *infoSuite) TestRegistryPlugAttrsInvalid(c *C) {
 			},
 		}
 
-		_, _, _, err := snap.RegistryPlugAttrs(plug)
+		_, _, _, err := snap.ConfdbPlugAttrs(plug)
 		c.Assert(err, ErrorMatches, tc.err)
 	}
 }

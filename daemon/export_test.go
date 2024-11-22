@@ -29,15 +29,15 @@ import (
 	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/client/clientutil"
+	"github.com/snapcore/snapd/confdb"
 	"github.com/snapcore/snapd/osutil/user"
 	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/assertstate"
+	"github.com/snapcore/snapd/overlord/confdbstate"
 	"github.com/snapcore/snapd/overlord/hookstate"
-	"github.com/snapcore/snapd/overlord/registrystate"
 	"github.com/snapcore/snapd/overlord/restart"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
-	"github.com/snapcore/snapd/registry"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -387,12 +387,12 @@ var (
 	MaxReadBuflen = maxReadBuflen
 )
 
-func MockRegistrystateGet(f func(_ *state.State, _, _, _ string, _ []string) (interface{}, error)) (restore func()) {
-	return testutil.Mock(&registrystateGet, f)
+func MockConfdbstateGet(f func(_ *state.State, _, _, _ string, _ []string) (interface{}, error)) (restore func()) {
+	return testutil.Mock(&confdbstateGet, f)
 }
 
-func MockRegistrystateGetTransaction(f func(*hookstate.Context, *state.State, *registry.View) (*registrystate.Transaction, registrystate.CommitTxFunc, error)) (restore func()) {
-	return testutil.Mock(&registrystateGetTransaction, f)
+func MockConfdbstateGetTransaction(f func(*hookstate.Context, *state.State, *confdb.View) (*confdbstate.Transaction, confdbstate.CommitTxFunc, error)) (restore func()) {
+	return testutil.Mock(&confdbstateGetTransaction, f)
 }
 
 func MockRebootNoticeWait(d time.Duration) (restore func()) {
@@ -421,10 +421,10 @@ func MockNewStatusDecorator(f func(ctx context.Context, isGlobal bool, uid strin
 	return restore
 }
 
-func MockRegistrystateGetView(f func(_ *state.State, _, _, _ string) (*registry.View, error)) (restore func()) {
-	return testutil.Mock(&registrystateGetView, f)
+func MockConfdbstateGetView(f func(_ *state.State, _, _, _ string) (*confdb.View, error)) (restore func()) {
+	return testutil.Mock(&confdbstateGetView, f)
 }
 
-func MockRegistrystateSetViaView(f func(registry.DataBag, *registry.View, map[string]interface{}) error) (restore func()) {
-	return testutil.Mock(&registrystateSetViaView, f)
+func MockConfdbstateSetViaView(f func(confdb.DataBag, *confdb.View, map[string]interface{}) error) (restore func()) {
+	return testutil.Mock(&confdbstateSetViaView, f)
 }

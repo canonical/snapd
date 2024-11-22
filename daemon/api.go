@@ -29,8 +29,8 @@ import (
 
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/auth"
+	"github.com/snapcore/snapd/overlord/confdbstate"
 	"github.com/snapcore/snapd/overlord/configstate"
-	"github.com/snapcore/snapd/overlord/registrystate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/strutil"
@@ -82,7 +82,7 @@ var api = []*Command{
 	systemRecoveryKeysCmd,
 	quotaGroupsCmd,
 	quotaGroupInfoCmd,
-	registryCmd,
+	confdbCmd,
 	noticesCmd,
 	noticeCmd,
 	requestsPromptsCmd,
@@ -171,10 +171,10 @@ var (
 	assertstateRefreshSnapAssertions         = assertstate.RefreshSnapAssertions
 	assertstateRestoreValidationSetsTracking = assertstate.RestoreValidationSetsTracking
 
-	registrystateGetView        = registrystate.GetView
-	registrystateGetTransaction = registrystate.GetTransactionToModify
-	registrystateGet            = registrystate.Get
-	registrystateSetViaView     = registrystate.SetViaView
+	confdbstateGetView        = confdbstate.GetView
+	confdbstateGetTransaction = confdbstate.GetTransactionToModify
+	confdbstateGet            = confdbstate.Get
+	confdbstateSetViaView     = confdbstate.SetViaView
 )
 
 func ensureStateSoonImpl(st *state.State) {

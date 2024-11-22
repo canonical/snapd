@@ -133,18 +133,18 @@ func (t *target) setups(st *state.State, opts Options) (SnapSetup, []ComponentSe
 		flags.IgnoreValidation = t.snapst.IgnoreValidation
 	}
 
-	var registries []RegistryID
+	var confdbs []ConfdbID
 	for _, plug := range t.info.Plugs {
-		if plug.Interface != "registry" {
+		if plug.Interface != "confdb" {
 			continue
 		}
 
-		account, registry, _, err := snap.RegistryPlugAttrs(plug)
+		account, confdb, _, err := snap.ConfdbPlugAttrs(plug)
 		if err != nil {
 			return SnapSetup{}, nil, err
 		}
 
-		registries = append(registries, RegistryID{Account: account, Registry: registry})
+		confdbs = append(confdbs, ConfdbID{Account: account, Confdb: confdb})
 	}
 
 	providerContentAttrs := defaultProviderContentAttrs(st, t.info, opts.PrereqTracker)
@@ -167,7 +167,7 @@ func (t *target) setups(st *state.State, opts Options) (SnapSetup, []ComponentSe
 		PlugsOnly:          len(t.info.Slots) == 0,
 		InstanceKey:        t.info.InstanceKey,
 		ExpectedProvenance: t.info.SnapProvenance,
-		Registries:         registries,
+		Confdbs:            confdbs,
 		auxStoreInfo: auxStoreInfo{
 			Media: t.info.Media,
 			// XXX we store this for the benefit of old snapd

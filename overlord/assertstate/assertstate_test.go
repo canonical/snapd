@@ -5253,7 +5253,7 @@ func (s *assertMgrSuite) TestValidationSetsFromModelConflict(c *C) {
 	c.Check(err, testutil.ErrorIs, &snapasserts.ValidationSetsConflictError{})
 }
 
-func (s *assertMgrSuite) registry(c *C, name string, extraHeaders map[string]interface{}, body string) *asserts.Registry {
+func (s *assertMgrSuite) confdb(c *C, name string, extraHeaders map[string]interface{}, body string) *asserts.Confdb {
 	headers := map[string]interface{}{
 		"series":       "16",
 		"account-id":   s.dev1AcctKey.AccountID(),
@@ -5265,13 +5265,13 @@ func (s *assertMgrSuite) registry(c *C, name string, extraHeaders map[string]int
 		headers[h] = v
 	}
 
-	as, err := s.dev1Signing.Sign(asserts.RegistryType, headers, []byte(body), "")
+	as, err := s.dev1Signing.Sign(asserts.ConfdbType, headers, []byte(body), "")
 	c.Assert(err, IsNil)
 
-	return as.(*asserts.Registry)
+	return as.(*asserts.Confdb)
 }
 
-func (s *assertMgrSuite) TestRegistry(c *C) {
+func (s *assertMgrSuite) TestConfdb(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -5282,7 +5282,7 @@ func (s *assertMgrSuite) TestRegistry(c *C) {
 	err = assertstate.Add(s.state, s.dev1AcctKey)
 	c.Assert(err, IsNil)
 
-	registryFoo := s.registry(c, "foo", map[string]interface{}{
+	confdbFoo := s.confdb(c, "foo", map[string]interface{}{
 		"views": map[string]interface{}{
 			"a-view": map[string]interface{}{
 				"rules": []interface{}{
@@ -5300,19 +5300,19 @@ func (s *assertMgrSuite) TestRegistry(c *C) {
     }
   }
 }`)
-	err = assertstate.Add(s.state, registryFoo)
+	err = assertstate.Add(s.state, confdbFoo)
 	c.Assert(err, IsNil)
 
-	_, err = assertstate.Registry(s.state, "no-account", "foo")
+	_, err = assertstate.Confdb(s.state, "no-account", "foo")
 	c.Assert(err, testutil.ErrorIs, &asserts.NotFoundError{})
 
-	registryAs, err := assertstate.Registry(s.state, s.dev1AcctKey.AccountID(), "foo")
+	confdbAs, err := assertstate.Confdb(s.state, s.dev1AcctKey.AccountID(), "foo")
 	c.Assert(err, IsNil)
 
-	registry := registryAs.Registry()
-	c.Check(registry.Account, Equals, s.dev1AcctKey.AccountID())
-	c.Check(registry.Name, Equals, "foo")
-	c.Check(registry.Schema, NotNil)
+	confdb := confdbAs.Confdb()
+	c.Check(confdb.Account, Equals, s.dev1AcctKey.AccountID())
+	c.Check(confdb.Name, Equals, "foo")
+	c.Check(confdb.Schema, NotNil)
 }
 
 func (s *assertMgrSuite) TestValidateComponent(c *C) {
@@ -5561,7 +5561,7 @@ func (s *assertMgrSuite) testValidateComponentNoDownload(c *C, invalid bool) {
 	}
 }
 
-func (s *assertMgrSuite) setupRegistry(c *C) *snap.SideInfo {
+func (s *assertMgrSuite) setupConfdb(c *C) *snap.SideInfo {
 	extraHeaders := map[string]interface{}{
 		"revision": "1",
 		"views": map[string]interface{}{
@@ -5580,8 +5580,8 @@ func (s *assertMgrSuite) setupRegistry(c *C) *snap.SideInfo {
     }
   }
 }`
-	regAs := s.registry(c, "my-registry", extraHeaders, schema)
-	err := s.storeSigning.Add(regAs)
+	confdbAs := s.confdb(c, "my-confdb", extraHeaders, schema)
+	err := s.storeSigning.Add(confdbAs)
 	c.Assert(err, IsNil)
 
 	si := &snap.SideInfo{
@@ -5593,13 +5593,13 @@ func (s *assertMgrSuite) setupRegistry(c *C) *snap.SideInfo {
 	return si
 }
 
-func (s *assertMgrSuite) TestFetchRegistryAssertion(c *C) {
+func (s *assertMgrSuite) TestFetchConfdbAssertion(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
 	paths, _ := s.prereqSnapAssertions(c, nil, "", 10)
 	snapPath := paths[10]
-	si := s.setupRegistry(c)
+	si := s.setupConfdb(c)
 
 	// have a model and the store assertion available
 	storeAs := s.setupModelAndStore(c)
@@ -5610,10 +5610,10 @@ func (s *assertMgrSuite) TestFetchRegistryAssertion(c *C) {
 	t := s.state.NewTask("validate-snap", "Fetch and check snap assertions")
 
 	snapsup := snapstate.SnapSetup{
-		SnapPath:   snapPath,
-		UserID:     0,
-		SideInfo:   si,
-		Registries: []snapstate.RegistryID{{Account: s.dev1Acct.AccountID(), Registry: "my-registry"}},
+		SnapPath: snapPath,
+		UserID:   0,
+		SideInfo: si,
+		Confdbs:  []snapstate.ConfdbID{{Account: s.dev1Acct.AccountID(), Confdb: "my-confdb"}},
 	}
 
 	t.Set("snap-setup", snapsup)
@@ -5632,12 +5632,12 @@ func (s *assertMgrSuite) TestFetchRegistryAssertion(c *C) {
 
 	c.Assert(chg.Err(), IsNil)
 
-	reg, err := assertstate.DB(s.state).Find(asserts.RegistryType, map[string]string{
+	confdb, err := assertstate.DB(s.state).Find(asserts.ConfdbType, map[string]string{
 		"account-id": s.dev1Acct.AccountID(),
-		"name":       "my-registry",
+		"name":       "my-confdb",
 	})
 	c.Assert(err, IsNil)
-	c.Check(reg, NotNil)
+	c.Check(confdb, NotNil)
 
 	// store assertion was also fetched
 	_, err = assertstate.DB(s.state).Find(asserts.StoreType, map[string]string{
@@ -5646,25 +5646,25 @@ func (s *assertMgrSuite) TestFetchRegistryAssertion(c *C) {
 	c.Assert(err, IsNil)
 }
 
-func (s *assertMgrSuite) TestRegistryAssertionsAutoRefreshBulkFetch(c *C) {
-	s.testRegistryAssertionsAutoRefresh(c)
+func (s *assertMgrSuite) TestConfdbAssertionsAutoRefreshBulkFetch(c *C) {
+	s.testConfdbAssertionsAutoRefresh(c)
 	c.Check(s.fakeStore.(*fakeStore).opts.Scheduled, Equals, true)
 }
 
-func (s *assertMgrSuite) TestRegistryAssertionsAutoRefreshSingleFetch(c *C) {
+func (s *assertMgrSuite) TestConfdbAssertionsAutoRefreshSingleFetch(c *C) {
 	logbuf, restore := logger.MockLogger()
 	defer restore()
 
 	s.fakeStore.(*fakeStore).snapActionErr = &store.UnexpectedHTTPStatusError{StatusCode: 500}
-	s.testRegistryAssertionsAutoRefresh(c)
+	s.testConfdbAssertionsAutoRefresh(c)
 
 	// get the last line (we call AutoRefresh more than once)
 	log := logbuf.String()
 	i := strings.LastIndex(log[:len(log)-2], "\n")
-	c.Check(log[i+1:], Matches, "(?m).*bulk refresh of registry assertions failed, falling back to one-by-one assertion fetching:.*HTTP status code 500.*")
+	c.Check(log[i+1:], Matches, "(?m).*bulk refresh of confdb assertions failed, falling back to one-by-one assertion fetching:.*HTTP status code 500.*")
 }
 
-func (s *assertMgrSuite) testRegistryAssertionsAutoRefresh(c *C) {
+func (s *assertMgrSuite) testConfdbAssertionsAutoRefresh(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -5691,12 +5691,12 @@ func (s *assertMgrSuite) testRegistryAssertionsAutoRefresh(c *C) {
     }
   }
 }`
-	regAs := s.registry(c, "my-registry", extraHeaders, schema)
-	err = s.storeSigning.Add(regAs)
+	confdbAs := s.confdb(c, "my-confdb", extraHeaders, schema)
+	err = s.storeSigning.Add(confdbAs)
 	c.Assert(err, IsNil)
 
-	// store revision 1 of the registry assertion locally
-	for _, as := range []asserts.Assertion{s.storeSigning.StoreAccountKey(""), s.dev1Acct, s.dev1AcctKey, regAs} {
+	// store revision 1 of the confdb assertion locally
+	for _, as := range []asserts.Assertion{s.storeSigning.StoreAccountKey(""), s.dev1Acct, s.dev1AcctKey, confdbAs} {
 		err = assertstate.Add(s.state, as)
 		c.Assert(err, IsNil)
 	}
@@ -5704,24 +5704,24 @@ func (s *assertMgrSuite) testRegistryAssertionsAutoRefresh(c *C) {
 	// precondition check
 	c.Assert(assertstate.AutoRefreshAssertions(s.state, 0), IsNil)
 	db := assertstate.DB(s.state)
-	reg, err := db.Find(asserts.RegistryType, map[string]string{
+	confdb, err := db.Find(asserts.ConfdbType, map[string]string{
 		"account-id": s.dev1Acct.AccountID(),
-		"name":       "my-registry",
+		"name":       "my-confdb",
 	})
 	c.Assert(err, IsNil)
-	c.Check(reg.Revision(), Equals, 1)
+	c.Check(confdb.Revision(), Equals, 1)
 
 	extraHeaders["revision"] = "2"
-	regAs = s.registry(c, "my-registry", extraHeaders, schema)
-	err = s.storeSigning.Add(regAs)
+	confdbAs = s.confdb(c, "my-confdb", extraHeaders, schema)
+	err = s.storeSigning.Add(confdbAs)
 	c.Assert(err, IsNil)
 
 	// auto-refresh should obtain revision 2
 	c.Assert(assertstate.AutoRefreshAssertions(s.state, 0), IsNil)
 
-	a, err := db.Find(asserts.RegistryType, map[string]string{
+	a, err := db.Find(asserts.ConfdbType, map[string]string{
 		"account-id": s.dev1Acct.AccountID(),
-		"name":       "my-registry",
+		"name":       "my-confdb",
 	})
 	c.Assert(err, IsNil)
 	c.Check(a.Revision(), Equals, 2)
