@@ -27,9 +27,9 @@ import (
 // Options is a set of options used when querying information about
 // partition and disk devices.
 type Options struct {
-	// IsDecryptedDevice indicates that the mountpoint is referring to a
-	// decrypted device.
-	IsDecryptedDevice bool
+	// IsCryptsetupDevice indicates that the mountpoint is referring to a
+	// device on a dm-crypt or dm-verity.
+	IsCryptsetupDevice bool
 }
 
 // Disk is a single physical disk device that contains partitions.
@@ -215,25 +215,3 @@ func (e PartitionNotFoundError) Error() string {
 var (
 	_ = error(PartitionNotFoundError{})
 )
-
-// TODO: simplify this away as now we have only LUKS?
-var deviceMapperBackResolvers = map[string]func(dmUUID, dmName []byte) (dev string, ok bool){}
-
-// RegisterDeviceMapperBackResolver takes a callback function which is used when
-// the disks package through some of it's various methods to locate/create a
-// disk needs to trace a device mapper node back to the original device node
-// location such as /dev/mapper/something -> /dev/sda1 -> /dev/sda. The
-// parameters the callback is provided are the device mapper UUID and name
-// parameters from the kernel. If and only if the device mapper handler matches
-// this device mapper node, the callback should return the source device node
-// for the mapper device and true. If the handler does not match a provided
-// device mapper, the function should return "ok" as false.
-// The name of the handler is currently only used in tests.
-func RegisterDeviceMapperBackResolver(name string, f func(dmUUID, dmName []byte) (dev string, ok bool)) {
-	deviceMapperBackResolvers[name] = f
-}
-
-// mainly for tests to un-register and re-register handlers
-func unregisterDeviceMapperBackResolver(name string) {
-	delete(deviceMapperBackResolvers, name)
-}

@@ -68,7 +68,7 @@ func UnlockVolumeUsingSealedKeyIfEncrypted(disk disks.Disk, name string, sealedE
 	res := UnlockResult{}
 
 	// find the encrypted device using the disk we were provided - note that
-	// we do not specify IsDecryptedDevice in opts because here we are
+	// we do not specify IsCryptsetupDevice in opts because here we are
 	// looking for the encrypted device to unlock, later on in the boot
 	// process we will look for the decrypted device to ensure it matches
 	// what we expected
@@ -126,7 +126,7 @@ func UnlockEncryptedVolumeUsingKey(disk disks.Disk, name string, key []byte) (Un
 		UnlockMethod: NotUnlocked,
 	}
 	// find the encrypted device using the disk we were provided - note that
-	// we do not specify IsDecryptedDevice in opts because here we are
+	// we do not specify IsCryptsetupDevice in opts because here we are
 	// looking for the encrypted device to unlock, later on in the boot
 	// process we will look for the decrypted device to ensure it matches
 	// what we expected

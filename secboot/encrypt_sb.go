@@ -137,7 +137,7 @@ func EnsureRecoveryKey(keyFile string, rkeyDevs []RecoveryKeyDevice) (keys.Recov
 
 func devByPartUUIDFromMount(mp string) (string, error) {
 	partUUID, err := disks.PartitionUUIDFromMountPoint(mp, &disks.Options{
-		IsDecryptedDevice: true,
+		IsCryptsetupDevice: true,
 	})
 	if err != nil {
 		return "", fmt.Errorf("cannot partition for mount %v: %v", mp, err)

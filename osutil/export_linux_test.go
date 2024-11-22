@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2023 Canonical Ltd
+ * Copyright (C) 2024 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -17,14 +17,25 @@
  *
  */
 
-package arch
+package osutil
 
 import (
-	"github.com/snapcore/snapd/testutil"
+	"os"
+	"unsafe"
 )
 
-func MockRuntimeGOARCH(arch string) (restore func()) {
-	restore = testutil.Backup(&runtimeGOARCH)
-	runtimeGOARCH = arch
-	return restore
+func MockOsOpenFile(f func(name string, flag int, perm os.FileMode) (*os.File, error)) func() {
+	old := osOpenFile
+	osOpenFile = f
+	return func() {
+		osOpenFile = old
+	}
+}
+
+func MockDmIoctl(f func(fd uintptr, command int, data unsafe.Pointer) error) func() {
+	old := dmIoctl
+	dmIoctl = f
+	return func() {
+		dmIoctl = old
+	}
 }
