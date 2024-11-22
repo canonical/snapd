@@ -1,0 +1,67 @@
+on:
+  workflow_call:
+    inputs:
+      runs-on:
+        description: 'A tag to indicate which runner to use'
+        required: true
+        type: string
+jobs:
+  report-spread-failures:
+    runs-on: ${{ inputs.runs-on }}
+    permissions: 
+      actions: write
+      pull-requests: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download spread data
+        uses: actions/download-artifact@v4
+        with:
+          pattern: spread-json-${{ github.run_id }}-${{ github.run_attempt }}-*
+
+      - name: Echo collected output
+        run: |
+          report="$(date)\n"
+
+          if ! ls spread-json*/*.json &> /dev/null; then
+            report+="## No spread failures"
+          else
+            jq -s 'add' spread-json-*/*.json > consolidated-report.json || true
+            report+="## Spread Failures:\n"
+            if [[ $(jq -r '.[] | select( .info_type == "Error" ) | select( .verb == "preparing" )' consolidated-report.json) ]]; then
+              report+="### Prepare:\n"
+              report+=$(jq -r '.[] | select( .info_type == "Error" ) | select( .verb == "preparing" ) .task' consolidated-report.json | while read line; do echo "- $line\n"; done)
+            fi
+            if [[ $(jq -r '.[] | select( .info_type == "Error" ) | select( .verb == "executing" )' consolidated-report.json) ]]; then
+              report+="### Executing:\n"
+              report+=$(jq -r '.[] | select( .info_type == "Error" ) | select( .verb == "executing" ) .task' consolidated-report.json | while read line; do echo "- $line\n"; done)
+            fi
+            if [[ $(jq -r '.[] | select( .info_type == "Error" ) | select( .verb == "restoring" )' consolidated-report.json) ]]; then
+              report+="### Restoring:\n"
+              report+=$(jq -r '.[] | select( .info_type == "Error" ) | select( .verb == "restoring" ) .task' consolidated-report.json | while read line; do echo "- $line\n"; done)
+            fi
+          fi
+          echo -e "$report" > report
+
+      - name: Comment report to PR
+        if: ${{ github.event.number }}
+        run: |
+          if ! gh pr comment "${{ github.event.number }}" --body "$(cat report)" --edit-last; then
+            gh pr comment "${{ github.event.number }}" --body "$(cat report)"
+          fi
+      
+      - name: Write report to test summary
+        run: cat report >> $GITHUB_STEP_SUMMARY
+
+      - name: Delete artifacts
+        run: |
+          artifact_ids=$(gh api /repos/${{ github.repository }}/actions/artifacts | jq -r '.artifacts[] | select(.name|startswith("spread-json-${{ github.run_id }}-${{ github.run_attempt }}-")) | "\(.id)"')
+          for artifact_id in $artifact_ids; do 
+          echo "planning to delete $artifact_id"; 
+          gh api -X delete /repos/${{ github.repository }}/actions/artifacts/$artifact_id
+          done
+
+    

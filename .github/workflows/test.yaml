@@ -345,3 +345,10 @@ jobs:
             systems: 'ubuntu-24.04-64'
             tasks: 'tests/nested/...'
             rules: 'nested'
+
+  report-spread-failures:
+    uses: ./.github/workflows/spread-results-reporter.yaml
+    needs: [spread]
+    name: "report spread failures"
+    with:
+      runs-on: ubuntu-latest
