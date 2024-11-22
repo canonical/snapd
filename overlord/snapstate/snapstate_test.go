@@ -6060,6 +6060,29 @@ func (s *snapmgrTestSuite) TestTransitionCoreValidationSetsRevision(c *C) {
 	})
 }
 
+// Keep this test even though transition-to-snapd-snap experimental feature was removed
+// to prove that the unlikely case of upgrading snapd with "transition-to-snapd-snap"
+// in progress, will still block other changes as required.
+func (s *snapmgrTestSuite) TestTransitionSnapdSnapBlocksOtherChanges(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// if we have a snapd transition
+	chg := s.state.NewChange("transition-to-snapd-snap", "...")
+	chg.SetStatus(state.DoStatus)
+
+	// other tasks block until the transition is done
+	_, err := snapstate.Install(context.Background(), s.state, "some-snap", &snapstate.RevisionOptions{Channel: "stable"}, s.user.ID, snapstate.Flags{})
+	c.Check(err, FitsTypeOf, &snapstate.ChangeConflictError{})
+	c.Check(err, ErrorMatches, "transition to snapd snap in progress, no other changes allowed until this is done")
+
+	// and when the transition is done, other tasks run
+	chg.SetStatus(state.DoneStatus)
+	ts, err := snapstate.Install(context.Background(), s.state, "some-snap", &snapstate.RevisionOptions{Channel: "stable"}, s.user.ID, snapstate.Flags{})
+	c.Check(err, IsNil)
+	c.Check(ts, NotNil)
+}
+
 func (s *snapmgrTestSuite) TestForceDevModeCleanupRunsForUbuntuCore(c *C) {
 	s.checkForceDevModeCleanupRuns(c, "ubuntu-core", true)
 }

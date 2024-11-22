@@ -157,6 +157,12 @@ func checkChangeConflictExclusiveKinds(st *state.State, newExclusiveChangeKind, 
 				ChangeKind: "transition-ubuntu-core",
 				ChangeID:   chg.ID(),
 			}
+		case "transition-to-snapd-snap":
+			return &ChangeConflictError{
+				Message:    "transition to snapd snap in progress, no other changes allowed until this is done",
+				ChangeKind: "transition-to-snapd-snap",
+				ChangeID:   chg.ID(),
+			}
 		case "remodel":
 			if ignoreChangeID != "" && chg.ID() == ignoreChangeID {
 				continue
