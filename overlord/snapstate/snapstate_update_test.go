@@ -14528,7 +14528,7 @@ func (s *snapmgrTestSuite) testRevertWithComponents(c *C, undo bool) {
 		channel     = "channel-for-components"
 	)
 
-	components := []string{"standard-component", "standard-component"}
+	components := []string{"standard-component", "standard-component-extra"}
 
 	currentSnapRev := snap.R(11)
 	prevSnapRev := snap.R(7)
@@ -14634,10 +14634,23 @@ func (s *snapmgrTestSuite) testRevertWithComponents(c *C, undo bool) {
 		c.Assert(chg.Err(), IsNil, Commentf("change tasks:\n%s", printTasks(chg.Tasks())))
 	}
 
+	var expected fakeOps
+	for _, cs := range seq.ComponentsForRevision(prevSnapRev) {
+		expected = append(expected, fakeOp{
+			op:                              "validate-component:Doing",
+			name:                            instanceName,
+			revno:                           prevSnapRev,
+			componentName:                   cs.SideInfo.Component.ComponentName,
+			componentRev:                    cs.SideInfo.Revision,
+			componentSideInfo:               *cs.SideInfo,
+			componentSkipAssertionsDownload: true,
+		})
+	}
+
 	// note the absence of link-component tasks. that is because we do not need
 	// to link components when reverting, since they should already be linked,
 	// as they were part of a the previous revision
-	expected := fakeOps{
+	expected = append(expected, fakeOps{
 		{
 			op:   "remove-snap-aliases",
 			name: instanceName,
@@ -14680,7 +14693,7 @@ func (s *snapmgrTestSuite) testRevertWithComponents(c *C, undo bool) {
 		{
 			op: "update-aliases",
 		},
-	}
+	}...)
 
 	if undo {
 		expected = append(expected, []fakeOp{
@@ -17224,14 +17237,25 @@ components:
 	}
 
 	for _, cs := range expectedComponentStates {
-		containerName := fmt.Sprintf("%s+%s", instanceName, cs.SideInfo.Component.ComponentName)
-		filename := fmt.Sprintf("%s_%v.comp", containerName, cs.SideInfo.Revision)
+		compName := cs.SideInfo.Component.ComponentName
+		compRev := cs.SideInfo.Revision
+		containerName := fmt.Sprintf("%s+%s", instanceName, compName)
+		filename := fmt.Sprintf("%s_%v.comp", containerName, compRev)
 
-		expected = append(expected, fakeOp{
+		expected = append(expected, fakeOps{{
+			op:                              "validate-component:Doing",
+			name:                            instanceName,
+			revno:                           newSnapRev,
+			componentName:                   compName,
+			componentPath:                   components[cs.SideInfo],
+			componentRev:                    compRev,
+			componentSideInfo:               *cs.SideInfo,
+			componentSkipAssertionsDownload: true,
+		}, {
 			op:                "setup-component",
 			containerName:     containerName,
 			containerFileName: filename,
-		})
+		}}...)
 	}
 
 	expected = append(expected, fakeOps{
@@ -17399,6 +17423,7 @@ components:
 				RemoveComponentPath:   true,
 				MultiComponentInstall: true,
 			},
+			SkipAssertionsDownload: true,
 		})
 	}
 	checkComponentSetupTasks(c, ts, compsups, "prepare-component")
