@@ -9,17 +9,16 @@ systems: [ubuntu-18.04-64, ubuntu-2*, ubuntu-core-*, fedora-*]
 
 prepare: |
   snap install snap-store
-  snap install jq
 
 execute: |
-  snap_id=$(snap info snap-store | grep snap-id | awk '{ print $2 }')
-  jq --sort-keys .media < "/var/cache/snapd/aux/${snap_id}.json" > media.json
+  snap_id=$(snap info snap-store | gojq -r --yaml-input '.["snap-id"]')
+  gojq .media < "/var/cache/snapd/aux/${snap_id}.json" > media.json
 
   # don't depend on the exact number of media files, but there should be
   # something here
-  media_length=$(jq '. | length' < media.json)
+  media_length=$(gojq '. | length' < media.json)
   test "${media_length}" -gt 0
 
-  timeout 5 snap debug api /v2/snaps/snap-store | jq --sort-keys .result.media > snapd-media.json
+  timeout 5 snap debug api /v2/snaps/snap-store | gojq .result.media > snapd-media.json
 
   diff media.json snapd-media.json

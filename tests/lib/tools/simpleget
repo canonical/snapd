@@ -1,0 +1,64 @@
+#!/usr/bin/env python3
+
+# note this script needs to run on Python as old as 3.6
+import os.path
+import argparse
+import logging
+import datetime
+import tempfile
+from urllib import request
+from urllib.parse import urlparse
+
+
+def parse_arguments() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="simple file getter")
+    parser.add_argument("-o", "--output", help="output file name")
+    parser.add_argument("URL", help="download URL")
+    return parser.parse_args()
+
+
+def main() -> None:
+    logging.basicConfig(
+        format="%(asctime)s - %(levelname)s - %(message)s", level=logging.DEBUG
+    )
+    opts = parse_arguments()
+
+    fromurl = urlparse(opts.URL).path
+    output = os.path.basename(fromurl)
+    if opts.output:
+        output = opts.output
+
+    if os.path.exists(output):
+        raise RuntimeError("output path {} already exists".format(output))
+
+    total = 0
+
+    def _report(blocks: int, bsize: int, tot: int):
+        nonlocal total
+        total = tot
+        logging.debug("got %d/%d kB", blocks * bsize / 1024.0, total / 1024.0)
+
+    # create a temp in the same directory as output
+    outdir = os.path.dirname(output)
+
+    with tempfile.NamedTemporaryFile(mode="wb", dir=outdir, delete=False) as outf:
+        name = outf.name
+        outf.close()
+        try:
+            now = datetime.datetime.now()
+            fn, _ = request.urlretrieve(
+                opts.URL, filename=outf.name, reporthook=_report
+            )
+            after = datetime.datetime.now()
+
+            os.rename(fn, output)
+        except:
+            os.unlink(name)
+            raise
+
+    speed = float(total) / (after - now).total_seconds() / 1024.0
+    logging.info("wrote %d bytes to %s, speed %.02f kB/s", total, output, speed)
+
+
+if __name__ == "__main__":
+    main()

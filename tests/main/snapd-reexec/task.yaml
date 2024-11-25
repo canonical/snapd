@@ -27,7 +27,7 @@ prepare: |
         # without .data.snaps.snapd.sequence and .data.snaps.snapd.current="unset"
         # snapd is not considered installed and core install will request restart
         cp -a /var/lib/snapd/state.json /tmp/backup_state.json
-        jq 'del(.data.snaps.snapd)' /tmp/backup_state.json > /tmp/modified_state.json
+        gojq 'del(.data.snaps.snapd)' /tmp/backup_state.json > /tmp/modified_state.json
         cp /tmp/modified_state.json /var/lib/snapd/state.json && rm /tmp/modified_state.json
         systemctl start snapd.service
     fi

@@ -589,7 +589,6 @@ pkg_dependencies_ubuntu_classic(){
             echo "
                 dbus-user-session
                 gccgo-8
-                gperf
                 evolution-data-server
                 fwupd
                 packagekit
@@ -611,12 +610,13 @@ pkg_dependencies_ubuntu_classic(){
                 shellcheck
                 "
             ;;
-        ubuntu-22.*|ubuntu-23.*|ubuntu-24.*)
+        ubuntu-22.*|ubuntu-23.*|ubuntu-24.*|ubuntu-25.*)
             # bpftool is part of linux-tools package
             echo "
                 dbus-user-session
                 fwupd
                 golang
+                gperf
                 libvirt-daemon-system
                 linux-tools-$(uname -r)
                 lz4
@@ -692,6 +692,7 @@ pkg_dependencies_fedora_centos_common(){
         git
         golang
         jq
+        iptables
         iptables-services
         man
         net-tools

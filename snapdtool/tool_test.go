@@ -426,6 +426,11 @@ func (s *toolSuite) TestExecInSnapdOrCoreSnapBadSelfExe(c *C) {
 }
 
 func (s *toolSuite) TestExecInSnapdOrCoreSnapBailsNoDistroSupport(c *C) {
+	snapReexec := os.Getenv("SNAP_REEXEC")
+	defer os.Setenv("SNAP_REEXEC", snapReexec)
+	err := os.Unsetenv("SNAP_REEXEC")
+	c.Assert(err, IsNil)
+
 	defer s.mockReExecFor(c, s.snapdPath, "potato")()
 
 	// no distro support:

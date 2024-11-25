@@ -33,14 +33,18 @@ type cmdValidateSeed struct {
 	} `positional-args:"true" required:"true"`
 }
 
+const longDebugValidateSeedHelp = `
+Validate correctness of snap seed located in the directory
+containing seed.yaml file.
+`
+
 func init() {
-	cmd := addDebugCommand("validate-seed",
-		"(internal) validate seed.yaml",
-		"(internal) validate seed.yaml",
+	addDebugCommand("validate-seed",
+		"Validate snap seed",
+		longDebugValidateSeedHelp,
 		func() flags.Commander {
 			return &cmdValidateSeed{}
 		}, nil, nil)
-	cmd.hidden = true
 }
 
 func (x *cmdValidateSeed) Execute(args []string) error {

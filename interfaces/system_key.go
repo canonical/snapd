@@ -274,7 +274,7 @@ func SystemKeyMismatch(extraData SystemKeyExtraData) (bool, error) {
 	if mockedSystemKey == nil {
 		if exe, err := os.Readlink("/proc/self/exe"); err == nil {
 			// detect running local local builds
-			if !strings.HasPrefix(exe, "/usr") && !strings.HasPrefix(exe, "/snap") {
+			if !strings.HasPrefix(exe, "/usr") && !strings.HasPrefix(exe, dirs.SnapMountDir) {
 				logger.Noticef("running from non-installed location %s: ignoring system-key", exe)
 				return false, ErrSystemKeyVersion
 			}

@@ -29,8 +29,6 @@ prepare: |
     echo "Add test user to dialout group required for ttyUSB* devices"
     remote.exec "sudo usermod -a -G dialout user1"
 
-    remote.exec "sudo snap install --devmode jq"
-
 restore: |
     rm -f /tmp/serialport{0,1}
 
@@ -38,7 +36,7 @@ debug: |
     remote.exec "snap connections --all" || true
     remote.exec "snap list" || true
     remote.exec "dmesg" || true
-    remote.exec 'sudo jq -r ".data[\"hotplug-slots\"]" /var/lib/snapd/state.json' || true
+    remote.exec 'sudo cat /var/lib/snapd/state.json' | gojq -r ".data[\"hotplug-slots\"]" || true
     remote.exec 'lsmod' || true
 
 execute: |

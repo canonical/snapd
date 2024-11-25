@@ -62,16 +62,35 @@ func makeFilesystem(params mkfsParams) error {
 	return udevTrigger(params.Device)
 }
 
+type mntfsParams struct {
+	NoExec bool
+	NoDev  bool
+	NoSuid bool
+}
+
+func (p *mntfsParams) flags() uintptr {
+	var flags uintptr
+	if p.NoDev {
+		flags |= syscall.MS_NODEV
+	}
+	if p.NoExec {
+		flags |= syscall.MS_NOEXEC
+	}
+	if p.NoSuid {
+		flags |= syscall.MS_NOSUID
+	}
+	return flags
+}
+
 // mountFilesystem mounts the filesystem on a given device with
 // filesystem type fs under the provided mount point directory.
-func mountFilesystem(fsDevice, fs, mountpoint string) error {
+func mountFilesystem(fsDevice, fs, mountpoint string, params mntfsParams) error {
 	if err := os.MkdirAll(mountpoint, 0755); err != nil {
 		return fmt.Errorf("cannot create mountpoint: %v", err)
 	}
-	if err := sysMount(fsDevice, mountpoint, fs, 0, ""); err != nil {
+	if err := sysMount(fsDevice, mountpoint, fs, params.flags(), ""); err != nil {
 		return fmt.Errorf("cannot mount filesystem %q at %q: %v", fsDevice, mountpoint, err)
 	}
-
 	return nil
 }
 

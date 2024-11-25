@@ -150,6 +150,22 @@ func MockSnapstateInstallWithGoal(mock func(ctx context.Context, st *state.State
 	}
 }
 
+func MockSnapstateUpdateWithGoal(mock func(ctx context.Context, st *state.State, goal snapstate.UpdateGoal, filter func(*snap.Info, *snapstate.SnapState) bool, opts snapstate.Options) ([]string, *snapstate.UpdateTaskSets, error)) (restore func()) {
+	return testutil.Mock(&snapstateUpdateWithGoal, mock)
+}
+
+func MockSnapstatePathUpdateGoal(mock func(snaps ...snapstate.PathSnap) snapstate.UpdateGoal) (restore func()) {
+	return testutil.Mock(&snapstatePathUpdateGoal, mock)
+}
+
+func MockSnapstateUpdateOne(mock func(ctx context.Context, st *state.State, goal snapstate.UpdateGoal, filter func(*snap.Info, *snapstate.SnapState) bool, opts snapstate.Options) (*state.TaskSet, error)) (restore func()) {
+	old := snapstateUpdateOne
+	snapstateUpdateOne = mock
+	return func() {
+		snapstateUpdateOne = old
+	}
+}
+
 func MockSnapstateInstallComponents(mock func(ctx context.Context, st *state.State, names []string, info *snap.Info, opts snapstate.Options) ([]*state.TaskSet, error)) (restore func()) {
 	old := snapstateInstallComponents
 	snapstateInstallComponents = mock
@@ -166,19 +182,19 @@ func MockSnapstateStoreInstallGoal(mock func(snaps ...snapstate.StoreSnap) snaps
 	}
 }
 
+func MockSnapstateStoreUpdateGoal(mock func(snaps ...snapstate.StoreUpdate) snapstate.UpdateGoal) (restore func()) {
+	old := snapstateStoreUpdateGoal
+	snapstateStoreUpdateGoal = mock
+	return func() {
+		snapstateStoreUpdateGoal = old
+	}
+}
+
 func MockSnapstateInstallPath(mock func(*state.State, *snap.SideInfo, string, string, string, snapstate.Flags, snapstate.PrereqTracker) (*state.TaskSet, *snap.Info, error)) (restore func()) {
 	oldSnapstateInstallPath := snapstateInstallPath
 	snapstateInstallPath = mock
 	return func() {
 		snapstateInstallPath = oldSnapstateInstallPath
-	}
-}
-
-func MockSnapstateUpdate(mock func(*state.State, string, *snapstate.RevisionOptions, int, snapstate.Flags) (*state.TaskSet, error)) (restore func()) {
-	oldSnapstateUpdate := snapstateUpdate
-	snapstateUpdate = mock
-	return func() {
-		snapstateUpdate = oldSnapstateUpdate
 	}
 }
 
@@ -214,14 +230,6 @@ func MockSnapstateRevertToRevision(mock func(*state.State, string, snap.Revision
 	}
 }
 
-func MockSnapstateUpdateMany(mock func(context.Context, *state.State, []string, []*snapstate.RevisionOptions, int, *snapstate.Flags) ([]string, []*state.TaskSet, error)) (restore func()) {
-	oldSnapstateUpdateMany := snapstateUpdateMany
-	snapstateUpdateMany = mock
-	return func() {
-		snapstateUpdateMany = oldSnapstateUpdateMany
-	}
-}
-
 func MockSnapstateRemove(mock func(st *state.State, name string, revision snap.Revision, flags *snapstate.RemoveFlags) (*state.TaskSet, error)) (restore func()) {
 	oldSnapstateRemove := snapstateRemove
 	snapstateRemove = mock
@@ -246,7 +254,7 @@ func MockSnapstateInstallPathMany(f func(context.Context, *state.State, []*snap.
 	}
 }
 
-func MockSnapstateInstallComponentPath(f func(st *state.State, csi *snap.ComponentSideInfo, info *snap.Info, path string, flags snapstate.Flags) (*state.TaskSet, error)) func() {
+func MockSnapstateInstallComponentPath(f func(st *state.State, csi *snap.ComponentSideInfo, info *snap.Info, path string, opts snapstate.Options) (*state.TaskSet, error)) func() {
 	old := snapstateInstallComponentPath
 	snapstateInstallComponentPath = f
 	return func() {
@@ -325,21 +333,18 @@ func MockReboot(f func(boot.RebootAction, time.Duration, *boot.RebootInfo) error
 
 func MockSideloadSnapsInfo(sis []*snap.SideInfo) (restore func()) {
 	r := testutil.Backup(&sideloadSnapsInfo)
-	sideloadSnapsInfo = func(st *state.State, snapFiles []*uploadedSnap,
+	sideloadSnapsInfo = func(st *state.State, snapFiles []*uploadedContainer,
 		flags sideloadFlags) (*sideloadedInfo, *apiError) {
 
-		names := make([]string, len(snapFiles))
-		sideInfos := make([]*snap.SideInfo, len(snapFiles))
-		origPaths := make([]string, len(snapFiles))
-		tmpPaths := make([]string, len(snapFiles))
+		var snaps []sideloadSnapInfo
 		for i, snapFile := range snapFiles {
-			sideInfos[i] = sis[i]
-			names[i] = sis[i].RealName
-			origPaths[i] = snapFile.filename
-			tmpPaths[i] = snapFile.tmpPath
+			snaps = append(snaps, sideloadSnapInfo{
+				sideInfo: sis[i],
+				origPath: snapFile.filename,
+				tmpPath:  snapFile.tmpPath,
+			})
 		}
-		return &sideloadedInfo{sideInfos: sideInfos, names: names,
-			origPaths: origPaths, tmpPaths: tmpPaths}, nil
+		return &sideloadedInfo{snaps: snaps}, nil
 	}
 	return r
 }

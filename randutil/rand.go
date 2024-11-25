@@ -83,6 +83,7 @@ func RandomString(length int) string {
 var (
 	Intn   = rand.Intn
 	Int63n = rand.Int63n
+	Perm   = rand.Perm
 )
 
 // RandomDuration returns a random duration up to the given length.

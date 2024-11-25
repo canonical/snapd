@@ -12,7 +12,6 @@ prepare: |
   snap install test-snapd-tools
   snap set system experimental.parallel-instances=true
   snap install test-snapd-tools_instance
-  snap install --devmode jq
 
 restore: |
   snap refresh --unhold || true

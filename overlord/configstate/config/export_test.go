@@ -33,10 +33,3 @@ var (
 	SortPatchKeysByDepth       = sortPatchKeysByDepth
 	OverlapsWithExternalConfig = overlapsWithExternalConfig
 )
-
-func ClearExternalConfigMap() {
-	externalConfigMu.Lock()
-	defer externalConfigMu.Unlock()
-
-	externalConfigMap = nil
-}

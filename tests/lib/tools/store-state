@@ -1,5 +1,7 @@
 #!/bin/bash
 
+set -e
+
 STORE_CONFIG=/etc/systemd/system/snapd.service.d/store.conf
 
 show_help() {
@@ -71,21 +73,9 @@ make_snap_installable(){
     local snap_id="${3:-}"
 
     if [ -n "$snap_id" ]; then
-        if ! command -v yaml2json; then
-            # FIXME: When fakestore is setup this snap cannot be installed
-            # TODO: Install remarshal in setup_fake_store
-            snap install remarshal
-        fi
-        if ! command -v jq; then
-            # FIXME: When fakestore is setup this snap cannot be installed
-            # TODO: Install jq in setup_fake_store or don't use snapped jq
-            SUFFIX="$(snaps.name snap-suffix)"
-            snap install "jq$SUFFIX"
-        fi
-
         # unsquash the snap to get its name
         unsquashfs -d /tmp/snap-squashfs "$snap_path" meta/snap.yaml
-        snap_name=$(yaml2json < /tmp/snap-squashfs/meta/snap.yaml | jq -r .name)
+        snap_name=$(gojq --yaml-input -r '.name' < /tmp/snap-squashfs/meta/snap.yaml)
         rm -rf /tmp/snap-squashfs
 
         cat >> /tmp/snap-decl.json << EOF
@@ -100,7 +90,7 @@ EOF
         if [ -n "$extra_decl_json_file" ]; then
             # then we need to combine the extra snap declaration json with the one
             # we just wrote
-            jq -s '.[0] * .[1]' <(cat /tmp/snap-decl.json) <(cat "$extra_decl_json_file") > /tmp/snap-decl.json.tmp
+            gojq -s '.[0] * .[1]' <(cat /tmp/snap-decl.json) <(cat "$extra_decl_json_file") > /tmp/snap-decl.json.tmp
             mv /tmp/snap-decl.json.tmp /tmp/snap-decl.json
         fi
 
@@ -141,8 +131,9 @@ setup_fake_store(){
         return 1
     fi
 
-    # before switching make sure we have a session macaroon
-    snap find test-snapd-tools
+    # before switching make sure we have a session macaroon, but keep it best
+    # effort
+    snap find test-snapd-tools || true
     mkdir -p "$top_dir/asserts"
 
     # debugging

@@ -158,6 +158,20 @@ dbus (send)
      peer=(label=unconfined),
 
 dbus (send)
+     bus=system
+     path="/org/freedesktop/resolve1"
+     interface="org.freedesktop.resolve1.Manager"
+     member="GetLink"
+     peer=(name="org.freedesktop.resolve1", label=unconfined),
+
+dbus (send)
+     bus=system
+     path="/org/freedesktop/resolve1/link/*"
+     interface="org.freedesktop.resolve1.Link"
+     member="Set{DNS,DNSSEC,DNSSECNegativeTrustAnchors,MulticastDNS,Domains,LLMNR}"
+     peer=(name="org.freedesktop.resolve1", label=unconfined),
+
+dbus (send)
    bus=system
    path=/org/freedesktop/DBus
    interface=org.freedesktop.DBus

@@ -1,0 +1,16 @@
+name: test-snapd-mount-control-nfs
+summary: A snap for testing mount-control with NFS
+version: 1.0
+
+apps:
+    cmd:
+        command: bin/sh
+        plugs: [mount-control]
+
+plugs:
+    mntctl:
+        interface: mount-control
+        mount:
+            - where: /media/**
+              type: [nfs]
+              options: [rw]

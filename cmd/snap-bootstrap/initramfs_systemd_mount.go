@@ -67,6 +67,12 @@ type systemdMountOptions struct {
 	// NoSuid indicates that the partition should be mounted with nosuid set on
 	// it to prevent suid execution.
 	NoSuid bool
+	// NoDev indicates to not interpret character or block special devices on
+	// the file system.
+	NoDev bool
+	// NoExec indicates to not allow direct execution of any binaries on the
+	// mounted file system
+	NoExec bool
 	// Bind indicates a bind mount
 	Bind bool
 	// Read-only mount
@@ -86,6 +92,13 @@ type systemdMountOptions struct {
 	// A directory to be used as the workdir of an overlay mount.
 	// This needs to be an empty directory on the same filesystem as upperdir.
 	WorkDir string
+	// dm-verity hash device
+	VerityHashDevice string
+	// dm-verity root hash
+	VerityRootHash string
+	// dm-verity hash offset. Need to be specified if only verity data are
+	// appended to the snap. Defaults to 0 in mount command
+	VerityHashOffset uint64
 }
 
 // forbiddenChars is a list of characters that are not allowed in any mount paths used in systemd-mount.
@@ -159,8 +172,14 @@ func doSystemdMountImpl(what, where string, opts *systemdMountOptions) error {
 	}
 
 	var options []string
+	if opts.NoDev {
+		options = append(options, "nodev")
+	}
 	if opts.NoSuid {
 		options = append(options, "nosuid")
+	}
+	if opts.NoExec {
+		options = append(options, "noexec")
 	}
 	if opts.Bind {
 		options = append(options, "bind")
@@ -200,6 +219,28 @@ func doSystemdMountImpl(what, where string, opts *systemdMountOptions) error {
 		options = append(options, fmt.Sprintf("lowerdir=%s", lowerDirs.String()))
 		options = append(options, fmt.Sprintf("upperdir=%s", opts.UpperDir))
 		options = append(options, fmt.Sprintf("workdir=%s", opts.WorkDir))
+	}
+	if opts.VerityHashDevice != "" && opts.VerityRootHash == "" {
+		return fmt.Errorf("cannot mount %q at %q: mount with dm-verity was requested but a root hash was not specified", what, where)
+	}
+	if opts.VerityRootHash != "" && opts.VerityHashDevice == "" {
+		return fmt.Errorf("cannot mount %q at %q: mount with dm-verity was requested but a hash device was not specified", what, where)
+	}
+
+	if strings.ContainsAny(opts.VerityHashDevice, forbiddenChars) {
+		return fmt.Errorf("cannot mount %q at %q: dm-verity hash device path contains forbidden characters. %q contains one of %q.", what, where, opts.VerityHashDevice, forbiddenChars)
+	}
+
+	if opts.VerityHashOffset != 0 && (opts.VerityHashDevice == "" || opts.VerityRootHash == "") {
+		return fmt.Errorf("cannot mount %q at %q: mount with dm-verity was requested but a hash device and root hash were not specified", what, where)
+	}
+	if opts.VerityHashDevice != "" && opts.VerityRootHash != "" {
+		options = append(options, fmt.Sprintf("verity.roothash=%s", opts.VerityRootHash))
+		options = append(options, fmt.Sprintf("verity.hashdevice=%s", opts.VerityHashDevice))
+
+		if opts.VerityHashOffset != 0 {
+			options = append(options, fmt.Sprintf("verity.hashoffset=%d", opts.VerityHashOffset))
+		}
 	}
 	if len(options) > 0 {
 		args = append(args, "--options="+strings.Join(options, ","))

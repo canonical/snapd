@@ -143,6 +143,11 @@ func (s *mountSuite) SetUpTest(c *C) {
 					"options":    []string{"ro"},
 					"persistent": false,
 				},
+				map[string]interface{}{
+					"where":   "/nfs-dest",
+					"options": []string{"rw"},
+					"type":    []string{"nfs"},
+				},
 			},
 		},
 	}
@@ -270,6 +275,15 @@ func (s *mountSuite) TestMissingProperPlug(c *C) {
 	_, _, err = ctlcmd.Run(s.mockContext, []string{"mount", "--persistent", "-o", "bind,rw", "/src", "/dest"}, 0)
 	c.Check(err, ErrorMatches, `.*no matching mount-control connection found`)
 	c.Check(s.sysd.EnsureMountUnitFileWithOptionsCalls, HasLen, 0)
+
+	// bad NFS source format
+	_, _, err = ctlcmd.Run(s.mockContext, []string{"mount", "-o", "rw", "-t", "nfs", "/src", "/dest"}, 0)
+	c.Check(err, ErrorMatches, `.*no matching mount-control connection found`)
+	_, _, err = ctlcmd.Run(s.mockContext, []string{"mount", "-o", "rw", "-t", "nfs", "/host:/src", "/dest"}, 0)
+	c.Check(err, ErrorMatches, `.*no matching mount-control connection found`)
+	_, _, err = ctlcmd.Run(s.mockContext, []string{"mount", "-o", "rw", "-t", "nfs", ":/share", "/dest"}, 0)
+	c.Check(err, ErrorMatches, `.*no matching mount-control connection found`)
+	c.Check(s.sysd.EnsureMountUnitFileWithOptionsCalls, HasLen, 0)
 }
 
 func (s *mountSuite) TestUnitCreationFailure(c *C) {
@@ -348,6 +362,27 @@ func (s *mountSuite) TestHappyWithCommasInPath(c *C) {
 			What:        "/dev/dma_heap/qcom,qseecom",
 			Where:       "/dest,with,commas",
 			Options:     []string{"ro"},
+			Origin:      "mount-control",
+		},
+	})
+}
+
+func (s *mountSuite) TestHappyNFS(c *C) {
+	s.injectSnapWithProperPlug(c)
+
+	s.sysd.EnsureMountUnitFileWithOptionsResult = ResultForEnsureMountUnitFileWithOptions{"/path/unit.mount", nil}
+
+	// Now try with commas in the paths
+	_, _, err := ctlcmd.Run(s.mockContext, []string{"mount", "-o", "rw", "-t", "nfs", "localhost:/var/share", "/nfs-dest"}, 0)
+	c.Check(err, IsNil)
+	c.Check(s.sysd.EnsureMountUnitFileWithOptionsCalls, DeepEquals, []*systemd.MountUnitOptions{
+		{
+			Lifetime:    systemd.Transient,
+			Description: "Mount unit for snap1, revision 1 via mount-control",
+			What:        "localhost:/var/share",
+			Where:       "/nfs-dest",
+			Fstype:      "nfs",
+			Options:     []string{"rw"},
 			Origin:      "mount-control",
 		},
 	})

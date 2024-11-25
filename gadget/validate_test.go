@@ -78,6 +78,7 @@ func (s *validateGadgetTestSuite) TestRuleValidateStructureReservedLabels(c *C) 
 				},
 			},
 		}
+		gadget.SetEnclosingVolumeInStructs(gi.Volumes)
 		err := gadget.Validate(gi, tc.model, nil)
 		if tc.err == "" {
 			c.Check(err, IsNil)
@@ -86,6 +87,35 @@ func (s *validateGadgetTestSuite) TestRuleValidateStructureReservedLabels(c *C) 
 		}
 	}
 
+}
+
+func (s *validateGadgetTestSuite) TestRuleValidateStructureEmmcNames(c *C) {
+	for _, tc := range []struct {
+		name, err string
+		model     gadget.Model
+	}{
+		{name: "some-name", err: `cannot use "some-name" as emmc name, only \["boot0" "boot1"\] is allowed`},
+		{name: "boot0", err: ""},
+		{name: "boot1", err: ""},
+	} {
+		gi := &gadget.Info{
+			Volumes: map[string]*gadget.Volume{
+				"emmc": {
+					Schema: "emmc",
+					Structure: []gadget.VolumeStructure{{
+						Name: tc.name,
+					}},
+				},
+			},
+		}
+		gadget.SetEnclosingVolumeInStructs(gi.Volumes)
+		err := gadget.Validate(gi, tc.model, nil)
+		if tc.err == "" {
+			c.Check(err, IsNil)
+		} else {
+			c.Check(err, ErrorMatches, ".*: "+tc.err)
+		}
+	}
 }
 
 // rolesYaml produces gadget metadata with volumes with structure withs the given

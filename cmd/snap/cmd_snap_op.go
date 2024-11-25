@@ -929,7 +929,13 @@ type cmdRefresh struct {
 }
 
 func (x *cmdRefresh) refreshMany(snaps []string, opts *client.SnapOptions) error {
-	changeID, err := x.client.RefreshMany(snaps, opts)
+	const forInstall = true
+	names, compsBySnap, err := snapInstancesAndComponentsFromNames(snaps, forInstall)
+	if err != nil {
+		return err
+	}
+
+	changeID, err := x.client.RefreshMany(names, compsBySnap, opts)
 	if err != nil {
 		return err
 	}
@@ -958,9 +964,14 @@ func (x *cmdRefresh) refreshMany(snaps []string, opts *client.SnapOptions) error
 }
 
 func (x *cmdRefresh) refreshOne(name string, opts *client.SnapOptions) error {
-	changeID, err := x.client.Refresh(name, opts)
+	snapName, comps := snap.SplitSnapInstanceAndComponents(name)
+	if name == "" {
+		return errors.New(i18n.G("no snap for the component(s) was specified"))
+	}
+
+	changeID, err := x.client.Refresh(snapName, comps, opts)
 	if err != nil {
-		msg, err := errorToCmdMessage(name, "refresh", err, opts)
+		msg, err := errorToCmdMessage(snapName, "refresh", err, opts)
 		if err != nil {
 			return err
 		}
@@ -978,7 +989,7 @@ func (x *cmdRefresh) refreshOne(name string, opts *client.SnapOptions) error {
 
 	// TODO: this doesn't really tell about all the things you
 	// could set while refreshing (something switch does)
-	return showDone(x.client, chg, &changedSnapsData{names: []string{name}, comps: nil}, "refresh", opts, x.getEscapes())
+	return showDone(x.client, chg, &changedSnapsData{names: []string{snapName}, comps: nil}, "refresh", opts, x.getEscapes())
 }
 
 func parseSysinfoTime(s string) time.Time {

@@ -501,7 +501,7 @@ func (x *cmdRun) straceOpts() (opts []string, raw bool, err error) {
 func checkSnapRunInhibitionConflict(app *snap.AppInfo) error {
 	// Remove hint check takes precedence because we want to exit early
 	snapName := app.Snap.InstanceName()
-	hint, _, err := runinhibit.IsLocked(snapName)
+	hint, _, err := runinhibit.IsLocked(snapName, nil)
 	if err != nil {
 		return err
 	}

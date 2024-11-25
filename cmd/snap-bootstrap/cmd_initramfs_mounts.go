@@ -1361,6 +1361,9 @@ func (m *recoverModeStateMachine) mountSave() (stateFunc, error) {
 	// TODO: should we fsck ubuntu-save ?
 	mountOpts := &systemdMountOptions{
 		Private: true,
+		NoDev:   true,
+		NoSuid:  true,
+		NoExec:  true,
 	}
 	mountErr := doSystemdMount(save.fsDevice, boot.InitramfsUbuntuSaveDir, mountOpts)
 	if err := m.setMountState("ubuntu-save", boot.InitramfsUbuntuSaveDir, mountErr); err != nil {
@@ -2012,7 +2015,7 @@ func generateMountsModeRun(mst *initramfsMountsState) error {
 	isRunMode := true
 
 	// 2. mount ubuntu-seed (optional for classic)
-	systemdOpts := &systemdMountOptions{
+	seedMountOpts := &systemdMountOptions{
 		NeedsFsck: true,
 		Private:   true,
 	}
@@ -2038,7 +2041,7 @@ func generateMountsModeRun(mst *initramfsMountsState) error {
 	//            need it to be writable for i.e. transitioning to recover mode
 	if partUUID != "" {
 		if err := doSystemdMount(fmt.Sprintf("/dev/disk/by-partuuid/%s", partUUID),
-			boot.InitramfsUbuntuSeedDir, systemdOpts); err != nil {
+			boot.InitramfsUbuntuSeedDir, seedMountOpts); err != nil {
 			return err
 		}
 	}
@@ -2089,7 +2092,14 @@ func generateMountsModeRun(mst *initramfsMountsState) error {
 	rootfsDir := boot.InitramfsWritableDir(model, isRunMode)
 
 	// 3.2. mount ubuntu-save (if present)
-	haveSave, err := maybeMountSave(disk, rootfsDir, isEncryptedDev, systemdOpts)
+	saveMountOpts := &systemdMountOptions{
+		NeedsFsck: true,
+		Private:   true,
+		NoDev:     true,
+		NoSuid:    true,
+		NoExec:    true,
+	}
+	haveSave, err := maybeMountSave(disk, rootfsDir, isEncryptedDev, saveMountOpts)
 	if err != nil {
 		return err
 	}

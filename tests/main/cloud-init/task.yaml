@@ -8,11 +8,6 @@ details: |
 # GCE backend sets instance data
 backends: [google]
 
-prepare: |
-    if ! command -v jq; then
-        snap install --devmode jq
-    fi
-
 execute: |
     if [[ ! -e /run/cloud-init/instance-data.json ]]; then
         echo "cloud-init instance data is required to execute the test"
@@ -29,13 +24,13 @@ execute: |
         # we could use cloud-init query <key>, but that requires cloud-init 18.4+
         # which is not available in all images we use
         local kname="$1"
-        if jq -r '.v1 | keys[]' < /run/cloud-init/instance-data.json | grep -q _; then
+        if gojq -r '.v1 | keys[]' < /run/cloud-init/instance-data.json | grep -q _; then
             kname=${kname/-/_}
         else
             kname=${kname/_/-}
         fi
 
-       jq -r ".[\"v1\"][\"$kname\"]" < /run/cloud-init/instance-data.json
+       gojq -r ".[\"v1\"][\"$kname\"]" < /run/cloud-init/instance-data.json
     }
     # GCE sets the following in Ubuntu images:
     # {
@@ -57,7 +52,7 @@ execute: |
     if [[ "$cloud_name" == "nocloud" ||  "$cloud_name" == "none" ]]; then
         echo "not a cloud instance, config should be empty"
 
-        nocloud=$(snap get core -d | jq -r '.cloud')
+        nocloud=$(snap get core -d | gojq -r '.cloud')
         test "$nocloud" = null
         exit 0
     fi

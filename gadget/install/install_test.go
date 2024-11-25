@@ -1199,7 +1199,7 @@ func (s *installSuite) testMountVolumes(c *C, opts mountVolumesOpts) {
 			}
 			c.Assert(target, Equals, saveMntPt)
 			c.Assert(fstype, Equals, "ext4")
-			c.Assert(flags, Equals, uintptr(0))
+			c.Assert(flags, Equals, uintptr(syscall.MS_NOEXEC|syscall.MS_NODEV|syscall.MS_NOSUID))
 			c.Assert(data, Equals, "")
 		case 4:
 			if opts.encryption {

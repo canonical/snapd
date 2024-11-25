@@ -18,7 +18,7 @@ systems:
   - -ubuntu-core-*-arm-*
 
 prepare: |
-  snap install go-example-webserver jq remarshal hello-world
+  snap install go-example-webserver hello-world
 
 execute: |
   echo "Create a group with a snap in it"
@@ -80,7 +80,7 @@ execute: |
       exit 1
   fi
 
-  snapdSaysMemUsage="$(sudo snap debug api /v2/quotas/group-one | jq -r '.result.current.memory')"
+  snapdSaysMemUsage="$(sudo snap debug api /v2/quotas/group-one | gojq -r '.result.current.memory')"
   kernelSaysMemUsage="$(cat "$cgroupMemFile")"
 
   pyCmd="import math; print(math.ceil(abs($snapdSaysMemUsage - $kernelSaysMemUsage) / $snapdSaysMemUsage * 100))"
@@ -163,9 +163,9 @@ execute: |
 
   echo "Removing a snap ensures that the snap is not in the quota group anymore"
   snap set-quota group-three --memory=100MB go-example-webserver
-  snap quota group-three | yaml2json | jq -r '.snaps | .[]' | MATCH go-example-webserver
+  snap quota group-three | gojq --yaml-input -r '.snaps | .[]' | MATCH go-example-webserver
   snap remove go-example-webserver
-  snap quota group-three | yaml2json | jq -r '.snaps' | MATCH null
+  snap quota group-three | gojq --yaml-input -r '.snaps' | MATCH null
   snap remove-quota group-three
 
   echo "Creating a quota group with no actual services in it still has logical memory usage reported for it"
@@ -175,7 +175,7 @@ execute: |
   # in reporting it's memory usage on old systemd versions
   snap set-quota group-five --memory=10MB --parent=group-four hello-world
 
-  snapdSaysMemUsage="$(sudo snap debug api /v2/quotas/group-five | jq -r '.result.current.memory')"
+  snapdSaysMemUsage="$(sudo snap debug api /v2/quotas/group-five | gojq -r '.result.current.memory')"
   # both 0 and up to 12KiB values are expected here, 0 is for older systemd/kernels 
   # where an empty cgroup has exactly 0, but on newer systems there is some 
   # minimum amount of accounting memory for an empty cgroup, which is observed
@@ -189,7 +189,7 @@ execute: |
           exit 1
   esac
 
-  snapdSaysMemUsage="$(sudo snap debug api /v2/quotas/group-four | jq -r '.result.current.memory')"
+  snapdSaysMemUsage="$(sudo snap debug api /v2/quotas/group-four | gojq -r '.result.current.memory')"
   case "$snapdSaysMemUsage" in
       null|0|4096|8192|12288)
           # expected

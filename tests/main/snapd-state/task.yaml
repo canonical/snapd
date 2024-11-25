@@ -10,7 +10,6 @@ backends: [google, qemu]
 
 prepare: |
     snap install test-snapd-tools
-    snap install --devmode jq
 
 debug: |
     # GCE does not always NTP sync, try to figure out why here

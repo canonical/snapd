@@ -1231,7 +1231,10 @@ func restartServicesByStatus(svcsSts []*internal.ServiceStatus, explicitServices
 		var unitsToRestart []string
 
 		// If the service is activated, then we must also consider it's activators
-		if len(st.ActivatorUnitStatuses()) != 0 {
+		// as long as we are not requesting a reload. For activated units reload
+		// is not a supported action. In that case treat it like a non-activated
+		// service.
+		if len(st.ActivatorUnitStatuses()) != 0 && !opts.Reload {
 			// Restart any activators first and operate normally on these
 			for _, act := range st.ActivatorUnitStatuses() {
 				// Use the primary name here for shouldRestart, as the caller

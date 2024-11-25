@@ -69,7 +69,7 @@ execute: |
     response=$(remote.exec "sudo test-snapd-curl.curl -X POST --unix-socket /run/snapd.socket -F 'action=create' -F 'label=new-system' -F 'validation-sets=test-snapd/recovery-system-pinned=1' -F 'assertion=<test-snapd-recovery-system-pinned.assert' -F 'assertion=<hello-world.assert' -F 'snap=@hello-world.snap' -F 'test-system=${TEST_SYSTEM}' -F 'mark-default=true' http://localhost/v2/systems")
   fi
 
-  change_id=$(jq -r .change <<< "${response}")
+  change_id=$(gojq -r .change <<< "${response}")
 
   if [ "${TEST_SYSTEM}" = 'true' ]; then
     remote.wait-for reboot "${boot_id}"

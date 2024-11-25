@@ -8,7 +8,6 @@ details: |
 systems: [-ubuntu-core-*]
 
 prepare: |
-  snap install --edge jq
   snap pack simplesnap.v1
   snap pack simplesnap.v2
 
@@ -18,7 +17,7 @@ execute: |
 
   inspect_connection() {
     # shellcheck disable=SC2002
-    cat /var/lib/snapd/state.json | jq -r '.data["conns"] | has("simplesnap:home core:home")'
+    cat /var/lib/snapd/state.json | gojq -r '.data["conns"] | has("simplesnap:home core:home")'
   }
 
   # precondition

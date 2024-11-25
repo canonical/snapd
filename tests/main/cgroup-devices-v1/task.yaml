@@ -18,8 +18,8 @@ systems:
     - -centos-9-*
     - -amazon-linux-2023-*
     - -ubuntu-22.*
-    - -ubuntu-23.*
     - -ubuntu-24.*
+    - -ubuntu-25.*
     - -ubuntu-core-22-*
     - -ubuntu-core-24-*
 

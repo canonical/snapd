@@ -85,7 +85,8 @@ execute: |
 
     systemctl stop snapd.{service,socket}
 
-    jq ".data.auth.users[0][\"store-macaroon\"] = \"$M\"|.data.auth.users[0][\"store-discharges\"][0] = \"$D\"" /var/lib/snapd/state.json > /var/lib/snapd/state.json.new
+    gojq ".data.auth.users[0][\"store-macaroon\"] = \"$M\"|.data.auth.users[0][\"store-discharges\"][0] = \"$D\"" \
+        /var/lib/snapd/state.json > /var/lib/snapd/state.json.new
     mv /var/lib/snapd/state.json.new /var/lib/snapd/state.json
     "$TESTSTOOLS"/snapd-state force-autorefresh
     systemctl start snapd.{service,socket}

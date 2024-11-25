@@ -314,7 +314,28 @@ func (m *InterfaceManager) setupProfilesForAppSet(task *state.Task, appSet *inte
 			return err
 		}
 
-		appSet, err := appSetForSnapRevision(st, snapInfo)
+		var appSet *interfaces.SnapAppSet
+		if snapst.PendingSecurity != nil {
+			// a content plug/slot may have already updated in this change, so the appSet
+			// should reflect in the revision (otherwise, we may regenerate the
+			// profile for the wrong revision)
+			snapInfo.SideInfo = *snapst.PendingSecurity.SideInfo
+
+			var comps []*snap.ComponentInfo
+			for _, csi := range snapst.PendingSecurity.Components {
+				ci, err := snapstate.ReadComponentInfo(snapInfo, csi)
+				if err != nil {
+					return fmt.Errorf("cannot read component info when building app set %q: %v", name, err)
+				}
+
+				comps = append(comps, ci)
+			}
+
+			appSet, err = interfaces.NewSnapAppSet(snapInfo, comps)
+		} else {
+			appSet, err = appSetForSnapRevision(st, snapInfo)
+		}
+
 		if err != nil {
 			return fmt.Errorf("building app set for snap %q: %v", name, err)
 		}
@@ -1361,11 +1382,14 @@ func (m *InterfaceManager) doAutoConnect(task *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	// The previous task (link-snap) may have triggered a restart,
-	// if this is the case we can only proceed once the restart
-	// has happened or we may not have all the interfaces of the
-	// new core/base snap.
-	if err := snapstateFinishRestart(task, snapsup); err != nil {
+	// The previous task (link-snap) may have triggered a restart, if this
+	// is the case we can only proceed once the restart has happened or we
+	// may not have all the interfaces of the new core/base snap. We set
+	// the default to true as we always called FinishRestart in older
+	// snapd.
+	logger.Debugf("finish restart from doAutoConnect")
+	if err := snapstateFinishRestart(task, snapsup,
+		snapstate.FinishRestartOptions{FinishRestartDefault: true}); err != nil {
 		return err
 	}
 

@@ -1640,6 +1640,9 @@ func (s *snapmgrTestSuite) testRevertRunThrough(c *C, refreshAppAwarenessUX bool
 			path: filepath.Join(dirs.SnapMountDir, "some-snap/2"),
 		},
 		{
+			op: "maybe-set-next-boot",
+		},
+		{
 			op:    "auto-connect:Doing",
 			name:  "some-snap",
 			revno: snap.R(2),
@@ -1872,6 +1875,9 @@ func (s *snapmgrTestSuite) TestRevertWithBaseRunThrough(c *C) {
 			path: filepath.Join(dirs.SnapMountDir, "some-snap-with-base/2"),
 		},
 		{
+			op: "maybe-set-next-boot",
+		},
+		{
 			op:    "auto-connect:Doing",
 			name:  "some-snap-with-base",
 			revno: snap.R(2),
@@ -1962,6 +1968,9 @@ func (s *snapmgrTestSuite) TestParallelInstanceRevertRunThrough(c *C) {
 			otherInstances: true,
 		},
 		{
+			op: "maybe-set-next-boot",
+		},
+		{
 			op:    "auto-connect:Doing",
 			name:  "some-snap_instance",
 			revno: snap.R(2),
@@ -2030,7 +2039,7 @@ func (s *snapmgrTestSuite) TestRevertWithLocalRevisionRunThrough(c *C) {
 
 	s.settle(c)
 
-	c.Assert(s.fakeBackend.ops.Ops(), HasLen, 8)
+	c.Assert(s.fakeBackend.ops.Ops(), HasLen, 9)
 
 	// verify that LocalRevision is still -7
 	var snapst snapstate.SnapState
@@ -2097,6 +2106,9 @@ func (s *snapmgrTestSuite) TestRevertToRevisionNewVersion(c *C) {
 		{
 			op:   "link-snap",
 			path: filepath.Join(dirs.SnapMountDir, "some-snap/7"),
+		},
+		{
+			op: "maybe-set-next-boot",
 		},
 		{
 			op:    "auto-connect:Doing",
@@ -2190,6 +2202,9 @@ func (s *snapmgrTestSuite) TestRevertTotalUndoRunThrough(c *C) {
 			path: filepath.Join(dirs.SnapMountDir, "some-snap/1"),
 		},
 		{
+			op: "maybe-set-next-boot",
+		},
+		{
 			op:    "auto-connect:Doing",
 			name:  "some-snap",
 			revno: snap.R(1),
@@ -2219,6 +2234,10 @@ func (s *snapmgrTestSuite) TestRevertTotalUndoRunThrough(c *C) {
 		{
 			op:   "link-snap",
 			path: filepath.Join(dirs.SnapMountDir, "some-snap/2"),
+		},
+		{
+			op:     "maybe-set-next-boot",
+			isUndo: true,
 		},
 		{
 			op: "update-aliases",
@@ -2310,6 +2329,10 @@ func (s *snapmgrTestSuite) TestRevertUndoRunThrough(c *C) {
 		{
 			op:   "link-snap",
 			path: filepath.Join(dirs.SnapMountDir, "some-snap/2"),
+		},
+		{
+			op:     "maybe-set-next-boot",
+			isUndo: true,
 		},
 		{
 			op: "update-aliases",
@@ -2997,6 +3020,9 @@ func (s *snapmgrTestSuite) TestEnableRunThrough(c *C) {
 			path: filepath.Join(dirs.SnapMountDir, "some-snap/7"),
 		},
 		{
+			op: "maybe-set-next-boot",
+		},
+		{
 			op:    "auto-connect:Doing",
 			name:  "some-snap",
 			revno: snap.R(7),
@@ -3157,6 +3183,9 @@ func (s *snapmgrTestSuite) TestParallelInstanceEnableRunThrough(c *C) {
 			op:             "link-snap",
 			path:           filepath.Join(dirs.SnapMountDir, "some-snap_instance/7"),
 			otherInstances: true,
+		},
+		{
+			op: "maybe-set-next-boot",
 		},
 		{
 			op:    "auto-connect:Doing",
@@ -4316,12 +4345,13 @@ func (s *snapmgrTestSuite) TestFinishRestartBasics(c *C) {
 	si := &snap.SideInfo{RealName: "some-app"}
 	snaptest.MockSnap(c, "name: some-app\nversion: 1", si)
 	snapsup := &snapstate.SnapSetup{SideInfo: si}
-	err := snapstate.FinishRestart(task, snapsup)
+	err := snapstate.FinishRestart(task, snapsup,
+		snapstate.FinishRestartOptions{FinishRestartDefault: true})
 	c.Check(err, IsNil)
 
 	// restarting ... we always wait
 	restart.MockPending(st, restart.RestartDaemon)
-	err = snapstate.FinishRestart(task, snapsup)
+	err = snapstate.FinishRestart(task, snapsup, snapstate.FinishRestartOptions{FinishRestartDefault: true})
 	c.Check(err, FitsTypeOf, &state.Retry{})
 }
 
@@ -4342,17 +4372,65 @@ func (s *snapmgrTestSuite) TestFinishRestartNoopWhenPreseeding(c *C) {
 	si := &snap.SideInfo{RealName: "some-app"}
 	snaptest.MockSnap(c, "name: some-app\nversion: 1", si)
 	snapsup := &snapstate.SnapSetup{SideInfo: si}
-	err := snapstate.FinishRestart(task, snapsup)
+	err := snapstate.FinishRestart(task, snapsup, snapstate.FinishRestartOptions{FinishRestartDefault: true})
 	c.Check(err, IsNil)
 
 	restart.MockPending(st, restart.RestartDaemon)
-	err = snapstate.FinishRestart(task, snapsup)
+	err = snapstate.FinishRestart(task, snapsup, snapstate.FinishRestartOptions{FinishRestartDefault: true})
 	c.Check(err, IsNil)
 
 	// verification: retry when not preseeding
 	snapdenv.MockPreseeding(false)
-	err = snapstate.FinishRestart(task, snapsup)
+	err = snapstate.FinishRestart(task, snapsup, snapstate.FinishRestartOptions{FinishRestartDefault: true})
 	c.Check(err, FitsTypeOf, &state.Retry{})
+}
+
+func (s *snapmgrTestSuite) TestFinishRestartWithTaskVariable(c *C) {
+	r := release.MockOnClassic(true)
+	defer r()
+
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	task := st.NewTask("auto-connect", "...")
+
+	si := &snap.SideInfo{RealName: "some-app"}
+	snaptest.MockSnap(c, "name: some-app\nversion: 1\ntype: kernel", si)
+	snapsup := &snapstate.SnapSetup{SideInfo: si}
+
+	// Set pending reboot so we can use the Retry error to know if
+	// FinishRestart would so something or not.
+	restart.MockPending(st, restart.RestartDaemon)
+
+	// Error if FinishRestart runs
+	err := snapstate.FinishRestart(task, snapsup,
+		snapstate.FinishRestartOptions{FinishRestartDefault: true})
+	c.Check(err, FitsTypeOf, &state.Retry{})
+
+	// No state.Retry failure if not running by default and
+	// finish-restart is not set
+	err = snapstate.FinishRestart(task, snapsup,
+		snapstate.FinishRestartOptions{FinishRestartDefault: false})
+	c.Check(err, IsNil)
+
+	// Retry error if finish-restart is set, RunIfOldChange is ignored
+	for _, runIfOldChange := range []bool{true, false} {
+		finishRestart := true
+		task.Set("finish-restart", &finishRestart)
+		err = snapstate.FinishRestart(task, snapsup,
+			snapstate.FinishRestartOptions{FinishRestartDefault: runIfOldChange})
+		c.Check(err, FitsTypeOf, &state.Retry{})
+	}
+
+	// No error if unset though, RunIfOldChange is ignored
+	for _, runIfOldChange := range []bool{true, false} {
+		finishRestart := false
+		task.Set("finish-restart", &finishRestart)
+		err = snapstate.FinishRestart(task, snapsup,
+			snapstate.FinishRestartOptions{FinishRestartDefault: runIfOldChange})
+		c.Check(err, IsNil)
+	}
 }
 
 func (s *snapmgrTestSuite) TestFinishRestartGeneratesSnapdWrappersOnCore(c *C) {
@@ -4412,7 +4490,8 @@ type: snapd
 
 		// restarting
 		restart.MockPending(st, restart.RestartUnset)
-		c.Assert(snapstate.FinishRestart(task, snapsup), IsNil)
+		c.Assert(snapstate.FinishRestart(task, snapsup,
+			snapstate.FinishRestartOptions{FinishRestartDefault: true}), IsNil)
 		c.Check(generateWrappersCalled, Equals, tc.expectedWrappersCall, Commentf("#%d: %v", i, tc))
 
 		c.Assert(os.RemoveAll(filepath.Join(snap.BaseDir(snapInfo.SnapName()), "current")), IsNil)
@@ -5628,6 +5707,9 @@ func (s *snapmgrTestSuite) TestTransitionCoreRunThrough(c *C) {
 		{
 			op:   "link-snap",
 			path: filepath.Join(dirs.SnapMountDir, "core/11"),
+		},
+		{
+			op: "maybe-set-next-boot",
 		},
 		{
 			op:    "auto-connect:Doing",
@@ -8134,6 +8216,9 @@ func (s *snapmgrTestSuite) TestSnapdRefreshTasks(c *C) {
 			path: filepath.Join(dirs.SnapMountDir, "snapd/11"),
 		},
 		{
+			op: "maybe-set-next-boot",
+		},
+		{
 			op:    "auto-connect:Doing",
 			name:  "snapd",
 			revno: snap.R(11),
@@ -8282,7 +8367,7 @@ func (s *snapmgrTestSuite) testRemodelLinkNewBaseOrKernelHappy(c *C, model *asse
 	ts, err := snapstate.LinkNewBaseOrKernel(s.state, "some-kernel", "")
 	c.Assert(err, IsNil)
 	tasks := ts.Tasks()
-	c.Check(taskKinds(tasks), DeepEquals, expectedDoInstallTasks(snap.TypeKernel, opts, 0, []string{"prepare-snap"}, nil, kindsToSet(nonReLinkKinds)))
+	c.Check(taskKinds(tasks), DeepEquals, expectedDoInstallTasks(snap.TypeKernel, opts, 0, 0, []string{"prepare-snap"}, nil, kindsToSet(nonReLinkKinds)))
 	tPrepare := tasks[0]
 	var tLink, tUpdateGadgetAssets *state.Task
 	if opts&needsKernelSetup != 0 {
@@ -8310,7 +8395,7 @@ func (s *snapmgrTestSuite) testRemodelLinkNewBaseOrKernelHappy(c *C, model *asse
 	ts, err = snapstate.LinkNewBaseOrKernel(s.state, "some-base", "")
 	c.Assert(err, IsNil)
 	tasks = ts.Tasks()
-	c.Check(taskKinds(tasks), DeepEquals, expectedDoInstallTasks(snap.TypeBase, 0, 0, []string{"prepare-snap"}, nil, kindsToSet(nonReLinkKinds)))
+	c.Check(taskKinds(tasks), DeepEquals, expectedDoInstallTasks(snap.TypeBase, 0, 0, 0, []string{"prepare-snap"}, nil, kindsToSet(nonReLinkKinds)))
 	c.Assert(tasks, HasLen, 2)
 	tPrepare = tasks[0]
 	tLink = tasks[1]
@@ -8404,7 +8489,7 @@ func (s *snapmgrTestSuite) testRemodelAddLinkNewBaseOrKernel(c *C, model *assert
 	c.Assert(err, IsNil)
 	c.Assert(tsNew, NotNil)
 	tasks := tsNew.Tasks()
-	c.Check(taskKinds(tasks), DeepEquals, expectedDoInstallTasks(snap.TypeKernel, opts, 0, []string{"prepare-snap", "test-task"}, nil, kindsToSet(nonReLinkKinds)))
+	c.Check(taskKinds(tasks), DeepEquals, expectedDoInstallTasks(snap.TypeKernel, opts, 0, 0, []string{"prepare-snap", "test-task"}, nil, kindsToSet(nonReLinkKinds)))
 	// since this is the kernel, we have our task + test task + update-gadget-assets + link-snap
 	var tLink, tUpdateGadgetAssets *state.Task
 	if opts&needsKernelSetup != 0 {
@@ -8448,7 +8533,7 @@ func (s *snapmgrTestSuite) testRemodelAddLinkNewBaseOrKernel(c *C, model *assert
 	c.Assert(err, IsNil)
 	c.Assert(tsNew, NotNil)
 	tasks = tsNew.Tasks()
-	c.Check(taskKinds(tasks), DeepEquals, expectedDoInstallTasks(snap.TypeBase, 0, 0, []string{"prepare-snap"}, nil, kindsToSet(nonReLinkKinds)))
+	c.Check(taskKinds(tasks), DeepEquals, expectedDoInstallTasks(snap.TypeBase, 0, 0, 0, []string{"prepare-snap"}, nil, kindsToSet(nonReLinkKinds)))
 	// since this is the base, we have our task + link-snap only
 	c.Assert(tasks, HasLen, 2)
 	tLink = tasks[1]
@@ -8478,7 +8563,7 @@ func (s *snapmgrTestSuite) TestRemodelSwitchNewGadget(c *C) {
 	c.Assert(err, IsNil)
 	tasks := ts.Tasks()
 	c.Check(taskKinds(tasks), DeepEquals, expectedDoInstallTasks(
-		snap.TypeGadget, 0, 0, []string{"prepare-snap"}, nil, kindsToSet(append(nonReLinkKinds, "link-snap"))),
+		snap.TypeGadget, 0, 0, 0, []string{"prepare-snap"}, nil, kindsToSet(append(nonReLinkKinds, "link-snap"))),
 	)
 	c.Assert(tasks, HasLen, 3)
 	tPrepare := tasks[0]
@@ -8615,7 +8700,7 @@ func (s *snapmgrTestSuite) TestRemodelAddGadgetAssetTasks(c *C) {
 	c.Assert(tsNew, NotNil)
 	tasks := tsNew.Tasks()
 	c.Check(taskKinds(tasks), DeepEquals, expectedDoInstallTasks(
-		snap.TypeGadget, 0, 0, []string{"prepare-snap", "test-task"}, nil, kindsToSet(append(nonReLinkKinds, "link-snap"))),
+		snap.TypeGadget, 0, 0, 0, []string{"prepare-snap", "test-task"}, nil, kindsToSet(append(nonReLinkKinds, "link-snap"))),
 	)
 	// since this is the gadget, we have our task + test task + update assets + update cmdline
 	c.Assert(tasks, HasLen, 4)
@@ -10648,32 +10733,32 @@ func (s *snapStateSuite) TestUnmountAllSnaps(c *C) {
 		SnapType: "app",
 	})
 
-	snapstate.Set(st, "snap-with-components", &snapstate.SnapState{
+	snapstate.Set(st, "kernel-snap-with-components", &snapstate.SnapState{
 		Active: true,
 		Sequence: sequence.SnapSequence{
 			Revisions: []*sequence.RevisionSideState{
 				{
-					Snap: &snap.SideInfo{RealName: "snap-with-components", SnapID: "snap-with-components-id", Revision: snap.R(2)},
+					Snap: &snap.SideInfo{RealName: "kernel-snap-with-components", SnapID: "kernel-snap-with-components-id", Revision: snap.R(2)},
 					Components: []*sequence.ComponentState{
 						sequence.NewComponentState(&snap.ComponentSideInfo{
-							Component: naming.NewComponentRef("snap-with-components", "standard-component"),
+							Component: naming.NewComponentRef("kernel-snap-with-components", "standard-component"),
 							Revision:  snap.R(22),
 						}, snap.StandardComponent),
 						sequence.NewComponentState(&snap.ComponentSideInfo{
-							Component: naming.NewComponentRef("snap-with-components", "test-other-component"),
+							Component: naming.NewComponentRef("kernel-snap-with-components", "test-other-component"),
 							Revision:  snap.R(33),
 						}, snap.StandardComponent),
 					},
 				},
 				{
-					Snap: &snap.SideInfo{RealName: "snap-with-components", SnapID: "snap-with-components-id", Revision: snap.R(3)},
+					Snap: &snap.SideInfo{RealName: "kernel-snap-with-components", SnapID: "kernel-snap-with-components-id", Revision: snap.R(3)},
 					Components: []*sequence.ComponentState{
 						sequence.NewComponentState(&snap.ComponentSideInfo{
-							Component: naming.NewComponentRef("snap-with-components", "standard-component"),
+							Component: naming.NewComponentRef("kernel-snap-with-components", "standard-component"),
 							Revision:  snap.R(22),
 						}, snap.StandardComponent),
 						sequence.NewComponentState(&snap.ComponentSideInfo{
-							Component: naming.NewComponentRef("snap-with-components", "test-other-component"),
+							Component: naming.NewComponentRef("kernel-snap-with-components", "test-other-component"),
 							Revision:  snap.R(55),
 						}, snap.StandardComponent),
 					},
@@ -10693,11 +10778,11 @@ func (s *snapStateSuite) TestUnmountAllSnaps(c *C) {
 	expected := [][]string{
 		{"umount", "-d", "-l", filepath.Join(dirs.SnapMountDir, "/some-snap/5")},
 		{"umount", "-d", "-l", filepath.Join(dirs.SnapMountDir, "/some-snap/6")},
-		{"umount", "-d", "-l", filepath.Join(dirs.SnapMountDir, "/snap-with-components/components/mnt/standard-component/22")},
-		{"umount", "-d", "-l", filepath.Join(dirs.SnapMountDir, "/snap-with-components/components/mnt/test-other-component/33")},
-		{"umount", "-d", "-l", filepath.Join(dirs.SnapMountDir, "/snap-with-components/2")},
-		{"umount", "-d", "-l", filepath.Join(dirs.SnapMountDir, "/snap-with-components/components/mnt/test-other-component/55")},
-		{"umount", "-d", "-l", filepath.Join(dirs.SnapMountDir, "/snap-with-components/3")},
+		{"umount", "-d", "-l", filepath.Join(dirs.SnapMountDir, "/kernel-snap-with-components/components/mnt/standard-component/22")},
+		{"umount", "-d", "-l", filepath.Join(dirs.SnapMountDir, "/kernel-snap-with-components/components/mnt/test-other-component/33")},
+		{"umount", "-d", "-l", filepath.Join(dirs.SnapMountDir, "/kernel-snap-with-components/2")},
+		{"umount", "-d", "-l", filepath.Join(dirs.SnapMountDir, "/kernel-snap-with-components/components/mnt/test-other-component/55")},
+		{"umount", "-d", "-l", filepath.Join(dirs.SnapMountDir, "/kernel-snap-with-components/3")},
 	}
 
 	calls := umount.Calls()

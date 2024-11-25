@@ -574,7 +574,7 @@ func doInstall(st *state.State, snapst *SnapState, snapsup SnapSetup, compsups [
 		return nil, err
 	}
 
-	// This task is necessary only for UC20+ and hybrid
+	// This task is necessary only for UC24+ and hybrid 24.04+
 	if snapsup.Type == snap.TypeKernel && NeedsKernelSetup(deviceCtx.Model()) {
 		setupKernel := st.NewTask("prepare-kernel-snap", fmt.Sprintf(i18n.G("Prepare kernel driver tree for %q%s"), snapsup.InstanceName(), revisionStr))
 		addTask(setupKernel)
@@ -636,13 +636,6 @@ func doInstall(st *state.State, snapst *SnapState, snapsup SnapSetup, compsups [
 	autoConnect := st.NewTask("auto-connect", fmt.Sprintf(i18n.G("Automatically connect eligible plugs and slots of snap %q"), snapsup.InstanceName()))
 	addTask(autoConnect)
 
-	if snapsup.Type == snap.TypeKernel && NeedsKernelSetup(deviceCtx.Model()) {
-		// This task needs to run after we're back and running the new
-		// kernel after a reboot was requested in link-snap handler.
-		setupKernel := st.NewTask("discard-old-kernel-snap-setup", fmt.Sprintf(i18n.G("Discard previous kernel driver tree for %q%s"), snapsup.InstanceName(), revisionStr))
-		addTask(setupKernel)
-	}
-
 	// setup aliases
 	setAutoAliases := st.NewTask("set-auto-aliases", fmt.Sprintf(i18n.G("Set automatic aliases for snap %q"), snapsup.InstanceName()))
 	addTask(setAutoAliases)
@@ -682,11 +675,26 @@ func doInstall(st *state.State, snapst *SnapState, snapsup SnapSetup, compsups [
 		addTask(t)
 	}
 
-	// check if either the snap currently has kernel module components or any of
-	// the new components are kernel module components
+	// Check if either the snap currently has kernel-modules components or
+	// any of the new components are kernel-modules components (only will
+	// happen for kernel snaps).
+	var setupKmodComponents, afterSetupKmodComps *state.Task
 	if requiresKmodSetup(snapst, compsups) {
-		setupKmodComponents := st.NewTask("prepare-kernel-modules-components", fmt.Sprintf(i18n.G("Prepare kernel-modules components for %q%s"), snapsup.InstanceName(), revisionStr))
+		logger.Noticef("kernel-modules components present, delaying reboot after hooks are run")
+		// TODO move the setupKernel task here and make it configure
+		// kernel-modules components too so we can remove this task.
+		setupKmodComponents = st.NewTask("prepare-kernel-modules-components", fmt.Sprintf(i18n.G("Prepare kernel-modules components for %q%s"), snapsup.InstanceName(), revisionStr))
 		addTask(setupKmodComponents)
+	}
+
+	if snapsup.Type == snap.TypeKernel && NeedsKernelSetup(deviceCtx.Model()) {
+		// This task needs to run after we're back and running the new
+		// kernel after a reboot was requested in link-snap handler.
+		discardOldKernelSetup := st.NewTask("discard-old-kernel-snap-setup",
+			fmt.Sprintf(i18n.G("Discard previous kernel driver tree for %q%s"), snapsup.InstanceName(), revisionStr))
+		// Note that if requiresKmodSetup is true, NeedsKernelSetup must be too
+		afterSetupKmodComps = discardOldKernelSetup
+		addTask(discardOldKernelSetup)
 	}
 
 	if snapsup.QuotaGroupName != "" {
@@ -782,10 +790,31 @@ func doInstall(st *state.State, snapst *SnapState, snapsup SnapSetup, compsups [
 	installSet := state.NewTaskSet(tasks...)
 	installSet.MarkEdge(prereq, BeginEdge)
 	installSet.MarkEdge(setupAliases, BeforeHooksEdge)
-	installSet.MarkEdge(setupSecurity, BeforeMaybeRebootEdge)
-	installSet.MarkEdge(linkSnap, MaybeRebootEdge)
-	installSet.MarkEdge(autoConnect, MaybeRebootWaitEdge)
-	installSet.MarkEdge(setAutoAliases, AfterMaybeRebootWaitEdge)
+
+	// Let tasks know if they have to do something about restarts
+	// TODO fix tests so BeforeMaybeRebootEdge and AfterMaybeRebootWaitEdge
+	// are not needed.
+	installSet.MarkEdge(setupSecurity, BeforeMaybeRebootEdge) // this edge is just for tests
+	if setupKmodComponents == nil {
+		// No kernel modules, reboot after link snap
+		installSet.MarkEdge(linkSnap, MaybeRebootEdge)
+		installSet.MarkEdge(autoConnect, MaybeRebootWaitEdge)
+		linkSnap.Set("set-next-boot", true)
+		autoConnect.Set("finish-restart", true)
+		if afterSetupKmodComps != nil {
+			afterSetupKmodComps.Set("finish-restart", false)
+		}
+	} else {
+		logger.Noticef("reboot will happen after set-up of kernel-modules")
+		installSet.MarkEdge(setupKmodComponents, MaybeRebootEdge)
+		installSet.MarkEdge(afterSetupKmodComps, MaybeRebootWaitEdge)
+		linkSnap.Set("set-next-boot", false)
+		autoConnect.Set("finish-restart", false)
+		setupKmodComponents.Set("set-next-boot", true)
+		afterSetupKmodComps.Set("finish-restart", true)
+	}
+	installSet.MarkEdge(setAutoAliases, AfterMaybeRebootWaitEdge) // this edge is just for tests
+
 	if installHook != nil {
 		installSet.MarkEdge(installHook, HooksEdge)
 	}
@@ -873,7 +902,7 @@ func splitComponentTasksForInstall(
 }
 
 func NeedsKernelSetup(model *asserts.Model) bool {
-	// Checkinf if it has modeenv - it must be UC20+ or hybrid
+	// Checking if it has modeenv - it must be UC20+ or hybrid
 	if model.Grade() == asserts.ModelGradeUnset {
 		return false
 	}
@@ -985,16 +1014,36 @@ func isInvokedWithRevert() bool {
 	return os.Getenv("SNAPD_REVERT_TO_REV") != ""
 }
 
+// FinishRestartOptions are options for FinishRestart.
+type FinishRestartOptions struct {
+	// FinishRestartDefault sets the default behavior for FinishRestart in
+	// case the "finish-restart" task variable is not found, that is, this
+	// is the behavior for tasks created by older snapd. Tasks that call
+	// FinishRestart set this value to what would have been the expected
+	// behavior before the introduction of "finish-restart".
+	FinishRestartDefault bool
+}
+
 // FinishRestart will return a Retry error if there is a pending restart
 // and a real error if anything went wrong (like a rollback across
 // restarts).
 // For snapd snap updates this will also rerun wrappers generation to fully
 // catch up with any change.
-func FinishRestart(task *state.Task, snapsup *SnapSetup) (err error) {
+func FinishRestart(task *state.Task, snapsup *SnapSetup, opts FinishRestartOptions) (err error) {
 	if snapdenv.Preseeding() {
 		// nothing to do when preseeding
 		return nil
 	}
+	// Check if the task really needs to call this
+	needsFinishRestart := opts.FinishRestartDefault
+	if err := task.Get("finish-restart", &needsFinishRestart); err != nil &&
+		!errors.Is(err, state.ErrNoState) {
+		return err
+	}
+	if !needsFinishRestart {
+		return nil
+	}
+
 	if ok, _ := restart.Pending(task.State()); ok {
 		// don't continue until we are in the restarted snapd
 		task.Logf("Waiting for automatic snapd restart...")
@@ -1815,7 +1864,7 @@ func keys[K comparable, V any](m map[K]V) []K {
 // If the filter returns true, the update for that snap proceeds. If
 // it returns false, the snap is removed from the list of updates to
 // consider.
-type updateFilter func(*snap.Info, *SnapState) bool
+type updateFilter = func(*snap.Info, *SnapState) bool
 
 func updateManyFiltered(ctx context.Context, st *state.State, names []string, revOpts []*RevisionOptions, userID int, filter updateFilter, flags *Flags, fromChange string) ([]string, *UpdateTaskSets, error) {
 	if flags == nil {

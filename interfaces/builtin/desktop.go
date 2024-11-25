@@ -174,6 +174,63 @@ dbus (send)
 # Allow access to the ICC profiles in the home directory to
 # be referred to from colord
 owner @{HOME}/.local/share/icc r,
+
+
+# Allow to send updates to the desktop session about ongoing jobs
+# (for progress display in the task list)
+dbus (send)
+    bus=session
+    interface=com.canonical.Unity.LauncherEntry
+    member=Update
+    peer=(label=###SLOT_SECURITY_TAGS###),
+
+# Allow to send updates to the desktop session about ongoing jobs
+# (for KDE Plasma specific details)
+dbus (send)
+    bus=session
+    interface=org.kde.JobViewServer{,V2}
+    path=/JobViewServer
+    member=requestView
+    peer=(label=###SLOT_SECURITY_TAGS###),
+dbus (send)
+    bus=session
+    interface=org.kde.JobView{,V2,V3}
+    path=/org/kde/notificationmanager/jobs/*
+    member={update,terminate}
+    peer=(label=###SLOT_SECURITY_TAGS###),
+
+# Allow to display Status Notifier Items in the KDE Plasma systray
+# (including supporting context menu)
+dbus (send)
+    bus=session
+    interface=org.kde.StatusNotifierWatcher
+    path=/StatusNotifierWatcher
+    member=RegisterStatusNotifierItem
+    peer=(label=###SLOT_SECURITY_TAGS###),
+dbus (send)
+    bus=session
+    interface=org.freedesktop.DBus.Properties
+    path=/StatusNotifierWatcher
+    member=Get
+    peer=(label=###SLOT_SECURITY_TAGS###),
+dbus (receive)
+    bus=session
+    interface=org.kde.StatusNotifierItem
+    path=/StatusNotifierItem
+    member={ProvideXdgActivationToken,Activate}
+    peer=(label=###SLOT_SECURITY_TAGS###),
+dbus (receive)
+    bus=session
+    interface=org.freedesktop.DBus.Properties
+    path=/StatusNotifierItem
+    member=GetAll
+    peer=(label=###SLOT_SECURITY_TAGS###),
+dbus (receive)
+    bus=session
+    interface=com.canonical.dbusmenu
+    path=/MenuBar
+    member={AboutToShow,GetLayout,Event}
+    peer=(label=###SLOT_SECURITY_TAGS###),
 `
 
 const desktopConnectedPlugAppArmorClassic = `
@@ -393,6 +450,64 @@ dbus (send, receive)
       peer=(label=unconfined),
 `
 
+const desktopConnectedSlotAppArmor = `
+# Allow to receive updates from applications to the desktop session about ongoing jobs
+# (for progress display in the task list)
+dbus (receive)
+    bus=session
+    interface=com.canonical.Unity.LauncherEntry
+    member=Update
+    peer=(label=###PLUG_SECURITY_TAGS###),
+
+# Allow to receive updates from applications to the desktop session about ongoing jobs
+# (for KDE Plasma specific details)
+dbus (receive)
+    bus=session
+    interface=org.kde.JobViewServer{,V2}
+    path=/JobViewServer
+    member=requestView
+    peer=(label=###PLUG_SECURITY_TAGS###),
+dbus (receive)
+    bus=session
+    interface=org.kde.JobView{,V2,V3}
+    path=/org/kde/notificationmanager/jobs/*
+    member={update,terminate}
+    peer=(label=###PLUG_SECURITY_TAGS###),
+
+# Allow to display Status Notifier Items in the KDE Plasma systray
+# (including supporting context menu)
+dbus (receive)
+    bus=session
+    interface=org.kde.StatusNotifierWatcher
+    path=/StatusNotifierWatcher
+    member=RegisterStatusNotifierItem
+    peer=(label=###PLUG_SECURITY_TAGS###),
+dbus (receive)
+    bus=session
+    interface=org.freedesktop.DBus.Properties
+    path=/StatusNotifierWatcher
+    member=Get
+    peer=(label=###PLUG_SECURITY_TAGS###),
+dbus (send)
+    bus=session
+    interface=org.kde.StatusNotifierItem
+    path=/StatusNotifierItem
+    member={ProvideXdgActivationToken,Activate}
+    peer=(label=###PLUG_SECURITY_TAGS###),
+dbus (send)
+    bus=session
+    interface=org.freedesktop.DBus.Properties
+    path=/StatusNotifierItem
+    member=GetAll
+    peer=(label=###PLUG_SECURITY_TAGS###),
+dbus (send)
+    bus=session
+    interface=com.canonical.dbusmenu
+    path=/MenuBar
+    member={AboutToShow,GetLayout,Event}
+    peer=(label=###PLUG_SECURITY_TAGS###),
+`
+
 const desktopPermanentSlotAppArmor = `
 # Description: Can provide various desktop services
 
@@ -507,6 +622,51 @@ dbus (receive, send)
 /etc/xdg/user-dirs.conf r,
 /etc/xdg/user-dirs.defaults r,
 /run/udev/tags/seat{,/**} r,
+
+# KDE Plasma specific extension
+
+# Used by the KCrash handler
+@{PROC}/sys/kernel/core_pattern r,
+
+# So that KSplash disappears when appropriate
+dbus (receive, send)
+    bus=session
+    path=/KSplash
+    interface=org.kde.KSplash
+    member=setStage
+    peer=(label=unconfined),
+dbus (receive, send)
+    bus=session
+    path=/KSplash
+    interface=org.freedesktop.DBus.Introspectable
+    member=Introspect
+    peer=(label=unconfined),
+
+dbus (receive, send)
+    bus=session
+    path=/KSMServer
+    interface=org.kde.KSMServerInterface
+    member=restoreSession
+    peer=(label=unconfined),
+dbus (receive, send)
+    bus=session
+    path=/KSMServer
+    interface=org.freedesktop.DBus.Introspectable
+    member=Introspect
+    peer=(label=unconfined),
+
+dbus (receive, send)
+    bus=session
+    path=/kcminit
+    interface=org.kde.KCMInit
+    member=runPhase1
+    peer=(label=unconfined),
+dbus (receive, send)
+    bus=session
+    path=/kcminit
+    interface=org.freedesktop.DBus.Introspectable
+    member=Introspect
+    peer=(label=unconfined),
 `
 
 type desktopInterface struct {
@@ -632,6 +792,17 @@ func (iface *desktopInterface) MountConnectedPlug(spec *mount.Specification, plu
 func (iface *desktopInterface) AppArmorPermanentSlot(spec *apparmor.Specification, slot *snap.SlotInfo) error {
 	if !implicitSystemPermanentSlot(slot) {
 		spec.AddSnippet(desktopPermanentSlotAppArmor)
+	}
+	return nil
+}
+
+func (iface *desktopInterface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
+	// Only apply slot snippet when running as application snap
+	// on classic, slot side can be system or application
+	if !implicitSystemConnectedSlot(slot) {
+		old := "###PLUG_SECURITY_TAGS###"
+		new := plug.LabelExpression()
+		spec.AddSnippet(strings.Replace(desktopConnectedSlotAppArmor, old, new, -1))
 	}
 	return nil
 }

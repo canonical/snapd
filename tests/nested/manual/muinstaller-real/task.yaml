@@ -40,8 +40,6 @@ prepare: |
       exit
   fi
   apt install dosfstools kpartx
-  snap install jq
-  snap install yq
   "$TESTSTOOLS"/store-state setup-fake-store "$STORE_DIR"
 
 restore: |
@@ -156,23 +154,22 @@ execute: |
       done
 
       # check disk mappings
-      remote.exec "sudo snap install jq"
       # TODO: no ubuntu-save right now because:
       #       "ERROR cannot store device key pair: internal error: cannot access device keypair manager if ubuntu-save is unavailable"
       #DISK_MAPPINGS=(/run/mnt/ubuntu-save/device/disk-mapping.json
       #               /run/mnt/data/var/lib/snapd/device/disk-mapping.json)
       DISK_MAPPINGS=(/run/mnt/data/var/lib/snapd/device/disk-mapping.json)
       for DM in "${DISK_MAPPINGS[@]}"; do
-          remote.exec "sudo cat $DM | jq '.pc.\"structure-encryption\".\"ubuntu-save\".method'" | MATCH '"LUKS"'
-          remote.exec "sudo cat $DM | jq '.pc.\"structure-encryption\".\"ubuntu-data\".method'" | MATCH '"LUKS"'
+          remote.exec "sudo cat $DM" | gojq '.pc."structure-encryption"."ubuntu-save".method' | MATCH '"LUKS"'
+          remote.exec "sudo cat $DM" | gojq '.pc."structure-encryption"."ubuntu-data".method' | MATCH '"LUKS"'
       done
 
       # check that on an already provisioned system the API will give a
       # sensible reason why the system cannot be installed without further
       # action.
       remote.exec "sudo snap debug api /v2/systems/classic" > system
-      jq '.result."storage-encryption".support' < system | MATCH "unavailable"
-      jq '.result."storage-encryption"."unavailable-reason"' < system | MATCH "not encrypting device storage as checking TPM gave: the TPM is in DA lockout mode"
+      gojq '.result."storage-encryption".support' < system | MATCH "unavailable"
+      gojq '.result."storage-encryption"."unavailable-reason"' < system | MATCH "not encrypting device storage as checking TPM gave: the TPM is in DA lockout mode"
   fi
 
   # test kernel/gadget refreshes via the fake-store
@@ -241,8 +238,13 @@ execute: |
   fi
 
   # Bump edition of ubuntu-{seed,boot} content to get grub updated in both partitions
-  yq -i "(.volumes.pc.structure[] | select(.role == \"${role}\") | .update.edition) |= . + 1" pc-gadget/meta/gadget.yaml
-  yq -i '(.volumes.pc.structure[] | select(.role == "system-boot") | .update.edition) |= . + 1' pc-gadget/meta/gadget.yaml
+  gojq --yaml-input --yaml-output \
+      "(.volumes.pc.structure[] | select(.role == \"${role}\") | .update.edition) |= . + 1" \
+      pc-gadget/meta/gadget.yaml > gadget.yaml.tmp
+  gojq --yaml-input --yaml-output \
+      '(.volumes.pc.structure[] | select(.role == "system-boot") | .update.edition) |= . + 1' \
+      gadget.yaml.tmp > gadget.yaml.tmp.2
+  mv gadget.yaml.tmp.2 pc-gadget/meta/gadget.yaml
   nested_secboot_sign_file pc-gadget/grubx64.efi "$SNAKEOIL_KEY" "$SNAKEOIL_CERT"
   refresh_rebooting_snap pc pc.snap.orig ./pc-gadget
 

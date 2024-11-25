@@ -18,10 +18,6 @@ prepare: |
         exit
     fi
 
-    # Needed by make-snap-installable, Install before switching to fakestore
-    snap install jq
-    snap install remarshal
-
     # Install snaps as baseline since we want to test what happens in refreshes not installs
     echo "Given installed snaps"
     snap install "$SNAP_ONE" "$SNAP_TWO"
@@ -50,7 +46,7 @@ restore: |
     rm -rf "$BLOB_DIR"
 
 debug: |
-    snap debug api /v2/changes?select=ready | jq "[.result[] | select(.kind == \"auto-refresh\")] | sort_by(.id)"
+    snap debug api /v2/changes?select=ready | gojq "[.result[] | select(.kind == \"auto-refresh\")] | sort_by(.id|tonumber)"
 
 execute: |
     if [ "$TRUST_TEST_KEYS" = "false" ]; then
@@ -94,7 +90,7 @@ execute: |
     }
 
     # Record last change id before we start to avoid flakiness due to auto-refreshes in other tests
-    LAST_CHANGE_ID=$(snap debug api /v2/changes?select=all | jq '.result | sort_by(.id) | .[-1].id')
+    LAST_CHANGE_ID=$(snap debug api /v2/changes?select=all | gojq '.result | sort_by(.id|tonumber) | .[-1].id')
 
     # -------- FIRST AUTO REFRESH --------
 
@@ -162,26 +158,26 @@ execute: |
     readlink "$SNAP_MOUNT_DIR/$SNAP_TWO/current" | MATCH 33
 
     echo "Check auto-refresh behaviour matches expectations for backoff algorithm"
-    snap debug api /v2/changes?select=ready | jq "[.result[] | select(.kind == \"auto-refresh\" and (.id|tonumber) > ($LAST_CHANGE_ID|tonumber))] | sort_by(.id)" > changes.json
+    snap debug api /v2/changes?select=ready | gojq "[.result[] | select(.kind == \"auto-refresh\" and (.id|tonumber) > ($LAST_CHANGE_ID|tonumber))] | sort_by(.id|tonumber)" > changes.json
 
     # 1st auto-refresh
-    jq '.[0].status' < changes.json | MATCH "Error"
-    jq '.[0].data."snap-names"' < changes.json | MATCH "$SNAP_ONE"
-    jq '.[0].data."snap-names"' < changes.json | MATCH "$SNAP_TWO"
-    jq '.[0].data."refresh-failed"' < changes.json | MATCH "$SNAP_ONE"
-    jq '.[0].data."refresh-failed"' < changes.json | NOMATCH "$SNAP_TWO"
+    gojq '.[0].status' < changes.json | MATCH "Error"
+    gojq '.[0].data."snap-names"' < changes.json | MATCH "$SNAP_ONE"
+    gojq '.[0].data."snap-names"' < changes.json | MATCH "$SNAP_TWO"
+    gojq '.[0].data."refresh-failed"' < changes.json | MATCH "$SNAP_ONE"
+    gojq '.[0].data."refresh-failed"' < changes.json | NOMATCH "$SNAP_TWO"
 
     # 2nd auto-refresh
-    jq '.[1].status' < changes.json | MATCH "Done"
+    gojq '.[1].status' < changes.json | MATCH "Done"
     # Broken SNAP_ONE should have been skipped this time
-    jq '.[1].data."snap-names"' < changes.json | NOMATCH "$SNAP_ONE"
-    jq '.[1].data."snap-names"' < changes.json | MATCH "$SNAP_TWO"
-    jq '.[1].data."refresh-failed"' < changes.json | NOMATCH "$SNAP_ONE"
-    jq '.[1].data."refresh-failed"' < changes.json | NOMATCH "$SNAP_TWO"
+    gojq '.[1].data."snap-names"' < changes.json | NOMATCH "$SNAP_ONE"
+    gojq '.[1].data."snap-names"' < changes.json | MATCH "$SNAP_TWO"
+    gojq '.[1].data."refresh-failed"' < changes.json | NOMATCH "$SNAP_ONE"
+    gojq '.[1].data."refresh-failed"' < changes.json | NOMATCH "$SNAP_TWO"
 
     # 3rd auto-refresh
-    jq '.[2].status' < changes.json | MATCH "Done"
-    jq '.[2].data."snap-names"' < changes.json | MATCH "$SNAP_ONE"
-    jq '.[2].data."snap-names"' < changes.json | MATCH "$SNAP_TWO"
-    jq '.[2].data."refresh-failed"' < changes.json | NOMATCH "$SNAP_ONE"
-    jq '.[2].data."refresh-failed"' < changes.json | NOMATCH "$SNAP_TWO"
+    gojq '.[2].status' < changes.json | MATCH "Done"
+    gojq '.[2].data."snap-names"' < changes.json | MATCH "$SNAP_ONE"
+    gojq '.[2].data."snap-names"' < changes.json | MATCH "$SNAP_TWO"
+    gojq '.[2].data."refresh-failed"' < changes.json | NOMATCH "$SNAP_ONE"
+    gojq '.[2].data."refresh-failed"' < changes.json | NOMATCH "$SNAP_TWO"

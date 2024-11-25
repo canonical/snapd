@@ -27,12 +27,11 @@ prepare: |
         exit
     fi
 
-    echo "Ensure jq is installed"
-    if ! command -v jq; then
-        snap install --devmode jq
-    fi
-
     snap debug can-manage-refreshes | MATCH false
+
+    # Install test snap dependencies before switching to fake store
+    # TODO use core22 or core24
+    snap install core
 
     snap ack "$TESTSLIB/assertions/testrootorg-store.account-key"
 
@@ -66,7 +65,7 @@ restore: |
     "$TESTSTOOLS"/store-state teardown-fake-store "$BLOB_DIR"
 
 debug: |
-    jq .data.auth.device /var/lib/snapd/state.json || true
+    gojq .data.auth.device /var/lib/snapd/state.json || true
 
 execute: |
     if [ "$TRUST_TEST_KEYS" = "false" ]; then
@@ -110,12 +109,12 @@ execute: |
 
     echo "Ensure that last-refresh-hit happens"
     for _ in $(seq 120); do
-        if jq '.data["last-refresh-hints"]' /var/lib/snapd/state.json | grep "$(date +%Y)"; then
+        if gojq '.data["last-refresh-hints"]' /var/lib/snapd/state.json | grep "$(date +%Y)"; then
             break
         fi
         sleep 1
     done
-    jq '.data["last-refresh-hints"]' /var/lib/snapd/state.json | grep "$(date +%Y)"
+    gojq '.data["last-refresh-hints"]' /var/lib/snapd/state.json | grep "$(date +%Y)"
 
     # prevent refreshes again
     systemctl stop snapd.socket snapd.service

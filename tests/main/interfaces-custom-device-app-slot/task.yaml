@@ -28,6 +28,8 @@ prepare: |
     snap debug can-manage-refreshes | MATCH false
 
     snap ack "$TESTSLIB/assertions/testrootorg-store.account-key"
+    snap ack "$TESTSLIB/assertions/developer1.account"
+    snap ack "$TESTSLIB/assertions/developer1.account-key"
 
     "$TESTSTOOLS"/store-state setup-fake-store "$BLOB_DIR"
 

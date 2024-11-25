@@ -400,7 +400,7 @@ func Run(model gadget.Model, gadgetRoot string, kernelSnapInfo *KernelSnapInfo, 
 		if options.Mount && vs.Label != "" && vs.HasFilesystem() {
 			// fs is taken from gadget, as on disk one might be displayed as
 			// crypto_LUKS, which is not useful for formatting.
-			if err := mountFilesystem(fsDevice, vs.LinuxFilesystem(), getMntPointForPart(vs)); err != nil {
+			if err := mountFilesystem(fsDevice, vs.LinuxFilesystem(), getMntPointForPart(vs), mntParamsForPartRole(vs.Role)); err != nil {
 				return nil, err
 			}
 		}
@@ -543,6 +543,19 @@ func WriteContent(onVolumes map[string]*gadget.Volume, allLaidOutVols map[string
 	return onDiskVols, nil
 }
 
+// mntParamsForPartRole decides mount flags for a given structure role.
+func mntParamsForPartRole(role string) (mntParams mntfsParams) {
+	var p mntfsParams
+	switch role {
+	// XXX: this might apply for SystemSeed as well
+	case gadget.SystemSave:
+		p.NoDev = true
+		p.NoExec = true
+		p.NoSuid = true
+	}
+	return p
+}
+
 // getMntPointForPart tells us where to mount a given structure so we
 // match what the functions that write something expect.
 func getMntPointForPart(part *gadget.VolumeStructure) (mntPt string) {
@@ -592,7 +605,7 @@ func MountVolumes(onVolumes map[string]*gadget.Volume, encSetupData *EncryptionS
 			// Device might have been encrypted
 			device := deviceForMaybeEncryptedVolume(&part, encSetupData)
 
-			if err := mountFilesystem(device, part.LinuxFilesystem(), mntPt); err != nil {
+			if err := mountFilesystem(device, part.LinuxFilesystem(), mntPt, mntParamsForPartRole(part.Role)); err != nil {
 				defer unmount()
 				return "", nil, fmt.Errorf("cannot mount %q at %q: %v", device, mntPt, err)
 			}
@@ -788,7 +801,7 @@ func FactoryReset(model gadget.Model, gadgetRoot string, kernelSnapInfo *KernelS
 		if options.Mount && vs.Label != "" && vs.HasFilesystem() {
 			// fs is taken from gadget, as on disk one might be displayed as
 			// crypto_LUKS, which is not useful for formatting.
-			if err := mountFilesystem(fsDevice, vs.LinuxFilesystem(), getMntPointForPart(vs)); err != nil {
+			if err := mountFilesystem(fsDevice, vs.LinuxFilesystem(), getMntPointForPart(vs), mntParamsForPartRole(vs.Role)); err != nil {
 				return nil, err
 			}
 		}

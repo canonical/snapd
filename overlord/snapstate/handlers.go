@@ -1341,11 +1341,12 @@ func (m *SnapManager) restoreUnlinkOnError(t *state.Task, info *snap.Info, other
 	}
 	linkCtx := backend.LinkContext{
 		FirstInstall:      false,
-		IsUndo:            true,
 		ServiceOptions:    opts,
 		HasOtherInstances: otherInstances,
+		// passed state must be locked
+		StateUnlocker: st.Unlocker(),
 	}
-	_, err = m.backend.LinkSnap(info, deviceCtx, linkCtx, tm)
+	err = m.backend.LinkSnap(info, deviceCtx, linkCtx, tm)
 	return err
 }
 
@@ -1461,6 +1462,7 @@ func (m *SnapManager) doUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) (err erro
 			// This task is only used for unlinking a snap during refreshes so we
 			// can safely hard-code this condition here.
 			RunInhibitHint:    runinhibit.HintInhibitedForRefresh,
+			StateUnlocker:     st.Unlocker(),
 			SkipBinaries:      skipBinaries,
 			HasOtherInstances: otherInstances,
 		}
@@ -1604,11 +1606,16 @@ func (m *SnapManager) undoUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) error {
 	}
 	linkCtx := backend.LinkContext{
 		FirstInstall:      false,
-		IsUndo:            true,
 		ServiceOptions:    opts,
 		HasOtherInstances: otherInstances,
+		StateUnlocker:     st.Unlocker(),
 	}
-	reboot, err := m.backend.LinkSnap(oldInfo, deviceCtx, linkCtx, perfTimings)
+	err = m.backend.LinkSnap(oldInfo, deviceCtx, linkCtx, perfTimings)
+	if err != nil {
+		return err
+	}
+	isUndo := true
+	reboot, err := m.backend.MaybeSetNextBoot(oldInfo, deviceCtx, isUndo)
 	if err != nil {
 		return err
 	}
@@ -2213,6 +2220,7 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (err error) {
 		FirstInstall:      firstInstall,
 		ServiceOptions:    opts,
 		HasOtherInstances: otherInstances,
+		StateUnlocker:     st.Unlocker(),
 	}
 	// on UC18+, snap tooling comes from the snapd snap so we need generated
 	// mount units to depend on the snapd snap mount units
@@ -2247,7 +2255,7 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (err error) {
 
 	// links the new revision to current and ensures a shared base prefix
 	// directory for parallel installed snaps
-	rebootInfo, err := m.backend.LinkSnap(newInfo, deviceCtx, linkCtx, perfTimings)
+	err = m.backend.LinkSnap(newInfo, deviceCtx, linkCtx, perfTimings)
 	// defer a cleanup helper which will unlink the snap if anything fails after
 	// this point
 	defer func() {
@@ -2261,7 +2269,7 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (err error) {
 			// snapd snap is special in the sense that we always
 			// need the current symlink, so we restore the link to
 			// the old revision
-			_, backendErr = m.backend.LinkSnap(oldInfo, deviceCtx, linkCtx, perfTimings)
+			backendErr = m.backend.LinkSnap(oldInfo, deviceCtx, linkCtx, perfTimings)
 		} else {
 			// snapd during first install and all other snaps
 			backendErr = m.backend.UnlinkSnap(newInfo, linkCtx, pb)
@@ -2273,6 +2281,32 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (err error) {
 	}()
 	if err != nil {
 		return err
+	}
+
+	// Set next boot for snaps that need it. Note that if we have
+	// kernel-modules components this gets delayed as it happens in the
+	// "prepare-kernel-modules-components" task. The default is set to
+	// true for compatibility with older snapd (case of joint refresh of
+	// snapd and kernel).
+	var rebootInfo boot.RebootInfo
+	setNextBoot := true
+	if err := t.Get("set-next-boot", &setNextBoot); err != nil &&
+		!errors.Is(err, state.ErrNoState) {
+		return err
+	}
+	if setNextBoot {
+		// TODO we have to revert changes in bootloader config/modeenv if an
+		// error happens later in this method. This is not likely as possible
+		// errors after this would happen only due to internal errors or not
+		// being able to write to the filesystem, but still. There is also the
+		// question of what would happen if a restart happens when the boot
+		// configuration has been already written but DoneStatus in the state
+		// has not.
+		isUndo := false
+		rebootInfo, err = m.backend.MaybeSetNextBoot(newInfo, deviceCtx, isUndo)
+		if err != nil {
+			return err
+		}
 	}
 
 	// Restore configuration of the target revision (if available) on revert
@@ -2386,9 +2420,6 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (err error) {
 	// Notify link snap participants about link changes.
 	notifyLinkParticipants(t, snapsup)
 
-	// Make sure if state commits and snapst is mutated we won't be rerun
-	finalStatus := state.DoneStatus
-
 	// Unfortunately this is needed to make sure we actually request a reboot as a part
 	// of link-snap for the gadget (which is the task that has a restart-boundary set).
 	// The gadget does not by default set `rebootInfo.RebootRequired` as its difficult for
@@ -2424,6 +2455,8 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (err error) {
 			t.Logf("reboot postponed to later tasks")
 		}
 	}
+	// Make sure if state commits and snapst is mutated we won't be rerun
+	finalStatus := state.DoneStatus
 	// XXX: This logic looks a bit confusing, and can be replaced once we decide
 	// to get rid of the "cannot-reboot" handling. It's still here for backwards
 	// compatibility, with previous snapd versions that were using "cannot-reboot"
@@ -2837,8 +2870,8 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	pb := NewTaskProgressAdapterLocked(t)
 	linkCtx := backend.LinkContext{
 		FirstInstall:      firstInstall,
-		IsUndo:            true,
 		HasOtherInstances: otherInstances,
+		StateUnlocker:     st.Unlocker(),
 	}
 
 	var backendErr error
@@ -2853,7 +2886,7 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 		// the snapd snap is special in the sense that we need to make
 		// sure that a sensible version is always linked as current,
 		// also we never reboot when updating snapd snap
-		_, backendErr = m.backend.LinkSnap(oldInfo, deviceCtx, linkCtx, perfTimings)
+		backendErr = m.backend.LinkSnap(oldInfo, deviceCtx, linkCtx, perfTimings)
 	} else {
 		// snapd during first install and all other snaps
 		backendErr = m.backend.UnlinkSnap(newInfo, linkCtx, pb)
@@ -3388,20 +3421,6 @@ func (m *SnapManager) doKillSnapApps(t *state.Task, _ *tomb.Tomb) (err error) {
 	lock.Lock()
 	defer lock.Unlock()
 
-	inhibitInfo := runinhibit.InhibitInfo{Previous: snapsup.Revision()}
-	if err := runinhibit.LockWithHint(snapName, runinhibit.HintInhibitedForRemove, inhibitInfo); err != nil {
-		return err
-	}
-	// Note: The snap hint lock file is completely removed in “discard-snap”
-	// so we only need to unlock it in case of an error here or during undo.
-	defer func() {
-		// Unlock snap inhibition if anything goes wrong afterwards to
-		// avoid keeping the snap stuck at this inhibited state.
-		if err != nil {
-			runinhibit.Unlock(snapName)
-		}
-	}()
-
 	var reason snap.AppKillReason
 	if err := t.Get("kill-reason", &reason); err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
@@ -3410,10 +3429,26 @@ func (m *SnapManager) doKillSnapApps(t *state.Task, _ *tomb.Tomb) (err error) {
 	perfTimings := state.TimingsForTask(t)
 	defer perfTimings.Save(st)
 
+	inhibitInfo := runinhibit.InhibitInfo{Previous: snapsup.Revision()}
+	if err := runinhibit.LockWithHint(snapName, runinhibit.HintInhibitedForRemove, inhibitInfo, st.Unlocker()); err != nil {
+		return err
+	}
+
 	// State lock is not needed for killing apps or stopping services and since those
 	// can take some time, let's unlock the state
 	st.Unlock()
 	defer st.Lock()
+
+	// Note: The snap hint lock file is completely removed in “discard-snap”
+	// so we only need to unlock it in case of an error here or during undo.
+	defer func() {
+		// Unlock snap inhibition if anything goes wrong afterwards to
+		// avoid keeping the snap stuck at this inhibited state.
+		if err != nil {
+			// state is unlocked, it is okay to pass nil here
+			runinhibit.Unlock(snapName, nil)
+		}
+	}()
 
 	if err := m.backend.KillSnapApps(snapName, reason, perfTimings); err != nil {
 		// Snap processes termination is best-effort and task should continue
@@ -3455,7 +3490,7 @@ func (m *SnapManager) undoKillSnapApps(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	if err := runinhibit.Unlock(snapsup.InstanceName()); err != nil {
+	if err := runinhibit.Unlock(snapsup.InstanceName(), st.Unlocker()); err != nil {
 		return err
 	}
 
@@ -3565,11 +3600,17 @@ func (m *SnapManager) undoUnlinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	}
 	linkCtx := backend.LinkContext{
 		FirstInstall:      false,
-		IsUndo:            true,
 		ServiceOptions:    opts,
 		HasOtherInstances: otherInstances,
+		StateUnlocker:     st.Unlocker(),
 	}
-	reboot, err := m.backend.LinkSnap(info, deviceCtx, linkCtx, perfTimings)
+	err = m.backend.LinkSnap(info, deviceCtx, linkCtx, perfTimings)
+	if err != nil {
+		return err
+	}
+
+	isUndo := true
+	reboot, err := m.backend.MaybeSetNextBoot(info, deviceCtx, isUndo)
 	if err != nil {
 		return err
 	}
@@ -3720,7 +3761,7 @@ func (m *SnapManager) doDiscardSnap(t *state.Task, _ *tomb.Tomb) error {
 			t.Errorf("cannot discard snap namespace %q, will retry in 3 mins: %s", snapsup.InstanceName(), err)
 			return &state.Retry{After: 3 * time.Minute}
 		}
-		err = m.backend.RemoveSnapInhibitLock(snapsup.InstanceName())
+		err = m.backend.RemoveSnapInhibitLock(snapsup.InstanceName(), st.Unlocker())
 		if err != nil {
 			return err
 		}
@@ -5224,7 +5265,7 @@ func (m *SnapManager) doDiscardOldKernelSnapSetup(t *state.Task, _ *tomb.Tomb) e
 	defer st.Unlock()
 
 	perfTimings := state.TimingsForTask(t)
-	_, snapst, err := snapSetupAndState(t)
+	snapsup, snapst, err := snapSetupAndState(t)
 	if err != nil {
 		return err
 	}
@@ -5240,6 +5281,15 @@ func (m *SnapManager) doDiscardOldKernelSnapSetup(t *state.Task, _ *tomb.Tomb) e
 	if err != nil {
 		return err
 	}
+
+	// Set the default to false for compatibility with older snapd (case of
+	// joint refresh of snapd and kernel).
+	logger.Debugf("finish restart from doDiscardOldKernelSnapSetup")
+	if err := FinishRestart(t, snapsup,
+		FinishRestartOptions{FinishRestartDefault: false}); err != nil {
+		return err
+	}
+
 	var prevKernelRev snap.Revision
 	err = setupTask.Get("previous-kernel-rev", &prevKernelRev)
 	if err != nil && !errors.Is(err, state.ErrNoState) {
