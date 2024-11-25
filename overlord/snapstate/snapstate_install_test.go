@@ -6403,6 +6403,13 @@ func undoOps(instanceName string, snapType snap.Type, newSequence, prevSequence 
 	}
 
 	var ops fakeOps
+	if forRefresh && snapType == snap.TypeKernel {
+		// undo for "remove-kernel-snap-setup"
+		ops = append(ops, fakeOp{
+			op: "prepare-kernel-snap",
+		})
+	}
+
 	if len(installedKmods) > 0 || len(prevInstalledKmods) > 0 {
 		ops = append(ops, fakeOp{
 			op:           "prepare-kernel-modules-components",
