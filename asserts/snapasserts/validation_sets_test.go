@@ -2031,7 +2031,7 @@ func (s *validationSetsSuite) TestSnapPresence(c *C) {
 	onePresence, err := sets.Presence(naming.Snap("snap-1"))
 	c.Assert(err, IsNil)
 
-	oneExpected := snapasserts.NewSnapPresence(snapasserts.PresenceContraint{
+	oneExpected := snapasserts.NewSnapPresenceConstraints(snapasserts.PresenceContraint{
 		Presence: asserts.PresenceInvalid,
 		Revision: snap.R(-1),
 		Sets:     []snapasserts.ValidationSetKey{"16/account-id/one/1"},
@@ -2042,7 +2042,7 @@ func (s *validationSetsSuite) TestSnapPresence(c *C) {
 	twoPresence, err := sets.Presence(naming.Snap("snap-2"))
 	c.Assert(err, IsNil)
 
-	twoExpected := snapasserts.NewSnapPresence(snapasserts.PresenceContraint{
+	twoExpected := snapasserts.NewSnapPresenceConstraints(snapasserts.PresenceContraint{
 		Presence: asserts.PresenceRequired,
 		Revision: snap.R(2),
 		Sets:     []snapasserts.ValidationSetKey{"16/account-id/one/1", "16/account-id/two/1"},
@@ -2082,7 +2082,7 @@ func (s *validationSetsSuite) TestSnapPresence(c *C) {
 	threePresence, err := sets.Presence(naming.Snap("snap-3"))
 	c.Assert(err, IsNil)
 
-	threeExpected := snapasserts.NewSnapPresence(snapasserts.PresenceContraint{
+	threeExpected := snapasserts.NewSnapPresenceConstraints(snapasserts.PresenceContraint{
 		Presence: asserts.PresenceOptional,
 		Revision: snap.R(0),
 		Sets:     []snapasserts.ValidationSetKey{"16/account-id/one/1"},
@@ -2098,7 +2098,7 @@ func (s *validationSetsSuite) TestSnapPresence(c *C) {
 	fourPresence, err := sets.Presence(naming.Snap("snap-4"))
 	c.Assert(err, IsNil)
 
-	fourExpected := snapasserts.NewSnapPresence(snapasserts.PresenceContraint{
+	fourExpected := snapasserts.NewSnapPresenceConstraints(snapasserts.PresenceContraint{
 		Presence: asserts.PresenceOptional,
 	}, nil)
 	c.Check(fourPresence, DeepEquals, fourExpected)
