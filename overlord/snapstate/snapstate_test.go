@@ -8367,7 +8367,7 @@ func (s *snapmgrTestSuite) testRemodelLinkNewBaseOrKernelHappy(c *C, model *asse
 	ts, err := snapstate.LinkNewBaseOrKernel(s.state, "some-kernel", "")
 	c.Assert(err, IsNil)
 	tasks := ts.Tasks()
-	c.Check(taskKinds(tasks), DeepEquals, expectedDoInstallTasks(snap.TypeKernel, opts, 0, []string{"prepare-snap"}, nil, kindsToSet(nonReLinkKinds)))
+	c.Check(taskKinds(tasks), DeepEquals, expectedDoInstallTasks(snap.TypeKernel, opts, 0, 0, []string{"prepare-snap"}, nil, kindsToSet(nonReLinkKinds)))
 	tPrepare := tasks[0]
 	var tLink, tUpdateGadgetAssets *state.Task
 	if opts&needsKernelSetup != 0 {
@@ -8395,7 +8395,7 @@ func (s *snapmgrTestSuite) testRemodelLinkNewBaseOrKernelHappy(c *C, model *asse
 	ts, err = snapstate.LinkNewBaseOrKernel(s.state, "some-base", "")
 	c.Assert(err, IsNil)
 	tasks = ts.Tasks()
-	c.Check(taskKinds(tasks), DeepEquals, expectedDoInstallTasks(snap.TypeBase, 0, 0, []string{"prepare-snap"}, nil, kindsToSet(nonReLinkKinds)))
+	c.Check(taskKinds(tasks), DeepEquals, expectedDoInstallTasks(snap.TypeBase, 0, 0, 0, []string{"prepare-snap"}, nil, kindsToSet(nonReLinkKinds)))
 	c.Assert(tasks, HasLen, 2)
 	tPrepare = tasks[0]
 	tLink = tasks[1]
@@ -8489,7 +8489,7 @@ func (s *snapmgrTestSuite) testRemodelAddLinkNewBaseOrKernel(c *C, model *assert
 	c.Assert(err, IsNil)
 	c.Assert(tsNew, NotNil)
 	tasks := tsNew.Tasks()
-	c.Check(taskKinds(tasks), DeepEquals, expectedDoInstallTasks(snap.TypeKernel, opts, 0, []string{"prepare-snap", "test-task"}, nil, kindsToSet(nonReLinkKinds)))
+	c.Check(taskKinds(tasks), DeepEquals, expectedDoInstallTasks(snap.TypeKernel, opts, 0, 0, []string{"prepare-snap", "test-task"}, nil, kindsToSet(nonReLinkKinds)))
 	// since this is the kernel, we have our task + test task + update-gadget-assets + link-snap
 	var tLink, tUpdateGadgetAssets *state.Task
 	if opts&needsKernelSetup != 0 {
@@ -8533,7 +8533,7 @@ func (s *snapmgrTestSuite) testRemodelAddLinkNewBaseOrKernel(c *C, model *assert
 	c.Assert(err, IsNil)
 	c.Assert(tsNew, NotNil)
 	tasks = tsNew.Tasks()
-	c.Check(taskKinds(tasks), DeepEquals, expectedDoInstallTasks(snap.TypeBase, 0, 0, []string{"prepare-snap"}, nil, kindsToSet(nonReLinkKinds)))
+	c.Check(taskKinds(tasks), DeepEquals, expectedDoInstallTasks(snap.TypeBase, 0, 0, 0, []string{"prepare-snap"}, nil, kindsToSet(nonReLinkKinds)))
 	// since this is the base, we have our task + link-snap only
 	c.Assert(tasks, HasLen, 2)
 	tLink = tasks[1]
@@ -8563,7 +8563,7 @@ func (s *snapmgrTestSuite) TestRemodelSwitchNewGadget(c *C) {
 	c.Assert(err, IsNil)
 	tasks := ts.Tasks()
 	c.Check(taskKinds(tasks), DeepEquals, expectedDoInstallTasks(
-		snap.TypeGadget, 0, 0, []string{"prepare-snap"}, nil, kindsToSet(append(nonReLinkKinds, "link-snap"))),
+		snap.TypeGadget, 0, 0, 0, []string{"prepare-snap"}, nil, kindsToSet(append(nonReLinkKinds, "link-snap"))),
 	)
 	c.Assert(tasks, HasLen, 3)
 	tPrepare := tasks[0]
@@ -8700,7 +8700,7 @@ func (s *snapmgrTestSuite) TestRemodelAddGadgetAssetTasks(c *C) {
 	c.Assert(tsNew, NotNil)
 	tasks := tsNew.Tasks()
 	c.Check(taskKinds(tasks), DeepEquals, expectedDoInstallTasks(
-		snap.TypeGadget, 0, 0, []string{"prepare-snap", "test-task"}, nil, kindsToSet(append(nonReLinkKinds, "link-snap"))),
+		snap.TypeGadget, 0, 0, 0, []string{"prepare-snap", "test-task"}, nil, kindsToSet(append(nonReLinkKinds, "link-snap"))),
 	)
 	// since this is the gadget, we have our task + test task + update assets + update cmdline
 	c.Assert(tasks, HasLen, 4)

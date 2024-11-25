@@ -30,6 +30,7 @@ import (
 	"github.com/snapcore/snapd/asserts/sysdb"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/snap"
 )
 
 // AssertManager is responsible for the enforcement of assertions in
@@ -172,7 +173,20 @@ func doValidateComponent(t *state.Task, _ *tomb.Tomb) error {
 		return fmt.Errorf("internal error: cannot obtain snap setup: %s", err)
 	}
 
-	sha3_384, compSize, err := asserts.SnapFileSHA3_384(compsup.CompPath)
+	// if we don't have a component path, then we assume that the snap we're
+	// working with is already installed. if that is the case, we still want to
+	// run this task, since we may need to download a new snap-resource-pair.
+	compPath := compsup.CompPath
+	if compPath == "" {
+		cpi := snap.MinimalComponentContainerPlaceInfo(
+			compsup.ComponentName(),
+			compsup.Revision(),
+			snapsup.InstanceName(),
+		)
+		compPath = cpi.MountFile()
+	}
+
+	sha3_384, compSize, err := asserts.SnapFileSHA3_384(compPath)
 	if err != nil {
 		return err
 	}
@@ -220,5 +234,5 @@ func doValidateComponent(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	return snapasserts.CheckComponentProvenanceWithVerifiedRevision(compsup.CompPath, resRev)
+	return snapasserts.CheckComponentProvenanceWithVerifiedRevision(compPath, resRev)
 }

@@ -373,7 +373,22 @@ func doInstallComponent(st *state.State, snapst *SnapState, compSetup ComponentS
 
 	componentTS.beforeLinkTasks = append(componentTS.beforeLinkTasks, prepare)
 
-	if fromStore {
+	// if we're installing a component from the store, then we need to validate
+	// it. note that we will still run this task even if we're reusing an
+	// already installed component, since we will most likely need to fetch a
+	// new snap-resource-pair assertion. we don't run this task for a revert,
+	// since a revert cannot reach out to the store. once the TODOs below are
+	// addressed, this task can run during reverts as well.
+	//
+	// TODO:COMPS: this task currently will re-hash a component that is already
+	// installed, which is not ideal. make validate-component have two code
+	// paths that will properly handle this case.
+	//
+	// TODO:COMPS: this task should run when installing any asserted component,
+	// even from a local file. once it is modified to be able to skip fetching
+	// assertions from the store, then we should start running this task for all
+	// asserted components.
+	if !snapsup.Revert && compSetup.CompPath == "" {
 		validate := st.NewTask("validate-component", fmt.Sprintf(
 			i18n.G("Fetch and check assertions for component %q%s"), compSetup.ComponentName(), revisionStr),
 		)

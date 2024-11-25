@@ -25,6 +25,8 @@ import (
 	"crypto"
 	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
@@ -5313,6 +5315,12 @@ func (s *assertMgrSuite) TestValidateComponent(c *C) {
 	s.testValidateComponent(c, testValidateComponentOpts{})
 }
 
+func (s *assertMgrSuite) TestValidateComponentAlreadyPresent(c *C) {
+	s.testValidateComponent(c, testValidateComponentOpts{
+		alreadyPresentRevision: true,
+	})
+}
+
 func (s *assertMgrSuite) TestValidateComponentProvenance(c *C) {
 	s.testValidateComponent(c, testValidateComponentOpts{
 		provenance: "provenance",
@@ -5336,6 +5344,7 @@ type testValidateComponentOpts struct {
 	provenance                     string
 	failCrosscheckProvenance       bool
 	failCrosscheckResourceRevision bool
+	alreadyPresentRevision         bool
 }
 
 func (s *assertMgrSuite) testValidateComponent(c *C, opts testValidateComponentOpts) {
@@ -5377,6 +5386,24 @@ func (s *assertMgrSuite) testValidateComponent(c *C, opts testValidateComponentO
 			Revision: snapRev,
 		},
 	}
+
+	if opts.alreadyPresentRevision {
+		cpi := snap.MinimalComponentContainerPlaceInfo(
+			"standard-component",
+			compRev,
+			"foo",
+		)
+
+		mountFile := cpi.MountFile()
+		err := os.MkdirAll(filepath.Dir(mountFile), 0755)
+		c.Assert(err, IsNil)
+
+		err = os.Rename(compPath, mountFile)
+		c.Assert(err, IsNil)
+
+		compPath = ""
+	}
+
 	compsup := snapstate.ComponentSetup{
 		CompPath: compPath,
 		CompSideInfo: &snap.ComponentSideInfo{
@@ -5404,6 +5431,7 @@ func (s *assertMgrSuite) testValidateComponent(c *C, opts testValidateComponentO
 	}
 
 	c.Assert(chg.Err(), IsNil)
+	c.Assert(chg.IsReady(), Equals, true)
 
 	db := assertstate.DB(s.state)
 
@@ -5426,6 +5454,23 @@ func (s *assertMgrSuite) testValidateComponent(c *C, opts testValidateComponentO
 		"store": "my-brand-store",
 	})
 	c.Assert(err, IsNil)
+
+	// make sure that this handler is idempotent, since it might be called for
+	// an already installed component if one is re-used across multiple snap
+	// revisions.
+	t = s.state.NewTask("validate-component", "Fetch and check snap assertions")
+	t.Set("snap-setup", snapsup)
+	t.Set("component-setup", compsup)
+	chg = s.state.NewChange("install", "...")
+	chg.AddTask(t)
+
+	s.state.Unlock()
+	defer s.se.Stop()
+	s.settle(c)
+	s.state.Lock()
+
+	c.Assert(chg.Err(), IsNil)
+	c.Assert(chg.IsReady(), Equals, true)
 }
 
 func (s *assertMgrSuite) setupRegistry(c *C) *snap.SideInfo {

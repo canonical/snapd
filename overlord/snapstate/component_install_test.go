@@ -67,10 +67,16 @@ func expectedComponentInstallTasks(opts int) []string {
 }
 
 func expectedComponentInstallTasksSplit(opts int) (beforeLink, link, postOpHooksAndAfter, discard []string) {
-	if opts&compOptIsLocal != 0 {
+	if opts&compOptIsLocal != 0 || opts&compOptRevisionPresent != 0 {
 		beforeLink = []string{"prepare-component"}
 	} else {
-		beforeLink = []string{"download-component", "validate-component"}
+		beforeLink = []string{"download-component"}
+	}
+
+	// validate-component runs for all snaps that were not explicitly installed
+	// from file, unless the operation is part of a revert.
+	if opts&compOptIsLocal == 0 && opts&compOptDuringSnapRevert == 0 {
+		beforeLink = append(beforeLink, "validate-component")
 	}
 
 	// Revision is not the same as the current one installed
