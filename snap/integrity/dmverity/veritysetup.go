@@ -22,11 +22,13 @@ package dmverity
 import (
 	"bufio"
 	"bytes"
+	"encoding/binary"
 	"fmt"
 	"os"
 	"regexp"
 	"strconv"
 	"strings"
+	"unsafe"
 
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
@@ -183,4 +185,62 @@ func Format(dataDevice string, hashDevice string, opts *DmVerityParams) (string,
 	}
 
 	return rootHash, nil
+}
+
+// VeritySuperblock represents the dm-verity superblock structure.
+//
+// It mirrors cryptsetup's verity_sb structure from
+// https://gitlab.com/cryptsetup/cryptsetup/-/blob/main/lib/verity/verity.c?ref_type=heads#L25
+type VeritySuperBlock struct {
+	Signature       [8]uint8   `json:"-"`               /* "verity\0\0" */
+	Version         uint32     `json:"version"`         /* superblock version */
+	Hash_type       uint32     `json:"hash_type"`       /* 0 - Chrome OS, 1 - normal */
+	Uuid            [16]uint8  `json:"uuid"`            /* UUID of hash device */
+	Algorithm       [32]uint8  `json:"algorithm"`       /* hash algorithm name */
+	Data_block_size uint32     `json:"data_block_size"` /* data block in bytes */
+	Hash_block_size uint32     `json:"hash_block_size"` /* hash block in bytes */
+	Data_blocks     uint64     `json:"data_blocks"`     /* number of data blocks */
+	Salt_size       uint16     `json:"salt_size"`       /* salt size */
+	Pad1            [6]uint8   `json:"-"`
+	Salt            [256]uint8 `json:"salt"` /* salt */
+	Pad2            [168]uint8 `json:"-"`
+}
+
+func (sb *VeritySuperBlock) Size() int {
+	size := int(unsafe.Sizeof(*sb))
+	return size
+}
+
+// Validate will perform consistency checks over an extracted superblock to determine whether it's a valid
+// superblock or not.
+func (sb *VeritySuperBlock) Validate() error {
+	if sb.Version != 1 {
+		return fmt.Errorf("invalid dm-verity version")
+	}
+
+	if sb.Hash_type != 1 {
+		return fmt.Errorf("invalid dm-verity hash type")
+	}
+
+	return nil
+}
+
+// ReadSuperBlock reads the dm-verity superblock from a dm-verity hash file.
+func ReadSuperBlock(filename string) (*VeritySuperBlock, error) {
+	hashFile, err := os.Open(filename)
+	if err != nil {
+		return nil, err
+	}
+	defer hashFile.Close()
+	var sb VeritySuperBlock
+	verity_sb := make([]byte, sb.Size())
+	if _, err := hashFile.Read(verity_sb); err != nil {
+		return nil, err
+	}
+	err = binary.Read(bytes.NewReader(verity_sb), binary.LittleEndian, &sb)
+	if err != nil {
+		return nil, err
+	}
+
+	return &sb, nil
 }
