@@ -20,6 +20,7 @@
 package dmverity_test
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 	"testing"
@@ -209,4 +210,19 @@ func (s *VerityTestSuite) TestVerityVersionDetect(c *C) {
 		}
 		c.Check(deploy, Equals, t.deploy, Commentf("test failed for version: %s", t.ver))
 	}
+}
+
+func (s *VerityTestSuite) TestReadSuperBlockSuccess(c *C) {
+	sb, err := dmverity.ReadSuperBlock("testdata/testdisk.verity")
+	c.Check(err, IsNil)
+
+	sbJson, _ := json.Marshal(sb)
+	expectedSb := `{"version":1,"hash_type":1,"uuid":[147,116,13,94,144,57,74,7,146,25,189,53,88,130,182,75],"algorithm":[115,104,97,50,53,54,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],"data_block_size":4096,"hash_block_size":4096,"data_blocks":2048,"salt_size":32,"salt":[70,174,227,175,251,208,69,86,35,233,7,187,127,198,34,153,155,172,76,134,250,38,56,8,172,21,36,11,22,40,100,88,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]}`
+	c.Check(string(sbJson), Equals, expectedSb)
+}
+
+func (s *VerityTestSuite) TestReadSuperBlockError(c *C) {
+	// Attempt to read an empty disk
+	_, err := dmverity.ReadSuperBlock("testdata/testdisk")
+	c.Check(err, ErrorMatches, "invalid dm-verity superblock header")
 }
