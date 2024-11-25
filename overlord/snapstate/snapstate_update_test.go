@@ -16121,12 +16121,6 @@ func (s *snapmgrTestSuite) testUpdateWithComponentsRunThrough(c *C, opts updateW
 	originalSideState := currentSeq.Revisions[0]
 
 	if opts.undo {
-		if opts.snapType == snap.TypeKernel {
-			// undo for "remove-kernel-snap-setup"
-			expected = append(expected, fakeOp{
-				op: "prepare-kernel-snap",
-			})
-		}
 		expected = append(expected,
 			undoOps(instanceName, opts.snapType, expectedSideState, originalSideState)...)
 	} else {
@@ -16283,6 +16277,9 @@ func (s *snapmgrTestSuite) testUpdateWithComponentsRunThroughShareComponents(c *
 		snapID   = "kernel-id"
 	)
 
+	restore := snapstatetest.MockDeviceModel(MakeModel20("pc", map[string]interface{}{"base": "core24"}))
+	defer restore()
+
 	channel := "channel-for-components"
 	currentSnapRev := snap.R(7)
 
@@ -16325,9 +16322,19 @@ func (s *snapmgrTestSuite) testUpdateWithComponentsRunThroughShareComponents(c *
 	fi, err := os.Stat(snap.MountFile(snapName, si.Revision))
 	c.Assert(err, IsNil)
 
+	bl := boottest.MockUC20RunBootenv(bootloadertest.Mock("mock", c.MkDir()))
+	bl.SetBootVars(map[string]string{"snap_kernel": snapName, "snap_core": "core24_2.snap"})
+	bootloader.Force(bl)
+	defer bootloader.Force(nil)
+
+	kPlaceInfo, err := snap.ParsePlaceInfoFromSnapFileName("kernel_" + newSnapRev.String() + ".snap")
+	c.Assert(err, IsNil)
+	restore = bl.SetEnabledKernel(kPlaceInfo)
+	defer restore()
+
 	refreshedDate := fi.ModTime()
 
-	restore := snapstate.MockRevisionDate(nil)
+	restore = snapstate.MockRevisionDate(nil)
 	defer restore()
 
 	now, err := time.Parse(time.RFC3339, "2021-06-10T10:00:00Z")
@@ -16377,7 +16384,7 @@ func (s *snapmgrTestSuite) testUpdateWithComponentsRunThroughShareComponents(c *
 		Active:          true,
 		Sequence:        currentSeq,
 		Current:         si.Revision,
-		SnapType:        "app",
+		SnapType:        string(snap.TypeKernel),
 		TrackingChannel: channel,
 	})
 
@@ -16518,6 +16525,9 @@ func (s *snapmgrTestSuite) testUpdateWithComponentsRunThroughShareComponents(c *
 			unlinkSkipBinaries: true,
 		},
 		{
+			op: "prepare-kernel-snap",
+		},
+		{
 			op:    "update-gadget-assets:Doing",
 			name:  snapName,
 			revno: newSnapRev,
@@ -16549,11 +16559,9 @@ func (s *snapmgrTestSuite) testUpdateWithComponentsRunThroughShareComponents(c *
 			},
 		},
 		{
-			op:   "link-snap",
-			path: filepath.Join(dirs.SnapMountDir, snapName, newSnapRev.String()),
-		},
-		{
-			op: "maybe-set-next-boot",
+			op:                  "link-snap",
+			path:                filepath.Join(dirs.SnapMountDir, snapName, newSnapRev.String()),
+			requireSnapdTooling: true,
 		},
 	}...)
 
@@ -16592,11 +16600,15 @@ func (s *snapmgrTestSuite) testUpdateWithComponentsRunThroughShareComponents(c *
 	}
 
 	if len(currentKmodComps) > 0 || len(newKmodComps) > 0 {
-		expected = append(expected, fakeOp{
+		expected = append(expected, []fakeOp{{
 			op:           "prepare-kernel-modules-components",
 			currentComps: currentKmodComps,
 			finalComps:   newKmodComps,
-		})
+		}, {
+			op: "maybe-set-next-boot",
+		}, {
+			op: "remove-kernel-snap-setup",
+		}}...)
 	}
 
 	expectedSI := snap.SideInfo{
@@ -16609,7 +16621,7 @@ func (s *snapmgrTestSuite) testUpdateWithComponentsRunThroughShareComponents(c *
 	originalSideState := currentSeq.Revisions[0]
 
 	if undo {
-		expected = append(expected, undoOps(snapName, expectedSideState, originalSideState)...)
+		expected = append(expected, undoOps(snapName, snap.TypeKernel, expectedSideState, originalSideState)...)
 	} else {
 		expected = append(expected, fakeOp{
 			op:    "cleanup-trash",
@@ -17308,12 +17320,6 @@ components:
 	}
 
 	if undo {
-		if snapType == snap.TypeKernel {
-			// undo for "remove-kernel-snap-setup"
-			expected = append(expected, fakeOp{
-				op: "prepare-kernel-snap",
-			})
-		}
 		expected = append(expected, undoOps(instanceName, snapType, expectedSideState, originalSideState)...)
 	} else {
 		expected = append(expected, fakeOp{
@@ -17839,12 +17845,6 @@ func (s *snapmgrTestSuite) testUpdateWithComponentsRunThroughOnlyComponentUpdate
 	originalSideState := currentSeq.Revisions[0]
 
 	if opts.undo {
-		if opts.snapType == snap.TypeKernel {
-			// undo for "remove-kernel-snap-setup"
-			expected = append(expected, fakeOp{
-				op: "prepare-kernel-snap",
-			})
-		}
 		expected = append(expected, undoOps(instanceName, opts.snapType, expectedSideState, originalSideState)...)
 	} else {
 		expected = append(expected, fakeOp{
