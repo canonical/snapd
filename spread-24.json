@@ -1,0 +1,163 @@
+[
+    {
+        "type": "action",
+        "date": "2024-11-22",
+        "time": "14:22:34",
+        "verb": "Allocating",
+        "task": null,
+        "extra": "google:ubuntu-24.04-64..."
+    },
+    {
+        "type": "action",
+        "date": "2024-11-22",
+        "time": "14:22:46",
+        "verb": "Waiting",
+        "task": null,
+        "extra": "for google:ubuntu-24.04-64 (nov221322-189537) to boot at 34.105.195.110..."
+    },
+    {
+        "type": "action",
+        "date": "2024-11-22",
+        "time": "14:23:17",
+        "verb": "Allocated",
+        "task": null,
+        "extra": "google:ubuntu-24.04-64 (nov221322-189537)."
+    },
+    {
+        "type": "action",
+        "date": "2024-11-22",
+        "time": "14:23:17",
+        "verb": "Connecting",
+        "task": null,
+        "extra": "to google:ubuntu-24.04-64 (nov221322-189537)..."
+    },
+    {
+        "type": "action",
+        "date": "2024-11-22",
+        "time": "14:23:18",
+        "verb": "Connected",
+        "task": null,
+        "extra": "to google:ubuntu-24.04-64 (nov221322-189537) at 34.105.195.110."
+    },
+    {
+        "type": "action",
+        "date": "2024-11-22",
+        "time": "14:23:18",
+        "verb": "Sending",
+        "task": null,
+        "extra": "project content to google:ubuntu-24.04-64 (nov221322-189537)..."
+    },
+    {
+        "type": "phase",
+        "date": "2024-11-22",
+        "time": "14:23:22",
+        "verb": "Preparing",
+        "task": "google:ubuntu-24.04-64"
+    },
+    {
+        "type": "phase",
+        "date": "2024-11-22",
+        "time": "14:25:42",
+        "verb": "Preparing",
+        "task": "google:ubuntu-24.04-64:tests/main/"
+    },
+    {
+        "type": "phase",
+        "date": "2024-11-22",
+        "time": "14:26:45",
+        "verb": "Preparing",
+        "task": "google:ubuntu-24.04-64:tests/main/ack"
+    },
+    {
+        "type": "phase",
+        "date": "2024-11-22",
+        "time": "14:26:58",
+        "verb": "Executing",
+        "task": "google:ubuntu-24.04-64:tests/main/ack"
+    },
+    {
+        "type": "info",
+        "date": "2024-11-22",
+        "time": "14:26:58",
+        "info_type": "Error",
+        "verb": "executing",
+        "task": "google:ubuntu-24.04-64:tests/main/ack",
+        "extra": null,
+        "detail": null
+    },
+    {
+        "type": "info",
+        "date": "2024-11-22",
+        "time": "14:26:58",
+        "info_type": "Debug",
+        "verb": null,
+        "task": "google:ubuntu-24.04-64:tests/main/ack",
+        "extra": null,
+        "detail": null
+    },
+    {
+        "type": "phase",
+        "date": "2024-11-22",
+        "time": "14:26:58",
+        "verb": "Restoring",
+        "task": "google:ubuntu-24.04-64:tests/main/ack"
+    },
+    {
+        "type": "phase",
+        "date": "2024-11-22",
+        "time": "14:27:23",
+        "verb": "Restoring",
+        "task": "google:ubuntu-24.04-64:tests/main/"
+    },
+    {
+        "type": "phase",
+        "date": "2024-11-22",
+        "time": "14:27:31",
+        "verb": "Restoring",
+        "task": "google:ubuntu-24.04-64"
+    },
+    {
+        "type": "action",
+        "date": "2024-11-22",
+        "time": "14:27:32",
+        "verb": "Discarding",
+        "task": null,
+        "extra": "google:ubuntu-24.04-64 (nov221322-189537)..."
+    },
+    {
+        "type": "result",
+        "date": "2024-11-22",
+        "time": "14:27:32",
+        "result_type": "Successful",
+        "level": "tasks",
+        "stage": null,
+        "number": "0",
+        "detail": null
+    },
+    {
+        "type": "result",
+        "date": "2024-11-22",
+        "time": "14:27:32",
+        "result_type": "Aborted",
+        "level": "tasks",
+        "stage": null,
+        "number": "0",
+        "detail": null
+    },
+    {
+        "type": "result",
+        "date": "2024-11-22",
+        "time": "14:27:32",
+        "result_type": "Failed",
+        "level": "tasks",
+        "stage": null,
+        "number": "1",
+        "detail": {
+            "lines": [
+                "    - google:ubuntu-24.04-64:tests/main/ack\n",
+                "error: unsuccessful run\n",
+                "\n"
+            ]
+        }
+    }
+]

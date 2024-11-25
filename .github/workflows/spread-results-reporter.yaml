@@ -46,12 +46,12 @@ jobs:
           fi
           echo -e "$report" > report
 
-      - name: Comment report to PR
-        if: ${{ github.event.number }}
-        run: |
-          if ! gh pr comment "${{ github.event.number }}" --body "$(cat report)" --edit-last; then
-            gh pr comment "${{ github.event.number }}" --body "$(cat report)"
-          fi
+      # - name: Comment report to PR
+      #   if: ${{ github.event.number }}
+      #   run: |
+      #     if ! gh pr comment "${{ github.event.number }}" --body "$(cat report)" --edit-last; then
+      #       gh pr comment "${{ github.event.number }}" --body "$(cat report)"
+      #     fi
       
       - name: Write report to test summary
         run: cat report >> $GITHUB_STEP_SUMMARY

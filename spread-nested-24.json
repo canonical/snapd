@@ -1,0 +1,1236 @@
+[
+    {
+        "type": "action",
+        "date": "2024-11-22",
+        "time": "00:02:35",
+        "verb": "Allocating",
+        "task": null,
+        "extra": "google-nested:ubuntu-24.04-64..."
+    },
+    {
+        "type": "action",
+        "date": "2024-11-22",
+        "time": "00:02:35",
+        "verb": "Allocating",
+        "task": null,
+        "extra": "google-nested:ubuntu-24.04-64..."
+    },
+    {
+        "type": "action",
+        "date": "2024-11-22",
+        "time": "00:02:35",
+        "verb": "Allocating",
+        "task": null,
+        "extra": "google-nested:ubuntu-24.04-64..."
+    },
+    {
+        "type": "action",
+        "date": "2024-11-22",
+        "time": "00:02:35",
+        "verb": "Allocating",
+        "task": null,
+        "extra": "google-nested:ubuntu-24.04-64..."
+    },
+    {
+        "type": "action",
+        "date": "2024-11-22",
+        "time": "00:02:35",
+        "verb": "Allocating",
+        "task": null,
+        "extra": "google-nested:ubuntu-24.04-64..."
+    },
+    {
+        "type": "action",
+        "date": "2024-11-22",
+        "time": "00:02:35",
+        "verb": "Allocating",
+        "task": null,
+        "extra": "google-nested:ubuntu-24.04-64..."
+    },
+    {
+        "type": "action",
+        "date": "2024-11-22",
+        "time": "00:02:35",
+        "verb": "Allocating",
+        "task": null,
+        "extra": "google-nested:ubuntu-24.04-64..."
+    },
+    {
+        "type": "action",
+        "date": "2024-11-22",
+        "time": "00:02:35",
+        "verb": "Allocating",
+        "task": null,
+        "extra": "google-nested:ubuntu-24.04-64..."
+    },
+    {
+        "type": "action",
+        "date": "2024-11-22",
+        "time": "00:03:08",
+        "verb": "Waiting",
+        "task": null,
+        "extra": "for google-nested:ubuntu-24.04-64 (nov220002-763706) to boot at 34.29.63.31..."
+    },
+    {
+        "type": "action",
+        "date": "2024-11-22",
+        "time": "00:03:09",
+        "verb": "Waiting",
+        "task": null,
+        "extra": "for google-nested:ubuntu-24.04-64 (nov220002-763603) to boot at 34.71.95.159..."
+    },
+    {
+        "type": "action",
+        "date": "2024-11-22",
+        "time": "00:03:09",
+        "verb": "Waiting",
+        "task": null,
+        "extra": "for google-nested:ubuntu-24.04-64 (nov220002-763841) to boot at 104.197.161.227..."
+    },
+    {
+        "type": "action",
+        "date": "2024-11-22",
+        "time": "00:03:10",
+        "verb": "Waiting",
+        "task": null,
+        "extra": "for google-nested:ubuntu-24.04-64 (nov220002-763809) to boot at 34.31.201.110..."
+    },
+    {
+        "type": "action",
+        "date": "2024-11-22",
+        "time": "00:03:11",
+        "verb": "Waiting",
+        "task": null,
+        "extra": "for google-nested:ubuntu-24.04-64 (nov220002-763817) to boot at 34.171.66.150..."
+    },
+    {
+        "type": "action",
+        "date": "2024-11-22",
+        "time": "00:03:11",
+        "verb": "Waiting",
+        "task": null,
+        "extra": "for google-nested:ubuntu-24.04-64 (nov220002-763824) to boot at 34.123.137.161..."
+    },
+    {
+        "type": "action",
+        "date": "2024-11-22",
+        "time": "00:03:12",
+        "verb": "Waiting",
+        "task": null,
+        "extra": "for google-nested:ubuntu-24.04-64 (nov220002-763830) to boot at 34.42.37.99..."
+    },
+    {
+        "type": "action",
+        "date": "2024-11-22",
+        "time": "00:03:12",
+        "verb": "Waiting",
+        "task": null,
+        "extra": "for google-nested:ubuntu-24.04-64 (nov220002-763836) to boot at 35.225.115.64..."
+    },
+    {
+        "type": "action",
+        "date": "2024-11-22",
+        "time": "00:03:27",
+        "verb": "Allocated",
+        "task": null,
+        "extra": "google-nested:ubuntu-24.04-64 (nov220002-763706)."
+    },
+    {
+        "type": "action",
+        "date": "2024-11-22",
+        "time": "00:03:28",
+        "verb": "Allocated",
+        "task": null,
+        "extra": "google-nested:ubuntu-24.04-64 (nov220002-763603)."
+    },
+    {
+        "type": "action",
+        "date": "2024-11-22",
+        "time": "00:03:28",
+        "verb": "Connecting",
+        "task": null,
+        "extra": "to google-nested:ubuntu-24.04-64 (nov220002-763706)..."
+    },
+    {
+        "type": "action",
+        "date": "2024-11-22",
+        "time": "00:03:29",
+        "verb": "Allocated",
+        "task": null,
+        "extra": "google-nested:ubuntu-24.04-64 (nov220002-763817)."
+    },
+    {
+        "type": "action",
+        "date": "2024-11-22",
+        "time": "00:03:29",
+        "verb": "Connected",
+        "task": null,
+        "extra": "to google-nested:ubuntu-24.04-64 (nov220002-763706) at 34.29.63.31."
+    },
+    {
+        "type": "action",
+        "date": "2024-11-22",
+        "time": "00:03:29",
+        "verb": "Sending",
+        "task": null,
+        "extra": "project content to google-nested:ubuntu-24.04-64 (nov220002-763706)..."
+    },
+    {
+        "type": "action",
+        "date": "2024-11-22",
+        "time": "00:03:29",
+        "verb": "Connecting",
+        "task": null,
+        "extra": "to google-nested:ubuntu-24.04-64 (nov220002-763603)..."
+    },
+    {
+        "type": "action",
+        "date": "2024-11-22",
+        "time": "00:03:30",
+        "verb": "Connected",
+        "task": null,
+        "extra": "to google-nested:ubuntu-24.04-64 (nov220002-763603) at 34.71.95.159."
+    },
+    {
+        "type": "action",
+        "date": "2024-11-22",
+        "time": "00:03:30",
+        "verb": "Sending",
+        "task": null,
+        "extra": "project content to google-nested:ubuntu-24.04-64 (nov220002-763603)..."
+    },
+    {
+        "type": "action",
+        "date": "2024-11-22",
+        "time": "00:03:30",
+        "verb": "Allocated",
+        "task": null,
+        "extra": "google-nested:ubuntu-24.04-64 (nov220002-763824)."
+    },
+    {
+        "type": "action",
+        "date": "2024-11-22",
+        "time": "00:03:30",
+        "verb": "Connecting",
+        "task": null,
+        "extra": "to google-nested:ubuntu-24.04-64 (nov220002-763817)..."
+    },
+    {
+        "type": "action",
+        "date": "2024-11-22",
+        "time": "00:03:31",
+        "verb": "Allocated",
+        "task": null,
+        "extra": "google-nested:ubuntu-24.04-64 (nov220002-763830)."
+    },
+    {
+        "type": "action",
+        "date": "2024-11-22",
+        "time": "00:03:31",
+        "verb": "Allocated",
+        "task": null,
+        "extra": "google-nested:ubuntu-24.04-64 (nov220002-763809)."
+    },
+    {
+        "type": "action",
+        "date": "2024-11-22",
+        "time": "00:03:31",
+        "verb": "Connected",
+        "task": null,
+        "extra": "to google-nested:ubuntu-24.04-64 (nov220002-763817) at 34.171.66.150."
+    },
+    {
+        "type": "action",
+        "date": "2024-11-22",
+        "time": "00:03:31",
+        "verb": "Sending",
+        "task": null,
+        "extra": "project content to google-nested:ubuntu-24.04-64 (nov220002-763817)..."
+    },
+    {
+        "type": "action",
+        "date": "2024-11-22",
+        "time": "00:03:32",
+        "verb": "Connecting",
+        "task": null,
+        "extra": "to google-nested:ubuntu-24.04-64 (nov220002-763824)..."
+    },
+    {
+        "type": "action",
+        "date": "2024-11-22",
+        "time": "00:03:32",
+        "verb": "Connecting",
+        "task": null,
+        "extra": "to google-nested:ubuntu-24.04-64 (nov220002-763830)..."
+    },
+    {
+        "type": "action",
+        "date": "2024-11-22",
+        "time": "00:03:32",
+        "verb": "Connecting",
+        "task": null,
+        "extra": "to google-nested:ubuntu-24.04-64 (nov220002-763809)..."
+    },
+    {
+        "type": "action",
+        "date": "2024-11-22",
+        "time": "00:03:32",
+        "verb": "Allocated",
+        "task": null,
+        "extra": "google-nested:ubuntu-24.04-64 (nov220002-763836)."
+    },
+    {
+        "type": "action",
+        "date": "2024-11-22",
+        "time": "00:03:32",
+        "verb": "Connecting",
+        "task": null,
+        "extra": "to google-nested:ubuntu-24.04-64 (nov220002-763836)..."
+    },
+    {
+        "type": "action",
+        "date": "2024-11-22",
+        "time": "00:03:33",
+        "verb": "Connected",
+        "task": null,
+        "extra": "to google-nested:ubuntu-24.04-64 (nov220002-763824) at 34.123.137.161."
+    },
+    {
+        "type": "action",
+        "date": "2024-11-22",
+        "time": "00:03:33",
+        "verb": "Sending",
+        "task": null,
+        "extra": "project content to google-nested:ubuntu-24.04-64 (nov220002-763824)..."
+    },
+    {
+        "type": "action",
+        "date": "2024-11-22",
+        "time": "00:03:33",
+        "verb": "Connected",
+        "task": null,
+        "extra": "to google-nested:ubuntu-24.04-64 (nov220002-763830) at 34.42.37.99."
+    },
+    {
+        "type": "action",
+        "date": "2024-11-22",
+        "time": "00:03:33",
+        "verb": "Sending",
+        "task": null,
+        "extra": "project content to google-nested:ubuntu-24.04-64 (nov220002-763830)..."
+    },
+    {
+        "type": "action",
+        "date": "2024-11-22",
+        "time": "00:03:33",
+        "verb": "Connected",
+        "task": null,
+        "extra": "to google-nested:ubuntu-24.04-64 (nov220002-763809) at 34.31.201.110."
+    },
+    {
+        "type": "action",
+        "date": "2024-11-22",
+        "time": "00:03:33",
+        "verb": "Sending",
+        "task": null,
+        "extra": "project content to google-nested:ubuntu-24.04-64 (nov220002-763809)..."
+    },
+    {
+        "type": "action",
+        "date": "2024-11-22",
+        "time": "00:03:33",
+        "verb": "Connected",
+        "task": null,
+        "extra": "to google-nested:ubuntu-24.04-64 (nov220002-763836) at 35.225.115.64."
+    },
+    {
+        "type": "action",
+        "date": "2024-11-22",
+        "time": "00:03:33",
+        "verb": "Sending",
+        "task": null,
+        "extra": "project content to google-nested:ubuntu-24.04-64 (nov220002-763836)..."
+    },
+    {
+        "type": "action",
+        "date": "2024-11-22",
+        "time": "00:03:34",
+        "verb": "Allocated",
+        "task": null,
+        "extra": "google-nested:ubuntu-24.04-64 (nov220002-763841)."
+    },
+    {
+        "type": "action",
+        "date": "2024-11-22",
+        "time": "00:03:35",
+        "verb": "Connecting",
+        "task": null,
+        "extra": "to google-nested:ubuntu-24.04-64 (nov220002-763841)..."
+    },
+    {
+        "type": "phase",
+        "date": "2024-11-22",
+        "time": "00:03:35",
+        "verb": "Preparing",
+        "task": "google-nested:ubuntu-24.04-64"
+    },
+    {
+        "type": "action",
+        "date": "2024-11-22",
+        "time": "00:03:35",
+        "verb": "Connected",
+        "task": null,
+        "extra": "to google-nested:ubuntu-24.04-64 (nov220002-763841) at 104.197.161.227."
+    },
+    {
+        "type": "action",
+        "date": "2024-11-22",
+        "time": "00:03:35",
+        "verb": "Sending",
+        "task": null,
+        "extra": "project content to google-nested:ubuntu-24.04-64 (nov220002-763841)..."
+    },
+    {
+        "type": "phase",
+        "date": "2024-11-22",
+        "time": "00:03:36",
+        "verb": "Preparing",
+        "task": "google-nested:ubuntu-24.04-64"
+    },
+    {
+        "type": "phase",
+        "date": "2024-11-22",
+        "time": "00:03:37",
+        "verb": "Preparing",
+        "task": "google-nested:ubuntu-24.04-64"
+    },
+    {
+        "type": "phase",
+        "date": "2024-11-22",
+        "time": "00:03:38",
+        "verb": "Preparing",
+        "task": "google-nested:ubuntu-24.04-64"
+    },
+    {
+        "type": "phase",
+        "date": "2024-11-22",
+        "time": "00:03:38",
+        "verb": "Preparing",
+        "task": "google-nested:ubuntu-24.04-64"
+    },
+    {
+        "type": "phase",
+        "date": "2024-11-22",
+        "time": "00:03:39",
+        "verb": "Preparing",
+        "task": "google-nested:ubuntu-24.04-64"
+    },
+    {
+        "type": "phase",
+        "date": "2024-11-22",
+        "time": "00:03:40",
+        "verb": "Preparing",
+        "task": "google-nested:ubuntu-24.04-64"
+    },
+    {
+        "type": "phase",
+        "date": "2024-11-22",
+        "time": "00:03:43",
+        "verb": "Preparing",
+        "task": "google-nested:ubuntu-24.04-64"
+    },
+    {
+        "type": "info",
+        "date": "2024-11-22",
+        "time": "00:08:35",
+        "info_type": "WARNING",
+        "verb": null,
+        "task": null,
+        "extra": "nov220002-763603 (google-nested:ubuntu-24.04-64) running late. Current output:",
+        "detail": {
+            "lines": [
+                "-----\n",
+                ".\n"
+            ]
+        }
+    },
+    {
+        "type": "info",
+        "date": "2024-11-22",
+        "time": "00:08:36",
+        "info_type": "WARNING",
+        "verb": null,
+        "task": null,
+        "extra": "nov220002-763817 (google-nested:ubuntu-24.04-64) running late. Current output:",
+        "detail": {
+            "lines": [
+                "-----\n",
+                ".\n"
+            ]
+        }
+    },
+    {
+        "type": "info",
+        "date": "2024-11-22",
+        "time": "00:08:38",
+        "info_type": "WARNING",
+        "verb": null,
+        "task": null,
+        "extra": "nov220002-763830 (google-nested:ubuntu-24.04-64) running late. Current output:",
+        "detail": {
+            "lines": [
+                "-----\n",
+                ".\n"
+            ]
+        }
+    },
+    {
+        "type": "info",
+        "date": "2024-11-22",
+        "time": "00:08:38",
+        "info_type": "WARNING",
+        "verb": null,
+        "task": null,
+        "extra": "nov220002-763809 (google-nested:ubuntu-24.04-64) running late. Current output:",
+        "detail": {
+            "lines": [
+                "-----\n",
+                ".\n"
+            ]
+        }
+    },
+    {
+        "type": "info",
+        "date": "2024-11-22",
+        "time": "00:08:38",
+        "info_type": "WARNING",
+        "verb": null,
+        "task": null,
+        "extra": "nov220002-763836 (google-nested:ubuntu-24.04-64) running late. Current output:",
+        "detail": {
+            "lines": [
+                "-----\n",
+                ".\n"
+            ]
+        }
+    },
+    {
+        "type": "info",
+        "date": "2024-11-22",
+        "time": "00:08:39",
+        "info_type": "WARNING",
+        "verb": null,
+        "task": null,
+        "extra": "nov220002-763824 (google-nested:ubuntu-24.04-64) running late. Current output:",
+        "detail": {
+            "lines": [
+                "-----\n",
+                ".\n"
+            ]
+        }
+    },
+    {
+        "type": "info",
+        "date": "2024-11-22",
+        "time": "00:08:40",
+        "info_type": "WARNING",
+        "verb": null,
+        "task": null,
+        "extra": "nov220002-763841 (google-nested:ubuntu-24.04-64) running late. Current output:",
+        "detail": {
+            "lines": [
+                "-----\n",
+                ".\n"
+            ]
+        }
+    },
+    {
+        "type": "info",
+        "date": "2024-11-22",
+        "time": "00:08:43",
+        "info_type": "WARNING",
+        "verb": null,
+        "task": null,
+        "extra": "nov220002-763706 (google-nested:ubuntu-24.04-64) running late. Current output:",
+        "detail": {
+            "lines": [
+                "-----\n",
+                ".\n"
+            ]
+        }
+    },
+    {
+        "type": "phase",
+        "date": "2024-11-22",
+        "time": "00:12:56",
+        "verb": "Preparing",
+        "task": "google-nested:ubuntu-24.04-64:tests/nested/core/"
+    },
+    {
+        "type": "phase",
+        "date": "2024-11-22",
+        "time": "00:12:56",
+        "verb": "Preparing",
+        "task": "google-nested:ubuntu-24.04-64:tests/nested/manual/"
+    },
+    {
+        "type": "phase",
+        "date": "2024-11-22",
+        "time": "00:13:01",
+        "verb": "Preparing",
+        "task": "google-nested:ubuntu-24.04-64:tests/nested/manual/"
+    },
+    {
+        "type": "phase",
+        "date": "2024-11-22",
+        "time": "00:13:05",
+        "verb": "Preparing",
+        "task": "google-nested:ubuntu-24.04-64:tests/nested/manual/"
+    },
+    {
+        "type": "phase",
+        "date": "2024-11-22",
+        "time": "00:13:06",
+        "verb": "Preparing",
+        "task": "google-nested:ubuntu-24.04-64:tests/nested/manual/"
+    },
+    {
+        "type": "phase",
+        "date": "2024-11-22",
+        "time": "00:13:12",
+        "verb": "Preparing",
+        "task": "google-nested:ubuntu-24.04-64:tests/nested/manual/core20-grade-signed-above-testkeys-boot:signed"
+    },
+    {
+        "type": "phase",
+        "date": "2024-11-22",
+        "time": "00:13:17",
+        "verb": "Preparing",
+        "task": "google-nested:ubuntu-24.04-64:tests/nested/manual/remodel-min-size"
+    },
+    {
+        "type": "phase",
+        "date": "2024-11-22",
+        "time": "00:13:19",
+        "verb": "Preparing",
+        "task": "google-nested:ubuntu-24.04-64:tests/nested/manual/"
+    },
+    {
+        "type": "phase",
+        "date": "2024-11-22",
+        "time": "00:13:21",
+        "verb": "Preparing",
+        "task": "google-nested:ubuntu-24.04-64:tests/nested/manual/core20-initramfs-time-moves-forward"
+    },
+    {
+        "type": "phase",
+        "date": "2024-11-22",
+        "time": "00:13:22",
+        "verb": "Preparing",
+        "task": "google-nested:ubuntu-24.04-64:tests/nested/manual/core20-remodel"
+    },
+    {
+        "type": "phase",
+        "date": "2024-11-22",
+        "time": "00:13:35",
+        "verb": "Preparing",
+        "task": "google-nested:ubuntu-24.04-64:tests/nested/manual/"
+    },
+    {
+        "type": "phase",
+        "date": "2024-11-22",
+        "time": "00:13:35",
+        "verb": "Preparing",
+        "task": "google-nested:ubuntu-24.04-64:tests/nested/manual/core20-early-config"
+    },
+    {
+        "type": "info",
+        "date": "2024-11-22",
+        "time": "00:13:43",
+        "info_type": "WARNING",
+        "verb": null,
+        "task": null,
+        "extra": "nov220002-763706 (google-nested:ubuntu-24.04-64) running late. Current output:",
+        "detail": {
+            "lines": [
+                "-----\n",
+                ".\n"
+            ]
+        }
+    },
+    {
+        "type": "phase",
+        "date": "2024-11-22",
+        "time": "00:13:52",
+        "verb": "Preparing",
+        "task": "google-nested:ubuntu-24.04-64:tests/nested/manual/hybrid-remodel"
+    },
+    {
+        "type": "phase",
+        "date": "2024-11-22",
+        "time": "00:13:52",
+        "verb": "Preparing",
+        "task": "google-nested:ubuntu-24.04-64:tests/nested/manual/"
+    },
+    {
+        "type": "phase",
+        "date": "2024-11-22",
+        "time": "00:14:09",
+        "verb": "Preparing",
+        "task": "google-nested:ubuntu-24.04-64:tests/nested/manual/cmdline-option:signed"
+    },
+    {
+        "type": "info",
+        "date": "2024-11-22",
+        "time": "00:14:35",
+        "info_type": "Error",
+        "verb": "preparing",
+        "task": "google-nested:ubuntu-24.04-64:tests/nested/manual/hybrid-remodel",
+        "extra": null,
+        "detail": {
+            "lines": [
+                "-----\n",
+                ".\n"
+            ]
+        }
+    },
+    {
+        "type": "info",
+        "date": "2024-11-22",
+        "time": "00:14:35",
+        "info_type": "Debug",
+        "verb": null,
+        "task": "google-nested:ubuntu-24.04-64:tests/nested/manual/hybrid-remodel",
+        "extra": null,
+        "detail": null
+    },
+    {
+        "type": "phase",
+        "date": "2024-11-22",
+        "time": "00:14:35",
+        "verb": "Restoring",
+        "task": "google-nested:ubuntu-24.04-64:tests/nested/manual/hybrid-remodel"
+    },
+    {
+        "type": "phase",
+        "date": "2024-11-22",
+        "time": "00:14:43",
+        "verb": "Restoring",
+        "task": "google-nested:ubuntu-24.04-64:tests/nested/manual/"
+    },
+    {
+        "type": "phase",
+        "date": "2024-11-22",
+        "time": "00:14:50",
+        "verb": "Restoring",
+        "task": "google-nested:ubuntu-24.04-64"
+    },
+    {
+        "type": "action",
+        "date": "2024-11-22",
+        "time": "00:14:51",
+        "verb": "Discarding",
+        "task": null,
+        "extra": "google-nested:ubuntu-24.04-64 (nov220002-763809)..."
+    },
+    {
+        "type": "phase",
+        "date": "2024-11-22",
+        "time": "00:15:35",
+        "verb": "Preparing",
+        "task": "google-nested:ubuntu-24.04-64:tests/nested/core/core20-kernel-reseal"
+    },
+    {
+        "type": "phase",
+        "date": "2024-11-22",
+        "time": "00:16:05",
+        "verb": "Executing",
+        "task": "google-nested:ubuntu-24.04-64:tests/nested/manual/remodel-min-size"
+    },
+    {
+        "type": "phase",
+        "date": "2024-11-22",
+        "time": "00:19:46",
+        "verb": "Executing",
+        "task": "google-nested:ubuntu-24.04-64:tests/nested/manual/core20-initramfs-time-moves-forward"
+    },
+    {
+        "type": "info",
+        "date": "2024-11-22",
+        "time": "00:19:47",
+        "info_type": "Error",
+        "verb": "executing",
+        "task": "google-nested:ubuntu-24.04-64:tests/nested/manual/core20-initramfs-time-moves-forward",
+        "extra": null,
+        "detail": {
+            "lines": [
+                "-----\n",
+                ".\n"
+            ]
+        }
+    },
+    {
+        "type": "info",
+        "date": "2024-11-22",
+        "time": "00:19:48",
+        "info_type": "Debug",
+        "verb": null,
+        "task": "google-nested:ubuntu-24.04-64:tests/nested/manual/core20-initramfs-time-moves-forward",
+        "extra": null,
+        "detail": null
+    },
+    {
+        "type": "phase",
+        "date": "2024-11-22",
+        "time": "00:19:48",
+        "verb": "Restoring",
+        "task": "google-nested:ubuntu-24.04-64:tests/nested/manual/core20-initramfs-time-moves-forward"
+    },
+    {
+        "type": "phase",
+        "date": "2024-11-22",
+        "time": "00:19:49",
+        "verb": "Executing",
+        "task": "google-nested:ubuntu-24.04-64:tests/nested/manual/core20-remodel"
+    },
+    {
+        "type": "phase",
+        "date": "2024-11-22",
+        "time": "00:19:55",
+        "verb": "Executing",
+        "task": "google-nested:ubuntu-24.04-64:tests/nested/manual/core20-grade-signed-above-testkeys-boot:signed"
+    },
+    {
+        "type": "phase",
+        "date": "2024-11-22",
+        "time": "00:19:57",
+        "verb": "Restoring",
+        "task": "google-nested:ubuntu-24.04-64:tests/nested/manual/core20-grade-signed-above-testkeys-boot:signed"
+    },
+    {
+        "type": "phase",
+        "date": "2024-11-22",
+        "time": "00:20:06",
+        "verb": "Restoring",
+        "task": "google-nested:ubuntu-24.04-64:tests/nested/manual/"
+    },
+    {
+        "type": "phase",
+        "date": "2024-11-22",
+        "time": "00:20:12",
+        "verb": "Executing",
+        "task": "google-nested:ubuntu-24.04-64:tests/nested/manual/core20-early-config"
+    },
+    {
+        "type": "phase",
+        "date": "2024-11-22",
+        "time": "00:20:15",
+        "verb": "Restoring",
+        "task": "google-nested:ubuntu-24.04-64"
+    },
+    {
+        "type": "action",
+        "date": "2024-11-22",
+        "time": "00:20:15",
+        "verb": "Discarding",
+        "task": null,
+        "extra": "google-nested:ubuntu-24.04-64 (nov220002-763841)..."
+    },
+    {
+        "type": "phase",
+        "date": "2024-11-22",
+        "time": "00:20:16",
+        "verb": "Restoring",
+        "task": "google-nested:ubuntu-24.04-64:tests/nested/manual/"
+    },
+    {
+        "type": "phase",
+        "date": "2024-11-22",
+        "time": "00:20:26",
+        "verb": "Restoring",
+        "task": "google-nested:ubuntu-24.04-64"
+    },
+    {
+        "type": "action",
+        "date": "2024-11-22",
+        "time": "00:20:26",
+        "verb": "Discarding",
+        "task": null,
+        "extra": "google-nested:ubuntu-24.04-64 (nov220002-763830)..."
+    },
+    {
+        "type": "info",
+        "date": "2024-11-22",
+        "time": "00:20:36",
+        "info_type": "WARNING",
+        "verb": null,
+        "task": null,
+        "extra": "nov220002-763817 (google-nested:ubuntu-24.04-64:tests/nested/core/core20-kernel-reseal) running late. Current output:",
+        "detail": {
+            "lines": [
+                "-----\n",
+                ".\n"
+            ]
+        }
+    },
+    {
+        "type": "phase",
+        "date": "2024-11-22",
+        "time": "00:20:49",
+        "verb": "Executing",
+        "task": "google-nested:ubuntu-24.04-64:tests/nested/core/core20-kernel-reseal"
+    },
+    {
+        "type": "phase",
+        "date": "2024-11-22",
+        "time": "00:20:54",
+        "verb": "Executing",
+        "task": "google-nested:ubuntu-24.04-64:tests/nested/manual/cmdline-option:signed"
+    },
+    {
+        "type": "phase",
+        "date": "2024-11-22",
+        "time": "00:22:15",
+        "verb": "Restoring",
+        "task": "google-nested:ubuntu-24.04-64:tests/nested/manual/cmdline-option:signed"
+    },
+    {
+        "type": "phase",
+        "date": "2024-11-22",
+        "time": "00:22:33",
+        "verb": "Restoring",
+        "task": "google-nested:ubuntu-24.04-64:tests/nested/manual/"
+    },
+    {
+        "type": "phase",
+        "date": "2024-11-22",
+        "time": "00:22:43",
+        "verb": "Restoring",
+        "task": "google-nested:ubuntu-24.04-64"
+    },
+    {
+        "type": "action",
+        "date": "2024-11-22",
+        "time": "00:22:44",
+        "verb": "Discarding",
+        "task": null,
+        "extra": "google-nested:ubuntu-24.04-64 (nov220002-763706)..."
+    },
+    {
+        "type": "info",
+        "date": "2024-11-22",
+        "time": "00:24:59",
+        "info_type": "Error",
+        "verb": "executing",
+        "task": "google-nested:ubuntu-24.04-64:tests/nested/core/core20-kernel-reseal",
+        "extra": null,
+        "detail": {
+            "lines": [
+                "-----\n",
+                ".\n"
+            ]
+        }
+    },
+    {
+        "type": "info",
+        "date": "2024-11-22",
+        "time": "00:25:00",
+        "info_type": "Debug",
+        "verb": null,
+        "task": "google-nested:ubuntu-24.04-64:tests/nested/core/core20-kernel-reseal",
+        "extra": null,
+        "detail": null
+    },
+    {
+        "type": "phase",
+        "date": "2024-11-22",
+        "time": "00:25:00",
+        "verb": "Restoring",
+        "task": "google-nested:ubuntu-24.04-64:tests/nested/core/core20-kernel-reseal"
+    },
+    {
+        "type": "phase",
+        "date": "2024-11-22",
+        "time": "00:25:18",
+        "verb": "Restoring",
+        "task": "google-nested:ubuntu-24.04-64:tests/nested/core/"
+    },
+    {
+        "type": "phase",
+        "date": "2024-11-22",
+        "time": "00:25:27",
+        "verb": "Restoring",
+        "task": "google-nested:ubuntu-24.04-64"
+    },
+    {
+        "type": "action",
+        "date": "2024-11-22",
+        "time": "00:25:28",
+        "verb": "Discarding",
+        "task": null,
+        "extra": "google-nested:ubuntu-24.04-64 (nov220002-763817)..."
+    },
+    {
+        "type": "info",
+        "date": "2024-11-22",
+        "time": "00:26:05",
+        "info_type": "WARNING",
+        "verb": null,
+        "task": null,
+        "extra": "nov220002-763824 (google-nested:ubuntu-24.04-64:tests/nested/manual/remodel-min-size) running late. Current output:",
+        "detail": {
+            "lines": [
+                "-----\n",
+                ".\n"
+            ]
+        }
+    },
+    {
+        "type": "info",
+        "date": "2024-11-22",
+        "time": "00:29:49",
+        "info_type": "WARNING",
+        "verb": null,
+        "task": null,
+        "extra": "nov220002-763836 (google-nested:ubuntu-24.04-64:tests/nested/manual/core20-remodel) running late. Current output:",
+        "detail": {
+            "lines": [
+                "-----\n",
+                ".\n"
+            ]
+        }
+    },
+    {
+        "type": "info",
+        "date": "2024-11-22",
+        "time": "00:30:12",
+        "info_type": "WARNING",
+        "verb": null,
+        "task": null,
+        "extra": "nov220002-763603 (google-nested:ubuntu-24.04-64:tests/nested/manual/core20-early-config) running late. Current output:",
+        "detail": {
+            "lines": [
+                "-----\n",
+                ".\n"
+            ]
+        }
+    },
+    {
+        "type": "info",
+        "date": "2024-11-22",
+        "time": "00:35:24",
+        "info_type": "Error",
+        "verb": "executing",
+        "task": "google-nested:ubuntu-24.04-64:tests/nested/manual/core20-early-config",
+        "extra": null,
+        "detail": {
+            "lines": [
+                "-----\n",
+                ".\n"
+            ]
+        }
+    },
+    {
+        "type": "info",
+        "date": "2024-11-22",
+        "time": "00:35:29",
+        "info_type": "Debug",
+        "verb": null,
+        "task": "google-nested:ubuntu-24.04-64:tests/nested/manual/core20-early-config",
+        "extra": null,
+        "detail": null
+    },
+    {
+        "type": "phase",
+        "date": "2024-11-22",
+        "time": "00:35:29",
+        "verb": "Restoring",
+        "task": "google-nested:ubuntu-24.04-64:tests/nested/manual/core20-early-config"
+    },
+    {
+        "type": "phase",
+        "date": "2024-11-22",
+        "time": "00:35:45",
+        "verb": "Restoring",
+        "task": "google-nested:ubuntu-24.04-64:tests/nested/manual/"
+    },
+    {
+        "type": "phase",
+        "date": "2024-11-22",
+        "time": "00:35:55",
+        "verb": "Restoring",
+        "task": "google-nested:ubuntu-24.04-64"
+    },
+    {
+        "type": "action",
+        "date": "2024-11-22",
+        "time": "00:35:55",
+        "verb": "Discarding",
+        "task": null,
+        "extra": "google-nested:ubuntu-24.04-64 (nov220002-763603)..."
+    },
+    {
+        "type": "info",
+        "date": "2024-11-22",
+        "time": "00:36:05",
+        "info_type": "WARNING",
+        "verb": null,
+        "task": null,
+        "extra": "nov220002-763824 (google-nested:ubuntu-24.04-64:tests/nested/manual/remodel-min-size) running late. Current output:",
+        "detail": {
+            "lines": [
+                "-----\n",
+                ".\n"
+            ]
+        }
+    },
+    {
+        "type": "info",
+        "date": "2024-11-22",
+        "time": "00:39:49",
+        "info_type": "WARNING",
+        "verb": null,
+        "task": null,
+        "extra": "nov220002-763836 (google-nested:ubuntu-24.04-64:tests/nested/manual/core20-remodel) running late. Current output:",
+        "detail": {
+            "lines": [
+                "-----\n",
+                ".\n"
+            ]
+        }
+    },
+    {
+        "type": "info",
+        "date": "2024-11-22",
+        "time": "00:40:25",
+        "info_type": "Error",
+        "verb": "executing",
+        "task": "google-nested:ubuntu-24.04-64:tests/nested/manual/remodel-min-size",
+        "extra": null,
+        "detail": {
+            "lines": [
+                "-----\n",
+                ".\n"
+            ]
+        }
+    },
+    {
+        "type": "info",
+        "date": "2024-11-22",
+        "time": "00:40:36",
+        "info_type": "Debug",
+        "verb": null,
+        "task": "google-nested:ubuntu-24.04-64:tests/nested/manual/remodel-min-size",
+        "extra": null,
+        "detail": null
+    },
+    {
+        "type": "phase",
+        "date": "2024-11-22",
+        "time": "00:40:36",
+        "verb": "Restoring",
+        "task": "google-nested:ubuntu-24.04-64:tests/nested/manual/remodel-min-size"
+    },
+    {
+        "type": "phase",
+        "date": "2024-11-22",
+        "time": "00:40:45",
+        "verb": "Restoring",
+        "task": "google-nested:ubuntu-24.04-64:tests/nested/manual/"
+    },
+    {
+        "type": "phase",
+        "date": "2024-11-22",
+        "time": "00:40:55",
+        "verb": "Restoring",
+        "task": "google-nested:ubuntu-24.04-64"
+    },
+    {
+        "type": "action",
+        "date": "2024-11-22",
+        "time": "00:40:56",
+        "verb": "Discarding",
+        "task": null,
+        "extra": "google-nested:ubuntu-24.04-64 (nov220002-763824)..."
+    },
+    {
+        "type": "phase",
+        "date": "2024-11-22",
+        "time": "00:41:08",
+        "verb": "Restoring",
+        "task": "google-nested:ubuntu-24.04-64:tests/nested/manual/core20-remodel"
+    },
+    {
+        "type": "phase",
+        "date": "2024-11-22",
+        "time": "00:41:25",
+        "verb": "Restoring",
+        "task": "google-nested:ubuntu-24.04-64:tests/nested/manual/"
+    },
+    {
+        "type": "phase",
+        "date": "2024-11-22",
+        "time": "00:41:35",
+        "verb": "Restoring",
+        "task": "google-nested:ubuntu-24.04-64"
+    },
+    {
+        "type": "action",
+        "date": "2024-11-22",
+        "time": "00:41:36",
+        "verb": "Discarding",
+        "task": null,
+        "extra": "google-nested:ubuntu-24.04-64 (nov220002-763836)..."
+    },
+    {
+        "type": "result",
+        "date": "2024-11-22",
+        "time": "00:41:37",
+        "result_type": "Successful",
+        "level": "tasks",
+        "stage": null,
+        "number": "3",
+        "detail": null
+    },
+    {
+        "type": "result",
+        "date": "2024-11-22",
+        "time": "00:41:37",
+        "result_type": "Aborted",
+        "level": "tasks",
+        "stage": null,
+        "number": "1",
+        "detail": null
+    },
+    {
+        "type": "result",
+        "date": "2024-11-22",
+        "time": "00:41:37",
+        "result_type": "Failed",
+        "level": "tasks",
+        "stage": null,
+        "number": "4",
+        "detail": {
+            "lines": [
+                "- google-nested:ubuntu-24.04-64:tests/nested/core/core20-kernel-reseal\n",
+                "- google-nested:ubuntu-24.04-64:tests/nested/manual/core20-early-config\n",
+                "- google-nested:ubuntu-24.04-64:tests/nested/manual/core20-initramfs-time-moves-forward\n",
+                "- google-nested:ubuntu-24.04-64:tests/nested/manual/remodel-min-size\n"
+            ]
+        }
+    },
+    {
+        "type": "result",
+        "date": "2024-11-22",
+        "time": "00:41:37",
+        "result_type": "Failed",
+        "level": "task",
+        "stage": "prepare",
+        "number": "1",
+        "detail": {
+            "lines": [
+                "- google-nested:ubuntu-24.04-64:tests/nested/manual/hybrid-remodel\n"
+            ]
+        }
+    }
+]

@@ -1,0 +1,181 @@
+[
+    {
+        "type": "action",
+        "date": "2024-11-22",
+        "time": "00:02:54",
+        "verb": "Allocating",
+        "task": null,
+        "extra": "google-nested:ubuntu-22.04-64..."
+    },
+    {
+        "type": "action",
+        "date": "2024-11-22",
+        "time": "00:03:16",
+        "verb": "Waiting",
+        "task": null,
+        "extra": "for google-nested:ubuntu-22.04-64 (nov220002-021561) to boot at 35.193.65.46..."
+    },
+    {
+        "type": "action",
+        "date": "2024-11-22",
+        "time": "00:03:52",
+        "verb": "Allocated",
+        "task": null,
+        "extra": "google-nested:ubuntu-22.04-64 (nov220002-021561)."
+    },
+    {
+        "type": "action",
+        "date": "2024-11-22",
+        "time": "00:03:55",
+        "verb": "Connecting",
+        "task": null,
+        "extra": "to google-nested:ubuntu-22.04-64 (nov220002-021561)..."
+    },
+    {
+        "type": "action",
+        "date": "2024-11-22",
+        "time": "00:03:56",
+        "verb": "Connected",
+        "task": null,
+        "extra": "to google-nested:ubuntu-22.04-64 (nov220002-021561) at 35.193.65.46."
+    },
+    {
+        "type": "action",
+        "date": "2024-11-22",
+        "time": "00:03:56",
+        "verb": "Sending",
+        "task": null,
+        "extra": "project content to google-nested:ubuntu-22.04-64 (nov220002-021561)..."
+    },
+    {
+        "type": "phase",
+        "date": "2024-11-22",
+        "time": "00:04:03",
+        "verb": "Preparing",
+        "task": "google-nested:ubuntu-22.04-64"
+    },
+    {
+        "type": "info",
+        "date": "2024-11-22",
+        "time": "00:09:03",
+        "info_type": "WARNING",
+        "verb": null,
+        "task": null,
+        "extra": "nov220002-021561 (google-nested:ubuntu-22.04-64) running late. Current output:",
+        "detail": {
+            "lines": [
+                "-----\n",
+                ".\n"
+            ]
+        }
+    },
+    {
+        "type": "phase",
+        "date": "2024-11-22",
+        "time": "00:12:46",
+        "verb": "Preparing",
+        "task": "google-nested:ubuntu-22.04-64:tests/nested/manual/"
+    },
+    {
+        "type": "phase",
+        "date": "2024-11-22",
+        "time": "00:13:07",
+        "verb": "Preparing",
+        "task": "google-nested:ubuntu-22.04-64:tests/nested/manual/recovery-system:default"
+    },
+    {
+        "type": "phase",
+        "date": "2024-11-22",
+        "time": "00:22:22",
+        "verb": "Executing",
+        "task": "google-nested:ubuntu-22.04-64:tests/nested/manual/recovery-system:default"
+    },
+    {
+        "type": "info",
+        "date": "2024-11-22",
+        "time": "00:22:25",
+        "info_type": "Error",
+        "verb": "executing",
+        "task": "google-nested:ubuntu-22.04-64:tests/nested/manual/recovery-system:default",
+        "extra": null,
+        "detail": {
+            "lines": [
+                "-----\n",
+                ".\n"
+            ]
+        }
+    },
+    {
+        "type": "info",
+        "date": "2024-11-22",
+        "time": "00:22:26",
+        "info_type": "Debug",
+        "verb": null,
+        "task": "google-nested:ubuntu-22.04-64:tests/nested/manual/recovery-system:default",
+        "extra": null,
+        "detail": null
+    },
+    {
+        "type": "phase",
+        "date": "2024-11-22",
+        "time": "00:22:26",
+        "verb": "Restoring",
+        "task": "google-nested:ubuntu-22.04-64:tests/nested/manual/recovery-system:default"
+    },
+    {
+        "type": "phase",
+        "date": "2024-11-22",
+        "time": "00:22:52",
+        "verb": "Restoring",
+        "task": "google-nested:ubuntu-22.04-64:tests/nested/manual/"
+    },
+    {
+        "type": "phase",
+        "date": "2024-11-22",
+        "time": "00:23:00",
+        "verb": "Restoring",
+        "task": "google-nested:ubuntu-22.04-64"
+    },
+    {
+        "type": "action",
+        "date": "2024-11-22",
+        "time": "00:23:01",
+        "verb": "Discarding",
+        "task": null,
+        "extra": "google-nested:ubuntu-22.04-64 (nov220002-021561)..."
+    },
+    {
+        "type": "result",
+        "date": "2024-11-22",
+        "time": "00:23:03",
+        "result_type": "Successful",
+        "level": "tasks",
+        "stage": null,
+        "number": "0",
+        "detail": null
+    },
+    {
+        "type": "result",
+        "date": "2024-11-22",
+        "time": "00:23:03",
+        "result_type": "Aborted",
+        "level": "tasks",
+        "stage": null,
+        "number": "0",
+        "detail": null
+    },
+    {
+        "type": "result",
+        "date": "2024-11-22",
+        "time": "00:23:03",
+        "result_type": "Failed",
+        "level": "tasks",
+        "stage": null,
+        "number": "1",
+        "detail": {
+            "lines": [
+                "- google-nested:ubuntu-22.04-64:tests/nested/manual/recovery-system:default\n"
+            ]
+        }
+    }
+]

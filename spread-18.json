@@ -1,0 +1,135 @@
+[
+    {
+        "type": "action",
+        "date": "2024-11-22",
+        "time": "15:33:10",
+        "verb": "Allocating",
+        "task": null,
+        "extra": "google:ubuntu-18.04-64..."
+    },
+    {
+        "type": "action",
+        "date": "2024-11-22",
+        "time": "15:33:24",
+        "verb": "Waiting",
+        "task": null,
+        "extra": "for google:ubuntu-18.04-64 (nov221433-883591) to boot at 34.147.148.247..."
+    },
+    {
+        "type": "action",
+        "date": "2024-11-22",
+        "time": "15:34:05",
+        "verb": "Allocated",
+        "task": null,
+        "extra": "google:ubuntu-18.04-64 (nov221433-883591)."
+    },
+    {
+        "type": "action",
+        "date": "2024-11-22",
+        "time": "15:34:05",
+        "verb": "Connecting",
+        "task": null,
+        "extra": "to google:ubuntu-18.04-64 (nov221433-883591)..."
+    },
+    {
+        "type": "action",
+        "date": "2024-11-22",
+        "time": "15:34:05",
+        "verb": "Connected",
+        "task": null,
+        "extra": "to google:ubuntu-18.04-64 (nov221433-883591) at 34.147.148.247."
+    },
+    {
+        "type": "action",
+        "date": "2024-11-22",
+        "time": "15:34:05",
+        "verb": "Sending",
+        "task": null,
+        "extra": "project content to google:ubuntu-18.04-64 (nov221433-883591)..."
+    },
+    {
+        "type": "phase",
+        "date": "2024-11-22",
+        "time": "15:34:10",
+        "verb": "Preparing",
+        "task": "google:ubuntu-18.04-64"
+    },
+    {
+        "type": "phase",
+        "date": "2024-11-22",
+        "time": "15:36:13",
+        "verb": "Preparing",
+        "task": "google:ubuntu-18.04-64:tests/main/"
+    },
+    {
+        "type": "phase",
+        "date": "2024-11-22",
+        "time": "15:37:10",
+        "verb": "Preparing",
+        "task": "google:ubuntu-18.04-64:tests/main/snapd-update-services"
+    },
+    {
+        "type": "action",
+        "date": "2024-11-22",
+        "time": "15:37:32",
+        "verb": "Rebooting",
+        "task": null,
+        "extra": "on nov221433-883591 (google:ubuntu-18.04-64:tests/main/snapd-update-services) as requested..."
+    },
+    {
+        "type": "phase",
+        "date": "2024-11-22",
+        "time": "15:39:12",
+        "verb": "Executing",
+        "task": "google:ubuntu-18.04-64:tests/main/snapd-update-services"
+    },
+    {
+        "type": "phase",
+        "date": "2024-11-22",
+        "time": "15:40:33",
+        "verb": "Restoring",
+        "task": "google:ubuntu-18.04-64:tests/main/snapd-update-services"
+    },
+    {
+        "type": "phase",
+        "date": "2024-11-22",
+        "time": "15:41:18",
+        "verb": "Restoring",
+        "task": "google:ubuntu-18.04-64:tests/main/"
+    },
+    {
+        "type": "phase",
+        "date": "2024-11-22",
+        "time": "15:41:32",
+        "verb": "Restoring",
+        "task": "google:ubuntu-18.04-64"
+    },
+    {
+        "type": "action",
+        "date": "2024-11-22",
+        "time": "15:41:33",
+        "verb": "Discarding",
+        "task": null,
+        "extra": "google:ubuntu-18.04-64 (nov221433-883591)..."
+    },
+    {
+        "type": "result",
+        "date": "2024-11-22",
+        "time": "15:41:33",
+        "result_type": "Successful",
+        "level": "tasks",
+        "stage": null,
+        "number": "1",
+        "detail": null
+    },
+    {
+        "type": "result",
+        "date": "2024-11-22",
+        "time": "15:41:33",
+        "result_type": "Aborted",
+        "level": "tasks",
+        "stage": null,
+        "number": "0",
+        "detail": null
+    }
+]
