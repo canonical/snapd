@@ -286,13 +286,13 @@ func (udb *userPromptDB) timeoutCallback(pdb *PromptDB, user uint32) {
 	// overwrite a newly-set activity timeout with an initial timeout.
 	// With the lock held, no activity can occur, so no activity timeout
 	// can be set.
-	if udb.expirationTimer.Reset(initialTimeout) {
+	if udb.resetExpiration(initialTimeout) {
 		// Timer was active again, suggesting that some activity caused
 		// the timer to be reset at some point between the timer firing
 		// and the lock being released and subsequently acquired by this
 		// function. So reset the timer to activityTimeout, and do not
 		// purge prompts.
-		udb.expirationTimer.Reset(activityTimeout)
+		udb.resetExpiration(activityTimeout)
 		return
 	}
 	expiredPrompts := udb.prompts
@@ -306,6 +306,13 @@ func (udb *userPromptDB) timeoutCallback(pdb *PromptDB, user uint32) {
 		pdb.notifyPrompt(user, p.ID, data)
 		p.sendReply(prompting.OutcomeDeny) // ignore any error, should not occur
 	}
+}
+
+// resetExpiration resets the expiration timer for prompts for the receiving
+// user prompt DB. Returns true if the timer had been active, false if the
+// timer had expired or been stopped.
+func (udb *userPromptDB) resetExpiration(timeout time.Duration) bool {
+	return udb.expirationTimer.Reset(timeout)
 }
 
 // PromptDB stores outstanding prompts in memory and ensures that new prompts
@@ -452,7 +459,7 @@ func (pdb *PromptDB) Prompts(user uint32, clientActivity bool) ([]*Prompt, error
 		return nil, nil
 	}
 	if clientActivity {
-		userEntry.expirationTimer.Reset(activityTimeout)
+		userEntry.resetExpiration(activityTimeout)
 	}
 	promptsCopy := make([]*Prompt, len(userEntry.prompts))
 	copy(promptsCopy, userEntry.prompts)
@@ -486,7 +493,7 @@ func (pdb *PromptDB) promptWithID(user uint32, id prompting.IDType, clientActivi
 		return nil, nil, prompting_errors.ErrPromptNotFound
 	}
 	if clientActivity {
-		userEntry.expirationTimer.Reset(activityTimeout)
+		userEntry.resetExpiration(activityTimeout)
 	}
 	prompt, err := userEntry.get(id)
 	if err != nil {
@@ -556,7 +563,7 @@ func (pdb *PromptDB) HandleNewRule(metadata *prompting.Metadata, constraints *pr
 		return nil, nil
 	}
 	if clientActivity {
-		userEntry.expirationTimer.Reset(activityTimeout)
+		userEntry.resetExpiration(activityTimeout)
 	}
 	var satisfiedPromptIDs []prompting.IDType
 	for _, prompt := range userEntry.prompts {
