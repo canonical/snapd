@@ -540,12 +540,9 @@ func (pdb *PromptDB) Reply(user uint32, id prompting.IDType, outcome prompting.O
 // remaining unsatisfied permissions of a partially-satisfied prompt must be
 // satisfied for the prompt as a whole to be satisfied.
 //
-// If clientActivity is true, reset the expiration timeout for prompts for
-// the given user.
-//
 // Returns the IDs of any prompts which were fully satisfied by the given rule
 // contents.
-func (pdb *PromptDB) HandleNewRule(metadata *prompting.Metadata, constraints *prompting.Constraints, outcome prompting.OutcomeType, clientActivity bool) ([]prompting.IDType, error) {
+func (pdb *PromptDB) HandleNewRule(metadata *prompting.Metadata, constraints *prompting.Constraints, outcome prompting.OutcomeType) ([]prompting.IDType, error) {
 	// Validate outcome before locking
 	allow, err := outcome.AsBool()
 	if err != nil {
@@ -561,9 +558,6 @@ func (pdb *PromptDB) HandleNewRule(metadata *prompting.Metadata, constraints *pr
 	userEntry, ok := pdb.perUser[metadata.User]
 	if !ok {
 		return nil, nil
-	}
-	if clientActivity {
-		userEntry.resetExpiration(activityTimeout)
 	}
 	var satisfiedPromptIDs []prompting.IDType
 	for _, prompt := range userEntry.prompts {

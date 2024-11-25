@@ -94,7 +94,7 @@ func (m *fakeInterfacesRequestsManager) Rules(userID uint32, snap string, iface 
 	return m.rules, m.err
 }
 
-func (m *fakeInterfacesRequestsManager) AddRule(userID uint32, snap string, iface string, constraints *prompting.Constraints, outcome prompting.OutcomeType, lifespan prompting.LifespanType, duration string, clientActivity bool) (*requestrules.Rule, error) {
+func (m *fakeInterfacesRequestsManager) AddRule(userID uint32, snap string, iface string, constraints *prompting.Constraints, outcome prompting.OutcomeType, lifespan prompting.LifespanType, duration string) (*requestrules.Rule, error) {
 	m.userID = userID
 	m.snap = snap
 	m.iface = iface
@@ -102,7 +102,6 @@ func (m *fakeInterfacesRequestsManager) AddRule(userID uint32, snap string, ifac
 	m.outcome = outcome
 	m.lifespan = lifespan
 	m.duration = duration
-	m.clientActivity = clientActivity
 	return m.rule, m.err
 }
 
@@ -119,14 +118,13 @@ func (m *fakeInterfacesRequestsManager) RuleWithID(userID uint32, ruleID prompti
 	return m.rule, m.err
 }
 
-func (m *fakeInterfacesRequestsManager) PatchRule(userID uint32, ruleID prompting.IDType, constraints *prompting.Constraints, outcome prompting.OutcomeType, lifespan prompting.LifespanType, duration string, clientActivity bool) (*requestrules.Rule, error) {
+func (m *fakeInterfacesRequestsManager) PatchRule(userID uint32, ruleID prompting.IDType, constraints *prompting.Constraints, outcome prompting.OutcomeType, lifespan prompting.LifespanType, duration string) (*requestrules.Rule, error) {
 	m.userID = userID
 	m.id = ruleID
 	m.constraints = constraints
 	m.outcome = outcome
 	m.lifespan = lifespan
 	m.duration = duration
-	m.clientActivity = clientActivity
 	return m.rule, m.err
 }
 
@@ -857,7 +855,6 @@ func (s *promptingSuite) TestPostRulesAddHappy(c *C) {
 	c.Check(s.manager.outcome, Equals, contents.Outcome)
 	c.Check(s.manager.lifespan, Equals, contents.Lifespan)
 	c.Check(s.manager.duration, Equals, contents.Duration)
-	c.Check(s.manager.clientActivity, Equals, false)
 
 	// Check return value
 	rule, ok := rsp.Result.(*requestrules.Rule)
@@ -1025,7 +1022,6 @@ func (s *promptingSuite) TestPostRulePatchHappy(c *C) {
 	c.Check(s.manager.outcome, Equals, contents.Outcome)
 	c.Check(s.manager.lifespan, Equals, contents.Lifespan)
 	c.Check(s.manager.duration, Equals, contents.Duration)
-	c.Check(s.manager.clientActivity, Equals, false)
 
 	// Check return value
 	rule, ok := rsp.Result.(*requestrules.Rule)
