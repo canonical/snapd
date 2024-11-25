@@ -103,24 +103,28 @@ case "$1" in
 	format)
 		cp %[1]s %[1]s.verity
 		echo VERITY header information for %[1]s.verity
-		echo "UUID:            	97d80536-aad9-4f25-a528-5319c038c0c4"
+		echo "UUID:            	93740d5e-9039-4a07-9219-bd355882b64b"
 		echo "Hash type:       	1"
-		echo "Data blocks:     	1"
+		echo "Data blocks:     	2048"
 		echo "Data block size: 	4096"
+		echo "Hash blocks:     	17"
 		echo "Hash block size: 	4096"
 		echo "Hash algorithm:  	sha256"
-		echo "Salt:            	c0234a906cfde0d5ffcba25038c240a98199cbc1d8fbd388a41e8faa02239c08"
-		echo "Root hash:      	e48cfc4df6df0f323bcf67f17b659a5074bec3afffe28f0b3b4db981d78d2e3e"
+		echo "Salt:            	46aee3affbd0455623e907bb7fc622999bac4c86fa263808ac15240b16286458"
+		echo "Root hash:      	9257053cde92608d275cd912c031c40dd9d8820e4645f0774ec2d4403f19f840"
+		echo "Hash device size: 73728 [bytes]"
 		;;
 esac
 `, snapPath))
 	defer vscmd.Restore()
 
-	_, err := dmverity.Format(snapPath, snapPath+".verity")
+	rootHash, err := dmverity.Format(snapPath, snapPath+".verity", nil)
 	c.Assert(err, IsNil)
 	c.Assert(vscmd.Calls(), HasLen, 2)
 	c.Check(vscmd.Calls()[0], DeepEquals, []string{"veritysetup", "--version"})
 	c.Check(vscmd.Calls()[1], DeepEquals, []string{"veritysetup", "format", snapPath, snapPath + ".verity"})
+
+	c.Check(rootHash, Equals, "9257053cde92608d275cd912c031c40dd9d8820e4645f0774ec2d4403f19f840")
 }
 
 func (s *VerityTestSuite) TestFormatSuccessWithWorkaround(c *C) {
@@ -152,7 +156,7 @@ esac
 `, snapPath))
 	defer vscmd.Restore()
 
-	_, err := dmverity.Format(snapPath, snapPath+".verity")
+	_, err := dmverity.Format(snapPath, snapPath+".verity", nil)
 	c.Assert(err, IsNil)
 	c.Assert(vscmd.Calls(), HasLen, 2)
 	c.Check(vscmd.Calls()[0], DeepEquals, []string{"veritysetup", "--version"})
@@ -175,7 +179,8 @@ esac
 `)
 	defer vscmd.Restore()
 
-	_, err := dmverity.Format(snapPath, "")
+	rootHash, err := dmverity.Format(snapPath, "", nil)
+	c.Assert(rootHash, Equals, "")
 	c.Check(err, ErrorMatches, "Cannot create hash image  for writing.")
 }
 
