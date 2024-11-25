@@ -51,23 +51,14 @@ func getVal(line string) (string, error) {
 	return strings.TrimSpace(parts[1]), nil
 }
 
-func getRootHashFromOutput(output []byte) (rootHash string, err error) {
+func getFieldFromOutput(output []byte, key string) (rootHash string, err error) {
 	scanner := bufio.NewScanner(bytes.NewBuffer(output))
 	for scanner.Scan() {
 		line := scanner.Text()
-		if strings.HasPrefix(line, "Root hash") {
+		if strings.HasPrefix(line, key) {
 			rootHash, err = getVal(line)
 			if err != nil {
 				return "", err
-			}
-		}
-		if strings.HasPrefix(line, "Hash algorithm") {
-			hashAlgo, err := getVal(line)
-			if err != nil {
-				return "", err
-			}
-			if hashAlgo != "sha256" {
-				return "", fmt.Errorf("internal error: unexpected hash algorithm")
 			}
 		}
 	}
@@ -76,8 +67,24 @@ func getRootHashFromOutput(output []byte) (rootHash string, err error) {
 		return "", err
 	}
 
+	return rootHash, nil
+}
+
+func getRootHashFromOutput(output []byte) (rootHash string, err error) {
+	rootHash, err = getFieldFromOutput(output, "Root hash")
+	if err != nil {
+		return "", err
+	}
 	if len(rootHash) != 64 {
 		return "", fmt.Errorf("internal error: unexpected root hash length")
+	}
+
+	hashAlg, err := getFieldFromOutput(output, "Hash algorithm")
+	if err != nil {
+		return "", err
+	}
+	if hashAlg != "sha256" {
+		return "", fmt.Errorf("internal error: unexpected hash algorithm")
 	}
 
 	return rootHash, nil
