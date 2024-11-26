@@ -29,6 +29,7 @@ import (
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/fdestate/backend"
+	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/snapdenv"
@@ -86,6 +87,28 @@ func Manager(st *state.State, runner *state.TaskRunner) (*FDEManager, error) {
 	st.Lock()
 	defer st.Unlock()
 	st.Cache(fdeMgrKey{}, m)
+
+	snapstate.RegisterAffectedSnapsByKind("efi-secureboot-db-update", dbxUpdateAffectedSnaps)
+
+	// TODO call to state.RegisterPendingChangeByAttr() to block state from
+	// pruning EFI changes?
+	runner.AddHandler("efi-secureboot-db-update-prepare",
+		m.doEFISecurebootDBUpdatePrepare, m.undoEFISecurebootDBUpdatePrepare)
+	runner.AddCleanup("efi-secureboot-db-update-prepare", m.doEFISecurebootDBUpdatePrepareCleanup)
+	runner.AddHandler("efi-secureboot-db-update", m.doEFISecurebootDBUpdate, nil)
+	runner.AddBlocked(func(t *state.Task, running []*state.Task) bool {
+		// TODO be more selective about other blocking FDE tasks
+
+		switch t.Kind() {
+		case "efi-secureboot-db-update":
+			return isEFISecurebootDBUpdateBlocked(t)
+		}
+
+		// TODO: should the DBX update task be blocked until we're tracking the
+		// change, or is retry error in the task sufficient?
+
+		return false
+	})
 
 	return m, nil
 }
