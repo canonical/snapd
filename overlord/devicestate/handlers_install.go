@@ -900,7 +900,7 @@ func mountSeedContainer(filePath, subdir string) (mountpoint string, unmount fun
 }
 
 func (m *DeviceManager) loadAndMountSystemLabelSnaps(systemLabel string, essentialTypes []snap.Type) (*systemAndEssentialSnaps, map[snap.Type]string, map[string]string, func(), error) {
-	systemAndSnaps, err := m.loadSystemAndEssentialSnaps(systemLabel, essentialTypes)
+	systemAndSnaps, err := m.loadSystemAndEssentialSnaps(systemLabel, essentialTypes, "run")
 	if err != nil {
 		return nil, nil, nil, nil, err
 	}

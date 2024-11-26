@@ -2185,7 +2185,7 @@ func (m *DeviceManager) SystemAndGadgetAndEncryptionInfo(wantedSystemLabel strin
 	// installer is not anymore.
 
 	// System information
-	systemAndSnaps, err := m.loadSystemAndEssentialSnaps(wantedSystemLabel, []snap.Type{snap.TypeKernel, snap.TypeGadget})
+	systemAndSnaps, err := m.loadSystemAndEssentialSnaps(wantedSystemLabel, []snap.Type{snap.TypeKernel, snap.TypeGadget}, seed.AllModes)
 	if err != nil {
 		return nil, nil, nil, err
 	}
@@ -2248,16 +2248,20 @@ func (m *DeviceManager) defaultRecoverySystem() (*DefaultRecoverySystem, error) 
 }
 
 // loadSystemAndEssentialSnaps loads information for the given label, which
-// includes system, gadget information, gadget and kernel snaps info,
-// and gadget and kernel seed snap info.
+// includes system, gadget information, gadget and kernel snaps info, and
+// gadget and kernel seed snap info. In some cases we only want the components
+// of the essential snaps for a given mode.
 // TODO: make this method optionally return the system seed, since it might not
 // always be needed, and it is quite large.
-func (m *DeviceManager) loadSystemAndEssentialSnaps(wantedSystemLabel string, types []snap.Type) (*systemAndEssentialSnaps, error) {
+func (m *DeviceManager) loadSystemAndEssentialSnaps(wantedSystemLabel string, types []snap.Type, mode string) (*systemAndEssentialSnaps, error) {
 	// get current system as input for loadSeedAndSystem()
 	systemMode := m.SystemMode(SysAny)
-	m.state.Lock()
-	currentSys, _ := currentSystemForMode(m.state, systemMode)
-	m.state.Unlock()
+	var currentSys *currentSystem
+	func() {
+		m.state.Lock()
+		defer m.state.Unlock()
+		currentSys, _ = currentSystemForMode(m.state, systemMode)
+	}()
 
 	defaultRecoverySystem, err := m.DefaultRecoverySystem()
 	if err != nil && !errors.Is(err, state.ErrNoState) {
@@ -2297,25 +2301,33 @@ func (m *DeviceManager) loadSystemAndEssentialSnaps(wantedSystemLabel string, ty
 		if snapInfo.SnapType != typ {
 			return nil, fmt.Errorf("cannot use snap info, expected %s but got %s", typ, snapInfo.SnapType)
 		}
-		// Read components in the seed too
-		compInfosForType := make([]compSeedInfo, 0, len(seedSnap.Components))
-		for _, sc := range seedSnap.Components {
-			seedComp := sc
-			compf, err := snapfile.Open(seedComp.Path)
-			if err != nil {
-				return nil, fmt.Errorf("cannot open snap from %q: %v", seedSnap.Path, err)
-			}
-			compInfo, err := snap.ReadComponentInfoFromContainer(
-				compf, snapInfo, &seedComp.CompSideInfo)
-			if err != nil {
-				return nil, err
-			}
-			compInfosForType = append(compInfosForType, compSeedInfo{
-				CompInfo: compInfo,
-				CompSeed: &seedComp,
-			})
+		// Read components in the seed too, for the mode we are interested in
+		snapForMode, err := s.ModeSnap(seedSnap.SnapName(), mode)
+		if err != nil {
+			return nil, fmt.Errorf("internal error while retrieving %s for %s mode: %v",
+				seedSnap.SnapName(), mode, err)
 		}
-		seedSnaps[typ] = seedSnap
+		var compInfosForType []compSeedInfo
+		if len(snapForMode.Components) > 0 {
+			compInfosForType = make([]compSeedInfo, 0, len(snapForMode.Components))
+			for _, sc := range snapForMode.Components {
+				seedComp := sc
+				compf, err := snapfile.Open(seedComp.Path)
+				if err != nil {
+					return nil, fmt.Errorf("cannot open snap from %q: %v", snapForMode.Path, err)
+				}
+				compInfo, err := snap.ReadComponentInfoFromContainer(
+					compf, snapInfo, &seedComp.CompSideInfo)
+				if err != nil {
+					return nil, err
+				}
+				compInfosForType = append(compInfosForType, compSeedInfo{
+					CompInfo: compInfo,
+					CompSeed: &seedComp,
+				})
+			}
+		}
+		seedSnaps[typ] = snapForMode
 		snapInfos[typ] = snapInfo
 		compInfos[typ] = compInfosForType
 	}

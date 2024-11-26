@@ -205,6 +205,7 @@ type mockSystemSeedWithLabelOpts struct {
 	hasSystemSeed   bool
 	hasPartial      bool
 	preseedArtifact bool
+	testCompsMode   bool
 	kModsRevs       map[string]snap.Revision
 	types           []snap.Type
 }
@@ -250,15 +251,17 @@ func (s *deviceMgrInstallSuite) mockSystemSeedWithLabel(c *C, label string, seed
 				CompSideInfo: snap.ComponentSideInfo{
 					Component: naming.NewComponentRef("pc-kernel", "kcomp1"),
 					Revision:  opts.kModsRevs["kcomp1"]},
-			},
-			{
+			}}
+		kCompsPaths = []string{kernComps[0].Path}
+		if !opts.testCompsMode {
+			kernComps = append(kernComps, seed.Component{
 				Path: filepath.Join(s.SeedDir, "snaps", "pc-kernel+kcomp2_"+opts.kModsRevs["kcomp2"].String()+".comp"),
 				CompSideInfo: snap.ComponentSideInfo{
 					Component: naming.NewComponentRef("pc-kernel", "kcomp2"),
 					Revision:  opts.kModsRevs["kcomp2"]},
-			},
+			})
+			kCompsPaths = append(kCompsPaths, kernComps[1].Path)
 		}
-		kCompsPaths = []string{kernComps[0].Path, kernComps[1].Path}
 	}
 	essentialSnaps := make([]*seed.Snap, 0, len(opts.types))
 	for _, typ := range opts.types {
