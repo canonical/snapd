@@ -487,14 +487,25 @@ func (s *seed16Suite) TestLoadMetaCore16(c *C) {
 	pi = essSnaps[2].PlaceInfo()
 	c.Check(pi.Filename(), Equals, "pc_1.snap")
 
-	c.Check(runSnaps, DeepEquals, []*seed.Snap{
-		{
-			Path:     s.expectedPath("required"),
-			SideInfo: &s.AssertedSnapInfo("required").SideInfo,
-			Required: true,
-			Channel:  "stable",
-		},
-	})
+	requiredExpect := &seed.Snap{
+		Path:     s.expectedPath("required"),
+		SideInfo: &s.AssertedSnapInfo("required").SideInfo,
+		Required: true,
+		Channel:  "stable",
+	}
+	c.Check(runSnaps, DeepEquals, []*seed.Snap{requiredExpect})
+
+	requiredSnap, err := s.seed16.ModeSnap("required", "run")
+	c.Assert(err, IsNil)
+	c.Check(requiredSnap, DeepEquals, requiredExpect)
+
+	notExistsSnap, err := s.seed16.ModeSnap("not-exists", "run")
+	c.Assert(notExistsSnap, IsNil)
+	c.Assert(err, ErrorMatches, "snap not-exists not found in seed")
+
+	requiredSnap, err = s.seed16.ModeSnap("required", "ephemeral")
+	c.Assert(requiredSnap, IsNil)
+	c.Assert(err, ErrorMatches, "internal error: Core 16/18 have only run mode, got: ephemeral")
 }
 
 func (s *seed16Suite) TestLoadMetaCore18Minimal(c *C) {
