@@ -149,6 +149,7 @@ func checkSetupTasks(c *C, compOpts int, ts *state.TaskSet) {
 			c.Assert(t.Get("snap-setup-task", &storedTaskID), IsNil)
 			c.Assert(storedTaskID, Equals, snapSetupTaskID)
 		}
+
 		// ComponentSetup/SnapSetup found must match the ones from the first task
 		csup, ssup, err := snapstate.TaskComponentSetup(t)
 		c.Assert(err, IsNil)
@@ -172,6 +173,15 @@ func verifyComponentInstallTasks(c *C, opts int, ts *state.TaskSet) {
 	c.Assert(kinds, DeepEquals, expected)
 
 	checkSetupTasks(c, opts, ts)
+
+	t, err := ts.Edge(snapstate.LastBeforeLocalModificationsEdge)
+	c.Assert(err, IsNil)
+
+	if opts&compOptIsUnasserted == 0 {
+		c.Assert(t.Kind(), Equals, "validate-component")
+	} else {
+		c.Assert(t.Kind(), Equals, "prepare-component")
+	}
 }
 
 func createTestComponent(c *C, snapName, compName string, snapInfo *snap.Info) (*snap.ComponentInfo, string) {

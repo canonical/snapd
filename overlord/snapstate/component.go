@@ -314,8 +314,20 @@ func (c *componentInstallTaskSet) taskSet() *state.TaskSet {
 		tasks = append(tasks, c.maybeDiscardTask)
 	}
 
+	if len(c.beforeLocalModificationsTasks) == 0 {
+		panic("component install task set should have at least one task before local modifications are done")
+	}
+
+	// get the id of the last task right before we do any local modifications
+	beforeLocalModsID := c.beforeLocalModificationsTasks[len(c.beforeLocalModificationsTasks)-1].ID()
+
 	ts := state.NewTaskSet(tasks...)
 	for _, t := range ts.Tasks() {
+		// note, this can't be a switch since one task might be multiple edges
+		if t.ID() == beforeLocalModsID {
+			ts.MarkEdge(t, LastBeforeLocalModificationsEdge)
+		}
+
 		if t.ID() == c.compSetupTaskID {
 			ts.MarkEdge(t, BeginEdge)
 		}
