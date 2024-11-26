@@ -456,6 +456,18 @@ func (s *seed16) ModeSnaps(mode string) ([]*Snap, error) {
 	return s.snaps[s.essentialSnapsNum:], nil
 }
 
+func (s *seed16) ModeSnap(snapName, mode string) (*Snap, error) {
+	if mode != "run" {
+		return nil, fmt.Errorf("internal error: Core 16/18 have only run mode, got: %s", mode)
+	}
+	for _, sn := range s.snaps {
+		if sn.SnapName() == snapName {
+			return sn, nil
+		}
+	}
+	return nil, fmt.Errorf("snap %s not found in seed", snapName)
+}
+
 func (s *seed16) NumSnaps() int {
 	return len(s.snaps)
 }

@@ -143,6 +143,10 @@ func (fs *FakeSeed) ModeSnaps(mode string) ([]*seed.Snap, error) {
 	return fs.SnapsForMode[mode], nil
 }
 
+func (s *FakeSeed) ModeSnap(snapName, mode string) (*seed.Snap, error) {
+	panic("ModeSnap not implemented")
+}
+
 func (fs *FakeSeed) NumSnaps() int {
 	return 0
 }

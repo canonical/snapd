@@ -160,6 +160,11 @@ type Seed interface {
 	// mode here will result in error.
 	ModeSnaps(mode string) ([]*Snap, error)
 
+	// ModeSnap returns the snapName snap if available for the given mode
+	// and with the components available for mode. This method can be used
+	// for any snap type.
+	ModeSnap(snapName, mode string) (*Snap, error)
+
 	// NumSnaps returns the total number of snaps for which
 	// LoadMeta loaded their metadata.
 	NumSnaps() int
