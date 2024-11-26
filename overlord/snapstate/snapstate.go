@@ -487,18 +487,18 @@ func doInstall(st *state.State, snapst *SnapState, snapsup SnapSetup, compsups [
 		return nil, err
 	}
 
-	finalBeforeLocalMod := prepare
+	finalBeforeLocalSystemModifications := prepare
 
 	var checkAsserts *state.Task
 	if fromStore {
 		// fetch and check assertions
 		checkAsserts = st.NewTask("validate-snap", fmt.Sprintf(i18n.G("Fetch and check assertions for snap %q%s"), snapsup.InstanceName(), revisionStr))
 		addTask(checkAsserts)
-		finalBeforeLocalMod = checkAsserts
+		finalBeforeLocalSystemModifications = checkAsserts
 	}
 
 	for _, t := range componentsTSS.beforeLocalSystemModificationsTasks {
-		finalBeforeLocalMod = t
+		finalBeforeLocalSystemModifications = t
 		addTask(t)
 	}
 
@@ -817,7 +817,7 @@ func doInstall(st *state.State, snapst *SnapState, snapsup SnapSetup, compsups [
 	if installHook != nil {
 		installSet.MarkEdge(installHook, HooksEdge)
 	}
-	installSet.MarkEdge(finalBeforeLocalMod, LastBeforeLocalModificationsEdge)
+	installSet.MarkEdge(finalBeforeLocalSystemModifications, LastBeforeLocalModificationsEdge)
 	if flags&noRestartBoundaries == 0 {
 		if err := SetEssentialSnapsRestartBoundaries(st, nil, []*state.TaskSet{installSet}); err != nil {
 			return nil, err
