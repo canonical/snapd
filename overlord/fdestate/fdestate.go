@@ -25,60 +25,19 @@ import (
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/dirs"
-	"github.com/snapcore/snapd/gadget/device"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/disks"
+	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/secboot"
 )
-
-var errNotImplemented = errors.New("not implemented")
 
 var (
 	disksDMCryptUUIDFromMountPoint = disks.DMCryptUUIDFromMountPoint
 	secbootGetPrimaryKeyDigest     = secboot.GetPrimaryKeyDigest
 	secbootVerifyPrimaryKeyDigest  = secboot.VerifyPrimaryKeyDigest
 )
-
-// EFISecureBootDBManagerStartup indicates that the local EFI key database
-// manager has started.
-func EFISecureBootDBManagerStartup(st *state.State) error {
-	if _, err := device.SealedKeysMethod(dirs.GlobalRootDir); err == device.ErrNoSealedKeys {
-		return nil
-	}
-
-	return errNotImplemented
-}
-
-type EFISecurebootKeyDatabase int
-
-const (
-	EFISecurebootPK EFISecurebootKeyDatabase = iota
-	EFISecurebootKEK
-	EFISecurebootDB
-	EFISecurebootDBX
-)
-
-// EFISecureBootDBUpdatePrepare notifies notifies that the local EFI key
-// database manager is about to update the database.
-func EFISecureBootDBUpdatePrepare(st *state.State, db EFISecurebootKeyDatabase, payload []byte) error {
-	if _, err := device.SealedKeysMethod(dirs.GlobalRootDir); err == device.ErrNoSealedKeys {
-		return nil
-	}
-
-	return errNotImplemented
-}
-
-// EFISecureBootDBUpdateCleanup notifies that the local EFI key database manager
-// has reached a cleanup stage of the update process.
-func EFISecureBootDBUpdateCleanup(st *state.State) error {
-	if _, err := device.SealedKeysMethod(dirs.GlobalRootDir); err == device.ErrNoSealedKeys {
-		return nil
-	}
-
-	return errNotImplemented
-}
 
 // Model is a json serializable secboot.ModelForSealing
 type Model struct {
@@ -120,8 +79,8 @@ func (m *Model) SignKeyID() string {
 	return m.SignKeyIDValue
 }
 
-func newModel(m secboot.ModelForSealing) Model {
-	return Model{
+func newModel(m secboot.ModelForSealing) *Model {
+	return &Model{
 		SeriesValue:    m.Series(),
 		BrandIDValue:   m.BrandID(),
 		ModelValue:     m.Model(),
@@ -317,8 +276,7 @@ func (s *FdeState) updateParameters(role string, containerRole string, bootModes
 
 	var convertedModels []*Model
 	for _, model := range models {
-		m := newModel(model)
-		convertedModels = append(convertedModels, &m)
+		convertedModels = append(convertedModels, newModel(model))
 	}
 
 	if roleInfo.Parameters == nil {
@@ -390,6 +348,19 @@ func withFdeState(st *state.State, op func(fdeSt *FdeState) (modified bool, err 
 		st.Set(fdeStateKey, &fde)
 	}
 	return nil
+}
+
+// fdeRelevantSnaps returns a list of snaps that are relevant for FDE
+func fdeRelevantSnaps(st *state.State) ([]string, error) {
+	devCtx, err := snapstate.DeviceCtx(st, nil, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	// these snaps, or either their content is measured during boot
+	// TODO do we need anything for components?
+
+	return []string{devCtx.Gadget(), devCtx.Kernel(), devCtx.Base()}, nil
 }
 
 func MockDMCryptUUIDFromMountPoint(f func(mountpoint string) (string, error)) (restore func()) {

@@ -31,6 +31,8 @@ var (
 
 	UpdateParameters = updateParameters
 
+	IsEFISecurebootDBUpdateBlocked = isEFISecurebootDBUpdateBlocked
+
 	FindFirstPendingExternalOperationByKind = findFirstPendingExternalOperationByKind
 	FindFirstExternalOperationByChangeID    = findFirstExternalOperationByChangeID
 	AddExternalOperation                    = addExternalOperation
@@ -44,5 +46,13 @@ func MockBackendResealKeyForBootChains(f func(manager backend.FDEStateManager, m
 	backendResealKeyForBootChains = f
 	return restore
 }
+
+func MockBackendResealKeysForSignaturesDBUpdate(f func(updateState backend.FDEStateManager, method device.SealingMethod, rootdir string, params *boot.ResealKeyForBootChainsParams, payload []byte) error) (restore func()) {
+	restore = testutil.Backup(&backendResealKeysForSignaturesDBUpdate)
+	backendResealKeysForSignaturesDBUpdate = f
+	return restore
+}
+
+var NewModel = newModel
 
 func (m *FDEManager) IsFunctional() error { return m.isFunctional() }
