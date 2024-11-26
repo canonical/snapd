@@ -202,7 +202,7 @@ func (e *ValidationSetsValidationError) Error() string {
 	// non-hierarchical error message, maybe worth reorganizing. however, it
 	// will probably be better for actually using the error to extract what we
 	// need when resolving validation set errors in snapstate. it is also more
-	// representative of how the contraints are represented in the actual
+	// representative of how the constraints are represented in the actual
 	// assertion.
 
 	var missingComps, invalidComps, wrongRevComps strings.Builder
@@ -410,7 +410,7 @@ type conflictsError struct {
 	//   on the snap by requiring it but without a revision
 	// * invalidPresRevision is used for validation-sets that mark
 	//   presence as invalid
-	// see snapContraints.revisions as well
+	// see snapConstraints.revisions as well
 	revisions map[snap.Revision][]string
 }
 
@@ -990,9 +990,9 @@ func (v *ValidationSets) SnapConstrained(snapRef naming.SnapRef) bool {
 	return v.constraintsForSnap(snapRef) != nil
 }
 
-// PresenceContraint represents the allowed presence of a snap or component with
+// PresenceConstraint represents the allowed presence of a snap or component with
 // respect to a set of validation sets that it was derived from.
-type PresenceContraint struct {
+type PresenceConstraint struct {
 	// Presence is the required presence of the snap or component.
 	Presence asserts.Presence
 	// Revision is the revision that the snap or component must be at if the
@@ -1005,8 +1005,8 @@ type PresenceContraint struct {
 // SnapPresenceConstraints contains information about a snap's allowed presence with
 // respect to a set of validation sets.
 type SnapPresenceConstraints struct {
-	PresenceContraint
-	components map[string]PresenceContraint
+	PresenceConstraint
+	components map[string]PresenceConstraint
 }
 
 // Constrained returns true if the snap is constrained in any way by the
@@ -1028,23 +1028,23 @@ func (s *SnapPresenceConstraints) Constrained() bool {
 	return false
 }
 
-func (p *PresenceContraint) constrained() bool {
+func (p *PresenceConstraint) constrained() bool {
 	return p.Presence != asserts.PresenceOptional || !p.Revision.Unset()
 }
 
 // Component returns the presence of the given component of the snap. If this
 // SnapPresence doesn't know about the component, the component will be
 // considered optional and allowed to have any revision.
-func (s *SnapPresenceConstraints) Component(name string) PresenceContraint {
+func (s *SnapPresenceConstraints) Component(name string) PresenceConstraint {
 	if s.components == nil {
-		return PresenceContraint{
+		return PresenceConstraint{
 			Presence: asserts.PresenceOptional,
 		}
 	}
 
 	cp, ok := s.components[name]
 	if !ok {
-		return PresenceContraint{
+		return PresenceConstraint{
 			Presence: asserts.PresenceOptional,
 		}
 	}
@@ -1053,8 +1053,8 @@ func (s *SnapPresenceConstraints) Component(name string) PresenceContraint {
 
 // RequiredComponents returns a set of all of the components that are required
 // to be installed when this snap is installed.
-func (s *SnapPresenceConstraints) RequiredComponents() map[string]PresenceContraint {
-	required := make(map[string]PresenceContraint)
+func (s *SnapPresenceConstraints) RequiredComponents() map[string]PresenceConstraint {
+	required := make(map[string]PresenceConstraint)
 	for name, pres := range s.components {
 		if pres.Presence != asserts.PresenceRequired {
 			continue
@@ -1080,7 +1080,7 @@ func (v *ValidationSets) Presence(sn naming.SnapRef) (SnapPresenceConstraints, e
 	cstrs := v.constraintsForSnap(sn)
 	if cstrs == nil {
 		return SnapPresenceConstraints{
-			PresenceContraint: PresenceContraint{Presence: asserts.PresenceOptional},
+			PresenceConstraint: PresenceConstraint{Presence: asserts.PresenceOptional},
 		}, nil
 	}
 
@@ -1089,7 +1089,7 @@ func (v *ValidationSets) Presence(sn naming.SnapRef) (SnapPresenceConstraints, e
 		return SnapPresenceConstraints{}, err
 	}
 
-	comps := make(map[string]PresenceContraint, len(cstrs.componentConstraints))
+	comps := make(map[string]PresenceConstraint, len(cstrs.componentConstraints))
 	for _, cstrs := range cstrs.componentConstraints {
 		compPresence, err := presenceFromConstraints(cstrs.constraints, v.sets)
 		if err != nil {
@@ -1099,20 +1099,20 @@ func (v *ValidationSets) Presence(sn naming.SnapRef) (SnapPresenceConstraints, e
 	}
 
 	return SnapPresenceConstraints{
-		PresenceContraint: snapPresence,
-		components:        comps,
+		PresenceConstraint: snapPresence,
+		components:         comps,
 	}, nil
 }
 
-func presenceFromConstraints(cstrs constraints, vsets map[string]*asserts.ValidationSet) (PresenceContraint, error) {
-	p := PresenceContraint{
+func presenceFromConstraints(cstrs constraints, vsets map[string]*asserts.ValidationSet) (PresenceConstraint, error) {
+	p := PresenceConstraint{
 		Presence: asserts.PresenceOptional,
 	}
 	for rev, revCstr := range cstrs.revisions {
 		for _, rc := range revCstr {
 			vs := vsets[rc.validationSetKey]
 			if vs == nil {
-				return PresenceContraint{}, fmt.Errorf("internal error: no validation set for %q", rc.validationSetKey)
+				return PresenceConstraint{}, fmt.Errorf("internal error: no validation set for %q", rc.validationSetKey)
 			}
 
 			p.Sets = append(p.Sets, NewValidationSetKey(vs))
