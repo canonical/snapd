@@ -26,9 +26,18 @@ import (
 	"github.com/snapcore/snapd/testutil"
 )
 
-var FdeMgr = fdeMgr
+var (
+	FdeMgr = fdeMgr
 
-var UpdateParameters = updateParameters
+	UpdateParameters = updateParameters
+
+	FindFirstPendingExternalOperationByKind = findFirstPendingExternalOperationByKind
+	FindFirstExternalOperationByChangeID    = findFirstExternalOperationByChangeID
+	AddExternalOperation                    = addExternalOperation
+	UpdateExternalOperation                 = updateExternalOperation
+)
+
+type ExternalOperation = externalOperation
 
 func MockBackendResealKeyForBootChains(f func(manager backend.FDEStateManager, method device.SealingMethod, rootdir string, params *boot.ResealKeyForBootChainsParams, expectReseal bool) error) (restore func()) {
 	restore = testutil.Backup(&backendResealKeyForBootChains)
