@@ -200,6 +200,10 @@ type FdeState struct {
 
 	// KeyslotRoles are all keyslot roles indexed by the role name
 	KeyslotRoles map[string]KeyslotRoleInfo `json:"keyslot-roles"`
+
+	// PendingExternalOperations keeps a list of changes that capture FDE
+	// related operations running outside of snapd.
+	PendingExternalOperations []externalOperation `json:"pending-external-operations"`
 }
 
 const fdeStateKey = "fde"
@@ -369,6 +373,23 @@ func (s *FdeState) getParameters(role string, containerRole string) (hasParamter
 	}
 
 	return true, parameters.BootModes, models, parameters.TPM2PCRProfile, nil
+}
+
+func withFdeState(st *state.State, op func(fdeSt *FdeState) (modified bool, err error)) error {
+	var fde FdeState
+	if err := st.Get(fdeStateKey, &fde); err != nil {
+		return err
+	}
+
+	mod, err := op(&fde)
+	if err != nil {
+		return err
+	}
+
+	if mod {
+		st.Set(fdeStateKey, &fde)
+	}
+	return nil
 }
 
 func MockDMCryptUUIDFromMountPoint(f func(mountpoint string) (string, error)) (restore func()) {
