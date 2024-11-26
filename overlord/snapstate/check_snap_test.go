@@ -227,7 +227,7 @@ func (s *checkSnapSuite) TestCheckSnapAssumes(c *C) {
 		yaml := fmt.Sprintf("name: foo\nversion: 1.0\nassumes: %s\n", test.assumes)
 
 		info, err := snap.InfoFromSnapYaml([]byte(yaml))
-		c.Assert(err, NotNil, comment)
+		c.Assert(err, IsNil, comment)
 
 		var openSnapFile = func(path string, si *snap.SideInfo) (*snap.Info, snap.Container, error) {
 			return info, emptyContainer(c), nil
