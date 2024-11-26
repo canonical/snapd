@@ -21,6 +21,7 @@
 package fdestate_test
 
 import (
+	"bytes"
 	"crypto"
 	"fmt"
 	"os"
@@ -33,6 +34,7 @@ import (
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget/device"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil/disks"
 	"github.com/snapcore/snapd/overlord/fdestate"
 	"github.com/snapcore/snapd/overlord/fdestate/backend"
@@ -48,6 +50,7 @@ func TestFDE(t *testing.T) { TestingT(t) }
 type fdeMgrSuite struct {
 	testutil.BaseTest
 
+	logbuf  *bytes.Buffer
 	rootdir string
 	st      *state.State
 	runner  *state.TaskRunner
@@ -66,6 +69,15 @@ func (s *fdeMgrSuite) SetUpTest(c *C) {
 
 	s.st = state.New(nil)
 	s.runner = state.NewTaskRunner(s.st)
+
+	buf, restore := logger.MockLogger()
+	s.AddCleanup(restore)
+	s.logbuf = buf
+
+	c.Assert(os.Setenv("SNAPD_DEBUG", "1"), IsNil)
+	s.AddCleanup(func() {
+		os.Unsetenv("SNAPD_DEBUG")
+	})
 
 	s.AddCleanup(fdestate.MockBackendResealKeyForBootChains(
 		func(manager backend.FDEStateManager, method device.SealingMethod, rootdir string, params *boot.ResealKeyForBootChainsParams, expectReseal bool) error {
@@ -86,6 +98,13 @@ func (s *fdeMgrSuite) SetUpTest(c *C) {
 	}
 	err := m.WriteTo(dirs.GlobalRootDir)
 	c.Assert(err, IsNil)
+
+}
+
+func (s *fdeMgrSuite) TearDownTest(c *C) {
+	c.Assert(s.logbuf, NotNil)
+	c.Logf("logs:\n%s\n", s.logbuf.String())
+	s.BaseTest.TearDownTest(c)
 }
 
 type instrumentedUnlocker struct {
