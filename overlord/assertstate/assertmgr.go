@@ -30,7 +30,6 @@ import (
 	"github.com/snapcore/snapd/asserts/sysdb"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
-	"github.com/snapcore/snapd/snap"
 )
 
 // AssertManager is responsible for the enforcement of assertions in
@@ -205,12 +204,7 @@ func fetchAssertsAndValidateComponent(st *state.State, compsup *snapstate.Compon
 	// run this task, since we may need to download a new snap-resource-pair.
 	compPath := compsup.CompPath
 	if compPath == "" {
-		cpi := snap.MinimalComponentContainerPlaceInfo(
-			compsup.ComponentName(),
-			compsup.Revision(),
-			snapsup.InstanceName(),
-		)
-		compPath = cpi.MountFile()
+		compPath = compsup.MountFile(snapsup.InstanceName())
 	}
 
 	sha3_384, compSize, err := asserts.SnapFileSHA3_384(compPath)

@@ -191,15 +191,7 @@ func (m *SnapManager) doDownloadComponent(t *state.Task, tomb *tomb.Tomb) error 
 		rate = autoRefreshRateLimited(st)
 	}
 
-	cpi := snap.MinimalComponentContainerPlaceInfo(
-		compsup.ComponentName(), compsup.CompSideInfo.Revision,
-		snapsup.InstanceName(),
-	)
-
-	// TODO:COMPS: to be consistent with snaps, this should be able to point
-	// somewhere else, based on a path that is in the compsup. this would be
-	// used for creating new recovery systems, like it is now for snaps
-	target := cpi.MountFile()
+	target := compsup.MountFile(snapsup.InstanceName())
 
 	sto := Store(st, deviceCtx)
 	meter := NewTaskProgressAdapterUnlocked(t)
