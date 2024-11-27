@@ -223,45 +223,6 @@ var installSize = func(st *state.State, snaps []minimalInstallInfo, userID int, 
 	return total, nil
 }
 
-func downloadInfo(ctx context.Context, st *state.State, name string, revOpts *RevisionOptions, userID int, deviceCtx DeviceContext) (store.SnapActionResult, error) {
-	curSnaps, err := currentSnaps(st)
-	if err != nil {
-		return store.SnapActionResult{}, err
-	}
-
-	user, err := userFromUserID(st, userID)
-	if err != nil {
-		return store.SnapActionResult{}, err
-	}
-
-	opts, err := refreshOptions(st, nil)
-	if err != nil {
-		return store.SnapActionResult{}, err
-	}
-
-	action := &store.SnapAction{
-		Action:       "download",
-		InstanceName: name,
-	}
-
-	if revOpts != nil {
-		// cannot specify both with the API
-		if revOpts.Revision.Unset() {
-			action.Channel = revOpts.Channel
-			action.CohortKey = revOpts.CohortKey
-		} else {
-			action.Revision = revOpts.Revision
-		}
-	}
-
-	theStore := Store(st, deviceCtx)
-	st.Unlock() // calls to the store should be done without holding the state lock
-	res, _, err := theStore.SnapAction(ctx, curSnaps, []*store.SnapAction{action}, nil, user, opts)
-	st.Lock()
-
-	return singleActionResult(name, action.Action, res, err)
-}
-
 var ErrMissingExpectedResult = fmt.Errorf("unexpectedly empty response from the server (try again later)")
 
 func singleActionResultErr(name, action string, e error) error {
@@ -1025,17 +986,24 @@ func sendOneInstallAction(ctx context.Context, st *state.State, snaps StoreSnap,
 	return results[0], nil
 }
 
-func sendInstallActions(
-	ctx context.Context,
-	st *state.State,
-	snaps []StoreSnap,
-	opts Options,
-) ([]store.SnapActionResult, error) {
+func sendInstallActions(ctx context.Context, st *state.State, snaps []StoreSnap, opts Options) ([]store.SnapActionResult, error) {
+	return sendInstallOrDownloadActions(ctx, st, "install", snaps, opts)
+}
+
+func sendDownloadActions(ctx context.Context, st *state.State, snaps []StoreSnap, opts Options) ([]store.SnapActionResult, error) {
+	return sendInstallOrDownloadActions(ctx, st, "download", snaps, opts)
+}
+
+func sendInstallOrDownloadActions(ctx context.Context, st *state.State, action string, snaps []StoreSnap, opts Options) ([]store.SnapActionResult, error) {
+	if action != "install" && action != "download" {
+		return nil, fmt.Errorf("internal error: action must be install or download: %s", action)
+	}
+
 	includeResources := false
 	actions := make([]*store.SnapAction, 0, len(snaps))
 	for _, sn := range snaps {
 		action := &store.SnapAction{
-			Action:       "install",
+			Action:       action,
 			InstanceName: sn.InstanceName,
 		}
 
