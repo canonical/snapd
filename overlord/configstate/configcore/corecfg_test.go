@@ -133,7 +133,7 @@ type configcoreSuite struct {
 
 	state *state.State
 
-	systemctlOutput   func(args ...string) []byte
+	systemctlOutput   func(args ...string) ([]byte, error)
 	systemctlArgs     [][]string
 	systemdSysctlArgs [][]string
 }
@@ -148,7 +148,7 @@ func (s *configcoreSuite) SetUpTest(c *C) {
 
 	s.AddCleanup(osutil.MockMountInfo(""))
 
-	s.systemctlOutput = func(args ...string) []byte {
+	s.systemctlOutput = func(args ...string) ([]byte, error) {
 		if args[0] == "show" {
 			return []byte(fmt.Sprintf(`Type=notify
 Id=%[1]s
@@ -156,14 +156,14 @@ Names=%[1]s
 ActiveState=inactive
 UnitFileState=enabled
 NeedDaemonReload=no
-`, args[len(args)-1]))
+`, args[len(args)-1])), nil
 		}
-		return []byte("ActiveState=inactive")
+		return []byte("ActiveState=inactive"), nil
 	}
 
 	s.AddCleanup(systemd.MockSystemctl(func(args ...string) ([]byte, error) {
 		s.systemctlArgs = append(s.systemctlArgs, args[:])
-		return s.systemctlOutput(args...), nil
+		return s.systemctlOutput(args...)
 	}))
 	s.systemctlArgs = nil
 	s.AddCleanup(systemd.MockSystemdSysctl(func(args ...string) error {
