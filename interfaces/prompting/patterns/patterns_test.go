@@ -133,6 +133,12 @@ func (s *patternsSuite) TestParsePathPatternHappy(c *C) {
 		"/foo/{a,b}{c,d}{e,f}{g,h,i,j,k}{l,m,n,o,p}{q,r,s,t,u},1,2,3", // expands to 1000, with commas outside groups
 		"/" + strings.Repeat("{a,", 999) + "a" + strings.Repeat("}", 999),
 		"/" + strings.Repeat("{", 999) + "a" + strings.Repeat(",a}", 999),
+		"/foo/.../bar",
+		"/foo/...",
+		"/foo/.{bar,baz}",
+		"/foo/..{bar,baz}",
+		"/foo/{bar,baz}.",
+		"/foo/{bar,baz}..",
 	} {
 		_, err := patterns.ParsePathPattern(pattern)
 		c.Check(err, IsNil, Commentf("valid path pattern %q was incorrectly not allowed", pattern))
@@ -151,6 +157,22 @@ func (s *patternsSuite) TestParsePathPatternUnhappy(c *C) {
 		{
 			`file.txt`,
 			`invalid path pattern: pattern must start with '/': "file.txt"`,
+		},
+		{
+			`/foo/./bar`,
+			`invalid path pattern: pattern cannot contain '/./' or '/../': .*`,
+		},
+		{
+			`/foo/../bar`,
+			`invalid path pattern: pattern cannot contain '/./' or '/../': .*`,
+		},
+		{
+			`/foo/.`,
+			`invalid path pattern: pattern cannot contain '/./' or '/../': .*`,
+		},
+		{
+			`/foo/..`,
+			`invalid path pattern: pattern cannot contain '/./' or '/../': .*`,
 		},
 		{
 			`{/,/foo}`,
