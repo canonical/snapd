@@ -27,7 +27,17 @@ import (
 	"strings"
 )
 
-var cgroupsFilePath = "/proc/cgroups"
+var (
+
+	// path where v1 controllers are listed, see
+	// https://www.kernel.org/doc/html/latest/admin-guide/cgroup-v1/index.html
+	// and cgroups(7)
+	cgroupV1ControllersPath = "/proc/cgroups"
+
+	// path where v2 controllers are listed, at the root of the hierarchy tree,
+	// see https://www.kernel.org/doc/html/latest/admin-guide/cgroup-v2.html
+	cgroupV2ControllersPath = filepath.Join(cgroupMountPoint, "cgroup.controllers")
+)
 
 // CheckMemoryCgroup checks if the memory cgroup is enabled. It will return
 // an error if not.
@@ -56,11 +66,11 @@ func CheckMemoryCgroup() error {
 	}
 
 	// no errors so far but the only path here is the cgroups file without the memory line
-	return fmt.Errorf("memory cgroup controller is disabled on this system")
+	return fmt.Errorf("cgroup memory controller is disabled on this system")
 }
 
 func checkV1CgroupMemoryController() (bool, error) {
-	cgroupsFile, err := os.Open(filepath.Join(rootPath, cgroupsFilePath))
+	cgroupsFile, err := os.Open(filepath.Join(rootPath, cgroupV1ControllersPath))
 	if err != nil {
 		return false, fmt.Errorf("cannot open cgroups file: %v", err)
 	}
@@ -81,7 +91,7 @@ func checkV1CgroupMemoryController() (bool, error) {
 	}
 
 	if err := scanner.Err(); err != nil {
-		return false, fmt.Errorf("cannot read %s contents: %v", cgroupsFilePath, err)
+		return false, fmt.Errorf("cannot read %s contents: %v", cgroupV1ControllersPath, err)
 	}
 
 	return false, nil
@@ -89,7 +99,7 @@ func checkV1CgroupMemoryController() (bool, error) {
 
 func checkV2CgroupMemoryController() (bool, error) {
 	// check at the root controller
-	f, err := os.Open(filepath.Join(rootPath, cgroupMountPoint, "cgroup.controllers"))
+	f, err := os.Open(filepath.Join(rootPath, cgroupV2ControllersPath))
 	if err != nil {
 		return false, err
 	}

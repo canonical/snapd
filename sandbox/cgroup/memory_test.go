@@ -98,7 +98,7 @@ func (s *memoryCgroupV1Suite) TestCheckMemoryCgroupV1_NoMemoryEntry(c *C) {
 	err := os.WriteFile(s.mockCgroupsFile, []byte(content), 0644)
 	c.Assert(err, IsNil)
 	err = cgroup.CheckMemoryCgroup()
-	c.Assert(err, ErrorMatches, "memory cgroup controller is disabled on this system")
+	c.Assert(err, ErrorMatches, "cgroup memory controller is disabled on this system")
 }
 
 func (s *memoryCgroupV1Suite) TestCheckMemoryCgroupV1_InvalidMemoryEntry(c *C) {
@@ -118,7 +118,7 @@ func (s *memoryCgroupV1Suite) TestCheckMemoryCgroupV1_Disabled(c *C) {
 	err := os.WriteFile(s.mockCgroupsFile, []byte(content), 0644)
 	c.Assert(err, IsNil)
 	err = cgroup.CheckMemoryCgroup()
-	c.Assert(err, ErrorMatches, "memory cgroup controller is disabled on this system")
+	c.Assert(err, ErrorMatches, "cgroup memory controller is disabled on this system")
 }
 
 func (s *memoryCgroupV2Suite) SetUpTest(c *C) {
@@ -141,7 +141,7 @@ func (s *memoryCgroupV2Suite) TestCheckMemoryCgroupV2_Disabled(c *C) {
 	c.Assert(os.WriteFile(v2ControllersFile, []byte("foo bar baz other\n"), 0644), IsNil)
 
 	err = cgroup.CheckMemoryCgroup()
-	c.Assert(err, ErrorMatches, "memory cgroup controller is disabled on this system")
+	c.Assert(err, ErrorMatches, "cgroup memory controller is disabled on this system")
 }
 
 func (s *memoryCgroupV2Suite) TestCheckMemoryCgroupV2_Happy(c *C) {
