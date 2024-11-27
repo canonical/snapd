@@ -286,7 +286,11 @@ func (udb *userPromptDB) timeoutCallback(pdb *PromptDB, user uint32) {
 	// We don't defer Unlock() since we may need to manually unlock later in
 	// the function in order to record a notice and send a reply without
 	// holding the DB lock.
-	if pdb.maxIDMmap.IsClosed() {
+
+	// If the DB has been closed, do nothing. Thus, there's no need to stop the
+	// expiration timer when the DB has been closed, since the timer will fire
+	// and do nothing.
+	if pdb.isClosed() {
 		pdb.mutex.Unlock()
 		return
 	}
@@ -391,7 +395,7 @@ func (pdb *PromptDB) AddOrMerge(metadata *prompting.Metadata, path string, reque
 	pdb.mutex.Lock()
 	defer pdb.mutex.Unlock()
 
-	if pdb.maxIDMmap.IsClosed() {
+	if pdb.isClosed() {
 		return nil, false, prompting_errors.ErrPromptsClosed
 	}
 
@@ -457,7 +461,7 @@ func (pdb *PromptDB) AddOrMerge(metadata *prompting.Metadata, path string, reque
 func (pdb *PromptDB) Prompts(user uint32, clientActivity bool) ([]*Prompt, error) {
 	pdb.mutex.RLock()
 	defer pdb.mutex.RUnlock()
-	if pdb.maxIDMmap.IsClosed() {
+	if pdb.isClosed() {
 		return nil, prompting_errors.ErrPromptsClosed
 	}
 	userEntry, ok := pdb.perUser[user]
@@ -492,7 +496,7 @@ func (pdb *PromptDB) PromptWithID(user uint32, id prompting.IDType, clientActivi
 //
 // The caller should hold a read (or write) lock on the prompt DB mutex.
 func (pdb *PromptDB) promptWithID(user uint32, id prompting.IDType, clientActivity bool) (*userPromptDB, *Prompt, error) {
-	if pdb.maxIDMmap.IsClosed() {
+	if pdb.isClosed() {
 		return nil, nil, prompting_errors.ErrPromptsClosed
 	}
 	userEntry, ok := pdb.perUser[user]
@@ -558,7 +562,7 @@ func (pdb *PromptDB) HandleNewRule(metadata *prompting.Metadata, constraints *pr
 	pdb.mutex.Lock()
 	defer pdb.mutex.Unlock()
 
-	if pdb.maxIDMmap.IsClosed() {
+	if pdb.isClosed() {
 		return nil, prompting_errors.ErrPromptsClosed
 	}
 
@@ -612,7 +616,7 @@ func (pdb *PromptDB) Close() error {
 	pdb.mutex.Lock()
 	defer pdb.mutex.Unlock()
 
-	if pdb.maxIDMmap.IsClosed() {
+	if pdb.isClosed() {
 		return prompting_errors.ErrPromptsClosed
 	}
 
@@ -624,15 +628,31 @@ func (pdb *PromptDB) Close() error {
 	// not want to send {"resolved": "cancelled"} in the notice data.
 	data := map[string]string{"resolved": "cancelled"}
 	for user, userEntry := range pdb.perUser {
-		userEntry.expirationTimer.Stop()
+		// No need to explicitly stop the timer, since this is racy with the
+		// timer expiring, and since we've already closed the maxIDMmap with
+		// the lock held, the callback will acquire the lock, see that the DB
+		// has been closed, and immediately return.
 		for id := range userEntry.ids {
 			pdb.notifyPrompt(user, id, data)
 		}
+		// There's no need to explicitly send responses back to the kernel
+		// here, as the listener will send deny responses for all outstanding
+		// listener requests when it is closed, and even if it didn't, the
+		// kernel will automatically reclaim unanswered notifications when
+		// the notify socket FD is closed, and either roll them over to a new
+		// FD or auto-deny them after some time.
 	}
 
 	// Clear all outstanding prompts
 	pdb.perUser = nil
 	return nil
+}
+
+// isClosed returns true if the prompt DB is already closed.
+//
+// The caller must ensure that the DB lock is held.
+func (pdb *PromptDB) isClosed() bool {
+	return pdb.maxIDMmap.IsClosed()
 }
 
 // MockSendReply mocks the function to send a reply back to the listener so

@@ -951,7 +951,17 @@ func (s *requestpromptsSuite) TestHandleNewRuleNonMatches(c *C) {
 }
 
 func (s *requestpromptsSuite) TestClose(c *C) {
-	restore := requestprompts.MockSendReply(func(listenerReq *listener.Request, allowedPermission any) error {
+	var timer *testtime.TestTimer
+	restore := requestprompts.MockTimeAfterFunc(func(d time.Duration, f func()) timeutil.Timer {
+		if timer != nil {
+			c.Fatalf("created more than one timer")
+		}
+		timer = testtime.AfterFunc(d, f)
+		return timer
+	})
+	defer restore()
+
+	restore = requestprompts.MockSendReply(func(listenerReq *listener.Request, allowedPermission any) error {
 		c.Fatalf("should not have called sendReply")
 		return nil
 	})
@@ -999,6 +1009,20 @@ func (s *requestpromptsSuite) TestClose(c *C) {
 
 	// All prompts have been cleared, and all per-user maps deleted
 	c.Check(pdb.PerUser(), HasLen, 0)
+
+	// Sanity check that the timer is still active, though this is not part of
+	// any contract, and there's no reason that closing the timer shouldn't be
+	// allowed to stop the expiration timers. We don't at the moment because
+	// doing so is racy and unnecessary, though there's no harm in closing them.
+	c.Check(timer.Active(), Equals, true)
+
+	// Elapse time as if the prompt timer expired
+	timer.Elapse(requestprompts.InitialTimeout)
+	// Check that timer expiration did not result in new notices
+	s.checkNewNoticesSimple(c, []prompting.IDType{}, nil)
+	// Check that the timer is no longer active. Since the DB is closed, the
+	// expiration callback should not reset the timer as it usually would.
+	c.Check(timer.Active(), Equals, false)
 }
 
 func (s *requestpromptsSuite) TestCloseThenOperate(c *C) {
