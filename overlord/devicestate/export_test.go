@@ -191,6 +191,12 @@ func MockSnapstateDownload(f func(ctx context.Context, st *state.State, name str
 	return r
 }
 
+func MockSnapstateDownloadComponents(f func(ctx context.Context, st *state.State, name string, components []string, blobDirectory string, revOpts snapstate.RevisionOptions, opts snapstate.Options) (*state.TaskSet, error)) (restore func()) {
+	r := testutil.Backup(&snapstateDownloadComponents)
+	snapstateDownloadComponents = f
+	return r
+}
+
 func EnsureSeeded(m *DeviceManager) error {
 	return m.ensureSeeded()
 }

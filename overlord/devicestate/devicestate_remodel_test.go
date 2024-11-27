@@ -4282,10 +4282,9 @@ func (s *deviceMgrRemodelSuite) TestRemodelUC20EssentialSnapsTrackingDifferentCh
 	err = tCreateRecovery.Get("recovery-system-setup", &systemSetupData)
 	c.Assert(err, IsNil)
 	c.Assert(systemSetupData, DeepEquals, map[string]interface{}{
-		"label":            expectedLabel,
-		"directory":        filepath.Join(boot.InitramfsUbuntuSeedDir, "systems", expectedLabel),
-		"snap-setup-tasks": nil,
-		"test-system":      true,
+		"label":       expectedLabel,
+		"directory":   filepath.Join(boot.InitramfsUbuntuSeedDir, "systems", expectedLabel),
+		"test-system": true,
 	})
 }
 
@@ -4623,10 +4622,9 @@ func (s *deviceMgrRemodelSuite) TestRemodelUC20BaseNoDownloadSimpleChannelSwitch
 	err = tCreateRecovery.Get("recovery-system-setup", &systemSetupData)
 	c.Assert(err, IsNil)
 	c.Assert(systemSetupData, DeepEquals, map[string]interface{}{
-		"label":            expectedLabel,
-		"directory":        filepath.Join(boot.InitramfsUbuntuSeedDir, "systems", expectedLabel),
-		"snap-setup-tasks": nil,
-		"test-system":      true,
+		"label":       expectedLabel,
+		"directory":   filepath.Join(boot.InitramfsUbuntuSeedDir, "systems", expectedLabel),
+		"test-system": true,
 	})
 }
 

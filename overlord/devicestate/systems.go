@@ -236,7 +236,68 @@ type setupInfoGetter struct {
 }
 
 func (ig *setupInfoGetter) ComponentInfo(st *state.State, cref naming.ComponentRef, snapInfo *snap.Info) (info *snap.ComponentInfo, path string, present bool, err error) {
-	return nil, "", false, fmt.Errorf("internal error: creating a recovery system with components from recoverySystemSetup not yet supported")
+	// components will come from one of these places:
+	//   * passed into the task via a list of side infos (these would have
+	//     come from a user posting components via the API)
+	//   * have just been downloaded by a task in setup.ComponentSetupTasks
+	//   * already installed on the system
+
+	// in a remodel scenario, the components may need to be fetched and thus
+	// their content can be different from what we have already installed, so we
+	// should first check the download tasks before consulting snapstate
+	logger.Debugf("requested info for component %q being installed during remodel", cref)
+	for _, tskID := range ig.setup.ComponentSetupTasks {
+		taskWithComponentSetup := st.Task(tskID)
+		compsup, snapsup, err := snapstate.TaskComponentSetup(taskWithComponentSetup)
+		if err != nil {
+			return nil, "", false, err
+		}
+		if compsup.CompSideInfo.Component != cref {
+			continue
+		}
+
+		mountFile := compsup.BlobPath(snapsup.InstanceName())
+
+		f, err := snapfile.Open(mountFile)
+		if err != nil {
+			return nil, "", false, err
+		}
+
+		info, err = snap.ReadComponentInfoFromContainer(f, snapInfo, compsup.CompSideInfo)
+		if err != nil {
+			return nil, "", false, err
+		}
+
+		return info, mountFile, true, nil
+	}
+
+	// either a remodel scenario, in which case the component is not among the
+	// ones being fetched, or just creating a recovery system, in which case we
+	// use the components that are already installed
+
+	var snapst snapstate.SnapState
+	if err := snapstate.Get(st, snapInfo.InstanceName(), &snapst); err != nil {
+		if errors.Is(err, state.ErrNoState) {
+			return nil, "", false, nil
+		}
+		return nil, "", false, err
+	}
+
+	info, err = snapst.CurrentComponentInfo(cref)
+	if err != nil {
+		if errors.Is(err, snapstate.ErrNoCurrent) {
+			return nil, "", false, nil
+		}
+		return nil, "", false, err
+	}
+
+	cpi := snap.MinimalComponentContainerPlaceInfo(
+		cref.ComponentName,
+		info.Revision,
+		snapInfo.InstanceName(),
+	)
+
+	return info, cpi.MountFile(), true, nil
 }
 
 func (ig *setupInfoGetter) SnapInfo(st *state.State, name string) (info *snap.Info, path string, present bool, err error) {
