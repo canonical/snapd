@@ -15,8 +15,12 @@ prepare: |
   unsquashfs -d pc-kernel "$KERNEL_SNAP"
   
   if os.query is-ubuntu-ge 24.04; then
-    apt install -y llvm
-    llvm-objcopy --add-section .modified=/dev/null pc-kernel/kernel.efi
+    quiet apt install -y systemd-boot-efi systemd-ukify
+
+    objcopy -O binary -j .initrd pc-kernel/kernel.efi initrd.img
+    objcopy -O binary -j .linux pc-kernel/kernel.efi linux
+    
+    /usr/lib/systemd/ukify build --linux=linux --initrd=initrd.img --section=.spread:test --output=pc-kernel/kernel.efi
   else
     # ensure we really have the header we expect
     grep -q -a "This program cannot be run in DOS mode" pc-kernel/kernel.efi
@@ -47,8 +51,10 @@ execute: |
 
   echo "Check that we are using the right kernel"
   if os.query is-ubuntu-ge 24.04; then
-    remote.pull /boot/grub/kernel.efi
-    objdump -h kernel.efi  | grep '[.]modified'
+    remote.exec "sudo cp /boot/grub/kernel.efi ."
+    remote.exec "sudo chown user1:user1 kernel.efi"
+    remote.pull /home/user1/kernel.efi
+    objdump -h kernel.efi  | grep '[.]spread'
   else
     remote.exec sudo grep -q -a "This program cannot be run in XXX mode" /boot/grub/kernel.efi
   fi

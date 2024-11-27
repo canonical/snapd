@@ -775,6 +775,39 @@ uc20_build_corrupt_kernel_snap() {
     rm -rf "$REPACKED_DIR"
 }
 
+uc_write_bootstrap_wrapper() {
+    local SKELETON_PATH="$1"
+    local INJECT_ERR="${2:-false}"
+
+    cp -a /usr/lib/snapd/snap-bootstrap "$SKELETON_PATH"/usr/lib/snapd/snap-bootstrap.real
+    cat <<'EOF' >"$SKELETON_PATH"/usr/lib/snapd/snap-bootstrap
+#!/bin/sh
+set -eux
+if [ "$1" != initramfs-mounts ]; then
+    exec /usr/lib/snapd/snap-bootstrap.real "$@"
+fi
+beforeDate="$(date --utc '+%s')"
+/usr/lib/snapd/snap-bootstrap.real "$@"
+if [ -d /run/mnt/data/system-data ]; then
+    touch /run/mnt/data/system-data/the-tool-ran
+fi
+# also copy the time for the clock-epoch to system-data, this is
+# used by a specific test but doesn't hurt anything to do this for
+# all tests
+mode="$(grep -Eo 'snapd_recovery_mode=([a-z]+)' /proc/cmdline)"
+mode=${mode##snapd_recovery_mode=}
+mkdir -p /run/mnt/ubuntu-seed/test
+stat -c '%Y' /usr/lib/clock-epoch >> /run/mnt/ubuntu-seed/test/${mode}-clock-epoch
+echo "$beforeDate" > /run/mnt/ubuntu-seed/test/${mode}-before-snap-bootstrap-date
+date --utc '+%s' > /run/mnt/ubuntu-seed/test/${mode}-after-snap-bootstrap-date
+EOF
+    if [ "$INJECT_ERR" = "true" ]; then
+        # add a kernel panic to the end of the-tool execution
+        echo "echo 'forcibly panicking'; echo c > /proc/sysrq-trigger" >> "$SKELETON_PATH"/usr/lib/snapd/snap-bootstrap
+    fi
+    chmod +x "$SKELETON_PATH"/usr/lib/snapd/snap-bootstrap
+}
+
 uc20_build_initramfs_kernel_snap() {
     quiet apt install software-properties-common -y
     # carries ubuntu-core-initframfs
@@ -836,41 +869,13 @@ uc20_build_initramfs_kernel_snap() {
         cp -ar unpacked-initrd skeleton
         # all the skeleton edits go to a local copy of distro directory
         skeletondir="$PWD/skeleton"
-        snap_bootstrap_file="$skeletondir/main/usr/lib/snapd/snap-bootstrap"
+        initrd_dir="$skeletondir/main"
         clock_epoch_file="$skeletondir/main/usr/lib/clock-epoch"
         if os.query is-arm; then
-            snap_bootstrap_file="$skeletondir/usr/lib/snapd/snap-bootstrap"
+            initrd_dir="$skeletondir"
             clock_epoch_file="$skeletondir/usr/lib/clock-epoch"
         fi
-        cp -a /usr/lib/snapd/snap-bootstrap "${snap_bootstrap_file}.real"
-        cat <<'EOF' | sed -E "s/^ {8}//" >"$snap_bootstrap_file"
-        #!/bin/sh
-        set -eux
-        if [ "$1" != initramfs-mounts ]; then
-            exec /usr/lib/snapd/snap-bootstrap.real "$@"
-        fi
-        beforeDate="$(date --utc '+%s')"
-        /usr/lib/snapd/snap-bootstrap.real "$@"
-        if [ -d /run/mnt/data/system-data ]; then
-            touch /run/mnt/data/system-data/the-tool-ran
-        fi
-        # also copy the time for the clock-epoch to system-data, this is
-        # used by a specific test but doesn't hurt anything to do this for
-        # all tests
-        mode="$(grep -Eo 'snapd_recovery_mode=([a-z]+)' /proc/cmdline)"
-        mode=${mode##snapd_recovery_mode=}
-        mkdir -p /run/mnt/ubuntu-seed/test
-        stat -c '%Y' /usr/lib/clock-epoch >> /run/mnt/ubuntu-seed/test/${mode}-clock-epoch
-        echo "$beforeDate" > /run/mnt/ubuntu-seed/test/${mode}-before-snap-bootstrap-date
-        date --utc '+%s' > /run/mnt/ubuntu-seed/test/${mode}-after-snap-bootstrap-date
-EOF
-
-        chmod +x "$snap_bootstrap_file"
-
-        if [ "$injectKernelPanic" = "true" ]; then
-            # add a kernel panic to the end of the-tool execution
-            echo "echo 'forcibly panicking'; echo c > /proc/sysrq-trigger" >> "$snap_bootstrap_file"
-        fi
+        uc_write_bootstrap_wrapper "$initrd_dir" "$injectKernelPanic"
 
         # bump the epoch time file timestamp, converting unix timestamp to 
         # touch's date format
@@ -949,7 +954,7 @@ uc24_build_initramfs_kernel_snap() {
         --inject-kernel-panic-in-initramfs)
             injectKernelPanic=true
             ;;
-    esac    
+    esac
 
     unsquashfs -d pc-kernel "$ORIG_SNAP"
     objcopy -O binary -j .initrd pc-kernel/kernel.efi initrd.img
@@ -965,21 +970,12 @@ uc24_build_initramfs_kernel_snap() {
     fi
 
     if [ -d ./initrd/early ]; then
-        cp -a /usr/lib/snapd/snap-bootstrap ./initrd/main/usr/lib/snapd/snap-bootstrap
-        chmod +x ./initrd/main/usr/lib/snapd/snap-bootstrap
-        if [ "$injectKernelPanic" = "true" ]; then
-            # add a kernel panic to the end of the-tool execution
-            echo "echo 'forcibly panicking'; echo c > /proc/sysrq-trigger" > ./initrd/main/usr/lib/snapd/snap-bootstrap
-        fi
+        uc_write_bootstrap_wrapper ./initrd/main "$injectKernelPanic"
 
         (cd ./initrd/early; find . | cpio --create --quiet --format=newc --owner=0:0) >initrd.img
         (cd ./initrd/main; find . | cpio --create --quiet --format=newc --owner=0:0 | zstd -1 -T0) >>initrd.img
     else
-        cp -a /usr/lib/snapd/snap-bootstrap ./initrd/usr/lib/snapd/snap-bootstrap
-        if [ "$injectKernelPanic" = "true" ]; then
-            # add a kernel panic to the end of the-tool execution
-            echo "echo 'forcibly panicking'; echo c > /proc/sysrq-trigger" >> ./initrd/usr/lib/snapd/snap-bootstrap
-        fi
+        uc_write_bootstrap_wrapper ./initrd "$injectKernelPanic"
 
         (cd ./initrd; find . | cpio --create --quiet --format=newc --owner=0:0 | zstd -1 -T0) >initrd.img
     fi

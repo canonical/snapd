@@ -24,6 +24,18 @@ prepare: |
   fi
   snap download --basename=pc --channel="classic-${PC_VERSION}/stable" pc
 
+  if [ "$VERSION" == 24 ]; then
+    # there was made a decision to use core22 as base for
+    # the pc gadget here, we do not want that when testing
+    unsquashfs -d pc-gadget pc.snap
+    rm pc.snap
+
+    sed -i 's/core22/core24/g' pc-gadget/snap/snapcraft.yaml
+    snap pack pc-gadget
+    rm -rf pc-gadget
+    mv pc_*.snap pc.snap
+  fi
+
   "${TESTSTOOLS}"/setup_nested_hybrid_system.sh \
      --model "${TESTSLIB}/assertions/classic-model-${VERSION}.assert" \
      --gadget pc.snap \
