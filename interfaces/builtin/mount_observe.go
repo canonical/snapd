@@ -76,6 +76,9 @@ quotactl Q_GETINFO - - -
 quotactl Q_GETFMT - - -
 quotactl Q_XGETQUOTA - - -
 quotactl Q_XGETQSTAT - - -
+
+listmount
+statmount
 `
 
 func init() {
