@@ -344,6 +344,24 @@ func checkTargetAgainstValidationSets(target target, action string, vsets *snapa
 	return checkComponentsAgainstConstraints(target.info.SnapName(), comps, constraints, action)
 }
 
+func checkSnapActionAgainstValidationSets(sar store.SnapActionResult, components []ComponentSetup, action string, vsets *snapasserts.ValidationSets) error {
+	constraints, err := vsets.Presence(sar.Info)
+	if err != nil {
+		return err
+	}
+
+	if err := checkSnapAgainstConstraints(sar.InstanceName(), sar.Revision, constraints, action); err != nil {
+		return err
+	}
+
+	comps := make(map[string]snap.Revision, len(components))
+	for _, comp := range components {
+		comps[comp.ComponentName()] = comp.Revision()
+	}
+
+	return checkComponentsAgainstConstraints(sar.SnapName(), comps, constraints, action)
+}
+
 func checkSnapAgainstConstraints(
 	instanceName string,
 	revision snap.Revision,
@@ -352,8 +370,11 @@ func checkSnapAgainstConstraints(
 ) error {
 	if constraints.Presence == asserts.PresenceInvalid {
 		verb := "install"
-		if action == "refresh" {
+		switch action {
+		case "refresh":
 			verb = "update"
+		case "download":
+			verb = "download"
 		}
 
 		return fmt.Errorf("cannot %s snap %q due to enforcing rules of validation set %s",
@@ -369,8 +390,11 @@ func checkSnapAgainstConstraints(
 
 func checkComponentsAgainstConstraints(snapName string, comps map[string]snap.Revision, constraints snapasserts.SnapPresenceConstraints, action string) error {
 	verb := "install"
-	if action == "refresh" {
+	switch action {
+	case "refresh":
 		verb = "update"
+	case "download":
+		verb = "download"
 	}
 
 	for compName, compRevision := range comps {
@@ -564,7 +588,10 @@ func completeStoreAction(action *store.SnapAction, revOpts RevisionOptions, igno
 func invalidRevisionError(action, snapName string, sets []snapasserts.ValidationSetKey, requested, required snap.Revision) error {
 	verb := "install"
 	preposition := "at"
-	if action == "refresh" {
+	switch action {
+	case "download":
+		verb = "download"
+	case "refresh":
 		verb = "update"
 		preposition = "to"
 	}
@@ -583,7 +610,10 @@ func invalidRevisionError(action, snapName string, sets []snapasserts.Validation
 func invalidComponentRevisionError(action, snapName, componentName string, sets []snapasserts.ValidationSetKey, requested, required snap.Revision) error {
 	verb := "install"
 	preposition := "at"
-	if action == "refresh" {
+	switch action {
+	case "download":
+		verb = "download"
+	case "refresh":
 		verb = "update"
 		preposition = "to"
 	}
