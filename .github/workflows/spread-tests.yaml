@@ -25,8 +25,8 @@ on:
         description: 'The rule .yaml file to use (found under tests/lib/spread/rules) for test discovery'
         required: true
         type: string
-      use-master-snap:
-        description: 'If true, will use the snapd snap built on master'
+      use-snapd-snap-from-master:
+        description: 'If true, will use the snapd snap built on the master branch'
         required: false
         type: boolean
         default: false
@@ -137,7 +137,7 @@ jobs:
             # The tests are just filtered when the change is a PR
             # When 'Run Nested' label is added in a PR, all the nested tests have to be executed
             TASKS_TO_RUN=""
-            if [ -z "${{ github.event.number }}" ] || [ "$RUN_NESTED" = 'true' ]; then
+            if [ -z "${{ github.event.number }}" ] || [ "$RUN_NESTED" = 'true' ] || [ -z "${{ inputs.rules }}" ]; then
                 for TASKS in ${{ inputs.tasks }}; do
                     TASKS_TO_RUN="$TASKS_TO_RUN $prefix:$TASKS"
                 done
@@ -188,7 +188,7 @@ jobs:
 
     - name: Download built snap (amd64)
       uses: actions/download-artifact@v4
-      if: "${{ !inputs.use-master-snap && !contains(inputs.group, '-arm64') && !endsWith(inputs.group, '-fips') }}"
+      if: "${{ !inputs.use-snapd-snap-from-master && !contains(inputs.group, '-arm64') && !endsWith(inputs.group, '-fips') }}"
       with:
         name: snap-files-amd64-default-test
         # eg. snapd_1337.2.65.1+git97.gd35b459_amd64.snap
@@ -207,7 +207,7 @@ jobs:
     - name: Download built FIPS snap (amd64)
       uses: actions/download-artifact@v4
       # eg. ubuntu-fips
-      if: "${{ !inputs.use-master-snap && !contains(inputs.group, '-arm64') && endsWith(inputs.group, '-fips') }}"
+      if: "${{ !inputs.use-snapd-snap-from-master && !contains(inputs.group, '-arm64') && endsWith(inputs.group, '-fips') }}"
       with:
         name: snap-files-amd64-FIPS-test
         # eg. snapd_1337.2.65.1+git97.gd35b459-fips_amd64.snap
@@ -215,7 +215,7 @@ jobs:
         path: "${{ github.workspace }}/built-snap"
 
     - name: Rename imported snap
-      if: "${{ !inputs.use-master-snap }}"
+      if: "${{ !inputs.use-snapd-snap-from-master }}"
       run: |
         for snap in built-snap/snapd_1337.*.snap; do
           mv -v "${snap}" "${snap}.keep"
@@ -237,7 +237,7 @@ jobs:
 
           export SPREAD_USE_PREBUILT_SNAPD_SNAP=true
           
-          if [ "${{ inputs.use-master-snap }}" = true ]; then
+          if [ "${{ inputs.use-snapd-snap-from-master }}" = true ]; then
             export SPREAD_USE_SNAPD_SNAP_URL=https://storage.googleapis.com/snapd-spread-tests/snapd-tests/snaps/snapd_master_amd64.snap
           fi
 

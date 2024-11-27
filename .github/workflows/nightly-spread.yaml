@@ -1,5 +1,6 @@
 name: Nightly spread executions
 
+# See https://docs.github.com/en/actions/writing-workflows/workflow-syntax-for-github-actions#onschedule
 on:
   schedule:
     - cron: '0 2 * * *'
@@ -18,7 +19,7 @@ jobs:
       systems: 'ALL'
       tasks: 'tests/nightly/...'
       rules: ''
-      use-master-snap: true
+      use-snapd-snap-from-master: true
 
   spread-test-build-from-current:
     if: github.event.schedule == '0 6 * * *'
@@ -30,7 +31,7 @@ jobs:
       systems: ${{ matrix.systems }}
       tasks: 'tests/...'
       rules: ''
-      use-master-snap: true
+      use-snapd-snap-from-master: true
       spread-snapd-deb-from-repo: false
     strategy:
       fail-fast: false
@@ -53,7 +54,7 @@ jobs:
       systems: 'ubuntu-18.04-64 ubuntu-20.04-64 ubuntu-21.10-64 ubuntu-core-20-64'
       tasks: 'tests/...'
       rules: ''
-      use-master-snap: true
+      use-snapd-snap-from-master: true
       spread-experimental-features: gate-auto-refresh-hook
 
   spread-test-openstack:
@@ -66,4 +67,4 @@ jobs:
       systems: 'ALL'
       tasks: 'tests/main/...'
       rules: ''
-      use-master-snap: true
+      use-snapd-snap-from-master: true
