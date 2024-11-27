@@ -283,6 +283,9 @@ func (udb *userPromptDB) remove(id prompting.IDType) (*Prompt, error) {
 // timer for the user prompt DB when it is first created.
 func (udb *userPromptDB) timeoutCallback(pdb *PromptDB, user uint32) {
 	pdb.mutex.Lock()
+	// We don't defer Unlock() since we may need to manually unlock later in
+	// the function in order to record a notice and send a reply without
+	// holding the DB lock.
 	if pdb.maxIDMmap.IsClosed() {
 		pdb.mutex.Unlock()
 		return
@@ -291,13 +294,13 @@ func (udb *userPromptDB) timeoutCallback(pdb *PromptDB, user uint32) {
 	// overwrite a newly-set activity timeout with an initial timeout.
 	// With the lock held, no activity can occur, so no activity timeout
 	// can be set.
-	if udb.resetExpiration(initialTimeout) {
+	if udb.expirationTimer.Reset(initialTimeout) {
 		// Timer was active again, suggesting that some activity caused
 		// the timer to be reset at some point between the timer firing
 		// and the lock being released and subsequently acquired by this
 		// function. So reset the timer to activityTimeout, and do not
 		// purge prompts.
-		udb.resetExpiration(activityTimeout)
+		udb.activityResetExpiration()
 		pdb.mutex.Unlock()
 		return
 	}
@@ -314,11 +317,11 @@ func (udb *userPromptDB) timeoutCallback(pdb *PromptDB, user uint32) {
 	}
 }
 
-// resetExpiration resets the expiration timer for prompts for the receiving
-// user prompt DB. Returns true if the timer had been active, false if the
-// timer had expired or been stopped.
-func (udb *userPromptDB) resetExpiration(timeout time.Duration) bool {
-	return udb.expirationTimer.Reset(timeout)
+// activityResetExpiration resets the expiration timer for prompts for the
+// receiving user prompt DB. Returns true if the timer had been active, false
+// if the timer had expired or been stopped.
+func (udb *userPromptDB) activityResetExpiration() bool {
+	return udb.expirationTimer.Reset(activityTimeout)
 }
 
 // PromptDB stores outstanding prompts in memory and ensures that new prompts
@@ -463,7 +466,7 @@ func (pdb *PromptDB) Prompts(user uint32, clientActivity bool) ([]*Prompt, error
 		return nil, nil
 	}
 	if clientActivity {
-		userEntry.resetExpiration(activityTimeout)
+		userEntry.activityResetExpiration()
 	}
 	promptsCopy := make([]*Prompt, len(userEntry.prompts))
 	copy(promptsCopy, userEntry.prompts)
@@ -497,7 +500,7 @@ func (pdb *PromptDB) promptWithID(user uint32, id prompting.IDType, clientActivi
 		return nil, nil, prompting_errors.ErrPromptNotFound
 	}
 	if clientActivity {
-		userEntry.resetExpiration(activityTimeout)
+		userEntry.activityResetExpiration()
 	}
 	prompt, err := userEntry.get(id)
 	if err != nil {
