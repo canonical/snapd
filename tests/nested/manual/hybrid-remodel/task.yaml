@@ -16,7 +16,7 @@ environment:
 
 prepare: |
   VERSION="$(tests.nested show version)"
-  snap download --basename=pc-kernel --channel="$VERSION/stable" pc-kernel
+  snap download --basename=pc-kernel --channel="$VERSION/beta" pc-kernel
   if [ "$VERSION" == 22 ]; then
     PC_VERSION="23.10"
   else
