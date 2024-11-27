@@ -229,8 +229,8 @@ jobs:
           (
             set -o pipefail 
             $SPREAD -no-debug-output -logs spread-logs $RUN_TESTS | \
-            ./tests/lib/external/snapd-testing-tools/utils/log-filter $FILTER_PARAMS | \
-            tee spread.log
+              ./tests/lib/external/snapd-testing-tools/utils/log-filter $FILTER_PARAMS | \
+              tee spread.log
           )
 
     - name: Upload spread logs
