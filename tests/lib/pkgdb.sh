@@ -894,6 +894,16 @@ install_pkg_dependencies(){
 # to stdout
 distro_upgrade() {
     case "$SPREAD_SYSTEM" in
+        amazon-linux-2023-*)
+            # Amazon Linux 2023 uses versioned releases, see
+            # https://docs.aws.amazon.com/linux/al2023/ug/deterministic-upgrades-usage.html
+            if [ "$(dnf check-release-update 2>&1)" = "" ]; then
+                return
+            fi
+
+            dnf upgrade --releasever=latest -y
+            echo "reboot"
+            ;;
         arch-*)
             # Arch does not support partial upgrades. On top of this, the image
             # we are running in may have been built some time ago and we need to
