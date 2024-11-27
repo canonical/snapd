@@ -25,8 +25,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-
-	"github.com/snapcore/snapd/strutil"
 )
 
 var cgroupsFilePath = "/proc/cgroups"
@@ -98,15 +96,17 @@ func checkV2CgroupMemoryController() (bool, error) {
 	defer f.Close()
 
 	scanner := bufio.NewScanner(f)
+	scanner.Split(bufio.ScanWords)
 	// expecting a single line
-	if !scanner.Scan() {
-		if err := scanner.Err(); err != nil {
-			return false, err
+	for scanner.Scan() {
+		if ctrl := scanner.Text(); ctrl == "memory" {
+			return true, nil
 		}
-		return false, nil
 	}
 
-	line := scanner.Text()
-	controllers := strings.Fields(line)
-	return strutil.ListContains(controllers, "memory"), nil
+	if err := scanner.Err(); err != nil {
+		return false, err
+	}
+
+	return false, nil
 }
