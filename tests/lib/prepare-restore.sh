@@ -312,6 +312,16 @@ prepare_project() {
     # remove any packages that are marked for auto removal before running any tests
     distro_auto_remove_packages
 
+    if os.query is-amazon-linux 2023; then
+        # perform system upgrade to the latest release
+        if [[ "$SPREAD_REBOOT" == 0 ]]; then
+            if distro_upgrade | MATCH "reboot"; then
+                echo "system upgraded, reboot required"
+                REBOOT
+            fi
+        fi
+    fi
+
     if os.query is-arch-linux; then
         # perform system upgrade on Arch so that we run with most recent kernel
         # and userspace
