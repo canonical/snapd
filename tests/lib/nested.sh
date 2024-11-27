@@ -15,6 +15,7 @@
 : "${NESTED_CUSTOM_AUTO_IMPORT_ASSERTION:=}"
 : "${NESTED_FAKESTORE_BLOB_DIR:=${NESTED_WORK_DIR}/fakestore/blobs}"
 : "${NESTED_SIGN_SNAPS_FAKESTORE:=false}"
+: "${NESTED_REPACK_FOR_FAKESTORE:=false}"
 : "${NESTED_FAKESTORE_SNAP_DECL_PC_GADGET:=}"
 : "${NESTED_UBUNTU_IMAGE_SNAPPY_FORCE_SAS_URL:=}"
 : "${NESTED_UBUNTU_IMAGE_PRESEED_KEY:=}"
@@ -769,6 +770,14 @@ EOF
 
             if [ -n "$NESTED_UBUNTU_SEED_SIZE" ]; then
                 "$TESTSLIB"/manip_ubuntu_seed.py pc-gadget/meta/gadget.yaml "$NESTED_UBUNTU_SEED_SIZE"
+            fi
+
+            if [ "$NESTED_REPACK_FOR_FAKESTORE" = "true" ]; then
+                cat > pc-gadget/meta/hooks/prepare-device << EOF
+#!/bin/sh
+snapctl set device-service.url=http://localhost:11029
+EOF
+                chmod +x pc-gadget/meta/hooks/prepare-device
             fi
 
             # pack the gadget
