@@ -31,7 +31,7 @@ func (c *Client) ConfdbGetViaView(viewID string, requests []string) (result map[
 	query := url.Values{}
 	query.Add("fields", strings.Join(requests, ","))
 
-	endpoint := fmt.Sprintf("/v2/confdb/%s", viewID)
+	endpoint := fmt.Sprintf("/v2/confdbs/%s", viewID)
 	_, err = c.doSync("GET", endpoint, query, nil, nil, &result)
 	if err != nil {
 		return nil, err
@@ -49,6 +49,6 @@ func (c *Client) ConfdbSetViaView(viewID string, requestValues map[string]interf
 	headers := make(map[string]string)
 	headers["Content-Type"] = "application/json"
 
-	endpoint := fmt.Sprintf("/v2/confdb/%s", viewID)
+	endpoint := fmt.Sprintf("/v2/confdbs/%s", viewID)
 	return c.doAsync("PUT", endpoint, nil, headers, bytes.NewReader(body))
 }

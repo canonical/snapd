@@ -35,7 +35,7 @@ func (cs *clientSuite) TestConfdbGet(c *C) {
 	c.Check(res, DeepEquals, map[string]interface{}{"foo": "baz", "bar": json.Number("1")})
 	c.Assert(cs.reqs, HasLen, 1)
 	c.Check(cs.reqs[0].Method, Equals, "GET")
-	c.Check(cs.reqs[0].URL.Path, Equals, "/v2/confdb/a/b/c")
+	c.Check(cs.reqs[0].URL.Path, Equals, "/v2/confdbs/a/b/c")
 	c.Check(cs.reqs[0].URL.Query(), DeepEquals, url.Values{"fields": []string{"foo,bar"}})
 }
 
@@ -49,7 +49,7 @@ func (cs *clientSuite) TestConfdbSet(c *C) {
 	c.Assert(cs.reqs, HasLen, 1)
 	c.Check(cs.reqs[0].Method, Equals, "PUT")
 	c.Check(cs.reqs[0].Header.Get("Content-Type"), Equals, "application/json")
-	c.Check(cs.reqs[0].URL.Path, Equals, "/v2/confdb/a/b/c")
+	c.Check(cs.reqs[0].URL.Path, Equals, "/v2/confdbs/a/b/c")
 	data, err := io.ReadAll(cs.reqs[0].Body)
 	c.Assert(err, IsNil)
 
