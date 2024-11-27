@@ -63,6 +63,7 @@ var (
 	snapstateSwitch                       = snapstate.Switch
 	snapstateUpdatePathWithDeviceContext  = snapstate.UpdatePathWithDeviceContext
 	snapstateDownload                     = snapstate.Download
+	snapstateDownloadComponents           = snapstate.DownloadComponents
 )
 
 // findModel returns the device model assertion.
@@ -1150,7 +1151,9 @@ func remodelTasks(ctx context.Context, st *state.State, current, new *asserts.Mo
 		}
 		// we don't pass in the list of local snaps here because they are
 		// already represented by snapSetupTasks
-		createRecoveryTasks, err := createRecoverySystemTasks(st, label, snapSetupTasks, CreateRecoverySystemOptions{
+
+		// TODO:COMPS - pass in the list of component setup tasks
+		createRecoveryTasks, err := createRecoverySystemTasks(st, label, snapSetupTasks, nil, CreateRecoverySystemOptions{
 			TestSystem: true,
 		})
 		if err != nil {
@@ -1498,10 +1501,14 @@ type recoverySystemSetup struct {
 	// SnapSetupTasks is a list of task IDs that carry snap setup information.
 	// Tasks could come from a remodel, or from downloading snaps that were
 	// required by a validation set.
-	SnapSetupTasks []string `json:"snap-setup-tasks"`
+	SnapSetupTasks []string `json:"snap-setup-tasks,omitempty"`
 	// LocalSnaps is a list of snaps that should be used to create the recovery
 	// system.
 	LocalSnaps []LocalSnap `json:"local-snaps,omitempty"`
+	// ComponentSetupTasks is a list of task IDs that carry component setup
+	// information. Tasks could come from a remodel, or from downloading
+	// components that were required by a validation set.
+	ComponentSetupTasks []string `json:"component-setup-tasks,omitempty"`
 	// TestSystem is set to true if the new recovery system should
 	// not be verified by rebooting into the new system. Once the system is
 	// created, it will immediately be considered a valid recovery system.
@@ -1553,7 +1560,7 @@ func removeRecoverySystemTasks(st *state.State, label string) (*state.TaskSet, e
 	return state.NewTaskSet(remove), nil
 }
 
-func createRecoverySystemTasks(st *state.State, label string, snapSetupTasks []string, opts CreateRecoverySystemOptions) (*state.TaskSet, error) {
+func createRecoverySystemTasks(st *state.State, label string, snapSetupTasks, compSetupTasks []string, opts CreateRecoverySystemOptions) (*state.TaskSet, error) {
 	// precondition check, the directory should not exist yet
 	systemDirectory := filepath.Join(boot.InitramfsUbuntuSeedDir, "systems", label)
 	exists, _, err := osutil.DirExists(systemDirectory)
@@ -1570,10 +1577,11 @@ func createRecoverySystemTasks(st *state.State, label string, snapSetupTasks []s
 		Label:     label,
 		Directory: systemDirectory,
 		// IDs of the tasks carrying snap-setup
-		SnapSetupTasks: snapSetupTasks,
-		LocalSnaps:     opts.LocalSnaps,
-		TestSystem:     opts.TestSystem,
-		MarkDefault:    opts.MarkDefault,
+		SnapSetupTasks:      snapSetupTasks,
+		ComponentSetupTasks: compSetupTasks,
+		LocalSnaps:          opts.LocalSnaps,
+		TestSystem:          opts.TestSystem,
+		MarkDefault:         opts.MarkDefault,
 	})
 
 	ts := state.NewTaskSet(create)
@@ -1705,11 +1713,6 @@ func CreateRecoverySystem(st *state.State, label string, opts CreateRecoverySyst
 		return nil, err
 	}
 
-	revisions, err := valsets.Revisions()
-	if err != nil {
-		return nil, err
-	}
-
 	// TODO: this restriction should be lifted eventually (in the case that we
 	// have a dangerous model), and we should fall back to using snap names in
 	// places that IDs are used
@@ -1722,64 +1725,115 @@ func CreateRecoverySystem(st *state.State, label string, opts CreateRecoverySyst
 		return nil, err
 	}
 
+	// TODO: check that all snaps and components that are required by validation
+	// sets are also required in the model. this matches the behavior of
+	// remodeling.
+
 	tracker := snap.NewSelfContainedSetPrereqTracker()
+
+	validRevision := func(current snap.Revision, constraints snapasserts.PresenceConstraint) bool {
+		return constraints.Revision.Unset() || current == constraints.Revision
+	}
 
 	var downloadTSS []*state.TaskSet
 	for _, sn := range model.AllSnaps() {
-		rev := revisions[sn.Name]
-
-		needsInstall, err := snapNeedsInstall(st, sn.Name, rev)
+		constraints, err := valsets.Presence(sn)
 		if err != nil {
 			return nil, err
 		}
 
-		if !needsInstall {
+		installed, currentRevision, err := installedSnapRevision(st, sn.Name)
+		if err != nil {
+			return nil, err
+		}
+
+		// if the snap is installed, then we must either download it from the
+		// store, have it provided locally, or it must be installed at the
+		// correct revision.
+		//
+		// TODO: in the case that the snap is installed at the wrong revision,
+		// we must provide it either from the store or locally. this is because
+		// doCreateRecoverySystem will install any optional snaps that are
+		// present on the system.
+		required := constraints.Presence == asserts.PresenceRequired || sn.Presence == "required" || installed
+		if !required {
+			continue
+		}
+
+		compsToDownload := make([]string, 0, len(sn.Components))
+		for name, comp := range sn.Components {
+			compInstalled, currentCompRevision, err := installedComponentRevision(st, sn.Name, name)
+			if err != nil {
+				return nil, err
+			}
+
+			compConstraints := constraints.Component(name)
+
+			required := comp.Presence == "required" || constraints.Component(name).Presence == asserts.PresenceRequired || compInstalled
+
+			// same deal as with snaps, same TODO as well
+			if !required {
+				continue
+			}
+
+			switch {
+			case compInstalled && validRevision(currentCompRevision, compConstraints):
+				// nothing to do!
+			case opts.Offline:
+				// TODO: verify that we have the offline component
+			default:
+				compsToDownload = append(compsToDownload, name)
+			}
+		}
+
+		switch {
+		case installed && validRevision(currentRevision, constraints.PresenceConstraint):
 			info, err := snapstate.CurrentInfo(st, sn.Name)
 			if err != nil {
 				return nil, err
 			}
 			tracker.Add(info)
-			continue
-		}
-
-		if sn.Presence != "required" {
-			pres, err := valsets.Presence(sn)
-			if err != nil {
-				return nil, err
-			}
-
-			// snap isn't already installed, and it isn't required by model or
-			// any validation sets, so we should skip it
-			if pres.Presence != asserts.PresenceRequired {
-				continue
-			}
-		}
-
-		if opts.Offline {
-			info, err := offlineSnapInfo(sn, rev, opts)
+		case opts.Offline:
+			info, err := offlineSnapInfo(sn, constraints.Revision, opts)
 			if err != nil {
 				return nil, err
 			}
 			tracker.Add(info)
+		default:
+			// TODO: this respects the passed in validation sets, but does not
+			// currently respect refresh-control style of constraining snap
+			// revisions.
+			//
+			// TODO: download somewhere other than the default snap blob dir.
+			ts, _, err := snapstateDownload(context.TODO(), st, sn.Name, compsToDownload, dirs.SnapBlobDir, snapstate.RevisionOptions{
+				Channel:        sn.DefaultChannel,
+				ValidationSets: valsets,
+			}, snapstate.Options{
+				PrereqTracker: tracker,
+			})
+			if err != nil {
+				return nil, err
+			}
+			downloadTSS = append(downloadTSS, ts)
+
+			// if we go in this branch, then we'll handle downloading snaps and
+			// components at the same time.
 			continue
 		}
 
-		// TODO: this respects the passed in validation sets, but does not
-		// currently respect refresh-control style of constraining snap
-		// revisions.
-		//
-		// TODO: download somewhere other than the default snap blob dir.
-		ts, info, err := snapstateDownload(context.TODO(), st, sn.Name, nil, dirs.SnapBlobDir, snapstate.RevisionOptions{
-			Channel:        sn.DefaultChannel,
-			Revision:       rev,
-			ValidationSets: valsets,
-		}, snapstate.Options{})
-		if err != nil {
-			return nil, err
+		if len(compsToDownload) > 0 {
+			// TODO: download somewhere other than the default snap blob dir.
+			ts, err := snapstateDownloadComponents(context.TODO(), st, sn.Name, compsToDownload, dirs.SnapBlobDir, snapstate.RevisionOptions{
+				Channel:        sn.DefaultChannel,
+				ValidationSets: valsets,
+			}, snapstate.Options{
+				PrereqTracker: tracker,
+			})
+			if err != nil {
+				return nil, err
+			}
+			downloadTSS = append(downloadTSS, ts)
 		}
-
-		tracker.Add(info)
-		downloadTSS = append(downloadTSS, ts)
 	}
 
 	warnings, errs := tracker.Check()
@@ -1787,7 +1841,6 @@ func CreateRecoverySystem(st *state.State, label string, opts CreateRecoverySyst
 		logger.Noticef("create recovery system prerequisites warning: %v", w)
 	}
 
-	// TODO: use function from other branch
 	if len(errs) > 0 {
 		var builder strings.Builder
 		builder.WriteString("cannot create recovery system from model that is not self-contained:")
@@ -1800,16 +1853,13 @@ func CreateRecoverySystem(st *state.State, label string, opts CreateRecoverySyst
 		return nil, errors.New(builder.String())
 	}
 
-	var snapsupTaskIDs []string
-	if len(downloadTSS) > 0 {
-		snapsupTaskIDs, err = extractSnapSetupTaskIDs(downloadTSS)
-		if err != nil {
-			return nil, err
-		}
+	snapsupTaskIDs, compsupTaskIDs, err := extractSnapSetupTaskIDs(downloadTSS)
+	if err != nil {
+		return nil, err
 	}
 
 	chg = st.NewChange("create-recovery-system", fmt.Sprintf("Create new recovery system with label %q", label))
-	createTS, err := createRecoverySystemTasks(st, label, snapsupTaskIDs, opts)
+	createTS, err := createRecoverySystemTasks(st, label, snapsupTaskIDs, compsupTaskIDs, opts)
 	if err != nil {
 		return nil, err
 	}
@@ -1870,39 +1920,59 @@ func offlineSnapInfo(sn *asserts.ModelSnap, rev snap.Revision, opts CreateRecove
 	return snap.ReadInfoFromSnapFile(s, localSnap.SideInfo)
 }
 
-func snapNeedsInstall(st *state.State, name string, rev snap.Revision) (bool, error) {
-	info, err := snapstate.CurrentInfo(st, name)
-	if err != nil {
-		if isNotInstalled(err) {
-			return true, nil
+func installedSnapRevision(st *state.State, name string) (bool, snap.Revision, error) {
+	var snapst snapstate.SnapState
+	if err := snapstate.Get(st, name, &snapst); err != nil {
+		if errors.Is(err, state.ErrNoState) {
+			return false, snap.Revision{}, nil
 		}
-		return false, err
+		return false, snap.Revision{}, err
 	}
-
-	if rev.Unset() {
-		return false, nil
-	}
-
-	return rev != info.Revision, nil
+	return true, snapst.Current, nil
 }
 
-func extractSnapSetupTaskIDs(tss []*state.TaskSet) ([]string, error) {
-	var taskIDs []string
+func installedComponentRevision(st *state.State, snapName, compName string) (bool, snap.Revision, error) {
+	var snapst snapstate.SnapState
+	if err := snapstate.Get(st, snapName, &snapst); err != nil {
+		if errors.Is(err, state.ErrNoState) {
+			return false, snap.Revision{}, nil
+		}
+		return false, snap.Revision{}, err
+	}
+
+	for _, comp := range snapst.CurrentComponentSideInfos() {
+		if comp.Component.ComponentName == compName {
+			return true, comp.Revision, nil
+		}
+	}
+
+	return false, snap.Revision{}, nil
+}
+
+func extractSnapSetupTaskIDs(tss []*state.TaskSet) (snapsupTaskIDs, compsupTaskIDs []string, err error) {
 	for _, ts := range tss {
-		found := false
+		var snapsupTask *state.Task
 		for _, t := range ts.Tasks() {
 			if t.Has("snap-setup") {
-				taskIDs = append(taskIDs, t.ID())
-				found = true
+				snapsupTask = t
 				break
 			}
 		}
 
-		if !found {
-			return nil, errors.New("internal error: snap setup task missing from task set")
+		if snapsupTask == nil {
+			return nil, nil, errors.New("internal error: snap setup task missing from task set")
 		}
+
+		snapsupTaskIDs = append(snapsupTaskIDs, snapsupTask.ID())
+
+		var compsups []string
+		if err := snapsupTask.Get("component-setup-tasks", &compsups); err != nil && !errors.Is(err, state.ErrNoState) {
+			return nil, nil, err
+		}
+
+		compsupTaskIDs = append(compsupTaskIDs, compsups...)
 	}
-	return taskIDs, nil
+	return snapsupTaskIDs, compsupTaskIDs, nil
 }
 
 // OptionalContainers is used to define the snaps and components that are
