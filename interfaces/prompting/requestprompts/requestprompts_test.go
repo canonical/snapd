@@ -1010,14 +1010,14 @@ func (s *requestpromptsSuite) TestClose(c *C) {
 	// All prompts have been cleared, and all per-user maps deleted
 	c.Check(pdb.PerUser(), HasLen, 0)
 
-	// Sanity check that the timer is still active, though this is not part of
+	// Sense check that the timer is still active, though this is not part of
 	// any contract, and there's no reason that closing the timer shouldn't be
 	// allowed to stop the expiration timers. We don't at the moment because
 	// doing so is racy and unnecessary, though there's no harm in closing them.
 	c.Check(timer.Active(), Equals, true)
 
 	// Elapse time as if the prompt timer expired
-	timer.Elapse(requestprompts.InitialTimeout)
+	timer.Elapse(requestprompts.InitialTimeout + requestprompts.ActivityTimeout)
 	// Check that timer expiration did not result in new notices
 	s.checkNewNoticesSimple(c, []prompting.IDType{}, nil)
 	// Check that the timer is no longer active. Since the DB is closed, the
@@ -1170,7 +1170,7 @@ func (s *requestpromptsSuite) TestPromptExpiration(c *C) {
 	checkCurrentNotices(c, noticeChan, prompt2.ID, nil)
 
 	// Prompt should expire after initialTimeout, but half already elapsed
-	timer.Elapse(requestprompts.InitialTimeout / 2)
+	timer.Elapse(requestprompts.InitialTimeout - requestprompts.InitialTimeout/2)
 	checkCurrentNoticesMultiple(c, noticeChan, []prompting.IDType{prompt.ID, prompt2.ID}, map[string]string{"resolved": "expired"})
 	// Expect two replies, one for each prompt
 	waitForReply(c, replyChan)
@@ -1339,7 +1339,7 @@ func (s *requestpromptsSuite) TestPromptExpirationRace(c *C) {
 	// activityTimeout instead of leaving it reset to initialTimeout.
 	// First, check that the prompt doesn't expire after the preemptively reset
 	// timeout (but before initialTimeout).
-	timer.Elapse(requestprompts.InitialTimeout / 4 * 3)
+	timer.Elapse(requestprompts.InitialTimeout - requestprompts.InitialTimeout/4)
 	c.Assert(timer.FireCount(), Equals, 1)
 	// Next, check that the prompt doesn't expire after the full initialTimeout
 	// (but before activityTimeout).
