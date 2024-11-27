@@ -47,16 +47,27 @@ func (s *downloadComponentSuite) SetUpTest(c *C) {
 }
 
 func (s *downloadComponentSuite) TestDoDownloadComponent(c *C) {
-	const autoRefresh = false
-	s.testDoDownloadComponent(c, autoRefresh)
+	s.testDoDownloadComponent(c, testDoDownloadComponentOpts{})
 }
 
 func (s *downloadComponentSuite) TestDoDownloadComponentAutoRefresh(c *C) {
-	const autoRefresh = true
-	s.testDoDownloadComponent(c, autoRefresh)
+	s.testDoDownloadComponent(c, testDoDownloadComponentOpts{
+		autoRefresh: true,
+	})
 }
 
-func (s *downloadComponentSuite) testDoDownloadComponent(c *C, autoRefresh bool) {
+func (s *downloadComponentSuite) TestDoDownloadComponentCustomBlobDir(c *C) {
+	s.testDoDownloadComponent(c, testDoDownloadComponentOpts{
+		blobDir: c.MkDir(),
+	})
+}
+
+type testDoDownloadComponentOpts struct {
+	autoRefresh bool
+	blobDir     string
+}
+
+func (s *downloadComponentSuite) testDoDownloadComponent(c *C, opts testDoDownloadComponentOpts) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -75,9 +86,10 @@ func (s *downloadComponentSuite) testDoDownloadComponent(c *C, autoRefresh bool)
 	t := s.state.NewTask("download-component", "...")
 
 	t.Set("snap-setup", &snapstate.SnapSetup{
-		SideInfo:    si,
-		InstanceKey: "key",
-		Flags:       snapstate.Flags{IsAutoRefresh: autoRefresh},
+		SideInfo:        si,
+		InstanceKey:     "key",
+		Flags:           snapstate.Flags{IsAutoRefresh: opts.autoRefresh},
+		DownloadBlobDir: opts.blobDir,
 	})
 
 	t.Set("component-setup", &snapstate.ComponentSetup{
@@ -89,6 +101,7 @@ func (s *downloadComponentSuite) testDoDownloadComponent(c *C, autoRefresh bool)
 		DownloadInfo: &snap.DownloadInfo{
 			DownloadURL: "http://some-url.com/comp",
 		},
+		DownloadBlobDir: opts.blobDir,
 	})
 
 	chg := s.state.NewChange("download", "...")
@@ -111,7 +124,11 @@ func (s *downloadComponentSuite) testDoDownloadComponent(c *C, autoRefresh bool)
 		},
 	})
 
-	expectedPath := filepath.Join(dirs.SnapBlobDir, "snap_key+comp_11.comp")
+	blobDir := opts.blobDir
+	if blobDir == "" {
+		blobDir = dirs.SnapBlobDir
+	}
+	expectedPath := filepath.Join(blobDir, "snap_key+comp_11.comp")
 
 	var compsup snapstate.ComponentSetup
 	err := t.Get("component-setup", &compsup)
@@ -119,9 +136,9 @@ func (s *downloadComponentSuite) testDoDownloadComponent(c *C, autoRefresh bool)
 	c.Check(compsup.CompPath, Equals, expectedPath)
 	c.Check(t.Status(), Equals, state.DoneStatus)
 
-	var opts *store.DownloadOptions
-	if autoRefresh {
-		opts = &store.DownloadOptions{
+	var downloadOpts *store.DownloadOptions
+	if opts.autoRefresh {
+		downloadOpts = &store.DownloadOptions{
 			RateLimit: 1234,
 			Scheduled: true,
 		}
@@ -131,7 +148,7 @@ func (s *downloadComponentSuite) testDoDownloadComponent(c *C, autoRefresh bool)
 		{
 			name:   "snap+comp",
 			target: expectedPath,
-			opts:   opts,
+			opts:   downloadOpts,
 		},
 	})
 }
