@@ -311,7 +311,7 @@ func (udb *userPromptDB) timeoutCallback(pdb *PromptDB, user uint32) {
 	expiredPrompts := udb.prompts
 	// Clear all outstanding prompts for the user
 	udb.prompts = nil
-	udb.ids = make(map[prompting.IDType]int)
+	udb.ids = make(map[prompting.IDType]int) // TODO: clear() once we're on Go 1.21+
 	// Unlock now so we can record notices without holding the prompt DB lock
 	pdb.mutex.Unlock()
 	data := map[string]string{"resolved": "expired"}
