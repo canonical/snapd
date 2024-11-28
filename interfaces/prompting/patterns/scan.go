@@ -60,7 +60,7 @@ type token struct {
 	text  string
 }
 
-// relpathFinder matches `/./` or `/../` in path patterns.
+// relpathFinder matches `/./` and `/../` along with their trailing variants `/.` and `/..` in path patterns.
 var relpathFinder = regexp.MustCompile(`/\.(\.)?(/|$)`)
 
 func scan(text string) (tokens []token, err error) {
