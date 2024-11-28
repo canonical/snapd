@@ -38,15 +38,12 @@ execute: |
     # The expiry date is <expiration year>/<expiration month>      
     
     declare -A exclusion_map
-    exclusion_map["intel-qat"]="2024/10"
-    exclusion_map["microceph"]="2024/10"
-    exclusion_map["microceph-support"]="2024/10"
-    exclusion_map["pkcs11"]="2024/10"
-    exclusion_map["registry"]="2024/11"
-    exclusion_map["snap-interfaces-requests-control"]="2024/11"
-    exclusion_map["system-packages-doc"]="2024/10"
-    exclusion_map["xilinx-dma"]="2024/10"
-    exclusion_map["nomad-support"]="2024/10"
+    exclusion_map["intel-qat"]="2024/12"
+    exclusion_map["microceph-support"]="2024/12"
+    exclusion_map["registry"]="2024/12"
+    exclusion_map["snap-interfaces-requests-control"]="2024/12"
+    exclusion_map["xilinx-dma"]="2024/12"
+    exclusion_map["nomad-support"]="2024/12"
 
     # If the interface is in the exclusion_map and it is currently sooner
     # than its specified expiration date, then return true
