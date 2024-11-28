@@ -317,9 +317,11 @@ func (s *storeInstallGoal) toInstall(ctx context.Context, st *state.State, opts 
 	return installs, err
 }
 
+type cachedValidationSets = func() (*snapasserts.ValidationSets, error)
+
 // cachedEnforcedValidationSets returns a function that will lazily load (and
 // cache) the enforced validation sets if is is ever called.
-func cachedEnforcedValidationSets(st *state.State) func() (*snapasserts.ValidationSets, error) {
+func cachedEnforcedValidationSets(st *state.State) cachedValidationSets {
 	var vsets *snapasserts.ValidationSets
 	return func() (*snapasserts.ValidationSets, error) {
 		if vsets != nil {
@@ -499,8 +501,6 @@ func invalidRevisionError(a *store.SnapAction, sets []snapasserts.ValidationSetK
 
 func (s *storeInstallGoal) validateAndPrune(st *state.State, installedSnaps map[string]*SnapState, opts Options) error {
 	enforcedSetsFunc := cachedEnforcedValidationSets(st)
-	emptySets := snapasserts.NewValidationSets()
-
 	uninstalled := s.snaps[:0]
 	for _, sn := range s.snaps {
 		if err := snap.ValidateInstanceName(sn.InstanceName); err != nil {
@@ -526,18 +526,12 @@ func (s *storeInstallGoal) validateAndPrune(st *state.State, installedSnaps map[
 			sn.RevOpts.Channel = "stable"
 		}
 
-		sn.RevOpts.resolveChannel(sn.InstanceName, "stable", opts.DeviceCtx)
+		if err := sn.RevOpts.resolveChannel(sn.InstanceName, "stable", opts.DeviceCtx); err != nil {
+			return err
+		}
 
-		if sn.RevOpts.ValidationSets == nil {
-			if opts.Flags.IgnoreValidation {
-				sn.RevOpts.ValidationSets = emptySets
-			} else {
-				enforced, err := enforcedSetsFunc()
-				if err != nil {
-					return err
-				}
-				sn.RevOpts.ValidationSets = enforced
-			}
+		if err := sn.RevOpts.initializeValidationSets(enforcedSetsFunc, opts); err != nil {
+			return err
 		}
 
 		uninstalled = append(uninstalled, sn)
@@ -1150,8 +1144,6 @@ func (s *storeUpdateGoal) toUpdate(ctx context.Context, st *state.State, opts Op
 
 func validateAndInitStoreUpdates(st *state.State, allSnaps map[string]*SnapState, updates map[string]StoreUpdate, opts Options) error {
 	enforcedSetsFunc := cachedEnforcedValidationSets(st)
-	emptySets := snapasserts.NewValidationSets()
-
 	for _, sn := range updates {
 		snapst, ok := allSnaps[sn.InstanceName]
 		if !ok {
@@ -1178,16 +1170,8 @@ func validateAndInitStoreUpdates(st *state.State, allSnaps map[string]*SnapState
 		}
 		sn.AdditionalComponents = additional
 
-		if sn.RevOpts.ValidationSets == nil {
-			if opts.Flags.IgnoreValidation {
-				sn.RevOpts.ValidationSets = emptySets
-			} else {
-				enforced, err := enforcedSetsFunc()
-				if err != nil {
-					return err
-				}
-				sn.RevOpts.ValidationSets = enforced
-			}
+		if err := sn.RevOpts.initializeValidationSets(enforcedSetsFunc, opts); err != nil {
+			return err
 		}
 
 		updates[sn.InstanceName] = sn
