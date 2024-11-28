@@ -7974,6 +7974,35 @@ func (s *validationSetsSuite) TestUpdateToRevisionWithValidationSets(c *C) {
 	c.Assert(s.fakeBackend.ops, DeepEquals, expectedOps)
 }
 
+func (s *validationSetsSuite) TestUpdateWithValidationSetsInvalidSnap(c *C) {
+	restore := snapstate.MockEnforcedValidationSets(func(st *state.State, extraVss ...*asserts.ValidationSet) (*snapasserts.ValidationSets, error) {
+		return nil, fmt.Errorf("unexpected")
+	})
+	defer restore()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	si := &snap.SideInfo{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(1)}
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Active:   true,
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si}),
+		Current:  snap.R(1),
+		SnapType: "app",
+	})
+	snaptest.MockSnap(c, `name: some-snap`, si)
+
+	vsets := snapasserts.NewValidationSets()
+	vsets.Add(s.mockValidationSetAssert(c, "bar", "1", map[string]interface{}{
+		"id":       "yOqKhntON3vR7kwEbVPsILm7bUViPDzx",
+		"name":     "some-snap",
+		"presence": "invalid",
+	}).(*asserts.ValidationSet))
+
+	_, err := snapstate.Update(s.state, "some-snap", &snapstate.RevisionOptions{Revision: snap.R(11), ValidationSets: vsets}, 0, snapstate.Flags{})
+	c.Assert(err, ErrorMatches, `cannot update snap "some-snap" due to enforcing rules of validation set 16/foo/bar/1`)
+}
+
 func (s *snapmgrTestSuite) TestUpdatePrerequisiteWithSameDeviceContext(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
