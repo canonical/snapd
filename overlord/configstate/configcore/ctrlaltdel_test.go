@@ -59,7 +59,7 @@ var _ = Suite(&ctrlaltdelSuite{})
 
 func (s *ctrlaltdelSuite) SetUpTest(c *C) {
 	s.configcoreSuite.SetUpTest(c)
-	s.systemctlOutput = func(args ...string) []byte {
+	s.systemctlOutput = func(args ...string) ([]byte, error) {
 		var output []byte
 		// 'args' represents the arguments passed in for the systemctl Status call.
 		// The test context is specific to the ctrlaltdel handler, which only uses
@@ -91,7 +91,7 @@ func (s *ctrlaltdelSuite) SetUpTest(c *C) {
 				// No output returned by systemctl
 			}
 		}
-		return output
+		return output, nil
 	}
 	s.unit = unitStateNone
 	c.Assert(os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "etc"), 0755), IsNil)
