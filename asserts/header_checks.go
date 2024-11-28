@@ -223,11 +223,15 @@ func checkDigest(headers map[string]interface{}, name string, h crypto.Hash) ([]
 }
 
 func checkDigestWhat(headers map[string]interface{}, name string, h crypto.Hash, what string) ([]byte, error) {
+	return checkDigestWhatDec(headers, name, h, what, base64.RawURLEncoding.DecodeString)
+}
+
+func checkDigestWhatDec(headers map[string]interface{}, name string, h crypto.Hash, what string, f func(string) ([]byte, error)) ([]byte, error) {
 	digestStr, err := checkNotEmptyStringWhat(headers, name, what)
 	if err != nil {
 		return nil, err
 	}
-	b, err := base64.RawURLEncoding.DecodeString(digestStr)
+	b, err := f(digestStr)
 	if err != nil {
 		return nil, fmt.Errorf("%q %s cannot be decoded: %v", name, what, err)
 	}
