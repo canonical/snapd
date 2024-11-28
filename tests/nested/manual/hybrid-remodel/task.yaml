@@ -72,7 +72,14 @@ execute: |
   remote.exec 'snap changes' | MATCH "${change_id}\s+Done.+Refresh model assertion from revision 0 to 1"
 
   remote.exec "snap list" | MATCH "jq-core${VERSION}"
-  remote.exec 'snap list pc-kernel' | awk 'NR != 1 { print $4 }' | MATCH "${VERSION}-hwe/stable"
+  
+  # for now different tracks are used, but would nice to streamline
+  # this going forward
+  if [ "$VERSION" == 22 ]; then
+    remote.exec 'snap list pc-kernel' | awk 'NR != 1 { print $4 }' | MATCH "${VERSION}-oem/stable"
+  elif [ "$VERSION" == 24 ]; then
+    remote.exec 'snap list pc-kernel' | awk 'NR != 1 { print $4 }' | MATCH "${VERSION}-hwe/stable"
+  fi
 
   # TODO: once we support installing recovery systems during the hybrid install,
   # we should switch this test to use a gadget that does not use "system-seed-null"
