@@ -82,7 +82,7 @@ func InstallComponents(
 		return nil, err
 	}
 
-	// TODO: verify validation sets here
+	// TODO:COMPS: verify validation sets here
 
 	snapsup := SnapSetup{
 		Base:        info.Base,
