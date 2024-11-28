@@ -744,12 +744,9 @@ func (m *SnapManager) doDownloadSnap(t *state.Task, tomb *tomb.Tomb) error {
 		result, err = sendOneInstallActionUnlocked(context.TODO(), st, StoreSnap{
 			InstanceName: snapsup.InstanceName(),
 			RevOpts: RevisionOptions{
-				Channel:   snapsup.Channel,
-				CohortKey: snapsup.CohortKey,
-				Revision:  snapsup.Revision(),
-				// TODO: do we actually want to use the enforced validation sets
-				// here? i personally think no, since we should have already
-				// validated this change before getting here.
+				Channel:        snapsup.Channel,
+				CohortKey:      snapsup.CohortKey,
+				Revision:       snapsup.Revision(),
 				ValidationSets: vsets,
 			},
 		}, Options{})
