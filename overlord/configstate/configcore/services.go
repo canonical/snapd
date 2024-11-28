@@ -372,8 +372,7 @@ func handleServiceConfigSSHListen(dev sysconfig.Device, tr ConfGetter, opts *fsO
 
 	if opts == nil {
 		sysd := systemd.New(systemd.SystemMode, &sysdLogger{})
-		// From 22.10 sshd now uses socket based activation. This changes how to reload
-		// ssh configuration
+		// From 22.10 sshd now uses socket based activation. This changes how to reload ssh configuration
 		// Discussion here: https://discourse.ubuntu.com/t/sshd-now-uses-socket-based-activation-ubuntu-22-10-and-later/30189/9
 		if enabled, err := sysd.IsEnabled("ssh.socket"); err == nil && enabled {
 			if err := sysd.DaemonReload(); err != nil {
