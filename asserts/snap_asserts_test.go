@@ -23,6 +23,7 @@ import (
 	"encoding/base64"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
 	"time"
@@ -853,6 +854,7 @@ func (sbs *snapBuildSuite) SetUpSuite(c *C) {
 
 const (
 	blobSHA3_384 = "QlqR0uAWEAWF5Nwnzj5kqmmwFslYPu1IL16MKtLKhwhv0kpBv5wKZ_axf_nf_2cL"
+	hexSHA256    = "e2926364a8b1242d92fb1b56081e1ddb86eba35411961252a103a1c083c2be6d"
 )
 
 func (sbs *snapBuildSuite) TestDecodeOK(c *C) {
@@ -1023,15 +1025,22 @@ func (srs *snapRevSuite) makeValidEncoded() string {
 }
 
 func (srs *snapRevSuite) makeValidEncodedWithIntegrity() string {
+	integrityData := "integrity:\n" +
+		"  -\n" +
+		"    type: dm-verity\n" +
+		"    digest: " + hexSHA256 + "\n" +
+		"    version: 1\n" +
+		"    hash-alg: sha256\n" +
+		"    block-size: 4096\n" +
+		"    salt: " + hexSHA256 + "\n"
+
 	return "type: snap-revision\n" +
 		"authority-id: store-id1\n" +
 		"snap-sha3-384: " + blobSHA3_384 + "\n" +
 		"snap-id: snap-id-1\n" +
 		"snap-size: 123\n" +
 		"snap-revision: 1\n" +
-		"integrity:\n" +
-		"  sha3-384: " + blobSHA3_384 + "\n" +
-		"  size: 128\n" +
+		integrityData +
 		"developer-id: dev-id1\n" +
 		"revision: 1\n" +
 		srs.tsLine +
@@ -1112,8 +1121,12 @@ func (srs *snapRevSuite) TestDecodeOKWithIntegrity(c *C) {
 	c.Check(snapRev.DeveloperID(), Equals, "dev-id1")
 	c.Check(snapRev.Revision(), Equals, 1)
 	c.Check(snapRev.Provenance(), Equals, "global-upload")
-	c.Check(snapRev.SnapIntegrity().SHA3_384, Equals, blobSHA3_384)
-	c.Check(snapRev.SnapIntegrity().Size, Equals, uint64(128))
+	c.Check(snapRev.SnapIntegrityData()[0].Type, Equals, "dm-verity")
+	c.Check(snapRev.SnapIntegrityData()[0].Version, Equals, uint(1))
+	c.Check(snapRev.SnapIntegrityData()[0].HashAlg, Equals, "sha256")
+	c.Check(snapRev.SnapIntegrityData()[0].BlockSize, Equals, uint(4096))
+	c.Check(snapRev.SnapIntegrityData()[0].Digest, Equals, hexSHA256)
+	c.Check(snapRev.SnapIntegrityData()[0].Salt, Equals, hexSHA256)
 }
 
 const (
@@ -1160,22 +1173,45 @@ func (srs *snapRevSuite) TestDecodeInvalidWithIntegrity(c *C) {
 	encoded := srs.makeValidEncodedWithIntegrity()
 
 	integrityHdr := "integrity:\n" +
-		"  sha3-384: " + blobSHA3_384 + "\n" +
-		"  size: 128\n"
+		"  -\n" +
+		"    type: dm-verity\n" +
+		"    digest: " + hexSHA256 + "\n" +
+		"    version: 1\n" +
+		"    hash-alg: sha256\n" +
+		"    block-size: 4096\n" +
+		"    salt: " + hexSHA256 + "\n"
 
-	integrityShaHdr := "  sha3-384: " + blobSHA3_384 + "\n"
+	integrityTypeHdr := "    type: dm-verity\n"
+	integrityVersionHdr := "    version: 1\n"
+	integrityHashAlgHdr := "    hash-alg: sha256\n"
+	integrityBlockSizeHdr := "    block-size: 4096\n"
+	integrityDigestHdr := "    digest: " + hexSHA256 + "\n"
+	integritySaltHdr := "    salt: " + hexSHA256 + "\n"
 
-	integritySizeHdr := "  size: 128\n"
-
-	invalidTests := []struct{ original, invalid, expectedErr string }{
-		{integrityHdr, "integrity: \n", `"integrity" header must be a map`},
-		{integrityShaHdr, "  sha3-384: \n", `"sha3-384" of integrity header should not be empty`},
-		{integrityShaHdr, "  sha3-384: #\n", `"sha3-384" of integrity header cannot be decoded:.*`},
-		{integrityShaHdr, "  sha3-384: eHl6\n", `"sha3-384" of integrity header does not have the expected bit length: 24`},
-		{integritySizeHdr, "", `"size" of integrity header is mandatory`},
-		{integritySizeHdr, "  size: \n", `"size" of integrity header should not be empty`},
-		{integritySizeHdr, "  size: -1\n", `"size" of integrity header is not an unsigned integer: -1`},
-		{integritySizeHdr, "  size: zzz\n", `"size" of integrity header is not an unsigned integer: zzz`},
+	invalidTests := []struct {
+		original,
+		invalid,
+		expectedErr string
+	}{
+		{integrityHdr, "integrity: test\n", `"integrity" header must contain a list of integrity data`},
+		{integrityTypeHdr, "", `"type" of integrity data with index 0 is mandatory`},
+		{integrityTypeHdr, "    type: foo\n", `"type" of integrity data with index 0 must be one of \(dm-verity\)`},
+		{integrityVersionHdr, "", `"version" for integrity data with index 0 of type "dm-verity" is mandatory`},
+		{integrityVersionHdr, "    version: a\n", `"version" for integrity data with index 0 of type "dm-verity" is not an unsigned integer: a`},
+		{integrityVersionHdr, "    version: 2\n", `version for integrity data with index 0 of type "dm-verity" must be one of ` + regexp.QuoteMeta("[1]")},
+		{integrityHashAlgHdr, "", `"hash-alg" for integrity data with index 0 of type "dm-verity" is mandatory`},
+		{integrityHashAlgHdr, "    hash-alg: 0\n", `hash algorithm for integrity data with index 0 of type "dm-verity" must be one of .*`},
+		{integrityHashAlgHdr, "    hash-alg: a\n", `hash algorithm for integrity data with index 0 of type "dm-verity" must be one of .*`},
+		{integrityHashAlgHdr, "    hash-alg: sha123\n", `hash algorithm for integrity data with index 0 of type "dm-verity" must be one of .*`},
+		{integrityHashAlgHdr, "    hash-alg: sm3\n", `hash algorithm for integrity data with index 0 of type "dm-verity" must be one of .*`},
+		{integrityBlockSizeHdr, "", `"block-size" for integrity data with index 0 of type "dm-verity" is mandatory`},
+		{integrityBlockSizeHdr, "    block-size: a\n", `"block-size" for integrity data with index 0 of type "dm-verity" is not an unsigned integer: a`},
+		{integrityDigestHdr, "", `"digest" for integrity data with index 0 of type "dm-verity" is mandatory`},
+		{integrityDigestHdr, "    digest: a\n", `"digest" for integrity data with index 0 of type "dm-verity" cannot be decoded: encoding/hex: odd length hex string`},
+		{integrityDigestHdr, "    digest: ab\n", `"digest" for integrity data with index 0 of type "dm-verity" does not have the expected bit length: 8`},
+		{integritySaltHdr, "", `"salt" for integrity data with index 0 of type "dm-verity" is mandatory`},
+		{integritySaltHdr, "    salt: a\n", `"salt" for integrity data with index 0 of type "dm-verity" cannot be decoded: encoding/hex: odd length hex string`},
+		{integritySaltHdr, "    salt: ab\n", `"salt" for integrity data with index 0 of type "dm-verity" does not have the expected bit length: 8`},
 	}
 
 	for _, test := range invalidTests {
