@@ -16,7 +16,10 @@ environment:
 
 prepare: |
   VERSION="$(tests.nested show version)"
-  snap download --basename=pc-kernel --channel="$VERSION/stable" pc-kernel
+
+  # download beta to increase the unlikeliness that we encounter the
+  # same revision when remodelling. 
+  snap download --basename=pc-kernel --channel="$VERSION/beta" pc-kernel
   if [ "$VERSION" == 22 ]; then
     PC_VERSION="23.10"
   else
@@ -69,7 +72,7 @@ execute: |
   remote.exec 'snap changes' | MATCH "${change_id}\s+Done.+Refresh model assertion from revision 0 to 1"
 
   remote.exec "snap list" | MATCH "jq-core${VERSION}"
-  remote.exec 'snap list pc-kernel' | awk 'NR != 1 { print $4 }' | MATCH "${VERSION}-oem/stable"
+  remote.exec 'snap list pc-kernel' | awk 'NR != 1 { print $4 }' | MATCH "${VERSION}-hwe/stable"
 
   # TODO: once we support installing recovery systems during the hybrid install,
   # we should switch this test to use a gadget that does not use "system-seed-null"
