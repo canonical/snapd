@@ -345,3 +345,16 @@ jobs:
             systems: 'ubuntu-24.04-64'
             tasks: 'tests/nested/...'
             rules: 'nested'
+
+  upload_pr_number:
+    if: ${{ github.event.number }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Create PR number file
+        run: echo "${{ github.event.number }}" > pr_number
+      
+      - name: Upload PR number
+        uses: actions/upload-artifact@v4
+        with:
+          name: pr_number 
+          path: pr_number
