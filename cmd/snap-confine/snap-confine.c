@@ -822,7 +822,11 @@ static void enter_non_classic_execution_environment(sc_invocation *inv,
 		sc_store_ns_info(inv);
 
 		/* Preserve the mount namespace. */
-		sc_preserve_populated_mount_ns(group);
+		if (!sc_feature_enabled(SC_FEATURE_EPHEMERAL_MOUNT_NAMESPACE)) {
+			sc_preserve_populated_mount_ns(group);
+		} else {
+			debug("NOT preserving per-snap mount namespace");
+		}
 	}
 
 	/* Older versions of snap-confine created incorrect 777 permissions
@@ -850,7 +854,9 @@ static void enter_non_classic_execution_environment(sc_invocation *inv,
 			 * sc_join_preserved_user_ns() will never find a preserved mount
 			 * namespace and will always enter this code branch. */
 			if (sc_feature_enabled
-			    (SC_FEATURE_PER_USER_MOUNT_NAMESPACE)) {
+			    (SC_FEATURE_PER_USER_MOUNT_NAMESPACE) &&
+			    !sc_feature_enabled
+			    (SC_FEATURE_EPHEMERAL_MOUNT_NAMESPACE)) {
 				sc_preserve_populated_per_user_mount_ns(group);
 			} else {
 				debug
