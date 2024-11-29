@@ -1,0 +1,40 @@
+From df6efd9173ae24067ff8328b5dd272f0fc0e1bbf Mon Sep 17 00:00:00 2001
+Message-ID: <df6efd9173ae24067ff8328b5dd272f0fc0e1bbf.1725537228.git.maciej.borzecki@canonical.com>
+From: Maciej Borzecki <maciej.borzecki@canonical.com>
+Date: Thu, 5 Sep 2024 13:53:20 +0200
+Subject: [PATCH] packaging/snapd.mk: drop randomized build ID generation
+
+Signed-off-by: Maciej Borzecki <maciej.borzecki@canonical.com>
+---
+ packaging/snapd.mk | 6 +++---
+ 1 file changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/packaging/snapd.mk b/packaging/snapd.mk
+index fac68c7ad1429e9e420454a2d3af56408c5d799e..a9e90dc1900c0074f69ff7003f06505541950d8f 100644
+--- a/packaging/snapd.mk
++++ b/packaging/snapd.mk
+@@ -72,7 +72,7 @@ $(builddir)/snap: GO_TAGS += nomanagers
+ $(builddir)/snap $(builddir)/snap-seccomp $(builddir)/snapd-apparmor:
+ 	go build -o $@ $(if $(GO_TAGS),-tags "$(GO_TAGS)") \
+ 		-buildmode=pie \
+-		-ldflags="-B 0x$$(head -c20 /dev/urandom|od -An -tx1|tr -d ' \n') $(EXTRA_GO_LDFLAGS)" \
++		-ldflags="$(EXTRA_GO_LDFLAGS)" \
+ 		-mod=vendor \
+ 		$(EXTRA_GO_BUILD_FLAGS) \
+ 		$(import_path)/cmd/$(notdir $@)
+@@ -91,10 +91,10 @@ $(builddir)/snap-update-ns $(builddir)/snap-exec $(builddir)/snapctl:
+ 
+ # XXX see the note about build ID in rule for building 'snap'
+ # Snapd can be built with test keys. This is only used by the internal test
+-# suite to add test assertions. Do not enable this in distribution packages.
++# suite to addqg test assertions. Do not enable this in distribution packages.
+ $(builddir)/snapd:
+ 	go build -o $@ -buildmode=pie \
+-		-ldflags="-B 0x$$(head -c20 /dev/urandom|od -An -tx1|tr -d ' \n') $(EXTRA_GO_LDFLAGS)" \
++		-ldflags="$(EXTRA_GO_LDFLAGS)" \
+ 		-mod=vendor \
+ 		$(if $(GO_TAGS),-tags "$(GO_TAGS)") \
+ 		$(EXTRA_GO_BUILD_FLAGS) \
+-- 
+2.46.0
+
