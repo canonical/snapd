@@ -48,7 +48,6 @@ func (*featureSuite) TestName(c *C) {
 	check(features.Layouts, "layouts")
 	check(features.ParallelInstances, "parallel-instances")
 	check(features.Hotplug, "hotplug")
-	check(features.SnapdSnap, "snapd-snap")
 	check(features.PerUserMountNamespace, "per-user-mount-namespace")
 	check(features.RefreshAppAwareness, "refresh-app-awareness")
 	check(features.ClassicPreservesXdgRuntimeDir, "classic-preserves-xdg-runtime-dir")
@@ -88,8 +87,6 @@ func (*featureSuite) TestIsExported(c *C) {
 
 	check(features.Layouts, false)
 	check(features.Hotplug, false)
-	check(features.SnapdSnap, false)
-
 	check(features.ParallelInstances, true)
 	check(features.PerUserMountNamespace, true)
 	check(features.RefreshAppAwareness, true)
@@ -216,7 +213,6 @@ func (*featureSuite) TestIsEnabledWhenUnset(c *C) {
 	check(features.Layouts, true)
 	check(features.ParallelInstances, false)
 	check(features.Hotplug, false)
-	check(features.SnapdSnap, false)
 	check(features.PerUserMountNamespace, false)
 	check(features.RefreshAppAwareness, true)
 	check(features.ClassicPreservesXdgRuntimeDir, true)
