@@ -16,13 +16,29 @@ environment:
 
 prepare: |
   VERSION="$(tests.nested show version)"
-  snap download --basename=pc-kernel --channel="$VERSION/stable" pc-kernel
+
+  # download beta to increase the unlikeliness that we encounter the
+  # same revision when remodelling. 
+  snap download --basename=pc-kernel --channel="$VERSION/beta" pc-kernel
   if [ "$VERSION" == 22 ]; then
     PC_VERSION="23.10"
   else
     PC_VERSION="${VERSION}.04"
   fi
   snap download --basename=pc --channel="classic-${PC_VERSION}/stable" pc
+
+  if [ "$VERSION" == 24 ]; then
+    # there was made a decision to use core22 as base for
+    # the pc gadget here, we do not want that when testing
+    unsquashfs -d pc-gadget pc.snap
+    rm pc.snap
+
+    sed -i 's/core22/core24/g' pc-gadget/snap/snapcraft.yaml
+    sed -i 's/core22/core24/g' pc-gadget/meta/snap.yaml
+    snap pack pc-gadget
+    rm -rf pc-gadget
+    mv pc_*.snap pc.snap
+  fi
 
   "${TESTSTOOLS}"/setup_nested_hybrid_system.sh \
      --model "${TESTSLIB}/assertions/classic-model-${VERSION}.assert" \
@@ -56,7 +72,14 @@ execute: |
   remote.exec 'snap changes' | MATCH "${change_id}\s+Done.+Refresh model assertion from revision 0 to 1"
 
   remote.exec "snap list" | MATCH "jq-core${VERSION}"
-  remote.exec 'snap list pc-kernel' | awk 'NR != 1 { print $4 }' | MATCH "${VERSION}-oem/stable"
+  
+  # for now different tracks are used, but would nice to streamline
+  # this going forward
+  if [ "$VERSION" == 22 ]; then
+    remote.exec 'snap list pc-kernel' | awk 'NR != 1 { print $4 }' | MATCH "${VERSION}-oem/stable"
+  elif [ "$VERSION" == 24 ]; then
+    remote.exec 'snap list pc-kernel' | awk 'NR != 1 { print $4 }' | MATCH "${VERSION}-hwe/stable"
+  fi
 
   # TODO: once we support installing recovery systems during the hybrid install,
   # we should switch this test to use a gadget that does not use "system-seed-null"
