@@ -24,17 +24,28 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/sandbox/cgroup"
 	"github.com/snapcore/snapd/testutil"
 )
 
-type memorySuite struct {
+type memorySuiteBase struct {
 	testutil.BaseTest
 
+	rootDir         string
 	mockCgroupsFile string
 }
 
-var _ = Suite(&memorySuite{})
+type memoryCgroupV1Suite struct {
+	memorySuiteBase
+}
+
+type memoryCgroupV2Suite struct {
+	memorySuiteBase
+}
+
+var _ = Suite(&memoryCgroupV1Suite{})
+var _ = Suite(&memoryCgroupV2Suite{})
 
 var (
 	cgroupContentCommon = `#subsys_name	hierarchy	num_cgroups	enabled
@@ -43,14 +54,28 @@ cpu	3	133	1
 devices	10	135	1`
 )
 
-func (s *memorySuite) SetUpTest(c *C) {
+func (s *memorySuiteBase) SetUpTest(c *C) {
 	s.BaseTest.SetUpTest(c)
 
-	s.mockCgroupsFile = filepath.Join(c.MkDir(), "cgroups")
-	s.AddCleanup(cgroup.MockCgroupsFilePath(s.mockCgroupsFile))
+	s.rootDir = c.MkDir()
+	dirs.SetRootDir(s.rootDir)
+	s.AddCleanup(func() { dirs.SetRootDir("/") })
+
+	s.AddCleanup(cgroup.MockVersion(cgroup.V1, nil))
+
+	s.mockCgroupsFile = filepath.Join(s.rootDir, "/proc/cgroups")
+	c.Assert(os.MkdirAll(filepath.Dir(s.mockCgroupsFile), 0755), IsNil)
+
+	c.Assert(os.MkdirAll(filepath.Join(s.rootDir, "/sys/fs/cgroup"), 0755), IsNil)
 }
 
-func (s *memorySuite) TestCheckMemoryCgroupHappy(c *C) {
+func (s *memoryCgroupV1Suite) SetUpTest(c *C) {
+	s.memorySuiteBase.SetUpTest(c)
+
+	s.AddCleanup(cgroup.MockVersion(cgroup.V1, nil))
+}
+
+func (s *memoryCgroupV1Suite) TestCheckMemoryCgroupV1_Happy(c *C) {
 	extra := "memory	2	223	1"
 	content := cgroupContentCommon + "\n" + extra
 
@@ -60,23 +85,23 @@ func (s *memorySuite) TestCheckMemoryCgroupHappy(c *C) {
 	c.Assert(err, IsNil)
 }
 
-func (s *memorySuite) TestCheckMemoryCgroupMissing(c *C) {
+func (s *memoryCgroupV1Suite) TestCheckMemoryCgroupV1_Missing(c *C) {
 	// note there is no file created for s.mockCgroupsFile
 
 	err := cgroup.CheckMemoryCgroup()
 	c.Assert(err, ErrorMatches, "cannot open cgroups file: open .*/cgroups: no such file or directory")
 }
 
-func (s *memorySuite) TestCheckMemoryCgroupNoMemoryEntry(c *C) {
+func (s *memoryCgroupV1Suite) TestCheckMemoryCgroupV1_NoMemoryEntry(c *C) {
 	content := cgroupContentCommon
 
 	err := os.WriteFile(s.mockCgroupsFile, []byte(content), 0644)
 	c.Assert(err, IsNil)
 	err = cgroup.CheckMemoryCgroup()
-	c.Assert(err, ErrorMatches, "cannot find memory cgroup in .*/cgroups")
+	c.Assert(err, ErrorMatches, "cgroup memory controller is disabled on this system")
 }
 
-func (s *memorySuite) TestCheckMemoryCgroupInvalidMemoryEntry(c *C) {
+func (s *memoryCgroupV1Suite) TestCheckMemoryCgroupV1_InvalidMemoryEntry(c *C) {
 	extra := "memory	invalid line"
 	content := cgroupContentCommon + "\n" + extra
 
@@ -86,12 +111,51 @@ func (s *memorySuite) TestCheckMemoryCgroupInvalidMemoryEntry(c *C) {
 	c.Assert(err, ErrorMatches, `cannot parse cgroups file: invalid line "memory\\tinvalid line"`)
 }
 
-func (s *memorySuite) TestCheckMemoryCgroupDisabled(c *C) {
+func (s *memoryCgroupV1Suite) TestCheckMemoryCgroupV1_Disabled(c *C) {
 	extra := "memory	2	223	0"
 	content := cgroupContentCommon + "\n" + extra
 
 	err := os.WriteFile(s.mockCgroupsFile, []byte(content), 0644)
 	c.Assert(err, IsNil)
 	err = cgroup.CheckMemoryCgroup()
-	c.Assert(err, ErrorMatches, "memory cgroup is disabled on this system")
+	c.Assert(err, ErrorMatches, "cgroup memory controller is disabled on this system")
+}
+
+func (s *memoryCgroupV2Suite) SetUpTest(c *C) {
+	s.memorySuiteBase.SetUpTest(c)
+
+	s.AddCleanup(cgroup.MockVersion(cgroup.V2, nil))
+}
+
+func (s *memoryCgroupV2Suite) TestCheckMemoryCgroupV2_Disabled(c *C) {
+	defer cgroup.MockVersion(cgroup.V2, nil)()
+
+	content := cgroupContentCommon + "\n"
+
+	// memory not mentioned in /proc/cgroups at all (like on 6.12+ kernels)
+	err := os.WriteFile(s.mockCgroupsFile, []byte(content), 0644)
+	c.Assert(err, IsNil)
+
+	v2ControllersFile := filepath.Join(s.rootDir, "/sys/fs/cgroup/cgroup.controllers")
+	// no memory
+	c.Assert(os.WriteFile(v2ControllersFile, []byte("foo bar baz other\n"), 0644), IsNil)
+
+	err = cgroup.CheckMemoryCgroup()
+	c.Assert(err, ErrorMatches, "cgroup memory controller is disabled on this system")
+}
+
+func (s *memoryCgroupV2Suite) TestCheckMemoryCgroupV2_Happy(c *C) {
+	defer cgroup.MockVersion(cgroup.V2, nil)()
+
+	content := cgroupContentCommon + "\n"
+
+	// memory not mentioned in /proc/cgroups at all (like on 6.12+ kernels)
+	err := os.WriteFile(s.mockCgroupsFile, []byte(content), 0644)
+	c.Assert(err, IsNil)
+
+	v2ControllersFile := filepath.Join(s.rootDir, "/sys/fs/cgroup/cgroup.controllers")
+	c.Assert(os.WriteFile(v2ControllersFile, []byte("foo bar baz memory other\n"), 0644), IsNil)
+
+	err = cgroup.CheckMemoryCgroup()
+	c.Assert(err, IsNil)
 }
