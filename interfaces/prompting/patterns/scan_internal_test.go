@@ -124,6 +124,22 @@ func (s *scanSuite) TestScanUnhappy(c *C) {
 			`pattern must start with '/'`,
 		},
 		{
+			`/foo/./bar`,
+			`pattern cannot contain '/./' or '/../'`,
+		},
+		{
+			`/foo/../bar`,
+			`pattern cannot contain '/./' or '/../'`,
+		},
+		{
+			`/foo/.`,
+			`pattern cannot contain '/./' or '/../'`,
+		},
+		{
+			`/foo/..`,
+			`pattern cannot contain '/./' or '/../'`,
+		},
+		{
 			`/foo\`,
 			`trailing unescaped '\\' character`,
 		},
