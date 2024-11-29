@@ -84,10 +84,10 @@ environment:
     # Use the snapd package from the repository when possible
     SNAPD_DEB_FROM_REPO: '$(HOST: echo "${SPREAD_SNAPD_DEB_FROM_REPO:-true}")'
     # Directory where the built snapd snaps and other assets are stored
-    SNAPD_WORK_DIR: '$(HOST: echo "${SPREAD_SNAPD_WORK_DIR:-/tmp/work-dir}")'
+    SNAPD_WORK_DIR: '$(HOST: echo "${SPREAD_SNAPD_WORK_DIR:-/var/tmp/work-dir}")'
 
     # Directory where the nested images and test assets are stored
-    NESTED_WORK_DIR: '$(HOST: echo "${NESTED_WORK_DIR:-/tmp/work-dir}")'
+    NESTED_WORK_DIR: '$(HOST: echo "${NESTED_WORK_DIR:-/var/tmp/work-dir}")'
     # Channel used to create the nested vm
     NESTED_CORE_CHANNEL: '$(HOST: echo "${NESTED_CORE_CHANNEL:-beta}")'
     # Kernel channel used to create the nested vm

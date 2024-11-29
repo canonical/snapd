@@ -1,6 +1,6 @@
 #!/bin/bash
 
-: "${NESTED_WORK_DIR:=/tmp/work-dir}"
+: "${NESTED_WORK_DIR:=/var/tmp/work-dir}"
 : "${NESTED_IMAGES_DIR:=${NESTED_WORK_DIR}/images}"
 : "${NESTED_RUNTIME_DIR:=${NESTED_WORK_DIR}/runtime}"
 : "${NESTED_ASSETS_DIR:=${NESTED_WORK_DIR}/assets}"
