@@ -23,6 +23,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"regexp"
 	"strings"
 )
 
@@ -59,12 +60,18 @@ type token struct {
 	text  string
 }
 
+// relpathFinder matches `/./` and `/../` along with their trailing variants `/.` and `/..` in path patterns.
+var relpathFinder = regexp.MustCompile(`/\.(\.)?(/|$)`)
+
 func scan(text string) (tokens []token, err error) {
 	if len(text) == 0 {
 		return nil, errors.New("pattern has length 0")
 	}
 	if text[0] != '/' {
 		return nil, errors.New("pattern must start with '/'")
+	}
+	if relpathFinder.MatchString(text) {
+		return nil, errors.New("pattern cannot contain '/./' or '/../'")
 	}
 
 	var runes []rune
