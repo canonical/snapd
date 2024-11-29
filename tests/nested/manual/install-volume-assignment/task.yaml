@@ -16,8 +16,6 @@ environment:
   NESTED_IMAGE_ID: volassign
 
 prepare: |
-  snap install yq
-
   VERSION=$(tests.nested show version)
   snap download --basename=pc --channel="$VERSION/edge" pc
   unsquashfs -d pc-gadget pc.snap
@@ -82,8 +80,10 @@ execute: |
   # Build a new gadget that has content that needs to be updated
   sed -i 's/This program cannot be run in DOS mode/This program cannot be run in XXX mode/' \
       pc-gadget/grubx64.efi
-  yq -i '(.volumes.pc.structure[] | select(.name == "ubuntu-boot") | .update.edition) |= . + 1' \
-      pc-gadget/meta/gadget.yaml
+  gojq --yaml-input --yaml-output \
+    '(.volumes.pc.structure[] | select(.name == "ubuntu-boot") | .update.edition) |= . + 1' \
+    < pc-gadget/meta/gadget.yaml > gadget.yaml.tmp
+  mv gadget.yaml.tmp pc-gadget/meta/gadget.yaml 
   
   snap pack --filename=pc.snap pc-gadget
   remote.push pc.snap
@@ -115,10 +115,13 @@ execute: |
       /run/mnt/ubuntu-boot/EFI/boot/grubx64.efi
 
   # test a gadget update with no matching assignment
-  yq -i 'del(.volume-assignments[] | select(.assignment-name == "test-device"))' \
-      pc-gadget/meta/gadget.yaml
-  yq -i '(.volumes.pc.structure[] | select(.name == "ubuntu-boot") | .update.edition) |= . + 1' \
-      pc-gadget/meta/gadget.yaml
+  gojq --yaml-input --yaml-output \
+    'del(.volume-assignments[] | select(.assignment-name == "test-device"))' \
+    < pc-gadget/meta/gadget.yaml > gadget.yaml.tmp
+  gojq --yaml-input --yaml-output \
+    '(.volumes.pc.structure[] | select(.name == "ubuntu-boot") | .update.edition) |= . + 1' \
+    < gadget.yaml.tmp > gadget.yaml.tmp1
+  mv gadget.yaml.tmp1 pc-gadget/meta/gadget.yaml 
   
   snap pack --filename=pc-bad.snap pc-gadget
   remote.push pc-bad.snap
