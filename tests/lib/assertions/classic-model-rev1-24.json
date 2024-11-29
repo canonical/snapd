@@ -23,7 +23,7 @@
         {
             "name": "pc-kernel",
             "type": "kernel",
-            "default-channel": "24-oem/stable"
+            "default-channel": "24-hwe/stable"
         },
         {
             "name": "core24",
