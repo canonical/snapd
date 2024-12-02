@@ -498,29 +498,11 @@ func storeUpdatePlanCore(
 
 	updates := requested
 	if plan.refreshAll() {
-		var vsets *snapasserts.ValidationSets
-		if !opts.Flags.IgnoreValidation {
-			enforced, err := EnforcedValidationSets(st)
-			if err != nil {
-				return updatePlan{}, err
-			}
-			vsets = enforced
-		} else {
-			vsets = snapasserts.NewValidationSets()
+		all, err := initRefreshAllStoreUpdates(st, opts, allSnaps)
+		if err != nil {
+			return updatePlan{}, err
 		}
-
-		updates = make(map[string]StoreUpdate, len(allSnaps))
-		for _, snapst := range allSnaps {
-			updates[snapst.InstanceName()] = StoreUpdate{
-				InstanceName: snapst.InstanceName(),
-				// default the channel and cohort key to the existing values,
-				RevOpts: RevisionOptions{
-					Channel:        snapst.TrackingChannel,
-					CohortKey:      snapst.CohortKey,
-					ValidationSets: vsets,
-				},
-			}
-		}
+		updates = all
 	}
 
 	// if any of the snaps that we are refreshing have components, we need to
