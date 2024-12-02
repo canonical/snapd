@@ -1,3 +1,84 @@
+snapd (2.67~14.04) trusty; urgency=medium
+
+  * New upstream release, LP: #2089691
+    - AppArmor prompting (experimental): allow overlapping rules
+    - Registry view (experimental): Changes to registry data (from both
+      users and snaps) can be validated and saved by custodian snaps
+    - Registry view (experimental): Support 'snapctl get --pristine' to
+      read the registry data excluding staged transaction changes
+    - Registry view (experimental): Put registry commands behind
+      experimental feature flag
+    - Components: Make modules shipped/created by kernel-modules
+      components available right after reboot
+    - Components: Add tab completion for local component files
+    - Components: Allow installing snaps and components from local files
+      jointly on the CLI
+    - Components: Allow 'snapctl model' command for gadget and kernel
+      snaps
+    - Components: Add 'snap components' command
+    - Components: Bug fixes
+    - eMMC gadget updates (WIP): add syntax support in gadget.yaml for
+      eMMC schema
+    - Support for ephemeral recovery mode on hybrid systems
+    - Support for dm-verity options in snap-bootstrap
+    - Support for overlayfs options and allow empty what argument for
+      tmpfs
+    - Enable ubuntu-image to determine the size of the disk image to
+      create
+    - Expose 'snap debug' commands 'validate-seed' and 'seeding'
+    - Add debug API option to use dedicated snap socket /run/snapd-
+      snap.socket
+    - Hide experimental features that are no longer required
+      (accepted/rejected)
+    - Mount ubuntu-save partition with no{exec,dev,suid} at install, run
+      and factory-reset
+    - Improve memory controller support with cgroup v2
+    - Support ssh socket activation configurations (used by ubuntu
+      22.10+)
+    - Fix generation of AppArmor profile with incorrect revision during
+      multi snap refresh
+    - Fix refresh app awareness related deadlock edge case
+    - Fix not caching delta updated snap download
+    - Fix passing non root uid, guid to initial tmpfs mount
+    - Fix ignoring snaps in try mode when amending
+    - Fix reloading of service activation units to avoid systemd errors
+    - Fix snapd snap FIPS build on Launchpad to use Advantage Pro FIPS
+      updates PPA
+    - Make killing of snap apps best effort to avoid possibility of
+      malicious failure loop
+    - Alleviate impact of auto-refresh failure loop with progressive
+      delay
+    - Dropped timedatex in selinux-policy to avoid runtime issue
+    - Fix missing syscalls in seccomp profile
+    - Modify AppArmor template to allow using SNAP_REEXEC on arch
+      systems
+    - Modify AppArmor template to allow using vim.tiny (available in
+      base snaps)
+    - Modify AppArmor template to add read-access to debian_version
+    - Modify AppArmor template to allow owner to read
+      @{PROC}/@{pid}/sessionid
+    - {common,personal,system}-files interface: prohibit trailing @ in
+      filepaths
+    - {desktop,shutdown,system-observe,upower-observe} interface:
+      improve for Ubuntu Core Desktop
+    - custom-device interface: allow @ in custom-device filepaths
+    - desktop interface: improve launch entry and systray integration
+      with session
+    - desktop-legacy interface: allow DBus access to
+      com.canonical.dbusmenu
+    - fwupd interface: allow access to nvmem for thunderbolt plugin
+    - mpris interface: add plasmashell as label
+    - mount-control interface: add support for nfs mounts
+    - network-{control,manager} interface: add missing dbus link rules
+    - network-manager-observe interface: add getDevices methods
+    - opengl interface: add Kernel Fusion Driver access to opengl
+    - screen-inhibit-control interface: improve screen inhibit control
+      for use on core
+    - udisks2 interface: allow ping of the UDisks2 service
+    - u2f-devices interface: add Nitrokey Passkey
+
+ -- Ernest Lotter <ernest.lotter@canonical.com>  Mon, 02 Dec 2024 23:14:24 +0200
+
 snapd (2.66.1~14.04) trusty; urgency=medium
 
   * New upstream release, LP: #2083490
