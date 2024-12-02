@@ -102,11 +102,6 @@ func (s *installSuite) TestVolumeAssignmentDeviceNameMissing(c *C) {
 			DevNode: "/dev/fakedevice0",
 			DevPath: "/sys/block/fakedevice0",
 		},
-		filepath.Join(s.dir, "/dev/fakedevice1p1"): {
-			DevNum:  "43:0",
-			DevNode: "/dev/fakedevice1",
-			DevPath: "/sys/block/fakedevice1",
-		},
 	}
 
 	restore := disks.MockPartitionDeviceNodeToDiskMapping(m)
@@ -120,11 +115,7 @@ func (s *installSuite) TestVolumeAssignmentDeviceNameMissing(c *C) {
 	c.Assert(err, IsNil)
 
 	_, err = install.Run(uc20Mod, gadgetRoot, &install.KernelSnapInfo{}, "", install.Options{}, nil, timings.New(nil))
-	c.Assert(err, ErrorMatches, `
------
-stderr:
-Unknown device "/dev/disk/by-path/pci-43:0": No such file or directory
------`)
+	c.Assert(err, ErrorMatches, `device name "/dev/fakedevice1" not mocked`)
 }
 
 func (s *installSuite) TestInstallSeedDiskDoesNotMatchAssignedDisk(c *C) {
