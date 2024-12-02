@@ -611,7 +611,7 @@ pkg_dependencies_ubuntu_classic(){
                 shellcheck
                 "
             ;;
-        ubuntu-22.*|ubuntu-23.*|ubuntu-24.*|ubuntu-25.*)
+        ubuntu-22.*|ubuntu-23.*|ubuntu-24.04*)
             # bpftool is part of linux-tools package
             echo "
                 dbus-user-session
@@ -624,11 +624,22 @@ pkg_dependencies_ubuntu_classic(){
                 qemu-kvm
                 qemu-utils
                 "
-            if os.query is-ubuntu 24.10; then
-                echo "
-                    systemd-dev
-                    "
-            fi
+            ;;
+	ubuntu-24.10*|ubuntu-25.*)
+            # bpftool is part of linux-tools package
+            # ubuntu-24.10+ systemd-dev is optional
+            echo "
+                dbus-user-session
+                fwupd
+                golang
+                gperf
+                libvirt-daemon-system
+                linux-tools-$(uname -r)
+                lz4
+                qemu-kvm
+                qemu-utils
+                systemd-dev
+                "
             ;;
         ubuntu-*)
             echo "
