@@ -70,6 +70,7 @@ func InstallComponents(
 	}
 
 	if vsets == nil {
+		// TODO:COMPS: use enforced validation sets as the default here
 		vsets = snapasserts.NewValidationSets()
 	}
 
