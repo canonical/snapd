@@ -571,6 +571,7 @@ pkg_dependencies_ubuntu_classic(){
             ;;
         ubuntu-16.04-64)
             echo "
+                chrony
                 dbus-user-session
                 evolution-data-server
                 fwupd
