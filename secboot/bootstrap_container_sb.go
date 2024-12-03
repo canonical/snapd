@@ -50,7 +50,7 @@ func slotNameOrDefault(slotName string) string {
 
 func (bc *bootstrappedContainer) AddKey(slotName string, newKey []byte) error {
 	if bc.finished {
-		return fmt.Errorf("internal error: key resetter was a already finished")
+		return fmt.Errorf("internal error: bootstrapped container was a already finished")
 	}
 
 	if err := sbAddLUKS2ContainerUnlockKey(bc.devicePath, slotNameOrDefault(slotName), sb.DiskUnlockKey(bc.key), sb.DiskUnlockKey(newKey)); err != nil {
