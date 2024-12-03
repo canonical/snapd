@@ -116,7 +116,7 @@ execute: |
 
   # test a gadget update with no matching assignment
   gojq --yaml-input --yaml-output \
-    'del(.volume-assignments[] | select(.assignment-name == "test-device"))' \
+    'del(."volume-assignments"[] | select(."assignment-name" == "test-device"))' \
     < pc-gadget/meta/gadget.yaml > gadget.yaml.tmp
   gojq --yaml-input --yaml-output \
     '(.volumes.pc.structure[] | select(.name == "ubuntu-boot") | .update.edition) |= . + 1' \

@@ -827,20 +827,24 @@ nested_prepare_essential_snaps() {
 
 nested_configure_default_user() {
     local IMAGE_NAME
+    local IMAGE_PATH
+    
     IMAGE_NAME="$(nested_get_image_name core)"
+    IMAGE_PATH="$(realpath "$NESTED_IMAGES_DIR/$IMAGE_NAME")"
+
     # Configure the user for the vm
     if [ "$NESTED_USE_CLOUD_INIT" = "true" ]; then
         if nested_is_core_ge 20; then
-            nested_configure_cloud_init_on_core20_vm "$NESTED_IMAGES_DIR/$IMAGE_NAME"
+            nested_configure_cloud_init_on_core20_vm "$IMAGE_PATH"
         else
-            nested_configure_cloud_init_on_core_vm "$NESTED_IMAGES_DIR/$IMAGE_NAME"
+            nested_configure_cloud_init_on_core_vm "$IMAGE_PATH"
         fi
     else
         nested_create_assertions_disk
     fi
 
-    # Save a copy of the image
-    cp -v "$NESTED_IMAGES_DIR/$IMAGE_NAME" "$NESTED_IMAGES_DIR/$IMAGE_NAME.pristine"
+    # Save a copy of the primary image
+    cp -v "$IMAGE_PATH" "$IMAGE_PATH.pristine"
 }
 
 nested_create_core_vm() {
@@ -853,14 +857,19 @@ nested_create_core_vm() {
     IMAGE_NAME="$(nested_get_image_name core)"
     mkdir -p "$NESTED_IMAGES_DIR"
 
-    if [ -f "$NESTED_IMAGES_DIR/$IMAGE_NAME.pristine" ]; then
-        cp -v "$NESTED_IMAGES_DIR/$IMAGE_NAME.pristine" "$NESTED_IMAGES_DIR/$IMAGE_NAME"
-        if [ ! "$NESTED_USE_CLOUD_INIT" = "true" ]; then
-            nested_create_assertions_disk
-        fi
-        return
+    if [ -f "$NESTED_IMAGES_DIR/$IMAGE_NAME" ]; then
+        local IMAGE_PATH
+        IMAGE_PATH="$(realpath "$NESTED_IMAGES_DIR/$IMAGE_NAME")"
 
-    elif [ ! -f "$NESTED_IMAGES_DIR/$IMAGE_NAME" ]; then
+        if [ -f "$IMAGE_PATH.pristine" ]; then
+            cp -v "$IMAGE_PATH.pristine" "$IMAGE_PATH"
+            if [ ! "$NESTED_USE_CLOUD_INIT" = "true" ]; then
+                nested_create_assertions_disk
+            fi
+            return
+        fi
+
+    else
         if [ -n "$NESTED_CUSTOM_IMAGE_URL" ]; then
             # download the ubuntu-core image from $CUSTOM_IMAGE_URL
             nested_download_image "$NESTED_CUSTOM_IMAGE_URL" "$IMAGE_NAME"
@@ -933,7 +942,8 @@ nested_create_core_vm() {
             local BOOTVOLUME
             BOOTVOLUME=pc
             if [ -e pc-gadget/meta/gadget.yaml ]; then
-                BOOTVOLUME="$(gojq --yaml-input '.volumes | to_entries[] | .key as $p | .value.structure[] | select(.name == "ubuntu-boot") | $p' pc-gadget/meta/gadget.yaml)"
+                # shellcheck disable=SC2016
+                BOOTVOLUME="$(gojq --yaml-input '.volumes | to_entries[] | .key as $p | .value.structure[] | select(.name == "ubuntu-boot") | $p' pc-gadget/meta/gadget.yaml | tr -d '"')"
                 if [ -z "$BOOTVOLUME" ]; then
                     echo "was not able to deduce the ubuntu-boot partition from gadget.yaml in pc-gadget/meta/gadget.yaml"
                     echo "please inspect it and make sure it looks as expected"
@@ -1383,6 +1393,7 @@ nested_start_core_vm() {
         # options, so if that env var is set, we will reuse the existing file if it
         # exists
         local IMAGE_NAME
+        local IMAGE_PATH
         IMAGE_NAME="$(nested_get_image_name core)"
         if ! [ -f "$NESTED_IMAGES_DIR/$IMAGE_NAME" ]; then
             echo "No image found to be started"
@@ -1391,12 +1402,13 @@ nested_start_core_vm() {
 
         # images are created as sparse files, simple cp should preserve that
         # property
-        cp -v "$NESTED_IMAGES_DIR/$IMAGE_NAME" "$CURRENT_IMAGE"
+        IMAGE_PATH="$(realpath "$NESTED_IMAGES_DIR/$IMAGE_NAME")"
+        cp -v "$IMAGE_PATH" "$CURRENT_IMAGE"
 
         # Start the nested core vm
         nested_start_core_vm_unit "$CURRENT_IMAGE"
 
-        if [ ! -f "$NESTED_IMAGES_DIR/$IMAGE_NAME.configured" ]; then
+        if [ ! -f "$IMAGE_PATH.configured" ]; then
             # configure ssh for first time
             nested_prepare_ssh
             sync
@@ -1407,8 +1419,8 @@ nested_start_core_vm() {
                 nested_shutdown
 
                 # Save the image with the name of the original image
-                cp -v "${CURRENT_IMAGE}" "$NESTED_IMAGES_DIR/$IMAGE_NAME"
-                touch "$NESTED_IMAGES_DIR/$IMAGE_NAME.configured"
+                cp -v "${CURRENT_IMAGE}" "$IMAGE_PATH"
+                touch "$IMAGE_PATH.configured"
 
                 # Start the current image again and wait until it is ready
                 nested_start
