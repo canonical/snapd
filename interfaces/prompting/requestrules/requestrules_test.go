@@ -864,6 +864,201 @@ outer:
 	}
 }
 
+func (s *requestrulesSuite) TestAddRuleMerges(c *C) {
+	for _, testCase := range []struct {
+		input  []prompting.PermissionMap
+		output []prompting.PermissionMap
+	}{
+		{
+			input: []prompting.PermissionMap{
+				{
+					"read": &prompting.PermissionEntry{
+						Outcome:  prompting.OutcomeAllow,
+						Lifespan: prompting.LifespanForever,
+					},
+				},
+				{
+					"write": &prompting.PermissionEntry{
+						Outcome:  prompting.OutcomeDeny,
+						Lifespan: prompting.LifespanTimespan,
+						Duration: "10s",
+					},
+				},
+			},
+			output: []prompting.PermissionMap{
+				{
+					"read": &prompting.PermissionEntry{
+						Outcome:  prompting.OutcomeAllow,
+						Lifespan: prompting.LifespanForever,
+					},
+					"write": &prompting.PermissionEntry{
+						Outcome:  prompting.OutcomeDeny,
+						Lifespan: prompting.LifespanTimespan,
+						Duration: "10s",
+					},
+				},
+			},
+		},
+		{
+			input: []prompting.PermissionMap{
+				{
+					"read": &prompting.PermissionEntry{
+						Outcome:  prompting.OutcomeDeny,
+						Lifespan: prompting.LifespanForever,
+					},
+					"write": &prompting.PermissionEntry{
+						Outcome:  prompting.OutcomeAllow,
+						Lifespan: prompting.LifespanTimespan,
+						Duration: "10s",
+					},
+					"execute": &prompting.PermissionEntry{
+						Outcome:  prompting.OutcomeAllow,
+						Lifespan: prompting.LifespanTimespan,
+						Duration: "1s",
+					},
+				},
+				{
+					"read": &prompting.PermissionEntry{
+						Outcome:  prompting.OutcomeDeny,
+						Lifespan: prompting.LifespanTimespan,
+						Duration: "10s",
+					},
+					"write": &prompting.PermissionEntry{
+						Outcome:  prompting.OutcomeAllow,
+						Lifespan: prompting.LifespanForever,
+					},
+				},
+			},
+			output: []prompting.PermissionMap{
+				{
+					"read": &prompting.PermissionEntry{
+						Outcome:  prompting.OutcomeDeny,
+						Lifespan: prompting.LifespanForever,
+					},
+					"write": &prompting.PermissionEntry{
+						Outcome:  prompting.OutcomeAllow,
+						Lifespan: prompting.LifespanForever,
+					},
+					"execute": &prompting.PermissionEntry{
+						Outcome:  prompting.OutcomeAllow,
+						Lifespan: prompting.LifespanTimespan,
+						Duration: "1s",
+					},
+				},
+			},
+		},
+		{
+			input: []prompting.PermissionMap{
+				{
+					"read": &prompting.PermissionEntry{
+						Outcome:  prompting.OutcomeDeny,
+						Lifespan: prompting.LifespanTimespan,
+						Duration: "10s",
+					},
+					"write": &prompting.PermissionEntry{
+						Outcome:  prompting.OutcomeAllow,
+						Lifespan: prompting.LifespanTimespan,
+						Duration: "10s",
+					},
+					"execute": &prompting.PermissionEntry{
+						Outcome:  prompting.OutcomeAllow,
+						Lifespan: prompting.LifespanTimespan,
+						Duration: "1ns", // Will expire and be dropped
+					},
+				},
+				{
+					"read": &prompting.PermissionEntry{
+						Outcome:  prompting.OutcomeDeny,
+						Lifespan: prompting.LifespanTimespan,
+						Duration: "20s",
+					},
+					"write": &prompting.PermissionEntry{
+						Outcome:  prompting.OutcomeAllow,
+						Lifespan: prompting.LifespanForever,
+					},
+				},
+			},
+			output: []prompting.PermissionMap{
+				{
+					"read": &prompting.PermissionEntry{
+						Outcome:  prompting.OutcomeDeny,
+						Lifespan: prompting.LifespanTimespan,
+						Duration: "20s",
+					},
+					"write": &prompting.PermissionEntry{
+						Outcome:  prompting.OutcomeAllow,
+						Lifespan: prompting.LifespanForever,
+					},
+				},
+			},
+		},
+	} {
+		// Set root so rule creation does not interfere between test cases
+		dirs.SetRootDir(c.MkDir())
+		s.AddCleanup(func() { dirs.SetRootDir("") })
+		c.Assert(os.MkdirAll(dirs.SnapdStateDir(dirs.GlobalRootDir), 0o700), IsNil)
+
+		rdb, err := requestrules.New(s.defaultNotifyRule)
+		c.Assert(err, IsNil)
+
+		user := s.defaultUser
+		snap := "firefox"
+		iface := "home"
+		pathPattern := mustParsePathPattern(c, "/path/to/foo/ba{r,z}/**")
+
+		// Add all the rules
+		for _, perms := range testCase.input {
+			constraints := &prompting.Constraints{
+				PathPattern: pathPattern,
+				Permissions: perms,
+			}
+			_, err = rdb.AddRule(user, snap, iface, constraints)
+			c.Assert(err, IsNil, Commentf("\ntestCase: %+v\nperms: %+v", testCase, perms))
+		}
+
+		rules := rdb.Rules(s.defaultUser)
+		c.Check(rules, HasLen, len(testCase.output), Commentf("\ntestCase: %+v\nrules: %+v", testCase, rules))
+		for i, perms := range testCase.output {
+			// Build RuleConstraints based on output perms using the timestamp
+			// of the corresponding rule.
+			rule := rules[i]
+			constraints := &prompting.Constraints{
+				PathPattern: pathPattern,
+				Permissions: perms,
+			}
+			ruleConstraints, err := constraints.ToRuleConstraints(iface, rule.Timestamp)
+			c.Assert(err, IsNil)
+			expectedPerms := ruleConstraints.Permissions
+			// Check that the permissions match what is expected.
+			// Other parameters should be trivially identical.
+			// Need to be careful because timestamps aren't "DeepEqual", so
+			// first set equivalent timestamps equal to each other.
+			for perm, entry := range rule.Constraints.Permissions {
+				expectedEntry, exists := expectedPerms[perm]
+				c.Assert(exists, Equals, true, Commentf("\ntestCase: %+v\nrules: %+v\npermission not found: %s", testCase, rules, perm))
+				c.Check(entry.Lifespan, Equals, expectedEntry.Lifespan, Commentf("\ntestCase: %+v\nrules: %+v\nlifespans not equal: %v != %v", testCase, rules, entry.Lifespan, expectedEntry.Lifespan))
+				// Expiration will be duration after the timestamp of one of
+				// the created rules, but it may not be the final one which was
+				// merged into the resulting rule, so we don't actually have an
+				// absolute timestamp with which we can compute an expiration
+				// using the duration. So subtract the timestamps and check
+				// that the difference is less than 100ms. We'll always have
+				// deltas of 1s for time differences we care about.
+				difference := entry.Expiration.Sub(expectedEntry.Expiration)
+				// TODO: call Abs() once we're on Go 1.19+
+				if difference < 0 {
+					difference *= -1
+				}
+				c.Check(difference < 100*time.Millisecond, Equals, true, Commentf("\ntestCase: %+v\nrules: %+v\nexpirations not within 100ms: %v != %v", testCase, rules, entry.Expiration, expectedEntry.Expiration))
+				expectedEntry.Expiration = entry.Expiration
+			}
+			c.Check(rule.Constraints.Permissions, DeepEquals, expectedPerms)
+		}
+
+		c.Assert(rdb.Close(), IsNil)
+	}
+}
+
 func (s *requestrulesSuite) TestAddRuleExpired(c *C) {
 	rdb, err := requestrules.New(s.defaultNotifyRule)
 	c.Assert(err, IsNil)
