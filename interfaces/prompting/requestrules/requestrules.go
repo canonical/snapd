@@ -372,15 +372,13 @@ func (rdb *RuleDB) addOrMergeRule(rule *Rule, save bool) (addedOrMergedRule *Rul
 		return rule, false, rdb.addNewRule(rule, save)
 	}
 
-	currTime := time.Now()
-
 	// Check whether the existing rule has outcomes/lifespans which conflict,
 	// and compile the new set of permissions.
 	newPermissions := make(prompting.RulePermissionMap)
 	var conflicts []prompting_errors.RuleConflict
 	for perm, entry := range rule.Constraints.Permissions {
 		existingEntry, exists := existingRule.Constraints.Permissions[perm]
-		if !exists || existingEntry.Expired(currTime) {
+		if !exists || existingEntry.Expired(rule.Timestamp) {
 			newPermissions[perm] = entry
 			continue
 		}
@@ -408,7 +406,7 @@ func (rdb *RuleDB) addOrMergeRule(rule *Rule, save bool) (addedOrMergedRule *Rul
 	}
 	// Add any non-expired permissions which were left over from the existing rule.
 	for existingPerm, existingEntry := range existingRule.Constraints.Permissions {
-		if existingEntry.Expired(currTime) {
+		if existingEntry.Expired(rule.Timestamp) {
 			continue
 		}
 		if _, exists := newPermissions[existingPerm]; exists {
@@ -417,9 +415,11 @@ func (rdb *RuleDB) addOrMergeRule(rule *Rule, save bool) (addedOrMergedRule *Rul
 		newPermissions[existingPerm] = existingEntry
 	}
 
-	// Create new rule based on the contents of the existing rule
+	// Create new rule based on the contents of the existing rule, but copy the
+	// timestamp from the new rule.
 	newRuleContents := *existingRule
 	newRule := &newRuleContents
+	newRule.Timestamp = rule.Timestamp
 	// Copy constraints as well, since copying the rule just copied the pointer
 	newConstraints := *(existingRule.Constraints)
 	newRule.Constraints = &newConstraints
