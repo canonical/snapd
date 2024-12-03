@@ -501,6 +501,11 @@ func (rdb *RuleDB) addRulePermissionToTree(rule *Rule, permission string, permis
 		// it from the rule as well
 		delete(maybeExpired.Constraints.Permissions, permission)
 		if !maybeExpired.expired(rule.Timestamp) {
+			// This should not occur during load since it calls rule.validate()
+			// which calls RuleConstraints.ValidateForInterface, which prunes
+			// any expired permissions. Thus, it should only occur when adding
+			// a new rule which overlaps with another rule which has partially
+			// expired.
 			continue
 		}
 		_, err = rdb.removeRuleByID(ruleID)

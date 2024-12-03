@@ -893,6 +893,81 @@ func (s *requestrulesSuite) TestAddRuleExpired(c *C) {
 	s.checkNewNotices(c, expectedNoticeInfo)
 }
 
+func (s *requestrulesSuite) TestAddRulePartiallyExpired(c *C) {
+	rdb, err := requestrules.New(s.defaultNotifyRule)
+	c.Assert(err, IsNil)
+
+	user := s.defaultUser
+	snap := "firefox"
+	iface := "home"
+
+	constraints1 := &prompting.Constraints{
+		PathPattern: mustParsePathPattern(c, "/path/to/{foo,bar}"),
+		Permissions: prompting.PermissionMap{
+			"read": &prompting.PermissionEntry{
+				Outcome:  prompting.OutcomeAllow,
+				Lifespan: prompting.LifespanTimespan,
+				Duration: "1ns",
+			},
+			"write": &prompting.PermissionEntry{
+				Outcome:  prompting.OutcomeAllow,
+				Lifespan: prompting.LifespanForever,
+			},
+			"execute": &prompting.PermissionEntry{
+				Outcome:  prompting.OutcomeDeny,
+				Lifespan: prompting.LifespanTimespan,
+				Duration: "1ns",
+			},
+		},
+	}
+	rule1, err := rdb.AddRule(user, snap, iface, constraints1)
+	c.Assert(err, IsNil)
+	c.Assert(rule1, NotNil)
+	s.checkWrittenRuleDB(c, []*requestrules.Rule{rule1})
+	s.checkNewNoticesSimple(c, nil, rule1)
+
+	constraints2 := &prompting.Constraints{
+		PathPattern: mustParsePathPattern(c, "/path/to/{bar,baz}"), // overlap
+		Permissions: prompting.PermissionMap{
+			"read": &prompting.PermissionEntry{
+				Outcome:  prompting.OutcomeDeny, // conflicting
+				Lifespan: prompting.LifespanTimespan,
+				Duration: "1ns",
+			},
+			"execute": &prompting.PermissionEntry{
+				Outcome:  prompting.OutcomeDeny,
+				Lifespan: prompting.LifespanTimespan,
+				Duration: "10s",
+			},
+		},
+	}
+	rule2, err := rdb.AddRule(user, snap, iface, constraints2)
+	c.Assert(err, IsNil)
+	c.Assert(rule2, NotNil)
+	s.checkWrittenRuleDB(c, []*requestrules.Rule{rule1, rule2})
+	s.checkNewNoticesSimple(c, nil, rule2)
+
+	// Check that "read" and "execute" were removed from rule1
+	_, exists := rule1.Constraints.Permissions["read"]
+	c.Check(exists, Equals, false)
+	// Even though "execute" did not conflict, expired entries are removed from
+	// the variant entry's rule entries whenever a new entry is added to it.
+	_, exists = rule1.Constraints.Permissions["execute"]
+	c.Check(exists, Equals, false)
+
+	// Check that "write" was not removed from rule1
+	_, exists = rule1.Constraints.Permissions["write"]
+	c.Check(exists, Equals, true)
+
+	// Check that "read" was not removed from rule2 (even though it's since expired)
+	_, exists = rule2.Constraints.Permissions["read"]
+	c.Check(exists, Equals, true)
+
+	// Check that "execute" was not removed from rule2
+	_, exists = rule2.Constraints.Permissions["execute"]
+	c.Check(exists, Equals, true)
+}
+
 func (s *requestrulesSuite) TestIsPathAllowedSimple(c *C) {
 	// Target
 	user := s.defaultUser
