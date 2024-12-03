@@ -640,34 +640,7 @@ func readComponentInfoFromContImpl(tempPath string, csi *snap.ComponentSideInfo)
 
 func readComponentInfo(st *state.State, upload *uploadedContainer, flags sideloadFlags, model *asserts.Model) (*snap.ComponentInfo, *snap.Info, *apiError) {
 	if flags.dangerousOK {
-		compInfo, err := readComponentInfoFromCont(upload.tmpPath, nil)
-		if err != nil {
-			return nil, nil, BadRequest("cannot read component metadata: %v", err)
-		}
-
-		// unfortunately we must do this a bit out of order, since we cannot
-		// know the component name until opening the container
-		compInfo.ComponentSideInfo = snap.ComponentSideInfo{
-			Component: compInfo.Component,
-			Revision:  snap.R(0),
-		}
-
-		// if no instance was provided in the request we use the snap name from
-		// the component
-		instanceName := upload.instanceName
-		if instanceName == "" {
-			instanceName = compInfo.Component.SnapName
-		}
-
-		info, err := installedSnapInfo(st, instanceName)
-		if err != nil {
-			if errors.Is(err, state.ErrNoState) {
-				return nil, nil, SnapNotInstalled(instanceName, fmt.Errorf("snap owning %q not installed", compInfo.Component))
-			}
-			return nil, nil, BadRequest("cannot retrieve information for %q: %v", instanceName, err)
-		}
-
-		return compInfo, info, nil
+		return readComponentInfoDangerous(st, upload)
 	}
 
 	// either use the component ref that is provided by the caller, or do our
@@ -727,6 +700,35 @@ func readComponentInfo(st *state.State, upload *uploadedContainer, flags sideloa
 	compInfo, err := readComponentInfoFromCont(upload.tmpPath, csi)
 	if err != nil {
 		return nil, nil, BadRequest("cannot read component metadata: %v", err)
+	}
+
+	return compInfo, info, nil
+}
+
+func readComponentInfoDangerous(st *state.State, upload *uploadedContainer) (*snap.ComponentInfo, *snap.Info, *apiError) {
+	compInfo, err := readComponentInfoFromCont(upload.tmpPath, nil)
+	if err != nil {
+		return nil, nil, BadRequest("cannot read component metadata: %v", err)
+	}
+
+	compInfo.ComponentSideInfo = snap.ComponentSideInfo{
+		Component: compInfo.Component,
+		Revision:  snap.R(0),
+	}
+
+	// if no instance was provided in the request we use the snap name from
+	// the component
+	instanceName := upload.instanceName
+	if instanceName == "" {
+		instanceName = compInfo.Component.SnapName
+	}
+
+	info, err := installedSnapInfo(st, instanceName)
+	if err != nil {
+		if errors.Is(err, state.ErrNoState) {
+			return nil, nil, SnapNotInstalled(instanceName, fmt.Errorf("snap owning %q not installed", compInfo.Component))
+		}
+		return nil, nil, BadRequest("cannot retrieve information for %q: %v", instanceName, err)
 	}
 
 	return compInfo, info, nil
