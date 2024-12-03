@@ -165,26 +165,8 @@ run_muinstaller() {
 
     # Change seed part label to capitals so we cover that use case
     image_path="${NESTED_IMAGES_DIR}/${image_name}"
-    loop=$(kpartx -asv "$image_path" | head -n1 | cut -d' ' -f3)
+    kpartx -asv "$image_path"
     fatlabel /dev/disk/by-label/ubuntu-seed UBUNTU-SEED
-    # Also, introduce udev rule to force loading of kernel module in component
-    if [ -n "$kern_mods_comp" ]; then
-        loop=${loop%p*}
-        loop_data="$loop"p5
-        mkdir mnt
-        mount /dev/mapper/"$loop_data" mnt
-
-        # Rule to force module loading on system start (we randomly choose
-        # the rtc device add event for this)
-        rule='ACTION=="add", SUBSYSTEM=="rtc", KERNEL=="rtc*", RUN{builtin}+="kmod load mac80211_hwsim"'
-        printf '%s\n' "$rule" > mnt/etc/udev/rules.d/70-load-wifi.rules
-
-        if ! umount mnt; then
-            # just in case retry
-            sleep 1
-            umount mnt
-        fi
-    fi
     if ! kpartx -d "${image_path}"; then
         # Sometimes there are random failures, let's wait and re-try
         sleep 1

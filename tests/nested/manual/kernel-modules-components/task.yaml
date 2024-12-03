@@ -65,9 +65,9 @@ execute: |
   remote.exec "sudo sh -c 'printf \"$rule\" > /etc/udev/rules.d/70-load-wifi.rules'"
 
   # Install jointly kernel with component
-  remote.push pc-kernel_*.snap
+  remote.push pc-kernel.snap
   boot_id=$(tests.nested boot-id)
-  remote_chg_id=$(remote.exec sudo snap install --no-wait --dangerous pc-kernel_*.snap "$comp_file")
+  remote_chg_id=$(remote.exec sudo snap install --no-wait --dangerous pc-kernel.snap "$comp_file")
   tests.nested wait-for reboot "$boot_id"
   remote.exec "snap change $remote_chg_id" | NOMATCH Error
   # Check that the module has been loaded by the udev rule
@@ -75,7 +75,7 @@ execute: |
 
   # Install again, but force a failure to check revert
   boot_id=$(tests.nested boot-id)
-  remote_chg_id=$(remote.exec sudo snap install --no-wait --dangerous pc-kernel_*.snap "$comp_file")
+  remote_chg_id=$(remote.exec sudo snap install --no-wait --dangerous pc-kernel.snap "$comp_file")
   remote.retry --wait 1 -n 100 'sudo rm /run/mnt/ubuntu-boot/EFI/ubuntu/try-kernel.efi'
   tests.nested wait-for reboot "$boot_id"
   remote.retry --wait 5 -n 60 "snap change $remote_chg_id | MATCH Error"
