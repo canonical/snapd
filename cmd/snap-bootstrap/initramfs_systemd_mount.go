@@ -102,28 +102,28 @@ func (o *overlayFsOptions) ValidateLowerDirs() (string, error) {
 // dmVerityOptions groups the options to systemd-mount related to dm-verity.
 type dmVerityOptions struct {
 	// dm-verity hash device
-	VerityHashDevice string
+	HashDevice string
 	// dm-verity root hash
-	VerityRootHash string
+	RootHash string
 	// dm-verity hash offset. Need to be specified if only verity data are
 	// appended to the snap. Defaults to 0 in mount command
-	VerityHashOffset uint64
+	HashOffset uint64
 }
 
 // Validate is used to perform consistency checks on the options related to dm-verity mounts
 func (o *dmVerityOptions) Validate() error {
-	if o.VerityHashDevice != "" && o.VerityRootHash == "" {
+	if o.HashDevice != "" && o.RootHash == "" {
 		return errors.New("mount with dm-verity was requested but a root hash was not specified")
 	}
-	if o.VerityRootHash != "" && o.VerityHashDevice == "" {
+	if o.RootHash != "" && o.HashDevice == "" {
 		return errors.New("mount with dm-verity was requested but a hash device was not specified")
 	}
 
-	if strings.ContainsAny(o.VerityHashDevice, forbiddenChars) {
-		return fmt.Errorf("dm-verity hash device path contains forbidden characters. %q contains one of %q.", o.VerityHashDevice, forbiddenChars)
+	if strings.ContainsAny(o.HashDevice, forbiddenChars) {
+		return fmt.Errorf("dm-verity hash device path contains forbidden characters. %q contains one of %q.", o.HashDevice, forbiddenChars)
 	}
 
-	if o.VerityHashOffset != 0 && (o.VerityHashDevice == "" || o.VerityRootHash == "") {
+	if o.HashOffset != 0 && (o.HashDevice == "" || o.RootHash == "") {
 		return errors.New("mount with dm-verity was requested but a hash device and root hash were not specified")
 	}
 
@@ -281,12 +281,12 @@ func doSystemdMountImpl(what, where string, opts *systemdMountOptions) error {
 			return fmt.Errorf("cannot mount %q at %q: %w", what, where, err)
 		}
 
-		if o.VerityHashDevice != "" && o.VerityRootHash != "" {
-			options = append(options, fmt.Sprintf("verity.roothash=%s", o.VerityRootHash))
-			options = append(options, fmt.Sprintf("verity.hashdevice=%s", o.VerityHashDevice))
+		if o.HashDevice != "" && o.RootHash != "" {
+			options = append(options, fmt.Sprintf("verity.roothash=%s", o.RootHash))
+			options = append(options, fmt.Sprintf("verity.hashdevice=%s", o.HashDevice))
 
-			if o.VerityHashOffset != 0 {
-				options = append(options, fmt.Sprintf("verity.hashoffset=%d", o.VerityHashOffset))
+			if o.HashOffset != 0 {
+				options = append(options, fmt.Sprintf("verity.hashoffset=%d", o.HashOffset))
 			}
 		}
 	}

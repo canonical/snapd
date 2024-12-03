@@ -405,9 +405,9 @@ func (s *doSystemdMountSuite) TestDoSystemdMount(c *C) {
 			where: "/run/mnt/base",
 			opts: &main.SystemdMountOptions{
 				DmVerityOpts: &main.DmVerityOptions{
-					VerityHashDevice: "test.verity",
-					VerityRootHash:   "00000000000000000000000000000000",
-					VerityHashOffset: 4096,
+					HashDevice: "test.verity",
+					RootHash:   "00000000000000000000000000000000",
+					HashOffset: 4096,
 				},
 			},
 			timeNowTimes:     []time.Time{testStart, testStart},
@@ -419,8 +419,8 @@ func (s *doSystemdMountSuite) TestDoSystemdMount(c *C) {
 			where: "/run/mnt/base",
 			opts: &main.SystemdMountOptions{
 				DmVerityOpts: &main.DmVerityOptions{
-					VerityHashDevice: "test.verity",
-					VerityRootHash:   "00000000000000000000000000000000",
+					HashDevice: "test.verity",
+					RootHash:   "00000000000000000000000000000000",
 				},
 			},
 			timeNowTimes:     []time.Time{testStart, testStart},
@@ -432,7 +432,7 @@ func (s *doSystemdMountSuite) TestDoSystemdMount(c *C) {
 			where: "where",
 			opts: &main.SystemdMountOptions{
 				DmVerityOpts: &main.DmVerityOptions{
-					VerityHashDevice: "test.verity",
+					HashDevice: "test.verity",
 				},
 			},
 			expErr:  "cannot mount \"what\" at \"where\": mount with dm-verity was requested but a root hash was not specified",
@@ -443,7 +443,7 @@ func (s *doSystemdMountSuite) TestDoSystemdMount(c *C) {
 			where: "where",
 			opts: &main.SystemdMountOptions{
 				DmVerityOpts: &main.DmVerityOptions{
-					VerityRootHash: "00000000000000000000000000000000",
+					RootHash: "00000000000000000000000000000000",
 				},
 			},
 			expErr:  "cannot mount \"what\" at \"where\": mount with dm-verity was requested but a hash device was not specified",
@@ -454,7 +454,7 @@ func (s *doSystemdMountSuite) TestDoSystemdMount(c *C) {
 			where: "where",
 			opts: &main.SystemdMountOptions{
 				DmVerityOpts: &main.DmVerityOptions{
-					VerityHashOffset: 4096,
+					HashOffset: 4096,
 				},
 			},
 			expErr:  "cannot mount \"what\" at \"where\": mount with dm-verity was requested but a hash device and root hash were not specified",
@@ -465,8 +465,8 @@ func (s *doSystemdMountSuite) TestDoSystemdMount(c *C) {
 			where: "where",
 			opts: &main.SystemdMountOptions{
 				DmVerityOpts: &main.DmVerityOptions{
-					VerityHashDevice: "test.verity\\,:\" ",
-					VerityRootHash:   "00000000000000000000000000000000",
+					HashDevice: "test.verity\\,:\" ",
+					RootHash:   "00000000000000000000000000000000",
 				},
 			},
 			expErr:  `cannot mount "what" at "where": dm-verity hash device path contains forbidden characters. "` + regexp.QuoteMeta(`test.verity\\,:\" `) + `" contains one of "` + regexp.QuoteMeta(`\\,:\" `) + `".`,
@@ -639,9 +639,9 @@ func (s *doSystemdMountSuite) TestDoSystemdMount(c *C) {
 				c.Assert(opts.OverlayFsOpts, IsNil)
 			}
 			if opts.DmVerityOpts != nil {
-				c.Assert(foundVerityHashDevice, Equals, len(opts.DmVerityOpts.VerityHashDevice) > 0)
-				c.Assert(foundVerityRootHash, Equals, len(opts.DmVerityOpts.VerityRootHash) > 0)
-				c.Assert(foundVerityHashOffset, Equals, opts.DmVerityOpts.VerityHashOffset > 0)
+				c.Assert(foundVerityHashDevice, Equals, len(opts.DmVerityOpts.HashDevice) > 0)
+				c.Assert(foundVerityRootHash, Equals, len(opts.DmVerityOpts.RootHash) > 0)
+				c.Assert(foundVerityHashOffset, Equals, opts.DmVerityOpts.HashOffset > 0)
 			}
 
 			// check that the overrides are present if opts.Ephemeral is false,
