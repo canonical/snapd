@@ -1201,6 +1201,103 @@ func (s *requestrulesSuite) TestAddRuleMerges(c *C) {
 				},
 			},
 		},
+		{
+			// First rule is fully expired but would otherwise conflict with
+			// the second rule.
+			input: []prompting.PermissionMap{
+				{
+					"read": &prompting.PermissionEntry{
+						Outcome:  prompting.OutcomeDeny,
+						Lifespan: prompting.LifespanTimespan,
+						Duration: "1ns", // Will expire and not conflict
+					},
+					"write": &prompting.PermissionEntry{
+						Outcome:  prompting.OutcomeAllow,
+						Lifespan: prompting.LifespanTimespan,
+						Duration: "1ns", // Will expire and not conflict
+					},
+				},
+				{
+					"read": &prompting.PermissionEntry{
+						Outcome:  prompting.OutcomeAllow,
+						Lifespan: prompting.LifespanTimespan,
+						Duration: "10s",
+					},
+					"write": &prompting.PermissionEntry{
+						Outcome:  prompting.OutcomeDeny,
+						Lifespan: prompting.LifespanForever,
+					},
+				},
+			},
+			output: []prompting.PermissionMap{
+				{
+					"read": &prompting.PermissionEntry{
+						Outcome:  prompting.OutcomeAllow,
+						Lifespan: prompting.LifespanTimespan,
+						Duration: "10s",
+					},
+					"write": &prompting.PermissionEntry{
+						Outcome:  prompting.OutcomeDeny,
+						Lifespan: prompting.LifespanForever,
+					},
+				},
+			},
+		},
+		{
+			// First rule is partially expired but would otherwise conflict
+			// with the second rule.
+			input: []prompting.PermissionMap{
+				{
+					"read": &prompting.PermissionEntry{
+						Outcome:  prompting.OutcomeDeny,
+						Lifespan: prompting.LifespanTimespan,
+						Duration: "1ns", // Will expire and not conflict
+					},
+					"write": &prompting.PermissionEntry{
+						Outcome:  prompting.OutcomeDeny,
+						Lifespan: prompting.LifespanTimespan,
+						Duration: "10s",
+					},
+					"execute": &prompting.PermissionEntry{
+						Outcome:  prompting.OutcomeAllow,
+						Lifespan: prompting.LifespanForever,
+					},
+				},
+				{
+					"read": &prompting.PermissionEntry{
+						Outcome:  prompting.OutcomeAllow,
+						Lifespan: prompting.LifespanTimespan,
+						Duration: "10s",
+					},
+					"write": &prompting.PermissionEntry{
+						Outcome:  prompting.OutcomeDeny,
+						Lifespan: prompting.LifespanForever,
+					},
+					"execute": &prompting.PermissionEntry{
+						Outcome:  prompting.OutcomeAllow,
+						Lifespan: prompting.LifespanTimespan,
+						Duration: "10s",
+					},
+				},
+			},
+			output: []prompting.PermissionMap{
+				{
+					"read": &prompting.PermissionEntry{
+						Outcome:  prompting.OutcomeAllow,
+						Lifespan: prompting.LifespanTimespan,
+						Duration: "10s",
+					},
+					"write": &prompting.PermissionEntry{
+						Outcome:  prompting.OutcomeDeny,
+						Lifespan: prompting.LifespanForever,
+					},
+					"execute": &prompting.PermissionEntry{
+						Outcome:  prompting.OutcomeAllow,
+						Lifespan: prompting.LifespanForever,
+					},
+				},
+			},
+		},
 	} {
 		// Set root so rule creation does not interfere between test cases
 		dirs.SetRootDir(c.MkDir())
