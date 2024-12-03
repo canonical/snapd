@@ -23,6 +23,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"net/url"
@@ -37,6 +38,7 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/systestkeys"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
 )
 
@@ -428,12 +430,34 @@ func (s *storeTestSuite) TestMakeTestSnap(c *C) {
 }
 
 func (s *storeTestSuite) TestCollectSnaps(c *C) {
-	s.makeTestSnap(c, "name: foo\nversion: 1")
+	fn := s.makeTestSnap(c, "name: foo\nversion: 1")
+	s.makeAssertions(c, fn, "foo", snaptest.AssertedSnapID("foo"), "devel", "devel-id", 5)
 
-	snaps, err := s.store.collectSnaps()
+	fn = s.makeTestSnap(c, "name: foo\nversion: 2")
+	s.makeAssertions(c, fn, "foo", snaptest.AssertedSnapID("foo"), "devel", "devel-id", 6)
+
+	fn = s.makeTestSnap(c, "name: bar\nversion: 3")
+	s.makeAssertions(c, fn, "bar", snaptest.AssertedSnapID("bar"), "devel", "devel-id", 7)
+
+	bs, err := s.store.collectAssertions()
 	c.Assert(err, IsNil)
-	c.Assert(snaps, DeepEquals, map[string]string{
-		"foo": filepath.Join(s.store.blobDir, "foo_1_all.snap"),
+
+	snaps, err := s.store.collectSnaps(bs)
+	c.Assert(err, IsNil)
+	c.Assert(snaps, DeepEquals, map[string]*revisionSet{
+		"foo": {
+			latest: snap.R(6),
+			containers: map[snap.Revision]string{
+				snap.R(5): filepath.Join(s.store.blobDir, "foo_1_all.snap"),
+				snap.R(6): filepath.Join(s.store.blobDir, "foo_2_all.snap"),
+			},
+		},
+		"bar": {
+			latest: snap.R(7),
+			containers: map[snap.Revision]string{
+				snap.R(7): filepath.Join(s.store.blobDir, "bar_3_all.snap"),
+			},
+		},
 	})
 }
 
@@ -620,6 +644,107 @@ func (s *storeTestSuite) TestSnapActionEndpoint(c *C) {
 			"type":        "app",
 		},
 	})
+}
+
+func (s *storeTestSuite) TestSnapActionEndpointUsesLatest(c *C) {
+	snapFn := s.makeTestSnap(c, "name: test-snapd-tools\nversion: 1")
+	s.makeAssertions(c, snapFn, "test-snapd-tools", "eFe8BTR5L5V9F7yHeMAPxkEr2NdUXMtw", "canonical", "canonical", 1)
+
+	snapFn = s.makeTestSnap(c, "name: test-snapd-tools\nversion: 2")
+	s.makeAssertions(c, snapFn, "test-snapd-tools", "eFe8BTR5L5V9F7yHeMAPxkEr2NdUXMtw", "canonical", "canonical", 2)
+
+	resp, err := s.StorePostJSON("/v2/snaps/refresh", []byte(`{
+"context": [{"instance-key":"eFe8BTR5L5V9F7yHeMAPxkEr2NdUXMtw","snap-id":"eFe8BTR5L5V9F7yHeMAPxkEr2NdUXMtw","tracking-channel":"stable","revision":1}],
+"actions": [{"action":"refresh","instance-key":"eFe8BTR5L5V9F7yHeMAPxkEr2NdUXMtw","snap-id":"eFe8BTR5L5V9F7yHeMAPxkEr2NdUXMtw"}]
+}`))
+	c.Assert(err, IsNil)
+	defer resp.Body.Close()
+
+	c.Assert(resp.StatusCode, Equals, 200)
+	var body struct {
+		Results []map[string]interface{}
+	}
+	c.Assert(json.NewDecoder(resp.Body).Decode(&body), IsNil)
+	c.Check(body.Results, HasLen, 1)
+	sha3_384, size := getSha(snapFn)
+	c.Check(body.Results[0], DeepEquals, map[string]interface{}{
+		"result":       "refresh",
+		"instance-key": "eFe8BTR5L5V9F7yHeMAPxkEr2NdUXMtw",
+		"snap-id":      "eFe8BTR5L5V9F7yHeMAPxkEr2NdUXMtw",
+		"name":         "test-snapd-tools",
+		"snap": map[string]interface{}{
+			"architectures": []interface{}{"all"},
+			"snap-id":       "eFe8BTR5L5V9F7yHeMAPxkEr2NdUXMtw",
+			"name":          "test-snapd-tools",
+			"publisher": map[string]interface{}{
+				"username": "canonical",
+				"id":       "canonical",
+			},
+			"download": map[string]interface{}{
+				"url":      s.store.URL() + "/download/test-snapd-tools_2_all.snap",
+				"sha3-384": sha3_384,
+				"size":     float64(size),
+			},
+			"version":     "2",
+			"revision":    float64(2),
+			"confinement": "strict",
+			"type":        "app",
+		},
+	})
+}
+
+func (s *storeTestSuite) TestSnapActionEndpointAssertedWithRevision(c *C) {
+	oldFn := s.makeTestSnap(c, "name: test-snapd-tools\nversion: 1")
+	s.makeAssertions(c, oldFn, "test-snapd-tools", "eFe8BTR5L5V9F7yHeMAPxkEr2NdUXMtw", "canonical", "canonical", 5)
+
+	latestFn := s.makeTestSnap(c, "name: test-snapd-tools\nversion: 2")
+	s.makeAssertions(c, latestFn, "test-snapd-tools", "eFe8BTR5L5V9F7yHeMAPxkEr2NdUXMtw", "canonical", "canonical", 6)
+
+	request := func(rev snap.Revision, version string, path string) {
+		post := fmt.Sprintf(`{
+		"context": [{"instance-key":"eFe8BTR5L5V9F7yHeMAPxkEr2NdUXMtw","snap-id":"eFe8BTR5L5V9F7yHeMAPxkEr2NdUXMtw","tracking-channel":"stable","revision":1}],
+		"actions": [{"action":"refresh","instance-key":"eFe8BTR5L5V9F7yHeMAPxkEr2NdUXMtw","snap-id":"eFe8BTR5L5V9F7yHeMAPxkEr2NdUXMtw", "revision":%d}]
+		}`, rev.N)
+
+		resp, err := s.StorePostJSON("/v2/snaps/refresh", []byte(post))
+		c.Assert(err, IsNil)
+		defer resp.Body.Close()
+
+		c.Assert(resp.StatusCode, Equals, 200)
+		var body struct {
+			Results []map[string]interface{}
+		}
+		c.Assert(json.NewDecoder(resp.Body).Decode(&body), IsNil)
+		c.Check(body.Results, HasLen, 1)
+		sha3_384, size := getSha(path)
+		c.Check(body.Results[0], DeepEquals, map[string]interface{}{
+			"result":       "refresh",
+			"instance-key": "eFe8BTR5L5V9F7yHeMAPxkEr2NdUXMtw",
+			"snap-id":      "eFe8BTR5L5V9F7yHeMAPxkEr2NdUXMtw",
+			"name":         "test-snapd-tools",
+			"snap": map[string]interface{}{
+				"architectures": []interface{}{"all"},
+				"snap-id":       "eFe8BTR5L5V9F7yHeMAPxkEr2NdUXMtw",
+				"name":          "test-snapd-tools",
+				"publisher": map[string]interface{}{
+					"username": "canonical",
+					"id":       "canonical",
+				},
+				"download": map[string]interface{}{
+					"url":      s.store.URL() + "/download/" + filepath.Base(path),
+					"sha3-384": sha3_384,
+					"size":     float64(size),
+				},
+				"version":     version,
+				"revision":    float64(rev.N),
+				"confinement": "strict",
+				"type":        "app",
+			},
+		})
+	}
+
+	request(snap.R(5), "1", oldFn)
+	request(snap.R(6), "2", latestFn)
 }
 
 func (s *storeTestSuite) TestSnapActionEndpointWithAssertions(c *C) {
