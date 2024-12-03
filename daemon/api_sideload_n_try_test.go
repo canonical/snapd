@@ -439,9 +439,13 @@ func (s *sideloadSuite) TestSideloadComponentDangerousProvideComponentRef(c *che
 		"\r\n" +
 		"true\r\n" +
 		"----hello--\r\n" +
-		"Content-Disposition: form-data; name=\"component-ref\"\r\n" +
+		"Content-Disposition: form-data; name=\"name\"\r\n" +
 		"\r\n" +
-		"local+comp\r\n" +
+		"local\r\n" +
+		"----hello--\r\n" +
+		"Content-Disposition: form-data; name=\"component-name\"\r\n" +
+		"\r\n" +
+		"comp\r\n" +
 		"----hello--\r\n"
 	head := map[string]string{"Content-Type": "multipart/thing; boundary=--hello--"}
 	flags := snapstate.Flags{RemoveSnapPath: true, Transaction: client.TransactionPerSnap}
@@ -456,7 +460,8 @@ func (s *sideloadSuite) TestSideloadComponentDangerousProvideComponentRef(c *che
 	c.Check(systemRestartImmediate, check.Equals, false)
 }
 
-func (s *sideloadSuite) TestSideloadComponentDangerousProvideInvalidComponentRef(c *check.C) {
+func (s *sideloadSuite) TestSideloadComponentDangerousProvideComponentRefInstanceName(c *check.C) {
+	// try a multipart/form-data upload
 	body := "" +
 		"----hello--\r\n" +
 		"Content-Disposition: form-data; name=\"snap\"; filename=\"x\"\r\n" +
@@ -471,14 +476,50 @@ func (s *sideloadSuite) TestSideloadComponentDangerousProvideInvalidComponentRef
 		"\r\n" +
 		"true\r\n" +
 		"----hello--\r\n" +
-		"Content-Disposition: form-data; name=\"component-ref\"\r\n" +
+		"Content-Disposition: form-data; name=\"name\"\r\n" +
+		"\r\n" +
+		"local_key\r\n" +
+		"----hello--\r\n" +
+		"Content-Disposition: form-data; name=\"component-name\"\r\n" +
+		"\r\n" +
+		"comp\r\n" +
+		"----hello--\r\n"
+	head := map[string]string{"Content-Type": "multipart/thing; boundary=--hello--"}
+	flags := snapstate.Flags{RemoveSnapPath: true, Transaction: client.TransactionPerSnap}
+	csi := snap.NewComponentSideInfo(naming.NewComponentRef("local", "comp"), snap.Revision{})
+
+	d := s.daemonWithFakeSnapManager(c)
+	s.markSeeded(d)
+	st := s.d.Overlord().State()
+
+	chgSummary, systemRestartImmediate := s.sideloadComponentCheck(c, st, body, head, "local_key", flags, csi, strings.NewReader("xyzzy"))
+	c.Check(chgSummary, check.Equals, `Install "comp" component for "local_key" snap from file "a/b/comp"`)
+	c.Check(systemRestartImmediate, check.Equals, false)
+}
+
+func (s *sideloadSuite) TestSideloadComponentDangerousProvideComponentNameMissingSnapName(c *check.C) {
+	body := "" +
+		"----hello--\r\n" +
+		"Content-Disposition: form-data; name=\"snap\"; filename=\"x\"\r\n" +
+		"\r\n" +
+		"xyzzy\r\n" +
+		"----hello--\r\n" +
+		"Content-Disposition: form-data; name=\"snap-path\"\r\n" +
+		"\r\n" +
+		"a/b/comp\r\n" +
+		"----hello--\r\n" +
+		"Content-Disposition: form-data; name=\"dangerous\"\r\n" +
+		"\r\n" +
+		"true\r\n" +
+		"----hello--\r\n" +
+		"Content-Disposition: form-data; name=\"component-name\"\r\n" +
 		"\r\n" +
 		"comp\r\n" +
 		"----hello--\r\n"
 	apiErr := s.sideloadComponentFailure(c, body, map[string]string{
 		"Content-Type": "multipart/thing; boundary=--hello--",
 	}, "local")
-	c.Check(apiErr.Message, check.Equals, `cannot parse given component name: incorrect component name "comp"`)
+	c.Check(apiErr.Message, check.Equals, `snap name must be provided if component name is provided`)
 }
 
 func (s *sideloadSuite) TestSideloadComponentDevModeNoAssertion(c *check.C) {

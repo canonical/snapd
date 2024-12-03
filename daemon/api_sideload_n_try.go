@@ -86,12 +86,13 @@ type uploadedContainer struct {
 	filename string
 	// tmpPath is the location where the temp container file is stored.
 	tmpPath string
-	// instanceName is optional and can only be set if only one snap was uploaded.
+	// instanceName is optional and can only be set if only one snap or
+	// component was uploaded.
 	instanceName string
-	// componentRef is optional and can only be set if one component was
-	// uploaded. This should be used in the case that the component name cannot
+	// componentName is optional and can only be set if one component was
+	// uploaded. instanceName must be set if componentName is set.
 	// be derived from the filename.
-	componentRef *naming.ComponentRef
+	componentName string
 }
 
 // GetSnapFiles returns the original name and temp path for each snap file in
@@ -113,13 +114,11 @@ func (f *Form) GetSnapFiles() ([]*uploadedContainer, *apiError) {
 			uploaded.instanceName = f.Values["name"][0]
 		}
 
-		if len(f.Values["component-ref"]) > 0 {
-			snapName, compName, err := naming.SplitFullComponentName(f.Values["component-ref"][0])
-			if err != nil {
-				return nil, BadRequest("cannot parse given component name: %v", err)
+		if len(f.Values["component-name"]) > 0 {
+			if uploaded.instanceName == "" {
+				return nil, BadRequest("snap name must be provided if component name is provided")
 			}
-			cref := naming.NewComponentRef(snapName, compName)
-			uploaded.componentRef = &cref
+			uploaded.componentName = f.Values["component-name"][0]
 		}
 
 		return []*uploadedContainer{uploaded}, nil
@@ -638,6 +637,10 @@ func readComponentInfoFromContImpl(tempPath string, csi *snap.ComponentSideInfo)
 	return snap.ReadComponentInfoFromContainer(compf, nil, csi)
 }
 
+// readComponentInfo reads ComponentInfo from a snap component file and the
+// snap.Info of the matching installed snap. If instanceName is not empty, it is
+// used to find the right instance, otherwise the SnapName from the component is
+// used.
 func readComponentInfo(st *state.State, upload *uploadedContainer, flags sideloadFlags, model *asserts.Model) (*snap.ComponentInfo, *snap.Info, *apiError) {
 	if flags.dangerousOK {
 		return readComponentInfoDangerous(st, upload)
@@ -646,22 +649,21 @@ func readComponentInfo(st *state.State, upload *uploadedContainer, flags sideloa
 	// either use the component ref that is provided by the caller, or do our
 	// best to infer it from the filename of the assumed component file
 	var compRef naming.ComponentRef
-	if upload.componentRef == nil {
+	var instanceName string
+
+	// if a component name was provided, then a snap (or possible instance) name
+	// must have also been provided
+	if upload.componentName == "" {
 		ref, err := naming.ComponentRefFromSnapPackFilename(filepath.Base(upload.filename))
 		if err != nil {
 			return nil, nil, BadRequest("cannot infer component name from filename: %v", upload.filename, err)
 		}
 		compRef = ref
+		instanceName = ref.SnapName
 	} else {
-		compRef = *upload.componentRef
-	}
-
-	// if no instance was provided (and this is not a --dangerous install), we
-	// use the snap name from the component ref we have either derived from the
-	// filename or that the caller provided
-	instanceName := upload.instanceName
-	if instanceName == "" {
-		instanceName = compRef.SnapName
+		snapName, _ := snap.SplitInstanceName(upload.instanceName)
+		compRef = naming.NewComponentRef(snapName, upload.componentName)
+		instanceName = upload.instanceName
 	}
 
 	info, err := installedSnapInfo(st, instanceName)
