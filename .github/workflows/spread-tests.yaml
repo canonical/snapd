@@ -25,6 +25,11 @@ on:
         description: 'The rule .yaml file to use (found under tests/lib/spread/rules) for test discovery'
         required: true
         type: string
+      is-fundamental:
+        description: 'If true, then will mark results as from fundamental systems when uploading to Grafana'
+        required: false
+        type: boolean
+        default: false
       use-snapd-snap-from-master:
         description: 'If true, will use the snapd snap built on the master branch'
         required: false
@@ -300,12 +305,16 @@ jobs:
       run: |
         if [ -e spread.log ]; then
             echo "Running spread log analyzer"
+            fundamental=""
+            if [ "${{ inputs.is-fundamental }}" == 'true' ]; then
+              fundamental="#fundamental"
+            fi
             ACTIONS_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}/attempts/${{ github.run_attempt }}"
             ./tests/lib/external/snapd-testing-tools/utils/log-parser spread.log --output spread-results.json --cut 1 >/dev/null
             while IFS= read -r line; do
                 if [ ! -z "$line" ]; then
                     echo "Adding failed test line to filtered log"
-                    echo "GRAFANA FAILED: $line $ACTIONS_URL" | tee -a "$FILTERED_LOG_FILE"
+                    echo "GRAFANA FAILED: $fundamental $line $ACTIONS_URL" | tee -a "$FILTERED_LOG_FILE"
                 fi
             done <<< $(jq -r '.[] | select( .type == "info" ) | select( .info_type == "Error" ) | "\(.verb) \(.task)"' spread-results.json)
         else

@@ -112,8 +112,8 @@ jobs:
       run: |
         # Compare the daily system in master and in the current branch
         wget -q -O test_master.yaml https://raw.githubusercontent.com/snapcore/snapd/master/.github/workflows/test.yaml
-        system_daily="$(yq '.jobs.spread.strategy.matrix.include.[] | select(.group == "ubuntu-daily") | .systems'  test_master.yaml)"
-        current_daily="$(yq '.jobs.spread.strategy.matrix.include.[] | select(.group == "ubuntu-daily") | .systems'  .github/workflows/test.yaml)"
+        system_daily="$(yq '.jobs.spread-fundamental.strategy.matrix.include.[] | select(.group == "ubuntu-daily") | .systems'  test_master.yaml)"
+        current_daily="$(yq '.jobs.spread-fundamental.strategy.matrix.include.[] | select(.group == "ubuntu-daily") | .systems'  .github/workflows/test.yaml)"
         test "$system_daily" == "$current_daily"
       shell: bash
 
@@ -264,9 +264,70 @@ jobs:
         files: .coverage/coverage-*.cov
         verbose: true
 
-  spread:
+  spread-fundamental:
     uses: ./.github/workflows/spread-tests.yaml
     needs: [unit-tests, snap-builds]
+    name: "spread ${{ matrix.group }}"
+    with:
+      # Github doesn't support passing sequences as parameters.
+      # Instead here we create a json array and pass it as a string.
+      # Then in the spread workflow it turns it into a sequence 
+      # using the fromJSON expression.
+      runs-on: '["self-hosted", "spread-enabled"]'
+      group: ${{ matrix.group }}
+      backend: ${{ matrix.backend }}
+      systems: ${{ matrix.systems }}
+      tasks: ${{ matrix.tasks }}
+      rules: ${{ matrix.rules }}
+      is-fundamental: true
+    strategy:
+      # FIXME: enable fail-fast mode once spread can cancel an executing job.
+      # Disable fail-fast mode as it doesn't function with spread. It seems
+      # that cancelling tasks requires short, interruptible actions and
+      # interrupting spread, notably, does not work today. As such disable
+      # fail-fast while we tackle that problem upstream.
+      fail-fast: false
+      matrix:
+        include:
+          - group: 'debian-req (fundamental)'
+            backend: google-distro-1
+            systems: 'debian-11-64'
+            tasks: 'tests/...'
+            rules: 'main'
+          - group: 'fedora (fundamental)'
+            backend: openstack
+            systems: 'fedora-41-64'
+            tasks: 'tests/...'
+            rules: 'main'
+          - group: 'ubuntu-bionic (fundamental)'
+            backend: google
+            systems: 'ubuntu-18.04-64'
+            tasks: 'tests/...'
+            rules: 'main'
+          - group: 'ubuntu-noble (fundamental)'
+            backend: google
+            systems: 'ubuntu-24.04-64'
+            tasks: 'tests/...'
+            rules: 'main'
+          - group: 'ubuntu-daily (fundamental)'
+            backend: google
+            systems: 'ubuntu-25.04-64'
+            tasks: 'tests/...'
+            rules: 'main'
+          - group: 'ubuntu-core-18 (fundamental)'
+            backend: google-core
+            systems: 'ubuntu-core-18-64'
+            tasks: 'tests/...'
+            rules: 'main'
+          - group: 'ubuntu-core-24 (fundamental)'
+            backend: google-core
+            systems: 'ubuntu-core-24-64'
+            tasks: 'tests/...'
+            rules: 'main'
+
+  spread-not-fundamental:
+    uses: ./.github/workflows/spread-tests.yaml
+    needs: [unit-tests, snap-builds, spread-fundamental]
     name: "spread ${{ matrix.group }}"
     with:
       # Github doesn't support passing sequences as parameters.
@@ -303,11 +364,6 @@ jobs:
             systems: 'centos-9-64'
             tasks: 'tests/...'
             rules: 'main'
-          - group: debian-req
-            backend: google-distro-1
-            systems: 'debian-11-64'
-            tasks: 'tests/...'
-            rules: 'main'
           - group: debian-not-req
             backend: openstack
             systems: 'debian-12-64 debian-sid-64'
@@ -315,7 +371,7 @@ jobs:
             rules: 'main'
           - group: fedora
             backend: openstack
-            systems: 'fedora-40-64 fedora-41-64'
+            systems: 'fedora-40-64'
             tasks: 'tests/...'
             rules: 'main'
           - group: opensuse
@@ -328,9 +384,9 @@ jobs:
             systems: 'ubuntu-14.04-64'
             tasks: 'tests/smoke/ tests/main/canonical-livepatch tests/main/canonical-livepatch-14.04'
             rules: 'trusty'
-          - group: ubuntu-xenial-bionic
+          - group: ubuntu-xenial
             backend: google
-            systems: 'ubuntu-16.04-64 ubuntu-18.04-64'
+            systems: 'ubuntu-16.04-64'
             tasks: 'tests/...'
             rules: 'main'
           - group: ubuntu-focal-jammy
@@ -338,24 +394,9 @@ jobs:
             systems: 'ubuntu-20.04-64 ubuntu-22.04-64'
             tasks: 'tests/...'
             rules: 'main'
-          - group: ubuntu-noble
-            backend: google
-            systems: 'ubuntu-24.04-64'
-            tasks: 'tests/...'
-            rules: 'main'
           - group: ubuntu-no-lts
             backend: google
             systems: 'ubuntu-24.10-64'
-            tasks: 'tests/...'
-            rules: 'main'
-          - group: ubuntu-daily
-            backend: google
-            systems: 'ubuntu-25.04-64'
-            tasks: 'tests/...'
-            rules: 'main'
-          - group: ubuntu-core-18
-            backend: google-core
-            systems: 'ubuntu-core-18-64'
             tasks: 'tests/...'
             rules: 'main'
           - group: ubuntu-core-20
@@ -366,11 +407,6 @@ jobs:
           - group: ubuntu-core-22
             backend: google-core
             systems: 'ubuntu-core-22-64'
-            tasks: 'tests/...'
-            rules: 'main'
-          - group: ubuntu-core-24
-            backend: google-core
-            systems: 'ubuntu-core-24-64'
             tasks: 'tests/...'
             rules: 'main'
           - group: ubuntu-arm64
