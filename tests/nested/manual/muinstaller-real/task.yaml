@@ -100,7 +100,7 @@ execute: |
   if os.query is-ubuntu-ge 24.04; then
       # split kernel into snap and kernel-modules component
       "$TESTSTOOLS"/build_kernel_with_comps.sh efi_pstore efi-pstore
-      kmods_arg="--kmods-comp pc-kernel+efi-pstore.snap"
+      kmods_arg="--kmods-comp pc-kernel+efi-pstore.comp"
       # build now uc24 initramfs
       uc24_build_initramfs_kernel_snap "$PWD/pc-kernel.snap" "$NESTED_ASSETS_DIR"
   else

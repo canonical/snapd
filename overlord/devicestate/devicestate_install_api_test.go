@@ -30,7 +30,6 @@ import (
 
 	"github.com/snapcore/snapd/arch"
 	"github.com/snapcore/snapd/asserts"
-	"github.com/snapcore/snapd/asserts/assertstest"
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/dirs"
@@ -45,23 +44,10 @@ import (
 	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/secboot/keys"
 	"github.com/snapcore/snapd/seed"
-	"github.com/snapcore/snapd/seed/seedtest"
-	"github.com/snapcore/snapd/seed/seedwriter"
 	"github.com/snapcore/snapd/snap"
-	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/testutil"
 	"github.com/snapcore/snapd/timings"
 )
-
-type deviceMgrInstallSuite struct {
-	deviceMgrBaseSuite
-	*seedtest.TestingSeed20
-}
-
-func (s *deviceMgrInstallSuite) SetUpTest(c *C) {
-	s.TestingSeed20 = &seedtest.TestingSeed20{}
-	s.SeedDir = dirs.SnapSeedDir
-}
 
 type deviceMgrInstallAPISuite struct {
 	deviceMgrInstallSuite
@@ -94,103 +80,6 @@ func unpackSnap(snapBlob, targetDir string) error {
 	return nil
 }
 
-func (s *deviceMgrInstallSuite) setupSystemSeed(c *C, sysLabel, gadgetYaml string, isClassic bool, kModsRevs map[string]snap.Revision) (*asserts.Model, map[string]interface{}) {
-	s.StoreSigning = assertstest.NewStoreStack("can0nical", nil)
-
-	s.Brands = assertstest.NewSigningAccounts(s.StoreSigning)
-	s.Brands.Register("my-brand", brandPrivKey, nil)
-
-	// now create a minimal seed dir with snaps/assertions
-	testSeed := &seedtest.TestingSeed20{
-		SeedSnaps: seedtest.SeedSnaps{
-			StoreSigning: s.StoreSigning,
-			Brands:       s.Brands,
-		},
-		SeedDir: dirs.SnapSeedDir,
-	}
-
-	restore := seed.MockTrusted(testSeed.StoreSigning.Trusted)
-	s.AddCleanup(restore)
-
-	assertstest.AddMany(s.StoreSigning.Database, s.Brands.AccountsAndKeys("my-brand")...)
-
-	s.MakeAssertedSnap(c, seedtest.SampleSnapYaml["snapd"], nil, snap.R(1), "my-brand", s.StoreSigning.Database)
-	s.MakeAssertedSnap(c, seedtest.SampleSnapYaml["core24"], nil, snap.R(1), "my-brand", s.StoreSigning.Database)
-	s.MakeAssertedSnap(c, seedtest.SampleSnapYaml["pc=24"],
-		[][]string{
-			{"meta/gadget.yaml", gadgetYaml},
-			{"pc-boot.img", ""}, {"pc-core.img", ""}, {"grubx64.efi", ""},
-			{"shim.efi.signed", ""}, {"grub.conf", ""}},
-		snap.R(1), "my-brand", s.StoreSigning.Database)
-	if len(kModsRevs) > 0 {
-		s.MakeAssertedSnapWithComps(c,
-			seedtest.SampleSnapYaml["pc-kernel=24+kmods"],
-			[][]string{{"kernel.efi", ""}}, snap.R(1), kModsRevs, "my-brand", s.StoreSigning.Database)
-	} else {
-		s.MakeAssertedSnap(c, seedtest.SampleSnapYaml["pc-kernel=24"],
-			[][]string{{"kernel.efi", ""}}, snap.R(1), "my-brand", s.StoreSigning.Database)
-	}
-
-	s.MakeAssertedSnapWithComps(c, seedtest.SampleSnapYaml["optional24"], nil, snap.R(1), nil, "my-brand", s.StoreSigning.Database)
-
-	var kmods map[string]interface{}
-	if len(kModsRevs) > 0 {
-		kmods = map[string]interface{}{
-			"kcomp1": "required",
-			"kcomp2": "required",
-		}
-	}
-	model := map[string]interface{}{
-		"display-name": "my model",
-		"architecture": "amd64",
-		"base":         "core24",
-		"grade":        "dangerous",
-		"snaps": []interface{}{
-			map[string]interface{}{
-				"name":            "pc-kernel",
-				"id":              s.AssertedSnapID("pc-kernel"),
-				"type":            "kernel",
-				"default-channel": "24",
-				"components":      kmods,
-			},
-			map[string]interface{}{
-				"name":            "pc",
-				"id":              s.AssertedSnapID("pc"),
-				"type":            "gadget",
-				"default-channel": "24",
-			},
-			map[string]interface{}{
-				"name": "snapd",
-				"id":   s.AssertedSnapID("snapd"),
-				"type": "snapd",
-			},
-			map[string]interface{}{
-				"name": "core24",
-				"id":   s.AssertedSnapID("core24"),
-				"type": "base",
-			},
-			map[string]interface{}{
-				"name": "optional24",
-				"id":   s.AssertedSnapID("optional24"),
-				"components": map[string]interface{}{
-					"comp1": "optional",
-				},
-			},
-		},
-	}
-	if isClassic {
-		model["classic"] = "true"
-		model["distribution"] = "ubuntu"
-	}
-
-	return s.MakeSeed(c, sysLabel, "my-brand", "my-model", model, []*seedwriter.OptionsSnap{
-		{
-			Name:       "optional24",
-			Components: []seedwriter.OptionsComponent{{Name: "comp1"}},
-		},
-	}), model
-}
-
 type finishStepOpts struct {
 	encrypted          bool
 	installClassic     bool
@@ -198,120 +87,6 @@ type finishStepOpts struct {
 	hasSystemSeed      bool
 	hasKernelModsComps bool
 	optionalContainers *seed.OptionalContainers
-}
-
-type mockSystemSeedWithLabelOpts struct {
-	isClassic       bool
-	hasSystemSeed   bool
-	hasPartial      bool
-	preseedArtifact bool
-	testCompsMode   bool
-	kModsRevs       map[string]snap.Revision
-	types           []snap.Type
-}
-
-func (s *deviceMgrInstallSuite) mockSystemSeedWithLabel(c *C, label string, seedCopyFn func(string, seed.CopyOptions, timings.Measurer) error, opts mockSystemSeedWithLabelOpts) (gadgetSnapPath, kernelSnapPath string, kCompsPaths []string, ginfo *gadget.Info, mountCmd *testutil.MockCmd, rawModel map[string]interface{}) {
-	// Mock partitioned disk
-	gadgetYaml := gadgettest.SingleVolumeUC20GadgetYaml
-	if opts.isClassic {
-		if opts.hasSystemSeed {
-			gadgetYaml = gadgettest.SingleVolumeClassicWithModesAndSystemSeedGadgetYaml
-		} else {
-			gadgetYaml = gadgettest.SingleVolumeClassicWithModesGadgetYaml
-		}
-	}
-	seedGadget := gadgetYaml
-	if opts.hasPartial {
-		// This is the gadget provided by the installer, that must have
-		// filled the partial information.
-		gadgetYaml = gadgettest.SingleVolumeClassicWithModesFilledPartialGadgetYaml
-		// This is the partial gadget, with parts not filled
-		seedGadget = gadgettest.SingleVolumeClassicWithModesPartialGadgetYaml
-	}
-	gadgetRoot := filepath.Join(c.MkDir(), "gadget")
-	ginfo, _, _, restore, err := gadgettest.MockGadgetPartitionedDisk(gadgetYaml, gadgetRoot)
-	c.Assert(err, IsNil)
-	s.AddCleanup(restore)
-
-	// now create a label with snaps/assertions
-	model, rawModel := s.setupSystemSeed(c, label, seedGadget, opts.isClassic, opts.kModsRevs)
-	c.Check(model, NotNil)
-
-	// Create fake seed that will return information from the label we created
-	// (TODO: needs to be in sync with setupSystemSeed, fix that)
-	kernelSnapPath = filepath.Join(s.SeedDir, "snaps", "pc-kernel_1.snap")
-	baseSnapPath := filepath.Join(s.SeedDir, "snaps", "core24_1.snap")
-	gadgetSnapPath = filepath.Join(s.SeedDir, "snaps", "pc_1.snap")
-
-	var kernComps []seed.Component
-	if len(opts.kModsRevs) > 0 {
-		kernComps = []seed.Component{
-			{
-				Path: filepath.Join(s.SeedDir, "snaps", "pc-kernel+kcomp1_"+opts.kModsRevs["kcomp1"].String()+".comp"),
-				CompSideInfo: snap.ComponentSideInfo{
-					Component: naming.NewComponentRef("pc-kernel", "kcomp1"),
-					Revision:  opts.kModsRevs["kcomp1"]},
-			}}
-		kCompsPaths = []string{kernComps[0].Path}
-		if !opts.testCompsMode {
-			kernComps = append(kernComps, seed.Component{
-				Path: filepath.Join(s.SeedDir, "snaps", "pc-kernel+kcomp2_"+opts.kModsRevs["kcomp2"].String()+".comp"),
-				CompSideInfo: snap.ComponentSideInfo{
-					Component: naming.NewComponentRef("pc-kernel", "kcomp2"),
-					Revision:  opts.kModsRevs["kcomp2"]},
-			})
-			kCompsPaths = append(kCompsPaths, kernComps[1].Path)
-		}
-	}
-	essentialSnaps := make([]*seed.Snap, 0, len(opts.types))
-	for _, typ := range opts.types {
-		switch typ {
-		case snap.TypeKernel:
-			essentialSnaps = append(essentialSnaps, &seed.Snap{
-				Path: kernelSnapPath,
-				SideInfo: &snap.SideInfo{RealName: "pc-kernel",
-					Revision: snap.R(1), SnapID: s.SeedSnaps.AssertedSnapID("pc-kernel")},
-				EssentialType: snap.TypeKernel,
-				Components:    kernComps,
-			})
-		case snap.TypeBase:
-			essentialSnaps = append(essentialSnaps, &seed.Snap{
-				Path: baseSnapPath,
-				SideInfo: &snap.SideInfo{RealName: "core24",
-					Revision: snap.R(1), SnapID: s.SeedSnaps.AssertedSnapID("core24")},
-				EssentialType: snap.TypeBase,
-			})
-		case snap.TypeGadget:
-			essentialSnaps = append(essentialSnaps, &seed.Snap{
-				Path: gadgetSnapPath,
-				SideInfo: &snap.SideInfo{RealName: "pc",
-					Revision: snap.R(1), SnapID: s.SeedSnaps.AssertedSnapID("pc")},
-				EssentialType: snap.TypeGadget,
-			})
-		}
-	}
-
-	restore = devicestate.MockSeedOpen(func(seedDir, label string) (seed.Seed, error) {
-		return &fakeSeedCopier{
-			copyFn: seedCopyFn,
-			optionalContainers: seed.OptionalContainers{
-				Snaps:      []string{"optional24"},
-				Components: map[string][]string{"optional24": {"comp1"}},
-			},
-			fakeSeed: fakeSeed{
-				essentialSnaps:  essentialSnaps,
-				model:           model,
-				preseedArtifact: opts.preseedArtifact,
-			},
-		}, nil
-	})
-	s.AddCleanup(restore)
-
-	// Mock calls to systemd-mount, which is used to mount snaps from the system label
-	mountCmd = testutil.MockCommand(c, "systemd-mount", "")
-	s.AddCleanup(func() { mountCmd.Restore() })
-
-	return gadgetSnapPath, kernelSnapPath, kCompsPaths, ginfo, mountCmd, rawModel
 }
 
 func mockDiskVolume(opts finishStepOpts) *gadget.OnDiskVolume {
@@ -539,20 +314,6 @@ var mockFilledPartialDiskVolume = gadget.OnDiskVolume{
 	// ( 2 GB / 512 B sector size ) - 33 typical GPT header backup sectors +
 	// 1 sector to get the exclusive end
 	UsableSectorsEnd: uint64((6*quantity.SizeGiB/512)-33) + 1,
-}
-
-type fakeSeedCopier struct {
-	fakeSeed
-	optionalContainers seed.OptionalContainers
-	copyFn             func(seedDir string, opts seed.CopyOptions, tm timings.Measurer) error
-}
-
-func (s *fakeSeedCopier) Copy(seedDir string, opts seed.CopyOptions, tm timings.Measurer) error {
-	return s.copyFn(seedDir, opts, tm)
-}
-
-func (s *fakeSeedCopier) OptionalContainers() (seed.OptionalContainers, error) {
-	return s.optionalContainers, nil
 }
 
 // TODO encryption case for the finish step is not tested yet, it needs more mocking

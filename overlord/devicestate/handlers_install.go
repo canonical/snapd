@@ -275,12 +275,9 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 	// run the create partition code
 	logger.Noticef("create and deploy partitions")
 
-	st.Unlock()
 	// Load seed to find out kernel-modules components in run mode
 	systemAndSnaps, mntPtForType, mntPtForComps, unmount,
-		err := m.loadAndMountSystemLabelSnaps(m.seedLabel, []snap.Type{snap.TypeKernel})
-	st.Lock()
-
+		err := m.loadAndMountSystemLabelSnapsUnlock(st, m.seedLabel, []snap.Type{snap.TypeKernel})
 	if err != nil {
 		return err
 	}
@@ -559,11 +556,9 @@ func (m *DeviceManager) doFactoryResetRunSystem(t *state.Task, _ *tomb.Tomb) err
 		}
 	}
 
-	st.Unlock()
 	// Load seed to find out kernel-modules components in run mode
 	systemAndSnaps, mntPtForType, mntPtForComps, unmount,
-		err := m.loadAndMountSystemLabelSnaps(m.seedLabel, []snap.Type{snap.TypeKernel})
-	st.Lock()
+		err := m.loadAndMountSystemLabelSnapsUnlock(st, m.seedLabel, []snap.Type{snap.TypeKernel})
 	if err != nil {
 		return err
 	}
@@ -899,6 +894,12 @@ func mountSeedContainer(filePath, subdir string) (mountpoint string, unmount fun
 		nil
 }
 
+func (m *DeviceManager) loadAndMountSystemLabelSnapsUnlock(st *state.State, systemLabel string, essentialTypes []snap.Type) (*systemAndEssentialSnaps, map[snap.Type]string, map[string]string, func(), error) {
+	st.Unlock()
+	defer st.Lock()
+	return m.loadAndMountSystemLabelSnaps(systemLabel, essentialTypes)
+}
+
 func (m *DeviceManager) loadAndMountSystemLabelSnaps(systemLabel string, essentialTypes []snap.Type) (*systemAndEssentialSnaps, map[snap.Type]string, map[string]string, func(), error) {
 	systemAndSnaps, err := m.loadSystemAndEssentialSnaps(systemLabel, essentialTypes, "run")
 	if err != nil {
@@ -1031,10 +1032,8 @@ func (m *DeviceManager) doInstallFinish(t *state.Task, _ *tomb.Tomb) error {
 		}
 	}
 
-	st.Unlock()
-	systemAndSnaps, mntPtForType, mntPtForComps, unmount, err := m.loadAndMountSystemLabelSnaps(systemLabel,
-		[]snap.Type{snap.TypeKernel, snap.TypeBase, snap.TypeGadget})
-	st.Lock()
+	systemAndSnaps, mntPtForType, mntPtForComps, unmount, err := m.loadAndMountSystemLabelSnapsUnlock(
+		st, systemLabel, []snap.Type{snap.TypeKernel, snap.TypeBase, snap.TypeGadget})
 	if err != nil {
 		return err
 	}
@@ -1252,10 +1251,8 @@ func (m *DeviceManager) doInstallSetupStorageEncryption(t *state.Task, _ *tomb.T
 	}
 	logger.Debugf("install-setup-storage-encryption for %q on %v", systemLabel, onVolumes)
 
-	st.Unlock()
-	systemAndSeeds, mntPtForType, _, unmount, err := m.loadAndMountSystemLabelSnaps(systemLabel,
-		[]snap.Type{snap.TypeKernel, snap.TypeBase, snap.TypeGadget})
-	st.Lock()
+	systemAndSeeds, mntPtForType, _, unmount, err := m.loadAndMountSystemLabelSnapsUnlock(
+		st, systemLabel, []snap.Type{snap.TypeKernel, snap.TypeBase, snap.TypeGadget})
 	if err != nil {
 		return err
 	}
