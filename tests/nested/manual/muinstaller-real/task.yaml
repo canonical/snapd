@@ -99,7 +99,7 @@ execute: |
   kmods_arg=""
   if os.query is-ubuntu-ge 24.04; then
       # split kernel into snap and kernel-modules component
-      "$TESTSTOOLS"/build_kernel_with_comps.sh
+      "$TESTSTOOLS"/build_kernel_with_comps.sh mac80211_hwsim wifi-comp
       kmods_arg="--kmods-comp pc-kernel+wifi-comp.comp"
       # build now uc24 initramfs
       uc24_build_initramfs_kernel_snap "$PWD/pc-kernel.snap" "$NESTED_ASSETS_DIR"
@@ -144,7 +144,7 @@ execute: |
       remote.exec test -d /var/lib/snapd/kernel/pc-kernel/x1
       # mac80211_hwsim has been loaded and comes from the "updates" subfolder
       remote.exec lsmod | MATCH mac80211_hwsim
-      remote.exec modinfo -F filename mac80211_hwsim | MATCH updates/wifi-comp/wireless/mac80211_hwsim.ko
+      remote.exec modinfo -F filename mac80211_hwsim | MATCH updates/wifi-comp/kmod/mac80211_hwsim.ko
       remote.exec ip link show wlan0
   fi
 
@@ -195,7 +195,7 @@ execute: |
       remote.exec "snap change $REMOTE_CHG_ID" | NOMATCH Error
       # mac80211_hwsim has been loaded and comes from the "updates" subfolder
       remote.exec lsmod | MATCH mac80211_hwsim
-      remote.exec modinfo -F filename mac80211_hwsim | MATCH updates/wifi-comp/wireless/mac80211_hwsim.ko
+      remote.exec modinfo -F filename mac80211_hwsim | MATCH updates/wifi-comp/kmod/mac80211_hwsim.ko
       remote.exec ip link show wlan0
   fi
 
