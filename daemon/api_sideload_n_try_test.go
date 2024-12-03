@@ -355,6 +355,52 @@ version: 1.0.2
 		"snap-path": compPath,
 	})
 
+	const instanceKey = ""
+	s.testSideloadComponentAsserted(c, compPath, instanceKey, body)
+}
+
+func (s *sideloadSuite) TestSideloadComponentAssertedWithInstanceName(c *check.C) {
+	compPath := snaptest.MakeTestComponentWithFiles(c, "comp", `component: local+comp
+type: standard
+version: 1.0.2
+`, nil)
+
+	newPath := filepath.Join(filepath.Dir(compPath), "local+comp_1.0.comp")
+	err := os.Rename(compPath, newPath)
+	c.Assert(err, check.IsNil)
+	compPath = newPath
+
+	const instanceKey = "key"
+	body := makeFormData(c, []string{compPath}, map[string]string{
+		"snap-path": compPath,
+		"name":      snap.InstanceName("local", instanceKey),
+	})
+
+	s.testSideloadComponentAsserted(c, compPath, instanceKey, body)
+}
+
+func (s *sideloadSuite) TestSideloadComponentAssertedWithComponentName(c *check.C) {
+	compPath := snaptest.MakeTestComponentWithFiles(c, "comp", `component: local+comp
+type: standard
+version: 1.0.2
+`, nil)
+
+	newPath := filepath.Join(filepath.Dir(compPath), "filename.comp")
+	err := os.Rename(compPath, newPath)
+	c.Assert(err, check.IsNil)
+	compPath = newPath
+
+	const instanceKey = "key"
+	body := makeFormData(c, []string{compPath}, map[string]string{
+		"snap-path":      compPath,
+		"name":           snap.InstanceName("local", instanceKey),
+		"component-name": "comp",
+	})
+
+	s.testSideloadComponentAsserted(c, compPath, instanceKey, body)
+}
+
+func (s *sideloadSuite) testSideloadComponentAsserted(c *check.C, compPath, instanceKey, body string) {
 	snapID := snaptest.AssertedSnapID("local")
 
 	snapDecl, err := s.StoreSigning.Sign(asserts.SnapDeclarationType, map[string]interface{}{
@@ -418,8 +464,10 @@ version: 1.0.2
 	c.Assert(err, check.IsNil)
 	defer compFile.Close()
 
-	chgSummary, systemRestartImmediate := s.sideloadComponentCheck(c, st, body, headers, "local", flags, csi, compFile)
-	c.Check(chgSummary, check.Equals, fmt.Sprintf(`Install "comp" component for "local" snap from file %q`, compPath))
+	instanceName := snap.InstanceName("local", instanceKey)
+
+	chgSummary, systemRestartImmediate := s.sideloadComponentCheck(c, st, body, headers, instanceName, flags, csi, compFile)
+	c.Check(chgSummary, check.Equals, fmt.Sprintf(`Install "comp" component for %q snap from file %q`, instanceName, compPath))
 	c.Check(systemRestartImmediate, check.Equals, false)
 }
 

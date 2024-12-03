@@ -669,6 +669,11 @@ func readComponentInfo(st *state.State, upload *uploadedContainer, flags sideloa
 	} else {
 		snapName, _ := snap.SplitInstanceName(upload.instanceName)
 		compRef = naming.NewComponentRef(snapName, upload.componentName)
+	}
+
+	// we should still override the potentially derived snap name with the given
+	// instance name if we have one
+	if upload.instanceName != "" {
 		instanceName = upload.instanceName
 	}
 
