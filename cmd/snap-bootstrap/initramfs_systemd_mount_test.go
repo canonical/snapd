@@ -219,10 +219,11 @@ func (s *doSystemdMountSuite) TestDoSystemdMount(c *C) {
 			what:  "/merged",
 			where: "/merged",
 			opts: &main.SystemdMountOptions{
-				Overlayfs: true,
-				LowerDirs: []string{"/lower"},
-				UpperDir:  "/upper",
-				WorkDir:   "/work",
+				OverlayFsOpts: &main.OverlayFsOptions{
+					LowerDirs: []string{"/lower"},
+					UpperDir:  "/upper",
+					WorkDir:   "/work",
+				},
 			},
 			timeNowTimes:     []time.Time{testStart, testStart},
 			isMountedReturns: []bool{true},
@@ -234,10 +235,12 @@ func (s *doSystemdMountSuite) TestDoSystemdMount(c *C) {
 		// 	what:  "/merged",
 		// 	where: "/merged",
 		// 	opts: &main.SystemdMountOptions{
-		// 		Overlayfs: true,
-		// 		LowerDirs: []string{"/lower,"},
-		// 		UpperDir:  "/upper",
-		// 		WorkDir:   "/work",
+		// 		OverlayFsOpts: &main.OverlayFsOptions{
+		// 			Overlayfs: true,
+		// 			LowerDirs: []string{"/lower,"},
+		// 			UpperDir:  "/upper",
+		// 			WorkDir:   "/work",
+		// 		},
 		// 	},
 		// 	timeNowTimes:     []time.Time{testStart, testStart},
 		// 	isMountedReturns: []bool{true},
@@ -249,10 +252,11 @@ func (s *doSystemdMountSuite) TestDoSystemdMount(c *C) {
 		// 	what:  "/merged",
 		// 	where: "/merged",
 		// 	opts: &main.SystemdMountOptions{
-		// 		Overlayfs: true,
-		// 		LowerDirs: []string{"/lower"},
-		// 		UpperDir:  "/upper,",
-		// 		WorkDir:   "/work",
+		// 		OverlayFsOpts: &main.OverlayFsOptions{
+		// 			LowerDirs: []string{"/lower"},
+		// 			UpperDir:  "/upper,",
+		// 			WorkDir:   "/work",
+		// 		},
 		// 	},
 		// 	timeNowTimes:     []time.Time{testStart, testStart},
 		// 	isMountedReturns: []bool{true},
@@ -264,10 +268,11 @@ func (s *doSystemdMountSuite) TestDoSystemdMount(c *C) {
 		// 	what:  "/merged",
 		// 	where: "/merged",
 		// 	opts: &main.SystemdMountOptions{
-		// 		Overlayfs: true,
-		// 		LowerDirs: []string{"/lower"},
-		// 		UpperDir:  "/upper",
-		// 		WorkDir:   "/work,",
+		// 		OverlayFsOpts: &main.OverlayFsOptions{
+		// 			LowerDirs: []string{"/lower"},
+		// 			UpperDir:  "/upper",
+		// 			WorkDir:   "/work,",
+		// 		},
 		// 	},
 		// 	timeNowTimes:     []time.Time{testStart, testStart},
 		// 	isMountedReturns: []bool{true},
@@ -278,10 +283,11 @@ func (s *doSystemdMountSuite) TestDoSystemdMount(c *C) {
 			what:  "/merged",
 			where: "/merged",
 			opts: &main.SystemdMountOptions{
-				Overlayfs: true,
-				LowerDirs: []string{"/lower1", "/lower2"},
-				UpperDir:  "/upper",
-				WorkDir:   "/work",
+				OverlayFsOpts: &main.OverlayFsOptions{
+					LowerDirs: []string{"/lower1", "/lower2"},
+					UpperDir:  "/upper",
+					WorkDir:   "/work",
+				},
 			},
 			timeNowTimes:     []time.Time{testStart, testStart},
 			isMountedReturns: []bool{true},
@@ -293,10 +299,11 @@ func (s *doSystemdMountSuite) TestDoSystemdMount(c *C) {
 		// 	what:  "/merged",
 		// 	where: "/merged",
 		// 	opts: &main.SystemdMountOptions{
-		// 		Overlayfs: true,
-		// 		LowerDirs: []string{"/lower1:", "/lower2:"},
-		// 		UpperDir:  "/upper",
-		// 		WorkDir:   "/work",
+		// 		OverlayFsOpts: &main.OverlayFsOptions{
+		// 			LowerDirs: []string{"/lower1:", "/lower2:"},
+		// 			UpperDir:  "/upper",
+		// 			WorkDir:   "/work",
+		// 		},
 		// 	},
 		// 	timeNowTimes:     []time.Time{testStart, testStart},
 		// 	isMountedReturns: []bool{true},
@@ -307,9 +314,10 @@ func (s *doSystemdMountSuite) TestDoSystemdMount(c *C) {
 			what:  "what",
 			where: "where",
 			opts: &main.SystemdMountOptions{
-				Overlayfs: true,
-				UpperDir:  "/upper",
-				WorkDir:   "/work",
+				OverlayFsOpts: &main.OverlayFsOptions{
+					UpperDir: "/upper",
+					WorkDir:  "/work",
+				},
 			},
 			expErr:  "cannot mount \"what\" at \"where\": missing arguments for overlayfs mount. lowerdir, upperdir, workdir are needed.",
 			comment: "overlayfs mount requested without specifying a lowerdir",
@@ -319,9 +327,10 @@ func (s *doSystemdMountSuite) TestDoSystemdMount(c *C) {
 			what:  "what",
 			where: "where",
 			opts: &main.SystemdMountOptions{
-				Overlayfs: true,
-				LowerDirs: []string{"/lower1"},
-				WorkDir:   "/work",
+				OverlayFsOpts: &main.OverlayFsOptions{
+					LowerDirs: []string{"/lower1"},
+					WorkDir:   "/work",
+				},
 			},
 			expErr:  "cannot mount \"what\" at \"where\": missing arguments for overlayfs mount. lowerdir, upperdir, workdir are needed.",
 			comment: "overlayfs mount requested without specifying an upperdir",
@@ -331,9 +340,10 @@ func (s *doSystemdMountSuite) TestDoSystemdMount(c *C) {
 			what:  "what",
 			where: "where",
 			opts: &main.SystemdMountOptions{
-				Overlayfs: true,
-				LowerDirs: []string{"/lower1"},
-				UpperDir:  "/upper",
+				OverlayFsOpts: &main.OverlayFsOptions{
+					LowerDirs: []string{"/lower1"},
+					UpperDir:  "/upper",
+				},
 			},
 			expErr:  "cannot mount \"what\" at \"where\": missing arguments for overlayfs mount. lowerdir, upperdir, workdir are needed.",
 			comment: "overlayfs mount requested without specifying a workdir",
@@ -342,10 +352,11 @@ func (s *doSystemdMountSuite) TestDoSystemdMount(c *C) {
 			what:  "what",
 			where: "where",
 			opts: &main.SystemdMountOptions{
-				Overlayfs: true,
-				LowerDirs: []string{"/lower1\\,\" "},
-				UpperDir:  "/upper",
-				WorkDir:   "/work",
+				OverlayFsOpts: &main.OverlayFsOptions{
+					LowerDirs: []string{"/lower1\\,\" "},
+					UpperDir:  "/upper",
+					WorkDir:   "/work",
+				},
 			},
 			expErr:  `cannot mount "what" at "where": lowerdir overlayfs mount option contains forbidden characters. "` + regexp.QuoteMeta(`/lower1\\,\" `) + `" contains one of "` + regexp.QuoteMeta(`\\,:\" `) + `".`,
 			comment: "disallow use of \\,\" and space in the overlayfs lowerdir mount option",
@@ -354,10 +365,11 @@ func (s *doSystemdMountSuite) TestDoSystemdMount(c *C) {
 			what:  "what",
 			where: "where",
 			opts: &main.SystemdMountOptions{
-				Overlayfs: true,
-				LowerDirs: []string{"/lower1:"},
-				UpperDir:  "/upper",
-				WorkDir:   "/work",
+				OverlayFsOpts: &main.OverlayFsOptions{
+					LowerDirs: []string{"/lower1:"},
+					UpperDir:  "/upper",
+					WorkDir:   "/work",
+				},
 			},
 			expErr:  `cannot mount "what" at "where": lowerdir overlayfs mount option contains forbidden characters. "` + regexp.QuoteMeta(`/lower1:`) + `" contains one of "` + regexp.QuoteMeta(`\\,:\" `) + `".`,
 			comment: "disallow use of : in the overlayfs lowerdir mount option",
@@ -366,10 +378,11 @@ func (s *doSystemdMountSuite) TestDoSystemdMount(c *C) {
 			what:  "what",
 			where: "where",
 			opts: &main.SystemdMountOptions{
-				Overlayfs: true,
-				LowerDirs: []string{"/lower1"},
-				UpperDir:  "/upper\\,:\" ",
-				WorkDir:   "/work",
+				OverlayFsOpts: &main.OverlayFsOptions{
+					LowerDirs: []string{"/lower1"},
+					UpperDir:  "/upper\\,:\" ",
+					WorkDir:   "/work",
+				},
 			},
 			expErr:  `cannot mount "what" at "where": upperdir overlayfs mount option contains forbidden characters. "` + regexp.QuoteMeta(`/upper\\,:\" `) + `" contains one of "` + regexp.QuoteMeta(`\\,:\" `) + `".`,
 			comment: "disallow use of \\,:\" and space in the overlayfs upperdir mount option",
@@ -378,10 +391,11 @@ func (s *doSystemdMountSuite) TestDoSystemdMount(c *C) {
 			what:  "what",
 			where: "where",
 			opts: &main.SystemdMountOptions{
-				Overlayfs: true,
-				LowerDirs: []string{"/lower1"},
-				UpperDir:  "/upper",
-				WorkDir:   "/work\\,:\" ",
+				OverlayFsOpts: &main.OverlayFsOptions{
+					LowerDirs: []string{"/lower1"},
+					UpperDir:  "/upper",
+					WorkDir:   "/work\\,:\" ",
+				},
 			},
 			expErr:  `cannot mount "what" at "where": workdir overlayfs mount option contains forbidden characters. "` + regexp.QuoteMeta(`/work\\,:\" `) + `" contains one of "` + regexp.QuoteMeta(`\\,:\" `) + `".`,
 			comment: "disallow use of \\,:\" and space in the overlayfs workdir mount option",
@@ -390,9 +404,11 @@ func (s *doSystemdMountSuite) TestDoSystemdMount(c *C) {
 			what:  "/run/mnt/data/some.snap",
 			where: "/run/mnt/base",
 			opts: &main.SystemdMountOptions{
-				VerityHashDevice: "test.verity",
-				VerityRootHash:   "00000000000000000000000000000000",
-				VerityHashOffset: 4096,
+				DmVerityOpts: &main.DmVerityOptions{
+					VerityHashDevice: "test.verity",
+					VerityRootHash:   "00000000000000000000000000000000",
+					VerityHashOffset: 4096,
+				},
 			},
 			timeNowTimes:     []time.Time{testStart, testStart},
 			isMountedReturns: []bool{true},
@@ -402,8 +418,10 @@ func (s *doSystemdMountSuite) TestDoSystemdMount(c *C) {
 			what:  "/run/mnt/data/some.snap",
 			where: "/run/mnt/base",
 			opts: &main.SystemdMountOptions{
-				VerityHashDevice: "test.verity",
-				VerityRootHash:   "00000000000000000000000000000000",
+				DmVerityOpts: &main.DmVerityOptions{
+					VerityHashDevice: "test.verity",
+					VerityRootHash:   "00000000000000000000000000000000",
+				},
 			},
 			timeNowTimes:     []time.Time{testStart, testStart},
 			isMountedReturns: []bool{true},
@@ -413,7 +431,9 @@ func (s *doSystemdMountSuite) TestDoSystemdMount(c *C) {
 			what:  "what",
 			where: "where",
 			opts: &main.SystemdMountOptions{
-				VerityHashDevice: "test.verity",
+				DmVerityOpts: &main.DmVerityOptions{
+					VerityHashDevice: "test.verity",
+				},
 			},
 			expErr:  "cannot mount \"what\" at \"where\": mount with dm-verity was requested but a root hash was not specified",
 			comment: "verity hash device specified without specifying a verity root hash",
@@ -422,7 +442,9 @@ func (s *doSystemdMountSuite) TestDoSystemdMount(c *C) {
 			what:  "what",
 			where: "where",
 			opts: &main.SystemdMountOptions{
-				VerityRootHash: "00000000000000000000000000000000",
+				DmVerityOpts: &main.DmVerityOptions{
+					VerityRootHash: "00000000000000000000000000000000",
+				},
 			},
 			expErr:  "cannot mount \"what\" at \"where\": mount with dm-verity was requested but a hash device was not specified",
 			comment: "verity root hash specified without specifying a verity hash device",
@@ -431,7 +453,9 @@ func (s *doSystemdMountSuite) TestDoSystemdMount(c *C) {
 			what:  "what",
 			where: "where",
 			opts: &main.SystemdMountOptions{
-				VerityHashOffset: 4096,
+				DmVerityOpts: &main.DmVerityOptions{
+					VerityHashOffset: 4096,
+				},
 			},
 			expErr:  "cannot mount \"what\" at \"where\": mount with dm-verity was requested but a hash device and root hash were not specified",
 			comment: "verity hash offset specified without specifying a verity root hash and a verity hash device",
@@ -440,8 +464,10 @@ func (s *doSystemdMountSuite) TestDoSystemdMount(c *C) {
 			what:  "what",
 			where: "where",
 			opts: &main.SystemdMountOptions{
-				VerityHashDevice: "test.verity\\,:\" ",
-				VerityRootHash:   "00000000000000000000000000000000",
+				DmVerityOpts: &main.DmVerityOptions{
+					VerityHashDevice: "test.verity\\,:\" ",
+					VerityRootHash:   "00000000000000000000000000000000",
+				},
 			},
 			expErr:  `cannot mount "what" at "where": dm-verity hash device path contains forbidden characters. "` + regexp.QuoteMeta(`test.verity\\,:\" `) + `" contains one of "` + regexp.QuoteMeta(`\\,:\" `) + `".`,
 			comment: "disallow use of \\,:\": and space in the dm-verity hash device option",
@@ -594,7 +620,6 @@ func (s *doSystemdMountSuite) TestDoSystemdMount(c *C) {
 				}
 			}
 			c.Assert(foundTypeTmpfs, Equals, opts.Tmpfs)
-			c.Assert(foundTypeOverlayfs, Equals, opts.Overlayfs)
 			c.Assert(foundFsckYes, Equals, opts.NeedsFsck)
 			c.Assert(foundFsckNo, Equals, !opts.NeedsFsck)
 			c.Assert(foundNoBlock, Equals, opts.NoWait)
@@ -605,12 +630,19 @@ func (s *doSystemdMountSuite) TestDoSystemdMount(c *C) {
 			c.Assert(foundBind, Equals, opts.Bind)
 			c.Assert(foundReadOnly, Equals, opts.ReadOnly)
 			c.Assert(foundPrivate, Equals, opts.Private)
-			c.Assert(foundOverlayLowerDir, Equals, len(opts.LowerDirs) > 0)
-			c.Assert(foundOverlayUpperDir, Equals, len(opts.UpperDir) > 0)
-			c.Assert(foundOverlayWorkDir, Equals, len(opts.WorkDir) > 0)
-			c.Assert(foundVerityHashDevice, Equals, len(opts.VerityHashDevice) > 0)
-			c.Assert(foundVerityRootHash, Equals, len(opts.VerityRootHash) > 0)
-			c.Assert(foundVerityHashOffset, Equals, opts.VerityHashOffset > 0)
+			if foundTypeOverlayfs {
+				c.Assert(opts.OverlayFsOpts, Not(Equals), nil)
+				c.Assert(foundOverlayLowerDir, Equals, len(opts.OverlayFsOpts.LowerDirs) > 0)
+				c.Assert(foundOverlayUpperDir, Equals, len(opts.OverlayFsOpts.UpperDir) > 0)
+				c.Assert(foundOverlayWorkDir, Equals, len(opts.OverlayFsOpts.WorkDir) > 0)
+			} else {
+				c.Assert(opts.OverlayFsOpts, IsNil)
+			}
+			if opts.DmVerityOpts != nil {
+				c.Assert(foundVerityHashDevice, Equals, len(opts.DmVerityOpts.VerityHashDevice) > 0)
+				c.Assert(foundVerityRootHash, Equals, len(opts.DmVerityOpts.VerityRootHash) > 0)
+				c.Assert(foundVerityHashOffset, Equals, opts.DmVerityOpts.VerityHashOffset > 0)
+			}
 
 			// check that the overrides are present if opts.Ephemeral is false,
 			// or check the overrides are not present if opts.Ephemeral is true
