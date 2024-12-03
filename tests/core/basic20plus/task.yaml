@@ -122,7 +122,7 @@ execute: |
 
     # make sure that ubuntu-{seed,save} is mounted with appropriate flags
     for mount in /run/mnt/ubuntu-seed /run/mnt/ubuntu-save; do
-        MNT_NAME="$(echo ${mount##*/})"
+        MNT_NAME="${mount##*/}"
         findmnt -T /run/mnt/ubuntu-save > "${MNT_NAME}.info"
 
         # print it for debug purposes before we match flags
