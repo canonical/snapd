@@ -64,9 +64,9 @@ type BootableSet struct {
 // BootableComponent represents kernel-modules components, which are
 // needed as part of a BootableSet.
 type BootableKModsComponents struct {
-	// CompPlaceInfo is usde to build to file name with the right revision
+	// CompPlaceInfo is used to build the file name with the right revision.
 	CompPlaceInfo snap.ContainerPlaceInfo
-	// CompPath is the path where we will copy the file from
+	// CompPath is the path where we will copy the file from.
 	CompPath string
 }
 
