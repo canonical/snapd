@@ -30,6 +30,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"path"
 	"path/filepath"
 	"regexp"
 	"strconv"
@@ -250,6 +251,79 @@ func snapEssentialInfo(fn, snapID string, bs asserts.Backstore, cs *ChannelRepos
 	}, nil
 }
 
+func addComponentBlobToRevisionSet(snaps map[string]*revisionSet, snapIDs map[string]string, fn string, bs asserts.Backstore) error {
+	f, err := snapfile.Open(fn)
+	if err != nil {
+		return fmt.Errorf("cannot read: %v: %v", fn, err)
+	}
+
+	info, err := snap.ReadComponentInfoFromContainer(f, nil, nil)
+	if err != nil {
+		return fmt.Errorf("cannot get info for: %v: %v", fn, err)
+	}
+
+	compName := info.Component.ComponentName
+	snapName := info.Component.SnapName
+
+	digest, _, err := asserts.SnapFileSHA3_384(fn)
+	if err != nil {
+		return fmt.Errorf("cannot get digest for: %v: %v", fn, err)
+	}
+
+	set, ok := snaps[snapName]
+	if !ok {
+		return fmt.Errorf("cannot find snap %q for component: %q", snapName, info.Component)
+	}
+
+	snapID, ok := snapIDs[snapName]
+	if !ok {
+		return fmt.Errorf("cannot find snap id for snap %q", snapName)
+	}
+
+	pk, err := asserts.PrimaryKeyFromHeaders(asserts.SnapResourceRevisionType, map[string]string{
+		"snap-id":           snapID,
+		"resource-name":     compName,
+		"resource-sha3-384": digest,
+	})
+	if err != nil {
+		return err
+	}
+
+	a, err := bs.Get(asserts.SnapResourceRevisionType, pk, asserts.SnapResourceRevisionType.MaxSupportedFormat())
+	if err != nil {
+		return err
+	}
+	compRev := snap.R(a.(*asserts.SnapResourceRevision).ResourceRevision())
+
+	for snapRev := range set.revisions {
+		pk, err := asserts.PrimaryKeyFromHeaders(asserts.SnapResourcePairType, map[string]string{
+			"resource-name":     compName,
+			"snap-id":           snapID,
+			"resource-revision": compRev.String(),
+			"snap-revision":     snapRev.String(),
+		})
+		if err != nil {
+			return err
+		}
+
+		_, err = bs.Get(asserts.SnapResourcePairType, pk, asserts.SnapResourcePairType.MaxSupportedFormat())
+		if err != nil {
+			// no pair assertion for this snap revision, so this one isn't
+			// associated with this snap revision
+			if errors.Is(err, &asserts.NotFoundError{}) {
+				continue
+			}
+			return err
+		}
+
+		if err := set.addComponent(compName, compRev, fn, snapRev); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
 type detailsReplyJSON struct {
 	Architectures   []string `json:"architecture"`
 	SnapID          string   `json:"snap_id"`
@@ -372,9 +446,9 @@ func (s *Store) detailsEndpoint(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	fn := set.getLatest()
+	sn := set.getLatest()
 
-	essInfo, err := snapEssentialInfo(fn, "", bs, s.channelRepository)
+	essInfo, err := snapEssentialInfo(sn.path, "", bs, s.channelRepository)
 	if err != nil {
 		http.Error(w, err.Error(), 400)
 		return
@@ -386,8 +460,8 @@ func (s *Store) detailsEndpoint(w http.ResponseWriter, req *http.Request) {
 		PackageName:     essInfo.Name,
 		Developer:       essInfo.DevelName,
 		DeveloperID:     essInfo.DeveloperID,
-		AnonDownloadURL: fmt.Sprintf("%s/download/%s", s.RealURL(req), filepath.Base(fn)),
-		DownloadURL:     fmt.Sprintf("%s/download/%s", s.RealURL(req), filepath.Base(fn)),
+		AnonDownloadURL: fmt.Sprintf("%s/download/%s", s.RealURL(req), filepath.Base(sn.path)),
+		DownloadURL:     fmt.Sprintf("%s/download/%s", s.RealURL(req), filepath.Base(sn.path)),
 		Version:         essInfo.Version,
 		Revision:        essInfo.Revision,
 		DownloadDigest:  hexify(essInfo.Digest),
@@ -407,37 +481,58 @@ func (s *Store) detailsEndpoint(w http.ResponseWriter, req *http.Request) {
 }
 
 type revisionSet struct {
-	latest     snap.Revision
-	containers map[snap.Revision]string
+	latest    snap.Revision
+	revisions map[snap.Revision]availableSnap
 }
 
-func (rs *revisionSet) get(rev snap.Revision) (string, bool) {
+type availableSnap struct {
+	path       string
+	components map[string]availableComponent
+}
+
+type availableComponent struct {
+	path     string
+	revision snap.Revision
+}
+
+func (rs *revisionSet) get(rev snap.Revision) (availableSnap, bool) {
 	if rev.Unset() {
 		rev = rs.latest
 	}
 
-	path, ok := rs.containers[rev]
-	return path, ok
+	sn, ok := rs.revisions[rev]
+	return sn, ok
 }
 
-func (rs *revisionSet) getLatest() string {
-	path, ok := rs.containers[rs.latest]
+func (rs *revisionSet) getLatest() availableSnap {
+	sn, ok := rs.revisions[rs.latest]
 	if !ok {
 		panic("internal error: revision set should always contain latest revision")
 	}
 
-	return path
+	return sn
 }
 
 func (rs *revisionSet) add(rev snap.Revision, path string) {
-	if rs.containers == nil {
-		rs.containers = make(map[snap.Revision]string)
+	if rs.revisions == nil {
+		rs.revisions = make(map[snap.Revision]availableSnap)
 	}
 
 	if rs.latest.N < rev.N {
 		rs.latest = rev
 	}
-	rs.containers[rev] = path
+	rs.revisions[rev] = availableSnap{path: path, components: make(map[string]availableComponent)}
+}
+
+func (rs *revisionSet) addComponent(name string, compRev snap.Revision, path string, snapRev snap.Revision) error {
+	sn, ok := rs.revisions[snapRev]
+	if !ok {
+		return fmt.Errorf("cannot find snap revision %q", snapRev.String())
+	}
+
+	sn.components[name] = availableComponent{path: path, revision: compRev}
+
+	return nil
 }
 
 func (s *Store) collectSnaps(bs asserts.Backstore) (map[string]*revisionSet, error) {
@@ -450,9 +545,10 @@ func (s *Store) collectSnaps(bs asserts.Backstore) (map[string]*revisionSet, err
 	defer restoreSanitize()
 
 	snaps := make(map[string]*revisionSet)
+	snapNamesToID := make(map[string]string, len(snapFns))
 	for _, fn := range snapFns {
-		// we only care about the revision here, so we can get away without
-		// setting the id
+		// if the snap is asserted, then the returned info will contain the ID
+		// taken from the database
 		const snapID = ""
 		info, err := snapEssentialInfo(fn, snapID, bs, s.channelRepository)
 		if err != nil {
@@ -469,6 +565,7 @@ func (s *Store) collectSnaps(bs asserts.Backstore) (map[string]*revisionSet, err
 		if err != nil {
 			return nil, err
 		}
+
 		for _, channel := range channels {
 			compositeName := fmt.Sprintf("%s|%s", info.Name, channel)
 			if _, ok := snaps[compositeName]; !ok {
@@ -477,7 +574,22 @@ func (s *Store) collectSnaps(bs asserts.Backstore) (map[string]*revisionSet, err
 			snaps[compositeName].add(snap.R(info.Revision), fn)
 		}
 
+		if info.SnapID != "" {
+			snapNamesToID[info.Name] = info.SnapID
+		}
+
 		logger.Debugf("found snap %q (revision %d) at %v", info.Name, info.Revision, fn)
+	}
+
+	compFns, err := filepath.Glob(filepath.Join(s.blobDir, "*.comp"))
+	if err != nil {
+		return nil, err
+	}
+
+	for _, fn := range compFns {
+		if err := addComponentBlobToRevisionSet(snaps, snapNamesToID, fn, bs); err != nil {
+			return nil, err
+		}
 	}
 
 	return snaps, err
@@ -565,9 +677,9 @@ func (s *Store) bulkEndpoint(w http.ResponseWriter, req *http.Request) {
 			continue
 		}
 
-		fn := set.getLatest()
+		sn := set.getLatest()
 
-		essInfo, err := snapEssentialInfo(fn, pkg.SnapID, bs, s.channelRepository)
+		essInfo, err := snapEssentialInfo(sn.path, pkg.SnapID, bs, s.channelRepository)
 		if err != nil {
 			http.Error(w, err.Error(), 400)
 			return
@@ -579,8 +691,8 @@ func (s *Store) bulkEndpoint(w http.ResponseWriter, req *http.Request) {
 			PackageName:     essInfo.Name,
 			Developer:       essInfo.DevelName,
 			DeveloperID:     essInfo.DeveloperID,
-			DownloadURL:     fmt.Sprintf("%s/download/%s", s.RealURL(req), filepath.Base(fn)),
-			AnonDownloadURL: fmt.Sprintf("%s/download/%s", s.RealURL(req), filepath.Base(fn)),
+			DownloadURL:     fmt.Sprintf("%s/download/%s", s.RealURL(req), filepath.Base(sn.path)),
+			AnonDownloadURL: fmt.Sprintf("%s/download/%s", s.RealURL(req), filepath.Base(sn.path)),
 			Version:         essInfo.Version,
 			Revision:        essInfo.Revision,
 			DownloadDigest:  hexify(essInfo.Digest),
@@ -681,15 +793,26 @@ type detailsResultV2 struct {
 		ID       string `json:"id"`
 		Username string `json:"username"`
 	} `json:"publisher"`
-	Download struct {
-		URL      string `json:"url"`
-		Sha3_384 string `json:"sha3-384"`
-		Size     uint64 `json:"size"`
-	} `json:"download"`
-	Version     string `json:"version"`
-	Revision    int    `json:"revision"`
-	Confinement string `json:"confinement"`
-	Type        string `json:"type"`
+	Download    downloadInfo         `json:"download"`
+	Version     string               `json:"version"`
+	Revision    int                  `json:"revision"`
+	Confinement string               `json:"confinement"`
+	Type        string               `json:"type"`
+	Resources   []snapResourceResult `json:"resources,omitempty"`
+}
+
+type downloadInfo struct {
+	URL      string `json:"url"`
+	Sha3_384 string `json:"sha3-384"`
+	Size     uint64 `json:"size"`
+}
+
+type snapResourceResult struct {
+	Download downloadInfo `json:"download"`
+	Type     string       `json:"type"`
+	Name     string       `json:"name"`
+	Revision int          `json:"revision"`
+	Version  string       `json:"version"`
 }
 
 func (s *Store) snapActionEndpoint(w http.ResponseWriter, req *http.Request) {
@@ -774,17 +897,64 @@ func (s *Store) snapActionEndpoint(w http.ResponseWriter, req *http.Request) {
 			continue
 		}
 
-		fn, ok := set.get(snap.R(a.Revision))
+		sn, ok := set.get(snap.R(a.Revision))
 
 		if !ok {
 			// TODO: this should send back some error?
 			continue
 		}
 
-		essInfo, err := snapEssentialInfo(fn, snapID, bs, s.channelRepository)
+		essInfo, err := snapEssentialInfo(sn.path, snapID, bs, s.channelRepository)
 		if err != nil {
 			http.Error(w, err.Error(), 400)
 			return
+		}
+
+		resources := make([]snapResourceResult, 0, len(sn.components))
+		for compName, comp := range sn.components {
+			f, err := snapfile.Open(path.Join(comp.path))
+			if err != nil {
+				http.Error(w, fmt.Sprintf("cannot read: %v: %v", compName, err), 400)
+				return
+			}
+
+			digest, size, err := asserts.SnapFileSHA3_384(comp.path)
+			if err != nil {
+				http.Error(w, fmt.Sprintf("cannot get digest for: %v: %v", compName, err), 400)
+				return
+			}
+
+			compInfo, err := snap.ReadComponentInfoFromContainer(f, nil, nil)
+			if err != nil {
+				http.Error(w, fmt.Sprintf("cannot get info for: %v: %v", compName, err), 400)
+				return
+			}
+
+			resources = append(resources, snapResourceResult{
+				Name:     compName,
+				Revision: comp.revision.N,
+				Type:     fmt.Sprintf("component/%s", compInfo.Type),
+				Version:  compInfo.Version(essInfo.Version),
+				Download: downloadInfo{
+					URL:      fmt.Sprintf("%s/download/%s", s.URL(), filepath.Base(comp.path)),
+					Sha3_384: hexify(digest),
+					Size:     size,
+				},
+			})
+		}
+
+		details := detailsResultV2{
+			Architectures: []string{"all"},
+			SnapID:        essInfo.SnapID,
+			Name:          essInfo.Name,
+			Version:       essInfo.Version,
+			Revision:      essInfo.Revision,
+			Confinement:   essInfo.Confinement,
+			Type:          essInfo.Type,
+			Base:          essInfo.Base,
+		}
+		if len(resources) > 0 {
+			details.Resources = resources
 		}
 
 		res := &snapActionResult{
@@ -792,21 +962,13 @@ func (s *Store) snapActionEndpoint(w http.ResponseWriter, req *http.Request) {
 			InstanceKey: a.InstanceKey,
 			SnapID:      essInfo.SnapID,
 			Name:        essInfo.Name,
-			Snap: detailsResultV2{
-				Architectures: []string{"all"},
-				SnapID:        essInfo.SnapID,
-				Name:          essInfo.Name,
-				Version:       essInfo.Version,
-				Revision:      essInfo.Revision,
-				Confinement:   essInfo.Confinement,
-				Type:          essInfo.Type,
-				Base:          essInfo.Base,
-			},
+			Snap:        details,
 		}
+
 		logger.Debugf("requested snap %q revision %d", essInfo.Name, a.Revision)
 		res.Snap.Publisher.ID = essInfo.DeveloperID
 		res.Snap.Publisher.Username = essInfo.DevelName
-		res.Snap.Download.URL = fmt.Sprintf("%s/download/%s", s.RealURL(req), filepath.Base(fn))
+		res.Snap.Download.URL = fmt.Sprintf("%s/download/%s", s.RealURL(req), filepath.Base(sn.path))
 		res.Snap.Download.Sha3_384 = hexify(essInfo.Digest)
 		res.Snap.Download.Size = essInfo.Size
 		replyData.Results = append(replyData.Results, res)
