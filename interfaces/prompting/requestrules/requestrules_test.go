@@ -733,9 +733,16 @@ func (s *requestrulesSuite) TestAddRuleErrors(c *C) {
 			&addRuleContents{Lifespan: prompting.LifespanSingle},
 			prompting_errors.NewRuleLifespanSingleError(prompting.SupportedRuleLifespans).Error(),
 		},
-		{ // Conflicting rule
+		{ // Conflicting rule with overlapping pattern variants
 			&addRuleContents{
 				PathPattern: "/home/test/Pictures/**/*.{svg,jpg}",
+				Permissions: []string{"read", "write"},
+				Outcome:     prompting.OutcomeDeny,
+			},
+			fmt.Sprintf("cannot add rule: %v", prompting_errors.ErrRuleConflict),
+		},
+		{ // Conflicting rule with identical path pattern
+			&addRuleContents{
 				Permissions: []string{"read", "write"},
 				Outcome:     prompting.OutcomeDeny,
 			},
