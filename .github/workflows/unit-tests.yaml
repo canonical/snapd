@@ -96,7 +96,7 @@ jobs:
     - name: Create coverage results name
       if: ${{ ! inputs.skip-coverage }}
       run: |
-        converted=$(sed 's/\//-/g' <<<${{ inputs.gochannel }})
+        converted=$(tr '/' '-' <<<${{ inputs.gochannel }})
         name="coverage-files-${converted}-${{ inputs.go-build-tags || 'notags' }}${{ inputs.go-test-race && '-race' || ''}}${{ inputs.snapd-debug && '-snapddebug' || ''}}"
         echo "COVERAGE_NAME=$name" >> $GITHUB_ENV
 
