@@ -20,6 +20,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -44,6 +45,90 @@ Wants=%[1]s
 
 	doSystemdMount = doSystemdMountImpl
 )
+
+// forbiddenChars is a list of characters that are not allowed in any mount paths used in systemd-mount.
+const forbiddenChars = `\,:" `
+
+// overlayFsOptions groups the options to systemd-mount related to overlayfs.
+type overlayFsOptions struct {
+	// Directories to be used as lower layers of an overlay mount.
+	// It does not need to be on a writable filesystem.
+	LowerDirs []string
+	// A directory to be used as the upper layer of an overlay mount.
+	// This is normally on a writable filesystem.
+	UpperDir string
+	// A directory to be used as the workdir of an overlay mount.
+	// This needs to be an empty directory on the same filesystem as upperdir.
+	WorkDir string
+}
+
+// Validate is used to perform consistency checks on the options related to overlayfs mounts
+func (o *overlayFsOptions) Validate() error {
+	if len(o.LowerDirs) <= 0 || len(o.UpperDir) <= 0 || len(o.WorkDir) <= 0 {
+		return errors.New("missing arguments for overlayfs mount. lowerdir, upperdir, workdir are needed.")
+	}
+
+	if strings.ContainsAny(o.UpperDir, forbiddenChars) {
+		return fmt.Errorf("upperdir overlayfs mount option contains forbidden characters. %q contains one of %q.", o.UpperDir, forbiddenChars)
+	}
+	if strings.ContainsAny(o.WorkDir, forbiddenChars) {
+		return fmt.Errorf("workdir overlayfs mount option contains forbidden characters. %q contains one of %q.", o.WorkDir, forbiddenChars)
+	}
+
+	return nil
+}
+
+// ValidateLowerDirs is used to perform consistency checks on individual directories passed as LowerDir for an overlayfs
+// mount. It also combines potential multiple LowerDirs to a single string to avoid iterating the list twice.
+func (o *overlayFsOptions) ValidateLowerDirs() (string, error) {
+	var lowerDirs strings.Builder
+	for i, d := range o.LowerDirs {
+		if strings.ContainsAny(d, forbiddenChars) {
+			return "", fmt.Errorf("lowerdir overlayfs mount option contains forbidden characters. %q contains one of %q.", d, forbiddenChars)
+		}
+
+		// This is used for splitting multiple lowerdirs as done in
+		// https://elixir.bootlin.com/linux/v6.10.9/C/ident/ovl_parse_param_split_lowerdirs
+		if i != 0 {
+			lowerDirs.WriteRune(':')
+		}
+
+		lowerDirs.WriteString(d)
+	}
+
+	return lowerDirs.String(), nil
+}
+
+// dmVerityOptions groups the options to systemd-mount related to dm-verity.
+type dmVerityOptions struct {
+	// dm-verity hash device
+	VerityHashDevice string
+	// dm-verity root hash
+	VerityRootHash string
+	// dm-verity hash offset. Need to be specified if only verity data are
+	// appended to the snap. Defaults to 0 in mount command
+	VerityHashOffset uint64
+}
+
+// Validate is used to perform consistency checks on the options related to dm-verity mounts
+func (o *dmVerityOptions) Validate() error {
+	if o.VerityHashDevice != "" && o.VerityRootHash == "" {
+		return errors.New("mount with dm-verity was requested but a root hash was not specified")
+	}
+	if o.VerityRootHash != "" && o.VerityHashDevice == "" {
+		return errors.New("mount with dm-verity was requested but a hash device was not specified")
+	}
+
+	if strings.ContainsAny(o.VerityHashDevice, forbiddenChars) {
+		return fmt.Errorf("dm-verity hash device path contains forbidden characters. %q contains one of %q.", o.VerityHashDevice, forbiddenChars)
+	}
+
+	if o.VerityHashOffset != 0 && (o.VerityHashDevice == "" || o.VerityRootHash == "") {
+		return errors.New("mount with dm-verity was requested but a hash device and root hash were not specified")
+	}
+
+	return nil
+}
 
 // systemdMountOptions reflects the set of options for mounting something using
 // systemd-mount(1)
@@ -81,28 +166,11 @@ type systemdMountOptions struct {
 	Private bool
 	// Umount the mountpoint
 	Umount bool
-	// Overlayfs indicates an overlay filesystem.
-	Overlayfs bool
-	// Directories to be used as lower layers of an overlay mount.
-	// It does not need to be on a writable filesystem.
-	LowerDirs []string
-	// A directory to be used as the upper layer of an overlay mount.
-	// This is normally on a writable filesystem.
-	UpperDir string
-	// A directory to be used as the workdir of an overlay mount.
-	// This needs to be an empty directory on the same filesystem as upperdir.
-	WorkDir string
-	// dm-verity hash device
-	VerityHashDevice string
-	// dm-verity root hash
-	VerityRootHash string
-	// dm-verity hash offset. Need to be specified if only verity data are
-	// appended to the snap. Defaults to 0 in mount command
-	VerityHashOffset uint64
+	// OverlayFsOpts groups the options related to overlayfs mounts
+	OverlayFsOpts *overlayFsOptions
+	// DmVerityOpts groups the options related to mounts with dm-verity
+	DmVerityOpts *dmVerityOptions
 }
-
-// forbiddenChars is a list of characters that are not allowed in any mount paths used in systemd-mount.
-const forbiddenChars = `\,:" `
 
 // doSystemdMount will mount "what" at "where" using systemd-mount(1) with
 // various options. Note that in some error cases, the mount unit may have
@@ -134,10 +202,6 @@ func doSystemdMountImpl(what, where string, opts *systemdMountOptions) error {
 
 	if opts.Tmpfs {
 		args = append(args, "--type=tmpfs")
-	}
-
-	if opts.Overlayfs {
-		args = append(args, "--type=overlay")
 	}
 
 	if opts.NeedsFsck {
@@ -190,56 +254,40 @@ func doSystemdMountImpl(what, where string, opts *systemdMountOptions) error {
 	if opts.Private {
 		options = append(options, "private")
 	}
-	if opts.Overlayfs {
-		if len(opts.LowerDirs) <= 0 || len(opts.UpperDir) <= 0 || len(opts.WorkDir) <= 0 {
-			return fmt.Errorf("cannot mount %q at %q: missing arguments for overlayfs mount. lowerdir, upperdir, workdir are needed.", what, where)
+	if opts.OverlayFsOpts != nil {
+		args = append(args, "--type=overlay")
+
+		o := opts.OverlayFsOpts
+
+		err := o.Validate()
+		if err != nil {
+			return fmt.Errorf("cannot mount %q at %q: %w", what, where, err)
 		}
 
-		if strings.ContainsAny(opts.UpperDir, forbiddenChars) {
-			return fmt.Errorf("cannot mount %q at %q: upperdir overlayfs mount option contains forbidden characters. %q contains one of %q.", what, where, opts.UpperDir, forbiddenChars)
-		}
-		if strings.ContainsAny(opts.WorkDir, forbiddenChars) {
-			return fmt.Errorf("cannot mount %q at %q: workdir overlayfs mount option contains forbidden characters. %q contains one of %q.", what, where, opts.WorkDir, forbiddenChars)
+		lowerDirs, err := o.ValidateLowerDirs()
+		if err != nil {
+			return fmt.Errorf("cannot mount %q at %q: %w", what, where, err)
 		}
 
-		var lowerDirs strings.Builder
-		for i, d := range opts.LowerDirs {
-			if strings.ContainsAny(d, forbiddenChars) {
-				return fmt.Errorf("cannot mount %q at %q: lowerdir overlayfs mount option contains forbidden characters. %q contains one of %q.", what, where, d, forbiddenChars)
+		options = append(options, fmt.Sprintf("lowerdir=%s", lowerDirs))
+		options = append(options, fmt.Sprintf("upperdir=%s", o.UpperDir))
+		options = append(options, fmt.Sprintf("workdir=%s", o.WorkDir))
+	}
+	if opts.DmVerityOpts != nil {
+		o := opts.DmVerityOpts
+
+		err := o.Validate()
+		if err != nil {
+			return fmt.Errorf("cannot mount %q at %q: %w", what, where, err)
+		}
+
+		if o.VerityHashDevice != "" && o.VerityRootHash != "" {
+			options = append(options, fmt.Sprintf("verity.roothash=%s", o.VerityRootHash))
+			options = append(options, fmt.Sprintf("verity.hashdevice=%s", o.VerityHashDevice))
+
+			if o.VerityHashOffset != 0 {
+				options = append(options, fmt.Sprintf("verity.hashoffset=%d", o.VerityHashOffset))
 			}
-
-			// This is used for splitting multiple lowerdirs as done in
-			// https://elixir.bootlin.com/linux/v6.10.9/C/ident/ovl_parse_param_split_lowerdirs
-			if i != 0 {
-				lowerDirs.WriteRune(':')
-			}
-
-			lowerDirs.WriteString(d)
-		}
-		options = append(options, fmt.Sprintf("lowerdir=%s", lowerDirs.String()))
-		options = append(options, fmt.Sprintf("upperdir=%s", opts.UpperDir))
-		options = append(options, fmt.Sprintf("workdir=%s", opts.WorkDir))
-	}
-	if opts.VerityHashDevice != "" && opts.VerityRootHash == "" {
-		return fmt.Errorf("cannot mount %q at %q: mount with dm-verity was requested but a root hash was not specified", what, where)
-	}
-	if opts.VerityRootHash != "" && opts.VerityHashDevice == "" {
-		return fmt.Errorf("cannot mount %q at %q: mount with dm-verity was requested but a hash device was not specified", what, where)
-	}
-
-	if strings.ContainsAny(opts.VerityHashDevice, forbiddenChars) {
-		return fmt.Errorf("cannot mount %q at %q: dm-verity hash device path contains forbidden characters. %q contains one of %q.", what, where, opts.VerityHashDevice, forbiddenChars)
-	}
-
-	if opts.VerityHashOffset != 0 && (opts.VerityHashDevice == "" || opts.VerityRootHash == "") {
-		return fmt.Errorf("cannot mount %q at %q: mount with dm-verity was requested but a hash device and root hash were not specified", what, where)
-	}
-	if opts.VerityHashDevice != "" && opts.VerityRootHash != "" {
-		options = append(options, fmt.Sprintf("verity.roothash=%s", opts.VerityRootHash))
-		options = append(options, fmt.Sprintf("verity.hashdevice=%s", opts.VerityHashDevice))
-
-		if opts.VerityHashOffset != 0 {
-			options = append(options, fmt.Sprintf("verity.hashoffset=%d", opts.VerityHashOffset))
 		}
 	}
 	if len(options) > 0 {
