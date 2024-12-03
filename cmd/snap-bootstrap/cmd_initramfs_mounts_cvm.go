@@ -44,6 +44,9 @@ func (*genericCVMModel) Grade() asserts.ModelGrade {
 	return "signed"
 }
 
+// generateMountsModeRunCVM is used to generate mounts for the special "cloudimg-rootfs" mode which
+// mounts the rootfs from a partition on the disk rather than a base snap. It supports TPM-backed FDE
+// for the rootfs partition using a sealed key from the seed partition.
 func generateMountsModeRunCVM(mst *initramfsMountsState) error {
 	// Mount ESP as UbuntuSeedDir which has UEFI label
 	if err := mountNonDataPartitionMatchingKernelDisk(boot.InitramfsUbuntuSeedDir, "UEFI"); err != nil {

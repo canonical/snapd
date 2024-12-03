@@ -177,12 +177,6 @@ var (
 		KernelDeviceNode: "/dev/sda5",
 	}
 
-	cvmEncPart = disks.Partition{
-		FilesystemLabel:  "cloudimg-rootfs-enc",
-		PartitionUUID:    "cloudimg-rootfs-enc-partuuid",
-		KernelDeviceNode: "/dev/sda1",
-	}
-
 	// a boot disk without ubuntu-save
 	defaultBootDisk = &disks.MockDiskMapping{
 		Structure: []disks.Partition{
