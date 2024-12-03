@@ -37,6 +37,7 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/gadget/device"
+	gadgetInstall "github.com/snapcore/snapd/gadget/install"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/kernel/fde"
 	"github.com/snapcore/snapd/logger"
@@ -2248,13 +2249,8 @@ type systemAndEssentialSnaps struct {
 	*System
 	Seed            seed.Seed
 	InfosByType     map[snap.Type]*snap.Info
-	CompsByType     map[snap.Type][]compSeedInfo
+	CompsByType     map[snap.Type][]gadgetInstall.CompSeedInfo
 	SeedSnapsByType map[snap.Type]*seed.Snap
-}
-
-type compSeedInfo struct {
-	CompInfo *snap.ComponentInfo
-	CompSeed *seed.Component
 }
 
 // DefaultRecoverySystem returns the default recovery system, if there is one.
@@ -2310,7 +2306,7 @@ func (m *DeviceManager) loadSystemAndEssentialSnaps(wantedSystemLabel string, ty
 	// like "snapd" will be skipped and not part of the EssentialSnaps list
 	//
 	snapInfos := make(map[snap.Type]*snap.Info)
-	compInfos := make(map[snap.Type][]compSeedInfo)
+	compInfos := make(map[snap.Type][]gadgetInstall.CompSeedInfo)
 	seedSnaps := make(map[snap.Type]*seed.Snap)
 	for _, seedSnap := range s.EssentialSnaps() {
 		typ := seedSnap.EssentialType
@@ -2334,9 +2330,9 @@ func (m *DeviceManager) loadSystemAndEssentialSnaps(wantedSystemLabel string, ty
 			return nil, fmt.Errorf("internal error while retrieving %s for %s mode: %v",
 				seedSnap.SnapName(), modeForComps, err)
 		}
-		var compInfosForType []compSeedInfo
+		var compInfosForType []gadgetInstall.CompSeedInfo
 		if len(snapForMode.Components) > 0 {
-			compInfosForType = make([]compSeedInfo, 0, len(snapForMode.Components))
+			compInfosForType = make([]gadgetInstall.CompSeedInfo, 0, len(snapForMode.Components))
 			for _, sc := range snapForMode.Components {
 				seedComp := sc
 				compf, err := snapfile.Open(seedComp.Path)
@@ -2348,7 +2344,7 @@ func (m *DeviceManager) loadSystemAndEssentialSnaps(wantedSystemLabel string, ty
 				if err != nil {
 					return nil, err
 				}
-				compInfosForType = append(compInfosForType, compSeedInfo{
+				compInfosForType = append(compInfosForType, gadgetInstall.CompSeedInfo{
 					CompInfo: compInfo,
 					CompSeed: &seedComp,
 				})

@@ -963,38 +963,9 @@ func (m *DeviceManager) loadAndMountSystemLabelSnaps(systemLabel string, essenti
 
 func kModsInfo(systemAndSnaps *systemAndEssentialSnaps, kernMntPoint string, mntPtForComps map[string]string, isCore bool) (*install.KernelSnapInfo, []boot.BootableKModsComponents) {
 	kernInfo := systemAndSnaps.InfosByType[snap.TypeKernel]
-
-	// Find out kernel-modules components in the seed
 	compSeedInfos := systemAndSnaps.CompsByType[snap.TypeKernel]
-	bootKMods := make([]boot.BootableKModsComponents, 0, len(compSeedInfos))
-	modulesComps := make([]install.KernelModulesComponentInfo, 0, len(compSeedInfos))
-	for _, compSeedInfo := range compSeedInfos {
-		ci := compSeedInfo.CompInfo
-		if ci.Type == snap.KernelModulesComponent {
-			cpi := snap.MinimalComponentContainerPlaceInfo(ci.Component.ComponentName,
-				ci.Revision, kernInfo.SnapName())
-			modulesComps = append(modulesComps, install.KernelModulesComponentInfo{
-				Name:       ci.Component.ComponentName,
-				Revision:   ci.Revision,
-				MountPoint: mntPtForComps[ci.FullName()],
-			})
-			bootKMods = append(bootKMods, boot.BootableKModsComponents{
-				CompPlaceInfo: cpi,
-				CompPath:      compSeedInfo.CompSeed.Path,
-			})
-		}
-	}
-
-	kSnapInfo := &install.KernelSnapInfo{
-		Name:             kernInfo.SnapName(),
-		Revision:         kernInfo.Revision,
-		MountPoint:       kernMntPoint,
-		IsCore:           isCore,
-		ModulesComps:     modulesComps,
-		NeedsDriversTree: snapstate.NeedsKernelSetup(systemAndSnaps.Model),
-	}
-
-	return kSnapInfo, bootKMods
+	return install.KernelBootInfo(kernInfo, compSeedInfos, kernMntPoint,
+		mntPtForComps, isCore, systemAndSnaps.Model.NeedsKernelSetup())
 }
 
 // doInstallFinish performs the finish step of the install. It will
