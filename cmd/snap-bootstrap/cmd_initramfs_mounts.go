@@ -1709,7 +1709,7 @@ func getNonUEFISystemDisk(fallbacklabel string) (string, error) {
 // determine what partition the booted kernel came from. If which disk the
 // kernel came from cannot be determined, then it will fallback to mounting via
 // the specified disk label.
-func mountNonDataPartitionMatchingKernelDisk(dir, fallbacklabel string) error {
+func mountNonDataPartitionMatchingKernelDisk(dir, fallbacklabel string, opts *systemdMountOptions) error {
 	partuuid, err := bootFindPartitionUUIDForBootedKernelDisk()
 	var partSrc string
 	if err == nil {
@@ -1729,23 +1729,24 @@ func mountNonDataPartitionMatchingKernelDisk(dir, fallbacklabel string) error {
 	if err := waitForDevice(partSrc); err != nil {
 		return err
 	}
-
-	opts := &systemdMountOptions{
-		// always fsck the partition when we are mounting it, as this is the
-		// first partition we will be mounting, we can't know if anything is
-		// corrupted yet
-		NeedsFsck: true,
-		// don't need nosuid option here, since this function is only used
-		// for ubuntu-boot and ubuntu-seed, never ubuntu-data
-		Private: true,
-	}
 	return doSystemdMount(partSrc, dir, opts)
 }
 
 func generateMountsCommonInstallRecoverStart(mst *initramfsMountsState) (model *asserts.Model, sysSnaps map[snap.Type]*seed.Snap, err error) {
+	seedMountOpts := &systemdMountOptions{
+		// always fsck the partition when we are mounting it, as this is the
+		// first partition we will be mounting, we can't know if anything is
+		// corrupted yet
+		NeedsFsck: true,
+		Private:   true,
+		NoSuid:    true,
+		NoDev:     true,
+		NoExec:    true,
+	}
+
 	// 1. always ensure seed partition is mounted first before the others,
 	//      since the seed partition is needed to mount the snap files there
-	if err := mountNonDataPartitionMatchingKernelDisk(boot.InitramfsUbuntuSeedDir, "ubuntu-seed"); err != nil {
+	if err := mountNonDataPartitionMatchingKernelDisk(boot.InitramfsUbuntuSeedDir, "ubuntu-seed", seedMountOpts); err != nil {
 		return nil, nil, err
 	}
 
@@ -1905,8 +1906,16 @@ func maybeMountSave(disk disks.Disk, rootdir string, encrypted bool, mountOpts *
 }
 
 func generateMountsModeRun(mst *initramfsMountsState) error {
+	bootMountOpts := &systemdMountOptions{
+		// always fsck the partition when we are mounting it, as this is the
+		// first partition we will be mounting, we can't know if anything is
+		// corrupted yet
+		NeedsFsck: true,
+		Private:   true,
+	}
+
 	// 1. mount ubuntu-boot
-	if err := mountNonDataPartitionMatchingKernelDisk(boot.InitramfsUbuntuBootDir, "ubuntu-boot"); err != nil {
+	if err := mountNonDataPartitionMatchingKernelDisk(boot.InitramfsUbuntuBootDir, "ubuntu-boot", bootMountOpts); err != nil {
 		return err
 	}
 
@@ -1943,6 +1952,9 @@ func generateMountsModeRun(mst *initramfsMountsState) error {
 	seedMountOpts := &systemdMountOptions{
 		NeedsFsck: true,
 		Private:   true,
+		NoSuid:    true,
+		NoDev:     true,
+		NoExec:    true,
 	}
 	// use the disk we mounted ubuntu-boot from as a reference to find
 	// ubuntu-seed and mount it
