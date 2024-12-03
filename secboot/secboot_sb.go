@@ -410,6 +410,7 @@ func DeleteKeys(node string, matches map[string]bool) error {
 	return nil
 }
 
+// FIXME: add tests
 func GetPrimaryKeyDigest(devicePath string, alg crypto.Hash) (salt []byte, digest []byte, err error) {
 	const remove = false
 	p, err := sb.GetPrimaryKeyFromKernel(keyringPrefix, devicePath, remove)
@@ -430,6 +431,7 @@ func GetPrimaryKeyDigest(devicePath string, alg crypto.Hash) (salt []byte, diges
 	return saltArray[:], h.Sum(nil), nil
 }
 
+// FIXME: add tests
 func VerifyPrimaryKeyDigest(devicePath string, alg crypto.Hash, salt []byte, digest []byte) (bool, error) {
 	const remove = false
 	p, err := sb.GetPrimaryKeyFromKernel(keyringPrefix, devicePath, remove)
