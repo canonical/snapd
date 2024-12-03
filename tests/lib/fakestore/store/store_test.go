@@ -358,6 +358,14 @@ func (s *storeTestSuite) makeTestSnap(c *C, snapYamlContent string) string {
 	return dst
 }
 
+func (s *storeTestSuite) makeTestComponent(c *C, yaml string) string {
+	fn := snaptest.MakeTestComponent(c, yaml)
+	dst := filepath.Join(s.store.blobDir, filepath.Base(fn))
+	err := osutil.CopyFile(fn, dst, 0)
+	c.Assert(err, IsNil)
+	return dst
+}
+
 var (
 	tSnapDecl = template.Must(template.New("snap-decl").Parse(`type: snap-declaration
 authority-id: testrootorg
@@ -388,6 +396,32 @@ account-id: {{.DeveloperID}}
 display-name: {{.DevelName}} Dev
 username: {{.DevelName}}
 validation: unproven
+timestamp: 2016-08-19T19:19:19Z
+sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij
+
+AXNpZw=
+`))
+	tResourceRevision = template.Must(template.New("resource-revision").Parse(`type: snap-resource-revision
+authority-id: testrootorg
+snap-id: {{.SnapID}}
+resource-name: {{.Name}}
+resource-size: {{.Size}}
+resource-sha3-384: {{.Digest}}
+resource-revision: {{.Revision}}
+developer-id: {{.DeveloperID}}
+snap-name: {{.Name}}
+timestamp: 2016-08-19T19:19:19Z
+sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij
+
+AXNpZw=
+`))
+	tResourcePair = template.Must(template.New("resource-pair").Parse(`type: snap-resource-pair
+authority-id: testrootorg
+snap-id: {{.SnapID}}
+resource-name: {{.Name}}
+resource-revision: {{.Revision}}
+snap-revision: {{.SnapRevision}}
+developer-id: {{.DeveloperID}}
 timestamp: 2016-08-19T19:19:19Z
 sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij
 
@@ -436,6 +470,41 @@ func (s *storeTestSuite) addToChannel(c *C, snapFn, channel string) {
 	fmt.Fprintf(f, "%s\n", channel)
 }
 
+func (s *storeTestSuite) makeComponentAssertions(c *C, fn, name, snapID, develID string, compRev, snapRev int) {
+	type essentialComponentInfo struct {
+		Name         string
+		SnapID       string
+		DeveloperID  string
+		Revision     int
+		SnapRevision int
+		Digest       string
+		Size         uint64
+	}
+
+	digest, size, err := asserts.SnapFileSHA3_384(fn)
+	c.Assert(err, IsNil)
+
+	info := essentialComponentInfo{
+		Name:         name,
+		SnapID:       snapID,
+		DeveloperID:  develID,
+		Revision:     compRev,
+		SnapRevision: snapRev,
+		Digest:       digest,
+		Size:         size,
+	}
+
+	f, err := os.OpenFile(filepath.Join(s.store.assertDir, fmt.Sprintf("%s+%s.fake.snap-resource-revison", snapID, name)), os.O_CREATE|os.O_WRONLY, 0644)
+	c.Assert(err, IsNil)
+	err = tResourceRevision.Execute(f, info)
+	c.Assert(err, IsNil)
+
+	f, err = os.OpenFile(filepath.Join(s.store.assertDir, fmt.Sprintf("%s+%s+%d.fake.snap-resource-pair", snapID, name, snapRev)), os.O_CREATE|os.O_WRONLY, 0644)
+	c.Assert(err, IsNil)
+	err = tResourcePair.Execute(f, info)
+	c.Assert(err, IsNil)
+}
+
 func (s *storeTestSuite) TestMakeTestSnap(c *C) {
 	snapFn := s.makeTestSnap(c, "name: foo\nversion: 1")
 	c.Assert(osutil.FileExists(snapFn), Equals, true)
@@ -452,6 +521,12 @@ func (s *storeTestSuite) TestCollectSnaps(c *C) {
 	fn = s.makeTestSnap(c, "name: bar\nversion: 3")
 	s.makeAssertions(c, fn, "bar", snaptest.AssertedSnapID("bar"), "devel", "devel-id", 7)
 
+	fn = s.makeTestComponent(c, "component: foo+comp1\nversion: 4\ntype: standard")
+
+	// same component is shared across two snap revisions
+	s.makeComponentAssertions(c, fn, "comp1", snaptest.AssertedSnapID("foo"), "devel-id", 8, 5)
+	s.makeComponentAssertions(c, fn, "comp1", snaptest.AssertedSnapID("foo"), "devel-id", 8, 6)
+
 	bs, err := s.store.collectAssertions()
 	c.Assert(err, IsNil)
 
@@ -460,15 +535,34 @@ func (s *storeTestSuite) TestCollectSnaps(c *C) {
 	c.Assert(snaps, DeepEquals, map[string]*revisionSet{
 		"foo": {
 			latest: snap.R(6),
-			containers: map[snap.Revision]string{
-				snap.R(5): filepath.Join(s.store.blobDir, "foo_1_all.snap"),
-				snap.R(6): filepath.Join(s.store.blobDir, "foo_2_all.snap"),
+			revisions: map[snap.Revision]availableSnap{
+				snap.R(5): {
+					path: filepath.Join(s.store.blobDir, "foo_1_all.snap"),
+					components: map[string]availableComponent{
+						"comp1": {
+							path:     filepath.Join(s.store.blobDir, "foo+comp1.comp"),
+							revision: snap.R(8),
+						},
+					},
+				},
+				snap.R(6): {
+					path: filepath.Join(s.store.blobDir, "foo_2_all.snap"),
+					components: map[string]availableComponent{
+						"comp1": {
+							path:     filepath.Join(s.store.blobDir, "foo+comp1.comp"),
+							revision: snap.R(8),
+						},
+					},
+				},
 			},
 		},
 		"bar": {
 			latest: snap.R(7),
-			containers: map[snap.Revision]string{
-				snap.R(7): filepath.Join(s.store.blobDir, "bar_3_all.snap"),
+			revisions: map[snap.Revision]availableSnap{
+				snap.R(7): {
+					path:       filepath.Join(s.store.blobDir, "bar_3_all.snap"),
+					components: make(map[string]availableComponent),
+				},
 			},
 		},
 	})
@@ -856,6 +950,104 @@ func (s *storeTestSuite) TestSnapActionEndpointAssertedWithRevision(c *C) {
 
 	request(snap.R(5), "1", oldFn)
 	request(snap.R(6), "2", latestFn)
+}
+
+func (s *storeTestSuite) TestSnapActionEndpointAssertedWithComponents(c *C) {
+	snapWithoutComp := s.makeTestSnap(c, "name: test-snapd-tools\nversion: 1")
+	s.makeAssertions(c, snapWithoutComp, "test-snapd-tools", "eFe8BTR5L5V9F7yHeMAPxkEr2NdUXMtw", "canonical", "canonical", 5)
+
+	snapWithcomp := s.makeTestSnap(c, "name: test-snapd-tools\nversion: 2")
+	s.makeAssertions(c, snapWithcomp, "test-snapd-tools", "eFe8BTR5L5V9F7yHeMAPxkEr2NdUXMtw", "canonical", "canonical", 6)
+
+	componentFn := s.makeTestComponent(c, "component: test-snapd-tools+comp1\nversion: 4\ntype: standard")
+	s.makeComponentAssertions(c, componentFn, "comp1", "eFe8BTR5L5V9F7yHeMAPxkEr2NdUXMtw", "canonical", 8, 6)
+
+	compDigest, compSize, err := asserts.SnapFileSHA3_384(componentFn)
+	c.Assert(err, IsNil)
+
+	type availableComponent struct {
+		path     string
+		digest   string
+		size     uint64
+		revision snap.Revision
+		version  string
+	}
+
+	request := func(rev snap.Revision, version string, path string, comps map[string]availableComponent) {
+		post := fmt.Sprintf(`{
+		"context": [{"instance-key":"eFe8BTR5L5V9F7yHeMAPxkEr2NdUXMtw","snap-id":"eFe8BTR5L5V9F7yHeMAPxkEr2NdUXMtw","tracking-channel":"stable","revision":1}],
+		"actions": [{"action":"refresh","instance-key":"eFe8BTR5L5V9F7yHeMAPxkEr2NdUXMtw","snap-id":"eFe8BTR5L5V9F7yHeMAPxkEr2NdUXMtw", "revision":%d}]
+		}`, rev.N)
+
+		resp, err := s.StorePostJSON("/v2/snaps/refresh", []byte(post))
+		c.Assert(err, IsNil)
+		defer resp.Body.Close()
+
+		c.Assert(resp.StatusCode, Equals, 200)
+		var body struct {
+			Results []map[string]interface{}
+		}
+		c.Assert(json.NewDecoder(resp.Body).Decode(&body), IsNil)
+		c.Check(body.Results, HasLen, 1)
+		sha3_384, size := getSha(path)
+
+		payload := map[string]interface{}{
+			"result":       "refresh",
+			"instance-key": "eFe8BTR5L5V9F7yHeMAPxkEr2NdUXMtw",
+			"snap-id":      "eFe8BTR5L5V9F7yHeMAPxkEr2NdUXMtw",
+			"name":         "test-snapd-tools",
+			"snap": map[string]interface{}{
+				"architectures": []interface{}{"all"},
+				"snap-id":       "eFe8BTR5L5V9F7yHeMAPxkEr2NdUXMtw",
+				"name":          "test-snapd-tools",
+				"publisher": map[string]interface{}{
+					"username": "canonical",
+					"id":       "canonical",
+				},
+				"download": map[string]interface{}{
+					"url":      s.store.URL() + "/download/" + filepath.Base(path),
+					"sha3-384": sha3_384,
+					"size":     float64(size),
+				},
+				"version":     version,
+				"revision":    float64(rev.N),
+				"confinement": "strict",
+				"type":        "app",
+			},
+		}
+
+		var resources []interface{}
+		for name, comp := range comps {
+			resources = append(resources, map[string]interface{}{
+				"download": map[string]interface{}{
+					"url":      s.store.URL() + "/download/" + filepath.Base(comp.path),
+					"sha3-384": comp.digest,
+					"size":     float64(comp.size),
+				},
+				"type":     "component/standard",
+				"name":     name,
+				"revision": float64(comp.revision.N),
+				"version":  comp.version,
+			})
+		}
+
+		if len(resources) > 0 {
+			payload["snap"].(map[string]interface{})["resources"] = resources
+		}
+
+		c.Check(body.Results[0], DeepEquals, payload)
+	}
+
+	request(snap.R(5), "1", snapWithoutComp, map[string]availableComponent{})
+	request(snap.R(6), "2", snapWithcomp, map[string]availableComponent{
+		"comp1": {
+			path:     componentFn,
+			digest:   hexify(compDigest),
+			size:     compSize,
+			revision: snap.R(8),
+			version:  "4",
+		},
+	})
 }
 
 func (s *storeTestSuite) TestSnapActionEndpointWithAssertions(c *C) {
