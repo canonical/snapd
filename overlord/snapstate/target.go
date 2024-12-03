@@ -259,7 +259,7 @@ func (s *storeInstallGoal) toInstall(ctx context.Context, st *state.State, opts 
 		return nil, err
 	}
 
-	if err := s.validateAndPrune(allSnaps, opts); err != nil {
+	if err := s.validateAndPrune(st, allSnaps, opts); err != nil {
 		return nil, err
 	}
 
@@ -312,12 +312,16 @@ func (s *storeInstallGoal) toInstall(ctx context.Context, st *state.State, opts 
 		})
 	}
 
+	// TODO: check validation sets here to catch invalid component revisions
+
 	return installs, err
 }
 
+type cachedValidationSets = func() (*snapasserts.ValidationSets, error)
+
 // cachedEnforcedValidationSets returns a function that will lazily load (and
 // cache) the enforced validation sets if is is ever called.
-func cachedEnforcedValidationSets(st *state.State) func() (*snapasserts.ValidationSets, error) {
+func cachedEnforcedValidationSets(st *state.State) cachedValidationSets {
 	var vsets *snapasserts.ValidationSets
 	return func() (*snapasserts.ValidationSets, error) {
 		if vsets != nil {
@@ -391,7 +395,7 @@ func componentSetupFromResource(name string, sar store.SnapResourceResult, info 
 	}, nil
 }
 
-func completeStoreAction(action *store.SnapAction, revOpts RevisionOptions, ignoreValidation bool, enforcedSets func() (*snapasserts.ValidationSets, error)) error {
+func completeStoreAction(action *store.SnapAction, revOpts RevisionOptions, ignoreValidation bool) error {
 	if action.Action == "" {
 		return errors.New("internal error: action must be set")
 	}
@@ -400,87 +404,77 @@ func completeStoreAction(action *store.SnapAction, revOpts RevisionOptions, igno
 		return errors.New("internal error: instance name must be set")
 	}
 
+	if revOpts.ValidationSets == nil {
+		return errors.New("internal error: validation sets must be set on RevisionOptions")
+	}
+
 	action.Channel = revOpts.Channel
 	action.CohortKey = revOpts.CohortKey
 	action.Revision = revOpts.Revision
 
-	switch {
-	case ignoreValidation:
-		// caller requested that we ignore validation sets, nothing to do
+	// caller requested that we ignore validation sets, nothing to do
+	if ignoreValidation {
 		action.Flags = store.SnapActionIgnoreValidation
-	case len(revOpts.ValidationSets) > 0:
-		// caller provided some validation sets, nothing to do but send them
-		// to the store
-		action.ValidationSets = revOpts.ValidationSets
+		return nil
+	}
 
-		// the channel here should be cleared out. if the validation sets that
-		// we are sending require a specific revision, we don't know if that
-		// revision will be part of any requested channel. the caller still
-		// might choose to track any channel in the RevisionOptions.
+	vsets := revOpts.ValidationSets
+
+	snapName, _ := snap.SplitInstanceName(action.InstanceName)
+
+	isParallelInstall := snapName != action.InstanceName
+
+	// TODO: figure out the best way to handle parallel installs and
+	// validation sets. right now, we just ignore them.
+	if isParallelInstall {
+		return nil
+	}
+
+	pres, err := vsets.Presence(naming.Snap(snapName))
+	if err != nil {
+		return err
+	}
+
+	if pres.Presence == asserts.PresenceInvalid {
+		verb := "install"
+		if action.Action == "refresh" {
+			verb = "update"
+		}
+
+		return fmt.Errorf(
+			"cannot %s snap %q due to enforcing rules of validation set %s",
+			verb,
+			action.InstanceName,
+			pres.Sets.CommaSeparated(),
+		)
+	}
+
+	// make sure that the caller-requested revision matches the revision
+	// required by the enforced validation sets
+	if !pres.Revision.Unset() && !revOpts.Revision.Unset() && pres.Revision != revOpts.Revision {
+		return invalidRevisionError(action, pres.Sets, revOpts.Revision, pres.Revision)
+	}
+
+	// TODO:COMPS: handle validation sets and components here
+
+	// we only need to send these if this snap is actually constrained by
+	// the validation sets in some way
+	if pres.Constrained() {
+		action.ValidationSets = pres.Sets
+	}
+
+	if !pres.Revision.Unset() {
+		// make sure that we use the revision required by the enforced
+		// validation sets
+		action.Revision = pres.Revision
+
+		// we ignore the cohort if a validation set requires that the
+		// snap is pinned to a specific revision
+		action.CohortKey = ""
+
+		// since we're constraining this snap to a revision required by a
+		// validation set, we shouldn't supply a channel.
 		action.Channel = ""
-	default:
-		snapName, _ := snap.SplitInstanceName(action.InstanceName)
-		isParallelInstall := snapName != action.InstanceName
-
-		// TODO: figure out the best way to handle parallel installs and
-		// validation sets. right now, we just ignore them.
-		if isParallelInstall {
-			return nil
-		}
-
-		vsets, err := enforcedSets()
-		if err != nil {
-			return err
-		}
-
-		// if the caller didn't provide any validation sets, make sure that
-		// the snap is allowed by all of the enforced validation sets
-		pres, err := vsets.Presence(naming.Snap(snapName))
-		if err != nil {
-			return err
-		}
-
-		if pres.Presence == asserts.PresenceInvalid {
-			verb := "install"
-			if action.Action == "refresh" {
-				verb = "update"
-			}
-
-			return fmt.Errorf(
-				"cannot %s snap %q due to enforcing rules of validation set %s",
-				verb,
-				action.InstanceName,
-				pres.Sets.CommaSeparated(),
-			)
-		}
-
-		// make sure that the caller-requested revision matches the revision
-		// required by the enforced validation sets
-		if !pres.Revision.Unset() && !revOpts.Revision.Unset() && pres.Revision != revOpts.Revision {
-			return invalidRevisionError(action, pres.Sets, revOpts.Revision, pres.Revision)
-		}
-
-		// TODO:COMPS: handle validation sets and components here
-
-		// we only need to send these if this snap is actually constrained by
-		// the validation sets in some way
-		if pres.Constrained() {
-			action.ValidationSets = pres.Sets
-		}
-
-		if !pres.Revision.Unset() {
-			// make sure that we use the revision required by the enforced
-			// validation sets
-			action.Revision = pres.Revision
-
-			// we ignore the cohort if a validation set requires that the
-			// snap is pinned to a specific revision
-			action.CohortKey = ""
-
-			// since we're constraining this snap to a revision required by a
-			// validation set, we shouldn't supply a channel.
-			action.Channel = ""
-		}
 	}
 
 	return nil
@@ -505,7 +499,8 @@ func invalidRevisionError(a *store.SnapAction, sets []snapasserts.ValidationSetK
 	)
 }
 
-func (s *storeInstallGoal) validateAndPrune(installedSnaps map[string]*SnapState, opts Options) error {
+func (s *storeInstallGoal) validateAndPrune(st *state.State, installedSnaps map[string]*SnapState, opts Options) error {
+	enforcedSetsFunc := cachedEnforcedValidationSets(st)
 	uninstalled := s.snaps[:0]
 	for _, sn := range s.snaps {
 		if err := snap.ValidateInstanceName(sn.InstanceName); err != nil {
@@ -531,7 +526,13 @@ func (s *storeInstallGoal) validateAndPrune(installedSnaps map[string]*SnapState
 			sn.RevOpts.Channel = "stable"
 		}
 
-		sn.RevOpts.resolveChannel(sn.InstanceName, "stable", opts.DeviceCtx)
+		if err := sn.RevOpts.resolveChannel(sn.InstanceName, "stable", opts.DeviceCtx); err != nil {
+			return err
+		}
+
+		if err := sn.RevOpts.initializeValidationSets(enforcedSetsFunc, opts); err != nil {
+			return err
+		}
 
 		uninstalled = append(uninstalled, sn)
 	}
@@ -1123,7 +1124,7 @@ func (s *storeUpdateGoal) toUpdate(ctx context.Context, st *state.State, opts Op
 		return updatePlan{}, err
 	}
 
-	if err := validateAndInitStoreUpdates(allSnaps, s.snaps, opts); err != nil {
+	if err := validateAndInitStoreUpdates(st, allSnaps, s.snaps, opts); err != nil {
 		return updatePlan{}, err
 	}
 
@@ -1141,7 +1142,8 @@ func (s *storeUpdateGoal) toUpdate(ctx context.Context, st *state.State, opts Op
 	return plan, nil
 }
 
-func validateAndInitStoreUpdates(allSnaps map[string]*SnapState, updates map[string]StoreUpdate, opts Options) error {
+func validateAndInitStoreUpdates(st *state.State, allSnaps map[string]*SnapState, updates map[string]StoreUpdate, opts Options) error {
+	enforcedSetsFunc := cachedEnforcedValidationSets(st)
 	for _, sn := range updates {
 		snapst, ok := allSnaps[sn.InstanceName]
 		if !ok {
@@ -1168,10 +1170,42 @@ func validateAndInitStoreUpdates(allSnaps map[string]*SnapState, updates map[str
 		}
 		sn.AdditionalComponents = additional
 
+		if err := sn.RevOpts.initializeValidationSets(enforcedSetsFunc, opts); err != nil {
+			return err
+		}
+
 		updates[sn.InstanceName] = sn
 	}
 
 	return nil
+}
+
+func initRefreshAllStoreUpdates(st *state.State, opts Options, allSnaps map[string]*SnapState) (map[string]StoreUpdate, error) {
+	var vsets *snapasserts.ValidationSets
+	if !opts.Flags.IgnoreValidation {
+		enforced, err := EnforcedValidationSets(st)
+		if err != nil {
+			return nil, err
+		}
+		vsets = enforced
+	} else {
+		vsets = snapasserts.NewValidationSets()
+	}
+
+	updates := make(map[string]StoreUpdate, len(allSnaps))
+	for _, snapst := range allSnaps {
+		updates[snapst.InstanceName()] = StoreUpdate{
+			InstanceName: snapst.InstanceName(),
+
+			// default the channel and cohort key to the existing values,
+			RevOpts: RevisionOptions{
+				Channel:        snapst.TrackingChannel,
+				CohortKey:      snapst.CohortKey,
+				ValidationSets: vsets,
+			},
+		}
+	}
+	return updates, nil
 }
 
 // PathSnap represents a single snap to be installed or updated from a path on

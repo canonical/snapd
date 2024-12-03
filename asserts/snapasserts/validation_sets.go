@@ -495,11 +495,19 @@ func (v *ValidationSets) Revisions() (map[string]snap.Revision, error) {
 // Keys returns a slice of ValidationSetKey structs that represent each
 // validation set that this ValidationSets knows about.
 func (v *ValidationSets) Keys() []ValidationSetKey {
-	keys := make([]ValidationSetKey, 0, len(v.sets))
+	keys := make(ValidationSetKeySlice, 0, len(v.sets))
 	for _, vs := range v.sets {
 		keys = append(keys, NewValidationSetKey(vs))
 	}
+	sort.Sort(keys)
 	return keys
+}
+
+// Empty returns true if this ValidationSets hasn't had any validation sets
+// added to it. An empty ValidationSets doesn't enforce any constraints on the
+// state of snaps.
+func (v *ValidationSets) Empty() bool {
+	return len(v.sets) == 0
 }
 
 // Sets returns a slice of all of the validation sets that this ValidationSets

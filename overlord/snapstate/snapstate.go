@@ -1767,19 +1767,20 @@ func ResolveValidationSetsEnforcementError(ctx context.Context, st *state.State,
 	// use the same lane for installing and refreshing so everything is reversed
 	lane := st.NewLane()
 
+	vsets := snapasserts.NewValidationSets()
+	for _, vs := range valErr.Sets {
+		if err := vsets.Add(vs); err != nil {
+			return nil, nil, err
+		}
+	}
+
 	collectRevOpts := func(snapToRevToVss map[string]map[snap.Revision][]string) ([]string, []*RevisionOptions) {
 		var names []string
 		var revOpts []*RevisionOptions
 
 		for snapName, revAndVs := range snapToRevToVss {
-			for rev, valsets := range revAndVs {
-				vsKeys := make([]snapasserts.ValidationSetKey, 0, len(valsets))
-				for _, vs := range valsets {
-					vsKey := snapasserts.NewValidationSetKey(valErr.Sets[vs])
-					vsKeys = append(vsKeys, vsKey)
-				}
-
-				revOpts = append(revOpts, &RevisionOptions{Revision: rev, ValidationSets: vsKeys})
+			for rev := range revAndVs {
+				revOpts = append(revOpts, &RevisionOptions{Revision: rev, ValidationSets: vsets})
 			}
 			names = append(names, snapName)
 		}
@@ -2630,7 +2631,7 @@ func Switch(st *state.State, name string, opts *RevisionOptions) (*state.TaskSet
 type RevisionOptions struct {
 	Channel        string
 	Revision       snap.Revision
-	ValidationSets []snapasserts.ValidationSetKey
+	ValidationSets *snapasserts.ValidationSets
 	CohortKey      string
 	LeaveCohort    bool
 }
@@ -2661,6 +2662,27 @@ func (r *RevisionOptions) resolveChannel(instanceName string, fallback string, d
 	}
 	r.Channel = resolved
 
+	return nil
+}
+
+// initializeValidationSets ensures that r.ValidationSets is initialized with a
+// value. If the caller has provided a value, it is used. If validation sets are
+// explicitly ignored, we create a new empty validation set that has no rules.
+// Otherwise, we use the enforced validation sets.
+func (r *RevisionOptions) initializeValidationSets(vsets cachedValidationSets, opts Options) error {
+	if r.ValidationSets != nil {
+		return nil
+	}
+
+	if opts.Flags.IgnoreValidation {
+		r.ValidationSets = snapasserts.NewValidationSets()
+	} else {
+		enforced, err := vsets()
+		if err != nil {
+			return err
+		}
+		r.ValidationSets = enforced
+	}
 	return nil
 }
 
@@ -4020,10 +4042,16 @@ func TransitionCore(st *state.State, oldName, newName string) ([]*state.TaskSet,
 		return nil, err
 	}
 	if !newSnapst.IsInstalled() {
+		enforced, err := EnforcedValidationSets(st)
+		if err != nil {
+			return nil, err
+		}
+
 		result, err := sendOneInstallAction(context.TODO(), st, StoreSnap{
 			InstanceName: newName,
 			RevOpts: RevisionOptions{
-				Channel: oldSnapst.TrackingChannel,
+				Channel:        oldSnapst.TrackingChannel,
+				ValidationSets: enforced,
 			},
 		}, Options{})
 		if err != nil {

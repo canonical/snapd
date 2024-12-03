@@ -454,7 +454,7 @@ func storeUpdatePlan(ctx context.Context, st *state.State, allSnaps map[string]*
 	}
 
 	if len(missingRequests) > 0 {
-		if err := validateAndInitStoreUpdates(allSnaps, missingRequests, opts); err != nil {
+		if err := validateAndInitStoreUpdates(st, allSnaps, missingRequests, opts); err != nil {
 			return updatePlan{}, err
 		}
 
@@ -498,17 +498,11 @@ func storeUpdatePlanCore(
 
 	updates := requested
 	if plan.refreshAll() {
-		updates = make(map[string]StoreUpdate, len(allSnaps))
-		for _, snapst := range allSnaps {
-			updates[snapst.InstanceName()] = StoreUpdate{
-				InstanceName: snapst.InstanceName(),
-				// default the channel and cohort key to the existing values,
-				RevOpts: RevisionOptions{
-					Channel:   snapst.TrackingChannel,
-					CohortKey: snapst.CohortKey,
-				},
-			}
+		all, err := initRefreshAllStoreUpdates(st, opts, allSnaps)
+		if err != nil {
+			return updatePlan{}, err
 		}
+		updates = all
 	}
 
 	// if any of the snaps that we are refreshing have components, we need to
@@ -527,8 +521,6 @@ func storeUpdatePlanCore(
 		}
 	}
 
-	enforcedSetsFunc := cachedEnforcedValidationSets(st)
-
 	fallbackID := fallbackUserID(user)
 
 	// hasLocalRevision keeps track of snaps that already have a local revision
@@ -545,14 +537,14 @@ func storeUpdatePlanCore(
 	//
 	// in either case, we need to keep track of these, since we still might need
 	// to change the channel, cohort key, or validation set enforcement.
-	actionsByUserID, hasLocalRevision, current, err := collectCurrentSnapsAndActions(st, allSnaps, updates, plan.requested, opts, enforcedSetsFunc, fallbackID)
+	actionsByUserID, hasLocalRevision, current, err := collectCurrentSnapsAndActions(st, allSnaps, updates, plan.requested, opts, fallbackID)
 	if err != nil {
 		return updatePlan{}, err
 	}
 
 	// create actions to refresh (install, from the store's perspective) snaps
 	// that were installed locally
-	amendActionsByUserID, localAmends, err := installActionsForAmend(st, updates, opts, enforcedSetsFunc, fallbackID)
+	amendActionsByUserID, localAmends, err := installActionsForAmend(st, updates, opts, fallbackID)
 	if err != nil {
 		return updatePlan{}, err
 	}
@@ -661,7 +653,11 @@ func storeUpdatePlanCore(
 		// installed
 		compsToInstall = unique(append(compsToInstall, up.AdditionalComponents...))
 
-		compsups, err := componentSetupsForInstall(ctx, st, compsToInstall, *snapst, si.Revision, up.RevOpts.Channel, opts)
+		compsups, err := componentSetupsForInstall(ctx, st, compsToInstall, *snapst, RevisionOptions{
+			Channel:        up.RevOpts.Channel,
+			Revision:       si.Revision,
+			ValidationSets: up.RevOpts.ValidationSets,
+		}, opts)
 		if err != nil {
 			return updatePlan{}, err
 		}
@@ -692,6 +688,8 @@ func storeUpdatePlanCore(
 			components: compsups,
 		})
 	}
+
+	// TODO: verify validation sets here to catch invalid component revisions
 
 	return plan, nil
 }
@@ -729,7 +727,6 @@ func collectCurrentSnapsAndActions(
 	updates map[string]StoreUpdate,
 	requested []string,
 	opts Options,
-	enforcedSets func() (*snapasserts.ValidationSets, error),
 	fallbackID int,
 ) (actionsByUserID map[int][]*store.SnapAction, hasLocalRevision map[string]*SnapState, current []*store.CurrentSnap, err error) {
 	hasLocalRevision = make(map[string]*SnapState)
@@ -783,7 +780,7 @@ func collectCurrentSnapsAndActions(
 			}
 		}
 
-		if err := completeStoreAction(action, req.RevOpts, ignoreValidation, enforcedSets); err != nil {
+		if err := completeStoreAction(action, req.RevOpts, ignoreValidation); err != nil {
 			return err
 		}
 
@@ -831,7 +828,7 @@ func collectCurrentSnapsAndActions(
 	return actionsByUserID, hasLocalRevision, current, nil
 }
 
-func installActionsForAmend(st *state.State, updates map[string]StoreUpdate, opts Options, enforcedSets func() (*snapasserts.ValidationSets, error), fallbackID int) (map[int][]*store.SnapAction, []string, error) {
+func installActionsForAmend(st *state.State, updates map[string]StoreUpdate, opts Options, fallbackID int) (map[int][]*store.SnapAction, []string, error) {
 	actionsByUserID := make(map[int][]*store.SnapAction)
 	var localAmends []string
 	for _, up := range updates {
@@ -876,7 +873,7 @@ func installActionsForAmend(st *state.State, updates map[string]StoreUpdate, opt
 			ignoreValidation = opts.Flags.IgnoreValidation
 		}
 
-		if err := completeStoreAction(action, up.RevOpts, ignoreValidation, enforcedSets); err != nil {
+		if err := completeStoreAction(action, up.RevOpts, ignoreValidation); err != nil {
 			return nil, nil, err
 		}
 
@@ -1012,9 +1009,12 @@ func sendOneInstallAction(ctx context.Context, st *state.State, snaps StoreSnap,
 	return results[0], nil
 }
 
-func sendInstallActions(ctx context.Context, st *state.State, snaps []StoreSnap, opts Options) ([]store.SnapActionResult, error) {
-	enforcedSetsFunc := cachedEnforcedValidationSets(st)
-
+func sendInstallActions(
+	ctx context.Context,
+	st *state.State,
+	snaps []StoreSnap,
+	opts Options,
+) ([]store.SnapActionResult, error) {
 	includeResources := false
 	actions := make([]*store.SnapAction, 0, len(snaps))
 	for _, sn := range snaps {
@@ -1023,7 +1023,7 @@ func sendInstallActions(ctx context.Context, st *state.State, snaps []StoreSnap,
 			InstanceName: sn.InstanceName,
 		}
 
-		if err := completeStoreAction(action, sn.RevOpts, opts.Flags.IgnoreValidation, enforcedSetsFunc); err != nil {
+		if err := completeStoreAction(action, sn.RevOpts, opts.Flags.IgnoreValidation); err != nil {
 			return nil, err
 		}
 

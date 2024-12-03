@@ -1587,10 +1587,27 @@ func (s *validationSetsSuite) TestKeys(c *C) {
 	c.Assert(valsets.Add(valset1), IsNil)
 	c.Assert(valsets.Add(valset2), IsNil)
 
-	c.Check(valsets.Keys(), testutil.DeepUnsortedMatches, []snapasserts.ValidationSetKey{
-		"16/account-id/my-snap-ctl2/2",
+	c.Check(valsets.Keys(), DeepEquals, []snapasserts.ValidationSetKey{
 		"16/account-id/my-snap-ctl/1",
+		"16/account-id/my-snap-ctl2/2",
 	})
+}
+
+func (s *validationSetsSuite) TestEmpty(c *C) {
+	a := assertstest.FakeAssertion(map[string]interface{}{
+		"type":         "validation-set",
+		"authority-id": "account-id",
+		"series":       "16",
+		"account-id":   "account-id",
+		"name":         "my-snap-ctl",
+		"sequence":     "1",
+		"snaps":        []interface{}{},
+	}).(*asserts.ValidationSet)
+
+	vsets := snapasserts.NewValidationSets()
+	c.Assert(vsets.Empty(), Equals, true)
+	vsets.Add(a)
+	c.Assert(vsets.Empty(), Equals, false)
 }
 
 func (s *validationSetsSuite) TestRequiredSnapNames(c *C) {

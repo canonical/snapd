@@ -700,7 +700,7 @@ func (s *snapmgrTestSuite) TestInstallComponentUpdateConflict(c *C) {
 	chg := s.state.NewChange("update", "update a snap")
 	chg.AddAll(tupd)
 
-	_, err = snapstate.InstallComponents(context.TODO(), s.state, []string{compName}, info, snapstate.Options{})
+	_, err = snapstate.InstallComponents(context.TODO(), s.state, []string{compName}, info, nil, snapstate.Options{})
 	c.Assert(err.Error(), Equals, `snap "some-snap" has "update" change in progress`)
 }
 
@@ -740,14 +740,14 @@ func (s *snapmgrTestSuite) TestInstallComponentConflictsWithSelf(c *C) {
 		return results
 	}
 
-	tss, err := snapstate.InstallComponents(context.TODO(), s.state, []string{compName}, info, snapstate.Options{})
+	tss, err := snapstate.InstallComponents(context.TODO(), s.state, []string{compName}, info, nil, snapstate.Options{})
 	c.Assert(err, IsNil)
 	chg := s.state.NewChange("install-component", "install a component")
 	for _, ts := range tss {
 		chg.AddAll(ts)
 	}
 
-	_, err = snapstate.InstallComponents(context.TODO(), s.state, []string{conflictComponentName}, info, snapstate.Options{})
+	_, err = snapstate.InstallComponents(context.TODO(), s.state, []string{conflictComponentName}, info, nil, snapstate.Options{})
 	c.Assert(err.Error(), Equals, `snap "some-snap" has "install-component" change in progress`)
 }
 
@@ -778,7 +778,7 @@ func (s *snapmgrTestSuite) TestInstallComponentCausesConflict(c *C) {
 		}}
 	}
 
-	tss, err := snapstate.InstallComponents(context.TODO(), s.state, []string{compName}, info, snapstate.Options{})
+	tss, err := snapstate.InstallComponents(context.TODO(), s.state, []string{compName}, info, nil, snapstate.Options{})
 	c.Assert(err, IsNil)
 	chg := s.state.NewChange("install-component", "install a component")
 	for _, ts := range tss {
@@ -989,7 +989,7 @@ func (s *snapmgrTestSuite) testInstallComponents(c *C, opts testInstallComponent
 		},
 	}
 
-	tss, err := snapstate.InstallComponents(context.Background(), s.state, components, info, installOpts)
+	tss, err := snapstate.InstallComponents(context.Background(), s.state, components, info, nil, installOpts)
 	c.Assert(err, IsNil)
 
 	setupProfiles := tss[len(tss)-1].Tasks()[0]
@@ -1083,7 +1083,7 @@ func (s *snapmgrTestSuite) TestInstallComponentsAlreadyInstalledError(c *C) {
 		TrackingChannel: "channel-for-components",
 	})
 
-	_, err := snapstate.InstallComponents(context.TODO(), s.state, []string{"one", "two"}, info, snapstate.Options{})
+	_, err := snapstate.InstallComponents(context.TODO(), s.state, []string{"one", "two"}, info, nil, snapstate.Options{})
 
 	c.Assert(err, testutil.ErrorIs, snap.AlreadyInstalledComponentError{Component: "one"})
 }
@@ -1101,7 +1101,7 @@ func (s *snapmgrTestSuite) TestInstallComponentsInvalidFlagAndTransaction(c *C) 
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	_, err := snapstate.InstallComponents(context.TODO(), s.state, []string{"one", "two"}, info, snapstate.Options{
+	_, err := snapstate.InstallComponents(context.TODO(), s.state, []string{"one", "two"}, info, nil, snapstate.Options{
 		Flags: snapstate.Flags{Lane: 1},
 	})
 	c.Assert(err, ErrorMatches, `cannot specify a lane without setting transaction to "all-snaps"`)
@@ -1149,7 +1149,7 @@ func (s *snapmgrTestSuite) TestInstallComponentsTooEarly(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	_, err := snapstate.InstallComponents(context.TODO(), s.state, []string{"one", "two"}, info, snapstate.Options{
+	_, err := snapstate.InstallComponents(context.TODO(), s.state, []string{"one", "two"}, info, nil, snapstate.Options{
 		Seed: true,
 	})
 	c.Assert(err, ErrorMatches, `.*too early for operation, device model not yet acknowledged`)
