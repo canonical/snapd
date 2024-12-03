@@ -93,10 +93,17 @@ jobs:
       run: |
           ./run-checks --unit
 
+    - name: Create coverage results name
+      if: ${{ ! inputs.skip-coverage }}
+      run: |
+        converted=$(tr '/' '-' <<<${{ inputs.gochannel }})
+        name="coverage-files-${converted}-${{ inputs.go-build-tags || 'notags' }}${{ inputs.go-test-race && '-race' || ''}}${{ inputs.snapd-debug && '-snapddebug' || ''}}"
+        echo "COVERAGE_NAME=$name" >> $GITHUB_ENV
+
     - name: Upload the coverage results
       if: ${{ ! inputs.skip-coverage }}
       uses: actions/upload-artifact@v4
       with:
         include-hidden-files: true
-        name: "coverage-files-${{ inputs.go-build-tags || 'notags' }}${{ inputs.go-test-race && '-race' || ''}}${{ inputs.snapd-debug && '-snapddebug' || ''}}"
+        name: "${{ env.COVERAGE_NAME }}"
         path: "${{ github.workspace }}/.coverage/coverage*.cov"
