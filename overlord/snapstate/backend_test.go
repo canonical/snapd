@@ -61,10 +61,11 @@ type fakeOp struct {
 	sinfo snap.SideInfo
 	stype snap.Type
 
-	componentName     string
-	componentPath     string
-	componentRev      snap.Revision
-	componentSideInfo snap.ComponentSideInfo
+	componentName                   string
+	componentPath                   string
+	componentRev                    snap.Revision
+	componentSideInfo               snap.ComponentSideInfo
+	componentSkipAssertionsDownload bool
 
 	curSnaps []store.CurrentSnap
 	action   store.SnapAction
@@ -1627,6 +1628,7 @@ func (f *fakeSnappyBackend) ForeignTask(kind string, status state.Status, snapsu
 		op.componentPath = compsup.CompPath
 		op.componentRev = compsup.Revision()
 		op.componentSideInfo = *compsup.CompSideInfo
+		op.componentSkipAssertionsDownload = compsup.SkipAssertionsDownload
 	}
 
 	f.appendOp(op)

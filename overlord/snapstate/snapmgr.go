@@ -220,6 +220,9 @@ type ComponentSetup struct {
 	// DownloadInfo contains information about how to download this component.
 	// Will be nil if the component should be sourced from a local file.
 	DownloadInfo *snap.DownloadInfo `json:"download-info,omitempty"`
+	// SkipAssertionsDownload indicates that all assertions needed to install
+	// the component should already be present on the system.
+	SkipAssertionsDownload bool `json:"skip-assertions-download,omitempty"`
 	// ComponentInstallFlags is a set of flags that control the behavior of the
 	// component's installation/update.
 	ComponentInstallFlags
