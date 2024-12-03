@@ -393,6 +393,213 @@ func (s *requestrulesSuite) TestLoadExpiredRules(c *C) {
 	s.checkNewNotices(c, expectedNoticeInfo)
 }
 
+func (s *requestrulesSuite) TestLoadMergedRules(c *C) {
+	dbPath := s.prepDBPath(c)
+
+	good1 := s.ruleTemplateWithReadPathPattern(c, prompting.IDType(1), "/home/test/{foo,bar}")
+	identical1 := s.ruleTemplateWithReadPathPattern(c, prompting.IDType(2), "/home/test/{foo,bar}")
+	expected1 := good1
+	expected1.Timestamp = identical1.Timestamp // Timestamp should be the second timestamp
+
+	// Rules with identical pattern but non-overlapping permissions do not conflict
+	good2 := s.ruleTemplateWithPathPattern(c, prompting.IDType(3), "/home/test/something")
+	good2.Constraints.Permissions = prompting.RulePermissionMap{
+		"read": &prompting.RulePermissionEntry{
+			Outcome:  prompting.OutcomeAllow,
+			Lifespan: prompting.LifespanForever,
+		},
+	}
+	nonOverlap2 := s.ruleTemplateWithPathPattern(c, prompting.IDType(4), "/home/test/something")
+	nonOverlap2.Constraints.Permissions = prompting.RulePermissionMap{
+		"write": &prompting.RulePermissionEntry{
+			Outcome:    prompting.OutcomeDeny,
+			Lifespan:   prompting.LifespanTimespan,
+			Expiration: nonOverlap2.Timestamp.Add(10 * time.Second),
+		},
+	}
+	expected2 := s.ruleTemplateWithPathPattern(c, prompting.IDType(3), "/home/test/something")
+	expected2.Timestamp = nonOverlap2.Timestamp // Timestamp should be the second timestamp
+	expected2.Constraints.Permissions = prompting.RulePermissionMap{
+		"read": &prompting.RulePermissionEntry{
+			Outcome:  prompting.OutcomeAllow,
+			Lifespan: prompting.LifespanForever,
+		},
+		"write": &prompting.RulePermissionEntry{
+			Outcome:  prompting.OutcomeDeny,
+			Lifespan: prompting.LifespanTimespan,
+			// Expiration should be based on nonOverlap2 timestamp
+			Expiration: nonOverlap2.Timestamp.Add(10 * time.Second),
+		},
+	}
+
+	// Rules which overlap but don't conflict preserve longer lifespan
+	good3 := s.ruleTemplateWithPathPattern(c, prompting.IDType(5), "/home/test/another")
+	good3.Constraints.Permissions = prompting.RulePermissionMap{
+		"read": &prompting.RulePermissionEntry{
+			Outcome:  prompting.OutcomeDeny,
+			Lifespan: prompting.LifespanForever,
+		},
+		"write": &prompting.RulePermissionEntry{
+			Outcome:    prompting.OutcomeAllow,
+			Lifespan:   prompting.LifespanTimespan,
+			Expiration: good3.Timestamp.Add(10 * time.Second),
+		},
+		"execute": &prompting.RulePermissionEntry{
+			Outcome:    prompting.OutcomeAllow,
+			Lifespan:   prompting.LifespanTimespan,
+			Expiration: good3.Timestamp.Add(time.Second),
+		},
+	}
+	overlap3 := s.ruleTemplateWithPathPattern(c, prompting.IDType(6), "/home/test/another")
+	overlap3.Constraints.Permissions = prompting.RulePermissionMap{
+		"read": &prompting.RulePermissionEntry{
+			Outcome:    prompting.OutcomeDeny,
+			Lifespan:   prompting.LifespanTimespan,
+			Expiration: overlap3.Timestamp.Add(10 * time.Second),
+		},
+		"write": &prompting.RulePermissionEntry{
+			Outcome:  prompting.OutcomeAllow,
+			Lifespan: prompting.LifespanForever,
+		},
+	}
+	expected3 := s.ruleTemplateWithPathPattern(c, prompting.IDType(5), "/home/test/another")
+	expected3.Timestamp = overlap3.Timestamp // Timestamp should be the second timestamp
+	expected3.Constraints.Permissions = prompting.RulePermissionMap{
+		"read": &prompting.RulePermissionEntry{
+			Outcome:  prompting.OutcomeDeny,
+			Lifespan: prompting.LifespanForever,
+		},
+		"write": &prompting.RulePermissionEntry{
+			Outcome:  prompting.OutcomeAllow,
+			Lifespan: prompting.LifespanForever,
+		},
+		"execute": &prompting.RulePermissionEntry{
+			Outcome:  prompting.OutcomeAllow,
+			Lifespan: prompting.LifespanTimespan,
+			// Expiration should be based on good3 timestamp
+			Expiration: good3.Timestamp.Add(time.Second),
+		},
+	}
+
+	// Rules which overlap but don't conflict preserve longer lifespan, and
+	// will be merged into existing rule even if that rule is completely
+	// superseded.
+	good4 := s.ruleTemplateWithPathPattern(c, prompting.IDType(7), "/home/test/one/more")
+	good4.Constraints.Permissions = prompting.RulePermissionMap{
+		"read": &prompting.RulePermissionEntry{
+			Outcome:    prompting.OutcomeDeny,
+			Lifespan:   prompting.LifespanTimespan,
+			Expiration: good4.Timestamp.Add(10 * time.Second),
+		},
+		"write": &prompting.RulePermissionEntry{
+			Outcome:    prompting.OutcomeAllow,
+			Lifespan:   prompting.LifespanTimespan,
+			Expiration: good4.Timestamp.Add(10 * time.Second),
+		},
+		"execute": &prompting.RulePermissionEntry{
+			Outcome:    prompting.OutcomeAllow,
+			Lifespan:   prompting.LifespanTimespan,
+			Expiration: good4.Timestamp.Add(time.Nanosecond), // will expire
+		},
+	}
+	overlap4 := s.ruleTemplateWithPathPattern(c, prompting.IDType(8), "/home/test/one/more")
+	overlap4.Constraints.Permissions = prompting.RulePermissionMap{
+		"read": &prompting.RulePermissionEntry{
+			Outcome:    prompting.OutcomeDeny,
+			Lifespan:   prompting.LifespanTimespan,
+			Expiration: overlap4.Timestamp.Add(20 * time.Second),
+		},
+		"write": &prompting.RulePermissionEntry{
+			Outcome:  prompting.OutcomeAllow,
+			Lifespan: prompting.LifespanForever,
+		},
+	}
+	expected4 := s.ruleTemplateWithPathPattern(c, prompting.IDType(7), "/home/test/one/more")
+	expected4.Timestamp = overlap4.Timestamp // Timestamp should be the second timestamp
+	expected4.Constraints.Permissions = prompting.RulePermissionMap{
+		"read": &prompting.RulePermissionEntry{
+			Outcome:  prompting.OutcomeDeny,
+			Lifespan: prompting.LifespanTimespan,
+			// Expiration should be based on overlap4 timestamp
+			Expiration: overlap4.Timestamp.Add(20 * time.Second),
+		},
+		"write": &prompting.RulePermissionEntry{
+			Outcome:  prompting.OutcomeAllow,
+			Lifespan: prompting.LifespanForever,
+		},
+	}
+
+	rules := []*requestrules.Rule{good1, identical1, good2, nonOverlap2, good3, overlap3, good4, overlap4}
+	s.writeRules(c, dbPath, rules)
+
+	logbuf, restore := logger.MockLogger()
+	defer restore()
+	rdb, err := requestrules.New(s.defaultNotifyRule)
+	c.Check(err, IsNil)
+	c.Check(rdb, NotNil)
+	// Check that no error was logged
+	c.Check(logbuf.String(), HasLen, 0)
+
+	expectedWrittenRules := []*requestrules.Rule{expected1, expected2, expected3, expected4}
+	s.checkWrittenRuleDB(c, expectedWrittenRules)
+
+	expectedNoticeInfo := []*noticeInfo{
+		{
+			userID: good1.User,
+			ruleID: good1.ID,
+			data:   nil,
+		},
+		{
+			userID: identical1.User,
+			ruleID: identical1.ID,
+			data: map[string]string{
+				"removed":     "merged",
+				"merged-into": good1.ID.String(),
+			},
+		},
+		{
+			userID: good2.User,
+			ruleID: good2.ID,
+			data:   nil,
+		},
+		{
+			userID: nonOverlap2.User,
+			ruleID: nonOverlap2.ID,
+			data: map[string]string{
+				"removed":     "merged",
+				"merged-into": good2.ID.String(),
+			},
+		},
+		{
+			userID: good3.User,
+			ruleID: good3.ID,
+			data:   nil,
+		},
+		{
+			userID: overlap3.User,
+			ruleID: overlap3.ID,
+			data: map[string]string{
+				"removed":     "merged",
+				"merged-into": good3.ID.String(),
+			},
+		},
+		{
+			userID: good4.User,
+			ruleID: good4.ID,
+			data:   nil,
+		},
+		{
+			userID: overlap4.User,
+			ruleID: overlap4.ID,
+			data: map[string]string{
+				"removed":     "merged",
+				"merged-into": good4.ID.String(),
+			},
+		},
+	}
+	s.checkNewNotices(c, expectedNoticeInfo)
+}
+
 func (s *requestrulesSuite) TestLoadHappy(c *C) {
 	dbPath := s.prepDBPath(c)
 
@@ -948,6 +1155,8 @@ func (s *requestrulesSuite) TestAddRuleMerges(c *C) {
 			},
 		},
 		{
+			// First rule is entirely superseded by the latter, but still use
+			// the ID of the former in the merged rule.
 			input: []prompting.PermissionMap{
 				{
 					"read": &prompting.PermissionEntry{
