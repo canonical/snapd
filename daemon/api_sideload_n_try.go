@@ -638,9 +638,15 @@ func readComponentInfoFromContImpl(tempPath string, csi *snap.ComponentSideInfo)
 }
 
 // readComponentInfo reads ComponentInfo from a snap component file and the
-// snap.Info of the matching installed snap. If instanceName is not empty, it is
-// used to find the right instance, otherwise the SnapName from the component is
-// used.
+// snap.Info of the matching installed snap.
+//
+// For dangerous installs, we use the component and snap name from the
+// component.yaml file inside the blob. If an upload.instanceName is provided,
+// then the component in installed for that snap instance.
+//
+// For non-dangerous installs, we use either the provided snap and component
+// names, or we attempt to derive the snap and component names from the provided
+// blob's filename.
 func readComponentInfo(st *state.State, upload *uploadedContainer, flags sideloadFlags, model *asserts.Model) (*snap.ComponentInfo, *snap.Info, *apiError) {
 	if flags.dangerousOK {
 		return readComponentInfoDangerous(st, upload)
