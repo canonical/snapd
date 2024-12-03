@@ -53,7 +53,7 @@ func (s *confdbCtrlSuite) TestAddGroupOK(c *C) {
 
 	views := []string{"canonical/network/control-device", "canonical/network/observe-device"}
 	auth := []string{"operator-key", "store"}
-	err := operator.AddGroup(views, auth)
+	err := operator.AddControlGroup(views, auth)
 	c.Assert(err, IsNil)
 	c.Assert(len(operator.Groups), Equals, 1)
 
@@ -109,7 +109,7 @@ func (s *confdbCtrlSuite) TestAddGroupFail(c *C) {
 
 	for i, tc := range tcs {
 		cmt := Commentf("test number %d", i+1)
-		err := operator.AddGroup(tc.views, tc.auth)
+		err := operator.AddControlGroup(tc.views, tc.auth)
 		c.Assert(err, NotNil)
 		c.Assert(err, ErrorMatches, tc.err, cmt)
 	}

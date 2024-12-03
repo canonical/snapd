@@ -209,7 +209,7 @@ func parseConfdbControlGroups(rawGroups []interface{}) (map[string]*confdb.Opera
 			return nil, fmt.Errorf(`%s: "views" must be provided`, errPrefix)
 		}
 
-		if err := operator.AddGroup(views, auth); err != nil {
+		if err := operator.AddControlGroup(views, auth); err != nil {
 			return nil, fmt.Errorf(`%s: %w`, errPrefix, err)
 		}
 	}
