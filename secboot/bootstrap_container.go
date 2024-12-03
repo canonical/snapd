@@ -83,7 +83,7 @@ func (m *mockKeyDataWriter) Commit() error {
 
 func (m *MockBootstrappedContainer) AddKey(slotName string, newKey []byte) error {
 	if m.BootstrapKeyRemoved {
-		return fmt.Errorf("internal error: key resetter was a already finished")
+		return fmt.Errorf("internal error: bootstrapped container was a already finished")
 	}
 
 	_, ok := m.Slots[slotName]
