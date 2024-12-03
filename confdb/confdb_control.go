@@ -70,17 +70,17 @@ func convertToAuthenticationMethod(methods []string) ([]AuthenticationMethod, er
 // Operator holds the delegations for a single operator.
 type Operator struct {
 	ID     string
-	Groups []*Group
+	Groups []*ControlGroup
 }
 
-// Group holds a set of views delegated through the given authentication.
-type Group struct {
+// ControlGroup holds a set of views delegated through the given authentication.
+type ControlGroup struct {
 	Authentication []AuthenticationMethod
 	Views          []string
 }
 
-// AddGroup adds the group to an operator under the given authentication.
-func (op *Operator) AddGroup(views, auth []string) error {
+// AddControlGroup adds the group to an operator under the given authentication.
+func (op *Operator) AddControlGroup(views, auth []string) error {
 	if len(auth) == 0 {
 		return errors.New(`cannot add group: "auth" must be a non-empty list`)
 	}
@@ -113,7 +113,7 @@ func (op *Operator) AddGroup(views, auth []string) error {
 		}
 	}
 
-	group := &Group{
+	group := &ControlGroup{
 		Authentication: authentication,
 		Views:          views,
 	}
