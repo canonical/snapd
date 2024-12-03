@@ -1675,6 +1675,21 @@ func RemoveRecoverySystem(st *state.State, label string) (*state.Change, error) 
 	return chg, nil
 }
 
+func checkForRequiredSnapsNotPresentInModel(model *asserts.Model, vSets *snapasserts.ValidationSets) error {
+	snapsInModel := make(map[string]bool, len(model.AllSnaps()))
+	for _, sn := range model.AllSnaps() {
+		snapsInModel[sn.SnapName()] = true
+	}
+
+	for _, sn := range vSets.RequiredSnaps() {
+		if !snapsInModel[sn] {
+			return fmt.Errorf("missing required snap in model: %s", sn)
+		}
+	}
+
+	return nil
+}
+
 // CreateRecoverySystem creates a new recovery system with the given label. See
 // CreateRecoverySystemOptions for details on the options that can be provided.
 func CreateRecoverySystem(st *state.State, label string, opts CreateRecoverySystemOptions) (chg *state.Change, err error) {
@@ -1725,9 +1740,12 @@ func CreateRecoverySystem(st *state.State, label string, opts CreateRecoverySyst
 		return nil, err
 	}
 
-	// TODO: check that all snaps and components that are required by validation
-	// sets are also required in the model. this matches the behavior of
-	// remodeling.
+	// the task that creates the recovery system doesn't know anything about
+	// validation sets, so we cannot create systems with snaps that are not in
+	// the model.
+	if err := checkForRequiredSnapsNotPresentInModel(model, valsets); err != nil {
+		return nil, err
+	}
 
 	tracker := snap.NewSelfContainedSetPrereqTracker()
 
