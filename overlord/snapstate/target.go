@@ -344,8 +344,6 @@ func checkTargetAgainstValidationSets(target target, action string, vsets *snapa
 	return checkComponentsAgainstConstraints(target.info.SnapName(), comps, constraints, action)
 }
 
-// should something like this maybe be a method on snapasserts.ValidationSets?
-// the error strings are the main thing that don't really fit well in there
 func checkSnapAgainstConstraints(
 	instanceName string,
 	revision snap.Revision,
@@ -521,20 +519,6 @@ func completeStoreAction(action *store.SnapAction, revOpts RevisionOptions, igno
 	pres, err := vsets.Presence(naming.Snap(snapName))
 	if err != nil {
 		return err
-	}
-
-	if pres.Presence == asserts.PresenceInvalid {
-		verb := "install"
-		if action.Action == "refresh" {
-			verb = "update"
-		}
-
-		return fmt.Errorf(
-			"cannot %s snap %q due to enforcing rules of validation set %s",
-			verb,
-			action.InstanceName,
-			pres.Sets.CommaSeparated(),
-		)
 	}
 
 	// note that we don't check that we're installing invalid components
