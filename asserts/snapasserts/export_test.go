@@ -19,3 +19,10 @@
 package snapasserts
 
 type ByRevision = byRevision
+
+func NewSnapPresenceConstraints(p PresenceConstraint, comps map[string]PresenceConstraint) SnapPresenceConstraints {
+	return SnapPresenceConstraints{
+		PresenceConstraint: p,
+		components:         comps,
+	}
+}

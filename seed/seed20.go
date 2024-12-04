@@ -1501,50 +1501,76 @@ func (s *seed20) ModeSnaps(mode string) ([]*Snap, error) {
 
 	snapsWithMode := make([]*Snap, 0)
 	for _, sn := range s.snaps[s.essentialSnapsNum:] {
-		// since we're handing out pointers here, we need to make a copy of the
-		// snap
-		copied := *sn
-
-		ms, ok := s.modelSnaps[sn.SnapName()]
-		if !ok {
-			// snaps not in the model will be considered as run mode, and so
-			// will all of its components
-			if mode == "run" {
-				// make a copy of the slice so that the caller can't mess with our
-				// internal state
-				copied.Components = append([]Component(nil), sn.Components...)
-				snapsWithMode = append(snapsWithMode, &copied)
-			}
+		copied := s.modeSnap(sn, mode)
+		if copied == nil {
 			continue
 		}
 
-		if !snapModesInclude(ms.Modes, mode) {
-			continue
-		}
-
-		// we'll rebuild the slice of components with only the components that
-		// are applicable to the requested mode
-		copied.Components = nil
-
-		for _, comp := range sn.Components {
-			modelComp, ok := ms.Components[comp.CompSideInfo.Component.ComponentName]
-			if !ok {
-				// components not in the model will be considered as run mode
-				if mode == "run" {
-					copied.Components = append(copied.Components, comp)
-				}
-				continue
-			}
-
-			if snapModesInclude(modelComp.Modes, mode) {
-				copied.Components = append(copied.Components, comp)
-			}
-		}
-
-		snapsWithMode = append(snapsWithMode, &copied)
+		snapsWithMode = append(snapsWithMode, copied)
 	}
 
 	return snapsWithMode, nil
+}
+
+func (s *seed20) modeSnap(sn *Snap, mode string) *Snap {
+	copied := *sn
+	ms, ok := s.modelSnaps[sn.SnapName()]
+	if !ok {
+		// snaps not in the model will be considered as run mode, and so
+		// will all of its components
+		if mode == "run" {
+			// make a copy of the slice so that the caller can't mess with our
+			// internal state
+			copied.Components = append([]Component(nil), copied.Components...)
+			return &copied
+		}
+		return nil
+	}
+
+	if !snapModesInclude(ms.Modes, mode) {
+		return nil
+	}
+
+	// we'll rebuild the slice of components with only the components that
+	// are applicable to the requested mode
+	copied.Components = nil
+
+	for _, comp := range sn.Components {
+		modelComp, ok := ms.Components[comp.CompSideInfo.Component.ComponentName]
+		if !ok {
+			// components not in the model will be considered as run mode
+			if mode == "run" {
+				copied.Components = append(copied.Components, comp)
+			}
+			continue
+		}
+
+		if snapModesInclude(modelComp.Modes, mode) {
+			copied.Components = append(copied.Components, comp)
+		}
+	}
+
+	return &copied
+}
+
+func (s *seed20) ModeSnap(snapName, mode string) (*Snap, error) {
+	if s.mode != AllModes && mode != s.mode {
+		return nil, fmt.Errorf("metadata was loaded only for snaps for mode %s not %s", s.mode, mode)
+	}
+
+	for _, sn := range s.snaps {
+		if sn.SnapName() != snapName {
+			continue
+		}
+
+		copied := s.modeSnap(sn, mode)
+		if copied != nil {
+			return copied, nil
+		}
+		return nil, fmt.Errorf("snap %s is not available for %q mode", snapName, mode)
+	}
+
+	return nil, fmt.Errorf("while looking for mode snap: snap %s not found", snapName)
 }
 
 func (s *seed20) NumSnaps() int {

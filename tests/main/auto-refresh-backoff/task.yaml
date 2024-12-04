@@ -61,7 +61,10 @@ execute: |
     # Make bad version of SNAP_ONE
     unsquashfs -d bad-snap "$SNAP_ONE_GOOD_PATH"
     mkdir -p ./bad-snap/meta/hooks
-    echo 'exit 1' > ./bad-snap/meta/hooks/configure
+    cat <<'EOF' > ./bad-snap/meta/hooks/configure
+    #!/bin/sh
+    exit 1
+    EOF
     chmod +x ./bad-snap/meta/hooks/configure
     snap pack --filename="$SNAP_ONE-bad.snap" bad-snap .
     SNAP_ONE_BAD_PATH="$(pwd)/$SNAP_ONE-bad.snap"

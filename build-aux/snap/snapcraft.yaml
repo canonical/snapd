@@ -195,7 +195,7 @@ parts:
     plugin: nil
     source: .
     build-snaps:
-      - go/1.18/stable # the default Go toolchain
+      - go/1.23/stable # the default Go toolchain
     after:
       - apparmor
     build-packages:
@@ -261,7 +261,7 @@ parts:
           snap refresh --channel "$GO_TOOLCHAIN_FIPS_CHANNEL" go
           # make sure it is really the Go FIPS toolchain
           if ! test -f /snap/go/current/src/crypto/internal/backend/openssl_linux.go; then
-              echo "Go 1.21 FIPS toolchain not found"
+              echo "Go FIPS toolschain verification failed: cannot find /snap/go/current/src/crypto/internal/backend/openssl_linux.go"
               exit 1
           fi
       fi

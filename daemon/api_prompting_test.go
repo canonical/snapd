@@ -52,34 +52,38 @@ type fakeInterfacesRequestsManager struct {
 	err          error
 
 	// Store most recent received values
-	userID      uint32
-	snap        string
-	iface       string
-	id          prompting.IDType // used for prompt ID or rule ID
-	constraints *prompting.Constraints
-	outcome     prompting.OutcomeType
-	lifespan    prompting.LifespanType
-	duration    string
+	userID         uint32
+	snap           string
+	iface          string
+	id             prompting.IDType // used for prompt ID or rule ID
+	constraints    *prompting.Constraints
+	outcome        prompting.OutcomeType
+	lifespan       prompting.LifespanType
+	duration       string
+	clientActivity bool
 }
 
-func (m *fakeInterfacesRequestsManager) Prompts(userID uint32) ([]*requestprompts.Prompt, error) {
+func (m *fakeInterfacesRequestsManager) Prompts(userID uint32, clientActivity bool) ([]*requestprompts.Prompt, error) {
 	m.userID = userID
+	m.clientActivity = clientActivity
 	return m.prompts, m.err
 }
 
-func (m *fakeInterfacesRequestsManager) PromptWithID(userID uint32, promptID prompting.IDType) (*requestprompts.Prompt, error) {
+func (m *fakeInterfacesRequestsManager) PromptWithID(userID uint32, promptID prompting.IDType, clientActivity bool) (*requestprompts.Prompt, error) {
 	m.userID = userID
 	m.id = promptID
+	m.clientActivity = clientActivity
 	return m.prompt, m.err
 }
 
-func (m *fakeInterfacesRequestsManager) HandleReply(userID uint32, promptID prompting.IDType, constraints *prompting.Constraints, outcome prompting.OutcomeType, lifespan prompting.LifespanType, duration string) ([]prompting.IDType, error) {
+func (m *fakeInterfacesRequestsManager) HandleReply(userID uint32, promptID prompting.IDType, constraints *prompting.Constraints, outcome prompting.OutcomeType, lifespan prompting.LifespanType, duration string, clientActivity bool) ([]prompting.IDType, error) {
 	m.userID = userID
 	m.id = promptID
 	m.constraints = constraints
 	m.outcome = outcome
 	m.lifespan = lifespan
 	m.duration = duration
+	m.clientActivity = clientActivity
 	return m.satisfiedIDs, m.err
 }
 
@@ -651,6 +655,7 @@ func (s *promptingSuite) TestGetPromptsHappy(c *C) {
 
 	// Check parameters
 	c.Check(s.manager.userID, Equals, uint32(1000))
+	c.Check(s.manager.clientActivity, Equals, true)
 
 	// Check return value
 	prompts, ok := rsp.Result.([]*requestprompts.Prompt)
@@ -681,6 +686,7 @@ func (s *promptingSuite) TestGetPromptHappy(c *C) {
 	// Check parameters
 	c.Check(s.manager.userID, Equals, uint32(1000))
 	c.Check(s.manager.id, Equals, prompting.IDType(0x0123456789abcdef))
+	c.Check(s.manager.clientActivity, Equals, true)
 
 	// Check return value
 	prompt, ok := rsp.Result.(*requestprompts.Prompt)
@@ -722,6 +728,7 @@ func (s *promptingSuite) TestPostPromptHappy(c *C) {
 	c.Check(s.manager.outcome, Equals, contents.Outcome)
 	c.Check(s.manager.lifespan, Equals, contents.Lifespan)
 	c.Check(s.manager.duration, Equals, contents.Duration)
+	c.Check(s.manager.clientActivity, Equals, true)
 
 	// Check return value
 	satisfiedIDs, ok := rsp.Result.([]prompting.IDType)

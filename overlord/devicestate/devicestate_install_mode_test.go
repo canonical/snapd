@@ -733,6 +733,10 @@ func (fs *fakeSeed) ModeSnaps(mode string) ([]*seed.Snap, error) {
 	return nil, nil
 }
 
+func (s *fakeSeed) ModeSnap(snapName, mode string) (*seed.Snap, error) {
+	return nil, nil
+}
+
 func (*fakeSeed) NumSnaps() int {
 	return 0
 }

@@ -173,6 +173,33 @@ func doValidateComponent(t *state.Task, _ *tomb.Tomb) error {
 		return fmt.Errorf("internal error: cannot obtain snap setup: %s", err)
 	}
 
+	if !compsup.SkipAssertionsDownload {
+		return fetchAssertsAndValidateComponent(st, compsup, snapsup, t)
+	}
+
+	// we don't fetch new assertions in the case that we're installing a
+	// component from a local file. in that case, we still want to validate that
+	// the snap-resource-pair assertion exists for the component and snap
+	// revisions.
+
+	db := DB(st)
+	retrieve := func(ref *asserts.Ref) (asserts.Assertion, error) {
+		return ref.Resolve(db.Find)
+	}
+	fetcher := asserts.NewFetcher(db, retrieve, func(asserts.Assertion) error {
+		return nil
+	})
+
+	return snapasserts.FetchResourcePairAssertion(
+		fetcher,
+		snapsup.SideInfo,
+		compsup.ComponentName(),
+		compsup.Revision(),
+		snapsup.ExpectedProvenance,
+	)
+}
+
+func fetchAssertsAndValidateComponent(st *state.State, compsup *snapstate.ComponentSetup, snapsup *snapstate.SnapSetup, t *state.Task) error {
 	// if we don't have a component path, then we assume that the snap we're
 	// working with is already installed. if that is the case, we still want to
 	// run this task, since we may need to download a new snap-resource-pair.

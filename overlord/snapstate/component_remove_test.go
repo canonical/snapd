@@ -48,7 +48,7 @@ func verifyComponentRemoveTasks(c *C, opts int, ts *state.TaskSet) {
 	expected := expectedComponentRemoveTasks(opts)
 	c.Assert(kinds, DeepEquals, expected)
 
-	checkSetupTasks(c, ts)
+	checkSetupTasks(c, opts, ts)
 }
 
 func (s *snapmgrTestSuite) TestRemoveComponent(c *C) {

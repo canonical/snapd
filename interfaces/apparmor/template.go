@@ -612,6 +612,7 @@ var defaultCoreRuntimeTemplateRules = `
   /{,usr/}bin/run-parts ixr,
   /{,usr/}bin/sed ixr,
   /{,usr/}bin/seq ixr,
+  /{,usr/}bin/setpriv ixr,
   /{,usr/}bin/sha{1,224,256,384,512}sum ixr,
   /{,usr/}bin/shuf ixr,
   /{,usr/}bin/sleep ixr,

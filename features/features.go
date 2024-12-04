@@ -40,8 +40,6 @@ const (
 	ParallelInstances
 	// Hotplug controls availability of dynamically creating slots based on system hardware.
 	Hotplug
-	// SnapdSnap controls possibility of installing the snapd snap.
-	SnapdSnap
 	// PerUserMountNamespace controls the persistence of per-user mount namespaces.
 	PerUserMountNamespace
 	// RefreshAppAwareness controls refresh being aware of running applications.
@@ -101,7 +99,6 @@ var featureNames = map[SnapdFeature]string{
 	Layouts:               "layouts",
 	ParallelInstances:     "parallel-instances",
 	Hotplug:               "hotplug",
-	SnapdSnap:             "snapd-snap",
 	PerUserMountNamespace: "per-user-mount-namespace",
 	RefreshAppAwareness:   "refresh-app-awareness",
 

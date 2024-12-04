@@ -194,15 +194,6 @@ func isParallelInstallable(snapsup *SnapSetup) error {
 	return fmt.Errorf("cannot install snap of type %v as %q", snapsup.Type, snapsup.InstanceName())
 }
 
-func optedIntoSnapdSnap(st *state.State) (bool, error) {
-	tr := config.NewTransaction(st)
-	experimentalAllowSnapd, err := features.Flag(tr, features.SnapdSnap)
-	if err != nil && !config.IsNoOption(err) {
-		return false, err
-	}
-	return experimentalAllowSnapd, nil
-}
-
 // refreshRetain returns refresh.retain value if set, or the default value (different for core and classic).
 // It deals with potentially wrong type due to lax validation.
 func refreshRetain(st *state.State) int {
@@ -1776,19 +1767,20 @@ func ResolveValidationSetsEnforcementError(ctx context.Context, st *state.State,
 	// use the same lane for installing and refreshing so everything is reversed
 	lane := st.NewLane()
 
+	vsets := snapasserts.NewValidationSets()
+	for _, vs := range valErr.Sets {
+		if err := vsets.Add(vs); err != nil {
+			return nil, nil, err
+		}
+	}
+
 	collectRevOpts := func(snapToRevToVss map[string]map[snap.Revision][]string) ([]string, []*RevisionOptions) {
 		var names []string
 		var revOpts []*RevisionOptions
 
 		for snapName, revAndVs := range snapToRevToVss {
-			for rev, valsets := range revAndVs {
-				vsKeys := make([]snapasserts.ValidationSetKey, 0, len(valsets))
-				for _, vs := range valsets {
-					vsKey := snapasserts.NewValidationSetKey(valErr.Sets[vs])
-					vsKeys = append(vsKeys, vsKey)
-				}
-
-				revOpts = append(revOpts, &RevisionOptions{Revision: rev, ValidationSets: vsKeys})
+			for rev := range revAndVs {
+				revOpts = append(revOpts, &RevisionOptions{Revision: rev, ValidationSets: vsets})
 			}
 			names = append(names, snapName)
 		}
@@ -2639,7 +2631,7 @@ func Switch(st *state.State, name string, opts *RevisionOptions) (*state.TaskSet
 type RevisionOptions struct {
 	Channel        string
 	Revision       snap.Revision
-	ValidationSets []snapasserts.ValidationSetKey
+	ValidationSets *snapasserts.ValidationSets
 	CohortKey      string
 	LeaveCohort    bool
 }
@@ -2670,6 +2662,27 @@ func (r *RevisionOptions) resolveChannel(instanceName string, fallback string, d
 	}
 	r.Channel = resolved
 
+	return nil
+}
+
+// initializeValidationSets ensures that r.ValidationSets is initialized with a
+// value. If the caller has provided a value, it is used. If validation sets are
+// explicitly ignored, we create a new empty validation set that has no rules.
+// Otherwise, we use the enforced validation sets.
+func (r *RevisionOptions) initializeValidationSets(vsets cachedValidationSets, opts Options) error {
+	if r.ValidationSets != nil {
+		return nil
+	}
+
+	if opts.Flags.IgnoreValidation {
+		r.ValidationSets = snapasserts.NewValidationSets()
+	} else {
+		enforced, err := vsets()
+		if err != nil {
+			return err
+		}
+		r.ValidationSets = enforced
+	}
 	return nil
 }
 
@@ -3519,30 +3532,24 @@ func canRemove(st *state.State, si *snap.Info, snapst *SnapState, removeAll bool
 	if enforcedSets == nil {
 		return nil
 	}
-	requiredValsets, requiredRevision, err := enforcedSets.CheckPresenceRequired(si)
+	pres, err := enforcedSets.Presence(si)
 	if err != nil {
-		if _, ok := err.(*snapasserts.PresenceConstraintError); !ok {
-			return err
-		}
-		// else - presence is invalid, nothing to do (not really possible since
-		// it shouldn't be allowed to get installed in the first place).
-		return nil
+		return err
 	}
-	if len(requiredValsets) == 0 {
-		// not required by any validation set (or is optional)
+	if pres.Presence != asserts.PresenceRequired {
 		return nil
 	}
 	// removeAll is set if we're removing the snap completely
 	if removeAll {
-		if requiredRevision.Unset() {
-			return fmt.Errorf("snap %q is required by validation sets: %s", si.InstanceName(), snapasserts.ValidationSetKeySlice(requiredValsets).CommaSeparated())
+		if pres.Revision.Unset() {
+			return fmt.Errorf("snap %q is required by validation sets: %s", si.InstanceName(), pres.Sets.CommaSeparated())
 		}
-		return fmt.Errorf("snap %q at revision %s is required by validation sets: %s", si.InstanceName(), requiredRevision, snapasserts.ValidationSetKeySlice(requiredValsets).CommaSeparated())
+		return fmt.Errorf("snap %q at revision %s is required by validation sets: %s", si.InstanceName(), pres.Revision, pres.Sets.CommaSeparated())
 	}
 
 	// rev is set at this point (otherwise we would hit removeAll case)
-	if requiredRevision.N == rev.N {
-		return fmt.Errorf("snap %q at revision %s is required by validation sets: %s", si.InstanceName(), rev, snapasserts.ValidationSetKeySlice(requiredValsets).CommaSeparated())
+	if pres.Revision == rev {
+		return fmt.Errorf("snap %q at revision %s is required by validation sets: %s", si.InstanceName(), rev, pres.Sets.CommaSeparated())
 	} // else - it's ok to remove a revision different than the required
 	return nil
 }
@@ -4035,10 +4042,16 @@ func TransitionCore(st *state.State, oldName, newName string) ([]*state.TaskSet,
 		return nil, err
 	}
 	if !newSnapst.IsInstalled() {
+		enforced, err := EnforcedValidationSets(st)
+		if err != nil {
+			return nil, err
+		}
+
 		result, err := sendOneInstallAction(context.TODO(), st, StoreSnap{
 			InstanceName: newName,
 			RevOpts: RevisionOptions{
-				Channel: oldSnapst.TrackingChannel,
+				Channel:        oldSnapst.TrackingChannel,
+				ValidationSets: enforced,
 			},
 		}, Options{})
 		if err != nil {

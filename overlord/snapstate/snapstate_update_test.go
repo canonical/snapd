@@ -36,6 +36,7 @@ import (
 
 	"github.com/snapcore/snapd/advisor"
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/asserts/assertstest"
 	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/boot/boottest"
 	"github.com/snapcore/snapd/bootloader"
@@ -5906,18 +5907,20 @@ func (s *snapmgrTestSuite) TestUpdateManyWaitForBasesUC18(c *C) {
 }
 
 func (s *validationSetsSuite) TestUpdateManyWithRevisionOpts(c *C) {
+	// current validation set forbids "some-snap"
+	vsets := snapasserts.NewValidationSets()
+	someSnapConstraint := map[string]interface{}{
+		"id":       "yOqKhntON3vR7kwEbVPsILm7bUViPDzx",
+		"name":     "some-snap",
+		"presence": "required",
+		"required": "1",
+	}
+	bar := s.mockValidationSetAssert(c, "bar", "1", someSnapConstraint)
+	err := vsets.Add(bar.(*asserts.ValidationSet))
+	c.Assert(err, IsNil)
+
 	restore := snapstate.MockEnforcedValidationSets(func(st *state.State, extraVss ...*asserts.ValidationSet) (*snapasserts.ValidationSets, error) {
-		// current validation set forbids "some-snap"
-		vs := snapasserts.NewValidationSets()
-		snapOne := map[string]interface{}{
-			"id":       "yOqKhntON3vR7kwEbVPsILm7bUViPDzx",
-			"name":     "some-snap",
-			"presence": "required",
-			"required": "1",
-		}
-		vsa1 := s.mockValidationSetAssert(c, "bar", "1", snapOne)
-		vs.Add(vsa1.(*asserts.ValidationSet))
-		return vs, nil
+		return vsets, nil
 	})
 	defer restore()
 
@@ -5943,7 +5946,7 @@ func (s *validationSetsSuite) TestUpdateManyWithRevisionOpts(c *C) {
 
 	// updating "some-snap" with revision opts should succeed because current
 	// validation sets should be ignored
-	revOpts := []*snapstate.RevisionOptions{{Revision: snap.R(2), ValidationSets: []snapasserts.ValidationSetKey{"16/foo/bar/2"}}}
+	revOpts := []*snapstate.RevisionOptions{{Revision: snap.R(2), ValidationSets: vsets}}
 	affected, tss, err := snapstate.UpdateMany(context.Background(), s.state, []string{"some-snap"}, revOpts, 0, nil)
 	c.Assert(err, IsNil)
 	c.Assert(affected, DeepEquals, []string{"some-snap"})
@@ -7535,6 +7538,16 @@ func (s *validationSetsSuite) TestUpdateToRevisionSnapRequiredByValidationAlread
 }
 
 func (s *validationSetsSuite) TestUpdateToRevisionSnapRequiredByValidationWrongRevisionError(c *C) {
+	const instanceKey = ""
+	s.testUpdateToRevisionSnapRequiredByValidationWrongRevisionError(c, instanceKey)
+}
+
+func (s *validationSetsSuite) TestUpdateToRevisionSnapRequiredByValidationWrongRevisionErrorParallelInstall(c *C) {
+	const instanceKey = "key"
+	s.testUpdateToRevisionSnapRequiredByValidationWrongRevisionError(c, instanceKey)
+}
+
+func (s *validationSetsSuite) testUpdateToRevisionSnapRequiredByValidationWrongRevisionError(c *C, instanceKey string) {
 	restore := snapstate.MockEnforcedValidationSets(func(st *state.State, extraVss ...*asserts.ValidationSet) (*snapasserts.ValidationSets, error) {
 		vs := snapasserts.NewValidationSets()
 		someSnap := map[string]interface{}{
@@ -7552,6 +7565,12 @@ func (s *validationSetsSuite) TestUpdateToRevisionSnapRequiredByValidationWrongR
 	s.state.Lock()
 	defer s.state.Unlock()
 
+	if instanceKey != "" {
+		tr := config.NewTransaction(s.state)
+		tr.Set("core", "experimental.parallel-instances", true)
+		tr.Commit()
+	}
+
 	tr := assertstate.ValidationSetTracking{
 		AccountID: "foo",
 		Name:      "bar",
@@ -7560,16 +7579,26 @@ func (s *validationSetsSuite) TestUpdateToRevisionSnapRequiredByValidationWrongR
 	}
 	assertstate.UpdateValidationSet(s.state, &tr)
 
-	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+	const snapName = "some-snap"
+	instanceName := snap.InstanceName(snapName, instanceKey)
+
+	snapstate.Set(s.state, instanceName, &snapstate.SnapState{
 		Active: true,
 		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
-			{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(1)},
+			{RealName: snapName, SnapID: "some-snap-id", Revision: snap.R(1)},
 		}),
-		Current:  snap.R(1),
-		SnapType: "app",
+		Current:     snap.R(1),
+		SnapType:    "app",
+		InstanceKey: instanceKey,
 	})
-	_, err := snapstate.Update(s.state, "some-snap", &snapstate.RevisionOptions{Revision: snap.R(11)}, 0, snapstate.Flags{})
-	c.Assert(err, ErrorMatches, `cannot update snap "some-snap" to revision 11 without --ignore-validation, revision 5 is required by validation sets: 16/foo/bar/2`)
+	_, err := snapstate.Update(s.state, instanceName, &snapstate.RevisionOptions{Revision: snap.R(11)}, 0, snapstate.Flags{})
+
+	// we ignore validation sets when installing snaps with parallel instances
+	if instanceKey == "" {
+		c.Assert(err, ErrorMatches, fmt.Sprintf(`cannot update snap %q to revision 11 without --ignore-validation, revision 5 is required by validation sets: 16/foo/bar/2`, instanceName))
+	} else {
+		c.Assert(err, IsNil)
+	}
 }
 
 // test that updating to a revision that is different than the revision required
@@ -7898,7 +7927,20 @@ func (s *validationSetsSuite) TestUpdateToRevisionWithValidationSets(c *C) {
 
 	refreshedDate := fakeRevDateEpoch.AddDate(0, 0, 1)
 
-	ts, err := snapstate.Update(s.state, "some-snap", &snapstate.RevisionOptions{Revision: snap.R(11), ValidationSets: []snapasserts.ValidationSetKey{"16/foo/bar", "16/foo/baz"}}, 0, snapstate.Flags{})
+	vsets := snapasserts.NewValidationSets()
+	vsets.Add(s.mockValidationSetAssert(c, "bar", "1", map[string]interface{}{
+		"id":       "yOqKhntON3vR7kwEbVPsILm7bUViPDzx",
+		"name":     "some-snap",
+		"presence": "required",
+	}).(*asserts.ValidationSet))
+	vsets.Add(s.mockValidationSetAssert(c, "baz", "2", map[string]interface{}{
+		"id":       "yOqKhntON3vR7kwEbVPsILm7bUViPDzx",
+		"name":     "some-snap",
+		"presence": "required",
+		"revision": "11",
+	}).(*asserts.ValidationSet))
+
+	ts, err := snapstate.Update(s.state, "some-snap", &snapstate.RevisionOptions{Revision: snap.R(11), ValidationSets: vsets}, 0, snapstate.Flags{})
 	c.Assert(err, IsNil)
 
 	var snapsup snapstate.SnapSetup
@@ -7925,11 +7967,40 @@ func (s *validationSetsSuite) TestUpdateToRevisionWithValidationSets(c *C) {
 			InstanceName:   "some-snap",
 			SnapID:         "some-snap-id",
 			Revision:       snap.R(11),
-			ValidationSets: []snapasserts.ValidationSetKey{"16/foo/bar", "16/foo/baz"},
+			ValidationSets: vsets.Keys(),
 		},
 		revno: snap.R(11),
 	}}
 	c.Assert(s.fakeBackend.ops, DeepEquals, expectedOps)
+}
+
+func (s *validationSetsSuite) TestUpdateWithValidationSetsInvalidSnap(c *C) {
+	restore := snapstate.MockEnforcedValidationSets(func(st *state.State, extraVss ...*asserts.ValidationSet) (*snapasserts.ValidationSets, error) {
+		return nil, fmt.Errorf("unexpected")
+	})
+	defer restore()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	si := &snap.SideInfo{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(1)}
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Active:   true,
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si}),
+		Current:  snap.R(1),
+		SnapType: "app",
+	})
+	snaptest.MockSnap(c, `name: some-snap`, si)
+
+	vsets := snapasserts.NewValidationSets()
+	vsets.Add(s.mockValidationSetAssert(c, "bar", "1", map[string]interface{}{
+		"id":       "yOqKhntON3vR7kwEbVPsILm7bUViPDzx",
+		"name":     "some-snap",
+		"presence": "invalid",
+	}).(*asserts.ValidationSet))
+
+	_, err := snapstate.Update(s.state, "some-snap", &snapstate.RevisionOptions{Revision: snap.R(11), ValidationSets: vsets}, 0, snapstate.Flags{})
+	c.Assert(err, ErrorMatches, `cannot update snap "some-snap" due to enforcing rules of validation set 16/foo/bar/1`)
 }
 
 func (s *snapmgrTestSuite) TestUpdatePrerequisiteWithSameDeviceContext(c *C) {
@@ -13011,18 +13082,46 @@ func (s *snapmgrTestSuite) testUpdateManyRevOptsOrder(c *C, isThrottled map[stri
 	}
 	snapstate.ReplaceStore(s.state, &sto)
 
+	signer := assertstest.NewStoreStack("can0nical", nil)
+	valSetForSnap := func(snapName string) *snapasserts.ValidationSets {
+		headers := map[string]interface{}{
+			"authority-id": "foo",
+			"account-id":   "foo",
+			"name":         snapName,
+			"series":       "16",
+			"revision":     "5",
+			"sequence":     "1",
+			"timestamp":    "2030-11-06T09:16:26Z",
+			"snaps": []interface{}{
+				map[string]interface{}{
+					"id":       snaptest.AssertedSnapID(snapName),
+					"name":     snapName,
+					"presence": "required",
+				},
+			},
+		}
+
+		vs, err := signer.Sign(asserts.ValidationSetType, headers, nil, "")
+		c.Assert(err, IsNil)
+
+		vsets := snapasserts.NewValidationSets()
+		vsets.Add(vs.(*asserts.ValidationSet))
+
+		return vsets
+	}
+
 	nameToRevOpts := map[string]*snapstate.RevisionOptions{
 		"some-snap": {
 			Revision:       snap.R(111),
-			ValidationSets: []snapasserts.ValidationSetKey{"1", "1.1"},
+			ValidationSets: valSetForSnap("some-snap"),
 		},
 		"some-other-snap": {
 			Revision:       snap.R(222),
-			ValidationSets: []snapasserts.ValidationSetKey{"2", "2.2"},
+			ValidationSets: valSetForSnap("some-other-snap"),
 		},
 		"snap-c": {
 			Revision:       snap.R(333),
-			ValidationSets: []snapasserts.ValidationSetKey{"3", "3.3"},
+			ValidationSets: valSetForSnap("snap-c"),
 		},
 	}
 	getRevOpts := func(names []string) (revOpts []*snapstate.RevisionOptions) {
@@ -13041,7 +13140,7 @@ func (s *snapmgrTestSuite) testUpdateManyRevOptsOrder(c *C, isThrottled map[stri
 		c.Check(requestSnapToAction, NotNil)
 		for name, action := range requestSnapToAction {
 			c.Check(action.Revision, Equals, nameToRevOpts[name].Revision, Commentf("snap %q sent revision is incorrect", name))
-			c.Check(action.ValidationSets, DeepEquals, nameToRevOpts[name].ValidationSets, Commentf("snap %q sent validation sets are incorrect", name))
+			c.Check(action.ValidationSets, DeepEquals, nameToRevOpts[name].ValidationSets.Keys(), Commentf("snap %q sent validation sets are incorrect", name))
 		}
 	}
 
@@ -14502,7 +14601,7 @@ func (s *snapmgrTestSuite) testRevertWithComponents(c *C, undo bool) {
 		channel     = "channel-for-components"
 	)
 
-	components := []string{"standard-component", "standard-component"}
+	components := []string{"standard-component", "standard-component-extra"}
 
 	currentSnapRev := snap.R(11)
 	prevSnapRev := snap.R(7)
@@ -14608,10 +14707,23 @@ func (s *snapmgrTestSuite) testRevertWithComponents(c *C, undo bool) {
 		c.Assert(chg.Err(), IsNil, Commentf("change tasks:\n%s", printTasks(chg.Tasks())))
 	}
 
+	var expected fakeOps
+	for _, cs := range seq.ComponentsForRevision(prevSnapRev) {
+		expected = append(expected, fakeOp{
+			op:                              "validate-component:Doing",
+			name:                            instanceName,
+			revno:                           prevSnapRev,
+			componentName:                   cs.SideInfo.Component.ComponentName,
+			componentRev:                    cs.SideInfo.Revision,
+			componentSideInfo:               *cs.SideInfo,
+			componentSkipAssertionsDownload: true,
+		})
+	}
+
 	// note the absence of link-component tasks. that is because we do not need
 	// to link components when reverting, since they should already be linked,
 	// as they were part of a the previous revision
-	expected := fakeOps{
+	expected = append(expected, fakeOps{
 		{
 			op:   "remove-snap-aliases",
 			name: instanceName,
@@ -14654,7 +14766,7 @@ func (s *snapmgrTestSuite) testRevertWithComponents(c *C, undo bool) {
 		{
 			op: "update-aliases",
 		},
-	}
+	}...)
 
 	if undo {
 		expected = append(expected, []fakeOp{
@@ -17198,14 +17310,25 @@ components:
 	}
 
 	for _, cs := range expectedComponentStates {
-		containerName := fmt.Sprintf("%s+%s", instanceName, cs.SideInfo.Component.ComponentName)
-		filename := fmt.Sprintf("%s_%v.comp", containerName, cs.SideInfo.Revision)
+		compName := cs.SideInfo.Component.ComponentName
+		compRev := cs.SideInfo.Revision
+		containerName := fmt.Sprintf("%s+%s", instanceName, compName)
+		filename := fmt.Sprintf("%s_%v.comp", containerName, compRev)
 
-		expected = append(expected, fakeOp{
+		expected = append(expected, fakeOps{{
+			op:                              "validate-component:Doing",
+			name:                            instanceName,
+			revno:                           newSnapRev,
+			componentName:                   compName,
+			componentPath:                   components[cs.SideInfo],
+			componentRev:                    compRev,
+			componentSideInfo:               *cs.SideInfo,
+			componentSkipAssertionsDownload: true,
+		}, {
 			op:                "setup-component",
 			containerName:     containerName,
 			containerFileName: filename,
-		})
+		}}...)
 	}
 
 	expected = append(expected, fakeOps{
@@ -17373,6 +17496,7 @@ components:
 				RemoveComponentPath:   true,
 				MultiComponentInstall: true,
 			},
+			SkipAssertionsDownload: true,
 		})
 	}
 	checkComponentSetupTasks(c, ts, compsups, "prepare-component")
