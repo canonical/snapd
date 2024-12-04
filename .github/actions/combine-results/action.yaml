@@ -21,11 +21,11 @@ runs:
       echo "Summary:"
       failed="false"
       while IFS=" " read -r job result; do
-        if [[ "$result" != "success" ]]; then
+        if [[ "$result" != "failure" ]]; then
+          echo "- ✅ Job \"$job\" returned result \"$result\""
+        else
           failed="true"
           echo "- ❌ Job \"$job\" returned result \"$result\""
-        else
-          echo "- ✅ Job \"$job\" returned result \"$result\""
         fi
       done <<< "$needs_results"
       
