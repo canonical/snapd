@@ -58,7 +58,11 @@ func (s *confdbCtrlSuite) TestAddGroupOK(c *C) {
 	c.Assert(len(operator.Groups), Equals, 1)
 
 	g := operator.Groups[0]
-	c.Assert(g.Views, DeepEquals, views)
+	expectedViews := []*confdb.ViewRef{
+		{Account: "canonical", Confdb: "network", View: "control-device"},
+		{Account: "canonical", Confdb: "network", View: "observe-device"},
+	}
+	c.Assert(g.Views, DeepEquals, expectedViews)
 	expectedAuth := []confdb.AuthenticationMethod{confdb.OperatorKey, confdb.Store}
 	c.Assert(g.Authentication, DeepEquals, expectedAuth)
 }
