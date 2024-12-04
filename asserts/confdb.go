@@ -111,7 +111,7 @@ func assembleConfdb(assert assertionBase) (Assertion, error) {
 }
 
 // ConfdbControl holds a confdb-control assertion, which holds lists of
-// views delegated by the device to an operator.
+// views delegated by the device to operators.
 type ConfdbControl struct {
 	assertionBase
 

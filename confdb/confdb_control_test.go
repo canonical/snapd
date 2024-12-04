@@ -34,16 +34,16 @@ func (s *confdbCtrlSuite) TestIsValidAuthenticationMethod(c *C) {
 	c.Assert(confdb.IsValidAuthenticationMethod("unknown"), Equals, false)
 }
 
-func (s *confdbCtrlSuite) TestConvertToAuthenticationMethod(c *C) {
+func (s *confdbCtrlSuite) TestConvertToAuthenticationMethods(c *C) {
 	auth := []string{"operator-key", "store", "operator-key"}
-	expected := []confdb.AuthenticationMethod{"operator-key", "store"}
-	converted, err := confdb.ConvertToAuthenticationMethod(auth)
+	expected := []confdb.AuthenticationMethod{"operator-key", "store"} // duplicates removed
+	converted, err := confdb.ConvertToAuthenticationMethods(auth)
 	c.Assert(err, IsNil)
 	c.Assert(converted, DeepEquals, expected)
 
 	auth = []string{"operator-key", "unknown"}
 	expected = nil
-	converted, err = confdb.ConvertToAuthenticationMethod(auth)
+	converted, err = confdb.ConvertToAuthenticationMethods(auth)
 	c.Assert(err, ErrorMatches, "invalid authentication method: unknown")
 	c.Assert(converted, DeepEquals, expected)
 }
