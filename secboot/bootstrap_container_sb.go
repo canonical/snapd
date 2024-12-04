@@ -28,10 +28,10 @@ import (
 )
 
 type bootstrappedContainer struct {
-	oldContainerKeySlot string
-	devicePath          string
-	key                 DiskUnlockKey
-	finished            bool
+	tempContainerKeySlot string
+	devicePath           string
+	key                  DiskUnlockKey
+	finished             bool
 }
 
 func newLUKS2KeyDataWriterImpl(devicePath string, name string) (KeyDataWriter, error) {
@@ -69,7 +69,7 @@ func (bc *bootstrappedContainer) RemoveBootstrapKey() error {
 	}
 	bc.finished = true
 
-	if err := sbDeleteLUKS2ContainerKey(bc.devicePath, bc.oldContainerKeySlot); err != nil {
+	if err := sbDeleteLUKS2ContainerKey(bc.devicePath, bc.tempContainerKeySlot); err != nil {
 		return fmt.Errorf("cannot remove bootstrap key: %v", err)
 	}
 
@@ -78,10 +78,10 @@ func (bc *bootstrappedContainer) RemoveBootstrapKey() error {
 
 func createBootstrappedContainerImpl(key DiskUnlockKey, devicePath string) BootstrappedContainer {
 	return &bootstrappedContainer{
-		oldContainerKeySlot: "bootstrap-key",
-		devicePath:          devicePath,
-		key:                 key,
-		finished:            false,
+		tempContainerKeySlot: "bootstrap-key",
+		devicePath:           devicePath,
+		key:                  key,
+		finished:             false,
 	}
 }
 
