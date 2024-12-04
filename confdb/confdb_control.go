@@ -31,11 +31,15 @@ var (
 	validAccountID = regexp.MustCompile("^(?:[a-z0-9A-Z]{32}|[-a-z0-9]{2,28})$")
 )
 
+// AuthenticationMethod limits what keys can be used to sign messages used to remotely
+// manage confdbs.
 type AuthenticationMethod string
 
 const (
+	// Only the operator's account key can be used to sign the messages.
 	OperatorKey AuthenticationMethod = "operator-key"
-	Store       AuthenticationMethod = "store"
+	// Messages can be signed on behalf of the operator by the store.
+	Store AuthenticationMethod = "store"
 )
 
 // isValidAuthenticationMethod checks if a string is a valid AuthenticationMethod
@@ -48,14 +52,14 @@ func isValidAuthenticationMethod(value string) bool {
 	}
 }
 
-// convertToAuthenticationMethod converts and validates a []string to []AuthenticationMethod
-func convertToAuthenticationMethod(methods []string) ([]AuthenticationMethod, error) {
+// convertToAuthenticationMethods converts and validates a []string to []AuthenticationMethod
+func convertToAuthenticationMethods(methods []string) ([]AuthenticationMethod, error) {
 	sort.Slice(methods, func(i, j int) bool {
 		return methods[i] < methods[j]
 	})
 
 	// remove duplicates
-	methods = compact(methods)
+	methods = unique(methods)
 
 	var result []AuthenticationMethod
 	for _, method := range methods {
@@ -85,7 +89,7 @@ func (op *Operator) AddControlGroup(views, auth []string) error {
 		return errors.New(`cannot add group: "auth" must be a non-empty list`)
 	}
 
-	authentication, err := convertToAuthenticationMethod(auth)
+	authentication, err := convertToAuthenticationMethods(auth)
 	if err != nil {
 		return fmt.Errorf("cannot add group: %w", err)
 	}
@@ -122,9 +126,9 @@ func (op *Operator) AddControlGroup(views, auth []string) error {
 	return nil
 }
 
-// compact replaces consecutive runs of equal elements with a single copy.
+// unique replaces consecutive runs of equal elements with a single copy.
 // The provided slice s should be sorted.
-func compact[T comparable](s []T) []T {
+func unique[T comparable](s []T) []T {
 	if len(s) < 2 {
 		return s
 	}
