@@ -105,7 +105,7 @@ func compileAttrMatcher(cc compileContext, constraints interface{}) (attrMatcher
 		return compileAltAttrMatcher(cc, x)
 	case string:
 		if !cc.hadMap {
-			return nil, fmt.Errorf("first level of non alternative constraints must be a set of key-value contraints")
+			return nil, fmt.Errorf("first level of non alternative constraints must be a set of key-value constraints")
 		}
 		if strings.HasPrefix(x, "$") {
 			if x == "$MISSING" {

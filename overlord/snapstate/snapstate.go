@@ -194,15 +194,6 @@ func isParallelInstallable(snapsup *SnapSetup) error {
 	return fmt.Errorf("cannot install snap of type %v as %q", snapsup.Type, snapsup.InstanceName())
 }
 
-func optedIntoSnapdSnap(st *state.State) (bool, error) {
-	tr := config.NewTransaction(st)
-	experimentalAllowSnapd, err := features.Flag(tr, features.SnapdSnap)
-	if err != nil && !config.IsNoOption(err) {
-		return false, err
-	}
-	return experimentalAllowSnapd, nil
-}
-
 // refreshRetain returns refresh.retain value if set, or the default value (different for core and classic).
 // It deals with potentially wrong type due to lax validation.
 func refreshRetain(st *state.State) int {
@@ -574,7 +565,7 @@ func doInstall(st *state.State, snapst *SnapState, snapsup SnapSetup, compsups [
 		return nil, err
 	}
 
-	// This task is necessary only for UC20+ and hybrid
+	// This task is necessary only for UC24+ and hybrid 24.04+
 	if snapsup.Type == snap.TypeKernel && NeedsKernelSetup(deviceCtx.Model()) {
 		setupKernel := st.NewTask("prepare-kernel-snap", fmt.Sprintf(i18n.G("Prepare kernel driver tree for %q%s"), snapsup.InstanceName(), revisionStr))
 		addTask(setupKernel)
@@ -636,13 +627,6 @@ func doInstall(st *state.State, snapst *SnapState, snapsup SnapSetup, compsups [
 	autoConnect := st.NewTask("auto-connect", fmt.Sprintf(i18n.G("Automatically connect eligible plugs and slots of snap %q"), snapsup.InstanceName()))
 	addTask(autoConnect)
 
-	if snapsup.Type == snap.TypeKernel && NeedsKernelSetup(deviceCtx.Model()) {
-		// This task needs to run after we're back and running the new
-		// kernel after a reboot was requested in link-snap handler.
-		setupKernel := st.NewTask("discard-old-kernel-snap-setup", fmt.Sprintf(i18n.G("Discard previous kernel driver tree for %q%s"), snapsup.InstanceName(), revisionStr))
-		addTask(setupKernel)
-	}
-
 	// setup aliases
 	setAutoAliases := st.NewTask("set-auto-aliases", fmt.Sprintf(i18n.G("Set automatic aliases for snap %q"), snapsup.InstanceName()))
 	addTask(setAutoAliases)
@@ -682,11 +666,26 @@ func doInstall(st *state.State, snapst *SnapState, snapsup SnapSetup, compsups [
 		addTask(t)
 	}
 
-	// check if either the snap currently has kernel module components or any of
-	// the new components are kernel module components
+	// Check if either the snap currently has kernel-modules components or
+	// any of the new components are kernel-modules components (only will
+	// happen for kernel snaps).
+	var setupKmodComponents, afterSetupKmodComps *state.Task
 	if requiresKmodSetup(snapst, compsups) {
-		setupKmodComponents := st.NewTask("prepare-kernel-modules-components", fmt.Sprintf(i18n.G("Prepare kernel-modules components for %q%s"), snapsup.InstanceName(), revisionStr))
+		logger.Noticef("kernel-modules components present, delaying reboot after hooks are run")
+		// TODO move the setupKernel task here and make it configure
+		// kernel-modules components too so we can remove this task.
+		setupKmodComponents = st.NewTask("prepare-kernel-modules-components", fmt.Sprintf(i18n.G("Prepare kernel-modules components for %q%s"), snapsup.InstanceName(), revisionStr))
 		addTask(setupKmodComponents)
+	}
+
+	if snapsup.Type == snap.TypeKernel && NeedsKernelSetup(deviceCtx.Model()) {
+		// This task needs to run after we're back and running the new
+		// kernel after a reboot was requested in link-snap handler.
+		discardOldKernelSetup := st.NewTask("discard-old-kernel-snap-setup",
+			fmt.Sprintf(i18n.G("Discard previous kernel driver tree for %q%s"), snapsup.InstanceName(), revisionStr))
+		// Note that if requiresKmodSetup is true, NeedsKernelSetup must be too
+		afterSetupKmodComps = discardOldKernelSetup
+		addTask(discardOldKernelSetup)
 	}
 
 	if snapsup.QuotaGroupName != "" {
@@ -782,10 +781,31 @@ func doInstall(st *state.State, snapst *SnapState, snapsup SnapSetup, compsups [
 	installSet := state.NewTaskSet(tasks...)
 	installSet.MarkEdge(prereq, BeginEdge)
 	installSet.MarkEdge(setupAliases, BeforeHooksEdge)
-	installSet.MarkEdge(setupSecurity, BeforeMaybeRebootEdge)
-	installSet.MarkEdge(linkSnap, MaybeRebootEdge)
-	installSet.MarkEdge(autoConnect, MaybeRebootWaitEdge)
-	installSet.MarkEdge(setAutoAliases, AfterMaybeRebootWaitEdge)
+
+	// Let tasks know if they have to do something about restarts
+	// TODO fix tests so BeforeMaybeRebootEdge and AfterMaybeRebootWaitEdge
+	// are not needed.
+	installSet.MarkEdge(setupSecurity, BeforeMaybeRebootEdge) // this edge is just for tests
+	if setupKmodComponents == nil {
+		// No kernel modules, reboot after link snap
+		installSet.MarkEdge(linkSnap, MaybeRebootEdge)
+		installSet.MarkEdge(autoConnect, MaybeRebootWaitEdge)
+		linkSnap.Set("set-next-boot", true)
+		autoConnect.Set("finish-restart", true)
+		if afterSetupKmodComps != nil {
+			afterSetupKmodComps.Set("finish-restart", false)
+		}
+	} else {
+		logger.Noticef("reboot will happen after set-up of kernel-modules")
+		installSet.MarkEdge(setupKmodComponents, MaybeRebootEdge)
+		installSet.MarkEdge(afterSetupKmodComps, MaybeRebootWaitEdge)
+		linkSnap.Set("set-next-boot", false)
+		autoConnect.Set("finish-restart", false)
+		setupKmodComponents.Set("set-next-boot", true)
+		afterSetupKmodComps.Set("finish-restart", true)
+	}
+	installSet.MarkEdge(setAutoAliases, AfterMaybeRebootWaitEdge) // this edge is just for tests
+
 	if installHook != nil {
 		installSet.MarkEdge(installHook, HooksEdge)
 	}
@@ -873,7 +893,7 @@ func splitComponentTasksForInstall(
 }
 
 func NeedsKernelSetup(model *asserts.Model) bool {
-	// Checkinf if it has modeenv - it must be UC20+ or hybrid
+	// Checking if it has modeenv - it must be UC20+ or hybrid
 	if model.Grade() == asserts.ModelGradeUnset {
 		return false
 	}
@@ -985,16 +1005,36 @@ func isInvokedWithRevert() bool {
 	return os.Getenv("SNAPD_REVERT_TO_REV") != ""
 }
 
+// FinishRestartOptions are options for FinishRestart.
+type FinishRestartOptions struct {
+	// FinishRestartDefault sets the default behavior for FinishRestart in
+	// case the "finish-restart" task variable is not found, that is, this
+	// is the behavior for tasks created by older snapd. Tasks that call
+	// FinishRestart set this value to what would have been the expected
+	// behavior before the introduction of "finish-restart".
+	FinishRestartDefault bool
+}
+
 // FinishRestart will return a Retry error if there is a pending restart
 // and a real error if anything went wrong (like a rollback across
 // restarts).
 // For snapd snap updates this will also rerun wrappers generation to fully
 // catch up with any change.
-func FinishRestart(task *state.Task, snapsup *SnapSetup) (err error) {
+func FinishRestart(task *state.Task, snapsup *SnapSetup, opts FinishRestartOptions) (err error) {
 	if snapdenv.Preseeding() {
 		// nothing to do when preseeding
 		return nil
 	}
+	// Check if the task really needs to call this
+	needsFinishRestart := opts.FinishRestartDefault
+	if err := task.Get("finish-restart", &needsFinishRestart); err != nil &&
+		!errors.Is(err, state.ErrNoState) {
+		return err
+	}
+	if !needsFinishRestart {
+		return nil
+	}
+
 	if ok, _ := restart.Pending(task.State()); ok {
 		// don't continue until we are in the restarted snapd
 		task.Logf("Waiting for automatic snapd restart...")
@@ -1727,19 +1767,20 @@ func ResolveValidationSetsEnforcementError(ctx context.Context, st *state.State,
 	// use the same lane for installing and refreshing so everything is reversed
 	lane := st.NewLane()
 
+	vsets := snapasserts.NewValidationSets()
+	for _, vs := range valErr.Sets {
+		if err := vsets.Add(vs); err != nil {
+			return nil, nil, err
+		}
+	}
+
 	collectRevOpts := func(snapToRevToVss map[string]map[snap.Revision][]string) ([]string, []*RevisionOptions) {
 		var names []string
 		var revOpts []*RevisionOptions
 
 		for snapName, revAndVs := range snapToRevToVss {
-			for rev, valsets := range revAndVs {
-				vsKeys := make([]snapasserts.ValidationSetKey, 0, len(valsets))
-				for _, vs := range valsets {
-					vsKey := snapasserts.NewValidationSetKey(valErr.Sets[vs])
-					vsKeys = append(vsKeys, vsKey)
-				}
-
-				revOpts = append(revOpts, &RevisionOptions{Revision: rev, ValidationSets: vsKeys})
+			for rev := range revAndVs {
+				revOpts = append(revOpts, &RevisionOptions{Revision: rev, ValidationSets: vsets})
 			}
 			names = append(names, snapName)
 		}
@@ -2590,7 +2631,7 @@ func Switch(st *state.State, name string, opts *RevisionOptions) (*state.TaskSet
 type RevisionOptions struct {
 	Channel        string
 	Revision       snap.Revision
-	ValidationSets []snapasserts.ValidationSetKey
+	ValidationSets *snapasserts.ValidationSets
 	CohortKey      string
 	LeaveCohort    bool
 }
@@ -2621,6 +2662,27 @@ func (r *RevisionOptions) resolveChannel(instanceName string, fallback string, d
 	}
 	r.Channel = resolved
 
+	return nil
+}
+
+// initializeValidationSets ensures that r.ValidationSets is initialized with a
+// value. If the caller has provided a value, it is used. If validation sets are
+// explicitly ignored, we create a new empty validation set that has no rules.
+// Otherwise, we use the enforced validation sets.
+func (r *RevisionOptions) initializeValidationSets(vsets cachedValidationSets, opts Options) error {
+	if r.ValidationSets != nil {
+		return nil
+	}
+
+	if opts.Flags.IgnoreValidation {
+		r.ValidationSets = snapasserts.NewValidationSets()
+	} else {
+		enforced, err := vsets()
+		if err != nil {
+			return err
+		}
+		r.ValidationSets = enforced
+	}
 	return nil
 }
 
@@ -3470,30 +3532,24 @@ func canRemove(st *state.State, si *snap.Info, snapst *SnapState, removeAll bool
 	if enforcedSets == nil {
 		return nil
 	}
-	requiredValsets, requiredRevision, err := enforcedSets.CheckPresenceRequired(si)
+	pres, err := enforcedSets.Presence(si)
 	if err != nil {
-		if _, ok := err.(*snapasserts.PresenceConstraintError); !ok {
-			return err
-		}
-		// else - presence is invalid, nothing to do (not really possible since
-		// it shouldn't be allowed to get installed in the first place).
-		return nil
+		return err
 	}
-	if len(requiredValsets) == 0 {
-		// not required by any validation set (or is optional)
+	if pres.Presence != asserts.PresenceRequired {
 		return nil
 	}
 	// removeAll is set if we're removing the snap completely
 	if removeAll {
-		if requiredRevision.Unset() {
-			return fmt.Errorf("snap %q is required by validation sets: %s", si.InstanceName(), snapasserts.ValidationSetKeySlice(requiredValsets).CommaSeparated())
+		if pres.Revision.Unset() {
+			return fmt.Errorf("snap %q is required by validation sets: %s", si.InstanceName(), pres.Sets.CommaSeparated())
 		}
-		return fmt.Errorf("snap %q at revision %s is required by validation sets: %s", si.InstanceName(), requiredRevision, snapasserts.ValidationSetKeySlice(requiredValsets).CommaSeparated())
+		return fmt.Errorf("snap %q at revision %s is required by validation sets: %s", si.InstanceName(), pres.Revision, pres.Sets.CommaSeparated())
 	}
 
 	// rev is set at this point (otherwise we would hit removeAll case)
-	if requiredRevision.N == rev.N {
-		return fmt.Errorf("snap %q at revision %s is required by validation sets: %s", si.InstanceName(), rev, snapasserts.ValidationSetKeySlice(requiredValsets).CommaSeparated())
+	if pres.Revision == rev {
+		return fmt.Errorf("snap %q at revision %s is required by validation sets: %s", si.InstanceName(), rev, pres.Sets.CommaSeparated())
 	} // else - it's ok to remove a revision different than the required
 	return nil
 }
@@ -3986,10 +4042,16 @@ func TransitionCore(st *state.State, oldName, newName string) ([]*state.TaskSet,
 		return nil, err
 	}
 	if !newSnapst.IsInstalled() {
+		enforced, err := EnforcedValidationSets(st)
+		if err != nil {
+			return nil, err
+		}
+
 		result, err := sendOneInstallAction(context.TODO(), st, StoreSnap{
 			InstanceName: newName,
 			RevOpts: RevisionOptions{
-				Channel: oldSnapst.TrackingChannel,
+				Channel:        oldSnapst.TrackingChannel,
+				ValidationSets: enforced,
 			},
 		}, Options{})
 		if err != nil {

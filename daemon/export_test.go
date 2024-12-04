@@ -166,7 +166,7 @@ func MockSnapstateUpdateOne(mock func(ctx context.Context, st *state.State, goal
 	}
 }
 
-func MockSnapstateInstallComponents(mock func(ctx context.Context, st *state.State, names []string, info *snap.Info, opts snapstate.Options) ([]*state.TaskSet, error)) (restore func()) {
+func MockSnapstateInstallComponents(mock func(ctx context.Context, st *state.State, names []string, info *snap.Info, vsets *snapasserts.ValidationSets, opts snapstate.Options) ([]*state.TaskSet, error)) (restore func()) {
 	old := snapstateInstallComponents
 	snapstateInstallComponents = mock
 	return func() {

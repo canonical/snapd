@@ -61,10 +61,11 @@ type fakeOp struct {
 	sinfo snap.SideInfo
 	stype snap.Type
 
-	componentName     string
-	componentPath     string
-	componentRev      snap.Revision
-	componentSideInfo snap.ComponentSideInfo
+	componentName                   string
+	componentPath                   string
+	componentRev                    snap.Revision
+	componentSideInfo               snap.ComponentSideInfo
+	componentSkipAssertionsDownload bool
 
 	curSnaps []store.CurrentSnap
 	action   store.SnapAction
@@ -346,6 +347,10 @@ func (f *fakeStore) snap(spec snapSpec) (*snap.Info, error) {
 				Type: snap.StandardComponent,
 				Name: "standard-component",
 			},
+			"standard-component-extra": {
+				Type: snap.StandardComponent,
+				Name: "standard-component",
+			},
 			"kernel-modules-component": {
 				Type: snap.KernelModulesComponent,
 				Name: "kernel-modules-component",
@@ -522,8 +527,13 @@ func (f *fakeStore) lookupRefresh(cand refreshCand) (*snap.Info, error) {
 		base = "some-base"
 	case "provenance-snap-id":
 		name = "provenance-snap"
-	case "snap-with-components-id":
-		name = "snap-with-components"
+		typ = snap.TypeKernel
+	case "app-snap-with-components-id":
+		name = "app-snap-with-components"
+		typ = snap.TypeApp
+	case "kernel-snap-with-components-id":
+		name = "kernel-snap-with-components"
+		typ = snap.TypeKernel
 	default:
 		panic(fmt.Sprintf("refresh: unknown snap-id: %s", cand.snapID))
 	}
@@ -1147,7 +1157,18 @@ func (f *fakeSnappyBackend) ReadInfo(name string, si *snap.SideInfo) (*snap.Info
 		info.SnapType = snap.TypeOS
 	case "snapd":
 		info.SnapType = snap.TypeSnapd
-	case "snap-with-components":
+	case "app-snap-with-components":
+		info.Components = map[string]*snap.Component{
+			"standard-component": {
+				Type: snap.StandardComponent,
+				Name: "standard-component",
+			},
+			"standard-component-two": {
+				Type: snap.StandardComponent,
+				Name: "standard-component-two",
+			},
+		}
+	case "kernel-snap-with-components":
 		info.Components = map[string]*snap.Component{
 			"standard-component": {
 				Type: snap.StandardComponent,
@@ -1158,6 +1179,7 @@ func (f *fakeSnappyBackend) ReadInfo(name string, si *snap.SideInfo) (*snap.Info
 				Name: "kernel-modules-component",
 			},
 		}
+		info.SnapType = snap.TypeKernel
 	case "services-snap":
 		var err error
 		// fix services after/before so that there is only one solution
@@ -1278,7 +1300,7 @@ func (f *fakeSnappyBackend) MaybeSetNextBoot(
 
 	reboot := false
 	if f.linkSnapMaybeReboot {
-		reboot = info.InstanceName() == dev.Base() ||
+		reboot = info.Type() == snap.TypeKernel || info.InstanceName() == dev.Base() ||
 			(f.linkSnapRebootFor != nil && f.linkSnapRebootFor[info.InstanceName()])
 	}
 
@@ -1606,6 +1628,7 @@ func (f *fakeSnappyBackend) ForeignTask(kind string, status state.Status, snapsu
 		op.componentPath = compsup.CompPath
 		op.componentRev = compsup.Revision()
 		op.componentSideInfo = *compsup.CompSideInfo
+		op.componentSkipAssertionsDownload = compsup.SkipAssertionsDownload
 	}
 
 	f.appendOp(op)

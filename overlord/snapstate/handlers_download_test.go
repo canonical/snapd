@@ -69,6 +69,7 @@ func (s *downloadSnapSuite) SetUpTest(c *C) {
 
 func (s *downloadSnapSuite) TestDoDownloadSnapCompatibility(c *C) {
 	s.state.Lock()
+	defer s.state.Unlock()
 	t := s.state.NewTask("download-snap", "test")
 	t.Set("snap-setup", &snapstate.SnapSetup{
 		SideInfo: &snap.SideInfo{
@@ -82,12 +83,15 @@ func (s *downloadSnapSuite) TestDoDownloadSnapCompatibility(c *C) {
 		// snapstate.{Install,Update} directly.
 		DownloadInfo: nil,
 	})
-	s.state.NewChange("sample", "...").AddTask(t)
+	chg := s.state.NewChange("sample", "...")
+	chg.AddTask(t)
 
 	s.state.Unlock()
-
 	s.se.Ensure()
 	s.se.Wait()
+	s.state.Lock()
+
+	c.Assert(chg.Status(), Equals, state.DoneStatus, Commentf("%v", chg.Err()))
 
 	// the compat code called the store "Snap" endpoint
 	c.Assert(s.fakeBackend.ops, DeepEquals, fakeOps{
@@ -108,9 +112,6 @@ func (s *downloadSnapSuite) TestDoDownloadSnapCompatibility(c *C) {
 			name: "foo",
 		},
 	})
-
-	s.state.Lock()
-	defer s.state.Unlock()
 
 	var snapsup snapstate.SnapSetup
 	t.Get("snap-setup", &snapsup)

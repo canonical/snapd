@@ -48,7 +48,7 @@ func verifyComponentRemoveTasks(c *C, opts int, ts *state.TaskSet) {
 	expected := expectedComponentRemoveTasks(opts)
 	c.Assert(kinds, DeepEquals, expected)
 
-	checkSetupTasks(c, ts)
+	checkSetupTasks(c, opts, ts)
 }
 
 func (s *snapmgrTestSuite) TestRemoveComponent(c *C) {
@@ -381,7 +381,7 @@ func (s *snapmgrTestSuite) TestRemoveComponentUpdateConflict(c *C) {
 	defer s.state.Unlock()
 
 	csi1 := snap.NewComponentSideInfo(naming.NewComponentRef(snapName, compName), snap.R(1))
-	cs1 := sequence.NewComponentState(csi1, snap.KernelModulesComponent)
+	cs1 := sequence.NewComponentState(csi1, snap.StandardComponent)
 	setStateWithComponents(s.state, snapName, snapRev, []*sequence.ComponentState{cs1})
 
 	tupd, err := snapstate.Update(s.state, snapName,
@@ -414,7 +414,7 @@ func (s *snapmgrTestSuite) TestRemoveComponentUpdateNoConflict(c *C) {
 	defer s.state.Unlock()
 
 	csi1 := snap.NewComponentSideInfo(naming.NewComponentRef(snapName, compName), snap.R(1))
-	cs1 := sequence.NewComponentState(csi1, snap.KernelModulesComponent)
+	cs1 := sequence.NewComponentState(csi1, snap.StandardComponent)
 	setStateWithComponents(s.state, snapName, snapRev, []*sequence.ComponentState{cs1})
 
 	tupd, err := snapstate.Update(s.state, snapName,
@@ -430,5 +430,5 @@ func (s *snapmgrTestSuite) TestRemoveComponentUpdateNoConflict(c *C) {
 
 	c.Assert(err, IsNil)
 	c.Assert(len(tss), Equals, 1)
-	verifyComponentRemoveTasks(c, compTypeIsKernMods|compCurrentIsDiscarded, tss[0])
+	verifyComponentRemoveTasks(c, compCurrentIsDiscarded, tss[0])
 }

@@ -724,6 +724,42 @@ func (m *SnapManager) doPrepareKernelModulesComponents(t *state.Task, _ *tomb.To
 	// Inject fault during the kernel components setup
 	osutil.MaybeInjectFault("prepare-kernel-components")
 
+	var newInfo *snap.Info
+	// Set the default to false for compatibility with older snapd (case of
+	// joint refresh of snapd and kernel).
+	setNextBoot := false
+	if err := t.Get("set-next-boot", &setNextBoot); err != nil &&
+		!errors.Is(err, state.ErrNoState) {
+		return err
+	}
+	if setNextBoot {
+		// TODO we have to revert changes in bootloader config/modeenv if an
+		// error happens later in this method. This is not likely as possible
+		// errors after this would happen only due to internal errors or not
+		// being able to write to the filesystem, but still. There is also the
+		// question of what would happen if a restart happens when the boot
+		// configuration has been already written but DoneStatus in the state
+		// has not.
+		cand := sequence.NewRevisionSideState(snapsup.SideInfo, nil)
+		newInfo, err = readInfo(snapsup.InstanceName(), cand.Snap, 0)
+		if err != nil {
+			return err
+		}
+		deviceCtx, err := DeviceCtx(st, t, nil)
+		if err != nil {
+			return err
+		}
+		isUndo := false
+		rebootInfo, err := m.backend.MaybeSetNextBoot(newInfo, deviceCtx, isUndo)
+		if err != nil {
+			return err
+		}
+		if rebootInfo.RebootRequired {
+			return m.finishTaskWithMaybeRestart(t, state.DoneStatus,
+				restartPossibility{info: newInfo, RebootInfo: rebootInfo})
+		}
+	}
+
 	// Make sure we won't be rerun
 	t.SetStatus(state.DoneStatus)
 	return nil

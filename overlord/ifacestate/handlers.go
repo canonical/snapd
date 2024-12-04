@@ -1382,11 +1382,14 @@ func (m *InterfaceManager) doAutoConnect(task *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	// The previous task (link-snap) may have triggered a restart,
-	// if this is the case we can only proceed once the restart
-	// has happened or we may not have all the interfaces of the
-	// new core/base snap.
-	if err := snapstateFinishRestart(task, snapsup); err != nil {
+	// The previous task (link-snap) may have triggered a restart, if this
+	// is the case we can only proceed once the restart has happened or we
+	// may not have all the interfaces of the new core/base snap. We set
+	// the default to true as we always called FinishRestart in older
+	// snapd.
+	logger.Debugf("finish restart from doAutoConnect")
+	if err := snapstateFinishRestart(task, snapsup,
+		snapstate.FinishRestartOptions{FinishRestartDefault: true}); err != nil {
 		return err
 	}
 

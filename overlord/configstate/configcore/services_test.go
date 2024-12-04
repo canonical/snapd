@@ -35,14 +35,16 @@ import (
 type servicesSuite struct {
 	configcoreSuite
 	serviceInstalled bool
+	socketEnabled    bool
 }
 
 var _ = Suite(&servicesSuite{})
 
 func (s *servicesSuite) SetUpTest(c *C) {
 	s.configcoreSuite.SetUpTest(c)
-	s.systemctlOutput = func(args ...string) []byte {
+	s.systemctlOutput = func(args ...string) ([]byte, error) {
 		var output []byte
+		var err error
 		if args[0] == "show" {
 			if args[1] == "--property=ActiveState" {
 				output = []byte("ActiveState=inactive")
@@ -53,8 +55,14 @@ func (s *servicesSuite) SetUpTest(c *C) {
 					output = []byte(fmt.Sprintf("Id=%s\nType=\nActiveState=inactive\nUnitFileState=\nNames=%[1]s\nNeedDaemonReload=no\n", args[2]))
 				}
 			}
+		} else if args[0] == "is-enabled" {
+			if s.socketEnabled {
+				output = []byte("enabled\n")
+			} else {
+				err = fmt.Errorf("disabled\n")
+			}
 		}
-		return output
+		return output, err
 	}
 
 	c.Assert(os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "etc"), 0755), IsNil)
@@ -437,6 +445,28 @@ func (s *servicesSuite) TestConfigureNetworkValid(c *C) {
 	}
 }
 
+func (s *servicesSuite) TestConfigureNetworkValidWithSocketPresent(c *C) {
+	s.socketEnabled = true
+	defer func() { s.socketEnabled = false }()
+
+	sshListenCfg := filepath.Join(dirs.GlobalRootDir, "/etc/ssh/sshd_config.d/listen.conf")
+	err := configcore.FilesystemOnlyRun(core20Dev, &mockConf{
+		state: s.state,
+		changes: map[string]interface{}{
+			"service.ssh.listen-address": "10.0.2.2",
+		},
+	})
+	c.Assert(err, IsNil)
+	c.Check(sshListenCfg, testutil.FileEquals, "ListenAddress 10.0.2.2\n")
+	c.Check(s.systemctlArgs, DeepEquals, [][]string{
+		{"is-enabled", "ssh.socket"},
+		{"daemon-reload"},
+		{"stop", "ssh.socket"},
+		{"show", "--property=ActiveState", "ssh.socket"},
+		{"start", "ssh.socket"},
+	})
+}
+
 func (s *servicesSuite) TestSamePortNoChange(c *C) {
 	err := configcore.FilesystemOnlyRun(core20Dev, &mockConf{
 		state: s.state,
@@ -463,6 +493,7 @@ func (s *servicesSuite) TestConfigureNetworkIntegrationSSHListenAddress(c *C) {
 	sshListenCfg := filepath.Join(dirs.GlobalRootDir, "/etc/ssh/sshd_config.d/listen.conf")
 	c.Check(sshListenCfg, testutil.FileEquals, "ListenAddress 0.0.0.0:8022\nListenAddress [::]:8022\n")
 	c.Check(s.systemctlArgs, DeepEquals, [][]string{
+		{"is-enabled", "ssh.socket"},
 		{"reload-or-restart", "ssh.service"},
 	})
 
@@ -492,6 +523,7 @@ func (s *servicesSuite) TestConfigureNetworkIntegrationSSHListenAddressMulti(c *
 	sshListenCfg := filepath.Join(dirs.GlobalRootDir, "/etc/ssh/sshd_config.d/listen.conf")
 	c.Check(sshListenCfg, testutil.FileEquals, "ListenAddress 0.0.0.0:8022\nListenAddress [::]:8022\nListenAddress 192.168.99.4:9922\n")
 	c.Check(s.systemctlArgs, DeepEquals, [][]string{
+		{"is-enabled", "ssh.socket"},
 		{"reload-or-restart", "ssh.service"},
 	})
 }

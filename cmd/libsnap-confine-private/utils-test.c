@@ -88,12 +88,14 @@ static void test_sc_is_expected_path(void)
 		{"/snap/cꓳre/1/usr/lib/snapd/snap-confine", false},
 		{"/snap/snapd1/1/usr/lib/snapd/snap-confine", false},
 		{"/snap/core/current/usr/lib/snapd/snap-confine", false},
+		{"/snap/snapd/1/usr/libexec/snapd/snap-confine", false},
 		{"/usr/lib/snapd/snap-confine", true},
 		{"/usr/libexec/snapd/snap-confine", true},
 		{"/snap/core/1/usr/lib/snapd/snap-confine", true},
 		{"/snap/core/x1/usr/lib/snapd/snap-confine", true},
 		{"/snap/snapd/1/usr/lib/snapd/snap-confine", true},
-		{"/snap/snapd/1/usr/libexec/snapd/snap-confine", false},
+		{"/var/lib/snapd/snap/snapd/23374/usr/lib/snapd/snap-confine",
+		 true},
 	};
 	size_t i;
 	for (i = 0; i < sizeof(test_cases) / sizeof(test_cases[0]); i++) {

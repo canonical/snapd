@@ -1,6 +1,6 @@
 #!/bin/bash
 
-: "${NESTED_WORK_DIR:=/tmp/work-dir}"
+: "${NESTED_WORK_DIR:=/var/tmp/work-dir}"
 : "${NESTED_IMAGES_DIR:=${NESTED_WORK_DIR}/images}"
 : "${NESTED_RUNTIME_DIR:=${NESTED_WORK_DIR}/runtime}"
 : "${NESTED_ASSETS_DIR:=${NESTED_WORK_DIR}/assets}"
@@ -414,10 +414,24 @@ nested_secboot_remove_signature() {
 }
 
 nested_secboot_sign_file() {
-    local FILE="$1"
-    local KEY="$2"
-    local CERT="$3"
-    nested_secboot_remove_signature "$FILE"
+    local keep_signatures
+    args=()
+    while [ "${#}" -gt 0 ]; do
+        case "${1}" in
+            --keep-signatures)
+                keep_signatures=1
+                ;;
+            *)
+                args+=("${1}")
+        esac
+        shift
+    done
+    local FILE="${args[0]}"
+    local KEY="${args[1]}"
+    local CERT="${args[2]}"
+    if [ "${keep_signatures+set}" != set ]; then
+        nested_secboot_remove_signature "$FILE"
+    fi
     sbsign --key "$KEY" --cert "$CERT" --output "$FILE" "$FILE"
 }
 

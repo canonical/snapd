@@ -21,12 +21,25 @@ package cgroup
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 )
 
-var cgroupsFilePath = "/proc/cgroups"
+var (
+	// path where v1 controllers are listed, see
+	// https://www.kernel.org/doc/html/latest/admin-guide/cgroup-v1/index.html
+	// and cgroups(7)
+	cgroupV1ControllersPath = "/proc/cgroups"
+
+	// path where v2 controllers are listed, at the root of the hierarchy tree,
+	// see https://www.kernel.org/doc/html/latest/admin-guide/cgroup-v2.html
+	cgroupV2ControllersPath = filepath.Join(cgroupMountPoint, "cgroup.controllers")
+
+	errMemoryControllerDisabled = errors.New("cgroup memory controller is disabled on this system")
+)
 
 // CheckMemoryCgroup checks if the memory cgroup is enabled. It will return
 // an error if not.
@@ -38,9 +51,30 @@ var cgroupsFilePath = "/proc/cgroups"
 // 0 => false => disabled
 // 1 => true => enabled
 func CheckMemoryCgroup() error {
-	cgroupsFile, err := os.Open(cgroupsFilePath)
+	var supp bool
+	var err error
+	if IsUnified() {
+		supp, err = checkV2CgroupMemoryController()
+	} else {
+		supp, err = checkV1CgroupMemoryController()
+	}
+
 	if err != nil {
-		return fmt.Errorf("cannot open cgroups file: %v", err)
+		return err
+	}
+
+	if supp {
+		return nil
+	}
+
+	// no errors so far but found no evidence of memory controller to be enabled
+	return errMemoryControllerDisabled
+}
+
+func checkV1CgroupMemoryController() (bool, error) {
+	cgroupsFile, err := os.Open(filepath.Join(rootPath, cgroupV1ControllersPath))
+	if err != nil {
+		return false, fmt.Errorf("cannot open cgroups file: %w", err)
 	}
 	defer cgroupsFile.Close()
 
@@ -51,20 +85,40 @@ func CheckMemoryCgroup() error {
 			memoryCgroupValues := strings.Fields(line)
 			if len(memoryCgroupValues) < 4 {
 				// change in size, should investigate the new structure
-				return fmt.Errorf("cannot parse cgroups file: invalid line %q", line)
+				return false, fmt.Errorf("cannot parse cgroups file: invalid line %q", line)
 			}
 			isMemoryEnabled := memoryCgroupValues[3] == "1"
-			if !isMemoryEnabled {
-				return fmt.Errorf("memory cgroup is disabled on this system")
-			}
-			return nil
+			return isMemoryEnabled, nil
 		}
 	}
 
 	if err := scanner.Err(); err != nil {
-		return fmt.Errorf("cannot read %s contents: %v", cgroupsFilePath, err)
+		return false, fmt.Errorf("cannot read %s contents: %w", cgroupV1ControllersPath, err)
 	}
 
-	// no errors so far but the only path here is the cgroups file without the memory line
-	return fmt.Errorf("cannot find memory cgroup in %s", cgroupsFilePath)
+	return false, nil
+}
+
+func checkV2CgroupMemoryController() (bool, error) {
+	// check at the root controller
+	f, err := os.Open(filepath.Join(rootPath, cgroupV2ControllersPath))
+	if err != nil {
+		return false, err
+	}
+	defer f.Close()
+
+	scanner := bufio.NewScanner(f)
+	scanner.Split(bufio.ScanWords)
+	// expecting a single line
+	for scanner.Scan() {
+		if ctrl := scanner.Text(); ctrl == "memory" {
+			return true, nil
+		}
+	}
+
+	if err := scanner.Err(); err != nil {
+		return false, err
+	}
+
+	return false, nil
 }
