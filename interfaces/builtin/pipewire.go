@@ -35,6 +35,7 @@ const pipewireBaseDeclarationSlots = `
     allow-installation:
       slot-snap-type:
         - app
+        - core
     deny-auto-connection: true
 `
 
