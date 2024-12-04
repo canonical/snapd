@@ -46,9 +46,9 @@ Configuration option may be unset with exclamation mark:
     $ snap set snap-name author!
 `)
 
-var longRegistrySetHelp = i18n.G(`
-If the first argument passed into set is a registry identifier matching the
-format <account-id>/<registry>/<view>, set will use the registry API. In this
+var longConfdbSetHelp = i18n.G(`
+If the first argument passed into set is a confdb identifier matching the
+format <account-id>/<confdb>/<view>, set will use the confdb API. In this
 case, the command sets the values as provided for the dot-separated view paths.
 `)
 
@@ -64,8 +64,8 @@ type cmdSet struct {
 }
 
 func init() {
-	if err := validateRegistryFeatureFlag(); err == nil {
-		longSetHelp += longRegistrySetHelp
+	if err := validateConfdbFeatureFlag(); err == nil {
+		longSetHelp += longConfdbSetHelp
 	}
 
 	addCommand("set", shortSetHelp, longSetHelp, func() flags.Commander { return &cmdSet{} },
@@ -101,18 +101,18 @@ func (x *cmdSet) Execute([]string) error {
 
 	snapName := string(x.Positional.Snap)
 	var chgID string
-	if isRegistryViewID(snapName) {
-		if err := validateRegistryFeatureFlag(); err != nil {
+	if isConfdbViewID(snapName) {
+		if err := validateConfdbFeatureFlag(); err != nil {
 			return err
 		}
 
-		// first argument is a registryViewID, use the registry API
-		registryViewID := snapName
-		if err := validateRegistryViewID(registryViewID); err != nil {
+		// first argument is a confdbViewID, use the confdb API
+		confdbViewID := snapName
+		if err := validateConfdbViewID(confdbViewID); err != nil {
 			return err
 		}
 
-		chgID, err = x.client.RegistrySetViaView(registryViewID, patchValues)
+		chgID, err = x.client.ConfdbSetViaView(confdbViewID, patchValues)
 	} else {
 		chgID, err = x.client.SetConf(snapName, patchValues)
 	}
@@ -131,15 +131,15 @@ func (x *cmdSet) Execute([]string) error {
 	return nil
 }
 
-func isRegistryViewID(s string) bool {
+func isConfdbViewID(s string) bool {
 	return len(strings.Split(s, "/")) == 3
 }
 
-func validateRegistryViewID(id string) error {
+func validateConfdbViewID(id string) error {
 	parts := strings.Split(id, "/")
 	for _, part := range parts {
 		if part == "" {
-			return errors.New(i18n.G("registry identifier must conform to format: <account-id>/<registry>/<view>"))
+			return errors.New(i18n.G("confdb identifier must conform to format: <account-id>/<confdb>/<view>"))
 		}
 	}
 

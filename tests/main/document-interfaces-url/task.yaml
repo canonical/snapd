@@ -38,8 +38,8 @@ execute: |
     # The expiry date is <expiration year>/<expiration month>      
     
     declare -A exclusion_map
-    # registries are still in the experimental phase so its page is not exposed yet
-    exclusion_map["registry"]="2025/03"
+    # confdb are still in the experimental phase so its page is not exposed yet
+    exclusion_map["confdb"]="2025/03"
     # we have documentation pages for these interfaces but they have underscores
     # in the URL instead of dashes. Due to issues w/ Discourse we can't fix it
     # at the moment, so we need to skip these checks for a bit

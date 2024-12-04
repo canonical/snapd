@@ -28,9 +28,9 @@ import (
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/snapasserts"
+	"github.com/snapcore/snapd/confdb"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
-	"github.com/snapcore/snapd/registry"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/store"
 )
@@ -142,20 +142,20 @@ func bulkRefreshSnapDeclarations(s *state.State, snapStates map[string]*snapstat
 	return nil
 }
 
-func bulkRefreshRegistries(s *state.State, registries []*registry.Registry, userID int, deviceCtx snapstate.DeviceContext, opts *RefreshAssertionsOptions) error {
+func bulkRefreshConfdbs(s *state.State, confdbs []*confdb.Confdb, userID int, deviceCtx snapstate.DeviceContext, opts *RefreshAssertionsOptions) error {
 	db := cachedDB(s)
 
 	// all assertion refs will be in the same group
 	pool := asserts.NewPool(db, maxGroups)
-	for _, registry := range registries {
-		account, name := registry.Account, registry.Name
+	for _, confdb := range confdbs {
+		account, name := confdb.Account, confdb.Name
 		ref := &asserts.Ref{
-			Type:       asserts.RegistryType,
+			Type:       asserts.ConfdbType,
 			PrimaryKey: []string{account, name},
 		}
 
 		if err := pool.AddToUpdate(ref, storeGroup); err != nil {
-			return fmt.Errorf("cannot prepare registry assertion %s/%s for refresh: %v", account, name, err)
+			return fmt.Errorf("cannot prepare confdb assertion %s/%s for refresh: %v", account, name, err)
 		}
 	}
 

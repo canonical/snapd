@@ -14303,7 +14303,7 @@ func (s *snapmgrTestSuite) TestAutoRefreshSplitRefresh(c *C) {
 	c.Check(chg.Status(), Equals, state.DoneStatus)
 }
 
-func (s *snapmgrTestSuite) TestRefreshWithRegistry(c *C) {
+func (s *snapmgrTestSuite) TestRefreshWithConfdb(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -14316,20 +14316,20 @@ func (s *snapmgrTestSuite) TestRefreshWithRegistry(c *C) {
 	})
 
 	chg := s.state.NewChange("test", "test change")
-	ts, err := snapstate.Update(s.state, "some-snap", &snapstate.RevisionOptions{Channel: "channel-for-registry"}, s.user.ID, snapstate.Flags{})
+	ts, err := snapstate.Update(s.state, "some-snap", &snapstate.RevisionOptions{Channel: "channel-for-confdb"}, s.user.ID, snapstate.Flags{})
 	c.Assert(err, IsNil)
 	chg.AddAll(ts)
 
-	checkSnapsupHasRegistry(ts, c)
+	checkSnapsupHasConfdb(ts, c)
 }
 
-func checkSnapsupHasRegistry(ts *state.TaskSet, c *C) {
+func checkSnapsupHasConfdb(ts *state.TaskSet, c *C) {
 	tasks := tasksWithKind(ts, "validate-snap")
 	c.Assert(tasks, HasLen, 1)
 
 	snapsup, err := snapstate.TaskSnapSetup(tasks[0])
 	c.Assert(err, IsNil)
-	c.Assert(snapsup.Registries, DeepEquals, []snapstate.RegistryID{{Account: "my-publisher", Registry: "my-reg"}})
+	c.Assert(snapsup.Confdbs, DeepEquals, []snapstate.ConfdbID{{Account: "my-publisher", Confdb: "my-reg"}})
 }
 
 func findTaskForSnap(c *C, chg *state.Change, kind, snap string) *state.Task {

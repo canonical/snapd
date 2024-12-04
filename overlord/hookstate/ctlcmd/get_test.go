@@ -27,6 +27,7 @@ import (
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/assertstest"
+	"github.com/snapcore/snapd/confdb"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/i18n"
@@ -34,15 +35,14 @@ import (
 	"github.com/snapcore/snapd/interfaces/ifacetest"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/assertstate/assertstatetest"
+	"github.com/snapcore/snapd/overlord/confdbstate"
 	"github.com/snapcore/snapd/overlord/configstate"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/hookstate/ctlcmd"
 	"github.com/snapcore/snapd/overlord/hookstate/hooktest"
 	"github.com/snapcore/snapd/overlord/ifacestate/ifacerepo"
-	"github.com/snapcore/snapd/overlord/registrystate"
 	"github.com/snapcore/snapd/overlord/state"
-	"github.com/snapcore/snapd/registry"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -450,7 +450,7 @@ func (s *getAttrSuite) TestSlotHookTests(c *C) {
 	}
 }
 
-type registrySuite struct {
+type confdbSuite struct {
 	testutil.BaseTest
 
 	state     *state.State
@@ -461,9 +461,9 @@ type registrySuite struct {
 	mockHandler *hooktest.MockHandler
 }
 
-var _ = Suite(&registrySuite{})
+var _ = Suite(&confdbSuite{})
 
-func (s *registrySuite) SetUpTest(c *C) {
+func (s *confdbSuite) SetUpTest(c *C) {
 	s.BaseTest.SetUpTest(c)
 	dirs.SetRootDir(c.MkDir())
 	s.AddCleanup(func() {
@@ -536,14 +536,14 @@ func (s *registrySuite) SetUpTest(c *C) {
   }
 }`)
 
-	as, err := s.signingDB.Sign(asserts.RegistryType, headers, body, "")
+	as, err := s.signingDB.Sign(asserts.ConfdbType, headers, body, "")
 	c.Assert(err, IsNil)
 	c.Assert(assertstate.Add(s.state, as), IsNil)
 
 	repo := interfaces.NewRepository()
 	ifacerepo.Replace(s.state, repo)
 
-	regIface := &ifacetest.TestInterface{InterfaceName: "registry"}
+	regIface := &ifacetest.TestInterface{InterfaceName: "confdb"}
 	err = repo.AddInterface(regIface)
 	c.Assert(err, IsNil)
 
@@ -552,17 +552,17 @@ type: app
 version: 1
 plugs:
   read-wifi:
-    interface: registry
+    interface: confdb
     account: %[1]s
     view: network/read-wifi
     role: observer
   write-wifi:
-    interface: registry
+    interface: confdb
     account: %[1]s
     view: network/write-wifi
     role: custodian
   other:
-    interface: registry
+    interface: confdb
     account: %[1]s
     view: other/other
 `, s.devAccID)
@@ -577,8 +577,8 @@ plugs:
 version: 1.0
 type: os
 slots:
- registry-slot:
-  interface: registry
+ confdb-slot:
+  interface: confdb
 `
 	info = mockInstalledSnap(c, s.state, coreYaml, "")
 
@@ -590,28 +590,28 @@ slots:
 
 	ref := &interfaces.ConnRef{
 		PlugRef: interfaces.PlugRef{Snap: "test-snap", Name: "read-wifi"},
-		SlotRef: interfaces.SlotRef{Snap: "core", Name: "registry-slot"},
+		SlotRef: interfaces.SlotRef{Snap: "core", Name: "confdb-slot"},
 	}
 	_, err = repo.Connect(ref, nil, nil, nil, nil, nil)
 	c.Assert(err, IsNil)
 
-	s.setRegistryFlag(true, c)
+	s.setConfdbFlag(true, c)
 }
 
-func (s *registrySuite) setRegistryFlag(val bool, c *C) {
+func (s *confdbSuite) setConfdbFlag(val bool, c *C) {
 	tr := config.NewTransaction(s.state)
-	_, confOption := features.Registries.ConfigOption()
+	_, confOption := features.Confdbs.ConfigOption()
 	err := tr.Set("core", confOption, val)
 	c.Assert(err, IsNil)
 	tr.Commit()
 }
 
-func (s *registrySuite) TestRegistryGetSingleView(c *C) {
-	restore := ctlcmd.MockRegistrystateNewTransaction(func(st *state.State, account string, registryName string) (*registrystate.Transaction, error) {
+func (s *confdbSuite) TestConfdbGetSingleView(c *C) {
+	restore := ctlcmd.MockConfdbstateNewTransaction(func(st *state.State, account string, confdbName string) (*confdbstate.Transaction, error) {
 		c.Assert(account, Equals, s.devAccID)
-		c.Assert(registryName, Equals, "network")
+		c.Assert(confdbName, Equals, "network")
 
-		tx, _ := registrystate.NewTransaction(st, account, registryName)
+		tx, _ := confdbstate.NewTransaction(st, account, confdbName)
 		c.Assert(tx.Set("wifi.ssid", "my-ssid"), IsNil)
 
 		return tx, nil
@@ -624,12 +624,12 @@ func (s *registrySuite) TestRegistryGetSingleView(c *C) {
 	c.Check(stderr, IsNil)
 }
 
-func (s *registrySuite) TestRegistryGetManyViews(c *C) {
-	restore := ctlcmd.MockRegistrystateNewTransaction(func(st *state.State, account string, registryName string) (*registrystate.Transaction, error) {
+func (s *confdbSuite) TestConfdbGetManyViews(c *C) {
+	restore := ctlcmd.MockConfdbstateNewTransaction(func(st *state.State, account string, confdbName string) (*confdbstate.Transaction, error) {
 		c.Assert(account, Equals, s.devAccID)
-		c.Assert(registryName, Equals, "network")
+		c.Assert(confdbName, Equals, "network")
 
-		tx, _ := registrystate.NewTransaction(st, account, registryName)
+		tx, _ := confdbstate.NewTransaction(st, account, confdbName)
 		c.Assert(tx.Set("wifi.ssid", "my-ssid"), IsNil)
 		c.Assert(tx.Set("wifi.psk", "secret"), IsNil)
 
@@ -647,12 +647,12 @@ func (s *registrySuite) TestRegistryGetManyViews(c *C) {
 	c.Check(stderr, IsNil)
 }
 
-func (s *registrySuite) TestRegistryGetNoRequest(c *C) {
-	restore := ctlcmd.MockRegistrystateNewTransaction(func(st *state.State, account string, registryName string) (*registrystate.Transaction, error) {
+func (s *confdbSuite) TestConfdbGetNoRequest(c *C) {
+	restore := ctlcmd.MockConfdbstateNewTransaction(func(st *state.State, account string, confdbName string) (*confdbstate.Transaction, error) {
 		c.Assert(account, Equals, s.devAccID)
-		c.Assert(registryName, Equals, "network")
+		c.Assert(confdbName, Equals, "network")
 
-		tx, _ := registrystate.NewTransaction(st, account, registryName)
+		tx, _ := confdbstate.NewTransaction(st, account, confdbName)
 		c.Assert(tx.Set("wifi.ssid", "my-ssid"), IsNil)
 		c.Assert(tx.Set("wifi.psk", "secret"), IsNil)
 
@@ -670,7 +670,7 @@ func (s *registrySuite) TestRegistryGetNoRequest(c *C) {
 	c.Check(stderr, IsNil)
 }
 
-func (s *registrySuite) TestRegistryGetInvalid(c *C) {
+func (s *confdbSuite) TestConfdbGetInvalid(c *C) {
 	type testcase struct {
 		args []string
 		err  string
@@ -699,7 +699,7 @@ func (s *registrySuite) TestRegistryGetInvalid(c *C) {
 	}
 }
 
-func (s *registrySuite) TestRegistryGetAndSetNonRegistryPlug(c *C) {
+func (s *confdbSuite) TestConfdbGetAndSetNonConfdbPlug(c *C) {
 	dirs.SetRootDir(c.MkDir())
 	s.AddCleanup(func() {
 		dirs.SetRootDir("/")
@@ -750,17 +750,17 @@ slots:
 	s.state.Unlock()
 
 	stdout, stderr, err := ctlcmd.Run(s.mockContext, []string{"get", "--view", ":my-plug"}, 0)
-	c.Assert(err, ErrorMatches, "cannot use --view with non-registry plug :my-plug")
+	c.Assert(err, ErrorMatches, "cannot use --view with non-confdb plug :my-plug")
 	c.Check(stdout, IsNil)
 	c.Check(stderr, IsNil)
 
 	stdout, stderr, err = ctlcmd.Run(s.mockContext, []string{"set", "--view", ":my-plug", "ssid=my-ssid"}, 0)
-	c.Assert(err, ErrorMatches, "cannot use --view with non-registry plug :my-plug")
+	c.Assert(err, ErrorMatches, "cannot use --view with non-confdb plug :my-plug")
 	c.Check(stdout, IsNil)
 	c.Check(stderr, IsNil)
 }
 
-func (s *registrySuite) TestRegistryGetAndSetAssertionNotFound(c *C) {
+func (s *confdbSuite) TestConfdbGetAndSetAssertionNotFound(c *C) {
 	storeSigning := assertstest.NewStoreStack("can0nical", nil)
 	db, err := asserts.OpenDatabase(&asserts.DatabaseConfig{
 		Backstore: asserts.NewMemoryBackstore(),
@@ -774,17 +774,17 @@ func (s *registrySuite) TestRegistryGetAndSetAssertionNotFound(c *C) {
 	s.state.Unlock()
 
 	stdout, stderr, err := ctlcmd.Run(s.mockContext, []string{"get", "--view", ":read-wifi"}, 0)
-	c.Assert(err, ErrorMatches, fmt.Sprintf("cannot find registry %s/network: assertion not found", s.devAccID))
+	c.Assert(err, ErrorMatches, fmt.Sprintf("cannot find confdb %s/network: assertion not found", s.devAccID))
 	c.Check(stdout, IsNil)
 	c.Check(stderr, IsNil)
 
 	stdout, stderr, err = ctlcmd.Run(s.mockContext, []string{"set", "--view", ":write-wifi", "ssid=my-ssid"}, 0)
-	c.Assert(err, ErrorMatches, fmt.Sprintf("cannot find registry %s/network: assertion not found", s.devAccID))
+	c.Assert(err, ErrorMatches, fmt.Sprintf("cannot find confdb %s/network: assertion not found", s.devAccID))
 	c.Check(stdout, IsNil)
 	c.Check(stderr, IsNil)
 }
 
-func (s *registrySuite) TestRegistryGetAndSetViewNotFound(c *C) {
+func (s *confdbSuite) TestConfdbGetAndSetViewNotFound(c *C) {
 	headers := map[string]interface{}{
 		"authority-id": s.devAccID,
 		"account-id":   s.devAccID,
@@ -808,28 +808,28 @@ func (s *registrySuite) TestRegistryGetAndSetViewNotFound(c *C) {
   }
 }`)
 
-	as, err := s.signingDB.Sign(asserts.RegistryType, headers, body, "")
+	as, err := s.signingDB.Sign(asserts.ConfdbType, headers, body, "")
 	c.Assert(err, IsNil)
 	s.state.Lock()
 	c.Assert(assertstate.Add(s.state, as), IsNil)
 	s.state.Unlock()
 
 	stdout, stderr, err := ctlcmd.Run(s.mockContext, []string{"get", "--view", ":read-wifi"}, 0)
-	c.Assert(err, ErrorMatches, fmt.Sprintf("cannot find view \"read-wifi\" in registry %s/network", s.devAccID))
+	c.Assert(err, ErrorMatches, fmt.Sprintf("cannot find view \"read-wifi\" in confdb %s/network", s.devAccID))
 	c.Check(stdout, IsNil)
 	c.Check(stderr, IsNil)
 
 	stdout, stderr, err = ctlcmd.Run(s.mockContext, []string{"set", "--view", ":write-wifi", "ssid=my-ssid"}, 0)
-	c.Assert(err, ErrorMatches, fmt.Sprintf("cannot find view \"write-wifi\" in registry %s/network", s.devAccID))
+	c.Assert(err, ErrorMatches, fmt.Sprintf("cannot find view \"write-wifi\" in confdb %s/network", s.devAccID))
 	c.Check(stdout, IsNil)
 	c.Check(stderr, IsNil)
 }
 
-func (s *registrySuite) TestRegistryGetPristine(c *C) {
-	restore := ctlcmd.MockRegistrystateGetStoredTransaction(func(*state.Task) (*registrystate.Transaction, func(), error) {
-		tx, _ := registrystate.NewTransaction(s.state, s.devAccID, "network")
+func (s *confdbSuite) TestConfdbGetPristine(c *C) {
+	restore := ctlcmd.MockConfdbstateGetStoredTransaction(func(*state.Task) (*confdbstate.Transaction, func(), error) {
+		tx, _ := confdbstate.NewTransaction(s.state, s.devAccID, "network")
 		c.Assert(tx.Set("wifi.ssid", "foo"), IsNil)
-		c.Assert(tx.Commit(s.state, registry.NewJSONSchema()), IsNil)
+		c.Assert(tx.Commit(s.state, confdb.NewJSONSchema()), IsNil)
 
 		c.Assert(tx.Set("wifi.ssid", "bar"), IsNil)
 		return tx, func() {}, nil
@@ -857,11 +857,11 @@ func (s *registrySuite) TestRegistryGetPristine(c *C) {
 	c.Check(stderr, IsNil)
 }
 
-func (s *registrySuite) TestRegistryGetDifferentViewThanOngoingTx(c *C) {
+func (s *confdbSuite) TestConfdbGetDifferentViewThanOngoingTx(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	tx, err := registrystate.NewTransaction(s.state, s.devAccID, "network")
+	tx, err := confdbstate.NewTransaction(s.state, s.devAccID, "network")
 	c.Assert(err, IsNil)
 
 	err = tx.Set("wifi.ssid", "foo")
@@ -872,40 +872,40 @@ func (s *registrySuite) TestRegistryGetDifferentViewThanOngoingTx(c *C) {
 	ctx, err := hookstate.NewContext(task, s.state, setup, s.mockHandler, "")
 	c.Assert(err, IsNil)
 
-	// set ongoing tx related to the network registry
-	task.Set("registry-transaction", tx)
+	// set ongoing tx related to the network confdb
+	task.Set("confdb-transaction", tx)
 
 	s.state.Unlock()
 	defer s.state.Lock()
 
-	restore := ctlcmd.MockRegistrystateGetView(func(st *state.State, account, registryName, viewName string) (*registry.View, error) {
-		reg, err := registry.New(s.devAccID, "other", map[string]interface{}{
+	restore := ctlcmd.MockConfdbstateGetView(func(st *state.State, account, confdbName, viewName string) (*confdb.View, error) {
+		reg, err := confdb.New(s.devAccID, "other", map[string]interface{}{
 			"other": map[string]interface{}{
 				"rules": []interface{}{
 					map[string]interface{}{"request": "ssid", "storage": "ssid"},
 				},
 			},
-		}, registry.NewJSONSchema())
+		}, confdb.NewJSONSchema())
 		c.Assert(err, IsNil)
 		return reg.View("other"), nil
 	})
 	defer restore()
 
 	stdout, stderr, err := ctlcmd.Run(ctx, []string{"get", "--view", ":other", "ssid"}, 0)
-	// error is for no stored value, meaning we read the right registry
+	// error is for no stored value, meaning we read the right confdb
 	c.Assert(err, ErrorMatches, `.*: no view data`)
 	c.Check(stdout, IsNil)
 	c.Check(stderr, IsNil)
 }
 
-func (s *registrySuite) TestRegistryExperimentalFlag(c *C) {
+func (s *confdbSuite) TestConfdbExperimentalFlag(c *C) {
 	s.state.Lock()
-	s.setRegistryFlag(false, c)
+	s.setConfdbFlag(false, c)
 	s.state.Unlock()
 
 	for _, cmd := range []string{"get", "set", "unset"} {
 		stdout, stderr, err := ctlcmd.Run(s.mockContext, []string{cmd, "--view", ":read-wifi"}, 0)
-		c.Assert(err, ErrorMatches, i18n.G(`"registries" feature flag is disabled: set 'experimental.registries' to true`))
+		c.Assert(err, ErrorMatches, i18n.G(`"confdbs" feature flag is disabled: set 'experimental.confdbs' to true`))
 		c.Check(stdout, IsNil)
 		c.Check(stderr, IsNil)
 	}

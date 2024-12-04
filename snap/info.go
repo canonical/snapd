@@ -2064,30 +2064,30 @@ var verToSnapDecl = []struct {
 	{"2.17", 1},
 }
 
-// RegistryPlugAttrs returns the account, registry and view specified in a plug
-// if that plug is of type registry. If it's not or the information cannot be
+// ConfdbPlugAttrs returns the account, confdb and view specified in a plug
+// if that plug is of type confdb. If it's not or the information cannot be
 // found, returns an error.
-func RegistryPlugAttrs(plug *PlugInfo) (account, registry, view string, err error) {
-	if plug.Interface != "registry" {
-		return "", "", "", fmt.Errorf("must be registry plug: %s", plug.Interface)
+func ConfdbPlugAttrs(plug *PlugInfo) (account, confdb, view string, err error) {
+	if plug.Interface != "confdb" {
+		return "", "", "", fmt.Errorf("must be confdb plug: %s", plug.Interface)
 	}
 
 	if err := plug.Attr("account", &account); err != nil {
 		return "", "", "", err
 	}
 
-	var registryView string
-	if err := plug.Attr("view", &registryView); err != nil {
+	var confdbView string
+	if err := plug.Attr("view", &confdbView); err != nil {
 		return "", "", "", err
 	}
 
-	parts := strings.Split(registryView, "/")
+	parts := strings.Split(confdbView, "/")
 	if len(parts) != 2 {
-		return "", "", "", fmt.Errorf("\"view\" must conform to <registry>/<view>: %s", registryView)
+		return "", "", "", fmt.Errorf("\"view\" must conform to <confdb>/<view>: %s", confdbView)
 	}
-	registry, view = parts[0], parts[1]
+	confdb, view = parts[0], parts[1]
 
-	return account, registry, view, nil
+	return account, confdb, view, nil
 }
 
 type RefreshFailureSeverity string

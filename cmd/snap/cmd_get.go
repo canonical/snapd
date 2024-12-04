@@ -51,9 +51,9 @@ Nested values may be retrieved via a dotted path:
     frank
 `)
 
-var longRegistryGetHelp = i18n.G(`
-If the first argument passed into get is a registry identifier matching the
-format <account-id>/<registry>/<view>, get will use the registry API. In this
+var longConfdbGetHelp = i18n.G(`
+If the first argument passed into get is a confdb identifier matching the
+format <account-id>/<confdb>/<view>, get will use the confdb API. In this
 case, the command returns the data retrieved from the requested dot-separated
 view paths.
 `)
@@ -71,8 +71,8 @@ type cmdGet struct {
 }
 
 func init() {
-	if err := validateRegistryFeatureFlag(); err == nil {
-		longGetHelp += longRegistryGetHelp
+	if err := validateConfdbFeatureFlag(); err == nil {
+		longGetHelp += longConfdbGetHelp
 	}
 
 	addCommand("get", shortGetHelp, longGetHelp, func() flags.Commander { return &cmdGet{} },
@@ -256,18 +256,18 @@ func (x *cmdGet) Execute(args []string) error {
 
 	var conf map[string]interface{}
 	var err error
-	if isRegistryViewID(snapName) {
-		if err := validateRegistryFeatureFlag(); err != nil {
+	if isConfdbViewID(snapName) {
+		if err := validateConfdbFeatureFlag(); err != nil {
 			return err
 		}
 
-		// first argument is a registryViewID, use the registry API
-		registryViewID := snapName
-		if err := validateRegistryViewID(registryViewID); err != nil {
+		// first argument is a confdbViewID, use the confdb API
+		confdbViewID := snapName
+		if err := validateConfdbViewID(confdbViewID); err != nil {
 			return err
 		}
 
-		conf, err = x.client.RegistryGetViaView(registryViewID, confKeys)
+		conf, err = x.client.ConfdbGetViaView(confdbViewID, confKeys)
 	} else {
 		conf, err = x.client.Conf(snapName, confKeys)
 	}
@@ -286,10 +286,10 @@ func (x *cmdGet) Execute(args []string) error {
 	}
 }
 
-func validateRegistryFeatureFlag() error {
-	if !features.Registries.IsEnabled() {
-		_, confName := features.Registries.ConfigOption()
-		return fmt.Errorf(`the "registries" feature is disabled: set '%s' to true`, confName)
+func validateConfdbFeatureFlag() error {
+	if !features.Confdbs.IsEnabled() {
+		_, confName := features.Confdbs.ConfigOption()
+		return fmt.Errorf(`the "confdbs" feature is disabled: set '%s' to true`, confName)
 	}
 	return nil
 }

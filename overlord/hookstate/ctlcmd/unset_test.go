@@ -24,13 +24,13 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/confdb"
+	"github.com/snapcore/snapd/overlord/confdbstate"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/hookstate/ctlcmd"
 	"github.com/snapcore/snapd/overlord/hookstate/hooktest"
-	"github.com/snapcore/snapd/overlord/registrystate"
 	"github.com/snapcore/snapd/overlord/state"
-	"github.com/snapcore/snapd/registry"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -163,9 +163,9 @@ func (s *unsetSuite) TestCommandWithoutContext(c *C) {
 	c.Check(err, ErrorMatches, `cannot invoke snapctl operation commands \(here "unset"\) from outside of a snap`)
 }
 
-func (s *registrySuite) TestRegistryUnsetManyViews(c *C) {
+func (s *confdbSuite) TestConfdbUnsetManyViews(c *C) {
 	s.state.Lock()
-	tx, err := registrystate.NewTransaction(s.state, s.devAccID, "network")
+	tx, err := confdbstate.NewTransaction(s.state, s.devAccID, "network")
 	s.state.Unlock()
 	c.Assert(err, IsNil)
 
@@ -175,7 +175,7 @@ func (s *registrySuite) TestRegistryUnsetManyViews(c *C) {
 	err = tx.Set("wifi.psk", "bar")
 	c.Assert(err, IsNil)
 
-	ctlcmd.MockRegistrystateGetTransaction(func(*hookstate.Context, *state.State, *registry.View) (*registrystate.Transaction, registrystate.CommitTxFunc, error) {
+	ctlcmd.MockConfdbstateGetTransaction(func(*hookstate.Context, *state.State, *confdb.View) (*confdbstate.Transaction, confdbstate.CommitTxFunc, error) {
 		return tx, nil, nil
 	})
 
@@ -188,12 +188,12 @@ func (s *registrySuite) TestRegistryUnsetManyViews(c *C) {
 	c.Assert(err, ErrorMatches, `no value was found under path "wifi.ssid"`)
 
 	s.state.Lock()
-	_, err = registrystate.Get(s.state, s.devAccID, "network", "write-wifi", []string{"ssid", "password"})
+	_, err = confdbstate.Get(s.state, s.devAccID, "network", "write-wifi", []string{"ssid", "password"})
 	s.state.Unlock()
 	c.Assert(err, ErrorMatches, `cannot get "ssid", "password" .*: no view data`)
 }
 
-func (s *registrySuite) TestRegistryUnsetInvalid(c *C) {
+func (s *confdbSuite) TestConfdbUnsetInvalid(c *C) {
 	type testcase struct {
 		args []string
 		err  string
@@ -202,15 +202,15 @@ func (s *registrySuite) TestRegistryUnsetInvalid(c *C) {
 	tcs := []testcase{
 		{
 			args: []string{"snap:plug"},
-			err:  `cannot unset registry: plug must conform to format ":<plug-name>": snap:plug`,
+			err:  `cannot unset confdb: plug must conform to format ":<plug-name>": snap:plug`,
 		},
 		{
 			args: []string{":"},
-			err:  `cannot unset registry: plug name was not provided`,
+			err:  `cannot unset confdb: plug name was not provided`,
 		},
 		{
 			args: []string{":plug"},
-			err:  `cannot unset registry: no paths provided to unset`,
+			err:  `cannot unset confdb: no paths provided to unset`,
 		},
 	}
 
