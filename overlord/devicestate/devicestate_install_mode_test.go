@@ -886,7 +886,7 @@ func (s *deviceMgrInstallModeSuite) TestInstallExpTasksWithKMods(c *C) {
 		isClassic:     false,
 		hasSystemSeed: true,
 		hasPartial:    false,
-		kModsRevs:     map[string]snap.Revision{"kcomp1": snap.R(7), "kcomp2": snap.R(14)},
+		kModsRevs:     map[string]snap.Revision{"kcomp1": snap.R(7), "kcomp2": snap.R(14), "kcomp3": snap.R(21)},
 		types:         []snap.Type{snap.TypeKernel},
 	}
 	s.mockSystemSeedWithLabel(c, "1234", seedCopyFn, seedOpts)
@@ -966,7 +966,7 @@ func (s *deviceMgrInstallModeSuite) TestInstallExpTasksWithKModsTestMode(c *C) {
 		hasSystemSeed: true,
 		hasPartial:    false,
 		testCompsMode: true,
-		kModsRevs:     map[string]snap.Revision{"kcomp1": snap.R(7), "kcomp2": snap.R(14)},
+		kModsRevs:     map[string]snap.Revision{"kcomp1": snap.R(7), "kcomp2": snap.R(14), "kcomp3": snap.R(21)},
 		types:         []snap.Type{snap.TypeKernel},
 	}
 	s.mockSystemSeedWithLabel(c, "1234", seedCopyFn, seedOpts)
