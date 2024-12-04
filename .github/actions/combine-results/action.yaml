@@ -21,7 +21,7 @@ runs:
       echo "Summary:"
       failed="false"
       while IFS=" " read -r job result; do
-        if [[ "$result" != "failure" ]]; then
+        if [[ "$result" == "success" ]] || [[ "$result" == "skipped" ]]; then
           echo "- ✅ Job \"$job\" returned result \"$result\""
         else
           failed="true"
