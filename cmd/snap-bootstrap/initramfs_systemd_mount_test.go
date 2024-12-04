@@ -319,7 +319,7 @@ func (s *doSystemdMountSuite) TestDoSystemdMount(c *C) {
 					WorkDir:  "/work",
 				},
 			},
-			expErr:  "cannot mount \"what\" at \"where\": missing arguments for overlayfs mount. lowerdir, upperdir, workdir are needed.",
+			expErr:  "cannot mount \"what\" at \"where\": missing arguments for overlayfs mount. at least one lowerdir is required",
 			comment: "overlayfs mount requested without specifying a lowerdir",
 		},
 		{
@@ -332,7 +332,7 @@ func (s *doSystemdMountSuite) TestDoSystemdMount(c *C) {
 					WorkDir:   "/work",
 				},
 			},
-			expErr:  "cannot mount \"what\" at \"where\": missing arguments for overlayfs mount. lowerdir, upperdir, workdir are needed.",
+			expErr:  "cannot mount \"what\" at \"where\": a workdir for an overlayfs mount was specified but upperdir is missing",
 			comment: "overlayfs mount requested without specifying an upperdir",
 		},
 		{
@@ -345,7 +345,7 @@ func (s *doSystemdMountSuite) TestDoSystemdMount(c *C) {
 					UpperDir:  "/upper",
 				},
 			},
-			expErr:  "cannot mount \"what\" at \"where\": missing arguments for overlayfs mount. lowerdir, upperdir, workdir are needed.",
+			expErr:  "cannot mount \"what\" at \"where\": an upperdir for an overlayfs mount was specified but workdir is missing",
 			comment: "overlayfs mount requested without specifying a workdir",
 		},
 		{
@@ -358,7 +358,7 @@ func (s *doSystemdMountSuite) TestDoSystemdMount(c *C) {
 					WorkDir:   "/work",
 				},
 			},
-			expErr:  `cannot mount "what" at "where": lowerdir overlayfs mount option contains forbidden characters. "` + regexp.QuoteMeta(`/lower1\\,\" `) + `" contains one of "` + regexp.QuoteMeta(`\\,:\" `) + `".`,
+			expErr:  `cannot mount "what" at "where": lowerdir overlayfs mount option contains forbidden characters. "` + regexp.QuoteMeta(`/lower1\\,\" `) + `" contains one of "` + regexp.QuoteMeta(`\\,:\" `) + `"`,
 			comment: "disallow use of \\,\" and space in the overlayfs lowerdir mount option",
 		},
 		{
@@ -371,7 +371,7 @@ func (s *doSystemdMountSuite) TestDoSystemdMount(c *C) {
 					WorkDir:   "/work",
 				},
 			},
-			expErr:  `cannot mount "what" at "where": lowerdir overlayfs mount option contains forbidden characters. "` + regexp.QuoteMeta(`/lower1:`) + `" contains one of "` + regexp.QuoteMeta(`\\,:\" `) + `".`,
+			expErr:  `cannot mount "what" at "where": lowerdir overlayfs mount option contains forbidden characters. "` + regexp.QuoteMeta(`/lower1:`) + `" contains one of "` + regexp.QuoteMeta(`\\,:\" `) + `"`,
 			comment: "disallow use of : in the overlayfs lowerdir mount option",
 		},
 		{
@@ -384,7 +384,7 @@ func (s *doSystemdMountSuite) TestDoSystemdMount(c *C) {
 					WorkDir:   "/work",
 				},
 			},
-			expErr:  `cannot mount "what" at "where": upperdir overlayfs mount option contains forbidden characters. "` + regexp.QuoteMeta(`/upper\\,:\" `) + `" contains one of "` + regexp.QuoteMeta(`\\,:\" `) + `".`,
+			expErr:  `cannot mount "what" at "where": upperdir overlayfs mount option contains forbidden characters. "` + regexp.QuoteMeta(`/upper\\,:\" `) + `" contains one of "` + regexp.QuoteMeta(`\\,:\" `) + `"`,
 			comment: "disallow use of \\,:\" and space in the overlayfs upperdir mount option",
 		},
 		{
@@ -397,7 +397,7 @@ func (s *doSystemdMountSuite) TestDoSystemdMount(c *C) {
 					WorkDir:   "/work\\,:\" ",
 				},
 			},
-			expErr:  `cannot mount "what" at "where": workdir overlayfs mount option contains forbidden characters. "` + regexp.QuoteMeta(`/work\\,:\" `) + `" contains one of "` + regexp.QuoteMeta(`\\,:\" `) + `".`,
+			expErr:  `cannot mount "what" at "where": workdir overlayfs mount option contains forbidden characters. "` + regexp.QuoteMeta(`/work\\,:\" `) + `" contains one of "` + regexp.QuoteMeta(`\\,:\" `) + `"`,
 			comment: "disallow use of \\,:\" and space in the overlayfs workdir mount option",
 		},
 		{
@@ -469,7 +469,7 @@ func (s *doSystemdMountSuite) TestDoSystemdMount(c *C) {
 					RootHash:   "00000000000000000000000000000000",
 				},
 			},
-			expErr:  `cannot mount "what" at "where": dm-verity hash device path contains forbidden characters. "` + regexp.QuoteMeta(`test.verity\\,:\" `) + `" contains one of "` + regexp.QuoteMeta(`\\,:\" `) + `".`,
+			expErr:  `cannot mount "what" at "where": dm-verity hash device path contains forbidden characters. "` + regexp.QuoteMeta(`test.verity\\,:\" `) + `" contains one of "` + regexp.QuoteMeta(`\\,:\" `) + `"`,
 			comment: "disallow use of \\,:\": and space in the dm-verity hash device option",
 		},
 	}
