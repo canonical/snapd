@@ -42,7 +42,7 @@ const (
 	Store AuthenticationMethod = "store"
 )
 
-// isValidAuthenticationMethod checks if a string is a valid AuthenticationMethod
+// isValidAuthenticationMethod checks if a string is a valid AuthenticationMethod.
 func isValidAuthenticationMethod(value string) bool {
 	switch AuthenticationMethod(value) {
 	case OperatorKey, Store:
@@ -52,7 +52,7 @@ func isValidAuthenticationMethod(value string) bool {
 	}
 }
 
-// convertToAuthenticationMethods converts and validates a []string to []AuthenticationMethod
+// convertToAuthenticationMethods converts []string to []AuthenticationMethod and validates it.
 func convertToAuthenticationMethods(methods []string) ([]AuthenticationMethod, error) {
 	sort.Slice(methods, func(i, j int) bool {
 		return methods[i] < methods[j]
@@ -83,6 +83,8 @@ type ControlGroup struct {
 	Views          []*ViewRef
 }
 
+// ViewRef holds the reference to account/confdb/view as parsed from the
+// confdb-control assertion.
 type ViewRef struct {
 	Account string
 	Confdb  string
