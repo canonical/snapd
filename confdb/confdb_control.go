@@ -36,7 +36,7 @@ var (
 type AuthenticationMethod string
 
 const (
-	// Only the operator's account key can be used to sign the messages.
+	// Only the operator's keys can be used to sign the messages.
 	OperatorKey AuthenticationMethod = "operator-key"
 	// Messages can be signed on behalf of the operator by the store.
 	Store AuthenticationMethod = "store"
@@ -80,7 +80,13 @@ type Operator struct {
 // ControlGroup holds a set of views delegated through the given authentication.
 type ControlGroup struct {
 	Authentication []AuthenticationMethod
-	Views          []string
+	Views          []*ViewRef
+}
+
+type ViewRef struct {
+	Account string
+	Confdb  string
+	View    string
 }
 
 // AddControlGroup adds the group to an operator under the given authentication.
@@ -98,28 +104,39 @@ func (op *Operator) AddControlGroup(views, auth []string) error {
 		return errors.New(`cannot add group: "views" must be a non-empty list`)
 	}
 
+	parsedViews := []*ViewRef{}
 	for _, view := range views {
 		viewPath := strings.Split(view, "/")
 		if len(viewPath) != 3 {
 			return fmt.Errorf(`view "%s" must be in the format account/confdb/view`, view)
 		}
 
-		if !validAccountID.MatchString(viewPath[0]) {
-			return fmt.Errorf("invalid Account ID %s", viewPath[0])
+		account := viewPath[0]
+		if !validAccountID.MatchString(account) {
+			return fmt.Errorf("invalid Account ID %s", account)
 		}
 
-		if !ValidConfdbName.MatchString(viewPath[1]) {
-			return fmt.Errorf("invalid confdb name %s", viewPath[1])
+		confdb := viewPath[1]
+		if !ValidConfdbName.MatchString(confdb) {
+			return fmt.Errorf("invalid confdb name %s", confdb)
 		}
 
-		if !ValidViewName.MatchString(viewPath[2]) {
-			return fmt.Errorf("invalid view name %s", viewPath[2])
+		viewName := viewPath[2]
+		if !ValidViewName.MatchString(viewName) {
+			return fmt.Errorf("invalid view name %s", viewName)
 		}
+
+		parsedView := &ViewRef{
+			Account: account,
+			Confdb:  confdb,
+			View:    viewName,
+		}
+		parsedViews = append(parsedViews, parsedView)
 	}
 
 	group := &ControlGroup{
 		Authentication: authentication,
-		Views:          views,
+		Views:          parsedViews,
 	}
 	op.Groups = append(op.Groups, group)
 

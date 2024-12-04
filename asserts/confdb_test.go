@@ -259,11 +259,18 @@ func (s *confdbCtrlSuite) TestDecodeOK(c *C) {
 
 	g := john.Groups[0]
 	c.Assert(g.Authentication, DeepEquals, []confdb.AuthenticationMethod{"operator-key"})
-	c.Assert(g.Views, DeepEquals, []string{"canonical/network/control-device", "canonical/network/observe-device"})
+	expectedViews := []*confdb.ViewRef{
+		{Account: "canonical", Confdb: "network", View: "control-device"},
+		{Account: "canonical", Confdb: "network", View: "observe-device"},
+	}
+	c.Assert(g.Views, DeepEquals, expectedViews)
 
 	g = john.Groups[1]
 	c.Assert(g.Authentication, DeepEquals, []confdb.AuthenticationMethod{"store"})
-	c.Assert(g.Views, DeepEquals, []string{"canonical/network/control-interfaces"})
+	expectedViews = []*confdb.ViewRef{
+		{Account: "canonical", Confdb: "network", View: "control-interfaces"},
+	}
+	c.Assert(g.Views, DeepEquals, expectedViews)
 
 	jane, ok := operators["jane"]
 	c.Assert(ok, Equals, true)
@@ -272,7 +279,10 @@ func (s *confdbCtrlSuite) TestDecodeOK(c *C) {
 
 	g = jane.Groups[0]
 	c.Assert(g.Authentication, DeepEquals, []confdb.AuthenticationMethod{"operator-key", "store"})
-	c.Assert(g.Views, DeepEquals, []string{"canonical/network/observe-interfaces"})
+	expectedViews = []*confdb.ViewRef{
+		{Account: "canonical", Confdb: "network", View: "observe-interfaces"},
+	}
+	c.Assert(g.Views, DeepEquals, expectedViews)
 }
 
 func (s *confdbCtrlSuite) TestDecodeInvalid(c *C) {
