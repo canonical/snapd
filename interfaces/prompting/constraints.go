@@ -42,6 +42,38 @@ type Constraints struct {
 	Permissions PermissionMap         `json:"permissions"`
 }
 
+// Match returns true if the constraints match the given path, otherwise false.
+//
+// If the constraints or path are invalid, returns an error.
+//
+// This method is only intended to be called on constraints which have just
+// been created from a reply, to check that the reply covers the request.
+func (c *Constraints) Match(path string) (bool, error) {
+	if c.PathPattern == nil {
+		return false, prompting_errors.NewInvalidPathPatternError("", "no path pattern")
+	}
+	match, err := c.PathPattern.Match(path)
+	if err != nil {
+		// Error should not occur, since it was parsed internally
+		return false, prompting_errors.NewInvalidPathPatternError(c.PathPattern.String(), err.Error())
+	}
+	return match, nil
+}
+
+// ContainPermissions returns true if the permission map in the constraints
+// includes every one of the given permissions.
+//
+// This method is only intended to be called on constraints which have just
+// been created from a reply, to check that the reply covers the request.
+func (c *Constraints) ContainPermissions(permissions []string) bool {
+	for _, perm := range permissions {
+		if _, exists := c.Permissions[perm]; !exists {
+			return false
+		}
+	}
+	return true
+}
+
 // ToRuleConstraints validates the receiving Constraints and converts it to
 // RuleConstraints. If the constraints are not valid with respect to the given
 // interface, returns an error.
@@ -147,32 +179,6 @@ func (c *ReplyConstraints) ToConstraints(iface string, outcome OutcomeType, life
 		Permissions: permissionMap,
 	}
 	return constraints, nil
-}
-
-// Match returns true if the constraints match the given path, otherwise false.
-//
-// If the constraints or path are invalid, returns an error.
-func (c *ReplyConstraints) Match(path string) (bool, error) {
-	if c.PathPattern == nil {
-		return false, prompting_errors.NewInvalidPathPatternError("", "no path pattern")
-	}
-	match, err := c.PathPattern.Match(path)
-	if err != nil {
-		// Error should not occur, since it was parsed internally
-		return false, prompting_errors.NewInvalidPathPatternError(c.PathPattern.String(), err.Error())
-	}
-	return match, nil
-}
-
-// ContainPermissions returns true if the permission list in the constraints
-// includes every one of the given permissions.
-func (c *ReplyConstraints) ContainPermissions(permissions []string) bool {
-	for _, perm := range permissions {
-		if !strutil.ListContains(c.Permissions, perm) {
-			return false
-		}
-	}
-	return true
 }
 
 // PatchConstraints hold information about the applicability of the modified
