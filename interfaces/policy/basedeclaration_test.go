@@ -845,6 +845,7 @@ var (
 		"power-control":             {"core"},
 		"ppp":                       {"core"},
 		"polkit-agent":              {"core"},
+		"pipewire":                  {"app", "core"},
 		"pulseaudio":                {"app", "core"},
 		"pwm":                       {"core", "gadget"},
 		"qualcomm-ipc-router":       {"core", "app"},
