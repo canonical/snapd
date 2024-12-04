@@ -376,24 +376,24 @@ func (m *InterfacesRequestsManager) HandleReply(userID uint32, promptID promptin
 	// constraints, such as check that the path pattern does not match
 	// any paths not granted by the interface.
 	// TODO: Should this be reconsidered?
-	matches, err := replyConstraints.Match(prompt.Constraints.Path())
+	matches, err := constraints.Match(prompt.Constraints.Path())
 	if err != nil {
 		return nil, err
 	}
 	if !matches {
 		return nil, &prompting_errors.RequestedPathNotMatchedError{
 			Requested: prompt.Constraints.Path(),
-			Replied:   replyConstraints.PathPattern.String(),
+			Replied:   constraints.PathPattern.String(),
 		}
 	}
 
 	// XXX: do we want to allow only replying to a select subset of permissions, and
 	// auto-deny the rest?
-	contained := replyConstraints.ContainPermissions(prompt.Constraints.RemainingPermissions())
+	contained := constraints.ContainPermissions(prompt.Constraints.RemainingPermissions())
 	if !contained {
 		return nil, &prompting_errors.RequestedPermissionsNotMatchedError{
 			Requested: prompt.Constraints.RemainingPermissions(),
-			Replied:   replyConstraints.Permissions,
+			Replied:   replyConstraints.Permissions, // equivalent to keys of constraints.Permissions
 		}
 	}
 

@@ -43,6 +43,122 @@ func mustParsePathPattern(c *C, patternStr string) *patterns.PathPattern {
 	return pattern
 }
 
+func (s *constraintsSuite) TestConstraintsMatch(c *C) {
+	cases := []struct {
+		pattern string
+		path    string
+		matches bool
+	}{
+		{
+			"/home/test/Documents/foo.txt",
+			"/home/test/Documents/foo.txt",
+			true,
+		},
+		{
+			"/home/test/Documents/foo",
+			"/home/test/Documents/foo.txt",
+			false,
+		},
+	}
+	for _, testCase := range cases {
+		pattern := mustParsePathPattern(c, testCase.pattern)
+
+		constraints := &prompting.Constraints{
+			PathPattern: pattern,
+		}
+		result, err := constraints.Match(testCase.path)
+		c.Check(err, IsNil, Commentf("test case: %+v", testCase))
+		c.Check(result, Equals, testCase.matches, Commentf("test case: %+v", testCase))
+
+		ruleConstraints := &prompting.RuleConstraints{
+			PathPattern: pattern,
+		}
+		result, err = ruleConstraints.Match(testCase.path)
+		c.Check(err, IsNil, Commentf("test case: %+v", testCase))
+		c.Check(result, Equals, testCase.matches, Commentf("test case: %+v", testCase))
+	}
+}
+
+func (s *constraintsSuite) TestConstraintsMatchUnhappy(c *C) {
+	badPath := `bad\path\`
+
+	badConstraints := &prompting.Constraints{
+		PathPattern: nil,
+	}
+	matches, err := badConstraints.Match(badPath)
+	c.Check(err, ErrorMatches, `invalid path pattern: no path pattern: ""`)
+	c.Check(matches, Equals, false)
+
+	badRuleConstraints := &prompting.RuleConstraints{
+		PathPattern: nil,
+	}
+	matches, err = badRuleConstraints.Match(badPath)
+	c.Check(err, ErrorMatches, `invalid path pattern: no path pattern: ""`)
+	c.Check(matches, Equals, false)
+}
+
+func (s *constraintsSuite) TestConstraintsContainPermissions(c *C) {
+	cases := []struct {
+		constPerms []string
+		queryPerms []string
+		contained  bool
+	}{
+		{
+			[]string{"read", "write", "execute"},
+			[]string{"read", "write", "execute"},
+			true,
+		},
+		{
+			[]string{"execute", "write", "read"},
+			[]string{"read", "write", "execute"},
+			true,
+		},
+		{
+			[]string{"read", "write", "execute"},
+			[]string{"read"},
+			true,
+		},
+		{
+			[]string{"read", "write", "execute"},
+			[]string{"execute"},
+			true,
+		},
+		{
+			[]string{"read", "write", "execute"},
+			[]string{"read", "write", "execute", "append"},
+			false,
+		},
+		{
+			[]string{"read", "write", "execute"},
+			[]string{"read", "append"},
+			false,
+		},
+		{
+			[]string{"foo", "bar", "baz"},
+			[]string{"foo", "bar"},
+			true,
+		},
+		{
+			[]string{"foo", "bar", "baz"},
+			[]string{"fizz", "buzz"},
+			false,
+		},
+	}
+	for _, testCase := range cases {
+		pathPattern := mustParsePathPattern(c, "/arbitrary")
+		constraints := &prompting.Constraints{
+			PathPattern: pathPattern,
+			Permissions: make(prompting.PermissionMap),
+		}
+		fakeEntry := &prompting.PermissionEntry{}
+		for _, perm := range testCase.constPerms {
+			constraints.Permissions[perm] = fakeEntry
+		}
+		contained := constraints.ContainPermissions(testCase.queryPerms)
+		c.Check(contained, Equals, testCase.contained, Commentf("testCase: %+v", testCase))
+	}
+}
+
 func (s *constraintsSuite) TestConstraintsToRuleConstraintsHappy(c *C) {
 	currTime := time.Now()
 	iface := "home"
@@ -394,60 +510,6 @@ func (s *constraintsSuite) TestRuleConstraintsValidateForInterfaceExpiration(c *
 	}
 }
 
-func (*constraintsSuite) TestConstraintsMatch(c *C) {
-	cases := []struct {
-		pattern string
-		path    string
-		matches bool
-	}{
-		{
-			"/home/test/Documents/foo.txt",
-			"/home/test/Documents/foo.txt",
-			true,
-		},
-		{
-			"/home/test/Documents/foo",
-			"/home/test/Documents/foo.txt",
-			false,
-		},
-	}
-	for _, testCase := range cases {
-		pattern := mustParsePathPattern(c, testCase.pattern)
-
-		ruleConstraints := &prompting.RuleConstraints{
-			PathPattern: pattern,
-		}
-		result, err := ruleConstraints.Match(testCase.path)
-		c.Check(err, IsNil, Commentf("test case: %+v", testCase))
-		c.Check(result, Equals, testCase.matches, Commentf("test case: %+v", testCase))
-
-		replyConstraints := &prompting.ReplyConstraints{
-			PathPattern: pattern,
-		}
-		result, err = replyConstraints.Match(testCase.path)
-		c.Check(err, IsNil, Commentf("test case: %+v", testCase))
-		c.Check(result, Equals, testCase.matches, Commentf("test case: %+v", testCase))
-	}
-}
-
-func (s *constraintsSuite) TestConstraintsMatchUnhappy(c *C) {
-	badPath := `bad\path\`
-
-	badRuleConstraints := &prompting.RuleConstraints{
-		PathPattern: nil,
-	}
-	matches, err := badRuleConstraints.Match(badPath)
-	c.Check(err, ErrorMatches, `invalid path pattern: no path pattern: ""`)
-	c.Check(matches, Equals, false)
-
-	badReplyConstraints := &prompting.ReplyConstraints{
-		PathPattern: nil,
-	}
-	matches, err = badReplyConstraints.Match(badPath)
-	c.Check(err, ErrorMatches, `invalid path pattern: no path pattern: ""`)
-	c.Check(matches, Equals, false)
-}
-
 func (s *constraintsSuite) TestReplyConstraintsToConstraintsHappy(c *C) {
 	iface := "home"
 	pathPattern := mustParsePathPattern(c, "/path/to/dir/{foo*,ba?/**}")
@@ -584,64 +646,6 @@ func (s *constraintsSuite) TestReplyConstraintsToConstraintsUnhappy(c *C) {
 		result, err := replyConstraints.ToConstraints(iface, outcome, lifespan, duration)
 		c.Check(result, IsNil, Commentf("testCase: %+v", testCase))
 		c.Check(err, ErrorMatches, testCase.errStr, Commentf("testCase: %+v", testCase))
-	}
-}
-
-func (s *constraintsSuite) TestReplyConstraintsContainPermissions(c *C) {
-	cases := []struct {
-		constPerms []string
-		queryPerms []string
-		contained  bool
-	}{
-		{
-			[]string{"read", "write", "execute"},
-			[]string{"read", "write", "execute"},
-			true,
-		},
-		{
-			[]string{"execute", "write", "read"},
-			[]string{"read", "write", "execute"},
-			true,
-		},
-		{
-			[]string{"read", "write", "execute"},
-			[]string{"read"},
-			true,
-		},
-		{
-			[]string{"read", "write", "execute"},
-			[]string{"execute"},
-			true,
-		},
-		{
-			[]string{"read", "write", "execute"},
-			[]string{"read", "write", "execute", "append"},
-			false,
-		},
-		{
-			[]string{"read", "write", "execute"},
-			[]string{"read", "append"},
-			false,
-		},
-		{
-			[]string{"foo", "bar", "baz"},
-			[]string{"foo", "bar"},
-			true,
-		},
-		{
-			[]string{"foo", "bar", "baz"},
-			[]string{"fizz", "buzz"},
-			false,
-		},
-	}
-	for _, testCase := range cases {
-		pathPattern := mustParsePathPattern(c, "/arbitrary")
-		constraints := &prompting.ReplyConstraints{
-			PathPattern: pathPattern,
-			Permissions: testCase.constPerms,
-		}
-		contained := constraints.ContainPermissions(testCase.queryPerms)
-		c.Check(contained, Equals, testCase.contained, Commentf("testCase: %+v", testCase))
 	}
 }
 
