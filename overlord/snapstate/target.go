@@ -358,12 +358,8 @@ func checkSnapAgainstConstraints(
 			verb = "update"
 		}
 
-		return fmt.Errorf(
-			"cannot %s snap %q due to enforcing rules of validation set %s",
-			verb,
-			instanceName,
-			constraints.Sets.CommaSeparated(),
-		)
+		return fmt.Errorf("cannot %s snap %q due to enforcing rules of validation set %s",
+			verb, instanceName, constraints.Sets.CommaSeparated())
 	}
 
 	if !constraints.Revision.Unset() && !revision.Unset() && revision != constraints.Revision {
