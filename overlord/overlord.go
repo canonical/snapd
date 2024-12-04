@@ -39,6 +39,7 @@ import (
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/cmdstate"
+	"github.com/snapcore/snapd/overlord/confdbstate"
 	"github.com/snapcore/snapd/overlord/configstate"
 	"github.com/snapcore/snapd/overlord/configstate/proxyconf"
 	"github.com/snapcore/snapd/overlord/devicestate"
@@ -46,7 +47,6 @@ import (
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/ifacestate"
 	"github.com/snapcore/snapd/overlord/patch"
-	"github.com/snapcore/snapd/overlord/registrystate"
 	"github.com/snapcore/snapd/overlord/restart"
 	"github.com/snapcore/snapd/overlord/servicestate"
 	"github.com/snapcore/snapd/overlord/snapshotstate"
@@ -181,7 +181,7 @@ func New(restartHandler restart.Handler) (*Overlord, error) {
 
 	o.addManager(cmdstate.Manager(s, o.runner))
 	o.addManager(snapshotstate.Manager(s, o.runner))
-	o.addManager(registrystate.Manager(s, hookMgr, o.runner))
+	o.addManager(confdbstate.Manager(s, hookMgr, o.runner))
 
 	if err := configstateInit(s, hookMgr); err != nil {
 		return nil, err

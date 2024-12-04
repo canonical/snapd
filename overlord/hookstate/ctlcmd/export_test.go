@@ -26,14 +26,14 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/client/clientutil"
+	"github.com/snapcore/snapd/confdb"
 	"github.com/snapcore/snapd/osutil/user"
+	"github.com/snapcore/snapd/overlord/confdbstate"
 	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/overlord/hookstate"
-	"github.com/snapcore/snapd/overlord/registrystate"
 	"github.com/snapcore/snapd/overlord/servicestate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
-	"github.com/snapcore/snapd/registry"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -181,34 +181,34 @@ func MockNewStatusDecorator(f func(ctx context.Context, isGlobal bool, uid strin
 	return restore
 }
 
-func MockRegistrystateGetTransaction(f func(*hookstate.Context, *state.State, *registry.View) (*registrystate.Transaction, registrystate.CommitTxFunc, error)) (restore func()) {
-	old := registrystateGetTransaction
-	registrystateGetTransaction = f
+func MockConfdbstateGetTransaction(f func(*hookstate.Context, *state.State, *confdb.View) (*confdbstate.Transaction, confdbstate.CommitTxFunc, error)) (restore func()) {
+	old := confdbstateGetTransaction
+	confdbstateGetTransaction = f
 	return func() {
-		registrystateGetTransaction = old
+		confdbstateGetTransaction = old
 	}
 }
 
-func MockRegistrystateGetView(f func(st *state.State, account, registryName, viewName string) (*registry.View, error)) (restore func()) {
-	old := registrystateGetView
-	registrystateGetView = f
+func MockConfdbstateGetView(f func(st *state.State, account, confdbName, viewName string) (*confdb.View, error)) (restore func()) {
+	old := confdbstateGetView
+	confdbstateGetView = f
 	return func() {
-		registrystateGetView = old
+		confdbstateGetView = old
 	}
 }
 
-func MockRegistrystateNewTransaction(f func(*state.State, string, string) (*registrystate.Transaction, error)) (restore func()) {
-	old := registrystateNewTransaction
-	registrystateNewTransaction = f
+func MockConfdbstateNewTransaction(f func(*state.State, string, string) (*confdbstate.Transaction, error)) (restore func()) {
+	old := confdbstateNewTransaction
+	confdbstateNewTransaction = f
 	return func() {
-		registrystateNewTransaction = old
+		confdbstateNewTransaction = old
 	}
 }
 
-func MockRegistrystateGetStoredTransaction(f func(*state.Task) (*registrystate.Transaction, func(), error)) (restore func()) {
-	old := registrystateGetStoredTransaction
-	registrystateGetStoredTransaction = f
+func MockConfdbstateGetStoredTransaction(f func(*state.Task) (*confdbstate.Transaction, func(), error)) (restore func()) {
+	old := confdbstateGetStoredTransaction
+	confdbstateGetStoredTransaction = f
 	return func() {
-		registrystateGetStoredTransaction = old
+		confdbstateGetStoredTransaction = old
 	}
 }
