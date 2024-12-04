@@ -19,10 +19,19 @@
 
 package user
 
-var (
-	LookupGroupFromGetent = lookupGroupFromGetent
-	LookupUserFromGetent  = lookupUserFromGetent
-	UserMatchUid          = userMatchUid
-	UserMatchUsername     = userMatchUsername
-	GroupMatchGroupname   = groupMatchGroupname
+import (
+	"github.com/snapcore/snapd/testutil"
 )
+
+var (
+	LookupGroupFromGetent   = lookupGroupFromGetent
+	LookupUserFromGetent    = lookupUserFromGetent
+	UserMatchUid            = userMatchUid
+	UserMatchUsername       = userMatchUsername
+	GroupMatchGroupname     = groupMatchGroupname
+	DefaultGetentSearchPath = defaultGetentSearchPath
+)
+
+func MockGetentSearchPath(p string) (restore func()) {
+	return testutil.Mock(&getentSearchPath, p)
+}
