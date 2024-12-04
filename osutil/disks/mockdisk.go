@@ -21,7 +21,11 @@ package disks
 
 import (
 	"fmt"
+	"path"
+	"path/filepath"
+	"strings"
 
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 )
 
@@ -300,6 +304,39 @@ func MockPartitionDeviceNodeToDiskMapping(mockedDisks map[string]*MockDiskMappin
 	}
 }
 
+func resolveName(deviceName string) (string, error) {
+	resolve := func(p string) (string, error) {
+		if !osutil.FileExists(p) {
+			return "", nil
+		}
+		if osutil.IsSymlink(p) {
+			resolved, err := filepath.EvalSymlinks(p)
+			if err != nil {
+				return "", err
+			}
+			return resolved, nil
+		}
+		return p, nil
+	}
+
+	if res, err := resolve(deviceName); err != nil {
+		return "", err
+	} else if res == "" {
+		// did not exist, try again but with corrected path
+		if res, err := resolve(path.Join(dirs.GlobalRootDir, deviceName)); err != nil {
+			return "", err
+		} else if res == "" {
+			// did not exist at all, meaning we assume it's the name of
+			// the device, not a path
+			return deviceName, nil
+		} else {
+			return strings.TrimPrefix(res, dirs.GlobalRootDir), nil
+		}
+	} else {
+		return res, nil
+	}
+}
+
 // MockDeviceNameToDiskMapping will mock DiskFromDeviceName such that the
 // provided map of device names to mock disks is used instead of the actual
 // implementation using udev.
@@ -314,9 +351,14 @@ func MockDeviceNameToDiskMapping(mockedDisks map[string]*MockDiskMapping) (resto
 
 	old := diskFromDeviceName
 	diskFromDeviceName = func(deviceName string) (Disk, error) {
-		disk, ok := mockedDisks[deviceName]
+		// allow symlinks to point to mocked disks
+		resolved, err := resolveName(deviceName)
+		if err != nil {
+			return nil, err
+		}
+		disk, ok := mockedDisks[resolved]
 		if !ok {
-			return nil, fmt.Errorf("device name %q not mocked", deviceName)
+			return nil, fmt.Errorf("device name %q not mocked", resolved)
 		}
 		return disk, nil
 	}

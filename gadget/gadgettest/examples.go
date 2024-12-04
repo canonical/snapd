@@ -98,6 +98,118 @@ volumes:
         size: 256M
 `
 
+const RaspiSimplifiedVolumeAssignmentYaml = `
+volumes:
+  pi:
+    bootloader: u-boot
+    schema: mbr
+    structure:
+    - filesystem: vfat
+      name: ubuntu-seed
+      role: system-seed
+      size: 1200M
+      type: 0C
+    - filesystem: vfat
+      name: ubuntu-boot
+      role: system-boot
+      size: 750M
+      type: 0C
+    - filesystem: ext4
+      name: ubuntu-save
+      role: system-save
+      size: 16M
+      type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
+    - filesystem: ext4
+      name: ubuntu-data
+      role: system-data
+      size: 1500M
+      type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
+volume-assignments:
+  - assignment-name: raspi
+    assignment:
+      pi:
+        device: /dev/disk/by-path/pci-43:0
+`
+
+const RaspiMultiVolumeAssignmentYaml = `
+volumes:
+  pi:
+    bootloader: u-boot
+    schema: mbr
+    structure:
+    - filesystem: vfat
+      name: ubuntu-seed
+      role: system-seed
+      size: 1200M
+      type: 0C
+    - filesystem: vfat
+      name: ubuntu-boot
+      role: system-boot
+      size: 750M
+      type: 0C
+    - filesystem: ext4
+      name: ubuntu-save
+      role: system-save
+      size: 16M
+      type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
+    - filesystem: ext4
+      name: ubuntu-data
+      role: system-data
+      size: 1500M
+      type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
+  backup:
+    schema: mbr
+    structure:
+    - filesystem: ext4
+      name: system-backup
+      size: 127M
+      type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
+volume-assignments:
+  - assignment-name: raspi
+    assignment:
+      pi:
+        device: /dev/disk/by-path/pci-42:0
+      backup:
+        device: /dev/disk/by-path/pci-43:0
+`
+
+const RaspiMultiVolumeAssignmentNoSaveYaml = `
+volumes:
+  pi:
+    bootloader: u-boot
+    schema: mbr
+    structure:
+    - filesystem: vfat
+      name: ubuntu-seed
+      role: system-seed
+      size: 1200M
+      type: 0C
+    - filesystem: vfat
+      name: ubuntu-boot
+      role: system-boot
+      size: 750M
+      type: 0C
+    - filesystem: ext4
+      name: ubuntu-data
+      role: system-data
+      size: 1500M
+      type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
+  backup:
+    schema: mbr
+    structure:
+    - filesystem: ext4
+      name: system-backup
+      size: 127M
+      type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
+volume-assignments:
+  - assignment-name: raspi
+    assignment:
+      pi:
+        device: /dev/disk/by-path/pci-42:0
+      backup:
+        device: /dev/disk/by-path/pci-43:0
+`
+
 var expPiSeedStructureTraits = gadget.DiskStructureDeviceTraits{
 	OriginalDevicePath: "/sys/devices/platform/emmc2bus/fe340000.emmc2/mmc_host/mmc0/mmc0:0001/block/mmcblk0/mmcblk0p1",
 	OriginalKernelPath: "/dev/mmcblk0p1",
@@ -265,6 +377,30 @@ var ExpectedRaspiUC18DiskVolumeDeviceTraits = gadget.DiskVolumeDeviceTraits{
 	},
 }
 
+var expPiBackupStructureTraits = gadget.DiskStructureDeviceTraits{
+	OriginalDevicePath: "/sys/devices/platform/emmc2bus/fe340000.emmc2/mmc_host/mmc1/mmc1:0001/block/mmcblk1/mmcblk1p1",
+	OriginalKernelPath: "/dev/mmcblk1p1",
+	PartitionUUID:      "7c301cbe-01",
+	PartitionType:      "83",
+	FilesystemUUID:     "1cdd5826-e9de-4d27-83f7-20249e710591",
+	FilesystemLabel:    "system-backup",
+	FilesystemType:     "ext4",
+	Offset:             quantity.OffsetMiB,
+	Size:               127 * quantity.SizeMiB,
+}
+
+var ExpectedRaspiDiskVolumeDeviceBackupTraits = gadget.DiskVolumeDeviceTraits{
+	OriginalDevicePath: "/sys/devices/platform/emmc2bus/fe340000.emmc2/mmc_host/mmc1/mmc1:0001/block/mmcblk1",
+	OriginalKernelPath: "/dev/mmcblk1",
+	DiskID:             "7c301cbe",
+	Size:               128 * quantity.SizeMiB,
+	SectorSize:         512,
+	Schema:             "dos",
+	Structure: []gadget.DiskStructureDeviceTraits{
+		expPiBackupStructureTraits,
+	},
+}
+
 var mockSeedPartition = disks.Partition{
 	PartitionUUID:    "7c301cbd-01",
 	PartitionType:    "0C",
@@ -363,6 +499,33 @@ var ExpectedRaspiMockDiskMappingNoSave = &disks.MockDiskMapping{
 			DiskIndex:        3,
 			StartInBytes:     (1 + 1200 + 750) * oneMeg,
 			SizeInBytes:      (30528 - (1 + 1200 + 750)) * oneMeg,
+		},
+	},
+}
+
+var ExpectedRaspiMockBackupDiskMapping = &disks.MockDiskMapping{
+	DevNode:             "/dev/mmcblk1",
+	DevPath:             "/sys/devices/platform/emmc2bus/fe340000.emmc2/mmc_host/mmc1/mmc1:0001/block/mmcblk1",
+	DevNum:              "180:0",
+	DiskUsableSectorEnd: 128 * oneMeg / 512,
+	DiskSizeInBytes:     128 * oneMeg,
+	SectorSizeBytes:     512,
+	DiskSchema:          "dos",
+	ID:                  "7c301cbe",
+	Structure: []disks.Partition{
+		{
+			PartitionUUID:    "7c301cbe-01",
+			PartitionType:    "83",
+			FilesystemLabel:  "system-backup",
+			FilesystemUUID:   "1cdd5826-e9de-4d27-83f7-20249e710591",
+			FilesystemType:   "ext4",
+			Major:            180,
+			Minor:            1,
+			KernelDeviceNode: "/dev/mmcblk1p1",
+			KernelDevicePath: "/sys/devices/platform/emmc2bus/fe340000.emmc2/mmc_host/mmc1/mmc1:0001/block/mmcblk1/mmcblk1p1",
+			DiskIndex:        1,
+			StartInBytes:     oneMeg,
+			SizeInBytes:      127 * oneMeg,
 		},
 	},
 }
@@ -484,7 +647,7 @@ const ExpectedRaspiDiskVolumeDeviceTraitsJSON = `
     "size": 32010928128,
     "sector-size": 512,
     "schema": "dos",
-	"structure-encryption": {},
+    "structure-encryption": {},
     "structure": [
       {
         "device-path": "/sys/devices/platform/emmc2bus/fe340000.emmc2/mmc_host/mmc0/mmc0:0001/block/mmcblk0/mmcblk0p1",
@@ -548,7 +711,7 @@ const ExpectedRaspiDiskVolumeNoSaveDeviceTraitsJSON = `
     "size": 32010928128,
     "sector-size": 512,
     "schema": "dos",
-	"structure-encryption": {},
+    "structure-encryption": {},
     "structure": [
       {
         "device-path": "/sys/devices/platform/emmc2bus/fe340000.emmc2/mmc_host/mmc0/mmc0:0001/block/mmcblk0/mmcblk0p1",
@@ -600,14 +763,14 @@ const ExpectedLUKSEncryptedRaspiDiskVolumeDeviceTraitsJSON = `
     "size": 32010928128,
     "sector-size": 512,
     "schema": "dos",
-	"structure-encryption": {
-		"ubuntu-data": {
-			"method": "LUKS"
-		},
-		"ubuntu-save": {
-			"method": "LUKS"
-		}
-	},
+    "structure-encryption": {
+        "ubuntu-data": {
+            "method": "LUKS"
+        },
+        "ubuntu-save": {
+            "method": "LUKS"
+        }
+    },
     "structure": [
       {
         "device-path": "/sys/devices/platform/emmc2bus/fe340000.emmc2/mmc_host/mmc0/mmc0:0001/block/mmcblk0/mmcblk0p1",
@@ -656,6 +819,166 @@ const ExpectedLUKSEncryptedRaspiDiskVolumeDeviceTraitsJSON = `
         "filesystem-type": "crypto_LUKS",
         "offset": 2062548992,
         "size": 29948379136
+      }
+    ]
+  }
+}
+`
+
+const ExpectedRaspiDiskVolumeMultiVolumeDeviceTraitsJSON = `
+{
+  "pi": {
+    "device-path": "/sys/devices/platform/emmc2bus/fe340000.emmc2/mmc_host/mmc0/mmc0:0001/block/mmcblk0",
+    "kernel-path": "/dev/mmcblk0",
+    "disk-id": "7c301cbd",
+    "size": 32010928128,
+    "sector-size": 512,
+    "schema": "dos",
+    "structure-encryption": {},
+    "structure": [
+      {
+        "device-path": "/sys/devices/platform/emmc2bus/fe340000.emmc2/mmc_host/mmc0/mmc0:0001/block/mmcblk0/mmcblk0p1",
+        "kernel-path": "/dev/mmcblk0p1",
+        "partition-uuid": "7c301cbd-01",
+        "partition-label": "",
+        "partition-type": "0C",
+        "filesystem-label": "ubuntu-seed",
+        "filesystem-uuid": "0E09-0822",
+        "filesystem-type": "vfat",
+        "offset": 1048576,
+        "size": 1258291200
+      },
+      {
+        "device-path": "/sys/devices/platform/emmc2bus/fe340000.emmc2/mmc_host/mmc0/mmc0:0001/block/mmcblk0/mmcblk0p2",
+        "kernel-path": "/dev/mmcblk0p2",
+        "partition-uuid": "7c301cbd-02",
+        "partition-label": "",
+        "partition-type": "0C",
+        "filesystem-label": "ubuntu-boot",
+        "filesystem-uuid": "23F9-881F",
+        "filesystem-type": "vfat",
+        "offset": 1259339776,
+        "size": 786432000
+      },
+      {
+        "device-path": "/sys/devices/platform/emmc2bus/fe340000.emmc2/mmc_host/mmc0/mmc0:0001/block/mmcblk0/mmcblk0p3",
+        "kernel-path": "/dev/mmcblk0p3",
+        "partition-uuid": "7c301cbd-03",
+        "partition-label": "",
+        "partition-type": "83",
+        "filesystem-label": "ubuntu-save",
+        "filesystem-uuid": "1cdd5826-e9de-4d27-83f7-20249e710590",
+        "filesystem-type": "ext4",
+        "offset": 2045771776,
+        "size": 16777216
+      },
+      {
+        "device-path": "/sys/devices/platform/emmc2bus/fe340000.emmc2/mmc_host/mmc0/mmc0:0001/block/mmcblk0/mmcblk0p4",
+        "kernel-path": "/dev/mmcblk0p4",
+        "partition-uuid": "7c301cbd-04",
+        "partition-label": "",
+        "partition-type": "83",
+        "filesystem-label": "ubuntu-data",
+        "filesystem-uuid": "d7f39661-1da0-48de-8967-ce41343d4345",
+        "filesystem-type": "ext4",
+        "offset": 2062548992,
+        "size": 29948379136
+      }
+    ]
+  },
+  "backup": {
+    "device-path": "/sys/devices/platform/emmc2bus/fe340000.emmc2/mmc_host/mmc1/mmc1:0001/block/mmcblk1",
+    "kernel-path": "/dev/mmcblk1",
+    "disk-id": "7c301cbe",
+    "size": 134217728,
+    "sector-size": 512,
+    "schema": "dos",
+    "structure": [
+      {
+        "device-path": "/sys/devices/platform/emmc2bus/fe340000.emmc2/mmc_host/mmc1/mmc1:0001/block/mmcblk1/mmcblk1p1",
+        "kernel-path": "/dev/mmcblk1p1",
+        "partition-uuid": "7c301cbe-01",
+        "partition-label": "",
+        "partition-type": "83",
+        "filesystem-label": "system-backup",
+        "filesystem-uuid": "1cdd5826-e9de-4d27-83f7-20249e710591",
+        "filesystem-type": "ext4",
+        "offset": 1048576,
+        "size": 133169152
+      }
+    ]
+  }
+}
+`
+
+const ExpectedRaspiDiskVolumeMultiVolumeDeviceNoSaveTraitsJSON = `
+{
+  "pi": {
+    "device-path": "/sys/devices/platform/emmc2bus/fe340000.emmc2/mmc_host/mmc0/mmc0:0001/block/mmcblk0",
+    "kernel-path": "/dev/mmcblk0",
+    "disk-id": "7c301cbd",
+    "size": 32010928128,
+    "sector-size": 512,
+    "schema": "dos",
+    "structure-encryption": {},
+    "structure": [
+      {
+        "device-path": "/sys/devices/platform/emmc2bus/fe340000.emmc2/mmc_host/mmc0/mmc0:0001/block/mmcblk0/mmcblk0p1",
+        "kernel-path": "/dev/mmcblk0p1",
+        "partition-uuid": "7c301cbd-01",
+        "partition-label": "",
+        "partition-type": "0C",
+        "filesystem-label": "ubuntu-seed",
+        "filesystem-uuid": "0E09-0822",
+        "filesystem-type": "vfat",
+        "offset": 1048576,
+        "size": 1258291200
+      },
+      {
+        "device-path": "/sys/devices/platform/emmc2bus/fe340000.emmc2/mmc_host/mmc0/mmc0:0001/block/mmcblk0/mmcblk0p2",
+        "kernel-path": "/dev/mmcblk0p2",
+        "partition-uuid": "7c301cbd-02",
+        "partition-label": "",
+        "partition-type": "0C",
+        "filesystem-label": "ubuntu-boot",
+        "filesystem-uuid": "23F9-881F",
+        "filesystem-type": "vfat",
+        "offset": 1259339776,
+        "size": 786432000
+      },
+      {
+        "device-path": "/sys/devices/platform/emmc2bus/fe340000.emmc2/mmc_host/mmc0/mmc0:0001/block/mmcblk0/mmcblk0p3",
+        "kernel-path": "/dev/mmcblk0p3",
+        "partition-uuid": "7c301cbd-03",
+        "partition-label": "",
+        "partition-type": "83",
+        "filesystem-label": "ubuntu-data",
+        "filesystem-uuid": "d7f39661-1da0-48de-8967-ce41343d4345",
+        "filesystem-type": "ext4",
+        "offset": 2045771776,
+        "size": 29965156352
+      }
+    ]
+  },
+  "backup": {
+    "device-path": "/sys/devices/platform/emmc2bus/fe340000.emmc2/mmc_host/mmc1/mmc1:0001/block/mmcblk1",
+    "kernel-path": "/dev/mmcblk1",
+    "disk-id": "7c301cbe",
+    "size": 134217728,
+    "sector-size": 512,
+    "schema": "dos",
+    "structure": [
+      {
+        "device-path": "/sys/devices/platform/emmc2bus/fe340000.emmc2/mmc_host/mmc1/mmc1:0001/block/mmcblk1/mmcblk1p1",
+        "kernel-path": "/dev/mmcblk1p1",
+        "partition-uuid": "7c301cbe-01",
+        "partition-label": "",
+        "partition-type": "83",
+        "filesystem-label": "system-backup",
+        "filesystem-uuid": "1cdd5826-e9de-4d27-83f7-20249e710591",
+        "filesystem-type": "ext4",
+        "offset": 1048576,
+        "size": 133169152
       }
     ]
   }
@@ -1442,77 +1765,77 @@ var VMSystemVolumeDeviceTraits = gadget.DiskVolumeDeviceTraits{
 // like VMMultiVolumeUC20DiskTraitsJSON but without the foo volume
 const VMSingleVolumeUC20DiskTraitsJSON = `
 {
-	"pc": {
-		"device-path": "/sys/devices/pci0000:00/0000:00:03.0/virtio1/block/vda",
-		"kernel-path": "/dev/vda",
-		"disk-id": "f0eef013-a777-4a27-aaf0-dbb5cf68c2b6",
-		"size": 5368709120,
-		"sector-size": 512,
-		"schema": "gpt",
-		"structure": [
-		  {
-			"device-path": "/sys/devices/pci0000:00/0000:00:03.0/virtio1/block/vda/vda1",
-			"kernel-path": "/dev/vda1",
-			"partition-uuid": "420e5a20-b888-42e2-b7df-ced5cbf14517",
-			"partition-label": "BIOS\\x20Boot",
-			"partition-type": "21686148-6449-6E6F-744E-656564454649",
-			"filesystem-uuid": "",
-			"filesystem-label": "",
-			"filesystem-type": "",
-			"offset": 1048576,
-			"size": 1048576
-		  },
-		  {
-			"device-path": "/sys/devices/pci0000:00/0000:00:03.0/virtio1/block/vda/vda2",
-			"kernel-path": "/dev/vda2",
-			"partition-uuid": "4b436628-71ba-43f9-aa12-76b84fe32728",
-			"partition-label": "ubuntu-seed",
-			"partition-type": "C12A7328-F81F-11D2-BA4B-00A0C93EC93B",
-			"filesystem-uuid": "04D6-5AE2",
-			"filesystem-label": "ubuntu-seed",
-			"filesystem-type": "vfat",
-			"offset": 2097152,
-			"size": 1258291200
-		  },
-		  {
-			"device-path": "/sys/devices/pci0000:00/0000:00:03.0/virtio1/block/vda/vda3",
-			"kernel-path": "/dev/vda3",
-			"partition-uuid": "ade3ba65-7831-fd40-bbe2-e01c9774ed5b",
-			"partition-label": "ubuntu-boot",
-			"partition-type": "0FC63DAF-8483-4772-8E79-3D69D8477DE4",
-			"filesystem-uuid": "5b3e775a-407d-4af7-aa16-b92a8b7507e6",
-			"filesystem-label": "ubuntu-boot",
-			"filesystem-type": "ext4",
-			"offset": 1260388352,
-			"size": 786432000
-		  },
-		  {
-			"device-path": "/sys/devices/pci0000:00/0000:00:03.0/virtio1/block/vda/vda4",
-			"kernel-path": "/dev/vda4",
-			"partition-uuid": "f1d01870-194b-8a45-84c0-0d1c90e17d9d",
-			"partition-label": "ubuntu-save",
-			"partition-type": "0FC63DAF-8483-4772-8E79-3D69D8477DE4",
-			"filesystem-uuid": "6766b605-9cd5-47ae-bc48-807c778b9987",
-			"filesystem-label": "ubuntu-save",
-			"filesystem-type": "ext4",
-			"offset": 2046820352,
-			"size": 16777216
-		  },
-		  {
-			"device-path": "/sys/devices/pci0000:00/0000:00:03.0/virtio1/block/vda/vda5",
-			"kernel-path": "/dev/vda5",
-			"partition-uuid": "4994f0e5-1ead-1a4d-b696-2d8cb1fa980d",
-			"partition-label": "ubuntu-data",
-			"partition-type": "0FC63DAF-8483-4772-8E79-3D69D8477DE4",
-			"filesystem-uuid": "4e29a1e9-526d-48fc-a5c2-4f97e7e011e2",
-			"filesystem-label": "ubuntu-data",
-			"filesystem-type": "ext4",
-			"offset": 2063597568,
-			"size": 3305094656
-		  }
-		]
-	  }
-	}
+    "pc": {
+        "device-path": "/sys/devices/pci0000:00/0000:00:03.0/virtio1/block/vda",
+        "kernel-path": "/dev/vda",
+        "disk-id": "f0eef013-a777-4a27-aaf0-dbb5cf68c2b6",
+        "size": 5368709120,
+        "sector-size": 512,
+        "schema": "gpt",
+        "structure": [
+          {
+            "device-path": "/sys/devices/pci0000:00/0000:00:03.0/virtio1/block/vda/vda1",
+            "kernel-path": "/dev/vda1",
+            "partition-uuid": "420e5a20-b888-42e2-b7df-ced5cbf14517",
+            "partition-label": "BIOS\\x20Boot",
+            "partition-type": "21686148-6449-6E6F-744E-656564454649",
+            "filesystem-uuid": "",
+            "filesystem-label": "",
+            "filesystem-type": "",
+            "offset": 1048576,
+            "size": 1048576
+          },
+          {
+            "device-path": "/sys/devices/pci0000:00/0000:00:03.0/virtio1/block/vda/vda2",
+            "kernel-path": "/dev/vda2",
+            "partition-uuid": "4b436628-71ba-43f9-aa12-76b84fe32728",
+            "partition-label": "ubuntu-seed",
+            "partition-type": "C12A7328-F81F-11D2-BA4B-00A0C93EC93B",
+            "filesystem-uuid": "04D6-5AE2",
+            "filesystem-label": "ubuntu-seed",
+            "filesystem-type": "vfat",
+            "offset": 2097152,
+            "size": 1258291200
+          },
+          {
+            "device-path": "/sys/devices/pci0000:00/0000:00:03.0/virtio1/block/vda/vda3",
+            "kernel-path": "/dev/vda3",
+            "partition-uuid": "ade3ba65-7831-fd40-bbe2-e01c9774ed5b",
+            "partition-label": "ubuntu-boot",
+            "partition-type": "0FC63DAF-8483-4772-8E79-3D69D8477DE4",
+            "filesystem-uuid": "5b3e775a-407d-4af7-aa16-b92a8b7507e6",
+            "filesystem-label": "ubuntu-boot",
+            "filesystem-type": "ext4",
+            "offset": 1260388352,
+            "size": 786432000
+          },
+          {
+            "device-path": "/sys/devices/pci0000:00/0000:00:03.0/virtio1/block/vda/vda4",
+            "kernel-path": "/dev/vda4",
+            "partition-uuid": "f1d01870-194b-8a45-84c0-0d1c90e17d9d",
+            "partition-label": "ubuntu-save",
+            "partition-type": "0FC63DAF-8483-4772-8E79-3D69D8477DE4",
+            "filesystem-uuid": "6766b605-9cd5-47ae-bc48-807c778b9987",
+            "filesystem-label": "ubuntu-save",
+            "filesystem-type": "ext4",
+            "offset": 2046820352,
+            "size": 16777216
+          },
+          {
+            "device-path": "/sys/devices/pci0000:00/0000:00:03.0/virtio1/block/vda/vda5",
+            "kernel-path": "/dev/vda5",
+            "partition-uuid": "4994f0e5-1ead-1a4d-b696-2d8cb1fa980d",
+            "partition-label": "ubuntu-data",
+            "partition-type": "0FC63DAF-8483-4772-8E79-3D69D8477DE4",
+            "filesystem-uuid": "4e29a1e9-526d-48fc-a5c2-4f97e7e011e2",
+            "filesystem-label": "ubuntu-data",
+            "filesystem-type": "ext4",
+            "offset": 2063597568,
+            "size": 3305094656
+          }
+        ]
+      }
+    }
 `
 
 const VMMultiVolumeUC20DiskTraitsJSON = `
