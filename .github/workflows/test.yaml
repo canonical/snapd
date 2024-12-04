@@ -296,12 +296,12 @@ jobs:
             rules: 'main'
           - group: 'fedora (fundamental)'
             backend: openstack
-            systems: 'fedora-41-64'
+            systems: 'fedora-40-64'
             tasks: 'tests/...'
             rules: 'main'
-          - group: 'ubuntu-bionic (fundamental)'
+          - group: 'ubuntu-focal (fundamental)'
             backend: google
-            systems: 'ubuntu-18.04-64'
+            systems: 'ubuntu-20.04-64'
             tasks: 'tests/...'
             rules: 'main'
           - group: 'ubuntu-noble (fundamental)'
@@ -309,14 +309,14 @@ jobs:
             systems: 'ubuntu-24.04-64'
             tasks: 'tests/...'
             rules: 'main'
-          - group: 'ubuntu-daily (fundamental)'
+          - group: 'ubuntu-no-lts (fundamental)'
             backend: google
-            systems: 'ubuntu-25.04-64'
+            systems: 'ubuntu-24.10-64'
             tasks: 'tests/...'
             rules: 'main'
-          - group: 'ubuntu-core-18 (fundamental)'
+          - group: 'ubuntu-core-20 (fundamental)'
             backend: google-core
-            systems: 'ubuntu-core-18-64'
+            systems: 'ubuntu-core-20-64'
             tasks: 'tests/...'
             rules: 'main'
           - group: 'ubuntu-core-24 (fundamental)'
@@ -371,7 +371,7 @@ jobs:
             rules: 'main'
           - group: fedora
             backend: openstack
-            systems: 'fedora-40-64'
+            systems: 'fedora-41-64'
             tasks: 'tests/...'
             rules: 'main'
           - group: opensuse
@@ -384,24 +384,24 @@ jobs:
             systems: 'ubuntu-14.04-64'
             tasks: 'tests/smoke/ tests/main/canonical-livepatch tests/main/canonical-livepatch-14.04'
             rules: 'trusty'
-          - group: ubuntu-xenial
+          - group: ubuntu-xenial-bionic
             backend: google
-            systems: 'ubuntu-16.04-64'
+            systems: 'ubuntu-16.04-64 ubuntu-18.04-64'
             tasks: 'tests/...'
             rules: 'main'
-          - group: ubuntu-focal-jammy
+          - group: ubuntu-jammy
             backend: google
-            systems: 'ubuntu-20.04-64 ubuntu-22.04-64'
+            systems: 'ubuntu-22.04-64'
             tasks: 'tests/...'
             rules: 'main'
-          - group: ubuntu-no-lts
+          - group: 'ubuntu-daily'
             backend: google
-            systems: 'ubuntu-24.10-64'
+            systems: 'ubuntu-25.04-64'
             tasks: 'tests/...'
             rules: 'main'
-          - group: ubuntu-core-20
+          - group: 'ubuntu-core-18'
             backend: google-core
-            systems: 'ubuntu-core-20-64'
+            systems: 'ubuntu-core-18-64'
             tasks: 'tests/...'
             rules: 'main'
           - group: ubuntu-core-22
