@@ -57,6 +57,7 @@ import (
 	"github.com/snapcore/snapd/seed"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/naming"
+	"github.com/snapcore/snapd/snap/snapdir"
 	"github.com/snapcore/snapd/snap/squashfs"
 	"github.com/snapcore/snapd/sysconfig"
 	"github.com/snapcore/snapd/timings"
@@ -265,6 +266,18 @@ func readSnapInfo(sysSnaps map[snap.Type]*seed.Snap, snapType snap.Type) (*snap.
 
 }
 
+func readComponentInfo(seedComp *seed.Component, mntPt string, snapInfo *snap.Info, csi *snap.ComponentSideInfo) (*snap.ComponentInfo, error) {
+	container := snapdir.New(mntPt)
+	ci, err := snap.ReadComponentInfoFromContainer(container, snapInfo, csi)
+	if err != nil {
+		return nil, err
+	}
+	if ci.Revision.Unset() {
+		ci.Revision = snap.R(-1)
+	}
+	return ci, nil
+}
+
 func runFDESetupHook(req *fde.SetupRequest) ([]byte, error) {
 	// TODO: use systemd-run
 	encoded, err := json.Marshal(req)
@@ -331,25 +344,54 @@ func doInstall(mst *initramfsMountsState, model *asserts.Model, sysSnaps map[sna
 		return fmt.Errorf("cannot use gadget: %v", err)
 	}
 
-	// TODO:COMPS take into account kernel-modules components, see
-	// DeviceManager,doSetupRunSystem and other parts of
-	// handlers_install.go.
+	// Get kernel-modules information to have them ready early on first boot
+
+	kernCompsByName := make(map[string]*snap.Component)
+	for _, c := range kernelSnap.Components {
+		kernCompsByName[c.Name] = c
+	}
+
+	kernelSeed := sysSnaps[snap.TypeKernel]
+	kernCompsMntPts := make(map[string]string)
+	compSeedInfos := []gadgetInstall.CompSeedInfo{}
+	for _, sc := range kernelSeed.Components {
+		seedComp := sc
+		comp, ok := kernCompsByName[seedComp.CompSideInfo.Component.ComponentName]
+		if !ok {
+			return fmt.Errorf("component %s in seed but not defined by snap!",
+				seedComp.CompSideInfo.Component.ComponentName)
+		}
+		if comp.Type != snap.KernelModulesComponent {
+			continue
+		}
+
+		// Mount ephemerally the kernel-modules components
+		mntPt := filepath.Join(filepath.Join(boot.InitramfsRunMntDir, "snap-content",
+			seedComp.CompSideInfo.Component.String()))
+		if err := doSystemdMount(seedComp.Path, mntPt, &systemdMountOptions{
+			ReadOnly:  true,
+			Private:   true,
+			Ephemeral: true}); err != nil {
+			return err
+		}
+		kernCompsMntPts[seedComp.CompSideInfo.Component.String()] = mntPt
+
+		compInfo, err := readComponentInfo(&seedComp, mntPt, kernelSnap, &seedComp.CompSideInfo)
+		if err != nil {
+			return err
+		}
+		compSeedInfos = append(compSeedInfos, gadgetInstall.CompSeedInfo{
+			CompInfo: compInfo,
+			CompSeed: &seedComp,
+		})
+	}
+
+	isCore := !model.Classic()
+	kernelSnapInfo, bootKMods := gadgetInstall.KernelBootInfo(
+		kernelSnap, compSeedInfos, kernelMountDir, kernCompsMntPts,
+		isCore, model.NeedsKernelSetup())
 
 	bootDevice := ""
-	kernelSnapInfo := &gadgetInstall.KernelSnapInfo{
-		Name:       kernelSnap.SnapName(),
-		MountPoint: kernelMountDir,
-		Revision:   kernelSnap.Revision,
-		// Should be true always anyway
-		IsCore: !model.Classic(),
-	}
-	switch model.Base() {
-	case "core20", "core22", "core22-desktop":
-		kernelSnapInfo.NeedsDriversTree = false
-	default:
-		kernelSnapInfo.NeedsDriversTree = true
-	}
-
 	installedSystem, err := gadgetInstallRun(model, gadgetMountDir, kernelSnapInfo, bootDevice, options, installObserver, timings.New(nil))
 	if err != nil {
 		return err
@@ -382,6 +424,7 @@ func doInstall(mst *initramfsMountsState, model *asserts.Model, sysSnaps map[sna
 		KernelPath:          sysSnaps[snap.TypeKernel].Path,
 		UnpackedGadgetDir:   gadgetMountDir,
 		RecoverySystemLabel: mst.recoverySystem,
+		KernelMods:          bootKMods,
 	}
 
 	if err := bootMakeRunnableStandaloneSystem(model, bootWith, trustedInstallObserver); err != nil {
@@ -432,6 +475,25 @@ func generateMountsModeInstall(mst *initramfsMountsState) error {
 	}
 
 	if installAndRun {
+		kernSnap := snaps[snap.TypeKernel]
+		// seed is cached at this point
+		theSeed, err := mst.LoadSeed("")
+		if err != nil {
+			return fmt.Errorf("internal error: cannot load seed: %v", err)
+		}
+		// Filter by mode, this is relevant only to get the
+		// kernel-modules components that are used in run mode and
+		// therefore need to be considered when installing from the
+		// initramfs to have the modules available early on first boot.
+		// TODO when running normal install or recover/factory-reset,
+		// we would need also this if we want the modules to be
+		// available early.
+		kernSnap, err = theSeed.ModeSnap(kernSnap.SnapName(), "run")
+		if err != nil {
+			return err
+		}
+		snaps[snap.TypeKernel] = kernSnap
+
 		if err := doInstall(mst, model, snaps); err != nil {
 			return err
 		}
