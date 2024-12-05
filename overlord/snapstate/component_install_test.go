@@ -64,19 +64,19 @@ const (
 
 // opts is a bitset with compOpt* as possible values.
 func expectedComponentInstallTasks(opts int) []string {
-	beforeLink, link, postOpHooksAndAfter, discard := expectedComponentInstallTasksSplit(opts)
-	return append(append(append(beforeLink, link...), postOpHooksAndAfter...), discard...)
+	beforeMount, beforeLink, link, postOpHooksAndAfter, discard := expectedComponentInstallTasksSplit(opts)
+	return append(append(append(append(beforeMount, beforeLink...), link...), postOpHooksAndAfter...), discard...)
 }
 
-func expectedComponentInstallTasksSplit(opts int) (beforeLink, link, postOpHooksAndAfter, discard []string) {
+func expectedComponentInstallTasksSplit(opts int) (beforeMount, beforeLink, link, postOpHooksAndAfter, discard []string) {
 	if opts&compOptIsLocal != 0 || opts&compOptRevisionPresent != 0 {
-		beforeLink = []string{"prepare-component"}
+		beforeMount = []string{"prepare-component"}
 	} else {
-		beforeLink = []string{"download-component"}
+		beforeMount = []string{"download-component"}
 	}
 
 	if opts&compOptIsUnasserted == 0 {
-		beforeLink = append(beforeLink, "validate-component")
+		beforeMount = append(beforeMount, "validate-component")
 	}
 
 	// Revision is not the same as the current one installed
@@ -116,7 +116,7 @@ func expectedComponentInstallTasksSplit(opts int) (beforeLink, link, postOpHooks
 		discard = append(discard, "discard-component")
 	}
 
-	return beforeLink, link, postOpHooksAndAfter, discard
+	return beforeMount, beforeLink, link, postOpHooksAndAfter, discard
 }
 
 func checkSetupTasks(c *C, compOpts int, ts *state.TaskSet) {
@@ -149,6 +149,7 @@ func checkSetupTasks(c *C, compOpts int, ts *state.TaskSet) {
 			c.Assert(t.Get("snap-setup-task", &storedTaskID), IsNil)
 			c.Assert(storedTaskID, Equals, snapSetupTaskID)
 		}
+
 		// ComponentSetup/SnapSetup found must match the ones from the first task
 		csup, ssup, err := snapstate.TaskComponentSetup(t)
 		c.Assert(err, IsNil)
@@ -172,6 +173,15 @@ func verifyComponentInstallTasks(c *C, opts int, ts *state.TaskSet) {
 	c.Assert(kinds, DeepEquals, expected)
 
 	checkSetupTasks(c, opts, ts)
+
+	t, err := ts.Edge(snapstate.LastBeforeLocalModificationsEdge)
+	c.Assert(err, IsNil)
+
+	if opts&compOptIsUnasserted == 0 {
+		c.Assert(t.Kind(), Equals, "validate-component")
+	} else {
+		c.Assert(t.Kind(), Equals, "prepare-component")
+	}
 }
 
 func createTestComponent(c *C, snapName, compName string, snapInfo *snap.Info) (*snap.ComponentInfo, string) {

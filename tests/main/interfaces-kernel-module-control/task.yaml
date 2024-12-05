@@ -19,8 +19,6 @@ systems:
   - -arch-*
   - -amazon-*
   - -centos-*
-  # TODO: su -l -c test-snapd-kernel-module-consumer.lsmod fails on core 22
-  - -ubuntu-core-22-*
 
 environment:
     MODULE: minix
@@ -33,7 +31,13 @@ prepare: |
     . "$TESTSLIB"/snaps.sh
     install_generic_consumer kernel-module-control
 
+    # Prepare for using sessions as the given user
+    tests.session prepare -u test
+
 restore: |
+    # Restore after using sessions as the given user
+    tests.session restore -u test
+
     if lsmod | MATCH "$MODULE" && [ ! -f module_present ]; then
         rmmod "$MODULE"
     elif [ -f module_present ] && ! lsmod | MATCH "$MODULE" ; then
@@ -58,7 +62,7 @@ execute: |
     snap connect generic-consumer:kernel-module-control
 
     echo "Then the snap is able to list the existing modules"
-    test "$(su -l -c "test-snapd-kernel-module-consumer.lsmod" test | wc -l)" -gt 2
+    test "$(tests.session -u test exec test-snapd-kernel-module-consumer.lsmod | wc -l)" -gt 2
 
     echo "And the snap is able to insert a module"
     if lsmod | MATCH "$MODULE"; then
@@ -72,7 +76,7 @@ execute: |
     generic-consumer.cmd ls /sys/module | MATCH "$MODULE"
 
     echo "And the snap is not able to write to /sys/module"
-    if su -l -c "generic-consumer.cmd touch /sys/module/test" test 2> touch.error; then
+    if tests.session -u test exec generic-consumer.cmd touch /sys/module/test 2> touch.error; then
         echo "Expected permission error writing to /sys/module"
         exit 1
     fi
@@ -91,7 +95,7 @@ execute: |
     snap disconnect generic-consumer:kernel-module-control
 
     echo "Then the snap is not able to list modules"
-    if su -l -c "test-snapd-kernel-module-consumer.lsmod" test 2> list.error; then
+    if tests.session -u test exec test-snapd-kernel-module-consumer.lsmod 2> list.error; then
         echo "Expected permission error listing modules with disconnected plug"
         exit 1
     fi
@@ -115,14 +119,14 @@ execute: |
     MATCH "Permission denied" < remove.error
 
     echo "And the snap is not able to read /sys/module"
-    if su -l -c "generic-consumer.cmd ls /sys/module" test 2> read.error; then
+    if tests.session -u test exec generic-consumer.cmd ls /sys/module 2> read.error; then
         echo "Expected permission error reading /sys/module with disconnected plug"
         exit 1
     fi
     MATCH "Permission denied" < read.error
 
     echo "And the snap is not able to write to /sys/module"
-    if su -l -c "generic-consumer.cmd touch /sys/module/test" test 2> touch.error; then
+    if tests.session -u test exec generic-consumer.cmd touch /sys/module/test 2> touch.error; then
         echo "Expected permission error writing to /sys/module"
         exit 1
     fi

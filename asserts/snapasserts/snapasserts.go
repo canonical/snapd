@@ -509,12 +509,12 @@ func FetchStore(f asserts.Fetcher, storeID string) error {
 	return f.Fetch(ref)
 }
 
-// FetchRegistry fetches a registry assertion described by account and registry
+// FetchConfdb fetches a confdb assertion described by account and confdb
 // name using the given fetcher.
-func FetchRegistry(f asserts.Fetcher, account, registryName string) error {
+func FetchConfdb(f asserts.Fetcher, account, confdbName string) error {
 	ref := &asserts.Ref{
-		Type:       asserts.RegistryType,
-		PrimaryKey: []string{account, registryName},
+		Type:       asserts.ConfdbType,
+		PrimaryKey: []string{account, confdbName},
 	}
 
 	return f.Fetch(ref)

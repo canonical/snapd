@@ -115,8 +115,7 @@ missing_interface_spread_test() {
     for iface in $(go run ./tests/lib/list-interfaces.go) ; do
         search="plugs: \\[ $iface \\]"
         case "$iface" in
-            # TODO: remove registry once we test the interface in the spread test
-            bool-file|gpio|pwm|dsp|netlink-driver|hidraw|i2c|iio|serial-port|spi|registry)
+            bool-file|gpio|pwm|dsp|netlink-driver|hidraw|i2c|iio|serial-port|spi|confdb)
                 # skip gadget provided interfaces for now
                 continue
                 ;;

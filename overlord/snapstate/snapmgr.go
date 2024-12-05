@@ -150,9 +150,9 @@ type SnapSetup struct {
 	// effect on which tasks get created to update the snap.
 	AlwaysUpdate bool `json:"-"`
 
-	// Registries is the set of registries that the snap plugs, identified by
-	// account and registry name pairs.
-	Registries []RegistryID `json:"registries,omitempty"`
+	// Confdbs is the set of confdbs that the snap plugs, identified by
+	// account and confdb name pairs.
+	Confdbs []ConfdbID `json:"confdbs,omitempty"`
 
 	// PreUpdateKernelModuleComponents is set if the kernel-modules component
 	// that are set up, prior to any changes to the state. This is used in the
@@ -161,12 +161,12 @@ type SnapSetup struct {
 	PreUpdateKernelModuleComponents []*snap.ComponentSideInfo `json:"pre-update-kernel-module-components"`
 }
 
-// RegistryID identifies a registry.
-type RegistryID struct {
-	// Account is the name of the account that publishes the registry.
+// ConfdbID identifies a confdb.
+type ConfdbID struct {
+	// Account is the name of the account that publishes the confdb.
 	Account string
-	// Registry is the name of the registry within the account namespace.
-	Registry string
+	// Confdb is the name of the confdb within the account namespace.
+	Confdb string
 }
 
 func (snapsup *SnapSetup) InstanceName() string {

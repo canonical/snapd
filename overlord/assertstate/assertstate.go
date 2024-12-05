@@ -29,11 +29,11 @@ import (
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/snapasserts"
+	"github.com/snapcore/snapd/confdb"
 	"github.com/snapcore/snapd/httputil"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
-	"github.com/snapcore/snapd/registry"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 )
@@ -390,14 +390,14 @@ func AutoRefreshAssertions(s *state.State, userID int) error {
 		return err
 	}
 
-	return autoRefreshRegistryAssertions(s, userID, opts)
+	return autoRefreshConfdbAssertions(s, userID, opts)
 }
 
-// autoRefreshRegistryAssertions fetches the newest revision of all stored
-// registry assertions.
-func autoRefreshRegistryAssertions(st *state.State, userID int, opts *RefreshAssertionsOptions) error {
+// autoRefreshConfdbAssertions fetches the newest revision of all stored
+// confdb assertions.
+func autoRefreshConfdbAssertions(st *state.State, userID int, opts *RefreshAssertionsOptions) error {
 	db := cachedDB(st)
-	regAsserts, err := db.FindMany(asserts.RegistryType, nil)
+	confdbAsserts, err := db.FindMany(asserts.ConfdbType, nil)
 	if err != nil {
 		if errors.Is(err, &asserts.NotFoundError{}) {
 			return nil
@@ -405,19 +405,19 @@ func autoRefreshRegistryAssertions(st *state.State, userID int, opts *RefreshAss
 		return err
 	}
 
-	var registries []*registry.Registry
-	for _, regAs := range regAsserts {
-		reg := regAs.(*asserts.Registry).Registry()
-		registries = append(registries, reg)
+	var confdbs []*confdb.Confdb
+	for _, dbAs := range confdbAsserts {
+		confdb := dbAs.(*asserts.Confdb).Confdb()
+		confdbs = append(confdbs, confdb)
 	}
 
-	return refreshRegistryAssertions(st, registries, userID, opts)
+	return refreshConfdbAssertions(st, confdbs, userID, opts)
 }
 
-// refreshRegistryAssertions fetches new revisions for the registry assertions
-// referenced by the provided registries. It attempts a bulk refresh and if that
+// refreshConfdbAssertions fetches new revisions for the confdb assertions
+// referenced by the provided confdbs. It attempts a bulk refresh and if that
 // fails, it falls back to fetching the assertions one by one.
-func refreshRegistryAssertions(st *state.State, registries []*registry.Registry, userID int, opts *RefreshAssertionsOptions) error {
+func refreshConfdbAssertions(st *state.State, confdbs []*confdb.Confdb, userID int, opts *RefreshAssertionsOptions) error {
 	if opts == nil {
 		opts = &RefreshAssertionsOptions{}
 	}
@@ -427,7 +427,7 @@ func refreshRegistryAssertions(st *state.State, registries []*registry.Registry,
 		return err
 	}
 
-	err = bulkRefreshRegistries(st, registries, userID, deviceCtx, opts)
+	err = bulkRefreshConfdbs(st, confdbs, userID, deviceCtx, opts)
 	if err == nil {
 		return nil
 	}
@@ -437,11 +437,11 @@ func refreshRegistryAssertions(st *state.State, registries []*registry.Registry,
 		// the bulk request itself
 		return err
 	}
-	logger.Noticef("bulk refresh of registry assertions failed, falling back to one-by-one assertion fetching: %v", err)
+	logger.Noticef("bulk refresh of confdb assertions failed, falling back to one-by-one assertion fetching: %v", err)
 
 	return doFetch(st, userID, deviceCtx, nil, func(f asserts.Fetcher) error {
-		for _, registry := range registries {
-			if err := snapasserts.FetchRegistry(f, registry.Account, registry.Name); err != nil {
+		for _, confdb := range confdbs {
+			if err := snapasserts.FetchConfdb(f, confdb.Account, confdb.Name); err != nil {
 				return err
 			}
 		}
@@ -1290,17 +1290,17 @@ func resolveValidationSetAssertion(seq *asserts.AtSequence, db asserts.RODatabas
 	return seq.Resolve(db.Find)
 }
 
-// Registry returns the registry for the given account and registry name,
+// Confdb returns the confdb for the given account and confdb name,
 // if it's present in the system assertion database.
-func Registry(s *state.State, account, registryName string) (*asserts.Registry, error) {
+func Confdb(s *state.State, account, confdbName string) (*asserts.Confdb, error) {
 	db := DB(s)
-	as, err := db.Find(asserts.RegistryType, map[string]string{
+	as, err := db.Find(asserts.ConfdbType, map[string]string{
 		"account-id": account,
-		"name":       registryName,
+		"name":       confdbName,
 	})
 	if err != nil {
 		return nil, err
 	}
 
-	return as.(*asserts.Registry), nil
+	return as.(*asserts.Confdb), nil
 }

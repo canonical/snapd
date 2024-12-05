@@ -55,7 +55,7 @@ func (s *updateTestSuite) SetUpTest(c *C) {
 	dirs.SetRootDir(c.MkDir())
 	s.AddCleanup(func() { dirs.SetRootDir("") })
 
-	r := gadget.MockVolumeStructureToLocationMap(func(_ gadget.GadgetData, _ gadget.Model, _ map[string]*gadget.Volume) (map[string]map[int]gadget.StructureLocation, map[string]map[int]*gadget.OnDiskStructure, error) {
+	r := gadget.MockVolumeStructureToLocationMap(func(_ gadget.Model, _, _ map[string]*gadget.Volume) (map[string]map[int]gadget.StructureLocation, map[string]map[int]*gadget.OnDiskStructure, error) {
 		return nil, nil, fmt.Errorf("unmocked volume structure to loc map")
 	})
 	restoreDoer := sync.Once{}
@@ -635,7 +635,7 @@ func (u *updateTestSuite) updateDataSet(c *C) (oldData gadget.GadgetData, newDat
 
 	// reasonably default volume structure to location map - individual tests
 	// can override this
-	r := gadget.MockVolumeStructureToLocationMap(func(_ gadget.GadgetData, _ gadget.Model, _ map[string]*gadget.Volume) (map[string]map[int]gadget.StructureLocation, map[string]map[int]*gadget.OnDiskStructure, error) {
+	r := gadget.MockVolumeStructureToLocationMap(func(_ gadget.Model, _, _ map[string]*gadget.Volume) (map[string]map[int]gadget.StructureLocation, map[string]map[int]*gadget.OnDiskStructure, error) {
 		// XXX return something that we'll check
 		return map[string]map[int]gadget.StructureLocation{
 			"foo": {
@@ -699,7 +699,7 @@ func (u *updateTestSuite) TestUpdateApplyHappy(c *C) {
 	newData.Info.Volumes["foo"].Structure[0].Update.Edition = 1
 	newData.Info.Volumes["foo"].Structure[1].Update.Edition = 1
 
-	r := gadget.MockVolumeStructureToLocationMap(func(gd gadget.GadgetData, _ gadget.Model, _ map[string]*gadget.Volume) (map[string]map[int]gadget.StructureLocation, map[string]map[int]*gadget.OnDiskStructure, error) {
+	r := gadget.MockVolumeStructureToLocationMap(func(_ gadget.Model, oldVolumes, _ map[string]*gadget.Volume) (map[string]map[int]gadget.StructureLocation, map[string]map[int]*gadget.OnDiskStructure, error) {
 		return map[string]map[int]gadget.StructureLocation{
 				"foo": {
 					0: {
@@ -713,7 +713,7 @@ func (u *updateTestSuite) TestUpdateApplyHappy(c *C) {
 					},
 				},
 			}, map[string]map[int]*gadget.OnDiskStructure{
-				"foo": gadget.OnDiskStructsFromGadget(gd.Info.Volumes["foo"]),
+				"foo": gadget.OnDiskStructsFromGadget(oldVolumes["foo"]),
 			},
 			nil
 	})
@@ -1078,7 +1078,7 @@ func (u *updateTestSuite) TestUpdateApplyUC20MissingInitialMapFullLogicOnlySyste
 		newData.Info.Volumes["pc"].Structure[i+2].Update.Edition = 1
 	}
 
-	r := gadget.MockVolumeStructureToLocationMap(func(gd gadget.GadgetData, _ gadget.Model, _ map[string]*gadget.Volume) (map[string]map[int]gadget.StructureLocation, map[string]map[int]*gadget.OnDiskStructure, error) {
+	r := gadget.MockVolumeStructureToLocationMap(func(_ gadget.Model, oldVolumes, _ map[string]*gadget.Volume) (map[string]map[int]gadget.StructureLocation, map[string]map[int]*gadget.OnDiskStructure, error) {
 		return map[string]map[int]gadget.StructureLocation{
 				"pc": {
 					0: {
@@ -1102,8 +1102,8 @@ func (u *updateTestSuite) TestUpdateApplyUC20MissingInitialMapFullLogicOnlySyste
 					},
 				},
 			}, map[string]map[int]*gadget.OnDiskStructure{
-				"pc":  gadget.OnDiskStructsFromGadget(gd.Info.Volumes["pc"]),
-				"foo": gadget.OnDiskStructsFromGadget(gd.Info.Volumes["foo"]),
+				"pc":  gadget.OnDiskStructsFromGadget(oldVolumes["pc"]),
+				"foo": gadget.OnDiskStructsFromGadget(oldVolumes["foo"]),
 			},
 			nil
 	})
@@ -1363,7 +1363,7 @@ func (u *updateTestSuite) TestUpdateApplyUC20MissingInitialMapFullLogicOnlySyste
 	// content, to check that updates are ignored in this case.
 	newData.Info.Volumes["pc"].Structure[4].Update.Edition = 1
 
-	r := gadget.MockVolumeStructureToLocationMap(func(gd gadget.GadgetData, _ gadget.Model, _ map[string]*gadget.Volume) (map[string]map[int]gadget.StructureLocation, map[string]map[int]*gadget.OnDiskStructure, error) {
+	r := gadget.MockVolumeStructureToLocationMap(func(_ gadget.Model, oldVolumes, _ map[string]*gadget.Volume) (map[string]map[int]gadget.StructureLocation, map[string]map[int]*gadget.OnDiskStructure, error) {
 		return map[string]map[int]gadget.StructureLocation{
 				"pc": {
 					0: {
@@ -1633,7 +1633,7 @@ func (u *updateTestSuite) TestUpdateApplyUC20MissingInitialMapFullLogicOnlySyste
 	newData.Info.Volumes["foo"].Structure[2].Content = []gadget.VolumeContent{{UnresolvedSource: fName}}
 	newData.Info.Volumes["foo"].Structure[2].Update.Edition = 1
 
-	r := gadget.MockVolumeStructureToLocationMap(func(gd gadget.GadgetData, _ gadget.Model, _ map[string]*gadget.Volume) (map[string]map[int]gadget.StructureLocation, map[string]map[int]*gadget.OnDiskStructure, error) {
+	r := gadget.MockVolumeStructureToLocationMap(func(_ gadget.Model, oldVolumes, _ map[string]*gadget.Volume) (map[string]map[int]gadget.StructureLocation, map[string]map[int]*gadget.OnDiskStructure, error) {
 		return map[string]map[int]gadget.StructureLocation{
 				"pc": {
 					0: {
@@ -1657,8 +1657,8 @@ func (u *updateTestSuite) TestUpdateApplyUC20MissingInitialMapFullLogicOnlySyste
 					},
 				},
 			}, map[string]map[int]*gadget.OnDiskStructure{
-				"pc":  gadget.OnDiskStructsFromGadget(gd.Info.Volumes["pc"]),
-				"foo": gadget.OnDiskStructsFromGadget(gd.Info.Volumes["foo"]),
+				"pc":  gadget.OnDiskStructsFromGadget(oldVolumes["pc"]),
+				"foo": gadget.OnDiskStructsFromGadget(oldVolumes["foo"]),
 			},
 			nil
 	})
@@ -2213,7 +2213,7 @@ func (u *updateTestSuite) TestUpdateApplyUC20WithInitialMapIncompatibleStructure
 		copy(oldData.Info.Volumes[volName].Structure, laidOutVol.Volume.Structure)
 	}
 
-	r := gadget.MockVolumeStructureToLocationMap(func(gd gadget.GadgetData, _ gadget.Model, _ map[string]*gadget.Volume) (map[string]map[int]gadget.StructureLocation, map[string]map[int]*gadget.OnDiskStructure, error) {
+	r := gadget.MockVolumeStructureToLocationMap(func(_ gadget.Model, oldVolumes, _ map[string]*gadget.Volume) (map[string]map[int]gadget.StructureLocation, map[string]map[int]*gadget.OnDiskStructure, error) {
 		return map[string]map[int]gadget.StructureLocation{
 				"pc": {
 					0: {
@@ -2247,8 +2247,8 @@ func (u *updateTestSuite) TestUpdateApplyUC20WithInitialMapIncompatibleStructure
 				},
 			},
 			map[string]map[int]*gadget.OnDiskStructure{
-				"pc":  gadget.OnDiskStructsFromGadget(gd.Info.Volumes["pc"]),
-				"foo": gadget.OnDiskStructsFromGadget(gd.Info.Volumes["foo"]),
+				"pc":  gadget.OnDiskStructsFromGadget(oldVolumes["pc"]),
+				"foo": gadget.OnDiskStructsFromGadget(oldVolumes["foo"]),
 			}, nil
 	})
 	defer r()
@@ -2460,7 +2460,7 @@ volumes:
 	// some filesystem
 	newData.Info.Volumes["foo"].Structure[2].Update.Edition = 1
 
-	r := gadget.MockVolumeStructureToLocationMap(func(gd gadget.GadgetData, _ gadget.Model, _ map[string]*gadget.Volume) (map[string]map[int]gadget.StructureLocation, map[string]map[int]*gadget.OnDiskStructure, error) {
+	r := gadget.MockVolumeStructureToLocationMap(func(_ gadget.Model, oldVolumes, _ map[string]*gadget.Volume) (map[string]map[int]gadget.StructureLocation, map[string]map[int]*gadget.OnDiskStructure, error) {
 		return map[string]map[int]gadget.StructureLocation{
 				"pc": {
 					0: {
@@ -2496,8 +2496,8 @@ volumes:
 					},
 				},
 			}, map[string]map[int]*gadget.OnDiskStructure{
-				"pc":  gadget.OnDiskStructsFromGadget(gd.Info.Volumes["pc"]),
-				"foo": gadget.OnDiskStructsFromGadget(gd.Info.Volumes["foo"]),
+				"pc":  gadget.OnDiskStructsFromGadget(oldVolumes["pc"]),
+				"foo": gadget.OnDiskStructsFromGadget(oldVolumes["foo"]),
 			},
 			nil
 	})
@@ -2937,7 +2937,7 @@ func (u *updateTestSuite) TestUpdateApplyOnlyWhenNeeded(c *C) {
 	oldData.Info.Volumes["foo"].Structure[2].Update.Edition = 3
 	newData.Info.Volumes["foo"].Structure[2].Update.Edition = 3
 
-	r := gadget.MockVolumeStructureToLocationMap(func(gd gadget.GadgetData, _ gadget.Model, _ map[string]*gadget.Volume) (map[string]map[int]gadget.StructureLocation, map[string]map[int]*gadget.OnDiskStructure, error) {
+	r := gadget.MockVolumeStructureToLocationMap(func(_ gadget.Model, oldVolumes, _ map[string]*gadget.Volume) (map[string]map[int]gadget.StructureLocation, map[string]map[int]*gadget.OnDiskStructure, error) {
 		return map[string]map[int]gadget.StructureLocation{
 				"foo": {
 					0: {
@@ -2952,7 +2952,7 @@ func (u *updateTestSuite) TestUpdateApplyOnlyWhenNeeded(c *C) {
 					},
 				},
 			}, map[string]map[int]*gadget.OnDiskStructure{
-				"foo": gadget.OnDiskStructsFromGadget(gd.Info.Volumes["foo"]),
+				"foo": gadget.OnDiskStructsFromGadget(oldVolumes["foo"]),
 			},
 			nil
 	})
@@ -3019,10 +3019,10 @@ func (u *updateTestSuite) TestUpdateApplyErrorLayout(c *C) {
 			},
 		},
 	}
-	r := gadget.MockVolumeStructureToLocationMap(func(gd gadget.GadgetData, _ gadget.Model, _ map[string]*gadget.Volume) (map[string]map[int]gadget.StructureLocation, map[string]map[int]*gadget.OnDiskStructure, error) {
+	r := gadget.MockVolumeStructureToLocationMap(func(_ gadget.Model, oldVolumes, _ map[string]*gadget.Volume) (map[string]map[int]gadget.StructureLocation, map[string]map[int]*gadget.OnDiskStructure, error) {
 		return map[string]map[int]gadget.StructureLocation{"foo": {}},
 			map[string]map[int]*gadget.OnDiskStructure{
-				"foo": gadget.OnDiskStructsFromGadget(gd.Info.Volumes["foo"]),
+				"foo": gadget.OnDiskStructsFromGadget(oldVolumes["foo"]),
 			},
 			nil
 	})
@@ -3085,7 +3085,7 @@ func (u *updateTestSuite) TestUpdateApplyErrorIllegalVolumeUpdate(c *C) {
 			},
 		},
 	}
-	r := gadget.MockVolumeStructureToLocationMap(func(_ gadget.GadgetData, _ gadget.Model, _ map[string]*gadget.Volume) (map[string]map[int]gadget.StructureLocation, map[string]map[int]*gadget.OnDiskStructure, error) {
+	r := gadget.MockVolumeStructureToLocationMap(func(_ gadget.Model, _, _ map[string]*gadget.Volume) (map[string]map[int]gadget.StructureLocation, map[string]map[int]*gadget.OnDiskStructure, error) {
 		return map[string]map[int]gadget.StructureLocation{"foo": {}},
 			map[string]map[int]*gadget.OnDiskStructure{
 				"foo": {
@@ -3151,10 +3151,10 @@ func (u *updateTestSuite) TestUpdateApplyErrorIllegalStructureUpdate(c *C) {
 			},
 		},
 	}
-	r := gadget.MockVolumeStructureToLocationMap(func(gd gadget.GadgetData, _ gadget.Model, _ map[string]*gadget.Volume) (map[string]map[int]gadget.StructureLocation, map[string]map[int]*gadget.OnDiskStructure, error) {
+	r := gadget.MockVolumeStructureToLocationMap(func(_ gadget.Model, oldVolumes, _ map[string]*gadget.Volume) (map[string]map[int]gadget.StructureLocation, map[string]map[int]*gadget.OnDiskStructure, error) {
 		return map[string]map[int]gadget.StructureLocation{"foo": {}},
 			map[string]map[int]*gadget.OnDiskStructure{
-				"foo": gadget.OnDiskStructsFromGadget(gd.Info.Volumes["foo"]),
+				"foo": gadget.OnDiskStructsFromGadget(oldVolumes["foo"]),
 			},
 			nil
 	})
@@ -3261,7 +3261,7 @@ func (u *updateTestSuite) TestUpdateApplyUpdatesAreOptInWithDefaultPolicy(c *C) 
 	})
 	defer restore()
 
-	r := gadget.MockVolumeStructureToLocationMap(func(_ gadget.GadgetData, _ gadget.Model, _ map[string]*gadget.Volume) (map[string]map[int]gadget.StructureLocation, map[string]map[int]*gadget.OnDiskStructure, error) {
+	r := gadget.MockVolumeStructureToLocationMap(func(_ gadget.Model, _, _ map[string]*gadget.Volume) (map[string]map[int]gadget.StructureLocation, map[string]map[int]*gadget.OnDiskStructure, error) {
 		return map[string]map[int]gadget.StructureLocation{"foo": {}},
 			map[string]map[int]*gadget.OnDiskStructure{
 				"foo": {
@@ -3300,7 +3300,7 @@ func (u *updateTestSuite) policyDataSet(c *C) (oldData gadget.GadgetData, newDat
 		Offset:     asOffsetPtr(0),
 	}
 
-	r := gadget.MockVolumeStructureToLocationMap(func(_ gadget.GadgetData, _ gadget.Model, _ map[string]*gadget.Volume) (map[string]map[int]gadget.StructureLocation, map[string]map[int]*gadget.OnDiskStructure, error) {
+	r := gadget.MockVolumeStructureToLocationMap(func(_ gadget.Model, _, _ map[string]*gadget.Volume) (map[string]map[int]gadget.StructureLocation, map[string]map[int]*gadget.OnDiskStructure, error) {
 		// XXX map
 		return map[string]map[int]gadget.StructureLocation{
 			"foo": {
@@ -3360,7 +3360,7 @@ func (u *updateTestSuite) TestUpdateApplyUpdatesArePolicyControlled(c *C) {
 	newData.Info.Volumes["foo"].Structure[3].Update.Edition = 4
 	newData.Info.Volumes["foo"].Structure[4].Update.Edition = 5
 
-	r := gadget.MockVolumeStructureToLocationMap(func(_ gadget.GadgetData, _ gadget.Model, _ map[string]*gadget.Volume) (map[string]map[int]gadget.StructureLocation, map[string]map[int]*gadget.OnDiskStructure, error) {
+	r := gadget.MockVolumeStructureToLocationMap(func(_ gadget.Model, _, _ map[string]*gadget.Volume) (map[string]map[int]gadget.StructureLocation, map[string]map[int]*gadget.OnDiskStructure, error) {
 		return map[string]map[int]gadget.StructureLocation{
 				"foo": {
 					0: {
@@ -3446,7 +3446,7 @@ func (u *updateTestSuite) TestUpdateApplyUpdatesDefaultPolicy(c *C) {
 	// new one has edition set explicitly
 	newData.Info.Volumes["foo"].Structure[1].Update.Edition = 5
 
-	r := gadget.MockVolumeStructureToLocationMap(func(_ gadget.GadgetData, _ gadget.Model, _ map[string]*gadget.Volume) (map[string]map[int]gadget.StructureLocation, map[string]map[int]*gadget.OnDiskStructure, error) {
+	r := gadget.MockVolumeStructureToLocationMap(func(_ gadget.Model, _, _ map[string]*gadget.Volume) (map[string]map[int]gadget.StructureLocation, map[string]map[int]*gadget.OnDiskStructure, error) {
 		return map[string]map[int]gadget.StructureLocation{
 				"foo": {
 					0: {
@@ -3504,7 +3504,7 @@ func (u *updateTestSuite) TestUpdateApplyUpdatesRemodelPolicy(c *C) {
 	oldData.Info.Volumes["foo"].Structure[3].Update.Edition = 4
 	oldData.Info.Volumes["foo"].Structure[4].Update.Edition = 5
 
-	r := gadget.MockVolumeStructureToLocationMap(func(_ gadget.GadgetData, _ gadget.Model, _ map[string]*gadget.Volume) (map[string]map[int]gadget.StructureLocation, map[string]map[int]*gadget.OnDiskStructure, error) {
+	r := gadget.MockVolumeStructureToLocationMap(func(_ gadget.Model, _, _ map[string]*gadget.Volume) (map[string]map[int]gadget.StructureLocation, map[string]map[int]*gadget.OnDiskStructure, error) {
 		return map[string]map[int]gadget.StructureLocation{
 				"foo": {
 					0: {
@@ -3562,7 +3562,7 @@ func (u *updateTestSuite) TestUpdateApplyBackupFails(c *C) {
 	newData.Info.Volumes["foo"].Structure[1].Update.Edition = 1
 	newData.Info.Volumes["foo"].Structure[2].Update.Edition = 3
 
-	r := gadget.MockVolumeStructureToLocationMap(func(_ gadget.GadgetData, _ gadget.Model, _ map[string]*gadget.Volume) (map[string]map[int]gadget.StructureLocation, map[string]map[int]*gadget.OnDiskStructure, error) {
+	r := gadget.MockVolumeStructureToLocationMap(func(_ gadget.Model, _, _ map[string]*gadget.Volume) (map[string]map[int]gadget.StructureLocation, map[string]map[int]*gadget.OnDiskStructure, error) {
 		return map[string]map[int]gadget.StructureLocation{
 				"foo": {
 					0: {
@@ -3627,7 +3627,7 @@ func (u *updateTestSuite) TestUpdateApplyUpdateFailsThenRollback(c *C) {
 	newData.Info.Volumes["foo"].Structure[1].Update.Edition = 2
 	newData.Info.Volumes["foo"].Structure[2].Update.Edition = 3
 
-	r := gadget.MockVolumeStructureToLocationMap(func(_ gadget.GadgetData, _ gadget.Model, _ map[string]*gadget.Volume) (map[string]map[int]gadget.StructureLocation, map[string]map[int]*gadget.OnDiskStructure, error) {
+	r := gadget.MockVolumeStructureToLocationMap(func(_ gadget.Model, _, _ map[string]*gadget.Volume) (map[string]map[int]gadget.StructureLocation, map[string]map[int]*gadget.OnDiskStructure, error) {
 		return map[string]map[int]gadget.StructureLocation{
 				"foo": {
 					0: {
@@ -3720,7 +3720,7 @@ func (u *updateTestSuite) TestUpdateApplyUpdateErrorRollbackFail(c *C) {
 	newData.Info.Volumes["foo"].Structure[1].Update.Edition = 2
 	newData.Info.Volumes["foo"].Structure[2].Update.Edition = 3
 
-	r := gadget.MockVolumeStructureToLocationMap(func(gd gadget.GadgetData, _ gadget.Model, _ map[string]*gadget.Volume) (map[string]map[int]gadget.StructureLocation, map[string]map[int]*gadget.OnDiskStructure, error) {
+	r := gadget.MockVolumeStructureToLocationMap(func(_ gadget.Model, oldVolumes, _ map[string]*gadget.Volume) (map[string]map[int]gadget.StructureLocation, map[string]map[int]*gadget.OnDiskStructure, error) {
 		return map[string]map[int]gadget.StructureLocation{
 				"foo": {
 					0: {
@@ -3735,7 +3735,7 @@ func (u *updateTestSuite) TestUpdateApplyUpdateErrorRollbackFail(c *C) {
 					},
 				},
 			}, map[string]map[int]*gadget.OnDiskStructure{
-				"foo": gadget.OnDiskStructsFromGadget(gd.Info.Volumes["foo"]),
+				"foo": gadget.OnDiskStructsFromGadget(oldVolumes["foo"]),
 			},
 			nil
 	})
@@ -3813,7 +3813,7 @@ func (u *updateTestSuite) TestUpdateApplyBadUpdater(c *C) {
 	newData.Info.Volumes["foo"].Structure[1].Update.Edition = 2
 	newData.Info.Volumes["foo"].Structure[2].Update.Edition = 3
 
-	r := gadget.MockVolumeStructureToLocationMap(func(_ gadget.GadgetData, _ gadget.Model, _ map[string]*gadget.Volume) (map[string]map[int]gadget.StructureLocation, map[string]map[int]*gadget.OnDiskStructure, error) {
+	r := gadget.MockVolumeStructureToLocationMap(func(_ gadget.Model, _, _ map[string]*gadget.Volume) (map[string]map[int]gadget.StructureLocation, map[string]map[int]*gadget.OnDiskStructure, error) {
 		return map[string]map[int]gadget.StructureLocation{
 				"foo": {
 					0: {
@@ -3938,7 +3938,7 @@ func (u *updateTestSuite) TestUpdateApplyNoChangedContentInAll(c *C) {
 	oldData.Info.Volumes["foo"].Structure[1].Update.Edition = 1
 	newData.Info.Volumes["foo"].Structure[1].Update.Edition = 2
 
-	r := gadget.MockVolumeStructureToLocationMap(func(gd gadget.GadgetData, _ gadget.Model, _ map[string]*gadget.Volume) (map[string]map[int]gadget.StructureLocation, map[string]map[int]*gadget.OnDiskStructure, error) {
+	r := gadget.MockVolumeStructureToLocationMap(func(_ gadget.Model, oldVolumes, _ map[string]*gadget.Volume) (map[string]map[int]gadget.StructureLocation, map[string]map[int]*gadget.OnDiskStructure, error) {
 		return map[string]map[int]gadget.StructureLocation{
 				"foo": {
 					0: {
@@ -3953,7 +3953,7 @@ func (u *updateTestSuite) TestUpdateApplyNoChangedContentInAll(c *C) {
 					},
 				},
 			}, map[string]map[int]*gadget.OnDiskStructure{
-				"foo": gadget.OnDiskStructsFromGadget(gd.Info.Volumes["foo"]),
+				"foo": gadget.OnDiskStructsFromGadget(oldVolumes["foo"]),
 			},
 			nil
 	})
@@ -3997,7 +3997,7 @@ func (u *updateTestSuite) TestUpdateApplyNoChangedContentInSome(c *C) {
 	oldData.Info.Volumes["foo"].Structure[1].Update.Edition = 1
 	newData.Info.Volumes["foo"].Structure[1].Update.Edition = 2
 
-	r := gadget.MockVolumeStructureToLocationMap(func(gd gadget.GadgetData, _ gadget.Model, _ map[string]*gadget.Volume) (map[string]map[int]gadget.StructureLocation, map[string]map[int]*gadget.OnDiskStructure, error) {
+	r := gadget.MockVolumeStructureToLocationMap(func(_ gadget.Model, oldVolumes, _ map[string]*gadget.Volume) (map[string]map[int]gadget.StructureLocation, map[string]map[int]*gadget.OnDiskStructure, error) {
 		return map[string]map[int]gadget.StructureLocation{
 				"foo": {
 					0: {
@@ -4012,7 +4012,7 @@ func (u *updateTestSuite) TestUpdateApplyNoChangedContentInSome(c *C) {
 					},
 				},
 			}, map[string]map[int]*gadget.OnDiskStructure{
-				"foo": gadget.OnDiskStructsFromGadget(gd.Info.Volumes["foo"]),
+				"foo": gadget.OnDiskStructsFromGadget(oldVolumes["foo"]),
 			},
 			nil
 	})
@@ -4054,7 +4054,7 @@ func (u *updateTestSuite) TestUpdateApplyObserverBeforeWriteErrs(c *C) {
 	oldData, newData, rollbackDir := u.updateDataSet(c)
 	newData.Info.Volumes["foo"].Structure[0].Update.Edition = 1
 
-	r := gadget.MockVolumeStructureToLocationMap(func(gd gadget.GadgetData, _ gadget.Model, _ map[string]*gadget.Volume) (map[string]map[int]gadget.StructureLocation, map[string]map[int]*gadget.OnDiskStructure, error) {
+	r := gadget.MockVolumeStructureToLocationMap(func(_ gadget.Model, oldVolumes, _ map[string]*gadget.Volume) (map[string]map[int]gadget.StructureLocation, map[string]map[int]*gadget.OnDiskStructure, error) {
 		return map[string]map[int]gadget.StructureLocation{
 				"foo": {
 					0: {
@@ -4069,7 +4069,7 @@ func (u *updateTestSuite) TestUpdateApplyObserverBeforeWriteErrs(c *C) {
 					},
 				},
 			}, map[string]map[int]*gadget.OnDiskStructure{
-				"foo": gadget.OnDiskStructsFromGadget(gd.Info.Volumes["foo"]),
+				"foo": gadget.OnDiskStructsFromGadget(oldVolumes["foo"]),
 			},
 			nil
 	})
@@ -4104,7 +4104,7 @@ func (u *updateTestSuite) TestUpdateApplyObserverCanceledErrs(c *C) {
 	oldData, newData, rollbackDir := u.updateDataSet(c)
 	newData.Info.Volumes["foo"].Structure[0].Update.Edition = 1
 
-	r := gadget.MockVolumeStructureToLocationMap(func(gd gadget.GadgetData, _ gadget.Model, _ map[string]*gadget.Volume) (map[string]map[int]gadget.StructureLocation, map[string]map[int]*gadget.OnDiskStructure, error) {
+	r := gadget.MockVolumeStructureToLocationMap(func(_ gadget.Model, oldVolumes, _ map[string]*gadget.Volume) (map[string]map[int]gadget.StructureLocation, map[string]map[int]*gadget.OnDiskStructure, error) {
 		return map[string]map[int]gadget.StructureLocation{
 				"foo": {
 					0: {
@@ -4119,7 +4119,7 @@ func (u *updateTestSuite) TestUpdateApplyObserverCanceledErrs(c *C) {
 					},
 				},
 			}, map[string]map[int]*gadget.OnDiskStructure{
-				"foo": gadget.OnDiskStructsFromGadget(gd.Info.Volumes["foo"]),
+				"foo": gadget.OnDiskStructsFromGadget(oldVolumes["foo"]),
 			},
 			nil
 	})
@@ -4285,7 +4285,7 @@ func (u *updateTestSuite) TestUpdateApplyUpdatesWithKernelPolicy(c *C) {
 		},
 	}
 
-	r := gadget.MockVolumeStructureToLocationMap(func(_ gadget.GadgetData, _ gadget.Model, _ map[string]*gadget.Volume) (map[string]map[int]gadget.StructureLocation, map[string]map[int]*gadget.OnDiskStructure, error) {
+	r := gadget.MockVolumeStructureToLocationMap(func(_ gadget.Model, _, _ map[string]*gadget.Volume) (map[string]map[int]gadget.StructureLocation, map[string]map[int]*gadget.OnDiskStructure, error) {
 		return map[string]map[int]gadget.StructureLocation{
 				"foo": {
 					0: {
@@ -4408,7 +4408,7 @@ assets:
 	})
 	defer restore()
 
-	r := gadget.MockVolumeStructureToLocationMap(func(_ gadget.GadgetData, _ gadget.Model, _ map[string]*gadget.Volume) (map[string]map[int]gadget.StructureLocation, map[string]map[int]*gadget.OnDiskStructure, error) {
+	r := gadget.MockVolumeStructureToLocationMap(func(_ gadget.Model, _, _ map[string]*gadget.Volume) (map[string]map[int]gadget.StructureLocation, map[string]map[int]*gadget.OnDiskStructure, error) {
 		return map[string]map[int]gadget.StructureLocation{"foo": {}},
 			map[string]map[int]*gadget.OnDiskStructure{
 				"foo": {
@@ -5045,12 +5045,8 @@ volumes:
 	lvol, err := gadgettest.LayoutFromYaml(c.MkDir(), gadgetYaml, nil)
 	c.Assert(err, IsNil)
 
-	old := gadget.GadgetData{
-		Info: &gadget.Info{
-			Volumes: map[string]*gadget.Volume{
-				"volume-id": lvol.Volume,
-			},
-		},
+	old := map[string]*gadget.Volume{
+		"volume-id": lvol.Volume,
 	}
 
 	// don't mock anything we don't get that far in the function
@@ -5059,7 +5055,7 @@ volumes:
 		"volume-id": lvol,
 	}
 
-	vols := map[string]*gadget.Volume{}
+	vols := make(map[string]*gadget.Volume)
 	for name, lov := range allLaidOutVolumes {
 		vols[name] = lov.Volume
 	}
@@ -5071,14 +5067,9 @@ func (u *updateTestSuite) TestBuildNewVolumeToDeviceMappingImplicitSystemDataUC1
 	allLaidOutVolumes, err := gadgettest.LayoutMultiVolumeFromYaml(c.MkDir(), "", gadgettest.UC16YAMLImplicitSystemData, uc16Model)
 	c.Assert(err, IsNil)
 
-	old := gadget.GadgetData{
-		Info: &gadget.Info{
-			Volumes: make(map[string]*gadget.Volume),
-		},
-	}
-
+	old := make(map[string]*gadget.Volume)
 	for volName, laidOutVol := range allLaidOutVolumes {
-		old.Info.Volumes[volName] = laidOutVol.Volume
+		old[volName] = laidOutVol.Volume
 	}
 
 	// setup symlink for the system-boot partition
@@ -5102,7 +5093,7 @@ func (u *updateTestSuite) TestBuildNewVolumeToDeviceMappingImplicitSystemDataUC1
 	})
 	defer restore()
 
-	vols := map[string]*gadget.Volume{}
+	vols := make(map[string]*gadget.Volume)
 	for name, lov := range allLaidOutVolumes {
 		vols[name] = lov.Volume
 	}
@@ -5140,12 +5131,8 @@ func (u *updateTestSuite) TestBuildNewVolumeToDeviceMappingImplicitSystemBootSin
 	laidOutVolume, err := gadgettest.LayoutFromYaml(c.MkDir(), implicitSystemBootVolumeYAML, uc16Model)
 	c.Assert(err, IsNil)
 
-	old := gadget.GadgetData{
-		Info: &gadget.Info{
-			Volumes: map[string]*gadget.Volume{
-				"pc": laidOutVolume.Volume,
-			},
-		},
+	old := map[string]*gadget.Volume{
+		"pc": laidOutVolume.Volume,
 	}
 
 	// setup symlink for the system-boot partition
@@ -5173,7 +5160,7 @@ func (u *updateTestSuite) TestBuildNewVolumeToDeviceMappingImplicitSystemBootSin
 		"pc": laidOutVolume,
 	}
 
-	vols := map[string]*gadget.Volume{}
+	vols := make(map[string]*gadget.Volume)
 	for name, lov := range allLaidOutVolumes {
 		vols[name] = lov.Volume
 	}
@@ -5232,13 +5219,13 @@ func (u *updateTestSuite) TestBuildNewVolumeToDeviceMappingImplicitSystemBootMul
 		allLaidOutVolumes[volName] = lvol
 	}
 
-	old := gadget.GadgetData{Info: info}
+	old := make(map[string]*gadget.Volume)
 
 	// don't need to mock anything, we don't get far enough
 
 	// we fail with the error that skips the asset update but proceeds with the
 	// rest of the refresh
-	vols := map[string]*gadget.Volume{}
+	vols := make(map[string]*gadget.Volume)
 	for name, lov := range allLaidOutVolumes {
 		vols[name] = lov.Volume
 	}
@@ -5250,20 +5237,14 @@ func (u *updateTestSuite) TestBuildNewVolumeToDeviceMappingPreUC20NonFatalError(
 	allLaidOutVolumes, err := gadgettest.LayoutMultiVolumeFromYaml(c.MkDir(), "", gadgettest.UC16YAMLImplicitSystemData, uc16Model)
 	c.Assert(err, IsNil)
 
-	old := gadget.GadgetData{
-		Info: &gadget.Info{
-			Volumes: make(map[string]*gadget.Volume),
-		},
-	}
-
+	old := make(map[string]*gadget.Volume)
 	for volName, laidOutVol := range allLaidOutVolumes {
-		old.Info.Volumes[volName] = laidOutVol.Volume
+		old[volName] = laidOutVol.Volume
 	}
 
 	// don't mock any symlinks so that it fails to find any disk matching the
 	// system-boot volume
-
-	vols := map[string]*gadget.Volume{}
+	vols := make(map[string]*gadget.Volume)
 	for name, lov := range allLaidOutVolumes {
 		vols[name] = lov.Volume
 	}
@@ -5282,14 +5263,9 @@ func (u *updateTestSuite) TestBuildNewVolumeToDeviceMappingPreUC20CannotMap(c *C
 	allLaidOutVolumes, err := gadgettest.LayoutMultiVolumeFromYaml(c.MkDir(), "", gadgettest.UC16YAMLImplicitSystemData, uc16Model)
 	c.Assert(err, IsNil)
 
-	old := gadget.GadgetData{
-		Info: &gadget.Info{
-			Volumes: make(map[string]*gadget.Volume),
-		},
-	}
-
+	old := make(map[string]*gadget.Volume)
 	for volName, laidOutVol := range allLaidOutVolumes {
-		old.Info.Volumes[volName] = laidOutVol.Volume
+		old[volName] = laidOutVol.Volume
 	}
 
 	// setup symlink for the system-boot partition
@@ -5313,7 +5289,7 @@ func (u *updateTestSuite) TestBuildNewVolumeToDeviceMappingPreUC20CannotMap(c *C
 	})
 	defer restore()
 
-	vols := map[string]*gadget.Volume{}
+	vols := make(map[string]*gadget.Volume)
 	for name, lov := range allLaidOutVolumes {
 		vols[name] = lov.Volume
 	}
@@ -5333,14 +5309,9 @@ func (u *updateTestSuite) TestBuildNewVolumeToDeviceMappingUC20MultiVolume(c *C)
 	allLaidOutVolumes, err := gadgettest.LayoutMultiVolumeFromYaml(c.MkDir(), "", gadgettest.MultiVolumeUC20GadgetYaml, uc20Model)
 	c.Assert(err, IsNil)
 
-	old := gadget.GadgetData{
-		Info: &gadget.Info{
-			Volumes: make(map[string]*gadget.Volume),
-		},
-	}
-
+	old := make(map[string]*gadget.Volume)
 	for volName, laidOutVol := range allLaidOutVolumes {
-		old.Info.Volumes[volName] = laidOutVol.Volume
+		old[volName] = laidOutVol.Volume
 	}
 
 	// setup symlink for the ubuntu-seed partition
@@ -5364,7 +5335,7 @@ func (u *updateTestSuite) TestBuildNewVolumeToDeviceMappingUC20MultiVolume(c *C)
 	})
 	defer restore()
 
-	vols := map[string]*gadget.Volume{}
+	vols := make(map[string]*gadget.Volume)
 	for name, lov := range allLaidOutVolumes {
 		vols[name] = lov.Volume
 	}
@@ -5380,14 +5351,9 @@ func (u *updateTestSuite) TestBuildNewVolumeToDeviceMappingUC20Encryption(c *C) 
 	allLaidOutVolumes, err := gadgettest.LayoutMultiVolumeFromYaml(c.MkDir(), "", gadgettest.RaspiSimplifiedYaml, uc20Model)
 	c.Assert(err, IsNil)
 
-	old := gadget.GadgetData{
-		Info: &gadget.Info{
-			Volumes: make(map[string]*gadget.Volume),
-		},
-	}
-
+	old := make(map[string]*gadget.Volume)
 	for volName, laidOutVol := range allLaidOutVolumes {
-		old.Info.Volumes[volName] = laidOutVol.Volume
+		old[volName] = laidOutVol.Volume
 	}
 
 	// setup symlink for the ubuntu-seed partition
@@ -5419,7 +5385,7 @@ func (u *updateTestSuite) TestBuildNewVolumeToDeviceMappingUC20Encryption(c *C) 
 	err = os.WriteFile(markerFile, nil, 0644)
 	c.Assert(err, IsNil)
 
-	vols := map[string]*gadget.Volume{}
+	vols := make(map[string]*gadget.Volume)
 	for name, lov := range allLaidOutVolumes {
 		vols[name] = lov.Volume
 	}
@@ -5718,7 +5684,7 @@ func (s *updateTestSuite) testBuildVolumeStructureToLocation(c *C,
 	)
 
 	missingInitialMappingNo := false
-	vols := map[string]*gadget.Volume{}
+	vols := make(map[string]*gadget.Volume)
 	for name, lov := range allLaidOutVolumes {
 		vols[name] = lov.Volume
 	}
@@ -5733,18 +5699,13 @@ func (s *updateTestSuite) setupForVolumeStructureToLocation(c *C,
 	traits map[string]gadget.DiskVolumeDeviceTraits,
 	volMappings map[string]*disks.MockDiskMapping,
 	expMapping map[string]map[int]gadget.StructureLocation,
-) (gadget.GadgetData, map[string]*gadget.LaidOutVolume) {
+) (map[string]*gadget.Volume, map[string]*gadget.LaidOutVolume) {
 	allLaidOutVolumes, err := gadgettest.LayoutMultiVolumeFromYaml(c.MkDir(), "", yaml, model)
 	c.Assert(err, IsNil)
 
-	old := gadget.GadgetData{
-		Info: &gadget.Info{
-			Volumes: make(map[string]*gadget.Volume),
-		},
-	}
-
+	old := make(map[string]*gadget.Volume)
 	for volName, laidOutVol := range allLaidOutVolumes {
-		old.Info.Volumes[volName] = laidOutVol.Volume
+		old[volName] = laidOutVol.Volume
 	}
 
 	devicePathMapping := map[string]*disks.MockDiskMapping{}
@@ -5855,11 +5816,11 @@ func (s *updateTestSuite) testVolumeStructureToLocationMap(c *C,
 		expMapping,
 	)
 
-	vols := map[string]*gadget.Volume{}
+	vols := make(map[string]*gadget.Volume)
 	for name, lov := range allLaidOutVolumes {
 		vols[name] = lov.Volume
 	}
-	structureMap, _, err := gadget.VolumeStructureToLocationMap(old, model, vols)
+	structureMap, _, err := gadget.VolumeStructureToLocationMap(model, old, vols)
 	c.Assert(err, IsNil)
 	c.Assert(structureMap, DeepEquals, expMapping)
 }

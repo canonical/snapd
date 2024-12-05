@@ -234,11 +234,11 @@ const syncResp = `{
   "result": %s
 }`
 
-func (s *registrySuite) TestRegistryGet(c *C) {
+func (s *confdbSuite) TestConfdbGet(c *C) {
 	restore := snapset.MockIsStdinTTY(true)
 	defer restore()
 
-	restore = s.mockRegistryFlag(c)
+	restore = s.mockConfdbFlag(c)
 	defer restore()
 
 	var reqs int
@@ -246,7 +246,7 @@ func (s *registrySuite) TestRegistryGet(c *C) {
 		switch reqs {
 		case 0:
 			c.Check(r.Method, Equals, "GET")
-			c.Check(r.URL.Path, Equals, "/v2/registry/foo/bar/baz")
+			c.Check(r.URL.Path, Equals, "/v2/confdbs/foo/bar/baz")
 
 			q := r.URL.Query()
 			fields := strutil.CommaSeparatedList(q.Get("fields"))
@@ -271,11 +271,11 @@ func (s *registrySuite) TestRegistryGet(c *C) {
 	c.Check(s.Stderr(), Equals, "")
 }
 
-func (s *registrySuite) TestRegistryGetAsDocument(c *C) {
+func (s *confdbSuite) TestConfdbGetAsDocument(c *C) {
 	restore := snapset.MockIsStdinTTY(true)
 	defer restore()
 
-	restore = s.mockRegistryFlag(c)
+	restore = s.mockConfdbFlag(c)
 	defer restore()
 
 	var reqs int
@@ -283,7 +283,7 @@ func (s *registrySuite) TestRegistryGetAsDocument(c *C) {
 		switch reqs {
 		case 0:
 			c.Check(r.Method, Equals, "GET")
-			c.Check(r.URL.Path, Equals, "/v2/registry/foo/bar/baz")
+			c.Check(r.URL.Path, Equals, "/v2/confdbs/foo/bar/baz")
 
 			q := r.URL.Query()
 			fields := strutil.CommaSeparatedList(q.Get("fields"))
@@ -312,11 +312,11 @@ func (s *registrySuite) TestRegistryGetAsDocument(c *C) {
 	c.Check(s.Stderr(), Equals, "")
 }
 
-func (s *registrySuite) TestRegistryGetMany(c *C) {
+func (s *confdbSuite) TestConfdbGetMany(c *C) {
 	restore := snapset.MockIsStdinTTY(true)
 	defer restore()
 
-	restore = s.mockRegistryFlag(c)
+	restore = s.mockConfdbFlag(c)
 	defer restore()
 
 	var reqs int
@@ -324,7 +324,7 @@ func (s *registrySuite) TestRegistryGetMany(c *C) {
 		switch reqs {
 		case 0:
 			c.Check(r.Method, Equals, "GET")
-			c.Check(r.URL.Path, Equals, "/v2/registry/foo/bar/baz")
+			c.Check(r.URL.Path, Equals, "/v2/confdbs/foo/bar/baz")
 
 			q := r.URL.Query()
 			fields := strutil.CommaSeparatedList(q.Get("fields"))
@@ -353,11 +353,11 @@ xyz  false
 	c.Check(s.Stderr(), Equals, "")
 }
 
-func (s *registrySuite) TestRegistryGetManyAsDocument(c *C) {
+func (s *confdbSuite) TestConfdbGetManyAsDocument(c *C) {
 	restore := snapset.MockIsStdinTTY(true)
 	defer restore()
 
-	restore = s.mockRegistryFlag(c)
+	restore = s.mockConfdbFlag(c)
 	defer restore()
 
 	var reqs int
@@ -365,7 +365,7 @@ func (s *registrySuite) TestRegistryGetManyAsDocument(c *C) {
 		switch reqs {
 		case 0:
 			c.Check(r.Method, Equals, "GET")
-			c.Check(r.URL.Path, Equals, "/v2/registry/foo/bar/baz")
+			c.Check(r.URL.Path, Equals, "/v2/confdbs/foo/bar/baz")
 
 			q := r.URL.Query()
 			fields := strutil.CommaSeparatedList(q.Get("fields"))
@@ -395,16 +395,16 @@ func (s *registrySuite) TestRegistryGetManyAsDocument(c *C) {
 	c.Check(s.Stderr(), Equals, "")
 }
 
-func (s *registrySuite) TestRegistryGetInvalidRegistryID(c *check.C) {
-	restore := s.mockRegistryFlag(c)
+func (s *confdbSuite) TestConfdbGetInvalidConfdbID(c *check.C) {
+	restore := s.mockConfdbFlag(c)
 	defer restore()
 
 	_, err := snapset.Parser(snapset.Client()).ParseArgs([]string{"get", "foo//bar", "foo=bar"})
 	c.Assert(err, NotNil)
-	c.Check(err.Error(), Equals, "registry identifier must conform to format: <account-id>/<registry>/<view>")
+	c.Check(err.Error(), Equals, "confdb identifier must conform to format: <account-id>/<confdb>/<view>")
 }
 
-func (s *registrySuite) TestRegistryGetDisabledFlag(c *check.C) {
+func (s *confdbSuite) TestConfdbGetDisabledFlag(c *check.C) {
 	var reqs int
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
 		switch reqs {
@@ -419,11 +419,11 @@ func (s *registrySuite) TestRegistryGetDisabledFlag(c *check.C) {
 	})
 
 	_, err := snapset.Parser(snapset.Client()).ParseArgs([]string{"get", "foo/bar/baz", "abc"})
-	c.Assert(err, check.ErrorMatches, `the "registries" feature is disabled: set 'experimental.registries' to true`)
+	c.Assert(err, check.ErrorMatches, `the "confdbs" feature is disabled: set 'experimental.confdbs' to true`)
 }
 
-func (s *registrySuite) TestRegistryGetNoFields(c *check.C) {
-	restore := s.mockRegistryFlag(c)
+func (s *confdbSuite) TestConfdbGetNoFields(c *check.C) {
+	restore := s.mockConfdbFlag(c)
 	defer restore()
 
 	var reqs int
@@ -431,7 +431,7 @@ func (s *registrySuite) TestRegistryGetNoFields(c *check.C) {
 		switch reqs {
 		case 0:
 			c.Check(r.Method, Equals, "GET")
-			c.Check(r.URL.Path, Equals, "/v2/registry/foo/bar/baz")
+			c.Check(r.URL.Path, Equals, "/v2/confdbs/foo/bar/baz")
 
 			fields := r.URL.Query().Get("fields")
 			c.Check(fields, Equals, "")

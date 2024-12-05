@@ -345,7 +345,7 @@ func (s *gadgetYamlEMMCSuite) TestUpdateApplyHappy(c *C) {
 
 	rollbackDir := c.MkDir()
 
-	restore := gadget.MockVolumeStructureToLocationMap(func(gd gadget.GadgetData, gm gadget.Model, gv map[string]*gadget.Volume) (map[string]map[int]gadget.StructureLocation, map[string]map[int]*gadget.OnDiskStructure, error) {
+	restore := gadget.MockVolumeStructureToLocationMap(func(_ gadget.Model, _, newVolumes map[string]*gadget.Volume) (map[string]map[int]gadget.StructureLocation, map[string]map[int]*gadget.OnDiskStructure, error) {
 		return map[string]map[int]gadget.StructureLocation{
 				"volumename": {
 					0: {
@@ -363,8 +363,8 @@ func (s *gadgetYamlEMMCSuite) TestUpdateApplyHappy(c *C) {
 					},
 				},
 			}, map[string]map[int]*gadget.OnDiskStructure{
-				"volumename": gadget.OnDiskStructsFromGadget(gd.Info.Volumes["volumename"]),
-				"my-emmc":    gadget.OnDiskStructsFromGadget(gd.Info.Volumes["my-emmc"]),
+				"volumename": gadget.OnDiskStructsFromGadget(newVolumes["volumename"]),
+				"my-emmc":    gadget.OnDiskStructsFromGadget(newVolumes["my-emmc"]),
 			}, nil
 	})
 	defer restore()

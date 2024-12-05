@@ -160,50 +160,78 @@ func writeFilesystemContent(laidOut *gadget.LaidOutStructure, kSnapInfo *KernelS
 		destDir := kernel.DriversTreeDir(destRoot, kSnapInfo.Name, kSnapInfo.Revision)
 		logger.Noticef("building drivers tree in %s", destDir)
 
+		// kernel-modules components that are needed to build the drivers tree
+		compsMntPts := make([]kernel.ModulesCompMountPoints, 0, len(kSnapInfo.ModulesComps))
+		for _, c := range kSnapInfo.ModulesComps {
+			cpi := snap.MinimalComponentContainerPlaceInfo(c.Name,
+				c.Revision, kSnapInfo.Name)
+			compsMntPts = append(compsMntPts, kernel.ModulesCompMountPoints{
+				LinkName: c.Name,
+				MountPoints: kernel.MountPoints{
+					Current: c.MountPoint,
+					Target:  cpi.MountDir(),
+				}})
+			// Create mount unit to make the component content
+			// available from the drivers tree.
+			if err := writeContainerMountUnit(destRoot, cpi); err != nil {
+				return err
+			}
+		}
+
 		cpi := snap.MinimalSnapContainerPlaceInfo(kSnapInfo.Name, kSnapInfo.Revision)
+		// Create mount unit to make the kernel snap content available from
+		// the drivers tree.
+		if err := writeContainerMountUnit(destRoot, cpi); err != nil {
+			return err
+		}
+
 		if err := kernelEnsureKernelDriversTree(
 			kernel.MountPoints{
 				Current: kSnapInfo.MountPoint,
 				Target:  cpi.MountDir(),
 			},
-			nil,
+			compsMntPts,
 			destDir,
 			&kernel.KernelDriversTreeOptions{KernelInstall: true}); err != nil {
 			return err
 		}
+	}
 
-		// Create mount unit to make the kernel snap content available from
-		// the drivers tree.
-		squashfsPath := dirs.StripRootDir(cpi.MountFile())
-		whereDir := dirs.StripRootDir(cpi.MountDir())
+	return nil
+}
 
-		hostFsType, options := systemd.HostFsTypeAndMountOptions("squashfs")
-		mountOptions := &systemd.MountUnitOptions{
-			Lifetime:                 systemd.Persistent,
-			Description:              cpi.MountDescription(),
-			What:                     squashfsPath,
-			Where:                    whereDir,
-			Fstype:                   hostFsType,
-			Options:                  options,
-			MountUnitType:            systemd.BeforeDriversLoadMountUnit,
-			RootDir:                  destRoot,
-			PreventRestartIfModified: true,
-		}
-		unitFileName, _, err := systemd.EnsureMountUnitFileContent(mountOptions)
-		if err != nil {
+func writeContainerMountUnit(destRoot string, cpi snap.ContainerPlaceInfo) error {
+	// Create mount unit to make the kernel snap content available from
+	// the drivers tree.
+	squashfsPath := dirs.StripRootDir(cpi.MountFile())
+	whereDir := dirs.StripRootDir(cpi.MountDir())
+
+	hostFsType, options := systemd.HostFsTypeAndMountOptions("squashfs")
+	mountOptions := &systemd.MountUnitOptions{
+		Lifetime:                 systemd.Persistent,
+		Description:              cpi.MountDescription(),
+		What:                     squashfsPath,
+		Where:                    whereDir,
+		Fstype:                   hostFsType,
+		Options:                  options,
+		MountUnitType:            systemd.BeforeDriversLoadMountUnit,
+		RootDir:                  destRoot,
+		PreventRestartIfModified: true,
+	}
+	unitFileName, _, err := systemd.EnsureMountUnitFileContent(mountOptions)
+	if err != nil {
+		return err
+	}
+	// Make sure the unit is activated
+	unitFilePath := filepath.Join(dirs.SnapServicesDir, unitFileName)
+	for _, target := range []string{"multi-user.target.wants", "snapd.mounts.target.wants"} {
+		linkDir := filepath.Join(dirs.SnapServicesDirUnder(destRoot), target)
+		if err := os.MkdirAll(linkDir, 0755); err != nil {
 			return err
 		}
-		// Make sure the unit is activated
-		unitFilePath := filepath.Join(dirs.SnapServicesDir, unitFileName)
-		for _, target := range []string{"multi-user.target.wants", "snapd.mounts.target.wants"} {
-			linkDir := filepath.Join(dirs.SnapServicesDirUnder(destRoot), target)
-			if err := os.MkdirAll(linkDir, 0755); err != nil {
-				return err
-			}
-			linkPath := filepath.Join(linkDir, unitFileName)
-			if err := os.Symlink(unitFilePath, linkPath); err != nil {
-				return err
-			}
+		linkPath := filepath.Join(linkDir, unitFileName)
+		if err := os.Symlink(unitFilePath, linkPath); err != nil {
+			return err
 		}
 	}
 
