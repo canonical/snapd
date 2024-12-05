@@ -106,9 +106,10 @@ execute: |
   boot_id=$(tests.nested boot-id)
 
   # Install new gadget
-  remote.exec "sudo snap install --dangerous pc.snap" || [ "$?" -eq 255 ]
+  CHG_ID="$(remote.exec "sudo snap install --no-wait --dangerous pc.snap")"
   # It should reboot now
   remote.wait-for reboot "$boot_id"
+  remote.exec sudo snap watch "$CHG_ID"
 
   # Check that asset has been updated
   remote.exec sudo grep -i -a '"This program cannot be run in XXX mode"' \
