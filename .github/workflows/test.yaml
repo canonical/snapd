@@ -132,7 +132,7 @@ jobs:
         run: |
           if [[ "${GITHUB_REF}" != "refs/heads/master" ]]; then
             filtered_needs=$(echo '${{ toJSON(needs) }}' | jq 'del(.["branch-static-checks"])')
-            echo "NEEDS_FILTERED=$(echo $filtered_needs | jq- c)" >> $GITHUB_ENV
+            echo "NEEDS_FILTERED=$(echo $filtered_needs | jq -c)" >> $GITHUB_ENV
           else
             echo "NEEDS_FILTERED=$(echo '${{ toJSON(needs) }}' | jq -c)" >> $GITHUB_ENV
           fi
