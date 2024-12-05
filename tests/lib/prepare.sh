@@ -942,6 +942,40 @@ uc20_build_initramfs_kernel_snap() {
     rm -rf repacked-kernel
 }
 
+
+# Modify kernel and create a component, kernel content expected in pc-kernel
+move_module_to_component() {
+    mod_name=$1
+    comp_name=$2
+
+    kern_ver=$(find pc-kernel/modules/* -maxdepth 0 -printf "%f\n")
+    comp_ko_dir=$comp_name/modules/"$kern_ver"/kmod/
+    mkdir -p "$comp_ko_dir"
+    mkdir -p "$comp_name"/meta/
+    cat << EOF > "$comp_name"/meta/component.yaml
+component: pc-kernel+$comp_name
+type: kernel-modules
+version: 1.0
+summary: kernel component
+description: kernel component for testing purposes
+EOF
+    # Replace _ or - with [_-], as it can be any of these
+    glob_mod_name=$(printf '%s' "$mod_name" | sed -r 's/[-_]/[-_]/g')
+    module_path=$(find pc-kernel -name "${glob_mod_name}.ko*")
+    cp "$module_path" "$comp_ko_dir"
+    snap pack --filename=pc-kernel+"$comp_name".comp "$comp_name"
+
+    # remove the kernel module from the kernel snap
+    rm "$module_path"
+    # depmod wants a lib subdir, fake it and remove after invocation
+    mkdir pc-kernel/lib
+    ln -s ../modules pc-kernel/lib/modules
+    depmod -b pc-kernel/ "$kern_ver"
+    rm -rf pc-kernel/lib
+    # append component meta-information
+    printf 'components:\n  %s:\n    type: kernel-modules\n' "$comp_name" >> pc-kernel/meta/snap.yaml
+}
+
 uc24_build_initramfs_kernel_snap() {
     local ORIG_SNAP="$1"
     local TARGET="$2"
@@ -990,6 +1024,11 @@ uc24_build_initramfs_kernel_snap() {
     # copy any extra files that tests may need for the kernel
     if [ -d ./extra-kernel-snap/ ]; then
         cp -a ./extra-kernel-snap/* ./pc-kernel
+    fi
+
+    if [ -n "$NESTED_KERNEL_MODULES_COMP" ]; then
+        # "split" kernel in kernel-modules component and kernel
+        move_module_to_component "$NESTED_COMP_KERNEL_MODULE_NAME" "$NESTED_KERNEL_MODULES_COMP"
     fi
 
     snap pack pc-kernel
