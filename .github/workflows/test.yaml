@@ -112,8 +112,16 @@ jobs:
       run: |
         # Compare the daily system in master and in the current branch
         wget -q -O test_master.yaml https://raw.githubusercontent.com/snapcore/snapd/master/.github/workflows/test.yaml
-        system_daily="$(yq '.jobs.spread-fundamental.strategy.matrix.include.[] | select(.group == "ubuntu-daily") | .systems'  test_master.yaml)"
-        current_daily="$(yq '.jobs.spread-fundamental.strategy.matrix.include.[] | select(.group == "ubuntu-daily") | .systems'  .github/workflows/test.yaml)"
+        get_daily_system() {
+          file=$1
+          system_daily="$(yq '.jobs."spread-not-fundamental".strategy.matrix.include.[] | select(.group == "ubuntu-daily") | .systems'  $file)" 
+          if [ -z "$system_daily" ]; then
+            system_daily="$(yq '.jobs."spread-fundamental".strategy.matrix.include.[] | select(.group == "ubuntu-daily") | .systems'  $file)" 
+          fi
+          echo $system_daily
+        }
+        system_daily="$(get_daily_system  test_master.yaml)"
+        current_daily="$(get_daily_system  .github/workflows/test.yaml)"
         test "$system_daily" == "$current_daily"
       shell: bash
 
