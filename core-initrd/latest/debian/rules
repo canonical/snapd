@@ -1,0 +1,46 @@
+#!/usr/bin/make -f
+export DH_VERBOSE=1
+
+include /usr/share/dpkg/default.mk
+
+%:
+	dh $@
+
+override_dh_auto_install:
+	rm -rf debian/tmp
+	mkdir debian/tmp
+	cp -ar factory/* debian/tmp
+
+	# splash functionality
+	mkdir -p debian/tmp/usr/share/plymouth/themes/
+	cp -a vendor/plymouth-theme-ubuntu-core/ubuntu-core \
+		debian/tmp/usr/share/plymouth/themes/
+	mkdir -p debian/tmp/usr/share/fonts/
+	cp /usr/share/fonts/truetype/ubuntu/Ubuntu-R.ttf \
+		debian/tmp/usr/share/fonts/Plymouth.ttf
+
+	touch debian/tmp/etc/machine-id
+
+override_dh_install:
+	dh_install
+
+ifeq ($(DEB_HOST_ARCH),amd64)
+	mkdir -p debian/ubuntu-core-initramfs/usr/lib/ubuntu-core-initramfs/early/
+	debian/generate-x86-microcode debian/ubuntu-core-initramfs/usr/lib/ubuntu-core-initramfs/early/microcode.cpio
+endif
+
+override_dh_clean:
+	# Include ubuntu-core plymouth theme in sources
+	[ -d vendor/plymouth-theme-ubuntu-core ] || ( mkdir -p vendor; cd vendor; \
+		git clone https://github.com/snapcore/plymouth-theme-ubuntu-core )
+	dh_clean
+
+override_dh_python3:
+	dh_python3 --no-ext-rename
+
+override_dh_fixperms:
+	dh_fixperms -Xusr/lib/ubuntu-core-initramfs/main
+override_dh_makeshlibs:
+	dh_makeshlibs -Xusr/lib/ubuntu-core-initramfs/main
+override_dh_shlibdeps:
+	dh_shlibdeps -Xusr/lib/ubuntu-core-initramfs/main
