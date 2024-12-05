@@ -515,16 +515,24 @@ nested_get_images_path() {
     echo "$NESTED_IMAGES_DIR"
 }
 
-nested_get_extra_snaps() {
-    local EXTRA_SNAPS=""
+nested_get_extra_containers() {
+    local SUFFIX=$1
     local EXTRA_SNAPS_PATH
     EXTRA_SNAPS_PATH="$(nested_get_extra_snaps_path)"
 
     if [ -d "$EXTRA_SNAPS_PATH" ]; then
         while IFS= read -r mysnap; do
             echo "$mysnap"
-        done < <(find "$EXTRA_SNAPS_PATH" -name '*.snap')
+        done < <(find "$EXTRA_SNAPS_PATH" -name "*.$SUFFIX")
     fi
+}
+
+nested_get_extra_snaps() {
+    nested_get_extra_containers snap
+}
+
+nested_get_extra_comps() {
+    nested_get_extra_containers comp
 }
 
 nested_download_image() {
@@ -905,10 +913,13 @@ nested_create_core_vm() {
             # Invoke ubuntu image
             local NESTED_MODEL
             NESTED_MODEL="$(nested_get_model)"
-            
+
             local EXTRA_SNAPS=""
             for mysnap in $(nested_get_extra_snaps); do
                 EXTRA_SNAPS="$EXTRA_SNAPS --snap $mysnap"
+            done
+            for mycomp in $(nested_get_extra_comps); do
+                EXTRA_SNAPS="$EXTRA_SNAPS --comp $mycomp"
             done
 
             # only set SNAPPY_FORCE_SAS_URL because we don't need it defined 

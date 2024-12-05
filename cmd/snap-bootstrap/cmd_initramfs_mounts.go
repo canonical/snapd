@@ -328,6 +328,10 @@ func doInstall(mst *initramfsMountsState, model *asserts.Model, sysSnaps map[sna
 		return fmt.Errorf("cannot use gadget: %v", err)
 	}
 
+	// TODO:COMPS take into account kernel-modules components, see
+	// DeviceManager,doSetupRunSystem and other parts of
+	// handlers_install.go.
+
 	bootDevice := ""
 	kernelSnapInfo := &gadgetInstall.KernelSnapInfo{
 		Name:       kernelSnap.SnapName(),
