@@ -314,6 +314,11 @@ jobs:
             systems: 'ubuntu-24.10-64'
             tasks: 'tests/...'
             rules: 'main'
+          - group: 'ubuntu-core-18 (fundamental)'
+            backend: google-core
+            systems: 'ubuntu-core-18-64'
+            tasks: 'tests/...'
+            rules: 'main'
           - group: 'ubuntu-core-20 (fundamental)'
             backend: google-core
             systems: 'ubuntu-core-20-64'
@@ -397,11 +402,6 @@ jobs:
           - group: 'ubuntu-daily'
             backend: google
             systems: 'ubuntu-25.04-64'
-            tasks: 'tests/...'
-            rules: 'main'
-          - group: 'ubuntu-core-18'
-            backend: google-core
-            systems: 'ubuntu-core-18-64'
             tasks: 'tests/...'
             rules: 'main'
           - group: ubuntu-core-22
