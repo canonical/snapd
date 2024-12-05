@@ -12,6 +12,8 @@ systems:
     - -ubuntu-14.04-*
     # Arm64 is not supported
     - -ubuntu-*-arm-64
+    # Opensuse 15.5 PackageKit gets GDBus.Error setting proxy
+    - -opensuse-15.5-*
 
 restore: |
     snap remove --purge test-snapd-packagekit
