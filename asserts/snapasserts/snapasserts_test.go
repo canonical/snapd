@@ -951,7 +951,7 @@ version: 1.0.2
 	err = s.localDB.Add(resPair)
 	c.Assert(err, IsNil)
 
-	// missing snap-resource-pair assertion
+	// missing snap-resource-revision assertion
 	csi, err := snapasserts.DeriveComponentSideInfo("comp1", compPath, &info, model, s.localDB)
 	c.Assert(err, IsNil)
 	c.Check(csi, DeepEquals, &snap.ComponentSideInfo{
