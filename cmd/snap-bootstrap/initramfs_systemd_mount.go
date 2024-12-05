@@ -104,18 +104,12 @@ func (o *overlayFsOptions) AppendOptions(options []string) ([]string, error) {
 		return nil, err
 	}
 
-	var lowerDirs strings.Builder
-	for i, d := range o.LowerDirs {
-		// This is used for splitting multiple lowerdirs as done in
-		// https://elixir.bootlin.com/linux/v6.10.9/C/ident/ovl_parse_param_split_lowerdirs.
-		if i != 0 {
-			lowerDirs.WriteRune(':')
-		}
+	// This is used for splitting multiple lowerdirs as done in
+	// https://elixir.bootlin.com/linux/v6.10.9/C/ident/ovl_parse_param_split_lowerdirs.
+	lowerDirs := strings.Join(o.LowerDirs, ":")
 
-		lowerDirs.WriteString(d)
-	}
-
-	options = append(options, fmt.Sprintf("lowerdir=%s", lowerDirs.String()))
+	// options = append(options, fmt.Sprintf("lowerdir=%s", lowerDirs.String()))
+	options = append(options, fmt.Sprintf("lowerdir=%s", lowerDirs))
 	options = append(options, fmt.Sprintf("upperdir=%s", o.UpperDir))
 	options = append(options, fmt.Sprintf("workdir=%s", o.WorkDir))
 
