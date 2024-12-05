@@ -2509,7 +2509,8 @@ func (s *deviceMgrInstallModeSuite) testFactoryResetNoEncryptionHappyFull(c *C, 
 	}
 	var kModsRevs map[string]snap.Revision
 	if withKMods {
-		kModsRevs = map[string]snap.Revision{"kcomp1": snap.R(7), "kcomp2": snap.R(14)}
+		kModsRevs = map[string]snap.Revision{"kcomp1": snap.R(7),
+			"kcomp2": snap.R(14), "kcomp3": snap.R(21)}
 	}
 	seedOpts := mockSystemSeedWithLabelOpts{
 		isClassic:       false,
@@ -2608,7 +2609,8 @@ func (s *deviceMgrInstallModeSuite) testFactoryResetEncryptionHappyFull(c *C, wi
 	}
 	var kModsRevs map[string]snap.Revision
 	if withKMods {
-		kModsRevs = map[string]snap.Revision{"kcomp1": snap.R(7), "kcomp2": snap.R(14)}
+		kModsRevs = map[string]snap.Revision{"kcomp1": snap.R(7), "kcomp2": snap.R(14),
+			"kcomp3": snap.R(21)}
 	}
 	seedOpts := mockSystemSeedWithLabelOpts{
 		isClassic:       false,

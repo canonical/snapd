@@ -387,12 +387,12 @@ func doInstall(mst *initramfsMountsState, model *asserts.Model, sysSnaps map[sna
 	}
 
 	isCore := !model.Classic()
-	kernelSnapInfo, bootKMods := gadgetInstall.KernelBootInfo(
+	kernelBootInfo := gadgetInstall.BuildKernelBootInfo(
 		kernelSnap, compSeedInfos, kernelMountDir, kernCompsMntPts,
 		isCore, model.NeedsKernelSetup())
 
 	bootDevice := ""
-	installedSystem, err := gadgetInstallRun(model, gadgetMountDir, kernelSnapInfo, bootDevice, options, installObserver, timings.New(nil))
+	installedSystem, err := gadgetInstallRun(model, gadgetMountDir, kernelBootInfo.KSnapInfo, bootDevice, options, installObserver, timings.New(nil))
 	if err != nil {
 		return err
 	}
@@ -424,7 +424,7 @@ func doInstall(mst *initramfsMountsState, model *asserts.Model, sysSnaps map[sna
 		KernelPath:          sysSnaps[snap.TypeKernel].Path,
 		UnpackedGadgetDir:   gadgetMountDir,
 		RecoverySystemLabel: mst.recoverySystem,
-		KernelMods:          bootKMods,
+		KernelMods:          kernelBootInfo.BootableKMods,
 	}
 
 	if err := bootMakeRunnableStandaloneSystem(model, bootWith, trustedInstallObserver); err != nil {

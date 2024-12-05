@@ -52,12 +52,21 @@ type KernelModulesComponentInfo struct {
 	MountPoint string
 }
 
+// CompSeedInfo contains information for a component from the seed and
+// from its metadata.
 type CompSeedInfo struct {
 	CompInfo *snap.ComponentInfo
 	CompSeed *seed.Component
 }
 
-func KernelBootInfo(kernInfo *snap.Info, compSeedInfos []CompSeedInfo, kernMntPoint string, mntPtForComps map[string]string, isCore, needsDriversTree bool) (*KernelSnapInfo, []boot.BootableKModsComponents) {
+// KernelBootInfo contains information related to the kernel used on installation.
+type KernelBootInfo struct {
+	KSnapInfo     *KernelSnapInfo
+	BootableKMods []boot.BootableKModsComponents
+}
+
+// BuildKernelBootInfo constructs a KernelBootInfo.
+func BuildKernelBootInfo(kernInfo *snap.Info, compSeedInfos []CompSeedInfo, kernMntPoint string, mntPtForComps map[string]string, isCore, needsDriversTree bool) KernelBootInfo {
 	bootKMods := make([]boot.BootableKModsComponents, 0, len(compSeedInfos))
 	modulesComps := make([]KernelModulesComponentInfo, 0, len(compSeedInfos))
 	for _, compSeedInfo := range compSeedInfos {
@@ -86,5 +95,8 @@ func KernelBootInfo(kernInfo *snap.Info, compSeedInfos []CompSeedInfo, kernMntPo
 		NeedsDriversTree: needsDriversTree,
 	}
 
-	return kSnapInfo, bootKMods
+	return KernelBootInfo{
+		KSnapInfo:     kSnapInfo,
+		BootableKMods: bootKMods,
+	}
 }
