@@ -921,6 +921,9 @@ nested_create_core_vm() {
             for mycomp in $(nested_get_extra_comps); do
                 EXTRA_SNAPS="$EXTRA_SNAPS --comp $mycomp"
             done
+            if [ -n "$NESTED_KERNEL_MODULES_COMP" ]; then
+                EXTRA_SNAPS="$EXTRA_SNAPS --comp pc-kernel+${NESTED_KERNEL_MODULES_COMP}.comp"
+            fi
 
             # only set SNAPPY_FORCE_SAS_URL because we don't need it defined 
             # anywhere else but here, where snap prepare-image as called by 
