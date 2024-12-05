@@ -49,7 +49,7 @@ Wants=%[1]s
 // forbiddenChars is a list of characters that are not allowed in any mount paths used in systemd-mount.
 const forbiddenChars = `\,:" `
 
-type mountOptions interface {
+type fsOpts interface {
 	AppendOptions([]string) ([]string, error)
 }
 
@@ -216,10 +216,9 @@ type systemdMountOptions struct {
 	Private bool
 	// Umount the mountpoint
 	Umount bool
-	// OverlayFsOpts groups the options related to overlayfs mounts.
-	OverlayFsOpts *overlayFsOptions
-	// DmVerityOpts groups the options related to mounts with dm-verity.
-	DmVerityOpts *dmVerityOptions
+	// FsOpts groups additional options for the mount such as overlayfs or
+	// dm-verity related options.
+	FsOpts fsOpts
 }
 
 // doSystemdMount will mount "what" at "where" using systemd-mount(1) with
@@ -304,28 +303,24 @@ func doSystemdMountImpl(what, where string, opts *systemdMountOptions) error {
 	if opts.Private {
 		options = append(options, "private")
 	}
-	if opts.OverlayFsOpts != nil {
-		args = append(args, "--type=overlay")
 
-		o := opts.OverlayFsOpts
+	if opts.FsOpts != nil {
+		switch o := opts.FsOpts.(type) {
+		case *overlayFsOptions, *dmVerityOptions:
+			if _, ok := o.(*overlayFsOptions); ok {
+				args = append(args, "--type=overlay")
+			}
 
-		var err error
-		options, err = o.AppendOptions(options)
-		if err != nil {
-			return fmt.Errorf("cannot mount %q at %q: %w", what, where, err)
+			var err error
+			options, err = o.AppendOptions(options)
+			if err != nil {
+				return fmt.Errorf("cannot mount %q at %q: %w", what, where, err)
+			}
+		default:
+			return fmt.Errorf("cannot mount %q at %q: invalid options", what, where)
 		}
-
 	}
-	if opts.DmVerityOpts != nil {
-		o := opts.DmVerityOpts
 
-		var err error
-		options, err = o.AppendOptions(options)
-		if err != nil {
-			return fmt.Errorf("cannot mount %q at %q: %w", what, where, err)
-		}
-
-	}
 	if len(options) > 0 {
 		args = append(args, "--options="+strings.Join(options, ","))
 	}

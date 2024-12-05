@@ -219,7 +219,7 @@ func (s *doSystemdMountSuite) TestDoSystemdMount(c *C) {
 			what:  "/merged",
 			where: "/merged",
 			opts: &main.SystemdMountOptions{
-				OverlayFsOpts: &main.OverlayFsOptions{
+				FsOpts: &main.OverlayFsOptions{
 					LowerDirs: []string{"/lower"},
 					UpperDir:  "/upper",
 					WorkDir:   "/work",
@@ -235,7 +235,7 @@ func (s *doSystemdMountSuite) TestDoSystemdMount(c *C) {
 		// 	what:  "/merged",
 		// 	where: "/merged",
 		// 	opts: &main.SystemdMountOptions{
-		// 		OverlayFsOpts: &main.OverlayFsOptions{
+		// 		FsOpts: &main.OverlayFsOptions{
 		// 			Overlayfs: true,
 		// 			LowerDirs: []string{"/lower,"},
 		// 			UpperDir:  "/upper",
@@ -252,7 +252,7 @@ func (s *doSystemdMountSuite) TestDoSystemdMount(c *C) {
 		// 	what:  "/merged",
 		// 	where: "/merged",
 		// 	opts: &main.SystemdMountOptions{
-		// 		OverlayFsOpts: &main.OverlayFsOptions{
+		// 		FsOpts: &main.OverlayFsOptions{
 		// 			LowerDirs: []string{"/lower"},
 		// 			UpperDir:  "/upper,",
 		// 			WorkDir:   "/work",
@@ -268,7 +268,7 @@ func (s *doSystemdMountSuite) TestDoSystemdMount(c *C) {
 		// 	what:  "/merged",
 		// 	where: "/merged",
 		// 	opts: &main.SystemdMountOptions{
-		// 		OverlayFsOpts: &main.OverlayFsOptions{
+		// 		FsOpts: &main.OverlayFsOptions{
 		// 			LowerDirs: []string{"/lower"},
 		// 			UpperDir:  "/upper",
 		// 			WorkDir:   "/work,",
@@ -283,7 +283,7 @@ func (s *doSystemdMountSuite) TestDoSystemdMount(c *C) {
 			what:  "/merged",
 			where: "/merged",
 			opts: &main.SystemdMountOptions{
-				OverlayFsOpts: &main.OverlayFsOptions{
+				FsOpts: &main.OverlayFsOptions{
 					LowerDirs: []string{"/lower1", "/lower2"},
 					UpperDir:  "/upper",
 					WorkDir:   "/work",
@@ -299,7 +299,7 @@ func (s *doSystemdMountSuite) TestDoSystemdMount(c *C) {
 		// 	what:  "/merged",
 		// 	where: "/merged",
 		// 	opts: &main.SystemdMountOptions{
-		// 		OverlayFsOpts: &main.OverlayFsOptions{
+		// 		FsOpts: &main.OverlayFsOptions{
 		// 			LowerDirs: []string{"/lower1:", "/lower2:"},
 		// 			UpperDir:  "/upper",
 		// 			WorkDir:   "/work",
@@ -314,7 +314,7 @@ func (s *doSystemdMountSuite) TestDoSystemdMount(c *C) {
 			what:  "what",
 			where: "where",
 			opts: &main.SystemdMountOptions{
-				OverlayFsOpts: &main.OverlayFsOptions{
+				FsOpts: &main.OverlayFsOptions{
 					UpperDir: "/upper",
 					WorkDir:  "/work",
 				},
@@ -327,7 +327,7 @@ func (s *doSystemdMountSuite) TestDoSystemdMount(c *C) {
 			what:  "what",
 			where: "where",
 			opts: &main.SystemdMountOptions{
-				OverlayFsOpts: &main.OverlayFsOptions{
+				FsOpts: &main.OverlayFsOptions{
 					LowerDirs: []string{"/lower1"},
 					WorkDir:   "/work",
 				},
@@ -340,7 +340,7 @@ func (s *doSystemdMountSuite) TestDoSystemdMount(c *C) {
 			what:  "what",
 			where: "where",
 			opts: &main.SystemdMountOptions{
-				OverlayFsOpts: &main.OverlayFsOptions{
+				FsOpts: &main.OverlayFsOptions{
 					LowerDirs: []string{"/lower1"},
 					UpperDir:  "/upper",
 				},
@@ -352,7 +352,7 @@ func (s *doSystemdMountSuite) TestDoSystemdMount(c *C) {
 			what:  "what",
 			where: "where",
 			opts: &main.SystemdMountOptions{
-				OverlayFsOpts: &main.OverlayFsOptions{
+				FsOpts: &main.OverlayFsOptions{
 					LowerDirs: []string{"/lower1\\,\" "},
 					UpperDir:  "/upper",
 					WorkDir:   "/work",
@@ -365,7 +365,7 @@ func (s *doSystemdMountSuite) TestDoSystemdMount(c *C) {
 			what:  "what",
 			where: "where",
 			opts: &main.SystemdMountOptions{
-				OverlayFsOpts: &main.OverlayFsOptions{
+				FsOpts: &main.OverlayFsOptions{
 					LowerDirs: []string{"/lower1:"},
 					UpperDir:  "/upper",
 					WorkDir:   "/work",
@@ -378,7 +378,7 @@ func (s *doSystemdMountSuite) TestDoSystemdMount(c *C) {
 			what:  "what",
 			where: "where",
 			opts: &main.SystemdMountOptions{
-				OverlayFsOpts: &main.OverlayFsOptions{
+				FsOpts: &main.OverlayFsOptions{
 					LowerDirs: []string{"/lower1"},
 					UpperDir:  "/upper\\,:\" ",
 					WorkDir:   "/work",
@@ -391,7 +391,7 @@ func (s *doSystemdMountSuite) TestDoSystemdMount(c *C) {
 			what:  "what",
 			where: "where",
 			opts: &main.SystemdMountOptions{
-				OverlayFsOpts: &main.OverlayFsOptions{
+				FsOpts: &main.OverlayFsOptions{
 					LowerDirs: []string{"/lower1"},
 					UpperDir:  "/upper",
 					WorkDir:   "/work\\,:\" ",
@@ -404,7 +404,7 @@ func (s *doSystemdMountSuite) TestDoSystemdMount(c *C) {
 			what:  "/run/mnt/data/some.snap",
 			where: "/run/mnt/base",
 			opts: &main.SystemdMountOptions{
-				DmVerityOpts: &main.DmVerityOptions{
+				FsOpts: &main.DmVerityOptions{
 					HashDevice: "test.verity",
 					RootHash:   "00000000000000000000000000000000",
 					HashOffset: 4096,
@@ -418,7 +418,7 @@ func (s *doSystemdMountSuite) TestDoSystemdMount(c *C) {
 			what:  "/run/mnt/data/some.snap",
 			where: "/run/mnt/base",
 			opts: &main.SystemdMountOptions{
-				DmVerityOpts: &main.DmVerityOptions{
+				FsOpts: &main.DmVerityOptions{
 					HashDevice: "test.verity",
 					RootHash:   "00000000000000000000000000000000",
 				},
@@ -431,7 +431,7 @@ func (s *doSystemdMountSuite) TestDoSystemdMount(c *C) {
 			what:  "what",
 			where: "where",
 			opts: &main.SystemdMountOptions{
-				DmVerityOpts: &main.DmVerityOptions{
+				FsOpts: &main.DmVerityOptions{
 					HashDevice: "test.verity",
 				},
 			},
@@ -442,7 +442,7 @@ func (s *doSystemdMountSuite) TestDoSystemdMount(c *C) {
 			what:  "what",
 			where: "where",
 			opts: &main.SystemdMountOptions{
-				DmVerityOpts: &main.DmVerityOptions{
+				FsOpts: &main.DmVerityOptions{
 					RootHash: "00000000000000000000000000000000",
 				},
 			},
@@ -453,7 +453,7 @@ func (s *doSystemdMountSuite) TestDoSystemdMount(c *C) {
 			what:  "what",
 			where: "where",
 			opts: &main.SystemdMountOptions{
-				DmVerityOpts: &main.DmVerityOptions{
+				FsOpts: &main.DmVerityOptions{
 					HashOffset: 4096,
 				},
 			},
@@ -464,7 +464,7 @@ func (s *doSystemdMountSuite) TestDoSystemdMount(c *C) {
 			what:  "what",
 			where: "where",
 			opts: &main.SystemdMountOptions{
-				DmVerityOpts: &main.DmVerityOptions{
+				FsOpts: &main.DmVerityOptions{
 					HashDevice: "test.verity\\,:\" ",
 					RootHash:   "00000000000000000000000000000000",
 				},
@@ -630,18 +630,20 @@ func (s *doSystemdMountSuite) TestDoSystemdMount(c *C) {
 			c.Assert(foundBind, Equals, opts.Bind)
 			c.Assert(foundReadOnly, Equals, opts.ReadOnly)
 			c.Assert(foundPrivate, Equals, opts.Private)
-			if foundTypeOverlayfs {
-				c.Assert(opts.OverlayFsOpts, Not(Equals), nil)
-				c.Assert(foundOverlayLowerDir, Equals, len(opts.OverlayFsOpts.LowerDirs) > 0)
-				c.Assert(foundOverlayUpperDir, Equals, len(opts.OverlayFsOpts.UpperDir) > 0)
-				c.Assert(foundOverlayWorkDir, Equals, len(opts.OverlayFsOpts.WorkDir) > 0)
-			} else {
-				c.Assert(opts.OverlayFsOpts, IsNil)
-			}
-			if opts.DmVerityOpts != nil {
-				c.Assert(foundVerityHashDevice, Equals, len(opts.DmVerityOpts.HashDevice) > 0)
-				c.Assert(foundVerityRootHash, Equals, len(opts.DmVerityOpts.RootHash) > 0)
-				c.Assert(foundVerityHashOffset, Equals, opts.DmVerityOpts.HashOffset > 0)
+
+			if opts.FsOpts != nil {
+				switch o := opts.FsOpts.(type) {
+				case *main.OverlayFsOptions:
+					c.Assert(foundTypeOverlayfs, Equals, true)
+					c.Assert(foundOverlayLowerDir, Equals, len(o.LowerDirs) > 0)
+					c.Assert(foundOverlayUpperDir, Equals, len(o.UpperDir) > 0)
+					c.Assert(foundOverlayWorkDir, Equals, len(o.WorkDir) > 0)
+				case *main.DmVerityOptions:
+					c.Assert(foundVerityHashDevice, Equals, len(o.HashDevice) > 0)
+					c.Assert(foundVerityRootHash, Equals, len(o.RootHash) > 0)
+					c.Assert(foundVerityHashOffset, Equals, o.HashOffset > 0)
+				default:
+				}
 			}
 
 			// check that the overrides are present if opts.Ephemeral is false,
