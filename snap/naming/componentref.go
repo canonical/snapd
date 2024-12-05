@@ -82,6 +82,10 @@ func (cid *ComponentRef) UnmarshalYAML(unmarshall func(interface{}) error) error
 // this expression.
 var snapPackComponentFilename = regexp.MustCompile(fmt.Sprintf(`^(%[1]s)\+(%[1]s)(?:_.*)?\.comp$`, almostValidNameRegexString))
 
+// ComponentRefFromSnapPackFilename parses a filename created when creating a
+// component with "snap pack". These are generally in one of two forms:
+//   - <snap>+<comp>.comp
+//   - <snap>+<comp>_<version>.comp
 func ComponentRefFromSnapPackFilename(filename string) (ComponentRef, error) {
 	matches := snapPackComponentFilename.FindStringSubmatch(filename)
 	if len(matches) != 3 {
