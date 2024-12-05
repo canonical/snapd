@@ -16,16 +16,18 @@ runs:
   - name: Summarise and combine results
     shell: bash
     run: |
+      # From https://docs.github.com/en/actions/writing-workflows/choosing-what-your-workflow-does/accessing-contextual-information-about-workflow-runs#jobs-context
+      # Possible results are success, failed, cancelled, and skipped
       needs_results=$(echo '${{ inputs.needs-json }}' | jq -r 'to_entries[] | "\(.key) \(.value.result)"')
 
       echo "Summary:"
       failed="false"
       while IFS=" " read -r job result; do
-        if [[ "$result" != "success" ]]; then
+        if [[ "$result" == "success" ]]; then
+          echo "- ✅ Job \"$job\" returned result \"$result\""
+        else
           failed="true"
           echo "- ❌ Job \"$job\" returned result \"$result\""
-        else
-          echo "- ✅ Job \"$job\" returned result \"$result\""
         fi
       done <<< "$needs_results"
       
