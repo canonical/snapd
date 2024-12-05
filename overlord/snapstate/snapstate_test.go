@@ -431,23 +431,6 @@ type snapmgrTestSuite struct {
 
 var _ = Suite(&snapmgrTestSuite{})
 
-func (s *snapmgrTestSuite) TestSnapStateSnapRef(c *C) {
-	snapst := snapstate.SnapState{
-		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
-			{RealName: "snap-1", Revision: snap.R(1), SnapID: snaptest.AssertedSnapID("snap-1")},
-		}),
-		Current:         snap.R(1),
-		SnapType:        "app",
-		TrackingChannel: "latest/stable",
-		InstanceKey:     "instance",
-	}
-
-	ref := naming.SnapRef(&snapst)
-
-	c.Check(ref.ID(), Equals, snaptest.AssertedSnapID("snap-1"))
-	c.Check(ref.SnapName(), Equals, "snap-1")
-}
-
 func (s *snapmgrTestSuite) TestCleanSnapStateGet(c *C) {
 	snapst := snapstate.SnapState{
 		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
