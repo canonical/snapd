@@ -1,0 +1,17 @@
+name: test-snapd-audit-control
+summary: Basic snap to test the audit_control capability
+description: |
+  A basic snap used to use the audit_control capability, read
+  /proc/self/loginuid and /proc/self/sessionid, and write /run/auditd.pid.
+version: 1.0
+
+apps:
+  set-cap:
+    command: bin/set-cap
+    plugs: [audit-control]
+  read-ids:
+    command: bin/read-ids
+    plugs: [audit-control]
+  write-pid:
+    command: bin/write-pid
+    plugs: [audit-control]

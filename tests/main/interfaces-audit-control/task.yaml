@@ -1,0 +1,51 @@
+summary: Ensure that the netlink audit interface works.
+
+details: |
+    The audit-control interface allows enabling/disabling the kernel audit
+    system, changing auditing filters, retrieving auditing status and filtering
+    rules. The test-snapd-audit-control snap requires the audit_control
+    capability and accesses paths related to auditd.
+
+# arch: CONFIG_AUDIT is not enabled in the default kernel
+systems: [-arch-*]
+
+prepare: |
+    # Install a snap declaring a plug on netlink-audit
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-audit-control
+
+execute: |
+    echo "The interface is disconnected by default"
+    snap interfaces -i audit-control | MATCH -- '- +test-snapd-audit-control:audit-control'
+
+    echo "When the interface is connected"
+    snap connect test-snapd-audit-control:audit-control
+
+    echo "Then the snap is able to set the audit_control capability"
+    test-snapd-audit-control.set-cap
+
+    echo "And the snap is able to read its loginuid and sessionid and write /run/auditd.pid"
+    test-snapd-audit-control.read-ids
+    test-snapd-audit-control.write-pid
+
+    if [ "$(snap debug confinement)" = partial ] ; then
+        exit 0
+    fi
+
+    echo "When the plug is disconnected"
+    snap disconnect test-snapd-audit-control:audit-control
+
+    echo "Then the snap is not able to set the audit_control capability"
+    if test-snapd-audit-control.set-cap; then
+        echo "Expected permission error setting audit_control capability"
+        exit 1
+    fi
+
+    echo "And the snap is not able to read its loginuid and sessionid or write /run/auditd.pid"
+    if test-snapd-audit-control.read-ids; then
+        echo "Expected permission error reading loginuid and sessionid"
+        exit 1
+    fi
+    if test-snapd-audit-control.write-pid; then
+        echo "Expected permission error writing /run/auditd.pid"
+        exit 1
+    fi

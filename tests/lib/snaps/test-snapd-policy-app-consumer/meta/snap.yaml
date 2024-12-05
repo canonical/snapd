@@ -17,9 +17,6 @@ apps:
   audio-record:
     command: bin/run
     plugs: [ audio-record ]
-  audit-control:
-    command: bin/run
-    plugs: [ audit-control ]
   avahi-control:
     command: bin/run
     plugs: [ avahi-control ]

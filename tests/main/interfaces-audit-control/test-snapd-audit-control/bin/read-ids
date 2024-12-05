@@ -1,0 +1,4 @@
+#!/bin/sh -e
+
+cat /proc/self/loginuid
+cat /proc/self/sessionid

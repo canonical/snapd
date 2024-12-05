@@ -1,0 +1,7 @@
+#!/bin/sh -e
+
+echo foo | tee /run/auditd.pid
+rm /run/auditd.pid
+
+echo foo | tee /var/run/auditd.pid
+rm /var/run/auditd.pid
