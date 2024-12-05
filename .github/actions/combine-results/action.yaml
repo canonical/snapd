@@ -16,6 +16,7 @@ runs:
   - name: Summarise and combine results
     shell: bash
     run: |
+      # Possible results are success, failed, cancelled, and skipped
       needs_results=$(echo '${{ inputs.needs-json }}' | jq -r 'to_entries[] | "\(.key) \(.value.result)"')
 
       echo "Summary:"

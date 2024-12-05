@@ -128,13 +128,30 @@ jobs:
       - branch-static-checks
     if: always()
     steps:
+      - name: Filter out branch-static-checks from needs
+        run: |
+          # The branch-static-checks job is skipped when testing on the master
+          # branch. The combine-results action treats skipped jobs as failed
+          # because a failure earlier in the chain (e.g., in cache-build-deps)
+          # would also cause branch-static-checks to be skipped, which
+          # constitutes a legitimate failure. To handle this, when
+          # branch-static-checks is skipped during testing on the master branch
+          # we remove it from the list of dependencies whose results are checked.
+          if [[ "${GITHUB_REF}" == "refs/heads/master" ]]; then
+            filtered_needs=$(echo '${{ toJSON(needs) }}' | jq 'del(.["branch-static-checks"])')
+            echo "NEEDS_FILTERED=$(echo $filtered_needs | jq -c)" >> $GITHUB_ENV
+          else
+            echo "NEEDS_FILTERED=$(echo '${{ toJSON(needs) }}' | jq -c)" >> $GITHUB_ENV
+          fi
+        shell: bash
+
       - name: Checkout code
         uses: actions/checkout@v4
 
       - name: Confirm required static checks passed
         uses: ./.github/actions/combine-results
         with:
-          needs-json: ${{ toJSON(needs) }}
+          needs-json: ${{ env.NEEDS_FILTERED }}
 
   unit-tests:
     uses: ./.github/workflows/unit-tests.yaml
