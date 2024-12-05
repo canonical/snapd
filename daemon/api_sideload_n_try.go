@@ -680,7 +680,7 @@ func readComponentInfo(st *state.State, upload *uploadedContainer, flags sideloa
 	info, err := installedSnapInfo(st, instanceName)
 	if err != nil {
 		if errors.Is(err, state.ErrNoState) {
-			return nil, nil, SnapNotInstalled(instanceName, fmt.Errorf("snap owning %q not installed", compRef.ComponentName))
+			return nil, nil, SnapNotInstalled(instanceName, fmt.Errorf("snap owning %q not installed", compRef))
 		}
 		return nil, nil, BadRequest("cannot retrieve information for %q: %v", instanceName, err)
 	}

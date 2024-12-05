@@ -403,6 +403,32 @@ version: 1.0.2
 func (s *sideloadSuite) testSideloadComponentAsserted(c *check.C, compPath, instanceKey, body string) {
 	snapID := snaptest.AssertedSnapID("local")
 
+	snapDecl, snapRev, resRev, resPair := s.makeComponentAssertions(c, snapID, compPath)
+
+	d := s.daemonWithFakeSnapManager(c)
+	s.markSeeded(d)
+	st := s.d.Overlord().State()
+
+	st.Lock()
+	assertstatetest.AddMany(s.d.Overlord().State(), s.StoreSigning.StoreAccountKey(""), snapDecl, snapRev, resRev, resPair)
+	st.Unlock()
+
+	csi := snap.NewComponentSideInfo(naming.NewComponentRef("local", "comp"), snap.R(22))
+	flags := snapstate.Flags{RemoveSnapPath: true, Transaction: client.TransactionPerSnap}
+	headers := map[string]string{"Content-Type": "multipart/thing; boundary=--hello--"}
+
+	compFile, err := os.Open(compPath)
+	c.Assert(err, check.IsNil)
+	defer compFile.Close()
+
+	instanceName := snap.InstanceName("local", instanceKey)
+
+	chgSummary, systemRestartImmediate := s.sideloadComponentCheck(c, st, body, headers, instanceName, flags, csi, compFile)
+	c.Check(chgSummary, check.Equals, fmt.Sprintf(`Install "comp" component for %q snap from file %q`, instanceName, compPath))
+	c.Check(systemRestartImmediate, check.Equals, false)
+}
+
+func (s *sideloadSuite) makeComponentAssertions(c *check.C, snapID string, compPath string) (asserts.Assertion, asserts.Assertion, asserts.Assertion, asserts.Assertion) {
 	snapDecl, err := s.StoreSigning.Sign(asserts.SnapDeclarationType, map[string]interface{}{
 		"series":       "16",
 		"snap-id":      snapID,
@@ -447,28 +473,7 @@ func (s *sideloadSuite) testSideloadComponentAsserted(c *check.C, compPath, inst
 		"timestamp":         time.Now().Format(time.RFC3339),
 	}, nil, "")
 	c.Assert(err, check.IsNil)
-
-	d := s.daemonWithFakeSnapManager(c)
-	s.markSeeded(d)
-	st := s.d.Overlord().State()
-
-	st.Lock()
-	assertstatetest.AddMany(s.d.Overlord().State(), s.StoreSigning.StoreAccountKey(""), snapDecl, snapRev, resRev, resPair)
-	st.Unlock()
-
-	csi := snap.NewComponentSideInfo(naming.NewComponentRef("local", "comp"), snap.R(22))
-	flags := snapstate.Flags{RemoveSnapPath: true, Transaction: client.TransactionPerSnap}
-	headers := map[string]string{"Content-Type": "multipart/thing; boundary=--hello--"}
-
-	compFile, err := os.Open(compPath)
-	c.Assert(err, check.IsNil)
-	defer compFile.Close()
-
-	instanceName := snap.InstanceName("local", instanceKey)
-
-	chgSummary, systemRestartImmediate := s.sideloadComponentCheck(c, st, body, headers, instanceName, flags, csi, compFile)
-	c.Check(chgSummary, check.Equals, fmt.Sprintf(`Install "comp" component for %q snap from file %q`, instanceName, compPath))
-	c.Check(systemRestartImmediate, check.Equals, false)
+	return snapDecl, snapRev, resRev, resPair
 }
 
 func (s *sideloadSuite) TestSideloadComponentDangerousProvideComponentRef(c *check.C) {
@@ -564,9 +569,30 @@ func (s *sideloadSuite) TestSideloadComponentDangerousProvideComponentNameMissin
 		"\r\n" +
 		"comp\r\n" +
 		"----hello--\r\n"
+
+	d := s.daemonWithFakeSnapManager(c)
+	s.markSeeded(d)
+
+	ssi := &snap.SideInfo{
+		RealName: "local",
+		Revision: snap.R(1),
+		SnapID:   snaptest.AssertedSnapID("local"),
+	}
+
+	st := s.d.Overlord().State()
+	st.Lock()
+	snapstate.Set(st, "local", &snapstate.SnapState{
+		Active: true,
+		Sequence: snapstatetest.NewSequenceFromRevisionSideInfos(
+			[]*sequence.RevisionSideState{sequence.NewRevisionSideState(ssi, nil)},
+		),
+		Current: snap.R(1),
+	})
+	st.Unlock()
+
 	apiErr := s.sideloadComponentFailure(c, body, map[string]string{
 		"Content-Type": "multipart/thing; boundary=--hello--",
-	}, "local")
+	})
 	c.Check(apiErr.Message, check.Equals, `snap name must be provided if component name is provided`)
 }
 
@@ -670,32 +696,50 @@ func (s *sideloadSuite) TestSideloadComponentForNotInstalledSnap(c *check.C) {
 	c.Check(rspe.Kind, check.Equals, client.ErrorKindSnapNotInstalled)
 }
 
-func (s *sideloadSuite) TestSideloadComponentMissingAssertions(c *check.C) {
-	apiErr := s.sideloadComponentFailure(c, sideLoadComponentBody, map[string]string{
+func (s *sideloadSuite) TestSideloadAssertedComponentForNotInstalledSnap(c *check.C) {
+	compPath := snaptest.MakeTestComponentWithFiles(c, "comp", `component: local+comp
+type: standard
+version: 1.0.2
+`, nil)
+
+	newPath := filepath.Join(filepath.Dir(compPath), "local+comp_1.0.comp")
+	err := os.Rename(compPath, newPath)
+	c.Assert(err, check.IsNil)
+	compPath = newPath
+
+	body := makeFormData(c, []string{compPath}, map[string]string{
+		"snap-path": compPath,
+	})
+
+	snapDecl, snapRev, resRev, resPair := s.makeComponentAssertions(c, snaptest.AssertedSnapID("local"), compPath)
+
+	d := s.daemonWithFakeSnapManager(c)
+	s.markSeeded(d)
+	st := s.d.Overlord().State()
+
+	st.Lock()
+	assertstatetest.AddMany(s.d.Overlord().State(), s.StoreSigning.StoreAccountKey(""), snapDecl, snapRev, resRev, resPair)
+	st.Unlock()
+
+	apiErr := s.sideloadComponentFailure(c, body, map[string]string{
 		"Content-Type": "multipart/thing; boundary=--hello--",
-	}, "local")
-	c.Check(apiErr.Message, check.Equals, `cannot find signatures with metadata for snap/component "a/b/local+comp_1.0.comp"`)
+	})
+	c.Check(apiErr.Message, check.Equals, `snap owning "local+comp" not installed`)
 }
 
-func (s *sideloadSuite) sideloadComponentFailure(
-	c *check.C,
-	content string,
-	headers map[string]string,
-	instanceName string,
-) *daemon.APIError {
-
+func (s *sideloadSuite) TestSideloadComponentMissingAssertions(c *check.C) {
 	d := s.daemonWithFakeSnapManager(c)
 	s.markSeeded(d)
 
 	ssi := &snap.SideInfo{
 		RealName: "local",
 		Revision: snap.R(1),
-		SnapID:   "some-snap-id",
+		SnapID:   snaptest.AssertedSnapID("local"),
 	}
 
 	st := s.d.Overlord().State()
 	st.Lock()
-	snapstate.Set(st, instanceName, &snapstate.SnapState{
+	snapstate.Set(st, "local", &snapstate.SnapState{
 		Active: true,
 		Sequence: snapstatetest.NewSequenceFromRevisionSideInfos(
 			[]*sequence.RevisionSideState{sequence.NewRevisionSideState(ssi, nil)},
@@ -704,6 +748,17 @@ func (s *sideloadSuite) sideloadComponentFailure(
 	})
 	st.Unlock()
 
+	apiErr := s.sideloadComponentFailure(c, sideLoadComponentBody, map[string]string{
+		"Content-Type": "multipart/thing; boundary=--hello--",
+	})
+	c.Check(apiErr.Message, check.Equals, `cannot find signatures with metadata for snap/component "a/b/local+comp_1.0.comp"`)
+}
+
+func (s *sideloadSuite) sideloadComponentFailure(
+	c *check.C,
+	content string,
+	headers map[string]string,
+) *daemon.APIError {
 	restore := daemon.MockUnsafeReadSnapInfo(func(path string) (*snap.Info, error) {
 		return nil, daemon.BadRequest("mocking error to force reading as component")
 	})
