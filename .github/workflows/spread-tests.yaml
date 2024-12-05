@@ -36,7 +36,7 @@ on:
         type: boolean
         default: true
       spread-experimental-features:
-        description: 'Experimental snapd features to enable'
+        description: 'Comma-separated list of experimental snapd features to enable with: snap set system "experimental.<feature-name>=true"'
         required: false
         type: string
 
@@ -52,11 +52,11 @@ jobs:
 
     - name: Verify inputs
       run: |
-          if [ "${{ inputs.backend }}" == "" ]; then
+          if [ -z "${{ inputs.backend }}" ]; then
             echo "You must specify a backend."
             exit 1
           fi
-          if [ "${{ inputs.systems }}" == "" ]; then
+          if [ -z "${{ inputs.systems }}" ]; then
             echo "You must specify a value for systems. If you want to run all, specify ALL. If you want to run none, specify NONE."
             exit 1
           fi
@@ -156,7 +156,7 @@ jobs:
           # Save previous failed test results in FAILED_TESTS env var
           if [ -n "$FAILED_TESTS" ]; then
               RUN_TESTS="$FAILED_TESTS"
-          elif [ "${{ inputs.systems }}" == "ALL" ]; then
+          elif [ "${{ inputs.systems }}" = "ALL" ]; then
               RUN_TESTS=$(get_new_tasks "${{ inputs.backend }}" "$CHANGES_PARAM")
           elif [ "${{ inputs.systems }}" != "NONE" ]; then
               for SYSTEM in ${{ inputs.systems }}; do
@@ -253,7 +253,7 @@ jobs:
               ./tests/lib/spread/add-backend tests/lib/spread/backend.openstack.yaml spread.yaml
           fi
 
-          spread_list=$($SPREAD -list $RUN_TESTS 2>&1)
+          spread_list="$($SPREAD -list $RUN_TESTS 2>&1)"
 
           if [[ "$spread_list" =~ amazon-linux-2023 ]]; then
               # Amazon Linux 2023 has no xdelta, however we cannot disable
@@ -264,7 +264,7 @@ jobs:
               export NO_DELTA=1
           fi
 
-          if "$spread_list" | grep -q "nothing matches provider filter"; then
+          if grep -q "nothing matches provider filter" <<< "$spread_list"; then
             echo "No tests to run, exiting..."
             exit 0
           fi
