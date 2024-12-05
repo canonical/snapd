@@ -191,7 +191,7 @@ type storeInstallGoal struct {
 	snaps []StoreSnap
 }
 
-func (s *storeInstallGoal) get(name string) (StoreSnap, bool) {
+func (s *storeInstallGoal) snap(name string) (StoreSnap, bool) {
 	for _, sn := range s.snaps {
 		if sn.InstanceName == name {
 			return sn, true
@@ -270,7 +270,7 @@ func (s *storeInstallGoal) toInstall(ctx context.Context, st *state.State, opts 
 
 	installs := make([]target, 0, len(results))
 	for _, r := range results {
-		sn, ok := s.get(r.InstanceName())
+		sn, ok := s.snap(r.InstanceName())
 		if !ok {
 			return nil, fmt.Errorf("store returned unsolicited snap action: %s", r.InstanceName())
 		}
@@ -313,7 +313,7 @@ func (s *storeInstallGoal) toInstall(ctx context.Context, st *state.State, opts 
 	}
 
 	for _, t := range installs {
-		sn, ok := s.get(t.info.InstanceName())
+		sn, ok := s.snap(t.info.InstanceName())
 		if !ok {
 			return nil, fmt.Errorf("internal error: snap to install was not requested: %s", t.info.InstanceName())
 		}
