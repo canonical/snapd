@@ -146,7 +146,7 @@ execute: |
       # efi_pstore is loaded by systemd-pstore.service (pulled by sysinit.target) and must be available
       # early, otherwise it will not have been loaded
       remote.exec lsmod | MATCH efi_pstore
-      remote.exec modinfo -F filename efi_pstore | MATCH updates/kmod/efi-pstore.ko
+      remote.exec modinfo -F filename efi_pstore | MATCH updates/efi-pstore/kmod/efi-pstore.ko
   fi
 
   # check encryption
@@ -196,7 +196,7 @@ execute: |
       remote.exec "snap change $REMOTE_CHG_ID" | NOMATCH Error
       # efi_pstore has been loaded and comes from the "updates" subfolder
       remote.exec lsmod | MATCH efi_pstore
-      remote.exec modinfo -F filename efi_pstore | MATCH updates/kmod/efi-pstore.ko
+      remote.exec modinfo -F filename efi_pstore | MATCH updates/efi-pstore/kmod/efi-pstore.ko
   fi
 
   # test kernel/gadget refreshes via the fake-store
