@@ -83,32 +83,18 @@ func (o *overlayFsOptions) validate() error {
 	if strings.ContainsAny(o.UpperDir, forbiddenChars) {
 		return fmt.Errorf("upperdir overlayfs mount option contains forbidden characters. %q contains one of %q", o.UpperDir, forbiddenChars)
 	}
+
 	if strings.ContainsAny(o.WorkDir, forbiddenChars) {
 		return fmt.Errorf("workdir overlayfs mount option contains forbidden characters. %q contains one of %q", o.WorkDir, forbiddenChars)
 	}
 
-	return nil
-}
-
-// validateLowerDirs is used to perform consistency checks on individual directories passed as LowerDir for an overlayfs
-// mount. It also combines potential multiple LowerDirs to a single string to avoid iterating the list twice.
-func (o *overlayFsOptions) validateLowerDirs() (string, error) {
-	var lowerDirs strings.Builder
-	for i, d := range o.LowerDirs {
+	for _, d := range o.LowerDirs {
 		if strings.ContainsAny(d, forbiddenChars) {
-			return "", fmt.Errorf("lowerdir overlayfs mount option contains forbidden characters. %q contains one of %q", d, forbiddenChars)
+			return fmt.Errorf("lowerdir overlayfs mount option contains forbidden characters. %q contains one of %q", d, forbiddenChars)
 		}
-
-		// This is used for splitting multiple lowerdirs as done in
-		// https://elixir.bootlin.com/linux/v6.10.9/C/ident/ovl_parse_param_split_lowerdirs.
-		if i != 0 {
-			lowerDirs.WriteRune(':')
-		}
-
-		lowerDirs.WriteString(d)
 	}
 
-	return lowerDirs.String(), nil
+	return nil
 }
 
 // AppendOptions constructs the overlayfs related arguments to systemd-mount after validation.
@@ -118,12 +104,18 @@ func (o *overlayFsOptions) AppendOptions(options []string) ([]string, error) {
 		return nil, err
 	}
 
-	lowerDirs, err := o.validateLowerDirs()
-	if err != nil {
-		return nil, err
+	var lowerDirs strings.Builder
+	for i, d := range o.LowerDirs {
+		// This is used for splitting multiple lowerdirs as done in
+		// https://elixir.bootlin.com/linux/v6.10.9/C/ident/ovl_parse_param_split_lowerdirs.
+		if i != 0 {
+			lowerDirs.WriteRune(':')
+		}
+
+		lowerDirs.WriteString(d)
 	}
 
-	options = append(options, fmt.Sprintf("lowerdir=%s", lowerDirs))
+	options = append(options, fmt.Sprintf("lowerdir=%s", lowerDirs.String()))
 	options = append(options, fmt.Sprintf("upperdir=%s", o.UpperDir))
 	options = append(options, fmt.Sprintf("workdir=%s", o.WorkDir))
 
