@@ -17,6 +17,8 @@ environment:
     SNAPD_NO_MEMORY_LIMIT: 1
     SNAPD_SRC/core: "core"
     SNAPD_SRC/snapd: "snapd"
+    SNAPD_SRC/snapd_new_pkg: "snapd"
+    SNAPD_DEB_FROM_REPO/snapd_new_pkg: false
 
 prepare: |
     if [ "${SNAP_REEXEC:-}" = "0" ]; then
@@ -94,6 +96,13 @@ execute: |
     fi
     if [ "$IS_REEXEC" = true ]; then
         /usr/bin/env SNAPD_DEBUG=1 snap list 2>&1 | MATCH "DEBUG: restarting into \"$SNAPD_MOUNT_DIR/current/usr/bin/snap\""        
+
+        if [ "${SNAPD_DEB_FROM_REPO-}" = "false" ]; then
+          echo "Ensure the command line has been updated in /proc"
+          snapd_pid="$(systemctl show --property=MainPID --value snapd.service)"
+          snapd_cmdline="$(tr '\0' , <"/proc/${snapd_pid}/cmdline")"
+          test "${snapd_cmdline}" = "${SNAPD_MOUNT_DIR}/current/usr/lib/snapd/snapd,"
+        fi
     fi
 
     echo "Ensure that we do not re-exec into older versions"
