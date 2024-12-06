@@ -29,7 +29,16 @@ const auditControlBaseDeclarationSlots = `
     deny-auto-connection: true
 `
 
+const auditControlConnectedPlugSecComp = `
+# Description: Can use netlink to communicate with kernel audit system.
+bind
+socket AF_NETLINK - NETLINK_AUDIT
+`
+
 const auditControlConnectedPlugAppArmor = `
+# Description: Can use netlink to communicate with kernel audit system.
+network netlink,
+
 # CAP_AUDIT_CONTROL required to enable/disable kernel auditing, change auditing
 # filter rules, and retrieve auditing status and filtering rules.
 capability audit_control,
@@ -52,6 +61,7 @@ func init() {
 		implicitOnCore:        true,
 		implicitOnClassic:     true,
 		baseDeclarationSlots:  auditControlBaseDeclarationSlots,
+		connectedPlugSecComp:  auditControlConnectedPlugSecComp,
 		connectedPlugAppArmor: auditControlConnectedPlugAppArmor,
 	}})
 }
