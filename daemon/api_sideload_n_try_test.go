@@ -596,7 +596,7 @@ func (s *sideloadSuite) TestSideloadComponentDangerousProvideComponentNameMissin
 	c.Check(apiErr.Message, check.Equals, `snap name must be provided if component name is provided`)
 }
 
-func (s *sideloadSuite) TestSideloadComponentDevModeNoAssertion(c *check.C) {
+func (s *sideloadSuite) TestSideloadComponentDevModeNoAssertions(c *check.C) {
 	// try a multipart/form-data upload
 	body := sideLoadComponentBody +
 		"Content-Disposition: form-data; name=\"devmode\"\r\n" +
@@ -727,7 +727,7 @@ version: 1.0.2
 	c.Check(apiErr.Message, check.Equals, `snap owning "local+comp" not installed`)
 }
 
-func (s *sideloadSuite) TestSideloadComponentMissingAssertions(c *check.C) {
+func (s *sideloadSuite) TestSideloadComponentMissingAllAssertions(c *check.C) {
 	d := s.daemonWithFakeSnapManager(c)
 	s.markSeeded(d)
 
@@ -752,6 +752,60 @@ func (s *sideloadSuite) TestSideloadComponentMissingAssertions(c *check.C) {
 		"Content-Type": "multipart/thing; boundary=--hello--",
 	})
 	c.Check(apiErr.Message, check.Equals, `cannot find signatures with metadata for snap/component "a/b/local+comp_1.0.comp"`)
+}
+
+func (s *sideloadSuite) TestSideloadComponentMissingPairAssertion(c *check.C) {
+	d := s.daemonWithFakeSnapManager(c)
+	s.markSeeded(d)
+
+	compPath := snaptest.MakeTestComponentWithFiles(c, "comp", `component: local+comp
+type: standard
+version: 1.0
+`, nil)
+
+	newPath := filepath.Join(filepath.Dir(compPath), "local+comp_1.0.comp")
+	err := os.Rename(compPath, newPath)
+	c.Assert(err, check.IsNil)
+	compPath = newPath
+
+	body := makeFormData(c, []string{compPath}, map[string]string{
+		"snap-path": compPath,
+	})
+
+	ssi := &snap.SideInfo{
+		RealName: "local",
+		Revision: snap.R(1),
+		SnapID:   snaptest.AssertedSnapID("local"),
+	}
+
+	// omitting the resource pair here
+	snapDecl, snapRev, resRev, _ := s.makeComponentAssertions(c, snaptest.AssertedSnapID("local"), compPath)
+
+	st := s.d.Overlord().State()
+	st.Lock()
+	snapstate.Set(st, "local", &snapstate.SnapState{
+		Active: true,
+		Sequence: snapstatetest.NewSequenceFromRevisionSideInfos(
+			[]*sequence.RevisionSideState{sequence.NewRevisionSideState(ssi, nil)},
+		),
+		Current: snap.R(1),
+	})
+	assertstatetest.AddMany(s.d.Overlord().State(), s.StoreSigning.StoreAccountKey(""), snapDecl, snapRev, resRev)
+	st.Unlock()
+
+	restore := daemon.MockUnsafeReadSnapInfo(func(path string) (*snap.Info, error) {
+		return nil, daemon.BadRequest("mocking error to force reading as component")
+	})
+	defer restore()
+
+	buf := bytes.NewBufferString(body)
+	req, err := http.NewRequest("POST", "/v2/snaps", buf)
+	c.Assert(err, check.IsNil)
+	for k, v := range map[string]string{"Content-Type": "multipart/thing; boundary=--hello--"} {
+		req.Header.Set(k, v)
+	}
+	apiErr := s.errorReq(c, req, nil)
+	c.Check(apiErr.Message, check.Equals, `cannot find resource pair connecting component revision "22" with snap revision "1" for "local+comp"`)
 }
 
 func (s *sideloadSuite) sideloadComponentFailure(

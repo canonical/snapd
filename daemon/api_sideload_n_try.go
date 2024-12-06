@@ -533,7 +533,7 @@ func sideloadSnap(_ context.Context, st *state.State, upload *uploadedContainer,
 			// the component information, so this is a valid component and we
 			// report the snap not found error. Otherwise, we don't know and
 			// we report the error while trying to read the file as a snap.
-			if compErr.Kind == client.ErrorKindSnapNotInstalled {
+			if compErr.Kind == client.ErrorKindSnapNotInstalled || compErr.Kind == client.ErrorKindMissingSnapResourcePair {
 				return nil, compErr
 			}
 			return nil, snapErr
@@ -685,22 +685,35 @@ func readComponentInfo(st *state.State, upload *uploadedContainer, flags sideloa
 		return nil, nil, BadRequest("cannot retrieve information for %q: %v", instanceName, err)
 	}
 
-	csi, err := snapasserts.DeriveComponentSideInfo(compRef.ComponentName, upload.tmpPath, info, model, assertstate.DB(st))
-	if err != nil {
-		if errors.Is(err, &asserts.NotFoundError{}) {
-			// with devmode we try to find assertions but it's ok if they
-			// are not there (implies --dangerous)
-			if !flags.DevMode {
-				msg := "cannot find signatures with metadata for snap/component"
-				if upload.filename != "" {
-					msg = fmt.Sprintf("%s %q", msg, upload.filename)
-				}
-				return nil, nil, BadRequest(msg)
-			}
+	db := assertstate.DB(st)
 
-			csi = snap.NewComponentSideInfo(compRef, snap.Revision{})
-		} else {
+	csi, err := snapasserts.DeriveComponentSideInfo(compRef.ComponentName, upload.tmpPath, info, model, db)
+	if err != nil {
+		if !errors.Is(err, &asserts.NotFoundError{}) {
 			return nil, nil, BadRequest(err.Error())
+		}
+
+		msg := "cannot find signatures with metadata for snap/component"
+		if upload.filename != "" {
+			msg = fmt.Sprintf("%s %q", msg, upload.filename)
+		}
+
+		if !flags.DevMode {
+			if upload.filename != "" {
+				msg = fmt.Sprintf("%s %q", msg, upload.filename)
+			}
+			return nil, nil, BadRequest(msg)
+		}
+
+		csi = snap.NewComponentSideInfo(compRef, snap.Revision{})
+	}
+
+	// make sure that we've got a resource pair for this component and snap
+	// revision. installing via snapstate checks this too, but we might as well
+	// fail early.
+	if !flags.DevMode {
+		if err := checkForResourcePair(csi, info, db); err != nil {
+			return nil, nil, MissingSnapResourcePair(csi, info.Revision)
 		}
 	}
 
@@ -716,6 +729,23 @@ func readComponentInfo(st *state.State, upload *uploadedContainer, flags sideloa
 	}
 
 	return compInfo, info, nil
+}
+
+func checkForResourcePair(csi *snap.ComponentSideInfo, info *snap.Info, db asserts.RODatabase) error {
+	retrieve := func(ref *asserts.Ref) (asserts.Assertion, error) {
+		return ref.Resolve(db.Find)
+	}
+	fetcher := asserts.NewFetcher(db, retrieve, func(asserts.Assertion) error {
+		return nil
+	})
+
+	return snapasserts.FetchResourcePairAssertion(
+		fetcher,
+		&info.SideInfo,
+		csi.Component.ComponentName,
+		csi.Revision,
+		info.Provenance(),
+	)
 }
 
 func readComponentInfoDangerous(st *state.State, upload *uploadedContainer) (*snap.ComponentInfo, *snap.Info, *apiError) {
