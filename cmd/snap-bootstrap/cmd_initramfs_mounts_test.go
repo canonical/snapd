@@ -8322,11 +8322,11 @@ func (s *initramfsMountsSuite) TestInitramfsMountsInstallAndRunMissingFdeSetup(c
 }
 
 type MockObserver struct {
-	BootLoaderSupportsEfiVariablesFunc       func() bool
-	ObserveExistingTrustedRecoveryAssetsFunc func(recoveryRootDir string) error
-	SetBootstrappedContainersFunc            func(key, saveKey secboot.BootstrappedContainer)
-	UpdateBootEntryFunc                      func() error
-	ObserveFunc                              func(op gadget.ContentOperation, partRole, root, relativeTarget string, data *gadget.ContentChange) (gadget.ContentChangeAction, error)
+	BootLoaderSupportsEfiVariablesFunc         func() bool
+	ObserveExistingTrustedRecoveryAssetsFunc   func(recoveryRootDir string) error
+	SetBootstrappedContainersAndPrimaryKeyFunc func(key, saveKey secboot.BootstrappedContainer, primaryKey []byte)
+	UpdateBootEntryFunc                        func() error
+	ObserveFunc                                func(op gadget.ContentOperation, partRole, root, relativeTarget string, data *gadget.ContentChange) (gadget.ContentChangeAction, error)
 }
 
 func (m *MockObserver) BootLoaderSupportsEfiVariables() bool {
@@ -8337,8 +8337,8 @@ func (m *MockObserver) ObserveExistingTrustedRecoveryAssets(recoveryRootDir stri
 	return m.ObserveExistingTrustedRecoveryAssetsFunc(recoveryRootDir)
 }
 
-func (m *MockObserver) SetBootstrappedContainers(key, saveKey secboot.BootstrappedContainer) {
-	m.SetBootstrappedContainersFunc(key, saveKey)
+func (m *MockObserver) SetBootstrappedContainersAndPrimaryKey(key, saveKey secboot.BootstrappedContainer, primaryKey []byte) {
+	m.SetBootstrappedContainersAndPrimaryKeyFunc(key, saveKey, primaryKey)
 }
 
 func (m *MockObserver) UpdateBootEntry() error {
@@ -8411,6 +8411,9 @@ echo '{"features":[]}'
 
 	writeGadget(c, "ubuntu-seed", "system-seed", "")
 
+	dataContainer := secboot.CreateMockBootstrappedContainer()
+	saveContainer := secboot.CreateMockBootstrappedContainer()
+
 	gadgetInstallCalled := false
 	restoreGadgetInstall := main.MockGadgetInstallRun(func(model gadget.Model, gadgetRoot string, kernelSnapInfo *gadgetInstall.KernelSnapInfo, bootDevice string, options gadgetInstall.Options, observer gadget.ContentObserver, perfTimings timings.Measurer) (*gadgetInstall.InstalledSystemSideData, error) {
 		gadgetInstallCalled = true
@@ -8423,8 +8426,8 @@ echo '{"features":[]}'
 		c.Assert(kernelSnapInfo.MountPoint, Equals, filepath.Join(boot.InitramfsRunMntDir, "kernel"))
 
 		installKeyForRole := map[string]secboot.BootstrappedContainer{
-			gadget.SystemData: secboot.CreateMockBootstrappedContainer(),
-			gadget.SystemSave: secboot.CreateMockBootstrappedContainer(),
+			gadget.SystemData: dataContainer,
+			gadget.SystemSave: saveContainer,
 		}
 		return &gadgetInstall.InstalledSystemSideData{BootstrappedContainerForRole: installKeyForRole}, nil
 	})
@@ -8466,6 +8469,7 @@ echo '{"features":[]}'
 	})()
 
 	observeExistingTrustedRecoveryAssetsCalled := 0
+	setBootstrappedContainersCalled := 0
 	mockObserver := &MockObserver{
 		BootLoaderSupportsEfiVariablesFunc: func() bool {
 			return true
@@ -8474,7 +8478,10 @@ echo '{"features":[]}'
 			observeExistingTrustedRecoveryAssetsCalled += 1
 			return nil
 		},
-		SetBootstrappedContainersFunc: func(key, saveKey secboot.BootstrappedContainer) {
+		SetBootstrappedContainersAndPrimaryKeyFunc: func(key, saveKey secboot.BootstrappedContainer, primaryKey []byte) {
+			setBootstrappedContainersCalled++
+			c.Check(key, Equals, dataContainer)
+			c.Check(saveKey, Equals, saveContainer)
 		},
 		UpdateBootEntryFunc: func() error {
 			return nil
@@ -8526,6 +8533,7 @@ echo '{"features":[]}'
 	c.Assert(gadgetInstallCalled, Equals, true)
 	c.Assert(nextBooEnsured, Equals, true)
 	c.Check(observeExistingTrustedRecoveryAssetsCalled, Equals, 1)
+	c.Check(setBootstrappedContainersCalled, Equals, 1)
 }
 
 func (s *initramfsMountsSuite) TestInitramfsMountsInstallAndRunFdeSetupNotPresent(c *C) {
@@ -8631,7 +8639,8 @@ func (s *initramfsMountsSuite) TestInitramfsMountsInstallAndRunFdeSetupNotPresen
 			observeExistingTrustedRecoveryAssetsCalled += 1
 			return nil
 		},
-		SetBootstrappedContainersFunc: func(key, saveKey secboot.BootstrappedContainer) {
+		SetBootstrappedContainersAndPrimaryKeyFunc: func(key, saveKey secboot.BootstrappedContainer, primaryKey []byte) {
+			c.Errorf("unexpected call")
 		},
 		UpdateBootEntryFunc: func() error {
 			return nil
