@@ -1,0 +1,7 @@
+#!/bin/sh -xe
+
+# Attempt to read the login UID and session ID of PID 1
+cat /proc/1/loginuid
+echo
+cat /proc/1/sessionid
+echo
