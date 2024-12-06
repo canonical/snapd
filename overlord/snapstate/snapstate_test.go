@@ -174,6 +174,8 @@ func (s *snapmgrBaseTest) SetUpTest(c *C) {
 		state:               s.state,
 		downloadError:       make(map[string]error),
 		refreshRevnos:       make(map[string]snap.Revision),
+		idsToNames:          make(map[string]string),
+		namesToAssertedIDs:  make(map[string]string),
 	}
 
 	// make tests work consistently also in containers

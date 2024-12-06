@@ -2184,8 +2184,6 @@ func doUpdate(st *state.State, requested []string, updates []update, opts Option
 		// re-refresh check
 		needsRerefreshCheck = true
 
-		// TODO:COMPS: we need to handle components here too
-
 		// Do not set any default restart boundaries, we do it when we have access to all
 		// the task-sets in preparation for single-reboot.
 		ts, err := doInstall(st, &up.SnapState, up.Setup, up.Components, noRestartBoundaries, opts.FromChange, inUseFor(opts.DeviceCtx))

@@ -689,7 +689,16 @@ func storeUpdatePlanCore(
 		})
 	}
 
-	// TODO: verify validation sets here to catch invalid component revisions
+	for _, t := range plan.targets {
+		up, ok := updates[t.info.InstanceName()]
+		if !ok {
+			return updatePlan{}, fmt.Errorf("internal error: target created for snap without an update: %s", t.info.InstanceName())
+		}
+
+		if err := checkTargetAgainstValidationSets(t, "refresh", up.RevOpts.ValidationSets); err != nil {
+			return updatePlan{}, err
+		}
+	}
 
 	return plan, nil
 }
@@ -719,6 +728,19 @@ func currentComponentsAvailableInRevision(snapst *SnapState, info *snap.Info) ([
 		}
 	}
 	return intersection, nil
+}
+
+// ignoreValidationSetsForRefresh returns a boolean indicating whether or not we
+// should ignore validation sets when refreshing this snap. There are two cases
+// to consider, the single refresh case and the refresh-all case. During a
+// single refresh, we only consider the flag that was passed in. During a
+// refresh-all, we respect the sticky ignore validation flag that is held in
+// SnapState.
+func ignoreValidationSetsForRefresh(snapst *SnapState, opts Options) bool {
+	if !opts.ExpectOneSnap {
+		return snapst.IgnoreValidation
+	}
+	return opts.Flags.IgnoreValidation
 }
 
 func collectCurrentSnapsAndActions(
@@ -764,20 +786,14 @@ func collectCurrentSnapsAndActions(
 			InstanceName: installed.InstanceName,
 		}
 
+		ignoreValidation := ignoreValidationSetsForRefresh(snapst, opts)
+
 		// TODO: this is silly, but it matches how we currently send these flags
 		// now. we should probably just default to sending enforce, but that
 		// would require updating a good number of tests. good candidate for a
 		// follow-up PR.
-		//
-		// if we are expecting only one snap to be updated, we respect the flag
-		// that was passed in. this maintains the existing behavior of Update vs
-		// UpdateMany.
-		ignoreValidation := snapst.IgnoreValidation
-		if opts.ExpectOneSnap {
-			ignoreValidation = opts.Flags.IgnoreValidation
-			if !opts.Flags.IgnoreValidation && req.RevOpts.Revision.Unset() {
-				action.Flags = store.SnapActionEnforceValidation
-			}
+		if !ignoreValidation && opts.ExpectOneSnap && req.RevOpts.Revision.Unset() {
+			action.Flags = store.SnapActionEnforceValidation
 		}
 
 		if err := completeStoreAction(action, req.RevOpts, ignoreValidation); err != nil {

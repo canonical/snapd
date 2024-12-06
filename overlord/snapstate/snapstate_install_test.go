@@ -4766,6 +4766,33 @@ func (s *validationSetsSuite) TestInstallManyRequiredForValidationSetOK(c *C) {
 	c.Assert(s.fakeBackend.ops[1:], DeepEquals, expectedOps)
 }
 
+func (s *validationSetsSuite) TestInstallManyRequiredForValidationSetWithOptionalRevisionOK(c *C) {
+	err := s.installManySnapReferencedByValidationSet(c, "required", "", "optional", "12")
+	c.Assert(err, IsNil)
+
+	c.Assert(s.fakeBackend.ops, HasLen, 3)
+	expectedOps := fakeOps{{
+		op: "storesvc-snap-action:action",
+		action: store.SnapAction{
+			Action:         "install",
+			InstanceName:   "one",
+			Channel:        "stable",
+			ValidationSets: []snapasserts.ValidationSetKey{"16/foo/bar/1"},
+		},
+		revno: snap.R(11),
+	}, {
+		op: "storesvc-snap-action:action",
+		action: store.SnapAction{
+			Action:         "install",
+			InstanceName:   "two",
+			Revision:       snap.R(12),
+			ValidationSets: []snapasserts.ValidationSetKey{"16/foo/bar/1"},
+		},
+		revno: snap.R(12),
+	}}
+	c.Assert(s.fakeBackend.ops[1:], DeepEquals, expectedOps)
+}
+
 func (s *validationSetsSuite) TestInstallManyRequiredRevisionForValidationSetOK(c *C) {
 	err := s.installManySnapReferencedByValidationSet(c, "required", "11", "required", "2")
 	c.Assert(err, IsNil)
@@ -5028,7 +5055,7 @@ func (s *validationSetsSuite) TestInstallSnapReferencedByValidationSetWrongRevis
 
 func (s *validationSetsSuite) TestInstallSnapInvalidByValidationSetIgnoreValidationOK(c *C) {
 	// doesn't fail with ignore-validation flag
-	err := s.installSnapReferencedByValidationSet(c, "invalid", "3", snap.R(0), "", &snapstate.Flags{IgnoreValidation: true})
+	err := s.installSnapReferencedByValidationSet(c, "invalid", "", snap.R(0), "", &snapstate.Flags{IgnoreValidation: true})
 	c.Assert(err, IsNil)
 
 	// validation sets are not set on the action
@@ -7466,4 +7493,347 @@ func (s *snapmgrTestSuite) TestInstallWithConfdb(c *C) {
 	chg.AddAll(ts)
 
 	checkSnapsupHasConfdb(ts, c)
+}
+
+type testInstallComponentsValidationSetsOpts struct {
+	comps   []string
+	err     string
+	headers map[string]interface{}
+}
+
+func (s *validationSetsSuite) TestInstallComponentsValidationSetsInvalid(c *C) {
+	s.testInstallComponentsValidationSets(c, testInstallComponentsValidationSetsOpts{
+		comps: []string{"test-component"},
+		err:   `cannot install component "test-snap\+test-component" due to enforcing rules of validation set 16/foo/bar/1`,
+		headers: map[string]interface{}{
+			"components": map[string]interface{}{
+				"test-component": "invalid",
+			},
+		},
+	})
+}
+
+func (s *validationSetsSuite) TestInstallComponentsValidationSetsMissingRequired(c *C) {
+	s.testInstallComponentsValidationSets(c, testInstallComponentsValidationSetsOpts{
+		comps: nil,
+		err:   `cannot install snap "test-snap" without component "test-component" required by validation sets 16/foo/bar/1`,
+		headers: map[string]interface{}{
+			"components": map[string]interface{}{
+				"test-component": "required",
+			},
+		},
+	})
+}
+
+func (s *validationSetsSuite) TestInstallComponentsValidationSetsWrongRevision(c *C) {
+	s.testInstallComponentsValidationSets(c, testInstallComponentsValidationSetsOpts{
+		comps: []string{"test-component"},
+		err:   `cannot install component "test-snap\+test-component" at revision 1 without --ignore-validation, revision 10 is required by validation sets: 16/foo/bar/1`,
+		headers: map[string]interface{}{
+			"revision": "7",
+			"components": map[string]interface{}{
+				"test-component": map[string]interface{}{
+					"presence": "optional",
+					"revision": "10",
+				},
+			},
+		},
+	})
+}
+
+func (s *validationSetsSuite) TestInstallComponentsValidationSetsCorrectRevision(c *C) {
+	s.testInstallComponentsValidationSets(c, testInstallComponentsValidationSetsOpts{
+		comps: []string{"test-component"},
+		headers: map[string]interface{}{
+			"revision": "7",
+			"components": map[string]interface{}{
+				"test-component": map[string]interface{}{
+					"presence": "optional",
+					"revision": "1",
+				},
+			},
+		},
+	})
+}
+
+func (s *validationSetsSuite) TestInstallComponentsValidationSetsRequired(c *C) {
+	s.testInstallComponentsValidationSets(c, testInstallComponentsValidationSetsOpts{
+		comps: []string{"test-component"},
+		headers: map[string]interface{}{
+			"components": map[string]interface{}{
+				"test-component": map[string]interface{}{
+					"presence": "required",
+				},
+			},
+		},
+	})
+}
+
+func (s *validationSetsSuite) testInstallComponentsValidationSets(c *C, opts testInstallComponentsValidationSetsOpts) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	const (
+		snapName = "test-snap"
+		channel  = "channel-for-components"
+	)
+
+	snapID := snaptest.AssertedSnapID(snapName)
+
+	// make sure the fake store knows to use this id, since this is what will be
+	// in the validation set
+	s.fakeStore.registerID(snapName, snapID)
+	s.fakeStore.mutateSnapInfo = func(info *snap.Info) error {
+		info.Components = map[string]*snap.Component{
+			"test-component": {
+				Type: snap.TestComponent,
+				Name: "test-component",
+			},
+		}
+		return nil
+	}
+
+	restore := snapstate.MockEnforcedValidationSets(func(st *state.State, extraVss ...*asserts.ValidationSet) (*snapasserts.ValidationSets, error) {
+		vs := snapasserts.NewValidationSets()
+		headers := map[string]interface{}{
+			"id":       snapID,
+			"name":     snapName,
+			"presence": "optional",
+		}
+		for k, v := range opts.headers {
+			headers[k] = v
+		}
+		vsa := s.mockValidationSetAssert(c, "bar", "1", headers)
+		err := vs.Add(vsa.(*asserts.ValidationSet))
+		c.Assert(err, IsNil)
+		return vs, nil
+	})
+	defer restore()
+
+	s.fakeStore.snapResourcesFn = func(info *snap.Info) []store.SnapResourceResult {
+		c.Assert(info.InstanceName(), DeepEquals, snapName)
+		return []store.SnapResourceResult{
+			{
+				DownloadInfo: snap.DownloadInfo{
+					DownloadURL: "http://example.com/test-component",
+				},
+				Name:      "test-component",
+				Revision:  1,
+				Type:      "component/test",
+				Version:   "1.0",
+				CreatedAt: "2024-01-01T00:00:00Z",
+			},
+		}
+	}
+
+	goal := snapstate.StoreInstallGoal(snapstate.StoreSnap{
+		InstanceName: snapName,
+		Components:   opts.comps,
+		RevOpts:      snapstate.RevisionOptions{Channel: channel},
+	})
+
+	_, _, err := snapstate.InstallOne(context.Background(), s.state, goal, snapstate.Options{})
+	if len(opts.err) == 0 {
+		c.Assert(err, IsNil)
+	} else {
+		c.Assert(err, ErrorMatches, opts.err)
+
+		goal := snapstate.StoreInstallGoal(snapstate.StoreSnap{
+			InstanceName: snapName,
+			Components:   opts.comps,
+			RevOpts:      snapstate.RevisionOptions{Channel: channel},
+		})
+
+		// if we're expecting an error, we should be able to ignore validation
+		// and the error shouldn't happen
+		_, _, err := snapstate.InstallOne(context.Background(), s.state, goal, snapstate.Options{
+			Flags: snapstate.Flags{IgnoreValidation: true},
+		})
+		c.Assert(err, IsNil)
+	}
+}
+
+type testUpdateComponentsValidationSetsOpts struct {
+	comps   []string
+	err     string
+	headers map[string]interface{}
+}
+
+func (s *validationSetsSuite) TestUpdateComponentsValidationSetsToWrongRevision(c *C) {
+	s.testUpdateComponentsValidationSets(c, testUpdateComponentsValidationSetsOpts{
+		comps: []string{"test-component"},
+		err:   `cannot update component "test-snap\+test-component" to revision 2 without --ignore-validation, revision 1 is required by validation sets: 16/foo/bar/1`,
+		headers: map[string]interface{}{
+			"revision": "11",
+			"components": map[string]interface{}{
+				"test-component": map[string]interface{}{
+					"presence": "optional",
+					"revision": "1",
+				},
+			},
+		},
+	})
+}
+
+func (s *validationSetsSuite) TestUpdateComponentsValidationSetsToCorrectRevision(c *C) {
+	s.testUpdateComponentsValidationSets(c, testUpdateComponentsValidationSetsOpts{
+		comps: []string{"test-component"},
+		headers: map[string]interface{}{
+			"revision": "11",
+			"components": map[string]interface{}{
+				"test-component": map[string]interface{}{
+					"presence": "optional",
+					"revision": "2",
+				},
+			},
+		},
+	})
+}
+
+func (s *validationSetsSuite) TestUpdateComponentsValidationSetsMissingRequired(c *C) {
+	s.testUpdateComponentsValidationSets(c, testUpdateComponentsValidationSetsOpts{
+		comps: nil,
+		err:   `cannot update snap "test-snap" without component "test-component" required by validation sets 16/foo/bar/1`,
+		headers: map[string]interface{}{
+			"components": map[string]interface{}{
+				"test-component": map[string]interface{}{
+					"presence": "required",
+				},
+			},
+		},
+	})
+}
+
+func (s *validationSetsSuite) TestUpdateComponentsValidationSetsWithRequired(c *C) {
+	s.testUpdateComponentsValidationSets(c, testUpdateComponentsValidationSetsOpts{
+		comps: []string{"test-component"},
+		headers: map[string]interface{}{
+			"components": map[string]interface{}{
+				"test-component": map[string]interface{}{
+					"presence": "required",
+				},
+			},
+		},
+	})
+}
+
+func (s *validationSetsSuite) testUpdateComponentsValidationSets(c *C, opts testUpdateComponentsValidationSetsOpts) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	tr := config.NewTransaction(s.state)
+	tr.Set("core", "experimental.parallel-instances", true)
+	tr.Commit()
+
+	const (
+		snapName    = "test-snap"
+		instanceKey = "key"
+		channel     = "channel-for-components"
+	)
+	instanceName := snap.InstanceName(snapName, instanceKey)
+
+	snapID := snaptest.AssertedSnapID(snapName)
+
+	revisionSideState := sequence.NewRevisionSideState(&snap.SideInfo{
+		RealName: snapName,
+		Revision: snap.R(7),
+		SnapID:   snapID,
+	}, []*sequence.ComponentState{sequence.NewComponentState(
+		&snap.ComponentSideInfo{
+			Component: naming.NewComponentRef(snapName, "test-component"),
+			Revision:  snap.R(1),
+		},
+		snap.TestComponent,
+	)})
+
+	snapstate.Set(s.state, instanceName, &snapstate.SnapState{
+		Active:      true,
+		Sequence:    sequence.SnapSequence{Revisions: []*sequence.RevisionSideState{revisionSideState}},
+		Current:     snap.R(7),
+		InstanceKey: instanceKey,
+		SnapType:    "app",
+	})
+
+	restore := snapstate.MockReadComponentInfo(func(
+		compMntDir string, snapInfo *snap.Info, csi *snap.ComponentSideInfo,
+	) (*snap.ComponentInfo, error) {
+		return &snap.ComponentInfo{
+			Component: csi.Component,
+		}, nil
+	})
+	defer restore()
+
+	// make sure the fake store knows to use this id, since this is what will be
+	// in the validation set
+	s.fakeStore.registerID(snapName, snapID)
+	s.fakeStore.mutateSnapInfo = func(info *snap.Info) error {
+		comps := make(map[string]*snap.Component)
+		for _, c := range opts.comps {
+			comps[c] = &snap.Component{
+				Type: snap.TestComponent,
+				Name: c,
+			}
+		}
+		info.Components = comps
+		return nil
+	}
+
+	restore = snapstate.MockEnforcedValidationSets(func(st *state.State, extraVss ...*asserts.ValidationSet) (*snapasserts.ValidationSets, error) {
+		vs := snapasserts.NewValidationSets()
+		headers := map[string]interface{}{
+			"id":       snapID,
+			"name":     snapName,
+			"presence": "optional",
+		}
+		for k, v := range opts.headers {
+			headers[k] = v
+		}
+		vsa := s.mockValidationSetAssert(c, "bar", "1", headers)
+		err := vs.Add(vsa.(*asserts.ValidationSet))
+		c.Assert(err, IsNil)
+		return vs, nil
+	})
+	defer restore()
+
+	s.fakeStore.snapResourcesFn = func(info *snap.Info) []store.SnapResourceResult {
+		c.Assert(info.InstanceName(), DeepEquals, instanceName)
+		results := make([]store.SnapResourceResult, 0, len(opts.comps))
+		for _, c := range opts.comps {
+			results = append(results, store.SnapResourceResult{
+				DownloadInfo: snap.DownloadInfo{
+					DownloadURL: "http://example.com/" + c,
+				},
+				Name:      c,
+				Revision:  2,
+				Type:      "component/test",
+				Version:   "1.0",
+				CreatedAt: "2024-01-01T00:00:00Z",
+			})
+		}
+		return results
+	}
+
+	goal := snapstate.StoreUpdateGoal(snapstate.StoreUpdate{
+		InstanceName: instanceName,
+		RevOpts:      snapstate.RevisionOptions{Channel: channel},
+	})
+
+	_, err := snapstate.UpdateOne(context.Background(), s.state, goal, nil, snapstate.Options{})
+	if len(opts.err) == 0 {
+		c.Assert(err, IsNil)
+	} else {
+		c.Assert(err, ErrorMatches, opts.err)
+
+		goal := snapstate.StoreUpdateGoal(snapstate.StoreUpdate{
+			InstanceName: instanceName,
+			RevOpts:      snapstate.RevisionOptions{Channel: channel},
+		})
+
+		// if we're expecting an error, we should be able to ignore validation
+		// and the error shouldn't happen
+		_, err := snapstate.UpdateOne(context.Background(), s.state, goal, nil, snapstate.Options{
+			Flags: snapstate.Flags{IgnoreValidation: true},
+		})
+		c.Assert(err, IsNil)
+	}
 }
