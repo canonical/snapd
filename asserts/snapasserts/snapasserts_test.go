@@ -912,7 +912,7 @@ version: 1.0.2
 		},
 	}
 
-	// missing resource-revision assertion
+	// missing snap-resource-revision assertion
 	_, err := snapasserts.DeriveComponentSideInfo("comp1", compPath, &info, model, s.localDB)
 	c.Assert(err, ErrorMatches, "snap-resource-revision assertion not found")
 
@@ -935,23 +935,6 @@ version: 1.0.2
 	err = s.localDB.Add(resRev)
 	c.Assert(err, IsNil)
 
-	// missing snap-resource-pair assertion
-	_, err = snapasserts.DeriveComponentSideInfo("comp1", compPath, &info, model, s.localDB)
-	c.Assert(err, ErrorMatches, "cannot find snap-resource-pair for comp1.*")
-
-	resPair, err := s.storeSigning.Sign(asserts.SnapResourcePairType, map[string]interface{}{
-		"snap-id":           "snap-id-1",
-		"resource-name":     "comp1",
-		"resource-revision": "22",
-		"snap-revision":     "1",
-		"developer-id":      s.dev1Acct.AccountID(),
-		"timestamp":         time.Now().Format(time.RFC3339),
-	}, nil, "")
-	c.Assert(err, IsNil)
-	err = s.localDB.Add(resPair)
-	c.Assert(err, IsNil)
-
-	// missing snap-resource-revision assertion
 	csi, err := snapasserts.DeriveComponentSideInfo("comp1", compPath, &info, model, s.localDB)
 	c.Assert(err, IsNil)
 	c.Check(csi, DeepEquals, &snap.ComponentSideInfo{

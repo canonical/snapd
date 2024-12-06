@@ -342,20 +342,6 @@ func DeriveComponentSideInfo(name, path string, info *snap.Info, model *asserts.
 		return nil, err
 	}
 
-	// we don't need to return this, but we should make sure that the assertion
-	// exists in the db so that callers can fail early if the required
-	// assertions aren't present
-	if _, err := findResourcePair(
-		csi.Component.ComponentName,
-		info.ID(),
-		csi.Revision.N,
-		info.Revision.N,
-		info.Provenance(),
-		db,
-	); err != nil {
-		return nil, err
-	}
-
 	return csi, nil
 }
 
