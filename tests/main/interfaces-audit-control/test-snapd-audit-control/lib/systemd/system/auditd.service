@@ -1,0 +1,43 @@
+[Unit]
+Description=Security Auditing Service
+DefaultDependencies=no
+## If auditd is sending or recieving remote logging, copy this file to
+## /etc/systemd/system/auditd.service and comment out the first After and
+## uncomment the second so that network-online.target is part of After.
+## then comment the first Before and uncomment the second Before to remove
+## sysinit.target from "Before".
+After=local-fs.target systemd-tmpfiles-setup.service
+##After=network-online.target local-fs.target systemd-tmpfiles-setup.service
+Before=sysinit.target shutdown.target
+##Before=shutdown.target
+Conflicts=shutdown.target
+ConditionKernelCommandLine=!audit=0
+Documentation=man:auditd(8) https://github.com/linux-audit/audit-documentation
+
+[Service]
+Type=forking
+PIDFile=/run/auditd.pid
+ExecStart=/sbin/auditd
+## To not use augenrules, copy this file to /etc/systemd/system/auditd.service
+## and comment/delete the next line and uncomment the auditctl line.
+## NOTE: augenrules expect any rules to be added to /etc/audit/rules.d/
+ExecStartPost=-/sbin/augenrules --load
+#ExecStartPost=-/sbin/auditctl -R /etc/audit/audit.rules
+# By default we don't clear the rules on exit. To enable this, uncomment
+# the next line after copying the file to /etc/systemd/system/auditd.service
+#ExecStopPost=/sbin/auditctl -R /etc/audit/audit-stop.rules
+Restart=on-failure
+# Do not restart for intentional exits. See EXIT CODES section in auditd(8).
+RestartPreventExitStatus=2 4 6
+
+### Security Settings ###
+MemoryDenyWriteExecute=true
+LockPersonality=true
+ProtectControlGroups=true
+ProtectKernelModules=true
+ProtectHome=true
+RestrictRealtime=true
+
+[Install]
+WantedBy=multi-user.target
+

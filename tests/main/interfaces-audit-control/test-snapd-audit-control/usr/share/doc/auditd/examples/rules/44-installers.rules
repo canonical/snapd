@@ -1,0 +1,9 @@
+# These rules watch for invocation of things known to install software
+
+-a always,exit -F perm=x -F path=/usr/bin/dnf-3 -F key=software-installer
+-a always,exit -F perm=x -F path=/usr/bin/yum -F key=software-installer
+-a always,exit -F perm=x -F path=/usr/bin/pip -F key=software-installer
+-a always,exit -F perm=x -F path=/usr/bin/npm -F key=software-installer
+-a always,exit -F perm=x -F path=/usr/bin/cpan -F key=software-installer
+-a always,exit -F perm=x -F path=/usr/bin/gem -F key=software-installer
+-a always,exit -F perm=x -F path=/usr/bin/luarocks -F key=software-installer
