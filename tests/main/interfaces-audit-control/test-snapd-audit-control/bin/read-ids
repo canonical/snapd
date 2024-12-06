@@ -1,4 +1,6 @@
 #!/bin/sh -e
 
 cat /proc/self/loginuid
+echo
 cat /proc/self/sessionid
+echo
