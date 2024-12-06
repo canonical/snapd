@@ -93,7 +93,7 @@ func fallbackKeySealRequests(key, saveKey secboot.BootstrappedContainer, factory
 	}
 }
 
-func sealRunObjectKeys(key secboot.BootstrappedContainer, pbc boot.PredictableBootChains, roleToBlName map[bootloader.Role]string, pcrHandle uint32, useTokens bool) ([]byte, error) {
+func sealRunObjectKeys(key secboot.BootstrappedContainer, pbc boot.PredictableBootChains, maybePrimaryKey []byte, roleToBlName map[bootloader.Role]string, pcrHandle uint32, useTokens bool) ([]byte, error) {
 	modelParams, err := boot.SealKeyModelParams(pbc, roleToBlName)
 	if err != nil {
 		return nil, fmt.Errorf("cannot prepare for key sealing: %v", err)
@@ -101,7 +101,7 @@ func sealRunObjectKeys(key secboot.BootstrappedContainer, pbc boot.PredictableBo
 
 	sealKeyParams := &secboot.SealKeysParams{
 		ModelParams:            modelParams,
-		PrimaryKey:             nil,
+		PrimaryKey:             maybePrimaryKey,
 		TPMPolicyAuthKeyFile:   filepath.Join(boot.InstallHostFDESaveDir, "tpm-policy-auth-key"),
 		PCRPolicyCounterHandle: pcrHandle,
 	}
@@ -177,7 +177,7 @@ func sealKeyForBootChainsHook(key, saveKey secboot.BootstrappedContainer, params
 	return nil
 }
 
-func sealKeyForBootChainsBackend(method device.SealingMethod, key, saveKey secboot.BootstrappedContainer, params *boot.SealKeyForBootChainsParams) error {
+func sealKeyForBootChainsBackend(method device.SealingMethod, key, saveKey secboot.BootstrappedContainer, primaryKey []byte, params *boot.SealKeyForBootChainsParams) error {
 	if method == device.SealingMethodFDESetupHook {
 		return sealKeyForBootChainsHook(key, saveKey, params)
 	}
@@ -230,7 +230,7 @@ func sealKeyForBootChainsBackend(method device.SealingMethod, key, saveKey secbo
 
 	// TODO: refactor sealing functions to take a struct instead of so many
 	// parameters
-	primaryKey, err := sealRunObjectKeys(key, pbc, params.RoleToBlName, runObjectKeyPCRHandle, params.UseTokens)
+	primaryKey, err := sealRunObjectKeys(key, pbc, primaryKey, params.RoleToBlName, runObjectKeyPCRHandle, params.UseTokens)
 	if err != nil {
 		return err
 	}
