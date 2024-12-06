@@ -663,7 +663,8 @@ version: 5.0
 	// set encryption key
 	myKey := secboot.CreateMockBootstrappedContainer()
 	myKey2 := secboot.CreateMockBootstrappedContainer()
-	obs.SetBootstrappedContainers(myKey, myKey2)
+	chosenPrimaryKey := []byte("primarykey!")
+	obs.SetBootstrappedContainersAndPrimaryKey(myKey, myKey2, chosenPrimaryKey)
 
 	// set a mock recovery kernel
 	readSystemEssentialCalls := 0
@@ -679,11 +680,12 @@ version: 5.0
 	defer restore()
 
 	sealKeyForBootChainsCalled := 0
-	restore = boot.MockSealKeyForBootChains(func(method device.SealingMethod, key, saveKey secboot.BootstrappedContainer, params *boot.SealKeyForBootChainsParams) error {
+	restore = boot.MockSealKeyForBootChains(func(method device.SealingMethod, key, saveKey secboot.BootstrappedContainer, primaryKey []byte, params *boot.SealKeyForBootChainsParams) error {
 		sealKeyForBootChainsCalled++
 		c.Check(method, Equals, device.SealingMethodTPM)
 		c.Check(key, Equals, myKey)
 		c.Check(saveKey, Equals, myKey2)
+		c.Check(primaryKey, DeepEquals, chosenPrimaryKey)
 
 		recoveryBootLoader, hasRecovery := params.RoleToBlName[bootloader.RoleRecovery]
 		c.Assert(hasRecovery, Equals, true)
@@ -1151,7 +1153,8 @@ version: 5.0
 	// set encryption key
 	myKey := secboot.CreateMockBootstrappedContainer()
 	myKey2 := secboot.CreateMockBootstrappedContainer()
-	obs.SetBootstrappedContainers(myKey, myKey2)
+	chosenPrimaryKey := []byte("primarykey!")
+	obs.SetBootstrappedContainersAndPrimaryKey(myKey, myKey2, chosenPrimaryKey)
 
 	// set a mock recovery kernel
 	readSystemEssentialCalls := 0
@@ -1162,11 +1165,12 @@ version: 5.0
 	defer restore()
 
 	sealKeyForBootChainsCalled := 0
-	restore = boot.MockSealKeyForBootChains(func(method device.SealingMethod, key, saveKey secboot.BootstrappedContainer, params *boot.SealKeyForBootChainsParams) error {
+	restore = boot.MockSealKeyForBootChains(func(method device.SealingMethod, key, saveKey secboot.BootstrappedContainer, primaryKey []byte, params *boot.SealKeyForBootChainsParams) error {
 		sealKeyForBootChainsCalled++
 		c.Check(method, Equals, device.SealingMethodTPM)
 		c.Check(key, Equals, myKey)
 		c.Check(saveKey, Equals, myKey2)
+		c.Check(primaryKey, DeepEquals, chosenPrimaryKey)
 
 		recoveryBootLoader, hasRecovery := params.RoleToBlName[bootloader.RoleRecovery]
 		c.Assert(hasRecovery, Equals, true)
@@ -1344,7 +1348,8 @@ version: 5.0
 	c.Assert(err, IsNil)
 	myKey := secboot.CreateMockBootstrappedContainer()
 	myKey2 := secboot.CreateMockBootstrappedContainer()
-	obs.SetBootstrappedContainers(myKey, myKey2)
+	chosenPrimaryKey := []byte("primarykey!")
+	obs.SetBootstrappedContainersAndPrimaryKey(myKey, myKey2, chosenPrimaryKey)
 
 	// set a mock recovery kernel
 	readSystemEssentialCalls := 0
@@ -1355,11 +1360,12 @@ version: 5.0
 	defer restore()
 
 	sealKeyForBootChainsCalled := 0
-	restore = boot.MockSealKeyForBootChains(func(method device.SealingMethod, key, saveKey secboot.BootstrappedContainer, params *boot.SealKeyForBootChainsParams) error {
+	restore = boot.MockSealKeyForBootChains(func(method device.SealingMethod, key, saveKey secboot.BootstrappedContainer, primaryKey []byte, params *boot.SealKeyForBootChainsParams) error {
 		sealKeyForBootChainsCalled++
 		c.Check(method, Equals, device.SealingMethodTPM)
 		c.Check(key, DeepEquals, myKey)
 		c.Check(saveKey, DeepEquals, myKey2)
+		c.Check(primaryKey, DeepEquals, chosenPrimaryKey)
 
 		recoveryBootLoader, hasRecovery := params.RoleToBlName[bootloader.RoleRecovery]
 		c.Assert(hasRecovery, Equals, true)
