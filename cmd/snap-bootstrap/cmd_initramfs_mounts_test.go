@@ -8086,7 +8086,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsInstallAndRunMissingFdeSetup(c
 type MockObserver struct {
 	BootLoaderSupportsEfiVariablesFunc       func() bool
 	ObserveExistingTrustedRecoveryAssetsFunc func(recoveryRootDir string) error
-	SetBootstrappedContainersFunc            func(key, saveKey secboot.BootstrappedContainer)
+	SetBootstrappedContainersFunc            func(key, saveKey secboot.BootstrappedContainer, primaryKey []byte)
 	UpdateBootEntryFunc                      func() error
 	ObserveFunc                              func(op gadget.ContentOperation, partRole, root, relativeTarget string, data *gadget.ContentChange) (gadget.ContentChangeAction, error)
 }
@@ -8099,8 +8099,8 @@ func (m *MockObserver) ObserveExistingTrustedRecoveryAssets(recoveryRootDir stri
 	return m.ObserveExistingTrustedRecoveryAssetsFunc(recoveryRootDir)
 }
 
-func (m *MockObserver) SetBootstrappedContainers(key, saveKey secboot.BootstrappedContainer) {
-	m.SetBootstrappedContainersFunc(key, saveKey)
+func (m *MockObserver) SetBootstrappedContainers(key, saveKey secboot.BootstrappedContainer, primaryKey []byte) {
+	m.SetBootstrappedContainersFunc(key, saveKey, primaryKey)
 }
 
 func (m *MockObserver) UpdateBootEntry() error {
@@ -8236,7 +8236,7 @@ echo '{"features":[]}'
 			observeExistingTrustedRecoveryAssetsCalled += 1
 			return nil
 		},
-		SetBootstrappedContainersFunc: func(key, saveKey secboot.BootstrappedContainer) {
+		SetBootstrappedContainersFunc: func(key, saveKey secboot.BootstrappedContainer, primaryKey []byte) {
 		},
 		UpdateBootEntryFunc: func() error {
 			return nil
@@ -8393,7 +8393,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsInstallAndRunFdeSetupNotPresen
 			observeExistingTrustedRecoveryAssetsCalled += 1
 			return nil
 		},
-		SetBootstrappedContainersFunc: func(key, saveKey secboot.BootstrappedContainer) {
+		SetBootstrappedContainersFunc: func(key, saveKey secboot.BootstrappedContainer, primaryKey []byte) {
 		},
 		UpdateBootEntryFunc: func() error {
 			return nil
