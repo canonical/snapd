@@ -49,8 +49,8 @@ func init() {
 	registerIface(&auditControlInterface{commonInterface{
 		name:                  "audit-control",
 		summary:               auditControlSummary,
-		implicitOnCore:        false, // XXX: is this correct?
-		implicitOnClassic:     false, // XXX: is this correct?
+		implicitOnCore:        true,
+		implicitOnClassic:     true,
 		baseDeclarationSlots:  auditControlBaseDeclarationSlots,
 		connectedPlugAppArmor: auditControlConnectedPlugAppArmor,
 	}})
