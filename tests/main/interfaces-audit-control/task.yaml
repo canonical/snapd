@@ -41,9 +41,9 @@ execute: |
         exit 1
     fi
 
-    echo "And the snap is not able to read its loginuid and sessionid or write /run/auditd.pid"
+    echo "And the snap is not able to read the loginuid or sessionid of PID 1 or write /run/auditd.pid"
     if test-snapd-audit-control.read-ids; then
-        echo "Expected permission error reading loginuid and sessionid"
+        echo "Expected permission error reading loginuid and sessionid of PID 1"
         exit 1
     fi
     if test-snapd-audit-control.write-pid; then

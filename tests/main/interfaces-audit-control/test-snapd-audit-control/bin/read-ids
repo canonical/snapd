@@ -1,6 +1,7 @@
-#!/bin/sh -e
+#!/bin/sh -xe
 
-cat /proc/self/loginuid
+# Attempt to read the login UID and session ID of PID 1
+cat /proc/1/loginuid
 echo
-cat /proc/self/sessionid
+cat /proc/1/sessionid
 echo
