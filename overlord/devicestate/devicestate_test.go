@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2022 Canonical Ltd
+ * Copyright (C) 2016-2024 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -2753,4 +2753,25 @@ func (s *deviceMgrSuite) TestDefaultRecoverySystem(c *C) {
 	system, err := s.mgr.DefaultRecoverySystem()
 	c.Assert(err, IsNil)
 	c.Check(*system, Equals, expectedSystem)
+}
+
+func (s *deviceMgrSuite) TestSignDeviceAssertionFail(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	s.makeModelAssertionInState(c, "canonical", "pc", map[string]interface{}{
+		"architecture": "amd64",
+		"kernel":       "pc-kernel",
+		"gadget":       "pc",
+	})
+
+	devicestatetest.SetDevice(s.state, &auth.DeviceState{
+		Brand:  "canonical",
+		Model:  "pc",
+		Serial: "serialserialserial",
+		KeyID:  "not-in-key-pair-manager",
+	})
+
+	_, err := s.mgr.SignDeviceAssertion(asserts.DeviceSessionRequestType, nil, nil)
+	c.Assert(err, ErrorMatches, "cannot read device key pair: cannot find key pair")
 }

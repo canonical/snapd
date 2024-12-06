@@ -1963,6 +1963,20 @@ func (m *DeviceManager) keyPair() (asserts.PrivateKey, error) {
 	return privKey, nil
 }
 
+// SignDeviceAssertion signs assertions that need to be attested by the device itself.
+// These are no-authority assertions like device-session-request & confdb-control.
+func (m *DeviceManager) SignDeviceAssertion(assertType *asserts.AssertionType, headers map[string]interface{}, body []byte) (asserts.Assertion, error) {
+	privKey, err := m.keyPair()
+	if errors.Is(err, state.ErrNoState) {
+		return nil, fmt.Errorf("internal error: inconsistent state with serial but no device key")
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	return asserts.SignWithoutAuthority(assertType, headers, body, privKey)
+}
+
 // Registered returns a channel that is closed when the device is known to have been registered.
 func (m *DeviceManager) Registered() <-chan struct{} {
 	return m.reg
@@ -2569,21 +2583,13 @@ func (scb storeContextBackend) SignDeviceSessionRequest(serial *asserts.Serial, 
 		return nil, fmt.Errorf("internal error: cannot sign a session request without a serial")
 	}
 
-	privKey, err := scb.DeviceManager.keyPair()
-	if errors.Is(err, state.ErrNoState) {
-		return nil, fmt.Errorf("internal error: inconsistent state with serial but no device key")
-	}
-	if err != nil {
-		return nil, err
-	}
-
-	a, err := asserts.SignWithoutAuthority(asserts.DeviceSessionRequestType, map[string]interface{}{
+	a, err := scb.SignDeviceAssertion(asserts.DeviceSessionRequestType, map[string]interface{}{
 		"brand-id":  serial.BrandID(),
 		"model":     serial.Model(),
 		"serial":    serial.Serial(),
 		"nonce":     nonce,
 		"timestamp": time.Now().UTC().Format(time.RFC3339),
-	}, nil, privKey)
+	}, nil)
 	if err != nil {
 		return nil, err
 	}
