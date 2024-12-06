@@ -26,18 +26,20 @@ import (
 	"strings"
 )
 
-// almostValidName is part of snap and socket name validation. The full regexp
-// we could use, "^(?:[a-z0-9]+-?)*[a-z](?:-?[a-z0-9])*$", is O(2ⁿ) on the
-// length of the string in python. An equivalent regexp that doesn't have the
-// nested quantifiers that trip up Python's re would be
+// almostValidNameRegexString is part of snap and socket name validation. The
+// full regexp we could use, "^(?:[a-z0-9]+-?)*[a-z](?:-?[a-z0-9])*$", is O(2ⁿ)
+// on the length of the string in python. An equivalent regexp that doesn't have
+// the nested quantifiers that trip up Python's re would be
 // "^(?:[a-z0-9]|(?<=[a-z0-9])-)*[a-z](?:[a-z0-9]|-(?=[a-z0-9]))*$", but Go's
 // regexp package doesn't support look-aheads nor look-behinds, so in order to
 // have a unified implementation in the Go and Python bits of the project we're
 // doing it this way instead. Check the length (if applicable), check this
-// regexp, then check the dashes. This still leaves sc_snap_name_validate
-// (in cmd/snap-confine/snap.c) and snap_validate
-// (cmd/snap-update-ns/bootstrap.c) with their own handcrafted validators.
-var almostValidName = regexp.MustCompile("^[a-z0-9-]*[a-z][a-z0-9-]*$")
+// regexp, then check the dashes. This still leaves sc_snap_name_validate (in
+// cmd/snap-confine/snap.c) and snap_validate (cmd/snap-update-ns/bootstrap.c)
+// with their own handcrafted validators.
+const almostValidNameRegexString = "[a-z0-9-]*[a-z][a-z0-9-]*"
+
+var almostValidName = regexp.MustCompile(fmt.Sprintf("^%s$", almostValidNameRegexString))
 
 // validInstanceKey is a regular expression describing a valid snap instance key
 var validInstanceKey = regexp.MustCompile("^[a-z0-9]{1,10}$")
