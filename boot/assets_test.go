@@ -480,7 +480,7 @@ func (s *assetsSuite) TestInstallObserverNonTrustedBootloader(c *C) {
 	dataBootstrappedContainer := secboot.CreateMockBootstrappedContainer()
 	saveBootstrappedContainer := secboot.CreateMockBootstrappedContainer()
 	c.Assert(dataBootstrappedContainer, Not(Equals), saveBootstrappedContainer)
-	obs.SetBootstrappedContainers(dataBootstrappedContainer, saveBootstrappedContainer)
+	obs.SetBootstrappedContainers(dataBootstrappedContainer, saveBootstrappedContainer, nil)
 
 	observerImpl, ok := obs.(*boot.TrustedAssetsInstallObserverImpl)
 	c.Assert(ok, Equals, true)
@@ -507,7 +507,7 @@ func (s *assetsSuite) TestInstallObserverTrustedButNoAssets(c *C) {
 	c.Assert(obs, NotNil)
 	dataBootstrappedContainer := secboot.CreateMockBootstrappedContainer()
 	saveBootstrappedContainer := secboot.CreateMockBootstrappedContainer()
-	obs.SetBootstrappedContainers(dataBootstrappedContainer, saveBootstrappedContainer)
+	obs.SetBootstrappedContainers(dataBootstrappedContainer, saveBootstrappedContainer, nil)
 
 	observerImpl, ok := obs.(*boot.TrustedAssetsInstallObserverImpl)
 	c.Assert(ok, Equals, true)
