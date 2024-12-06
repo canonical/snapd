@@ -808,6 +808,7 @@ var (
 		"bluez":                     {"app", "core"},
 		"bool-file":                 {"core", "gadget"},
 		"browser-support":           {"core"},
+		"checkbox-support":          {"core"},
 		"content":                   {"app", "gadget", "kernel"},
 		"core-support":              {"core"},
 		"cups":                      {"app"},
@@ -1011,6 +1012,7 @@ func (s *baseDeclSuite) TestPlugInstallation(c *C) {
 
 	restricted := map[string]bool{
 		"block-devices":                    true,
+		"checkbox-support":                 true,
 		"classic-support":                  true,
 		"desktop-launch":                   true,
 		"dm-crypt":                         true,
@@ -1310,6 +1312,7 @@ func (s *baseDeclSuite) TestValidity(c *C) {
 		"block-devices":                    true,
 		"audio-playback":                   true,
 		"classic-support":                  true,
+		"checkbox-support":                 true,
 		"core-support":                     true,
 		"custom-device":                    true,
 		"desktop":                          true,
