@@ -3,9 +3,11 @@
 echo "wrote to /run/auditd.pid" > /run/auditd.pid
 result="$(cat /run/auditd.pid)"
 test "$result" = "wrote to /run/auditd.pid"
+echo "$result"
 rm /run/auditd.pid
 
 echo "wrote to /var/run/auditd.pid" > /var/run/auditd.pid
 result="$(cat /var/run/auditd.pid)"
 test "$result" = "wrote to /var/run/auditd.pid"
+echo "$result"
 rm /var/run/auditd.pid
