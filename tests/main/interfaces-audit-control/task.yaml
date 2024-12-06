@@ -7,7 +7,8 @@ details: |
     capability and accesses paths related to auditd.
 
 # arch: CONFIG_AUDIT is not enabled in the default kernel
-systems: [-arch-*]
+# arm: test-snapd-audit-control is only built for x86_64
+systems: [-arch-*, -ubuntu-*-arm-*]
 
 prepare: |
     # Install a snap declaring a plug on netlink-audit
@@ -21,7 +22,7 @@ execute: |
     snap connect test-snapd-audit-control:audit-control
 
     echo "Then the snap is able to set the audit_control capability"
-    test-snapd-audit-control.set-cap
+    test-snapd-audit-control.audit-rate
 
     echo "And the snap is able to read its loginuid and sessionid and write /run/auditd.pid"
     test-snapd-audit-control.read-ids
@@ -35,7 +36,7 @@ execute: |
     snap disconnect test-snapd-audit-control:audit-control
 
     echo "Then the snap is not able to set the audit_control capability"
-    if test-snapd-audit-control.set-cap; then
+    if test-snapd-audit-control.audit-rate; then
         echo "Expected permission error setting audit_control capability"
         exit 1
     fi

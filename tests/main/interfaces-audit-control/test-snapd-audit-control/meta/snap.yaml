@@ -4,10 +4,11 @@ summary: Basic snap to test the audit-control interface
 description: |
   A basic snap used to probe the audit_control capability, read
   /proc/self/loginuid and /proc/self/sessionid, and write /run/auditd.pid.
-
+architectures:
+- amd64
 base: core22
 apps:
-  set-cap:
+  audit-rate:
     command: bin/audit-rate
     plugs: [audit-control]
   read-ids:
