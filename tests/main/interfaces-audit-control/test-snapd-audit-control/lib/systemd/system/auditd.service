@@ -1,7 +1,7 @@
 [Unit]
 Description=Security Auditing Service
 DefaultDependencies=no
-## If auditd is sending or recieving remote logging, copy this file to
+## If auditd is sending or receiving remote logging, copy this file to
 ## /etc/systemd/system/auditd.service and comment out the first After and
 ## uncomment the second so that network-online.target is part of After.
 ## then comment the first Before and uncomment the second Before to remove
