@@ -43,8 +43,8 @@ network netlink,
 # filter rules, and retrieve auditing status and filtering rules.
 capability audit_control,
 
-# Allow reading /proc/self/{loginuid,sessionid}
-@{PROC}/@{pid}/{loginuid,sessionid} r,
+# Allow reading the login UID and session ID of processes.
+@{PROC}/*/{loginuid,sessionid} r,
 
 # Allow writing /run/auditd.pid so the auditd pid is known by other programs.
 /{,var/}run/auditd.pid rw,

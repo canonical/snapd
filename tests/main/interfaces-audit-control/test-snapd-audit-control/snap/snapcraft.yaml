@@ -1,10 +1,10 @@
 name: test-snapd-audit-control
 base: core22
 version: '1.0'
-summary: Basic snap to test the audit_control interface
+summary: Basic snap to test the audit-control interface
 description: |
   A basic snap used to probe the audit_control capability, read
-  /proc/self/loginuid and /proc/self/sessionid, and write /run/auditd.pid.
+  /proc/1/loginuid and /proc/1/sessionid, and write /run/auditd.pid.
 
 grade: devel # must be 'stable' to release into candidate/stable channels
 confinement: devmode # use 'strict' once you have the right plugs and slots
