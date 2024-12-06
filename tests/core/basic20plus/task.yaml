@@ -73,13 +73,9 @@ execute: |
 
     # ensure that our the-tool (and thus our snap-bootstrap ran)
     # for external backend the initramfs is not rebuilt
-    # On core24+ we repack the kernel snap differently, and thus do not
-    # touch the /writable/system-data/the-tool-ran
-    if os.query is-core20 || os.query is-core22; then
-        echo "Check that we booted with the rebuilt initramfs in the kernel snap"
-        if [ "$SPREAD_BACKEND" != "external" ] && [ "$SPREAD_BACKEND" != "testflinger" ]; then
-            test -e /writable/system-data/the-tool-ran
-        fi
+    echo "Check that we booted with the rebuilt initramfs in the kernel snap"
+    if [ "$SPREAD_BACKEND" != "external" ] && [ "$SPREAD_BACKEND" != "testflinger" ]; then
+        test -e /writable/system-data/the-tool-ran
     fi
 
     # ensure we handled cloud-init, either we have:
@@ -124,14 +120,17 @@ execute: |
         losetup -O ro -n --raw "${loop}" | MATCH "1"
     done
 
-    # make sure that ubuntu-save is mounted with appropriate flags
-    findmnt -T /run/mnt/ubuntu-save > save-mount.info
+    # make sure that ubuntu-{seed,save} is mounted with appropriate flags
+    for mount in /run/mnt/ubuntu-seed /run/mnt/ubuntu-save; do
+        MNT_NAME="${mount##*/}"
+        findmnt -T /run/mnt/ubuntu-save > "${MNT_NAME}.info"
 
-    # print it for debug purposes before we match flags
-    cat save-mount.info
-    MATCH nosuid < save-mount.info
-    MATCH noexec < save-mount.info
-    MATCH nodev < save-mount.info
+        # print it for debug purposes before we match flags
+        cat "${MNT_NAME}.info"
+        MATCH nosuid < "${MNT_NAME}.info"
+        MATCH noexec < "${MNT_NAME}.info"
+        MATCH nodev < "${MNT_NAME}.info"
+    done
 
     # ensure apparmor works, see LP: 2024637
     systemctl status apparmor.service

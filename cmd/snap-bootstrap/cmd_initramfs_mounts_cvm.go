@@ -48,8 +48,16 @@ func (*genericCVMModel) Grade() asserts.ModelGrade {
 // mounts the rootfs from a partition on the disk rather than a base snap. It supports TPM-backed FDE
 // for the rootfs partition using a sealed key from the seed partition.
 func generateMountsModeRunCVM(mst *initramfsMountsState) error {
+	mountOpts := &systemdMountOptions{
+		// always fsck the partition when we are mounting it, as this is the
+		// first partition we will be mounting, we can't know if anything is
+		// corrupted yet
+		NeedsFsck: true,
+		Private:   true,
+	}
+
 	// Mount ESP as UbuntuSeedDir which has UEFI label
-	if err := mountNonDataPartitionMatchingKernelDisk(boot.InitramfsUbuntuSeedDir, "UEFI"); err != nil {
+	if err := mountNonDataPartitionMatchingKernelDisk(boot.InitramfsUbuntuSeedDir, "UEFI", mountOpts); err != nil {
 		return err
 	}
 
