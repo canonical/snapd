@@ -303,9 +303,13 @@ func forAllDesktopFiles(cb func(base, instanceName string) error) error {
 		}
 
 		de, err := desktopentry.Read(desktopFile)
-		if err != nil || de.SnapInstanceName == "" {
+		if err != nil {
 			// cannot read instance name from desktop file, ignore
-			logger.Noticef("cannot read instance name: %s", err)
+			logger.Noticef("cannot read instance name from %q: %v", desktopFile, err)
+			continue
+		}
+		if de.SnapInstanceName == "" {
+			logger.Noticef("cannot find X-SnapInstanceName entry in %q", desktopFile)
 			continue
 		}
 
