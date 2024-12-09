@@ -1009,8 +1009,8 @@ func (rdb *RuleDB) RemoveRulesForSnapInterface(user uint32, snap string, iface s
 // the rule, the permission should map to an empty permission entry.
 //
 // Permission entries must be provided as complete units, containing both
-// outcome and lifespan (and duration, if lifespan is timespan).
-// XXX: does API unmarshalling ensures this, or do we need explicit checks?
+// outcome and lifespan (and duration, if lifespan is timespan). Since neither
+// outcome nor lifespan are omitempty, the unmarshaller enforces this for us.
 //
 // Even if the given new rule contents exactly match the existing rule contents,
 // the timestamp of the rule is updated to the current time. If there is any
@@ -1018,7 +1018,7 @@ func (rdb *RuleDB) RemoveRulesForSnapInterface(user uint32, snap string, iface s
 // unmodified state, leaving the database unchanged. If the database is changed,
 // it is saved to disk.
 //
-// XXX: should we just remove this method entirely?
+// XXX: Is there a client use-case for this API method?
 // Clients can always delete a rule and re-add it later, which is basically what
 // this method already does.
 func (rdb *RuleDB) PatchRule(user uint32, id prompting.IDType, patchConstraints *prompting.PatchConstraints) (r *Rule, err error) {
