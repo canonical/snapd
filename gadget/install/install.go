@@ -575,8 +575,7 @@ func WriteContent(onVolumes map[string]*gadget.Volume, allLaidOutVols map[string
 func mntParamsForPartRole(role string) (mntParams mntfsParams) {
 	var p mntfsParams
 	switch role {
-	// XXX: this might apply for SystemSeed as well
-	case gadget.SystemSave:
+	case gadget.SystemSeed, gadget.SystemSave:
 		p.NoDev = true
 		p.NoExec = true
 		p.NoSuid = true
