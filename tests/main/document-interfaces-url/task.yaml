@@ -27,6 +27,13 @@ execute: |
             if [ "$status_code" == 500 ]; then
                 return 0
             fi
+
+            # we've sent too many requests. A manual check showed that the server
+            # doesn't include a Retry-After header so for now just wait a few seconds
+            # so just wait a couple of seconds before retrying
+            if [ "$status_code" == 429 ]; then
+              sleep 5
+            fi
         done
         # If status code 4xx is returned then the page is not found, return error
         return 1
