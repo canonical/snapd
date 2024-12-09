@@ -712,7 +712,7 @@ func readComponentInfo(st *state.State, upload *uploadedContainer, flags sideloa
 	// revision. installing via snapstate checks this too, but we might as well
 	// fail early.
 	if !flags.DevMode {
-		if err := checkForResourcePair(csi, info, db); err != nil {
+		if _, err := assertstate.SnapResourcePair(st, csi, info); err != nil {
 			return nil, nil, MissingSnapResourcePair(csi, info.Revision)
 		}
 	}
@@ -729,23 +729,6 @@ func readComponentInfo(st *state.State, upload *uploadedContainer, flags sideloa
 	}
 
 	return compInfo, info, nil
-}
-
-func checkForResourcePair(csi *snap.ComponentSideInfo, info *snap.Info, db asserts.RODatabase) error {
-	retrieve := func(ref *asserts.Ref) (asserts.Assertion, error) {
-		return ref.Resolve(db.Find)
-	}
-	fetcher := asserts.NewFetcher(db, retrieve, func(asserts.Assertion) error {
-		return nil
-	})
-
-	return snapasserts.FetchResourcePairAssertion(
-		fetcher,
-		&info.SideInfo,
-		csi.Component.ComponentName,
-		csi.Revision,
-		info.Provenance(),
-	)
 }
 
 func readComponentInfoDangerous(st *state.State, upload *uploadedContainer) (*snap.ComponentInfo, *snap.Info, *apiError) {
