@@ -223,6 +223,9 @@ type ComponentSetup struct {
 	// SkipAssertionsDownload indicates that all assertions needed to install
 	// the component should already be present on the system.
 	SkipAssertionsDownload bool `json:"skip-assertions-download,omitempty"`
+	// DownloadBlobDir is the directory where the component file is downloaded to. If
+	// empty, then the components are downloaded to the default download directory.
+	DownloadBlobDir string `json:"download-blob-dir,omitempty"`
 	// ComponentInstallFlags is a set of flags that control the behavior of the
 	// component's installation/update.
 	ComponentInstallFlags
@@ -243,6 +246,26 @@ func (compsu *ComponentSetup) ComponentName() string {
 
 func (compsu *ComponentSetup) Revision() snap.Revision {
 	return compsu.CompSideInfo.Revision
+}
+
+func (compsu *ComponentSetup) MountFile(instanceName string) string {
+	if instanceName == "" {
+		instanceName = compsu.CompSideInfo.Component.SnapName
+	}
+
+	blobDir := compsu.DownloadBlobDir
+	if blobDir == "" {
+		blobDir = dirs.SnapBlobDir
+	}
+
+	cpi := snap.MinimalComponentContainerPlaceInfo(
+		compsu.CompSideInfo.Component.ComponentName,
+		compsu.CompSideInfo.Revision,
+		instanceName,
+	)
+
+	return filepath.Join(blobDir,
+		fmt.Sprintf("%s_%s.comp", cpi.ContainerName(), compsu.CompSideInfo.Revision))
 }
 
 // ComponentSetupFromSnapSetup returns a list of ComponentSetup structs for the
