@@ -1801,8 +1801,9 @@ func ResolveValidationSetsEnforcementError(ctx context.Context, st *state.State,
 	// use the same lane for installing and refreshing so everything is reversed
 	lane := st.NewLane()
 
-	// keep track of snaps that are being fixed. we won't need to fix any of
-	// their components explicitly
+	// keep track of snaps that are being having their validation issues
+	// resolved. we won't need to resolve any of their component errors
+	// explicitly.
 	resolved := make(map[string]bool)
 
 	var wrongRevs []StoreUpdate
