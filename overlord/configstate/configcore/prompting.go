@@ -26,12 +26,10 @@ import (
 
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/features"
-	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/ifacestate"
 	"github.com/snapcore/snapd/overlord/restart"
 	"github.com/snapcore/snapd/overlord/servicestate"
-	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
@@ -88,45 +86,7 @@ func findPromptingRequestsHandlers(st *state.State) ([]*snap.AppInfo, error) {
 	st.Lock()
 	defer st.Unlock()
 
-	conns, err := ifacestate.ConnectionStates(st)
-	if err != nil {
-		return nil, fmt.Errorf("internal error: cannot get connections: %w", err)
-	}
-
-	var handlers []*snap.AppInfo
-
-	for connId, connState := range conns {
-		if connState.Interface != "snap-interfaces-requests-control" || !connState.Active() {
-			continue
-		}
-
-		connRef, err := interfaces.ParseConnRef(connId)
-		if err != nil {
-			return nil, err
-		}
-
-		handler, ok := connState.StaticPlugAttrs["handler-service"].(string)
-		if !ok {
-			// does not have a handler service
-			continue
-		}
-
-		sn := connRef.PlugRef.Snap
-		si, err := snapstate.CurrentInfo(st, sn)
-		if err != nil {
-			return nil, err
-		}
-
-		// this should not fail as plug's before prepare should have validated that such app exists
-		app := si.Apps[handler]
-		if app == nil {
-			return nil, fmt.Errorf("internal error: cannot find app %q in snap %q", app, sn)
-		}
-
-		handlers = append(handlers, app)
-	}
-
-	return handlers, nil
+	return ifacestate.InterfacesRequestsControlHandlerServices(st)
 }
 
 // Trigger a security profile regeneration by restarting snapd if the

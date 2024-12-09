@@ -374,6 +374,12 @@ func (s *interfaceManagerSuite) TestSmokeAppArmorPromptingEnabled(c *C) {
 		return true
 	})
 	defer restore()
+	checkCount := 0
+	restore = ifacestate.MockInterfacesRequestsControlHandlerServicePresent(func(m *ifacestate.InterfaceManager) (bool, error) {
+		checkCount++
+		return true, nil
+	})
+	defer restore()
 	createCount := 0
 	fakeManager := &apparmorprompting.InterfacesRequestsManager{}
 	restore = ifacestate.MockCreateInterfacesRequestsManager(func(s *state.State) (*apparmorprompting.InterfacesRequestsManager, error) {
@@ -397,6 +403,7 @@ func (s *interfaceManagerSuite) TestSmokeAppArmorPromptingEnabled(c *C) {
 	defer restore()
 
 	mgr := s.manager(c)
+	c.Check(checkCount, Equals, 1)
 	c.Check(createCount, Equals, 1)
 	c.Check(mgr.AppArmorPromptingRunning(), Equals, true)
 	c.Check(mgr.InterfacesRequestsManager(), Equals, fakeManager)
@@ -411,11 +418,19 @@ func (s *interfaceManagerSuite) TestSmokeAppArmorPromptingDisabled(c *C) {
 		return false
 	})
 	defer restore()
+	checkCount := 0
+	restore = ifacestate.MockInterfacesRequestsControlHandlerServicePresent(func(m *ifacestate.InterfaceManager) (bool, error) {
+		c.Errorf("unexpectedly called m.interfacesRequestsControlHandlerServicePresent")
+		checkCount++
+		return true, nil
+	})
+	defer restore()
 	createCount := 0
 	fakeManager := &apparmorprompting.InterfacesRequestsManager{}
 	restore = ifacestate.MockCreateInterfacesRequestsManager(func(s *state.State) (*apparmorprompting.InterfacesRequestsManager, error) {
+		c.Errorf("unexpectedly called m.initInterfacesRequestsManager")
 		createCount++
-		return fakeManager, fmt.Errorf("should not have been called")
+		return fakeManager, nil
 	})
 	defer restore()
 	stopCount := 0
@@ -426,6 +441,7 @@ func (s *interfaceManagerSuite) TestSmokeAppArmorPromptingDisabled(c *C) {
 	defer restore()
 
 	mgr := s.manager(c)
+	c.Check(checkCount, Equals, 0)
 	c.Check(createCount, Equals, 0)
 	c.Check(mgr.AppArmorPromptingRunning(), Equals, false)
 	c.Check(mgr.InterfacesRequestsManager(), testutil.IsInterfaceNil)
@@ -6985,9 +7001,106 @@ func (s *interfaceManagerSuite) TestConnectHandlesAutoconnect(c *C) {
 	})
 }
 
+func (s *interfaceManagerSuite) TestInterfacesRequestsManagerNoHandlerService(c *C) {
+	restore := ifacestate.MockAssessAppArmorPrompting(func(m *ifacestate.InterfaceManager) bool {
+		return true
+	})
+	defer restore()
+
+	checkCount := 0
+	restore = ifacestate.MockInterfacesRequestsControlHandlerServicePresent(func(m *ifacestate.InterfaceManager) (bool, error) {
+		checkCount++
+		return false, nil
+	})
+	defer restore()
+
+	createCount := 0
+	fakeManager := &apparmorprompting.InterfacesRequestsManager{}
+	restore = ifacestate.MockCreateInterfacesRequestsManager(func(s *state.State) (*apparmorprompting.InterfacesRequestsManager, error) {
+		c.Errorf("unexpectedly called m.initInterfacesRequestsManager")
+		createCount++
+		return fakeManager, nil
+	})
+	defer restore()
+
+	mgr, err := ifacestate.Manager(s.state, nil, s.o.TaskRunner(), nil, nil)
+	c.Assert(err, IsNil)
+
+	logbuf, restore := logger.MockLogger()
+	defer restore()
+
+	err = mgr.StartUp()
+	c.Check(err, IsNil)
+
+	// Check that error caused AppArmorPromptingRunning() to now return false
+	running := mgr.AppArmorPromptingRunning()
+	c.Check(running, Equals, false)
+
+	c.Check(checkCount, Equals, 1)
+	c.Check(createCount, Equals, 0)
+
+	logger.WithLoggerLock(func() {
+		logStr := logbuf.String()
+		c.Check(logStr, Not(testutil.Contains), "failed to check the presence of a interfaces-requests-control handler service")
+		c.Check(logStr, Not(testutil.Contains), "failed to start interfaces requests manager")
+	})
+
+	s.state.Lock()
+	defer s.state.Unlock()
+	warns := s.state.AllWarnings()
+	c.Check(warns, HasLen, 1)
+	c.Check(warns[0].String(), Matches, `"apparmor-prompting" feature flag enabled but no prompting client is present; prompting will be inactive until a prompting client is installed and snapd is restarted`)
+}
+
+func (s *interfaceManagerSuite) TestInterfacesRequestsManagerHandlerServicePresentError(c *C) {
+	restore := ifacestate.MockAssessAppArmorPrompting(func(m *ifacestate.InterfaceManager) bool {
+		return true
+	})
+	defer restore()
+
+	checkError := fmt.Errorf("custom error")
+	restore = ifacestate.MockInterfacesRequestsControlHandlerServicePresent(func(m *ifacestate.InterfaceManager) (bool, error) {
+		return false, checkError
+	})
+	defer restore()
+
+	createCount := 0
+	fakeManager := &apparmorprompting.InterfacesRequestsManager{}
+	restore = ifacestate.MockCreateInterfacesRequestsManager(func(s *state.State) (*apparmorprompting.InterfacesRequestsManager, error) {
+		c.Errorf("unexpectedly called m.initInterfacesRequestsManager")
+		createCount++
+		return fakeManager, nil
+	})
+	defer restore()
+
+	mgr, err := ifacestate.Manager(s.state, nil, s.o.TaskRunner(), nil, nil)
+	c.Assert(err, IsNil)
+
+	logbuf, restore := logger.MockLogger()
+	defer restore()
+
+	err = mgr.StartUp()
+	c.Check(err, IsNil)
+
+	// Check that error caused AppArmorPromptingRunning() to now return false
+	running := mgr.AppArmorPromptingRunning()
+	c.Check(running, Equals, false)
+
+	c.Check(createCount, Equals, 0)
+
+	logger.WithLoggerLock(func() {
+		c.Check(logbuf.String(), testutil.Contains, "failed to check the presence of a interfaces-requests-control handler service")
+	})
+}
+
 func (s *interfaceManagerSuite) TestInitInterfacesRequestsManagerError(c *C) {
 	restore := ifacestate.MockAssessAppArmorPrompting(func(m *ifacestate.InterfaceManager) bool {
 		return true
+	})
+	defer restore()
+
+	restore = ifacestate.MockInterfacesRequestsControlHandlerServicePresent(func(m *ifacestate.InterfaceManager) (bool, error) {
+		return true, nil
 	})
 	defer restore()
 
@@ -7018,6 +7131,10 @@ func (s *interfaceManagerSuite) TestInitInterfacesRequestsManagerError(c *C) {
 func (s *interfaceManagerSuite) TestStopInterfacesRequestsManagerError(c *C) {
 	restore := ifacestate.MockAssessAppArmorPrompting(func(m *ifacestate.InterfaceManager) bool {
 		return true
+	})
+	defer restore()
+	restore = ifacestate.MockInterfacesRequestsControlHandlerServicePresent(func(m *ifacestate.InterfaceManager) (bool, error) {
+		return true, nil
 	})
 	defer restore()
 	fakeManager := &apparmorprompting.InterfacesRequestsManager{}
