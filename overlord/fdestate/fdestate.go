@@ -300,7 +300,7 @@ func initializeState(st *state.State) error {
 			// small acceptable range. I could add an API
 			// in secboot for that, or we could do it
 			// here.
-			TPM2PCRPolicyRevocationCounter: secboot.FallbackObjectPCRPolicyCounterHandle,
+			TPM2PCRPolicyRevocationCounter: secboot.RunObjectPCRPolicyCounterHandle,
 		},
 	}
 

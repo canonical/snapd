@@ -1979,9 +1979,6 @@ func (s *sealSuite) TestMarkFactoryResetComplete(c *C) {
 	for i, tc := range []struct {
 		encrypted                 bool
 		factoryKeyAlreadyMigrated bool
-		pcrHandleOfKey            uint32
-		pcrHandleOfKeyErr         error
-		pcrHandleOfKeyCalls       int
 		releasePCRHandlesErr      error
 		releasePCRHandleCalls     int
 		hasFDEHook                bool
@@ -1992,32 +1989,19 @@ func (s *sealSuite) TestMarkFactoryResetComplete(c *C) {
 			encrypted: false,
 		}, {
 			// the old fallback key uses the main handle
-			encrypted: true, pcrHandleOfKey: secboot.FallbackObjectPCRPolicyCounterHandle,
-			factoryKeyAlreadyMigrated: true, pcrHandleOfKeyCalls: 1, releasePCRHandleCalls: 1,
-		}, {
-			// the old fallback key uses the alt handle
-			encrypted: true, pcrHandleOfKey: secboot.AltFallbackObjectPCRPolicyCounterHandle,
-			factoryKeyAlreadyMigrated: true, pcrHandleOfKeyCalls: 1, releasePCRHandleCalls: 1,
+			encrypted: true,
+			factoryKeyAlreadyMigrated: true, releasePCRHandleCalls: 1,
 		}, {
 			// unexpected reboot, the key file was already moved
-			encrypted: true, pcrHandleOfKey: secboot.AltFallbackObjectPCRPolicyCounterHandle,
-			pcrHandleOfKeyCalls: 1, releasePCRHandleCalls: 1,
+			encrypted: true,
+			releasePCRHandleCalls: 1,
 		}, {
 			// do nothing if we have the FDE hook
-			encrypted: true, pcrHandleOfKeyErr: errors.New("unexpected call"),
-			hasFDEHook: true,
+			encrypted: true, hasFDEHook: true,
 		},
 		// error cases
 		{
-			encrypted: true, pcrHandleOfKey: secboot.FallbackObjectPCRPolicyCounterHandle,
-			factoryKeyAlreadyMigrated: true,
-			pcrHandleOfKeyCalls:       1,
-			pcrHandleOfKeyErr:         errors.New("handle error"),
-			err:                       "cannot perform post factory reset boot cleanup: cannot cleanup secboot state: cannot inspect fallback key: handle error",
-		}, {
-			encrypted: true, pcrHandleOfKey: secboot.FallbackObjectPCRPolicyCounterHandle,
-			factoryKeyAlreadyMigrated: true,
-			pcrHandleOfKeyCalls:       1, releasePCRHandleCalls: 1,
+			encrypted: true, factoryKeyAlreadyMigrated: true,releasePCRHandleCalls: 1,
 			releasePCRHandlesErr: errors.New("release error"),
 			err:                  "cannot perform post factory reset boot cleanup: cannot cleanup secboot state: release error",
 		},
@@ -2043,29 +2027,14 @@ func (s *sealSuite) TestMarkFactoryResetComplete(c *C) {
 		})
 		defer restore()
 
-		pcrHandleOfKeyCalls := 0
-		restore = boot.MockSecbootPCRHandleOfSealedKey(func(p string) (uint32, error) {
-			pcrHandleOfKeyCalls++
-			// XXX we're inspecting the current key after it got rotated
-			c.Check(p, Equals, filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-seed/device/fde/ubuntu-save.recovery.sealed-key"))
-			return tc.pcrHandleOfKey, tc.pcrHandleOfKeyErr
-		})
-		defer restore()
-
 		releasePCRHandleCalls := 0
 		releaseResourceFunc := func(handles ...uint32) error {
 			releasePCRHandleCalls++
-			if tc.pcrHandleOfKey == secboot.FallbackObjectPCRPolicyCounterHandle {
-				c.Check(handles, DeepEquals, []uint32{
-					secboot.AltRunObjectPCRPolicyCounterHandle,
-					secboot.AltFallbackObjectPCRPolicyCounterHandle,
-				})
-			} else {
-				c.Check(handles, DeepEquals, []uint32{
-					secboot.RunObjectPCRPolicyCounterHandle,
-					secboot.FallbackObjectPCRPolicyCounterHandle,
-				})
-			}
+			c.Check(handles, DeepEquals, []uint32{
+				secboot.FallbackObjectPCRPolicyCounterHandle,
+				secboot.AltRunObjectPCRPolicyCounterHandle,
+				secboot.AltFallbackObjectPCRPolicyCounterHandle,
+			})
 			return tc.releasePCRHandlesErr
 		}
 		restore = boot.MockSecbootReleasePCRResourceHandles(releaseResourceFunc)
@@ -2077,7 +2046,6 @@ func (s *sealSuite) TestMarkFactoryResetComplete(c *C) {
 		} else {
 			c.Assert(err, IsNil)
 		}
-		c.Check(pcrHandleOfKeyCalls, Equals, tc.pcrHandleOfKeyCalls)
 		c.Check(releasePCRHandleCalls, Equals, tc.releasePCRHandleCalls)
 		if tc.encrypted {
 			c.Check(filepath.Join(boot.InitramfsSeedEncryptionKeyDir, "ubuntu-save.recovery.sealed-key"),

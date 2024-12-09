@@ -39,7 +39,6 @@ import (
 )
 
 var (
-	secbootPCRHandleOfSealedKey      = secboot.PCRHandleOfSealedKey
 	secbootReleasePCRResourceHandles = secboot.ReleasePCRResourceHandles
 
 	seedReadSystemEssential = seed.ReadSystemEssential
@@ -233,17 +232,6 @@ func sealKeyToModeenvForMethod(method device.SealingMethod, key, saveKey secboot
 	}
 
 	return SealKeyForBootChains(method, key, saveKey, params)
-}
-
-func UsesAltPCRHandles() (bool, error) {
-	saveFallbackKey := device.FallbackSaveSealedKeyUnder(InitramfsSeedEncryptionKeyDir)
-	// inspect the PCR handle of the ubuntu-save fallback key
-	handle, err := secbootPCRHandleOfSealedKey(saveFallbackKey)
-	if err != nil {
-		return false, err
-	}
-	logger.Noticef("fallback sealed key %v PCR handle: %#x", saveFallbackKey, handle)
-	return handle == secboot.AltFallbackObjectPCRPolicyCounterHandle, nil
 }
 
 var resealKeyToModeenv = resealKeyToModeenvImpl
@@ -820,22 +808,10 @@ func IsResealNeeded(pbc PredictableBootChains, bootChainsFile string, expectRese
 }
 
 func postFactoryResetCleanupSecboot() error {
-	// we are inspecting a key which was generated during factory reset, in
-	// the simplest case the sealed key generated previously used the main
-	// handles, while the current key uses alt handles, hence we need to
-	// release the main handles corresponding to the old key
-	handles := []uint32{secboot.RunObjectPCRPolicyCounterHandle, secboot.FallbackObjectPCRPolicyCounterHandle}
-	usesAlt, err := UsesAltPCRHandles()
-	if err != nil {
-		return fmt.Errorf("cannot inspect fallback key: %v", err)
-	}
-	if !usesAlt {
-		// current fallback key using the main handles, which is
-		// possible of there were subsequent factory reset steps,
-		// release the alt handles associated with the old key
-		handles = []uint32{secboot.AltRunObjectPCRPolicyCounterHandle, secboot.AltFallbackObjectPCRPolicyCounterHandle}
-	}
-	return secbootReleasePCRResourceHandles(handles...)
+	return secbootReleasePCRResourceHandles(
+		secboot.FallbackObjectPCRPolicyCounterHandle,
+		secboot.AltRunObjectPCRPolicyCounterHandle,
+		secboot.AltFallbackObjectPCRPolicyCounterHandle)
 }
 
 func postFactoryResetCleanup() error {
@@ -875,13 +851,6 @@ func resealExpectedByModeenvChange(m1, m2 *Modeenv) bool {
 	auxModeenv := *m2
 	auxModeenv.Gadget = m1.Gadget
 	return !auxModeenv.deepEqual(m1)
-}
-
-func MockSecbootPCRHandleOfSealedKey(f func(p string) (uint32, error)) (restore func()) {
-	osutil.MustBeTestBinary("mock PCRHandleOfSealedKey only to be used in tests")
-	restore = testutil.Backup(&secbootPCRHandleOfSealedKey)
-	secbootPCRHandleOfSealedKey = f
-	return restore
 }
 
 func MockSecbootReleasePCRResourceHandles(f func(handles ...uint32) error) (restore func()) {
