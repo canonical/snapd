@@ -187,26 +187,6 @@ func sealKeyForBootChainsBackend(method device.SealingMethod, key, saveKey secbo
 	rpbc := boot.ToPredictableBootChains(params.RecoveryBootChains)
 
 	runObjectKeyPCRHandle := uint32(secboot.RunObjectPCRPolicyCounterHandle)
-	fallbackObjectKeyPCRHandle := uint32(secboot.FallbackObjectPCRPolicyCounterHandle)
-	if params.FactoryReset {
-		// during factory reset we may need to rotate the PCR handles,
-		// seal the new keys using a new set of handles such that the
-		// old sealed ubuntu-save key is still usable, for this we
-		// switch between two sets of handles in a round robin fashion,
-		// first looking at the PCR handle used by the current fallback
-		// key and then using the other set when sealing the new keys;
-		// the currently used handles will be released during the first
-		// boot of a new run system
-		usesAlt, err := boot.UsesAltPCRHandles()
-		if err != nil {
-			return err
-		}
-		if !usesAlt {
-			logger.Noticef("using alternative PCR handles")
-			runObjectKeyPCRHandle = secboot.AltRunObjectPCRPolicyCounterHandle
-			fallbackObjectKeyPCRHandle = secboot.AltFallbackObjectPCRPolicyCounterHandle
-		}
-	}
 
 	// we are preparing a new system, hence the TPM needs to be provisioned
 	lockoutAuthFile := device.TpmLockoutAuthUnder(boot.InstallHostFDESaveDir)
@@ -218,16 +198,6 @@ func sealKeyForBootChainsBackend(method device.SealingMethod, key, saveKey secbo
 		return err
 	}
 
-	if params.FactoryReset {
-		// it is possible that we are sealing the keys again, after a
-		// previously running factory reset was interrupted by a reboot,
-		// in which case the PCR handles of the new sealed keys might
-		// have already been used
-		if err := secbootReleasePCRResourceHandles(runObjectKeyPCRHandle, fallbackObjectKeyPCRHandle); err != nil {
-			return err
-		}
-	}
-
 	// TODO: refactor sealing functions to take a struct instead of so many
 	// parameters
 	primaryKey, err := sealRunObjectKeys(key, pbc, params.RoleToBlName, runObjectKeyPCRHandle, params.UseTokens)
@@ -236,7 +206,7 @@ func sealKeyForBootChainsBackend(method device.SealingMethod, key, saveKey secbo
 	}
 
 	err = sealFallbackObjectKeys(key, saveKey, rpbc, primaryKey, params.RoleToBlName, params.FactoryReset,
-		fallbackObjectKeyPCRHandle, params.UseTokens)
+		runObjectKeyPCRHandle, params.UseTokens)
 	if err != nil {
 		return err
 	}

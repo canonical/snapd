@@ -810,30 +810,6 @@ func efiImageFromBootFile(b *bootloader.BootFile) (sb_efi.Image, error) {
 	), nil
 }
 
-// PCRHandleOfSealedKey retunrs the PCR handle which was used when sealing a
-// given key object.
-func PCRHandleOfSealedKey(p string) (uint32, error) {
-	loadedKey := &defaultKeyLoader{}
-	const hintExpectFDEHook = false
-	err := readKeyFile(p, loadedKey, hintExpectFDEHook)
-	if err != nil {
-		return 0, fmt.Errorf("cannot read key file %s: %w", p, err)
-	}
-	if loadedKey.SealedKeyObject != nil {
-		handle := uint32(loadedKey.SealedKeyObject.PCRPolicyCounterHandle())
-		return handle, nil
-	} else if loadedKey.KeyData != nil {
-		sealedKeyData, err := sb_tpm2.NewSealedKeyData(loadedKey.KeyData)
-		if err != nil {
-			return 0, fmt.Errorf("cannot read key data in keyfile %s: %w", p, err)
-		}
-		handle := uint32(sealedKeyData.PCRPolicyCounterHandle())
-		return handle, nil
-	} else {
-		return 0, fmt.Errorf("key file %s format is incompatible with TPM", p)
-	}
-}
-
 func tpmReleaseResourcesImpl(tpm *sb_tpm2.Connection, handle tpm2.Handle) error {
 	rc, err := tpm.CreateResourceContextFromTPM(handle)
 	if err != nil {
