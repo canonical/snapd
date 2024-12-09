@@ -179,13 +179,10 @@ type essentialInfo struct {
 	Base        string
 }
 
-var errInfo = errors.New("cannot get info")
-
-func snapEssentialInfo(w http.ResponseWriter, fn, snapID string, bs asserts.Backstore) (*essentialInfo, error) {
+func snapEssentialInfo(fn, snapID string, bs asserts.Backstore) (*essentialInfo, error) {
 	f, err := snapfile.Open(fn)
 	if err != nil {
-		http.Error(w, fmt.Sprintf("cannot read: %v: %v", fn, err), 400)
-		return nil, errInfo
+		return nil, fmt.Errorf("cannot read: %v: %v", fn, err)
 	}
 
 	restoreSanitize := snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {})
@@ -193,20 +190,17 @@ func snapEssentialInfo(w http.ResponseWriter, fn, snapID string, bs asserts.Back
 
 	info, err := snap.ReadInfoFromSnapFile(f, nil)
 	if err != nil {
-		http.Error(w, fmt.Sprintf("cannot get info for: %v: %v", fn, err), 400)
-		return nil, errInfo
+		return nil, fmt.Errorf("cannot get info for: %v: %v", fn, err)
 	}
 
 	snapDigest, size, err := asserts.SnapFileSHA3_384(fn)
 	if err != nil {
-		http.Error(w, fmt.Sprintf("cannot get digest for: %v: %v", fn, err), 400)
-		return nil, errInfo
+		return nil, fmt.Errorf("cannot get digest for: %v: %v", fn, err)
 	}
 
 	snapRev, devAcct, err := findSnapRevision(snapDigest, bs)
 	if err != nil && !errors.Is(err, &asserts.NotFoundError{}) {
-		http.Error(w, fmt.Sprintf("cannot get info for: %v: %v", fn, err), 400)
-		return nil, errInfo
+		return nil, fmt.Errorf("cannot get info for: %v: %v", fn, err)
 	}
 
 	var devel, develID string
@@ -348,23 +342,23 @@ func (s *Store) detailsEndpoint(w http.ResponseWriter, req *http.Request) {
 		http.Error(w, fmt.Sprintf("internal error collecting assertions: %v", err), 500)
 		return
 	}
-	snaps, err := s.collectSnaps()
+	snaps, err := s.collectSnaps(bs)
 	if err != nil {
 		http.Error(w, fmt.Sprintf("internal error collecting snaps: %v", err), 500)
 		return
 	}
 
-	fn, ok := snaps[pkg]
+	set, ok := snaps[pkg]
 	if !ok {
 		http.NotFound(w, req)
 		return
 	}
 
-	essInfo, err := snapEssentialInfo(w, fn, "", bs)
-	if essInfo == nil {
-		if err != errInfo {
-			panic(err)
-		}
+	fn := set.getLatest()
+
+	essInfo, err := snapEssentialInfo(fn, "", bs)
+	if err != nil {
+		http.Error(w, err.Error(), 400)
 		return
 	}
 
@@ -394,30 +388,66 @@ func (s *Store) detailsEndpoint(w http.ResponseWriter, req *http.Request) {
 	w.Write(out)
 }
 
-func (s *Store) collectSnaps() (map[string]string, error) {
+type revisionSet struct {
+	latest     snap.Revision
+	containers map[snap.Revision]string
+}
+
+func (rs *revisionSet) get(rev snap.Revision) (string, bool) {
+	if rev.Unset() {
+		rev = rs.latest
+	}
+
+	path, ok := rs.containers[rev]
+	return path, ok
+}
+
+func (rs *revisionSet) getLatest() string {
+	path, ok := rs.containers[rs.latest]
+	if !ok {
+		panic("internal error: revision set should always contain latest revision")
+	}
+
+	return path
+}
+
+func (rs *revisionSet) add(rev snap.Revision, path string) {
+	if rs.containers == nil {
+		rs.containers = make(map[snap.Revision]string)
+	}
+
+	if rs.latest.N < rev.N {
+		rs.latest = rev
+	}
+	rs.containers[rev] = path
+}
+
+func (s *Store) collectSnaps(bs asserts.Backstore) (map[string]*revisionSet, error) {
 	snapFns, err := filepath.Glob(filepath.Join(s.blobDir, "*.snap"))
 	if err != nil {
 		return nil, err
 	}
 
-	snaps := map[string]string{}
-
 	restoreSanitize := snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {})
 	defer restoreSanitize()
 
+	snaps := make(map[string]*revisionSet)
 	for _, fn := range snapFns {
-		f, err := snapfile.Open(fn)
+		// we only care about the revision here, so we can get away without
+		// setting the id
+		const snapID = ""
+		info, err := snapEssentialInfo(fn, snapID, bs)
 		if err != nil {
 			return nil, err
 		}
-		info, err := snap.ReadInfoFromSnapFile(f, nil)
-		if err != nil {
-			return nil, err
+
+		if _, ok := snaps[info.Name]; !ok {
+			snaps[info.Name] = &revisionSet{}
 		}
-		// TODO: Prefer newer file for the same snap instead of blindly
-		// overwriting
-		snaps[info.SnapName()] = fn
-		logger.Debugf("found snap %q at %v", info.SnapName(), fn)
+
+		snaps[info.Name].add(snap.R(info.Revision), fn)
+
+		logger.Debugf("found snap %q (revision %d) at %v", info.Name, info.Revision, fn)
 	}
 
 	return snaps, err
@@ -486,7 +516,7 @@ func (s *Store) bulkEndpoint(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	snaps, err := s.collectSnaps()
+	snaps, err := s.collectSnaps(bs)
 	if err != nil {
 		http.Error(w, fmt.Sprintf("internal error collecting snaps: %v", err), 500)
 		return
@@ -500,31 +530,34 @@ func (s *Store) bulkEndpoint(w http.ResponseWriter, req *http.Request) {
 			return
 		}
 
-		if fn, ok := snaps[name]; ok {
-			essInfo, err := snapEssentialInfo(w, fn, pkg.SnapID, bs)
-			if essInfo == nil {
-				if err != errInfo {
-					panic(err)
-				}
-				return
-			}
-
-			replyData.Payload.Packages = append(replyData.Payload.Packages, detailsReplyJSON{
-				Architectures:   []string{"all"},
-				SnapID:          essInfo.SnapID,
-				PackageName:     essInfo.Name,
-				Developer:       essInfo.DevelName,
-				DeveloperID:     essInfo.DeveloperID,
-				DownloadURL:     fmt.Sprintf("%s/download/%s", s.URL(), filepath.Base(fn)),
-				AnonDownloadURL: fmt.Sprintf("%s/download/%s", s.URL(), filepath.Base(fn)),
-				Version:         essInfo.Version,
-				Revision:        essInfo.Revision,
-				DownloadDigest:  hexify(essInfo.Digest),
-				Confinement:     essInfo.Confinement,
-				Type:            essInfo.Type,
-				Base:            essInfo.Base,
-			})
+		set, ok := snaps[name]
+		if !ok {
+			continue
 		}
+
+		fn := set.getLatest()
+
+		essInfo, err := snapEssentialInfo(fn, pkg.SnapID, bs)
+		if err != nil {
+			http.Error(w, err.Error(), 400)
+			return
+		}
+
+		replyData.Payload.Packages = append(replyData.Payload.Packages, detailsReplyJSON{
+			Architectures:   []string{"all"},
+			SnapID:          essInfo.SnapID,
+			PackageName:     essInfo.Name,
+			Developer:       essInfo.DevelName,
+			DeveloperID:     essInfo.DeveloperID,
+			DownloadURL:     fmt.Sprintf("%s/download/%s", s.URL(), filepath.Base(fn)),
+			AnonDownloadURL: fmt.Sprintf("%s/download/%s", s.URL(), filepath.Base(fn)),
+			Version:         essInfo.Version,
+			Revision:        essInfo.Revision,
+			DownloadDigest:  hexify(essInfo.Digest),
+			Confinement:     essInfo.Confinement,
+			Type:            essInfo.Type,
+			Base:            essInfo.Base,
+		})
 	}
 
 	// use indent because this is a development tool, output
@@ -655,7 +688,7 @@ func (s *Store) snapActionEndpoint(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	snaps, err := s.collectSnaps()
+	snaps, err := s.collectSnaps(bs)
 	if err != nil {
 		http.Error(w, fmt.Sprintf("internal error collecting snaps: %v", err), 500)
 		return
@@ -690,39 +723,47 @@ func (s *Store) snapActionEndpoint(w http.ResponseWriter, req *http.Request) {
 			return
 		}
 
-		if fn, ok := snaps[name]; ok {
-			essInfo, err := snapEssentialInfo(w, fn, snapID, bs)
-			if essInfo == nil {
-				if err != errInfo {
-					panic(err)
-				}
-				return
-			}
-
-			res := &snapActionResult{
-				Result:      a.Action,
-				InstanceKey: a.InstanceKey,
-				SnapID:      essInfo.SnapID,
-				Name:        essInfo.Name,
-				Snap: detailsResultV2{
-					Architectures: []string{"all"},
-					SnapID:        essInfo.SnapID,
-					Name:          essInfo.Name,
-					Version:       essInfo.Version,
-					Revision:      essInfo.Revision,
-					Confinement:   essInfo.Confinement,
-					Type:          essInfo.Type,
-					Base:          essInfo.Base,
-				},
-			}
-			logger.Debugf("requested snap %q revision %d", essInfo.Name, a.Revision)
-			res.Snap.Publisher.ID = essInfo.DeveloperID
-			res.Snap.Publisher.Username = essInfo.DevelName
-			res.Snap.Download.URL = fmt.Sprintf("%s/download/%s", s.URL(), filepath.Base(fn))
-			res.Snap.Download.Sha3_384 = hexify(essInfo.Digest)
-			res.Snap.Download.Size = essInfo.Size
-			replyData.Results = append(replyData.Results, res)
+		set, ok := snaps[name]
+		if !ok {
+			continue
 		}
+
+		fn, ok := set.get(snap.R(a.Revision))
+
+		if !ok {
+			// TODO: this should send back some error?
+			continue
+		}
+
+		essInfo, err := snapEssentialInfo(fn, snapID, bs)
+		if err != nil {
+			http.Error(w, err.Error(), 400)
+			return
+		}
+
+		res := &snapActionResult{
+			Result:      a.Action,
+			InstanceKey: a.InstanceKey,
+			SnapID:      essInfo.SnapID,
+			Name:        essInfo.Name,
+			Snap: detailsResultV2{
+				Architectures: []string{"all"},
+				SnapID:        essInfo.SnapID,
+				Name:          essInfo.Name,
+				Version:       essInfo.Version,
+				Revision:      essInfo.Revision,
+				Confinement:   essInfo.Confinement,
+				Type:          essInfo.Type,
+				Base:          essInfo.Base,
+			},
+		}
+		logger.Debugf("requested snap %q revision %d", essInfo.Name, a.Revision)
+		res.Snap.Publisher.ID = essInfo.DeveloperID
+		res.Snap.Publisher.Username = essInfo.DevelName
+		res.Snap.Download.URL = fmt.Sprintf("%s/download/%s", s.URL(), filepath.Base(fn))
+		res.Snap.Download.Sha3_384 = hexify(essInfo.Digest)
+		res.Snap.Download.Size = essInfo.Size
+		replyData.Results = append(replyData.Results, res)
 	}
 
 	// use indent because this is a development tool, output
