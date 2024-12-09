@@ -553,12 +553,13 @@ func toHash(s string) crypto.Hash {
 // A single snap revision can have multiple variants of integrity data which are represented as an array in the
 // snap revision assertion.
 type SnapIntegrityData struct {
-	Type      string
-	Version   uint
-	HashAlg   string
-	BlockSize uint
-	Digest    string
-	Salt      string
+	Type          string
+	Version       uint
+	HashAlg       string
+	DataBlockSize uint
+	HashBlockSize uint
+	Digest        string
+	Salt          string
 }
 
 // SnapFileSHA3_384 computes the SHA3-384 digest of the given snap file.
@@ -827,7 +828,13 @@ func checkSnapIntegrity(headers map[string]interface{}) ([]SnapIntegrityData, er
 		}
 
 		what = fmt.Sprintf("for integrity data with index %d of type %q", i, typ)
-		blockSize, err := checkUintWhat(id, "block-size", 64, what)
+		dataBlockSize, err := checkUintWhat(id, "data-block-size", 64, what)
+		if err != nil {
+			return nil, err
+		}
+
+		what = fmt.Sprintf("for integrity data with index %d of type %q", i, typ)
+		hashBlockSize, err := checkUintWhat(id, "hash-block-size", 64, what)
 		if err != nil {
 			return nil, err
 		}
@@ -847,12 +854,13 @@ func checkSnapIntegrity(headers map[string]interface{}) ([]SnapIntegrityData, er
 		}
 
 		snapIntegrityData := SnapIntegrityData{
-			Type:      typ,
-			Version:   uint(version),
-			HashAlg:   alg,
-			BlockSize: uint(blockSize),
-			Digest:    hex.EncodeToString(digest),
-			Salt:      hex.EncodeToString(salt),
+			Type:          typ,
+			Version:       uint(version),
+			HashAlg:       alg,
+			DataBlockSize: uint(dataBlockSize),
+			HashBlockSize: uint(hashBlockSize),
+			Digest:        hex.EncodeToString(digest),
+			Salt:          hex.EncodeToString(salt),
 		}
 
 		snapIntegrityDataList = append(snapIntegrityDataList, snapIntegrityData)
