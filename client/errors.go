@@ -160,6 +160,9 @@ const (
 
 	// ErrorKindInterfacesRequestsRuleConflict: a rule with conflicting path pattern and permissions already exists.
 	ErrorKindInterfacesRequestsRuleConflict ErrorKind = "interfaces-requests-rule-conflict"
+
+	// ErrorKindInterfacesRequestsRuleConflict: cannot find a snap-resource-pair when attempting to sideload a component
+	ErrorKindMissingSnapResourcePair ErrorKind = "missing-snap-resource-pair"
 )
 
 // Maintenance error kinds.
