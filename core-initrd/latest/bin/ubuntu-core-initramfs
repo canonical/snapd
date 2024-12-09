@@ -735,12 +735,6 @@ def create_initrd(parser, args):
         install_systemd_files(main, rootfs, ubuntu_release)
         # Other miscelanea stuff
         install_misc(main, rootfs, deb_arch)
-        # Copy snapd bits
-        snapd_lib = path_join_make_rel_paths(rootfs, "/usr/lib/snapd")
-        snapd_files = [os.path.join(snapd_lib, "snap-bootstrap"),
-                       os.path.join(snapd_lib, "info"),
-                       "/lib/systemd/system/snapd.recovery-chooser-trigger.service"]
-        install_files(snapd_files, main, rootfs)
         # Copy features
         for feature in args.features:
             # Add feature files

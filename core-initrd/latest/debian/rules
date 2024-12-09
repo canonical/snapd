@@ -54,6 +54,8 @@ override_dh_auto_install:
 # snapd bits
 	mkdir -p debian/tmp/usr/lib/snapd/
 	cp snap-bootstrap debian/tmp/usr/lib/snapd/
+	cp snapd/info debian/tmp/usr/lib/snapd/
+	cp snapd/snapd.recovery-chooser-trigger.service debian/tmp/usr/lib/systemd/system/
 
 # splash functionality
 	mkdir -p debian/tmp/usr/share/plymouth/themes/
