@@ -72,22 +72,19 @@ func InstallComponents(
 				return nil, snap.AlreadyInstalledComponentError{Component: comp}
 			}
 		}
-
-		if opts.Flags.IgnoreValidation {
-			vsets = snapasserts.NewValidationSets()
-		} else {
-			vsets, err = EnforcedValidationSets(st)
-			if err != nil {
-				return nil, err
-			}
-		}
 	}
 
-	compsups, err := componentSetupsForInstall(ctx, st, names, snapst, RevisionOptions{
+	revOpts := RevisionOptions{
 		Revision:       snapst.Current,
 		Channel:        snapst.TrackingChannel,
 		ValidationSets: vsets,
-	}, opts)
+	}
+
+	if err := revOpts.initializeValidationSets(cachedEnforcedValidationSets(st), opts); err != nil {
+		return nil, err
+	}
+
+	compsups, err := componentSetupsForInstall(ctx, st, names, snapst, revOpts, opts)
 	if err != nil {
 		return nil, err
 	}
