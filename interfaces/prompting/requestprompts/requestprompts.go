@@ -114,33 +114,8 @@ func (p *Prompt) sendReply(outcome prompting.OutcomeType) error {
 	if !allow {
 		denied = p.Constraints.remainingPermissions
 	}
-	allowedPermission := buildResponse(p.Interface, p.Constraints, denied)
+	allowedPermission := p.Constraints.buildResponse(p.Interface, denied)
 	return p.sendReplyWithPermission(allowedPermission)
-}
-
-// buildResponse creates a listener response based on the given interface,
-// prompt constraints, and list of denied permissions.
-//
-// The response is the AppArmor permission which should be allowed. This
-// corresponds to the originally requested permissions from the prompt
-// constraints, except with all denied permissions removed.
-func buildResponse(iface string, constraints *promptConstraints, denied []string) any {
-	allowedPerms := constraints.originalPermissions
-	if len(denied) > 0 {
-		allowedPerms = make([]string, 0, len(constraints.originalPermissions)-len(denied))
-		for _, perm := range constraints.originalPermissions {
-			if !strutil.ListContains(denied, perm) {
-				allowedPerms = append(allowedPerms, perm)
-			}
-		}
-	}
-	allowedPermission, err := prompting.AbstractPermissionsToAppArmorPermissions(iface, allowedPerms)
-	if err != nil {
-		// This should not occur, but if so, permission should be set to the
-		// empty value for its corresponding permission type.
-		logger.Noticef("internal error: cannot convert abstract permissions to AppArmor permissions: %v", err)
-	}
-	return allowedPermission
 }
 
 func (p *Prompt) sendReplyWithPermission(allowedPermission any) error {
@@ -260,6 +235,31 @@ func (pc *promptConstraints) applyRuleConstraints(constraints *prompting.RuleCon
 	}
 
 	return modified, respond, denied, nil
+}
+
+// buildResponse creates a listener response to the receiving prompt constraints
+// based on the given interface and list of denied permissions.
+//
+// The response is the AppArmor permission which should be allowed. This
+// corresponds to the originally requested permissions from the prompt
+// constraints, except with all denied permissions removed.
+func (pc *promptConstraints) buildResponse(iface string, denied []string) any {
+	allowedPerms := pc.originalPermissions
+	if len(denied) > 0 {
+		allowedPerms = make([]string, 0, len(pc.originalPermissions)-len(denied))
+		for _, perm := range pc.originalPermissions {
+			if !strutil.ListContains(denied, perm) {
+				allowedPerms = append(allowedPerms, perm)
+			}
+		}
+	}
+	allowedPermission, err := prompting.AbstractPermissionsToAppArmorPermissions(iface, allowedPerms)
+	if err != nil {
+		// This should not occur, but if so, permission should be set to the
+		// empty value for its corresponding permission type.
+		logger.Noticef("internal error: cannot convert abstract permissions to AppArmor permissions: %v", err)
+	}
+	return allowedPermission
 }
 
 // Path returns the path associated with the request to which the receiving
@@ -486,7 +486,7 @@ func (pdb *PromptDB) AddOrMerge(metadata *prompting.Metadata, path string, reque
 	if len(userEntry.prompts) >= maxOutstandingPromptsPerUser {
 		logger.Noticef("WARNING: too many outstanding prompts for user %d; auto-denying new one", metadata.User)
 		// Deny all permissions which are not already allowed by existing rules
-		allowedPermission := buildResponse(metadata.Interface, constraints, constraints.remainingPermissions)
+		allowedPermission := constraints.buildResponse(metadata.Interface, constraints.remainingPermissions)
 		sendReply(listenerReq, allowedPermission)
 		return nil, false, prompting_errors.ErrTooManyPrompts
 	}
@@ -662,7 +662,7 @@ func (pdb *PromptDB) HandleNewRule(metadata *prompting.Metadata, constraints *pr
 		}
 		// Build and send a response with any permissions which were allowed,
 		// either by this new rule or by previous rules.
-		allowedPermission := buildResponse(metadata.Interface, prompt.Constraints, denied)
+		allowedPermission := prompt.Constraints.buildResponse(metadata.Interface, denied)
 		prompt.sendReplyWithPermission(allowedPermission)
 		// Now that a response has been sent, remove the rule from the rule DB
 		// and record a notice indicating that it has been satisfied.
