@@ -398,8 +398,17 @@ func (s *interfaceManagerSuite) TestSmokeAppArmorPromptingEnabled(c *C) {
 
 	mgr := s.manager(c)
 	c.Check(createCount, Equals, 1)
+
 	c.Check(mgr.AppArmorPromptingRunning(), Equals, true)
 	c.Check(mgr.InterfacesRequestsManager(), Equals, fakeManager)
+
+	func() {
+		s.state.Lock()
+		defer s.state.Unlock()
+		warns := s.state.AllWarnings()
+		c.Check(warns, HasLen, 0)
+	}()
+
 	c.Check(stopCount, Equals, 0)
 	mgr.Stop()
 	c.Check(stopCount, Equals, 1)
@@ -427,8 +436,17 @@ func (s *interfaceManagerSuite) TestSmokeAppArmorPromptingDisabled(c *C) {
 
 	mgr := s.manager(c)
 	c.Check(createCount, Equals, 0)
+
 	c.Check(mgr.AppArmorPromptingRunning(), Equals, false)
 	c.Check(mgr.InterfacesRequestsManager(), testutil.IsInterfaceNil)
+
+	func() {
+		s.state.Lock()
+		defer s.state.Unlock()
+		warns := s.state.AllWarnings()
+		c.Check(warns, HasLen, 0)
+	}()
+
 	mgr.Stop()
 	c.Check(stopCount, Equals, 0)
 }
@@ -7013,6 +7031,12 @@ func (s *interfaceManagerSuite) TestInitInterfacesRequestsManagerError(c *C) {
 	logger.WithLoggerLock(func() {
 		c.Check(logbuf.String(), testutil.Contains, fmt.Sprintf("%v", createError))
 	})
+
+	s.state.Lock()
+	defer s.state.Unlock()
+	warns := s.state.AllWarnings()
+	c.Check(warns, HasLen, 1)
+	c.Check(warns[0].String(), Matches, fmt.Sprintf(`failed to start prompting backend: %v\nprompting will be inactive until snapd is restarted`, createError))
 }
 
 func (s *interfaceManagerSuite) TestStopInterfacesRequestsManagerError(c *C) {
