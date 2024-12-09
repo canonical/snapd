@@ -63,22 +63,28 @@ func InstallComponents(
 		return nil, err
 	}
 
-	for _, comp := range names {
-		if snapst.CurrentComponentSideInfo(naming.NewComponentRef(info.SnapName(), comp)) != nil {
-			return nil, snap.AlreadyInstalledComponentError{Component: comp}
+	if vsets == nil {
+		// we only check for already installed components when no validation
+		// sets are provided, since this will allow us to refresh and install
+		// new components at the same time when resolving validation sets
+		for _, comp := range names {
+			if snapst.CurrentComponentSideInfo(naming.NewComponentRef(info.SnapName(), comp)) != nil {
+				return nil, snap.AlreadyInstalledComponentError{Component: comp}
+			}
 		}
 	}
 
-	if vsets == nil {
-		// TODO:COMPS: use enforced validation sets as the default here
-		vsets = snapasserts.NewValidationSets()
-	}
-
-	compsups, err := componentSetupsForInstall(ctx, st, names, snapst, RevisionOptions{
+	revOpts := RevisionOptions{
 		Revision:       snapst.Current,
 		Channel:        snapst.TrackingChannel,
 		ValidationSets: vsets,
-	}, opts)
+	}
+
+	if err := revOpts.initializeValidationSets(cachedEnforcedValidationSets(st), opts); err != nil {
+		return nil, err
+	}
+
+	compsups, err := componentSetupsForInstall(ctx, st, names, snapst, revOpts, opts)
 	if err != nil {
 		return nil, err
 	}
