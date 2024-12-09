@@ -11,9 +11,9 @@ override_dh_auto_install:
 	mkdir debian/tmp
 	cp -ar factory/* debian/tmp
 
-	# splash functionality
+# splash functionality
 	mkdir -p debian/tmp/usr/share/plymouth/themes/
-	cp -a vendor/plymouth-theme-ubuntu-core/ubuntu-core \
+	cp -a plymouth-theme-ubuntu-core/ubuntu-core \
 		debian/tmp/usr/share/plymouth/themes/
 	mkdir -p debian/tmp/usr/share/fonts/
 	cp /usr/share/fonts/truetype/ubuntu/Ubuntu-R.ttf \
@@ -30,9 +30,6 @@ ifeq ($(DEB_HOST_ARCH),amd64)
 endif
 
 override_dh_clean:
-	# Include ubuntu-core plymouth theme in sources
-	[ -d vendor/plymouth-theme-ubuntu-core ] || ( mkdir -p vendor; cd vendor; \
-		git clone https://github.com/snapcore/plymouth-theme-ubuntu-core )
 	dh_clean
 
 override_dh_python3:
@@ -40,7 +37,9 @@ override_dh_python3:
 
 override_dh_fixperms:
 	dh_fixperms -Xusr/lib/ubuntu-core-initramfs/main
+
 override_dh_makeshlibs:
 	dh_makeshlibs -Xusr/lib/ubuntu-core-initramfs/main
+
 override_dh_shlibdeps:
 	dh_shlibdeps -Xusr/lib/ubuntu-core-initramfs/main
