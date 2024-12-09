@@ -315,10 +315,13 @@ def package_files(pkgs, sysroot):
     return out.decode("utf-8").splitlines()
 
 
-def install_systemd_files(dest_dir, sysroot):
+def install_systemd_files(dest_dir, sysroot, ubuntu_release):
     # Build list of files and directories
 
-    lines = package_files(["systemd", "systemd-sysv", "systemd-cryptsetup"], sysroot)
+    syd_pkgs = ["systemd", "systemd-sysv"]
+    if release_higher_or_equal(ubuntu_release, (24, 10)):
+        syd_pkgs.append("systemd-cryptsetup")
+    lines = package_files(syd_pkgs, sysroot)
     # From systemd, we pull
     # * units configuration
     # * Executables
@@ -613,6 +616,7 @@ def create_initrd_pkg_list(dest_dir, sysroot):
                             pkgs).decode("utf-8")
         pkg_list.write(out)
 
+
 # verify_missing_dlopen looks at the .notes.dlopen section of ELF
 # binaries to find libraries that are not in the dynamic section, and
 # that will be loaded with dynamically dlopen when needed.
@@ -668,12 +672,31 @@ def verify_missing_dlopen(destdir, libdir):
 
     return not fatal
 
+
 def get_deb_arch(sysroot):
     proc_env = os.environ.copy()
     proc_env["DPKG_DATADIR"] = sysroot + "/usr/share/dpkg"
     out = check_output(["dpkg-architecture", "-q",
                         "DEB_HOST_MULTIARCH"], env=proc_env).decode("utf-8")
     return out.splitlines()[0]
+
+
+def get_ubuntu_release(sysroot):
+    with open(os.path.join(sysroot, "etc/os-release"), "r") as f:
+        regex = re.compile('^VERSION_ID="([0-9]+)[.]([0-9]+)"$', re.MULTILINE)
+        res = regex.search(f.read())
+        if res:
+            return [int(res.group(1)), int(res.group(2))]
+    print("ERROR: cannot find Ubuntu release", file=sys.stderr)
+    sys.exit(1)
+
+
+def release_higher_or_equal(release1, release2):
+    if release1[0] > release2[0] or \
+       (release1[0] == release2[0] and release1[1] >= release2[1]):
+        return True
+    return False
+
 
 def create_initrd(parser, args):
     # TODO generate microcode instead of shipping in debian package
@@ -690,6 +713,7 @@ def create_initrd(parser, args):
         args.output = "-".join([args.output, args.kernelver])
     with tempfile.TemporaryDirectory(suffix=".ubuntu-core-initramfs") as d:
         deb_arch = get_deb_arch(rootfs)
+        ubuntu_release = get_ubuntu_release(rootfs)
 
         kernel_root = os.path.join(d, "kernel")
         modules = os.path.join(kernel_root, "usr", "lib", "modules")
@@ -708,7 +732,7 @@ def create_initrd(parser, args):
         # default (dash) when it pulls a shell script later.
         install_busybox(main, rootfs)
         # Copy systemd bits
-        install_systemd_files(main, rootfs)
+        install_systemd_files(main, rootfs, ubuntu_release)
         # Other miscelanea stuff
         install_misc(main, rootfs, deb_arch)
         # Copy snapd bits
@@ -758,8 +782,9 @@ def create_initrd(parser, args):
             )
         check_call(["depmod", "-a", "-b", main, args.kernelver])
 
-        if not verify_missing_dlopen(main, os.path.join("/usr/lib", deb_arch)):
-            sys.exit(1)
+        if release_higher_or_equal(ubuntu_release, (24, 10)):
+            if not verify_missing_dlopen(main, os.path.join("/usr/lib", deb_arch)):
+                sys.exit(1)
 
         # Create manifest with packages with files included in the initramfs
         create_initrd_pkg_list(main, rootfs)
