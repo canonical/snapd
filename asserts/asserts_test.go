@@ -53,6 +53,7 @@ func (as *assertsSuite) TestTypeNames(c *C) {
 		"account-key-request",
 		"base-declaration",
 		"confdb",
+		"confdb-control",
 		"device-session-request",
 		"model",
 		"preseed",
@@ -1207,7 +1208,8 @@ func (as *assertsSuite) TestWithAuthority(c *C) {
 		"validation-set",
 		"repair",
 	}
-	c.Check(withAuthority, HasLen, asserts.NumAssertionType-3) // excluding device-session-request, serial-request, account-key-request
+	// excluding device-session-request, serial-request, account-key-request, confdb-control
+	c.Check(withAuthority, HasLen, asserts.NumAssertionType-4)
 	for _, name := range withAuthority {
 		typ := asserts.Type(name)
 		_, err := asserts.AssembleAndSignInTest(typ, nil, []byte("{}"), testPrivKey1)

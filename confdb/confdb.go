@@ -450,7 +450,7 @@ func getPlaceholders(viewStr string) map[string]bool {
 	return placeholders
 }
 
-// View returns an view from the confdb.
+// View returns a view from the confdb.
 func (db *Confdb) View(view string) *View {
 	return db.views[view]
 }
