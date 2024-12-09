@@ -271,6 +271,23 @@ func SnapDeclaration(s *state.State, snapID string) (*asserts.SnapDeclaration, e
 	return a.(*asserts.SnapDeclaration), nil
 }
 
+func SnapResourcePair(st *state.State, csi *snap.ComponentSideInfo, info *snap.Info) (*asserts.SnapResourcePair, error) {
+	db := DB(st)
+	headers := map[string]string{
+		"snap-id":           info.SnapID,
+		"resource-name":     csi.Component.ComponentName,
+		"resource-revision": csi.Revision.String(),
+		"snap-revision":     info.Revision.String(),
+		"provenance":        info.Provenance(),
+	}
+
+	a, err := db.Find(asserts.SnapResourcePairType, headers)
+	if err != nil {
+		return nil, err
+	}
+	return a.(*asserts.SnapResourcePair), nil
+}
+
 // Publisher returns the account assertion for publisher of the given snap-id if it is present in the system assertion database.
 func Publisher(s *state.State, snapID string) (*asserts.Account, error) {
 	db := DB(s)
