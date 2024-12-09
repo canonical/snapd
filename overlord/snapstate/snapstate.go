@@ -1873,13 +1873,7 @@ func ResolveValidationSetsEnforcementError(ctx context.Context, st *state.State,
 		comps = append(comps, keys(cerr.MissingComponents)...)
 		comps = append(comps, keys(cerr.WrongRevisionComponents)...)
 
-		var snapst SnapState
-		err := Get(st, snapName, &snapst)
-		if err != nil && !errors.Is(err, state.ErrNoState) {
-			return nil, nil, err
-		}
-
-		info, err := snapst.CurrentInfo()
+		info, err := CurrentInfo(st, snapName)
 		if err != nil {
 			return nil, nil, err
 		}
