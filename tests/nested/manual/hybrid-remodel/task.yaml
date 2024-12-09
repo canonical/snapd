@@ -98,6 +98,11 @@ prepare: |
 
   unsquashfs -d pc pc.snap
   rm -rf pc.snap
+  case "${VERSION}" in
+    24)
+      sed -i 's/^base: core22$/base: core24/' pc/meta/snap.yaml
+    ;;
+  esac
   mkdir -p pc/meta/hooks/
   cp prepare-device pc/meta/hooks/
   chmod +x pc/meta/hooks/prepare-device
