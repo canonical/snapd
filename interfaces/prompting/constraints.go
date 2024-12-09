@@ -222,6 +222,7 @@ func (c *PatchConstraints) PatchRuleConstraints(existing *RuleConstraints, iface
 	}
 	// Permissions are specified in the patch constraints, need to merge them
 	newPermissions := make(RulePermissionMap, len(c.Permissions)+len(existing.Permissions))
+	// Pre-populate newPermissions with all the non-expired existing permissions
 	for perm, entry := range existing.Permissions {
 		if !entry.Expired(currTime) {
 			newPermissions[perm] = entry
@@ -235,12 +236,15 @@ func (c *PatchConstraints) PatchRuleConstraints(existing *RuleConstraints, iface
 	var errs []error
 	var invalidPerms []string
 	for perm, entry := range c.Permissions {
-		if entry == nil {
-			delete(newPermissions, perm)
-			continue
-		}
 		if !strutil.ListContains(availablePerms, perm) {
 			invalidPerms = append(invalidPerms, perm)
+			continue
+		}
+		if entry == nil {
+			// nil value for permission indicates that it should be removed.
+			// (In contrast, omitted permissions are left unchanged from the
+			// original constraints.)
+			delete(newPermissions, perm)
 			continue
 		}
 		ruleEntry, err := entry.toRulePermissionEntry(currTime)
@@ -326,12 +330,12 @@ func (pm RulePermissionMap) validateForInterface(iface string, currTime time.Tim
 			invalidPerms = append(invalidPerms, perm)
 			continue
 		}
+		if err := entry.validate(); err != nil {
+			errs = append(errs, err)
+		}
 		if entry.Expired(currTime) {
 			expiredPerms = append(expiredPerms, perm)
 			continue
-		}
-		if err := entry.validate(); err != nil {
-			errs = append(errs, err)
 		}
 	}
 	if len(invalidPerms) > 0 {

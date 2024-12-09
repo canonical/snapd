@@ -357,6 +357,17 @@ func (s *constraintsSuite) TestRuleConstraintsValidateForInterface(c *C) {
 			},
 			`cannot create rule with lifespan "single"`,
 		},
+		{
+			"home",
+			prompting.RulePermissionMap{
+				"read": &prompting.RulePermissionEntry{
+					Outcome:    prompting.OutcomeType("bar"),
+					Lifespan:   prompting.LifespanTimespan,
+					Expiration: time.Now().Add(-time.Second),
+				},
+			},
+			`invalid outcome: "bar"`,
+		},
 	}
 	for _, testCase := range cases {
 		constraints := &prompting.RuleConstraints{
@@ -833,10 +844,7 @@ func (s *constraintsSuite) TestPatchRuleConstraintsUnhappy(c *C) {
 				Outcome:  prompting.OutcomeAllow,
 				Lifespan: prompting.LifespanForever,
 			},
-			"lock": &prompting.PermissionEntry{
-				Outcome:  prompting.OutcomeAllow,
-				Lifespan: prompting.LifespanForever,
-			},
+			"lock": nil, // even if invalid permission is meant to be removed, include it
 			"execute": &prompting.PermissionEntry{
 				Outcome:  prompting.OutcomeAllow,
 				Lifespan: prompting.LifespanTimespan,
