@@ -15,11 +15,11 @@ Package: ubuntu-core-initramfs
 Architecture: amd64 arm64 armhf riscv64
 Depends: ${python3:Depends}, ${misc:Depends}, dracut-core (>= 051-1),
          python3:any,
+         golang-go (>=2:1.18~) [!powerpc] | golang-1.18 [!powerpc] | golang-1.21,
          dracut-core,
          busybox-initramfs,
          zstd,
          sbsigntool,
-         snapd (>= 2.50+20.04),
          linux-firmware,
          kcapi-tools (>= 1.4.0-1ubuntu3),
          dbus,
