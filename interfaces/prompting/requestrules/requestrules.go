@@ -497,10 +497,11 @@ func (rdb *RuleDB) addRulePermissionToTree(rule *Rule, permission string, permis
 			// Error shouldn't occur. If it does, the rule was already removed
 			continue
 		}
-		// Already removed the rule's permission from the tree, let's remove
-		// it from the rule as well
-		delete(maybeExpired.Constraints.Permissions, permission)
 		if !maybeExpired.expired(rule.Timestamp) {
+			// Previously removed the rule's permission entry from the tree for
+			// this permission, now let's remove it from the rule as well.
+			delete(maybeExpired.Constraints.Permissions, permission)
+
 			// This should not occur during load since it calls rule.validate()
 			// which calls RuleConstraints.ValidateForInterface, which prunes
 			// any expired permissions. Thus, it should only occur when adding
