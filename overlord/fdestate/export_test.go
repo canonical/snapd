@@ -36,7 +36,11 @@ var (
 	FindFirstPendingExternalOperationByKind = findFirstPendingExternalOperationByKind
 	FindFirstExternalOperationByChangeID    = findFirstExternalOperationByChangeID
 	AddExternalOperation                    = addExternalOperation
+	AddEFISecurebootDBUpdateChange          = addEFISecurebootDBUpdateChange
 	UpdateExternalOperation                 = updateExternalOperation
+
+	NotifyDBXUpdatePrepareDoneOK = notifyDBXUpdatePrepareDoneOK
+	DbxUpdatePreparedOKChan      = dbxUpdatePreparedOKChan
 )
 
 type ExternalOperation = externalOperation
