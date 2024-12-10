@@ -3442,11 +3442,18 @@ func Enable(st *state.State, name string) (*state.TaskSet, error) {
 
 	setupProfiles := st.NewTask("setup-profiles", fmt.Sprintf(i18n.G("Setup snap %q (%s) security profiles"), snapsup.InstanceName(), snapst.Current))
 	setupProfiles.Set("snap-setup-task", prepareSnap.ID())
-	setupProfiles.WaitFor(prepareSnap)
 
 	linkSnap := st.NewTask("link-snap", fmt.Sprintf(i18n.G("Make snap %q (%s) available to the system"), snapsup.InstanceName(), snapst.Current))
 	linkSnap.Set("snap-setup-task", prepareSnap.ID())
-	linkSnap.WaitFor(setupProfiles)
+
+	if info.Type() == snap.TypeSnapd {
+		linkSnap.WaitFor(prepareSnap)
+		setupProfiles.WaitFor(setupProfiles)
+	} else {
+		setupProfiles.WaitFor(prepareSnap)
+		linkSnap.WaitFor(setupProfiles)
+	}
+
 
 	// setup aliases
 	setupAliases := st.NewTask("setup-aliases", fmt.Sprintf(i18n.G("Setup snap %q aliases"), snapsup.InstanceName()))
