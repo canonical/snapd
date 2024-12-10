@@ -330,6 +330,14 @@ func MockRenameLUKS2ContainerKey(f func(devicePath, keyslotName, renameTo string
 	}
 }
 
+func MockCopyAndRemoveLUKS2ContainerKey(f func(devicePath, keyslotName, renameTo string) error) (restore func()) {
+	old := sbCopyAndRemoveLUKS2ContainerKey
+	sbCopyAndRemoveLUKS2ContainerKey = f
+	return func() {
+		sbCopyAndRemoveLUKS2ContainerKey = old
+	}
+}
+
 func MockSbNewFileKeyDataReader(f func(path string) (*sb.FileKeyDataReader, error)) (restore func()) {
 	old := sbNewFileKeyDataReader
 	sbNewFileKeyDataReader = f

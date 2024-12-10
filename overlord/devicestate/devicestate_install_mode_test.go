@@ -2333,13 +2333,21 @@ func (s *deviceMgrInstallModeSuite) doRunFactoryResetChange(c *C, model *asserts
 		return fmt.Errorf("unexpected call")
 	})()
 
-	defer devicestate.MockSecbootRenameOrDeleteKeys(func(node string, renames map[string]string) error {
+	defer devicestate.MockSecbootRenameKeys(func(node string, renames map[string]string) error {
 		if tc.encrypt {
 			c.Check(node, Equals, "/dev/disk/by-uuid/570faa3d-e3bc-49db-979b-e7814b6bd390")
 			c.Check(renames, DeepEquals, map[string]string{
-				"default":          "factory-reset-old",
-				"default-fallback": "factory-reset-old-fallback",
+				"default":          "reprovision-default",
+				"default-fallback": "reprovision-default-fallback",
 			})
+			return nil
+		}
+		c.Errorf("unexpected call")
+		return fmt.Errorf("unexpected call")
+	})()
+	defer devicestate.MockSecbootTemporaryNameOldKeys(func(devicePath string) error {
+		if tc.encrypt {
+			c.Check(devicePath, Equals, "/dev/disk/by-uuid/570faa3d-e3bc-49db-979b-e7814b6bd390")
 			return nil
 		}
 		c.Errorf("unexpected call")
@@ -2691,6 +2699,18 @@ echo "mock output of: $(basename "$0") $*"
 			"ID_FS_UUID": "570faa3d-e3bc-49db-979b-e7814b6bd390",
 		}, nil
 	})()
+	defer devicestate.MockSecbootRenameKeys(func(node string, renames map[string]string) error {
+		c.Check(node, Equals, "foo")
+		c.Check(renames, DeepEquals, map[string]string{
+			"default":          "reprovision-default",
+			"default-fallback": "reprovision-default-fallback",
+		})
+		return nil
+	})()
+	defer devicestate.MockSecbootTemporaryNameOldKeys(func(devicePath string) error {
+		c.Check(devicePath, Equals, "/dev/disk/by-uuid/FOOUUID")
+		return nil
+	})()
 
 	err = s.doRunFactoryResetChange(c, model, resetTestCase{
 		tpm: true, encrypt: true, trustedBootloader: true,
@@ -2772,6 +2792,18 @@ echo "mock output of: $(basename "$0") $*"
 		return map[string]string{
 			"ID_FS_UUID": "570faa3d-e3bc-49db-979b-e7814b6bd390",
 		}, nil
+	})()
+	defer devicestate.MockSecbootRenameKeys(func(node string, renames map[string]string) error {
+		c.Check(node, Equals, "foo")
+		c.Check(renames, DeepEquals, map[string]string{
+			"default":          "reprovision-default",
+			"default-fallback": "reprovision-default-fallback",
+		})
+		return nil
+	})()
+	defer devicestate.MockSecbootTemporaryNameOldKeys(func(devicePath string) error {
+		c.Check(devicePath, Equals, "/dev/disk/by-uuid/FOOUUID")
+		return nil
 	})()
 
 	err = s.doRunFactoryResetChange(c, model, resetTestCase{

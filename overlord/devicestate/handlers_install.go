@@ -77,6 +77,7 @@ var (
 	secbootStageEncryptionKeyChange      = secboot.StageEncryptionKeyChange
 	secbootTransitionEncryptionKeyChange = secboot.TransitionEncryptionKeyChange
 	secbootRemoveOldCounterHandles       = secboot.RemoveOldCounterHandles
+	secbootTemporaryNameOldKeys          = secboot.TemporaryNameOldKeys
 
 	installLogicPrepareRunSystemData = installLogic.PrepareRunSystemData
 )
@@ -1314,9 +1315,10 @@ func (m *DeviceManager) doInstallSetupStorageEncryption(t *state.Task, _ *tomb.T
 
 var (
 	secbootAddBootstrapKeyOnExistingDisk = secboot.AddBootstrapKeyOnExistingDisk
-	secbootRenameOrDeleteKeys            = secboot.RenameOrDeleteKeys
+	secbootRenameKeys                    = secboot.RenameKeys
 	secbootCreateBootstrappedContainer   = secboot.CreateBootstrappedContainer
 	secbootDeleteKeys                    = secboot.DeleteKeys
+	secbootDeleteOldKeys                 = secboot.DeleteOldKeys
 )
 
 func createSaveBootstrappedContainer(saveNode string) (secboot.BootstrappedContainer, error) {
@@ -1349,12 +1351,23 @@ func createSaveBootstrappedContainer(saveNode string) (secboot.BootstrappedConta
 	// FIXME: Do we maybe need to only save the default-fallback
 	// key and delete the default key? The default key will not be
 	// able to be used since we re created the data disk.
+	//
+	// FIXME: The keys should be renamed to reprovision-XX and keep
+	// track of the mapping XX to original key name.
 	renames := map[string]string{
-		"default":          "factory-reset-old",
-		"default-fallback": "factory-reset-old-fallback",
+		"default":          "reprovision-default",
+		"default-fallback": "reprovision-default-fallback",
 	}
-	if err := secbootRenameOrDeleteKeys(saveNode, renames); err != nil {
-		return nil, err
+	// Temporarily rename keyslots across the factory reset to
+	// allow to create the new ones.
+	if err := secbootRenameKeys(saveNode, renames); err != nil {
+		return nil, fmt.Errorf("cannot rename existing keys: %w", err)
+	}
+
+	// Deal as needed instead with naming unamed keyslots, they
+	// will be removed at the end of factory reset.
+	if err := secbootTemporaryNameOldKeys(saveNode); err != nil {
+		return nil, fmt.Errorf("cannot convert old keys: %w", err)
 	}
 
 	return secbootCreateBootstrappedContainer(secboot.DiskUnlockKey(saveEncryptionKey), saveNode), nil
@@ -1383,7 +1396,7 @@ func rotateSaveKeyAndDeleteOldKeys(saveMntPnt string) error {
 	diskPath := filepath.Join("/dev/disk/by-uuid", uuid)
 
 	oldPossiblyTPMKeySlots := map[string]bool{
-		"factory-reset-old-fallback": true,
+		"reprovision-default-fallback": true,
 	}
 
 	defaultSaveKey := device.FallbackSaveSealedKeyUnder(boot.InitramfsSeedEncryptionKeyDir)
@@ -1416,9 +1429,20 @@ func rotateSaveKeyAndDeleteOldKeys(saveMntPnt string) error {
 	}
 
 	oldKeySlots := map[string]bool{
-		"factory-reset-old":          true,
-		"factory-reset-old-fallback": true,
+		"reprovision-default":          true,
+		"reprovision-default-fallback": true,
 	}
 
-	return secbootDeleteKeys(diskPath, oldKeySlots)
+	// DeleteKeys will remove the keys that were renamed from the
+	// previous installation
+	if err := secbootDeleteKeys(diskPath, oldKeySlots); err != nil {
+		return fmt.Errorf("cannot delete previous keys: %w", err)
+	}
+	// DeleteOldKeys will remove the keys that were named by
+	// TemporaryNameOldKeys from an old disk that did not have names on
+	// keys.
+	if err := secbootDeleteOldKeys(diskPath); err != nil {
+		return fmt.Errorf("cannot remove old disk keys: %w", err)
+	}
+	return nil
 }
