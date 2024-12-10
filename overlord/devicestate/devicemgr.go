@@ -1967,15 +1967,12 @@ func (m *DeviceManager) keyPair() (asserts.PrivateKey, error) {
 func (m *DeviceManager) SignConfdbControl(groups []interface{}) (*asserts.ConfdbControl, error) {
 	serial, err := m.Serial()
 	if err != nil {
-		return nil, fmt.Errorf("internal error: cannot sign confdb-control without a serial: %w", err)
+		return nil, fmt.Errorf("cannot sign confdb-control without a serial: %w", err)
 	}
 
 	privKey, err := m.keyPair()
-	if errors.Is(err, state.ErrNoState) {
-		return nil, fmt.Errorf("internal error: inconsistent state with serial but no device key")
-	}
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("cannot sign confdb-control without device key: %w", err)
 	}
 
 	a, err := asserts.SignWithoutAuthority(asserts.ConfdbControlType, map[string]interface{}{
