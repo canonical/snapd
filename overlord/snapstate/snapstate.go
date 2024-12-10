@@ -1891,7 +1891,7 @@ func ResolveValidationSetsEnforcementError(ctx context.Context, st *state.State,
 	// updates should be done before the installs
 	for _, ts := range tss {
 		for _, prevTs := range tasksets {
-			ts.WaitAll(prevTs)
+			ts.WaitAll(prevTs) // TODO: make this not a WaitAll
 		}
 	}
 	tasksets = append(tasksets, tss...)
@@ -1910,7 +1910,7 @@ func ResolveValidationSetsEnforcementError(ctx context.Context, st *state.State,
 	enforceTask.Set("userID", userID)
 
 	for _, ts := range tasksets {
-		enforceTask.WaitAll(ts)
+		enforceTask.WaitAll(ts) // TODO: make this not a WaitAll
 	}
 	ts := state.NewTaskSet(enforceTask)
 	ts.JoinLane(lane)
