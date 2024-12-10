@@ -32,11 +32,8 @@ import (
 )
 
 // Constraints hold information about the applicability of a new rule to
-// particular paths or permissions. A request will be matched by the constraints
-// if the requested path is matched by the path pattern (according to bash's
-// globstar matching) and one or more requested permissions are denied in the
-// permission map, or all of the requested permissions are allowed in the map.
-// When snapd creates a new rule, it converts Constraints to RuleConstraints.
+// particular paths and permissions. When creating a new rule, snapd converts
+// Constraints to RuleConstraints.
 type Constraints struct {
 	PathPattern *patterns.PathPattern `json:"path-pattern"`
 	Permissions PermissionMap         `json:"permissions"`
@@ -93,7 +90,7 @@ func (c *Constraints) ToRuleConstraints(iface string, currTime time.Time) (*Rule
 }
 
 // RuleConstraints hold information about the applicability of an existing rule
-// to particular paths or permissions. A request will be matched by the rule
+// to particular paths and permissions. A request will be matched by the rule
 // constraints if the requested path is matched by the path pattern (according
 // to bash's globstar matching) and one or more requested permissions are denied
 // in the permission map, or all of the requested permissions are allowed in the
@@ -130,7 +127,7 @@ func (c *RuleConstraints) Match(path string) (bool, error) {
 }
 
 // ReplyConstraints hold information about the applicability of a reply to
-// particular paths or permissions. Upon receiving the reply, snapd converts
+// particular paths and permissions. Upon receiving the reply, snapd converts
 // ReplyConstraints to Constraints.
 type ReplyConstraints struct {
 	PathPattern *patterns.PathPattern `json:"path-pattern"`
@@ -181,14 +178,10 @@ func (c *ReplyConstraints) ToConstraints(iface string, outcome OutcomeType, life
 	return constraints, nil
 }
 
-// PatchConstraints hold information about the applicability of the modified
-// rule to particular paths or permissions. A request will be matched by the
-// constraints if the requested path is matched by the path pattern (according
-// to bash's globstar matching) and one or more requested permissions are
-// denied in the permission map, or all of the requested permissions are
-// allowed in the map. When snapd modifies the rule, it converts
-// PatchConstraints to RuleConstraints, using the rule's existing constraints
-// wherever a field is omitted.
+// PatchConstraints hold partial rule contents which will be used to modify an
+// existing rule. When snapd modifies the rule using PatchConstraints, it
+// converts the PatchConstraints to RuleConstraints, using the rule's existing
+// constraints wherever a field is omitted from the PatchConstraints.
 //
 // Any permissions which are omitted from the new permission map are left
 // unchanged from the existing rule. To remove an existing permission from the
