@@ -46,8 +46,8 @@ capability audit_control,
 # Allow reading the login UID and session ID of processes.
 @{PROC}/*/{loginuid,sessionid} r,
 
-# Allow writing /run/auditd.pid so the auditd pid is known by other programs.
-/{,var/}run/auditd.pid rw,
+# Allow writing /run/auditd.pid and /run/auditd.state, as required by auditd.
+/{,var/}run/auditd.{pid,state} rw,
 `
 
 type auditControlInterface struct {

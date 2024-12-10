@@ -81,7 +81,7 @@ func (s *AuditControlInterfaceSuite) TestAppArmorSpec(c *C) {
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.other.app2"})
 	c.Check(spec.SnippetForTag("snap.other.app2"), testutil.Contains, "capability audit_control,\n")
 	c.Check(spec.SnippetForTag("snap.other.app2"), testutil.Contains, "@{PROC}/*/{loginuid,sessionid} r,\n")
-	c.Check(spec.SnippetForTag("snap.other.app2"), testutil.Contains, "/{,var/}run/auditd.pid rw,\n")
+	c.Check(spec.SnippetForTag("snap.other.app2"), testutil.Contains, "/{,var/}run/auditd.{pid,state} rw,\n")
 }
 
 func (s *AuditControlInterfaceSuite) TestInterfaces(c *C) {

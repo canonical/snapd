@@ -21,12 +21,12 @@ execute: |
     echo "When the interface is connected"
     snap connect test-snapd-audit-control:audit-control
 
-    echo "Then the snap is able to set the audit_control capability"
+    echo "Then the snap is able to use the audit_control capability"
     test-snapd-audit-control.audit-rate
 
-    echo "And the snap is able to read its loginuid and sessionid and write /run/auditd.pid"
+    echo "And the snap is able to read /proc/*/{loginuid,sessionid} and write /run/auditd.{pid,state}"
     test-snapd-audit-control.read-ids
-    test-snapd-audit-control.write-pid
+    test-snapd-audit-control.write-auditd-pid-state
 
     if [ "$(snap debug confinement)" = partial ] ; then
         exit 0
@@ -35,18 +35,18 @@ execute: |
     echo "When the plug is disconnected"
     snap disconnect test-snapd-audit-control:audit-control
 
-    echo "Then the snap is not able to set the audit_control capability"
+    echo "Then the snap is not able to use the audit_control capability"
     if test-snapd-audit-control.audit-rate; then
-        echo "Expected permission error setting audit_control capability"
+        echo "Expected permission error using audit_control capability"
         exit 1
     fi
 
-    echo "And the snap is not able to read the loginuid or sessionid of PID 1 or write /run/auditd.pid"
+    echo "And the snap is not able to read /proc/*/{loginuid,sessionid} or write /run/auditd.{pid,state}"
     if test-snapd-audit-control.read-ids; then
-        echo "Expected permission error reading loginuid and sessionid of PID 1"
+        echo "Expected permission error reading /proc/*/{loginuid,sessionid}"
         exit 1
     fi
-    if test-snapd-audit-control.write-pid; then
-        echo "Expected permission error writing /run/auditd.pid"
+    if test-snapd-audit-control.write-auditd-pid-state; then
+        echo "Expected permission error writing /run/auditd.pid and /run/auditd.state"
         exit 1
     fi
