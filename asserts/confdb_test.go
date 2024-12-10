@@ -350,3 +350,15 @@ func (s *confdbCtrlSuite) TestDecodeInvalid(c *C) {
 		c.Assert(err, ErrorMatches, validationSetErrPrefix+test.expectedErr, Commentf("test %d/%d failed", i+1, len(invalidTests)))
 	}
 }
+
+func (s *confdbCtrlSuite) TestPrerequisites(c *C) {
+	a, err := asserts.Decode([]byte(confdbControlExample))
+	c.Assert(err, IsNil)
+
+	prereqs := a.Prerequisites()
+	c.Assert(prereqs, HasLen, 1)
+	c.Check(prereqs[0], DeepEquals, &asserts.Ref{
+		Type:       asserts.SerialType,
+		PrimaryKey: []string{"generic", "generic-classic", "03961d5d-26e5-443f-838d-6db046126bea"},
+	})
+}

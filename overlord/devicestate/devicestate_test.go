@@ -2796,19 +2796,9 @@ func (s *deviceMgrSuite) TestSignConfdbControl(c *C) {
 		"gadget":       "pc",
 	})
 
-	jane := map[string]interface{}{
-		"operator-id":    "jane",
-		"authentication": []interface{}{"operator-key"},
-		"views": []interface{}{
-			"canonical/network/observe-interfaces",
-			"canonical/network/control-interfaces",
-		},
-	}
-	groups := []interface{}{jane}
-
 	// No serial assertion exists yet
-	_, err := s.mgr.SignConfdbControl(groups)
-	c.Assert(err, ErrorMatches, "internal error: cannot sign confdb-control without a serial: no state entry for key")
+	_, err := s.mgr.SignConfdbControl([]interface{}{})
+	c.Assert(err, ErrorMatches, "cannot sign confdb-control without a serial: no state entry for key")
 
 	// Add serial assertion
 	encDevKey, err := asserts.EncodePublicKey(devKey.PublicKey())
@@ -2830,8 +2820,8 @@ func (s *deviceMgrSuite) TestSignConfdbControl(c *C) {
 		Serial: "42",
 	})
 
-	_, err = s.mgr.SignConfdbControl(groups)
-	c.Assert(err, ErrorMatches, "internal error: inconsistent state with serial but no device key")
+	_, err = s.mgr.SignConfdbControl([]interface{}{})
+	c.Assert(err, ErrorMatches, "cannot sign confdb-control without device key: no state entry for key")
 
 	// Add device key to manager
 	devicestate.KeypairManager(s.mgr).Put(devKey)
@@ -2843,7 +2833,26 @@ func (s *deviceMgrSuite) TestSignConfdbControl(c *C) {
 		KeyID:  devKey.PublicKey().ID(),
 	})
 
-	// Sign assertion
+	// validation failure
+	groups := []interface{}{map[string]interface{}{"operator-id": "jane"}}
+	_, err = s.mgr.SignConfdbControl(groups)
+	c.Assert(
+		err,
+		ErrorMatches,
+		"cannot assemble assertion confdb-control: cannot parse group at position 1: \"authentication\" must be provided",
+	)
+
+	// OK
+	jane := map[string]interface{}{
+		"operator-id":    "jane",
+		"authentication": []interface{}{"operator-key"},
+		"views": []interface{}{
+			"canonical/network/observe-interfaces",
+			"canonical/network/control-interfaces",
+		},
+	}
+	groups = []interface{}{jane}
+
 	cc, err := s.mgr.SignConfdbControl(groups)
 	c.Assert(err, IsNil)
 
