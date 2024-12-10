@@ -17,24 +17,21 @@
  *
  */
 
-package errors_test
+package strutil_test
 
 import (
 	"errors"
-	"testing"
 
 	. "gopkg.in/check.v1"
 
-	prompting_errors "github.com/snapcore/snapd/interfaces/prompting/errors"
+	"github.com/snapcore/snapd/strutil"
 )
 
-func Test(t *testing.T) { TestingT(t) }
+type joinErrorsSuite struct{}
 
-type errorsSuite struct{}
+var _ = Suite(&joinErrorsSuite{})
 
-var _ = Suite(&errorsSuite{})
-
-func (s *errorsSuite) TestJoin(c *C) {
+func (s *joinErrorsSuite) TestJoin(c *C) {
 	errs := []error{
 		errors.New("foo"),
 		errors.New("bar"),
@@ -61,7 +58,7 @@ func (s *errorsSuite) TestJoin(c *C) {
 			"",
 		},
 	} {
-		joined := prompting_errors.Join(testCase.errors...)
+		joined := strutil.JoinErrors(testCase.errors...)
 		c.Check(errors.Is(joined, testCase.wrapped), Equals, true, Commentf("testCase: %+v", testCase))
 		if testCase.errStr != "" {
 			c.Check(joined, ErrorMatches, testCase.errStr)
