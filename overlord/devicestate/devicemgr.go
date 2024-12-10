@@ -1963,6 +1963,34 @@ func (m *DeviceManager) keyPair() (asserts.PrivateKey, error) {
 	return privKey, nil
 }
 
+// SignConfdbControl signs a confdb-control assertion using the device's key as it needs to be attested by the device.
+func (m *DeviceManager) SignConfdbControl(groups []interface{}) (*asserts.ConfdbControl, error) {
+	serial, err := m.Serial()
+	if err != nil {
+		return nil, fmt.Errorf("internal error: cannot sign confdb-control without a serial: %w", err)
+	}
+
+	privKey, err := m.keyPair()
+	if errors.Is(err, state.ErrNoState) {
+		return nil, fmt.Errorf("internal error: inconsistent state with serial but no device key")
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	a, err := asserts.SignWithoutAuthority(asserts.ConfdbControlType, map[string]interface{}{
+		"brand-id": serial.BrandID(),
+		"model":    serial.Model(),
+		"serial":   serial.Serial(),
+		"groups":   groups,
+	}, nil, privKey)
+	if err != nil {
+		return nil, err
+	}
+
+	return a.(*asserts.ConfdbControl), nil
+}
+
 // Registered returns a channel that is closed when the device is known to have been registered.
 func (m *DeviceManager) Registered() <-chan struct{} {
 	return m.reg

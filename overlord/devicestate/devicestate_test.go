@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2022 Canonical Ltd
+ * Copyright (C) 2016-2024 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -2784,4 +2784,70 @@ func (s *deviceMgrSuite) TestDefaultRecoverySystem(c *C) {
 	system, err := s.mgr.DefaultRecoverySystem()
 	c.Assert(err, IsNil)
 	c.Check(*system, Equals, expectedSystem)
+}
+
+func (s *deviceMgrSuite) TestSignConfdbControl(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	s.makeModelAssertionInState(c, "canonical", "pc", map[string]interface{}{
+		"architecture": "amd64",
+		"kernel":       "pc-kernel",
+		"gadget":       "pc",
+	})
+
+	jane := map[string]interface{}{
+		"operator-id":    "jane",
+		"authentication": []interface{}{"operator-key"},
+		"views": []interface{}{
+			"canonical/network/observe-interfaces",
+			"canonical/network/control-interfaces",
+		},
+	}
+	groups := []interface{}{jane}
+
+	// No serial assertion exists yet
+	_, err := s.mgr.SignConfdbControl(groups)
+	c.Assert(err, ErrorMatches, "internal error: cannot sign confdb-control without a serial: no state entry for key")
+
+	// Add serial assertion
+	encDevKey, err := asserts.EncodePublicKey(devKey.PublicKey())
+	c.Check(err, IsNil)
+	serial, err := s.storeSigning.Sign(asserts.SerialType, map[string]interface{}{
+		"brand-id":            "canonical",
+		"model":               "pc",
+		"serial":              "42",
+		"device-key":          string(encDevKey),
+		"device-key-sha3-384": devKey.PublicKey().ID(),
+		"timestamp":           time.Now().Format(time.RFC3339),
+	}, nil, "")
+	c.Assert(err, IsNil)
+	assertstatetest.AddMany(s.state, serial)
+
+	devicestatetest.SetDevice(s.state, &auth.DeviceState{
+		Brand:  "canonical",
+		Model:  "pc",
+		Serial: "42",
+	})
+
+	_, err = s.mgr.SignConfdbControl(groups)
+	c.Assert(err, ErrorMatches, "internal error: inconsistent state with serial but no device key")
+
+	// Add device key to manager
+	devicestate.KeypairManager(s.mgr).Put(devKey)
+
+	devicestatetest.SetDevice(s.state, &auth.DeviceState{
+		Brand:  "canonical",
+		Model:  "pc",
+		Serial: "42",
+		KeyID:  devKey.PublicKey().ID(),
+	})
+
+	// Sign assertion
+	cc, err := s.mgr.SignConfdbControl(groups)
+	c.Assert(err, IsNil)
+
+	// Confirm we can ack it
+	// AddMany panics on error, that's why we aren't c.Assert'ing anything
+	assertstatetest.AddMany(s.state, cc)
 }

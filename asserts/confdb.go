@@ -119,6 +119,49 @@ type ConfdbControl struct {
 	operators map[string]*confdb.Operator
 }
 
+// expected interfaces are implemented
+var (
+	_ deviceSigner = (*ConfdbControl)(nil)
+)
+
+// deviceSigner represents an assertion that is signed by the device.
+// unlike a customSigner, the assertion doesn't carry the signing key in its body.
+type deviceSigner interface {
+	// signKey returns the public key material for the key that signed this assertion.
+	signKey(db RODatabase) (PublicKey, error)
+}
+
+// signKey returns the public key of the device that signed this assertion.
+func (cc *ConfdbControl) signKey(db RODatabase) (PublicKey, error) {
+	a, err := db.Find(SerialType, map[string]string{
+		"brand-id": cc.BrandID(),
+		"model":    cc.Model(),
+		"serial":   cc.Serial(),
+	})
+	if errors.Is(err, &NotFoundError{}) {
+		return nil, errors.New("no matching serial assertion found")
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	serial := a.(*Serial)
+
+	key := serial.DeviceKey()
+	if key.ID() != cc.SignKeyID() {
+		return nil, errors.New("confdb-control's signing key doesn't match the device's key")
+	}
+
+	return key, nil
+}
+
+// Prerequisites returns references to this confdb-control's prerequisite assertions.
+func (cc *ConfdbControl) Prerequisites() []*Ref {
+	return []*Ref{
+		{Type: SerialType, PrimaryKey: []string{cc.BrandID(), cc.Model(), cc.Serial()}},
+	}
+}
+
 // BrandID returns the brand identifier of the device.
 func (cc *ConfdbControl) BrandID() string {
 	return cc.HeaderString("brand-id")
