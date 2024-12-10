@@ -154,3 +154,7 @@ func MockApparmorGenerateAAREExclusionPatterns(fn func(excludePatterns []string,
 func MockDesktopFilesFromInstalledSnap(fn func(s *snap.Info) ([]string, error)) (restore func()) {
 	return testutil.Mock(&desktopFilesFromInstalledSnap, fn)
 }
+
+func AllowedKernelMountOptions() []string {
+	return allowedKernelMountOptions
+}
