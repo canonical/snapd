@@ -8877,6 +8877,24 @@ func (s *snapmgrTestSuite) TestResolveValidationSetsEnforcementError(c *C) {
 	c.Assert(calledEnforce, Equals, true)
 }
 
+func (s *snapmgrTestSuite) TestResolveValidationSetsEnforcementErrorInvalidComponents(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	verr := &snapasserts.ValidationSetsValidationError{
+		ComponentErrors: map[string]*snapasserts.ValidationSetsComponentValidationError{
+			"foo": {
+				InvalidComponents: map[string][]string{
+					"bar": {"vset/1"},
+				},
+			},
+		},
+	}
+
+	_, _, err := snapstate.ResolveValidationSetsEnforcementError(context.Background(), s.state, verr, nil, s.user.ID)
+	c.Assert(err, ErrorMatches, `cannot auto-resolve validation set constraints that require removing components: "foo\+bar"`)
+}
+
 func (s *snapmgrTestSuite) TestResolveValidationSetsEnforcementErrorComponents(c *C) {
 	headers := map[string]interface{}{
 		"type":         "validation-set",
