@@ -79,7 +79,7 @@ func AddBootstrapKeyOnExistingDisk(node string, newKey keys.EncryptionKey) error
 	return errBuildWithoutSecboot
 }
 
-func RenameOrDeleteKeys(node string, renames map[string]string) error {
+func RenameKeys(node string, renames map[string]string) error {
 	return errBuildWithoutSecboot
 }
 
@@ -110,5 +110,13 @@ func (ha HashAlg) MarshalJSON() ([]byte, error) {
 }
 
 func (ha *HashAlg) UnmarshalJSON([]byte) error {
+	return errBuildWithoutSecboot
+}
+
+func TemporaryNameOldKeys(devicePath string) error {
+	return errBuildWithoutSecboot
+}
+
+func DeleteOldKeys(devicePath string) error {
 	return errBuildWithoutSecboot
 }

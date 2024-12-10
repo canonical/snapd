@@ -837,7 +837,7 @@ func PCRHandleOfSealedKey(p string) (uint32, error) {
 func tpmReleaseResourcesImpl(tpm *sb_tpm2.Connection, handle tpm2.Handle) error {
 	rc, err := tpm.CreateResourceContextFromTPM(handle)
 	if err != nil {
-		if _, ok := err.(tpm2.ResourceUnavailableError); ok {
+		if errors.Is(err, &tpm2.ResourceUnavailableError{}) {
 			// there's nothing to release, the handle isn't used
 			return nil
 		}
