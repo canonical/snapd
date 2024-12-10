@@ -77,27 +77,34 @@ jobs:
 
       - name: Echo collected output
         run: |
-          report="$(date)\n"
+          # generate report
+          (
+          date
           if ! ls spread-json-${{ github.event.workflow_run.id }}-*/*.json &> /dev/null; then
-            report+="## No spread failures"
+            echo "## No spread failures"
           else
             jq -s 'add' spread-json-${{ github.event.workflow_run.id }}*/*.json > consolidated-report.json
 
-            report+="## Failures:\n"
+            echo "## Failures:"
             if [[ $(jq -r '.[] | select( .info_type == "Error" ) | select( .verb == "preparing" )' consolidated-report.json) ]]; then
-              report+="### Prepare:\n"
-              report+=$(jq -r '.[] | select( .info_type == "Error" ) | select( .verb == "preparing" ) .task' consolidated-report.json | while read line; do echo "- $line\n"; done)
+              echo "### Prepare:"
+              jq -r '.[] | select( .info_type == "Error" ) | select( .verb == "preparing" ) .task' consolidated-report.json |\
+                  awk ' { print "- " $0 }'
             fi
             if [[ $(jq -r '.[] | select( .info_type == "Error" ) | select( .verb == "executing" )' consolidated-report.json) ]]; then
-              report+="### Executing:\n"
-              report+=$(jq -r '.[] | select( .info_type == "Error" ) | select( .verb == "executing" ) .task' consolidated-report.json | while read line; do echo "- $line\n"; done)
+              echo "### Executing:"
+              jq -r '.[] | select( .info_type == "Error" ) | select( .verb == "executing" ) .task' consolidated-report.json |\
+                  awk ' { print "- " $0 }'
             fi
             if [[ $(jq -r '.[] | select( .info_type == "Error" ) | select( .verb == "restoring" )' consolidated-report.json) ]]; then
-              report+="### Restoring:\n"
-              report+=$(jq -r '.[] | select( .info_type == "Error" ) | select( .verb == "restoring" ) .task' consolidated-report.json | while read line; do echo "- $line\n"; done)
+              echo "### Restoring:"
+              jq -r '.[] | select( .info_type == "Error" ) | select( .verb == "restoring" ) .task' consolidated-report.json |\
+                  awk ' { print "- " $0 }'
             fi
           fi
-          echo -e "$report" > report
+          ) > report
+          # display the report
+          grep -n '' report
 
       - name: Comment report to PR
         run: |
