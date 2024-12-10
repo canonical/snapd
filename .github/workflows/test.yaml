@@ -112,17 +112,17 @@ jobs:
       run: |
         # Compare the daily system in master and in the current branch
         wget -q -O test_master.yaml https://raw.githubusercontent.com/snapcore/snapd/master/.github/workflows/test.yaml
-        get_daily_system() {
+        get_dev_current_system() {
           file=$1
-          system_daily="$(yq '.jobs."spread-not-fundamental".strategy.matrix.include.[] | select(.group == "ubuntu-daily") | .systems'  $file)" 
-          if [ -z "$system_daily" ]; then
-            system_daily="$(yq '.jobs."spread-fundamental".strategy.matrix.include.[] | select(.group == "ubuntu-daily") | .systems'  $file)" 
+          system_dev_current="$(yq '.jobs."spread-not-fundamental".strategy.matrix.include.[] | select(.group == "ubuntu-dev-current") | .systems'  $file)" 
+          if [ -z "$system_dev_current" ]; then
+            system_dev_current="$(yq '.jobs."spread-fundamental".strategy.matrix.include.[] | select(.group == "ubuntu-dev-current") | .systems'  $file)" 
           fi
-          echo $system_daily
+          echo $system_dev_current
         }
-        system_daily="$(get_daily_system  test_master.yaml)"
-        current_daily="$(get_daily_system  .github/workflows/test.yaml)"
-        test "$system_daily" == "$current_daily"
+        master_dev_current="$(get_dev_current_system  test_master.yaml)"
+        branch_dev_current="$(get_dev_current_system  .github/workflows/test.yaml)"
+        test "$system_dev_current" == "$branch_dev_current"
       shell: bash
 
   # The required-static-checks job was introduced to maintain a consistent
@@ -317,7 +317,7 @@ jobs:
             systems: 'ubuntu-24.04-64'
             tasks: 'tests/...'
             rules: 'main'
-          - group: 'ubuntu-no-lts (fundamental)'
+          - group: 'ubuntu-dev-previous (fundamental)'
             backend: google
             systems: 'ubuntu-24.10-64'
             tasks: 'tests/...'
@@ -407,7 +407,7 @@ jobs:
             systems: 'ubuntu-22.04-64'
             tasks: 'tests/...'
             rules: 'main'
-          - group: 'ubuntu-daily'
+          - group: 'ubuntu-dev-current'
             backend: google
             systems: 'ubuntu-25.04-64'
             tasks: 'tests/...'
