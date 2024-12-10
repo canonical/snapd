@@ -251,7 +251,7 @@ func (c *PatchConstraints) PatchRuleConstraints(existing *RuleConstraints, iface
 		errs = append(errs, prompting_errors.NewInvalidPermissionsError(iface, invalidPerms, availablePerms))
 	}
 	if len(errs) > 0 {
-		return nil, prompting_errors.Join(errs...)
+		return nil, strutil.JoinErrors(errs...)
 	}
 	ruleConstraints.Permissions = newPermissions
 	return ruleConstraints, nil
@@ -293,7 +293,7 @@ func (pm PermissionMap) toRulePermissionMap(iface string, currTime time.Time) (R
 		errs = append(errs, prompting_errors.NewInvalidPermissionsError(iface, invalidPerms, availablePerms))
 	}
 	if len(errs) > 0 {
-		return nil, prompting_errors.Join(errs...)
+		return nil, strutil.JoinErrors(errs...)
 	}
 	return rulePermissionMap, nil
 }
@@ -336,7 +336,7 @@ func (pm RulePermissionMap) validateForInterface(iface string, currTime time.Tim
 		errs = append(errs, prompting_errors.NewInvalidPermissionsError(iface, invalidPerms, availablePerms))
 	}
 	if len(errs) > 0 {
-		return false, prompting_errors.Join(errs...)
+		return false, strutil.JoinErrors(errs...)
 	}
 	for _, perm := range expiredPerms {
 		delete(pm, perm)

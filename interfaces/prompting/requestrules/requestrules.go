@@ -37,6 +37,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/prompting/patterns"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/strutil"
 )
 
 // Rule stores the contents of a request rule.
@@ -201,7 +202,7 @@ func (rdb *RuleDB) load() (retErr error) {
 		loadErr := fmt.Errorf("cannot read stored request rules: %w", err)
 		// Save the empty rule DB to disk to overwrite the previous one which
 		// could not be decoded.
-		return prompting_errors.Join(loadErr, rdb.save())
+		return strutil.JoinErrors(loadErr, rdb.save())
 	}
 
 	currTime := time.Now()
@@ -239,7 +240,7 @@ func (rdb *RuleDB) load() (retErr error) {
 
 		// Save the empty rule DB to disk to overwrite the previous one which
 		// was invalid.
-		return prompting_errors.Join(errInvalid, rdb.save())
+		return strutil.JoinErrors(errInvalid, rdb.save())
 	}
 
 	expiredData := map[string]string{"removed": "expired"}
@@ -586,7 +587,7 @@ func (rdb *RuleDB) removeRulePermissionFromTree(rule *Rule, permission string) e
 //
 // If there are no non-nil errors in the given errs list, return nil.
 func joinInternalErrors(errs []error) error {
-	joinedErr := prompting_errors.Join(errs...)
+	joinedErr := strutil.JoinErrors(errs...)
 	if joinedErr == nil {
 		return nil
 	}
@@ -1069,7 +1070,7 @@ func (rdb *RuleDB) PatchRule(user uint32, id prompting.IDType, patchConstraints 
 		// Try to re-add original rule so all is unchanged.
 		if origErr := rdb.addRule(origRule); origErr != nil {
 			// Error should not occur, but if it does, wrap it in the other error
-			err = prompting_errors.Join(err, fmt.Errorf("cannot re-add original rule: %w", origErr))
+			err = strutil.JoinErrors(err, fmt.Errorf("cannot re-add original rule: %w", origErr))
 		}
 		return nil, err
 	}

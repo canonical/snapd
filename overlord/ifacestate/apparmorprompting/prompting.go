@@ -34,6 +34,7 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/sandbox/apparmor/notify/listener"
 	"github.com/snapcore/snapd/snap/naming"
+	"github.com/snapcore/snapd/strutil"
 )
 
 var (
@@ -312,7 +313,7 @@ func (m *InterfacesRequestsManager) disconnect() error {
 		m.rules = nil
 	}
 
-	return prompting_errors.Join(errs...)
+	return strutil.JoinErrors(errs...)
 }
 
 // Stop closes the listener, prompt DB, and rule DB. Stop is idempotent, and
