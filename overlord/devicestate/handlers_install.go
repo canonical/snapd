@@ -1227,7 +1227,7 @@ func (m *DeviceManager) doInstallSetupStorageEncryption(t *state.Task, _ *tomb.T
 
 var (
 	secbootAddBootstrapKeyOnExistingDisk = secboot.AddBootstrapKeyOnExistingDisk
-	secbootRenameOrDeleteKeys            = secboot.RenameOrDeleteKeys
+	secbootRenameKeys                    = secboot.RenameKeys
 	secbootCreateBootstrappedContainer   = secboot.CreateBootstrappedContainer
 	secbootDeleteKeys                    = secboot.DeleteKeys
 )
@@ -1266,8 +1266,12 @@ func createSaveBootstrappedContainer(saveNode string) (secboot.BootstrappedConta
 		"default":          "factory-reset-old",
 		"default-fallback": "factory-reset-old-fallback",
 	}
-	if err := secbootRenameOrDeleteKeys(saveNode, renames); err != nil {
-		return nil, err
+	if err := secbootRenameKeys(saveNode, renames); err != nil {
+		return nil, fmt.Errorf("cannot rename existing keys: %w", err)
+	}
+
+	if err := secboot.ConvertOldDisk(saveNode); err != nil {
+		return nil, fmt.Errorf("cannot convert old keys: %w", err)
 	}
 
 	return secbootCreateBootstrappedContainer(secboot.DiskUnlockKey(saveEncryptionKey), saveNode), nil
@@ -1292,5 +1296,12 @@ func deleteOldSaveKey(saveMntPnt string) error {
 		"factory-reset-old-fallback": true,
 	}
 
-	return secbootDeleteKeys(diskPath, toDelete)
+
+	if err := secbootDeleteKeys(diskPath, toDelete); err != nil {
+		return fmt.Errorf("cannot delete previous keys: %w", err)
+	}
+	if err := secboot.RemoveOldDiskKeys(diskPath); err != nil {
+		return fmt.Errorf("cannot remove old disk keys: %w", err)
+	}
+	return nil
 }

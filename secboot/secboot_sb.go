@@ -44,14 +44,15 @@ func sbNewLUKS2KeyDataReaderImpl(device, slot string) (sb.KeyDataReader, error) 
 }
 
 var (
-	sbActivateVolumeWithKey         = sb.ActivateVolumeWithKey
-	sbActivateVolumeWithKeyData     = sb.ActivateVolumeWithKeyData
-	sbActivateVolumeWithRecoveryKey = sb.ActivateVolumeWithRecoveryKey
-	sbDeactivateVolume              = sb.DeactivateVolume
-	sbAddLUKS2ContainerUnlockKey    = sb.AddLUKS2ContainerUnlockKey
-	sbRenameLUKS2ContainerKey       = sb.RenameLUKS2ContainerKey
-	sbNewLUKS2KeyDataReader         = sbNewLUKS2KeyDataReaderImpl
-	sbSetProtectorKeys              = sb_plainkey.SetProtectorKeys
+	sbActivateVolumeWithKey          = sb.ActivateVolumeWithKey
+	sbActivateVolumeWithKeyData      = sb.ActivateVolumeWithKeyData
+	sbActivateVolumeWithRecoveryKey  = sb.ActivateVolumeWithRecoveryKey
+	sbDeactivateVolume               = sb.DeactivateVolume
+	sbAddLUKS2ContainerUnlockKey     = sb.AddLUKS2ContainerUnlockKey
+	sbRenameLUKS2ContainerKey        = sb.RenameLUKS2ContainerKey
+	sbCopyAndRemoveLUKS2ContainerKey = sb.CopyAndRemoveLUKS2ContainerKey
+	sbNewLUKS2KeyDataReader          = sbNewLUKS2KeyDataReaderImpl
+	sbSetProtectorKeys               = sb_plainkey.SetProtectorKeys
 )
 
 func init() {
@@ -348,7 +349,7 @@ func AddBootstrapKeyOnExistingDisk(node string, newKey keys.EncryptionKey) error
 // Rename key slots on LUKS2 container. If the key slot does not
 // exist, it is ignored. If cryptsetup does not support renaming, then
 // the key slots are instead removed.
-func RenameOrDeleteKeys(node string, renames map[string]string) error {
+func RenameKeys(node string, renames map[string]string) error {
 	targets := make(map[string]bool)
 
 	for _, renameTo := range renames {
@@ -378,8 +379,8 @@ func RenameOrDeleteKeys(node string, renames map[string]string) error {
 		if found {
 			if err := sbRenameLUKS2ContainerKey(node, slot, renameTo); err != nil {
 				if errors.Is(err, sb.ErrMissingCryptsetupFeature) {
-					if err := sbDeleteLUKS2ContainerKey(node, slot); err != nil {
-						return fmt.Errorf("cannot remove old container key: %v", err)
+					if err := sbCopyAndRemoveLUKS2ContainerKey(node, slot, renameTo); err != nil {
+						return fmt.Errorf("cannot rename old container key: %v", err)
 					}
 				} else {
 					return fmt.Errorf("cannot rename container key: %v", err)
@@ -455,4 +456,26 @@ func (key *SealKeyRequest) getWriter() (sb.KeyDataWriter, error) {
 	} else {
 		return key.BootstrappedContainer.GetTokenWriter(key.SlotName)
 	}
+}
+
+func ConvertOldDisk(devicePath string) error {
+	if err := sb.NameLegacyLUKS2ContainerKey(devicePath, 0, "old-default-key"); err != nil && !errors.Is(err, sb.KeyslotAlreadyHasAName) {
+		return err
+	}
+	if err := sb.NameLegacyLUKS2ContainerKey(devicePath, 1, "old-recovery-key"); err != nil && !errors.Is(err, sb.KeyslotAlreadyHasAName) {
+		return err
+	}
+	if err := sb.NameLegacyLUKS2ContainerKey(devicePath, 2, "old-temporary-key"); err != nil && !errors.Is(err, sb.KeyslotAlreadyHasAName) {
+		return err
+	}
+	return nil
+}
+
+func RemoveOldDiskKeys(devicePath string) error {
+	toDelete := map[string]bool{
+		"old-default-key":   true,
+		"old-recovery-key":  true,
+		"old-temporary-key": true,
+	}
+	return DeleteKeys(devicePath, toDelete)
 }

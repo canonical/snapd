@@ -2540,7 +2540,7 @@ func (s *secbootSuite) TestAddBootstrapKeyOnExistingDiskLUKS2Error(c *C) {
 	c.Check(err, ErrorMatches, `cannot enroll new installation key: some error`)
 }
 
-func (s *secbootSuite) TestRenameOrDeleteKeys(c *C) {
+func (s *secbootSuite) TestRenameKeys(c *C) {
 	defer secboot.MockListLUKS2ContainerUnlockKeyNames(func(devicePath string) ([]string, error) {
 		c.Check(devicePath, Equals, "/dev/foo")
 		return []string{"slot-a", "slot-b", "slot-c"}, nil
@@ -2566,13 +2566,13 @@ func (s *secbootSuite) TestRenameOrDeleteKeys(c *C) {
 		"slot-d": "new-slot-d",
 	}
 
-	err := secboot.RenameOrDeleteKeys("/dev/foo", toRename)
+	err := secboot.RenameKeys("/dev/foo", toRename)
 	c.Assert(err, IsNil)
 
 	c.Check(expectedRenames, HasLen, 0)
 }
 
-func (s *secbootSuite) TestRenameOrDeleteKeysBadInput(c *C) {
+func (s *secbootSuite) TestRenameKeysBadInput(c *C) {
 	defer secboot.MockListLUKS2ContainerUnlockKeyNames(func(devicePath string) ([]string, error) {
 		c.Errorf("unexpected call")
 		return []string{"slot-a", "slot-b", "slot-c"}, nil
@@ -2588,11 +2588,11 @@ func (s *secbootSuite) TestRenameOrDeleteKeysBadInput(c *C) {
 		"slot-b": "slot-c",
 	}
 
-	err := secboot.RenameOrDeleteKeys("/dev/foo", toRename)
+	err := secboot.RenameKeys("/dev/foo", toRename)
 	c.Assert(err, ErrorMatches, `internal error: keyslot name slot-b used as source and target of a rename`)
 }
 
-func (s *secbootSuite) TestRenameOrDeleteKeysNameExists(c *C) {
+func (s *secbootSuite) TestRenameKeysNameExists(c *C) {
 	defer secboot.MockListLUKS2ContainerUnlockKeyNames(func(devicePath string) ([]string, error) {
 		c.Check(devicePath, Equals, "/dev/foo")
 		return []string{"slot-a", "slot-b", "slot-c"}, nil
@@ -2607,19 +2607,19 @@ func (s *secbootSuite) TestRenameOrDeleteKeysNameExists(c *C) {
 		"slot-a": "slot-b",
 	}
 
-	err := secboot.RenameOrDeleteKeys("/dev/foo", toRename)
+	err := secboot.RenameKeys("/dev/foo", toRename)
 	c.Assert(err, ErrorMatches, `slot name slot-b is already in use`)
 }
 
-func (s *secbootSuite) TestRenameOrDeleteKeysNoRename(c *C) {
+func (s *secbootSuite) TestRenameKeysNoRename(c *C) {
 	defer secboot.MockListLUKS2ContainerUnlockKeyNames(func(devicePath string) ([]string, error) {
 		c.Check(devicePath, Equals, "/dev/foo")
 		return []string{"slot-a", "slot-b", "slot-c"}, nil
 	})()
 
-	expectedRemovals := map[string]bool{
-		"slot-b": true,
-		"slot-c": true,
+	expectedRenames := map[string]string{
+		"slot-b": "new-slot-b",
+		"slot-c": "new-slot-c",
 	}
 
 	defer secboot.MockRenameLUKS2ContainerKey(func(devicePath, slotName, renameTo string) error {
@@ -2627,11 +2627,12 @@ func (s *secbootSuite) TestRenameOrDeleteKeysNoRename(c *C) {
 		return sb.ErrMissingCryptsetupFeature
 	})()
 
-	defer secboot.MockDeleteLUKS2ContainerKey(func(devicePath, slotName string) error {
+	defer secboot.MockCopyAndRemoveLUKS2ContainerKey(func(devicePath, slotName, renameTo string) error {
 		c.Check(devicePath, Equals, "/dev/foo")
-		_, expected := expectedRemovals[slotName]
-		c.Check(expected, Equals, true)
-		delete(expectedRemovals, slotName)
+		expectedRename, expected := expectedRenames[slotName]
+		c.Assert(expected, Equals, true)
+		c.Check(renameTo, Equals, expectedRename)
+		delete(expectedRenames, slotName)
 		return nil
 	})()
 
@@ -2641,13 +2642,13 @@ func (s *secbootSuite) TestRenameOrDeleteKeysNoRename(c *C) {
 		"slot-d": "new-slot-d",
 	}
 
-	err := secboot.RenameOrDeleteKeys("/dev/foo", toRename)
+	err := secboot.RenameKeys("/dev/foo", toRename)
 	c.Assert(err, IsNil)
 
-	c.Check(expectedRemovals, HasLen, 0)
+	c.Check(expectedRenames, HasLen, 0)
 }
 
-func (s *secbootSuite) TestRenameOrDeleteKeysListError(c *C) {
+func (s *secbootSuite) TestRenameKeysListError(c *C) {
 	defer secboot.MockListLUKS2ContainerUnlockKeyNames(func(devicePath string) ([]string, error) {
 		c.Check(devicePath, Equals, "/dev/foo")
 		return nil, fmt.Errorf("some error")
@@ -2669,11 +2670,11 @@ func (s *secbootSuite) TestRenameOrDeleteKeysListError(c *C) {
 		"slot-d": "new-slot-d",
 	}
 
-	err := secboot.RenameOrDeleteKeys("/dev/foo", toRename)
+	err := secboot.RenameKeys("/dev/foo", toRename)
 	c.Assert(err, ErrorMatches, `cannot list slots in partition save partition: some error`)
 }
 
-func (s *secbootSuite) TestRenameOrDeleteKeysRenameError(c *C) {
+func (s *secbootSuite) TestRenameKeysRenameError(c *C) {
 	defer secboot.MockListLUKS2ContainerUnlockKeyNames(func(devicePath string) ([]string, error) {
 		c.Check(devicePath, Equals, "/dev/foo")
 		return []string{"slot-a", "slot-b", "slot-c"}, nil
@@ -2683,7 +2684,7 @@ func (s *secbootSuite) TestRenameOrDeleteKeysRenameError(c *C) {
 		return fmt.Errorf("some other error")
 	})()
 
-	defer secboot.MockDeleteLUKS2ContainerKey(func(devicePath, slotName string) error {
+	defer secboot.MockCopyAndRemoveLUKS2ContainerKey(func(devicePath, slotName, renameTo string) error {
 		c.Errorf("unexpected call")
 		return nil
 	})()
@@ -2694,11 +2695,11 @@ func (s *secbootSuite) TestRenameOrDeleteKeysRenameError(c *C) {
 		"slot-d": "new-slot-d",
 	}
 
-	err := secboot.RenameOrDeleteKeys("/dev/foo", toRename)
+	err := secboot.RenameKeys("/dev/foo", toRename)
 	c.Assert(err, ErrorMatches, `cannot rename container key: some other error`)
 }
 
-func (s *secbootSuite) TestRenameOrDeleteKeysDeleteError(c *C) {
+func (s *secbootSuite) TestRenameKeysDeleteError(c *C) {
 	defer secboot.MockListLUKS2ContainerUnlockKeyNames(func(devicePath string) ([]string, error) {
 		c.Check(devicePath, Equals, "/dev/foo")
 		return []string{"slot-a", "slot-b", "slot-c"}, nil
@@ -2708,7 +2709,7 @@ func (s *secbootSuite) TestRenameOrDeleteKeysDeleteError(c *C) {
 		return sb.ErrMissingCryptsetupFeature
 	})()
 
-	defer secboot.MockDeleteLUKS2ContainerKey(func(devicePath, slotName string) error {
+	defer secboot.MockCopyAndRemoveLUKS2ContainerKey(func(devicePath, slotName, renameTo string) error {
 		return fmt.Errorf("some error")
 	})()
 
@@ -2718,8 +2719,8 @@ func (s *secbootSuite) TestRenameOrDeleteKeysDeleteError(c *C) {
 		"slot-d": "new-slot-d",
 	}
 
-	err := secboot.RenameOrDeleteKeys("/dev/foo", toRename)
-	c.Assert(err, ErrorMatches, `cannot remove old container key: some error`)
+	err := secboot.RenameKeys("/dev/foo", toRename)
+	c.Assert(err, ErrorMatches, `cannot rename old container key: some error`)
 }
 
 func (s *secbootSuite) TestDeleteKeys(c *C) {
