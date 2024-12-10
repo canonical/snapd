@@ -878,6 +878,53 @@ func (s *fdeMgrSuite) TestEFIDBXBlockedTasks(c *C) {
 	st.Lock()
 }
 
+func (s *fdeMgrSuite) TestEFIDBXOperationAddWait(c *C) {
+	// add 2 changes, ant exercise the notification mechanism
+	c.Assert(device.StampSealedKeys(dirs.GlobalRootDir, device.SealingMethodTPM), IsNil)
+
+	st := s.st
+	onClassic := true
+	s.startedManager(c, onClassic)
+
+	st.Lock()
+	defer st.Unlock()
+
+	op1, err := fdestate.AddEFISecurebootDBUpdateChange(st, device.SealingMethodTPM, []byte("payload 1"))
+	c.Assert(err, IsNil)
+
+	op2, err := fdestate.AddEFISecurebootDBUpdateChange(st, device.SealingMethodTPM, []byte("payload 2"))
+	c.Assert(err, IsNil)
+
+	sync1PreparedC := fdestate.DbxUpdatePreparedOKChan(st, op1.ChangeID)
+	sync2PreparedC := fdestate.DbxUpdatePreparedOKChan(st, op2.ChangeID)
+
+	syncC := make(chan struct{})
+	defer close(syncC)
+	doneC := make(chan struct{})
+
+	go func() {
+		<-syncC
+		st.Lock()
+		fdestate.NotifyDBXUpdatePrepareDoneOK(st, op1.ChangeID)
+		st.Unlock()
+
+		<-syncC
+		st.Lock()
+		fdestate.NotifyDBXUpdatePrepareDoneOK(st, op2.ChangeID)
+		st.Unlock()
+
+		close(doneC)
+	}()
+
+	st.Unlock()
+	defer st.Lock()
+	syncC <- struct{}{}
+	<-sync1PreparedC
+	syncC <- struct{}{}
+	<-sync2PreparedC
+	<-doneC
+}
+
 func iterateUnlockedStateWaitingFor(st *state.State, pred func() bool) {
 	ok := false
 	for !ok {

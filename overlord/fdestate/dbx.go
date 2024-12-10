@@ -81,8 +81,12 @@ func EFISecureBootDBUpdatePrepare(st *state.State, db EFISecurebootKeyDatabase, 
 	// at this point the keys will have been resealed with the proposed DBX
 	// payload
 	chgFailed := false
+	afterPrepareOKC := dbxUpdatePreparedOKChan(st, chgID)
 	st.Unlock()
-	afterPrepareOKC := awaitDBXUpdatePrepareOK(st, chgID)
+	// there is no timeout as we expect to observe one of the two outcomes: we
+	// either complete the prepare step successfully or the change fails (and
+	// becomes ready); we are not holding the state lock, so other processing
+	// tasks not blocked
 	select {
 	case <-afterPrepareOKC:
 		// prepare step has completed successfully
@@ -131,6 +135,10 @@ func EFISecureBootDBUpdateCleanup(st *state.State) error {
 		return nil
 	}
 
+	// ensure that a cleanup can only be called when operation has obtained
+	// 'Doing' status which prevents attempting cleanup when we briefly unlock
+	// the state doing the initial reseal for prepare in the 'do' path, and
+	// similarly in the 'undo' path
 	if op.Status != DoingStatus {
 		return &snapstate.ChangeConflictError{
 			ChangeKind: "fde-efi-secureboot-db-update",
@@ -146,6 +154,7 @@ func EFISecureBootDBUpdateCleanup(st *state.State) error {
 	}
 
 	chg := st.Change(op.ChangeID)
+	// complete unlocks the state waiting for change to become ready
 	return completeEFISecurebootDBUpdateChange(chg)
 }
 
@@ -165,9 +174,13 @@ func EFISecureBootDBManagerStartup(st *state.State) error {
 		return nil
 	}
 
-	// we have a pending request, which means we must mark it as failed and
-	// reseal with the current content of EFI DBX
+	// at this point we have a pending request, which means we must mark it as
+	// failed and reseal with the current content of EFI DBX
 
+	// ensure that the external operation has obtained 'Doing' status which
+	// prevents attempting startup/cleanup when we briefly unlock the state
+	// doing the initial reseal for prepare in the 'do' path, and similarly in
+	// the 'undo' path
 	if op.Status != DoingStatus {
 		return &snapstate.ChangeConflictError{
 			ChangeKind: "fde-efi-secureboot-db-update",
@@ -182,6 +195,7 @@ func EFISecureBootDBManagerStartup(st *state.State) error {
 	}
 
 	chg := st.Change(op.ChangeID)
+	// complete unlocks the state waiting for change to become ready
 	return completeEFISecurebootDBUpdateChange(chg)
 }
 
@@ -244,12 +258,17 @@ func addEFISecurebootDBUpdateChange(st *state.State, method device.SealingMethod
 	return op, nil
 }
 
+// completeEFISecurebootDBUpdateChange waits for the change to complete and
+// returns the error result obtained from the change
 func completeEFISecurebootDBUpdateChange(chg *state.Change) error {
 	st := chg.State()
 
 	// trigger ensure so that the task runner attempts to run our tasks
 	st.EnsureBefore(0)
 
+	// there is no timeout as we expect the change to complete, either
+	// successfully or with an error; note we are not holding the state lock so
+	// other tasks are not blocked
 	st.Unlock()
 	logger.Debugf("waiting for FDE DBX change %v to become ready", chg.ID())
 	<-chg.Ready()
@@ -290,7 +309,8 @@ func (m *FDEManager) doEFISecurebootDBUpdatePrepare(t *state.Task, tomb *tomb.To
 	}
 
 	if op.Status != PreparingStatus {
-		return fmt.Errorf("external already in state %q, but expected %q", op.Status, PreparingStatus)
+		return fmt.Errorf("internal error: external operation already in state %q, but expected %q",
+			op.Status, PreparingStatus)
 	}
 
 	var updateData dbxUpdateContext
@@ -468,11 +488,7 @@ func (m *FDEManager) doEFISecurebootDBUpdatePrepareCleanup(t *state.Task, tomb *
 				fde.PendingExternalOperations = append(fde.PendingExternalOperations[:idx],
 					fde.PendingExternalOperations[idx+1:]...)
 
-				val := st.Cached(dbxUpdatePrepareSyncKey{})
-				if val != nil {
-					syncChs := val.(map[string]chan struct{})
-					delete(syncChs, chgID)
-				}
+				cleanupUpdatePreparedOKChan(st, chgID)
 
 				return true, nil
 			}
@@ -558,11 +574,17 @@ func notifyDBXUpdatePrepareDoneOK(st *state.State, changeID string) {
 	}
 }
 
-func awaitDBXUpdatePrepareOK(st *state.State, changeID string) <-chan struct{} {
-	st.Lock()
-	defer st.Unlock()
+func dbxUpdatePreparedOKChan(st *state.State, changeID string) <-chan struct{} {
 	val := st.Cached(dbxUpdatePrepareSyncKey{})
 
 	syncChs := val.(map[string]chan struct{})
 	return syncChs[changeID]
+}
+
+func cleanupUpdatePreparedOKChan(st *state.State, changeID string) {
+	val := st.Cached(dbxUpdatePrepareSyncKey{})
+	if val != nil {
+		syncChs := val.(map[string]chan struct{})
+		delete(syncChs, changeID)
+	}
 }
