@@ -332,6 +332,7 @@ func (pm RulePermissionMap) validateForInterface(iface string, currTime time.Tim
 		}
 		if err := entry.validate(); err != nil {
 			errs = append(errs, err)
+			continue
 		}
 		if entry.Expired(currTime) {
 			expiredPerms = append(expiredPerms, perm)
