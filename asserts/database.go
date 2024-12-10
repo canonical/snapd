@@ -779,12 +779,20 @@ func CheckSignature(assert Assertion, signingKey *AccountKey, roDB RODatabase, c
 			return fmt.Errorf("assertion does not match signing constraints for public key %q from %q", assert.SignKeyID(), assert.AuthorityID())
 		}
 	} else {
-		custom, ok := assert.(customSigner)
-		if !ok {
+		switch signer := assert.(type) {
+		case customSigner:
+			pubKey = signer.signKey()
+		case deviceSigner:
+			var err error
+			pubKey, err = signer.signKey(roDB)
+			if err != nil {
+				return err
+			}
+		default:
 			return fmt.Errorf("cannot check no-authority assertion type %q", assert.Type().Name)
 		}
-		pubKey = custom.signKey()
 	}
+
 	content, encSig := assert.Signature()
 	signature, err := decodeSignature(encSig)
 	if err != nil {
