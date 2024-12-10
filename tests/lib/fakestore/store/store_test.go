@@ -64,6 +64,8 @@ func (s *storeTestSuite) SetUpTest(c *C) {
 	topdir := c.MkDir()
 	err := os.Mkdir(filepath.Join(topdir, "asserts"), 0755)
 	c.Assert(err, IsNil)
+	err = os.Mkdir(filepath.Join(topdir, "channels"), 0755)
+	c.Assert(err, IsNil)
 	s.store = NewStore(topdir, "localhost:0", false)
 	err = s.store.Start()
 	c.Assert(err, IsNil)
@@ -423,6 +425,17 @@ func (s *storeTestSuite) makeAssertions(c *C, snapFn, name, snapID, develName, d
 	c.Assert(err, IsNil)
 }
 
+func (s *storeTestSuite) addToChannel(c *C, snapFn, channel string) {
+	dgst, _, err := asserts.SnapFileSHA3_384(snapFn)
+	c.Assert(err, IsNil)
+
+	f, err := os.OpenFile(filepath.Join(s.store.blobDir, "channels", dgst), os.O_CREATE|os.O_WRONLY, 0644)
+	c.Assert(err, IsNil)
+	defer f.Close()
+
+	fmt.Fprintf(f, "%s\n", channel)
+}
+
 func (s *storeTestSuite) TestMakeTestSnap(c *C) {
 	snapFn := s.makeTestSnap(c, "name: foo\nversion: 1")
 	c.Assert(osutil.FileExists(snapFn), Equals, true)
@@ -687,6 +700,104 @@ func (s *storeTestSuite) TestSnapActionEndpointUsesLatest(c *C) {
 			},
 			"version":     "2",
 			"revision":    float64(2),
+			"confinement": "strict",
+			"type":        "app",
+		},
+	})
+}
+
+func (s *storeTestSuite) TestSnapActionEndpointChannel(c *C) {
+	snapFn := s.makeTestSnap(c, "name: test-snapd-tools\nversion: 1")
+	s.makeAssertions(c, snapFn, "test-snapd-tools", "eFe8BTR5L5V9F7yHeMAPxkEr2NdUXMtw", "canonical", "canonical", 1)
+	s.addToChannel(c, snapFn, "latest/stable")
+
+	snapFnEdge := s.makeTestSnap(c, "name: test-snapd-tools\nversion: 2")
+	s.makeAssertions(c, snapFnEdge, "test-snapd-tools", "eFe8BTR5L5V9F7yHeMAPxkEr2NdUXMtw", "canonical", "canonical", 2)
+	s.addToChannel(c, snapFnEdge, "latest/edge")
+
+	resp, err := s.StorePostJSON("/v2/snaps/refresh", []byte(`{
+"context": [{"instance-key":"eFe8BTR5L5V9F7yHeMAPxkEr2NdUXMtw","snap-id":"eFe8BTR5L5V9F7yHeMAPxkEr2NdUXMtw","tracking-channel":"latest/stable","revision":1}],
+"actions": [{"action":"refresh","instance-key":"eFe8BTR5L5V9F7yHeMAPxkEr2NdUXMtw","snap-id":"eFe8BTR5L5V9F7yHeMAPxkEr2NdUXMtw","channel":"latest/stable"}]
+}`))
+	c.Assert(err, IsNil)
+	defer resp.Body.Close()
+
+	c.Assert(resp.StatusCode, Equals, 200)
+	var body struct {
+		Results []map[string]interface{}
+	}
+	c.Assert(json.NewDecoder(resp.Body).Decode(&body), IsNil)
+	c.Check(body.Results, HasLen, 1)
+	sha3_384, size := getSha(snapFn)
+	c.Check(body.Results[0], DeepEquals, map[string]interface{}{
+		"result":       "refresh",
+		"instance-key": "eFe8BTR5L5V9F7yHeMAPxkEr2NdUXMtw",
+		"snap-id":      "eFe8BTR5L5V9F7yHeMAPxkEr2NdUXMtw",
+		"name":         "test-snapd-tools",
+		"snap": map[string]interface{}{
+			"architectures": []interface{}{"all"},
+			"snap-id":       "eFe8BTR5L5V9F7yHeMAPxkEr2NdUXMtw",
+			"name":          "test-snapd-tools",
+			"publisher": map[string]interface{}{
+				"username": "canonical",
+				"id":       "canonical",
+			},
+			"download": map[string]interface{}{
+				"url":      s.store.URL() + "/download/test-snapd-tools_1_all.snap",
+				"sha3-384": sha3_384,
+				"size":     float64(size),
+			},
+			"version":     "1",
+			"revision":    float64(1),
+			"confinement": "strict",
+			"type":        "app",
+		},
+	})
+}
+
+func (s *storeTestSuite) TestSnapActionEndpointChannelRefreshAll(c *C) {
+	snapFn := s.makeTestSnap(c, "name: test-snapd-tools\nversion: 1")
+	s.makeAssertions(c, snapFn, "test-snapd-tools", "eFe8BTR5L5V9F7yHeMAPxkEr2NdUXMtw", "canonical", "canonical", 1)
+	s.addToChannel(c, snapFn, "latest/stable")
+
+	snapFnEdge := s.makeTestSnap(c, "name: test-snapd-tools\nversion: 2")
+	s.makeAssertions(c, snapFnEdge, "test-snapd-tools", "eFe8BTR5L5V9F7yHeMAPxkEr2NdUXMtw", "canonical", "canonical", 2)
+	s.addToChannel(c, snapFnEdge, "latest/edge")
+
+	resp, err := s.StorePostJSON("/v2/snaps/refresh", []byte(`{
+"context": [{"instance-key":"eFe8BTR5L5V9F7yHeMAPxkEr2NdUXMtw","snap-id":"eFe8BTR5L5V9F7yHeMAPxkEr2NdUXMtw","tracking-channel":"latest/stable","revision":1}],
+"actions": [{"action":"refresh-all"}]
+}`))
+	c.Assert(err, IsNil)
+	defer resp.Body.Close()
+
+	c.Assert(resp.StatusCode, Equals, 200)
+	var body struct {
+		Results []map[string]interface{}
+	}
+	c.Assert(json.NewDecoder(resp.Body).Decode(&body), IsNil)
+	c.Check(body.Results, HasLen, 1)
+	sha3_384, size := getSha(snapFn)
+	c.Check(body.Results[0], DeepEquals, map[string]interface{}{
+		"result":       "refresh",
+		"instance-key": "eFe8BTR5L5V9F7yHeMAPxkEr2NdUXMtw",
+		"snap-id":      "eFe8BTR5L5V9F7yHeMAPxkEr2NdUXMtw",
+		"name":         "test-snapd-tools",
+		"snap": map[string]interface{}{
+			"architectures": []interface{}{"all"},
+			"snap-id":       "eFe8BTR5L5V9F7yHeMAPxkEr2NdUXMtw",
+			"name":          "test-snapd-tools",
+			"publisher": map[string]interface{}{
+				"username": "canonical",
+				"id":       "canonical",
+			},
+			"download": map[string]interface{}{
+				"url":      s.store.URL() + "/download/test-snapd-tools_1_all.snap",
+				"sha3-384": sha3_384,
+				"size":     float64(size),
+			},
+			"version":     "1",
+			"revision":    float64(1),
 			"confinement": "strict",
 			"type":        "app",
 		},
