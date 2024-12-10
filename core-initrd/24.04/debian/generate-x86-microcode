@@ -8,7 +8,7 @@ set -e
 # Generates a copy of the minimal microcode for all AMD processors
 # and installs it to the early initramfs
 
-EFWE=$(realpath $1)
+EFWE=$(realpath "$1")
 EFWD=$(mktemp -d "${TMPDIR:-/var/tmp}/mkinitramfs-EFW_XXXXXXXXXX")
 EFWCD="${EFWD}/d/kernel/x86/microcode"
 # note: to build a reproducible early initramfs, we force

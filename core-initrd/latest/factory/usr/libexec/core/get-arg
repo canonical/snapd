@@ -39,7 +39,7 @@ while [ -n "${current}" ]; do
     # We cannot use subtring parameter expansion
     # (e.g. ${cmdline:$i:1}) in busybox-initramfs
     suffix="${current#?}"
-    char="${current%${suffix}}"
+    char="${current%"${suffix}"}"
     current="${suffix}"
     case "${char}" in
         ["${whitespaces}"])

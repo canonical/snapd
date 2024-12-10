@@ -13,21 +13,21 @@ if [ -n "$DEB_MAINT_PARAMS" ]; then
 fi
 
 # do not clobber pre-signed .efi
-if [ -e /boot/kernel.efi-$version ]; then
+if [ -e /boot/kernel.efi-"$version" ]; then
     exit 0
 fi
 
-ubuntu-core-initramfs create-initrd --kernelver $version
+ubuntu-core-initramfs create-initrd --kernelver "$version"
 
-case `dpkg --print-architecture` in
+case $(dpkg --print-architecture) in
     amd64|arm64)
 	case $version in
 	    *-azure)
 		# Currently nullboot doesn't seal cmdline, thus it must be baked in for azure
-		ubuntu-core-initramfs create-efi --unsigned --kernelver $version --cmdline "snapd_recovery_mode=cloudimg-rootfs console=tty1 console=ttyS0 earlyprintk=ttyS0"
+		ubuntu-core-initramfs create-efi --unsigned --kernelver "$version" --cmdline "snapd_recovery_mode=cloudimg-rootfs console=tty1 console=ttyS0 earlyprintk=ttyS0"
 		;;
 	    *)
-		ubuntu-core-initramfs create-efi --unsigned --kernelver $version
+		ubuntu-core-initramfs create-efi --unsigned --kernelver "$version"
 		;;
 	esac
 esac

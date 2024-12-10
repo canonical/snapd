@@ -73,7 +73,7 @@ package auto-import repo. To do that:
     $ git subtree pull --prefix vendor/systemd/ https://git.launchpad.net/ubuntu/+source/systemd ubuntu/<release> --squash
 
 Where release could be focal, jammy, etc. Note that when a development
-version is released we will probably wnat `ubuntu/<release>-updates`
+version is released we will probably want `ubuntu/<release>-updates`
 branch instead.
 
 When moving to a newer Ubuntu release, the way to update is to remove

@@ -889,7 +889,7 @@ def main():
         "--initrd", help="path to initramfs", default="/boot/ubuntu-core-initramfs.img"
     )
     efi_parser.add_argument(
-        "--cmdline", help="commandline to embed (can be overriden with LoadOptions)"
+        "--cmdline", help="commandline to embed (can be overridden with LoadOptions)"
     )
     efi_parser.add_argument(
         "--unsigned", help="do not sign efi app", default=False, action="store_true"
