@@ -71,7 +71,7 @@ func AddBootstrapKeyOnExistingDisk(node string, newKey keys.EncryptionKey) error
 	return errBuildWithoutSecboot
 }
 
-func RenameOrDeleteKeys(node string, renames map[string]string) error {
+func RenameKeys(node string, renames map[string]string) error {
 	return errBuildWithoutSecboot
 }
 
@@ -105,6 +105,7 @@ func (ha *HashAlg) UnmarshalJSON([]byte) error {
 	return errBuildWithoutSecboot
 }
 
+
 func FindFreeHandle() (uint32, error) {
 	return 0, errBuildWithoutSecboot
 }
@@ -114,5 +115,13 @@ func GetPCRHandle(node, keySlot, keyFile string) (uint32, error) {
 }
 
 func RemoveOldCounterHandles(node string, possibleOldKeys map[string]bool, possibleKeyFiles []string, hintExpectFDEHook bool) error {
+	return errBuildWithoutSecboot
+}
+
+func TemporaryNameOldKeys(devicePath string) error {
+	return errBuildWithoutSecboot
+}
+
+func DeleteOldKeys(devicePath string) error {
 	return errBuildWithoutSecboot
 }

@@ -2250,7 +2250,7 @@ func (s *deviceMgrSuite) TestDeviceManagerEnsurePostFactoryResetEncrypted(c *C) 
 		c.Check(hintExpectFDEHook, Equals, false)
 		c.Check(node, Equals, "/dev/disk/by-uuid/FOOUUID")
 		c.Check(possibleOldKeys, DeepEquals, map[string]bool{
-			"factory-reset-old-fallback": true,
+			"reprovision-default-fallback": true,
 		})
 		switch removedOldHandles {
 		case 1:
@@ -2271,10 +2271,18 @@ func (s *deviceMgrSuite) TestDeviceManagerEnsurePostFactoryResetEncrypted(c *C) 
 	restore = devicestate.MockSecbootDeleteKeys(func(node string, matches map[string]bool) error {
 		c.Check(node, Equals, "/dev/disk/by-uuid/FOOUUID")
 		c.Check(matches, DeepEquals, map[string]bool{
-			"factory-reset-old":          true,
-			"factory-reset-old-fallback": true,
+			"reprovision-default":          true,
+			"reprovision-default-fallback": true,
 		})
 		deleteOldSaveKey++
+		return nil
+	})
+	defer restore()
+
+	removeOldDiskKeys := 0
+	restore = devicestate.MockSecbootDeleteOldKeys(func(devicePath string) error {
+		c.Check(devicePath, Equals, "/dev/disk/by-uuid/FOOUUID")
+		removeOldDiskKeys++
 		return nil
 	})
 	defer restore()
@@ -2283,6 +2291,7 @@ func (s *deviceMgrSuite) TestDeviceManagerEnsurePostFactoryResetEncrypted(c *C) 
 	c.Assert(err, IsNil)
 	c.Check(transitionCalls, Equals, 0)
 	c.Check(deleteOldSaveKey, Equals, 1)
+	c.Check(removeOldDiskKeys, Equals, 1)
 	// factory reset marker is gone, the key was verified successfully
 	c.Check(filepath.Join(dirs.SnapDeviceDir, "factory-reset"), testutil.FileAbsent)
 	c.Check(filepath.Join(dirs.SnapFDEDir, "marker"), testutil.FilePresent)
@@ -2290,6 +2299,7 @@ func (s *deviceMgrSuite) TestDeviceManagerEnsurePostFactoryResetEncrypted(c *C) 
 
 	transitionCalls = 0
 	deleteOldSaveKey = 0
+	removeOldDiskKeys = 0
 	// try again, no marker, nothing should happen
 	devicestate.SetPostFactoryResetRan(s.mgr, false)
 	err = s.mgr.Ensure()
@@ -2298,6 +2308,7 @@ func (s *deviceMgrSuite) TestDeviceManagerEnsurePostFactoryResetEncrypted(c *C) 
 	c.Check(transitionCalls, Equals, 0)
 	c.Check(deleteOldSaveKey, Equals, 0)
 	c.Check(removedOldHandles, Equals, 1)
+	c.Check(removeOldDiskKeys, Equals, 0)
 
 	// have the marker, but keep the keys rotated as if boot code would do it and
 	// try again, in this setup the marker hash matches the migrated key
@@ -2309,6 +2320,7 @@ func (s *deviceMgrSuite) TestDeviceManagerEnsurePostFactoryResetEncrypted(c *C) 
 	c.Check(transitionCalls, Equals, 0)
 	c.Check(deleteOldSaveKey, Equals, 1)
 	c.Check(removedOldHandles, Equals, 2)
+	c.Check(removeOldDiskKeys, Equals, 1)
 	// the marker was again removed
 	c.Check(filepath.Join(dirs.SnapDeviceDir, "factory-reset"), testutil.FileAbsent)
 }

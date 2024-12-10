@@ -351,7 +351,10 @@ func AddBootstrapKeyOnExistingDisk(node string, newKey keys.EncryptionKey) error
 // Rename key slots on LUKS2 container. If the key slot does not
 // exist, it is ignored. If cryptsetup does not support renaming, then
 // the key slots are instead removed.
-func RenameOrDeleteKeys(node string, renames map[string]string) error {
+// WARNING: this function is not always atomic. If cryptsetup is too
+// old, it will try to copy and delete keys instead. Please avoid
+// using this function in new code.
+func RenameKeys(node string, renames map[string]string) error {
 	targets := make(map[string]bool)
 
 	for _, renameTo := range renames {
@@ -381,8 +384,8 @@ func RenameOrDeleteKeys(node string, renames map[string]string) error {
 		if found {
 			if err := sbRenameLUKS2ContainerKey(node, slot, renameTo); err != nil {
 				if errors.Is(err, sb.ErrMissingCryptsetupFeature) {
-					if err := sbDeleteLUKS2ContainerKey(node, slot); err != nil {
-						return fmt.Errorf("cannot remove old container key: %v", err)
+					if err := sbCopyAndRemoveLUKS2ContainerKey(node, slot, renameTo); err != nil {
+						return fmt.Errorf("cannot rename old container key: %v", err)
 					}
 				} else {
 					return fmt.Errorf("cannot rename container key: %v", err)
@@ -492,3 +495,37 @@ func (key *SealKeyRequest) getWriter() (sb.KeyDataWriter, error) {
 		return key.BootstrappedContainer.GetTokenWriter(key.SlotName)
 	}
 }
+
+// TemporaryNameOldKeys takes a disk using legacy keyslots 0, 1, 2 and
+// adds names to those keyslots. This is needed to convert the save
+// disk during a factory reset. This is a no-operation if all keyslots
+// are already named.
+func TemporaryNameOldKeys(devicePath string) error {
+	if err := sb.NameLegacyLUKS2ContainerKey(devicePath, 0, "old-default-key"); err != nil && !errors.Is(err, sb.KeyslotAlreadyHasANameErr) {
+		return err
+	}
+	if err := sb.NameLegacyLUKS2ContainerKey(devicePath, 1, "old-recovery-key"); err != nil && !errors.Is(err, sb.KeyslotAlreadyHasANameErr) {
+		return err
+	}
+	if err := sb.NameLegacyLUKS2ContainerKey(devicePath, 2, "old-temporary-key"); err != nil && !errors.Is(err, sb.KeyslotAlreadyHasANameErr) {
+		return err
+	}
+	return nil
+}
+
+// DeleteOldKeys removes key slots from an old installation that
+// had names created by TemporaryNameOldKeys.
+func DeleteOldKeys(devicePath string) error {
+	toDelete := map[string]bool{
+		"old-default-key":   true,
+		"old-recovery-key":  true,
+		"old-temporary-key": true,
+	}
+	return DeleteKeys(devicePath, toDelete)
+}
+
+func sbCopyAndRemoveLUKS2ContainerKeyImpl(devicePath, keyslotName, renameTo string) error {
+	return sb.CopyAndRemoveLUKS2ContainerKey(sb.AllowNonAtomicOperation(), devicePath, keyslotName, renameTo)
+}
+
+var sbCopyAndRemoveLUKS2ContainerKey = sbCopyAndRemoveLUKS2ContainerKeyImpl
