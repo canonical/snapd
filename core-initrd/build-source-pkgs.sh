@@ -18,7 +18,33 @@ contains_element() {
     return 1
 }
 
-no_link=(debian go.mod go.sum cmd snapd)
+# Folder for snapd bits, that will be copied to all releases
+mkdir snapd-initramfs
+pushd snapd-initramfs
+## snap-bootstrap
+mkdir cmd
+# go commands do not follow symlinks, copy instead
+cp -a ../../cmd/snap-bootstrap/ cmd/
+cat << EOF > go.mod
+module github.com/snapcore/snap-bootstrap
+
+go 1.18
+
+require	github.com/snapcore/snapd $commit
+EOF
+# solve dependencies
+go mod tidy
+# build vendor folder
+go mod vendor
+
+## info and recovery trigger service
+mkdir snapd
+cp ../../data/info snapd/
+sed 's#@libexecdir@#/usr/lib#' ../../data/systemd/snapd.recovery-chooser-trigger.service.in > \
+    snapd/snapd.recovery-chooser-trigger.service
+popd
+
+no_link=(debian go.mod go.sum cmd snapd vendor)
 for dir in */debian; do
     rel=${dir%/debian}
 
@@ -33,26 +59,7 @@ for dir in */debian; do
     fi
 
     pushd "$rel"
-    mkdir snapd
-    cp ../../data/info snapd/
-    sed 's#@libexecdir@#/usr/lib#' ../../data/systemd/snapd.recovery-chooser-trigger.service.in > \
-        snapd/snapd.recovery-chooser-trigger.service
-    cp ../../data/info snapd/
-    mkdir cmd
-    # go commands do not follow symlinks, copy instead
-    cp -a ../../cmd/snap-bootstrap/ cmd/
-    cat << EOF > go.mod
-module github.com/snapcore/snap-bootstrap
-
-go 1.18
-
-require	github.com/snapcore/snapd $commit
-EOF
-    # solve dependencies
-    go mod tidy
-    # build vendor folder
-    go mod vendor
+    cp -a ../snapd-initramfs/* .
     dpkg-buildpackage -S -sa -d
     popd
-
 done
