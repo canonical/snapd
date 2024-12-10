@@ -570,7 +570,9 @@ func (s *baseInitramfsMountsSuite) ubuntuLabelMount(label string, mode string) s
 		mnt.where = boot.InitramfsUbuntuSeedDir
 		// don't fsck in run mode
 		if mode == "run" {
-			mnt.opts = nil
+			mnt.opts = needsNoSuidNoDevNoExecMountOpts
+		} else {
+			mnt.opts = needsFsckAndNoSuidNoDevNoExecMountOpts
 		}
 	case "ubuntu-data":
 		mnt.what = filepath.Join(s.byLabelDir, "ubuntu-data")
@@ -598,6 +600,7 @@ func (s *baseInitramfsMountsSuite) ubuntuPartUUIDMount(partuuid string, mode str
 		mnt.where = boot.InitramfsUbuntuBootDir
 	case strings.Contains(partuuid, "ubuntu-seed"):
 		mnt.where = boot.InitramfsUbuntuSeedDir
+		mnt.opts = needsFsckAndNoSuidNoDevNoExecMountOpts
 	case strings.Contains(partuuid, "ubuntu-data"):
 		mnt.where = boot.InitramfsDataDir
 		if s.isClassic {
@@ -1009,7 +1012,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsInstallModeBootedKernelPartiti
 		{
 			"/dev/disk/by-partuuid/specific-ubuntu-seed-partuuid",
 			boot.InitramfsUbuntuSeedDir,
-			needsFsckDiskMountOpts,
+			needsFsckAndNoSuidNoDevNoExecMountOpts,
 			nil,
 		},
 		s.makeSeedSnapSystemdMount(snap.TypeSnapd),
@@ -1456,7 +1459,7 @@ Wants=%[1]s
 			"--no-pager",
 			"--no-ask-password",
 			"--fsck=yes",
-			"--options=private",
+			"--options=nodev,nosuid,noexec,private",
 			"--property=Before=initrd-fs.target",
 		}, {
 			"systemd-mount",
@@ -1637,7 +1640,7 @@ Wants=%[1]s
 			"--no-pager",
 			"--no-ask-password",
 			"--fsck=yes",
-			"--options=private",
+			"--options=nodev,nosuid,noexec,private",
 			"--property=Before=initrd-fs.target",
 		}, {
 			"systemd-mount",
@@ -1803,7 +1806,7 @@ Wants=%[1]s
 			"--no-pager",
 			"--no-ask-password",
 			"--fsck=yes",
-			"--options=private",
+			"--options=nodev,nosuid,noexec,private",
 			"--property=Before=initrd-fs.target",
 		}, {
 			"systemd-mount",
@@ -2003,7 +2006,7 @@ Wants=%[1]s
 			"--no-pager",
 			"--no-ask-password",
 			"--fsck=yes",
-			"--options=private",
+			"--options=nodev,nosuid,noexec,private",
 			"--property=Before=initrd-fs.target",
 		}, {
 			"systemd-mount",
@@ -2138,7 +2141,7 @@ Wants=%[1]s
 			"--no-pager",
 			"--no-ask-password",
 			"--fsck=yes",
-			"--options=private",
+			"--options=nodev,nosuid,noexec,private",
 			"--property=Before=initrd-fs.target",
 		}, {
 			"systemd-mount",
@@ -3490,7 +3493,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeHappyBootedKernelPa
 		{
 			"/dev/disk/by-partuuid/specific-ubuntu-seed-partuuid",
 			boot.InitramfsUbuntuSeedDir,
-			needsFsckDiskMountOpts,
+			needsFsckAndNoSuidNoDevNoExecMountOpts,
 			nil,
 		},
 		s.makeSeedSnapSystemdMount(snap.TypeSnapd),
@@ -6542,7 +6545,7 @@ func (s *initramfsMountsSuite) TestMountNonDataPartitionPolls(c *C) {
 	})
 	defer restore()
 
-	err := main.MountNonDataPartitionMatchingKernelDisk("/some/target", "")
+	err := main.MountNonDataPartitionMatchingKernelDisk("/some/target", "", &main.SystemdMountOptions{})
 	c.Check(err, ErrorMatches, "cannot find device: error")
 	c.Check(n, Equals, 0)
 	c.Check(waitFile, DeepEquals, []string{
@@ -6572,7 +6575,7 @@ func (s *initramfsMountsSuite) TestMountNonDataPartitionNoPollNoLogMsg(c *C) {
 	err = os.WriteFile(fakedPartSrc, nil, 0644)
 	c.Assert(err, IsNil)
 
-	err = main.MountNonDataPartitionMatchingKernelDisk("some-target", "")
+	err = main.MountNonDataPartitionMatchingKernelDisk("some-target", "", &main.SystemdMountOptions{})
 	c.Check(err, IsNil)
 	c.Check(s.logs.String(), Equals, "")
 	c.Check(n, Equals, 1)

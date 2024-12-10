@@ -1579,7 +1579,7 @@ func (s *installSuite) testMountVolumes(c *C, opts mountVolumesOpts) {
 			c.Assert(source, Equals, "/dev/vda2")
 			c.Assert(target, Equals, seedMntPt)
 			c.Assert(fstype, Equals, "vfat")
-			c.Assert(flags, Equals, uintptr(0))
+			c.Assert(flags, Equals, uintptr(syscall.MS_NOEXEC|syscall.MS_NODEV|syscall.MS_NOSUID))
 			c.Assert(data, Equals, "")
 		case 2:
 			c.Assert(source, Equals, "/dev/vda3")
@@ -1709,8 +1709,15 @@ func (s *installSuite) TestMountVolumesManySeeds(c *C) {
 
 	mountCall := 0
 	restore := install.MockSysMount(func(source, target, fstype string, flags uintptr, data string) error {
+		switch mountCall {
+		case 0:
+			// is gadget.SystemSeed
+			c.Assert(flags, Equals, uintptr(syscall.MS_NOEXEC|syscall.MS_NODEV|syscall.MS_NOSUID))
+		case 1:
+			// is gadget.SystemSeedNull which should not have the flags
+			c.Assert(flags, Equals, uintptr(0))
+		}
 		mountCall++
-		c.Assert(flags, Equals, uintptr(0))
 		return nil
 	})
 	defer restore()
@@ -1744,7 +1751,7 @@ func (s *installSuite) TestMountVolumesLazyUnmount(c *C) {
 	mountCall := 0
 	restore := install.MockSysMount(func(source, target, fstype string, flags uintptr, data string) error {
 		mountCall++
-		c.Assert(flags, Equals, uintptr(0))
+		c.Assert(flags, Equals, uintptr(syscall.MS_NOEXEC|syscall.MS_NODEV|syscall.MS_NOSUID))
 		return nil
 	})
 	defer restore()
@@ -1792,7 +1799,7 @@ func (s *installSuite) TestMountVolumesLazyUnmountError(c *C) {
 	mountCall := 0
 	restore := install.MockSysMount(func(source, target, fstype string, flags uintptr, data string) error {
 		mountCall++
-		c.Assert(flags, Equals, uintptr(0))
+		c.Assert(flags, Equals, uintptr(syscall.MS_NOEXEC|syscall.MS_NODEV|syscall.MS_NOSUID))
 		return nil
 	})
 	defer restore()
