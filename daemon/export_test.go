@@ -331,7 +331,7 @@ func MockReboot(f func(boot.RebootAction, time.Duration, *boot.RebootInfo) error
 	return func() { reboot = boot.Reboot }
 }
 
-func MockSideloadSnapsInfo(sis []*snap.SideInfo) (restore func()) {
+func MockSideloadSnapsInfo(infos []*snap.Info) (restore func()) {
 	r := testutil.Backup(&sideloadSnapsInfo)
 	sideloadSnapsInfo = func(st *state.State, snapFiles []*uploadedContainer,
 		flags sideloadFlags) (*sideloadedInfo, *apiError) {
@@ -339,7 +339,7 @@ func MockSideloadSnapsInfo(sis []*snap.SideInfo) (restore func()) {
 		var snaps []sideloadSnapInfo
 		for i, snapFile := range snapFiles {
 			snaps = append(snaps, sideloadSnapInfo{
-				sideInfo: sis[i],
+				info:     infos[i],
 				origPath: snapFile.filename,
 				tmpPath:  snapFile.tmpPath,
 			})

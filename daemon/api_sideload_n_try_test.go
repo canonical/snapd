@@ -52,6 +52,7 @@ import (
 	"github.com/snapcore/snapd/sandbox"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/naming"
+	"github.com/snapcore/snapd/snap/snapfile"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/testutil"
@@ -401,9 +402,9 @@ version: 1.0.2
 }
 
 func (s *sideloadSuite) testSideloadComponentAsserted(c *check.C, compPath, instanceKey, body string) {
-	snapID := snaptest.AssertedSnapID("local")
-
-	snapDecl, snapRev, resRev, resPair := s.makeComponentAssertions(c, snapID, compPath)
+	snapPath := snaptest.MakeTestSnapWithFiles(c, "name: local\nversion: 1.0\n", nil)
+	snapDecl, snapRev := s.makeSnapAssertions(c, "local", snapPath)
+	resRev, resPair := s.makeComponentAssertions(c, "local", "comp", compPath)
 
 	d := s.daemonWithFakeSnapManager(c)
 	s.markSeeded(d)
@@ -428,25 +429,8 @@ func (s *sideloadSuite) testSideloadComponentAsserted(c *check.C, compPath, inst
 	c.Check(systemRestartImmediate, check.Equals, false)
 }
 
-func (s *sideloadSuite) makeComponentAssertions(c *check.C, snapID string, compPath string) (asserts.Assertion, asserts.Assertion, asserts.Assertion, asserts.Assertion) {
-	snapDecl, err := s.StoreSigning.Sign(asserts.SnapDeclarationType, map[string]interface{}{
-		"series":       "16",
-		"snap-id":      snapID,
-		"snap-name":    "local",
-		"publisher-id": s.StoreSigning.AuthorityID,
-		"timestamp":    time.Now().Format(time.RFC3339),
-	}, nil, "")
-	c.Assert(err, check.IsNil)
-
-	snapRev, err := s.StoreSigning.Sign(asserts.SnapRevisionType, map[string]interface{}{
-		"snap-sha3-384": strings.Repeat("x", 64),
-		"snap-size":     "999",
-		"snap-id":       snapID,
-		"snap-revision": "1",
-		"developer-id":  s.StoreSigning.AuthorityID,
-		"timestamp":     time.Now().Format(time.RFC3339),
-	}, nil, "")
-	c.Assert(err, check.IsNil)
+func (s *sideloadSuite) makeComponentAssertions(c *check.C, snapName, compName, compPath string) (asserts.Assertion, asserts.Assertion) {
+	snapID := snaptest.AssertedSnapID(snapName)
 
 	digest, size, err := asserts.SnapFileSHA3_384(compPath)
 	c.Assert(err, check.IsNil)
@@ -454,7 +438,7 @@ func (s *sideloadSuite) makeComponentAssertions(c *check.C, snapID string, compP
 	resRev, err := s.StoreSigning.Sign(asserts.SnapResourceRevisionType, map[string]interface{}{
 		"type":              "snap-resource-revision",
 		"snap-id":           snapID,
-		"resource-name":     "comp",
+		"resource-name":     compName,
 		"resource-sha3-384": digest,
 		"developer-id":      s.StoreSigning.AuthorityID,
 		"provenance":        "global-upload",
@@ -466,14 +450,41 @@ func (s *sideloadSuite) makeComponentAssertions(c *check.C, snapID string, compP
 
 	resPair, err := s.StoreSigning.Sign(asserts.SnapResourcePairType, map[string]interface{}{
 		"snap-id":           snapID,
-		"resource-name":     "comp",
+		"resource-name":     compName,
 		"resource-revision": "22",
 		"snap-revision":     "1",
 		"developer-id":      s.StoreSigning.AuthorityID,
 		"timestamp":         time.Now().Format(time.RFC3339),
 	}, nil, "")
 	c.Assert(err, check.IsNil)
-	return snapDecl, snapRev, resRev, resPair
+	return resRev, resPair
+}
+
+func (s *sideloadSuite) makeSnapAssertions(c *check.C, snapName, snapPath string) (asserts.Assertion, asserts.Assertion) {
+	digest, size, err := asserts.SnapFileSHA3_384(snapPath)
+	c.Assert(err, check.IsNil)
+
+	snapID := snaptest.AssertedSnapID(snapName)
+
+	snapDecl, err := s.StoreSigning.Sign(asserts.SnapDeclarationType, map[string]interface{}{
+		"series":       "16",
+		"snap-id":      snapID,
+		"snap-name":    snapName,
+		"publisher-id": s.StoreSigning.AuthorityID,
+		"timestamp":    time.Now().Format(time.RFC3339),
+	}, nil, "")
+	c.Assert(err, check.IsNil)
+
+	snapRev, err := s.StoreSigning.Sign(asserts.SnapRevisionType, map[string]interface{}{
+		"snap-sha3-384": digest,
+		"snap-size":     fmt.Sprintf("%d", size),
+		"snap-id":       snapID,
+		"snap-revision": "1",
+		"developer-id":  s.StoreSigning.AuthorityID,
+		"timestamp":     time.Now().Format(time.RFC3339),
+	}, nil, "")
+	c.Assert(err, check.IsNil)
+	return snapDecl, snapRev
 }
 
 func (s *sideloadSuite) TestSideloadComponentDangerousProvideComponentRef(c *check.C) {
@@ -711,7 +722,9 @@ version: 1.0.2
 		"snap-path": compPath,
 	})
 
-	snapDecl, snapRev, resRev, resPair := s.makeComponentAssertions(c, snaptest.AssertedSnapID("local"), compPath)
+	snapPath := snaptest.MakeTestSnapWithFiles(c, "name: local\nversion: 1.0\n", nil)
+	snapDecl, snapRev := s.makeSnapAssertions(c, "local", snapPath)
+	resRev, resPair := s.makeComponentAssertions(c, "local", "comp", compPath)
 
 	d := s.daemonWithFakeSnapManager(c)
 	s.markSeeded(d)
@@ -778,8 +791,11 @@ version: 1.0
 		SnapID:   snaptest.AssertedSnapID("local"),
 	}
 
+	snapPath := snaptest.MakeTestSnapWithFiles(c, "name: local\nversion: 1.0\n", nil)
+	snapDecl, snapRev := s.makeSnapAssertions(c, "local", snapPath)
+
 	// omitting the resource pair here
-	snapDecl, snapRev, resRev, _ := s.makeComponentAssertions(c, snaptest.AssertedSnapID("local"), compPath)
+	resRev, _ := s.makeComponentAssertions(c, "local", "comp", compPath)
 
 	st := s.d.Overlord().State()
 	st.Lock()
@@ -847,7 +863,7 @@ func (s *sideloadSuite) sideloadComponentCheck(
 	systemRestartImmediate bool,
 ) {
 	st.Lock()
-	// defer st.Unlock()
+	defer st.Unlock()
 
 	ssi := &snap.SideInfo{
 		RealName: "local",
@@ -1448,15 +1464,22 @@ func (s *sideloadSuite) TestSideloadManySnaps(c *check.C) {
 }
 
 type sideloadSnapsAndComponentsOpts struct {
-	missingSnap bool
+	updateExisting bool
+	missingSnap    bool
+}
+
+func (s *sideloadSuite) TestSideloadManySnapsAndComponents(c *check.C) {
+	s.testSideloadManySnapsAndComponents(c, sideloadSnapsAndComponentsOpts{})
 }
 
 func (s *sideloadSuite) TestSideloadManySnapsAndComponentsMissingSnap(c *check.C) {
 	s.testSideloadManySnapsAndComponents(c, sideloadSnapsAndComponentsOpts{missingSnap: true})
 }
 
-func (s *sideloadSuite) TestSideloadManySnapsAndComponents(c *check.C) {
-	s.testSideloadManySnapsAndComponents(c, sideloadSnapsAndComponentsOpts{})
+func (s *sideloadSuite) TestSideloadManySnapsAndComponentsUpdateExisting(c *check.C) {
+	s.testSideloadManySnapsAndComponents(c, sideloadSnapsAndComponentsOpts{
+		updateExisting: true,
+	})
 }
 
 func (s *sideloadSuite) testSideloadManySnapsAndComponents(c *check.C, opts sideloadSnapsAndComponentsOpts) {
@@ -1489,8 +1512,8 @@ func (s *sideloadSuite) testSideloadManySnapsAndComponents(c *check.C, opts side
 	st.Set("snaps", make(map[string]*json.RawMessage))
 	st.Unlock()
 
-	for _, name := range []string{"one", "two", "three"} {
-		if opts.missingSnap && name == "three" {
+	for _, name := range []string{"one", "two"} {
+		if opts.updateExisting {
 			continue
 		}
 
@@ -1511,6 +1534,24 @@ func (s *sideloadSuite) testSideloadManySnapsAndComponents(c *check.C, opts side
 		st.Unlock()
 	}
 
+	if !opts.missingSnap {
+		ssi := &snap.SideInfo{
+			RealName: "three",
+			Revision: snap.R(1),
+			SnapID:   "three-snap-id",
+		}
+
+		st.Lock()
+		snapstate.Set(d.Overlord().State(), "three", &snapstate.SnapState{
+			Active: true,
+			Sequence: snapstatetest.NewSequenceFromRevisionSideInfos([]*sequence.RevisionSideState{
+				sequence.NewRevisionSideState(ssi, nil),
+			}),
+			Current: snap.R(1),
+		})
+		st.Unlock()
+	}
+
 	restore = daemon.MockSnapstateUpdateWithGoal(func(ctx context.Context, st *state.State, g snapstate.UpdateGoal, filter func(*snap.Info, *snapstate.SnapState) bool, opts snapstate.Options) ([]string, *snapstate.UpdateTaskSets, error) {
 		goal := g.(*pathUpdateGoalRecorder)
 
@@ -1520,10 +1561,13 @@ func (s *sideloadSuite) testSideloadManySnapsAndComponents(c *check.C, opts side
 		var tss []*state.TaskSet
 		var names []string
 		for _, sn := range goal.snaps {
+			c.Check(sn.SideInfo.Revision.Unset(), check.Equals, true)
+
 			comps, ok := expectedSnapsToComps[sn.SideInfo.RealName]
 			c.Assert(ok, check.Equals, true, check.Commentf("unexpected snap name %q", sn.SideInfo.RealName))
 			foundComps := make([]string, 0, len(comps))
 			for csi := range sn.Components {
+				c.Check(csi.Revision.Unset(), check.Equals, true)
 				foundComps = append(foundComps, csi.Component.ComponentName)
 			}
 			c.Check(foundComps, testutil.DeepUnsortedMatches, comps)
@@ -1598,7 +1642,7 @@ func (s *sideloadSuite) testSideloadManySnapsAndComponents(c *check.C, opts side
 
 	if opts.missingSnap {
 		rsp := s.errorReq(c, req, s.authUser)
-		c.Check(rsp.Message, check.Equals, `snap owning "three+comp-four" not installed`)
+		c.Check(rsp.Message, check.Equals, `snap owning "three+comp-four" is neither installed nor provided to sideload`)
 
 		return
 	}
@@ -1626,6 +1670,300 @@ func (s *sideloadSuite) testSideloadManySnapsAndComponents(c *check.C, opts side
 	})
 }
 
+func (s *sideloadSuite) TestSideloadManyAssertedSnapsAndComponents(c *check.C) {
+	d := s.daemonWithFakeSnapManager(c)
+	s.markSeeded(d)
+	expectedFlags := snapstate.Flags{RemoveSnapPath: true, Transaction: client.TransactionAllSnaps, Lane: 1}
+
+	restore := daemon.MockSnapstateInstallComponentPath(func(st *state.State, csi *snap.ComponentSideInfo, info *snap.Info,
+		path string, opts snapstate.Options) (*state.TaskSet, error) {
+		c.Check(csi.Component.SnapName, check.Equals, "three")
+		c.Check(csi.Component.ComponentName, check.Equals, "comp-four")
+		c.Check(opts.Flags, check.DeepEquals, expectedFlags)
+
+		container, err := snapfile.Open(path)
+		c.Assert(err, check.IsNil)
+		ci, err := snap.ReadComponentInfoFromContainer(container, nil, nil)
+		c.Assert(err, check.IsNil)
+
+		c.Check(ci.Component, check.Equals, naming.NewComponentRef("three", "comp-four"))
+
+		t := st.NewTask("fake-install-component", "Doing a fake install")
+		return state.NewTaskSet(t), nil
+	})
+	defer restore()
+
+	// to keep the test deterministic, we need a slice of the snaps too
+	snaps := []string{"one", "two", "three"}
+	snapsToComps := map[string][]string{
+		"one":   {"comp-one"},
+		"two":   {"comp-two", "comp-three"},
+		"three": {"comp-four"},
+	}
+
+	st := d.Overlord().State()
+
+	threeSi := &snap.SideInfo{
+		RealName: "three",
+		Revision: snap.R(1),
+		SnapID:   snaptest.AssertedSnapID("three"),
+	}
+
+	st.Lock()
+	snapstate.Set(st, "three", &snapstate.SnapState{
+		Active: true,
+		Sequence: snapstatetest.NewSequenceFromRevisionSideInfos([]*sequence.RevisionSideState{
+			sequence.NewRevisionSideState(threeSi, nil),
+		}),
+		Current: snap.R(1),
+	})
+	st.Unlock()
+
+	restore = daemon.MockSnapstateUpdateWithGoal(func(ctx context.Context, st *state.State, g snapstate.UpdateGoal, filter func(*snap.Info, *snapstate.SnapState) bool, opts snapstate.Options) ([]string, *snapstate.UpdateTaskSets, error) {
+		goal := g.(*pathUpdateGoalRecorder)
+
+		c.Check(opts.Flags, check.DeepEquals, expectedFlags)
+		c.Check(opts.UserID, check.Not(check.Equals), 0)
+
+		var tss []*state.TaskSet
+		var names []string
+		for _, sn := range goal.snaps {
+			c.Check(sn.SideInfo.Revision.Unset(), check.Equals, false)
+
+			comps, ok := snapsToComps[sn.SideInfo.RealName]
+			c.Assert(ok, check.Equals, true, check.Commentf("unexpected snap name %q", sn.SideInfo.RealName))
+			foundComps := make([]string, 0, len(comps))
+			for csi, compPath := range sn.Components {
+				c.Check(csi.Revision.Unset(), check.Equals, false)
+				foundComps = append(foundComps, csi.Component.ComponentName)
+
+				container, err := snapfile.Open(compPath)
+				c.Assert(err, check.IsNil)
+				ci, err := snap.ReadComponentInfoFromContainer(container, nil, nil)
+				c.Assert(err, check.IsNil)
+
+				c.Check(ci.Component, check.Equals, csi.Component)
+			}
+			c.Check(foundComps, testutil.DeepUnsortedMatches, comps)
+
+			container, err := snapfile.Open(sn.Path)
+			c.Assert(err, check.IsNil)
+			info, err := snap.ReadInfoFromSnapFile(container, nil)
+			c.Assert(err, check.IsNil)
+
+			c.Check(info.SnapName(), check.Equals, sn.SideInfo.RealName)
+
+			ts := state.NewTaskSet(st.NewTask("fake-install-snap", fmt.Sprintf("Doing a fake install of %q", sn.SideInfo.RealName)))
+			tss = append(tss, ts)
+			names = append(names, sn.InstanceName)
+		}
+
+		return names, &snapstate.UpdateTaskSets{Refresh: tss}, nil
+	})
+	defer restore()
+
+	st.Lock()
+	assertstatetest.AddMany(st, s.StoreSigning.StoreAccountKey(""))
+	st.Unlock()
+
+	var paths []string
+	for _, sn := range snaps {
+		comps := snapsToComps[sn]
+
+		yaml := fmt.Sprintf("name: %s\nversion: 1.0\n", sn)
+		snapPath := snaptest.MakeTestSnapWithFiles(c, withComponents(yaml, comps), nil)
+
+		snapDecl, snapRev := s.makeSnapAssertions(c, sn, snapPath)
+		st.Lock()
+		assertstatetest.AddMany(st, snapDecl, snapRev)
+		st.Unlock()
+
+		// ignore snap three, since it's already installed. we want its
+		// components though.
+		if sn != "three" {
+			paths = append(paths, snapPath)
+		}
+
+		for _, comp := range comps {
+			yaml := fmt.Sprintf("component: %s+%s\nversion: 1.0\ntype: standard\n", sn, comp)
+			compPath := snaptest.MakeTestComponentWithFiles(c, comp, yaml, nil)
+			newPath := filepath.Join(filepath.Dir(compPath), fmt.Sprintf("%s+%s.comp", sn, comp))
+			err := os.Rename(compPath, newPath)
+			c.Assert(err, check.IsNil)
+
+			paths = append(paths, newPath)
+
+			resRev, resPair := s.makeComponentAssertions(c, sn, comp, newPath)
+			st.Lock()
+			assertstatetest.AddMany(st, resRev, resPair)
+			st.Unlock()
+		}
+	}
+
+	body := makeFormData(c, paths, map[string]string{
+		"transaction": "all-snaps",
+	})
+	req, err := http.NewRequest("POST", "/v2/snaps", strings.NewReader(body))
+	c.Assert(err, check.IsNil)
+	req.Header.Set("Content-Type", "multipart/thing; boundary=--hello--")
+	s.asUserAuth(c, req)
+
+	rsp := s.asyncReq(c, req, s.authUser)
+
+	st.Lock()
+	defer st.Unlock()
+
+	expectedFileNames := []string{"one_1.0_all.snap", "one+comp-one.comp", "two_1.0_all.snap", "two+comp-two.comp", "two+comp-three.comp", "three+comp-four.comp"}
+
+	chg := st.Change(rsp.Change)
+	c.Assert(chg, check.NotNil)
+	c.Check(chg.Summary(), check.Equals, fmt.Sprintf(`Install snaps "one" (with component "comp-one"), "two" (with components "comp-two", "comp-three") and component "three+comp-four" from files %s`, strutil.Quoted(expectedFileNames)))
+
+	var data map[string]interface{}
+	c.Assert(chg.Get("api-data", &data), check.IsNil)
+	c.Check(data, check.DeepEquals, map[string]interface{}{
+		"snap-names": []interface{}{"one", "two"},
+		"components": map[string]interface{}{
+			"one":   []interface{}{"comp-one"},
+			"two":   []interface{}{"comp-two", "comp-three"},
+			"three": []interface{}{"comp-four"},
+		},
+	})
+}
+
+func (s *sideloadSuite) TestSideloadManyAssertedSnapsAndComponentsMissingSnap(c *check.C) {
+	d := s.daemonWithFakeSnapManager(c)
+	s.markSeeded(d)
+
+	snapsToComps := map[string][]string{
+		"one": {"comp-one"},
+		"two": {"comp-two"},
+	}
+
+	st := d.Overlord().State()
+
+	st.Lock()
+	assertstatetest.AddMany(st, s.StoreSigning.StoreAccountKey(""))
+	st.Unlock()
+
+	var paths []string
+	for sn, comps := range snapsToComps {
+		yaml := fmt.Sprintf("name: %s\nversion: 1.0\n", sn)
+		snapPath := snaptest.MakeTestSnapWithFiles(c, withComponents(yaml, comps), nil)
+
+		snapDecl, snapRev := s.makeSnapAssertions(c, sn, snapPath)
+		st.Lock()
+		assertstatetest.AddMany(st, snapDecl, snapRev)
+		st.Unlock()
+
+		// ignore snap two, since we want to trigger an error for it not being
+		// installed/uploaded
+		if sn != "two" {
+			paths = append(paths, snapPath)
+		}
+
+		for _, comp := range comps {
+			yaml := fmt.Sprintf("component: %s+%s\nversion: 1.0\ntype: standard\n", sn, comp)
+			compPath := snaptest.MakeTestComponentWithFiles(c, comp, yaml, nil)
+			newPath := filepath.Join(filepath.Dir(compPath), fmt.Sprintf("%s+%s.comp", sn, comp))
+			err := os.Rename(compPath, newPath)
+			c.Assert(err, check.IsNil)
+
+			paths = append(paths, newPath)
+
+			resRev, resPair := s.makeComponentAssertions(c, sn, comp, newPath)
+			st.Lock()
+			assertstatetest.AddMany(st, resRev, resPair)
+			st.Unlock()
+		}
+	}
+
+	body := makeFormData(c, paths, map[string]string{
+		"transaction": "all-snaps",
+	})
+	req, err := http.NewRequest("POST", "/v2/snaps", strings.NewReader(body))
+	c.Assert(err, check.IsNil)
+	req.Header.Set("Content-Type", "multipart/thing; boundary=--hello--")
+	s.asUserAuth(c, req)
+
+	apiErr := s.errorReq(c, req, nil)
+	c.Check(apiErr.JSON().Status, check.Equals, 400)
+	c.Check(apiErr.Message, check.Equals, `snap owning "two+comp-two" is neither installed nor provided to sideload`)
+}
+
+func (s *sideloadSuite) TestSideloadManyAssertedSnapsAndComponentsMissingAssertions(c *check.C) {
+	d := s.daemonWithFakeSnapManager(c)
+	s.markSeeded(d)
+
+	snapsToComps := map[string][]string{
+		"one": {"comp-one"},
+		"two": {"comp-two"},
+	}
+
+	st := d.Overlord().State()
+
+	st.Lock()
+	assertstatetest.AddMany(st, s.StoreSigning.StoreAccountKey(""))
+	st.Unlock()
+
+	var paths []string
+	for sn, comps := range snapsToComps {
+		yaml := fmt.Sprintf("name: %s\nversion: 1.0\n", sn)
+		snapPath := snaptest.MakeTestSnapWithFiles(c, withComponents(yaml, comps), nil)
+
+		snapDecl, snapRev := s.makeSnapAssertions(c, sn, snapPath)
+
+		st.Lock()
+		assertstatetest.AddMany(st, snapDecl, snapRev)
+		st.Unlock()
+		paths = append(paths, snapPath)
+
+		for _, comp := range comps {
+			yaml := fmt.Sprintf("component: %s+%s\nversion: 1.0\ntype: standard\n", sn, comp)
+			compPath := snaptest.MakeTestComponentWithFiles(c, comp, yaml, nil)
+			newPath := filepath.Join(filepath.Dir(compPath), fmt.Sprintf("%s+%s.comp", sn, comp))
+			err := os.Rename(compPath, newPath)
+			c.Assert(err, check.IsNil)
+
+			paths = append(paths, newPath)
+
+			// skip assertions for snap two to trigger an error
+			if sn != "two" {
+				resRev, resPair := s.makeComponentAssertions(c, sn, comp, newPath)
+				st.Lock()
+				assertstatetest.AddMany(st, resRev, resPair)
+				st.Unlock()
+			}
+		}
+	}
+
+	body := makeFormData(c, paths, map[string]string{
+		"transaction": "all-snaps",
+	})
+	req, err := http.NewRequest("POST", "/v2/snaps", strings.NewReader(body))
+	c.Assert(err, check.IsNil)
+	req.Header.Set("Content-Type", "multipart/thing; boundary=--hello--")
+	s.asUserAuth(c, req)
+
+	apiErr := s.errorReq(c, req, nil)
+	c.Check(apiErr.JSON().Status, check.Equals, 400)
+	c.Check(apiErr.Message, check.Equals, `cannot find signatures with metadata for snap/component "two+comp-two.comp"`)
+}
+
+func withComponents(yaml string, comps []string) string {
+	if len(comps) == 0 {
+		return yaml
+	}
+
+	var b strings.Builder
+	b.WriteString(yaml)
+	b.WriteString("\ncomponents:")
+	for _, name := range comps {
+		fmt.Fprintf(&b, "\n  %s:\n    type: standard", name)
+	}
+	return b.String()
+}
+
 func (s *sideloadSuite) TestSideloadManyOnlyComponents(c *check.C) {
 	d := s.daemonWithFakeSnapManager(c)
 	s.markSeeded(d)
@@ -1637,7 +1975,13 @@ func (s *sideloadSuite) TestSideloadManyOnlyComponents(c *check.C) {
 		c.Check(csi.Component.SnapName, check.Equals, "one")
 		c.Check(components, testutil.Contains, csi.Component.ComponentName)
 		c.Check(opts.Flags, check.DeepEquals, expectedFlags)
-		c.Check(path, testutil.FileEquals, csi.Component.ComponentName)
+
+		container, err := snapfile.Open(path)
+		c.Assert(err, check.IsNil)
+		ci, err := snap.ReadComponentInfoFromContainer(container, nil, nil)
+		c.Assert(err, check.IsNil)
+
+		c.Check(ci.Component, check.Equals, csi.Component)
 
 		t := st.NewTask("fake-install-component", "Doing a fake install")
 		return state.NewTaskSet(t), nil
@@ -1661,40 +2005,18 @@ func (s *sideloadSuite) TestSideloadManyOnlyComponents(c *check.C) {
 	})
 	st.Unlock()
 
-	readComponentInfoCalled := -1
-	restore = daemon.MockReadComponentInfoFromCont(func(p string, csi *snap.ComponentSideInfo) (*snap.ComponentInfo, error) {
-		readComponentInfoCalled++
-		return &snap.ComponentInfo{
-			Component:   naming.NewComponentRef("one", components[readComponentInfoCalled]),
-			Type:        snap.TestComponent,
-			CompVersion: "1.0",
-		}, nil
-	})
-	defer restore()
-
-	restore = daemon.MockUnsafeReadSnapInfo(func(p string) (*snap.Info, error) {
-		return nil, errors.New("no more snaps")
-	})
-	defer restore()
-
-	body := "----hello--\r\n" +
-		"Content-Disposition: form-data; name=\"dangerous\"\r\n" +
-		"\r\n" +
-		"true\r\n" +
-		"----hello--\r\n"
-	body += "Content-Disposition: form-data; name=\"transaction\"\r\n" +
-		"\r\n" +
-		"all-snaps\r\n" +
-		"----hello--\r\n"
-
-	for _, c := range components {
-		body += "Content-Disposition: form-data; name=\"snap\"; filename=\"file-" + c + "\"\r\n" +
-			"\r\n" +
-			c + "\r\n" +
-			"----hello--\r\n"
+	paths := make([]string, 0, len(components))
+	for _, comp := range components {
+		yaml := fmt.Sprintf("component: one+%s\nversion: 1.0\ntype: standard", comp)
+		paths = append(paths, snaptest.MakeTestComponent(c, yaml))
 	}
 
-	req, err := http.NewRequest("POST", "/v2/snaps", bytes.NewBufferString(body))
+	body := makeFormData(c, paths, map[string]string{
+		"dangerous":   "true",
+		"transaction": "all-snaps",
+	})
+
+	req, err := http.NewRequest("POST", "/v2/snaps", strings.NewReader(body))
 	c.Assert(err, check.IsNil)
 	req.Header.Set("Content-Type", "multipart/thing; boundary=--hello--")
 	s.asUserAuth(c, req)
@@ -1704,7 +2026,7 @@ func (s *sideloadSuite) TestSideloadManyOnlyComponents(c *check.C) {
 	st.Lock()
 	defer st.Unlock()
 
-	expectedFileNames := []string{"file-comp-one", "file-comp-two", "file-comp-three", "file-comp-four"}
+	expectedFileNames := []string{"one+comp-one.comp.comp", "one+comp-two.comp.comp", "one+comp-three.comp.comp", "one+comp-four.comp.comp"}
 
 	fullComponentNames := make([]string, len(components))
 	for i, c := range components {
