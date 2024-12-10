@@ -2797,7 +2797,7 @@ func (s *deviceMgrSuite) TestSignConfdbControl(c *C) {
 	})
 
 	// No serial assertion exists yet
-	_, err := s.mgr.SignConfdbControl([]interface{}{})
+	_, err := s.mgr.SignConfdbControl([]interface{}{}, 2)
 	c.Assert(err, ErrorMatches, "cannot sign confdb-control without a serial: no state entry for key")
 
 	// Add serial assertion
@@ -2820,7 +2820,7 @@ func (s *deviceMgrSuite) TestSignConfdbControl(c *C) {
 		Serial: "42",
 	})
 
-	_, err = s.mgr.SignConfdbControl([]interface{}{})
+	_, err = s.mgr.SignConfdbControl([]interface{}{}, 3)
 	c.Assert(err, ErrorMatches, "cannot sign confdb-control without device key: no state entry for key")
 
 	// Add device key to manager
@@ -2835,7 +2835,7 @@ func (s *deviceMgrSuite) TestSignConfdbControl(c *C) {
 
 	// validation failure
 	groups := []interface{}{map[string]interface{}{"operator-id": "jane"}}
-	_, err = s.mgr.SignConfdbControl(groups)
+	_, err = s.mgr.SignConfdbControl(groups, 4)
 	c.Assert(
 		err,
 		ErrorMatches,
@@ -2853,8 +2853,9 @@ func (s *deviceMgrSuite) TestSignConfdbControl(c *C) {
 	}
 	groups = []interface{}{jane}
 
-	cc, err := s.mgr.SignConfdbControl(groups)
+	cc, err := s.mgr.SignConfdbControl(groups, 5)
 	c.Assert(err, IsNil)
+	c.Assert(cc.Revision(), Equals, 5)
 
 	// Confirm we can ack it
 	// AddMany panics on error, that's why we aren't c.Assert'ing anything
