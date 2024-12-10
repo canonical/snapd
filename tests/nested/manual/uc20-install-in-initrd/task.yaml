@@ -36,6 +36,10 @@ environment:
   NESTED_UBUNTU_IMAGE_SNAPPY_FORCE_SAS_URL: http://localhost:11028
   NESTED_SNAPD_DEBUG_TO_SERIAL: true
 
+  # create a kernel-modules component for efi-pstore
+  NESTED_KERNEL_MODULES_COMP: efi-pstore
+  NESTED_COMP_KERNEL_MODULE_NAME: efi-pstore
+
 prepare: |
   "$TESTSTOOLS"/store-state setup-fake-store "$NESTED_FAKESTORE_BLOB_DIR"
   cp "$TESTSLIB"/assertions/developer1.account "$NESTED_FAKESTORE_BLOB_DIR"/asserts
@@ -74,6 +78,30 @@ execute: |
   remote.exec "cat /var/lib/snapd/modeenv" > modeenv
 
   MATCH "mode=run" <modeenv
+
+  check_efi_pstore() {
+      # Compare times to check that drivers tree was created on
+      # installation, not on seeding
+      # shellcheck disable=SC2016
+      tree_birth=$(remote.exec 'date -d"$(stat --printf="%w\n" /var/lib/snapd/kernel/pc-kernel)" +%s')
+      reboot_time=$(remote.exec 'last reboot --time-format full | sed -n "s/wtmp begins //p"')
+      reboot_time=$(date -d"$reboot_time" +%s)
+      test "$reboot_time" -gt "$tree_birth"
+
+      # check that the component is in place
+      kern_ver=$(remote.exec uname -r)
+      comp_install_dir=/var/lib/snapd/kernel/pc-kernel/x1/lib/modules/"$kern_ver"/updates/"$NESTED_KERNEL_MODULES_COMP"
+      comp_dir=/snap/pc-kernel/components/mnt/"$NESTED_KERNEL_MODULES_COMP"/x1/modules/"$kern_ver"
+      test "$(remote.exec readlink -f "$comp_install_dir")" = "$comp_dir"
+
+      # module comes from a component
+      remote.exec modinfo -F filename efi_pstore | MATCH updates/"$NESTED_KERNEL_MODULES_COMP"/kmod/efi-pstore.ko
+      # module should have been loaded (pulled by systemd-pstore.service)
+      remote.exec lsmod | MATCH efi_pstore
+  }
+
+  # check component from store has been early-installed
+  check_efi_pstore
 
   if [ "${INSTALL_MODE}" != none ]; then
     # TODO: in a normal run, ubuntu-data-<someid> is used instead of
