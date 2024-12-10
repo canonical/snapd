@@ -26,6 +26,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -1964,7 +1965,7 @@ func (m *DeviceManager) keyPair() (asserts.PrivateKey, error) {
 }
 
 // SignConfdbControl signs a confdb-control assertion using the device's key as it needs to be attested by the device.
-func (m *DeviceManager) SignConfdbControl(groups []interface{}) (*asserts.ConfdbControl, error) {
+func (m *DeviceManager) SignConfdbControl(groups []interface{}, revision int) (*asserts.ConfdbControl, error) {
 	serial, err := m.Serial()
 	if err != nil {
 		return nil, fmt.Errorf("cannot sign confdb-control without a serial: %w", err)
@@ -1979,6 +1980,7 @@ func (m *DeviceManager) SignConfdbControl(groups []interface{}) (*asserts.Confdb
 		"brand-id": serial.BrandID(),
 		"model":    serial.Model(),
 		"serial":   serial.Serial(),
+		"revision": strconv.Itoa(revision),
 		"groups":   groups,
 	}, nil, privKey)
 	if err != nil {
