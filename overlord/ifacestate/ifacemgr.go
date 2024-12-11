@@ -205,7 +205,23 @@ func (m *InterfaceManager) StartUp() error {
 	}
 
 	if m.useAppArmorPrompting {
+		// Check if there is at least one snap on the system which has a
+		// connection using the "snap-interfaces-requests-control" plug
+		// with a "handler-service" attribute declared.
+		present, err := m.interfacesRequestsControlHandlerServicePresent()
+		if err != nil {
+			// Internal error, should not occur
+			logger.Noticef("failed to check the presence of a interfaces-requests-control handler service: %v", err)
+			m.useAppArmorPrompting = false
+		} else if !present {
+			m.useAppArmorPrompting = false
+			m.state.AddWarning(`"apparmor-prompting" feature flag enabled but no prompting client is present; prompting will be inactive until a prompting client is installed and snapd is restarted`, nil)
+		}
+
 		func() {
+			if !m.useAppArmorPrompting {
+				return
+			}
 			// Must not hold state lock while starting interfaces requests
 			// manager, so that notices can be recorded if needed.
 			m.state.Unlock()
@@ -552,8 +568,79 @@ func (m *InterfaceManager) initUDevMonitor() error {
 	return nil
 }
 
-// initInterfacesRequestsManager should only be called if prompting is
-// supported and enabled.
+// interfacesRequestsControlHandlerServicePresent returns true if there is at
+// least one snap which has a "snap-interfaces-requests-control" connection
+// with an app declared by the "handler-service" attribute.
+//
+// The caller must ensure that the state lock is held.
+func (m *InterfaceManager) interfacesRequestsControlHandlerServicePresent() (bool, error) {
+	return interfacesRequestsControlHandlerServicePresentImpl(m)
+}
+
+var interfacesRequestsControlHandlerServicePresentImpl = func(m *InterfaceManager) (bool, error) {
+	handlers, err := InterfacesRequestsControlHandlerServices(m.state)
+	if err != nil {
+		return false, err
+	}
+	return len(handlers) > 0, nil
+}
+
+// InterfacesRequestsControlHandlerServices returns the list of all apps which
+// are defined as "handler-service" for a snap which has a connected plug for
+// the "snap-interfaces-requests-control" interface.
+//
+// The caller must ensure that the state lock is held.
+func InterfacesRequestsControlHandlerServices(st *state.State) ([]*snap.AppInfo, error) {
+	conns, err := ConnectionStates(st)
+	if err != nil {
+		return nil, fmt.Errorf("internal error: cannot get connections: %w", err)
+	}
+
+	var handlers []*snap.AppInfo
+
+	for connId, connState := range conns {
+		if connState.Interface != "snap-interfaces-requests-control" || !connState.Active() {
+			continue
+		}
+
+		connRef, err := interfaces.ParseConnRef(connId)
+		if err != nil {
+			return nil, err
+		}
+
+		handler, ok := connState.StaticPlugAttrs["handler-service"].(string)
+		if !ok {
+			// does not have a handler service
+			continue
+		}
+
+		sn := connRef.PlugRef.Snap
+		si, err := snapstate.CurrentInfo(st, sn)
+		if err != nil {
+			return nil, err
+		}
+
+		// this should not fail as plug's before prepare should have validated that such app exists
+		app := si.Apps[handler]
+		if app == nil {
+			return nil, fmt.Errorf("internal error: cannot find app %q in snap %q", app, sn)
+		}
+
+		handlers = append(handlers, app)
+	}
+
+	return handlers, nil
+}
+
+// initInterfacesRequestsManager initializes the prompting backends which make
+// up the interfaces requests manager.
+//
+// This function should only be called if prompting is supported and enabled,
+// and at least one installed snap has a "snap-interfaces-requests-control"
+// connection with the "handler-service" attribute declared.
+//
+// The state lock must not be held when this function is called, so that
+// notices can be recorded if necessary.
 func (m *InterfaceManager) initInterfacesRequestsManager() error {
 	m.interfacesRequestsManagerMu.Lock()
 	defer m.interfacesRequestsManagerMu.Unlock()
