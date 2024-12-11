@@ -217,11 +217,11 @@ func addEFISecurebootDBUpdateChange(st *state.State, method device.SealingMethod
 	// will be pruned automatically and the undo will perform a reseal
 
 	tPrep := st.NewTask("efi-secureboot-db-update-prepare", "Prepare for external EFI DBX update")
-	tUpdateWait := st.NewTask("efi-secureboot-db-update", "External EFI DBX update")
+	tUpdateWait := st.NewTask("efi-secureboot-db-update", "Reseal after external EFI DBX update")
 	tUpdateWait.WaitFor(tPrep)
 	ts := state.NewTaskSet(tPrep, tUpdateWait)
 
-	chg := st.NewChange("fde-efi-secureboot-db-update", "EFI DBX update")
+	chg := st.NewChange("fde-efi-secureboot-db-update", "External EFI DBX update")
 	chg.AddAll(ts)
 
 	data, err := json.Marshal(dbxUpdateContext{
