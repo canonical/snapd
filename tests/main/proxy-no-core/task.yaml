@@ -11,10 +11,26 @@ details: |
 systems: [ubuntu-16.04-64, ubuntu-18.04-64]
 
 prepare: |
-    # Make sure there is not any .partial for the core snap to be resumed,
-    # otherwise it is not going to use the proxy to download it. The .partial
-    # file is being automatically restored with the snapd state.
+    # Ensure there is no .partial for the core snap to be resumed, otherwise
+    # it is not going to use the proxy to download it. The .partial file is
+    # being automatically restored with the snapd state.
     rm -f /var/lib/snapd/snaps/core_*.partial
+
+    # Ensure core snap is not available in cache, otherwise it is not 
+    # going to use the proxy to download it.
+    # remove cache entries in /var/lib/snapd/cache
+    core_inums="$(find /var/lib/snapd/snaps -name "core_*.snap" -printf "%i\n")"
+    if [[ -n "$core_inums" ]]; then
+        for inum in $core_inums; do
+            cache_entry="$(find /var/lib/snapd/cache -inum "$inum")"
+            if [[ -n "$cache_entry" ]]; then
+                echo "Removing cache entry: $cache_entry"
+                rm -f "$cache_entry"
+            fi
+        done
+    fi
+    # remove corresponding files in /var/lib/snapd/snaps
+    rm -f /var/lib/snapd/snaps/core_*.snap
 
 restore: |
     iptables -D OUTPUT -m owner --uid-owner "$(id -u test)" -j ACCEPT -p tcp
