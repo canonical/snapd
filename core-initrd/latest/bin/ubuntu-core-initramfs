@@ -319,7 +319,7 @@ def install_systemd_files(dest_dir, sysroot, ubuntu_release):
     # Build list of files and directories
 
     syd_pkgs = ["systemd", "systemd-sysv"]
-    if ubuntu_release[0] >= 25 or (ubuntu_release[0] >= 24 and ubuntu_release[1] >= 10):
+    if release_higher_or_equal(ubuntu_release, [24, 10]):
         syd_pkgs.append("systemd-cryptsetup")
     lines = package_files(syd_pkgs, sysroot)
     # From systemd, we pull
@@ -698,6 +698,13 @@ def get_ubuntu_release(sysroot):
     sys.exit(1)
 
 
+def release_higher_or_equal(release1, release2):
+    if release1[0] > release2[0] or \
+       (release1[0] == release2[0] and release1[1] >= release2[1]):
+        return True
+    return False
+
+
 def create_initrd(parser, args):
     # TODO generate microcode instead of shipping in debian package
     rootfs = "/"
@@ -776,7 +783,7 @@ def create_initrd(parser, args):
             )
         check_call(["depmod", "-a", "-b", main, args.kernelver])
 
-        if ubuntu_release[0] >= 25 or (ubuntu_release[0] >= 24 and ubuntu_release[1] >= 10):
+        if release_higher_or_equal(ubuntu_release, [24, 10]):
             if not verify_missing_dlopen(main, os.path.join("/usr/lib", deb_arch)):
                 sys.exit(1)
 
