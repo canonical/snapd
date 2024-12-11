@@ -1132,6 +1132,31 @@ func (s *fdeMgrSuite) TestEFIDBXOperationAddWait(c *C) {
 	<-doneC
 }
 
+func (s *fdeMgrSuite) TestEFIDBXUpdateAffectedSnaps(c *C) {
+	// add 2 changes, ant exercise the notification mechanism
+	c.Assert(device.StampSealedKeys(dirs.GlobalRootDir, device.SealingMethodTPM), IsNil)
+
+	st := s.st
+	onClassic := true
+	s.startedManager(c, onClassic)
+
+	model := s.mockBootAssetsStateForModeenv(c)
+	s.mockDeviceInState(model)
+
+	st.Lock()
+	defer st.Unlock()
+
+	tsk := st.NewTask("foo", "foo task")
+
+	names, err := fdestate.DbxUpdateAffectedSnaps(tsk)
+	c.Assert(err, IsNil)
+	c.Check(names, DeepEquals, []string{
+		"pc",        // gadget
+		"pc-kernel", // kernel
+		"core20",    // base
+	})
+}
+
 func iterateUnlockedStateWaitingFor(st *state.State, pred func() bool) {
 	ok := false
 	for !ok {

@@ -41,6 +41,8 @@ var (
 
 	NotifyDBXUpdatePrepareDoneOK = notifyDBXUpdatePrepareDoneOK
 	DbxUpdatePreparedOKChan      = dbxUpdatePreparedOKChan
+
+	DbxUpdateAffectedSnaps = dbxUpdateAffectedSnaps
 )
 
 type ExternalOperation = externalOperation
