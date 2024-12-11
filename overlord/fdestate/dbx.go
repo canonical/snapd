@@ -245,15 +245,7 @@ func addEFISecurebootDBUpdateChange(st *state.State, method device.SealingMethod
 		return nil, err
 	}
 
-	var syncChs map[string]chan struct{}
-	val := st.Cached(dbxUpdatePrepareSyncKey{})
-	if val == nil {
-		syncChs = make(map[string]chan struct{})
-	} else {
-		syncChs = val.(map[string]chan struct{})
-	}
-	syncChs[chg.ID()] = make(chan struct{})
-	st.Cache(dbxUpdatePrepareSyncKey{}, syncChs)
+	setupDBXNotifyPrepareDoneOKChan(st, chg.ID())
 
 	return op, nil
 }
@@ -564,6 +556,20 @@ func checkDBXChangeConflicts(st *state.State) error {
 }
 
 type dbxUpdatePrepareSyncKey struct{}
+
+func setupDBXNotifyPrepareDoneOKChan(st *state.State, changeID string) {
+	var syncChs map[string]chan struct{}
+
+	val := st.Cached(dbxUpdatePrepareSyncKey{})
+	if val == nil {
+		syncChs = make(map[string]chan struct{})
+	} else {
+		syncChs = val.(map[string]chan struct{})
+	}
+
+	syncChs[changeID] = make(chan struct{})
+	st.Cache(dbxUpdatePrepareSyncKey{}, syncChs)
+}
 
 func notifyDBXUpdatePrepareDoneOK(st *state.State, changeID string) {
 	val := st.Cached(dbxUpdatePrepareSyncKey{})
