@@ -644,7 +644,7 @@ func storeUpdatePlanCore(
 			return updatePlan{}, fmt.Errorf("internal error: target created for snap without an update: %s", t.info.InstanceName())
 		}
 
-		if err := checkTargetAgainstValidationSets(t, "refresh", up.RevOpts.ValidationSets); err != nil {
+		if err := checkSnapAgainstValidationSets(t.info, t.components, "refresh", up.RevOpts.ValidationSets); err != nil {
 			return updatePlan{}, err
 		}
 	}
