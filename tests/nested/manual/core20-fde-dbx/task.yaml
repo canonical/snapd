@@ -62,7 +62,7 @@ execute: |
     remote.exec snap change --last=fde-efi-secureboot-db-update | \
         MATCH 'Done .* Prepare for external EFI DBX update'
     remote.exec snap change --last=fde-efi-secureboot-db-update | \
-        MATCH 'Do .* Reseal after External EFI DBX update'
+        MATCH 'Do .* Reseal after external EFI DBX update'
 
     # there should have been a reaseal now
     fetch_and_check_reseal_count_equal "$((reseal_count_start + 1))"
@@ -92,7 +92,7 @@ execute: |
     remote.exec snap change --last=fde-efi-secureboot-db-update | \
         MATCH 'Done .* Prepare for external EFI DBX update'
     remote.exec snap change --last=fde-efi-secureboot-db-update | \
-        MATCH 'Do .* Reseal after External EFI DBX update'
+        MATCH 'Do .* Reseal after external EFI DBX update'
 
     fetch_and_check_reseal_count_equal "$((reseal_count_start + 3))"
 
@@ -112,7 +112,7 @@ execute: |
     remote.exec snap change --last=fde-efi-secureboot-db-update | \
         MATCH 'Done .* Prepare for external EFI DBX update'
     remote.exec snap change --last=fde-efi-secureboot-db-update | \
-        MATCH 'Do .* Reseal after External EFI DBX update'
+        MATCH 'Do .* Reseal after external EFI DBX update'
 
     fetch_and_check_reseal_count_equal "$((reseal_count_start + 5))"
 
@@ -137,7 +137,7 @@ execute: |
     remote.exec snap change --last=fde-efi-secureboot-db-update | \
         MATCH 'Done .* Prepare for external EFI DBX update'
     remote.exec snap change --last=fde-efi-secureboot-db-update | \
-        MATCH 'Do .* Reseal after External EFI DBX update'
+        MATCH 'Do .* Reseal after external EFI DBX update'
 
     fetch_and_check_reseal_count_equal "$((reseal_count_start + 7))"
 
