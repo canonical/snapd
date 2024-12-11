@@ -614,8 +614,12 @@ func (s *modelSuite) testPostOfflineRemodel(c *check.C, params *testPostOfflineR
 		return chg, nil
 	})()
 
-	sis := []*snap.SideInfo{{RealName: snapName, Revision: snap.Revision{N: snapRev}}}
-	defer daemon.MockSideloadSnapsInfo(sis)()
+	infos := []*snap.Info{{SideInfo: snap.SideInfo{
+		RealName: snapName,
+		Revision: snap.R(snapRev),
+	}}}
+
+	defer daemon.MockSideloadSnapsInfo(infos)()
 
 	// create a valid model assertion
 	c.Assert(err, check.IsNil)
