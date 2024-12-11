@@ -691,8 +691,8 @@ func (s *fdeMgrSuite) TestEFIDBXUpdateAbort(c *C) {
 	c.Check(chg.IsReady(), Equals, true)
 	c.Check(chg.IsClean(), Equals, false)
 	c.Check(chg.Status(), Equals, state.UndoneStatus)
-	c.Assert(tsks[0].Status(), Equals, state.UndoneStatus)
-	c.Assert(tsks[1].Status(), Equals, state.HoldStatus)
+	c.Check(tsks[0].Status(), Equals, state.UndoneStatus)
+	c.Check(tsks[1].Status(), Equals, state.HoldStatus)
 
 	// post cleanup inspect
 	var fdeStAfter fdestate.FdeState
@@ -737,6 +737,11 @@ func (s *fdeMgrSuite) TestEFIDBXUpdateResealFailedAborts(c *C) {
 			resealForDBUPdateCalls++
 			return fmt.Errorf("mock error")
 		})()
+	defer fdestate.MockBackendResealKeyForBootChains(
+		func(mgr backend.FDEStateManager, method device.SealingMethod, rootdir string, params *boot.ResealKeyForBootChainsParams, expectReseal bool) error {
+			resealForBootChainsCalls++
+			return nil
+		})()
 
 	c.Logf("overlord loop start")
 	s.o.Loop()
@@ -770,6 +775,162 @@ func (s *fdeMgrSuite) TestEFIDBXUpdateResealFailedAborts(c *C) {
 	c.Check(chg.Status(), Equals, state.ErrorStatus)
 	c.Check(chg.Err(), ErrorMatches, "cannot perform the following tasks:\n"+
 		"- Prepare for external EFI DBX update .cannot perform initial reseal of keys for DBX update: mock error.")
+}
+
+func (s *fdeMgrSuite) TestEFIDBXUpdatePostUpdateResealFailed(c *C) {
+	// mock an error in a reseal which happens in the 'do' handler after snapd
+	// has been notified of a completed update
+	c.Assert(device.StampSealedKeys(dirs.GlobalRootDir, device.SealingMethodTPM), IsNil)
+
+	st := s.st
+	onClassic := true
+	fdemgr := s.startedManager(c, onClassic)
+	s.o.AddManager(fdemgr)
+	s.o.AddManager(s.o.TaskRunner())
+	c.Assert(s.o.StartUp(), IsNil)
+
+	model := s.mockBootAssetsStateForModeenv(c)
+	s.mockDeviceInState(model)
+
+	resealForDBUPdateCalls := 0
+	resealForBootChainsCalls := 0
+	defer fdestate.MockBackendResealKeysForSignaturesDBUpdate(
+		func(mgr backend.FDEStateManager, method device.SealingMethod, rootdir string, params *boot.ResealKeyForBootChainsParams, update []byte) error {
+			resealForDBUPdateCalls++
+			return nil
+		})()
+	defer fdestate.MockBackendResealKeyForBootChains(
+		func(mgr backend.FDEStateManager, method device.SealingMethod, rootdir string, params *boot.ResealKeyForBootChainsParams, expectReseal bool) error {
+			resealForBootChainsCalls++
+			return fmt.Errorf("mock error")
+		})()
+
+	c.Logf("overlord loop start")
+	s.o.Loop()
+	defer s.o.Stop()
+
+	err := fdestate.EFISecureBootDBUpdatePrepare(st, fdestate.EFISecurebootDBX, []byte("payload"))
+	c.Assert(err, IsNil)
+
+	st.Lock()
+	defer st.Unlock()
+
+	c.Check(resealForDBUPdateCalls, Equals, 1)
+	c.Check(resealForBootChainsCalls, Equals, 0)
+
+	st.Unlock()
+	defer st.Lock()
+
+	// cleanup triggers post update reseal
+	err = fdestate.EFISecureBootDBUpdateCleanup(st)
+	c.Assert(err, IsNil)
+
+	st.Lock()
+	defer st.Unlock()
+
+	c.Check(resealForDBUPdateCalls, Equals, 1)
+	c.Check(resealForBootChainsCalls, Equals, 1)
+
+	var fdeSt fdestate.FdeState
+	err = st.Get("fde", &fdeSt)
+	c.Assert(err, IsNil)
+	// depending on whether cleanup ran, the there can either be one or no
+	// operations in the state
+	if l := len(fdeSt.PendingExternalOperations); l == 1 {
+		c.Check(fdeSt.PendingExternalOperations[0].Status, Equals, fdestate.ErrorStatus)
+	} else if l > 1 {
+		c.Fatalf("unexpected number of operations in the state: %v", l)
+	}
+
+	// and we have change in the state, but it is in an error status already
+	chgs := st.Changes()
+	c.Assert(chgs, HasLen, 1)
+	chg := chgs[0]
+	c.Check(chg.IsReady(), Equals, true)
+	c.Check(chg.Status(), Equals, state.ErrorStatus)
+	c.Check(chg.Err(), ErrorMatches, "cannot perform the following tasks:\n"+
+		// error logged in the task
+		"- Reseal after external EFI DBX update .cannot complete post update reseal: mock error.\n"+
+		// actual error
+		"- Reseal after external EFI DBX update .mock error.")
+}
+
+func (s *fdeMgrSuite) TestEFIDBXUpdateUndoResealFails(c *C) {
+	// mock an error in a reseal which happens in the 'undo' path after snapd
+	// has been notified of a restart in the external DBX manager process
+	c.Assert(device.StampSealedKeys(dirs.GlobalRootDir, device.SealingMethodTPM), IsNil)
+
+	st := s.st
+	onClassic := true
+	fdemgr := s.startedManager(c, onClassic)
+	s.o.AddManager(fdemgr)
+	s.o.AddManager(s.o.TaskRunner())
+	c.Assert(s.o.StartUp(), IsNil)
+
+	model := s.mockBootAssetsStateForModeenv(c)
+	s.mockDeviceInState(model)
+
+	resealForDBUPdateCalls := 0
+	resealForBootChainsCalls := 0
+	defer fdestate.MockBackendResealKeysForSignaturesDBUpdate(
+		func(mgr backend.FDEStateManager, method device.SealingMethod, rootdir string, params *boot.ResealKeyForBootChainsParams, update []byte) error {
+			resealForDBUPdateCalls++
+			return nil
+		})()
+
+	defer fdestate.MockBackendResealKeyForBootChains(
+		func(mgr backend.FDEStateManager, method device.SealingMethod, rootdir string, params *boot.ResealKeyForBootChainsParams, expectReseal bool) error {
+			resealForBootChainsCalls++
+			return fmt.Errorf("mock error")
+		})()
+
+	c.Logf("overlord loop start")
+	s.o.Loop()
+	defer s.o.Stop()
+
+	err := fdestate.EFISecureBootDBUpdatePrepare(st, fdestate.EFISecurebootDBX, []byte("payload"))
+	c.Assert(err, IsNil)
+
+	st.Lock()
+	defer st.Unlock()
+
+	c.Check(resealForDBUPdateCalls, Equals, 1)
+	c.Check(resealForBootChainsCalls, Equals, 0)
+
+	st.Unlock()
+	defer st.Lock()
+
+	// 'external' DBX manger restarted
+	err = fdestate.EFISecureBootDBManagerStartup(st)
+	c.Assert(err, IsNil)
+
+	st.Lock()
+	defer st.Unlock()
+	// post cleanup inspect
+	var fdeSt fdestate.FdeState
+	err = st.Get("fde", &fdeSt)
+	c.Assert(err, IsNil)
+
+	c.Check(resealForDBUPdateCalls, Equals, 1)
+	c.Check(resealForBootChainsCalls, Equals, 1)
+
+	// task cleanup may have run
+	if l := len(fdeSt.PendingExternalOperations); l == 1 {
+		c.Check(fdeSt.PendingExternalOperations[0].Status, Equals, fdestate.ErrorStatus)
+	} else if l > 1 {
+		c.Fatalf("unexpected number of operations in the state: %v", l)
+	}
+
+	// and we have change in the state, but it is in an error status already
+	chgs := st.Changes()
+	c.Assert(chgs, HasLen, 1)
+	chg := chgs[0]
+	c.Check(chg.IsReady(), Equals, true)
+	c.Check(chg.Status(), Equals, state.ErrorStatus)
+	c.Check(chg.Err(), ErrorMatches, "cannot perform the following tasks:\n"+
+		// undo failure
+		"- Prepare for external EFI DBX update .cannot complete reseal in undo: mock error.\n"+
+		"- Reseal after external EFI DBX update .'startup' action invoked while an operation is in progress.")
 }
 
 func (s *fdeMgrSuite) TestEFIDBXCleanupNoChange(c *C) {
