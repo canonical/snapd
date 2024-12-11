@@ -197,8 +197,10 @@ func (snapsup *SnapSetup) MountDir() string {
 	return snap.MountDir(snapsup.InstanceName(), snapsup.Revision())
 }
 
-// MountFile returns the path to the snap/squashfs file that is used to mount the snap.
-func (snapsup *SnapSetup) MountFile() string {
+// BlobPath returns the path to the snap/squashfs file that backs the snap that
+// is being setup. Unless the snap was downloaded to a custom location, this
+// will be under dirs.SnapBlobDir.
+func (snapsup *SnapSetup) BlobPath() string {
 	blobDir := snapsup.DownloadBlobDir
 	if blobDir == "" {
 		blobDir = dirs.SnapBlobDir
@@ -248,7 +250,10 @@ func (compsu *ComponentSetup) Revision() snap.Revision {
 	return compsu.CompSideInfo.Revision
 }
 
-func (compsu *ComponentSetup) MountFile(instanceName string) string {
+// BlobPath returns the path to the component/squashfs file that backs the
+// component that is being setup. Unless the component was downloaded to a
+// custom location, this will be under dirs.SnapBlobDir.
+func (compsu *ComponentSetup) BlobPath(instanceName string) string {
 	if instanceName == "" {
 		instanceName = compsu.CompSideInfo.Component.SnapName
 	}

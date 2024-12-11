@@ -191,7 +191,7 @@ func (m *SnapManager) doDownloadComponent(t *state.Task, tomb *tomb.Tomb) error 
 		rate = autoRefreshRateLimited(st)
 	}
 
-	target := compsup.MountFile(snapsup.InstanceName())
+	target := compsup.BlobPath(snapsup.InstanceName())
 
 	sto := Store(st, deviceCtx)
 	meter := NewTaskProgressAdapterUnlocked(t)

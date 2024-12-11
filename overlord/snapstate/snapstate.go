@@ -1622,7 +1622,7 @@ func Download(
 		return nil, nil, err
 	}
 
-	toDownloadTo := filepath.Dir(snapsup.MountFile())
+	toDownloadTo := filepath.Dir(snapsup.BlobPath())
 
 	// TODO:COMPS: support checking for available space for components
 	if err := checkDiskSpaceDownload([]minimalInstallInfo{installSnapInfo{info}}, toDownloadTo); err != nil {
@@ -1666,7 +1666,7 @@ func Download(
 	} else {
 		// validate-snap expects this to be set, and since we know that this
 		// already should exist, we can set it here
-		snapsup.SnapPath = snapsup.MountFile()
+		snapsup.SnapPath = snapsup.BlobPath()
 	}
 
 	validate := st.NewTask("validate-snap", fmt.Sprintf(i18n.G("Fetch and check assertions for snap %q%s"), snapsup.InstanceName(), revisionStr))

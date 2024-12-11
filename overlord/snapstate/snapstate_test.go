@@ -10260,7 +10260,7 @@ func verifySnapAndComponentSetupsForDownload(c *C, begin *state.Task, ts *state.
 		expectedDownloadDir = dirs.SnapBlobDir
 	}
 
-	c.Check(snapsup.MountFile(), Equals, filepath.Join(
+	c.Check(snapsup.BlobPath(), Equals, filepath.Join(
 		expectedDownloadDir,
 		fmt.Sprintf("%s_%s.snap", snapsup.InstanceName(), snapsup.Revision()),
 	))
@@ -10284,7 +10284,7 @@ func verifySnapAndComponentSetupsForDownload(c *C, begin *state.Task, ts *state.
 			c.Assert(err, IsNil)
 			c.Check(compsup.DownloadBlobDir, Equals, downloadDir)
 
-			c.Check(compsup.MountFile(compsup.CompSideInfo.Component.SnapName), Equals, filepath.Join(
+			c.Check(compsup.BlobPath(compsup.CompSideInfo.Component.SnapName), Equals, filepath.Join(
 				expectedDownloadDir,
 				fmt.Sprintf("%s+%s_%s.comp", snapsup.InstanceName(), compsup.ComponentName(), compsup.Revision()),
 			))
@@ -10361,7 +10361,7 @@ func (s *snapmgrTestSuite) TestDownloadSpecifyDownloadDir(c *C) {
 	var snapsup snapstate.SnapSetup
 	err = downloadSnap.Get("snap-setup", &snapsup)
 	c.Assert(err, IsNil)
-	c.Check(snapsup.MountFile(), Equals, filepath.Join(downloadDir, "foo_1.snap"))
+	c.Check(snapsup.BlobPath(), Equals, filepath.Join(downloadDir, "foo_1.snap"))
 
 	validateSnap := ts.MaybeEdge(snapstate.LastBeforeLocalModificationsEdge)
 	c.Assert(validateSnap, NotNil)
