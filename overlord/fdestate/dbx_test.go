@@ -538,7 +538,7 @@ func (s *fdeMgrSuite) TestEFIDBXUpdateAndUnexpectedStartupAction(c *C) {
 	c.Check(chg.IsClean(), Equals, false)
 	c.Check(chg.Status(), Equals, state.ErrorStatus)
 	c.Check(chg.Err(), ErrorMatches, "cannot perform the following tasks:\n"+
-		"- External EFI DBX update .'startup' action invoked while an operation is in progress.")
+		"- Reseal after external EFI DBX update .'startup' action invoked while an operation is in progress.")
 	c.Check(tsk.Status(), Equals, state.ErrorStatus)
 
 	// this should return immediately, as the operation has completed
