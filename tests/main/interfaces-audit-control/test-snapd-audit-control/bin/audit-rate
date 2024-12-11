@@ -1,0 +1,11 @@
+#!/usr/bin/sh -e
+
+# Only works when run as root. Rather than set up a daemon, just assume the
+# caller will be root in the spread VM, and check that snap confinement only
+# lets this work when the audit_control capability is set.
+
+# Try to disable rate limit on audit logs. If the audit_control capability is
+# set, then this will exit 0. Since auditd is not running, it will print the
+# message "The audit system is disabled". If the audit_control capability is
+# not set, then it will exit with a non-zero status.
+auditctl -r 0
