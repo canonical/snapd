@@ -963,8 +963,20 @@ func SnapHolds(st *state.State, snaps []string) (map[string][]string, error) {
 }
 
 func sendOneInstallAction(ctx context.Context, st *state.State, snaps StoreSnap, opts Options) (store.SnapActionResult, error) {
+	return sendOneInstallOrDownloadAction(ctx, st, "install", snaps, opts)
+}
+
+func sendInstallActions(ctx context.Context, st *state.State, snaps []StoreSnap, opts Options) ([]store.SnapActionResult, error) {
+	return sendInstallOrDownloadActions(ctx, st, "install", snaps, opts)
+}
+
+func sendOneDownloadAction(ctx context.Context, st *state.State, snap StoreSnap, opts Options) (store.SnapActionResult, error) {
+	return sendOneInstallOrDownloadAction(ctx, st, "download", snap, opts)
+}
+
+func sendOneInstallOrDownloadAction(ctx context.Context, st *state.State, action string, snap StoreSnap, opts Options) (store.SnapActionResult, error) {
 	opts.ExpectOneSnap = true
-	results, err := sendInstallActions(ctx, st, []StoreSnap{snaps}, opts)
+	results, err := sendInstallOrDownloadActions(ctx, st, action, []StoreSnap{snap}, opts)
 	if err != nil {
 		return store.SnapActionResult{}, err
 	}
@@ -972,14 +984,6 @@ func sendOneInstallAction(ctx context.Context, st *state.State, snaps StoreSnap,
 		return store.SnapActionResult{}, fmt.Errorf("expected exactly one result, got %d", len(results))
 	}
 	return results[0], nil
-}
-
-func sendInstallActions(ctx context.Context, st *state.State, snaps []StoreSnap, opts Options) ([]store.SnapActionResult, error) {
-	return sendInstallOrDownloadActions(ctx, st, "install", snaps, opts)
-}
-
-func sendDownloadActions(ctx context.Context, st *state.State, snaps []StoreSnap, opts Options) ([]store.SnapActionResult, error) {
-	return sendInstallOrDownloadActions(ctx, st, "download", snaps, opts)
 }
 
 func sendInstallOrDownloadActions(ctx context.Context, st *state.State, action string, snaps []StoreSnap, opts Options) ([]store.SnapActionResult, error) {

@@ -1571,19 +1571,15 @@ func Download(
 		return nil, nil, fmt.Errorf("invalid instance name: %v", err)
 	}
 
-	sars, err := sendDownloadActions(ctx, st, []StoreSnap{{
+	sar, err := sendOneDownloadAction(ctx, st, StoreSnap{
 		InstanceName: name,
 		Components:   components,
 		RevOpts:      revOpts,
-	}}, opts)
+	}, opts)
 	if err != nil {
 		return nil, nil, err
 	}
-	if len(sars) != 1 {
-		return nil, nil, fmt.Errorf("expected exactly one result from the store, got %d", len(sars))
-	}
 
-	sar := sars[0]
 	info := sar.Info
 
 	if opts.PrereqTracker != nil {
