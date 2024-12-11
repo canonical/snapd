@@ -5726,3 +5726,59 @@ func (s *assertMgrSuite) testConfdbAssertionsAutoRefresh(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(a.Revision(), Equals, 2)
 }
+
+func (s *assertMgrSuite) TestSnapResourcePair(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	headers := map[string]interface{}{
+		"series":       "16",
+		"snap-id":      snaptest.AssertedSnapID("snap-1"),
+		"snap-name":    "snap-1",
+		"publisher-id": s.dev1Acct.AccountID(),
+		"timestamp":    time.Now().Format(time.RFC3339),
+	}
+
+	decl, err := s.storeSigning.Sign(asserts.SnapDeclarationType, headers, nil, "")
+	c.Assert(err, IsNil)
+
+	headers = map[string]interface{}{
+		"snap-id":           snaptest.AssertedSnapID("snap-1"),
+		"resource-name":     "comp",
+		"resource-revision": "11",
+		"snap-revision":     "22",
+		"developer-id":      s.dev1Acct.AccountID(),
+		"timestamp":         time.Now().Format(time.RFC3339),
+	}
+
+	signer := assertstest.SignerDB(s.storeSigning)
+	pair, err := signer.Sign(asserts.SnapResourcePairType, headers, nil, "")
+	c.Assert(err, IsNil)
+
+	for _, as := range []asserts.Assertion{s.storeSigning.StoreAccountKey(""), s.dev1Acct, s.dev1AcctKey, decl, pair} {
+		err = assertstate.Add(s.state, as)
+		c.Assert(err, IsNil)
+	}
+
+	csi := snap.ComponentSideInfo{
+		Component: naming.NewComponentRef("snap-1", "comp"),
+		Revision:  snap.R(11),
+	}
+
+	info := snap.Info{
+		SideInfo: snap.SideInfo{
+			RealName: "snap-1",
+			SnapID:   snaptest.AssertedSnapID("snap-1"),
+			Revision: snap.R(22),
+		},
+	}
+
+	found, err := assertstate.SnapResourcePair(s.state, &csi, &info)
+	c.Assert(err, IsNil)
+	c.Assert(found.ResourceRevision(), Equals, 11)
+	c.Assert(found.SnapRevision(), Equals, 22)
+	c.Assert(found.ResourceName(), Equals, "comp")
+	c.Assert(found.SnapID(), Equals, snaptest.AssertedSnapID("snap-1"))
+	c.Assert(found.Provenance(), Equals, info.Provenance())
+	c.Assert(found.DeveloperID(), Equals, s.dev1Acct.AccountID())
+}
