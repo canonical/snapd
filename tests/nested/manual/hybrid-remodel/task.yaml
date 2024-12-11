@@ -15,7 +15,6 @@ environment:
   # for the fake store
   NESTED_FAKESTORE_BLOB_DIR: $(pwd)/fake-store-blobdir
   NESTED_UBUNTU_IMAGE_SNAPPY_FORCE_SAS_URL: http://localhost:11028
-  REMOTE_SAS_URL: http://10.0.2.2:11028
 
 prepare: |
   VERSION="$(tests.nested show version)"
@@ -147,17 +146,14 @@ prepare: |
 
   systemd-run --collect --unit fakedevicesvc fakedevicesvc localhost:11029
 
-debug: |
-  journalctl -u fakestore.service
-  journalctl -u snapd.service
-
 restore: |
   systemctl stop fakedevicesvc.service || true
   "${TESTSTOOLS}/store-state" teardown-fake-store "${NESTED_FAKESTORE_BLOB_DIR}"
   tests.systemd stop-unit --remove "nested-vm"
-  rm -f /run/systemd/system/snapd.service.d/snapd-override-local.conf
-  systemctl daemon-reload || true
-  systemctl restart snapd || true
+
+debug: |
+  journalctl -u fakestore.service
+  journalctl -u snapd.service
 
 execute: |
   remote.wait-for device-initialized
