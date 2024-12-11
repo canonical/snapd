@@ -851,7 +851,7 @@ nested_configure_default_user() {
     local IMAGE_NAME
     local IMAGE_PATH
     
-    IMAGE_NAME="$(nested_get_image_path core)"
+    IMAGE_NAME="$(nested_get_image_name core)"
     IMAGE_PATH="$(realpath "$NESTED_IMAGES_DIR/$IMAGE_NAME")"
 
     # Configure the user for the vm
