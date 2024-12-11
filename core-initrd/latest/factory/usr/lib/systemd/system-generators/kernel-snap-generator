@@ -1,0 +1,69 @@
+#!/bin/sh
+
+set -eu
+
+: "${KERNEL_MNT_POINT:=/run/mnt/kernel}"
+
+if ! mountpoint -q "${KERNEL_MNT_POINT}"; then
+    exit 0
+fi
+
+# FIXME use SYSTEMD_IN_INITRD when using systemd 251+
+if [ -f /etc/initrd-release ]; then
+    sysroot=/sysroot
+    sysroot_unit=sysroot
+    target=initrd-fs.target
+else
+    sysroot=
+    sysroot_unit=
+    target=local-fs.target
+fi
+
+: "${OS_RELEASE:="${sysroot}/etc/os-release"}"
+
+# Note that /sysroot/etc/os-release is accessible when generators are
+# re-executed due to "daemon-reload" called by
+# initrd-parse-etc.service
+
+# We generate the kernel bind mount units only
+# if we are on Ubuntu Classic
+
+# Ubuntu Core will have those mounts declared in /etc/fstab, thus
+# using systemd-fstab-generator instead.
+
+if ! grep -q "^ID=ubuntu$" "${OS_RELEASE}"; then
+    exit 0
+fi
+
+# Find out kernel name / revision
+kernelPath=$(cat /sys/dev/block/"$(mountpoint --fs-devno "$KERNEL_MNT_POINT")"/loop/backing_file)
+kernelFile=$(basename "$kernelPath")
+kernelName=${kernelFile%%_*}
+rev=${kernelFile#*_}
+rev=${rev%%.*}
+
+# Mount /lib/{firmware,modules} only if there is no drivers tree created by snapd
+if [ -d /run/mnt/data/var/lib/snapd/kernel/"$kernelName"/"$rev" ]; then
+    exit 0
+fi
+
+for entry in firmware modules; do
+    what="${KERNEL_MNT_POINT}/${entry}"
+    where="${sysroot}/usr/lib/${entry}"
+    unit="usr-lib-${entry}.mount"
+    if [ -n "${sysroot_unit}" ]; then
+        unit="${sysroot_unit}-${unit}"
+    fi
+    mkdir -p "${1}/${target}.requires"
+    ln -sf "../${unit}" "${1}/${target}.requires/${unit}"
+    cat <<EOF >"${1}/${unit}"
+[Unit]
+Before=${target}
+
+[Mount]
+What=${what}
+Where=${where}
+Options=bind
+Type=none
+EOF
+done
