@@ -244,6 +244,52 @@ func (s *fdeMgrSuite) TestEFIDBXPrepareConflictSelf(c *C) {
 	})
 }
 
+func (s *fdeMgrSuite) TestEFIDBXPrepareConflictOperationNotInDoingYet(c *C) {
+	// attempting to run cleanup or startup when the operation has not yet
+	// reached Doing status raises a conflict
+	c.Assert(device.StampSealedKeys(dirs.GlobalRootDir, device.SealingMethodTPM), IsNil)
+
+	st := s.st
+	onClassic := true
+	fdemgr := s.startedManager(c, onClassic)
+	s.o.AddManager(fdemgr)
+	s.o.AddManager(s.o.TaskRunner())
+	c.Assert(s.o.StartUp(), IsNil)
+
+	model := s.mockBootAssetsStateForModeenv(c)
+	s.mockDeviceInState(model)
+
+	resealCalls := 0
+	defer fdestate.MockBackendResealKeysForSignaturesDBUpdate(func(mgr backend.FDEStateManager, method device.SealingMethod, rootdir string, params *boot.ResealKeyForBootChainsParams, update []byte) error {
+		resealCalls++
+		return nil
+	})()
+
+	st.Lock()
+	defer st.Unlock()
+
+	// mock an operation which has just been added in prepare, but the initial reseal has not yet completed
+	c.Assert(fdestate.AddExternalOperation(st, &fdestate.ExternalOperation{
+		ChangeID: "1234",
+		Kind:     "fde-efi-secureboot-db-update",
+		Status:   fdestate.PreparingStatus,
+	}), IsNil)
+
+	st.Unlock()
+	defer st.Lock()
+	err := fdestate.EFISecureBootDBUpdateCleanup(st)
+	c.Assert(err, DeepEquals, &snapstate.ChangeConflictError{
+		ChangeKind: "fde-efi-secureboot-db-update",
+		Message:    "cannot perform DBX update 'cleanup' action when conflicting actions are in progress",
+	})
+
+	err = fdestate.EFISecureBootDBManagerStartup(st)
+	c.Assert(err, DeepEquals, &snapstate.ChangeConflictError{
+		ChangeKind: "fde-efi-secureboot-db-update",
+		Message:    "cannot perform DBX update 'startup' action when conflicting actions are in progress",
+	})
+}
+
 func (s *fdeMgrSuite) TestEFIDBXPrepareConflictSnapChanges(c *C) {
 	c.Assert(device.StampSealedKeys(dirs.GlobalRootDir, device.SealingMethodTPM), IsNil)
 
