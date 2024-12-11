@@ -1675,7 +1675,7 @@ func (s *requestrulesSuite) TestPatchRule(c *C) {
 	rule = patched
 
 	// Check that patching with identical content works fine, and updates timestamp
-	newConstraints := &prompting.PatchConstraints{
+	constraintsPatch := &prompting.RuleConstraintsPatch{
 		PathPattern: rule.Constraints.PathPattern,
 		Permissions: prompting.PermissionMap{
 			"read": &prompting.PermissionEntry{
@@ -1684,7 +1684,7 @@ func (s *requestrulesSuite) TestPatchRule(c *C) {
 			},
 		},
 	}
-	patched, err = rdb.PatchRule(rule.User, rule.ID, newConstraints)
+	patched, err = rdb.PatchRule(rule.User, rule.ID, constraintsPatch)
 	c.Assert(err, IsNil)
 	s.checkWrittenRuleDB(c, append(rules[:len(rules)-1], patched))
 	s.checkNewNoticesSimple(c, nil, rule)
@@ -1696,7 +1696,7 @@ func (s *requestrulesSuite) TestPatchRule(c *C) {
 
 	rule = patched
 
-	newConstraints = &prompting.PatchConstraints{
+	constraintsPatch = &prompting.RuleConstraintsPatch{
 		Permissions: prompting.PermissionMap{
 			"execute": &prompting.PermissionEntry{
 				Outcome:  rule.Constraints.Permissions["read"].Outcome,
@@ -1704,7 +1704,7 @@ func (s *requestrulesSuite) TestPatchRule(c *C) {
 			},
 		},
 	}
-	patched, err = rdb.PatchRule(rule.User, rule.ID, newConstraints)
+	patched, err = rdb.PatchRule(rule.User, rule.ID, constraintsPatch)
 	c.Assert(err, IsNil)
 	s.checkWrittenRuleDB(c, append(rules[:len(rules)-1], patched))
 	s.checkNewNoticesSimple(c, nil, rule)
@@ -1729,7 +1729,7 @@ func (s *requestrulesSuite) TestPatchRule(c *C) {
 
 	rule = patched
 
-	newConstraints = &prompting.PatchConstraints{
+	constraintsPatch = &prompting.RuleConstraintsPatch{
 		Permissions: prompting.PermissionMap{
 			"read": &prompting.PermissionEntry{
 				Outcome:  prompting.OutcomeDeny,
@@ -1741,7 +1741,7 @@ func (s *requestrulesSuite) TestPatchRule(c *C) {
 			},
 		},
 	}
-	patched, err = rdb.PatchRule(rule.User, rule.ID, newConstraints)
+	patched, err = rdb.PatchRule(rule.User, rule.ID, constraintsPatch)
 	c.Assert(err, IsNil)
 	s.checkWrittenRuleDB(c, append(rules[:len(rules)-1], patched))
 	s.checkNewNoticesSimple(c, nil, rule)
@@ -1755,7 +1755,7 @@ func (s *requestrulesSuite) TestPatchRule(c *C) {
 
 	rule = patched
 
-	newConstraints = &prompting.PatchConstraints{
+	constraintsPatch = &prompting.RuleConstraintsPatch{
 		Permissions: prompting.PermissionMap{
 			"read": &prompting.PermissionEntry{
 				Outcome:  prompting.OutcomeDeny,
@@ -1769,7 +1769,7 @@ func (s *requestrulesSuite) TestPatchRule(c *C) {
 			},
 		},
 	}
-	patched, err = rdb.PatchRule(rule.User, rule.ID, newConstraints)
+	patched, err = rdb.PatchRule(rule.User, rule.ID, constraintsPatch)
 	c.Assert(err, IsNil)
 	s.checkWrittenRuleDB(c, append(rules[:len(rules)-1], patched))
 	s.checkNewNoticesSimple(c, nil, rule)
@@ -1785,7 +1785,7 @@ func (s *requestrulesSuite) TestPatchRule(c *C) {
 
 	rule = patched
 
-	newConstraints = &prompting.PatchConstraints{
+	constraintsPatch = &prompting.RuleConstraintsPatch{
 		Permissions: prompting.PermissionMap{
 			"read": &prompting.PermissionEntry{
 				Outcome:  origRule.Constraints.Permissions["read"].Outcome,
@@ -1794,7 +1794,7 @@ func (s *requestrulesSuite) TestPatchRule(c *C) {
 			"execute": nil,
 		},
 	}
-	patched, err = rdb.PatchRule(rule.User, rule.ID, newConstraints)
+	patched, err = rdb.PatchRule(rule.User, rule.ID, constraintsPatch)
 	c.Assert(err, IsNil)
 	s.checkWrittenRuleDB(c, append(rules[:len(rules)-1], patched))
 	s.checkNewNoticesSimple(c, nil, rule)
@@ -1852,7 +1852,7 @@ func (s *requestrulesSuite) TestPatchRuleErrors(c *C) {
 	s.checkNewNoticesSimple(c, nil)
 
 	// Invalid lifespan
-	badConstraints := &prompting.PatchConstraints{
+	badPatch := &prompting.RuleConstraintsPatch{
 		Permissions: prompting.PermissionMap{
 			"read": &prompting.PermissionEntry{
 				Outcome:  prompting.OutcomeAllow,
@@ -1860,14 +1860,14 @@ func (s *requestrulesSuite) TestPatchRuleErrors(c *C) {
 			},
 		},
 	}
-	result, err = rdb.PatchRule(rule.User, rule.ID, badConstraints)
+	result, err = rdb.PatchRule(rule.User, rule.ID, badPatch)
 	c.Check(err, ErrorMatches, prompting_errors.NewRuleLifespanSingleError(prompting.SupportedRuleLifespans).Error())
 	c.Check(result, IsNil)
 	s.checkWrittenRuleDB(c, rules)
 	s.checkNewNoticesSimple(c, nil)
 
 	// Conflicting rule
-	conflictingConstraints := &prompting.PatchConstraints{
+	conflictingPatch := &prompting.RuleConstraintsPatch{
 		Permissions: prompting.PermissionMap{
 			"read": &prompting.PermissionEntry{
 				Outcome:  prompting.OutcomeDeny,
@@ -1883,7 +1883,7 @@ func (s *requestrulesSuite) TestPatchRuleErrors(c *C) {
 			},
 		},
 	}
-	result, err = rdb.PatchRule(rule.User, rule.ID, conflictingConstraints)
+	result, err = rdb.PatchRule(rule.User, rule.ID, conflictingPatch)
 	c.Check(err, ErrorMatches, fmt.Sprintf("cannot patch rule: %v", prompting_errors.ErrRuleConflict))
 	c.Check(result, IsNil)
 	s.checkWrittenRuleDB(c, rules)
@@ -1943,7 +1943,7 @@ func (s *requestrulesSuite) TestPatchRuleExpired(c *C) {
 
 	// Patching doesn't conflict with already-expired rules
 	rule := rules[2]
-	newConstraints := &prompting.PatchConstraints{
+	constraintsPatch := &prompting.RuleConstraintsPatch{
 		Permissions: prompting.PermissionMap{
 			"read": &prompting.PermissionEntry{
 				Outcome:  prompting.OutcomeDeny,
@@ -1959,7 +1959,7 @@ func (s *requestrulesSuite) TestPatchRuleExpired(c *C) {
 			},
 		},
 	}
-	patched, err := rdb.PatchRule(rule.User, rule.ID, newConstraints)
+	patched, err := rdb.PatchRule(rule.User, rule.ID, constraintsPatch)
 	c.Assert(err, IsNil)
 	s.checkWrittenRuleDB(c, []*requestrules.Rule{patched})
 	expectedNotices := []*noticeInfo{

@@ -308,7 +308,7 @@ type removeRulesSelector struct {
 }
 
 type patchRuleContents struct {
-	Constraints *prompting.PatchConstraints `json:"constraints,omitempty"`
+	Constraints *prompting.RuleConstraintsPatch `json:"constraints,omitempty"`
 }
 
 type postRulesRequestBody struct {

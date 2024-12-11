@@ -669,7 +669,7 @@ func (s *constraintsSuite) TestPatchRuleConstraintsHappy(c *C) {
 
 	for i, testCase := range []struct {
 		initial *prompting.RuleConstraints
-		patch   *prompting.PatchConstraints
+		patch   *prompting.RuleConstraintsPatch
 		final   *prompting.RuleConstraints
 	}{
 		{
@@ -688,7 +688,7 @@ func (s *constraintsSuite) TestPatchRuleConstraintsHappy(c *C) {
 					},
 				},
 			},
-			patch: &prompting.PatchConstraints{},
+			patch: &prompting.RuleConstraintsPatch{},
 			final: &prompting.RuleConstraints{
 				PathPattern: pathPattern,
 				Permissions: prompting.RulePermissionMap{
@@ -721,7 +721,7 @@ func (s *constraintsSuite) TestPatchRuleConstraintsHappy(c *C) {
 					},
 				},
 			},
-			patch: &prompting.PatchConstraints{
+			patch: &prompting.RuleConstraintsPatch{
 				Permissions: prompting.PermissionMap{
 					"write": nil,
 					"execute": &prompting.PermissionEntry{
@@ -767,7 +767,7 @@ func (s *constraintsSuite) TestPatchRuleConstraintsHappy(c *C) {
 					},
 				},
 			},
-			patch: &prompting.PatchConstraints{
+			patch: &prompting.RuleConstraintsPatch{
 				Permissions: prompting.PermissionMap{
 					"execute": &prompting.PermissionEntry{
 						Outcome:  prompting.OutcomeAllow,
@@ -819,7 +819,7 @@ func (s *constraintsSuite) TestPatchRuleConstraintsUnhappy(c *C) {
 			},
 		},
 	}
-	goodPatch := &prompting.PatchConstraints{
+	goodPatch := &prompting.RuleConstraintsPatch{
 		Permissions: prompting.PermissionMap{
 			"write": nil,
 			"execute": &prompting.PermissionEntry{
@@ -834,7 +834,7 @@ func (s *constraintsSuite) TestPatchRuleConstraintsUnhappy(c *C) {
 	c.Check(err, ErrorMatches, `invalid interface: "foo"`)
 	c.Check(result, IsNil)
 
-	badPatch := &prompting.PatchConstraints{
+	badPatch := &prompting.RuleConstraintsPatch{
 		Permissions: prompting.PermissionMap{
 			"read": &prompting.PermissionEntry{
 				Outcome:  prompting.OutcomeAllow,

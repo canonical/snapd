@@ -57,7 +57,7 @@ type fakeInterfacesRequestsManager struct {
 	iface            string
 	id               prompting.IDType // used for prompt ID or rule ID
 	ruleConstraints  *prompting.Constraints
-	patchConstraints *prompting.PatchConstraints
+	constraintsPatch *prompting.RuleConstraintsPatch
 	replyConstraints *prompting.ReplyConstraints
 	outcome          prompting.OutcomeType
 	lifespan         prompting.LifespanType
@@ -117,10 +117,10 @@ func (m *fakeInterfacesRequestsManager) RuleWithID(userID uint32, ruleID prompti
 	return m.rule, m.err
 }
 
-func (m *fakeInterfacesRequestsManager) PatchRule(userID uint32, ruleID prompting.IDType, constraints *prompting.PatchConstraints) (*requestrules.Rule, error) {
+func (m *fakeInterfacesRequestsManager) PatchRule(userID uint32, ruleID prompting.IDType, constraintsPatch *prompting.RuleConstraintsPatch) (*requestrules.Rule, error) {
 	m.userID = userID
 	m.id = ruleID
-	m.patchConstraints = constraints
+	m.constraintsPatch = constraintsPatch
 	return m.rule, m.err
 }
 
@@ -1015,7 +1015,7 @@ func (s *promptingSuite) TestPostRulePatchHappy(c *C) {
 		},
 	}
 
-	constraints := &prompting.PatchConstraints{
+	constraintsPatch := &prompting.RuleConstraintsPatch{
 		PathPattern: mustParsePathPattern(c, "/home/test/Pictures/**/*.{png,jpg}"),
 		Permissions: prompting.PermissionMap{
 			"read": &prompting.PermissionEntry{
@@ -1029,7 +1029,7 @@ func (s *promptingSuite) TestPostRulePatchHappy(c *C) {
 		},
 	}
 	contents := &daemon.PatchRuleContents{
-		Constraints: constraints,
+		Constraints: constraintsPatch,
 	}
 	postBody := &daemon.PostRuleRequestBody{
 		Action:    "patch",
@@ -1042,7 +1042,7 @@ func (s *promptingSuite) TestPostRulePatchHappy(c *C) {
 
 	// Check parameters
 	c.Check(s.manager.userID, Equals, uint32(999))
-	c.Check(s.manager.patchConstraints, DeepEquals, contents.Constraints)
+	c.Check(s.manager.constraintsPatch, DeepEquals, contents.Constraints)
 
 	// Check return value
 	rule, ok := rsp.Result.(*requestrules.Rule)

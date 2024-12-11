@@ -57,7 +57,7 @@ type Manager interface {
 	AddRule(userID uint32, snap string, iface string, constraints *prompting.Constraints) (*requestrules.Rule, error)
 	RemoveRules(userID uint32, snap string, iface string) ([]*requestrules.Rule, error)
 	RuleWithID(userID uint32, ruleID prompting.IDType) (*requestrules.Rule, error)
-	PatchRule(userID uint32, ruleID prompting.IDType, constraints *prompting.PatchConstraints) (*requestrules.Rule, error)
+	PatchRule(userID uint32, ruleID prompting.IDType, constraintsPatch *prompting.RuleConstraintsPatch) (*requestrules.Rule, error)
 	RemoveRule(userID uint32, ruleID prompting.IDType) (*requestrules.Rule, error)
 }
 
@@ -522,11 +522,11 @@ func (m *InterfacesRequestsManager) RuleWithID(userID uint32, ruleID prompting.I
 
 // PatchRule updates the rule with the given ID using the provided contents.
 // Any of the given fields which are empty/nil are not updated in the rule.
-func (m *InterfacesRequestsManager) PatchRule(userID uint32, ruleID prompting.IDType, constraints *prompting.PatchConstraints) (*requestrules.Rule, error) {
+func (m *InterfacesRequestsManager) PatchRule(userID uint32, ruleID prompting.IDType, constraintsPatch *prompting.RuleConstraintsPatch) (*requestrules.Rule, error) {
 	m.lock.Lock()
 	defer m.lock.Unlock()
 
-	patchedRule, err := m.rules.PatchRule(userID, ruleID, constraints)
+	patchedRule, err := m.rules.PatchRule(userID, ruleID, constraintsPatch)
 	if err != nil {
 		return nil, err
 	}

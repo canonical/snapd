@@ -1003,18 +1003,19 @@ func (rdb *RuleDB) RemoveRulesForSnapInterface(user uint32, snap string, iface s
 }
 
 // PatchRule modifies the rule with the given ID by updating the rule's
-// constraints for any constraint field or permission which is set/non-empty.
+// constraints for any patch field or permission which is set/non-empty.
 //
-// If the path pattern is nil, it is left unchanged from the existing rule.
-// Any permissions which are omitted from the new permissions map are left
-// unchanged from the existing rule. To remove an existing permission from
-// the rule, the permission should map to an empty permission entry.
+// If the path pattern is nil in the patch, it is left unchanged from the
+// existing rule. Any permissions which are omitted from the permissions map
+// in the patch are left unchanged from the existing rule. To remove an
+// existing permission from the rule, the permission in the patch should map
+// to nil.
 //
 // Permission entries must be provided as complete units, containing both
 // outcome and lifespan (and duration, if lifespan is timespan). Since neither
 // outcome nor lifespan are omitempty, the unmarshaller enforces this for us.
 //
-// Even if the given new rule contents exactly match the existing rule contents,
+// Even if the given patch contents exactly match the existing rule contents,
 // the timestamp of the rule is updated to the current time. If there is any
 // error while modifying the rule, the rule is rolled back to its previous
 // unmodified state, leaving the database unchanged. If the database is changed,
@@ -1023,7 +1024,7 @@ func (rdb *RuleDB) RemoveRulesForSnapInterface(user uint32, snap string, iface s
 // XXX: Is there a client use-case for this API method?
 // Clients can always delete a rule and re-add it later, which is basically what
 // this method already does.
-func (rdb *RuleDB) PatchRule(user uint32, id prompting.IDType, patchConstraints *prompting.PatchConstraints) (r *Rule, err error) {
+func (rdb *RuleDB) PatchRule(user uint32, id prompting.IDType, constraintsPatch *prompting.RuleConstraintsPatch) (r *Rule, err error) {
 	rdb.mutex.Lock()
 	defer rdb.mutex.Unlock()
 
@@ -1044,10 +1045,10 @@ func (rdb *RuleDB) PatchRule(user uint32, id prompting.IDType, patchConstraints 
 
 	currTime := time.Now()
 
-	if patchConstraints == nil {
-		patchConstraints = &prompting.PatchConstraints{}
+	if constraintsPatch == nil {
+		constraintsPatch = &prompting.RuleConstraintsPatch{}
 	}
-	ruleConstraints, err := patchConstraints.PatchRuleConstraints(origRule.Constraints, origRule.Interface, currTime)
+	ruleConstraints, err := constraintsPatch.PatchRuleConstraints(origRule.Constraints, origRule.Interface, currTime)
 	if err != nil {
 		return nil, err
 	}
