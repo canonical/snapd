@@ -46,11 +46,15 @@ void sc_init_apparmor_support(struct sc_apparmor *apparmor)
 	// Use aa_is_enabled() to see if apparmor is available in the kernel and
 	// enabled at boot time. If it isn't log a diagnostic message and assume
 	// we're not confined.
-	if (aa_is_enabled() != true) {
+	if (aa_is_enabled() == 0) {
 		switch (errno) {
 		case ENOSYS:
 			debug
 			    ("apparmor extensions to the system are not available");
+			break;
+		case EBUSY:
+			debug
+			    ("apparmor is enabled but the interface is private");
 			break;
 		case ECANCELED:
 			debug
@@ -59,15 +63,17 @@ void sc_init_apparmor_support(struct sc_apparmor *apparmor)
 		case EPERM:
 			// NOTE: fall-through
 		case EACCES:
-			debug
-			    ("insufficient permissions to determine if apparmor is enabled");
-			// since snap-confine is setuid root this should
-			// never happen so likely someone is trying to
-			// manipulate our execution environment - fail hard
-
-			// fall-through
+			// Since snap-confine is setuid root this should never happen so
+			// likely someone is trying to manipulate our execution environment
+			// - fail hard.
+			die("insufficient permissions to determine if apparmor is enabled");
+			break;
 		case ENOENT:
+			die("apparmor is enabled but the interface is not available");
+			break;
 		case ENOMEM:
+			die("insufficient memory to determine if apparmor is available");
+			break;
 		default:
 			// this shouldn't happen under normal usage so it
 			// is possible someone is trying to manipulate our
@@ -102,13 +108,15 @@ void sc_init_apparmor_support(struct sc_apparmor *apparmor)
 	}
 	// There are several possible results for the confinement type (mode) that
 	// are checked for below.
-	if (mode != NULL && strcmp(mode, SC_AA_COMPLAIN_STR) == 0) {
+	if (mode == NULL) {
+		apparmor->mode = SC_AA_NOT_APPLICABLE;
+	} else if (sc_streq(mode, SC_AA_COMPLAIN_STR)) {
 		apparmor->mode = SC_AA_COMPLAIN;
-	} else if (mode != NULL && strcmp(mode, SC_AA_ENFORCE_STR) == 0) {
+	} else if (sc_streq(mode, SC_AA_ENFORCE_STR)) {
 		apparmor->mode = SC_AA_ENFORCE;
-	} else if (mode != NULL && strcmp(mode, SC_AA_MIXED_STR) == 0) {
+	} else if (sc_streq(mode, SC_AA_MIXED_STR)) {
 		apparmor->mode = SC_AA_MIXED;
-	} else if (mode != NULL && strcmp(mode, SC_AA_KILL_STR) == 0) {
+	} else if (sc_streq(mode, SC_AA_KILL_STR)) {
 		apparmor->mode = SC_AA_KILL;
 	} else {
 		apparmor->mode = SC_AA_INVALID;
