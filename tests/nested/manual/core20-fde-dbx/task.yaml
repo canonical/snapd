@@ -59,7 +59,10 @@ execute: |
         remote.exec "sudo snap debug api -X POST -H 'Content-Type: application/json' /v2/system-secureboot" > prepare.out
 
     jq -r .status < prepare.out | MATCH "OK"
-    remote.exec snap change --last=fde-efi-secureboot-db-update | MATCH 'Do .* External EFI DBX update'
+    remote.exec snap change --last=fde-efi-secureboot-db-update | \
+        MATCH 'Done .* Prepare for after External EFI DBX update'
+    remote.exec snap change --last=fde-efi-secureboot-db-update | \
+        MATCH 'Do .* Reseal after External EFI DBX update'
 
     # there should have been a reaseal now
     fetch_and_check_reseal_count_equal "$((reseal_count_start + 1))"
@@ -81,14 +84,17 @@ execute: |
 
     # which caused reseal
     fetch_and_check_reseal_count_equal "$((reseal_count_start + 2))"
-    remote.exec snap change --last=fde-efi-secureboot-db-update | MATCH 'Done .* External EFI DBX update'
+    remote.exec snap change --last=fde-efi-secureboot-db-update | MATCH 'Done .* Reseal after external EFI DBX update'
 
     echo "Attempt a valid 'prepare' request"
     # another request will conflict
     echo "{\"action\":\"efi-secureboot-update-db-prepare\",\"key-database\":\"DBX\",\"payload\":\"$update_payload\"}" | \
         remote.exec "sudo snap debug api -X POST -H 'Content-Type: application/json' /v2/system-secureboot" > prepare.out
     jq -r .status < prepare.out | MATCH "OK"
-    remote.exec snap change --last=fde-efi-secureboot-db-update | MATCH 'Do .* External EFI DBX update'
+    remote.exec snap change --last=fde-efi-secureboot-db-update | \
+        MATCH 'Done .* Prepare for after External EFI DBX update'
+    remote.exec snap change --last=fde-efi-secureboot-db-update | \
+        MATCH 'Do .* Reseal after External EFI DBX update'
 
     fetch_and_check_reseal_count_equal "$((reseal_count_start + 3))"
 
@@ -98,7 +104,7 @@ execute: |
 
     fetch_and_check_reseal_count_equal "$((reseal_count_start + 4))"
     remote.exec snap change --last=fde-efi-secureboot-db-update > snap-change-abort.out
-    MATCH 'Error .* External EFI DBX update' < snap-change-abort.out
+    MATCH 'Error .* Reseal after external EFI DBX update' < snap-change-abort.out
     MATCH 'Undone .* Prepare for external EFI DBX update' < snap-change-abort.out
 
     echo "Attempt a valid 'prepare' request, followed by abort"
@@ -106,7 +112,10 @@ execute: |
     echo "{\"action\":\"efi-secureboot-update-db-prepare\",\"key-database\":\"DBX\",\"payload\":\"$update_payload\"}" | \
         remote.exec "sudo snap debug api -X POST -H 'Content-Type: application/json' /v2/system-secureboot" > prepare.out
     jq -r .status < prepare.out | MATCH "OK"
-    remote.exec snap change --last=fde-efi-secureboot-db-update | MATCH 'Do .* External EFI DBX update'
+    remote.exec snap change --last=fde-efi-secureboot-db-update | \
+        MATCH 'Done .* Prepare for after External EFI DBX update'
+    remote.exec snap change --last=fde-efi-secureboot-db-update | \
+        MATCH 'Do .* Reseal after External EFI DBX update'
 
     fetch_and_check_reseal_count_equal "$((reseal_count_start + 5))"
 
@@ -117,7 +126,7 @@ execute: |
     remote.exec sudo snap watch --last=fde-efi-secureboot-db-update || true
 
     remote.exec snap change --last=fde-efi-secureboot-db-update > snap-change-abort-explicit.out
-    MATCH 'Hold .* External EFI DBX update' < snap-change-abort-explicit.out
+    MATCH 'Hold .* Reseal after external EFI DBX update' < snap-change-abort-explicit.out
     MATCH 'Undone .* Prepare for external EFI DBX update' < snap-change-abort-explicit.out
 
     fetch_and_check_reseal_count_equal "$((reseal_count_start + 6))"
@@ -128,7 +137,10 @@ execute: |
     echo "{\"action\":\"efi-secureboot-update-db-prepare\",\"key-database\":\"DBX\",\"payload\":\"$update_payload\"}" | \
         remote.exec "sudo snap debug api -X POST -H 'Content-Type: application/json' /v2/system-secureboot" > prepare.out
     jq -r .status < prepare.out | MATCH "OK"
-    remote.exec snap change --last=fde-efi-secureboot-db-update | MATCH 'Do .* External EFI DBX update'
+    remote.exec snap change --last=fde-efi-secureboot-db-update | \
+        MATCH 'Done .* Prepare for after External EFI DBX update'
+    remote.exec snap change --last=fde-efi-secureboot-db-update | \
+        MATCH 'Do .* Reseal after External EFI DBX update'
 
     fetch_and_check_reseal_count_equal "$((reseal_count_start + 7))"
 
@@ -143,6 +155,6 @@ execute: |
     echo '{"action":"efi-secureboot-update-db-cleanup"}' | \
         remote.exec "sudo snap debug api -X POST -H 'Content-Type: application/json' /v2/system-secureboot" > cleanup.out
     jq -r .status < prepare.out | MATCH "OK"
-    remote.exec snap change --last=fde-efi-secureboot-db-update | MATCH 'Done .* External EFI DBX update'
+    remote.exec snap change --last=fde-efi-secureboot-db-update | MATCH 'Done .* Reseal after external EFI DBX update'
 
     fetch_and_check_reseal_count_equal "$((reseal_count_start + 8))"
