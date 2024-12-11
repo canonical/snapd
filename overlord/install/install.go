@@ -79,6 +79,10 @@ type EncryptionSupportInfo struct {
 	// UnavailbleWarning describes why encryption support is not
 	// available in case it is optional.
 	UnavailableWarning string
+
+	// PassphraseAuthAvailable is set if the passphrase authentication
+	// is supported.
+	PassphraseAuthAvailable bool
 }
 
 var (
@@ -155,6 +159,10 @@ func GetEncryptionSupportInfo(model *asserts.Model, tpmMode secboot.TPMProvision
 	// If encryption is available check if the gadget is
 	// compatible with encryption.
 	if res.Available {
+		// TODO: Set res.PassphraseAuthAvailable when passphrase
+		// support is implemented.
+		// TODO: Check that the target system supports passphrase
+		// authentication (e.g. supported kernel/snapd versions).
 		opts := &gadget.ValidationConstraints{
 			EncryptedData: true,
 		}

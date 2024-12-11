@@ -156,9 +156,20 @@ const (
 	StorageEncryptionSupportDefective = "defective"
 )
 
+type StorageEncryptionFeature string
+
+const (
+	// Indicates that passphrase authentication is available.
+	StorageEncryptionFeaturePassphraseAuth StorageEncryptionFeature = "passphrase-auth"
+	// TODO: Add PIN option when secboot support lands.
+)
+
 type StorageEncryption struct {
 	// Support describes the level of hardware support available.
 	Support StorageEncryptionSupport `json:"support"`
+
+	// Features is a list of available encryption features.
+	Features []StorageEncryptionFeature `json:"features"`
 
 	// StorageSafety can have values of asserts.StorageSafety
 	StorageSafety string `json:"storage-safety,omitempty"`
