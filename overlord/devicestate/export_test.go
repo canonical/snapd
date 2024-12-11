@@ -641,3 +641,7 @@ func MockDisksDMCryptUUIDFromMountPoint(f func(mountpoint string) (string, error
 		disksDMCryptUUIDFromMountPoint = old
 	}
 }
+
+func VolumesAuthOptionsKeyByLabel(label string) volumesAuthOptionsKey {
+	return volumesAuthOptionsKey{label}
+}

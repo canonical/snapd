@@ -2590,7 +2590,7 @@ func (s *installStepSuite) TestDeviceManagerInstallSetupStorageEncryptionEmptyLa
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	chg, err := devicestate.InstallSetupStorageEncryption(s.state, "", mockOnVolumes)
+	chg, err := devicestate.InstallSetupStorageEncryption(s.state, "", mockOnVolumes, nil)
 	c.Check(err, ErrorMatches, "cannot setup storage encryption with an empty system label")
 	c.Check(chg, IsNil)
 }
@@ -2599,16 +2599,31 @@ func (s *installStepSuite) TestDeviceManagerInstallSetupStorageEncryptionNoVolum
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	chg, err := devicestate.InstallSetupStorageEncryption(s.state, "1234", nil)
+	chg, err := devicestate.InstallSetupStorageEncryption(s.state, "1234", nil, nil)
 	c.Check(err, ErrorMatches, "cannot setup storage encryption without volumes data")
 	c.Check(chg, IsNil)
 }
 
-func (s *installStepSuite) TestDeviceManagerInstallSetupStorageEncryptionTasksAndChange(c *C) {
+func (s *installStepSuite) TestDeviceManagerInstallSetupStorageEncryptionVolumeAuthError(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	chg, err := devicestate.InstallSetupStorageEncryption(s.state, "1234", mockOnVolumes)
+	volumeOpts := &secboot.VolumesAuthOptions{Mode: "bad-mode", Passphrase: "1234"}
+	chg, err := devicestate.InstallSetupStorageEncryption(s.state, "1234", mockOnVolumes, volumeOpts)
+	c.Check(err, ErrorMatches, `invalid authentication mode "bad-mode", only "passphrase" is supported`)
+	c.Check(chg, IsNil)
+}
+
+func (s *installStepSuite) testDeviceManagerInstallSetupStorageEncryptionTasksAndChange(c *C, withVolumesAuth bool) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	var volumesAuth *secboot.VolumesAuthOptions
+	if withVolumesAuth {
+		volumesAuth = &secboot.VolumesAuthOptions{Mode: secboot.AuthModePassphrase, Passphrase: "1234"}
+	}
+
+	chg, err := devicestate.InstallSetupStorageEncryption(s.state, "1234", mockOnVolumes, volumesAuth)
 	c.Assert(err, IsNil)
 	c.Assert(chg, NotNil)
 	c.Check(chg.Summary(), Matches, `Setup storage encryption for installing system "1234"`)
@@ -2624,6 +2639,25 @@ func (s *installStepSuite) TestDeviceManagerInstallSetupStorageEncryptionTasksAn
 	err = tskInstallFinish.Get("on-volumes", &onVols)
 	c.Assert(err, IsNil)
 	c.Assert(onVols, DeepEquals, mockOnVolumes)
+
+	cached := s.state.Cached(devicestate.VolumesAuthOptionsKeyByLabel("1234"))
+	if withVolumesAuth {
+		c.Assert(cached, NotNil)
+		cachedVolumesAuth := cached.(*secboot.VolumesAuthOptions)
+		c.Check(cachedVolumesAuth, Equals, volumesAuth)
+	} else {
+		c.Assert(cached, IsNil)
+	}
+}
+
+func (s *installStepSuite) TestDeviceManagerInstallSetupStorageEncryptionTasksAndChange(c *C) {
+	const withVolumesAuth = false
+	s.testDeviceManagerInstallSetupStorageEncryptionTasksAndChange(c, withVolumesAuth)
+}
+
+func (s *installStepSuite) TestDeviceManagerInstallSetupStorageEncryptionTasksAndChangeWithVolumesAuth(c *C) {
+	const withVolumesAuth = true
+	s.testDeviceManagerInstallSetupStorageEncryptionTasksAndChange(c, withVolumesAuth)
 }
 
 // TODO make this test a happy one
@@ -2633,7 +2667,7 @@ func (s *installStepSuite) TestDeviceManagerInstallSetupStorageEncryptionRunthro
 	defer st.Unlock()
 
 	s.state.Set("seeded", true)
-	chg, err := devicestate.InstallSetupStorageEncryption(s.state, "1234", mockOnVolumes)
+	chg, err := devicestate.InstallSetupStorageEncryption(s.state, "1234", mockOnVolumes, nil)
 	c.Assert(err, IsNil)
 
 	st.Unlock()

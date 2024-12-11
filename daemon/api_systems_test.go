@@ -1225,9 +1225,11 @@ func (s *systemsSuite) TestSystemInstallActionSetupStorageEncryptionCallsDevices
 	nCalls := 0
 	var gotOnVolumes map[string]*gadget.Volume
 	var gotLabel string
-	r := daemon.MockDevicestateInstallSetupStorageEncryption(func(st *state.State, label string, onVolumes map[string]*gadget.Volume) (*state.Change, error) {
+	var gotVolumesAuth *secboot.VolumesAuthOptions
+	r := daemon.MockDevicestateInstallSetupStorageEncryption(func(st *state.State, label string, onVolumes map[string]*gadget.Volume, volumesAuth *secboot.VolumesAuthOptions) (*state.Change, error) {
 		gotLabel = label
 		gotOnVolumes = onVolumes
+		gotVolumesAuth = volumesAuth
 		nCalls++
 		return st.NewChange("foo", "..."), nil
 	})
@@ -1240,6 +1242,10 @@ func (s *systemsSuite) TestSystemInstallActionSetupStorageEncryptionCallsDevices
 			"pc": map[string]interface{}{
 				"bootloader": "grub",
 			},
+		},
+		"volumes-auth": map[string]interface{}{
+			"mode":       "passphrase",
+			"passphrase": "1234",
 		},
 	}
 	b, err := json.Marshal(body)
@@ -1261,6 +1267,10 @@ func (s *systemsSuite) TestSystemInstallActionSetupStorageEncryptionCallsDevices
 		"pc": {
 			Bootloader: "grub",
 		},
+	})
+	c.Check(gotVolumesAuth, check.DeepEquals, &secboot.VolumesAuthOptions{
+		Mode:       secboot.AuthModePassphrase,
+		Passphrase: "1234",
 	})
 
 	c.Check(soon, check.Equals, 1)

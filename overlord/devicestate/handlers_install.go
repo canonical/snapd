@@ -1156,6 +1156,10 @@ func (m *DeviceManager) doInstallFinish(t *state.Task, _ *tomb.Tomb) error {
 	return nil
 }
 
+type volumesAuthOptionsKey struct {
+	systemLabel string
+}
+
 func (m *DeviceManager) doInstallSetupStorageEncryption(t *state.Task, _ *tomb.Tomb) error {
 	st := t.State()
 	st.Lock()
@@ -1208,6 +1212,7 @@ func (m *DeviceManager) doInstallSetupStorageEncryption(t *state.Task, _ *tomb.T
 
 	// TODO:ICE: support secboot.EncryptionTypeLUKSWithICE in the API
 	encType := device.EncryptionTypeLUKS
+	// TODO: Attach volumes auth options (volumesAuthOptionsKey) to encryption setup data.
 	encryptionSetupData, err := installEncryptPartitions(onVolumes, encType, systemAndSeeds.Model, mntPtForType[snap.TypeGadget], mntPtForType[snap.TypeKernel], perfTimings)
 	if err != nil {
 		return err

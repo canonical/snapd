@@ -33,6 +33,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"time"
 
 	"github.com/canonical/go-tpm2"
 	"github.com/canonical/go-tpm2/linux"
@@ -3131,4 +3132,39 @@ func (s *secbootSuite) TestReadKeyFileFDEHookV1(c *C) {
 	c.Check(keyLoader.KeyData, IsNil)
 	c.Check(keyLoader.SealedKeyObject, IsNil)
 	c.Check(keyLoader.FDEHookKeyV1, DeepEquals, []byte(`USK$blahblah`))
+}
+
+func (s *secbootSuite) TestVolumesAuthOptionsValidateHappy(c *C) {
+	var opts *secboot.VolumesAuthOptions
+
+	// VolumesAuthOptions can be nil
+	c.Assert(opts.Validate(), IsNil)
+	// Valid kdf types
+	for _, kdfType := range []string{"argon2i", "argon2id", "pbkdf2"} {
+		opts = &secboot.VolumesAuthOptions{
+			Mode:       secboot.AuthModePassphrase,
+			Passphrase: "1234",
+			KDFType:    kdfType,
+			KDFTime:    2 * time.Second,
+		}
+		c.Assert(opts.Validate(), IsNil)
+	}
+	// KDF type and time are optional
+	opts = &secboot.VolumesAuthOptions{Mode: secboot.AuthModePassphrase, Passphrase: "1234"}
+	c.Assert(opts.Validate(), IsNil)
+}
+
+func (s *secbootSuite) TestVolumesAuthOptionsValidateError(c *C) {
+	// Bad auth mode
+	opts := &secboot.VolumesAuthOptions{Mode: "bad-mode", Passphrase: "1234"}
+	c.Assert(opts.Validate(), ErrorMatches, `invalid authentication mode "bad-mode", only "passphrase" is supported`)
+	// Empty passphrase
+	opts = &secboot.VolumesAuthOptions{Mode: secboot.AuthModePassphrase}
+	c.Assert(opts.Validate(), ErrorMatches, "passphrase cannot be empty")
+	// Bad kdf type
+	opts = &secboot.VolumesAuthOptions{Mode: secboot.AuthModePassphrase, Passphrase: "1234", KDFType: "bad-type"}
+	c.Assert(opts.Validate(), ErrorMatches, `invalid kdf type "bad-type", only "argon2i", "argon2id" and "pbkdf2" are supported`)
+	// Negative kdf time
+	opts = &secboot.VolumesAuthOptions{Mode: secboot.AuthModePassphrase, Passphrase: "1234", KDFTime: -1}
+	c.Assert(opts.Validate(), ErrorMatches, "kdf time cannot be negative")
 }
