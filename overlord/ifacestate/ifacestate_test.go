@@ -7036,7 +7036,7 @@ func (s *interfaceManagerSuite) TestInitInterfacesRequestsManagerError(c *C) {
 	defer s.state.Unlock()
 	warns := s.state.AllWarnings()
 	c.Check(warns, HasLen, 1)
-	c.Check(warns[0].String(), Matches, fmt.Sprintf(`failed to start prompting backend: %v\nprompting will be inactive until snapd is restarted`, createError))
+	c.Check(warns[0].String(), Matches, fmt.Sprintf(`cannot start prompting backend: %v; prompting will be inactive until snapd is restarted`, createError))
 }
 
 func (s *interfaceManagerSuite) TestStopInterfacesRequestsManagerError(c *C) {

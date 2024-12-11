@@ -224,7 +224,7 @@ func (m *InterfaceManager) StartUp() error {
 				// warning so the user knows prompting is not current running.
 				m.state.Lock()
 				defer m.state.Unlock()
-				m.state.AddWarning(fmt.Sprintf("failed to start prompting backend: %v\nprompting will be inactive until snapd is restarted", err), nil)
+				m.state.AddWarning(fmt.Sprintf("cannot start prompting backend: %v; prompting will be inactive until snapd is restarted", err), nil)
 			}
 		}()
 	}
