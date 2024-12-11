@@ -372,6 +372,9 @@ func (m *FDEManager) undoEFISecurebootDBUpdatePrepare(t *state.Task, tomb *tomb.
 	case ErrorStatus:
 		// operation status already indicates error, which means that it failed
 		// in the efi-secureboot-db-update handler
+
+		// TODO should we perform a reseal? one attempt in the 'do' handler
+		// already failed
 		t.Logf("action already in error state with error: %v", op.Err)
 		return nil
 	case DoingStatus, AbortingStatus:
@@ -395,11 +398,14 @@ func (m *FDEManager) undoEFISecurebootDBUpdatePrepare(t *state.Task, tomb *tomb.
 			op.SetFailed(reason)
 		}
 
-		if err := updateExternalOperation(st, op); err != nil {
-			return err
+		if updateErr := updateExternalOperation(st, op); updateErr != nil {
+			return updateErr
 		}
 
 		t.Logf("external action state updated to %v: %v", op.Status, op.Err)
+		if err != nil {
+			return fmt.Errorf("cannot complete reseal in undo: %v", err)
+		}
 		return nil
 	}
 
