@@ -17,16 +17,33 @@
  *
  */
 
-package requestrules
+package strutil
 
 import (
-	"time"
+	"fmt"
 )
 
-var JoinInternalErrors = joinInternalErrors
-
-type RulesDBJSON rulesDBJSON
-
-func (rule *Rule) Validate(currTime time.Time) (expired bool, err error) {
-	return rule.validate(currTime)
+// JoinErrors returns an error that wraps the given errors.
+// Any nil error values are discarded.
+// Join returns nil if every value in errs is nil.
+//
+// TODO: replace with errors.Join() once we're on golang v1.20+
+//
+// This is a lossy implementation of errors.Join, where only the first non-nil
+// error is preserved in a state which can be unwrapped.
+func JoinErrors(errs ...error) error {
+	var nonNilErrs []error
+	for _, e := range errs {
+		if e != nil {
+			nonNilErrs = append(nonNilErrs, e)
+		}
+	}
+	if len(nonNilErrs) == 0 {
+		return nil
+	}
+	err := nonNilErrs[0]
+	for _, e := range nonNilErrs[1:] {
+		err = fmt.Errorf("%w\n%v", err, e)
+	}
+	return err
 }

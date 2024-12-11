@@ -290,19 +290,16 @@ var getInterfaceManager = func(c *Command) interfaceManager {
 }
 
 type postPromptBody struct {
-	Outcome     prompting.OutcomeType  `json:"action"`
-	Lifespan    prompting.LifespanType `json:"lifespan"`
-	Duration    string                 `json:"duration,omitempty"`
-	Constraints *prompting.Constraints `json:"constraints"`
+	Outcome     prompting.OutcomeType       `json:"action"`
+	Lifespan    prompting.LifespanType      `json:"lifespan"`
+	Duration    string                      `json:"duration,omitempty"`
+	Constraints *prompting.ReplyConstraints `json:"constraints"`
 }
 
 type addRuleContents struct {
 	Snap        string                 `json:"snap"`
 	Interface   string                 `json:"interface"`
 	Constraints *prompting.Constraints `json:"constraints"`
-	Outcome     prompting.OutcomeType  `json:"outcome"`
-	Lifespan    prompting.LifespanType `json:"lifespan"`
-	Duration    string                 `json:"duration,omitempty"`
 }
 
 type removeRulesSelector struct {
@@ -311,10 +308,7 @@ type removeRulesSelector struct {
 }
 
 type patchRuleContents struct {
-	Constraints *prompting.Constraints `json:"constraints,omitempty"`
-	Outcome     prompting.OutcomeType  `json:"outcome,omitempty"`
-	Lifespan    prompting.LifespanType `json:"lifespan,omitempty"`
-	Duration    string                 `json:"duration,omitempty"`
+	Constraints *prompting.RuleConstraintsPatch `json:"constraints,omitempty"`
 }
 
 type postRulesRequestBody struct {
@@ -465,7 +459,7 @@ func postRules(c *Command, r *http.Request, user *auth.UserState) Response {
 		if postBody.AddRule == nil {
 			return BadRequest(`must include "rule" field in request body when action is "add"`)
 		}
-		newRule, err := getInterfaceManager(c).InterfacesRequestsManager().AddRule(userID, postBody.AddRule.Snap, postBody.AddRule.Interface, postBody.AddRule.Constraints, postBody.AddRule.Outcome, postBody.AddRule.Lifespan, postBody.AddRule.Duration)
+		newRule, err := getInterfaceManager(c).InterfacesRequestsManager().AddRule(userID, postBody.AddRule.Snap, postBody.AddRule.Interface, postBody.AddRule.Constraints)
 		if err != nil {
 			return promptingError(err)
 		}
@@ -542,7 +536,7 @@ func postRule(c *Command, r *http.Request, user *auth.UserState) Response {
 		if postBody.PatchRule == nil {
 			return BadRequest(`must include "rule" field in request body when action is "patch"`)
 		}
-		patchedRule, err := getInterfaceManager(c).InterfacesRequestsManager().PatchRule(userID, ruleID, postBody.PatchRule.Constraints, postBody.PatchRule.Outcome, postBody.PatchRule.Lifespan, postBody.PatchRule.Duration)
+		patchedRule, err := getInterfaceManager(c).InterfacesRequestsManager().PatchRule(userID, ruleID, postBody.PatchRule.Constraints)
 		if err != nil {
 			return promptingError(err)
 		}

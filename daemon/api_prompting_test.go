@@ -52,15 +52,17 @@ type fakeInterfacesRequestsManager struct {
 	err          error
 
 	// Store most recent received values
-	userID         uint32
-	snap           string
-	iface          string
-	id             prompting.IDType // used for prompt ID or rule ID
-	constraints    *prompting.Constraints
-	outcome        prompting.OutcomeType
-	lifespan       prompting.LifespanType
-	duration       string
-	clientActivity bool
+	userID           uint32
+	snap             string
+	iface            string
+	id               prompting.IDType // used for prompt ID or rule ID
+	ruleConstraints  *prompting.Constraints
+	constraintsPatch *prompting.RuleConstraintsPatch
+	replyConstraints *prompting.ReplyConstraints
+	outcome          prompting.OutcomeType
+	lifespan         prompting.LifespanType
+	duration         string
+	clientActivity   bool
 }
 
 func (m *fakeInterfacesRequestsManager) Prompts(userID uint32, clientActivity bool) ([]*requestprompts.Prompt, error) {
@@ -76,10 +78,10 @@ func (m *fakeInterfacesRequestsManager) PromptWithID(userID uint32, promptID pro
 	return m.prompt, m.err
 }
 
-func (m *fakeInterfacesRequestsManager) HandleReply(userID uint32, promptID prompting.IDType, constraints *prompting.Constraints, outcome prompting.OutcomeType, lifespan prompting.LifespanType, duration string, clientActivity bool) ([]prompting.IDType, error) {
+func (m *fakeInterfacesRequestsManager) HandleReply(userID uint32, promptID prompting.IDType, constraints *prompting.ReplyConstraints, outcome prompting.OutcomeType, lifespan prompting.LifespanType, duration string, clientActivity bool) ([]prompting.IDType, error) {
 	m.userID = userID
 	m.id = promptID
-	m.constraints = constraints
+	m.replyConstraints = constraints
 	m.outcome = outcome
 	m.lifespan = lifespan
 	m.duration = duration
@@ -94,14 +96,11 @@ func (m *fakeInterfacesRequestsManager) Rules(userID uint32, snap string, iface 
 	return m.rules, m.err
 }
 
-func (m *fakeInterfacesRequestsManager) AddRule(userID uint32, snap string, iface string, constraints *prompting.Constraints, outcome prompting.OutcomeType, lifespan prompting.LifespanType, duration string) (*requestrules.Rule, error) {
+func (m *fakeInterfacesRequestsManager) AddRule(userID uint32, snap string, iface string, constraints *prompting.Constraints) (*requestrules.Rule, error) {
 	m.userID = userID
 	m.snap = snap
 	m.iface = iface
-	m.constraints = constraints
-	m.outcome = outcome
-	m.lifespan = lifespan
-	m.duration = duration
+	m.ruleConstraints = constraints
 	return m.rule, m.err
 }
 
@@ -118,13 +117,10 @@ func (m *fakeInterfacesRequestsManager) RuleWithID(userID uint32, ruleID prompti
 	return m.rule, m.err
 }
 
-func (m *fakeInterfacesRequestsManager) PatchRule(userID uint32, ruleID prompting.IDType, constraints *prompting.Constraints, outcome prompting.OutcomeType, lifespan prompting.LifespanType, duration string) (*requestrules.Rule, error) {
+func (m *fakeInterfacesRequestsManager) PatchRule(userID uint32, ruleID prompting.IDType, constraintsPatch *prompting.RuleConstraintsPatch) (*requestrules.Rule, error) {
 	m.userID = userID
 	m.id = ruleID
-	m.constraints = constraints
-	m.outcome = outcome
-	m.lifespan = lifespan
-	m.duration = duration
+	m.constraintsPatch = constraintsPatch
 	return m.rule, m.err
 }
 
@@ -706,7 +702,7 @@ func (s *promptingSuite) TestPostPromptHappy(c *C) {
 		prompting.IDType(0xF00BA4),
 	}
 
-	constraints := &prompting.Constraints{
+	constraints := &prompting.ReplyConstraints{
 		PathPattern: mustParsePathPattern(c, "/home/test/Pictures/**/*.{png,svg}"),
 		Permissions: []string{"read", "execute"},
 	}
@@ -724,7 +720,7 @@ func (s *promptingSuite) TestPostPromptHappy(c *C) {
 	// Check parameters
 	c.Check(s.manager.userID, Equals, uint32(1000))
 	c.Check(s.manager.id, Equals, prompting.IDType(0x0123456789abcdef))
-	c.Check(s.manager.constraints, DeepEquals, contents.Constraints)
+	c.Check(s.manager.replyConstraints, DeepEquals, contents.Constraints)
 	c.Check(s.manager.outcome, Equals, contents.Outcome)
 	c.Check(s.manager.lifespan, Equals, contents.Lifespan)
 	c.Check(s.manager.duration, Equals, contents.Duration)
@@ -782,13 +778,15 @@ func (s *promptingSuite) TestGetRulesHappy(c *C) {
 				User:      1234,
 				Snap:      "firefox",
 				Interface: "home",
-				Constraints: &prompting.Constraints{
+				Constraints: &prompting.RuleConstraints{
 					PathPattern: mustParsePathPattern(c, "/foo/bar"),
-					Permissions: []string{"write"},
+					Permissions: prompting.RulePermissionMap{
+						"write": &prompting.RulePermissionEntry{
+							Outcome:  prompting.OutcomeDeny,
+							Lifespan: prompting.LifespanForever,
+						},
+					},
 				},
-				Outcome:    prompting.OutcomeDeny,
-				Lifespan:   prompting.LifespanForever,
-				Expiration: time.Now(),
 			},
 		}
 
@@ -817,26 +815,34 @@ func (s *promptingSuite) TestPostRulesAddHappy(c *C) {
 		User:      11235,
 		Snap:      "firefox",
 		Interface: "home",
-		Constraints: &prompting.Constraints{
+		Constraints: &prompting.RuleConstraints{
 			PathPattern: mustParsePathPattern(c, "/foo/bar/baz"),
-			Permissions: []string{"write"},
+			Permissions: prompting.RulePermissionMap{
+				"write": &prompting.RulePermissionEntry{
+					Outcome:  prompting.OutcomeDeny,
+					Lifespan: prompting.LifespanForever,
+				},
+			},
 		},
-		Outcome:    prompting.OutcomeDeny,
-		Lifespan:   prompting.LifespanForever,
-		Expiration: time.Now(),
 	}
 
 	constraints := &prompting.Constraints{
 		PathPattern: mustParsePathPattern(c, "/home/test/{foo,bar,baz}/**/*.{png,svg}"),
-		Permissions: []string{"read", "write"},
+		Permissions: prompting.PermissionMap{
+			"read": &prompting.PermissionEntry{
+				Outcome:  prompting.OutcomeAllow,
+				Lifespan: prompting.LifespanForever,
+			},
+			"write": &prompting.PermissionEntry{
+				Outcome:  prompting.OutcomeAllow,
+				Lifespan: prompting.LifespanForever,
+			},
+		},
 	}
 	contents := &daemon.AddRuleContents{
 		Snap:        "thunderbird",
 		Interface:   "home",
 		Constraints: constraints,
-		Outcome:     prompting.OutcomeAllow,
-		Lifespan:    prompting.LifespanForever,
-		Duration:    "",
 	}
 	postBody := &daemon.PostRulesRequestBody{
 		Action:  "add",
@@ -851,10 +857,7 @@ func (s *promptingSuite) TestPostRulesAddHappy(c *C) {
 	c.Check(s.manager.userID, Equals, uint32(11235))
 	c.Check(s.manager.snap, Equals, contents.Snap)
 	c.Check(s.manager.iface, Equals, contents.Interface)
-	c.Check(s.manager.constraints, DeepEquals, contents.Constraints)
-	c.Check(s.manager.outcome, Equals, contents.Outcome)
-	c.Check(s.manager.lifespan, Equals, contents.Lifespan)
-	c.Check(s.manager.duration, Equals, contents.Duration)
+	c.Check(s.manager.ruleConstraints, DeepEquals, contents.Constraints)
 
 	// Check return value
 	rule, ok := rsp.Result.(*requestrules.Rule)
@@ -888,7 +891,6 @@ func (s *promptingSuite) TestPostRulesRemoveHappy(c *C) {
 		s.manager = &fakeInterfacesRequestsManager{}
 
 		// Set the rules to return
-		var timeZero time.Time
 		s.manager.rules = []*requestrules.Rule{
 			{
 				ID:        prompting.IDType(1234),
@@ -896,13 +898,15 @@ func (s *promptingSuite) TestPostRulesRemoveHappy(c *C) {
 				User:      1001,
 				Snap:      "thunderird",
 				Interface: "home",
-				Constraints: &prompting.Constraints{
+				Constraints: &prompting.RuleConstraints{
 					PathPattern: mustParsePathPattern(c, "/foo/bar/baz/qux"),
-					Permissions: []string{"write"},
+					Permissions: prompting.RulePermissionMap{
+						"write": &prompting.RulePermissionEntry{
+							Outcome:  prompting.OutcomeDeny,
+							Lifespan: prompting.LifespanForever,
+						},
+					},
 				},
-				Outcome:    prompting.OutcomeDeny,
-				Lifespan:   prompting.LifespanForever,
-				Expiration: timeZero,
 			},
 			{
 				ID:        prompting.IDType(5678),
@@ -910,13 +914,19 @@ func (s *promptingSuite) TestPostRulesRemoveHappy(c *C) {
 				User:      1001,
 				Snap:      "thunderbird",
 				Interface: "home",
-				Constraints: &prompting.Constraints{
+				Constraints: &prompting.RuleConstraints{
 					PathPattern: mustParsePathPattern(c, "/fizz/buzz"),
-					Permissions: []string{"read", "execute"},
+					Permissions: prompting.RulePermissionMap{
+						"read": &prompting.RulePermissionEntry{
+							Outcome:  prompting.OutcomeAllow,
+							Lifespan: prompting.LifespanTimespan,
+						},
+						"execute": &prompting.RulePermissionEntry{
+							Outcome:  prompting.OutcomeAllow,
+							Lifespan: prompting.LifespanTimespan,
+						},
+					},
 				},
-				Outcome:    prompting.OutcomeAllow,
-				Lifespan:   prompting.LifespanTimespan,
-				Expiration: time.Now(),
 			},
 		}
 
@@ -955,13 +965,16 @@ func (s *promptingSuite) TestGetRuleHappy(c *C) {
 		User:      1005,
 		Snap:      "thunderbird",
 		Interface: "home",
-		Constraints: &prompting.Constraints{
+		Constraints: &prompting.RuleConstraints{
 			PathPattern: mustParsePathPattern(c, "/home/test/Videos/**/*.{mkv,mp4,mov}"),
-			Permissions: []string{"read"},
+			Permissions: prompting.RulePermissionMap{
+				"read": &prompting.RulePermissionEntry{
+					Outcome:    prompting.OutcomeAllow,
+					Lifespan:   prompting.LifespanTimespan,
+					Expiration: time.Now().Add(-24 * time.Hour),
+				},
+			},
 		},
-		Outcome:    prompting.OutcomeAllow,
-		Lifespan:   prompting.LifespanTimespan,
-		Expiration: time.Now().Add(-24 * time.Hour),
 	}
 
 	rsp := s.makeSyncReq(c, "GET", "/v2/interfaces/requests/rules/000000000000012B", 1005, nil)
@@ -981,31 +994,42 @@ func (s *promptingSuite) TestPostRulePatchHappy(c *C) {
 
 	s.daemon(c)
 
-	var timeZero time.Time
 	s.manager.rule = &requestrules.Rule{
 		ID:        prompting.IDType(0x01123581321),
 		Timestamp: time.Now(),
 		User:      999,
 		Snap:      "gimp",
 		Interface: "home",
-		Constraints: &prompting.Constraints{
+		Constraints: &prompting.RuleConstraints{
 			PathPattern: mustParsePathPattern(c, "/home/test/Pictures/**/*.{png,jpg}"),
-			Permissions: []string{"read", "write"},
+			Permissions: prompting.RulePermissionMap{
+				"read": &prompting.RulePermissionEntry{
+					Outcome:  prompting.OutcomeAllow,
+					Lifespan: prompting.LifespanForever,
+				},
+				"write": &prompting.RulePermissionEntry{
+					Outcome:  prompting.OutcomeAllow,
+					Lifespan: prompting.LifespanForever,
+				},
+			},
 		},
-		Outcome:    prompting.OutcomeAllow,
-		Lifespan:   prompting.LifespanForever,
-		Expiration: timeZero,
 	}
 
-	constraints := &prompting.Constraints{
+	constraintsPatch := &prompting.RuleConstraintsPatch{
 		PathPattern: mustParsePathPattern(c, "/home/test/Pictures/**/*.{png,jpg}"),
-		Permissions: []string{"read", "write"},
+		Permissions: prompting.PermissionMap{
+			"read": &prompting.PermissionEntry{
+				Outcome:  prompting.OutcomeAllow,
+				Lifespan: prompting.LifespanForever,
+			},
+			"write": &prompting.PermissionEntry{
+				Outcome:  prompting.OutcomeAllow,
+				Lifespan: prompting.LifespanForever,
+			},
+		},
 	}
 	contents := &daemon.PatchRuleContents{
-		Constraints: constraints,
-		Outcome:     prompting.OutcomeAllow,
-		Lifespan:    prompting.LifespanForever,
-		Duration:    "",
+		Constraints: constraintsPatch,
 	}
 	postBody := &daemon.PostRuleRequestBody{
 		Action:    "patch",
@@ -1018,10 +1042,7 @@ func (s *promptingSuite) TestPostRulePatchHappy(c *C) {
 
 	// Check parameters
 	c.Check(s.manager.userID, Equals, uint32(999))
-	c.Check(s.manager.constraints, DeepEquals, contents.Constraints)
-	c.Check(s.manager.outcome, Equals, contents.Outcome)
-	c.Check(s.manager.lifespan, Equals, contents.Lifespan)
-	c.Check(s.manager.duration, Equals, contents.Duration)
+	c.Check(s.manager.constraintsPatch, DeepEquals, contents.Constraints)
 
 	// Check return value
 	rule, ok := rsp.Result.(*requestrules.Rule)
@@ -1034,20 +1055,25 @@ func (s *promptingSuite) TestPostRuleRemoveHappy(c *C) {
 
 	s.daemon(c)
 
-	var timeZero time.Time
 	s.manager.rule = &requestrules.Rule{
 		ID:        prompting.IDType(0x01123581321),
 		Timestamp: time.Now(),
 		User:      100,
 		Snap:      "gimp",
 		Interface: "home",
-		Constraints: &prompting.Constraints{
+		Constraints: &prompting.RuleConstraints{
 			PathPattern: mustParsePathPattern(c, "/home/test/Pictures/**/*.{png,jpg}"),
-			Permissions: []string{"read", "write"},
+			Permissions: prompting.RulePermissionMap{
+				"read": &prompting.RulePermissionEntry{
+					Outcome:  prompting.OutcomeAllow,
+					Lifespan: prompting.LifespanForever,
+				},
+				"write": &prompting.RulePermissionEntry{
+					Outcome:  prompting.OutcomeAllow,
+					Lifespan: prompting.LifespanForever,
+				},
+			},
 		},
-		Outcome:    prompting.OutcomeAllow,
-		Lifespan:   prompting.LifespanForever,
-		Expiration: timeZero,
 	}
 	postBody := &daemon.PostRuleRequestBody{
 		Action: "remove",

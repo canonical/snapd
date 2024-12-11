@@ -23,7 +23,3 @@ var (
 	InterfacePermissionsAvailable = interfacePermissionsAvailable
 	InterfaceFilePermissionsMaps  = interfaceFilePermissionsMaps
 )
-
-func (c *Constraints) ValidatePermissions(iface string) error {
-	return c.validatePermissions(iface)
-}

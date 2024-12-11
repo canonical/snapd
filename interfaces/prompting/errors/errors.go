@@ -51,9 +51,8 @@ var (
 	ErrRuleDBInconsistent = errors.New("internal error: interfaces requests rule database left inconsistent")
 
 	// Errors which are used internally and should never be returned over the API
-	ErrNoMatchingRule          = errors.New("no rule matches the given path")
-	ErrInvalidID               = errors.New("invalid ID: format must be parsable as uint64")
-	ErrRuleExpirationInThePast = errors.New("cannot have expiration time in the past")
+	ErrNoMatchingRule = errors.New("no rule matches the given path")
+	ErrInvalidID      = errors.New("invalid ID: format must be parsable as uint64")
 )
 
 // Marker for UnsupportedValueError, should never be returned as an actual
@@ -125,6 +124,9 @@ func NewInvalidPermissionsError(iface string, unsupported []string, supported []
 }
 
 func NewPermissionsListEmptyError(iface string, supported []string) *UnsupportedValueError {
+	// TODO: change language to "permissions empty" rather than "permissions list empty",
+	// since permissions now come as a list in prompt replies but as a map when creating
+	// or modifying rules directly.
 	return &UnsupportedValueError{
 		Field:     "permissions",
 		Msg:       fmt.Sprintf("invalid permissions for %s interface: permissions list empty", iface),
