@@ -1655,10 +1655,10 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemRemod
 	s.setupSnapDeclForNameAndID(c, "bar", s.ss.AssertedSnapID("bar"), "canonical")
 	s.setupSnapRevisionForFileAndID(c, barSnap, s.ss.AssertedSnapID("bar"), "canonical", snap.R(100))
 	// when download completes, the files will be at /var/lib/snapd/snap
-	c.Assert(os.MkdirAll(filepath.Dir(snapsupFoo.MountFile()), 0755), IsNil)
-	c.Assert(os.Rename(fooSnap, snapsupFoo.MountFile()), IsNil)
-	c.Assert(os.MkdirAll(filepath.Dir(snapsupBar.MountFile()), 0755), IsNil)
-	c.Assert(os.Rename(barSnap, snapsupBar.MountFile()), IsNil)
+	c.Assert(os.MkdirAll(filepath.Dir(snapsupFoo.BlobPath()), 0755), IsNil)
+	c.Assert(os.Rename(fooSnap, snapsupFoo.BlobPath()), IsNil)
+	c.Assert(os.MkdirAll(filepath.Dir(snapsupBar.BlobPath()), 0755), IsNil)
+	c.Assert(os.Rename(barSnap, snapsupBar.BlobPath()), IsNil)
 	tSnapsup1.Set("snap-setup", snapsupFoo)
 	tSnapsup2.Set("snap-setup", snapsupBar)
 
@@ -3417,7 +3417,7 @@ func (s *deviceMgrSystemsCreateSuite) testDeviceManagerCreateRecoverySystemValid
 
 		s.setupSnapDeclForNameAndID(c, snapsup.SideInfo.RealName, snapsup.SideInfo.SnapID, "canonical")
 		s.setupSnapRevisionForFileAndID(
-			c, snapsup.MountFile(), snapsup.SideInfo.SnapID, "canonical", snapRevisions[snapsup.SideInfo.RealName],
+			c, snapsup.BlobPath(), snapsup.SideInfo.SnapID, "canonical", snapRevisions[snapsup.SideInfo.RealName],
 		)
 
 		return nil

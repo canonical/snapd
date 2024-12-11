@@ -204,7 +204,7 @@ func fetchAssertsAndValidateComponent(st *state.State, compsup *snapstate.Compon
 	// run this task, since we may need to download a new snap-resource-pair.
 	compPath := compsup.CompPath
 	if compPath == "" {
-		compPath = compsup.MountFile(snapsup.InstanceName())
+		compPath = compsup.BlobPath(snapsup.InstanceName())
 	}
 
 	sha3_384, compSize, err := asserts.SnapFileSHA3_384(compPath)
