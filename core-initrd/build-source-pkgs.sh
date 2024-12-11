@@ -1,5 +1,10 @@
 #!/bin/bash -exu
 
+# This scripts cleans-up the core-initrd subfolder and pulls all necessary bits
+# from snapd to create the ubuntu-core-initramfs source package for each
+# supported Ubuntu release. It is meant to be called inside the core-initrd
+# folder.
+
 git clean -ffdx
 
 # The current commit must be in the repo to be able to get the dependencies
@@ -44,6 +49,8 @@ sed 's#@libexecdir@#/usr/lib#' ../../data/systemd/snapd.recovery-chooser-trigger
     snapd/snapd.recovery-chooser-trigger.service
 popd
 
+# Go through the different supported Ubuntu releases, creating source
+# packages for them.
 no_link=(debian go.mod go.sum cmd snapd vendor)
 for dir in */debian; do
     rel=${dir%/debian}
