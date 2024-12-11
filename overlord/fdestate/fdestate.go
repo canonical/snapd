@@ -350,7 +350,9 @@ func withFdeState(st *state.State, op func(fdeSt *FdeState) (modified bool, err 
 	return nil
 }
 
-// fdeRelevantSnaps returns a list of snaps that are relevant for FDE
+// fdeRelevantSnaps returns a list of snaps that are relevant in the context of
+// FDE and associated boot policies. Specifically this includes the kernel,
+// gadget and base snaps.
 func fdeRelevantSnaps(st *state.State) ([]string, error) {
 	devCtx, err := snapstate.DeviceCtx(st, nil, nil)
 	if err != nil {
