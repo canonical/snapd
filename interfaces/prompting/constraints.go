@@ -178,31 +178,32 @@ func (c *ReplyConstraints) ToConstraints(iface string, outcome OutcomeType, life
 	return constraints, nil
 }
 
-// PatchConstraints hold partial rule contents which will be used to modify an
-// existing rule. When snapd modifies the rule using PatchConstraints, it
-// converts the PatchConstraints to RuleConstraints, using the rule's existing
-// constraints wherever a field is omitted from the PatchConstraints.
+// RuleConstraintsPatch hold partial rule contents which will be used to modify
+// an existing rule. When snapd modifies the rule using RuleConstraintsPatch,
+// it converts the RuleConstraintsPatch to RuleConstraints, using the rule's
+// existing constraints wherever a field is omitted from the
+// RuleConstraintsPatch.
 //
 // Any permissions which are omitted from the new permission map are left
 // unchanged from the existing rule. To remove an existing permission from the
 // rule, the permission should map to null.
-type PatchConstraints struct {
+type RuleConstraintsPatch struct {
 	PathPattern *patterns.PathPattern `json:"path-pattern,omitempty"`
 	Permissions PermissionMap         `json:"permissions,omitempty"`
 }
 
-// PatchRuleConstraints validates the receiving PatchConstraints and uses the
-// existing rule constraints to construct a new RuleConstraints.
+// PatchRuleConstraints validates the receiving RuleConstraintsPatch and uses
+// the given existing rule constraints to construct a new RuleConstraints.
 //
 // If the path pattern or permissions fields are omitted, they are left
 // unchanged from the existing rule. If the permissions field is present in
-// the patch constraints, then any permissions which are omitted from the
-// patch constrants' permission map are left unchanged from the existing rule.
-// To remove an an existing permission from the rule, the permission should map
-// to null in the permission map of the patch constraints.
+// the patch, then any permissions which are omitted from the patch's
+// permission map are left unchanged from the existing rule. To remove an
+// existing permission from the rule, the permission should map to null in the
+// permission map of the patch.
 //
 // The existing rule constraints should never be modified.
-func (c *PatchConstraints) PatchRuleConstraints(existing *RuleConstraints, iface string, currTime time.Time) (*RuleConstraints, error) {
+func (c *RuleConstraintsPatch) PatchRuleConstraints(existing *RuleConstraints, iface string, currTime time.Time) (*RuleConstraints, error) {
 	ruleConstraints := &RuleConstraints{
 		PathPattern: c.PathPattern,
 	}
@@ -213,7 +214,7 @@ func (c *PatchConstraints) PatchRuleConstraints(existing *RuleConstraints, iface
 		ruleConstraints.Permissions = existing.Permissions
 		return ruleConstraints, nil
 	}
-	// Permissions are specified in the patch constraints, need to merge them
+	// Permissions are specified in the patch, need to merge them
 	newPermissions := make(RulePermissionMap, len(c.Permissions)+len(existing.Permissions))
 	// Pre-populate newPermissions with all the non-expired existing permissions
 	for perm, entry := range existing.Permissions {

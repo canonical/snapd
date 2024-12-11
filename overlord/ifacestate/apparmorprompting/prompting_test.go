@@ -1323,7 +1323,7 @@ func (s *apparmorpromptingSuite) TestAddRuleWithIDPatchRemove(c *C) {
 
 	// Patch rule to now cover the outstanding prompt
 	whenPatched := time.Now()
-	newConstraints := &prompting.PatchConstraints{
+	constraintsPatch := &prompting.RuleConstraintsPatch{
 		PathPattern: mustParsePathPattern(c, "/home/test/{foo,bar,baz}"),
 		Permissions: prompting.PermissionMap{
 			"read": &prompting.PermissionEntry{
@@ -1336,7 +1336,7 @@ func (s *apparmorpromptingSuite) TestAddRuleWithIDPatchRemove(c *C) {
 			},
 		},
 	}
-	patched, err := mgr.PatchRule(s.defaultUser, rule.ID, newConstraints)
+	patched, err := mgr.PatchRule(s.defaultUser, rule.ID, constraintsPatch)
 	c.Assert(err, IsNil)
 	s.checkRecordedRuleUpdateNotices(c, whenPatched, 1)
 
