@@ -218,7 +218,13 @@ func (m *InterfaceManager) StartUp() error {
 				// This is done before profilesNeedRegeneration, so profiles
 				// will only be regenerated if prompting is newly enabled and
 				// the backends were successfully created.
-				// TODO: also set "apparmor-prompting" flag to false?
+
+				// Do not set "apparmor-prompting" flag to false, since the
+				// user intends for prompting to be enabled, but do record a
+				// warning so the user knows prompting is not current running.
+				m.state.Lock()
+				defer m.state.Unlock()
+				m.state.AddWarning(fmt.Sprintf("cannot start prompting backend: %v; prompting will be inactive until snapd is restarted", err), nil)
 			}
 		}()
 	}
