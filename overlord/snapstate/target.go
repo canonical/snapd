@@ -318,7 +318,7 @@ func (s *storeInstallGoal) toInstall(ctx context.Context, st *state.State, opts 
 			return nil, fmt.Errorf("internal error: snap to install was not requested: %s", t.info.InstanceName())
 		}
 
-		if err := checkTargetAgainstValidationSets(t, "install", sn.RevOpts.ValidationSets); err != nil {
+		if err := checkSnapAgainstValidationSets(t.info, t.components, "install", sn.RevOpts.ValidationSets); err != nil {
 			return nil, err
 		}
 	}
@@ -326,31 +326,13 @@ func (s *storeInstallGoal) toInstall(ctx context.Context, st *state.State, opts 
 	return installs, err
 }
 
-func checkTargetAgainstValidationSets(target target, action string, vsets *snapasserts.ValidationSets) error {
-	constraints, err := vsets.Presence(target.info)
+func checkSnapAgainstValidationSets(info *snap.Info, components []ComponentSetup, action string, vsets *snapasserts.ValidationSets) error {
+	constraints, err := vsets.Presence(info)
 	if err != nil {
 		return err
 	}
 
-	if err := checkSnapAgainstConstraints(target.info.InstanceName(), target.info.Revision, constraints, action); err != nil {
-		return err
-	}
-
-	comps := make(map[string]snap.Revision, len(target.components))
-	for _, comp := range target.components {
-		comps[comp.ComponentName()] = comp.Revision()
-	}
-
-	return checkComponentsAgainstConstraints(target.info.SnapName(), comps, constraints, action)
-}
-
-func checkSnapActionAgainstValidationSets(sar store.SnapActionResult, components []ComponentSetup, action string, vsets *snapasserts.ValidationSets) error {
-	constraints, err := vsets.Presence(sar.Info)
-	if err != nil {
-		return err
-	}
-
-	if err := checkSnapAgainstConstraints(sar.InstanceName(), sar.Revision, constraints, action); err != nil {
+	if err := checkSnapAgainstConstraints(info.InstanceName(), info.Revision, constraints, action); err != nil {
 		return err
 	}
 
@@ -359,7 +341,7 @@ func checkSnapActionAgainstValidationSets(sar store.SnapActionResult, components
 		comps[comp.ComponentName()] = comp.Revision()
 	}
 
-	return checkComponentsAgainstConstraints(sar.SnapName(), comps, constraints, action)
+	return checkComponentsAgainstConstraints(info.SnapName(), comps, constraints, action)
 }
 
 func checkSnapAgainstConstraints(

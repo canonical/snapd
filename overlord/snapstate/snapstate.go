@@ -1618,7 +1618,7 @@ func Download(
 		compsups[i].DownloadBlobDir = blobDirectory
 	}
 
-	if err := checkSnapActionAgainstValidationSets(sar, compsups, "download", revOpts.ValidationSets); err != nil {
+	if err := checkSnapAgainstValidationSets(sar.Info, compsups, "download", revOpts.ValidationSets); err != nil {
 		return nil, nil, err
 	}
 
