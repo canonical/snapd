@@ -3,11 +3,11 @@ base: core22
 version: '1.0'
 summary: Basic snap to test the audit-control interface
 description: |
-  A basic snap used to use the audit_control capability, read /proc/*/loginuid
-  and /proc/*/sessionid, and write /run/auditd.pid and /run/auditd.state.
+  A basic snap which uses the audit_control capability, reads /proc/*/loginuid
+  and /proc/*/sessionid, and writes /run/auditd.pid and /run/auditd.state.
 
-grade: devel # must be 'stable' to release into candidate/stable channels
-confinement: devmode # use 'strict' once you have the right plugs and slots
+grade: stable # must be 'stable' to release into candidate/stable channels
+confinement: strict # use 'strict' once you have the right plugs and slots
 
 parts:
   auditd:
@@ -23,9 +23,12 @@ parts:
       write-auditd-pid-state: bin/
 
 apps:
-  set-cap:
+  audit-rate:
     command: bin/audit-rate
+    plugs: [audit-control]
   read-ids:
     command: bin/read-ids
+    plugs: [audit-control]
   write-auditd-pid-state:
     command: bin/write-auditd-pid-state
+    plugs: [audit-control]
