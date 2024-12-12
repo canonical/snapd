@@ -1548,10 +1548,14 @@ func Download(
 	st *state.State,
 	name string,
 	components []string,
-	blobDirectory string,
+	downloadDir string,
 	revOpts RevisionOptions,
 	opts Options,
 ) (*state.TaskSet, *snap.Info, error) {
+	if downloadDir == "" {
+		return nil, nil, errors.New("internal error: must specify directory to download to")
+	}
+
 	if revOpts.CohortKey != "" && !revOpts.Revision.Unset() {
 		return nil, nil, errors.New("internal error: cannot specify revision and cohort")
 	}
@@ -1605,7 +1609,7 @@ func Download(
 		InstanceKey:        info.InstanceKey,
 		CohortKey:          revOpts.CohortKey,
 		ExpectedProvenance: info.SnapProvenance,
-		DownloadBlobDir:    blobDirectory,
+		DownloadBlobDir:    downloadDir,
 	}
 
 	if sar.RedirectChannel != "" {
@@ -1618,7 +1622,7 @@ func Download(
 	}
 
 	for i := range compsups {
-		compsups[i].DownloadBlobDir = blobDirectory
+		compsups[i].DownloadBlobDir = downloadDir
 	}
 
 	if err := checkSnapAgainstValidationSets(sar.Info, compsups, "download", revOpts.ValidationSets); err != nil {
@@ -1630,20 +1634,6 @@ func Download(
 	// TODO:COMPS: support checking for available space for components
 	if err := checkDiskSpaceDownload([]minimalInstallInfo{installSnapInfo{info}}, toDownloadTo); err != nil {
 		return nil, nil, err
-	}
-
-	snapAlreadyInstalled := (blobDirectory == "" || blobDirectory == dirs.SnapBlobDir) &&
-		snapst.Sequence.LastIndex(info.Revision) != -1
-	componentAlreadyInstalled := make(map[string]bool, len(compsups))
-	allInstalled := snapAlreadyInstalled
-	for _, c := range compsups {
-		componentAlreadyInstalled[c.ComponentName()] = (blobDirectory == "" || blobDirectory == dirs.SnapBlobDir) &&
-			snapst.Sequence.IsComponentRevPresent(c.CompSideInfo)
-		allInstalled = allInstalled && componentAlreadyInstalled[c.ComponentName()]
-	}
-
-	if allInstalled {
-		return nil, nil, &snap.AlreadyInstalledError{Snap: name}
 	}
 
 	ts := state.NewTaskSet()
@@ -1663,14 +1653,8 @@ func Download(
 
 	revisionStr := fmt.Sprintf(" (%s)", snapsup.Revision())
 
-	if !snapAlreadyInstalled {
-		download := st.NewTask("download-snap", fmt.Sprintf(i18n.G("Download snap %q%s from channel %q"), snapsup.InstanceName(), revisionStr, snapsup.Channel))
-		addTask(download)
-	} else {
-		// validate-snap expects this to be set, and since we know that this
-		// already should exist, we can set it here
-		snapsup.SnapPath = snapsup.BlobPath()
-	}
+	download := st.NewTask("download-snap", fmt.Sprintf(i18n.G("Download snap %q%s from channel %q"), snapsup.InstanceName(), revisionStr, snapsup.Channel))
+	addTask(download)
 
 	validate := st.NewTask("validate-snap", fmt.Sprintf(i18n.G("Fetch and check assertions for snap %q%s"), snapsup.InstanceName(), revisionStr))
 	addTask(validate)
@@ -1679,13 +1663,10 @@ func Download(
 	for _, c := range compsups {
 		rev := fmt.Sprintf(" (%s)", c.CompSideInfo.Revision)
 
-		var compsupTaskID string
-		if !componentAlreadyInstalled[c.ComponentName()] {
-			download := st.NewTask("download-component", fmt.Sprintf(i18n.G("Download component %q%s"), c.ComponentName(), rev))
-			download.Set("component-setup", c)
-			addTask(download)
-			compsupTaskID = download.ID()
-		}
+		download := st.NewTask("download-component", fmt.Sprintf(i18n.G("Download component %q%s"), c.ComponentName(), rev))
+		download.Set("component-setup", c)
+		addTask(download)
+		compsupTaskID := download.ID()
 
 		// even if the component itself is already installed, it might not have
 		// been installed with the same snap revision. in that case,
@@ -1693,12 +1674,7 @@ func Download(
 		validate := st.NewTask("validate-component", fmt.Sprintf(
 			i18n.G("Fetch and check assertions for component %q%s"), c.ComponentName(), rev),
 		)
-		if compsupTaskID == "" {
-			validate.Set("component-setup", c)
-			compsupTaskID = validate.ID()
-		} else {
-			validate.Set("component-setup-task", compsupTaskID)
-		}
+		validate.Set("component-setup-task", compsupTaskID)
 		addTask(validate)
 
 		compsupIDs = append(compsupIDs, compsupTaskID)
