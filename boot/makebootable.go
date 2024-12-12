@@ -372,7 +372,10 @@ func cryptsetupSupportsTokenReplaceImpl() bool {
 
 var cryptsetupSupportsTokenReplace = cryptsetupSupportsTokenReplaceImpl
 
-func useTokens(model *asserts.Model) bool {
+// UseTokens decides whether KeyData for disk encryption should be
+// stored in the LUKS2 header in tokens. If not it means they should
+// be stored in files in legacy paths.
+func UseTokens(model *asserts.Model) bool {
 	// For now we enable writing key data in tokens only for
 	// classic when it is possible.
 	if model.Classic() {
@@ -593,7 +596,7 @@ func makeRunnableSystem(model *asserts.Model, bootWith *BootableSet, observer Tr
 			return fmt.Errorf("cannot check for fde-setup hook: %v", err)
 		}
 
-		tokens := useTokens(model)
+		tokens := UseTokens(model)
 		if tokens {
 			logger.Debugf("key data will be stored in tokens")
 		} else {
@@ -611,7 +614,7 @@ func makeRunnableSystem(model *asserts.Model, bootWith *BootableSet, observer Tr
 			flags.SnapsDir = snapBlobDir
 		}
 		// seal the encryption key to the parameters specified in modeenv
-		if err := sealKeyToModeenv(observerImpl.dataBootstrappedContainer, observerImpl.saveBootstrappedContainer, model, modeenv, flags); err != nil {
+		if err := sealKeyToModeenv(observerImpl.dataBootstrappedContainer, observerImpl.saveBootstrappedContainer, observerImpl.primaryKey, model, modeenv, flags); err != nil {
 			return err
 		}
 	}
