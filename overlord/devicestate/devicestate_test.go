@@ -2858,6 +2858,5 @@ func (s *deviceMgrSuite) TestSignConfdbControl(c *C) {
 	c.Assert(cc.Revision(), Equals, 5)
 
 	// Confirm we can ack it
-	// AddMany panics on error, that's why we aren't c.Assert'ing anything
 	assertstatetest.AddMany(s.state, cc)
 }
