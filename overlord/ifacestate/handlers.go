@@ -427,7 +427,7 @@ func (m *InterfaceManager) undoSetupProfiles(task *state.Task, tomb *tomb.Tomb) 
 
 	// The previous task's undo (link-snap) may have triggered a restart, if this
 	// is the case we can only proceed once the restart has happened or we
-	// may not have all the interfaces of the new core/base snap. We set
+	// may be invoking tools (like apparmor) from the wrong snapd. We set
 	// the default to true as we cannot set it otherwise since the change will
 	// always have been created by the old snapd (that may not have "finish-restart")
 	logger.Debugf("finish restart from undoLinkSnap")
