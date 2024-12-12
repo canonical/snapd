@@ -14,15 +14,15 @@ restore: |
 
 execute: |
     echo "List prints core snap version"
-    # most core versions should be like "16-2", so [0-9]{2}-[0-9.]+
-    # but edge will have a timestamp in there, "16.2+201701010932", so add an optional \+[0-9]+ to the end
-    # *current* edge also has .git. and a hash snippet, so add an optional .git.[0-9a-f]+ to the already optional timestamp
+    # all core versions will start with something like "16-2.61.4", so "[0-9]{2}-[0-9.]+"
+    # with core in security maintenance it has additional date like "16-2.61.4-20240607", so optional "(-[0-9]+)?"
+    # in edge it has additional git identifier like "16-2.63+git5348.e45449bd5", so optional "(\\+git[0-9]+\\.[0-9a-f]+)?"
 
     # Expressions for version and revision
     NUMERIC_VERSION="[0-9]+(\.[0-9]+)*"
-    CORE_GIT_VERSION="[0-9]{2}-[0-9.]+(~[a-z0-9]+)?(\\+git[0-9]+\\.[0-9a-f]+)?"
-    SNAPD_GIT_VERSION="+[0-9.]+(~[a-z0-9]+)?(\\+git[0-9]+\\.[0-9a-z]+)?(-dirty)?"
-    FINAL_VERSION="[0-9]{2}-[0-9.]+(~[a-z0-9]+)?(\\+[0-9]+\\.[0-9a-f]+)?"
+    CORE_GIT_VERSION="[0-9]{2}-[0-9.]+(-[0-9]+)?(\\+git[0-9]+\\.[0-9a-f]+)?" # core on  edge, beta, candidate, stable & sideload
+    CORE_STABLE_VERSION="[0-9]{2}-[0-9.]+(-[0-9]+)?"                         # core on stable for SRU/PPA
+    SNAPD_GIT_VERSION="+[0-9.]+(\\+git[0-9]+\\.[0-9a-z]+)?(-dirty)?"         # snapd on edge, beta, candidate, stable, sideload & dirty
     SIDELOAD_REV="x[0-9]+"
     NUMBER_REV="[0-9]+"
 
@@ -50,7 +50,7 @@ execute: |
 
     elif [ "$SRU_VALIDATION" = "1" ] || [ -n "$PPA_VALIDATION_NAME" ]; then
         echo "When either sru or ppa validation is done the core snap is installed from the store"
-        VERSION=$FINAL_VERSION
+        VERSION=$CORE_STABLE_VERSION
         TRACKING="(latest/)?stable"
 
     elif [ "$SPREAD_BACKEND" = "external" ] && os.query is-core16; then
