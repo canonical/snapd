@@ -1655,10 +1655,10 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemRemod
 	s.setupSnapDeclForNameAndID(c, "bar", s.ss.AssertedSnapID("bar"), "canonical")
 	s.setupSnapRevisionForFileAndID(c, barSnap, s.ss.AssertedSnapID("bar"), "canonical", snap.R(100))
 	// when download completes, the files will be at /var/lib/snapd/snap
-	c.Assert(os.MkdirAll(filepath.Dir(snapsupFoo.MountFile()), 0755), IsNil)
-	c.Assert(os.Rename(fooSnap, snapsupFoo.MountFile()), IsNil)
-	c.Assert(os.MkdirAll(filepath.Dir(snapsupBar.MountFile()), 0755), IsNil)
-	c.Assert(os.Rename(barSnap, snapsupBar.MountFile()), IsNil)
+	c.Assert(os.MkdirAll(filepath.Dir(snapsupFoo.BlobPath()), 0755), IsNil)
+	c.Assert(os.Rename(fooSnap, snapsupFoo.BlobPath()), IsNil)
+	c.Assert(os.MkdirAll(filepath.Dir(snapsupBar.BlobPath()), 0755), IsNil)
+	c.Assert(os.Rename(barSnap, snapsupBar.BlobPath()), IsNil)
 	tSnapsup1.Set("snap-setup", snapsupFoo)
 	tSnapsup2.Set("snap-setup", snapsupBar)
 
@@ -3417,7 +3417,7 @@ func (s *deviceMgrSystemsCreateSuite) testDeviceManagerCreateRecoverySystemValid
 
 		s.setupSnapDeclForNameAndID(c, snapsup.SideInfo.RealName, snapsup.SideInfo.SnapID, "canonical")
 		s.setupSnapRevisionForFileAndID(
-			c, snapsup.MountFile(), snapsup.SideInfo.SnapID, "canonical", snapRevisions[snapsup.SideInfo.RealName],
+			c, snapsup.BlobPath(), snapsup.SideInfo.SnapID, "canonical", snapRevisions[snapsup.SideInfo.RealName],
 		)
 
 		return nil
@@ -3465,20 +3465,20 @@ func (s *deviceMgrSystemsCreateSuite) testDeviceManagerCreateRecoverySystemValid
 	}, nil)
 
 	devicestate.MockSnapstateDownload(func(
-		_ context.Context, _ *state.State, name string, _ string, opts *snapstate.RevisionOptions, _ int, _ snapstate.Flags, _ snapstate.DeviceContext) (*state.TaskSet, *snap.Info, error,
+		ctx context.Context, st *state.State, name string, components []string, blobDirectory string, revOpts snapstate.RevisionOptions, opts snapstate.Options) (*state.TaskSet, *snap.Info, error,
 	) {
 		expectedRev, ok := snapRevisions[name]
 		if !ok {
 			return nil, nil, fmt.Errorf("unexpected snap name %q", name)
 		}
 
-		c.Check(expectedRev, Equals, opts.Revision)
+		c.Check(expectedRev, Equals, revOpts.Revision)
 
-		tDownload := s.state.NewTask("mock-download", fmt.Sprintf("Download %s to track %s", name, opts.Channel))
+		tDownload := s.state.NewTask("mock-download", fmt.Sprintf("Download %s to track %s", name, revOpts.Channel))
 
 		si := &snap.SideInfo{
 			RealName: name,
-			Revision: opts.Revision,
+			Revision: revOpts.Revision,
 			SnapID:   fakeSnapID(name),
 		}
 		tDownload.Set("snap-setup", &snapstate.SnapSetup{
@@ -3654,7 +3654,7 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemOffli
 	defer s.state.Unlock()
 
 	devicestate.MockSnapstateDownload(func(
-		_ context.Context, _ *state.State, name string, _ string, opts *snapstate.RevisionOptions, _ int, _ snapstate.Flags, _ snapstate.DeviceContext) (*state.TaskSet, *snap.Info, error,
+		ctx context.Context, st *state.State, name string, components []string, blobDirectory string, revOpts snapstate.RevisionOptions, opts snapstate.Options) (*state.TaskSet, *snap.Info, error,
 	) {
 		c.Errorf("snapstate.Download called unexpectedly")
 		return nil, nil, nil
@@ -3825,7 +3825,7 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemValid
 	assertstatetest.AddMany(s.state, vsetAssert)
 
 	devicestate.MockSnapstateDownload(func(
-		_ context.Context, _ *state.State, name string, _ string, opts *snapstate.RevisionOptions, _ int, _ snapstate.Flags, _ snapstate.DeviceContext) (*state.TaskSet, *snap.Info, error,
+		ctx context.Context, st *state.State, name string, components []string, blobDirectory string, revOpts snapstate.RevisionOptions, opts snapstate.Options) (*state.TaskSet, *snap.Info, error,
 	) {
 		c.Errorf("snapstate.Download called unexpectedly")
 		return nil, nil, nil
@@ -4310,19 +4310,19 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemValid
 	vset := vsetAssert.(*asserts.ValidationSet)
 
 	devicestate.MockSnapstateDownload(func(
-		_ context.Context, _ *state.State, name string, _ string, opts *snapstate.RevisionOptions, _ int, _ snapstate.Flags, _ snapstate.DeviceContext) (*state.TaskSet, *snap.Info, error,
+		ctx context.Context, st *state.State, name string, components []string, blobDirectory string, revOpts snapstate.RevisionOptions, opts snapstate.Options) (*state.TaskSet, *snap.Info, error,
 	) {
 		expectedRev, ok := snapRevisions[name]
 		if !ok {
 			return nil, nil, fmt.Errorf("unexpected snap name %q", name)
 		}
 
-		c.Check(expectedRev, Equals, opts.Revision)
+		c.Check(expectedRev, Equals, revOpts.Revision)
 
-		tDownload := s.state.NewTask("fake-download", fmt.Sprintf("Download %s to track %s", name, opts.Channel))
+		tDownload := s.state.NewTask("fake-download", fmt.Sprintf("Download %s to track %s", name, revOpts.Channel))
 		si := &snap.SideInfo{
 			RealName: name,
-			Revision: opts.Revision,
+			Revision: revOpts.Revision,
 			SnapID:   fakeSnapID(name),
 		}
 

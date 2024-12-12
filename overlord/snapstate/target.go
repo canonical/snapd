@@ -318,7 +318,7 @@ func (s *storeInstallGoal) toInstall(ctx context.Context, st *state.State, opts 
 			return nil, fmt.Errorf("internal error: snap to install was not requested: %s", t.info.InstanceName())
 		}
 
-		if err := checkTargetAgainstValidationSets(t, "install", sn.RevOpts.ValidationSets); err != nil {
+		if err := checkSnapAgainstValidationSets(t.info, t.components, "install", sn.RevOpts.ValidationSets); err != nil {
 			return nil, err
 		}
 	}
@@ -326,22 +326,22 @@ func (s *storeInstallGoal) toInstall(ctx context.Context, st *state.State, opts 
 	return installs, err
 }
 
-func checkTargetAgainstValidationSets(target target, action string, vsets *snapasserts.ValidationSets) error {
-	constraints, err := vsets.Presence(target.info)
+func checkSnapAgainstValidationSets(info *snap.Info, components []ComponentSetup, action string, vsets *snapasserts.ValidationSets) error {
+	constraints, err := vsets.Presence(info)
 	if err != nil {
 		return err
 	}
 
-	if err := checkSnapAgainstConstraints(target.info.InstanceName(), target.info.Revision, constraints, action); err != nil {
+	if err := checkSnapAgainstConstraints(info.InstanceName(), info.Revision, constraints, action); err != nil {
 		return err
 	}
 
-	comps := make(map[string]snap.Revision, len(target.components))
-	for _, comp := range target.components {
+	comps := make(map[string]snap.Revision, len(components))
+	for _, comp := range components {
 		comps[comp.ComponentName()] = comp.Revision()
 	}
 
-	return checkComponentsAgainstConstraints(target.info.SnapName(), comps, constraints, action)
+	return checkComponentsAgainstConstraints(info.SnapName(), comps, constraints, action)
 }
 
 func checkSnapAgainstConstraints(
@@ -352,8 +352,11 @@ func checkSnapAgainstConstraints(
 ) error {
 	if constraints.Presence == asserts.PresenceInvalid {
 		verb := "install"
-		if action == "refresh" {
+		switch action {
+		case "refresh":
 			verb = "update"
+		case "download":
+			verb = "download"
 		}
 
 		return fmt.Errorf("cannot %s snap %q due to enforcing rules of validation set %s",
@@ -369,8 +372,11 @@ func checkSnapAgainstConstraints(
 
 func checkComponentsAgainstConstraints(snapName string, comps map[string]snap.Revision, constraints snapasserts.SnapPresenceConstraints, action string) error {
 	verb := "install"
-	if action == "refresh" {
+	switch action {
+	case "refresh":
 		verb = "update"
+	case "download":
+		verb = "download"
 	}
 
 	for compName, compRevision := range comps {
@@ -564,7 +570,10 @@ func completeStoreAction(action *store.SnapAction, revOpts RevisionOptions, igno
 func invalidRevisionError(action, snapName string, sets []snapasserts.ValidationSetKey, requested, required snap.Revision) error {
 	verb := "install"
 	preposition := "at"
-	if action == "refresh" {
+	switch action {
+	case "download":
+		verb = "download"
+	case "refresh":
 		verb = "update"
 		preposition = "to"
 	}
@@ -583,7 +592,10 @@ func invalidRevisionError(action, snapName string, sets []snapasserts.Validation
 func invalidComponentRevisionError(action, snapName, componentName string, sets []snapasserts.ValidationSetKey, requested, required snap.Revision) error {
 	verb := "install"
 	preposition := "at"
-	if action == "refresh" {
+	switch action {
+	case "download":
+		verb = "download"
+	case "refresh":
 		verb = "update"
 		preposition = "to"
 	}

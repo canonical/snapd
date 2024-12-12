@@ -223,45 +223,6 @@ var installSize = func(st *state.State, snaps []minimalInstallInfo, userID int, 
 	return total, nil
 }
 
-func downloadInfo(ctx context.Context, st *state.State, name string, revOpts *RevisionOptions, userID int, deviceCtx DeviceContext) (store.SnapActionResult, error) {
-	curSnaps, err := currentSnaps(st)
-	if err != nil {
-		return store.SnapActionResult{}, err
-	}
-
-	user, err := userFromUserID(st, userID)
-	if err != nil {
-		return store.SnapActionResult{}, err
-	}
-
-	opts, err := refreshOptions(st, nil)
-	if err != nil {
-		return store.SnapActionResult{}, err
-	}
-
-	action := &store.SnapAction{
-		Action:       "download",
-		InstanceName: name,
-	}
-
-	if revOpts != nil {
-		// cannot specify both with the API
-		if revOpts.Revision.Unset() {
-			action.Channel = revOpts.Channel
-			action.CohortKey = revOpts.CohortKey
-		} else {
-			action.Revision = revOpts.Revision
-		}
-	}
-
-	theStore := Store(st, deviceCtx)
-	st.Unlock() // calls to the store should be done without holding the state lock
-	res, _, err := theStore.SnapAction(ctx, curSnaps, []*store.SnapAction{action}, nil, user, opts)
-	st.Lock()
-
-	return singleActionResult(name, action.Action, res, err)
-}
-
 var ErrMissingExpectedResult = fmt.Errorf("unexpectedly empty response from the server (try again later)")
 
 func singleActionResultErr(name, action string, e error) error {
@@ -294,18 +255,6 @@ func singleActionResultErr(name, action string, e error) error {
 	}
 
 	return e
-}
-
-func singleActionResult(name, action string, results []store.SnapActionResult, e error) (store.SnapActionResult, error) {
-	if len(results) > 1 {
-		return store.SnapActionResult{}, fmt.Errorf("internal error: multiple store results for a single snap op")
-	}
-	if len(results) > 0 {
-		// TODO: if we also have an error log/warn about it
-		return results[0], nil
-	}
-
-	return store.SnapActionResult{}, singleActionResultErr(name, action, e)
 }
 
 func currentSnapsImpl(st *state.State) ([]*store.CurrentSnap, error) {
@@ -695,7 +644,7 @@ func storeUpdatePlanCore(
 			return updatePlan{}, fmt.Errorf("internal error: target created for snap without an update: %s", t.info.InstanceName())
 		}
 
-		if err := checkTargetAgainstValidationSets(t, "refresh", up.RevOpts.ValidationSets); err != nil {
+		if err := checkSnapAgainstValidationSets(t.info, t.components, "refresh", up.RevOpts.ValidationSets); err != nil {
 			return updatePlan{}, err
 		}
 	}
@@ -1014,8 +963,20 @@ func SnapHolds(st *state.State, snaps []string) (map[string][]string, error) {
 }
 
 func sendOneInstallAction(ctx context.Context, st *state.State, snaps StoreSnap, opts Options) (store.SnapActionResult, error) {
+	return sendOneInstallOrDownloadAction(ctx, st, "install", snaps, opts)
+}
+
+func sendInstallActions(ctx context.Context, st *state.State, snaps []StoreSnap, opts Options) ([]store.SnapActionResult, error) {
+	return sendInstallOrDownloadActions(ctx, st, "install", snaps, opts)
+}
+
+func sendOneDownloadAction(ctx context.Context, st *state.State, snap StoreSnap, opts Options) (store.SnapActionResult, error) {
+	return sendOneInstallOrDownloadAction(ctx, st, "download", snap, opts)
+}
+
+func sendOneInstallOrDownloadAction(ctx context.Context, st *state.State, action string, snap StoreSnap, opts Options) (store.SnapActionResult, error) {
 	opts.ExpectOneSnap = true
-	results, err := sendInstallActions(ctx, st, []StoreSnap{snaps}, opts)
+	results, err := sendInstallOrDownloadActions(ctx, st, action, []StoreSnap{snap}, opts)
 	if err != nil {
 		return store.SnapActionResult{}, err
 	}
@@ -1025,17 +986,16 @@ func sendOneInstallAction(ctx context.Context, st *state.State, snaps StoreSnap,
 	return results[0], nil
 }
 
-func sendInstallActions(
-	ctx context.Context,
-	st *state.State,
-	snaps []StoreSnap,
-	opts Options,
-) ([]store.SnapActionResult, error) {
+func sendInstallOrDownloadActions(ctx context.Context, st *state.State, action string, snaps []StoreSnap, opts Options) ([]store.SnapActionResult, error) {
+	if action != "install" && action != "download" {
+		return nil, fmt.Errorf("internal error: action must be install or download: %s", action)
+	}
+
 	includeResources := false
 	actions := make([]*store.SnapAction, 0, len(snaps))
 	for _, sn := range snaps {
 		action := &store.SnapAction{
-			Action:       "install",
+			Action:       action,
 			InstanceName: sn.InstanceName,
 		}
 

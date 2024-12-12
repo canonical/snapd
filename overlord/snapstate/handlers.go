@@ -725,7 +725,7 @@ func (m *SnapManager) doDownloadSnap(t *state.Task, tomb *tomb.Tomb) error {
 	}
 
 	meter := NewTaskProgressAdapterUnlocked(t)
-	targetFn := snapsup.MountFile()
+	targetFn := snapsup.BlobPath()
 
 	dlOpts := &store.DownloadOptions{
 		Scheduled: snapsup.IsAutoRefresh,
@@ -821,7 +821,7 @@ func (m *SnapManager) doPreDownloadSnap(t *state.Task, tomb *tomb.Tomb) error {
 		return err
 	}
 
-	targetFn := snapsup.MountFile()
+	targetFn := snapsup.BlobPath()
 	dlOpts := &store.DownloadOptions{
 		// pre-downloads are only triggered in auto-refreshes
 		Scheduled: true,

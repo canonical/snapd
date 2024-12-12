@@ -280,7 +280,7 @@ func (ig *setupInfoGetter) SnapInfo(st *state.State, name string) (info *snap.In
 		}
 		// by the time this task runs, the file has already been
 		// downloaded and validated
-		snapFile, err := snapfile.Open(snapsup.MountFile())
+		snapFile, err := snapfile.Open(snapsup.BlobPath())
 		if err != nil {
 			return nil, "", false, err
 		}

@@ -9714,7 +9714,10 @@ func (s *snapmgrTestSuite) TestDownload(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	ts, info, err := snapstate.Download(context.Background(), s.state, "foo", "", nil, 0, snapstate.Flags{}, nil)
+	prqt := testPrereqTracker{}
+	ts, info, err := snapstate.Download(context.Background(), s.state, "foo", nil, "", snapstate.RevisionOptions{}, snapstate.Options{
+		PrereqTracker: &prqt,
+	})
 	c.Assert(err, IsNil)
 
 	c.Check(info.SideInfo, DeepEquals, snap.SideInfo{
@@ -9742,15 +9745,565 @@ func (s *snapmgrTestSuite) TestDownload(c *C) {
 	err = validateSnap.Get("snap-setup-task", &snapsupTaskID)
 	c.Assert(err, IsNil)
 	c.Check(snapsupTaskID, Equals, downloadSnap.ID())
+
+	c.Check(prqt.infos, DeepEquals, []*snap.Info{info})
+}
+
+func (s *snapmgrTestSuite) TestDownloadWithComponents(c *C) {
+	s.testDownloadWithComponents(c, "")
+}
+
+func (s *snapmgrTestSuite) TestDownloadWithComponentsSpecificDownloadDir(c *C) {
+	s.testDownloadWithComponents(c, c.MkDir())
+}
+
+func (s *snapmgrTestSuite) testDownloadWithComponents(c *C, downloadDir string) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	components := map[string]snap.Revision{
+		"comp-1": snap.R(1),
+		"comp-2": snap.R(2),
+	}
+
+	s.fakeStore.registerID("snap-1", snaptest.AssertedSnapID("snap-1"))
+	s.fakeStore.snapResourcesFn = func(info *snap.Info) []store.SnapResourceResult {
+		results := make([]store.SnapResourceResult, 0, len(components))
+		for comp, rev := range components {
+			results = append(results, store.SnapResourceResult{
+				DownloadInfo: snap.DownloadInfo{
+					DownloadURL: "http://example.com/" + comp,
+				},
+				Name:      comp,
+				Revision:  rev.N,
+				Type:      "component/standard",
+				Version:   "1.0",
+				CreatedAt: "2024-01-01T00:00:00Z",
+			})
+		}
+		return results
+	}
+
+	s.fakeStore.mutateSnapInfo = func(info *snap.Info) error {
+		info.Components = map[string]*snap.Component{
+			"comp-1": {
+				Type: snap.StandardComponent,
+				Name: "comp-1",
+			},
+			"comp-2": {
+				Type: snap.StandardComponent,
+				Name: "comp-2",
+			},
+		}
+		return nil
+	}
+
+	ts, info, err := snapstate.Download(
+		context.Background(),
+		s.state,
+		"snap-1",
+		[]string{"comp-1", "comp-2"},
+		downloadDir,
+		snapstate.RevisionOptions{},
+		snapstate.Options{},
+	)
+	c.Assert(err, IsNil)
+
+	c.Check(info.SideInfo, DeepEquals, snap.SideInfo{
+		RealName: "snap-1",
+		Revision: snap.R(11),
+		SnapID:   snaptest.AssertedSnapID("snap-1"),
+		Channel:  "stable",
+	})
+
+	kinds := make([]string, 0, len(ts.Tasks()))
+	for _, t := range ts.Tasks() {
+		kinds = append(kinds, t.Kind())
+	}
+	c.Assert(kinds, DeepEquals, []string{
+		"download-snap",
+		"validate-snap",
+		"download-component",
+		"validate-component",
+		"download-component",
+		"validate-component",
+	})
+
+	last := ts.MaybeEdge(snapstate.LastBeforeLocalModificationsEdge)
+	c.Assert(last, NotNil)
+	c.Check(last.Kind(), Equals, "validate-component")
+
+	begin := ts.MaybeEdge(snapstate.BeginEdge)
+	c.Assert(begin, NotNil)
+	c.Check(begin.Kind(), Equals, "download-snap")
+
+	verifySnapAndComponentSetupsForDownload(c, begin, ts, downloadDir)
+}
+
+func (s *snapmgrTestSuite) TestDownloadWithComponentsWithMismatchValidationSets(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	components := map[string]snap.Revision{
+		"comp-1": snap.R(1),
+		"comp-2": snap.R(2),
+	}
+
+	s.fakeStore.registerID("snap-1", snaptest.AssertedSnapID("snap-1"))
+	s.fakeStore.snapResourcesFn = func(info *snap.Info) []store.SnapResourceResult {
+		results := make([]store.SnapResourceResult, 0, len(components))
+		for comp, rev := range components {
+			results = append(results, store.SnapResourceResult{
+				DownloadInfo: snap.DownloadInfo{
+					DownloadURL: "http://example.com/" + comp,
+				},
+				Name:      comp,
+				Revision:  rev.N + 1,
+				Type:      "component/standard",
+				Version:   "1.0",
+				CreatedAt: "2024-01-01T00:00:00Z",
+			})
+		}
+		return results
+	}
+
+	s.fakeStore.mutateSnapInfo = func(info *snap.Info) error {
+		info.Components = map[string]*snap.Component{
+			"comp-1": {
+				Type: snap.StandardComponent,
+				Name: "comp-1",
+			},
+			"comp-2": {
+				Type: snap.StandardComponent,
+				Name: "comp-2",
+			},
+		}
+		return nil
+	}
+
+	headers := map[string]interface{}{
+		"type":         "validation-set",
+		"timestamp":    time.Now().Format(time.RFC3339),
+		"authority-id": "foo",
+		"series":       "16",
+		"account-id":   "foo",
+		"name":         "bar",
+		"sequence":     "3",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":     "snap-1",
+				"id":       snaptest.AssertedSnapID("snap-1"),
+				"presence": "required",
+				"revision": "11",
+				"components": map[string]interface{}{
+					"comp-1": map[string]interface{}{
+						"presence": "required",
+						"revision": "1",
+					},
+				},
+			},
+		},
+	}
+
+	signing := assertstest.NewStoreStack("can0nical", nil)
+	a, err := signing.Sign(asserts.ValidationSetType, headers, nil, "")
+	c.Assert(err, IsNil)
+	vs := a.(*asserts.ValidationSet)
+
+	vsets := snapasserts.NewValidationSets()
+	err = vsets.Add(vs)
+	c.Assert(err, IsNil)
+	c.Assert(vsets.Conflict(), IsNil)
+
+	_, _, err = snapstate.Download(
+		context.Background(),
+		s.state,
+		"snap-1",
+		[]string{"comp-1", "comp-2"},
+		"",
+		snapstate.RevisionOptions{
+			ValidationSets: vsets,
+		},
+		snapstate.Options{},
+	)
+	c.Assert(err, ErrorMatches, `cannot download component "snap-1\+comp-1" at revision 2 without --ignore-validation, revision 1 is required by validation sets: 16/foo/bar/3`)
+}
+
+func (s *snapmgrTestSuite) TestDownloadWithComponentsWithValidationSets(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	components := map[string]snap.Revision{
+		"comp-1": snap.R(1),
+		"comp-2": snap.R(2),
+	}
+
+	s.fakeStore.registerID("snap-1", snaptest.AssertedSnapID("snap-1"))
+	s.fakeStore.snapResourcesFn = func(info *snap.Info) []store.SnapResourceResult {
+		results := make([]store.SnapResourceResult, 0, len(components))
+		for comp, rev := range components {
+			results = append(results, store.SnapResourceResult{
+				DownloadInfo: snap.DownloadInfo{
+					DownloadURL: "http://example.com/" + comp,
+				},
+				Name:      comp,
+				Revision:  rev.N,
+				Type:      "component/standard",
+				Version:   "1.0",
+				CreatedAt: "2024-01-01T00:00:00Z",
+			})
+		}
+		return results
+	}
+
+	s.fakeStore.mutateSnapInfo = func(info *snap.Info) error {
+		info.Components = map[string]*snap.Component{
+			"comp-1": {
+				Type: snap.StandardComponent,
+				Name: "comp-1",
+			},
+			"comp-2": {
+				Type: snap.StandardComponent,
+				Name: "comp-2",
+			},
+		}
+		return nil
+	}
+
+	headers := map[string]interface{}{
+		"type":         "validation-set",
+		"timestamp":    time.Now().Format(time.RFC3339),
+		"authority-id": "foo",
+		"series":       "16",
+		"account-id":   "foo",
+		"name":         "bar",
+		"sequence":     "3",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":     "snap-1",
+				"id":       snaptest.AssertedSnapID("snap-1"),
+				"presence": "required",
+				"revision": "11",
+				"components": map[string]interface{}{
+					"comp-1": map[string]interface{}{
+						"presence": "required",
+						"revision": "1",
+					},
+					"comp-2": map[string]interface{}{
+						"presence": "required",
+						"revision": "2",
+					},
+				},
+			},
+		},
+	}
+
+	signing := assertstest.NewStoreStack("can0nical", nil)
+	a, err := signing.Sign(asserts.ValidationSetType, headers, nil, "")
+	c.Assert(err, IsNil)
+	vs := a.(*asserts.ValidationSet)
+
+	vsets := snapasserts.NewValidationSets()
+	err = vsets.Add(vs)
+	c.Assert(err, IsNil)
+	c.Assert(vsets.Conflict(), IsNil)
+
+	ts, info, err := snapstate.Download(
+		context.Background(),
+		s.state,
+		"snap-1",
+		[]string{"comp-1", "comp-2"},
+		"",
+		snapstate.RevisionOptions{
+			ValidationSets: vsets,
+		},
+		snapstate.Options{},
+	)
+	c.Assert(err, IsNil)
+
+	c.Check(info.SideInfo, DeepEquals, snap.SideInfo{
+		RealName: "snap-1",
+		Revision: snap.R(11),
+		SnapID:   snaptest.AssertedSnapID("snap-1"),
+	})
+
+	kinds := make([]string, 0, len(ts.Tasks()))
+	for _, t := range ts.Tasks() {
+		kinds = append(kinds, t.Kind())
+	}
+	c.Assert(kinds, DeepEquals, []string{
+		"download-snap",
+		"validate-snap",
+		"download-component",
+		"validate-component",
+		"download-component",
+		"validate-component",
+	})
+
+	last := ts.MaybeEdge(snapstate.LastBeforeLocalModificationsEdge)
+	c.Assert(last, NotNil)
+	c.Check(last.Kind(), Equals, "validate-component")
+
+	begin := ts.MaybeEdge(snapstate.BeginEdge)
+	c.Assert(begin, NotNil)
+	c.Check(begin.Kind(), Equals, "download-snap")
+
+	verifySnapAndComponentSetupsForDownload(c, begin, ts, "")
+}
+
+func (s *snapmgrTestSuite) TestDownloadWithComponentsAlreadyInstalledSnap(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	components := map[string]snap.Revision{
+		"comp-1": snap.R(1),
+		"comp-2": snap.R(2),
+	}
+
+	s.fakeStore.registerID("snap-1", snaptest.AssertedSnapID("snap-1"))
+	s.fakeStore.snapResourcesFn = func(info *snap.Info) []store.SnapResourceResult {
+		results := make([]store.SnapResourceResult, 0, len(components))
+		for comp, rev := range components {
+			results = append(results, store.SnapResourceResult{
+				DownloadInfo: snap.DownloadInfo{
+					DownloadURL: "http://example.com/" + comp,
+				},
+				Name:      comp,
+				Revision:  rev.N,
+				Type:      "component/standard",
+				Version:   "1.0",
+				CreatedAt: "2024-01-01T00:00:00Z",
+			})
+		}
+		return results
+	}
+
+	s.fakeStore.mutateSnapInfo = func(info *snap.Info) error {
+		info.Components = map[string]*snap.Component{
+			"comp-1": {
+				Type: snap.StandardComponent,
+				Name: "comp-1",
+			},
+			"comp-2": {
+				Type: snap.StandardComponent,
+				Name: "comp-2",
+			},
+		}
+		return nil
+	}
+
+	snapstate.Set(s.state, "snap-1", &snapstate.SnapState{
+		Current: snap.R(11),
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
+			{RealName: "snap-1", SnapID: snaptest.AssertedSnapID("snap-1"), Revision: snap.R(11)},
+		}),
+		Active:   true,
+		SnapType: "app",
+	})
+
+	ts, info, err := snapstate.Download(
+		context.Background(),
+		s.state,
+		"snap-1",
+		[]string{"comp-1", "comp-2"},
+		"",
+		snapstate.RevisionOptions{},
+		snapstate.Options{},
+	)
+	c.Assert(err, IsNil)
+
+	c.Check(info.SideInfo, DeepEquals, snap.SideInfo{
+		RealName: "snap-1",
+		Revision: snap.R(11),
+		SnapID:   snaptest.AssertedSnapID("snap-1"),
+		Channel:  "stable",
+	})
+
+	kinds := make([]string, 0, len(ts.Tasks()))
+	for _, t := range ts.Tasks() {
+		kinds = append(kinds, t.Kind())
+	}
+	c.Assert(kinds, DeepEquals, []string{
+		"validate-snap",
+		"download-component",
+		"validate-component",
+		"download-component",
+		"validate-component",
+	})
+
+	last := ts.MaybeEdge(snapstate.LastBeforeLocalModificationsEdge)
+	c.Assert(last, NotNil)
+	c.Check(last.Kind(), Equals, "validate-component")
+
+	begin := ts.MaybeEdge(snapstate.BeginEdge)
+	c.Assert(begin, NotNil)
+	c.Check(begin.Kind(), Equals, "validate-snap")
+
+	verifySnapAndComponentSetupsForDownload(c, begin, ts, "")
+}
+
+func (s *snapmgrTestSuite) TestDownloadWithComponentsAlreadyInstalledSnapAndComponent(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	components := map[string]snap.Revision{
+		"comp-1": snap.R(1),
+		"comp-2": snap.R(2),
+	}
+
+	s.fakeStore.registerID("snap-1", snaptest.AssertedSnapID("snap-1"))
+	s.fakeStore.snapResourcesFn = func(info *snap.Info) []store.SnapResourceResult {
+		results := make([]store.SnapResourceResult, 0, len(components))
+		for comp, rev := range components {
+			results = append(results, store.SnapResourceResult{
+				DownloadInfo: snap.DownloadInfo{
+					DownloadURL: "http://example.com/" + comp,
+				},
+				Name:      comp,
+				Revision:  rev.N,
+				Type:      "component/standard",
+				Version:   "1.0",
+				CreatedAt: "2024-01-01T00:00:00Z",
+			})
+		}
+		return results
+	}
+
+	s.fakeStore.mutateSnapInfo = func(info *snap.Info) error {
+		info.Components = map[string]*snap.Component{
+			"comp-1": {
+				Type: snap.StandardComponent,
+				Name: "comp-1",
+			},
+			"comp-2": {
+				Type: snap.StandardComponent,
+				Name: "comp-2",
+			},
+		}
+		return nil
+	}
+
+	s.AddCleanup(snapstate.MockReadComponentInfo(func(
+		compMntDir string, snapInfo *snap.Info, csi *snap.ComponentSideInfo) (*snap.ComponentInfo, error) {
+		return &snap.ComponentInfo{
+			Component:         csi.Component,
+			Type:              snap.StandardComponent,
+			CompVersion:       "1.0",
+			ComponentSideInfo: *csi,
+		}, nil
+	}))
+
+	seq := snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
+		{RealName: "snap-1", SnapID: snaptest.AssertedSnapID("snap-1"), Revision: snap.R(11)},
+	})
+
+	seq.AddComponentForRevision(snap.R(11), sequence.NewComponentState(&snap.ComponentSideInfo{
+		Component: naming.NewComponentRef("snap-1", "comp-1"),
+		Revision:  components["comp-1"],
+	}, snap.StandardComponent))
+
+	snapstate.Set(s.state, "snap-1", &snapstate.SnapState{
+		Current:  snap.R(11),
+		Sequence: seq,
+		Active:   true,
+		SnapType: "app",
+	})
+
+	ts, info, err := snapstate.Download(
+		context.Background(),
+		s.state,
+		"snap-1",
+		[]string{"comp-1", "comp-2"},
+		"",
+		snapstate.RevisionOptions{},
+		snapstate.Options{},
+	)
+	c.Assert(err, IsNil)
+
+	c.Check(info.SideInfo, DeepEquals, snap.SideInfo{
+		RealName: "snap-1",
+		Revision: snap.R(11),
+		SnapID:   snaptest.AssertedSnapID("snap-1"),
+		Channel:  "stable",
+	})
+
+	kinds := make([]string, 0, len(ts.Tasks()))
+	for _, t := range ts.Tasks() {
+		kinds = append(kinds, t.Kind())
+	}
+	c.Assert(kinds, DeepEquals, []string{
+		"validate-snap",
+		"validate-component",
+		"download-component",
+		"validate-component",
+	})
+
+	last := ts.MaybeEdge(snapstate.LastBeforeLocalModificationsEdge)
+	c.Assert(last, NotNil)
+	c.Check(last.Kind(), Equals, "validate-component")
+
+	begin := ts.MaybeEdge(snapstate.BeginEdge)
+	c.Assert(begin, NotNil)
+	c.Check(begin.Kind(), Equals, "validate-snap")
+
+	verifySnapAndComponentSetupsForDownload(c, begin, ts, "")
+}
+
+func verifySnapAndComponentSetupsForDownload(c *C, begin *state.Task, ts *state.TaskSet, downloadDir string) {
+	var snapsup snapstate.SnapSetup
+	err := begin.Get("snap-setup", &snapsup)
+	c.Assert(err, IsNil)
+	c.Check(snapsup.DownloadBlobDir, Equals, downloadDir)
+
+	expectedDownloadDir := downloadDir
+	if expectedDownloadDir == "" {
+		expectedDownloadDir = dirs.SnapBlobDir
+	}
+
+	c.Check(snapsup.BlobPath(), Equals, filepath.Join(
+		expectedDownloadDir,
+		fmt.Sprintf("%s_%s.snap", snapsup.InstanceName(), snapsup.Revision()),
+	))
+
+	var compsupTaskIDs []string
+	err = begin.Get("component-setup-tasks", &compsupTaskIDs)
+	c.Assert(err, IsNil)
+	c.Assert(compsupTaskIDs, HasLen, 2)
+
+	for _, t := range ts.Tasks()[1:] {
+		var snapsupTaskID string
+		err := t.Get("snap-setup-task", &snapsupTaskID)
+		c.Assert(err, IsNil)
+		c.Check(snapsupTaskID, Equals, begin.ID())
+	}
+
+	for _, t := range ts.Tasks() {
+		if t.Has("component-setup") {
+			var compsup snapstate.ComponentSetup
+			err := t.Get("component-setup", &compsup)
+			c.Assert(err, IsNil)
+			c.Check(compsup.DownloadBlobDir, Equals, downloadDir)
+
+			c.Check(compsup.BlobPath(compsup.CompSideInfo.Component.SnapName), Equals, filepath.Join(
+				expectedDownloadDir,
+				fmt.Sprintf("%s+%s_%s.comp", snapsup.InstanceName(), compsup.ComponentName(), compsup.Revision()),
+			))
+
+			c.Assert(t.ID(), Equals, compsupTaskIDs[0])
+			compsupTaskIDs = compsupTaskIDs[1:]
+		}
+	}
+
+	c.Assert(compsupTaskIDs, HasLen, 0)
 }
 
 func (s *snapmgrTestSuite) TestDownloadSpecifyRevision(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	ts, info, err := snapstate.Download(context.Background(), s.state, "foo", "", &snapstate.RevisionOptions{
+	ts, info, err := snapstate.Download(context.Background(), s.state, "foo", nil, "", snapstate.RevisionOptions{
 		Revision: snap.R(2),
-	}, 0, snapstate.Flags{}, nil)
+	}, snapstate.Options{})
 	c.Assert(err, IsNil)
 
 	c.Check(ts.Tasks(), HasLen, 2)
@@ -9759,6 +10312,7 @@ func (s *snapmgrTestSuite) TestDownloadSpecifyRevision(c *C) {
 		RealName: "foo",
 		Revision: snap.R(2),
 		SnapID:   "foo-id",
+		Channel:  "stable",
 	})
 
 	downloadSnap := ts.MaybeEdge(snapstate.BeginEdge)
@@ -9786,15 +10340,16 @@ func (s *snapmgrTestSuite) TestDownloadSpecifyDownloadDir(c *C) {
 
 	downloadDir := c.MkDir()
 
-	ts, info, err := snapstate.Download(context.Background(), s.state, "foo", downloadDir, &snapstate.RevisionOptions{
+	ts, info, err := snapstate.Download(context.Background(), s.state, "foo", nil, downloadDir, snapstate.RevisionOptions{
 		Revision: snap.R(1),
-	}, 0, snapstate.Flags{}, nil)
+	}, snapstate.Options{})
 	c.Assert(err, IsNil)
 
 	c.Check(info.SideInfo, DeepEquals, snap.SideInfo{
 		RealName: "foo",
 		Revision: snap.R(1),
 		SnapID:   "foo-id",
+		Channel:  "stable",
 	})
 
 	c.Check(ts.Tasks(), HasLen, 2)
@@ -9806,7 +10361,7 @@ func (s *snapmgrTestSuite) TestDownloadSpecifyDownloadDir(c *C) {
 	var snapsup snapstate.SnapSetup
 	err = downloadSnap.Get("snap-setup", &snapsup)
 	c.Assert(err, IsNil)
-	c.Check(snapsup.MountFile(), Equals, filepath.Join(downloadDir, "foo_1.snap"))
+	c.Check(snapsup.BlobPath(), Equals, filepath.Join(downloadDir, "foo_1.snap"))
 
 	validateSnap := ts.MaybeEdge(snapstate.LastBeforeLocalModificationsEdge)
 	c.Assert(validateSnap, NotNil)
@@ -9827,9 +10382,9 @@ func (s *snapmgrTestSuite) TestDownloadOutOfSpace(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	_, _, err := snapstate.Download(context.Background(), s.state, "foo", "", &snapstate.RevisionOptions{
+	_, _, err := snapstate.Download(context.Background(), s.state, "foo", nil, "", snapstate.RevisionOptions{
 		Revision: snap.R(2),
-	}, 0, snapstate.Flags{}, nil)
+	}, snapstate.Options{})
 	c.Assert(err, NotNil)
 
 	diskSpaceErr, ok := err.(*snapstate.InsufficientSpaceError)
@@ -9853,7 +10408,7 @@ func (s *snapmgrTestSuite) TestDownloadAlreadyInstalled(c *C) {
 	})
 
 	const downloadDir = ""
-	_, _, err := snapstate.Download(context.Background(), s.state, "foo", downloadDir, nil, 0, snapstate.Flags{}, nil)
+	_, _, err := snapstate.Download(context.Background(), s.state, "foo", nil, downloadDir, snapstate.RevisionOptions{}, snapstate.Options{})
 	c.Assert(err, NotNil)
 
 	alreadyInstalledErr, ok := err.(*snap.AlreadyInstalledError)
@@ -9865,8 +10420,8 @@ func (s *snapmgrTestSuite) TestDownloadSpecifyCohort(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	opts := &snapstate.RevisionOptions{Channel: "some-channel", CohortKey: "cohort-key"}
-	ts, info, err := snapstate.Download(context.Background(), s.state, "foo", "", opts, 0, snapstate.Flags{}, nil)
+	opts := snapstate.RevisionOptions{Channel: "some-channel", CohortKey: "cohort-key"}
+	ts, info, err := snapstate.Download(context.Background(), s.state, "foo", nil, "", opts, snapstate.Options{})
 	c.Assert(err, IsNil)
 
 	c.Check(ts.Tasks(), HasLen, 2)
