@@ -32,11 +32,11 @@ import (
 )
 
 const (
-	defaultGetentSearchPath = "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+	DefaultGetentSearchPath = "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 )
 
 var (
-	getentSearchPath = defaultGetentSearchPath
+	getentSearchPath = DefaultGetentSearchPath
 )
 
 func findGetent(searchPath string) (string, error) {
@@ -222,4 +222,12 @@ func lookupUserFromGetent(matcher userMatcher) (*User, error) {
 		Name:     components[4],
 		HomeDir:  components[5],
 	}, nil
+}
+
+// OverrideGetentSearchPath allows overriding getent search path. Its only
+// purpose is to be used in tests.
+func OverrideGetentSearchPath(p string) {
+	// TODO should use osutil.MustBeTestBinary() but we cannot import due to
+	// cyclic dependencies
+	getentSearchPath = p
 }

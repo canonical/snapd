@@ -24,12 +24,11 @@ import (
 )
 
 var (
-	LookupGroupFromGetent   = lookupGroupFromGetent
-	LookupUserFromGetent    = lookupUserFromGetent
-	UserMatchUid            = userMatchUid
-	UserMatchUsername       = userMatchUsername
-	GroupMatchGroupname     = groupMatchGroupname
-	DefaultGetentSearchPath = defaultGetentSearchPath
+	LookupGroupFromGetent = lookupGroupFromGetent
+	LookupUserFromGetent  = lookupUserFromGetent
+	UserMatchUid          = userMatchUid
+	UserMatchUsername     = userMatchUsername
+	GroupMatchGroupname   = groupMatchGroupname
 )
 
 func MockGetentSearchPath(p string) (restore func()) {
