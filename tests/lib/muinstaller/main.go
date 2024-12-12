@@ -189,9 +189,16 @@ func runMntFor(label string) string {
 	return filepath.Join(dirs.GlobalRootDir, "/run/muinstaller-mnt/", label)
 }
 
+type volumeAuthOptions struct {
+	passphrase string
+	kdfType    string
+	kdfTime    time.Duration
+}
+
 func postSystemsInstallSetupStorageEncryption(cli *client.Client,
 	details *client.SystemDetails, bootDevice string,
-	dgpairs []*gadget.OnDiskAndGadgetStructurePair) (map[string]string, error) {
+	dgpairs []*gadget.OnDiskAndGadgetStructurePair,
+	volumesAuth volumeAuthOptions) (map[string]string, error) {
 
 	// We are modifiying the details struct here
 	for _, gadgetVol := range details.Volumes {
@@ -210,6 +217,14 @@ func postSystemsInstallSetupStorageEncryption(cli *client.Client,
 	opts := &client.InstallSystemOptions{
 		Step:      client.InstallStepSetupStorageEncryption,
 		OnVolumes: details.Volumes,
+	}
+	if volumesAuth.passphrase != "" {
+		opts.VolumesAuth = &secboot.VolumesAuthOptions{
+			Mode:       secboot.AuthModePassphrase,
+			Passphrase: volumesAuth.passphrase,
+			KDFType:    volumesAuth.kdfType,
+			KDFTime:    volumesAuth.kdfTime,
+		}
 	}
 	chgId, err := cli.InstallSystem(details.Label, opts)
 	if err != nil {
@@ -429,7 +444,7 @@ func copySeedToDataPartition() error {
 	return copySeedDir(src, dst)
 }
 
-func detectStorageEncryption(seedLabel string) (bool, error) {
+func detectStorageEncryption(seedLabel string, volumesAuth volumeAuthOptions) (bool, error) {
 	cli := client.New(nil)
 	details, err := cli.SystemDetails(seedLabel)
 	if err != nil {
@@ -439,6 +454,20 @@ func detectStorageEncryption(seedLabel string) (bool, error) {
 	if details.StorageEncryption.Support == client.StorageEncryptionSupportDefective {
 		return false, errors.New(details.StorageEncryption.UnavailableReason)
 	}
+
+	if volumesAuth.passphrase != "" {
+		passphraseAuthAvailable := false
+		for _, feat := range details.StorageEncryption.Features {
+			if feat == client.StorageEncryptionFeaturePassphraseAuth {
+				passphraseAuthAvailable = true
+				break
+			}
+		}
+		if !passphraseAuthAvailable {
+			return false, errors.New("--passphrase specified but snapd support for passphrases is missing")
+		}
+	}
+
 	return details.StorageEncryption.Support == client.StorageEncryptionSupportAvailable, nil
 }
 
@@ -523,7 +552,7 @@ func fillPartiallyDefinedVolume(vol *gadget.Volume, bootDevice string) error {
 	return nil
 }
 
-func run(seedLabel, bootDevice, rootfsCreator, optionalInstallPath string) error {
+func run(seedLabel, bootDevice, rootfsCreator, optionalInstallPath string, volumesAuth volumeAuthOptions) error {
 	isCore := rootfsCreator == ""
 	logger.Noticef("installing on %q", bootDevice)
 
@@ -532,7 +561,7 @@ func run(seedLabel, bootDevice, rootfsCreator, optionalInstallPath string) error
 	if err != nil {
 		return err
 	}
-	shouldEncrypt, err := detectStorageEncryption(seedLabel)
+	shouldEncrypt, err := detectStorageEncryption(seedLabel, volumesAuth)
 	if err != nil {
 		return err
 	}
@@ -553,7 +582,7 @@ func run(seedLabel, bootDevice, rootfsCreator, optionalInstallPath string) error
 	}
 	var encryptedDevices = make(map[string]string)
 	if shouldEncrypt {
-		encryptedDevices, err = postSystemsInstallSetupStorageEncryption(cli, details, bootDevice, dgpairs)
+		encryptedDevices, err = postSystemsInstallSetupStorageEncryption(cli, details, bootDevice, dgpairs, volumesAuth)
 		if err != nil {
 			return fmt.Errorf("cannot setup storage encryption: %v", err)
 		}
@@ -586,6 +615,9 @@ func main() {
 	bootDevice := flag.String("device", "", "target device (required)")
 	rootfsCreator := flag.String("rootfs-creator", "", "rootfs creator (optional). If specified, classic Ubuntu with core boot will be installed.\nOtherwise, Ubuntu Core will be installed")
 	optionalInstallPath := flag.String("optional", "", "path to optional snaps and components JSON file (optional)")
+	passphrase := flag.String("passphrase", "", "encryption passphrase (optional). If specified and encryption is suppported, passphrase authentication will be enabled")
+	kdfType := flag.String("kdf-type", "", "KDF type for passphrase [\"argon2id\", \"argon2i\" or \"pbkdf2\"] (optional)")
+	kdfTime := flag.Duration("kdf-time", 0, "length of time to run the KDF (optional)")
 
 	flag.Parse()
 
@@ -600,7 +632,13 @@ func main() {
 		*bootDevice = waitForDevice()
 	}
 
-	if err := run(*seedLabel, *bootDevice, *rootfsCreator, *optionalInstallPath); err != nil {
+	volumesAuth := volumeAuthOptions{
+		passphrase: *passphrase,
+		kdfType:    *kdfType,
+		kdfTime:    *kdfTime,
+	}
+
+	if err := run(*seedLabel, *bootDevice, *rootfsCreator, *optionalInstallPath, volumesAuth); err != nil {
 		fmt.Fprintf(os.Stderr, "%s\n", err)
 		os.Exit(1)
 	}
