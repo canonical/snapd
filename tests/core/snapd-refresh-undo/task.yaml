@@ -9,10 +9,7 @@ details: |
 systems: [-ubuntu-core-16-*]
 
 environment:
-  # uploading large snap triggers OOM
-  SNAPD_NO_MEMORY_LIMIT: 1
-  SNAP_NAME: test-snapd-service
-  SNAP_NAME_BAD: ${SNAP_NAME}-v2-bad
+  SNAP_NAME_BAD: test-snapd-service-v2-bad
 
 restore: |
   # Remove all inactive revisions of snapd.
@@ -43,4 +40,4 @@ execute: |
 
   # verify this has no undo failures for snapd related to security profiles
   snap change "$CHG_ID" | MATCH "(Undone).*Setup snap \"snapd\" \(unset\) security profiles"
-  snap change "$CHG_ID" | grep "Error" | wc -l | MATCH "1"
+  snap change "$CHG_ID" | grep -c "Error" | MATCH "1"
