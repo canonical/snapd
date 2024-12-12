@@ -41,3 +41,6 @@ execute: |
   # verify this has no undo failures for snapd related to security profiles
   snap change "$CHG_ID" | MATCH "(Undone).*Setup snap \"snapd\" \(unset\) security profiles"
   snap change "$CHG_ID" | grep -c "Error" | MATCH "1"
+
+  # restore original snapd
+  snap revert snapd
