@@ -370,7 +370,7 @@ func UserMaybeSudoUser() (*user.User, error) {
 		return cur, nil
 	}
 
-	real, err := user.Lookup(realName)
+	real, err := userLookup(realName)
 	// This is a best effort, see the comment in findGidNoGetentFallback in
 	// group.go.
 	//
