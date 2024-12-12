@@ -31,7 +31,7 @@ execute: |
   # refresh to a snapd prior to snapd snap, this one is chosen from
   # a customer case where they were seeing issues with snapd reverting
   snap refresh snapd --amend --revision=18357
-  snap list" | MATCH "snapd.*18357
+  snap list | MATCH "snapd.*18357"
 
   # perform a refresh to the current snapd, this will fail, do it in a way
   # that will make snapd revert
