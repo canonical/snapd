@@ -1,4 +1,4 @@
-#!/bin/sh -xe
+#!/bin/sh -e
 
 # Attempt to read /proc/$pid/loginuid and /proc/$pid/sessionid for every known
 # pid.

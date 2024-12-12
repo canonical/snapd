@@ -1,13 +1,9 @@
 #!/bin/sh -e
 
-echo "wrote to /run/auditd.pid" > /run/auditd.pid
-result="$(cat /run/auditd.pid)"
-test "$result" = "wrote to /run/auditd.pid"
-echo "$result"
-rm /run/auditd.pid
-
-echo "wrote to /var/run/auditd.pid" > /var/run/auditd.pid
-result="$(cat /var/run/auditd.pid)"
-test "$result" = "wrote to /var/run/auditd.pid"
-echo "$result"
-rm /var/run/auditd.pid
+for file in "/run/auditd.pid" "/run/auditd.state" "/var/run/auditd.pid" "/var/run/auditd.state" ; do
+	echo "wrote to $file" > "$file"
+	result="$(cat "$file")"
+	test "$result" = "wrote to $file"
+	echo "$result"
+	rm "$file"
+done

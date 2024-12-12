@@ -2,8 +2,8 @@ name: test-snapd-audit-control
 version: '1.0'
 summary: Basic snap to test the audit-control interface
 description: |
-  A basic snap used to use the audit_control capability, read /proc/*/loginuid
-  and /proc/*/sessionid, and write /run/auditd.pid and /run/auditd.state.
+  A basic snap which uses the audit_control capability, reads /proc/*/loginuid
+  and /proc/*/sessionid, and writes /run/auditd.pid and /run/auditd.state.
 architectures:
 - amd64
 base: core22
