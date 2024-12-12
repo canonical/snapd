@@ -2912,7 +2912,7 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	// the cleanup is performed by snapd from core;
 	// when reverting a subsequent snapd revision, the restart happens in
 	// undoLinkCurrentSnap() instead
-	if firstInstall && newInfo.Type() == snap.TypeSnapd {
+	if newInfo.Type() == snap.TypeSnapd {
 		restartPoss = &restartPossibility{info: newInfo, RebootInfo: boot.RebootInfo{RebootRequired: false}}
 	}
 

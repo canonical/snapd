@@ -425,6 +425,20 @@ func (m *InterfaceManager) undoSetupProfiles(task *state.Task, tomb *tomb.Tomb) 
 	}
 	snapName := snapsup.InstanceName()
 
+	// The previous task's undo (link-snap) may have triggered a restart, if this
+	// is the case we can only proceed once the restart has happened or we
+	// may not have all the interfaces of the new core/base snap. We set
+	// the default to true as we cannot set it otherwise since the change will
+	// always have been created by the old snapd (that may not have "finish-restart")
+	logger.Debugf("finish restart from undoLinkSnap")
+	finishOpts := snapstate.FinishRestartOptions{
+		// Only default to true for snapd snap
+		FinishRestartDefault: snapsup.Type == snap.TypeSnapd,
+	}
+	if err := snapstateFinishRestart(task, snapsup, finishOpts); err != nil {
+		return err
+	}
+
 	// Get the name from SnapSetup and use it to find the current SideInfo
 	// about the snap, if there is one.
 	var snapst snapstate.SnapState

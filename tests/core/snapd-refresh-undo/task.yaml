@@ -1,0 +1,46 @@
+summary: Test refreshing snapd and running new units
+
+details: |
+  Check that snapd can be installed and reverted many times in a row resulting in a
+  working snapd. Also ensure snapd is working after a reboot.
+
+# UC16 still uses the core snap rather than the snapd snap, so disable this test
+# for UC16
+systems: [-ubuntu-core-16-*]
+
+environment:
+  # uploading large snap triggers OOM
+  SNAPD_NO_MEMORY_LIMIT: 1
+  SNAP_NAME: test-snapd-service
+  SNAP_NAME_BAD: ${SNAP_NAME}-v2-bad
+
+restore: |
+  # Remove all inactive revisions of snapd.
+  current=$(readlink /snap/snapd/current)
+  for revno_path in /snap/snapd/*; do
+    revno=$(basename "$revno_path")
+    if [ "$revno" == current ] || [ "$revno" == "$current" ]; then
+      continue
+    fi
+    snap remove snapd --revision="$revno"
+  done
+
+execute: |
+  snap pack "$TESTSLIB/snaps/$SNAP_NAME_BAD"
+
+  # store a copy of the built snapd
+  cp /var/lib/snapd/snaps/snapd_x1.snap ./snapd.snap
+
+  # refresh to a snapd prior to snapd snap, this one is chosen from
+  # a customer case where they were seeing issues with snapd reverting
+  snap refresh snapd --amend --revision=18357
+  snap list" | MATCH "snapd.*18357
+
+  # perform a refresh to the current snapd, this will fail, do it in a way
+  # that will make snapd revert
+  CHG_ID=$(snap install --no-wait --dangerous --transaction=all-snaps ./snapd.snap ./test-snapd-service_2.0_all.snap)
+  snap watch "$CHG_ID" || true
+
+  # verify this has no undo failures for snapd related to security profiles
+  snap change "$CHG_ID" | MATCH "(Undone).*Setup snap \"snapd\" \(unset\) security profiles"
+  snap change "$CHG_ID" | grep "Error" | wc -l | MATCH "1"

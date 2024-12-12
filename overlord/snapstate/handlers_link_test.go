@@ -2447,11 +2447,13 @@ func (s *linkSnapSuite) TestUndoLinkSnapdNthInstall(c *C) {
 	c.Check(s.fakeBackend.ops.Ops(), DeepEquals, expected.Ops())
 	c.Check(s.fakeBackend.ops, DeepEquals, expected)
 
-	// 1 restart from link snap, the other restart happens
-	// in undoUnlinkCurrentSnap (not tested here)
-	c.Check(s.restartRequested, DeepEquals, []restart.RestartType{restart.RestartDaemon})
-	c.Assert(t.Log(), HasLen, 1)
+	// 1 restart from link snap
+	// 1 restart from undo of 'setup-profiles'
+	// 1 in undoUnlinkCurrentSnap (not tested here)
+	c.Check(s.restartRequested, DeepEquals, []restart.RestartType{restart.RestartDaemon, restart.RestartDaemon})
+	c.Assert(t.Log(), HasLen, 2)
 	c.Check(t.Log()[0], Matches, `.*INFO Requested daemon restart \(snapd snap\)\.`)
+	c.Check(t.Log()[1], Matches, `.*INFO Requested daemon restart \(snapd snap\)\.`)
 }
 
 func (s *linkSnapSuite) TestDoUnlinkSnapRefreshAwarenessHardCheckOn(c *C) {
