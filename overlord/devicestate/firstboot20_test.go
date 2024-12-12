@@ -1506,10 +1506,8 @@ func (s *firstBoot20Suite) TestPopulateFromSeedCore20ValidationSetTrackingFailsU
 	st.Unlock()
 	err = s.overlord.Settle(settleTimeout)
 	st.Lock()
-	c.Assert(err, IsNil)
-
-	st.Lock()
 	defer st.Unlock()
+	c.Assert(err, IsNil)
 	c.Assert(chg.Status(), Equals, state.ErrorStatus)
 	c.Check(chg.Err().Error(), testutil.Contains, "my-snap (required at revision 1 by sets canonical/base-set))")
 }

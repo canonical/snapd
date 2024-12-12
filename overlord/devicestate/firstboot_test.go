@@ -2514,10 +2514,8 @@ func (s *firstBoot16Suite) TestPopulateFromSeedCore18ValidationSetTrackingUnmetC
 	st.Unlock()
 	err = s.overlord.Settle(settleTimeout)
 	st.Lock()
-	c.Assert(err, IsNil)
-
-	st.Lock()
 	defer st.Unlock()
+	c.Assert(err, IsNil)
 	c.Assert(chg.Status(), Equals, state.ErrorStatus)
 	c.Check(chg.Err().Error(), testutil.Contains, "pc-kernel (required at revision 7 by sets canonical/base-set))")
 }
