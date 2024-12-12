@@ -121,15 +121,8 @@ type ConfdbControl struct {
 
 // expected interfaces are implemented
 var (
-	_ deviceSigner = (*ConfdbControl)(nil)
+	_ customSigner = (*ConfdbControl)(nil)
 )
-
-// deviceSigner represents an assertion that is signed by the device.
-// unlike a customSigner, the assertion doesn't carry the signing key in its body.
-type deviceSigner interface {
-	// signKey returns the public key material for the key that signed this assertion.
-	signKey(db RODatabase) (PublicKey, error)
-}
 
 // signKey returns the public key of the device that signed this assertion.
 func (cc *ConfdbControl) signKey(db RODatabase) (PublicKey, error) {

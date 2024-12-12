@@ -351,8 +351,8 @@ func (akr *AccountKeyRequest) PublicKeyID() string {
 }
 
 // signKey returns the underlying public key of the requested account key.
-func (akr *AccountKeyRequest) signKey() PublicKey {
-	return akr.pubKey
+func (akr *AccountKeyRequest) signKey(db RODatabase) (PublicKey, error) {
+	return akr.pubKey, nil
 }
 
 // Implement further consistency checks.
