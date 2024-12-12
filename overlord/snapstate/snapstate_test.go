@@ -10391,6 +10391,81 @@ func (s *snapmgrTestSuite) TestDownloadWithComponentsWithValidationSets(c *C) {
 	verifySnapAndComponentSetupsForDownload(c, begin, ts, downloadDir)
 }
 
+func (s *snapmgrTestSuite) TestDownloadComponents(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	components := map[string]snap.Revision{
+		"comp-1": snap.R(1),
+		"comp-2": snap.R(2),
+	}
+
+	s.fakeStore.registerID("snap-1", snaptest.AssertedSnapID("snap-1"))
+	s.fakeStore.snapResourcesFn = func(info *snap.Info) []store.SnapResourceResult {
+		results := make([]store.SnapResourceResult, 0, len(components))
+		for comp, rev := range components {
+			results = append(results, store.SnapResourceResult{
+				DownloadInfo: snap.DownloadInfo{
+					DownloadURL: "http://example.com/" + comp,
+				},
+				Name:      comp,
+				Revision:  rev.N,
+				Type:      "component/standard",
+				Version:   "1.0",
+				CreatedAt: "2024-01-01T00:00:00Z",
+			})
+		}
+		return results
+	}
+
+	s.fakeStore.mutateSnapInfo = func(info *snap.Info) error {
+		info.Components = map[string]*snap.Component{
+			"comp-1": {
+				Type: snap.StandardComponent,
+				Name: "comp-1",
+			},
+			"comp-2": {
+				Type: snap.StandardComponent,
+				Name: "comp-2",
+			},
+		}
+		return nil
+	}
+
+	downloadDir := c.MkDir()
+	ts, err := snapstate.DownloadComponents(
+		context.Background(),
+		s.state,
+		"snap-1",
+		[]string{"comp-1", "comp-2"},
+		downloadDir,
+		snapstate.RevisionOptions{},
+		snapstate.Options{},
+	)
+	c.Assert(err, IsNil)
+
+	kinds := make([]string, 0, len(ts.Tasks()))
+	for _, t := range ts.Tasks() {
+		kinds = append(kinds, t.Kind())
+	}
+	c.Assert(kinds, DeepEquals, []string{
+		"download-component",
+		"validate-component",
+		"download-component",
+		"validate-component",
+	})
+
+	last := ts.MaybeEdge(snapstate.LastBeforeLocalModificationsEdge)
+	c.Assert(last, NotNil)
+	c.Check(last.Kind(), Equals, "validate-component")
+
+	begin := ts.MaybeEdge(snapstate.BeginEdge)
+	c.Assert(begin, NotNil)
+	c.Check(begin.Kind(), Equals, "download-component")
+
+	verifySnapAndComponentSetupsForDownload(c, begin, ts, downloadDir)
+}
+
 func verifySnapAndComponentSetupsForDownload(c *C, begin *state.Task, ts *state.TaskSet, downloadDir string) {
 	var snapsup snapstate.SnapSetup
 	err := begin.Get("snap-setup", &snapsup)

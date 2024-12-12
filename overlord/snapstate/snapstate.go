@@ -1552,6 +1552,20 @@ func Download(
 	revOpts RevisionOptions,
 	opts Options,
 ) (*state.TaskSet, *snap.Info, error) {
+	const skipSnapDownload = false
+	return downloadTasks(ctx, st, name, components, downloadDir, skipSnapDownload, revOpts, opts)
+}
+
+func downloadTasks(
+	ctx context.Context,
+	st *state.State,
+	name string,
+	components []string,
+	downloadDir string,
+	skipSnapDownload bool,
+	revOpts RevisionOptions,
+	opts Options,
+) (*state.TaskSet, *snap.Info, error) {
 	if downloadDir == "" {
 		return nil, nil, errors.New("internal error: must specify directory to download to")
 	}
@@ -1629,13 +1643,6 @@ func Download(
 		return nil, nil, err
 	}
 
-	toDownloadTo := filepath.Dir(snapsup.BlobPath())
-
-	// TODO:COMPS: support checking for available space for components
-	if err := checkDiskSpaceDownload([]minimalInstallInfo{installSnapInfo{info}}, toDownloadTo); err != nil {
-		return nil, nil, err
-	}
-
 	ts := state.NewTaskSet()
 	var snapsupTask, prev *state.Task
 	addTask := func(t *state.Task) {
@@ -1651,13 +1658,21 @@ func Download(
 		prev = t
 	}
 
-	revisionStr := fmt.Sprintf(" (%s)", snapsup.Revision())
+	if !skipSnapDownload {
+		// TODO:COMPS: support checking for available space for components
+		toDownloadTo := filepath.Dir(snapsup.BlobPath())
+		if err := checkDiskSpaceDownload([]minimalInstallInfo{installSnapInfo{info}}, toDownloadTo); err != nil {
+			return nil, nil, err
+		}
 
-	download := st.NewTask("download-snap", fmt.Sprintf(i18n.G("Download snap %q%s from channel %q"), snapsup.InstanceName(), revisionStr, snapsup.Channel))
-	addTask(download)
+		revisionStr := fmt.Sprintf(" (%s)", snapsup.Revision())
 
-	validate := st.NewTask("validate-snap", fmt.Sprintf(i18n.G("Fetch and check assertions for snap %q%s"), snapsup.InstanceName(), revisionStr))
-	addTask(validate)
+		download := st.NewTask("download-snap", fmt.Sprintf(i18n.G("Download snap %q%s from channel %q"), snapsup.InstanceName(), revisionStr, snapsup.Channel))
+		addTask(download)
+
+		validate := st.NewTask("validate-snap", fmt.Sprintf(i18n.G("Fetch and check assertions for snap %q%s"), snapsup.InstanceName(), revisionStr))
+		addTask(validate)
+	}
 
 	compsupIDs := make([]string, 0, len(compsups))
 	for _, c := range compsups {
@@ -1687,6 +1702,23 @@ func Download(
 	ts.MarkEdge(prev, LastBeforeLocalModificationsEdge)
 
 	return ts, info, nil
+}
+
+func DownloadComponents(
+	ctx context.Context,
+	st *state.State,
+	name string,
+	components []string,
+	dir string,
+	revOpts RevisionOptions,
+	opts Options,
+) (*state.TaskSet, error) {
+	const skipSnapDownload = true
+	ts, _, err := downloadTasks(ctx, st, name, components, dir, skipSnapDownload, revOpts, opts)
+	if err != nil {
+		return nil, err
+	}
+	return ts, nil
 }
 
 func validatedInfoFromPathAndSideInfo(instanceName string, path string, si *snap.SideInfo) (*snap.Info, error) {
