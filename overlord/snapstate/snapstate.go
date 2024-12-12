@@ -1202,6 +1202,9 @@ func isChangeRequestingSnapdRestart(chg *state.Change) bool {
 	// have been set up in link-snap, daemon restart is requested, link-snap
 	// is marked as Done, and the auto-connect task is held off (in Do or
 	// Doing states) until the restart completes
+	// TODO: This may need additional handling for snapd reboot along the
+	// Undo path. For instance, 'link-snap' can request a reboot in the undo
+	// direction, making 'setup-profiles' wait for reboot.
 	var haveSnapd, linkDone, autoConnectWaiting bool
 	for _, tsk := range chg.Tasks() {
 		kind := tsk.Kind()
