@@ -461,6 +461,22 @@ func (s *deviceMgrBaseSuite) makeSerialAssertionInState(c *C, brandID, model, se
 	return makeSerialAssertionInState(c, s.brands, s.state, brandID, model, serialN)
 }
 
+func (s *deviceMgrBaseSuite) addKeyToManagerInState(c *C) {
+	device, err := devicestatetest.Device(s.state)
+	c.Assert(err, IsNil)
+
+	err = devicestate.KeypairManager(s.mgr).Put(devKey)
+	c.Assert(err, IsNil)
+
+	err = devicestatetest.SetDevice(s.state, &auth.DeviceState{
+		Brand:  device.Brand,
+		Model:  device.Model,
+		Serial: device.Serial,
+		KeyID:  devKey.PublicKey().ID(),
+	})
+	c.Assert(err, IsNil)
+}
+
 func (s *deviceMgrSuite) SetUpTest(c *C) {
 	classic := false
 	s.setupBaseTest(c, classic)
@@ -2786,63 +2802,50 @@ func (s *deviceMgrSuite) TestDefaultRecoverySystem(c *C) {
 	c.Check(*system, Equals, expectedSystem)
 }
 
-func (s *deviceMgrSuite) TestSignConfdbControl(c *C) {
+func (s *deviceMgrSuite) TestSignConfdbControlNoSerial(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	s.makeModelAssertionInState(c, "canonical", "pc", map[string]interface{}{
-		"architecture": "amd64",
-		"kernel":       "pc-kernel",
-		"gadget":       "pc",
-	})
-
-	// No serial assertion exists yet
 	_, err := s.mgr.SignConfdbControl([]interface{}{}, 2)
 	c.Assert(err, ErrorMatches, "cannot sign confdb-control without a serial: no state entry for key")
+}
 
-	// Add serial assertion
-	encDevKey, err := asserts.EncodePublicKey(devKey.PublicKey())
-	c.Check(err, IsNil)
-	serial, err := s.storeSigning.Sign(asserts.SerialType, map[string]interface{}{
-		"brand-id":            "canonical",
-		"model":               "pc",
-		"serial":              "42",
-		"device-key":          string(encDevKey),
-		"device-key-sha3-384": devKey.PublicKey().ID(),
-		"timestamp":           time.Now().Format(time.RFC3339),
-	}, nil, "")
-	c.Assert(err, IsNil)
-	assertstatetest.AddMany(s.state, serial)
+func (s *deviceMgrSuite) TestSignConfdbControlNoKey(c *C) {
+	s.setPCModelInState(c)
+	s.state.Lock()
+	defer s.state.Unlock()
 
-	devicestatetest.SetDevice(s.state, &auth.DeviceState{
-		Brand:  "canonical",
-		Model:  "pc",
-		Serial: "42",
-	})
+	s.makeSerialAssertionInState(c, "canonical", "pc", "serialserialserial")
 
-	_, err = s.mgr.SignConfdbControl([]interface{}{}, 3)
+	_, err := s.mgr.SignConfdbControl([]interface{}{}, 3)
 	c.Assert(err, ErrorMatches, "cannot sign confdb-control without device key: no state entry for key")
+}
 
-	// Add device key to manager
-	devicestate.KeypairManager(s.mgr).Put(devKey)
+func (s *deviceMgrSuite) TestSignConfdbControlValidationFailure(c *C) {
+	s.setPCModelInState(c)
+	s.state.Lock()
+	defer s.state.Unlock()
 
-	devicestatetest.SetDevice(s.state, &auth.DeviceState{
-		Brand:  "canonical",
-		Model:  "pc",
-		Serial: "42",
-		KeyID:  devKey.PublicKey().ID(),
-	})
+	s.makeSerialAssertionInState(c, "canonical", "pc", "serialserialserial")
+	s.addKeyToManagerInState(c)
 
-	// validation failure
 	groups := []interface{}{map[string]interface{}{"operator-id": "jane"}}
-	_, err = s.mgr.SignConfdbControl(groups, 4)
+	_, err := s.mgr.SignConfdbControl(groups, 4)
 	c.Assert(
 		err,
 		ErrorMatches,
 		"cannot assemble assertion confdb-control: cannot parse group at position 1: \"authentication\" must be provided",
 	)
+}
 
-	// OK
+func (s *deviceMgrSuite) TestSignConfdbControlOK(c *C) {
+	s.setPCModelInState(c)
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	s.makeSerialAssertionInState(c, "canonical", "pc", "serialserialserial")
+	s.addKeyToManagerInState(c)
+
 	jane := map[string]interface{}{
 		"operator-id":    "jane",
 		"authentication": []interface{}{"operator-key"},
@@ -2851,7 +2854,7 @@ func (s *deviceMgrSuite) TestSignConfdbControl(c *C) {
 			"canonical/network/control-interfaces",
 		},
 	}
-	groups = []interface{}{jane}
+	groups := []interface{}{jane}
 
 	cc, err := s.mgr.SignConfdbControl(groups, 5)
 	c.Assert(err, IsNil)
