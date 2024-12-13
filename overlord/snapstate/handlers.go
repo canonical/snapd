@@ -2913,7 +2913,7 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 
 	// When undoing the snapd snap refresh/install we must ensure that
 	// we are restarting into the previous snapd, undoSetupProfiles() handles
-	// the actual waiting for reboot.
+	// the actual waiting for restart.
 	if newInfo.Type() == snap.TypeSnapd {
 		restartPoss = &restartPossibility{info: newInfo, RebootInfo: boot.RebootInfo{RebootRequired: false}}
 	}

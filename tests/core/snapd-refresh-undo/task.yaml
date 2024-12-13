@@ -1,8 +1,8 @@
-summary: Test refreshing snapd and running new units
+summary: Verify that snapd can undo the upgrade from non-snapd-snap to snapd-snap
 
 details: |
-  Check that snapd can be installed and reverted many times in a row resulting in a
-  working snapd. Also ensure snapd is working after a reboot.
+  Verify that the snapd-snap can successfully undo after upgrading from a non snapd-snap
+  situation, and something causes a rollback even in spite of a successful snapd update.
 
 # UC16 still uses the core snap rather than the snapd snap, so disable this test
 # for UC16
