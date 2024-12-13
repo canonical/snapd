@@ -26,8 +26,11 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path"
 	"path/filepath"
+	"regexp"
 
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/osutil"
 )
@@ -257,11 +260,44 @@ func (r *rawStructureUpdater) rollbackDifferent(out io.WriteSeeker, pc *LaidOutC
 	return nil
 }
 
+const eMMCSysBlockReadOnlyFmt = "/sys/block/%s%s/force_ro"
+
+var eMMCDeviceRegex = regexp.MustCompile("mmcblk[0-9]")
+
+var setEMMCPartitionReadWrite = func(device string, part string, rw bool) error {
+	sdevPath := fmt.Sprintf(eMMCSysBlockReadOnlyFmt, device, part)
+
+	f, err := os.OpenFile(path.Join(dirs.GlobalRootDir, sdevPath), os.O_WRONLY, 0)
+	if err != nil {
+		return fmt.Errorf("cannot open device for writing: %v", err)
+	}
+	defer f.Close()
+
+	if rw {
+		f.Write([]byte("0"))
+	} else {
+		f.Write([]byte("1"))
+	}
+	return nil
+}
+
 // Rollback attempts to restore original content from the backup copies prepared during Backup().
 func (r *rawStructureUpdater) Rollback() error {
 	device, structForDevice, err := r.matchDevice()
 	if err != nil {
 		return err
+	}
+
+	if structForDevice.VolumeStructure.EnclosingVolume.Schema == schemaEMMC {
+		// get the emmc block name from the device path
+		mmcblk := eMMCDeviceRegex.FindString(device)
+		if mmcblk == "" {
+			return fmt.Errorf("cannot find valid mmc device from %s", device)
+		}
+		if err := setEMMCPartitionReadWrite(mmcblk, structForDevice.Name(), true); err != nil {
+			return err
+		}
+		defer setEMMCPartitionReadWrite(mmcblk, structForDevice.Name(), false)
 	}
 
 	disk, err := os.OpenFile(device, os.O_WRONLY, 0)
@@ -306,6 +342,18 @@ func (r *rawStructureUpdater) Update() error {
 	device, structForDevice, err := r.matchDevice()
 	if err != nil {
 		return err
+	}
+
+	if structForDevice.VolumeStructure.EnclosingVolume.Schema == schemaEMMC {
+		// get the emmc block name from the device path
+		mmcblk := eMMCDeviceRegex.FindString(device)
+		if mmcblk == "" {
+			return fmt.Errorf("cannot find valid mmc device from %s", device)
+		}
+		if err := setEMMCPartitionReadWrite(mmcblk, structForDevice.Name(), true); err != nil {
+			return err
+		}
+		defer setEMMCPartitionReadWrite(mmcblk, structForDevice.Name(), false)
 	}
 
 	disk, err := os.OpenFile(device, os.O_WRONLY, 0)
