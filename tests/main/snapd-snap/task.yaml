@@ -42,7 +42,7 @@ prepare: |
     # shellcheck source=tests/lib/systems.sh
     . "$TESTSLIB/systems.sh"
 
-    if os.query is-fedora || os.query is-arch; then
+    if os.query is-fedora || os.query is-arch-linux; then
         # set up classic execution support
         ln -sf "$SNAP_MOUNT_DIR" /snap
         tests.cleanup defer rm -r /snap
