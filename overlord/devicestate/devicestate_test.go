@@ -2821,7 +2821,7 @@ func (s *deviceMgrSuite) TestSignConfdbControlNoKey(c *C) {
 	c.Assert(err, ErrorMatches, "cannot sign confdb-control without device key: no state entry for key")
 }
 
-func (s *deviceMgrSuite) TestSignConfdbControlValidationFailure(c *C) {
+func (s *deviceMgrSuite) TestSignConfdbControlInvalid(c *C) {
 	s.setPCModelInState(c)
 	s.state.Lock()
 	defer s.state.Unlock()
