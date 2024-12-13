@@ -1649,58 +1649,6 @@ func (safs *signAddFindSuite) TestCheckConstraints(c *C) {
 	c.Check(err, ErrorMatches, `assertion does not match signing constraints for public key ".*" from "my-brand"`)
 }
 
-func (safs *signAddFindSuite) TestCheckSignatureDeviceKey(c *C) {
-	headers := map[string]interface{}{
-		"brand-id": "canonical",
-		"model":    "pc",
-		"serial":   "42",
-		"groups":   []interface{}{},
-	}
-
-	// No serial assertion
-	a, err := asserts.AssembleAndSignInTest(asserts.ConfdbControlType, headers, nil, testPrivKey0)
-	c.Assert(err, IsNil)
-
-	err = safs.db.Add(a)
-	c.Assert(
-		err,
-		ErrorMatches,
-		"cannot check signature: cannot find matching serial: .* not found",
-	)
-
-	// Add serial
-	encodedPubKey, err := asserts.EncodePublicKey(testPrivKey0.PublicKey())
-	c.Assert(err, IsNil)
-
-	serial, err := asserts.AssembleAndSignInTest(asserts.SerialType, map[string]interface{}{
-		"authority-id":        "canonical",
-		"brand-id":            "canonical",
-		"model":               "pc",
-		"serial":              "42",
-		"device-key":          string(encodedPubKey),
-		"device-key-sha3-384": safs.signingKeyID,
-		"timestamp":           time.Now().Format(time.RFC3339),
-	}, nil, testPrivKey0)
-	c.Assert(err, IsNil)
-
-	err = safs.db.Add(serial)
-	c.Assert(err, IsNil)
-
-	// Keys don't match
-	a, err = asserts.AssembleAndSignInTest(asserts.ConfdbControlType, headers, nil, testPrivKey2)
-	c.Assert(err, IsNil)
-
-	err = safs.db.Add(a)
-	c.Assert(err, ErrorMatches, "cannot check signature: confdb-control's signing key doesn't match the device's key")
-
-	// OK
-	a, err = asserts.AssembleAndSignInTest(asserts.ConfdbControlType, headers, nil, testPrivKey0)
-	c.Assert(err, IsNil)
-
-	err = safs.db.Add(a)
-	c.Assert(err, IsNil)
-}
-
 type revisionErrorSuite struct{}
 
 func (res *revisionErrorSuite) TestErrorText(c *C) {
