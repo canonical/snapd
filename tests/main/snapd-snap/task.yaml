@@ -64,8 +64,9 @@ prepare: |
         if command -v apt && apt -v; then
             # meh trusty's apt doesn't support -y, so use apt-get
             apt-get autoremove -y lxd
-            if ! os.query is-debian sid; then
-                # no lxd-client on debian sid
+            if apt-cache show lxd-client ; then
+                # lxd-client appears to be a historical package and not
+                # avaialble in all repositories
                 apt-get autoremove -y lxd-client
             fi
         fi
@@ -201,7 +202,7 @@ execute: |
     chmod +x snapd-cleanup.sh
     tests.cleanup defer sh -c "$PWD/snapd-cleanup.sh"
 
-    if os.query is-fedora || os.query is-arch || os.query is-opensuse ; then
+    if os.query is-fedora || os.query is-arch-linux || os.query is-opensuse ; then
         # remaining code checks reexecution and internal AppArmor features which
         # are not used on Fedora, Arch and openSUSE
         echo "Reexec and internal AppArmor is not supported on $SPREAD_SYSTEM yet"
