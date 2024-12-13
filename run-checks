@@ -165,7 +165,7 @@ if [ "$STATIC" = 1 ]; then
         echo Checking pull request summary
         ./check-pr-title.py "${GITHUB_PULL_REQUEST_TITLE}"
     else
-	echo Skipping pull request summary check: not a pull request
+        echo Skipping pull request summary check: not a pull request
     fi
 
     # check commit author/committer name for unicode
@@ -242,9 +242,7 @@ if [ "$STATIC" = 1 ]; then
 
     if command -v shellcheck >/dev/null; then
         exclude_tools_path=tests/lib/external/snapd-testing-tools
-        exclude_test_snapd_audit_control_auditd=tests/main/interfaces-audit-control/test-snapd-audit-control/etc/init.d/auditd
-        exclude_test_snapd_audit_control_augenrules=tests/main/interfaces-audit-control/test-snapd-audit-control/sbin/augenrules
-        excluded="$exclude_tools_path $exclude_test_snapd_audit_control_auditd $exclude_test_snapd_audit_control_augenrules"
+        excluded=("$exclude_tools_path" "tests/main/interfaces-audit-control/test-snapd-audit-control/etc/init.d/auditd" "tests/main/interfaces-audit-control/test-snapd-audit-control/sbin/augenrules")
         echo "Checking shell scripts..."
         if [ -n "$CHANGED_FILES" ]; then
             echo "Checking just the changed bash files"
@@ -260,9 +258,10 @@ if [ "$STATIC" = 1 ]; then
         FILTERED_FILES=
         for file in $INITIAL_FILES; do
             include_file=true
-            for excl in $excluded; do
+            for excl in "${excluded[@]}" ; do
                 if echo "$file" | grep -q "$excl" ; then
                     include_file=false
+                    break
                 fi
             done
             if [ "$include_file" = true ] ; then
@@ -406,7 +405,7 @@ if [ "$STATIC" = 1 ]; then
 
         echo "Checking installation of golangci-lint"
         gcil="$(command -v golangci-lint || true)"
-        if [ -z "$gcil" ]; then 
+        if [ -z "$gcil" ]; then
             echo "ERROR: Cannot find golangci-lint. You need to first install the golangci-lint"
             exit 1
         fi
