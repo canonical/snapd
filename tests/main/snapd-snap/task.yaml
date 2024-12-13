@@ -10,25 +10,16 @@ details: |
 # particular PR from github actions, in which case we can just download that and
 # install it here to test the things that we need to test about the snapd snap
 
-# effectively we can only build the snap using LXD + snapcraft on ubuntu systems
-# due to various bugs with other distros and snapcraft and/or LXD
+# effectively we can only build the snap using LXD + snapcraft on a substed of
+# distros
 systems:
     # snapcraft is a classic snap, can't run on ubuntu-core
     - -ubuntu-core-*
-    # LXD doesn't work properly on amazon linux, fedora, opensuse, or debian
-    # 9 to build the snap, it complains about fuse.snapfuse getting EPERM when
-    # snaps are installed inside the LXD container that snapcraft creates
+    # LXD doesn't work properly on Amazon Linux
     - -amazon-linux-*
-    - -debian-*
-    - -fedora-*
-    - -opensuse-*
-    # additionally on fedora 32 and 33, and arch linux which are all cgroupsv2
-    # now, LXD does not work either, with the service failing to start up at all
-    # when we install LXD
-    - -arch-*
-    # snapcraft does not support running on centos 7 due to errors with the
+    # snapcraft does not support running on CentOS 7 due to errors with the
     # locale, see https://bugs.launchpad.net/snapcraft/+bug/1922140
-    # a separate error occurs on centos 8, see https://bugs.launchpad.net/snapcraft/+bug/1922981
+    # a separate error occurs on CentOS 8, see https://bugs.launchpad.net/snapcraft/+bug/1922981
     - -centos-*
     # Not very useful to build snapd snap from 14.04 given it has to use lxd.
     # The VMs for 14.04 do not have enough. So let's disable the test anyway.
@@ -49,16 +40,16 @@ prepare: |
     # shellcheck source=tests/lib/systems.sh
     . "$TESTSLIB/systems.sh"
 
+    SNAP_MOUNT_DIR="$(os.paths snap-mount-dir)"
+    if os.query is-fedora || os.query is-arch-linux; then
+        # set up classic execution support
+        ln -sf "$SNAP_MOUNT_DIR" /snap
+        tests.cleanup defer rm -f /snap
+    fi
+
     # only run the destructive mode variant on xenial
     if ! os.query is-jammy && [ "$SNAPCRAFT_BUILD_ENVIRONMENT" = "host" ]; then
         echo "Skipping destructive mode build on non-jammy"
-        exit 0
-    fi
-
-    if is_cgroupv2 && [ "$SNAPCRAFT_BUILD_ENVIRONMENT" = "lxd" ]; then
-        # snapd snap uses core build base (16.04) which cannot be booted
-        # properly on a host using unified hierarchy
-        echo "Skipping LXD build with unified cgroup hierarchy"
         exit 0
     fi
 
@@ -72,8 +63,9 @@ prepare: |
         if command -v apt && apt -v; then
             # meh trusty's apt doesn't support -y, so use apt-get
             apt-get autoremove -y lxd
-            if ! os.query is-debian sid; then
-                # no lxd-client on debian sid
+            if apt-cache show lxd-client ; then
+                # lxd-client appears to be a historical package and not
+                # available in all repositories
                 apt-get autoremove -y lxd-client
             fi
         fi
@@ -131,13 +123,6 @@ execute: |
     # only run the destructive mode variant on xenial
     if ! os.query is-jammy && [ "$SNAPCRAFT_BUILD_ENVIRONMENT" = "host" ]; then
         echo "Skipping destructive mode build on non-jammy"
-        exit 0
-    fi
-
-    if is_cgroupv2 && [ "$SNAPCRAFT_BUILD_ENVIRONMENT" = "lxd" ]; then
-        # snapd snap uses core build base (16.04) which cannot be booted
-        # properly on a host using unified hierarchy
-        echo "Skipping LXD build with unified cgroup hierarchy"
         exit 0
     fi
 
@@ -215,6 +200,13 @@ execute: |
     EOF
     chmod +x snapd-cleanup.sh
     tests.cleanup defer sh -c "$PWD/snapd-cleanup.sh"
+
+    if os.query is-fedora || os.query is-arch-linux || os.query is-opensuse ; then
+        # remaining code checks reexecution and internal AppArmor features which
+        # are not used on Fedora, Arch and openSUSE
+        echo "Reexec and internal AppArmor is not supported on $SPREAD_SYSTEM yet"
+        exit 0
+    fi
 
     echo "Ensure we restarted into the snapd snap"
     "$TESTSTOOLS"/journal-state match-log  'restarting into "/snap/snapd/'
