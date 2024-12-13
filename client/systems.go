@@ -162,7 +162,8 @@ type StorageEncryptionFeature string
 const (
 	// Indicates that passphrase authentication is available.
 	StorageEncryptionFeaturePassphraseAuth StorageEncryptionFeature = "passphrase-auth"
-	// TODO: Add PIN option when secboot support lands.
+	// Indicates that PIN authentication is available.
+	StorageEncryptionFeaturePINAuth StorageEncryptionFeature = "pin-auth"
 )
 
 type StorageEncryption struct {
