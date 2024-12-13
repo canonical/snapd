@@ -1,0 +1,12 @@
+#!/bin/sh -e
+
+orig="$(cat /proc/self/oom_score_adj)"
+echo 123 > /proc/self/oom_score_adj
+new="$(cat /proc/self/oom_score_adj)"
+test "$new" = "123"
+echo "Changed /proc/self/oom_score_adj from $orig to $new"
+
+echo "$orig" > /proc/self/oom_score_adj
+new="$(cat /proc/self/oom_score_adj)"
+test "$new" = "$orig"
+echo "Changed /proc/self/oom_score_adj back to "$orig"

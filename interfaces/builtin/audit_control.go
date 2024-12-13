@@ -48,6 +48,9 @@ capability audit_control,
 
 # Allow writing /run/auditd.pid and /run/auditd.state, as required by auditd.
 /{,var/}run/auditd.{pid,state} rw,
+
+# Allow adjusting the OOM score of the application.
+@{PROC}/@{pid}/oom_score_adj rw,
 `
 
 type auditControlInterface struct {

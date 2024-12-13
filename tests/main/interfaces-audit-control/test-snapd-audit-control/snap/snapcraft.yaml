@@ -4,7 +4,8 @@ version: '1.0'
 summary: Basic snap to test the audit-control interface
 description: |
   A basic snap which uses the audit_control capability, reads /proc/*/loginuid
-  and /proc/*/sessionid, and writes /run/auditd.pid and /run/auditd.state.
+  and /proc/*/sessionid, writes /run/auditd.pid and /run/auditd.state, and
+  adjusts its OOM score.
 
 grade: stable # must be 'stable' to release into candidate/stable channels
 confinement: strict # use 'strict' once you have the right plugs and slots
@@ -21,6 +22,7 @@ parts:
       audit-rate: bin/
       read-ids: bin/
       write-auditd-pid-state: bin/
+      adjust-oom-score: bin/
 
 apps:
   audit-rate:
@@ -31,4 +33,7 @@ apps:
     plugs: [audit-control]
   write-auditd-pid-state:
     command: bin/write-auditd-pid-state
+    plugs: [audit-control]
+  adjust-oom-score:
+    command: bin/adjust-oom-score
     plugs: [audit-control]
