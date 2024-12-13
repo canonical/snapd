@@ -20,6 +20,7 @@
 package wrappers_test
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -881,4 +882,25 @@ X-SnapInstanceName=foo`)
 	c.Check(found, HasLen, 2)
 	c.Check(found["foo_foo.desktop"], Equals, "foo")
 	c.Check(found["foo_bar.desktop"], Equals, "foo")
+}
+
+func (s *desktopSuite) TestForAllDesktopFilesSkipsBadDesktopFiles(c *C) {
+	c.Assert(os.MkdirAll(dirs.SnapDesktopFilesDir, 0755), IsNil)
+
+	var mockEmpty []byte
+	var mockNoInstanceName = []byte(`
+[Desktop Entry]
+Name=foo`)
+	var mockInvalid = []byte(`
+[Desktop Entry]
+[Desktop Entry]`)
+
+	c.Assert(os.WriteFile(filepath.Join(dirs.SnapDesktopFilesDir, "empty.desktop"), mockEmpty, 0644), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(dirs.SnapDesktopFilesDir, "no-instance-name.desktop"), mockNoInstanceName, 0644), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(dirs.SnapDesktopFilesDir, "invalid.desktop"), mockInvalid, 0644), IsNil)
+
+	err := wrappers.ForAllDesktopFiles(func(base, instanceName string) error {
+		return errors.New("unexpected call")
+	})
+	c.Assert(err, IsNil)
 }
