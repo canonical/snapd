@@ -66,7 +66,7 @@ prepare: |
             apt-get autoremove -y lxd
             if apt-cache show lxd-client ; then
                 # lxd-client appears to be a historical package and not
-                # avaialble in all repositories
+                # available in all repositories
                 apt-get autoremove -y lxd-client
             fi
         fi
