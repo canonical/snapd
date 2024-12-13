@@ -2608,7 +2608,7 @@ func (s *installStepSuite) TestDeviceManagerInstallSetupStorageEncryptionVolumeA
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	volumeOpts := &secboot.VolumesAuthOptions{Mode: "bad-mode", Passphrase: "1234"}
+	volumeOpts := &device.VolumesAuthOptions{Mode: "bad-mode", Passphrase: "1234"}
 	chg, err := devicestate.InstallSetupStorageEncryption(s.state, "1234", mockOnVolumes, volumeOpts)
 	c.Check(err, ErrorMatches, `invalid authentication mode "bad-mode", only "passphrase" and "pin" modes are supported`)
 	c.Check(chg, IsNil)
@@ -2618,9 +2618,9 @@ func (s *installStepSuite) testDeviceManagerInstallSetupStorageEncryptionTasksAn
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	var volumesAuth *secboot.VolumesAuthOptions
+	var volumesAuth *device.VolumesAuthOptions
 	if withVolumesAuth {
-		volumesAuth = &secboot.VolumesAuthOptions{Mode: secboot.AuthModePassphrase, Passphrase: "1234"}
+		volumesAuth = &device.VolumesAuthOptions{Mode: device.AuthModePassphrase, Passphrase: "1234"}
 	}
 
 	chg, err := devicestate.InstallSetupStorageEncryption(s.state, "1234", mockOnVolumes, volumesAuth)
@@ -2643,7 +2643,7 @@ func (s *installStepSuite) testDeviceManagerInstallSetupStorageEncryptionTasksAn
 	cached := s.state.Cached(devicestate.VolumesAuthOptionsKeyByLabel("1234"))
 	if withVolumesAuth {
 		c.Assert(cached, NotNil)
-		cachedVolumesAuth := cached.(*secboot.VolumesAuthOptions)
+		cachedVolumesAuth := cached.(*device.VolumesAuthOptions)
 		c.Check(cachedVolumesAuth, Equals, volumesAuth)
 	} else {
 		c.Assert(cached, IsNil)

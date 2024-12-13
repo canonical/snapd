@@ -28,7 +28,7 @@ import (
 
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/gadget"
-	"github.com/snapcore/snapd/secboot"
+	"github.com/snapcore/snapd/gadget/device"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -369,8 +369,8 @@ func (cs *clientSuite) TestRequestSystemInstallHappy(c *check.C) {
 			},
 		},
 	}
-	volumesAuth := &secboot.VolumesAuthOptions{
-		Mode:       secboot.AuthModePassphrase,
+	volumesAuth := &device.VolumesAuthOptions{
+		Mode:       device.AuthModePassphrase,
 		Passphrase: "1234",
 		KDFType:    "argon2i",
 		KDFTime:    2 * time.Second,

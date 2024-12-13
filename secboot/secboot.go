@@ -26,8 +26,6 @@ package secboot
 
 import (
 	"errors"
-	"fmt"
-	"time"
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/bootloader"
@@ -249,59 +247,6 @@ func MarkSuccessful() error {
 		if err := resetLockoutCounter(lockoutAuthFile); err != nil {
 			return err
 		}
-	}
-
-	return nil
-}
-
-// AuthMode corresponds to an authentication mechanism.
-type AuthMode string
-
-const (
-	AuthModePassphrase AuthMode = "passphrase"
-	AuthModePIN        AuthMode = "pin"
-)
-
-// VolumesAuthOptions contains options for the volumes authentication
-// mechanism (e.g. passphrase authentication).
-//
-// TODO: Add PIN option when secboot support lands.
-type VolumesAuthOptions struct {
-	Mode       AuthMode      `json:"mode,omitempty"`
-	Passphrase string        `json:"passphrase,omitempty"`
-	KDFType    string        `json:"kdf-type,omitempty"`
-	KDFTime    time.Duration `json:"kdf-time,omitempty"`
-}
-
-// Validates authentication options.
-func (o *VolumesAuthOptions) Validate() error {
-	if o == nil {
-		return nil
-	}
-
-	switch o.Mode {
-	case AuthModePassphrase:
-		// TODO: Add entropy/quality checks on passphrase.
-		if len(o.Passphrase) == 0 {
-			return fmt.Errorf("passphrase cannot be empty")
-		}
-	case AuthModePIN:
-		if o.KDFType != "" {
-			return fmt.Errorf("%q authentication mode does not support custom kdf types", AuthModePIN)
-		}
-		return fmt.Errorf("%q authentication mode is not implemented", AuthModePIN)
-	default:
-		return fmt.Errorf("invalid authentication mode %q, only %q and %q modes are supported", o.Mode, AuthModePassphrase, AuthModePIN)
-	}
-
-	switch o.KDFType {
-	case "argon2i", "argon2id", "pbkdf2", "":
-	default:
-		return fmt.Errorf("invalid kdf type %q, only \"argon2i\", \"argon2id\" and \"pbkdf2\" are supported", o.KDFType)
-	}
-
-	if o.KDFTime < 0 {
-		return fmt.Errorf("kdf time cannot be negative")
 	}
 
 	return nil

@@ -28,7 +28,6 @@ import (
 
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/gadget/device"
-	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -257,7 +256,7 @@ type InstallSystemOptions struct {
 	// VolumesAuth contains options for volumes authentication (e.g. passphrase
 	// authentication). If VolumesAuth is nil, the default is to have no
 	// authentication.
-	VolumesAuth *secboot.VolumesAuthOptions `json:"volumes-auth,omitempty"`
+	VolumesAuth *device.VolumesAuthOptions `json:"volumes-auth,omitempty"`
 }
 
 type OptionalInstallRequest struct {
