@@ -2873,11 +2873,15 @@ func (s *writerSuite) TestCore20NonDangerousDisallowedOptionsSnaps(c *C) {
 	baseLabel := "20191107"
 
 	tests := []struct {
-		optSnap *seedwriter.OptionsSnap
+		optSnap            *seedwriter.OptionsSnap
+		expectedErrVariant string
 	}{
-		{&seedwriter.OptionsSnap{Name: "extra"}},
-		{&seedwriter.OptionsSnap{Path: pcFn}},
-		{&seedwriter.OptionsSnap{Name: "pc", Channel: "edge"}},
+		{optSnap: &seedwriter.OptionsSnap{Name: "extra"}},
+		{optSnap: &seedwriter.OptionsSnap{Path: pcFn}},
+		{
+			optSnap:            &seedwriter.OptionsSnap{Name: "pc", Channel: "edge"},
+			expectedErrVariant: "cannot override channels with a model of grade higher than dangerous but --snap=<snap-name> is allowed to select optional snaps to include",
+		},
 	}
 
 	const expectedErr = `cannot override channels, add devmode snaps, local snaps, or extra snaps/components with a model of grade higher than dangerous`
@@ -2889,7 +2893,11 @@ func (s *writerSuite) TestCore20NonDangerousDisallowedOptionsSnaps(c *C) {
 
 		err = w.SetOptionsSnaps([]*seedwriter.OptionsSnap{t.optSnap})
 		if err != nil {
-			c.Check(err, ErrorMatches, expectedErr)
+			if t.expectedErrVariant != "" {
+				c.Check(err, ErrorMatches, t.expectedErrVariant)
+			} else {
+				c.Check(err, ErrorMatches, expectedErr)
+			}
 			continue
 		}
 
