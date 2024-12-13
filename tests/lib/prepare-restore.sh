@@ -696,10 +696,13 @@ prepare_suite_each() {
         return 0
     fi
 
+    # shellcheck source=tests/lib/prepare.sh
+    . "$TESTSLIB"/prepare.sh
+    # Each individual task may potentially set the SNAP_NO_MEMORY_LIMIT variable
+    prepare_memory_limit_override
+
     if [[ "$variant" = full ]]; then
         if os.query is-classic; then
-            # shellcheck source=tests/lib/prepare.sh
-            . "$TESTSLIB"/prepare.sh
             prepare_each_classic
         fi
     fi

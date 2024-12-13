@@ -248,14 +248,6 @@ update_core_snap_for_classic_reexec() {
 }
 
 prepare_memory_limit_override() {
-    # First time it is needed to save the initial env var value
-    if not tests.env is-set initial SNAPD_NO_MEMORY_LIMIT; then
-        tests.env set initial SNAPD_NO_MEMORY_LIMIT "$SNAPD_NO_MEMORY_LIMIT"
-    # Then if the new value is the same than the initial, then no new configuration needed
-    elif [ "$(tests.env get initial SNAPD_NO_MEMORY_LIMIT)" = "$SNAPD_NO_MEMORY_LIMIT" ]; then
-        return
-    fi
-
     # set up memory limits for snapd bu default unless explicit requested not to
     # or the system is known to be problematic
     local set_limit=1
@@ -278,6 +270,18 @@ prepare_memory_limit_override() {
             fi
             ;;
     esac
+
+    # If we don't wish to impose a memory limit, and the conf file 
+    # already doesn't exist, then no new configuration is needed
+    if [ "$set_limit" == "0" ] && ! [ -f "/etc/systemd/system/snapd.service.d/memory-max.conf" ]; then
+        return
+    fi
+
+    # If we wish to impose a memory limit, and the conf file 
+    # already exists, then no new configuration is needed
+    if [ "$set_limit" == "1" ] && [ -f "/etc/systemd/system/snapd.service.d/memory-max.conf" ]; then
+        return
+    fi
 
     if [ "$set_limit" = "0" ]; then
         # make sure the file does not exist then
@@ -338,7 +342,6 @@ prepare_each_classic() {
     fi
 
     prepare_reexec_override
-    prepare_memory_limit_override
 }
 
 prepare_classic() {
