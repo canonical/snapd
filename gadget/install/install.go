@@ -30,6 +30,7 @@ import (
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget"
+	"github.com/snapcore/snapd/gadget/device"
 	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/kernel"
 	"github.com/snapcore/snapd/logger"
@@ -99,10 +100,10 @@ func saveStorageTraits(mod gadget.Model, allVols map[string]*gadget.Volume, opts
 	return nil
 }
 
-func maybeEncryptPartition(dgpair *gadget.OnDiskAndGadgetStructurePair, encryptionType secboot.EncryptionType, sectorSize quantity.Size, perfTimings timings.Measurer) (fsParams *mkfsParams, diskEncryptionKey secboot.DiskUnlockKey, err error) {
+func maybeEncryptPartition(dgpair *gadget.OnDiskAndGadgetStructurePair, encryptionType device.EncryptionType, sectorSize quantity.Size, perfTimings timings.Measurer) (fsParams *mkfsParams, diskEncryptionKey secboot.DiskUnlockKey, err error) {
 	diskPart := dgpair.DiskStructure
 	volStruct := dgpair.GadgetStructure
-	mustEncrypt := (encryptionType != secboot.EncryptionTypeNone)
+	mustEncrypt := (encryptionType != device.EncryptionTypeNone)
 	// fsParams.Device is the kernel device that carries the
 	// filesystem, which is either the raw /dev/<partition>, or
 	// the mapped LUKS device if the structure is encrypted (if
@@ -134,7 +135,7 @@ func maybeEncryptPartition(dgpair *gadget.OnDiskAndGadgetStructurePair, encrypti
 		logger.Noticef("encrypting partition device %v", diskPart.Node)
 		var dataPart encryptedDevice
 		switch encryptionType {
-		case secboot.EncryptionTypeLUKS, secboot.EncryptionTypeLUKSWithICE:
+		case device.EncryptionTypeLUKS, device.EncryptionTypeLUKSWithICE:
 			timings.Run(perfTimings, fmt.Sprintf("new-encrypted-device[%s] (%v)", volStruct.Role, encryptionType),
 				fmt.Sprintf("Create encryption device for %s (%s)", volStruct.Role, encryptionType),
 				func(timings.Measurer) {
@@ -192,7 +193,7 @@ func writePartitionContent(laidOut *gadget.LaidOutStructure, kSnapInfo *KernelSn
 
 func installOnePartition(dgpair *gadget.OnDiskAndGadgetStructurePair,
 	kernelInfo *kernel.Info, kernelSnapInfo *KernelSnapInfo, gadgetRoot string,
-	encryptionType secboot.EncryptionType, sectorSize quantity.Size,
+	encryptionType device.EncryptionType, sectorSize quantity.Size,
 	observer gadget.ContentObserver, perfTimings timings.Measurer,
 ) (fsDevice string, encryptionKey secboot.DiskUnlockKey, err error) {
 	// 1. Encrypt
@@ -305,9 +306,9 @@ func createPartitions(model gadget.Model, info *gadget.Info, gadgetRoot, kernelR
 	return bootVolGadgetName, created, bootVolSectorSize, nil
 }
 
-func createEncryptionParams(encTyp secboot.EncryptionType) gadget.StructureEncryptionParameters {
+func createEncryptionParams(encTyp device.EncryptionType) gadget.StructureEncryptionParameters {
 	switch encTyp {
-	case secboot.EncryptionTypeLUKS, secboot.EncryptionTypeLUKSWithICE:
+	case device.EncryptionTypeLUKS, device.EncryptionTypeLUKSWithICE:
 		return gadget.StructureEncryptionParameters{
 			// TODO:ICE: remove "Method" entirely, there is only LUKS
 			Method: gadget.EncryptionLUKS,
@@ -629,7 +630,7 @@ func SaveStorageTraits(model gadget.Model, vols map[string]*gadget.Volume, encry
 	return nil
 }
 
-func EncryptPartitions(onVolumes map[string]*gadget.Volume, encryptionType secboot.EncryptionType, model *asserts.Model, gadgetRoot, kernelRoot string, perfTimings timings.Measurer) (*EncryptionSetupData, error) {
+func EncryptPartitions(onVolumes map[string]*gadget.Volume, encryptionType device.EncryptionType, model *asserts.Model, gadgetRoot, kernelRoot string, perfTimings timings.Measurer) (*EncryptionSetupData, error) {
 	setupData := &EncryptionSetupData{
 		parts: make(map[string]partEncryptionData),
 	}
@@ -721,10 +722,10 @@ func FactoryReset(model gadget.Model, gadgetRoot string, kernelSnapInfo *KernelS
 		AssumeCreatablePartitionsCreated: true,
 		ExpectedStructureEncryption:      map[string]gadget.StructureEncryptionParameters{},
 	}
-	if options.EncryptionType != secboot.EncryptionTypeNone {
+	if options.EncryptionType != device.EncryptionTypeNone {
 		var encryptionParam gadget.StructureEncryptionParameters
 		switch options.EncryptionType {
-		case secboot.EncryptionTypeLUKS, secboot.EncryptionTypeLUKSWithICE:
+		case device.EncryptionTypeLUKS, device.EncryptionTypeLUKSWithICE:
 			encryptionParam = gadget.StructureEncryptionParameters{Method: gadget.EncryptionLUKS}
 		default:
 			// XXX what about ICE?

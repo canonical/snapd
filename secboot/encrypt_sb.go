@@ -29,6 +29,7 @@ import (
 
 	sb "github.com/snapcore/secboot"
 
+	"github.com/snapcore/snapd/gadget/device"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil/disks"
 	"github.com/snapcore/snapd/secboot/keymgr"
@@ -52,12 +53,12 @@ const metadataKiBSize = 2048     // 2MB
 // FormatEncryptedDevice initializes an encrypted volume on the block device
 // given by node, setting the specified label. The key used to unlock the volume
 // is provided using the key argument.
-func FormatEncryptedDevice(key []byte, encType EncryptionType, label, node string) error {
+func FormatEncryptedDevice(key []byte, encType device.EncryptionType, label, node string) error {
 	if !encType.IsLUKS() {
 		return fmt.Errorf("internal error: FormatEncryptedDevice for %q expects a LUKS encryption type, not %q", node, encType)
 	}
 
-	useICE := encType == EncryptionTypeLUKSWithICE
+	useICE := encType == device.EncryptionTypeLUKSWithICE
 	logger.Debugf("node %q uses ICE: %v", node, useICE)
 
 	opts := &sb.InitializeLUKS2ContainerOptions{

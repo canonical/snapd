@@ -27,6 +27,7 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/gadget/device"
 	"github.com/snapcore/snapd/gadget/install"
 	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/secboot/keys"
@@ -88,7 +89,7 @@ func (s *encryptSuite) TestNewEncryptedDeviceLUKS(c *C) {
 		})()
 
 		calls := 0
-		restore := install.MockSecbootFormatEncryptedDevice(func(key []byte, encType secboot.EncryptionType, label, node string) error {
+		restore := install.MockSecbootFormatEncryptedDevice(func(key []byte, encType device.EncryptionType, label, node string) error {
 			calls++
 			c.Assert(key, DeepEquals, []byte(s.mockedEncryptionKey))
 			c.Assert(label, Equals, "some-label-enc")
@@ -97,7 +98,7 @@ func (s *encryptSuite) TestNewEncryptedDeviceLUKS(c *C) {
 		})
 		defer restore()
 
-		dev, err := install.NewEncryptedDeviceLUKS("/dev/node1", secboot.EncryptionTypeLUKS, secboot.DiskUnlockKey(s.mockedEncryptionKey), "some-label", "some-label")
+		dev, err := install.NewEncryptedDeviceLUKS("/dev/node1", device.EncryptionTypeLUKS, secboot.DiskUnlockKey(s.mockedEncryptionKey), "some-label", "some-label")
 		c.Assert(calls, Equals, 1)
 		if tc.expectedErr == "" {
 			c.Assert(err, IsNil)

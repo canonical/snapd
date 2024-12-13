@@ -27,12 +27,12 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/boot/boottest"
 	"github.com/snapcore/snapd/gadget"
+	"github.com/snapcore/snapd/gadget/device"
 	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/osutil/disks"
-	"github.com/snapcore/snapd/secboot"
 )
 
-func LaidOutVolumesFromGadget(gadgetRoot, kernelRoot string, model gadget.Model, encType secboot.EncryptionType, volToGadgetToDiskStruct map[string]map[int]*gadget.OnDiskStructure) (all map[string]*gadget.LaidOutVolume, err error) {
+func LaidOutVolumesFromGadget(gadgetRoot, kernelRoot string, model gadget.Model, encType device.EncryptionType, volToGadgetToDiskStruct map[string]map[int]*gadget.OnDiskStructure) (all map[string]*gadget.LaidOutVolume, err error) {
 	// rely on the basic validation from ReadInfo to ensure that the system-*
 	// roles are all on the same volume for example
 	info, err := gadget.ReadInfoAndValidate(gadgetRoot, model, nil)
@@ -63,7 +63,7 @@ func LayoutMultiVolumeFromYaml(newDir, kernelDir, gadgetYaml string, model gadge
 		return nil, err
 	}
 
-	allVolumes, err := LaidOutVolumesFromGadget(gadgetRoot, kernelDir, model, secboot.EncryptionTypeNone, nil)
+	allVolumes, err := LaidOutVolumesFromGadget(gadgetRoot, kernelDir, model, device.EncryptionTypeNone, nil)
 	if err != nil {
 		return nil, fmt.Errorf("cannot layout volumes: %v", err)
 	}
@@ -267,7 +267,7 @@ func MockGadgetPartitionedDisk(gadgetYaml, gadgetRoot string) (ginfo *gadget.Inf
 	if err != nil {
 		return nil, nil, nil, nil, err
 	}
-	laidVols, err = LaidOutVolumesFromGadget(gadgetRoot, "", model, secboot.EncryptionTypeNone, nil)
+	laidVols, err = LaidOutVolumesFromGadget(gadgetRoot, "", model, device.EncryptionTypeNone, nil)
 	if err != nil {
 		return nil, nil, nil, nil, err
 	}
