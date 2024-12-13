@@ -214,8 +214,10 @@ backends:
         halt-timeout: 2h
         systems:
             - debian-11-64:
+                  storage: 12G
                   workers: 6
             - debian-12-64:
+                  storage: 12G
                   workers: 6
             - debian-sid-64:
                   storage: 12G
