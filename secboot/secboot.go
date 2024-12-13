@@ -259,17 +259,18 @@ type AuthMode string
 
 const (
 	AuthModePassphrase AuthMode = "passphrase"
-	// TODO: Add PIN option when secboot support lands.
+	AuthModePIN        AuthMode = "pin"
 )
 
 // VolumesAuthOptions contains options for the volumes authentication
 // mechanism (e.g. passphrase authentication).
+//
+// TODO: Add PIN option when secboot support lands.
 type VolumesAuthOptions struct {
-	Mode       AuthMode `json:"mode,omitempty"`
-	Passphrase string   `json:"passphrase,omitempty"`
-	// TODO: Add PIN option when secboot support lands.
-	KDFType string        `json:"kdf-type,omitempty"`
-	KDFTime time.Duration `json:"kdf-time,omitempty"`
+	Mode       AuthMode      `json:"mode,omitempty"`
+	Passphrase string        `json:"passphrase,omitempty"`
+	KDFType    string        `json:"kdf-type,omitempty"`
+	KDFTime    time.Duration `json:"kdf-time,omitempty"`
 }
 
 // Validates authentication options.
@@ -284,8 +285,13 @@ func (o *VolumesAuthOptions) Validate() error {
 		if len(o.Passphrase) == 0 {
 			return fmt.Errorf("passphrase cannot be empty")
 		}
+	case AuthModePIN:
+		if o.KDFType != "" {
+			return fmt.Errorf("%q authentication mode does not support custom kdf types", AuthModePIN)
+		}
+		return fmt.Errorf("%q authentication mode is not implemented", AuthModePIN)
 	default:
-		return fmt.Errorf("invalid authentication mode %q, only %q is supported", o.Mode, AuthModePassphrase)
+		return fmt.Errorf("invalid authentication mode %q, only %q and %q modes are supported", o.Mode, AuthModePassphrase, AuthModePIN)
 	}
 
 	switch o.KDFType {

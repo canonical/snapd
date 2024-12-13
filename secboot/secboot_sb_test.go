@@ -3157,10 +3157,16 @@ func (s *secbootSuite) TestVolumesAuthOptionsValidateHappy(c *C) {
 func (s *secbootSuite) TestVolumesAuthOptionsValidateError(c *C) {
 	// Bad auth mode
 	opts := &secboot.VolumesAuthOptions{Mode: "bad-mode", Passphrase: "1234"}
-	c.Assert(opts.Validate(), ErrorMatches, `invalid authentication mode "bad-mode", only "passphrase" is supported`)
+	c.Assert(opts.Validate(), ErrorMatches, `invalid authentication mode "bad-mode", only "passphrase" and "pin" modes are supported`)
 	// Empty passphrase
 	opts = &secboot.VolumesAuthOptions{Mode: secboot.AuthModePassphrase}
 	c.Assert(opts.Validate(), ErrorMatches, "passphrase cannot be empty")
+	// PIN mode not implemented yet
+	opts = &secboot.VolumesAuthOptions{Mode: secboot.AuthModePIN}
+	c.Assert(opts.Validate(), ErrorMatches, `"pin" authentication mode is not implemented`)
+	// PIN mode + custom kdf type
+	opts = &secboot.VolumesAuthOptions{Mode: secboot.AuthModePIN, KDFType: "argon2i"}
+	c.Assert(opts.Validate(), ErrorMatches, `"pin" authentication mode does not support custom kdf types`)
 	// Bad kdf type
 	opts = &secboot.VolumesAuthOptions{Mode: secboot.AuthModePassphrase, Passphrase: "1234", KDFType: "bad-type"}
 	c.Assert(opts.Validate(), ErrorMatches, `invalid kdf type "bad-type", only "argon2i", "argon2id" and "pbkdf2" are supported`)
