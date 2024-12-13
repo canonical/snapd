@@ -82,6 +82,7 @@ func (s *AuditControlInterfaceSuite) TestAppArmorSpec(c *C) {
 	c.Check(spec.SnippetForTag("snap.other.app2"), testutil.Contains, "capability audit_control,\n")
 	c.Check(spec.SnippetForTag("snap.other.app2"), testutil.Contains, "@{PROC}/*/{loginuid,sessionid} r,\n")
 	c.Check(spec.SnippetForTag("snap.other.app2"), testutil.Contains, "/{,var/}run/auditd.{pid,state} rw,\n")
+	c.Check(spec.SnippetForTag("snap.other.app2"), testutil.Contains, "@{PROC}/@{pid}/oom_score_adj rw,\n")
 }
 
 func (s *AuditControlInterfaceSuite) TestInterfaces(c *C) {

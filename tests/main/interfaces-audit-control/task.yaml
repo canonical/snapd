@@ -28,6 +28,9 @@ execute: |
     test-snapd-audit-control.read-ids
     test-snapd-audit-control.write-auditd-pid-state
 
+    echo "And the snap is able to adjust its own OOM score"
+    test-snapd-audit-control.adjust-oom-score
+
     if [ "$(snap debug confinement)" = partial ] ; then
         exit 0
     fi
@@ -48,5 +51,11 @@ execute: |
     fi
     if test-snapd-audit-control.write-auditd-pid-state; then
         echo "Expected permission error writing /run/auditd.pid and /run/auditd.state"
+        exit 1
+    fi
+
+    echo "And the snap is not able to adjust its own OOM score"
+    if test-snapd-audit-control.adjust-oom-score; then
+        echo "Expected permission error writing /proc/self/oom_score_adj"
         exit 1
     fi

@@ -3,7 +3,8 @@ version: '1.0'
 summary: Basic snap to test the audit-control interface
 description: |
   A basic snap which uses the audit_control capability, reads /proc/*/loginuid
-  and /proc/*/sessionid, and writes /run/auditd.pid and /run/auditd.state.
+  and /proc/*/sessionid, writes /run/auditd.pid and /run/auditd.state, and
+  adjusts its OOM score.
 architectures:
 - amd64
 base: core22
@@ -16,6 +17,9 @@ apps:
     plugs: [audit-control]
   write-auditd-pid-state:
     command: bin/write-auditd-pid-state
+    plugs: [audit-control]
+  adjust-oom-score:
+    command: bin/adjust-oom-score
     plugs: [audit-control]
 
 environment:
