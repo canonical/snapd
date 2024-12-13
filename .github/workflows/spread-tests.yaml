@@ -251,7 +251,7 @@ jobs:
               ./tests/lib/spread/add-backend tests/lib/spread/backend.openstack.yaml spread.yaml
           fi
 
-          spread_list="$($SPREAD -list $RUN_TESTS 2>&1)"
+          spread_list="$($SPREAD -list $RUN_TESTS 2>&1 || true)"
 
           if [[ "$spread_list" =~ amazon-linux-2023 ]]; then
               # Amazon Linux 2023 has no xdelta, however we cannot disable
