@@ -37,6 +37,7 @@ import (
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/overlord/install"
+	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 )
@@ -489,9 +490,9 @@ func postSystemActionCreateOffline(c *Command, form *Form) Response {
 	}
 
 	// TODO:COMPS: support adding components to a recovery system
-	localSnaps := make([]devicestate.LocalSnap, 0, len(slInfo.snaps))
+	localSnaps := make([]snapstate.PathSnap, 0, len(slInfo.snaps))
 	for _, sn := range slInfo.snaps {
-		localSnaps = append(localSnaps, devicestate.LocalSnap{
+		localSnaps = append(localSnaps, snapstate.PathSnap{
 			SideInfo: &sn.info.SideInfo,
 			Path:     sn.tmpPath,
 		})
