@@ -1,0 +1,49 @@
+#!/bin/sh
+
+set -ex
+
+# Autopkgtest may run in a special network where using the http proxy is mandatory.
+mkdir -p /etc/systemd/system/snapd.service.d/
+if [ "${http_proxy:-}" != "" ]; then
+    cat <<EOF | tee /etc/systemd/system/snapd.service.d/proxy.conf
+[Service]
+Environment=http_proxy=$http_proxy
+Environment=https_proxy=$http_proxy
+EOF
+    echo "http_proxy=$http_proxy" >> /etc/environment
+    echo "https_proxy=$http_proxy" >> /etc/environment
+fi
+
+systemctl daemon-reload
+
+# Ensure we are not get killed too easily
+printf '%s\n' "-950" > /proc/$$/oom_score_adj
+
+echo "Memory information (for debugging)"
+cat /proc/meminfo
+
+echo "Snapd version (for debugging)"
+snap version
+
+# Map snapd deb package pockets to core snap channels. This is intended to cope
+# with the autopkgtest execution when testing packages from the different pockets
+if apt -qq list snapd | grep -q -- -proposed; then
+    export SPREAD_CORE_CHANNEL=candidate
+elif apt -qq list snapd | grep -q -- -updates; then
+    export SPREAD_CORE_CHANNEL=stable
+fi
+
+# Spread requires password authentication to connect.
+echo "${AUTOPKGTEST_NORMAL_USER}":"${AUTOPKGTEST_NORMAL_USER}" | chpasswd
+sed -i 's/\(PermitRootLogin\|PasswordAuthentication\)\>.*/\1 yes/' /etc/ssh/sshd_config
+systemctl reload ssh.service
+
+# Build and run spread against the special autopkgtest backend, which connects
+# back to localhost and runs the test locally on the same machine.
+GOPATH=/tmp/go go install github.com/snapcore/spread/cmd/spread@latest
+# shellcheck disable=SC1091
+( . /etc/os-release && SPREAD_DEBUG_EACH=0 SPREAD_REUSE_SNAPD=1 /tmp/go/bin/spread -v "autopkgtest:${ID:-linux}-${VERSION_ID:-sid}-$(dpkg --print-architecture)":tests/smoke/ )
+
+# Store journal info for inspectsion
+journalctl --sync
+journalctl -ab > "$ADT_ARTIFACTS"/journal.txt
