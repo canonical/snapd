@@ -250,7 +250,7 @@ func MockOnCoreDesktop(onCoreDesktop bool) (restore func()) {
 	return func() { OnCoreDesktop = old }
 }
 
-// MockOnCoreDesktop forces the process to appear inside an Ubuntu Touch
+// MockOnTouch forces the process to appear inside an Ubuntu Touch
 // system for testing purposes.
 func MockOnTouch(onTouch bool) (restore func()) {
         old := OnTouch
