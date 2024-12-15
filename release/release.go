@@ -250,6 +250,14 @@ func MockOnCoreDesktop(onCoreDesktop bool) (restore func()) {
 	return func() { OnCoreDesktop = old }
 }
 
+// MockOnCoreDesktop forces the process to appear inside an Ubuntu Touch
+// system for testing purposes.
+func MockOnTouch(onTouch bool) (restore func()) {
+        old := OnTouch
+        OnTouch = onTouch
+        return func() { OnTouch = old }
+}
+
 // MockReleaseInfo fakes a given information to appear in ReleaseInfo,
 // as if it was read /etc/os-release on startup.
 func MockReleaseInfo(osRelease *OS) (restore func()) {
