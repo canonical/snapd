@@ -55,40 +55,40 @@ type partitionMount struct {
 	Opts     *systemdMountOptions
 }
 
-type ImageManifestPartition struct {
+type imageManifestPartition struct {
 	GptLabel string `json:"label"`
 	RootHash string `json:"root_hash"`
 	Overlay  string `json:"overlay"`
 }
 
-type ImageManifest struct {
-	Partitions []ImageManifestPartition `json:"partitions"`
+type imageManifest struct {
+	Partitions []imageManifestPartition `json:"partitions"`
 }
 
-type ManifestError struct{}
+type manifestError struct{}
 
-func (e *ManifestError) Error() string {
+func (e *manifestError) Error() string {
 	return fmt.Sprintf("")
 }
 
-func parseImageManifest(imageManifestFilePath string) (ImageManifest, error) {
-	imageManifestFile, err := osReadFile(imageManifestFilePath)
+func parseImageManifest(imageManifestFilePath string) (imageManifest, error) {
+	imageManifestFile, err := os.ReadFile(imageManifestFilePath)
 	if err != nil {
-		return ImageManifest{}, err
+		return imageManifest{}, err
 	}
 
-	var im ImageManifest
+	var im imageManifest
 	err = json.Unmarshal(imageManifestFile, &im)
 	if err != nil {
-		return ImageManifest{}, err
+		return imageManifest{}, err
 	}
 
 	if len(im.Partitions) < 1 {
-		return ImageManifest{}, fmt.Errorf("Invalid manifest: root partition not specified.")
+		return imageManifest{}, fmt.Errorf("Invalid manifest: root partition not specified.")
 	}
 
 	if im.Partitions[0].Overlay != "lowerdir" {
-		return ImageManifest{}, fmt.Errorf("Invalid manifest: expected first partition to be used as lowerdir, %s was found instead.", im.Partitions[0].Overlay)
+		return imageManifest{}, fmt.Errorf("Invalid manifest: expected first partition to be used as lowerdir, %s was found instead.", im.Partitions[0].Overlay)
 	}
 
 	return im, nil
@@ -104,7 +104,7 @@ func parseImageManifest(imageManifestFilePath string) (ImageManifest, error) {
 // overlayfs. This is relevant in ephemeral confidential VM scenarios where the confidentiality of the writable
 // data is achieved through hardware memory encryption and not disk encryption (the writable data/system state
 // should never touch the disk).
-func generateMountsFromManifest(im ImageManifest, disk disks.Disk) ([]partitionMount, error) {
+func generateMountsFromManifest(im imageManifest, disk disks.Disk) ([]partitionMount, error) {
 	foundReadOnlyPartition := ""
 	foundWritablePartition := ""
 
