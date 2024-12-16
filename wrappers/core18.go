@@ -32,6 +32,7 @@ import (
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/systemd"
 )
 
@@ -40,6 +41,23 @@ var execStartRe = regexp.MustCompile(`(?m)^ExecStart=(/usr/bin/snap\s+.*|/usr/li
 
 // snapdToolingMountUnit is the name of the mount unit that provides the snapd tooling
 const SnapdToolingMountUnit = "usr-lib-snapd.mount"
+
+func skipStartDueToQuirks(unit string, targetVersion string) bool {
+	switch unit {
+	case "snapd.apparmor.service":
+		// versions earlier than 2.62 did not have the do-not-start tag in
+		// snapd.apparmor.service, which was introduced in
+		// https://github.com/canonical/snapd/commit/d1cf336e7c584078dff3883c93f0581ae455811e
+		// due to which snapd may attempt to restart snapd.apparmor.service and
+		// in specific cases use apparmor_parser from the base
+		compare, err := strutil.VersionCompare(targetVersion, "2.62")
+
+		// we're downgrading to version earlier than 2.62
+		return err == nil && compare < 0
+	default:
+		return false
+	}
+}
 
 func snapdSkipStart(content []byte) bool {
 	return bytes.Contains(content, []byte("X-Snapd-Snap: do-not-start"))
@@ -320,6 +338,12 @@ func AddSnapdSnapServices(s *snap.Info, opts *AddSnapdSnapServicesOptions, inter
 				logger.Debugf("skipping unit %v, has do-not-start tag", unit)
 				continue
 			}
+			// check for any version specific quirks
+			if skipStartDueToQuirks(unit, s.Version) {
+				logger.Debugf("skipping unit %v, due to version specific quirks for %v", unit, s.Version)
+				continue
+			}
+
 			logger.Debugf("(re)starting snapd unit %v", unit)
 			// Ensure to only restart if the unit was previously
 			// active. This ensures we DTRT on firstboot and do
