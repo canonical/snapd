@@ -197,8 +197,10 @@ func (snapsup *SnapSetup) MountDir() string {
 	return snap.MountDir(snapsup.InstanceName(), snapsup.Revision())
 }
 
-// MountFile returns the path to the snap/squashfs file that is used to mount the snap.
-func (snapsup *SnapSetup) MountFile() string {
+// BlobPath returns the path to the snap/squashfs file that backs the snap that
+// is being setup. Unless the snap was downloaded to a custom location, this
+// will be under dirs.SnapBlobDir.
+func (snapsup *SnapSetup) BlobPath() string {
 	blobDir := snapsup.DownloadBlobDir
 	if blobDir == "" {
 		blobDir = dirs.SnapBlobDir
@@ -223,6 +225,9 @@ type ComponentSetup struct {
 	// SkipAssertionsDownload indicates that all assertions needed to install
 	// the component should already be present on the system.
 	SkipAssertionsDownload bool `json:"skip-assertions-download,omitempty"`
+	// DownloadBlobDir is the directory where the component file is downloaded to. If
+	// empty, then the components are downloaded to the default download directory.
+	DownloadBlobDir string `json:"download-blob-dir,omitempty"`
 	// ComponentInstallFlags is a set of flags that control the behavior of the
 	// component's installation/update.
 	ComponentInstallFlags
@@ -243,6 +248,29 @@ func (compsu *ComponentSetup) ComponentName() string {
 
 func (compsu *ComponentSetup) Revision() snap.Revision {
 	return compsu.CompSideInfo.Revision
+}
+
+// BlobPath returns the path to the component/squashfs file that backs the
+// component that is being setup. Unless the component was downloaded to a
+// custom location, this will be under dirs.SnapBlobDir.
+func (compsu *ComponentSetup) BlobPath(instanceName string) string {
+	if instanceName == "" {
+		instanceName = compsu.CompSideInfo.Component.SnapName
+	}
+
+	blobDir := compsu.DownloadBlobDir
+	if blobDir == "" {
+		blobDir = dirs.SnapBlobDir
+	}
+
+	cpi := snap.MinimalComponentContainerPlaceInfo(
+		compsu.CompSideInfo.Component.ComponentName,
+		compsu.CompSideInfo.Revision,
+		instanceName,
+	)
+
+	return filepath.Join(blobDir,
+		fmt.Sprintf("%s_%s.comp", cpi.ContainerName(), compsu.CompSideInfo.Revision))
 }
 
 // ComponentSetupFromSnapSetup returns a list of ComponentSetup structs for the
