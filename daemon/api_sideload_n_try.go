@@ -814,6 +814,10 @@ func installedSnapInfoMatcher(st *state.State) func(string, naming.ComponentRef)
 	}
 }
 
+// uploadedOrInstalledSnapInfoMatcher returns a function that can be used to
+// match a snap name against a set of snaps that were uploaded. If the snap is
+// not found in the uploads, then it falls back to looking at the installed set
+// of snaps.
 func uploadedOrInstalledSnapInfoMatcher(st *state.State, snaps []sideloadSnapInfo) func(string, naming.ComponentRef) (*snap.Info, *apiError) {
 	return func(instanceName string, cref naming.ComponentRef) (*snap.Info, *apiError) {
 		for _, sn := range snaps {
