@@ -212,12 +212,18 @@ components:
     type: kernel-modules
   kcomp2:
     type: kernel-modules
+  kcomp3:
+    type: kernel-modules
 `,
 	"pc-kernel+kcomp1": `component: pc-kernel+kcomp1
 type: kernel-modules
 version: 1.0
 `,
 	"pc-kernel+kcomp2": `component: pc-kernel+kcomp2
+type: kernel-modules
+version: 1.0
+`,
+	"pc-kernel+kcomp3": `component: pc-kernel+kcomp3
 type: kernel-modules
 version: 1.0
 `,
