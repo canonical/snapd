@@ -55,6 +55,10 @@ type Options struct {
 	// ManifestPath if set, specifies the file path where the
 	// seed.manifest file should be written.
 	ManifestPath string
+
+	// IgnoreOptionFileExtentions if set, snaps and components will not be
+	// required to end in .snap or .comp, respectively.
+	IgnoreOptionFileExtentions bool
 }
 
 // manifest returns either the manifest already provided by the
@@ -417,7 +421,7 @@ func (w *Writer) warningf(format string, a ...interface{}) {
 	w.warnings = append(w.warnings, fmt.Sprintf(format, a...))
 }
 
-func validateComponent(optComp *OptionsComponent) error {
+func (w *Writer) validateComponent(optComp *OptionsComponent) error {
 	if optComp.Name != "" {
 		if optComp.Path != "" {
 			return fmt.Errorf("cannot specify both name and path for component %q",
@@ -427,7 +431,7 @@ func validateComponent(optComp *OptionsComponent) error {
 			return err
 		}
 	} else {
-		if !strings.HasSuffix(optComp.Path, ".comp") {
+		if !strings.HasSuffix(optComp.Path, ".comp") && !w.opts.IgnoreOptionFileExtentions {
 			return fmt.Errorf("local option component %q does not end in .comp", optComp.Path)
 		}
 		if !osutil.FileExists(optComp.Path) {
@@ -469,7 +473,7 @@ func (w *Writer) SetOptionsSnaps(optSnaps []*OptionsSnap) error {
 			}
 			w.byNameOptSnaps.Add(sn)
 		} else {
-			if !strings.HasSuffix(sn.Path, ".snap") {
+			if !strings.HasSuffix(sn.Path, ".snap") && !w.opts.IgnoreOptionFileExtentions {
 				return fmt.Errorf("local option snap %q does not end in .snap", sn.Path)
 			}
 			if !osutil.FileExists(sn.Path) {
@@ -489,7 +493,7 @@ func (w *Writer) SetOptionsSnaps(optSnaps []*OptionsSnap) error {
 			}
 		}
 		for _, comp := range sn.Components {
-			if err := validateComponent(&comp); err != nil {
+			if err := w.validateComponent(&comp); err != nil {
 				return err
 			}
 		}
