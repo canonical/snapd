@@ -636,7 +636,7 @@ func readInfoAndDeriveSideInfo(st *state.State, tempPath string, origPath string
 	}
 
 	// might be nil if snapasserts.DeriveSideInfo returned an error and we're
-	// doing an devmode install
+	// doing a devmode install
 	if si != nil {
 		info.SideInfo = *si
 	} else {
