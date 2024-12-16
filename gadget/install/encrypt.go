@@ -23,6 +23,7 @@ package install
 import (
 	"fmt"
 
+	"github.com/snapcore/snapd/gadget/device"
 	"github.com/snapcore/snapd/secboot"
 )
 
@@ -48,7 +49,7 @@ var _ = encryptedDevice(&encryptedDeviceLUKS{})
 
 // newEncryptedDeviceLUKS creates an encrypted device in the existing
 // partition using the specified key with the LUKS backend.
-func newEncryptedDeviceLUKS(devNode string, encType secboot.EncryptionType, key secboot.DiskUnlockKey, label, name string) (encryptedDevice, error) {
+func newEncryptedDeviceLUKS(devNode string, encType device.EncryptionType, key secboot.DiskUnlockKey, label, name string) (encryptedDevice, error) {
 	encLabel := label + "-enc"
 	if err := secbootFormatEncryptedDevice(key, encType, encLabel, devNode); err != nil {
 		return nil, fmt.Errorf("cannot format encrypted device: %v", err)

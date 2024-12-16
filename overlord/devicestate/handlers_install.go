@@ -249,7 +249,7 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 	bopts.EncryptionType = encryptionType
-	useEncryption := (encryptionType != secboot.EncryptionTypeNone)
+	useEncryption := (encryptionType != device.EncryptionTypeNone)
 
 	model := deviceCtx.Model()
 
@@ -509,7 +509,7 @@ func (m *DeviceManager) doFactoryResetRunSystem(t *state.Task, _ *tomb.Tomb) err
 		return err
 	}
 	bopts.EncryptionType = encryptionType
-	useEncryption := (encryptionType != secboot.EncryptionTypeNone)
+	useEncryption := (encryptionType != device.EncryptionTypeNone)
 	hasMarker := device.HasEncryptedMarkerUnder(boot.InstallHostFDESaveDir)
 	// TODO verify that the same encryption mechanism is used
 	if hasMarker != useEncryption {
@@ -1006,10 +1006,10 @@ func (m *DeviceManager) doInstallFinish(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	encType := secboot.EncryptionTypeNone
-	// TODO:ICE: support secboot.EncryptionTypeLUKSWithICE in the API
+	encType := device.EncryptionTypeNone
+	// TODO:ICE: support device.EncryptionTypeLUKSWithICE in the API
 	if useEncryption {
-		encType = secboot.EncryptionTypeLUKS
+		encType = device.EncryptionTypeLUKS
 	}
 	kernMntPoint := mntPtForType[snap.TypeKernel]
 	allLaidOutVols, err := gadget.LaidOutVolumesFromGadget(mergedVols,
@@ -1207,7 +1207,7 @@ func (m *DeviceManager) doInstallSetupStorageEncryption(t *state.Task, _ *tomb.T
 	}
 
 	// TODO:ICE: support secboot.EncryptionTypeLUKSWithICE in the API
-	encType := secboot.EncryptionTypeLUKS
+	encType := device.EncryptionTypeLUKS
 	encryptionSetupData, err := installEncryptPartitions(onVolumes, encType, systemAndSeeds.Model, mntPtForType[snap.TypeGadget], mntPtForType[snap.TypeKernel], perfTimings)
 	if err != nil {
 		return err

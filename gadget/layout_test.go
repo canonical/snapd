@@ -30,9 +30,9 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/gadget"
+	"github.com/snapcore/snapd/gadget/device"
 	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/kernel"
-	"github.com/snapcore/snapd/secboot"
 )
 
 type layoutTestSuite struct {
@@ -125,7 +125,7 @@ volumes:
 	})
 }
 
-func (p *layoutTestSuite) testLayoutVolumeWithDataPartitions(c *C, encType secboot.EncryptionType) {
+func (p *layoutTestSuite) testLayoutVolumeWithDataPartitions(c *C, encType device.EncryptionType) {
 	gadgetYaml := `
 volumes:
   first:
@@ -156,7 +156,7 @@ volumes:
 	saveFsType := "ext4"
 	dataFsLabel := "ubuntu-data"
 	dataFsType := "ext4"
-	if encType == secboot.EncryptionTypeLUKS {
+	if encType == device.EncryptionTypeLUKS {
 		saveFsLabel = "ubuntu-save-enc"
 		saveFsType = "crypto_LUKS"
 		dataFsLabel = "ubuntu-data-enc"
@@ -190,11 +190,11 @@ volumes:
 }
 
 func (p *layoutTestSuite) TestLayoutVolumeWithDataPartitions(c *C) {
-	p.testLayoutVolumeWithDataPartitions(c, secboot.EncryptionTypeNone)
+	p.testLayoutVolumeWithDataPartitions(c, device.EncryptionTypeNone)
 }
 
 func (p *layoutTestSuite) TestLayoutVolumeWithDataPartitionsEncrypted(c *C) {
-	p.testLayoutVolumeWithDataPartitions(c, secboot.EncryptionTypeLUKS)
+	p.testLayoutVolumeWithDataPartitions(c, device.EncryptionTypeLUKS)
 }
 
 func (p *layoutTestSuite) TestLayoutVolumeImplicitOrdering(c *C) {

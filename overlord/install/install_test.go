@@ -38,6 +38,7 @@ import (
 	"github.com/snapcore/snapd/bootloader/bootloadertest"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget"
+	"github.com/snapcore/snapd/gadget/device"
 	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/kernel/fde"
 	"github.com/snapcore/snapd/logger"
@@ -219,14 +220,14 @@ func (s *installSuite) TestEncryptionSupportInfoWithTPM(c *C) {
 			install.EncryptionSupportInfo{
 				Available: true, Disabled: false,
 				StorageSafety: asserts.StorageSafetyPreferEncrypted,
-				Type:          secboot.EncryptionTypeLUKS,
+				Type:          device.EncryptionTypeLUKS,
 			},
 		}, {
 			"dangerous", "", fmt.Errorf("no tpm"),
 			install.EncryptionSupportInfo{
 				Available: false, Disabled: false,
 				StorageSafety:      asserts.StorageSafetyPreferEncrypted,
-				Type:               secboot.EncryptionTypeNone,
+				Type:               device.EncryptionTypeNone,
 				UnavailableWarning: "not encrypting device storage as checking TPM gave: no tpm",
 			},
 		}, {
@@ -234,14 +235,14 @@ func (s *installSuite) TestEncryptionSupportInfoWithTPM(c *C) {
 			install.EncryptionSupportInfo{
 				Available: true, Disabled: false,
 				StorageSafety: asserts.StorageSafetyEncrypted,
-				Type:          secboot.EncryptionTypeLUKS,
+				Type:          device.EncryptionTypeLUKS,
 			},
 		}, {
 			"dangerous", "encrypted", fmt.Errorf("no tpm"),
 			install.EncryptionSupportInfo{
 				Available: false, Disabled: false,
 				StorageSafety:  asserts.StorageSafetyEncrypted,
-				Type:           secboot.EncryptionTypeNone,
+				Type:           device.EncryptionTypeNone,
 				UnavailableErr: fmt.Errorf("cannot encrypt device storage as mandated by encrypted storage-safety model option: no tpm"),
 			},
 		},
@@ -251,7 +252,7 @@ func (s *installSuite) TestEncryptionSupportInfoWithTPM(c *C) {
 				Available: true, Disabled: false,
 				StorageSafety: asserts.StorageSafetyPreferUnencrypted,
 				// Note that encryption type is set to what is available
-				Type: secboot.EncryptionTypeLUKS,
+				Type: device.EncryptionTypeLUKS,
 			},
 		},
 		{
@@ -259,14 +260,14 @@ func (s *installSuite) TestEncryptionSupportInfoWithTPM(c *C) {
 			install.EncryptionSupportInfo{
 				Available: true, Disabled: false,
 				StorageSafety: asserts.StorageSafetyPreferEncrypted,
-				Type:          secboot.EncryptionTypeLUKS,
+				Type:          device.EncryptionTypeLUKS,
 			},
 		}, {
 			"signed", "", fmt.Errorf("no tpm"),
 			install.EncryptionSupportInfo{
 				Available: false, Disabled: false,
 				StorageSafety:      asserts.StorageSafetyPreferEncrypted,
-				Type:               secboot.EncryptionTypeNone,
+				Type:               device.EncryptionTypeNone,
 				UnavailableWarning: "not encrypting device storage as checking TPM gave: no tpm",
 			},
 		}, {
@@ -274,7 +275,7 @@ func (s *installSuite) TestEncryptionSupportInfoWithTPM(c *C) {
 			install.EncryptionSupportInfo{
 				Available: true, Disabled: false,
 				StorageSafety: asserts.StorageSafetyEncrypted,
-				Type:          secboot.EncryptionTypeLUKS,
+				Type:          device.EncryptionTypeLUKS,
 			},
 		}, {
 			"signed", "prefer-unencrypted", nil,
@@ -282,14 +283,14 @@ func (s *installSuite) TestEncryptionSupportInfoWithTPM(c *C) {
 				Available: true, Disabled: false,
 				StorageSafety: asserts.StorageSafetyPreferUnencrypted,
 				// Note that encryption type is set to what is available
-				Type: secboot.EncryptionTypeLUKS,
+				Type: device.EncryptionTypeLUKS,
 			},
 		}, {
 			"signed", "encrypted", fmt.Errorf("no tpm"),
 			install.EncryptionSupportInfo{
 				Available: false, Disabled: false,
 				StorageSafety:  asserts.StorageSafetyEncrypted,
-				Type:           secboot.EncryptionTypeNone,
+				Type:           device.EncryptionTypeNone,
 				UnavailableErr: fmt.Errorf("cannot encrypt device storage as mandated by encrypted storage-safety model option: no tpm"),
 			},
 		}, {
@@ -297,14 +298,14 @@ func (s *installSuite) TestEncryptionSupportInfoWithTPM(c *C) {
 			install.EncryptionSupportInfo{
 				Available: true, Disabled: false,
 				StorageSafety: asserts.StorageSafetyEncrypted,
-				Type:          secboot.EncryptionTypeLUKS,
+				Type:          device.EncryptionTypeLUKS,
 			},
 		}, {
 			"secured", "encrypted", fmt.Errorf("no tpm"),
 			install.EncryptionSupportInfo{
 				Available: false, Disabled: false,
 				StorageSafety:  asserts.StorageSafetyEncrypted,
-				Type:           secboot.EncryptionTypeNone,
+				Type:           device.EncryptionTypeNone,
 				UnavailableErr: fmt.Errorf("cannot encrypt device storage as mandated by model grade secured: no tpm"),
 			},
 		}, {
@@ -312,14 +313,14 @@ func (s *installSuite) TestEncryptionSupportInfoWithTPM(c *C) {
 			install.EncryptionSupportInfo{
 				Available: true, Disabled: false,
 				StorageSafety: asserts.StorageSafetyEncrypted,
-				Type:          secboot.EncryptionTypeLUKS,
+				Type:          device.EncryptionTypeLUKS,
 			},
 		}, {
 			"secured", "", fmt.Errorf("no tpm"),
 			install.EncryptionSupportInfo{
 				Available: false, Disabled: false,
 				StorageSafety:  asserts.StorageSafetyEncrypted,
-				Type:           secboot.EncryptionTypeNone,
+				Type:           device.EncryptionTypeNone,
 				UnavailableErr: fmt.Errorf("cannot encrypt device storage as mandated by model grade secured: no tpm"),
 			},
 		},
@@ -355,7 +356,7 @@ func (s *installSuite) TestEncryptionSupportInfoForceUnencrypted(c *C) {
 			install.EncryptionSupportInfo{
 				Available: true, Disabled: false,
 				StorageSafety: asserts.StorageSafetyPreferEncrypted,
-				Type:          secboot.EncryptionTypeLUKS,
+				Type:          device.EncryptionTypeLUKS,
 			},
 		},
 		{
@@ -367,7 +368,7 @@ func (s *installSuite) TestEncryptionSupportInfoForceUnencrypted(c *C) {
 				// performed.
 				Available: false, Disabled: true,
 				StorageSafety: asserts.StorageSafetyPreferEncrypted,
-				Type:          secboot.EncryptionTypeNone,
+				Type:          device.EncryptionTypeNone,
 			},
 		},
 		{
@@ -377,7 +378,7 @@ func (s *installSuite) TestEncryptionSupportInfoForceUnencrypted(c *C) {
 				// here so the "no tpm" error is never visible
 				Available: false, Disabled: true,
 				StorageSafety: asserts.StorageSafetyPreferEncrypted,
-				Type:          secboot.EncryptionTypeNone,
+				Type:          device.EncryptionTypeNone,
 			},
 		},
 		// not possible to disable encryption on non-dangerous devices
@@ -386,7 +387,7 @@ func (s *installSuite) TestEncryptionSupportInfoForceUnencrypted(c *C) {
 			install.EncryptionSupportInfo{
 				Available: true, Disabled: false,
 				StorageSafety: asserts.StorageSafetyPreferEncrypted,
-				Type:          secboot.EncryptionTypeLUKS,
+				Type:          device.EncryptionTypeLUKS,
 			},
 		},
 		{
@@ -394,7 +395,7 @@ func (s *installSuite) TestEncryptionSupportInfoForceUnencrypted(c *C) {
 			install.EncryptionSupportInfo{
 				Available: true, Disabled: false,
 				StorageSafety: asserts.StorageSafetyPreferEncrypted,
-				Type:          secboot.EncryptionTypeLUKS,
+				Type:          device.EncryptionTypeLUKS,
 			},
 		},
 		{
@@ -402,7 +403,7 @@ func (s *installSuite) TestEncryptionSupportInfoForceUnencrypted(c *C) {
 			install.EncryptionSupportInfo{
 				Available: false, Disabled: false,
 				StorageSafety:      asserts.StorageSafetyPreferEncrypted,
-				Type:               secboot.EncryptionTypeNone,
+				Type:               device.EncryptionTypeNone,
 				UnavailableWarning: "not encrypting device storage as checking TPM gave: no tpm",
 			},
 		},
@@ -411,7 +412,7 @@ func (s *installSuite) TestEncryptionSupportInfoForceUnencrypted(c *C) {
 			install.EncryptionSupportInfo{
 				Available: true, Disabled: false,
 				StorageSafety: asserts.StorageSafetyEncrypted,
-				Type:          secboot.EncryptionTypeLUKS,
+				Type:          device.EncryptionTypeLUKS,
 			},
 		},
 		{
@@ -419,7 +420,7 @@ func (s *installSuite) TestEncryptionSupportInfoForceUnencrypted(c *C) {
 			install.EncryptionSupportInfo{
 				Available: true, Disabled: false,
 				StorageSafety: asserts.StorageSafetyEncrypted,
-				Type:          secboot.EncryptionTypeLUKS,
+				Type:          device.EncryptionTypeLUKS,
 			},
 		},
 		{
@@ -427,7 +428,7 @@ func (s *installSuite) TestEncryptionSupportInfoForceUnencrypted(c *C) {
 			install.EncryptionSupportInfo{
 				Available: false, Disabled: false,
 				StorageSafety:  asserts.StorageSafetyEncrypted,
-				Type:           secboot.EncryptionTypeNone,
+				Type:           device.EncryptionTypeNone,
 				UnavailableErr: fmt.Errorf("cannot encrypt device storage as mandated by model grade secured: no tpm"),
 			},
 		},
@@ -503,14 +504,14 @@ func (s *installSuite) TestEncryptionSupportInfoGadgetIncompatibleWithEncryption
 			install.EncryptionSupportInfo{
 				Available: true, Disabled: false,
 				StorageSafety: asserts.StorageSafetyPreferEncrypted,
-				Type:          secboot.EncryptionTypeLUKS,
+				Type:          device.EncryptionTypeLUKS,
 			},
 		}, {
 			"dangerous", "", gadgetWithoutUbuntuSave,
 			install.EncryptionSupportInfo{
 				Available: false, Disabled: false,
 				StorageSafety:      asserts.StorageSafetyPreferEncrypted,
-				Type:               secboot.EncryptionTypeNone,
+				Type:               device.EncryptionTypeNone,
 				UnavailableWarning: "cannot use encryption with the gadget, disabling encryption: gadget does not support encrypted data: required partition with system-save role is missing",
 			},
 		}, {
@@ -518,7 +519,7 @@ func (s *installSuite) TestEncryptionSupportInfoGadgetIncompatibleWithEncryption
 			install.EncryptionSupportInfo{
 				Available: false, Disabled: false,
 				StorageSafety:  asserts.StorageSafetyEncrypted,
-				Type:           secboot.EncryptionTypeNone,
+				Type:           device.EncryptionTypeNone,
 				UnavailableErr: fmt.Errorf("cannot use encryption with the gadget: gadget does not support encrypted data: required partition with system-save role is missing"),
 			},
 		}, {
@@ -526,14 +527,14 @@ func (s *installSuite) TestEncryptionSupportInfoGadgetIncompatibleWithEncryption
 			install.EncryptionSupportInfo{
 				Available: true, Disabled: false,
 				StorageSafety: asserts.StorageSafetyPreferEncrypted,
-				Type:          secboot.EncryptionTypeLUKS,
+				Type:          device.EncryptionTypeLUKS,
 			},
 		}, {
 			"signed", "", gadgetWithoutUbuntuSave,
 			install.EncryptionSupportInfo{
 				Available: false, Disabled: false,
 				StorageSafety:      asserts.StorageSafetyPreferEncrypted,
-				Type:               secboot.EncryptionTypeNone,
+				Type:               device.EncryptionTypeNone,
 				UnavailableWarning: "cannot use encryption with the gadget, disabling encryption: gadget does not support encrypted data: required partition with system-save role is missing",
 			},
 		}, {
@@ -541,7 +542,7 @@ func (s *installSuite) TestEncryptionSupportInfoGadgetIncompatibleWithEncryption
 			install.EncryptionSupportInfo{
 				Available: false, Disabled: false,
 				StorageSafety:  asserts.StorageSafetyEncrypted,
-				Type:           secboot.EncryptionTypeNone,
+				Type:           device.EncryptionTypeNone,
 				UnavailableErr: fmt.Errorf("cannot use encryption with the gadget: gadget does not support encrypted data: required partition with system-save role is missing"),
 			},
 		}, {
@@ -549,14 +550,14 @@ func (s *installSuite) TestEncryptionSupportInfoGadgetIncompatibleWithEncryption
 			install.EncryptionSupportInfo{
 				Available: true, Disabled: false,
 				StorageSafety: asserts.StorageSafetyEncrypted,
-				Type:          secboot.EncryptionTypeLUKS,
+				Type:          device.EncryptionTypeLUKS,
 			},
 		}, {
 			"secured", "", gadgetWithoutUbuntuSave,
 			install.EncryptionSupportInfo{
 				Available: false, Disabled: false,
 				StorageSafety:  asserts.StorageSafetyEncrypted,
-				Type:           secboot.EncryptionTypeNone,
+				Type:           device.EncryptionTypeNone,
 				UnavailableErr: fmt.Errorf("cannot use encryption with the gadget: gadget does not support encrypted data: required partition with system-save role is missing"),
 			},
 		},
@@ -578,25 +579,25 @@ func (s *installSuite) TestInstallCheckEncryptedFDEHook(c *C) {
 		hookOutput  string
 		expectedErr string
 
-		encryptionType secboot.EncryptionType
+		encryptionType device.EncryptionType
 	}{
 		// invalid json
-		{"xxx", `cannot parse hook output "xxx": invalid character 'x' looking for beginning of value`, secboot.EncryptionTypeNone},
+		{"xxx", `cannot parse hook output "xxx": invalid character 'x' looking for beginning of value`, device.EncryptionTypeNone},
 		// no output is invalid
-		{"", `cannot parse hook output "": unexpected end of JSON input`, secboot.EncryptionTypeNone},
+		{"", `cannot parse hook output "": unexpected end of JSON input`, device.EncryptionTypeNone},
 		// specific error
-		{`{"error":"failed"}`, `cannot use hook: it returned error: failed`, secboot.EncryptionTypeNone},
-		{`{}`, `cannot use hook: neither "features" nor "error" returned`, secboot.EncryptionTypeNone},
+		{`{"error":"failed"}`, `cannot use hook: it returned error: failed`, device.EncryptionTypeNone},
+		{`{}`, `cannot use hook: neither "features" nor "error" returned`, device.EncryptionTypeNone},
 		// valid
-		{`{"features":[]}`, "", secboot.EncryptionTypeLUKS},
-		{`{"features":["a"]}`, "", secboot.EncryptionTypeLUKS},
-		{`{"features":["a","b"]}`, "", secboot.EncryptionTypeLUKS},
+		{`{"features":[]}`, "", device.EncryptionTypeLUKS},
+		{`{"features":["a"]}`, "", device.EncryptionTypeLUKS},
+		{`{"features":["a","b"]}`, "", device.EncryptionTypeLUKS},
 		// features must be list of strings
-		{`{"features":[1]}`, `cannot parse hook output ".*": json: cannot unmarshal number into Go struct.*`, secboot.EncryptionTypeNone},
-		{`{"features":1}`, `cannot parse hook output ".*": json: cannot unmarshal number into Go struct.*`, secboot.EncryptionTypeNone},
-		{`{"features":"1"}`, `cannot parse hook output ".*": json: cannot unmarshal string into Go struct.*`, secboot.EncryptionTypeNone},
+		{`{"features":[1]}`, `cannot parse hook output ".*": json: cannot unmarshal number into Go struct.*`, device.EncryptionTypeNone},
+		{`{"features":1}`, `cannot parse hook output ".*": json: cannot unmarshal number into Go struct.*`, device.EncryptionTypeNone},
+		{`{"features":"1"}`, `cannot parse hook output ".*": json: cannot unmarshal string into Go struct.*`, device.EncryptionTypeNone},
 		// valid and uses ice
-		{`{"features":["a","inline-crypto-engine","b"]}`, "", secboot.EncryptionTypeLUKSWithICE},
+		{`{"features":["a","inline-crypto-engine","b"]}`, "", device.EncryptionTypeLUKSWithICE},
 	} {
 		runFDESetup := func(_ *fde.SetupRequest) ([]byte, error) {
 			return []byte(tc.hookOutput), nil
@@ -624,12 +625,12 @@ func (s *installSuite) TestInstallCheckEncryptionSupportTPM(c *C) {
 
 	for _, tc := range []struct {
 		hasTPM         bool
-		encryptionType secboot.EncryptionType
+		encryptionType device.EncryptionType
 	}{
 		// unhappy: no tpm, no hook
-		{false, secboot.EncryptionTypeNone},
+		{false, device.EncryptionTypeNone},
 		// happy: tpm
-		{true, secboot.EncryptionTypeLUKS},
+		{true, device.EncryptionTypeLUKS},
 	} {
 		restore := install.MockSecbootCheckTPMKeySealingSupported(func(secboot.TPMProvisionMode) error {
 			if tc.hasTPM {
@@ -663,10 +664,10 @@ func (s *installSuite) TestInstallCheckEncryptionSupportHook(c *C) {
 		fdeSetupHookFeatures string
 
 		hasTPM         bool
-		encryptionType secboot.EncryptionType
+		encryptionType device.EncryptionType
 	}{
-		{"[]", false, secboot.EncryptionTypeLUKS},
-		{"[]", true, secboot.EncryptionTypeLUKS},
+		{"[]", false, device.EncryptionTypeLUKS},
+		{"[]", true, device.EncryptionTypeLUKS},
 	} {
 		runFDESetup := func(_ *fde.SetupRequest) ([]byte, error) {
 			return []byte(fmt.Sprintf(`{"features":%s}`, tc.fdeSetupHookFeatures)), nil
@@ -723,7 +724,7 @@ func (s *installSuite) TestInstallCheckEncryptionSupportStorageSafety(c *C) {
 
 		encryptionType, err := install.CheckEncryptionSupport(mockModel, secboot.TPMProvisionFull, kernelInfo, gadgetInfo, nil)
 		c.Assert(err, IsNil)
-		encrypt := (encryptionType != secboot.EncryptionTypeNone)
+		encrypt := (encryptionType != device.EncryptionTypeNone)
 		c.Check(encrypt, Equals, tc.expectedEncryption, Commentf("%v", tc))
 	}
 }
