@@ -1539,10 +1539,12 @@ func InstallPathWithDeviceContext(st *state.State, si *snap.SideInfo, path, name
 }
 
 // Download returns a set of tasks for downloading a snap and components into
-// the given blobDirectory. If blobDirectory is empty, then dirs.SnapBlobDir is
-// used. The snap.Info for the snap that is downloaded is also returned. The
-// tasks that are returned will also download and validate the snap's and
-// components' assertions. Prerequisites for the snap are not downloaded.
+// the given directory. The snap.Info for the snap that is downloaded is also
+// returned. The tasks that are returned also download and validate the snap's
+// and components' assertions. Prerequisites for the snap are not downloaded.
+//
+// TODO: this function will soon return an error if downloadDir ==
+// dirs.SnapBlobDir.
 func Download(
 	ctx context.Context,
 	st *state.State,
@@ -1554,6 +1556,29 @@ func Download(
 ) (*state.TaskSet, *snap.Info, error) {
 	const skipSnapDownload = false
 	return downloadTasks(ctx, st, name, components, downloadDir, skipSnapDownload, revOpts, opts)
+}
+
+// DownloadComponents returns a set of tasks for downloading the given snap
+// components into the given directory. The tasks that are returned will also
+// download and validate the components' assertions.
+//
+// TODO: this function will soon return an error if downloadDir ==
+// dirs.SnapBlobDir.
+func DownloadComponents(
+	ctx context.Context,
+	st *state.State,
+	name string,
+	components []string,
+	downloadDir string,
+	revOpts RevisionOptions,
+	opts Options,
+) (*state.TaskSet, error) {
+	const skipSnapDownload = true
+	ts, _, err := downloadTasks(ctx, st, name, components, downloadDir, skipSnapDownload, revOpts, opts)
+	if err != nil {
+		return nil, err
+	}
+	return ts, nil
 }
 
 func downloadTasks(
@@ -1702,23 +1727,6 @@ func downloadTasks(
 	ts.MarkEdge(prev, LastBeforeLocalModificationsEdge)
 
 	return ts, info, nil
-}
-
-func DownloadComponents(
-	ctx context.Context,
-	st *state.State,
-	name string,
-	components []string,
-	dir string,
-	revOpts RevisionOptions,
-	opts Options,
-) (*state.TaskSet, error) {
-	const skipSnapDownload = true
-	ts, _, err := downloadTasks(ctx, st, name, components, dir, skipSnapDownload, revOpts, opts)
-	if err != nil {
-		return nil, err
-	}
-	return ts, nil
 }
 
 func validatedInfoFromPathAndSideInfo(instanceName string, path string, si *snap.SideInfo) (*snap.Info, error) {
