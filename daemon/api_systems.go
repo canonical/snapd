@@ -489,20 +489,35 @@ func postSystemActionCreateOffline(c *Command, form *Form) Response {
 		return apiErr
 	}
 
-	// TODO:COMPS: support adding components to a recovery system
 	localSnaps := make([]snapstate.PathSnap, 0, len(slInfo.snaps))
+	localComponents := make([]snapstate.PathComponent, 0, len(slInfo.components))
 	for _, sn := range slInfo.snaps {
 		localSnaps = append(localSnaps, snapstate.PathSnap{
 			SideInfo: &sn.info.SideInfo,
 			Path:     sn.tmpPath,
 		})
+
+		for _, c := range sn.components {
+			localComponents = append(localComponents, snapstate.PathComponent{
+				SideInfo: c.sideInfo,
+				Path:     c.tmpPath,
+			})
+		}
+	}
+
+	for _, ci := range slInfo.components {
+		localComponents = append(localComponents, snapstate.PathComponent{
+			SideInfo: ci.sideInfo,
+			Path:     ci.tmpPath,
+		})
 	}
 
 	chg, err := devicestateCreateRecoverySystem(st, label, devicestate.CreateRecoverySystemOptions{
-		ValidationSets: validationSets.Sets(),
-		LocalSnaps:     localSnaps,
-		TestSystem:     testSystem,
-		MarkDefault:    markDefault,
+		ValidationSets:  validationSets.Sets(),
+		LocalSnaps:      localSnaps,
+		LocalComponents: localComponents,
+		TestSystem:      testSystem,
+		MarkDefault:     markDefault,
 		// using the form-based API implies that this should be an offline operation
 		Offline: true,
 	})

@@ -53,6 +53,7 @@ import (
 	"github.com/snapcore/snapd/overlord/install"
 	"github.com/snapcore/snapd/overlord/restart"
 	"github.com/snapcore/snapd/overlord/snapstate"
+	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/secboot"
@@ -1897,6 +1898,187 @@ func (s *systemsCreateSuite) TestCreateSystemActionOffline(c *check.C) {
 	defer st.Unlock()
 
 	c.Check(st.Change(res.Change), check.NotNil)
+}
+
+func (s *systemsCreateSuite) TestCreateSystemActionWithComponentsOffline(c *check.C) {
+	snaps := []interface{}{
+		map[string]interface{}{
+			"name":     "pc-kernel",
+			"id":       snaptest.AssertedSnapID("pc-kernel"),
+			"revision": "10",
+			"presence": "required",
+			"components": map[string]interface{}{
+				"pc-kernel": map[string]interface{}{
+					"revision": "10",
+					"presence": "required",
+				},
+			},
+		},
+		map[string]interface{}{
+			"name":     "pc",
+			"id":       snaptest.AssertedSnapID("pc"),
+			"revision": "10",
+			"presence": "required",
+		},
+		map[string]interface{}{
+			"name":     "core20",
+			"id":       snaptest.AssertedSnapID("core20"),
+			"revision": "10",
+			"presence": "required",
+		},
+	}
+
+	accountID := s.dev1acct.AccountID()
+
+	const (
+		validationSet = "validation-set-1"
+		expectedLabel = "1234"
+	)
+
+	vsetAssert := s.mockDevAssertion(c, asserts.ValidationSetType, map[string]interface{}{
+		"name":     validationSet,
+		"sequence": "1",
+		"snaps":    snaps,
+	})
+
+	assertions := []string{
+		string(asserts.Encode(vsetAssert)),
+		string(asserts.Encode(s.acct1Key)),
+		string(asserts.Encode(s.dev1acct)),
+	}
+
+	snapComponents := map[string][]string{
+		"pc-kernel":  {"kmod"},
+		"extra-snap": {"snap-1"},
+	}
+
+	snapFormData := make(map[string]string)
+
+	st := s.d.Overlord().State()
+	for _, name := range []string{"pc-kernel", "pc", "core20", "extra-snap"} {
+		f := snaptest.MakeTestSnapWithFiles(c, withComponents(fmt.Sprintf("name: %s\nversion: 1", name), snapComponents[name]), nil)
+		digest, size, err := asserts.SnapFileSHA3_384(f)
+		c.Assert(err, check.IsNil)
+
+		snapID := snaptest.AssertedSnapID(name)
+
+		rev := s.mockStoreAssertion(c, asserts.SnapRevisionType, map[string]interface{}{
+			"snap-id":       snapID,
+			"snap-sha3-384": digest,
+			"developer-id":  s.dev1acct.AccountID(),
+			"snap-size":     strconv.Itoa(int(size)),
+			"snap-revision": "10",
+		})
+
+		decl := s.mockStoreAssertion(c, asserts.SnapDeclarationType, map[string]interface{}{
+			"series":       "16",
+			"snap-id":      snapID,
+			"snap-name":    name,
+			"publisher-id": s.dev1acct.AccountID(),
+			"timestamp":    time.Now().Format(time.RFC3339),
+		})
+
+		assertions = append(assertions, string(asserts.Encode(rev)), string(asserts.Encode(decl)))
+
+		for _, comp := range snapComponents[name] {
+			compPath, resRev, resPair := s.makeStandardComponent(c, name, comp)
+
+			assertions = append(assertions, string(asserts.Encode(resRev)), string(asserts.Encode(resPair)))
+
+			content, err := os.ReadFile(compPath)
+			c.Assert(err, check.IsNil)
+
+			snapFormData[fmt.Sprintf("%s+%s.comp", name, comp)] = string(content)
+		}
+
+		content, err := os.ReadFile(f)
+		c.Assert(err, check.IsNil)
+
+		// we exclude this snap from being uploaded since we want to test
+		// uploading a component without its associated snap
+		if name != "extra-snap" {
+			snapFormData[name] = string(content)
+		} else {
+			st.Lock()
+			snapstate.Set(st, name, &snapstate.SnapState{
+				Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
+					{
+						RealName: name,
+						Revision: snap.R(10),
+						SnapID:   snapID,
+					},
+				}),
+				Current: snap.R(10),
+				Active:  true,
+			})
+			st.Unlock()
+		}
+	}
+
+	valSetString := accountID + "/" + validationSet
+	fields := map[string][]string{
+		"action":          {"create"},
+		"assertion":       assertions,
+		"label":           {expectedLabel},
+		"validation-sets": {valSetString},
+	}
+
+	form, boundary := createFormData(c, fields, snapFormData)
+
+	daemon.MockDevicestateCreateRecoverySystem(func(st *state.State, label string, opts devicestate.CreateRecoverySystemOptions) (*state.Change, error) {
+		c.Check(expectedLabel, check.Equals, label)
+		c.Check(opts.ValidationSets, check.HasLen, 1)
+		c.Check(opts.ValidationSets[0].Body(), check.DeepEquals, vsetAssert.Body())
+		c.Check(opts.LocalSnaps, check.HasLen, 3)
+		c.Check(opts.LocalComponents, check.HasLen, 2)
+
+		for _, vs := range opts.ValidationSets {
+			c.Check(vs.AccountID(), check.Equals, accountID)
+		}
+
+		return st.NewChange("change", "..."), nil
+	})
+
+	req, err := http.NewRequest("POST", "/v2/systems", &form)
+	c.Assert(err, check.IsNil)
+	req.Header.Set("Content-Type", "multipart/form-data; boundary="+boundary)
+	req.Header.Set("Content-Length", strconv.Itoa(form.Len()))
+
+	res := s.asyncReq(c, req, nil)
+
+	st.Lock()
+	defer st.Unlock()
+
+	c.Check(st.Change(res.Change), check.NotNil)
+}
+
+func (s *systemsCreateSuite) makeStandardComponent(c *check.C, snapName string, compName string) (compPath string, resourceRev, resourcePair asserts.Assertion) {
+	yaml := fmt.Sprintf("component: %s+%s\nversion: 1\ntype: standard", snapName, compName)
+	compPath = snaptest.MakeTestComponent(c, yaml)
+
+	digest, size, err := asserts.SnapFileSHA3_384(compPath)
+	c.Assert(err, check.IsNil)
+
+	resRev := s.mockStoreAssertion(c, asserts.SnapResourceRevisionType, map[string]interface{}{
+		"snap-id":           snaptest.AssertedSnapID(snapName),
+		"developer-id":      s.dev1acct.AccountID(),
+		"resource-name":     compName,
+		"resource-sha3-384": digest,
+		"resource-revision": "20",
+		"resource-size":     strconv.Itoa(int(size)),
+		"timestamp":         time.Now().Format(time.RFC3339),
+	})
+
+	resPair := s.mockStoreAssertion(c, asserts.SnapResourcePairType, map[string]interface{}{
+		"snap-id":           snaptest.AssertedSnapID(snapName),
+		"developer-id":      s.dev1acct.AccountID(),
+		"resource-name":     compName,
+		"resource-revision": "20",
+		"snap-revision":     "10",
+		"timestamp":         time.Now().UTC().Format(time.RFC3339),
+	})
+
+	return compPath, resRev, resPair
 }
 
 func (s *systemsCreateSuite) TestCreateSystemActionOfflinePreinstalledJSON(c *check.C) {
