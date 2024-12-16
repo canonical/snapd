@@ -209,6 +209,8 @@ The CI tooling will check and enforce the order and required sections when a spr
 
 * Large mechanical refactoring and changes should be done as separate PRs. Try to separate behaviour changes and refactoring into different PRs and not mix the two.
 
+* Refactoring should not touch preexisting tests. If changing a test is unavoidable, changes must be minimal. To ensure a refactor can be anchored, it's a good idea to check the coverage before starting, both in terms of lines of codes and in the features and behaviors that may be affected. Checking the coverage afterwards can also reveal whether there is old code that now can be dropped.
+
 * Large moving of code around and changes to code placement might also be better done separately.
 
 * PR summaries and the first line of commit messages are expected to be of this form:
