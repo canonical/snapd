@@ -199,7 +199,13 @@ func checkFDEFeatures(runSetupHook fde.RunSetupHookFunc) (et device.EncryptionTy
 // CheckEncryptionSupport checks the type of encryption support for disks
 // available if any and returns the corresponding device.EncryptionType,
 // internally it uses GetEncryptionSupportInfo with the provided parameters.
-func CheckEncryptionSupport(model *asserts.Model, tpmMode secboot.TPMProvisionMode, kernelInfo *snap.Info, gadgetInfo *gadget.Info, runSetupHook fde.RunSetupHookFunc) (device.EncryptionType, error) {
+func CheckEncryptionSupport(
+	model *asserts.Model,
+	tpmMode secboot.TPMProvisionMode,
+	kernelInfo *snap.Info,
+	gadgetInfo *gadget.Info,
+	runSetupHook fde.RunSetupHookFunc,
+) (device.EncryptionType, error) {
 	res, err := GetEncryptionSupportInfo(model, tpmMode, kernelInfo, gadgetInfo, runSetupHook)
 	if err != nil {
 		return "", err

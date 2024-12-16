@@ -100,7 +100,12 @@ func saveStorageTraits(mod gadget.Model, allVols map[string]*gadget.Volume, opts
 	return nil
 }
 
-func maybeEncryptPartition(dgpair *gadget.OnDiskAndGadgetStructurePair, encryptionType device.EncryptionType, sectorSize quantity.Size, perfTimings timings.Measurer) (fsParams *mkfsParams, diskEncryptionKey secboot.DiskUnlockKey, err error) {
+func maybeEncryptPartition(
+	dgpair *gadget.OnDiskAndGadgetStructurePair,
+	encryptionType device.EncryptionType,
+	sectorSize quantity.Size,
+	perfTimings timings.Measurer,
+) (fsParams *mkfsParams, diskEncryptionKey secboot.DiskUnlockKey, err error) {
 	diskPart := dgpair.DiskStructure
 	volStruct := dgpair.GadgetStructure
 	mustEncrypt := (encryptionType != device.EncryptionTypeNone)
@@ -630,7 +635,13 @@ func SaveStorageTraits(model gadget.Model, vols map[string]*gadget.Volume, encry
 	return nil
 }
 
-func EncryptPartitions(onVolumes map[string]*gadget.Volume, encryptionType device.EncryptionType, model *asserts.Model, gadgetRoot, kernelRoot string, perfTimings timings.Measurer) (*EncryptionSetupData, error) {
+func EncryptPartitions(
+	onVolumes map[string]*gadget.Volume,
+	encryptionType device.EncryptionType,
+	model *asserts.Model,
+	gadgetRoot, kernelRoot string,
+	perfTimings timings.Measurer,
+) (*EncryptionSetupData, error) {
 	setupData := &EncryptionSetupData{
 		parts: make(map[string]partEncryptionData),
 	}

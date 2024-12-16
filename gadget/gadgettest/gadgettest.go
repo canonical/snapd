@@ -32,7 +32,12 @@ import (
 	"github.com/snapcore/snapd/osutil/disks"
 )
 
-func LaidOutVolumesFromGadget(gadgetRoot, kernelRoot string, model gadget.Model, encType device.EncryptionType, volToGadgetToDiskStruct map[string]map[int]*gadget.OnDiskStructure) (all map[string]*gadget.LaidOutVolume, err error) {
+func LaidOutVolumesFromGadget(
+	gadgetRoot, kernelRoot string,
+	model gadget.Model,
+	encType device.EncryptionType,
+	volToGadgetToDiskStruct map[string]map[int]*gadget.OnDiskStructure,
+) (all map[string]*gadget.LaidOutVolume, err error) {
 	// rely on the basic validation from ReadInfo to ensure that the system-*
 	// roles are all on the same volume for example
 	info, err := gadget.ReadInfoAndValidate(gadgetRoot, model, nil)
