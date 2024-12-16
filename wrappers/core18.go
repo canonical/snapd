@@ -266,6 +266,8 @@ func AddSnapdSnapServices(s *snap.Info, opts *AddSnapdSnapServicesOptions, inter
 		return nil, nil
 	}
 
+	logger.Debugf("removed units: %v", removed)
+	logger.Debugf("changed units: %v", changed)
 	// stop all removed units first
 	for _, unit := range removed {
 		serviceUnits := []string{unit}
@@ -315,8 +317,10 @@ func AddSnapdSnapServices(s *snap.Info, opts *AddSnapdSnapServicesOptions, inter
 			// be started. Others like "snapd.seeded.service" are started
 			// as dependencies of snapd.service.
 			if snapdSkipStart(snapdUnits[unit].(*osutil.MemoryFileState).Content) {
+				logger.Debugf("skipping unit %v, has do-not-start tag", unit)
 				continue
 			}
+			logger.Debugf("(re)starting snapd unit %v", unit)
 			// Ensure to only restart if the unit was previously
 			// active. This ensures we DTRT on firstboot and do
 			// not stop e.g. snapd.socket because doing that
