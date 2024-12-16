@@ -140,6 +140,17 @@ func MockAssessAppArmorPrompting(new func(m *InterfaceManager) bool) (restore fu
 	return testutil.Mock(&assessAppArmorPrompting, new)
 }
 
+func MockInterfacesRequestsControlHandlerServicePresent(new func(m *InterfaceManager) (bool, error)) (restore func()) {
+	return testutil.Mock(&interfacesRequestsControlHandlerServicePresentImpl, new)
+}
+
+func CallInterfacesRequestsControlHandlerServicePresent(s *state.State) (bool, error) {
+	manager := &InterfaceManager{
+		state: s,
+	}
+	return manager.interfacesRequestsControlHandlerServicePresent()
+}
+
 func MockUDevInitRetryTimeout(t time.Duration) (restore func()) {
 	old := udevInitRetryTimeout
 	udevInitRetryTimeout = t

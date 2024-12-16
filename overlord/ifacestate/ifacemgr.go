@@ -205,6 +205,17 @@ func (m *InterfaceManager) StartUp() error {
 	}
 
 	if m.useAppArmorPrompting {
+		// Check if there is at least one snap on the system which has a
+		// connection using the "snap-interfaces-requests-control" plug
+		// with a "handler-service" attribute declared.
+		present, err := m.interfacesRequestsControlHandlerServicePresent()
+		if err != nil {
+			// Internal error, should not occur
+			logger.Noticef("failed to check the presence of a interfaces-requests-control handler service: %v", err)
+		} else if !present {
+			m.state.AddWarning(`"apparmor-prompting" feature flag enabled but no prompting client is present; requests will be auto-denied until a prompting client is installed`, nil)
+		}
+
 		func() {
 			// Must not hold state lock while starting interfaces requests
 			// manager, so that notices can be recorded if needed.
@@ -558,8 +569,32 @@ func (m *InterfaceManager) initUDevMonitor() error {
 	return nil
 }
 
-// initInterfacesRequestsManager should only be called if prompting is
-// supported and enabled.
+// interfacesRequestsControlHandlerServicePresent returns true if there is at
+// least one snap which has a "snap-interfaces-requests-control" connection
+// with an app declared by the "handler-service" attribute.
+//
+// The caller must ensure that the state lock is held.
+func (m *InterfaceManager) interfacesRequestsControlHandlerServicePresent() (bool, error) {
+	return interfacesRequestsControlHandlerServicePresentImpl(m)
+}
+
+var interfacesRequestsControlHandlerServicePresentImpl = func(m *InterfaceManager) (bool, error) {
+	handlers, err := InterfacesRequestsControlHandlerServices(m.state)
+	if err != nil {
+		return false, err
+	}
+	return len(handlers) > 0, nil
+}
+
+// initInterfacesRequestsManager initializes the prompting backends which make
+// up the interfaces requests manager.
+//
+// This function should only be called if prompting is supported and enabled,
+// and at least one installed snap has a "snap-interfaces-requests-control"
+// connection with the "handler-service" attribute declared.
+//
+// The state lock must not be held when this function is called, so that
+// notices can be recorded if necessary.
 func (m *InterfaceManager) initInterfacesRequestsManager() error {
 	m.interfacesRequestsManagerMu.Lock()
 	defer m.interfacesRequestsManagerMu.Unlock()

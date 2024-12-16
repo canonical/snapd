@@ -577,3 +577,50 @@ func OnSnapLinkageChanged(st *state.State, snapsup *snapstate.SnapSetup) error {
 	snapstate.Set(st, instanceName, &snapst)
 	return nil
 }
+
+// InterfacesRequestsControlHandlerServices returns the list of all apps which
+// are defined as "handler-service" for a snap which has a connected plug for
+// the "snap-interfaces-requests-control" interface.
+//
+// The caller must ensure that the given state is locked.
+func InterfacesRequestsControlHandlerServices(st *state.State) ([]*snap.AppInfo, error) {
+	conns, err := ConnectionStates(st)
+	if err != nil {
+		return nil, fmt.Errorf("internal error: cannot get connections: %w", err)
+	}
+
+	var handlers []*snap.AppInfo
+
+	for connId, connState := range conns {
+		if connState.Interface != "snap-interfaces-requests-control" || !connState.Active() {
+			continue
+		}
+
+		connRef, err := interfaces.ParseConnRef(connId)
+		if err != nil {
+			return nil, err
+		}
+
+		handler, ok := connState.StaticPlugAttrs["handler-service"].(string)
+		if !ok {
+			// does not have a handler service
+			continue
+		}
+
+		sn := connRef.PlugRef.Snap
+		si, err := snapstate.CurrentInfo(st, sn)
+		if err != nil {
+			return nil, err
+		}
+
+		// this should not fail as plug's before prepare should have validated that such app exists
+		app := si.Apps[handler]
+		if app == nil {
+			return nil, fmt.Errorf("internal error: cannot find app %q in snap %q", app, sn)
+		}
+
+		handlers = append(handlers, app)
+	}
+
+	return handlers, nil
+}
