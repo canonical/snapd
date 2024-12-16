@@ -342,6 +342,13 @@ prepare_each_classic() {
     fi
 
     prepare_reexec_override
+    # Each individual task may potentially set the SNAP_NO_MEMORY_LIMIT variable
+    prepare_memory_limit_override
+}
+
+prepare_each_core() {
+    # Each individual task may potentially set the SNAP_NO_MEMORY_LIMIT variable
+    prepare_memory_limit_override
 }
 
 prepare_classic() {
