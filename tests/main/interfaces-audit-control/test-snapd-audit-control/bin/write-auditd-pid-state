@@ -1,9 +1,0 @@
-#!/bin/sh -e
-
-for file in "/run/auditd.pid" "/run/auditd.state" "/var/run/auditd.pid" "/var/run/auditd.state" ; do
-	echo "wrote to $file" > "$file"
-	result="$(cat "$file")"
-	test "$result" = "wrote to $file"
-	echo "$result"
-	rm "$file"
-done

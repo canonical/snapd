@@ -1,4 +1,4 @@
-summary: Ensure that the netlink audit interface works.
+summary: Ensure that the audit-control interface works.
 
 details: |
     The audit-control interface allows enabling/disabling the kernel audit
@@ -8,11 +8,12 @@ details: |
 
 # arch: CONFIG_AUDIT is not enabled in the default kernel
 # arm: test-snapd-audit-control is only built for x86_64
+# TODO: build test-snapd-audit-control for arm and remove that restriction here
 systems: [-arch-*, -ubuntu-*-arm-*]
 
 prepare: |
-    # Install a snap declaring a plug on netlink-audit
-    "$TESTSTOOLS"/snaps-state install-local test-snapd-audit-control
+    # Install a snap declaring a plug on audit-control
+    snap install test-snapd-audit-control
 
 execute: |
     echo "The interface is disconnected by default"
