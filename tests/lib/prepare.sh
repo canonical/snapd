@@ -8,6 +8,8 @@ set -eux
 . "$TESTSLIB/pkgdb.sh"
 # shellcheck source=tests/lib/state.sh
 . "$TESTSLIB/state.sh"
+#shellcheck source=tests/lib/core-initrd.sh
+. "$TESTSLIB"/core-initrd.sh
 
 disable_kernel_rate_limiting() {
     # kernel rate limiting hinders debugging security policy so turn it off
@@ -935,9 +937,12 @@ uc24_build_initramfs_kernel_snap() {
     esac
 
     unsquashfs -d pc-kernel "$ORIG_SNAP"
-    objcopy -O binary -j .initrd pc-kernel/kernel.efi initrd.img
+    kernelver=$(find pc-kernel/modules/ -maxdepth 1 -mindepth 1 -printf "%f")
+    ubuntu-core-initramfs create-initrd --kernelver="$kernelver" --kerneldir pc-kernel/modules/"$kernelver" \
+                          --firmwaredir pc-kernel/firmware --output initrd.img
 
-    unmkinitramfs initrd.img initrd
+    initrd_f=initrd.img-"$kernelver"
+    unmkinitramfs "$initrd_f" initrd
 
     if [ -d ./extra-initrd ]; then
         if [ -d ./initrd/early ]; then
@@ -950,28 +955,19 @@ uc24_build_initramfs_kernel_snap() {
     if [ -d ./initrd/early ]; then
         uc_write_bootstrap_wrapper ./initrd/main "$injectKernelPanic"
 
-        (cd ./initrd/early; find . | cpio --create --quiet --format=newc --owner=0:0) >initrd.img
-        (cd ./initrd/main; find . | cpio --create --quiet --format=newc --owner=0:0 | zstd -1 -T0) >>initrd.img
+        (cd ./initrd/early; find . | cpio --create --quiet --format=newc --owner=0:0) >"$initrd_f"
+        (cd ./initrd/main; find . | cpio --create --quiet --format=newc --owner=0:0 | zstd -1 -T0) >>"$initrd_f"
     else
         uc_write_bootstrap_wrapper ./initrd "$injectKernelPanic"
 
-        (cd ./initrd; find . | cpio --create --quiet --format=newc --owner=0:0 | zstd -1 -T0) >initrd.img
+        (cd ./initrd; find . | cpio --create --quiet --format=newc --owner=0:0 | zstd -1 -T0) >"$initrd_f"
     fi
 
-    quiet apt install -y systemd-boot-efi systemd-ukify
-    objcopy -O binary -j .linux pc-kernel/kernel.efi linux
-
-    /usr/lib/systemd/ukify build --linux=linux --initrd=initrd.img --output=pc-kernel/kernel.efi
-
-    #shellcheck source=tests/lib/nested.sh
-    . "$TESTSLIB/nested.sh"
-    KEY_NAME=$(nested_get_snakeoil_key)
-
-    SNAKEOIL_KEY="$PWD/$KEY_NAME.key"
-    SNAKEOIL_CERT="$PWD/$KEY_NAME.pem"
-
-    # sign the kernel
-    nested_secboot_sign_kernel pc-kernel "$SNAKEOIL_KEY" "$SNAKEOIL_CERT"
+    # Build signed uki image - snakeoil keys shipped by ubuntu-core-initramfs
+    # are used by default
+    objcopy -O binary -j .linux pc-kernel/kernel.efi linux-"$kernelver"
+    ubuntu-core-initramfs create-efi --kernelver="$kernelver" --initrd initrd.img --kernel linux --output kernel.efi
+    cp kernel.efi-"$kernelver" pc-kernel/kernel.efi
 
     # copy any extra files that tests may need for the kernel
     if [ -d ./extra-kernel-snap/ ]; then
@@ -1263,8 +1259,9 @@ EOF
         test -e pc-kernel.snap
         # build the initramfs with our snapd assets into the kernel snap
         if is_test_target_core_ge 24; then
+            build_and_install_initramfs_deb
             uc24_build_initramfs_kernel_snap "$PWD/pc-kernel.snap" "$IMAGE_HOME"
-        else    
+        else
             uc20_build_initramfs_kernel_snap "$PWD/pc-kernel.snap" "$IMAGE_HOME"
         fi
         EXTRA_FUNDAMENTAL="--snap $IMAGE_HOME/pc-kernel_*.snap"

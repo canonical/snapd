@@ -1231,6 +1231,8 @@ suites:
             . "$TESTSLIB"/pkgdb.sh
             #shellcheck source=tests/lib/image.sh
             . "$TESTSLIB"/image.sh
+            #shellcheck source=tests/lib/core-initrd.sh
+            . "$TESTSLIB"/core-initrd.sh
             distro_update_package_db
             distro_install_package snapd qemu-kvm qemu-utils genisoimage sshpass cloud-image-utils ovmf kpartx xz-utils mtools ca-certificates xdelta3
             if os.query is-xenial; then
@@ -1255,6 +1257,11 @@ suites:
 
             # Configure the ssh connection to the test vm
             remote.setup config --host localhost --port 8022 --user user1 --pass ubuntu
+
+            # Build and install initramfs package
+            if os.query is-ubuntu-ge 24.04; then
+                build_and_install_initramfs_deb
+            fi
         prepare-each: |
             "$TESTSLIB"/prepare-restore.sh --prepare-suite-each
             tests.nested prepare
@@ -1357,6 +1364,8 @@ suites:
             . "$TESTSLIB"/pkgdb.sh
             #shellcheck source=tests/lib/image.sh
             . "$TESTSLIB"/image.sh
+            #shellcheck source=tests/lib/core-initrd.sh
+            . "$TESTSLIB"/core-initrd.sh
             distro_update_package_db
             distro_install_package snapd qemu-kvm qemu-utils genisoimage sshpass cloud-image-utils ovmf kpartx xz-utils mtools ca-certificates xdelta3
             if os.query is-xenial; then
@@ -1375,6 +1384,11 @@ suites:
 
             # Configure the ssh connection to the test vm
             remote.setup config --host localhost --port 8022 --user user1 --pass ubuntu
+
+            # Build and install initramfs package
+            if os.query is-ubuntu-ge 24.04; then
+                build_and_install_initramfs_deb
+            fi
 
             tests.nested prepare
             tests.nested build-image core
