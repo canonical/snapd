@@ -1607,12 +1607,6 @@ func downloadTasks(
 		revOpts.ValidationSets = snapasserts.NewValidationSets()
 	}
 
-	var snapst SnapState
-	err := Get(st, name, &snapst)
-	if err != nil && !errors.Is(err, state.ErrNoState) {
-		return nil, nil, err
-	}
-
 	if err := snap.ValidateInstanceName(name); err != nil {
 		return nil, nil, fmt.Errorf("invalid instance name: %v", err)
 	}
