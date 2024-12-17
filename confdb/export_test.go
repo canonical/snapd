@@ -34,3 +34,18 @@ var IsValidAuthenticationMethod = isValidAuthenticationMethod
 
 // convertToAuthenticationMethods exposed for tests
 var ConvertToAuthenticationMethods = convertToAuthenticationMethods
+
+// groupWithView exposed for tests
+func (o *Operator) GroupWithView(view *ViewRef) (*ControlGroup, int) {
+	return o.groupWithView(view)
+}
+
+// groupWithAuthentication exposed for tests
+func (o *Operator) GroupWithAuthentication(auth []AuthenticationMethod) *ControlGroup {
+	return o.groupWithAuthentication(auth)
+}
+
+// compare exposed for tests
+func (v *ViewRef) Compare(b *ViewRef) int {
+	return v.compare(b)
+}

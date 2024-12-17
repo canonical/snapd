@@ -20,10 +20,12 @@
 package asserts_test
 
 import (
+	"fmt"
 	"strings"
 	"time"
 
 	. "gopkg.in/check.v1"
+	"gopkg.in/yaml.v2"
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/confdb"
@@ -335,12 +337,12 @@ func (s *confdbCtrlSuite) TestDecodeInvalid(c *C) {
 		{
 			"      - operator-key",
 			"      - foo-bar",
-			"cannot parse group at position 1: cannot add group: invalid authentication method: foo-bar",
+			"cannot parse group at position 1: cannot delegate: invalid authentication method: foo-bar",
 		},
 		{
 			"canonical/network/control-interfaces",
 			"canonical",
-			`cannot parse group at position 2: view "canonical" must be in the format account/confdb/view`,
+			`cannot parse group at position 2: cannot delegate: view "canonical" must be in the format account/confdb/view`,
 		},
 	}
 
@@ -348,5 +350,281 @@ func (s *confdbCtrlSuite) TestDecodeInvalid(c *C) {
 		invalid := strings.Replace(encoded, test.original, test.invalid, 1)
 		_, err := asserts.Decode([]byte(invalid))
 		c.Assert(err, ErrorMatches, validationSetErrPrefix+test.expectedErr, Commentf("test %d/%d failed", i+1, len(invalidTests)))
+	}
+}
+
+func (s *confdbCtrlSuite) TestDelegateOK(c *C) {
+	a, err := asserts.Decode([]byte(confdbControlExample))
+	c.Assert(err, IsNil)
+
+	cc := a.(*asserts.ConfdbControl)
+	delegated, err := cc.IsDelegated("stephen", "canonical/network/control-vpn", []string{"operator-key"})
+	c.Check(err, IsNil)
+	c.Check(delegated, Equals, false)
+
+	cc.Delegate("stephen", []string{"canonical/network/control-vpn"}, []string{"operator-key", "store"})
+	cc.Delegate("stephen", []string{"canonical/network/control-interfaces"}, []string{"operator-key"})
+
+	delegated, _ = cc.IsDelegated("stephen", "canonical/network/control-vpn", []string{"operator-key"})
+	c.Check(delegated, Equals, true)
+
+	delegated, _ = cc.IsDelegated("stephen", "canonical/network/control-interfaces", []string{"store"})
+	c.Check(delegated, Equals, false)
+}
+
+func (s *confdbCtrlSuite) TestDelegateInvalid(c *C) {
+	a, err := asserts.Decode([]byte(confdbControlExample))
+	c.Assert(err, IsNil)
+
+	cc := a.(*asserts.ConfdbControl)
+	err = cc.Delegate("john", []string{"c#anonical/network/control-vpn"}, []string{"store"})
+	c.Check(err, ErrorMatches, "cannot delegate: invalid Account ID c#anonical")
+
+	delegated, err := cc.IsDelegated("john", "c#anonical/network/control-vpn", []string{"operator-key"})
+	c.Check(err, ErrorMatches, "invalid Account ID c#anonical")
+	c.Check(delegated, Equals, false)
+}
+
+func (s *confdbCtrlSuite) TestRevokeOK(c *C) {
+	a, err := asserts.Decode([]byte(confdbControlExample))
+	c.Assert(err, IsNil)
+
+	cc := a.(*asserts.ConfdbControl)
+	delegated, _ := cc.IsDelegated("john", "canonical/network/control-interfaces", []string{"store"})
+	c.Check(delegated, Equals, true)
+
+	cc.Revoke("john", []string{"canonical/network/control-interfaces"}, []string{"store"})
+	delegated, _ = cc.IsDelegated("john", "canonical/network/control-interfaces", []string{"store"})
+	c.Check(delegated, Equals, false)
+
+	cc.Revoke("jane", nil, nil)
+	delegated, _ = cc.IsDelegated("jane", "canonical/network/observe-interfaces", []string{"store", "operator-key"})
+	c.Check(delegated, Equals, false)
+
+	err = cc.Revoke("who?", []string{"canonical/network/control-device"}, []string{"operator-key"})
+	c.Assert(err, IsNil)
+}
+
+func (s *confdbCtrlSuite) TestRevokeInvalid(c *C) {
+	encoded := confdbControlExample
+	a, err := asserts.Decode([]byte(encoded))
+	c.Assert(err, IsNil)
+
+	cc := a.(*asserts.ConfdbControl)
+	err = cc.Revoke("jane", []string{"c#anonical/network/observe-interfaces"}, []string{"store"})
+	c.Check(err, ErrorMatches, "cannot revoke: invalid Account ID c#anonical")
+}
+
+func (s *confdbCtrlSuite) TestHeurisrics(c *C) {
+	type testcase struct {
+		before         string
+		action         string
+		operatorID     string
+		authentication []string
+		views          []string
+		after          string
+	}
+
+	tcs := []testcase{
+		{
+			before: `groups:
+  -
+    authentication:
+      - operator-key
+    operator-id: john
+    views:
+      - aa/b/c
+      - dd/e/f`,
+			action:         "delegate",
+			operatorID:     "john",
+			authentication: []string{"store", "operator-key"},
+			views:          []string{"xx/y/z", "ii/j/k", "aa/b/c", "uu/v/w"},
+			after: `groups:
+- authentication:
+  - operator-key
+  operator-id: john
+  views:
+  - dd/e/f
+- authentication:
+  - operator-key
+  - store
+  operator-id: john
+  views:
+  - aa/b/c
+  - ii/j/k
+  - uu/v/w
+  - xx/y/z
+`,
+		},
+		{
+			before: `groups:
+  -
+    authentication:
+      - operator-key
+    operator-id: john
+    views:
+      - aa/b/c
+      - dd/e/f`,
+			action:         "delegate",
+			operatorID:     "jane",
+			authentication: []string{"store"},
+			views:          []string{"aa/b/c"},
+			after: `groups:
+- authentication:
+  - store
+  operator-id: jane
+  views:
+  - aa/b/c
+- authentication:
+  - operator-key
+  operator-id: john
+  views:
+  - aa/b/c
+  - dd/e/f
+`,
+		},
+		{
+			before: `groups:
+  -
+    authentication:
+      - operator-key
+    operator-id: john
+    views:
+      - dd/e/f
+  -
+    authentication:
+      - operator-key
+      - store
+    operator-id: john
+    views:
+      - aa/b/c
+      - xx/y/z`,
+			action:     "revoke",
+			operatorID: "john",
+			views:      []string{"xx/y/z", "dd/e/f"},
+			after: `groups:
+- authentication:
+  - operator-key
+  - store
+  operator-id: john
+  views:
+  - aa/b/c
+`,
+		},
+		{
+			before: `groups:
+  -
+    authentication:
+      - store
+    operator-id: jane
+    views:
+      - aa/b/c
+  -
+    authentication:
+      - operator-key
+    operator-id: john
+    views:
+      - dd/e/f
+  -
+    authentication:
+      - operator-key
+      - store
+    operator-id: john
+    views:
+      - aa/b/c
+      - xx/y/z`,
+			action:     "revoke",
+			operatorID: "john",
+			after: `groups:
+- authentication:
+  - store
+  operator-id: jane
+  views:
+  - aa/b/c
+`,
+		},
+		{
+			before: `groups:
+  -
+    authentication:
+      - operator-key
+    operator-id: john
+    views:
+      - dd/e/f
+  -
+    authentication:
+      - operator-key
+      - store
+    operator-id: john
+    views:
+      - aa/b/c
+      - xx/y/z`,
+			action:         "revoke",
+			operatorID:     "john",
+			authentication: []string{"store"},
+			views:          []string{"xx/y/z"},
+			after: `groups:
+- authentication:
+  - operator-key
+  operator-id: john
+  views:
+  - dd/e/f
+  - xx/y/z
+- authentication:
+  - operator-key
+  - store
+  operator-id: john
+  views:
+  - aa/b/c
+`,
+		},
+		{
+			before: `groups:
+  -
+    authentication:
+      - operator-key
+    operator-id: john
+    views:
+      - dd/e/f
+  -
+    authentication:
+      - operator-key
+      - store
+    operator-id: john
+    views:
+      - aa/b/c`,
+			action:     "revoke",
+			operatorID: "john",
+			views:      []string{"aa/b/c", "dd/e/f"},
+			after: `groups: []
+`,
+		},
+	}
+
+	prefix := `type: confdb-control
+brand-id: generic
+model: generic-classic
+serial: 03961d5d-26e5-443f-838d-6db046126bea`
+	suffix := `
+sign-key-sha3-384: t9yuKGLyiezBq_PXMJZsGdkTukmL7MgrgqXAlxxiZF4TYryOjZcy48nnjDmEHQDp
+
+AXNpZw==`
+	for i, tc := range tcs {
+		cmt := Commentf("test number %d", i+1)
+		assertion := fmt.Sprintf("%s\n%s%s", prefix, tc.before, suffix)
+		a, err := asserts.Decode([]byte(assertion))
+		c.Assert(err, IsNil, cmt)
+
+		cc := a.(*asserts.ConfdbControl)
+		if tc.action == "delegate" {
+			err = cc.Delegate(tc.operatorID, tc.views, tc.authentication)
+		} else {
+			err = cc.Revoke(tc.operatorID, tc.views, tc.authentication)
+		}
+		c.Assert(err, IsNil)
+
+		out, err := yaml.Marshal(map[string]interface{}{"groups": cc.Groups()})
+		c.Check(err, IsNil, cmt)
+		c.Check(string(out), Equals, tc.after, cmt)
 	}
 }
