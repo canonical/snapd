@@ -43,6 +43,7 @@ import (
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/seed/internal"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/integrity"
 	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/timings"
@@ -1075,6 +1076,51 @@ func (s *seed20) deriveSideInfo(snapRef naming.SnapRef, modelSnap *asserts.Model
 	return snapPath, sideInfo, seedComps, nil
 }
 
+func (s *seed20) lookupIntegrityData(snapRef naming.SnapRef, handler ContainerHandler, snapsDir string, tm timings.Measurer) (*integrity.IntegrityData, error) {
+	var snapRev *asserts.SnapRevision
+	_, snapRev, _, err := s.lookupVerifiedRevision(snapRef, handler, snapsDir, tm)
+	if err != nil {
+		// return empty integrity data if there is any error when searching for a verified revision.
+		return nil, nil
+	}
+
+	snapIntegrityData := snapRev.SnapIntegrityData()
+
+	if len(snapIntegrityData) <= 0 {
+		// XXX: integrity data are not enforced currently.
+		// Here we should throw an error if integrity data are required by policy.
+		return nil, nil
+	}
+
+	var id integrity.IntegrityData
+	for i, sid := range snapIntegrityData {
+		// XXX: The first item in the snap-revision integrity data list is selected.
+		// In future versions, extra logic will be required here to decide which integrity data
+		// should be used based on extra information (i.e from the model).
+		if i > 0 {
+			break
+		}
+
+		switch sid.Type {
+		case "dm-verity":
+			id.Type = sid.Type
+			id.Version = sid.Version
+			id.HashAlg = sid.HashAlg
+			id.DataBlockSize = uint64(sid.DataBlockSize)
+			id.HashBlockSize = uint64(sid.HashBlockSize)
+			id.Digest = sid.Digest
+			id.Salt = sid.Salt
+
+			id.DataBlocks = snapRev.SnapSize() / uint64(sid.DataBlockSize)
+		default:
+			return nil, fmt.Errorf("Unsupported integrity data type: %q.", sid.Type)
+		}
+
+	}
+
+	return &id, nil
+}
+
 func (s *seed20) lookupSnap(snapRef naming.SnapRef, modelSnap *asserts.ModelSnap, optSnap *internal.Snap20, channel string, handler ContainerHandler, snapsDir string, tm timings.Measurer) (*Snap, error) {
 	if optSnap != nil && optSnap.Channel != "" {
 		channel = optSnap.Channel
@@ -1121,6 +1167,16 @@ func (s *seed20) lookupSnap(snapRef naming.SnapRef, modelSnap *asserts.ModelSnap
 		}
 	}
 
+	var integrityData *integrity.IntegrityData
+	var err error
+
+	timings.Run(tm, "find-integrity-params", fmt.Sprintf("find integrity params for snap %q", snapRef.SnapName()), func(nested timings.Measurer) {
+		integrityData, err = s.lookupIntegrityData(snapRef, handler, snapsDir, tm)
+	})
+	if err != nil {
+		return nil, err
+	}
+
 	// complement with aux-info.json information
 	auxInfo := s.auxInfos[sideInfo.SnapID]
 	if auxInfo != nil {
@@ -1134,11 +1190,13 @@ func (s *seed20) lookupSnap(snapRef naming.SnapRef, modelSnap *asserts.ModelSnap
 	if len(seedComps) > 0 {
 		comps = seedComps
 	}
+
 	return &Snap{
-		Path:       path,
-		SideInfo:   sideInfo,
-		Channel:    channel,
-		Components: comps,
+		Path:          path,
+		SideInfo:      sideInfo,
+		Channel:       channel,
+		Components:    comps,
+		IntegrityData: integrityData,
 	}, nil
 }
 
