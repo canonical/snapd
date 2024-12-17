@@ -246,9 +246,7 @@ func generateMountsModeRunCVM(mst *initramfsMountsState) error {
 				},
 			},
 		}
-	}
-
-	if imageManifestFile != nil {
+	} else {
 		im, err := parseImageManifest(imageManifestFile)
 		if err != nil {
 			return err
