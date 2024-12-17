@@ -247,6 +247,13 @@ func generateMountsModeRunCVM(mst *initramfsMountsState) error {
 		if err != nil {
 			return err
 		} else {
+
+			// TODO: the manifest will be also accompanied by a public key and a signature.
+			// Here we will also need to validate the signature of the manifest against
+			// the public key and then measure a digest of the public key to the TPM.
+			// A later remote attestation step will be able to verify that the public
+			// key that was measured is an expected one.
+
 			partitionMounts, err = generateMountsFromManifest(im, disk)
 			if err != nil {
 				return err
