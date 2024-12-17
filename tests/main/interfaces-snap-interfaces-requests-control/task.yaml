@@ -114,8 +114,33 @@ execute: |
 
     # XXX: creating rules requires polkit authentication, so for now, use snap debug api instead of api-client
     # echo "Check snap can create rule via /v2/interfaces/requests/rules"
-    # api-client --socket /run/snapd-snap.socket --method=POST '{"action":"add","rule":{"snap":"api-client","interface":"home","constraints":{"path-pattern":"/path/to/file","permissions":["read","write","execute"]},"outcome":"allow","lifespan":"forever"}}' "/v2/interfaces/requests/rules" > result.json
-    echo '{"action":"add","rule":{"snap":"api-client","interface":"home","constraints":{"path-pattern":"/path/to/file","permissions":["read","write","execute"]},"outcome":"allow","lifespan":"forever"}}' | snap debug api -X POST -H 'Content-Type: application/json' "/v2/interfaces/requests/rules" | \
+    # api-client --socket /run/snapd-snap.socket --method=POST '{"action":"add","rule":{"snap":"api-client","interface":"home","constraints":{"path-pattern":"/path/to/file","permissions":{"read":{"outcome":"allow","lifespan":"forever"},"write":{"outcome":"deny","lifespan":"forever"},"execute":{"outcome":"allow","lifespan":"timespan","duration":"1h"}}}}}' "/v2/interfaces/requests/rules" > result.json
+    echo '{
+      "action": "add",
+      "rule": {
+        "snap": "api-client",
+        "interface": "home",
+        "constraints": {
+          "path-pattern": "/path/to/file",
+          "permissions": {
+            "read": {
+              "outcome": "allow",
+              "lifespan": "forever"
+            },
+            "write": {
+              "outcome": "deny",
+              "lifespan": "forever"
+            },
+            "execute": {
+              "outcome": "allow",
+              "lifespan": "timespan",
+              "duration": "1h"
+            }
+          }
+        }
+      }
+    }' | \
+        snap debug api -X POST -H 'Content-Type: application/json' "/v2/interfaces/requests/rules" | \
         tee result.json
     gojq '."status-code"' < result.json | MATCH '^'"$EXPECTED_HTTP_CODE"'$'
     RULE_ID=$(gojq '."result"."id"' < result.json | tr -d '"')
@@ -137,13 +162,16 @@ execute: |
         gojq '."status-code"' | MATCH '^403$'
     api-client --socket /run/snapd-snap.socket "/v2/notices?types=interfaces-requests-rule-update" | \
         gojq '."status-code"' | MATCH '^403$'
-    api-client --socket /run/snapd-snap.socket "/v2/system-info" | gojq '."status-code"' | MATCH '^403$'
-    api-client --socket /run/snapd-snap.socket "/v2/snaps/$SNAP_NAME" | gojq '."status-code"' | MATCH '^403$'
+    api-client --socket /run/snapd-snap.socket "/v2/system-info" | \
+        gojq '."status-code"' | MATCH '^403$'
+    api-client --socket /run/snapd-snap.socket "/v2/snaps/$SNAP_NAME" | \
+        gojq '."status-code"' | MATCH '^403$'
     api-client --socket /run/snapd-snap.socket "/v2/interfaces/requests/prompts" | \
         gojq '."status-code"' | MATCH '^403$'
     # Try to access an arbitrary prompt ID, should fail with 403 rather than 404
     api-client --socket /run/snapd-snap.socket "/v2/interfaces/requests/prompts/1234123412341234" | \
         gojq '."status-code"' | MATCH '^403$'
-    api-client --socket /run/snapd-snap.socket "/v2/interfaces/requests/rules" | gojq '."status-code"' | MATCH '^403$'
+    api-client --socket /run/snapd-snap.socket "/v2/interfaces/requests/rules" | \
+        gojq '."status-code"' | MATCH '^403$'
     api-client --socket /run/snapd-snap.socket "/v2/interfaces/requests/rules/$RULE_ID" | \
         gojq '."status-code"' | MATCH '^403$'
