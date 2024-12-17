@@ -46,6 +46,8 @@ var (
 	GenerateMountsFromManifest = generateMountsFromManifest
 
 	ParseImageManifest = parseImageManifest
+
+	CreateOverlayDirs = createOverlayDirs
 )
 
 type SystemdMountOptions = systemdMountOptions

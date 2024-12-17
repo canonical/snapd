@@ -28,6 +28,7 @@ import (
 
 	"github.com/snapcore/snapd/boot"
 	main "github.com/snapcore/snapd/cmd/snap-bootstrap"
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil/disks"
 	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/testutil"
@@ -414,5 +415,67 @@ func (s *initramfsCVMMountsSuite) TestGenerateMountsFromManifest(c *C) {
 		} else {
 			c.Check(pm[1].GptLabel, Equals, tc.writable)
 		}
+	}
+}
+
+func (s *initramfsCVMMountsSuite) TestCreateOverlayDirs(c *C) {
+	testCases := []struct {
+		createPath string
+		perm       os.FileMode
+		targetPath string
+		err        string
+	}{
+		// Valid, target path exists already
+		{
+			"target",
+			0755,
+			"target",
+			"",
+		},
+		// Invalid, target path doesn't exist
+		{
+			"other",
+			0755,
+			"target",
+			"stat %s: no such file or directory",
+		},
+		// Invalid, target path doesn't exist and can't be created due to
+		// a permission issue in its containing folder
+		{
+			"foo",
+			0700,
+			"foo/target",
+			"stat %s: permission denied",
+		},
+		// Invalid, target path exists but with restrictive permissions
+		{
+			"target",
+			0700,
+			"target",
+			"mkdir %s/upper: permission denied",
+		},
+	}
+
+	for _, tc := range testCases {
+		createPath := filepath.Join(dirs.GlobalRootDir, tc.createPath)
+		err := os.Mkdir(createPath, tc.perm)
+		c.Assert(err, IsNil)
+
+		targetPath := filepath.Join(dirs.GlobalRootDir, tc.targetPath)
+		err = main.CreateOverlayDirs(targetPath)
+		if err != nil {
+			c.Check(err, ErrorMatches, fmt.Sprintf(tc.err, targetPath))
+		} else {
+			_, err2 := os.Stat(filepath.Join(targetPath, "upper"))
+			c.Check(err2, IsNil)
+
+			_, err2 = os.Stat(filepath.Join(targetPath, "work"))
+			c.Check(err2, IsNil)
+		}
+
+		err = os.RemoveAll(createPath)
+		c.Assert(err, IsNil)
+		err = os.RemoveAll(targetPath)
+		c.Assert(err, IsNil)
 	}
 }

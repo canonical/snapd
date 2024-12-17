@@ -189,17 +189,13 @@ func generateMountsFromManifest(im imageManifest, disk disks.Disk) ([]partitionM
 }
 
 var createOverlayDirs = func(path string) error {
-	fi, err := os.Stat(path)
-	if err != nil {
+	if err := os.Mkdir(path, 0755); err != nil && !os.IsExist(err) {
 		return err
 	}
-	if err := os.Mkdir(path, fi.Mode()); err != nil && !os.IsExist(err) {
+	if err := os.Mkdir(filepath.Join(path, "upper"), 0755); err != nil && !os.IsExist(err) {
 		return err
 	}
-	if err := os.Mkdir(filepath.Join(path, "upper"), fi.Mode()); err != nil && !os.IsExist(err) {
-		return err
-	}
-	if err := os.Mkdir(filepath.Join(path, "work"), fi.Mode()); err != nil && !os.IsExist(err) {
+	if err := os.Mkdir(filepath.Join(path, "work"), 0755); err != nil && !os.IsExist(err) {
 		return err
 	}
 
