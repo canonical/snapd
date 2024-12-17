@@ -219,6 +219,7 @@ func ExecInSnapdOrCoreSnap() {
 	}
 
 	logger.Debugf("restarting into %q", full)
+	os.Args[0] = full
 	panic(syscallExec(full, os.Args, os.Environ()))
 }
 
