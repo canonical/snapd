@@ -21,6 +21,12 @@ package builtin
 
 const auditControlSummary = `allows control over the kernel audit system`
 
+const auditControlBaseDeclarationPlugs = `
+  audit-control:
+    allow-installation: false
+    deny-auto-connection: true
+`
+
 const auditControlBaseDeclarationSlots = `
   audit-control:
     allow-installation:
@@ -63,6 +69,7 @@ func init() {
 		summary:               auditControlSummary,
 		implicitOnCore:        true,
 		implicitOnClassic:     true,
+		baseDeclarationPlugs:  auditControlBaseDeclarationPlugs,
 		baseDeclarationSlots:  auditControlBaseDeclarationSlots,
 		connectedPlugSecComp:  auditControlConnectedPlugSecComp,
 		connectedPlugAppArmor: auditControlConnectedPlugAppArmor,
