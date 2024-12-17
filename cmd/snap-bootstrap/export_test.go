@@ -42,6 +42,10 @@ var (
 	MountNonDataPartitionMatchingKernelDisk = mountNonDataPartitionMatchingKernelDisk
 
 	GetNonUEFISystemDisk = getNonUEFISystemDisk
+
+	GenerateMountsFromManifest = generateMountsFromManifest
+
+	ParseImageManifest = parseImageManifest
 )
 
 type SystemdMountOptions = systemdMountOptions

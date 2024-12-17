@@ -243,7 +243,7 @@ func (s *initramfsCVMMountsSuite) TestInitramfsMountsRunCVMModeEphemeralOverlayH
 
 	expectedRootHash := "000"
 	manifestPath := filepath.Join(boot.InitramfsUbuntuSeedDir, "EFI/ubuntu")
-	manifestJson := fmt.Sprintf(`{"partitions":[{"label":"cloudimg-rootfs","root_hash":%q,"overlay":"lowerdir"}]}`, expectedRootHash)
+	manifestJson := fmt.Sprintf(`{"partitions":[{"label":"cloudimg-rootfs","root_hash":%q,"read_only":true}]}`, expectedRootHash)
 
 	err := os.MkdirAll(manifestPath, 0755)
 	c.Assert(err, IsNil)
@@ -351,4 +351,68 @@ func (s *initramfsCVMMountsSuite) TestInitramfsMountsRunCVMModeEphemeralOverlayH
 
 	c.Check(provisionTPMCVMCalled, Equals, true)
 	c.Check(cloudimgActivated, Equals, true)
+}
+
+func (s *initramfsCVMMountsSuite) TestGenerateMountsFromManifest(c *C) {
+	testCases := []struct {
+		im       string
+		disk     *disks.MockDiskMapping
+		writable string
+		err      string
+	}{
+		// Valid ephemeral disk
+		{
+			`{"partitions":[{"label":"cloudimg-rootfs","root_hash":"000","read_only":true}]}`,
+			defaultCVMDiskVerity,
+			"writable-tmp",
+			"",
+		},
+		// Valid non-ephemeral disk
+		{
+			`{"partitions":[{"label":"cloudimg-rootfs","root_hash":"000","read_only":true},{"label":"writable"}]}`,
+			defaultCVMDiskVerity,
+			"writable",
+			"",
+		},
+		// Valid missing root hash (to test this won't fail early when a root hash is missing)
+		{
+			`{"partitions":[{"label":"cloudimg-rootfs","read_only":true}]}`,
+			defaultCVMDiskVerity,
+			"writable-tmp",
+			"",
+		},
+		// Invalid missing ro partition
+		{
+			`{"partitions":[{"label":"cloudimg-rootfs"}]}`,
+			defaultCVMDiskVerity,
+			"writable",
+			"manifest doesn't contain any partition marked as read-only",
+		},
+		// Invalid 2 ro partitions
+		{
+			`{"partitions":[{"label":"cloudimg-rootfs","root_hash":"000","read_only":true},{"label":"test", "read_only":true}]}`,
+			defaultCVMDiskVerity,
+			"writable",
+			"manifest contains multiple partitions marked as read-only",
+		},
+		// Invalid 2 rw partitions
+		{
+			`{"partitions":[{"label":"cloudimg-rootfs","root_hash":"000","read_only":true},{"label":"test"},{"label":"test2"}]}`,
+			defaultCVMDiskVerity,
+			"writable",
+			"manifest contains multiple non read-only partitions",
+		},
+	}
+
+	for _, tc := range testCases {
+		im, err := main.ParseImageManifest([]byte(tc.im))
+		c.Assert(err, IsNil)
+
+		pm, err := main.GenerateMountsFromManifest(im, tc.disk)
+		if err != nil {
+			c.Check(err, ErrorMatches, tc.err)
+		} else {
+			c.Check(pm[1].GptLabel, Equals, tc.writable)
+		}
+	}
 }

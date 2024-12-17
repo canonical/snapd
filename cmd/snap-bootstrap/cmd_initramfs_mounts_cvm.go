@@ -54,12 +54,20 @@ type partitionMount struct {
 }
 
 type imageManifestPartition struct {
+	// GptLabel is the GPT partition label. It is used to identify the partition on the disk.
 	GptLabel string `json:"label"`
+	// RootHash is the expected dm-verity root hash of the partition. In CVM mode, no further
+	// options are passed to veritysetup so this is expected to be a sha256 hash which is
+	// veritysetup's default.
 	RootHash string `json:"root_hash"`
-	Overlay  string `json:"overlay"`
+	// ReadOnly marks the partition as read only. Partitions marked as read only can only be used
+	// as lowerdir overlay fs partitions.
+	ReadOnly bool `json:"read_only"`
 }
 
 type imageManifest struct {
+	// Partitions is a list of partitions with their associated dm-verity root hashes and
+	// intended overlayfs use.
 	Partitions []imageManifestPartition `json:"partitions"`
 }
 
@@ -69,39 +77,29 @@ func (e *manifestError) Error() string {
 	return fmt.Sprintf("")
 }
 
-func parseImageManifest(imageManifestFilePath string) (imageManifest, error) {
-	imageManifestFile, err := os.ReadFile(imageManifestFilePath)
-	if err != nil {
-		return imageManifest{}, err
-	}
-
+func parseImageManifest(imageManifestFile []byte) (imageManifest, error) {
 	var im imageManifest
-	err = json.Unmarshal(imageManifestFile, &im)
+	err := json.Unmarshal(imageManifestFile, &im)
 	if err != nil {
 		return imageManifest{}, err
-	}
-
-	if len(im.Partitions) < 1 {
-		return imageManifest{}, fmt.Errorf("Invalid manifest: root partition not specified.")
-	}
-
-	if im.Partitions[0].Overlay != "lowerdir" {
-		return imageManifest{}, fmt.Errorf("Invalid manifest: expected first partition to be used as lowerdir, %s was found instead.", im.Partitions[0].Overlay)
 	}
 
 	return im, nil
 }
 
-// generateMountsFromManifest is used to parse a manifest file which contains information about which
-// partitions should be used to compose the rootfs of the system using overlayfs.
+// generateMountsFromManifest performs various sanity checks to partition information coming from an
+// imageManifest struct and then creates the necessary overlay fs partitions in the format expected by
+// doSystemdMount.
 //
-// Only a single overlayfs lowerdir and a single overlayfs upperdir are supported. For the lowerdir, a dm-verity
-// root hash can be supplied which will be used during mounting. The writable layer can be encrypted as in CVMv1.
+// Only a single read-only partition is allowed which will be used as the lowerdir parameter in the final
+// overlay fs. This partition needs to have an associated dm-verity partition with the same GPT label followed
+// by "-verity". A root hash is also required but not enforced here.
 //
-// If a writable layer is not specified in the manifest, a tmpfs-based layer is mounted as the upperdir of the
-// overlayfs. This is relevant in ephemeral confidential VM scenarios where the confidentiality of the writable
-// data is achieved through hardware memory encryption and not disk encryption (the writable data/system state
-// should never touch the disk).
+// Only a single writable partition is allowed which will be used to host the upperdir and workdir paths in the
+// final overlay fs. This can be encrypted as in CVMv1. If a writable partition is not specified, a tmpfs-based
+// one will host the upperdir and workdir paths of the overlayfs. This is relevant in ephemeral confidential VM
+// scenarios where the confidentiality of the writable data is achieved through hardware memory encryption and
+// not disk encryption (the writable data/system state should never touch the disk).
 func generateMountsFromManifest(im imageManifest, disk disks.Disk) ([]partitionMount, error) {
 	foundReadOnlyPartition := ""
 	foundWritablePartition := ""
@@ -119,10 +117,11 @@ func generateMountsFromManifest(im imageManifest, disk disks.Disk) ([]partitionM
 		// All detected partitions are mounted by default under /run/mnt/<GptLabel of partition>
 		pm.Where = filepath.Join(boot.InitramfsRunMntDir, p.GptLabel)
 
-		if p.Overlay == "lowerdir" {
-			// XXX: currently only one lower layer is permitted. The rest, if found, are ignored.
+		if p.ReadOnly {
+			// XXX: currently only a single read-only partition/overlay fs lowerdir is permitted.
 			if foundReadOnlyPartition != "" {
-				continue
+				return nil, errors.New("manifest contains multiple partitions marked as read-only")
+
 			}
 			foundReadOnlyPartition = pm.GptLabel
 
@@ -132,7 +131,7 @@ func generateMountsFromManifest(im imageManifest, disk disks.Disk) ([]partitionM
 			pm.Opts.NeedsFsck = false
 			pm.Opts.VerityRootHash = p.RootHash
 
-			// Auto-discover verity device from disk for partition types meant to be used as lowerdir
+			// Auto-discover verity device from disk.
 			verityPartition, err := disk.FindMatchingPartitionWithPartLabel(p.GptLabel + "-verity")
 			if err != nil {
 				return []partitionMount{}, err
@@ -141,7 +140,7 @@ func generateMountsFromManifest(im imageManifest, disk disks.Disk) ([]partitionM
 		} else {
 			// Only one writable partition is permitted.
 			if foundWritablePartition != "" {
-				continue
+				return nil, errors.New("manifest contains multiple non read-only partitions")
 			}
 			// Manifest contains a partition meant to be used as a writable overlay for the non-ephemeral vm case.
 			// If it is encrypted, its key will be autodiscovered based on its FsLabel later.
@@ -153,7 +152,7 @@ func generateMountsFromManifest(im imageManifest, disk disks.Disk) ([]partitionM
 	}
 
 	if foundReadOnlyPartition == "" {
-		return nil, fmt.Errorf("manifest doesn't contain any partition with Overlay type lowerdir")
+		return nil, errors.New("manifest doesn't contain any partition marked as read-only")
 	}
 
 	// If no writable partitions were found in the manifest, Configure a tmpfs filesystem for the upper and workdir layers
@@ -178,12 +177,11 @@ func generateMountsFromManifest(im imageManifest, disk disks.Disk) ([]partitionM
 		GptLabel: "cloudimg-rootfs",
 		Opts: &systemdMountOptions{
 			Overlayfs: true,
-			LowerDirs: []string{filepath.Join(boot.InitramfsRunMntDir, partitionMounts[0].GptLabel)},
+			LowerDirs: []string{filepath.Join(boot.InitramfsRunMntDir, foundReadOnlyPartition)},
+			UpperDir:  filepath.Join(boot.InitramfsRunMntDir, foundWritablePartition, "upper"),
+			WorkDir:   filepath.Join(boot.InitramfsRunMntDir, foundWritablePartition, "work"),
 		},
 	}
-
-	pm.Opts.UpperDir = filepath.Join(boot.InitramfsRunMntDir, foundWritablePartition, "upper")
-	pm.Opts.WorkDir = filepath.Join(boot.InitramfsRunMntDir, foundWritablePartition, "work")
 
 	partitionMounts = append(partitionMounts, pm)
 
@@ -232,27 +230,33 @@ func generateMountsModeRunCVM(mst *initramfsMountsState) error {
 	var partitionMounts []partitionMount
 
 	// try searching for a manifest that contains mount information
-	imageManifestFilePath := filepath.Join(boot.InitramfsUbuntuSeedDir, "EFI/ubuntu", "manifest.json")
-	im, err := parseImageManifest(imageManifestFilePath)
+	imageManifestFile, err := os.ReadFile(filepath.Join(boot.InitramfsUbuntuSeedDir, "EFI/ubuntu", "manifest.json"))
 	if err != nil {
-		if errors.Is(err, os.ErrNotExist) {
-			// XXX: if a manifest file is not found fall-back to CVM v1 behaviour
-			partitionMounts = []partitionMount{
-				{
-					Where:    boot.InitramfsDataDir,
-					GptLabel: "cloudimg-rootfs",
-					Opts: &systemdMountOptions{
-						NeedsFsck: true,
-					},
-				},
-			}
-		} else {
+		if !errors.Is(err, os.ErrNotExist) {
 			return err
 		}
-	} else {
-		partitionMounts, err = generateMountsFromManifest(im, disk)
+
+		// XXX: if a manifest file is not found fall-back to CVM v1 behaviour
+		partitionMounts = []partitionMount{
+			{
+				Where:    boot.InitramfsDataDir,
+				GptLabel: "cloudimg-rootfs",
+				Opts: &systemdMountOptions{
+					NeedsFsck: true,
+				},
+			},
+		}
+	}
+
+	if imageManifestFile != nil {
+		im, err := parseImageManifest(imageManifestFile)
 		if err != nil {
 			return err
+		} else {
+			partitionMounts, err = generateMountsFromManifest(im, disk)
+			if err != nil {
+				return err
+			}
 		}
 	}
 
