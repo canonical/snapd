@@ -25,6 +25,7 @@ import (
 	"time"
 
 	. "gopkg.in/check.v1"
+	"gopkg.in/yaml.v2"
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/confdb"
@@ -203,7 +204,8 @@ func (s *confdbSuite) TestAssembleAndSignChecksSchemaFormatFail(c *C) {
 }
 
 type confdbCtrlSuite struct {
-	db *asserts.Database
+	db     *asserts.Database
+	serial *asserts.Serial
 }
 
 var _ = Suite(&confdbCtrlSuite{})
@@ -219,8 +221,8 @@ groups:
     authentication:
       - operator-key
     views:
-      - canonical/network/control-device
       - canonical/network/observe-device
+      - canonical/network/control-device
   -
     operator-id: john
     authentication:
@@ -260,7 +262,7 @@ func (s *confdbCtrlSuite) addSerial(c *C) {
 	encodedPubKey, err := asserts.EncodePublicKey(pubKey)
 	c.Assert(err, IsNil)
 
-	serial, err := asserts.AssembleAndSignInTest(asserts.SerialType, map[string]interface{}{
+	a, err := asserts.AssembleAndSignInTest(asserts.SerialType, map[string]interface{}{
 		"authority-id":        "canonical",
 		"brand-id":            "canonical",
 		"model":               "pc",
@@ -271,7 +273,8 @@ func (s *confdbCtrlSuite) addSerial(c *C) {
 	}, nil, testPrivKey0)
 	c.Assert(err, IsNil)
 
-	err = s.db.Add(serial)
+	s.serial = a.(*asserts.Serial)
+	err = s.db.Add(s.serial)
 	c.Assert(err, IsNil)
 }
 
@@ -374,12 +377,12 @@ func (s *confdbCtrlSuite) TestDecodeInvalid(c *C) {
 		{
 			"      - operator-key",
 			"      - foo-bar",
-			"cannot parse group at position 1: cannot add group: invalid authentication method: foo-bar",
+			"cannot parse group at position 1: cannot delegate: invalid authentication method: foo-bar",
 		},
 		{
 			"canonical/network/control-interfaces",
 			"canonical",
-			`cannot parse group at position 2: view "canonical" must be in the format account/confdb/view`,
+			`cannot parse group at position 2: cannot delegate: view "canonical" must be in the format account/confdb/view`,
 		},
 	}
 
@@ -445,4 +448,101 @@ func (s *confdbCtrlSuite) TestAckAssertionOK(c *C) {
 
 	err = s.db.Add(a)
 	c.Assert(err, IsNil)
+}
+
+func (s *confdbCtrlSuite) TestDelegateOK(c *C) {
+	s.addSerial(c)
+	cc := asserts.NewConfdbControl(s.serial)
+
+	delegated, err := cc.IsDelegated("stephen", "canonical/network/control-vpn", []string{"operator-key"})
+	c.Check(err, IsNil)
+	c.Check(delegated, Equals, false)
+
+	cc.Delegate("stephen", []string{"canonical/network/control-vpn"}, []string{"operator-key", "store"})
+	cc.Delegate("stephen", []string{"canonical/network/control-interfaces"}, []string{"operator-key"})
+
+	delegated, _ = cc.IsDelegated("stephen", "canonical/network/control-vpn", []string{"operator-key"})
+	c.Check(delegated, Equals, true)
+
+	delegated, _ = cc.IsDelegated("stephen", "canonical/network/control-interfaces", []string{"store"})
+	c.Check(delegated, Equals, false)
+}
+
+func (s *confdbCtrlSuite) TestDelegateInvalid(c *C) {
+	s.addSerial(c)
+	cc := asserts.NewConfdbControl(s.serial)
+
+	err := cc.Delegate("", []string{}, []string{})
+	c.Check(err, ErrorMatches, "operator-id is required")
+
+	err = cc.Delegate("john", []string{"c#anonical/network/control-vpn"}, []string{"store"})
+	c.Check(err, ErrorMatches, "cannot delegate: invalid Account ID c#anonical")
+}
+
+func (s *confdbCtrlSuite) TestRevokeOK(c *C) {
+	a, err := asserts.Decode([]byte(confdbControlExample))
+	c.Assert(err, IsNil)
+
+	cc := a.(*asserts.ConfdbControl)
+	delegated, _ := cc.IsDelegated("john", "canonical/network/control-interfaces", []string{"store"})
+	c.Check(delegated, Equals, true)
+
+	cc.Revoke("john", []string{"canonical/network/control-interfaces"}, []string{"store"})
+	delegated, _ = cc.IsDelegated("john", "canonical/network/control-interfaces", []string{"store"})
+	c.Check(delegated, Equals, false)
+
+	cc.Revoke("jane", nil, nil)
+	delegated, _ = cc.IsDelegated("jane", "canonical/network/observe-interfaces", []string{"store", "operator-key"})
+	c.Check(delegated, Equals, false)
+
+	err = cc.Revoke("who?", []string{"canonical/network/control-device"}, []string{"operator-key"})
+	c.Assert(err, IsNil)
+}
+
+func (s *confdbCtrlSuite) TestRevokeInvalid(c *C) {
+	a, err := asserts.Decode([]byte(confdbControlExample))
+	c.Assert(err, IsNil)
+
+	cc := a.(*asserts.ConfdbControl)
+	err = cc.Revoke("jane", []string{"c#anonical/network/observe-interfaces"}, []string{"store"})
+	c.Check(err, ErrorMatches, "cannot revoke: invalid Account ID c#anonical")
+}
+
+func (s *confdbCtrlSuite) TestNewConfdbControl(c *C) {
+	s.addSerial(c)
+
+	cc := asserts.NewConfdbControl(s.serial)
+	c.Check(cc.BrandID(), Equals, "canonical")
+	c.Check(cc.Model(), Equals, "pc")
+	c.Check(cc.Serial(), Equals, "42")
+}
+
+func (s *confdbCtrlSuite) TestGroups(c *C) {
+	a, err := asserts.Decode([]byte(confdbControlExample))
+	c.Assert(err, IsNil)
+
+	cc := a.(*asserts.ConfdbControl)
+	groups, err := yaml.Marshal(map[string]interface{}{"groups": cc.Groups()})
+	c.Assert(err, IsNil)
+
+	expected := `groups:
+- authentication:
+  - operator-key
+  - store
+  operator-id: jane
+  views:
+  - canonical/network/observe-interfaces
+- authentication:
+  - operator-key
+  operator-id: john
+  views:
+  - canonical/network/control-device
+  - canonical/network/observe-device
+- authentication:
+  - store
+  operator-id: john
+  views:
+  - canonical/network/control-interfaces
+`
+	c.Check(string(groups), Equals, expected)
 }
