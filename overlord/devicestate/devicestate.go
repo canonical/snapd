@@ -57,12 +57,13 @@ import (
 )
 
 var (
-	snapstateInstallWithDeviceContext     = snapstate.InstallWithDeviceContext
-	snapstateInstallPathWithDeviceContext = snapstate.InstallPathWithDeviceContext
-	snapstateUpdateWithDeviceContext      = snapstate.UpdateWithDeviceContext
-	snapstateSwitch                       = snapstate.Switch
-	snapstateUpdatePathWithDeviceContext  = snapstate.UpdatePathWithDeviceContext
-	snapstateDownload                     = snapstate.Download
+	snapstateDownload         = snapstate.Download
+	snapstateUpdateOne        = snapstate.UpdateOne
+	snapstateInstallOne       = snapstate.InstallOne
+	snapstateStoreInstallGoal = snapstate.StoreInstallGoal
+	snapstatePathInstallGoal  = snapstate.PathInstallGoal
+	snapstateStoreUpdateGoal  = snapstate.StoreUpdateGoal
+	snapstatePathUpdateGoal   = snapstate.PathUpdateGoal
 )
 
 // findModel returns the device model assertion.
@@ -400,52 +401,6 @@ func isNotInstalled(err error) bool {
 	return ok
 }
 
-func notInstalled(st *state.State, name string) (bool, error) {
-	_, err := snapstate.CurrentInfo(st, name)
-	if isNotInstalled(err) {
-		return true, nil
-	}
-	return false, err
-}
-
-func installedSnapRevisionChanged(st *state.State, modelSnapName string, requiredRevision snap.Revision) (bool, error) {
-	if requiredRevision.Unset() {
-		return false, nil
-	}
-
-	var ss snapstate.SnapState
-	if err := snapstate.Get(st, modelSnapName, &ss); err != nil {
-		// this is unexpected as we know the snap exists
-		return false, err
-	}
-
-	if ss.Current.Local() {
-		return false, errors.New("cannot determine if unasserted snap revision matches required revision")
-	}
-
-	return ss.Current != requiredRevision, nil
-}
-
-func installedSnapChannelChanged(st *state.State, modelSnapName, declaredChannel string) (changed bool, err error) {
-	if declaredChannel == "" {
-		return false, nil
-	}
-	var ss snapstate.SnapState
-	if err := snapstate.Get(st, modelSnapName, &ss); err != nil {
-		// this is unexpected as we know the snap exists
-		return false, err
-	}
-	if ss.Current.Local() {
-		// currently installed snap has a local revision, since it's
-		// unasserted we cannot say whether it needs a change or not
-		return false, nil
-	}
-	if ss.TrackingChannel != declaredChannel {
-		return true, nil
-	}
-	return false, nil
-}
-
 func modelSnapChannelFromDefaultOrPinnedTrack(new *asserts.Model, s *asserts.ModelSnap) (string, error) {
 	if new.Grade() == asserts.ModelGradeUnset {
 		if s == nil {
@@ -553,17 +508,17 @@ func (r *remodeler) maybeInstallOrUpdate(ctx context.Context, st *state.State, r
 			return 0, nil, err
 		}
 
-		_, tss, err := snapstate.InstallWithGoal(ctx, st, goal, snapstate.Options{
+		_, ts, err := snapstateInstallOne(ctx, st, goal, snapstate.Options{
 			DeviceCtx:     r.deviceCtx,
 			FromChange:    r.fromChange,
 			PrereqTracker: r.tracker,
-			Flags:         snapstate.Flags{NoReRefresh: true},
+			Flags:         snapstate.Flags{NoReRefresh: true, Required: true},
 		})
 		if err != nil {
 			return 0, nil, err
 		}
 
-		return remodelInstallAction, tss, nil
+		return remodelInstallAction, []*state.TaskSet{ts}, nil
 	}
 
 	// on UC20+ models, we look at the currently tracked channel to determine if
@@ -584,15 +539,19 @@ func (r *remodeler) maybeInstallOrUpdate(ctx context.Context, st *state.State, r
 		return 0, nil, err
 	}
 
-	pres, err := r.vsets.Presence(naming.Snap(rt.name))
+	constraints, err := r.vsets.Presence(naming.Snap(rt.name))
 	if err != nil {
 		return 0, nil, err
+	}
+
+	if !constraints.Revision.Unset() && snapst.Current.Local() {
+		return 0, nil, errors.New("cannot determine if unasserted snap revision matches required revision")
 	}
 
 	// we need to change the revision if either the incoming model's validation
 	// sets require a specific revision that we don't have installed, or if the
 	// current revision doesn't support the components that we need.
-	needsRevisionChange := (!pres.Revision.Unset() && pres.Revision != snapst.Current) || revisionCanHaveComponents(currentInfo, components)
+	needsRevisionChange := (!constraints.Revision.Unset() && constraints.Revision != snapst.Current) || !revisionSupportsComponents(currentInfo, components)
 
 	needsNewComponents := false
 	for _, c := range components {
@@ -609,17 +568,30 @@ func (r *remodeler) maybeInstallOrUpdate(ctx context.Context, st *state.State, r
 
 	switch {
 	case needsRevisionChange || needsChannelChange:
-		// right now, we don't properly handle switching a channel and installing
-		// components at the same time. in the meantime, we can use
-		// snapstate.UpdateOne to add additional components and switch the channel
-		// for us. this method is suboptimal, since we're creating tasks for
-		// essentially re-installing the snap.
-		goal, err := r.updateGoal(rt, components)
+		if r.shouldJustSwitch(st, rt, needsRevisionChange, components) {
+			ts, err := snapstate.Switch(st, rt.name, &snapstate.RevisionOptions{
+				Channel: rt.channel,
+			})
+			if err != nil {
+				return 0, nil, err
+			}
+
+			return remodelChannelSwitch, []*state.TaskSet{ts}, nil
+		}
+
+		// right now, we don't properly handle switching a channel and
+		// installing components at the same time. in the meantime, we can use
+		// snapstate.UpdateOne to add additional components and switch the
+		// channel for us. this method is suboptimal, since we're creating tasks
+		// for essentially re-installing the snap. this also will not work for
+		// local remodeling, since it will prevent us from using already
+		// installed snaps.
+		goal, err := r.updateGoal(st, rt, components, constraints)
 		if err != nil {
 			return 0, nil, err
 		}
 
-		ts, err := snapstate.UpdateOne(ctx, st, goal, nil, snapstate.Options{
+		ts, err := snapstateUpdateOne(ctx, st, goal, nil, snapstate.Options{
 			DeviceCtx:     r.deviceCtx,
 			FromChange:    r.fromChange,
 			PrereqTracker: r.tracker,
@@ -649,7 +621,36 @@ func (r *remodeler) maybeInstallOrUpdate(ctx context.Context, st *state.State, r
 	}
 }
 
-func revisionCanHaveComponents(info *snap.Info, components []string) bool {
+func (r *remodeler) shouldJustSwitch(st *state.State, rt remodelTarget, needsRevisionChange bool, components []string) bool {
+	if !r.offline {
+		return false
+	}
+
+	if needsRevisionChange {
+		return false
+	}
+
+	if len(components) > 0 {
+		return false
+	}
+
+	// if we can't get a snap ID, then we can't really check if the snap is in
+	// the set of locally provided snaps
+	if rt.newModelSnap == nil {
+		return false
+	}
+	snapID := rt.newModelSnap.SnapID
+
+	// if we have a local container for this snap, then we should use that in
+	// addition to switching the tracked channel
+	if _, ok := r.localContainers.Snaps[snapID]; ok {
+		return false
+	}
+
+	return true
+}
+
+func revisionSupportsComponents(info *snap.Info, components []string) bool {
 	for _, c := range components {
 		if _, ok := info.Components[c]; !ok {
 			return false
@@ -660,16 +661,21 @@ func revisionCanHaveComponents(info *snap.Info, components []string) bool {
 
 func (r *remodeler) installGoal(sn remodelTarget, components []string) (snapstate.InstallGoal, error) {
 	if r.offline {
-		ls, ok := r.localContainers.Snaps[sn.name]
+		if sn.newModelSnap == nil {
+			return nil, errors.New("offline remodeling requires that new model snap is provided")
+		}
+
+		snapID := sn.newModelSnap.SnapID
+		ls, ok := r.localContainers.Snaps[snapID]
 		if !ok {
-			return nil, fmt.Errorf("internal error: cannot find local snap for %q", sn.name)
+			return nil, fmt.Errorf("no snap file provided for %q", sn.name)
 		}
 
 		comps := make(map[*snap.ComponentSideInfo]string, len(components))
 		for _, c := range components {
 			lc, ok := r.localContainers.Components[naming.NewComponentRef(sn.name, c).String()]
 			if !ok {
-				return nil, fmt.Errorf("internal error: cannot find local component for %q", c)
+				return nil, fmt.Errorf("no component file provided for %q", c)
 			}
 
 			comps[lc.SideInfo] = lc.Path
@@ -680,10 +686,10 @@ func (r *remodeler) installGoal(sn remodelTarget, components []string) (snapstat
 			ValidationSets: r.vsets,
 		}
 
-		return snapstate.PathInstallGoal("", ls.Path, ls.SideInfo, comps, opts), nil
+		return snapstatePathInstallGoal("", ls.Path, ls.SideInfo, comps, opts), nil
 	}
 
-	return snapstate.StoreInstallGoal(snapstate.StoreSnap{
+	return snapstateStoreInstallGoal(snapstate.StoreSnap{
 		InstanceName: sn.name,
 		Components:   components,
 		RevOpts: snapstate.RevisionOptions{
@@ -693,19 +699,66 @@ func (r *remodeler) installGoal(sn remodelTarget, components []string) (snapstat
 	}), nil
 }
 
-func (r *remodeler) updateGoal(sn remodelTarget, components []string) (snapstate.UpdateGoal, error) {
+func (r *remodeler) installedRevisionUpdateGoal(
+	st *state.State,
+	sn remodelTarget,
+	components []string,
+	constraints snapasserts.SnapPresenceConstraints,
+) (snapstate.UpdateGoal, error) {
+	if len(components) > 0 {
+		return nil, errors.New("internal error: falling back to previous snap with components not supported during remodel")
+	}
+
+	if constraints.Revision.Unset() {
+		return nil, errors.New("internal error: falling back to a previous revision requires that we have a speicifc revision to pick")
+	}
+
+	var snapst snapstate.SnapState
+	if err := snapstate.Get(st, sn.name, &snapst); err != nil {
+		return nil, err
+	}
+
+	index := snapst.LastIndex(constraints.Revision)
+	if index == -1 {
+		return nil, fmt.Errorf("installed snap %q does not have the required revision in its sequence to be used for offline remodel: %s", sn.name, constraints.Revision)
+	}
+
+	if snapst.Sequence.HasComponents(index) {
+		return nil, errors.New("TODO: snapstate currently reaches out to the store during a refresh if the snap has components already installed, regardless if the snap is already installed or not")
+	}
+
+	return snapstateStoreUpdateGoal(snapstate.StoreUpdate{
+		InstanceName: sn.name,
+		RevOpts: snapstate.RevisionOptions{
+			Channel:        sn.channel,
+			ValidationSets: r.vsets,
+			Revision:       constraints.Revision,
+		},
+	}), nil
+}
+
+func (r *remodeler) updateGoal(st *state.State, sn remodelTarget, components []string, constraints snapasserts.SnapPresenceConstraints) (snapstate.UpdateGoal, error) {
 	if r.offline {
-		ls, ok := r.localContainers.Snaps[sn.name]
+		if sn.newModelSnap == nil {
+			return nil, errors.New("offline remodeling requires that new model snap is provided")
+		}
+
+		snapID := sn.newModelSnap.SnapID
+		ls, ok := r.localContainers.Snaps[snapID]
 		if !ok {
-			return nil, fmt.Errorf("internal error: cannot find local snap for %q", sn.name)
+			g, err := r.installedRevisionUpdateGoal(st, sn, components, constraints)
+			if err != nil {
+				return nil, err
+			}
+			return g, nil
 		}
 
 		comps := make(map[*snap.ComponentSideInfo]string, len(components))
 		for _, c := range components {
 			lc, ok := r.localContainers.Components[naming.NewComponentRef(sn.name, c).String()]
 			if !ok {
-				// TODO: fall back to old revision here. go through all revs in
-				// the sequence and find the first one that allows all
+				// TODO: fall back to an old revision here. go through all revs
+				// in the sequence and find the first one that allows all
 				// components and that are installed.
 				return nil, fmt.Errorf("internal error: cannot find local component for %q", c)
 			}
@@ -726,7 +779,7 @@ func (r *remodeler) updateGoal(sn remodelTarget, components []string) (snapstate
 		// TODO: verify against validation sets, since we don't do that in
 		// snapstate for by-path installs (why don't we?)
 
-		return snapstate.PathUpdateGoal(snapstate.PathSnap{
+		return snapstatePathUpdateGoal(snapstate.PathSnap{
 			Path:       ls.Path,
 			SideInfo:   ls.SideInfo,
 			RevOpts:    opts,
@@ -734,7 +787,7 @@ func (r *remodeler) updateGoal(sn remodelTarget, components []string) (snapstate
 		}), nil
 	}
 
-	return snapstate.StoreUpdateGoal(snapstate.StoreUpdate{
+	return snapstateStoreUpdateGoal(snapstate.StoreUpdate{
 		InstanceName: sn.name,
 		RevOpts: snapstate.RevisionOptions{
 			Channel:        sn.channel,
@@ -760,7 +813,11 @@ func (r *remodeler) installComponents(ctx context.Context, st *state.State, info
 				return nil, fmt.Errorf("internal error: cannot find local component: %q", ref)
 			}
 
-			ts, err := snapstate.InstallComponentPath(st, lc.SideInfo, info, lc.Path, snapstate.Flags{})
+			ts, err := snapstate.InstallComponentPath(st, lc.SideInfo, info, lc.Path, snapstate.Options{
+				DeviceCtx:     r.deviceCtx,
+				FromChange:    r.fromChange,
+				PrereqTracker: r.tracker,
+			})
 			if err != nil {
 				return nil, err
 			}
@@ -860,7 +917,7 @@ func remodelEssentialSnapTasks(
 		if err != nil {
 			return nil, err
 		}
-		return append(tss, ts), nil
+		return []*state.TaskSet{ts}, nil
 	default:
 		return nil, fmt.Errorf("internal error: unhandled remodel action: %d", action)
 	}
@@ -964,16 +1021,25 @@ func remodelTasks(ctx context.Context, st *state.State, current, new *asserts.Mo
 		return nil, err
 	}
 
+	containers := LocalContainers{
+		Snaps: make(map[string]LocalSnap, len(localSnaps)),
+	}
+
+	for _, ls := range localSnaps {
+		containers.Snaps[ls.SideInfo.SnapID] = ls
+	}
+
 	// If local snaps are provided, all needed snaps must be locally
 	// provided. We check this flag whenever a snap installation/update is
 	// found needed for the remodel.
 	rm := remodeler{
-		newModel:   new,
-		offline:    opts.Offline,
-		vsets:      vsets,
-		tracker:    snap.NewSelfContainedSetPrereqTracker(),
-		deviceCtx:  deviceCtx,
-		fromChange: fromChange,
+		newModel:        new,
+		offline:         opts.Offline,
+		vsets:           vsets,
+		tracker:         snap.NewSelfContainedSetPrereqTracker(),
+		deviceCtx:       deviceCtx,
+		fromChange:      fromChange,
+		localContainers: containers,
 	}
 
 	// First handle snapd as a special case
