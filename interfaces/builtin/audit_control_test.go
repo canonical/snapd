@@ -25,6 +25,7 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
+	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -83,6 +84,14 @@ func (s *AuditControlInterfaceSuite) TestAppArmorSpec(c *C) {
 	c.Check(spec.SnippetForTag("snap.other.app2"), testutil.Contains, "@{PROC}/*/{loginuid,sessionid} r,\n")
 	c.Check(spec.SnippetForTag("snap.other.app2"), testutil.Contains, "/{,var/}run/auditd.{pid,state} rw,\n")
 	c.Check(spec.SnippetForTag("snap.other.app2"), testutil.Contains, "@{PROC}/@{pid}/oom_score_adj rw,\n")
+}
+
+func (s *AuditControlInterfaceSuite) TestSecCompSpec(c *C) {
+	spec := seccomp.NewSpecification(s.plug.AppSet())
+	err := spec.AddConnectedPlug(s.iface, s.plug, s.slot)
+	c.Assert(err, IsNil)
+	c.Assert(spec.Snippets(), HasLen, 1)
+	c.Check(spec.SnippetForTag("snap.other.app2"), testutil.Contains, "socket AF_NETLINK")
 }
 
 func (s *AuditControlInterfaceSuite) TestInterfaces(c *C) {
