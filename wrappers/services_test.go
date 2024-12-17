@@ -2751,7 +2751,7 @@ func (s *servicesTestSuite) TestAddSnapServicesAndRemoveUserDaemons(c *C) {
 }
 
 var snapdYaml = `name: snapd
-version: 1.0
+version: 2.62
 type: snapd
 `
 
