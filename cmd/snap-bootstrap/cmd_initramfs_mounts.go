@@ -56,6 +56,7 @@ import (
 	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/seed"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/integrity"
 	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/snap/snapdir"
 	"github.com/snapcore/snapd/snap/squashfs"
@@ -118,6 +119,8 @@ var (
 	installApplyPreseededData        = install.ApplyPreseededData
 	bootEnsureNextBootToRunMode      = boot.EnsureNextBootToRunMode
 	installBuildInstallObserver      = install.BuildInstallObserver
+	lookupDmVerityDataAndCrossCheck  = integrity.LookupDmVerityDataAndCrossCheck
+	generateDmVerityData             = integrity.GenerateDmVerityData
 )
 
 func stampedAction(stamp string, action func() error) error {
@@ -1898,8 +1901,50 @@ func generateMountsCommonInstallRecoverStart(mst *initramfsMountsState) (model *
 	for _, essentialSnap := range essSnaps {
 		systemSnaps[essentialSnap.EssentialType] = essentialSnap
 		dir := snapTypeToMountDir[essentialSnap.EssentialType]
+
+		mountOptions := *mountReadOnlyOptions
+
+		// XXX: throw error if integrity data are required by policy
+		// XXX: even if no integrity data were found from a verified revision, we could still
+		// generate and use verity data to detect random errors that could occur.
+		if essentialSnap.IntegrityDataParams != nil && essentialSnap.IntegrityDataParams.Type == "dm-verity" {
+			hashDevice, err := lookupDmVerityDataAndCrossCheck(
+				essentialSnap.Path,
+				essentialSnap.IntegrityDataParams)
+
+			switch {
+			case errors.Is(err, integrity.ErrDmVerityDataNotFound):
+				var rootHash string
+				hashDevice, rootHash, err = generateDmVerityData(
+					essentialSnap.Path,
+					essentialSnap.IntegrityDataParams)
+				if err != nil {
+					return nil, nil, err
+				}
+
+				if essentialSnap.IntegrityDataParams.Digest != rootHash {
+					return nil, nil, fmt.Errorf("computed root hash doesn't match trusted root hash from assertion: %s != %s",
+						essentialSnap.IntegrityDataParams.Digest, rootHash)
+				}
+			case errors.Is(err, integrity.ErrUnexpectedDmVerityData):
+				return nil, nil, fmt.Errorf("dm-verity data from disk for snap %s don't match trusted data from assertion: %w", essentialSnap.Path, err)
+			case err != nil:
+				return nil, nil, err
+			}
+
+			mountOptions.FsOpts = &dmVerityOptions{
+				HashDevice: hashDevice,
+				RootHash:   essentialSnap.IntegrityDataParams.Digest,
+			}
+
+			// TODO: we currently rely on several parameters from the on-disk unverified superblock
+			// which gets automatically parsed by veritysetup for the mount. Instead we can use
+			// the parameters we already have in the assertion as options to the mount but this
+			// would require extra support in libmount.
+		}
+
 		// TODO:UC20: we need to cross-check the kernel path with snapd_recovery_kernel used by grub
-		if err := doSystemdMount(essentialSnap.Path, filepath.Join(boot.InitramfsRunMntDir, dir), mountReadOnlyOptions); err != nil {
+		if err := doSystemdMount(essentialSnap.Path, filepath.Join(boot.InitramfsRunMntDir, dir), &mountOptions); err != nil {
 			return nil, nil, err
 		}
 	}
