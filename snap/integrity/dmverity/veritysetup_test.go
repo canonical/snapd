@@ -20,6 +20,7 @@
 package dmverity_test
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 	"testing"
@@ -103,24 +104,28 @@ case "$1" in
 	format)
 		cp %[1]s %[1]s.verity
 		echo VERITY header information for %[1]s.verity
-		echo "UUID:            	97d80536-aad9-4f25-a528-5319c038c0c4"
+		echo "UUID:            	93740d5e-9039-4a07-9219-bd355882b64b"
 		echo "Hash type:       	1"
-		echo "Data blocks:     	1"
+		echo "Data blocks:     	2048"
 		echo "Data block size: 	4096"
+		echo "Hash blocks:     	17"
 		echo "Hash block size: 	4096"
 		echo "Hash algorithm:  	sha256"
-		echo "Salt:            	c0234a906cfde0d5ffcba25038c240a98199cbc1d8fbd388a41e8faa02239c08"
-		echo "Root hash:      	e48cfc4df6df0f323bcf67f17b659a5074bec3afffe28f0b3b4db981d78d2e3e"
+		echo "Salt:            	46aee3affbd0455623e907bb7fc622999bac4c86fa263808ac15240b16286458"
+		echo "Root hash:      	9257053cde92608d275cd912c031c40dd9d8820e4645f0774ec2d4403f19f840"
+		echo "Hash device size: 73728 [bytes]"
 		;;
 esac
 `, snapPath))
 	defer vscmd.Restore()
 
-	_, err := dmverity.Format(snapPath, snapPath+".verity")
+	rootHash, err := dmverity.Format(snapPath, snapPath+".verity", nil)
 	c.Assert(err, IsNil)
 	c.Assert(vscmd.Calls(), HasLen, 2)
 	c.Check(vscmd.Calls()[0], DeepEquals, []string{"veritysetup", "--version"})
 	c.Check(vscmd.Calls()[1], DeepEquals, []string{"veritysetup", "format", snapPath, snapPath + ".verity"})
+
+	c.Check(rootHash, Equals, "9257053cde92608d275cd912c031c40dd9d8820e4645f0774ec2d4403f19f840")
 }
 
 func (s *VerityTestSuite) TestFormatSuccessWithWorkaround(c *C) {
@@ -152,7 +157,7 @@ esac
 `, snapPath))
 	defer vscmd.Restore()
 
-	_, err := dmverity.Format(snapPath, snapPath+".verity")
+	_, err := dmverity.Format(snapPath, snapPath+".verity", nil)
 	c.Assert(err, IsNil)
 	c.Assert(vscmd.Calls(), HasLen, 2)
 	c.Check(vscmd.Calls()[0], DeepEquals, []string{"veritysetup", "--version"})
@@ -175,7 +180,8 @@ esac
 `)
 	defer vscmd.Restore()
 
-	_, err := dmverity.Format(snapPath, "")
+	rootHash, err := dmverity.Format(snapPath, "", nil)
+	c.Assert(rootHash, Equals, "")
 	c.Check(err, ErrorMatches, "Cannot create hash image  for writing.")
 }
 
@@ -204,4 +210,19 @@ func (s *VerityTestSuite) TestVerityVersionDetect(c *C) {
 		}
 		c.Check(deploy, Equals, t.deploy, Commentf("test failed for version: %s", t.ver))
 	}
+}
+
+func (s *VerityTestSuite) TestReadSuperBlockSuccess(c *C) {
+	sb, err := dmverity.ReadSuperBlock("testdata/testdisk.verity")
+	c.Check(err, IsNil)
+
+	sbJson, _ := json.Marshal(sb)
+	expectedSb := `{"version":1,"hash_type":1,"uuid":[147,116,13,94,144,57,74,7,146,25,189,53,88,130,182,75],"algorithm":[115,104,97,50,53,54,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],"data_block_size":4096,"hash_block_size":4096,"data_blocks":2048,"salt_size":32,"salt":[70,174,227,175,251,208,69,86,35,233,7,187,127,198,34,153,155,172,76,134,250,38,56,8,172,21,36,11,22,40,100,88,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]}`
+	c.Check(string(sbJson), Equals, expectedSb)
+}
+
+func (s *VerityTestSuite) TestReadSuperBlockError(c *C) {
+	// Attempt to read an empty disk
+	_, err := dmverity.ReadSuperBlock("testdata/testdisk")
+	c.Check(err, ErrorMatches, "invalid dm-verity superblock header")
 }
