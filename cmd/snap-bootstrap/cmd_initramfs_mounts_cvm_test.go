@@ -360,42 +360,42 @@ func (s *initramfsCVMMountsSuite) TestGenerateMountsFromManifest(c *C) {
 		writable string
 		err      string
 	}{
-		// Valid ephemeral disk
+		// Valid, ephemeral disk
 		{
 			`{"partitions":[{"label":"cloudimg-rootfs","root_hash":"000","read_only":true}]}`,
 			defaultCVMDiskVerity,
 			"writable-tmp",
 			"",
 		},
-		// Valid non-ephemeral disk
+		// Valid, non-ephemeral disk
 		{
 			`{"partitions":[{"label":"cloudimg-rootfs","root_hash":"000","read_only":true},{"label":"writable"}]}`,
 			defaultCVMDiskVerity,
 			"writable",
 			"",
 		},
-		// Valid missing root hash (to test this won't fail early when a root hash is missing)
+		// Valid, missing root hash (to test this won't fail early when a root hash is missing)
 		{
 			`{"partitions":[{"label":"cloudimg-rootfs","read_only":true}]}`,
 			defaultCVMDiskVerity,
 			"writable-tmp",
 			"",
 		},
-		// Invalid missing ro partition
+		// Invalid, missing ro partition
 		{
 			`{"partitions":[{"label":"cloudimg-rootfs"}]}`,
 			defaultCVMDiskVerity,
 			"writable",
 			"manifest doesn't contain any partition marked as read-only",
 		},
-		// Invalid 2 ro partitions
+		// Invalid, 2 ro partitions
 		{
 			`{"partitions":[{"label":"cloudimg-rootfs","root_hash":"000","read_only":true},{"label":"test", "read_only":true}]}`,
 			defaultCVMDiskVerity,
 			"writable",
 			"manifest contains multiple partitions marked as read-only",
 		},
-		// Invalid 2 rw partitions
+		// Invalid, 2 rw partitions
 		{
 			`{"partitions":[{"label":"cloudimg-rootfs","root_hash":"000","read_only":true},{"label":"test"},{"label":"test2"}]}`,
 			defaultCVMDiskVerity,
