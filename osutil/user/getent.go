@@ -24,13 +24,42 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"os"
 	"os/exec"
+	"path/filepath"
 	"strconv"
 	"strings"
 )
 
+const (
+	DefaultGetentSearchPath = "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+)
+
+var (
+	getentSearchPath = DefaultGetentSearchPath
+)
+
+func findGetent(searchPath string) (string, error) {
+	// try to look for getent in a couple of places, such that even when running
+	// with modified PATH we still can locate the executable
+	for _, dir := range filepath.SplitList(searchPath) {
+		p := filepath.Join(dir, "getent")
+		if fi, err := os.Stat(p); err == nil {
+			if !fi.IsDir() && fi.Mode().Perm()&0111 != 0 {
+				return p, nil
+			}
+		}
+	}
+	return "", errors.New("cannot locate getent executable")
+}
+
 func getEnt(params ...string) ([]byte, error) {
-	cmd := exec.Command("getent", params...)
+	getentCmd, err := findGetent(getentSearchPath)
+	if err != nil {
+		return nil, err
+	}
+
+	cmd := exec.Command(getentCmd, params...)
 	cmd.Stdin = nil
 
 	outBuf, err := cmd.Output()
@@ -193,4 +222,12 @@ func lookupUserFromGetent(matcher userMatcher) (*User, error) {
 		Name:     components[4],
 		HomeDir:  components[5],
 	}, nil
+}
+
+// OverrideGetentSearchPath allows overriding getent search path. Its only
+// purpose is to be used in tests.
+func OverrideGetentSearchPath(p string) {
+	// TODO should use osutil.MustBeTestBinary() but we cannot import due to
+	// cyclic dependencies
+	getentSearchPath = p
 }

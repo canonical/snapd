@@ -267,6 +267,29 @@ func (s *createUserSuite) TestUserMaybeSudoUser(c *check.C) {
 			}, nil
 		})
 		defer restore()
+		restore = osutil.MockUserLookup(func(username string) (*user.User, error) {
+			switch username {
+			case "guy":
+				return &user.User{
+					Uid:      "1000",
+					Gid:      "1000",
+					Username: username,
+					Name:     "guy",
+					HomeDir:  "~",
+				}, nil
+			case "root":
+				return &user.User{
+					Uid:      "0",
+					Gid:      "0",
+					Username: username,
+					Name:     "root",
+					HomeDir:  "/",
+				}, nil
+			default:
+				return nil, fmt.Errorf("unexpected username in test: %s", username)
+			}
+		})
+		defer restore()
 
 		os.Setenv("SUDO_USER", t.SudoUsername)
 		cur, err := osutil.UserMaybeSudoUser()

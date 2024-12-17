@@ -54,6 +54,7 @@ if [ -f "${base}.exit" ]; then
   exit "$(cat "${base}.exit")"
 fi
 `, s.getentDir))
+	s.AddCleanup(user.MockGetentSearchPath(s.mockGetent.BinDir() + ":" + user.DefaultGetentSearchPath))
 	s.AddCleanup(s.mockGetent.Restore)
 }
 
@@ -176,4 +177,12 @@ func (s *getentSuite) TestLookupGroupByNameMissing(c *C) {
 	grp, err := user.LookupGroupFromGetent(user.GroupMatchGroupname("mygroup"))
 	c.Assert(err, IsNil)
 	c.Assert(grp, IsNil)
+}
+
+func (s *getentSuite) TestNoGetentBinary(c *C) {
+	defer user.MockGetentSearchPath("/foo:/bar")()
+
+	usr, err := user.LookupUserFromGetent(user.UserMatchUid(1000))
+	c.Assert(err, ErrorMatches, "cannot locate getent executable")
+	c.Assert(usr, IsNil)
 }
