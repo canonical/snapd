@@ -1219,6 +1219,9 @@ nested_start_core_vm_unit() {
     PARAM_RTC="${NESTED_PARAM_RTC:-}"
     PARAM_EXTRA="${NESTED_PARAM_EXTRA:-}"
 
+    local EXPECT_PASSPHRASE
+    EXPECT_PASSPHRASE=${NESTED_EXPECT_PASSPHRASE:-}
+
     # Open port 7777 on the host so that failures in the nested VM (e.g. to
     # create users) can be debugged interactively via
     # "telnet localhost 7777". Also keeps the logs
@@ -1226,6 +1229,9 @@ nested_start_core_vm_unit() {
     # XXX: should serial just be logged to stdout so that we just need
     #      to "journalctl -u $NESTED_VM" to see what is going on ?
     if "$QEMU" -version | grep '2\.5'; then
+        if [ -z "$EXPECT_PASSPHRASE" ]; then
+            echo "internal error: NESTED_EXPECT_PASSPHRASE is set and qemu doesn't support chardev over socket"
+        fi
         # XXX: remove once we no longer support xenial hosts
         PARAM_SERIAL="-serial file:${NESTED_LOGS_DIR}/serial.log"
     else
@@ -1366,6 +1372,13 @@ nested_start_core_vm_unit() {
         ${PARAM_USB} \
         ${PARAM_CD}  \
         ${PARAM_EXTRA} " "${PARAM_REEXEC_ON_FAILURE}"
+
+    if [ -n "$EXPECT_PASSPHRASE" ]; then
+        # Wait for passphrase prompt from serial log file.
+        retry -n 120 --wait 1 sh -c "MATCH \"Please enter the passphrase\" < ${NESTED_LOGS_DIR}/serial.log"
+        # Enter passphrase to continue boot.
+        echo "$EXPECT_PASSPHRASE" | netcat -N localhost 7777
+    fi
 
     local EXPECT_SHUTDOWN
     EXPECT_SHUTDOWN=${NESTED_EXPECT_SHUTDOWN:-}
