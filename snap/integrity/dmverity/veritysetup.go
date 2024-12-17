@@ -34,6 +34,10 @@ import (
 	"github.com/snapcore/snapd/osutil"
 )
 
+const (
+	DefaultVerityFormat = 1
+)
+
 func getVal(line string) (string, error) {
 	parts := strings.SplitN(line, ":", 2)
 	if len(parts) != 2 {
@@ -214,11 +218,11 @@ func (sb *VeritySuperBlock) Size() int {
 // Validate will perform consistency checks over an extracted superblock to determine whether it's a valid
 // superblock or not.
 func (sb *VeritySuperBlock) Validate() error {
-	if sb.Version != 1 {
+	if sb.Version != DefaultVerityFormat {
 		return fmt.Errorf("invalid dm-verity version")
 	}
 
-	if sb.Hash_type != 1 {
+	if sb.Hash_type != DefaultVerityFormat {
 		return fmt.Errorf("invalid dm-verity hash type")
 	}
 
