@@ -54,6 +54,7 @@ import (
 	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/seed"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/integrity"
 	"github.com/snapcore/snapd/snap/squashfs"
 	"github.com/snapcore/snapd/sysconfig"
 	"github.com/snapcore/snapd/timings"
@@ -1797,8 +1798,36 @@ func generateMountsCommonInstallRecoverStart(mst *initramfsMountsState) (model *
 	for _, essentialSnap := range essSnaps {
 		systemSnaps[essentialSnap.EssentialType] = essentialSnap
 		dir := snapTypeToMountDir[essentialSnap.EssentialType]
+
+		mountOptions := *mountReadOnlyOptions
+
+		// XXX: throw error if integrity data are required by policy
+		// XXX: even if no integrity data were found from a verified revision, we could still
+		// generate and use verity data to detect random errors that could occur.
+		if essentialSnap.IntegrityData != nil && essentialSnap.IntegrityData.Type == "dm-verity" {
+			hashDevice, rootHash, err := integrity.GenerateDmVerityData(
+				essentialSnap.Path,
+				essentialSnap.IntegrityData)
+			if err != nil {
+				return nil, nil, err
+			}
+
+			// Do a consistency check if a verity file was generated
+			if hashDevice != "" && rootHash != "" {
+				if essentialSnap.IntegrityData.Digest != rootHash {
+					return nil, nil, errors.New("root hash from assertion doesn't match computed root hash")
+				}
+			}
+
+			mountOptions.VerityHashDevice = hashDevice
+			mountOptions.VerityRootHash = essentialSnap.IntegrityData.Digest
+
+			// TODO: pass dm-verity parameters from the detected verified snap-revision as mount options
+			// without relying on the unverified dm-verity superblock.
+		}
+
 		// TODO:UC20: we need to cross-check the kernel path with snapd_recovery_kernel used by grub
-		if err := doSystemdMount(essentialSnap.Path, filepath.Join(boot.InitramfsRunMntDir, dir), mountReadOnlyOptions); err != nil {
+		if err := doSystemdMount(essentialSnap.Path, filepath.Join(boot.InitramfsRunMntDir, dir), &mountOptions); err != nil {
 			return nil, nil, err
 		}
 	}
