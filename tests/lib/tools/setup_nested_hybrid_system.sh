@@ -19,6 +19,8 @@ run_muinstaller() {
     local kernel_assertion="${6}"
     local label="${7}"
     local disk="${8}"
+    local passphrase="${9}"
+    local extra_muinstaller_args="${10}"
 
     # ack the needed assertions
     snap ack "${kernel_assertion}"
@@ -140,10 +142,14 @@ run_muinstaller() {
     # run installation
     local install_disk
     install_disk=$(remote.exec "readlink -f /dev/disk/by-id/virtio-target")
-    remote.exec "sudo muinstaller \
-        -label ${label} \
-        -device ${install_disk} \
-        -rootfs-creator /snap/muinstaller/current/bin/mk-classic-rootfs.sh"
+    muinstaller_args="-label $label -device $install_disk -rootfs-creator /snap/muinstaller/current/bin/mk-classic-rootfs.sh"
+    if [ -n "$passphrase" ]; then
+        muinstaller_args="$muinstaller_args --passphrase $passphrase"
+    fi
+    if [ -n "$extra_muinstaller_args" ]; then
+        muinstaller_args="$muinstaller_args $extra_muinstaller_args"
+    fi
+    remote.exec "sudo muinstaller $muinstaller_args"
 
     remote.exec "sudo sync"
 
@@ -172,7 +178,11 @@ run_muinstaller() {
     fi
 
     # Start installed image
-    tests.nested create-vm core --keep-firmware-state
+    if [ -n "$passphrase" ]; then
+        tests.nested create-vm core --keep-firmware-state --expect-passphrase "$passphrase"
+    else
+        tests.nested create-vm core --keep-firmware-state
+    fi
 }
 
 main() {
@@ -184,6 +194,8 @@ main() {
     local kernel_assertion=""
     local label="classic"
     local disk=""
+    local passphrase=""
+    local extra_muinstaller_args=""
     while [ $# -gt 0 ]; do
         case "$1" in
             --model)
@@ -216,6 +228,14 @@ main() {
                 ;;
             --disk)
                 disk="${2}"
+                shift 2
+                ;;
+            --passphrase)
+                passphrase="${2}"
+                shift 2
+                ;;
+            --extra-muinstaller-args)
+                extra_muinstaller_args="${2}"
                 shift 2
                 ;;
             --*|-*)
@@ -304,7 +324,7 @@ main() {
 
     run_muinstaller "${model_assertion}" "${store_dir}" "${gadget_snap}" \
         "${gadget_assertion}" "${kernel_snap}" "${kernel_assertion}" "${label}" \
-        "${disk}"
+        "${disk}" "${passphrase}" "${extra_muinstaller_args}"
 
     )
 }
