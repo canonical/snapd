@@ -20,6 +20,8 @@ run_muinstaller() {
     local label="${7}"
     local disk="${8}"
     local kern_mods_comp="${9:-}"
+    local passphrase="${10}"
+    local extra_muinstaller_args="${11}"
 
     # ack the needed assertions
     snap ack "${kernel_assertion}"
@@ -163,10 +165,15 @@ fi
 EOF
     remote.exec "chmod +x /home/user1/mk-classic-rootfs-wrapper.sh"
 
-    remote.exec "sudo muinstaller \
-        -label ${label} \
-        -device ${install_disk} \
-        -rootfs-creator /home/user1/mk-classic-rootfs-wrapper.sh"
+    muinstaller_args=()
+    muinstaller_args+=("-label $label")
+    muinstaller_args+=("-device $install_disk")
+    muinstaller_args+=("-rootfs-creator /home/user1/mk-classic-rootfs-wrapper.sh")
+    if [ -n "$passphrase" ]; then
+        muinstaller_args+=("-passphrase \"$passphrase\"")
+    fi
+    muinstaller_args+=("${extra_muinstaller_args[@]}")
+    remote.exec sudo muinstaller "${muinstaller_args[@]}"
 
     remote.exec "sudo sync"
 
@@ -195,7 +202,11 @@ EOF
     fi
 
     # Start installed image
-    tests.nested create-vm core --keep-firmware-state
+    if [ -n "$passphrase" ]; then
+        tests.nested create-vm core --keep-firmware-state --expect-passphrase "$passphrase"
+    else
+        tests.nested create-vm core --keep-firmware-state
+    fi
 }
 
 main() {
@@ -208,6 +219,8 @@ main() {
     local label="classic"
     local disk=""
     local kern_mods_comp=""
+    local passphrase=""
+    local extra_muinstaller_args=""
     while [ $# -gt 0 ]; do
         case "$1" in
             --model)
@@ -245,6 +258,14 @@ main() {
             --kmods-comp)
                 # Only on kernel-modules component supported atm
                 kern_mods_comp="${2}"
+                shift 2
+                ;;
+            --passphrase)
+                passphrase="${2}"
+                shift 2
+                ;;
+            --extra-muinstaller-args)
+                extra_muinstaller_args="${2}"
                 shift 2
                 ;;
             --*|-*)
@@ -337,7 +358,7 @@ main() {
 
         run_muinstaller "${model_assertion}" "${store_dir}" "${gadget_snap}" \
                         "${gadget_assertion}" "${kernel_snap}" "${kernel_assertion}" "${label}" \
-                        "${disk}" "${kern_mods_comp}"
+                        "${disk}" "${kern_mods_comp}" "${passphrase}" "${extra_muinstaller_args}"
     )
 }
 
