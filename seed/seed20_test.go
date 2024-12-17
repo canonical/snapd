@@ -42,6 +42,7 @@ import (
 	"github.com/snapcore/snapd/seed/seedtest"
 	"github.com/snapcore/snapd/seed/seedwriter"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/integrity"
 	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
@@ -5322,6 +5323,214 @@ func (s *seed20Suite) TestSeedWithComponentsInModelAndOptions(c *C) {
 					Revision:  snap.R(44),
 				},
 			},
+		},
+	})
+}
+
+func (s *seed20Suite) TestLoadMetaCore20WithIntegrityData(c *C) {
+	asid := []asserts.SnapIntegrityData{
+		{
+			Type:          "dm-verity",
+			Version:       1,
+			HashAlg:       "sha256",
+			DataBlockSize: 4096,
+			HashBlockSize: 4096,
+			Digest:        "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+			Salt:          "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+		},
+	}
+	id := integrity.IntegrityDataParams{
+		Type:          "dm-verity",
+		Version:       1,
+		HashAlg:       "sha256",
+		DataBlockSize: 4096,
+		HashBlockSize: 4096,
+		Digest:        "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+		Salt:          "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+	}
+	_, rev := s.MakeAssertedSnapWithIntegrityData(c, snapYaml["snapd"], nil, snap.R(1), asid, "canonical", s.StoreSigning.Database)
+	s.MakeAssertedSnapWithIntegrityData(c, snapYaml["core20"], nil, snap.R(1), asid, "canonical", s.StoreSigning.Database)
+	s.MakeAssertedSnapWithIntegrityData(c, snapYaml["pc-kernel=20"], nil, snap.R(1), asid, "canonical", s.StoreSigning.Database)
+	s.MakeAssertedSnapWithIntegrityData(c, snapYaml["pc=20"], nil, snap.R(1), asid, "canonical", s.StoreSigning.Database)
+
+	// All test snaps have the same size
+	id.DataBlocks = rev.SnapSize() / uint64(id.DataBlockSize)
+
+	sysLabel := "20250113"
+	s.MakeSeed(c, sysLabel, "my-brand", "my-model", map[string]interface{}{
+		"display-name": "my model",
+		"architecture": "amd64",
+		"base":         "core20",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":            "pc-kernel",
+				"id":              s.AssertedSnapID("pc-kernel"),
+				"type":            "kernel",
+				"default-channel": "20",
+			},
+			map[string]interface{}{
+				"name":            "pc",
+				"id":              s.AssertedSnapID("pc"),
+				"type":            "gadget",
+				"default-channel": "20",
+			}},
+	}, nil)
+
+	seed20, err := seed.Open(s.SeedDir, sysLabel)
+	c.Assert(err, IsNil)
+
+	err = seed20.LoadAssertions(s.db, s.commitTo)
+	c.Assert(err, IsNil)
+
+	err = seed20.LoadMeta(seed.AllModes, nil, s.perfTimings)
+	c.Assert(err, IsNil)
+
+	essSnaps := seed20.EssentialSnaps()
+	c.Check(essSnaps, HasLen, 4)
+
+	c.Check(essSnaps, DeepEquals, []*seed.Snap{
+		{
+			Path:                s.expectedPath("snapd"),
+			SideInfo:            &s.AssertedSnapInfo("snapd").SideInfo,
+			EssentialType:       snap.TypeSnapd,
+			Essential:           true,
+			Required:            true,
+			Channel:             "latest/stable",
+			IntegrityDataParams: &id,
+		}, {
+			Path:                s.expectedPath("pc-kernel"),
+			SideInfo:            &s.AssertedSnapInfo("pc-kernel").SideInfo,
+			EssentialType:       snap.TypeKernel,
+			Essential:           true,
+			Required:            true,
+			Channel:             "20",
+			IntegrityDataParams: &id,
+		}, {
+			Path:                s.expectedPath("core20"),
+			SideInfo:            &s.AssertedSnapInfo("core20").SideInfo,
+			EssentialType:       snap.TypeBase,
+			Essential:           true,
+			Required:            true,
+			Channel:             "latest/stable",
+			IntegrityDataParams: &id,
+		}, {
+			Path:                s.expectedPath("pc"),
+			SideInfo:            &s.AssertedSnapInfo("pc").SideInfo,
+			EssentialType:       snap.TypeGadget,
+			Essential:           true,
+			Required:            true,
+			Channel:             "20",
+			IntegrityDataParams: &id,
+		},
+	})
+}
+
+func (s *seed20Suite) TestLoadMetaCore20WithIntegrityDataMultiple(c *C) {
+	selected := "0000000000000000000000000000000000000000000000000000000000000000"
+	ignored := "1111111111111111111111111111111111111111111111111111111111111111"
+
+	asid := []asserts.SnapIntegrityData{
+		{
+			Type:          "dm-verity",
+			Version:       1,
+			HashAlg:       "sha256",
+			DataBlockSize: 4096,
+			HashBlockSize: 4096,
+			Digest:        selected,
+			Salt:          "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+		},
+		{
+			Type:          "dm-verity",
+			Version:       1,
+			HashAlg:       "sha256",
+			DataBlockSize: 4096,
+			HashBlockSize: 4096,
+			Digest:        ignored,
+			Salt:          "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+		},
+	}
+	id := integrity.IntegrityDataParams{
+		Type:          "dm-verity",
+		Version:       1,
+		HashAlg:       "sha256",
+		DataBlockSize: 4096,
+		HashBlockSize: 4096,
+		Digest:        selected,
+		Salt:          "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+	}
+	_, rev := s.MakeAssertedSnapWithIntegrityData(c, snapYaml["snapd"], nil, snap.R(1), asid, "canonical", s.StoreSigning.Database)
+	s.MakeAssertedSnapWithIntegrityData(c, snapYaml["core20"], nil, snap.R(1), asid, "canonical", s.StoreSigning.Database)
+	s.MakeAssertedSnapWithIntegrityData(c, snapYaml["pc-kernel=20"], nil, snap.R(1), asid, "canonical", s.StoreSigning.Database)
+	s.MakeAssertedSnapWithIntegrityData(c, snapYaml["pc=20"], nil, snap.R(1), asid, "canonical", s.StoreSigning.Database)
+
+	// All test snaps have the same size
+	id.DataBlocks = rev.SnapSize() / uint64(id.DataBlockSize)
+
+	sysLabel := "20250113"
+	s.MakeSeed(c, sysLabel, "my-brand", "my-model", map[string]interface{}{
+		"display-name": "my model",
+		"architecture": "amd64",
+		"base":         "core20",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":            "pc-kernel",
+				"id":              s.AssertedSnapID("pc-kernel"),
+				"type":            "kernel",
+				"default-channel": "20",
+			},
+			map[string]interface{}{
+				"name":            "pc",
+				"id":              s.AssertedSnapID("pc"),
+				"type":            "gadget",
+				"default-channel": "20",
+			}},
+	}, nil)
+
+	seed20, err := seed.Open(s.SeedDir, sysLabel)
+	c.Assert(err, IsNil)
+
+	err = seed20.LoadAssertions(s.db, s.commitTo)
+	c.Assert(err, IsNil)
+
+	err = seed20.LoadMeta(seed.AllModes, nil, s.perfTimings)
+	c.Assert(err, IsNil)
+
+	essSnaps := seed20.EssentialSnaps()
+	c.Check(essSnaps, HasLen, 4)
+
+	c.Check(essSnaps, DeepEquals, []*seed.Snap{
+		{
+			Path:                s.expectedPath("snapd"),
+			SideInfo:            &s.AssertedSnapInfo("snapd").SideInfo,
+			EssentialType:       snap.TypeSnapd,
+			Essential:           true,
+			Required:            true,
+			Channel:             "latest/stable",
+			IntegrityDataParams: &id,
+		}, {
+			Path:                s.expectedPath("pc-kernel"),
+			SideInfo:            &s.AssertedSnapInfo("pc-kernel").SideInfo,
+			EssentialType:       snap.TypeKernel,
+			Essential:           true,
+			Required:            true,
+			Channel:             "20",
+			IntegrityDataParams: &id,
+		}, {
+			Path:                s.expectedPath("core20"),
+			SideInfo:            &s.AssertedSnapInfo("core20").SideInfo,
+			EssentialType:       snap.TypeBase,
+			Essential:           true,
+			Required:            true,
+			Channel:             "latest/stable",
+			IntegrityDataParams: &id,
+		}, {
+			Path:                s.expectedPath("pc"),
+			SideInfo:            &s.AssertedSnapInfo("pc").SideInfo,
+			EssentialType:       snap.TypeGadget,
+			Essential:           true,
+			Required:            true,
+			Channel:             "20",
+			IntegrityDataParams: &id,
 		},
 	})
 }

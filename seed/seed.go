@@ -28,6 +28,7 @@ import (
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/integrity"
 	"github.com/snapcore/snapd/timings"
 )
 
@@ -62,6 +63,8 @@ type Snap struct {
 	Channel string
 	DevMode bool
 	Classic bool
+
+	IntegrityDataParams *integrity.IntegrityDataParams
 
 	// Components for the snap
 	Components []Component
