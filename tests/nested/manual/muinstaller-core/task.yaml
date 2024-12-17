@@ -14,6 +14,11 @@ environment:
   NESTED_ENABLE_TPM: true
   NESTED_ENABLE_SECURE_BOOT: true
 
+  # encrypted + passphrase auth smoke test
+  # TODO: extract a more comprehensive core24 test similar
+  # to tests/nested/manual/passphrase-support-on-hybrid.
+  PASSPHRASE/passphrase_auth: "ubuntu"
+
   # unencrypted case
   NESTED_ENABLE_TPM/plain: false
   NESTED_ENABLE_SECURE_BOOT/plain: false
@@ -57,6 +62,16 @@ execute: |
   . "$TESTSLIB/prepare.sh"
   #shellcheck source=tests/lib/nested.sh
   . "$TESTSLIB"/nested.sh
+
+  # TODO: remove this condition when passphrase support lands.
+  if [ -n "$PASSPHRASE" ]; then
+    echo "SKIPPING: passphrase support has not landed yet"
+    exit 0
+  fi
+  # if ! os.query is-noble && [ -n "$PASSPHRASE" ]; then
+  #   echo "SKIPPING: only run passphrase support variant for core24"
+  #   exit 0
+  # fi
 
   version="$(nested_get_version)"
 
@@ -106,6 +121,9 @@ execute: |
   sed -i "s/\$BASE/core${version}/" ./snap-with-comps/meta/snap.yaml
   snap pack ./snap-with-comps --filename=snap-with-comps.snap
   snap pack ./comp1 --filename=snap-with-comps+comp1.comp
+
+  # TODO: refactor preparation/hacks in a reusable script
+  # similar to setup_nested_hybrid_system.sh
 
   # prepare a core seed
   SEED_DIR="core-seed"
@@ -230,6 +248,11 @@ execute: |
     remote.push optional-install.json
     muinstaller_args="$muinstaller_args -optional ./optional-install.json"
   fi
+  if [ -n "$PASSPHRASE" ]; then
+    # pbkdf2 is used because it is less memory intensive than in
+    # process argon2i* variants.
+    muinstaller_args="$muinstaller_args -passphrase $PASSPHRASE --kdf-type pbkdf2"
+  fi
 
   remote.exec "sudo muinstaller $muinstaller_args"
 
@@ -245,7 +268,11 @@ execute: |
   mv fake-disk.img "$NESTED_IMAGES_DIR/$IMAGE_NAME"
 
   # Start installed image
-  tests.nested create-vm core --keep-firmware-state
+  if [ -n "$PASSPHRASE" ]; then
+    tests.nested create-vm core --keep-firmware-state --expect-passphrase "$PASSPHRASE"
+  else
+    tests.nested create-vm core --keep-firmware-state
+  fi
 
   # things look fine
   remote.exec "cat /etc/os-release" | MATCH 'NAME="Ubuntu Core"'
