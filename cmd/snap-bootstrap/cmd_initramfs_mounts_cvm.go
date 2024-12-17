@@ -33,8 +33,6 @@ import (
 )
 
 var (
-	osReadFile = os.ReadFile
-
 	secbootProvisionForCVM func(initramfsUbuntuSeedDir string) error
 )
 

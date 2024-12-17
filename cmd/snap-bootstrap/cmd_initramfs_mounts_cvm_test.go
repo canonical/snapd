@@ -21,6 +21,7 @@ package main_test
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
 
 	. "gopkg.in/check.v1"
@@ -241,12 +242,14 @@ func (s *initramfsCVMMountsSuite) TestInitramfsMountsRunCVMModeEphemeralOverlayH
 	defer restore()
 
 	expectedRootHash := "000"
-	restore = main.MockOsReadFile(func(path string) ([]byte, error) {
-		// check attempt to read manifest from specific path
-		c.Assert(path, Equals, filepath.Join(boot.InitramfsUbuntuSeedDir, "EFI/ubuntu", "manifest.json"))
-		return []byte(fmt.Sprintf(`{"partitions":[{"label":"cloudimg-rootfs","root_hash":%q,"overlay":"lowerdir"}]}`, expectedRootHash)), nil
-	})
-	defer restore()
+	manifestPath := filepath.Join(boot.InitramfsUbuntuSeedDir, "EFI/ubuntu")
+	manifestJson := fmt.Sprintf(`{"partitions":[{"label":"cloudimg-rootfs","root_hash":%q,"overlay":"lowerdir"}]}`, expectedRootHash)
+
+	err := os.MkdirAll(manifestPath, 0755)
+	c.Assert(err, IsNil)
+
+	err = os.WriteFile(filepath.Join(manifestPath, "manifest.json"), []byte(manifestJson), 0644)
+	c.Assert(err, IsNil)
 
 	// Mock the call to TPMCVM, to ensure that TPM provisioning is
 	// done before unlock attempt
@@ -281,7 +284,7 @@ func (s *initramfsCVMMountsSuite) TestInitramfsMountsRunCVMModeEphemeralOverlayH
 	})
 	defer restore()
 
-	_, err := main.Parser().ParseArgs([]string{"initramfs-mounts"})
+	_, err = main.Parser().ParseArgs([]string{"initramfs-mounts"})
 	c.Assert(err, IsNil)
 	c.Check(s.Stdout.String(), Equals, "")
 

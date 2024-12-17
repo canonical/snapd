@@ -94,14 +94,6 @@ func MockOsutilIsMounted(f func(string) (bool, error)) (restore func()) {
 	}
 }
 
-func MockOsReadFile(f func(string) ([]byte, error)) (restore func()) {
-	old := osReadFile
-	osReadFile = f
-	return func() {
-		osReadFile = old
-	}
-}
-
 func MockSystemdMount(f func(_, _ string, opts *SystemdMountOptions) error) (restore func()) {
 	old := doSystemdMount
 	doSystemdMount = f
