@@ -2503,8 +2503,21 @@ func (s *firstBoot16Suite) TestPopulateFromSeedCore18ValidationSetTrackingUnmetC
 	}
 	chg := s.testPopulateFromSeedCore18ValidationSetTracking(c, []asserts.Assertion{a}, []interface{}{headers})
 
-	s.overlord.State().Lock()
-	defer s.overlord.State().Unlock()
+	st := s.overlord.State()
+
+	func() {
+		st.Lock()
+		defer st.Unlock()
+		// at this point another restart is required, but it's snapd restarting
+		// because it's undoing
+		c.Assert(chg.Status(), Equals, state.UndoingStatus)
+		restart.MockPending(st, restart.RestartUnset)
+	}()
+
+	err = s.overlord.Settle(settleTimeout)
+	st.Lock()
+	defer st.Unlock()
+	c.Assert(err, IsNil)
 	c.Assert(chg.Status(), Equals, state.ErrorStatus)
 	c.Check(chg.Err().Error(), testutil.Contains, "pc-kernel (required at revision 7 by sets canonical/base-set))")
 }

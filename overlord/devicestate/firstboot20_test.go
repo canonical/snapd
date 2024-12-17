@@ -1359,14 +1359,16 @@ base: core20
 	st.Lock()
 	c.Assert(err, IsNil)
 
-	// at this point the system is "restarting", pretend the restart has
-	// happened
+	// at this point snapd needs to restart along the 'Do' path before
+	// "auto-connect"
 	c.Assert(chg.Status(), Equals, state.DoingStatus)
 	restart.MockPending(st, restart.RestartUnset)
+
 	st.Unlock()
 	err = s.overlord.Settle(settleTimeout)
 	st.Lock()
 	c.Assert(err, IsNil)
+
 	return chg
 }
 
@@ -1493,8 +1495,21 @@ func (s *firstBoot20Suite) TestPopulateFromSeedCore20ValidationSetTrackingFailsU
 
 	chg := s.testPopulateFromSeedCore20ValidationSetTracking(c, "run", []string{"canonical/base-set/2"})
 
-	s.overlord.State().Lock()
-	defer s.overlord.State().Unlock()
+	st := s.overlord.State()
+
+	func() {
+		st.Lock()
+		defer st.Unlock()
+		// at this point another restart is required, but it's snapd restarting
+		// because it's undoing
+		c.Assert(chg.Status(), Equals, state.UndoingStatus)
+		restart.MockPending(st, restart.RestartUnset)
+	}()
+
+	err = s.overlord.Settle(settleTimeout)
+	st.Lock()
+	defer st.Unlock()
+	c.Assert(err, IsNil)
 	c.Assert(chg.Status(), Equals, state.ErrorStatus)
 	c.Check(chg.Err().Error(), testutil.Contains, "my-snap (required at revision 1 by sets canonical/base-set))")
 }
