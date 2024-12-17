@@ -29,6 +29,7 @@ import (
 	"github.com/snapcore/snapd/boot"
 	main "github.com/snapcore/snapd/cmd/snap-bootstrap"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/disks"
 	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/testutil"
@@ -278,16 +279,12 @@ func (s *initramfsCVMMountsSuite) TestInitramfsMountsRunCVMModeEphemeralOverlayH
 	})
 	defer restore()
 
-	// Mock the call to create the necessary dirs for the overlay on the ephemeral tmpfs.
-	restore = main.MockCreateOverlayDirs(func(path string) error {
-		c.Assert(path, Equals, filepath.Join(boot.InitramfsRunMntDir, "writable-tmp"))
-		return nil
-	})
-	defer restore()
-
 	_, err = main.Parser().ParseArgs([]string{"initramfs-mounts"})
 	c.Assert(err, IsNil)
 	c.Check(s.Stdout.String(), Equals, "")
+
+	writableTmpCreated := osutil.IsDirectory(filepath.Join(boot.InitramfsRunMntDir, "writable-tmp"))
+	c.Check(writableTmpCreated, Equals, true)
 
 	// 2 per mountpoint + 1 more for cross check
 	c.Assert(n, Equals, 9)
@@ -401,7 +398,7 @@ func (s *initramfsCVMMountsSuite) TestGenerateMountsFromManifest(c *C) {
 			`{"partitions":[{"label":"cloudimg-rootfs","root_hash":"000","read_only":true},{"label":"test"},{"label":"test2"}]}`,
 			defaultCVMDiskVerity,
 			"writable",
-			"manifest contains multiple non read-only partitions",
+			"manifest contains multiple writable partitions",
 		},
 	}
 

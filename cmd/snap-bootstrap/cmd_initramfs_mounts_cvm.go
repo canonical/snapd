@@ -119,6 +119,7 @@ func generateMountsFromManifest(im imageManifest, disk disks.Disk) ([]partitionM
 
 		if p.ReadOnly {
 			// XXX: currently only a single read-only partition/overlay fs lowerdir is permitted.
+			// Support for multiple lowerdirs could be supported in the future.
 			if foundReadOnlyPartition != "" {
 				return nil, errors.New("manifest contains multiple partitions marked as read-only")
 
@@ -140,7 +141,7 @@ func generateMountsFromManifest(im imageManifest, disk disks.Disk) ([]partitionM
 		} else {
 			// Only one writable partition is permitted.
 			if foundWritablePartition != "" {
-				return nil, errors.New("manifest contains multiple non read-only partitions")
+				return nil, errors.New("manifest contains multiple writable partitions")
 			}
 			// Manifest contains a partition meant to be used as a writable overlay for the non-ephemeral vm case.
 			// If it is encrypted, its key will be autodiscovered based on its FsLabel later.
@@ -232,7 +233,7 @@ func generateMountsModeRunCVM(mst *initramfsMountsState) error {
 			return err
 		}
 
-		// XXX: if a manifest file is not found fall-back to CVM v1 behaviour
+		// If a manifest file is not found fall-back to CVM v1 behaviour
 		partitionMounts = []partitionMount{
 			{
 				Where:    boot.InitramfsDataDir,
@@ -266,7 +267,8 @@ func generateMountsModeRunCVM(mst *initramfsMountsState) error {
 		return err
 	}
 
-	// Mount partitions
+	// Mount partitions. In case a manifest is used, generateMountsFromManifest will return
+	// the partitions in specific order 1) ro 2) rw 3) overlay fs.
 	for _, pm := range partitionMounts {
 		var what string
 		var unlockRes secboot.UnlockResult
@@ -292,7 +294,8 @@ func generateMountsModeRunCVM(mst *initramfsMountsState) error {
 			return err
 		}
 
-		// Create overlayfs' upperdir and workdir in the writable tmpfs layer.
+		// Create overlayfs' upperdir and workdir in the writable tmpfs layer. In case there is a writable layer,
+		// these directories should have been created during the image creation process.
 		if pm.Opts.Tmpfs {
 			if err := createOverlayDirs(pm.Where); err != nil {
 				return err

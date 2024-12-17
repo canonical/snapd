@@ -247,11 +247,3 @@ func MockBuildInstallObserver(f func(model *asserts.Model, gadgetDir string, use
 		installBuildInstallObserver = old
 	}
 }
-
-func MockCreateOverlayDirs(f func(path string) error) (restore func()) {
-	old := createOverlayDirs
-	createOverlayDirs = f
-	return func() {
-		createOverlayDirs = old
-	}
-}
