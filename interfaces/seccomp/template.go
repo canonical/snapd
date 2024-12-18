@@ -55,6 +55,15 @@ set_tls
 usr26
 usr32
 
+# Requires input fd and so should not pose more security 
+# issues than access to the file in the first place
+# Flags are currently unused and should be 0
+cachestat - - - 0
+
+# Flags are currently unused and should be 0
+mseal - - 0
+map_shadow_stack
+
 capget
 # AppArmor mediates capabilities, so allow capset (useful for apps that for
 # example want to drop capabilities)
@@ -68,6 +77,7 @@ fchdir
 chmod
 fchmod
 fchmodat
+fchmodat2
 
 # Daemons typically run as 'root' so allow chown to 'root'. DAC will prevent
 # non-root from chowning to root.
@@ -146,8 +156,11 @@ flock
 fork
 ftime
 futex
+futex_requeue
 futex_time64
+futex_wait
 futex_waitv
+futex_wake
 get_mempolicy
 get_robust_list
 get_thread_area
