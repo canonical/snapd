@@ -21,6 +21,7 @@ package devicestate_test
 
 import (
 	"compress/gzip"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -2640,12 +2641,18 @@ func (s *installStepSuite) testDeviceManagerInstallSetupStorageEncryptionTasksAn
 	c.Assert(err, IsNil)
 	c.Assert(onVols, DeepEquals, mockOnVolumes)
 
+	var volumesAuthRequired bool
+	err = tskInstallFinish.Get("volumes-auth-required", &volumesAuthRequired)
 	cached := s.state.Cached(devicestate.VolumesAuthOptionsKeyByLabel("1234"))
 	if withVolumesAuth {
+		c.Assert(err, IsNil)
+		c.Assert(volumesAuthRequired, Equals, true)
 		c.Assert(cached, NotNil)
 		cachedVolumesAuth := cached.(*device.VolumesAuthOptions)
 		c.Check(cachedVolumesAuth, Equals, volumesAuth)
 	} else {
+		c.Assert(errors.Is(err, state.ErrNoState), Equals, true)
+		c.Assert(volumesAuthRequired, Equals, false)
 		c.Assert(cached, IsNil)
 	}
 }
