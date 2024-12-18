@@ -6,7 +6,8 @@ details: |
 
 # UC16 still uses the core snap rather than the snapd snap, so disable this test
 # for UC16
-systems: [-ubuntu-core-16-*]
+# The test uses a AMD revision of snapd, so disable this test for ARM
+systems: [-ubuntu-core-16-*,-ubuntu-*-arm-*]
 
 environment:
   SNAP_NAME_BAD: test-snapd-service-v2-bad
