@@ -242,7 +242,6 @@ if [ "$STATIC" = 1 ]; then
 
     if command -v shellcheck >/dev/null; then
         exclude_tools_path=tests/lib/external/snapd-testing-tools
-        excluded=("$exclude_tools_path" "tests/main/interfaces-auditd-support/test-snapd-auditd-support/etc/init.d/auditd" "tests/main/interfaces-auditd-support/test-snapd-auditd-support/sbin/augenrules")
         echo "Checking shell scripts..."
         if [ -n "$CHANGED_FILES" ]; then
             echo "Checking just the changed bash files"
@@ -257,14 +256,7 @@ if [ "$STATIC" = 1 ]; then
         echo "Filtering files"
         FILTERED_FILES=
         for file in $INITIAL_FILES; do
-            include_file=true
-            for excl in "${excluded[@]}" ; do
-                if echo "$file" | grep -q "$excl" ; then
-                    include_file=false
-                    break
-                fi
-            done
-            if [ "$include_file" = true ] ; then
+            if ! echo "$file" | grep -q "$exclude_tools_path"; then
                 FILTERED_FILES="$FILTERED_FILES $file"
             fi
         done
