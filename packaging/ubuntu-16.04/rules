@@ -103,8 +103,8 @@ _SNAP_TAGS=
 # check if we need to include the testkeys in the binary
 ifneq (,$(filter testkeys,$(DEB_BUILD_OPTIONS)))
   # if enabled also enable bootloader assets testing and fault injection
-	_TAGS := withtestkeys,withbootassetstesting,faultinject
-	_SNAP_TAGS := nomanagers,withtestkeys,faultinject
+	_TAGS := withtestkeys,withbootassetstesting,faultinject,statelock
+	_SNAP_TAGS := nomanagers,withtestkeys,faultinject,statelock
 else
 	_SNAP_TAGS=nomanagers
 endif

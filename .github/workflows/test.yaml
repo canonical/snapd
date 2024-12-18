@@ -195,6 +195,7 @@ jobs:
           - { go-build-tags: withbootassetstesting, skip-coverage: false, snapd-debug: false, go-test-race: false}
           - { go-build-tags: nosecboot,             skip-coverage: false, snapd-debug: false, go-test-race: false}
           - { go-build-tags: faultinject,           skip-coverage: false, snapd-debug: false, go-test-race: false}
+          - { go-build-tags: statelock,             skip-coverage: false, snapd-debug: false, go-test-race: false}
           - { go-build-tags: snapdusergo,           skip-coverage: false, snapd-debug: false, go-test-race: false}
           - { go-build-tags: "",                    skip-coverage: true,  snapd-debug: false, go-test-race: true }
 

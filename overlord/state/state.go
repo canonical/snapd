@@ -25,8 +25,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"os"
-	"runtime"
 	"sort"
 	"strconv"
 	"sync"
@@ -34,6 +32,7 @@ import (
 	"time"
 
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/osutil"
 )
 
 // A Backend is used by State to checkpoint on every unlock operation
@@ -143,7 +142,7 @@ func (s *State) Modified() bool {
 
 // Lock acquires the state lock.
 func (s *State) Lock() {
-	s.lockStart = time.Now().UnixNano() / int64(time.Millisecond)
+	s.lockStart = osutil.GetLockStart()
 	s.mu.Lock()
 	atomic.AddInt32(&s.muC, 1)
 }
@@ -164,12 +163,7 @@ func (s *State) writing() {
 func (s *State) unlock() {
 	atomic.AddInt32(&s.muC, -1)
 	s.mu.Unlock()
-	lockEnd := time.Now().UnixNano() / int64(time.Millisecond)
-	elapsedMilliseconds := lockEnd - s.lockStart
-	if elapsedMilliseconds > 5 {
-		formattedLine := fmt.Sprintf("Elapsed Time: %d milliseconds", elapsedMilliseconds)
-		traceCallers(formattedLine)
-	}
+	osutil.MaybeSaveLockTime(s.lockStart)
 }
 
 type marshalledState struct {
@@ -257,30 +251,6 @@ func (s *State) Unlocker() (unlock func() (relock func())) {
 		s.Unlock()
 		return s.Lock
 	}
-}
-
-func traceCallers(description string) {
-	tmpfile, err := os.OpenFile("/tmp/snapd_lock_traces", os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0600)
-	if err != nil {
-		logger.Panicf("could not open/create log traces file: %v", err)
-	}
-	defer tmpfile.Close()
-
-	pc := make([]uintptr, 10)
-	n := runtime.Callers(0, pc)
-	formattedLine := fmt.Sprintf("###%s\n", description)
-	if _, err = tmpfile.WriteString(formattedLine); err != nil {
-		logger.Panicf("internal error: could not write trace callers header to tmp file: %v", err)
-	}
-	for i := 0; i < n; i++ {
-		f := runtime.FuncForPC(pc[i])
-		file, line := f.FileLine(pc[i])
-		formattedLine = fmt.Sprintf("%s:%d %s\n", file, line, f.Name())
-		if _, err = tmpfile.WriteString(formattedLine); err != nil {
-			logger.Panicf("internal error: could not write trace callers to tmp file: %v", err)
-		}
-	}
-
 }
 
 // Unlock releases the state lock and checkpoints the state.
