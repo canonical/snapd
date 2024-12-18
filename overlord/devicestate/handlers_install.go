@@ -1177,6 +1177,22 @@ func (m *DeviceManager) doInstallSetupStorageEncryption(t *state.Task, _ *tomb.T
 		return err
 	}
 	logger.Debugf("install-setup-storage-encryption for %q on %v", systemLabel, onVolumes)
+	var volumesAuthRequired bool
+	if err := t.Get("volumes-auth-required", &volumesAuthRequired); err != nil && !errors.Is(err, state.ErrNoState) {
+		return err
+	}
+	var volumesAuth *device.VolumesAuthOptions
+	if volumesAuthRequired {
+		cached := st.Cached(volumesAuthOptionsKey{systemLabel})
+		if cached == nil {
+			return errors.New("volumes authentication is required but cannot find corresponding cached options")
+		}
+		var ok bool
+		volumesAuth, ok = cached.(*device.VolumesAuthOptions)
+		if !ok {
+			return fmt.Errorf("internal error: wrong data type under volumesAuthOptionsKey")
+		}
+	}
 
 	st.Unlock()
 	systemAndSeeds, mntPtForType, unmount, err := m.loadAndMountSystemLabelSnaps(systemLabel)
@@ -1210,10 +1226,9 @@ func (m *DeviceManager) doInstallSetupStorageEncryption(t *state.Task, _ *tomb.T
 		return fmt.Errorf("encryption unavailable on this device: %v", whyStr)
 	}
 
-	// TODO:ICE: support secboot.EncryptionTypeLUKSWithICE in the API
+	// TODO:ICE: support device.EncryptionTypeLUKSWithICE in the API
 	encType := device.EncryptionTypeLUKS
-	// TODO: Attach volumes auth options (volumesAuthOptionsKey) to encryption setup data.
-	encryptionSetupData, err := installEncryptPartitions(onVolumes, encType, systemAndSeeds.Model, mntPtForType[snap.TypeGadget], mntPtForType[snap.TypeKernel], perfTimings)
+	encryptionSetupData, err := installEncryptPartitions(onVolumes, volumesAuth, encType, systemAndSeeds.Model, mntPtForType[snap.TypeGadget], mntPtForType[snap.TypeKernel], perfTimings)
 	if err != nil {
 		return err
 	}

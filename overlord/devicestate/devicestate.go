@@ -1962,6 +1962,9 @@ func InstallSetupStorageEncryption(st *state.State, label string, onVolumes map[
 	setupStorageEncryptionTask := st.NewTask("install-setup-storage-encryption", fmt.Sprintf("Setup storage encryption for installing system %q", label))
 	setupStorageEncryptionTask.Set("system-label", label)
 	setupStorageEncryptionTask.Set("on-volumes", onVolumes)
+	if volumesAuth != nil {
+		setupStorageEncryptionTask.Set("volumes-auth-required", true)
+	}
 	chg.AddTask(setupStorageEncryptionTask)
 
 	return chg, nil
