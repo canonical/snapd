@@ -198,7 +198,7 @@ type essentialInfo struct {
 	Base        string
 }
 
-func snapEssentialInfo(fn, snapID string, bs asserts.Backstore, cs *ChannelRepository) (*essentialInfo, error) {
+func snapEssentialInfo(fn, snapID string, bs asserts.Backstore) (*essentialInfo, error) {
 	f, err := snapfile.Open(fn)
 	if err != nil {
 		return nil, fmt.Errorf("cannot read: %v: %v", fn, err)
@@ -448,7 +448,7 @@ func (s *Store) detailsEndpoint(w http.ResponseWriter, req *http.Request) {
 
 	sn := set.getLatest()
 
-	essInfo, err := snapEssentialInfo(sn.path, "", bs, s.channelRepository)
+	essInfo, err := snapEssentialInfo(sn.path, "", bs)
 	if err != nil {
 		http.Error(w, err.Error(), 400)
 		return
@@ -550,7 +550,7 @@ func (s *Store) collectSnaps(bs asserts.Backstore) (map[string]*revisionSet, err
 		// if the snap is asserted, then the returned info will contain the ID
 		// taken from the database
 		const snapID = ""
-		info, err := snapEssentialInfo(fn, snapID, bs, s.channelRepository)
+		info, err := snapEssentialInfo(fn, snapID, bs)
 		if err != nil {
 			return nil, err
 		}
@@ -679,7 +679,7 @@ func (s *Store) bulkEndpoint(w http.ResponseWriter, req *http.Request) {
 
 		sn := set.getLatest()
 
-		essInfo, err := snapEssentialInfo(sn.path, pkg.SnapID, bs, s.channelRepository)
+		essInfo, err := snapEssentialInfo(sn.path, pkg.SnapID, bs)
 		if err != nil {
 			http.Error(w, err.Error(), 400)
 			return
@@ -904,7 +904,7 @@ func (s *Store) snapActionEndpoint(w http.ResponseWriter, req *http.Request) {
 			continue
 		}
 
-		essInfo, err := snapEssentialInfo(sn.path, snapID, bs, s.channelRepository)
+		essInfo, err := snapEssentialInfo(sn.path, snapID, bs)
 		if err != nil {
 			http.Error(w, err.Error(), 400)
 			return
@@ -1133,14 +1133,12 @@ func (s *Store) nonceEndpoint(w http.ResponseWriter, req *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(200)
 	w.Write([]byte(`{"nonce": "blah"}`))
-	return
 }
 
 func (s *Store) sessionEndpoint(w http.ResponseWriter, req *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(200)
 	w.Write([]byte(`{"macaroon": "blahblah"}`))
-	return
 }
 
 type ChannelRepository struct {
@@ -1149,20 +1147,19 @@ type ChannelRepository struct {
 
 func (cr *ChannelRepository) findSnapChannels(snapDigest string) ([]string, error) {
 	dataPath := filepath.Join(cr.rootDir, snapDigest)
-	fd, err := os.Open(dataPath)
+	f, err := os.Open(dataPath)
 	if err != nil {
-		if os.IsNotExist(err) {
+		if errors.Is(err, os.ErrNotExist) {
 			return nil, nil
-		} else {
-			return nil, err
 		}
-	} else {
-		defer fd.Close()
-		sc := bufio.NewScanner(fd)
-		var lines []string
-		for sc.Scan() {
-			lines = append(lines, sc.Text())
-		}
-		return lines, nil
+		return nil, err
 	}
+	defer f.Close()
+
+	sc := bufio.NewScanner(f)
+	var lines []string
+	for sc.Scan() {
+		lines = append(lines, sc.Text())
+	}
+	return lines, nil
 }
