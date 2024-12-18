@@ -492,7 +492,7 @@ func postSystemActionCreateOffline(c *Command, form *Form) Response {
 	localSnaps := make([]devicestate.LocalSnap, 0, len(slInfo.snaps))
 	for _, sn := range slInfo.snaps {
 		localSnaps = append(localSnaps, devicestate.LocalSnap{
-			SideInfo: sn.sideInfo,
+			SideInfo: &sn.info.SideInfo,
 			Path:     sn.tmpPath,
 		})
 	}

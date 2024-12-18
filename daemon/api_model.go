@@ -192,12 +192,12 @@ func startOfflineRemodelChange(st *state.State, newModel *asserts.Model,
 	for _, psi := range slInfo.snaps {
 		// Move file to the same name of what a downloaded one would have
 		dest := filepath.Join(dirs.SnapBlobDir,
-			fmt.Sprintf("%s_%s.snap", psi.sideInfo.RealName, psi.sideInfo.Revision))
+			fmt.Sprintf("%s_%s.snap", psi.info.RealName, psi.info.Revision))
 		os.Rename(psi.tmpPath, dest)
 		// Avoid trying to remove a file that does not exist anymore
 		*pathsToNotRemove = append(*pathsToNotRemove, psi.tmpPath)
 
-		sideInfos = append(sideInfos, psi.sideInfo)
+		sideInfos = append(sideInfos, &psi.info.SideInfo)
 		paths = append(paths, dest)
 	}
 
