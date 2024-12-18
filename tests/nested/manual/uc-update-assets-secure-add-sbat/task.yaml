@@ -145,8 +145,19 @@ prepare: |
   remote.wait-for snap-command
   remote.exec "sudo snap wait system seed.loaded"
 
+debug: |
+  cat expected-before
+  cat expected-after
+  for file in $(remote.exec "find /run/mnt/ubuntu-boot/EFI/ -name '*.efi'"); do remote.exec "sha256sum $file"; done
+  for file in $(remote.exec "find /run/mnt/ubuntu-seed/EFI/ -name '*.efi'"); do remote.exec "sha256sum $file"; done
+
 execute: |
-  remote.exec "sha256sum -c" <expected-before
+  if ! result=$(remote.exec "sha256sum -c" <expected-before 2>&1); then
+    MATCH 'bootx64.efi.*FAILED open or read' <<< "$result"
+    NOMATCH 'bootx64.efi.*FAILED$' <<< "$result"
+    # The bootx64.efi may not exist, but the grubx64.efi must
+    remote.exec "sha256sum -c" <<< "$(grep grubx64 expected-before)"
+  fi
 
   remote.push pc_2.snap
   boot_id="$(tests.nested boot-id)"
@@ -155,4 +166,9 @@ execute: |
   remote.wait-for reboot "${boot_id}"
   remote.exec sudo snap watch "$REMOTE_CHG_ID"
 
-  remote.exec "sha256sum -c" <expected-after
+  if ! result=$(remote.exec "sha256sum -c" <expected-after 2>&1); then
+    MATCH 'bootx64.efi.*FAILED open or read' <<< "$result"
+    NOMATCH 'bootx64.efi.*FAILED$' <<< "$result"
+    # The bootx64.efi may not exist, but the grubx64.efi must
+    remote.exec "sha256sum -c" <<< "$(grep grubx64 expected-after)"
+  fi
