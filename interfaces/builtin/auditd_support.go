@@ -19,29 +19,29 @@
 
 package builtin
 
-const auditControlSummary = `allows control over the kernel audit system`
+const auditdSupportSummary = `allows control over the kernel audit system and access to files relevant to auditd`
 
-const auditControlBaseDeclarationPlugs = `
-  audit-control:
+const auditdSupportBaseDeclarationPlugs = `
+  auditd-support:
     allow-installation: false
     deny-auto-connection: true
 `
 
-const auditControlBaseDeclarationSlots = `
-  audit-control:
+const auditdSupportBaseDeclarationSlots = `
+  auditd-support:
     allow-installation:
       slot-snap-type:
         - core
     deny-auto-connection: true
 `
 
-const auditControlConnectedPlugSecComp = `
+const auditdSupportConnectedPlugSecComp = `
 # Description: Can use netlink to communicate with kernel audit system.
 bind
 socket AF_NETLINK - NETLINK_AUDIT
 `
 
-const auditControlConnectedPlugAppArmor = `
+const auditdSupportConnectedPlugAppArmor = `
 # Description: Can use netlink to communicate with kernel audit system.
 network netlink,
 
@@ -59,19 +59,19 @@ capability audit_control,
 @{PROC}/@{pid}/oom_score_adj rw,
 `
 
-type auditControlInterface struct {
+type auditdSupportInterface struct {
 	commonInterface
 }
 
 func init() {
-	registerIface(&auditControlInterface{commonInterface{
-		name:                  "audit-control",
-		summary:               auditControlSummary,
+	registerIface(&auditdSupportInterface{commonInterface{
+		name:                  "auditd-support",
+		summary:               auditdSupportSummary,
 		implicitOnCore:        true,
 		implicitOnClassic:     true,
-		baseDeclarationPlugs:  auditControlBaseDeclarationPlugs,
-		baseDeclarationSlots:  auditControlBaseDeclarationSlots,
-		connectedPlugSecComp:  auditControlConnectedPlugSecComp,
-		connectedPlugAppArmor: auditControlConnectedPlugAppArmor,
+		baseDeclarationPlugs:  auditdSupportBaseDeclarationPlugs,
+		baseDeclarationSlots:  auditdSupportBaseDeclarationSlots,
+		connectedPlugSecComp:  auditdSupportConnectedPlugSecComp,
+		connectedPlugAppArmor: auditdSupportConnectedPlugAppArmor,
 	}})
 }

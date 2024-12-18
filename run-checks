@@ -242,7 +242,7 @@ if [ "$STATIC" = 1 ]; then
 
     if command -v shellcheck >/dev/null; then
         exclude_tools_path=tests/lib/external/snapd-testing-tools
-        excluded=("$exclude_tools_path" "tests/main/interfaces-audit-control/test-snapd-audit-control/etc/init.d/auditd" "tests/main/interfaces-audit-control/test-snapd-audit-control/sbin/augenrules")
+        excluded=("$exclude_tools_path" "tests/main/interfaces-auditd-support/test-snapd-auditd-support/etc/init.d/auditd" "tests/main/interfaces-auditd-support/test-snapd-auditd-support/sbin/augenrules")
         echo "Checking shell scripts..."
         if [ -n "$CHANGED_FILES" ]; then
             echo "Checking just the changed bash files"

@@ -1,7 +1,7 @@
-name: test-snapd-audit-control
+name: test-snapd-auditd-support
 base: core22
 version: '1.1'
-summary: Basic snap to test the audit-control interface
+summary: Basic snap to test the auditd-support interface
 description: |
   A basic snap which uses the audit_control capability, reads /proc/*/loginuid
   and /proc/*/sessionid, writes /run/auditd.pid and /run/auditd.state, and
@@ -27,13 +27,13 @@ parts:
 apps:
   audit-rate:
     command: bin/audit-rate
-    plugs: [audit-control]
+    plugs: [auditd-support]
   read-ids:
     command: bin/read-ids
-    plugs: [audit-control]
+    plugs: [auditd-support]
   write-auditd-pid-state:
     command: bin/write-auditd-pid-state
-    plugs: [audit-control]
+    plugs: [auditd-support]
   adjust-oom-score:
     command: bin/adjust-oom-score
-    plugs: [audit-control]
+    plugs: [auditd-support]
