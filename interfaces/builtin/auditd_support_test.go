@@ -30,7 +30,7 @@ import (
 	"github.com/snapcore/snapd/testutil"
 )
 
-type AuditControlInterfaceSuite struct {
+type AuditdSupportInterfaceSuite struct {
 	iface    interfaces.Interface
 	slotInfo *snap.SlotInfo
 	slot     *interfaces.ConnectedSlot
@@ -38,44 +38,44 @@ type AuditControlInterfaceSuite struct {
 	plug     *interfaces.ConnectedPlug
 }
 
-const auditControlMockPlugSnapInfoYaml = `name: other
+const auditdSupportMockPlugSnapInfoYaml = `name: other
 version: 1.0
 apps:
  app2:
   command: foo
-  plugs: [audit-control]
+  plugs: [auditd-support]
 `
 
-const auditControlMockSlotSnapInfoYaml = `name: core
+const auditdSupportMockSlotSnapInfoYaml = `name: core
 version: 1.0
 type: os
 slots:
- audit-control:
-  interface: audit-control
+ auditd-support:
+  interface: auditd-support
 `
 
-var _ = Suite(&AuditControlInterfaceSuite{
-	iface: builtin.MustInterface("audit-control"),
+var _ = Suite(&AuditdSupportInterfaceSuite{
+	iface: builtin.MustInterface("auditd-support"),
 })
 
-func (s *AuditControlInterfaceSuite) SetUpTest(c *C) {
-	s.slot, s.slotInfo = MockConnectedSlot(c, auditControlMockSlotSnapInfoYaml, nil, "audit-control")
-	s.plug, s.plugInfo = MockConnectedPlug(c, auditControlMockPlugSnapInfoYaml, nil, "audit-control")
+func (s *AuditdSupportInterfaceSuite) SetUpTest(c *C) {
+	s.slot, s.slotInfo = MockConnectedSlot(c, auditdSupportMockSlotSnapInfoYaml, nil, "auditd-support")
+	s.plug, s.plugInfo = MockConnectedPlug(c, auditdSupportMockPlugSnapInfoYaml, nil, "auditd-support")
 }
 
-func (s *AuditControlInterfaceSuite) TestName(c *C) {
-	c.Assert(s.iface.Name(), Equals, "audit-control")
+func (s *AuditdSupportInterfaceSuite) TestName(c *C) {
+	c.Assert(s.iface.Name(), Equals, "auditd-support")
 }
 
-func (s *AuditControlInterfaceSuite) TestSanitizeSlot(c *C) {
+func (s *AuditdSupportInterfaceSuite) TestSanitizeSlot(c *C) {
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.slotInfo), IsNil)
 }
 
-func (s *AuditControlInterfaceSuite) TestSanitizePlug(c *C) {
+func (s *AuditdSupportInterfaceSuite) TestSanitizePlug(c *C) {
 	c.Assert(interfaces.BeforePreparePlug(s.iface, s.plugInfo), IsNil)
 }
 
-func (s *AuditControlInterfaceSuite) TestAppArmorSpec(c *C) {
+func (s *AuditdSupportInterfaceSuite) TestAppArmorSpec(c *C) {
 	spec := apparmor.NewSpecification(s.plug.AppSet())
 	err := spec.AddConnectedPlug(s.iface, s.plug, s.slot)
 	c.Assert(err, IsNil)
@@ -86,7 +86,7 @@ func (s *AuditControlInterfaceSuite) TestAppArmorSpec(c *C) {
 	c.Check(spec.SnippetForTag("snap.other.app2"), testutil.Contains, "@{PROC}/@{pid}/oom_score_adj rw,\n")
 }
 
-func (s *AuditControlInterfaceSuite) TestSecCompSpec(c *C) {
+func (s *AuditdSupportInterfaceSuite) TestSecCompSpec(c *C) {
 	spec := seccomp.NewSpecification(s.plug.AppSet())
 	err := spec.AddConnectedPlug(s.iface, s.plug, s.slot)
 	c.Assert(err, IsNil)
@@ -94,6 +94,6 @@ func (s *AuditControlInterfaceSuite) TestSecCompSpec(c *C) {
 	c.Check(spec.SnippetForTag("snap.other.app2"), testutil.Contains, "socket AF_NETLINK")
 }
 
-func (s *AuditControlInterfaceSuite) TestInterfaces(c *C) {
+func (s *AuditdSupportInterfaceSuite) TestInterfaces(c *C) {
 	c.Check(builtin.Interfaces(), testutil.DeepContains, s.iface)
 }

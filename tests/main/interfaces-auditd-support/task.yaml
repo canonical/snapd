@@ -1,62 +1,63 @@
-summary: Ensure that the audit-control interface works.
+summary: Ensure that the auditd-support interface works.
 
 details: |
-    The audit-control interface allows enabling/disabling the kernel audit
+    The auditd-support interface allows enabling/disabling the kernel audit
     system, changing auditing filters, retrieving auditing status and filtering
-    rules. The test-snapd-audit-control snap requires the audit_control
-    capability and accesses paths related to auditd.
+    rules. It also allows accessing various paths related to auditd. The
+    test-snapd-auditd-support snap requires the audit_control capability and
+    accesses those paths.
 
 # arch: CONFIG_AUDIT is not enabled in the default kernel
-# arm: test-snapd-audit-control is only built for x86_64
-# TODO: build test-snapd-audit-control for arm and remove that restriction here
+# arm: test-snapd-auditd-support is only built for x86_64
+# TODO: build test-snapd-auditd-support for arm and remove that restriction here
 systems: [-arch-*, -ubuntu-*-arm-*]
 
 prepare: |
-    # Install a snap declaring a plug on audit-control
-    snap install test-snapd-audit-control
+    # Install a snap declaring a plug on auditd-support
+    snap install test-snapd-auditd-support
 
 execute: |
     echo "The interface is disconnected by default"
-    snap interfaces -i audit-control | MATCH -- '- +test-snapd-audit-control:audit-control'
+    snap interfaces -i auditd-support | MATCH -- '- +test-snapd-auditd-support:auditd-support'
 
     echo "When the interface is connected"
-    snap connect test-snapd-audit-control:audit-control
+    snap connect test-snapd-auditd-support:auditd-support
 
     echo "Then the snap is able to use the audit_control capability"
-    test-snapd-audit-control.audit-rate
+    test-snapd-auditd-support.audit-rate
 
     echo "And the snap is able to read /proc/*/{loginuid,sessionid} and write /run/auditd.{pid,state}"
-    test-snapd-audit-control.read-ids
-    test-snapd-audit-control.write-auditd-pid-state
+    test-snapd-auditd-support.read-ids
+    test-snapd-auditd-support.write-auditd-pid-state
 
     echo "And the snap is able to adjust its own OOM score"
-    test-snapd-audit-control.adjust-oom-score
+    test-snapd-auditd-support.adjust-oom-score
 
     if [ "$(snap debug confinement)" = partial ] ; then
         exit 0
     fi
 
     echo "When the plug is disconnected"
-    snap disconnect test-snapd-audit-control:audit-control
+    snap disconnect test-snapd-auditd-support:auditd-support
 
     echo "Then the snap is not able to use the audit_control capability"
-    if test-snapd-audit-control.audit-rate; then
+    if test-snapd-auditd-support.audit-rate; then
         echo "Expected permission error using audit_control capability"
         exit 1
     fi
 
     echo "And the snap is not able to read /proc/*/{loginuid,sessionid} or write /run/auditd.{pid,state}"
-    if test-snapd-audit-control.read-ids; then
+    if test-snapd-auditd-support.read-ids; then
         echo "Expected permission error reading /proc/*/{loginuid,sessionid}"
         exit 1
     fi
-    if test-snapd-audit-control.write-auditd-pid-state; then
+    if test-snapd-auditd-support.write-auditd-pid-state; then
         echo "Expected permission error writing /run/auditd.pid and /run/auditd.state"
         exit 1
     fi
 
     echo "And the snap is not able to adjust its own OOM score"
-    if test-snapd-audit-control.adjust-oom-score; then
+    if test-snapd-auditd-support.adjust-oom-score; then
         echo "Expected permission error writing /proc/self/oom_score_adj"
         exit 1
     fi
