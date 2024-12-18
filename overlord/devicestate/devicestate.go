@@ -1767,6 +1767,8 @@ func CreateRecoverySystem(st *state.State, label string, opts CreateRecoverySyst
 		// TODO: this respects the passed in validation sets, but does not
 		// currently respect refresh-control style of constraining snap
 		// revisions.
+		//
+		// TODO: download somewhere other than the default snap blob dir.
 		ts, info, err := snapstateDownload(context.TODO(), st, sn.Name, nil, dirs.SnapBlobDir, snapstate.RevisionOptions{
 			Channel:        sn.DefaultChannel,
 			Revision:       rev,
