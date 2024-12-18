@@ -707,6 +707,7 @@ prepare_suite_each() {
     fi
 
     if [[ "$variant" = full ]]; then
+        # shellcheck source=tests/lib/prepare.sh
         . "$TESTSLIB"/prepare.sh
         # shellcheck source=tests/lib/prepare.sh
         . "$TESTSLIB"/prepare.sh
