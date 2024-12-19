@@ -4,7 +4,7 @@ go 1.18
 
 require github.com/snapcore/snapd v0.0.0-20240822132116-0bf8d83f4586
 
-replace github.com/snapcore/snapd => github.com/ZeyadYasser/snapd v0.0.0-20241211185531-05a4adfc69af
+replace github.com/snapcore/snapd => github.com/ZeyadYasser/snapd v0.0.0-20241218154136-f70f5ea07679
 
 require (
 	github.com/canonical/cpuid v0.0.0-20220614022739-219e067757cb // indirect

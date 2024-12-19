@@ -38,6 +38,7 @@ import (
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget"
+	"github.com/snapcore/snapd/gadget/device"
 	"github.com/snapcore/snapd/gadget/install"
 	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/logger"
@@ -219,8 +220,8 @@ func postSystemsInstallSetupStorageEncryption(cli *client.Client,
 		OnVolumes: details.Volumes,
 	}
 	if volumesAuth.passphrase != "" {
-		opts.VolumesAuth = &secboot.VolumesAuthOptions{
-			Mode:       secboot.AuthModePassphrase,
+		opts.VolumesAuth = &device.VolumesAuthOptions{
+			Mode:       device.AuthModePassphrase,
 			Passphrase: volumesAuth.passphrase,
 			KDFType:    volumesAuth.kdfType,
 			KDFTime:    volumesAuth.kdfTime,
