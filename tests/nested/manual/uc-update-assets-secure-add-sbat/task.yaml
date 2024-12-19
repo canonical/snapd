@@ -139,6 +139,12 @@ prepare: |
   EOF
   fi
 
+  # UC22 does not have bootx64.efi in its pc-gadget
+  if tests.nested is-nested uc22; then
+    grep 'grubx64.efi' expected-before > tmp && mv tmp expected-before
+    grep 'grubx64.efi' expected-after > tmp && mv tmp expected-after
+  fi
+
   snap pack pc --filename=pc_2.snap
 
   remote.exec systemctl --wait is-system-running || true
@@ -152,12 +158,7 @@ debug: |
   for file in $(remote.exec "find /run/mnt/ubuntu-seed/EFI/ -name '*.efi'"); do remote.exec "sha256sum $file"; done
 
 execute: |
-  if ! result=$(remote.exec "sha256sum -c" <expected-before 2>&1); then
-    MATCH 'bootx64.efi.*FAILED open or read' <<< "$result"
-    NOMATCH 'bootx64.efi.*FAILED$' <<< "$result"
-    # The bootx64.efi may not exist, but the grubx64.efi must
-    remote.exec "sha256sum -c" <<< "$(grep grubx64 expected-before)"
-  fi
+  remote.exec "sha256sum -c" <expected-before
 
   remote.push pc_2.snap
   boot_id="$(tests.nested boot-id)"
@@ -166,9 +167,4 @@ execute: |
   remote.wait-for reboot "${boot_id}"
   remote.exec sudo snap watch "$REMOTE_CHG_ID"
 
-  if ! result=$(remote.exec "sha256sum -c" <expected-after 2>&1); then
-    MATCH 'bootx64.efi.*FAILED open or read' <<< "$result"
-    NOMATCH 'bootx64.efi.*FAILED$' <<< "$result"
-    # The bootx64.efi may not exist, but the grubx64.efi must
-    remote.exec "sha256sum -c" <<< "$(grep grubx64 expected-after)"
-  fi
+  remote.exec "sha256sum -c" <expected-after
