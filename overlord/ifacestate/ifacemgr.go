@@ -208,7 +208,7 @@ func (m *InterfaceManager) StartUp() error {
 		// Check if there is at least one snap on the system which has a
 		// connection using the "snap-interfaces-requests-control" plug
 		// with a "handler-service" attribute declared.
-		present, err := m.interfacesRequestsControlHandlerServicePresent()
+		present, err := interfacesRequestsControlHandlerServicePresent(m)
 		if err != nil {
 			// Internal error, should not occur
 			logger.Noticef("failed to check the presence of a interfaces-requests-control handler service: %v", err)
@@ -574,11 +574,7 @@ func (m *InterfaceManager) initUDevMonitor() error {
 // with an app declared by the "handler-service" attribute.
 //
 // The caller must ensure that the state lock is held.
-func (m *InterfaceManager) interfacesRequestsControlHandlerServicePresent() (bool, error) {
-	return interfacesRequestsControlHandlerServicePresentImpl(m)
-}
-
-var interfacesRequestsControlHandlerServicePresentImpl = func(m *InterfaceManager) (bool, error) {
+var interfacesRequestsControlHandlerServicePresent = func(m *InterfaceManager) (bool, error) {
 	handlers, err := InterfacesRequestsControlHandlerServices(m.state)
 	if err != nil {
 		return false, err
