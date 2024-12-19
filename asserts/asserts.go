@@ -569,7 +569,7 @@ type SequenceMember interface {
 // customSigner represents an assertion with special arrangements for its signing key (e.g. self-signed), rather than the usual case where an assertion is signed by its authority.
 type customSigner interface {
 	// signKey returns the public key material for the key that signed this assertion.  See also SignKeyID.
-	signKey() PublicKey
+	signKey(db RODatabase) (PublicKey, error)
 }
 
 // MediaType is the media type for encoded assertions on the wire.
