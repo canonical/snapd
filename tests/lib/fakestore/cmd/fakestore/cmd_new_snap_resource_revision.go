@@ -10,7 +10,7 @@ import (
 
 type cmdNewSnapResourceRevision struct {
 	Positional struct {
-		Component               string `description:"Component blob file"`
+		Component               string `description:"Path to a component blob file"`
 		SnapResourceRevJsonPath string `description:"Path to a json encoded snap resource revision subset"`
 	} `positional-args:"yes" required:"yes"`
 
