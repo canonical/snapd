@@ -527,7 +527,7 @@ func (rs *revisionSet) add(rev snap.Revision, path string) {
 func (rs *revisionSet) addComponent(name string, compRev snap.Revision, path string, snapRev snap.Revision) error {
 	sn, ok := rs.revisions[snapRev]
 	if !ok {
-		return fmt.Errorf("cannot find snap revision %q", snapRev.String())
+		return fmt.Errorf("cannot find snap revision %q", snapRev)
 	}
 
 	sn.components[name] = availableComponent{path: path, revision: compRev}
