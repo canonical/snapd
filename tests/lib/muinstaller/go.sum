@@ -1,5 +1,5 @@
-github.com/ZeyadYasser/snapd v0.0.0-20241211185531-05a4adfc69af h1:84vFr490ho9C12Ht3VGJaC1ws9/g+5TCc5pRfypEqho=
-github.com/ZeyadYasser/snapd v0.0.0-20241211185531-05a4adfc69af/go.mod h1:oHKvPyDOnp7lcjmuRdHuN2qfDI+PpDSBU2efEIHxaVE=
+github.com/ZeyadYasser/snapd v0.0.0-20241218154136-f70f5ea07679 h1:bgzxoRBc6Yz2uPGLMxYIVHqyKf0gBzFOGaj4jP2b7MI=
+github.com/ZeyadYasser/snapd v0.0.0-20241218154136-f70f5ea07679/go.mod h1:oHKvPyDOnp7lcjmuRdHuN2qfDI+PpDSBU2efEIHxaVE=
 github.com/bmatcuk/doublestar/v4 v4.6.1 h1:FH9SifrbvJhnlQpztAx++wlkk70QBf0iBWDwNy7PA4I=
 github.com/canonical/cpuid v0.0.0-20220614022739-219e067757cb h1:+kA/9oHTqUx4P08ywKvmd7a1wOL3RLTrE0K958C15x8=
 github.com/canonical/cpuid v0.0.0-20220614022739-219e067757cb/go.mod h1:6j8Sw3dwYVcBXltEeGklDoK/8UJVJNQPUkg1ZdQUgbk=
