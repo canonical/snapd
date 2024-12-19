@@ -6,8 +6,7 @@ details: |
 
 # UC16 still uses the core snap rather than the snapd snap, so disable this test
 # for UC16
-# The test uses a AMD revision of snapd, so disable this test for ARM
-systems: [-ubuntu-core-16-*,-ubuntu-*-arm-*]
+systems: [-ubuntu-core-16-*]
 
 environment:
   SNAP_NAME_BAD: test-snapd-service-v2-bad
@@ -29,10 +28,17 @@ execute: |
   # store a copy of the built snapd
   cp /var/lib/snapd/snaps/snapd_x1.snap ./snapd.snap
 
+  revision=""
+  if os.query is_arm; then
+    revision=18363
+  else
+    revision=18357
+  fi
+
   # refresh to a snapd prior to snapd snap, this one is chosen from
   # a customer case where they were seeing issues with snapd reverting
-  snap refresh snapd --amend --revision=18357
-  snap list | MATCH "snapd.*18357"
+  snap refresh snapd --amend --revision="$revision"
+  snap list | MATCH "snapd.*$revision"
 
   # perform a refresh to the current snapd, this will fail, do it in a way
   # that will make snapd revert
