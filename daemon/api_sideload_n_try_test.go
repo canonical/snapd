@@ -2026,7 +2026,7 @@ func (s *sideloadSuite) TestSideloadManyOnlyComponents(c *check.C) {
 	st.Lock()
 	defer st.Unlock()
 
-	expectedFileNames := []string{"one+comp-one.comp.comp", "one+comp-two.comp.comp", "one+comp-three.comp.comp", "one+comp-four.comp.comp"}
+	expectedFileNames := []string{"one+comp-one.comp", "one+comp-two.comp", "one+comp-three.comp", "one+comp-four.comp"}
 
 	fullComponentNames := make([]string, len(components))
 	for i, c := range components {
