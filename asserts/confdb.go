@@ -119,6 +119,22 @@ type ConfdbControl struct {
 	operators map[string]*confdb.Operator
 }
 
+// NewConfdbControl returns an empty confdb-control assertion.
+func NewConfdbControl(serial *Serial) *ConfdbControl {
+	return &ConfdbControl{
+		assertionBase: assertionBase{
+			headers: map[string]interface{}{
+				"type":     "confdb-control",
+				"brand-id": serial.BrandID(),
+				"model":    serial.Model(),
+				"serial":   serial.Serial(),
+				"groups":   []interface{}{},
+			},
+		},
+		operators: map[string]*confdb.Operator{},
+	}
+}
+
 // BrandID returns the brand identifier of the device.
 func (cc *ConfdbControl) BrandID() string {
 	return cc.HeaderString("brand-id")
@@ -133,6 +149,72 @@ func (cc *ConfdbControl) Model() string {
 // Together with brand-id and model, they form the device's unique identifier.
 func (cc *ConfdbControl) Serial() string {
 	return cc.HeaderString("serial")
+}
+
+// IsDelegated checks if the view is delegated to the operator with the given auth.
+func (cc *ConfdbControl) IsDelegated(operatorID, view string, auth []string) (bool, error) {
+	operator, ok := cc.operators[operatorID]
+	if !ok {
+		return false, nil // nothing is delegated to this operator
+	}
+
+	return operator.IsDelegated(view, auth)
+}
+
+// Delegate delegates the given views with the provided auth to the operator.
+func (cc *ConfdbControl) Delegate(operatorID string, views, auth []string) error {
+	operator, ok := cc.operators[operatorID]
+	if !ok {
+		operator = &confdb.Operator{ID: operatorID}
+	}
+
+	err := operator.Delegate(views, auth)
+	if err != nil {
+		return err
+	}
+
+	cc.operators[operatorID] = operator
+	return nil
+}
+
+// Revoke withdraws access to the views that have been delegated with the provided auth.
+func (cc *ConfdbControl) Revoke(operatorID string, views, auth []string) error {
+	operator, ok := cc.operators[operatorID]
+	if !ok {
+		return nil // nothing is delegated to this operator
+	}
+
+	if len(views) == 0 && len(auth) == 0 {
+		delete(cc.operators, operatorID) // completely revoke access from this operator
+		return nil
+	}
+
+	return operator.Revoke(views, auth)
+}
+
+// Groups returns the groups in the raw assertion's format.
+func (cc *ConfdbControl) Groups() (groups []interface{}) {
+	for _, op := range cc.operators {
+		for _, group := range op.Groups {
+			auth := []interface{}{}
+			for _, a := range group.Authentication {
+				auth = append(auth, string(a))
+			}
+
+			views := []interface{}{}
+			for _, v := range group.Views {
+				views = append(views, v.String())
+			}
+
+			out := map[string]interface{}{
+				"operator-id":    op.ID,
+				"authentication": auth,
+				"views":          views,
+			}
+			groups = append(groups, out)
+		}
+	}
+	return
 }
 
 // assembleConfdbControl creates a new confdb-control assertion after validating
@@ -209,7 +291,7 @@ func parseConfdbControlGroups(rawGroups []interface{}) (map[string]*confdb.Opera
 			return nil, fmt.Errorf(`%s: "views" must be provided`, errPrefix)
 		}
 
-		if err := operator.AddControlGroup(views, auth); err != nil {
+		if err := operator.Delegate(views, auth); err != nil {
 			return nil, fmt.Errorf(`%s: %w`, errPrefix, err)
 		}
 	}
