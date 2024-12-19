@@ -141,14 +141,14 @@ func MockAssessAppArmorPrompting(new func(m *InterfaceManager) bool) (restore fu
 }
 
 func MockInterfacesRequestsControlHandlerServicePresent(new func(m *InterfaceManager) (bool, error)) (restore func()) {
-	return testutil.Mock(&interfacesRequestsControlHandlerServicePresentImpl, new)
+	return testutil.Mock(&interfacesRequestsControlHandlerServicePresent, new)
 }
 
 func CallInterfacesRequestsControlHandlerServicePresent(s *state.State) (bool, error) {
 	manager := &InterfaceManager{
 		state: s,
 	}
-	return manager.interfacesRequestsControlHandlerServicePresent()
+	return interfacesRequestsControlHandlerServicePresent(manager)
 }
 
 func MockUDevInitRetryTimeout(t time.Duration) (restore func()) {
