@@ -101,7 +101,7 @@ func (s *snapmgrBaseTest) settle(c *C) {
 	s.state.Unlock()
 	defer s.state.Lock()
 
-	err := s.o.Settle(testutil.HostScaledTimeout(15 * time.Second))
+	err := s.o.Settle(testutil.HostScaledTimeout(10 * time.Second))
 	if err != nil {
 		s.state.Lock()
 		defer s.state.Unlock()
