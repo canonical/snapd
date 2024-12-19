@@ -299,8 +299,11 @@ prepare_memory_limit_override() {
         # systemd is backwards compatible so the limit is still set.
         cat <<EOF > /etc/systemd/system/snapd.service.d/memory-max.conf
 [Service]
-MemoryLimit=200M
+MemoryLimit=150M
+OOMPolicy=kill
 EOF
+        # disable ASLR
+        echo 0 > /proc/sys/kernel/randomize_va_space
     fi
     # the service setting may have changed in the service so we need
     # to ensure snapd is reloaded
