@@ -47,7 +47,7 @@ const (
 	EFISecurebootDBX
 )
 
-// EFISecureBootDBUpdatePrepare notifies notifies that the local EFI key
+// EFISecureBootDBUpdatePrepare notifies that the local EFI key
 // database manager is about to update the database.
 func EFISecureBootDBUpdatePrepare(st *state.State, db EFISecurebootKeyDatabase, payload []byte) error {
 	method, err := device.SealedKeysMethod(dirs.GlobalRootDir)
@@ -205,7 +205,7 @@ type dbxUpdateContext struct {
 }
 
 // addEFISecurebootDBUpdateChange adds a state change related to the DBX
-// update. The state must be locked by the caller
+// update. The state must be locked by the caller.
 func addEFISecurebootDBUpdateChange(st *state.State, method device.SealingMethod, payload []byte) (*externalOperation, error) {
 	// add a change carrying 2 tasks:
 	// - efi-secureboot-db-update-prepare: with a noop do, but the undo handler

@@ -90,8 +90,6 @@ func Manager(st *state.State, runner *state.TaskRunner) (*FDEManager, error) {
 
 	snapstate.RegisterAffectedSnapsByKind("efi-secureboot-db-update", dbxUpdateAffectedSnaps)
 
-	// TODO call to state.RegisterPendingChangeByAttr() to block state from
-	// pruning EFI changes?
 	runner.AddHandler("efi-secureboot-db-update-prepare",
 		m.doEFISecurebootDBUpdatePrepare, m.undoEFISecurebootDBUpdatePrepare)
 	runner.AddCleanup("efi-secureboot-db-update-prepare", m.doEFISecurebootDBUpdatePrepareCleanup)
