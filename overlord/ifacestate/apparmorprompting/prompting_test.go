@@ -590,8 +590,8 @@ func (s *apparmorpromptingSuite) TestExistingRulePartiallyAllowsNewPrompt(c *C) 
 	}
 	_, prompt := s.simulateRequest(c, reqChan, mgr, partialReq, false)
 
-	// Check that prompt was created for remaining "write" permission
-	c.Check(prompt.Constraints.RemainingPermissions(), DeepEquals, []string{"write"})
+	// Check that prompt was created for outstanding "write" permission
+	c.Check(prompt.Constraints.OutstandingPermissions(), DeepEquals, []string{"write"})
 
 	c.Assert(mgr.Stop(), IsNil)
 }
@@ -765,7 +765,7 @@ func (s *apparmorpromptingSuite) TestNewRuleAllowExistingPrompt(c *C) {
 	c.Check(err, NotNil)
 
 	// Check that rwPrompt only has write permission left
-	c.Check(rwPrompt.Constraints.RemainingPermissions(), DeepEquals, []string{"write"})
+	c.Check(rwPrompt.Constraints.OutstandingPermissions(), DeepEquals, []string{"write"})
 
 	// Check that two prompts still exist
 	prompts, err := mgr.Prompts(s.defaultUser, clientActivity)
@@ -1097,7 +1097,7 @@ func (s *apparmorpromptingSuite) TestRequestMerged(c *C) {
 	}
 	s.simulateRequest(c, reqChan, mgr, identicalReqAgain, true)
 
-	// Now new requests for just write access will have identical remaining
+	// Now new requests for just write access will have identical outstanding
 	// permissions, but not identical original permissions, so should not merge
 	readReq := &listener.Request{
 		Permission: notify.AA_MAY_WRITE,

@@ -212,7 +212,7 @@ func (m *InterfacesRequestsManager) handleListenerReq(req *listener.Request) err
 		return requestReply(req, nil)
 	}
 
-	remainingPerms := make([]string, 0, len(permissions))
+	outstandingPerms := make([]string, 0, len(permissions))
 	satisfiedPerms := make([]string, 0, len(permissions))
 
 	// we're done with early checks, serious business starts now, and we can
@@ -234,7 +234,7 @@ func (m *InterfacesRequestsManager) handleListenerReq(req *listener.Request) err
 				logger.Noticef("error while checking request against existing rules: %v", err)
 			}
 			// No matching rule found
-			remainingPerms = append(remainingPerms, perm)
+			outstandingPerms = append(outstandingPerms, perm)
 		}
 	}
 	if matchedDenyRule {
@@ -250,7 +250,7 @@ func (m *InterfacesRequestsManager) handleListenerReq(req *listener.Request) err
 		return requestReply(req, allowedPermission)
 	}
 
-	if len(remainingPerms) == 0 {
+	if len(outstandingPerms) == 0 {
 		logger.Debugf("request allowed by existing rule: %+v", req)
 
 		// We don't want to just send back req.Permission() here, since that
@@ -273,7 +273,7 @@ func (m *InterfacesRequestsManager) handleListenerReq(req *listener.Request) err
 		Interface: iface,
 	}
 
-	newPrompt, merged, err := m.prompts.AddOrMerge(metadata, path, permissions, remainingPerms, req)
+	newPrompt, merged, err := m.prompts.AddOrMerge(metadata, path, permissions, outstandingPerms, req)
 	if err != nil {
 		logger.Noticef("error while checking request against prompt DB: %v", err)
 
@@ -390,10 +390,10 @@ func (m *InterfacesRequestsManager) HandleReply(userID uint32, promptID promptin
 
 	// XXX: do we want to allow only replying to a select subset of permissions, and
 	// auto-deny the rest?
-	contained := constraints.ContainPermissions(prompt.Constraints.RemainingPermissions())
+	contained := constraints.ContainPermissions(prompt.Constraints.OutstandingPermissions())
 	if !contained {
 		return nil, &prompting_errors.RequestedPermissionsNotMatchedError{
-			Requested: prompt.Constraints.RemainingPermissions(),
+			Requested: prompt.Constraints.OutstandingPermissions(),
 			Replied:   replyConstraints.Permissions, // equivalent to keys of constraints.Permissions
 		}
 	}
