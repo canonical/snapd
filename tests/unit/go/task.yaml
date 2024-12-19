@@ -68,11 +68,6 @@ execute: |
         PROXY_PARAM="$PROXY_PARAM HTTPS_PROXY=$https_proxy"
     fi
 
-    TIMEOUT=""
-    if os.query is-focal; then
-        TIMEOUT=15
-    fi
-
     if not os.query is-trusty; then
         if [ "$VARIANT" = "static" ] ; then
             tests.session -u test exec sh -c "cd /tmp/static-unit-tests/src/github.com/snapcore/snapd && \
@@ -89,7 +84,7 @@ execute: |
                 $PROXY_PARAM \
                 SKIP_COVERAGE=1 \
                 CC=$VARIANT \
-                TIMEOUT=$TIMEOUT \
+                TIMEOUT=15 \
                 ./run-checks --unit"
         fi
     else
@@ -125,7 +120,7 @@ execute: |
                 $PROXY_PARAM \
                 SKIP_COVERAGE=1 \
                 CC=$VARIANT \
-                TIMEOUT=$TIMEOUT \
+                TIMEOUT=15 \
                 ./run-checks --unit" test
         fi
     fi
