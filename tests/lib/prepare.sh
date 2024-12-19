@@ -696,6 +696,13 @@ StandardOutput=journal+console
 StandardError=journal+console
 EOF
 
+    if [ "$NESTED_REPACK_FOR_FAKESTORE" = "true" ]; then
+        cat <<EOF > "$UNPACK_DIR"/etc/systemd/system/snapd.service.d/store.conf
+[Service]
+Environment=SNAPPY_FORCE_API_URL=http://localhost:11028
+EOF
+    fi
+
     cp "${SPREAD_PATH}"/data/completion/bash/complete.sh "${UNPACK_DIR}"/usr/lib/snapd/complete.sh
 
     snap pack --filename="$TARGET" "$UNPACK_DIR"
