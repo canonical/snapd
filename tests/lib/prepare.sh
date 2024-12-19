@@ -491,6 +491,13 @@ prepare_classic() {
         mkdir -p /etc/dbus-1/system.d
         systemctl reload dbus.service
     fi
+
+    # on Xenial chrony wasn't always running which means there was no NTP sync
+    # which breaks auto-refresh tests (we wait for a sync before auto-refreshing)
+    if systemctl status chrony &>/dev/null && ! timeout 15s chronyc waitsync; then
+      systemctl restart chrony
+      timeout 3m chronyc waitsync
+    fi
 }
 
 ensure_snapcraft() {
