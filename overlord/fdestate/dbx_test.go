@@ -41,6 +41,7 @@ import (
 	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/seed"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
 	"github.com/snapcore/snapd/timings"
 )
@@ -1155,6 +1156,99 @@ func (s *fdeMgrSuite) TestEFIDBXUpdateAffectedSnaps(c *C) {
 		"pc-kernel", // kernel
 		"core20",    // base
 	})
+}
+
+func (s *fdeMgrSuite) TestEFIDBXConflictingSnaps(c *C) {
+	// mock an error in a reseal which happens in the 'undo' path after snapd
+	// has been notified of a restart in the external DBX manager process
+	c.Assert(device.StampSealedKeys(dirs.GlobalRootDir, device.SealingMethodTPM), IsNil)
+
+	st := s.st
+	onClassic := true
+	fdemgr := s.startedManager(c, onClassic)
+	s.o.AddManager(fdemgr)
+	s.o.AddManager(s.o.TaskRunner())
+	c.Assert(s.o.StartUp(), IsNil)
+
+	model := s.mockBootAssetsStateForModeenv(c)
+	s.mockDeviceInState(model)
+
+	resealForDBUPdateCalls := 0
+	resealForBootChainsCalls := 0
+	defer fdestate.MockBackendResealKeysForSignaturesDBUpdate(
+		func(mgr backend.FDEStateManager, method device.SealingMethod, rootdir string, params *boot.ResealKeyForBootChainsParams, update []byte) error {
+			resealForDBUPdateCalls++
+			return nil
+		})()
+
+	defer fdestate.MockBackendResealKeyForBootChains(
+		func(mgr backend.FDEStateManager, method device.SealingMethod, rootdir string, params *boot.ResealKeyForBootChainsParams, expectReseal bool) error {
+			resealForBootChainsCalls++
+			return fmt.Errorf("mock error")
+		})()
+
+	st.Lock()
+	st.Set("seeded", true)
+	st.Unlock()
+
+	c.Logf("overlord loop start")
+	s.o.Loop()
+	defer s.o.Stop()
+
+	err := fdestate.EFISecureBootDBUpdatePrepare(st, fdestate.EFISecurebootDBX, []byte("payload"))
+	c.Assert(err, IsNil)
+
+	st.Lock()
+	defer st.Unlock()
+
+	c.Check(resealForDBUPdateCalls, Equals, 1)
+	c.Check(resealForBootChainsCalls, Equals, 0)
+
+	gadgetSnapYamlContent := fmt.Sprintf(`
+name: %s
+version: "1.0"
+type: gadget
+`[1:], model.Gadget())
+	kernelSnapYamlContent := fmt.Sprintf(`
+name: %s
+version: "1.0"
+type: kernel
+`[1:], model.Kernel())
+	baseSnapYamlContent := fmt.Sprintf(`
+name: %s
+version: "1.0"
+type: base
+`[1:], model.Base())
+	appSnapYamlContent := `
+name: apps
+version: "1.0"
+type: app
+`[1:]
+
+	for _, sn := range []struct {
+		snapYaml   string
+		name       string
+		noConflict bool
+	}{
+		{snapYaml: gadgetSnapYamlContent, name: model.Gadget()},
+		{snapYaml: kernelSnapYamlContent, name: model.Kernel()},
+		{snapYaml: baseSnapYamlContent, name: model.Base()},
+		{snapYaml: appSnapYamlContent, name: "apps", noConflict: true},
+	} {
+		c.Logf("checking snap %s:\n%s", sn.name, sn.snapYaml)
+		path := snaptest.MakeTestSnapWithFiles(c, sn.snapYaml, nil)
+
+		_, _, err = snapstate.InstallPath(st, &snap.SideInfo{
+			RealName: sn.name,
+		}, path, "", "", snapstate.Flags{}, nil)
+
+		if !sn.noConflict {
+			c.Check(err, ErrorMatches, fmt.Sprintf(`snap %q has \"fde-efi-secureboot-db-update\" change in progress`, sn.name))
+		} else {
+			c.Check(err, IsNil)
+		}
+	}
+
 }
 
 func iterateUnlockedStateWaitingFor(st *state.State, pred func() bool) {

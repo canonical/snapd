@@ -34,11 +34,13 @@ import (
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget/device"
+	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil/disks"
 	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/fdestate"
 	"github.com/snapcore/snapd/overlord/fdestate/backend"
+	"github.com/snapcore/snapd/overlord/ifacestate/ifacerepo"
 	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
@@ -74,6 +76,11 @@ func (s *fdeMgrSuite) SetUpTest(c *C) {
 
 	s.st = s.o.State()
 	s.runner = s.o.TaskRunner()
+
+	s.st.Lock()
+	repo := interfaces.NewRepository()
+	ifacerepo.Replace(s.st, repo)
+	s.st.Unlock()
 
 	buf, restore := logger.MockLogger()
 	s.AddCleanup(restore)
