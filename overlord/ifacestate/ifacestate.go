@@ -613,7 +613,7 @@ func InterfacesRequestsControlHandlerServices(st *state.State) ([]*snap.AppInfo,
 			return nil, err
 		}
 
-		// this should not fail as plug's before prepare should have validated that such app exists
+		// this should not fail as the plug's BeforePrepare should have validated that such an app exists
 		app := si.Apps[handler]
 		if app == nil {
 			return nil, fmt.Errorf("internal error: cannot find app %q in snap %q", app, sn)
