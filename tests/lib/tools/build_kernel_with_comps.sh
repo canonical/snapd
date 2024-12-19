@@ -11,10 +11,14 @@ set -uxe
 build_kernel_with_comp() {
     mod_name=$1
     comp_name=$2
+    kernel_snap_file=$3
 
-    VERSION="$(tests.nested show version)"
-    snap download --channel="$VERSION"/beta --basename=pc-kernel pc-kernel
-    unsquashfs -d kernel pc-kernel.snap
+    if [ -z "${kernel_snap_file}" ]; then
+        VERSION="$(tests.nested show version)"
+        snap download --channel="$VERSION"/beta --basename=pc-kernel pc-kernel
+        kernel_snap_file="pc-kernel.snap"
+    fi
+    unsquashfs -d kernel "${kernel_snap_file}"
     kern_ver=$(find kernel/modules/* -maxdepth 0 -printf "%f\n")
     comp_ko_dir=$comp_name/modules/"$kern_ver"/kmod/
     mkdir -p "$comp_ko_dir"
@@ -39,10 +43,10 @@ EOF
     ln -s ../modules kernel/lib/modules
     depmod -b kernel/ "$kern_ver"
     rm -rf kernel/lib
-    rm pc-kernel.snap
+    rm "${kernel_snap_file}"
     # append component meta-information
     printf 'components:\n  %s:\n    type: kernel-modules\n' "$comp_name" >> kernel/meta/snap.yaml
-    snap pack --filename=pc-kernel.snap kernel
+    snap pack --filename="${kernel_snap_file}" kernel
 }
 
 build_kernel_with_comp "$@"
