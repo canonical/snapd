@@ -355,14 +355,14 @@ parts:
             TAGS+=(nomanagers)
             case "${VERSION}" in
               1337.*)
-                TAGS+=(withtestkeys faultinject)
+                TAGS+=(withtestkeys faultinject statelock)
                 ;;
             esac
             ;;
           *)
             case "${VERSION}" in
               1337.*)
-                TAGS+=(withtestkeys withbootassetstesting faultinject)
+                TAGS+=(withtestkeys withbootassetstesting faultinject statelock)
                 ;;
             esac
             ;;
