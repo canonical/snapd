@@ -32,6 +32,12 @@
  */
 #define SC_EXTRA_LIB_DIR "/var/lib/snapd/lib"
 
+/* Property file typically shipped on a classic Halium system
+ *
+ * Allows detecing Halium-based GNU/Linux adaptations.
+ */
+#define SC_HYBRIS_PROPERTY_FILE "/system/build.prop"
+
 /**
  * Assuming a new mountspace, populate it accordingly.
  *
@@ -82,4 +88,29 @@ void sc_ensure_snap_dir_shared_mounts(void);
  */
 void sc_setup_parallel_instance_classic_mounts(const char *snap_name,
 					       const char *snap_instance_name);
+
+
+/**
+ * Populate libgl_dir with a symlink farm to files matching glob_list.
+ *
+ * The symbolic links are made in one of two ways. If the library found is a
+ * file a regular symlink "$libname" -> "/path/to/hostfs/$libname" is created.
+ * If the library is a symbolic link then relative links are kept as-is but
+ * absolute links are translated to have "/path/to/hostfs" up front so that
+ * they work after the pivot_root elsewhere.
+ *
+ * The glob list passed to us is produced with paths relative to source dir,
+ * to simplify the various tie-in points with this function.
+ */
+void sc_populate_libgl_with_hostfs_symlinks(const char *libgl_dir,
+					    const char *source_dir,
+					    const char *glob_list[],
+					    size_t glob_list_len);
+
+void sc_mkdir_and_mount_and_glob_files(const char *rootfs_dir,
+				       const char *source_dir[],
+				       size_t source_dir_len,
+				       const char *tgt_dir,
+				       const char *glob_list[],
+				       size_t glob_list_len);
 #endif
