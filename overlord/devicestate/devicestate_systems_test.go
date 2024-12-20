@@ -3833,7 +3833,6 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemValid
 
 	localSnaps := make([]devicestate.LocalSnap, 0, len(snapRevisions))
 	for name, rev := range snapRevisions {
-
 		var files [][]string
 		var base string
 		if snapTypes[name] == snap.TypeGadget {
@@ -3844,6 +3843,17 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemValid
 		}
 
 		si, path := createLocalSnap(c, name, fakeSnapID(name), rev.N, string(snapTypes[name]), base, files)
+
+		// when we're creating a recovery system from snaps that are uploaded,
+		// they get written to disk as tmp files. these don't have a .snap file
+		// extension. this emulates that behavior.
+		//
+		// here we make sure that the seed writer allows us to create a seed
+		// from snaps with invalid/missing file extensions.
+		trimmed := strings.TrimSuffix(path, ".snap")
+		err := os.Rename(path, trimmed)
+		c.Assert(err, IsNil)
+		path = trimmed
 
 		localSnaps = append(localSnaps, devicestate.LocalSnap{
 			SideInfo: si,

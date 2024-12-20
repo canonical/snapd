@@ -349,6 +349,11 @@ func createSystemForModelFromValidatedSnaps(
 		// RW mount of ubuntu-seed
 		SeedDir: boot.InitramfsUbuntuSeedDir,
 		Label:   label,
+
+		// due to the way that temp files are handled in daemon, they do not
+		// have .snap or .comp extensions. this flag lets us ignore that
+		// requirement.
+		IgnoreOptionFileExtentions: true,
 	}
 	w, err := seedwriter.New(model, wOpts)
 	if err != nil {
