@@ -37,6 +37,7 @@ import (
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget"
+	"github.com/snapcore/snapd/gadget/device"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/netutil"
@@ -1941,18 +1942,28 @@ func InstallFinish(st *state.State, label string, onVolumes map[string]*gadget.V
 // InstallSetupStorageEncryption creates a change that will setup the
 // storage encryption for the install of the given label and
 // volumes.
-func InstallSetupStorageEncryption(st *state.State, label string, onVolumes map[string]*gadget.Volume) (*state.Change, error) {
+func InstallSetupStorageEncryption(st *state.State, label string, onVolumes map[string]*gadget.Volume, volumesAuth *device.VolumesAuthOptions) (*state.Change, error) {
 	if label == "" {
 		return nil, fmt.Errorf("cannot setup storage encryption with an empty system label")
 	}
 	if onVolumes == nil {
 		return nil, fmt.Errorf("cannot setup storage encryption without volumes data")
 	}
+	if volumesAuth != nil {
+		if err := volumesAuth.Validate(); err != nil {
+			return nil, err
+		}
+		// Auth data must be in memory to avoid leaking credentials.
+		st.Cache(volumesAuthOptionsKey{label}, volumesAuth)
+	}
 
 	chg := st.NewChange("install-step-setup-storage-encryption", fmt.Sprintf("Setup storage encryption for installing system %q", label))
 	setupStorageEncryptionTask := st.NewTask("install-setup-storage-encryption", fmt.Sprintf("Setup storage encryption for installing system %q", label))
 	setupStorageEncryptionTask.Set("system-label", label)
 	setupStorageEncryptionTask.Set("on-volumes", onVolumes)
+	if volumesAuth != nil {
+		setupStorageEncryptionTask.Set("volumes-auth-required", true)
+	}
 	chg.AddTask(setupStorageEncryptionTask)
 
 	return chg, nil
