@@ -34,12 +34,12 @@ import (
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget"
+	"github.com/snapcore/snapd/gadget/device"
 	"github.com/snapcore/snapd/gadget/gadgettest"
 	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil/disks"
 	"github.com/snapcore/snapd/osutil/kcmdline"
-	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snapfile"
 	"github.com/snapcore/snapd/snap/snaptest"
@@ -2353,7 +2353,7 @@ func (s *gadgetYamlTestSuite) TestLaidOutVolumesFromGadgetMultiVolume(c *C) {
 	err = os.WriteFile(filepath.Join(s.dir, "u-boot.imz"), nil, 0644)
 	c.Assert(err, IsNil)
 
-	all, err := gadgettest.LaidOutVolumesFromGadget(s.dir, "", uc20Mod, secboot.EncryptionTypeNone, nil)
+	all, err := gadgettest.LaidOutVolumesFromGadget(s.dir, "", uc20Mod, device.EncryptionTypeNone, nil)
 	c.Assert(err, IsNil)
 
 	c.Assert(all, HasLen, 2)
@@ -2395,7 +2395,7 @@ func (s *gadgetYamlTestSuite) TestLaidOutVolumesFromGadgetHappy(c *C) {
 		c.Assert(err, IsNil)
 	}
 
-	all, err := gadgettest.LaidOutVolumesFromGadget(s.dir, "", coreMod, secboot.EncryptionTypeNone, nil)
+	all, err := gadgettest.LaidOutVolumesFromGadget(s.dir, "", coreMod, device.EncryptionTypeNone, nil)
 	c.Assert(err, IsNil)
 	c.Assert(all, HasLen, 1)
 	c.Assert(all["pc"].Volume.Bootloader, Equals, "grub")
@@ -2419,7 +2419,7 @@ func (s *gadgetYamlTestSuite) TestLaidOutVolumesFromGadgetAndDiskHappy(c *C) {
 		4: {Name: "ubuntu-save"},
 		5: {Name: "ubuntu-data"},
 	}
-	all, err := gadgettest.LaidOutVolumesFromGadget(s.dir, "", uc20Mod, secboot.EncryptionTypeNone, nil)
+	all, err := gadgettest.LaidOutVolumesFromGadget(s.dir, "", uc20Mod, device.EncryptionTypeNone, nil)
 	c.Assert(err, IsNil)
 	c.Assert(all, HasLen, 1)
 	c.Assert(all["pc"].Volume.Bootloader, Equals, "grub")
@@ -2446,7 +2446,7 @@ func (s *gadgetYamlTestSuite) TestLaidOutVolumesFromGadgetAndDiskFail(c *C) {
 	volToGadgetToDiskStruct := map[string]map[int]*gadget.OnDiskStructure{
 		"pc": gadgetToDiskStruct,
 	}
-	all, err := gadgettest.LaidOutVolumesFromGadget(s.dir, "", uc20Mod, secboot.EncryptionTypeNone, volToGadgetToDiskStruct)
+	all, err := gadgettest.LaidOutVolumesFromGadget(s.dir, "", uc20Mod, device.EncryptionTypeNone, volToGadgetToDiskStruct)
 	c.Assert(err.Error(), Equals, `internal error: partition "ubuntu-seed" not in disk map`)
 	c.Assert(all, IsNil)
 }
@@ -2459,7 +2459,7 @@ func (s *gadgetYamlTestSuite) testLaidOutVolumesFromGadgetUCHappy(c *C, gadgetYa
 		c.Assert(err, IsNil)
 	}
 
-	all, err := gadgettest.LaidOutVolumesFromGadget(s.dir, "", uc20Mod, secboot.EncryptionTypeNone, nil)
+	all, err := gadgettest.LaidOutVolumesFromGadget(s.dir, "", uc20Mod, device.EncryptionTypeNone, nil)
 	c.Assert(err, IsNil)
 	c.Assert(all, HasLen, 1)
 	c.Assert(all["pc"].Volume.Bootloader, Equals, "grub")
@@ -4337,7 +4337,7 @@ func (s *gadgetYamlTestSuite) TestLaidOutVolumesFromClassicWithModesGadgetHappy(
 		c.Assert(err, IsNil)
 	}
 
-	all, err := gadgettest.LaidOutVolumesFromGadget(s.dir, "", classicWithModesMod, secboot.EncryptionTypeNone, nil)
+	all, err := gadgettest.LaidOutVolumesFromGadget(s.dir, "", classicWithModesMod, device.EncryptionTypeNone, nil)
 	c.Assert(err, IsNil)
 	c.Assert(all, HasLen, 1)
 	c.Assert(all["pc"].Volume.Bootloader, Equals, "grub")

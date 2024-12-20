@@ -2783,7 +2783,7 @@ func (m *DeviceManager) RemoveRecoveryKeys() error {
 // checkEncryption verifies whether encryption should be used based on the
 // model grade and the availability of a TPM device or a fde-setup hook
 // in the kernel.
-func (m *DeviceManager) checkEncryption(st *state.State, deviceCtx snapstate.DeviceContext, tpmMode secboot.TPMProvisionMode) (secboot.EncryptionType, error) {
+func (m *DeviceManager) checkEncryption(st *state.State, deviceCtx snapstate.DeviceContext, tpmMode secboot.TPMProvisionMode) (device.EncryptionType, error) {
 	model := deviceCtx.Model()
 
 	kernelInfo, err := snapstate.KernelInfo(st, deviceCtx)

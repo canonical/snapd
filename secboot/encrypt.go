@@ -19,20 +19,6 @@
 
 package secboot
 
-// EncryptionType specifies what encryption backend should be used (if any)
-type EncryptionType string
-
-const (
-	EncryptionTypeNone        EncryptionType = ""
-	EncryptionTypeLUKS        EncryptionType = "cryptsetup"
-	EncryptionTypeLUKSWithICE EncryptionType = "cryptsetup-with-inline-crypto-engine"
-)
-
-// TODO:ICE: all EncryptionTypes are LUKS based now so this could be removed?
-func (et EncryptionType) IsLUKS() bool {
-	return et == EncryptionTypeLUKS || et == EncryptionTypeLUKSWithICE
-}
-
 type RecoveryKeyDevice struct {
 	// Mountpoint of the device
 	Mountpoint string

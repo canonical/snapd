@@ -25,6 +25,7 @@ import (
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/gadget"
+	"github.com/snapcore/snapd/gadget/device"
 	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/timings"
 )
@@ -49,7 +50,7 @@ func SaveStorageTraits(model gadget.Model, vols map[string]*gadget.Volume, encry
 	return fmt.Errorf("build without secboot support")
 }
 
-func EncryptPartitions(onVolumes map[string]*gadget.Volume, encryptionType secboot.EncryptionType, model *asserts.Model, gadgetRoot, kernelRoot string,
+func EncryptPartitions(onVolumes map[string]*gadget.Volume, encryptionType device.EncryptionType, model *asserts.Model, gadgetRoot, kernelRoot string,
 	perfTimings timings.Measurer) (*EncryptionSetupData, error) {
 	return nil, fmt.Errorf("build without secboot support")
 }
