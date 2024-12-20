@@ -422,7 +422,7 @@ func MockInstallMountVolumes(f func(onVolumes map[string]*gadget.Volume, encSetu
 	}
 }
 
-func MockInstallEncryptPartitions(f func(onVolumes map[string]*gadget.Volume, encryptionType device.EncryptionType, model *asserts.Model, gadgetRoot, kernelRoot string, perfTimings timings.Measurer) (*install.EncryptionSetupData, error)) (restore func()) {
+func MockInstallEncryptPartitions(f func(onVolumes map[string]*gadget.Volume, volumesAuth *device.VolumesAuthOptions, encryptionType device.EncryptionType, model *asserts.Model, gadgetRoot, kernelRoot string, perfTimings timings.Measurer) (*install.EncryptionSetupData, error)) (restore func()) {
 	old := installEncryptPartitions
 	installEncryptPartitions = f
 	return func() {
@@ -640,4 +640,8 @@ func MockDisksDMCryptUUIDFromMountPoint(f func(mountpoint string) (string, error
 	return func() {
 		disksDMCryptUUIDFromMountPoint = old
 	}
+}
+
+func VolumesAuthOptionsKeyByLabel(label string) volumesAuthOptionsKey {
+	return volumesAuthOptionsKey{label}
 }
