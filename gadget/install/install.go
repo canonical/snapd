@@ -635,7 +635,11 @@ func SaveStorageTraits(model gadget.Model, vols map[string]*gadget.Volume, encry
 	return nil
 }
 
-func EncryptPartitions(onVolumes map[string]*gadget.Volume, volumesAuth *device.VolumesAuthOptions, encryptionType device.EncryptionType, model *asserts.Model, gadgetRoot, kernelRoot string, perfTimings timings.Measurer) (*EncryptionSetupData, error) {
+func EncryptPartitions(
+	onVolumes map[string]*gadget.Volume, volumesAuth *device.VolumesAuthOptions,
+	encryptionType device.EncryptionType, model *asserts.Model,
+	gadgetRoot, kernelRoot string, perfTimings timings.Measurer,
+) (*EncryptionSetupData, error) {
 	// TODO: Attach passed volumes auth options to encryption setup data.
 
 	setupData := &EncryptionSetupData{
