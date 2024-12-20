@@ -1518,7 +1518,7 @@ func (s *installSuite) testEncryptPartitions(c *C, opts encryptPartitionsOpts) {
 		return nil
 	})()
 
-	encryptSetup, err := install.EncryptPartitions(ginfo.Volumes, opts.encryptType, model, gadgetRoot, "", timings.New(nil))
+	encryptSetup, err := install.EncryptPartitions(ginfo.Volumes, nil, opts.encryptType, model, gadgetRoot, "", timings.New(nil))
 	c.Assert(err, IsNil)
 	c.Assert(encryptSetup, NotNil)
 	err = install.CheckEncryptionSetupData(encryptSetup, map[string]string{
@@ -1547,7 +1547,7 @@ func (s *installSuite) TestInstallEncryptPartitionsNoDeviceSet(c *C) {
 	c.Assert(err, IsNil)
 	defer restore()
 
-	encryptSetup, err := install.EncryptPartitions(ginfo.Volumes, device.EncryptionTypeLUKS, model, gadgetRoot, "", timings.New(nil))
+	encryptSetup, err := install.EncryptPartitions(ginfo.Volumes, nil, device.EncryptionTypeLUKS, model, gadgetRoot, "", timings.New(nil))
 
 	c.Check(err.Error(), Equals, `volume "pc" has no device assigned`)
 	c.Check(encryptSetup, IsNil)
