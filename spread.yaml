@@ -591,6 +591,36 @@ backends:
             - ubuntu-core-24-arm-64:
                   username: external
                   password: ubuntu123
+    adhoc-lxd:
+        type: adhoc
+        allocate: |
+            address="$(./tests/lib/tools/spread-lxd-allocator allocate \
+                 "$SPREAD_SYSTEM" \
+                 ubuntu \
+                 "$SPREAD_SYSTEM_PASSWORD")"
+            ADDRESS "$address"
+        discard: |
+            ./tests/lib/tools/spread-lxd-allocator deallocate "$SPREAD_SYSTEM_ADDRESS"
+        systems:
+            - ubuntu-25.04-64:
+                username: ubuntu
+                password: ubuntu
+            - ubuntu-24.10-64:
+                username: ubuntu
+                password: ubuntu
+            - ubuntu-24.04-64:
+                username: ubuntu
+                password: ubuntu
+            - ubuntu-22.04-64:
+                username: ubuntu
+                password: ubuntu
+            - ubuntu-20.04-64:
+                username: ubuntu
+                password: ubuntu
+            - ubuntu-core-24-64:
+                username: ubuntu
+                password: ubuntu
+
 
 path: /home/gopath/src/github.com/snapcore/snapd
 
