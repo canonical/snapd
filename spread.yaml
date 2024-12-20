@@ -993,6 +993,9 @@ prepare: |
         test -x gojq
     )
 
+    # HACK
+    apt install systemd-coredump -y
+
     # NOTE: At this stage the source tree is available and no more special
     # considerations apply.
     "$TESTSLIB"/prepare-restore.sh --prepare-project
