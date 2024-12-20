@@ -460,6 +460,7 @@ prepare_classic() {
         fi
 
         prepare_reexec_override
+        prepare_state_lock "SNAPD PROJECT"
         prepare_memory_limit_override
         disable_refreshes
 
@@ -1520,6 +1521,37 @@ EOF
     rm -rf "$UNPACK_DIR"
 }
 
+prepare_state_lock(){
+    TAG=$1
+    CONF_FILE="/etc/systemd/system/snapd.service.d/state-lock.conf"
+    LOCKS_FILE="$TESTSTMP"/snapd_lock_traces
+    RESTART=false
+
+    if [ "$SNAPD_STATE_LOCK_THRESHOLD_MS" -gt 0 ]; then
+        echo "###START: $TAG" >> "$LOCKS_FILE"
+
+        # Generate the config file when it does not exist and when the threshold has changed different
+        if ! [ -f "$CONF_FILE" ] || ! grep -q "SNAPD_STATE_LOCK_THRESHOLD_MS=$SNAPD_STATE_LOCK_THRESHOLD_MS" < "$CONF_FILE"; then
+            echo "Prepare snapd for getting state lock time"
+            cat <<EOF > "$CONF_FILE"
+[Service]
+Environment=SNAPPY_TESTING=1 SNAPD_STATE_LOCK_THRESHOLD_MS="$SNAPD_STATE_LOCK_THRESHOLD_MS" SNAPD_STATE_LOCK_FILE="$LOCKS_FILE"
+EOF
+            RESTART=true
+        fi
+    elif [ -f "$CONF_FILE" ]; then
+        rm -f "$CONF_FILE"
+        RESTART=true
+    fi
+
+    if [ "$RESTART" = "true" ]; then
+        # the service setting may have changed in the service so we need
+        # to ensure snapd is reloaded
+        systemctl daemon-reload
+        systemctl restart snapd
+    fi
+}
+
 # prepare_ubuntu_core will prepare ubuntu-core 16+
 prepare_ubuntu_core() {
     # we are still a "classic" image, prepare the surgery
@@ -1633,6 +1665,7 @@ prepare_ubuntu_core() {
         # or restore will break
         remove_disabled_snaps
         prepare_memory_limit_override
+        prepare_state_lock "SNAPD PROJECT"
         setup_experimental_features
         systemctl stop snapd.service snapd.socket
         save_snapd_state
