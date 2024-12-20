@@ -19,6 +19,11 @@ rules:
      - tests/unit/c-unit-tests-clang
      - tests/unit/c-unit-tests-gcc
 
+  nested:
+    from:
+      - tests/nested/.*
+    to: [$NONE]
+
   rest:
     from: [.*]
     to: [tests/]
