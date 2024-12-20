@@ -994,8 +994,12 @@ prepare: |
     )
 
     # HACK
-    apt update
-    apt install systemd-coredump -y
+    case "$SPREAD_SYSTEM" in
+    ubuntu-24.*|ubuntu-25.*)
+         apt update
+         apt install systemd-coredump -y
+         ;;
+    esac
 
     # NOTE: At this stage the source tree is available and no more special
     # considerations apply.
