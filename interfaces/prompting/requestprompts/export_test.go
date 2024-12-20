@@ -33,12 +33,12 @@ const (
 	MaxOutstandingPromptsPerUser = maxOutstandingPromptsPerUser
 )
 
-func NewPrompt(id prompting.IDType, timestamp time.Time, snap string, iface string, path string, remainingPermissions []string, availablePermissions []string, originalPermissions []string) *Prompt {
+func NewPrompt(id prompting.IDType, timestamp time.Time, snap string, iface string, path string, outstandingPermissions []string, availablePermissions []string, originalPermissions []string) *Prompt {
 	constraints := &promptConstraints{
-		path:                 path,
-		remainingPermissions: remainingPermissions,
-		availablePermissions: availablePermissions,
-		originalPermissions:  originalPermissions,
+		path:                   path,
+		outstandingPermissions: outstandingPermissions,
+		availablePermissions:   availablePermissions,
+		originalPermissions:    originalPermissions,
 	}
 	return &Prompt{
 		ID:           id,

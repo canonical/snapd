@@ -86,7 +86,7 @@ type jsonPromptConstraints struct {
 func (p *Prompt) MarshalJSON() ([]byte, error) {
 	constraints := &jsonPromptConstraints{
 		Path:                 p.Constraints.path,
-		RequestedPermissions: p.Constraints.remainingPermissions,
+		RequestedPermissions: p.Constraints.outstandingPermissions,
 		AvailablePermissions: p.Constraints.availablePermissions,
 	}
 	toMarshal := &jsonPrompt{
@@ -109,10 +109,10 @@ func (p *Prompt) sendReply(outcome prompting.OutcomeType) error {
 	// If outcome is allow, then reply by allowing all originally-requested
 	// permissions. If outcome is deny, only allow permissions which were
 	// originally requested but have since been allowed by rules, and deny any
-	// remaining permissions.
+	// outstanding permissions.
 	var deniedPermissions []string
 	if !allow {
-		deniedPermissions = p.Constraints.remainingPermissions
+		deniedPermissions = p.Constraints.outstandingPermissions
 	}
 	allowedPermission := p.Constraints.buildResponse(p.Interface, deniedPermissions)
 	return p.sendReplyWithPermission(allowedPermission)
@@ -135,7 +135,7 @@ var sendReply = (*listener.Request).Reply
 
 // promptConstraints store the path which was requested, along with three
 // lists of permissions: the original permissions associated with the request,
-// the remaining unsatisfied permissions (as rules may satisfy some of the
+// the outstanding unsatisfied permissions (as rules may satisfy some of the
 // permissions from a prompt before the prompt is fully resolved), and the
 // available permissions for the interface associated with the prompt, so that
 // the client may reply with a broader set of permissions than was originally
@@ -143,9 +143,9 @@ var sendReply = (*listener.Request).Reply
 type promptConstraints struct {
 	// path is the path to which the application is requesting access.
 	path string
-	// remainingPermissions are the remaining unsatisfied permissions for which
-	// the application is requesting access.
-	remainingPermissions []string
+	// outstandingPermissions are the outstanding unsatisfied permissions for
+	// which the application is requesting access.
+	outstandingPermissions []string
 	// availablePermissions are the permissions which are supported by the
 	// interface associated with the prompt to which the constraints apply.
 	availablePermissions []string
@@ -176,7 +176,7 @@ func (pc *promptConstraints) equals(other *promptConstraints) bool {
 	return true
 }
 
-// applyRuleConstraints modifies the prompt constraints, removing any remaining
+// applyRuleConstraints modifies the prompt constraints, removing any outstanding
 // permissions which are matched by the given rule constraints.
 //
 // Returns whether the prompt constraints were affected by the rule constraints,
@@ -186,7 +186,7 @@ func (pc *promptConstraints) equals(other *promptConstraints) bool {
 // other return values can be ignored.
 //
 // If the path pattern does not match the prompt path, or the permissions in
-// the rule constraints do not include any of the remaining prompt permissions,
+// the rule constraints do not include any of the outstanding prompt permissions,
 // then affectedByRule is false, and no changes are made to the prompt
 // constraints.
 func (pc *promptConstraints) applyRuleConstraints(constraints *prompting.RuleConstraints) (affectedByRule, respond bool, deniedPermissions []string, err error) {
@@ -202,13 +202,13 @@ func (pc *promptConstraints) applyRuleConstraints(constraints *prompting.RuleCon
 
 	// Path pattern matched, now check if any permissions match
 
-	newRemainingPermissions := make([]string, 0, len(pc.remainingPermissions))
-	for _, perm := range pc.remainingPermissions {
+	newOutstandingPermissions := make([]string, 0, len(pc.outstandingPermissions))
+	for _, perm := range pc.outstandingPermissions {
 		entry, exists := constraints.Permissions[perm]
 		if !exists {
 			// Permission not covered by rule constraints, so permission
-			// should continue to be in remainingPermissions.
-			newRemainingPermissions = append(newRemainingPermissions, perm)
+			// should continue to be in outstandingPermissions.
+			newOutstandingPermissions = append(newOutstandingPermissions, perm)
 			continue
 		}
 		affectedByRule = true
@@ -227,9 +227,9 @@ func (pc *promptConstraints) applyRuleConstraints(constraints *prompting.RuleCon
 		return false, false, nil, nil
 	}
 
-	pc.remainingPermissions = newRemainingPermissions
+	pc.outstandingPermissions = newOutstandingPermissions
 
-	if len(pc.remainingPermissions) == 0 || len(deniedPermissions) > 0 {
+	if len(pc.outstandingPermissions) == 0 || len(deniedPermissions) > 0 {
 		// All permissions allowed or at least one permission denied, so tell
 		// the caller to send a response back to the kernel.
 		respond = true
@@ -269,10 +269,10 @@ func (pc *promptConstraints) Path() string {
 	return pc.path
 }
 
-// Permissions returns the remaining unsatisfied permissions associated with
-// the prompt.
-func (pc *promptConstraints) RemainingPermissions() []string {
-	return pc.remainingPermissions
+// OutstandingPermissions returns the outstanding unsatisfied permissions
+// associated with the prompt.
+func (pc *promptConstraints) OutstandingPermissions() []string {
+	return pc.outstandingPermissions
 }
 
 // userPromptDB maps prompt IDs to prompts for a single user.
@@ -435,7 +435,7 @@ var timeAfterFunc = func(d time.Duration, f func()) timeutil.Timer {
 //
 // The caller must ensure that the given permissions are in the order in which
 // they appear in the available permissions list for the given interface.
-func (pdb *PromptDB) AddOrMerge(metadata *prompting.Metadata, path string, requestedPermissions []string, remainingPermissions []string, listenerReq *listener.Request) (*Prompt, bool, error) {
+func (pdb *PromptDB) AddOrMerge(metadata *prompting.Metadata, path string, requestedPermissions []string, outstandingPermissions []string, listenerReq *listener.Request) (*Prompt, bool, error) {
 	availablePermissions, err := prompting.AvailablePermissions(metadata.Interface)
 	if err != nil {
 		// Error should be impossible, since caller has already validated that
@@ -464,10 +464,10 @@ func (pdb *PromptDB) AddOrMerge(metadata *prompting.Metadata, path string, reque
 	}
 
 	constraints := &promptConstraints{
-		path:                 path,
-		remainingPermissions: remainingPermissions,
-		availablePermissions: availablePermissions,
-		originalPermissions:  requestedPermissions,
+		path:                   path,
+		outstandingPermissions: outstandingPermissions,
+		availablePermissions:   availablePermissions,
+		originalPermissions:    requestedPermissions,
 	}
 
 	// Search for an identical existing prompt, merge if found
@@ -487,7 +487,7 @@ func (pdb *PromptDB) AddOrMerge(metadata *prompting.Metadata, path string, reque
 	if len(userEntry.prompts) >= maxOutstandingPromptsPerUser {
 		logger.Noticef("WARNING: too many outstanding prompts for user %d; auto-denying new one", metadata.User)
 		// Deny all permissions which are not already allowed by existing rules
-		allowedPermission := constraints.buildResponse(metadata.Interface, constraints.remainingPermissions)
+		allowedPermission := constraints.buildResponse(metadata.Interface, constraints.outstandingPermissions)
 		sendReply(listenerReq, allowedPermission)
 		return nil, false, prompting_errors.ErrTooManyPrompts
 	}
@@ -594,14 +594,14 @@ func (pdb *PromptDB) Reply(user uint32, id prompting.IDType, outcome prompting.O
 // contents and, if so, sends back a decision to their listener requests.
 //
 // A prompt is satisfied by the given rule contents if the user, snap,
-// interface, and path of the prompt match those of the rule, and all remaining
-// permissions are covered by permissions in the rule constraints or at least
-// one of the remaining permissions is covered by a permission which has an
-// outcome of "deny".
+// interface, and path of the prompt match those of the rule, and all
+// outstanding permissions are covered by permissions in the rule constraints
+// or at least one of the outstanding permissions is covered by a rule
+// permission which has an outcome of "deny".
 //
 // Records a notice for any prompt which was satisfied, or which had some of
 // its permissions satisfied by the rule contents. In the future, only the
-// remaining unsatisfied permissions of a partially-satisfied prompt must be
+// outstanding unsatisfied permissions of a partially-satisfied prompt must be
 // satisfied for the prompt as a whole to be satisfied.
 //
 // Returns the IDs of any prompts which were fully satisfied by the given rule
@@ -649,17 +649,18 @@ func (pdb *PromptDB) HandleNewRule(metadata *prompting.Metadata, constraints *pr
 		// back to the kernel, and record a notice that the prompt was satisfied.
 		if len(deniedPermissions) > 0 {
 			// At least one permission was denied by new rule, and we want to
-			// send a response immediately, so include any remaining
+			// send a response immediately, so include any outstanding
 			// permissions as denied as well.
 			//
 			// This could be done as part of applyRuleConstraints instead, but
 			// it seems semantically clearer to only return the permissions
 			// which were explicitly denied by the rule, rather than all
-			// remaining permissions because at least one was denied. It's the
-			// prorogative of the caller (this function) to treat the remaining
-			// permissions as denied since we want to send a response without
-			// waiting for future rules to satisfy the remaining permissions.
-			deniedPermissions = append(deniedPermissions, prompt.Constraints.remainingPermissions...)
+			// outstanding permissions because at least one was denied. It's
+			// the prorogative of the caller (this function) to treat the
+			// outstanding permissions as denied since we want to send a
+			// response without waiting for future rules to satisfy the
+			// outstanding permissions.
+			deniedPermissions = append(deniedPermissions, prompt.Constraints.outstandingPermissions...)
 		}
 		// Build and send a response with any permissions which were allowed,
 		// either by this new rule or by previous rules.
