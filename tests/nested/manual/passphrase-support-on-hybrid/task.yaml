@@ -38,8 +38,6 @@ prepare: |
       exit
   fi
   apt install dosfstools kpartx
-  snap install jq
-  snap install yq
 
   # Fakestore is needed for "snap prepare-image".
   "$TESTSTOOLS"/store-state setup-fake-store "$STORE_DIR"
@@ -108,23 +106,23 @@ execute: |
   remote.exec "sudo blkid /dev/disk/by-label/ubuntu-data-enc" | MATCH crypto_LUKS
 
   # Check disk mappings.
-  remote.exec "sudo snap install jq"
   # TODO: no ubuntu-save right now because:
   #       "ERROR cannot store device key pair: internal error: cannot access device keypair manager if ubuntu-save is unavailable"
   #DISK_MAPPINGS=(/run/mnt/ubuntu-save/device/disk-mapping.json
   #               /run/mnt/data/var/lib/snapd/device/disk-mapping.json)
   DISK_MAPPINGS=(/run/mnt/data/var/lib/snapd/device/disk-mapping.json)
   for DM in "${DISK_MAPPINGS[@]}"; do
-      remote.exec "sudo cat $DM | jq '.pc.\"structure-encryption\".\"ubuntu-save\".method'" | MATCH '"LUKS"'
-      remote.exec "sudo cat $DM | jq '.pc.\"structure-encryption\".\"ubuntu-data\".method'" | MATCH '"LUKS"'
+      remote.exec "sudo cat $DM" > mapping.json
+      gojq -r '.pc."structure-encryption"."ubuntu-save".method' < mapping.json | MATCH LUKS 
+      gojq -r '.pc."structure-encryption"."ubuntu-data".method' < mapping.json | MATCH LUKS
   done
 
   # Check that on an already provisioned system the API will give a
   # sensible reason why the system cannot be installed without further
   # action.
   remote.exec "sudo snap debug api /v2/systems/classic" > system
-  jq '.result."storage-encryption".support' < system | MATCH "unavailable"
-  jq '.result."storage-encryption"."unavailable-reason"' < system | MATCH "not encrypting device storage as checking TPM gave: the TPM is in DA lockout mode"
+  gojq '.result."storage-encryption".support' < system | MATCH "unavailable"
+  gojq '.result."storage-encryption"."unavailable-reason"' < system | MATCH "not encrypting device storage as checking TPM gave: the TPM is in DA lockout mode"
 
   # refresh rebooting snap
   # $1: path to snap file
@@ -163,12 +161,12 @@ execute: |
 
   # Initial reseal count.
   remote.exec sudo cat /var/lib/snapd/device/fde/boot-chains > boot-chains-before.json
-  reseal_count_start="$(jq -r '.["reseal-count"]' < boot-chains-before.json )"
+  reseal_count_start="$(gojq -r '.["reseal-count"]' < boot-chains-before.json )"
 
   fetch_and_check_reseal_count_equal() {
       local reseal_count_now
       remote.exec sudo cat /var/lib/snapd/device/fde/boot-chains > boot-chains.json
-      reseal_count_now="$(jq -r '.["reseal-count"]' < boot-chains.json )"
+      reseal_count_now="$(gojq -r '.["reseal-count"]' < boot-chains.json )"
       test "$reseal_count_now" = "$1"
   }
 
