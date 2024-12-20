@@ -14,6 +14,9 @@ environment:
   NESTED_ENABLE_TPM: true
   NESTED_ENABLE_SECURE_BOOT: true
 
+  # by default, we don't do passphrase authentication
+  PASSPHRASE: ""
+
   # encrypted + passphrase auth smoke test
   # TODO: extract a more comprehensive core24 test similar
   # to tests/nested/manual/passphrase-support-on-hybrid.
