@@ -19,7 +19,7 @@
 
 package builtin
 
-const auditdSupportSummary = `allows control over the kernel audit system and access to files relevant to auditd`
+const auditdSupportSummary = `allows hosting the auditd daemon with control over the kernel audit system`
 
 const auditdSupportBaseDeclarationPlugs = `
   auditd-support:
