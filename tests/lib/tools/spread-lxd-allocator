@@ -1,0 +1,277 @@
+#!/usr/bin/env python3
+
+import json
+import argparse
+import logging
+import subprocess
+import os
+import time
+from typing import Any, Optional
+
+import yaml
+
+LXD_PROJECT = "spread-lxd-adhoc"
+
+
+def find_config() -> str:
+    confdir = os.getcwd()
+    while confdir != "/":
+        p = os.path.join(confdir, "spread-lxd.yaml")
+        logging.debug("checking config %s", p)
+        if os.path.exists(p):
+            logging.debug("found config at %s", p)
+            return p
+
+        confdir = os.path.dirname(confdir)
+
+    raise RuntimeError("cannot find config file")
+
+
+def load_config(p: str) -> dict[str, Any]:
+    with open(p) as inf:
+        return yaml.safe_load(inf)
+
+
+def run_lxc(args: list[str], with_project=True) -> bytes:
+    cmd = ["lxc"]
+    if with_project:
+        cmd += [f"--project={LXD_PROJECT}"]
+    cmd += args
+    logging.debug("running: %s", cmd)
+
+    proc = subprocess.run(
+        cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=True
+    )
+    return proc.stdout
+
+
+def ensure_project() -> None:
+    try:
+        run_lxc(["project", "info", LXD_PROJECT], with_project=False)
+        return
+    except subprocess.CalledProcessError:
+        logging.error("project does not exist?")
+        pass
+
+    run_lxc(
+        [
+            "project",
+            "create",
+            LXD_PROJECT,
+            "-c",
+            "features.images=false",
+            "-c",
+            "features.profiles=false",
+        ],
+        with_project=False,
+    )
+
+
+def op_allocate(opts: argparse.Namespace) -> str:
+    spread_system: str = opts.system
+    password: str = opts.password
+    user: str = opts.user
+
+    ensure_project()
+
+    conf = load_config(find_config())
+
+    if spread_system not in conf["system"]:
+        raise RuntimeError(f"spread system {spread_system} not found in config")
+
+    systemconf = conf["system"][spread_system]
+    logging.debug("found system config: %s", systemconf)
+
+    if "image" not in systemconf:
+        raise RuntimeError(f'"image" missing from {spread_system} configuration')
+
+    setup = systemconf.get("setup-steps")
+    if setup and setup not in conf["setup"]:
+        raise RuntimeError(f'setup steps {setup} not found in "setup"')
+
+    setup_steps = []
+    if setup:
+        setup_steps = conf["setup"][setup]
+
+    image = systemconf.get("image")
+
+    resourceconf = systemconf.get("resources", {})
+    logging.debug("resources: %s", resourceconf)
+
+    lxc_system_name = spread_system.replace(".", "-")
+
+    secure_boot = "true" if systemconf.get("secure-boot", False) else "false"
+    cmd = [
+        "launch",
+        "--vm",
+        "--ephemeral",
+        "-c",
+        f"limits.memory={resourceconf.get("mem", "2048MiB")}",
+        "-c",
+        f"limits.cpu={resourceconf.get("cpu", "2")}",
+        "-d",
+        f"root,size={resourceconf.get("size", "10GiB")}",
+        "-c",
+        f"security.secureboot={secure_boot}",
+    ]
+
+    # default to VM, unless told otherwise
+    if systemconf.get("vm", True):
+        cmd += ["--vm"]
+
+    cmd += [
+        image,
+        lxc_system_name,
+    ]
+
+    run_lxc(cmd)
+
+    ip4addr: Optional[str] = None
+
+    while ip4addr is None:
+        time.sleep(1.0)
+
+        out = run_lxc(["list", "--format=json", lxc_system_name])
+        info = json.loads(out)
+
+        stateinfo = info[0]["state"]
+        if stateinfo["status"] != "Running":
+            logging.debug("not yet running")
+            continue
+
+        netinfo = stateinfo["network"]
+        ifaces = [ifname for ifname in netinfo.keys() if ifname != "lo"]
+        if len(ifaces) == 0:
+            logging.debug("no network interfaces")
+            continue
+
+        for iface in ifaces:
+            if ip4addr is not None:
+                break
+
+            ifaceinfo = netinfo[iface]
+            if ifaceinfo["state"] != "up" or len(ifaceinfo["addresses"]) == 0:
+                logging.debug("interface %s not yet up or has no addresses", iface)
+                continue
+
+            for addr in ifaceinfo["addresses"]:
+                # spread wants only IPv4 address
+                if addr["family"] != "inet":
+                    continue
+
+                ip4addr = addr["address"]
+                break
+
+    logging.debug("got IPv4 address: %s", ip4addr)
+
+    for step in setup_steps:
+        logging.debug("executing setup step: %s", step)
+        run_lxc(["exec", lxc_system_name, "--", "/bin/bash", "-c", step])
+
+    # setup user and password
+    run_lxc(
+        [
+            "exec",
+            lxc_system_name,
+            "--",
+            "/bin/bash",
+            "-c",
+            f"echo {user}:{password} | chpasswd",
+        ]
+    )
+
+    # <IPv4>:<port>
+    return ip4addr + ":22"
+
+
+def op_deallocate(opts: argparse.Namespace) -> None:
+    ip4addr = opts.address.removesuffix(":22")
+    logging.debug("deallocate system with IPv4 address %s", ip4addr)
+
+    out = run_lxc(["list", "--format=json"])
+    systems = json.loads(out)
+
+    def is_matching_system(system: dict[str, Any], ip4addr: str) -> bool:
+        stateinfo = system["state"]
+        if stateinfo["status"] != "Running":
+            logging.debug("not yet running")
+            return False
+
+        netinfo = stateinfo["network"]
+        ifaces = [ifname for ifname in netinfo.keys() if ifname != "lo"]
+        if len(ifaces) == 0:
+            logging.debug("no network interfaces")
+            return False
+
+        for iface in ifaces:
+            ifaceinfo = netinfo[iface]
+            if ifaceinfo["state"] != "up" or len(ifaceinfo["addresses"]) == 0:
+                logging.debug("interface %s not yet up or has no addresses", iface)
+                continue
+
+            for addr in ifaceinfo["addresses"]:
+                # spread wants only IPv4 address
+                if addr["family"] != "inet":
+                    continue
+
+                if addr["address"] == ip4addr:
+                    return True
+
+        return False
+
+    sysname: Optional[str] = None
+    for system in systems:
+        if is_matching_system(system, ip4addr):
+            sysname = system["name"]
+            break
+
+    if sysname:
+        run_lxc(["delete", "--force", sysname])
+    else:
+        raise RuntimeError(f"cannot find system with address {ip4addr}")
+
+
+def op_cleanup(opts: argparse.Namespace) -> None:
+    out = run_lxc(["list", "--format=json"])
+    names: list[str] = []
+    systems = json.loads(out)
+    for system in systems:
+        names.append(system["name"])
+
+    logging.debug("will remove the following systems: %s", names)
+
+    for name in names:
+        try:
+            run_lxc(["delete", "--force", name])
+        except:
+            logging.exception("cannot remove system %s", name)
+
+
+def parse_arguments() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="spread-lxd-allocator")
+    sub = parser.add_subparsers(dest="command")
+    alloc = sub.add_parser("allocate", description="allocate a machine")
+    alloc.add_argument("system", help="spread system")
+    alloc.add_argument("user", help="spread user")
+    alloc.add_argument("password", help="spread user password")
+    dealloc = sub.add_parser("deallocate", description="deallocate a machine")
+    dealloc.add_argument("address", help="IPv4 address of the machine")
+    sub.add_parser("cleanup", description="cleanup all allocated systems")
+    return parser.parse_args()
+
+
+def main(opts):
+    if opts.command == "allocate":
+        addr = op_allocate(opts)
+        print(addr)
+
+    elif opts.command == "deallocate":
+        op_deallocate(opts)
+
+    elif opts.command == "cleanup":
+        op_cleanup(opts)
+
+
+if __name__ == "__main__":
+    logging.basicConfig(level=logging.DEBUG)
+    main(parse_arguments())
