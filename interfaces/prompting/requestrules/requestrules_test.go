@@ -968,7 +968,141 @@ func (s *requestrulesSuite) TestAddRulePartiallyExpired(c *C) {
 	c.Check(exists, Equals, true)
 }
 
-func (s *requestrulesSuite) TestIsPathAllowedSimple(c *C) {
+type isPathPermAllowedResult struct {
+	allowed bool
+	err     error
+}
+
+func (s *requestrulesSuite) TestIsRequestAllowed(c *C) {
+	rdb, err := requestrules.New(nil)
+	c.Assert(err, IsNil)
+	c.Assert(rdb, NotNil)
+
+	user := uint32(1234)
+	snap := "firefox"
+	iface := "powerful"
+	path := "/path/to/something"
+
+	for _, testCase := range []struct {
+		requestedPerms   []string
+		permReturns      map[string]isPathPermAllowedResult
+		allowedPerms     []string
+		anyDenied        bool
+		outstandingPerms []string
+		errStr           string
+	}{
+		{
+			requestedPerms: []string{"foo", "bar", "baz"},
+			permReturns: map[string]isPathPermAllowedResult{
+				"foo": {true, nil},
+				"bar": {true, nil},
+				"baz": {true, nil},
+			},
+			allowedPerms:     []string{"foo", "bar", "baz"},
+			anyDenied:        false,
+			outstandingPerms: []string{},
+			errStr:           "",
+		},
+		{
+			requestedPerms: []string{"foo", "bar", "baz"},
+			permReturns: map[string]isPathPermAllowedResult{
+				"foo": {true, prompting_errors.ErrNoMatchingRule},
+				"bar": {false, prompting_errors.ErrNoMatchingRule},
+				"baz": {true, prompting_errors.ErrNoMatchingRule},
+			},
+			allowedPerms:     []string{},
+			anyDenied:        false,
+			outstandingPerms: []string{"foo", "bar", "baz"},
+			errStr:           "",
+		},
+		{
+			requestedPerms: []string{"foo", "bar", "baz"},
+			permReturns: map[string]isPathPermAllowedResult{
+				"foo": {true, prompting_errors.ErrNoMatchingRule},
+				"bar": {true, nil},
+				"baz": {false, prompting_errors.ErrNoMatchingRule},
+			},
+			allowedPerms:     []string{"bar"},
+			anyDenied:        false,
+			outstandingPerms: []string{"foo", "baz"},
+			errStr:           "",
+		},
+		{
+			requestedPerms: []string{"foo", "bar", "baz"},
+			permReturns: map[string]isPathPermAllowedResult{
+				"foo": {false, nil},
+				"bar": {true, nil},
+				"baz": {false, prompting_errors.ErrNoMatchingRule},
+			},
+			allowedPerms:     []string{"bar"},
+			anyDenied:        true,
+			outstandingPerms: []string{"baz"},
+			errStr:           "",
+		},
+		{
+			requestedPerms: []string{"foo", "bar"},
+			permReturns: map[string]isPathPermAllowedResult{
+				"foo": {true, nil},
+				"bar": {true, nil},
+				"baz": {true, fmt.Errorf("baz")},
+			},
+			allowedPerms:     []string{"foo", "bar"},
+			anyDenied:        false,
+			outstandingPerms: []string{},
+			errStr:           "",
+		},
+		{
+			requestedPerms: []string{"foo", "bar", "baz"},
+			permReturns: map[string]isPathPermAllowedResult{
+				"foo": {true, fmt.Errorf("foo")},
+				"bar": {true, nil},
+				"baz": {true, nil},
+			},
+			allowedPerms:     []string{"bar", "baz"},
+			anyDenied:        false,
+			outstandingPerms: []string{},
+			errStr:           "foo",
+		},
+		{
+			requestedPerms: []string{"foo", "bar", "baz", "qux", "fizz", "buzz"},
+			permReturns: map[string]isPathPermAllowedResult{
+				"foo":  {true, fmt.Errorf("foo")},
+				"bar":  {true, nil},
+				"baz":  {true, prompting_errors.ErrNoMatchingRule},
+				"qux":  {false, fmt.Errorf("qux")},
+				"fizz": {false, nil},
+				"buzz": {false, prompting_errors.ErrNoMatchingRule},
+			},
+			allowedPerms:     []string{"bar"},
+			anyDenied:        true,
+			outstandingPerms: []string{"baz", "buzz"},
+			errStr:           "foo\nqux",
+		},
+	} {
+		restore := requestrules.MockIsPathPermAllowed(func(r *requestrules.RuleDB, u uint32, s string, i string, p string, perm string) (bool, error) {
+			c.Assert(r, Equals, rdb)
+			c.Assert(u, Equals, user)
+			c.Assert(s, Equals, snap)
+			c.Assert(i, Equals, iface)
+			c.Assert(p, Equals, path)
+			result := testCase.permReturns[perm]
+			return result.allowed, result.err
+		})
+		defer restore()
+
+		allowedPerms, anyDenied, outstandingPerms, err := rdb.IsRequestAllowed(user, snap, iface, path, testCase.requestedPerms)
+		c.Check(allowedPerms, DeepEquals, testCase.allowedPerms)
+		c.Check(anyDenied, Equals, testCase.anyDenied)
+		c.Check(outstandingPerms, DeepEquals, testCase.outstandingPerms)
+		if testCase.errStr == "" {
+			c.Check(err, IsNil)
+		} else {
+			c.Check(err, ErrorMatches, testCase.errStr)
+		}
+	}
+}
+
+func (s *requestrulesSuite) TestIsPathPermAllowedSimple(c *C) {
 	// Target
 	user := s.defaultUser
 	snap := "firefox"
@@ -1051,7 +1185,7 @@ func (s *requestrulesSuite) TestIsPathAllowedSimple(c *C) {
 			s.checkNewNoticesSimple(c, nil)
 		}
 
-		allowed, err := rdb.IsPathAllowed(user, snap, iface, path, permission)
+		allowed, err := rdb.IsPathPermAllowed(user, snap, iface, path, permission)
 		c.Check(err, Equals, testCase.err)
 		c.Check(allowed, Equals, testCase.allowed)
 		// Check that no notices were recorded when checking
@@ -1065,7 +1199,7 @@ func (s *requestrulesSuite) TestIsPathAllowedSimple(c *C) {
 	}
 }
 
-func (s *requestrulesSuite) TestIsPathAllowedPrecedence(c *C) {
+func (s *requestrulesSuite) TestIsPathPermAllowedPrecedence(c *C) {
 	// Target
 	user := s.defaultUser
 	snap := "firefox"
@@ -1122,13 +1256,13 @@ func (s *requestrulesSuite) TestIsPathAllowedPrecedence(c *C) {
 		mostRecentOutcome, err := ruleContents.Outcome.AsBool()
 		c.Check(err, IsNil)
 
-		allowed, err := rdb.IsPathAllowed(user, snap, iface, path, permission)
+		allowed, err := rdb.IsPathPermAllowed(user, snap, iface, path, permission)
 		c.Check(err, IsNil)
 		c.Check(allowed, Equals, mostRecentOutcome, Commentf("most recent: %+v", ruleContents))
 	}
 }
 
-func (s *requestrulesSuite) TestIsPathAllowedExpiration(c *C) {
+func (s *requestrulesSuite) TestIsPathPermAllowedExpiration(c *C) {
 	// Target
 	user := s.defaultUser
 	snap := "firefox"
@@ -1191,7 +1325,7 @@ func (s *requestrulesSuite) TestIsPathAllowedExpiration(c *C) {
 		c.Check(err, IsNil)
 
 		// Check that the outcome of the most specific unexpired rule has precedence
-		allowed, err := rdb.IsPathAllowed(user, snap, iface, path, permission)
+		allowed, err := rdb.IsPathPermAllowed(user, snap, iface, path, permission)
 		c.Check(err, IsNil)
 		c.Check(allowed, Equals, expectedOutcome, Commentf("last unexpired: %+v", rule))
 
