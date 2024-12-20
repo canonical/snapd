@@ -424,7 +424,7 @@ parts:
         ) > "${CRAFT_PART_INSTALL}/usr/lib/snapd/dirty-git-tree-info.txt"
       fi
 
-      find "${CRAFT_PART_INSTALL}/usr/lib/snapd" "${CRAFT_PART_INSTALL}/usr/bin" -type f -exec strip {} ";"
+      #find "${CRAFT_PART_INSTALL}/usr/lib/snapd" "${CRAFT_PART_INSTALL}/usr/bin" -type f -exec strip {} ";"
 
       if [ -f fips-build ]; then
         touch "${CRAFT_PART_INSTALL}/fips-build"
