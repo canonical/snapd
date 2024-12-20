@@ -12,9 +12,6 @@ details: |
     essence of a failure encountered in the field by a real snap application
     package, in order to show that the failure no longer occurs.
 
-    Historically this test also enabled the robust-mount-namespace-updates feature,
-    but it is now enabled by default.
-
     This test is related to lp-1844496, lp-1852361 and lp-1867193.
 
 systems: [ubuntu-18.04-64] # tight coupling with container guest
