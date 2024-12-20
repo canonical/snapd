@@ -89,6 +89,15 @@ func (s *SystemObserveInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other.app2"})
 	c.Assert(apparmorSpec.SnippetForTag("snap.other.app2"), testutil.Contains, "ptrace")
 	c.Assert(apparmorSpec.SnippetForTag("snap.other.app2"), testutil.Contains, "@{PROC}/partitions r,")
+	// This will test whether PropertiesChange signal  on dbus path "/org/freedesktop/systemd1{,/**}
+	// and interface org.freedesktop.DBus.Properties  is allowed by apparmor profile or not.
+	expectedString := `dbus (receive)
+    bus=system
+    path=/org/freedesktop/systemd1{,/**}
+    interface=org.freedesktop.DBus.Properties
+    member=PropertiesChanged
+    peer=(label=unconfined),`
+	c.Assert(apparmorSpec.SnippetForTag("snap.other.app2"), testutil.Contains, expectedString)
 
 	updateNS := apparmorSpec.UpdateNS()
 	expectedUpdateNS := `  # Read-only access to /boot
