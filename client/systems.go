@@ -27,6 +27,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/snapcore/snapd/gadget"
+	"github.com/snapcore/snapd/gadget/device"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -162,9 +163,8 @@ type StorageEncryption struct {
 	// StorageSafety can have values of asserts.StorageSafety
 	StorageSafety string `json:"storage-safety,omitempty"`
 
-	// Type has values of secboot.EncryptionType: "", "cryptsetup",
-	// "cryptsetup-with-inline-crypto-engine"
-	Type string `json:"encryption-type,omitempty"`
+	// Type has values of device.EncryptionType.
+	Type device.EncryptionType `json:"encryption-type,omitempty"`
 
 	// UnavailableReason describes why the encryption is not
 	// available in a human readable form. Depending on if

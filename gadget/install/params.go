@@ -21,6 +21,7 @@ package install
 
 import (
 	"github.com/snapcore/snapd/gadget"
+	"github.com/snapcore/snapd/gadget/device"
 	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/secboot"
 )
@@ -29,7 +30,7 @@ type Options struct {
 	// Also mount the filesystems after creation
 	Mount bool
 	// Encrypt the data/save partitions
-	EncryptionType secboot.EncryptionType
+	EncryptionType device.EncryptionType
 }
 
 // InstalledSystemSideData carries side data of an installed system, eg. secrets

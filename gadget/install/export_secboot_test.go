@@ -21,6 +21,7 @@
 package install
 
 import (
+	"github.com/snapcore/snapd/gadget/device"
 	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -30,7 +31,7 @@ var (
 	NewEncryptedDeviceLUKS = newEncryptedDeviceLUKS
 )
 
-func MockSecbootFormatEncryptedDevice(f func(key []byte, encType secboot.EncryptionType, label, node string) error) (restore func()) {
+func MockSecbootFormatEncryptedDevice(f func(key []byte, encType device.EncryptionType, label, node string) error) (restore func()) {
 	r := testutil.Backup(&secbootFormatEncryptedDevice)
 	secbootFormatEncryptedDevice = f
 	return r

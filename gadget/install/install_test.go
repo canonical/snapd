@@ -34,6 +34,7 @@ import (
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget"
+	"github.com/snapcore/snapd/gadget/device"
 	"github.com/snapcore/snapd/gadget/gadgettest"
 	"github.com/snapcore/snapd/gadget/install"
 	"github.com/snapcore/snapd/gadget/quantity"
@@ -605,12 +606,12 @@ fi
 	keys := make(map[string][]byte)
 
 	secbootFormatEncryptedDeviceCall := 0
-	restore = install.MockSecbootFormatEncryptedDevice(func(key []byte, encType secboot.EncryptionType, label, node string) error {
+	restore = install.MockSecbootFormatEncryptedDevice(func(key []byte, encType device.EncryptionType, label, node string) error {
 		if !opts.encryption {
 			c.Error("unexpected call to secboot.FormatEncryptedDevice when encryption is off")
 			return fmt.Errorf("no encryption functions should be called")
 		}
-		c.Check(encType, Equals, secboot.EncryptionTypeLUKS)
+		c.Check(encType, Equals, device.EncryptionTypeLUKS)
 		secbootFormatEncryptedDeviceCall++
 		switch secbootFormatEncryptedDeviceCall {
 		case 1:
@@ -636,7 +637,7 @@ fi
 	// finally actually run the install
 	runOpts := install.Options{}
 	if opts.encryption {
-		runOpts.EncryptionType = secboot.EncryptionTypeLUKS
+		runOpts.EncryptionType = device.EncryptionTypeLUKS
 	}
 
 	defer install.MockCryptsetupOpen(func(key secboot.DiskUnlockKey, node, name string) error {
@@ -1064,12 +1065,12 @@ fi
 	c.Assert(err, IsNil)
 
 	secbootFormatEncryptedDeviceCall := 0
-	restore = install.MockSecbootFormatEncryptedDevice(func(key []byte, encType secboot.EncryptionType, label, node string) error {
+	restore = install.MockSecbootFormatEncryptedDevice(func(key []byte, encType device.EncryptionType, label, node string) error {
 		if !opts.encryption {
 			c.Error("unexpected call to secboot.FormatEncryptedDevice")
 			return fmt.Errorf("unexpected call")
 		}
-		c.Check(encType, Equals, secboot.EncryptionTypeLUKS)
+		c.Check(encType, Equals, device.EncryptionTypeLUKS)
 		secbootFormatEncryptedDeviceCall++
 		switch secbootFormatEncryptedDeviceCall {
 		case 1:
@@ -1088,7 +1089,7 @@ fi
 	// finally actually run the factory reset
 	runOpts := install.Options{}
 	if opts.encryption {
-		runOpts.EncryptionType = secboot.EncryptionTypeLUKS
+		runOpts.EncryptionType = device.EncryptionTypeLUKS
 	}
 
 	defer install.MockCryptsetupOpen(func(key secboot.DiskUnlockKey, node, name string) error {
@@ -1476,7 +1477,7 @@ func (s *installSuite) TestInstallWriteContentDeviceNotFound(c *C) {
 }
 
 type encryptPartitionsOpts struct {
-	encryptType secboot.EncryptionType
+	encryptType device.EncryptionType
 }
 
 func (s *installSuite) testEncryptPartitions(c *C, opts encryptPartitionsOpts) {
@@ -1513,7 +1514,7 @@ func (s *installSuite) testEncryptPartitions(c *C, opts encryptPartitionsOpts) {
 		return nil
 	})()
 
-	defer install.MockSecbootFormatEncryptedDevice(func(key []byte, encType secboot.EncryptionType, label, node string) error {
+	defer install.MockSecbootFormatEncryptedDevice(func(key []byte, encType device.EncryptionType, label, node string) error {
 		return nil
 	})()
 
@@ -1529,7 +1530,7 @@ func (s *installSuite) testEncryptPartitions(c *C, opts encryptPartitionsOpts) {
 
 func (s *installSuite) TestInstallEncryptPartitionsLUKSHappy(c *C) {
 	s.testEncryptPartitions(c, encryptPartitionsOpts{
-		encryptType: secboot.EncryptionTypeLUKS,
+		encryptType: device.EncryptionTypeLUKS,
 	})
 }
 
@@ -1546,7 +1547,7 @@ func (s *installSuite) TestInstallEncryptPartitionsNoDeviceSet(c *C) {
 	c.Assert(err, IsNil)
 	defer restore()
 
-	encryptSetup, err := install.EncryptPartitions(ginfo.Volumes, secboot.EncryptionTypeLUKS, model, gadgetRoot, "", timings.New(nil))
+	encryptSetup, err := install.EncryptPartitions(ginfo.Volumes, device.EncryptionTypeLUKS, model, gadgetRoot, "", timings.New(nil))
 
 	c.Check(err.Error(), Equals, `volume "pc" has no device assigned`)
 	c.Check(encryptSetup, IsNil)
