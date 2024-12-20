@@ -27,6 +27,7 @@ import (
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/gadget"
+	"github.com/snapcore/snapd/gadget/device"
 	"github.com/snapcore/snapd/gadget/install"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/logger"
@@ -76,9 +77,9 @@ func main() {
 
 	obs := &simpleObserver{}
 
-	var encryptionType secboot.EncryptionType
+	var encryptionType device.EncryptionType
 	if args.Encrypt {
-		encryptionType = secboot.EncryptionTypeLUKS
+		encryptionType = device.EncryptionTypeLUKS
 	}
 
 	options := install.Options{

@@ -39,6 +39,7 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/gadget/gadgettest"
+	"github.com/snapcore/snapd/gadget/device"
 	"github.com/snapcore/snapd/gadget/install"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
@@ -724,7 +725,7 @@ func (s *deviceMgrInstallModeSuite) doRunChangeTestWithEncryption(c *C, grade st
 	if tc.encrypt {
 		c.Assert(brOpts, DeepEquals, install.Options{
 			Mount:          true,
-			EncryptionType: secboot.EncryptionTypeLUKS,
+			EncryptionType: device.EncryptionTypeLUKS,
 		})
 	} else {
 		c.Assert(brOpts, DeepEquals, install.Options{
@@ -1731,8 +1732,8 @@ func (s *deviceMgrInstallModeSuite) TestInstallSecuredBypassEncryption(c *C) {
 }
 
 func (s *deviceMgrInstallModeSuite) TestInstallBootloaderVarSetFails(c *C) {
-	restore := devicestate.MockInstallRun(func(mod gadget.Model, gadgetRoot string, kernelSnapInfo *install.KernelSnapInfo, device string, options install.Options, _ gadget.ContentObserver, _ timings.Measurer) (*install.InstalledSystemSideData, error) {
-		c.Check(options.EncryptionType, Equals, secboot.EncryptionTypeNone)
+	restore := devicestate.MockInstallRun(func(mod gadget.Model, gadgetRoot string, kernelSnapInfo *install.KernelSnapInfo, _ string, options install.Options, _ gadget.ContentObserver, _ timings.Measurer) (*install.InstalledSystemSideData, error) {
+		c.Check(options.EncryptionType, Equals, device.EncryptionTypeNone)
 		// no keys set
 		return &install.InstalledSystemSideData{}, nil
 	})
@@ -1821,8 +1822,8 @@ func (s *deviceMgrInstallModeSuite) testInstallEncryptionValidityChecks(c *C, er
 }
 
 func (s *deviceMgrInstallModeSuite) TestInstallEncryptionValidityChecksNoKeys(c *C) {
-	restore := devicestate.MockInstallRun(func(mod gadget.Model, gadgetRoot string, kernelSnapInfo *install.KernelSnapInfo, device string, options install.Options, _ gadget.ContentObserver, _ timings.Measurer) (*install.InstalledSystemSideData, error) {
-		c.Check(options.EncryptionType, Equals, secboot.EncryptionTypeLUKS)
+	restore := devicestate.MockInstallRun(func(mod gadget.Model, gadgetRoot string, kernelSnapInfo *install.KernelSnapInfo, _ string, options install.Options, _ gadget.ContentObserver, _ timings.Measurer) (*install.InstalledSystemSideData, error) {
+		c.Check(options.EncryptionType, Equals, device.EncryptionTypeLUKS)
 		// no keys set
 		return &install.InstalledSystemSideData{}, nil
 	})
@@ -1832,8 +1833,8 @@ func (s *deviceMgrInstallModeSuite) TestInstallEncryptionValidityChecksNoKeys(c 
 }
 
 func (s *deviceMgrInstallModeSuite) TestInstallEncryptionValidityChecksNoSystemDataKey(c *C) {
-	restore := devicestate.MockInstallRun(func(mod gadget.Model, gadgetRoot string, kernelSnapInfo *install.KernelSnapInfo, device string, options install.Options, _ gadget.ContentObserver, _ timings.Measurer) (*install.InstalledSystemSideData, error) {
-		c.Check(options.EncryptionType, Equals, secboot.EncryptionTypeLUKS)
+	restore := devicestate.MockInstallRun(func(mod gadget.Model, gadgetRoot string, kernelSnapInfo *install.KernelSnapInfo, _ string, options install.Options, _ gadget.ContentObserver, _ timings.Measurer) (*install.InstalledSystemSideData, error) {
+		c.Check(options.EncryptionType, Equals, device.EncryptionTypeLUKS)
 		// no keys set
 		return &install.InstalledSystemSideData{
 			// empty map
@@ -2079,14 +2080,14 @@ func (s *deviceMgrInstallModeSuite) TestInstallCheckEncrypted(c *C) {
 		fdeSetupHookFeatures string
 
 		hasTPM         bool
-		encryptionType secboot.EncryptionType
+		encryptionType device.EncryptionType
 	}{
 		// unhappy: no tpm, no hook
-		{false, "[]", false, secboot.EncryptionTypeNone},
+		{false, "[]", false, device.EncryptionTypeNone},
 		// happy: either tpm or hook or both
-		{false, "[]", true, secboot.EncryptionTypeLUKS},
-		{true, "[]", false, secboot.EncryptionTypeLUKS},
-		{true, "[]", true, secboot.EncryptionTypeLUKS},
+		{false, "[]", true, device.EncryptionTypeLUKS},
+		{true, "[]", false, device.EncryptionTypeLUKS},
+		{true, "[]", true, device.EncryptionTypeLUKS},
 	} {
 		hookInvoke := func(ctx *hookstate.Context, tomb *tomb.Tomb) ([]byte, error) {
 			ctx.Lock()
@@ -2451,7 +2452,7 @@ func (s *deviceMgrInstallModeSuite) doRunFactoryResetChange(c *C, model *asserts
 	if tc.encrypt {
 		c.Assert(brOpts, DeepEquals, install.Options{
 			Mount:          true,
-			EncryptionType: secboot.EncryptionTypeLUKS,
+			EncryptionType: device.EncryptionTypeLUKS,
 		})
 	} else {
 		c.Assert(brOpts, DeepEquals, install.Options{
