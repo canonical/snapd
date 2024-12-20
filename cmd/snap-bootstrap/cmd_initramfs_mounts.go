@@ -305,7 +305,7 @@ func doInstall(mst *initramfsMountsState, model *asserts.Model, sysSnaps map[sna
 	if err != nil {
 		return err
 	}
-	useEncryption := (encryptionSupport != secboot.EncryptionTypeNone)
+	useEncryption := (encryptionSupport != device.EncryptionTypeNone)
 
 	installObserver, trustedInstallObserver, err := installBuildInstallObserver(model, gadgetMountDir, useEncryption)
 	if err != nil {

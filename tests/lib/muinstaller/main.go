@@ -44,7 +44,6 @@ import (
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/disks"
 	"github.com/snapcore/snapd/osutil/mkfs"
-	"github.com/snapcore/snapd/secboot"
 )
 
 func waitForDevice() string {
@@ -156,7 +155,7 @@ func maybeCreatePartitionTable(bootDevice, schema string) error {
 	return nil
 }
 
-func createPartitions(bootDevice string, volumes map[string]*gadget.Volume, encType secboot.EncryptionType) ([]*gadget.OnDiskAndGadgetStructurePair, error) {
+func createPartitions(bootDevice string, volumes map[string]*gadget.Volume) ([]*gadget.OnDiskAndGadgetStructurePair, error) {
 	vol := firstVol(volumes)
 	// snapd does not create partition tables so we have to do it here
 	// or gadget.OnDiskVolumeFromDevice() will fail
@@ -548,11 +547,7 @@ func run(seedLabel, bootDevice, rootfsCreator, optionalInstallPath string) error
 	}
 
 	// TODO: grow the data-partition based on disk size
-	encType := secboot.EncryptionTypeNone
-	if shouldEncrypt {
-		encType = secboot.EncryptionTypeLUKS
-	}
-	dgpairs, err := createPartitions(bootDevice, details.Volumes, encType)
+	dgpairs, err := createPartitions(bootDevice, details.Volumes)
 	if err != nil {
 		return fmt.Errorf("cannot setup partitions: %v", err)
 	}
