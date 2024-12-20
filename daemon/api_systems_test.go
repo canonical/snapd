@@ -45,6 +45,7 @@ import (
 	"github.com/snapcore/snapd/daemon"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget"
+	"github.com/snapcore/snapd/gadget/device"
 	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/overlord/assertstate/assertstatetest"
 	"github.com/snapcore/snapd/overlord/auth"
@@ -56,7 +57,6 @@ import (
 	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
-	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/seed"
 	"github.com/snapcore/snapd/seed/seedtest"
 	"github.com/snapcore/snapd/snap"
@@ -820,7 +820,7 @@ func (s *systemsSuite) TestSystemsGetSystemDetailsForLabel(c *check.C) {
 	for _, tc := range []struct {
 		disabled, available                bool
 		storageSafety                      asserts.StorageSafety
-		typ                                secboot.EncryptionType
+		typ                                device.EncryptionType
 		unavailableErr, unavailableWarning string
 
 		expectedSupport                                  client.StorageEncryptionSupport
