@@ -22,11 +22,13 @@ package client_test
 import (
 	"encoding/json"
 	"io"
+	"time"
 
 	"gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/gadget"
+	"github.com/snapcore/snapd/gadget/device"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -367,9 +369,16 @@ func (cs *clientSuite) TestRequestSystemInstallHappy(c *check.C) {
 			},
 		},
 	}
+	volumesAuth := &device.VolumesAuthOptions{
+		Mode:       device.AuthModePassphrase,
+		Passphrase: "1234",
+		KDFType:    "argon2i",
+		KDFTime:    2 * time.Second,
+	}
 	opts := &client.InstallSystemOptions{
-		Step:      client.InstallStepFinish,
-		OnVolumes: vols,
+		Step:        client.InstallStepFinish,
+		OnVolumes:   vols,
+		VolumesAuth: volumesAuth,
 	}
 	chgID, err := cs.cli.InstallSystem("1234", opts)
 	c.Assert(err, check.IsNil)
@@ -411,6 +420,12 @@ func (cs *clientSuite) TestRequestSystemInstallHappy(c *check.C) {
 					},
 				},
 			},
+		},
+		"volumes-auth": map[string]interface{}{
+			"mode":       "passphrase",
+			"passphrase": "1234",
+			"kdf-type":   "argon2i",
+			"kdf-time":   float64(2 * time.Second),
 		},
 	})
 }

@@ -818,45 +818,70 @@ func (s *systemsSuite) TestSystemsGetSystemDetailsForLabel(c *check.C) {
 	}
 
 	for _, tc := range []struct {
-		disabled, available                bool
-		storageSafety                      asserts.StorageSafety
-		typ                                device.EncryptionType
-		unavailableErr, unavailableWarning string
+		disabled, available, passphraseAuthAvailable bool
+		storageSafety                                asserts.StorageSafety
+		typ                                          device.EncryptionType
+		unavailableErr, unavailableWarning           string
 
 		expectedSupport                                  client.StorageEncryptionSupport
 		expectedStorageSafety, expectedUnavailableReason string
+		expectedEncryptionFeatures                       []client.StorageEncryptionFeature
 	}{
 		{
-			true, false, asserts.StorageSafetyPreferEncrypted, "", "", "",
-			client.StorageEncryptionSupportDisabled, "", "",
+			disabled:      true,
+			storageSafety: asserts.StorageSafetyPreferEncrypted,
+
+			expectedSupport: client.StorageEncryptionSupportDisabled,
 		},
 		{
-			false, false, asserts.StorageSafetyPreferEncrypted, "", "", "unavailable-warn",
-			client.StorageEncryptionSupportUnavailable, "prefer-encrypted", "unavailable-warn",
+			storageSafety:      asserts.StorageSafetyPreferEncrypted,
+			unavailableWarning: "unavailable-warn",
+
+			expectedSupport:           client.StorageEncryptionSupportUnavailable,
+			expectedStorageSafety:     "prefer-encrypted",
+			expectedUnavailableReason: "unavailable-warn",
 		},
 		{
-			false, true, asserts.StorageSafetyPreferEncrypted, "cryptsetup", "", "",
-			client.StorageEncryptionSupportAvailable, "prefer-encrypted", "",
+			available:     true,
+			storageSafety: asserts.StorageSafetyPreferEncrypted,
+			typ:           "cryptsetup",
+
+			expectedSupport:       client.StorageEncryptionSupportAvailable,
+			expectedStorageSafety: "prefer-encrypted",
 		},
 		{
-			false, true, asserts.StorageSafetyPreferUnencrypted, "cryptsetup", "", "",
-			client.StorageEncryptionSupportAvailable, "prefer-unencrypted", "",
+			available:     true,
+			storageSafety: asserts.StorageSafetyPreferUnencrypted,
+			typ:           "cryptsetup",
+
+			expectedSupport:       client.StorageEncryptionSupportAvailable,
+			expectedStorageSafety: "prefer-unencrypted",
 		},
 		{
-			false, false, asserts.StorageSafetyEncrypted, "", "unavailable-err", "",
-			client.StorageEncryptionSupportDefective, "encrypted", "unavailable-err",
+			storageSafety:  asserts.StorageSafetyEncrypted,
+			unavailableErr: "unavailable-err",
+
+			expectedSupport:           client.StorageEncryptionSupportDefective,
+			expectedStorageSafety:     "encrypted",
+			expectedUnavailableReason: "unavailable-err",
 		},
 		{
-			false, true, asserts.StorageSafetyEncrypted, "", "", "",
-			client.StorageEncryptionSupportAvailable, "encrypted", "",
+			available:               true,
+			passphraseAuthAvailable: true,
+			storageSafety:           asserts.StorageSafetyEncrypted,
+
+			expectedSupport:            client.StorageEncryptionSupportAvailable,
+			expectedStorageSafety:      "encrypted",
+			expectedEncryptionFeatures: []client.StorageEncryptionFeature{client.StorageEncryptionFeaturePassphraseAuth},
 		},
 	} {
 		mockEncryptionSupportInfo := &install.EncryptionSupportInfo{
-			Available:          tc.available,
-			Disabled:           tc.disabled,
-			StorageSafety:      tc.storageSafety,
-			UnavailableErr:     errors.New(tc.unavailableErr),
-			UnavailableWarning: tc.unavailableWarning,
+			Available:               tc.available,
+			Disabled:                tc.disabled,
+			StorageSafety:           tc.storageSafety,
+			UnavailableErr:          errors.New(tc.unavailableErr),
+			UnavailableWarning:      tc.unavailableWarning,
+			PassphraseAuthAvailable: tc.passphraseAuthAvailable,
 		}
 
 		r := daemon.MockDeviceManagerSystemAndGadgetAndEncryptionInfo(func(mgr *devicestate.DeviceManager, label string) (*devicestate.System, *gadget.Info, *install.EncryptionSupportInfo, error) {
@@ -891,6 +916,7 @@ func (s *systemsSuite) TestSystemsGetSystemDetailsForLabel(c *check.C) {
 			},
 			StorageEncryption: &client.StorageEncryption{
 				Support:           tc.expectedSupport,
+				Features:          tc.expectedEncryptionFeatures,
 				StorageSafety:     tc.expectedStorageSafety,
 				UnavailableReason: tc.expectedUnavailableReason,
 			},
@@ -1222,9 +1248,11 @@ func (s *systemsSuite) TestSystemInstallActionSetupStorageEncryptionCallsDevices
 	nCalls := 0
 	var gotOnVolumes map[string]*gadget.Volume
 	var gotLabel string
-	r := daemon.MockDevicestateInstallSetupStorageEncryption(func(st *state.State, label string, onVolumes map[string]*gadget.Volume) (*state.Change, error) {
+	var gotVolumesAuth *device.VolumesAuthOptions
+	r := daemon.MockDevicestateInstallSetupStorageEncryption(func(st *state.State, label string, onVolumes map[string]*gadget.Volume, volumesAuth *device.VolumesAuthOptions) (*state.Change, error) {
 		gotLabel = label
 		gotOnVolumes = onVolumes
+		gotVolumesAuth = volumesAuth
 		nCalls++
 		return st.NewChange("foo", "..."), nil
 	})
@@ -1237,6 +1265,10 @@ func (s *systemsSuite) TestSystemInstallActionSetupStorageEncryptionCallsDevices
 			"pc": map[string]interface{}{
 				"bootloader": "grub",
 			},
+		},
+		"volumes-auth": map[string]interface{}{
+			"mode":       "passphrase",
+			"passphrase": "1234",
 		},
 	}
 	b, err := json.Marshal(body)
@@ -1258,6 +1290,10 @@ func (s *systemsSuite) TestSystemInstallActionSetupStorageEncryptionCallsDevices
 		"pc": {
 			Bootloader: "grub",
 		},
+	})
+	c.Check(gotVolumesAuth, check.DeepEquals, &device.VolumesAuthOptions{
+		Mode:       device.AuthModePassphrase,
+		Passphrase: "1234",
 	})
 
 	c.Check(soon, check.Equals, 1)
