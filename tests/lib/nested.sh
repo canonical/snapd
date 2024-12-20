@@ -1231,6 +1231,7 @@ nested_start_core_vm_unit() {
     if "$QEMU" -version | grep '2\.5'; then
         if [ -z "$EXPECT_PASSPHRASE" ]; then
             echo "internal error: NESTED_EXPECT_PASSPHRASE is set and qemu doesn't support chardev over socket"
+            exit 1
         fi
         # XXX: remove once we no longer support xenial hosts
         PARAM_SERIAL="-serial file:${NESTED_LOGS_DIR}/serial.log"
