@@ -128,7 +128,7 @@ func storageEncryption(encInfo *install.EncryptionSupportInfo) *client.StorageEn
 	}
 	storageEnc := &client.StorageEncryption{
 		StorageSafety: string(encInfo.StorageSafety),
-		Type:          string(encInfo.Type),
+		Type:          encInfo.Type,
 	}
 	required := (encInfo.StorageSafety == asserts.StorageSafetyEncrypted)
 	switch {
