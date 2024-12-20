@@ -994,6 +994,7 @@ prepare: |
     )
 
     # HACK
+    apt update
     apt install systemd-coredump -y
 
     # NOTE: At this stage the source tree is available and no more special
