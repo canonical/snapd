@@ -156,9 +156,21 @@ const (
 	StorageEncryptionSupportDefective = "defective"
 )
 
+type StorageEncryptionFeature string
+
+const (
+	// Indicates that passphrase authentication is available.
+	StorageEncryptionFeaturePassphraseAuth StorageEncryptionFeature = "passphrase-auth"
+	// Indicates that PIN authentication is available.
+	StorageEncryptionFeaturePINAuth StorageEncryptionFeature = "pin-auth"
+)
+
 type StorageEncryption struct {
 	// Support describes the level of hardware support available.
 	Support StorageEncryptionSupport `json:"support"`
+
+	// Features is a list of available encryption features.
+	Features []StorageEncryptionFeature `json:"features"`
 
 	// StorageSafety can have values of asserts.StorageSafety
 	StorageSafety string `json:"storage-safety,omitempty"`
@@ -241,6 +253,10 @@ type InstallSystemOptions struct {
 	// snaps and components, provide an empty OptionalInstallRequest with the
 	// All field set to false.
 	OptionalInstall *OptionalInstallRequest `json:"optional-install,omitempty"`
+	// VolumesAuth contains options for volumes authentication (e.g. passphrase
+	// authentication). If VolumesAuth is nil, the default is to have no
+	// authentication.
+	VolumesAuth *device.VolumesAuthOptions `json:"volumes-auth,omitempty"`
 }
 
 type OptionalInstallRequest struct {
