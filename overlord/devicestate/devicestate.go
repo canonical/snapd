@@ -57,13 +57,15 @@ import (
 )
 
 var (
-	snapstateDownload         = snapstate.Download
-	snapstateUpdateOne        = snapstate.UpdateOne
-	snapstateInstallOne       = snapstate.InstallOne
-	snapstateStoreInstallGoal = snapstate.StoreInstallGoal
-	snapstatePathInstallGoal  = snapstate.PathInstallGoal
-	snapstateStoreUpdateGoal  = snapstate.StoreUpdateGoal
-	snapstatePathUpdateGoal   = snapstate.PathUpdateGoal
+	snapstateDownload             = snapstate.Download
+	snapstateUpdateOne            = snapstate.UpdateOne
+	snapstateInstallOne           = snapstate.InstallOne
+	snapstateStoreInstallGoal     = snapstate.StoreInstallGoal
+	snapstatePathInstallGoal      = snapstate.PathInstallGoal
+	snapstateStoreUpdateGoal      = snapstate.StoreUpdateGoal
+	snapstatePathUpdateGoal       = snapstate.PathUpdateGoal
+	snapstateInstallComponents    = snapstate.InstallComponents
+	snapstateInstallComponentPath = snapstate.InstallComponentPath
 )
 
 // findModel returns the device model assertion.
@@ -477,9 +479,22 @@ const (
 	remodelChannelSwitch
 	remodelInstallAction
 	remodelUpdateAction
+	remodelAddComponentsAction
 )
 
 func (r *remodeler) maybeInstallOrUpdate(ctx context.Context, st *state.State, rt remodelTarget) (remodelAction, []*state.TaskSet, error) {
+	var requiredComponents, optionalComponents []string
+	if ms := rt.newModelSnap; ms != nil {
+		for comp, mc := range ms.Components {
+			switch mc.Presence {
+			case "required":
+				requiredComponents = append(requiredComponents, comp)
+			case "optional":
+				optionalComponents = append(optionalComponents, comp)
+			}
+		}
+	}
+
 	var snapst snapstate.SnapState
 	if err := snapstate.Get(st, rt.name, &snapst); err != nil {
 		if !errors.Is(err, state.ErrNoState) {
@@ -493,7 +508,7 @@ func (r *remodeler) maybeInstallOrUpdate(ctx context.Context, st *state.State, r
 			return remodelNoAction, nil, nil
 		}
 
-		goal, err := r.installGoal(rt)
+		goal, err := r.installGoal(rt, requiredComponents)
 		if err != nil {
 			return 0, nil, err
 		}
@@ -539,21 +554,59 @@ func (r *remodeler) maybeInstallOrUpdate(ctx context.Context, st *state.State, r
 	}
 
 	// we need to change the revision if either the incoming model's validation
-	// sets require a specific revision that we don't have installed
-	//
-	// TODO: if the current revision doesn't support the components that we
-	// need, will also need to change the revision here
-	needsRevisionChange := (!constraints.Revision.Unset() && constraints.Revision != snapst.Current)
+	// sets require a specific revision that we don't have installed, or if the
+	// current revision doesn't support the components that we need.
+	needsRevisionChange := (!constraints.Revision.Unset() && constraints.Revision != snapst.Current) || !revisionSupportsComponents(currentInfo, requiredComponents)
 
-	// TODO: we don't properly handle snaps and components that are invalid in
-	// the incoming model and required by the previous model. this would require
-	// removing things during a remodel, which isn't something we do at the
-	// moment. afaict, there it is impossible to remodel from a model that
+	// check if any components are either missing, or installed at the wrong
+	// revision. note that we will only explicitly handle these needed changes
+	// if the snap itself, and its channel, are already valid in the incoming
+	// model
+	needsComponentChanges := false
+	for _, c := range requiredComponents {
+		csi := snapst.CurrentComponentSideInfo(naming.NewComponentRef(rt.name, c))
+		if csi == nil {
+			needsComponentChanges = true
+			break
+		}
+
+		compConstraints := constraints.Component(c)
+		if !compConstraints.Revision.Unset() && compConstraints.Revision != csi.Revision {
+			needsComponentChanges = true
+			break
+		}
+	}
+
+	// if we're not changing the revision, then we have to check if any of the
+	// model's optional components are installed and make sure that they are at
+	// the correct revision. if they aren't then we'll either attempt to update
+	// them from the store or they must come from a given file.
+	//
+	// TODO: this code is complicated, try and make it simpler
+	if !needsRevisionChange {
+		for _, c := range optionalComponents {
+			csi := snapst.CurrentComponentSideInfo(naming.NewComponentRef(rt.name, c))
+			if csi == nil {
+				continue
+			}
+
+			compConstraints := constraints.Component(c)
+			if !compConstraints.Revision.Unset() && compConstraints.Revision != csi.Revision {
+				needsComponentChanges = true
+				requiredComponents = append(requiredComponents, c)
+			}
+		}
+	}
+
+	// TODO: we don't properly handle snaps (and now components) that are
+	// invalid in the incoming model and required by the previous model. this
+	// would require removing things during a remodel, which isn't something we
+	// do at the moment. afaict, it is impossible to remodel from a model that
 	// requires a snap that is invalid in the incoming model.
 
 	switch {
 	case needsRevisionChange || needsChannelChange:
-		if r.shouldJustSwitch(rt, needsRevisionChange) {
+		if r.shouldSwitchWithoutRefresh(rt, needsRevisionChange, needsComponentChanges) {
 			ts, err := snapstate.Switch(st, rt.name, &snapstate.RevisionOptions{
 				Channel: rt.channel,
 			})
@@ -564,7 +617,18 @@ func (r *remodeler) maybeInstallOrUpdate(ctx context.Context, st *state.State, r
 			return remodelChannelSwitch, []*state.TaskSet{ts}, nil
 		}
 
-		goal, err := r.updateGoal(st, rt, constraints)
+		// right now, we don't properly handle switching a channel and
+		// installing components at the same time. in the meantime, we can use
+		// snapstate.UpdateOne to add additional components and switch the
+		// channel for us. this method is suboptimal, since we're creating tasks
+		// for essentially re-installing the snap.
+		//
+		// this also will not work well for offline remodeling, since it
+		// prevents us from using a combination of locally provided components
+		// and an already installed snap. for that case,
+		// snapstate.InstallComponents would need to support switching channels
+		// at the same time as installing components.
+		goal, err := r.updateGoal(st, rt, requiredComponents, constraints)
 		if err != nil {
 			return 0, nil, err
 		}
@@ -586,6 +650,12 @@ func (r *remodeler) maybeInstallOrUpdate(ctx context.Context, st *state.State, r
 		}
 
 		return remodelChannelSwitch, []*state.TaskSet{ts}, nil
+	case needsComponentChanges:
+		tss, err := r.installComponents(ctx, st, currentInfo, requiredComponents)
+		if err != nil {
+			return 0, nil, err
+		}
+		return remodelAddComponentsAction, tss, nil
 	default:
 		// nothing to do but add the snap to the prereq tracker
 		r.tracker.Add(currentInfo)
@@ -593,12 +663,12 @@ func (r *remodeler) maybeInstallOrUpdate(ctx context.Context, st *state.State, r
 	}
 }
 
-func (r *remodeler) shouldJustSwitch(rt remodelTarget, needsRevisionChange bool) bool {
+func (r *remodeler) shouldSwitchWithoutRefresh(rt remodelTarget, needsRevisionChange bool, needsComponentChanges bool) bool {
 	if !r.offline {
 		return false
 	}
 
-	if needsRevisionChange {
+	if needsRevisionChange || needsComponentChanges {
 		return false
 	}
 
@@ -618,7 +688,16 @@ func (r *remodeler) shouldJustSwitch(rt remodelTarget, needsRevisionChange bool)
 	return true
 }
 
-func (r *remodeler) installGoal(sn remodelTarget) (snapstate.InstallGoal, error) {
+func revisionSupportsComponents(info *snap.Info, components []string) bool {
+	for _, c := range components {
+		if _, ok := info.Components[c]; !ok {
+			return false
+		}
+	}
+	return true
+}
+
+func (r *remodeler) installGoal(sn remodelTarget, components []string) (snapstate.InstallGoal, error) {
 	if r.offline {
 		if sn.newModelSnap == nil {
 			return nil, errors.New("offline remodeling requires that new model snap is provided")
@@ -628,6 +707,10 @@ func (r *remodeler) installGoal(sn remodelTarget) (snapstate.InstallGoal, error)
 		ls, ok := r.localContainers.Snaps[snapID]
 		if !ok {
 			return nil, fmt.Errorf("no snap file provided for %q", sn.name)
+		}
+
+		if len(components) != 0 {
+			return nil, errors.New("internal error: offline remodel with components not supported yet")
 		}
 
 		opts := snapstate.RevisionOptions{
@@ -640,6 +723,7 @@ func (r *remodeler) installGoal(sn remodelTarget) (snapstate.InstallGoal, error)
 
 	return snapstateStoreInstallGoal(snapstate.StoreSnap{
 		InstanceName: sn.name,
+		Components:   components,
 		RevOpts: snapstate.RevisionOptions{
 			Channel:        sn.channel,
 			ValidationSets: r.vsets,
@@ -650,10 +734,15 @@ func (r *remodeler) installGoal(sn remodelTarget) (snapstate.InstallGoal, error)
 func (r *remodeler) installedRevisionUpdateGoal(
 	st *state.State,
 	sn remodelTarget,
+	components []string,
 	constraints snapasserts.SnapPresenceConstraints,
 ) (snapstate.UpdateGoal, error) {
+	if len(components) > 0 {
+		return nil, errors.New("internal error: falling back to previous snap with components not supported during remodel")
+	}
+
 	if constraints.Revision.Unset() {
-		return nil, errors.New("internal error: falling back to a previous revision requires that we have a speicifc revision to pick")
+		return nil, errors.New("internal error: falling back to a previous revision requires that we have a specific revision to pick")
 	}
 
 	var snapst snapstate.SnapState
@@ -666,6 +755,10 @@ func (r *remodeler) installedRevisionUpdateGoal(
 		return nil, fmt.Errorf("installed snap %q does not have the required revision in its sequence to be used for offline remodel: %s", sn.name, constraints.Revision)
 	}
 
+	if snapst.Sequence.HasComponents(index) {
+		return nil, errors.New("TODO: snapstate currently reaches out to the store during a refresh if the snap has components already installed, regardless if the snap is already installed or not")
+	}
+
 	return snapstateStoreUpdateGoal(snapstate.StoreUpdate{
 		InstanceName: sn.name,
 		RevOpts: snapstate.RevisionOptions{
@@ -676,20 +769,24 @@ func (r *remodeler) installedRevisionUpdateGoal(
 	}), nil
 }
 
-func (r *remodeler) updateGoal(st *state.State, sn remodelTarget, constraints snapasserts.SnapPresenceConstraints) (snapstate.UpdateGoal, error) {
+func (r *remodeler) updateGoal(st *state.State, sn remodelTarget, components []string, constraints snapasserts.SnapPresenceConstraints) (snapstate.UpdateGoal, error) {
 	if r.offline {
 		if sn.newModelSnap == nil {
-			return nil, errors.New("offline remodeling requires that new model snap is provided")
+			return nil, errors.New("internal error: offline remodeling requires that new model snap is provided")
 		}
 
 		snapID := sn.newModelSnap.SnapID
 		ls, ok := r.localContainers.Snaps[snapID]
 		if !ok {
-			g, err := r.installedRevisionUpdateGoal(st, sn, constraints)
+			g, err := r.installedRevisionUpdateGoal(st, sn, components, constraints)
 			if err != nil {
 				return nil, err
 			}
 			return g, nil
+		}
+
+		if len(components) != 0 {
+			return nil, errors.New("internal error: offline remodel with components not supported yet")
 		}
 
 		opts := snapstate.RevisionOptions{
@@ -713,7 +810,25 @@ func (r *remodeler) updateGoal(st *state.State, sn remodelTarget, constraints sn
 			Channel:        sn.channel,
 			ValidationSets: r.vsets,
 		},
+		// components will be the full list of components needed by the new
+		// model, and it might already contain any of the components that are
+		// already installed. the snapstate code handles this case correctly.
+		AdditionalComponents: components,
 	}), nil
+}
+
+func (r *remodeler) installComponents(ctx context.Context, st *state.State, info *snap.Info, components []string) ([]*state.TaskSet, error) {
+	r.tracker.Add(info)
+
+	if r.offline {
+		return nil, errors.New("internal error: offline remodel with components not supported yet")
+	}
+
+	return snapstateInstallComponents(ctx, st, components, info, r.vsets, snapstate.Options{
+		DeviceCtx:     r.deviceCtx,
+		FromChange:    r.fromChange,
+		PrereqTracker: r.tracker,
+	})
 }
 
 func remodelEssentialSnapTasks(
@@ -786,7 +901,7 @@ func remodelEssentialSnapTasks(
 		// if we're updating or installing a new essential snap, everything will
 		// already be handled
 		return tss, nil
-	case remodelNoAction:
+	case remodelNoAction, remodelAddComponentsAction:
 		ts, err := switchEssentialTasks(ms.newSnap, rm.fromChange)
 		if err != nil {
 			return nil, err
@@ -1570,8 +1685,7 @@ type LocalSnap struct {
 }
 
 type LocalContainers struct {
-	Snaps      map[string]LocalSnap
-	Components map[string]LocalComponent
+	Snaps map[string]LocalSnap
 }
 
 // LocalComponent is a pair of a snap.ComponentSideInfo and a path to the

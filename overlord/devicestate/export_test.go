@@ -26,6 +26,7 @@ import (
 	"time"
 
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/gadget/install"
@@ -183,6 +184,14 @@ func MockSnapstateStoreUpdateGoal(mock func(snaps ...snapstate.StoreUpdate) snap
 
 func MockSnapstatePathInstallGoal(mock func(string, string, *snap.SideInfo, map[*snap.ComponentSideInfo]string, snapstate.RevisionOptions) snapstate.InstallGoal) (restore func()) {
 	return testutil.Mock(&snapstatePathInstallGoal, mock)
+}
+
+func MockSnapstateInstallComponents(mock func(ctx context.Context, st *state.State, names []string, info *snap.Info, vsets *snapasserts.ValidationSets, opts snapstate.Options) ([]*state.TaskSet, error)) (restore func()) {
+	return testutil.Mock(&snapstateInstallComponents, mock)
+}
+
+func MockSnapstateInstallComponentPath(mock func(st *state.State, csi *snap.ComponentSideInfo, info *snap.Info, path string, opts snapstate.Options) (*state.TaskSet, error)) (restore func()) {
+	return testutil.Mock(&snapstateInstallComponentPath, mock)
 }
 
 func MockSnapstateDownload(f func(ctx context.Context, st *state.State, name string, components []string, blobDirectory string, revOpts snapstate.RevisionOptions, opts snapstate.Options) (*state.TaskSet, *snap.Info, error)) (restore func()) {
