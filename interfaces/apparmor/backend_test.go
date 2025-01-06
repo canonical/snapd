@@ -2986,3 +2986,39 @@ func (s *backendSuite) TestRemoveAllSnapAppArmorProfiles(c *C) {
 		c.Check(os.IsNotExist(err), Equals, true)
 	}
 }
+
+func (s *backendSuite) TestKernelModulesAndFwRule(c *C) {
+	restoreTemplate := apparmor.MockTemplate("template\n###KERNEL_MODULES_AND_FIRMWARE###\n")
+	defer restoreTemplate()
+	restore := apparmor_sandbox.MockLevel(apparmor_sandbox.Full)
+	defer restore()
+	restore = osutil.MockIsHomeUsingRemoteFS(func() (bool, error) { return false, nil })
+	defer restore()
+
+	for _, tc := range []struct {
+		opts     interfaces.ConfinementOptions
+		suppress bool
+		expected Checker
+	}{
+		{
+			opts:     interfaces.ConfinementOptions{},
+			expected: Not(testutil.Contains),
+		},
+		{
+			opts:     interfaces.ConfinementOptions{KernelSnap: "mykernel"},
+			expected: testutil.Contains,
+		},
+	} {
+		snapInfo := s.InstallSnap(c, tc.opts, "", ifacetest.SambaYamlV1, 1)
+		profile := filepath.Join(dirs.SnapAppArmorDir, "snap.samba.smbd")
+		data, err := os.ReadFile(profile)
+		c.Assert(err, IsNil)
+
+		c.Assert(string(data), tc.expected, `
+  # Allow access to kernel modules and firmware from the kernel snap
+  /snap/mykernel/*/{modules,firmware}/{,**} r,
+  /snap/mykernel/components/mnt/*/*/{modules,firmware}/{,**} r,
+  /var/snap/mykernel/*/{modules,firmware}/{,**} r,`)
+		s.RemoveSnap(c, snapInfo)
+	}
+}
