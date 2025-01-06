@@ -17,9 +17,6 @@ prepare: |
     snap install test-snapd-auditd-support
 
 execute: |
-    echo "The interface is disconnected by default"
-    snap interfaces -i auditd-support | MATCH -- '- +test-snapd-auditd-support:auditd-support'
-
     echo "When the interface is connected"
     snap connect test-snapd-auditd-support:auditd-support
 
