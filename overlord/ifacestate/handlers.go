@@ -88,12 +88,19 @@ func (m *InterfaceManager) buildConfinementOptions(st *state.State, snapInfo *sn
 		return interfaces.ConfinementOptions{}, fmt.Errorf("cannot get extra mount layouts of snap %q: %s", snapInfo.InstanceName(), err)
 	}
 
+	kernelSnap := ""
+	deviceCtx, err := snapstate.DeviceCtx(st, nil, nil)
+	if err == nil {
+		kernelSnap = deviceCtx.Kernel()
+	}
+
 	return interfaces.ConfinementOptions{
 		DevMode:           flags.DevMode,
 		JailMode:          flags.JailMode,
 		Classic:           flags.Classic,
 		ExtraLayouts:      extraLayouts,
 		AppArmorPrompting: m.useAppArmorPrompting,
+		KernelSnap:        kernelSnap,
 	}, nil
 }
 

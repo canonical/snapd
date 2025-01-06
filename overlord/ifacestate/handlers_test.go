@@ -26,6 +26,7 @@ import (
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/overlord/configstate/config"
+	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/overlord/ifacestate"
 	"github.com/snapcore/snapd/overlord/servicestate/servicestatetest"
 	"github.com/snapcore/snapd/overlord/snapstate"
@@ -34,6 +35,7 @@ import (
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/quota"
 	"github.com/snapcore/snapd/snap/snaptest"
+	"github.com/snapcore/snapd/testutil"
 )
 
 const snapAyaml = `name: snap-a
@@ -42,14 +44,22 @@ base: base-snap-a
 `
 
 type handlersSuite struct {
+	testutil.BaseTest
 	st *state.State
 }
 
 var _ = Suite(&handlersSuite{})
 
+func (s *handlersSuite) mockModel() func() {
+	old := snapstate.DeviceCtx
+	snapstate.DeviceCtx = devicestate.DeviceCtx
+	return func() { snapstate.DeviceCtx = old }
+}
+
 func (s *handlersSuite) SetUpTest(c *C) {
 	s.st = state.New(nil)
 	dirs.SetRootDir(c.MkDir())
+	s.AddCleanup(s.mockModel())
 }
 
 func (s *handlersSuite) TearDownTest(c *C) {
