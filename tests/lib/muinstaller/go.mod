@@ -2,9 +2,8 @@ module github.com/snapcore/snapd/tests/lib/muinstaller
 
 go 1.18
 
-require github.com/snapcore/snapd v0.0.0-20240822132116-0bf8d83f4586
-
-replace github.com/snapcore/snapd => github.com/ZeyadYasser/snapd v0.0.0-20241218154136-f70f5ea07679
+// TODO: Point back to master after fde branch is merged.
+require github.com/snapcore/snapd v0.0.0-20241220165915-b99bb2477e2c
 
 require (
 	github.com/canonical/cpuid v0.0.0-20220614022739-219e067757cb // indirect
