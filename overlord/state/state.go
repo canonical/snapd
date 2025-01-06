@@ -142,9 +142,9 @@ func (s *State) Modified() bool {
 
 // Lock acquires the state lock.
 func (s *State) Lock() {
-	s.lockStart = osutil.GetLockStart()
 	s.mu.Lock()
 	atomic.AddInt32(&s.muC, 1)
+	s.lockStart = osutil.GetLockStart()
 }
 
 func (s *State) reading() {
