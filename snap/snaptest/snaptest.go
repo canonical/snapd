@@ -274,7 +274,7 @@ func MakeTestComponentWithFiles(c *check.C, componentName, componentYaml string,
 func MakeTestComponent(c *check.C, compYaml string) string {
 	compInfo, err := snap.InfoFromComponentYaml([]byte(compYaml))
 	c.Assert(err, check.IsNil)
-	return MakeTestComponentWithFiles(c, compInfo.FullName()+".comp", compYaml, nil)
+	return MakeTestComponentWithFiles(c, compInfo.FullName(), compYaml, nil)
 }
 
 func populateContainer(c *check.C, yamlFile, yamlContent string, files [][]string) string {

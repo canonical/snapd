@@ -10,6 +10,7 @@ show_help() {
     echo "       store-state setup-staging-store"
     echo "       store-state teardown-staging-store"
     echo "       store-state make-snap-installable [--noack ] [--extra-decl-json FILE] <DIR> <SNAP_PATH> [SNAP_ID]"
+    echo "       store-state make-component-installable --snap-id <ID> --component-revision <REV> --snap-revision <REV> [--noack ] <DIR> <SNAP_PATH>"
     echo "       store-state init-fake-refreshes <DIR>"
     echo "       store-state add-to-channel <DIR> <FILENAME> <CHANNEL>"
 }
@@ -122,6 +123,85 @@ EOF
 
     cp -av "$snap_path" "$dir/"
     rm -f /tmp/snap-decl.json /tmp/snap-rev.json
+}
+
+
+make_component_installable(){
+    local ack=true
+    local component_rev="";
+    local snap_rev="";
+    local snap_id="";
+    while [ $# -gt 0 ]; do
+        case "$1" in
+            (--component-revision)
+                component_rev="$2"
+                shift 2
+                ;;
+            (--snap-id)
+                snap_id="$2"
+                shift 2
+                ;;
+            (--snap-revision)
+                snap_rev="$2"
+                shift 2
+                ;;
+            (--noack)
+                ack=false
+                shift
+                ;;
+            (*)
+                break
+                ;;
+        esac
+    done
+
+    if [ -z "${snap_id}" ]; then
+        echo "snap-id must be provided"
+        return 1
+    fi
+
+    if [ -z "${component_rev}" ]; then
+        echo "component-revision must be provided"
+        return 1
+    fi
+
+    if [ -z "${snap_rev}" ]; then
+        echo "snap-revision must be provided"
+        return 1
+    fi
+
+    local dir="$1"
+    local path="$2"
+
+    work=$(mktemp -d)
+
+    cat > "/${work}/snap-resource-revision.json" << EOF
+{
+    "snap-id": "${snap_id}",
+    "publisher-id": "developer1",
+    "resource-revision": "${component_rev}"
+}
+EOF
+
+    cat > "/${work}/snap-resource-pair.json" << EOF
+{
+    "snap-id": "${snap_id}",
+    "publisher-id": "developer1",
+    "resource-revision": "${component_rev}",
+    "snap-revision": "${snap_rev}"
+}
+EOF
+
+    resource_rev_assert=$(fakestore new-snap-resource-revision --dir "${dir}" "${path}" "/${work}/snap-resource-revision.json")
+    resource_pair_assert=$(fakestore new-snap-resource-pair --dir "${dir}" "${path}" "/${work}/snap-resource-pair.json")
+
+    if [ "${ack}" = "true" ]; then
+        snap ack "${resource_rev_assert}"
+        snap ack "${resource_pair_assert}"
+    fi
+
+    cp -av "${path}" "${dir}/"
+    rm -rf "${work}"
 }
 
 setup_fake_store(){
