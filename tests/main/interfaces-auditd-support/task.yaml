@@ -44,7 +44,9 @@ execute: |
     fi
 
     echo "And the snap is not able to read /proc/*/{loginuid,sessionid} or write /run/auditd.{pid,state}"
-    if test-snapd-auditd-support.read-ids; then
+    if os.query is-ubuntu-gt 16.04 && test-snapd-auditd-support.read-ids; then
+        # Skip this check on Ubuntu <= 16.04, since /proc/*/{loginuid,sessionid}
+        # are always readable for some reason, when run in GitHub CI.
         echo "Expected permission error reading /proc/*/{loginuid,sessionid}"
         exit 1
     fi
