@@ -651,7 +651,7 @@ func (r *remodeler) maybeInstallOrUpdate(ctx context.Context, st *state.State, r
 
 		return remodelChannelSwitch, []*state.TaskSet{ts}, nil
 	case needsComponentChanges:
-		tss, err := r.installComponents(ctx, st, currentInfo, requiredComponents)
+		tss, err := r.installComponents(ctx, st, currentInfo, rt, requiredComponents)
 		if err != nil {
 			return 0, nil, err
 		}
@@ -697,8 +697,15 @@ func (r *remodeler) installGoal(sn remodelTarget, components []string) (snapstat
 			return nil, fmt.Errorf("no snap file provided for %q", sn.name)
 		}
 
-		if len(components) != 0 {
-			return nil, errors.New("internal error: offline remodel with components not supported yet")
+		comps := make(map[*snap.ComponentSideInfo]string, len(components))
+		for _, c := range components {
+			cref := naming.NewComponentRef(sn.name, c)
+			lc, ok := r.localContainers.Components[cref.String()]
+			if !ok {
+				return nil, fmt.Errorf("cannot find locally provided component: %q", cref)
+			}
+
+			comps[lc.SideInfo] = lc.Path
 		}
 
 		opts := snapstate.RevisionOptions{
@@ -706,7 +713,7 @@ func (r *remodeler) installGoal(sn remodelTarget, components []string) (snapstat
 			ValidationSets: r.vsets,
 		}
 
-		return snapstatePathInstallGoal("", ls.Path, ls.SideInfo, nil, opts), nil
+		return snapstatePathInstallGoal("", ls.Path, ls.SideInfo, comps, opts), nil
 	}
 
 	return snapstateStoreInstallGoal(snapstate.StoreSnap{
@@ -768,8 +775,20 @@ func (r *remodeler) updateGoal(st *state.State, sn remodelTarget, components []s
 			return g, nil
 		}
 
-		if len(components) != 0 {
-			return nil, errors.New("internal error: offline remodel with components not supported yet")
+		// we assume that all of the component revisions are valid with the
+		// given snap revision. the code in daemon that calls Remodel verifies
+		// this against the assertions db, and the task handlers in snapstate
+		// also double check this while installing the snap/components.
+		comps := make(map[*snap.ComponentSideInfo]string, len(components))
+		for _, c := range components {
+			cref := naming.NewComponentRef(sn.name, c)
+
+			lc, ok := r.localContainers.Components[cref.String()]
+			if !ok {
+				return nil, fmt.Errorf("cannot find locally provided component: %q", cref)
+			}
+
+			comps[lc.SideInfo] = lc.Path
 		}
 
 		opts := snapstate.RevisionOptions{
@@ -781,9 +800,10 @@ func (r *remodeler) updateGoal(st *state.State, sn remodelTarget, components []s
 		// snapstate for by-path installs (why don't we?)
 
 		return snapstatePathUpdateGoal(snapstate.PathSnap{
-			Path:     ls.Path,
-			SideInfo: ls.SideInfo,
-			RevOpts:  opts,
+			Path:       ls.Path,
+			SideInfo:   ls.SideInfo,
+			RevOpts:    opts,
+			Components: comps,
 		}), nil
 	}
 
@@ -800,11 +820,33 @@ func (r *remodeler) updateGoal(st *state.State, sn remodelTarget, components []s
 	}), nil
 }
 
-func (r *remodeler) installComponents(ctx context.Context, st *state.State, info *snap.Info, components []string) ([]*state.TaskSet, error) {
+func (r *remodeler) installComponents(ctx context.Context, st *state.State, info *snap.Info, rt remodelTarget, components []string) ([]*state.TaskSet, error) {
 	r.tracker.Add(info)
 
 	if r.offline {
-		return nil, errors.New("internal error: offline remodel with components not supported yet")
+		var tss []*state.TaskSet
+		for _, c := range components {
+			ref := naming.NewComponentRef(rt.name, c)
+
+			lc, ok := r.localContainers.Components[ref.String()]
+			if !ok {
+				return nil, fmt.Errorf("cannot find locally provided component: %q", ref)
+			}
+
+			ts, err := snapstateInstallComponentPath(st, lc.SideInfo, info, lc.Path, snapstate.Options{
+				DeviceCtx:     r.deviceCtx,
+				FromChange:    r.fromChange,
+				PrereqTracker: r.tracker,
+			})
+			if err != nil {
+				return nil, err
+			}
+			tss = append(tss, ts)
+
+			// TODO: verify against validation sets, since we don't do that in
+			// snapstate for by-path installs (why don't we?)
+		}
+		return tss, nil
 	}
 
 	return snapstateInstallComponents(ctx, st, components, info, r.vsets, snapstate.Options{
@@ -1672,7 +1714,8 @@ type LocalSnap struct {
 }
 
 type LocalContainers struct {
-	Snaps map[string]LocalSnap
+	Snaps      map[string]LocalSnap
+	Components map[string]LocalComponent
 }
 
 // LocalComponent is a pair of a snap.ComponentSideInfo and a path to the
