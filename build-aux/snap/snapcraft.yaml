@@ -441,7 +441,8 @@ parts:
       - -fips-build-lp
     override-prime: |
       craftctl default
-      python3 "${CRAFT_PROJECT_DIR}/build-aux/snap/local/patch-dl.py" "/snap/snapd/current/usr/lib/${CRAFT_ARCH_TRIPLET_BUILD_FOR}/${DYNAMIC_LINKER}"
+      "${CRAFT_PROJECT_DIR}/build-aux/snap/local/patch-dl.py" \
+          "/snap/snapd/current/usr/lib/${CRAFT_ARCH_TRIPLET_BUILD_FOR}/${DYNAMIC_LINKER}"
 
   libcrypto-fips:
     plugin: nil
@@ -524,4 +525,5 @@ parts:
     <<:
       - *dynamic-linker
     override-prime: |
-      python3 "${CRAFT_PROJECT_DIR}/build-aux/snap/local/verify-dl.py" "${CRAFT_PRIME}" "/snap/snapd/current/usr/lib/${CRAFT_ARCH_TRIPLET_BUILD_FOR}/${DYNAMIC_LINKER}" ";"
+      "${CRAFT_PROJECT_DIR}/build-aux/snap/local/verify-dl.py" \
+          "/snap/snapd/current/usr/lib/${CRAFT_ARCH_TRIPLET_BUILD_FOR}/${DYNAMIC_LINKER}"
