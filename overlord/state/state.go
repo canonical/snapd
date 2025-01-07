@@ -161,9 +161,9 @@ func (s *State) writing() {
 }
 
 func (s *State) unlock() {
+	osutil.MaybeSaveLockTime(s.lockStart)
 	atomic.AddInt32(&s.muC, -1)
 	s.mu.Unlock()
-	osutil.MaybeSaveLockTime(s.lockStart)
 }
 
 type marshalledState struct {
