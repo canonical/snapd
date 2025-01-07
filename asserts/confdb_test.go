@@ -413,7 +413,7 @@ func (s *confdbCtrlSuite) TestAckAssertionNoSerial(c *C) {
 	c.Assert(
 		err,
 		ErrorMatches,
-		"cannot check signature: cannot find matching serial: .* not found",
+		`cannot check no-authority assertion type "confdb-control": cannot find matching device serial assertion: .* not found`,
 	)
 }
 
@@ -427,7 +427,11 @@ func (s *confdbCtrlSuite) TestAckAssertionKeysMismatch(c *C) {
 	c.Assert(err, IsNil)
 
 	err = s.db.Add(a)
-	c.Assert(err, ErrorMatches, "cannot check signature: confdb-control's signing key doesn't match the device's key")
+	c.Assert(
+		err,
+		ErrorMatches,
+		`cannot check no-authority assertion type "confdb-control": confdb-control's signing key doesn't match the device key`,
+	)
 }
 
 func (s *confdbCtrlSuite) TestAckAssertionOK(c *C) {

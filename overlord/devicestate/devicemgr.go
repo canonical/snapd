@@ -1968,12 +1968,12 @@ func (m *DeviceManager) keyPair() (asserts.PrivateKey, error) {
 func (m *DeviceManager) SignConfdbControl(groups []interface{}, revision int) (*asserts.ConfdbControl, error) {
 	serial, err := m.Serial()
 	if err != nil {
-		return nil, fmt.Errorf("cannot sign confdb-control without a serial: %w", err)
+		return nil, fmt.Errorf("cannot sign confdb-control without a serial")
 	}
 
 	privKey, err := m.keyPair()
 	if err != nil {
-		return nil, fmt.Errorf("cannot sign confdb-control without device key: %w", err)
+		return nil, fmt.Errorf("cannot sign confdb-control without device key")
 	}
 
 	a, err := asserts.SignWithoutAuthority(asserts.ConfdbControlType, map[string]interface{}{

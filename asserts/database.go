@@ -786,7 +786,7 @@ func CheckSignature(assert Assertion, signingKey *AccountKey, roDB RODatabase, c
 
 		pubKey, err = custom.signKey(roDB)
 		if err != nil {
-			return fmt.Errorf("cannot check signature: %w", err)
+			return fmt.Errorf("cannot check no-authority assertion type %q: %w", assert.Type().Name, err)
 		}
 	}
 

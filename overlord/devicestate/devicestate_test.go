@@ -2807,7 +2807,7 @@ func (s *deviceMgrSuite) TestSignConfdbControlNoSerial(c *C) {
 	defer s.state.Unlock()
 
 	_, err := s.mgr.SignConfdbControl([]interface{}{}, 2)
-	c.Assert(err, ErrorMatches, "cannot sign confdb-control without a serial: no state entry for key")
+	c.Assert(err, ErrorMatches, "cannot sign confdb-control without a serial")
 }
 
 func (s *deviceMgrSuite) TestSignConfdbControlNoKey(c *C) {
@@ -2818,7 +2818,7 @@ func (s *deviceMgrSuite) TestSignConfdbControlNoKey(c *C) {
 	s.makeSerialAssertionInState(c, "canonical", "pc", "serialserialserial")
 
 	_, err := s.mgr.SignConfdbControl([]interface{}{}, 3)
-	c.Assert(err, ErrorMatches, "cannot sign confdb-control without device key: no state entry for key")
+	c.Assert(err, ErrorMatches, "cannot sign confdb-control without device key")
 }
 
 func (s *deviceMgrSuite) TestSignConfdbControlInvalid(c *C) {

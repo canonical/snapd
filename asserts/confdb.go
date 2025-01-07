@@ -132,13 +132,13 @@ func (cc *ConfdbControl) signKey(db RODatabase) (PublicKey, error) {
 		"serial":   cc.Serial(),
 	})
 	if err != nil {
-		return nil, fmt.Errorf("cannot find matching serial: %w", err)
+		return nil, fmt.Errorf("cannot find matching device serial assertion: %w", err)
 	}
 
 	serial := a.(*Serial)
 	key := serial.DeviceKey()
 	if key.ID() != cc.SignKeyID() {
-		return nil, errors.New("confdb-control's signing key doesn't match the device's key")
+		return nil, errors.New("confdb-control's signing key doesn't match the device key")
 	}
 
 	return key, nil
