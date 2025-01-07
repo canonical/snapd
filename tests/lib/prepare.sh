@@ -547,7 +547,7 @@ build_snapd_snap() {
                     *-arm-*)
                         ;;
                     *)
-                        echo "ERROR: system $SPREAD_SYSTEM should use a prebuilt snapd snapd"
+                        echo "ERROR: system $SPREAD_SYSTEM should use a prebuilt snapd snap"
                         echo "see HACKING.md and use tests/build-test-snapd-snap to build one locally"
                         exit 1
                         ;;
