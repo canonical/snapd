@@ -87,7 +87,7 @@ func parseImageManifest(imageManifestFile []byte) (imageManifest, error) {
 	return im, nil
 }
 
-// generateMountsFromManifest performs various sanity checks to partition information coming from an
+// generateMountsFromManifest performs various coherence checks to partition information coming from an
 // imageManifest struct and then creates the necessary overlay fs partitions in the format expected by
 // doSystemdMount.
 //
