@@ -482,22 +482,17 @@ func RefreshSnapAssertions(s *state.State, userID int, opts *RefreshAssertionsOp
 	return RefreshValidationSetAssertions(s, userID, opts)
 }
 
-// RefreshValidationSetAssertions tries to refresh all validation set
-// assertions.
-func RefreshValidationSetAssertions(s *state.State, userID int, opts *RefreshAssertionsOptions) error {
+// FetchAllValidationSets updates the DB with new validation sets, if any exist.
+func FetchAllValidationSets(st *state.State, userID int, opts *RefreshAssertionsOptions) error {
 	if opts == nil {
 		opts = &RefreshAssertionsOptions{}
 	}
 
-	deviceCtx, err := snapstate.DevicePastSeeding(s, nil)
+	vsets, err := ValidationSets(st)
 	if err != nil {
 		return err
 	}
 
-	vsets, err := ValidationSets(s)
-	if err != nil {
-		return err
-	}
 	if len(vsets) == 0 {
 		return nil
 	}
@@ -512,33 +507,12 @@ func RefreshValidationSetAssertions(s *state.State, userID int, opts *RefreshAss
 		}
 	}
 
-	updateTracking := func(sets map[string]*ValidationSetTracking) error {
-		// update validation set tracking state
-		for _, vs := range sets {
-			if vs.PinnedAt == 0 {
-				headers := map[string]string{
-					"series":     release.Series,
-					"account-id": vs.AccountID,
-					"name":       vs.Name,
-				}
-				db := DB(s)
-				as, err := db.FindSequence(asserts.ValidationSetType, headers, -1, asserts.ValidationSetType.MaxSupportedFormat())
-				if err != nil {
-					return fmt.Errorf("internal error: cannot find assertion %v when refreshing validation-set assertions", headers)
-				}
-				if vs.Current != as.Sequence() {
-					vs.Current = as.Sequence()
-					UpdateValidationSet(s, vs)
-				}
-			}
-		}
-		return nil
-	}
-
-	if err := bulkRefreshValidationSetAsserts(s, monitorModeSets, nil, userID, deviceCtx, opts); err != nil {
+	deviceCtx, err := snapstate.DevicePastSeeding(st, nil)
+	if err != nil {
 		return err
 	}
-	if err := updateTracking(monitorModeSets); err != nil {
+
+	if err := bulkRefreshValidationSetAsserts(st, monitorModeSets, nil, userID, deviceCtx, opts); err != nil {
 		return err
 	}
 
@@ -575,7 +549,7 @@ func RefreshValidationSetAssertions(s *state.State, userID int, opts *RefreshAss
 			return err
 		}
 
-		snaps, ignoreValidation, err := snapstate.InstalledSnaps(s)
+		snaps, ignoreValidation, err := snapstate.InstalledSnaps(st)
 		if err != nil {
 			return err
 		}
@@ -590,7 +564,7 @@ func RefreshValidationSetAssertions(s *state.State, userID int, opts *RefreshAss
 		return err
 	}
 
-	if err := bulkRefreshValidationSetAsserts(s, enforceModeSets, checkConflictsAndPresence, userID, deviceCtx, opts); err != nil {
+	if err := bulkRefreshValidationSetAsserts(st, enforceModeSets, checkConflictsAndPresence, userID, deviceCtx, opts); err != nil {
 		if _, ok := err.(*snapasserts.ValidationSetsConflictError); ok {
 			logger.Noticef("cannot refresh to conflicting validation set assertions: %v", err)
 			return nil
@@ -601,8 +575,54 @@ func RefreshValidationSetAssertions(s *state.State, userID int, opts *RefreshAss
 		}
 		return err
 	}
-	if err := updateTracking(enforceModeSets); err != nil {
+
+	return nil
+}
+
+// RefreshValidationSetAssertions tries to refresh all validation set assertions.
+func RefreshValidationSetAssertions(s *state.State, userID int, opts *RefreshAssertionsOptions) error {
+	vsets, err := ValidationSets(s)
+	if err != nil {
 		return err
+	}
+
+	if len(vsets) == 0 {
+		return nil
+	}
+
+	err = FetchAllValidationSets(s, userID, opts)
+	if err != nil {
+		return err
+	}
+
+	monitorModeSets := make(map[string]*ValidationSetTracking)
+	enforceModeSets := make(map[string]*ValidationSetTracking)
+	for vk, vset := range vsets {
+		if vset.Mode == Monitor {
+			monitorModeSets[vk] = vset
+		} else {
+			enforceModeSets[vk] = vset
+		}
+	}
+
+	// update validation set tracking state
+	for _, vs := range vsets {
+		if vs.PinnedAt == 0 {
+			headers := map[string]string{
+				"series":     release.Series,
+				"account-id": vs.AccountID,
+				"name":       vs.Name,
+			}
+			db := DB(s)
+			as, err := db.FindSequence(asserts.ValidationSetType, headers, -1, asserts.ValidationSetType.MaxSupportedFormat())
+			if err != nil {
+				return fmt.Errorf("internal error: cannot find assertion %v when refreshing validation-set assertions", headers)
+			}
+			if vs.Current != as.Sequence() {
+				vs.Current = as.Sequence()
+				UpdateValidationSet(s, vs)
+			}
+		}
 	}
 
 	return nil

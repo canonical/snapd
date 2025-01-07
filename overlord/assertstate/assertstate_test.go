@@ -2768,6 +2768,51 @@ func (s *assertMgrSuite) TestRefreshValidationSetAssertions(c *C) {
 	c.Check(tr.Current, Equals, 4)
 }
 
+func (s *assertMgrSuite) TestFetchAllValidationSets(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// have a model and the store assertion available
+	storeAs := s.setupModelAndStore(c)
+	c.Assert(s.storeSigning.Add(storeAs), IsNil)
+
+	// store key already present
+	c.Assert(assertstate.Add(s.state, s.storeSigning.StoreAccountKey("")), IsNil)
+	c.Assert(assertstate.Add(s.state, s.dev1Acct), IsNil)
+	c.Assert(assertstate.Add(s.state, s.dev1AcctKey), IsNil)
+
+	vsetAs1 := s.validationSetAssert(c, "bar", "1", "1", "required", "1")
+	c.Assert(assertstate.Add(s.state, vsetAs1), IsNil)
+
+	vsetAs2 := s.validationSetAssert(c, "bar", "2", "1", "required", "1")
+	c.Assert(s.storeSigning.Add(vsetAs2), IsNil)
+
+	tr := assertstate.ValidationSetTracking{
+		AccountID: s.dev1Acct.AccountID(),
+		Name:      "bar",
+		Mode:      assertstate.Monitor,
+		Current:   1,
+	}
+	assertstate.UpdateValidationSet(s.state, &tr)
+
+	err := assertstate.FetchAllValidationSets(s.state, 0, nil)
+	c.Assert(err, IsNil)
+
+	// DB was updated with new validation set
+	a, err := assertstate.DB(s.state).Find(asserts.ValidationSetType, map[string]string{
+		"series":     "16",
+		"account-id": s.dev1Acct.AccountID(),
+		"name":       "bar",
+		"sequence":   "2",
+	})
+	c.Assert(err, IsNil)
+	c.Check(a.Revision(), Equals, 1)
+
+	// but the tracked validation set is still the old one
+	c.Assert(assertstate.GetValidationSet(s.state, s.dev1Acct.AccountID(), "bar", &tr), IsNil)
+	c.Check(tr.Current, Equals, 1)
+}
+
 func (s *assertMgrSuite) TestRefreshValidationSetAssertionsPinned(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()

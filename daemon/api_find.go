@@ -201,7 +201,20 @@ func storeUpdates(c *Command, r *http.Request, user *auth.UserState) Response {
 		return InternalError("cannot find route for snaps")
 	}
 
+	var userID int
+	if user != nil {
+		userID = user.ID
+	}
+
 	state := c.d.overlord.State()
+	state.Lock()
+	// fetch new validation sets, since new versions might impact refresh candidates
+	err := assertstateFetchAllValidationSets(state, userID, nil)
+	state.Unlock()
+	if err != nil {
+		return InternalError("cannot fetch validation sets to check for snap updates: %v", err)
+	}
+
 	state.Lock()
 	updates, err := snapstateRefreshCandidates(state, user)
 	state.Unlock()
