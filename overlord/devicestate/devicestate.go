@@ -428,11 +428,10 @@ type modelSnapsForRemodel struct {
 }
 
 type remodeler struct {
-	newModel   *asserts.Model
-	offline    bool
-	localSnaps map[string]snapstate.PathSnap
-
-	// TODO:COMPS: keep track of local components here
+	newModel        *asserts.Model
+	offline         bool
+	localSnaps      map[string]snapstate.PathSnap
+	localComponents map[string]snapstate.PathComponent
 
 	vsets      *snapasserts.ValidationSets
 	tracker    *snap.SelfContainedSetPrereqTracker
@@ -621,7 +620,7 @@ func (r *remodeler) maybeInstallOrUpdate(ctx context.Context, st *state.State, r
 
 		return remodelChannelSwitch, []*state.TaskSet{ts}, nil
 	case needsComponentChanges:
-		tss, err := r.installComponents(ctx, st, currentInfo, requiredComponents)
+		tss, err := r.installComponents(ctx, st, currentInfo, rt, requiredComponents)
 		if err != nil {
 			return 0, nil, err
 		}
@@ -720,8 +719,15 @@ func (r *remodeler) installGoal(sn remodelSnapTarget, components []string) (snap
 			return nil, fmt.Errorf("no snap file provided for %q", sn.name)
 		}
 
-		if len(components) != 0 {
-			return nil, errors.New("internal error: offline remodel with components not supported yet")
+		comps := make([]snapstate.PathComponent, 0, len(components))
+		for _, c := range components {
+			cref := naming.NewComponentRef(sn.name, c)
+			lc, ok := r.localComponents[cref.String()]
+			if !ok {
+				return nil, fmt.Errorf("cannot find locally provided component: %q", cref)
+			}
+
+			comps = append(comps, lc)
 		}
 
 		opts := snapstate.RevisionOptions{
@@ -730,9 +736,10 @@ func (r *remodeler) installGoal(sn remodelSnapTarget, components []string) (snap
 		}
 
 		return snapstatePathInstallGoal(snapstate.PathSnap{
-			Path:     ls.Path,
-			SideInfo: ls.SideInfo,
-			RevOpts:  opts,
+			Path:       ls.Path,
+			SideInfo:   ls.SideInfo,
+			RevOpts:    opts,
+			Components: comps,
 		}), nil
 	}
 
@@ -805,8 +812,20 @@ func (r *remodeler) updateGoal(st *state.State, sn remodelSnapTarget, components
 			return g, nil
 		}
 
-		if len(components) != 0 {
-			return nil, errors.New("internal error: offline remodel with components not supported yet")
+		// we assume that all of the component revisions are valid with the
+		// given snap revision. the code in daemon that calls Remodel verifies
+		// this against the assertions db, and the task handlers in snapstate
+		// also double check this while installing the snap/components.
+		comps := make([]snapstate.PathComponent, 0, len(components))
+		for _, c := range components {
+			cref := naming.NewComponentRef(sn.name, c)
+
+			lc, ok := r.localComponents[cref.String()]
+			if !ok {
+				return nil, fmt.Errorf("cannot find locally provided component: %q", cref)
+			}
+
+			comps = append(comps, lc)
 		}
 
 		opts := snapstate.RevisionOptions{
@@ -818,9 +837,10 @@ func (r *remodeler) updateGoal(st *state.State, sn remodelSnapTarget, components
 		// snapstate for by-path installs (why don't we?)
 
 		return snapstatePathUpdateGoal(snapstate.PathSnap{
-			Path:     ls.Path,
-			SideInfo: ls.SideInfo,
-			RevOpts:  opts,
+			Path:       ls.Path,
+			SideInfo:   ls.SideInfo,
+			RevOpts:    opts,
+			Components: comps,
 		}), nil
 	}
 
@@ -837,11 +857,33 @@ func (r *remodeler) updateGoal(st *state.State, sn remodelSnapTarget, components
 	}), nil
 }
 
-func (r *remodeler) installComponents(ctx context.Context, st *state.State, info *snap.Info, components []string) ([]*state.TaskSet, error) {
+func (r *remodeler) installComponents(ctx context.Context, st *state.State, info *snap.Info, rt remodelSnapTarget, components []string) ([]*state.TaskSet, error) {
 	r.tracker.Add(info)
 
 	if r.offline {
-		return nil, errors.New("internal error: offline remodel with components not supported yet")
+		var tss []*state.TaskSet
+		for _, c := range components {
+			ref := naming.NewComponentRef(rt.name, c)
+
+			lc, ok := r.localComponents[ref.String()]
+			if !ok {
+				return nil, fmt.Errorf("cannot find locally provided component: %q", ref)
+			}
+
+			ts, err := snapstateInstallComponentPath(st, lc.SideInfo, info, lc.Path, snapstate.Options{
+				DeviceCtx:     r.deviceCtx,
+				FromChange:    r.fromChange,
+				PrereqTracker: r.tracker,
+			})
+			if err != nil {
+				return nil, err
+			}
+			tss = append(tss, ts)
+
+			// TODO: verify against validation sets, since we don't do that in
+			// snapstate for by-path installs (why don't we?)
+		}
+		return tss, nil
 	}
 
 	return snapstateInstallComponents(ctx, st, components, info, r.vsets, snapstate.Options{
@@ -1041,13 +1083,14 @@ func remodelTasks(ctx context.Context, st *state.State, current, new *asserts.Mo
 	// provided. We check this flag whenever a snap installation/update is
 	// found needed for the remodel.
 	rm := remodeler{
-		newModel:   new,
-		offline:    opts.Offline,
-		vsets:      vsets,
-		tracker:    snap.NewSelfContainedSetPrereqTracker(),
-		deviceCtx:  deviceCtx,
-		fromChange: fromChange,
-		localSnaps: make(map[string]snapstate.PathSnap, len(opts.LocalSnaps)),
+		newModel:        new,
+		offline:         opts.Offline,
+		vsets:           vsets,
+		tracker:         snap.NewSelfContainedSetPrereqTracker(),
+		deviceCtx:       deviceCtx,
+		fromChange:      fromChange,
+		localSnaps:      make(map[string]snapstate.PathSnap, len(opts.LocalSnaps)),
+		localComponents: make(map[string]snapstate.PathComponent, len(opts.LocalComponents)),
 	}
 
 	for _, ls := range opts.LocalSnaps {
@@ -1055,6 +1098,10 @@ func remodelTasks(ctx context.Context, st *state.State, current, new *asserts.Mo
 			Path:     ls.Path,
 			SideInfo: ls.SideInfo,
 		}
+	}
+
+	for _, lc := range opts.LocalComponents {
+		rm.localComponents[lc.SideInfo.Component.String()] = lc
 	}
 
 	// First handle snapd as a special case
@@ -1405,8 +1452,8 @@ func Remodel(st *state.State, new *asserts.Model, opts RemodelOptions) (*state.C
 		return nil, fmt.Errorf("cannot remodel until fully seeded")
 	}
 
-	if !opts.Offline && len(opts.LocalSnaps) > 0 {
-		return nil, errors.New("cannot do an online remodel with provided local snaps")
+	if !opts.Offline && (len(opts.LocalSnaps) > 0 || len(opts.LocalComponents) > 0) {
+		return nil, errors.New("cannot do an online remodel with provided local snaps or components")
 	}
 
 	for _, ls := range opts.LocalSnaps {

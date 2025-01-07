@@ -6866,6 +6866,282 @@ func mockSnapstateUpdateOne(c *C, snaps map[string]expectedSnap) (restore func()
 	return devicestate.MockSnapstateUpdateOne(mock), updated
 }
 
+func mockSnapstateInstallOneFromFile(c *C, snaps map[string]expectedSnap) (restore func(), installed map[string]string) {
+	installed = make(map[string]string)
+	mock := func(
+		ctx context.Context,
+		st *state.State,
+		goal snapstate.InstallGoal,
+		opts snapstate.Options,
+	) (*snap.Info, *state.TaskSet, error) {
+		g := goal.(*pathInstallGoalRecorder)
+		name := g.snap.InstanceName
+		if name == "" {
+			name = g.snap.SideInfo.RealName
+		}
+
+		expected, ok := snaps[name]
+		c.Assert(ok, Equals, true, Commentf("unexpected snap installation: %q", name))
+
+		c.Assert(g.snap.RevOpts.Revision, Equals, expected.revision)
+
+		prepare := st.NewTask("prepare-snap", "prepare snap")
+
+		si := snap.SideInfo{
+			RealName: expected.name,
+			SnapID:   fakeSnapID(expected.name),
+			Revision: expected.revision,
+		}
+		prepare.Set("snap-setup", snapstate.SnapSetup{
+			SideInfo: &si,
+			SnapPath: g.snap.Path,
+			Type:     expected.snapType,
+		})
+
+		installed[expected.name] = prepare.ID()
+
+		ts := state.NewTaskSet(prepare)
+		ts.MarkEdge(prepare, snapstate.BeginEdge)
+		ts.MarkEdge(prepare, snapstate.SnapSetupEdge)
+		prev := prepare
+		add := func(t *state.Task) {
+			t.WaitFor(prev)
+			t.Set("snap-setup-task", prepare.ID())
+			ts.AddTask(t)
+			prev = t
+		}
+
+		validate := st.NewTask("validate-snap", "validate snap")
+		add(validate)
+
+		compsupTaskIDMapping := make(map[string]string, len(g.snap.Components))
+		compsupTaskIDs := make([]string, 0, len(g.snap.Components))
+		lastBeforeLocalModifications := validate
+		for _, comp := range g.snap.Components {
+			compName := comp.SideInfo.Component.ComponentName
+			expectedComp, ok := expected.components[compName]
+			c.Assert(ok, Equals, true)
+
+			prepare := st.NewTask("mock-prepare-component", "prepare component")
+			prepare.Set("component-setup", &snapstate.ComponentSetup{
+				CompSideInfo: comp.SideInfo,
+				CompPath:     comp.Path,
+				CompType:     expectedComp.compType,
+			})
+			compsupTaskIDs = append(compsupTaskIDs, prepare.ID())
+			compsupTaskIDMapping[compName] = prepare.ID()
+			add(prepare)
+
+			validate := st.NewTask("mock-validate-component", "validate component")
+			validate.Set("component-setup-task", prepare.ID())
+			add(validate)
+
+			installed[comp.SideInfo.Component.String()] = prepare.ID()
+
+			lastBeforeLocalModifications = validate
+		}
+		ts.MarkEdge(lastBeforeLocalModifications, snapstate.LastBeforeLocalModificationsEdge)
+
+		prepare.Set("component-setup-tasks", compsupTaskIDs)
+
+		link := st.NewTask("link-snap", "link snap")
+		add(link)
+
+		for _, comp := range g.snap.Components {
+			link := st.NewTask("link-component", "link component")
+			link.Set("component-setup-task", compsupTaskIDMapping[comp.SideInfo.Component.ComponentName])
+			add(link)
+		}
+
+		yaml := fmt.Sprintf("name: %s\nversion: 1\ntype: %s", name, expected.snapType)
+		if expected.snapType == "app" {
+			yaml += fmt.Sprintf("\nbase: %s", "core24")
+		}
+
+		compTypes := make(map[string]snap.ComponentType, len(expected.components))
+		for _, comp := range expected.components {
+			compTypes[comp.name] = comp.compType
+		}
+
+		_, info := snaptest.MakeTestSnapInfoWithFiles(c, withComponents(yaml, compTypes), expected.snapFiles, &si)
+		opts.PrereqTracker.Add(info)
+
+		opts.PrereqTracker.Add(info)
+
+		return info, ts, nil
+	}
+
+	return devicestate.MockSnapstateInstallOne(mock), installed
+}
+
+func mockSnapstateUpdateOneFromFile(c *C, snaps map[string]expectedSnap) (restore func(), updated map[string]string) {
+	updated = make(map[string]string)
+	mock := func(
+		ctx context.Context,
+		st *state.State,
+		goal snapstate.UpdateGoal,
+		filter func(*snap.Info, *snapstate.SnapState) bool,
+		opts snapstate.Options,
+	) (*state.TaskSet, error) {
+		g := goal.(*pathUpdateGoalRecorder)
+		name := g.snaps[0].InstanceName
+		if name == "" {
+			name = g.snaps[0].SideInfo.RealName
+		}
+
+		components := g.snaps[0].Components
+
+		expected, ok := snaps[name]
+		c.Assert(ok, Equals, true, Commentf("unexpected snap update: %q", name))
+
+		c.Assert(g.snaps[0].RevOpts.Revision, Equals, expected.revision)
+
+		prepare := st.NewTask("prepare-snap", "prepare snap")
+
+		si := snap.SideInfo{
+			RealName: expected.name,
+			SnapID:   snaptest.AssertedSnapID(expected.name),
+			Revision: expected.revision,
+		}
+		prepare.Set("snap-setup", snapstate.SnapSetup{
+			SideInfo: &si,
+			SnapPath: g.snaps[0].Path,
+			Type:     expected.snapType,
+		})
+
+		updated[name] = prepare.ID()
+
+		ts := state.NewTaskSet(prepare)
+		ts.MarkEdge(prepare, snapstate.BeginEdge)
+		ts.MarkEdge(prepare, snapstate.SnapSetupEdge)
+		prev := prepare
+		add := func(t *state.Task) {
+			t.WaitFor(prev)
+			t.Set("snap-setup-task", prepare.ID())
+			ts.AddTask(t)
+			prev = t
+		}
+
+		validate := st.NewTask("validate-snap", "validate snap")
+		add(validate)
+
+		compsupTaskIDMapping := make(map[string]string, len(components))
+		compsupTaskIDs := make([]string, 0, len(components))
+		lastBeforeLocalModifications := validate
+		for _, comp := range components {
+			compName := comp.SideInfo.Component.ComponentName
+			expectedComp, ok := expected.components[compName]
+			c.Assert(ok, Equals, true)
+
+			prepare := st.NewTask("mock-prepare-component", "prepare component")
+			prepare.Set("component-setup", &snapstate.ComponentSetup{
+				CompSideInfo: comp.SideInfo,
+				CompPath:     comp.Path,
+				CompType:     expectedComp.compType,
+			})
+			compsupTaskIDs = append(compsupTaskIDs, prepare.ID())
+			compsupTaskIDMapping[compName] = prepare.ID()
+			add(prepare)
+
+			validate := st.NewTask("mock-validate-component", "validate component")
+			validate.Set("component-setup-task", prepare.ID())
+			add(validate)
+
+			updated[comp.SideInfo.Component.String()] = prepare.ID()
+
+			lastBeforeLocalModifications = validate
+		}
+		ts.MarkEdge(lastBeforeLocalModifications, snapstate.LastBeforeLocalModificationsEdge)
+
+		prepare.Set("component-setup-tasks", compsupTaskIDs)
+
+		link := st.NewTask("link-snap", "link snap")
+		add(link)
+
+		for _, comp := range components {
+			link := st.NewTask("link-component", "link component")
+			link.Set("component-setup-task", compsupTaskIDMapping[comp.SideInfo.Component.ComponentName])
+			add(link)
+		}
+
+		yaml := fmt.Sprintf("name: %s\nversion: 1\ntype: %s", name, expected.snapType)
+		if expected.snapType == "app" {
+			yaml += fmt.Sprintf("\nbase: %s", "core24")
+		}
+
+		compTypes := make(map[string]snap.ComponentType, len(expected.components))
+		for _, comp := range expected.components {
+			compTypes[comp.name] = comp.compType
+		}
+
+		_, info := snaptest.MakeTestSnapInfoWithFiles(c, withComponents(yaml, compTypes), expected.snapFiles, &si)
+		opts.PrereqTracker.Add(info)
+
+		opts.PrereqTracker.Add(info)
+
+		return ts, nil
+	}
+
+	return devicestate.MockSnapstateUpdateOne(mock), updated
+}
+
+func mockSnapstateInstallComponentPath(c *C, snaps map[string]expectedSnap) (restore func(), installed map[string]string) {
+	installed = make(map[string]string)
+	mock := func(
+		st *state.State,
+		csi *snap.ComponentSideInfo,
+		info *snap.Info,
+		path string,
+		opts snapstate.Options,
+	) (*state.TaskSet, error) {
+		sn, ok := snaps[info.InstanceName()]
+		c.Assert(ok, Equals, true, Commentf("unexpected component installation for snap: %q", info.InstanceName()))
+		c.Assert(info.Revision, Equals, sn.revision)
+
+		expected, ok := sn.components[csi.Component.ComponentName]
+		c.Assert(ok, Equals, true, Commentf("unexpected component installation for snap %q: %q", info.InstanceName(), csi.Component.ComponentName))
+
+		prepare := st.NewTask("mock-prepare-component", "prepare component")
+		prepare.Set("snap-setup", snapstate.SnapSetup{
+			SideInfo: &snap.SideInfo{
+				RealName: sn.name,
+				SnapID:   fakeSnapID(sn.name),
+				Revision: info.Revision,
+			},
+			Type:                        info.Type(),
+			ComponentExclusiveOperation: true,
+		})
+		prepare.Set("component-setup", &snapstate.ComponentSetup{
+			CompSideInfo: csi,
+			CompPath:     path,
+			CompType:     expected.compType,
+		})
+		prepare.Set("component-setup-tasks", []string{prepare.ID()})
+
+		validate := st.NewTask("mock-validate-component", "validate component")
+		validate.Set("component-setup-task", prepare.ID())
+		validate.WaitFor(prepare)
+
+		setupSecurity := st.NewTask("setup-profiles", "setup profiles")
+		setupSecurity.Set("component-setup-task", prepare.ID())
+		setupSecurity.WaitFor(validate)
+
+		link := st.NewTask("link-component", "link component")
+		link.Set("component-setup-task", prepare.ID())
+		link.WaitFor(setupSecurity)
+
+		ts := state.NewTaskSet(prepare, validate, setupSecurity, link)
+		ts.MarkEdge(prepare, snapstate.SnapSetupEdge)
+		ts.MarkEdge(validate, snapstate.LastBeforeLocalModificationsEdge)
+
+		installed[csi.Component.String()] = prepare.ID()
+
+		return ts, nil
+	}
+
+	return devicestate.MockSnapstateInstallComponentPath(mock), installed
+}
+
 func mockSnapstateInstallOne(c *C, snaps map[string]expectedSnap) (restore func(), installed map[string]string) {
 	installed = make(map[string]string)
 	mock := func(
@@ -8089,6 +8365,672 @@ func (s *deviceMgrRemodelSuite) testRemodelWithComponentsChangeBecauseOfValidati
 	checkRecoverySystemSetup(createRecoverySystem, c, now, nil, []interface{}{
 		installed["pc-kernel+kmod"],
 	})
+}
+
+func (s *deviceMgrRemodelSuite) TestRemodelWithComponentsOffline(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	now := time.Now()
+	restore := devicestate.MockTimeNow(func() time.Time { return now })
+	defer restore()
+
+	s.state.Set("seeded", true)
+	s.state.Set("refresh-privacy-key", "some-privacy-key")
+
+	expectedUpdates := map[string]expectedSnap{
+		"pc-kernel": {
+			name:     "pc-kernel",
+			snapType: "kernel",
+			components: map[string]expectedComponent{
+				"kmod": {
+					name:     "kmod",
+					revision: snap.R(11),
+					compType: snap.KernelModulesComponent,
+				},
+			},
+		},
+	}
+
+	restore, updated := mockSnapstateUpdateOneFromFile(c, expectedUpdates)
+	defer restore()
+
+	expectedInstalls := map[string]expectedSnap{
+		"some-snap": {
+			name:     "some-snap",
+			snapType: "app",
+			components: map[string]expectedComponent{
+				"comp-1": {
+					name:     "comp-1",
+					revision: snap.R(12),
+					compType: snap.StandardComponent,
+				},
+			},
+		},
+	}
+
+	restore, installed := mockSnapstateInstallOneFromFile(c, expectedInstalls)
+	defer restore()
+
+	expectedCompInstalls := map[string]expectedSnap{
+		"other-snap": {
+			name:     "other-snap",
+			snapType: "app",
+			revision: snap.R(5),
+			components: map[string]expectedComponent{
+				"comp-2": {
+					name:     "comp-2",
+					revision: snap.R(13),
+					compType: snap.StandardComponent,
+				},
+			},
+		},
+	}
+
+	restore, installedComps := mockSnapstateInstallComponentPath(c, expectedCompInstalls)
+	defer restore()
+
+	currentModel := s.brands.Model("canonical", "pc-model", map[string]interface{}{
+		"architecture": "amd64",
+		"base":         "core24",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":            "pc-kernel",
+				"id":              fakeSnapID("pc-kernel"),
+				"type":            "kernel",
+				"default-channel": "latest/stable",
+			},
+			map[string]interface{}{
+				"name":            "pc",
+				"id":              fakeSnapID("pc"),
+				"type":            "gadget",
+				"default-channel": "latest/stable",
+			},
+			map[string]interface{}{
+				"name":            "core24",
+				"id":              fakeSnapID("core24"),
+				"type":            "base",
+				"default-channel": "latest/stable",
+			},
+			map[string]interface{}{
+				"name":            "snapd",
+				"id":              fakeSnapID("snapd"),
+				"type":            "snapd",
+				"default-channel": "latest/stable",
+			},
+		},
+	})
+	err := assertstate.Add(s.state, currentModel)
+	c.Assert(err, IsNil)
+
+	err = devicestatetest.SetDevice(s.state, &auth.DeviceState{
+		Brand: "canonical",
+		Model: "pc-model",
+	})
+	c.Assert(err, IsNil)
+
+	snapstatetest.InstallEssentialSnaps(c, s.state, "core24", nil, nil)
+
+	otherSnapComps := map[string]snap.ComponentType{
+		"comp-2": snap.StandardComponent,
+	}
+
+	// install other-snap so that we can test adding a component to it
+	snapstatetest.InstallSnap(c, s.state, withComponents("name: other-snap\nversion: 1\ntype: app\nbase: core24", otherSnapComps), nil, &snap.SideInfo{
+		SnapID:   fakeSnapID("other-snap"),
+		Revision: snap.R(5),
+		RealName: "other-snap",
+		Channel:  "latest/stable",
+	}, snapstatetest.InstallSnapOptions{})
+
+	newModel := s.brands.Model("canonical", "pc-model", map[string]interface{}{
+		"architecture": "amd64",
+		"base":         "core24",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":            "pc-kernel",
+				"id":              fakeSnapID("pc-kernel"),
+				"type":            "kernel",
+				"default-channel": "latest/stable",
+				"components": map[string]interface{}{
+					"kmod": map[string]interface{}{
+						"presence": "required",
+					},
+				},
+			},
+			map[string]interface{}{
+				"name":            "pc",
+				"id":              fakeSnapID("pc"),
+				"type":            "gadget",
+				"default-channel": "latest/stable",
+			},
+			map[string]interface{}{
+				"name":            "core24",
+				"id":              fakeSnapID("core24"),
+				"type":            "base",
+				"default-channel": "latest/stable",
+			},
+			map[string]interface{}{
+				"name":            "snapd",
+				"id":              fakeSnapID("snapd"),
+				"type":            "snapd",
+				"default-channel": "latest/stable",
+			},
+			map[string]interface{}{
+				"name":            "some-snap",
+				"id":              fakeSnapID("some-snap"),
+				"type":            "app",
+				"default-channel": "latest/stable",
+				"components": map[string]interface{}{
+					"comp-1": map[string]interface{}{
+						"presence": "required",
+					},
+				},
+			},
+			map[string]interface{}{
+				"name":            "other-snap",
+				"id":              fakeSnapID("other-snap"),
+				"type":            "app",
+				"default-channel": "latest/stable",
+				"components": map[string]interface{}{
+					"comp-2": map[string]interface{}{
+						"presence": "required",
+					},
+				},
+			},
+		},
+	})
+
+	testDeviceCtx := snapstatetest.TrivialDeviceContext{
+		Remodeling:     true,
+		DeviceModel:    newModel,
+		OldDeviceModel: currentModel,
+	}
+
+	kernelComps := map[string]snap.ComponentType{
+		"kmod": snap.KernelModulesComponent,
+	}
+	kernelPath, kernelInfo := snaptest.MakeTestSnapInfoWithFiles(c, withComponents("name: pc-kernel\nversion: 1\ntype: kernel", kernelComps), nil, &snap.SideInfo{
+		RealName: "pc-kernel",
+		SnapID:   fakeSnapID("pc-kernel"),
+		Revision: snap.R(2),
+	})
+
+	someSnapComps := map[string]snap.ComponentType{
+		"comp-1": snap.StandardComponent,
+	}
+	someSnapPath, someSnapInfo := snaptest.MakeTestSnapInfoWithFiles(c, withComponents("name: some-snap\nversion: 1\ntype: app", someSnapComps), nil, &snap.SideInfo{
+		RealName: "some-snap",
+		SnapID:   fakeSnapID("some-snap"),
+		Revision: snap.R(3),
+	})
+
+	tss, err := devicestate.RemodelTasks(
+		context.Background(),
+		s.state,
+		currentModel,
+		newModel,
+		&testDeviceCtx,
+		"99",
+		devicestate.RemodelOptions{
+			Offline: true,
+			LocalSnaps: []snapstate.PathSnap{
+				{
+					Path:     kernelPath,
+					SideInfo: &kernelInfo.SideInfo,
+				},
+				{
+					Path:     someSnapPath,
+					SideInfo: &someSnapInfo.SideInfo,
+				},
+			},
+			LocalComponents: []snapstate.PathComponent{
+				{
+					Path: snaptest.MakeTestComponent(c, "component: pc-kernel+kmod\ntype: kernel-modules"),
+					SideInfo: &snap.ComponentSideInfo{
+						Component: naming.NewComponentRef("pc-kernel", "kmod"),
+						Revision:  snap.R(11),
+					},
+				},
+				{
+					Path: snaptest.MakeTestComponent(c, "component: some-snap+comp-1\ntype: standard"),
+					SideInfo: &snap.ComponentSideInfo{
+						Component: naming.NewComponentRef("some-snap", "comp-1"),
+						Revision:  snap.R(12),
+					},
+				},
+				{
+					Path: snaptest.MakeTestComponent(c, "component: other-snap+comp-2\ntype: standard"),
+					SideInfo: &snap.ComponentSideInfo{
+						Component: naming.NewComponentRef("other-snap", "comp-2"),
+						Revision:  snap.R(13),
+					},
+				},
+			},
+		},
+	)
+	c.Assert(err, IsNil)
+
+	// snap update, snap install, component install, create recovery system, set model
+	c.Assert(tss, HasLen, 5)
+
+	updateTS := tss[0]
+	checkTaskSetKinds(c, updateTS, []string{
+		"prepare-snap",
+		"validate-snap",
+		"mock-prepare-component",
+		"mock-validate-component",
+		"link-snap",
+		"link-component",
+	})
+
+	installTS := tss[1]
+	checkTaskSetKinds(c, installTS, []string{
+		"prepare-snap",
+		"validate-snap",
+		"mock-prepare-component",
+		"mock-validate-component",
+		"link-snap",
+		"link-component",
+	})
+
+	componentInstallTS := tss[2]
+	checkTaskSetKinds(c, componentInstallTS, []string{
+		"mock-prepare-component",
+		"mock-validate-component",
+		"setup-profiles",
+		"link-component",
+	})
+
+	c.Assert(mapKeys(updated), testutil.DeepUnsortedMatches, []string{
+		"pc-kernel",
+		"pc-kernel+kmod",
+	})
+
+	c.Assert(mapKeys(installed), testutil.DeepUnsortedMatches, []string{
+		"some-snap",
+		"some-snap+comp-1",
+	})
+
+	c.Assert(mapKeys(installedComps), testutil.DeepUnsortedMatches, []string{
+		"other-snap+comp-2",
+	})
+
+	createRecoverySystem := tss[3].Tasks()[0]
+	checkRecoverySystemSetup(createRecoverySystem, c, now, []interface{}{
+		updated["pc-kernel"],
+		installed["some-snap"],
+	}, []interface{}{
+		updated["pc-kernel+kmod"],
+		installed["some-snap+comp-1"],
+		installedComps["other-snap+comp-2"],
+	})
+}
+
+func (s *deviceMgrRemodelSuite) TestRemodelWithComponentsOfflineMissingComponentWithSnapToUpdate(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	s.state.Set("seeded", true)
+	s.state.Set("refresh-privacy-key", "some-privacy-key")
+
+	currentModel := s.brands.Model("canonical", "pc-model", map[string]interface{}{
+		"architecture": "amd64",
+		"base":         "core24",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":            "pc-kernel",
+				"id":              fakeSnapID("pc-kernel"),
+				"type":            "kernel",
+				"default-channel": "latest/stable",
+			},
+			map[string]interface{}{
+				"name":            "pc",
+				"id":              fakeSnapID("pc"),
+				"type":            "gadget",
+				"default-channel": "latest/stable",
+			},
+			map[string]interface{}{
+				"name":            "core24",
+				"id":              fakeSnapID("core24"),
+				"type":            "base",
+				"default-channel": "latest/stable",
+			},
+			map[string]interface{}{
+				"name":            "snapd",
+				"id":              fakeSnapID("snapd"),
+				"type":            "snapd",
+				"default-channel": "latest/stable",
+			},
+		},
+	})
+	err := assertstate.Add(s.state, currentModel)
+	c.Assert(err, IsNil)
+
+	err = devicestatetest.SetDevice(s.state, &auth.DeviceState{
+		Brand: "canonical",
+		Model: "pc-model",
+	})
+	c.Assert(err, IsNil)
+
+	snapstatetest.InstallEssentialSnaps(c, s.state, "core24", nil, nil)
+
+	newModel := s.brands.Model("canonical", "pc-model", map[string]interface{}{
+		"architecture": "amd64",
+		"base":         "core24",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":            "pc-kernel",
+				"id":              fakeSnapID("pc-kernel"),
+				"type":            "kernel",
+				"default-channel": "latest/stable",
+				"components": map[string]interface{}{
+					"kmod": map[string]interface{}{
+						"presence": "required",
+					},
+				},
+			},
+			map[string]interface{}{
+				"name":            "pc",
+				"id":              fakeSnapID("pc"),
+				"type":            "gadget",
+				"default-channel": "latest/stable",
+			},
+			map[string]interface{}{
+				"name":            "core24",
+				"id":              fakeSnapID("core24"),
+				"type":            "base",
+				"default-channel": "latest/stable",
+			},
+			map[string]interface{}{
+				"name":            "snapd",
+				"id":              fakeSnapID("snapd"),
+				"type":            "snapd",
+				"default-channel": "latest/stable",
+			},
+		},
+	})
+
+	testDeviceCtx := snapstatetest.TrivialDeviceContext{
+		Remodeling:     true,
+		DeviceModel:    newModel,
+		OldDeviceModel: currentModel,
+	}
+
+	kernelComps := map[string]snap.ComponentType{
+		"kmod": snap.KernelModulesComponent,
+	}
+	kernelPath, kernelInfo := snaptest.MakeTestSnapInfoWithFiles(c, withComponents("name: pc-kernel\nversion: 1\ntype: kernel", kernelComps), nil, &snap.SideInfo{
+		RealName: "pc-kernel",
+		SnapID:   fakeSnapID("pc-kernel"),
+		Revision: snap.R(2),
+	})
+
+	_, err = devicestate.RemodelTasks(
+		context.Background(),
+		s.state,
+		currentModel,
+		newModel,
+		&testDeviceCtx,
+		"99",
+		devicestate.RemodelOptions{
+			Offline: true,
+			LocalSnaps: []snapstate.PathSnap{
+				{
+					Path:     kernelPath,
+					SideInfo: &kernelInfo.SideInfo,
+				},
+			},
+		},
+	)
+	c.Assert(err, ErrorMatches, `cannot find locally provided component: "pc-kernel\+kmod"`)
+}
+
+func (s *deviceMgrRemodelSuite) TestRemodelWithComponentsOfflineMissingComponentWithSnapToInstall(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	s.state.Set("seeded", true)
+	s.state.Set("refresh-privacy-key", "some-privacy-key")
+
+	currentModel := s.brands.Model("canonical", "pc-model", map[string]interface{}{
+		"architecture": "amd64",
+		"base":         "core24",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":            "pc-kernel",
+				"id":              fakeSnapID("pc-kernel"),
+				"type":            "kernel",
+				"default-channel": "latest/stable",
+			},
+			map[string]interface{}{
+				"name":            "pc",
+				"id":              fakeSnapID("pc"),
+				"type":            "gadget",
+				"default-channel": "latest/stable",
+			},
+			map[string]interface{}{
+				"name":            "core24",
+				"id":              fakeSnapID("core24"),
+				"type":            "base",
+				"default-channel": "latest/stable",
+			},
+			map[string]interface{}{
+				"name":            "snapd",
+				"id":              fakeSnapID("snapd"),
+				"type":            "snapd",
+				"default-channel": "latest/stable",
+			},
+		},
+	})
+	err := assertstate.Add(s.state, currentModel)
+	c.Assert(err, IsNil)
+
+	err = devicestatetest.SetDevice(s.state, &auth.DeviceState{
+		Brand: "canonical",
+		Model: "pc-model",
+	})
+	c.Assert(err, IsNil)
+
+	snapstatetest.InstallEssentialSnaps(c, s.state, "core24", nil, nil)
+
+	newModel := s.brands.Model("canonical", "pc-model", map[string]interface{}{
+		"architecture": "amd64",
+		"base":         "core24",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":            "pc-kernel",
+				"id":              fakeSnapID("pc-kernel"),
+				"type":            "kernel",
+				"default-channel": "latest/stable",
+			},
+			map[string]interface{}{
+				"name":            "pc",
+				"id":              fakeSnapID("pc"),
+				"type":            "gadget",
+				"default-channel": "latest/stable",
+			},
+			map[string]interface{}{
+				"name":            "core24",
+				"id":              fakeSnapID("core24"),
+				"type":            "base",
+				"default-channel": "latest/stable",
+			},
+			map[string]interface{}{
+				"name":            "snapd",
+				"id":              fakeSnapID("snapd"),
+				"type":            "snapd",
+				"default-channel": "latest/stable",
+			},
+			map[string]interface{}{
+				"name":            "some-snap",
+				"id":              fakeSnapID("some-snap"),
+				"type":            "app",
+				"default-channel": "latest/stable",
+				"components": map[string]interface{}{
+					"comp-1": map[string]interface{}{
+						"presence": "required",
+					},
+				},
+			},
+		},
+	})
+
+	testDeviceCtx := snapstatetest.TrivialDeviceContext{
+		Remodeling:     true,
+		DeviceModel:    newModel,
+		OldDeviceModel: currentModel,
+	}
+
+	snapComps := map[string]snap.ComponentType{
+		"comp-1": snap.StandardComponent,
+	}
+	someSnapPath, someSnapInfo := snaptest.MakeTestSnapInfoWithFiles(c, withComponents("name: some-snap\nversion: 1\ntype: app", snapComps), nil, &snap.SideInfo{
+		RealName: "some-snap",
+		SnapID:   fakeSnapID("some-snap"),
+		Revision: snap.R(3),
+	})
+
+	_, err = devicestate.RemodelTasks(
+		context.Background(),
+		s.state,
+		currentModel,
+		newModel,
+		&testDeviceCtx,
+		"99",
+		devicestate.RemodelOptions{
+			Offline: true,
+			LocalSnaps: []snapstate.PathSnap{
+				{
+					Path:     someSnapPath,
+					SideInfo: &someSnapInfo.SideInfo,
+				},
+			},
+		},
+	)
+	c.Assert(err, ErrorMatches, `cannot find locally provided component: "some-snap\+comp-1"`)
+}
+
+func (s *deviceMgrRemodelSuite) TestRemodelWithComponentsOfflineMissingComponent(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	s.state.Set("seeded", true)
+	s.state.Set("refresh-privacy-key", "some-privacy-key")
+
+	currentModel := s.brands.Model("canonical", "pc-model", map[string]interface{}{
+		"architecture": "amd64",
+		"base":         "core24",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":            "pc-kernel",
+				"id":              fakeSnapID("pc-kernel"),
+				"type":            "kernel",
+				"default-channel": "latest/stable",
+			},
+			map[string]interface{}{
+				"name":            "pc",
+				"id":              fakeSnapID("pc"),
+				"type":            "gadget",
+				"default-channel": "latest/stable",
+			},
+			map[string]interface{}{
+				"name":            "core24",
+				"id":              fakeSnapID("core24"),
+				"type":            "base",
+				"default-channel": "latest/stable",
+			},
+			map[string]interface{}{
+				"name":            "snapd",
+				"id":              fakeSnapID("snapd"),
+				"type":            "snapd",
+				"default-channel": "latest/stable",
+			},
+		},
+	})
+	err := assertstate.Add(s.state, currentModel)
+	c.Assert(err, IsNil)
+
+	err = devicestatetest.SetDevice(s.state, &auth.DeviceState{
+		Brand: "canonical",
+		Model: "pc-model",
+	})
+	c.Assert(err, IsNil)
+
+	snapstatetest.InstallEssentialSnaps(c, s.state, "core24", nil, nil)
+
+	snapComps := map[string]snap.ComponentType{
+		"comp-1": snap.StandardComponent,
+	}
+
+	// install some-snap so that we can test adding a component to it
+	snapstatetest.InstallSnap(c, s.state, withComponents("name: some-snap\nversion: 1\ntype: app\nbase: core24", snapComps), nil, &snap.SideInfo{
+		SnapID:   fakeSnapID("some-snap"),
+		Revision: snap.R(5),
+		RealName: "some-snap",
+		Channel:  "latest/stable",
+	}, snapstatetest.InstallSnapOptions{})
+
+	newModel := s.brands.Model("canonical", "pc-model", map[string]interface{}{
+		"architecture": "amd64",
+		"base":         "core24",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":            "pc-kernel",
+				"id":              fakeSnapID("pc-kernel"),
+				"type":            "kernel",
+				"default-channel": "latest/stable",
+			},
+			map[string]interface{}{
+				"name":            "pc",
+				"id":              fakeSnapID("pc"),
+				"type":            "gadget",
+				"default-channel": "latest/stable",
+			},
+			map[string]interface{}{
+				"name":            "core24",
+				"id":              fakeSnapID("core24"),
+				"type":            "base",
+				"default-channel": "latest/stable",
+			},
+			map[string]interface{}{
+				"name":            "snapd",
+				"id":              fakeSnapID("snapd"),
+				"type":            "snapd",
+				"default-channel": "latest/stable",
+			},
+			map[string]interface{}{
+				"name":            "some-snap",
+				"id":              fakeSnapID("some-snap"),
+				"type":            "app",
+				"default-channel": "latest/stable",
+				"components": map[string]interface{}{
+					"comp-1": map[string]interface{}{
+						"presence": "required",
+					},
+				},
+			},
+		},
+	})
+
+	testDeviceCtx := snapstatetest.TrivialDeviceContext{
+		Remodeling:     true,
+		DeviceModel:    newModel,
+		OldDeviceModel: currentModel,
+	}
+
+	_, err = devicestate.RemodelTasks(
+		context.Background(),
+		s.state,
+		currentModel,
+		newModel,
+		&testDeviceCtx,
+		"99",
+		devicestate.RemodelOptions{
+			Offline: true,
+		},
+	)
+	c.Assert(err, ErrorMatches, `cannot find locally provided component: "some-snap\+comp-1"`)
 }
 
 func checkTaskSetKinds(c *C, ts *state.TaskSet, kinds []string) {
