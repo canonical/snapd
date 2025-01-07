@@ -20,7 +20,7 @@
 package syscalls
 
 // Generated using arch-syscall-dump test tool from libseccomp tree, git
-// revision aa168d49243b95f63b9825a87351a1eb323dc792.
+// revision 42b596818635bf9d1cae54fa87e8c7b2e16869d3.
 var SeccompSyscalls = []string{
 	"_llseek",
 	"_newselect",
@@ -175,6 +175,7 @@ var SeccompSyscalls = []string{
 	"getuid",
 	"getuid32",
 	"getxattr",
+	"getxattrat",
 	"gtty",
 	"idle",
 	"init_module",
@@ -214,6 +215,7 @@ var SeccompSyscalls = []string{
 	"listen",
 	"listmount",
 	"listxattr",
+	"listxattrat",
 	"llistxattr",
 	"lock",
 	"lookup_dcookie",
@@ -336,6 +338,7 @@ var SeccompSyscalls = []string{
 	"recvmsg",
 	"remap_file_pages",
 	"removexattr",
+	"removexattrat",
 	"rename",
 	"renameat",
 	"renameat2",
@@ -422,6 +425,7 @@ var SeccompSyscalls = []string{
 	"setuid",
 	"setuid32",
 	"setxattr",
+	"setxattrat",
 	"sgetmask",
 	"shmat",
 	"shmctl",
