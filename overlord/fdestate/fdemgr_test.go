@@ -34,10 +34,14 @@ import (
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget/device"
+	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil/disks"
+	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/fdestate"
 	"github.com/snapcore/snapd/overlord/fdestate/backend"
+	"github.com/snapcore/snapd/overlord/ifacestate/ifacerepo"
+	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/secboot"
@@ -54,6 +58,7 @@ type fdeMgrSuite struct {
 	rootdir string
 	st      *state.State
 	runner  *state.TaskRunner
+	o       *overlord.Overlord
 }
 
 var _ = Suite(&fdeMgrSuite{})
@@ -67,8 +72,15 @@ func (s *fdeMgrSuite) SetUpTest(c *C) {
 	dirs.SetRootDir(s.rootdir)
 	s.AddCleanup(func() { dirs.SetRootDir("") })
 
-	s.st = state.New(nil)
-	s.runner = state.NewTaskRunner(s.st)
+	s.o = overlord.Mock()
+
+	s.st = s.o.State()
+	s.runner = s.o.TaskRunner()
+
+	s.st.Lock()
+	repo := interfaces.NewRepository()
+	ifacerepo.Replace(s.st, repo)
+	s.st.Unlock()
 
 	buf, restore := logger.MockLogger()
 	s.AddCleanup(restore)
@@ -92,6 +104,10 @@ func (s *fdeMgrSuite) SetUpTest(c *C) {
 	s.AddCleanup(fdestate.MockVerifyPrimaryKeyDigest(func(devicePath string, alg crypto.Hash, salt, digest []byte) (bool, error) {
 		panic("VerifyPrimaryKeyDigest is not mocked")
 	}))
+	s.AddCleanup(fdestate.MockBackendResealKeysForSignaturesDBUpdate(
+		func(mgr backend.FDEStateManager, method device.SealingMethod, rootdir string, params *boot.ResealKeyForBootChainsParams, update []byte) error {
+			panic("BackendResealKeysForSignaturesDBUpdate not mocked")
+		}))
 
 	m := boot.Modeenv{
 		Mode: boot.ModeRun,
@@ -105,6 +121,24 @@ func (s *fdeMgrSuite) TearDownTest(c *C) {
 	c.Assert(s.logbuf, NotNil)
 	c.Logf("logs:\n%s\n", s.logbuf.String())
 	s.BaseTest.TearDownTest(c)
+}
+
+func (s *fdeMgrSuite) mockDeviceInState(model *asserts.Model) {
+	s.st.Lock()
+	defer s.st.Unlock()
+
+	s.AddCleanup(snapstatetest.MockDeviceContext(&snapstatetest.TrivialDeviceContext{
+		DeviceModel: model,
+	}))
+}
+
+func (s *fdeMgrSuite) runnerIterationLocked(c *C) {
+	err := func() error {
+		s.st.Unlock()
+		defer s.st.Lock()
+		return s.runner.Ensure()
+	}()
+	c.Assert(err, IsNil)
 }
 
 type instrumentedUnlocker struct {
