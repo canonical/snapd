@@ -62,7 +62,15 @@ execute: |
     snap install go-example-webserver
     tests.systemd wait-for-service -n 30 --state active snap.go-example-webserver.webserver.service
     snap install test-snapd-tools
-    test-snapd-tools.echo hello | MATCH hello
+    # In case of known error on older snapd deb versions e.g. 2.32.5+18.04,
+    # rerun with SNAP_REEXEC=1 as workaround for this step
+    if result=$(test-snapd-tools.echo hello 2>&1); then
+        MATCH hello <<< "$result"
+    else
+        SNAPD_DEBUG=1 snap version 2>&1 | MATCH "re-exec disabled by user"
+        MATCH "cannot perform readlinkat\(\) on the mount namespace file descriptor of the init process" <<< "$result"
+        SNAP_REEXEC=1 test-snapd-tools.echo hello | MATCH hello
+    fi
 
     echo "upgrade to current snapd"
     if [ "${VERSION_ID}" = "14.04" ]; then
