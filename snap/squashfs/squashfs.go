@@ -202,7 +202,7 @@ func (s *Snap) Unpack(src, dstDir string) error {
 	usw := newUnsquashfsStderrWriter()
 
 	var output bytes.Buffer
-	cmd := exec.Command("unsquashfs", "-n", "-f", "-d", dstDir, s.path, src)
+	cmd := exec.Command("unsquashfs", "-no-xattrs", "-n", "-f", "-d", dstDir, s.path, src)
 	cmd.Stderr = io.MultiWriter(&output, usw)
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("cannot extract %q to %q: %v", src, dstDir, osutil.OutputErr(output.Bytes(), err))
@@ -234,7 +234,7 @@ func (s *Snap) withUnpackedFile(filePath string, f func(p string) error) error {
 	defer os.RemoveAll(tmpdir)
 
 	unpackDir := filepath.Join(tmpdir, "unpack")
-	if output, err := exec.Command("unsquashfs", "-n", "-i", "-d", unpackDir, s.path, filePath).CombinedOutput(); err != nil {
+	if output, err := exec.Command("unsquashfs", "-no-xattrs", "-n", "-i", "-d", unpackDir, s.path, filePath).CombinedOutput(); err != nil {
 		return fmt.Errorf("cannot run unsquashfs: %v", osutil.OutputErr(output, err))
 	}
 
