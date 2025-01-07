@@ -417,12 +417,12 @@ func (rdb *RuleDB) addOrMergeRule(rule *Rule, save bool) (addedOrMergedRule *Rul
 
 	// Create new rule based on the contents of the existing rule, but copy the
 	// timestamp from the new rule.
-	newRuleContents := *existingRule
-	newRule := &newRuleContents
+	newRule := new(Rule)
+	*newRule = *existingRule
 	newRule.Timestamp = rule.Timestamp
 	// Copy constraints as well, since copying the rule just copied the pointer
-	newConstraints := *(existingRule.Constraints)
-	newRule.Constraints = &newConstraints
+	newRule.Constraints = new(prompting.RuleConstraints)
+	*(newRule.Constraints) = *(existingRule.Constraints)
 	// Now set the permissions of the copied constraints to newPermissions
 	newRule.Constraints.Permissions = newPermissions
 
