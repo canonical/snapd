@@ -672,16 +672,9 @@ func (r *remodeler) shouldSwitchWithoutRefresh(rt remodelTarget, needsRevisionCh
 		return false
 	}
 
-	// if we can't get a snap ID, then we can't really check if the snap is in
-	// the set of locally provided snaps
-	if rt.newModelSnap == nil {
-		return false
-	}
-	snapID := rt.newModelSnap.SnapID
-
 	// if we have a local container for this snap, then we should use that in
 	// addition to switching the tracked channel
-	if _, ok := r.localContainers.Snaps[snapID]; ok {
+	if _, ok := r.localContainers.Snaps[rt.name]; ok {
 		return false
 	}
 
@@ -699,12 +692,7 @@ func revisionSupportsComponents(info *snap.Info, components []string) bool {
 
 func (r *remodeler) installGoal(sn remodelTarget, components []string) (snapstate.InstallGoal, error) {
 	if r.offline {
-		if sn.newModelSnap == nil {
-			return nil, errors.New("offline remodeling requires that new model snap is provided")
-		}
-
-		snapID := sn.newModelSnap.SnapID
-		ls, ok := r.localContainers.Snaps[snapID]
+		ls, ok := r.localContainers.Snaps[sn.name]
 		if !ok {
 			return nil, fmt.Errorf("no snap file provided for %q", sn.name)
 		}
@@ -771,12 +759,7 @@ func (r *remodeler) installedRevisionUpdateGoal(
 
 func (r *remodeler) updateGoal(st *state.State, sn remodelTarget, components []string, constraints snapasserts.SnapPresenceConstraints) (snapstate.UpdateGoal, error) {
 	if r.offline {
-		if sn.newModelSnap == nil {
-			return nil, errors.New("internal error: offline remodeling requires that new model snap is provided")
-		}
-
-		snapID := sn.newModelSnap.SnapID
-		ls, ok := r.localContainers.Snaps[snapID]
+		ls, ok := r.localContainers.Snaps[sn.name]
 		if !ok {
 			g, err := r.installedRevisionUpdateGoal(st, sn, components, constraints)
 			if err != nil {
@@ -1021,7 +1004,7 @@ func remodelTasks(ctx context.Context, st *state.State, current, new *asserts.Mo
 	}
 
 	for _, ls := range localSnaps {
-		containers.Snaps[ls.SideInfo.SnapID] = ls
+		containers.Snaps[ls.SideInfo.RealName] = ls
 	}
 
 	// If local snaps are provided, all needed snaps must be locally
