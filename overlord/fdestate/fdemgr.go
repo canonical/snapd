@@ -29,6 +29,7 @@ import (
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/fdestate/backend"
+	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/snapdenv"
@@ -86,6 +87,21 @@ func Manager(st *state.State, runner *state.TaskRunner) (*FDEManager, error) {
 	st.Lock()
 	defer st.Unlock()
 	st.Cache(fdeMgrKey{}, m)
+
+	snapstate.RegisterAffectedSnapsByKind("efi-secureboot-db-update", dbxUpdateAffectedSnaps)
+
+	runner.AddHandler("efi-secureboot-db-update-prepare",
+		m.doEFISecurebootDBUpdatePrepare, m.undoEFISecurebootDBUpdatePrepare)
+	runner.AddCleanup("efi-secureboot-db-update-prepare", m.doEFISecurebootDBUpdatePrepareCleanup)
+	runner.AddHandler("efi-secureboot-db-update", m.doEFISecurebootDBUpdate, nil)
+	runner.AddBlocked(func(t *state.Task, running []*state.Task) bool {
+		switch t.Kind() {
+		case "efi-secureboot-db-update":
+			return isEFISecurebootDBUpdateBlocked(t)
+		}
+
+		return false
+	})
 
 	return m, nil
 }
