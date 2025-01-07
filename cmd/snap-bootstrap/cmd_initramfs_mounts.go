@@ -46,6 +46,7 @@ import (
 	"github.com/snapcore/snapd/osutil/disks"
 	"github.com/snapcore/snapd/osutil/kcmdline"
 	"github.com/snapcore/snapd/snapdtool"
+	"github.com/snapcore/snapd/systemd"
 
 	// to set sysconfig.ApplyFilesystemOnlyDefaultsImpl
 	_ "github.com/snapcore/snapd/overlord/configstate/configcore"
@@ -1796,11 +1797,29 @@ func generateMountsCommonInstallRecoverStart(mst *initramfsMountsState) (model *
 
 	for _, essentialSnap := range essSnaps {
 		systemSnaps[essentialSnap.EssentialType] = essentialSnap
-		dir := snapTypeToMountDir[essentialSnap.EssentialType]
-		// TODO:UC20: we need to cross-check the kernel path with snapd_recovery_kernel used by grub
-		if err := doSystemdMount(essentialSnap.Path, filepath.Join(boot.InitramfsRunMntDir, dir), mountReadOnlyOptions); err != nil {
-			return nil, nil, err
+		if essentialSnap.EssentialType == snap.TypeBase {
+			// Create unit to mount directly to /sysroot
+			what := essentialSnap.Path
+			if err := writeSysrootMountUnit(what, "squashfs"); err != nil {
+				return nil, nil, fmt.Errorf(
+					"cannot write sysroot.mount (what: %s): %v", what, err)
+			}
+		} else {
+			dir := snapTypeToMountDir[essentialSnap.EssentialType]
+			// TODO:UC20: we need to cross-check the kernel path
+			// with snapd_recovery_kernel used by grub
+			if err := doSystemdMount(essentialSnap.Path,
+				filepath.Join(boot.InitramfsRunMntDir, dir),
+				mountReadOnlyOptions); err != nil {
+				return nil, nil, err
+			}
 		}
+	}
+
+	// Do a daemon reload so systemd knows about the new mount units
+	sysd := systemd.New(systemd.SystemMode, nil)
+	if err := sysd.DaemonReload(); err != nil {
+		return nil, nil, err
 	}
 
 	return model, systemSnaps, nil
@@ -2115,8 +2134,21 @@ func generateMountsModeRun(mst *initramfsMountsState) error {
 	//            to the function above to make decisions there, or perhaps this
 	//            code actually belongs in the bootloader implementation itself
 
-	// 4.3 mount base (if UC), gadget and kernel snaps
-	for _, typ := range typs {
+	// Create unit for sysroot (mounts either base or rootfs)
+	if isClassic {
+		if err := writeSysrootMountUnit(rootfsDir, ""); err != nil {
+			return fmt.Errorf("cannot write sysroot.mount (what: %s): %v", rootfsDir, err)
+		}
+	} else {
+		basePlaceInfo := mounts[snap.TypeBase]
+		what := filepath.Join(dirs.SnapBlobDirUnder(rootfsDir), basePlaceInfo.Filename())
+		if err := writeSysrootMountUnit(what, "squashfs"); err != nil {
+			return fmt.Errorf("cannot write sysroot.mount (what: %s): %v", what, err)
+		}
+	}
+
+	// 4.3 mount gadget and kernel snaps
+	for _, typ := range []snap.Type{snap.TypeGadget, snap.TypeKernel} {
 		if sn, ok := mounts[typ]; ok {
 			dir := snapTypeToMountDir[typ]
 			snapPath := filepath.Join(dirs.SnapBlobDirUnder(rootfsDir), sn.Filename())
@@ -2159,7 +2191,9 @@ func generateMountsModeRun(mst *initramfsMountsState) error {
 		}
 	}
 
-	return nil
+	// Do a daemon reload so systemd knows about the new mount units
+	sysd := systemd.New(systemd.SystemMode, nil)
+	return sysd.DaemonReload()
 }
 
 var tryRecoverySystemHealthCheck = func(model gadget.Model) error {
