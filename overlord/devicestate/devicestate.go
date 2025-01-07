@@ -990,21 +990,13 @@ func sortNonEssentialRemodelTaskSetsBasesFirst(snaps []*asserts.ModelSnap) []*as
 }
 
 func remodelTasks(ctx context.Context, st *state.State, current, new *asserts.Model,
-	deviceCtx snapstate.DeviceContext, fromChange string, localSnaps []LocalSnap, opts RemodelOptions) ([]*state.TaskSet, error) {
+	deviceCtx snapstate.DeviceContext, fromChange string, opts RemodelOptions) ([]*state.TaskSet, error) {
 
 	logger.Debugf("creating remodeling tasks")
 
 	vsets, err := verifyModelValidationSets(st, new, opts.Offline, deviceCtx)
 	if err != nil {
 		return nil, err
-	}
-
-	containers := LocalContainers{
-		Snaps: make(map[string]LocalSnap, len(localSnaps)),
-	}
-
-	for _, ls := range localSnaps {
-		containers.Snaps[ls.SideInfo.RealName] = ls
 	}
 
 	// If local snaps are provided, all needed snaps must be locally
@@ -1017,7 +1009,7 @@ func remodelTasks(ctx context.Context, st *state.State, current, new *asserts.Mo
 		tracker:         snap.NewSelfContainedSetPrereqTracker(),
 		deviceCtx:       deviceCtx,
 		fromChange:      fromChange,
-		localContainers: containers,
+		localContainers: opts.LocalContainers,
 	}
 
 	// First handle snapd as a special case
@@ -1344,6 +1336,8 @@ type RemodelOptions struct {
 	// installed will be used if they match the revisions that are required by
 	// the model.
 	Offline bool
+
+	LocalContainers LocalContainers
 }
 
 // Remodel takes a new model assertion and generates a change that
@@ -1493,8 +1487,18 @@ func Remodel(st *state.State, new *asserts.Model, localSnaps []LocalSnap, opts R
 		// we call remodelTasks from inside another task, so that the tasks for
 		// the remodel are added to an existing and running change. this will
 		// allow us to avoid things like calling snapstate.CheckChangeConflictRunExclusively again.
+
+		containers := LocalContainers{
+			Snaps: make(map[string]LocalSnap, len(localSnaps)),
+		}
+		for _, s := range localSnaps {
+			containers.Snaps[s.SideInfo.RealName] = s
+		}
+
+		opts.LocalContainers = containers
+
 		var err error
-		tss, err = remodelTasks(context.TODO(), st, current, new, remodCtx, "", localSnaps, opts)
+		tss, err = remodelTasks(context.TODO(), st, current, new, remodCtx, "", opts)
 		if err != nil {
 			return nil, err
 		}
