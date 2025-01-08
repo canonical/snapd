@@ -44,7 +44,7 @@ ifeq (${FIPSBUILD},1)
 	fi
 endif
 # dh-golang sets GO111MODULE=off if present, fix that
-	GO111MODULE=on go build -mod=vendor $(BUILDFLAGS) $(SNAP_TAGS) ./cmd/snap-bootstrap
+	GOCACHE=/tmp/cache GO111MODULE=on go build -mod=vendor $(BUILDFLAGS) $(SNAP_TAGS) ./cmd/snap-bootstrap
 
 override_dh_auto_install:
 	rm -rf debian/tmp
