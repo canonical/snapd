@@ -670,3 +670,20 @@ Wants=%[1]s
 		}
 	}
 }
+
+type dummyOpts struct{}
+
+func (d dummyOpts) AppendOptions(strings []string) ([]string, error) {
+	return []string{"dummy options"}, nil
+}
+
+func (s *doSystemdMountSuite) TestDoSystemdMountWrongFsOpts(c *C) {
+
+	opts := &main.SystemdMountOptions{
+		FsOpts: dummyOpts{},
+	}
+
+	err := main.DoSystemdMount("what", "where", opts)
+	c.Check(err, ErrorMatches, "cannot mount \"what\" at \"where\": invalid options")
+
+}
