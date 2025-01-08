@@ -232,6 +232,16 @@ install_dependencies_gce_bucket(){
 ###
 
 prepare_project() {
+    # we install chrony on xenial (as its also used in later distros), so the
+    # ntp service was in conflict, degrading the systemd unit and sometimes breaking
+    # NTP syncs
+    if os.query is-xenial; then
+      systemctl stop ntp.service
+      systemctl disable ntp.service
+      apt-get remove --purge -y ntp
+      systemctl reset-failed
+    fi
+
     if os.query is-ubuntu && os.query is-classic; then
         apt-get remove --purge -y lxd lxcfs || true
         apt-get autoremove --purge -y
@@ -783,16 +793,6 @@ restore_suite_each() {
     if [[ "$variant" = full ]]; then
         # shellcheck source=tests/lib/reset.sh
         "$TESTSLIB"/reset.sh --reuse-core
-    fi
-
-    # The ntp service randomly fails to create a socket on virbr0-nic,
-    # generating issues in actions like the auto-refresh (in Xenial).
-    # The errror lines are:
-    # ntpd: bind(23) AF_INET6 ... flags 0x11 failed: Cannot assign requested address
-    # ntpd: unable to create socket on virbr0-nic
-    # ntpd: kernel reports TIME_ERROR: 0x41: Clock Unsynchronized
-    if os.query is-xenial && systemctl status ntp | MATCH TIME_ERROR; then
-        systemctl restart ntp
     fi
 
     # Check for invariants late, in order to detect any bugs in the code above.
