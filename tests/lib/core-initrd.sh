@@ -6,9 +6,9 @@
 build_and_install_initramfs_deb() (
     pushd "$PROJECT_PATH"/core-initrd
 
-    # For dpkg-parsechangelog (used by mkversion.sh too) and to have
-    # the tools needed to build the source package.
-    quiet eatmydata apt-get install -y dpkg-dev debhelper
+    # For dpkg-parsechangelog, dch, and ubuntu-distro-info (used by
+    # mkversion.sh) and to have the tools needed to build the source package.
+    quiet eatmydata apt-get install -y dpkg-dev debhelper devscripts distro-info
     codename=$(lsb_release -c -s)
     latest=$(dpkg-parsechangelog --file latest/debian/changelog --show-field Distribution)
     if [ "$codename" = "$latest" ]; then
