@@ -33,38 +33,47 @@ func traceCallers(description string) {
 		fmt.Fprintf(os.Stderr, "could not retrieve log file, SNAPD_STATE_LOCK_FILE env var required")
 	}
 
-	lockfile, err := os.OpenFile(lockfilePath, os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0600)
+	logFile, err := os.OpenFile(lockfilePath, os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0600)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "could not open/create log traces file: %v", err)
 		return
 	}
-	defer lockfile.Close()
+	lockFile := NewFileLockWithFile(logFile)
+	defer lockFile.Close()
+	if err := lockFile.Lock(); err != nil {
+		fmt.Fprintf(os.Stderr, "cannot take file lock: %v", err)
+		return
+	}
 
 	pc := make([]uintptr, 10)
-	n := runtime.Callers(0, pc)
+	n := runtime.Callers(3, pc)
 	formattedLine := fmt.Sprintf("##%s\n", description)
-	if _, err = lockfile.WriteString(formattedLine); err != nil {
+	if _, err = lockFile.File().WriteString(formattedLine); err != nil {
 		fmt.Fprintf(os.Stderr, "internal error: could not write trace callers header to tmp file: %v", err)
 		return
 	}
-	for i := 0; i < n; i++ {
-		f := runtime.FuncForPC(pc[i])
-		file, line := f.FileLine(pc[i])
-		formattedLine = fmt.Sprintf("%s:%d %s\n", file, line, f.Name())
-		if _, err = lockfile.WriteString(formattedLine); err != nil {
+	frames := runtime.CallersFrames(pc[:n])
+	for {
+		frame, more := frames.Next()
+		formattedLine = fmt.Sprintf("%s:%d %s\n", frame.File, frame.Line, frame.Function)
+		if _, err = lockFile.File().WriteString(formattedLine); err != nil {
 			fmt.Fprintf(os.Stderr, "internal error: could not write trace callers to tmp file: %v", err)
 			return
+		}
+
+		if !more {
+			break
 		}
 	}
 }
 
-func GetLockStart() int64 {
+func LockTimestamp() int64 {
 	return time.Now().UnixNano() / int64(time.Millisecond)
 }
 
 // MaybeSaveLockTime allows to save lock times when this overpass the threshold
 // defined by through the SNAPD_STATE_LOCK_THRESHOLD_MS environment settings.
-func MaybeSaveLockTime(lockStart int64) {
+func MaybeSaveLockTime(lockWait int64, lockStart int64) {
 	lockEnd := time.Now().UnixNano() / int64(time.Millisecond)
 
 	if !GetenvBool("SNAPPY_TESTING") {
@@ -75,9 +84,10 @@ func MaybeSaveLockTime(lockStart int64) {
 		return
 	}
 
-	elapsedMilliseconds := lockEnd - lockStart
-	if elapsedMilliseconds > threshold {
-		formattedLine := fmt.Sprintf("Elapsed Time: %d milliseconds", elapsedMilliseconds)
+	heldMs := lockEnd - lockStart
+	waitMs := lockStart - lockWait
+	if heldMs > threshold || waitMs > threshold {
+		formattedLine := fmt.Sprintf("lock: held %d ms wait %d ms", heldMs, waitMs)
 		traceCallers(formattedLine)
 	}
 }

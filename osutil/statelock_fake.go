@@ -20,9 +20,9 @@
 
 package osutil
 
-func GetLockStart() int64 {
+func LockTimestamp() int64 {
 	return int64(0)
 }
 
-func MaybeSaveLockTime(lockStart int64) {
+func MaybeSaveLockTime(lockWait int64, lockStart int64) {
 }
