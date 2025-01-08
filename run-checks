@@ -12,6 +12,7 @@ COVERMODE=${COVERMODE:-atomic}
 COVERAGE_SUFFIX=${GO_BUILD_TAGS:-notags}
 COVERAGE_OUT=${COVERAGE_OUT:-.coverage/coverage-$COVERAGE_SUFFIX.cov}
 CHANGED_FILES=${CHANGED_FILES:-""}
+TIMEOUT=${TIMEOUT:-15}
 
 if [ -z "${GITHUB_WORKFLOW:-}" ]; then
     # when *not* running inside github, ensure we use go-1.18 by default
@@ -435,6 +436,7 @@ if [ "$UNIT" = 1 ]; then
 
     tags=
     race=
+    timeout="${TIMEOUT}m"
     if [ -n "${GO_BUILD_TAGS:-}" ]; then
         echo "Using build tags: $GO_BUILD_TAGS"
         tags="-tags $GO_BUILD_TAGS"
@@ -442,6 +444,7 @@ if [ "$UNIT" = 1 ]; then
     if [ -n "${GO_TEST_RACE:-}" ]; then
         echo "Using go test -race"
         race="-race"
+        timeout="$((TIMEOUT*2))m"
     fi
 
     echo Building
