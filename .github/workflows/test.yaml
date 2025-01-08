@@ -114,14 +114,14 @@ jobs:
         wget -q -O test_master.yaml https://raw.githubusercontent.com/snapcore/snapd/master/.github/workflows/test.yaml
         get_daily_system() {
           file=$1
-          system_daily="$(yq '.jobs."spread-not-fundamental".strategy.matrix.include.[] | select(.group == "ubuntu-daily") | .systems'  $file)" 
+          system_daily="$(yq '.jobs."spread-not-fundamental".strategy.matrix.include.[] | select(.group == "ubuntu-daily") | .systems' $file)" 
           if [ -z "$system_daily" ]; then
-            system_daily="$(yq '.jobs."spread-fundamental".strategy.matrix.include.[] | select(.group == "ubuntu-daily") | .systems'  $file)" 
+            system_daily="$(yq '.jobs."spread-fundamental".strategy.matrix.include.[] | select(.group == "ubuntu-daily") | .systems' $file)" 
           fi
           echo $system_daily
         }
-        master_daily="$(get_daily_system  test_master.yaml)"
-        branch_daily="$(get_daily_system  .github/workflows/test.yaml)"
+        master_daily="$(get_daily_system test_master.yaml)"
+        branch_daily="$(get_daily_system .github/workflows/test.yaml)"
         test "$master_daily" == "$branch_daily"
       shell: bash
 
