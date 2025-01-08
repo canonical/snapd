@@ -579,7 +579,8 @@ func FetchAllValidationSets(st *state.State, userID int, opts *RefreshAssertions
 	return nil
 }
 
-// RefreshValidationSetAssertions tries to refresh all validation set assertions.
+// RefreshValidationSetAssertions tries to refresh all validation set assertions,
+// updating the tracked validation sets accordingly.
 func RefreshValidationSetAssertions(s *state.State, userID int, opts *RefreshAssertionsOptions) error {
 	vsets, err := ValidationSets(s)
 	if err != nil {

@@ -3110,13 +3110,7 @@ version: 1`), &snap.SideInfo{Revision: snap.R("1")})
 	c.Check(tr.Current, Equals, 1)
 }
 
-func (s *assertMgrSuite) TestRefreshValidationSetAssertionsEnforcingModeConflict(c *C) {
-	s.state.Lock()
-	defer s.state.Unlock()
-
-	logbuf, restore := logger.MockLogger()
-	defer restore()
-
+func (s *assertMgrSuite) setupRefreshToConflict(c *C) {
 	// have a model and the store assertion available
 	storeAs := s.setupModelAndStore(c)
 	err := s.storeSigning.Add(storeAs)
@@ -3151,6 +3145,51 @@ func (s *assertMgrSuite) TestRefreshValidationSetAssertionsEnforcingModeConflict
 		Current:   1,
 	}
 	assertstate.UpdateValidationSet(s.state, &tr)
+}
+
+func (s *assertMgrSuite) TestFetchAllIgnoresValidationSetIfConflict(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	logbuf, restore := logger.MockLogger()
+	defer restore()
+
+	s.setupRefreshToConflict(c)
+
+	c.Assert(assertstate.FetchAllValidationSets(s.state, 0, nil), IsNil)
+	c.Assert(logbuf.String(), Matches, `.*cannot refresh to conflicting validation set assertions: validation sets are in conflict:\n- cannot constrain snap "foo" as both invalid .* and required at revision 1.*\n`)
+
+	a, err := assertstate.DB(s.state).Find(asserts.ValidationSetType, map[string]string{
+		"series":     "16",
+		"account-id": s.dev1Acct.AccountID(),
+		"name":       "foo",
+		"sequence":   "1",
+	})
+	c.Assert(err, IsNil)
+	c.Check(a.(*asserts.ValidationSet).Name(), Equals, "foo")
+	c.Check(a.Revision(), Equals, 1)
+
+	// new assertion wasn't committed to the database.
+	_, err = assertstate.DB(s.state).Find(asserts.ValidationSetType, map[string]string{
+		"series":     "16",
+		"account-id": s.dev1Acct.AccountID(),
+		"name":       "foo",
+		"sequence":   "2",
+	})
+	c.Assert(errors.Is(err, &asserts.NotFoundError{}), Equals, true)
+	c.Check(s.fakeStore.(*fakeStore).requestedTypes, DeepEquals, [][]string{
+		{"account", "account-key", "validation-set"},
+	})
+}
+
+func (s *assertMgrSuite) TestRefreshValidationSetAssertionsEnforcingModeConflict(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	logbuf, restore := logger.MockLogger()
+	defer restore()
+
+	s.setupRefreshToConflict(c)
 
 	c.Assert(assertstate.RefreshValidationSetAssertions(s.state, 0, nil), IsNil)
 	c.Assert(logbuf.String(), Matches, `.*cannot refresh to conflicting validation set assertions: validation sets are in conflict:\n- cannot constrain snap "foo" as both invalid .* and required at revision 1.*\n`)
@@ -3179,6 +3218,7 @@ func (s *assertMgrSuite) TestRefreshValidationSetAssertionsEnforcingModeConflict
 	})
 
 	// tracking current wasn't updated
+	var tr assertstate.ValidationSetTracking
 	c.Assert(assertstate.GetValidationSet(s.state, s.dev1Acct.AccountID(), "foo", &tr), IsNil)
 	c.Check(tr.Current, Equals, 1)
 }
