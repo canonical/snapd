@@ -22,7 +22,6 @@ package main
 import (
 	"encoding/json"
 	"errors"
-	"fmt"
 	"os"
 	"path/filepath"
 
@@ -69,12 +68,6 @@ type imageManifest struct {
 	// Partitions is a list of partitions with their associated dm-verity root hashes and
 	// intended overlayfs use.
 	Partitions []imageManifestPartition `json:"partitions"`
-}
-
-type manifestError struct{}
-
-func (e *manifestError) Error() string {
-	return fmt.Sprintf("")
 }
 
 func parseImageManifest(imageManifestFile []byte) (imageManifest, error) {
