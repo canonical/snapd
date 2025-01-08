@@ -20,6 +20,7 @@
 package asserts_test
 
 import (
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -201,7 +202,9 @@ func (s *confdbSuite) TestAssembleAndSignChecksSchemaFormatFail(c *C) {
 	c.Assert(err, ErrorMatches, `assertion confdb: JSON in body must be indented with 2 spaces and sort object entries by key`)
 }
 
-type confdbCtrlSuite struct{}
+type confdbCtrlSuite struct {
+	db *asserts.Database
+}
 
 var _ = Suite(&confdbCtrlSuite{})
 
@@ -235,6 +238,42 @@ sign-key-sha3-384: t9yuKGLyiezBq_PXMJZsGdkTukmL7MgrgqXAlxxiZF4TYryOjZcy48nnjDmEH
 
 AXNpZw==`
 )
+
+func (s *confdbCtrlSuite) SetUpTest(c *C) {
+	topDir := filepath.Join(c.MkDir(), "asserts-db")
+	bs, err := asserts.OpenFSBackstore(topDir)
+	c.Assert(err, IsNil)
+	cfg := &asserts.DatabaseConfig{
+		Backstore: bs,
+		Trusted: []asserts.Assertion{
+			asserts.BootstrapAccountForTest("canonical"),
+			asserts.BootstrapAccountKeyForTest("canonical", testPrivKey0.PublicKey()),
+		},
+	}
+	db, err := asserts.OpenDatabase(cfg)
+	c.Assert(err, IsNil)
+	s.db = db
+}
+
+func (s *confdbCtrlSuite) addSerial(c *C) {
+	pubKey := testPrivKey0.PublicKey()
+	encodedPubKey, err := asserts.EncodePublicKey(pubKey)
+	c.Assert(err, IsNil)
+
+	serial, err := asserts.AssembleAndSignInTest(asserts.SerialType, map[string]interface{}{
+		"authority-id":        "canonical",
+		"brand-id":            "canonical",
+		"model":               "pc",
+		"serial":              "42",
+		"device-key":          string(encodedPubKey),
+		"device-key-sha3-384": pubKey.ID(),
+		"timestamp":           time.Now().Format(time.RFC3339),
+	}, nil, testPrivKey0)
+	c.Assert(err, IsNil)
+
+	err = s.db.Add(serial)
+	c.Assert(err, IsNil)
+}
 
 func (s *confdbCtrlSuite) TestDecodeOK(c *C) {
 	encoded := confdbControlExample
@@ -349,4 +388,61 @@ func (s *confdbCtrlSuite) TestDecodeInvalid(c *C) {
 		_, err := asserts.Decode([]byte(invalid))
 		c.Assert(err, ErrorMatches, validationSetErrPrefix+test.expectedErr, Commentf("test %d/%d failed", i+1, len(invalidTests)))
 	}
+}
+
+func (s *confdbCtrlSuite) TestPrerequisites(c *C) {
+	a, err := asserts.Decode([]byte(confdbControlExample))
+	c.Assert(err, IsNil)
+
+	prereqs := a.Prerequisites()
+	c.Assert(prereqs, HasLen, 1)
+	c.Check(prereqs[0], DeepEquals, &asserts.Ref{
+		Type:       asserts.SerialType,
+		PrimaryKey: []string{"generic", "generic-classic", "03961d5d-26e5-443f-838d-6db046126bea"},
+	})
+}
+
+func (s *confdbCtrlSuite) TestAckAssertionNoSerial(c *C) {
+	headers := map[string]interface{}{
+		"brand-id": "canonical", "model": "pc", "serial": "42", "groups": []interface{}{},
+	}
+	a, err := asserts.AssembleAndSignInTest(asserts.ConfdbControlType, headers, nil, testPrivKey0)
+	c.Assert(err, IsNil)
+
+	err = s.db.Add(a)
+	c.Assert(
+		err,
+		ErrorMatches,
+		`cannot check no-authority assertion type "confdb-control": cannot find matching device serial assertion: .* not found`,
+	)
+}
+
+func (s *confdbCtrlSuite) TestAckAssertionKeysMismatch(c *C) {
+	s.addSerial(c)
+
+	headers := map[string]interface{}{
+		"brand-id": "canonical", "model": "pc", "serial": "42", "groups": []interface{}{},
+	}
+	a, err := asserts.AssembleAndSignInTest(asserts.ConfdbControlType, headers, nil, testPrivKey2)
+	c.Assert(err, IsNil)
+
+	err = s.db.Add(a)
+	c.Assert(
+		err,
+		ErrorMatches,
+		`cannot check no-authority assertion type "confdb-control": confdb-control's signing key doesn't match the device key`,
+	)
+}
+
+func (s *confdbCtrlSuite) TestAckAssertionOK(c *C) {
+	s.addSerial(c)
+
+	headers := map[string]interface{}{
+		"brand-id": "canonical", "model": "pc", "serial": "42", "groups": []interface{}{},
+	}
+	a, err := asserts.AssembleAndSignInTest(asserts.ConfdbControlType, headers, nil, testPrivKey0)
+	c.Assert(err, IsNil)
+
+	err = s.db.Add(a)
+	c.Assert(err, IsNil)
 }
