@@ -671,16 +671,16 @@ Wants=%[1]s
 	}
 }
 
-type dummyOpts struct{}
+type testOpts struct{}
 
-func (d dummyOpts) AppendOptions(strings []string) ([]string, error) {
-	return []string{"dummy options"}, nil
+func (d testOpts) AppendOptions(strings []string) ([]string, error) {
+	return []string{"test options"}, nil
 }
 
 func (s *doSystemdMountSuite) TestDoSystemdMountWrongFsOpts(c *C) {
 
 	opts := &main.SystemdMountOptions{
-		FsOpts: dummyOpts{},
+		FsOpts: testOpts{},
 	}
 
 	err := main.DoSystemdMount("what", "where", opts)
