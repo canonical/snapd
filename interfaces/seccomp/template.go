@@ -188,6 +188,7 @@ getuid32
 getxattr
 fgetxattr
 lgetxattr
+getxattrat
 
 inotify_add_watch
 inotify_init
@@ -234,6 +235,7 @@ linkat
 listxattr
 llistxattr
 flistxattr
+listxattrat
 
 lseek
 llseek
@@ -336,6 +338,7 @@ remap_file_pages
 removexattr
 fremovexattr
 lremovexattr
+removexattrat
 
 rename
 renameat
@@ -428,6 +431,7 @@ set_tid_address
 setxattr
 fsetxattr
 lsetxattr
+setxattrat
 
 shmat
 shmctl
