@@ -218,24 +218,24 @@ func checkUintWhat(headers map[string]interface{}, name string, bitSize int, wha
 	return value, nil
 }
 
-func checkDigest(headers map[string]interface{}, name string, h crypto.Hash) ([]byte, error) {
+func checkDigest(headers map[string]interface{}, name string, h crypto.Hash) (string, error) {
 	return checkDigestDecWhat(headers, name, h, "header", base64.RawURLEncoding.DecodeString)
 }
 
-func checkDigestDecWhat(headers map[string]interface{}, name string, h crypto.Hash, what string, decode func(string) ([]byte, error)) ([]byte, error) {
+func checkDigestDecWhat(headers map[string]interface{}, name string, h crypto.Hash, what string, decode func(string) ([]byte, error)) (string, error) {
 	digestStr, err := checkNotEmptyStringWhat(headers, name, what)
 	if err != nil {
-		return nil, err
+		return "", err
 	}
 	b, err := decode(digestStr)
 	if err != nil {
-		return nil, fmt.Errorf("%q %s cannot be decoded: %v", name, what, err)
+		return "", fmt.Errorf("%q %s cannot be decoded: %v", name, what, err)
 	}
 	if len(b) != h.Size() {
-		return nil, fmt.Errorf("%q %s does not have the expected bit length: %d", name, what, len(b)*8)
+		return "", fmt.Errorf("%q %s does not have the expected bit length: %d", name, what, len(b)*8)
 	}
 
-	return b, nil
+	return digestStr, nil
 }
 
 // checkStringListInMap returns the `name` entry in the `m` map as a (possibly nil) `[]string`
