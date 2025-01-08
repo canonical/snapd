@@ -795,16 +795,6 @@ restore_suite_each() {
         "$TESTSLIB"/reset.sh --reuse-core
     fi
 
-    # The ntp service randomly fails to create a socket on virbr0-nic,
-    # generating issues in actions like the auto-refresh (in Xenial).
-    # The errror lines are:
-    # ntpd: bind(23) AF_INET6 ... flags 0x11 failed: Cannot assign requested address
-    # ntpd: unable to create socket on virbr0-nic
-    # ntpd: kernel reports TIME_ERROR: 0x41: Clock Unsynchronized
-    if os.query is-xenial && systemctl status ntp | MATCH TIME_ERROR; then
-        systemctl restart ntp
-    fi
-
     # Check for invariants late, in order to detect any bugs in the code above.
     if [[ "$variant" = full ]]; then
         "$TESTSTOOLS"/cleanup-state pre-invariant
