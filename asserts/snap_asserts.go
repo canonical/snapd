@@ -841,14 +841,14 @@ func checkSnapIntegrity(headers map[string]interface{}) ([]SnapIntegrityData, er
 
 		what = fmt.Sprintf("for integrity data with index %d of type %q", i, typ)
 		h := toHash(alg)
-		digest, err := checkDigestWhatDec(id, "digest", h, what, hex.DecodeString)
+		digest, err := checkDigestDecWhat(id, "digest", h, what, hex.DecodeString)
 		if err != nil {
 			return nil, err
 		}
 
 		what = fmt.Sprintf("for integrity data with index %d of type %q", i, typ)
 		h = toHash(alg)
-		salt, err := checkDigestWhatDec(id, "salt", h, what, hex.DecodeString)
+		salt, err := checkDigestDecWhat(id, "salt", h, what, hex.DecodeString)
 		if err != nil {
 			return nil, err
 		}
