@@ -84,7 +84,6 @@ execute: |
                 $PROXY_PARAM \
                 SKIP_COVERAGE=1 \
                 CC=$VARIANT \
-                TIMEOUT=15 \
                 ./run-checks --unit"
         fi
     else
@@ -120,7 +119,6 @@ execute: |
                 $PROXY_PARAM \
                 SKIP_COVERAGE=1 \
                 CC=$VARIANT \
-                TIMEOUT=15 \
                 ./run-checks --unit" test
         fi
     fi
