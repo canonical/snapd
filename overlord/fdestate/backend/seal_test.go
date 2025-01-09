@@ -54,20 +54,16 @@ func (s *sealSuite) SetUpTest(c *C) {
 
 func (s *sealSuite) TestSealKeyForBootChains(c *C) {
 	for idx, tc := range []struct {
-		sealErr                  error
-		provisionErr             error
-		factoryReset             bool
-		pcrHandleOfKey           uint32
-		pcrHandleOfKeyErr        error
-		shimId                   string
-		grubId                   string
-		runGrubId                string
-		expErr                   string
-		expProvisionCalls        int
-		expSealCalls             int
-		expReleasePCRHandleCalls int
-		expPCRHandleOfKeyCalls   int
-		disableTokens            bool
+		sealErr           error
+		provisionErr      error
+		factoryReset      bool
+		shimId            string
+		grubId            string
+		runGrubId         string
+		expErr            string
+		expProvisionCalls int
+		expSealCalls      int
+		disableTokens     bool
 	}{
 		{
 			sealErr: nil, expErr: "",
@@ -82,18 +78,14 @@ func (s *sealSuite) TestSealKeyForBootChains(c *C) {
 			expErr:            "",
 			expProvisionCalls: 1, expSealCalls: 2,
 		}, {
-			sealErr: nil, factoryReset: true, pcrHandleOfKey: secboot.FallbackObjectPCRPolicyCounterHandle,
-			expProvisionCalls: 1, expSealCalls: 2, expPCRHandleOfKeyCalls: 1, expReleasePCRHandleCalls: 1,
+			sealErr: nil, factoryReset: true,
+			expProvisionCalls: 1, expSealCalls: 2,
 		}, {
-			sealErr: nil, factoryReset: true, pcrHandleOfKey: secboot.FallbackObjectPCRPolicyCounterHandle,
-			expProvisionCalls: 1, expSealCalls: 2, expPCRHandleOfKeyCalls: 1, expReleasePCRHandleCalls: 1, disableTokens: true,
+			sealErr: nil, factoryReset: true,
+			expProvisionCalls: 1, expSealCalls: 2, disableTokens: true,
 		}, {
-			sealErr: nil, factoryReset: true, pcrHandleOfKey: secboot.AltFallbackObjectPCRPolicyCounterHandle,
-			expProvisionCalls: 1, expSealCalls: 2, expPCRHandleOfKeyCalls: 1, expReleasePCRHandleCalls: 1,
-		}, {
-			sealErr: nil, factoryReset: true, pcrHandleOfKeyErr: errors.New("PCR handle error"),
-			expErr:                 "PCR handle error",
-			expPCRHandleOfKeyCalls: 1,
+			sealErr: nil, factoryReset: true,
+			expProvisionCalls: 1, expSealCalls: 2,
 		}, {
 			sealErr: errors.New("seal error"), expErr: "cannot seal the encryption keys: seal error",
 			expProvisionCalls: 1, expSealCalls: 1,
@@ -147,41 +139,16 @@ func (s *sealSuite) TestSealKeyForBootChains(c *C) {
 		})
 		defer restore()
 
-		pcrHandleOfKeyCalls := 0
-		restore = boot.MockSecbootPCRHandleOfSealedKey(func(p string) (uint32, error) {
-			pcrHandleOfKeyCalls++
-			c.Check(provisionCalls, Equals, 0)
-			c.Check(p, Equals, filepath.Join(rootdir, "/run/mnt/ubuntu-seed/device/fde/ubuntu-save.recovery.sealed-key"))
-			return tc.pcrHandleOfKey, tc.pcrHandleOfKeyErr
+		restore = fdeBackend.MockSsecbootFindFreeHandle(func() (uint32, error) {
+			return 42, nil
 		})
-		defer restore()
-
-		releasePCRHandleCalls := 0
-		releaseResourceFunc := func(handles ...uint32) error {
-			c.Check(tc.factoryReset, Equals, true)
-			releasePCRHandleCalls++
-			if tc.pcrHandleOfKey == secboot.FallbackObjectPCRPolicyCounterHandle {
-				c.Check(handles, DeepEquals, []uint32{
-					secboot.AltRunObjectPCRPolicyCounterHandle,
-					secboot.AltFallbackObjectPCRPolicyCounterHandle,
-				})
-			} else {
-				c.Check(handles, DeepEquals, []uint32{
-					secboot.RunObjectPCRPolicyCounterHandle,
-					secboot.FallbackObjectPCRPolicyCounterHandle,
-				})
-			}
-			return nil
-		}
-		restore = boot.MockSecbootReleasePCRResourceHandles(releaseResourceFunc)
-		defer restore()
-		restore = fdeBackend.MockSecbootReleasePCRResourceHandles(releaseResourceFunc)
 		defer restore()
 
 		// set mock key sealing
 		sealKeysCalls := 0
 		restore = fdeBackend.MockSecbootSealKeys(func(keys []secboot.SealKeyRequest, params *secboot.SealKeysParams) ([]byte, error) {
 			c.Assert(provisionCalls, Equals, 1, Commentf("TPM must have been provisioned before"))
+			c.Check(params.PCRPolicyCounterHandle, Equals, uint32(42))
 			sealKeysCalls++
 			switch sealKeysCalls {
 			case 1:
@@ -193,11 +160,6 @@ func (s *sealSuite) TestSealKeyForBootChains(c *C) {
 					expectedSKR.KeyFile = filepath.Join(rootdir, "run/mnt/ubuntu-boot/device/fde/ubuntu-data.sealed-key")
 				}
 				c.Check(keys, DeepEquals, []secboot.SealKeyRequest{expectedSKR})
-				if tc.pcrHandleOfKey == secboot.FallbackObjectPCRPolicyCounterHandle {
-					c.Check(params.PCRPolicyCounterHandle, Equals, secboot.AltRunObjectPCRPolicyCounterHandle)
-				} else {
-					c.Check(params.PCRPolicyCounterHandle, Equals, secboot.RunObjectPCRPolicyCounterHandle)
-				}
 			case 2:
 				// the fallback object seals the ubuntu-data and the ubuntu-save keys
 				c.Check(params.TPMPolicyAuthKeyFile, Equals, "")
@@ -213,11 +175,6 @@ func (s *sealSuite) TestSealKeyForBootChains(c *C) {
 					}
 				}
 				c.Check(keys, DeepEquals, []secboot.SealKeyRequest{expectedDataSKR, expectedSaveSKR})
-				if tc.pcrHandleOfKey == secboot.FallbackObjectPCRPolicyCounterHandle {
-					c.Check(params.PCRPolicyCounterHandle, Equals, secboot.AltFallbackObjectPCRPolicyCounterHandle)
-				} else {
-					c.Check(params.PCRPolicyCounterHandle, Equals, secboot.FallbackObjectPCRPolicyCounterHandle)
-				}
 			default:
 				c.Errorf("unexpected additional call to secboot.SealKeys (call # %d)", sealKeysCalls)
 			}
@@ -353,10 +310,8 @@ func (s *sealSuite) TestSealKeyForBootChains(c *C) {
 		}
 		err := boot.SealKeyForBootChains(device.SealingMethodTPM, myKey, myKey2, nil, params)
 
-		c.Check(pcrHandleOfKeyCalls, Equals, tc.expPCRHandleOfKeyCalls)
 		c.Check(provisionCalls, Equals, tc.expProvisionCalls)
 		c.Check(sealKeysCalls, Equals, tc.expSealCalls)
-		c.Check(releasePCRHandleCalls, Equals, tc.expReleasePCRHandleCalls)
 		if tc.expErr == "" {
 			c.Assert(err, IsNil)
 		} else {

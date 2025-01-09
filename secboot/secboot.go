@@ -34,6 +34,17 @@ import (
 )
 
 const (
+	// The range 0x01880005-0x0188000F
+	//
+	// FIXME: we should apply for a subrange from UAPI group once
+	// they got a range assigned by TCG.  See
+	// https://github.com/uapi-group/specifications/pull/118
+	// For now we use a sub range on the unassigned owner handles
+	PCRPolicyCounterHandleStart = uint32(0x01880005)
+	PCRPolicyCounterHandleRange = uint32(0x01880010 - 0x01880005)
+
+	// These handles are legacy, do not use them in new code.
+	//
 	// Handles are in the block reserved for TPM owner objects (0x01800000 - 0x01bfffff).
 	//
 	// Handles are rotated during factory reset, depending on the PCR handle
