@@ -237,10 +237,11 @@ type setupInfoGetter struct {
 
 func (ig *setupInfoGetter) ComponentInfo(st *state.State, cref naming.ComponentRef, snapInfo *snap.Info) (info *snap.ComponentInfo, path string, present bool, err error) {
 	// components will come from one of these places:
-	//   * passed into the task via a list of side infos (these would have
-	//     come from a user posting components via the API)
 	//   * have just been downloaded by a task in setup.ComponentSetupTasks
 	//   * already installed on the system
+	//
+	// TODO:COMPS: handle components passed into the task via a list of side
+	// infos (these would have come from a user posting components via the API)
 
 	// in a remodel scenario, the components may need to be fetched and thus
 	// their content can be different from what we have already installed, so we
