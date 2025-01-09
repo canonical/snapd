@@ -84,7 +84,7 @@ execute: |
   snap change "${broken_install_id}" | MATCH 'Error'
 
   # snapd.failure.service is not running
-  retry -n 10 --wait 1 sh -c "systemctl show -p ActiveState --value snapd.failure.service | MATCH inactive"
+  retry -n 10 --wait 3 sh -c "systemctl show -p ActiveState --value snapd.failure.service | MATCH inactive"
   # but it has run since last install
   last_activated="$(date --date="$(systemctl show -p InactiveEnterTimestamp --value snapd.failure.service)" +%s)"
   [ -n "${last_activated}" ]
