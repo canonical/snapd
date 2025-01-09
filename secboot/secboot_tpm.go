@@ -73,6 +73,7 @@ var (
 	sbTPMEnsureProvisioned              = (*sb_tpm2.Connection).EnsureProvisioned
 	sbTPMEnsureProvisionedWithCustomSRK = (*sb_tpm2.Connection).EnsureProvisionedWithCustomSRK
 	tpmReleaseResources                 = tpmReleaseResourcesImpl
+	tpmGetCapabilityHandles             = (*sb_tpm2.Connection).GetCapabilityHandles
 
 	sbTPMDictionaryAttackLockReset = (*sb_tpm2.Connection).DictionaryAttackLockReset
 
@@ -810,30 +811,6 @@ func efiImageFromBootFile(b *bootloader.BootFile) (sb_efi.Image, error) {
 	), nil
 }
 
-// PCRHandleOfSealedKey retunrs the PCR handle which was used when sealing a
-// given key object.
-func PCRHandleOfSealedKey(p string) (uint32, error) {
-	loadedKey := &defaultKeyLoader{}
-	const hintExpectFDEHook = false
-	err := readKeyFile(p, loadedKey, hintExpectFDEHook)
-	if err != nil {
-		return 0, fmt.Errorf("cannot read key file %s: %w", p, err)
-	}
-	if loadedKey.SealedKeyObject != nil {
-		handle := uint32(loadedKey.SealedKeyObject.PCRPolicyCounterHandle())
-		return handle, nil
-	} else if loadedKey.KeyData != nil {
-		sealedKeyData, err := sb_tpm2.NewSealedKeyData(loadedKey.KeyData)
-		if err != nil {
-			return 0, fmt.Errorf("cannot read key data in keyfile %s: %w", p, err)
-		}
-		handle := uint32(sealedKeyData.PCRPolicyCounterHandle())
-		return handle, nil
-	} else {
-		return 0, fmt.Errorf("key file %s format is incompatible with TPM", p)
-	}
-}
-
 func tpmReleaseResourcesImpl(tpm *sb_tpm2.Connection, handle tpm2.Handle) error {
 	rc, err := tpm.CreateResourceContextFromTPM(handle)
 	if err != nil {
@@ -849,9 +826,9 @@ func tpmReleaseResourcesImpl(tpm *sb_tpm2.Connection, handle tpm2.Handle) error 
 	return nil
 }
 
-// ReleasePCRResourceHandles releases any TPM resources associated with given
+// releasePCRResourceHandles releases any TPM resources associated with given
 // PCR handles.
-func ReleasePCRResourceHandles(handles ...uint32) error {
+func releasePCRResourceHandles(handles ...uint32) error {
 	tpm, err := sbConnectToDefaultTPM()
 	if err != nil {
 		err = fmt.Errorf("cannot connect to TPM device: %v", err)
@@ -890,4 +867,251 @@ func resetLockoutCounter(lockoutAuthFile string) error {
 	}
 
 	return nil
+}
+
+type mockableSealedKeyData interface {
+	PCRPolicyCounterHandle() tpm2.Handle
+}
+
+type mockableSealedKeyObject interface {
+	PCRPolicyCounterHandle() tpm2.Handle
+}
+
+type mockableKeyData interface {
+	PlatformName() string
+	GetTPMSealedKeyData() (mockableSealedKeyData, error)
+}
+
+type realSealedKeyData struct {
+	*sb_tpm2.SealedKeyData
+}
+
+type realSealedKeyObject struct {
+	*sb_tpm2.SealedKeyObject
+}
+
+type realKeyData struct {
+	*sb.KeyData
+}
+
+func (keyData *realKeyData) GetTPMSealedKeyData() (mockableSealedKeyData, error) {
+	skd, err := sb_tpm2.NewSealedKeyData(keyData.KeyData)
+	if err != nil {
+		return nil, err
+	}
+	return &realSealedKeyData{skd}, nil
+}
+
+func mockableReadKeyDataImpl(r sb.KeyDataReader) (mockableKeyData, error) {
+	keyData, err := sb.ReadKeyData(r)
+	if err != nil {
+		return nil, err
+	}
+	return &realKeyData{keyData}, nil
+}
+
+var mockableReadKeyData = mockableReadKeyDataImpl
+
+type mockableKeyLoader struct {
+	KeyData         mockableKeyData
+	SealedKeyObject mockableSealedKeyObject
+	FDEHookKeyV1    []byte
+}
+
+func (dkl *mockableKeyLoader) LoadedKeyData(kd *sb.KeyData) {
+	dkl.KeyData = &realKeyData{kd}
+}
+
+func (dkl *mockableKeyLoader) LoadedSealedKeyObject(sko *sb_tpm2.SealedKeyObject) {
+	dkl.SealedKeyObject = &realSealedKeyObject{sko}
+}
+
+func (dkl *mockableKeyLoader) LoadedFDEHookKeyV1(sk []byte) {
+	dkl.FDEHookKeyV1 = sk
+}
+
+func mockableReadKeyFileImpl(keyFile string, keyLoader *mockableKeyLoader, hintExpectFDEHook bool) error {
+	return readKeyFile(keyFile, keyLoader, hintExpectFDEHook)
+}
+
+var mockableReadKeyFile = mockableReadKeyFileImpl
+
+func GetPCRHandle(node, keySlot, keyFile string) (uint32, error) {
+	slots, err := sbListLUKS2ContainerUnlockKeyNames(node)
+	if err != nil {
+		return 0, fmt.Errorf("cannot list slots in partition save partition: %v", err)
+	}
+
+	var readKeyDataErr error
+	for _, slot := range slots {
+		if slot == keySlot {
+			reader, err := sbNewLUKS2KeyDataReader(node, slot)
+			if err != nil {
+				// We save the error and try the file instead.
+				readKeyDataErr = err
+				break
+			}
+			keyData, err := mockableReadKeyData(reader)
+			if err != nil {
+				return 0, fmt.Errorf("cannot read key data for slot '%s': %w", keySlot, err)
+			}
+			if keyData.PlatformName() != "tpm2" {
+				return 0, nil
+			}
+			sealedKeyData, err := keyData.GetTPMSealedKeyData()
+			if err != nil {
+				return 0, fmt.Errorf("cannot read sealed key data for slot '%s': %w", keySlot, err)
+			}
+			return uint32(sealedKeyData.PCRPolicyCounterHandle()), nil
+		}
+	}
+
+	loadedKey := &mockableKeyLoader{}
+	const hintExpectFDEHook = false
+	err = mockableReadKeyFile(keyFile, loadedKey, hintExpectFDEHook)
+	if err != nil {
+		if os.IsNotExist(err) {
+			if readKeyDataErr != nil {
+				// FIXME: we need to check for
+				logger.Noticef("WARNING: cannot read key data for slot %s: %v", keySlot, readKeyDataErr)
+				return 0, nil
+			}
+			return 0, nil
+		}
+		return 0, fmt.Errorf("cannot read key file %s: %w", keyFile, err)
+	}
+
+	if loadedKey.SealedKeyObject != nil {
+		return uint32(loadedKey.SealedKeyObject.PCRPolicyCounterHandle()), nil
+	}
+
+	if loadedKey.KeyData != nil {
+		if loadedKey.KeyData.PlatformName() != "tpm2" {
+			return 0, nil
+		}
+		sealedKeyData, err := loadedKey.KeyData.GetTPMSealedKeyData()
+		if err != nil {
+			return 0, fmt.Errorf("cannot read sealed key data from %s: %w", keyFile, err)
+		}
+		return uint32(sealedKeyData.PCRPolicyCounterHandle()), nil
+	}
+
+	return 0, nil
+}
+
+func RemoveOldCounterHandles(node string, possibleOldKeys map[string]bool, possibleKeyFiles []string) error {
+	slots, err := sbListLUKS2ContainerUnlockKeyNames(node)
+	if err != nil {
+		return fmt.Errorf("cannot list slots in partition save partition: %v", err)
+	}
+
+	oldHandles := make(map[uint32]bool)
+
+	for _, slot := range slots {
+		if possibleOldKeys[slot] {
+			reader, err := sbNewLUKS2KeyDataReader(node, slot)
+			if err != nil {
+				// FIXME: secboot should tell use if
+				// Data was nil, in that case we
+				// should be silent, otherwise we
+				// should print an error.
+				continue
+			}
+			keyData, err := mockableReadKeyData(reader)
+			if err != nil {
+				return fmt.Errorf("cannot read key data for slot '%s': %w", slot, err)
+			}
+			if keyData.PlatformName() != "tpm2" {
+				continue
+			}
+			sealedKeyData, err := keyData.GetTPMSealedKeyData()
+			if err != nil {
+				return fmt.Errorf("cannot read sealed key data for slot '%s': %w", slot, err)
+			}
+			oldHandles[uint32(sealedKeyData.PCRPolicyCounterHandle())] = true
+		}
+	}
+
+	const hintExpectFDEHook = false
+	for _, keyFile := range possibleKeyFiles {
+		loadedKey := &mockableKeyLoader{}
+		err := mockableReadKeyFile(keyFile, loadedKey, hintExpectFDEHook)
+		if err != nil {
+			if os.IsNotExist(err) {
+				continue
+			}
+			return fmt.Errorf("cannot read key file %s: %w", keyFile, err)
+		}
+		if loadedKey.SealedKeyObject != nil {
+			handle := uint32(loadedKey.SealedKeyObject.PCRPolicyCounterHandle())
+			oldHandles[handle] = true
+			// We used multiple handles before. But we
+			// lost track of the handle for the run key as
+			// we reformatted it already. Let's add the
+			// matching run handle.
+			if handle == AltFallbackObjectPCRPolicyCounterHandle {
+				oldHandles[AltRunObjectPCRPolicyCounterHandle] = true
+			} else if handle == FallbackObjectPCRPolicyCounterHandle {
+				oldHandles[RunObjectPCRPolicyCounterHandle] = true
+			} else {
+				logger.Noticef("WARNING: we are deleting an unexpected handle. That should never have happened.")
+			}
+		} else if loadedKey.KeyData != nil {
+			if loadedKey.KeyData.PlatformName() != "tpm2" {
+				continue
+			}
+			sealedKeyData, err := loadedKey.KeyData.GetTPMSealedKeyData()
+			if err != nil {
+				return fmt.Errorf("cannot read sealed key data from %s: %w", keyFile, err)
+			}
+			oldHandles[uint32(sealedKeyData.PCRPolicyCounterHandle())] = true
+		}
+	}
+
+	var oldHandlesList []uint32
+	for handle := range oldHandles {
+		switch {
+		case handle == RunObjectPCRPolicyCounterHandle:
+			fallthrough
+		case handle == FallbackObjectPCRPolicyCounterHandle:
+			fallthrough
+		case handle == AltRunObjectPCRPolicyCounterHandle:
+			fallthrough
+		case handle == AltFallbackObjectPCRPolicyCounterHandle:
+			fallthrough
+		case handle >= PCRPolicyCounterHandleStart && handle < PCRPolicyCounterHandleStart+PCRPolicyCounterHandleRange:
+			oldHandlesList = append(oldHandlesList, handle)
+		}
+	}
+
+	// FIXME: if we know we are using TPM2, then we should fail if no handle was found
+
+	return releasePCRResourceHandles(oldHandlesList...)
+}
+
+func FindFreeHandle() (uint32, error) {
+	tpm, err := sbConnectToDefaultTPM()
+	if err != nil {
+		return 0, fmt.Errorf("cannot connect to TPM: %w", err)
+	}
+	defer tpm.Close()
+
+	handles, err := tpmGetCapabilityHandles(tpm, tpm2.Handle(PCRPolicyCounterHandleStart), PCRPolicyCounterHandleRange)
+	if err != nil {
+		return 0, fmt.Errorf("cannot get free handles: %w", err)
+	}
+
+	takenHandles := make(map[uint32]bool)
+	for _, handle := range handles {
+		takenHandles[uint32(handle)] = true
+	}
+
+	for _, tentative := range randutil.Perm(int(PCRPolicyCounterHandleRange)) {
+		handle := PCRPolicyCounterHandleStart + uint32(tentative)
+		if !takenHandles[PCRPolicyCounterHandleStart+uint32(tentative)] {
+			return handle, nil
+		}
+	}
+
+	return 0, fmt.Errorf("no free handle on TPM")
 }

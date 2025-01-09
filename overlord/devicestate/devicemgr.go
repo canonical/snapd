@@ -1657,8 +1657,6 @@ func (m *DeviceManager) ensureTriedRecoverySystem() error {
 	return nil
 }
 
-var bootMarkFactoryResetComplete = boot.MarkFactoryResetComplete
-
 func (m *DeviceManager) ensurePostFactoryReset() error {
 	m.state.Lock()
 	defer m.state.Unlock()
@@ -1704,13 +1702,8 @@ func (m *DeviceManager) ensurePostFactoryReset() error {
 		return fmt.Errorf("cannot verify factory reset marker: %v", err)
 	}
 
-	// if encrypted, rotates the fallback keys on disk
-	if err := bootMarkFactoryResetComplete(encrypted); err != nil {
-		return fmt.Errorf("cannot complete factory reset: %v", err)
-	}
-
 	if encrypted {
-		if err := deleteOldSaveKey(boot.InitramfsUbuntuSaveDir); err != nil {
+		if err := deleteOldKeys(boot.InitramfsUbuntuSaveDir); err != nil {
 			return fmt.Errorf("cannot remove old encryption keys: %v", err)
 		}
 	}

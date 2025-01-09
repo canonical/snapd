@@ -52,14 +52,6 @@ func ProvisionTPM(mode TPMProvisionMode, lockoutAuthFile string) error {
 	return errBuildWithoutSecboot
 }
 
-func PCRHandleOfSealedKey(p string) (uint32, error) {
-	return 0, errBuildWithoutSecboot
-}
-
-func ReleasePCRResourceHandles(handles ...uint32) error {
-	return errBuildWithoutSecboot
-}
-
 func resetLockoutCounter(lockoutAuthFile string) error {
 	return errBuildWithoutSecboot
 }
@@ -110,5 +102,17 @@ func (ha HashAlg) MarshalJSON() ([]byte, error) {
 }
 
 func (ha *HashAlg) UnmarshalJSON([]byte) error {
+	return errBuildWithoutSecboot
+}
+
+func FindFreeHandle() (uint32, error) {
+	return 0, errBuildWithoutSecboot
+}
+
+func GetPCRHandle(node, keySlot, keyFile string) (uint32, error) {
+	return 0, errBuildWithoutSecboot
+}
+
+func RemoveOldCounterHandles(node string, possibleOldKeys map[string]bool, possibleKeyFiles []string) error {
 	return errBuildWithoutSecboot
 }

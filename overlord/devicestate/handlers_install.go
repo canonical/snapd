@@ -76,6 +76,7 @@ var (
 	installMatchDisksToGadgetVolumes     = install.MatchDisksToGadgetVolumes
 	secbootStageEncryptionKeyChange      = secboot.StageEncryptionKeyChange
 	secbootTransitionEncryptionKeyChange = secboot.TransitionEncryptionKeyChange
+	secbootRemoveOldCounterHandles       = secboot.RemoveOldCounterHandles
 
 	installLogicPrepareRunSystemData = installLogic.PrepareRunSystemData
 )
@@ -1359,13 +1360,7 @@ func createSaveBootstrappedContainer(saveNode string) (secboot.BootstrappedConta
 	return secbootCreateBootstrappedContainer(secboot.DiskUnlockKey(saveEncryptionKey), saveNode), nil
 }
 
-func deleteOldSaveKey(saveMntPnt string) error {
-	// During factory reset createSaveBootstrappedContainerImpl
-	// will save some old keys that need to stay until factory
-	// reset is finished. This is the function that removes those
-	// keys.
-
-	// FIXME: maybe there is better if we had a function returning the devname instead.
+func deleteOldKeys(saveMntPnt string) error {
 	uuid, err := disksDMCryptUUIDFromMountPoint(saveMntPnt)
 	if err != nil {
 		return fmt.Errorf("cannot find save partition: %v", err)
@@ -1373,10 +1368,33 @@ func deleteOldSaveKey(saveMntPnt string) error {
 
 	diskPath := filepath.Join("/dev/disk/by-uuid", uuid)
 
-	toDelete := map[string]bool{
+	oldPossiblyTPMKeySlots := map[string]bool{
+		"factory-reset-old-fallback": true,
+	}
+
+	oldKey := device.FallbackSaveSealedKeyUnder(boot.InitramfsSeedEncryptionKeyDir)
+
+	// FIXME: we are missing a bit of context here. We should do this only if we are using TPM2.
+	err = secbootRemoveOldCounterHandles(
+		diskPath,
+		oldPossiblyTPMKeySlots,
+		[]string{oldKey},
+	)
+	if err != nil {
+		return fmt.Errorf("could not clean up old counter handles: %v", err)
+	}
+
+	saveFallbackKeyFactory := device.FactoryResetFallbackSaveSealedKeyUnder(boot.InitramfsSeedEncryptionKeyDir)
+	if err := os.Rename(saveFallbackKeyFactory, oldKey); err != nil {
+		if !os.IsNotExist(err) {
+			return fmt.Errorf("cannot rotate fallback key: %v", err)
+		}
+	}
+
+	oldKeySlots := map[string]bool{
 		"factory-reset-old":          true,
 		"factory-reset-old-fallback": true,
 	}
 
-	return secbootDeleteKeys(diskPath, toDelete)
+	return secbootDeleteKeys(diskPath, oldKeySlots)
 }
