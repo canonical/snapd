@@ -29,9 +29,12 @@ import (
 	"gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/client"
+	"github.com/snapcore/snapd/daemon"
 	"github.com/snapcore/snapd/httputil"
+	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/snapstate"
+	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/store"
 )
@@ -80,6 +83,13 @@ func (s *findSuite) TestFind(c *check.C) {
 func (s *findSuite) TestFindRefreshes(c *check.C) {
 	s.daemon(c)
 
+	var fetchedValidationSets bool
+	restore := daemon.MockAssertstateFetchAllValidationSets(func(*state.State, int, *assertstate.RefreshAssertionsOptions) error {
+		fetchedValidationSets = true
+		return nil
+	})
+	defer restore()
+
 	s.rsnaps = []*snap.Info{{
 		SideInfo: snap.SideInfo{
 			RealName: "store",
@@ -104,6 +114,7 @@ func (s *findSuite) TestFindRefreshes(c *check.C) {
 	c.Assert(snaps[0]["name"], check.Equals, "store")
 	c.Check(s.currentSnaps, check.HasLen, 1)
 	c.Check(s.actions, check.HasLen, 1)
+	c.Check(fetchedValidationSets, check.Equals, true)
 }
 
 func (s *findSuite) TestFindRefreshSideloaded(c *check.C) {
