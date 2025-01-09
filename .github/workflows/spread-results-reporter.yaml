@@ -115,7 +115,7 @@ jobs:
       - name: Delete artifacts
         if: always()
         run: |
-          artifact_ids=$(gh api /repos/${{ github.repository }}/actions/artifacts | jq -r '.artifacts[] | select((.name|startswith("spread-json-${{ github.event.workflow_run.id }}-${{ github.event.workflow_run.run_attempt }}-")) or (.name == "pr_number")) | "\(.id)"')
+          artifact_ids=$(gh api /repos/${{ github.repository }}/actions/runs/${{ github.event.workflow_run.id }}/artifacts | jq -r '.artifacts[] | select((.name|startswith("spread-json-${{ github.event.workflow_run.id }}-${{ github.event.workflow_run.run_attempt }}-")) or (.name == "pr_number")) | "\(.id)"')
           for artifact_id in $artifact_ids; do 
           echo "Deleting $artifact_id"; 
           gh api -X delete /repos/${{ github.repository }}/actions/artifacts/$artifact_id
