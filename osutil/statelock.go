@@ -31,6 +31,7 @@ func traceCallers(description string) {
 	lockfilePath := os.Getenv("SNAPD_STATE_LOCK_FILE")
 	if lockfilePath == "" {
 		fmt.Fprintf(os.Stderr, "could not retrieve log file, SNAPD_STATE_LOCK_FILE env var required")
+		return
 	}
 
 	logFile, err := os.OpenFile(lockfilePath, os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0600)
@@ -46,6 +47,7 @@ func traceCallers(description string) {
 	}
 
 	pc := make([]uintptr, 10)
+	// avoid 3 first callers on the stack: runtime.Callers(), this function and the parent
 	n := runtime.Callers(3, pc)
 	formattedLine := fmt.Sprintf("##%s\n", description)
 	if _, err = lockFile.File().WriteString(formattedLine); err != nil {
