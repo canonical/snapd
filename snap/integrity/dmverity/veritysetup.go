@@ -159,7 +159,7 @@ func (p DmVerityParams) appendArguments(args []string) []string {
 //
 // "veritysetup format" calculates the hash verification data for dataDevice and stores them in
 // hashDevice including the dm-verity superblock. The root hash is retrieved from the command's stdout.
-func Format(dataDevice string, hashDevice string, opts *DmVerityParams) (string, error) {
+func Format(dataDevice string, hashDevice string, opts *DmVerityParams) (rootHash string, err error) {
 	// In older versions of cryptsetup there is a bug when cryptsetup writes
 	// its superblock header, and there isn't already preallocated space.
 	// Fixed in commit dc852a100f8e640dfdf4f6aeb86e129100653673 which is version 2.0.4
@@ -188,7 +188,7 @@ func Format(dataDevice string, hashDevice string, opts *DmVerityParams) (string,
 
 	logger.Debugf("cmd: 'veritysetup format %s %s %s':\n%s", dataDevice, hashDevice, args, string(output))
 
-	rootHash, err := getRootHashFromOutput(output)
+	rootHash, err = getRootHashFromOutput(output)
 	if err != nil {
 		return "", err
 	}
