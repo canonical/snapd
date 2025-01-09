@@ -4,7 +4,7 @@ details: |
   This test creates a recovery system with a kernel module component and
   validates that the newly created system can be rebooted into.
 
-systems: [ubuntu-24.04-64]
+systems: [-ubuntu-1*, -ubuntu-20*, -ubuntu-22*]
 
 environment:
   MODEL_JSON: $TESTSLIB/assertions/test-snapd-component-recovery-system-pc-24.json
@@ -103,6 +103,8 @@ execute: |
     ./pc-kernel+wifi-comp.comp
 
   boot_id="$(tests.nested boot-id)"
+
+  # refresh the kernel snap and install the wifi-comp component
   change_id=$(remote.exec "sudo snap refresh --no-wait pc-kernel+wifi-comp")
   remote.wait-for reboot "${boot_id}"
   remote.exec "snap watch ${change_id}"
