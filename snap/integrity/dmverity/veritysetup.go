@@ -35,7 +35,12 @@ import (
 )
 
 const (
+	// DefaultVerityFormat corresponds to veritysetup's default option for the --format argument which
+	// currently is 1. This corresponds to the hash_type field of a dm-verity superblock.
 	DefaultVerityFormat = 1
+	// DefaultSuperblockVersion corresponds to the superblock version. Version 1 is the only one
+	// currently supported by veritysetup. This corresponds to the version field of a dm-verity superblock.
+	DefaultSuperblockVersion = 1
 )
 
 func getVal(line string) (string, error) {
@@ -218,8 +223,8 @@ func (sb *VeritySuperBlock) Size() int {
 // Validate will perform consistency checks over an extracted superblock to determine whether it's a valid
 // superblock or not.
 func (sb *VeritySuperBlock) Validate() error {
-	if sb.Version != DefaultVerityFormat {
-		return fmt.Errorf("invalid dm-verity version")
+	if sb.Version != DefaultSuperblockVersion {
+		return fmt.Errorf("invalid dm-verity superblock version")
 	}
 
 	if sb.Hash_type != DefaultVerityFormat {
