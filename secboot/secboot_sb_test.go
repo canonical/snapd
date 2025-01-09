@@ -2308,76 +2308,6 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncryptedFdeRevealKeyBadJ
 	c.Check(err, ErrorMatches, `cannot activate encrypted device \".*\": invalid key data: cannot unmarshal cleartext key payload: EOF`)
 }
 
-func (s *secbootSuite) TestPCRHandleOfSealedKey(c *C) {
-	d := c.MkDir()
-	h, err := secboot.PCRHandleOfSealedKey(filepath.Join(d, "not-found"))
-	c.Assert(err, ErrorMatches, "cannot read key file .*/not-found:.* no such file or directory")
-	c.Assert(h, Equals, uint32(0))
-
-	skf := filepath.Join(d, "sealed-key")
-	// partially valid sealed key with correct header magic
-	c.Assert(os.WriteFile(skf, []byte{0x55, 0x53, 0x4b, 0x24, 1, 1, 1, 'k', 'e', 'y', 1, 1, 1}, 0644), IsNil)
-	h, err = secboot.PCRHandleOfSealedKey(skf)
-	c.Assert(err, ErrorMatches, "(?s)cannot read key file .*: invalid key data: cannot unmarshal AFIS header: .*")
-	c.Check(h, Equals, uint32(0))
-
-	// TODO simulate the happy case, which needs a real (or at least
-	// partially mocked) sealed key object, which could be obtained using
-	// go-tpm2/testutil, but that has a dependency on an older version of
-	// snapd API and cannot be imported or procure a valid sealed key binary
-	// which unfortunately there are no examples of the secboot/tpm2 test
-	// code
-}
-
-func (s *secbootSuite) TestReleasePCRResourceHandles(c *C) {
-	_, restore := mockSbTPMConnection(c, fmt.Errorf("mock err"))
-	defer restore()
-
-	err := secboot.ReleasePCRResourceHandles(0x1234, 0x2345)
-	c.Assert(err, ErrorMatches, "cannot connect to TPM device: mock err")
-
-	conn, restore := mockSbTPMConnection(c, nil)
-	defer restore()
-
-	var handles []tpm2.Handle
-	restore = secboot.MockTPMReleaseResources(func(tpm *sb_tpm2.Connection, handle tpm2.Handle) error {
-		c.Check(tpm, Equals, conn)
-		handles = append(handles, handle)
-		switch handle {
-		case tpm2.Handle(0xeeeeee):
-			return fmt.Errorf("mock release error 1")
-		case tpm2.Handle(0xeeeeef):
-			return fmt.Errorf("mock release error 2")
-		}
-		return nil
-	})
-	defer restore()
-
-	// many handles
-	err = secboot.ReleasePCRResourceHandles(0x1234, 0x2345)
-	c.Assert(err, IsNil)
-	c.Check(handles, DeepEquals, []tpm2.Handle{
-		tpm2.Handle(0x1234), tpm2.Handle(0x2345),
-	})
-
-	// single handle
-	handles = nil
-	err = secboot.ReleasePCRResourceHandles(0x1234)
-	c.Assert(err, IsNil)
-	c.Check(handles, DeepEquals, []tpm2.Handle{tpm2.Handle(0x1234)})
-
-	// an error case
-	handles = nil
-	err = secboot.ReleasePCRResourceHandles(0x1234, 0xeeeeee, 0x2345, 0xeeeeef)
-	c.Assert(err, ErrorMatches, `
-cannot release TPM resources for 2 handles:
-handle 0xeeeeee: mock release error 1
-handle 0xeeeeef: mock release error 2`[1:])
-	c.Check(handles, DeepEquals, []tpm2.Handle{
-		tpm2.Handle(0x1234), tpm2.Handle(0xeeeeee), tpm2.Handle(0x2345), tpm2.Handle(0xeeeeef),
-	})
-}
-
 func (s *secbootSuite) TestMarkSuccessfulNotEncrypted(c *C) {
 	restore := secboot.MockSbConnectToDefaultTPM(func() (*sb_tpm2.Connection, error) {
 		c.Fatalf("should not get called")
@@ -3131,4 +3061,291 @@ func (s *secbootSuite) TestReadKeyFileFDEHookV1(c *C) {
 	c.Check(keyLoader.KeyData, IsNil)
 	c.Check(keyLoader.SealedKeyObject, IsNil)
 	c.Check(keyLoader.FDEHookKeyV1, DeepEquals, []byte(`USK$blahblah`))
+}
+
+type myFakeSealedKeyData struct {
+	handle uint32
+}
+
+func (m *myFakeSealedKeyData) PCRPolicyCounterHandle() tpm2.Handle {
+	return tpm2.Handle(m.handle)
+}
+
+type myFakeSealedKeyObject struct {
+	handle uint32
+}
+
+func (m *myFakeSealedKeyObject) PCRPolicyCounterHandle() tpm2.Handle {
+	return tpm2.Handle(m.handle)
+}
+
+type myFakeKeyData struct {
+	platformName string
+	handle       uint32
+}
+
+func (k *myFakeKeyData) GetTPMSealedKeyData() (secboot.MockableSealedKeyData, error) {
+	return &myFakeSealedKeyData{handle: k.handle}, nil
+}
+func (k *myFakeKeyData) PlatformName() string {
+	return k.platformName
+}
+
+type myNonTPMFakeKeyData struct {
+	platformName string
+}
+
+func (*myNonTPMFakeKeyData) GetTPMSealedKeyData() (secboot.MockableSealedKeyData, error) {
+	return nil, fmt.Errorf("Not TPM data")
+}
+
+func (k *myNonTPMFakeKeyData) PlatformName() string {
+	return k.platformName
+}
+
+func (s *secbootSuite) TestGetPCRHandle(c *C) {
+	restore := secboot.MockListLUKS2ContainerUnlockKeyNames(func(devicePath string) ([]string, error) {
+		c.Check(devicePath, Equals, "foo")
+		return []string{"some-other-key", "some-key"}, nil
+	})
+	defer restore()
+
+	restore = secboot.MockReadKeyFile(func(keyfile string, kl secboot.KeyLoader, hintExpectFDEHook bool) error {
+		c.Errorf("unexpected call")
+		return fmt.Errorf("unexpected")
+	})
+	defer restore()
+
+	restore = secboot.MockSbNewLUKS2KeyDataReader(func(device, slot string) (sb.KeyDataReader, error) {
+		c.Check(device, Equals, "foo")
+		switch slot {
+		case "some-key":
+			return newFakeKeyDataReader(slot, []byte{}), nil
+		default:
+			c.Errorf("unexpected call")
+			return nil, fmt.Errorf("unexpected")
+		}
+	})
+	defer restore()
+
+	restore = secboot.MockReadKeyData(func(reader sb.KeyDataReader) (secboot.MockableKeyData, error) {
+		return &myFakeKeyData{platformName: "tpm2", handle: 42}, nil
+	})
+	defer restore()
+
+	handle, err := secboot.GetPCRHandle("foo", "some-key", "do-not-read")
+	c.Assert(err, IsNil)
+	c.Check(handle, Equals, uint32(42))
+}
+
+func (s *secbootSuite) TestGetPCRHandleNoKeyslotKeyfile(c *C) {
+	restore := secboot.MockListLUKS2ContainerUnlockKeyNames(func(devicePath string) ([]string, error) {
+		c.Check(devicePath, Equals, "foo")
+		return []string{}, nil
+	})
+	defer restore()
+
+	restore = secboot.MockMockableReadKeyFile(func(keyFile string, kl *secboot.MockableKeyLoader, hintExpectFDEHook bool) error {
+		c.Check(keyFile, Equals, "read-this-file")
+		kl.KeyData = &myFakeKeyData{platformName: "tpm2", handle: 42}
+		return nil
+	})
+	defer restore()
+
+	restore = secboot.MockSbNewLUKS2KeyDataReader(func(device, slot string) (sb.KeyDataReader, error) {
+		c.Errorf("unexpected call")
+		return nil, fmt.Errorf("unexpected")
+	})
+	defer restore()
+
+	handle, err := secboot.GetPCRHandle("foo", "some-key", "read-this-file")
+	c.Assert(err, IsNil)
+	c.Check(handle, Equals, uint32(42))
+}
+
+func (s *secbootSuite) TestGetPCRHandleKeyslotNoKeyDataKeyfile(c *C) {
+	restore := secboot.MockListLUKS2ContainerUnlockKeyNames(func(devicePath string) ([]string, error) {
+		c.Check(devicePath, Equals, "foo")
+		return []string{"some-other-key", "some-key"}, nil
+	})
+	defer restore()
+
+	restore = secboot.MockMockableReadKeyFile(func(keyFile string, kl *secboot.MockableKeyLoader, hintExpectFDEHook bool) error {
+		c.Check(keyFile, Equals, "read-this-file")
+		kl.KeyData = &myFakeKeyData{platformName: "tpm2", handle: 42}
+		return nil
+	})
+	defer restore()
+
+	restore = secboot.MockSbNewLUKS2KeyDataReader(func(device, slot string) (sb.KeyDataReader, error) {
+		c.Check(device, Equals, "foo")
+		switch slot {
+		case "some-key":
+			return nil, fmt.Errorf("some error because data is not here")
+		default:
+			c.Errorf("unexpected call")
+			return nil, fmt.Errorf("unexpected")
+		}
+	})
+	defer restore()
+
+	restore = secboot.MockReadKeyData(func(reader sb.KeyDataReader) (secboot.MockableKeyData, error) {
+		c.Errorf("unexpected call")
+		return nil, fmt.Errorf("unexpected")
+	})
+	defer restore()
+
+	handle, err := secboot.GetPCRHandle("foo", "some-key", "read-this-file")
+	c.Assert(err, IsNil)
+	c.Check(handle, Equals, uint32(42))
+}
+
+func (s *secbootSuite) TestGetPCRHandleNoKeyslotKeyfileOldFormat(c *C) {
+	restore := secboot.MockListLUKS2ContainerUnlockKeyNames(func(devicePath string) ([]string, error) {
+		c.Check(devicePath, Equals, "foo")
+		return []string{}, nil
+	})
+	defer restore()
+
+	restore = secboot.MockMockableReadKeyFile(func(keyFile string, kl *secboot.MockableKeyLoader, hintExpectFDEHook bool) error {
+		c.Check(keyFile, Equals, "read-this-file")
+		kl.SealedKeyObject = &myFakeSealedKeyObject{handle: 42}
+		return nil
+	})
+	defer restore()
+
+	restore = secboot.MockSbNewLUKS2KeyDataReader(func(device, slot string) (sb.KeyDataReader, error) {
+		c.Errorf("unexpected call")
+		return nil, fmt.Errorf("unexpected")
+	})
+	defer restore()
+
+	handle, err := secboot.GetPCRHandle("foo", "some-key", "read-this-file")
+	c.Assert(err, IsNil)
+	c.Check(handle, Equals, uint32(42))
+}
+
+func (s *secbootSuite) TestRemoveOldCounterHandles(c *C) {
+	_, restore := mockSbTPMConnection(c, nil)
+	defer restore()
+
+	restore = secboot.MockListLUKS2ContainerUnlockKeyNames(func(devicePath string) ([]string, error) {
+		c.Check(devicePath, Equals, "foo")
+		return []string{"some-other-key", "some-key"}, nil
+	})
+	defer restore()
+
+	restore = secboot.MockSbNewLUKS2KeyDataReader(func(device, slot string) (sb.KeyDataReader, error) {
+		c.Check(device, Equals, "foo")
+		switch slot {
+		case "some-key":
+			return newFakeKeyDataReader(slot, []byte(`tpm2`)), nil
+		case "some-other-key":
+			return newFakeKeyDataReader(slot, []byte(`other`)), nil
+		default:
+			c.Errorf("unexpected call")
+			return nil, fmt.Errorf("unexpected")
+		}
+	})
+	defer restore()
+
+	restore = secboot.MockReadKeyData(func(reader sb.KeyDataReader) (secboot.MockableKeyData, error) {
+		switch reader.ReadableName() {
+		case "some-key":
+			return &myFakeKeyData{platformName: "tpm2", handle: secboot.PCRPolicyCounterHandleStart + 1}, nil
+		case "some-other-key":
+			return &myNonTPMFakeKeyData{platformName: "other"}, nil
+		default:
+			c.Errorf("unexpected call")
+			return nil, fmt.Errorf("unexpected")
+		}
+	})
+	defer restore()
+
+	restore = secboot.MockMockableReadKeyFile(func(keyFile string, kl *secboot.MockableKeyLoader, hintExpectFDEHook bool) error {
+		switch keyFile {
+		case "new-format":
+			kl.KeyData = &myFakeKeyData{platformName: "tpm2", handle: secboot.PCRPolicyCounterHandleStart + 2}
+		case "old-format":
+			kl.SealedKeyObject = &myFakeSealedKeyObject{handle: secboot.AltFallbackObjectPCRPolicyCounterHandle}
+		case "just-ignore":
+		case "does-not-exist":
+			return os.ErrNotExist
+		default:
+			c.Errorf("unexpected call")
+			return fmt.Errorf("unexpected")
+		}
+		return nil
+	})
+	defer restore()
+
+	released := make(map[uint32]bool)
+	restore = secboot.MockTPMReleaseResources(func(tpm *sb_tpm2.Connection, handle tpm2.Handle) error {
+		released[uint32(handle)] = true
+		return nil
+	})
+	defer restore()
+
+	err := secboot.RemoveOldCounterHandles(
+		"foo",
+		map[string]bool{
+			"some-key":       true,
+			"some-other-key": true,
+		},
+		[]string{
+			"new-format",
+			"old-format",
+			"just-ignore",
+			"does-not-exist",
+		},
+	)
+
+	c.Assert(err, IsNil)
+	c.Check(released, DeepEquals, map[uint32]bool{
+		secboot.PCRPolicyCounterHandleStart + 1:         true,
+		secboot.PCRPolicyCounterHandleStart + 2:         true,
+		secboot.AltFallbackObjectPCRPolicyCounterHandle: true,
+		secboot.AltRunObjectPCRPolicyCounterHandle:      true,
+	})
+}
+
+func (s *secbootSuite) TestFindFreeHandle(c *C) {
+	_, restore := mockSbTPMConnection(c, nil)
+	defer restore()
+
+	restore = secboot.MockTpmGetCapabilityHandles(func(tpm *sb_tpm2.Connection, firstHandle tpm2.Handle, propertyCount uint32, sessions ...tpm2.SessionContext) (handles tpm2.HandleList, err error) {
+		c.Check(sessions, HasLen, 0)
+		c.Check(uint32(firstHandle), Equals, secboot.PCRPolicyCounterHandleStart)
+		c.Check(propertyCount, Equals, secboot.PCRPolicyCounterHandleRange)
+		for i := uint32(0); i < secboot.PCRPolicyCounterHandleRange+1; i++ {
+			if i != 5 {
+				handles = append(handles, tpm2.Handle(secboot.PCRPolicyCounterHandleStart+i))
+			}
+		}
+		return handles, nil
+	})
+	defer restore()
+
+	handle, err := secboot.FindFreeHandle()
+	c.Assert(err, IsNil)
+	c.Check(handle, Equals, secboot.PCRPolicyCounterHandleStart+5)
+}
+
+func (s *secbootSuite) TestFindFreeHandleNoneFree(c *C) {
+	_, restore := mockSbTPMConnection(c, nil)
+	defer restore()
+
+	restore = secboot.MockTpmGetCapabilityHandles(func(tpm *sb_tpm2.Connection, firstHandle tpm2.Handle, propertyCount uint32, sessions ...tpm2.SessionContext) (handles tpm2.HandleList, err error) {
+		c.Check(sessions, HasLen, 0)
+		c.Check(uint32(firstHandle), Equals, secboot.PCRPolicyCounterHandleStart)
+		c.Check(propertyCount, Equals, secboot.PCRPolicyCounterHandleRange)
+		for i := uint32(0); i < secboot.PCRPolicyCounterHandleRange; i++ {
+			handles = append(handles, tpm2.Handle(secboot.PCRPolicyCounterHandleStart+i))
+		}
+		return handles, nil
+	})
+	defer restore()
+
+	_, err := secboot.FindFreeHandle()
+	c.Assert(err, ErrorMatches, `no free handle on TPM`)
 }
