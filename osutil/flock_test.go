@@ -88,8 +88,7 @@ func (s *flockSuite) TestNewFileLockWithFile(c *C) {
 	myfile, err := os.OpenFile(filepath.Join(c.MkDir(), "name"), os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0600)
 	c.Assert(err, IsNil)
 
-	lock, err := osutil.NewFileLockWithFile(myfile)
-	c.Assert(err, IsNil)
+	lock := osutil.NewFileLockWithFile(myfile)
 	defer lock.Close()
 
 	fi, err := os.Stat(lock.Path())
