@@ -347,11 +347,11 @@ jobs:
             rules: 'nested'
 
   upload_pr_number:
-    if: ${{ github.event.number }}
+    if: ${{ github.event.pull_request.number }}
     runs-on: ubuntu-latest
     steps:
       - name: Create PR number file
-        run: echo "${{ github.event.number }}" > pr_number
+        run: echo "${{ github.event.pull_request.number }}" > pr_number
       
       - name: Upload PR number
         uses: actions/upload-artifact@v4
