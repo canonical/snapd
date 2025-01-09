@@ -389,3 +389,31 @@ func MockSetProtectorKeys(f func(keys ...[]byte)) (restore func()) {
 		sbSetProtectorKeys = old
 	}
 }
+
+func MockReadKeyData(f func(reader sb.KeyDataReader) (mockableKeyData, error)) (restore func()) {
+	old := mockableReadKeyData
+	mockableReadKeyData = f
+	return func() {
+		mockableReadKeyData = old
+	}
+}
+
+func MockMockableReadKeyFile(f func(keyfile string, kl *mockableKeyLoader, hintExpectFDEHook bool) error) (restore func()) {
+	old := mockableReadKeyFile
+	mockableReadKeyFile = f
+	return func() {
+		mockableReadKeyFile = old
+	}
+}
+
+type MockableSealedKeyData = mockableSealedKeyData
+type MockableKeyData = mockableKeyData
+type MockableKeyLoader = mockableKeyLoader
+
+func MockTpmGetCapabilityHandles(f func(tpm *sb_tpm2.Connection, firstHandle tpm2.Handle, propertyCount uint32, sessions ...tpm2.SessionContext) (handles tpm2.HandleList, err error)) (restore func()) {
+	old := tpmGetCapabilityHandles
+	tpmGetCapabilityHandles = f
+	return func() {
+		tpmGetCapabilityHandles = old
+	}
+}
