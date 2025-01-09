@@ -200,7 +200,7 @@ func Format(dataDevice string, hashDevice string, opts *DmVerityParams) (rootHas
 //
 // It mirrors cryptsetup's verity_sb structure from
 // https://gitlab.com/cryptsetup/cryptsetup/-/blob/main/lib/verity/verity.c?ref_type=heads#L25
-type VeritySuperBlock struct {
+type VeritySuperblock struct {
 	Signature       [8]uint8   `json:"-"`               /* "verity\0\0" */
 	Version         uint32     `json:"version"`         /* superblock version */
 	Hash_type       uint32     `json:"hash_type"`       /* 0 - Chrome OS, 1 - normal */
@@ -215,14 +215,14 @@ type VeritySuperBlock struct {
 	Pad2            [168]uint8 `json:"-"`
 }
 
-func (sb *VeritySuperBlock) Size() int {
+func (sb *VeritySuperblock) Size() int {
 	size := int(unsafe.Sizeof(*sb))
 	return size
 }
 
 // Validate will perform consistency checks over an extracted superblock to determine whether it's a valid
 // superblock or not.
-func (sb *VeritySuperBlock) Validate() error {
+func (sb *VeritySuperblock) Validate() error {
 	if sb.Version != DefaultSuperblockVersion {
 		return fmt.Errorf("invalid dm-verity superblock version")
 	}
@@ -235,13 +235,13 @@ func (sb *VeritySuperBlock) Validate() error {
 }
 
 // ReadSuperBlock reads the dm-verity superblock from a dm-verity hash file.
-func ReadSuperBlock(filename string) (*VeritySuperBlock, error) {
+func ReadSuperBlock(filename string) (*VeritySuperblock, error) {
 	hashFile, err := os.Open(filename)
 	if err != nil {
 		return nil, err
 	}
 	defer hashFile.Close()
-	var sb VeritySuperBlock
+	var sb VeritySuperblock
 	verity_sb := make([]byte, sb.Size())
 	if _, err := hashFile.Read(verity_sb); err != nil {
 		return nil, err
