@@ -201,18 +201,18 @@ func Format(dataDevice string, hashDevice string, opts *DmVerityParams) (rootHas
 // It mirrors cryptsetup's verity_sb structure from
 // https://gitlab.com/cryptsetup/cryptsetup/-/blob/main/lib/verity/verity.c?ref_type=heads#L25
 type VeritySuperblock struct {
-	Signature       [8]uint8   `json:"-"`               /* "verity\0\0" */
-	Version         uint32     `json:"version"`         /* superblock version */
-	Hash_type       uint32     `json:"hash_type"`       /* 0 - Chrome OS, 1 - normal */
-	Uuid            [16]uint8  `json:"uuid"`            /* UUID of hash device */
-	Algorithm       [32]uint8  `json:"algorithm"`       /* hash algorithm name */
-	Data_block_size uint32     `json:"data_block_size"` /* data block in bytes */
-	Hash_block_size uint32     `json:"hash_block_size"` /* hash block in bytes */
-	Data_blocks     uint64     `json:"data_blocks"`     /* number of data blocks */
-	Salt_size       uint16     `json:"salt_size"`       /* salt size */
-	Pad1            [6]uint8   `json:"-"`
-	Salt            [256]uint8 `json:"salt"` /* salt */
-	Pad2            [168]uint8 `json:"-"`
+	Signature     [8]uint8   `json:"-"`             /* "verity\0\0" */
+	Version       uint32     `json:"version"`       /* superblock version */
+	HashType      uint32     `json:"hashType"`      /* 0 - Chrome OS, 1 - normal */
+	Uuid          [16]uint8  `json:"uuid"`          /* UUID of hash device */
+	Algorithm     [32]uint8  `json:"algorithm"`     /* hash algorithm name */
+	DataBlockSize uint32     `json:"dataBlockSize"` /* data block in bytes */
+	HashBlockSize uint32     `json:"hashBlockSize"` /* hash block in bytes */
+	DataBlocks    uint64     `json:"dataBlocks"`    /* number of data blocks */
+	SaltSize      uint16     `json:"saltSize"`      /* salt size */
+	Pad1          [6]uint8   `json:"-"`
+	Salt          [256]uint8 `json:"salt"` /* salt */
+	Pad2          [168]uint8 `json:"-"`
 }
 
 func (sb *VeritySuperblock) Size() int {
@@ -227,7 +227,7 @@ func (sb *VeritySuperblock) Validate() error {
 		return fmt.Errorf("invalid dm-verity superblock version")
 	}
 
-	if sb.Hash_type != DefaultVerityFormat {
+	if sb.HashType != DefaultVerityFormat {
 		return fmt.Errorf("invalid dm-verity hash type")
 	}
 
