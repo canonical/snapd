@@ -219,10 +219,10 @@ func checkUintWhat(headers map[string]interface{}, name string, bitSize int, wha
 }
 
 func checkDigest(headers map[string]interface{}, name string, h crypto.Hash) (string, error) {
-	return checkDigestDecWhat(headers, name, h, "header", base64.RawURLEncoding.DecodeString)
+	return checkDigestDecWhat(headers, name, h, base64.RawURLEncoding.DecodeString, "header")
 }
 
-func checkDigestDecWhat(headers map[string]interface{}, name string, h crypto.Hash, what string, decode func(string) ([]byte, error)) (string, error) {
+func checkDigestDecWhat(headers map[string]interface{}, name string, h crypto.Hash, decode func(string) ([]byte, error), what string) (string, error) {
 	digestStr, err := checkNotEmptyStringWhat(headers, name, what)
 	if err != nil {
 		return "", err
