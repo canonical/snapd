@@ -797,56 +797,52 @@ func checkSnapIntegrity(headers map[string]interface{}) ([]SnapIntegrityData, er
 			return nil, fmt.Errorf(`"integrity" header must contain a list of integrity data`)
 		}
 
-		what := fmt.Sprintf("of integrity data with index %d", i)
+		what := fmt.Sprintf("of integrity data [%d]", i)
 		typ, err := checkExistsStringWhat(id, "type", what)
 		if err != nil {
 			return nil, err
 		}
 
 		if !contains(validSnapIntegrityTypes, typ) {
-			return nil, fmt.Errorf("\"type\" of integrity data with index %d must be one of (%s)", i, strings.Join(validSnapIntegrityTypes, "|"))
+			return nil, fmt.Errorf("\"type\" of integrity data [%d] must be one of (%s)", i, strings.Join(validSnapIntegrityTypes, "|"))
 		}
 
-		what = fmt.Sprintf("for integrity data with index %d of type %q", i, typ)
+		what = fmt.Sprintf("of integrity data [%d] of type %q", i, typ)
 		version, err := checkUintWhat(id, "version", 64, what)
 		if err != nil {
 			return nil, err
 		}
 
 		if !contains(validVersionsForIntegrityType[typ], int(version)) {
-			return nil, fmt.Errorf(`version for integrity data with index %d of type %q must be one of %v`, i, typ, validVersionsForIntegrityType[typ])
+			return nil, fmt.Errorf(`version of integrity data [%d] of type %q must be one of %v`, i, typ, validVersionsForIntegrityType[typ])
 		}
 
-		what = fmt.Sprintf("for integrity data with index %d of type %q", i, typ)
 		alg, err := checkExistsStringWhat(id, "hash-algorithm", what)
 		if err != nil {
 			return nil, err
 		}
 
 		if !contains(validHashAlgorithmsForIntegrityType[typ], alg) {
-			return nil, fmt.Errorf(`hash algorithm for integrity data with index %d of type %q must be one of %v`, i, typ, validHashAlgorithmsForIntegrityType[typ])
+			return nil, fmt.Errorf(`hash algorithm of integrity data [%d] of type %q must be one of %v`, i, typ, validHashAlgorithmsForIntegrityType[typ])
 		}
 
-		what = fmt.Sprintf("for integrity data with index %d of type %q", i, typ)
+		what = fmt.Sprintf("of integrity data [%d] of type %q (%s)", i, typ, alg)
 		dataBlockSize, err := checkUintWhat(id, "data-block-size", 64, what)
 		if err != nil {
 			return nil, err
 		}
 
-		what = fmt.Sprintf("for integrity data with index %d of type %q", i, typ)
 		hashBlockSize, err := checkUintWhat(id, "hash-block-size", 64, what)
 		if err != nil {
 			return nil, err
 		}
 
-		what = fmt.Sprintf("for integrity data with index %d of type %q", i, typ)
 		h := toHash(alg)
 		encDigest, err := checkDigestDecWhat(id, "digest", h, hex.DecodeString, what)
 		if err != nil {
 			return nil, err
 		}
 
-		what = fmt.Sprintf("for integrity data with index %d of type %q", i, typ)
 		h = toHash(alg)
 		encSalt, err := checkDigestDecWhat(id, "salt", h, hex.DecodeString, what)
 		if err != nil {
