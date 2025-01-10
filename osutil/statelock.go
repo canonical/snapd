@@ -27,69 +27,105 @@ import (
 	"time"
 )
 
-func traceCallers(description string) {
-	lockfilePath := os.Getenv("SNAPD_STATE_LOCK_FILE")
-	if lockfilePath == "" {
-		fmt.Fprintf(os.Stderr, "could not retrieve log file, SNAPD_STATE_LOCK_FILE env var required")
+var (
+	traceStateLock = false
+
+	traceThreshold = int64(0)
+	traceFilePath  = ""
+)
+
+func init() {
+	err := func() error {
+		if !GetenvBool("SNAPPY_TESTING") {
+			return fmt.Errorf("SNAPPY_TESTING not set")
+		}
+
+		threshold := GetenvInt64("SNAPD_STATE_LOCK_TRACE_THRESHOLD_MS")
+		logFilePath := os.Getenv("SNAPD_STATE_LOCK_TRACE_FILE")
+
+		if threshold <= 0 {
+			return fmt.Errorf("SNAPD_STATE_LOCK_TRACE_TREHSHOLD_MS is unset, invalid or 0")
+		}
+
+		if logFilePath == "" {
+			return fmt.Errorf("SNAPD_STATE_LOCK_TRACE_FILE is unset")
+		}
+
+		traceThreshold = threshold
+		traceFilePath = logFilePath
+
+		return nil
+	}()
+
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "cannot enable state lock tracing: %v\n", err)
 		return
 	}
 
-	logFile, err := os.OpenFile(lockfilePath, os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0600)
+	traceStateLock = true
+}
+
+func traceCallers(ts, heldMs, waitMs int64) error {
+	if traceFilePath == "" {
+		return fmt.Errorf("internal error: trace file path unset")
+	}
+
+	logFile, err := os.OpenFile(traceFilePath, os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0600)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "could not open/create log traces file: %v", err)
-		return
+		return fmt.Errorf("cannot not open/create log trace file: %v", err)
 	}
 	lockFile := NewFileLockWithFile(logFile)
 	defer lockFile.Close()
+
 	if err := lockFile.Lock(); err != nil {
-		fmt.Fprintf(os.Stderr, "cannot take file lock: %v", err)
-		return
+		return fmt.Errorf("cannot take file lock: %v", err)
 	}
 
 	pc := make([]uintptr, 10)
 	// avoid 3 first callers on the stack: runtime.Callers(), this function and the parent
 	n := runtime.Callers(3, pc)
-	formattedLine := fmt.Sprintf("##%s\n", description)
-	if _, err = lockFile.File().WriteString(formattedLine); err != nil {
-		fmt.Fprintf(os.Stderr, "internal error: could not write trace callers header to tmp file: %v", err)
-		return
-	}
 	frames := runtime.CallersFrames(pc[:n])
+
+	_, err = fmt.Fprintf(logFile, "### %s lock: held: %d ms wait %d ms\n",
+		time.UnixMilli(ts),
+		heldMs, waitMs)
+	if err != nil {
+		return err
+	}
+
 	for {
 		frame, more := frames.Next()
-		formattedLine = fmt.Sprintf("%s:%d %s\n", frame.File, frame.Line, frame.Function)
-		if _, err = lockFile.File().WriteString(formattedLine); err != nil {
-			fmt.Fprintf(os.Stderr, "internal error: could not write trace callers to tmp file: %v", err)
-			return
+		_, err := fmt.Fprintf(logFile, "%s:%d %s\n", frame.File, frame.Line, frame.Function)
+		if err != nil {
+			return err
 		}
 
 		if !more {
 			break
 		}
 	}
+
+	return nil
 }
 
 func LockTimestamp() int64 {
-	return time.Now().UnixNano() / int64(time.Millisecond)
+	return time.Now().UnixMilli()
 }
 
 // MaybeSaveLockTime allows to save lock times when this overpass the threshold
 // defined by through the SNAPD_STATE_LOCK_THRESHOLD_MS environment settings.
 func MaybeSaveLockTime(lockWait int64, lockStart int64) {
-	lockEnd := time.Now().UnixNano() / int64(time.Millisecond)
-
-	if !GetenvBool("SNAPPY_TESTING") {
-		return
-	}
-	threshold := GetenvInt64("SNAPD_STATE_LOCK_THRESHOLD_MS")
-	if threshold <= 0 {
+	if !traceStateLock {
 		return
 	}
 
-	heldMs := lockEnd - lockStart
+	now := LockTimestamp()
+
+	heldMs := now - lockStart
 	waitMs := lockStart - lockWait
-	if heldMs > threshold || waitMs > threshold {
-		formattedLine := fmt.Sprintf("lock: held %d ms wait %d ms", heldMs, waitMs)
-		traceCallers(formattedLine)
+	if heldMs > traceThreshold || waitMs > traceThreshold {
+		if err := traceCallers(now, heldMs, waitMs); err != nil {
+			fmt.Fprintf(os.Stderr, "could write state lock trace: %v\n", err)
+		}
 	}
 }
