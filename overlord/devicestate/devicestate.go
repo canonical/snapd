@@ -452,9 +452,10 @@ type remodelTarget struct {
 	// either the snapd snap (which is implicitly in the model) or for the base
 	// snap on UC16 models. Always check for nil before using.
 	newModelSnap *asserts.ModelSnap
-	// oldModelSnap is the model snap for this target. This might be nil for
-	// either the snapd snap (which is implicitly in the model) or for the base
-	// snap on UC16 models. Always check for nil before using.
+	// oldModelSnap is the corresponding model snap for the snap that this
+	// target is replacing. This will be nil for non-essential snaps, and it
+	// might be nil for the snapd snap (which is implicitly in the model) or for
+	// the base snap on UC16 models. Always check for nil before using.
 	oldModelSnap *asserts.ModelSnap
 }
 
@@ -638,6 +639,10 @@ func (r *remodeler) installGoal(sn remodelTarget) (snapstate.InstallGoal, error)
 	}), nil
 }
 
+// installedRevisionUpdateGoal returns an update goal which will install a snap
+// revision that was previously installed on the system and still in the
+// sequence. Note that this is using a [snapstate.StoreUpdateGoal], but it does
+// not actually reach out to the store.
 func (r *remodeler) installedRevisionUpdateGoal(
 	st *state.State,
 	sn remodelTarget,
@@ -671,6 +676,9 @@ func (r *remodeler) updateGoal(st *state.State, sn remodelTarget, constraints sn
 	if r.offline {
 		ls, ok := r.localSnaps[sn.name]
 		if !ok {
+			// this attempts to create a snapstate.StoreUpdateGoal that will
+			// switch back to a previously installed snap revision that is still
+			// in the sequence
 			g, err := r.installedRevisionUpdateGoal(st, sn, constraints)
 			if err != nil {
 				return nil, err
