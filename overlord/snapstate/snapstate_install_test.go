@@ -7092,7 +7092,7 @@ func (s *snapmgrTestSuite) testInstallComponentsFromPathRunThrough(c *C, opts te
 
 	instanceName := snap.InstanceName(opts.snapName, opts.instanceKey)
 
-	components := make(map[*snap.ComponentSideInfo]string, len(opts.components))
+	components := make([]snapstate.PathComponent, 0, len(opts.components))
 	compPaths := make(map[string]string, len(opts.components))
 	compRevs := make(map[string]snap.Revision)
 	for i, compName := range opts.components {
@@ -7120,7 +7120,10 @@ version: 1.0
 
 		path := snaptest.MakeTestComponent(c, componentYaml)
 		compPaths[csi.Component.ComponentName] = path
-		components[csi] = path
+		components = append(components, snapstate.PathComponent{
+			SideInfo: csi,
+			Path:     path,
+		})
 
 		csSideInfo := &snap.ComponentSideInfo{
 			Component: naming.NewComponentRef(opts.snapName, compName),
@@ -7379,8 +7382,8 @@ components:
 		}
 
 		c.Check(snapPath, fileChecker)
-		for _, compPath := range components {
-			c.Check(compPath, fileChecker)
+		for _, comp := range components {
+			c.Check(comp.Path, fileChecker)
 		}
 	}
 }
@@ -7422,9 +7425,10 @@ func (s *snapmgrTestSuite) TestInstallComponentsFromPathInvalidComponentFile(c *
 	err := os.WriteFile(compPath, []byte("invalid-component"), 0644)
 	c.Assert(err, IsNil)
 
-	components := map[*snap.ComponentSideInfo]string{
-		&csi: compPath,
-	}
+	components := []snapstate.PathComponent{{
+		SideInfo: &csi,
+		Path:     compPath,
+	}}
 
 	snapPath := makeTestSnap(c, `name: test-snap
 version: 1.0
@@ -7462,9 +7466,9 @@ func (s *snapmgrTestSuite) TestInstallComponentsFromPathInvalidComponentName(c *
 		Revision:  snap.R(1),
 	}
 
-	components := map[*snap.ComponentSideInfo]string{
-		&csi: "",
-	}
+	components := []snapstate.PathComponent{{
+		SideInfo: &csi,
+	}}
 
 	snapPath := makeTestSnap(c, `name: test-snap
 version: 1.0

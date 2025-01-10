@@ -115,7 +115,7 @@ type pathInstallGoalRecorder struct {
 	instanceName string
 	path         string
 	si           *snap.SideInfo
-	components   map[*snap.ComponentSideInfo]string
+	components   []snapstate.PathComponent
 	opts         snapstate.RevisionOptions
 	snapstate.InstallGoal
 }
@@ -123,7 +123,7 @@ type pathInstallGoalRecorder struct {
 func newPathInstallGoalRecorder(
 	instanceName, path string,
 	si *snap.SideInfo,
-	components map[*snap.ComponentSideInfo]string,
+	components []snapstate.PathComponent,
 	opts snapstate.RevisionOptions,
 ) snapstate.InstallGoal {
 	return &pathInstallGoalRecorder{

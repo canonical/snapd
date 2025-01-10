@@ -260,13 +260,15 @@ version: 1.0
 	}
 	snapPath := makeTestSnap(c, snapYaml)
 
-	csi := &snap.ComponentSideInfo{
+	csi := snap.ComponentSideInfo{
 		Component: naming.NewComponentRef(snapName, compName),
 		Revision:  snap.R(3),
 	}
-	components := map[*snap.ComponentSideInfo]string{
-		csi: snaptest.MakeTestComponent(c, componentYaml),
-	}
+
+	components := []snapstate.PathComponent{{
+		SideInfo: &csi,
+		Path:     snaptest.MakeTestComponent(c, componentYaml),
+	}}
 
 	goal := snapstate.PathInstallGoal(snapName, snapPath, si, components, snapstate.RevisionOptions{})
 
@@ -308,13 +310,15 @@ version: 1.0
 	}
 	snapPath := makeTestSnap(c, snapYaml)
 
-	csi := &snap.ComponentSideInfo{
+	csi := snap.ComponentSideInfo{
 		Component: naming.NewComponentRef(snapName, compName),
 		Revision:  snap.R(3),
 	}
-	components := map[*snap.ComponentSideInfo]string{
-		csi: snaptest.MakeTestComponent(c, componentYaml),
-	}
+
+	components := []snapstate.PathComponent{{
+		SideInfo: &csi,
+		Path:     snaptest.MakeTestComponent(c, componentYaml),
+	}}
 
 	goal := snapstate.PathInstallGoal(snapName, snapPath, si, components, snapstate.RevisionOptions{})
 
@@ -353,13 +357,15 @@ version: 1.0
 	}
 	snapPath := makeTestSnap(c, snapYaml)
 
-	csi := &snap.ComponentSideInfo{
+	csi := snap.ComponentSideInfo{
 		Component: naming.NewComponentRef(snapName, compName),
 		Revision:  snap.Revision{},
 	}
-	components := map[*snap.ComponentSideInfo]string{
-		csi: snaptest.MakeTestComponent(c, componentYaml),
-	}
+
+	components := []snapstate.PathComponent{{
+		SideInfo: &csi,
+		Path:     snaptest.MakeTestComponent(c, componentYaml),
+	}}
 
 	goal := snapstate.PathInstallGoal(snapName, snapPath, si, components, snapstate.RevisionOptions{})
 
@@ -513,9 +519,10 @@ func (s *targetTestSuite) TestInstallComponentsFromPathInvalidComponentFile(c *C
 	err := os.WriteFile(compPath, []byte("invalid-component"), 0644)
 	c.Assert(err, IsNil)
 
-	components := map[*snap.ComponentSideInfo]string{
-		&csi: compPath,
-	}
+	components := []snapstate.PathComponent{{
+		SideInfo: &csi,
+		Path:     compPath,
+	}}
 
 	snapPath := makeTestSnap(c, `name: test-snap
 version: 1.0
@@ -874,13 +881,15 @@ version: 1.0
 	}
 	snapPath := makeTestSnap(c, snapYaml)
 
-	csi := &snap.ComponentSideInfo{
+	csi := snap.ComponentSideInfo{
 		Component: naming.NewComponentRef(snapName, compName),
 		Revision:  snap.R(2),
 	}
-	components := map[*snap.ComponentSideInfo]string{
-		csi: snaptest.MakeTestComponent(c, componentYaml),
-	}
+
+	components := []snapstate.PathComponent{{
+		SideInfo: &csi,
+		Path:     snaptest.MakeTestComponent(c, componentYaml),
+	}}
 
 	goal := snapstate.PathUpdateGoal(snapstate.PathSnap{
 		InstanceName: snapName,
@@ -958,9 +967,10 @@ version: 1.0
 	err := os.WriteFile(compPath, []byte("invalid-component"), 0644)
 	c.Assert(err, IsNil)
 
-	components := map[*snap.ComponentSideInfo]string{
-		&csi: compPath,
-	}
+	components := []snapstate.PathComponent{{
+		SideInfo: &csi,
+		Path:     compPath,
+	}}
 
 	goal := snapstate.PathUpdateGoal(snapstate.PathSnap{
 		InstanceName: snapName,
@@ -1035,9 +1045,10 @@ version: 1.0
 	err := os.WriteFile(compPath, []byte("invalid-component"), 0644)
 	c.Assert(err, IsNil)
 
-	components := map[*snap.ComponentSideInfo]string{
-		&csi: compPath,
-	}
+	components := []snapstate.PathComponent{{
+		SideInfo: &csi,
+		Path:     compPath,
+	}}
 
 	goal := snapstate.PathUpdateGoal(snapstate.PathSnap{
 		InstanceName: snapName,
@@ -1099,9 +1110,10 @@ version: 1.0
 		Revision:  snap.R(2),
 	}
 
-	components := map[*snap.ComponentSideInfo]string{
-		&csi: snaptest.MakeTestComponent(c, componentYaml),
-	}
+	components := []snapstate.PathComponent{{
+		SideInfo: &csi,
+		Path:     snaptest.MakeTestComponent(c, componentYaml),
+	}}
 
 	goal := snapstate.PathUpdateGoal(snapstate.PathSnap{
 		InstanceName: snapName,
