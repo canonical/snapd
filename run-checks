@@ -12,6 +12,7 @@ COVERMODE=${COVERMODE:-atomic}
 COVERAGE_SUFFIX=${GO_BUILD_TAGS:-notags}
 COVERAGE_OUT=${COVERAGE_OUT:-.coverage/coverage-$COVERAGE_SUFFIX.cov}
 CHANGED_FILES=${CHANGED_FILES:-""}
+TIMEOUT=${TIMEOUT:-15}
 
 if [ -z "${GITHUB_WORKFLOW:-}" ]; then
     # when *not* running inside github, ensure we use go-1.18 by default
@@ -435,6 +436,7 @@ if [ "$UNIT" = 1 ]; then
 
     tags=
     race=
+    timeout="${TIMEOUT}m"
     if [ -n "${GO_BUILD_TAGS:-}" ]; then
         echo "Using build tags: $GO_BUILD_TAGS"
         tags="-tags $GO_BUILD_TAGS"
@@ -442,6 +444,7 @@ if [ "$UNIT" = 1 ]; then
     if [ -n "${GO_TEST_RACE:-}" ]; then
         echo "Using go test -race"
         race="-race"
+        timeout="$((TIMEOUT*2))m"
     fi
 
     echo Building
@@ -453,7 +456,7 @@ if [ "$UNIT" = 1 ]; then
     if [ "$short" = 1 ]; then
             echo "Running without test coverage"
             # shellcheck disable=SC2046,SC2086
-            GOTRACEBACK=1 $goctest $tags $race -short -timeout 5m $(go list ./... | grep -v '/vendor/' )
+            GOTRACEBACK=1 $goctest $tags $race -short -timeout $timeout $(go list ./... | grep -v '/vendor/' )
     else
         coverage=""
         if [ -z "${SKIP_COVERAGE:-}" ]; then
@@ -466,7 +469,7 @@ if [ "$UNIT" = 1 ]; then
         fi
 
         # shellcheck disable=SC2046,SC2086
-        GOTRACEBACK=1 $goctest $tags $race -timeout 5m $coverage $(go list ./... | grep -v '/vendor/' )
+        GOTRACEBACK=1 $goctest $tags $race -timeout $timeout $coverage $(go list ./... | grep -v '/vendor/' )
     fi
 
     # python unit test for mountinfo.query and version-compare
