@@ -1531,15 +1531,17 @@ prepare_state_lock(){
     LOCKS_FILE="$TESTSTMP"/snapd_lock_traces
     RESTART=false
 
-    if [ "$SNAPD_STATE_LOCK_THRESHOLD_MS" -gt 0 ]; then
+    if [ "$SNAPD_STATE_LOCK_TRACE_THRESHOLD_MS" -gt 0 ]; then
         echo "###START: $TAG" >> "$LOCKS_FILE"
 
         # Generate the config file when it does not exist and when the threshold has changed different
-        if ! [ -f "$CONF_FILE" ] || ! grep -q "SNAPD_STATE_LOCK_THRESHOLD_MS=$SNAPD_STATE_LOCK_THRESHOLD_MS" < "$CONF_FILE"; then
+        if ! [ -f "$CONF_FILE" ] || ! grep -q "SNAPD_STATE_LOCK_TRACE_THRESHOLD_MS=$SNAPD_STATE_LOCK_TRACE_THRESHOLD_MS" < "$CONF_FILE"; then
             echo "Prepare snapd for getting state lock time"
             cat <<EOF > "$CONF_FILE"
 [Service]
-Environment=SNAPPY_TESTING=1 SNAPD_STATE_LOCK_THRESHOLD_MS="$SNAPD_STATE_LOCK_THRESHOLD_MS" SNAPD_STATE_LOCK_FILE="$LOCKS_FILE"
+Environment=SNAPPY_TESTING=1
+Environment=SNAPD_STATE_LOCK_TRACE_THRESHOLD_MS="$SNAPD_STATE_LOCK_TRACE_THRESHOLD_MS"
+Environment=SNAPD_STATE_LOCK_TRACE_FILE="$LOCKS_FILE"
 EOF
             RESTART=true
         fi

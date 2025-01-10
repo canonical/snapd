@@ -85,7 +85,7 @@ environment:
     # Directory where the built snapd snaps and other assets are stored
     SNAPD_WORK_DIR: '$(HOST: echo "${SPREAD_SNAPD_WORK_DIR:-/var/tmp/work-dir}")'
     # Threshold used to determine which stake locks have to be collected during runtime
-    SNAPD_STATE_LOCK_THRESHOLD_MS: '$(HOST: echo "${SPREAD_SNAPD_STATE_LOCK_THRESHOLD_MS:-0}")'
+    SNAPD_STATE_LOCK_TRACE_THRESHOLD_MS: '$(HOST: echo "${SPREAD_SNAPD_STATE_LOCK_TRACE_THRESHOLD_MS:-0}")'
 
     # Directory where the nested images and test assets are stored
     NESTED_WORK_DIR: '$(HOST: echo "${NESTED_WORK_DIR:-/var/tmp/work-dir}")'
