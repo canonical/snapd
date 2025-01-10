@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2023-2024 Canonical Ltd
+ * Copyright (C) 2023-2025 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -53,8 +53,9 @@ var (
 	// ErrNotSupported indicates that the kernel does not support apparmor prompting.
 	ErrNotSupported = errors.New("kernel does not support apparmor notifications")
 
-	osOpen      = os.Open
-	notifyIoctl = notify.Ioctl
+	osOpen                       = os.Open
+	notifyRegisterFileDescriptor = notify.RegisterFileDescriptor
+	notifyIoctl                  = notify.Ioctl
 )
 
 // Request is a high-level representation of an apparmor prompting message.
@@ -153,6 +154,12 @@ type Listener struct {
 	// and needs to be replied to.
 	reqs chan *Request
 
+	// protocolVersion is the notification protocol version associated with the
+	// listener's notify socket. Once registered with a particular version,
+	// that version will be used for all messages sent or received over that
+	// socket.
+	protocolVersion notify.Version
+
 	notifyFile *os.File
 	poll       *epoll.Epoll
 
@@ -197,15 +204,9 @@ func Register() (listener *Listener, err error) {
 		}
 	}()
 
-	msg := notify.MsgNotificationFilter{ModeSet: notify.APPARMOR_MODESET_USER}
-	data, err := msg.MarshalBinary()
+	version, err := notifyRegisterFileDescriptor(notifyFile.Fd())
 	if err != nil {
 		return nil, err
-	}
-	ioctlBuf := notify.IoctlRequestBuffer(data)
-	_, err = notifyIoctl(notifyFile.Fd(), notify.APPARMOR_NOTIF_SET_FILTER, ioctlBuf)
-	if err != nil {
-		return nil, fmt.Errorf("cannot notify ioctl to modeset user on %q: %v", path, err)
 	}
 
 	poll, err := epoll.Open()
@@ -223,6 +224,8 @@ func Register() (listener *Listener, err error) {
 
 	listener = &Listener{
 		reqs: make(chan *Request, 1),
+
+		protocolVersion: version,
 
 		notifyFile: notifyFile,
 		poll:       poll,
@@ -371,6 +374,9 @@ func (l *Listener) decodeAndDispatchRequest(buf []byte) error {
 		if err := nmsg.UnmarshalBinary(first); err != nil {
 			return err
 		}
+		if nmsg.Version != l.protocolVersion {
+			return fmt.Errorf("unexpected protocol version: listener registered with %d, but received %d", l.protocolVersion, nmsg.Version)
+		}
 		// What kind of notification message did we get?
 		if nmsg.NotificationType != notify.APPARMOR_NOTIF_OP {
 			return fmt.Errorf("unsupported notification type: %v", nmsg.NotificationType)
@@ -423,6 +429,7 @@ func (l *Listener) handleRequestAaClassFile(buf []byte) error {
 
 func (l *Listener) waitAndRespondAaClassFile(req *Request, msg *notify.MsgNotificationFile) error {
 	resp := notify.ResponseForRequest(&msg.MsgNotification)
+	resp.Version = l.protocolVersion
 	resp.MsgNotification.Error = 0 // ignored in responses
 	resp.MsgNotification.NoCache = 1
 

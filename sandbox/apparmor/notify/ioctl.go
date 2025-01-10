@@ -16,6 +16,15 @@ import (
 
 var ErrIoctlReturnInvalid = errors.New("IOCTL request returned invalid bufsize")
 
+type IoctlError struct {
+	request IoctlRequest
+	errno   unix.Errno
+}
+
+func (ie *IoctlError) Error() string {
+	return fmt.Sprintf("cannot perform IOCTL request %v: %s", ie.request, unix.ErrnoName(ie.errno))
+}
+
 var doSyscall = func(trap, a1, a2, a3 uintptr) (r1, r2 uintptr, err unix.Errno) {
 	return unix.Syscall(trap, a1, a2, a3)
 }
@@ -95,7 +104,7 @@ func Ioctl(fd uintptr, req IoctlRequest, buf IoctlRequestBuffer) ([]byte, error)
 		}
 	}
 	if errno != 0 {
-		return nil, fmt.Errorf("cannot perform IOCTL request %v: %v", req, unix.Errno(errno))
+		return nil, &IoctlError{req, errno}
 	}
 	if size >= 0 && size <= len(buf) {
 		buf = buf[:size]
