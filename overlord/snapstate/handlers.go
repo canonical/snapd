@@ -1606,6 +1606,17 @@ func (m *SnapManager) undoUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) error {
 
 	snapst.Active = true
 
+	// For snapd, we've already relinked the previous snapd (in undoLinkSnap)
+	// and restarted into that version of snapd at this point, so avoid redoing
+	// that which would have no effect.
+	if oldInfo.Type() == snap.TypeSnapd {
+		// mark as active again
+		Set(st, snapsup.InstanceName(), snapst)
+		return nil
+	}
+
+	// For all other snaps, including snapd that runs under the core snap,
+	// we must undo the unlinking of the old revision.
 	opts, err := SnapServiceOptions(st, oldInfo, nil)
 	if err != nil {
 		return err
@@ -1634,9 +1645,6 @@ func (m *SnapManager) undoUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) error {
 
 	// if we just put back a previous a core snap, request a restart
 	// so that we switch executing its snapd
-	// TODO: This needs changing, right now we restart snapd after undoing 'link-snap',
-	// inside 'undoSetupProfiles() and even though we request a restart here we are
-	// not actually waiting for the restart to occur in the task that comes before this.
 	return m.finishTaskWithMaybeRestart(t, state.UndoneStatus, restartPossibility{info: oldInfo, RebootInfo: reboot})
 }
 
@@ -3982,6 +3990,14 @@ func (m *SnapManager) undoRemoveAliases(t *state.Task, _ *tomb.Tomb) error {
 	defer st.Unlock()
 	snapsup, snapst, err := snapSetupAndState(t)
 	if err != nil {
+		return err
+	}
+
+	// The previous task's undo (unlink-current-snap) may have triggered a restart,
+	// Set the default to true as we cannot set it otherwise since the change will
+	// always have been created by the old snapd (that may not have "finish-restart")
+	logger.Debugf("finish restart from undoRemoveAliases")
+	if err := FinishRestart(t, snapsup, FinishRestartOptions{}); err != nil {
 		return err
 	}
 
