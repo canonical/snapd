@@ -429,9 +429,11 @@ type modelSnapsForRemodel struct {
 }
 
 type remodeler struct {
-	newModel        *asserts.Model
-	offline         bool
-	localContainers LocalContainers
+	newModel   *asserts.Model
+	offline    bool
+	localSnaps map[string]snapstate.PathSnap
+
+	// TODO:COMPS: keep track of local components here
 
 	vsets      *snapasserts.ValidationSets
 	tracker    *snap.SelfContainedSetPrereqTracker
@@ -603,16 +605,9 @@ func (r *remodeler) shouldJustSwitch(rt remodelTarget, needsRevisionChange bool)
 		return false
 	}
 
-	// if we can't get a snap ID, then we can't really check if the snap is in
-	// the set of locally provided snaps
-	if rt.newModelSnap == nil {
-		return false
-	}
-	snapID := rt.newModelSnap.SnapID
-
 	// if we have a local container for this snap, then we should use that in
 	// addition to switching the tracked channel
-	if _, ok := r.localContainers.Snaps[snapID]; ok {
+	if _, ok := r.localSnaps[rt.name]; ok {
 		return false
 	}
 
@@ -621,12 +616,7 @@ func (r *remodeler) shouldJustSwitch(rt remodelTarget, needsRevisionChange bool)
 
 func (r *remodeler) installGoal(sn remodelTarget) (snapstate.InstallGoal, error) {
 	if r.offline {
-		if sn.newModelSnap == nil {
-			return nil, errors.New("offline remodeling requires that new model snap is provided")
-		}
-
-		snapID := sn.newModelSnap.SnapID
-		ls, ok := r.localContainers.Snaps[snapID]
+		ls, ok := r.localSnaps[sn.name]
 		if !ok {
 			return nil, fmt.Errorf("no snap file provided for %q", sn.name)
 		}
@@ -679,12 +669,7 @@ func (r *remodeler) installedRevisionUpdateGoal(
 
 func (r *remodeler) updateGoal(st *state.State, sn remodelTarget, constraints snapasserts.SnapPresenceConstraints) (snapstate.UpdateGoal, error) {
 	if r.offline {
-		if sn.newModelSnap == nil {
-			return nil, errors.New("offline remodeling requires that new model snap is provided")
-		}
-
-		snapID := sn.newModelSnap.SnapID
-		ls, ok := r.localContainers.Snaps[snapID]
+		ls, ok := r.localSnaps[sn.name]
 		if !ok {
 			g, err := r.installedRevisionUpdateGoal(st, sn, constraints)
 			if err != nil {
@@ -902,25 +887,24 @@ func remodelTasks(ctx context.Context, st *state.State, current, new *asserts.Mo
 		return nil, err
 	}
 
-	containers := LocalContainers{
-		Snaps: make(map[string]LocalSnap, len(localSnaps)),
-	}
-
-	for _, ls := range localSnaps {
-		containers.Snaps[ls.SideInfo.SnapID] = ls
-	}
-
 	// If local snaps are provided, all needed snaps must be locally
 	// provided. We check this flag whenever a snap installation/update is
 	// found needed for the remodel.
 	rm := remodeler{
-		newModel:        new,
-		offline:         opts.Offline,
-		vsets:           vsets,
-		tracker:         snap.NewSelfContainedSetPrereqTracker(),
-		deviceCtx:       deviceCtx,
-		fromChange:      fromChange,
-		localContainers: containers,
+		newModel:   new,
+		offline:    opts.Offline,
+		vsets:      vsets,
+		tracker:    snap.NewSelfContainedSetPrereqTracker(),
+		deviceCtx:  deviceCtx,
+		fromChange: fromChange,
+		localSnaps: make(map[string]snapstate.PathSnap, len(localSnaps)),
+	}
+
+	for _, ls := range localSnaps {
+		rm.localSnaps[ls.SideInfo.RealName] = snapstate.PathSnap{
+			Path:     ls.Path,
+			SideInfo: ls.SideInfo,
+		}
 	}
 
 	// First handle snapd as a special case
@@ -1574,24 +1558,6 @@ type LocalSnap struct {
 
 	// Path is the path on disk to a snap that will be used to create a recovery
 	// system or remodel the system.
-	Path string
-}
-
-type LocalContainers struct {
-	Snaps      map[string]LocalSnap
-	Components map[string]LocalComponent
-}
-
-// LocalComponent is a pair of a snap.ComponentSideInfo and a path to the
-// component file on disk that is represented by the snap.ComponentSideInfo.
-type LocalComponent struct {
-	// SideInfo is the snap.ComponentSideInfo struct that represents a local
-	// component that will be used to create a recovery system or remodel the
-	// system.
-	SideInfo *snap.ComponentSideInfo
-
-	// Path is the path on disk to a component that will be used to create a
-	// recovery system or remodel the system.
 	Path string
 }
 
