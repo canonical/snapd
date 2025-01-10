@@ -818,7 +818,7 @@ func checkSnapIntegrity(headers map[string]interface{}) ([]SnapIntegrityData, er
 		}
 
 		what = fmt.Sprintf("for integrity data with index %d of type %q", i, typ)
-		alg, err := checkExistsStringWhat(id, "hash-alg", what)
+		alg, err := checkExistsStringWhat(id, "hash-algorithm", what)
 		if err != nil {
 			return nil, err
 		}
