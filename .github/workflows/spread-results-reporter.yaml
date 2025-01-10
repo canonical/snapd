@@ -10,8 +10,7 @@ jobs:
   report-spread-failures:
     if: ${{ github.event.workflow_run.event == 'pull_request' }}
     runs-on: ubuntu-latest
-    permissions: 
-      actions: write
+    permissions:
       pull-requests: write
     env:
       GH_TOKEN: ${{ github.token }}
@@ -111,13 +110,3 @@ jobs:
           if ! gh pr comment "$(cat pr_number)" --body "$(cat report)" --edit-last; then
             gh pr comment "$(cat pr_number)" --body "$(cat report)"
           fi
-
-      - name: Delete artifacts
-        if: always()
-        run: |
-          artifact_ids=$(gh api /repos/${{ github.repository }}/actions/runs/${{ github.event.workflow_run.id }}/artifacts | jq -r '.artifacts[] | select((.name|startswith("spread-json-${{ github.event.workflow_run.id }}-${{ github.event.workflow_run.run_attempt }}-")) or (.name == "pr_number")) | "\(.id)"')
-          for artifact_id in $artifact_ids; do 
-          echo "Deleting $artifact_id"; 
-          gh api -X delete /repos/${{ github.repository }}/actions/artifacts/$artifact_id
-
-          done
