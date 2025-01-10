@@ -1030,7 +1030,7 @@ func (srs *snapRevSuite) makeValidEncodedWithIntegrity() string {
 		"    type: dm-verity\n" +
 		"    digest: " + hexSHA256 + "\n" +
 		"    version: 1\n" +
-		"    hash-alg: sha256\n" +
+		"    hash-algorithm: sha256\n" +
 		"    data-block-size: 4096\n" +
 		"    hash-block-size: 4096\n" +
 		"    salt: " + hexSHA256 + "\n"
@@ -1179,14 +1179,14 @@ func (srs *snapRevSuite) TestDecodeInvalidWithIntegrity(c *C) {
 		"    type: dm-verity\n" +
 		"    digest: " + hexSHA256 + "\n" +
 		"    version: 1\n" +
-		"    hash-alg: sha256\n" +
+		"    hash-algorithm: sha256\n" +
 		"    data-block-size: 4096\n" +
 		"    hash-block-size: 4096\n" +
 		"    salt: " + hexSHA256 + "\n"
 
 	integrityTypeHdr := "    type: dm-verity\n"
 	integrityVersionHdr := "    version: 1\n"
-	integrityHashAlgHdr := "    hash-alg: sha256\n"
+	integrityHashAlgHdr := "    hash-algorithm: sha256\n"
 	integrityDataBlockSizeHdr := "    data-block-size: 4096\n"
 	integrityHashBlockSizeHdr := "    hash-block-size: 4096\n"
 	integrityDigestHdr := "    digest: " + hexSHA256 + "\n"
@@ -1203,11 +1203,11 @@ func (srs *snapRevSuite) TestDecodeInvalidWithIntegrity(c *C) {
 		{integrityVersionHdr, "", `"version" for integrity data with index 0 of type "dm-verity" is mandatory`},
 		{integrityVersionHdr, "    version: a\n", `"version" for integrity data with index 0 of type "dm-verity" is not an unsigned integer: a`},
 		{integrityVersionHdr, "    version: 2\n", `version for integrity data with index 0 of type "dm-verity" must be one of ` + regexp.QuoteMeta("[1]")},
-		{integrityHashAlgHdr, "", `"hash-alg" for integrity data with index 0 of type "dm-verity" is mandatory`},
-		{integrityHashAlgHdr, "    hash-alg: 0\n", `hash algorithm for integrity data with index 0 of type "dm-verity" must be one of .*`},
-		{integrityHashAlgHdr, "    hash-alg: a\n", `hash algorithm for integrity data with index 0 of type "dm-verity" must be one of .*`},
-		{integrityHashAlgHdr, "    hash-alg: sha123\n", `hash algorithm for integrity data with index 0 of type "dm-verity" must be one of .*`},
-		{integrityHashAlgHdr, "    hash-alg: sm3\n", `hash algorithm for integrity data with index 0 of type "dm-verity" must be one of .*`},
+		{integrityHashAlgHdr, "", `"hash-algorithm" for integrity data with index 0 of type "dm-verity" is mandatory`},
+		{integrityHashAlgHdr, "    hash-algorithm: 0\n", `hash algorithm for integrity data with index 0 of type "dm-verity" must be one of .*`},
+		{integrityHashAlgHdr, "    hash-algorithm: a\n", `hash algorithm for integrity data with index 0 of type "dm-verity" must be one of .*`},
+		{integrityHashAlgHdr, "    hash-algorithm: sha123\n", `hash algorithm for integrity data with index 0 of type "dm-verity" must be one of .*`},
+		{integrityHashAlgHdr, "    hash-algorithm: sm3\n", `hash algorithm for integrity data with index 0 of type "dm-verity" must be one of .*`},
 		{integrityDataBlockSizeHdr, "", `"data-block-size" for integrity data with index 0 of type "dm-verity" is mandatory`},
 		{integrityDataBlockSizeHdr, "    data-block-size: a\n", `"data-block-size" for integrity data with index 0 of type "dm-verity" is not an unsigned integer: a`},
 		{integrityHashBlockSizeHdr, "", `"hash-block-size" for integrity data with index 0 of type "dm-verity" is mandatory`},
