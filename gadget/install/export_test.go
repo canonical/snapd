@@ -24,6 +24,7 @@ import (
 	"time"
 
 	"github.com/snapcore/snapd/gadget"
+	"github.com/snapcore/snapd/gadget/device"
 	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/kernel"
 )
@@ -84,7 +85,7 @@ func MockKernelEnsureKernelDriversTree(f func(kMntPts kernel.MountPoints, compsM
 	}
 }
 
-func CheckEncryptionSetupData(encryptSetup *EncryptionSetupData, labelToEncDevice map[string]string) error {
+func CheckEncryptionSetupData(encryptSetup *EncryptionSetupData, labelToEncDevice map[string]string, expectedVolumesAuth *device.VolumesAuthOptions) error {
 	for label, part := range encryptSetup.parts {
 		switch part.role {
 		case gadget.SystemData, gadget.SystemSave:
@@ -95,6 +96,10 @@ func CheckEncryptionSetupData(encryptSetup *EncryptionSetupData, labelToEncDevic
 		if part.encryptedDevice != labelToEncDevice[label] {
 			return fmt.Errorf("encrypted device in EncryptionSetupData (%q) different to expected (%q)",
 				encryptSetup.parts[label].encryptedDevice, labelToEncDevice[label])
+		}
+		if part.installKey.GetAuthOptions() != expectedVolumesAuth {
+			return fmt.Errorf("volume authentication for device %q in EncryptionSetupData (%v) different to expected (%v)",
+				labelToEncDevice[label], part.installKey.GetAuthOptions(), expectedVolumesAuth)
 		}
 	}
 

@@ -430,7 +430,7 @@ func Run(model gadget.Model, gadgetRoot string, kernelSnapInfo *KernelSnapInfo, 
 			if installKeyForRole == nil {
 				installKeyForRole = map[string]secboot.BootstrappedContainer{}
 			}
-			installKeyForRole[vs.Role] = secboot.CreateBootstrappedContainer(encryptionKey, diskPart.Node)
+			installKeyForRole[vs.Role] = secboot.CreateBootstrappedContainer(encryptionKey, diskPart.Node, nil)
 			partsEncrypted[vs.Name] = createEncryptionParams(options.EncryptionType)
 		}
 		if options.Mount && vs.Label != "" && vs.HasFilesystem() {
@@ -680,8 +680,6 @@ func EncryptPartitions(
 	encryptionType device.EncryptionType, model *asserts.Model,
 	gadgetRoot, kernelRoot string, perfTimings timings.Measurer,
 ) (*EncryptionSetupData, error) {
-	// TODO: Attach passed volumes auth options to encryption setup data.
-
 	setupData := &EncryptionSetupData{
 		parts: make(map[string]partEncryptionData),
 	}
@@ -721,7 +719,7 @@ func EncryptPartitions(
 				// EncryptedDevice will be /dev/mapper/ubuntu-data, etc.
 				encryptedDevice:     fsParams.Device,
 				volName:             volName,
-				installKey:          secboot.CreateBootstrappedContainer(encryptionKey, device),
+				installKey:          secboot.CreateBootstrappedContainer(encryptionKey, device, volumesAuth),
 				encryptedSectorSize: fsParams.SectorSize,
 				encryptionParams:    createEncryptionParams(encryptionType),
 			}
@@ -857,7 +855,7 @@ func FactoryReset(model gadget.Model, gadgetRoot string, kernelSnapInfo *KernelS
 			if installKeyForRole == nil {
 				installKeyForRole = map[string]secboot.BootstrappedContainer{}
 			}
-			installKeyForRole[vs.Role] = secboot.CreateBootstrappedContainer(encryptionKey, onDiskStruct.Node)
+			installKeyForRole[vs.Role] = secboot.CreateBootstrappedContainer(encryptionKey, onDiskStruct.Node, nil)
 		}
 		if options.Mount && vs.Label != "" && vs.HasFilesystem() {
 			// fs is taken from gadget, as on disk one might be displayed as

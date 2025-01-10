@@ -563,7 +563,7 @@ func MockCreateAllKnownSystemUsers(createAllUsers func(state *state.State, asser
 	return restore
 }
 
-func MockEncryptionSetupDataInCache(st *state.State, label string) (restore func()) {
+func MockEncryptionSetupDataInCache(st *state.State, label string, volumesAuth *device.VolumesAuthOptions) (restore func()) {
 	st.Lock()
 	defer st.Unlock()
 	var esd *install.EncryptionSetupData
@@ -571,10 +571,12 @@ func MockEncryptionSetupDataInCache(st *state.State, label string) (restore func
 		"ubuntu-save": {
 			Role:            "system-save",
 			EncryptedDevice: "/dev/mapper/ubuntu-save",
+			VolumesAuth:     volumesAuth,
 		},
 		"ubuntu-data": {
 			Role:            "system-data",
 			EncryptedDevice: "/dev/mapper/ubuntu-data",
+			VolumesAuth:     volumesAuth,
 		},
 	}
 	esd = install.MockEncryptionSetupData(labelToEncData)
@@ -618,7 +620,7 @@ func MockSecbootRenameOrDeleteKeys(f func(node string, renames map[string]string
 	}
 }
 
-func MockSecbootCreateBootstrappedContainer(f func(key secboot.DiskUnlockKey, devicePath string) secboot.BootstrappedContainer) (restore func()) {
+func MockSecbootCreateBootstrappedContainer(f func(key secboot.DiskUnlockKey, devicePath string, volumesAuth *device.VolumesAuthOptions) secboot.BootstrappedContainer) (restore func()) {
 	old := secbootCreateBootstrappedContainer
 	secbootCreateBootstrappedContainer = f
 	return func() {

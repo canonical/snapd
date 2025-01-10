@@ -1478,6 +1478,7 @@ func (s *installSuite) TestInstallWriteContentDeviceNotFound(c *C) {
 
 type encryptPartitionsOpts struct {
 	encryptType device.EncryptionType
+	volumesAuth *device.VolumesAuthOptions
 }
 
 func (s *installSuite) testEncryptPartitions(c *C, opts encryptPartitionsOpts) {
@@ -1518,19 +1519,26 @@ func (s *installSuite) testEncryptPartitions(c *C, opts encryptPartitionsOpts) {
 		return nil
 	})()
 
-	encryptSetup, err := install.EncryptPartitions(ginfo.Volumes, nil, opts.encryptType, model, gadgetRoot, "", timings.New(nil))
+	encryptSetup, err := install.EncryptPartitions(ginfo.Volumes, opts.volumesAuth, opts.encryptType, model, gadgetRoot, "", timings.New(nil))
 	c.Assert(err, IsNil)
 	c.Assert(encryptSetup, NotNil)
 	err = install.CheckEncryptionSetupData(encryptSetup, map[string]string{
 		"ubuntu-save": "/dev/mapper/ubuntu-save",
 		"ubuntu-data": "/dev/mapper/ubuntu-data",
-	})
+	}, opts.volumesAuth)
 	c.Assert(err, IsNil)
 }
 
 func (s *installSuite) TestInstallEncryptPartitionsLUKSHappy(c *C) {
 	s.testEncryptPartitions(c, encryptPartitionsOpts{
 		encryptType: device.EncryptionTypeLUKS,
+	})
+}
+
+func (s *installSuite) TestInstallEncryptPartitions(c *C) {
+	s.testEncryptPartitions(c, encryptPartitionsOpts{
+		encryptType: device.EncryptionTypeLUKS,
+		volumesAuth: &device.VolumesAuthOptions{Mode: device.AuthModePassphrase, Passphrase: "test"},
 	})
 }
 

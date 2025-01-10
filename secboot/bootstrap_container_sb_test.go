@@ -27,6 +27,7 @@ import (
 	sb "github.com/snapcore/secboot"
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/gadget/device"
 	"github.com/snapcore/snapd/secboot"
 )
 
@@ -36,7 +37,7 @@ type bootstrapContainerSuite struct {
 var _ = Suite(&bootstrapContainerSuite{})
 
 func (*bootstrapContainerSuite) TestBootstrappedContainerHappy(c *C) {
-	container := secboot.CreateBootstrappedContainer([]byte{1, 2, 3, 4}, "/dev/foo")
+	container := secboot.CreateBootstrappedContainer([]byte{1, 2, 3, 4}, "/dev/foo", nil)
 
 	defer secboot.MockAddLUKS2ContainerUnlockKey(func(devicePath string, keyslotName string, existingKey sb.DiskUnlockKey, newKey sb.DiskUnlockKey) error {
 		c.Check(devicePath, Equals, "/dev/foo")
@@ -87,7 +88,7 @@ func (m *myKeyDataWriter) Commit() error {
 }
 
 func (*bootstrapContainerSuite) TestBootstrappedContainerHappyTokenWriter(c *C) {
-	container := secboot.CreateBootstrappedContainer([]byte{1, 2, 3, 4}, "/dev/foo")
+	container := secboot.CreateBootstrappedContainer([]byte{1, 2, 3, 4}, "/dev/foo", nil)
 
 	defer secboot.MockAddLUKS2ContainerUnlockKey(func(devicePath string, keyslotName string, existingKey sb.DiskUnlockKey, newKey sb.DiskUnlockKey) error {
 		c.Check(devicePath, Equals, "/dev/foo")
@@ -141,7 +142,7 @@ func (*bootstrapContainerSuite) TestBootstrappedContainerHappyTokenWriter(c *C) 
 }
 
 func (*bootstrapContainerSuite) TestBootstrappedContainerErrorAddKey(c *C) {
-	container := secboot.CreateBootstrappedContainer([]byte{1, 2, 3, 4}, "/dev/foo")
+	container := secboot.CreateBootstrappedContainer([]byte{1, 2, 3, 4}, "/dev/foo", nil)
 
 	defer secboot.MockAddLUKS2ContainerUnlockKey(func(devicePath string, keyslotName string, existingKey sb.DiskUnlockKey, newKey sb.DiskUnlockKey) error {
 		return fmt.Errorf("boom")
@@ -152,7 +153,7 @@ func (*bootstrapContainerSuite) TestBootstrappedContainerErrorAddKey(c *C) {
 }
 
 func (*bootstrapContainerSuite) TestBootstrappedContainerErrorRemoveKey(c *C) {
-	container := secboot.CreateBootstrappedContainer([]byte{1, 2, 3, 4}, "/dev/foo")
+	container := secboot.CreateBootstrappedContainer([]byte{1, 2, 3, 4}, "/dev/foo", nil)
 
 	defer secboot.MockDeleteLUKS2ContainerKey(func(devicePath, slotName string) error {
 		return fmt.Errorf("boom")
@@ -163,7 +164,7 @@ func (*bootstrapContainerSuite) TestBootstrappedContainerErrorRemoveKey(c *C) {
 }
 
 func (*bootstrapContainerSuite) TestBootstrappedContainerTokenWriterFailure(c *C) {
-	container := secboot.CreateBootstrappedContainer([]byte{1, 2, 3, 4}, "/dev/foo")
+	container := secboot.CreateBootstrappedContainer([]byte{1, 2, 3, 4}, "/dev/foo", nil)
 
 	defer secboot.MockAddLUKS2ContainerUnlockKey(func(devicePath string, keyslotName string, existingKey sb.DiskUnlockKey, newKey sb.DiskUnlockKey) error {
 		c.Check(devicePath, Equals, "/dev/foo")
@@ -194,4 +195,13 @@ func (*bootstrapContainerSuite) TestBootstrappedContainerTokenWriterFailure(c *C
 	c.Assert(err, IsNil)
 	_, err = container.GetTokenWriter("")
 	c.Assert(err, ErrorMatches, `some error`)
+}
+
+func (*bootstrapContainerSuite) TestBootstrappedContainerAuthOptions(c *C) {
+	container := secboot.CreateBootstrappedContainer([]byte{1, 2, 3, 4}, "/dev/foo", nil)
+	c.Assert(container.GetAuthOptions(), IsNil)
+
+	volumesAuth := &device.VolumesAuthOptions{Mode: device.AuthModePassphrase, Passphrase: "test"}
+	container = secboot.CreateBootstrappedContainer([]byte{1, 2, 3, 4}, "/dev/foo", volumesAuth)
+	c.Assert(container.GetAuthOptions(), Equals, volumesAuth)
 }

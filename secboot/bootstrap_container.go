@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"io"
 
+	"github.com/snapcore/snapd/gadget/device"
 	"github.com/snapcore/snapd/osutil"
 )
 
@@ -47,9 +48,11 @@ type BootstrappedContainer interface {
 	GetTokenWriter(slotName string) (KeyDataWriter, error)
 	// RemoveBootstrapKey removes the bootstrap key.
 	RemoveBootstrapKey() error
+	// GetAuthOptions returns attached authentication options.
+	GetAuthOptions() *device.VolumesAuthOptions
 }
 
-func createBootstrappedContainerMockImpl(key DiskUnlockKey, devicePath string) BootstrappedContainer {
+func createBootstrappedContainerMockImpl(key DiskUnlockKey, devicePath string, volumesAuth *device.VolumesAuthOptions) BootstrappedContainer {
 	panic("trying to create a bootstrapped container in a non-secboot build")
 }
 
@@ -59,6 +62,7 @@ type MockBootstrappedContainer struct {
 	BootstrapKeyRemoved bool
 	Slots               map[string][]byte
 	Tokens              map[string][]byte
+	AuthOptions         *device.VolumesAuthOptions
 }
 
 func CreateMockBootstrappedContainer() *MockBootstrappedContainer {
@@ -102,4 +106,8 @@ func (m *MockBootstrappedContainer) GetTokenWriter(slotName string) (KeyDataWrit
 func (l *MockBootstrappedContainer) RemoveBootstrapKey() error {
 	l.BootstrapKeyRemoved = true
 	return nil
+}
+
+func (l *MockBootstrappedContainer) GetAuthOptions() *device.VolumesAuthOptions {
+	return l.AuthOptions
 }
