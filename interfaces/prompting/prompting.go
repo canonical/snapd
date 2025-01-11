@@ -225,12 +225,12 @@ var lifespansBySupersedence = map[LifespanType]int{
 // followed by LifepsanSingle. If two lifespans are identical then return true
 // if the first expiration timestamp is after the second expiration timestamp.
 func FirstLifespanGreater(l1 LifespanType, e1 time.Time, l2 LifespanType, e2 time.Time) bool {
-	index1 := lifespansBySupersedence[l1]
-	index2 := lifespansBySupersedence[l2]
+	order1 := lifespansBySupersedence[l1]
+	order2 := lifespansBySupersedence[l2]
 	switch {
-	case index1 > index2:
+	case order1 > order2:
 		return true
-	case index1 < index2:
+	case order1 < order2:
 		return false
 	case e1.After(e2):
 		return true
