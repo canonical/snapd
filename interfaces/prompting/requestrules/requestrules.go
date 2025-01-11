@@ -225,7 +225,7 @@ func (rdb *RuleDB) load() (retErr error) {
 			continue
 		}
 
-		save := false
+		const save = false
 		mergedRule, merged, conflictErr := rdb.addOrMergeRule(rule, save)
 		if conflictErr != nil {
 			// Duplicate rules on disk or conflicting rule, should not occur
@@ -372,13 +372,22 @@ func (rdb *RuleDB) addOrMergeRule(rule *Rule, save bool) (addedOrMergedRule *Rul
 		return rule, false, rdb.addNewRule(rule, save)
 	}
 
-	// Check whether the existing rule has outcomes/lifespans which conflict,
-	// and compile the new set of permissions.
 	newPermissions := make(prompting.RulePermissionMap)
+	// Add any non-expired permissions from the existing rule. Each might later
+	// be overridden by a permission entry in the new rule, if the latter has a
+	// broader lifespan (and doesn't otherwise conflict).
+	for existingPerm, existingEntry := range existingRule.Constraints.Permissions {
+		if existingEntry.Expired(rule.Timestamp) {
+			continue
+		}
+		newPermissions[existingPerm] = existingEntry
+	}
+	// Check whether the new rule has outcomes/lifespans which conflict with the
+	// existing rule, otherwise add them to the new set of permissions.
 	var conflicts []prompting_errors.RuleConflict
 	for perm, entry := range rule.Constraints.Permissions {
-		existingEntry, exists := existingRule.Constraints.Permissions[perm]
-		if !exists || existingEntry.Expired(rule.Timestamp) {
+		existingEntry, exists := newPermissions[perm]
+		if !exists {
 			newPermissions[perm] = entry
 			continue
 		}
@@ -391,10 +400,12 @@ func (rdb *RuleDB) addOrMergeRule(rule *Rule, save bool) (addedOrMergedRule *Rul
 			})
 			continue
 		}
+		// Both new and existing rule have the same permission with the same
+		// outcome, so preserve whichever entry has the greater lifespan.
+		// Since newPermissions[perm] already has the existing entry, only
+		// override it if the new rule has a greater lifespan.
 		if prompting.FirstLifespanGreater(entry.Lifespan, entry.Expiration, existingEntry.Lifespan, existingEntry.Expiration) {
 			newPermissions[perm] = entry
-		} else {
-			newPermissions[perm] = existingEntry
 		}
 	}
 	// If there were any conflicts with the existing rule with identical path
@@ -403,16 +414,6 @@ func (rdb *RuleDB) addOrMergeRule(rule *Rule, save bool) (addedOrMergedRule *Rul
 		return nil, false, &prompting_errors.RuleConflictError{
 			Conflicts: conflicts,
 		}
-	}
-	// Add any non-expired permissions which were left over from the existing rule.
-	for existingPerm, existingEntry := range existingRule.Constraints.Permissions {
-		if existingEntry.Expired(rule.Timestamp) {
-			continue
-		}
-		if _, exists := newPermissions[existingPerm]; exists {
-			continue
-		}
-		newPermissions[existingPerm] = existingEntry
 	}
 
 	// Create new rule based on the contents of the existing rule, but copy the
@@ -878,7 +879,7 @@ func (rdb *RuleDB) AddRule(user uint32, snap string, iface string, constraints *
 	if err != nil {
 		return nil, err
 	}
-	save := true
+	const save = true
 	newRule, _, err = rdb.addOrMergeRule(newRule, save)
 	if err != nil {
 		// If an error occurred, all changes were rolled back.
@@ -1278,7 +1279,7 @@ func (rdb *RuleDB) PatchRule(user uint32, id prompting.IDType, constraintsPatch 
 	// we just looked up the rule and know it exists.
 	rdb.removeRuleByID(origRule.ID)
 
-	save := true
+	const save = true
 	newRule, _, addErr := rdb.addOrMergeRule(newRule, save)
 	if addErr != nil {
 		err := fmt.Errorf("cannot patch rule: %w", addErr)
