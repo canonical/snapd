@@ -23,6 +23,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -31,10 +32,12 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 
 	"github.com/snapcore/snapd/client/clientutil"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/systemd"
 )
 
@@ -299,7 +302,12 @@ func (client *Client) decodeControlResponses(responses []*response) (startFailur
 			}
 		}
 		if resp.err != nil && err == nil {
-			err = resp.err
+			logger.Noticef("other error %v", resp.err)
+			if errors.Is(resp.err, syscall.ECONNREFUSED) {
+				logger.Noticef("session agent not running? %v", err)
+			} else {
+				err = resp.err
+			}
 		}
 	}
 	return startFailures, stopFailures, err

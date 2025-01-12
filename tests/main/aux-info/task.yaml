@@ -7,10 +7,6 @@ details: |
 
 systems: [ubuntu-18.04-64, ubuntu-2*, ubuntu-core-*, fedora-*]
 
-environment:
-    # we unfortunately run out of memory while setting up the snap-store
-    SNAPD_NO_MEMORY_LIMIT: 1
-
 prepare: |
   snap install snap-store
 
