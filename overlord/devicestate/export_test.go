@@ -26,6 +26,7 @@ import (
 	"time"
 
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/gadget/install"
@@ -161,28 +162,36 @@ func MockRepeatRequestSerial(label string) (restore func()) {
 	}
 }
 
-func MockSnapstateInstallWithDeviceContext(f func(ctx context.Context, st *state.State, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags, prqt snapstate.PrereqTracker, deviceCtx snapstate.DeviceContext, fromChange string) (*state.TaskSet, error)) (restore func()) {
-	r := testutil.Backup(&snapstateInstallWithDeviceContext)
-	snapstateInstallWithDeviceContext = f
-	return r
+func MockSnapstateUpdateOne(mock func(ctx context.Context, st *state.State, goal snapstate.UpdateGoal, filter func(*snap.Info, *snapstate.SnapState) bool, opts snapstate.Options) (*state.TaskSet, error)) (restore func()) {
+	return testutil.Mock(&snapstateUpdateOne, mock)
 }
 
-func MockSnapstateInstallPathWithDeviceContext(f func(st *state.State, si *snap.SideInfo, path, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags, prqt snapstate.PrereqTracker, deviceCtx snapstate.DeviceContext, fromChange string) (*state.TaskSet, error)) (restore func()) {
-	r := testutil.Backup(&snapstateInstallPathWithDeviceContext)
-	snapstateInstallPathWithDeviceContext = f
-	return r
+func MockSnapstateInstallOne(mock func(ctx context.Context, st *state.State, goal snapstate.InstallGoal, opts snapstate.Options) (*snap.Info, *state.TaskSet, error)) (restore func()) {
+	return testutil.Mock(&snapstateInstallOne, mock)
 }
 
-func MockSnapstateUpdateWithDeviceContext(f func(st *state.State, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags, prqt snapstate.PrereqTracker, deviceCtx snapstate.DeviceContext, fromChange string) (*state.TaskSet, error)) (restore func()) {
-	r := testutil.Backup(&snapstateUpdateWithDeviceContext)
-	snapstateUpdateWithDeviceContext = f
-	return r
+func MockSnapstatePathUpdateGoal(mock func(snaps ...snapstate.PathSnap) snapstate.UpdateGoal) (restore func()) {
+	return testutil.Mock(&snapstatePathUpdateGoal, mock)
 }
 
-func MockSnapstateUpdatePathWithDeviceContext(f func(st *state.State, si *snap.SideInfo, path, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags, prqt snapstate.PrereqTracker, deviceCtx snapstate.DeviceContext, fromChange string) (*state.TaskSet, error)) (restore func()) {
-	r := testutil.Backup(&snapstateUpdatePathWithDeviceContext)
-	snapstateUpdatePathWithDeviceContext = f
-	return r
+func MockSnapstateStoreInstallGoal(mock func(snaps ...snapstate.StoreSnap) snapstate.InstallGoal) (restore func()) {
+	return testutil.Mock(&snapstateStoreInstallGoal, mock)
+}
+
+func MockSnapstateStoreUpdateGoal(mock func(snaps ...snapstate.StoreUpdate) snapstate.UpdateGoal) (restore func()) {
+	return testutil.Mock(&snapstateStoreUpdateGoal, mock)
+}
+
+func MockSnapstatePathInstallGoal(mock func(string, string, *snap.SideInfo, map[*snap.ComponentSideInfo]string, snapstate.RevisionOptions) snapstate.InstallGoal) (restore func()) {
+	return testutil.Mock(&snapstatePathInstallGoal, mock)
+}
+
+func MockSnapstateInstallComponents(mock func(ctx context.Context, st *state.State, names []string, info *snap.Info, vsets *snapasserts.ValidationSets, opts snapstate.Options) ([]*state.TaskSet, error)) (restore func()) {
+	return testutil.Mock(&snapstateInstallComponents, mock)
+}
+
+func MockSnapstateInstallComponentPath(mock func(st *state.State, csi *snap.ComponentSideInfo, info *snap.Info, path string, opts snapstate.Options) (*state.TaskSet, error)) (restore func()) {
+	return testutil.Mock(&snapstateInstallComponentPath, mock)
 }
 
 func MockSnapstateDownload(f func(ctx context.Context, st *state.State, name string, components []string, blobDirectory string, revOpts snapstate.RevisionOptions, opts snapstate.Options) (*state.TaskSet, *snap.Info, error)) (restore func()) {

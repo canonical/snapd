@@ -79,18 +79,21 @@ func InstallEssentialSnaps(c *check.C, st *state.State, base string, gadgetFiles
 		SnapID:   fakeSnapID("pc"),
 		Revision: snap.R(1),
 		RealName: "pc",
+		Channel:  "latest/stable",
 	}, InstallSnapOptions{Required: true})
 
 	InstallSnap(c, st, "name: pc-kernel\nversion: 1\ntype: kernel\n", nil, &snap.SideInfo{
 		SnapID:   fakeSnapID("pc-kernel"),
 		Revision: snap.R(1),
 		RealName: "pc-kernel",
+		Channel:  "latest/stable",
 	}, InstallSnapOptions{Required: true})
 
 	InstallSnap(c, st, fmt.Sprintf("name: %s\nversion: 1\ntype: base\n", base), nil, &snap.SideInfo{
 		SnapID:   fakeSnapID(base),
 		Revision: snap.R(1),
 		RealName: base,
+		Channel:  "latest/stable",
 	}, InstallSnapOptions{Required: true})
 
 	if bloader != nil {

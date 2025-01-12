@@ -251,6 +251,9 @@ func verifyInstallTasksWithComponents(c *C, typ snap.Type, opts, discards int, c
 			c.Assert(err, IsNil)
 			c.Check(compsup.CompSideInfo.Component.ComponentName, Equals, components[count])
 			count++
+		case "setup-profiles":
+			c.Assert(t.Has("component-setup-tasks"), Equals, false)
+			c.Assert(t.Has("component-setup"), Equals, false)
 		}
 	}
 	c.Check(count, Equals, len(components), Commentf("expected %d components, found %d", len(components), count))
