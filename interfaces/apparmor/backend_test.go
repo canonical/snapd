@@ -996,7 +996,8 @@ func (s *backendSuite) TestDefaultCoreRuntimesTemplateOnlyUsed(c *C) {
 		appSet, err := interfaces.NewSnapAppSet(snapInfo, nil)
 		c.Assert(err, IsNil)
 		// NOTE: we don't call apparmor.MockTemplate()
-		err = s.Backend.Setup(appSet, interfaces.ConfinementOptions{}, s.Repo, s.meas)
+		err = s.Backend.Setup(appSet,
+			interfaces.ConfinementOptions{KernelSnap: "mykernel"}, s.Repo, s.meas)
 		c.Assert(err, IsNil)
 		profile := filepath.Join(dirs.SnapAppArmorDir, "snap.samba.smbd")
 		data, err := os.ReadFile(profile)
@@ -1014,6 +1015,8 @@ func (s *backendSuite) TestDefaultCoreRuntimesTemplateOnlyUsed(c *C) {
 			// defaultCoreRuntimeTemplateRules
 			"# Default rules for core base runtimes\n",
 			"/usr/share/terminfo/** k,\n",
+			// ###KERNEL_MODULES_AND_FIRMWARE### is present
+			"/snap/mykernel/*/{modules,firmware}/{,**} r,\n",
 		} {
 			c.Assert(string(data), testutil.Contains, line)
 		}
@@ -1037,7 +1040,8 @@ func (s *backendSuite) TestBaseDefaultTemplateOnlyUsed(c *C) {
 	appSet, err := interfaces.NewSnapAppSet(snapInfo, nil)
 	c.Assert(err, IsNil)
 	// NOTE: we don't call apparmor.MockTemplate()
-	err = s.Backend.Setup(appSet, interfaces.ConfinementOptions{}, s.Repo, s.meas)
+	err = s.Backend.Setup(appSet,
+		interfaces.ConfinementOptions{KernelSnap: "mykernel"}, s.Repo, s.meas)
 	c.Assert(err, IsNil)
 	profile := filepath.Join(dirs.SnapAppArmorDir, "snap.samba.smbd")
 	data, err := os.ReadFile(profile)
@@ -1055,6 +1059,8 @@ func (s *backendSuite) TestBaseDefaultTemplateOnlyUsed(c *C) {
 		// defaultOtherBaseTemplateRules
 		"# Default rules for non-core base runtimes\n",
 		"/{,s}bin/** mrklix,\n",
+		// ###KERNEL_MODULES_AND_FIRMWARE### is present
+		"/snap/mykernel/*/{modules,firmware}/{,**} r,\n",
 	} {
 		c.Assert(string(data), testutil.Contains, line)
 	}
@@ -2991,8 +2997,6 @@ func (s *backendSuite) TestKernelModulesAndFwRule(c *C) {
 	restoreTemplate := apparmor.MockTemplate("template\n###KERNEL_MODULES_AND_FIRMWARE###\n")
 	defer restoreTemplate()
 	restore := apparmor_sandbox.MockLevel(apparmor_sandbox.Full)
-	defer restore()
-	restore = osutil.MockIsHomeUsingRemoteFS(func() (bool, error) { return false, nil })
 	defer restore()
 
 	for _, tc := range []struct {
