@@ -23,9 +23,12 @@ else
     commit=$(git rev-parse HEAD)
 fi
 
-# build info file
+# build info file, source the created file to get the variables
 pushd ..
 ./mkversion.sh
+# shellcheck disable=SC1091
+. data/info
+SNAPD_VERSION=$VERSION
 popd
 
 contains_element() {
@@ -74,7 +77,13 @@ if [ "$#" -eq 0 ]; then
     set -- "${deb_dir[@]%/debian}"
 fi
 for rel; do
-    if [ "$rel" != latest ]; then
+    series=$(dpkg-parsechangelog --file "$rel"/debian/changelog --show-field Distribution)
+    if [ "$rel" = latest ]; then
+        ubuntu_ver=$(ubuntu-distro-info --series="$series" -r)
+        # We might have "xx.xx LTS"
+        ubuntu_ver=${ubuntu_ver%% *}
+    else
+        ubuntu_ver=$rel
         for p in latest/*; do
             file=${p#latest/}
             if contains_element "$file" "${no_link[@]}"; then
@@ -86,6 +95,12 @@ for rel; do
 
     pushd "$rel"
     cp -a ../snapd-initramfs/* .
+
+    curr_ver=$(dpkg-parsechangelog --show-field Version)
+    initrd_ver=${curr_ver%%+*}
+    next_ver="$initrd_ver"+"$SNAPD_VERSION"+"$ubuntu_ver"
+    dch -v "$next_ver" "Update to snapd version $SNAPD_VERSION"
+    dch --distribution "$series" -r ""
     dpkg-buildpackage -S -sa -d
     popd
 done
