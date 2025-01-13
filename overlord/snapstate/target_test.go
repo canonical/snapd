@@ -270,7 +270,11 @@ version: 1.0
 		Path:     snaptest.MakeTestComponent(c, componentYaml),
 	}}
 
-	goal := snapstate.PathInstallGoal(snapName, snapPath, si, components, snapstate.RevisionOptions{})
+	goal := snapstate.PathInstallGoal(snapstate.PathSnap{
+		Path:       snapPath,
+		SideInfo:   si,
+		Components: components,
+	})
 
 	info, ts, err := snapstate.InstallOne(context.Background(), s.state, goal, snapstate.Options{})
 	c.Assert(err, IsNil)
@@ -320,7 +324,11 @@ version: 1.0
 		Path:     snaptest.MakeTestComponent(c, componentYaml),
 	}}
 
-	goal := snapstate.PathInstallGoal(snapName, snapPath, si, components, snapstate.RevisionOptions{})
+	goal := snapstate.PathInstallGoal(snapstate.PathSnap{
+		Path:       snapPath,
+		SideInfo:   si,
+		Components: components,
+	})
 
 	_, _, err := snapstate.InstallOne(context.Background(), s.state, goal, snapstate.Options{})
 	c.Assert(err, ErrorMatches, "cannot mix unasserted snap and asserted components")
@@ -367,7 +375,11 @@ version: 1.0
 		Path:     snaptest.MakeTestComponent(c, componentYaml),
 	}}
 
-	goal := snapstate.PathInstallGoal(snapName, snapPath, si, components, snapstate.RevisionOptions{})
+	goal := snapstate.PathInstallGoal(snapstate.PathSnap{
+		Path:       snapPath,
+		SideInfo:   si,
+		Components: components,
+	})
 
 	_, _, err := snapstate.InstallOne(context.Background(), s.state, goal, snapstate.Options{})
 	c.Assert(err, ErrorMatches, "cannot mix asserted snap and unasserted components")
@@ -442,7 +454,12 @@ func (s *targetTestSuite) TestInvalidPathGoals(c *C) {
 		_, err := snapstate.UpdateOne(context.Background(), s.state, update, nil, snapstate.Options{})
 		c.Check(err, ErrorMatches, t.err)
 
-		install := snapstate.PathInstallGoal(t.snap.InstanceName, t.snap.Path, t.snap.SideInfo, nil, t.snap.RevOpts)
+		install := snapstate.PathInstallGoal(snapstate.PathSnap{
+			InstanceName: t.snap.InstanceName,
+			Path:         t.snap.Path,
+			SideInfo:     t.snap.SideInfo,
+			RevOpts:      t.snap.RevOpts,
+		})
 		_, _, err = snapstate.InstallOne(context.Background(), s.state, install, snapstate.Options{})
 		c.Check(err, ErrorMatches, t.err)
 	}
@@ -483,7 +500,11 @@ components:
 		Revision: snap.R(1),
 	}
 
-	goal := snapstate.PathInstallGoal(si.RealName, snapPath, si, nil, snapstate.RevisionOptions{})
+	goal := snapstate.PathInstallGoal(snapstate.PathSnap{
+		InstanceName: si.RealName,
+		Path:         snapPath,
+		SideInfo:     si,
+	})
 
 	info, ts, err := snapstate.InstallOne(context.Background(), s.state, goal, snapstate.Options{})
 	c.Assert(err, IsNil)
@@ -536,7 +557,11 @@ components:
 		Revision: snapRevision,
 	}
 
-	goal := snapstate.PathInstallGoal(snapName, snapPath, si, components, snapstate.RevisionOptions{})
+	goal := snapstate.PathInstallGoal(snapstate.PathSnap{
+		Path:       snapPath,
+		SideInfo:   si,
+		Components: components,
+	})
 	_, _, err = snapstate.InstallOne(context.Background(), s.state, goal, snapstate.Options{})
 	c.Assert(err, ErrorMatches, fmt.Sprintf(`.*cannot process snap or snapdir: file "%s" is invalid.*`, compPath))
 }
@@ -558,7 +583,11 @@ components:
 		Channel:  "edge",
 	}
 
-	goal := snapstate.PathInstallGoal(si.RealName, snapPath, si, nil, snapstate.RevisionOptions{})
+	goal := snapstate.PathInstallGoal(snapstate.PathSnap{
+		InstanceName: si.RealName,
+		Path:         snapPath,
+		SideInfo:     si,
+	})
 
 	info, ts, err := snapstate.InstallOne(context.Background(), s.state, goal, snapstate.Options{})
 	c.Assert(err, IsNil)
@@ -587,8 +616,10 @@ components:
 		Revision: snap.R(1),
 	}
 
-	goal := snapstate.PathInstallGoal(si.RealName, snapPath, si, nil, snapstate.RevisionOptions{
-		Channel: "edge",
+	goal := snapstate.PathInstallGoal(snapstate.PathSnap{
+		Path:     snapPath,
+		SideInfo: si,
+		RevOpts:  snapstate.RevisionOptions{Channel: "edge"},
 	})
 
 	info, ts, err := snapstate.InstallOne(context.Background(), s.state, goal, snapstate.Options{})
@@ -622,8 +653,10 @@ components:
 		Channel:  "stable",
 	}
 
-	goal := snapstate.PathInstallGoal(si.RealName, snapPath, si, nil, snapstate.RevisionOptions{
-		Channel: "edge",
+	goal := snapstate.PathInstallGoal(snapstate.PathSnap{
+		Path:     snapPath,
+		SideInfo: si,
+		RevOpts:  snapstate.RevisionOptions{Channel: "edge"},
 	})
 
 	_, _, err := snapstate.InstallOne(context.Background(), s.state, goal, snapstate.Options{})

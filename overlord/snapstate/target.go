@@ -813,19 +813,13 @@ type pathInstallGoal struct {
 
 // PathInstallGoal creates a new InstallGoal to install a snap from a given from
 // a path on disk. If instanceName is not provided, si.RealName will be used.
-func PathInstallGoal(instanceName, path string, si *snap.SideInfo, components []PathComponent, opts RevisionOptions) InstallGoal {
-	if instanceName == "" {
-		instanceName = si.RealName
+func PathInstallGoal(sn PathSnap) InstallGoal {
+	if sn.InstanceName == "" {
+		sn.InstanceName = sn.SideInfo.RealName
 	}
 
 	return &pathInstallGoal{
-		snap: PathSnap{
-			InstanceName: instanceName,
-			Path:         path,
-			RevOpts:      opts,
-			SideInfo:     si,
-			Components:   components,
-		},
+		snap: sn,
 	}
 }
 

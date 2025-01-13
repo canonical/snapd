@@ -1136,7 +1136,10 @@ func (s *snapmgrTestSuite) TestInstallPathTooEarly(c *C) {
 	defer r()
 
 	mockSnap := makeTestSnap(c, "name: some-snap\nversion: 1.0")
-	t := snapstate.PathInstallGoal("some-snap", mockSnap, &snap.SideInfo{RealName: "some-snap"}, nil, snapstate.RevisionOptions{})
+	t := snapstate.PathInstallGoal(snapstate.PathSnap{
+		Path:     mockSnap,
+		SideInfo: &snap.SideInfo{RealName: "some-snap"},
+	})
 	_, _, err := snapstate.InstallWithGoal(context.Background(), s.state, t, snapstate.Options{
 		Seed: true,
 	})
@@ -7178,7 +7181,12 @@ components:
 		si.Revision = snap.Revision{}
 	}
 
-	goal := snapstate.PathInstallGoal(instanceName, snapPath, si, components, snapstate.RevisionOptions{})
+	goal := snapstate.PathInstallGoal(snapstate.PathSnap{
+		InstanceName: instanceName,
+		Path:         snapPath,
+		SideInfo:     si,
+		Components:   components,
+	})
 
 	info, ts, err := snapstate.InstallOne(context.Background(), s.state, goal, snapstate.Options{
 		Flags: snapstate.Flags{
@@ -7442,7 +7450,11 @@ components:
 		Revision: snapRevision,
 	}
 
-	goal := snapstate.PathInstallGoal(snapName, snapPath, si, components, snapstate.RevisionOptions{})
+	goal := snapstate.PathInstallGoal(snapstate.PathSnap{
+		Path:       snapPath,
+		SideInfo:   si,
+		Components: components,
+	})
 	_, _, err = snapstate.InstallOne(context.Background(), s.state, goal, snapstate.Options{})
 	c.Assert(err, ErrorMatches, fmt.Sprintf(`.*cannot process snap or snapdir: file "%s" is invalid.*`, compPath))
 }
@@ -7482,7 +7494,11 @@ components:
 		Revision: snapRevision,
 	}
 
-	goal := snapstate.PathInstallGoal(snapName, snapPath, si, components, snapstate.RevisionOptions{})
+	goal := snapstate.PathInstallGoal(snapstate.PathSnap{
+		Path:       snapPath,
+		SideInfo:   si,
+		Components: components,
+	})
 	_, _, err := snapstate.InstallOne(context.Background(), s.state, goal, snapstate.Options{})
 	c.Assert(err, ErrorMatches, fmt.Sprintf(`invalid snap name: "%s"`, componentName))
 }

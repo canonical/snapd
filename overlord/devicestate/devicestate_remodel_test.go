@@ -112,27 +112,14 @@ func newStoreUpdateGoalRecorder(snaps ...snapstate.StoreUpdate) snapstate.Update
 }
 
 type pathInstallGoalRecorder struct {
-	instanceName string
-	path         string
-	si           *snap.SideInfo
-	components   []snapstate.PathComponent
-	opts         snapstate.RevisionOptions
+	snap snapstate.PathSnap
 	snapstate.InstallGoal
 }
 
-func newPathInstallGoalRecorder(
-	instanceName, path string,
-	si *snap.SideInfo,
-	components []snapstate.PathComponent,
-	opts snapstate.RevisionOptions,
-) snapstate.InstallGoal {
+func newPathInstallGoalRecorder(sn snapstate.PathSnap) snapstate.InstallGoal {
 	return &pathInstallGoalRecorder{
-		instanceName: instanceName,
-		path:         path,
-		si:           si,
-		components:   components,
-		opts:         opts,
-		InstallGoal:  snapstate.PathInstallGoal(instanceName, path, si, components, opts),
+		snap:        sn,
+		InstallGoal: snapstate.PathInstallGoal(sn),
 	}
 }
 
@@ -620,22 +607,22 @@ func (s *deviceMgrRemodelSuite) testRemodelSwitchTasks(c *C, whatNewTrack map[st
 	restore := devicestate.MockSnapstateInstallOne(func(ctx context.Context, st *state.State, goal snapstate.InstallGoal, opts snapstate.Options) (*snap.Info, *state.TaskSet, error) {
 		switch g := goal.(type) {
 		case *pathInstallGoalRecorder:
-			name := g.si.RealName
+			name := g.snap.SideInfo.RealName
 			snapstateInstallWithDeviceContextCalled++
 
 			newTrack, ok := whatNewTrack[name]
 			c.Check(ok, Equals, true)
-			c.Check(g.opts.Channel, Equals, newTrack)
+			c.Check(g.snap.RevOpts.Channel, Equals, newTrack)
 			if localSnaps != nil {
 				found := false
 				for i := range localSnaps {
-					if g.si.RealName == localSnaps[i].SideInfo.RealName {
+					if g.snap.SideInfo.RealName == localSnaps[i].SideInfo.RealName {
 						found = true
 					}
 				}
 				c.Check(found, Equals, true)
 			} else {
-				c.Check(g.si, IsNil)
+				c.Check(g.snap.SideInfo, IsNil)
 			}
 
 			tDownload := s.state.NewTask("fake-download", fmt.Sprintf("Download %s", name))
@@ -2915,13 +2902,13 @@ func (s *deviceMgrRemodelSuite) TestRemodelOfflineUseInstalledSnaps(c *C) {
 
 	restore := devicestate.MockSnapstateInstallOne(func(ctx context.Context, st *state.State, goal snapstate.InstallGoal, opts snapstate.Options) (*snap.Info, *state.TaskSet, error) {
 		g := goal.(*pathInstallGoalRecorder)
-		name := g.si.RealName
+		name := g.snap.SideInfo.RealName
 
-		c.Check(g.si.RealName, Equals, "app-snap")
+		c.Check(g.snap.SideInfo.RealName, Equals, "app-snap")
 
 		tValidate := s.state.NewTask("validate-snap", fmt.Sprintf("Validate %s", name))
 		tValidate.Set("snap-setup",
-			&snapstate.SnapSetup{SideInfo: g.si, Channel: g.opts.Channel})
+			&snapstate.SnapSetup{SideInfo: g.snap.SideInfo, Channel: g.snap.RevOpts.Channel})
 		tInstall := s.state.NewTask("fake-install", fmt.Sprintf("Install %s", name))
 		tInstall.WaitFor(tValidate)
 		ts := state.NewTaskSet(tValidate, tInstall)
@@ -3177,12 +3164,12 @@ func (s *deviceMgrRemodelSuite) TestRemodelOfflineUseInstalledSnapsChannelSwitch
 	restore := devicestate.MockSnapstateInstallOne(func(ctx context.Context, st *state.State, goal snapstate.InstallGoal, opts snapstate.Options) (*snap.Info, *state.TaskSet, error) {
 		g := goal.(*pathInstallGoalRecorder)
 
-		c.Check(g.si.RealName, Equals, "app-snap")
+		c.Check(g.snap.SideInfo.RealName, Equals, "app-snap")
 
-		tValidate := s.state.NewTask("validate-snap", fmt.Sprintf("Validate %s", g.si.RealName))
+		tValidate := s.state.NewTask("validate-snap", fmt.Sprintf("Validate %s", g.snap.SideInfo.RealName))
 		tValidate.Set("snap-setup",
-			&snapstate.SnapSetup{SideInfo: g.si, Channel: g.opts.Channel})
-		tInstall := s.state.NewTask("fake-install", fmt.Sprintf("Install %s", g.si.RealName))
+			&snapstate.SnapSetup{SideInfo: g.snap.SideInfo, Channel: g.snap.RevOpts.Channel})
+		tInstall := s.state.NewTask("fake-install", fmt.Sprintf("Install %s", g.snap.SideInfo.RealName))
 		tInstall.WaitFor(tValidate)
 		ts := state.NewTaskSet(tValidate, tInstall)
 		ts.MarkEdge(tValidate, snapstate.LastBeforeLocalModificationsEdge)
@@ -5653,13 +5640,13 @@ func (s *deviceMgrRemodelSuite) testUC20RemodelLocalNonEssential(c *C, tc *uc20R
 		g := goal.(*pathInstallGoalRecorder)
 
 		installWithDeviceContextCalled++
-		c.Check(g.si, NotNil)
-		c.Check(g.si.RealName, Not(Equals), "not-used-snap")
+		c.Check(g.snap.SideInfo, NotNil)
+		c.Check(g.snap.SideInfo.RealName, Not(Equals), "not-used-snap")
 
-		tValidate := s.state.NewTask("validate-snap", fmt.Sprintf("Validate %s", g.si.RealName))
+		tValidate := s.state.NewTask("validate-snap", fmt.Sprintf("Validate %s", g.snap.SideInfo.RealName))
 		tValidate.Set("snap-setup",
-			&snapstate.SnapSetup{SideInfo: g.si, Channel: g.opts.Channel})
-		tInstall := s.state.NewTask("fake-install", fmt.Sprintf("Install %s", g.si.RealName))
+			&snapstate.SnapSetup{SideInfo: g.snap.SideInfo, Channel: g.snap.RevOpts.Channel})
+		tInstall := s.state.NewTask("fake-install", fmt.Sprintf("Install %s", g.snap.SideInfo.RealName))
 		tInstall.WaitFor(tValidate)
 		ts := state.NewTaskSet(tValidate, tInstall)
 		ts.MarkEdge(tValidate, snapstate.LastBeforeLocalModificationsEdge)

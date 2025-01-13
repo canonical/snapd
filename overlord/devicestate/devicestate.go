@@ -627,7 +627,11 @@ func (r *remodeler) installGoal(sn remodelTarget) (snapstate.InstallGoal, error)
 			ValidationSets: r.vsets,
 		}
 
-		return snapstatePathInstallGoal("", ls.Path, ls.SideInfo, nil, opts), nil
+		return snapstatePathInstallGoal(snapstate.PathSnap{
+			Path:     ls.Path,
+			SideInfo: ls.SideInfo,
+			RevOpts:  opts,
+		}), nil
 	}
 
 	return snapstateStoreInstallGoal(snapstate.StoreSnap{

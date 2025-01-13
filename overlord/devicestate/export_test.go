@@ -181,7 +181,7 @@ func MockSnapstateStoreUpdateGoal(mock func(snaps ...snapstate.StoreUpdate) snap
 	return testutil.Mock(&snapstateStoreUpdateGoal, mock)
 }
 
-func MockSnapstatePathInstallGoal(mock func(string, string, *snap.SideInfo, []snapstate.PathComponent, snapstate.RevisionOptions) snapstate.InstallGoal) (restore func()) {
+func MockSnapstatePathInstallGoal(mock func(snapstate.PathSnap) snapstate.InstallGoal) (restore func()) {
 	return testutil.Mock(&snapstatePathInstallGoal, mock)
 }
 
