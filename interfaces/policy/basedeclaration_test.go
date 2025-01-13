@@ -145,6 +145,7 @@ func (s *baseDeclSuite) TestAutoConnection(c *C) {
 	snowflakes := map[string]bool{
 		"content":                true,
 		"core-support":           true,
+		"cuda-driver-libs":       true,
 		"desktop":                true,
 		"home":                   true,
 		"lxd-support":            true,
@@ -872,6 +873,7 @@ var (
 		"x11":                       {"app", "core"},
 		// snowflakes
 		"classic-support":   nil,
+		"cuda-driver-libs":  nil,
 		"custom-device":     nil,
 		"docker":            nil,
 		"lxd":               nil,
@@ -1016,6 +1018,7 @@ func (s *baseDeclSuite) TestPlugInstallation(c *C) {
 		"block-devices":                    true,
 		"checkbox-support":                 true,
 		"classic-support":                  true,
+		"cuda-driver-libs":                 true,
 		"desktop-launch":                   true,
 		"dm-crypt":                         true,
 		"docker-support":                   true,
@@ -1317,6 +1320,7 @@ func (s *baseDeclSuite) TestValidity(c *C) {
 		"classic-support":                  true,
 		"checkbox-support":                 true,
 		"core-support":                     true,
+		"cuda-driver-libs":                 true,
 		"custom-device":                    true,
 		"desktop":                          true,
 		"desktop-launch":                   true,
