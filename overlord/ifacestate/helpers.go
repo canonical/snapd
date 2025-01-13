@@ -135,7 +135,7 @@ func (m *InterfaceManager) addBackends(extra []interfaces.SecurityBackend) error
 
 func (m *InterfaceManager) addAppSets(appSets []*interfaces.SnapAppSet) error {
 	for _, set := range appSets {
-		if err := addImplicitSlots(m.state, set.Info()); err != nil {
+		if err := addImplicitInterfaces(m.state, set.Info()); err != nil {
 			return err
 		}
 
@@ -193,7 +193,7 @@ func (m *InterfaceManager) regenerateAllSecurityProfiles(tm timings.Measurer) er
 	}
 
 	for _, set := range appSets {
-		if err := addImplicitSlots(m.state, set.Info()); err != nil {
+		if err := addImplicitInterfaces(m.state, set.Info()); err != nil {
 			return err
 		}
 	}
