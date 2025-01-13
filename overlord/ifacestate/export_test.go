@@ -74,8 +74,8 @@ func NewInterfaceManagerWithAppArmorPrompting(useAppArmorPrompting bool) *Interf
 	return m
 }
 
-func (m *InterfaceManager) BuildConfinementOptions(st *state.State, snapInfo *snap.Info, flags snapstate.Flags) (interfaces.ConfinementOptions, error) {
-	return m.buildConfinementOptions(st, snapInfo, flags)
+func (m *InterfaceManager) BuildConfinementOptions(st *state.State, task *state.Task, snapInfo *snap.Info, flags snapstate.Flags) (interfaces.ConfinementOptions, error) {
+	return m.buildConfinementOptions(st, task, snapInfo, flags)
 }
 
 type ConnectOpts = connectOpts
