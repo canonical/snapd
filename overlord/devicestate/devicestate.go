@@ -441,9 +441,9 @@ type remodeler struct {
 	fromChange string
 }
 
-// remodelTarget represents a snap that is part of the model that we are
+// remodelSnapTarget represents a snap that is part of the model that we are
 // remodeling to.
-type remodelTarget struct {
+type remodelSnapTarget struct {
 	// name is the name of the snap.
 	name string
 	// channel is the channel that the snap should be installed from and track.
@@ -483,7 +483,7 @@ const (
 	remodelUpdateAction
 )
 
-func (r *remodeler) maybeInstallOrUpdate(ctx context.Context, st *state.State, rt remodelTarget) (remodelAction, []*state.TaskSet, error) {
+func (r *remodeler) maybeInstallOrUpdate(ctx context.Context, st *state.State, rt remodelSnapTarget) (remodelAction, []*state.TaskSet, error) {
 	var snapst snapstate.SnapState
 	if err := snapstate.Get(st, rt.name, &snapst); err != nil {
 		if !errors.Is(err, state.ErrNoState) {
@@ -597,7 +597,7 @@ func (r *remodeler) maybeInstallOrUpdate(ctx context.Context, st *state.State, r
 	}
 }
 
-func (r *remodeler) shouldJustSwitch(rt remodelTarget, needsRevisionChange bool) bool {
+func (r *remodeler) shouldJustSwitch(rt remodelSnapTarget, needsRevisionChange bool) bool {
 	if !r.offline {
 		return false
 	}
@@ -615,7 +615,7 @@ func (r *remodeler) shouldJustSwitch(rt remodelTarget, needsRevisionChange bool)
 	return true
 }
 
-func (r *remodeler) installGoal(sn remodelTarget) (snapstate.InstallGoal, error) {
+func (r *remodeler) installGoal(sn remodelSnapTarget) (snapstate.InstallGoal, error) {
 	if r.offline {
 		ls, ok := r.localSnaps[sn.name]
 		if !ok {
@@ -649,7 +649,7 @@ func (r *remodeler) installGoal(sn remodelTarget) (snapstate.InstallGoal, error)
 // not actually reach out to the store.
 func (r *remodeler) installedRevisionUpdateGoal(
 	st *state.State,
-	sn remodelTarget,
+	sn remodelSnapTarget,
 	constraints snapasserts.SnapPresenceConstraints,
 ) (snapstate.UpdateGoal, error) {
 	if constraints.Revision.Unset() {
@@ -676,7 +676,7 @@ func (r *remodeler) installedRevisionUpdateGoal(
 	}), nil
 }
 
-func (r *remodeler) updateGoal(st *state.State, sn remodelTarget, constraints snapasserts.SnapPresenceConstraints) (snapstate.UpdateGoal, error) {
+func (r *remodeler) updateGoal(st *state.State, sn remodelSnapTarget, constraints snapasserts.SnapPresenceConstraints) (snapstate.UpdateGoal, error) {
 	if r.offline {
 		ls, ok := r.localSnaps[sn.name]
 		if !ok {
@@ -725,7 +725,7 @@ func remodelEssentialSnapTasks(
 		return nil, err
 	}
 
-	rt := remodelTarget{
+	rt := remodelSnapTarget{
 		name:         ms.newSnap,
 		channel:      newModelSnapChannel,
 		newModelSnap: ms.newModelSnap,
@@ -861,7 +861,7 @@ func remodelSnapdSnapTasks(ctx context.Context, st *state.State, rm remodeler) (
 		newSnapdChannel = essentialSnaps[0].DefaultChannel
 	}
 
-	_, tss, err := rm.maybeInstallOrUpdate(ctx, st, remodelTarget{
+	_, tss, err := rm.maybeInstallOrUpdate(ctx, st, remodelSnapTarget{
 		name:    "snapd",
 		channel: newSnapdChannel,
 	})
@@ -971,7 +971,7 @@ func remodelTasks(ctx context.Context, st *state.State, current, new *asserts.Mo
 			return nil, err
 		}
 
-		_, sets, err := rm.maybeInstallOrUpdate(ctx, st, remodelTarget{
+		_, sets, err := rm.maybeInstallOrUpdate(ctx, st, remodelSnapTarget{
 			name:         modelSnap.SnapName(),
 			channel:      newModelSnapChannel,
 			newModelSnap: modelSnap,
