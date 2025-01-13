@@ -996,7 +996,8 @@ func (s *backendSuite) TestDefaultCoreRuntimesTemplateOnlyUsed(c *C) {
 		appSet, err := interfaces.NewSnapAppSet(snapInfo, nil)
 		c.Assert(err, IsNil)
 		// NOTE: we don't call apparmor.MockTemplate()
-		err = s.Backend.Setup(appSet, interfaces.ConfinementOptions{}, s.Repo, s.meas)
+		err = s.Backend.Setup(appSet,
+			interfaces.ConfinementOptions{KernelSnap: "mykernel"}, s.Repo, s.meas)
 		c.Assert(err, IsNil)
 		profile := filepath.Join(dirs.SnapAppArmorDir, "snap.samba.smbd")
 		data, err := os.ReadFile(profile)
@@ -1014,6 +1015,8 @@ func (s *backendSuite) TestDefaultCoreRuntimesTemplateOnlyUsed(c *C) {
 			// defaultCoreRuntimeTemplateRules
 			"# Default rules for core base runtimes\n",
 			"/usr/share/terminfo/** k,\n",
+			// ###KERNEL_MODULES_AND_FIRMWARE### is present
+			"/snap/mykernel/*/{modules,firmware}/{,**} r,\n",
 		} {
 			c.Assert(string(data), testutil.Contains, line)
 		}
@@ -1037,7 +1040,8 @@ func (s *backendSuite) TestBaseDefaultTemplateOnlyUsed(c *C) {
 	appSet, err := interfaces.NewSnapAppSet(snapInfo, nil)
 	c.Assert(err, IsNil)
 	// NOTE: we don't call apparmor.MockTemplate()
-	err = s.Backend.Setup(appSet, interfaces.ConfinementOptions{}, s.Repo, s.meas)
+	err = s.Backend.Setup(appSet,
+		interfaces.ConfinementOptions{KernelSnap: "mykernel"}, s.Repo, s.meas)
 	c.Assert(err, IsNil)
 	profile := filepath.Join(dirs.SnapAppArmorDir, "snap.samba.smbd")
 	data, err := os.ReadFile(profile)
@@ -1055,6 +1059,8 @@ func (s *backendSuite) TestBaseDefaultTemplateOnlyUsed(c *C) {
 		// defaultOtherBaseTemplateRules
 		"# Default rules for non-core base runtimes\n",
 		"/{,s}bin/** mrklix,\n",
+		// ###KERNEL_MODULES_AND_FIRMWARE### is present
+		"/snap/mykernel/*/{modules,firmware}/{,**} r,\n",
 	} {
 		c.Assert(string(data), testutil.Contains, line)
 	}
@@ -2984,5 +2990,39 @@ func (s *backendSuite) TestRemoveAllSnapAppArmorProfiles(c *C) {
 	for _, p := range []string{snap1nsProfile, snap1AAprofile, snap2nsProfile, snap2AAprofile} {
 		_, err := os.Stat(p)
 		c.Check(os.IsNotExist(err), Equals, true)
+	}
+}
+
+func (s *backendSuite) TestKernelModulesAndFwRule(c *C) {
+	restoreTemplate := apparmor.MockTemplate("template\n###KERNEL_MODULES_AND_FIRMWARE###\n")
+	defer restoreTemplate()
+	restore := apparmor_sandbox.MockLevel(apparmor_sandbox.Full)
+	defer restore()
+
+	for _, tc := range []struct {
+		opts     interfaces.ConfinementOptions
+		suppress bool
+		expected Checker
+	}{
+		{
+			opts:     interfaces.ConfinementOptions{},
+			expected: Not(testutil.Contains),
+		},
+		{
+			opts:     interfaces.ConfinementOptions{KernelSnap: "mykernel"},
+			expected: testutil.Contains,
+		},
+	} {
+		snapInfo := s.InstallSnap(c, tc.opts, "", ifacetest.SambaYamlV1, 1)
+		profile := filepath.Join(dirs.SnapAppArmorDir, "snap.samba.smbd")
+		data, err := os.ReadFile(profile)
+		c.Assert(err, IsNil)
+
+		c.Assert(string(data), tc.expected, `
+  # Allow access to kernel modules and firmware from the kernel snap
+  /snap/mykernel/*/{modules,firmware}/{,**} r,
+  /snap/mykernel/components/mnt/*/*/{modules,firmware}/{,**} r,
+  /var/snap/mykernel/*/{modules,firmware}/{,**} r,`)
+		s.RemoveSnap(c, snapInfo)
 	}
 }

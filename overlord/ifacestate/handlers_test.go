@@ -20,12 +20,14 @@
 package ifacestate_test
 
 import (
+	"errors"
 	"path"
 
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/overlord/configstate/config"
+	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/overlord/ifacestate"
 	"github.com/snapcore/snapd/overlord/servicestate/servicestatetest"
 	"github.com/snapcore/snapd/overlord/snapstate"
@@ -34,6 +36,7 @@ import (
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/quota"
 	"github.com/snapcore/snapd/snap/snaptest"
+	"github.com/snapcore/snapd/testutil"
 )
 
 const snapAyaml = `name: snap-a
@@ -42,14 +45,22 @@ base: base-snap-a
 `
 
 type handlersSuite struct {
+	testutil.BaseTest
 	st *state.State
 }
 
 var _ = Suite(&handlersSuite{})
 
+func (s *handlersSuite) mockModel() func() {
+	old := snapstate.DeviceCtx
+	snapstate.DeviceCtx = devicestate.DeviceCtx
+	return func() { snapstate.DeviceCtx = old }
+}
+
 func (s *handlersSuite) SetUpTest(c *C) {
 	s.st = state.New(nil)
 	dirs.SetRootDir(c.MkDir())
+	s.AddCleanup(s.mockModel())
 }
 
 func (s *handlersSuite) TearDownTest(c *C) {
@@ -136,7 +147,7 @@ func (s *handlersSuite) TestBuildConfinementOptions(c *C) {
 
 		snapInfo := mockInstalledSnap(c, s.st, snapAyaml)
 		flags := snapstate.Flags{}
-		opts, err := m.BuildConfinementOptions(s.st, snapInfo, snapstate.Flags{})
+		opts, err := m.BuildConfinementOptions(s.st, nil, snapInfo, snapstate.Flags{})
 
 		c.Check(err, IsNil)
 		c.Check(len(opts.ExtraLayouts), Equals, 0)
@@ -144,6 +155,42 @@ func (s *handlersSuite) TestBuildConfinementOptions(c *C) {
 		c.Check(opts.DevMode, Equals, flags.DevMode)
 		c.Check(opts.JailMode, Equals, flags.JailMode)
 		c.Check(opts.AppArmorPrompting, Equals, testAppArmorPrompting)
+		c.Check(opts.KernelSnap, Equals, "")
+	}
+}
+
+func (s *handlersSuite) TestBuildConfinementOptionsWithTask(c *C) {
+	s.st.Lock()
+	defer s.st.Unlock()
+
+	// This test is to check that the task is actually passed down to snapstate.DeviceCtx(),
+	// and that errors there are handled fine.
+	t := s.st.NewTask("foo", "description")
+	s.AddCleanup(func() func() {
+		old := snapstate.DeviceCtx
+		snapstate.DeviceCtx = func(st *state.State, task *state.Task,
+			providedDeviceCtx snapstate.DeviceContext) (snapstate.DeviceContext, error) {
+			c.Check(task, DeepEquals, t)
+			return nil, errors.New("classic, no context")
+		}
+		return func() { snapstate.DeviceCtx = old }
+	}())
+
+	for _, testAppArmorPrompting := range []bool{true, false} {
+		// Create fake InterfaceManager to hold fake AppArmor Prompting value
+		m := ifacestate.NewInterfaceManagerWithAppArmorPrompting(testAppArmorPrompting)
+
+		snapInfo := mockInstalledSnap(c, s.st, snapAyaml)
+		flags := snapstate.Flags{}
+		opts, err := m.BuildConfinementOptions(s.st, t, snapInfo, snapstate.Flags{})
+
+		c.Check(err, IsNil)
+		c.Check(len(opts.ExtraLayouts), Equals, 0)
+		c.Check(opts.Classic, Equals, flags.Classic)
+		c.Check(opts.DevMode, Equals, flags.DevMode)
+		c.Check(opts.JailMode, Equals, flags.JailMode)
+		c.Check(opts.AppArmorPrompting, Equals, testAppArmorPrompting)
+		c.Check(opts.KernelSnap, Equals, "")
 	}
 }
 
@@ -166,7 +213,7 @@ func (s *handlersSuite) TestBuildConfinementOptionsWithLogNamespace(c *C) {
 	c.Assert(err, IsNil)
 
 	flags := snapstate.Flags{}
-	opts, err := m.BuildConfinementOptions(s.st, snapInfo, snapstate.Flags{})
+	opts, err := m.BuildConfinementOptions(s.st, nil, snapInfo, snapstate.Flags{})
 
 	c.Check(err, IsNil)
 	c.Assert(len(opts.ExtraLayouts), Equals, 1)
