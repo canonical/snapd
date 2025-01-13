@@ -72,6 +72,9 @@ type ConfinementOptions struct {
 	// AppArmorPrompting indicates whether the prompt prefix should be used in
 	// relevant rules when generating AppArmor security profiles.
 	AppArmorPrompting bool
+	// KernelSnap is the name of the kernel snap in the system
+	// (empty for classic systems).
+	KernelSnap string
 }
 
 // SecurityBackendOptions carries extra flags that affect initialization of the
