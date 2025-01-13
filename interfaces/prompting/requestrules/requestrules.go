@@ -293,8 +293,8 @@ func (rdb *RuleDB) save() error {
 //
 // The caller must ensure that the database lock is held.
 func (rdb *RuleDB) lookupRuleByPathPattern(user uint32, snap string, iface string, constraints *prompting.RuleConstraints) (*Rule, bool, error) {
-	interfaceDB, exists := rdb.interfaceDBForUserSnapInterface(user, snap, iface)
-	if !exists {
+	interfaceDB := rdb.interfaceDBForUserSnapInterface(user, snap, iface)
+	if interfaceDB == nil {
 		return nil, false, nil
 	}
 	ruleID, exists := interfaceDB.PathPatterns[constraints.PathPattern.String()]
@@ -582,7 +582,7 @@ func (rdb *RuleDB) addRuleToTree(rule *Rule) *prompting_errors.RuleConflictError
 
 	// Add rule to the interfaceDB's map of path patterns to rule IDs. We know
 	// the interfaceDB exists, since we just modified a rule there.
-	interfaceDB, _ := rdb.interfaceDBForUserSnapInterface(rule.User, rule.Snap, rule.Interface)
+	interfaceDB := rdb.interfaceDBForUserSnapInterface(rule.User, rule.Snap, rule.Interface)
 	interfaceDB.PathPatterns[rule.Constraints.PathPattern.String()] = rule.ID
 
 	return nil
@@ -719,8 +719,8 @@ func (rdb *RuleDB) removeRuleFromTree(rule *Rule) error {
 	// Remove rule from the interfaceDB's map of path patterns to rule IDs. If
 	// the interfaceDB doesn't exist, then there must have been a previous error,
 	// and regardless, the path pattern doesn't exist in its map anymore.
-	interfaceDB, exists := rdb.interfaceDBForUserSnapInterface(rule.User, rule.Snap, rule.Interface)
-	if exists {
+	interfaceDB := rdb.interfaceDBForUserSnapInterface(rule.User, rule.Snap, rule.Interface)
+	if interfaceDB != nil {
 		delete(interfaceDB.PathPatterns, rule.Constraints.PathPattern.String())
 	}
 
@@ -737,8 +737,8 @@ func (rdb *RuleDB) removeRuleFromTree(rule *Rule) error {
 //
 // The caller must ensure that the database lock is held for writing.
 func (rdb *RuleDB) removeRulePermissionFromTree(rule *Rule, permission string) error {
-	permVariants, ok := rdb.permissionDBForUserSnapInterfacePermission(rule.User, rule.Snap, rule.Interface, permission)
-	if !ok || permVariants == nil {
+	permVariants := rdb.permissionDBForUserSnapInterfacePermission(rule.User, rule.Snap, rule.Interface, permission)
+	if permVariants == nil {
 		err := fmt.Errorf("internal error: no rules in the rule tree for user %d, snap %q, interface %q, permission %q", rule.User, rule.Snap, rule.Interface, permission)
 		return err
 	}
@@ -778,39 +778,39 @@ func joinInternalErrors(errs []error) error {
 }
 
 // permissionDBForUserSnapInterfacePermission returns the permission DB for the
-// given user, snap, interface, and permission, if it exists.
+// given user, snap, interface, and permission, if it exists, or nil if not.
 //
 // The caller must ensure that the database lock is held.
-func (rdb *RuleDB) permissionDBForUserSnapInterfacePermission(user uint32, snap string, iface string, permission string) (*permissionDB, bool) {
-	interfaceRules, exists := rdb.interfaceDBForUserSnapInterface(user, snap, iface)
-	if !exists {
-		return nil, false
+func (rdb *RuleDB) permissionDBForUserSnapInterfacePermission(user uint32, snap string, iface string, permission string) *permissionDB {
+	interfaceRules := rdb.interfaceDBForUserSnapInterface(user, snap, iface)
+	if interfaceRules == nil {
+		return nil
 	}
 	permRules := interfaceRules.PerPermission[permission]
 	if permRules == nil {
-		return nil, false
+		return nil
 	}
-	return permRules, true
+	return permRules
 }
 
 // interfaceDBForUserSnapInterface returns the interface DB for the given user,
-// snap, and interface, if it exists.
+// snap, and interface, if it exists, or nil if not.
 //
 // The caller must ensure that the database lock is held.
-func (rdb *RuleDB) interfaceDBForUserSnapInterface(user uint32, snap string, iface string) (*interfaceDB, bool) {
+func (rdb *RuleDB) interfaceDBForUserSnapInterface(user uint32, snap string, iface string) *interfaceDB {
 	userRules := rdb.perUser[user]
 	if userRules == nil {
-		return nil, false
+		return nil
 	}
 	snapRules := userRules.PerSnap[snap]
 	if snapRules == nil {
-		return nil, false
+		return nil
 	}
 	interfaceRules := snapRules.PerInterface[iface]
 	if interfaceRules == nil {
-		return nil, false
+		return nil
 	}
-	return interfaceRules, true
+	return interfaceRules
 }
 
 // ensurePermissionDBForUserSnapInterfacePermission returns the permission DB
@@ -957,8 +957,8 @@ var isPathPermAllowedByRuleDB = func(rdb *RuleDB, user uint32, snap string, ifac
 func (rdb *RuleDB) isPathPermAllowed(user uint32, snap string, iface string, path string, permission string) (bool, error) {
 	rdb.mutex.RLock()
 	defer rdb.mutex.RUnlock()
-	permissionMap, ok := rdb.permissionDBForUserSnapInterfacePermission(user, snap, iface, permission)
-	if !ok || permissionMap == nil {
+	permissionMap := rdb.permissionDBForUserSnapInterfacePermission(user, snap, iface, permission)
+	if permissionMap == nil {
 		return false, prompting_errors.ErrNoMatchingRule
 	}
 	variantMap := permissionMap.VariantEntries
