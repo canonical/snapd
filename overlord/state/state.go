@@ -166,8 +166,9 @@ func (s *State) unlock() {
 	atomic.AddInt32(&s.muC, -1)
 	lockWaitStart, lockHoldStart := s.lockWaitStart, s.lockHoldStart
 	s.lockWaitStart, s.lockHoldStart = 0, 0
+	lockHoldEnd := lockTimestamp()
 	s.mu.Unlock()
-	maybeSaveLockTime(lockWaitStart, lockHoldStart, lockTimestamp())
+	maybeSaveLockTime(lockWaitStart, lockHoldStart, lockHoldEnd)
 }
 
 type marshalledState struct {
