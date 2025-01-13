@@ -113,8 +113,8 @@ type State struct {
 	taskHandlers   map[int]func(t *Task, old, new Status) (remove bool)
 	changeHandlers map[int]func(chg *Change, old, new Status)
 
-	lockWait  int64
-	lockStart int64
+	lockWaitStart int64
+	lockHoldStart int64
 }
 
 // New returns a new empty state.
@@ -146,8 +146,8 @@ func (s *State) Lock() {
 	lockWait := osutil.LockTimestamp()
 	s.mu.Lock()
 	atomic.AddInt32(&s.muC, 1)
-	s.lockWait = lockWait
-	s.lockStart = osutil.LockTimestamp()
+	s.lockWaitStart = lockWait
+	s.lockHoldStart = osutil.LockTimestamp()
 }
 
 func (s *State) reading() {
@@ -165,10 +165,10 @@ func (s *State) writing() {
 
 func (s *State) unlock() {
 	atomic.AddInt32(&s.muC, -1)
-	lockWait, lockStart := s.lockWait, s.lockStart
-	s.lockWait, s.lockStart = 0, 0
+	lockWaitStart, lockHoldStart := s.lockWaitStart, s.lockHoldStart
+	s.lockWaitStart, s.lockHoldStart = 0, 0
 	s.mu.Unlock()
-	osutil.MaybeSaveLockTime(lockWait, lockStart)
+	osutil.MaybeSaveLockTime(lockWaitStart, lockHoldStart, osutil.LockTimestamp())
 }
 
 type marshalledState struct {
