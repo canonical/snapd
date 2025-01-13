@@ -35,33 +35,19 @@ var (
 )
 
 func init() {
-	err := func() error {
-		if !GetenvBool("SNAPPY_TESTING") {
-			return fmt.Errorf("SNAPPY_TESTING not set")
-		}
-
-		threshold := GetenvInt64("SNAPD_STATE_LOCK_TRACE_THRESHOLD_MS")
-		logFilePath := os.Getenv("SNAPD_STATE_LOCK_TRACE_FILE")
-
-		if threshold <= 0 {
-			return fmt.Errorf("SNAPD_STATE_LOCK_TRACE_TREHSHOLD_MS is unset, invalid or 0")
-		}
-
-		if logFilePath == "" {
-			return fmt.Errorf("SNAPD_STATE_LOCK_TRACE_FILE is unset")
-		}
-
-		traceThreshold = threshold
-		traceFilePath = logFilePath
-
-		return nil
-	}()
-
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "cannot enable state lock tracing: %v\n", err)
+	if !GetenvBool("SNAPPY_TESTING") {
 		return
 	}
 
+	threshold := GetenvInt64("SNAPD_STATE_LOCK_TRACE_THRESHOLD_MS")
+	logFilePath := os.Getenv("SNAPD_STATE_LOCK_TRACE_FILE")
+
+	if threshold <= 0 || logFilePath == "" {
+		return
+	}
+
+	traceThreshold = threshold
+	traceFilePath = logFilePath
 	traceStateLock = true
 }
 
@@ -109,20 +95,22 @@ func traceCallers(ts, heldMs, waitMs int64) error {
 }
 
 func LockTimestamp() int64 {
+	if !traceStateLock {
+		return 0
+	}
+
 	return time.Now().UnixMilli()
 }
 
 // MaybeSaveLockTime allows to save lock times when this overpass the threshold
 // defined by through the SNAPD_STATE_LOCK_THRESHOLD_MS environment settings.
-func MaybeSaveLockTime(lockWait int64, lockStart int64) {
+func MaybeSaveLockTime(lockWaitStart, lockHoldStart, now int64) {
 	if !traceStateLock {
 		return
 	}
 
-	now := LockTimestamp()
-
-	heldMs := now - lockStart
-	waitMs := lockStart - lockWait
+	heldMs := now - lockHoldStart
+	waitMs := lockHoldStart - lockWaitStart
 	if heldMs > traceThreshold || waitMs > traceThreshold {
 		if err := traceCallers(now, heldMs, waitMs); err != nil {
 			fmt.Fprintf(os.Stderr, "could write state lock trace: %v\n", err)
