@@ -369,7 +369,10 @@ func (rdb *RuleDB) addOrMergeRule(rule *Rule, save bool) (addedOrMergedRule *Rul
 		return nil, false, err
 	}
 	if !exists {
-		return rule, false, rdb.addNewRule(rule, save)
+		if err := rdb.addNewRule(rule, save); err != nil {
+			return nil, false, err
+		}
+		return rule, false, nil
 	}
 
 	newPermissions := make(prompting.RulePermissionMap)
