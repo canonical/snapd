@@ -1,5 +1,5 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
-//go:build statelock
+//go:build statelocktrace
 
 /*
  * Copyright (C) 2021 Canonical Ltd
@@ -18,13 +18,15 @@
  *
  */
 
-package osutil
+package state
 
 import (
 	"fmt"
 	"os"
 	"runtime"
 	"time"
+
+	"github.com/snapcore/snapd/osutil"
 )
 
 var (
@@ -35,11 +37,11 @@ var (
 )
 
 func init() {
-	if !GetenvBool("SNAPPY_TESTING") {
+	if !osutil.GetenvBool("SNAPPY_TESTING") {
 		return
 	}
 
-	threshold := GetenvInt64("SNAPD_STATE_LOCK_TRACE_THRESHOLD_MS")
+	threshold := osutil.GetenvInt64("SNAPD_STATE_LOCK_TRACE_THRESHOLD_MS")
 	logFilePath := os.Getenv("SNAPD_STATE_LOCK_TRACE_FILE")
 
 	if threshold <= 0 || logFilePath == "" {
@@ -60,7 +62,7 @@ func traceCallers(ts, heldMs, waitMs int64) error {
 	if err != nil {
 		return fmt.Errorf("cannot not open/create log trace file: %v", err)
 	}
-	lockFile := NewFileLockWithFile(logFile)
+	lockFile := osutil.NewFileLockWithFile(logFile)
 	defer lockFile.Close()
 
 	if err := lockFile.Lock(); err != nil {
@@ -94,7 +96,7 @@ func traceCallers(ts, heldMs, waitMs int64) error {
 	return nil
 }
 
-func LockTimestamp() int64 {
+func lockTimestamp() int64 {
 	if !traceStateLock {
 		return 0
 	}
@@ -102,9 +104,9 @@ func LockTimestamp() int64 {
 	return time.Now().UnixMilli()
 }
 
-// MaybeSaveLockTime allows to save lock times when this overpass the threshold
+// maybeSaveLockTime allows to save lock times when this overpass the threshold
 // defined by through the SNAPD_STATE_LOCK_THRESHOLD_MS environment settings.
-func MaybeSaveLockTime(lockWaitStart, lockHoldStart, now int64) {
+func maybeSaveLockTime(lockWaitStart, lockHoldStart, now int64) {
 	if !traceStateLock {
 		return
 	}

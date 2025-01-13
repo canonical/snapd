@@ -32,7 +32,6 @@ import (
 	"time"
 
 	"github.com/snapcore/snapd/logger"
-	"github.com/snapcore/snapd/osutil"
 )
 
 // A Backend is used by State to checkpoint on every unlock operation
@@ -143,11 +142,11 @@ func (s *State) Modified() bool {
 
 // Lock acquires the state lock.
 func (s *State) Lock() {
-	lockWait := osutil.LockTimestamp()
+	lockWait := lockTimestamp()
 	s.mu.Lock()
 	atomic.AddInt32(&s.muC, 1)
 	s.lockWaitStart = lockWait
-	s.lockHoldStart = osutil.LockTimestamp()
+	s.lockHoldStart = lockTimestamp()
 }
 
 func (s *State) reading() {
@@ -168,7 +167,7 @@ func (s *State) unlock() {
 	lockWaitStart, lockHoldStart := s.lockWaitStart, s.lockHoldStart
 	s.lockWaitStart, s.lockHoldStart = 0, 0
 	s.mu.Unlock()
-	osutil.MaybeSaveLockTime(lockWaitStart, lockHoldStart, osutil.LockTimestamp())
+	maybeSaveLockTime(lockWaitStart, lockHoldStart, lockTimestamp())
 }
 
 type marshalledState struct {
