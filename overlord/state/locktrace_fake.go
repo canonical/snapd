@@ -1,5 +1,5 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
-//go:build !statelock
+//go:build !statelocktrace
 
 /*
  * Copyright (C) 2021 Canonical Ltd
@@ -18,11 +18,11 @@
  *
  */
 
-package osutil
+package state
 
-func LockTimestamp() int64 {
+func lockTimestamp() int64 {
 	return int64(0)
 }
 
-func MaybeSaveLockTime(lockWaitStart, lockHoldStart, now int64) {
+func maybeSaveLockTime(lockWaitStart, lockHoldStart, now int64) {
 }
