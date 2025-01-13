@@ -24,5 +24,5 @@ func LockTimestamp() int64 {
 	return int64(0)
 }
 
-func MaybeSaveLockTime(lockWait int64, lockStart int64) {
+func MaybeSaveLockTime(lockWaitStart, lockHoldStart, now int64) {
 }
