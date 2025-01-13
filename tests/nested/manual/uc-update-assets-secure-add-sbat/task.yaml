@@ -124,27 +124,18 @@ prepare: |
   fi
 
   cat <<EOF >>expected-before
-  ${old_shim_sha} */run/mnt/ubuntu-boot/EFI/boot/bootx64.efi
   ${old_grub_sha} */run/mnt/ubuntu-boot/EFI/boot/grubx64.efi
   EOF
   if [ "${UPDATE_BOOT}" = true ]; then
     cat <<EOF >>expected-after
-  ${new_shim_sha} */run/mnt/ubuntu-boot/EFI/boot/bootx64.efi
   ${new_grub_sha} */run/mnt/ubuntu-boot/EFI/boot/grubx64.efi
   EOF
   else
     cat <<EOF >>expected-after
-  ${old_shim_sha} */run/mnt/ubuntu-boot/EFI/boot/bootx64.efi
   ${old_grub_sha} */run/mnt/ubuntu-boot/EFI/boot/grubx64.efi
   EOF
   fi
-
-  # UC22 does not have bootx64.efi in its pc-gadget
-  if tests.nested is-nested uc22; then
-    grep 'grubx64.efi' expected-before > tmp && mv tmp expected-before
-    grep 'grubx64.efi' expected-after > tmp && mv tmp expected-after
-  fi
-
+  
   snap pack pc --filename=pc_2.snap
 
   remote.exec systemctl --wait is-system-running || true
