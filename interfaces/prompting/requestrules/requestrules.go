@@ -419,22 +419,23 @@ func (rdb *RuleDB) addOrMergeRule(rule *Rule, save bool) (addedOrMergedRule *Rul
 		}
 	}
 
-	// Create new rule based on the contents of the existing rule, but copy the
-	// timestamp from the new rule.
-	newRule := new(Rule)
-	*newRule = *existingRule
+	// Create new rule by copying the contents of the existing rule, but copy
+	// the timestamp from the new rule.
+	newRule := *existingRule
 	newRule.Timestamp = rule.Timestamp
-	// Copy constraints as well, since copying the rule just copied the pointer
-	newRule.Constraints = new(prompting.RuleConstraints)
-	*(newRule.Constraints) = *(existingRule.Constraints)
-	// Now set the permissions of the copied constraints to newPermissions
-	newRule.Constraints.Permissions = newPermissions
+	// Set constraints as well, since copying the rule just copied the pointer,
+	// and we want to set the constraints to use the new permissions without
+	// mutating existingRule.Constraints.
+	newRule.Constraints = &prompting.RuleConstraints{
+		PathPattern: existingRule.Constraints.PathPattern,
+		Permissions: newPermissions,
+	}
 
 	// Remove the existing rule from the tree. An error should not occur, since
 	// we just looked up the rule and know it exists.
 	rdb.removeRuleByID(existingRule.ID)
 
-	if err := rdb.addNewRule(newRule, save); err != nil {
+	if err := rdb.addNewRule(&newRule, save); err != nil {
 		// Error while adding the new merged rule, likely due to a conflict
 		// caused by the new permissions in the rule to be added.
 
@@ -450,7 +451,7 @@ func (rdb *RuleDB) addOrMergeRule(rule *Rule, save bool) (addedOrMergedRule *Rul
 		return nil, false, err
 	}
 
-	return newRule, true, nil
+	return &newRule, true, nil
 }
 
 // addNewRule adds the given rule to the rule DB without checking whether there
