@@ -1316,6 +1316,15 @@ func initRefreshAllStoreUpdates(st *state.State, opts Options, allSnaps map[stri
 	return updates, nil
 }
 
+// PathComponent represents a component of a snap that is to be installed
+// alongside a PathSnap.
+type PathComponent struct {
+	// SideInfo contains extra information about the component.
+	SideInfo *snap.ComponentSideInfo
+	// Path is the path to the component on disk.
+	Path string
+}
+
 // PathSnap represents a single snap to be installed or updated from a path on
 // disk.
 type PathSnap struct {
@@ -1331,15 +1340,6 @@ type PathSnap struct {
 	// Components is a mapping of component side infos to paths that should be
 	// installed alongside this snap.
 	Components []PathComponent
-}
-
-// PathComponent represents a component of a snap that is to be installed
-// alongside a PathSnap.
-type PathComponent struct {
-	// SideInfo contains extra information about the component.
-	SideInfo *snap.ComponentSideInfo
-	// Path is the path to the component on disk.
-	Path string
 }
 
 // pathUpdateGoal implements the UpdateGoal interface and represents a group of
