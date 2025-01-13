@@ -84,9 +84,10 @@ func (mst *initramfsMountsState) LoadSeed(recoverySystem string) (seed.Seed, err
 	//   the RTC does not have a battery or is otherwise unreliable, etc.
 	now := timeNow()
 
-	jobs := 1
-	if runtimeNumCPU() > 1 {
-		jobs = 2
+	// if we have more than 4 core, reserve one for I/O otherwise use all we have
+	jobs := runtimeNumCPU()
+	if jobs > 4 {
+		jobs -= 1
 	}
 	seed20, newTrustedEarliestTime, err := seed.ReadSeedAndBetterEarliestTime(boot.InitramfsUbuntuSeedDir, recoverySystem, now, jobs, perf)
 	if err != nil {

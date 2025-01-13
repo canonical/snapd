@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2022 Canonical Ltd
+ * Copyright (C) 2023 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -26,9 +26,33 @@ import (
 	"os"
 
 	"github.com/jessevdk/go-flags"
-
 	"github.com/snapcore/snapd/cmd/snap-fde-keymgr/fdekeymgr"
 )
+
+func init() {
+	const (
+		shortAddKey    = "Add recovery key"
+		shortRemoveKey = "Remove recovery key"
+		shortChangeKey = "Change recovery key"
+		long           = ""
+	)
+
+	addCommandBuilder(func(parser *flags.Parser) {
+		if _, err := parser.AddCommand("add-recovery-key", shortAddKey, long, &cmdAddRecoveryKey{}); err != nil {
+			panic(err)
+		}
+	})
+	addCommandBuilder(func(parser *flags.Parser) {
+		if _, err := parser.AddCommand("remove-recovery-key", shortRemoveKey, long, &cmdRemoveRecoveryKey{}); err != nil {
+			panic(err)
+		}
+	})
+	addCommandBuilder(func(parser *flags.Parser) {
+		if _, err := parser.AddCommand("change-encryption-key", shortChangeKey, long, &cmdChangeEncryptionKey{}); err != nil {
+			panic(err)
+		}
+	})
+}
 
 var osStdin io.Reader = os.Stdin
 
@@ -53,18 +77,12 @@ type cmdChangeEncryptionKey struct {
 	Transition bool   `long:"transition" description:"replace the old key, unstage the new"`
 }
 
-type options struct {
-	CmdAddRecoveryKey      cmdAddRecoveryKey      `command:"add-recovery-key"`
-	CmdRemoveRecoveryKey   cmdRemoveRecoveryKey   `command:"remove-recovery-key"`
-	CmdChangeEncryptionKey cmdChangeEncryptionKey `command:"change-encryption-key"`
-}
-
 func (c *cmdAddRecoveryKey) Execute(args []string) error {
 	return fdekeymgr.AddRecoveryKey(c.Devices, c.Authorizations, c.KeyFile)
 }
 
 func (c *cmdRemoveRecoveryKey) Execute(args []string) error {
-	return fdekeymgr.RemoveRecoveryKeys(c.Authorizations, c.Devices, c.KeyFiles)
+	return fdekeymgr.RemoveRecoveryKeys(c.Devices, c.Authorizations, c.KeyFiles)
 }
 
 type newKey struct {
@@ -80,20 +98,4 @@ func (c *cmdChangeEncryptionKey) Execute(args []string) error {
 		return fmt.Errorf("cannot obtain new encryption key: %v", err)
 	}
 	return fdeKeymgrChangeEncryptionKey(c.Device, c.Stage, c.Transition, newEncryptionKeyData.Key)
-}
-
-func run(osArgs1 []string) error {
-	var opts options
-	p := flags.NewParser(&opts, flags.HelpFlag|flags.PassDoubleDash)
-	if _, err := p.ParseArgs(osArgs1); err != nil {
-		return err
-	}
-	return nil
-}
-
-func main() {
-	if err := run(os.Args[1:]); err != nil {
-		fmt.Fprintf(os.Stderr, "error: %v\n", err)
-		os.Exit(1)
-	}
 }
