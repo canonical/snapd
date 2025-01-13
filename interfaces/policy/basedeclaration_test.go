@@ -1011,6 +1011,7 @@ func (s *baseDeclSuite) TestPlugInstallation(c *C) {
 	all := builtin.Interfaces()
 
 	restricted := map[string]bool{
+		"auditd-support":                   true,
 		"block-devices":                    true,
 		"checkbox-support":                 true,
 		"classic-support":                  true,
@@ -1309,6 +1310,7 @@ func (s *baseDeclSuite) TestValidity(c *C) {
 	// given how the rules work this can be delicate,
 	// listed here to make sure that was a conscious decision
 	bothSides := map[string]bool{
+		"auditd-support":                   true,
 		"block-devices":                    true,
 		"audio-playback":                   true,
 		"classic-support":                  true,
