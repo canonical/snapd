@@ -21,12 +21,15 @@ package main_test
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
 
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/boot"
 	main "github.com/snapcore/snapd/cmd/snap-bootstrap"
+	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/disks"
 	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/testutil"
@@ -39,6 +42,18 @@ var (
 		KernelDeviceNode: "/dev/sda1",
 	}
 
+	cvmPart = disks.Partition{
+		FilesystemLabel:  "cloudimg-rootfs",
+		PartitionUUID:    "cloudimg-rootfs-partuuid",
+		KernelDeviceNode: "/dev/sda1",
+	}
+
+	cvmVerityPart = disks.Partition{
+		PartitionLabel:   "cloudimg-rootfs-verity",
+		PartitionUUID:    "cloudimg-rootfs-verity-partuuid",
+		KernelDeviceNode: "/dev/sda13",
+	}
+
 	defaultCVMDisk = &disks.MockDiskMapping{
 		Structure: []disks.Partition{
 			seedPart,
@@ -46,6 +61,16 @@ var (
 		},
 		DiskHasPartitions: true,
 		DevNum:            "defaultCVMDev",
+	}
+
+	defaultCVMDiskVerity = &disks.MockDiskMapping{
+		Structure: []disks.Partition{
+			seedPart,
+			cvmPart,
+			cvmVerityPart,
+		},
+		DiskHasPartitions: true,
+		DevNum:            "defaultCVMDevVerity",
 	}
 )
 
@@ -157,6 +182,7 @@ func (s *initramfsCVMMountsSuite) TestInitramfsMountsRunCVMModeHappy(c *C) {
 			"--no-pager",
 			"--no-ask-password",
 			"--fsck=yes",
+			"--property=Before=initrd-fs.target",
 		},
 		{
 			"systemd-mount",
@@ -170,4 +196,283 @@ func (s *initramfsCVMMountsSuite) TestInitramfsMountsRunCVMModeHappy(c *C) {
 
 	c.Check(provisionTPMCVMCalled, Equals, true)
 	c.Check(cloudimgActivated, Equals, true)
+}
+
+func (s *initramfsCVMMountsSuite) TestInitramfsMountsRunCVMModeEphemeralOverlayHappy(c *C) {
+	s.mockProcCmdlineContent(c, "snapd_recovery_mode=cloudimg-rootfs")
+
+	restore := main.MockPartitionUUIDForBootedKernelDisk("specific-ubuntu-seed-partuuid")
+	defer restore()
+
+	restore = disks.MockMountPointDisksToPartitionMapping(
+		map[disks.Mountpoint]*disks.MockDiskMapping{
+			{Mountpoint: boot.InitramfsUbuntuSeedDir}: defaultCVMDiskVerity,
+		},
+	)
+	defer restore()
+
+	// don't do anything from systemd-mount, we verify the arguments passed at
+	// the end with cmd.Calls
+	cmd := testutil.MockCommand(c, "systemd-mount", ``)
+	defer cmd.Restore()
+
+	// mock that in turn, /run/mnt/ubuntu-seed, read-only /run/mnt/cloudimg-rootfs, ephemeral tmpfs /run/mnt/writable-tmp
+	// and the overlayfs are mounted
+	n := 0
+	restore = main.MockOsutilIsMounted(func(where string) (bool, error) {
+		n++
+		switch n {
+		// first call for each mount returns false, then returns true, this
+		// tests in the case where systemd is racy / inconsistent and things
+		// aren't mounted by the time systemd-mount returns
+		case 1, 2:
+			c.Assert(where, Equals, boot.InitramfsUbuntuSeedDir)
+		case 3, 4:
+			c.Assert(where, Equals, filepath.Join(boot.InitramfsRunMntDir, "cloudimg-rootfs"))
+		case 5, 6:
+			c.Assert(where, Equals, filepath.Join(boot.InitramfsRunMntDir, "writable-tmp"))
+		case 7, 8:
+			c.Assert(where, Equals, boot.InitramfsDataDir)
+		case 9, 10:
+			c.Assert(where, Equals, boot.InitramfsUbuntuSeedDir)
+		default:
+			c.Errorf("unexpected IsMounted check on %s", where)
+			return false, fmt.Errorf("unexpected IsMounted check on %s", where)
+		}
+		return n%2 == 0, nil
+	})
+	defer restore()
+
+	expectedRootHash := "000"
+	manifestPath := filepath.Join(boot.InitramfsUbuntuSeedDir, "EFI/ubuntu")
+	manifestJson := fmt.Sprintf(`{"partitions":[{"label":"cloudimg-rootfs","root_hash":%q,"read_only":true}]}`, expectedRootHash)
+
+	err := os.MkdirAll(manifestPath, 0755)
+	c.Assert(err, IsNil)
+
+	err = os.WriteFile(filepath.Join(manifestPath, "manifest.json"), []byte(manifestJson), 0644)
+	c.Assert(err, IsNil)
+
+	// Mock the call to TPMCVM, to ensure that TPM provisioning is
+	// done before unlock attempt
+	provisionTPMCVMCalled := false
+	restore = main.MockSecbootProvisionForCVM(func(_ string) error {
+		// Ensure this function is only called once
+		c.Assert(provisionTPMCVMCalled, Equals, false)
+		provisionTPMCVMCalled = true
+		return nil
+	})
+	defer restore()
+
+	cloudimgActivated := false
+	restore = main.MockSecbootUnlockVolumeUsingSealedKeyIfEncrypted(func(disk disks.Disk, name string, sealedEncryptionKeyFile string, opts *secboot.UnlockVolumeUsingSealedKeyOptions) (secboot.UnlockResult, error) {
+		c.Assert(provisionTPMCVMCalled, Equals, true)
+		c.Assert(name, Equals, "cloudimg-rootfs")
+		c.Assert(sealedEncryptionKeyFile, Equals, filepath.Join(s.tmpDir, "run/mnt/ubuntu-seed/device/fde/cloudimg-rootfs.sealed-key"))
+		c.Assert(opts.AllowRecoveryKey, Equals, true)
+		c.Assert(opts.WhichModel, IsNil)
+
+		cloudimgActivated = true
+		// return true because we are using an encrypted device
+		// return happyUnlocked("cloudimg-rootfs", secboot.UnlockedWithSealedKey), nil
+		return foundUnencrypted("cloudimg-rootfs"), nil
+	})
+	defer restore()
+
+	_, err = main.Parser().ParseArgs([]string{"initramfs-mounts"})
+	c.Assert(err, IsNil)
+	c.Check(s.Stdout.String(), Equals, "")
+
+	writableTmpCreated := osutil.IsDirectory(filepath.Join(boot.InitramfsRunMntDir, "writable-tmp"))
+	c.Check(writableTmpCreated, Equals, true)
+
+	// 2 per mountpoint + 1 more for cross check
+	c.Assert(n, Equals, 9)
+
+	// failed to use mockSystemdMountSequence way of asserting this
+	// note that other test cases also mix & match using
+	// mockSystemdMountSequence & DeepEquals
+	c.Assert(cmd.Calls(), DeepEquals, [][]string{
+		{
+			"systemd-mount",
+			"/dev/disk/by-partuuid/specific-ubuntu-seed-partuuid",
+			boot.InitramfsUbuntuSeedDir,
+			"--no-pager",
+			"--no-ask-password",
+			"--fsck=yes",
+			"--options=private",
+			"--property=Before=initrd-fs.target",
+		},
+		{
+			"systemd-mount",
+			"/dev/disk/by-partuuid/cloudimg-rootfs-partuuid",
+			filepath.Join(boot.InitramfsRunMntDir, "cloudimg-rootfs"),
+			"--no-pager",
+			"--no-ask-password",
+			"--fsck=no",
+			"--options=verity.roothash=" + expectedRootHash + ",verity.hashdevice=/dev/sda13",
+			"--property=Before=initrd-fs.target",
+		},
+		{
+			"systemd-mount",
+			"tmpfs",
+			filepath.Join(boot.InitramfsRunMntDir, "writable-tmp"),
+			"--no-pager",
+			"--no-ask-password",
+			"--type=tmpfs",
+			"--fsck=no",
+			"--property=Before=initrd-fs.target",
+		},
+		{
+			"systemd-mount",
+			"/dev/disk/by-partuuid/cloudimg-rootfs-partuuid",
+			boot.InitramfsDataDir,
+			"--no-pager",
+			"--no-ask-password",
+			"--type=overlay",
+			"--fsck=no",
+			"--options=lowerdir=" +
+				filepath.Join(boot.InitramfsRunMntDir, "cloudimg-rootfs") +
+				",upperdir=" + filepath.Join(boot.InitramfsRunMntDir, "writable-tmp", "upper") +
+				",workdir=" + filepath.Join(boot.InitramfsRunMntDir, "writable-tmp", "work"),
+			"--property=Before=initrd-fs.target",
+		},
+		{
+			"systemd-mount",
+			boot.InitramfsUbuntuSeedDir,
+			"--umount",
+			"--no-pager",
+			"--no-ask-password",
+			"--fsck=no",
+		},
+	})
+
+	c.Check(provisionTPMCVMCalled, Equals, true)
+	c.Check(cloudimgActivated, Equals, true)
+}
+
+func (s *initramfsCVMMountsSuite) TestGenerateMountsFromManifest(c *C) {
+	testCases := []struct {
+		im       string
+		disk     *disks.MockDiskMapping
+		writable string
+		err      string
+	}{
+		// Valid, ephemeral disk
+		{
+			`{"partitions":[{"label":"cloudimg-rootfs","root_hash":"000","read_only":true}]}`,
+			defaultCVMDiskVerity,
+			"writable-tmp",
+			"",
+		},
+		// Valid, non-ephemeral disk
+		{
+			`{"partitions":[{"label":"cloudimg-rootfs","root_hash":"000","read_only":true},{"label":"writable"}]}`,
+			defaultCVMDiskVerity,
+			"writable",
+			"",
+		},
+		// Valid, missing root hash (to test this won't fail early when a root hash is missing)
+		{
+			`{"partitions":[{"label":"cloudimg-rootfs","read_only":true}]}`,
+			defaultCVMDiskVerity,
+			"writable-tmp",
+			"",
+		},
+		// Invalid, missing ro partition
+		{
+			`{"partitions":[{"label":"cloudimg-rootfs"}]}`,
+			defaultCVMDiskVerity,
+			"writable",
+			"manifest doesn't contain any partition marked as read-only",
+		},
+		// Invalid, 2 ro partitions
+		{
+			`{"partitions":[{"label":"cloudimg-rootfs","root_hash":"000","read_only":true},{"label":"test", "read_only":true}]}`,
+			defaultCVMDiskVerity,
+			"writable",
+			"manifest contains multiple partitions marked as read-only",
+		},
+		// Invalid, 2 rw partitions
+		{
+			`{"partitions":[{"label":"cloudimg-rootfs","root_hash":"000","read_only":true},{"label":"test"},{"label":"test2"}]}`,
+			defaultCVMDiskVerity,
+			"writable",
+			"manifest contains multiple writable partitions",
+		},
+	}
+
+	for _, tc := range testCases {
+		im, err := main.ParseImageManifest([]byte(tc.im))
+		c.Assert(err, IsNil)
+
+		pm, err := main.GenerateMountsFromManifest(im, tc.disk)
+		if err != nil {
+			c.Check(err, ErrorMatches, tc.err)
+		} else {
+			c.Check(pm[1].GptLabel, Equals, tc.writable)
+		}
+	}
+}
+
+func (s *initramfsCVMMountsSuite) TestCreateOverlayDirs(c *C) {
+	testCases := []struct {
+		createPath string
+		perm       os.FileMode
+		targetPath string
+		err        string
+	}{
+		// Valid, target path exists already
+		{
+			"target",
+			0755,
+			"target",
+			"",
+		},
+		// Invalid, target path doesn't exist
+		{
+			"other",
+			0755,
+			"target",
+			"stat %s: no such file or directory",
+		},
+		// Invalid, target path doesn't exist and can't be created due to
+		// a permission issue in its containing folder
+		{
+			"foo",
+			0700,
+			"foo/target",
+			"stat %s: permission denied",
+		},
+		// Invalid, target path exists but with restrictive permissions
+		{
+			"target",
+			0700,
+			"target",
+			"mkdir %s/upper: permission denied",
+		},
+	}
+
+	for _, tc := range testCases {
+		createPath := filepath.Join(dirs.GlobalRootDir, tc.createPath)
+		err := os.Mkdir(createPath, tc.perm)
+		c.Assert(err, IsNil)
+
+		targetPath := filepath.Join(dirs.GlobalRootDir, tc.targetPath)
+		err = main.CreateOverlayDirs(targetPath)
+		if err != nil {
+			c.Check(err, ErrorMatches, fmt.Sprintf(tc.err, targetPath))
+		} else {
+			_, err2 := os.Stat(filepath.Join(targetPath, "upper"))
+			c.Check(err2, IsNil)
+
+			_, err2 = os.Stat(filepath.Join(targetPath, "work"))
+			c.Check(err2, IsNil)
+		}
+
+		err = os.RemoveAll(createPath)
+		c.Assert(err, IsNil)
+		err = os.RemoveAll(targetPath)
+		c.Assert(err, IsNil)
+	}
 }
