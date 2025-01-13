@@ -11,7 +11,7 @@ set -uxe
 build_kernel_with_comp() {
     mod_name=$1
     comp_name=$2
-    kernel_snap_file=$3
+    kernel_snap_file=${3:-}
 
     if [ -z "${kernel_snap_file}" ]; then
         VERSION="$(tests.nested show version)"
