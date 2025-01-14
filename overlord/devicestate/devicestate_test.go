@@ -2245,15 +2245,24 @@ func (s *deviceMgrSuite) TestDeviceManagerEnsurePostFactoryResetEncrypted(c *C) 
 	defer restore()
 
 	removedOldHandles := 0
-	restore = devicestate.MockSecbootRemoveOldCounterHandles(func(node string, possibleOldKeys map[string]bool, possibleKeyFiles []string) error {
+	restore = devicestate.MockSecbootRemoveOldCounterHandles(func(node string, possibleOldKeys map[string]bool, possibleKeyFiles []string, hintExpectFDEHook bool) error {
 		removedOldHandles++
+		c.Check(hintExpectFDEHook, Equals, false)
 		c.Check(node, Equals, "/dev/disk/by-uuid/FOOUUID")
 		c.Check(possibleOldKeys, DeepEquals, map[string]bool{
 			"factory-reset-old-fallback": true,
 		})
-		c.Check(possibleKeyFiles, DeepEquals, []string{
-			filepath.Join(boot.InitramfsSeedEncryptionKeyDir, "ubuntu-save.recovery.sealed-key"),
-		})
+		switch removedOldHandles {
+		case 1:
+			c.Check(possibleKeyFiles, DeepEquals, []string{
+				filepath.Join(boot.InitramfsSeedEncryptionKeyDir, "ubuntu-save.recovery.sealed-key"),
+			})
+		case 2:
+			c.Check(possibleKeyFiles, IsNil)
+		default:
+			c.Errorf("unexpected call")
+			return fmt.Errorf("unexpected call")
+		}
 		return nil
 	})
 	defer restore()
@@ -2281,7 +2290,6 @@ func (s *deviceMgrSuite) TestDeviceManagerEnsurePostFactoryResetEncrypted(c *C) 
 
 	transitionCalls = 0
 	deleteOldSaveKey = 0
-	removedOldHandles = 0
 	// try again, no marker, nothing should happen
 	devicestate.SetPostFactoryResetRan(s.mgr, false)
 	err = s.mgr.Ensure()
@@ -2289,7 +2297,7 @@ func (s *deviceMgrSuite) TestDeviceManagerEnsurePostFactoryResetEncrypted(c *C) 
 	// nothing was called
 	c.Check(transitionCalls, Equals, 0)
 	c.Check(deleteOldSaveKey, Equals, 0)
-	c.Check(removedOldHandles, Equals, 0)
+	c.Check(removedOldHandles, Equals, 1)
 
 	// have the marker, but keep the keys rotated as if boot code would do it and
 	// try again, in this setup the marker hash matches the migrated key
@@ -2300,7 +2308,7 @@ func (s *deviceMgrSuite) TestDeviceManagerEnsurePostFactoryResetEncrypted(c *C) 
 	c.Assert(err, IsNil)
 	c.Check(transitionCalls, Equals, 0)
 	c.Check(deleteOldSaveKey, Equals, 1)
-	c.Check(removedOldHandles, Equals, 1)
+	c.Check(removedOldHandles, Equals, 2)
 	// the marker was again removed
 	c.Check(filepath.Join(dirs.SnapDeviceDir, "factory-reset"), testutil.FileAbsent)
 }

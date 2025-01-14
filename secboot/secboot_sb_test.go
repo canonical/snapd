@@ -3298,6 +3298,7 @@ func (s *secbootSuite) TestRemoveOldCounterHandles(c *C) {
 			"just-ignore",
 			"does-not-exist",
 		},
+		false,
 	)
 
 	c.Assert(err, IsNil)
@@ -3307,6 +3308,79 @@ func (s *secbootSuite) TestRemoveOldCounterHandles(c *C) {
 		secboot.AltFallbackObjectPCRPolicyCounterHandle: true,
 		secboot.AltRunObjectPCRPolicyCounterHandle:      true,
 	})
+}
+
+func (s *secbootSuite) TestRemoveOldCounterHandlesFDEHint(c *C) {
+	restore := secboot.MockListLUKS2ContainerUnlockKeyNames(func(devicePath string) ([]string, error) {
+		c.Check(devicePath, Equals, "foo")
+		return []string{"some-other-key", "some-key"}, nil
+	})
+	defer restore()
+
+	restore = secboot.MockSbNewLUKS2KeyDataReader(func(device, slot string) (sb.KeyDataReader, error) {
+		c.Check(device, Equals, "foo")
+		switch slot {
+		case "some-key":
+			return newFakeKeyDataReader(slot, []byte(`tpm2`)), nil
+		case "some-other-key":
+			return newFakeKeyDataReader(slot, []byte(`other`)), nil
+		default:
+			c.Errorf("unexpected call")
+			return nil, fmt.Errorf("unexpected")
+		}
+	})
+	defer restore()
+
+	restore = secboot.MockReadKeyData(func(reader sb.KeyDataReader) (secboot.MockableKeyData, error) {
+		switch reader.ReadableName() {
+		case "some-key":
+			return &myFakeKeyData{platformName: "not-tpm2-for-sure", handle: secboot.PCRPolicyCounterHandleStart + 1}, nil
+		case "some-other-key":
+			return &myNonTPMFakeKeyData{platformName: "other"}, nil
+		default:
+			c.Errorf("unexpected call")
+			return nil, fmt.Errorf("unexpected")
+		}
+	})
+	defer restore()
+
+	restore = secboot.MockMockableReadKeyFile(func(keyFile string, kl *secboot.MockableKeyLoader, hintExpectFDEHook bool) error {
+		c.Check(hintExpectFDEHook, Equals, true)
+		switch keyFile {
+		case "new-format":
+			kl.KeyData = &myFakeKeyData{platformName: "not-tpm2-for-sure", handle: secboot.PCRPolicyCounterHandleStart + 2}
+		case "just-ignore":
+		case "does-not-exist":
+			return os.ErrNotExist
+		default:
+			c.Errorf("unexpected call")
+			return fmt.Errorf("unexpected")
+		}
+		return nil
+	})
+	defer restore()
+
+	restore = secboot.MockTPMReleaseResources(func(tpm *sb_tpm2.Connection, handle tpm2.Handle) error {
+		c.Errorf("unexpected call")
+		return fmt.Errorf("unexpected call")
+	})
+	defer restore()
+
+	err := secboot.RemoveOldCounterHandles(
+		"foo",
+		map[string]bool{
+			"some-key":       true,
+			"some-other-key": true,
+		},
+		[]string{
+			"new-format",
+			"just-ignore",
+			"does-not-exist",
+		},
+		true,
+	)
+
+	c.Assert(err, IsNil)
 }
 
 func (s *secbootSuite) TestFindFreeHandle(c *C) {
