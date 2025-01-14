@@ -3993,9 +3993,8 @@ func (m *SnapManager) undoRemoveAliases(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	// The previous task's undo (unlink-current-snap) may have triggered a restart,
-	// Set the default to true as we cannot set it otherwise since the change will
-	// always have been created by the old snapd (that may not have "finish-restart")
+	// The previous task's undo (unlink-current-snap) may have triggered a restart
+	// so if that is the case ensure we wait for it to happen here.
 	logger.Debugf("finish restart from undoRemoveAliases")
 	if err := FinishRestart(t, snapsup, FinishRestartOptions{}); err != nil {
 		return err
