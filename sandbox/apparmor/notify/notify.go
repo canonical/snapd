@@ -20,6 +20,8 @@ func SupportAvailable() bool {
 	return osutil.FileExists(SysPath)
 }
 
+var doIoctl = Ioctl
+
 // RegisterFileDescriptor registers a notification socket using the given file
 // descriptor. Attempts to use the latest notification protocol version which
 // both snapd and the kernel support, and returns that version.
@@ -44,10 +46,10 @@ func RegisterFileDescriptor(fd uintptr) (Version, error) {
 			return 0, err
 		}
 		ioctlBuf := IoctlRequestBuffer(data)
-		if _, err = Ioctl(fd, APPARMOR_NOTIF_SET_FILTER, ioctlBuf); err != nil {
+		if _, err = doIoctl(fd, APPARMOR_NOTIF_SET_FILTER, ioctlBuf); err != nil {
 			var ioctlErr *IoctlError
 			if errors.As(err, &ioctlErr) {
-				if ioctlErr.errno == unix.ENOTSUP || ioctlErr.errno == unix.EPROTONOSUPPORT {
+				if ioctlErr.Errno == unix.ENOTSUP || ioctlErr.Errno == unix.EPROTONOSUPPORT {
 					// TODO: only one of these errnos is correct, so limit to
 					// correct one once confirming with JJ.
 					unsupported[protocolVersion] = true

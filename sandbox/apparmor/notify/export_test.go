@@ -38,3 +38,7 @@ func MockVersionSupportedCallbacks(pairs []VersionAndCallback) (restore func()) 
 	}
 	return restore
 }
+
+func MockIoctl(f func(fd uintptr, req IoctlRequest, buf IoctlRequestBuffer) ([]byte, error)) (restore func()) {
+	return testutil.Mock(&doIoctl, f)
+}

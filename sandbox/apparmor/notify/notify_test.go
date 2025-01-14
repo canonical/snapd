@@ -75,37 +75,36 @@ func (s *notifySuite) TestRegisterFileDescriptor(c *C) {
 	restoreVersions := notify.MockVersionSupportedCallbacks(fakeNotifyVersions)
 	defer restoreVersions()
 
-	var fd uintptr = 1234
+	var fakeFD uintptr = 1234
 
 	ioctlCalls := 0
-	restoreSyscall := notify.MockSyscall(func(trap, a1, a2, a3 uintptr) (r1, r2 uintptr, err unix.Errno) {
-		c.Assert(unix.Errno(trap), Equals, unix.Errno(unix.SYS_IOCTL))
-		c.Assert(a1, Equals, fd)
-		c.Assert(notify.IoctlRequest(a2), Equals, notify.APPARMOR_NOTIF_SET_FILTER)
+	restoreSyscall := notify.MockIoctl(func(fd uintptr, req notify.IoctlRequest, buf notify.IoctlRequestBuffer) ([]byte, error) {
+		c.Assert(fd, Equals, fakeFD)
+		c.Assert(req, Equals, notify.APPARMOR_NOTIF_SET_FILTER)
 
 		ioctlCalls++
 
 		// First expect check for version 3, then for version 7
 		switch ioctlCalls {
 		case 1:
-			checkIoctlBuffer(c, a3, notify.Version(3))
-			return 0, 0, unix.EPROTONOSUPPORT
+			checkIoctlBuffer(c, buf, notify.Version(3))
+			return buf, &notify.IoctlError{req, unix.EPROTONOSUPPORT}
 		case 2:
-			checkIoctlBuffer(c, a3, notify.Version(7))
-			return 0, 0, 0 // no error
+			checkIoctlBuffer(c, buf, notify.Version(7))
+			return buf, nil
 		default:
 			c.Fatal("called Ioctl more than twice")
-			return 0, 0, 0 // no error
+			return buf, nil
 		}
 	})
 	defer restoreSyscall()
 
-	receivedVersion, err := notify.RegisterFileDescriptor(fd)
+	receivedVersion, err := notify.RegisterFileDescriptor(fakeFD)
 	c.Check(err, IsNil)
 	c.Check(receivedVersion, Equals, notify.Version(7))
 }
 
-func checkIoctlBuffer(c *C, ptr uintptr, expectedVersion notify.Version) {
+func checkIoctlBuffer(c *C, receivedBuf notify.IoctlRequestBuffer, expectedVersion notify.Version) {
 	expectedMsg := notify.MsgNotificationFilter{
 		MsgHeader: notify.MsgHeader{
 			Version: expectedVersion,
@@ -114,63 +113,55 @@ func checkIoctlBuffer(c *C, ptr uintptr, expectedVersion notify.Version) {
 	}
 	expectedBuf, err := expectedMsg.MarshalBinary()
 	c.Assert(err, IsNil)
+	ioctlBuf := notify.IoctlRequestBuffer(expectedBuf)
 
-	// XXX: go vet thinks this is unsafe, since uintptr isn't known to point to
-	// valid allocated memory, even though we, the programmer, know it does
-	// (to the buffer passed into Ioctl()). And there doesn't seem to be a way
-	// to disable the vet error. Need some golang wizard advice here.
-	// The tests pass with this uncommented, but go vet fails.
-	//receivedBuf := unsafe.Slice((*byte)(unsafe.Pointer(ptr)), len(expectedBuf))
-	//c.Check(receivedBuf, DeepEquals, expectedBuf, Commentf("received incorrect buffer on Ioctl call, which expected version %d", expectedVersion))
-	c.Check(expectedBuf, NotNil)
+	c.Check(receivedBuf, DeepEquals, ioctlBuf, Commentf("received incorrect buffer on Ioctl call, which expected version %d", expectedVersion))
 }
 
 func (s *notifySuite) TestRegisterFileDescriptorErrors(c *C) {
 	restoreVersions := notify.MockVersionSupportedCallbacks(fakeNotifyVersions)
 	defer restoreVersions()
 
-	var fd uintptr = 1234
+	var fakeFD uintptr = 1234
 
 	ioctlCalls := 0
-	restoreSyscall := notify.MockSyscall(func(trap, a1, a2, a3 uintptr) (r1, r2 uintptr, err unix.Errno) {
-		c.Assert(unix.Errno(trap), Equals, unix.Errno(unix.SYS_IOCTL))
-		c.Assert(a1, Equals, fd)
-		c.Assert(notify.IoctlRequest(a2), Equals, notify.APPARMOR_NOTIF_SET_FILTER)
+	restoreSyscall := notify.MockIoctl(func(fd uintptr, req notify.IoctlRequest, buf notify.IoctlRequestBuffer) ([]byte, error) {
+		c.Assert(fd, Equals, fakeFD)
+		c.Assert(req, Equals, notify.APPARMOR_NOTIF_SET_FILTER)
 
 		ioctlCalls++
 
 		// First expect check for version 3, then for version 7
 		switch ioctlCalls {
 		case 1:
-			checkIoctlBuffer(c, a3, notify.Version(3))
+			checkIoctlBuffer(c, buf, notify.Version(3))
 		case 2:
-			checkIoctlBuffer(c, a3, notify.Version(7))
+			checkIoctlBuffer(c, buf, notify.Version(7))
 		default:
 			c.Fatal("called Ioctl more than twice")
 		}
 		// Always return EPROTONOSUPPORT
-		return 0, 0, unix.EPROTONOSUPPORT
+		return buf, &notify.IoctlError{req, unix.EPROTONOSUPPORT}
 	})
 	defer restoreSyscall()
 
-	receivedVersion, err := notify.RegisterFileDescriptor(fd)
+	receivedVersion, err := notify.RegisterFileDescriptor(fakeFD)
 	c.Check(err, ErrorMatches, "cannot register notify socket: no mutually supported protocol versions")
 	c.Check(receivedVersion, Equals, notify.Version(0))
 
 	calledIoctl := false
-	restoreSyscallError := notify.MockSyscall(func(trap, a1, a2, a3 uintptr) (r1, r2 uintptr, err unix.Errno) {
-		c.Assert(unix.Errno(trap), Equals, unix.Errno(unix.SYS_IOCTL))
-		c.Assert(a1, Equals, fd)
-		c.Assert(notify.IoctlRequest(a2), Equals, notify.APPARMOR_NOTIF_SET_FILTER)
+	restoreSyscallError := notify.MockIoctl(func(fd uintptr, req notify.IoctlRequest, buf notify.IoctlRequestBuffer) ([]byte, error) {
+		c.Assert(fd, Equals, fakeFD)
+		c.Assert(req, Equals, notify.APPARMOR_NOTIF_SET_FILTER)
 
-		checkIoctlBuffer(c, a3, notify.Version(3))
+		checkIoctlBuffer(c, buf, notify.Version(3))
 		c.Assert(calledIoctl, Equals, false, Commentf("called ioctl more than once after first returned error"))
 		calledIoctl = true
-		return 0, 0, unix.EINVAL // some non-recoverable error
+		return buf, &notify.IoctlError{req, unix.EINVAL}
 	})
 	defer restoreSyscallError()
 
-	receivedVersion, err = notify.RegisterFileDescriptor(fd)
+	receivedVersion, err = notify.RegisterFileDescriptor(fakeFD)
 	c.Check(err, ErrorMatches, "cannot perform IOCTL request APPARMOR_NOTIF_SET_FILTER: EINVAL")
 	c.Check(receivedVersion, Equals, notify.Version(0))
 }

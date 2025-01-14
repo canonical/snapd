@@ -17,12 +17,12 @@ import (
 var ErrIoctlReturnInvalid = errors.New("IOCTL request returned invalid bufsize")
 
 type IoctlError struct {
-	request IoctlRequest
-	errno   unix.Errno
+	Request IoctlRequest
+	Errno   unix.Errno
 }
 
 func (ie *IoctlError) Error() string {
-	return fmt.Sprintf("cannot perform IOCTL request %v: %s", ie.request, unix.ErrnoName(ie.errno))
+	return fmt.Sprintf("cannot perform IOCTL request %v: %s", ie.Request, unix.ErrnoName(ie.Errno))
 }
 
 var doSyscall = func(trap, a1, a2, a3 uintptr) (r1, r2 uintptr, err unix.Errno) {
