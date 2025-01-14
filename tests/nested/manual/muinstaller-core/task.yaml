@@ -55,7 +55,6 @@ prepare: |
       echo "This test needs test keys to be trusted"
       exit
   fi
-  apt install dosfstools
 
 restore: |
   rm -rf ./classic-root

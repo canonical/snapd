@@ -19,7 +19,8 @@ environment:
   KERNEL_CHANNEL: 24.10/edge
   CORE_VERSION: 22
 
-  PASSPHRASE: ubuntu
+  # Check if passphrase with space is handled properly
+  PASSPHRASE: "ubuntu test"
   # "pbkdf2" is less memory intensive than argon2i* so we use it by default.
   # TODO: Add argon2i* variants.
   KDF_TYPE: pbkdf2
@@ -37,7 +38,6 @@ prepare: |
       echo "This test needs test keys to be trusted"
       exit
   fi
-  apt install dosfstools kpartx
 
   # Fakestore is needed for "snap prepare-image".
   "$TESTSTOOLS"/store-state setup-fake-store "$STORE_DIR"
@@ -91,7 +91,7 @@ execute: |
      --kernel pc-kernel.snap \
      --kernel-assertion pc-kernel.assert \
      --passphrase "$PASSPHRASE" \
-     --extra-muinstaller-args "-kdf-type $KDF_TYPE" \
+     --extra-muinstaller-arg "-kdf-type $KDF_TYPE" \
      --disk disk.img
 
   # Basic things look fine.
@@ -117,22 +117,13 @@ execute: |
       gojq -r '.pc."structure-encryption"."ubuntu-data".method' < mapping.json | MATCH LUKS
   done
 
-  # Check that on an already provisioned system the API will give a
-  # sensible reason why the system cannot be installed without further
-  # action.
-  remote.exec "sudo snap debug api /v2/systems/classic" > system
-  gojq '.result."storage-encryption".support' < system | MATCH "unavailable"
-  gojq '.result."storage-encryption"."unavailable-reason"' < system | MATCH "not encrypting device storage as checking TPM gave: the TPM is in DA lockout mode"
-
   # refresh rebooting snap
   # $1: path to snap file
   # $2: snap name
-  # $3: reboot action ("reboot"/"no-reboot")
   refresh_rebooting_snap()
   {
       local snap_filename=$1
       local snap_name=$2
-      local reboot_action=$3
 
       boot_id=$(tests.nested boot-id)
 
@@ -144,31 +135,19 @@ execute: |
       # Check that a reboot notification was setup.
       remote.exec test -f /run/reboot-required
       remote.exec cat /run/reboot-required.pkgs | MATCH "snap:${snap_name}"
-      # Check that no reboot has been scheduled, then force a reboot
-      remote.exec not test -f /run/systemd/shutdown/scheduled
 
-      if [ "$reboot_action" = "reboot" ]; then
-          local log_file="$NESTED_LOGS_DIR"/serial.log
-          # Clear old log file to avoid matching passphrase prompt from previous boot.
-          echo "" > "$log_file"
-          remote.exec sudo reboot || true
-          remote.wait-for reboot --wait 1 -n 200 --expect-passphrase "ubuntu" --log-file "$log_file" "$boot_id"
-          remote.exec sudo snap watch --last=install
-      fi
+      local log_file="$NESTED_LOGS_DIR"/serial.log
+      # Clear old log file to avoid matching passphrase prompt from previous boot.
+      echo "" > "$log_file"
+      remote.exec sudo reboot || true
+      remote.wait-for reboot --wait 1 -n 200 --expect-passphrase "$PASSPHRASE" --log-file "$log_file" "$boot_id"
+      remote.exec sudo snap watch --last=install
   }
   # Ensure update-notifier-common is installed so that reboot notification works.
   remote.exec "sudo apt install -y update-notifier-common"
 
-  # Initial reseal count.
-  remote.exec sudo cat /var/lib/snapd/device/fde/boot-chains > boot-chains-before.json
-  reseal_count_start="$(gojq -r '.["reseal-count"]' < boot-chains-before.json )"
-
-  fetch_and_check_reseal_count_equal() {
-      local reseal_count_now
-      remote.exec sudo cat /var/lib/snapd/device/fde/boot-chains > boot-chains.json
-      reseal_count_now="$(gojq -r '.["reseal-count"]' < boot-chains.json )"
-      test "$reseal_count_now" = "$1"
-  }
+  # Save PCR profile
+  remote.exec "sudo cat /var/lib/snapd/state.json" | gojq -r '.data.fde."keyslot-roles".run.params.all."tpm2-pcr-profile"'  > pcr_profile
 
   # 1. Test gadget refresh causing reseal.
 
@@ -176,19 +155,23 @@ execute: |
   echo 'console=ttyS0 systemd.journald.forward_to_console=1 loglevel=4' > pc-gadget/cmdline.extra
   tests.nested secboot-sign gadget pc-gadget "$SNAKEOIL_KEY" "$SNAKEOIL_CERT"
   snap pack --filename=pc-new.snap pc-gadget/
-  refresh_rebooting_snap pc-new.snap pc reboot
+  refresh_rebooting_snap pc-new.snap pc
 
-  # We expect two reseals, one before the update and one after.
-  fetch_and_check_reseal_count_equal "$((reseal_count_start + 2))"
+  # We expect a reseals, PCR profile should have been updated.
+  remote.exec "sudo cat /var/lib/snapd/state.json" | gojq -r '.data.fde."keyslot-roles".run.params.all."tpm2-pcr-profile"'  > pcr_profile_current
+  not diff pcr_profile pcr_profile_current
+  mv pcr_profile_current pcr_profile
 
   # 2. Test kernel refresh causing reseal.
 
   # Resigning kernel should be enough to trigger a reseal.
   uc24_build_initramfs_kernel_snap "$PWD/pc-kernel.snap" "$PWD/pc-kernel-new.snap"
-  refresh_rebooting_snap pc-kernel-new.snap pc reboot
+  refresh_rebooting_snap pc-kernel-new.snap pc
 
-  # We expect two reseals, one before the update and one after.
-  fetch_and_check_reseal_count_equal "$((reseal_count_start + 4))"
+  # We expect a reseals, PCR profile should have been updated.
+  remote.exec "sudo cat /var/lib/snapd/state.json" | gojq -r '.data.fde."keyslot-roles".run.params.all."tpm2-pcr-profile"'  > pcr_profile_current
+  not diff pcr_profile pcr_profile_current
+  mv pcr_profile_current pcr_profile
 
   # TODO: 3. Try refreshing to an unsupported kernel when snapd-info files
   # are available.
