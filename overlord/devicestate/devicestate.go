@@ -526,7 +526,7 @@ func (r *remodeler) maybeInstallOrUpdate(ctx context.Context, st *state.State, r
 	} else if canHaveUC18PinnedTrack(rt.oldModelSnap) {
 		currentChannelOrTrack = rt.oldModelSnap.PinnedTrack
 	}
-	needsChannelChange := rt.channel != "" && rt.channel != currentChannelOrTrack
+	needsChannelChange := rt.channel != "" && rt.channel != currentChannelOrTrack && !snapst.Current.Local()
 
 	currentInfo, err := snapst.CurrentInfo()
 	if err != nil {
