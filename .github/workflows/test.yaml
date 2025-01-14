@@ -19,123 +19,123 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: "spread-json-12763468079-1-amazon-linux" 
-          path: "spread-json-12763468079-1-amazon-linux/spread-results.json"
+          path: ".github/workflows/spread-json-12763468079-1-amazon-linux/spread-results.json"
           if-no-files-found: ignore
       - name: Upload
         uses: actions/upload-artifact@v4
         with:
           name: "spread-json-12763468079-1-arch-linux" 
-          path: "spread-json-12763468079-1-arch-linux/spread-results.json"
+          path: ".github/workflows/spread-json-12763468079-1-arch-linux/spread-results.json"
           if-no-files-found: ignore
       - name: Upload
         uses: actions/upload-artifact@v4
         with:
           name: "spread-json-12763468079-1-centos" 
-          path: "spread-json-12763468079-1-centos/spread-results.json"
+          path: ".github/workflows/spread-json-12763468079-1-centos/spread-results.json"
           if-no-files-found: ignore
       - name: Upload
         uses: actions/upload-artifact@v4
         with:
           name: "spread-json-12763468079-1-debian-not-req" 
-          path: "spread-json-12763468079-1-debian-not-req/spread-results.json"
+          path: ".github/workflows/spread-json-12763468079-1-debian-not-req/spread-results.json"
           if-no-files-found: ignore
       - name: Upload
         uses: actions/upload-artifact@v4
         with:
           name: "spread-json-12763468079-1-debian-req" 
-          path: "spread-json-12763468079-1-debian-req/spread-results.json"
+          path: ".github/workflows/spread-json-12763468079-1-debian-req/spread-results.json"
           if-no-files-found: ignore
       - name: Upload
         uses: actions/upload-artifact@v4
         with:
           name: "spread-json-12763468079-1-fedora" 
-          path: "spread-json-12763468079-1-fedora/spread-results.json"
+          path: ".github/workflows/spread-json-12763468079-1-fedora/spread-results.json"
           if-no-files-found: ignore
       - name: Upload
         uses: actions/upload-artifact@v4
         with:
           name: "spread-json-12763468079-1-opensuse" 
-          path: "spread-json-12763468079-1-opensuse/spread-results.json"
+          path: ".github/workflows/spread-json-12763468079-1-opensuse/spread-results.json"
           if-no-files-found: ignore
       - name: Upload
         uses: actions/upload-artifact@v4
         with:
           name: "spread-json-12763468079-1-ubuntu-arm64" 
-          path: "spread-json-12763468079-1-ubuntu-arm64/spread-results.json"
+          path: ".github/workflows/spread-json-12763468079-1-ubuntu-arm64/spread-results.json"
           if-no-files-found: ignore
       - name: Upload
         uses: actions/upload-artifact@v4
         with:
           name: "spread-json-12763468079-1-ubuntu-core-18" 
-          path: "spread-json-12763468079-1-ubuntu-core-18/spread-results.json"
+          path: ".github/workflows/spread-json-12763468079-1-ubuntu-core-18/spread-results.json"
           if-no-files-found: ignore
       - name: Upload
         uses: actions/upload-artifact@v4
         with:
           name: "spread-json-12763468079-1-ubuntu-core-20" 
-          path: "spread-json-12763468079-1-ubuntu-core-20/spread-results.json"
+          path: ".github/workflows/spread-json-12763468079-1-ubuntu-core-20/spread-results.json"
           if-no-files-found: ignore
       - name: Upload
         uses: actions/upload-artifact@v4
         with:
           name: "spread-json-12763468079-1-ubuntu-core-22" 
-          path: "spread-json-12763468079-1-ubuntu-core-22/spread-results.json"
+          path: ".github/workflows/spread-json-12763468079-1-ubuntu-core-22/spread-results.json"
           if-no-files-found: ignore
       - name: Upload
         uses: actions/upload-artifact@v4
         with:
           name: "spread-json-12763468079-1-ubuntu-core-24" 
-          path: "spread-json-12763468079-1-ubuntu-core-24/spread-results.json"
+          path: ".github/workflows/spread-json-12763468079-1-ubuntu-core-24/spread-results.json"
           if-no-files-found: ignore
       - name: Upload
         uses: actions/upload-artifact@v4
         with:
           name: "spread-json-12763468079-1-ubuntu-daily" 
-          path: "spread-json-12763468079-1-ubuntu-daily/spread-results.json"
+          path: ".github/workflows/spread-json-12763468079-1-ubuntu-daily/spread-results.json"
           if-no-files-found: ignore
       - name: Upload
         uses: actions/upload-artifact@v4
         with:
           name: "spread-json-12763468079-1-ubuntu-fips" 
-          path: "spread-json-12763468079-1-ubuntu-fips/spread-results.json"
+          path: ".github/workflows/spread-json-12763468079-1-ubuntu-fips/spread-results.json"
           if-no-files-found: ignore
       - name: Upload
         uses: actions/upload-artifact@v4
         with:
           name: "spread-json-12763468079-1-ubuntu-focal-jammy" 
-          path: "spread-json-12763468079-1-ubuntu-focal-jammy/spread-results.json"
+          path: ".github/workflows/spread-json-12763468079-1-ubuntu-focal-jammy/spread-results.json"
           if-no-files-found: ignore
       - name: Upload
         uses: actions/upload-artifact@v4
         with:
           name: "spread-json-12763468079-1-ubuntu-noble" 
-          path: "spread-json-12763468079-1-ubuntu-noble/spread-results.json"
+          path: ".github/workflows/spread-json-12763468079-1-ubuntu-noble/spread-results.json"
           if-no-files-found: ignore
       - name: Upload
         uses: actions/upload-artifact@v4
         with:
           name: "spread-json-12763468079-1-ubuntu-no-lts" 
-          path: "spread-json-12763468079-1-ubuntu-no-lts/spread-results.json"
+          path: ".github/workflows/spread-json-12763468079-1-ubuntu-no-lts/spread-results.json"
           if-no-files-found: ignore
       - name: Upload
         uses: actions/upload-artifact@v4
         with:
           name: "spread-json-12763468079-1-ubuntu-secboot" 
-          path: "spread-json-12763468079-1-ubuntu-secboot/spread-results.json"
+          path: ".github/workflows/spread-json-12763468079-1-ubuntu-secboot/spread-results.json"
           if-no-files-found: ignore
       - name: Upload
         uses: actions/upload-artifact@v4
         with:
           name: "spread-json-12763468079-1-ubuntu-trusty" 
-          path: "spread-json-12763468079-1-ubuntu-trusty/spread-results.json"
+          path: ".github/workflows/spread-json-12763468079-1-ubuntu-trusty/spread-results.json"
           if-no-files-found: ignore
       - name: Upload
         uses: actions/upload-artifact@v4
         with:
           name: "spread-json-12763468079-1-ubuntu-xenial-bionic" 
-          path: "spread-json-12763468079-1-ubuntu-xenial-bionic/spread-results.json"
+          path: ".github/workflows/spread-json-12763468079-1-ubuntu-xenial-bionic/spread-results.json"
           if-no-files-found: ignore
-          
+
   # go-channels:
   #   runs-on: ubuntu-latest
   #   outputs:
