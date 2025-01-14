@@ -409,3 +409,21 @@ jobs:
             systems: 'ubuntu-24.04-64'
             tasks: 'tests/nested/...'
             rules: 'nested'
+
+  # The spread-results-reporter needs the PR number to be able to 
+  # comment on the relevant PR with spread failures. Because the PR 
+  # number is not in the github.event object during the 
+  # spread-results-reporter.yaml job run, we upload it along side other 
+  # artifacts to be subsequently downloaded by spread-results-reporter.
+  upload_pr_number:
+    if: ${{ github.event.pull_request.number }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Create PR number file
+        run: echo "${{ github.event.pull_request.number }}" > pr_number
+      
+      - name: Upload PR number
+        uses: actions/upload-artifact@v4
+        with:
+          name: pr_number 
+          path: pr_number
