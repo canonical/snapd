@@ -375,9 +375,12 @@ func sideloadTaskSets(ctx context.Context, st *state.State, sideload *sideloaded
 	// handle everything else
 	var pathSnaps []snapstate.PathSnap
 	for _, sn := range sideload.snaps {
-		comps := make(map[*snap.ComponentSideInfo]string, len(sn.components))
+		comps := make([]snapstate.PathComponent, 0, len(sn.components))
 		for _, ci := range sn.components {
-			comps[ci.sideInfo] = ci.tmpPath
+			comps = append(comps, snapstate.PathComponent{
+				SideInfo: ci.sideInfo,
+				Path:     ci.tmpPath,
+			})
 		}
 
 		pathSnaps = append(pathSnaps, snapstate.PathSnap{

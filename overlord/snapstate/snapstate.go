@@ -1444,9 +1444,13 @@ type PrereqTracker interface {
 // local revision and sideloading, or full metadata in which case it
 // the snap will appear as installed from the store.
 func InstallPath(st *state.State, si *snap.SideInfo, path, instanceName, channel string, flags Flags, prqt PrereqTracker) (*state.TaskSet, *snap.Info, error) {
-	target := PathInstallGoal(instanceName, path, si, nil, RevisionOptions{
-		Channel: channel,
+	target := PathInstallGoal(PathSnap{
+		InstanceName: instanceName,
+		Path:         path,
+		SideInfo:     si,
+		RevOpts:      RevisionOptions{Channel: channel},
 	})
+
 	// TODO have caller pass a context
 	info, ts, err := InstallOne(context.Background(), st, target, Options{
 		Flags:         flags,
@@ -1524,7 +1528,13 @@ func InstallPathWithDeviceContext(st *state.State, si *snap.SideInfo, path, name
 		opts = &RevisionOptions{}
 	}
 
-	target := PathInstallGoal(name, path, si, nil, *opts)
+	target := PathInstallGoal(PathSnap{
+		InstanceName: name,
+		Path:         path,
+		SideInfo:     si,
+		RevOpts:      *opts,
+	})
+
 	_, ts, err := InstallOne(context.Background(), st, target, Options{
 		Flags:         flags,
 		UserID:        userID,

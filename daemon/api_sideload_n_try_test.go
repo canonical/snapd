@@ -1566,9 +1566,9 @@ func (s *sideloadSuite) testSideloadManySnapsAndComponents(c *check.C, opts side
 			comps, ok := expectedSnapsToComps[sn.SideInfo.RealName]
 			c.Assert(ok, check.Equals, true, check.Commentf("unexpected snap name %q", sn.SideInfo.RealName))
 			foundComps := make([]string, 0, len(comps))
-			for csi := range sn.Components {
-				c.Check(csi.Revision.Unset(), check.Equals, true)
-				foundComps = append(foundComps, csi.Component.ComponentName)
+			for _, comp := range sn.Components {
+				c.Check(comp.SideInfo.Revision.Unset(), check.Equals, true)
+				foundComps = append(foundComps, comp.SideInfo.Component.ComponentName)
 			}
 			c.Check(foundComps, testutil.DeepUnsortedMatches, comps)
 
@@ -1733,16 +1733,16 @@ func (s *sideloadSuite) TestSideloadManyAssertedSnapsAndComponents(c *check.C) {
 			comps, ok := snapsToComps[sn.SideInfo.RealName]
 			c.Assert(ok, check.Equals, true, check.Commentf("unexpected snap name %q", sn.SideInfo.RealName))
 			foundComps := make([]string, 0, len(comps))
-			for csi, compPath := range sn.Components {
-				c.Check(csi.Revision.Unset(), check.Equals, false)
-				foundComps = append(foundComps, csi.Component.ComponentName)
+			for _, comp := range sn.Components {
+				c.Check(comp.SideInfo.Revision.Unset(), check.Equals, false)
+				foundComps = append(foundComps, comp.SideInfo.Component.ComponentName)
 
-				container, err := snapfile.Open(compPath)
+				container, err := snapfile.Open(comp.Path)
 				c.Assert(err, check.IsNil)
 				ci, err := snap.ReadComponentInfoFromContainer(container, nil, nil)
 				c.Assert(err, check.IsNil)
 
-				c.Check(ci.Component, check.Equals, csi.Component)
+				c.Check(ci.Component, check.Equals, comp.SideInfo.Component)
 			}
 			c.Check(foundComps, testutil.DeepUnsortedMatches, comps)
 
