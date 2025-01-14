@@ -397,11 +397,6 @@ func extractBeforeLocalModificationsEdgesTs(ts *state.TaskSet) (firstDl, lastDl,
 	return firstDl, tasks[edgeTaskIndex], tasks[edgeTaskIndex+1], lastInst, nil
 }
 
-func isNotInstalled(err error) bool {
-	_, ok := err.(*snap.NotInstalledError)
-	return ok
-}
-
 func modelSnapChannelFromDefaultOrPinnedTrack(new *asserts.Model, s *asserts.ModelSnap) (string, error) {
 	if new.Grade() == asserts.ModelGradeUnset {
 		if s == nil {
