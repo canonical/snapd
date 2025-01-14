@@ -640,7 +640,7 @@ func VolumesAuthOptionsKeyByLabel(label string) volumesAuthOptionsKey {
 	return volumesAuthOptionsKey{label}
 }
 
-func MockSecbootRemoveOldCounterHandles(f func(node string, possibleOldKeys map[string]bool, possibleKeyFiles []string) error) (restore func()) {
+func MockSecbootRemoveOldCounterHandles(f func(node string, possibleOldKeys map[string]bool, possibleKeyFiles []string, hintExpectFDEHook bool) error) (restore func()) {
 	old := secbootRemoveOldCounterHandles
 	secbootRemoveOldCounterHandles = f
 	return func() {

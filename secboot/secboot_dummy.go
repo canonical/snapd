@@ -113,6 +113,6 @@ func GetPCRHandle(node, keySlot, keyFile string) (uint32, error) {
 	return 0, errBuildWithoutSecboot
 }
 
-func RemoveOldCounterHandles(node string, possibleOldKeys map[string]bool, possibleKeyFiles []string) error {
+func RemoveOldCounterHandles(node string, possibleOldKeys map[string]bool, possibleKeyFiles []string, hintExpectFDEHook bool) error {
 	return errBuildWithoutSecboot
 }

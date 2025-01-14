@@ -936,6 +936,9 @@ func mockableReadKeyFileImpl(keyFile string, keyLoader *mockableKeyLoader, hintE
 
 var mockableReadKeyFile = mockableReadKeyFileImpl
 
+// GetPCRHandle returns the handle used by a key.  The key will be
+// search on as token on node in the keySlot. If keySlot has no
+// KeyData, then the key will be loaded at path keyFile.
 func GetPCRHandle(node, keySlot, keyFile string) (uint32, error) {
 	slots, err := sbListLUKS2ContainerUnlockKeyNames(node)
 	if err != nil {
@@ -972,7 +975,10 @@ func GetPCRHandle(node, keySlot, keyFile string) (uint32, error) {
 	if err != nil {
 		if os.IsNotExist(err) {
 			if readKeyDataErr != nil {
-				// FIXME: we need to check for
+				// FIXME: secboot should tell us if
+				// Data was nil, in that case we
+				// should be silent, otherwise we
+				// should return the error.
 				logger.Noticef("WARNING: cannot read key data for slot %s: %v", keySlot, readKeyDataErr)
 				return 0, nil
 			}
@@ -999,7 +1005,12 @@ func GetPCRHandle(node, keySlot, keyFile string) (uint32, error) {
 	return 0, nil
 }
 
-func RemoveOldCounterHandles(node string, possibleOldKeys map[string]bool, possibleKeyFiles []string) error {
+// RemoveOldCounterHandles tracks and release TPM2 handles used by
+// given keys node and possibleOldKeys point to keyslot tokens. And
+// possibleKeyFiles is a list to paths.  hintExpectFDEHook helps
+// reading old key object files.  If not TPM2 key is found, nothing
+// happens.
+func RemoveOldCounterHandles(node string, possibleOldKeys map[string]bool, possibleKeyFiles []string, hintExpectFDEHook bool) error {
 	slots, err := sbListLUKS2ContainerUnlockKeyNames(node)
 	if err != nil {
 		return fmt.Errorf("cannot list slots in partition save partition: %v", err)
@@ -1011,10 +1022,10 @@ func RemoveOldCounterHandles(node string, possibleOldKeys map[string]bool, possi
 		if possibleOldKeys[slot] {
 			reader, err := sbNewLUKS2KeyDataReader(node, slot)
 			if err != nil {
-				// FIXME: secboot should tell use if
+				// FIXME: secboot should tell us if
 				// Data was nil, in that case we
 				// should be silent, otherwise we
-				// should print an error.
+				// should return the error.
 				continue
 			}
 			keyData, err := mockableReadKeyData(reader)
@@ -1032,7 +1043,6 @@ func RemoveOldCounterHandles(node string, possibleOldKeys map[string]bool, possi
 		}
 	}
 
-	const hintExpectFDEHook = false
 	for _, keyFile := range possibleKeyFiles {
 		loadedKey := &mockableKeyLoader{}
 		err := mockableReadKeyFile(keyFile, loadedKey, hintExpectFDEHook)
@@ -1084,11 +1094,15 @@ func RemoveOldCounterHandles(node string, possibleOldKeys map[string]bool, possi
 		}
 	}
 
-	// FIXME: if we know we are using TPM2, then we should fail if no handle was found
+	if len(oldHandlesList) == 0 {
+		return nil
+	}
 
 	return releasePCRResourceHandles(oldHandlesList...)
 }
 
+// FindFreeHandle finds and unused handle on the TPM.
+// The handle will be arbitrary in range 0x01880005-0x0188000F.
 func FindFreeHandle() (uint32, error) {
 	tpm, err := sbConnectToDefaultTPM()
 	if err != nil {
