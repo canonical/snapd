@@ -1,0 +1,569 @@
+[
+    {
+        "type": "action",
+        "date": "2025-01-14",
+        "time": "08:21:47",
+        "verb": "Allocating",
+        "task": null,
+        "extra": "google:ubuntu-secboot-20.04-64..."
+    },
+    {
+        "type": "action",
+        "date": "2025-01-14",
+        "time": "08:22:02",
+        "verb": "Waiting",
+        "task": null,
+        "extra": "for google:ubuntu-secboot-20.04-64 (jan140821-820844) to boot at 34.142.92.15..."
+    },
+    {
+        "type": "action",
+        "date": "2025-01-14",
+        "time": "08:22:33",
+        "verb": "Allocated",
+        "task": null,
+        "extra": "google:ubuntu-secboot-20.04-64 (jan140821-820844)."
+    },
+    {
+        "type": "action",
+        "date": "2025-01-14",
+        "time": "08:22:45",
+        "verb": "Connecting",
+        "task": null,
+        "extra": "to google:ubuntu-secboot-20.04-64 (jan140821-820844)..."
+    },
+    {
+        "type": "action",
+        "date": "2025-01-14",
+        "time": "08:22:45",
+        "verb": "Connected",
+        "task": null,
+        "extra": "to google:ubuntu-secboot-20.04-64 (jan140821-820844) at 34.142.92.15."
+    },
+    {
+        "type": "action",
+        "date": "2025-01-14",
+        "time": "08:22:45",
+        "verb": "Sending",
+        "task": null,
+        "extra": "project content to google:ubuntu-secboot-20.04-64 (jan140821-820844)..."
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:22:48",
+        "verb": "Preparing",
+        "task": "google:ubuntu-secboot-20.04-64"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:25:01",
+        "verb": "Preparing",
+        "task": "google:ubuntu-secboot-20.04-64:tests/main/"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:26:13",
+        "verb": "Preparing",
+        "task": "google:ubuntu-secboot-20.04-64:tests/main/interfaces-many-core-provided"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:26:47",
+        "verb": "Executing",
+        "task": "google:ubuntu-secboot-20.04-64:tests/main/interfaces-many-core-provided"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:31:42",
+        "verb": "Restoring",
+        "task": "google:ubuntu-secboot-20.04-64:tests/main/interfaces-many-core-provided"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:32:09",
+        "verb": "Preparing",
+        "task": "google:ubuntu-secboot-20.04-64:tests/main/interfaces-many-snap-provided"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:32:16",
+        "verb": "Executing",
+        "task": "google:ubuntu-secboot-20.04-64:tests/main/interfaces-many-snap-provided"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:33:10",
+        "verb": "Restoring",
+        "task": "google:ubuntu-secboot-20.04-64:tests/main/interfaces-many-snap-provided"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:34:20",
+        "verb": "Preparing",
+        "task": "google:ubuntu-secboot-20.04-64:tests/main/snap-seccomp"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:34:27",
+        "verb": "Executing",
+        "task": "google:ubuntu-secboot-20.04-64:tests/main/snap-seccomp"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:36:42",
+        "verb": "Restoring",
+        "task": "google:ubuntu-secboot-20.04-64:tests/main/snap-seccomp"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:37:08",
+        "verb": "Preparing",
+        "task": "google:ubuntu-secboot-20.04-64:tests/main/docker-smoke"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:37:16",
+        "verb": "Executing",
+        "task": "google:ubuntu-secboot-20.04-64:tests/main/docker-smoke"
+    },
+    {
+        "type": "action",
+        "date": "2025-01-14",
+        "time": "08:38:16",
+        "verb": "Rebooting",
+        "task": null,
+        "extra": "on jan140821-820844 (google:ubuntu-secboot-20.04-64:tests/main/docker-smoke) as requested..."
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:38:53",
+        "verb": "Restoring",
+        "task": "google:ubuntu-secboot-20.04-64:tests/main/docker-smoke"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:39:32",
+        "verb": "Preparing",
+        "task": "google:ubuntu-secboot-20.04-64:tests/main/connect-undo"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:39:39",
+        "verb": "Executing",
+        "task": "google:ubuntu-secboot-20.04-64:tests/main/connect-undo"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:39:49",
+        "verb": "Restoring",
+        "task": "google:ubuntu-secboot-20.04-64:tests/main/connect-undo"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:40:14",
+        "verb": "Restoring",
+        "task": "google:ubuntu-secboot-20.04-64:tests/main/"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:40:30",
+        "verb": "Preparing",
+        "task": "google:ubuntu-secboot-20.04-64:tests/lib/tools/suite/tests.env"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:40:37",
+        "verb": "Executing",
+        "task": "google:ubuntu-secboot-20.04-64:tests/lib/tools/suite/tests.env"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:40:37",
+        "verb": "Restoring",
+        "task": "google:ubuntu-secboot-20.04-64:tests/lib/tools/suite/tests.env"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:40:49",
+        "verb": "Preparing",
+        "task": "google:ubuntu-secboot-20.04-64:tests/lib/tools/suite/tests.session-support"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:40:56",
+        "verb": "Executing",
+        "task": "google:ubuntu-secboot-20.04-64:tests/lib/tools/suite/tests.session-support"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:40:56",
+        "verb": "Restoring",
+        "task": "google:ubuntu-secboot-20.04-64:tests/lib/tools/suite/tests.session-support"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:41:08",
+        "verb": "Preparing",
+        "task": "google:ubuntu-secboot-20.04-64:tests/lib/tools/suite/fs-state"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:41:14",
+        "verb": "Executing",
+        "task": "google:ubuntu-secboot-20.04-64:tests/lib/tools/suite/fs-state"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:41:15",
+        "verb": "Restoring",
+        "task": "google:ubuntu-secboot-20.04-64:tests/lib/tools/suite/fs-state"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:41:26",
+        "verb": "Preparing",
+        "task": "google:ubuntu-secboot-20.04-64:tests/lib/tools/suite/version-compare"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:41:33",
+        "verb": "Executing",
+        "task": "google:ubuntu-secboot-20.04-64:tests/lib/tools/suite/version-compare"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:41:35",
+        "verb": "Restoring",
+        "task": "google:ubuntu-secboot-20.04-64:tests/lib/tools/suite/version-compare"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:41:47",
+        "verb": "Preparing",
+        "task": "google:ubuntu-secboot-20.04-64:tests/lib/tools/suite/mountinfo.query"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:41:54",
+        "verb": "Executing",
+        "task": "google:ubuntu-secboot-20.04-64:tests/lib/tools/suite/mountinfo.query"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:41:54",
+        "verb": "Restoring",
+        "task": "google:ubuntu-secboot-20.04-64:tests/lib/tools/suite/mountinfo.query"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:42:06",
+        "verb": "Preparing",
+        "task": "google:ubuntu-secboot-20.04-64:tests/lib/tools/suite/to-one-line"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:42:13",
+        "verb": "Executing",
+        "task": "google:ubuntu-secboot-20.04-64:tests/lib/tools/suite/to-one-line"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:42:13",
+        "verb": "Restoring",
+        "task": "google:ubuntu-secboot-20.04-64:tests/lib/tools/suite/to-one-line"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:42:24",
+        "verb": "Preparing",
+        "task": "google:ubuntu-secboot-20.04-64:tests/lib/tools/suite/journal-state"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:42:31",
+        "verb": "Executing",
+        "task": "google:ubuntu-secboot-20.04-64:tests/lib/tools/suite/journal-state"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:42:52",
+        "verb": "Restoring",
+        "task": "google:ubuntu-secboot-20.04-64:tests/lib/tools/suite/journal-state"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:43:04",
+        "verb": "Preparing",
+        "task": "google:ubuntu-secboot-20.04-64:tests/lib/tools/suite/tests.session:test"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:43:12",
+        "verb": "Executing",
+        "task": "google:ubuntu-secboot-20.04-64:tests/lib/tools/suite/tests.session:test"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:46:14",
+        "verb": "Restoring",
+        "task": "google:ubuntu-secboot-20.04-64:tests/lib/tools/suite/tests.session:test"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:46:26",
+        "verb": "Preparing",
+        "task": "google:ubuntu-secboot-20.04-64:tests/lib/tools/suite/user-state"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:46:33",
+        "verb": "Executing",
+        "task": "google:ubuntu-secboot-20.04-64:tests/lib/tools/suite/user-state"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:46:33",
+        "verb": "Restoring",
+        "task": "google:ubuntu-secboot-20.04-64:tests/lib/tools/suite/user-state"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:46:45",
+        "verb": "Preparing",
+        "task": "google:ubuntu-secboot-20.04-64:tests/lib/tools/suite/tests.session:root"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:46:52",
+        "verb": "Executing",
+        "task": "google:ubuntu-secboot-20.04-64:tests/lib/tools/suite/tests.session:root"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:49:53",
+        "verb": "Restoring",
+        "task": "google:ubuntu-secboot-20.04-64:tests/lib/tools/suite/tests.session:root"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:50:05",
+        "verb": "Preparing",
+        "task": "google:ubuntu-secboot-20.04-64:tests/lib/tools/suite/tests.invariant"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:50:12",
+        "verb": "Executing",
+        "task": "google:ubuntu-secboot-20.04-64:tests/lib/tools/suite/tests.invariant"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:50:19",
+        "verb": "Restoring",
+        "task": "google:ubuntu-secboot-20.04-64:tests/lib/tools/suite/tests.invariant"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:50:30",
+        "verb": "Preparing",
+        "task": "google:ubuntu-secboot-20.04-64:tests/smoke/"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:51:08",
+        "verb": "Preparing",
+        "task": "google:ubuntu-secboot-20.04-64:tests/smoke/find-info"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:51:16",
+        "verb": "Executing",
+        "task": "google:ubuntu-secboot-20.04-64:tests/smoke/find-info"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:51:17",
+        "verb": "Restoring",
+        "task": "google:ubuntu-secboot-20.04-64:tests/smoke/find-info"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:51:41",
+        "verb": "Preparing",
+        "task": "google:ubuntu-secboot-20.04-64:tests/smoke/versioning"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:51:49",
+        "verb": "Executing",
+        "task": "google:ubuntu-secboot-20.04-64:tests/smoke/versioning"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:51:49",
+        "verb": "Restoring",
+        "task": "google:ubuntu-secboot-20.04-64:tests/smoke/versioning"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:52:14",
+        "verb": "Preparing",
+        "task": "google:ubuntu-secboot-20.04-64:tests/smoke/remove"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:52:21",
+        "verb": "Executing",
+        "task": "google:ubuntu-secboot-20.04-64:tests/smoke/remove"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:52:24",
+        "verb": "Restoring",
+        "task": "google:ubuntu-secboot-20.04-64:tests/smoke/remove"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:52:49",
+        "verb": "Preparing",
+        "task": "google:ubuntu-secboot-20.04-64:tests/smoke/install"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:52:57",
+        "verb": "Executing",
+        "task": "google:ubuntu-secboot-20.04-64:tests/smoke/install"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:53:15",
+        "verb": "Restoring",
+        "task": "google:ubuntu-secboot-20.04-64:tests/smoke/install"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:53:42",
+        "verb": "Preparing",
+        "task": "google:ubuntu-secboot-20.04-64:tests/smoke/sandbox"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:53:49",
+        "verb": "Executing",
+        "task": "google:ubuntu-secboot-20.04-64:tests/smoke/sandbox"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:53:55",
+        "verb": "Restoring",
+        "task": "google:ubuntu-secboot-20.04-64:tests/smoke/sandbox"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:54:22",
+        "verb": "Restoring",
+        "task": "google:ubuntu-secboot-20.04-64:tests/smoke/"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:54:34",
+        "verb": "Restoring",
+        "task": "google:ubuntu-secboot-20.04-64"
+    },
+    {
+        "type": "action",
+        "date": "2025-01-14",
+        "time": "08:54:34",
+        "verb": "Discarding",
+        "task": null,
+        "extra": "google:ubuntu-secboot-20.04-64 (jan140821-820844)..."
+    },
+    {
+        "type": "result",
+        "date": "2025-01-14",
+        "time": "08:54:35",
+        "result_type": "Successful",
+        "level": "tasks",
+        "stage": null,
+        "number": "21",
+        "detail": null
+    },
+    {
+        "type": "result",
+        "date": "2025-01-14",
+        "time": "08:54:35",
+        "result_type": "Aborted",
+        "level": "tasks",
+        "stage": null,
+        "number": "0",
+        "detail": null
+    }
+]

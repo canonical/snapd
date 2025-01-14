@@ -1,0 +1,561 @@
+[
+    {
+        "type": "action",
+        "date": "2025-01-14",
+        "time": "08:23:41",
+        "verb": "Allocating",
+        "task": null,
+        "extra": "google-pro:ubuntu-fips-22.04-64..."
+    },
+    {
+        "type": "action",
+        "date": "2025-01-14",
+        "time": "08:23:58",
+        "verb": "Waiting",
+        "task": null,
+        "extra": "for google-pro:ubuntu-fips-22.04-64 (jan140823-879236) to boot at 34.76.205.34..."
+    },
+    {
+        "type": "action",
+        "date": "2025-01-14",
+        "time": "08:24:59",
+        "verb": "Allocated",
+        "task": null,
+        "extra": "google-pro:ubuntu-fips-22.04-64 (jan140823-879236)."
+    },
+    {
+        "type": "action",
+        "date": "2025-01-14",
+        "time": "08:25:01",
+        "verb": "Connecting",
+        "task": null,
+        "extra": "to google-pro:ubuntu-fips-22.04-64 (jan140823-879236)..."
+    },
+    {
+        "type": "action",
+        "date": "2025-01-14",
+        "time": "08:25:01",
+        "verb": "Connected",
+        "task": null,
+        "extra": "to google-pro:ubuntu-fips-22.04-64 (jan140823-879236) at 34.76.205.34."
+    },
+    {
+        "type": "action",
+        "date": "2025-01-14",
+        "time": "08:25:01",
+        "verb": "Sending",
+        "task": null,
+        "extra": "project content to google-pro:ubuntu-fips-22.04-64 (jan140823-879236)..."
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:25:03",
+        "verb": "Preparing",
+        "task": "google-pro:ubuntu-fips-22.04-64"
+    },
+    {
+        "type": "action",
+        "date": "2025-01-14",
+        "time": "08:26:18",
+        "verb": "Rebooting",
+        "task": null,
+        "extra": "on jan140823-879236 (google-pro:ubuntu-fips-22.04-64) as requested..."
+    },
+    {
+        "type": "info",
+        "date": "2025-01-14",
+        "time": "08:32:07",
+        "info_type": "WARNING",
+        "verb": null,
+        "task": null,
+        "extra": "jan140823-879236 (google-pro:ubuntu-fips-22.04-64) running late. Current output:",
+        "detail": {
+            "lines": [
+                "-----\n",
+                "(... 714 lines above ...)\n",
+                "+ cd /home/gopath\n",
+                "+ tests.pkgs download snapd snap-confine\n",
+                "\n",
+                "WARNING: apt does not have a stable CLI interface. Use with caution in scripts.\n",
+                "\n",
+                "W: Download is performed unsandboxed as root as file '/home/gopath/snapd_2.66.1+22.04_amd64.deb' couldn't be accessed by user '_apt'. - pkgAcquire::Run (13: Permission denied)\n",
+                "+ fakestore_tags=\n",
+                "+ '[' production = staging ']'\n",
+                "+ eval 'go install  ./tests/lib/fakestore/cmd/fakestore'\n",
+                "++ go install ./tests/lib/fakestore/cmd/fakestore\n",
+                "-----\n",
+                ".\n"
+            ]
+        }
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:32:48",
+        "verb": "Preparing",
+        "task": "google-pro:ubuntu-fips-22.04-64:tests/fips/"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:34:43",
+        "verb": "Preparing",
+        "task": "google-pro:ubuntu-fips-22.04-64:tests/fips/smoke-remove:deb"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:34:54",
+        "verb": "Executing",
+        "task": "google-pro:ubuntu-fips-22.04-64:tests/fips/smoke-remove:deb"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:34:54",
+        "verb": "Restoring",
+        "task": "google-pro:ubuntu-fips-22.04-64:tests/fips/smoke-remove:deb"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:35:32",
+        "verb": "Preparing",
+        "task": "google-pro:ubuntu-fips-22.04-64:tests/fips/main-known:deb"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:35:43",
+        "verb": "Executing",
+        "task": "google-pro:ubuntu-fips-22.04-64:tests/fips/main-known:deb"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:35:43",
+        "verb": "Restoring",
+        "task": "google-pro:ubuntu-fips-22.04-64:tests/fips/main-known:deb"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:36:22",
+        "verb": "Preparing",
+        "task": "google-pro:ubuntu-fips-22.04-64:tests/fips/smoke-versioning:snap"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:36:40",
+        "verb": "Executing",
+        "task": "google-pro:ubuntu-fips-22.04-64:tests/fips/smoke-versioning:snap"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:36:40",
+        "verb": "Restoring",
+        "task": "google-pro:ubuntu-fips-22.04-64:tests/fips/smoke-versioning:snap"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:37:21",
+        "verb": "Preparing",
+        "task": "google-pro:ubuntu-fips-22.04-64:tests/fips/main-known:snap"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:37:38",
+        "verb": "Executing",
+        "task": "google-pro:ubuntu-fips-22.04-64:tests/fips/main-known:snap"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:37:38",
+        "verb": "Restoring",
+        "task": "google-pro:ubuntu-fips-22.04-64:tests/fips/main-known:snap"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:38:19",
+        "verb": "Preparing",
+        "task": "google-pro:ubuntu-fips-22.04-64:tests/fips/smoke-sandbox:snap"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:38:36",
+        "verb": "Executing",
+        "task": "google-pro:ubuntu-fips-22.04-64:tests/fips/smoke-sandbox:snap"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:38:49",
+        "verb": "Restoring",
+        "task": "google-pro:ubuntu-fips-22.04-64:tests/fips/smoke-sandbox:snap"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:39:37",
+        "verb": "Preparing",
+        "task": "google-pro:ubuntu-fips-22.04-64:tests/fips/main-fips:deb"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:39:48",
+        "verb": "Executing",
+        "task": "google-pro:ubuntu-fips-22.04-64:tests/fips/main-fips:deb"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:39:48",
+        "verb": "Restoring",
+        "task": "google-pro:ubuntu-fips-22.04-64:tests/fips/main-fips:deb"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:40:27",
+        "verb": "Preparing",
+        "task": "google-pro:ubuntu-fips-22.04-64:tests/fips/main-fips:snap"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:40:45",
+        "verb": "Executing",
+        "task": "google-pro:ubuntu-fips-22.04-64:tests/fips/main-fips:snap"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:40:45",
+        "verb": "Restoring",
+        "task": "google-pro:ubuntu-fips-22.04-64:tests/fips/main-fips:snap"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:41:26",
+        "verb": "Preparing",
+        "task": "google-pro:ubuntu-fips-22.04-64:tests/fips/smoke-remove:snap"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:41:42",
+        "verb": "Executing",
+        "task": "google-pro:ubuntu-fips-22.04-64:tests/fips/smoke-remove:snap"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:41:42",
+        "verb": "Restoring",
+        "task": "google-pro:ubuntu-fips-22.04-64:tests/fips/smoke-remove:snap"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:42:23",
+        "verb": "Preparing",
+        "task": "google-pro:ubuntu-fips-22.04-64:tests/fips/main-snap-run:deb"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:42:34",
+        "verb": "Executing",
+        "task": "google-pro:ubuntu-fips-22.04-64:tests/fips/main-snap-run:deb"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:42:34",
+        "verb": "Restoring",
+        "task": "google-pro:ubuntu-fips-22.04-64:tests/fips/main-snap-run:deb"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:43:13",
+        "verb": "Preparing",
+        "task": "google-pro:ubuntu-fips-22.04-64:tests/fips/smoke-sandbox:deb"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:43:23",
+        "verb": "Executing",
+        "task": "google-pro:ubuntu-fips-22.04-64:tests/fips/smoke-sandbox:deb"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:43:23",
+        "verb": "Restoring",
+        "task": "google-pro:ubuntu-fips-22.04-64:tests/fips/smoke-sandbox:deb"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:44:02",
+        "verb": "Preparing",
+        "task": "google-pro:ubuntu-fips-22.04-64:tests/fips/smoke-install:snap"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:44:20",
+        "verb": "Executing",
+        "task": "google-pro:ubuntu-fips-22.04-64:tests/fips/smoke-install:snap"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:44:54",
+        "verb": "Restoring",
+        "task": "google-pro:ubuntu-fips-22.04-64:tests/fips/smoke-install:snap"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:45:44",
+        "verb": "Preparing",
+        "task": "google-pro:ubuntu-fips-22.04-64:tests/fips/smoke-find-info:deb"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:45:55",
+        "verb": "Executing",
+        "task": "google-pro:ubuntu-fips-22.04-64:tests/fips/smoke-find-info:deb"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:45:55",
+        "verb": "Restoring",
+        "task": "google-pro:ubuntu-fips-22.04-64:tests/fips/smoke-find-info:deb"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:46:36",
+        "verb": "Preparing",
+        "task": "google-pro:ubuntu-fips-22.04-64:tests/fips/main-try:snap"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:46:54",
+        "verb": "Executing",
+        "task": "google-pro:ubuntu-fips-22.04-64:tests/fips/main-try:snap"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:47:28",
+        "verb": "Restoring",
+        "task": "google-pro:ubuntu-fips-22.04-64:tests/fips/main-try:snap"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:48:14",
+        "verb": "Preparing",
+        "task": "google-pro:ubuntu-fips-22.04-64:tests/fips/main-searching:snap"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:48:31",
+        "verb": "Executing",
+        "task": "google-pro:ubuntu-fips-22.04-64:tests/fips/main-searching:snap"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:48:40",
+        "verb": "Restoring",
+        "task": "google-pro:ubuntu-fips-22.04-64:tests/fips/main-searching:snap"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:49:22",
+        "verb": "Preparing",
+        "task": "google-pro:ubuntu-fips-22.04-64:tests/fips/main-searching:deb"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:49:33",
+        "verb": "Executing",
+        "task": "google-pro:ubuntu-fips-22.04-64:tests/fips/main-searching:deb"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:49:33",
+        "verb": "Restoring",
+        "task": "google-pro:ubuntu-fips-22.04-64:tests/fips/main-searching:deb"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:50:13",
+        "verb": "Preparing",
+        "task": "google-pro:ubuntu-fips-22.04-64:tests/fips/smoke-versioning:deb"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:50:24",
+        "verb": "Executing",
+        "task": "google-pro:ubuntu-fips-22.04-64:tests/fips/smoke-versioning:deb"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:50:24",
+        "verb": "Restoring",
+        "task": "google-pro:ubuntu-fips-22.04-64:tests/fips/smoke-versioning:deb"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:51:03",
+        "verb": "Preparing",
+        "task": "google-pro:ubuntu-fips-22.04-64:tests/fips/main-snap-run:snap"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:51:22",
+        "verb": "Executing",
+        "task": "google-pro:ubuntu-fips-22.04-64:tests/fips/main-snap-run:snap"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:51:22",
+        "verb": "Restoring",
+        "task": "google-pro:ubuntu-fips-22.04-64:tests/fips/main-snap-run:snap"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:52:01",
+        "verb": "Preparing",
+        "task": "google-pro:ubuntu-fips-22.04-64:tests/fips/smoke-find-info:snap"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:52:17",
+        "verb": "Executing",
+        "task": "google-pro:ubuntu-fips-22.04-64:tests/fips/smoke-find-info:snap"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:52:18",
+        "verb": "Restoring",
+        "task": "google-pro:ubuntu-fips-22.04-64:tests/fips/smoke-find-info:snap"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:52:56",
+        "verb": "Preparing",
+        "task": "google-pro:ubuntu-fips-22.04-64:tests/fips/smoke-install:deb"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:53:07",
+        "verb": "Executing",
+        "task": "google-pro:ubuntu-fips-22.04-64:tests/fips/smoke-install:deb"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:53:07",
+        "verb": "Restoring",
+        "task": "google-pro:ubuntu-fips-22.04-64:tests/fips/smoke-install:deb"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:53:46",
+        "verb": "Preparing",
+        "task": "google-pro:ubuntu-fips-22.04-64:tests/fips/main-try:deb"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:53:57",
+        "verb": "Executing",
+        "task": "google-pro:ubuntu-fips-22.04-64:tests/fips/main-try:deb"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:53:57",
+        "verb": "Restoring",
+        "task": "google-pro:ubuntu-fips-22.04-64:tests/fips/main-try:deb"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:54:36",
+        "verb": "Restoring",
+        "task": "google-pro:ubuntu-fips-22.04-64:tests/fips/"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:54:59",
+        "verb": "Restoring",
+        "task": "google-pro:ubuntu-fips-22.04-64"
+    },
+    {
+        "type": "action",
+        "date": "2025-01-14",
+        "time": "08:55:00",
+        "verb": "Discarding",
+        "task": null,
+        "extra": "google-pro:ubuntu-fips-22.04-64 (jan140823-879236)..."
+    },
+    {
+        "type": "result",
+        "date": "2025-01-14",
+        "time": "08:55:00",
+        "result_type": "Successful",
+        "level": "tasks",
+        "stage": null,
+        "number": "20",
+        "detail": null
+    },
+    {
+        "type": "result",
+        "date": "2025-01-14",
+        "time": "08:55:00",
+        "result_type": "Aborted",
+        "level": "tasks",
+        "stage": null,
+        "number": "0",
+        "detail": null
+    }
+]

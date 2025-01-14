@@ -1,0 +1,5279 @@
+[
+    {
+        "type": "action",
+        "date": "2025-01-14",
+        "time": "08:21:49",
+        "verb": "Allocating",
+        "task": null,
+        "extra": "openstack:debian-12-64..."
+    },
+    {
+        "type": "action",
+        "date": "2025-01-14",
+        "time": "08:21:49",
+        "verb": "Allocating",
+        "task": null,
+        "extra": "openstack:debian-12-64..."
+    },
+    {
+        "type": "action",
+        "date": "2025-01-14",
+        "time": "08:21:49",
+        "verb": "Allocating",
+        "task": null,
+        "extra": "openstack:debian-12-64..."
+    },
+    {
+        "type": "action",
+        "date": "2025-01-14",
+        "time": "08:21:49",
+        "verb": "Allocating",
+        "task": null,
+        "extra": "openstack:debian-12-64..."
+    },
+    {
+        "type": "action",
+        "date": "2025-01-14",
+        "time": "08:21:49",
+        "verb": "Allocating",
+        "task": null,
+        "extra": "openstack:debian-12-64..."
+    },
+    {
+        "type": "action",
+        "date": "2025-01-14",
+        "time": "08:21:49",
+        "verb": "Allocating",
+        "task": null,
+        "extra": "openstack:debian-12-64..."
+    },
+    {
+        "type": "action",
+        "date": "2025-01-14",
+        "time": "08:21:49",
+        "verb": "Allocating",
+        "task": null,
+        "extra": "openstack:debian-sid-64..."
+    },
+    {
+        "type": "action",
+        "date": "2025-01-14",
+        "time": "08:21:49",
+        "verb": "Allocating",
+        "task": null,
+        "extra": "openstack:debian-sid-64..."
+    },
+    {
+        "type": "action",
+        "date": "2025-01-14",
+        "time": "08:21:49",
+        "verb": "Allocating",
+        "task": null,
+        "extra": "openstack:debian-sid-64..."
+    },
+    {
+        "type": "action",
+        "date": "2025-01-14",
+        "time": "08:21:49",
+        "verb": "Allocating",
+        "task": null,
+        "extra": "openstack:debian-sid-64..."
+    },
+    {
+        "type": "action",
+        "date": "2025-01-14",
+        "time": "08:21:49",
+        "verb": "Allocating",
+        "task": null,
+        "extra": "openstack:debian-sid-64..."
+    },
+    {
+        "type": "action",
+        "date": "2025-01-14",
+        "time": "08:21:49",
+        "verb": "Allocating",
+        "task": null,
+        "extra": "openstack:debian-sid-64..."
+    },
+    {
+        "type": "action",
+        "date": "2025-01-14",
+        "time": "08:22:17",
+        "verb": "Waiting",
+        "task": null,
+        "extra": "for openstack:debian-12-64 (jan140821-907218) to boot at 10.142.49.179..."
+    },
+    {
+        "type": "action",
+        "date": "2025-01-14",
+        "time": "08:22:23",
+        "verb": "Waiting",
+        "task": null,
+        "extra": "for openstack:debian-sid-64 (jan140821-907743) to boot at 10.142.49.164..."
+    },
+    {
+        "type": "action",
+        "date": "2025-01-14",
+        "time": "08:22:23",
+        "verb": "Waiting",
+        "task": null,
+        "extra": "for openstack:debian-12-64 (jan140821-907640) to boot at 10.142.49.233..."
+    },
+    {
+        "type": "action",
+        "date": "2025-01-14",
+        "time": "08:22:28",
+        "verb": "Waiting",
+        "task": null,
+        "extra": "for openstack:debian-sid-64 (jan140821-907732) to boot at 10.142.49.221..."
+    },
+    {
+        "type": "action",
+        "date": "2025-01-14",
+        "time": "08:22:28",
+        "verb": "Waiting",
+        "task": null,
+        "extra": "for openstack:debian-sid-64 (jan140821-907750) to boot at 10.142.49.91..."
+    },
+    {
+        "type": "action",
+        "date": "2025-01-14",
+        "time": "08:22:28",
+        "verb": "Waiting",
+        "task": null,
+        "extra": "for openstack:debian-sid-64 (jan140821-907727) to boot at 10.142.49.80..."
+    },
+    {
+        "type": "action",
+        "date": "2025-01-14",
+        "time": "08:22:34",
+        "verb": "Waiting",
+        "task": null,
+        "extra": "for openstack:debian-sid-64 (jan140821-907737) to boot at 10.142.49.226..."
+    },
+    {
+        "type": "action",
+        "date": "2025-01-14",
+        "time": "08:22:34",
+        "verb": "Waiting",
+        "task": null,
+        "extra": "for openstack:debian-12-64 (jan140821-907683) to boot at 10.142.49.12..."
+    },
+    {
+        "type": "action",
+        "date": "2025-01-14",
+        "time": "08:22:38",
+        "verb": "Waiting",
+        "task": null,
+        "extra": "for openstack:debian-sid-64 (jan140821-907755) to boot at 10.142.49.116..."
+    },
+    {
+        "type": "action",
+        "date": "2025-01-14",
+        "time": "08:22:38",
+        "verb": "Waiting",
+        "task": null,
+        "extra": "for openstack:debian-12-64 (jan140821-907716) to boot at 10.142.49.141..."
+    },
+    {
+        "type": "action",
+        "date": "2025-01-14",
+        "time": "08:22:43",
+        "verb": "Allocated",
+        "task": null,
+        "extra": "openstack:debian-12-64 (jan140821-907218)."
+    },
+    {
+        "type": "action",
+        "date": "2025-01-14",
+        "time": "08:22:44",
+        "verb": "Waiting",
+        "task": null,
+        "extra": "for openstack:debian-12-64 (jan140821-907721) to boot at 10.142.49.50..."
+    },
+    {
+        "type": "action",
+        "date": "2025-01-14",
+        "time": "08:22:45",
+        "verb": "Connecting",
+        "task": null,
+        "extra": "to openstack:debian-12-64 (jan140821-907218)..."
+    },
+    {
+        "type": "action",
+        "date": "2025-01-14",
+        "time": "08:22:46",
+        "verb": "Connected",
+        "task": null,
+        "extra": "to openstack:debian-12-64 (jan140821-907218) at 10.142.49.179."
+    },
+    {
+        "type": "action",
+        "date": "2025-01-14",
+        "time": "08:22:46",
+        "verb": "Sending",
+        "task": null,
+        "extra": "project content to openstack:debian-12-64 (jan140821-907218)..."
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:22:50",
+        "verb": "Preparing",
+        "task": "openstack:debian-12-64"
+    },
+    {
+        "type": "action",
+        "date": "2025-01-14",
+        "time": "08:22:51",
+        "verb": "Waiting",
+        "task": null,
+        "extra": "for openstack:debian-12-64 (jan140821-907676) to boot at 10.142.49.92..."
+    },
+    {
+        "type": "action",
+        "date": "2025-01-14",
+        "time": "08:23:41",
+        "verb": "Allocated",
+        "task": null,
+        "extra": "openstack:debian-sid-64 (jan140821-907732)."
+    },
+    {
+        "type": "action",
+        "date": "2025-01-14",
+        "time": "08:23:41",
+        "verb": "Allocated",
+        "task": null,
+        "extra": "openstack:debian-sid-64 (jan140821-907750)."
+    },
+    {
+        "type": "action",
+        "date": "2025-01-14",
+        "time": "08:23:41",
+        "verb": "Allocated",
+        "task": null,
+        "extra": "openstack:debian-sid-64 (jan140821-907755)."
+    },
+    {
+        "type": "action",
+        "date": "2025-01-14",
+        "time": "08:23:42",
+        "verb": "Allocated",
+        "task": null,
+        "extra": "openstack:debian-sid-64 (jan140821-907743)."
+    },
+    {
+        "type": "action",
+        "date": "2025-01-14",
+        "time": "08:23:42",
+        "verb": "Allocated",
+        "task": null,
+        "extra": "openstack:debian-12-64 (jan140821-907640)."
+    },
+    {
+        "type": "action",
+        "date": "2025-01-14",
+        "time": "08:23:42",
+        "verb": "Allocated",
+        "task": null,
+        "extra": "openstack:debian-sid-64 (jan140821-907727)."
+    },
+    {
+        "type": "action",
+        "date": "2025-01-14",
+        "time": "08:23:42",
+        "verb": "Allocated",
+        "task": null,
+        "extra": "openstack:debian-12-64 (jan140821-907716)."
+    },
+    {
+        "type": "action",
+        "date": "2025-01-14",
+        "time": "08:23:42",
+        "verb": "Allocated",
+        "task": null,
+        "extra": "openstack:debian-12-64 (jan140821-907721)."
+    },
+    {
+        "type": "action",
+        "date": "2025-01-14",
+        "time": "08:23:42",
+        "verb": "Allocated",
+        "task": null,
+        "extra": "openstack:debian-sid-64 (jan140821-907737)."
+    },
+    {
+        "type": "action",
+        "date": "2025-01-14",
+        "time": "08:23:43",
+        "verb": "Allocated",
+        "task": null,
+        "extra": "openstack:debian-12-64 (jan140821-907683)."
+    },
+    {
+        "type": "action",
+        "date": "2025-01-14",
+        "time": "08:23:43",
+        "verb": "Connecting",
+        "task": null,
+        "extra": "to openstack:debian-sid-64 (jan140821-907732)..."
+    },
+    {
+        "type": "action",
+        "date": "2025-01-14",
+        "time": "08:23:43",
+        "verb": "Allocated",
+        "task": null,
+        "extra": "openstack:debian-12-64 (jan140821-907676)."
+    },
+    {
+        "type": "action",
+        "date": "2025-01-14",
+        "time": "08:23:43",
+        "verb": "Connecting",
+        "task": null,
+        "extra": "to openstack:debian-sid-64 (jan140821-907750)..."
+    },
+    {
+        "type": "action",
+        "date": "2025-01-14",
+        "time": "08:23:44",
+        "verb": "Connecting",
+        "task": null,
+        "extra": "to openstack:debian-sid-64 (jan140821-907755)..."
+    },
+    {
+        "type": "action",
+        "date": "2025-01-14",
+        "time": "08:23:44",
+        "verb": "Connecting",
+        "task": null,
+        "extra": "to openstack:debian-sid-64 (jan140821-907743)..."
+    },
+    {
+        "type": "action",
+        "date": "2025-01-14",
+        "time": "08:23:44",
+        "verb": "Connected",
+        "task": null,
+        "extra": "to openstack:debian-sid-64 (jan140821-907732) at 10.142.49.221."
+    },
+    {
+        "type": "action",
+        "date": "2025-01-14",
+        "time": "08:23:44",
+        "verb": "Sending",
+        "task": null,
+        "extra": "project content to openstack:debian-sid-64 (jan140821-907732)..."
+    },
+    {
+        "type": "action",
+        "date": "2025-01-14",
+        "time": "08:23:44",
+        "verb": "Connecting",
+        "task": null,
+        "extra": "to openstack:debian-12-64 (jan140821-907640)..."
+    },
+    {
+        "type": "action",
+        "date": "2025-01-14",
+        "time": "08:23:44",
+        "verb": "Connected",
+        "task": null,
+        "extra": "to openstack:debian-sid-64 (jan140821-907755) at 10.142.49.116."
+    },
+    {
+        "type": "action",
+        "date": "2025-01-14",
+        "time": "08:23:44",
+        "verb": "Sending",
+        "task": null,
+        "extra": "project content to openstack:debian-sid-64 (jan140821-907755)..."
+    },
+    {
+        "type": "action",
+        "date": "2025-01-14",
+        "time": "08:23:44",
+        "verb": "Connecting",
+        "task": null,
+        "extra": "to openstack:debian-sid-64 (jan140821-907727)..."
+    },
+    {
+        "type": "action",
+        "date": "2025-01-14",
+        "time": "08:23:44",
+        "verb": "Connected",
+        "task": null,
+        "extra": "to openstack:debian-sid-64 (jan140821-907743) at 10.142.49.164."
+    },
+    {
+        "type": "action",
+        "date": "2025-01-14",
+        "time": "08:23:44",
+        "verb": "Sending",
+        "task": null,
+        "extra": "project content to openstack:debian-sid-64 (jan140821-907743)..."
+    },
+    {
+        "type": "action",
+        "date": "2025-01-14",
+        "time": "08:23:45",
+        "verb": "Connected",
+        "task": null,
+        "extra": "to openstack:debian-12-64 (jan140821-907640) at 10.142.49.233."
+    },
+    {
+        "type": "action",
+        "date": "2025-01-14",
+        "time": "08:23:45",
+        "verb": "Sending",
+        "task": null,
+        "extra": "project content to openstack:debian-12-64 (jan140821-907640)..."
+    },
+    {
+        "type": "action",
+        "date": "2025-01-14",
+        "time": "08:23:45",
+        "verb": "Connected",
+        "task": null,
+        "extra": "to openstack:debian-sid-64 (jan140821-907727) at 10.142.49.80."
+    },
+    {
+        "type": "action",
+        "date": "2025-01-14",
+        "time": "08:23:45",
+        "verb": "Sending",
+        "task": null,
+        "extra": "project content to openstack:debian-sid-64 (jan140821-907727)..."
+    },
+    {
+        "type": "action",
+        "date": "2025-01-14",
+        "time": "08:23:45",
+        "verb": "Connected",
+        "task": null,
+        "extra": "to openstack:debian-sid-64 (jan140821-907750) at 10.142.49.91."
+    },
+    {
+        "type": "action",
+        "date": "2025-01-14",
+        "time": "08:23:45",
+        "verb": "Sending",
+        "task": null,
+        "extra": "project content to openstack:debian-sid-64 (jan140821-907750)..."
+    },
+    {
+        "type": "action",
+        "date": "2025-01-14",
+        "time": "08:23:46",
+        "verb": "Connecting",
+        "task": null,
+        "extra": "to openstack:debian-12-64 (jan140821-907716)..."
+    },
+    {
+        "type": "action",
+        "date": "2025-01-14",
+        "time": "08:23:46",
+        "verb": "Connecting",
+        "task": null,
+        "extra": "to openstack:debian-12-64 (jan140821-907721)..."
+    },
+    {
+        "type": "action",
+        "date": "2025-01-14",
+        "time": "08:23:46",
+        "verb": "Connecting",
+        "task": null,
+        "extra": "to openstack:debian-sid-64 (jan140821-907737)..."
+    },
+    {
+        "type": "action",
+        "date": "2025-01-14",
+        "time": "08:23:46",
+        "verb": "Connecting",
+        "task": null,
+        "extra": "to openstack:debian-12-64 (jan140821-907683)..."
+    },
+    {
+        "type": "action",
+        "date": "2025-01-14",
+        "time": "08:23:47",
+        "verb": "Connecting",
+        "task": null,
+        "extra": "to openstack:debian-12-64 (jan140821-907676)..."
+    },
+    {
+        "type": "action",
+        "date": "2025-01-14",
+        "time": "08:23:47",
+        "verb": "Connected",
+        "task": null,
+        "extra": "to openstack:debian-12-64 (jan140821-907716) at 10.142.49.141."
+    },
+    {
+        "type": "action",
+        "date": "2025-01-14",
+        "time": "08:23:47",
+        "verb": "Sending",
+        "task": null,
+        "extra": "project content to openstack:debian-12-64 (jan140821-907716)..."
+    },
+    {
+        "type": "action",
+        "date": "2025-01-14",
+        "time": "08:23:47",
+        "verb": "Connected",
+        "task": null,
+        "extra": "to openstack:debian-12-64 (jan140821-907721) at 10.142.49.50."
+    },
+    {
+        "type": "action",
+        "date": "2025-01-14",
+        "time": "08:23:47",
+        "verb": "Sending",
+        "task": null,
+        "extra": "project content to openstack:debian-12-64 (jan140821-907721)..."
+    },
+    {
+        "type": "action",
+        "date": "2025-01-14",
+        "time": "08:23:47",
+        "verb": "Connected",
+        "task": null,
+        "extra": "to openstack:debian-sid-64 (jan140821-907737) at 10.142.49.226."
+    },
+    {
+        "type": "action",
+        "date": "2025-01-14",
+        "time": "08:23:47",
+        "verb": "Sending",
+        "task": null,
+        "extra": "project content to openstack:debian-sid-64 (jan140821-907737)..."
+    },
+    {
+        "type": "action",
+        "date": "2025-01-14",
+        "time": "08:23:47",
+        "verb": "Connected",
+        "task": null,
+        "extra": "to openstack:debian-12-64 (jan140821-907683) at 10.142.49.12."
+    },
+    {
+        "type": "action",
+        "date": "2025-01-14",
+        "time": "08:23:47",
+        "verb": "Sending",
+        "task": null,
+        "extra": "project content to openstack:debian-12-64 (jan140821-907683)..."
+    },
+    {
+        "type": "action",
+        "date": "2025-01-14",
+        "time": "08:23:47",
+        "verb": "Connected",
+        "task": null,
+        "extra": "to openstack:debian-12-64 (jan140821-907676) at 10.142.49.92."
+    },
+    {
+        "type": "action",
+        "date": "2025-01-14",
+        "time": "08:23:47",
+        "verb": "Sending",
+        "task": null,
+        "extra": "project content to openstack:debian-12-64 (jan140821-907676)..."
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:23:48",
+        "verb": "Preparing",
+        "task": "openstack:debian-sid-64"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:23:48",
+        "verb": "Preparing",
+        "task": "openstack:debian-12-64"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:23:48",
+        "verb": "Preparing",
+        "task": "openstack:debian-sid-64"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:23:48",
+        "verb": "Preparing",
+        "task": "openstack:debian-sid-64"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:23:49",
+        "verb": "Preparing",
+        "task": "openstack:debian-sid-64"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:23:50",
+        "verb": "Preparing",
+        "task": "openstack:debian-12-64"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:23:50",
+        "verb": "Preparing",
+        "task": "openstack:debian-12-64"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:23:50",
+        "verb": "Preparing",
+        "task": "openstack:debian-12-64"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:23:50",
+        "verb": "Preparing",
+        "task": "openstack:debian-sid-64"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:23:53",
+        "verb": "Preparing",
+        "task": "openstack:debian-12-64"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:23:54",
+        "verb": "Preparing",
+        "task": "openstack:debian-sid-64"
+    },
+    {
+        "type": "info",
+        "date": "2025-01-14",
+        "time": "08:23:57",
+        "info_type": "Error",
+        "verb": "preparing",
+        "task": "openstack:debian-12-64",
+        "extra": null,
+        "detail": {
+            "lines": [
+                "-----\n",
+                "+ cat\n",
+                "+ mv gai.conf /etc/gai.conf\n",
+                "+ command -v restorecon\n",
+                "+ [[ debian-12-64 == fedora-* ]]\n",
+                "+ [[ debian-12-64 == opensuse-* ]]\n",
+                "+ [[ debian-12-64 == arch-* ]]\n",
+                "+ [[ debian-12-64 == debian-* ]]\n",
+                "+ apt-get update\n",
+                "Get:1 file:/etc/apt/mirrors/debian.list Mirrorlist [30 B]\n",
+                "Get:5 file:/etc/apt/mirrors/debian-security.list Mirrorlist [39 B]\n",
+                "Get:2 https://deb.debian.org/debian bookworm InRelease [151 kB]\n",
+                "Get:3 https://deb.debian.org/debian bookworm-updates InRelease [55.4 kB]\n",
+                "Get:4 https://deb.debian.org/debian bookworm-backports InRelease [59.0 kB]\n",
+                "Get:6 https://deb.debian.org/debian-security bookworm-security InRelease [48.0 kB]\n",
+                "Get:10 https://deb.debian.org/debian bookworm-backports/main Sources.diff/Index [63.3 kB]\n",
+                "Ign:10 https://deb.debian.org/debian bookworm-backports/main Sources.diff/Index\n",
+                "Get:11 https://deb.debian.org/debian bookworm-backports/main amd64 Packages.diff/Index [63.3 kB]\n",
+                "Ign:11 https://deb.debian.org/debian bookworm-backports/main amd64 Packages.diff/Index\n",
+                "Get:12 https://deb.debian.org/debian bookworm-backports/main Translation-en.diff/Index [63.3 kB]\n",
+                "Get:7 https://deb.debian.org/debian bookworm/main Sources [9496 kB]\n",
+                "Get:8 https://deb.debian.org/debian bookworm/main amd64 Packages [8792 kB]\n",
+                "Get:9 https://deb.debian.org/debian bookworm/main Translation-en [6109 kB]\n",
+                "Get:13 https://deb.debian.org/debian-security bookworm-security/main Sources [133 kB]\n",
+                "Get:14 https://deb.debian.org/debian-security bookworm-security/main amd64 Packages [241 kB]\n",
+                "Get:15 https://deb.debian.org/debian-security bookworm-security/main Translation-en [142 kB]\n",
+                "Get:16 https://deb.debian.org/debian bookworm-backports/main Sources [311 kB]\n",
+                "Get:17 https://deb.debian.org/debian bookworm-backports/main amd64 Packages [274 kB]\n",
+                "Get:18 https://deb.debian.org/debian bookworm-backports/main Translation-en T-2025-01-10-2010.43-F-2024-12-16-0209.19.pdiff [12.7 kB]\n",
+                "Get:18 https://deb.debian.org/debian bookworm-backports/main Translation-en T-2025-01-10-2010.43-F-2024-12-16-0209.19.pdiff [12.7 kB]\n",
+                "Fetched 26.0 MB in 4s (5813 kB/s)\n",
+                "Reading package lists...\n",
+                "+ apt-get install -y eatmydata\n",
+                "E: Could not get lock /var/lib/dpkg/lock-frontend. It is held by process 859 (apt-get)\n",
+                "E: Unable to acquire the dpkg frontend lock (/var/lib/dpkg/lock-frontend), is another process using it?\n",
+                "-----\n",
+                ".\n"
+            ]
+        }
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:23:57",
+        "verb": "Restoring",
+        "task": "openstack:debian-12-64"
+    },
+    {
+        "type": "info",
+        "date": "2025-01-14",
+        "time": "08:23:58",
+        "info_type": "Error",
+        "verb": "restoring",
+        "task": "openstack:debian-12-64",
+        "extra": null,
+        "detail": {
+            "lines": [
+                "-----\n",
+                "+ /home/gopath/src/github.com/snapcore/snapd/tests/lib/prepare-restore.sh --restore-project\n",
+                "/bin/bash: line 97: /home/gopath/src/github.com/snapcore/snapd/tests/lib/prepare-restore.sh: No such file or directory\n",
+                "-----\n",
+                ".\n"
+            ]
+        }
+    },
+    {
+        "type": "action",
+        "date": "2025-01-14",
+        "time": "08:23:58",
+        "verb": "Discarding",
+        "task": null,
+        "extra": "openstack:debian-12-64 (jan140821-907683)..."
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:24:38",
+        "verb": "Preparing",
+        "task": "openstack:debian-12-64:tests/unit/"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:25:31",
+        "verb": "Preparing",
+        "task": "openstack:debian-12-64:tests/unit/go:gcc"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:25:40",
+        "verb": "Executing",
+        "task": "openstack:debian-12-64:tests/unit/go:gcc"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:25:41",
+        "verb": "Preparing",
+        "task": "openstack:debian-12-64:tests/unit/"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:25:48",
+        "verb": "Preparing",
+        "task": "openstack:debian-12-64:tests/unit/"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:25:54",
+        "verb": "Preparing",
+        "task": "openstack:debian-12-64:tests/main/"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:25:59",
+        "verb": "Preparing",
+        "task": "openstack:debian-12-64:tests/main/"
+    },
+    {
+        "type": "info",
+        "date": "2025-01-14",
+        "time": "08:26:00",
+        "info_type": "Error",
+        "verb": "preparing",
+        "task": "openstack:debian-12-64:tests/main/",
+        "extra": null,
+        "detail": {
+            "lines": [
+                "-----\n",
+                "+ /home/gopath/src/github.com/snapcore/snapd/tests/lib/prepare-restore.sh --prepare-suite\n",
+                "+ set -e\n",
+                "+ . /home/gopath/src/github.com/snapcore/snapd/tests/lib/pkgdb.sh\n",
+                "+ . /home/gopath/src/github.com/snapcore/snapd/tests/lib/random.sh\n",
+                "+ . /home/gopath/src/github.com/snapcore/snapd/tests/lib/state.sh\n",
+                "++ SNAPD_STATE_PATH=/var/tmp/snapd-tools/snapd-state\n",
+                "++ SNAPD_STATE_FILE=/var/tmp/snapd-tools/snapd-state/snapd-state.tar\n",
+                "++ SNAPD_ACTIVE_UNITS=/var/tmp/snapd-tools/runtime-state/snapd-active-units\n",
+                "+ case \"$1\" in\n",
+                "+ prepare_suite\n",
+                "+ . /home/gopath/src/github.com/snapcore/snapd/tests/lib/prepare.sh\n",
+                "++ set -eux\n",
+                "++ . /home/gopath/src/github.com/snapcore/snapd/tests/lib/snaps.sh\n",
+                "++ . /home/gopath/src/github.com/snapcore/snapd/tests/lib/pkgdb.sh\n",
+                "++ . /home/gopath/src/github.com/snapcore/snapd/tests/lib/state.sh\n",
+                "+++ SNAPD_STATE_PATH=/var/tmp/snapd-tools/snapd-state\n",
+                "+++ SNAPD_STATE_FILE=/var/tmp/snapd-tools/snapd-state/snapd-state.tar\n",
+                "+++ SNAPD_ACTIVE_UNITS=/var/tmp/snapd-tools/runtime-state/snapd-active-units\n",
+                "++ . /home/gopath/src/github.com/snapcore/snapd/tests/lib/core-initrd.sh\n",
+                "+ is_test_target_core\n",
+                "+ local VERSION=\n",
+                "+ [[ debian-12-64 = ubuntu-core-* ]]\n",
+                "+ prepare_classic\n",
+                "+ '[' 0 '!=' 1 ']'\n",
+                "+ distro_install_build_snapd\n",
+                "+ '[' 0 = 1 ']'\n",
+                "+ '[' -n '' ']'\n",
+                "+ '[' -n '' ']'\n",
+                "+ packages=\n",
+                "+ case \"$SPREAD_SYSTEM\" in\n",
+                "+ packages='/home/gopath/snapd_*.deb'\n",
+                "+ distro_install_local_package /home/gopath/snapd_2.57.6-1+b5_amd64.deb\n",
+                "+ allow_downgrades=false\n",
+                "+ '[' -n /home/gopath/snapd_2.57.6-1+b5_amd64.deb ']'\n",
+                "+ case \"$1\" in\n",
+                "+ break\n",
+                "+ case \"$SPREAD_SYSTEM\" in\n",
+                "+ eatmydata dpkg -i --force-depends --auto-deconfigure --force-depends-version /home/gopath/snapd_2.57.6-1+b5_amd64.deb\n",
+                "dpkg: error: dpkg frontend lock was locked by another process with pid 26095\n",
+                "Note: removing the lock file is always wrong, can damage the locked area\n",
+                "and the entire system. See <https://wiki.debian.org/Teams/Dpkg/FAQ#db-lock>.\n",
+                "-----\n",
+                ".\n"
+            ]
+        }
+    },
+    {
+        "type": "info",
+        "date": "2025-01-14",
+        "time": "08:26:00",
+        "info_type": "Debug",
+        "verb": null,
+        "task": "openstack:debian-12-64:tests/main/",
+        "extra": null,
+        "detail": null
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:26:00",
+        "verb": "Restoring",
+        "task": "openstack:debian-12-64:tests/main/"
+    },
+    {
+        "type": "info",
+        "date": "2025-01-14",
+        "time": "08:26:00",
+        "info_type": "Error",
+        "verb": "restoring",
+        "task": "openstack:debian-12-64:tests/main/",
+        "extra": null,
+        "detail": {
+            "lines": [
+                "-----\n",
+                "+ /home/gopath/src/github.com/snapcore/snapd/tests/lib/prepare-restore.sh --restore-suite\n",
+                "+ set -e\n",
+                "+ . /home/gopath/src/github.com/snapcore/snapd/tests/lib/pkgdb.sh\n",
+                "+ . /home/gopath/src/github.com/snapcore/snapd/tests/lib/random.sh\n",
+                "+ . /home/gopath/src/github.com/snapcore/snapd/tests/lib/state.sh\n",
+                "++ SNAPD_STATE_PATH=/var/tmp/snapd-tools/snapd-state\n",
+                "++ SNAPD_STATE_FILE=/var/tmp/snapd-tools/snapd-state/snapd-state.tar\n",
+                "++ SNAPD_ACTIVE_UNITS=/var/tmp/snapd-tools/runtime-state/snapd-active-units\n",
+                "+ case \"$1\" in\n",
+                "+ restore_suite\n",
+                "+ '[' production = staging ']'\n",
+                "+ os.query is-classic\n",
+                "+ . /home/gopath/src/github.com/snapcore/snapd/tests/lib/pkgdb.sh\n",
+                "+ distro_purge_package snapd\n",
+                "++ for pkg in \"$@\"\n",
+                "+++ distro_name_package snapd\n",
+                "+++ case \"$SPREAD_SYSTEM\" in\n",
+                "+++ debian_name_package snapd\n",
+                "+++ . /home/gopath/src/github.com/snapcore/snapd/tests/lib/tools/tests.pkgs.apt.sh\n",
+                "+++ for i in \"$@\"\n",
+                "+++ remap_one snapd\n",
+                "+++ case \"$1\" in\n",
+                "+++ echo snapd\n",
+                "++ package_name=snapd\n",
+                "++ '[' -z snapd ']'\n",
+                "++ echo snapd\n",
+                "+ set -- snapd\n",
+                "+ case \"$SPREAD_SYSTEM\" in\n",
+                "+ eatmydata apt-get remove -y --purge -y snapd\n",
+                "E: Could not get lock /var/lib/dpkg/lock-frontend. It is held by process 26095 (unattended-upgr)\n",
+                "E: Unable to acquire the dpkg frontend lock (/var/lib/dpkg/lock-frontend), is another process using it?\n",
+                "-----\n",
+                ".\n"
+            ]
+        }
+    },
+    {
+        "type": "info",
+        "date": "2025-01-14",
+        "time": "08:26:00",
+        "info_type": "Debug",
+        "verb": null,
+        "task": "openstack:debian-12-64:tests/main/",
+        "extra": null,
+        "detail": null
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:26:00",
+        "verb": "Restoring",
+        "task": "openstack:debian-12-64:tests/main/"
+    },
+    {
+        "type": "info",
+        "date": "2025-01-14",
+        "time": "08:26:01",
+        "info_type": "Error",
+        "verb": "restoring",
+        "task": "openstack:debian-12-64:tests/main/",
+        "extra": null,
+        "detail": {
+            "lines": [
+                "-----\n",
+                "+ /home/gopath/src/github.com/snapcore/snapd/tests/lib/prepare-restore.sh --restore-suite\n",
+                "+ set -e\n",
+                "+ . /home/gopath/src/github.com/snapcore/snapd/tests/lib/pkgdb.sh\n",
+                "+ . /home/gopath/src/github.com/snapcore/snapd/tests/lib/random.sh\n",
+                "+ . /home/gopath/src/github.com/snapcore/snapd/tests/lib/state.sh\n",
+                "++ SNAPD_STATE_PATH=/var/tmp/snapd-tools/snapd-state\n",
+                "++ SNAPD_STATE_FILE=/var/tmp/snapd-tools/snapd-state/snapd-state.tar\n",
+                "++ SNAPD_ACTIVE_UNITS=/var/tmp/snapd-tools/runtime-state/snapd-active-units\n",
+                "+ case \"$1\" in\n",
+                "+ restore_suite\n",
+                "+ '[' production = staging ']'\n",
+                "+ os.query is-classic\n",
+                "+ . /home/gopath/src/github.com/snapcore/snapd/tests/lib/pkgdb.sh\n",
+                "+ distro_purge_package snapd\n",
+                "++ for pkg in \"$@\"\n",
+                "+++ distro_name_package snapd\n",
+                "+++ case \"$SPREAD_SYSTEM\" in\n",
+                "+++ debian_name_package snapd\n",
+                "+++ . /home/gopath/src/github.com/snapcore/snapd/tests/lib/tools/tests.pkgs.apt.sh\n",
+                "+++ for i in \"$@\"\n",
+                "+++ remap_one snapd\n",
+                "+++ case \"$1\" in\n",
+                "+++ echo snapd\n",
+                "++ package_name=snapd\n",
+                "++ '[' -z snapd ']'\n",
+                "++ echo snapd\n",
+                "+ set -- snapd\n",
+                "+ case \"$SPREAD_SYSTEM\" in\n",
+                "+ eatmydata apt-get remove -y --purge -y snapd\n",
+                "E: Could not get lock /var/lib/dpkg/lock-frontend. It is held by process 26095 (unattended-upgr)\n",
+                "E: Unable to acquire the dpkg frontend lock (/var/lib/dpkg/lock-frontend), is another process using it?\n",
+                "-----\n",
+                ".\n"
+            ]
+        }
+    },
+    {
+        "type": "info",
+        "date": "2025-01-14",
+        "time": "08:26:01",
+        "info_type": "Debug",
+        "verb": null,
+        "task": "openstack:debian-12-64:tests/main/",
+        "extra": null,
+        "detail": null
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:26:01",
+        "verb": "Restoring",
+        "task": "openstack:debian-12-64"
+    },
+    {
+        "type": "action",
+        "date": "2025-01-14",
+        "time": "08:26:01",
+        "verb": "Discarding",
+        "task": null,
+        "extra": "openstack:debian-12-64 (jan140821-907676)..."
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:26:36",
+        "verb": "Preparing",
+        "task": "openstack:debian-sid-64:tests/unit/"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:26:37",
+        "verb": "Preparing",
+        "task": "openstack:debian-12-64:tests/unit/go:clang"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:26:37",
+        "verb": "Preparing",
+        "task": "openstack:debian-sid-64:tests/main/"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:26:37",
+        "verb": "Preparing",
+        "task": "openstack:debian-sid-64:tests/main/"
+    },
+    {
+        "type": "info",
+        "date": "2025-01-14",
+        "time": "08:26:38",
+        "info_type": "Error",
+        "verb": "preparing",
+        "task": "openstack:debian-sid-64:tests/main/",
+        "extra": null,
+        "detail": {
+            "lines": [
+                "-----\n",
+                "+ /home/gopath/src/github.com/snapcore/snapd/tests/lib/prepare-restore.sh --prepare-suite\n",
+                "+ set -e\n",
+                "+ . /home/gopath/src/github.com/snapcore/snapd/tests/lib/pkgdb.sh\n",
+                "+ . /home/gopath/src/github.com/snapcore/snapd/tests/lib/random.sh\n",
+                "+ . /home/gopath/src/github.com/snapcore/snapd/tests/lib/state.sh\n",
+                "++ SNAPD_STATE_PATH=/var/tmp/snapd-tools/snapd-state\n",
+                "++ SNAPD_STATE_FILE=/var/tmp/snapd-tools/snapd-state/snapd-state.tar\n",
+                "++ SNAPD_ACTIVE_UNITS=/var/tmp/snapd-tools/runtime-state/snapd-active-units\n",
+                "+ case \"$1\" in\n",
+                "+ prepare_suite\n",
+                "+ . /home/gopath/src/github.com/snapcore/snapd/tests/lib/prepare.sh\n",
+                "++ set -eux\n",
+                "++ . /home/gopath/src/github.com/snapcore/snapd/tests/lib/snaps.sh\n",
+                "++ . /home/gopath/src/github.com/snapcore/snapd/tests/lib/pkgdb.sh\n",
+                "++ . /home/gopath/src/github.com/snapcore/snapd/tests/lib/state.sh\n",
+                "+++ SNAPD_STATE_PATH=/var/tmp/snapd-tools/snapd-state\n",
+                "+++ SNAPD_STATE_FILE=/var/tmp/snapd-tools/snapd-state/snapd-state.tar\n",
+                "+++ SNAPD_ACTIVE_UNITS=/var/tmp/snapd-tools/runtime-state/snapd-active-units\n",
+                "++ . /home/gopath/src/github.com/snapcore/snapd/tests/lib/core-initrd.sh\n",
+                "+ is_test_target_core\n",
+                "+ local VERSION=\n",
+                "+ [[ debian-sid-64 = ubuntu-core-* ]]\n",
+                "+ prepare_classic\n",
+                "+ '[' 0 '!=' 1 ']'\n",
+                "+ distro_install_build_snapd\n",
+                "+ '[' 0 = 1 ']'\n",
+                "+ '[' -n '' ']'\n",
+                "+ '[' -n '' ']'\n",
+                "+ packages=\n",
+                "+ case \"$SPREAD_SYSTEM\" in\n",
+                "+ packages='/home/gopath/snapd_*.deb'\n",
+                "+ distro_install_local_package /home/gopath/snapd_2.66.1-1+b1_amd64.deb\n",
+                "+ allow_downgrades=false\n",
+                "+ '[' -n /home/gopath/snapd_2.66.1-1+b1_amd64.deb ']'\n",
+                "+ case \"$1\" in\n",
+                "+ break\n",
+                "+ case \"$SPREAD_SYSTEM\" in\n",
+                "+ eatmydata dpkg -i --force-depends --auto-deconfigure --force-depends-version /home/gopath/snapd_2.66.1-1+b1_amd64.deb\n",
+                "dpkg: error: dpkg frontend lock was locked by /usr/bin/apt-get process with pid 13211\n",
+                "Note: removing the lock file is always wrong, can damage the locked area\n",
+                "and the entire system. See <https://wiki.debian.org/Teams/Dpkg/FAQ#db-lock>.\n",
+                "-----\n",
+                ".\n"
+            ]
+        }
+    },
+    {
+        "type": "info",
+        "date": "2025-01-14",
+        "time": "08:26:38",
+        "info_type": "Debug",
+        "verb": null,
+        "task": "openstack:debian-sid-64:tests/main/",
+        "extra": null,
+        "detail": null
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:26:38",
+        "verb": "Restoring",
+        "task": "openstack:debian-sid-64:tests/main/"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:26:39",
+        "verb": "Preparing",
+        "task": "openstack:debian-sid-64:tests/main/"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:26:40",
+        "verb": "Preparing",
+        "task": "openstack:debian-sid-64:tests/regression/"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:26:40",
+        "verb": "Preparing",
+        "task": "openstack:debian-12-64:tests/unit/go:static"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:26:41",
+        "verb": "Preparing",
+        "task": "openstack:debian-sid-64:tests/unit/"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:26:44",
+        "verb": "Preparing",
+        "task": "openstack:debian-sid-64:tests/unit/"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:26:47",
+        "verb": "Executing",
+        "task": "openstack:debian-12-64:tests/unit/go:clang"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:26:50",
+        "verb": "Executing",
+        "task": "openstack:debian-12-64:tests/unit/go:static"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:26:53",
+        "verb": "Preparing",
+        "task": "openstack:debian-12-64:tests/main/degraded"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:27:02",
+        "verb": "Executing",
+        "task": "openstack:debian-12-64:tests/main/degraded"
+    },
+    {
+        "type": "info",
+        "date": "2025-01-14",
+        "time": "08:27:03",
+        "info_type": "Error",
+        "verb": "executing",
+        "task": "openstack:debian-12-64:tests/main/degraded",
+        "extra": null,
+        "detail": {
+            "lines": [
+                "-----\n",
+                "+ tests.systemd wait-for-service -n 30 --state active multi-user.target\n",
+                "+ case \"$SPREAD_SYSTEM\" in\n",
+                "+ systemctl status\n",
+                "+ grep 'State: [d]egraded'\n",
+                "State: degraded\n",
+                "+ echo 'systemctl reports the system is in degraded mode'\n",
+                "systemctl reports the system is in degraded mode\n",
+                "+ systemctl --failed\n",
+                "UNIT                  LOAD   ACTIVE SUB    DESCRIPTION\n",
+                "\u25cf fwupd-refresh.service loaded failed failed Refresh fwupd metadata and update motd\n",
+                "\n",
+                "LOAD   = Reflects whether the unit definition was properly loaded.\n",
+                "ACTIVE = The high-level unit activation state, i.e. generalization of SUB.\n",
+                "SUB    = The low-level unit activation state, values depend on unit type.\n",
+                "1 loaded units listed.\n",
+                "+ systemctl status\n",
+                "\u25cf jan140821-907721\n",
+                "State: degraded\n",
+                "Units: 300 loaded (incl. loaded aliases)\n",
+                "Jobs: 0 queued\n",
+                "Failed: 1 units\n",
+                "Since: Tue 2025-01-14 08:22:42 UTC; 4min 20s ago\n",
+                "systemd: 252.33-1~deb12u1\n",
+                "CGroup: /\n",
+                "\u251c\u2500init.scope\n",
+                "\u2502 \u2514\u25001 /lib/systemd/systemd --system --deserialize=37\n",
+                "\u251c\u2500system.slice\n",
+                "\u2502 \u251c\u2500avahi-daemon.service\n",
+                "\u2502 \u2502 \u251c\u250013822 \"avahi-daemon: running [jan140821-907721.local]\"\n",
+                "\u2502 \u2502 \u2514\u250013823 \"avahi-daemon: chroot helper\"\n",
+                "\u2502 \u251c\u2500cups.service\n",
+                "\u2502 \u2502 \u2514\u2500521 /usr/sbin/cupsd -l\n",
+                "\u2502 \u251c\u2500dbus.service\n",
+                "\u2502 \u2502 \u2514\u2500522 /usr/bin/dbus-daemon --system --address=systemd: --nofork --nopidfile --systemd-activation --syslog-only\n",
+                "\u2502 \u251c\u2500fwupd.service\n",
+                "\u2502 \u2502 \u2514\u250026743 /usr/libexec/fwupd/fwupd\n",
+                "\u2502 \u251c\u2500nfs-blkmap.service\n",
+                "\u2502 \u2502 \u2514\u250013544 /usr/sbin/blkmapd\n",
+                "\u2502 \u251c\u2500nfs-idmapd.service\n",
+                "\u2502 \u2502 \u2514\u250013746 /usr/sbin/rpc.idmapd\n",
+                "\u2502 \u251c\u2500nfs-mountd.service\n",
+                "\u2502 \u2502 \u2514\u250013747 /usr/sbin/rpc.mountd\n",
+                "\u2502 \u251c\u2500nfsdcld.service\n",
+                "\u2502 \u2502 \u2514\u250013553 /usr/sbin/nfsdcld\n",
+                "\u2502 \u251c\u2500packagekit.service\n",
+                "\u2502 \u2502 \u2514\u2500823 /usr/libexec/packagekitd\n",
+                "\u2502 \u251c\u2500polkit.service\n",
+                "\u2502 \u2502 \u2514\u2500555 /usr/lib/polkit-1/polkitd --no-debug\n",
+                "\u2502 \u251c\u2500rpc-statd.service\n",
+                "\u2502 \u2502 \u2514\u250013404 /sbin/rpc.statd\n",
+                "\u2502 \u251c\u2500rpcbind.service\n",
+                "\u2502 \u2502 \u2514\u2500424 /sbin/rpcbind -f -w\n",
+                "\u2502 \u251c\u2500snapd.service\n",
+                "\u2502 \u2502 \u2514\u250028522 /usr/lib/snapd/snapd\n",
+                "\u2502 \u251c\u2500ssh.service\n",
+                "\u2502 \u2502 \u2514\u2500543 \"sshd: /usr/sbin/sshd -D [listener] 0 of 10-100 startups\"\n",
+                "\u2502 \u251c\u2500system-getty.slice\n",
+                "\u2502 \u2502 \u2514\u2500getty@tty1.service\n",
+                "\u2502 \u2502   \u2514\u2500535 /sbin/agetty -o \"-p -- \\\\u\" --noclear - linux\n",
+                "\u2502 \u251c\u2500system-serial\\x2dgetty.slice\n",
+                "\u2502 \u2502 \u2514\u2500serial-getty@ttyS0.service\n",
+                "\u2502 \u2502   \u2514\u2500537 /sbin/agetty -o \"-p -- \\\\u\" --keep-baud 115200,57600,38400,9600 - vt220\n",
+                "\u2502 \u251c\u2500systemd-journald.service\n",
+                "\u2502 \u2502 \u2514\u250028722 /lib/systemd/systemd-journald\n",
+                "\u2502 \u251c\u2500systemd-logind.service\n",
+                "\u2502 \u2502 \u2514\u2500528 /lib/systemd/systemd-logind\n",
+                "\u2502 \u251c\u2500systemd-networkd.service\n",
+                "\u2502 \u2502 \u2514\u25001647 /lib/systemd/systemd-networkd\n",
+                "\u2502 \u251c\u2500systemd-resolved.service\n",
+                "\u2502 \u2502 \u2514\u25001727 /lib/systemd/systemd-resolved\n",
+                "\u2502 \u251c\u2500systemd-timedated.service\n",
+                "\u2502 \u2502 \u2514\u250026488 /lib/systemd/systemd-timedated\n",
+                "\u2502 \u251c\u2500systemd-timesyncd.service\n",
+                "\u2502 \u2502 \u2514\u25001687 /lib/systemd/systemd-timesyncd\n",
+                "\u2502 \u251c\u2500systemd-udevd.service\n",
+                "\u2502 \u2502 \u2514\u2500udev\n",
+                "\u2502 \u2502   \u2514\u25001568 /lib/systemd/systemd-udevd\n",
+                "\u2502 \u251c\u2500udisks2.service\n",
+                "\u2502 \u2502 \u2514\u2500531 /usr/libexec/udisks2/udisksd\n",
+                "\u2502 \u2514\u2500upower.service\n",
+                "\u2502   \u2514\u250026782 /usr/libexec/upowerd\n",
+                "\u2514\u2500user.slice\n",
+                "\u2514\u2500user-0.slice\n",
+                "\u251c\u2500session-1.scope\n",
+                "\u2502 \u251c\u2500  645 \"sshd: root@notty\"\n",
+                "\u2502 \u251c\u250028895 bash -c \"/bin/bash - 2>&1\"\n",
+                "\u2502 \u251c\u250028896 /bin/bash -\n",
+                "\u2502 \u251c\u250028897 /bin/bash -\n",
+                "\u2502 \u2514\u250028909 systemctl status\n",
+                "\u2514\u2500user@0.service\n",
+                "\u2514\u2500init.scope\n",
+                "\u251c\u2500648 /lib/systemd/systemd --user\n",
+                "\u2514\u2500649 \"(sd-pam)\"\n",
+                "+ exit 1\n",
+                "-----\n",
+                ".\n"
+            ]
+        }
+    },
+    {
+        "type": "info",
+        "date": "2025-01-14",
+        "time": "08:27:04",
+        "info_type": "Debug",
+        "verb": null,
+        "task": "openstack:debian-12-64:tests/main/degraded",
+        "extra": null,
+        "detail": null
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:27:04",
+        "verb": "Restoring",
+        "task": "openstack:debian-12-64:tests/main/degraded"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:27:24",
+        "verb": "Restoring",
+        "task": "openstack:debian-12-64:tests/main/"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:27:30",
+        "verb": "Preparing",
+        "task": "openstack:debian-12-64:tests/regression/"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:27:37",
+        "verb": "Preparing",
+        "task": "openstack:debian-sid-64:tests/unit/go:static"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:27:39",
+        "verb": "Preparing",
+        "task": "openstack:debian-sid-64:tests/regression/lp-1898038"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:27:40",
+        "verb": "Preparing",
+        "task": "openstack:debian-sid-64:tests/unit/go:gcc"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:27:41",
+        "verb": "Preparing",
+        "task": "openstack:debian-sid-64:tests/unit/go:clang"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:27:41",
+        "verb": "Preparing",
+        "task": "openstack:debian-sid-64:tests/main/interfaces-broadcom-asic-control"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:27:48",
+        "verb": "Preparing",
+        "task": "openstack:debian-sid-64:tests/main/interfaces-many-core-provided"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:27:48",
+        "verb": "Executing",
+        "task": "openstack:debian-sid-64:tests/unit/go:static"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:27:51",
+        "verb": "Executing",
+        "task": "openstack:debian-sid-64:tests/main/interfaces-broadcom-asic-control"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:27:51",
+        "verb": "Executing",
+        "task": "openstack:debian-sid-64:tests/regression/lp-1898038"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:27:51",
+        "verb": "Executing",
+        "task": "openstack:debian-sid-64:tests/unit/go:clang"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:27:52",
+        "verb": "Restoring",
+        "task": "openstack:debian-sid-64:tests/regression/lp-1898038"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:27:53",
+        "verb": "Preparing",
+        "task": "openstack:debian-12-64:tests/regression/lp-1910456"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:27:53",
+        "verb": "Restoring",
+        "task": "openstack:debian-sid-64:tests/main/interfaces-broadcom-asic-control"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:27:53",
+        "verb": "Executing",
+        "task": "openstack:debian-sid-64:tests/unit/go:gcc"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:28:08",
+        "verb": "Executing",
+        "task": "openstack:debian-12-64:tests/regression/lp-1910456"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:28:16",
+        "verb": "Preparing",
+        "task": "openstack:debian-sid-64:tests/regression/lp-1886786"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:28:16",
+        "verb": "Restoring",
+        "task": "openstack:debian-sid-64:tests/main/"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:28:21",
+        "verb": "Executing",
+        "task": "openstack:debian-sid-64:tests/main/interfaces-many-core-provided"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:28:22",
+        "verb": "Preparing",
+        "task": "openstack:debian-sid-64:tests/completion/"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:28:30",
+        "verb": "Executing",
+        "task": "openstack:debian-sid-64:tests/regression/lp-1886786"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:28:32",
+        "verb": "Restoring",
+        "task": "openstack:debian-sid-64:tests/regression/lp-1886786"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:28:41",
+        "verb": "Restoring",
+        "task": "openstack:debian-12-64:tests/regression/lp-1910456"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:28:45",
+        "verb": "Preparing",
+        "task": "openstack:debian-sid-64:tests/completion/snippets:funcarg"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:28:54",
+        "verb": "Preparing",
+        "task": "openstack:debian-sid-64:tests/regression/lp-1693042"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:28:55",
+        "verb": "Executing",
+        "task": "openstack:debian-sid-64:tests/completion/snippets:funcarg"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:29:02",
+        "verb": "Executing",
+        "task": "openstack:debian-sid-64:tests/regression/lp-1693042"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:29:02",
+        "verb": "Restoring",
+        "task": "openstack:debian-sid-64:tests/completion/snippets:funcarg"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:29:05",
+        "verb": "Preparing",
+        "task": "openstack:debian-12-64:tests/regression/lp-1801955"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:29:06",
+        "verb": "Restoring",
+        "task": "openstack:debian-sid-64:tests/regression/lp-1693042"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:29:15",
+        "verb": "Executing",
+        "task": "openstack:debian-12-64:tests/regression/lp-1801955"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:29:15",
+        "verb": "Restoring",
+        "task": "openstack:debian-12-64:tests/regression/lp-1801955"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:29:26",
+        "verb": "Preparing",
+        "task": "openstack:debian-sid-64:tests/completion/simple:files"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:29:28",
+        "verb": "Preparing",
+        "task": "openstack:debian-sid-64:tests/regression/lp-1597839"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:29:33",
+        "verb": "Executing",
+        "task": "openstack:debian-sid-64:tests/completion/simple:files"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:29:36",
+        "verb": "Preparing",
+        "task": "openstack:debian-12-64:tests/regression/lp-1693042"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:29:38",
+        "verb": "Executing",
+        "task": "openstack:debian-sid-64:tests/regression/lp-1597839"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:29:39",
+        "verb": "Restoring",
+        "task": "openstack:debian-sid-64:tests/regression/lp-1597839"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:29:40",
+        "verb": "Restoring",
+        "task": "openstack:debian-sid-64:tests/completion/simple:files"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:29:43",
+        "verb": "Executing",
+        "task": "openstack:debian-12-64:tests/regression/lp-1693042"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:29:44",
+        "verb": "Restoring",
+        "task": "openstack:debian-12-64:tests/regression/lp-1693042"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:29:48",
+        "verb": "Restoring",
+        "task": "openstack:debian-12-64:tests/unit/go:static"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:29:55",
+        "verb": "Preparing",
+        "task": "openstack:debian-12-64:tests/unit/c-unit-tests-gcc"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:30:01",
+        "verb": "Preparing",
+        "task": "openstack:debian-sid-64:tests/regression/lp-1852361"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:30:02",
+        "verb": "Preparing",
+        "task": "openstack:debian-sid-64:tests/completion/indirect:hosts"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:30:04",
+        "verb": "Preparing",
+        "task": "openstack:debian-12-64:tests/regression/lp-1803542:absent"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:30:05",
+        "verb": "Executing",
+        "task": "openstack:debian-12-64:tests/unit/c-unit-tests-gcc"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:30:12",
+        "verb": "Executing",
+        "task": "openstack:debian-sid-64:tests/completion/indirect:hosts"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:30:13",
+        "verb": "Executing",
+        "task": "openstack:debian-sid-64:tests/regression/lp-1852361"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:30:14",
+        "verb": "Executing",
+        "task": "openstack:debian-12-64:tests/regression/lp-1803542:absent"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:30:15",
+        "verb": "Restoring",
+        "task": "openstack:debian-12-64:tests/regression/lp-1803542:absent"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:30:20",
+        "verb": "Restoring",
+        "task": "openstack:debian-sid-64:tests/regression/lp-1852361"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:30:36",
+        "verb": "Preparing",
+        "task": "openstack:debian-12-64:tests/regression/lp-1852361"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:30:39",
+        "verb": "Restoring",
+        "task": "openstack:debian-12-64:tests/unit/c-unit-tests-gcc"
+    },
+    {
+        "type": "info",
+        "date": "2025-01-14",
+        "time": "08:30:40",
+        "info_type": "WARNING",
+        "verb": null,
+        "task": null,
+        "extra": "jan140821-907218 (openstack:debian-12-64:tests/unit/go:gcc) running late. Current output:",
+        "detail": {
+            "lines": [
+                "-----\n",
+                "(... 508 lines above ...)\n",
+                "ok  \tgithub.com/snapcore/snapd/osutil/kmod\t0.016s\n",
+                "ok  \tgithub.com/snapcore/snapd/osutil/mkfs\t0.109s\n",
+                "ok  \tgithub.com/snapcore/snapd/osutil/mount\t0.003s\n",
+                "ok  \tgithub.com/snapcore/snapd/osutil/mount/libmount\t0.003s\n",
+                "?   \tgithub.com/snapcore/snapd/osutil/squashfs\t[no test files]\n",
+                "ok  \tgithub.com/snapcore/snapd/osutil/strace\t0.046s\n",
+                "?   \tgithub.com/snapcore/snapd/osutil/sys\t[no test files]\n",
+                "?   \tgithub.com/snapcore/snapd/osutil/udev/crawler\t[no test files]\n",
+                "ok  \tgithub.com/snapcore/snapd/osutil/udev/netlink\t0.160s\n",
+                "ok  \tgithub.com/snapcore/snapd/osutil/user\t0.068s\n",
+                "-----\n",
+                ".\n"
+            ]
+        }
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:30:44",
+        "verb": "Preparing",
+        "task": "openstack:debian-sid-64:tests/regression/lp-1943853"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:30:45",
+        "verb": "Preparing",
+        "task": "openstack:debian-12-64:tests/unit/shell-traps"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:30:53",
+        "verb": "Executing",
+        "task": "openstack:debian-12-64:tests/unit/shell-traps"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:30:53",
+        "verb": "Restoring",
+        "task": "openstack:debian-12-64:tests/unit/shell-traps"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:30:53",
+        "verb": "Executing",
+        "task": "openstack:debian-sid-64:tests/regression/lp-1943853"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:30:54",
+        "verb": "Restoring",
+        "task": "openstack:debian-sid-64:tests/regression/lp-1943853"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:30:59",
+        "verb": "Preparing",
+        "task": "openstack:debian-12-64:tests/unit/c-unit-tests-clang"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:31:04",
+        "verb": "Restoring",
+        "task": "openstack:debian-sid-64:tests/completion/indirect:hosts"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:31:08",
+        "verb": "Executing",
+        "task": "openstack:debian-12-64:tests/unit/c-unit-tests-clang"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:31:16",
+        "verb": "Preparing",
+        "task": "openstack:debian-sid-64:tests/regression/lp-1797556"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:31:17",
+        "verb": "Restoring",
+        "task": "openstack:debian-sid-64:tests/unit/go:static"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:31:25",
+        "verb": "Preparing",
+        "task": "openstack:debian-sid-64:tests/unit/c-unit-tests-gcc"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:31:25",
+        "verb": "Executing",
+        "task": "openstack:debian-sid-64:tests/regression/lp-1797556"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:31:26",
+        "verb": "Restoring",
+        "task": "openstack:debian-sid-64:tests/regression/lp-1797556"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:31:27",
+        "verb": "Preparing",
+        "task": "openstack:debian-sid-64:tests/completion/simple:funkyfunc"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:31:35",
+        "verb": "Executing",
+        "task": "openstack:debian-sid-64:tests/completion/simple:funkyfunc"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:31:36",
+        "verb": "Executing",
+        "task": "openstack:debian-sid-64:tests/unit/c-unit-tests-gcc"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:31:37",
+        "verb": "Restoring",
+        "task": "openstack:debian-12-64:tests/unit/c-unit-tests-clang"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:31:41",
+        "verb": "Restoring",
+        "task": "openstack:debian-sid-64:tests/completion/simple:funkyfunc"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:31:43",
+        "verb": "Restoring",
+        "task": "openstack:debian-12-64:tests/unit/"
+    },
+    {
+        "type": "info",
+        "date": "2025-01-14",
+        "time": "08:31:47",
+        "info_type": "WARNING",
+        "verb": null,
+        "task": null,
+        "extra": "jan140821-907716 (openstack:debian-12-64:tests/unit/go:clang) running late. Current output:",
+        "detail": {
+            "lines": [
+                "-----\n",
+                "(... 522 lines above ...)\n",
+                "ok  \tgithub.com/snapcore/snapd/osutil/kmod\t0.013s\n",
+                "ok  \tgithub.com/snapcore/snapd/osutil/mkfs\t0.115s\n",
+                "ok  \tgithub.com/snapcore/snapd/osutil/mount\t0.003s\n",
+                "ok  \tgithub.com/snapcore/snapd/osutil/mount/libmount\t0.003s\n",
+                "?   \tgithub.com/snapcore/snapd/osutil/squashfs\t[no test files]\n",
+                "ok  \tgithub.com/snapcore/snapd/osutil/strace\t0.022s\n",
+                "?   \tgithub.com/snapcore/snapd/osutil/sys\t[no test files]\n",
+                "?   \tgithub.com/snapcore/snapd/osutil/udev/crawler\t[no test files]\n",
+                "ok  \tgithub.com/snapcore/snapd/osutil/udev/netlink\t0.156s\n",
+                "ok  \tgithub.com/snapcore/snapd/osutil/user\t0.063s\n",
+                "-----\n",
+                ".\n"
+            ]
+        }
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:31:47",
+        "verb": "Preparing",
+        "task": "openstack:debian-sid-64:tests/regression/lp-2084730"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:31:50",
+        "verb": "Restoring",
+        "task": "openstack:debian-sid-64:tests/main/interfaces-many-core-provided"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:31:52",
+        "verb": "Preparing",
+        "task": "openstack:debian-12-64:tests/completion/"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:31:57",
+        "verb": "Executing",
+        "task": "openstack:debian-sid-64:tests/regression/lp-2084730"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:31:58",
+        "verb": "Executing",
+        "task": "openstack:debian-12-64:tests/regression/lp-1852361"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:32:03",
+        "verb": "Preparing",
+        "task": "openstack:debian-sid-64:tests/completion/indirect:funcarg"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:32:04",
+        "verb": "Restoring",
+        "task": "openstack:debian-12-64:tests/regression/lp-1852361"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:32:10",
+        "verb": "Restoring",
+        "task": "openstack:debian-sid-64:tests/regression/lp-2084730"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:32:13",
+        "verb": "Executing",
+        "task": "openstack:debian-sid-64:tests/completion/indirect:funcarg"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:32:14",
+        "verb": "Preparing",
+        "task": "openstack:debian-12-64:tests/completion/indirect:files"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:32:23",
+        "verb": "Restoring",
+        "task": "openstack:debian-sid-64:tests/main/"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:32:26",
+        "verb": "Preparing",
+        "task": "openstack:debian-12-64:tests/regression/lp-1825883"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:32:26",
+        "verb": "Restoring",
+        "task": "openstack:debian-sid-64:tests/unit/c-unit-tests-gcc"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:32:29",
+        "verb": "Preparing",
+        "task": "openstack:debian-sid-64:tests/smoke/"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:32:32",
+        "verb": "Preparing",
+        "task": "openstack:debian-sid-64:tests/unit/c-unit-tests-clang"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:32:33",
+        "verb": "Executing",
+        "task": "openstack:debian-12-64:tests/regression/lp-1825883"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:32:35",
+        "verb": "Preparing",
+        "task": "openstack:debian-sid-64:tests/regression/lp-1844496"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:32:38",
+        "verb": "Restoring",
+        "task": "openstack:debian-12-64:tests/regression/lp-1825883"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:32:42",
+        "verb": "Executing",
+        "task": "openstack:debian-sid-64:tests/unit/c-unit-tests-clang"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:32:48",
+        "verb": "Executing",
+        "task": "openstack:debian-sid-64:tests/regression/lp-1844496"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:32:49",
+        "verb": "Preparing",
+        "task": "openstack:debian-sid-64:tests/smoke/find-info"
+    },
+    {
+        "type": "info",
+        "date": "2025-01-14",
+        "time": "08:32:52",
+        "info_type": "WARNING",
+        "verb": null,
+        "task": null,
+        "extra": "jan140821-907755 (openstack:debian-sid-64:tests/unit/go:clang) running late. Current output:",
+        "detail": {
+            "lines": [
+                "-----\n",
+                "(... 701 lines above ...)\n",
+                "ok  \tgithub.com/snapcore/snapd/osutil/kmod\t0.016s\n",
+                "ok  \tgithub.com/snapcore/snapd/osutil/mkfs\t0.119s\n",
+                "ok  \tgithub.com/snapcore/snapd/osutil/mount\t0.003s\n",
+                "ok  \tgithub.com/snapcore/snapd/osutil/mount/libmount\t0.003s\n",
+                "?   \tgithub.com/snapcore/snapd/osutil/sys\t[no test files]\n",
+                "ok  \tgithub.com/snapcore/snapd/osutil/strace\t0.013s\n",
+                "?   \tgithub.com/snapcore/snapd/osutil/udev/crawler\t[no test files]\n",
+                "ok  \tgithub.com/snapcore/snapd/osutil/udev/netlink\t0.155s\n",
+                "ok  \tgithub.com/snapcore/snapd/osutil/user\t0.103s\n",
+                "?   \tgithub.com/snapcore/snapd/overlord/assertstate/assertstatetest\t[no test files]\n",
+                "-----\n",
+                ".\n"
+            ]
+        }
+    },
+    {
+        "type": "info",
+        "date": "2025-01-14",
+        "time": "08:32:54",
+        "info_type": "WARNING",
+        "verb": null,
+        "task": null,
+        "extra": "jan140821-907732 (openstack:debian-sid-64:tests/unit/go:gcc) running late. Current output:",
+        "detail": {
+            "lines": [
+                "-----\n",
+                "(... 701 lines above ...)\n",
+                "ok  \tgithub.com/snapcore/snapd/osutil/kmod\t0.014s\n",
+                "ok  \tgithub.com/snapcore/snapd/osutil/mkfs\t0.114s\n",
+                "ok  \tgithub.com/snapcore/snapd/osutil/mount\t0.002s\n",
+                "ok  \tgithub.com/snapcore/snapd/osutil/mount/libmount\t0.004s\n",
+                "?   \tgithub.com/snapcore/snapd/osutil/sys\t[no test files]\n",
+                "?   \tgithub.com/snapcore/snapd/osutil/udev/crawler\t[no test files]\n",
+                "ok  \tgithub.com/snapcore/snapd/osutil/strace\t0.015s\n",
+                "ok  \tgithub.com/snapcore/snapd/osutil/udev/netlink\t0.155s\n",
+                "ok  \tgithub.com/snapcore/snapd/osutil/user\t0.065s\n",
+                "?   \tgithub.com/snapcore/snapd/overlord/assertstate/assertstatetest\t[no test files]\n",
+                "-----\n",
+                ".\n"
+            ]
+        }
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:32:57",
+        "verb": "Executing",
+        "task": "openstack:debian-sid-64:tests/smoke/find-info"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:32:58",
+        "verb": "Restoring",
+        "task": "openstack:debian-sid-64:tests/smoke/find-info"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:32:59",
+        "verb": "Preparing",
+        "task": "openstack:debian-12-64:tests/regression/lp-1813365"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:33:00",
+        "verb": "Restoring",
+        "task": "openstack:debian-sid-64:tests/regression/lp-1844496"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:33:04",
+        "verb": "Restoring",
+        "task": "openstack:debian-sid-64:tests/completion/indirect:funcarg"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:33:06",
+        "verb": "Executing",
+        "task": "openstack:debian-12-64:tests/regression/lp-1813365"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:33:07",
+        "verb": "Restoring",
+        "task": "openstack:debian-12-64:tests/regression/lp-1813365"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:33:14",
+        "verb": "Restoring",
+        "task": "openstack:debian-sid-64:tests/unit/c-unit-tests-clang"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:33:19",
+        "verb": "Preparing",
+        "task": "openstack:debian-sid-64:tests/smoke/sandbox"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:33:21",
+        "verb": "Preparing",
+        "task": "openstack:debian-sid-64:tests/unit/shell-traps"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:33:24",
+        "verb": "Executing",
+        "task": "openstack:debian-12-64:tests/completion/indirect:files"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:33:25",
+        "verb": "Preparing",
+        "task": "openstack:debian-sid-64:tests/regression/lp-1910456"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:33:27",
+        "verb": "Executing",
+        "task": "openstack:debian-sid-64:tests/smoke/sandbox"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:33:27",
+        "verb": "Preparing",
+        "task": "openstack:debian-12-64:tests/regression/lp-1732555"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:33:27",
+        "verb": "Restoring",
+        "task": "openstack:debian-sid-64:tests/smoke/sandbox"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:33:27",
+        "verb": "Preparing",
+        "task": "openstack:debian-sid-64:tests/completion/snippets:funky"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:33:29",
+        "verb": "Executing",
+        "task": "openstack:debian-sid-64:tests/unit/shell-traps"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:33:29",
+        "verb": "Restoring",
+        "task": "openstack:debian-sid-64:tests/unit/shell-traps"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:33:35",
+        "verb": "Executing",
+        "task": "openstack:debian-12-64:tests/regression/lp-1732555"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:33:36",
+        "verb": "Restoring",
+        "task": "openstack:debian-sid-64:tests/unit/"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:33:36",
+        "verb": "Restoring",
+        "task": "openstack:debian-12-64:tests/regression/lp-1732555"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:33:36",
+        "verb": "Executing",
+        "task": "openstack:debian-sid-64:tests/completion/snippets:funky"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:33:41",
+        "verb": "Executing",
+        "task": "openstack:debian-sid-64:tests/regression/lp-1910456"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:33:43",
+        "verb": "Restoring",
+        "task": "openstack:debian-sid-64:tests/completion/snippets:funky"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:33:47",
+        "verb": "Preparing",
+        "task": "openstack:debian-sid-64:tests/completion/"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:33:48",
+        "verb": "Preparing",
+        "task": "openstack:debian-sid-64:tests/smoke/remove"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:33:55",
+        "verb": "Executing",
+        "task": "openstack:debian-sid-64:tests/smoke/remove"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:33:56",
+        "verb": "Preparing",
+        "task": "openstack:debian-12-64:tests/regression/lp-1803542:present"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:33:58",
+        "verb": "Restoring",
+        "task": "openstack:debian-sid-64:tests/smoke/remove"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:33:58",
+        "verb": "Restoring",
+        "task": "openstack:debian-12-64:tests/unit/go:gcc"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:34:05",
+        "verb": "Executing",
+        "task": "openstack:debian-12-64:tests/regression/lp-1803542:present"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:34:05",
+        "verb": "Restoring",
+        "task": "openstack:debian-12-64:tests/regression/lp-1803542:present"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:34:06",
+        "verb": "Restoring",
+        "task": "openstack:debian-12-64:tests/unit/"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:34:06",
+        "verb": "Preparing",
+        "task": "openstack:debian-sid-64:tests/completion/snippets:func"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:34:07",
+        "verb": "Preparing",
+        "task": "openstack:debian-sid-64:tests/completion/simple:plain"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:34:15",
+        "verb": "Restoring",
+        "task": "openstack:debian-12-64:tests/completion/indirect:files"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:34:15",
+        "verb": "Restoring",
+        "task": "openstack:debian-sid-64:tests/regression/lp-1910456"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:34:15",
+        "verb": "Executing",
+        "task": "openstack:debian-sid-64:tests/completion/snippets:func"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:34:15",
+        "verb": "Executing",
+        "task": "openstack:debian-sid-64:tests/completion/simple:plain"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:34:17",
+        "verb": "Preparing",
+        "task": "openstack:debian-12-64:tests/smoke/"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:34:19",
+        "verb": "Preparing",
+        "task": "openstack:debian-sid-64:tests/smoke/versioning"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:34:22",
+        "verb": "Restoring",
+        "task": "openstack:debian-sid-64:tests/completion/simple:plain"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:34:22",
+        "verb": "Restoring",
+        "task": "openstack:debian-sid-64:tests/completion/snippets:func"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:34:26",
+        "verb": "Preparing",
+        "task": "openstack:debian-12-64:tests/regression/lp-1831010"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:34:27",
+        "verb": "Executing",
+        "task": "openstack:debian-sid-64:tests/smoke/versioning"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:34:27",
+        "verb": "Restoring",
+        "task": "openstack:debian-sid-64:tests/smoke/versioning"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:34:32",
+        "verb": "Executing",
+        "task": "openstack:debian-12-64:tests/regression/lp-1831010"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:34:36",
+        "verb": "Restoring",
+        "task": "openstack:debian-12-64:tests/regression/lp-1831010"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:34:36",
+        "verb": "Preparing",
+        "task": "openstack:debian-12-64:tests/completion/indirect:plain"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:34:37",
+        "verb": "Preparing",
+        "task": "openstack:debian-12-64:tests/smoke/sandbox"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:34:39",
+        "verb": "Preparing",
+        "task": "openstack:debian-sid-64:tests/regression/lp-1949368"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:34:43",
+        "verb": "Preparing",
+        "task": "openstack:debian-sid-64:tests/completion/simple:func"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:34:44",
+        "verb": "Executing",
+        "task": "openstack:debian-12-64:tests/smoke/sandbox"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:34:44",
+        "verb": "Restoring",
+        "task": "openstack:debian-12-64:tests/smoke/sandbox"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:34:45",
+        "verb": "Preparing",
+        "task": "openstack:debian-sid-64:tests/completion/snippets:hosts_n_dirs"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:34:45",
+        "verb": "Executing",
+        "task": "openstack:debian-12-64:tests/completion/indirect:plain"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:34:48",
+        "verb": "Preparing",
+        "task": "openstack:debian-sid-64:tests/smoke/install"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:34:49",
+        "verb": "Executing",
+        "task": "openstack:debian-sid-64:tests/regression/lp-1949368"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:34:49",
+        "verb": "Restoring",
+        "task": "openstack:debian-sid-64:tests/regression/lp-1949368"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:34:50",
+        "verb": "Executing",
+        "task": "openstack:debian-sid-64:tests/completion/simple:func"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:34:54",
+        "verb": "Executing",
+        "task": "openstack:debian-sid-64:tests/completion/snippets:hosts_n_dirs"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:34:55",
+        "verb": "Executing",
+        "task": "openstack:debian-sid-64:tests/smoke/install"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:34:56",
+        "verb": "Preparing",
+        "task": "openstack:debian-12-64:tests/regression/lp-1886786"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:34:57",
+        "verb": "Restoring",
+        "task": "openstack:debian-sid-64:tests/completion/simple:func"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:35:01",
+        "verb": "Restoring",
+        "task": "openstack:debian-sid-64:tests/completion/snippets:hosts_n_dirs"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:35:04",
+        "verb": "Preparing",
+        "task": "openstack:debian-12-64:tests/smoke/find-info"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:35:08",
+        "verb": "Executing",
+        "task": "openstack:debian-12-64:tests/regression/lp-1886786"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:35:08",
+        "verb": "Restoring",
+        "task": "openstack:debian-12-64:tests/unit/go:clang"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:35:09",
+        "verb": "Restoring",
+        "task": "openstack:debian-12-64:tests/regression/lp-1886786"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:35:10",
+        "verb": "Preparing",
+        "task": "openstack:debian-sid-64:tests/regression/lp-1813365"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:35:11",
+        "verb": "Executing",
+        "task": "openstack:debian-12-64:tests/smoke/find-info"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:35:12",
+        "verb": "Restoring",
+        "task": "openstack:debian-12-64:tests/smoke/find-info"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:35:15",
+        "verb": "Restoring",
+        "task": "openstack:debian-12-64:tests/unit/"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:35:18",
+        "verb": "Executing",
+        "task": "openstack:debian-sid-64:tests/regression/lp-1813365"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:35:18",
+        "verb": "Restoring",
+        "task": "openstack:debian-sid-64:tests/regression/lp-1813365"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:35:18",
+        "verb": "Preparing",
+        "task": "openstack:debian-sid-64:tests/completion/indirect:plain"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:35:18",
+        "verb": "Restoring",
+        "task": "openstack:debian-sid-64:tests/smoke/install"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:35:23",
+        "verb": "Preparing",
+        "task": "openstack:debian-sid-64:tests/completion/indirect:hosts_n_dirs"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:35:25",
+        "verb": "Preparing",
+        "task": "openstack:debian-12-64:tests/upgrade/basic"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:35:25",
+        "verb": "Executing",
+        "task": "openstack:debian-12-64:tests/upgrade/basic"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:35:27",
+        "verb": "Executing",
+        "task": "openstack:debian-sid-64:tests/completion/indirect:plain"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:35:28",
+        "verb": "Preparing",
+        "task": "openstack:debian-12-64:tests/regression/lp-1891371"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:35:31",
+        "verb": "Preparing",
+        "task": "openstack:debian-12-64:tests/smoke/install"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:35:33",
+        "verb": "Executing",
+        "task": "openstack:debian-sid-64:tests/completion/indirect:hosts_n_dirs"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:35:35",
+        "verb": "Executing",
+        "task": "openstack:debian-12-64:tests/regression/lp-1891371"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:35:37",
+        "verb": "Restoring",
+        "task": "openstack:debian-12-64:tests/completion/indirect:plain"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:35:38",
+        "verb": "Executing",
+        "task": "openstack:debian-12-64:tests/smoke/install"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:35:39",
+        "verb": "Preparing",
+        "task": "openstack:debian-sid-64:tests/regression/lp-1665004"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:35:41",
+        "verb": "Restoring",
+        "task": "openstack:debian-sid-64:tests/smoke/"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:35:42",
+        "verb": "Restoring",
+        "task": "openstack:debian-12-64:tests/regression/lp-1891371"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:35:46",
+        "verb": "Preparing",
+        "task": "openstack:debian-sid-64:tests/regression/"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:35:48",
+        "verb": "Executing",
+        "task": "openstack:debian-sid-64:tests/regression/lp-1665004"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:35:49",
+        "verb": "Restoring",
+        "task": "openstack:debian-sid-64:tests/regression/lp-1665004"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:35:54",
+        "verb": "Restoring",
+        "task": "openstack:debian-12-64:tests/upgrade/basic"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:35:58",
+        "verb": "Preparing",
+        "task": "openstack:debian-12-64:tests/completion/snippets:funky"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:36:03",
+        "verb": "Restoring",
+        "task": "openstack:debian-12-64:tests/smoke/install"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:36:03",
+        "verb": "Preparing",
+        "task": "openstack:debian-sid-64:tests/regression/lp-1764977"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:36:04",
+        "verb": "Restoring",
+        "task": "openstack:debian-12-64:tests/upgrade/"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:36:04",
+        "verb": "Preparing",
+        "task": "openstack:debian-12-64:tests/completion/"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:36:05",
+        "verb": "Preparing",
+        "task": "openstack:debian-12-64:tests/regression/lp-1949368"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:36:07",
+        "verb": "Executing",
+        "task": "openstack:debian-12-64:tests/completion/snippets:funky"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:36:10",
+        "verb": "Preparing",
+        "task": "openstack:debian-sid-64:tests/regression/exploding-namespace"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:36:11",
+        "verb": "Executing",
+        "task": "openstack:debian-sid-64:tests/regression/lp-1764977"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:36:13",
+        "verb": "Restoring",
+        "task": "openstack:debian-sid-64:tests/regression/lp-1764977"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:36:13",
+        "verb": "Restoring",
+        "task": "openstack:debian-12-64:tests/completion/snippets:funky"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:36:14",
+        "verb": "Executing",
+        "task": "openstack:debian-12-64:tests/regression/lp-1949368"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:36:14",
+        "verb": "Restoring",
+        "task": "openstack:debian-12-64:tests/regression/lp-1949368"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:36:16",
+        "verb": "Restoring",
+        "task": "openstack:debian-sid-64:tests/unit/go:clang"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:36:19",
+        "verb": "Executing",
+        "task": "openstack:debian-sid-64:tests/regression/exploding-namespace"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:36:19",
+        "verb": "Restoring",
+        "task": "openstack:debian-sid-64:tests/completion/indirect:plain"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:36:19",
+        "verb": "Restoring",
+        "task": "openstack:debian-sid-64:tests/unit/go:gcc"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:36:20",
+        "verb": "Restoring",
+        "task": "openstack:debian-sid-64:tests/regression/exploding-namespace"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:36:24",
+        "verb": "Preparing",
+        "task": "openstack:debian-12-64:tests/completion/simple:funkyfunc"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:36:24",
+        "verb": "Restoring",
+        "task": "openstack:debian-sid-64:tests/unit/"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:36:24",
+        "verb": "Restoring",
+        "task": "openstack:debian-sid-64:tests/completion/indirect:hosts_n_dirs"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:36:24",
+        "verb": "Preparing",
+        "task": "openstack:debian-12-64:tests/smoke/remove"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:36:29",
+        "verb": "Restoring",
+        "task": "openstack:debian-sid-64:tests/unit/"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:36:31",
+        "verb": "Executing",
+        "task": "openstack:debian-12-64:tests/smoke/remove"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:36:31",
+        "verb": "Executing",
+        "task": "openstack:debian-12-64:tests/completion/simple:funkyfunc"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:36:33",
+        "verb": "Restoring",
+        "task": "openstack:debian-12-64:tests/smoke/remove"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:36:33",
+        "verb": "Preparing",
+        "task": "openstack:debian-12-64:tests/regression/lp-1665004"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:36:33",
+        "verb": "Preparing",
+        "task": "openstack:debian-12-64:tests/completion/snippets:funcarg"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:36:34",
+        "verb": "Preparing",
+        "task": "openstack:debian-sid-64:tests/regression/lp-1805838"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:36:36",
+        "verb": "Preparing",
+        "task": "openstack:debian-sid-64:tests/regression/"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:36:38",
+        "verb": "Restoring",
+        "task": "openstack:debian-12-64:tests/completion/simple:funkyfunc"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:36:40",
+        "verb": "Preparing",
+        "task": "openstack:debian-sid-64:tests/completion/indirect:funky"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:36:41",
+        "verb": "Preparing",
+        "task": "openstack:debian-sid-64:tests/regression/lp-1862637"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:36:42",
+        "verb": "Executing",
+        "task": "openstack:debian-12-64:tests/regression/lp-1665004"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:36:42",
+        "verb": "Executing",
+        "task": "openstack:debian-12-64:tests/completion/snippets:funcarg"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:36:42",
+        "verb": "Preparing",
+        "task": "openstack:debian-sid-64:tests/completion/"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:36:42",
+        "verb": "Restoring",
+        "task": "openstack:debian-12-64:tests/regression/lp-1665004"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:36:43",
+        "verb": "Executing",
+        "task": "openstack:debian-sid-64:tests/regression/lp-1805838"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:36:43",
+        "verb": "Restoring",
+        "task": "openstack:debian-sid-64:tests/regression/lp-1805838"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:36:45",
+        "verb": "Preparing",
+        "task": "openstack:debian-sid-64:tests/completion/indirect:func"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:36:48",
+        "verb": "Restoring",
+        "task": "openstack:debian-12-64:tests/completion/snippets:funcarg"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:36:49",
+        "verb": "Executing",
+        "task": "openstack:debian-sid-64:tests/regression/lp-1862637"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:36:50",
+        "verb": "Executing",
+        "task": "openstack:debian-sid-64:tests/completion/indirect:funky"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:36:52",
+        "verb": "Preparing",
+        "task": "openstack:debian-12-64:tests/smoke/versioning"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:36:52",
+        "verb": "Restoring",
+        "task": "openstack:debian-sid-64:tests/regression/lp-1862637"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:36:54",
+        "verb": "Executing",
+        "task": "openstack:debian-sid-64:tests/completion/indirect:func"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:36:56",
+        "verb": "Preparing",
+        "task": "openstack:debian-sid-64:tests/regression/lp-1803542:shared"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:36:57",
+        "verb": "Preparing",
+        "task": "openstack:debian-12-64:tests/completion/snippets:plain"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:36:58",
+        "verb": "Executing",
+        "task": "openstack:debian-12-64:tests/smoke/versioning"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:36:58",
+        "verb": "Restoring",
+        "task": "openstack:debian-12-64:tests/smoke/versioning"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:37:00",
+        "verb": "Preparing",
+        "task": "openstack:debian-sid-64:tests/completion/snippets:files"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:37:01",
+        "verb": "Preparing",
+        "task": "openstack:debian-12-64:tests/regression/exploding-namespace"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:37:04",
+        "verb": "Preparing",
+        "task": "openstack:debian-sid-64:tests/regression/lp-1630479"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:37:06",
+        "verb": "Executing",
+        "task": "openstack:debian-sid-64:tests/regression/lp-1803542:shared"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:37:06",
+        "verb": "Restoring",
+        "task": "openstack:debian-sid-64:tests/regression/lp-1803542:shared"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:37:08",
+        "verb": "Preparing",
+        "task": "openstack:debian-12-64:tests/completion/indirect:hosts_n_dirs"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:37:10",
+        "verb": "Executing",
+        "task": "openstack:debian-12-64:tests/regression/exploding-namespace"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:37:10",
+        "verb": "Executing",
+        "task": "openstack:debian-sid-64:tests/completion/snippets:files"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:37:10",
+        "verb": "Restoring",
+        "task": "openstack:debian-12-64:tests/regression/exploding-namespace"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:37:12",
+        "verb": "Preparing",
+        "task": "openstack:debian-sid-64:tests/regression/lp-1801955"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:37:13",
+        "verb": "Executing",
+        "task": "openstack:debian-sid-64:tests/regression/lp-1630479"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:37:14",
+        "verb": "Restoring",
+        "task": "openstack:debian-sid-64:tests/regression/lp-1630479"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:37:16",
+        "verb": "Executing",
+        "task": "openstack:debian-12-64:tests/completion/indirect:hosts_n_dirs"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:37:17",
+        "verb": "Restoring",
+        "task": "openstack:debian-sid-64:tests/completion/snippets:files"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:37:18",
+        "verb": "Restoring",
+        "task": "openstack:debian-12-64:tests/smoke/"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:37:21",
+        "verb": "Executing",
+        "task": "openstack:debian-sid-64:tests/regression/lp-1801955"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:37:22",
+        "verb": "Restoring",
+        "task": "openstack:debian-sid-64:tests/regression/lp-1801955"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:37:22",
+        "verb": "Preparing",
+        "task": "openstack:debian-12-64:tests/regression/"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:37:27",
+        "verb": "Preparing",
+        "task": "openstack:debian-sid-64:tests/regression/lp-1597842"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:37:30",
+        "verb": "Preparing",
+        "task": "openstack:debian-12-64:tests/regression/mount-order-regression"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:37:34",
+        "verb": "Preparing",
+        "task": "openstack:debian-sid-64:tests/regression/lp-1615113"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:37:37",
+        "verb": "Executing",
+        "task": "openstack:debian-sid-64:tests/regression/lp-1597842"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:37:37",
+        "verb": "Restoring",
+        "task": "openstack:debian-sid-64:tests/regression/lp-1597842"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:37:38",
+        "verb": "Preparing",
+        "task": "openstack:debian-sid-64:tests/completion/snippets:hosts"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:37:39",
+        "verb": "Preparing",
+        "task": "openstack:debian-12-64:tests/regression/lp-1805838"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:37:41",
+        "verb": "Restoring",
+        "task": "openstack:debian-sid-64:tests/completion/indirect:funky"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:37:42",
+        "verb": "Preparing",
+        "task": "openstack:debian-sid-64:tests/regression/lp-1942266"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:37:45",
+        "verb": "Executing",
+        "task": "openstack:debian-sid-64:tests/regression/lp-1615113"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:37:45",
+        "verb": "Restoring",
+        "task": "openstack:debian-sid-64:tests/regression/lp-1615113"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:37:46",
+        "verb": "Restoring",
+        "task": "openstack:debian-sid-64:tests/completion/indirect:func"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:37:48",
+        "verb": "Executing",
+        "task": "openstack:debian-sid-64:tests/completion/snippets:hosts"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:37:48",
+        "verb": "Executing",
+        "task": "openstack:debian-12-64:tests/regression/lp-1805838"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:37:49",
+        "verb": "Restoring",
+        "task": "openstack:debian-12-64:tests/regression/lp-1805838"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:37:49",
+        "verb": "Executing",
+        "task": "openstack:debian-12-64:tests/completion/snippets:plain"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:37:49",
+        "verb": "Executing",
+        "task": "openstack:debian-sid-64:tests/regression/lp-1942266"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:37:52",
+        "verb": "Restoring",
+        "task": "openstack:debian-sid-64:tests/regression/lp-1942266"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:37:54",
+        "verb": "Restoring",
+        "task": "openstack:debian-sid-64:tests/completion/snippets:hosts"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:37:56",
+        "verb": "Restoring",
+        "task": "openstack:debian-12-64:tests/completion/snippets:plain"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:37:57",
+        "verb": "Preparing",
+        "task": "openstack:debian-sid-64:tests/regression/lp-1607796"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:38:03",
+        "verb": "Preparing",
+        "task": "openstack:debian-sid-64:tests/completion/indirect:funkyfunc"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:38:05",
+        "verb": "Preparing",
+        "task": "openstack:debian-sid-64:tests/regression/lp-1732555"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:38:07",
+        "verb": "Executing",
+        "task": "openstack:debian-sid-64:tests/regression/lp-1607796"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:38:07",
+        "verb": "Preparing",
+        "task": "openstack:debian-12-64:tests/regression/lp-1812973"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:38:08",
+        "verb": "Preparing",
+        "task": "openstack:debian-sid-64:tests/completion/indirect:files"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:38:08",
+        "verb": "Restoring",
+        "task": "openstack:debian-sid-64:tests/regression/lp-1607796"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:38:08",
+        "verb": "Restoring",
+        "task": "openstack:debian-12-64:tests/completion/indirect:hosts_n_dirs"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:38:13",
+        "verb": "Executing",
+        "task": "openstack:debian-sid-64:tests/completion/indirect:funkyfunc"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:38:13",
+        "verb": "Preparing",
+        "task": "openstack:debian-sid-64:tests/regression/lp-1803535"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:38:14",
+        "verb": "Executing",
+        "task": "openstack:debian-sid-64:tests/regression/lp-1732555"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:38:15",
+        "verb": "Restoring",
+        "task": "openstack:debian-sid-64:tests/regression/lp-1732555"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:38:15",
+        "verb": "Preparing",
+        "task": "openstack:debian-12-64:tests/completion/indirect:funcarg"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:38:15",
+        "verb": "Executing",
+        "task": "openstack:debian-12-64:tests/regression/lp-1812973"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:38:16",
+        "verb": "Preparing",
+        "task": "openstack:debian-sid-64:tests/completion/simple:funcarg"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:38:16",
+        "verb": "Restoring",
+        "task": "openstack:debian-12-64:tests/regression/lp-1812973"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:38:17",
+        "verb": "Executing",
+        "task": "openstack:debian-sid-64:tests/completion/indirect:files"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:38:18",
+        "verb": "Executing",
+        "task": "openstack:debian-12-64:tests/regression/mount-order-regression"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:38:20",
+        "verb": "Restoring",
+        "task": "openstack:debian-12-64:tests/regression/mount-order-regression"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:38:22",
+        "verb": "Executing",
+        "task": "openstack:debian-sid-64:tests/regression/lp-1803535"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:38:22",
+        "verb": "Restoring",
+        "task": "openstack:debian-sid-64:tests/regression/lp-1803535"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:38:23",
+        "verb": "Executing",
+        "task": "openstack:debian-sid-64:tests/completion/simple:funcarg"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:38:24",
+        "verb": "Executing",
+        "task": "openstack:debian-12-64:tests/completion/indirect:funcarg"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:38:28",
+        "verb": "Preparing",
+        "task": "openstack:debian-12-64:tests/completion/simple:func"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:38:28",
+        "verb": "Preparing",
+        "task": "openstack:debian-sid-64:tests/regression/lp-1815722"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:38:29",
+        "verb": "Restoring",
+        "task": "openstack:debian-sid-64:tests/completion/simple:funcarg"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:38:34",
+        "verb": "Executing",
+        "task": "openstack:debian-12-64:tests/completion/simple:func"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:38:35",
+        "verb": "Preparing",
+        "task": "openstack:debian-sid-64:tests/regression/lp-1808821"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:38:35",
+        "verb": "Executing",
+        "task": "openstack:debian-sid-64:tests/regression/lp-1815722"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:38:36",
+        "verb": "Preparing",
+        "task": "openstack:debian-12-64:tests/regression/lp-2084730"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:38:38",
+        "verb": "Restoring",
+        "task": "openstack:debian-sid-64:tests/regression/lp-1815722"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:38:39",
+        "verb": "Preparing",
+        "task": "openstack:debian-12-64:tests/regression/lp-1943853"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:38:41",
+        "verb": "Restoring",
+        "task": "openstack:debian-12-64:tests/completion/simple:func"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:38:42",
+        "verb": "Executing",
+        "task": "openstack:debian-sid-64:tests/regression/lp-1808821"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:38:42",
+        "verb": "Preparing",
+        "task": "openstack:debian-sid-64:tests/regression/lp-1803542:private"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:38:45",
+        "verb": "Executing",
+        "task": "openstack:debian-12-64:tests/regression/lp-2084730"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:38:47",
+        "verb": "Executing",
+        "task": "openstack:debian-12-64:tests/regression/lp-1943853"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:38:47",
+        "verb": "Restoring",
+        "task": "openstack:debian-sid-64:tests/regression/lp-1808821"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:38:48",
+        "verb": "Restoring",
+        "task": "openstack:debian-12-64:tests/regression/lp-1943853"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:38:49",
+        "verb": "Preparing",
+        "task": "openstack:debian-sid-64:tests/completion/simple:hosts"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:38:51",
+        "verb": "Executing",
+        "task": "openstack:debian-sid-64:tests/regression/lp-1803542:private"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:38:52",
+        "verb": "Restoring",
+        "task": "openstack:debian-sid-64:tests/regression/lp-1803542:private"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:38:55",
+        "verb": "Restoring",
+        "task": "openstack:debian-12-64:tests/regression/lp-2084730"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:38:56",
+        "verb": "Executing",
+        "task": "openstack:debian-sid-64:tests/completion/simple:hosts"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:38:58",
+        "verb": "Preparing",
+        "task": "openstack:debian-sid-64:tests/regression/lp-1618683"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:38:59",
+        "verb": "Preparing",
+        "task": "openstack:debian-12-64:tests/completion/simple:hosts"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:39:02",
+        "verb": "Restoring",
+        "task": "openstack:debian-sid-64:tests/completion/simple:hosts"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:39:04",
+        "verb": "Restoring",
+        "task": "openstack:debian-sid-64:tests/completion/indirect:funkyfunc"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:39:06",
+        "verb": "Executing",
+        "task": "openstack:debian-12-64:tests/completion/simple:hosts"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:39:07",
+        "verb": "Preparing",
+        "task": "openstack:debian-12-64:tests/regression/lp-2065077"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:39:08",
+        "verb": "Executing",
+        "task": "openstack:debian-sid-64:tests/regression/lp-1618683"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:39:08",
+        "verb": "Restoring",
+        "task": "openstack:debian-sid-64:tests/completion/indirect:files"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:39:08",
+        "verb": "Preparing",
+        "task": "openstack:debian-sid-64:tests/regression/lp-1803542:absent"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:39:08",
+        "verb": "Restoring",
+        "task": "openstack:debian-sid-64:tests/regression/lp-1618683"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:39:12",
+        "verb": "Preparing",
+        "task": "openstack:debian-sid-64:tests/regression/lp-1849845"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:39:12",
+        "verb": "Restoring",
+        "task": "openstack:debian-12-64:tests/completion/simple:hosts"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:39:15",
+        "verb": "Restoring",
+        "task": "openstack:debian-12-64:tests/completion/indirect:funcarg"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:39:16",
+        "verb": "Executing",
+        "task": "openstack:debian-12-64:tests/regression/lp-2065077"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:39:16",
+        "verb": "Restoring",
+        "task": "openstack:debian-12-64:tests/regression/lp-2065077"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:39:16",
+        "verb": "Preparing",
+        "task": "openstack:debian-12-64:tests/regression/lp-1764977"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:39:17",
+        "verb": "Executing",
+        "task": "openstack:debian-sid-64:tests/regression/lp-1803542:absent"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:39:17",
+        "verb": "Restoring",
+        "task": "openstack:debian-sid-64:tests/regression/lp-1803542:absent"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:39:22",
+        "verb": "Preparing",
+        "task": "openstack:debian-sid-64:tests/completion/snippets:funkyfunc"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:39:23",
+        "verb": "Executing",
+        "task": "openstack:debian-12-64:tests/regression/lp-1764977"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:39:24",
+        "verb": "Executing",
+        "task": "openstack:debian-sid-64:tests/regression/lp-1849845"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:39:24",
+        "verb": "Restoring",
+        "task": "openstack:debian-sid-64:tests/regression/lp-1849845"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:39:25",
+        "verb": "Restoring",
+        "task": "openstack:debian-12-64:tests/regression/lp-1764977"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:39:25",
+        "verb": "Preparing",
+        "task": "openstack:debian-sid-64:tests/completion/simple:hosts_n_dirs"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:39:29",
+        "verb": "Preparing",
+        "task": "openstack:debian-sid-64:tests/regression/lp-1848567"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:39:29",
+        "verb": "Preparing",
+        "task": "openstack:debian-sid-64:tests/completion/simple:plain_plusdirs"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:39:31",
+        "verb": "Preparing",
+        "task": "openstack:debian-12-64:tests/completion/simple:hosts_n_dirs"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:39:31",
+        "verb": "Executing",
+        "task": "openstack:debian-sid-64:tests/completion/snippets:funkyfunc"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:39:32",
+        "verb": "Executing",
+        "task": "openstack:debian-sid-64:tests/completion/simple:hosts_n_dirs"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:39:34",
+        "verb": "Preparing",
+        "task": "openstack:debian-12-64:tests/completion/indirect:func"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:39:36",
+        "verb": "Executing",
+        "task": "openstack:debian-sid-64:tests/completion/simple:plain_plusdirs"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:39:36",
+        "verb": "Preparing",
+        "task": "openstack:debian-12-64:tests/regression/lp-1800004"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:39:37",
+        "verb": "Preparing",
+        "task": "openstack:debian-sid-64:tests/regression/lp-1831010"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:39:37",
+        "verb": "Executing",
+        "task": "openstack:debian-12-64:tests/completion/simple:hosts_n_dirs"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:39:37",
+        "verb": "Restoring",
+        "task": "openstack:debian-sid-64:tests/completion/snippets:funkyfunc"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:39:39",
+        "verb": "Restoring",
+        "task": "openstack:debian-sid-64:tests/completion/simple:hosts_n_dirs"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:39:42",
+        "verb": "Executing",
+        "task": "openstack:debian-12-64:tests/completion/indirect:func"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:39:42",
+        "verb": "Restoring",
+        "task": "openstack:debian-sid-64:tests/completion/simple:plain_plusdirs"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:39:43",
+        "verb": "Executing",
+        "task": "openstack:debian-12-64:tests/regression/lp-1800004"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:39:43",
+        "verb": "Executing",
+        "task": "openstack:debian-sid-64:tests/regression/lp-1848567"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:39:43",
+        "verb": "Preparing",
+        "task": "openstack:debian-12-64:tests/regression/lp-1630479"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:39:44",
+        "verb": "Restoring",
+        "task": "openstack:debian-sid-64:tests/regression/lp-1848567"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:39:44",
+        "verb": "Restoring",
+        "task": "openstack:debian-12-64:tests/completion/simple:hosts_n_dirs"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:39:44",
+        "verb": "Executing",
+        "task": "openstack:debian-sid-64:tests/regression/lp-1831010"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:39:44",
+        "verb": "Restoring",
+        "task": "openstack:debian-12-64:tests/regression/lp-1800004"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:39:47",
+        "verb": "Preparing",
+        "task": "openstack:debian-sid-64:tests/regression/lp-1825883"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:39:47",
+        "verb": "Restoring",
+        "task": "openstack:debian-sid-64:tests/regression/lp-1831010"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:39:52",
+        "verb": "Executing",
+        "task": "openstack:debian-12-64:tests/regression/lp-1630479"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:39:53",
+        "verb": "Restoring",
+        "task": "openstack:debian-12-64:tests/regression/lp-1630479"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:39:54",
+        "verb": "Executing",
+        "task": "openstack:debian-sid-64:tests/regression/lp-1825883"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:39:58",
+        "verb": "Preparing",
+        "task": "openstack:debian-sid-64:tests/completion/snippets:plain_plusdirs"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:39:58",
+        "verb": "Preparing",
+        "task": "openstack:debian-sid-64:tests/completion/snippets:plain"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:39:59",
+        "verb": "Restoring",
+        "task": "openstack:debian-sid-64:tests/regression/lp-1825883"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:40:02",
+        "verb": "Preparing",
+        "task": "openstack:debian-sid-64:tests/completion/simple:funky"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:40:02",
+        "verb": "Preparing",
+        "task": "openstack:debian-12-64:tests/completion/snippets:plain_plusdirs"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:40:03",
+        "verb": "Preparing",
+        "task": "openstack:debian-12-64:tests/regression/lp-1815722"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:40:04",
+        "verb": "Preparing",
+        "task": "openstack:debian-sid-64:tests/regression/lp-1800004"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:40:07",
+        "verb": "Executing",
+        "task": "openstack:debian-sid-64:tests/completion/snippets:plain_plusdirs"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:40:07",
+        "verb": "Executing",
+        "task": "openstack:debian-sid-64:tests/completion/snippets:plain"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:40:08",
+        "verb": "Preparing",
+        "task": "openstack:debian-sid-64:tests/regression/lp-1803542:present"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:40:09",
+        "verb": "Executing",
+        "task": "openstack:debian-12-64:tests/regression/lp-1815722"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:40:10",
+        "verb": "Executing",
+        "task": "openstack:debian-sid-64:tests/completion/simple:funky"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:40:11",
+        "verb": "Executing",
+        "task": "openstack:debian-12-64:tests/completion/snippets:plain_plusdirs"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:40:11",
+        "verb": "Preparing",
+        "task": "openstack:debian-12-64:tests/regression/lp-1803535"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:40:12",
+        "verb": "Executing",
+        "task": "openstack:debian-sid-64:tests/regression/lp-1800004"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:40:12",
+        "verb": "Restoring",
+        "task": "openstack:debian-12-64:tests/regression/lp-1815722"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:40:13",
+        "verb": "Restoring",
+        "task": "openstack:debian-sid-64:tests/completion/snippets:plain_plusdirs"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:40:14",
+        "verb": "Restoring",
+        "task": "openstack:debian-sid-64:tests/completion/snippets:plain"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:40:14",
+        "verb": "Restoring",
+        "task": "openstack:debian-sid-64:tests/regression/lp-1800004"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:40:16",
+        "verb": "Executing",
+        "task": "openstack:debian-sid-64:tests/regression/lp-1803542:present"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:40:16",
+        "verb": "Restoring",
+        "task": "openstack:debian-sid-64:tests/completion/simple:funky"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:40:17",
+        "verb": "Restoring",
+        "task": "openstack:debian-sid-64:tests/regression/lp-1803542:present"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:40:17",
+        "verb": "Restoring",
+        "task": "openstack:debian-12-64:tests/completion/snippets:plain_plusdirs"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:40:19",
+        "verb": "Executing",
+        "task": "openstack:debian-12-64:tests/regression/lp-1803535"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:40:20",
+        "verb": "Restoring",
+        "task": "openstack:debian-12-64:tests/regression/lp-1803535"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:40:21",
+        "verb": "Preparing",
+        "task": "openstack:debian-sid-64:tests/regression/lp-1812973"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:40:29",
+        "verb": "Executing",
+        "task": "openstack:debian-sid-64:tests/regression/lp-1812973"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:40:30",
+        "verb": "Restoring",
+        "task": "openstack:debian-sid-64:tests/regression/lp-1812973"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:40:30",
+        "verb": "Preparing",
+        "task": "openstack:debian-12-64:tests/regression/lp-1862637"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:40:33",
+        "verb": "Restoring",
+        "task": "openstack:debian-12-64:tests/completion/indirect:func"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:40:34",
+        "verb": "Preparing",
+        "task": "openstack:debian-sid-64:tests/regression/lp-1891371"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:40:34",
+        "verb": "Preparing",
+        "task": "openstack:debian-sid-64:tests/completion/indirect:plain_plusdirs"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:40:35",
+        "verb": "Restoring",
+        "task": "openstack:debian-sid-64:tests/completion/"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:40:36",
+        "verb": "Restoring",
+        "task": "openstack:debian-sid-64:tests/completion/"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:40:37",
+        "verb": "Preparing",
+        "task": "openstack:debian-sid-64:tests/regression/lp-1606277"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:40:37",
+        "verb": "Preparing",
+        "task": "openstack:debian-12-64:tests/completion/indirect:funky"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:40:38",
+        "verb": "Executing",
+        "task": "openstack:debian-12-64:tests/regression/lp-1862637"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:40:38",
+        "verb": "Preparing",
+        "task": "openstack:debian-12-64:tests/regression/lp-1615113"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:40:39",
+        "verb": "Preparing",
+        "task": "openstack:debian-sid-64:tests/regression/"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:40:40",
+        "verb": "Restoring",
+        "task": "openstack:debian-12-64:tests/regression/lp-1862637"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:40:41",
+        "verb": "Preparing",
+        "task": "openstack:debian-sid-64:tests/regression/"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:40:41",
+        "verb": "Executing",
+        "task": "openstack:debian-sid-64:tests/regression/lp-1891371"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:40:43",
+        "verb": "Executing",
+        "task": "openstack:debian-sid-64:tests/completion/indirect:plain_plusdirs"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:40:45",
+        "verb": "Executing",
+        "task": "openstack:debian-12-64:tests/completion/indirect:funky"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:40:45",
+        "verb": "Executing",
+        "task": "openstack:debian-sid-64:tests/regression/lp-1606277"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:40:46",
+        "verb": "Restoring",
+        "task": "openstack:debian-sid-64:tests/regression/lp-1606277"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:40:47",
+        "verb": "Executing",
+        "task": "openstack:debian-12-64:tests/regression/lp-1615113"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:40:47",
+        "verb": "Restoring",
+        "task": "openstack:debian-sid-64:tests/regression/lp-1891371"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:40:48",
+        "verb": "Restoring",
+        "task": "openstack:debian-12-64:tests/regression/lp-1615113"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:40:50",
+        "verb": "Restoring",
+        "task": "openstack:debian-sid-64:tests/regression/"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:40:52",
+        "verb": "Preparing",
+        "task": "openstack:debian-12-64:tests/completion/indirect:plain_plusdirs"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:40:55",
+        "verb": "Restoring",
+        "task": "openstack:debian-sid-64"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:40:55",
+        "verb": "Preparing",
+        "task": "openstack:debian-sid-64:tests/regression/lp-2065077"
+    },
+    {
+        "type": "action",
+        "date": "2025-01-14",
+        "time": "08:40:55",
+        "verb": "Discarding",
+        "task": null,
+        "extra": "openstack:debian-sid-64 (jan140821-907727)..."
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:40:57",
+        "verb": "Preparing",
+        "task": "openstack:debian-sid-64:tests/regression/mount-order-regression"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:40:58",
+        "verb": "Preparing",
+        "task": "openstack:debian-12-64:tests/regression/lp-1606277"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:41:00",
+        "verb": "Executing",
+        "task": "openstack:debian-12-64:tests/completion/indirect:plain_plusdirs"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:41:05",
+        "verb": "Executing",
+        "task": "openstack:debian-sid-64:tests/regression/lp-2065077"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:41:06",
+        "verb": "Restoring",
+        "task": "openstack:debian-sid-64:tests/regression/lp-2065077"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:41:06",
+        "verb": "Restoring",
+        "task": "openstack:debian-sid-64:tests/regression/"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:41:06",
+        "verb": "Preparing",
+        "task": "openstack:debian-12-64:tests/regression/lp-1618683"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:41:06",
+        "verb": "Executing",
+        "task": "openstack:debian-12-64:tests/regression/lp-1606277"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:41:07",
+        "verb": "Restoring",
+        "task": "openstack:debian-12-64:tests/regression/lp-1606277"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:41:09",
+        "verb": "Restoring",
+        "task": "openstack:debian-sid-64:tests/regression/"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:41:10",
+        "verb": "Restoring",
+        "task": "openstack:debian-sid-64"
+    },
+    {
+        "type": "action",
+        "date": "2025-01-14",
+        "time": "08:41:11",
+        "verb": "Discarding",
+        "task": null,
+        "extra": "openstack:debian-sid-64 (jan140821-907750)..."
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:41:14",
+        "verb": "Restoring",
+        "task": "openstack:debian-sid-64"
+    },
+    {
+        "type": "action",
+        "date": "2025-01-14",
+        "time": "08:41:15",
+        "verb": "Discarding",
+        "task": null,
+        "extra": "openstack:debian-sid-64 (jan140821-907755)..."
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:41:16",
+        "verb": "Executing",
+        "task": "openstack:debian-12-64:tests/regression/lp-1618683"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:41:17",
+        "verb": "Restoring",
+        "task": "openstack:debian-12-64:tests/regression/lp-1618683"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:41:25",
+        "verb": "Preparing",
+        "task": "openstack:debian-12-64:tests/regression/lp-1808821"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:41:32",
+        "verb": "Executing",
+        "task": "openstack:debian-12-64:tests/regression/lp-1808821"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:41:35",
+        "verb": "Restoring",
+        "task": "openstack:debian-sid-64:tests/completion/indirect:plain_plusdirs"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:41:35",
+        "verb": "Preparing",
+        "task": "openstack:debian-12-64:tests/regression/lp-1844496"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:41:36",
+        "verb": "Restoring",
+        "task": "openstack:debian-sid-64:tests/regression/"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:41:36",
+        "verb": "Restoring",
+        "task": "openstack:debian-12-64:tests/completion/indirect:funky"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:41:37",
+        "verb": "Restoring",
+        "task": "openstack:debian-12-64:tests/regression/lp-1808821"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:41:40",
+        "verb": "Restoring",
+        "task": "openstack:debian-sid-64"
+    },
+    {
+        "type": "action",
+        "date": "2025-01-14",
+        "time": "08:41:41",
+        "verb": "Discarding",
+        "task": null,
+        "extra": "openstack:debian-sid-64 (jan140821-907732)..."
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:41:46",
+        "verb": "Executing",
+        "task": "openstack:debian-sid-64:tests/regression/mount-order-regression"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:41:47",
+        "verb": "Executing",
+        "task": "openstack:debian-12-64:tests/regression/lp-1844496"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:41:48",
+        "verb": "Restoring",
+        "task": "openstack:debian-sid-64:tests/regression/mount-order-regression"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:41:51",
+        "verb": "Restoring",
+        "task": "openstack:debian-12-64:tests/completion/indirect:plain_plusdirs"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:41:55",
+        "verb": "Restoring",
+        "task": "openstack:debian-sid-64:tests/completion/"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:41:55",
+        "verb": "Preparing",
+        "task": "openstack:debian-12-64:tests/completion/simple:plain"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:41:56",
+        "verb": "Preparing",
+        "task": "openstack:debian-12-64:tests/regression/lp-1797556"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:41:57",
+        "verb": "Restoring",
+        "task": "openstack:debian-12-64:tests/regression/lp-1844496"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:41:59",
+        "verb": "Restoring",
+        "task": "openstack:debian-sid-64"
+    },
+    {
+        "type": "action",
+        "date": "2025-01-14",
+        "time": "08:42:00",
+        "verb": "Discarding",
+        "task": null,
+        "extra": "openstack:debian-sid-64 (jan140821-907743)..."
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:42:01",
+        "verb": "Executing",
+        "task": "openstack:debian-12-64:tests/completion/simple:plain"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:42:05",
+        "verb": "Executing",
+        "task": "openstack:debian-12-64:tests/regression/lp-1797556"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:42:05",
+        "verb": "Restoring",
+        "task": "openstack:debian-12-64:tests/regression/lp-1797556"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:42:08",
+        "verb": "Restoring",
+        "task": "openstack:debian-sid-64:tests/regression/"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:42:08",
+        "verb": "Restoring",
+        "task": "openstack:debian-12-64:tests/completion/simple:plain"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:42:10",
+        "verb": "Preparing",
+        "task": "openstack:debian-12-64:tests/completion/snippets:files"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:42:13",
+        "verb": "Restoring",
+        "task": "openstack:debian-sid-64"
+    },
+    {
+        "type": "action",
+        "date": "2025-01-14",
+        "time": "08:42:13",
+        "verb": "Discarding",
+        "task": null,
+        "extra": "openstack:debian-sid-64 (jan140821-907737)..."
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:42:17",
+        "verb": "Preparing",
+        "task": "openstack:debian-12-64:tests/regression/lp-1597839"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:42:18",
+        "verb": "Executing",
+        "task": "openstack:debian-12-64:tests/completion/snippets:files"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:42:23",
+        "verb": "Preparing",
+        "task": "openstack:debian-12-64:tests/regression/lp-1607796"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:42:24",
+        "verb": "Restoring",
+        "task": "openstack:debian-12-64:tests/completion/snippets:files"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:42:25",
+        "verb": "Executing",
+        "task": "openstack:debian-12-64:tests/regression/lp-1597839"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:42:26",
+        "verb": "Restoring",
+        "task": "openstack:debian-12-64:tests/regression/lp-1597839"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:42:27",
+        "verb": "Preparing",
+        "task": "openstack:debian-12-64:tests/completion/snippets:funkyfunc"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:42:32",
+        "verb": "Executing",
+        "task": "openstack:debian-12-64:tests/regression/lp-1607796"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:42:33",
+        "verb": "Restoring",
+        "task": "openstack:debian-12-64:tests/regression/lp-1607796"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:42:35",
+        "verb": "Executing",
+        "task": "openstack:debian-12-64:tests/completion/snippets:funkyfunc"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:42:41",
+        "verb": "Restoring",
+        "task": "openstack:debian-12-64:tests/completion/snippets:funkyfunc"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:42:43",
+        "verb": "Preparing",
+        "task": "openstack:debian-12-64:tests/completion/simple:files"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:42:45",
+        "verb": "Preparing",
+        "task": "openstack:debian-12-64:tests/regression/lp-1803542:private"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:42:50",
+        "verb": "Executing",
+        "task": "openstack:debian-12-64:tests/completion/simple:files"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:42:52",
+        "verb": "Preparing",
+        "task": "openstack:debian-12-64:tests/regression/lp-1597842"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:42:53",
+        "verb": "Executing",
+        "task": "openstack:debian-12-64:tests/regression/lp-1803542:private"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:42:53",
+        "verb": "Restoring",
+        "task": "openstack:debian-12-64:tests/regression/lp-1803542:private"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:42:58",
+        "verb": "Restoring",
+        "task": "openstack:debian-12-64:tests/completion/simple:files"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:43:00",
+        "verb": "Executing",
+        "task": "openstack:debian-12-64:tests/regression/lp-1597842"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:43:01",
+        "verb": "Preparing",
+        "task": "openstack:debian-12-64:tests/completion/simple:plain_plusdirs"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:43:01",
+        "verb": "Restoring",
+        "task": "openstack:debian-12-64:tests/regression/lp-1597842"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:43:08",
+        "verb": "Executing",
+        "task": "openstack:debian-12-64:tests/completion/simple:plain_plusdirs"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:43:12",
+        "verb": "Preparing",
+        "task": "openstack:debian-12-64:tests/regression/lp-1898038"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:43:14",
+        "verb": "Restoring",
+        "task": "openstack:debian-12-64:tests/completion/simple:plain_plusdirs"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:43:17",
+        "verb": "Preparing",
+        "task": "openstack:debian-12-64:tests/completion/simple:funky"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:43:19",
+        "verb": "Preparing",
+        "task": "openstack:debian-12-64:tests/regression/lp-1942266"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:43:21",
+        "verb": "Executing",
+        "task": "openstack:debian-12-64:tests/regression/lp-1898038"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:43:22",
+        "verb": "Restoring",
+        "task": "openstack:debian-12-64:tests/regression/lp-1898038"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:43:23",
+        "verb": "Executing",
+        "task": "openstack:debian-12-64:tests/completion/simple:funky"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:43:26",
+        "verb": "Executing",
+        "task": "openstack:debian-12-64:tests/regression/lp-1942266"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:43:29",
+        "verb": "Restoring",
+        "task": "openstack:debian-12-64:tests/regression/lp-1942266"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:43:30",
+        "verb": "Restoring",
+        "task": "openstack:debian-12-64:tests/completion/simple:funky"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:43:33",
+        "verb": "Preparing",
+        "task": "openstack:debian-12-64:tests/completion/simple:funcarg"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:43:40",
+        "verb": "Executing",
+        "task": "openstack:debian-12-64:tests/completion/simple:funcarg"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:43:41",
+        "verb": "Preparing",
+        "task": "openstack:debian-12-64:tests/regression/lp-1848567"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:43:46",
+        "verb": "Restoring",
+        "task": "openstack:debian-12-64:tests/completion/simple:funcarg"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:43:48",
+        "verb": "Preparing",
+        "task": "openstack:debian-12-64:tests/regression/lp-1849845"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:43:48",
+        "verb": "Preparing",
+        "task": "openstack:debian-12-64:tests/completion/indirect:hosts"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:43:54",
+        "verb": "Executing",
+        "task": "openstack:debian-12-64:tests/regression/lp-1848567"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:43:55",
+        "verb": "Restoring",
+        "task": "openstack:debian-12-64:tests/regression/lp-1848567"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:43:56",
+        "verb": "Executing",
+        "task": "openstack:debian-12-64:tests/completion/indirect:hosts"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:43:59",
+        "verb": "Executing",
+        "task": "openstack:debian-12-64:tests/regression/lp-1849845"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:43:59",
+        "verb": "Restoring",
+        "task": "openstack:debian-12-64:tests/regression/lp-1849845"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:44:05",
+        "verb": "Preparing",
+        "task": "openstack:debian-12-64:tests/completion/snippets:hosts_n_dirs"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:44:13",
+        "verb": "Executing",
+        "task": "openstack:debian-12-64:tests/completion/snippets:hosts_n_dirs"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:44:13",
+        "verb": "Preparing",
+        "task": "openstack:debian-12-64:tests/regression/lp-1803542:shared"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:44:19",
+        "verb": "Restoring",
+        "task": "openstack:debian-12-64:tests/completion/snippets:hosts_n_dirs"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:44:20",
+        "verb": "Restoring",
+        "task": "openstack:debian-12-64:tests/regression/"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:44:22",
+        "verb": "Executing",
+        "task": "openstack:debian-12-64:tests/regression/lp-1803542:shared"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:44:22",
+        "verb": "Restoring",
+        "task": "openstack:debian-12-64:tests/regression/lp-1803542:shared"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:44:24",
+        "verb": "Preparing",
+        "task": "openstack:debian-12-64:tests/completion/"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:44:39",
+        "verb": "Preparing",
+        "task": "openstack:debian-12-64:tests/completion/snippets:hosts"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:44:40",
+        "verb": "Preparing",
+        "task": "openstack:debian-12-64:tests/completion/snippets:func"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:44:41",
+        "verb": "Restoring",
+        "task": "openstack:debian-12-64:tests/regression/"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:44:45",
+        "verb": "Restoring",
+        "task": "openstack:debian-12-64"
+    },
+    {
+        "type": "action",
+        "date": "2025-01-14",
+        "time": "08:44:46",
+        "verb": "Discarding",
+        "task": null,
+        "extra": "openstack:debian-12-64 (jan140821-907218)..."
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:44:47",
+        "verb": "Executing",
+        "task": "openstack:debian-12-64:tests/completion/snippets:hosts"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:44:47",
+        "verb": "Restoring",
+        "task": "openstack:debian-12-64:tests/completion/indirect:hosts"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:44:49",
+        "verb": "Executing",
+        "task": "openstack:debian-12-64:tests/completion/snippets:func"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:44:54",
+        "verb": "Restoring",
+        "task": "openstack:debian-12-64:tests/completion/snippets:hosts"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:44:55",
+        "verb": "Restoring",
+        "task": "openstack:debian-12-64:tests/completion/snippets:func"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:45:06",
+        "verb": "Restoring",
+        "task": "openstack:debian-12-64:tests/completion/"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:45:10",
+        "verb": "Restoring",
+        "task": "openstack:debian-12-64"
+    },
+    {
+        "type": "action",
+        "date": "2025-01-14",
+        "time": "08:45:11",
+        "verb": "Discarding",
+        "task": null,
+        "extra": "openstack:debian-12-64 (jan140821-907716)..."
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:45:12",
+        "verb": "Restoring",
+        "task": "openstack:debian-12-64:tests/completion/"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:45:14",
+        "verb": "Restoring",
+        "task": "openstack:debian-12-64:tests/completion/"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:45:16",
+        "verb": "Restoring",
+        "task": "openstack:debian-12-64"
+    },
+    {
+        "type": "action",
+        "date": "2025-01-14",
+        "time": "08:45:17",
+        "verb": "Discarding",
+        "task": null,
+        "extra": "openstack:debian-12-64 (jan140821-907640)..."
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:45:18",
+        "verb": "Restoring",
+        "task": "openstack:debian-12-64"
+    },
+    {
+        "type": "action",
+        "date": "2025-01-14",
+        "time": "08:45:19",
+        "verb": "Discarding",
+        "task": null,
+        "extra": "openstack:debian-12-64 (jan140821-907721)..."
+    },
+    {
+        "type": "result",
+        "date": "2025-01-14",
+        "time": "08:45:20",
+        "result_type": "Successful",
+        "level": "tasks",
+        "stage": null,
+        "number": "162",
+        "detail": null
+    },
+    {
+        "type": "result",
+        "date": "2025-01-14",
+        "time": "08:45:20",
+        "result_type": "Aborted",
+        "level": "tasks",
+        "stage": null,
+        "number": "929",
+        "detail": null
+    },
+    {
+        "type": "result",
+        "date": "2025-01-14",
+        "time": "08:45:20",
+        "result_type": "Failed",
+        "level": "tasks",
+        "stage": null,
+        "number": "1",
+        "detail": {
+            "lines": [
+                "- openstack:debian-12-64:tests/main/degraded\n"
+            ]
+        }
+    },
+    {
+        "type": "result",
+        "date": "2025-01-14",
+        "time": "08:45:20",
+        "result_type": "Failed",
+        "level": "suite",
+        "stage": "prepare",
+        "number": "2",
+        "detail": {
+            "lines": [
+                "- openstack:debian-12-64:tests/main/\n",
+                "- openstack:debian-sid-64:tests/main/\n"
+            ]
+        }
+    },
+    {
+        "type": "result",
+        "date": "2025-01-14",
+        "time": "08:45:20",
+        "result_type": "Failed",
+        "level": "suite",
+        "stage": "restore",
+        "number": "2",
+        "detail": {
+            "lines": [
+                "- openstack:debian-12-64:tests/main/\n",
+                "- openstack:debian-12-64:tests/main/\n"
+            ]
+        }
+    },
+    {
+        "type": "result",
+        "date": "2025-01-14",
+        "time": "08:45:20",
+        "result_type": "Failed",
+        "level": "project",
+        "stage": "prepare",
+        "number": "1",
+        "detail": {
+            "lines": [
+                "- openstack:debian-12-64:project\n"
+            ]
+        }
+    },
+    {
+        "type": "result",
+        "date": "2025-01-14",
+        "time": "08:45:20",
+        "result_type": "Failed",
+        "level": "project",
+        "stage": "restore",
+        "number": "1",
+        "detail": {
+            "lines": [
+                "- openstack:debian-12-64:project\n"
+            ]
+        }
+    }
+]

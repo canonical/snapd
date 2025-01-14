@@ -1,0 +1,70 @@
+[
+    {
+        "type": "action",
+        "date": "2025-01-14",
+        "time": "08:23:13",
+        "verb": "Allocating",
+        "task": null,
+        "extra": "openstack:centos-9-64..."
+    },
+    {
+        "type": "action",
+        "date": "2025-01-14",
+        "time": "08:23:13",
+        "verb": "Allocating",
+        "task": null,
+        "extra": "openstack:centos-9-64..."
+    },
+    {
+        "type": "action",
+        "date": "2025-01-14",
+        "time": "08:23:13",
+        "verb": "Allocating",
+        "task": null,
+        "extra": "openstack:centos-9-64..."
+    },
+    {
+        "type": "action",
+        "date": "2025-01-14",
+        "time": "08:23:13",
+        "verb": "Allocating",
+        "task": null,
+        "extra": "openstack:centos-9-64..."
+    },
+    {
+        "type": "action",
+        "date": "2025-01-14",
+        "time": "08:23:13",
+        "verb": "Allocating",
+        "task": null,
+        "extra": "openstack:centos-9-64..."
+    },
+    {
+        "type": "action",
+        "date": "2025-01-14",
+        "time": "08:23:13",
+        "verb": "Allocating",
+        "task": null,
+        "extra": "openstack:centos-9-64..."
+    },
+    {
+        "type": "result",
+        "date": "2025-01-14",
+        "time": "08:28:19",
+        "result_type": "Successful",
+        "level": "tasks",
+        "stage": null,
+        "number": "0",
+        "detail": null
+    },
+    {
+        "type": "result",
+        "date": "2025-01-14",
+        "time": "08:28:19",
+        "result_type": "Aborted",
+        "level": "tasks",
+        "stage": null,
+        "number": "517",
+        "detail": null
+    }
+]

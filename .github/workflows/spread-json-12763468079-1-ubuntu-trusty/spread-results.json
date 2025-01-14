@@ -1,0 +1,835 @@
+[
+    {
+        "type": "action",
+        "date": "2025-01-14",
+        "time": "08:22:33",
+        "verb": "Allocating",
+        "task": null,
+        "extra": "google:ubuntu-14.04-64..."
+    },
+    {
+        "type": "action",
+        "date": "2025-01-14",
+        "time": "08:22:33",
+        "verb": "Allocating",
+        "task": null,
+        "extra": "google:ubuntu-14.04-64..."
+    },
+    {
+        "type": "action",
+        "date": "2025-01-14",
+        "time": "08:22:33",
+        "verb": "Allocating",
+        "task": null,
+        "extra": "google:ubuntu-14.04-64..."
+    },
+    {
+        "type": "action",
+        "date": "2025-01-14",
+        "time": "08:22:33",
+        "verb": "Allocating",
+        "task": null,
+        "extra": "google:ubuntu-14.04-64..."
+    },
+    {
+        "type": "action",
+        "date": "2025-01-14",
+        "time": "08:22:33",
+        "verb": "Allocating",
+        "task": null,
+        "extra": "google:ubuntu-14.04-64..."
+    },
+    {
+        "type": "action",
+        "date": "2025-01-14",
+        "time": "08:22:33",
+        "verb": "Allocating",
+        "task": null,
+        "extra": "google:ubuntu-14.04-64..."
+    },
+    {
+        "type": "action",
+        "date": "2025-01-14",
+        "time": "08:22:43",
+        "verb": "Waiting",
+        "task": null,
+        "extra": "for google:ubuntu-14.04-64 (jan140822-315798) to boot at 35.197.251.89..."
+    },
+    {
+        "type": "action",
+        "date": "2025-01-14",
+        "time": "08:22:49",
+        "verb": "Waiting",
+        "task": null,
+        "extra": "for google:ubuntu-14.04-64 (jan140822-316030) to boot at 35.246.121.66..."
+    },
+    {
+        "type": "action",
+        "date": "2025-01-14",
+        "time": "08:22:49",
+        "verb": "Waiting",
+        "task": null,
+        "extra": "for google:ubuntu-14.04-64 (jan140822-316035) to boot at 35.246.78.210..."
+    },
+    {
+        "type": "action",
+        "date": "2025-01-14",
+        "time": "08:22:49",
+        "verb": "Waiting",
+        "task": null,
+        "extra": "for google:ubuntu-14.04-64 (jan140822-316025) to boot at 35.246.95.221..."
+    },
+    {
+        "type": "action",
+        "date": "2025-01-14",
+        "time": "08:22:49",
+        "verb": "Waiting",
+        "task": null,
+        "extra": "for google:ubuntu-14.04-64 (jan140822-316039) to boot at 35.246.96.61..."
+    },
+    {
+        "type": "action",
+        "date": "2025-01-14",
+        "time": "08:22:53",
+        "verb": "Waiting",
+        "task": null,
+        "extra": "for google:ubuntu-14.04-64 (jan140822-316015) to boot at 35.246.67.27..."
+    },
+    {
+        "type": "action",
+        "date": "2025-01-14",
+        "time": "08:23:16",
+        "verb": "Allocated",
+        "task": null,
+        "extra": "google:ubuntu-14.04-64 (jan140822-316039)."
+    },
+    {
+        "type": "action",
+        "date": "2025-01-14",
+        "time": "08:23:17",
+        "verb": "Connecting",
+        "task": null,
+        "extra": "to google:ubuntu-14.04-64 (jan140822-316039)..."
+    },
+    {
+        "type": "action",
+        "date": "2025-01-14",
+        "time": "08:23:17",
+        "verb": "Connected",
+        "task": null,
+        "extra": "to google:ubuntu-14.04-64 (jan140822-316039) at 35.246.96.61."
+    },
+    {
+        "type": "action",
+        "date": "2025-01-14",
+        "time": "08:23:17",
+        "verb": "Sending",
+        "task": null,
+        "extra": "project content to google:ubuntu-14.04-64 (jan140822-316039)..."
+    },
+    {
+        "type": "action",
+        "date": "2025-01-14",
+        "time": "08:23:19",
+        "verb": "Allocated",
+        "task": null,
+        "extra": "google:ubuntu-14.04-64 (jan140822-315798)."
+    },
+    {
+        "type": "action",
+        "date": "2025-01-14",
+        "time": "08:23:19",
+        "verb": "Connecting",
+        "task": null,
+        "extra": "to google:ubuntu-14.04-64 (jan140822-315798)..."
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:23:19",
+        "verb": "Preparing",
+        "task": "google:ubuntu-14.04-64"
+    },
+    {
+        "type": "action",
+        "date": "2025-01-14",
+        "time": "08:23:19",
+        "verb": "Connected",
+        "task": null,
+        "extra": "to google:ubuntu-14.04-64 (jan140822-315798) at 35.197.251.89."
+    },
+    {
+        "type": "action",
+        "date": "2025-01-14",
+        "time": "08:23:19",
+        "verb": "Sending",
+        "task": null,
+        "extra": "project content to google:ubuntu-14.04-64 (jan140822-315798)..."
+    },
+    {
+        "type": "action",
+        "date": "2025-01-14",
+        "time": "08:23:20",
+        "verb": "Allocated",
+        "task": null,
+        "extra": "google:ubuntu-14.04-64 (jan140822-316030)."
+    },
+    {
+        "type": "action",
+        "date": "2025-01-14",
+        "time": "08:23:20",
+        "verb": "Allocated",
+        "task": null,
+        "extra": "google:ubuntu-14.04-64 (jan140822-316035)."
+    },
+    {
+        "type": "action",
+        "date": "2025-01-14",
+        "time": "08:23:20",
+        "verb": "Allocated",
+        "task": null,
+        "extra": "google:ubuntu-14.04-64 (jan140822-316025)."
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:23:21",
+        "verb": "Preparing",
+        "task": "google:ubuntu-14.04-64"
+    },
+    {
+        "type": "action",
+        "date": "2025-01-14",
+        "time": "08:23:23",
+        "verb": "Connecting",
+        "task": null,
+        "extra": "to google:ubuntu-14.04-64 (jan140822-316030)..."
+    },
+    {
+        "type": "action",
+        "date": "2025-01-14",
+        "time": "08:23:23",
+        "verb": "Connected",
+        "task": null,
+        "extra": "to google:ubuntu-14.04-64 (jan140822-316030) at 35.246.121.66."
+    },
+    {
+        "type": "action",
+        "date": "2025-01-14",
+        "time": "08:23:23",
+        "verb": "Sending",
+        "task": null,
+        "extra": "project content to google:ubuntu-14.04-64 (jan140822-316030)..."
+    },
+    {
+        "type": "action",
+        "date": "2025-01-14",
+        "time": "08:23:23",
+        "verb": "Connecting",
+        "task": null,
+        "extra": "to google:ubuntu-14.04-64 (jan140822-316035)..."
+    },
+    {
+        "type": "action",
+        "date": "2025-01-14",
+        "time": "08:23:23",
+        "verb": "Connected",
+        "task": null,
+        "extra": "to google:ubuntu-14.04-64 (jan140822-316035) at 35.246.78.210."
+    },
+    {
+        "type": "action",
+        "date": "2025-01-14",
+        "time": "08:23:23",
+        "verb": "Sending",
+        "task": null,
+        "extra": "project content to google:ubuntu-14.04-64 (jan140822-316035)..."
+    },
+    {
+        "type": "action",
+        "date": "2025-01-14",
+        "time": "08:23:23",
+        "verb": "Connecting",
+        "task": null,
+        "extra": "to google:ubuntu-14.04-64 (jan140822-316025)..."
+    },
+    {
+        "type": "action",
+        "date": "2025-01-14",
+        "time": "08:23:23",
+        "verb": "Connected",
+        "task": null,
+        "extra": "to google:ubuntu-14.04-64 (jan140822-316025) at 35.246.95.221."
+    },
+    {
+        "type": "action",
+        "date": "2025-01-14",
+        "time": "08:23:23",
+        "verb": "Sending",
+        "task": null,
+        "extra": "project content to google:ubuntu-14.04-64 (jan140822-316025)..."
+    },
+    {
+        "type": "action",
+        "date": "2025-01-14",
+        "time": "08:23:24",
+        "verb": "Allocated",
+        "task": null,
+        "extra": "google:ubuntu-14.04-64 (jan140822-316015)."
+    },
+    {
+        "type": "action",
+        "date": "2025-01-14",
+        "time": "08:23:25",
+        "verb": "Connecting",
+        "task": null,
+        "extra": "to google:ubuntu-14.04-64 (jan140822-316015)..."
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:23:25",
+        "verb": "Preparing",
+        "task": "google:ubuntu-14.04-64"
+    },
+    {
+        "type": "action",
+        "date": "2025-01-14",
+        "time": "08:23:25",
+        "verb": "Connected",
+        "task": null,
+        "extra": "to google:ubuntu-14.04-64 (jan140822-316015) at 35.246.67.27."
+    },
+    {
+        "type": "action",
+        "date": "2025-01-14",
+        "time": "08:23:25",
+        "verb": "Sending",
+        "task": null,
+        "extra": "project content to google:ubuntu-14.04-64 (jan140822-316015)..."
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:23:25",
+        "verb": "Preparing",
+        "task": "google:ubuntu-14.04-64"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:23:25",
+        "verb": "Preparing",
+        "task": "google:ubuntu-14.04-64"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:23:26",
+        "verb": "Preparing",
+        "task": "google:ubuntu-14.04-64"
+    },
+    {
+        "type": "info",
+        "date": "2025-01-14",
+        "time": "08:28:19",
+        "info_type": "WARNING",
+        "verb": null,
+        "task": null,
+        "extra": "jan140822-316039 (google:ubuntu-14.04-64) running late. Current output:",
+        "detail": {
+            "lines": [
+                "-----\n",
+                "(... 4282 lines above ...)\n",
+                "dpkg-gencontrol: warning: unknown information field 'Recommends' in input data in general section of control info file\n",
+                "dpkg-gencontrol: warning: unknown information field 'Suggests' in input data in general section of control info file\n",
+                "dpkg-gencontrol: warning: unknown information field 'Recommends' in input data in general section of control info file\n",
+                "dpkg-gencontrol: warning: unknown information field 'Suggests' in input data in general section of control info file\n",
+                "make[1]: Leaving directory `/home/gopath/src/github.com/snapcore/snapd'\n",
+                "dh_md5sums -O--buildsystem=golang -O--fail-missing -O--builddirectory=_build\n",
+                "dh_builddeb -u-Zxz -O--buildsystem=golang -O--fail-missing -O--builddirectory=_build\n",
+                "dpkg-deb: building package `golang-github-ubuntu-core-snappy-dev' in `../golang-github-ubuntu-core-snappy-dev_1337.2.67~14.04_all.deb'.\n",
+                "dpkg-deb: building package `golang-github-snapcore-snapd-dev' in `../golang-github-snapcore-snapd-dev_1337.2.67~14.04_all.deb'.\n",
+                "dpkg-deb: building package `snapd' in `../snapd_1337.2.67~14.04_amd64.deb'.\n",
+                "-----\n",
+                ".\n"
+            ]
+        }
+    },
+    {
+        "type": "info",
+        "date": "2025-01-14",
+        "time": "08:28:21",
+        "info_type": "WARNING",
+        "verb": null,
+        "task": null,
+        "extra": "jan140822-315798 (google:ubuntu-14.04-64) running late. Current output:",
+        "detail": {
+            "lines": [
+                "-----\n",
+                "(... 4282 lines above ...)\n",
+                "dpkg-gencontrol: warning: unknown information field 'Recommends' in input data in general section of control info file\n",
+                "dpkg-gencontrol: warning: unknown information field 'Suggests' in input data in general section of control info file\n",
+                "dpkg-gencontrol: warning: unknown information field 'Recommends' in input data in general section of control info file\n",
+                "dpkg-gencontrol: warning: unknown information field 'Suggests' in input data in general section of control info file\n",
+                "make[1]: Leaving directory `/home/gopath/src/github.com/snapcore/snapd'\n",
+                "dh_md5sums -O--buildsystem=golang -O--fail-missing -O--builddirectory=_build\n",
+                "dh_builddeb -u-Zxz -O--buildsystem=golang -O--fail-missing -O--builddirectory=_build\n",
+                "dpkg-deb: building package `golang-github-ubuntu-core-snappy-dev' in `../golang-github-ubuntu-core-snappy-dev_1337.2.67~14.04_all.deb'.\n",
+                "dpkg-deb: building package `golang-github-snapcore-snapd-dev' in `../golang-github-snapcore-snapd-dev_1337.2.67~14.04_all.deb'.\n",
+                "dpkg-deb: building package `snapd' in `../snapd_1337.2.67~14.04_amd64.deb'.\n",
+                "-----\n",
+                ".\n"
+            ]
+        }
+    },
+    {
+        "type": "info",
+        "date": "2025-01-14",
+        "time": "08:28:25",
+        "info_type": "WARNING",
+        "verb": null,
+        "task": null,
+        "extra": "jan140822-316030 (google:ubuntu-14.04-64) running late. Current output:",
+        "detail": {
+            "lines": [
+                "-----\n",
+                "(... 4282 lines above ...)\n",
+                "dpkg-gencontrol: warning: unknown information field 'Recommends' in input data in general section of control info file\n",
+                "dpkg-gencontrol: warning: unknown information field 'Suggests' in input data in general section of control info file\n",
+                "dpkg-gencontrol: warning: unknown information field 'Recommends' in input data in general section of control info file\n",
+                "dpkg-gencontrol: warning: unknown information field 'Suggests' in input data in general section of control info file\n",
+                "make[1]: Leaving directory `/home/gopath/src/github.com/snapcore/snapd'\n",
+                "dh_md5sums -O--buildsystem=golang -O--fail-missing -O--builddirectory=_build\n",
+                "dh_builddeb -u-Zxz -O--buildsystem=golang -O--fail-missing -O--builddirectory=_build\n",
+                "dpkg-deb: building package `golang-github-ubuntu-core-snappy-dev' in `../golang-github-ubuntu-core-snappy-dev_1337.2.67~14.04_all.deb'.\n",
+                "dpkg-deb: building package `golang-github-snapcore-snapd-dev' in `../golang-github-snapcore-snapd-dev_1337.2.67~14.04_all.deb'.\n",
+                "dpkg-deb: building package `snapd' in `../snapd_1337.2.67~14.04_amd64.deb'.\n",
+                "-----\n",
+                ".\n"
+            ]
+        }
+    },
+    {
+        "type": "info",
+        "date": "2025-01-14",
+        "time": "08:28:25",
+        "info_type": "WARNING",
+        "verb": null,
+        "task": null,
+        "extra": "jan140822-316035 (google:ubuntu-14.04-64) running late. Current output:",
+        "detail": {
+            "lines": [
+                "-----\n",
+                "(... 4282 lines above ...)\n",
+                "dpkg-gencontrol: warning: unknown information field 'Recommends' in input data in general section of control info file\n",
+                "dpkg-gencontrol: warning: unknown information field 'Suggests' in input data in general section of control info file\n",
+                "dpkg-gencontrol: warning: unknown information field 'Recommends' in input data in general section of control info file\n",
+                "dpkg-gencontrol: warning: unknown information field 'Suggests' in input data in general section of control info file\n",
+                "make[1]: Leaving directory `/home/gopath/src/github.com/snapcore/snapd'\n",
+                "dh_md5sums -O--buildsystem=golang -O--fail-missing -O--builddirectory=_build\n",
+                "dh_builddeb -u-Zxz -O--buildsystem=golang -O--fail-missing -O--builddirectory=_build\n",
+                "dpkg-deb: building package `golang-github-ubuntu-core-snappy-dev' in `../golang-github-ubuntu-core-snappy-dev_1337.2.67~14.04_all.deb'.\n",
+                "dpkg-deb: building package `golang-github-snapcore-snapd-dev' in `../golang-github-snapcore-snapd-dev_1337.2.67~14.04_all.deb'.\n",
+                "dpkg-deb: building package `snapd' in `../snapd_1337.2.67~14.04_amd64.deb'.\n",
+                "-----\n",
+                ".\n"
+            ]
+        }
+    },
+    {
+        "type": "info",
+        "date": "2025-01-14",
+        "time": "08:28:25",
+        "info_type": "WARNING",
+        "verb": null,
+        "task": null,
+        "extra": "jan140822-316025 (google:ubuntu-14.04-64) running late. Current output:",
+        "detail": {
+            "lines": [
+                "-----\n",
+                "(... 4282 lines above ...)\n",
+                "dpkg-gencontrol: warning: unknown information field 'Recommends' in input data in general section of control info file\n",
+                "dpkg-gencontrol: warning: unknown information field 'Suggests' in input data in general section of control info file\n",
+                "dpkg-gencontrol: warning: unknown information field 'Recommends' in input data in general section of control info file\n",
+                "dpkg-gencontrol: warning: unknown information field 'Suggests' in input data in general section of control info file\n",
+                "make[1]: Leaving directory `/home/gopath/src/github.com/snapcore/snapd'\n",
+                "dh_md5sums -O--buildsystem=golang -O--fail-missing -O--builddirectory=_build\n",
+                "dh_builddeb -u-Zxz -O--buildsystem=golang -O--fail-missing -O--builddirectory=_build\n",
+                "dpkg-deb: building package `golang-github-ubuntu-core-snappy-dev' in `../golang-github-ubuntu-core-snappy-dev_1337.2.67~14.04_all.deb'.\n",
+                "dpkg-deb: building package `golang-github-snapcore-snapd-dev' in `../golang-github-snapcore-snapd-dev_1337.2.67~14.04_all.deb'.\n",
+                "dpkg-deb: building package `snapd' in `../snapd_1337.2.67~14.04_amd64.deb'.\n",
+                "-----\n",
+                ".\n"
+            ]
+        }
+    },
+    {
+        "type": "info",
+        "date": "2025-01-14",
+        "time": "08:28:26",
+        "info_type": "WARNING",
+        "verb": null,
+        "task": null,
+        "extra": "jan140822-316015 (google:ubuntu-14.04-64) running late. Current output:",
+        "detail": {
+            "lines": [
+                "-----\n",
+                "(... 4282 lines above ...)\n",
+                "dpkg-gencontrol: warning: unknown information field 'Recommends' in input data in general section of control info file\n",
+                "dpkg-gencontrol: warning: unknown information field 'Suggests' in input data in general section of control info file\n",
+                "dpkg-gencontrol: warning: unknown information field 'Recommends' in input data in general section of control info file\n",
+                "dpkg-gencontrol: warning: unknown information field 'Suggests' in input data in general section of control info file\n",
+                "make[1]: Leaving directory `/home/gopath/src/github.com/snapcore/snapd'\n",
+                "dh_md5sums -O--buildsystem=golang -O--fail-missing -O--builddirectory=_build\n",
+                "dh_builddeb -u-Zxz -O--buildsystem=golang -O--fail-missing -O--builddirectory=_build\n",
+                "dpkg-deb: building package `golang-github-ubuntu-core-snappy-dev' in `../golang-github-ubuntu-core-snappy-dev_1337.2.67~14.04_all.deb'.\n",
+                "dpkg-deb: building package `golang-github-snapcore-snapd-dev' in `../golang-github-snapcore-snapd-dev_1337.2.67~14.04_all.deb'.\n",
+                "dpkg-deb: building package `snapd' in `../snapd_1337.2.67~14.04_amd64.deb'.\n",
+                "-----\n",
+                ".\n"
+            ]
+        }
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:28:55",
+        "verb": "Preparing",
+        "task": "google:ubuntu-14.04-64:tests/smoke/"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:29:06",
+        "verb": "Preparing",
+        "task": "google:ubuntu-14.04-64:tests/main/"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:29:09",
+        "verb": "Preparing",
+        "task": "google:ubuntu-14.04-64:tests/smoke/"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:29:13",
+        "verb": "Preparing",
+        "task": "google:ubuntu-14.04-64:tests/smoke/"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:29:18",
+        "verb": "Preparing",
+        "task": "google:ubuntu-14.04-64:tests/smoke/"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:29:20",
+        "verb": "Preparing",
+        "task": "google:ubuntu-14.04-64:tests/main/"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:30:32",
+        "verb": "Preparing",
+        "task": "google:ubuntu-14.04-64:tests/smoke/find-info"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:30:40",
+        "verb": "Executing",
+        "task": "google:ubuntu-14.04-64:tests/smoke/find-info"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:30:40",
+        "verb": "Restoring",
+        "task": "google:ubuntu-14.04-64:tests/smoke/find-info"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:30:41",
+        "verb": "Preparing",
+        "task": "google:ubuntu-14.04-64:tests/main/canonical-livepatch"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:30:49",
+        "verb": "Preparing",
+        "task": "google:ubuntu-14.04-64:tests/smoke/remove"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:30:49",
+        "verb": "Preparing",
+        "task": "google:ubuntu-14.04-64:tests/smoke/install"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:30:50",
+        "verb": "Executing",
+        "task": "google:ubuntu-14.04-64:tests/main/canonical-livepatch"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:30:55",
+        "verb": "Preparing",
+        "task": "google:ubuntu-14.04-64:tests/smoke/versioning"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:30:55",
+        "verb": "Preparing",
+        "task": "google:ubuntu-14.04-64:tests/smoke/sandbox"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:30:57",
+        "verb": "Executing",
+        "task": "google:ubuntu-14.04-64:tests/smoke/remove"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:30:58",
+        "verb": "Restoring",
+        "task": "google:ubuntu-14.04-64:tests/smoke/remove"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:30:58",
+        "verb": "Preparing",
+        "task": "google:ubuntu-14.04-64:tests/main/canonical-livepatch-14.04"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:30:59",
+        "verb": "Executing",
+        "task": "google:ubuntu-14.04-64:tests/smoke/install"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:31:02",
+        "verb": "Executing",
+        "task": "google:ubuntu-14.04-64:tests/smoke/sandbox"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:31:02",
+        "verb": "Executing",
+        "task": "google:ubuntu-14.04-64:tests/smoke/versioning"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:31:02",
+        "verb": "Restoring",
+        "task": "google:ubuntu-14.04-64:tests/smoke/versioning"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:31:06",
+        "verb": "Restoring",
+        "task": "google:ubuntu-14.04-64:tests/smoke/sandbox"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:31:06",
+        "verb": "Executing",
+        "task": "google:ubuntu-14.04-64:tests/main/canonical-livepatch-14.04"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:31:13",
+        "verb": "Restoring",
+        "task": "google:ubuntu-14.04-64:tests/smoke/"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:31:15",
+        "verb": "Restoring",
+        "task": "google:ubuntu-14.04-64"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:31:15",
+        "verb": "Restoring",
+        "task": "google:ubuntu-14.04-64:tests/smoke/install"
+    },
+    {
+        "type": "action",
+        "date": "2025-01-14",
+        "time": "08:31:15",
+        "verb": "Discarding",
+        "task": null,
+        "extra": "google:ubuntu-14.04-64 (jan140822-315798)..."
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:31:18",
+        "verb": "Restoring",
+        "task": "google:ubuntu-14.04-64:tests/smoke/"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:31:18",
+        "verb": "Restoring",
+        "task": "google:ubuntu-14.04-64:tests/main/canonical-livepatch"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:31:19",
+        "verb": "Restoring",
+        "task": "google:ubuntu-14.04-64"
+    },
+    {
+        "type": "action",
+        "date": "2025-01-14",
+        "time": "08:31:20",
+        "verb": "Discarding",
+        "task": null,
+        "extra": "google:ubuntu-14.04-64 (jan140822-316015)..."
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:31:22",
+        "verb": "Restoring",
+        "task": "google:ubuntu-14.04-64:tests/smoke/"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:31:23",
+        "verb": "Restoring",
+        "task": "google:ubuntu-14.04-64"
+    },
+    {
+        "type": "action",
+        "date": "2025-01-14",
+        "time": "08:31:23",
+        "verb": "Discarding",
+        "task": null,
+        "extra": "google:ubuntu-14.04-64 (jan140822-316025)..."
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:31:31",
+        "verb": "Restoring",
+        "task": "google:ubuntu-14.04-64:tests/smoke/"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:31:33",
+        "verb": "Restoring",
+        "task": "google:ubuntu-14.04-64"
+    },
+    {
+        "type": "action",
+        "date": "2025-01-14",
+        "time": "08:31:33",
+        "verb": "Discarding",
+        "task": null,
+        "extra": "google:ubuntu-14.04-64 (jan140822-316035)..."
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:31:34",
+        "verb": "Restoring",
+        "task": "google:ubuntu-14.04-64:tests/main/"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:31:36",
+        "verb": "Restoring",
+        "task": "google:ubuntu-14.04-64"
+    },
+    {
+        "type": "action",
+        "date": "2025-01-14",
+        "time": "08:31:36",
+        "verb": "Discarding",
+        "task": null,
+        "extra": "google:ubuntu-14.04-64 (jan140822-316030)..."
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:31:46",
+        "verb": "Restoring",
+        "task": "google:ubuntu-14.04-64:tests/main/canonical-livepatch-14.04"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:32:09",
+        "verb": "Restoring",
+        "task": "google:ubuntu-14.04-64:tests/main/"
+    },
+    {
+        "type": "phase",
+        "date": "2025-01-14",
+        "time": "08:32:11",
+        "verb": "Restoring",
+        "task": "google:ubuntu-14.04-64"
+    },
+    {
+        "type": "action",
+        "date": "2025-01-14",
+        "time": "08:32:11",
+        "verb": "Discarding",
+        "task": null,
+        "extra": "google:ubuntu-14.04-64 (jan140822-316039)..."
+    },
+    {
+        "type": "result",
+        "date": "2025-01-14",
+        "time": "08:32:12",
+        "result_type": "Successful",
+        "level": "tasks",
+        "stage": null,
+        "number": "7",
+        "detail": null
+    },
+    {
+        "type": "result",
+        "date": "2025-01-14",
+        "time": "08:32:12",
+        "result_type": "Aborted",
+        "level": "tasks",
+        "stage": null,
+        "number": "0",
+        "detail": null
+    }
+]

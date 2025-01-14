@@ -1,0 +1,118 @@
+[
+    {
+        "type": "action",
+        "date": "2025-01-14",
+        "time": "08:21:29",
+        "verb": "Allocating",
+        "task": null,
+        "extra": "openstack:fedora-40-64..."
+    },
+    {
+        "type": "action",
+        "date": "2025-01-14",
+        "time": "08:21:29",
+        "verb": "Allocating",
+        "task": null,
+        "extra": "openstack:fedora-41-64..."
+    },
+    {
+        "type": "action",
+        "date": "2025-01-14",
+        "time": "08:21:29",
+        "verb": "Allocating",
+        "task": null,
+        "extra": "openstack:fedora-41-64..."
+    },
+    {
+        "type": "action",
+        "date": "2025-01-14",
+        "time": "08:21:29",
+        "verb": "Allocating",
+        "task": null,
+        "extra": "openstack:fedora-41-64..."
+    },
+    {
+        "type": "action",
+        "date": "2025-01-14",
+        "time": "08:21:29",
+        "verb": "Allocating",
+        "task": null,
+        "extra": "openstack:fedora-41-64..."
+    },
+    {
+        "type": "action",
+        "date": "2025-01-14",
+        "time": "08:21:29",
+        "verb": "Allocating",
+        "task": null,
+        "extra": "openstack:fedora-41-64..."
+    },
+    {
+        "type": "action",
+        "date": "2025-01-14",
+        "time": "08:21:29",
+        "verb": "Allocating",
+        "task": null,
+        "extra": "openstack:fedora-40-64..."
+    },
+    {
+        "type": "action",
+        "date": "2025-01-14",
+        "time": "08:21:29",
+        "verb": "Allocating",
+        "task": null,
+        "extra": "openstack:fedora-41-64..."
+    },
+    {
+        "type": "action",
+        "date": "2025-01-14",
+        "time": "08:21:29",
+        "verb": "Allocating",
+        "task": null,
+        "extra": "openstack:fedora-40-64..."
+    },
+    {
+        "type": "action",
+        "date": "2025-01-14",
+        "time": "08:21:29",
+        "verb": "Allocating",
+        "task": null,
+        "extra": "openstack:fedora-40-64..."
+    },
+    {
+        "type": "action",
+        "date": "2025-01-14",
+        "time": "08:21:29",
+        "verb": "Allocating",
+        "task": null,
+        "extra": "openstack:fedora-40-64..."
+    },
+    {
+        "type": "action",
+        "date": "2025-01-14",
+        "time": "08:21:29",
+        "verb": "Allocating",
+        "task": null,
+        "extra": "openstack:fedora-40-64..."
+    },
+    {
+        "type": "result",
+        "date": "2025-01-14",
+        "time": "08:21:39",
+        "result_type": "Successful",
+        "level": "tasks",
+        "stage": null,
+        "number": "0",
+        "detail": null
+    },
+    {
+        "type": "result",
+        "date": "2025-01-14",
+        "time": "08:21:39",
+        "result_type": "Aborted",
+        "level": "tasks",
+        "stage": null,
+        "number": "1056",
+        "detail": null
+    }
+]
