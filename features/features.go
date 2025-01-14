@@ -46,8 +46,6 @@ const (
 	RefreshAppAwareness
 	// ClassicPreservesXdgRuntimeDir controls $XDG_RUNTIME_DIR in snaps with classic confinement.
 	ClassicPreservesXdgRuntimeDir
-	// RobustMountNamespaceUpdates controls how snap-update-ns updates existing mount namespaces.
-	RobustMountNamespaceUpdates
 	// UserDaemons controls availability of user mode service support.
 	UserDaemons
 	// DbusActivation controls whether snaps daemons can be activated via D-Bus
@@ -105,7 +103,6 @@ var featureNames = map[SnapdFeature]string{
 	RefreshAppAwareness:   "refresh-app-awareness",
 
 	ClassicPreservesXdgRuntimeDir: "classic-preserves-xdg-runtime-dir",
-	RobustMountNamespaceUpdates:   "robust-mount-namespace-updates",
 
 	UserDaemons:    "user-daemons",
 	DbusActivation: "dbus-activation",
@@ -133,7 +130,6 @@ var featureNames = map[SnapdFeature]string{
 var featuresEnabledWhenUnset = map[SnapdFeature]bool{
 	Layouts:                       true,
 	RefreshAppAwareness:           true,
-	RobustMountNamespaceUpdates:   true,
 	ClassicPreservesXdgRuntimeDir: true,
 	DbusActivation:                true,
 }
@@ -145,7 +141,6 @@ var featuresExported = map[SnapdFeature]bool{
 	ParallelInstances:     true,
 
 	ClassicPreservesXdgRuntimeDir: true,
-	RobustMountNamespaceUpdates:   true,
 	HiddenSnapDataHomeDir:         true,
 	MoveSnapHomeDir:               true,
 
