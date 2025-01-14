@@ -18,121 +18,121 @@ jobs:
       - name: Upload
         uses: actions/upload-artifact@v4
         with:
-          name: "spread-json-12763468079-1-amazon-linux" 
+          name: "spread-json-${{ github.run_id }}-${{ github.run_attempt }}-amazon-linux" 
           path: ".github/workflows/spread-json-12763468079-1-amazon-linux/spread-results.json"
           if-no-files-found: ignore
       - name: Upload
         uses: actions/upload-artifact@v4
         with:
-          name: "spread-json-12763468079-1-arch-linux" 
+          name: "spread-json-${{ github.run_id }}-${{ github.run_attempt }}-arch-linux" 
           path: ".github/workflows/spread-json-12763468079-1-arch-linux/spread-results.json"
           if-no-files-found: ignore
       - name: Upload
         uses: actions/upload-artifact@v4
         with:
-          name: "spread-json-12763468079-1-centos" 
+          name: "spread-json-${{ github.run_id }}-${{ github.run_attempt }}-centos" 
           path: ".github/workflows/spread-json-12763468079-1-centos/spread-results.json"
           if-no-files-found: ignore
       - name: Upload
         uses: actions/upload-artifact@v4
         with:
-          name: "spread-json-12763468079-1-debian-not-req" 
+          name: "spread-json-${{ github.run_id }}-${{ github.run_attempt }}-debian-not-req" 
           path: ".github/workflows/spread-json-12763468079-1-debian-not-req/spread-results.json"
           if-no-files-found: ignore
       - name: Upload
         uses: actions/upload-artifact@v4
         with:
-          name: "spread-json-12763468079-1-debian-req" 
+          name: "spread-json-${{ github.run_id }}-${{ github.run_attempt }}-debian-req" 
           path: ".github/workflows/spread-json-12763468079-1-debian-req/spread-results.json"
           if-no-files-found: ignore
       - name: Upload
         uses: actions/upload-artifact@v4
         with:
-          name: "spread-json-12763468079-1-fedora" 
+          name: "spread-json-${{ github.run_id }}-${{ github.run_attempt }}-fedora" 
           path: ".github/workflows/spread-json-12763468079-1-fedora/spread-results.json"
           if-no-files-found: ignore
       - name: Upload
         uses: actions/upload-artifact@v4
         with:
-          name: "spread-json-12763468079-1-opensuse" 
+          name: "spread-json-${{ github.run_id }}-${{ github.run_attempt }}-opensuse" 
           path: ".github/workflows/spread-json-12763468079-1-opensuse/spread-results.json"
           if-no-files-found: ignore
       - name: Upload
         uses: actions/upload-artifact@v4
         with:
-          name: "spread-json-12763468079-1-ubuntu-arm64" 
+          name: "spread-json-${{ github.run_id }}-${{ github.run_attempt }}-ubuntu-arm64" 
           path: ".github/workflows/spread-json-12763468079-1-ubuntu-arm64/spread-results.json"
           if-no-files-found: ignore
       - name: Upload
         uses: actions/upload-artifact@v4
         with:
-          name: "spread-json-12763468079-1-ubuntu-core-18" 
+          name: "spread-json-${{ github.run_id }}-${{ github.run_attempt }}-ubuntu-core-18" 
           path: ".github/workflows/spread-json-12763468079-1-ubuntu-core-18/spread-results.json"
           if-no-files-found: ignore
       - name: Upload
         uses: actions/upload-artifact@v4
         with:
-          name: "spread-json-12763468079-1-ubuntu-core-20" 
+          name: "spread-json-${{ github.run_id }}-${{ github.run_attempt }}-ubuntu-core-20" 
           path: ".github/workflows/spread-json-12763468079-1-ubuntu-core-20/spread-results.json"
           if-no-files-found: ignore
       - name: Upload
         uses: actions/upload-artifact@v4
         with:
-          name: "spread-json-12763468079-1-ubuntu-core-22" 
+          name: "spread-json-${{ github.run_id }}-${{ github.run_attempt }}-ubuntu-core-22" 
           path: ".github/workflows/spread-json-12763468079-1-ubuntu-core-22/spread-results.json"
           if-no-files-found: ignore
       - name: Upload
         uses: actions/upload-artifact@v4
         with:
-          name: "spread-json-12763468079-1-ubuntu-core-24" 
+          name: "spread-json-${{ github.run_id }}-${{ github.run_attempt }}-ubuntu-core-24" 
           path: ".github/workflows/spread-json-12763468079-1-ubuntu-core-24/spread-results.json"
           if-no-files-found: ignore
       - name: Upload
         uses: actions/upload-artifact@v4
         with:
-          name: "spread-json-12763468079-1-ubuntu-daily" 
+          name: "spread-json-${{ github.run_id }}-${{ github.run_attempt }}-ubuntu-daily" 
           path: ".github/workflows/spread-json-12763468079-1-ubuntu-daily/spread-results.json"
           if-no-files-found: ignore
       - name: Upload
         uses: actions/upload-artifact@v4
         with:
-          name: "spread-json-12763468079-1-ubuntu-fips" 
+          name: "spread-json-${{ github.run_id }}-${{ github.run_attempt }}-ubuntu-fips" 
           path: ".github/workflows/spread-json-12763468079-1-ubuntu-fips/spread-results.json"
           if-no-files-found: ignore
       - name: Upload
         uses: actions/upload-artifact@v4
         with:
-          name: "spread-json-12763468079-1-ubuntu-focal-jammy" 
+          name: "spread-json-${{ github.run_id }}-${{ github.run_attempt }}-ubuntu-focal-jammy" 
           path: ".github/workflows/spread-json-12763468079-1-ubuntu-focal-jammy/spread-results.json"
           if-no-files-found: ignore
       - name: Upload
         uses: actions/upload-artifact@v4
         with:
-          name: "spread-json-12763468079-1-ubuntu-noble" 
+          name: "spread-json-${{ github.run_id }}-${{ github.run_attempt }}-ubuntu-noble" 
           path: ".github/workflows/spread-json-12763468079-1-ubuntu-noble/spread-results.json"
           if-no-files-found: ignore
       - name: Upload
         uses: actions/upload-artifact@v4
         with:
-          name: "spread-json-12763468079-1-ubuntu-no-lts" 
+          name: "spread-json-${{ github.run_id }}-${{ github.run_attempt }}-ubuntu-no-lts" 
           path: ".github/workflows/spread-json-12763468079-1-ubuntu-no-lts/spread-results.json"
           if-no-files-found: ignore
       - name: Upload
         uses: actions/upload-artifact@v4
         with:
-          name: "spread-json-12763468079-1-ubuntu-secboot" 
+          name: "spread-json-${{ github.run_id }}-${{ github.run_attempt }}-ubuntu-secboot" 
           path: ".github/workflows/spread-json-12763468079-1-ubuntu-secboot/spread-results.json"
           if-no-files-found: ignore
       - name: Upload
         uses: actions/upload-artifact@v4
         with:
-          name: "spread-json-12763468079-1-ubuntu-trusty" 
+          name: "spread-json-${{ github.run_id }}-${{ github.run_attempt }}-ubuntu-trusty" 
           path: ".github/workflows/spread-json-12763468079-1-ubuntu-trusty/spread-results.json"
           if-no-files-found: ignore
       - name: Upload
         uses: actions/upload-artifact@v4
         with:
-          name: "spread-json-12763468079-1-ubuntu-xenial-bionic" 
+          name: "spread-json-${{ github.run_id }}-${{ github.run_attempt }}-ubuntu-xenial-bionic" 
           path: ".github/workflows/spread-json-12763468079-1-ubuntu-xenial-bionic/spread-results.json"
           if-no-files-found: ignore
 
