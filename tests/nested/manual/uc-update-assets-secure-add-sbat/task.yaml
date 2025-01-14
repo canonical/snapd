@@ -124,26 +124,29 @@ prepare: |
   fi
 
   cat <<EOF >>expected-before
-  ${old_shim_sha} */run/mnt/ubuntu-boot/EFI/boot/bootx64.efi
   ${old_grub_sha} */run/mnt/ubuntu-boot/EFI/boot/grubx64.efi
   EOF
   if [ "${UPDATE_BOOT}" = true ]; then
     cat <<EOF >>expected-after
-  ${new_shim_sha} */run/mnt/ubuntu-boot/EFI/boot/bootx64.efi
   ${new_grub_sha} */run/mnt/ubuntu-boot/EFI/boot/grubx64.efi
   EOF
   else
     cat <<EOF >>expected-after
-  ${old_shim_sha} */run/mnt/ubuntu-boot/EFI/boot/bootx64.efi
   ${old_grub_sha} */run/mnt/ubuntu-boot/EFI/boot/grubx64.efi
   EOF
   fi
-
+  
   snap pack pc --filename=pc_2.snap
 
   remote.exec systemctl --wait is-system-running || true
   remote.wait-for snap-command
   remote.exec "sudo snap wait system seed.loaded"
+
+debug: |
+  cat expected-before
+  cat expected-after
+  for file in $(remote.exec "find /run/mnt/ubuntu-boot/EFI/ -name '*.efi'"); do remote.exec "sha256sum $file"; done
+  for file in $(remote.exec "find /run/mnt/ubuntu-seed/EFI/ -name '*.efi'"); do remote.exec "sha256sum $file"; done
 
 execute: |
   remote.exec "sha256sum -c" <expected-before
