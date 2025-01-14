@@ -24,6 +24,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/dbus"
 	"github.com/snapcore/snapd/interfaces/kmod"
+	"github.com/snapcore/snapd/interfaces/ldconfig"
 	"github.com/snapcore/snapd/interfaces/mount"
 	"github.com/snapcore/snapd/interfaces/polkit"
 	"github.com/snapcore/snapd/interfaces/seccomp"
@@ -74,6 +75,7 @@ func All() []interfaces.SecurityBackend {
 	all = append(all, &mount.Backend{},
 		&kmod.Backend{},
 		&polkit.Backend{},
+		&ldconfig.Backend{},
 	)
 
 	// TODO use something like:
