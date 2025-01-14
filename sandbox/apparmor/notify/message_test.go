@@ -234,6 +234,31 @@ func (*messageSuite) TestExtractFirstMsgErrors(c *C) {
 	}
 }
 
+func (*messageSuite) TestMessageMarshalErrors(c *C) {
+	// Try to marshal message structs without setting Version, check that
+	// ErrVersionUnset is returned
+
+	filter := notify.MsgNotificationFilter{}
+	bytes, err := filter.MarshalBinary()
+	c.Check(err, Equals, notify.ErrVersionUnset)
+	c.Check(bytes, IsNil)
+
+	notif := notify.MsgNotification{}
+	bytes, err = notif.MarshalBinary()
+	c.Check(err, Equals, notify.ErrVersionUnset)
+	c.Check(bytes, IsNil)
+
+	resp := notify.MsgNotificationResponse{}
+	bytes, err = resp.MarshalBinary()
+	c.Check(err, Equals, notify.ErrVersionUnset)
+	c.Check(bytes, IsNil)
+
+	file := notify.MsgNotificationFile{}
+	bytes, err = file.MarshalBinary()
+	c.Check(err, Equals, notify.ErrVersionUnset)
+	c.Check(bytes, IsNil)
+}
+
 func (*messageSuite) TestMsgNotificationFilterMarshalUnmarshal(c *C) {
 	if arch.Endian() == binary.BigEndian {
 		c.Skip("test only written for little-endian architectures")

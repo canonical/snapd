@@ -491,6 +491,9 @@ func (msg *MsgNotificationFile) UnmarshalBinary(data []byte) error {
 func (msg *MsgNotificationFile) MarshalBinary() ([]byte, error) {
 	var raw msgNotificationFileKernel
 	packer := newStringPacker(raw)
+	if msg.Version == 0 {
+		return nil, ErrVersionUnset
+	}
 	raw.Version = msg.Version
 	raw.NotificationType = msg.NotificationType
 	raw.Signalled = msg.Signalled
