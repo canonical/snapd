@@ -201,18 +201,18 @@ func Format(dataDevice string, hashDevice string, opts *DmVerityParams) (rootHas
 // It mirrors cryptsetup's verity_sb structure from
 // https://gitlab.com/cryptsetup/cryptsetup/-/blob/main/lib/verity/verity.c?ref_type=heads#L25
 type VeritySuperblock struct {
-	Signature     [8]uint8   `json:"-"`             /* "verity\0\0" */
-	Version       uint32     `json:"version"`       /* superblock version */
-	HashType      uint32     `json:"hashType"`      /* 0 - Chrome OS, 1 - normal */
-	Uuid          [16]uint8  `json:"uuid"`          /* UUID of hash device */
-	Algorithm     [32]uint8  `json:"algorithm"`     /* hash algorithm name */
-	DataBlockSize uint32     `json:"dataBlockSize"` /* data block in bytes */
-	HashBlockSize uint32     `json:"hashBlockSize"` /* hash block in bytes */
-	DataBlocks    uint64     `json:"dataBlocks"`    /* number of data blocks */
-	SaltSize      uint16     `json:"saltSize"`      /* salt size */
-	Pad1          [6]uint8   `json:"-"`
-	Salt          [256]uint8 `json:"salt"` /* salt */
-	Pad2          [168]uint8 `json:"-"`
+	Signature     [8]uint8  /* "verity\0\0" */
+	Version       uint32    /* superblock version */
+	HashType      uint32    /* 0 - Chrome OS, 1 - normal */
+	Uuid          [16]uint8 /* UUID of hash device */
+	Algorithm     [32]uint8 /* hash algorithm name */
+	DataBlockSize uint32    /* data block in bytes */
+	HashBlockSize uint32    /* hash block in bytes */
+	DataBlocks    uint64    /* number of data blocks */
+	SaltSize      uint16    /* salt size */
+	Pad1          [6]uint8
+	Salt          [256]uint8 /* salt */
+	Pad2          [168]uint8
 }
 
 func (sb *VeritySuperblock) Size() int {
