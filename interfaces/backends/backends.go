@@ -31,6 +31,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/udev"
 	"github.com/snapcore/snapd/logger"
 	apparmor_sandbox "github.com/snapcore/snapd/sandbox/apparmor"
+	systemd_tools "github.com/snapcore/snapd/systemd"
 )
 
 // All returns a set of all available security backends.
@@ -41,11 +42,16 @@ func All() []interfaces.SecurityBackend {
 		&systemd.Backend{},
 		&seccomp.Backend{},
 		&dbus.Backend{},
-		&udev.Backend{},
-		&mount.Backend{},
+	}
+
+	if !systemd_tools.IsContainer() {
+		all = append(all, &udev.Backend{})
+	}
+
+	all = append(all, &mount.Backend{},
 		&kmod.Backend{},
 		&polkit.Backend{},
-	}
+	)
 
 	// TODO use something like:
 	// level, summary := apparmor.ProbeResults()
