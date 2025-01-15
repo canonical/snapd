@@ -91,14 +91,26 @@ jobs:
           # generate report
           (
           date
+
+          # The 'skip spread' label was added to the pull request
+          if gh api /repos/${{ github.repository }}/issues/"$(cat pr_number)" | jq '.labels.[].name' | grep -iq 'skip spread'; then
+            echo "## Spread tests skipped"
+            exit 0
+          fi
+          
+          echo "The following results are from: https://github.com/${{ github.repository }}/actions/runs/${{ github.event.workflow_run.id }}"
+
+          # There are no logged spread failures
           if ! ls spread-json-${{ github.event.workflow_run.id }}-*/*.json &> /dev/null; then
-            echo "## No spread failures"
+              echo '## No spread failures reported'
+
+          # There are logged spread failures
           else
             jq -s 'add' spread-json-${{ github.event.workflow_run.id }}*/*.json > consolidated-report.json
 
             echo "## Failures:"
             if [[ $(jq -r '.[] | select( .info_type == "Error" ) | select( .verb == "preparing" )' consolidated-report.json) ]]; then
-              echo "### Prepare:"
+              echo "### Preparing:"
               jq -r '.[] | select( .info_type == "Error" ) | select( .verb == "preparing" ) .task' consolidated-report.json |\
                   awk ' { print "- " $0 }'
             fi
