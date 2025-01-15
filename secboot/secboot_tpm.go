@@ -504,7 +504,7 @@ func withTPMConnection(fn func(tpm *sb_tpm2.Connection)) error {
 	return nil
 }
 
-func kdfOptions(volumesAuth device.VolumesAuthOptions) (sb.KDFOptions, error) {
+func kdfOptions(volumesAuth *device.VolumesAuthOptions) (sb.KDFOptions, error) {
 	switch volumesAuth.KDFType {
 	case "":
 		return nil, nil
@@ -531,7 +531,7 @@ func newTPMProtectedKey(creationParams *sb_tpm2.ProtectKeyParams, volumesAuth *d
 	if volumesAuth != nil {
 		switch volumesAuth.Mode {
 		case device.AuthModePassphrase:
-			kdfOptions, kdferr := kdfOptions(*volumesAuth)
+			kdfOptions, kdferr := kdfOptions(volumesAuth)
 			if kdferr != nil {
 				return nil, nil, nil, kdferr
 			}
