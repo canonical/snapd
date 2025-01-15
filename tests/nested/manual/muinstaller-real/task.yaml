@@ -2,7 +2,7 @@ summary: End-to-end test for install via muinstaller
 
 details: End-to-end test for install via muinstaller
 
-systems: [ubuntu-22.04-64, ubuntu-24.04-64]
+systems: [-ubuntu-1*, -ubuntu-20*]
 
 environment:
   # No partial gadget by default
@@ -83,11 +83,6 @@ execute: |
   SNAKEOIL_CERT="$PWD/$KEY_NAME.pem"
   tests.nested secboot-sign gadget pc-gadget "$SNAKEOIL_KEY" "$SNAKEOIL_CERT"
   snap pack --filename=pc.snap pc-gadget/
-
-  # TODO: remove this once this change to extra-paths has made it into a
-  # released kernel snap
-  mkdir -p ./extra-initrd/usr/lib/core
-  cp ./extra-paths ./extra-initrd/usr/lib/core/extra-paths
 
   # Retrieve kernel
   snap download --basename=pc-kernel --channel="$version/edge" pc-kernel
@@ -316,6 +311,11 @@ execute: |
 
   if [ "$SEED_PARTITION" = 'false' ]; then
       remote.exec not test -e /run/mnt/ubuntu-seed/systems/classic
+      exit 0
+  fi
+  if [ "$version" == 22 ]; then
+      # We are not mounting the users file for 22.04, the full recover
+      # feature is not supported until 24.04+.
       exit 0
   fi
 
