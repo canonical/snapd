@@ -872,6 +872,7 @@ func (s *snapmgrTestSuite) TestSwitchTasks(c *C) {
 
 	c.Assert(s.state.TaskCount(), Equals, len(ts.Tasks()))
 	c.Assert(taskKinds(ts.Tasks()), DeepEquals, []string{"switch-snap"})
+	c.Assert(ts.MaybeEdge(snapstate.SnapSetupEdge), NotNil)
 }
 
 func (s *snapmgrTestSuite) TestSwitchConflict(c *C) {

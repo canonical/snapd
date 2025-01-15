@@ -144,6 +144,8 @@ func InstallComponents(
 	setupSecurity.Set("component-setup-tasks", compSetupIDs)
 
 	ts := state.NewTaskSet(setupSecurity)
+	ts.MarkEdge(setupSecurity, SnapSetupEdge)
+
 	if kmodSetup != nil {
 		ts.AddTask(kmodSetup)
 	}
@@ -302,6 +304,7 @@ func InstallComponentPath(st *state.State, csi *snap.ComponentSideInfo, info *sn
 	}
 
 	begin.Set("component-setup-tasks", []string{componentTS.compSetupTaskID})
+	ts.MarkEdge(begin, SnapSetupEdge)
 
 	ts.JoinLane(generateLane(st, opts))
 
