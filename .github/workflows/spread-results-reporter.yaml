@@ -93,7 +93,7 @@ jobs:
           date
 
           # The 'skip spread' label was added to the pull request
-          if gh api /repos/${{ github.repository }}/issues/"$(cat pr_number)" | jq '.labels.[].name' | grep -iq 'skip spread'; then
+          if gh api /repos/${{ github.repository }}/issues/"$(cat pr_number)" | jq '.labels.[].name' | grep -iq '"skip spread"'; then
             echo "## Spread tests skipped"
             exit 0
           fi
@@ -104,8 +104,9 @@ jobs:
           if ! ls spread-json-${{ github.event.workflow_run.id }}-*/*.json &> /dev/null; then
               echo '## No spread failures reported'
 
-          # There are logged spread failures
           else
+            # There are logged spread failures
+            
             jq -s 'add' spread-json-${{ github.event.workflow_run.id }}*/*.json > consolidated-report.json
 
             echo "## Failures:"
