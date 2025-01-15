@@ -73,6 +73,7 @@ const (
 
 const (
 	BeginEdge                        = state.TaskSetEdge("begin")
+	SnapSetupEdge                    = state.TaskSetEdge("snap-setup")
 	BeforeHooksEdge                  = state.TaskSetEdge("before-hooks")
 	HooksEdge                        = state.TaskSetEdge("hooks")
 	MaybeRebootEdge                  = state.TaskSetEdge("maybe-reboot")
@@ -786,6 +787,7 @@ func doInstall(st *state.State, snapst *SnapState, snapsup SnapSetup, compsups [
 
 	installSet := state.NewTaskSet(tasks...)
 	installSet.MarkEdge(prereq, BeginEdge)
+	installSet.MarkEdge(prepare, SnapSetupEdge)
 	installSet.MarkEdge(setupAliases, BeforeHooksEdge)
 
 	// Let tasks know if they have to do something about restarts
@@ -2435,22 +2437,30 @@ func maybeSwitchSnapMetadataTaskSet(st *state.State, snapsup SnapSetup, snapst S
 		return nil, nil
 	}
 
-	var tasks []*state.Task
 	if err := checkChangeConflictIgnoringOneChange(st, snapst.InstanceName(), nil, opts.FromChange); err != nil {
 		return nil, err
 	}
 
+	var snapsupTask *state.Task
+
+	var tasks []*state.Task
 	if switchChannel || switchCohortKey {
 		summary := switchSummary(snapsup.InstanceName(), snapst.TrackingChannel, snapsup.Channel, snapst.CohortKey, snapsup.CohortKey)
 		switchSnap := st.NewTask("switch-snap-channel", summary)
 		switchSnap.Set("snap-setup", &snapsup)
+		snapsupTask = switchSnap
 
 		tasks = append(tasks, switchSnap)
 	}
 
 	if toggleIgnoreValidation {
 		toggle := st.NewTask("toggle-snap-flags", fmt.Sprintf(i18n.G("Toggle snap %q flags"), snapsup.InstanceName()))
-		toggle.Set("snap-setup", &snapsup)
+		if snapsupTask == nil {
+			toggle.Set("snap-setup", &snapsup)
+			snapsupTask = toggle
+		} else {
+			toggle.Set("snap-setup-task", snapsupTask.ID())
+		}
 
 		for _, tasks := range tasks {
 			toggle.WaitFor(tasks)
@@ -2459,7 +2469,12 @@ func maybeSwitchSnapMetadataTaskSet(st *state.State, snapsup SnapSetup, snapst S
 		tasks = append(tasks, toggle)
 	}
 
-	return state.NewTaskSet(tasks...), nil
+	ts := state.NewTaskSet(tasks...)
+	if snapsupTask != nil {
+		ts.MarkEdge(snapsupTask, SnapSetupEdge)
+	}
+
+	return ts, nil
 }
 
 func splitEssentialUpdates(deviceCtx DeviceContext, updates []update) (essential, nonEssential []update) {
@@ -2806,7 +2821,10 @@ func Switch(st *state.State, name string, opts *RevisionOptions) (*state.TaskSet
 	switchSnap := st.NewTask("switch-snap", summary)
 	switchSnap.Set("snap-setup", &snapsup)
 
-	return state.NewTaskSet(switchSnap), nil
+	ts := state.NewTaskSet(switchSnap)
+	ts.MarkEdge(switchSnap, SnapSetupEdge)
+
+	return ts, nil
 }
 
 // RevisionOptions control the selection of a snap revision.
@@ -3412,6 +3430,7 @@ func LinkNewBaseOrKernel(st *state.State, name string, fromChange string) (*stat
 	ts.AddTask(linkSnap)
 	// prepare-snap is the last task that carries no system modifications
 	ts.MarkEdge(prepareSnap, LastBeforeLocalModificationsEdge)
+	ts.MarkEdge(prepareSnap, SnapSetupEdge)
 	return ts, nil
 }
 
@@ -3535,6 +3554,7 @@ func SwitchToNewGadget(st *state.State, name string, fromChange string) (*state.
 	ts := state.NewTaskSet(prepareSnap, gadgetUpdate, gadgetCmdline)
 	// prepare-snap is the last task that carries no system modifications
 	ts.MarkEdge(prepareSnap, LastBeforeLocalModificationsEdge)
+	ts.MarkEdge(prepareSnap, SnapSetupEdge)
 	return ts, nil
 }
 

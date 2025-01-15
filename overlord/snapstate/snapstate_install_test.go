@@ -237,6 +237,8 @@ func verifyInstallTasksWithComponents(c *C, typ snap.Type, opts, discards int, c
 		}
 	}
 
+	c.Assert(ts.MaybeEdge(snapstate.SnapSetupEdge), NotNil)
+
 	var count int
 	for _, t := range ts.Tasks() {
 		switch t.Kind() {
