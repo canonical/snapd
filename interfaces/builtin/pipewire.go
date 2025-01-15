@@ -37,14 +37,11 @@ const pipewireBaseDeclarationSlots = `
         - app
         - core
     deny-auto-connection: true
-	deny-connection:
+    deny-connection:
       on-classic: false
 `
 
 const pipewireConnectedPlugAppArmor = `
-# Allow communicating with pipewire service
-/{run,dev}/shm/pulse-shm-* mrwk,
-
 owner /run/user/[0-9]*/ r,
 owner /run/user/[0-9]*/pipewire-[0-9] rw,
 `
@@ -58,9 +55,6 @@ shmctl
 `
 
 const pipewirePermanentSlotAppArmor = `
-capability sys_nice,
-capability sys_resource,
-
 owner @{PROC}/@{pid}/exe r,
 
 # For udev
@@ -68,9 +62,6 @@ network netlink raw,
 /sys/devices/virtual/dmi/id/sys_vendor r,
 /sys/devices/virtual/dmi/id/bios_vendor r,
 /sys/**/sound/** r,
-
-# Shared memory based communication with clients
-/{run,dev}/shm/pulse-shm-* mrwk,
 
 owner /run/user/[0-9]*/pipewire-[0-9] rwk,
 owner /run/user/[0-9]*/pipewire-[0-9]-manager rwk,
@@ -112,10 +103,6 @@ func (iface *pipewireInterface) AppArmorPermanentSlot(spec *apparmor.Specificati
 func (iface *pipewireInterface) SecCompPermanentSlot(spec *seccomp.Specification, slot *snap.SlotInfo) error {
 	spec.AddSnippet(pipewirePermanentSlotSecComp)
 	return nil
-}
-
-func (iface *pipewireInterface) AutoConnect(*snap.PlugInfo, *snap.SlotInfo) bool {
-	return true
 }
 
 func init() {
