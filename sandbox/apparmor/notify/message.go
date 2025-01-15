@@ -9,7 +9,7 @@ import (
 	"github.com/snapcore/snapd/arch"
 )
 
-var ErrVersionUnset = errors.New("cannot marshal message with version unset")
+var ErrVersionUnset = errors.New("cannot marshal message without protocol version")
 
 // Message fields are defined as raw sized integer types as the same type may be
 // packed as 16 bit or 32 bit integer, to accommodate other fields in the
