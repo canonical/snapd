@@ -15,6 +15,159 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+      - name: Touch
+        run: echo "hello world" > test
+      - name: Upload
+        uses: actions/upload-artifact@v4
+        with:
+          name: test0
+          path: test
+      - name: Upload
+        uses: actions/upload-artifact@v4
+        with:
+          name: test1
+          path: test
+      - name: Upload
+        uses: actions/upload-artifact@v4
+        with:
+          name: test2
+          path: test
+      - name: Upload
+        uses: actions/upload-artifact@v4
+        with:
+          name: test3
+          path: test
+      - name: Upload
+        uses: actions/upload-artifact@v4
+        with:
+          name: test4
+          path: test
+      - name: Upload
+        uses: actions/upload-artifact@v4
+        with:
+          name: test5
+          path: test
+      - name: Upload
+        uses: actions/upload-artifact@v4
+        with:
+          name: test6
+          path: test
+      - name: Upload
+        uses: actions/upload-artifact@v4
+        with:
+          name: test7
+          path: test
+      - name: Upload
+        uses: actions/upload-artifact@v4
+        with:
+          name: test8
+          path: test
+      - name: Upload
+        uses: actions/upload-artifact@v4
+        with:
+          name: test9
+          path: test
+      - name: Upload
+        uses: actions/upload-artifact@v4
+        with:
+          name: test10
+          path: test
+      - name: Upload
+        uses: actions/upload-artifact@v4
+        with:
+          name: test11
+          path: test
+      - name: Upload
+        uses: actions/upload-artifact@v4
+        with:
+          name: test12
+          path: test
+      - name: Upload
+        uses: actions/upload-artifact@v4
+        with:
+          name: test13
+          path: test
+      - name: Upload
+        uses: actions/upload-artifact@v4
+        with:
+          name: test14
+          path: test
+      - name: Upload
+        uses: actions/upload-artifact@v4
+        with:
+          name: test15
+          path: test
+      - name: Upload
+        uses: actions/upload-artifact@v4
+        with:
+          name: test16
+          path: test
+      - name: Upload
+        uses: actions/upload-artifact@v4
+        with:
+          name: test17
+          path: test
+      - name: Upload
+        uses: actions/upload-artifact@v4
+        with:
+          name: test18
+          path: test
+      - name: Upload
+        uses: actions/upload-artifact@v4
+        with:
+          name: test19
+          path: test
+      - name: Upload
+        uses: actions/upload-artifact@v4
+        with:
+          name: test20
+          path: test
+      - name: Upload
+        uses: actions/upload-artifact@v4
+        with:
+          name: test21
+          path: test
+      - name: Upload
+        uses: actions/upload-artifact@v4
+        with:
+          name: test22
+          path: test
+      - name: Upload
+        uses: actions/upload-artifact@v4
+        with:
+          name: test23
+          path: test
+      - name: Upload
+        uses: actions/upload-artifact@v4
+        with:
+          name: test24
+          path: test
+      - name: Upload
+        uses: actions/upload-artifact@v4
+        with:
+          name: test25
+          path: test
+      - name: Upload
+        uses: actions/upload-artifact@v4
+        with:
+          name: test26
+          path: test
+      - name: Upload
+        uses: actions/upload-artifact@v4
+        with:
+          name: test27
+          path: test
+      - name: Upload
+        uses: actions/upload-artifact@v4
+        with:
+          name: test28
+          path: test
+      - name: Upload
+        uses: actions/upload-artifact@v4
+        with:
+          name: test29
+          path: test     
+      
       - name: Upload
         uses: actions/upload-artifact@v4
         with:
@@ -135,6 +288,7 @@ jobs:
           name: "spread-json-${{ github.run_id }}-${{ github.run_attempt }}-ubuntu-xenial-bionic" 
           path: ".github/workflows/spread-json-12763468079-1-ubuntu-xenial-bionic/spread-results.json"
           if-no-files-found: ignore
+
 
   # go-channels:
   #   runs-on: ubuntu-latest
