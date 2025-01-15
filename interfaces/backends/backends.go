@@ -31,21 +31,50 @@ import (
 	"github.com/snapcore/snapd/interfaces/udev"
 	"github.com/snapcore/snapd/logger"
 	apparmor_sandbox "github.com/snapcore/snapd/sandbox/apparmor"
+	systemd_tools "github.com/snapcore/snapd/systemd"
 )
 
 // All returns a set of all available security backends.
 func All() []interfaces.SecurityBackend {
+	// Backends have non-obvious ordering constraints. The order in which they
+	// are registered below is significant.  Please refrain from reordering
+	// them when refactoring this code. Because this list changes rarely it is
+	// most likely that interactions are implicit and not well-known. Having
+	// said that we know of one specific constraint that is documented:
+	//
+	// Because of how the GPIO interface is implemented the systemd backend
+	// must be earlier in the sequence than the apparmor backend.
 	all := []interfaces.SecurityBackend{
-		// Because of how the GPIO interface is implemented the systemd backend
-		// must be earlier in the sequence than the apparmor backend.
 		&systemd.Backend{},
 		&seccomp.Backend{},
 		&dbus.Backend{},
-		&udev.Backend{},
-		&mount.Backend{},
+	}
+
+	// Since snapd 2.68 the udev backend, responsible for writing udev rules to
+	// /etc/udev/rules.d and for calling udevadm control --reload-rules, as
+	// well as udevadm trigger (with a number of options), is no longer enabled
+	// in containers. System administrators retain ability to manage access to
+	// real devices at the container level.
+	//
+	// For context:
+	//
+	// In Linux, devices are _not_ namespace aware so if a device is accessible
+	// in the container (and the container manager has allowed such access)
+	// then allow snaps to freely poke the device subject to still-enforced
+	// apparmor rules. In "traditional" containers such as docker or podman,
+	// where using systemd is unusual and unsupported this doesn't change
+	// anything. In system containers such as lxd and incus users may, with or
+	// without understanding the consequences, switch the container to
+	// privileged mode. In this mode udev does start inside the container, but
+	// actively configures devices on the host with undesirable consequences.
+	if !systemd_tools.IsContainer() {
+		all = append(all, &udev.Backend{})
+	}
+
+	all = append(all, &mount.Backend{},
 		&kmod.Backend{},
 		&polkit.Backend{},
-	}
+	)
 
 	// TODO use something like:
 	// level, summary := apparmor.ProbeResults()

@@ -35,7 +35,5 @@ restore: |
     "$TESTSTOOLS"/lxd-state undo-mount-changes
 
 execute: |
-    # first command is done twice due to https://bugs.launchpad.net/snapd/+bug/1865503
-    lxc exec bionic -- snap install maas --channel=2.7/edge
     lxc exec bionic -- snap install maas --channel=2.7/edge
     lxc exec bionic -- snap refresh maas --channel=edge
