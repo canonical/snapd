@@ -23,6 +23,7 @@ import (
 	"bufio"
 	"bytes"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"os"
 	"regexp"
@@ -46,7 +47,7 @@ const (
 func getVal(line string) (string, error) {
 	parts := strings.SplitN(line, ":", 2)
 	if len(parts) != 2 {
-		return "", fmt.Errorf("internal error: unexpected veritysetup output format")
+		return "", errors.New("internal error: unexpected veritysetup output format")
 	}
 	return strings.TrimSpace(parts[1]), nil
 }
@@ -76,7 +77,7 @@ func getRootHashFromOutput(output []byte) (rootHash string, err error) {
 		return "", err
 	}
 	if len(rootHash) != 64 {
-		return "", fmt.Errorf("internal error: unexpected root hash length")
+		return "", errors.New("internal error: unexpected root hash length")
 	}
 
 	hashAlg, err := getFieldFromOutput(output, "Hash algorithm")
@@ -84,7 +85,7 @@ func getRootHashFromOutput(output []byte) (rootHash string, err error) {
 		return "", err
 	}
 	if hashAlg != "sha256" {
-		return "", fmt.Errorf("internal error: unexpected hash algorithm")
+		return "", errors.New("internal error: unexpected hash algorithm")
 	}
 
 	return rootHash, nil
@@ -224,11 +225,11 @@ func (sb *VeritySuperblock) Size() int {
 // superblock or not.
 func (sb *VeritySuperblock) Validate() error {
 	if sb.Version != DefaultSuperblockVersion {
-		return fmt.Errorf("invalid dm-verity superblock version")
+		return errors.New("invalid dm-verity superblock version")
 	}
 
 	if sb.HashType != DefaultVerityFormat {
-		return fmt.Errorf("invalid dm-verity hash type")
+		return errors.New("invalid dm-verity hash type")
 	}
 
 	return nil
