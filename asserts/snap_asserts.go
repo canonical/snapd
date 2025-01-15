@@ -495,34 +495,8 @@ func contains[V int | string](l []V, i V) bool {
 
 func toHash(s string) crypto.Hash {
 	switch s {
-	case "sha1":
-		return crypto.SHA1
-	case "sha224":
-		return crypto.SHA224
 	case "sha256":
 		return crypto.SHA256
-	case "sha384":
-		return crypto.SHA384
-	case "sha512":
-		return crypto.SHA512
-	case "ripemd160":
-		return crypto.RIPEMD160
-	case "sha3-224":
-		return crypto.SHA3_224
-	case "sha3-256":
-		return crypto.SHA3_256
-	case "sha3-384":
-		return crypto.SHA3_384
-	case "sha3-512":
-		return crypto.SHA3_512
-	case "blake2b-256":
-		return crypto.BLAKE2b_256
-	case "blake2b-384":
-		return crypto.BLAKE2b_384
-	case "blake2b-512":
-		return crypto.BLAKE2b_512
-	case "blake2s-256":
-		return crypto.BLAKE2s_256
 	default:
 		return 0
 	}
@@ -823,7 +797,6 @@ func checkSnapIntegrity(headers map[string]interface{}) ([]SnapIntegrityData, er
 			return nil, err
 		}
 
-		h = toHash(alg)
 		encSalt, err := checkDigestDecWhat(id, "salt", h, hex.DecodeString, what)
 		if err != nil {
 			return nil, err
