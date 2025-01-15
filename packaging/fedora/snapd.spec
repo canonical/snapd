@@ -104,7 +104,7 @@
 %endif
 
 Name:           snapd
-Version:        2.67
+Version:        2.67.1
 Release:        0%{?dist}
 Summary:        A transactional software package manager
 License:        GPL-3.0-only
@@ -1003,6 +1003,20 @@ fi
 
 
 %changelog
+* Wed Jan 15 2025 Ernest Lotter <ernest.lotter@canonical.com>
+- New upstream release 2.67.1
+ - Fix apparmor permissions to allow snaps access to kernel modules
+   and firmware on UC24, which also fixes the kernel-modules-control
+   interface on UC24
+ - AppArmor prompting (experimental): disallow /./ and /../ in path
+   patterns
+ - Fix 'snap run' getent based user lookup in case of bad PATH
+ - Fix snapd using the incorrect AppArmor version during undo of an
+   refresh for regenerating snap profiles
+ - Add new syscalls to base templates
+ - hardware-observe interface: allow riscv_hwprobe syscall
+ - mount-observe interface: allow listmount and statmount syscalls
+
 * Mon Dec 02 2024 Ernest Lotter <ernest.lotter@canonical.com>
 - New upstream release 2.67
  - AppArmor prompting (experimental): allow overlapping rules
