@@ -46,14 +46,26 @@ jobs:
         uses: actions/github-script@v6
         with:
           script: |
-            let allArtifacts = await github.rest.actions.listWorkflowRunArtifacts({
-               owner: context.repo.owner,
-               repo: context.repo.repo,
-               run_id: context.payload.workflow_run.id,
-            });
-            let matchingArtifacts = allArtifacts.data.artifacts.filter((artifact) => {
+            let page = 1;
+            let per_page = 100;
+            let allArtifacts = [];
+            let response;
+            do {
+              response = await github.rest.actions.listWorkflowRunArtifacts({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                run_id: context.payload.workflow_run.id,
+                per_page: per_page,
+                page: page
+              });
+              allArtifacts = allArtifacts.concat(response.data.artifacts);
+              page++;
+            } while (response.data.artifacts.length === per_page);
+
+            let matchingArtifacts = allArtifacts.filter((artifact) => {
               return artifact.name.startsWith(`spread-json-${context.payload.workflow_run.id}-${context.payload.workflow_run.run_attempt}`);
             });
+
             for (let artifact of matchingArtifacts) {
               let download = await github.rest.actions.downloadArtifact({
                 owner: context.repo.owner,
@@ -79,14 +91,27 @@ jobs:
           # generate report
           (
           date
+
+          # The 'skip spread' label was added to the pull request
+          if gh api /repos/${{ github.repository }}/issues/"$(cat pr_number)" | jq '.labels.[].name' | grep -iq '"skip spread"'; then
+            echo "## Spread tests skipped"
+            exit 0
+          fi
+          
+          echo "The following results are from: https://github.com/${{ github.repository }}/actions/runs/${{ github.event.workflow_run.id }}"
+
+          # There are no logged spread failures
           if ! ls spread-json-${{ github.event.workflow_run.id }}-*/*.json &> /dev/null; then
-            echo "## No spread failures"
+              echo '## No spread failures reported'
+
           else
+            # There are logged spread failures
+            
             jq -s 'add' spread-json-${{ github.event.workflow_run.id }}*/*.json > consolidated-report.json
 
             echo "## Failures:"
             if [[ $(jq -r '.[] | select( .info_type == "Error" ) | select( .verb == "preparing" )' consolidated-report.json) ]]; then
-              echo "### Prepare:"
+              echo "### Preparing:"
               jq -r '.[] | select( .info_type == "Error" ) | select( .verb == "preparing" ) .task' consolidated-report.json |\
                   awk ' { print "- " $0 }'
             fi
