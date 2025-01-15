@@ -35,7 +35,7 @@ type MsgHeader struct {
 	// Version is the version of the communication protocol.
 	// Currently version 3 is implemented in the kernel, but other versions may
 	// be used in the future.
-	Version Version
+	Version ProtocolVersion
 }
 
 const sizeofMsgHeader = 4

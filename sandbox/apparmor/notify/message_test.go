@@ -418,7 +418,7 @@ func (*messageSuite) TestMsgNotificationMarshalBinary(c *C) {
 		ID:               0x1234,
 		Error:            0xFF,
 	}
-	msg.Version = notify.Version(0xAA)
+	msg.Version = notify.ProtocolVersion(0xAA)
 	data, err := msg.MarshalBinary()
 	c.Assert(err, IsNil)
 	c.Check(data, HasLen, 20)

@@ -158,7 +158,7 @@ type Listener struct {
 	// listener's notify socket. Once registered with a particular version,
 	// that version will be used for all messages sent or received over that
 	// socket.
-	protocolVersion notify.Version
+	protocolVersion notify.ProtocolVersion
 
 	notifyFile *os.File
 	poll       *epoll.Epoll
@@ -204,7 +204,7 @@ func Register() (listener *Listener, err error) {
 		}
 	}()
 
-	version, err := notifyRegisterFileDescriptor(notifyFile.Fd())
+	protoVersion, err := notifyRegisterFileDescriptor(notifyFile.Fd())
 	if err != nil {
 		return nil, err
 	}
@@ -225,7 +225,7 @@ func Register() (listener *Listener, err error) {
 	listener = &Listener{
 		reqs: make(chan *Request, 1),
 
-		protocolVersion: version,
+		protocolVersion: protoVersion,
 
 		notifyFile: notifyFile,
 		poll:       poll,

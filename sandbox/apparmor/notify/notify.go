@@ -28,8 +28,8 @@ var doIoctl = Ioctl
 //
 // If no protocol version is mutually supported, or some other error occurs,
 // returns an error.
-func RegisterFileDescriptor(fd uintptr) (Version, error) {
-	unsupported := make(map[Version]bool)
+func RegisterFileDescriptor(fd uintptr) (ProtocolVersion, error) {
+	unsupported := make(map[ProtocolVersion]bool)
 	for {
 		protocolVersion, ok := supportedProtocolVersion(unsupported)
 		if !ok {

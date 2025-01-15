@@ -25,26 +25,26 @@ import (
 	"github.com/snapcore/snapd/testutil"
 )
 
-// Version denotes a notification protocol version.
-type Version uint16
+// ProtocolVersion denotes a notification protocol version.
+type ProtocolVersion uint16
 
-// versions holds the notification protocol snapd supports, in order of
+// versions holds the notification protocols snapd supports, in order of
 // preference. If the first version is supported, try to use it, else try the
 // next version, etc.
 var (
-	versions = []Version{3}
+	versions = []ProtocolVersion{3}
 
-	versionSupportedCallbacks = map[Version]func() bool{
+	versionSupportedCallbacks = map[ProtocolVersion]func() bool{
 		3: SupportAvailable,
 	}
 
-	versionKnown = func(v Version) bool {
+	versionKnown = func(v ProtocolVersion) bool {
 		_, exists := versionSupportedCallbacks[v]
 		return exists
 	}
 )
 
-func (v Version) supported() (bool, error) {
+func (v ProtocolVersion) supported() (bool, error) {
 	callback, exists := versionSupportedCallbacks[v]
 	if !exists {
 		// Should not occur, as tests should validate that each version has a callback function.
@@ -61,7 +61,7 @@ func (v Version) supported() (bool, error) {
 // unsupported map so that, in case the returned version reports as being
 // unsupported by the kernel, subsequent calls to this function will not
 // require duplicate checks of callback functions.
-func supportedProtocolVersion(unsupported map[Version]bool) (Version, bool) {
+func supportedProtocolVersion(unsupported map[ProtocolVersion]bool) (ProtocolVersion, bool) {
 	for _, v := range versions {
 		if _, exists := unsupported[v]; exists {
 			continue
@@ -72,9 +72,9 @@ func supportedProtocolVersion(unsupported map[Version]bool) (Version, bool) {
 		}
 		return v, true
 	}
-	return Version(0), false
+	return ProtocolVersion(0), false
 }
 
-func MockVersionKnown(f func(v Version) bool) (restore func()) {
+func MockVersionKnown(f func(v ProtocolVersion) bool) (restore func()) {
 	return testutil.Mock(&versionKnown, f)
 }

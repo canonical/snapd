@@ -87,10 +87,10 @@ func (s *notifySuite) TestRegisterFileDescriptor(c *C) {
 		// First expect check for version 3, then for version 7
 		switch ioctlCalls {
 		case 1:
-			checkIoctlBuffer(c, buf, notify.Version(3))
+			checkIoctlBuffer(c, buf, notify.ProtocolVersion(3))
 			return buf, &notify.IoctlError{req, unix.EPROTONOSUPPORT}
 		case 2:
-			checkIoctlBuffer(c, buf, notify.Version(7))
+			checkIoctlBuffer(c, buf, notify.ProtocolVersion(7))
 			return buf, nil
 		default:
 			c.Fatal("called Ioctl more than twice")
@@ -101,10 +101,10 @@ func (s *notifySuite) TestRegisterFileDescriptor(c *C) {
 
 	receivedVersion, err := notify.RegisterFileDescriptor(fakeFD)
 	c.Check(err, IsNil)
-	c.Check(receivedVersion, Equals, notify.Version(7))
+	c.Check(receivedVersion, Equals, notify.ProtocolVersion(7))
 }
 
-func checkIoctlBuffer(c *C, receivedBuf notify.IoctlRequestBuffer, expectedVersion notify.Version) {
+func checkIoctlBuffer(c *C, receivedBuf notify.IoctlRequestBuffer, expectedVersion notify.ProtocolVersion) {
 	expectedMsg := notify.MsgNotificationFilter{
 		MsgHeader: notify.MsgHeader{
 			Version: expectedVersion,
@@ -134,9 +134,9 @@ func (s *notifySuite) TestRegisterFileDescriptorErrors(c *C) {
 		// First expect check for version 3, then for version 7
 		switch ioctlCalls {
 		case 1:
-			checkIoctlBuffer(c, buf, notify.Version(3))
+			checkIoctlBuffer(c, buf, notify.ProtocolVersion(3))
 		case 2:
-			checkIoctlBuffer(c, buf, notify.Version(7))
+			checkIoctlBuffer(c, buf, notify.ProtocolVersion(7))
 		default:
 			c.Fatal("called Ioctl more than twice")
 		}
@@ -147,14 +147,14 @@ func (s *notifySuite) TestRegisterFileDescriptorErrors(c *C) {
 
 	receivedVersion, err := notify.RegisterFileDescriptor(fakeFD)
 	c.Check(err, ErrorMatches, "cannot register notify socket: no mutually supported protocol versions")
-	c.Check(receivedVersion, Equals, notify.Version(0))
+	c.Check(receivedVersion, Equals, notify.ProtocolVersion(0))
 
 	calledIoctl := false
 	restoreSyscallError := notify.MockIoctl(func(fd uintptr, req notify.IoctlRequest, buf notify.IoctlRequestBuffer) ([]byte, error) {
 		c.Assert(fd, Equals, fakeFD)
 		c.Assert(req, Equals, notify.APPARMOR_NOTIF_SET_FILTER)
 
-		checkIoctlBuffer(c, buf, notify.Version(3))
+		checkIoctlBuffer(c, buf, notify.ProtocolVersion(3))
 		c.Assert(calledIoctl, Equals, false, Commentf("called ioctl more than once after first returned error"))
 		calledIoctl = true
 		return buf, &notify.IoctlError{req, unix.EINVAL}
@@ -163,5 +163,5 @@ func (s *notifySuite) TestRegisterFileDescriptorErrors(c *C) {
 
 	receivedVersion, err = notify.RegisterFileDescriptor(fakeFD)
 	c.Check(err, ErrorMatches, "cannot perform IOCTL request APPARMOR_NOTIF_SET_FILTER: EINVAL")
-	c.Check(receivedVersion, Equals, notify.Version(0))
+	c.Check(receivedVersion, Equals, notify.ProtocolVersion(0))
 }

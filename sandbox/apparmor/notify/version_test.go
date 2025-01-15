@@ -34,22 +34,22 @@ func (s *versionSuite) TestVersionsAndCallbacks(c *C) {
 	c.Check(notify.Versions, HasLen, len(notify.VersionSupportedCallbacks))
 	c.Check(notify.VersionSupportedCallbacks, HasLen, len(notify.Versions))
 
-	for _, version := range notify.Versions {
-		callback, exists := notify.VersionSupportedCallbacks[version]
-		c.Check(exists, Equals, true, Commentf("version in versions missing from versionSupportedCallbacks: %v", version))
-		c.Check(callback, NotNil, Commentf("version has nil callback: %v", version))
+	for _, ver := range notify.Versions {
+		callback, exists := notify.VersionSupportedCallbacks[ver]
+		c.Check(exists, Equals, true, Commentf("version in versions missing from versionSupportedCallbacks: %v", ver))
+		c.Check(callback, NotNil, Commentf("version has nil callback: %v", ver))
 	}
 
-	for version, callback := range notify.VersionSupportedCallbacks {
-		c.Check(callback, NotNil, Commentf("version has nil callback: %v", version))
+	for ver, callback := range notify.VersionSupportedCallbacks {
+		c.Check(callback, NotNil, Commentf("version has nil callback: %v", ver))
 		found := false
 		for _, v := range notify.Versions {
-			if version == v {
+			if ver == v {
 				found = true
 				break
 			}
 		}
-		c.Check(found, Equals, true, Commentf("version in versionSupportedCallbacks missing from versions: %v", version))
+		c.Check(found, Equals, true, Commentf("version in versionSupportedCallbacks missing from versions: %v", ver))
 	}
 }
 
@@ -80,19 +80,19 @@ func (s *versionSuite) TestVersionSupported(c *C) {
 	restore := notify.MockVersionSupportedCallbacks(fakeVersions)
 	defer restore()
 
-	supported, err := notify.Supported(notify.Version(1))
+	supported, err := notify.Supported(notify.ProtocolVersion(1))
 	c.Check(supported, Equals, false)
 	c.Check(err, ErrorMatches, "no callback defined for version .*")
 
-	supported, err = notify.Supported(notify.Version(2))
+	supported, err = notify.Supported(notify.ProtocolVersion(2))
 	c.Check(supported, Equals, false)
 	c.Check(err, IsNil)
 
-	supported, err = notify.Supported(notify.Version(3))
+	supported, err = notify.Supported(notify.ProtocolVersion(3))
 	c.Check(supported, Equals, true)
 	c.Check(err, IsNil)
 
-	supported, err = notify.Supported(notify.Version(4))
+	supported, err = notify.Supported(notify.ProtocolVersion(4))
 	c.Check(supported, Equals, false)
 	c.Check(err, ErrorMatches, "no callback defined for version .*")
 }
@@ -102,66 +102,66 @@ func (s *versionSuite) TestSupportedProtocolVersion(c *C) {
 	defer restore()
 
 	for _, testCase := range []struct {
-		unsupported       map[notify.Version]bool
-		expectedVersion   notify.Version
+		unsupported       map[notify.ProtocolVersion]bool
+		expectedVersion   notify.ProtocolVersion
 		expectedSupported bool
-		expectedMutated   map[notify.Version]bool
+		expectedMutated   map[notify.ProtocolVersion]bool
 	}{
 		{
-			unsupported:       map[notify.Version]bool{},
-			expectedVersion:   notify.Version(3),
+			unsupported:       map[notify.ProtocolVersion]bool{},
+			expectedVersion:   notify.ProtocolVersion(3),
 			expectedSupported: true,
-			expectedMutated:   map[notify.Version]bool{notify.Version(2): true},
+			expectedMutated:   map[notify.ProtocolVersion]bool{notify.ProtocolVersion(2): true},
 		},
 		{
-			unsupported: map[notify.Version]bool{
-				notify.Version(4): true,
-				notify.Version(5): true,
+			unsupported: map[notify.ProtocolVersion]bool{
+				notify.ProtocolVersion(4): true,
+				notify.ProtocolVersion(5): true,
 			},
-			expectedVersion:   notify.Version(3),
+			expectedVersion:   notify.ProtocolVersion(3),
 			expectedSupported: true,
-			expectedMutated: map[notify.Version]bool{
-				notify.Version(2): true,
-				notify.Version(4): true,
-				notify.Version(5): true,
-			},
-		},
-		{
-			unsupported: map[notify.Version]bool{
-				notify.Version(3): true,
-				notify.Version(4): true,
-				notify.Version(5): true,
-			},
-			expectedVersion:   notify.Version(7),
-			expectedSupported: true,
-			expectedMutated: map[notify.Version]bool{
-				notify.Version(2): true,
-				notify.Version(3): true,
-				notify.Version(4): true,
-				notify.Version(5): true,
+			expectedMutated: map[notify.ProtocolVersion]bool{
+				notify.ProtocolVersion(2): true,
+				notify.ProtocolVersion(4): true,
+				notify.ProtocolVersion(5): true,
 			},
 		},
 		{
-			unsupported: map[notify.Version]bool{
-				notify.Version(3): true,
-				notify.Version(4): true,
-				notify.Version(5): true,
-				notify.Version(7): true,
+			unsupported: map[notify.ProtocolVersion]bool{
+				notify.ProtocolVersion(3): true,
+				notify.ProtocolVersion(4): true,
+				notify.ProtocolVersion(5): true,
 			},
-			expectedVersion:   notify.Version(0),
+			expectedVersion:   notify.ProtocolVersion(7),
+			expectedSupported: true,
+			expectedMutated: map[notify.ProtocolVersion]bool{
+				notify.ProtocolVersion(2): true,
+				notify.ProtocolVersion(3): true,
+				notify.ProtocolVersion(4): true,
+				notify.ProtocolVersion(5): true,
+			},
+		},
+		{
+			unsupported: map[notify.ProtocolVersion]bool{
+				notify.ProtocolVersion(3): true,
+				notify.ProtocolVersion(4): true,
+				notify.ProtocolVersion(5): true,
+				notify.ProtocolVersion(7): true,
+			},
+			expectedVersion:   notify.ProtocolVersion(0),
 			expectedSupported: false,
-			expectedMutated: map[notify.Version]bool{
-				notify.Version(2):  true,
-				notify.Version(3):  true,
-				notify.Version(4):  true,
-				notify.Version(5):  true,
-				notify.Version(7):  true,
-				notify.Version(11): true,
+			expectedMutated: map[notify.ProtocolVersion]bool{
+				notify.ProtocolVersion(2):  true,
+				notify.ProtocolVersion(3):  true,
+				notify.ProtocolVersion(4):  true,
+				notify.ProtocolVersion(5):  true,
+				notify.ProtocolVersion(7):  true,
+				notify.ProtocolVersion(11): true,
 			},
 		},
 	} {
-		version, supported := notify.SupportedProtocolVersion(testCase.unsupported)
-		c.Check(version, Equals, testCase.expectedVersion, Commentf("testCase: %+v", testCase))
+		protoVersion, supported := notify.SupportedProtocolVersion(testCase.unsupported)
+		c.Check(protoVersion, Equals, testCase.expectedVersion, Commentf("testCase: %+v", testCase))
 		c.Check(supported, Equals, testCase.expectedSupported, Commentf("testCase: %+v", testCase))
 		c.Check(testCase.unsupported, DeepEquals, testCase.expectedMutated, Commentf("testCase: %+v"))
 	}

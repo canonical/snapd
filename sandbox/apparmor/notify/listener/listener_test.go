@@ -56,7 +56,7 @@ func (s *listenerSuite) SetUpTest(c *C) {
 	dirs.SetRootDir(c.MkDir())
 	s.AddCleanup(func() { dirs.SetRootDir("") })
 
-	restore := notify.MockVersionKnown(func(v notify.Version) bool {
+	restore := notify.MockVersionKnown(func(v notify.ProtocolVersion) bool {
 		// treat every non-zero version as known
 		return v != 0
 	})
@@ -106,8 +106,8 @@ func (*listenerSuite) TestRegisterClose(c *C) {
 	restoreOpen := listener.MockOsOpenWithSocket()
 	defer restoreOpen()
 
-	restoreRegisterFileDescriptor := listener.MockNotifyRegisterFileDescriptor(func(fd uintptr) (notify.Version, error) {
-		return notify.Version(12345), nil
+	restoreRegisterFileDescriptor := listener.MockNotifyRegisterFileDescriptor(func(fd uintptr) (notify.ProtocolVersion, error) {
+		return notify.ProtocolVersion(12345), nil
 	})
 	defer restoreRegisterFileDescriptor()
 
@@ -136,8 +136,8 @@ func (*listenerSuite) TestRegisterOverridePath(c *C) {
 	})
 	defer restoreOpen()
 
-	restoreRegisterFileDescriptor := listener.MockNotifyRegisterFileDescriptor(func(fd uintptr) (notify.Version, error) {
-		return notify.Version(12345), nil
+	restoreRegisterFileDescriptor := listener.MockNotifyRegisterFileDescriptor(func(fd uintptr) (notify.ProtocolVersion, error) {
+		return notify.ProtocolVersion(12345), nil
 	})
 	defer restoreRegisterFileDescriptor()
 
@@ -201,7 +201,7 @@ func (*listenerSuite) TestRegisterErrors(c *C) {
 	})
 	defer restoreOpen()
 
-	restoreRegisterFileDescriptor := listener.MockNotifyRegisterFileDescriptor(func(fd uintptr) (notify.Version, error) {
+	restoreRegisterFileDescriptor := listener.MockNotifyRegisterFileDescriptor(func(fd uintptr) (notify.ProtocolVersion, error) {
 		return 0, customError
 	})
 	defer restoreRegisterFileDescriptor()
@@ -223,8 +223,8 @@ func (*listenerSuite) TestRegisterErrors(c *C) {
 	})
 	defer restoreOpen()
 
-	restoreRegisterFileDescriptor = listener.MockNotifyRegisterFileDescriptor(func(fd uintptr) (notify.Version, error) {
-		return notify.Version(12345), nil
+	restoreRegisterFileDescriptor = listener.MockNotifyRegisterFileDescriptor(func(fd uintptr) (notify.ProtocolVersion, error) {
+		return notify.ProtocolVersion(12345), nil
 	})
 	defer restoreRegisterFileDescriptor()
 
@@ -269,9 +269,9 @@ func (*listenerSuite) TestRunSimple(c *C) {
 	restoreOpen := listener.MockOsOpenWithSocket()
 	defer restoreOpen()
 
-	version := notify.Version(12345)
+	protoVersion := notify.ProtocolVersion(12345)
 
-	recvChan, sendChan, restoreEpollIoctl := listener.MockEpollWaitNotifyIoctl(version)
+	recvChan, sendChan, restoreEpollIoctl := listener.MockEpollWaitNotifyIoctl(protoVersion)
 	defer restoreEpollIoctl()
 
 	var t tomb.Tomb
@@ -295,7 +295,7 @@ func (*listenerSuite) TestRunSimple(c *C) {
 	respBits := dBits & 0b0011
 
 	for _, id := range ids {
-		msg := newMsgNotificationFile(version, id, label, path, aBits, dBits)
+		msg := newMsgNotificationFile(protoVersion, id, label, path, aBits, dBits)
 		buf, err := msg.MarshalBinary()
 		c.Assert(err, IsNil)
 		recvChan <- buf
@@ -322,7 +322,7 @@ func (*listenerSuite) TestRunSimple(c *C) {
 		var desiredBuf []byte
 		allow := aBits | (respBits & dBits)
 		deny := (^respBits) & dBits
-		resp := newMsgNotificationResponse(version, id, allow, deny)
+		resp := newMsgNotificationResponse(protoVersion, id, allow, deny)
 		desiredBuf, err = resp.MarshalBinary()
 		c.Assert(err, IsNil)
 		err = requests[i].Reply(response)
@@ -339,9 +339,9 @@ func (*listenerSuite) TestRegisterWriteRun(c *C) {
 	restoreOpen := listener.MockOsOpenWithSocket()
 	defer restoreOpen()
 
-	version := notify.Version(0xabc)
+	protoVersion := notify.ProtocolVersion(0xabc)
 
-	recvChan, _, restoreEpollIoctl := listener.MockEpollWaitNotifyIoctl(version)
+	recvChan, _, restoreEpollIoctl := listener.MockEpollWaitNotifyIoctl(protoVersion)
 	defer restoreEpollIoctl()
 
 	var t tomb.Tomb
@@ -358,7 +358,7 @@ func (*listenerSuite) TestRegisterWriteRun(c *C) {
 	aBits := uint32(0b1010)
 	dBits := uint32(0b0101)
 
-	msg := newMsgNotificationFile(version, id, label, path, aBits, dBits)
+	msg := newMsgNotificationFile(protoVersion, id, label, path, aBits, dBits)
 	buf, err := msg.MarshalBinary()
 	c.Assert(err, IsNil)
 
@@ -401,9 +401,9 @@ func (*listenerSuite) TestRunMultipleRequestsInBuffer(c *C) {
 	restoreOpen := listener.MockOsOpenWithSocket()
 	defer restoreOpen()
 
-	version := notify.Version(0x43)
+	protoVersion := notify.ProtocolVersion(0x43)
 
-	recvChan, _, restoreEpollIoctl := listener.MockEpollWaitNotifyIoctl(version)
+	recvChan, _, restoreEpollIoctl := listener.MockEpollWaitNotifyIoctl(protoVersion)
 	defer restoreEpollIoctl()
 
 	var t tomb.Tomb
@@ -424,7 +424,7 @@ func (*listenerSuite) TestRunMultipleRequestsInBuffer(c *C) {
 
 	var megaBuf []byte
 	for i, path := range paths {
-		msg := newMsgNotificationFile(version, uint64(i), label, path, aBits, dBits)
+		msg := newMsgNotificationFile(protoVersion, uint64(i), label, path, aBits, dBits)
 		buf, err := msg.MarshalBinary()
 		c.Assert(err, IsNil)
 		megaBuf = append(megaBuf, buf...)
@@ -458,8 +458,8 @@ func (*listenerSuite) TestRunEpoll(c *C) {
 	})
 	defer restoreOpen()
 
-	restoreRegisterFileDescriptor := listener.MockNotifyRegisterFileDescriptor(func(fd uintptr) (notify.Version, error) {
-		return notify.Version(12345), nil
+	restoreRegisterFileDescriptor := listener.MockNotifyRegisterFileDescriptor(func(fd uintptr) (notify.ProtocolVersion, error) {
+		return notify.ProtocolVersion(12345), nil
 	})
 	defer restoreRegisterFileDescriptor()
 
@@ -480,14 +480,14 @@ func (*listenerSuite) TestRunEpoll(c *C) {
 	})
 	defer restoreIoctl()
 
-	version := notify.Version(12345)
+	protoVersion := notify.ProtocolVersion(12345)
 	id := uint64(0x1234)
 	label := "snap.foo.bar"
 	path := "/home/Documents/foo/bar"
 	aBits := uint32(0b1010)
 	dBits := uint32(0b0101)
 
-	msg := newMsgNotificationFile(version, id, label, path, aBits, dBits)
+	msg := newMsgNotificationFile(protoVersion, id, label, path, aBits, dBits)
 	recvBuf, err := msg.MarshalBinary()
 	c.Assert(err, IsNil)
 
@@ -535,8 +535,8 @@ func (*listenerSuite) TestRunNoEpoll(c *C) {
 	})
 	defer restoreEpoll()
 
-	restoreRegisterFileDescriptor := listener.MockNotifyRegisterFileDescriptor(func(fd uintptr) (notify.Version, error) {
-		return notify.Version(12345), nil
+	restoreRegisterFileDescriptor := listener.MockNotifyRegisterFileDescriptor(func(fd uintptr) (notify.ProtocolVersion, error) {
+		return notify.ProtocolVersion(12345), nil
 	})
 	defer restoreRegisterFileDescriptor()
 
@@ -571,9 +571,9 @@ func (*listenerSuite) TestRunNoReceiver(c *C) {
 	restoreOpen := listener.MockOsOpenWithSocket()
 	defer restoreOpen()
 
-	version := notify.Version(5)
+	protoVersion := notify.ProtocolVersion(5)
 
-	recvChan, _, restoreEpollIoctl := listener.MockEpollWaitNotifyIoctl(version)
+	recvChan, _, restoreEpollIoctl := listener.MockEpollWaitNotifyIoctl(protoVersion)
 	defer restoreEpollIoctl()
 
 	var t tomb.Tomb
@@ -588,7 +588,7 @@ func (*listenerSuite) TestRunNoReceiver(c *C) {
 	aBits := uint32(0b1010)
 	dBits := uint32(0b0101)
 
-	msg := newMsgNotificationFile(version, id, label, path, aBits, dBits)
+	msg := newMsgNotificationFile(protoVersion, id, label, path, aBits, dBits)
 	buf, err := msg.MarshalBinary()
 	c.Assert(err, IsNil)
 	recvChan <- buf
@@ -603,9 +603,9 @@ func (*listenerSuite) TestRunNoReply(c *C) {
 	restoreOpen := listener.MockOsOpenWithSocket()
 	defer restoreOpen()
 
-	version := notify.Version(0x1234)
+	protoVersion := notify.ProtocolVersion(0x1234)
 
-	recvChan, _, restoreEpollIoctl := listener.MockEpollWaitNotifyIoctl(version)
+	recvChan, _, restoreEpollIoctl := listener.MockEpollWaitNotifyIoctl(protoVersion)
 	defer restoreEpollIoctl()
 
 	var t tomb.Tomb
@@ -620,7 +620,7 @@ func (*listenerSuite) TestRunNoReply(c *C) {
 	aBits := uint32(0b1010)
 	dBits := uint32(0b0101)
 
-	msg := newMsgNotificationFile(version, id, label, path, aBits, dBits)
+	msg := newMsgNotificationFile(protoVersion, id, label, path, aBits, dBits)
 	buf, err := msg.MarshalBinary()
 	c.Assert(err, IsNil)
 	recvChan <- buf
@@ -635,9 +635,9 @@ func (*listenerSuite) TestRunNoReply(c *C) {
 	c.Check(t.Wait(), Equals, listener.ErrClosed)
 }
 
-func newMsgNotificationFile(version notify.Version, id uint64, label, name string, allow, deny uint32) *notify.MsgNotificationFile {
+func newMsgNotificationFile(protocolVersion notify.ProtocolVersion, id uint64, label, name string, allow, deny uint32) *notify.MsgNotificationFile {
 	msg := notify.MsgNotificationFile{}
-	msg.Version = version
+	msg.Version = protocolVersion
 	msg.NotificationType = notify.APPARMOR_NOTIF_OP
 	msg.NoCache = 1
 	msg.ID = id
@@ -651,9 +651,9 @@ func newMsgNotificationFile(version notify.Version, id uint64, label, name strin
 	return &msg
 }
 
-func newMsgNotificationResponse(version notify.Version, id uint64, allow, deny uint32) *notify.MsgNotificationResponse {
+func newMsgNotificationResponse(protocolVersion notify.ProtocolVersion, id uint64, allow, deny uint32) *notify.MsgNotificationResponse {
 	msgHeader := notify.MsgHeader{
-		Version: version,
+		Version: protocolVersion,
 	}
 	msgNotification := notify.MsgNotification{
 		MsgHeader:        msgHeader,
@@ -677,9 +677,9 @@ func (*listenerSuite) TestRunErrors(c *C) {
 	restoreOpen := listener.MockOsOpenWithSocket()
 	defer restoreOpen()
 
-	version := notify.Version(1123)
+	protoVersion := notify.ProtocolVersion(1123)
 
-	recvChan, _, restoreEpollIoctl := listener.MockEpollWaitNotifyIoctl(version)
+	recvChan, _, restoreEpollIoctl := listener.MockEpollWaitNotifyIoctl(protoVersion)
 	defer restoreEpollIoctl()
 
 	for _, testCase := range []struct {
@@ -770,8 +770,8 @@ func (*listenerSuite) TestRunMultipleTimes(c *C) {
 	})
 	defer restoreEpoll()
 
-	restoreRegisterFileDescriptor := listener.MockNotifyRegisterFileDescriptor(func(fd uintptr) (notify.Version, error) {
-		return notify.Version(12345), nil
+	restoreRegisterFileDescriptor := listener.MockNotifyRegisterFileDescriptor(func(fd uintptr) (notify.ProtocolVersion, error) {
+		return notify.ProtocolVersion(12345), nil
 	})
 	defer restoreRegisterFileDescriptor()
 
@@ -809,8 +809,8 @@ func (*listenerSuite) TestCloseThenRun(c *C) {
 	restoreOpen := listener.MockOsOpenWithSocket()
 	defer restoreOpen()
 
-	restoreRegisterFileDescriptor := listener.MockNotifyRegisterFileDescriptor(func(fd uintptr) (notify.Version, error) {
-		return notify.Version(12345), nil
+	restoreRegisterFileDescriptor := listener.MockNotifyRegisterFileDescriptor(func(fd uintptr) (notify.ProtocolVersion, error) {
+		return notify.ProtocolVersion(12345), nil
 	})
 	defer restoreRegisterFileDescriptor()
 
@@ -837,9 +837,9 @@ func (*listenerSuite) TestRunConcurrency(c *C) {
 	restoreOpen := listener.MockOsOpenWithSocket()
 	defer restoreOpen()
 
-	version := notify.Version(0xaaaa)
+	protoVersion := notify.ProtocolVersion(0xaaaa)
 
-	recvChan, sendChan, restoreEpollIoctl := listener.MockEpollWaitNotifyIoctl(version)
+	recvChan, sendChan, restoreEpollIoctl := listener.MockEpollWaitNotifyIoctl(protoVersion)
 	epollIoctlRestored := false
 	defer func() {
 		if !epollIoctlRestored {
@@ -862,11 +862,11 @@ func (*listenerSuite) TestRunConcurrency(c *C) {
 	reqAllow := uint32(0b1010)
 	reqDeny := uint32(0b0101)
 
-	msg := newMsgNotificationFile(version, 0, label, path, reqAllow, reqDeny)
+	msg := newMsgNotificationFile(protoVersion, 0, label, path, reqAllow, reqDeny)
 
 	respAllow := uint32(0b1111)
 	respDeny := uint32(0b0000)
-	resp := newMsgNotificationResponse(version, 0, respAllow, respDeny)
+	resp := newMsgNotificationResponse(protoVersion, 0, respAllow, respDeny)
 
 	templateBuf, err := resp.MarshalBinary()
 	c.Assert(err, IsNil)
