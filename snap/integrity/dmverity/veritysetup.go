@@ -186,7 +186,7 @@ func Format(dataDevice string, hashDevice string, opts *DmVerityParams) (rootHas
 		return "", osutil.OutputErrCombine(output, stderr, err)
 	}
 
-	logger.Debugf("cmd: 'veritysetup format %s %s %s':\n%s", dataDevice, hashDevice, args, string(output))
+	logger.Debugf("cmd: 'veritysetup format %s %s %s':\n%s", dataDevice, hashDevice, args, osutil.CombineStdOutErr(output, stderr))
 
 	rootHash, err = getRootHashFromOutput(output)
 	if err != nil {
