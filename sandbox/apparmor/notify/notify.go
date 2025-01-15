@@ -47,14 +47,9 @@ func RegisterFileDescriptor(fd uintptr) (Version, error) {
 		}
 		ioctlBuf := IoctlRequestBuffer(data)
 		if _, err = doIoctl(fd, APPARMOR_NOTIF_SET_FILTER, ioctlBuf); err != nil {
-			var ioctlErr *IoctlError
-			if errors.As(err, &ioctlErr) {
-				if ioctlErr.Errno == unix.ENOTSUP || ioctlErr.Errno == unix.EPROTONOSUPPORT {
-					// TODO: only one of these errnos is correct, so limit to
-					// correct one once confirming with JJ.
-					unsupported[protocolVersion] = true
-					continue
-				}
+			if errors.Is(err, unix.EPROTONOSUPPORT) {
+				unsupported[protocolVersion] = true
+				continue
 			}
 			return 0, err
 		}

@@ -25,6 +25,10 @@ func (ie *IoctlError) Error() string {
 	return fmt.Sprintf("cannot perform IOCTL request %v: %s", ie.Request, unix.ErrnoName(ie.Errno))
 }
 
+func (ie *IoctlError) Unwrap() error {
+	return ie.Errno
+}
+
 var doSyscall = func(trap, a1, a2, a3 uintptr) (r1, r2 uintptr, err unix.Errno) {
 	return unix.Syscall(trap, a1, a2, a3)
 }
