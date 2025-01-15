@@ -144,7 +144,6 @@ func (s *pipewireInterfaceSuite) TestAppArmor(c *C) {
 	spec := apparmor.NewSpecification(s.plug.AppSet())
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.coreSlot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
-	c.Check(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "/{run,dev}/shm/pulse-shm-* mrwk,\n")
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "owner /run/user/[0-9]*/snap.pipewire/pipewire-[0-9] rw,\n")
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "owner /run/user/[0-9]*/pipewire-[0-9] rw,\n")
 
@@ -169,7 +168,6 @@ func (s *pipewireInterfaceSuite) TestAppArmorOnClassic(c *C) {
 	spec := apparmor.NewSpecification(s.plug.AppSet())
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.classicSlot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
-	c.Check(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "/{run,dev}/shm/pulse-shm-* mrwk,\n")
 	c.Check(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "owner /run/user/[0-9]*/pipewire-[0-9] rw,\n")
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), Not(testutil.Contains), "owner /run/user/[0-9]*/snap.pipewire/pipewire-[0-9] rw,\n")
 
