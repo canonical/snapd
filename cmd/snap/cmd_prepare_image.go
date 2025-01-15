@@ -59,6 +59,9 @@ type cmdPrepareImage struct {
 	ExtraSnaps         []string `long:"extra-snaps" hidden:"yes"` // DEPRECATED
 	RevisionsFile      string   `long:"revisions"`
 	WriteRevisionsFile string   `long:"write-revisions" optional:"true" optional-value:"./seed.manifest"`
+
+	// Filenames for injected assertions
+	ExtraAssertions []string `long:"assert" value-name:"<filename>"`
 }
 
 func init() {
@@ -100,6 +103,8 @@ For preparing classic images it supports a --classic mode`),
 			"channel": i18n.G("The channel to use"),
 			// TRANSLATORS: This should not start with a lowercase letter.
 			"customize": i18n.G("Image customizations specified as JSON file."),
+			// TRANSLATORS: This should not start with a lowercase letter.
+			"assert": i18n.G("Include the assertion from the local file"),
 		}, []argDesc{
 			{
 				// TRANSLATORS: This needs to begin with < and end with >
@@ -125,12 +130,13 @@ func (x *cmdPrepareImage) Execute(args []string) error {
 	snap.SanitizePlugsSlots = builtin.SanitizePlugsSlots
 
 	opts := &image.Options{
-		Snaps:            x.ExtraSnaps,
-		Components:       x.Components,
-		ModelFile:        x.Positional.ModelAssertionFn,
-		Channel:          x.Channel,
-		Architecture:     x.Architecture,
-		SeedManifestPath: x.WriteRevisionsFile,
+		Snaps:                     x.ExtraSnaps,
+		Components:                x.Components,
+		ModelFile:                 x.Positional.ModelAssertionFn,
+		Channel:                   x.Channel,
+		Architecture:              x.Architecture,
+		SeedManifestPath:          x.WriteRevisionsFile,
+		AdditionalAssertionsFiles: x.ExtraAssertions,
 	}
 
 	if x.RevisionsFile != "" {
