@@ -90,6 +90,8 @@ type permissionDB struct {
 type interfaceDB struct {
 	// interfaceDB contains a map from permission to permissionDB for a particular interface
 	PerPermission map[string]*permissionDB
+	// PathPatterns maps from path pattern string to rule ID
+	PathPatterns map[string]prompting.IDType
 }
 
 // snapDB stores a map from interface name to the DB of rules pertaining to that
@@ -184,6 +186,9 @@ func (rdb *RuleDB) load() (retErr error) {
 	rdb.perUser = make(map[uint32]*userDB)
 
 	expiredRules := make(map[prompting.IDType]bool)
+	// Store map of merged rules, where the original merged (removed) rule ID
+	// maps to the ID of the rule into which it was merged.
+	mergedRules := make(map[prompting.IDType]prompting.IDType)
 
 	f, err := os.Open(rdb.dbPath)
 	if err != nil {
@@ -220,11 +225,15 @@ func (rdb *RuleDB) load() (retErr error) {
 			continue
 		}
 
-		conflictErr := rdb.addRule(rule)
+		const save = false
+		mergedRule, merged, conflictErr := rdb.addOrMergeRule(rule, save)
 		if conflictErr != nil {
 			// Duplicate rules on disk or conflicting rule, should not occur
 			errInvalid = fmt.Errorf("cannot add rule: %w", conflictErr)
 			break
+		}
+		if merged {
+			mergedRules[rule.ID] = mergedRule.ID
 		}
 	}
 
@@ -248,11 +257,16 @@ func (rdb *RuleDB) load() (retErr error) {
 		var data map[string]string
 		if expiredRules[rule.ID] {
 			data = expiredData
+		} else if newID, exists := mergedRules[rule.ID]; exists {
+			data = map[string]string{
+				"removed":     "merged",
+				"merged-into": newID.String(),
+			}
 		}
 		rdb.notifyRule(rule.User, rule.ID, data)
 	}
 
-	if len(expiredRules) > 0 {
+	if len(expiredRules) > 0 || len(mergedRules) > 0 {
 		return rdb.save()
 	}
 
@@ -270,6 +284,25 @@ func (rdb *RuleDB) save() error {
 		return fmt.Errorf("cannot marshal rule DB: %w", err)
 	}
 	return osutil.AtomicWriteFile(rdb.dbPath, b, 0o600, 0)
+}
+
+// lookupRuleByPathPattern checks whether there is an existing rule for the
+// given user, snap, and iface, which has an identical path pattern to that in
+// the given constraints. If it does exist, returns it, along with a bool
+// indicating whether it exists. If an error occurs, returns it.
+//
+// The caller must ensure that the database lock is held.
+func (rdb *RuleDB) lookupRuleByPathPattern(user uint32, snap string, iface string, constraints *prompting.RuleConstraints) (*Rule, bool, error) {
+	interfaceDB := rdb.interfaceDBForUserSnapInterface(user, snap, iface)
+	if interfaceDB == nil {
+		return nil, false, nil
+	}
+	ruleID, exists := interfaceDB.PathPatterns[constraints.PathPattern.String()]
+	if !exists {
+		return nil, false, nil
+	}
+	rule, err := rdb.lookupRuleByID(ruleID)
+	return rule, true, err
 }
 
 // lookupRuleByID returns the rule with the given ID from the rule DB.
@@ -307,24 +340,160 @@ func (rdb *RuleDB) addRuleToRulesList(rule *Rule) error {
 	return nil
 }
 
-// addRule adds the given rule to the rule DB.
+// addOrMergeRule adds the given rule to the rule DB, or merges it with an
+// existing rule if there is an existing rule for the same user, snap, and
+// interface with an identical path pattern.
 //
-// If there is a conflicting rule, returns an error, and the rule DB is left
-// unchanged.
+// If save is true, saves the DB after the rule has been added or merged.
+//
+// If the rule's ID is 0 and it cannot be merged with an existing rule, then it
+// is assigned a new ID, mutating the rule which was passed in as an argument.
+//
+// If the rule is merged with an existing rule, then both the given rule and the
+// existing rule are removed from the DB, and a new rule is constructed with the
+// merged contents of the rule to be added and the existing rule, and that
+// merged rule is added to the tree, and returned along with merged set to true.
+//
+// If the rule is not merged with an existing rule, then the given rule is
+// returned, and merged is returned as false.
+//
+// If there is a conflicting rule, or if there is an error while saving the DB,
+// returns an error, and the rule DB is left unchanged.
 //
 // The caller must ensure that the database lock is held for writing.
-func (rdb *RuleDB) addRule(rule *Rule) error {
+func (rdb *RuleDB) addOrMergeRule(rule *Rule, save bool) (addedOrMergedRule *Rule, merged bool, err error) {
+	// Check if rule with identical path pattern exists.
+	existingRule, exists, err := rdb.lookupRuleByPathPattern(rule.User, rule.Snap, rule.Interface, rule.Constraints)
+	if err != nil {
+		// Database was left inconsistent, should not occur
+		return nil, false, err
+	}
+	if !exists {
+		if err := rdb.addNewRule(rule, save); err != nil {
+			return nil, false, err
+		}
+		return rule, false, nil
+	}
+
+	newPermissions := make(prompting.RulePermissionMap)
+	// Add any non-expired permissions from the existing rule. Each might later
+	// be overridden by a permission entry in the new rule, if the latter has a
+	// broader lifespan (and doesn't otherwise conflict).
+	for existingPerm, existingEntry := range existingRule.Constraints.Permissions {
+		if existingEntry.Expired(rule.Timestamp) {
+			continue
+		}
+		newPermissions[existingPerm] = existingEntry
+	}
+	// Check whether the new rule has outcomes/lifespans which conflict with the
+	// existing rule, otherwise add them to the new set of permissions.
+	var conflicts []prompting_errors.RuleConflict
+	for perm, entry := range rule.Constraints.Permissions {
+		existingEntry, exists := newPermissions[perm]
+		if !exists {
+			newPermissions[perm] = entry
+			continue
+		}
+		if entry.Outcome != existingEntry.Outcome {
+			// New entry outcome conflicts with outcome of existing entry
+			conflicts = append(conflicts, prompting_errors.RuleConflict{
+				Permission:    perm,
+				Variant:       rule.Constraints.PathPattern.String(), // XXX: we're mis-using the full path pattern in place of the variant
+				ConflictingID: existingRule.ID.String(),
+			})
+			continue
+		}
+		// Both new and existing rule have the same permission with the same
+		// outcome, so preserve whichever entry has the greater lifespan.
+		// Since newPermissions[perm] already has the existing entry, only
+		// override it if the new rule has a greater lifespan.
+		if prompting.FirstLifespanGreater(entry.Lifespan, entry.Expiration, existingEntry.Lifespan, existingEntry.Expiration) {
+			newPermissions[perm] = entry
+		}
+	}
+	// If there were any conflicts with the existing rule with identical path
+	// pattern, return error.
+	if len(conflicts) > 0 {
+		return nil, false, &prompting_errors.RuleConflictError{
+			Conflicts: conflicts,
+		}
+	}
+
+	// Create new rule by copying the contents of the existing rule, but copy
+	// the timestamp from the new rule.
+	newRule := *existingRule
+	newRule.Timestamp = rule.Timestamp
+	// Set constraints as well, since copying the rule just copied the pointer,
+	// and we want to set the constraints to use the new permissions without
+	// mutating existingRule.Constraints.
+	newRule.Constraints = &prompting.RuleConstraints{
+		PathPattern: existingRule.Constraints.PathPattern,
+		Permissions: newPermissions,
+	}
+
+	// Remove the existing rule from the tree. An error should not occur, since
+	// we just looked up the rule and know it exists.
+	rdb.removeRuleByID(existingRule.ID)
+
+	if err := rdb.addNewRule(&newRule, save); err != nil {
+		// Error while adding the new merged rule, likely due to a conflict
+		// caused by the new permissions in the rule to be added.
+
+		// Re-add original the original rule so all is unchanged, which should
+		// succeed since addNewRule should have rolled back successfully and
+		// we're now simply re-adding the existing rule which we just removed.
+		// Don't save, since nothing should have changed after the rollback is
+		// complete.
+		if restoreErr := rdb.addNewRule(existingRule, false); restoreErr != nil {
+			// Error should not occur, but if it does, wrap it in the other error
+			err = strutil.JoinErrors(err, fmt.Errorf("cannot re-add existing rule: %w", restoreErr))
+		}
+		return nil, false, err
+	}
+
+	return &newRule, true, nil
+}
+
+// addNewRule adds the given rule to the rule DB without checking whether there
+// are any existing rules with the same path pattern. If save is true, saves
+// the DB after the new rule has been added.
+//
+// This method should only be called from addOrMergeRule, or when rolling back
+// the removal of a removal of a rule by re-adding it after an error occurs.
+//
+// Returns an error if the rule conflicts with an existing rule.
+//
+// The caller must ensure that the database lock is held for writing.
+func (rdb *RuleDB) addNewRule(rule *Rule, save bool) error {
+	// If the rule has no ID, assign a new one.
+	if rule.ID == 0 {
+		id, _ := rdb.maxIDMmap.NextID()
+		rule.ID = id
+	}
 	if err := rdb.addRuleToRulesList(rule); err != nil {
 		return err
 	}
 	conflictErr := rdb.addRuleToTree(rule)
-	if conflictErr == nil {
+	if conflictErr != nil {
+		// remove just-added rule from rules list and IDs
+		rdb.rules = rdb.rules[:len(rdb.rules)-1]
+		delete(rdb.indexByID, rule.ID)
+		return conflictErr
+	}
+
+	if !save {
 		return nil
 	}
-	// remove just-added rule from rules list and IDs
-	rdb.rules = rdb.rules[:len(rdb.rules)-1]
-	delete(rdb.indexByID, rule.ID)
-	return conflictErr
+
+	if err := rdb.save(); err != nil {
+		// Should not occur, but if it does, roll back to the original state.
+		// The following should succeeded, since we're removing the rule which
+		// we just successfully added.
+		rdb.removeRuleByID(rule.ID)
+		return err
+	}
+
+	return nil
 }
 
 // removeRuleByIDFromRulesList removes the rule with the given ID from the rules
@@ -411,6 +580,11 @@ func (rdb *RuleDB) addRuleToTree(rule *Rule) *prompting_errors.RuleConflictError
 			Conflicts: conflicts,
 		}
 	}
+
+	// Add rule to the interfaceDB's map of path patterns to rule IDs. We know
+	// the interfaceDB exists, since we just modified a rule there.
+	interfaceDB := rdb.interfaceDBForUserSnapInterface(rule.User, rule.Snap, rule.Interface)
+	interfaceDB.PathPatterns[rule.Constraints.PathPattern.String()] = rule.ID
 
 	return nil
 }
@@ -542,6 +716,15 @@ func (rdb *RuleDB) removeRuleFromTree(rule *Rule) error {
 			errs = append(errs, err)
 		}
 	}
+
+	// Remove rule from the interfaceDB's map of path patterns to rule IDs. If
+	// the interfaceDB doesn't exist, then there must have been a previous error,
+	// and regardless, the path pattern doesn't exist in its map anymore.
+	interfaceDB := rdb.interfaceDBForUserSnapInterface(rule.User, rule.Snap, rule.Interface)
+	if interfaceDB != nil {
+		delete(interfaceDB.PathPatterns, rule.Constraints.PathPattern.String())
+	}
+
 	return joinInternalErrors(errs)
 }
 
@@ -555,8 +738,8 @@ func (rdb *RuleDB) removeRuleFromTree(rule *Rule) error {
 //
 // The caller must ensure that the database lock is held for writing.
 func (rdb *RuleDB) removeRulePermissionFromTree(rule *Rule, permission string) error {
-	permVariants, ok := rdb.permissionDBForUserSnapInterfacePermission(rule.User, rule.Snap, rule.Interface, permission)
-	if !ok || permVariants == nil {
+	permVariants := rdb.permissionDBForUserSnapInterfacePermission(rule.User, rule.Snap, rule.Interface, permission)
+	if permVariants == nil {
 		err := fmt.Errorf("internal error: no rules in the rule tree for user %d, snap %q, interface %q, permission %q", rule.User, rule.Snap, rule.Interface, permission)
 		return err
 	}
@@ -596,27 +779,39 @@ func joinInternalErrors(errs []error) error {
 }
 
 // permissionDBForUserSnapInterfacePermission returns the permission DB for the
-// given user, snap, interface, and permission, if it exists.
+// given user, snap, interface, and permission, if it exists, or nil if not.
 //
 // The caller must ensure that the database lock is held.
-func (rdb *RuleDB) permissionDBForUserSnapInterfacePermission(user uint32, snap string, iface string, permission string) (*permissionDB, bool) {
-	userSnaps := rdb.perUser[user]
-	if userSnaps == nil {
-		return nil, false
+func (rdb *RuleDB) permissionDBForUserSnapInterfacePermission(user uint32, snap string, iface string, permission string) *permissionDB {
+	interfaceRules := rdb.interfaceDBForUserSnapInterface(user, snap, iface)
+	if interfaceRules == nil {
+		return nil
 	}
-	snapInterfaces := userSnaps.PerSnap[snap]
-	if snapInterfaces == nil {
-		return nil, false
+	permRules := interfaceRules.PerPermission[permission]
+	if permRules == nil {
+		return nil
 	}
-	interfacePerms := snapInterfaces.PerInterface[iface]
-	if interfacePerms == nil {
-		return nil, false
+	return permRules
+}
+
+// interfaceDBForUserSnapInterface returns the interface DB for the given user,
+// snap, and interface, if it exists, or nil if not.
+//
+// The caller must ensure that the database lock is held.
+func (rdb *RuleDB) interfaceDBForUserSnapInterface(user uint32, snap string, iface string) *interfaceDB {
+	userRules := rdb.perUser[user]
+	if userRules == nil {
+		return nil
 	}
-	permVariants := interfacePerms.PerPermission[permission]
-	if permVariants == nil {
-		return nil, false
+	snapRules := userRules.PerSnap[snap]
+	if snapRules == nil {
+		return nil
 	}
-	return permVariants, true
+	interfaceRules := snapRules.PerInterface[iface]
+	if interfaceRules == nil {
+		return nil
+	}
+	return interfaceRules
 }
 
 // ensurePermissionDBForUserSnapInterfacePermission returns the permission DB
@@ -643,6 +838,7 @@ func (rdb *RuleDB) ensurePermissionDBForUserSnapInterfacePermission(user uint32,
 	if interfacePerms == nil {
 		interfacePerms = &interfaceDB{
 			PerPermission: make(map[string]*permissionDB),
+			PathPatterns:  make(map[string]prompting.IDType),
 		}
 		snapInterfaces.PerInterface[iface] = interfacePerms
 	}
@@ -687,27 +883,19 @@ func (rdb *RuleDB) AddRule(user uint32, snap string, iface string, constraints *
 	if err != nil {
 		return nil, err
 	}
-	if err := rdb.addRule(newRule); err != nil {
-		// Cannot have expired, since the expiration is based on the lifespan,
-		// duration, and timestamp, all of which were validated and set in
-		// makeNewRule.
+	const save = true
+	newRule, _, err = rdb.addOrMergeRule(newRule, save)
+	if err != nil {
+		// If an error occurred, all changes were rolled back.
 		return nil, fmt.Errorf("cannot add rule: %w", err)
-	}
-
-	if err := rdb.save(); err != nil {
-		// Failed to save, so revert the rule addition so no change occurred
-		// and the rule DB state matches that preserved on disk.
-		rdb.removeRuleByID(newRule.ID)
-		// We know that this rule exists, since we just added it, so no error
-		// can occur.
-		return nil, err
 	}
 
 	rdb.notifyRule(user, newRule.ID, nil)
 	return newRule, nil
 }
 
-// makeNewRule creates a new Rule with the given contents.
+// makeNewRule creates a new Rule with the given contents. It does not assign
+// the rule an ID, in case it can be merged with an existing rule.
 //
 // Constructs a new rule with the given parameters as values. The given
 // constraints are converted to rule constraints, using the timestamp of the
@@ -720,11 +908,7 @@ func (rdb *RuleDB) makeNewRule(user uint32, snap string, iface string, constrain
 		return nil, err
 	}
 
-	// Don't consume an ID until now, when we know the rule is valid
-	id, _ := rdb.maxIDMmap.NextID()
-
 	newRule := Rule{
-		ID:          id,
 		Timestamp:   currTime,
 		User:        user,
 		Snap:        snap,
@@ -774,8 +958,8 @@ var isPathPermAllowedByRuleDB = func(rdb *RuleDB, user uint32, snap string, ifac
 func (rdb *RuleDB) isPathPermAllowed(user uint32, snap string, iface string, path string, permission string) (bool, error) {
 	rdb.mutex.RLock()
 	defer rdb.mutex.RUnlock()
-	permissionMap, ok := rdb.permissionDBForUserSnapInterfacePermission(user, snap, iface, permission)
-	if !ok || permissionMap == nil {
+	permissionMap := rdb.permissionDBForUserSnapInterfacePermission(user, snap, iface, permission)
+	if permissionMap == nil {
 		return false, prompting_errors.ErrNoMatchingRule
 	}
 	variantMap := permissionMap.VariantEntries
@@ -1099,22 +1283,18 @@ func (rdb *RuleDB) PatchRule(user uint32, id prompting.IDType, constraintsPatch 
 	// we just looked up the rule and know it exists.
 	rdb.removeRuleByID(origRule.ID)
 
-	if addErr := rdb.addRule(newRule); addErr != nil {
+	const save = true
+	newRule, _, addErr := rdb.addOrMergeRule(newRule, save)
+	if addErr != nil {
 		err := fmt.Errorf("cannot patch rule: %w", addErr)
-		// Try to re-add original rule so all is unchanged.
-		if origErr := rdb.addRule(origRule); origErr != nil {
+		// Re-add the original rule so all is unchanged, which should
+		// succeed since we're simply reversing what we just completed.
+		// Don't save, since nothing should have changed after the rollback
+		// is complete.
+		if origErr := rdb.addNewRule(origRule, false); origErr != nil {
 			// Error should not occur, but if it does, wrap it in the other error
 			err = strutil.JoinErrors(err, fmt.Errorf("cannot re-add original rule: %w", origErr))
 		}
-		return nil, err
-	}
-
-	if err := rdb.save(); err != nil {
-		// Should not occur, but if it does, roll back to the original state.
-		// All of the following should succeed, since we're reversing what we
-		// just successfully completed.
-		rdb.removeRuleByID(newRule.ID)
-		rdb.addRule(origRule)
 		return nil, err
 	}
 
