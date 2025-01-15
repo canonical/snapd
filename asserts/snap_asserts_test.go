@@ -1206,7 +1206,7 @@ func (srs *snapRevSuite) TestDecodeInvalidWithIntegrity(c *C) {
 		{integrityHashAlgHdr, "", `"hash-algorithm" of integrity data \[0\] of type "dm-verity" is mandatory`},
 		{integrityHashAlgHdr, "    hash-algorithm: 0\n", `hash algorithm of integrity data \[0\] of type "dm-verity" must be one of .*`},
 		{integrityHashAlgHdr, "    hash-algorithm: a\n", `hash algorithm of integrity data \[0\] of type "dm-verity" must be one of .*`},
-		{integrityHashAlgHdr, "    hash-algorithm: sha123\n", `hash algorithm of integrity data \[0\] of type "dm-verity" must be one of .*`},
+		{integrityHashAlgHdr, "    hash-algorithm: sha384\n", `hash algorithm of integrity data \[0\] of type "dm-verity" must be one of .*`},
 		{integrityHashAlgHdr, "    hash-algorithm: sm3\n", `hash algorithm of integrity data \[0\] of type "dm-verity" must be one of .*`},
 		{integrityDataBlockSizeHdr, "", `"data-block-size" of integrity data \[0\] of type "dm-verity" \(sha256\) is mandatory`},
 		{integrityDataBlockSizeHdr, "    data-block-size: a\n", `"data-block-size" of integrity data \[0\] of type "dm-verity" \(sha256\) is not an unsigned integer: a`},

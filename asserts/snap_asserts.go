@@ -474,32 +474,12 @@ var validVersionsForIntegrityType = map[string][]int{
 }
 
 var validHashAlgorithmsForIntegrityType = map[string][]string{
+	// kernel supported algorithms:
 	// https://gitlab.com/cryptsetup/cryptsetup/-/blob/main/lib/crypto_backend/crypto_kernel.c?ref_type=heads#L35
-	// XXX: The algorithms that are commented out are not supported by Go's crypto and cause checkDigest to fail.
-	// If we care about supporting one of these hashes, we should implement specialized checker functions.
+	// Go crypto's supported algorithms:
+	// https://cs.opensource.google/go/go/+/refs/tags/go1.23.4:src/crypto/crypto.go;l=68
 	"dm-verity": {
-		"sha1",
-		"sha224",
 		"sha256",
-		"sha384",
-		"sha512",
-		"ripemd160",
-		// "whirlpool",
-		"sha3-224",
-		"sha3-256",
-		"sha3-384",
-		"sha3-512",
-		// "stribog256",
-		// "stribog512",
-		// "sm3",
-		// "blake2b-160",
-		"blake2b-256",
-		"blake2b-384",
-		"blake2b-512",
-		// "blake2s-128",
-		// "blake2s-160",
-		// "blake2s-224",
-		"blake2s-256",
 	},
 }
 
