@@ -51,12 +51,12 @@ func getVal(line string) (string, error) {
 	return strings.TrimSpace(parts[1]), nil
 }
 
-func getFieldFromOutput(output []byte, key string) (rootHash string, err error) {
+func getFieldFromOutput(output []byte, key string) (val string, err error) {
 	scanner := bufio.NewScanner(bytes.NewBuffer(output))
 	for scanner.Scan() {
 		line := scanner.Text()
 		if strings.HasPrefix(line, key) {
-			rootHash, err = getVal(line)
+			val, err = getVal(line)
 			if err != nil {
 				return "", err
 			}
@@ -67,7 +67,7 @@ func getFieldFromOutput(output []byte, key string) (rootHash string, err error) 
 		return "", err
 	}
 
-	return rootHash, nil
+	return val, nil
 }
 
 func getRootHashFromOutput(output []byte) (rootHash string, err error) {
