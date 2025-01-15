@@ -23,6 +23,7 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/sandbox/apparmor/notify"
+	"github.com/snapcore/snapd/testutil"
 )
 
 type versionSuite struct{}
@@ -42,14 +43,7 @@ func (s *versionSuite) TestVersionsAndCallbacks(c *C) {
 
 	for ver, callback := range notify.VersionSupportedCallbacks {
 		c.Check(callback, NotNil, Commentf("version has nil callback: %v", ver))
-		found := false
-		for _, v := range notify.Versions {
-			if ver == v {
-				found = true
-				break
-			}
-		}
-		c.Check(found, Equals, true, Commentf("version in versionSupportedCallbacks missing from versions: %v", ver))
+		c.Check(notify.Versions, testutil.Contains, ver, Commentf("version in versionSupportedCallbacks missing from versions: %v", ver))
 	}
 }
 
@@ -81,20 +75,20 @@ func (s *versionSuite) TestVersionSupported(c *C) {
 	defer restore()
 
 	supported, err := notify.Supported(notify.ProtocolVersion(1))
-	c.Check(supported, Equals, false)
 	c.Check(err, ErrorMatches, "no callback defined for version .*")
+	c.Check(supported, Equals, false)
 
 	supported, err = notify.Supported(notify.ProtocolVersion(2))
-	c.Check(supported, Equals, false)
 	c.Check(err, IsNil)
+	c.Check(supported, Equals, false)
 
 	supported, err = notify.Supported(notify.ProtocolVersion(3))
-	c.Check(supported, Equals, true)
 	c.Check(err, IsNil)
+	c.Check(supported, Equals, true)
 
 	supported, err = notify.Supported(notify.ProtocolVersion(4))
-	c.Check(supported, Equals, false)
 	c.Check(err, ErrorMatches, "no callback defined for version .*")
+	c.Check(supported, Equals, false)
 }
 
 func (s *versionSuite) TestSupportedProtocolVersion(c *C) {
@@ -161,8 +155,9 @@ func (s *versionSuite) TestSupportedProtocolVersion(c *C) {
 		},
 	} {
 		protoVersion, supported := notify.SupportedProtocolVersion(testCase.unsupported)
-		c.Check(protoVersion, Equals, testCase.expectedVersion, Commentf("testCase: %+v", testCase))
-		c.Check(supported, Equals, testCase.expectedSupported, Commentf("testCase: %+v", testCase))
-		c.Check(testCase.unsupported, DeepEquals, testCase.expectedMutated, Commentf("testCase: %+v"))
+		comment := Commentf("testCase: %+v", testCase)
+		c.Check(protoVersion, Equals, testCase.expectedVersion, comment)
+		c.Check(supported, Equals, testCase.expectedSupported, comment)
+		c.Check(testCase.unsupported, DeepEquals, testCase.expectedMutated, comment)
 	}
 }
