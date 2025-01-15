@@ -1,3 +1,12 @@
+# New in snapd 2.67.1
+* Fix apparmor permissions to allow snaps access to kernel modules and firmware on UC24, which also fixes the kernel-modules-control interface on UC24
+* AppArmor prompting (experimental): disallow /./ and /../ in path patterns
+* Fix 'snap run' getent based user lookup in case of bad PATH
+* Fix snapd using the incorrect AppArmor version during undo of an refresh for regenerating snap profiles
+* Add new syscalls to base templates
+* hardware-observe interface: allow riscv_hwprobe syscall
+* mount-observe interface: allow listmount and statmount syscalls
+
 # New in snapd 2.67
 * AppArmor prompting (experimental): allow overlapping rules
 * Registry view (experimental): Changes to registry data (from both users and snaps) can be validated and saved by custodian snaps
