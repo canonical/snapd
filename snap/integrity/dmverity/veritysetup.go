@@ -234,8 +234,8 @@ func (sb *VeritySuperblock) Validate() error {
 	return nil
 }
 
-// ReadSuperBlock reads the dm-verity superblock from a dm-verity hash file.
-func ReadSuperBlock(filename string) (*VeritySuperblock, error) {
+// ReadVeritySuperblock reads the dm-verity superblock from a dm-verity hash file.
+func ReadVeritySuperblock(filename string) (*VeritySuperblock, error) {
 	hashFile, err := os.Open(filename)
 	if err != nil {
 		return nil, err
