@@ -3428,6 +3428,7 @@ func LinkNewBaseOrKernel(st *state.State, name string, fromChange string) (*stat
 	linkSnap.Set("snap-setup-task", prepareSnap.ID())
 	linkSnap.WaitFor(prev)
 	ts.AddTask(linkSnap)
+	ts.MarkEdge(linkSnap, MaybeRebootEdge)
 	// prepare-snap is the last task that carries no system modifications
 	ts.MarkEdge(prepareSnap, LastBeforeLocalModificationsEdge)
 	ts.MarkEdge(prepareSnap, SnapSetupEdge)
@@ -3490,6 +3491,7 @@ func AddLinkNewBaseOrKernel(st *state.State, ts *state.TaskSet) (*state.TaskSet,
 	linkSnap.Set("snap-setup-task", snapSetupTask.ID())
 	linkSnap.WaitFor(prev)
 	ts.AddTask(linkSnap)
+	ts.MarkEdge(linkSnap, MaybeRebootEdge)
 	// make sure that remodel can identify which tasks introduce actual
 	// changes to the system and order them correctly
 	if edgeTask := ts.MaybeEdge(LastBeforeLocalModificationsEdge); edgeTask == nil {

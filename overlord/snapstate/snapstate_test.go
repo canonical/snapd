@@ -8162,6 +8162,7 @@ func (s *snapmgrTestSuite) testRemodelLinkNewBaseOrKernelHappy(c *C, model *asse
 	c.Assert(tLink.Kind(), Equals, "link-snap")
 	c.Assert(tLink.Summary(), Equals, `Make snap "some-kernel" (2) available to the system during remodel`)
 	c.Assert(tLink.WaitTasks(), DeepEquals, []*state.Task{tUpdateGadgetAssets})
+	c.Assert(ts.MaybeEdge(snapstate.MaybeRebootEdge), Equals, tLink)
 
 	ts, err = snapstate.LinkNewBaseOrKernel(s.state, "some-base", "")
 	c.Assert(err, IsNil)
@@ -8175,6 +8176,7 @@ func (s *snapmgrTestSuite) testRemodelLinkNewBaseOrKernelHappy(c *C, model *asse
 	c.Assert(tPrepare.Has("snap-setup"), Equals, true)
 	c.Assert(tLink.Kind(), Equals, "link-snap")
 	c.Assert(tLink.Summary(), Equals, `Make snap "some-base" (1) available to the system during remodel`)
+	c.Assert(ts.MaybeEdge(snapstate.MaybeRebootEdge), Equals, tLink)
 }
 
 func (s *snapmgrTestSuite) TestRemodelLinkNewBaseOrKernelBadType(c *C) {
@@ -8291,6 +8293,7 @@ func (s *snapmgrTestSuite) testRemodelAddLinkNewBaseOrKernel(c *C, model *assert
 		c.Assert(tsk.Get("snap-setup-task", &ssID), IsNil)
 		c.Assert(ssID, Equals, tPrepare.ID())
 	}
+	c.Assert(tsNew.MaybeEdge(snapstate.MaybeRebootEdge), Equals, tLink)
 
 	// try with base snap
 	si = &snap.SideInfo{RealName: "some-base", Revision: snap.R(1)}
@@ -8313,6 +8316,7 @@ func (s *snapmgrTestSuite) testRemodelAddLinkNewBaseOrKernel(c *C, model *assert
 	var ssID string
 	c.Assert(tLink.Get("snap-setup-task", &ssID), IsNil)
 	c.Assert(ssID, Equals, tPrepare.ID())
+	c.Assert(tsNew.MaybeEdge(snapstate.MaybeRebootEdge), Equals, tLink)
 
 	// but bails when there is no task with snap setup
 	ts = state.NewTaskSet()
