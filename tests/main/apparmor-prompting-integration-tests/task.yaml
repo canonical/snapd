@@ -14,7 +14,7 @@ systems:
   - ubuntu-16*
   - ubuntu-18*
   - ubuntu-2*
-  - ubuntu-core-*
+  - ubuntu-core-*-64-*
 
 environment:
     VARIANT/read_single_allow: read_single_allow
