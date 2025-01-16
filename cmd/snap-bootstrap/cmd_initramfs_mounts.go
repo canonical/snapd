@@ -376,6 +376,14 @@ func doInstall(mst *initramfsMountsState, model *asserts.Model, sysSnaps map[sna
 		}
 		kernCompsMntPts[seedComp.CompSideInfo.Component.String()] = mntPt
 
+		defer func() {
+			stdout, stderr, err := osutil.RunSplitOutput("systemd-mount", "--umount", mntPt)
+			if err != nil {
+				logger.Noticef("cannot unmount component in %s: %v",
+					mntPt, osutil.OutputErrCombine(stdout, stderr, err))
+			}
+		}()
+
 		compInfo, err := readComponentInfo(&seedComp, mntPt, kernelSnap, &seedComp.CompSideInfo)
 		if err != nil {
 			return err
@@ -386,6 +394,7 @@ func doInstall(mst *initramfsMountsState, model *asserts.Model, sysSnaps map[sna
 		})
 	}
 
+	// TODO do not rebuild drivers tree if using preseed tarball
 	isCore := !model.Classic()
 	kernelBootInfo := gadgetInstall.BuildKernelBootInfo(
 		kernelSnap, compSeedInfos, kernelMountDir, kernCompsMntPts,
@@ -463,7 +472,6 @@ func doInstall(mst *initramfsMountsState, model *asserts.Model, sysSnaps map[sna
 		if err != nil {
 			return osutil.OutputErrCombine(stdout, stderr, err)
 		}
-
 	}
 
 	if err := bootEnsureNextBootToRunMode(mst.recoverySystem); err != nil {
