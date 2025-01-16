@@ -5316,6 +5316,85 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemValid
 	c.Assert(err, ErrorMatches, `snap "pc" does not match revision required by validation sets: 100 != 10`)
 }
 
+func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemMissingRequiredComponent(c *C) {
+	devicestate.SetBootOkRan(s.mgr, true)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	s.model = s.makeModelAssertionInState(c, "canonical", "pc-20", map[string]interface{}{
+		"architecture": "amd64",
+		"grade":        "dangerous",
+		"base":         "core24",
+		"revision":     "2",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":            "pc-kernel-with-kmods",
+				"id":              s.ss.AssertedSnapID("pc-kernel-with-kmods"),
+				"type":            "kernel",
+				"default-channel": "20",
+				"components": map[string]interface{}{
+					"kmod": map[string]interface{}{
+						"presence": "required",
+					},
+				},
+			},
+			map[string]interface{}{
+				"name":            "pc",
+				"id":              s.ss.AssertedSnapID("pc"),
+				"type":            "gadget",
+				"default-channel": "20",
+			},
+			map[string]interface{}{
+				"name": "core24",
+				"id":   s.ss.AssertedSnapID("core24"),
+				"type": "base",
+			},
+			map[string]interface{}{
+				"name": "snapd",
+				"id":   s.ss.AssertedSnapID("snapd"),
+				"type": "snapd",
+			},
+		},
+	})
+
+	// note that the revision for "pc" is different than the expected revisions
+	providedRevisions := map[string]snap.Revision{
+		"pc":                   snap.R(100),
+		"pc-kernel-with-kmods": snap.R(11),
+		"core24":               snap.R(12),
+		"snapd":                snap.R(13),
+	}
+
+	snapTypes := map[string]snap.Type{
+		"pc":                   snap.TypeGadget,
+		"pc-kernel-with-kmods": snap.TypeKernel,
+		"core24":               snap.TypeBase,
+		"snapd":                snap.TypeSnapd,
+	}
+
+	localSnaps := make([]snapstate.PathSnap, 0, len(providedRevisions))
+	for name, rev := range providedRevisions {
+		si, path := createLocalSnap(c, name, fakeSnapID(name), rev.N, string(snapTypes[name]), "", nil)
+
+		localSnaps = append(localSnaps, snapstate.PathSnap{
+			SideInfo: si,
+			Path:     path,
+		})
+
+		s.setupSnapDeclForNameAndID(c, name, si.SnapID, "canonical")
+		s.setupSnapRevisionForFileAndID(c, path, si.SnapID, "canonical", rev)
+	}
+
+	s.mockStandardSnapsModeenvAndBootloaderState(c)
+
+	_, err := devicestate.CreateRecoverySystem(s.state, "1234", devicestate.CreateRecoverySystemOptions{
+		LocalSnaps: localSnaps,
+		Offline:    true,
+	})
+	c.Assert(err, ErrorMatches, `missing component from local components provided for offline creation of recovery system: "pc-kernel-with-kmods\+kmod", rev unset`)
+}
+
 func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemMissingSnapIDFromModel(c *C) {
 	devicestate.SetBootOkRan(s.mgr, true)
 
