@@ -30,6 +30,7 @@ import (
 	"github.com/snapcore/snapd/osutil/disks"
 	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/seed"
+	"github.com/snapcore/snapd/snap/integrity"
 	"github.com/snapcore/snapd/testutil"
 	"github.com/snapcore/snapd/timings"
 )
@@ -247,5 +248,13 @@ func MockBuildInstallObserver(f func(model *asserts.Model, gadgetDir string, use
 	installBuildInstallObserver = f
 	return func() {
 		installBuildInstallObserver = old
+	}
+}
+
+func MockLookupDmVerityDataAndCrossCheck(f func(snapPath string, params *integrity.IntegrityDataParams) (string, error)) (restore func()) {
+	old := lookupDmVerityDataAndCrossCheck
+	lookupDmVerityDataAndCrossCheck = f
+	return func() {
+		lookupDmVerityDataAndCrossCheck = old
 	}
 }
