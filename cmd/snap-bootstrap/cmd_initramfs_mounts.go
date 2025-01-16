@@ -450,6 +450,22 @@ func doInstall(mst *initramfsMountsState, model *asserts.Model, sysSnaps map[sna
 		}
 	}
 
+	// Create drivers tree mount units
+	rootfsDir := filepath.Join(boot.InitramfsDataDir, "system-data")
+	hasDriversTree, err := createKernelMounts(
+		rootfsDir, kernelSnap.SnapName(), kernelSnap.Revision, !isCore)
+	if err != nil {
+		return err
+	}
+	if hasDriversTree {
+		// Unmount the kernel snap mount, we keep it only for UC20/22
+		stdout, stderr, err := osutil.RunSplitOutput("systemd-mount", "--umount", kernelMountDir)
+		if err != nil {
+			return osutil.OutputErrCombine(stdout, stderr, err)
+		}
+
+	}
+
 	if err := bootEnsureNextBootToRunMode(mst.recoverySystem); err != nil {
 		return fmt.Errorf("failed to set system to run mode: %v\n", err)
 	}
@@ -2041,9 +2057,9 @@ func createKernelModulesMountUnits(writableRootDir, snapRoot, driversDir, kernel
 
 	// First in modules (we might not have a kernel version subdir if there
 	// are no kernel modules).
-	kversion, kverr := kernel.KernelVersionFromModulesDir(filepath.Join(driversDir, "lib"))
+	kversion, kver := kernel.KernelVersionFromModulesDir(filepath.Join(driversDir, "lib"))
 	compSet := map[snap.ComponentSideInfo]bool{}
-	if kverr == nil {
+	if kver == nil {
 		modUpdatesDir := filepath.Join(driversDir, "lib", "modules", kversion, "updates")
 		if err := getCompsFromSymlinks(modUpdatesDir, kernelName, compSet); err != nil {
 			return err
