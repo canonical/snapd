@@ -426,7 +426,7 @@ func GetPrimaryKeyDigest(devicePath string, alg crypto.Hash) (salt []byte, diges
 		return nil, nil, err
 	}
 
-	h := hmac.New(alg.New, salt[:])
+	h := hmac.New(alg.New, saltArray[:])
 	h.Write(p)
 	return saltArray[:], h.Sum(nil), nil
 }
