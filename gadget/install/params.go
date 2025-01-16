@@ -78,6 +78,7 @@ func (esd *EncryptionSetupData) EncryptedDevices() map[string]string {
 type MockEncryptedDeviceAndRole struct {
 	Role            string
 	EncryptedDevice string
+	VolumesAuth     *device.VolumesAuthOptions
 }
 
 // MockEncryptionSetupData is meant to be used for unit tests from other
@@ -92,6 +93,7 @@ func MockEncryptionSetupData(labelToEncDevice map[string]*MockEncryptedDeviceAnd
 		//overlord/install/install.go. Once we have removed that call,
 		// we can use mock object instead.
 		bootstrapKey := secboot.CreateMockBootstrappedContainer()
+		bootstrapKey.AuthOptions = encryptData.VolumesAuth
 		esd.parts[label] = partEncryptionData{
 			role:                encryptData.Role,
 			encryptedDevice:     encryptData.EncryptedDevice,

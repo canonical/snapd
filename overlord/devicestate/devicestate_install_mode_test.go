@@ -39,8 +39,8 @@ import (
 	"github.com/snapcore/snapd/bootloader/bootloadertest"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget"
-	"github.com/snapcore/snapd/gadget/gadgettest"
 	"github.com/snapcore/snapd/gadget/device"
+	"github.com/snapcore/snapd/gadget/gadgettest"
 	"github.com/snapcore/snapd/gadget/install"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
@@ -2347,7 +2347,7 @@ func (s *deviceMgrInstallModeSuite) doRunFactoryResetChange(c *C, model *asserts
 	})()
 
 	var bootstrapContainer *secboot.MockBootstrappedContainer
-	defer devicestate.MockSecbootCreateBootstrappedContainer(func(key secboot.DiskUnlockKey, devicePath string) secboot.BootstrappedContainer {
+	defer devicestate.MockSecbootCreateBootstrappedContainer(func(key secboot.DiskUnlockKey, devicePath string, volumesAuth *device.VolumesAuthOptions) secboot.BootstrappedContainer {
 		if tc.encrypt {
 			c.Check([]byte(key), DeepEquals, chosenBootstrapKey)
 			c.Assert(bootstrapContainer, IsNil)

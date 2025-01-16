@@ -24,6 +24,7 @@ import (
 	"fmt"
 
 	sb "github.com/snapcore/secboot"
+	"github.com/snapcore/snapd/gadget/device"
 	"github.com/snapcore/snapd/osutil"
 )
 
@@ -31,6 +32,7 @@ type bootstrappedContainer struct {
 	tempContainerKeySlot string
 	devicePath           string
 	key                  DiskUnlockKey
+	authOptions          *device.VolumesAuthOptions
 	finished             bool
 }
 
@@ -76,11 +78,16 @@ func (bc *bootstrappedContainer) RemoveBootstrapKey() error {
 	return nil
 }
 
-func createBootstrappedContainerImpl(key DiskUnlockKey, devicePath string) BootstrappedContainer {
+func (bc *bootstrappedContainer) GetAuthOptions() *device.VolumesAuthOptions {
+	return bc.authOptions
+}
+
+func createBootstrappedContainerImpl(key DiskUnlockKey, devicePath string, volumesAuth *device.VolumesAuthOptions) BootstrappedContainer {
 	return &bootstrappedContainer{
 		tempContainerKeySlot: "bootstrap-key",
 		devicePath:           devicePath,
 		key:                  key,
+		authOptions:          volumesAuth,
 		finished:             false,
 	}
 }
@@ -89,7 +96,7 @@ func init() {
 	CreateBootstrappedContainer = createBootstrappedContainerImpl
 }
 
-func MockCreateBootstrappedContainer(f func(key DiskUnlockKey, devicePath string) BootstrappedContainer) func() {
+func MockCreateBootstrappedContainer(f func(key DiskUnlockKey, devicePath string, volumesAuth *device.VolumesAuthOptions) BootstrappedContainer) func() {
 	osutil.MustBeTestBinary("MockCreateBootstrappedContainer can be only called from tests")
 	old := CreateBootstrappedContainer
 	CreateBootstrappedContainer = f
