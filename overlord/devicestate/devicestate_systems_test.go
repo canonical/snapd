@@ -5316,7 +5316,7 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemValid
 	c.Assert(err, ErrorMatches, `snap "pc" does not match revision required by validation sets: 100 != 10`)
 }
 
-func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemMissingRequiredComponent(c *C) {
+func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemOfflineMissingRequiredComponent(c *C) {
 	devicestate.SetBootOkRan(s.mgr, true)
 
 	s.state.Lock()
@@ -5393,6 +5393,125 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemMissi
 		Offline:    true,
 	})
 	c.Assert(err, ErrorMatches, `missing component from local components provided for offline creation of recovery system: "pc-kernel-with-kmods\+kmod", rev unset`)
+}
+
+func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemOfflineInvalidComponentRevision(c *C) {
+	devicestate.SetBootOkRan(s.mgr, true)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	s.model = s.makeModelAssertionInState(c, "canonical", "pc-20", map[string]interface{}{
+		"architecture": "amd64",
+		"grade":        "dangerous",
+		"base":         "core24",
+		"revision":     "2",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":            "pc-kernel-with-kmods",
+				"id":              s.ss.AssertedSnapID("pc-kernel-with-kmods"),
+				"type":            "kernel",
+				"default-channel": "20",
+				"components": map[string]interface{}{
+					"kmod": map[string]interface{}{
+						"presence": "required",
+					},
+				},
+			},
+			map[string]interface{}{
+				"name":            "pc",
+				"id":              s.ss.AssertedSnapID("pc"),
+				"type":            "gadget",
+				"default-channel": "20",
+			},
+			map[string]interface{}{
+				"name": "core24",
+				"id":   s.ss.AssertedSnapID("core24"),
+				"type": "base",
+			},
+			map[string]interface{}{
+				"name": "snapd",
+				"id":   s.ss.AssertedSnapID("snapd"),
+				"type": "snapd",
+			},
+		},
+	})
+
+	vsetAssert, err := s.brands.Signing("canonical").Sign(asserts.ValidationSetType, map[string]interface{}{
+		"type":         "validation-set",
+		"authority-id": "canonical",
+		"series":       "16",
+		"account-id":   "canonical",
+		"name":         "vset-1",
+		"sequence":     "1",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":     "pc-kernel-with-kmods",
+				"id":       fakeSnapID("pc-kernel-with-kmods"),
+				"presence": "required",
+				"revision": "11",
+				"components": map[string]interface{}{
+					"kmod": map[string]interface{}{
+						"revision": "33",
+						"presence": "required",
+					},
+				},
+			},
+		},
+		"timestamp": time.Now().UTC().Format(time.RFC3339),
+	}, nil, "")
+	c.Assert(err, IsNil)
+
+	assertstatetest.AddMany(s.state, vsetAssert)
+
+	// note that the revision for "pc" is different than the expected revisions
+	providedRevisions := map[string]snap.Revision{
+		"pc":                   snap.R(10),
+		"pc-kernel-with-kmods": snap.R(11),
+		"core24":               snap.R(12),
+		"snapd":                snap.R(13),
+	}
+
+	snapTypes := map[string]snap.Type{
+		"pc":                   snap.TypeGadget,
+		"pc-kernel-with-kmods": snap.TypeKernel,
+		"core24":               snap.TypeBase,
+		"snapd":                snap.TypeSnapd,
+	}
+
+	localSnaps := make([]snapstate.PathSnap, 0, len(providedRevisions))
+	for name, rev := range providedRevisions {
+		si, path := createLocalSnap(c, name, fakeSnapID(name), rev.N, string(snapTypes[name]), "", nil)
+		localSnaps = append(localSnaps, snapstate.PathSnap{
+			SideInfo: si,
+			Path:     path,
+		})
+
+		s.setupSnapDeclForNameAndID(c, name, si.SnapID, "canonical")
+		s.setupSnapRevisionForFileAndID(c, path, si.SnapID, "canonical", rev)
+	}
+
+	snapID := fakeSnapID("pc-kernel-with-kmods")
+	cref := naming.NewComponentRef("pc-kernel-with-kmods", "kmod")
+	compRev := snap.R(22)
+	compPath := snaptest.MakeTestComponent(c, "component: pc-kernel-with-kmods+kmod\nversion: 1.0\ntype: kernel-modules\n")
+	s.setupSnapResourceRevision(c, compPath, "kmod", snapID, "canonical", compRev)
+	s.setupSnapResourcePair(c, "kmod", snapID, "canonical", compRev, providedRevisions["pc-kernel-with-kmods"])
+
+	localComponents := []snapstate.PathComponent{{
+		SideInfo: snap.NewComponentSideInfo(cref, compRev),
+		Path:     compPath,
+	}}
+
+	s.mockStandardSnapsModeenvAndBootloaderState(c)
+
+	_, err = devicestate.CreateRecoverySystem(s.state, "1234", devicestate.CreateRecoverySystemOptions{
+		ValidationSets:  []*asserts.ValidationSet{vsetAssert.(*asserts.ValidationSet)},
+		LocalSnaps:      localSnaps,
+		LocalComponents: localComponents,
+		Offline:         true,
+	})
+	c.Assert(err, ErrorMatches, `component "pc-kernel-with-kmods\+kmod" does not match revision required by validation sets: 22 != 33`)
 }
 
 func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemMissingSnapIDFromModel(c *C) {
