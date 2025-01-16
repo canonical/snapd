@@ -108,6 +108,9 @@ func (s *fdeMgrSuite) SetUpTest(c *C) {
 		func(mgr backend.FDEStateManager, method device.SealingMethod, rootdir string, params *boot.ResealKeyForBootChainsParams, update []byte) error {
 			panic("BackendResealKeysForSignaturesDBUpdate not mocked")
 		}))
+	s.AddCleanup(fdestate.MockSecbootGetPCRHandle(func(devicePath, keySlot, keyFile string) (uint32, error) {
+		panic("secbootGetPCRHandle is not mocked")
+	}))
 
 	m := boot.Modeenv{
 		Mode: boot.ModeRun,
@@ -187,6 +190,29 @@ func (s *fdeMgrSuite) startedManager(c *C, onClassic bool) *fdestate.FDEManager 
 		return true, nil
 	})()
 
+	defer fdestate.MockSecbootGetPCRHandle(func(devicePath, keySlot, keyFile string) (uint32, error) {
+		switch devicePath {
+		case "/dev/disk/by-uuid/aaa":
+			switch keySlot {
+			case "default":
+				c.Check(keyFile, Equals, device.DataSealedKeyUnder(dirs.SnapSaveDir))
+				return 41, nil
+			case "default-fallback":
+				c.Check(keyFile, Equals, device.FallbackDataSealedKeyUnder(dirs.SnapSaveDir))
+				return 42, nil
+			default:
+				c.Errorf("unexpected keyslot %s", keySlot)
+			}
+		case "/dev/disk/by-uuid/bbb":
+			c.Check(keySlot, Equals, "default-fallback")
+			c.Check(keyFile, Equals, device.FallbackDataSealedKeyUnder(dirs.SnapSaveDir))
+			return 42, nil
+		default:
+			c.Errorf("unexpected device path %s", devicePath)
+		}
+		return 0, fmt.Errorf("unexpected")
+	})()
+
 	manager, err := fdestate.Manager(s.st, s.runner)
 	c.Assert(err, IsNil)
 	c.Assert(manager.StartUp(), IsNil)
@@ -213,6 +239,21 @@ func (s *fdeMgrSuite) testGetManagerFromState(c *C, onClassic bool) {
 	c.Check(crypto.Hash(primaryKey.Digest.Algorithm), Equals, crypto.Hash(crypto.SHA256))
 	c.Check(primaryKey.Digest.Salt, DeepEquals, []byte{1, 2, 3, 4})
 	c.Check(primaryKey.Digest.Digest, DeepEquals, []byte{5, 6, 7, 8})
+
+	runRole, hasRunRole := fdeSt.KeyslotRoles["run"]
+	c.Assert(hasRunRole, Equals, true)
+	c.Check(runRole.PrimaryKeyID, Equals, 0)
+	c.Check(runRole.TPM2PCRPolicyRevocationCounter, Equals, uint32(41))
+
+	runRecoverRole, hasRunRecoverRole := fdeSt.KeyslotRoles["run+recover"]
+	c.Assert(hasRunRecoverRole, Equals, true)
+	c.Check(runRecoverRole.PrimaryKeyID, Equals, 0)
+	c.Check(runRecoverRole.TPM2PCRPolicyRevocationCounter, Equals, uint32(41))
+
+	recoverRole, hasRecoverRole := fdeSt.KeyslotRoles["recover"]
+	c.Assert(hasRecoverRole, Equals, true)
+	c.Check(recoverRole.PrimaryKeyID, Equals, 0)
+	c.Check(recoverRole.TPM2PCRPolicyRevocationCounter, Equals, uint32(42))
 }
 
 func (s *fdeMgrSuite) TestGetManagerFromStateClassic(c *C) {

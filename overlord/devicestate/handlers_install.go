@@ -76,6 +76,7 @@ var (
 	installMatchDisksToGadgetVolumes     = install.MatchDisksToGadgetVolumes
 	secbootStageEncryptionKeyChange      = secboot.StageEncryptionKeyChange
 	secbootTransitionEncryptionKeyChange = secboot.TransitionEncryptionKeyChange
+	secbootRemoveOldCounterHandles       = secboot.RemoveOldCounterHandles
 
 	installLogicPrepareRunSystemData = installLogic.PrepareRunSystemData
 )
@@ -1359,13 +1360,18 @@ func createSaveBootstrappedContainer(saveNode string) (secboot.BootstrappedConta
 	return secbootCreateBootstrappedContainer(secboot.DiskUnlockKey(saveEncryptionKey), saveNode), nil
 }
 
-func deleteOldSaveKey(saveMntPnt string) error {
-	// During factory reset createSaveBootstrappedContainerImpl
-	// will save some old keys that need to stay until factory
-	// reset is finished. This is the function that removes those
-	// keys.
 
-	// FIXME: maybe there is better if we had a function returning the devname instead.
+// deleteOldKeys remove old keys that were used in previous installation after successful factory reset.
+//  * Key files ubuntu-save.recovery.sealed-key has to be replaced by key file ubuntu-save.recovery.sealed-key.factory-reset
+//  * Keyslots factory-reset-* have to be removed
+//  * TPM handles used by the removed keys have to be released
+func deleteOldKeys(saveMntPnt string) error {
+	hasHook, err := boot.HasFDESetupHook(nil)
+	if err != nil {
+		logger.Noticef("WARNING: cannot figure out if FDE hooks are in use: %v", err)
+		hasHook = false
+	}
+
 	uuid, err := disksDMCryptUUIDFromMountPoint(saveMntPnt)
 	if err != nil {
 		return fmt.Errorf("cannot find save partition: %v", err)
@@ -1373,10 +1379,41 @@ func deleteOldSaveKey(saveMntPnt string) error {
 
 	diskPath := filepath.Join("/dev/disk/by-uuid", uuid)
 
-	toDelete := map[string]bool{
+	oldPossiblyTPMKeySlots := map[string]bool{
+		"factory-reset-old-fallback": true,
+	}
+
+	defaultSaveKey := device.FallbackSaveSealedKeyUnder(boot.InitramfsSeedEncryptionKeyDir)
+	saveFallbackKeyFactory := device.FactoryResetFallbackSaveSealedKeyUnder(boot.InitramfsSeedEncryptionKeyDir)
+
+	var oldKeys []string
+	renameKey := false
+	if osutil.FileExists(saveFallbackKeyFactory) {
+		oldKeys = append(oldKeys, defaultSaveKey)
+		renameKey = true
+	}
+
+	// FIXME: we are missing a bit of context here. We should do this only if we are using TPM2.
+	err = secbootRemoveOldCounterHandles(
+		diskPath,
+		oldPossiblyTPMKeySlots,
+		oldKeys,
+		hasHook,
+	)
+	if err != nil {
+		return fmt.Errorf("could not clean up old counter handles: %v", err)
+	}
+
+	if renameKey {
+		if err := os.Rename(saveFallbackKeyFactory, defaultSaveKey); err != nil {
+			return fmt.Errorf("cannot rotate fallback key: %v", err)
+		}
+	}
+
+	oldKeySlots := map[string]bool{
 		"factory-reset-old":          true,
 		"factory-reset-old-fallback": true,
 	}
 
-	return secbootDeleteKeys(diskPath, toDelete)
+	return secbootDeleteKeys(diskPath, oldKeySlots)
 }

@@ -25,6 +25,7 @@ import (
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/gadget/device"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/disks"
@@ -37,6 +38,7 @@ var (
 	disksDMCryptUUIDFromMountPoint = disks.DMCryptUUIDFromMountPoint
 	secbootGetPrimaryKeyDigest     = secboot.GetPrimaryKeyDigest
 	secbootVerifyPrimaryKeyDigest  = secboot.VerifyPrimaryKeyDigest
+	secbootGetPCRHandle            = secboot.GetPCRHandle
 )
 
 // Model is a json serializable secboot.ModelForSealing
@@ -220,6 +222,28 @@ func initializeState(st *state.State) error {
 		return fmt.Errorf("primary key for data and save partition are not the same")
 	}
 
+	keyFile := device.DataSealedKeyUnder(dirs.SnapSaveDir)
+	runCounterHandle, err := secbootGetPCRHandle(devpData, "default", keyFile)
+	if err != nil {
+		return fmt.Errorf("cannot obtain counter handle: %w", err)
+	}
+
+	fallbackKeyFile := device.FallbackDataSealedKeyUnder(dirs.SnapSaveDir)
+	fallbackCounterHandle, err := secbootGetPCRHandle(devpData, "default-fallback", fallbackKeyFile)
+	if err != nil {
+		return fmt.Errorf("cannot obtain counter handle: %w", err)
+	}
+
+	fallbackSaveKeyFile := device.FallbackDataSealedKeyUnder(dirs.SnapSaveDir)
+	fallbackSaveCounterHandle, err := secbootGetPCRHandle(devpSave, "default-fallback", fallbackSaveKeyFile)
+	if err != nil {
+		return fmt.Errorf("cannot obtain counter handle: %w", err)
+	}
+
+	if fallbackCounterHandle != fallbackSaveCounterHandle {
+		return fmt.Errorf("the recover data and save keys do not use the same counter handle")
+	}
+
 	s.PrimaryKeys = map[int]PrimaryKeyInfo{
 		0: {
 			Digest: digest,
@@ -230,36 +254,18 @@ func initializeState(st *state.State) error {
 	s.KeyslotRoles = map[string]KeyslotRoleInfo{
 		// TODO: use a constant
 		"run": {
-			PrimaryKeyID: 0,
-			// FIXME: from Chris: Rather than hardcoding
-			// an index value, I'd prefer us to adopt the
-			// approach of picking a random index from a
-			// small acceptable range. I could add an API
-			// in secboot for that, or we could do it
-			// here.
-			TPM2PCRPolicyRevocationCounter: secboot.RunObjectPCRPolicyCounterHandle,
+			PrimaryKeyID:                   0,
+			TPM2PCRPolicyRevocationCounter: runCounterHandle,
 		},
 		// TODO: use a constant
 		"run+recover": {
-			PrimaryKeyID: 0,
-			// FIXME: from Chris: Rather than hardcoding
-			// an index value, I'd prefer us to adopt the
-			// approach of picking a random index from a
-			// small acceptable range. I could add an API
-			// in secboot for that, or we could do it
-			// here.
-			TPM2PCRPolicyRevocationCounter: secboot.RunObjectPCRPolicyCounterHandle,
+			PrimaryKeyID:                   0,
+			TPM2PCRPolicyRevocationCounter: runCounterHandle,
 		},
 		// TODO: use a constant
 		"recover": {
-			PrimaryKeyID: 0,
-			// FIXME: from Chris: Rather than hardcoding
-			// an index value, I'd prefer us to adopt the
-			// approach of picking a random index from a
-			// small acceptable range. I could add an API
-			// in secboot for that, or we could do it
-			// here.
-			TPM2PCRPolicyRevocationCounter: secboot.FallbackObjectPCRPolicyCounterHandle,
+			PrimaryKeyID:                   0,
+			TPM2PCRPolicyRevocationCounter: fallbackCounterHandle,
 		},
 	}
 
@@ -392,5 +398,15 @@ func MockVerifyPrimaryKeyDigest(f func(devicePath string, alg crypto.Hash, salt 
 	secbootVerifyPrimaryKeyDigest = f
 	return func() {
 		secbootVerifyPrimaryKeyDigest = old
+	}
+}
+
+func MockSecbootGetPCRHandle(f func(devicePath, keySlot, keyFile string) (uint32, error)) (restore func()) {
+	osutil.MustBeTestBinary("mocking secboot.GetPCRHandle can be done only from tests")
+
+	old := secbootGetPCRHandle
+	secbootGetPCRHandle = f
+	return func() {
+		secbootGetPCRHandle = old
 	}
 }
