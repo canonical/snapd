@@ -1016,7 +1016,18 @@ func (s *initramfsMountsSuite) TestInitramfsMountsInstallModeWithCompsHappy(c *C
 			"systemd-mount",
 			"--umount",
 			filepath.Join(s.tmpDir, "/run/mnt/kernel"),
-		}})
+		},
+		{
+			"systemd-mount",
+			"--umount",
+			filepath.Join(s.tmpDir, "/run/mnt/snap-content/pc-kernel+kcomp2"),
+		},
+		{
+			"systemd-mount",
+			"--umount",
+			filepath.Join(s.tmpDir, "/run/mnt/snap-content/pc-kernel+kcomp1"),
+		},
+	})
 }
 
 func (s *initramfsMountsSuite) TestInitramfsMountsInstallModeBootFlagsSet(c *C) {
