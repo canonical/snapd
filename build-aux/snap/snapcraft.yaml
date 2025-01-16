@@ -11,7 +11,7 @@ description: |
 adopt-info: snapd
 # build-base is needed here for snapcraft to build this snap as with "modern"
 # snapcraft
-build-base: core22
+build-base: core24
 package-repositories:
   - type: apt
     ppa: snappy-dev/image
@@ -51,7 +51,7 @@ parts:
       - quilt
       - python3-pyelftools
     source: https://git.launchpad.net/ubuntu/+source/glibc
-    source-branch: ubuntu/jammy-updates
+    source-branch: ubuntu/noble-updates
     source-type: git
     <<:
       - &dynamic-linker
@@ -542,12 +542,12 @@ parts:
         )
       elif [ -f "${CRAFT_STAGE}/fips-build" ]; then
         # grab the core22 from fips-updates channel
-        snap download --channel fips-updates/stable --basename core22-fips core22
+        snap download --channel fips-updates/stable --basename core24-fips core24
       fi
 
       # TODO this is really a hack as we should likely be using on LP; The snapd
       # snap should include the information about a particular openssl version
-      # which was included in the build but the core22 FIPS variant snap has
+      # which was included in the build but the core24 FIPS variant snap has
       # been stripped off of the manifest.
       if [ -f "${CRAFT_STAGE}/fips-build-lp" ]; then
         mkdir fips-libs-from-debs
@@ -574,12 +574,12 @@ parts:
         )
         cp -av fips-libs-from-debs-stage/* "${CRAFT_PART_INSTALL}"
       elif [ -f "${CRAFT_STAGE}/fips-build" ]; then
-        unsquashfs -d core22-fips-squashfs-root core22-fips.snap \
+        unsquashfs -d core24-fips-squashfs-root core24-fips.snap \
           'usr/lib/*-linux-gnu*/engines-3' \
           'usr/lib/*-linux-gnu*/ossl-modules-3' \
           'usr/lib/*-linux-gnu*/libssl.so.3' \
           'usr/lib/*-linux-gnu*/libcrypto.so.3'
-        cp -av core22-fips-squashfs-root/* "${CRAFT_PART_INSTALL}"
+        cp -av core24-fips-squashfs-root/* "${CRAFT_PART_INSTALL}"
       fi
       find "${CRAFT_PART_INSTALL}/" -ls
 
