@@ -874,6 +874,17 @@ func (s *initramfsMountsSuite) TestInitramfsMountsInstallModeWithCompsHappy(c *C
 				},
 			},
 		})
+		// Simulate creation of drivers tree
+		kernelVer := "6.8.0-51-generic"
+		updatesDir := filepath.Join(dirs.GlobalRootDir,
+			"run/mnt/data/system-data/_writable_defaults/var/lib/snapd/kernel/pc-kernel/1/lib/modules", kernelVer, "updates")
+		c.Assert(os.MkdirAll(updatesDir, 0755), IsNil)
+		os.Symlink(filepath.Join(dirs.SnapMountDir,
+			"pc-kernel/components/mnt/kcomp1/77/modules", kernelVer),
+			filepath.Join(updatesDir, "kcomp1"))
+		os.Symlink(filepath.Join(dirs.SnapMountDir,
+			"pc-kernel/components/mnt/kcomp2/77/modules", kernelVer),
+			filepath.Join(updatesDir, "kcomp2"))
 		return &gadgetInstall.InstalledSystemSideData{}, nil
 	})
 	defer restoreGadgetInstall()
@@ -982,6 +993,9 @@ func (s *initramfsMountsSuite) TestInitramfsMountsInstallModeWithCompsHappy(c *C
 	}, nil)
 	defer restore()
 
+	cmd := testutil.MockCommand(c, "systemd-mount", ``)
+	defer cmd.Restore()
+
 	c.Assert(os.Remove(filepath.Join(boot.InitramfsUbuntuBootDir, "device/model")), IsNil)
 
 	_, err = main.Parser().ParseArgs([]string{"initramfs-mounts"})
@@ -993,6 +1007,16 @@ func (s *initramfsMountsSuite) TestInitramfsMountsInstallModeWithCompsHappy(c *C
 	c.Assert(gadgetInstallCalled, Equals, true)
 	c.Assert(nextBootEnsured, Equals, true)
 	c.Check(observeExistingTrustedRecoveryAssetsCalled, Equals, 1)
+
+	checkKernelMounts(c, "/run/mnt/data/system-data", "/writable/system-data",
+		[]string{"kcomp1", "kcomp2"}, []string{"77", "77"}, nil, nil)
+
+	c.Assert(cmd.Calls(), DeepEquals, [][]string{
+		{
+			"systemd-mount",
+			"--umount",
+			filepath.Join(s.tmpDir, "/run/mnt/kernel"),
+		}})
 }
 
 func (s *initramfsMountsSuite) TestInitramfsMountsInstallModeBootFlagsSet(c *C) {
@@ -8926,7 +8950,7 @@ func compareLoginFiles(c *C, etcDir string, passwd, shadow, group, gshadow strin
 	}
 }
 
-func checkKernelMounts(c *C, dataRootfs, snapRoot string, compsExist, compsNotExist []int) {
+func checkKernelMounts(c *C, dataRootfs, snapRoot string, compsExist, compsExistRevs, compsNotExist, compsNotExistRevs []string) {
 	// Check mount units for the drivers tree
 	unitsPath := filepath.Join(dirs.GlobalRootDir, "run/systemd/system")
 	snapMntDir := dirs.StripRootDir(dirs.SnapMountDir)
@@ -8951,9 +8975,9 @@ Options=nodev,ro,x-gdu.hide,x-gvfs-hide
 `, what, where))
 
 	// kernel-modules components
-	for _, comp := range compsExist {
-		compName := fmt.Sprint("comp", comp)
-		compRev := fmt.Sprintf("%d%d", comp, comp)
+	for i, comp := range compsExist {
+		compName := comp
+		compRev := compsExistRevs[i]
 		what := filepath.Join(dataRootfs,
 			"var/lib/snapd/snaps/pc-kernel+"+compName+"_"+compRev+".comp")
 		where := filepath.Join(snapRoot, snapMntDir, "pc-kernel/components/mnt",
@@ -8975,9 +8999,9 @@ Options=nodev,ro,x-gdu.hide,x-gvfs-hide
 `, what, where))
 	}
 
-	for _, comp := range compsNotExist {
-		compName := fmt.Sprint("comp", comp)
-		compRev := fmt.Sprintf("%d%d", comp, comp)
+	for i, comp := range compsNotExist {
+		compName := comp
+		compRev := compsNotExistRevs[i]
 		where := filepath.Join(snapRoot, snapMntDir, "pc-kernel/components/mnt",
 			compName, compRev)
 		unit := systemd.EscapeUnitNamePath(where) + ".mount"
@@ -9071,7 +9095,7 @@ func (s *initramfsMountsSuite) testInitramfsMountsRunModeWithDriversTreeHappy(c 
 	_, err = main.Parser().ParseArgs([]string{"initramfs-mounts"})
 	c.Assert(err, IsNil)
 
-	checkKernelMounts(c, "/run/mnt/data/system-data", "/writable/system-data", nil, nil)
+	checkKernelMounts(c, "/run/mnt/data/system-data", "/writable/system-data", nil, nil, nil, nil)
 }
 
 func (s *initramfsClassicMountsSuite) TestInitramfsMountsRunModeWithDriversTreeHappyClassic(c *C) {
@@ -9129,7 +9153,7 @@ func (s *initramfsClassicMountsSuite) TestInitramfsMountsRunModeWithDriversTreeH
 	_, err = main.Parser().ParseArgs([]string{"initramfs-mounts"})
 	c.Assert(err, IsNil)
 
-	checkKernelMounts(c, "/run/mnt/data", "/sysroot", nil, nil)
+	checkKernelMounts(c, "/run/mnt/data", "/sysroot", nil, nil, nil, nil)
 }
 
 func (s *initramfsMountsSuite) TestInitramfsMountsRunModeWithComponentsHappy(c *C) {
@@ -9200,7 +9224,8 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeWithComponentsHappy(c *
 	_, err = main.Parser().ParseArgs([]string{"initramfs-mounts"})
 	c.Assert(err, IsNil)
 
-	checkKernelMounts(c, "/run/mnt/data/system-data", "/writable/system-data", []int{1, 2, 3}, nil)
+	checkKernelMounts(c, "/run/mnt/data/system-data", "/writable/system-data",
+		[]string{"comp1", "comp2", "comp3"}, []string{"11", "22", "33"}, nil, nil)
 }
 
 func (s *initramfsMountsSuite) TestInitramfsMountsRunModeWithComponentsBadComps(c *C) {
@@ -9278,7 +9303,8 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeWithComponentsBadComps(
 	_, err = main.Parser().ParseArgs([]string{"initramfs-mounts"})
 	c.Assert(err, IsNil)
 
-	checkKernelMounts(c, "/run/mnt/data/system-data", "/writable/system-data", nil, []int{1, 2, 3, 4})
+	checkKernelMounts(c, "/run/mnt/data/system-data", "/writable/system-data",
+		nil, nil, []string{"comp1", "comp2", "comp3", "comp4"}, []string{"11", "22", "33", "44"})
 }
 
 func (s *initramfsClassicMountsSuite) TestInitramfsMountsRunModeWithComponentsHappyClassic(c *C) {
@@ -9352,5 +9378,6 @@ func (s *initramfsClassicMountsSuite) TestInitramfsMountsRunModeWithComponentsHa
 	_, err = main.Parser().ParseArgs([]string{"initramfs-mounts"})
 	c.Assert(err, IsNil)
 
-	checkKernelMounts(c, "/run/mnt/data", "/sysroot", []int{1, 2, 3}, nil)
+	checkKernelMounts(c, "/run/mnt/data", "/sysroot",
+		[]string{"comp1", "comp2", "comp3"}, []string{"11", "22", "33"}, nil, nil)
 }
