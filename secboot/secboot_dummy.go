@@ -79,7 +79,7 @@ func AddBootstrapKeyOnExistingDisk(node string, newKey keys.EncryptionKey) error
 	return errBuildWithoutSecboot
 }
 
-func RenameOrDeleteKeys(node string, renames map[string]string) error {
+func RenameKeys(node string, renames map[string]string) error {
 	return errBuildWithoutSecboot
 }
 
