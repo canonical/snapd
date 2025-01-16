@@ -172,11 +172,11 @@ func (msg *MsgNotificationFilter) UnmarshalBinary(data []byte) error {
 
 // MarshalBinary marshals the message into binary form.
 func (msg *MsgNotificationFilter) MarshalBinary() (data []byte, err error) {
-	var raw msgNotificationFilterKernel
-	packer := newStringPacker(raw)
 	if msg.Version == 0 {
 		return nil, ErrVersionUnset
 	}
+	var raw msgNotificationFilterKernel
+	packer := newStringPacker(raw)
 	raw.Version = msg.Version
 	raw.ModeSet = uint32(msg.ModeSet)
 	raw.NS = packer.PackString(msg.NameSpace)
@@ -489,11 +489,11 @@ func (msg *MsgNotificationFile) UnmarshalBinary(data []byte) error {
 }
 
 func (msg *MsgNotificationFile) MarshalBinary() ([]byte, error) {
-	var raw msgNotificationFileKernel
-	packer := newStringPacker(raw)
 	if msg.Version == 0 {
 		return nil, ErrVersionUnset
 	}
+	var raw msgNotificationFileKernel
+	packer := newStringPacker(raw)
 	raw.Version = msg.Version
 	raw.NotificationType = msg.NotificationType
 	raw.Signalled = msg.Signalled

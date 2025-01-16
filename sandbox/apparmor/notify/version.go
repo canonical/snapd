@@ -45,10 +45,12 @@ var (
 )
 
 func (v ProtocolVersion) supported() (bool, error) {
-	callback, exists := versionSupportedCallbacks[v]
-	if !exists {
-		// Should not occur, as tests should validate that each version has a callback function.
-		return false, fmt.Errorf("no callback defined for version %d", v)
+	callback, ok := versionSupportedCallbacks[v]
+	if !ok {
+		// Should not occur, since the caller should only call this method on
+		// known versions, and tests should validate that each known version
+		// has a callback function.
+		return false, fmt.Errorf("internal error: no callback defined for version %d", v)
 	}
 	return callback(), nil
 }

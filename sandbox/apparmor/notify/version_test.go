@@ -75,7 +75,7 @@ func (s *versionSuite) TestVersionSupported(c *C) {
 	defer restore()
 
 	supported, err := notify.Supported(notify.ProtocolVersion(1))
-	c.Check(err, ErrorMatches, "no callback defined for version .*")
+	c.Check(err, ErrorMatches, "internal error: no callback defined for version .*")
 	c.Check(supported, Equals, false)
 
 	supported, err = notify.Supported(notify.ProtocolVersion(2))
@@ -87,7 +87,7 @@ func (s *versionSuite) TestVersionSupported(c *C) {
 	c.Check(supported, Equals, true)
 
 	supported, err = notify.Supported(notify.ProtocolVersion(4))
-	c.Check(err, ErrorMatches, "no callback defined for version .*")
+	c.Check(err, ErrorMatches, "internal error: no callback defined for version .*")
 	c.Check(supported, Equals, false)
 }
 
