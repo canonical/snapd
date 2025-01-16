@@ -36,11 +36,10 @@ import (
 )
 
 type packCmd struct {
-	CheckSkeleton bool   `long:"check-skeleton"`
-	AppendVerity  bool   `long:"append-integrity-data" hidden:"yes"`
-	Filename      string `long:"filename"`
-	Compression   string `long:"compression"`
-	Positional    struct {
+	CheckSkeleton    bool   `long:"check-skeleton"`
+	Filename         string `long:"filename"`
+	Compression      string `long:"compression"`
+	Positional       struct {
 		SnapDir   string `positional-arg-name:"<snap-dir>"`
 		TargetDir string `positional-arg-name:"<target-dir>"`
 	} `positional-args:"yes"`
@@ -63,11 +62,6 @@ valid snap metadata and raises an error otherwise. Application commands listed
 in snap metadata file, but appearing with incorrect permission bits result in an
 error. Commands that are missing from snap-dir are listed in diagnostic
 messages.`,
-
-/*
-When used with --append-integrity-data, pack will append dm-verity data at the end
-of the snap to be used with snapd's snap integrity verification mechanism.
-*/
 )
 
 func init() {
@@ -83,8 +77,6 @@ func init() {
 			"filename": i18n.G("Output to this filename"),
 			// TRANSLATORS: This should not start with a lowercase letter.
 			"compression": i18n.G("Compression to use (e.g. xz or lzo)"),
-			// TRANSLATORS: This should not start with a lowercase letter.
-			"append-integrity-data": i18n.G("Generate and append dm-verity data"),
 		}, nil)
 	cmd.extra = func(cmd *flags.Command) {
 		// TRANSLATORS: this describes the default filename for a snap, e.g. core_16-2.35.2_amd64.snap
@@ -120,7 +112,6 @@ func (x *packCmd) Execute([]string) error {
 		TargetDir:   x.Positional.TargetDir,
 		SnapName:    x.Filename,
 		Compression: x.Compression,
-		Integrity:   x.AppendVerity,
 	})
 	if err != nil {
 		// TRANSLATORS: the %q is the snap-dir (the first positional
