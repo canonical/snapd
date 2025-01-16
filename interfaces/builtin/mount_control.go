@@ -29,6 +29,7 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/utils"
+	"github.com/snapcore/snapd/osutil/mount/libmount"
 	apparmor_sandbox "github.com/snapcore/snapd/sandbox/apparmor"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/strutil"
@@ -482,8 +483,11 @@ func validateMountOptions(mountInfo *MountInfo) error {
 	} else {
 		types = defaultFSTypes
 	}
+
+	var optsToCheck []string // Kernel options to check for consistency.
 	for _, o := range mountInfo.options {
 		if strutil.ListContains(allowedKernelMountOptions, o) {
+			optsToCheck = append(optsToCheck, o)
 			continue
 		}
 		optionName := strings.SplitAfter(o, "=")[0] // for options with arguments, validate only option
@@ -495,6 +499,11 @@ func validateMountOptions(mountInfo *MountInfo) error {
 		}
 		return fmt.Errorf(`mount-control option unrecognized or forbidden: %q`, o)
 	}
+
+	if err := libmount.ValidateMountOptions(optsToCheck...); err != nil {
+		return fmt.Errorf("mount-control options are inconsistent: %w", err)
+	}
+
 	return nil
 }
 

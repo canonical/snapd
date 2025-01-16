@@ -21,12 +21,22 @@ package requestrules
 
 import (
 	"time"
+
+	"github.com/snapcore/snapd/testutil"
 )
 
 var JoinInternalErrors = joinInternalErrors
 
 type RulesDBJSON rulesDBJSON
 
-func (rule *Rule) Validate(currTime time.Time) error {
+func (rule *Rule) Validate(currTime time.Time) (expired bool, err error) {
 	return rule.validate(currTime)
+}
+
+func (rdb *RuleDB) IsPathPermAllowed(user uint32, snap string, iface string, path string, permission string) (bool, error) {
+	return rdb.isPathPermAllowed(user, snap, iface, path, permission)
+}
+
+func MockIsPathPermAllowed(f func(rdb *RuleDB, user uint32, snap string, iface string, path string, permission string) (bool, error)) func() {
+	return testutil.Mock(&isPathPermAllowedByRuleDB, f)
 }

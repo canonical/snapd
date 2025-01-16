@@ -1,0 +1,4 @@
+[Daemon]
+Theme=ubuntu-core
+ShowDelay=0
+DeviceTimeout=8

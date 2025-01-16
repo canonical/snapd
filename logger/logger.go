@@ -163,21 +163,27 @@ func (l *Log) debugEnabled() bool {
 // Debug only prints if SNAPD_DEBUG is set
 func (l *Log) Debug(msg string) {
 	if l.debugEnabled() {
-		l.NoGuardDebug(msg)
+		// this frame + single package level API func() + actual caller
+		calldepth := 1 + 1 + 1
+		l.log.Output(calldepth, "DEBUG: "+msg)
 	}
 }
 
 // Notice alerts the user about something, as well as putting in syslog
 func (l *Log) Notice(msg string) {
 	if !l.quiet || l.debugEnabled() {
-		l.log.Output(3, msg)
+		// this frame + single package level API func() + actual caller
+		calldepth := 1 + 1 + 1
+		l.log.Output(calldepth, msg)
 	}
 }
 
 // NoGuardDebug always prints the message, w/o gating it based on environment
 // variables or other configurations.
 func (l *Log) NoGuardDebug(msg string) {
-	l.log.Output(3, "DEBUG: "+msg)
+	// this frame + single package level API func() + actual caller
+	calldepth := 1 + 1 + 1
+	l.log.Output(calldepth, "DEBUG: "+msg)
 }
 
 type LoggerOptions struct {

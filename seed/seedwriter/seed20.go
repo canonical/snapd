@@ -58,7 +58,10 @@ func (pol *policy20) checkDefaultChannel(channel.Channel) error {
 }
 
 func (pol *policy20) checkSnapChannel(ch channel.Channel, whichSnap string) error {
-	return pol.checkAllowedDangerous()
+	if pol.checkAllowedDangerous() != nil {
+		return fmt.Errorf("cannot override channels with a model of grade higher than dangerous but --snap=<snap-name> is allowed to select optional snaps to include")
+	}
+	return nil
 }
 
 func (pol *policy20) checkClassicSnap(sn *SeedSnap) error {

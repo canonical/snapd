@@ -25,6 +25,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -40,6 +41,7 @@ import (
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/gadget/device"
 	gadgetInstall "github.com/snapcore/snapd/gadget/install"
+	"github.com/snapcore/snapd/kernel"
 	"github.com/snapcore/snapd/kernel/fde"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
@@ -54,6 +56,7 @@ import (
 	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/seed"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/snap/squashfs"
 	"github.com/snapcore/snapd/sysconfig"
 	"github.com/snapcore/snapd/timings"
@@ -95,7 +98,6 @@ var (
 		snap.TypeSnapd:  "snapd",
 	}
 
-	secbootProvisionForCVM                       func(initramfsUbuntuSeedDir string) error
 	secbootMeasureSnapSystemEpochWhenPossible    func() error
 	secbootMeasureSnapModelWhenPossible          func(findModel func() (*asserts.Model, error)) error
 	secbootUnlockVolumeUsingSealedKeyIfEncrypted func(disk disks.Disk, name string, encryptionKeyFile string, opts *secboot.UnlockVolumeUsingSealedKeyOptions) (secboot.UnlockResult, error)
@@ -328,6 +330,10 @@ func doInstall(mst *initramfsMountsState, model *asserts.Model, sysSnaps map[sna
 	if err := gadget.ValidateContent(gadgetInfo, gadgetMountDir, kernelMountDir); err != nil {
 		return fmt.Errorf("cannot use gadget: %v", err)
 	}
+
+	// TODO:COMPS take into account kernel-modules components, see
+	// DeviceManager,doSetupRunSystem and other parts of
+	// handlers_install.go.
 
 	bootDevice := ""
 	kernelSnapInfo := &gadgetInstall.KernelSnapInfo{
@@ -1710,7 +1716,7 @@ func getNonUEFISystemDisk(fallbacklabel string) (string, error) {
 // determine what partition the booted kernel came from. If which disk the
 // kernel came from cannot be determined, then it will fallback to mounting via
 // the specified disk label.
-func mountNonDataPartitionMatchingKernelDisk(dir, fallbacklabel string) error {
+func mountNonDataPartitionMatchingKernelDisk(dir, fallbacklabel string, opts *systemdMountOptions) error {
 	partuuid, err := bootFindPartitionUUIDForBootedKernelDisk()
 	var partSrc string
 	if err == nil {
@@ -1730,23 +1736,24 @@ func mountNonDataPartitionMatchingKernelDisk(dir, fallbacklabel string) error {
 	if err := waitForDevice(partSrc); err != nil {
 		return err
 	}
-
-	opts := &systemdMountOptions{
-		// always fsck the partition when we are mounting it, as this is the
-		// first partition we will be mounting, we can't know if anything is
-		// corrupted yet
-		NeedsFsck: true,
-		// don't need nosuid option here, since this function is only used
-		// for ubuntu-boot and ubuntu-seed, never ubuntu-data
-		Private: true,
-	}
 	return doSystemdMount(partSrc, dir, opts)
 }
 
 func generateMountsCommonInstallRecoverStart(mst *initramfsMountsState) (model *asserts.Model, sysSnaps map[snap.Type]*seed.Snap, err error) {
+	seedMountOpts := &systemdMountOptions{
+		// always fsck the partition when we are mounting it, as this is the
+		// first partition we will be mounting, we can't know if anything is
+		// corrupted yet
+		NeedsFsck: true,
+		Private:   true,
+		NoSuid:    true,
+		NoDev:     true,
+		NoExec:    true,
+	}
+
 	// 1. always ensure seed partition is mounted first before the others,
 	//      since the seed partition is needed to mount the snap files there
-	if err := mountNonDataPartitionMatchingKernelDisk(boot.InitramfsUbuntuSeedDir, "ubuntu-seed"); err != nil {
+	if err := mountNonDataPartitionMatchingKernelDisk(boot.InitramfsUbuntuSeedDir, "ubuntu-seed", seedMountOpts); err != nil {
 		return nil, nil, err
 	}
 
@@ -1905,83 +1912,157 @@ func maybeMountSave(disk disks.Disk, rootdir string, encrypted bool, mountOpts *
 	return true, nil
 }
 
-// XXX: workaround for the lack of model in CVM systems
-type genericCVMModel struct{}
+func createKernelMounts(runWritableDataDir, kernelName string, rev snap.Revision, isClassic bool) (bool, error) {
+	driversStandardDir := kernel.DriversTreeDir(runWritableDataDir, kernelName, rev)
+	// On UC first boot the drivers dir is initially under
+	// _writable_defaults, so we need to check that directory too. But the
+	// mount happens after handle-writable-paths has run, so the units
+	// mounting /lib/{modules,firmware} can use driversStandardDir always.
+	driversFirstBootDir := kernel.DriversTreeDir(
+		filepath.Join(runWritableDataDir, "_writable_defaults"), kernelName, rev)
+	var driversDir string
+	switch {
+	case osutil.IsDirectory(driversStandardDir):
+		driversDir = driversStandardDir
+	case osutil.IsDirectory(driversFirstBootDir):
+		driversDir = driversFirstBootDir
+	default:
+		logger.Noticef("no drivers tree at %s", driversStandardDir)
+		return false, nil
+	}
+	logger.Noticef("drivers tree found in %s", driversDir)
 
-func (*genericCVMModel) Classic() bool {
-	return true
+	// 1. Mount unit for the kernel snap
+	cpi := snap.MinimalSnapContainerPlaceInfo(kernelName, rev)
+	squashfsPath := filepath.Join(runWritableDataDir, dirs.StripRootDir(cpi.MountFile()))
+	// snapRoot is where we will find the /snap directory where
+	// snaps/components will be mounted
+	snapRoot := filepath.Join("writable", "system-data")
+	if isClassic {
+		snapRoot = "sysroot"
+	}
+	where := filepath.Join(dirs.GlobalRootDir, snapRoot, dirs.StripRootDir(cpi.MountDir()))
+	if err := writeInitramfsMountUnit(squashfsPath, where, squashfsUnit); err != nil {
+		return false, err
+	}
+
+	// 2. Mount units for kernel-modules components
+	if err := createKernelModulesMountUnits(
+		runWritableDataDir, snapRoot, driversDir, kernelName); err != nil {
+		return false, err
+	}
+
+	// 3. Mount units for /lib/{modules,firmware}
+	for _, subDir := range []string{"modules", "firmware"} {
+		what := filepath.Join(driversStandardDir, "lib", subDir)
+		where := filepath.Join(dirs.GlobalRootDir, "sysroot", "usr", "lib", subDir)
+		if err := writeInitramfsMountUnit(what, where, bindUnit); err != nil {
+			return false, fmt.Errorf("while creating mount for %s in %s: %v",
+				what, where, err)
+		}
+	}
+
+	// daemon-reload is not needed because it is done from initramfs
+	// later, this happens because
+	// 1. On UC /etc/fstab is changed and systemd's
+	//    initrd-parse-etc.service does the reload, as it detects entries
+	//    with the x-initrd.mount option
+	// 2. On hybrid, this is forced from classic-mounts.service
+
+	return true, nil
 }
 
-func (*genericCVMModel) Grade() asserts.ModelGrade {
-	return "signed"
+func createKernelModulesMountUnits(writableRootDir, snapRoot, driversDir, kernelName string) error {
+	// Look for symlinks to kernel components. We care only about links to
+	// content in the squashfs, links to $SNAP_DATA will just work as
+	// /var/snap will be present before switch root.
+
+	// First in modules (we might not have a kernel version subdir if there
+	// are no kernel modules).
+	kversion, kverr := kernel.KernelVersionFromModulesDir(filepath.Join(driversDir, "lib"))
+	compSet := map[snap.ComponentSideInfo]bool{}
+	if kverr == nil {
+		modUpdatesDir := filepath.Join(driversDir, "lib", "modules", kversion, "updates")
+		if err := getCompsFromSymlinks(modUpdatesDir, kernelName, compSet); err != nil {
+			return err
+		}
+	}
+	// Then look in firmware
+	fwUpdatesDir := filepath.Join(driversDir, "lib", "firmware", "updates")
+	if err := getCompsFromSymlinks(fwUpdatesDir, kernelName, compSet); err != nil {
+		return err
+	}
+
+	// now create the component units
+	for comp := range compSet {
+		cpi := snap.MinimalComponentContainerPlaceInfo(
+			comp.Component.ComponentName, comp.Revision, kernelName)
+		squashfsPath := filepath.Join(writableRootDir, dirs.StripRootDir(cpi.MountFile()))
+		where := filepath.Join(dirs.GlobalRootDir, snapRoot, dirs.StripRootDir(cpi.MountDir()))
+		if err := writeInitramfsMountUnit(squashfsPath, where, squashfsUnit); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
-func generateMountsModeRunCVM(mst *initramfsMountsState) error {
-	// Mount ESP as UbuntuSeedDir which has UEFI label
-	if err := mountNonDataPartitionMatchingKernelDisk(boot.InitramfsUbuntuSeedDir, "UEFI"); err != nil {
-		return err
-	}
-
-	// get the disk that we mounted the ESP from as a reference
-	// point for future mounts
-	disk, err := disks.DiskFromMountPoint(boot.InitramfsUbuntuSeedDir, nil)
+func getCompsFromSymlinks(symLinksDir, kernelName string, compSet map[snap.ComponentSideInfo]bool) error {
+	entries, err := os.ReadDir(symLinksDir)
 	if err != nil {
-		return err
+		// No updates folder, so there are no kernel-modules comps installed
+		return nil
 	}
 
-	// Mount rootfs
-	if err := secbootProvisionForCVM(boot.InitramfsUbuntuSeedDir); err != nil {
-		return err
-	}
-	runModeCVMKey := filepath.Join(boot.InitramfsSeedEncryptionKeyDir, "cloudimg-rootfs.sealed-key")
-	opts := &secboot.UnlockVolumeUsingSealedKeyOptions{
-		AllowRecoveryKey: true,
-	}
-	unlockRes, err := secbootUnlockVolumeUsingSealedKeyIfEncrypted(disk, "cloudimg-rootfs", runModeCVMKey, opts)
-	if err != nil {
-		return err
-	}
-	fsckSystemdOpts := &systemdMountOptions{
-		NeedsFsck: true,
-		Ephemeral: true,
-	}
-	if err := doSystemdMount(unlockRes.FsDevice, boot.InitramfsDataDir, fsckSystemdOpts); err != nil {
-		return err
-	}
+	for _, node := range entries {
+		if node.Type() != fs.ModeSymlink {
+			continue
+		}
+		// Note that symlinks in drivers tree are absolute
+		dest, err := os.Readlink(filepath.Join(symLinksDir, node.Name()))
+		if err != nil {
+			return err
+		}
 
-	// Verify that cloudimg-rootfs comes from where we expect it to
-	diskOpts := &disks.Options{}
-	if unlockRes.IsEncrypted {
-		// then we need to specify that the data mountpoint is
-		// expected to be a decrypted device
-		diskOpts.IsDecryptedDevice = true
+		// find out component name from symlink
+		prefix := filepath.Join(snap.ComponentsBaseDir(kernelName), "mnt")
+		subdir := strings.TrimPrefix(dest, prefix+string(os.PathSeparator))
+		if subdir == dest {
+			// Possibly points to $SNAP_DATA instead of to $SNAP,
+			// or is a relative symlink to some fw file in the
+			// component.
+			continue
+		}
+		dirs := strings.Split(subdir, string(os.PathSeparator))
+		// dirs should still have as a minimum 4 elements
+		// <comp_name>/<comp_rev>/{modules/<kversion>,firmware/<filename>}
+		if len(dirs) < 4 {
+			logger.Noticef("warning: %s seems to be badly formed", dest)
+			continue
+		}
+		rev, err := snap.ParseRevision(dirs[1])
+		if err != nil {
+			logger.Noticef("warning: wrong revision in symlink %s: %v", dest, err)
+			continue
+		}
+		csi := snap.NewComponentSideInfo(naming.NewComponentRef(kernelName, dirs[0]), rev)
+		compSet[*csi] = true
 	}
-
-	matches, err := disk.MountPointIsFromDisk(boot.InitramfsDataDir, diskOpts)
-	if err != nil {
-		return err
-	}
-	if !matches {
-		// failed to verify that cloudimg-rootfs mountpoint
-		// comes from the same disk as ESP
-		return fmt.Errorf("cannot validate boot: cloudimg-rootfs mountpoint is expected to be from disk %s but is not", disk.Dev())
-	}
-
-	// Unmount ESP because otherwise unmounting is racy and results in booted systems without ESP
-	if err := doSystemdMount("", boot.InitramfsUbuntuSeedDir, &systemdMountOptions{Umount: true, Ephemeral: true}); err != nil {
-		return err
-	}
-
-	// There is no real model on a CVM device but minimal model
-	// information is required by the later code
-	mst.SetVerifiedBootModel(&genericCVMModel{})
 
 	return nil
 }
 
 func generateMountsModeRun(mst *initramfsMountsState) error {
+	bootMountOpts := &systemdMountOptions{
+		// always fsck the partition when we are mounting it, as this is the
+		// first partition we will be mounting, we can't know if anything is
+		// corrupted yet
+		NeedsFsck: true,
+		Private:   true,
+	}
+
 	// 1. mount ubuntu-boot
-	if err := mountNonDataPartitionMatchingKernelDisk(boot.InitramfsUbuntuBootDir, "ubuntu-boot"); err != nil {
+	if err := mountNonDataPartitionMatchingKernelDisk(boot.InitramfsUbuntuBootDir, "ubuntu-boot", bootMountOpts); err != nil {
 		return err
 	}
 
@@ -2018,6 +2099,9 @@ func generateMountsModeRun(mst *initramfsMountsState) error {
 	seedMountOpts := &systemdMountOptions{
 		NeedsFsck: true,
 		Private:   true,
+		NoSuid:    true,
+		NoDev:     true,
+		NoExec:    true,
 	}
 	// use the disk we mounted ubuntu-boot from as a reference to find
 	// ubuntu-seed and mount it
@@ -2174,8 +2258,20 @@ func generateMountsModeRun(mst *initramfsMountsState) error {
 	//            to the function above to make decisions there, or perhaps this
 	//            code actually belongs in the bootloader implementation itself
 
-	// 4.3 mount base (if UC), gadget and kernel snaps
+	// Create mounts for kernel modules/firmware if we have a drivers tree.
+	// InitramfsRunModeSelectSnapsToMount guarantees we do have a kernel in the map.
+	kernPlaceInfo := mounts[snap.TypeKernel]
+	hasDriversTree, err := createKernelMounts(
+		rootfsDir, kernPlaceInfo.SnapName(), kernPlaceInfo.SnapRevision(), isClassic)
+	if err != nil {
+		return err
+	}
+
+	// 4.3 mount base (if UC), gadget and kernel (if there is no drivers tree) snaps
 	for _, typ := range typs {
+		if typ == snap.TypeKernel && hasDriversTree {
+			continue
+		}
 		if sn, ok := mounts[typ]; ok {
 			dir := snapTypeToMountDir[typ]
 			snapPath := filepath.Join(dirs.SnapBlobDirUnder(rootfsDir), sn.Filename())

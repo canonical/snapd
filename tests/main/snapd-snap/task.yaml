@@ -14,11 +14,11 @@ details: |
 # due to various bugs with other distros and snapcraft and/or LXD
 systems:
     # snapcraft is a classic snap, can't run on ubuntu-core
-    - -ubuntu-core*
-    # LXD doesn't work properly on amazon linux, fedora 31, opensuse, or debian
+    - -ubuntu-core-*
+    # LXD doesn't work properly on amazon linux, fedora, opensuse, or debian
     # 9 to build the snap, it complains about fuse.snapfuse getting EPERM when
     # snaps are installed inside the LXD container that snapcraft creates
-    - -amazon-linux*
+    - -amazon-linux-*
     - -debian-*
     - -fedora-*
     - -opensuse-*
@@ -60,14 +60,6 @@ prepare: |
         # properly on a host using unified hierarchy
         echo "Skipping LXD build with unified cgroup hierarchy"
         exit 0
-    fi
-
-    if os.query is-fedora || os.query is-arch-linux || os.query is-centos; then
-        # in order to install classic snaps, we need to setup the /snap 
-        # symlink on these distros
-        SNAP_MOUNT_DIR="$(os.paths snap-mount-dir)"
-        ln -sf "$SNAP_MOUNT_DIR" /snap
-        tests.cleanup defer rm -f /snap
     fi
 
     echo "Install snapcraft from ${SNAPCRAFT_SNAP_CHANNEL}"
@@ -168,6 +160,9 @@ execute: |
 
     rm -rf c-vendor/squashfuse
 
+    # Use test build to make sure the version is higher than the deb/rpm coming from the repo
+    touch test-build
+
     echo "Build the snap"
     snap run snapcraft snap --output=snapd_spread-test.snap
     popd
@@ -179,6 +174,7 @@ execute: |
     cat >> snapcraft-cleanup.sh <<EOF
     #!/bin/sh
     cd $PROJECT_PATH
+    rm -f test-build
     snap run snapcraft clean
     EOF
     chmod +x snapcraft-cleanup.sh

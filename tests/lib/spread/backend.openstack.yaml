@@ -30,10 +30,6 @@
                 image: snapd-spread/fedora-41-64
                 workers: 6
     
-            - opensuse-15.5-64:
-                image: snapd-spread/opensuse-15.5-64
-                workers: 6
-
             - opensuse-15.6-64:
                 image: snapd-spread/opensuse-15.6-64
                 workers: 6
@@ -48,5 +44,8 @@
 
             - debian-12-64:
                 image: snapd-spread/debian-12-64
+                workers: 6
+            - debian-sid-64:
+                image: snapd-spread/debian-sid-64
                 workers: 6
 

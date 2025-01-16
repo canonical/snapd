@@ -100,6 +100,13 @@ func getUserID(r *http.Request) (uint32, Response) {
 	return uint32(userIDInt), nil
 }
 
+// isClientActivity returns true if the request comes a prompting handler
+// service.
+func isClientActivity(c *Command, r *http.Request) bool {
+	// TODO: check that it's a handler service client making the API request
+	return true
+}
+
 type invalidReason string
 
 const (
@@ -283,19 +290,16 @@ var getInterfaceManager = func(c *Command) interfaceManager {
 }
 
 type postPromptBody struct {
-	Outcome     prompting.OutcomeType  `json:"action"`
-	Lifespan    prompting.LifespanType `json:"lifespan"`
-	Duration    string                 `json:"duration,omitempty"`
-	Constraints *prompting.Constraints `json:"constraints"`
+	Outcome     prompting.OutcomeType       `json:"action"`
+	Lifespan    prompting.LifespanType      `json:"lifespan"`
+	Duration    string                      `json:"duration,omitempty"`
+	Constraints *prompting.ReplyConstraints `json:"constraints"`
 }
 
 type addRuleContents struct {
 	Snap        string                 `json:"snap"`
 	Interface   string                 `json:"interface"`
 	Constraints *prompting.Constraints `json:"constraints"`
-	Outcome     prompting.OutcomeType  `json:"outcome"`
-	Lifespan    prompting.LifespanType `json:"lifespan"`
-	Duration    string                 `json:"duration,omitempty"`
 }
 
 type removeRulesSelector struct {
@@ -304,10 +308,7 @@ type removeRulesSelector struct {
 }
 
 type patchRuleContents struct {
-	Constraints *prompting.Constraints `json:"constraints,omitempty"`
-	Outcome     prompting.OutcomeType  `json:"outcome,omitempty"`
-	Lifespan    prompting.LifespanType `json:"lifespan,omitempty"`
-	Duration    string                 `json:"duration,omitempty"`
+	Constraints *prompting.RuleConstraintsPatch `json:"constraints,omitempty"`
 }
 
 type postRulesRequestBody struct {
@@ -331,7 +332,9 @@ func getPrompts(c *Command, r *http.Request, user *auth.UserState) Response {
 		return promptingNotRunningError()
 	}
 
-	prompts, err := getInterfaceManager(c).InterfacesRequestsManager().Prompts(userID)
+	clientActivity := isClientActivity(c, r)
+
+	prompts, err := getInterfaceManager(c).InterfacesRequestsManager().Prompts(userID, clientActivity)
 	if err != nil {
 		return promptingError(err)
 	}
@@ -360,7 +363,9 @@ func getPrompt(c *Command, r *http.Request, user *auth.UserState) Response {
 		return promptingNotRunningError()
 	}
 
-	prompt, err := getInterfaceManager(c).InterfacesRequestsManager().PromptWithID(userID, promptID)
+	clientActivity := isClientActivity(c, r)
+
+	prompt, err := getInterfaceManager(c).InterfacesRequestsManager().PromptWithID(userID, promptID, clientActivity)
 	if err != nil {
 		return promptingError(err)
 	}
@@ -392,7 +397,9 @@ func postPrompt(c *Command, r *http.Request, user *auth.UserState) Response {
 		return promptingError(fmt.Errorf("cannot decode request body into prompt reply: %w", err))
 	}
 
-	satisfiedPromptIDs, err := getInterfaceManager(c).InterfacesRequestsManager().HandleReply(userID, promptID, reply.Constraints, reply.Outcome, reply.Lifespan, reply.Duration)
+	clientActivity := isClientActivity(c, r)
+
+	satisfiedPromptIDs, err := getInterfaceManager(c).InterfacesRequestsManager().HandleReply(userID, promptID, reply.Constraints, reply.Outcome, reply.Lifespan, reply.Duration, clientActivity)
 	if err != nil {
 		return promptingError(err)
 	}
@@ -452,7 +459,7 @@ func postRules(c *Command, r *http.Request, user *auth.UserState) Response {
 		if postBody.AddRule == nil {
 			return BadRequest(`must include "rule" field in request body when action is "add"`)
 		}
-		newRule, err := getInterfaceManager(c).InterfacesRequestsManager().AddRule(userID, postBody.AddRule.Snap, postBody.AddRule.Interface, postBody.AddRule.Constraints, postBody.AddRule.Outcome, postBody.AddRule.Lifespan, postBody.AddRule.Duration)
+		newRule, err := getInterfaceManager(c).InterfacesRequestsManager().AddRule(userID, postBody.AddRule.Snap, postBody.AddRule.Interface, postBody.AddRule.Constraints)
 		if err != nil {
 			return promptingError(err)
 		}
@@ -529,7 +536,7 @@ func postRule(c *Command, r *http.Request, user *auth.UserState) Response {
 		if postBody.PatchRule == nil {
 			return BadRequest(`must include "rule" field in request body when action is "patch"`)
 		}
-		patchedRule, err := getInterfaceManager(c).InterfacesRequestsManager().PatchRule(userID, ruleID, postBody.PatchRule.Constraints, postBody.PatchRule.Outcome, postBody.PatchRule.Lifespan, postBody.PatchRule.Duration)
+		patchedRule, err := getInterfaceManager(c).InterfacesRequestsManager().PatchRule(userID, ruleID, postBody.PatchRule.Constraints)
 		if err != nil {
 			return promptingError(err)
 		}

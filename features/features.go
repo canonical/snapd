@@ -40,8 +40,6 @@ const (
 	ParallelInstances
 	// Hotplug controls availability of dynamically creating slots based on system hardware.
 	Hotplug
-	// SnapdSnap controls possibility of installing the snapd snap.
-	SnapdSnap
 	// PerUserMountNamespace controls the persistence of per-user mount namespaces.
 	PerUserMountNamespace
 	// RefreshAppAwareness controls refresh being aware of running applications.
@@ -73,8 +71,10 @@ const (
 	QuotaGroups
 	// RefreshAppAwarenessUX enables experimental UX improvements for refresh-app-awareness.
 	RefreshAppAwarenessUX
-	// Registries enables experimental configuration based on registries and views.
-	Registries
+	// Confdbs enables experimental configuration based on confdbs and views.
+	Confdbs
+	// ConfdbControl enables experimental remote management of confdbs
+	ConfdbControl
 	// AppArmorPrompting enables AppArmor to prompt the user for permission when apps perform certain operations.
 	AppArmorPrompting
 
@@ -101,7 +101,6 @@ var featureNames = map[SnapdFeature]string{
 	Layouts:               "layouts",
 	ParallelInstances:     "parallel-instances",
 	Hotplug:               "hotplug",
-	SnapdSnap:             "snapd-snap",
 	PerUserMountNamespace: "per-user-mount-namespace",
 	RefreshAppAwareness:   "refresh-app-awareness",
 
@@ -123,7 +122,9 @@ var featureNames = map[SnapdFeature]string{
 	QuotaGroups: "quota-groups",
 
 	RefreshAppAwarenessUX: "refresh-app-awareness-ux",
-	Registries:            "registries",
+
+	Confdbs:       "confdbs",
+	ConfdbControl: "confdb-control",
 
 	AppArmorPrompting: "apparmor-prompting",
 }
@@ -149,7 +150,7 @@ var featuresExported = map[SnapdFeature]bool{
 	MoveSnapHomeDir:               true,
 
 	RefreshAppAwarenessUX: true,
-	Registries:            true,
+	Confdbs:               true,
 	AppArmorPrompting:     true,
 }
 

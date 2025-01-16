@@ -19,6 +19,7 @@ run_muinstaller() {
     local kernel_assertion="${6}"
     local label="${7}"
     local disk="${8}"
+    local kern_mods_comp="${9:-}"
 
     # ack the needed assertions
     snap ack "${kernel_assertion}"
@@ -40,9 +41,15 @@ run_muinstaller() {
     mv snapd_*.snap snapd.snap
 
     # prepare a classic seed
+    kmodsarg=""
+    if [ -n "$kern_mods_comp" ]
+    then kmodsarg="--comp $kern_mods_comp"
+    fi
+    # shellcheck disable=SC2086
     snap prepare-image --classic \
         --channel=edge \
         --snap "${kernel_snap}" \
+        $kmodsarg \
         --snap pc.snap \
         --snap snapd.snap \
         "${model_assertion}" \
@@ -158,7 +165,7 @@ run_muinstaller() {
 
     # Change seed part label to capitals so we cover that use case
     image_path="${NESTED_IMAGES_DIR}/${image_name}"
-    kpartx -asv "${image_path}"
+    kpartx -asv "$image_path"
     fatlabel /dev/disk/by-label/ubuntu-seed UBUNTU-SEED
     if ! kpartx -d "${image_path}"; then
         # Sometimes there are random failures, let's wait and re-try
@@ -184,6 +191,7 @@ main() {
     local kernel_assertion=""
     local label="classic"
     local disk=""
+    local kern_mods_comp=""
     while [ $# -gt 0 ]; do
         case "$1" in
             --model)
@@ -216,6 +224,11 @@ main() {
                 ;;
             --disk)
                 disk="${2}"
+                shift 2
+                ;;
+            --kmods-comp)
+                # Only on kernel-modules component supported atm
+                kern_mods_comp="${2}"
                 shift 2
                 ;;
             --*|-*)
@@ -275,37 +288,40 @@ main() {
         kernel_assertion="$(realpath "${kernel_assertion}")"
     fi
 
+    if [ -n "${kern_mods_comp}" ]; then
+        kern_mods_comp="$(realpath "${kern_mods_comp}")"
+    fi
+
     # start a subshell and change directories so that we can change directories
     # to keep all of our generated files together
     (
-    cd "$(mktemp -d --tmpdir="${PWD}")"
+        cd "$(mktemp -d --tmpdir="${PWD}")"
 
-    # create new disk (if the caller didn't provide one) for the installer to
-    # work on and attach to the VM
-    if [ -z "${disk}" ]; then
-        disk="${PWD}/disk.img"
-        truncate --size=6G "${disk}"
-    fi
+        # create new disk (if the caller didn't provide one) for the installer to
+        # work on and attach to the VM
+        if [ -z "${disk}" ]; then
+            disk="${PWD}/disk.img"
+            truncate --size=6G "${disk}"
+        fi
 
-    # if a gadget wasn't provided, download one we know should work for hybrid
-    # systems
-    if [ -z "${gadget_snap}" ]; then
-        snap download --channel="classic-23.10/stable" --basename=pc pc
-        gadget_snap="${PWD}/pc.snap"
-        gadget_assertion="${PWD}/pc.assert"
-    fi
+        # if a gadget wasn't provided, download one we know should work for hybrid
+        # systems
+        if [ -z "${gadget_snap}" ]; then
+            snap download --channel="classic-23.10/stable" --basename=pc pc
+            gadget_snap="${PWD}/pc.snap"
+            gadget_assertion="${PWD}/pc.assert"
+        fi
 
-    # if a kernel wasn't provided, download one
-    if [ -z "${kernel_snap}" ]; then
-        snap download --channel="23.10/stable" --basename=pc-kernel pc-kernel
-        kernel_snap="${PWD}/pc-kernel.snap"
-        kernel_assertion="${PWD}/pc-kernel.assert"
-    fi
+        # if a kernel wasn't provided, download one
+        if [ -z "${kernel_snap}" ]; then
+            snap download --channel="23.10/stable" --basename=pc-kernel pc-kernel
+            kernel_snap="${PWD}/pc-kernel.snap"
+            kernel_assertion="${PWD}/pc-kernel.assert"
+        fi
 
-    run_muinstaller "${model_assertion}" "${store_dir}" "${gadget_snap}" \
-        "${gadget_assertion}" "${kernel_snap}" "${kernel_assertion}" "${label}" \
-        "${disk}"
-
+        run_muinstaller "${model_assertion}" "${store_dir}" "${gadget_snap}" \
+                        "${gadget_assertion}" "${kernel_snap}" "${kernel_assertion}" "${label}" \
+                        "${disk}" "${kern_mods_comp}"
     )
 }
 

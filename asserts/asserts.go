@@ -143,7 +143,7 @@ var (
 	PreseedType              = &AssertionType{"preseed", []string{"series", "brand-id", "model", "system-label"}, nil, assemblePreseed, 0}
 	SnapResourceRevisionType = &AssertionType{"snap-resource-revision", []string{"snap-id", "resource-name", "resource-sha3-384", "provenance"}, map[string]string{"provenance": naming.DefaultProvenance}, assembleSnapResourceRevision, 0}
 	SnapResourcePairType     = &AssertionType{"snap-resource-pair", []string{"snap-id", "resource-name", "resource-revision", "snap-revision", "provenance"}, map[string]string{"provenance": naming.DefaultProvenance}, assembleSnapResourcePair, 0}
-	RegistryType             = &AssertionType{"registry", []string{"account-id", "name"}, nil, assembleRegistry, jsonBody}
+	ConfdbType               = &AssertionType{"confdb", []string{"account-id", "name"}, nil, assembleConfdb, jsonBody}
 
 	// ...
 )
@@ -153,6 +153,7 @@ var (
 	DeviceSessionRequestType = &AssertionType{"device-session-request", []string{"brand-id", "model", "serial"}, nil, assembleDeviceSessionRequest, noAuthority}
 	SerialRequestType        = &AssertionType{"serial-request", nil, nil, assembleSerialRequest, noAuthority}
 	AccountKeyRequestType    = &AssertionType{"account-key-request", []string{"public-key-sha3-384"}, nil, assembleAccountKeyRequest, noAuthority}
+	ConfdbControlType        = &AssertionType{"confdb-control", []string{"brand-id", "model", "serial"}, nil, assembleConfdbControl, noAuthority}
 )
 
 var typeRegistry = map[string]*AssertionType{
@@ -173,11 +174,12 @@ var typeRegistry = map[string]*AssertionType{
 	PreseedType.Name:              PreseedType,
 	SnapResourceRevisionType.Name: SnapResourceRevisionType,
 	SnapResourcePairType.Name:     SnapResourcePairType,
-	RegistryType.Name:             RegistryType,
+	ConfdbType.Name:               ConfdbType,
 	// no authority
 	DeviceSessionRequestType.Name: DeviceSessionRequestType,
 	SerialRequestType.Name:        SerialRequestType,
 	AccountKeyRequestType.Name:    AccountKeyRequestType,
+	ConfdbControlType.Name:        ConfdbControlType,
 }
 
 // Type returns the AssertionType with name or nil
@@ -567,7 +569,7 @@ type SequenceMember interface {
 // customSigner represents an assertion with special arrangements for its signing key (e.g. self-signed), rather than the usual case where an assertion is signed by its authority.
 type customSigner interface {
 	// signKey returns the public key material for the key that signed this assertion.  See also SignKeyID.
-	signKey() PublicKey
+	signKey(db RODatabase) (PublicKey, error)
 }
 
 // MediaType is the media type for encoded assertions on the wire.

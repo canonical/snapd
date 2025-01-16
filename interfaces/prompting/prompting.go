@@ -159,10 +159,9 @@ func (lifespan *LifespanType) UnmarshalJSON(data []byte) error {
 // ValidateExpiration checks that the given expiration is valid for the
 // receiver lifespan.
 //
-// If the lifespan is LifespanTimespan, then expiration must be non-zero and be
-// after the given currTime. Otherwise, it must be zero. Returns an error if
-// any of the above are invalid.
-func (lifespan LifespanType) ValidateExpiration(expiration time.Time, currTime time.Time) error {
+// If the lifespan is LifespanTimespan, then expiration must be non-zero.
+// Otherwise, it must be zero. Returns an error if any of the above are invalid.
+func (lifespan LifespanType) ValidateExpiration(expiration time.Time) error {
 	switch lifespan {
 	case LifespanForever, LifespanSingle:
 		if !expiration.IsZero() {
@@ -171,9 +170,6 @@ func (lifespan LifespanType) ValidateExpiration(expiration time.Time, currTime t
 	case LifespanTimespan:
 		if expiration.IsZero() {
 			return prompting_errors.NewInvalidExpirationError(expiration, fmt.Sprintf("cannot have unspecified expiration when lifespan is %q", lifespan))
-		}
-		if currTime.After(expiration) {
-			return fmt.Errorf("%w: %q", prompting_errors.ErrRuleExpirationInThePast, expiration)
 		}
 	default:
 		// Should not occur, since lifespan is validated when unmarshalled
@@ -214,4 +210,34 @@ func (lifespan LifespanType) ParseDuration(duration string, currTime time.Time) 
 		return expiration, prompting_errors.NewInvalidLifespanError(string(lifespan), supportedLifespans)
 	}
 	return expiration, nil
+}
+
+var lifespansBySupersedence = map[LifespanType]int{
+	LifespanSingle:   1,
+	LifespanTimespan: 2,
+	LifespanForever:  3,
+}
+
+// FirstLifespanGreater returns true if the first of the two given
+// lifespan/expiration pairs supersedes the second.
+//
+// LifespanForever supersedes all other lifespans, followed by LifespanTimespan,
+// followed by LifepsanSingle. If two lifespans are identical then return true
+// if the first expiration timestamp is after the second expiration timestamp.
+func FirstLifespanGreater(l1 LifespanType, e1 time.Time, l2 LifespanType, e2 time.Time) bool {
+	order1 := lifespansBySupersedence[l1]
+	order2 := lifespansBySupersedence[l2]
+	switch {
+	case order1 > order2:
+		return true
+	case order1 < order2:
+		return false
+	case e1.After(e2):
+		return true
+	case e1.Before(e2):
+		return false
+	default:
+		// They're the same
+		return false
+	}
 }

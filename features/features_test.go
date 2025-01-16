@@ -48,7 +48,6 @@ func (*featureSuite) TestName(c *C) {
 	check(features.Layouts, "layouts")
 	check(features.ParallelInstances, "parallel-instances")
 	check(features.Hotplug, "hotplug")
-	check(features.SnapdSnap, "snapd-snap")
 	check(features.PerUserMountNamespace, "per-user-mount-namespace")
 	check(features.RefreshAppAwareness, "refresh-app-awareness")
 	check(features.ClassicPreservesXdgRuntimeDir, "classic-preserves-xdg-runtime-dir")
@@ -63,7 +62,8 @@ func (*featureSuite) TestName(c *C) {
 	check(features.GateAutoRefreshHook, "gate-auto-refresh-hook")
 	check(features.QuotaGroups, "quota-groups")
 	check(features.RefreshAppAwarenessUX, "refresh-app-awareness-ux")
-	check(features.Registries, "registries")
+	check(features.Confdbs, "confdbs")
+	check(features.ConfdbControl, "confdb-control")
 	check(features.AppArmorPrompting, "apparmor-prompting")
 
 	c.Check(tested, Equals, features.NumberOfFeatures())
@@ -88,8 +88,6 @@ func (*featureSuite) TestIsExported(c *C) {
 
 	check(features.Layouts, false)
 	check(features.Hotplug, false)
-	check(features.SnapdSnap, false)
-
 	check(features.ParallelInstances, true)
 	check(features.PerUserMountNamespace, true)
 	check(features.RefreshAppAwareness, true)
@@ -105,7 +103,8 @@ func (*featureSuite) TestIsExported(c *C) {
 	check(features.GateAutoRefreshHook, false)
 	check(features.QuotaGroups, false)
 	check(features.RefreshAppAwarenessUX, true)
-	check(features.Registries, true)
+	check(features.Confdbs, true)
+	check(features.ConfdbControl, false)
 	check(features.AppArmorPrompting, true)
 
 	c.Check(tested, Equals, features.NumberOfFeatures())
@@ -216,7 +215,6 @@ func (*featureSuite) TestIsEnabledWhenUnset(c *C) {
 	check(features.Layouts, true)
 	check(features.ParallelInstances, false)
 	check(features.Hotplug, false)
-	check(features.SnapdSnap, false)
 	check(features.PerUserMountNamespace, false)
 	check(features.RefreshAppAwareness, true)
 	check(features.ClassicPreservesXdgRuntimeDir, true)
@@ -231,8 +229,9 @@ func (*featureSuite) TestIsEnabledWhenUnset(c *C) {
 	check(features.GateAutoRefreshHook, false)
 	check(features.QuotaGroups, false)
 	check(features.RefreshAppAwarenessUX, false)
-	check(features.Registries, false)
+	check(features.Confdbs, false)
 	check(features.AppArmorPrompting, false)
+	check(features.ConfdbControl, false)
 
 	c.Check(tested, Equals, features.NumberOfFeatures())
 }
@@ -245,7 +244,7 @@ func (*featureSuite) TestControlFile(c *C) {
 	c.Check(features.HiddenSnapDataHomeDir.ControlFile(), Equals, "/var/lib/snapd/features/hidden-snap-folder")
 	c.Check(features.MoveSnapHomeDir.ControlFile(), Equals, "/var/lib/snapd/features/move-snap-home-dir")
 	c.Check(features.RefreshAppAwarenessUX.ControlFile(), Equals, "/var/lib/snapd/features/refresh-app-awareness-ux")
-	c.Check(features.Registries.ControlFile(), Equals, "/var/lib/snapd/features/registries")
+	c.Check(features.Confdbs.ControlFile(), Equals, "/var/lib/snapd/features/confdbs")
 	c.Check(features.AppArmorPrompting.ControlFile(), Equals, "/var/lib/snapd/features/apparmor-prompting")
 	// Features that are not exported don't have a control file.
 	c.Check(features.Layouts.ControlFile, PanicMatches, `cannot compute the control file of feature "layouts" because that feature is not exported`)

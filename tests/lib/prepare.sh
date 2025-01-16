@@ -8,6 +8,8 @@ set -eux
 . "$TESTSLIB/pkgdb.sh"
 # shellcheck source=tests/lib/state.sh
 . "$TESTSLIB/state.sh"
+#shellcheck source=tests/lib/core-initrd.sh
+. "$TESTSLIB"/core-initrd.sh
 
 disable_kernel_rate_limiting() {
     # kernel rate limiting hinders debugging security policy so turn it off
@@ -248,14 +250,6 @@ update_core_snap_for_classic_reexec() {
 }
 
 prepare_memory_limit_override() {
-    # First time it is needed to save the initial env var value
-    if not tests.env is-set initial SNAPD_NO_MEMORY_LIMIT; then
-        tests.env set initial SNAPD_NO_MEMORY_LIMIT "$SNAPD_NO_MEMORY_LIMIT"
-    # Then if the new value is the same than the initial, then no new configuration needed
-    elif [ "$(tests.env get initial SNAPD_NO_MEMORY_LIMIT)" = "$SNAPD_NO_MEMORY_LIMIT" ]; then
-        return
-    fi
-
     # set up memory limits for snapd bu default unless explicit requested not to
     # or the system is known to be problematic
     local set_limit=1
@@ -278,6 +272,18 @@ prepare_memory_limit_override() {
             fi
             ;;
     esac
+
+    # If we don't wish to impose a memory limit, and the conf file 
+    # already doesn't exist, then no new configuration is needed
+    if [ "$set_limit" == "0" ] && ! [ -f "/etc/systemd/system/snapd.service.d/memory-max.conf" ]; then
+        return
+    fi
+
+    # If we wish to impose a memory limit, and the conf file 
+    # already exists, then no new configuration is needed
+    if [ "$set_limit" == "1" ] && [ -f "/etc/systemd/system/snapd.service.d/memory-max.conf" ]; then
+        return
+    fi
 
     if [ "$set_limit" = "0" ]; then
         # make sure the file does not exist then
@@ -338,6 +344,12 @@ prepare_each_classic() {
     fi
 
     prepare_reexec_override
+    # Each individual task may potentially set the SNAP_NO_MEMORY_LIMIT variable
+    prepare_memory_limit_override
+}
+
+prepare_each_core() {
+    # Each individual task may potentially set the SNAP_NO_MEMORY_LIMIT variable
     prepare_memory_limit_override
 }
 
@@ -535,7 +547,7 @@ build_snapd_snap() {
                     *-arm-*)
                         ;;
                     *)
-                        echo "ERROR: system $SPREAD_SYSTEM should use a prebuilt snapd snapd"
+                        echo "ERROR: system $SPREAD_SYSTEM should use a prebuilt snapd snap"
                         echo "see HACKING.md and use tests/build-test-snapd-snap to build one locally"
                         exit 1
                         ;;
@@ -685,6 +697,13 @@ Environment=SNAPD_DEBUG_HTTP=7 SNAPD_DEBUG=1 SNAPPY_TESTING=1 SNAPD_CONFIGURE_HO
 StandardOutput=journal+console
 StandardError=journal+console
 EOF
+
+    if [ "$NESTED_REPACK_FOR_FAKESTORE" = "true" ]; then
+        cat <<EOF > "$UNPACK_DIR"/etc/systemd/system/snapd.service.d/store.conf
+[Service]
+Environment=SNAPPY_FORCE_API_URL=http://10.0.2.2:11028
+EOF
+    fi
 
     cp "${SPREAD_PATH}"/data/completion/bash/complete.sh "${UNPACK_DIR}"/usr/lib/snapd/complete.sh
 
@@ -935,9 +954,12 @@ uc24_build_initramfs_kernel_snap() {
     esac
 
     unsquashfs -d pc-kernel "$ORIG_SNAP"
-    objcopy -O binary -j .initrd pc-kernel/kernel.efi initrd.img
+    kernelver=$(find pc-kernel/modules/ -maxdepth 1 -mindepth 1 -printf "%f")
+    ubuntu-core-initramfs create-initrd --kernelver="$kernelver" --kerneldir pc-kernel/modules/"$kernelver" \
+                          --firmwaredir pc-kernel/firmware --output initrd.img
 
-    unmkinitramfs initrd.img initrd
+    initrd_f=initrd.img-"$kernelver"
+    unmkinitramfs "$initrd_f" initrd
 
     if [ -d ./extra-initrd ]; then
         if [ -d ./initrd/early ]; then
@@ -950,28 +972,19 @@ uc24_build_initramfs_kernel_snap() {
     if [ -d ./initrd/early ]; then
         uc_write_bootstrap_wrapper ./initrd/main "$injectKernelPanic"
 
-        (cd ./initrd/early; find . | cpio --create --quiet --format=newc --owner=0:0) >initrd.img
-        (cd ./initrd/main; find . | cpio --create --quiet --format=newc --owner=0:0 | zstd -1 -T0) >>initrd.img
+        (cd ./initrd/early; find . | cpio --create --quiet --format=newc --owner=0:0) >"$initrd_f"
+        (cd ./initrd/main; find . | cpio --create --quiet --format=newc --owner=0:0 | zstd -1 -T0) >>"$initrd_f"
     else
         uc_write_bootstrap_wrapper ./initrd "$injectKernelPanic"
 
-        (cd ./initrd; find . | cpio --create --quiet --format=newc --owner=0:0 | zstd -1 -T0) >initrd.img
+        (cd ./initrd; find . | cpio --create --quiet --format=newc --owner=0:0 | zstd -1 -T0) >"$initrd_f"
     fi
 
-    quiet apt install -y systemd-boot-efi systemd-ukify
-    objcopy -O binary -j .linux pc-kernel/kernel.efi linux
-
-    /usr/lib/systemd/ukify build --linux=linux --initrd=initrd.img --output=pc-kernel/kernel.efi
-
-    #shellcheck source=tests/lib/nested.sh
-    . "$TESTSLIB/nested.sh"
-    KEY_NAME=$(nested_get_snakeoil_key)
-
-    SNAKEOIL_KEY="$PWD/$KEY_NAME.key"
-    SNAKEOIL_CERT="$PWD/$KEY_NAME.pem"
-
-    # sign the kernel
-    nested_secboot_sign_kernel pc-kernel "$SNAKEOIL_KEY" "$SNAKEOIL_CERT"
+    # Build signed uki image - snakeoil keys shipped by ubuntu-core-initramfs
+    # are used by default
+    objcopy -O binary -j .linux pc-kernel/kernel.efi linux-"$kernelver"
+    ubuntu-core-initramfs create-efi --kernelver="$kernelver" --initrd initrd.img --kernel linux --output kernel.efi
+    cp kernel.efi-"$kernelver" pc-kernel/kernel.efi
 
     # copy any extra files that tests may need for the kernel
     if [ -d ./extra-kernel-snap/ ]; then
@@ -1263,8 +1276,9 @@ EOF
         test -e pc-kernel.snap
         # build the initramfs with our snapd assets into the kernel snap
         if is_test_target_core_ge 24; then
+            build_and_install_initramfs_deb
             uc24_build_initramfs_kernel_snap "$PWD/pc-kernel.snap" "$IMAGE_HOME"
-        else    
+        else
             uc20_build_initramfs_kernel_snap "$PWD/pc-kernel.snap" "$IMAGE_HOME"
         fi
         EXTRA_FUNDAMENTAL="--snap $IMAGE_HOME/pc-kernel_*.snap"

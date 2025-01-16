@@ -168,32 +168,32 @@ const asyncResp = `{
 	"status-code": 202
 }`
 
-type registrySuite struct {
+type confdbSuite struct {
 	BaseSnapSuite
 	tmpDir string
 }
 
-var _ = check.Suite(&registrySuite{})
+var _ = check.Suite(&confdbSuite{})
 
-func (s *registrySuite) SetUp(c *check.C) {
+func (s *confdbSuite) SetUp(c *check.C) {
 	s.BaseSnapSuite.SetUpTest(c)
 	s.tmpDir = c.MkDir()
 }
 
-func (s *registrySuite) mockRegistryFlag(c *check.C) (restore func()) {
+func (s *confdbSuite) mockConfdbFlag(c *check.C) (restore func()) {
 	old := dirs.FeaturesDir
 	dirs.FeaturesDir = s.tmpDir
 
-	registryCtlFile := features.Registries.ControlFile()
-	c.Assert(os.WriteFile(registryCtlFile, []byte(nil), 0644), check.IsNil)
+	confdbCtlFile := features.Confdbs.ControlFile()
+	c.Assert(os.WriteFile(confdbCtlFile, []byte(nil), 0644), check.IsNil)
 
 	return func() {
-		c.Assert(os.Remove(registryCtlFile), check.IsNil)
+		c.Assert(os.Remove(confdbCtlFile), check.IsNil)
 		dirs.FeaturesDir = old
 	}
 }
 
-func (s *registrySuite) mockRegistryServer(c *check.C, expectedRequest string, nowait bool) {
+func (s *confdbSuite) mockConfdbServer(c *check.C, expectedRequest string, nowait bool) {
 	fail := func(w http.ResponseWriter, err error) {
 		w.WriteHeader(500)
 		fmt.Fprintf(w, `{"type": "error", "result": {"message": %q}}`, err)
@@ -205,7 +205,7 @@ func (s *registrySuite) mockRegistryServer(c *check.C, expectedRequest string, n
 		switch reqs {
 		case 0:
 			c.Check(r.Method, check.Equals, "PUT")
-			c.Check(r.URL.Path, check.Equals, "/v2/registry/foo/bar/baz")
+			c.Check(r.URL.Path, check.Equals, "/v2/confdbs/foo/bar/baz")
 			c.Check(r.URL.Query(), check.HasLen, 0)
 
 			raw, err := io.ReadAll(r.Body)
@@ -233,11 +233,11 @@ func (s *registrySuite) mockRegistryServer(c *check.C, expectedRequest string, n
 	})
 }
 
-func (s *registrySuite) TestRegistrySet(c *check.C) {
-	restore := s.mockRegistryFlag(c)
+func (s *confdbSuite) TestConfdbSet(c *check.C) {
+	restore := s.mockConfdbFlag(c)
 	defer restore()
 
-	s.mockRegistryServer(c, `{"abc":"cba"}`, false)
+	s.mockConfdbServer(c, `{"abc":"cba"}`, false)
 
 	rest, err := snapset.Parser(snapset.Client()).ParseArgs([]string{"set", "foo/bar/baz", `abc="cba"`})
 	c.Assert(err, check.IsNil)
@@ -247,11 +247,11 @@ func (s *registrySuite) TestRegistrySet(c *check.C) {
 	c.Check(s.Stderr(), check.Equals, "")
 }
 
-func (s *registrySuite) TestRegistrySetMany(c *check.C) {
-	restore := s.mockRegistryFlag(c)
+func (s *confdbSuite) TestConfdbSetMany(c *check.C) {
+	restore := s.mockConfdbFlag(c)
 	defer restore()
 
-	s.mockRegistryServer(c, `{"abc":{"foo":1},"xyz":true}`, false)
+	s.mockConfdbServer(c, `{"abc":{"foo":1},"xyz":true}`, false)
 
 	rest, err := snapset.Parser(snapset.Client()).ParseArgs([]string{"set", "foo/bar/baz", `abc={"foo":1}`, "xyz=true"})
 	c.Assert(err, check.IsNil)
@@ -261,20 +261,20 @@ func (s *registrySuite) TestRegistrySetMany(c *check.C) {
 	c.Check(s.Stderr(), check.Equals, "")
 }
 
-func (s *registrySuite) TestRegistrySetInvalidAspectID(c *check.C) {
-	restore := s.mockRegistryFlag(c)
+func (s *confdbSuite) TestConfdbSetInvalidAspectID(c *check.C) {
+	restore := s.mockConfdbFlag(c)
 	defer restore()
 
 	_, err := snapset.Parser(snapset.Client()).ParseArgs([]string{"set", "foo//bar", "foo=bar"})
 	c.Assert(err, check.NotNil)
-	c.Check(err.Error(), check.Equals, "registry identifier must conform to format: <account-id>/<registry>/<view>")
+	c.Check(err.Error(), check.Equals, "confdb identifier must conform to format: <account-id>/<confdb>/<view>")
 }
 
-func (s *registrySuite) TestRegistrySetNoWait(c *check.C) {
-	restore := s.mockRegistryFlag(c)
+func (s *confdbSuite) TestConfdbSetNoWait(c *check.C) {
+	restore := s.mockConfdbFlag(c)
 	defer restore()
 
-	s.mockRegistryServer(c, `{"abc":1}`, true)
+	s.mockConfdbServer(c, `{"abc":1}`, true)
 
 	rest, err := snapset.Parser(snapset.Client()).ParseArgs([]string{"set", "--no-wait", "foo/bar/baz", "abc=1"})
 	c.Assert(err, check.IsNil)
@@ -284,7 +284,7 @@ func (s *registrySuite) TestRegistrySetNoWait(c *check.C) {
 	c.Check(s.Stderr(), check.Equals, "")
 }
 
-func (s *registrySuite) TestRegistrySetDisabledFlag(c *check.C) {
+func (s *confdbSuite) TestConfdbSetDisabledFlag(c *check.C) {
 	var reqs int
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
 		switch reqs {
@@ -299,14 +299,14 @@ func (s *registrySuite) TestRegistrySetDisabledFlag(c *check.C) {
 	})
 
 	_, err := snapset.Parser(snapset.Client()).ParseArgs([]string{"set", "foo/bar/baz", "abc=1"})
-	c.Assert(err, check.ErrorMatches, `the "registries" feature is disabled: set 'experimental.registries' to true`)
+	c.Assert(err, check.ErrorMatches, `the "confdbs" feature is disabled: set 'experimental.confdbs' to true`)
 }
 
-func (s *registrySuite) TestRegistrySetExclamationMark(c *check.C) {
-	restore := s.mockRegistryFlag(c)
+func (s *confdbSuite) TestConfdbSetExclamationMark(c *check.C) {
+	restore := s.mockConfdbFlag(c)
 	defer restore()
 
-	s.mockRegistryServer(c, `{"abc":null}`, false)
+	s.mockConfdbServer(c, `{"abc":null}`, false)
 
 	_, err := snapset.Parser(snapset.Client()).ParseArgs([]string{"set", "foo/bar/baz", "abc!"})
 	c.Assert(err, check.IsNil)

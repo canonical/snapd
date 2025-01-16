@@ -28,6 +28,8 @@ import (
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/systestkeys"
+	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/snapfile"
 )
 
 func snapNameFromPath(snapPath string) string {
@@ -62,6 +64,102 @@ func NewSnapRevision(targetDir string, snap string, headers map[string]interface
 	headers["timestamp"] = time.Now().Format(time.RFC3339)
 
 	a, err := db.Sign(asserts.SnapRevisionType, headers, nil, systestkeys.TestStoreKeyID)
+	if err != nil {
+		return "", err
+	}
+	return writeAssert(a, targetDir)
+}
+
+func NewSnapResourceRevision(targetDir string, compPath string, headers map[string]interface{}) (string, error) {
+	db, err := newAssertsDB(systestkeys.TestStorePrivKey)
+	if err != nil {
+		return "", err
+	}
+	digest, size, err := asserts.SnapFileSHA3_384(compPath)
+	if err != nil {
+		return "", err
+	}
+
+	container, err := snapfile.Open(compPath)
+	if err != nil {
+		return "", err
+	}
+
+	ci, err := snap.ReadComponentInfoFromContainer(container, nil, nil)
+	if err != nil {
+		return "", err
+	}
+
+	required := []string{"snap-id", "resource-revision"}
+	for _, r := range required {
+		if _, ok := headers[r]; !ok {
+			return "", fmt.Errorf("missing required header %q", r)
+		}
+	}
+
+	defaults := map[string]interface{}{
+		"type":              "snap-resource-revision",
+		"authority-id":      "testrootorg",
+		"developer-id":      "testrootorg",
+		"resource-name":     ci.Component.ComponentName,
+		"timestamp":         time.Now().Format(time.RFC3339),
+		"resource-size":     fmt.Sprintf("%d", size),
+		"resource-sha3-384": digest,
+	}
+	for k, v := range defaults {
+		if _, ok := headers[k]; !ok {
+			headers[k] = v
+		}
+	}
+	headers["authority-id"] = "testrootorg"
+	headers["snap-sha3-384"] = digest
+	headers["snap-size"] = fmt.Sprintf("%d", size)
+	headers["timestamp"] = time.Now().Format(time.RFC3339)
+
+	a, err := db.Sign(asserts.SnapResourceRevisionType, headers, nil, systestkeys.TestStoreKeyID)
+	if err != nil {
+		return "", err
+	}
+	return writeAssert(a, targetDir)
+}
+
+func NewSnapResourcePair(targetDir string, compPath string, headers map[string]interface{}) (string, error) {
+	db, err := newAssertsDB(systestkeys.TestStorePrivKey)
+	if err != nil {
+		return "", err
+	}
+
+	container, err := snapfile.Open(compPath)
+	if err != nil {
+		return "", err
+	}
+
+	ci, err := snap.ReadComponentInfoFromContainer(container, nil, nil)
+	if err != nil {
+		return "", err
+	}
+
+	required := []string{"snap-id", "resource-revision", "snap-revision"}
+	for _, r := range required {
+		if _, ok := headers[r]; !ok {
+			return "", fmt.Errorf("missing required header %q", r)
+		}
+	}
+
+	defaults := map[string]interface{}{
+		"type":          "snap-resource-pair",
+		"authority-id":  "testrootorg",
+		"developer-id":  "testrootorg",
+		"resource-name": ci.Component.ComponentName,
+		"timestamp":     time.Now().Format(time.RFC3339),
+	}
+	for k, v := range defaults {
+		if _, ok := headers[k]; !ok {
+			headers[k] = v
+		}
+	}
+
+	a, err := db.Sign(asserts.SnapResourcePairType, headers, nil, systestkeys.TestStoreKeyID)
 	if err != nil {
 		return "", err
 	}

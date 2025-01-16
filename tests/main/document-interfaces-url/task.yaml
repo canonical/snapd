@@ -16,7 +16,7 @@ execute: |
 
         for _ in $(seq $num_retries); do
             # Make a HEAD request to the URL and capture the HTTP status code
-            status_code=$(curl -o /dev/null -s -w "%{http_code}\n" --connect-timeout 10 "$url")
+            status_code=$(curl -I -o /dev/null -s -w "%{http_code}\n" --connect-timeout 10 "$url")
 
             # If the status code is 2xx the url is ok
             if [ "$status_code" -ge 200 ] && [ "$status_code" -lt 300 ]; then
@@ -26,6 +26,13 @@ execute: |
             # If status code is 500 means the server is not working properly
             if [ "$status_code" == 500 ]; then
                 return 0
+            fi
+
+            # we've sent too many requests. A manual check showed that the server
+            # doesn't include a Retry-After header so for now just wait a few seconds
+            # so just wait a couple of seconds before retrying
+            if [ "$status_code" == 429 ]; then
+              sleep 5
             fi
         done
         # If status code 4xx is returned then the page is not found, return error
@@ -38,15 +45,8 @@ execute: |
     # The expiry date is <expiration year>/<expiration month>      
     
     declare -A exclusion_map
-    # registries are still in the experimental phase so its page is not exposed yet
-    exclusion_map["registry"]="2025/03"
-    # we have documentation pages for these interfaces but they have underscores
-    # in the URL instead of dashes. Due to issues w/ Discourse we can't fix it
-    # at the moment, so we need to skip these checks for a bit
-    exclusion_map["intel-qat"]="2025/01"
-    exclusion_map["microceph-support"]="2025/01"
-    exclusion_map["xilinx-dma"]="2025/01"
-    exclusion_map["snap-interfaces-requests-control"]="2025/01"
+    # confdb are still in the experimental phase so its page is not exposed yet
+    exclusion_map["confdb"]="2025/03"
     # we're actually missing this page but can't add it yet due to the same Discourse issues
     exclusion_map["nomad-support"]="2024/12"
 

@@ -808,6 +808,7 @@ var (
 		"bluez":                     {"app", "core"},
 		"bool-file":                 {"core", "gadget"},
 		"browser-support":           {"core"},
+		"checkbox-support":          {"core"},
 		"content":                   {"app", "gadget", "kernel"},
 		"core-support":              {"core"},
 		"cups":                      {"app"},
@@ -1010,7 +1011,9 @@ func (s *baseDeclSuite) TestPlugInstallation(c *C) {
 	all := builtin.Interfaces()
 
 	restricted := map[string]bool{
+		"auditd-support":                   true,
 		"block-devices":                    true,
+		"checkbox-support":                 true,
 		"classic-support":                  true,
 		"desktop-launch":                   true,
 		"dm-crypt":                         true,
@@ -1307,9 +1310,11 @@ func (s *baseDeclSuite) TestValidity(c *C) {
 	// given how the rules work this can be delicate,
 	// listed here to make sure that was a conscious decision
 	bothSides := map[string]bool{
+		"auditd-support":                   true,
 		"block-devices":                    true,
 		"audio-playback":                   true,
 		"classic-support":                  true,
+		"checkbox-support":                 true,
 		"core-support":                     true,
 		"custom-device":                    true,
 		"desktop":                          true,
@@ -1356,7 +1361,7 @@ func (s *baseDeclSuite) TestValidity(c *C) {
 		"userns":                           true,
 		"wayland":                          true,
 		"xilinx-dma":                       true,
-		"registry":                         true,
+		"confdb":                           true,
 	}
 
 	for _, iface := range all {

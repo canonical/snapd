@@ -16,7 +16,7 @@ execute: |
     snap download test-snapd-sh
 
     echo "Try to install the snap without assertions"
-    (snap install test-snapd-sh_*.snap 2>&1 || true) | MATCH 'cannot find signatures with metadata for snap "test-snapd-sh.*\.snap"'
+    (snap install test-snapd-sh_*.snap 2>&1 || true) | tr '\n' ' ' | tr -s ' ' | MATCH 'cannot find signatures with metadata for snap/component "test-snapd-sh.*\.snap"'
 
     echo "Add its assertions"
     snap ack test-snapd-sh_*.assert

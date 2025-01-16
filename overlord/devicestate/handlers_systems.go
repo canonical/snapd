@@ -40,8 +40,6 @@ import (
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/seed"
-	"github.com/snapcore/snapd/snap"
-	"github.com/snapcore/snapd/snap/snapfile"
 	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/timings"
 )
@@ -307,79 +305,7 @@ func (m *DeviceManager) doCreateRecoverySystem(t *state.Task, _ *tomb.Tomb) (err
 	label := setup.Label
 	systemDirectory := setup.Directory
 
-	// get all infos
-	infoGetter := func(name string) (info *snap.Info, path string, present bool, err error) {
-		// snaps will come from one of these places:
-		//   * passed into the task via a list of side infos (these would have
-		//     come from a user posting snaps via the API)
-		//   * have just been downloaded by a task in setup.SnapSetupTasks
-		//   * already installed on the system
-
-		for _, l := range setup.LocalSnaps {
-			if l.SideInfo.RealName != name {
-				continue
-			}
-
-			snapf, err := snapfile.Open(l.Path)
-			if err != nil {
-				return nil, "", false, err
-			}
-
-			info, err := snap.ReadInfoFromSnapFile(snapf, l.SideInfo)
-			if err != nil {
-				return nil, "", false, err
-			}
-
-			return info, l.Path, true, nil
-		}
-
-		// in a remodel scenario, the snaps may need to be fetched and thus
-		// their content can be different from what we have in already installed
-		// snaps, so we should first check the download tasks before consulting
-		// snapstate
-		logger.Debugf("requested info for snap %q being installed during remodel", name)
-		for _, tskID := range setup.SnapSetupTasks {
-			taskWithSnapSetup := st.Task(tskID)
-			snapsup, err := snapstate.TaskSnapSetup(taskWithSnapSetup)
-			if err != nil {
-				return nil, "", false, err
-			}
-			if snapsup.SnapName() != name {
-				continue
-			}
-			// by the time this task runs, the file has already been
-			// downloaded and validated
-			snapFile, err := snapfile.Open(snapsup.MountFile())
-			if err != nil {
-				return nil, "", false, err
-			}
-			info, err = snap.ReadInfoFromSnapFile(snapFile, snapsup.SideInfo)
-			if err != nil {
-				return nil, "", false, err
-			}
-
-			return info, info.MountFile(), true, nil
-		}
-
-		// either a remodel scenario, in which case the snap is not
-		// among the ones being fetched, or just creating a recovery
-		// system, in which case we use the snaps that are already
-		// installed
-
-		info, err = snapstate.CurrentInfo(st, name)
-		if err == nil {
-			hash, _, err := asserts.SnapFileSHA3_384(info.MountFile())
-			if err != nil {
-				return nil, "", true, fmt.Errorf("cannot compute SHA3 of snap file: %v", err)
-			}
-			info.Sha3_384 = hash
-			return info, info.MountFile(), true, nil
-		}
-		if _, ok := err.(*snap.NotInstalledError); !ok {
-			return nil, "", false, err
-		}
-		return nil, "", false, nil
-	}
+	infoGetter := setupInfoGetter{setup: setup}
 
 	observeSnapFileWrite := func(recoverySystemDir, where string) error {
 		if recoverySystemDir != systemDirectory {
@@ -434,7 +360,7 @@ func (m *DeviceManager) doCreateRecoverySystem(t *state.Task, _ *tomb.Tomb) (err
 	// creation could have been interrupted by an unexpected reboot;
 	// consider clearing the recovery system directory and restarting from
 	// scratch
-	_, err = createSystemForModelFromValidatedSnaps(model, label, db, infoGetter, observeSnapFileWrite)
+	_, err = createSystemForModelFromValidatedSnaps(st, model, label, db, &infoGetter, observeSnapFileWrite)
 	if err != nil {
 		return fmt.Errorf("cannot create a recovery system with label %q for %v: %v", label, model.Model(), err)
 	}

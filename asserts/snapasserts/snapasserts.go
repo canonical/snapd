@@ -327,6 +327,24 @@ func DeriveSideInfo(snapPath string, model *asserts.Model, db Finder) (*snap.Sid
 	return DeriveSideInfoFromDigestAndSize(snapPath, snapSHA3_384, snapSize, model, db)
 }
 
+// DeriveComponentSideInfo constructs a ComponentSideInfo from the given path,
+// which should be the path to a component file. We also assert that the
+// resource-revision assertion and the snap-resource-pair for this given
+// component are present in the given database.
+func DeriveComponentSideInfo(name, path string, info *snap.Info, model *asserts.Model, db Finder) (*snap.ComponentSideInfo, error) {
+	digest, size, err := asserts.SnapFileSHA3_384(path)
+	if err != nil {
+		return nil, err
+	}
+
+	csi, err := DeriveComponentSideInfoFromDigestAndSize(name, info.SnapName(), info.ID(), path, digest, size, model, db)
+	if err != nil {
+		return nil, err
+	}
+
+	return csi, nil
+}
+
 // DeriveSideInfoFromDigestAndSize tries to construct a SideInfo
 // using digest and size as provided for the snap to find the relevant
 // snap assertions with the information in the given database. It will
@@ -509,12 +527,12 @@ func FetchStore(f asserts.Fetcher, storeID string) error {
 	return f.Fetch(ref)
 }
 
-// FetchRegistry fetches a registry assertion described by account and registry
+// FetchConfdb fetches a confdb assertion described by account and confdb
 // name using the given fetcher.
-func FetchRegistry(f asserts.Fetcher, account, registryName string) error {
+func FetchConfdb(f asserts.Fetcher, account, confdbName string) error {
 	ref := &asserts.Ref{
-		Type:       asserts.RegistryType,
-		PrimaryKey: []string{account, registryName},
+		Type:       asserts.ConfdbType,
+		PrimaryKey: []string{account, confdbName},
 	}
 
 	return f.Fetch(ref)

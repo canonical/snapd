@@ -62,19 +62,25 @@
                   username: ubuntu
                   password: ubuntu
             - ubuntu-core-20-arm-64-rpi4:
-                  queue: rpi4b8g
+                  queue: rpi4b
                   image: https://storage.googleapis.com/snapd-spread-tests/images/pi4-20-stable-snapd_beta/pi.img.xz
                   workers: 1
                   username: ubuntu
                   password: ubuntu
             - ubuntu-core-22-arm-64-rpi4:
-                  queue: rpi4b8g
+                  queue: rpi4b
                   image: https://storage.googleapis.com/snapd-spread-tests/images/pi4-22-stable-snapd_beta/pi.img.xz
                   workers: 1
                   username: ubuntu
                   password: ubuntu
             - ubuntu-core-24-arm-64-rpi4:
-                  queue: rpi4b8g
+                  queue: rpi4b
+                  image: https://storage.googleapis.com/snapd-spread-tests/images/pi4-24-stable-snapd_beta/pi.img.xz
+                  workers: 1
+                  username: ubuntu
+                  password: ubuntu
+            - ubuntu-core-24-arm-64-rpi5:
+                  queue: rpi5b
                   image: https://storage.googleapis.com/snapd-spread-tests/images/pi4-24-stable-snapd_beta/pi.img.xz
                   workers: 1
                   username: ubuntu

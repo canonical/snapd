@@ -21,6 +21,7 @@ package naming
 
 import (
 	"fmt"
+	"regexp"
 	"strings"
 )
 
@@ -74,4 +75,21 @@ func (cid *ComponentRef) UnmarshalYAML(unmarshall func(interface{}) error) error
 	*cid = ComponentRef{SnapName: snap, ComponentName: comp}
 
 	return nil
+}
+
+// snapPackComponentFilename is a regular expression that matches what snap pack
+// creates when building a component. For example, "foo+bar_1.0.0.comp" matches
+// this expression.
+var snapPackComponentFilename = regexp.MustCompile(fmt.Sprintf(`^(%[1]s)\+(%[1]s)(?:_.*)?\.comp$`, almostValidNameRegexString))
+
+// ComponentRefFromSnapPackFilename parses a filename created when creating a
+// component with "snap pack". These are generally in one of two forms:
+//   - <snap>+<comp>.comp
+//   - <snap>+<comp>_<version>.comp
+func ComponentRefFromSnapPackFilename(filename string) (ComponentRef, error) {
+	matches := snapPackComponentFilename.FindStringSubmatch(filename)
+	if len(matches) != 3 {
+		return ComponentRef{}, fmt.Errorf("cannot parse snap pack component filename: %q", filename)
+	}
+	return NewComponentRef(matches[1], matches[2]), nil
 }

@@ -4,14 +4,15 @@ export LANG=C.UTF-8
 export LANGUAGE=en
 
 if command -v goctest >/dev/null; then
-    goctest="goctest"
+    goctest="goctest ./..."
 else
-    goctest="go test"
+    goctest="go test ./..."
 fi
 COVERMODE=${COVERMODE:-atomic}
 COVERAGE_SUFFIX=${GO_BUILD_TAGS:-notags}
 COVERAGE_OUT=${COVERAGE_OUT:-.coverage/coverage-$COVERAGE_SUFFIX.cov}
 CHANGED_FILES=${CHANGED_FILES:-""}
+TIMEOUT=${TIMEOUT:-15}
 
 if [ -z "${GITHUB_WORKFLOW:-}" ]; then
     # when *not* running inside github, ensure we use go-1.18 by default
@@ -115,8 +116,7 @@ missing_interface_spread_test() {
     for iface in $(go run ./tests/lib/list-interfaces.go) ; do
         search="plugs: \\[ $iface \\]"
         case "$iface" in
-            # TODO: remove registry once we test the interface in the spread test
-            bool-file|gpio|pwm|dsp|netlink-driver|hidraw|i2c|iio|serial-port|spi|registry)
+            bool-file|gpio|pwm|dsp|netlink-driver|hidraw|i2c|iio|serial-port|spi|confdb)
                 # skip gadget provided interfaces for now
                 continue
                 ;;
@@ -166,7 +166,7 @@ if [ "$STATIC" = 1 ]; then
         echo Checking pull request summary
         ./check-pr-title.py "${GITHUB_PULL_REQUEST_TITLE}"
     else
-	echo Skipping pull request summary check: not a pull request
+        echo Skipping pull request summary check: not a pull request
     fi
 
     # check commit author/committer name for unicode
@@ -398,7 +398,7 @@ if [ "$STATIC" = 1 ]; then
 
         echo "Checking installation of golangci-lint"
         gcil="$(command -v golangci-lint || true)"
-        if [ -z "$gcil" ]; then 
+        if [ -z "$gcil" ]; then
             echo "ERROR: Cannot find golangci-lint. You need to first install the golangci-lint"
             exit 1
         fi
@@ -435,7 +435,7 @@ if [ "$UNIT" = 1 ]; then
 
     tags=
     race=
-    timeout="5m"
+    timeout="${TIMEOUT}m"
     if [ -n "${GO_BUILD_TAGS:-}" ]; then
         echo "Using build tags: $GO_BUILD_TAGS"
         tags="-tags $GO_BUILD_TAGS"
@@ -443,7 +443,7 @@ if [ "$UNIT" = 1 ]; then
     if [ -n "${GO_TEST_RACE:-}" ]; then
         echo "Using go test -race"
         race="-race"
-        timeout="10m"
+        timeout="$((TIMEOUT*2))m"
     fi
 
     echo Building
@@ -455,7 +455,7 @@ if [ "$UNIT" = 1 ]; then
     if [ "$short" = 1 ]; then
             echo "Running without test coverage"
             # shellcheck disable=SC2046,SC2086
-            GOTRACEBACK=1 $goctest $tags $race -short -timeout $timeout $(go list ./... | grep -v '/vendor/' )
+            GOTRACEBACK=1 $goctest $tags $race -short -timeout $timeout
     else
         coverage=""
         if [ -z "${SKIP_COVERAGE:-}" ]; then
@@ -468,7 +468,7 @@ if [ "$UNIT" = 1 ]; then
         fi
 
         # shellcheck disable=SC2046,SC2086
-        GOTRACEBACK=1 $goctest $tags $race -timeout $timeout $coverage $(go list ./... | grep -v '/vendor/' )
+        GOTRACEBACK=1 $goctest $tags $race -timeout $timeout $coverage
     fi
 
     # python unit test for mountinfo.query and version-compare

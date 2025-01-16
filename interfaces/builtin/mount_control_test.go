@@ -28,6 +28,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/interfaces/seccomp"
+	"github.com/snapcore/snapd/osutil/mount/libmount"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/systemd"
 	"github.com/snapcore/snapd/testutil"
@@ -456,4 +457,25 @@ func (s *MountControlInterfaceSuite) TestMountDevicePathWithCommas(c *C) {
 	plug, _ := MockConnectedPlug(c, snapYaml, nil, "mntctl")
 	err := interfaces.BeforeConnectPlug(s.iface, plug)
 	c.Check(err, IsNil)
+}
+
+func (s *MountControlInterfaceSuite) TestConflictingMountOptions(c *C) {
+	plugYaml := `
+  mount:
+  - persistent: true
+    what: /dev/foo
+    where: /mnt/foo
+    options: [rw, ro]
+`
+	snapYaml := fmt.Sprintf(mountControlYaml, plugYaml)
+	plug, _ := MockConnectedPlug(c, snapYaml, nil, "mntctl")
+	err := interfaces.BeforeConnectPlug(s.iface, plug)
+	c.Check(err, ErrorMatches, "mount-control options are inconsistent: option ro conflicts with rw")
+}
+
+func (s *MountControlInterfaceSuite) TestMountOptionsAreValid(c *C) {
+	// All the options we claim to support are also allowed by the validator.
+	for _, opt := range builtin.AllowedKernelMountOptions() {
+		c.Check(libmount.ValidateMountOptions(opt), IsNil)
+	}
 }

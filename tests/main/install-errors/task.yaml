@@ -15,7 +15,7 @@ environment:
 
 prepare: |
     if [ "$SNAP_REEXEC" = "0" ] && tests.info is-snapd-from-archive; then
-        tests.exec skip-test "No needed to test the snap pkg when it is coming from the repository" && exit 0
+        tests.exec skip-test "No need to test when the snapd pkg is from the repository and reexec is disabled" && exit 0
     fi
 
     echo "Given a snap with a failing command is installed"

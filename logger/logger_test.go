@@ -150,7 +150,7 @@ func (s *LogSuite) TestDebugfEnv(c *C) {
 	defer os.Unsetenv("SNAPD_DEBUG")
 
 	logger.Debugf("xyzzy")
-	c.Check(s.logbuf.String(), testutil.Contains, `DEBUG: xyzzy`)
+	c.Check(s.logbuf.String(), Matches, `(?m).*logger_test\.go:\d+: DEBUG: xyzzy`)
 }
 
 func (s *LogSuite) TestNoticef(c *C) {

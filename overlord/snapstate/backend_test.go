@@ -61,10 +61,11 @@ type fakeOp struct {
 	sinfo snap.SideInfo
 	stype snap.Type
 
-	componentName     string
-	componentPath     string
-	componentRev      snap.Revision
-	componentSideInfo snap.ComponentSideInfo
+	componentName                   string
+	componentPath                   string
+	componentRev                    snap.Revision
+	componentSideInfo               snap.ComponentSideInfo
+	componentSkipAssertionsDownload bool
 
 	curSnaps []store.CurrentSnap
 	action   store.SnapAction
@@ -196,6 +197,16 @@ type fakeStore struct {
 	snapResourcesFn func(*snap.Info) []store.SnapResourceResult
 
 	downloadCallback func()
+
+	namesToAssertedIDs map[string]string
+	idsToNames         map[string]string
+
+	mutateSnapInfo func(*snap.Info) error
+}
+
+func (f *fakeStore) registerID(name, id string) {
+	f.namesToAssertedIDs[name] = id
+	f.idsToNames[id] = name
 }
 
 func (f *fakeStore) snapResources(info *snap.Info) []store.SnapResourceResult {
@@ -262,7 +273,12 @@ func (f *fakeStore) snap(spec snapSpec) (*snap.Info, error) {
 
 	typ := snap.TypeApp
 	epoch := snap.E("1*")
+
 	snapID := spec.Name + "-id"
+	if id, ok := f.namesToAssertedIDs[spec.Name]; ok {
+		snapID = id
+	}
+
 	switch spec.Name {
 	case "core", "core16", "ubuntu-core", "some-core":
 		typ = snap.TypeOS
@@ -379,11 +395,11 @@ func (f *fakeStore) snap(spec snapSpec) (*snap.Info, error) {
 			},
 		}
 		slot.Apps["dbus-daemon"] = info.Apps["dbus-daemon"]
-	case "channel-for-registry":
+	case "channel-for-confdb":
 		info.Plugs = map[string]*snap.PlugInfo{
 			"my-plug": {
 				Snap:      info,
-				Interface: "registry",
+				Interface: "confdb",
 				Name:      "my-plug",
 				Attrs: map[string]interface{}{
 					"account": "my-publisher",
@@ -419,6 +435,12 @@ func (f *fakeStore) snap(spec snapSpec) (*snap.Info, error) {
 
 	if spec.Name == "provenance-snap" {
 		info.SnapProvenance = "prov"
+	}
+
+	if f.mutateSnapInfo != nil {
+		if err := f.mutateSnapInfo(info); err != nil {
+			return nil, err
+		}
 	}
 
 	return info, nil
@@ -534,7 +556,10 @@ func (f *fakeStore) lookupRefresh(cand refreshCand) (*snap.Info, error) {
 		name = "kernel-snap-with-components"
 		typ = snap.TypeKernel
 	default:
-		panic(fmt.Sprintf("refresh: unknown snap-id: %s", cand.snapID))
+		name = f.idsToNames[cand.snapID]
+		if name == "" {
+			panic(fmt.Sprintf("refresh: unknown snap-id: %s", cand.snapID))
+		}
 	}
 
 	revno := snap.R(11)
@@ -634,17 +659,23 @@ func (f *fakeStore) lookupRefresh(cand refreshCand) (*snap.Info, error) {
 	case "channel-for-core22/stable":
 		info.Base = "core22"
 		info.Revision = snap.R(2)
-	case "channel-for-registry":
+	case "channel-for-confdb":
 		info.Plugs = map[string]*snap.PlugInfo{
 			"my-plug": {
 				Snap:      info,
-				Interface: "registry",
+				Interface: "confdb",
 				Name:      "my-plug",
 				Attrs: map[string]interface{}{
 					"account": "my-publisher",
 					"view":    "my-reg/my-view",
 				},
 			},
+		}
+	}
+
+	if f.mutateSnapInfo != nil {
+		if err := f.mutateSnapInfo(info); err != nil {
+			return nil, err
 		}
 	}
 
@@ -1627,6 +1658,7 @@ func (f *fakeSnappyBackend) ForeignTask(kind string, status state.Status, snapsu
 		op.componentPath = compsup.CompPath
 		op.componentRev = compsup.Revision()
 		op.componentSideInfo = *compsup.CompSideInfo
+		op.componentSkipAssertionsDownload = compsup.SkipAssertionsDownload
 	}
 
 	f.appendOp(op)

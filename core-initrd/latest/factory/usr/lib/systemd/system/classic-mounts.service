@@ -1,0 +1,17 @@
+[Unit]
+Description=Create mount units specific to classic
+OnFailure=emergency.target
+OnFailureJobMode=replace-irreversibly
+
+DefaultDependencies=no
+
+Requires=initrd-root-fs.target
+After=initrd-root-fs.target
+Before=initrd-fs.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+# We force re-running kernel-snap-generator
+ExecStart=systemctl daemon-reload
+StandardError=journal+console

@@ -13,7 +13,7 @@ systems: [ubuntu-18.04-64]
 kill-timeout: 30m
 
 environment:
-    IMAGE_FILE: /tmp/work-dir/images/ubuntu-core-new.img
+    IMAGE_FILE: $SNAPD_WORK_DIR/images/ubuntu-core-new.img
 
 debug: |
     systemctl stop nested-vm || true

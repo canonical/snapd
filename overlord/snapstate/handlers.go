@@ -725,13 +725,18 @@ func (m *SnapManager) doDownloadSnap(t *state.Task, tomb *tomb.Tomb) error {
 	}
 
 	meter := NewTaskProgressAdapterUnlocked(t)
-	targetFn := snapsup.MountFile()
+	targetFn := snapsup.BlobPath()
 
 	dlOpts := &store.DownloadOptions{
 		Scheduled: snapsup.IsAutoRefresh,
 		RateLimit: rate,
 	}
 	if snapsup.DownloadInfo == nil {
+		vsets, err := EnforcedValidationSets(st)
+		if err != nil {
+			return err
+		}
+
 		var result store.SnapActionResult
 		// COMPATIBILITY - this task was created from an older version
 		// of snapd that did not store the DownloadInfo in the state
@@ -739,9 +744,10 @@ func (m *SnapManager) doDownloadSnap(t *state.Task, tomb *tomb.Tomb) error {
 		result, err = sendOneInstallActionUnlocked(context.TODO(), st, StoreSnap{
 			InstanceName: snapsup.InstanceName(),
 			RevOpts: RevisionOptions{
-				Channel:   snapsup.Channel,
-				CohortKey: snapsup.CohortKey,
-				Revision:  snapsup.Revision(),
+				Channel:        snapsup.Channel,
+				CohortKey:      snapsup.CohortKey,
+				Revision:       snapsup.Revision(),
+				ValidationSets: vsets,
 			},
 		}, Options{})
 		if err != nil {
@@ -815,7 +821,7 @@ func (m *SnapManager) doPreDownloadSnap(t *state.Task, tomb *tomb.Tomb) error {
 		return err
 	}
 
-	targetFn := snapsup.MountFile()
+	targetFn := snapsup.BlobPath()
 	dlOpts := &store.DownloadOptions{
 		// pre-downloads are only triggered in auto-refreshes
 		Scheduled: true,

@@ -13,6 +13,7 @@ from urllib.parse import urlparse
 def parse_arguments() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="simple file getter")
     parser.add_argument("-o", "--output", help="output file name")
+    parser.add_argument("-H", "--header", action="append", help="set a header")
     parser.add_argument("URL", help="download URL")
     return parser.parse_args()
 
@@ -41,17 +42,50 @@ def main() -> None:
     # create a temp in the same directory as output
     outdir = os.path.dirname(output)
 
+    headers = {}
+    if opts.header:
+        for hdr in opts.header:
+            h, _, v = hdr.partition(": ")
+            if v == "":
+                raise RuntimeError("invalid header {}".format(hdr))
+            headers[h] = v
+
+    req = request.Request(opts.URL, headers=headers)
     with tempfile.NamedTemporaryFile(mode="wb", dir=outdir, delete=False) as outf:
         name = outf.name
-        outf.close()
+
         try:
             now = datetime.datetime.now()
-            fn, _ = request.urlretrieve(
-                opts.URL, filename=outf.name, reporthook=_report
-            )
+            # recreate what urlretrieve() does
+            with request.urlopen(req) as rsp:
+                bsize = 8 * 1024
+                bcount = 0
+                read = 0
+                size = -1
+
+                if "Content-Length" in rsp.headers:
+                    size = int(rsp.headers["Content-Length"])
+
+                _report(bcount, bsize, size)
+                while True:
+                    data = rsp.read(bsize)
+                    if len(data) == 0:
+                        # done
+                        break
+
+                    read += len(data)
+                    outf.write(data)
+                    _report(bcount, bsize, size)
+
+                if size > 0 and read < size:
+                    raise request.ContentTooShortError(
+                        "got {} out of {} bytes".format(read, size),
+                        (),
+                    )
+
             after = datetime.datetime.now()
 
-            os.rename(fn, output)
+            os.rename(name, output)
         except:
             os.unlink(name)
             raise

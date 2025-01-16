@@ -151,6 +151,16 @@ func SnapNotInstalled(snapName string, err error) *apiError {
 	}
 }
 
+// SnapNotInstalled is an error responder used when an operation is
+// requested on a snap that is not in the system but expected to be.
+func MissingSnapResourcePair(csi *snap.ComponentSideInfo, snapRev snap.Revision) *apiError {
+	return &apiError{
+		Status:  400,
+		Message: fmt.Sprintf("cannot find resource pair connecting component revision %q with snap revision %q for %q", csi.Revision, snapRev, csi.Component),
+		Kind:    client.ErrorKindMissingSnapResourcePair,
+	}
+}
+
 // SnapRevisionNotAvailable is an error responder used when an
 // operation is requested for which no revivision can be found
 // in the given context (e.g. request an install from a stable

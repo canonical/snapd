@@ -1,6 +1,6 @@
 #!/bin/bash
 
-: "${NESTED_WORK_DIR:=/tmp/work-dir}"
+: "${NESTED_WORK_DIR:=/var/tmp/work-dir}"
 : "${NESTED_IMAGES_DIR:=${NESTED_WORK_DIR}/images}"
 : "${NESTED_RUNTIME_DIR:=${NESTED_WORK_DIR}/runtime}"
 : "${NESTED_ASSETS_DIR:=${NESTED_WORK_DIR}/assets}"
@@ -15,6 +15,7 @@
 : "${NESTED_CUSTOM_AUTO_IMPORT_ASSERTION:=}"
 : "${NESTED_FAKESTORE_BLOB_DIR:=${NESTED_WORK_DIR}/fakestore/blobs}"
 : "${NESTED_SIGN_SNAPS_FAKESTORE:=false}"
+: "${NESTED_REPACK_FOR_FAKESTORE:=false}"
 : "${NESTED_FAKESTORE_SNAP_DECL_PC_GADGET:=}"
 : "${NESTED_UBUNTU_IMAGE_SNAPPY_FORCE_SAS_URL:=}"
 : "${NESTED_UBUNTU_IMAGE_PRESEED_KEY:=}"
@@ -414,10 +415,24 @@ nested_secboot_remove_signature() {
 }
 
 nested_secboot_sign_file() {
-    local FILE="$1"
-    local KEY="$2"
-    local CERT="$3"
-    nested_secboot_remove_signature "$FILE"
+    local keep_signatures
+    args=()
+    while [ "${#}" -gt 0 ]; do
+        case "${1}" in
+            --keep-signatures)
+                keep_signatures=1
+                ;;
+            *)
+                args+=("${1}")
+        esac
+        shift
+    done
+    local FILE="${args[0]}"
+    local KEY="${args[1]}"
+    local CERT="${args[2]}"
+    if [ "${keep_signatures+set}" != set ]; then
+        nested_secboot_remove_signature "$FILE"
+    fi
     sbsign --key "$KEY" --cert "$CERT" --output "$FILE" "$FILE"
 }
 
@@ -454,7 +469,7 @@ nested_cleanup_env() {
     rm -rf "$(nested_get_extra_snaps_path)"
 }
 
-nested_get_image_name() {
+nested_get_image_name_base() {
     local TYPE="$1"
     local SOURCE="${NESTED_CORE_CHANNEL}"
     local NAME="${NESTED_IMAGE_ID:-generic}"
@@ -476,7 +491,13 @@ nested_get_image_name() {
     if [ "$(nested_get_extra_snaps | wc -l)" != "0" ]; then
         SOURCE="custom"
     fi
-    echo "ubuntu-${TYPE}-${VERSION}-${SOURCE}-${NAME}.img"
+    echo "ubuntu-${TYPE}-${VERSION}-${SOURCE}-${NAME}"
+}
+
+nested_get_image_name() {
+    local BASE_NAME
+    BASE_NAME="$(nested_get_image_name_base "$1")"
+    echo "${BASE_NAME}.img"
 }
 
 nested_is_generic_image() {
@@ -495,16 +516,24 @@ nested_get_images_path() {
     echo "$NESTED_IMAGES_DIR"
 }
 
-nested_get_extra_snaps() {
-    local EXTRA_SNAPS=""
+nested_get_extra_containers() {
+    local SUFFIX=$1
     local EXTRA_SNAPS_PATH
     EXTRA_SNAPS_PATH="$(nested_get_extra_snaps_path)"
 
     if [ -d "$EXTRA_SNAPS_PATH" ]; then
         while IFS= read -r mysnap; do
             echo "$mysnap"
-        done < <(find "$EXTRA_SNAPS_PATH" -name '*.snap')
+        done < <(find "$EXTRA_SNAPS_PATH" -name "*.$SUFFIX")
     fi
+}
+
+nested_get_extra_snaps() {
+    nested_get_extra_containers snap
+}
+
+nested_get_extra_comps() {
+    nested_get_extra_containers comp
 }
 
 nested_download_image() {
@@ -743,6 +772,14 @@ EOF
                 "$TESTSLIB"/manip_ubuntu_seed.py pc-gadget/meta/gadget.yaml "$NESTED_UBUNTU_SEED_SIZE"
             fi
 
+            if [ "$NESTED_REPACK_FOR_FAKESTORE" = "true" ]; then
+                cat > pc-gadget/meta/hooks/prepare-device << EOF
+#!/bin/sh
+snapctl set device-service.url=http://10.0.2.2:11029
+EOF
+                chmod +x pc-gadget/meta/hooks/prepare-device
+            fi
+
             # pack the gadget
             snap pack pc-gadget/ "$NESTED_ASSETS_DIR"
 
@@ -821,20 +858,24 @@ nested_prepare_essential_snaps() {
 
 nested_configure_default_user() {
     local IMAGE_NAME
+    local IMAGE_PATH
+    
     IMAGE_NAME="$(nested_get_image_name core)"
+    IMAGE_PATH="$(realpath "$NESTED_IMAGES_DIR/$IMAGE_NAME")"
+
     # Configure the user for the vm
     if [ "$NESTED_USE_CLOUD_INIT" = "true" ]; then
         if nested_is_core_ge 20; then
-            nested_configure_cloud_init_on_core20_vm "$NESTED_IMAGES_DIR/$IMAGE_NAME"
+            nested_configure_cloud_init_on_core20_vm "$IMAGE_PATH"
         else
-            nested_configure_cloud_init_on_core_vm "$NESTED_IMAGES_DIR/$IMAGE_NAME"
+            nested_configure_cloud_init_on_core_vm "$IMAGE_PATH"
         fi
     else
         nested_create_assertions_disk
     fi
 
-    # Save a copy of the image
-    cp -v "$NESTED_IMAGES_DIR/$IMAGE_NAME" "$NESTED_IMAGES_DIR/$IMAGE_NAME.pristine"
+    # Save a copy of the primary image
+    cp -v "$IMAGE_PATH" "$IMAGE_PATH.pristine"
 }
 
 nested_create_core_vm() {
@@ -847,14 +888,19 @@ nested_create_core_vm() {
     IMAGE_NAME="$(nested_get_image_name core)"
     mkdir -p "$NESTED_IMAGES_DIR"
 
-    if [ -f "$NESTED_IMAGES_DIR/$IMAGE_NAME.pristine" ]; then
-        cp -v "$NESTED_IMAGES_DIR/$IMAGE_NAME.pristine" "$NESTED_IMAGES_DIR/$IMAGE_NAME"
-        if [ ! "$NESTED_USE_CLOUD_INIT" = "true" ]; then
-            nested_create_assertions_disk
-        fi
-        return
+    if [ -f "$NESTED_IMAGES_DIR/$IMAGE_NAME" ]; then
+        local IMAGE_PATH
+        IMAGE_PATH="$(realpath "$NESTED_IMAGES_DIR/$IMAGE_NAME")"
 
-    elif [ ! -f "$NESTED_IMAGES_DIR/$IMAGE_NAME" ]; then
+        if [ -f "$IMAGE_PATH.pristine" ]; then
+            cp -v "$IMAGE_PATH.pristine" "$IMAGE_PATH"
+            if [ ! "$NESTED_USE_CLOUD_INIT" = "true" ]; then
+                nested_create_assertions_disk
+            fi
+            return
+        fi
+
+    else
         if [ -n "$NESTED_CUSTOM_IMAGE_URL" ]; then
             # download the ubuntu-core image from $CUSTOM_IMAGE_URL
             nested_download_image "$NESTED_CUSTOM_IMAGE_URL" "$IMAGE_NAME"
@@ -876,10 +922,13 @@ nested_create_core_vm() {
             # Invoke ubuntu image
             local NESTED_MODEL
             NESTED_MODEL="$(nested_get_model)"
-            
+
             local EXTRA_SNAPS=""
             for mysnap in $(nested_get_extra_snaps); do
                 EXTRA_SNAPS="$EXTRA_SNAPS --snap $mysnap"
+            done
+            for mycomp in $(nested_get_extra_comps); do
+                EXTRA_SNAPS="$EXTRA_SNAPS --comp $mycomp"
             done
 
             # only set SNAPPY_FORCE_SAS_URL because we don't need it defined 
@@ -914,13 +963,29 @@ nested_create_core_vm() {
             # ubuntu-image dropped the --output parameter, so we have to rename
             # the image ourselves, the images are named after volumes listed in
             # gadget.yaml
+            local IMAGE_BASE_NAME
+            IMAGE_BASE_NAME="$(nested_get_image_name_base core)"
             find "$NESTED_IMAGES_DIR/" -maxdepth 1 -name '*.img' | while read -r imgname; do
-                if [ -e "$NESTED_IMAGES_DIR/$IMAGE_NAME" ]; then
-                    echo "Image $IMAGE_NAME file already present"
+                volname=$(basename "$imgname" .img)
+                mv "$imgname" "$NESTED_IMAGES_DIR/$IMAGE_BASE_NAME-$volname.img"
+            done
+
+            # get the name of the boot-volume, and then create a symlink
+            # between the regular image name and the main volume, additional
+            # volumes must be manually added to the VM creation by the tests
+            local BOOTVOLUME
+            BOOTVOLUME=pc
+            if [ -e pc-gadget/meta/gadget.yaml ]; then
+                # shellcheck disable=SC2016
+                BOOTVOLUME="$(gojq --yaml-input '.volumes | to_entries[] | .key as $p | .value.structure[] | select(.name == "ubuntu-boot") | $p' pc-gadget/meta/gadget.yaml | tr -d '"')"
+                if [ -z "$BOOTVOLUME" ]; then
+                    echo "was not able to deduce the ubuntu-boot partition from gadget.yaml in pc-gadget/meta/gadget.yaml"
+                    echo "please inspect it and make sure it looks as expected"
                     exit 1
                 fi
-                mv "$imgname" "$NESTED_IMAGES_DIR/$IMAGE_NAME"
-            done
+            fi
+            ln -s "$NESTED_IMAGES_DIR/$IMAGE_BASE_NAME-$BOOTVOLUME.img" "$NESTED_IMAGES_DIR/$IMAGE_NAME"
+
             unset SNAPPY_FORCE_SAS_URL
             unset UBUNTU_IMAGE_SNAP_CMD
         fi
@@ -1362,6 +1427,7 @@ nested_start_core_vm() {
         # options, so if that env var is set, we will reuse the existing file if it
         # exists
         local IMAGE_NAME
+        local IMAGE_PATH
         IMAGE_NAME="$(nested_get_image_name core)"
         if ! [ -f "$NESTED_IMAGES_DIR/$IMAGE_NAME" ]; then
             echo "No image found to be started"
@@ -1370,12 +1436,13 @@ nested_start_core_vm() {
 
         # images are created as sparse files, simple cp should preserve that
         # property
-        cp -v "$NESTED_IMAGES_DIR/$IMAGE_NAME" "$CURRENT_IMAGE"
+        IMAGE_PATH="$(realpath "$NESTED_IMAGES_DIR/$IMAGE_NAME")"
+        cp -v "$IMAGE_PATH" "$CURRENT_IMAGE"
 
         # Start the nested core vm
         nested_start_core_vm_unit "$CURRENT_IMAGE"
 
-        if [ ! -f "$NESTED_IMAGES_DIR/$IMAGE_NAME.configured" ]; then
+        if [ ! -f "$IMAGE_PATH.configured" ]; then
             # configure ssh for first time
             nested_prepare_ssh
             sync
@@ -1386,8 +1453,8 @@ nested_start_core_vm() {
                 nested_shutdown
 
                 # Save the image with the name of the original image
-                cp -v "${CURRENT_IMAGE}" "$NESTED_IMAGES_DIR/$IMAGE_NAME"
-                touch "$NESTED_IMAGES_DIR/$IMAGE_NAME.configured"
+                cp -v "${CURRENT_IMAGE}" "$IMAGE_PATH"
+                touch "$IMAGE_PATH.configured"
 
                 # Start the current image again and wait until it is ready
                 nested_start

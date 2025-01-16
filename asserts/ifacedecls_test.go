@@ -265,10 +265,10 @@ func (s *attrConstraintsSuite) TestCompileErrors(c *C) {
 	c.Check(err, ErrorMatches, `cannot compile "foo" constraint "\[": error parsing regexp:.*`)
 
 	_, err = asserts.CompileAttributeConstraints("FOO")
-	c.Check(err, ErrorMatches, `first level of non alternative constraints must be a set of key-value contraints`)
+	c.Check(err, ErrorMatches, `first level of non alternative constraints must be a set of key-value constraints`)
 
 	_, err = asserts.CompileAttributeConstraints([]interface{}{"FOO"})
-	c.Check(err, ErrorMatches, `first level of non alternative constraints must be a set of key-value contraints`)
+	c.Check(err, ErrorMatches, `first level of non alternative constraints must be a set of key-value constraints`)
 
 	wrongDollarConstraints := []string{
 		"$",

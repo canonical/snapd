@@ -31,7 +31,7 @@ prepare: |
     remote.exec "sudo systemctl daemon-reload"
     remote.exec "sudo systemctl restart snapd.service"
 
-    cp "$(ls /tmp/work-dir/snapd_snap/snapd_*.snap)" snapd.snap
+    cp "$(ls "$SNAPD_WORK_DIR"/snapd_snap/snapd_*.snap)" snapd.snap
 
 execute: |
     SNAP=snapd

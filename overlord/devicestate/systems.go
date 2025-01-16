@@ -35,6 +35,8 @@ import (
 	"github.com/snapcore/snapd/seed"
 	"github.com/snapcore/snapd/seed/seedwriter"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
+	"github.com/snapcore/snapd/snap/snapfile"
 	"github.com/snapcore/snapd/strutil"
 )
 
@@ -208,12 +210,169 @@ func seededSystemFromModeenv() (*seededSystem, error) {
 	return seededSys, nil
 }
 
-// getInfoFunc is expected to return for a given snap name a snap.Info for that
-// snap, a path on disk where the snap file can be found, and whether the snap
-// is present. The last bit is relevant for non-essential snaps mentioned in the
-// model, which if present and having an 'optional' presence in the model, will
-// be added to the recovery system.
-type getSnapInfoFunc func(name string) (info *snap.Info, path string, snapIsPresent bool, err error)
+// infoGetter is an interface that helps us get information about snaps and
+// components that are being installed in a new recovery system.
+type infoGetter interface {
+	// SnapInfo is expected to return for a given snap name a snap.Info for that
+	// snap, a path on disk where the snap file can be found, and whether the
+	// snap is present. The last bit is relevant for non-essential snaps
+	// mentioned in the model, which if present and having an 'optional'
+	// presence in the model, will be added to the recovery system.
+	SnapInfo(st *state.State, name string) (info *snap.Info, path string, snapIsPresent bool, err error)
+	// ComponentInfo is expected to return for a given component ref a
+	// snap.ComponentInfo for that component, a path on disk where the component
+	// file can be found, and whether the component is present. The last bit is
+	// relevant for non-essential components mentioned in the model, which if
+	// present and having an 'optional' presence in the model, will be added to
+	// the recovery system.
+	ComponentInfo(st *state.State, cref naming.ComponentRef, snapInfo *snap.Info) (info *snap.ComponentInfo, path string, present bool, err error)
+}
+
+// setupInfoGetter is an infoGetter that uses a recoverySystemSetup to get
+// information about snaps and components that are being installed in a new
+// recovery system.
+type setupInfoGetter struct {
+	setup *recoverySystemSetup
+}
+
+func (ig *setupInfoGetter) ComponentInfo(st *state.State, cref naming.ComponentRef, snapInfo *snap.Info) (info *snap.ComponentInfo, path string, present bool, err error) {
+	// components will come from one of these places:
+	//   * have just been downloaded by a task in setup.ComponentSetupTasks
+	//   * already installed on the system
+	//
+	// TODO:COMPS: handle components passed into the task via a list of side
+	// infos (these would have come from a user posting components via the API)
+
+	// in a remodel scenario, the components may need to be fetched and thus
+	// their content can be different from what we have already installed, so we
+	// should first check the download tasks before consulting snapstate
+	logger.Debugf("requested info for component %q being installed during remodel", cref)
+	for _, tskID := range ig.setup.ComponentSetupTasks {
+		taskWithComponentSetup := st.Task(tskID)
+		compsup, snapsup, err := snapstate.TaskComponentSetup(taskWithComponentSetup)
+		if err != nil {
+			return nil, "", false, err
+		}
+		if compsup.CompSideInfo.Component != cref {
+			continue
+		}
+
+		mountFile := compsup.BlobPath(snapsup.InstanceName())
+
+		f, err := snapfile.Open(mountFile)
+		if err != nil {
+			return nil, "", false, err
+		}
+
+		info, err = snap.ReadComponentInfoFromContainer(f, snapInfo, compsup.CompSideInfo)
+		if err != nil {
+			return nil, "", false, err
+		}
+
+		return info, mountFile, true, nil
+	}
+
+	// either a remodel scenario, in which case the component is not among the
+	// ones being fetched, or just creating a recovery system, in which case we
+	// use the components that are already installed
+
+	var snapst snapstate.SnapState
+	if err := snapstate.Get(st, snapInfo.InstanceName(), &snapst); err != nil {
+		if errors.Is(err, state.ErrNoState) {
+			return nil, "", false, nil
+		}
+		return nil, "", false, err
+	}
+
+	info, err = snapst.CurrentComponentInfo(cref)
+	if err != nil {
+		if errors.Is(err, snapstate.ErrNoCurrent) {
+			return nil, "", false, nil
+		}
+		return nil, "", false, err
+	}
+
+	cpi := snap.MinimalComponentContainerPlaceInfo(
+		cref.ComponentName,
+		info.Revision,
+		snapInfo.InstanceName(),
+	)
+
+	return info, cpi.MountFile(), true, nil
+}
+
+func (ig *setupInfoGetter) SnapInfo(st *state.State, name string) (info *snap.Info, path string, present bool, err error) {
+	// snaps will come from one of these places:
+	//   * passed into the task via a list of side infos (these would have
+	//     come from a user posting snaps via the API)
+	//   * have just been downloaded by a task in setup.SnapSetupTasks
+	//   * already installed on the system
+
+	for _, l := range ig.setup.LocalSnaps {
+		if l.SideInfo.RealName != name {
+			continue
+		}
+
+		snapf, err := snapfile.Open(l.Path)
+		if err != nil {
+			return nil, "", false, err
+		}
+
+		info, err := snap.ReadInfoFromSnapFile(snapf, l.SideInfo)
+		if err != nil {
+			return nil, "", false, err
+		}
+
+		return info, l.Path, true, nil
+	}
+
+	// in a remodel scenario, the snaps may need to be fetched and thus
+	// their content can be different from what we have in already installed
+	// snaps, so we should first check the download tasks before consulting
+	// snapstate
+	logger.Debugf("requested info for snap %q being installed during remodel", name)
+	for _, tskID := range ig.setup.SnapSetupTasks {
+		taskWithSnapSetup := st.Task(tskID)
+		snapsup, err := snapstate.TaskSnapSetup(taskWithSnapSetup)
+		if err != nil {
+			return nil, "", false, err
+		}
+		if snapsup.SnapName() != name {
+			continue
+		}
+		// by the time this task runs, the file has already been
+		// downloaded and validated
+		snapFile, err := snapfile.Open(snapsup.BlobPath())
+		if err != nil {
+			return nil, "", false, err
+		}
+		info, err = snap.ReadInfoFromSnapFile(snapFile, snapsup.SideInfo)
+		if err != nil {
+			return nil, "", false, err
+		}
+
+		return info, info.MountFile(), true, nil
+	}
+
+	// either a remodel scenario, in which case the snap is not
+	// among the ones being fetched, or just creating a recovery
+	// system, in which case we use the snaps that are already
+	// installed
+
+	info, err = snapstate.CurrentInfo(st, name)
+	if err == nil {
+		hash, _, err := asserts.SnapFileSHA3_384(info.MountFile())
+		if err != nil {
+			return nil, "", true, fmt.Errorf("cannot compute SHA3 of snap file: %v", err)
+		}
+		info.Sha3_384 = hash
+		return info, info.MountFile(), true, nil
+	}
+	if _, ok := err.(*snap.NotInstalledError); !ok {
+		return nil, "", false, err
+	}
+	return nil, "", false, nil
+}
 
 // snapWriteObserveFunc is called with the recovery system directory and the
 // path to a snap file being written. The snap file may be written to a location
@@ -229,7 +388,14 @@ type snapWriteObserveFunc func(systemDir, where string) error
 // recovery system - some snaps may be in the recovery system directory while
 // others may be in the common snaps directory shared between multiple recovery
 // systems on ubuntu-seed.
-func createSystemForModelFromValidatedSnaps(model *asserts.Model, label string, db asserts.RODatabase, getInfo getSnapInfoFunc, observeWrite snapWriteObserveFunc) (dir string, err error) {
+func createSystemForModelFromValidatedSnaps(
+	st *state.State,
+	model *asserts.Model,
+	label string,
+	db asserts.RODatabase,
+	getInfo infoGetter,
+	observeWrite snapWriteObserveFunc,
+) (dir string, err error) {
 	if model.Grade() == asserts.ModelGradeUnset {
 		return "", fmt.Errorf("cannot create a system for pre-UC20 model")
 	}
@@ -245,6 +411,11 @@ func createSystemForModelFromValidatedSnaps(model *asserts.Model, label string, 
 		// RW mount of ubuntu-seed
 		SeedDir: boot.InitramfsUbuntuSeedDir,
 		Label:   label,
+
+		// due to the way that temp files are handled in daemon, they do not
+		// have .snap or .comp extensions. this flag lets us ignore that
+		// requirement.
+		IgnoreOptionFileExtentions: true,
 	}
 	w, err := seedwriter.New(model, wOpts)
 	if err != nil {
@@ -254,57 +425,85 @@ func createSystemForModelFromValidatedSnaps(model *asserts.Model, label string, 
 	optsSnaps := make([]*seedwriter.OptionsSnap, 0, len(model.RequiredWithEssentialSnaps()))
 	// collect all snaps that are present
 	modelSnaps := make(map[string]*snap.Info)
+	// mapping of snap names to map of component names to component infos.
+	modelComponents := make(map[string]map[string]*snap.ComponentInfo)
 
-	getModelSnap := func(name string, essential bool, nonEssentialPresence string) error {
+	getModelSnap := func(sn *asserts.ModelSnap, essential bool) error {
 		kind := "essential"
 		if !essential {
 			kind = "non-essential"
-			if nonEssentialPresence != "" {
-				kind = fmt.Sprintf("non-essential but %v", nonEssentialPresence)
+			if sn.Presence != "" {
+				kind = fmt.Sprintf("non-essential but %v", sn.Presence)
 			}
 		}
-		info, snapPath, present, err := getInfo(name)
+		snapInfo, snapPath, present, err := getInfo.SnapInfo(st, sn.Name)
 		if err != nil {
 			return fmt.Errorf("cannot obtain %v snap information: %v", kind, err)
 		}
-		if !essential && !present && nonEssentialPresence == "optional" {
+		if !essential && !present && sn.Presence == "optional" {
 			// non-essential snap which is declared as optionally
 			// present in the model
 			return nil
 		}
 		// grab those
-		logger.Debugf("%v snap: %v", kind, name)
+		logger.Debugf("%v snap: %v", kind, sn.Name)
 		if !present {
-			return fmt.Errorf("internal error: %v snap %q not present", kind, name)
+			return fmt.Errorf("internal error: %v snap %q not present", kind, sn.Name)
 		}
 		if _, ok := modelSnaps[snapPath]; ok {
 			// we've already seen this snap
 			return nil
 		}
+
+		var comps []seedwriter.OptionsComponent
+		modelComponents[sn.Name] = make(map[string]*snap.ComponentInfo)
+		for compName, comp := range sn.Components {
+			cref := naming.NewComponentRef(sn.Name, compName)
+			compInfo, compPath, present, err := getInfo.ComponentInfo(st, cref, snapInfo)
+			if err != nil {
+				return fmt.Errorf("cannot obtain component %q information: %v", cref, err)
+			}
+
+			if !present {
+				if comp.Presence == "optional" {
+					continue
+				}
+				return fmt.Errorf("internal error: required component %q not present", cref)
+			}
+
+			// since everything here is done by path, we omit the component
+			// names. this is what the seedwriter code wants.
+			comps = append(comps, seedwriter.OptionsComponent{
+				Path: compPath,
+			})
+			modelComponents[sn.Name][compPath] = compInfo
+		}
+
 		// present locally
 		// TODO: for grade dangerous we could have a channel here which is not
 		//       the model channel, handle that here
 		optsSnaps = append(optsSnaps, &seedwriter.OptionsSnap{
-			Path: snapPath,
+			Path:       snapPath,
+			Components: comps,
 		})
-		modelSnaps[snapPath] = info
+		modelSnaps[snapPath] = snapInfo
 		return nil
 	}
 
 	for _, sn := range model.EssentialSnaps() {
 		const essential = true
-		if err := getModelSnap(sn.SnapName(), essential, ""); err != nil {
+		if err := getModelSnap(sn, essential); err != nil {
 			return "", err
 		}
 	}
 	// snapd is implicitly needed
 	const snapdIsEssential = true
-	if err := getModelSnap("snapd", snapdIsEssential, ""); err != nil {
+	if err := getModelSnap(&asserts.ModelSnap{Name: "snapd"}, snapdIsEssential); err != nil {
 		return "", err
 	}
 	for _, sn := range model.SnapsWithoutEssential() {
 		const essential = false
-		if err := getModelSnap(sn.SnapName(), essential, sn.Presence); err != nil {
+		if err := getModelSnap(sn, essential); err != nil {
 			return "", err
 		}
 	}
@@ -335,44 +534,67 @@ func createSystemForModelFromValidatedSnaps(model *asserts.Model, label string, 
 	if err := w.Start(db, sf); err != nil {
 		return "", err
 	}
+
 	// past this point the system directory is present
 
 	// TODO:COMPS: take into account local components
 	localSnaps, err := w.LocalSnaps()
 	if err != nil {
-		return recoverySystemDir, err
+		return "", err
 	}
 
 	localARefs := make(map[*seedwriter.SeedSnap][]*asserts.Ref)
 	for _, sn := range localSnaps {
 		info, ok := modelSnaps[sn.Path]
 		if !ok {
-			return recoverySystemDir, fmt.Errorf("internal error: no snap info for %q", sn.Path)
+			return "", fmt.Errorf("internal error: no snap info for %q", sn.Path)
 		}
+
+		asserted := info.ID() != ""
+
 		// TODO: the side info derived here can be different from what
 		// we have in snap.Info, but getting it this way can be
 		// expensive as we need to compute the hash, try to find a
 		// better way
-		_, aRefs, err := seedwriter.DeriveSideInfo(sn.Path, model, sf, db)
+		_, assertions, err := seedwriter.DeriveSideInfo(sn.Path, model, sf, db)
 		if err != nil {
 			if !errors.Is(err, &asserts.NotFoundError{}) {
-				return recoverySystemDir, err
-			} else if info.SnapID != "" {
-				// snap info from state must have come
-				// from the store, so it is unexpected
-				// if no assertions for it were found
-				return recoverySystemDir, fmt.Errorf("internal error: no assertions for asserted snap with ID: %v", info.SnapID)
+				return "", err
+			}
+
+			// snap info from state must have come from the store, so it is
+			// unexpected if no assertions for it were found
+			if asserted {
+				return "", fmt.Errorf("internal error: no assertions for asserted snap with ID: %v", info.SnapID)
 			}
 		}
-		// TODO:COMPS: consider components
-		if err := w.SetInfo(sn, info, nil); err != nil {
-			return recoverySystemDir, err
+
+		seedComps := make(map[string]*seedwriter.SeedComponent, len(sn.Components))
+		for compPath, comp := range modelComponents[info.SnapName()] {
+			if asserted {
+				_, compAssertions, err := seedwriter.DeriveComponentSideInfo(compPath, comp, info, model, sf, db)
+				if err != nil {
+					return "", err
+				}
+
+				assertions = append(assertions, compAssertions...)
+			}
+
+			seedComps[comp.Component.ComponentName] = &seedwriter.SeedComponent{
+				ComponentRef: comp.Component,
+				Path:         compPath,
+				Info:         comp,
+			}
 		}
-		localARefs[sn] = aRefs
+
+		if err := w.SetInfo(sn, info, seedComps); err != nil {
+			return "", err
+		}
+		localARefs[sn] = assertions
 	}
 
 	if err := w.InfoDerived(); err != nil {
-		return recoverySystemDir, err
+		return "", err
 	}
 
 	retrieveAsserts := func(sn, _, _ *seedwriter.SeedSnap) ([]*asserts.Ref, error) {
@@ -383,7 +605,7 @@ func createSystemForModelFromValidatedSnaps(model *asserts.Model, label string, 
 		// get the list of snaps we need in this iteration
 		toDownload, err := w.SnapsToDownload()
 		if err != nil {
-			return recoverySystemDir, err
+			return "", err
 		}
 		// which should be empty as all snaps should be accounted for
 		// already
@@ -392,12 +614,12 @@ func createSystemForModelFromValidatedSnaps(model *asserts.Model, label string, 
 			for _, sn := range toDownload {
 				which = append(which, sn.SnapName())
 			}
-			return recoverySystemDir, fmt.Errorf("internal error: need to download snaps: %v", strings.Join(which, ", "))
+			return "", fmt.Errorf("internal error: need to download snaps: %v", strings.Join(which, ", "))
 		}
 
 		complete, err := w.Downloaded(retrieveAsserts)
 		if err != nil {
-			return recoverySystemDir, err
+			return "", err
 		}
 		if complete {
 			logger.Debugf("snap processing for creating %q complete", label)
@@ -411,7 +633,7 @@ func createSystemForModelFromValidatedSnaps(model *asserts.Model, label string, 
 
 	unassertedSnaps, err := w.UnassertedSnaps()
 	if err != nil {
-		return recoverySystemDir, err
+		return "", err
 	}
 	if len(unassertedSnaps) > 0 {
 		locals := make([]string, len(unassertedSnaps))
@@ -439,15 +661,15 @@ func createSystemForModelFromValidatedSnaps(model *asserts.Model, label string, 
 		return osutil.CopyFile(src, dst, 0)
 	}
 	if err := w.SeedSnaps(copySnap); err != nil {
-		return recoverySystemDir, err
+		return "", err
 	}
 	if err := w.WriteMeta(); err != nil {
-		return recoverySystemDir, err
+		return "", err
 	}
 
 	bootSnaps, err := w.BootSnaps()
 	if err != nil {
-		return recoverySystemDir, err
+		return "", err
 	}
 	bootWith := &boot.RecoverySystemBootableSet{}
 	for _, sn := range bootSnaps {
@@ -460,7 +682,7 @@ func createSystemForModelFromValidatedSnaps(model *asserts.Model, label string, 
 		}
 	}
 	if err := boot.MakeRecoverySystemBootable(model, boot.InitramfsUbuntuSeedDir, recoverySystemDirInRootDir, bootWith); err != nil {
-		return recoverySystemDir, fmt.Errorf("cannot make candidate recovery system %q bootable: %v", label, err)
+		return "", fmt.Errorf("cannot make candidate recovery system %q bootable: %v", label, err)
 	}
 	logger.Noticef("created recovery system %q", label)
 

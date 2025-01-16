@@ -374,6 +374,12 @@ func (s *interfaceManagerSuite) TestSmokeAppArmorPromptingEnabled(c *C) {
 		return true
 	})
 	defer restore()
+	checkCount := 0
+	restore = ifacestate.MockInterfacesRequestsControlHandlerServicePresent(func(m *ifacestate.InterfaceManager) (bool, error) {
+		checkCount++
+		return true, nil
+	})
+	defer restore()
 	createCount := 0
 	fakeManager := &apparmorprompting.InterfacesRequestsManager{}
 	restore = ifacestate.MockCreateInterfacesRequestsManager(func(s *state.State) (*apparmorprompting.InterfacesRequestsManager, error) {
@@ -397,9 +403,19 @@ func (s *interfaceManagerSuite) TestSmokeAppArmorPromptingEnabled(c *C) {
 	defer restore()
 
 	mgr := s.manager(c)
+	c.Check(checkCount, Equals, 1)
 	c.Check(createCount, Equals, 1)
+
 	c.Check(mgr.AppArmorPromptingRunning(), Equals, true)
 	c.Check(mgr.InterfacesRequestsManager(), Equals, fakeManager)
+
+	func() {
+		s.state.Lock()
+		defer s.state.Unlock()
+		warns := s.state.AllWarnings()
+		c.Check(warns, HasLen, 0)
+	}()
+
 	c.Check(stopCount, Equals, 0)
 	mgr.Stop()
 	c.Check(stopCount, Equals, 1)
@@ -411,11 +427,19 @@ func (s *interfaceManagerSuite) TestSmokeAppArmorPromptingDisabled(c *C) {
 		return false
 	})
 	defer restore()
+	checkCount := 0
+	restore = ifacestate.MockInterfacesRequestsControlHandlerServicePresent(func(m *ifacestate.InterfaceManager) (bool, error) {
+		c.Errorf("unexpectedly called m.interfacesRequestsControlHandlerServicePresent")
+		checkCount++
+		return true, nil
+	})
+	defer restore()
 	createCount := 0
 	fakeManager := &apparmorprompting.InterfacesRequestsManager{}
 	restore = ifacestate.MockCreateInterfacesRequestsManager(func(s *state.State) (*apparmorprompting.InterfacesRequestsManager, error) {
+		c.Errorf("unexpectedly called m.initInterfacesRequestsManager")
 		createCount++
-		return fakeManager, fmt.Errorf("should not have been called")
+		return fakeManager, nil
 	})
 	defer restore()
 	stopCount := 0
@@ -426,9 +450,19 @@ func (s *interfaceManagerSuite) TestSmokeAppArmorPromptingDisabled(c *C) {
 	defer restore()
 
 	mgr := s.manager(c)
+	c.Check(checkCount, Equals, 0)
 	c.Check(createCount, Equals, 0)
+
 	c.Check(mgr.AppArmorPromptingRunning(), Equals, false)
 	c.Check(mgr.InterfacesRequestsManager(), testutil.IsInterfaceNil)
+
+	func() {
+		s.state.Lock()
+		defer s.state.Unlock()
+		warns := s.state.AllWarnings()
+		c.Check(warns, HasLen, 0)
+	}()
+
 	mgr.Stop()
 	c.Check(stopCount, Equals, 0)
 }
@@ -6985,9 +7019,109 @@ func (s *interfaceManagerSuite) TestConnectHandlesAutoconnect(c *C) {
 	})
 }
 
+func (s *interfaceManagerSuite) TestInterfacesRequestsManagerNoHandlerService(c *C) {
+	restore := ifacestate.MockAssessAppArmorPrompting(func(m *ifacestate.InterfaceManager) bool {
+		return true
+	})
+	defer restore()
+
+	checkCount := 0
+	restore = ifacestate.MockInterfacesRequestsControlHandlerServicePresent(func(m *ifacestate.InterfaceManager) (bool, error) {
+		checkCount++
+		return false, nil
+	})
+	defer restore()
+
+	createCount := 0
+	fakeManager := &apparmorprompting.InterfacesRequestsManager{}
+	restore = ifacestate.MockCreateInterfacesRequestsManager(func(s *state.State) (*apparmorprompting.InterfacesRequestsManager, error) {
+		createCount++
+		return fakeManager, nil
+	})
+	defer restore()
+
+	mgr, err := ifacestate.Manager(s.state, nil, s.o.TaskRunner(), nil, nil)
+	c.Assert(err, IsNil)
+
+	logbuf, restore := logger.MockLogger()
+	defer restore()
+
+	err = mgr.StartUp()
+	c.Check(err, IsNil)
+
+	// Check that lack of handler services does not deactivate prompting
+	running := mgr.AppArmorPromptingRunning()
+	c.Check(running, Equals, true)
+
+	c.Check(checkCount, Equals, 1)
+	c.Check(createCount, Equals, 1)
+
+	logger.WithLoggerLock(func() {
+		logStr := logbuf.String()
+		c.Check(logStr, Not(testutil.Contains), "failed to check the presence of a interfaces-requests-control handler service")
+		c.Check(logStr, Not(testutil.Contains), "failed to start interfaces requests manager")
+	})
+
+	s.state.Lock()
+	defer s.state.Unlock()
+	warns := s.state.AllWarnings()
+	c.Check(warns, HasLen, 1)
+	c.Check(warns[0].String(), Matches, `"apparmor-prompting" feature flag enabled but no prompting client is present; requests will be auto-denied until a prompting client is installed`)
+}
+
+func (s *interfaceManagerSuite) TestInterfacesRequestsManagerHandlerServicePresentError(c *C) {
+	restore := ifacestate.MockAssessAppArmorPrompting(func(m *ifacestate.InterfaceManager) bool {
+		return true
+	})
+	defer restore()
+
+	checkError := fmt.Errorf("custom error")
+	restore = ifacestate.MockInterfacesRequestsControlHandlerServicePresent(func(m *ifacestate.InterfaceManager) (bool, error) {
+		return false, checkError
+	})
+	defer restore()
+
+	createCount := 0
+	fakeManager := &apparmorprompting.InterfacesRequestsManager{}
+	restore = ifacestate.MockCreateInterfacesRequestsManager(func(s *state.State) (*apparmorprompting.InterfacesRequestsManager, error) {
+		createCount++
+		return fakeManager, nil
+	})
+	defer restore()
+
+	mgr, err := ifacestate.Manager(s.state, nil, s.o.TaskRunner(), nil, nil)
+	c.Assert(err, IsNil)
+
+	logbuf, restore := logger.MockLogger()
+	defer restore()
+
+	err = mgr.StartUp()
+	c.Check(err, IsNil)
+
+	// Check that error while checking for handler services does not deactivate prompting
+	running := mgr.AppArmorPromptingRunning()
+	c.Check(running, Equals, true)
+
+	c.Check(createCount, Equals, 1)
+
+	logger.WithLoggerLock(func() {
+		c.Check(logbuf.String(), testutil.Contains, "failed to check the presence of a interfaces-requests-control handler service")
+	})
+
+	s.state.Lock()
+	defer s.state.Unlock()
+	warns := s.state.AllWarnings()
+	c.Check(warns, HasLen, 0)
+}
+
 func (s *interfaceManagerSuite) TestInitInterfacesRequestsManagerError(c *C) {
 	restore := ifacestate.MockAssessAppArmorPrompting(func(m *ifacestate.InterfaceManager) bool {
 		return true
+	})
+	defer restore()
+
+	restore = ifacestate.MockInterfacesRequestsControlHandlerServicePresent(func(m *ifacestate.InterfaceManager) (bool, error) {
+		return true, nil
 	})
 	defer restore()
 
@@ -7013,11 +7147,21 @@ func (s *interfaceManagerSuite) TestInitInterfacesRequestsManagerError(c *C) {
 	logger.WithLoggerLock(func() {
 		c.Check(logbuf.String(), testutil.Contains, fmt.Sprintf("%v", createError))
 	})
+
+	s.state.Lock()
+	defer s.state.Unlock()
+	warns := s.state.AllWarnings()
+	c.Check(warns, HasLen, 1)
+	c.Check(warns[0].String(), Matches, fmt.Sprintf(`cannot start prompting backend: %v; prompting will be inactive until snapd is restarted`, createError))
 }
 
 func (s *interfaceManagerSuite) TestStopInterfacesRequestsManagerError(c *C) {
 	restore := ifacestate.MockAssessAppArmorPrompting(func(m *ifacestate.InterfaceManager) bool {
 		return true
+	})
+	defer restore()
+	restore = ifacestate.MockInterfacesRequestsControlHandlerServicePresent(func(m *ifacestate.InterfaceManager) (bool, error) {
+		return true, nil
 	})
 	defer restore()
 	fakeManager := &apparmorprompting.InterfacesRequestsManager{}
@@ -10828,4 +10972,176 @@ version: 1.0
 	c.Assert(calls[3].AppSet.Info().Revision, Equals, snap.R(2))
 	c.Assert(calls[3].AppSet.Components(), HasLen, 1)
 	c.Assert(calls[3].AppSet.Components()[0].Revision, Equals, snap.R(2))
+}
+
+func (s *interfaceManagerSuite) TestInterfacesRequestsControlHandlerServicesNone(c *C) {
+	s.mockSnapd(c)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+	handlers, err := ifacestate.InterfacesRequestsControlHandlerServices(s.state)
+	c.Check(err, IsNil)
+	c.Check(handlers, HasLen, 0)
+
+	present, err := ifacestate.CallInterfacesRequestsControlHandlerServicePresent(s.state)
+	c.Check(err, IsNil)
+	c.Check(present, Equals, false)
+}
+
+func (s *interfaceManagerSuite) TestInterfacesRequestsControlHandlerServicesManyButNoHandlerApp(c *C) {
+	s.mockSnapd(c)
+	s.mockPromptingHandler(c, mockPromptingHandlerOpts{snapName: "test-snap1", hasHandler: false})
+	s.mockPromptingHandler(c, mockPromptingHandlerOpts{snapName: "test-snap2", hasHandler: false})
+
+	s.state.Lock()
+	defer s.state.Unlock()
+	handlers, err := ifacestate.InterfacesRequestsControlHandlerServices(s.state)
+	c.Check(err, IsNil)
+	c.Check(handlers, HasLen, 0)
+
+	present, err := ifacestate.CallInterfacesRequestsControlHandlerServicePresent(s.state)
+	c.Check(err, IsNil)
+	c.Check(present, Equals, false)
+}
+
+func (s *interfaceManagerSuite) TestInterfacesRequestsControlHandlerServicesManyWithHandlerApp(c *C) {
+	s.mockSnapd(c)
+	s.mockPromptingHandler(c, mockPromptingHandlerOpts{snapName: "test-snap1", hasHandler: false})
+	s.mockPromptingHandler(c, mockPromptingHandlerOpts{snapName: "test-snap2", hasHandler: true})
+	s.mockPromptingHandler(c, mockPromptingHandlerOpts{snapName: "test-snap3", hasHandler: false})
+	s.mockPromptingHandler(c, mockPromptingHandlerOpts{snapName: "test-snap4", hasHandler: true})
+	s.mockPromptingHandler(c, mockPromptingHandlerOpts{snapName: "test-snap5", hasHandler: false})
+
+	s.state.Lock()
+	defer s.state.Unlock()
+	handlers, err := ifacestate.InterfacesRequestsControlHandlerServices(s.state)
+	c.Assert(err, IsNil)
+	c.Assert(handlers, HasLen, 2)
+	expected := map[string]bool{"test-snap2": true, "test-snap4": true}
+	result := map[string]bool{handlers[0].Snap.SuggestedName: true, handlers[1].Snap.SuggestedName: true}
+	c.Check(result, DeepEquals, expected)
+
+	present, err := ifacestate.CallInterfacesRequestsControlHandlerServicePresent(s.state)
+	c.Check(err, IsNil)
+	c.Check(present, Equals, true)
+}
+
+func (s *interfaceManagerSuite) TestInterfacesRequestsControlHandlerServicesDisconnected(c *C) {
+	s.mockSnapd(c)
+	s.mockPromptingHandler(c, mockPromptingHandlerOpts{snapName: "test-snap", hasHandler: true})
+
+	s.state.Lock()
+	defer s.state.Unlock()
+	s.state.Set("conns", map[string]interface{}{
+		"test-snap:snap-interfaces-requests-control core:snap-interfaces-requests-control": map[string]interface{}{
+			"interface": "snap-interfaces-requests-control",
+			"plug-static": map[string]interface{}{
+				"handler-service": "prompts-handler",
+			},
+			// manually disconnected
+			"undesired": true,
+		},
+	})
+
+	handlers, err := ifacestate.InterfacesRequestsControlHandlerServices(s.state)
+	c.Check(err, IsNil)
+	c.Check(handlers, HasLen, 0)
+
+	present, err := ifacestate.CallInterfacesRequestsControlHandlerServicePresent(s.state)
+	c.Check(err, IsNil)
+	c.Check(present, Equals, false)
+}
+
+func (s *interfaceManagerSuite) mockSnapd(c *C) {
+	const snapdSnapYaml = `
+name: snapd
+version: 1
+type: snapd
+`
+
+	si := &snap.SideInfo{RealName: "snapd", Revision: snap.R(1)}
+	snapdSnap := snaptest.MockSnap(c, snapdSnapYaml, si)
+	s.state.Lock()
+	defer s.state.Unlock()
+	snapstate.Set(s.state, "snapd", &snapstate.SnapState{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si}),
+		Current:  snap.R(1),
+		Active:   true,
+		SnapType: "snapd",
+	})
+
+	for _, iface := range builtin.Interfaces() {
+		if name := iface.Name(); name == "snap-interfaces-requests-control" {
+			// add implicit slot
+			// XXX copied from implicit.go
+			snapdSnap.Slots[name] = &snap.SlotInfo{
+				Name:      name,
+				Snap:      snapdSnap,
+				Interface: name,
+			}
+		}
+	}
+}
+
+type mockPromptingHandlerOpts struct {
+	snapName   string
+	hasHandler bool
+}
+
+func (s *interfaceManagerSuite) mockPromptingHandler(c *C, opts mockPromptingHandlerOpts) {
+	name := opts.snapName
+
+	var mockSnapWithPromptshandlerFmt = `name: %s
+version: 1.0
+apps:
+
+plugs:
+ snap-interfaces-requests-control:
+`
+
+	if opts.hasHandler {
+		mockSnapWithPromptshandlerFmt = `name: %s
+version: 1.0
+apps:
+ prompts-handler:
+  daemon: simple
+
+plugs:
+ snap-interfaces-requests-control:
+  handler: prompts-handler
+`
+	}
+	si := &snap.SideInfo{RealName: name, Revision: snap.R(1)}
+	snaptest.MockSnap(c, fmt.Sprintf(mockSnapWithPromptshandlerFmt, name), si)
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, name, &snapstate.SnapState{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si}),
+		Current:  snap.R(1),
+		Active:   true,
+		SnapType: "app",
+	})
+
+	plugStatic := map[string]interface{}{}
+	if opts.hasHandler {
+		plugStatic["handler-service"] = "prompts-handler"
+	}
+
+	var conns map[string]interface{}
+	err := s.state.Get("conns", &conns)
+	if err != nil {
+		if errors.Is(err, state.ErrNoState) {
+			conns = map[string]interface{}{}
+		} else {
+			c.Fatalf("unexpected error: %v", err)
+		}
+	}
+
+	conns[fmt.Sprintf("%s:snap-interfaces-requests-control core:snap-interfaces-requests-control", name)] = map[string]interface{}{
+		"interface":   "snap-interfaces-requests-control",
+		"plug-static": plugStatic,
+	}
+
+	s.state.Set("conns", conns)
 }

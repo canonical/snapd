@@ -19,31 +19,9 @@ environment:
 
 prepare: |
   # Modify kernel and create a component
-  VERSION="$(tests.nested show version)"
-  snap download --channel="$VERSION"/beta pc-kernel
-  unsquashfs -d kernel pc-kernel_*.snap
-  kern_ver=$(find kernel/modules/* -maxdepth 0 -printf "%f\n")
-  comp_ko_dir=wifi-comp/modules/"$kern_ver"/wireless/
-  mkdir -p "$comp_ko_dir"
-  mkdir -p wifi-comp/meta/
-  cp component.yaml wifi-comp/meta/
-  hwsim_path=$(find kernel -name mac80211_hwsim.ko\*)
-  cp "$hwsim_path" "$comp_ko_dir"
-  snap pack wifi-comp
+  "$TESTSTOOLS"/build_kernel_with_comps.sh mac80211_hwsim wifi-comp
 
-  # Create kernel without the kernel module
-  rm "$hwsim_path"
-  # depmod wants a lib subdir, fake it and remove after invocation
-  mkdir kernel/lib
-  ln -s ../modules kernel/lib/modules
-  depmod -b kernel/ "$kern_ver"
-  rm -rf kernel/lib
-  rm pc-kernel_*.snap
-  # append component meta-information
-  printf 'components:\n  wifi-comp:\n    type: kernel-modules\n' >> kernel/meta/snap.yaml
-  snap pack kernel
-
-  cp pc-kernel_*.snap "$(tests.nested get extra-snaps-path)"
+  cp pc-kernel.snap "$(tests.nested get extra-snaps-path)"
   tests.nested build-image core
   tests.nested create-vm core
 
@@ -60,7 +38,7 @@ execute: |
   not remote.exec modprobe mac80211_hwsim
 
   # install the component
-  comp_file=pc-kernel+wifi-comp_1.0.comp
+  comp_file=pc-kernel+wifi-comp.comp
   remote.push "$comp_file"
   remote.exec sudo snap install --dangerous "$comp_file"
 
@@ -87,9 +65,9 @@ execute: |
   remote.exec "sudo sh -c 'printf \"$rule\" > /etc/udev/rules.d/70-load-wifi.rules'"
 
   # Install jointly kernel with component
-  remote.push pc-kernel_*.snap
+  remote.push pc-kernel.snap
   boot_id=$(tests.nested boot-id)
-  remote_chg_id=$(remote.exec sudo snap install --no-wait --dangerous pc-kernel_*.snap "$comp_file")
+  remote_chg_id=$(remote.exec sudo snap install --no-wait --dangerous pc-kernel.snap "$comp_file")
   tests.nested wait-for reboot "$boot_id"
   remote.exec "snap change $remote_chg_id" | NOMATCH Error
   # Check that the module has been loaded by the udev rule
@@ -97,7 +75,7 @@ execute: |
 
   # Install again, but force a failure to check revert
   boot_id=$(tests.nested boot-id)
-  remote_chg_id=$(remote.exec sudo snap install --no-wait --dangerous pc-kernel_*.snap "$comp_file")
+  remote_chg_id=$(remote.exec sudo snap install --no-wait --dangerous pc-kernel.snap "$comp_file")
   remote.retry --wait 1 -n 100 'sudo rm /run/mnt/ubuntu-boot/EFI/ubuntu/try-kernel.efi'
   tests.nested wait-for reboot "$boot_id"
   remote.retry --wait 5 -n 60 "snap change $remote_chg_id | MATCH Error"

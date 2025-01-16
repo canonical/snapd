@@ -29,11 +29,11 @@ import (
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/snapasserts"
+	"github.com/snapcore/snapd/confdb"
 	"github.com/snapcore/snapd/httputil"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
-	"github.com/snapcore/snapd/registry"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 )
@@ -271,6 +271,23 @@ func SnapDeclaration(s *state.State, snapID string) (*asserts.SnapDeclaration, e
 	return a.(*asserts.SnapDeclaration), nil
 }
 
+func SnapResourcePair(st *state.State, csi *snap.ComponentSideInfo, info *snap.Info) (*asserts.SnapResourcePair, error) {
+	db := DB(st)
+	headers := map[string]string{
+		"snap-id":           info.SnapID,
+		"resource-name":     csi.Component.ComponentName,
+		"resource-revision": csi.Revision.String(),
+		"snap-revision":     info.Revision.String(),
+		"provenance":        info.Provenance(),
+	}
+
+	a, err := db.Find(asserts.SnapResourcePairType, headers)
+	if err != nil {
+		return nil, err
+	}
+	return a.(*asserts.SnapResourcePair), nil
+}
+
 // Publisher returns the account assertion for publisher of the given snap-id if it is present in the system assertion database.
 func Publisher(s *state.State, snapID string) (*asserts.Account, error) {
 	db := DB(s)
@@ -390,14 +407,14 @@ func AutoRefreshAssertions(s *state.State, userID int) error {
 		return err
 	}
 
-	return autoRefreshRegistryAssertions(s, userID, opts)
+	return autoRefreshConfdbAssertions(s, userID, opts)
 }
 
-// autoRefreshRegistryAssertions fetches the newest revision of all stored
-// registry assertions.
-func autoRefreshRegistryAssertions(st *state.State, userID int, opts *RefreshAssertionsOptions) error {
+// autoRefreshConfdbAssertions fetches the newest revision of all stored
+// confdb assertions.
+func autoRefreshConfdbAssertions(st *state.State, userID int, opts *RefreshAssertionsOptions) error {
 	db := cachedDB(st)
-	regAsserts, err := db.FindMany(asserts.RegistryType, nil)
+	confdbAsserts, err := db.FindMany(asserts.ConfdbType, nil)
 	if err != nil {
 		if errors.Is(err, &asserts.NotFoundError{}) {
 			return nil
@@ -405,19 +422,19 @@ func autoRefreshRegistryAssertions(st *state.State, userID int, opts *RefreshAss
 		return err
 	}
 
-	var registries []*registry.Registry
-	for _, regAs := range regAsserts {
-		reg := regAs.(*asserts.Registry).Registry()
-		registries = append(registries, reg)
+	var confdbs []*confdb.Confdb
+	for _, dbAs := range confdbAsserts {
+		confdb := dbAs.(*asserts.Confdb).Confdb()
+		confdbs = append(confdbs, confdb)
 	}
 
-	return refreshRegistryAssertions(st, registries, userID, opts)
+	return refreshConfdbAssertions(st, confdbs, userID, opts)
 }
 
-// refreshRegistryAssertions fetches new revisions for the registry assertions
-// referenced by the provided registries. It attempts a bulk refresh and if that
+// refreshConfdbAssertions fetches new revisions for the confdb assertions
+// referenced by the provided confdbs. It attempts a bulk refresh and if that
 // fails, it falls back to fetching the assertions one by one.
-func refreshRegistryAssertions(st *state.State, registries []*registry.Registry, userID int, opts *RefreshAssertionsOptions) error {
+func refreshConfdbAssertions(st *state.State, confdbs []*confdb.Confdb, userID int, opts *RefreshAssertionsOptions) error {
 	if opts == nil {
 		opts = &RefreshAssertionsOptions{}
 	}
@@ -427,7 +444,7 @@ func refreshRegistryAssertions(st *state.State, registries []*registry.Registry,
 		return err
 	}
 
-	err = bulkRefreshRegistries(st, registries, userID, deviceCtx, opts)
+	err = bulkRefreshConfdbs(st, confdbs, userID, deviceCtx, opts)
 	if err == nil {
 		return nil
 	}
@@ -437,11 +454,11 @@ func refreshRegistryAssertions(st *state.State, registries []*registry.Registry,
 		// the bulk request itself
 		return err
 	}
-	logger.Noticef("bulk refresh of registry assertions failed, falling back to one-by-one assertion fetching: %v", err)
+	logger.Noticef("bulk refresh of confdb assertions failed, falling back to one-by-one assertion fetching: %v", err)
 
 	return doFetch(st, userID, deviceCtx, nil, func(f asserts.Fetcher) error {
-		for _, registry := range registries {
-			if err := snapasserts.FetchRegistry(f, registry.Account, registry.Name); err != nil {
+		for _, confdb := range confdbs {
+			if err := snapasserts.FetchConfdb(f, confdb.Account, confdb.Name); err != nil {
 				return err
 			}
 		}
@@ -465,22 +482,17 @@ func RefreshSnapAssertions(s *state.State, userID int, opts *RefreshAssertionsOp
 	return RefreshValidationSetAssertions(s, userID, opts)
 }
 
-// RefreshValidationSetAssertions tries to refresh all validation set
-// assertions.
-func RefreshValidationSetAssertions(s *state.State, userID int, opts *RefreshAssertionsOptions) error {
+// FetchAllValidationSets updates the DB with new validation sets, if any exist.
+func FetchAllValidationSets(st *state.State, userID int, opts *RefreshAssertionsOptions) error {
 	if opts == nil {
 		opts = &RefreshAssertionsOptions{}
 	}
 
-	deviceCtx, err := snapstate.DevicePastSeeding(s, nil)
+	vsets, err := ValidationSets(st)
 	if err != nil {
 		return err
 	}
 
-	vsets, err := ValidationSets(s)
-	if err != nil {
-		return err
-	}
 	if len(vsets) == 0 {
 		return nil
 	}
@@ -495,33 +507,12 @@ func RefreshValidationSetAssertions(s *state.State, userID int, opts *RefreshAss
 		}
 	}
 
-	updateTracking := func(sets map[string]*ValidationSetTracking) error {
-		// update validation set tracking state
-		for _, vs := range sets {
-			if vs.PinnedAt == 0 {
-				headers := map[string]string{
-					"series":     release.Series,
-					"account-id": vs.AccountID,
-					"name":       vs.Name,
-				}
-				db := DB(s)
-				as, err := db.FindSequence(asserts.ValidationSetType, headers, -1, asserts.ValidationSetType.MaxSupportedFormat())
-				if err != nil {
-					return fmt.Errorf("internal error: cannot find assertion %v when refreshing validation-set assertions", headers)
-				}
-				if vs.Current != as.Sequence() {
-					vs.Current = as.Sequence()
-					UpdateValidationSet(s, vs)
-				}
-			}
-		}
-		return nil
-	}
-
-	if err := bulkRefreshValidationSetAsserts(s, monitorModeSets, nil, userID, deviceCtx, opts); err != nil {
+	deviceCtx, err := snapstate.DevicePastSeeding(st, nil)
+	if err != nil {
 		return err
 	}
-	if err := updateTracking(monitorModeSets); err != nil {
+
+	if err := bulkRefreshValidationSetAsserts(st, monitorModeSets, nil, userID, deviceCtx, opts); err != nil {
 		return err
 	}
 
@@ -558,7 +549,7 @@ func RefreshValidationSetAssertions(s *state.State, userID int, opts *RefreshAss
 			return err
 		}
 
-		snaps, ignoreValidation, err := snapstate.InstalledSnaps(s)
+		snaps, ignoreValidation, err := snapstate.InstalledSnaps(st)
 		if err != nil {
 			return err
 		}
@@ -573,7 +564,7 @@ func RefreshValidationSetAssertions(s *state.State, userID int, opts *RefreshAss
 		return err
 	}
 
-	if err := bulkRefreshValidationSetAsserts(s, enforceModeSets, checkConflictsAndPresence, userID, deviceCtx, opts); err != nil {
+	if err := bulkRefreshValidationSetAsserts(st, enforceModeSets, checkConflictsAndPresence, userID, deviceCtx, opts); err != nil {
 		if _, ok := err.(*snapasserts.ValidationSetsConflictError); ok {
 			logger.Noticef("cannot refresh to conflicting validation set assertions: %v", err)
 			return nil
@@ -584,8 +575,55 @@ func RefreshValidationSetAssertions(s *state.State, userID int, opts *RefreshAss
 		}
 		return err
 	}
-	if err := updateTracking(enforceModeSets); err != nil {
+
+	return nil
+}
+
+// RefreshValidationSetAssertions tries to refresh all validation set assertions,
+// updating the tracked validation sets accordingly.
+func RefreshValidationSetAssertions(s *state.State, userID int, opts *RefreshAssertionsOptions) error {
+	vsets, err := ValidationSets(s)
+	if err != nil {
 		return err
+	}
+
+	if len(vsets) == 0 {
+		return nil
+	}
+
+	err = FetchAllValidationSets(s, userID, opts)
+	if err != nil {
+		return err
+	}
+
+	monitorModeSets := make(map[string]*ValidationSetTracking)
+	enforceModeSets := make(map[string]*ValidationSetTracking)
+	for vk, vset := range vsets {
+		if vset.Mode == Monitor {
+			monitorModeSets[vk] = vset
+		} else {
+			enforceModeSets[vk] = vset
+		}
+	}
+
+	// update validation set tracking state
+	for _, vs := range vsets {
+		if vs.PinnedAt == 0 {
+			headers := map[string]string{
+				"series":     release.Series,
+				"account-id": vs.AccountID,
+				"name":       vs.Name,
+			}
+			db := DB(s)
+			as, err := db.FindSequence(asserts.ValidationSetType, headers, -1, asserts.ValidationSetType.MaxSupportedFormat())
+			if err != nil {
+				return fmt.Errorf("internal error: cannot find assertion %v when refreshing validation-set assertions", headers)
+			}
+			if vs.Current != as.Sequence() {
+				vs.Current = as.Sequence()
+				UpdateValidationSet(s, vs)
+			}
+		}
 	}
 
 	return nil
@@ -1290,17 +1328,17 @@ func resolveValidationSetAssertion(seq *asserts.AtSequence, db asserts.RODatabas
 	return seq.Resolve(db.Find)
 }
 
-// Registry returns the registry for the given account and registry name,
+// Confdb returns the confdb for the given account and confdb name,
 // if it's present in the system assertion database.
-func Registry(s *state.State, account, registryName string) (*asserts.Registry, error) {
+func Confdb(s *state.State, account, confdbName string) (*asserts.Confdb, error) {
 	db := DB(s)
-	as, err := db.Find(asserts.RegistryType, map[string]string{
+	as, err := db.Find(asserts.ConfdbType, map[string]string{
 		"account-id": account,
-		"name":       registryName,
+		"name":       confdbName,
 	})
 	if err != nil {
 		return nil, err
 	}
 
-	return as.(*asserts.Registry), nil
+	return as.(*asserts.Confdb), nil
 }

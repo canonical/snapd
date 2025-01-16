@@ -56,6 +56,18 @@ type BootableSet struct {
 
 	// Recovery is set when making the recovery partition bootable.
 	Recovery bool
+
+	// KernelMods contains kernel-modules components in the system.
+	KernelMods []BootableKModsComponents
+}
+
+// BootableComponent represents kernel-modules components, which are
+// needed as part of a BootableSet.
+type BootableKModsComponents struct {
+	// CompPlaceInfo is used to build the file name with the right revision.
+	CompPlaceInfo snap.ContainerPlaceInfo
+	// CompPath is the path where we will copy the file from.
+	CompPath string
 }
 
 // MakeBootableImage sets up the given bootable set and target filesystem
@@ -334,7 +346,7 @@ type makeRunnableOptions struct {
 	StateUnlocker  Unlocker
 }
 
-func copyBootSnap(orig string, dstInfo *snap.Info, dstSnapBlobDir string) error {
+func copyBootSnap(orig string, filename string, dstSnapBlobDir string) error {
 	// if the source path is a symlink, don't copy the symlink, copy the
 	// target file instead of copying the symlink, as the initramfs won't
 	// follow the symlink when it goes to mount the base and kernel snaps by
@@ -347,10 +359,7 @@ func copyBootSnap(orig string, dstInfo *snap.Info, dstSnapBlobDir string) error 
 		}
 		orig = link
 	}
-	// note that we need to use the "Filename()" here because unasserted
-	// snaps will have names like pc-kernel_5.19.4.snap but snapd expects
-	// "pc-kernel_x1.snap"
-	dst := filepath.Join(dstSnapBlobDir, dstInfo.Filename())
+	dst := filepath.Join(dstSnapBlobDir, filename)
 	if err := osutil.CopyFile(orig, dst, osutil.CopyFlagPreserveAll|osutil.CopyFlagSync); err != nil {
 		return err
 	}
@@ -372,19 +381,27 @@ func makeRunnableSystem(model *asserts.Model, bootWith *BootableSet, observer Tr
 	//   install the boot.sel onto ubuntu-boot directly, but the file should be
 	//   managed by snapd instead
 
-	// copy kernel/base/gadget into the ubuntu-data partition
+	// Copy kernel/base/gadget and kernel-modules components into the
+	// ubuntu-data partition. Note that we need to use the "Filename()"
+	// here because unasserted snaps/components will have names like
+	// pc-kernel_5.19.4.snap but snapd expects "pc-kernel_x1.snap"
 	snapBlobDir := dirs.SnapBlobDirUnder(InstallHostWritableDir(model))
 	if err := os.MkdirAll(snapBlobDir, 0755); err != nil {
 		return err
 	}
 	for _, origDest := range []struct {
 		orig     string
-		destInfo *snap.Info
+		fileName string
 	}{
-		{orig: bootWith.BasePath, destInfo: bootWith.Base},
-		{orig: bootWith.KernelPath, destInfo: bootWith.Kernel},
-		{orig: bootWith.GadgetPath, destInfo: bootWith.Gadget}} {
-		if err := copyBootSnap(origDest.orig, origDest.destInfo, snapBlobDir); err != nil {
+		{orig: bootWith.BasePath, fileName: bootWith.Base.Filename()},
+		{orig: bootWith.KernelPath, fileName: bootWith.Kernel.Filename()},
+		{orig: bootWith.GadgetPath, fileName: bootWith.Gadget.Filename()}} {
+		if err := copyBootSnap(origDest.orig, origDest.fileName, snapBlobDir); err != nil {
+			return err
+		}
+	}
+	for _, kmod := range bootWith.KernelMods {
+		if err := copyBootSnap(kmod.CompPath, kmod.CompPlaceInfo.Filename(), snapBlobDir); err != nil {
 			return err
 		}
 	}

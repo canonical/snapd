@@ -1594,7 +1594,7 @@ func (s *autoRefreshTestSuite) TestMaybeAsyncPendingRefreshNotificationSkips(c *
 	snapstate.MaybeAsyncPendingRefreshNotification(context.TODO(), s.state, &userclient.PendingSnapRefreshInfo{})
 }
 
-func (s *autoRefreshTestSuite) TestAutoRefreshWithRegistries(c *C) {
+func (s *autoRefreshTestSuite) TestAutoRefreshWithConfdbs(c *C) {
 	si := &snap.SideInfo{
 		RealName: "foo",
 		SnapID:   "foo-id",
@@ -1621,7 +1621,7 @@ func (s *autoRefreshTestSuite) TestAutoRefreshWithRegistries(c *C) {
 		"my-plug": {
 			Snap:      info,
 			Name:      "my-plug",
-			Interface: "registry",
+			Interface: "confdb",
 			Attrs: map[string]interface{}{
 				"account": "my-publisher",
 				"view":    "my-reg/my-view",
@@ -1643,5 +1643,5 @@ func (s *autoRefreshTestSuite) TestAutoRefreshWithRegistries(c *C) {
 
 	snapsup, err := snapstate.TaskSnapSetup(task)
 	c.Assert(err, IsNil)
-	c.Assert(snapsup.Registries, DeepEquals, []snapstate.RegistryID{{Account: "my-publisher", Registry: "my-reg"}})
+	c.Assert(snapsup.Confdbs, DeepEquals, []snapstate.ConfdbID{{Account: "my-publisher", Confdb: "my-reg"}})
 }
