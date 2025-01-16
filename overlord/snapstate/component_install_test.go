@@ -187,9 +187,14 @@ func verifyComponentInstallTasks(c *C, opts int, ts *state.TaskSet) {
 		snapsupTask, err := ts.Edge(snapstate.SnapSetupEdge)
 		c.Assert(err, IsNil)
 
+		var compsupsIDs []string
+		err = snapsupTask.Get("component-setup-tasks", &compsupsIDs)
+		c.Assert(err, IsNil)
+
 		// for now, all non-multi-component installs are by path, so this will
 		// point to prepare-component
 		c.Assert(snapsupTask.Kind(), Equals, "prepare-component")
+		c.Assert(compsupsIDs, DeepEquals, []string{snapsupTask.ID()})
 	}
 }
 
@@ -1049,6 +1054,7 @@ func (s *snapmgrTestSuite) testInstallComponents(c *C, opts testInstallComponent
 	snapsupTask, err := setupTs.Edge(snapstate.SnapSetupEdge)
 	c.Assert(err, IsNil)
 	c.Assert(snapsupTask.Kind(), Equals, "setup-profiles")
+	c.Assert(snapsupTask.Has("component-setup-tasks"), Equals, true)
 
 	expectedLane := opts.lane
 	if opts.transaction != "" && opts.lane == 0 {
