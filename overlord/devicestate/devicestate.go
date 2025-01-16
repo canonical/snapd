@@ -1827,8 +1827,6 @@ func CreateRecoverySystem(st *state.State, label string, opts CreateRecoverySyst
 				if err != nil {
 					// we only care if the component is present if it needs to
 					// be provided.
-					//
-					// TODO: testme
 					if strutil.ListContains(requiredComponents, comp) {
 						return nil, err
 					}
