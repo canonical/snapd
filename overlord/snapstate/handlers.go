@@ -1615,7 +1615,7 @@ func (m *SnapManager) undoUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) error {
 		return nil
 	}
 
-	// For all other snaps, including snapd that runs under the core snap,
+	// For all other snaps, including snapd bundled with the core snap,
 	// we must undo the unlinking of the old revision.
 	opts, err := SnapServiceOptions(st, oldInfo, nil)
 	if err != nil {
