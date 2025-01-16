@@ -763,6 +763,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeWithBootedKernelPartUUI
 			boot.InitramfsUbuntuBootDir,
 			needsFsckDiskMountOpts,
 			nil,
+			nil,
 		},
 		s.ubuntuPartUUIDMount("ubuntu-seed-partuuid", "run"),
 		s.ubuntuPartUUIDMount("ubuntu-data-partuuid", "run"),
@@ -824,11 +825,13 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeEncryptedDataHappy(c *C
 			boot.InitramfsDataDir,
 			needsFsckAndNoSuidDiskMountOpts,
 			nil,
+			nil,
 		},
 		{
 			"/dev/mapper/ubuntu-save-random",
 			boot.InitramfsUbuntuSaveDir,
 			needsFsckAndNoSuidNoDevNoExecMountOpts,
+			nil,
 			nil,
 		},
 		s.makeRunSnapSystemdMount(snap.TypeBase, s.core20),
@@ -959,6 +962,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeEncryptedDataUnhappyNoS
 			boot.InitramfsDataDir,
 			needsFsckAndNoSuidDiskMountOpts,
 			nil,
+			nil,
 		},
 	}, nil)
 	defer restore()
@@ -1037,6 +1041,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeEncryptedDataUnhappyUnl
 			"/dev/mapper/ubuntu-data-random",
 			boot.InitramfsDataDir,
 			needsFsckAndNoSuidDiskMountOpts,
+			nil,
 			nil,
 		},
 	}, nil)
