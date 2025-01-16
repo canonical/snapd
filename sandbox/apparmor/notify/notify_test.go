@@ -1,6 +1,7 @@
 package notify_test
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -88,7 +89,7 @@ func (s *notifySuite) TestRegisterFileDescriptor(c *C) {
 		switch ioctlCalls {
 		case 1:
 			checkIoctlBuffer(c, buf, notify.ProtocolVersion(3))
-			return buf, &notify.IoctlError{req, unix.EPROTONOSUPPORT}
+			return buf, fmt.Errorf("cannot perform IOCTL request %v: %w (%s)", req, unix.EPROTONOSUPPORT, unix.ErrnoName(unix.EPROTONOSUPPORT))
 		case 2:
 			checkIoctlBuffer(c, buf, notify.ProtocolVersion(7))
 			return buf, nil
@@ -141,7 +142,7 @@ func (s *notifySuite) TestRegisterFileDescriptorErrors(c *C) {
 			c.Fatal("called Ioctl more than twice")
 		}
 		// Always return EPROTONOSUPPORT
-		return buf, &notify.IoctlError{req, unix.EPROTONOSUPPORT}
+		return buf, fmt.Errorf("cannot perform IOCTL request %v: %w (%s)", req, unix.EPROTONOSUPPORT, unix.ErrnoName(unix.EPROTONOSUPPORT))
 	})
 	defer restoreSyscall()
 
@@ -157,11 +158,11 @@ func (s *notifySuite) TestRegisterFileDescriptorErrors(c *C) {
 		checkIoctlBuffer(c, buf, notify.ProtocolVersion(3))
 		c.Assert(calledIoctl, Equals, false, Commentf("called ioctl more than once after first returned error"))
 		calledIoctl = true
-		return buf, &notify.IoctlError{req, unix.EINVAL}
+		return buf, fmt.Errorf("cannot perform IOCTL request %v: %w (%s)", req, unix.EINVAL, unix.ErrnoName(unix.EINVAL))
 	})
 	defer restoreSyscallError()
 
 	receivedVersion, err = notify.RegisterFileDescriptor(fakeFD)
-	c.Check(err, ErrorMatches, "cannot perform IOCTL request APPARMOR_NOTIF_SET_FILTER: EINVAL")
+	c.Check(err, ErrorMatches, `cannot perform IOCTL request APPARMOR_NOTIF_SET_FILTER: invalid argument \(EINVAL\)`)
 	c.Check(receivedVersion, Equals, notify.ProtocolVersion(0))
 }
