@@ -143,14 +143,14 @@ type DmVerityParams struct {
 // appendArguments returns the options to veritysetup format as command line arguments.
 func (p DmVerityParams) appendArguments(args []string) []string {
 
-	args = append(args, fmt.Sprintf("--format %d", p.Format))
-	args = append(args, fmt.Sprintf("--hash %s", p.Hash))
-	args = append(args, fmt.Sprintf("--data-blocks %d", p.DataBlocks))
-	args = append(args, fmt.Sprintf("--data-block-size %d", p.DataBlockSize))
-	args = append(args, fmt.Sprintf("--hash-block-size %d", p.HashBlockSize))
+	args = append(args, fmt.Sprintf("--format=%d", p.Format))
+	args = append(args, fmt.Sprintf("--hash=%s", p.Hash))
+	args = append(args, fmt.Sprintf("--data-blocks=%d", p.DataBlocks))
+	args = append(args, fmt.Sprintf("--data-block-size=%d", p.DataBlockSize))
+	args = append(args, fmt.Sprintf("--hash-block-size=%d", p.HashBlockSize))
 
 	if len(p.Salt) != 0 {
-		args = append(args, fmt.Sprintf("--salt %s", p.Salt))
+		args = append(args, fmt.Sprintf("--salt=%s", p.Salt))
 	}
 
 	return args
