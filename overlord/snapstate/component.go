@@ -92,14 +92,15 @@ func InstallComponents(
 	// TODO:COMPS: verify validation sets here
 
 	snapsup := SnapSetup{
-		Base:        info.Base,
-		SideInfo:    &info.SideInfo,
-		Channel:     info.Channel,
-		Flags:       opts.Flags.ForSnapSetup(),
-		Type:        info.Type(),
-		Version:     info.Version,
-		PlugsOnly:   len(info.Slots) == 0,
-		InstanceKey: info.InstanceKey,
+		Base:                    info.Base,
+		SideInfo:                &info.SideInfo,
+		Channel:                 info.Channel,
+		Flags:                   opts.Flags.ForSnapSetup(),
+		Type:                    info.Type(),
+		Version:                 info.Version,
+		PlugsOnly:               len(info.Slots) == 0,
+		InstanceKey:             info.InstanceKey,
+		ComponentExclusiveSetup: true,
 	}
 
 	setupSecurity := st.NewTask("setup-profiles",
@@ -264,14 +265,15 @@ func InstallComponentPath(st *state.State, csi *snap.ComponentSideInfo, info *sn
 	}
 
 	snapsup := SnapSetup{
-		Base:        info.Base,
-		SideInfo:    &info.SideInfo,
-		Channel:     info.Channel,
-		Flags:       opts.Flags.ForSnapSetup(),
-		Type:        info.Type(),
-		Version:     info.Version,
-		PlugsOnly:   len(info.Slots) == 0,
-		InstanceKey: info.InstanceKey,
+		Base:                    info.Base,
+		SideInfo:                &info.SideInfo,
+		Channel:                 info.Channel,
+		Flags:                   opts.Flags.ForSnapSetup(),
+		Type:                    info.Type(),
+		Version:                 info.Version,
+		PlugsOnly:               len(info.Slots) == 0,
+		InstanceKey:             info.InstanceKey,
+		ComponentExclusiveSetup: true,
 	}
 	compSetup := ComponentSetup{
 		CompSideInfo: csi,
@@ -289,6 +291,18 @@ func InstallComponentPath(st *state.State, csi *snap.ComponentSideInfo, info *sn
 	}
 
 	ts := componentTS.taskSet()
+
+	// TODO:COMPS: instead of doing this, we should convert this function to
+	// operate on multiple components so that it works like InstallComponents.
+	// this would improve performance, especially in the case of kernel module
+	// components.
+	begin, err := ts.Edge(BeginEdge)
+	if err != nil {
+		return nil, fmt.Errorf("internal error: cannot find begin edge on component install task set: %v", err)
+	}
+
+	begin.Set("component-setup-tasks", []string{componentTS.compSetupTaskID})
+
 	ts.JoinLane(generateLane(st, opts))
 
 	return ts, nil

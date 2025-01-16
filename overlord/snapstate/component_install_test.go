@@ -502,6 +502,7 @@ func (s *snapmgrTestSuite) TestInstallComponentPathForParallelInstall(c *C) {
 	var snapsup snapstate.SnapSetup
 	c.Assert(ts.Tasks()[0].Get("snap-setup", &snapsup), IsNil)
 	c.Assert(snapsup.InstanceKey, Equals, snapKey)
+	c.Assert(snapsup.ComponentExclusiveSetup, Equals, true)
 }
 
 func (s *snapmgrTestSuite) TestInstallComponentPathWrongSnap(c *C) {
@@ -1052,6 +1053,7 @@ func (s *snapmgrTestSuite) testInstallComponents(c *C, opts testInstallComponent
 	snapsup, err := snapstate.TaskSnapSetup(prepareKmodComps)
 	c.Assert(err, IsNil)
 	c.Assert(snapsup, NotNil)
+	c.Assert(snapsup.ComponentExclusiveSetup, Equals, true)
 
 	for _, ts := range tss[0 : len(tss)-1] {
 		task := ts.Tasks()[0]
