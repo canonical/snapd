@@ -963,13 +963,17 @@ prepare: |
 
     # NOTE: At this stage the source tree is available and no more special
     # considerations apply.
-    "$TESTSLIB"/prepare-restore.sh --prepare-project
+    mkdir -p /var/tmp/spread-trace/"$SPREAD_SUITE"
+    BASH_XTRACEFD=42 "$TESTSLIB"/prepare-restore.sh --prepare-project 42>/var/tmp/spread-trace/prepare-project.log
 prepare-each: |
-    "$TESTSLIB"/prepare-restore.sh --prepare-project-each
+    mkdir -p /var/tmp/spread-trace/"$SPREAD_SUITE"/"$SPREAD_TASK"
+    BASH_XTRACEFD=42 "$TESTSLIB"/prepare-restore.sh --prepare-project-each  42>/var/tmp/spread-trace/"$(echo "$SPREAD_JOB" | cut -d : -f 3-)"/prepare-project-each.log
 restore: |
-    "$TESTSLIB"/prepare-restore.sh --restore-project
+    mkdir -p /var/tmp/spread-trace/
+    BASH_XTRACEFD=42 "$TESTSLIB"/prepare-restore.sh --restore-project 42>/var/tmp/spread-trace/restore-project.log
 restore-each: |
-    "$TESTSLIB"/prepare-restore.sh --restore-project-each
+    mkdir -p /var/tmp/spread-trace/"$SPREAD_SUITE"/"$SPREAD_TASK"
+    BASH_XTRACEFD=42 "$TESTSLIB"/prepare-restore.sh --restore-project-each 42>/var/tmp/spread-trace/"$(echo "$SPREAD_JOB" | cut -d : -f 3-)"/restore-project-each.log
 suites:
     tests/lib/tools/suite/:
         summary: Tests for tests/lib/tools tools
@@ -999,13 +1003,17 @@ suites:
         summary: Full-system tests for snapd
         systems: [-ubuntu-secboot-*, -ubuntu-fips-*]
         prepare: |
-            "$TESTSLIB"/prepare-restore.sh --prepare-suite
+            mkdir -p /var/tmp/spread-trace/"$SPREAD_SUITE"
+            BASH_XTRACEFD=42 "$TESTSLIB"/prepare-restore.sh --prepare-suite 42>/var/tmp/spread-trace/"$SPREAD_SUITE"/prepare-suite.log
         prepare-each: |
-            "$TESTSLIB"/prepare-restore.sh --prepare-suite-each
+            mkdir -p /var/tmp/spread-trace/"$SPREAD_SUITE"/"$SPREAD_TASK"
+            BASH_XTRACEFD=42 "$TESTSLIB"/prepare-restore.sh --prepare-suite-each 42>/var/tmp/spread-trace/"$(echo "$SPREAD_JOB" | cut -d : -f 3-)"/prepare-suite-each.log
         restore-each: |
-            "$TESTSLIB"/prepare-restore.sh --restore-suite-each
+            mkdir -p /var/tmp/spread-trace/"$SPREAD_SUITE"/"$SPREAD_TASK"
+            BASH_XTRACEFD=42 "$TESTSLIB"/prepare-restore.sh --restore-suite-each 42>/var/tmp/spread-trace/"$(echo "$SPREAD_JOB" | cut -d : -f 3-)"/restore-suite-each.log
         restore: |
-            "$TESTSLIB"/prepare-restore.sh --restore-suite
+            mkdir -p /var/tmp/spread-trace/"$SPREAD_SUITE"
+            BASH_XTRACEFD=42 "$TESTSLIB"/prepare-restore.sh --restore-suite 42>/var/tmp/spread-trace/"$SPREAD_SUITE"/restore-suite.log
         debug: |
             if [ "$SPREAD_DEBUG_EACH" = 1 ]; then
                 systemctl status snapd.socket || true
