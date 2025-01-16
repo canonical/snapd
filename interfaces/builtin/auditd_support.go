@@ -39,6 +39,8 @@ const auditdSupportConnectedPlugSecComp = `
 # Description: Can use netlink to communicate with kernel audit system.
 bind
 socket AF_NETLINK - NETLINK_AUDIT
+
+setpriority
 `
 
 const auditdSupportConnectedPlugAppArmor = `
