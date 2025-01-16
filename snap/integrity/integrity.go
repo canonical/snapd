@@ -51,17 +51,17 @@ func align(size uint64) uint64 {
 // IntegrityDataHeader gets appended first at the end of a squashfs packed snap
 // before the dm-verity data. Size field includes the header size
 type IntegrityDataHeader struct {
-	Type     string        `json:"type"`
-	Size     uint64        `json:"size,string"`
-	DmVerity dmverity.Info `json:"dm-verity"`
+	Type     string `json:"type"`
+	Size     uint64 `json:"size,string"`
+	RootHash string `json:"dm-verity"`
 }
 
 // newIntegrityDataHeader constructs a new IntegrityDataHeader struct from a dmverity.Info struct.
-func newIntegrityDataHeader(dmVerityBlock *dmverity.Info, integrityDataSize uint64) *IntegrityDataHeader {
+func newIntegrityDataHeader(rootHash string, integrityDataSize uint64) *IntegrityDataHeader {
 	return &IntegrityDataHeader{
 		Type:     "integrity",
 		Size:     HeaderSize + integrityDataSize,
-		DmVerity: *dmVerityBlock,
+		RootHash: rootHash,
 	}
 }
 
@@ -115,7 +115,7 @@ func (integrityDataHeader *IntegrityDataHeader) Decode(input []byte) error {
 func GenerateAndAppend(snapPath string) (err error) {
 	// Generate verity metadata
 	hashFileName := snapPath + ".verity"
-	dmVerityBlock, err := dmverity.Format(snapPath, hashFileName)
+	dmVerityBlock, err := dmverity.Format(snapPath, hashFileName, nil)
 	if err != nil {
 		return err
 	}
