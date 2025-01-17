@@ -12069,9 +12069,15 @@ func rearrangeBaseKernelForCyclicDependency(st *state.State, tss []*state.TaskSe
 	//                    remaining tasks of base and kernel
 	//
 	// where (r) denotes the task that can effectively request a reboot
+	maybeFirst := func(tasks []*state.Task) *state.Task {
+		if len(tasks) != 0 {
+			return tasks[0]
+		}
+		return nil
+	}
 
-	beforeLinkSnapKernel := kernelTs.MaybeEdge(snapstate.BeforeMaybeRebootEdge)
 	linkSnapKernel := kernelTs.MaybeEdge(snapstate.MaybeRebootEdge)
+	beforeLinkSnapKernel := maybeFirst(linkSnapKernel.WaitTasks())
 	autoConnectKernel := kernelTs.MaybeEdge(snapstate.MaybeRebootWaitEdge)
 
 	if linkSnapKernel == nil || autoConnectKernel == nil || beforeLinkSnapKernel == nil {
@@ -12081,7 +12087,7 @@ func rearrangeBaseKernelForCyclicDependency(st *state.State, tss []*state.TaskSe
 
 	linkSnapBase := baseTs.MaybeEdge(snapstate.MaybeRebootEdge)
 	autoConnectBase := baseTs.MaybeEdge(snapstate.MaybeRebootWaitEdge)
-	afterAutoConnectBase := baseTs.MaybeEdge(snapstate.AfterMaybeRebootWaitEdge)
+	afterAutoConnectBase := maybeFirst(autoConnectBase.HaltTasks())
 	if linkSnapBase == nil || autoConnectBase == nil || afterAutoConnectBase == nil {
 		return fmt.Errorf("internal error: cannot identify link-snap or auto-connect or the following task for the base snap")
 	}

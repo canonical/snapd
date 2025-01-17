@@ -75,10 +75,8 @@ const (
 	BeginEdge                        = state.TaskSetEdge("begin")
 	BeforeHooksEdge                  = state.TaskSetEdge("before-hooks")
 	HooksEdge                        = state.TaskSetEdge("hooks")
-	BeforeMaybeRebootEdge            = state.TaskSetEdge("before-maybe-reboot")
 	MaybeRebootEdge                  = state.TaskSetEdge("maybe-reboot")
 	MaybeRebootWaitEdge              = state.TaskSetEdge("maybe-reboot-wait")
-	AfterMaybeRebootWaitEdge         = state.TaskSetEdge("after-maybe-reboot-wait")
 	LastBeforeLocalModificationsEdge = state.TaskSetEdge("last-before-local-modifications")
 	EndEdge                          = state.TaskSetEdge("end")
 )
@@ -791,9 +789,6 @@ func doInstall(st *state.State, snapst *SnapState, snapsup SnapSetup, compsups [
 	installSet.MarkEdge(setupAliases, BeforeHooksEdge)
 
 	// Let tasks know if they have to do something about restarts
-	// TODO fix tests so BeforeMaybeRebootEdge and AfterMaybeRebootWaitEdge
-	// are not needed.
-	installSet.MarkEdge(setupSecurity, BeforeMaybeRebootEdge) // this edge is just for tests
 	if setupKmodComponents == nil {
 		// No kernel modules, reboot after link snap
 		installSet.MarkEdge(linkSnap, MaybeRebootEdge)
@@ -812,7 +807,6 @@ func doInstall(st *state.State, snapst *SnapState, snapsup SnapSetup, compsups [
 		setupKmodComponents.Set("set-next-boot", true)
 		afterSetupKmodComps.Set("finish-restart", true)
 	}
-	installSet.MarkEdge(setAutoAliases, AfterMaybeRebootWaitEdge) // this edge is just for tests
 
 	if installHook != nil {
 		installSet.MarkEdge(installHook, HooksEdge)
