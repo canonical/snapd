@@ -3117,6 +3117,7 @@ func (s *snapmgrTestSuite) TestUpdateSameRevisionSwitchesChannel(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(ts.Tasks(), HasLen, 1)
 	c.Check(ts.Tasks()[0].Kind(), Equals, "switch-snap-channel")
+	c.Check(ts.MaybeEdge(snapstate.SnapSetupEdge).Kind(), Equals, "switch-snap-channel")
 }
 
 func (s *snapmgrTestSuite) TestUpdateSameRevisionSwitchesChannelConflict(c *C) {
