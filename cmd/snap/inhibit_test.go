@@ -36,6 +36,7 @@ import (
 	"github.com/snapcore/snapd/cmd/snaplock/runinhibit"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/features"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
@@ -115,7 +116,8 @@ func (s *RunSuite) TestWaitWhileInhibitedRunThrough(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(info.InstanceName(), Equals, "snapname")
 	c.Check(app.Name, Equals, "app")
-
+	// Wait for notification flow goroutines to run
+	time.Sleep(50 * time.Millisecond)
 	c.Check(startCalled, Equals, 1)
 	c.Check(finishCalled, Equals, 1)
 	c.Check(waitWhileInhibitedCalled, Equals, 1)
@@ -123,6 +125,9 @@ func (s *RunSuite) TestWaitWhileInhibitedRunThrough(c *C) {
 }
 
 func (s *RunSuite) TestWaitWhileInhibitedErrorOnStartNotification(c *C) {
+	logbuf, restore := logger.MockLogger()
+	defer restore()
+
 	// mock installed snap
 	snaptest.MockSnapCurrent(c, string(mockYaml), &snap.SideInfo{Revision: snap.R(11)})
 
@@ -131,6 +136,29 @@ func (s *RunSuite) TestWaitWhileInhibitedErrorOnStartNotification(c *C) {
 
 	inhibitInfo := runinhibit.InhibitInfo{Previous: snap.R(11)}
 	c.Assert(runinhibit.LockWithHint("snapname", runinhibit.HintInhibitedForRefresh, inhibitInfo, nil), IsNil)
+
+	var waitWhileInhibitedCalled int
+	restore = snaprun.MockWaitWhileInhibited(func(ctx context.Context, snapName string, notInhibited func(ctx context.Context) error, inhibited func(ctx context.Context, hint runinhibit.Hint, inhibitInfo *runinhibit.InhibitInfo) (cont bool, err error), interval time.Duration) (flock *osutil.FileLock, retErr error) {
+		waitWhileInhibitedCalled++
+
+		c.Check(snapName, Equals, "snapname")
+		c.Check(ctx, NotNil)
+		for i := 0; i < 3; i++ {
+			cont, err := inhibited(ctx, runinhibit.HintInhibitedForRefresh, &inhibitInfo)
+			c.Assert(err, IsNil)
+			// non-service apps should keep waiting
+			c.Check(cont, Equals, false)
+		}
+		err := notInhibited(ctx)
+		c.Assert(err, IsNil)
+
+		flock, err = openHintFileLock(snapName)
+		c.Assert(err, IsNil)
+		err = flock.ReadLock()
+		c.Assert(err, IsNil)
+		return flock, nil
+	})
+	defer restore()
 
 	var startCalled, finishCalled int
 	inhibitionFlow := fakeInhibitionFlow{
@@ -143,22 +171,27 @@ func (s *RunSuite) TestWaitWhileInhibitedErrorOnStartNotification(c *C) {
 			return nil
 		},
 	}
-	restore := snaprun.MockInhibitionFlow(&inhibitionFlow)
+	restore = snaprun.MockInhibitionFlow(&inhibitionFlow)
 	defer restore()
 
+	// notification flow is best effort, error will be ignored but logged
 	info, app, hintLock, err := snaprun.WaitWhileInhibited(context.TODO(), snaprun.Client(), "snapname", "app")
-	c.Assert(err, ErrorMatches, "boom")
-	c.Check(info, IsNil)
-	c.Check(app, IsNil)
-	c.Check(hintLock, IsNil)
-
+	defer hintLock.Unlock()
+	c.Assert(err, IsNil)
+	c.Check(info.InstanceName(), Equals, "snapname")
+	c.Check(app.Name, Equals, "app")
+	// Wait for notification flow goroutines to run
+	time.Sleep(50 * time.Millisecond)
 	c.Check(startCalled, Equals, 1)
-	c.Check(finishCalled, Equals, 0)
-	// lock must be released
-	checkHintFileNotLocked(c, "snapname")
+	c.Check(logbuf.String(), testutil.Contains, "failed to start inhibition notification: boom")
+	c.Check(finishCalled, Equals, 1)
+	c.Check(waitWhileInhibitedCalled, Equals, 1)
+	checkHintFileLocked(c, "snapname")
 }
 
 func (s *RunSuite) TestWaitWhileInhibitedErrorOnFinishNotification(c *C) {
+	logbuf, restore := logger.MockLogger()
+	defer restore()
 	// mock installed snap
 	snaptest.MockSnapCurrent(c, string(mockYaml), &snap.SideInfo{Revision: snap.R(11)})
 
@@ -169,7 +202,7 @@ func (s *RunSuite) TestWaitWhileInhibitedErrorOnFinishNotification(c *C) {
 	c.Assert(runinhibit.LockWithHint("snapname", runinhibit.HintInhibitedForRefresh, inhibitInfo, nil), IsNil)
 
 	var waitWhileInhibitedCalled int
-	restore := snaprun.MockWaitWhileInhibited(func(ctx context.Context, snapName string, notInhibited func(ctx context.Context) error, inhibited func(ctx context.Context, hint runinhibit.Hint, inhibitInfo *runinhibit.InhibitInfo) (cont bool, err error), interval time.Duration) (flock *osutil.FileLock, retErr error) {
+	restore = snaprun.MockWaitWhileInhibited(func(ctx context.Context, snapName string, notInhibited func(ctx context.Context) error, inhibited func(ctx context.Context, hint runinhibit.Hint, inhibitInfo *runinhibit.InhibitInfo) (cont bool, err error), interval time.Duration) (flock *osutil.FileLock, retErr error) {
 		waitWhileInhibitedCalled++
 
 		c.Check(snapName, Equals, "snapname")
@@ -205,17 +238,19 @@ func (s *RunSuite) TestWaitWhileInhibitedErrorOnFinishNotification(c *C) {
 	restore = snaprun.MockInhibitionFlow(&inhibitionFlow)
 	defer restore()
 
+	// notification flow is best effort, error will be ignored but logged
 	info, app, hintLock, err := snaprun.WaitWhileInhibited(context.TODO(), snaprun.Client(), "snapname", "app")
-	c.Assert(err, ErrorMatches, "boom")
-	c.Check(info, IsNil)
-	c.Check(app, IsNil)
-	c.Check(hintLock, IsNil)
-
+	defer hintLock.Unlock()
+	c.Assert(err, IsNil)
+	c.Check(info.InstanceName(), Equals, "snapname")
+	c.Check(app.Name, Equals, "app")
+	// Wait for notification flow goroutines to run
+	time.Sleep(50 * time.Millisecond)
 	c.Check(startCalled, Equals, 1)
 	c.Check(finishCalled, Equals, 1)
+	c.Check(logbuf.String(), testutil.Contains, "failed to finalize inhibition notification: boom")
 	c.Check(waitWhileInhibitedCalled, Equals, 1)
-	// lock must be released
-	checkHintFileNotLocked(c, "snapname")
+	checkHintFileLocked(c, "snapname")
 }
 
 func (s *RunSuite) TestWaitWhileInhibitedContextCancellationOnError(c *C) {
