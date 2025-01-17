@@ -19,6 +19,11 @@
 
 package builtin
 
+import (
+	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/udev"
+)
+
 const checkboxSupportSummary = `allows checkbox to execute arbitrary system tests`
 
 const checkboxSupportBaseDeclarationPlugs = `
@@ -41,12 +46,20 @@ type checkboxSupportInterface struct {
 	steamSupportInterface
 }
 
+func (iface *checkboxSupportInterface) UDevConnectedPlug(spec *udev.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
+	// we inherit one from steamSupportInterface, but none of the snippets are
+	// useful as the interface can manage device cgroup, giving it unrestricted
+	// access to devices
+	return iface.commonInterface.UDevConnectedPlug(spec, plug, slot)
+}
+
 func init() {
 	registerIface(&checkboxSupportInterface{steamSupportInterface{commonInterface{
 		name:                 "checkbox-support",
 		summary:              checkboxSupportSummary,
 		implicitOnCore:       true,
 		implicitOnClassic:    true,
+		controlsDeviceCgroup: true, // checkbox is exempt from device filtering
 		baseDeclarationSlots: checkboxSupportBaseDeclarationSlots,
 		baseDeclarationPlugs: checkboxSupportBaseDeclarationPlugs,
 		connectedPlugSecComp: steamSupportConnectedPlugSecComp,
