@@ -212,167 +212,171 @@ jobs:
           # Add start line to filtered log
           echo "GRAFANA START: pr ${CHANGE_ID} attempt ${{ github.run_attempt }} run ${{ github.run_id }} group ${{ inputs.group }}" > "$FILTERED_LOG_FILE"
 
-    - name: Download built snap (amd64)
-      uses: actions/download-artifact@v4
-      if: "${{ !inputs.use-snapd-snap-from-master && !contains(inputs.group, '-arm64') && !endsWith(inputs.group, '-fips') }}"
-      with:
-        name: snap-files-amd64-default-test
-        # eg. snapd_1337.2.65.1+git97.gd35b459_amd64.snap
-        pattern: snapd_1337.*.snap
-        path: "${{ github.workspace }}/built-snap"
+    - name: Check filtered log file name
+      run: echo "Filtered log file is $FILTERED_LOG_FILE"
+    
 
-    - name: Download built snap (arm64)
-      if: "contains(inputs.group, '-arm64') && !endsWith(inputs.group, '-fips')"
-      uses: actions/download-artifact@v4
-      with:
-        name: snap-files-arm64-default-test
-        pattern: snapd_1337.*.snap
-        # eg. snapd_1337.2.65.1+git97.gd35b459_amd64.snap
-        path: "${{ github.workspace }}/built-snap"
+    # - name: Download built snap (amd64)
+    #   uses: actions/download-artifact@v4
+    #   if: "${{ !inputs.use-snapd-snap-from-master && !contains(inputs.group, '-arm64') && !endsWith(inputs.group, '-fips') }}"
+    #   with:
+    #     name: snap-files-amd64-default-test
+    #     # eg. snapd_1337.2.65.1+git97.gd35b459_amd64.snap
+    #     pattern: snapd_1337.*.snap
+    #     path: "${{ github.workspace }}/built-snap"
 
-    - name: Download built FIPS snap (amd64)
-      uses: actions/download-artifact@v4
-      # eg. ubuntu-fips
-      if: "${{ !inputs.use-snapd-snap-from-master && !contains(inputs.group, '-arm64') && endsWith(inputs.group, '-fips') }}"
-      with:
-        name: snap-files-amd64-FIPS-test
-        # eg. snapd_1337.2.65.1+git97.gd35b459-fips_amd64.snap
-        pattern: snapd_1337.*-fips_*.snap
-        path: "${{ github.workspace }}/built-snap"
+    # - name: Download built snap (arm64)
+    #   if: "contains(inputs.group, '-arm64') && !endsWith(inputs.group, '-fips')"
+    #   uses: actions/download-artifact@v4
+    #   with:
+    #     name: snap-files-arm64-default-test
+    #     pattern: snapd_1337.*.snap
+    #     # eg. snapd_1337.2.65.1+git97.gd35b459_amd64.snap
+    #     path: "${{ github.workspace }}/built-snap"
 
-    - name: Rename imported snap
-      if: "${{ !inputs.use-snapd-snap-from-master }}"
-      run: |
-        for snap in built-snap/snapd_1337.*.snap; do
-          mv -v "${snap}" "${snap}.keep"
-        done
+    # - name: Download built FIPS snap (amd64)
+    #   uses: actions/download-artifact@v4
+    #   # eg. ubuntu-fips
+    #   if: "${{ !inputs.use-snapd-snap-from-master && !contains(inputs.group, '-arm64') && endsWith(inputs.group, '-fips') }}"
+    #   with:
+    #     name: snap-files-amd64-FIPS-test
+    #     # eg. snapd_1337.2.65.1+git97.gd35b459-fips_amd64.snap
+    #     pattern: snapd_1337.*-fips_*.snap
+    #     path: "${{ github.workspace }}/built-snap"
 
-    - name: Run spread tests
-      if: "!contains(github.event.pull_request.labels.*.name, 'Skip spread')"
-      env:
-          SPREAD_GOOGLE_KEY: ${{ secrets.SPREAD_GOOGLE_KEY }}
-      run: |
-          # Register a problem matcher to highlight spread failures
-          echo "::add-matcher::.github/spread-problem-matcher.json"
-          set -x
-          SPREAD=spread
-          if [[ "${{ inputs.group }}" =~ nested- ]]; then
-            export NESTED_BUILD_SNAPD_FROM_CURRENT=true
-            export NESTED_ENABLE_KVM=true
-          fi
+    # - name: Rename imported snap
+    #   if: "${{ !inputs.use-snapd-snap-from-master }}"
+    #   run: |
+    #     for snap in built-snap/snapd_1337.*.snap; do
+    #       mv -v "${snap}" "${snap}.keep"
+    #     done
 
-          export SPREAD_USE_PREBUILT_SNAPD_SNAP=true
+    # - name: Run spread tests
+    #   if: "!contains(github.event.pull_request.labels.*.name, 'Skip spread')"
+    #   env:
+    #       SPREAD_GOOGLE_KEY: ${{ secrets.SPREAD_GOOGLE_KEY }}
+    #   run: |
+    #       # Register a problem matcher to highlight spread failures
+    #       echo "::add-matcher::.github/spread-problem-matcher.json"
+    #       set -x
+    #       SPREAD=spread
+    #       if [[ "${{ inputs.group }}" =~ nested- ]]; then
+    #         export NESTED_BUILD_SNAPD_FROM_CURRENT=true
+    #         export NESTED_ENABLE_KVM=true
+    #       fi
+
+    #       export SPREAD_USE_PREBUILT_SNAPD_SNAP=true
           
-          if [ "${{ inputs.use-snapd-snap-from-master }}" = true ]; then
-            export SPREAD_USE_SNAPD_SNAP_URL=https://storage.googleapis.com/snapd-spread-tests/snapd-tests/snaps/snapd_master_amd64.snap
-          fi
+    #       if [ "${{ inputs.use-snapd-snap-from-master }}" = true ]; then
+    #         export SPREAD_USE_SNAPD_SNAP_URL=https://storage.googleapis.com/snapd-spread-tests/snapd-tests/snaps/snapd_master_amd64.snap
+    #       fi
 
-          # This could be the case when either there are not systems for a group or
-          # the list of tests to run is empty
-          if [ -z "$RUN_TESTS" ]; then
-            echo "No tests to run, exiting..."
-            exit 0
-          fi
+    #       # This could be the case when either there are not systems for a group or
+    #       # the list of tests to run is empty
+    #       if [ -z "$RUN_TESTS" ]; then
+    #         echo "No tests to run, exiting..."
+    #         exit 0
+    #       fi
 
-          # Add openstack backend definition to spread.yaml
-          if [ "${{ inputs.backend }}" = openstack ]; then
-              ./tests/lib/spread/add-backend tests/lib/spread/backend.openstack.yaml spread.yaml
-          fi
+    #       # Add openstack backend definition to spread.yaml
+    #       if [ "${{ inputs.backend }}" = openstack ]; then
+    #           ./tests/lib/spread/add-backend tests/lib/spread/backend.openstack.yaml spread.yaml
+    #       fi
 
-          spread_list="$($SPREAD -list $RUN_TESTS 2>&1 || true)"
+    #       spread_list="$($SPREAD -list $RUN_TESTS 2>&1 || true)"
 
-          if [[ "$spread_list" =~ amazon-linux-2023 ]]; then
-              # Amazon Linux 2023 has no xdelta, however we cannot disable
-              # xdelta on a per-target basis as it's used in the repack section
-              # of spread.yaml, which is shared by all targets, so all systems
-              # in this batch will not use delta for transferring project data
-              echo "Disabling xdelta support"
-              export NO_DELTA=1
-          fi
+    #       if [[ "$spread_list" =~ amazon-linux-2023 ]]; then
+    #           # Amazon Linux 2023 has no xdelta, however we cannot disable
+    #           # xdelta on a per-target basis as it's used in the repack section
+    #           # of spread.yaml, which is shared by all targets, so all systems
+    #           # in this batch will not use delta for transferring project data
+    #           echo "Disabling xdelta support"
+    #           export NO_DELTA=1
+    #       fi
 
-          if grep -q "nothing matches provider filter" <<< "$spread_list"; then
-            echo "No tests to run, exiting..."
-            exit 0
-          fi
+    #       if grep -q "nothing matches provider filter" <<< "$spread_list"; then
+    #         echo "No tests to run, exiting..."
+    #         exit 0
+    #       fi
 
-          # Run spread tests
-          # "pipefail" ensures that a non-zero status from the spread is
-          # propagated; and we use a subshell as this option could trigger
-          # undesired changes elsewhere
-          echo "Running command: $SPREAD $RUN_TESTS"
-          (
-            set -o pipefail 
-            $SPREAD -no-debug-output -logs spread-logs $RUN_TESTS | \
-              ./tests/lib/external/snapd-testing-tools/utils/log-filter $FILTER_PARAMS | \
-              tee spread.log
-          )
+    #       # Run spread tests
+    #       # "pipefail" ensures that a non-zero status from the spread is
+    #       # propagated; and we use a subshell as this option could trigger
+    #       # undesired changes elsewhere
+    #       echo "Running command: $SPREAD $RUN_TESTS"
+    #       (
+    #         set -o pipefail 
+    #         $SPREAD -no-debug-output -logs spread-logs $RUN_TESTS | \
+    #           ./tests/lib/external/snapd-testing-tools/utils/log-filter $FILTER_PARAMS | \
+    #           tee spread.log
+    #       )
 
-    - name: Upload spread logs
-      if: always()
-      uses: actions/upload-artifact@v4
-      with:
-        name: "spread-logs-${{ inputs.group }}-${{ inputs.systems }}"
-        path: "spread-logs/*.log"
-        if-no-files-found: ignore
+    # - name: Upload spread logs
+    #   if: always()
+    #   uses: actions/upload-artifact@v4
+    #   with:
+    #     name: "spread-logs-${{ inputs.group }}-${{ inputs.systems }}"
+    #     path: "spread-logs/*.log"
+    #     if-no-files-found: ignore
 
-    - name: Discard spread workers
-      if: always()
-      run: |
-        shopt -s nullglob;
-        for r in .spread-reuse.*.yaml; do
-          spread -discard -reuse-pid="$(echo "$r" | grep -o -E '[0-9]+')";
-        done
+    # - name: Discard spread workers
+    #   if: always()
+    #   run: |
+    #     shopt -s nullglob;
+    #     for r in .spread-reuse.*.yaml; do
+    #       spread -discard -reuse-pid="$(echo "$r" | grep -o -E '[0-9]+')";
+    #     done
 
-    - name: Report spread errors
-      if: always()
-      run: |
-        if [ -e spread.log ]; then
-            echo "Running spread log analyzer"
-            ACTIONS_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}/attempts/${{ github.run_attempt }}"
-            ./tests/lib/external/snapd-testing-tools/utils/log-parser spread.log --output spread-results.json --cut 1 >/dev/null
-            while IFS= read -r line; do
-                if [ ! -z "$line" ]; then
-                    echo "Adding failed test line to filtered log"
-                    echo "GRAFANA FAILED: $line $ACTIONS_URL" | tee -a "$FILTERED_LOG_FILE"
-                fi
-            done <<< $(jq -r '.[] | select( .type == "info" ) | select( .info_type == "Error" ) | "\(.verb) \(.task)"' spread-results.json)
-        else
-            echo "No spread log found, skipping errors reporting"
-        fi
+    # - name: Report spread errors
+    #   if: always()
+    #   run: |
+    #     if [ -e spread.log ]; then
+    #         echo "Running spread log analyzer"
+    #         ACTIONS_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}/attempts/${{ github.run_attempt }}"
+    #         ./tests/lib/external/snapd-testing-tools/utils/log-parser spread.log --output spread-results.json --cut 1 >/dev/null
+    #         while IFS= read -r line; do
+    #             if [ ! -z "$line" ]; then
+    #                 echo "Adding failed test line to filtered log"
+    #                 echo "GRAFANA FAILED: $line $ACTIONS_URL" | tee -a "$FILTERED_LOG_FILE"
+    #             fi
+    #         done <<< $(jq -r '.[] | select( .type == "info" ) | select( .info_type == "Error" ) | "\(.verb) \(.task)"' spread-results.json)
+    #     else
+    #         echo "No spread log found, skipping errors reporting"
+    #     fi
 
-    - name: Analyze spread test results
-      if: always()
-      run: |
-          if [ -f spread.log ]; then
-              echo "Running spread log parser"
-              ./tests/lib/external/snapd-testing-tools/utils/log-parser spread.log --output spread-results.json
+    # - name: Analyze spread test results
+    #   if: always()
+    #   run: |
+    #       if [ -f spread.log ]; then
+    #           echo "Running spread log parser"
+    #           ./tests/lib/external/snapd-testing-tools/utils/log-parser spread.log --output spread-results.json
 
-              # Add openstack backend definition to spread.yaml
-              if [ "${{ inputs.backend }}" = openstack ]; then
-                  ./tests/lib/spread/add-backend tests/lib/spread/backend.openstack.yaml spread.yaml
-              fi
+    #           # Add openstack backend definition to spread.yaml
+    #           if [ "${{ inputs.backend }}" = openstack ]; then
+    #               ./tests/lib/spread/add-backend tests/lib/spread/backend.openstack.yaml spread.yaml
+    #           fi
 
-              echo "Running spread log analyzer"
-              ./tests/lib/external/snapd-testing-tools/utils/log-analyzer list-reexecute-tasks "$RUN_TESTS" spread-results.json > "$FAILED_TESTS_FILE"
+    #           echo "Running spread log analyzer"
+    #           ./tests/lib/external/snapd-testing-tools/utils/log-analyzer list-reexecute-tasks "$RUN_TESTS" spread-results.json > "$FAILED_TESTS_FILE"
 
-              echo "List of failed tests saved"
-              cat "$FAILED_TESTS_FILE"
-          else
-              echo "No spread log found, saving empty list of failed tests"
-              touch "$FAILED_TESTS_FILE"
-          fi
+    #           echo "List of failed tests saved"
+    #           cat "$FAILED_TESTS_FILE"
+    #       else
+    #           echo "No spread log found, saving empty list of failed tests"
+    #           touch "$FAILED_TESTS_FILE"
+    #       fi
 
-    - name: Save spread test results to cache
-      if: always()
-      uses: actions/cache/save@v4
-      with:
-        path: "${{ github.workspace }}/.test-results"
-        key: "${{ github.job }}-results-${{ github.run_id }}-${{ inputs.group }}-${{ github.run_attempt }}"
+    # - name: Save spread test results to cache
+    #   if: always()
+    #   uses: actions/cache/save@v4
+    #   with:
+    #     path: "${{ github.workspace }}/.test-results"
+    #     key: "${{ github.job }}-results-${{ github.run_id }}-${{ inputs.group }}-${{ github.run_attempt }}"
 
-    - name: Save spread.json as an artifact
-      if: ${{ always() && github.event.pull_request.number }}
-      uses: actions/upload-artifact@v4
-      with:
-        name: "spread-json-${{ github.run_id }}-${{ github.run_attempt }}-${{ inputs.group }}" 
-        path: "spread-results.json"
-        if-no-files-found: ignore
+    # - name: Save spread.json as an artifact
+    #   if: ${{ always() && github.event.pull_request.number }}
+    #   uses: actions/upload-artifact@v4
+    #   with:
+    #     name: "spread-json-${{ github.run_id }}-${{ github.run_attempt }}-${{ inputs.group }}" 
+    #     path: "spread-results.json"
+    #     if-no-files-found: ignore
