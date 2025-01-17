@@ -20,6 +20,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -35,7 +36,7 @@ var (
 	timeNow = time.Now
 
 	// default 1:30, as that is how long systemd will wait for services by
-	// default so seems a sensible default
+	// default so seems a sensible default.
 	defaultMountUnitWaitTimeout = time.Minute + 30*time.Second
 
 	unitFileDependOverride = `[Unit]
@@ -44,6 +45,126 @@ Wants=%[1]s
 
 	doSystemdMount = doSystemdMountImpl
 )
+
+// forbiddenChars is a list of characters that are not allowed in any mount paths used in systemd-mount.
+const forbiddenChars = `\,:" `
+
+type fsOpts interface {
+	AppendOptions([]string) ([]string, error)
+}
+
+// overlayFsOptions groups the options to systemd-mount related to overlayfs.
+type overlayFsOptions struct {
+	// Directories to be used as lower layers of an overlay mount.
+	// It does not need to be on a writable filesystem.
+	LowerDirs []string
+	// Optional. A directory to be used as the upper layer of an overlay mount.
+	// This is normally on a writable filesystem.
+	UpperDir string
+	// Optional. A directory to be used as the workdir of an overlay mount.
+	// This needs to be an empty directory on the same filesystem as upperdir.
+	WorkDir string
+}
+
+// validate is used to perform consistency checks on the options related to overlayfs mounts.
+func (o *overlayFsOptions) validate() error {
+	if len(o.LowerDirs) <= 0 {
+		return errors.New("missing arguments for overlayfs mount: at least one lowerdir is required")
+	}
+
+	if len(o.UpperDir) > 0 && len(o.WorkDir) <= 0 {
+		return errors.New("an upperdir for an overlayfs mount was specified but workdir is missing")
+	}
+
+	if len(o.WorkDir) > 0 && len(o.UpperDir) <= 0 {
+		return errors.New("a workdir for an overlayfs mount was specified but upperdir is missing")
+	}
+
+	if strings.ContainsAny(o.UpperDir, forbiddenChars) {
+		return fmt.Errorf("upperdir overlayfs mount option contains forbidden characters. %q contains one of %q", o.UpperDir, forbiddenChars)
+	}
+
+	if strings.ContainsAny(o.WorkDir, forbiddenChars) {
+		return fmt.Errorf("workdir overlayfs mount option contains forbidden characters. %q contains one of %q", o.WorkDir, forbiddenChars)
+	}
+
+	for _, d := range o.LowerDirs {
+		if strings.ContainsAny(d, forbiddenChars) {
+			return fmt.Errorf("lowerdir overlayfs mount option contains forbidden characters. %q contains one of %q", d, forbiddenChars)
+		}
+	}
+
+	return nil
+}
+
+// AppendOptions constructs the overlayfs related arguments to systemd-mount after validation.
+func (o *overlayFsOptions) AppendOptions(options []string) ([]string, error) {
+	err := o.validate()
+	if err != nil {
+		return nil, err
+	}
+
+	// This is used for splitting multiple lowerdirs as done in
+	// https://elixir.bootlin.com/linux/v6.10.9/C/ident/ovl_parse_param_split_lowerdirs.
+	lowerDirs := strings.Join(o.LowerDirs, ":")
+
+	// options = append(options, fmt.Sprintf("lowerdir=%s", lowerDirs.String()))
+	options = append(options, fmt.Sprintf("lowerdir=%s", lowerDirs))
+	options = append(options, fmt.Sprintf("upperdir=%s", o.UpperDir))
+	options = append(options, fmt.Sprintf("workdir=%s", o.WorkDir))
+
+	return options, nil
+}
+
+// dmVerityOptions groups the options to systemd-mount related to dm-verity.
+type dmVerityOptions struct {
+	// dm-verity hash device
+	HashDevice string
+	// dm-verity root hash
+	RootHash string
+	// dm-verity hash offset. Need to be specified if only verity data are
+	// appended to the snap. Defaults to 0 in mount command.
+	HashOffset uint64
+}
+
+// validate is used to perform consistency checks on the options related to dm-verity mounts.
+func (o *dmVerityOptions) validate() error {
+	if o.HashDevice != "" && o.RootHash == "" {
+		return errors.New("mount with dm-verity was requested but a root hash was not specified")
+	}
+	if o.RootHash != "" && o.HashDevice == "" {
+		return errors.New("mount with dm-verity was requested but a hash device was not specified")
+	}
+
+	if strings.ContainsAny(o.HashDevice, forbiddenChars) {
+		return fmt.Errorf("dm-verity hash device path contains forbidden characters. %q contains one of %q", o.HashDevice, forbiddenChars)
+	}
+
+	if o.HashOffset != 0 && (o.HashDevice == "" || o.RootHash == "") {
+		return errors.New("mount with dm-verity was requested but a hash device and root hash were not specified")
+	}
+
+	return nil
+}
+
+// AppendOptions constructs the dm-verity related arguments to systemd-mount after validation.
+func (o *dmVerityOptions) AppendOptions(options []string) ([]string, error) {
+	err := o.validate()
+	if err != nil {
+		return nil, err
+	}
+
+	if o.HashDevice != "" && o.RootHash != "" {
+		options = append(options, fmt.Sprintf("verity.roothash=%s", o.RootHash))
+		options = append(options, fmt.Sprintf("verity.hashdevice=%s", o.HashDevice))
+
+		if o.HashOffset != 0 {
+			options = append(options, fmt.Sprintf("verity.hashoffset=%d", o.HashOffset))
+		}
+	}
+
+	return options, nil
+}
 
 // systemdMountOptions reflects the set of options for mounting something using
 // systemd-mount(1)
@@ -71,9 +192,9 @@ type systemdMountOptions struct {
 	// the file system.
 	NoDev bool
 	// NoExec indicates to not allow direct execution of any binaries on the
-	// mounted file system
+	// mounted file system.
 	NoExec bool
-	// Bind indicates a bind mount
+	// Bind indicates a bind mount.
 	Bind bool
 	// Read-only mount
 	ReadOnly bool
@@ -81,28 +202,10 @@ type systemdMountOptions struct {
 	Private bool
 	// Umount the mountpoint
 	Umount bool
-	// Overlayfs indicates an overlay filesystem.
-	Overlayfs bool
-	// Directories to be used as lower layers of an overlay mount.
-	// It does not need to be on a writable filesystem.
-	LowerDirs []string
-	// A directory to be used as the upper layer of an overlay mount.
-	// This is normally on a writable filesystem.
-	UpperDir string
-	// A directory to be used as the workdir of an overlay mount.
-	// This needs to be an empty directory on the same filesystem as upperdir.
-	WorkDir string
-	// dm-verity hash device
-	VerityHashDevice string
-	// dm-verity root hash
-	VerityRootHash string
-	// dm-verity hash offset. Need to be specified if only verity data are
-	// appended to the snap. Defaults to 0 in mount command
-	VerityHashOffset uint64
+	// FsOpts groups additional options for the mount such as overlayfs or
+	// dm-verity related options.
+	FsOpts fsOpts
 }
-
-// forbiddenChars is a list of characters that are not allowed in any mount paths used in systemd-mount.
-const forbiddenChars = `\,:" `
 
 // doSystemdMount will mount "what" at "where" using systemd-mount(1) with
 // various options. Note that in some error cases, the mount unit may have
@@ -136,20 +239,16 @@ func doSystemdMountImpl(what, where string, opts *systemdMountOptions) error {
 		args = append(args, "--type=tmpfs")
 	}
 
-	if opts.Overlayfs {
-		args = append(args, "--type=overlay")
-	}
-
 	if opts.NeedsFsck {
 		// note that with the --fsck=yes argument, systemd will block starting
 		// the mount unit on a new systemd-fsck@<what> unit that will run the
 		// fsck, so we don't need to worry about waiting for that to finish in
 		// the case where we are supposed to wait (which is the default for this
-		// function)
+		// function).
 		args = append(args, "--fsck=yes")
 	} else {
 		// the default is to use fsck=yes, so if it doesn't need fsck we need to
-		// explicitly turn it off
+		// explicitly turn it off.
 		args = append(args, "--fsck=no")
 	}
 
@@ -190,58 +289,24 @@ func doSystemdMountImpl(what, where string, opts *systemdMountOptions) error {
 	if opts.Private {
 		options = append(options, "private")
 	}
-	if opts.Overlayfs {
-		if len(opts.LowerDirs) <= 0 || len(opts.UpperDir) <= 0 || len(opts.WorkDir) <= 0 {
-			return fmt.Errorf("cannot mount %q at %q: missing arguments for overlayfs mount. lowerdir, upperdir, workdir are needed.", what, where)
-		}
 
-		if strings.ContainsAny(opts.UpperDir, forbiddenChars) {
-			return fmt.Errorf("cannot mount %q at %q: upperdir overlayfs mount option contains forbidden characters. %q contains one of %q.", what, where, opts.UpperDir, forbiddenChars)
-		}
-		if strings.ContainsAny(opts.WorkDir, forbiddenChars) {
-			return fmt.Errorf("cannot mount %q at %q: workdir overlayfs mount option contains forbidden characters. %q contains one of %q.", what, where, opts.WorkDir, forbiddenChars)
-		}
-
-		var lowerDirs strings.Builder
-		for i, d := range opts.LowerDirs {
-			if strings.ContainsAny(d, forbiddenChars) {
-				return fmt.Errorf("cannot mount %q at %q: lowerdir overlayfs mount option contains forbidden characters. %q contains one of %q.", what, where, d, forbiddenChars)
+	if opts.FsOpts != nil {
+		switch o := opts.FsOpts.(type) {
+		case *overlayFsOptions, *dmVerityOptions:
+			if _, ok := o.(*overlayFsOptions); ok {
+				args = append(args, "--type=overlay")
 			}
 
-			// This is used for splitting multiple lowerdirs as done in
-			// https://elixir.bootlin.com/linux/v6.10.9/C/ident/ovl_parse_param_split_lowerdirs
-			if i != 0 {
-				lowerDirs.WriteRune(':')
+			var err error
+			options, err = o.AppendOptions(options)
+			if err != nil {
+				return fmt.Errorf("cannot mount %q at %q: %w", what, where, err)
 			}
-
-			lowerDirs.WriteString(d)
-		}
-		options = append(options, fmt.Sprintf("lowerdir=%s", lowerDirs.String()))
-		options = append(options, fmt.Sprintf("upperdir=%s", opts.UpperDir))
-		options = append(options, fmt.Sprintf("workdir=%s", opts.WorkDir))
-	}
-	if opts.VerityHashDevice != "" && opts.VerityRootHash == "" {
-		return fmt.Errorf("cannot mount %q at %q: mount with dm-verity was requested but a root hash was not specified", what, where)
-	}
-	if opts.VerityRootHash != "" && opts.VerityHashDevice == "" {
-		return fmt.Errorf("cannot mount %q at %q: mount with dm-verity was requested but a hash device was not specified", what, where)
-	}
-
-	if strings.ContainsAny(opts.VerityHashDevice, forbiddenChars) {
-		return fmt.Errorf("cannot mount %q at %q: dm-verity hash device path contains forbidden characters. %q contains one of %q.", what, where, opts.VerityHashDevice, forbiddenChars)
-	}
-
-	if opts.VerityHashOffset != 0 && (opts.VerityHashDevice == "" || opts.VerityRootHash == "") {
-		return fmt.Errorf("cannot mount %q at %q: mount with dm-verity was requested but a hash device and root hash were not specified", what, where)
-	}
-	if opts.VerityHashDevice != "" && opts.VerityRootHash != "" {
-		options = append(options, fmt.Sprintf("verity.roothash=%s", opts.VerityRootHash))
-		options = append(options, fmt.Sprintf("verity.hashdevice=%s", opts.VerityHashDevice))
-
-		if opts.VerityHashOffset != 0 {
-			options = append(options, fmt.Sprintf("verity.hashoffset=%d", opts.VerityHashOffset))
+		default:
+			return fmt.Errorf("cannot mount %q at %q: invalid options", what, where)
 		}
 	}
+
 	if len(options) > 0 {
 		args = append(args, "--options="+strings.Join(options, ","))
 	}
@@ -255,7 +320,7 @@ func doSystemdMountImpl(what, where string, opts *systemdMountOptions) error {
 		// note we could do this statically in the initramfs main filesystem
 		// layout, but that means that changes to snap-bootstrap would block on
 		// waiting for those files to be added before things works here, this is
-		// a more flexible strategy that puts snap-bootstrap in control
+		// a more flexible strategy that puts snap-bootstrap in control.
 		overrideContent := []byte(fmt.Sprintf(unitFileDependOverride, unitName))
 		for _, initrdUnit := range []string{"initrd-fs.target", "local-fs.target"} {
 			targetDir := filepath.Join(dirs.GlobalRootDir, "/run/systemd/system", initrdUnit+".d")
@@ -273,7 +338,7 @@ func doSystemdMountImpl(what, where string, opts *systemdMountOptions) error {
 				return err
 			}
 		}
-		// local-fs.target is already automatically a depenency
+		// local-fs.target is already automatically a dependency.
 		args = append(args, "--property=Before=initrd-fs.target")
 	}
 
@@ -288,7 +353,7 @@ func doSystemdMountImpl(what, where string, opts *systemdMountOptions) error {
 		// paranoid here and wait anyways?
 		// see systemd-mount(1)
 
-		// wait for the mount to exist
+		// wait for the mount to exist.
 		start := timeNow()
 		var now time.Time
 		for now = timeNow(); now.Sub(start) < defaultMountUnitWaitTimeout; now = timeNow() {

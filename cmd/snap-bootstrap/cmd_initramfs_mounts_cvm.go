@@ -123,14 +123,17 @@ func generateMountsFromManifest(im imageManifest, disk disks.Disk) ([]partitionM
 			// This will cause dm-verity to fail when attempting to set up the dm-verity mount.
 			// fsck should be/is run by the encrypt-cloud-image tool prior to generating dm-verity data.
 			pm.Opts.NeedsFsck = false
-			pm.Opts.VerityRootHash = p.RootHash
 
 			// Auto-discover verity device from disk.
 			verityPartition, err := disk.FindMatchingPartitionWithPartLabel(p.GptLabel + "-verity")
 			if err != nil {
 				return []partitionMount{}, err
 			}
-			pm.Opts.VerityHashDevice = verityPartition.KernelDeviceNode
+
+			pm.Opts.FsOpts = &dmVerityOptions{
+				RootHash:   p.RootHash,
+				HashDevice: verityPartition.KernelDeviceNode,
+			}
 		} else {
 			// Only one writable partition is permitted.
 			if foundWritablePartition != "" {
@@ -170,10 +173,11 @@ func generateMountsFromManifest(im imageManifest, disk disks.Disk) ([]partitionM
 		Where:    boot.InitramfsDataDir,
 		GptLabel: "cloudimg-rootfs",
 		Opts: &systemdMountOptions{
-			Overlayfs: true,
-			LowerDirs: []string{filepath.Join(boot.InitramfsRunMntDir, foundReadOnlyPartition)},
-			UpperDir:  filepath.Join(boot.InitramfsRunMntDir, foundWritablePartition, "upper"),
-			WorkDir:   filepath.Join(boot.InitramfsRunMntDir, foundWritablePartition, "work"),
+			FsOpts: &overlayFsOptions{
+				LowerDirs: []string{filepath.Join(boot.InitramfsRunMntDir, foundReadOnlyPartition)},
+				UpperDir:  filepath.Join(boot.InitramfsRunMntDir, foundWritablePartition, "upper"),
+				WorkDir:   filepath.Join(boot.InitramfsRunMntDir, foundWritablePartition, "work"),
+			},
 		},
 	}
 

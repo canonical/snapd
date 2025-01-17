@@ -329,8 +329,8 @@ func (s *initramfsCVMMountsSuite) TestInitramfsMountsRunCVMModeEphemeralOverlayH
 			boot.InitramfsDataDir,
 			"--no-pager",
 			"--no-ask-password",
-			"--type=overlay",
 			"--fsck=no",
+			"--type=overlay",
 			"--options=lowerdir=" +
 				filepath.Join(boot.InitramfsRunMntDir, "cloudimg-rootfs") +
 				",upperdir=" + filepath.Join(boot.InitramfsRunMntDir, "writable-tmp", "upper") +
