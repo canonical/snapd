@@ -25,6 +25,11 @@ on:
         description: 'The rule .yaml file to use (found under tests/lib/spread/rules) for test discovery'
         required: true
         type: string
+      is-fundamental:
+        description: 'If true, then will mark results as from fundamental systems when uploading to Grafana'
+        required: false
+        type: boolean
+        default: false
       use-snapd-snap-from-master:
         description: 'If true, will use the snapd snap built on the master branch'
         required: false
@@ -178,7 +183,11 @@ jobs:
           if [ -z "$CHANGE_ID" ]; then
             CHANGE_ID="main"
           fi
-          FILTERED_LOG_FILE="spread_${CHANGE_ID}_n${{ github.run_attempt }}.filtered.log"
+          fundamental=""
+          if [ "${{ inputs.is-fundamental }}" = 'true' ]; then
+            fundamental="fund"
+          fi
+          FILTERED_LOG_FILE="spread_${CHANGE_ID}_${fundamental}_n${{ github.run_attempt }}.filtered.log"
           # The log-filter tool is used to filter the spread logs to be stored
           echo FILTER_PARAMS="-o $FILTERED_LOG_FILE -e Debug -e WARNING: -f Failed=NO_LINES -f Error=NO_LINES"  >> $GITHUB_ENV
           echo FILTERED_LOG_FILE="$FILTERED_LOG_FILE"  >> $GITHUB_ENV
