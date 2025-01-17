@@ -641,6 +641,25 @@ func doInstall(st *state.State, snapst *SnapState, snapsup SnapSetup, compsups [
 	setupAliases := st.NewTask("setup-aliases", fmt.Sprintf(i18n.G("Setup snap %q aliases"), snapsup.InstanceName()))
 	addTask(setupAliases)
 
+	var setupKmodComponentsPreseed *state.Task
+	if snapdenv.Preseeding() && requiresKmodSetup(snapst, compsups) {
+		// We need this task as the other
+		// prepare-kernel-modules-components defined below will not be
+		// run when creating a preseeding tarball, but we still need to
+		// have a correct driver tree in the tarball. This implies that
+		// if some kernel module is created by the install hook, it
+		// will be available only after full installation on first
+		// boot, but static modules in the components where be
+		// available early.
+		logger.Noticef("kernel-modules components present, creating preseed task for them")
+		// TODO move the setupKernel task here and make it configure
+		// kernel-modules components too so we can remove this task.
+		setupKmodComponentsPreseed = st.NewTask("prepare-kernel-modules-components",
+			fmt.Sprintf(i18n.G("Prepare kernel-modules components for %q%s"),
+				snapsup.InstanceName(), revisionStr))
+		addTask(setupKmodComponentsPreseed)
+	}
+
 	if snapsup.Flags.Prefer {
 		prefer := st.NewTask("prefer-aliases", fmt.Sprintf(i18n.G("Prefer aliases for snap %q"), snapsup.InstanceName()))
 		addTask(prefer)
@@ -788,7 +807,12 @@ func doInstall(st *state.State, snapst *SnapState, snapsup SnapSetup, compsups [
 	installSet := state.NewTaskSet(tasks...)
 	installSet.MarkEdge(prereq, BeginEdge)
 	installSet.MarkEdge(prepare, SnapSetupEdge)
-	installSet.MarkEdge(setupAliases, BeforeHooksEdge)
+	// BeforeHooksEdge is used by preseeding to know up to which task to run
+	beforeHooksEdgeTask := setupAliases
+	if setupKmodComponentsPreseed != nil {
+		beforeHooksEdgeTask = setupKmodComponentsPreseed
+	}
+	installSet.MarkEdge(beforeHooksEdgeTask, BeforeHooksEdge)
 
 	// Let tasks know if they have to do something about restarts
 	if setupKmodComponents == nil {
