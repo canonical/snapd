@@ -22,8 +22,10 @@ package asserts
 import (
 	"bytes"
 	"crypto"
+	"encoding/hex"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	// expected for digests
@@ -464,11 +466,54 @@ func (ra *RevisionAuthority) CheckResourceRevision(resrev *SnapResourceRevision,
 	return ra.checkProvenanceAndRevision(resrev, "resource", resrev.ResourceRevision(), model, store)
 }
 
-// SnapIntegrity holds information about integrity data included in a revision
-// for a given snap.
-type SnapIntegrity struct {
-	SHA3_384 string
-	Size     uint64
+var validSnapIntegrityTypes = []string{"dm-verity"}
+
+var validVersionsForIntegrityType = map[string][]int{
+	// version 1 corresponds to dm-verity format 1
+	"dm-verity": {1},
+}
+
+var validHashAlgorithmsForIntegrityType = map[string][]string{
+	// kernel supported algorithms:
+	// https://gitlab.com/cryptsetup/cryptsetup/-/blob/main/lib/crypto_backend/crypto_kernel.c?ref_type=heads#L35
+	// Go crypto's supported algorithms:
+	// https://cs.opensource.google/go/go/+/refs/tags/go1.23.4:src/crypto/crypto.go;l=68
+	"dm-verity": {
+		"sha256",
+	},
+}
+
+func contains[V int | string](l []V, i V) bool {
+	for _, v := range l {
+		if v == i {
+			return true
+		}
+	}
+
+	return false
+}
+
+func toHash(s string) crypto.Hash {
+	switch s {
+	case "sha256":
+		return crypto.SHA256
+	default:
+		return 0
+	}
+}
+
+// SnapIntegrityData holds information about integrity data of a specific type included in a snap's revision.
+//
+// A single snap revision can have multiple variants of integrity data which are represented as an array in the
+// snap revision assertion.
+type SnapIntegrityData struct {
+	Type          string
+	Version       uint
+	HashAlg       string
+	DataBlockSize uint
+	HashBlockSize uint
+	Digest        string
+	Salt          string
 }
 
 // SnapFileSHA3_384 computes the SHA3-384 digest of the given snap file.
@@ -561,7 +606,7 @@ type SnapRevision struct {
 	snapRevision int
 	timestamp    time.Time
 
-	snapIntegrity *SnapIntegrity
+	snapIntegrityData []SnapIntegrityData
 }
 
 // SnapSHA3_384 returns the SHA3-384 digest of the snap.
@@ -601,9 +646,9 @@ func (snaprev *SnapRevision) Timestamp() time.Time {
 	return snaprev.timestamp
 }
 
-// SnapIntegrity returns the snap integrity data associated with the snap revision if any.
-func (snaprev *SnapRevision) SnapIntegrity() *SnapIntegrity {
-	return snaprev.snapIntegrity
+// SnapIntegrityData returns the snap integrity data associated with the snap revision if any.
+func (snaprev *SnapRevision) SnapIntegrityData() []SnapIntegrityData {
+	return snaprev.snapIntegrityData
 }
 
 // Implement further consistency checks.
@@ -683,6 +728,96 @@ func checkOptionalSnapRevisionWhat(headers map[string]interface{}, name, what st
 	return checkSnapRevisionWhat(headers, name, what)
 }
 
+func checkSnapIntegrity(headers map[string]interface{}) ([]SnapIntegrityData, error) {
+	value, ok := headers["integrity"]
+	if !ok {
+		// integrity stanzas are optional
+		return nil, nil
+	}
+
+	integrityList, ok := value.([]interface{})
+	if !ok {
+		return nil, fmt.Errorf(`"integrity" header must contain a list of integrity data`)
+	}
+	if len(integrityList) == 0 {
+		return nil, nil
+	}
+
+	var snapIntegrityDataList []SnapIntegrityData
+
+	for i, il := range integrityList {
+		id, ok := il.(map[string]interface{})
+		if !ok {
+			return nil, fmt.Errorf(`"integrity" header must contain a list of integrity data`)
+		}
+
+		what := fmt.Sprintf("of integrity data [%d]", i)
+		typ, err := checkExistsStringWhat(id, "type", what)
+		if err != nil {
+			return nil, err
+		}
+
+		if !contains(validSnapIntegrityTypes, typ) {
+			return nil, fmt.Errorf("\"type\" of integrity data [%d] must be one of (%s)", i, strings.Join(validSnapIntegrityTypes, "|"))
+		}
+
+		what = fmt.Sprintf("of integrity data [%d] of type %q", i, typ)
+		version, err := checkUintWhat(id, "version", 64, what)
+		if err != nil {
+			return nil, err
+		}
+
+		if !contains(validVersionsForIntegrityType[typ], int(version)) {
+			return nil, fmt.Errorf(`version of integrity data [%d] of type %q must be one of %v`, i, typ, validVersionsForIntegrityType[typ])
+		}
+
+		alg, err := checkExistsStringWhat(id, "hash-algorithm", what)
+		if err != nil {
+			return nil, err
+		}
+
+		if !contains(validHashAlgorithmsForIntegrityType[typ], alg) {
+			return nil, fmt.Errorf(`hash algorithm of integrity data [%d] of type %q must be one of %v`, i, typ, validHashAlgorithmsForIntegrityType[typ])
+		}
+
+		what = fmt.Sprintf("of integrity data [%d] of type %q (%s)", i, typ, alg)
+		dataBlockSize, err := checkUintWhat(id, "data-block-size", 64, what)
+		if err != nil {
+			return nil, err
+		}
+
+		hashBlockSize, err := checkUintWhat(id, "hash-block-size", 64, what)
+		if err != nil {
+			return nil, err
+		}
+
+		h := toHash(alg)
+		encDigest, err := checkDigestDecWhat(id, "digest", h, hex.DecodeString, what)
+		if err != nil {
+			return nil, err
+		}
+
+		encSalt, err := checkDigestDecWhat(id, "salt", h, hex.DecodeString, what)
+		if err != nil {
+			return nil, err
+		}
+
+		snapIntegrityData := SnapIntegrityData{
+			Type:          typ,
+			Version:       uint(version),
+			HashAlg:       alg,
+			DataBlockSize: uint(dataBlockSize),
+			HashBlockSize: uint(hashBlockSize),
+			Digest:        encDigest,
+			Salt:          encSalt,
+		}
+
+		snapIntegrityDataList = append(snapIntegrityDataList, snapIntegrityData)
+	}
+
+	return snapIntegrityDataList, nil
+}
+
 func assembleSnapRevision(assert assertionBase) (Assertion, error) {
 	_, err := checkDigest(assert.headers, "snap-sha3-384", crypto.SHA3_384)
 	if err != nil {
@@ -719,37 +854,17 @@ func assembleSnapRevision(assert assertionBase) (Assertion, error) {
 		return nil, err
 	}
 
-	integrityMap, err := checkMap(assert.headers, "integrity")
+	snapIntegrityData, err := checkSnapIntegrity(assert.headers)
 	if err != nil {
 		return nil, err
 	}
 
-	var snapIntegrity *SnapIntegrity
-
-	if integrityMap != nil {
-		// TODO: this will change again to support format agility
-		_, err := checkDigestWhat(integrityMap, "sha3-384", crypto.SHA3_384, "of integrity header")
-		if err != nil {
-			return nil, err
-		}
-
-		size, err := checkUintWhat(integrityMap, "size", 64, "of integrity header")
-		if err != nil {
-			return nil, err
-		}
-
-		snapIntegrity = &SnapIntegrity{
-			SHA3_384: integrityMap["sha3-384"].(string),
-			Size:     size,
-		}
-	}
-
 	return &SnapRevision{
-		assertionBase: assert,
-		snapSize:      snapSize,
-		snapRevision:  snapRevision,
-		timestamp:     timestamp,
-		snapIntegrity: snapIntegrity,
+		assertionBase:     assert,
+		snapSize:          snapSize,
+		snapRevision:      snapRevision,
+		timestamp:         timestamp,
+		snapIntegrityData: snapIntegrityData,
 	}, nil
 }
 
