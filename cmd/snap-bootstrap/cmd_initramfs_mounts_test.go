@@ -856,10 +856,11 @@ func (s *initramfsMountsSuite) TestInitramfsMountsInstallModeWithCompsHappy(c *C
 		c.Assert(string(model.Grade()), Equals, "signed")
 		c.Assert(gadgetRoot, Equals, filepath.Join(boot.InitramfsRunMntDir, "gadget"))
 		c.Assert(kernelSnapInfo, DeepEquals, &gadgetInstall.KernelSnapInfo{
-			Name:             "pc-kernel",
-			Revision:         snap.R(1),
-			MountPoint:       filepath.Join(boot.InitramfsRunMntDir, "kernel"),
-			NeedsDriversTree: true,
+			Name:       "pc-kernel",
+			Revision:   snap.R(1),
+			MountPoint: filepath.Join(boot.InitramfsRunMntDir, "kernel"),
+			// As the drivers tree is already in the preseed tarball
+			NeedsDriversTree: false,
 			IsCore:           true,
 			ModulesComps: []install.KernelModulesComponentInfo{
 				{
