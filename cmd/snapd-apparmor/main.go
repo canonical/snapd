@@ -37,7 +37,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 
@@ -47,6 +46,7 @@ import (
 	"github.com/snapcore/snapd/release"
 	apparmor_sandbox "github.com/snapcore/snapd/sandbox/apparmor"
 	"github.com/snapcore/snapd/snapdtool"
+	"github.com/snapcore/snapd/systemd"
 )
 
 // Checks to see if the current container is capable of having internal AppArmor
@@ -149,7 +149,7 @@ func loadAppArmorProfiles() error {
 
 func isContainer() bool {
 	// systemd's implementation may fail on WSL2 with custom kernels
-	return release.OnWSL || (exec.Command("systemd-detect-virt", "--quiet", "--container").Run() == nil)
+	return release.OnWSL || systemd.IsContainer()
 }
 
 func validateArgs(args []string) error {
