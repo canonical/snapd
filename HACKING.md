@@ -82,7 +82,7 @@ Install snapcraft:
 sudo snap install snapcraft --classic
 ```
 
-Install and setup lxd:
+Install and init lxd:
 
 ```
 sudo snap install lxd
