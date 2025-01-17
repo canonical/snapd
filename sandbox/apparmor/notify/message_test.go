@@ -31,14 +31,14 @@ func (*messageSuite) TestMsgLength(c *C) {
 		{
 			bytes: []byte{
 				0xff, 0x0, // Incorrect length, but no validation done here
-				0x3, 0x0, // Protocol
+				0x5, 0x0, // Protocol
 			},
 			length: 255,
 		},
 		{
 			bytes: []byte{
 				0x10, 0x0, // Length
-				0xff, 0xff, // Protocol (invalid, should still work)
+				0xff, 0xff, // Protocol
 				0x80, 0x0, 0x0, 0x0, // Mode Set
 				0x0, 0x0, 0x0, 0x0, // Namespace
 				0x0, 0x0, 0x0, 0x0, // Filter
@@ -48,7 +48,7 @@ func (*messageSuite) TestMsgLength(c *C) {
 		{
 			bytes: []byte{
 				0x4, 0x0, // Length
-				0x3, 0x0, // Protocol
+				0xAB, 0xCD, // Protocol
 				// Next 4 bytes should be next header, but no validation done here
 				0x80, 0x0, 0x0, 0x0, // Mode Set
 				0x0, 0x0, 0x0, 0x0, // Namespace
@@ -122,7 +122,7 @@ func (*messageSuite) TestExtractFirstMsg(c *C) {
 		0x0, 0x0, 0x0, 0x0, // Filter
 		// third
 		0x4, 0x0, // Length
-		0x3, 0x0, // Protocol
+		0x5, 0x0, // Protocol
 		// Next 4 bytes should be next header, but no validation done here
 		0x80, 0x0, 0x0, 0x0, // Mode Set
 		0x0, 0x0, 0x0, 0x0, // Namespace
@@ -146,7 +146,7 @@ func (*messageSuite) TestExtractFirstMsg(c *C) {
 				0x0, 0x0, 0x0, 0x0, // Filter
 				// third
 				0x4, 0x0, // Length
-				0x3, 0x0, // Protocol
+				0x5, 0x0, // Protocol
 				// Next 4 bytes should be next header, but no validation done here
 				0x80, 0x0, 0x0, 0x0, // Mode Set
 				0x0, 0x0, 0x0, 0x0, // Namespace
@@ -164,7 +164,7 @@ func (*messageSuite) TestExtractFirstMsg(c *C) {
 			rest: []byte{
 				// third
 				0x4, 0x0, // Length
-				0x3, 0x0, // Protocol
+				0x5, 0x0, // Protocol
 				// Next 4 bytes should be next header, but no validation done here
 				0x80, 0x0, 0x0, 0x0, // Mode Set
 				0x0, 0x0, 0x0, 0x0, // Namespace
@@ -174,7 +174,7 @@ func (*messageSuite) TestExtractFirstMsg(c *C) {
 		{
 			first: []byte{
 				0x4, 0x0, // Length
-				0x3, 0x0, // Protocol
+				0x5, 0x0, // Protocol
 			},
 			rest: []byte{
 				// Next 4 bytes should be next header, but no validation done here
@@ -234,6 +234,31 @@ func (*messageSuite) TestExtractFirstMsgErrors(c *C) {
 	}
 }
 
+func (*messageSuite) TestMessageMarshalErrors(c *C) {
+	// Try to marshal message structs without setting Version, check that
+	// ErrVersionUnset is returned
+
+	filter := notify.MsgNotificationFilter{}
+	bytes, err := filter.MarshalBinary()
+	c.Check(err, Equals, notify.ErrVersionUnset)
+	c.Check(bytes, IsNil)
+
+	notif := notify.MsgNotification{}
+	bytes, err = notif.MarshalBinary()
+	c.Check(err, Equals, notify.ErrVersionUnset)
+	c.Check(bytes, IsNil)
+
+	resp := notify.MsgNotificationResponse{}
+	bytes, err = resp.MarshalBinary()
+	c.Check(err, Equals, notify.ErrVersionUnset)
+	c.Check(bytes, IsNil)
+
+	file := notify.MsgNotificationFile{}
+	bytes, err = file.MarshalBinary()
+	c.Check(err, Equals, notify.ErrVersionUnset)
+	c.Check(bytes, IsNil)
+}
+
 func (*messageSuite) TestMsgNotificationFilterMarshalUnmarshal(c *C) {
 	if arch.Endian() == binary.BigEndian {
 		c.Skip("test only written for little-endian architectures")
@@ -278,10 +303,11 @@ func (*messageSuite) TestMsgNotificationFilterMarshalUnmarshal(c *C) {
 				Filter:    []byte("bar"),
 			},
 		},
+		// TODO: add test cases for other versions once they are supported
 	} {
 		bytes, err := t.msg.MarshalBinary()
-		c.Assert(err, IsNil)
-		c.Assert(bytes, DeepEquals, t.bytes)
+		c.Check(err, IsNil)
+		c.Check(bytes, DeepEquals, t.bytes)
 
 		var msg notify.MsgNotificationFilter
 		err = msg.UnmarshalBinary(t.bytes)
@@ -356,7 +382,7 @@ func (*messageSuite) TestMsgNotificationFilterUnmarshalErrors(c *C) {
 			errMsg: `cannot unmarshal apparmor notification filter message: cannot unpack namespace: address 255 points outside of message body`,
 		},
 		{
-			comment: "message with with namespace without proper termination",
+			comment: "message with namespace without proper termination",
 			bytes: []byte{
 				0x13, 0x0, // Length
 				0x3, 0x0, // Protocol
@@ -392,12 +418,13 @@ func (*messageSuite) TestMsgNotificationMarshalBinary(c *C) {
 		ID:               0x1234,
 		Error:            0xFF,
 	}
+	msg.Version = notify.ProtocolVersion(0xAA)
 	data, err := msg.MarshalBinary()
 	c.Assert(err, IsNil)
 	c.Check(data, HasLen, 20)
 	c.Check(data, DeepEquals, []byte{
 		0x14, 0x0, // Length
-		0x3, 0x0, // Protocol
+		0xAA, 0x0, // Protocol
 		0x0, 0x0, // Notification Type
 		0x1,                                            // Signalled
 		0x0,                                            // Reserved
@@ -479,6 +506,9 @@ func (s *messageSuite) TestMsgNotificationValidate(c *C) {
 
 func (s *messageSuite) TestResponseForRequest(c *C) {
 	req := notify.MsgNotification{
+		MsgHeader: notify.MsgHeader{
+			Version: 0xabcd,
+		},
 		ID:    1234,
 		Error: 0xbad,
 	}
@@ -487,6 +517,8 @@ func (s *messageSuite) TestResponseForRequest(c *C) {
 	c.Assert(resp.NoCache, Equals, uint8(1))
 	c.Assert(resp.ID, Equals, req.ID)
 	c.Assert(resp.MsgNotification.Error, Equals, req.Error)
+	_, err := resp.MarshalBinary()
+	c.Assert(err, IsNil)
 }
 
 func (s *messageSuite) TestMsgNotificationResponseMarshalBinary(c *C) {
@@ -495,6 +527,9 @@ func (s *messageSuite) TestMsgNotificationResponseMarshalBinary(c *C) {
 	}
 	msg := notify.MsgNotificationResponse{
 		MsgNotification: notify.MsgNotification{
+			MsgHeader: notify.MsgHeader{
+				Version: 43,
+			},
 			NotificationType: 0x11,
 			Signalled:        0x22,
 			NoCache:          0x33,
@@ -509,7 +544,7 @@ func (s *messageSuite) TestMsgNotificationResponseMarshalBinary(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(bytes, DeepEquals, []byte{
 		0x20, 0x0, // Length
-		0x3, 0x0, // Version
+		43, 0x0, // Version
 		0x11, 0x0, // Notification Type
 		0x22,                                    // Signalled
 		0x33,                                    // Reserved

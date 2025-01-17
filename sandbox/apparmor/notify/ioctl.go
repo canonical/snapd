@@ -95,7 +95,7 @@ func Ioctl(fd uintptr, req IoctlRequest, buf IoctlRequestBuffer) ([]byte, error)
 		}
 	}
 	if errno != 0 {
-		return nil, fmt.Errorf("cannot perform IOCTL request %v: %v", req, unix.Errno(errno))
+		return nil, fmt.Errorf("cannot perform IOCTL request %v: %w (%s)", req, errno, unix.ErrnoName(errno))
 	}
 	if size >= 0 && size <= len(buf) {
 		buf = buf[:size]
