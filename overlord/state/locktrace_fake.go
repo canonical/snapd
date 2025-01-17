@@ -2,7 +2,7 @@
 //go:build !statelocktrace
 
 /*
- * Copyright (C) 2021 Canonical Ltd
+ * Copyright (C) 2025 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -20,9 +20,6 @@
 
 package state
 
-func lockTimestamp() int64 {
-	return int64(0)
-}
+func lockTimestamp() int64 { return 0 }
 
-func maybeSaveLockTime(lockWaitStart, lockHoldStart, now int64) {
-}
+func maybeSaveLockTime(lockWaitStart, lockHoldStart, now int64) {}

@@ -2,7 +2,7 @@
 //go:build statelocktrace
 
 /*
- * Copyright (C) 2021 Canonical Ltd
+ * Copyright (C) 2025 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -70,7 +70,7 @@ func traceCallers(ts, heldMs, waitMs int64) error {
 	}
 
 	pc := make([]uintptr, 10)
-	// avoid 3 first callers on the stack: runtime.Callers(), this function and the parent
+	// ignore the first 3 callers on the stack: runtime.Callers(), this function and the parent
 	n := runtime.Callers(3, pc)
 	frames := runtime.CallersFrames(pc[:n])
 
@@ -104,8 +104,8 @@ func lockTimestamp() int64 {
 	return time.Now().UnixMilli()
 }
 
-// maybeSaveLockTime allows to save lock times when this overpass the threshold
-// defined by through the SNAPD_STATE_LOCK_THRESHOLD_MS environment settings.
+// maybeSaveLockTime logs the lock hold and wait times when either exceeds the
+// threshold defined in the SNAPD_STATE_LOCK_THRESHOLD_MS environment variable.
 func maybeSaveLockTime(lockWaitStart, lockHoldStart, now int64) {
 	if !traceStateLock {
 		return
