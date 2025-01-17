@@ -44,7 +44,12 @@ environment:
     FAULT/kernel_reboot_refresh_gadget_assets: reboot
     TAG/gadget_reboot_refresh_gadget_assets: refresh-gadget-assets
     FAULT/gadget_reboot_refresh_gadget_assets: reboot
-    
+
+    # refresh from store might get some kernel that have an old
+    # initrd.
+    NESTED_ENABLE_SECURE_BOOT: false
+    NESTED_ENABLE_TPM: false
+
 prepare: |
     # automatically cleaned up in restore
     echo "Inject a $FAULT on $TAG"
