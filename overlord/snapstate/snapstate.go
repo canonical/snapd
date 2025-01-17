@@ -1637,19 +1637,19 @@ func downloadTasks(
 	}
 
 	snapsup := &SnapSetup{
-		Channel:                 revOpts.Channel,
-		Base:                    info.Base,
-		UserID:                  opts.UserID,
-		Flags:                   opts.Flags.ForSnapSetup(),
-		DownloadInfo:            &info.DownloadInfo,
-		SideInfo:                &info.SideInfo,
-		Type:                    info.Type(),
-		Version:                 info.Version,
-		InstanceKey:             info.InstanceKey,
-		CohortKey:               revOpts.CohortKey,
-		ExpectedProvenance:      info.SnapProvenance,
-		DownloadBlobDir:         downloadDir,
-		ComponentExclusiveSetup: skipSnapDownload,
+		Channel:                     revOpts.Channel,
+		Base:                        info.Base,
+		UserID:                      opts.UserID,
+		Flags:                       opts.Flags.ForSnapSetup(),
+		DownloadInfo:                &info.DownloadInfo,
+		SideInfo:                    &info.SideInfo,
+		Type:                        info.Type(),
+		Version:                     info.Version,
+		InstanceKey:                 info.InstanceKey,
+		CohortKey:                   revOpts.CohortKey,
+		ExpectedProvenance:          info.SnapProvenance,
+		DownloadBlobDir:             downloadDir,
+		ComponentExclusiveOperation: skipSnapDownload,
 	}
 
 	if sar.RedirectChannel != "" {

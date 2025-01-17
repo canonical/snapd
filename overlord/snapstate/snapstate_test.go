@@ -10486,7 +10486,7 @@ func verifySnapAndComponentSetupsForDownload(c *C, begin *state.Task, ts *state.
 		fmt.Sprintf("%s_%s.snap", snapsup.InstanceName(), snapsup.Revision()),
 	))
 
-	c.Assert(snapsup.ComponentExclusiveSetup, Equals, componentExclusive)
+	c.Assert(snapsup.ComponentExclusiveOperation, Equals, componentExclusive)
 
 	var compsupTaskIDs []string
 	err = begin.Get("component-setup-tasks", &compsupTaskIDs)
