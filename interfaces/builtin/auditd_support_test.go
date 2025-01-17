@@ -91,7 +91,9 @@ func (s *AuditdSupportInterfaceSuite) TestSecCompSpec(c *C) {
 	err := spec.AddConnectedPlug(s.iface, s.plug, s.slot)
 	c.Assert(err, IsNil)
 	c.Assert(spec.Snippets(), HasLen, 1)
+	c.Check(spec.SnippetForTag("snap.other.app2"), testutil.Contains, "bind")
 	c.Check(spec.SnippetForTag("snap.other.app2"), testutil.Contains, "socket AF_NETLINK")
+	c.Check(spec.SnippetForTag("snap.other.app2"), testutil.Contains, "setpriority")
 }
 
 func (s *AuditdSupportInterfaceSuite) TestInterfaces(c *C) {
