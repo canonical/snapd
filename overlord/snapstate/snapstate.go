@@ -574,7 +574,7 @@ func doInstall(st *state.State, snapst *SnapState, snapsup SnapSetup, compsups [
 	}
 
 	// This task is necessary only for UC24+ and hybrid 24.04+
-	if snapsup.Type == snap.TypeKernel && NeedsKernelSetup(deviceCtx.Model()) {
+	if snapsup.Type == snap.TypeKernel && deviceCtx.Model().NeedsKernelSetup() {
 		setupKernel := st.NewTask("prepare-kernel-snap", fmt.Sprintf(i18n.G("Prepare kernel driver tree for %q%s"), snapsup.InstanceName(), revisionStr))
 		addTask(setupKernel)
 	}
@@ -642,6 +642,25 @@ func doInstall(st *state.State, snapst *SnapState, snapsup SnapSetup, compsups [
 	setupAliases := st.NewTask("setup-aliases", fmt.Sprintf(i18n.G("Setup snap %q aliases"), snapsup.InstanceName()))
 	addTask(setupAliases)
 
+	var setupKmodComponentsPreseed *state.Task
+	if snapdenv.Preseeding() && requiresKmodSetup(snapst, compsups) {
+		// We need this task as the other
+		// prepare-kernel-modules-components defined below will not be
+		// run when creating a preseeding tarball, but we still need to
+		// have a correct driver tree in the tarball. This implies that
+		// if some kernel module is created by the install hook, it
+		// will be available only after full installation on first
+		// boot, but static modules in the components where be
+		// available early.
+		logger.Noticef("kernel-modules components present, creating preseed task for them")
+		// TODO move the setupKernel task here and make it configure
+		// kernel-modules components too so we can remove this task.
+		setupKmodComponentsPreseed = st.NewTask("prepare-kernel-modules-components",
+			fmt.Sprintf(i18n.G("Prepare kernel-modules components for %q%s"),
+				snapsup.InstanceName(), revisionStr))
+		addTask(setupKmodComponentsPreseed)
+	}
+
 	if snapsup.Flags.Prefer {
 		prefer := st.NewTask("prefer-aliases", fmt.Sprintf(i18n.G("Prefer aliases for snap %q"), snapsup.InstanceName()))
 		addTask(prefer)
@@ -686,7 +705,7 @@ func doInstall(st *state.State, snapst *SnapState, snapsup SnapSetup, compsups [
 		addTask(setupKmodComponents)
 	}
 
-	if snapsup.Type == snap.TypeKernel && NeedsKernelSetup(deviceCtx.Model()) {
+	if snapsup.Type == snap.TypeKernel && deviceCtx.Model().NeedsKernelSetup() {
 		// This task needs to run after we're back and running the new
 		// kernel after a reboot was requested in link-snap handler.
 		discardOldKernelSetup := st.NewTask("discard-old-kernel-snap-setup",
@@ -788,7 +807,12 @@ func doInstall(st *state.State, snapst *SnapState, snapsup SnapSetup, compsups [
 
 	installSet := state.NewTaskSet(tasks...)
 	installSet.MarkEdge(prereq, BeginEdge)
-	installSet.MarkEdge(setupAliases, BeforeHooksEdge)
+	// BeforeHooksEdge is used by preseeding to know up to which task to run
+	beforeHooksEdgeTask := setupAliases
+	if setupKmodComponentsPreseed != nil {
+		beforeHooksEdgeTask = setupKmodComponentsPreseed
+	}
+	installSet.MarkEdge(beforeHooksEdgeTask, BeforeHooksEdge)
 
 	// Let tasks know if they have to do something about restarts
 	// TODO fix tests so BeforeMaybeRebootEdge and AfterMaybeRebootWaitEdge
@@ -907,24 +931,6 @@ func splitComponentTasksForInstall(
 		componentTSS = append(componentTSS, componentTS)
 	}
 	return newMultiComponentInstallTaskSet(componentTSS...), nil
-}
-
-func NeedsKernelSetup(model *asserts.Model) bool {
-	// Checking if it has modeenv - it must be UC20+ or hybrid
-	if model.Grade() == asserts.ModelGradeUnset {
-		return false
-	}
-
-	// We assume core24/hybrid 24.04 onwards have the generator, for older
-	// boot bases we return false.
-	// TODO this won't work for a UC2{0,2} -> UC24+ remodel as we need the
-	// new model here. Get to this ASAP after snapd 2.62 release.
-	switch model.Base() {
-	case "core20", "core22", "core22-desktop":
-		return false
-	default:
-		return true
-	}
 }
 
 func findTasksMatchingKindAndSnap(st *state.State, kind string, snapName string, revision snap.Revision) ([]*state.Task, error) {
@@ -3396,7 +3402,7 @@ func LinkNewBaseOrKernel(st *state.State, name string, fromChange string) (*stat
 		if err != nil {
 			return nil, err
 		}
-		if NeedsKernelSetup(deviceCtx.Model()) {
+		if deviceCtx.Model().NeedsKernelSetup() {
 			setupKernel := st.NewTask("prepare-kernel-snap", fmt.Sprintf(i18n.G("Prepare kernel driver tree for %q (%s) for remodel"), snapsup.InstanceName(), snapst.Current))
 			ts.AddTask(setupKernel)
 			setupKernel.Set("snap-setup-task", prepareSnap.ID())
@@ -3455,7 +3461,7 @@ func AddLinkNewBaseOrKernel(st *state.State, ts *state.TaskSet) (*state.TaskSet,
 		if err != nil {
 			return nil, err
 		}
-		if NeedsKernelSetup(deviceCtx.Model()) {
+		if deviceCtx.Model().NeedsKernelSetup() {
 			setupKernel := st.NewTask("prepare-kernel-snap", fmt.Sprintf(i18n.G("Prepare kernel driver tree for %q (%s) for remodel"), snapsup.InstanceName(), snapsup.Revision()))
 			setupKernel.Set("snap-setup-task", snapSetupTask.ID())
 			setupKernel.WaitFor(prev)

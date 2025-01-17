@@ -57,6 +57,7 @@ import (
 	"github.com/snapcore/snapd/seed"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/naming"
+	"github.com/snapcore/snapd/snap/snapdir"
 	"github.com/snapcore/snapd/snap/squashfs"
 	"github.com/snapcore/snapd/sysconfig"
 	"github.com/snapcore/snapd/timings"
@@ -265,6 +266,18 @@ func readSnapInfo(sysSnaps map[snap.Type]*seed.Snap, snapType snap.Type) (*snap.
 
 }
 
+func readComponentInfo(seedComp *seed.Component, mntPt string, snapInfo *snap.Info, csi *snap.ComponentSideInfo) (*snap.ComponentInfo, error) {
+	container := snapdir.New(mntPt)
+	ci, err := snap.ReadComponentInfoFromContainer(container, snapInfo, csi)
+	if err != nil {
+		return nil, err
+	}
+	if ci.Revision.Unset() {
+		ci.Revision = snap.R(-1)
+	}
+	return ci, nil
+}
+
 func runFDESetupHook(req *fde.SetupRequest) ([]byte, error) {
 	// TODO: use systemd-run
 	encoded, err := json.Marshal(req)
@@ -331,26 +344,75 @@ func doInstall(mst *initramfsMountsState, model *asserts.Model, sysSnaps map[sna
 		return fmt.Errorf("cannot use gadget: %v", err)
 	}
 
-	// TODO:COMPS take into account kernel-modules components, see
-	// DeviceManager,doSetupRunSystem and other parts of
-	// handlers_install.go.
+	// Get kernel-modules information to have them ready early on first boot
+
+	kernCompsByName := make(map[string]*snap.Component)
+	for _, c := range kernelSnap.Components {
+		kernCompsByName[c.Name] = c
+	}
+
+	kernelSeed := sysSnaps[snap.TypeKernel]
+	kernCompsMntPts := make(map[string]string)
+	compSeedInfos := []gadgetInstall.CompSeedInfo{}
+	for _, sc := range kernelSeed.Components {
+		seedComp := sc
+		comp, ok := kernCompsByName[seedComp.CompSideInfo.Component.ComponentName]
+		if !ok {
+			return fmt.Errorf("component %s in seed but not defined by snap!",
+				seedComp.CompSideInfo.Component.ComponentName)
+		}
+		if comp.Type != snap.KernelModulesComponent {
+			continue
+		}
+
+		// Mount ephemerally the kernel-modules components
+		mntPt := filepath.Join(filepath.Join(boot.InitramfsRunMntDir, "snap-content",
+			seedComp.CompSideInfo.Component.String()))
+		if err := doSystemdMount(seedComp.Path, mntPt, &systemdMountOptions{
+			ReadOnly:  true,
+			Private:   true,
+			Ephemeral: true}); err != nil {
+			return err
+		}
+		kernCompsMntPts[seedComp.CompSideInfo.Component.String()] = mntPt
+
+		defer func() {
+			stdout, stderr, err := osutil.RunSplitOutput("systemd-mount", "--umount", mntPt)
+			if err != nil {
+				logger.Noticef("cannot unmount component in %s: %v",
+					mntPt, osutil.OutputErrCombine(stdout, stderr, err))
+			}
+		}()
+
+		compInfo, err := readComponentInfo(&seedComp, mntPt, kernelSnap, &seedComp.CompSideInfo)
+		if err != nil {
+			return err
+		}
+		compSeedInfos = append(compSeedInfos, gadgetInstall.CompSeedInfo{
+			CompInfo: compInfo,
+			CompSeed: &seedComp,
+		})
+	}
+
+	preseed := false
+	currentSeed, err := mst.LoadSeed(mst.recoverySystem)
+	if err != nil {
+		return err
+	}
+	preseedSeed, ok := currentSeed.(seed.PreseedCapable)
+	if ok && preseedSeed.HasArtifact("preseed.tgz") {
+		preseed = true
+	}
+	// Drivers tree will already be built if using the preseed tarball
+	needsKernelSetup := model.NeedsKernelSetup() && !preseed
+
+	isCore := !model.Classic()
+	kernelBootInfo := gadgetInstall.BuildKernelBootInfo(
+		kernelSnap, compSeedInfos, kernelMountDir, kernCompsMntPts,
+		isCore, needsKernelSetup)
 
 	bootDevice := ""
-	kernelSnapInfo := &gadgetInstall.KernelSnapInfo{
-		Name:       kernelSnap.SnapName(),
-		MountPoint: kernelMountDir,
-		Revision:   kernelSnap.Revision,
-		// Should be true always anyway
-		IsCore: !model.Classic(),
-	}
-	switch model.Base() {
-	case "core20", "core22", "core22-desktop":
-		kernelSnapInfo.NeedsDriversTree = false
-	default:
-		kernelSnapInfo.NeedsDriversTree = true
-	}
-
-	installedSystem, err := gadgetInstallRun(model, gadgetMountDir, kernelSnapInfo, bootDevice, options, installObserver, timings.New(nil))
+	installedSystem, err := gadgetInstallRun(model, gadgetMountDir, kernelBootInfo.KSnapInfo, bootDevice, options, installObserver, timings.New(nil))
 	if err != nil {
 		return err
 	}
@@ -382,6 +444,7 @@ func doInstall(mst *initramfsMountsState, model *asserts.Model, sysSnaps map[sna
 		KernelPath:          sysSnaps[snap.TypeKernel].Path,
 		UnpackedGadgetDir:   gadgetMountDir,
 		RecoverySystemLabel: mst.recoverySystem,
+		KernelMods:          kernelBootInfo.BootableKMods,
 	}
 
 	if err := bootMakeRunnableStandaloneSystem(model, bootWith, trustedInstallObserver); err != nil {
@@ -395,15 +458,26 @@ func doInstall(mst *initramfsMountsState, model *asserts.Model, sysSnaps map[sna
 		return err
 	}
 
-	currentSeed, err := mst.LoadSeed(mst.recoverySystem)
+	if preseed {
+		runMode := false
+		if err := installApplyPreseededData(preseedSeed,
+			boot.InitramfsWritableDir(model, runMode)); err != nil {
+			return err
+		}
+	}
+
+	// Create drivers tree mount units
+	rootfsDir := filepath.Join(boot.InitramfsDataDir, "system-data")
+	hasDriversTree, err := createKernelMounts(
+		rootfsDir, kernelSnap.SnapName(), kernelSnap.Revision, !isCore)
 	if err != nil {
 		return err
 	}
-	preseedSeed, ok := currentSeed.(seed.PreseedCapable)
-	if ok && preseedSeed.HasArtifact("preseed.tgz") {
-		runMode := false
-		if err := installApplyPreseededData(preseedSeed, boot.InitramfsWritableDir(model, runMode)); err != nil {
-			return err
+	if hasDriversTree {
+		// Unmount the kernel snap mount, we keep it only for UC20/22
+		stdout, stderr, err := osutil.RunSplitOutput("systemd-mount", "--umount", kernelMountDir)
+		if err != nil {
+			return osutil.OutputErrCombine(stdout, stderr, err)
 		}
 	}
 
@@ -432,6 +506,25 @@ func generateMountsModeInstall(mst *initramfsMountsState) error {
 	}
 
 	if installAndRun {
+		kernSnap := snaps[snap.TypeKernel]
+		// seed is cached at this point
+		theSeed, err := mst.LoadSeed("")
+		if err != nil {
+			return fmt.Errorf("internal error: cannot load seed: %v", err)
+		}
+		// Filter by mode, this is relevant only to get the
+		// kernel-modules components that are used in run mode and
+		// therefore need to be considered when installing from the
+		// initramfs to have the modules available early on first boot.
+		// TODO when running normal install or recover/factory-reset,
+		// we would need also this if we want the modules to be
+		// available early.
+		kernSnap, err = theSeed.ModeSnap(kernSnap.SnapName(), "run")
+		if err != nil {
+			return err
+		}
+		snaps[snap.TypeKernel] = kernSnap
+
 		if err := doInstall(mst, model, snaps); err != nil {
 			return err
 		}
@@ -1979,9 +2072,9 @@ func createKernelModulesMountUnits(writableRootDir, snapRoot, driversDir, kernel
 
 	// First in modules (we might not have a kernel version subdir if there
 	// are no kernel modules).
-	kversion, kverr := kernel.KernelVersionFromModulesDir(filepath.Join(driversDir, "lib"))
+	kversion, kver := kernel.KernelVersionFromModulesDir(filepath.Join(driversDir, "lib"))
 	compSet := map[snap.ComponentSideInfo]bool{}
-	if kverr == nil {
+	if kver == nil {
 		modUpdatesDir := filepath.Join(driversDir, "lib", "modules", kversion, "updates")
 		if err := getCompsFromSymlinks(modUpdatesDir, kernelName, compSet); err != nil {
 			return err
