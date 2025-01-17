@@ -210,20 +210,20 @@ func (s *installSuite) TestEncryptionSupportInfoWithTPM(c *C) {
 	gadgetInfo, _ := s.mountedGadget(c)
 
 	var testCases = []struct {
-		grade, storageSafety string
-		tpmErr               error
+		grade, storageSafety, snapdVersion, kernelSnapdVersion string
+		tpmErr                                                 error
 
 		expected install.EncryptionSupportInfo
 	}{
 		{
-			"dangerous", "", nil,
+			"dangerous", "", "", "", nil,
 			install.EncryptionSupportInfo{
 				Available: true, Disabled: false,
 				StorageSafety: asserts.StorageSafetyPreferEncrypted,
 				Type:          device.EncryptionTypeLUKS,
 			},
 		}, {
-			"dangerous", "", fmt.Errorf("no tpm"),
+			"dangerous", "", "", "", fmt.Errorf("no tpm"),
 			install.EncryptionSupportInfo{
 				Available: false, Disabled: false,
 				StorageSafety:      asserts.StorageSafetyPreferEncrypted,
@@ -231,14 +231,14 @@ func (s *installSuite) TestEncryptionSupportInfoWithTPM(c *C) {
 				UnavailableWarning: "not encrypting device storage as checking TPM gave: no tpm",
 			},
 		}, {
-			"dangerous", "encrypted", nil,
+			"dangerous", "encrypted", "", "", nil,
 			install.EncryptionSupportInfo{
 				Available: true, Disabled: false,
 				StorageSafety: asserts.StorageSafetyEncrypted,
 				Type:          device.EncryptionTypeLUKS,
 			},
 		}, {
-			"dangerous", "encrypted", fmt.Errorf("no tpm"),
+			"dangerous", "encrypted", "", "", fmt.Errorf("no tpm"),
 			install.EncryptionSupportInfo{
 				Available: false, Disabled: false,
 				StorageSafety:  asserts.StorageSafetyEncrypted,
@@ -247,7 +247,7 @@ func (s *installSuite) TestEncryptionSupportInfoWithTPM(c *C) {
 			},
 		},
 		{
-			"dangerous", "prefer-unencrypted", nil,
+			"dangerous", "prefer-unencrypted", "", "", nil,
 			install.EncryptionSupportInfo{
 				Available: true, Disabled: false,
 				StorageSafety: asserts.StorageSafetyPreferUnencrypted,
@@ -256,14 +256,14 @@ func (s *installSuite) TestEncryptionSupportInfoWithTPM(c *C) {
 			},
 		},
 		{
-			"signed", "", nil,
+			"signed", "", "", "", nil,
 			install.EncryptionSupportInfo{
 				Available: true, Disabled: false,
 				StorageSafety: asserts.StorageSafetyPreferEncrypted,
 				Type:          device.EncryptionTypeLUKS,
 			},
 		}, {
-			"signed", "", fmt.Errorf("no tpm"),
+			"signed", "", "", "", fmt.Errorf("no tpm"),
 			install.EncryptionSupportInfo{
 				Available: false, Disabled: false,
 				StorageSafety:      asserts.StorageSafetyPreferEncrypted,
@@ -271,14 +271,14 @@ func (s *installSuite) TestEncryptionSupportInfoWithTPM(c *C) {
 				UnavailableWarning: "not encrypting device storage as checking TPM gave: no tpm",
 			},
 		}, {
-			"signed", "encrypted", nil,
+			"signed", "encrypted", "", "", nil,
 			install.EncryptionSupportInfo{
 				Available: true, Disabled: false,
 				StorageSafety: asserts.StorageSafetyEncrypted,
 				Type:          device.EncryptionTypeLUKS,
 			},
 		}, {
-			"signed", "prefer-unencrypted", nil,
+			"signed", "prefer-unencrypted", "", "", nil,
 			install.EncryptionSupportInfo{
 				Available: true, Disabled: false,
 				StorageSafety: asserts.StorageSafetyPreferUnencrypted,
@@ -286,7 +286,7 @@ func (s *installSuite) TestEncryptionSupportInfoWithTPM(c *C) {
 				Type: device.EncryptionTypeLUKS,
 			},
 		}, {
-			"signed", "encrypted", fmt.Errorf("no tpm"),
+			"signed", "encrypted", "", "", fmt.Errorf("no tpm"),
 			install.EncryptionSupportInfo{
 				Available: false, Disabled: false,
 				StorageSafety:  asserts.StorageSafetyEncrypted,
@@ -294,14 +294,14 @@ func (s *installSuite) TestEncryptionSupportInfoWithTPM(c *C) {
 				UnavailableErr: fmt.Errorf("cannot encrypt device storage as mandated by encrypted storage-safety model option: no tpm"),
 			},
 		}, {
-			"secured", "encrypted", nil,
+			"secured", "encrypted", "", "", nil,
 			install.EncryptionSupportInfo{
 				Available: true, Disabled: false,
 				StorageSafety: asserts.StorageSafetyEncrypted,
 				Type:          device.EncryptionTypeLUKS,
 			},
 		}, {
-			"secured", "encrypted", fmt.Errorf("no tpm"),
+			"secured", "encrypted", "", "", fmt.Errorf("no tpm"),
 			install.EncryptionSupportInfo{
 				Available: false, Disabled: false,
 				StorageSafety:  asserts.StorageSafetyEncrypted,
@@ -309,19 +309,56 @@ func (s *installSuite) TestEncryptionSupportInfoWithTPM(c *C) {
 				UnavailableErr: fmt.Errorf("cannot encrypt device storage as mandated by model grade secured: no tpm"),
 			},
 		}, {
-			"secured", "", nil,
+			"secured", "", "", "", nil,
 			install.EncryptionSupportInfo{
 				Available: true, Disabled: false,
 				StorageSafety: asserts.StorageSafetyEncrypted,
 				Type:          device.EncryptionTypeLUKS,
 			},
 		}, {
-			"secured", "", fmt.Errorf("no tpm"),
+			"secured", "", "", "", fmt.Errorf("no tpm"),
 			install.EncryptionSupportInfo{
 				Available: false, Disabled: false,
 				StorageSafety:  asserts.StorageSafetyEncrypted,
 				Type:           device.EncryptionTypeNone,
 				UnavailableErr: fmt.Errorf("cannot encrypt device storage as mandated by model grade secured: no tpm"),
+			},
+		},
+		// Passphrase support requires snapd 2.68+
+		{
+			"secured", "encrypted", "2.68", "2.68", nil,
+			install.EncryptionSupportInfo{
+				Available: true, Disabled: false,
+				StorageSafety:           asserts.StorageSafetyEncrypted,
+				Type:                    device.EncryptionTypeLUKS,
+				PassphraseAuthAvailable: true,
+			},
+		},
+		{
+			"secured", "encrypted", "2.69", "2.69", nil,
+			install.EncryptionSupportInfo{
+				Available: true, Disabled: false,
+				StorageSafety:           asserts.StorageSafetyEncrypted,
+				Type:                    device.EncryptionTypeLUKS,
+				PassphraseAuthAvailable: true,
+			},
+		},
+		{
+			"secured", "encrypted", "2.67", "2.68", nil,
+			install.EncryptionSupportInfo{
+				Available: true, Disabled: false,
+				StorageSafety:           asserts.StorageSafetyEncrypted,
+				Type:                    device.EncryptionTypeLUKS,
+				PassphraseAuthAvailable: false,
+			},
+		},
+		{
+			"secured", "encrypted", "2.68", "2.67", nil,
+			install.EncryptionSupportInfo{
+				Available: true, Disabled: false,
+				StorageSafety:           asserts.StorageSafetyEncrypted,
+				Type:                    device.EncryptionTypeLUKS,
+				PassphraseAuthAvailable: false,
 			},
 		},
 	}
@@ -333,8 +370,12 @@ func (s *installSuite) TestEncryptionSupportInfoWithTPM(c *C) {
 			"grade":          tc.grade,
 			"storage-safety": tc.storageSafety,
 		})
+		mockSnapdVersionByType := map[snap.Type]string{
+			snap.TypeSnapd:  tc.snapdVersion,
+			snap.TypeKernel: tc.kernelSnapdVersion,
+		}
 
-		res, err := install.GetEncryptionSupportInfo(mockModel, secboot.TPMProvisionFull, kernelInfo, gadgetInfo, nil)
+		res, err := install.GetEncryptionSupportInfo(mockModel, secboot.TPMProvisionFull, kernelInfo, gadgetInfo, mockSnapdVersionByType, nil)
 		c.Assert(err, IsNil)
 		c.Check(res, DeepEquals, tc.expected, Commentf("%v", tc))
 	}
@@ -452,7 +493,7 @@ func (s *installSuite) TestEncryptionSupportInfoForceUnencrypted(c *C) {
 			c.Assert(err, IsNil)
 		}
 
-		res, err := install.GetEncryptionSupportInfo(mockModel, secboot.TPMProvisionFull, kernelInfo, gadgetInfo, nil)
+		res, err := install.GetEncryptionSupportInfo(mockModel, secboot.TPMProvisionFull, kernelInfo, gadgetInfo, nil, nil)
 		c.Assert(err, IsNil)
 		c.Check(res, DeepEquals, tc.expected, Commentf("%v", tc))
 	}
@@ -569,7 +610,7 @@ func (s *installSuite) TestEncryptionSupportInfoGadgetIncompatibleWithEncryption
 		})
 
 		gadget.SetEnclosingVolumeInStructs(tc.gadgetInfo.Volumes)
-		res, err := install.GetEncryptionSupportInfo(mockModel, secboot.TPMProvisionFull, kernelInfo, tc.gadgetInfo, nil)
+		res, err := install.GetEncryptionSupportInfo(mockModel, secboot.TPMProvisionFull, kernelInfo, tc.gadgetInfo, nil, nil)
 		c.Assert(err, IsNil)
 		c.Check(res, DeepEquals, tc.expected, Commentf("%v", tc))
 	}

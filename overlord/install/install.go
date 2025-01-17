@@ -164,11 +164,31 @@ func MockSecbootCheckTPMKeySealingSupported(f func(tpmMode secboot.TPMProvisionM
 	}
 }
 
+func checkPassphraseSupportedByTargetSystem(snapdVersionByType map[snap.Type]string) (bool, error) {
+	const minSnapdVersion = "2.68"
+	// snapd and snap-bootstrap inside the kernel must support passphrases.
+	for _, typ := range []snap.Type{snap.TypeSnapd, snap.TypeKernel} {
+		ver := snapdVersionByType[typ]
+		if ver == "" {
+			// absent snapd version info is expected for older kernels
+			return false, nil
+		}
+		cmp, err := strutil.VersionCompare(ver, minSnapdVersion)
+		if err != nil {
+			return false, fmt.Errorf("invalid snapd version in info file from %s snap: %v", typ, err)
+		}
+		if cmp < 0 {
+			return false, nil
+		}
+	}
+	return true, nil
+}
+
 // GetEncryptionSupportInfo returns the encryption support information
 // for the given model, TPM provision mode, kernel and gadget information and
 // system hardware. It uses runSetupHook to invoke the kernel fde-setup hook if
 // any is available, leaving the caller to decide how, based on the environment.
-func GetEncryptionSupportInfo(model *asserts.Model, tpmMode secboot.TPMProvisionMode, kernelInfo *snap.Info, gadgetInfo *gadget.Info, runSetupHook fde.RunSetupHookFunc) (EncryptionSupportInfo, error) {
+func GetEncryptionSupportInfo(model *asserts.Model, tpmMode secboot.TPMProvisionMode, kernelInfo *snap.Info, gadgetInfo *gadget.Info, snapdVersionByType map[snap.Type]string, runSetupHook fde.RunSetupHookFunc) (EncryptionSupportInfo, error) {
 	secured := model.Grade() == asserts.ModelSecured
 	dangerous := model.Grade() == asserts.ModelDangerous
 	encrypted := model.StorageSafety() == asserts.StorageSafetyEncrypted
@@ -222,12 +242,17 @@ func GetEncryptionSupportInfo(model *asserts.Model, tpmMode secboot.TPMProvision
 	// If encryption is available check if the gadget is
 	// compatible with encryption.
 	if res.Available {
-		// TODO: Set res.PassphraseAuthAvailable when passphrase
-		// support is implemented.
-		// TODO: Check that the target system supports passphrase
-		// authentication (e.g. supported kernel/snapd versions).
-		// TODO: Set res.PINAuthAvailable when passphrase
-		// support is implemented.
+		// Passphrase support is only available for TPM based encryption for now.
+		// Hook based setup support does not make sense (at least for now) because
+		// it is usually in the context of embedded systems where passphrase
+		// authentication is not practical.
+		if checkSecbootEncryption {
+			passphraseAuthAvailable, err := checkPassphraseSupportedByTargetSystem(snapdVersionByType)
+			if err != nil {
+				return res, fmt.Errorf("cannot check passphrase support: %v", err)
+			}
+			res.PassphraseAuthAvailable = passphraseAuthAvailable
+		}
 		opts := &gadget.ValidationConstraints{
 			EncryptedData: true,
 		}
@@ -279,7 +304,7 @@ func CheckEncryptionSupport(
 	gadgetInfo *gadget.Info,
 	runSetupHook fde.RunSetupHookFunc,
 ) (device.EncryptionType, error) {
-	res, err := GetEncryptionSupportInfo(model, tpmMode, kernelInfo, gadgetInfo, runSetupHook)
+	res, err := GetEncryptionSupportInfo(model, tpmMode, kernelInfo, gadgetInfo, nil, runSetupHook)
 	if err != nil {
 		return "", err
 	}

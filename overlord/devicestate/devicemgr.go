@@ -2194,6 +2194,29 @@ func (m *DeviceManager) systems() ([]*System, error) {
 	return systems, nil
 }
 
+func snapdVersionByTypeFromSeed20(s seed.Seed, types []snap.Type) (snapdVersionByType map[snap.Type]string, err error) {
+	perf := &timings.Timings{}
+	if err := s.LoadEssentialMeta(types, perf); err != nil {
+		return nil, fmt.Errorf("cannot load essential snaps metadata: %v", err)
+	}
+	snapdVersionByType = make(map[snap.Type]string)
+	for _, snapSeed := range s.EssentialSnaps() {
+		snapf, err := snapfile.Open(snapSeed.Path)
+		if err != nil {
+			return nil, err
+		}
+		snapdVersion, _, err := snap.SnapdInfoFromSnapFile(snapf, snapSeed.EssentialType)
+		if err != nil {
+			return nil, err
+		}
+		snapdVersionByType[snapSeed.EssentialType] = snapdVersion
+	}
+	if len(snapdVersionByType) != len(types) {
+		return nil, fmt.Errorf("internal error: retrieved snaps (%d) does not match number of types (%d)", len(snapdVersionByType), len(types))
+	}
+	return snapdVersionByType, nil
+}
+
 // SystemAndGadgetAndEncryptionInfo return the system details
 // including the model assertion, gadget details and encryption info
 // for the given system label.
@@ -2217,8 +2240,20 @@ func (m *DeviceManager) SystemAndGadgetAndEncryptionInfo(wantedSystemLabel strin
 		return nil, nil, nil, fmt.Errorf("reading gadget information: %v", err)
 	}
 
+	var snapdVersionByType map[snap.Type]string
+	// Find snapd versions for snapd and kernel snaps in the seed for
+	// the passphrase/PINs auth checks.
+	// FDE is only supported in UC20+ (i.e. Model grade is set).
+	if systemAndSnaps.Model.Grade() != asserts.ModelGradeUnset {
+		// Snapd snap should exist in UC20+.
+		snapdVersionByType, err = snapdVersionByTypeFromSeed20(systemAndSnaps.Seed, []snap.Type{snap.TypeSnapd, snap.TypeKernel})
+		if err != nil {
+			return nil, nil, nil, err
+		}
+	}
+
 	// Encryption details
-	encInfo, err := m.encryptionSupportInfo(systemAndSnaps.Model, secboot.TPMProvisionFull, systemAndSnaps.InfosByType[snap.TypeKernel], gadgetInfo)
+	encInfo, err := m.encryptionSupportInfo(systemAndSnaps.Model, secboot.TPMProvisionFull, systemAndSnaps.InfosByType[snap.TypeKernel], gadgetInfo, snapdVersionByType)
 	if err != nil {
 		return nil, nil, nil, err
 	}
@@ -2856,6 +2891,6 @@ func (m *DeviceManager) checkEncryption(st *state.State, deviceCtx snapstate.Dev
 	return install.CheckEncryptionSupport(model, tpmMode, kernelInfo, gadgetInfo, m.runFDESetupHook)
 }
 
-func (m *DeviceManager) encryptionSupportInfo(model *asserts.Model, tpmMode secboot.TPMProvisionMode, kernelInfo *snap.Info, gadgetInfo *gadget.Info) (install.EncryptionSupportInfo, error) {
-	return install.GetEncryptionSupportInfo(model, tpmMode, kernelInfo, gadgetInfo, m.runFDESetupHook)
+func (m *DeviceManager) encryptionSupportInfo(model *asserts.Model, tpmMode secboot.TPMProvisionMode, kernelInfo *snap.Info, gadgetInfo *gadget.Info, snapdVersionByType map[snap.Type]string) (install.EncryptionSupportInfo, error) {
+	return install.GetEncryptionSupportInfo(model, tpmMode, kernelInfo, gadgetInfo, snapdVersionByType, m.runFDESetupHook)
 }
