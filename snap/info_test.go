@@ -2283,7 +2283,7 @@ version: 1.0`, nil)
 	c.Assert(err, IsNil)
 
 	_, _, err = snap.SnapdAssertionMaxFormatsFromSnapFile(snapf)
-	c.Check(err, ErrorMatches, `cannot extract assertion max formats information, snaps of type app do not carry snapd`)
+	c.Check(err, ErrorMatches, `cannot extract snapd information, snaps of type app do not carry snapd information`)
 }
 
 func (s *infoSuite) TestAppsForPlug(c *C) {

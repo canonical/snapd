@@ -1982,6 +1982,31 @@ func (a AppInfoBySnapApp) Less(i, j int) bool {
 	return iName < jName
 }
 
+// SnapdInfoFromSnapFile returns the snapd information carried by the given
+// snap. This is only applicable to snapd/core or UC20+ kernel snaps.
+func SnapdInfoFromSnapFile(snapf Container, snapType Type) (version string, flags map[string]string, err error) {
+	var infoFile string
+	missingOK := false
+	switch snapType {
+	case TypeOS, TypeSnapd:
+		infoFile = "/usr/lib/snapd/info"
+	case TypeKernel:
+		infoFile = "/snapd-info"
+		// some old kernel file will not contain this
+		missingOK = true
+	default:
+		return "", nil, fmt.Errorf("cannot extract snapd information, snaps of type %s do not carry snapd information", snapType)
+	}
+	b, err := snapf.ReadFile(infoFile)
+	if err != nil {
+		if missingOK && os.IsNotExist(err) {
+			return "", nil, nil
+		}
+		return "", nil, err
+	}
+	return snapdtool.ParseInfoFile(bytes.NewBuffer(b), fmt.Sprintf("from %s snap", snapType))
+}
+
 // SnapdAssertionMaxFormatsFromSnapFile returns the supported assertion max
 // formats for the snapd code carried by the given snap, plus its snapd
 // version. This is only applicable to snapd/core or UC20+ kernel snaps.
@@ -1993,34 +2018,18 @@ func SnapdAssertionMaxFormatsFromSnapFile(snapf Container) (maxFormats map[strin
 	if err != nil {
 		return nil, "", err
 	}
-	var infoFile string
-	missingOK := false
-	typ := info.Type()
-	switch typ {
-	case TypeOS, TypeSnapd:
-		infoFile = "/usr/lib/snapd/info"
-	case TypeKernel:
-		infoFile = "/snapd-info"
-		// some old kernel file will not contain this
-		missingOK = true
-	default:
-		return nil, "", fmt.Errorf("cannot extract assertion max formats information, snaps of type %s do not carry snapd", typ)
-	}
-	b, err := snapf.ReadFile(infoFile)
-	if err != nil {
-		if missingOK && os.IsNotExist(err) {
-			return nil, "", nil
-		}
-		return nil, "", err
-	}
-	ver, flags, err := snapdtool.ParseInfoFile(bytes.NewBuffer(b), fmt.Sprintf("from %s snap", typ))
+	ver, flags, err := SnapdInfoFromSnapFile(snapf, info.Type())
 	if err != nil {
 		return nil, "", err
+	}
+	if info.Type() == TypeKernel && flags == nil {
+		// some old kernels will not contain snapd-info
+		return nil, ver, nil
 	}
 	if fmts := flags["SNAPD_ASSERTS_FORMATS"]; fmts != "" {
 		err := json.Unmarshal([]byte(strings.Trim(fmts, "'")), &maxFormats)
 		if err != nil {
-			return nil, "", fmt.Errorf("cannot unmarshal SNAPD_ASSERTS_FORMATS from info file from %s snap", typ)
+			return nil, "", fmt.Errorf("cannot unmarshal SNAPD_ASSERTS_FORMATS from info file from %s snap", info.Type())
 		}
 		return maxFormats, ver, nil
 	}
@@ -2028,7 +2037,7 @@ func SnapdAssertionMaxFormatsFromSnapFile(snapf Container) (maxFormats map[strin
 	sysUser := 0
 	cmp, err := strutil.VersionCompare(ver, "2.46")
 	if err != nil {
-		return nil, "", fmt.Errorf("invalid snapd version in info file from %s snap: %v", typ, err)
+		return nil, "", fmt.Errorf("invalid snapd version in info file from %s snap: %v", info.Type(), err)
 	}
 	if cmp >= 0 {
 		sysUser = 1
