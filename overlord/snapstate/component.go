@@ -100,7 +100,7 @@ func InstallComponents(
 		Version:                 info.Version,
 		PlugsOnly:               len(info.Slots) == 0,
 		InstanceKey:             info.InstanceKey,
-		ComponentExclusiveSetup: true,
+		ComponentExclusiveOperation: true,
 	}
 
 	setupSecurity := st.NewTask("setup-profiles",
@@ -275,7 +275,7 @@ func InstallComponentPath(st *state.State, csi *snap.ComponentSideInfo, info *sn
 		Version:                 info.Version,
 		PlugsOnly:               len(info.Slots) == 0,
 		InstanceKey:             info.InstanceKey,
-		ComponentExclusiveSetup: true,
+		ComponentExclusiveOperation: true,
 	}
 	compSetup := ComponentSetup{
 		CompSideInfo: csi,
