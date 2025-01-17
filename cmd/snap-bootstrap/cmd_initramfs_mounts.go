@@ -394,11 +394,22 @@ func doInstall(mst *initramfsMountsState, model *asserts.Model, sysSnaps map[sna
 		})
 	}
 
-	// TODO do not rebuild drivers tree if using preseed tarball
+	preseed := false
+	currentSeed, err := mst.LoadSeed(mst.recoverySystem)
+	if err != nil {
+		return err
+	}
+	preseedSeed, ok := currentSeed.(seed.PreseedCapable)
+	if ok && preseedSeed.HasArtifact("preseed.tgz") {
+		preseed = true
+	}
+	// Drivers tree will already be built if using the preseed tarball
+	needsKernelSetup := model.NeedsKernelSetup() && !preseed
+
 	isCore := !model.Classic()
 	kernelBootInfo := gadgetInstall.BuildKernelBootInfo(
 		kernelSnap, compSeedInfos, kernelMountDir, kernCompsMntPts,
-		isCore, model.NeedsKernelSetup())
+		isCore, needsKernelSetup)
 
 	bootDevice := ""
 	installedSystem, err := gadgetInstallRun(model, gadgetMountDir, kernelBootInfo.KSnapInfo, bootDevice, options, installObserver, timings.New(nil))
@@ -447,14 +458,10 @@ func doInstall(mst *initramfsMountsState, model *asserts.Model, sysSnaps map[sna
 		return err
 	}
 
-	currentSeed, err := mst.LoadSeed(mst.recoverySystem)
-	if err != nil {
-		return err
-	}
-	preseedSeed, ok := currentSeed.(seed.PreseedCapable)
-	if ok && preseedSeed.HasArtifact("preseed.tgz") {
+	if preseed {
 		runMode := false
-		if err := installApplyPreseededData(preseedSeed, boot.InitramfsWritableDir(model, runMode)); err != nil {
+		if err := installApplyPreseededData(preseedSeed,
+			boot.InitramfsWritableDir(model, runMode)); err != nil {
 			return err
 		}
 	}
