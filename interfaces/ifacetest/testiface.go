@@ -25,6 +25,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/dbus"
 	"github.com/snapcore/snapd/interfaces/hotplug"
 	"github.com/snapcore/snapd/interfaces/kmod"
+	"github.com/snapcore/snapd/interfaces/ldconfig"
 	"github.com/snapcore/snapd/interfaces/mount"
 	"github.com/snapcore/snapd/interfaces/polkit"
 	"github.com/snapcore/snapd/interfaces/seccomp"
@@ -83,6 +84,13 @@ type TestInterface struct {
 	KModConnectedSlotCallback func(spec *kmod.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error
 	KModPermanentPlugCallback func(spec *kmod.Specification, plug *snap.PlugInfo) error
 	KModPermanentSlotCallback func(spec *kmod.Specification, slot *snap.SlotInfo) error
+
+	// Support for interacting with the ldconfig backend.
+
+	LdconfigConnectedPlugCallback func(spec *ldconfig.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error
+	LdconfigConnectedSlotCallback func(spec *ldconfig.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error
+	LdconfigPermanentPlugCallback func(spec *ldconfig.Specification, plug *snap.PlugInfo) error
+	LdconfigPermanentSlotCallback func(spec *ldconfig.Specification, slot *snap.SlotInfo) error
 
 	// Support for interacting with the seccomp backend.
 
@@ -356,6 +364,36 @@ func (t *TestInterface) KModPermanentPlug(spec *kmod.Specification, plug *snap.P
 func (t *TestInterface) KModPermanentSlot(spec *kmod.Specification, slot *snap.SlotInfo) error {
 	if t.KModPermanentSlotCallback != nil {
 		return t.KModPermanentSlotCallback(spec, slot)
+	}
+	return nil
+}
+
+// Support for interacting with the ldconfig backend.
+
+func (t *TestInterface) LdconfigConnectedPlug(spec *ldconfig.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
+	if t.LdconfigConnectedPlugCallback != nil {
+		return t.LdconfigConnectedPlugCallback(spec, plug, slot)
+	}
+	return nil
+}
+
+func (t *TestInterface) LdconfigConnectedSlot(spec *ldconfig.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
+	if t.LdconfigConnectedSlotCallback != nil {
+		return t.LdconfigConnectedSlotCallback(spec, plug, slot)
+	}
+	return nil
+}
+
+func (t *TestInterface) LdconfigPermanentPlug(spec *ldconfig.Specification, plug *snap.PlugInfo) error {
+	if t.LdconfigPermanentPlugCallback != nil {
+		return t.LdconfigPermanentPlugCallback(spec, plug)
+	}
+	return nil
+}
+
+func (t *TestInterface) LdconfigPermanentSlot(spec *ldconfig.Specification, slot *snap.SlotInfo) error {
+	if t.LdconfigPermanentSlotCallback != nil {
+		return t.LdconfigPermanentSlotCallback(spec, slot)
 	}
 	return nil
 }
