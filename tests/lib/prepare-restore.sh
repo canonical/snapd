@@ -709,12 +709,14 @@ prepare_suite_each() {
     if [[ "$variant" = full ]]; then
         # shellcheck source=tests/lib/prepare.sh
         . "$TESTSLIB"/prepare.sh
+        # shellcheck source=tests/lib/prepare.sh
+        . "$TESTSLIB"/prepare.sh
         if os.query is-classic; then
             prepare_each_classic
         else
             prepare_each_core
         fi
-        
+        prepare_state_lock "$SPREAD_JOB"
     fi
 
     case "$SPREAD_SYSTEM" in
