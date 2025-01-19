@@ -879,7 +879,9 @@ func AppArmorParser() (cmd *exec.Cmd, internal bool, err error) {
 				"--policy-features", abiFile,
 			}
 
-			return exec.Command(path, args...), true, nil
+			cmd := exec.Command("systemd-run", "--slice-inherit", "--pipe", path)
+			cmd.Args = append(cmd.Args, args...)
+			return cmd, true, nil
 		}
 	}
 
