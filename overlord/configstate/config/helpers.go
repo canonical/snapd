@@ -35,14 +35,23 @@ import (
 
 var validKey = regexp.MustCompile("^(?:[a-z0-9]+-?)*[a-z](?:-?[a-z0-9])*$")
 
+// ValidateKey checks if the provided key matches the validKey regex pattern.
+// It returns an error if the key is invalid, otherwise nil.
+func ValidateKey(key string) error {
+	if !validKey.MatchString(key) {
+		return fmt.Errorf("invalid option name: %q", key)
+	}
+	return nil
+}
+
 func ParseKey(key string) (subkeys []string, err error) {
 	if key == "" {
 		return []string{}, nil
 	}
 	subkeys = strings.Split(key, ".")
 	for _, subkey := range subkeys {
-		if !validKey.MatchString(subkey) {
-			return nil, fmt.Errorf("invalid option name: %q", subkey)
+		if err = ValidateKey(subkey); err != nil {
+			return nil, err
 		}
 	}
 	return subkeys, nil

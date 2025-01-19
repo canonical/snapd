@@ -25,6 +25,7 @@ import (
 
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/jsonutil"
+	"github.com/snapcore/snapd/overlord/configstate/config"
 )
 
 // ParseConfigOptions controls how config values should be parsed.
@@ -73,6 +74,10 @@ func ParseConfigValues(confValues []string, opts *ParseConfigOptions) (map[strin
 				// Not valid JSON-- just save the string as-is.
 				patchValues[parts[0]] = parts[1]
 			} else {
+				err := ValidateJSONKeys(value)
+				if err != nil {
+					return nil, nil, err
+				}
 				patchValues[parts[0]] = value
 			}
 		}
@@ -80,4 +85,32 @@ func ParseConfigValues(confValues []string, opts *ParseConfigOptions) (map[strin
 	}
 
 	return patchValues, keys, nil
+}
+
+func ValidateJSONKeys(v interface{}) error {
+	stack := []interface{}{v}
+
+	for len(stack) > 0 {
+		current := stack[len(stack)-1]
+		stack = stack[:len(stack)-1]
+
+		switch current := current.(type) {
+		case map[string]interface{}:
+			for key, value := range current {
+				if err := config.ValidateKey(key); err != nil {
+					return err
+				}
+
+				stack = append(stack, value)
+			}
+
+		case []interface{}:
+			stack = append(stack, current...)
+		case []map[string]interface{}:
+			for _, item := range current {
+				stack = append(stack, item)
+			}
+		}
+	}
+	return nil
 }
