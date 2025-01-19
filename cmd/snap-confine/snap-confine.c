@@ -487,6 +487,7 @@ int main(int argc, char **argv)
 	// For classic and confined snaps
 	sc_selinux_set_snap_execcon();
 #endif
+
 	if (snap_context != NULL) {
 		setenv("SNAP_COOKIE", snap_context, 1);
 		// for compatibility, if facing older snapd.
