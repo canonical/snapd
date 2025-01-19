@@ -5,3 +5,4 @@ usr/bin/snap-bootstrap
 usr/bin/snap-recovery-chooser
 usr/bin/snap-preseed
 usr/bin/snap-fde-keymgr
+usr/bin/gen-nvidia-globs
