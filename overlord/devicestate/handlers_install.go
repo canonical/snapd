@@ -1262,6 +1262,7 @@ func (m *DeviceManager) doInstallSetupStorageEncryption(t *state.Task, _ *tomb.T
 		if cached == nil {
 			return errors.New("volumes authentication is required but cannot find corresponding cached options")
 		}
+		st.Cache(volumesAuthOptionsKey{systemLabel}, nil)
 		var ok bool
 		volumesAuth, ok = cached.(*device.VolumesAuthOptions)
 		if !ok {

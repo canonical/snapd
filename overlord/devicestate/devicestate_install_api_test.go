@@ -850,6 +850,8 @@ func (s *deviceMgrInstallAPISuite) testInstallSetupStorageEncryption(c *C, hasTP
 	c.Check(ok, Equals, true)
 	// Check that state has been stored in the cache
 	c.Check(devicestate.CheckEncryptionSetupDataFromCache(s.state, label), IsNil)
+	// Cached auth options are cleaned
+	c.Check(s.state.Cached(devicestate.VolumesAuthOptionsKeyByLabel(label)), IsNil)
 }
 
 func (s *deviceMgrInstallAPISuite) TestInstallSetupStorageEncryptionHappy(c *C) {
@@ -986,4 +988,6 @@ func (s *deviceMgrInstallAPISuite) TestInstallSetupStorageEncryptionBadVolumesAu
 	// Checks now
 	c.Check(chg.Err(), ErrorMatches, `cannot perform the following tasks:
 - install API set-up encryption step \(internal error: wrong data type under volumesAuthOptionsKey\)`)
+	// Cached auth options are cleaned
+	c.Check(s.state.Cached(devicestate.VolumesAuthOptionsKeyByLabel(label)), IsNil)
 }
