@@ -89,9 +89,11 @@ type MockEncryptedDeviceAndRole struct {
 
 // MockEncryptionSetupData is meant to be used for unit tests from other
 // packages.
-func MockEncryptionSetupData(labelToEncDevice map[string]*MockEncryptedDeviceAndRole) *EncryptionSetupData {
+func MockEncryptionSetupData(labelToEncDevice map[string]*MockEncryptedDeviceAndRole, volumesAuth *device.VolumesAuthOptions) *EncryptionSetupData {
 	esd := &EncryptionSetupData{
-		parts: map[string]partEncryptionData{}}
+		parts:       map[string]partEncryptionData{},
+		volumesAuth: volumesAuth,
+	}
 	for label, encryptData := range labelToEncDevice {
 		//TODO:FDEM: we should use a mock for the bootstrap key. However,
 		//this is still used in place where LegacyKeptKey will be

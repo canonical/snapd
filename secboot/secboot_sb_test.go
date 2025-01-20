@@ -34,6 +34,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"time"
 
 	"github.com/canonical/go-tpm2"
 	"github.com/canonical/go-tpm2/linux"
@@ -891,12 +892,22 @@ func (s *secbootSuite) TestProvisionTPM(c *C) {
 
 }
 
+func mockAuthOptions(mode device.AuthMode, kdfType string) *device.VolumesAuthOptions {
+	return &device.VolumesAuthOptions{
+		Mode:       mode,
+		KDFType:    kdfType,
+		KDFTime:    200 * time.Millisecond,
+		Passphrase: "test",
+	}
+}
+
 func (s *secbootSuite) TestSealKey(c *C) {
 	mockErr := errors.New("some error")
 
 	for idx, tc := range []struct {
 		tpmErr               error
 		tpmEnabled           bool
+		volumesAuth          *device.VolumesAuthOptions
 		missingFile          bool
 		badSnapFile          bool
 		addPCRProfileErr     error
@@ -905,6 +916,7 @@ func (s *secbootSuite) TestSealKey(c *C) {
 		provisioningErr      error
 		sealErr              error
 		sealCalls            int
+		passphraseSealCalls  int
 		expectedErr          string
 		saveToFile           bool
 	}{
@@ -918,6 +930,15 @@ func (s *secbootSuite) TestSealKey(c *C) {
 		{tpmEnabled: true, sealErr: mockErr, sealCalls: 1, expectedErr: "some error"},
 		{tpmEnabled: true, sealCalls: 2, expectedErr: ""},
 		{tpmEnabled: true, sealCalls: 2, expectedErr: "", saveToFile: true},
+		{tpmEnabled: true, passphraseSealCalls: 2, volumesAuth: mockAuthOptions("passphrase", ""), expectedErr: ""},
+		{tpmEnabled: true, passphraseSealCalls: 2, volumesAuth: mockAuthOptions("passphrase", "argon2i"), expectedErr: ""},
+		{tpmEnabled: true, passphraseSealCalls: 2, volumesAuth: mockAuthOptions("passphrase", "argon2id"), expectedErr: ""},
+		{tpmEnabled: true, passphraseSealCalls: 2, volumesAuth: mockAuthOptions("passphrase", "pbkdf2"), expectedErr: ""},
+		{tpmEnabled: true, volumesAuth: mockAuthOptions("passphrase", "bad-kdf"), expectedErr: `internal error: unknown kdfType passed "bad-kdf"`},
+		{tpmEnabled: true, sealErr: mockErr, passphraseSealCalls: 1, volumesAuth: mockAuthOptions("passphrase", ""), expectedErr: "some error"},
+		{tpmErr: mockErr, volumesAuth: mockAuthOptions("passphrase", ""), expectedErr: `cannot connect to TPM: some error`},
+		{tpmEnabled: true, volumesAuth: mockAuthOptions("pin", ""), expectedErr: `"pin" authentication mode is not implemented`},
+		{tpmEnabled: true, volumesAuth: mockAuthOptions("bad-mode", ""), expectedErr: `internal error: invalid authentication mode "bad-mode"`},
 	} {
 		c.Logf("tc: %v", idx)
 		tmpDir := c.MkDir()
@@ -973,9 +994,9 @@ func (s *secbootSuite) TestSealKey(c *C) {
 					Model:          &asserts.Model{},
 				},
 			},
-			TPMPolicyAuthKeyFile: filepath.Join(tmpDir, "policy-auth-key-file"),
-
+			TPMPolicyAuthKeyFile:   filepath.Join(tmpDir, "policy-auth-key-file"),
 			PCRPolicyCounterHandle: 42,
+			VolumesAuth:            tc.volumesAuth,
 		}
 
 		containerA := secboot.CreateMockBootstrappedContainer()
@@ -1113,6 +1134,25 @@ func (s *secbootSuite) TestSealKey(c *C) {
 			return &sb.KeyData{}, sb.PrimaryKey{}, sb.DiskUnlockKey{}, tc.sealErr
 		})
 		defer restore()
+		passphraseSealCalls := 0
+		restore = secboot.MockSbNewTPMPassphraseProtectedKey(func(t *sb_tpm2.Connection, params *sb_tpm2.PassphraseProtectKeyParams, passphrase string) (protectedKey *sb.KeyData, primaryKey sb.PrimaryKey, unlockKey sb.DiskUnlockKey, err error) {
+			passphraseSealCalls++
+			c.Assert(t, Equals, tpm)
+			c.Assert(params.PCRPolicyCounterHandle, Equals, tpm2.Handle(42))
+			var expectedKDFOptions sb.KDFOptions
+			switch tc.volumesAuth.KDFType {
+			case "argon2id":
+				expectedKDFOptions = &sb.Argon2Options{Mode: sb.Argon2id, TargetDuration: tc.volumesAuth.KDFTime}
+			case "argon2i":
+				expectedKDFOptions = &sb.Argon2Options{Mode: sb.Argon2i, TargetDuration: tc.volumesAuth.KDFTime}
+			case "pbkdf2":
+				expectedKDFOptions = &sb.PBKDF2Options{TargetDuration: tc.volumesAuth.KDFTime}
+			}
+			c.Assert(params.KDFOptions, DeepEquals, expectedKDFOptions)
+			c.Assert(passphrase, Equals, tc.volumesAuth.Passphrase)
+			return &sb.KeyData{}, sb.PrimaryKey{}, sb.DiskUnlockKey{}, tc.sealErr
+		})
+		defer restore()
 
 		// mock TPM enabled check
 		restore = secboot.MockIsTPMEnabled(func(t *sb_tpm2.Connection) bool {
@@ -1148,6 +1188,7 @@ func (s *secbootSuite) TestSealKey(c *C) {
 			c.Assert(err, ErrorMatches, tc.expectedErr)
 		}
 		c.Assert(sealCalls, Equals, tc.sealCalls)
+		c.Assert(passphraseSealCalls, Equals, tc.passphraseSealCalls)
 
 	}
 }

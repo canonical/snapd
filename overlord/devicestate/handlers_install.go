@@ -310,7 +310,7 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	if useEncryption {
-		if err := installLogic.PrepareEncryptedSystemData(model, installedSystem.BootstrappedContainerForRole, trustedInstallObserver); err != nil {
+		if err := installLogic.PrepareEncryptedSystemData(model, installedSystem.BootstrappedContainerForRole, nil, trustedInstallObserver); err != nil {
 			return err
 		}
 	}
@@ -637,7 +637,7 @@ func (m *DeviceManager) doFactoryResetRunSystem(t *state.Task, _ *tomb.Tomb) err
 		}
 		installedSystem.BootstrappedContainerForRole[gadget.SystemSave] = saveBoostrapContainer
 
-		if err := installLogic.PrepareEncryptedSystemData(model, installedSystem.BootstrappedContainerForRole, trustedInstallObserver); err != nil {
+		if err := installLogic.PrepareEncryptedSystemData(model, installedSystem.BootstrappedContainerForRole, nil, trustedInstallObserver); err != nil {
 			return err
 		}
 	}
@@ -1166,7 +1166,7 @@ func (m *DeviceManager) doInstallFinish(t *state.Task, _ *tomb.Tomb) error {
 
 	if useEncryption {
 		if trustedInstallObserver != nil {
-			if err := installLogic.PrepareEncryptedSystemData(systemAndSnaps.Model, install.BootstrappedContainersForRole(encryptSetupData), trustedInstallObserver); err != nil {
+			if err := installLogic.PrepareEncryptedSystemData(systemAndSnaps.Model, install.BootstrappedContainersForRole(encryptSetupData), encryptSetupData.VolumesAuth(), trustedInstallObserver); err != nil {
 				return err
 			}
 		}

@@ -40,6 +40,7 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/bootloader/efi"
+	"github.com/snapcore/snapd/gadget/device"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/randutil"
@@ -64,6 +65,7 @@ var (
 	sbReadKeyData                                   = sb.ReadKeyData
 	sbReadSealedKeyObjectFromFile                   = sb_tpm2.ReadSealedKeyObjectFromFile
 	sbNewTPMProtectedKey                            = sb_tpm2.NewTPMProtectedKey
+	sbNewTPMPassphraseProtectedKey                  = sb_tpm2.NewTPMPassphraseProtectedKey
 	sbNewKeyDataFromSealedKeyObjectFile             = sb_tpm2.NewKeyDataFromSealedKeyObjectFile
 
 	randutilRandomKernelUUID = randutil.RandomKernelUUID
@@ -482,6 +484,55 @@ func ProvisionForCVM(initramfsUbuntuSeedDir string) error {
 	return nil
 }
 
+func kdfOptions(volumesAuth *device.VolumesAuthOptions) (sb.KDFOptions, error) {
+	switch volumesAuth.KDFType {
+	case "":
+		return nil, nil
+	case "argon2id":
+		return &sb.Argon2Options{
+			Mode:           sb.Argon2id,
+			TargetDuration: volumesAuth.KDFTime,
+		}, nil
+	case "argon2i":
+		return &sb.Argon2Options{
+			Mode:           sb.Argon2i,
+			TargetDuration: volumesAuth.KDFTime,
+		}, nil
+	case "pbkdf2":
+		return &sb.PBKDF2Options{
+			TargetDuration: volumesAuth.KDFTime,
+		}, nil
+	default:
+		return nil, fmt.Errorf("internal error: unknown kdfType passed %q", volumesAuth.KDFType)
+	}
+}
+
+func newTPMProtectedKey(tpm *sb_tpm2.Connection, creationParams *sb_tpm2.ProtectKeyParams, volumesAuth *device.VolumesAuthOptions) (protectedKey *sb.KeyData, primaryKey sb.PrimaryKey, unlockKey sb.DiskUnlockKey, err error) {
+	if volumesAuth != nil {
+		switch volumesAuth.Mode {
+		case device.AuthModePassphrase:
+			kdfOptions, kdferr := kdfOptions(volumesAuth)
+			if kdferr != nil {
+				return nil, nil, nil, kdferr
+			}
+			passphraseParams := &sb_tpm2.PassphraseProtectKeyParams{
+				ProtectKeyParams: *creationParams,
+				KDFOptions:       kdfOptions,
+			}
+			protectedKey, primaryKey, unlockKey, err = sbNewTPMPassphraseProtectedKey(tpm, passphraseParams, volumesAuth.Passphrase)
+		case device.AuthModePIN:
+			// TODO: Implement PIN authentication mode.
+			return nil, nil, nil, fmt.Errorf("%q authentication mode is not implemented", device.AuthModePIN)
+		default:
+			return nil, nil, nil, fmt.Errorf("internal error: invalid authentication mode %q", volumesAuth.Mode)
+		}
+	} else {
+		protectedKey, primaryKey, unlockKey, err = sbNewTPMProtectedKey(tpm, creationParams)
+	}
+
+	return protectedKey, primaryKey, unlockKey, err
+}
+
 // SealKeys seals the encryption keys according to the specified parameters. The
 // TPM must have already been provisioned. If sealed key already exists at the
 // PCR handle, SealKeys will fail and return an error.
@@ -519,7 +570,7 @@ func SealKeys(keys []SealKeyRequest, params *SealKeysParams) ([]byte, error) {
 			PCRPolicyCounterHandle: tpm2.Handle(pcrHandle),
 			PrimaryKey:             primaryKey,
 		}
-		protectedKey, primaryKeyOut, unlockKey, err := sbNewTPMProtectedKey(tpm, creationParams)
+		protectedKey, primaryKeyOut, unlockKey, err := newTPMProtectedKey(tpm, creationParams, params.VolumesAuth)
 		if primaryKey == nil {
 			primaryKey = primaryKeyOut
 		}

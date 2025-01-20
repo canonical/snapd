@@ -141,6 +141,8 @@ type SealKeysParams struct {
 	// The path to the authorization policy update key file (only relevant for TPM,
 	// if empty the key will not be saved)
 	TPMPolicyAuthKeyFile string
+	// Optional volume authentication options
+	VolumesAuth *device.VolumesAuthOptions
 }
 
 type SealKeysWithFDESetupHookParams struct {
