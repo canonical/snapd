@@ -244,6 +244,8 @@ func isCompatibleSchema(gadgetSchema, diskSchema string) bool {
 		return diskSchema == "gpt"
 	case "mbr":
 		return diskSchema == "dos"
+	case "emmc":
+		return diskSchema == "emmc"
 	default:
 		return false
 	}
