@@ -480,13 +480,15 @@ func (s *assetsSuite) TestInstallObserverNonTrustedBootloader(c *C) {
 	dataBootstrappedContainer := secboot.CreateMockBootstrappedContainer()
 	saveBootstrappedContainer := secboot.CreateMockBootstrappedContainer()
 	c.Assert(dataBootstrappedContainer, Not(Equals), saveBootstrappedContainer)
-	obs.SetBootstrappedContainersAndPrimaryKey(dataBootstrappedContainer, saveBootstrappedContainer, nil)
+	volumesAuth := &device.VolumesAuthOptions{Mode: device.AuthModePassphrase, Passphrase: "test"}
+	obs.SetEncryptionParams(dataBootstrappedContainer, saveBootstrappedContainer, nil, volumesAuth)
 
 	observerImpl, ok := obs.(*boot.TrustedAssetsInstallObserverImpl)
 	c.Assert(ok, Equals, true)
 
 	c.Check(observerImpl.CurrentDataBootstrappedContainer(), DeepEquals, dataBootstrappedContainer)
 	c.Check(observerImpl.CurrentSaveBootstrappedContainer(), DeepEquals, saveBootstrappedContainer)
+	c.Check(observerImpl.CurrentVolumesAuth(), Equals, volumesAuth)
 }
 
 func (s *assetsSuite) TestInstallObserverTrustedButNoAssets(c *C) {
@@ -507,7 +509,7 @@ func (s *assetsSuite) TestInstallObserverTrustedButNoAssets(c *C) {
 	c.Assert(obs, NotNil)
 	dataBootstrappedContainer := secboot.CreateMockBootstrappedContainer()
 	saveBootstrappedContainer := secboot.CreateMockBootstrappedContainer()
-	obs.SetBootstrappedContainersAndPrimaryKey(dataBootstrappedContainer, saveBootstrappedContainer, nil)
+	obs.SetEncryptionParams(dataBootstrappedContainer, saveBootstrappedContainer, nil, nil)
 
 	observerImpl, ok := obs.(*boot.TrustedAssetsInstallObserverImpl)
 	c.Assert(ok, Equals, true)

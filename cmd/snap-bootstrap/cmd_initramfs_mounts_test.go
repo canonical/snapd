@@ -40,6 +40,7 @@ import (
 	main "github.com/snapcore/snapd/cmd/snap-bootstrap"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget"
+	"github.com/snapcore/snapd/gadget/device"
 	gadgetInstall "github.com/snapcore/snapd/gadget/install"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
@@ -7974,11 +7975,11 @@ func (s *initramfsMountsSuite) TestInitramfsMountsInstallAndRunMissingFdeSetup(c
 }
 
 type MockObserver struct {
-	BootLoaderSupportsEfiVariablesFunc         func() bool
-	ObserveExistingTrustedRecoveryAssetsFunc   func(recoveryRootDir string) error
-	SetBootstrappedContainersAndPrimaryKeyFunc func(key, saveKey secboot.BootstrappedContainer, primaryKey []byte)
-	UpdateBootEntryFunc                        func() error
-	ObserveFunc                                func(op gadget.ContentOperation, partRole, root, relativeTarget string, data *gadget.ContentChange) (gadget.ContentChangeAction, error)
+	BootLoaderSupportsEfiVariablesFunc       func() bool
+	ObserveExistingTrustedRecoveryAssetsFunc func(recoveryRootDir string) error
+	SetEncryptionParamsFunc                  func(key, saveKey secboot.BootstrappedContainer, primaryKey []byte, volumesAuth *device.VolumesAuthOptions)
+	UpdateBootEntryFunc                      func() error
+	ObserveFunc                              func(op gadget.ContentOperation, partRole, root, relativeTarget string, data *gadget.ContentChange) (gadget.ContentChangeAction, error)
 }
 
 func (m *MockObserver) BootLoaderSupportsEfiVariables() bool {
@@ -7989,8 +7990,8 @@ func (m *MockObserver) ObserveExistingTrustedRecoveryAssets(recoveryRootDir stri
 	return m.ObserveExistingTrustedRecoveryAssetsFunc(recoveryRootDir)
 }
 
-func (m *MockObserver) SetBootstrappedContainersAndPrimaryKey(key, saveKey secboot.BootstrappedContainer, primaryKey []byte) {
-	m.SetBootstrappedContainersAndPrimaryKeyFunc(key, saveKey, primaryKey)
+func (m *MockObserver) SetEncryptionParams(key, saveKey secboot.BootstrappedContainer, primaryKey []byte, volumesAuth *device.VolumesAuthOptions) {
+	m.SetEncryptionParamsFunc(key, saveKey, primaryKey, volumesAuth)
 }
 
 func (m *MockObserver) UpdateBootEntry() error {
@@ -8130,7 +8131,7 @@ echo '{"features":[]}'
 			observeExistingTrustedRecoveryAssetsCalled += 1
 			return nil
 		},
-		SetBootstrappedContainersAndPrimaryKeyFunc: func(key, saveKey secboot.BootstrappedContainer, primaryKey []byte) {
+		SetEncryptionParamsFunc: func(key, saveKey secboot.BootstrappedContainer, primaryKey []byte, volumesAuth *device.VolumesAuthOptions) {
 			setBootstrappedContainersCalled++
 			c.Check(key, Equals, dataContainer)
 			c.Check(saveKey, Equals, saveContainer)
@@ -8291,7 +8292,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsInstallAndRunFdeSetupNotPresen
 			observeExistingTrustedRecoveryAssetsCalled += 1
 			return nil
 		},
-		SetBootstrappedContainersAndPrimaryKeyFunc: func(key, saveKey secboot.BootstrappedContainer, primaryKey []byte) {
+		SetEncryptionParamsFunc: func(key, saveKey secboot.BootstrappedContainer, primaryKey []byte, volumesAuth *device.VolumesAuthOptions) {
 			c.Errorf("unexpected call")
 		},
 		UpdateBootEntryFunc: func() error {

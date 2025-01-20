@@ -901,7 +901,7 @@ func (s *installSuite) TestPrepareEncryptedSystemData(c *C) {
 		gadget.SystemData: secboot.CreateMockBootstrappedContainer(),
 		gadget.SystemSave: saveDisk,
 	}
-	err = install.PrepareEncryptedSystemData(mockModel, installKeyForRole, to)
+	err = install.PrepareEncryptedSystemData(mockModel, installKeyForRole, nil, to)
 	c.Assert(err, IsNil)
 
 	marker, err := os.ReadFile(filepath.Join(filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data/var/lib/snapd/device/fde"), "marker"))
@@ -948,7 +948,7 @@ func (s *installSuite) TestPrepareEncryptedSystemDataLegacyKeys(c *C) {
 		gadget.SystemData: secboot.CreateMockBootstrappedContainer(),
 		gadget.SystemSave: saveDisk,
 	}
-	err = install.PrepareEncryptedSystemData(mockModel, installKeyForRole, to)
+	err = install.PrepareEncryptedSystemData(mockModel, installKeyForRole, nil, to)
 	c.Assert(err, IsNil)
 
 	marker, err := os.ReadFile(filepath.Join(filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data/var/lib/snapd/device/fde"), "marker"))

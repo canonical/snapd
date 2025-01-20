@@ -364,7 +364,7 @@ func doInstall(mst *initramfsMountsState, model *asserts.Model, sysSnaps map[sna
 	}
 
 	if useEncryption {
-		if err := install.PrepareEncryptedSystemData(model, installedSystem.BootstrappedContainerForRole, trustedInstallObserver); err != nil {
+		if err := install.PrepareEncryptedSystemData(model, installedSystem.BootstrappedContainerForRole, nil, trustedInstallObserver); err != nil {
 			return err
 		}
 	}
