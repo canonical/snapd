@@ -62,6 +62,8 @@ type partEncryptionData struct {
 type EncryptionSetupData struct {
 	// maps from partition label to data
 	parts map[string]partEncryptionData
+	// optional volume authentication options
+	volumesAuth *device.VolumesAuthOptions
 }
 
 // EncryptedDevices returns a map partition role -> LUKS mapper device.
@@ -71,6 +73,11 @@ func (esd *EncryptionSetupData) EncryptedDevices() map[string]string {
 		m[p.role] = p.encryptedDevice
 	}
 	return m
+}
+
+// VolumesAuth returns attached volumes authentication options if any.
+func (esd *EncryptionSetupData) VolumesAuth() *device.VolumesAuthOptions {
+	return esd.volumesAuth
 }
 
 // MockEncryptedDeviceAndRole is meant to be used for unit tests from other
