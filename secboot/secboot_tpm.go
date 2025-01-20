@@ -483,6 +483,12 @@ func ProvisionForCVM(initramfsUbuntuSeedDir string) error {
 	return nil
 }
 
+// This helper is a workaround for a secboot bug https://github.com/canonical/secboot/issues/353
+// where NewTPMPassphraseProtectedKey takes an open tpm connection as input, but internally
+// tries to re-open a new connection implicitly causing an error due trying to open two
+// connection for the same TPM device.
+//
+// FIXME: This approach is not thread safe and should be updated when fix lands in secboot.
 func withSingleTPMConnection(fn func(tpm *sb_tpm2.Connection) error) error {
 	tpm, err := sbConnectToDefaultTPM()
 	if err != nil {
