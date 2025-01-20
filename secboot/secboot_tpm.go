@@ -936,9 +936,9 @@ func mockableReadKeyFileImpl(keyFile string, keyLoader *mockableKeyLoader, hintE
 
 var mockableReadKeyFile = mockableReadKeyFileImpl
 
-// GetPCRHandle returns the handle used by a key.  The key will be
-// search on as token on node in the keySlot. If keySlot has no
-// KeyData, then the key will be loaded at path keyFile.
+// GetPCRHandle returns the handle used by a key. The key will be
+// searched on the token of the keySlot from the node. If that keySlot
+// has no KeyData, then the key will be loaded at path keyFile.
 func GetPCRHandle(node, keySlot, keyFile string) (uint32, error) {
 	slots, err := sbListLUKS2ContainerUnlockKeyNames(node)
 	if err != nil {

@@ -1703,7 +1703,7 @@ func (m *DeviceManager) ensurePostFactoryReset() error {
 	}
 
 	if encrypted {
-		if err := deleteOldKeys(boot.InitramfsUbuntuSaveDir); err != nil {
+		if err := swapSaveKeyAndDeleteOldKeys(boot.InitramfsUbuntuSaveDir); err != nil {
 			return fmt.Errorf("cannot remove old encryption keys: %v", err)
 		}
 	}

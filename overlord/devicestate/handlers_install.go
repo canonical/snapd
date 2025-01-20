@@ -1361,11 +1361,11 @@ func createSaveBootstrappedContainer(saveNode string) (secboot.BootstrappedConta
 }
 
 
-// deleteOldKeys remove old keys that were used in previous installation after successful factory reset.
+// swapSaveKeyAndDeleteOldKeys removes old keys that were used in previous installation after successful factory reset.
 //  * Key files ubuntu-save.recovery.sealed-key has to be replaced by key file ubuntu-save.recovery.sealed-key.factory-reset
 //  * Keyslots factory-reset-* have to be removed
 //  * TPM handles used by the removed keys have to be released
-func deleteOldKeys(saveMntPnt string) error {
+func swapSaveKeyAndDeleteOldKeys(saveMntPnt string) error {
 	hasHook, err := boot.HasFDESetupHook(nil)
 	if err != nil {
 		logger.Noticef("WARNING: cannot figure out if FDE hooks are in use: %v", err)
@@ -1388,6 +1388,9 @@ func deleteOldKeys(saveMntPnt string) error {
 
 	var oldKeys []string
 	renameKey := false
+	// If the fallback save key exists, then it is the new
+	// key. That means the default save key is the old save key
+	// that needs to be removed.
 	if osutil.FileExists(saveFallbackKeyFactory) {
 		oldKeys = append(oldKeys, defaultSaveKey)
 		renameKey = true
