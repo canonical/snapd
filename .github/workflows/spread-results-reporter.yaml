@@ -82,8 +82,8 @@ jobs:
         run: |
           find . -name "spread-json-${{ github.event.workflow_run.id }}*.zip" | while read filename; do 
             dir="${filename%.zip}"
-            mkdir $dir
-            unzip $filename -d $dir
+            mkdir "$dir"
+            unzip "$filename" -d "$dir"
           done
 
       - name: Echo collected output
