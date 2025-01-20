@@ -680,10 +680,9 @@ func EncryptPartitions(
 	encryptionType device.EncryptionType, model *asserts.Model,
 	gadgetRoot, kernelRoot string, perfTimings timings.Measurer,
 ) (*EncryptionSetupData, error) {
-	// TODO: Attach passed volumes auth options to encryption setup data.
-
 	setupData := &EncryptionSetupData{
-		parts: make(map[string]partEncryptionData),
+		parts:       make(map[string]partEncryptionData),
+		volumesAuth: volumesAuth,
 	}
 	for volName, vol := range onVolumes {
 		onDiskVol, err := gadget.OnDiskVolumeFromGadgetVol(vol)
