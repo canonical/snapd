@@ -1362,9 +1362,12 @@ func createSaveBootstrappedContainer(saveNode string) (secboot.BootstrappedConta
 
 
 // swapSaveKeyAndDeleteOldKeys removes old keys that were used in previous installation after successful factory reset.
-//  * Key files ubuntu-save.recovery.sealed-key has to be replaced by key file ubuntu-save.recovery.sealed-key.factory-reset
-//  * Keyslots factory-reset-* have to be removed
-//  * TPM handles used by the removed keys have to be released
+//  - Rotate ubuntu-save recovery key files: replace
+//    ubuntu-save.recovery.sealed-key with
+//    ubuntu-save.recovery.sealed-key.factory-reset which we have
+//    successfully used during factory reset.
+//  - Remove factory-reset-* keyslots.
+//  - Release TPM handles used by the removed keys.
 func swapSaveKeyAndDeleteOldKeys(saveMntPnt string) error {
 	hasHook, err := boot.HasFDESetupHook(nil)
 	if err != nil {

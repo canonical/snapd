@@ -1005,12 +1005,15 @@ func GetPCRHandle(node, keySlot, keyFile string) (uint32, error) {
 	return 0, nil
 }
 
-// RemoveOldCounterHandles tracks and release TPM2 handles used by
-// given keys node and possibleOldKeys point to keyslot tokens. And
-// possibleKeyFiles is a list to paths.  hintExpectFDEHook helps
-// reading old key object files.  If not TPM2 key is found, nothing
-// happens.
-func RemoveOldCounterHandles(node string, possibleOldKeys map[string]bool, possibleKeyFiles []string, hintExpectFDEHook bool) error {
+// RemoveOldCounterHandles releases TPM2 handles used by some keys.
+// The keys for which handles are released are:
+//  - in the keyslots of the given device, with names matching possibleOldKeys.
+//  - in key files at paths given by possibleKeyFiles.
+// All TPM2 handles found in any key found will be removed. If keyslots
+// or key files are not found, they are just ignored.
+// hintExpectFDEHook helps reading old key object files.  If not TPM2
+// key is found, nothing happens.
+func RemoveOldCounterHandles(device string, possibleOldKeys map[string]bool, possibleKeyFiles []string, hintExpectFDEHook bool) error {
 	slots, err := sbListLUKS2ContainerUnlockKeyNames(node)
 	if err != nil {
 		return fmt.Errorf("cannot list slots in partition save partition: %v", err)
