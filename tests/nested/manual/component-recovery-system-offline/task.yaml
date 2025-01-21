@@ -8,7 +8,7 @@ details: |
   is used, and we upload the snap and the component that are being used via an
   HTTP form.
 
-systems: [ubuntu-24.04-64]
+systems: [-ubuntu-1*, -ubuntu-20*, -ubuntu-22*]
 
 environment:
   MODEL_JSON: $TESTSLIB/assertions/test-snapd-component-recovery-system-pc-24.json
