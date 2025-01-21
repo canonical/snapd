@@ -1014,7 +1014,7 @@ func GetPCRHandle(node, keySlot, keyFile string) (uint32, error) {
 // hintExpectFDEHook helps reading old key object files.  If not TPM2
 // key is found, nothing happens.
 func RemoveOldCounterHandles(device string, possibleOldKeys map[string]bool, possibleKeyFiles []string, hintExpectFDEHook bool) error {
-	slots, err := sbListLUKS2ContainerUnlockKeyNames(node)
+	slots, err := sbListLUKS2ContainerUnlockKeyNames(device)
 	if err != nil {
 		return fmt.Errorf("cannot list slots in partition save partition: %v", err)
 	}
@@ -1023,7 +1023,7 @@ func RemoveOldCounterHandles(device string, possibleOldKeys map[string]bool, pos
 
 	for _, slot := range slots {
 		if possibleOldKeys[slot] {
-			reader, err := sbNewLUKS2KeyDataReader(node, slot)
+			reader, err := sbNewLUKS2KeyDataReader(device, slot)
 			if err != nil {
 				// FIXME: secboot should tell us if
 				// Data was nil, in that case we
