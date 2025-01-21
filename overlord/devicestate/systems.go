@@ -242,6 +242,7 @@ func (ig *setupInfoGetter) ComponentInfo(st *state.State, cref naming.ComponentR
 	//   * have just been downloaded by a task in setup.ComponentSetupTasks
 	//   * already installed on the system
 
+	logger.Debugf("requested info for component %q being installed during remodel", cref)
 	for _, l := range ig.setup.LocalComponents {
 		if l.SideInfo.Component != cref {
 			continue
@@ -263,7 +264,6 @@ func (ig *setupInfoGetter) ComponentInfo(st *state.State, cref naming.ComponentR
 	// in a remodel scenario, the components may need to be fetched and thus
 	// their content can be different from what we have already installed, so we
 	// should first check the download tasks before consulting snapstate
-	logger.Debugf("requested info for component %q being installed during remodel", cref)
 	for _, tskID := range ig.setup.ComponentSetupTasks {
 		taskWithComponentSetup := st.Task(tskID)
 		compsup, snapsup, err := snapstate.TaskComponentSetup(taskWithComponentSetup)
