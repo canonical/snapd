@@ -20,8 +20,6 @@
 package install
 
 import (
-	"github.com/snapcore/snapd/boot"
-	"github.com/snapcore/snapd/seed"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -50,53 +48,4 @@ type KernelModulesComponentInfo struct {
 	Revision snap.Revision
 	// MountPoint is the root of the files from the component
 	MountPoint string
-}
-
-// CompSeedInfo contains information for a component from the seed and
-// from its metadata.
-type CompSeedInfo struct {
-	CompInfo *snap.ComponentInfo
-	CompSeed *seed.Component
-}
-
-// KernelBootInfo contains information related to the kernel used on installation.
-type KernelBootInfo struct {
-	KSnapInfo     *KernelSnapInfo
-	BootableKMods []boot.BootableKModsComponents
-}
-
-// BuildKernelBootInfo constructs a KernelBootInfo.
-func BuildKernelBootInfo(kernInfo *snap.Info, compSeedInfos []CompSeedInfo, kernMntPoint string, mntPtForComps map[string]string, isCore, needsDriversTree bool) KernelBootInfo {
-	bootKMods := make([]boot.BootableKModsComponents, 0, len(compSeedInfos))
-	modulesComps := make([]KernelModulesComponentInfo, 0, len(compSeedInfos))
-	for _, compSeedInfo := range compSeedInfos {
-		ci := compSeedInfo.CompInfo
-		if ci.Type == snap.KernelModulesComponent {
-			cpi := snap.MinimalComponentContainerPlaceInfo(ci.Component.ComponentName,
-				ci.Revision, kernInfo.SnapName())
-			modulesComps = append(modulesComps, KernelModulesComponentInfo{
-				Name:       ci.Component.ComponentName,
-				Revision:   ci.Revision,
-				MountPoint: mntPtForComps[ci.FullName()],
-			})
-			bootKMods = append(bootKMods, boot.BootableKModsComponents{
-				CompPlaceInfo: cpi,
-				CompPath:      compSeedInfo.CompSeed.Path,
-			})
-		}
-	}
-
-	kSnapInfo := &KernelSnapInfo{
-		Name:             kernInfo.SnapName(),
-		Revision:         kernInfo.Revision,
-		MountPoint:       kernMntPoint,
-		IsCore:           isCore,
-		ModulesComps:     modulesComps,
-		NeedsDriversTree: needsDriversTree,
-	}
-
-	return KernelBootInfo{
-		KSnapInfo:     kSnapInfo,
-		BootableKMods: bootKMods,
-	}
 }

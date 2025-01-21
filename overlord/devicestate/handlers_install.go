@@ -964,10 +964,10 @@ func (m *DeviceManager) loadAndMountSystemLabelSnaps(systemLabel string, essenti
 	return systemAndSnaps, mntPtForType, mntPtForComp, unmount, nil
 }
 
-func kBootInfo(systemAndSnaps *systemAndEssentialSnaps, kernMntPoint string, mntPtForComps map[string]string, isCore bool) install.KernelBootInfo {
+func kBootInfo(systemAndSnaps *systemAndEssentialSnaps, kernMntPoint string, mntPtForComps map[string]string, isCore bool) installLogic.KernelBootInfo {
 	kernInfo := systemAndSnaps.InfosByType[snap.TypeKernel]
 	compSeedInfos := systemAndSnaps.CompsByType[snap.TypeKernel]
-	return install.BuildKernelBootInfo(kernInfo, compSeedInfos, kernMntPoint,
+	return installLogic.BuildKernelBootInfo(kernInfo, compSeedInfos, kernMntPoint,
 		mntPtForComps, isCore, kernel.NeedsKernelDriversTree(systemAndSnaps.Model))
 }
 

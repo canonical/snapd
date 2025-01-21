@@ -353,7 +353,7 @@ func doInstall(mst *initramfsMountsState, model *asserts.Model, sysSnaps map[sna
 
 	kernelSeed := sysSnaps[snap.TypeKernel]
 	kernCompsMntPts := make(map[string]string)
-	compSeedInfos := []gadgetInstall.CompSeedInfo{}
+	compSeedInfos := []install.CompSeedInfo{}
 	for _, sc := range kernelSeed.Components {
 		seedComp := sc
 		comp, ok := kernCompsByName[seedComp.CompSideInfo.Component.ComponentName]
@@ -388,7 +388,7 @@ func doInstall(mst *initramfsMountsState, model *asserts.Model, sysSnaps map[sna
 		if err != nil {
 			return err
 		}
-		compSeedInfos = append(compSeedInfos, gadgetInstall.CompSeedInfo{
+		compSeedInfos = append(compSeedInfos, install.CompSeedInfo{
 			CompInfo: compInfo,
 			CompSeed: &seedComp,
 		})
@@ -407,7 +407,7 @@ func doInstall(mst *initramfsMountsState, model *asserts.Model, sysSnaps map[sna
 	needsKernelSetup := kernel.NeedsKernelDriversTree(model) && !preseed
 
 	isCore := !model.Classic()
-	kernelBootInfo := gadgetInstall.BuildKernelBootInfo(
+	kernelBootInfo := install.BuildKernelBootInfo(
 		kernelSnap, compSeedInfos, kernelMountDir, kernCompsMntPts,
 		isCore, needsKernelSetup)
 
