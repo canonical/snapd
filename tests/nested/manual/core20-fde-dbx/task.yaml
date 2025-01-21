@@ -12,12 +12,29 @@ environment:
     NESTED_UBUNTU_SEED_SIZE: 1500M
 
 prepare: |
-    # TODO:FDEM: copy nested vars file to "$NESTED_ASSETS_DIR/OVMF_VARS.snakeoil.fd"
-    #
+    tests.pkgs install efitools
+
     tests.nested build-image core
-    tests.nested create-vm core    
+    tests.nested create-vm core
+
+    keys_dir="$(tests.nested get assets-path)/ovmf/secboot/"
+    # generate 2 dbx updates
+    MYGUID="11111111-0000-1111-0000-000000000000"
+    for i in 1 2; do
+        # generate a key
+        openssl req -new -x509 -newkey rsa:2048 -subj "/CN=bad key $i/" \
+            -keyout "bad-key-$i.key" -out "bad-key-$i.crt" -days 3650 -nodes -sha256
+        # convert to EFI sig list
+        cert-to-efi-sig-list -g $MYGUID "bad-key-$i.crt" "bad-key-$i.esl"
+        # and sign as an update for appending
+        sign-efi-sig-list -a -c "$keys_dir/KEK.crt" -k "$keys_dir/KEK.key" dbx \
+            "bad-key-$i.esl" "dbx-$i-update.auth"
+    done
+
 
 execute: |
+    remote.exec sudo snap install --devmode test-snapd-efitools
+
     echo "Establish initial state"
     remote.exec sudo cat /var/lib/snapd/device/fde/boot-chains > boot-chains-before.json
     reseal_count_start="$(jq -r '.["reseal-count"]' < boot-chains-before.json )"
@@ -128,8 +145,6 @@ execute: |
 
     fetch_and_check_reseal_count_equal "$((reseal_count_start + 6))"
 
-    # TODO:FDEM: update DBX
-
     echo "Attempt a valid 'prepare' request, followed by a reboot"
     echo "{\"action\":\"efi-secureboot-update-db-prepare\",\"key-database\":\"DBX\",\"payload\":\"$update_payload\"}" | \
         remote.exec "sudo snap debug api -X POST -H 'Content-Type: application/json' /v2/system-secureboot" > prepare.out
@@ -141,6 +156,21 @@ execute: |
 
     fetch_and_check_reseal_count_equal "$((reseal_count_start + 7))"
 
+    echo "Update content of DBX"
+    # get initial state of all variables
+    remote.exec sudo test-snapd-efitools.tool efi-readvar 2>&1 | tee efi-vars.log
+    remote.push dbx-1-update.auth
+    remote.exec "sudo chattr -i /sys/firmware/efi/efivars/dbx-*"
+    # update dbx
+    remote.exec sudo test-snapd-efitools.tool efi-readvar -v dbx 2>&1 | tee efi-dbx-before.log
+    # expecting 2 entries in the list
+    grep -c 'List ' efi-dbx-before.log | MATCH 2
+    remote.exec sudo test-snapd-efitools.tool efi-updatevar -a -f dbx-1-update.auth dbx
+    remote.exec sudo test-snapd-efitools.tool efi-readvar -v dbx 2>&1 | tee efi-dbx-after.log
+    # expecting 3 entries in the list
+    grep -c 'List ' efi-dbx-after.log | MATCH 3
+
+    # reboot
     boot_id="$( tests.nested boot-id )"
     remote.exec "sudo reboot" || true
     remote.wait-for reboot "${boot_id}"
@@ -155,3 +185,38 @@ execute: |
     remote.exec snap change --last=fde-efi-secureboot-db-update | MATCH 'Done .* Reseal after external EFI DBX update'
 
     fetch_and_check_reseal_count_equal "$((reseal_count_start + 8))"
+
+    echo "Push a DBX update without notifying snapd, which should result in requesting a recovery key on boot"
+
+    remote.push dbx-2-update.auth
+    remote.exec "sudo chattr -i /sys/firmware/efi/efivars/dbx-*"
+    remote.exec sudo test-snapd-efitools.tool efi-readvar -v dbx 2>&1 | tee efi-dbx-before-2.log
+    # 3 entries based on the previous update
+    grep -c 'List ' efi-dbx-before-2.log | MATCH 3
+    remote.exec sudo test-snapd-efitools.tool efi-updatevar -a -f dbx-2-update.auth dbx
+    remote.exec sudo test-snapd-efitools.tool efi-readvar -v dbx 2>&1 | tee efi-dbx-after-2.log
+    # a new key appeared as well
+    grep -c 'List ' efi-dbx-after-2.log | MATCH 4
+
+    # get the recovery key first
+    recovery_key=$(remote.exec "sudo snap recovery --show-keys" | sed 's/^recovery: *//')
+
+    boot_id="$(tests.nested boot-id)"
+    remote.exec "sudo reboot" || true
+
+    sent_recovery=0
+    for (( i=0 ; i < 100 ; i++ )); do
+      if [ "${sent_recovery}" -lt "$(tests.nested get serial-log | grep -c "Please enter the recovery key for volume")" ]; then
+        sent_recovery=$((sent_recovery+1))
+        echo "${recovery_key}" | nc -q 0 127.0.0.1 7777
+        break
+      fi
+      echo "-- still trying"
+      sleep 10
+    done
+
+    test "${sent_recovery}" -gt 0
+
+    remote.wait-for reboot "$boot_id"
+    remote.exec "snap list"
+    remote.exec "sudo journalctl -b0" | MATCH "successfully activated encrypted device .* using a fallback activation method"
