@@ -1361,14 +1361,14 @@ func createSaveBootstrappedContainer(saveNode string) (secboot.BootstrappedConta
 }
 
 
-// swapSaveKeyAndDeleteOldKeys removes old keys that were used in previous installation after successful factory reset.
+// rotateSaveKeyAndDeleteOldKeys removes old keys that were used in previous installation after successful factory reset.
 //  - Rotate ubuntu-save recovery key files: replace
 //    ubuntu-save.recovery.sealed-key with
 //    ubuntu-save.recovery.sealed-key.factory-reset which we have
 //    successfully used during factory reset.
 //  - Remove factory-reset-* keyslots.
 //  - Release TPM handles used by the removed keys.
-func swapSaveKeyAndDeleteOldKeys(saveMntPnt string) error {
+func rotateSaveKeyAndDeleteOldKeys(saveMntPnt string) error {
 	hasHook, err := boot.HasFDESetupHook(nil)
 	if err != nil {
 		logger.Noticef("WARNING: cannot figure out if FDE hooks are in use: %v", err)
@@ -1399,7 +1399,6 @@ func swapSaveKeyAndDeleteOldKeys(saveMntPnt string) error {
 		renameKey = true
 	}
 
-	// FIXME: we are missing a bit of context here. We should do this only if we are using TPM2.
 	err = secbootRemoveOldCounterHandles(
 		diskPath,
 		oldPossiblyTPMKeySlots,
