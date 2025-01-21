@@ -101,3 +101,8 @@ execute: |
         snap get snapctl-hooks -l one.two | MATCH "one.two[ ]*2"
         snap get snapctl-hooks -l one.three | MATCH "one.three[ ]*3"
     done
+
+    echo "Test that 'snap set' correctly handles empty strings"
+    snap set snapctl-hooks '' 2>&1 | MATCH 'invalid configuration: "" \(want key=value\)'
+    snap set snapctl-hooks '!' 2>&1 | MATCH 'configuration keys cannot be empty \(use key! to unset a key\)'
+    snap set snapctl-hooks '=value' 2>&1 | MATCH 'configuration keys cannot be empty'

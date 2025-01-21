@@ -311,3 +311,14 @@ func (s *confdbSuite) TestConfdbSetExclamationMark(c *check.C) {
 	_, err := snapset.Parser(snapset.Client()).ParseArgs([]string{"set", "foo/bar/baz", "abc!"})
 	c.Assert(err, check.IsNil)
 }
+
+func (s *confdbSuite) TestSetEmptyKey(c *check.C) {
+	_, err := snapset.Parser(snapset.Client()).ParseArgs([]string{"set", "some-snap", "!"})
+	c.Assert(err, check.ErrorMatches, "configuration keys cannot be empty \\(use key! to unset a key\\)")
+
+	_, err = snapset.Parser(snapset.Client()).ParseArgs([]string{"set", "some-snap", "=value"})
+	c.Assert(err, check.ErrorMatches, "configuration keys cannot be empty")
+
+	_, err = snapset.Parser(snapset.Client()).ParseArgs([]string{"set", "some-snap", "="})
+	c.Assert(err, check.ErrorMatches, "configuration keys cannot be empty")
+}
