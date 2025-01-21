@@ -890,3 +890,17 @@ func (s *transactionSuite) TestOverlapsWithExternalConfig(c *C) {
 		c.Check(overlap, Equals, tc.overlap, Commentf("%v", tc))
 	}
 }
+
+func (s *transactionSuite) TestEmptyKeyValue(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	tr := config.NewTransaction(s.state)
+
+	var res interface{}
+	err := tr.Set("some-snap", "", &res)
+	c.Assert(err, ErrorMatches, "internal error: key cannot be an empty string")
+
+	err = tr.Set("some-snap", "", nil)
+	c.Assert(err, ErrorMatches, "internal error: key cannot be an empty string")
+}
