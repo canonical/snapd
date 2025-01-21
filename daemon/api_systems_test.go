@@ -1908,7 +1908,7 @@ func (s *systemsCreateSuite) TestCreateSystemActionWithComponentsOffline(c *chec
 			"revision": "10",
 			"presence": "required",
 			"components": map[string]interface{}{
-				"pc-kernel": map[string]interface{}{
+				"kmod": map[string]interface{}{
 					"revision": "10",
 					"presence": "required",
 				},
