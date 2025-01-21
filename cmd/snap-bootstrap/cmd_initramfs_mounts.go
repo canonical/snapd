@@ -404,7 +404,7 @@ func doInstall(mst *initramfsMountsState, model *asserts.Model, sysSnaps map[sna
 		preseed = true
 	}
 	// Drivers tree will already be built if using the preseed tarball
-	needsKernelSetup := model.NeedsKernelSetup() && !preseed
+	needsKernelSetup := kernel.NeedsKernelDriversTree(model) && !preseed
 
 	isCore := !model.Classic()
 	kernelBootInfo := gadgetInstall.BuildKernelBootInfo(

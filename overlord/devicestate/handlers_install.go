@@ -42,6 +42,7 @@ import (
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/gadget/device"
 	"github.com/snapcore/snapd/gadget/install"
+	"github.com/snapcore/snapd/kernel"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	installLogic "github.com/snapcore/snapd/overlord/install"
@@ -967,7 +968,7 @@ func kBootInfo(systemAndSnaps *systemAndEssentialSnaps, kernMntPoint string, mnt
 	kernInfo := systemAndSnaps.InfosByType[snap.TypeKernel]
 	compSeedInfos := systemAndSnaps.CompsByType[snap.TypeKernel]
 	return install.BuildKernelBootInfo(kernInfo, compSeedInfos, kernMntPoint,
-		mntPtForComps, isCore, systemAndSnaps.Model.NeedsKernelSetup())
+		mntPtForComps, isCore, kernel.NeedsKernelDriversTree(systemAndSnaps.Model))
 }
 
 // doInstallFinish performs the finish step of the install. It will
