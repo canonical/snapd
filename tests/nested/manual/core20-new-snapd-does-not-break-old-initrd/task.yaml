@@ -6,14 +6,13 @@ details: |
   file. This inadvertently allows a skew to occur, where a future snapd is booted with a past
   initrd.
 
-  The test exercises two scenarios:
-  
-  1. We start with stable kernel + stable snapd -> refresh to new snapd
-  2. We start with stable kernel + new snapd
+  The test exercise the scenario where we start with stable kernel +
+  stable snapd, then refresh to new snapd. We then trigger a reseal
+  operation and reboot to make sure that the old snap-bootstrap/initrd
+  in the stable kernel can still unlock the encrypted partitions.
 
-  In both cases we then trigger a reseal operation and reboot to make sure that
-  the old snap-bootstrap/initrd in the stable kernel can still unlock the
-  encrypted partitions
+  We do not cover the case where a kernel snap is too old for the
+  snapd in the seed that was used to install Ubuntu Core.
 
 # ubuntu-22.04-64: enable on uc22 once pc-kernel is on 22/candidate channel
 systems: [ubuntu-20.04-64]
@@ -33,9 +32,6 @@ environment:
   # snapd snap which we will conditionally repack as per NESTED_BUILD_SNAPD_FROM_CURRENT
   NESTED_CORE_CHANNEL: stable
 
-  START_SNAPD_VERSION/startwithnew: new
-  START_SNAPD_VERSION/startwithold: old
-
   # all variants need encryption turned on
   NESTED_ENABLE_TPM: true
   NESTED_ENABLE_SECURE_BOOT: true
@@ -51,20 +47,15 @@ prepare: |
   build_snapd_snap .
   mv snapd_*.snap snapd-from-branch.snap
 
-  # on both variants we use a local, non-asserted version of the snapd snap
-  # for the startwithnew variant, we use the snapd from this branch, for the
-  # startwithold variant, we use the snapd from stable but unpack it to 
+  # we use a local, non-asserted version of the snapd snap
+  # we use the snapd from stable but unpack it to
   # prevent auto-refreshes from happening which may affect the test setup
-  if [ "$START_SNAPD_VERSION" = "new" ]; then
-    mv snapd-from-branch.snap "$(tests.nested get extra-snaps-path)"
-  else
-    # TODO: download a specific version of snapd from a GCE bucket instead
-    snap download snapd --stable --basename=snapd-stable-store
-    unsquashfs -d snapd snapd-stable-store.snap
-    touch ./snapd/in-case-mksquashfs-becomes-deterministic-someday
-    sudo snap pack snapd --filename=snapd-stable.snap
-    mv snapd-stable.snap "$(tests.nested get extra-snaps-path)"
-  fi
+  # TODO: download a specific version of snapd from a GCE bucket instead
+  snap download snapd --stable --basename=snapd-stable-store
+  unsquashfs -d snapd snapd-stable-store.snap
+  touch ./snapd/in-case-mksquashfs-becomes-deterministic-someday
+  sudo snap pack snapd --filename=snapd-stable.snap
+  mv snapd-stable.snap "$(tests.nested get extra-snaps-path)"
 
   # use a specific version of the kernel snap and thus initramfs that we know
   # doesn't support v2 secboot keys
@@ -95,16 +86,14 @@ prepare: |
   tests.nested create-vm core
 
 execute: |
-  # on the old variant, copy and install the new snapd to it
-  if [ "$START_SNAPD_VERSION" = "old" ]; then
-    remote.push snapd-from-branch.snap
-    # This may trigger a reboot if the "managed boot config assets" change
-    # (e.g. grub.cfg). Hence this waits unti lthe change is completed even
-    # across reboots (retry will ensure that even if ssh cannot connect
-    # during the reboot it keeps trying).
-    REMOTE_CHG_ID=$(remote.exec "sudo snap install --dangerous snapd-from-branch.snap --no-wait")
-    retry --wait 5 -n 24 sh -c "remote.exec \"snap changes\" | MATCH ^${REMOTE_CHG_ID}.*Done"
-  fi
+  # copy and install the new snapd to it
+  remote.push snapd-from-branch.snap
+  # This may trigger a reboot if the "managed boot config assets" change
+  # (e.g. grub.cfg). Hence this waits unti lthe change is completed even
+  # across reboots (retry will ensure that even if ssh cannot connect
+  # during the reboot it keeps trying).
+  REMOTE_CHG_ID=$(remote.exec "sudo snap install --dangerous snapd-from-branch.snap --no-wait")
+  retry --wait 5 -n 24 sh -c "remote.exec \"snap changes\" | MATCH ^${REMOTE_CHG_ID}.*Done"
 
   # try a refresh to a new kernel revision which will trigger a reseal and then
   # a reboot
