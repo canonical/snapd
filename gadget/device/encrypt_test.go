@@ -161,34 +161,43 @@ func (s *deviceSuite) TestVolumesAuthOptionsValidateHappy(c *C) {
 	for _, kdfType := range []string{"argon2i", "argon2id", "pbkdf2"} {
 		opts = &device.VolumesAuthOptions{
 			Mode:       device.AuthModePassphrase,
-			Passphrase: "1234",
+			Passphrase: "this is a good password",
 			KDFType:    kdfType,
 			KDFTime:    2 * time.Second,
 		}
 		c.Assert(opts.Validate(), IsNil)
 	}
 	// KDF type and time are optional
-	opts = &device.VolumesAuthOptions{Mode: device.AuthModePassphrase, Passphrase: "1234"}
+	opts = &device.VolumesAuthOptions{Mode: device.AuthModePassphrase, Passphrase: "this is a good password"}
 	c.Assert(opts.Validate(), IsNil)
 }
 
 func (s *deviceSuite) TestVolumesAuthOptionsValidateError(c *C) {
 	// Bad auth mode
-	opts := &device.VolumesAuthOptions{Mode: "bad-mode", Passphrase: "1234"}
+	opts := &device.VolumesAuthOptions{Mode: "bad-mode", Passphrase: "this is a good password"}
 	c.Assert(opts.Validate(), ErrorMatches, `invalid authentication mode "bad-mode", only "passphrase" and "pin" modes are supported`)
 	// Empty passphrase
 	opts = &device.VolumesAuthOptions{Mode: device.AuthModePassphrase}
 	c.Assert(opts.Validate(), ErrorMatches, "passphrase cannot be empty")
-	// PIN mode not implemented yet
+	// Passphrase with low entropy
+	opts = &device.VolumesAuthOptions{Mode: device.AuthModePassphrase, Passphrase: "1234567"}
+	c.Assert(opts.Validate(), ErrorMatches, `invalid passphrase: calculated entropy .* is less than the required minimum entropy \(42.00\) for the "passphrase" authentication mode`)
+	// Empty PIN
 	opts = &device.VolumesAuthOptions{Mode: device.AuthModePIN}
+	c.Assert(opts.Validate(), ErrorMatches, `pin cannot be empty`)
+	// PIN with low entropy
+	opts = &device.VolumesAuthOptions{Mode: device.AuthModePIN, PIN: "1234"}
+	c.Assert(opts.Validate(), ErrorMatches, `invalid pin: calculated entropy .* is less than the required minimum entropy \(13.30\) for the "pin" authentication mode`)
+	// PIN mode not implemented yet
+	opts = &device.VolumesAuthOptions{Mode: device.AuthModePIN, PIN: "12345"}
 	c.Assert(opts.Validate(), ErrorMatches, `"pin" authentication mode is not implemented`)
 	// PIN mode + custom kdf type
 	opts = &device.VolumesAuthOptions{Mode: device.AuthModePIN, KDFType: "argon2i"}
 	c.Assert(opts.Validate(), ErrorMatches, `"pin" authentication mode does not support custom kdf types`)
 	// Bad kdf type
-	opts = &device.VolumesAuthOptions{Mode: device.AuthModePassphrase, Passphrase: "1234", KDFType: "bad-type"}
+	opts = &device.VolumesAuthOptions{Mode: device.AuthModePassphrase, Passphrase: "this is a good password", KDFType: "bad-type"}
 	c.Assert(opts.Validate(), ErrorMatches, `invalid kdf type "bad-type", only "argon2i", "argon2id" and "pbkdf2" are supported`)
 	// Negative kdf time
-	opts = &device.VolumesAuthOptions{Mode: device.AuthModePassphrase, Passphrase: "1234", KDFTime: -1}
+	opts = &device.VolumesAuthOptions{Mode: device.AuthModePassphrase, Passphrase: "this is a good password", KDFTime: -1}
 	c.Assert(opts.Validate(), ErrorMatches, "kdf time cannot be negative")
 }

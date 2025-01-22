@@ -3512,6 +3512,11 @@ func (s *installStepSuite) TestDeviceManagerInstallSetupStorageEncryptionVolumeA
 	chg, err := devicestate.InstallSetupStorageEncryption(s.state, "1234", mockOnVolumes, volumeOpts)
 	c.Check(err, ErrorMatches, `invalid authentication mode "bad-mode", only "passphrase" and "pin" modes are supported`)
 	c.Check(chg, IsNil)
+
+	volumeOpts = &device.VolumesAuthOptions{Mode: device.AuthModePassphrase, Passphrase: "test"}
+	chg, err = devicestate.InstallSetupStorageEncryption(s.state, "1234", mockOnVolumes, volumeOpts)
+	c.Check(err, ErrorMatches, `invalid passphrase: calculated entropy .* is less than the required minimum entropy \(42.00\) for the "passphrase" authentication mode`)
+	c.Check(chg, IsNil)
 }
 
 func (s *installStepSuite) testDeviceManagerInstallSetupStorageEncryptionTasksAndChange(c *C, withVolumesAuth bool) {
@@ -3520,7 +3525,7 @@ func (s *installStepSuite) testDeviceManagerInstallSetupStorageEncryptionTasksAn
 
 	var volumesAuth *device.VolumesAuthOptions
 	if withVolumesAuth {
-		volumesAuth = &device.VolumesAuthOptions{Mode: device.AuthModePassphrase, Passphrase: "1234"}
+		volumesAuth = &device.VolumesAuthOptions{Mode: device.AuthModePassphrase, Passphrase: "this is a good passphrase"}
 	}
 
 	chg, err := devicestate.InstallSetupStorageEncryption(s.state, "1234", mockOnVolumes, volumesAuth)
