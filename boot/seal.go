@@ -107,7 +107,14 @@ type sealKeyToModeenvFlags struct {
 // sealKeyToModeenvImpl seals the supplied keys to the parameters specified
 // in modeenv.
 // It assumes to be invoked in install mode.
-func sealKeyToModeenvImpl(key, saveKey secboot.BootstrappedContainer, primaryKey []byte, volumesAuth *device.VolumesAuthOptions, model *asserts.Model, modeenv *Modeenv, flags sealKeyToModeenvFlags) error {
+func sealKeyToModeenvImpl(
+	key, saveKey secboot.BootstrappedContainer,
+	primaryKey []byte,
+	volumesAuth *device.VolumesAuthOptions,
+	model *asserts.Model,
+	modeenv *Modeenv,
+	flags sealKeyToModeenvFlags,
+) error {
 	if !isModeeenvLocked() {
 		return fmt.Errorf("internal error: cannot seal without the modeenv lock")
 	}
@@ -160,13 +167,27 @@ type SealKeyForBootChainsParams struct {
 	PrimaryKey []byte
 }
 
-func sealKeyForBootChainsImpl(method device.SealingMethod, key, saveKey secboot.BootstrappedContainer, primaryKey []byte, volumesAuth *device.VolumesAuthOptions, params *SealKeyForBootChainsParams) error {
+func sealKeyForBootChainsImpl(
+	method device.SealingMethod,
+	key, saveKey secboot.BootstrappedContainer,
+	primaryKey []byte,
+	volumesAuth *device.VolumesAuthOptions,
+	params *SealKeyForBootChainsParams,
+) error {
 	return fmt.Errorf("FDE manager backend was not built in")
 }
 
 var SealKeyForBootChains = sealKeyForBootChainsImpl
 
-func sealKeyToModeenvForMethod(method device.SealingMethod, key, saveKey secboot.BootstrappedContainer, primaryKey []byte, volumesAuth *device.VolumesAuthOptions, model *asserts.Model, modeenv *Modeenv, flags sealKeyToModeenvFlags) error {
+func sealKeyToModeenvForMethod(
+	method device.SealingMethod,
+	key, saveKey secboot.BootstrappedContainer,
+	primaryKey []byte,
+	volumesAuth *device.VolumesAuthOptions,
+	model *asserts.Model,
+	modeenv *Modeenv,
+	flags sealKeyToModeenvFlags,
+) error {
 	params := &SealKeyForBootChainsParams{
 		FactoryReset:           flags.FactoryReset,
 		UseTokens:              flags.UseTokens,
