@@ -1,0 +1,60 @@
+{
+    "include": [
+      {
+        "group": "debian-req (fundamental)",
+        "backend": "google-distro-1", 
+        "systems": "debian-11-64",
+        "tasks": "tests/...",
+        "rules": "main"
+      },
+      {
+        "group": "fedora (fundamental)",
+        "backend": "openstack",
+        "systems": "fedora-41-64", 
+        "tasks": "tests/...",
+        "rules": "main"
+      },
+      {
+        "group": "ubuntu-focal (fundamental)",
+        "backend": "google",
+        "systems": "ubuntu-20.04-64",
+        "tasks": "tests/...",
+        "rules": "main"
+      },
+      {
+        "group": "ubuntu-noble (fundamental)",
+        "backend": "google",
+        "systems": "ubuntu-24.04-64",
+        "tasks": "tests/...",
+        "rules": "main"
+      },
+      {
+        "group": "ubuntu-interim (fundamental)",
+        "backend": "google",
+        "systems": "ubuntu-24.10-64",
+        "tasks": "tests/...",
+        "rules": "main"
+      },
+      {
+        "group": "ubuntu-core-18 (fundamental)",
+        "backend": "google-core",
+        "systems": "ubuntu-core-18-64",
+        "tasks": "tests/...",
+        "rules": "main"
+      },
+      {
+        "group": "ubuntu-core-20 (fundamental)",
+        "backend": "google-core",
+        "systems": "ubuntu-core-20-64",
+        "tasks": "tests/...",
+        "rules": "main"
+      },
+      {
+        "group": "ubuntu-core-24 (fundamental)",
+        "backend": "google-core",
+        "systems": "ubuntu-core-24-64",
+        "tasks": "tests/...",
+        "rules": "main"
+      }
+    ]
+  }
