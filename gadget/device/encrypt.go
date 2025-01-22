@@ -28,6 +28,7 @@ import (
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/strutil"
 )
 
 // encryptionMarkerUnder returns the path of the encrypted system marker under a
@@ -168,6 +169,7 @@ const (
 type VolumesAuthOptions struct {
 	Mode       AuthMode      `json:"mode,omitempty"`
 	Passphrase string        `json:"passphrase,omitempty"`
+	PIN        string        `json:"pin,omitempty"`
 	KDFType    string        `json:"kdf-type,omitempty"`
 	KDFTime    time.Duration `json:"kdf-time,omitempty"`
 }
@@ -180,13 +182,21 @@ func (o *VolumesAuthOptions) Validate() error {
 
 	switch o.Mode {
 	case AuthModePassphrase:
-		// TODO: Add entropy/quality checks on passphrase.
 		if len(o.Passphrase) == 0 {
 			return fmt.Errorf("passphrase cannot be empty")
+		}
+		if _, _, err := ValidatePassphraseOrPINEntropy(AuthModePassphrase, o.Passphrase); err != nil {
+			return fmt.Errorf("invalid passphrase: %v", err)
 		}
 	case AuthModePIN:
 		if o.KDFType != "" {
 			return fmt.Errorf("%q authentication mode does not support custom kdf types", AuthModePIN)
+		}
+		if len(o.PIN) == 0 {
+			return fmt.Errorf("pin cannot be empty")
+		}
+		if _, _, err := ValidatePassphraseOrPINEntropy(AuthModePIN, o.PIN); err != nil {
+			return fmt.Errorf("invalid pin: %v", err)
 		}
 		return fmt.Errorf("%q authentication mode is not implemented", AuthModePIN)
 	default:
@@ -204,4 +214,20 @@ func (o *VolumesAuthOptions) Validate() error {
 	}
 
 	return nil
+}
+
+// ValidatePassphraseOrPINEntropy checks quality of given passphrase or PIN based on their entropy.
+func ValidatePassphraseOrPINEntropy(mode AuthMode, value string) (entropy, minEntropy float64, err error) {
+	minEntropy = 42
+	if mode == AuthModePIN {
+		minEntropy = 13.3
+	}
+
+	// FIXME: The quality checks need to be revisited to properly support unicode and be more robust.
+	entropy = strutil.Entropy(value)
+	if entropy < minEntropy {
+		err = fmt.Errorf("calculated entropy (%.2f) is less than the required minimum entropy (%.2f) for the %q authentication mode", entropy, minEntropy, mode)
+	}
+
+	return entropy, minEntropy, err
 }
