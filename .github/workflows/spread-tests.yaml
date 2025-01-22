@@ -200,8 +200,8 @@ jobs:
       if: "${{ !inputs.use-snapd-snap-from-master && !contains(inputs.group, '-arm64') && !endsWith(inputs.group, '-fips') }}"
       with:
         name: snap-files-amd64-default-test
-        # eg. snapd_1337.2.65.1+git97.gd35b459_amd64.snap
-        pattern: snapd_1337.*.snap
+        # eg. snapd_inf.2.65.1+git97.gd35b459_amd64.snap
+        pattern: snapd_inf.*.snap
         path: "${{ github.workspace }}/built-snap"
 
     - name: Download built snap (arm64)
@@ -209,8 +209,8 @@ jobs:
       uses: actions/download-artifact@v4
       with:
         name: snap-files-arm64-default-test
-        pattern: snapd_1337.*.snap
-        # eg. snapd_1337.2.65.1+git97.gd35b459_amd64.snap
+        pattern: snapd_inf.*.snap
+        # eg. snapd_inf.2.65.1+git97.gd35b459_amd64.snap
         path: "${{ github.workspace }}/built-snap"
 
     - name: Download built FIPS snap (amd64)
@@ -219,14 +219,14 @@ jobs:
       if: "${{ !inputs.use-snapd-snap-from-master && !contains(inputs.group, '-arm64') && endsWith(inputs.group, '-fips') }}"
       with:
         name: snap-files-amd64-FIPS-test
-        # eg. snapd_1337.2.65.1+git97.gd35b459-fips_amd64.snap
-        pattern: snapd_1337.*-fips_*.snap
+        # eg. snapd_inf.2.65.1+git97.gd35b459-fips_amd64.snap
+        pattern: snapd_inf.*-fips_*.snap
         path: "${{ github.workspace }}/built-snap"
 
     - name: Rename imported snap
       if: "${{ !inputs.use-snapd-snap-from-master }}"
       run: |
-        for snap in built-snap/snapd_1337.*.snap; do
+        for snap in built-snap/snapd_inf.*.snap; do
           mv -v "${snap}" "${snap}.keep"
         done
 

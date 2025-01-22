@@ -73,7 +73,7 @@ build_deb(){
             ;;
     esac
     # Use fake version to ensure we are always bigger than anything else
-    dch --newversion "1337.$newver" "testing build"
+    dch --newversion "inf.$newver" "testing build"
 
     if os.query is-debian sid; then
         # ensure we really build without vendored packages
@@ -103,7 +103,7 @@ build_rpm() {
         release=2023
     fi
     base_version="$(head -1 debian/changelog | awk -F '[()]' '{print $2}')"
-    version="1337.$base_version"
+    version="inf.$base_version"
     packaging_path=packaging/$distro-$release
     rpm_dir=$(rpm --eval "%_topdir")
     pack_args=
@@ -154,7 +154,7 @@ build_rpm() {
 
 build_arch_pkg() {
     base_version="$(head -1 debian/changelog | awk -F '[()]' '{print $2}')"
-    version="1337.$base_version"
+    version="inf.$base_version"
     packaging_path=packaging/arch
     archive_name=snapd-$version.tar
 
@@ -216,9 +216,9 @@ install_dependencies_gce_bucket(){
             cp "$PROJECT_PATH"/../*.deb "$GOHOME"
             ;;
         fedora-*|opensuse-*|amazon-*|centos-*)
-            install_snapd_rpm_dependencies "$PROJECT_PATH"/../snapd-1337.*.src.rpm
+            install_snapd_rpm_dependencies "$PROJECT_PATH"/../snapd-inf.*.src.rpm
             # sources are not needed to run the tests
-            rm "$PROJECT_PATH"/../snapd-1337.*.src.rpm
+            rm "$PROJECT_PATH"/../snapd-inf.*.src.rpm
             find "$PROJECT_PATH"/.. -name '*.rpm' -exec cp -v {} "${GOPATH%%:*}" \;
             ;;
         arch-*)

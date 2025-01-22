@@ -35,7 +35,7 @@ confinement: strict
 # creates) the following stamp files, which influence the build process:
 #
 # - test-build - created by the CI (or the in-repo test build script), indicates
-#   a test build with version override to 1337.*
+#   a test build with version override to inf.*
 # - fips-build - created by the CI or snapd part 'pull' stage to indicate a
 #   build with FIPS support
 # - fips-build-lp - only created by snapd part 'pull' stage, when the build
@@ -256,7 +256,7 @@ parts:
       fi
 
       if [ -f test-build ]; then
-          VERSION="1337.${VERSION}"
+          VERSION="inf.${VERSION}"
       fi
       craftctl set version="$VERSION"
 
@@ -358,21 +358,21 @@ parts:
 
         TAGS=()
 
-        # general build tags, note that version 1337 is used only in CI and
+        # general build tags, note that version inf is used only in CI and
         # triggers testing specific build tags which produce binaries that are
         # insecure for use in production systems
         case "${cmd}" in
           bin/snap)
             TAGS+=(nomanagers)
             case "${VERSION}" in
-              1337.*)
+              inf.*)
                 TAGS+=(withtestkeys faultinject)
                 ;;
             esac
             ;;
           *)
             case "${VERSION}" in
-              1337.*)
+              inf.*)
                 TAGS+=(withtestkeys withbootassetstesting faultinject)
                 ;;
             esac

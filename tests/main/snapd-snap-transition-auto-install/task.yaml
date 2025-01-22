@@ -126,7 +126,7 @@ execute: |
         expect="DEBUG: re-exec disabled by user"
     elif [ "$SNAPD_SRC" = "deb" ]; then
         echo "Ensure exec from snapd deb"
-        expect="DEBUG: snap \(at \"$snap_mount_dir/snapd/current\"\) is older \(\"2\.[0-9.]*\"\) than distribution package \(\"1337.[0-9.]*\"\)"
+        expect="DEBUG: snap \(at \"$snap_mount_dir/snapd/current\"\) is older \(\"2\.[0-9.]*\"\) than distribution package \(\"inf.[0-9.]*\"\)"
     else
         echo "Ensure re-exec from snapd snap"
         expect="DEBUG: restarting into \"$snap_mount_dir/snapd/current/usr/bin/snap\""

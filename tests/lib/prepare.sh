@@ -537,7 +537,7 @@ build_snapd_snap() {
                 if [ -n "${USE_SNAPD_SNAP_URL}" ]; then
                     wget -q "$USE_SNAPD_SNAP_URL" -O "${snapd_snap_cache}/snapd_from_ci.snap"
                 else
-                    cp "${PROJECT_PATH}/built-snap"/snapd_1337.*.snap.keep "${snapd_snap_cache}/snapd_from_ci.snap"
+                    cp "${PROJECT_PATH}/built-snap"/snapd_inf.*.snap.keep "${snapd_snap_cache}/snapd_from_ci.snap"
                 fi
             else
                 # This is not reliable across classic releases so only allow on
@@ -585,7 +585,7 @@ build_snapd_snap_with_run_mode_firstboot_tweaks() {
         if [ -n "${USE_SNAPD_SNAP_URL}" ]; then
             wget -q "$USE_SNAPD_SNAP_URL" -O /tmp/snapd_from_snapcraft.snap
         else
-            cp "${PROJECT_PATH}/built-snap"/snapd_1337.*.snap.keep "/tmp/snapd_from_snapcraft.snap"
+            cp "${PROJECT_PATH}/built-snap"/snapd_inf.*.snap.keep "/tmp/snapd_from_snapcraft.snap"
         fi
     else
         chmod -R go+r "${PROJECT_PATH}/tests"
@@ -1547,7 +1547,7 @@ prepare_ubuntu_core() {
     # Wait for the snap command to become available.
     if [ "$SPREAD_BACKEND" != "external" ] && [ "$SPREAD_BACKEND" != "testflinger" ]; then
         # shellcheck disable=SC2016
-        retry -n 120 --wait 1 sh -c 'test "$(command -v snap)" = /usr/bin/snap && snap version | grep -E -q "snapd +1337.*"'
+        retry -n 120 --wait 1 sh -c 'test "$(command -v snap)" = /usr/bin/snap && snap version | grep -E -q "snapd +inf.*"'
     fi
 
     # Wait for seeding to finish.

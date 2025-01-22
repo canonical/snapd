@@ -48,9 +48,9 @@ dpkg-gencontrol: warning: File::FcntlLock not available; using flock which is no
 make[1]: Leaving directory '/home/gopath/src/github.com/snapcore/snapd'
    dh_md5sums -O--buildsystem=golang -O--fail-missing -O--builddirectory=_build
    dh_builddeb -u-Zxz -O--buildsystem=golang -O--fail-missing -O--builddirectory=_build
-dpkg-deb: building package 'golang-github-ubuntu-core-snappy-dev' in '../golang-github-ubuntu-core-snappy-dev_1337.2.55.5_all.deb'.
-dpkg-deb: building package 'golang-github-snapcore-snapd-dev' in '../golang-github-snapcore-snapd-dev_1337.2.55.5_all.deb'.
-dpkg-deb: building package 'snapd' in '../snapd_1337.2.55.5_amd64.deb'.
+dpkg-deb: building package 'golang-github-ubuntu-core-snappy-dev' in '../golang-github-ubuntu-core-snappy-dev_inf.2.55.5_all.deb'.
+dpkg-deb: building package 'golang-github-snapcore-snapd-dev' in '../golang-github-snapcore-snapd-dev_inf.2.55.5_all.deb'.
+dpkg-deb: building package 'snapd' in '../snapd_inf.2.55.5_amd64.deb'.
 -----
 .
 2022-05-18 18:00:11 WARNING: may181749-433163 (google-nested:ubuntu-16.04-64) running late. Current output:
@@ -63,9 +63,9 @@ dpkg-gencontrol: warning: File::FcntlLock not available; using flock which is no
 make[1]: Leaving directory '/home/gopath/src/github.com/snapcore/snapd'
    dh_md5sums -O--buildsystem=golang -O--fail-missing -O--builddirectory=_build
    dh_builddeb -u-Zxz -O--buildsystem=golang -O--fail-missing -O--builddirectory=_build
-dpkg-deb: building package 'golang-github-ubuntu-core-snappy-dev' in '../golang-github-ubuntu-core-snappy-dev_1337.2.55.5_all.deb'.
-dpkg-deb: building package 'golang-github-snapcore-snapd-dev' in '../golang-github-snapcore-snapd-dev_1337.2.55.5_all.deb'.
-dpkg-deb: building package 'snapd' in '../snapd_1337.2.55.5_amd64.deb'.
+dpkg-deb: building package 'golang-github-ubuntu-core-snappy-dev' in '../golang-github-ubuntu-core-snappy-dev_inf.2.55.5_all.deb'.
+dpkg-deb: building package 'golang-github-snapcore-snapd-dev' in '../golang-github-snapcore-snapd-dev_inf.2.55.5_all.deb'.
+dpkg-deb: building package 'snapd' in '../snapd_inf.2.55.5_amd64.deb'.
 -----
 .
 2022-05-18 18:00:16 WARNING: may181749-433044 (google-nested:ubuntu-16.04-64) running late. Output unchanged.

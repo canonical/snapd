@@ -11,8 +11,8 @@ fi
 # Clean the snaps created in previous runs
 rm -rfv built-snap
 
-find . -name 'snapd_1337.*.snap' -delete -print
-find . -name 'snapd_1337.*.snap.keep' -delete -print
+find . -name 'snapd_inf.*.snap' -delete -print
+find . -name 'snapd_inf.*.snap.keep' -delete -print
 
 touch test-build
 mkdir -p built-snap
@@ -24,7 +24,7 @@ fi
 
 snapcraft --verbose
 
-for snap_file in snapd_1337.*.snap; do
+for snap_file in snapd_inf.*.snap; do
     mv "${snap_file}" built-snap/"${snap_file}.keep"
 done
 

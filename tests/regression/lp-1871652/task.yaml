@@ -41,13 +41,13 @@ prepare: |
 
     # Overwrite the snap binary inside the container with the one from this
     # system. Given that snapd on the system has just been built from source it
-    # will have the custom 1337 version string.
-    # NOTE: For SRU validation snapd is not built from source, so version does not match 1337
-    # NOTE: When snapd is downloaded from the repo version does not match 1337
+    # will have the custom inf version string.
+    # NOTE: For SRU validation snapd is not built from source, so version does not match inf
+    # NOTE: When snapd is downloaded from the repo version does not match inf
     # NOTE: This step is only necessary while snapd in the store is older than the fix
     lxc file push /usr/bin/snap bionic/usr/bin/snap
     if [ ! "$SRU_VALIDATION" = 1 ] && ! tests.info is-snapd-from-archive ; then
-        lxc exec bionic -- snap version | MATCH 1337
+        lxc exec bionic -- snap version | MATCH inf
     fi
 
     # Hide real snap binary, ensuring we run the patched one we copied above.
