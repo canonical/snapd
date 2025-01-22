@@ -1389,6 +1389,224 @@ func (s *systemsSuite) TestSystemInstallActionError(c *check.C) {
 	c.Check(rspe.Error(), check.Equals, `unsupported install step "unknown-install-step" (api)`)
 }
 
+func (s *systemsSuite) TestSystemActionCheckPassphraseError(c *check.C) {
+	d := s.daemon(c)
+
+	// just mock values for output matching
+	const expectedEntropy = float64(10)
+	const expectedMinEntropy = float64(20)
+
+	for _, tc := range []struct {
+		passphrase  string
+		noLabel     bool
+		unavailable bool
+
+		expectedStatus   int
+		expectedErrKind  client.ErrorKind
+		expectedErrMsg   string
+		expectedErrValue interface{}
+
+		mockSupportErr error
+		mockEntropyErr error
+	}{
+		{
+			noLabel:        true,
+			expectedStatus: 400, expectedErrMsg: "system action requires the system label to be provided",
+		},
+		{
+			passphrase:     "",
+			expectedStatus: 400, expectedErrMsg: `passphrase must be provided in request body for action "check-passphrase"`,
+		},
+		{
+			passphrase: "this is a good password", unavailable: true,
+			expectedStatus: 400, expectedErrKind: "unsupported", expectedErrMsg: "target system does not support passphrases",
+		},
+		{
+			passphrase: "this is a good password", mockSupportErr: errors.New("mock error"),
+			expectedStatus: 500, expectedErrMsg: "mock error",
+		},
+		{
+			passphrase: "bad-passphrase", mockEntropyErr: errors.New("mock error"),
+			expectedStatus: 400, expectedErrKind: "invalid-passphrase", expectedErrMsg: "passphrase did not pass quality checks",
+			expectedErrValue: map[string]interface{}{
+				"reasons":     []string{"low-entropy"},
+				"entropy":     expectedEntropy,
+				"min-entropy": expectedMinEntropy,
+			},
+		},
+	} {
+		body := map[string]string{
+			"action":     "check-passphrase",
+			"passphrase": tc.passphrase,
+		}
+
+		route := "/v2/systems/20250122"
+		if tc.noLabel {
+			route = "/v2/systems"
+		}
+
+		restore := daemon.MockDeviceManagerSystemAndGadgetAndEncryptionInfo(func(dm *devicestate.DeviceManager, s string) (*devicestate.System, *gadget.Info, *install.EncryptionSupportInfo, error) {
+			return nil, nil, &install.EncryptionSupportInfo{PassphraseAuthAvailable: !tc.unavailable}, tc.mockSupportErr
+		})
+		defer restore()
+
+		restore = daemon.MockDeviceValidatePassphraseOrPINEntropy(func(mode device.AuthMode, s string) (float64, float64, error) {
+			c.Check(mode, check.Equals, device.AuthModePassphrase)
+			return expectedEntropy, expectedMinEntropy, tc.mockEntropyErr
+		})
+		defer restore()
+
+		st := d.Overlord().State()
+		st.Lock()
+		daemon.ClearCachedEncryptionSupportInfoForLabel(d.Overlord().State(), "20250122")
+		st.Unlock()
+
+		b, err := json.Marshal(body)
+		c.Assert(err, check.IsNil)
+		buf := bytes.NewBuffer(b)
+		req, err := http.NewRequest("POST", route, buf)
+		c.Assert(err, check.IsNil)
+
+		rspe := s.errorReq(c, req, nil)
+		c.Assert(rspe.Status, check.Equals, tc.expectedStatus)
+		c.Assert(rspe.Kind, check.Equals, tc.expectedErrKind)
+		c.Assert(rspe.Message, check.Matches, tc.expectedErrMsg)
+		c.Assert(rspe.Value, check.DeepEquals, tc.expectedErrValue)
+	}
+}
+
+func (s *systemsSuite) TestSystemActionCheckPINError(c *check.C) {
+	d := s.daemon(c)
+
+	// just mock values for output matching
+	const expectedEntropy = float64(10)
+	const expectedMinEntropy = float64(20)
+
+	for _, tc := range []struct {
+		pin         string
+		noLabel     bool
+		unavailable bool
+
+		expectedStatus   int
+		expectedErrKind  client.ErrorKind
+		expectedErrMsg   string
+		expectedErrValue interface{}
+
+		mockSupportErr error
+		mockEntropyErr error
+	}{
+		{
+			noLabel:        true,
+			expectedStatus: 400, expectedErrMsg: "system action requires the system label to be provided",
+		},
+		{
+			pin:            "",
+			expectedStatus: 400, expectedErrMsg: `pin must be provided in request body for action "check-pin"`,
+		},
+		{
+			pin: "123456", unavailable: true,
+			expectedStatus: 400, expectedErrKind: "unsupported", expectedErrMsg: "target system does not support pins",
+		},
+		{
+			pin: "123456", mockSupportErr: errors.New("mock error"),
+			expectedStatus: 500, expectedErrMsg: "mock error",
+		},
+		{
+			pin: "0", mockEntropyErr: errors.New("mock error"),
+			expectedStatus: 400, expectedErrKind: "invalid-pin", expectedErrMsg: "pin did not pass quality checks",
+			expectedErrValue: map[string]interface{}{
+				"reasons":     []string{"low-entropy"},
+				"entropy":     expectedEntropy,
+				"min-entropy": expectedMinEntropy,
+			},
+		},
+	} {
+		body := map[string]string{
+			"action": "check-pin",
+			"pin":    tc.pin,
+		}
+
+		route := "/v2/systems/20250122"
+		if tc.noLabel {
+			route = "/v2/systems"
+		}
+
+		restore := daemon.MockDeviceManagerSystemAndGadgetAndEncryptionInfo(func(dm *devicestate.DeviceManager, s string) (*devicestate.System, *gadget.Info, *install.EncryptionSupportInfo, error) {
+			return nil, nil, &install.EncryptionSupportInfo{PINAuthAvailable: !tc.unavailable}, tc.mockSupportErr
+		})
+		defer restore()
+
+		restore = daemon.MockDeviceValidatePassphraseOrPINEntropy(func(mode device.AuthMode, s string) (float64, float64, error) {
+			c.Check(mode, check.Equals, device.AuthModePIN)
+			return expectedEntropy, expectedMinEntropy, tc.mockEntropyErr
+		})
+		defer restore()
+
+		st := d.Overlord().State()
+		st.Lock()
+		daemon.ClearCachedEncryptionSupportInfoForLabel(d.Overlord().State(), "20250122")
+		st.Unlock()
+
+		b, err := json.Marshal(body)
+		c.Assert(err, check.IsNil)
+		buf := bytes.NewBuffer(b)
+		req, err := http.NewRequest("POST", route, buf)
+		c.Assert(err, check.IsNil)
+
+		rspe := s.errorReq(c, req, nil)
+		c.Assert(rspe.Status, check.Equals, tc.expectedStatus)
+		c.Assert(rspe.Kind, check.Equals, tc.expectedErrKind)
+		c.Assert(rspe.Message, check.Matches, tc.expectedErrMsg)
+		c.Assert(rspe.Value, check.DeepEquals, tc.expectedErrValue)
+	}
+}
+
+func (s *systemsSuite) TestSystemActionCheckPassphraseOrPINCacheEncryptionInfo(c *check.C) {
+	s.daemon(c)
+
+	called := 0
+	restore := daemon.MockDeviceManagerSystemAndGadgetAndEncryptionInfo(func(dm *devicestate.DeviceManager, s string) (*devicestate.System, *gadget.Info, *install.EncryptionSupportInfo, error) {
+		called++
+		return nil, nil, &install.EncryptionSupportInfo{PassphraseAuthAvailable: true, PINAuthAvailable: true}, nil
+	})
+	defer restore()
+
+	body := map[string]string{
+		"action":     "check-passphrase",
+		"passphrase": "this is a good passphrase",
+	}
+
+	for i := 0; i < 10; i++ {
+		b, err := json.Marshal(body)
+		c.Assert(err, check.IsNil)
+		buf := bytes.NewBuffer(b)
+		req, err := http.NewRequest("POST", "/v2/systems/20250122", buf)
+		c.Assert(err, check.IsNil)
+
+		rsp := s.syncReq(c, req, nil)
+		c.Assert(rsp.Status, check.Equals, 200)
+	}
+
+	body = map[string]string{
+		"action": "check-pin",
+		"pin":    "123456",
+	}
+
+	for i := 0; i < 10; i++ {
+		b, err := json.Marshal(body)
+		c.Assert(err, check.IsNil)
+		buf := bytes.NewBuffer(b)
+		req, err := http.NewRequest("POST", "/v2/systems/20250122", buf)
+		c.Assert(err, check.IsNil)
+
+		rsp := s.syncReq(c, req, nil)
+		c.Assert(rsp.Status, check.Equals, 200)
+	}
+
+	// Verify that encryption info calculation is called once and retrieved from cache otherwise.
+	c.Check(called, check.Equals, 1)
+}
+
 var _ = check.Suite(&systemsCreateSuite{})
 
 type systemsCreateSuite struct {

@@ -33,6 +33,7 @@ import (
 	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/gadget"
+	"github.com/snapcore/snapd/gadget/device"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/devicestate"
@@ -199,6 +200,7 @@ type systemActionRequest struct {
 	client.SystemAction
 	client.InstallSystemOptions
 	client.CreateSystemOptions
+	client.QualityCheckOptions
 }
 
 func postSystemsAction(c *Command, r *http.Request, user *auth.UserState) Response {
@@ -271,6 +273,10 @@ func postSystemsActionJSON(c *Command, r *http.Request) Response {
 		return postSystemActionCreate(c, &req)
 	case "remove":
 		return postSystemActionRemove(c, systemLabel)
+	case "check-passphrase":
+		return postSystemActionCheckPassphrase(c, systemLabel, &req)
+	case "check-pin":
+		return postSystemActionCheckPIN(c, systemLabel, &req)
 	default:
 		return BadRequest("unsupported action %q", req.Action)
 	}
@@ -593,4 +599,110 @@ func postSystemActionRemove(c *Command, systemLabel string) Response {
 	ensureStateSoon(st)
 
 	return AsyncResponse(nil, chg.ID())
+}
+
+type encryptionSupportInfoKey struct{ systemLabel string }
+
+func cachedEncryptionSupportInfoByLabel(c *Command, systemLabel string) (*install.EncryptionSupportInfo, error) {
+	c.d.state.Lock()
+	defer c.d.state.Unlock()
+	cached := c.d.state.Cached(encryptionSupportInfoKey{systemLabel})
+	if cached != nil {
+		encryptionSupportInfo, ok := cached.(*install.EncryptionSupportInfo)
+		if ok {
+			return encryptionSupportInfo, nil
+		}
+	}
+	// no entry found in cache, let's compute encryption support info for target system
+	deviceMgr := c.d.overlord.DeviceManager()
+	_, _, encryptionInfo, err := deviceManagerSystemAndGadgetAndEncryptionInfo(deviceMgr, systemLabel)
+	if err != nil {
+		return nil, err
+	}
+	c.d.state.Cache(encryptionSupportInfoKey{systemLabel}, encryptionInfo)
+	return encryptionInfo, nil
+}
+
+var deviceValidatePassphraseOrPINEntropy = device.ValidatePassphraseOrPINEntropy
+
+func postSystemActionCheckPassphrase(c *Command, systemLabel string, req *systemActionRequest) Response {
+	if systemLabel == "" {
+		return BadRequest("system action requires the system label to be provided")
+	}
+	if req.Passphrase == "" {
+		return BadRequest("passphrase must be provided in request body for action %q", req.Action)
+	}
+
+	encryptionInfo, err := cachedEncryptionSupportInfoByLabel(c, systemLabel)
+	if err != nil {
+		return InternalError(err.Error())
+	}
+	if !encryptionInfo.PassphraseAuthAvailable {
+		return &apiError{
+			Status:  400,
+			Kind:    client.ErrorKindUnsupportedTargetSystem,
+			Message: "target system does not support passphrases",
+		}
+	}
+
+	entropy, minEntropy, err := deviceValidatePassphraseOrPINEntropy(device.AuthModePassphrase, req.Passphrase)
+	if err != nil {
+		var reasons []string
+		if entropy < minEntropy {
+			reasons = append(reasons, "low-entropy")
+		}
+		return &apiError{
+			Status:  400,
+			Kind:    client.ErrorKindInvalidPassphrase,
+			Message: "passphrase did not pass quality checks",
+			Value: map[string]interface{}{
+				"reasons":     reasons,
+				"entropy":     entropy,
+				"min-entropy": minEntropy,
+			},
+		}
+	}
+
+	return SyncResponse(nil)
+}
+
+func postSystemActionCheckPIN(c *Command, systemLabel string, req *systemActionRequest) Response {
+	if systemLabel == "" {
+		return BadRequest("system action requires the system label to be provided")
+	}
+	if req.PIN == "" {
+		return BadRequest("pin must be provided in request body for action %q", req.Action)
+	}
+
+	encryptionInfo, err := cachedEncryptionSupportInfoByLabel(c, systemLabel)
+	if err != nil {
+		return InternalError(err.Error())
+	}
+	if !encryptionInfo.PINAuthAvailable {
+		return &apiError{
+			Status:  400,
+			Kind:    client.ErrorKindUnsupportedTargetSystem,
+			Message: "target system does not support pins",
+		}
+	}
+
+	entropy, minEntropy, err := deviceValidatePassphraseOrPINEntropy(device.AuthModePIN, req.PIN)
+	if err != nil {
+		var reasons []string
+		if entropy < minEntropy {
+			reasons = append(reasons, "low-entropy")
+		}
+		return &apiError{
+			Status:  400,
+			Kind:    client.ErrorKindInvalidPIN,
+			Message: "pin did not pass quality checks",
+			Value: map[string]interface{}{
+				"reasons":     reasons,
+				"entropy":     entropy,
+				"min-entropy": minEntropy,
+			},
+		}
+	}
+
+	return SyncResponse(nil)
 }

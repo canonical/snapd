@@ -166,6 +166,15 @@ const (
 
 	// ErrorKindMissingSnapResourcePair: cannot find a snap-resource-pair when attempting to sideload a component
 	ErrorKindMissingSnapResourcePair ErrorKind = "missing-snap-resource-pair"
+
+	// ErrorKindInvalidPassphrase: passphrase is invalid and/or does not pass quality checks.
+	ErrorKindInvalidPassphrase ErrorKind = "invalid-passphrase"
+
+	// ErrorKindInvalidPIN: PIN is invalid and/or does not pass quality checks.
+	ErrorKindInvalidPIN ErrorKind = "invalid-pin"
+
+	// ErrorKindUnsupported: target system does not support corresponding feature (e.g. client.StorageEncryptionFeaturePassphraseAuth)
+	ErrorKindUnsupportedTargetSystem ErrorKind = "unsupported"
 )
 
 // Maintenance error kinds.
