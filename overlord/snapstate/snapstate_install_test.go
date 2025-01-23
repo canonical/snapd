@@ -237,6 +237,10 @@ func verifyInstallTasksWithComponents(c *C, typ snap.Type, opts, discards int, c
 		}
 	}
 
+	te, err := ts.Edge(snapstate.SnapSetupEdge)
+	c.Assert(err, IsNil)
+	c.Assert(te.Has("component-setup-tasks"), Equals, true)
+
 	var count int
 	for _, t := range ts.Tasks() {
 		switch t.Kind() {
@@ -251,6 +255,9 @@ func verifyInstallTasksWithComponents(c *C, typ snap.Type, opts, discards int, c
 			c.Assert(err, IsNil)
 			c.Check(compsup.CompSideInfo.Component.ComponentName, Equals, components[count])
 			count++
+		case "setup-profiles":
+			c.Assert(t.Has("component-setup-task"), Equals, false)
+			c.Assert(t.Has("component-setup"), Equals, false)
 		}
 	}
 	c.Check(count, Equals, len(components), Commentf("expected %d components, found %d", len(components), count))

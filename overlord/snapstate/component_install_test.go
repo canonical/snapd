@@ -182,6 +182,20 @@ func verifyComponentInstallTasks(c *C, opts int, ts *state.TaskSet) {
 	} else {
 		c.Assert(t.Kind(), Equals, "prepare-component")
 	}
+
+	if opts&compOptMultiCompInstall == 0 {
+		snapsupTask, err := ts.Edge(snapstate.SnapSetupEdge)
+		c.Assert(err, IsNil)
+
+		var compsupsIDs []string
+		err = snapsupTask.Get("component-setup-tasks", &compsupsIDs)
+		c.Assert(err, IsNil)
+
+		// for now, all non-multi-component installs are by path, so this will
+		// point to prepare-component
+		c.Assert(snapsupTask.Kind(), Equals, "prepare-component")
+		c.Assert(compsupsIDs, DeepEquals, []string{snapsupTask.ID()})
+	}
 }
 
 func createTestComponent(c *C, snapName, compName string, snapInfo *snap.Info) (*snap.ComponentInfo, string) {
@@ -502,6 +516,7 @@ func (s *snapmgrTestSuite) TestInstallComponentPathForParallelInstall(c *C) {
 	var snapsup snapstate.SnapSetup
 	c.Assert(ts.Tasks()[0].Get("snap-setup", &snapsup), IsNil)
 	c.Assert(snapsup.InstanceKey, Equals, snapKey)
+	c.Assert(snapsup.ComponentExclusiveOperation, Equals, true)
 }
 
 func (s *snapmgrTestSuite) TestInstallComponentPathWrongSnap(c *C) {
@@ -1028,11 +1043,18 @@ func (s *snapmgrTestSuite) testInstallComponents(c *C, opts testInstallComponent
 	tss, err := snapstate.InstallComponents(context.Background(), s.state, components, info, nil, installOpts)
 	c.Assert(err, IsNil)
 
-	setupProfiles := tss[len(tss)-1].Tasks()[0]
+	setupTs := tss[len(tss)-1]
+
+	setupProfiles := setupTs.Tasks()[0]
 	c.Assert(setupProfiles.Kind(), Equals, "setup-profiles")
 
-	prepareKmodComps := tss[len(tss)-1].Tasks()[1]
+	prepareKmodComps := setupTs.Tasks()[1]
 	c.Assert(prepareKmodComps.Kind(), Equals, "prepare-kernel-modules-components")
+
+	snapsupTask, err := setupTs.Edge(snapstate.SnapSetupEdge)
+	c.Assert(err, IsNil)
+	c.Assert(snapsupTask.Kind(), Equals, "setup-profiles")
+	c.Assert(snapsupTask.Has("component-setup-tasks"), Equals, true)
 
 	expectedLane := opts.lane
 	if opts.transaction != "" && opts.lane == 0 {
@@ -1052,6 +1074,7 @@ func (s *snapmgrTestSuite) testInstallComponents(c *C, opts testInstallComponent
 	snapsup, err := snapstate.TaskSnapSetup(prepareKmodComps)
 	c.Assert(err, IsNil)
 	c.Assert(snapsup, NotNil)
+	c.Assert(snapsup.ComponentExclusiveOperation, Equals, true)
 
 	for _, ts := range tss[0 : len(tss)-1] {
 		task := ts.Tasks()[0]

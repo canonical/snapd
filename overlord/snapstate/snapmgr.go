@@ -159,6 +159,10 @@ type SnapSetup struct {
 	// case of an undo. Note that this cannot be tagged as omitempty, since we
 	// need to distinguish between empty and nil.
 	PreUpdateKernelModuleComponents []*snap.ComponentSideInfo `json:"pre-update-kernel-module-components"`
+
+	// ComponentExclusiveOperation is set if this SnapSetup exists only to deal with
+	// components, and not the snap itself.
+	ComponentExclusiveOperation bool `json:"component-exclusive-operation,omitempty"`
 }
 
 // ConfdbID identifies a confdb.

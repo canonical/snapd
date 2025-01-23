@@ -872,6 +872,7 @@ func (s *snapmgrTestSuite) TestSwitchTasks(c *C) {
 
 	c.Assert(s.state.TaskCount(), Equals, len(ts.Tasks()))
 	c.Assert(taskKinds(ts.Tasks()), DeepEquals, []string{"switch-snap"})
+	c.Assert(ts.MaybeEdge(snapstate.SnapSetupEdge), NotNil)
 }
 
 func (s *snapmgrTestSuite) TestSwitchConflict(c *C) {
@@ -10176,7 +10177,8 @@ func (s *snapmgrTestSuite) TestDownloadWithComponents(c *C) {
 	c.Assert(begin, NotNil)
 	c.Check(begin.Kind(), Equals, "download-snap")
 
-	verifySnapAndComponentSetupsForDownload(c, begin, ts, downloadDir)
+	const componentExclusive = false
+	verifySnapAndComponentSetupsForDownload(c, begin, ts, downloadDir, componentExclusive)
 }
 
 func (s *snapmgrTestSuite) TestDownloadWithComponentsWithMismatchValidationSets(c *C) {
@@ -10388,7 +10390,8 @@ func (s *snapmgrTestSuite) TestDownloadWithComponentsWithValidationSets(c *C) {
 	c.Assert(begin, NotNil)
 	c.Check(begin.Kind(), Equals, "download-snap")
 
-	verifySnapAndComponentSetupsForDownload(c, begin, ts, downloadDir)
+	const componentExclusive = false
+	verifySnapAndComponentSetupsForDownload(c, begin, ts, downloadDir, componentExclusive)
 }
 
 func (s *snapmgrTestSuite) TestDownloadComponents(c *C) {
@@ -10463,10 +10466,11 @@ func (s *snapmgrTestSuite) TestDownloadComponents(c *C) {
 	c.Assert(begin, NotNil)
 	c.Check(begin.Kind(), Equals, "download-component")
 
-	verifySnapAndComponentSetupsForDownload(c, begin, ts, downloadDir)
+	const componentExclusive = true
+	verifySnapAndComponentSetupsForDownload(c, begin, ts, downloadDir, componentExclusive)
 }
 
-func verifySnapAndComponentSetupsForDownload(c *C, begin *state.Task, ts *state.TaskSet, downloadDir string) {
+func verifySnapAndComponentSetupsForDownload(c *C, begin *state.Task, ts *state.TaskSet, downloadDir string, componentExclusive bool) {
 	var snapsup snapstate.SnapSetup
 	err := begin.Get("snap-setup", &snapsup)
 	c.Assert(err, IsNil)
@@ -10481,6 +10485,8 @@ func verifySnapAndComponentSetupsForDownload(c *C, begin *state.Task, ts *state.
 		expectedDownloadDir,
 		fmt.Sprintf("%s_%s.snap", snapsup.InstanceName(), snapsup.Revision()),
 	))
+
+	c.Assert(snapsup.ComponentExclusiveOperation, Equals, componentExclusive)
 
 	var compsupTaskIDs []string
 	err = begin.Get("component-setup-tasks", &compsupTaskIDs)
