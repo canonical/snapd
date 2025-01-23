@@ -605,8 +605,8 @@ type encryptionSupportInfoKey struct{ systemLabel string }
 
 func cachedEncryptionSupportInfoByLabel(c *Command, systemLabel string) (*install.EncryptionSupportInfo, error) {
 	c.d.state.Lock()
-	defer c.d.state.Unlock()
 	cached := c.d.state.Cached(encryptionSupportInfoKey{systemLabel})
+	c.d.state.Unlock()
 	if cached != nil {
 		encryptionSupportInfo, ok := cached.(*install.EncryptionSupportInfo)
 		if ok {
@@ -619,7 +619,9 @@ func cachedEncryptionSupportInfoByLabel(c *Command, systemLabel string) (*instal
 	if err != nil {
 		return nil, err
 	}
+	c.d.state.Lock()
 	c.d.state.Cache(encryptionSupportInfoKey{systemLabel}, encryptionInfo)
+	c.d.state.Unlock()
 	return encryptionInfo, nil
 }
 

@@ -1531,7 +1531,12 @@ func (s *systemsSuite) TestSystemActionCheckPINError(c *check.C) {
 			route = "/v2/systems"
 		}
 
+		st := d.Overlord().State()
+
 		restore := daemon.MockDeviceManagerSystemAndGadgetAndEncryptionInfo(func(dm *devicestate.DeviceManager, s string) (*devicestate.System, *gadget.Info, *install.EncryptionSupportInfo, error) {
+			// Lock and unlock to make sure caching logic doesn't go into deadlock with encryption info retrieval
+			st.Lock()
+			st.Unlock()
 			return nil, nil, &install.EncryptionSupportInfo{PINAuthAvailable: !tc.unavailable}, tc.mockSupportErr
 		})
 		defer restore()
@@ -1542,7 +1547,6 @@ func (s *systemsSuite) TestSystemActionCheckPINError(c *check.C) {
 		})
 		defer restore()
 
-		st := d.Overlord().State()
 		st.Lock()
 		daemon.ClearCachedEncryptionSupportInfoForLabel(d.Overlord().State(), "20250122")
 		st.Unlock()
@@ -1562,11 +1566,15 @@ func (s *systemsSuite) TestSystemActionCheckPINError(c *check.C) {
 }
 
 func (s *systemsSuite) TestSystemActionCheckPassphraseOrPINCacheEncryptionInfo(c *check.C) {
-	s.daemon(c)
+	d := s.daemon(c)
 
 	called := 0
 	restore := daemon.MockDeviceManagerSystemAndGadgetAndEncryptionInfo(func(dm *devicestate.DeviceManager, s string) (*devicestate.System, *gadget.Info, *install.EncryptionSupportInfo, error) {
 		called++
+		// Lock and unlock to make sure caching logic doesn't go into deadlock with encryption info retrieval
+		st := d.Overlord().State()
+		st.Lock()
+		st.Unlock()
 		return nil, nil, &install.EncryptionSupportInfo{PassphraseAuthAvailable: true, PINAuthAvailable: true}, nil
 	})
 	defer restore()
