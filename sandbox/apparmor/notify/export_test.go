@@ -7,11 +7,11 @@ import (
 )
 
 var (
-	Versions                  = versions
-	VersionSupportedCallbacks = versionSupportedCallbacks
+	Versions                        = versions
+	VersionLikelySupportedCallbacks = versionLikelySupportedCallbacks
 
-	Supported                = ProtocolVersion.supported
-	SupportedProtocolVersion = supportedProtocolVersion
+	LikelySupported                = ProtocolVersion.likelySupported
+	LikelySupportedProtocolVersion = likelySupportedProtocolVersion
 )
 
 func MockSyscall(syscall func(trap, a1, a2, a3 uintptr) (r1, r2 uintptr, err unix.Errno)) (restore func()) {
@@ -20,27 +20,27 @@ func MockSyscall(syscall func(trap, a1, a2, a3 uintptr) (r1, r2 uintptr, err uni
 
 // VersionAndCallback couples protocol version with a callback function which
 // returns true if the version is supported. This type is used so that
-// `versions` and `versionSupportedCallbacks` can be mocked to avoid calling
-// the actual callback functions (which generally probe the host system), and
-// so that the logic around handling of unsupported and supported versions can
-// be tested.
+// `versions` and `versionLikelySupportedCallbacks` can be mocked to avoid
+// calling the actual callback functions (which generally probe the host
+// system), and so that the logic around handling of unsupported and supported
+// versions can be tested.
 type VersionAndCallback struct {
 	Version  ProtocolVersion
 	Callback func() bool
 }
 
-func MockVersionSupportedCallbacks(pairs []VersionAndCallback) (restore func()) {
+func MockVersionLikelySupportedCallbacks(pairs []VersionAndCallback) (restore func()) {
 	restoreVersions := testutil.Backup(&versions)
-	restoreCallbacks := testutil.Backup(&versionSupportedCallbacks)
+	restoreCallbacks := testutil.Backup(&versionLikelySupportedCallbacks)
 	restore = func() {
 		restoreCallbacks()
 		restoreVersions()
 	}
 	versions = make([]ProtocolVersion, 0, len(pairs))
-	versionSupportedCallbacks = make(map[ProtocolVersion]func() bool, len(pairs))
+	versionLikelySupportedCallbacks = make(map[ProtocolVersion]func() bool, len(pairs))
 	for _, pair := range pairs {
 		versions = append(versions, pair.Version)
-		versionSupportedCallbacks[pair.Version] = pair.Callback
+		versionLikelySupportedCallbacks[pair.Version] = pair.Callback
 	}
 	return restore
 }

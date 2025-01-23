@@ -28,24 +28,38 @@ import (
 // ProtocolVersion denotes a notification protocol version.
 type ProtocolVersion uint16
 
-// versions holds the notification protocols snapd supports, in order of
-// preference. If the first version is supported, try to use it, else try the
-// next version, etc.
 var (
+	// versions holds the notification protocols snapd supports, in order of
+	// preference. If the first version is supported, try to use it, else try
+	// the next version, etc.
 	versions = []ProtocolVersion{3}
 
-	versionSupportedCallbacks = map[ProtocolVersion]func() bool{
+	// versionLikelySupportedCallbacks provides a function for each known
+	// protocol version which returns true if that version is supported by
+	// snapd and likely supported by the kernel. Kernel support may be guaged
+	// by checking kernel features or probing the filesystem for hints from the
+	// kernel about which versions it supports. Even if the callback returns
+	// true, the kernel may return EPROTONOSUPPORT when attempting to register
+	// on the notify socket with that version, in which case we'll need to try
+	// the next version in the list.
+	versionLikelySupportedCallbacks = map[ProtocolVersion]func() bool{
 		3: SupportAvailable,
 	}
 
+	// versionKnown returns true if the given protocol version is known by
+	// snapd. Even if true, the version may still be unsupported by snapd or
+	// the kernel.
 	versionKnown = func(v ProtocolVersion) bool {
-		_, exists := versionSupportedCallbacks[v]
+		_, exists := versionLikelySupportedCallbacks[v]
 		return exists
 	}
 )
 
-func (v ProtocolVersion) supported() (bool, error) {
-	callback, ok := versionSupportedCallbacks[v]
+// likelySupported returns true if the receiving version is supported by snapd
+// and likely supported by the kernel, as reported by the likely supported
+// callback for that version.
+func (v ProtocolVersion) likelySupported() (bool, error) {
+	callback, ok := versionLikelySupportedCallbacks[v]
 	if !ok {
 		// Should not occur, since the caller should only call this method on
 		// known versions, and tests should validate that each known version
@@ -55,20 +69,20 @@ func (v ProtocolVersion) supported() (bool, error) {
 	return callback(), nil
 }
 
-// supportedProtocolVersion returns the preferred protocol version which is
-// expected to be supported by both snapd and the kernel. Any versions included
-// in unsupported are not tried.
+// likelySupportedProtocolVersion returns the preferred protocol version which
+// is expected to be supported by both snapd and the kernel. Any versions
+// included in the given unsupported map are not tried.
 //
 // Any versions which are found to be unsupported are added to the given
 // unsupported map so that, in case the returned version reports as being
 // unsupported by the kernel, subsequent calls to this function will not
 // require duplicate checks of callback functions.
-func supportedProtocolVersion(unsupported map[ProtocolVersion]bool) (ProtocolVersion, bool) {
+func likelySupportedProtocolVersion(unsupported map[ProtocolVersion]bool) (ProtocolVersion, bool) {
 	for _, v := range versions {
 		if _, exists := unsupported[v]; exists {
 			continue
 		}
-		if supported, _ := v.supported(); !supported {
+		if supported, _ := v.likelySupported(); !supported {
 			unsupported[v] = true
 			continue
 		}

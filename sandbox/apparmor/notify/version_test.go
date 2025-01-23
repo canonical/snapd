@@ -32,18 +32,18 @@ var _ = Suite(&versionSuite{})
 
 func (s *versionSuite) TestVersionsAndCallbacks(c *C) {
 	// Check both directions so we get pretty printing for the values on error
-	c.Check(notify.Versions, HasLen, len(notify.VersionSupportedCallbacks))
-	c.Check(notify.VersionSupportedCallbacks, HasLen, len(notify.Versions))
+	c.Check(notify.Versions, HasLen, len(notify.VersionLikelySupportedCallbacks))
+	c.Check(notify.VersionLikelySupportedCallbacks, HasLen, len(notify.Versions))
 
 	for _, ver := range notify.Versions {
-		callback, exists := notify.VersionSupportedCallbacks[ver]
-		c.Check(exists, Equals, true, Commentf("version in versions missing from versionSupportedCallbacks: %v", ver))
+		callback, exists := notify.VersionLikelySupportedCallbacks[ver]
+		c.Check(exists, Equals, true, Commentf("version in versions missing from versionLikelySupportedCallbacks: %v", ver))
 		c.Check(callback, NotNil, Commentf("version has nil callback: %v", ver))
 	}
 
-	for ver, callback := range notify.VersionSupportedCallbacks {
+	for ver, callback := range notify.VersionLikelySupportedCallbacks {
 		c.Check(callback, NotNil, Commentf("version has nil callback: %v", ver))
-		c.Check(notify.Versions, testutil.Contains, ver, Commentf("version in versionSupportedCallbacks missing from versions: %v", ver))
+		c.Check(notify.Versions, testutil.Contains, ver, Commentf("version in versionLikelySupportedCallbacks missing from versions: %v", ver))
 	}
 }
 
@@ -70,29 +70,29 @@ var fakeVersions = []notify.VersionAndCallback{
 	},
 }
 
-func (s *versionSuite) TestVersionSupported(c *C) {
-	restore := notify.MockVersionSupportedCallbacks(fakeVersions)
+func (s *versionSuite) TestVersionLikelySupported(c *C) {
+	restore := notify.MockVersionLikelySupportedCallbacks(fakeVersions)
 	defer restore()
 
-	supported, err := notify.Supported(notify.ProtocolVersion(1))
+	supported, err := notify.LikelySupported(notify.ProtocolVersion(1))
 	c.Check(err, ErrorMatches, "internal error: no callback defined for version .*")
 	c.Check(supported, Equals, false)
 
-	supported, err = notify.Supported(notify.ProtocolVersion(2))
+	supported, err = notify.LikelySupported(notify.ProtocolVersion(2))
 	c.Check(err, IsNil)
 	c.Check(supported, Equals, false)
 
-	supported, err = notify.Supported(notify.ProtocolVersion(3))
+	supported, err = notify.LikelySupported(notify.ProtocolVersion(3))
 	c.Check(err, IsNil)
 	c.Check(supported, Equals, true)
 
-	supported, err = notify.Supported(notify.ProtocolVersion(4))
+	supported, err = notify.LikelySupported(notify.ProtocolVersion(4))
 	c.Check(err, ErrorMatches, "internal error: no callback defined for version .*")
 	c.Check(supported, Equals, false)
 }
 
-func (s *versionSuite) TestSupportedProtocolVersion(c *C) {
-	restore := notify.MockVersionSupportedCallbacks(fakeVersions)
+func (s *versionSuite) TestLikelySupportedProtocolVersion(c *C) {
+	restore := notify.MockVersionLikelySupportedCallbacks(fakeVersions)
 	defer restore()
 
 	for _, testCase := range []struct {
@@ -154,7 +154,7 @@ func (s *versionSuite) TestSupportedProtocolVersion(c *C) {
 			},
 		},
 	} {
-		protoVersion, supported := notify.SupportedProtocolVersion(testCase.unsupported)
+		protoVersion, supported := notify.LikelySupportedProtocolVersion(testCase.unsupported)
 		comment := Commentf("testCase: %+v", testCase)
 		c.Check(protoVersion, Equals, testCase.expectedVersion, comment)
 		c.Check(supported, Equals, testCase.expectedSupported, comment)

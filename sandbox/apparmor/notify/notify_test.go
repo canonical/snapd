@@ -73,7 +73,7 @@ var fakeNotifyVersions = []notify.VersionAndCallback{
 }
 
 func (s *notifySuite) TestRegisterFileDescriptor(c *C) {
-	restoreVersions := notify.MockVersionSupportedCallbacks(fakeNotifyVersions)
+	restoreVersions := notify.MockVersionLikelySupportedCallbacks(fakeNotifyVersions)
 	defer restoreVersions()
 
 	var fakeFD uintptr = 1234
@@ -120,7 +120,7 @@ func checkIoctlBuffer(c *C, receivedBuf notify.IoctlRequestBuffer, expectedVersi
 }
 
 func (s *notifySuite) TestRegisterFileDescriptorErrors(c *C) {
-	restoreVersions := notify.MockVersionSupportedCallbacks(fakeNotifyVersions)
+	restoreVersions := notify.MockVersionLikelySupportedCallbacks(fakeNotifyVersions)
 	defer restoreVersions()
 
 	var fakeFD uintptr = 1234

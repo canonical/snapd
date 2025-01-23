@@ -31,7 +31,7 @@ var doIoctl = Ioctl
 func RegisterFileDescriptor(fd uintptr) (ProtocolVersion, error) {
 	unsupported := make(map[ProtocolVersion]bool)
 	for {
-		protocolVersion, ok := supportedProtocolVersion(unsupported)
+		protocolVersion, ok := likelySupportedProtocolVersion(unsupported)
 		if !ok {
 			return 0, fmt.Errorf("cannot register notify socket: no mutually supported protocol versions")
 		}
