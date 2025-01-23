@@ -123,13 +123,10 @@ func NewInvalidPermissionsError(iface string, unsupported []string, supported []
 	}
 }
 
-func NewPermissionsListEmptyError(iface string, supported []string) *UnsupportedValueError {
-	// TODO: change language to "permissions empty" rather than "permissions list empty",
-	// since permissions now come as a list in prompt replies but as a map when creating
-	// or modifying rules directly.
+func NewPermissionsEmptyError(iface string, supported []string) *UnsupportedValueError {
 	return &UnsupportedValueError{
 		Field:     "permissions",
-		Msg:       fmt.Sprintf("invalid permissions for %s interface: permissions list empty", iface),
+		Msg:       fmt.Sprintf("invalid permissions for %s interface: permissions empty", iface),
 		Value:     []string{}, // client prefers empty list over null value
 		Supported: supported,
 	}

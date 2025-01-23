@@ -234,7 +234,7 @@ func (s *constraintsSuite) TestConstraintsToRuleConstraintsUnhappy(c *C) {
 	}{
 		{
 			perms:  nil,
-			errStr: `invalid permissions for home interface: permissions list empty`,
+			errStr: `invalid permissions for home interface: permissions empty`,
 		},
 		{
 			perms: prompting.PermissionMap{
@@ -324,7 +324,7 @@ func (s *constraintsSuite) TestRuleConstraintsValidateForInterface(c *C) {
 		{
 			"home",
 			prompting.RulePermissionMap{},
-			prompting_errors.NewPermissionsListEmptyError("home", nil).Error(),
+			prompting_errors.NewPermissionsEmptyError("home", nil).Error(),
 		},
 		{
 			"home",
@@ -621,7 +621,7 @@ func (s *constraintsSuite) TestReplyConstraintsToConstraintsUnhappy(c *C) {
 		},
 		{
 			permissions: make([]string, 0),
-			errStr:      `invalid permissions for home interface: permissions list empty`,
+			errStr:      `invalid permissions for home interface: permissions empty`,
 		},
 		{
 			permissions: []string{"read", "append", "write", "create", "execute"},
@@ -1141,7 +1141,7 @@ func (s *constraintsSuite) TestAbstractPermissionsToAppArmorPermissionsUnhappy(c
 		{
 			"home",
 			[]string{},
-			"invalid permissions for home interface: permissions list empty",
+			"invalid permissions for home interface: permissions empty",
 		},
 		{
 			"foo",

@@ -466,10 +466,10 @@ func (s *promptingSuite) TestPromptingError(c *C) {
 			},
 		},
 		{
-			err: prompting_errors.NewPermissionsListEmptyError("foo", []string{"bar", "baz"}),
+			err: prompting_errors.NewPermissionsEmptyError("foo", []string{"bar", "baz"}),
 			body: map[string]interface{}{
 				"result": map[string]interface{}{
-					"message": `invalid permissions for foo interface: permissions list empty`,
+					"message": `invalid permissions for foo interface: permissions empty`,
 					"kind":    "interfaces-requests-invalid-fields",
 					"value": map[string]interface{}{
 						"permissions": map[string]interface{}{
