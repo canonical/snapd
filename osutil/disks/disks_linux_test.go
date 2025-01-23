@@ -2050,3 +2050,33 @@ func (s *diskSuite) TestFilesystemUUID(c *C) {
 	_, err = disks.FilesystemUUID("/dev/vda6")
 	c.Check(err, ErrorMatches, `cannot process udev properties: some error`)
 }
+
+func (s *diskSuite) TestDevlinks(c *C) {
+	restore := disks.MockUdevPropertiesForDevice(func(typeOpt, dev string) (map[string]string, error) {
+		c.Assert(typeOpt, Equals, "--name")
+		switch dev {
+		case "/dev/some/main/link":
+			return map[string]string{
+				"DEVLINKS": "/dev/some/other/link /dev/yet/another/link",
+			}, nil
+		case "/dev/no/links":
+			return map[string]string{}, nil
+		case "/dev/some/error":
+			return nil, fmt.Errorf("some error")
+		default:
+			c.Errorf("unexpected udev device properties requested: %s", dev)
+			return nil, fmt.Errorf("unexpected udev device: %s", dev)
+		}
+	})
+	defer restore()
+
+	links, err := disks.Devlinks("/dev/some/main/link")
+	c.Assert(err, IsNil)
+	c.Check(links, DeepEquals, []string{"/dev/some/other/link", "/dev/yet/another/link"})
+
+	_, err = disks.Devlinks("/dev/no/links")
+	c.Check(err, ErrorMatches, `cannot get required udev DEVLINKS property`)
+
+	_, err = disks.Devlinks("/dev/some/error")
+	c.Check(err, ErrorMatches, `cannot process udev properties: some error`)
+}
