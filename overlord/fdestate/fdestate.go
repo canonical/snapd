@@ -155,6 +155,12 @@ type FdeState struct {
 	// PrimaryKeys are the keys on the system. Key with ID 0 is
 	// reserved for snapd and is populated on first boot. Other
 	// IDs are for externally managed keys.
+	// If key 0 is not present, we are on a legacy system that
+	// does not have a primary key. We are then in one of these cases:
+	//  * v1 TPM keys are in used because an old snapd was used
+	//    during installation.
+	//  * snap-bootstrap in the kernel is old and does not provide
+	//    a primary key in the keyring.
 	PrimaryKeys map[int]PrimaryKeyInfo `json:"primary-keys"`
 
 	// KeyslotRoles are all keyslot roles indexed by the role name
@@ -205,25 +211,31 @@ func initializeState(st *state.State) error {
 	devpSave := fmt.Sprintf("/dev/disk/by-uuid/%s", saveUUID)
 	digest, err := getPrimaryKeyDigest(devpData)
 	if err != nil {
-		return fmt.Errorf("cannot obtain primary key digest for data device %s: %w", devpData, err)
-	}
-	// TODO: restore key verification once we know that it is always added to
-	// the keyring
-	sameDigest, err := digest.verifyPrimaryKeyDigest(devpSave)
-	if err != nil {
 		if !errors.Is(err, secboot.ErrKernelKeyNotFound) {
-			return fmt.Errorf("cannot verify primary key digest for save device %s: %w", devpSave, err)
-		} else {
-			logger.Noticef("cannot verify primary key digest for save device %s: %v", devpSave, err)
+			return fmt.Errorf("cannot obtain primary key digest for data device %s: %w", devpData, err)
 		}
-	} else if !sameDigest {
-		return fmt.Errorf("primary key for data and save partition are not the same")
-	}
+		// Some very old kernels with FDE do not set primary key in the keyring
+		logger.Noticef("cannot obtain primary key digest for data device %s: %v", devpData, err)
+		s.PrimaryKeys = map[int]PrimaryKeyInfo{}
+	} else {
+		sameDigest, err := digest.verifyPrimaryKeyDigest(devpSave)
+		if err != nil {
+			if !errors.Is(err, secboot.ErrKernelKeyNotFound) {
+				return fmt.Errorf("cannot verify primary key digest for save device %s: %w", devpSave, err)
+			}
+			// If plainkey tokens were not used, then
+			// there is no primary key in the keyring for
+			// the save disk
+			logger.Noticef("cannot verify primary key digest for save device %s: %v", devpSave, err)
+		} else if !sameDigest {
+			return fmt.Errorf("primary key for data and save partition are not the same")
+		}
 
-	s.PrimaryKeys = map[int]PrimaryKeyInfo{
-		0: {
-			Digest: digest,
-		},
+		s.PrimaryKeys = map[int]PrimaryKeyInfo{
+			0: {
+				Digest: digest,
+			},
+		}
 	}
 
 	// Note that Parameters will be updated on first update
