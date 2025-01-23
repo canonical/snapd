@@ -801,9 +801,9 @@ export GO111MODULE=off
 %endif
 
 # snap-confine tests (these always run!)
-pushd ./cmd
-make check
-popd
+make -C cmd -k check
+# and data files
+make -C data -k check
 
 %files
 #define license tag if not already defined

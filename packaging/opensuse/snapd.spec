@@ -267,7 +267,8 @@ for binary in snap-exec snap-update-ns snapctl; do
     ldd $binary 2>&1 | grep 'not a dynamic executable'
 done
 
-%make_build -C %{indigo_srcdir}/cmd check
+%make_build -C %{indigo_srcdir}/cmd -k check
+%make_build -C %{indigo_srcdir}/data -k check
 # Use the common packaging helper for testing.
 %make_build -C %{indigo_srcdir} -f %{indigo_srcdir}/packaging/snapd.mk \
             GOPATH=%{indigo_gopath}:$GOPATH SNAPD_DEFINES_DIR=%{_builddir} \
