@@ -117,10 +117,7 @@ jobs:
 
     - name: Save changes files
       run: |
-          CHANGED_FILES="${{ steps.changed-files.outputs.all_changed_files }}"
-          if [ -z "$CHANGED_FILES" ]; then
-            CHANGED_FILES="${{ steps.changed-files.outputs.deleted_files }}"
-          fi
+          CHANGED_FILES="${{ steps.changed-files.outputs.all_modified_files }}"
           echo "CHANGED_FILES=$CHANGED_FILES" >> $GITHUB_ENV
           echo "The changed files found are: $CHANGED_FILES"
 
