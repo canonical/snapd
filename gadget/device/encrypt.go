@@ -169,7 +169,6 @@ const (
 type VolumesAuthOptions struct {
 	Mode       AuthMode      `json:"mode,omitempty"`
 	Passphrase string        `json:"passphrase,omitempty"`
-	PIN        string        `json:"pin,omitempty"`
 	KDFType    string        `json:"kdf-type,omitempty"`
 	KDFTime    time.Duration `json:"kdf-time,omitempty"`
 }
@@ -185,18 +184,9 @@ func (o *VolumesAuthOptions) Validate() error {
 		if len(o.Passphrase) == 0 {
 			return fmt.Errorf("passphrase cannot be empty")
 		}
-		if _, _, err := ValidatePassphraseOrPINEntropy(AuthModePassphrase, o.Passphrase); err != nil {
-			return fmt.Errorf("invalid passphrase: %v", err)
-		}
 	case AuthModePIN:
 		if o.KDFType != "" {
 			return fmt.Errorf("%q authentication mode does not support custom kdf types", AuthModePIN)
-		}
-		if len(o.PIN) == 0 {
-			return fmt.Errorf("pin cannot be empty")
-		}
-		if _, _, err := ValidatePassphraseOrPINEntropy(AuthModePIN, o.PIN); err != nil {
-			return fmt.Errorf("invalid pin: %v", err)
 		}
 		return fmt.Errorf("%q authentication mode is not implemented", AuthModePIN)
 	default:
