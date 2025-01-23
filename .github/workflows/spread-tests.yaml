@@ -113,11 +113,14 @@ jobs:
 
     - name: Get changed files
       id: changed-files
-      uses: tj-actions/changed-files@v41.0.0
+      uses: tj-actions/changed-files@v45.0.6
 
     - name: Save changes files
       run: |
           CHANGED_FILES="${{ steps.changed-files.outputs.all_changed_files }}"
+          if [ -z "$CHANGED_FILES" ]; then
+            CHANGED_FILES="${{ steps.changed-files.outputs.deleted_files }}"
+          fi
           echo "CHANGED_FILES=$CHANGED_FILES" >> $GITHUB_ENV
           echo "The changed files found are: $CHANGED_FILES"
 
@@ -142,7 +145,7 @@ jobs:
             # The tests are just filtered when the change is a PR
             # When 'Run Nested' label is added in a PR, all the nested tests have to be executed
             TASKS_TO_RUN=""
-            if [ -z "${{ github.event.number }}" ] || [ "$RUN_NESTED" = 'true' ] || [ -z "${{ inputs.rules }}" ]; then
+            if [ -z "${{ github.event.number }}" ] || [ "$RUN_NESTED" = 'true' ] || [ -z "${{ inputs.rules }}" ] || [ -z "$changes_param" ]; then
                 for TASKS in ${{ inputs.tasks }}; do
                     TASKS_TO_RUN="$TASKS_TO_RUN $prefix:$TASKS"
                 done
