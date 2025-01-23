@@ -1099,6 +1099,11 @@ func (s *constraintsSuite) TestAbstractPermissionsToAppArmorPermissionsHappy(c *
 	}{
 		{
 			"home",
+			[]string{},
+			notify.FilePermission(0),
+		},
+		{
+			"home",
 			[]string{"read"},
 			notify.AA_MAY_OPEN | notify.AA_MAY_READ | notify.AA_MAY_GETATTR,
 		},
@@ -1138,11 +1143,6 @@ func (s *constraintsSuite) TestAbstractPermissionsToAppArmorPermissionsUnhappy(c
 		perms  []string
 		errStr string
 	}{
-		{
-			"home",
-			[]string{},
-			"invalid permissions for home interface: permissions empty",
-		},
 		{
 			"foo",
 			[]string{"read"},
