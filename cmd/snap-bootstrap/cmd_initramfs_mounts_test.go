@@ -22,6 +22,7 @@ package main_test
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -787,6 +788,16 @@ grade=signed
 }
 
 func (s *initramfsMountsSuite) TestInitramfsMountsInstallModeWithCompsHappy(c *C) {
+	failMount := false
+	s.testInitramfsMountsInstallModeWithCompsHappy(c, failMount)
+}
+
+func (s *initramfsMountsSuite) TestInitramfsMountsInstallModeWithCompsFailMount(c *C) {
+	failMount := true
+	s.testInitramfsMountsInstallModeWithCompsHappy(c, failMount)
+}
+
+func (s *initramfsMountsSuite) testInitramfsMountsInstallModeWithCompsHappy(c *C, failMount bool) {
 	var efiArch string
 	switch runtime.GOARCH {
 	case "amd64":
@@ -963,7 +974,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsInstallModeWithCompsHappy(c *C
 		return mockObserver, mockObserver, nil
 	})()
 
-	restore := s.mockSystemdMountSequence(c, []systemdMount{
+	mounts := []systemdMount{
 		s.ubuntuLabelMount("ubuntu-seed", "install"),
 		s.makeSeedSnapSystemdMount(snap.TypeSnapd),
 		s.makeSeedSnapSystemdMount(snap.TypeKernel),
@@ -990,8 +1001,33 @@ func (s *initramfsMountsSuite) TestInitramfsMountsInstallModeWithCompsHappy(c *C
 			boot.InitramfsDataDir,
 			bindOpts,
 			nil,
-		},
-	}, nil)
+		}}
+	if failMount {
+		mounts = []systemdMount{
+			s.ubuntuLabelMount("ubuntu-seed", "install"),
+			s.makeSeedSnapSystemdMount(snap.TypeSnapd),
+			s.makeSeedSnapSystemdMount(snap.TypeKernel),
+			s.makeSeedSnapSystemdMountForBase(snap.TypeBase, "core24"),
+			s.makeSeedSnapSystemdMount(snap.TypeGadget),
+			{
+				filepath.Join(s.seedDir, "snaps/pc-kernel+kcomp1_77.comp"),
+				filepath.Join(boot.InitramfsRunMntDir, "snap-content/pc-kernel+kcomp1"),
+				&main.SystemdMountOptions{ReadOnly: true,
+					Private:   true,
+					Ephemeral: true},
+				nil,
+			},
+			{
+				filepath.Join(s.seedDir, "snaps/pc-kernel+kcomp2_77.comp"),
+				filepath.Join(boot.InitramfsRunMntDir, "snap-content/pc-kernel+kcomp2"),
+				&main.SystemdMountOptions{ReadOnly: true,
+					Private:   true,
+					Ephemeral: true},
+				errors.New("error mounting"),
+			},
+		}
+	}
+	restore := s.mockSystemdMountSequence(c, mounts, nil)
 	defer restore()
 
 	cmd := testutil.MockCommand(c, "systemd-mount", ``)
@@ -1000,35 +1036,55 @@ func (s *initramfsMountsSuite) TestInitramfsMountsInstallModeWithCompsHappy(c *C
 	c.Assert(os.Remove(filepath.Join(boot.InitramfsUbuntuBootDir, "device/model")), IsNil)
 
 	_, err = main.Parser().ParseArgs([]string{"initramfs-mounts"})
-	c.Assert(err, IsNil)
+	result := true
+	expectedCallsObserve := 1
+	if failMount {
+		c.Assert(err, ErrorMatches, "error mounting")
+		result = false
+		expectedCallsObserve = 0
+	} else {
+		c.Assert(err, IsNil)
+	}
 	c.Check(sealedKeysLocked, Equals, true)
 
-	c.Assert(applyPreseedCalled, Equals, true)
-	c.Assert(makeRunnableCalled, Equals, true)
-	c.Assert(gadgetInstallCalled, Equals, true)
-	c.Assert(nextBootEnsured, Equals, true)
-	c.Check(observeExistingTrustedRecoveryAssetsCalled, Equals, 1)
+	c.Assert(applyPreseedCalled, Equals, result)
+	c.Assert(makeRunnableCalled, Equals, result)
+	c.Assert(gadgetInstallCalled, Equals, result)
+	c.Assert(nextBootEnsured, Equals, result)
+	c.Check(observeExistingTrustedRecoveryAssetsCalled, Equals, expectedCallsObserve)
 
-	checkKernelMounts(c, "/run/mnt/data/system-data", "/writable/system-data",
-		[]string{"kcomp1", "kcomp2"}, []string{"77", "77"}, nil, nil)
+	if !failMount {
+		checkKernelMounts(c, "/run/mnt/data/system-data", "/writable/system-data",
+			[]string{"kcomp1", "kcomp2"}, []string{"77", "77"}, nil, nil)
+	}
 
-	c.Assert(cmd.Calls(), DeepEquals, [][]string{
-		{
-			"systemd-mount",
-			"--umount",
-			filepath.Join(s.tmpDir, "/run/mnt/kernel"),
-		},
-		{
-			"systemd-mount",
-			"--umount",
-			filepath.Join(s.tmpDir, "/run/mnt/snap-content/pc-kernel+kcomp2"),
-		},
-		{
-			"systemd-mount",
-			"--umount",
-			filepath.Join(s.tmpDir, "/run/mnt/snap-content/pc-kernel+kcomp1"),
-		},
-	})
+	if failMount {
+		c.Assert(cmd.Calls(), DeepEquals, [][]string{
+			{
+				"systemd-mount",
+				"--umount",
+				filepath.Join(s.tmpDir, "/run/mnt/snap-content/pc-kernel+kcomp1"),
+			},
+		})
+	} else {
+		c.Assert(cmd.Calls(), DeepEquals, [][]string{
+			{
+				"systemd-mount",
+				"--umount",
+				filepath.Join(s.tmpDir, "/run/mnt/kernel"),
+			},
+			{
+				"systemd-mount",
+				"--umount",
+				filepath.Join(s.tmpDir, "/run/mnt/snap-content/pc-kernel+kcomp2"),
+			},
+			{
+				"systemd-mount",
+				"--umount",
+				filepath.Join(s.tmpDir, "/run/mnt/snap-content/pc-kernel+kcomp1"),
+			},
+		})
+	}
 }
 
 func (s *initramfsMountsSuite) TestInitramfsMountsInstallModeBootFlagsSet(c *C) {

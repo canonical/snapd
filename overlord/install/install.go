@@ -82,11 +82,11 @@ type EncryptionSupportInfo struct {
 	UnavailableWarning string
 }
 
-// CompSeedInfo contains information for a component from the seed and
+// ComponentSeedInfo contains information for a component from the seed and
 // from its metadata.
-type CompSeedInfo struct {
-	CompInfo *snap.ComponentInfo
-	CompSeed *seed.Component
+type ComponentSeedInfo struct {
+	Info *snap.ComponentInfo
+	Seed *seed.Component
 }
 
 // KernelBootInfo contains information related to the kernel used on installation.
@@ -102,12 +102,20 @@ var (
 	sysconfigConfigureTargetSystem     = sysconfig.ConfigureTargetSystem
 )
 
+// BuildKernelBootInfoOpts contains options for BuildKernelBootInfo.
+type BuildKernelBootInfoOpts struct {
+	// IsCore is true for UC, and false for hybrid systems
+	IsCore bool
+	// NeedsDriversTree is true if we need a drivers tree (UC/hybrid 24+)
+	NeedsDriversTree bool
+}
+
 // BuildKernelBootInfo constructs a KernelBootInfo.
-func BuildKernelBootInfo(kernInfo *snap.Info, compSeedInfos []CompSeedInfo, kernMntPoint string, mntPtForComps map[string]string, isCore, needsDriversTree bool) KernelBootInfo {
+func BuildKernelBootInfo(kernInfo *snap.Info, compSeedInfos []ComponentSeedInfo, kernMntPoint string, mntPtForComps map[string]string, opts BuildKernelBootInfoOpts) KernelBootInfo {
 	bootKMods := make([]boot.BootableKModsComponents, 0, len(compSeedInfos))
 	modulesComps := make([]gadgetInstall.KernelModulesComponentInfo, 0, len(compSeedInfos))
 	for _, compSeedInfo := range compSeedInfos {
-		ci := compSeedInfo.CompInfo
+		ci := compSeedInfo.Info
 		if ci.Type == snap.KernelModulesComponent {
 			cpi := snap.MinimalComponentContainerPlaceInfo(ci.Component.ComponentName,
 				ci.Revision, kernInfo.SnapName())
@@ -118,7 +126,7 @@ func BuildKernelBootInfo(kernInfo *snap.Info, compSeedInfos []CompSeedInfo, kern
 			})
 			bootKMods = append(bootKMods, boot.BootableKModsComponents{
 				CompPlaceInfo: cpi,
-				CompPath:      compSeedInfo.CompSeed.Path,
+				CompPath:      compSeedInfo.Seed.Path,
 			})
 		}
 	}
@@ -127,9 +135,9 @@ func BuildKernelBootInfo(kernInfo *snap.Info, compSeedInfos []CompSeedInfo, kern
 		Name:             kernInfo.SnapName(),
 		Revision:         kernInfo.Revision,
 		MountPoint:       kernMntPoint,
-		IsCore:           isCore,
+		IsCore:           opts.IsCore,
 		ModulesComps:     modulesComps,
-		NeedsDriversTree: needsDriversTree,
+		NeedsDriversTree: opts.NeedsDriversTree,
 	}
 
 	return KernelBootInfo{

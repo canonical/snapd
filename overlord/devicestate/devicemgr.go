@@ -2248,7 +2248,7 @@ type systemAndEssentialSnaps struct {
 	*System
 	Seed            seed.Seed
 	InfosByType     map[snap.Type]*snap.Info
-	CompsByType     map[snap.Type][]install.CompSeedInfo
+	CompsByType     map[snap.Type][]install.ComponentSeedInfo
 	SeedSnapsByType map[snap.Type]*seed.Snap
 }
 
@@ -2305,7 +2305,7 @@ func (m *DeviceManager) loadSystemAndEssentialSnaps(wantedSystemLabel string, ty
 	// like "snapd" will be skipped and not part of the EssentialSnaps list
 	//
 	snapInfos := make(map[snap.Type]*snap.Info)
-	compInfos := make(map[snap.Type][]install.CompSeedInfo)
+	compInfos := make(map[snap.Type][]install.ComponentSeedInfo)
 	seedSnaps := make(map[snap.Type]*seed.Snap)
 	for _, seedSnap := range s.EssentialSnaps() {
 		typ := seedSnap.EssentialType
@@ -2329,9 +2329,9 @@ func (m *DeviceManager) loadSystemAndEssentialSnaps(wantedSystemLabel string, ty
 			return nil, fmt.Errorf("internal error while retrieving %s for %s mode: %v",
 				seedSnap.SnapName(), modeForComps, err)
 		}
-		var compInfosForType []install.CompSeedInfo
+		var compInfosForType []install.ComponentSeedInfo
 		if len(snapForMode.Components) > 0 {
-			compInfosForType = make([]install.CompSeedInfo, 0, len(snapForMode.Components))
+			compInfosForType = make([]install.ComponentSeedInfo, 0, len(snapForMode.Components))
 			for _, sc := range snapForMode.Components {
 				seedComp := sc
 				compf, err := snapfile.Open(seedComp.Path)
@@ -2343,9 +2343,9 @@ func (m *DeviceManager) loadSystemAndEssentialSnaps(wantedSystemLabel string, ty
 				if err != nil {
 					return nil, err
 				}
-				compInfosForType = append(compInfosForType, install.CompSeedInfo{
-					CompInfo: compInfo,
-					CompSeed: &seedComp,
+				compInfosForType = append(compInfosForType, install.ComponentSeedInfo{
+					Info: compInfo,
+					Seed: &seedComp,
 				})
 			}
 		}

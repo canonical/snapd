@@ -947,18 +947,18 @@ func (m *DeviceManager) loadAndMountSystemLabelSnaps(systemLabel string, essenti
 
 	mntPtForComp := make(map[string]string)
 	for _, seedComp := range systemAndSnaps.CompsByType[snap.TypeKernel] {
-		if seedComp.CompInfo.Type != snap.KernelModulesComponent {
+		if seedComp.Info.Type != snap.KernelModulesComponent {
 			continue
 		}
 
-		mntPt, unmountComp, err := mountSeedContainer(seedComp.CompSeed.Path,
-			seedComp.CompInfo.FullName())
+		mntPt, unmountComp, err := mountSeedContainer(seedComp.Seed.Path,
+			seedComp.Info.FullName())
 		if err != nil {
 			unmount()
 			return nil, nil, nil, nil, err
 		}
 		unmountFuncs = append(unmountFuncs, unmountComp)
-		mntPtForComp[seedComp.CompInfo.FullName()] = mntPt
+		mntPtForComp[seedComp.Info.FullName()] = mntPt
 	}
 
 	return systemAndSnaps, mntPtForType, mntPtForComp, unmount, nil
@@ -968,7 +968,8 @@ func kBootInfo(systemAndSnaps *systemAndEssentialSnaps, kernMntPoint string, mnt
 	kernInfo := systemAndSnaps.InfosByType[snap.TypeKernel]
 	compSeedInfos := systemAndSnaps.CompsByType[snap.TypeKernel]
 	return installLogic.BuildKernelBootInfo(kernInfo, compSeedInfos, kernMntPoint,
-		mntPtForComps, isCore, kernel.NeedsKernelDriversTree(systemAndSnaps.Model))
+		mntPtForComps, installLogic.BuildKernelBootInfoOpts{
+			IsCore: isCore, NeedsDriversTree: kernel.NeedsKernelDriversTree(systemAndSnaps.Model)})
 }
 
 // doInstallFinish performs the finish step of the install. It will

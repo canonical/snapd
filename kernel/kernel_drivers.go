@@ -410,7 +410,7 @@ func EnsureKernelDriversTree(kMntPts MountPoints, compsMntPts []ModulesCompMount
 	return nil
 }
 
-// NeedsKernelDriversTree tells if we need a kernel drivers tree for this model.
+// NeedsKernelDriversTree returns true if we need a kernel drivers tree for this model.
 func NeedsKernelDriversTree(mod *asserts.Model) bool {
 	// Checking if it has modeenv - it must be UC20+ or hybrid
 	if mod.Grade() == asserts.ModelGradeUnset {

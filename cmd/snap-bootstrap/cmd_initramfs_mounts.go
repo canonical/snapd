@@ -259,6 +259,7 @@ func readSnapInfo(sysSnaps map[snap.Type]*seed.Snap, snapType snap.Type) (*snap.
 	if err != nil {
 		return nil, err
 	}
+	// Comes from the seed and it might be unasserted, set revision in that case
 	if info.Revision.Unset() {
 		info.Revision = snap.R(-1)
 	}
@@ -272,6 +273,7 @@ func readComponentInfo(seedComp *seed.Component, mntPt string, snapInfo *snap.In
 	if err != nil {
 		return nil, err
 	}
+	// Comes from the seed and it might be unasserted, set revision in that case
 	if ci.Revision.Unset() {
 		ci.Revision = snap.R(-1)
 	}
@@ -353,7 +355,7 @@ func doInstall(mst *initramfsMountsState, model *asserts.Model, sysSnaps map[sna
 
 	kernelSeed := sysSnaps[snap.TypeKernel]
 	kernCompsMntPts := make(map[string]string)
-	compSeedInfos := []install.CompSeedInfo{}
+	compSeedInfos := []install.ComponentSeedInfo{}
 	for _, sc := range kernelSeed.Components {
 		seedComp := sc
 		comp, ok := kernCompsByName[seedComp.CompSideInfo.Component.ComponentName]
@@ -365,7 +367,9 @@ func doInstall(mst *initramfsMountsState, model *asserts.Model, sysSnaps map[sna
 			continue
 		}
 
-		// Mount ephemerally the kernel-modules components
+		// Mount ephemerally the kernel-modules components to read
+		// their metadata and also to make them accessible if building
+		// the drivers tree.
 		mntPt := filepath.Join(filepath.Join(boot.InitramfsRunMntDir, "snap-content",
 			seedComp.CompSideInfo.Component.String()))
 		if err := doSystemdMount(seedComp.Path, mntPt, &systemdMountOptions{
@@ -388,18 +392,18 @@ func doInstall(mst *initramfsMountsState, model *asserts.Model, sysSnaps map[sna
 		if err != nil {
 			return err
 		}
-		compSeedInfos = append(compSeedInfos, install.CompSeedInfo{
-			CompInfo: compInfo,
-			CompSeed: &seedComp,
+		compSeedInfos = append(compSeedInfos, install.ComponentSeedInfo{
+			Info: compInfo,
+			Seed: &seedComp,
 		})
 	}
 
-	preseed := false
 	currentSeed, err := mst.LoadSeed(mst.recoverySystem)
 	if err != nil {
 		return err
 	}
 	preseedSeed, ok := currentSeed.(seed.PreseedCapable)
+	preseed := false
 	if ok && preseedSeed.HasArtifact("preseed.tgz") {
 		preseed = true
 	}
@@ -409,7 +413,7 @@ func doInstall(mst *initramfsMountsState, model *asserts.Model, sysSnaps map[sna
 	isCore := !model.Classic()
 	kernelBootInfo := install.BuildKernelBootInfo(
 		kernelSnap, compSeedInfos, kernelMountDir, kernCompsMntPts,
-		isCore, needsKernelSetup)
+		install.BuildKernelBootInfoOpts{IsCore: isCore, NeedsDriversTree: needsKernelSetup})
 
 	bootDevice := ""
 	installedSystem, err := gadgetInstallRun(model, gadgetMountDir, kernelBootInfo.KSnapInfo, bootDevice, options, installObserver, timings.New(nil))
@@ -459,6 +463,7 @@ func doInstall(mst *initramfsMountsState, model *asserts.Model, sysSnaps map[sna
 	}
 
 	if preseed {
+		// Extract pre-seed tarball
 		runMode := false
 		if err := installApplyPreseededData(preseedSeed,
 			boot.InitramfsWritableDir(model, runMode)); err != nil {
@@ -466,7 +471,7 @@ func doInstall(mst *initramfsMountsState, model *asserts.Model, sysSnaps map[sna
 		}
 	}
 
-	// Create drivers tree mount units
+	// Create drivers tree mount units to make it available before switch root
 	rootfsDir := filepath.Join(boot.InitramfsDataDir, "system-data")
 	hasDriversTree, err := createKernelMounts(
 		rootfsDir, kernelSnap.SnapName(), kernelSnap.Revision, !isCore)
