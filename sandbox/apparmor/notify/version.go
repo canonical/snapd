@@ -21,8 +21,6 @@ package notify
 
 import (
 	"fmt"
-
-	"github.com/snapcore/snapd/testutil"
 )
 
 // ProtocolVersion denotes a notification protocol version.
@@ -92,5 +90,10 @@ func likelySupportedProtocolVersion(unsupported map[ProtocolVersion]bool) (Proto
 }
 
 func MockVersionKnown(f func(v ProtocolVersion) bool) (restore func()) {
-	return testutil.Mock(&versionKnown, f)
+	orig := versionKnown
+	versionKnown = f
+	restore = func() {
+		versionKnown = orig
+	}
+	return restore
 }
