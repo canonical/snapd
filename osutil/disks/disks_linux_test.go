@@ -1913,6 +1913,36 @@ func (s *diskSuite) TestDMCryptUUIDFromMountPoint(c *C) {
 	c.Assert(uuid, Equals, "5a522809-c87e-4dfa-81a8-8dc5667d1304")
 }
 
+func (s *diskSuite) TestDMCryptUUIDFromMountPointFallback(c *C) {
+	restore := osutil.MockMountInfo(`130 30 42:1 / /run/mnt/point rw,relatime shared:54 - ext4 /dev/mapper/something rw
+`)
+	defer restore()
+	restore = disks.MockUdevPropertiesForDevice(func(typeOpt, dev string) (map[string]string, error) {
+		c.Assert(typeOpt, Equals, "--name")
+		switch dev {
+		case "/dev/mapper/something":
+			return map[string]string{
+				"DEVPATH": "/devices/virtual/mydevice",
+
+			}, nil
+		default:
+			c.Errorf("unexpected udev device properties requested: %s", dev)
+			return nil, fmt.Errorf("unexpected udev device: %s", dev)
+		}
+	})
+	defer restore()
+
+	err := os.MkdirAll(filepath.Join(dirs.SysfsDir, "devices/virtual/mydevice", "dm"), 0755)
+	c.Assert(err, IsNil)
+	b := []byte("CRYPT-LUKS2-5a522809c87e4dfa81a88dc5667d1304-something\n")
+	err = os.WriteFile(filepath.Join(dirs.SysfsDir, "devices/virtual/mydevice", "dm/uuid"), b, 0644)
+	c.Assert(err, IsNil)
+
+	uuid, err := disks.DMCryptUUIDFromMountPoint("/run/mnt/point")
+	c.Assert(err, IsNil)
+	c.Assert(uuid, Equals, "5a522809-c87e-4dfa-81a8-8dc5667d1304")
+}
+
 func (s *diskSuite) TestFilesystemTypeForPartition(c *C) {
 	restore := disks.MockUdevPropertiesForDevice(func(typeOpt, dev string) (map[string]string, error) {
 		c.Assert(typeOpt, Equals, "--name")
