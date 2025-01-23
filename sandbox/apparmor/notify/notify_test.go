@@ -49,31 +49,31 @@ func (*notifySuite) TestSupportAvailable(c *C) {
 	c.Assert(notify.SupportAvailable(), Equals, true)
 }
 
-var fakeNotifyVersions = []notify.VersionAndCallback{
+var fakeNotifyVersions = []notify.VersionAndCheck{
 	{
-		Version:  2,
-		Callback: func() bool { return false },
+		Version: 2,
+		Check:   func() bool { return false },
 	},
 	{
-		Version:  3,
-		Callback: func() bool { return true },
+		Version: 3,
+		Check:   func() bool { return true },
 	},
 	{
-		Version:  5,
-		Callback: func() bool { return false },
+		Version: 5,
+		Check:   func() bool { return false },
 	},
 	{
-		Version:  7,
-		Callback: func() bool { return true },
+		Version: 7,
+		Check:   func() bool { return true },
 	},
 	{
-		Version:  11,
-		Callback: func() bool { return false },
+		Version: 11,
+		Check:   func() bool { return false },
 	},
 }
 
 func (s *notifySuite) TestRegisterFileDescriptor(c *C) {
-	restoreVersions := notify.MockVersionLikelySupportedCallbacks(fakeNotifyVersions)
+	restoreVersions := notify.MockVersionLikelySupportedChecks(fakeNotifyVersions)
 	defer restoreVersions()
 
 	var fakeFD uintptr = 1234
@@ -120,7 +120,7 @@ func checkIoctlBuffer(c *C, receivedBuf notify.IoctlRequestBuffer, expectedVersi
 }
 
 func (s *notifySuite) TestRegisterFileDescriptorErrors(c *C) {
-	restoreVersions := notify.MockVersionLikelySupportedCallbacks(fakeNotifyVersions)
+	restoreVersions := notify.MockVersionLikelySupportedChecks(fakeNotifyVersions)
 	defer restoreVersions()
 
 	var fakeFD uintptr = 1234

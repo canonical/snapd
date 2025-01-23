@@ -7,8 +7,8 @@ import (
 )
 
 var (
-	Versions                        = versions
-	VersionLikelySupportedCallbacks = versionLikelySupportedCallbacks
+	Versions                     = versions
+	VersionLikelySupportedChecks = versionLikelySupportedChecks
 
 	LikelySupported                = ProtocolVersion.likelySupported
 	LikelySupportedProtocolVersion = likelySupportedProtocolVersion
@@ -18,29 +18,29 @@ func MockSyscall(syscall func(trap, a1, a2, a3 uintptr) (r1, r2 uintptr, err uni
 	return testutil.Mock(&doSyscall, syscall)
 }
 
-// VersionAndCallback couples protocol version with a callback function which
+// VersionAndCheck couples protocol version with a support check function which
 // returns true if the version is supported. This type is used so that
-// `versions` and `versionLikelySupportedCallbacks` can be mocked to avoid
-// calling the actual callback functions (which generally probe the host
+// `versions` and `versionLikelySupportedChecks` can be mocked to avoid
+// calling the actual check functions (which generally probe the host
 // system), and so that the logic around handling of unsupported and supported
 // versions can be tested.
-type VersionAndCallback struct {
-	Version  ProtocolVersion
-	Callback func() bool
+type VersionAndCheck struct {
+	Version ProtocolVersion
+	Check   func() bool
 }
 
-func MockVersionLikelySupportedCallbacks(pairs []VersionAndCallback) (restore func()) {
+func MockVersionLikelySupportedChecks(pairs []VersionAndCheck) (restore func()) {
 	restoreVersions := testutil.Backup(&versions)
-	restoreCallbacks := testutil.Backup(&versionLikelySupportedCallbacks)
+	restoreChecks := testutil.Backup(&versionLikelySupportedChecks)
 	restore = func() {
-		restoreCallbacks()
+		restoreChecks()
 		restoreVersions()
 	}
 	versions = make([]ProtocolVersion, 0, len(pairs))
-	versionLikelySupportedCallbacks = make(map[ProtocolVersion]func() bool, len(pairs))
+	versionLikelySupportedChecks = make(map[ProtocolVersion]func() bool, len(pairs))
 	for _, pair := range pairs {
 		versions = append(versions, pair.Version)
-		versionLikelySupportedCallbacks[pair.Version] = pair.Callback
+		versionLikelySupportedChecks[pair.Version] = pair.Check
 	}
 	return restore
 }

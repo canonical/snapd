@@ -30,52 +30,52 @@ type versionSuite struct{}
 
 var _ = Suite(&versionSuite{})
 
-func (s *versionSuite) TestVersionsAndCallbacks(c *C) {
+func (s *versionSuite) TestVersionsAndSupportedChecks(c *C) {
 	// Check both directions so we get pretty printing for the values on error
-	c.Check(notify.Versions, HasLen, len(notify.VersionLikelySupportedCallbacks))
-	c.Check(notify.VersionLikelySupportedCallbacks, HasLen, len(notify.Versions))
+	c.Check(notify.Versions, HasLen, len(notify.VersionLikelySupportedChecks))
+	c.Check(notify.VersionLikelySupportedChecks, HasLen, len(notify.Versions))
 
 	for _, ver := range notify.Versions {
-		callback, exists := notify.VersionLikelySupportedCallbacks[ver]
-		c.Check(exists, Equals, true, Commentf("version in versions missing from versionLikelySupportedCallbacks: %v", ver))
-		c.Check(callback, NotNil, Commentf("version has nil callback: %v", ver))
+		checkFn, exists := notify.VersionLikelySupportedChecks[ver]
+		c.Check(exists, Equals, true, Commentf("version in versions missing from versionLikelySupportedChecks: %v", ver))
+		c.Check(checkFn, NotNil, Commentf("version has nil supported check: %v", ver))
 	}
 
-	for ver, callback := range notify.VersionLikelySupportedCallbacks {
-		c.Check(callback, NotNil, Commentf("version has nil callback: %v", ver))
-		c.Check(notify.Versions, testutil.Contains, ver, Commentf("version in versionLikelySupportedCallbacks missing from versions: %v", ver))
+	for ver, checkFn := range notify.VersionLikelySupportedChecks {
+		c.Check(checkFn, NotNil, Commentf("version has nil supported check: %v", ver))
+		c.Check(notify.Versions, testutil.Contains, ver, Commentf("version in versionLikelySupportedChecks missing from versions: %v", ver))
 	}
 }
 
-var fakeVersions = []notify.VersionAndCallback{
+var fakeVersions = []notify.VersionAndCheck{
 	{
-		Version:  2,
-		Callback: func() bool { return false },
+		Version: 2,
+		Check:   func() bool { return false },
 	},
 	{
-		Version:  3,
-		Callback: func() bool { return true },
+		Version: 3,
+		Check:   func() bool { return true },
 	},
 	{
-		Version:  5,
-		Callback: func() bool { return false },
+		Version: 5,
+		Check:   func() bool { return false },
 	},
 	{
-		Version:  7,
-		Callback: func() bool { return true },
+		Version: 7,
+		Check:   func() bool { return true },
 	},
 	{
-		Version:  11,
-		Callback: func() bool { return false },
+		Version: 11,
+		Check:   func() bool { return false },
 	},
 }
 
 func (s *versionSuite) TestVersionLikelySupported(c *C) {
-	restore := notify.MockVersionLikelySupportedCallbacks(fakeVersions)
+	restore := notify.MockVersionLikelySupportedChecks(fakeVersions)
 	defer restore()
 
 	supported, err := notify.LikelySupported(notify.ProtocolVersion(1))
-	c.Check(err, ErrorMatches, "internal error: no callback defined for version .*")
+	c.Check(err, ErrorMatches, "internal error: no support check function defined for version .*")
 	c.Check(supported, Equals, false)
 
 	supported, err = notify.LikelySupported(notify.ProtocolVersion(2))
@@ -87,12 +87,12 @@ func (s *versionSuite) TestVersionLikelySupported(c *C) {
 	c.Check(supported, Equals, true)
 
 	supported, err = notify.LikelySupported(notify.ProtocolVersion(4))
-	c.Check(err, ErrorMatches, "internal error: no callback defined for version .*")
+	c.Check(err, ErrorMatches, "internal error: no support check function defined for version .*")
 	c.Check(supported, Equals, false)
 }
 
 func (s *versionSuite) TestLikelySupportedProtocolVersion(c *C) {
-	restore := notify.MockVersionLikelySupportedCallbacks(fakeVersions)
+	restore := notify.MockVersionLikelySupportedChecks(fakeVersions)
 	defer restore()
 
 	for _, testCase := range []struct {

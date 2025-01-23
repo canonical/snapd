@@ -34,15 +34,15 @@ var (
 	// the next version, etc.
 	versions = []ProtocolVersion{3}
 
-	// versionLikelySupportedCallbacks provides a function for each known
-	// protocol version which returns true if that version is supported by
-	// snapd and likely supported by the kernel. Kernel support may be guaged
-	// by checking kernel features or probing the filesystem for hints from the
-	// kernel about which versions it supports. Even if the callback returns
+	// versionLikelySupportedChecks provides a function for each known protocol
+	// version which returns true if that version is supported by snapd and
+	// likely supported by the kernel. Kernel support may be guaged by checking
+	// kernel features or probing the filesystem for hints from the kernel
+	// about which versions it supports. Even if the check function returns
 	// true, the kernel may return EPROTONOSUPPORT when attempting to register
 	// on the notify socket with that version, in which case we'll need to try
 	// the next version in the list.
-	versionLikelySupportedCallbacks = map[ProtocolVersion]func() bool{
+	versionLikelySupportedChecks = map[ProtocolVersion]func() bool{
 		3: SupportAvailable,
 	}
 
@@ -50,23 +50,23 @@ var (
 	// snapd. Even if true, the version may still be unsupported by snapd or
 	// the kernel.
 	versionKnown = func(v ProtocolVersion) bool {
-		_, exists := versionLikelySupportedCallbacks[v]
+		_, exists := versionLikelySupportedChecks[v]
 		return exists
 	}
 )
 
 // likelySupported returns true if the receiving version is supported by snapd
 // and likely supported by the kernel, as reported by the likely supported
-// callback for that version.
+// check for that version.
 func (v ProtocolVersion) likelySupported() (bool, error) {
-	callback, ok := versionLikelySupportedCallbacks[v]
+	checkFn, ok := versionLikelySupportedChecks[v]
 	if !ok {
 		// Should not occur, since the caller should only call this method on
 		// known versions, and tests should validate that each known version
-		// has a callback function.
-		return false, fmt.Errorf("internal error: no callback defined for version %d", v)
+		// has a support check function.
+		return false, fmt.Errorf("internal error: no support check function defined for version %d", v)
 	}
-	return callback(), nil
+	return checkFn(), nil
 }
 
 // likelySupportedProtocolVersion returns the preferred protocol version which
@@ -76,7 +76,7 @@ func (v ProtocolVersion) likelySupported() (bool, error) {
 // Any versions which are found to be unsupported are added to the given
 // unsupported map so that, in case the returned version reports as being
 // unsupported by the kernel, subsequent calls to this function will not
-// require duplicate checks of callback functions.
+// require duplicate checks of support check functions.
 func likelySupportedProtocolVersion(unsupported map[ProtocolVersion]bool) (ProtocolVersion, bool) {
 	for _, v := range versions {
 		if _, exists := unsupported[v]; exists {
