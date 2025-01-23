@@ -489,7 +489,7 @@ func ProvisionForCVM(initramfsUbuntuSeedDir string) error {
 // connection for the same TPM device.
 //
 // FIXME: This approach is not thread safe and should be updated when fix lands in secboot.
-func withSingleTPMConnection(fn func(tpm *sb_tpm2.Connection) error) error {
+func withSingleTPMConnection(fn func(tpm *sb_tpm2.Connection)) error {
 	tpm, err := sbConnectToDefaultTPM()
 	if err != nil {
 		return fmt.Errorf("cannot connect to TPM: %v", err)
@@ -506,7 +506,8 @@ func withSingleTPMConnection(fn func(tpm *sb_tpm2.Connection) error) error {
 	}
 	defer func() { sb_tpm2.ConnectToTPM = old }()
 
-	return fn(tpm)
+	fn(tpm)
+	return nil
 }
 
 func kdfOptions(volumesAuth *device.VolumesAuthOptions) (sb.KDFOptions, error) {
@@ -532,7 +533,7 @@ func kdfOptions(volumesAuth *device.VolumesAuthOptions) (sb.KDFOptions, error) {
 	}
 }
 
-func newTPMProtectedKey(tpm *sb_tpm2.Connection, creationParams *sb_tpm2.ProtectKeyParams, volumesAuth *device.VolumesAuthOptions) (protectedKey *sb.KeyData, primaryKey sb.PrimaryKey, unlockKey sb.DiskUnlockKey, err error) {
+func newTPMProtectedKey(creationParams *sb_tpm2.ProtectKeyParams, volumesAuth *device.VolumesAuthOptions) (protectedKey *sb.KeyData, primaryKey sb.PrimaryKey, unlockKey sb.DiskUnlockKey, err error) {
 	if volumesAuth != nil {
 		switch volumesAuth.Mode {
 		case device.AuthModePassphrase:
@@ -544,7 +545,12 @@ func newTPMProtectedKey(tpm *sb_tpm2.Connection, creationParams *sb_tpm2.Protect
 				ProtectKeyParams: *creationParams,
 				KDFOptions:       kdfOptions,
 			}
-			protectedKey, primaryKey, unlockKey, err = sbNewTPMPassphraseProtectedKey(tpm, passphraseParams, volumesAuth.Passphrase)
+			tpmErr := withSingleTPMConnection(func(tpm *sb_tpm2.Connection) {
+				protectedKey, primaryKey, unlockKey, err = sbNewTPMPassphraseProtectedKey(tpm, passphraseParams, volumesAuth.Passphrase)
+			})
+			if tpmErr != nil {
+				return nil, nil, nil, tpmErr
+			}
 		case device.AuthModePIN:
 			// TODO: Implement PIN authentication mode.
 			return nil, nil, nil, fmt.Errorf("%q authentication mode is not implemented", device.AuthModePIN)
@@ -552,7 +558,12 @@ func newTPMProtectedKey(tpm *sb_tpm2.Connection, creationParams *sb_tpm2.Protect
 			return nil, nil, nil, fmt.Errorf("internal error: invalid authentication mode %q", volumesAuth.Mode)
 		}
 	} else {
-		protectedKey, primaryKey, unlockKey, err = sbNewTPMProtectedKey(tpm, creationParams)
+		tpmErr := withSingleTPMConnection(func(tpm *sb_tpm2.Connection) {
+			protectedKey, primaryKey, unlockKey, err = sbNewTPMProtectedKey(tpm, creationParams)
+		})
+		if tpmErr != nil {
+			return nil, nil, nil, tpmErr
+		}
 	}
 
 	return protectedKey, primaryKey, unlockKey, err
@@ -572,54 +583,50 @@ func SealKeys(keys []SealKeyRequest, params *SealKeysParams) ([]byte, error) {
 		primaryKey = params.PrimaryKey
 	}
 
-	err := withSingleTPMConnection(func(tpm *sb_tpm2.Connection) error {
-		pcrProfile, err := buildPCRProtectionProfile(params.ModelParams)
+	pcrProfile, err := buildPCRProtectionProfile(params.ModelParams)
+	if err != nil {
+		return nil, err
+	}
+
+	pcrHandle := params.PCRPolicyCounterHandle
+	logger.Noticef("sealing with PCR handle %#x", pcrHandle)
+
+	for _, key := range keys {
+		creationParams := &sb_tpm2.ProtectKeyParams{
+			PCRProfile: pcrProfile,
+			// TODO: add roles
+			PCRPolicyCounterHandle: tpm2.Handle(pcrHandle),
+			PrimaryKey:             primaryKey,
+		}
+		protectedKey, primaryKeyOut, unlockKey, err := newTPMProtectedKey(creationParams, params.VolumesAuth)
+		if primaryKey == nil {
+			primaryKey = primaryKeyOut
+		}
 		if err != nil {
-			return err
+			return nil, err
+		}
+		if err := key.BootstrappedContainer.AddKey(key.SlotName, unlockKey); err != nil {
+			return nil, err
 		}
 
-		pcrHandle := params.PCRPolicyCounterHandle
-		logger.Noticef("sealing with PCR handle %#x", pcrHandle)
-
-		for _, key := range keys {
-			creationParams := &sb_tpm2.ProtectKeyParams{
-				PCRProfile: pcrProfile,
-				// TODO: add roles
-				PCRPolicyCounterHandle: tpm2.Handle(pcrHandle),
-				PrimaryKey:             primaryKey,
-			}
-			protectedKey, primaryKeyOut, unlockKey, err := newTPMProtectedKey(tpm, creationParams, params.VolumesAuth)
-			if primaryKey == nil {
-				primaryKey = primaryKeyOut
-			}
-			if err != nil {
-				return err
-			}
-			if err := key.BootstrappedContainer.AddKey(key.SlotName, unlockKey); err != nil {
-				return err
-			}
-
-			keyWriter, err := key.getWriter()
-			if err != nil {
-				return err
-			}
-
-			if err := protectedKey.WriteAtomic(keyWriter); err != nil {
-				return err
-			}
-
+		keyWriter, err := key.getWriter()
+		if err != nil {
+			return nil, err
 		}
 
-		if primaryKey != nil && params.TPMPolicyAuthKeyFile != "" {
-			if err := osutil.AtomicWriteFile(params.TPMPolicyAuthKeyFile, primaryKey, 0600, 0); err != nil {
-				return fmt.Errorf("cannot write the policy auth key file: %v", err)
-			}
+		if err := protectedKey.WriteAtomic(keyWriter); err != nil {
+			return nil, err
 		}
 
-		return nil
-	})
+	}
 
-	return primaryKey, err
+	if primaryKey != nil && params.TPMPolicyAuthKeyFile != "" {
+		if err := osutil.AtomicWriteFile(params.TPMPolicyAuthKeyFile, primaryKey, 0600, 0); err != nil {
+			return nil, fmt.Errorf("cannot write the policy auth key file: %v", err)
+		}
+	}
+
+	return primaryKey, nil
 }
 
 // ResealKeys updates the PCR protection policy for the sealed encryption keys
