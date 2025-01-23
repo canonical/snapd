@@ -1035,3 +1035,16 @@ func filesystemTypeForPartition(devname string) (string, error) {
 
 	return props["ID_FS_TYPE"], nil
 }
+
+// Devlinks returns all the /dev symlinks for a node
+func Devlinks(node string) ([]string, error) {
+	props, err := udevPropertiesForName(node)
+	if err != nil && props == nil {
+		return []string{}, fmt.Errorf("cannot process udev properties: %v", err)
+	}
+	devlinks := props["DEVLINKS"]
+	if devlinks == "" {
+		return []string{}, fmt.Errorf("cannot get required udev DEVLINKS property")
+	}
+	return strings.Split(devlinks," "), nil
+}

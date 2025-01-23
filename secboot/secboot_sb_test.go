@@ -22,6 +22,7 @@ package secboot_test
 
 import (
 	"bytes"
+	"crypto"
 	"crypto/rand"
 	"encoding/base64"
 	"encoding/binary"
@@ -3422,4 +3423,79 @@ func (s *secbootSuite) TestFindFreeHandleNoneFree(c *C) {
 
 	_, err := secboot.FindFreeHandle()
 	c.Assert(err, ErrorMatches, `no free handle on TPM`)
+}
+
+func (s *secbootSuite) TestGetPrimaryKeyDigest(c *C) {
+	defer secboot.MockDisksDevlinks(func(node string) ([]string, error) {
+		c.Errorf("unexpected call")
+		return nil, errors.New("unexpected call")
+	})()
+	defer secboot.MockSbGetPrimaryKeyFromKernel(func(prefix string, devicePath string, remove bool) (sb.PrimaryKey, error) {
+		c.Check(prefix, Equals, "ubuntu-fde")
+		c.Check(devicePath, Equals, "/dev/test/device")
+		c.Check(remove, Equals, false)
+		return []byte{0, 1, 2, 3}, nil
+	})()
+	salt, digest, err := secboot.GetPrimaryKeyDigest("/dev/test/device", crypto.SHA256)
+	c.Assert(err, IsNil)
+	defer secboot.MockSbGetPrimaryKeyFromKernel(func(prefix string, devicePath string, remove bool) (sb.PrimaryKey, error) {
+		c.Check(prefix, Equals, "ubuntu-fde")
+		c.Check(devicePath, Equals, "/dev/other/device")
+		c.Check(remove, Equals, false)
+		return []byte{0, 1, 2, 3}, nil
+	})()
+	matches, err := secboot.VerifyPrimaryKeyDigest("/dev/other/device", crypto.SHA256, salt, digest)
+	c.Assert(err, IsNil)
+	c.Check(matches, Equals, true)
+	defer secboot.MockSbGetPrimaryKeyFromKernel(func(prefix string, devicePath string, remove bool) (sb.PrimaryKey, error) {
+		c.Check(prefix, Equals, "ubuntu-fde")
+		c.Check(devicePath, Equals, "/dev/not/matching")
+		c.Check(remove, Equals, false)
+		return []byte{8, 8, 8, 8}, nil
+	})()
+	matches, err = secboot.VerifyPrimaryKeyDigest("/dev/not/matching", crypto.SHA256, salt, digest)
+	c.Assert(err, IsNil)
+	c.Check(matches, Equals, false)
+}
+
+func (s *secbootSuite) TestGetPrimaryKeyDigestFallbackDevPath(c *C) {
+	defer secboot.MockDisksDevlinks(func(node string) ([]string, error) {
+		c.Check(node, Equals, "/dev/test/device")
+		return []string{
+			"/dev/link/to/ignore",
+			"/dev/test/device",
+			"/dev/disk/by-partuuid/a9456fe6-9850-41ce-b2ad-cf9b43a34286",
+		}, nil
+	})()
+	defer secboot.MockSbGetPrimaryKeyFromKernel(func(prefix string, devicePath string, remove bool) (sb.PrimaryKey, error) {
+		c.Check(prefix, Equals, "ubuntu-fde")
+		c.Check(remove, Equals, false)
+		if devicePath == "/dev/test/device" {
+			return nil, sb.ErrKernelKeyNotFound
+		}
+		c.Check(devicePath, Equals, "/dev/disk/by-partuuid/a9456fe6-9850-41ce-b2ad-cf9b43a34286")
+		return []byte{0, 1, 2, 3}, nil
+	})()
+	salt, digest, err := secboot.GetPrimaryKeyDigest("/dev/test/device", crypto.SHA256)
+	c.Assert(err, IsNil)
+	defer secboot.MockDisksDevlinks(func(node string) ([]string, error) {
+		c.Check(node, Equals, "/dev/other/device")
+		return []string{
+			"/dev/link/to/ignore",
+			"/dev/other/device",
+			"/dev/disk/by-partuuid/58c54e4e-1e86-4bda-a51c-af50ff8447ab",
+		}, nil
+	})()
+	defer secboot.MockSbGetPrimaryKeyFromKernel(func(prefix string, devicePath string, remove bool) (sb.PrimaryKey, error) {
+		c.Check(prefix, Equals, "ubuntu-fde")
+		c.Check(remove, Equals, false)
+		if devicePath == "/dev/other/device" {
+			return nil, sb.ErrKernelKeyNotFound
+		}
+		c.Check(devicePath, Equals, "/dev/disk/by-partuuid/58c54e4e-1e86-4bda-a51c-af50ff8447ab")
+		return []byte{0, 1, 2, 3}, nil
+	})()
+	matches, err := secboot.VerifyPrimaryKeyDigest("/dev/other/device", crypto.SHA256, salt, digest)
+	c.Assert(err, IsNil)
+	c.Check(matches, Equals, true)
 }
