@@ -170,6 +170,7 @@ var (
 
 	assertstateRefreshSnapAssertions         = assertstate.RefreshSnapAssertions
 	assertstateRestoreValidationSetsTracking = assertstate.RestoreValidationSetsTracking
+	assertstateFetchAllValidationSets        = assertstate.FetchAllValidationSets
 
 	confdbstateGetView        = confdbstate.GetView
 	confdbstateGetTransaction = confdbstate.GetTransactionToModify

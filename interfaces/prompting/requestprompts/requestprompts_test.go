@@ -20,6 +20,7 @@
 package requestprompts_test
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -308,7 +309,7 @@ func (s *requestpromptsSuite) TestAddOrMerge(c *C) {
 	c.Check(prompt1.Snap, Equals, metadata.Snap)
 	c.Check(prompt1.Interface, Equals, metadata.Interface)
 	c.Check(prompt1.Constraints.Path(), Equals, path)
-	c.Check(prompt1.Constraints.RemainingPermissions(), DeepEquals, permissions)
+	c.Check(prompt1.Constraints.OutstandingPermissions(), DeepEquals, permissions)
 
 	stored, err = pdb.Prompts(metadata.User, clientActivity)
 	c.Assert(err, IsNil)
@@ -350,7 +351,19 @@ func applyNotices(expectedPromptIDs []prompting.IDType, expectedData map[string]
 }
 
 func (s *requestpromptsSuite) checkNewNotices(c *C, expectedNotices []*noticeInfo) {
-	c.Check(s.promptNotices, DeepEquals, expectedNotices)
+	c.Check(s.promptNotices, DeepEquals, expectedNotices, Commentf("%s", func() string {
+		var buf bytes.Buffer
+		buf.WriteString("\nobtained: [\n")
+		for _, n := range s.promptNotices {
+			buf.WriteString(fmt.Sprintf("    %+v\n", n))
+		}
+		buf.WriteString("]\nexpected: [\n")
+		for _, n := range expectedNotices {
+			buf.WriteString(fmt.Sprintf("    %+v\n", n))
+		}
+		buf.WriteString("]\n")
+		return buf.String()
+	}()))
 	s.promptNotices = s.promptNotices[:0]
 }
 
@@ -540,9 +553,9 @@ func (s *requestpromptsSuite) TestReply(c *C) {
 				// Check that permissions in response map to prompt's permissions
 				abstractPermissions, err := prompting.AbstractPermissionsFromAppArmorPermissions(prompt1.Interface, allowedPermission)
 				c.Check(err, IsNil)
-				c.Check(abstractPermissions, DeepEquals, prompt1.Constraints.RemainingPermissions())
+				c.Check(abstractPermissions, DeepEquals, prompt1.Constraints.OutstandingPermissions())
 				// Check that prompt's permissions map to response's permissions
-				expectedPerm, err := prompting.AbstractPermissionsToAppArmorPermissions(prompt1.Interface, prompt1.Constraints.RemainingPermissions())
+				expectedPerm, err := prompting.AbstractPermissionsToAppArmorPermissions(prompt1.Interface, prompt1.Constraints.OutstandingPermissions())
 				c.Check(err, IsNil)
 				c.Check(allowedPermission, DeepEquals, expectedPerm)
 			} else {
@@ -613,7 +626,7 @@ func (s *requestpromptsSuite) TestReplyErrors(c *C) {
 	s.checkNewNoticesSimple(c, []prompting.IDType{}, nil)
 }
 
-func (s *requestpromptsSuite) TestHandleNewRuleAllowPermissions(c *C) {
+func (s *requestpromptsSuite) TestHandleNewRule(c *C) {
 	listenerReqChan := make(chan *listener.Request, 2)
 	replyChan := make(chan any, 2)
 	restore := requestprompts.MockSendReply(func(listenerReq *listener.Request, allowedPermission any) error {
@@ -667,23 +680,26 @@ func (s *requestpromptsSuite) TestHandleNewRuleAllowPermissions(c *C) {
 
 	pathPattern, err := patterns.ParsePathPattern("/home/test/Documents/**")
 	c.Assert(err, IsNil)
-	permissions := []string{"read", "write", "append"}
-	constraints := &prompting.Constraints{
+	constraints := &prompting.RuleConstraints{
 		PathPattern: pathPattern,
-		Permissions: permissions,
+		Permissions: prompting.RulePermissionMap{
+			"read":    &prompting.RulePermissionEntry{Outcome: prompting.OutcomeAllow},
+			"execute": &prompting.RulePermissionEntry{Outcome: prompting.OutcomeDeny},
+			"append":  &prompting.RulePermissionEntry{Outcome: prompting.OutcomeAllow},
+		},
 	}
-	outcome := prompting.OutcomeAllow
 
-	satisfied, err := pdb.HandleNewRule(metadata, constraints, outcome)
+	satisfied, err := pdb.HandleNewRule(metadata, constraints)
 	c.Assert(err, IsNil)
 	c.Check(satisfied, HasLen, 2)
-	c.Check(promptIDListContains(satisfied, prompt2.ID), Equals, true)
+	c.Check(promptIDListContains(satisfied, prompt1.ID), Equals, true)
 	c.Check(promptIDListContains(satisfied, prompt3.ID), Equals, true)
 
-	// Read and write permissions of prompt1 satisfied, so notice re-issued,
-	// but it has one remaining permission. prompt2 and prompt3 fully satisfied.
-	e1 := &noticeInfo{promptID: prompt1.ID, data: nil}
-	e2 := &noticeInfo{promptID: prompt2.ID, data: map[string]string{"resolved": "satisfied"}}
+	// Read permissions of prompt2 satisfied, but it has one outstanding
+	// permission, so notice re-issued. prompt1 satisfied because at least
+	// one permission was denied, and prompt3 permissions fully satisfied.
+	e1 := &noticeInfo{promptID: prompt1.ID, data: map[string]string{"resolved": "satisfied"}}
+	e2 := &noticeInfo{promptID: prompt2.ID, data: nil}
 	e3 := &noticeInfo{promptID: prompt3.ID, data: map[string]string{"resolved": "satisfied"}}
 	expectedNotices := []*noticeInfo{e1, e2, e3}
 	s.checkNewNoticesUnordered(c, expectedNotices)
@@ -691,15 +707,18 @@ func (s *requestpromptsSuite) TestHandleNewRuleAllowPermissions(c *C) {
 	for i := 0; i < 2; i++ {
 		satisfiedReq, allowedPermission, err := s.waitForListenerReqAndReply(c, listenerReqChan, replyChan)
 		c.Check(err, IsNil)
-		var perms []string
 		switch satisfiedReq {
-		case listenerReq2:
-			perms = permissions2
-		case listenerReq3:
-			perms = permissions3
+		case listenerReq1, listenerReq3:
+			break
 		default:
 			c.Errorf("unexpected request satisfied by new rule")
 		}
+		// Only "read" permission was allowed for either prompt.
+		// prompt1 had requested "write" and "execute" as well, but because
+		// "execute" was denied and there was no rule pertaining to "write",
+		// the latter were both denied, leaving "read" as the only permission
+		// allowed.
+		perms := []string{"read"}
 		expectedPerm, err := prompting.AbstractPermissionsToAppArmorPermissions(metadata.Interface, perms)
 		c.Check(err, IsNil)
 		c.Check(allowedPermission, DeepEquals, expectedPerm)
@@ -709,25 +728,27 @@ func (s *requestpromptsSuite) TestHandleNewRuleAllowPermissions(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(stored, HasLen, 2)
 
-	// Check that allowing the final missing permission allows the prompt.
-	permissions = []string{"execute"}
-	constraints = &prompting.Constraints{
+	// Check that allowing the final missing permission of prompt2 satisfies it
+	// with an allow response.
+	constraints = &prompting.RuleConstraints{
 		PathPattern: pathPattern,
-		Permissions: permissions,
+		Permissions: prompting.RulePermissionMap{
+			"write": &prompting.RulePermissionEntry{Outcome: prompting.OutcomeAllow},
+		},
 	}
-	satisfied, err = pdb.HandleNewRule(metadata, constraints, outcome)
+	satisfied, err = pdb.HandleNewRule(metadata, constraints)
 
 	c.Assert(err, IsNil)
 	c.Check(satisfied, HasLen, 1)
-	c.Check(satisfied[0], Equals, prompt1.ID)
+	c.Check(satisfied[0], Equals, prompt2.ID)
 
 	expectedData := map[string]string{"resolved": "satisfied"}
-	s.checkNewNoticesSimple(c, []prompting.IDType{prompt1.ID}, expectedData)
+	s.checkNewNoticesSimple(c, []prompting.IDType{prompt2.ID}, expectedData)
 
 	satisfiedReq, allowedPermission, err := s.waitForListenerReqAndReply(c, listenerReqChan, replyChan)
 	c.Check(err, IsNil)
-	c.Check(satisfiedReq, Equals, listenerReq1)
-	expectedPerm, err := prompting.AbstractPermissionsToAppArmorPermissions(metadata.Interface, permissions1)
+	c.Check(satisfiedReq, Equals, listenerReq2)
+	expectedPerm, err := prompting.AbstractPermissionsToAppArmorPermissions(metadata.Interface, permissions2)
 	c.Check(err, IsNil)
 	c.Check(allowedPermission, DeepEquals, expectedPerm)
 }
@@ -739,95 +760,6 @@ func promptIDListContains(haystack []prompting.IDType, needle prompting.IDType) 
 		}
 	}
 	return false
-}
-
-func (s *requestpromptsSuite) TestHandleNewRuleDenyPermissions(c *C) {
-	listenerReqChan := make(chan *listener.Request, 3)
-	replyChan := make(chan any, 3)
-	restore := requestprompts.MockSendReply(func(listenerReq *listener.Request, allowedPermission any) error {
-		listenerReqChan <- listenerReq
-		replyChan <- allowedPermission
-		return nil
-	})
-	defer restore()
-
-	pdb, err := requestprompts.New(s.defaultNotifyPrompt)
-	c.Assert(err, IsNil)
-	defer pdb.Close()
-
-	metadata := &prompting.Metadata{
-		User:      s.defaultUser,
-		Snap:      "nextcloud",
-		Interface: "home",
-	}
-	path := "/home/test/Documents/foo.txt"
-
-	permissions1 := []string{"read", "write", "execute"}
-	listenerReq1 := &listener.Request{}
-	prompt1, merged, err := pdb.AddOrMerge(metadata, path, permissions1, permissions1, listenerReq1)
-	c.Assert(err, IsNil)
-	c.Check(merged, Equals, false)
-
-	permissions2 := []string{"read", "write"}
-	listenerReq2 := &listener.Request{}
-	prompt2, merged, err := pdb.AddOrMerge(metadata, path, permissions2, permissions2, listenerReq2)
-	c.Assert(err, IsNil)
-	c.Check(merged, Equals, false)
-
-	permissions3 := []string{"read"}
-	listenerReq3 := &listener.Request{}
-	prompt3, merged, err := pdb.AddOrMerge(metadata, path, permissions3, permissions3, listenerReq3)
-	c.Assert(err, IsNil)
-	c.Check(merged, Equals, false)
-
-	permissions4 := []string{"open"}
-	listenerReq4 := &listener.Request{}
-	prompt4, merged, err := pdb.AddOrMerge(metadata, path, permissions4, permissions4, listenerReq4)
-	c.Assert(err, IsNil)
-	c.Check(merged, Equals, false)
-
-	s.checkNewNoticesSimple(c, []prompting.IDType{prompt1.ID, prompt2.ID, prompt3.ID, prompt4.ID}, nil)
-
-	clientActivity := false // doesn't matter if it's true or false for this test
-	stored, err := pdb.Prompts(metadata.User, clientActivity)
-	c.Assert(err, IsNil)
-	c.Assert(stored, HasLen, 4)
-
-	pathPattern, err := patterns.ParsePathPattern("/home/test/Documents/**")
-	c.Assert(err, IsNil)
-	permissions := []string{"read"}
-	constraints := &prompting.Constraints{
-		PathPattern: pathPattern,
-		Permissions: permissions,
-	}
-	outcome := prompting.OutcomeDeny
-
-	// If one or more permissions denied each for prompts 1-3, so each is denied
-	satisfied, err := pdb.HandleNewRule(metadata, constraints, outcome)
-	c.Assert(err, IsNil)
-	c.Check(satisfied, HasLen, 3)
-	c.Check(promptIDListContains(satisfied, prompt1.ID), Equals, true)
-	c.Check(promptIDListContains(satisfied, prompt2.ID), Equals, true)
-	c.Check(promptIDListContains(satisfied, prompt3.ID), Equals, true)
-
-	expectedData := map[string]string{"resolved": "satisfied"}
-	s.checkNewNoticesUnorderedSimple(c, []prompting.IDType{prompt1.ID, prompt2.ID, prompt3.ID}, expectedData)
-
-	for i := 0; i < 3; i++ {
-		satisfiedReq, allowedPermission, err := s.waitForListenerReqAndReply(c, listenerReqChan, replyChan)
-		c.Check(err, IsNil)
-		switch satisfiedReq {
-		case listenerReq1, listenerReq2, listenerReq3:
-			break
-		default:
-			c.Errorf("unexpected request satisfied by new rule")
-		}
-		c.Check(allowedPermission, DeepEquals, notify.FilePermission(0))
-	}
-
-	stored, err = pdb.Prompts(metadata.User, clientActivity)
-	c.Check(err, IsNil)
-	c.Check(stored, HasLen, 1)
 }
 
 func (s *requestpromptsSuite) TestHandleNewRuleNonMatches(c *C) {
@@ -863,22 +795,31 @@ func (s *requestpromptsSuite) TestHandleNewRuleNonMatches(c *C) {
 
 	pathPattern, err := patterns.ParsePathPattern("/home/test/Documents/**")
 	c.Assert(err, IsNil)
-	constraints := &prompting.Constraints{
+	constraints := &prompting.RuleConstraints{
 		PathPattern: pathPattern,
-		Permissions: permissions,
+		Permissions: prompting.RulePermissionMap{
+			"read": &prompting.RulePermissionEntry{Outcome: prompting.OutcomeAllow},
+		},
 	}
-	outcome := prompting.OutcomeAllow
+
+	badOutcomeConstraints := &prompting.RuleConstraints{
+		PathPattern: pathPattern,
+		Permissions: prompting.RulePermissionMap{
+			"read": &prompting.RulePermissionEntry{Outcome: prompting.OutcomeType("foo")},
+		},
+	}
 
 	otherUser := user + 1
 	otherSnap := "ldx"
 	otherInterface := "system-files"
 	otherPattern, err := patterns.ParsePathPattern("/home/test/Pictures/**.png")
 	c.Assert(err, IsNil)
-	otherConstraints := &prompting.Constraints{
+	otherConstraints := &prompting.RuleConstraints{
 		PathPattern: otherPattern,
-		Permissions: permissions,
+		Permissions: prompting.RulePermissionMap{
+			"read": &prompting.RulePermissionEntry{Outcome: prompting.OutcomeAllow},
+		},
 	}
-	badOutcome := prompting.OutcomeType("foo")
 
 	clientActivity := false // doesn't matter if it's true or false for this test
 	stored, err := pdb.Prompts(metadata.User, clientActivity)
@@ -886,7 +827,7 @@ func (s *requestpromptsSuite) TestHandleNewRuleNonMatches(c *C) {
 	c.Assert(stored, HasLen, 1)
 	c.Assert(stored[0], Equals, prompt)
 
-	satisfied, err := pdb.HandleNewRule(metadata, constraints, badOutcome)
+	satisfied, err := pdb.HandleNewRule(metadata, badOutcomeConstraints)
 	c.Check(err, ErrorMatches, `invalid outcome: "foo"`)
 	c.Check(satisfied, IsNil)
 
@@ -897,7 +838,7 @@ func (s *requestpromptsSuite) TestHandleNewRuleNonMatches(c *C) {
 		Snap:      snap,
 		Interface: iface,
 	}
-	satisfied, err = pdb.HandleNewRule(otherUserMetadata, constraints, outcome)
+	satisfied, err = pdb.HandleNewRule(otherUserMetadata, constraints)
 	c.Check(err, IsNil)
 	c.Check(satisfied, IsNil)
 
@@ -908,7 +849,7 @@ func (s *requestpromptsSuite) TestHandleNewRuleNonMatches(c *C) {
 		Snap:      otherSnap,
 		Interface: iface,
 	}
-	satisfied, err = pdb.HandleNewRule(otherSnapMetadata, constraints, outcome)
+	satisfied, err = pdb.HandleNewRule(otherSnapMetadata, constraints)
 	c.Check(err, IsNil)
 	c.Check(satisfied, IsNil)
 
@@ -919,19 +860,19 @@ func (s *requestpromptsSuite) TestHandleNewRuleNonMatches(c *C) {
 		Snap:      snap,
 		Interface: otherInterface,
 	}
-	satisfied, err = pdb.HandleNewRule(otherInterfaceMetadata, constraints, outcome)
+	satisfied, err = pdb.HandleNewRule(otherInterfaceMetadata, constraints)
 	c.Check(err, IsNil)
 	c.Check(satisfied, IsNil)
 
 	s.checkNewNoticesSimple(c, []prompting.IDType{}, nil)
 
-	satisfied, err = pdb.HandleNewRule(metadata, otherConstraints, outcome)
+	satisfied, err = pdb.HandleNewRule(metadata, otherConstraints)
 	c.Check(err, IsNil)
 	c.Check(satisfied, IsNil)
 
 	s.checkNewNoticesSimple(c, []prompting.IDType{}, nil)
 
-	satisfied, err = pdb.HandleNewRule(metadata, constraints, outcome)
+	satisfied, err = pdb.HandleNewRule(metadata, constraints)
 	c.Check(err, IsNil)
 	c.Assert(satisfied, HasLen, 1)
 
@@ -1061,7 +1002,7 @@ func (s *requestpromptsSuite) TestCloseThenOperate(c *C) {
 	c.Check(err, Equals, prompting_errors.ErrPromptsClosed)
 	c.Check(result, IsNil)
 
-	promptIDs, err := pdb.HandleNewRule(nil, nil, prompting.OutcomeDeny)
+	promptIDs, err := pdb.HandleNewRule(nil, nil)
 	c.Check(err, Equals, prompting_errors.ErrPromptsClosed)
 	c.Check(promptIDs, IsNil)
 
@@ -1087,9 +1028,9 @@ func (s *requestpromptsSuite) TestPromptMarshalJSON(c *C) {
 	}
 	path := "/home/test/foo"
 	requestedPermissions := []string{"read", "write", "execute"}
-	remainingPermissions := []string{"write", "execute"}
+	outstandingPermissions := []string{"write", "execute"}
 
-	prompt, merged, err := pdb.AddOrMerge(metadata, path, requestedPermissions, remainingPermissions, nil)
+	prompt, merged, err := pdb.AddOrMerge(metadata, path, requestedPermissions, outstandingPermissions, nil)
 	c.Assert(err, IsNil)
 	c.Assert(merged, Equals, false)
 
@@ -1133,7 +1074,7 @@ func (s *requestpromptsSuite) TestPromptExpiration(c *C) {
 	}
 	path := "/home/test/foo"
 	requestedPermissions := []string{"read", "write", "execute"}
-	remainingPermissions := []string{"write", "execute"}
+	outstandingPermissions := []string{"write", "execute"}
 
 	noticeChan := make(chan noticeInfo, 1)
 	pdb, err := requestprompts.New(func(userID uint32, promptID prompting.IDType, data map[string]string) error {
@@ -1149,7 +1090,7 @@ func (s *requestpromptsSuite) TestPromptExpiration(c *C) {
 
 	// Add prompt
 	listenerReq := &listener.Request{}
-	prompt, merged, err := pdb.AddOrMerge(metadata, path, requestedPermissions, remainingPermissions, listenerReq)
+	prompt, merged, err := pdb.AddOrMerge(metadata, path, requestedPermissions, outstandingPermissions, listenerReq)
 	c.Assert(err, IsNil)
 	c.Assert(merged, Equals, false)
 	checkCurrentNotices(c, noticeChan, prompt.ID, nil)
@@ -1164,7 +1105,7 @@ func (s *requestpromptsSuite) TestPromptExpiration(c *C) {
 	// Add another prompt, check that it does not bump the activity timeout
 	listenerReq = &listener.Request{}
 	otherPath := "/home/test/bar"
-	prompt2, merged, err := pdb.AddOrMerge(metadata, otherPath, requestedPermissions, remainingPermissions, listenerReq)
+	prompt2, merged, err := pdb.AddOrMerge(metadata, otherPath, requestedPermissions, outstandingPermissions, listenerReq)
 	c.Assert(err, IsNil)
 	c.Assert(merged, Equals, false)
 	checkCurrentNotices(c, noticeChan, prompt2.ID, nil)
@@ -1179,7 +1120,7 @@ func (s *requestpromptsSuite) TestPromptExpiration(c *C) {
 
 	// Add prompt again
 	listenerReq = &listener.Request{}
-	prompt, merged, err = pdb.AddOrMerge(metadata, path, requestedPermissions, remainingPermissions, listenerReq)
+	prompt, merged, err = pdb.AddOrMerge(metadata, path, requestedPermissions, outstandingPermissions, listenerReq)
 	c.Assert(err, IsNil)
 	c.Assert(merged, Equals, false)
 	checkCurrentNotices(c, noticeChan, prompt.ID, nil)
@@ -1219,7 +1160,7 @@ func (s *requestpromptsSuite) TestPromptExpiration(c *C) {
 
 	// Add prompt again
 	listenerReq = &listener.Request{}
-	prompt, merged, err = pdb.AddOrMerge(metadata, path, requestedPermissions, remainingPermissions, listenerReq)
+	prompt, merged, err = pdb.AddOrMerge(metadata, path, requestedPermissions, outstandingPermissions, listenerReq)
 	c.Assert(err, IsNil)
 	c.Assert(merged, Equals, false)
 	checkCurrentNotices(c, noticeChan, prompt.ID, nil)
@@ -1279,7 +1220,7 @@ func (s *requestpromptsSuite) TestPromptExpirationRace(c *C) {
 	}
 	path := "/home/test/foo"
 	requestedPermissions := []string{"read", "write", "execute"}
-	remainingPermissions := []string{"write", "execute"}
+	outstandingPermissions := []string{"write", "execute"}
 
 	noticeChan := make(chan noticeInfo, 1)
 	pdb, err := requestprompts.New(func(userID uint32, promptID prompting.IDType, data map[string]string) error {
@@ -1295,7 +1236,7 @@ func (s *requestpromptsSuite) TestPromptExpirationRace(c *C) {
 
 	// Add prompt
 	listenerReq := &listener.Request{}
-	prompt, merged, err := pdb.AddOrMerge(metadata, path, requestedPermissions, remainingPermissions, listenerReq)
+	prompt, merged, err := pdb.AddOrMerge(metadata, path, requestedPermissions, outstandingPermissions, listenerReq)
 	c.Assert(err, IsNil)
 	c.Assert(merged, Equals, false)
 	checkCurrentNotices(c, noticeChan, prompt.ID, nil)

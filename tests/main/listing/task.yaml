@@ -53,16 +53,17 @@ execute: |
         VERSION=$CORE_STABLE_VERSION
         TRACKING="(latest/)?stable"
 
-    elif [ "$SPREAD_BACKEND" = "external" ] && os.query is-core16; then
-        echo "On the external device the core snap tested could be in any track"
-        TRACKING="(latest/)?(edge|beta|candidate|stable)"
-
-    elif [ "$SPREAD_BACKEND" = "external" ] && os.query is-core-ge 18; then
-        echo "On the external device the snapd snap tested could be in any track"
-        NAME=snapd
-        VERSION=$SNAPD_GIT_VERSION
-        TRACKING="(latest/)?(edge|beta|candidate|stable)"
-        NOTES=snapd
+    elif [ "$SPREAD_BACKEND" = "external" ] || [ "$SPREAD_BACKEND" = "testflinger" ]; then
+        if os.query is-core16; then
+            echo "On the external/testflinger device the core snap tested could be in any track"
+            TRACKING="(latest/)?(edge|beta|candidate|stable)"
+        else
+            echo "On the external/testflinger device the snapd snap tested could be in any track"
+            NAME=snapd
+            VERSION=$SNAPD_GIT_VERSION
+            TRACKING="(latest/)?(edge|beta|candidate|stable)"
+            NOTES=snapd
+        fi
 
     else
         TRACKING="(latest/)?$CORE_CHANNEL"

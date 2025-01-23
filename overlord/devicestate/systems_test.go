@@ -93,6 +93,7 @@ var (
 	}
 	componentYamls = map[string]string{
 		"pc-kernel-with-kmods+kmod":   "component: pc-kernel-with-kmods+kmod\ntype: kernel-modules\nversion: 1.0",
+		"pc-kernel+kmod":              "component: pc-kernel+kmod\ntype: kernel-modules\nversion: 1.0",
 		"other-unasserted+comp":       "component: other-unasserted+comp\ntype: standard\nversion: 10.0",
 		"snap-with-components+comp-1": "component: snap-with-components+comp-1\ntype: standard\nversion: 22.0",
 		"snap-with-components+comp-2": "component: snap-with-components+comp-2\ntype: standard\nversion: 33.0",

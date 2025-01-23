@@ -28,6 +28,7 @@ import (
 	"time"
 
 	. "gopkg.in/check.v1"
+	"gopkg.in/tomb.v2"
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/boot"
@@ -770,6 +771,85 @@ func (s *linkSnapSuite) TestDoUnlinkCurrentSnapSnapdNop(c *C) {
 			name:        "snapd",
 			inhibitHint: "refresh",
 		}})
+}
+
+func (s *linkSnapSuite) TestDoUnlinkCurrentSnapNoRestartSnapd(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	s.runner.AddHandler("failure-task", func(_ *state.Task, _ *tomb.Tomb) error {
+		return fmt.Errorf("oh no!")
+	}, nil)
+
+	si := &snap.SideInfo{
+		RealName: "snapd",
+		Revision: snap.R(20),
+	}
+	snapstate.Set(s.state, "snapd", &snapstate.SnapState{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si}),
+		Current:  si.Revision,
+		Active:   true,
+	})
+
+	chg := s.state.NewChange("sample", "...")
+
+	raTask := s.state.NewTask("remove-aliases", "")
+	raTask.Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: si,
+		Channel:  "beta",
+	})
+	chg.AddTask(raTask)
+
+	unlinkTask := s.state.NewTask("unlink-current-snap", "")
+	unlinkTask.Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: si,
+		Channel:  "beta",
+	})
+	unlinkTask.WaitFor(raTask)
+	chg.AddTask(unlinkTask)
+
+	rmpTask := s.state.NewTask("failure-task", "")
+	rmpTask.WaitFor(unlinkTask)
+	chg.AddTask(rmpTask)
+
+	// Run the tasks we created
+	s.state.Unlock()
+	for i := 0; i < 5; i++ {
+		s.se.Ensure()
+		s.se.Wait()
+	}
+	s.state.Lock()
+
+	// And observe the results.
+	var snapst snapstate.SnapState
+	err := snapstate.Get(s.state, "snapd", &snapst)
+	c.Assert(err, IsNil)
+	c.Check(snapst.Active, Equals, true)
+	c.Check(snapst.Sequence.Revisions, HasLen, 1)
+	c.Check(snapst.Current, Equals, snap.R(20))
+	c.Check(raTask.Status(), Equals, state.UndoneStatus)
+	c.Check(unlinkTask.Status(), Equals, state.UndoneStatus)
+	c.Check(rmpTask.Status(), Equals, state.ErrorStatus)
+	// backend was called to unlink the snap
+	expected := fakeOps{
+		{
+			op:   "remove-snap-aliases",
+			name: "snapd",
+		},
+		{
+			op:          "run-inhibit-snap-for-unlink",
+			name:        "snapd",
+			inhibitHint: "refresh",
+		},
+		{
+			op: "update-aliases",
+		},
+	}
+	c.Check(s.fakeBackend.ops, DeepEquals, expected)
+
+	// no restarts must have been requested by 'unlink-current-snap'
+	c.Check(s.restartRequested, HasLen, 0)
+	c.Assert(unlinkTask.Log(), HasLen, 0)
 }
 
 func (s *linkSnapSuite) TestDoUnlinkSnapdUnlinks(c *C) {
@@ -2449,7 +2529,6 @@ func (s *linkSnapSuite) TestUndoLinkSnapdNthInstall(c *C) {
 
 	// 1 restart from link snap
 	// 1 restart from undo of 'setup-profiles'
-	// 1 in undoUnlinkCurrentSnap (not tested here)
 	c.Check(s.restartRequested, DeepEquals, []restart.RestartType{restart.RestartDaemon, restart.RestartDaemon})
 	c.Assert(t.Log(), HasLen, 2)
 	c.Check(t.Log()[0], Matches, `.*INFO Requested daemon restart \(snapd snap\)\.`)

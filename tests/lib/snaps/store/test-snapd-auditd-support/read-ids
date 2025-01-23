@@ -1,0 +1,16 @@
+#!/bin/sh -e
+
+# Attempt to read /proc/$pid/loginuid and /proc/$pid/sessionid for every known
+# pid.
+procs="$(find /proc -maxdepth 1 -type d -name '[0-9]*')"
+for proc in $procs ; do
+	# proc is of the form "/proc/1234"
+	if ! [ -d "$proc" ] ; then
+		# Skip any pids which no longer exist
+		continue
+	fi
+	loginuid="$(cat "$proc/loginuid")"
+	sessionid="$(cat "$proc/sessionid")"
+	echo "$proc/loginuid: $loginuid"
+	echo "$proc/sessionid: $sessionid"
+done

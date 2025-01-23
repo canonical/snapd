@@ -25,6 +25,11 @@ on:
         description: 'The rule .yaml file to use (found under tests/lib/spread/rules) for test discovery'
         required: true
         type: string
+      is-fundamental:
+        description: 'If true, then will mark results as from fundamental systems when uploading to Grafana'
+        required: false
+        type: boolean
+        default: false
       use-snapd-snap-from-master:
         description: 'If true, will use the snapd snap built on the master branch'
         required: false
@@ -33,8 +38,7 @@ on:
       spread-snapd-deb-from-repo:
         description: 'If true, will use the snapd package from the repository when possible'
         required: false
-        type: boolean
-        default: true
+        type: string
       spread-experimental-features:
         description: 'Comma-separated list of experimental snapd features to enable with: snap set system "experimental.<feature-name>=true"'
         required: false
@@ -44,7 +48,6 @@ on:
 jobs:
   run-spread:
     env:
-      SPREAD_SNAPD_DEB_FROM_REPO: ${{ inputs.spread-snapd-deb-from-repo }}
       SPREAD_EXPERIMENTAL_FEATURES: ${{ inputs.spread-experimental-features }}
       
     runs-on: ${{ fromJSON(inputs.runs-on) }}
@@ -72,6 +75,10 @@ jobs:
       with:
         # spread uses tags as delta reference
         fetch-depth: 0
+
+    - name: set SPREAD_SNAPD_DEB_FROM_REPO=1
+      if: ${{ inputs.spread-snapd-deb-from-repo == 'true' }}
+      run: echo "SPREAD_SNAPD_DEB_FROM_REPO=1" >> $GITHUB_ENV
 
     - name: Get previous attempt
       id: get-previous-attempt
@@ -176,7 +183,11 @@ jobs:
           if [ -z "$CHANGE_ID" ]; then
             CHANGE_ID="main"
           fi
-          FILTERED_LOG_FILE="spread_${CHANGE_ID}_n${{ github.run_attempt }}.filtered.log"
+          fundamental=""
+          if [ "${{ inputs.is-fundamental }}" = 'true' ]; then
+            fundamental="fund"
+          fi
+          FILTERED_LOG_FILE="spread_${CHANGE_ID}_${fundamental}_n${{ github.run_attempt }}.filtered.log"
           # The log-filter tool is used to filter the spread logs to be stored
           echo FILTER_PARAMS="-o $FILTERED_LOG_FILE -e Debug -e WARNING: -f Failed=NO_LINES -f Error=NO_LINES"  >> $GITHUB_ENV
           echo FILTERED_LOG_FILE="$FILTERED_LOG_FILE"  >> $GITHUB_ENV
@@ -340,3 +351,11 @@ jobs:
       with:
         path: "${{ github.workspace }}/.test-results"
         key: "${{ github.job }}-results-${{ github.run_id }}-${{ inputs.group }}-${{ github.run_attempt }}"
+
+    - name: Save spread.json as an artifact
+      if: ${{ always() && github.event.pull_request.number }}
+      uses: actions/upload-artifact@v4
+      with:
+        name: "spread-json-${{ github.run_id }}-${{ github.run_attempt }}-${{ inputs.group }}" 
+        path: "spread-results.json"
+        if-no-files-found: ignore

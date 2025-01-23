@@ -53,6 +53,11 @@ exit 2`)
 		s.mockGetent = testutil.MockCommand(c, "getent", `
 exit 2`)
 	}
+
+	user.OverrideGetentSearchPath("/foo:/bar:" + s.mockGetent.BinDir())
+	s.AddCleanup(func() {
+		user.OverrideGetentSearchPath(user.DefaultGetentSearchPath)
+	})
 }
 
 func (s *findUserGroupSuite) TearDownTest(c *check.C) {
@@ -137,6 +142,8 @@ func (s *findUserGroupSuite) TestFindUidGetentOtherErrFromFindUid(c *check.C) {
 
 func (s *findUserGroupSuite) TestFindUidGetentMockedOtherError(c *check.C) {
 	s.mockGetent = testutil.MockCommand(c, "getent", "exit 3")
+	// clean up is done in TearDownTest
+	user.OverrideGetentSearchPath(s.mockGetent.BinDir())
 
 	uid, err := osutil.FindUidWithGetentFallback("lakatos")
 	c.Assert(err, check.ErrorMatches, "getent failed with: exit status 3")
@@ -244,6 +251,8 @@ func (s *findUserGroupSuite) TestFindGidGetentNonexistent(c *check.C) {
 
 func (s *findUserGroupSuite) TestFindGidGetentMockedOtherError(c *check.C) {
 	s.mockGetent = testutil.MockCommand(c, "getent", "exit 3")
+	// clean up is done in TearDownTest
+	user.OverrideGetentSearchPath(s.mockGetent.BinDir())
 
 	gid, err := osutil.FindGidWithGetentFallback("lakatos")
 	c.Assert(err, check.ErrorMatches, "getent failed with: exit status 3")
@@ -263,6 +272,8 @@ func (s *findUserGroupSuite) TestFindGidGetentMockedOtherError(c *check.C) {
 
 func (s *findUserGroupSuite) TestFindGidGetentMocked(c *check.C) {
 	s.mockGetent = testutil.MockCommand(c, "getent", "echo lakatos:x:1234:")
+	// clean up is done in TearDownTest
+	user.OverrideGetentSearchPath(s.mockGetent.BinDir())
 
 	gid, err := osutil.FindGidWithGetentFallback("lakatos")
 	c.Assert(err, check.IsNil)
@@ -270,6 +281,15 @@ func (s *findUserGroupSuite) TestFindGidGetentMocked(c *check.C) {
 	c.Check(s.mockGetent.Calls(), check.DeepEquals, [][]string{
 		{"getent", "group", "lakatos"},
 	})
+}
+
+func (s *findUserGroupSuite) TestFindNoGetentMocked(c *check.C) {
+	// clean up is done in TearDownTest
+	user.OverrideGetentSearchPath("/foo:/bar")
+
+	uid, err := osutil.FindUidWithGetentFallback("lakatos")
+	c.Assert(err, check.ErrorMatches, "user: unknown user lakatos")
+	c.Check(uid, check.Equals, uint64(0))
 }
 
 func (s *findUserGroupSuite) TestIsUnknownUser(c *check.C) {

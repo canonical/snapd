@@ -28,10 +28,17 @@ execute: |
   # store a copy of the built snapd
   cp /var/lib/snapd/snaps/snapd_x1.snap ./snapd.snap
 
+  revision=""
+  if os.query is_arm; then
+    revision=18363
+  else
+    revision=18357
+  fi
+
   # refresh to a snapd prior to snapd snap, this one is chosen from
   # a customer case where they were seeing issues with snapd reverting
-  snap refresh snapd --amend --revision=18357
-  snap list | MATCH "snapd.*18357"
+  snap refresh snapd --amend --revision="$revision"
+  snap list | MATCH "snapd.*$revision"
 
   # perform a refresh to the current snapd, this will fail, do it in a way
   # that will make snapd revert

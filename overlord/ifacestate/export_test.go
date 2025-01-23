@@ -74,8 +74,8 @@ func NewInterfaceManagerWithAppArmorPrompting(useAppArmorPrompting bool) *Interf
 	return m
 }
 
-func (m *InterfaceManager) BuildConfinementOptions(st *state.State, snapInfo *snap.Info, flags snapstate.Flags) (interfaces.ConfinementOptions, error) {
-	return m.buildConfinementOptions(st, snapInfo, flags)
+func (m *InterfaceManager) BuildConfinementOptions(st *state.State, task *state.Task, snapInfo *snap.Info, flags snapstate.Flags) (interfaces.ConfinementOptions, error) {
+	return m.buildConfinementOptions(st, task, snapInfo, flags)
 }
 
 type ConnectOpts = connectOpts
@@ -138,6 +138,17 @@ func MockInterfacesRequestsManagerStop(new func(m *apparmorprompting.InterfacesR
 
 func MockAssessAppArmorPrompting(new func(m *InterfaceManager) bool) (restore func()) {
 	return testutil.Mock(&assessAppArmorPrompting, new)
+}
+
+func MockInterfacesRequestsControlHandlerServicePresent(new func(m *InterfaceManager) (bool, error)) (restore func()) {
+	return testutil.Mock(&interfacesRequestsControlHandlerServicePresent, new)
+}
+
+func CallInterfacesRequestsControlHandlerServicePresent(s *state.State) (bool, error) {
+	manager := &InterfaceManager{
+		state: s,
+	}
+	return interfacesRequestsControlHandlerServicePresent(manager)
 }
 
 func MockUDevInitRetryTimeout(t time.Duration) (restore func()) {

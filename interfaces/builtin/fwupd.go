@@ -129,6 +129,8 @@ const fwupdPermanentSlotAppArmor = `
   /boot/efi/EFI/*/ rw,
   /boot/efi/EFI/*/fw/ rw,
   /boot/efi/EFI/*/fw/** rw,
+  /boot/efi/EFI/dell/bios/recovery/ rw,
+  /boot/efi/EFI/dell/bios/recovery/** rw,
   /boot/efi/EFI/fwupd/ rw,
   /boot/efi/EFI/fwupd/** rw,
   /boot/efi/EFI/UpdateCapsule/ rw,

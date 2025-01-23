@@ -20,9 +20,13 @@
 package prompting_test
 
 import (
+	"fmt"
+	"time"
+
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/interfaces/prompting"
+	prompting_errors "github.com/snapcore/snapd/interfaces/prompting/errors"
 	"github.com/snapcore/snapd/interfaces/prompting/patterns"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/sandbox/apparmor/notify"
@@ -33,126 +37,13 @@ type constraintsSuite struct{}
 
 var _ = Suite(&constraintsSuite{})
 
-func (s *constraintsSuite) TestConstraintsValidateForInterface(c *C) {
-	validPathPattern, err := patterns.ParsePathPattern("/path/to/foo")
+func mustParsePathPattern(c *C, patternStr string) *patterns.PathPattern {
+	pattern, err := patterns.ParsePathPattern(patternStr)
 	c.Assert(err, IsNil)
-
-	// Happy
-	constraints := &prompting.Constraints{
-		PathPattern: validPathPattern,
-		Permissions: []string{"read"},
-	}
-	err = constraints.ValidateForInterface("home")
-	c.Check(err, IsNil)
-
-	// Bad interface or permissions
-	cases := []struct {
-		iface  string
-		perms  []string
-		errStr string
-	}{
-		{
-			"foo",
-			[]string{"read"},
-			`invalid interface: "foo"`,
-		},
-		{
-			"home",
-			[]string{},
-			"invalid permissions for home interface: permissions list empty",
-		},
-		{
-			"home",
-			[]string{"access"},
-			"invalid permissions for home interface.*",
-		},
-	}
-	for _, testCase := range cases {
-		constraints := &prompting.Constraints{
-			PathPattern: validPathPattern,
-			Permissions: testCase.perms,
-		}
-		err = constraints.ValidateForInterface(testCase.iface)
-		c.Check(err, ErrorMatches, testCase.errStr)
-	}
-
-	// Check missing path pattern
-	constraints = &prompting.Constraints{
-		Permissions: []string{"read"},
-	}
-	err = constraints.ValidateForInterface("home")
-	c.Check(err, ErrorMatches, `invalid path pattern: no path pattern: ""`)
+	return pattern
 }
 
-func (s *constraintsSuite) TestValidatePermissionsHappy(c *C) {
-	cases := []struct {
-		iface   string
-		initial []string
-		final   []string
-	}{
-		{
-			"home",
-			[]string{"write", "read", "execute"},
-			[]string{"read", "write", "execute"},
-		},
-		{
-			"home",
-			[]string{"execute", "write", "read"},
-			[]string{"read", "write", "execute"},
-		},
-		{
-			"home",
-			[]string{"write", "write", "write"},
-			[]string{"write"},
-		},
-	}
-	for _, testCase := range cases {
-		constraints := prompting.Constraints{
-			Permissions: testCase.initial,
-		}
-		err := constraints.ValidatePermissions(testCase.iface)
-		c.Check(err, IsNil, Commentf("testCase: %+v", testCase))
-		c.Check(constraints.Permissions, DeepEquals, testCase.final, Commentf("testCase: %+v", testCase))
-	}
-}
-
-func (s *constraintsSuite) TestValidatePermissionsUnhappy(c *C) {
-	cases := []struct {
-		iface  string
-		perms  []string
-		errStr string
-	}{
-		{
-			"foo",
-			[]string{"read"},
-			`invalid interface: "foo"`,
-		},
-		{
-			"home",
-			[]string{"access"},
-			`invalid permissions for home interface: "access"`,
-		},
-		{
-			"home",
-			[]string{"read", "write", "access"},
-			`invalid permissions for home interface: "access"`,
-		},
-		{
-			"home",
-			[]string{},
-			"invalid permissions for home interface: permissions list empty",
-		},
-	}
-	for _, testCase := range cases {
-		constraints := prompting.Constraints{
-			Permissions: testCase.perms,
-		}
-		err := constraints.ValidatePermissions(testCase.iface)
-		c.Check(err, ErrorMatches, testCase.errStr, Commentf("testCase: %+v", testCase))
-	}
-}
-
-func (*constraintsSuite) TestConstraintsMatch(c *C) {
+func (s *constraintsSuite) TestConstraintsMatch(c *C) {
 	cases := []struct {
 		pattern string
 		path    string
@@ -170,13 +61,19 @@ func (*constraintsSuite) TestConstraintsMatch(c *C) {
 		},
 	}
 	for _, testCase := range cases {
-		pattern, err := patterns.ParsePathPattern(testCase.pattern)
-		c.Check(err, IsNil)
+		pattern := mustParsePathPattern(c, testCase.pattern)
+
 		constraints := &prompting.Constraints{
 			PathPattern: pattern,
-			Permissions: []string{"read"},
 		}
 		result, err := constraints.Match(testCase.path)
+		c.Check(err, IsNil, Commentf("test case: %+v", testCase))
+		c.Check(result, Equals, testCase.matches, Commentf("test case: %+v", testCase))
+
+		ruleConstraints := &prompting.RuleConstraints{
+			PathPattern: pattern,
+		}
+		result, err = ruleConstraints.Match(testCase.path)
 		c.Check(err, IsNil, Commentf("test case: %+v", testCase))
 		c.Check(result, Equals, testCase.matches, Commentf("test case: %+v", testCase))
 	}
@@ -184,10 +81,18 @@ func (*constraintsSuite) TestConstraintsMatch(c *C) {
 
 func (s *constraintsSuite) TestConstraintsMatchUnhappy(c *C) {
 	badPath := `bad\path\`
+
 	badConstraints := &prompting.Constraints{
-		Permissions: []string{"read"},
+		PathPattern: nil,
 	}
 	matches, err := badConstraints.Match(badPath)
+	c.Check(err, ErrorMatches, `invalid path pattern: no path pattern: ""`)
+	c.Check(matches, Equals, false)
+
+	badRuleConstraints := &prompting.RuleConstraints{
+		PathPattern: nil,
+	}
+	matches, err = badRuleConstraints.Match(badPath)
 	c.Check(err, ErrorMatches, `invalid path pattern: no path pattern: ""`)
 	c.Check(matches, Equals, false)
 }
@@ -240,14 +145,778 @@ func (s *constraintsSuite) TestConstraintsContainPermissions(c *C) {
 		},
 	}
 	for _, testCase := range cases {
-		pathPattern, err := patterns.ParsePathPattern("/arbitrary")
-		c.Check(err, IsNil)
+		pathPattern := mustParsePathPattern(c, "/arbitrary")
 		constraints := &prompting.Constraints{
 			PathPattern: pathPattern,
-			Permissions: testCase.constPerms,
+			Permissions: make(prompting.PermissionMap),
+		}
+		fakeEntry := &prompting.PermissionEntry{}
+		for _, perm := range testCase.constPerms {
+			constraints.Permissions[perm] = fakeEntry
 		}
 		contained := constraints.ContainPermissions(testCase.queryPerms)
 		c.Check(contained, Equals, testCase.contained, Commentf("testCase: %+v", testCase))
+	}
+}
+
+func (s *constraintsSuite) TestConstraintsToRuleConstraintsHappy(c *C) {
+	currTime := time.Now()
+	iface := "home"
+	pathPattern := mustParsePathPattern(c, "/path/to/{foo,*or*,bar}{,/}**")
+
+	constraints := &prompting.Constraints{
+		PathPattern: pathPattern,
+		Permissions: prompting.PermissionMap{
+			"read": &prompting.PermissionEntry{
+				Outcome:  prompting.OutcomeAllow,
+				Lifespan: prompting.LifespanForever,
+			},
+			"write": &prompting.PermissionEntry{
+				Outcome:  prompting.OutcomeDeny,
+				Lifespan: prompting.LifespanTimespan,
+				Duration: "10s",
+			},
+			"execute": &prompting.PermissionEntry{
+				Outcome:  prompting.OutcomeAllow,
+				Lifespan: prompting.LifespanTimespan,
+				Duration: "1ns",
+			},
+		},
+	}
+
+	expectedRuleConstraints := &prompting.RuleConstraints{
+		PathPattern: pathPattern,
+		Permissions: prompting.RulePermissionMap{
+			"read": &prompting.RulePermissionEntry{
+				Outcome:  prompting.OutcomeAllow,
+				Lifespan: prompting.LifespanForever,
+			},
+			"write": &prompting.RulePermissionEntry{
+				Outcome:    prompting.OutcomeDeny,
+				Lifespan:   prompting.LifespanTimespan,
+				Expiration: currTime.Add(10 * time.Second),
+			},
+			"execute": &prompting.RulePermissionEntry{
+				Outcome:    prompting.OutcomeAllow,
+				Lifespan:   prompting.LifespanTimespan,
+				Expiration: currTime.Add(time.Nanosecond),
+			},
+		},
+	}
+
+	result, err := constraints.ToRuleConstraints(iface, currTime)
+	c.Assert(err, IsNil)
+	c.Assert(result, DeepEquals, expectedRuleConstraints)
+}
+
+func (s *constraintsSuite) TestConstraintsToRuleConstraintsUnhappy(c *C) {
+	badConstraints := &prompting.Constraints{}
+	result, err := badConstraints.ToRuleConstraints("home", time.Now())
+	c.Check(result, IsNil)
+	c.Check(err, ErrorMatches, `invalid path pattern: no path pattern.*`)
+
+	constraints := &prompting.Constraints{
+		PathPattern: mustParsePathPattern(c, "/path/to/foo"),
+		Permissions: prompting.PermissionMap{
+			"read": &prompting.PermissionEntry{
+				Outcome:  prompting.OutcomeAllow,
+				Lifespan: prompting.LifespanForever,
+			},
+		},
+	}
+	result, err = constraints.ToRuleConstraints("foo", time.Now())
+	c.Check(result, IsNil)
+	c.Check(err, ErrorMatches, `invalid interface: "foo"`)
+
+	for _, testCase := range []struct {
+		perms  prompting.PermissionMap
+		errStr string
+	}{
+		{
+			perms:  nil,
+			errStr: `invalid permissions for home interface: permissions list empty`,
+		},
+		{
+			perms: prompting.PermissionMap{
+				"create": &prompting.PermissionEntry{
+					Outcome:  prompting.OutcomeAllow,
+					Lifespan: prompting.LifespanForever,
+				},
+			},
+			errStr: `invalid permissions for home interface: "create"`,
+		},
+		{
+			perms: prompting.PermissionMap{
+				"read": &prompting.PermissionEntry{
+					Outcome:  prompting.OutcomeAllow,
+					Lifespan: prompting.LifespanTimespan,
+				},
+			},
+			errStr: `invalid duration: cannot have unspecified duration when lifespan is "timespan".*`,
+		},
+		{
+			perms: prompting.PermissionMap{
+				"read": &prompting.PermissionEntry{
+					Outcome:  prompting.OutcomeAllow,
+					Lifespan: prompting.LifespanTimespan,
+				},
+				"create": &prompting.PermissionEntry{
+					Outcome:  prompting.OutcomeAllow,
+					Lifespan: prompting.LifespanForever,
+				},
+			},
+			errStr: joinErrorsUnordered(`invalid duration: cannot have unspecified duration when lifespan is "timespan": ""`, `invalid permissions for home interface: "create"`),
+		},
+	} {
+		constraints := &prompting.Constraints{
+			PathPattern: mustParsePathPattern(c, "/path/to/foo"),
+			Permissions: testCase.perms,
+		}
+		result, err = constraints.ToRuleConstraints("home", time.Now())
+		c.Check(result, IsNil, Commentf("testCase: %+v", testCase))
+		c.Check(err, ErrorMatches, testCase.errStr, Commentf("testCase: %+v", testCase))
+	}
+}
+
+func joinErrorsUnordered(err1, err2 string) string {
+	return fmt.Sprintf("(%s\n%s|%s\n%s)", err1, err2, err2, err1)
+}
+
+func (s *constraintsSuite) TestRuleConstraintsValidateForInterface(c *C) {
+	validPathPattern := mustParsePathPattern(c, "/path/to/foo")
+	currTime := time.Now()
+
+	// Happy
+	constraints := &prompting.RuleConstraints{
+		PathPattern: validPathPattern,
+		Permissions: prompting.RulePermissionMap{
+			"read": &prompting.RulePermissionEntry{
+				Outcome:  prompting.OutcomeAllow,
+				Lifespan: prompting.LifespanForever,
+			},
+			"write": &prompting.RulePermissionEntry{
+				Outcome:    prompting.OutcomeDeny,
+				Lifespan:   prompting.LifespanTimespan,
+				Expiration: currTime.Add(time.Second),
+			},
+		},
+	}
+	expired, err := constraints.ValidateForInterface("home", currTime)
+	c.Check(err, IsNil)
+	c.Check(expired, Equals, false)
+
+	// Bad interface or permissions
+	cases := []struct {
+		iface  string
+		perms  prompting.RulePermissionMap
+		errStr string
+	}{
+		{
+			"foo",
+			prompting.RulePermissionMap{
+				"read": &prompting.RulePermissionEntry{
+					Outcome:  prompting.OutcomeAllow,
+					Lifespan: prompting.LifespanForever,
+				},
+			},
+			prompting_errors.NewInvalidInterfaceError("foo", nil).Error(),
+		},
+		{
+			"home",
+			prompting.RulePermissionMap{},
+			prompting_errors.NewPermissionsListEmptyError("home", nil).Error(),
+		},
+		{
+			"home",
+			prompting.RulePermissionMap{
+				"access": &prompting.RulePermissionEntry{
+					Outcome:  prompting.OutcomeAllow,
+					Lifespan: prompting.LifespanForever,
+				},
+			},
+			prompting_errors.NewInvalidPermissionsError("home", []string{"access"}, []string{"read", "write", "execute"}).Error(),
+		},
+		{
+			"home",
+			prompting.RulePermissionMap{
+				"read": &prompting.RulePermissionEntry{
+					Outcome:    prompting.OutcomeAllow,
+					Lifespan:   prompting.LifespanForever,
+					Expiration: time.Now().Add(time.Second),
+				},
+			},
+			"invalid expiration: cannot have specified expiration.*",
+		},
+		{
+			"home",
+			prompting.RulePermissionMap{
+				"read": &prompting.RulePermissionEntry{
+					Outcome:  prompting.OutcomeAllow,
+					Lifespan: prompting.LifespanSingle,
+				},
+			},
+			`cannot create rule with lifespan "single"`,
+		},
+		{
+			"home",
+			prompting.RulePermissionMap{
+				"read": &prompting.RulePermissionEntry{
+					Outcome:    prompting.OutcomeType("bar"),
+					Lifespan:   prompting.LifespanTimespan,
+					Expiration: time.Now().Add(-time.Second),
+				},
+			},
+			`invalid outcome: "bar"`,
+		},
+	}
+	for _, testCase := range cases {
+		constraints := &prompting.RuleConstraints{
+			PathPattern: validPathPattern,
+			Permissions: testCase.perms,
+		}
+		expired, err = constraints.ValidateForInterface(testCase.iface, time.Now())
+		c.Check(err, ErrorMatches, testCase.errStr)
+		c.Check(expired, Equals, false)
+	}
+
+	// Check missing path pattern
+	constraints = &prompting.RuleConstraints{
+		Permissions: prompting.RulePermissionMap{
+			"read": &prompting.RulePermissionEntry{
+				Outcome:  prompting.OutcomeAllow,
+				Lifespan: prompting.LifespanForever,
+			},
+		},
+	}
+	_, err = constraints.ValidateForInterface("home", time.Now())
+	c.Check(err, ErrorMatches, `invalid path pattern: no path pattern: ""`)
+}
+
+func (s *constraintsSuite) TestRuleConstraintsValidateForInterfaceExpiration(c *C) {
+	pathPattern := mustParsePathPattern(c, "/path/to/foo")
+	currTime := time.Now()
+
+	for _, testCase := range []struct {
+		perms    prompting.RulePermissionMap
+		expired  bool
+		expected prompting.RulePermissionMap
+	}{
+		{
+			prompting.RulePermissionMap{
+				"read": &prompting.RulePermissionEntry{
+					Outcome:  prompting.OutcomeAllow,
+					Lifespan: prompting.LifespanForever,
+				},
+			},
+			false,
+			prompting.RulePermissionMap{
+				"read": &prompting.RulePermissionEntry{
+					Outcome:  prompting.OutcomeAllow,
+					Lifespan: prompting.LifespanForever,
+				},
+			},
+		},
+		{
+			prompting.RulePermissionMap{
+				"read": &prompting.RulePermissionEntry{
+					Outcome:    prompting.OutcomeAllow,
+					Lifespan:   prompting.LifespanTimespan,
+					Expiration: currTime,
+				},
+			},
+			true,
+			prompting.RulePermissionMap{},
+		},
+		{
+			prompting.RulePermissionMap{
+				"read": &prompting.RulePermissionEntry{
+					Outcome:    prompting.OutcomeAllow,
+					Lifespan:   prompting.LifespanTimespan,
+					Expiration: currTime.Add(-time.Minute),
+				},
+				"write": &prompting.RulePermissionEntry{
+					Outcome:    prompting.OutcomeDeny,
+					Lifespan:   prompting.LifespanTimespan,
+					Expiration: currTime.Add(time.Minute),
+				},
+				"execute": &prompting.RulePermissionEntry{
+					Outcome:    prompting.OutcomeDeny,
+					Lifespan:   prompting.LifespanTimespan,
+					Expiration: currTime,
+				},
+			},
+			false,
+			prompting.RulePermissionMap{
+				"write": &prompting.RulePermissionEntry{
+					Outcome:    prompting.OutcomeDeny,
+					Lifespan:   prompting.LifespanTimespan,
+					Expiration: currTime.Add(time.Minute),
+				},
+			},
+		},
+		{
+			prompting.RulePermissionMap{
+				"read": &prompting.RulePermissionEntry{
+					Outcome:    prompting.OutcomeAllow,
+					Lifespan:   prompting.LifespanTimespan,
+					Expiration: currTime.Add(-time.Minute),
+				},
+				"write": &prompting.RulePermissionEntry{
+					Outcome:    prompting.OutcomeDeny,
+					Lifespan:   prompting.LifespanTimespan,
+					Expiration: currTime,
+				},
+				"execute": &prompting.RulePermissionEntry{
+					Outcome:    prompting.OutcomeAllow,
+					Lifespan:   prompting.LifespanTimespan,
+					Expiration: currTime,
+				},
+			},
+			true,
+			prompting.RulePermissionMap{},
+		},
+		{
+			prompting.RulePermissionMap{
+				"read": &prompting.RulePermissionEntry{
+					Outcome:    prompting.OutcomeAllow,
+					Lifespan:   prompting.LifespanTimespan,
+					Expiration: currTime.Add(-time.Minute),
+				},
+				"write": &prompting.RulePermissionEntry{
+					Outcome:    prompting.OutcomeAllow,
+					Lifespan:   prompting.LifespanTimespan,
+					Expiration: currTime.Add(time.Minute),
+				},
+				"execute": &prompting.RulePermissionEntry{
+					Outcome:  prompting.OutcomeDeny,
+					Lifespan: prompting.LifespanForever,
+				},
+			},
+			false,
+			prompting.RulePermissionMap{
+				"write": &prompting.RulePermissionEntry{
+					Outcome:    prompting.OutcomeAllow,
+					Lifespan:   prompting.LifespanTimespan,
+					Expiration: currTime.Add(time.Minute),
+				},
+				"execute": &prompting.RulePermissionEntry{
+					Outcome:  prompting.OutcomeDeny,
+					Lifespan: prompting.LifespanForever,
+				},
+			},
+		},
+	} {
+		copiedPerms := make(prompting.RulePermissionMap, len(testCase.perms))
+		for perm, entry := range testCase.perms {
+			copiedPerms[perm] = entry
+		}
+		constraints := &prompting.RuleConstraints{
+			PathPattern: pathPattern,
+			Permissions: copiedPerms,
+		}
+		expired, err := constraints.ValidateForInterface("home", currTime)
+		c.Check(err, IsNil)
+		c.Check(expired, Equals, testCase.expired, Commentf("testCase: %+v\nremaining perms: %+v", testCase, constraints.Permissions))
+		c.Check(constraints.Permissions, DeepEquals, testCase.expected, Commentf("testCase: %+v\nremaining perms: %+v", testCase, constraints.Permissions))
+	}
+}
+
+func (s *constraintsSuite) TestReplyConstraintsToConstraintsHappy(c *C) {
+	iface := "home"
+	pathPattern := mustParsePathPattern(c, "/path/to/dir/{foo*,ba?/**}")
+
+	for _, testCase := range []struct {
+		pathPattern *patterns.PathPattern
+		permissions []string
+		outcome     prompting.OutcomeType
+		lifespan    prompting.LifespanType
+		duration    string
+		expected    *prompting.Constraints
+	}{
+		{
+			permissions: []string{"read", "write", "execute"},
+			outcome:     prompting.OutcomeAllow,
+			lifespan:    prompting.LifespanForever,
+			expected: &prompting.Constraints{
+				PathPattern: pathPattern,
+				Permissions: prompting.PermissionMap{
+					"read": &prompting.PermissionEntry{
+						Outcome:  prompting.OutcomeAllow,
+						Lifespan: prompting.LifespanForever,
+					},
+					"write": &prompting.PermissionEntry{
+						Outcome:  prompting.OutcomeAllow,
+						Lifespan: prompting.LifespanForever,
+					},
+					"execute": &prompting.PermissionEntry{
+						Outcome:  prompting.OutcomeAllow,
+						Lifespan: prompting.LifespanForever,
+					},
+				},
+			},
+		},
+		{
+			permissions: []string{"write", "read"},
+			outcome:     prompting.OutcomeDeny,
+			lifespan:    prompting.LifespanTimespan,
+			duration:    "10m",
+			expected: &prompting.Constraints{
+				PathPattern: pathPattern,
+				Permissions: prompting.PermissionMap{
+					"read": &prompting.PermissionEntry{
+						Outcome:  prompting.OutcomeDeny,
+						Lifespan: prompting.LifespanTimespan,
+						Duration: "10m",
+					},
+					"write": &prompting.PermissionEntry{
+						Outcome:  prompting.OutcomeDeny,
+						Lifespan: prompting.LifespanTimespan,
+						Duration: "10m",
+					},
+				},
+			},
+		},
+	} {
+		replyConstraints := &prompting.ReplyConstraints{
+			PathPattern: pathPattern,
+			Permissions: testCase.permissions,
+		}
+		constraints, err := replyConstraints.ToConstraints(iface, testCase.outcome, testCase.lifespan, testCase.duration)
+		c.Check(err, IsNil)
+		c.Check(constraints, DeepEquals, testCase.expected)
+	}
+}
+
+func (s *constraintsSuite) TestReplyConstraintsToConstraintsUnhappy(c *C) {
+	for _, testCase := range []struct {
+		nilPattern  bool
+		permissions []string
+		iface       string
+		outcome     prompting.OutcomeType
+		lifespan    prompting.LifespanType
+		duration    string
+		errStr      string
+	}{
+		{
+			outcome: prompting.OutcomeType("foo"),
+			errStr:  `invalid outcome: "foo"`,
+		},
+		{
+			lifespan: prompting.LifespanTimespan,
+			duration: "",
+			errStr:   `invalid duration: cannot have unspecified duration when lifespan is "timespan":.*`,
+		},
+		{
+			lifespan: prompting.LifespanForever,
+			duration: "10s",
+			errStr:   `invalid duration: cannot have specified duration when lifespan is "forever":.*`,
+		},
+		{
+			nilPattern: true,
+			errStr:     `invalid path pattern: no path pattern: ""`,
+		},
+		{
+			iface:  "foo",
+			errStr: `invalid interface: "foo"`,
+		},
+		{
+			permissions: make([]string, 0),
+			errStr:      `invalid permissions for home interface: permissions list empty`,
+		},
+		{
+			permissions: []string{"read", "append", "write", "create", "execute"},
+			errStr:      `invalid permissions for home interface: "append", "create"`,
+		},
+	} {
+		replyConstraints := &prompting.ReplyConstraints{
+			PathPattern: mustParsePathPattern(c, "/path/to/foo"),
+			Permissions: []string{"read", "write", "execute"},
+		}
+		if testCase.nilPattern {
+			replyConstraints.PathPattern = nil
+		}
+		if testCase.permissions != nil {
+			replyConstraints.Permissions = testCase.permissions
+		}
+		iface := "home"
+		if testCase.iface != "" {
+			iface = testCase.iface
+		}
+		outcome := prompting.OutcomeAllow
+		if testCase.outcome != prompting.OutcomeUnset {
+			outcome = testCase.outcome
+		}
+		lifespan := prompting.LifespanForever
+		if testCase.lifespan != prompting.LifespanUnset {
+			lifespan = testCase.lifespan
+		}
+		duration := ""
+		if testCase.duration != "" {
+			duration = testCase.duration
+		}
+		result, err := replyConstraints.ToConstraints(iface, outcome, lifespan, duration)
+		c.Check(result, IsNil, Commentf("testCase: %+v", testCase))
+		c.Check(err, ErrorMatches, testCase.errStr, Commentf("testCase: %+v", testCase))
+	}
+}
+
+func (s *constraintsSuite) TestPatchRuleConstraintsHappy(c *C) {
+	origTime := time.Now()
+	patchTime := origTime.Add(time.Second)
+	iface := "home"
+
+	pathPattern := mustParsePathPattern(c, "/path/to/foo/ba?/**")
+
+	for i, testCase := range []struct {
+		initial *prompting.RuleConstraints
+		patch   *prompting.RuleConstraintsPatch
+		final   *prompting.RuleConstraints
+	}{
+		{
+			initial: &prompting.RuleConstraints{
+				PathPattern: pathPattern,
+				Permissions: prompting.RulePermissionMap{
+					"read": &prompting.RulePermissionEntry{
+						Outcome:    prompting.OutcomeAllow,
+						Lifespan:   prompting.LifespanTimespan,
+						Expiration: origTime,
+					},
+					"write": &prompting.RulePermissionEntry{
+						Outcome:    prompting.OutcomeDeny,
+						Lifespan:   prompting.LifespanTimespan,
+						Expiration: origTime.Add(-time.Second),
+					},
+				},
+			},
+			patch: &prompting.RuleConstraintsPatch{},
+			final: &prompting.RuleConstraints{
+				PathPattern: pathPattern,
+				Permissions: prompting.RulePermissionMap{
+					"read": &prompting.RulePermissionEntry{
+						Outcome:    prompting.OutcomeAllow,
+						Lifespan:   prompting.LifespanTimespan,
+						Expiration: origTime,
+					},
+					"write": &prompting.RulePermissionEntry{
+						Outcome:    prompting.OutcomeDeny,
+						Lifespan:   prompting.LifespanTimespan,
+						Expiration: origTime.Add(-time.Second), // expired perms are not pruned if patch perms are nil
+					},
+				},
+			},
+		},
+		{
+			initial: &prompting.RuleConstraints{
+				PathPattern: pathPattern,
+				Permissions: prompting.RulePermissionMap{
+					"read": &prompting.RulePermissionEntry{
+						Outcome:    prompting.OutcomeAllow,
+						Lifespan:   prompting.LifespanTimespan,
+						Expiration: patchTime.Add(time.Second),
+					},
+					"write": &prompting.RulePermissionEntry{
+						Outcome:    prompting.OutcomeDeny,
+						Lifespan:   prompting.LifespanTimespan,
+						Expiration: origTime,
+					},
+				},
+			},
+			patch: &prompting.RuleConstraintsPatch{
+				Permissions: prompting.PermissionMap{
+					"write": nil,
+					"execute": &prompting.PermissionEntry{
+						Outcome:  prompting.OutcomeDeny,
+						Lifespan: prompting.LifespanTimespan,
+						Duration: "1m",
+					},
+				},
+			},
+			final: &prompting.RuleConstraints{
+				PathPattern: pathPattern,
+				Permissions: prompting.RulePermissionMap{
+					"read": &prompting.RulePermissionEntry{
+						Outcome:    prompting.OutcomeAllow,
+						Lifespan:   prompting.LifespanTimespan,
+						Expiration: patchTime.Add(time.Second),
+					},
+					"execute": &prompting.RulePermissionEntry{
+						Outcome:    prompting.OutcomeDeny,
+						Lifespan:   prompting.LifespanTimespan,
+						Expiration: patchTime.Add(time.Minute),
+					},
+				},
+			},
+		},
+		{
+			initial: &prompting.RuleConstraints{
+				PathPattern: pathPattern,
+				Permissions: prompting.RulePermissionMap{
+					"read": &prompting.RulePermissionEntry{
+						Outcome:    prompting.OutcomeAllow,
+						Lifespan:   prompting.LifespanTimespan,
+						Expiration: patchTime.Add(time.Second),
+					},
+					"write": &prompting.RulePermissionEntry{
+						Outcome:    prompting.OutcomeDeny,
+						Lifespan:   prompting.LifespanTimespan,
+						Expiration: origTime,
+					},
+					"execute": &prompting.RulePermissionEntry{
+						Outcome:  prompting.OutcomeAllow,
+						Lifespan: prompting.LifespanForever,
+					},
+				},
+			},
+			patch: &prompting.RuleConstraintsPatch{
+				Permissions: prompting.PermissionMap{
+					"execute": &prompting.PermissionEntry{
+						Outcome:  prompting.OutcomeAllow,
+						Lifespan: prompting.LifespanForever,
+					},
+				},
+			},
+			final: &prompting.RuleConstraints{
+				PathPattern: pathPattern,
+				Permissions: prompting.RulePermissionMap{
+					"read": &prompting.RulePermissionEntry{
+						Outcome:    prompting.OutcomeAllow,
+						Lifespan:   prompting.LifespanTimespan,
+						Expiration: patchTime.Add(time.Second),
+					},
+					"execute": &prompting.RulePermissionEntry{
+						Outcome:  prompting.OutcomeAllow,
+						Lifespan: prompting.LifespanForever,
+					},
+				},
+			},
+		},
+	} {
+		patched, err := testCase.patch.PatchRuleConstraints(testCase.initial, iface, patchTime)
+		c.Check(err, IsNil, Commentf("testCase %d", i))
+		c.Check(patched, DeepEquals, testCase.final, Commentf("testCase %d", i))
+	}
+}
+
+func (s *constraintsSuite) TestPatchRuleConstraintsUnhappy(c *C) {
+	origTime := time.Now()
+	patchTime := origTime.Add(time.Second)
+	iface := "home"
+
+	pathPattern := mustParsePathPattern(c, "/path/to/foo/ba{r,z{,/**/}}")
+
+	goodRule := &prompting.RuleConstraints{
+		PathPattern: pathPattern,
+		Permissions: prompting.RulePermissionMap{
+			"read": &prompting.RulePermissionEntry{
+				Outcome:    prompting.OutcomeAllow,
+				Lifespan:   prompting.LifespanTimespan,
+				Expiration: patchTime.Add(time.Second),
+			},
+			"write": &prompting.RulePermissionEntry{
+				Outcome:    prompting.OutcomeDeny,
+				Lifespan:   prompting.LifespanTimespan,
+				Expiration: origTime,
+			},
+		},
+	}
+	goodPatch := &prompting.RuleConstraintsPatch{
+		Permissions: prompting.PermissionMap{
+			"write": nil,
+			"execute": &prompting.PermissionEntry{
+				Outcome:  prompting.OutcomeDeny,
+				Lifespan: prompting.LifespanForever,
+			},
+		},
+	}
+
+	badIface := "foo"
+	result, err := goodPatch.PatchRuleConstraints(goodRule, badIface, patchTime)
+	c.Check(err, ErrorMatches, `invalid interface: "foo"`)
+	c.Check(result, IsNil)
+
+	badPatch := &prompting.RuleConstraintsPatch{
+		Permissions: prompting.PermissionMap{
+			"read": &prompting.PermissionEntry{
+				Outcome:  prompting.OutcomeAllow,
+				Lifespan: prompting.LifespanSingle,
+			},
+			"create": &prompting.PermissionEntry{
+				Outcome:  prompting.OutcomeAllow,
+				Lifespan: prompting.LifespanForever,
+			},
+			"lock": nil, // even if invalid permission is meant to be removed, include it
+			"execute": &prompting.PermissionEntry{
+				Outcome:  prompting.OutcomeAllow,
+				Lifespan: prompting.LifespanTimespan,
+			},
+		},
+	}
+	expected := joinErrorsUnordered(`invalid duration: cannot have unspecified duration when lifespan is "timespan": ""`, `cannot create rule with lifespan "single"`) + "\n" + `invalid permissions for home interface: ("create", "lock"|"lock", "create")`
+
+	result, err = badPatch.PatchRuleConstraints(goodRule, iface, patchTime)
+	c.Check(result, IsNil)
+	c.Check(err, ErrorMatches, expected)
+}
+
+func (s *constraintsSuite) TestRulePermissionMapExpired(c *C) {
+	currTime := time.Now()
+	for _, pm := range []prompting.RulePermissionMap{
+		{},
+		{
+			"read": &prompting.RulePermissionEntry{
+				Outcome:    prompting.OutcomeAllow,
+				Lifespan:   prompting.LifespanTimespan,
+				Expiration: currTime,
+			},
+		},
+		{
+			"read": &prompting.RulePermissionEntry{
+				Outcome:    prompting.OutcomeAllow,
+				Lifespan:   prompting.LifespanTimespan,
+				Expiration: currTime.Add(-time.Second),
+			},
+			"write": &prompting.RulePermissionEntry{
+				Outcome:    prompting.OutcomeDeny,
+				Lifespan:   prompting.LifespanTimespan,
+				Expiration: currTime,
+			},
+		},
+	} {
+		c.Check(pm.Expired(currTime), Equals, true, Commentf("%+v", pm))
+	}
+
+	for _, pm := range []prompting.RulePermissionMap{
+		{
+			"read": &prompting.RulePermissionEntry{
+				Outcome:    prompting.OutcomeAllow,
+				Lifespan:   prompting.LifespanTimespan,
+				Expiration: currTime.Add(-time.Second),
+			},
+			"write": &prompting.RulePermissionEntry{
+				Outcome:  prompting.OutcomeDeny,
+				Lifespan: prompting.LifespanForever,
+			},
+		},
+		{
+			"read": &prompting.RulePermissionEntry{
+				Outcome:    prompting.OutcomeAllow,
+				Lifespan:   prompting.LifespanTimespan,
+				Expiration: currTime.Add(-time.Second),
+			},
+			"write": &prompting.RulePermissionEntry{
+				Outcome:  prompting.OutcomeDeny,
+				Lifespan: prompting.LifespanForever,
+			},
+		},
+		{
+			"read": &prompting.RulePermissionEntry{
+				Outcome:    prompting.OutcomeAllow,
+				Lifespan:   prompting.LifespanTimespan,
+				Expiration: currTime.Add(time.Second),
+			},
+		},
+	} {
+		c.Check(pm.Expired(currTime), Equals, false, Commentf("%+v", pm))
 	}
 }
 
