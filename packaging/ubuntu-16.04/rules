@@ -289,7 +289,9 @@ ifeq (,$(filter nocheck,$(DEB_BUILD_OPTIONS)))
 endif
 ifeq (,$(filter nocheck,$(DEB_BUILD_OPTIONS)))
 	# run the snap-confine tests
-	$(MAKE) -C cmd check
+	$(MAKE) -C cmd -k check
+	# and data files tests
+	$(MAKE) -C data -k check
 endif
 
 

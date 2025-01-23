@@ -116,6 +116,7 @@ check() {
   # done, not after building the tree.
   # ./run-checks --static
   TMPDIR=/tmp make -C cmd -k check
+  TMPDIR=/tmp make -C data -k check
 }
 
 package() {
