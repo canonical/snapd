@@ -723,6 +723,45 @@ func (s *constraintsSuite) TestPatchRuleConstraintsHappy(c *C) {
 			},
 			patch: &prompting.RuleConstraintsPatch{
 				Permissions: prompting.PermissionMap{
+					// Remove both existing permissions, but add a new permission
+					"read":  nil,
+					"write": nil,
+					"execute": &prompting.PermissionEntry{
+						Outcome:  prompting.OutcomeDeny,
+						Lifespan: prompting.LifespanTimespan,
+						Duration: "1m",
+					},
+				},
+			},
+			final: &prompting.RuleConstraints{
+				PathPattern: pathPattern,
+				Permissions: prompting.RulePermissionMap{
+					"execute": &prompting.RulePermissionEntry{
+						Outcome:    prompting.OutcomeDeny,
+						Lifespan:   prompting.LifespanTimespan,
+						Expiration: patchTime.Add(time.Minute),
+					},
+				},
+			},
+		},
+		{
+			initial: &prompting.RuleConstraints{
+				PathPattern: pathPattern,
+				Permissions: prompting.RulePermissionMap{
+					"read": &prompting.RulePermissionEntry{
+						Outcome:    prompting.OutcomeAllow,
+						Lifespan:   prompting.LifespanTimespan,
+						Expiration: patchTime.Add(time.Second),
+					},
+					"write": &prompting.RulePermissionEntry{
+						Outcome:    prompting.OutcomeDeny,
+						Lifespan:   prompting.LifespanTimespan,
+						Expiration: origTime,
+					},
+				},
+			},
+			patch: &prompting.RuleConstraintsPatch{
+				Permissions: prompting.PermissionMap{
 					"write": nil,
 					"execute": &prompting.PermissionEntry{
 						Outcome:  prompting.OutcomeDeny,
@@ -854,8 +893,19 @@ func (s *constraintsSuite) TestPatchRuleConstraintsUnhappy(c *C) {
 	expected := joinErrorsUnordered(`invalid duration: cannot have unspecified duration when lifespan is "timespan": ""`, `cannot create rule with lifespan "single"`) + "\n" + `invalid permissions for home interface: ("create", "lock"|"lock", "create")`
 
 	result, err = badPatch.PatchRuleConstraints(goodRule, iface, patchTime)
-	c.Check(result, IsNil)
 	c.Check(err, ErrorMatches, expected)
+	c.Check(result, IsNil)
+
+	badPatch = &prompting.RuleConstraintsPatch{
+		Permissions: prompting.PermissionMap{
+			// Remove all permissions
+			"read":  nil,
+			"write": nil,
+		},
+	}
+	result, err = badPatch.PatchRuleConstraints(goodRule, iface, patchTime)
+	c.Check(err, Equals, prompting_errors.ErrPatchedRuleNoPerms)
+	c.Check(result, IsNil)
 }
 
 func (s *constraintsSuite) TestRulePermissionMapExpired(c *C) {

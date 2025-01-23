@@ -539,6 +539,18 @@ func (s *promptingSuite) TestPromptingError(c *C) {
 			},
 		},
 		{
+			err: prompting_errors.ErrPatchedRuleNoPerms,
+			body: map[string]interface{}{
+				"result": map[string]interface{}{
+					"message": "cannot patch rule to have no permissions",
+					"kind":    "interfaces-requests-patched-rule-no-permissions",
+				},
+				"status":      "Bad Request",
+				"status-code": 400.0,
+				"type":        "error",
+			},
+		},
+		{
 			err: &prompting_errors.RequestedPathNotMatchedError{
 				Requested: "foo",
 				Replied:   "bar",

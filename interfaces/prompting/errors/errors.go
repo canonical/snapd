@@ -36,7 +36,10 @@ var (
 	ErrRuleNotFound   = errors.New("cannot find rule with the given ID")
 	ErrRuleNotAllowed = errors.New("user not allowed to request the rule with the given ID")
 
-	// Validation errors, which should never be used directly apart from
+	// Validation errors which may be returned over the API
+	ErrPatchedRuleNoPerms = errors.New("cannot patch rule to have no permissions")
+
+	// Validation errors which should never be used directly apart from
 	// checking errors.Is(), and should otherwise always be wrapped in
 	// dedicated error types defined below.
 	ErrReplyNotMatchRequestedPath        = errors.New("path pattern in reply constraints does not match originally requested path")

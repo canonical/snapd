@@ -155,13 +155,16 @@ const (
 	// ErrorKindInterfacesRequestsInvalidFields: POST body to prompting API contains invalid fields.
 	ErrorKindInterfacesRequestsInvalidFields ErrorKind = "interfaces-requests-invalid-fields"
 
+	// ErrorKindInterfacesRequestsPatchedRuleNoPermissions: patched rule has no permission
+	ErrorKindInterfacesRequestsPatchedRuleNoPermissions ErrorKind = "interfaces-requests-patched-rule-no-permissions"
+
 	// ErrorKindInterfacesRequestsReplyNotMatchRequest: the prompt reply does not match the path and/or permissions which were requested.
 	ErrorKindInterfacesRequestsReplyNotMatchRequest ErrorKind = "interfaces-requests-reply-not-match-request"
 
 	// ErrorKindInterfacesRequestsRuleConflict: a rule with conflicting path pattern and permissions already exists.
 	ErrorKindInterfacesRequestsRuleConflict ErrorKind = "interfaces-requests-rule-conflict"
 
-	// ErrorKindInterfacesRequestsRuleConflict: cannot find a snap-resource-pair when attempting to sideload a component
+	// ErrorKindMissingSnapResourcePair: cannot find a snap-resource-pair when attempting to sideload a component
 	ErrorKindMissingSnapResourcePair ErrorKind = "missing-snap-resource-pair"
 )
 
