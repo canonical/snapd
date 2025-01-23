@@ -29,16 +29,16 @@
 #define SC_SNAP_DOMAIN "snap"
 
 enum {
-	/** The name of the snap is not valid. */
-	SC_SNAP_INVALID_NAME = 1,
-	/** The instance key of the snap is not valid. */
-	SC_SNAP_INVALID_INSTANCE_KEY = 2,
-	/** The instance of the snap is not valid. */
-	SC_SNAP_INVALID_INSTANCE_NAME = 3,
-	/** System configuration is not supported. */
-	SC_SNAP_MOUNT_DIR_UNSUPPORTED = 4,
-	/** The name of the snap component is not valid. */
-	SC_SNAP_INVALID_COMPONENT = 5,
+    /** The name of the snap is not valid. */
+    SC_SNAP_INVALID_NAME = 1,
+    /** The instance key of the snap is not valid. */
+    SC_SNAP_INVALID_INSTANCE_KEY = 2,
+    /** The instance of the snap is not valid. */
+    SC_SNAP_INVALID_INSTANCE_NAME = 3,
+    /** System configuration is not supported. */
+    SC_SNAP_MOUNT_DIR_UNSUPPORTED = 4,
+    /** The name of the snap component is not valid. */
+    SC_SNAP_INVALID_COMPONENT = 5,
 };
 
 /* SNAP_NAME_LEN is the maximum length of a snap name, enforced by snapd and the
@@ -79,8 +79,7 @@ void sc_snap_name_validate(const char *snap_name, struct sc_error **errorp);
  * The error protocol is observed so if the caller doesn't provide an outgoing
  * error pointer the function will die on any error.
  **/
-void sc_instance_key_validate(const char *instance_key,
-			      struct sc_error **errorp);
+void sc_instance_key_validate(const char *instance_key, struct sc_error **errorp);
 
 /**
  * Validate the given snap component.
@@ -96,8 +95,7 @@ void sc_instance_key_validate(const char *instance_key,
  * The error protocol is observed so if the caller doesn't provide an outgoing
  * error pointer the function will die on any error.
  **/
-void sc_snap_component_validate(const char *snap_component,
-				const char *snap_instance, sc_error ** errorp);
+void sc_snap_component_validate(const char *snap_component, const char *snap_instance, sc_error **errorp);
 
 /**
  * Validate the given snap instance name.
@@ -108,8 +106,7 @@ void sc_snap_component_validate(const char *snap_component,
  * The error protocol is observed so if the caller doesn't provide an outgoing
  * error pointer the function will die on any error.
  **/
-void sc_instance_name_validate(const char *instance_name,
-			       struct sc_error **errorp);
+void sc_instance_name_validate(const char *instance_name, struct sc_error **errorp);
 
 /**
  * Validate security tag against strict naming requirements, snap name,
@@ -131,8 +128,7 @@ void sc_instance_name_validate(const char *instance_name,
  *  - <hookname must start with a lowercase letter, then may
  *   contain lowercase letters and '-'
  **/
-bool sc_security_tag_validate(const char *security_tag, const char *snap_name,
-			      const char *component_name);
+bool sc_security_tag_validate(const char *security_tag, const char *snap_name, const char *component_name);
 
 bool sc_is_hook_security_tag(const char *security_tag);
 
@@ -145,8 +141,7 @@ bool sc_is_hook_security_tag(const char *security_tag);
  *
  * For example: snap_instance => snap, just-snap => just-snap
  **/
-void sc_snap_drop_instance_key(const char *instance_name, char *snap_name,
-			       size_t snap_name_size);
+void sc_snap_drop_instance_key(const char *instance_name, char *snap_name, size_t snap_name_size);
 
 /**
  * Extract snap name and instance key out of an instance name.
@@ -160,9 +155,8 @@ void sc_snap_drop_instance_key(const char *instance_name, char *snap_name,
  *   just-name     => "just-name" & ""
  *
  **/
-void sc_snap_split_instance_name(const char *instance_name, char *snap_name,
-				 size_t snap_name_size, char *instance_key,
-				 size_t instance_key_size);
+void sc_snap_split_instance_name(const char *instance_name, char *snap_name, size_t snap_name_size, char *instance_key,
+                                 size_t instance_key_size);
 
 /**
  * Extract snap name and component name out of a snap component.
@@ -171,8 +165,7 @@ void sc_snap_split_instance_name(const char *instance_name, char *snap_name,
  *   snap+component => "snap" & "component"
  *
  **/
-void sc_snap_split_snap_component(const char *snap_component, char *snap_name,
-				  size_t snap_name_size, char *component_name,
-				  size_t component_name_size);
+void sc_snap_split_snap_component(const char *snap_component, char *snap_name, size_t snap_name_size,
+                                  char *component_name, size_t component_name_size);
 
 #endif

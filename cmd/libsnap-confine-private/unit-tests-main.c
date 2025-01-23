@@ -16,7 +16,4 @@
  */
 #include "unit-tests.h"
 
-int main(int argc, char **argv)
-{
-	return sc_run_unit_tests(&argc, &argv);
-}
+int main(int argc, char **argv) { return sc_run_unit_tests(&argc, &argv); }

@@ -28,16 +28,13 @@ void rm_rf_tmp(const char *dir);
 /**
  * Create an argc + argv pair out of a NULL terminated argument list.
  **/
-void
-    __attribute__((sentinel)) test_argc_argv(int *argcp, char ***argvp, ...);
+void __attribute__((sentinel)) test_argc_argv(int *argcp, char ***argvp, ...);
 
 typedef struct {
-	int unused;
+    int unused;
 } snap_mount_dir_fixture;
 
-void snap_mount_dir_fixture_setup(snap_mount_dir_fixture * fix,
-				  gconstpointer user_data);
-void snap_mount_dir_fixture_teardown(snap_mount_dir_fixture * fix,
-				     gconstpointer user_data);
+void snap_mount_dir_fixture_setup(snap_mount_dir_fixture *fix, gconstpointer user_data);
+void snap_mount_dir_fixture_teardown(snap_mount_dir_fixture *fix, gconstpointer user_data);
 
 #endif
