@@ -28,6 +28,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	sb "github.com/snapcore/secboot"
 	sb_plainkey "github.com/snapcore/secboot/plainkey"
@@ -52,6 +53,8 @@ var (
 	sbRenameLUKS2ContainerKey       = sb.RenameLUKS2ContainerKey
 	sbNewLUKS2KeyDataReader         = sbNewLUKS2KeyDataReaderImpl
 	sbSetProtectorKeys              = sb_plainkey.SetProtectorKeys
+	sbGetPrimaryKeyFromKernel       = sb.GetPrimaryKeyFromKernel
+	disksDevlinks                   = disks.Devlinks
 )
 
 func init() {
@@ -410,10 +413,41 @@ func DeleteKeys(node string, matches map[string]bool) error {
 	return nil
 }
 
-// FIXME: add tests
-func GetPrimaryKeyDigest(devicePath string, alg crypto.Hash) (salt []byte, digest []byte, err error) {
+func findPrimaryKey(devicePath string) ([]byte, error) {
 	const remove = false
-	p, err := sb.GetPrimaryKeyFromKernel(keyringPrefix, devicePath, remove)
+	p, err := sbGetPrimaryKeyFromKernel(keyringPrefix, devicePath, remove)
+	if err == nil {
+		return p, nil
+	}
+	if !errors.Is(err, sb.ErrKernelKeyNotFound) {
+		return nil, err
+	}
+
+	// Old kernels will use "by-partuuid" symlinks. So let's
+	// look at all the symlinks of the device.
+	devlinks, errDevlinks := disksDevlinks(devicePath)
+	if errDevlinks != nil {
+		return nil, err
+	}
+	var errDevlink error
+	for _, devlink := range devlinks {
+		if !strings.HasPrefix(devlink, "/dev/disk/by-partuuid/") {
+			continue
+		}
+		p, errDevlink = sbGetPrimaryKeyFromKernel(keyringPrefix, devlink, remove)
+		if errDevlink == nil {
+			return p, nil
+		}
+	}
+	return nil, err
+}
+
+// GetPrimaryKeyDigest retrieve the primary key for a disk from the
+// keyring and returns its digest. If the path given does not match
+// the keyring, then it will look for symlink in /dev/disk/by-partuuid
+// for that device.
+func GetPrimaryKeyDigest(devicePath string, alg crypto.Hash) (salt []byte, digest []byte, err error) {
+	p, err := findPrimaryKey(devicePath)
 	if err != nil {
 		if errors.Is(err, sb.ErrKernelKeyNotFound) {
 			return nil, nil, ErrKernelKeyNotFound
@@ -431,10 +465,12 @@ func GetPrimaryKeyDigest(devicePath string, alg crypto.Hash) (salt []byte, diges
 	return saltArray[:], h.Sum(nil), nil
 }
 
-// FIXME: add tests
+// VerifyPrimaryKeyDigest retrieve the primary key for a disk from the
+// keyring and verifies its digest. If the path given does not match
+// the keyring, then it will look for symlink in /dev/disk/by-partuuid
+// for that device.
 func VerifyPrimaryKeyDigest(devicePath string, alg crypto.Hash, salt []byte, digest []byte) (bool, error) {
-	const remove = false
-	p, err := sb.GetPrimaryKeyFromKernel(keyringPrefix, devicePath, remove)
+	p, err := findPrimaryKey(devicePath)
 	if err != nil {
 		if errors.Is(err, sb.ErrKernelKeyNotFound) {
 			return false, ErrKernelKeyNotFound

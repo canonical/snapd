@@ -417,3 +417,19 @@ func MockTpmGetCapabilityHandles(f func(tpm *sb_tpm2.Connection, firstHandle tpm
 		tpmGetCapabilityHandles = old
 	}
 }
+
+func MockSbGetPrimaryKeyFromKernel(f func(prefix string, devicePath string, remove bool) (sb.PrimaryKey, error)) (restore func()) {
+	old := sbGetPrimaryKeyFromKernel
+	sbGetPrimaryKeyFromKernel = f
+	return func() {
+		sbGetPrimaryKeyFromKernel = old
+	}
+}
+
+func MockDisksDevlinks(f func(node string) ([]string, error)) (restore func()) {
+	old := disksDevlinks
+	disksDevlinks = f
+	return func() {
+		disksDevlinks = old
+	}
+}
