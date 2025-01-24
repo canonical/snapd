@@ -33,28 +33,29 @@ var symbolPools = []string{
 	`!@$&*`,                      // replace characters (e.g. S -> $)
 }
 
-func getBase(s string) int {
-	matchedSymbolPools := make(map[string]bool, 0)
-	runes := []rune(s)
-	for i := range runes {
+func getBase(s string) (base int) {
+	// find the total size of the rune corpus composed of unique pools that
+	// match individual runes form the string
+	matchedSymbolPools := make(map[string]struct{}, 0)
+	for _, r := range s {
 		matched := false
-		for j := 0; j < len(symbolPools); j++ {
-			if strings.ContainsAny(string(runes[i]), symbolPools[j]) {
-				matchedSymbolPools[symbolPools[j]] = true
+		for _, pool := range symbolPools {
+			if strings.ContainsRune(pool, r) {
 				matched = true
+				if _, ok := matchedSymbolPools[pool]; !ok {
+					base += len([]rune(pool))
+					matchedSymbolPools[pool] = struct{}{}
+				}
 				break
 			}
 		}
 		if !matched {
 			// Account for non-ASCII characters as a pool of size one.
 			// FIXME: A better unicode-aware approach is needed.
-			matchedSymbolPools[string(runes[i])] = true
+			if _, ok := matchedSymbolPools[string(r)]; !ok {
+				base += 1
+			}
 		}
-	}
-
-	base := 0
-	for symbolPool := range matchedSymbolPools {
-		base += len([]rune(symbolPool))
 	}
 	return base
 }
