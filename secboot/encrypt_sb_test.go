@@ -350,7 +350,9 @@ func (s *keymgrSuite) TestEnsureRecoveryKey(c *C) {
 	defer secboot.MockListLUKS2ContainerRecoveryKeyNames(func(devicePath string) ([]string, error) {
 		return []string{}, nil
 	})()
+	keyringCalled := 0
 	defer secboot.MockGetDiskUnlockKeyFromKernel(func(prefix string, devicePath string, remove bool) (sb.DiskUnlockKey, error) {
+		keyringCalled++
 		return []byte{1, 2, 3, 4, 1, 2, 3, 4, 1, 2, 3, 4, 1, 2, 3, 4}, nil
 	})()
 	defer secboot.MockAddLUKS2ContainerRecoveryKey(func(devicePath string, keyslotName string, existingKey sb.DiskUnlockKey, recoveryKey sb.RecoveryKey) error {
@@ -365,6 +367,8 @@ func (s *keymgrSuite) TestEnsureRecoveryKey(c *C) {
 		{Mountpoint: "/bar", AuthorizingKeyFile: keyFilePath},
 	})
 	c.Assert(err, IsNil)
+	// Make sure that keyring is checked first for the unlock keys
+	c.Check(keyringCalled, Equals, 2)
 	c.Check(udevadmCmd.Calls(), DeepEquals, [][]string{
 		{"udevadm", "info", "--query", "property", "--name", "/dev/mapper/foo"},
 		{"udevadm", "info", "--query", "property", "--name", "/dev/mapper/bar"},
@@ -388,11 +392,43 @@ func (s *keymgrSuite) TestEnsureRecoveryKey(c *C) {
 		{Mountpoint: "/bar", AuthorizingKeyFile: keyFilePath},
 	})
 	c.Assert(err, IsNil)
+	// Make sure that keyring is checked first for the unlock keys
+	c.Check(keyringCalled, Equals, 4)
 
 	recovery, err := os.ReadFile(filepath.Join(s.d, "recovery.key"))
 	c.Assert(err, IsNil)
 
 	c.Check(recovery, DeepEquals, originalRecovery)
+}
+
+func (s *keymgrSuite) TestEnsureRecoveryKeyFallback(c *C) {
+	s.mocksForDeviceMounts(c)
+
+	defer secboot.MockListLUKS2ContainerUnlockKeyNames(func(devicePath string) ([]string, error) {
+		return []string{"default-fallback"}, nil
+	})()
+	defer secboot.MockListLUKS2ContainerRecoveryKeyNames(func(devicePath string) ([]string, error) {
+		return []string{}, nil
+	})()
+	keyringCalled := 0
+	defer secboot.MockGetDiskUnlockKeyFromKernel(func(prefix string, devicePath string, remove bool) (sb.DiskUnlockKey, error) {
+		keyringCalled++
+		return nil, sb.ErrKernelKeyNotFound
+	})()
+	defer secboot.MockAddLUKS2ContainerRecoveryKey(func(devicePath string, keyslotName string, existingKey sb.DiskUnlockKey, recoveryKey sb.RecoveryKey) error {
+		// Verify unlock key directly came from keyfile
+		c.Assert(existingKey, DeepEquals, sb.DiskUnlockKey([]byte{9, 8, 7, 1, 2, 3}))
+		return nil
+	})()
+
+	keyFilePath := filepath.Join(c.MkDir(), "key.file")
+	err := os.WriteFile(keyFilePath, []byte{9, 8, 7, 1, 2, 3}, 0644)
+	c.Assert(err, IsNil)
+	_, err = secboot.EnsureRecoveryKey(filepath.Join(s.d, "recovery.key"), []secboot.RecoveryKeyDevice{
+		{Mountpoint: "/bar", AuthorizingKeyFile: keyFilePath},
+	})
+	c.Assert(err, IsNil)
+	c.Check(keyringCalled, Equals, 1)
 }
 
 func (s *keymgrSuite) TestEnsureRecoveryKeyLegacy(c *C) {
