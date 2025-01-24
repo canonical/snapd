@@ -55,6 +55,12 @@ func NewFileLockWithMode(path string, mode os.FileMode) (*FileLock, error) {
 	return l, nil
 }
 
+// NewFileLockWithFile wraps an open file with a file lock which can be used for
+// locking.
+func NewFileLockWithFile(f *os.File) *FileLock {
+	return &FileLock{file: f}
+}
+
 // NewFileLock creates and opens the lock file given by "path" with mode 0600.
 func NewFileLock(path string) (*FileLock, error) {
 	return NewFileLockWithMode(path, 0600)
