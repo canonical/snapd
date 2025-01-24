@@ -370,12 +370,12 @@ func (s *installSuite) TestEncryptionSupportInfoWithTPM(c *C) {
 			"grade":          tc.grade,
 			"storage-safety": tc.storageSafety,
 		})
-		mockSnapdVersionByType := map[snap.Type]string{
-			snap.TypeSnapd:  tc.snapdVersion,
-			snap.TypeKernel: tc.kernelSnapdVersion,
+		mockSystemSnapdVersions := &install.SystemSnapdVersions{
+			SnapdVersion:          tc.snapdVersion,
+			SnapdInitramfsVersion: tc.kernelSnapdVersion,
 		}
 
-		res, err := install.GetEncryptionSupportInfo(mockModel, secboot.TPMProvisionFull, kernelInfo, gadgetInfo, mockSnapdVersionByType, nil)
+		res, err := install.GetEncryptionSupportInfo(mockModel, secboot.TPMProvisionFull, kernelInfo, gadgetInfo, mockSystemSnapdVersions, nil)
 		c.Assert(err, IsNil)
 		c.Check(res, DeepEquals, tc.expected, Commentf("%v", tc))
 	}
