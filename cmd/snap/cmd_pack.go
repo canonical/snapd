@@ -36,10 +36,10 @@ import (
 )
 
 type packCmd struct {
-	CheckSkeleton    bool   `long:"check-skeleton"`
-	Filename         string `long:"filename"`
-	Compression      string `long:"compression"`
-	Positional       struct {
+	CheckSkeleton bool   `long:"check-skeleton"`
+	Filename      string `long:"filename"`
+	Compression   string `long:"compression"`
+	Positional    struct {
 		SnapDir   string `positional-arg-name:"<snap-dir>"`
 		TargetDir string `positional-arg-name:"<target-dir>"`
 	} `positional-args:"yes"`
