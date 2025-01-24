@@ -603,6 +603,10 @@ func postSystemActionRemove(c *Command, systemLabel string) Response {
 
 type encryptionSupportInfoKey struct{ systemLabel string }
 
+// cachedEncryptionSupportInfoByLabel returns encryption support info for specified system from cache.
+// If no cached value exist it is computed once and reused for future calls.
+//
+// Note that the cached value is never cleared as system seeds are assumed to be immutable.
 func cachedEncryptionSupportInfoByLabel(c *Command, systemLabel string) (*install.EncryptionSupportInfo, error) {
 	c.d.state.Lock()
 	cached := c.d.state.Cached(encryptionSupportInfoKey{systemLabel})
