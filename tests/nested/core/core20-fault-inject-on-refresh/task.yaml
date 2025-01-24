@@ -47,6 +47,8 @@ environment:
 
     # refresh from store might get some kernel that have an old
     # initrd.
+    # TODO: change it to use fakestore, so we can control all the
+    # snaps we use.
     NESTED_ENABLE_SECURE_BOOT: false
     NESTED_ENABLE_TPM: false
 
