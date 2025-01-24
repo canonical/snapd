@@ -202,6 +202,20 @@ type SlotSanitizer interface {
 	BeforePrepareSlot(slot *snap.SlotInfo) error
 }
 
+// ConfigfilesUser must be implemented by Interfaces that use the configfiles backend.
+type ConfigfilesUser interface {
+	// PathPatterns is a list of globs for files that are under control of
+	// the interface. These globs apply to either the rootfs or to the
+	// mount namespace of a snap (TODO). AddPathContent from the backend is
+	// called to add files that match the pattern and that must be created.
+	// Other matching files will be removed if found.
+	//
+	// TODO it is possible that we might want to use different paths in the
+	// classic rootfs and in the mount namespace of a snap so the string
+	// could evolve to a type with path + rootfs type.
+	PathPatterns() []string
+}
+
 // StaticInfo describes various static-info of a given interface.
 //
 // The Summary must be a one-line string of length suitable for listing views.
@@ -312,6 +326,8 @@ const (
 	SecurityPolkit SecuritySystem = "polkit"
 	// SecurityLdconfig identifies the ldconfig security system.
 	SecurityLdconfig SecuritySystem = "ldconfig"
+	// SecurityConfigfiles identifies the configfiles security system.
+	SecurityConfigfiles SecuritySystem = "configfiles"
 )
 
 var isValidBusName = regexp.MustCompile(`^[a-zA-Z_-][a-zA-Z0-9_-]*(\.[a-zA-Z_-][a-zA-Z0-9_-]*)+$`).MatchString
