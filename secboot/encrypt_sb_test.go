@@ -405,7 +405,7 @@ func (s *keymgrSuite) TestEnsureRecoveryKeyFallback(c *C) {
 	s.mocksForDeviceMounts(c)
 
 	defer secboot.MockListLUKS2ContainerUnlockKeyNames(func(devicePath string) ([]string, error) {
-		return []string{"default"}, nil
+		return []string{"default-fallback"}, nil
 	})()
 	defer secboot.MockListLUKS2ContainerRecoveryKeyNames(func(devicePath string) ([]string, error) {
 		return []string{}, nil
