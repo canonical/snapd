@@ -1371,7 +1371,7 @@ func createSaveBootstrappedContainer(saveNode string) (secboot.BootstrappedConta
 func rotateSaveKeyAndDeleteOldKeys(saveMntPnt string) error {
 	hasHook, err := boot.HasFDESetupHook(nil)
 	if err != nil {
-		logger.Noticef("WARNING: cannot figure out if FDE hooks are in use: %v", err)
+		logger.Noticef("WARNING: cannot determine whether FDE hooks are in use: %v", err)
 		hasHook = false
 	}
 
