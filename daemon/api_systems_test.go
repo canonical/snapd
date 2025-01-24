@@ -1419,7 +1419,7 @@ func (s *systemsSuite) TestSystemActionCheckPassphraseError(c *check.C) {
 		},
 		{
 			passphrase: "this is a good password", unavailable: true,
-			expectedStatus: 400, expectedErrKind: "unsupported", expectedErrMsg: "target system does not support passphrases",
+			expectedStatus: 400, expectedErrKind: "unsupported", expectedErrMsg: "target system does not support passphrase authentication",
 		},
 		{
 			passphrase: "this is a good password", mockSupportErr: errors.New("mock error"),
@@ -1505,7 +1505,7 @@ func (s *systemsSuite) TestSystemActionCheckPINError(c *check.C) {
 		},
 		{
 			pin: "123456", unavailable: true,
-			expectedStatus: 400, expectedErrKind: "unsupported", expectedErrMsg: "target system does not support pins",
+			expectedStatus: 400, expectedErrKind: "unsupported", expectedErrMsg: "target system does not support PIN authentication",
 		},
 		{
 			pin: "123456", mockSupportErr: errors.New("mock error"),
@@ -1513,7 +1513,7 @@ func (s *systemsSuite) TestSystemActionCheckPINError(c *check.C) {
 		},
 		{
 			pin: "0", mockEntropyErr: errors.New("mock error"),
-			expectedStatus: 400, expectedErrKind: "invalid-pin", expectedErrMsg: "pin did not pass quality checks",
+			expectedStatus: 400, expectedErrKind: "invalid-pin", expectedErrMsg: "PIN did not pass quality checks",
 			expectedErrValue: map[string]interface{}{
 				"reasons":     []string{"low-entropy"},
 				"entropy":     expectedEntropy,

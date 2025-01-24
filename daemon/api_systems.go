@@ -642,8 +642,8 @@ func postSystemActionCheckPassphrase(c *Command, systemLabel string, req *system
 	if !encryptionInfo.PassphraseAuthAvailable {
 		return &apiError{
 			Status:  400,
-			Kind:    client.ErrorKindUnsupportedTargetSystem,
-			Message: "target system does not support passphrases",
+			Kind:    client.ErrorKindUnsupportedByTargetSystem,
+			Message: "target system does not support passphrase authentication",
 		}
 	}
 
@@ -683,8 +683,8 @@ func postSystemActionCheckPIN(c *Command, systemLabel string, req *systemActionR
 	if !encryptionInfo.PINAuthAvailable {
 		return &apiError{
 			Status:  400,
-			Kind:    client.ErrorKindUnsupportedTargetSystem,
-			Message: "target system does not support pins",
+			Kind:    client.ErrorKindUnsupportedByTargetSystem,
+			Message: "target system does not support PIN authentication",
 		}
 	}
 
@@ -697,7 +697,7 @@ func postSystemActionCheckPIN(c *Command, systemLabel string, req *systemActionR
 		return &apiError{
 			Status:  400,
 			Kind:    client.ErrorKindInvalidPIN,
-			Message: "pin did not pass quality checks",
+			Message: "PIN did not pass quality checks",
 			Value: map[string]interface{}{
 				"reasons":     reasons,
 				"entropy":     entropy,

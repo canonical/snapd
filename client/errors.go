@@ -174,7 +174,7 @@ const (
 	ErrorKindInvalidPIN ErrorKind = "invalid-pin"
 
 	// ErrorKindUnsupported: target system does not support corresponding feature (e.g. client.StorageEncryptionFeaturePassphraseAuth)
-	ErrorKindUnsupportedTargetSystem ErrorKind = "unsupported"
+	ErrorKindUnsupportedByTargetSystem ErrorKind = "unsupported"
 )
 
 // Maintenance error kinds.
