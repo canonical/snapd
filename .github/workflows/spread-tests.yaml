@@ -200,7 +200,7 @@ jobs:
       if: "${{ !inputs.use-snapd-snap-from-master && !contains(inputs.group, '-arm64') && !endsWith(inputs.group, '-fips') }}"
       with:
         name: snap-files-amd64-default-test
-        # eg. snapd_1337.2.65.1+git97.gd35b459_amd64.snap
+        # eg. snapd_1337.2.65.1+97.gd35b459_amd64.snap
         pattern: snapd_1337.*.snap
         path: "${{ github.workspace }}/built-snap"
 
@@ -210,7 +210,7 @@ jobs:
       with:
         name: snap-files-arm64-default-test
         pattern: snapd_1337.*.snap
-        # eg. snapd_1337.2.65.1+git97.gd35b459_amd64.snap
+        # eg. snapd_1337.2.65.1+97.gd35b459_amd64.snap
         path: "${{ github.workspace }}/built-snap"
 
     - name: Download built FIPS snap (amd64)
@@ -219,7 +219,7 @@ jobs:
       if: "${{ !inputs.use-snapd-snap-from-master && !contains(inputs.group, '-arm64') && endsWith(inputs.group, '-fips') }}"
       with:
         name: snap-files-amd64-FIPS-test
-        # eg. snapd_1337.2.65.1+git97.gd35b459-fips_amd64.snap
+        # eg. snapd_1337.2.65.1+97.gd35b459-fips_amd64.snap
         pattern: snapd_1337.*-fips_*.snap
         path: "${{ github.workspace }}/built-snap"
 

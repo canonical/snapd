@@ -753,7 +753,7 @@ func (*schemaSuite) TestStringBasedAlias(c *C) {
 		},
 		"snapd": {
 			"name": "snapd",
-			"version": "2.59.5+git948.gb447044",
+			"version": "2.59.5+948.gb447044",
 			"status": "inactive"
 		}
 	}

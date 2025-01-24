@@ -48,11 +48,11 @@ if command -v git >/dev/null && [ -d "$(dirname "$0")/.git" ] ; then
     # dirty and append that last, including it here will make dirty trees 
     # directly on top of tags show up with version_from_git as 2.46-dirty which
     # will not match 2.46 from the changelog and then result in a final version
-    # like 2.46+git2.46.2.46 which is silly and unhelpful
+    # like 2.46+2.46.2.46 which is silly and unhelpful
     # tracking the dirty independently like this will produce instead 2.46-dirty
-    # for a dirty tree on top of a tag, and 2.46+git83.g1671726-dirty for a 
+    # for a dirty tree on top of a tag, and 2.46+83.g1671726-dirty for a
     # commit not directly on top of a tag
-    version_from_git="$(git describe --always | sed -e 's/-/+git/;y/-/./' )"
+    version_from_git="$(git describe --always | sed -e 's/-/+/;y/-/./' )"
 
     # check if we are using a dirty tree
     if git describe --always --dirty | grep -q dirty; then
@@ -100,7 +100,7 @@ if [ -z "$version_from_user" ] && [ "$version_from_git" != "" ] && \
     else
         revno=$(git describe --always --abbrev=7|cut -d- -f2)
         commit=$(git describe --always --abbrev=7|cut -d- -f3)
-        v="${version_from_changelog}+git${revno}.${commit}"
+        v="${version_from_changelog}+${revno}.${commit}"
         o="changelog+git"
     fi
 fi
