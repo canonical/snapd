@@ -589,7 +589,11 @@ func (s *Snap) Build(sourceDir string, opts *BuildOpts) error {
 		}
 	}
 	snapType := opts.SnapType
-	if snapType != "os" && snapType != "core" && snapType != "base" {
+	switch snapType {
+	case "os", "core", "base", "snapd":
+		// -xattrs is default, but let's be explicit about it
+		cmd.Args = append(cmd.Args, "-xattrs")
+	default:
 		cmd.Args = append(cmd.Args, "-all-root", "-no-xattrs")
 	}
 
