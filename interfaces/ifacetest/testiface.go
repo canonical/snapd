@@ -22,6 +22,7 @@ package ifacetest
 import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
+	"github.com/snapcore/snapd/interfaces/configfiles"
 	"github.com/snapcore/snapd/interfaces/dbus"
 	"github.com/snapcore/snapd/interfaces/hotplug"
 	"github.com/snapcore/snapd/interfaces/kmod"
@@ -56,6 +57,13 @@ type TestInterface struct {
 	TestConnectedSlotCallback func(spec *Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error
 	TestPermanentPlugCallback func(spec *Specification, plug *snap.PlugInfo) error
 	TestPermanentSlotCallback func(spec *Specification, slot *snap.SlotInfo) error
+
+	// Support for interacting with the configfiles backend.
+
+	ConfigfilesConnectedPlugCallback func(spec *configfiles.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error
+	ConfigfilesConnectedSlotCallback func(spec *configfiles.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error
+	ConfigfilesPermanentPlugCallback func(spec *configfiles.Specification, plug *snap.PlugInfo) error
+	ConfigfilesPermanentSlotCallback func(spec *configfiles.Specification, slot *snap.SlotInfo) error
 
 	// Support for interacting with the mount backend.
 
@@ -131,6 +139,15 @@ type TestHotplugInterface struct {
 	HotplugKeyCallback            func(deviceInfo *hotplug.HotplugDeviceInfo) (snap.HotplugKey, error)
 	HandledByGadgetCallback       func(deviceInfo *hotplug.HotplugDeviceInfo, slot *snap.SlotInfo) bool
 	HotplugDeviceDetectedCallback func(deviceInfo *hotplug.HotplugDeviceInfo) (*hotplug.ProposedSlot, error)
+}
+
+// TestConfigFilesInterface is used to test the configfiles backend,
+// which needs interfaces implementing ConfigfilesUser.
+type TestConfigFilesInterface struct {
+	TestInterface
+
+	// Support for interacting with configfiles backend.
+	PathPatternsCallback func() []string
 }
 
 // String() returns the same value as Name().
@@ -213,6 +230,36 @@ func (t *TestInterface) TestPermanentPlug(spec *Specification, plug *snap.PlugIn
 func (t *TestInterface) TestPermanentSlot(spec *Specification, slot *snap.SlotInfo) error {
 	if t.TestPermanentSlotCallback != nil {
 		return t.TestPermanentSlotCallback(spec, slot)
+	}
+	return nil
+}
+
+// Support for interacting with the configfiles backend.
+
+func (t *TestInterface) ConfigfilesConnectedPlug(spec *configfiles.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
+	if t.ConfigfilesConnectedPlugCallback != nil {
+		return t.ConfigfilesConnectedPlugCallback(spec, plug, slot)
+	}
+	return nil
+}
+
+func (t *TestInterface) ConfigfilesConnectedSlot(spec *configfiles.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
+	if t.ConfigfilesConnectedSlotCallback != nil {
+		return t.ConfigfilesConnectedSlotCallback(spec, plug, slot)
+	}
+	return nil
+}
+
+func (t *TestInterface) ConfigfilesPermanentPlug(spec *configfiles.Specification, plug *snap.PlugInfo) error {
+	if t.ConfigfilesPermanentPlugCallback != nil {
+		return t.ConfigfilesPermanentPlugCallback(spec, plug)
+	}
+	return nil
+}
+
+func (t *TestInterface) ConfigfilesPermanentSlot(spec *configfiles.Specification, slot *snap.SlotInfo) error {
+	if t.ConfigfilesPermanentSlotCallback != nil {
+		return t.ConfigfilesPermanentSlotCallback(spec, slot)
 	}
 	return nil
 }
@@ -509,4 +556,13 @@ func (t *TestHotplugInterface) HandledByGadget(deviceInfo *hotplug.HotplugDevice
 		return t.HandledByGadgetCallback(deviceInfo, slot)
 	}
 	return false
+}
+
+// Support for interacting with configfiles backend.
+
+func (t *TestConfigFilesInterface) PathPatterns() []string {
+	if t.PathPatternsCallback != nil {
+		return t.PathPatternsCallback()
+	}
+	return nil
 }
