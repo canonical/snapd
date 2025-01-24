@@ -1304,19 +1304,19 @@ func (m *DeviceManager) doInstallSetupStorageEncryption(t *state.Task, _ *tomb.T
 		return fmt.Errorf("reading gadget information: %v", err)
 	}
 
-	var snapdVersionByType map[snap.Type]string
+	var systemSnapdVersions *installLogic.SystemSnapdVersions
 	// Find snapd versions for snapd and kernel snaps in the seed for
 	// the passphrase/PINs auth checks.
 	// FDE is only supported in UC20+ (i.e. Model grade is set).
-	if volumesAuthRequired && systemAndSeeds.Model.Grade() != asserts.ModelGradeUnset {
+	if systemAndSeeds.Model.Grade() != asserts.ModelGradeUnset {
 		// Snapd and kernel snaps are expected to exist in UC20+.
-		snapdVersionByType, err = snapdVersionByTypeFromSeed20(systemAndSeeds.Seed, []snap.Type{snap.TypeSnapd, snap.TypeKernel})
+		systemSnapdVersions, err = snapdVersionByTypeFromSeed20(systemAndSeeds.Seed, []snap.Type{snap.TypeSnapd, snap.TypeKernel})
 		if err != nil {
 			return err
 		}
 	}
 
-	encryptInfo, err := m.encryptionSupportInfo(systemAndSeeds.Model, secboot.TPMProvisionFull, systemAndSeeds.InfosByType[snap.TypeKernel], gadgetInfo, snapdVersionByType)
+	encryptInfo, err := m.encryptionSupportInfo(systemAndSeeds.Model, secboot.TPMProvisionFull, systemAndSeeds.InfosByType[snap.TypeKernel], gadgetInfo, systemSnapdVersions)
 	if err != nil {
 		return err
 	}

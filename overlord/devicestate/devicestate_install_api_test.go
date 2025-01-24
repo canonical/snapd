@@ -772,6 +772,12 @@ func (s *deviceMgrInstallAPISuite) testInstallSetupStorageEncryption(c *C, hasTP
 			snap.TypeSnapd:  "2.68",
 			snap.TypeKernel: "2.68",
 		}
+	} else {
+		// mock other versions to cover more cases
+		snapdVersionByType = map[snap.Type]string{
+			snap.TypeSnapd:  "2.67",
+			snap.TypeKernel: "2.66",
+		}
 	}
 	seedOpts := mockSystemSeedWithLabelOpts{
 		isClassic:          isClassic,
