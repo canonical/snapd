@@ -23,6 +23,7 @@ package secboot
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -165,18 +166,18 @@ func EnsureRecoveryKey(keyFile string, rkeyDevs []RecoveryKeyDevice) (keys.Recov
 
 		for _, device := range newDevices {
 			var unlockKey []byte
-			if device.keyFile != "" {
+			const defaultPrefix = "ubuntu-fde"
+			// always check keyring first for unlock key, otherwise fallback to using key file
+			key, err := sbGetDiskUnlockKeyFromKernel(defaultPrefix, device.node, false)
+			if errors.Is(err, sb.ErrKernelKeyNotFound) && device.keyFile != "" {
 				key, err := os.ReadFile(device.keyFile)
 				if err != nil {
-					return keys.RecoveryKey{}, fmt.Errorf("cannot get key from '%s': %v", device.keyFile, err)
+					return keys.RecoveryKey{}, fmt.Errorf("cannot get key from kernel keyring or %q: %v", device.keyFile, err)
 				}
 				unlockKey = key
+			} else if err != nil {
+				return keys.RecoveryKey{}, fmt.Errorf("cannot get key for unlocked disk: %v", err)
 			} else {
-				const defaultPrefix = "ubuntu-fde"
-				key, err := sbGetDiskUnlockKeyFromKernel(defaultPrefix, device.node, false)
-				if err != nil {
-					return keys.RecoveryKey{}, fmt.Errorf("cannot get key for unlocked disk: %v", err)
-				}
 				unlockKey = key
 			}
 
