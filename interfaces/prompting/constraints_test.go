@@ -904,7 +904,7 @@ func (s *constraintsSuite) TestPatchRuleConstraintsUnhappy(c *C) {
 		},
 	}
 	result, err = badPatch.PatchRuleConstraints(goodRule, iface, patchTime)
-	c.Check(err, Equals, prompting_errors.ErrPatchedRuleNoPerms)
+	c.Check(err, Equals, prompting_errors.ErrPatchedRuleHasNoPerms)
 	c.Check(result, IsNil)
 }
 

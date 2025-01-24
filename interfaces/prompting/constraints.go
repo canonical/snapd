@@ -255,7 +255,7 @@ func (c *RuleConstraintsPatch) PatchRuleConstraints(existing *RuleConstraints, i
 		return nil, strutil.JoinErrors(errs...)
 	}
 	if len(newPermissions) == 0 {
-		return nil, prompting_errors.ErrPatchedRuleNoPerms
+		return nil, prompting_errors.ErrPatchedRuleHasNoPerms
 	}
 	ruleConstraints.Permissions = newPermissions
 	return ruleConstraints, nil

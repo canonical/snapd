@@ -155,8 +155,8 @@ const (
 	// ErrorKindInterfacesRequestsInvalidFields: POST body to prompting API contains invalid fields.
 	ErrorKindInterfacesRequestsInvalidFields ErrorKind = "interfaces-requests-invalid-fields"
 
-	// ErrorKindInterfacesRequestsPatchedRuleNoPermissions: patched rule has no permission
-	ErrorKindInterfacesRequestsPatchedRuleNoPermissions ErrorKind = "interfaces-requests-patched-rule-no-permissions"
+	// ErrorKindInterfacesRequestsPatchedRuleHasNoPermissions: patched rule has no permission
+	ErrorKindInterfacesRequestsPatchedRuleHasNoPermissions ErrorKind = "interfaces-requests-patched-rule-has-no-permissions"
 
 	// ErrorKindInterfacesRequestsReplyNotMatchRequest: the prompt reply does not match the path and/or permissions which were requested.
 	ErrorKindInterfacesRequestsReplyNotMatchRequest ErrorKind = "interfaces-requests-reply-not-match-request"

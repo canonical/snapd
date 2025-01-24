@@ -37,7 +37,7 @@ var (
 	ErrRuleNotAllowed = errors.New("user not allowed to request the rule with the given ID")
 
 	// Validation errors which may be returned over the API
-	ErrPatchedRuleNoPerms = errors.New("cannot patch rule to have no permissions")
+	ErrPatchedRuleHasNoPerms = errors.New("cannot patch rule to have no permissions")
 
 	// Validation errors which should never be used directly apart from
 	// checking errors.Is(), and should otherwise always be wrapped in
