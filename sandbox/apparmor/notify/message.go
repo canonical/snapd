@@ -3,10 +3,13 @@ package notify
 import (
 	"bytes"
 	"encoding/binary"
+	"errors"
 	"fmt"
 
 	"github.com/snapcore/snapd/arch"
 )
+
+var ErrVersionUnset = errors.New("cannot marshal message without protocol version")
 
 // Message fields are defined as raw sized integer types as the same type may be
 // packed as 16 bit or 32 bit integer, to accommodate other fields in the
@@ -32,7 +35,7 @@ type MsgHeader struct {
 	// Version is the version of the communication protocol.
 	// Currently version 3 is implemented in the kernel, but other versions may
 	// be used in the future.
-	Version uint16
+	Version ProtocolVersion
 }
 
 const sizeofMsgHeader = 4
@@ -43,8 +46,10 @@ func (msg *MsgHeader) UnmarshalBinary(data []byte) error {
 	if err := msg.unmarshalBinaryImpl(data); err != nil {
 		return fmt.Errorf("%s: %s", prefix, err)
 	}
-	if msg.Version != 3 {
+	if !versionKnown(msg.Version) {
 		return fmt.Errorf("%s: unsupported version: %d", prefix, msg.Version)
+		// XXX: caller should also check that the version matches that of the
+		// listener which is receiving this message.
 	}
 	if int(msg.Length) != len(data) {
 		return fmt.Errorf("%s: length mismatch %d != %d",
@@ -167,9 +172,12 @@ func (msg *MsgNotificationFilter) UnmarshalBinary(data []byte) error {
 
 // MarshalBinary marshals the message into binary form.
 func (msg *MsgNotificationFilter) MarshalBinary() (data []byte, err error) {
+	if msg.Version == 0 {
+		return nil, ErrVersionUnset
+	}
 	var raw msgNotificationFilterKernel
 	packer := newStringPacker(raw)
-	raw.Version = 3
+	raw.Version = msg.Version
 	raw.ModeSet = uint32(msg.ModeSet)
 	raw.NS = packer.PackString(msg.NameSpace)
 	filter := msg.Filter
@@ -195,7 +203,7 @@ func (msg *MsgNotificationFilter) MarshalBinary() (data []byte, err error) {
 	return msgBuf.Bytes(), nil
 }
 
-// Validate returns an error if the mssage contains invalid data.
+// Validate returns an error if the message contains invalid data.
 func (msg *MsgNotificationFilter) Validate() error {
 	if !msg.ModeSet.IsValid() {
 		return fmt.Errorf("unsupported modeset: %d", msg.ModeSet)
@@ -255,7 +263,9 @@ func (msg *MsgNotification) UnmarshalBinary(data []byte) error {
 
 // MarshalBinary marshals the message into binary form.
 func (msg *MsgNotification) MarshalBinary() ([]byte, error) {
-	msg.Version = 3
+	if msg.Version == 0 {
+		return nil, ErrVersionUnset
+	}
 	msg.Length = uint16(binary.Size(*msg))
 	buf := bytes.NewBuffer(make([]byte, 0, msg.Length))
 	order := arch.Endian() // ioctl messages are native byte order, verify endianness if using for other messages
@@ -265,7 +275,7 @@ func (msg *MsgNotification) MarshalBinary() ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-// Validate returns an error if the mssage contains invalid data.
+// Validate returns an error if the message contains invalid data.
 func (msg *MsgNotification) Validate() error {
 	if !msg.NotificationType.IsValid() {
 		return fmt.Errorf("unsupported notification type: %d", msg.NotificationType)
@@ -301,6 +311,9 @@ type MsgNotificationResponse struct {
 func ResponseForRequest(req *MsgNotification) MsgNotificationResponse {
 	return MsgNotificationResponse{
 		MsgNotification: MsgNotification{
+			MsgHeader: MsgHeader{
+				Version: req.Version,
+			},
 			NotificationType: APPARMOR_NOTIF_RESP,
 			NoCache:          1,
 			ID:               req.ID,
@@ -311,7 +324,9 @@ func ResponseForRequest(req *MsgNotification) MsgNotificationResponse {
 
 // MarshalBinary marshals the message into binary form.
 func (msg *MsgNotificationResponse) MarshalBinary() ([]byte, error) {
-	msg.Version = 3
+	if msg.Version == 0 {
+		return nil, ErrVersionUnset
+	}
 	msg.Length = uint16(binary.Size(*msg))
 	buf := bytes.NewBuffer(make([]byte, 0, msg.Length))
 	order := arch.Endian() // ioctl messages are native byte order, verify endianness if using for other messages
@@ -474,9 +489,12 @@ func (msg *MsgNotificationFile) UnmarshalBinary(data []byte) error {
 }
 
 func (msg *MsgNotificationFile) MarshalBinary() ([]byte, error) {
+	if msg.Version == 0 {
+		return nil, ErrVersionUnset
+	}
 	var raw msgNotificationFileKernel
 	packer := newStringPacker(raw)
-	raw.Version = 3
+	raw.Version = msg.Version
 	raw.NotificationType = msg.NotificationType
 	raw.Signalled = msg.Signalled
 	raw.NoCache = msg.NoCache
