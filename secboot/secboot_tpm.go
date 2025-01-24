@@ -1120,12 +1120,14 @@ func FindFreeHandle() (uint32, error) {
 
 	takenHandles := make(map[uint32]bool)
 	for _, handle := range handles {
+		logger.Debugf("TPM handle %v is in use", uint32(handle))
 		takenHandles[uint32(handle)] = true
 	}
 
 	for _, tentative := range randutil.Perm(int(PCRPolicyCounterHandleRange)) {
 		handle := PCRPolicyCounterHandleStart + uint32(tentative)
 		if !takenHandles[PCRPolicyCounterHandleStart+uint32(tentative)] {
+			logger.Debugf("TPM handle is free, taking it", uint32(handle))
 			return handle, nil
 		}
 	}
