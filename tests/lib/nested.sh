@@ -1289,13 +1289,23 @@ nested_start_core_vm_unit() {
         if nested_is_secure_boot_enabled; then
             OVMF_CODE="secboot"
             if os.query is-arm; then
+                if [ -n "${NESTED_OVMF_STATE_FILE-}" ]; then
+                    echo "custom OVMF state file is not supported for arm VMs"
+                    exit 1
+                fi
+
                 if [ -z "${NESTED_KEEP_FIRMWARE_STATE-}" ] || ! [ -e "$NESTED_ASSETS_DIR/AAVMF_VARS.fd" ]; then
                     cp -f "/usr/share/AAVMF/AAVMF_VARS.fd" "$NESTED_ASSETS_DIR/AAVMF_VARS.fd"
                 fi
                 PARAM_BIOS="-drive file=/usr/share/AAVMF/AAVMF_CODE.fd,if=pflash,format=raw,unit=0,readonly=on -drive file=$NESTED_ASSETS_DIR/AAVMF_VARS.fd,if=pflash,format=raw"
             else
+                local OVMF_STATE_FILE_SOURCE
+                OVMF_STATE_FILE_SOURCE="/usr/share/OVMF/OVMF_VARS.${OVMF_VARS}.fd"
+                if [ -n "${NESTED_OVMF_STATE_FILE-}" ]; then
+                    OVMF_STATE_FILE_SOURCE="$NESTED_OVMF_STATE_FILE"
+                fi
                 if [ -z "${NESTED_KEEP_FIRMWARE_STATE-}" ] || ! [ -e "$NESTED_ASSETS_DIR/OVMF_VARS.${OVMF_VARS}.fd" ]; then
-                    cp -f "/usr/share/OVMF/OVMF_VARS.${OVMF_VARS}.fd" "$NESTED_ASSETS_DIR/OVMF_VARS.${OVMF_VARS}.fd"
+                    cp -f "$OVMF_STATE_FILE_SOURCE" "$NESTED_ASSETS_DIR/OVMF_VARS.${OVMF_VARS}.fd"
                 fi
                 PARAM_BIOS="-drive file=/usr/share/OVMF/OVMF_CODE.${OVMF_CODE}.fd,if=pflash,format=raw,unit=0,readonly=on -drive file=$NESTED_ASSETS_DIR/OVMF_VARS.${OVMF_VARS}.fd,if=pflash,format=raw"
                 PARAM_MACHINE="-machine q35${ATTR_KVM} -global ICH9-LPC.disable_s3=1"
