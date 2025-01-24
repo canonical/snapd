@@ -38,6 +38,7 @@ func (s *entropySuite) TestEntropy(c *C) {
 		{"aaaaaaaaaaaaaaaa", math.Log2(26) * 2},       // 26 lowercase pool, passphrase translates to aa after prunning
 		{"aaaaaaBBBaaaa111", math.Log2(26+26+10) * 8}, // 26+26+10 (upper,lower,digits), passphrase translates to aaBBaa11 after prunning
 		{"لينكس", math.Log2(5) * 5},                   // 5 non-ASCII character adding 1 to the base each
+		{"Hello, 世界", math.Log2(26+26+5+1+1) * 9},     // 2 non-ACII, 2*26 lowercase and uppercase, 1*5 pool of symbols
 	} {
 		c.Assert(strutil.Entropy(tc.s), Equals, tc.expectedEntropy)
 	}
