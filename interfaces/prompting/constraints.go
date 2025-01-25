@@ -541,11 +541,8 @@ func AbstractPermissionsFromAppArmorPermissions(iface string, permissions any) (
 // AbstractPermissionsToAppArmorPermissions returns AppArmor permissions
 // corresponding to the given permissions for the given interface.
 func AbstractPermissionsToAppArmorPermissions(iface string, permissions []string) (any, error) {
-	if len(permissions) == 0 {
-		availablePerms, _ := AvailablePermissions(iface)
-		// Caller should have already validated iface, so no error can occur
-		return notify.FilePermission(0), prompting_errors.NewPermissionsEmptyError(iface, availablePerms)
-	}
+	// permissions may be empty, e.g. if we're constructing allowed permissions
+	// and denying all of them.
 	filePermsMap, exists := interfaceFilePermissionsMaps[iface]
 	if !exists {
 		// Should not occur, since we already validated iface and permissions
