@@ -1359,7 +1359,7 @@ version: 1.0
 	// the info file is needed by the Ensure() loop of snapstate manager
 	snapdSnapFiles := [][]string{
 		{"usr/lib/snapd/info", `
-VERSION=2.54.3+1.g479e745-dirty
+VERSION=2.54.3+g1.479e745-dirty
 SNAPD_APPARMOR_REEXEC=1
 `},
 	}

@@ -100,7 +100,7 @@ func (s *VersionTestSuite) TestVersionCompare(c *C) {
 		// more realistic example of what we deal with in spread tests
 		// where on the left is a version from CI built snapd snap, and
 		// on the right the distro package, where snap > package
-		{"1337.2.64+81.g9b95e8c", "1337.2.64", 1, nil},
+		{"1337.2.64+g81.9b95e8c", "1337.2.64", 1, nil},
 	} {
 		res, err := strutil.VersionCompare(t.A, t.B)
 		if t.err != nil {
