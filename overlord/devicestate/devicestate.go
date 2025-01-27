@@ -54,6 +54,7 @@ import (
 	"github.com/snapcore/snapd/snap/channel"
 	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/snap/snapfile"
+	"github.com/snapcore/snapd/strutil"
 )
 
 var (
@@ -1459,11 +1460,14 @@ type recoverySystemSetup struct {
 	SnapSetupTasks []string `json:"snap-setup-tasks,omitempty"`
 	// LocalSnaps is a list of snaps that should be used to create the recovery
 	// system.
-	LocalSnaps []LocalSnap `json:"local-snaps,omitempty"`
+	LocalSnaps []snapstate.PathSnap `json:"local-snaps,omitempty"`
 	// ComponentSetupTasks is a list of task IDs that carry component setup
 	// information. Tasks could come from a remodel, or from downloading
 	// components that were required by a validation set.
 	ComponentSetupTasks []string `json:"component-setup-tasks,omitempty"`
+	// LocalComponents is a list of components that should be used to create the
+	// recovery system.
+	LocalComponents []snapstate.PathComponent `json:"local-components,omitempty"`
 	// TestSystem is set to true if the new recovery system should
 	// not be verified by rebooting into the new system. Once the system is
 	// created, it will immediately be considered a valid recovery system.
@@ -1535,6 +1539,7 @@ func createRecoverySystemTasks(st *state.State, label string, snapSetupTasks, co
 		SnapSetupTasks:      snapSetupTasks,
 		ComponentSetupTasks: compSetupTasks,
 		LocalSnaps:          opts.LocalSnaps,
+		LocalComponents:     opts.LocalComponents,
 		TestSystem:          opts.TestSystem,
 		MarkDefault:         opts.MarkDefault,
 	})
@@ -1582,7 +1587,13 @@ type CreateRecoverySystemOptions struct {
 	// the new recovery system. If provided, this list must contain any snap
 	// that is not already installed that will be needed by the new recovery
 	// system.
-	LocalSnaps []LocalSnap
+	LocalSnaps []snapstate.PathSnap
+
+	// LocalComponents is an optional list of components that will be used to
+	// create the new recovery system. If provided, this list must contain any
+	// component that is not already installed that will be needed by the new
+	// recovery system.
+	LocalComponents []snapstate.PathComponent
 
 	// TestSystem is set to true if the new recovery system should be verified
 	// by rebooting into the new system, prior to marking it as a valid recovery
@@ -1647,17 +1658,17 @@ func checkForRequiredSnapsNotPresentInModel(model *asserts.Model, vSets *snapass
 
 // CreateRecoverySystem creates a new recovery system with the given label. See
 // CreateRecoverySystemOptions for details on the options that can be provided.
-func CreateRecoverySystem(st *state.State, label string, opts CreateRecoverySystemOptions) (chg *state.Change, err error) {
+func CreateRecoverySystem(st *state.State, label string, opts CreateRecoverySystemOptions) (*state.Change, error) {
 	if err := snapstate.CheckChangeConflictRunExclusively(st, "create-recovery-system"); err != nil {
 		return nil, err
 	}
 
-	if !opts.Offline && len(opts.LocalSnaps) > 0 {
-		return nil, errors.New("locally provided snaps cannot be provided when creating a recovery system online")
+	if !opts.Offline && (len(opts.LocalSnaps) > 0 || len(opts.LocalComponents) > 0) {
+		return nil, errors.New("local snaps/components cannot be provided when creating a recovery system online")
 	}
 
 	var seeded bool
-	err = st.Get("seeded", &seeded)
+	err := st.Get("seeded", &seeded)
 	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return nil, err
 	}
@@ -1708,6 +1719,9 @@ func CreateRecoverySystem(st *state.State, label string, opts CreateRecoverySyst
 		return constraints.Revision.Unset() || current == constraints.Revision
 	}
 
+	usedLocalSnaps := make([]snapstate.PathSnap, 0, len(opts.LocalSnaps))
+	usedLocalComps := make([]snapstate.PathComponent, 0, len(opts.LocalComponents))
+
 	var downloadTSS []*state.TaskSet
 	for _, sn := range model.AllSnaps() {
 		constraints, err := valsets.Presence(sn)
@@ -1738,7 +1752,12 @@ func CreateRecoverySystem(st *state.State, label string, opts CreateRecoverySyst
 			continue
 		}
 
-		compsToDownload := make([]string, 0, len(sn.Components))
+		installedSnapValid := installed && validRevision(currentRevision, constraints.PresenceConstraint)
+
+		// keep track of the components that need to either be given to us or
+		// downloaded
+		requiredComponents := make([]string, 0, len(sn.Components))
+
 		for name, comp := range sn.Components {
 			compInstalled, currentCompRevision, err := installedComponentRevision(st, sn.Name, name)
 			if err != nil {
@@ -1757,41 +1776,95 @@ func CreateRecoverySystem(st *state.State, label string, opts CreateRecoverySyst
 			//
 			// TODO: consider making create-recovery-system aware of validation
 			// sets, allowing us to avoid requiring optional but installed components
-			required := comp.Presence == "required" || constraints.Component(name).Presence == asserts.PresenceRequired || compInstalled
+			required := comp.Presence == "required" || compConstraints.Presence == asserts.PresenceRequired || compInstalled
 			if !required {
 				continue
 			}
 
-			switch {
-			case compInstalled && validRevision(currentCompRevision, compConstraints):
-				// nothing to do!
-			case opts.Offline:
-				// TODO: verify that we have the offline component
-			default:
-				compsToDownload = append(compsToDownload, name)
+			// we must either download or have local components for all required
+			// components that are either not installed, installed at an invalid
+			// revision, or installed alongside a different snap revision. the
+			// last condition could be eliminated by creating a task that only
+			// downloads the missing snap-resource-pair assertion.
+			if compInstalled && validRevision(currentCompRevision, compConstraints) && installedSnapValid {
+				continue
 			}
+
+			requiredComponents = append(requiredComponents, name)
 		}
 
 		switch {
-		case installed && validRevision(currentRevision, constraints.PresenceConstraint):
+		case opts.Offline:
+			// offline case, everything must either already be installed or
+			// provided via the local snaps/components.
+
+			// even if the installed snap revision might be valid, we still
+			// should attempt to use the one that is provided by the caller.
+			//
+			// this matches what create-recovery-system does. it first checks
+			// for provided local snaps, and then falls back to the installed
+			// one.
+			info, localSnap, err := offlineSnapInfo(sn, constraints.Revision, opts)
+			if err != nil {
+				if !errors.Is(err, errMissingLocalSnap) || !installedSnapValid {
+					return nil, err
+				}
+
+				info, err = snapstate.CurrentInfo(st, sn.Name)
+				if err != nil {
+					return nil, err
+				}
+			} else {
+				usedLocalSnaps = append(usedLocalSnaps, localSnap)
+			}
+			tracker.Add(info)
+
+			for comp := range sn.Components {
+				cref := naming.NewComponentRef(sn.Name, comp)
+				rev := constraints.Component(comp).Revision
+
+				localComp, err := offlineComponentInfo(cref, rev, opts.LocalComponents)
+				if err != nil {
+					// we only care if the component is present if it needs to
+					// be provided.
+					if strutil.ListContains(requiredComponents, comp) {
+						return nil, err
+					}
+				} else {
+					usedLocalComps = append(usedLocalComps, localComp)
+				}
+			}
+		case installedSnapValid:
+			// online case, but the currently installed snap revision is valid
+			// in the given validation sets.
+
 			info, err := snapstate.CurrentInfo(st, sn.Name)
 			if err != nil {
 				return nil, err
 			}
 			tracker.Add(info)
-		case opts.Offline:
-			info, err := offlineSnapInfo(sn, constraints.Revision, opts)
-			if err != nil {
-				return nil, err
+
+			if len(requiredComponents) > 0 {
+				// TODO: download somewhere other than the default snap blob dir.
+				ts, err := snapstateDownloadComponents(context.TODO(), st, sn.Name, requiredComponents, dirs.SnapBlobDir, snapstate.RevisionOptions{
+					Channel:        sn.DefaultChannel,
+					ValidationSets: valsets,
+					Revision:       info.Revision,
+				}, snapstate.Options{
+					PrereqTracker: tracker,
+				})
+				if err != nil {
+					return nil, err
+				}
+				downloadTSS = append(downloadTSS, ts)
 			}
-			tracker.Add(info)
 		default:
 			// TODO: this respects the passed in validation sets, but does not
 			// currently respect refresh-control style of constraining snap
 			// revisions.
 			//
 			// TODO: download somewhere other than the default snap blob dir.
-			ts, _, err := snapstateDownload(context.TODO(), st, sn.Name, compsToDownload, dirs.SnapBlobDir, snapstate.RevisionOptions{
+			ts, _, err := snapstateDownload(context.TODO(), st, sn.Name, requiredComponents, dirs.SnapBlobDir, snapstate.RevisionOptions{
 				Channel:        sn.DefaultChannel,
 				ValidationSets: valsets,
 			}, snapstate.Options{
@@ -1805,20 +1878,6 @@ func CreateRecoverySystem(st *state.State, label string, opts CreateRecoverySyst
 			// if we go in this branch, then we'll handle downloading snaps and
 			// components at the same time.
 			continue
-		}
-
-		if len(compsToDownload) > 0 {
-			// TODO: download somewhere other than the default snap blob dir.
-			ts, err := snapstateDownloadComponents(context.TODO(), st, sn.Name, compsToDownload, dirs.SnapBlobDir, snapstate.RevisionOptions{
-				Channel:        sn.DefaultChannel,
-				ValidationSets: valsets,
-			}, snapstate.Options{
-				PrereqTracker: tracker,
-			})
-			if err != nil {
-				return nil, err
-			}
-			downloadTSS = append(downloadTSS, ts)
 		}
 	}
 
@@ -1844,7 +1903,12 @@ func CreateRecoverySystem(st *state.State, label string, opts CreateRecoverySyst
 		return nil, err
 	}
 
-	chg = st.NewChange("create-recovery-system", fmt.Sprintf("Create new recovery system with label %q", label))
+	// here we make sure that we only include the local snaps/components that
+	// are actually required.
+	opts.LocalComponents = usedLocalComps
+	opts.LocalSnaps = usedLocalSnaps
+
+	chg := st.NewChange("create-recovery-system", fmt.Sprintf("Create new recovery system with label %q", label))
 	createTS, err := createRecoverySystemTasks(st, label, snapsupTaskIDs, compsupTaskIDs, opts)
 	if err != nil {
 		return nil, err
@@ -1860,7 +1924,7 @@ func CreateRecoverySystem(st *state.State, label string, opts CreateRecoverySyst
 	return chg, nil
 }
 
-func checkForSnapIDs(model *asserts.Model, localSnaps []LocalSnap) error {
+func checkForSnapIDs(model *asserts.Model, localSnaps []snapstate.PathSnap) error {
 	for _, sn := range model.AllSnaps() {
 		if sn.ID() == "" {
 			return fmt.Errorf("cannot create recovery system from model with snap that has no snap id: %q", sn.Name)
@@ -1876,7 +1940,9 @@ func checkForSnapIDs(model *asserts.Model, localSnaps []LocalSnap) error {
 	return nil
 }
 
-func offlineSnapInfo(sn *asserts.ModelSnap, rev snap.Revision, opts CreateRecoverySystemOptions) (*snap.Info, error) {
+var errMissingLocalSnap = errors.New("missing snap from local snaps provided for offline creation of recovery system")
+
+func offlineSnapInfo(sn *asserts.ModelSnap, rev snap.Revision, opts CreateRecoverySystemOptions) (*snap.Info, snapstate.PathSnap, error) {
 	index := -1
 	for i, si := range opts.LocalSnaps {
 		if sn.ID() == si.SideInfo.SnapID {
@@ -1885,25 +1951,49 @@ func offlineSnapInfo(sn *asserts.ModelSnap, rev snap.Revision, opts CreateRecove
 		}
 	}
 	if index == -1 {
-		return nil, fmt.Errorf(
-			"missing snap from local snaps provided for offline creation of recovery system: %q, rev %v", sn.Name, rev,
-		)
+		return nil, snapstate.PathSnap{}, fmt.Errorf("%w: %q, rev %v", errMissingLocalSnap, sn.Name, rev)
 	}
 
 	localSnap := opts.LocalSnaps[index]
 
 	if !rev.Unset() && rev != localSnap.SideInfo.Revision {
-		return nil, fmt.Errorf(
+		return nil, snapstate.PathSnap{}, fmt.Errorf(
 			"snap %q does not match revision required by validation sets: %v != %v", localSnap.SideInfo.RealName, localSnap.SideInfo.Revision, rev,
 		)
 	}
 
 	s, err := snapfile.Open(localSnap.Path)
 	if err != nil {
-		return nil, err
+		return nil, snapstate.PathSnap{}, err
 	}
 
-	return snap.ReadInfoFromSnapFile(s, localSnap.SideInfo)
+	info, err := snap.ReadInfoFromSnapFile(s, localSnap.SideInfo)
+	return info, localSnap, err
+}
+
+func offlineComponentInfo(cref naming.ComponentRef, rev snap.Revision, comps []snapstate.PathComponent) (snapstate.PathComponent, error) {
+	index := -1
+	for i, si := range comps {
+		if si.SideInfo.Component == cref {
+			index = i
+			break
+		}
+	}
+	if index == -1 {
+		return snapstate.PathComponent{}, fmt.Errorf(
+			"missing component from local components provided for offline creation of recovery system: %q, rev %v", cref, rev,
+		)
+	}
+
+	comp := comps[index]
+
+	if !rev.Unset() && rev != comp.SideInfo.Revision {
+		return snapstate.PathComponent{}, fmt.Errorf(
+			"component %q does not match revision required by validation sets: %v != %v", cref, comp.SideInfo.Revision, rev,
+		)
+	}
+
+	return comp, nil
 }
 
 func installedSnapRevision(st *state.State, name string) (bool, snap.Revision, error) {

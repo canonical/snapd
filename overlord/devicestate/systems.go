@@ -237,16 +237,33 @@ type setupInfoGetter struct {
 
 func (ig *setupInfoGetter) ComponentInfo(st *state.State, cref naming.ComponentRef, snapInfo *snap.Info) (info *snap.ComponentInfo, path string, present bool, err error) {
 	// components will come from one of these places:
+	//   * passed into the task via a list of side infos (these would have
+	//     come from a user posting snaps via the API)
 	//   * have just been downloaded by a task in setup.ComponentSetupTasks
 	//   * already installed on the system
-	//
-	// TODO:COMPS: handle components passed into the task via a list of side
-	// infos (these would have come from a user posting components via the API)
+
+	logger.Debugf("requested info for component %q being installed during remodel", cref)
+	for _, l := range ig.setup.LocalComponents {
+		if l.SideInfo.Component != cref {
+			continue
+		}
+
+		snapf, err := snapfile.Open(l.Path)
+		if err != nil {
+			return nil, "", false, err
+		}
+
+		info, err := snap.ReadComponentInfoFromContainer(snapf, snapInfo, l.SideInfo)
+		if err != nil {
+			return nil, "", false, err
+		}
+
+		return info, l.Path, true, nil
+	}
 
 	// in a remodel scenario, the components may need to be fetched and thus
 	// their content can be different from what we have already installed, so we
 	// should first check the download tasks before consulting snapstate
-	logger.Debugf("requested info for component %q being installed during remodel", cref)
 	for _, tskID := range ig.setup.ComponentSetupTasks {
 		taskWithComponentSetup := st.Task(tskID)
 		compsup, snapsup, err := snapstate.TaskComponentSetup(taskWithComponentSetup)
@@ -411,7 +428,6 @@ func createSystemForModelFromValidatedSnaps(
 		// RW mount of ubuntu-seed
 		SeedDir: boot.InitramfsUbuntuSeedDir,
 		Label:   label,
-
 		// due to the way that temp files are handled in daemon, they do not
 		// have .snap or .comp extensions. this flag lets us ignore that
 		// requirement.
