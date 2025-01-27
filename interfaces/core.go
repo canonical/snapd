@@ -202,6 +202,15 @@ type SlotSanitizer interface {
 	BeforePrepareSlot(slot *snap.SlotInfo) error
 }
 
+// ConfigfilesUser must be implemented by Interfaces that use the configfiles backend.
+type ConfigfilesUser interface {
+	// PathPatterns is a list of globs for files that are under control of
+	// the interface. AddPathContent from the backend is called to add
+	// files that match the pattern and that must be created. Other
+	// matching files will be removed if found.
+	PathPatterns() []string
+}
+
 // StaticInfo describes various static-info of a given interface.
 //
 // The Summary must be a one-line string of length suitable for listing views.
@@ -310,6 +319,8 @@ const (
 	SecuritySystemd SecuritySystem = "systemd"
 	// SecurityPolkit identifies the polkit security system.
 	SecurityPolkit SecuritySystem = "polkit"
+	// SecurityPolkit identifies the polkit security system.
+	SecurityConfigfiles SecuritySystem = "configfiles"
 )
 
 var isValidBusName = regexp.MustCompile(`^[a-zA-Z_-][a-zA-Z0-9_-]*(\.[a-zA-Z_-][a-zA-Z0-9_-]*)+$`).MatchString

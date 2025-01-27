@@ -22,6 +22,7 @@ package backends
 import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
+	"github.com/snapcore/snapd/interfaces/configfiles"
 	"github.com/snapcore/snapd/interfaces/dbus"
 	"github.com/snapcore/snapd/interfaces/kmod"
 	"github.com/snapcore/snapd/interfaces/mount"
@@ -45,6 +46,7 @@ func All() []interfaces.SecurityBackend {
 		&mount.Backend{},
 		&kmod.Backend{},
 		&polkit.Backend{},
+		&configfiles.Backend{},
 	}
 
 	// TODO use something like:
