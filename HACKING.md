@@ -79,19 +79,26 @@ Snapcraft 8.x or later is expected.
 Install snapcraft:
 
 ```
-sudo snap install snapcraft
+sudo snap install snapcraft --classic
+```
+
+Install and init lxd:
+
+```
+sudo snap install lxd
+sudo lxd init --minimal
 ```
 
 Then run snapcraft:
 
 ```
-snapcraft --channel=latest/stable
+snapcraft
 ```
 
 Now the snapd snap that was just built can be installed with:
 
 ```
-snap install --dangerous snapd_*.snap
+sudo snap install --dangerous snapd_*.snap
 ```
 
 To go back to using snapd from the store instead of the custom version we 
