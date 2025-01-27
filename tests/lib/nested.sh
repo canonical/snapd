@@ -930,7 +930,7 @@ nested_create_core_vm() {
             for mycomp in $(nested_get_extra_comps); do
                 EXTRA_SNAPS="$EXTRA_SNAPS --comp $mycomp"
             done
-            if [ -n "$NESTED_KERNEL_MODULES_COMP" ]; then
+            if [ -n "$NESTED_KERNEL_MODULES_COMP" ] && [ "$(nested_get_version)" -ge "24" ]; then
                 EXTRA_SNAPS="$EXTRA_SNAPS --comp pc-kernel+${NESTED_KERNEL_MODULES_COMP}.comp"
             fi
 

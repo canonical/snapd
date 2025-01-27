@@ -74,6 +74,9 @@ restore: |
   rm -rf ~/.snap/gnupg
 
 execute: |
+  #shellcheck source=tests/lib/nested.sh
+  . "$TESTSLIB"/nested.sh
+
   remote.exec "cat /proc/cmdline" | MATCH "snapd_recovery_mode=install"
   remote.exec "cat /var/lib/snapd/modeenv" > modeenv
 
@@ -104,8 +107,10 @@ execute: |
       remote.exec stat /run/systemd/system/'writable-system\\x2ddata-snap-pc\\x2dkernel-components-mnt-efi\\x2dpstore-x1.mount'
   }
 
-  # check component from store has been early-installed
-  check_efi_pstore
+  if [ "$(nested_get_version)" -ge "24" ]; then
+      # check component from store has been early-installed
+      check_efi_pstore
+  fi
 
   if [ "${INSTALL_MODE}" != none ]; then
     # TODO: in a normal run, ubuntu-data-<someid> is used instead of

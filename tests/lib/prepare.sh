@@ -1026,7 +1026,7 @@ uc24_build_initramfs_kernel_snap() {
         cp -a ./extra-kernel-snap/* ./pc-kernel
     fi
 
-    if [ -n "$NESTED_KERNEL_MODULES_COMP" ]; then
+    if [ -n "$NESTED_KERNEL_MODULES_COMP" ] && is_test_target_core_ge 24; then
         # "split" kernel in kernel-modules component and kernel
         move_module_to_component "$NESTED_COMP_KERNEL_MODULE_NAME" "$NESTED_KERNEL_MODULES_COMP"
     fi
