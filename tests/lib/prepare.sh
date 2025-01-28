@@ -699,7 +699,7 @@ StandardOutput=journal+console
 StandardError=journal+console
 EOF
 
-    if [ "$NESTED_REPACK_FOR_FAKESTORE" = "true" ]; then
+    if [ "${NESTED_REPACK_FOR_FAKESTORE-}" = "true" ]; then
         cat <<EOF > "$UNPACK_DIR"/etc/systemd/system/snapd.service.d/store.conf
 [Service]
 Environment=SNAPPY_FORCE_API_URL=http://10.0.2.2:11028
