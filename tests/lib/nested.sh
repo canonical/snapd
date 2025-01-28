@@ -1378,7 +1378,7 @@ nested_start_core_vm_unit() {
         # Wait for passphrase prompt from serial log file.
         retry -n 120 --wait 1 sh -c "MATCH \"Please enter the passphrase\" < ${NESTED_LOGS_DIR}/serial.log"
         # Enter passphrase to continue boot.
-        echo "$EXPECT_PASSPHRASE" > /dev/tcp/localhost/7777
+        echo "$EXPECT_PASSPHRASE" | netcat -N localhost 7777
     fi
 
     local EXPECT_SHUTDOWN
@@ -1613,7 +1613,7 @@ nested_start_classic_vm() {
         # XXX: remove once we no longer support xenial hosts
         PARAM_SERIAL="-serial file:${NESTED_LOGS_DIR}/serial.log"
     else
-        PARAM_SERIAL="-chardev socket,path=${NESTED_LOGS_DIR}/serial.sock,server=on,wait=off,id=char0,logfile=${NESTED_LOGS_DIR}/serial.log,logappend=on -serial chardev:char0"
+        PARAM_SERIAL="-chardev socket,telnet=on,host=localhost,server=on,port=7777,wait=off,id=char0,logfile=${NESTED_LOGS_DIR}/serial.log,logappend=on -serial chardev:char0"
     fi
     PARAM_BIOS=""
     PARAM_TPM=""
