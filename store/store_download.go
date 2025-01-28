@@ -658,7 +658,7 @@ var downloadIcon = downloadIconImpl
 // downloadIconImpl writes an http.Request which does not require authentication
 // or a progress.Meter.
 func downloadIconImpl(ctx context.Context, name, downloadURL string, w io.ReadWriteSeeker) error {
-	url, err := url.Parse(downloadURL)
+	iconURL, err := url.Parse(downloadURL)
 	if err != nil {
 		return err
 	}
@@ -666,20 +666,16 @@ func downloadIconImpl(ctx context.Context, name, downloadURL string, w io.ReadWr
 	var finalErr error
 	startTime := time.Now()
 	for attempt := retry.Start(downloadRetryStrategy, nil); attempt.Next(); {
-		// Don't need any special snap-specific headers or download options
-		cdnHeader := ""
-		dlOpts := &DownloadOptions{}
-		reqOptions := downloadReqOpts(url, cdnHeader, dlOpts)
-
-		httputil.MaybeLogRetryAttempt(url.String(), attempt, startTime)
+		httputil.MaybeLogRetryAttempt(iconURL.String(), attempt, startTime)
 
 		if cancelled(ctx) {
 			return fmt.Errorf("the download has been cancelled: %s", ctx.Err())
 		}
 
-		cli := httputil.NewHTTPClient(nil)
+		clientOpts := &httputil.ClientOptions{} // don't need any options
+		cli := httputil.NewHTTPClient(clientOpts)
 		var resp *http.Response
-		resp, finalErr = doIconRequest(ctx, cli, reqOptions)
+		resp, finalErr = doIconRequest(ctx, cli, iconURL)
 		if cancelled(ctx) {
 			return fmt.Errorf("the download has been cancelled: %s", ctx.Err())
 		}

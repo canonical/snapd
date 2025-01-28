@@ -766,17 +766,13 @@ func (s *Store) doRequest(ctx context.Context, client *http.Client, reqOptions *
 	}
 }
 
-func doIconRequest(ctx context.Context, client *http.Client, reqOptions *requestOptions) (*http.Response, error) {
+// doIconRequest does an unauthenticated GET request to the given URL.
+func doIconRequest(ctx context.Context, client *http.Client, iconURL *url.URL) (*http.Response, error) {
+	method := "GET"
 	var body io.Reader // empty body
-	req, err := http.NewRequest(reqOptions.Method, reqOptions.URL.String(), body)
+	req, err := http.NewRequest(method, iconURL.String(), body)
 	if err != nil {
 		return nil, err
-	}
-	if reqOptions.ContentType != "" {
-		req.Header.Set("Content-Type", reqOptions.ContentType)
-	}
-	for header, value := range reqOptions.ExtraHeaders {
-		req.Header.Set(header, value)
 	}
 
 	if ctx != nil {
