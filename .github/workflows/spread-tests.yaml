@@ -175,6 +175,16 @@ jobs:
           fi
           echo RUN_TESTS="$RUN_TESTS"  >> $GITHUB_ENV
 
+    - name: Check if system is required
+      if: always()
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: |
+        required=$(gh api repos/${{ github.repository }}/rules/branches/master | \
+          jq -r '.[] | select(.type=="required_status_checks") | .parameters.required_status_checks' | \
+          grep -q "spread ${{ inputs.group }} /" && echo "req" || echo "not-req")
+        echo REQUIRED="$required" >> $GITHUB_ENV
+
     - name: Setup grafana parameters
       if: "!contains(github.event.pull_request.labels.*.name, 'Skip spread')"
       run: |
@@ -187,7 +197,7 @@ jobs:
           if [ "${{ inputs.is-fundamental }}" = 'true' ]; then
             fundamental="fund"
           fi
-          FILTERED_LOG_FILE="spread_${CHANGE_ID}_${fundamental}_n${{ github.run_attempt }}.filtered.log"
+          FILTERED_LOG_FILE="spread_${CHANGE_ID}_${fundamental}_${REQUIRED}_n${{ github.run_attempt }}.filtered.log"
           # The log-filter tool is used to filter the spread logs to be stored
           echo FILTER_PARAMS="-o $FILTERED_LOG_FILE -e Debug -e WARNING: -f Failed=NO_LINES -f Error=NO_LINES"  >> $GITHUB_ENV
           echo FILTERED_LOG_FILE="$FILTERED_LOG_FILE"  >> $GITHUB_ENV
