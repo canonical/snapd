@@ -182,7 +182,7 @@ jobs:
       run: |
         required=$(gh api repos/${{ github.repository }}/rules/branches/master | \
           jq -r '.[] | select(.type=="required_status_checks") | .parameters.required_status_checks' | \
-          grep -q "spread ${{ inputs.group }} /" && echo "req" || echo "")
+          grep -q "spread ${{ inputs.group }} /" && echo "req" || echo "not-req")
         echo REQUIRED="$required" >> $GITHUB_ENV
 
     - name: Setup grafana parameters
