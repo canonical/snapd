@@ -231,6 +231,7 @@ jobs:
         done
 
     - name: Run spread tests
+      id: run-spread-tests
       if: "!contains(github.event.pull_request.labels.*.name, 'Skip spread')"
       env:
           SPREAD_GOOGLE_KEY: ${{ secrets.SPREAD_GOOGLE_KEY }}
@@ -358,7 +359,7 @@ jobs:
         key: "${{ github.job }}-results-${{ github.run_id }}-${{ inputs.group }}-${{ github.run_attempt }}"
 
     - name: Save spread.json as an artifact
-      if: ${{ always() && github.event.pull_request.number && env.TEST_FAILED == 'true' }}
+      if: ${{ failure() && steps.run-spread-tests.outcome == 'failure' && github.event.pull_request.number && env.TEST_FAILED == 'true' }}
       uses: actions/upload-artifact@v4
       with:
         name: "spread-json-${{ github.run_id }}-${{ github.run_attempt }}-${{ inputs.group }}" 
