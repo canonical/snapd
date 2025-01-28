@@ -206,18 +206,42 @@ func (o *VolumesAuthOptions) Validate() error {
 	return nil
 }
 
-// ValidatePassphraseOrPINEntropy checks quality of given passphrase or PIN based on their entropy.
-func ValidatePassphraseOrPINEntropy(mode AuthMode, value string) (entropy, minEntropy float64, err error) {
-	minEntropy = 42
+type AuthQualityErrorReason string
+
+const (
+	AuthQualityErrorReasonLowEntropy AuthQualityErrorReason = "low-entropy"
+)
+
+type AuthQualityError struct {
+	Reasons             []AuthQualityErrorReason
+	Entropy, MinEntropy float64
+
+	err error
+}
+
+func (e *AuthQualityError) Error() string {
+	return e.err.Error()
+}
+
+// ValidatePassphraseOrPINEntropy checks quality of given passphrase or PIN based
+// on their entropy. An AuthQualityError error is returned which contains more
+// information about the given passphrase or PIN quality.
+func ValidatePassphraseOrPINEntropy(mode AuthMode, value string) error {
+	var minEntropy float64 = 42
 	if mode == AuthModePIN {
 		minEntropy = 13.3
 	}
 
 	// FIXME: The quality checks need to be revisited to properly support unicode and be more robust.
-	entropy = strutil.Entropy(value)
-	if entropy < minEntropy {
-		err = fmt.Errorf("calculated entropy (%.2f) is less than the required minimum entropy (%.2f) for the %q authentication mode", entropy, minEntropy, mode)
+	entropy := strutil.Entropy(value)
+	if entropy >= minEntropy {
+		return nil
 	}
 
-	return entropy, minEntropy, err
+	return &AuthQualityError{
+		Reasons:    []AuthQualityErrorReason{AuthQualityErrorReasonLowEntropy},
+		Entropy:    entropy,
+		MinEntropy: minEntropy,
+		err:        fmt.Errorf("calculated entropy (%.2f) is less than the required minimum entropy (%.2f) for the %q authentication mode", entropy, minEntropy, mode),
+	}
 }

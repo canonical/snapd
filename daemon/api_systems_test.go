@@ -1407,7 +1407,6 @@ func (s *systemsSuite) TestSystemActionCheckPassphraseError(c *check.C) {
 		expectedErrValue interface{}
 
 		mockSupportErr error
-		mockEntropyErr error
 	}{
 		{
 			noLabel:        true,
@@ -1426,10 +1425,10 @@ func (s *systemsSuite) TestSystemActionCheckPassphraseError(c *check.C) {
 			expectedStatus: 500, expectedErrMsg: "mock error",
 		},
 		{
-			passphrase: "bad-passphrase", mockEntropyErr: errors.New("mock error"),
+			passphrase:     "bad-passphrase",
 			expectedStatus: 400, expectedErrKind: "invalid-passphrase", expectedErrMsg: "passphrase did not pass quality checks",
 			expectedErrValue: map[string]interface{}{
-				"reasons":     []string{"low-entropy"},
+				"reasons":     []device.AuthQualityErrorReason{device.AuthQualityErrorReasonLowEntropy},
 				"entropy":     expectedEntropy,
 				"min-entropy": expectedMinEntropy,
 			},
@@ -1450,9 +1449,13 @@ func (s *systemsSuite) TestSystemActionCheckPassphraseError(c *check.C) {
 		})
 		defer restore()
 
-		restore = daemon.MockDeviceValidatePassphraseOrPINEntropy(func(mode device.AuthMode, s string) (float64, float64, error) {
+		restore = daemon.MockDeviceValidatePassphraseOrPINEntropy(func(mode device.AuthMode, s string) error {
 			c.Check(mode, check.Equals, device.AuthModePassphrase)
-			return expectedEntropy, expectedMinEntropy, tc.mockEntropyErr
+			return &device.AuthQualityError{
+				Reasons:    []device.AuthQualityErrorReason{device.AuthQualityErrorReasonLowEntropy},
+				Entropy:    expectedEntropy,
+				MinEntropy: expectedMinEntropy,
+			}
 		})
 		defer restore()
 
@@ -1493,7 +1496,6 @@ func (s *systemsSuite) TestSystemActionCheckPINError(c *check.C) {
 		expectedErrValue interface{}
 
 		mockSupportErr error
-		mockEntropyErr error
 	}{
 		{
 			noLabel:        true,
@@ -1512,10 +1514,10 @@ func (s *systemsSuite) TestSystemActionCheckPINError(c *check.C) {
 			expectedStatus: 500, expectedErrMsg: "mock error",
 		},
 		{
-			pin: "0", mockEntropyErr: errors.New("mock error"),
+			pin:            "0",
 			expectedStatus: 400, expectedErrKind: "invalid-pin", expectedErrMsg: "PIN did not pass quality checks",
 			expectedErrValue: map[string]interface{}{
-				"reasons":     []string{"low-entropy"},
+				"reasons":     []device.AuthQualityErrorReason{device.AuthQualityErrorReasonLowEntropy},
 				"entropy":     expectedEntropy,
 				"min-entropy": expectedMinEntropy,
 			},
@@ -1541,9 +1543,13 @@ func (s *systemsSuite) TestSystemActionCheckPINError(c *check.C) {
 		})
 		defer restore()
 
-		restore = daemon.MockDeviceValidatePassphraseOrPINEntropy(func(mode device.AuthMode, s string) (float64, float64, error) {
+		restore = daemon.MockDeviceValidatePassphraseOrPINEntropy(func(mode device.AuthMode, s string) error {
 			c.Check(mode, check.Equals, device.AuthModePIN)
-			return expectedEntropy, expectedMinEntropy, tc.mockEntropyErr
+			return &device.AuthQualityError{
+				Reasons:    []device.AuthQualityErrorReason{device.AuthQualityErrorReasonLowEntropy},
+				Entropy:    expectedEntropy,
+				MinEntropy: expectedMinEntropy,
+			}
 		})
 		defer restore()
 

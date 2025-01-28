@@ -20,6 +20,7 @@
 package device_test
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"testing"
@@ -194,23 +195,23 @@ func (s *deviceSuite) TestVolumesAuthOptionsValidateError(c *C) {
 }
 
 func (s *deviceSuite) TestValidatePassphraseOrPINEntropy(c *C) {
-	entropy, minEntropy, err := device.ValidatePassphraseOrPINEntropy(device.AuthModePassphrase, "test")
-	c.Assert(entropy < minEntropy, Equals, true)
-	c.Assert(minEntropy, Equals, float64(42))
+	var qualityErr *device.AuthQualityError
+
+	err := device.ValidatePassphraseOrPINEntropy(device.AuthModePassphrase, "test")
+	c.Assert(errors.As(err, &qualityErr), Equals, true)
+	c.Assert(qualityErr.Entropy < qualityErr.MinEntropy, Equals, true)
+	c.Assert(qualityErr.MinEntropy, Equals, float64(42))
 	c.Assert(err, ErrorMatches, `calculated entropy .* is less than the required minimum entropy \(42.00\) for the "passphrase" authentication mode`)
 
-	entropy, minEntropy, err = device.ValidatePassphraseOrPINEntropy(device.AuthModePassphrase, "this is a good password")
-	c.Assert(entropy > minEntropy, Equals, true)
-	c.Assert(minEntropy, Equals, float64(42))
+	err = device.ValidatePassphraseOrPINEntropy(device.AuthModePassphrase, "this is a good password")
 	c.Assert(err, IsNil)
 
-	entropy, minEntropy, err = device.ValidatePassphraseOrPINEntropy(device.AuthModePIN, "1234")
-	c.Assert(entropy < minEntropy, Equals, true)
-	c.Assert(minEntropy, Equals, float64(13.3))
+	err = device.ValidatePassphraseOrPINEntropy(device.AuthModePIN, "1234")
+	c.Assert(errors.As(err, &qualityErr), Equals, true)
+	c.Assert(qualityErr.Entropy < qualityErr.MinEntropy, Equals, true)
+	c.Assert(qualityErr.MinEntropy, Equals, float64(13.3))
 	c.Assert(err, ErrorMatches, `calculated entropy .* is less than the required minimum entropy \(13.30\) for the "pin" authentication mode`)
 
-	entropy, minEntropy, err = device.ValidatePassphraseOrPINEntropy(device.AuthModePIN, "20250123")
-	c.Assert(entropy > minEntropy, Equals, true)
-	c.Assert(minEntropy, Equals, float64(13.3))
+	err = device.ValidatePassphraseOrPINEntropy(device.AuthModePIN, "20250123")
 	c.Assert(err, IsNil)
 }
