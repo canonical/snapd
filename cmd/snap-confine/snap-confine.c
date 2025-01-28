@@ -681,20 +681,25 @@ static void enter_non_classic_execution_environment(sc_invocation *inv, struct s
     // Init and check rootfs_dir, apply any fallback behaviors.
     sc_check_rootfs_dir(inv);
 
-    // Set up a device cgroup, unless the snap has been allowed to manage the
-    // device cgroup by itself.
-    struct sc_device_cgroup_options cgdevopts = {false, false};
-    sc_get_device_cgroup_setup(inv, &cgdevopts);
-    bool in_container = sc_is_in_container();
-    if (cgdevopts.self_managed) {
-        debug("device cgroup is self-managed by the snap");
-    } else if (cgdevopts.non_strict) {
-        debug("device cgroup skipped, snap in non-strict confinement");
-    } else if (in_container) {
+    if (sc_is_in_container()) {
+        // When inside a container, snapd does not mediate device access
+        // so no devices are ever tagged for a snap and no device
+        // configuration is written for snap-confine.
         debug("device cgroup skipped, executing inside a container");
     } else {
-        sc_device_cgroup_mode mode = device_cgroup_mode_for_snap(inv);
-        sc_setup_device_cgroup(inv->security_tag, mode);
+        // Set up a device cgroup, unless the snap has been allowed to manage the
+        // device cgroup by itself.
+        struct sc_device_cgroup_options cgdevopts = {false, false};
+        sc_get_device_cgroup_setup(inv, &cgdevopts);
+
+        if (cgdevopts.self_managed) {
+            debug("device cgroup is self-managed by the snap");
+        } else if (cgdevopts.non_strict) {
+            debug("device cgroup skipped, snap in non-strict confinement");
+        } else {
+            sc_device_cgroup_mode mode = device_cgroup_mode_for_snap(inv);
+            sc_setup_device_cgroup(inv->security_tag, mode);
+        }
     }
 
     /**
