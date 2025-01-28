@@ -99,7 +99,7 @@ func (s *confdbSuite) TestGetView(c *C) {
 
 			return map[string]interface{}{"ssid": t.value}, nil
 		})
-		req, err := http.NewRequest("GET", "/v2/confdbs/system/network/wifi-setup?fields=ssid", nil)
+		req, err := http.NewRequest("GET", "/v2/confdb/system/network/wifi-setup?fields=ssid", nil)
 		c.Assert(err, IsNil, cmt)
 
 		rspe := s.syncReq(c, req, nil)
@@ -127,7 +127,7 @@ func (s *confdbSuite) TestViewGetMany(c *C) {
 	})
 	defer restore()
 
-	req, err := http.NewRequest("GET", "/v2/confdbs/system/network/wifi-setup?fields=ssid,password", nil)
+	req, err := http.NewRequest("GET", "/v2/confdb/system/network/wifi-setup?fields=ssid,password", nil)
 	c.Assert(err, IsNil)
 
 	rspe := s.syncReq(c, req, nil)
@@ -152,7 +152,7 @@ func (s *confdbSuite) TestViewGetSomeFieldNotFound(c *C) {
 	})
 	defer restore()
 
-	req, err := http.NewRequest("GET", "/v2/confdbs/system/network/wifi-setup?fields=ssid,password", nil)
+	req, err := http.NewRequest("GET", "/v2/confdb/system/network/wifi-setup?fields=ssid,password", nil)
 	c.Assert(err, IsNil)
 
 	rspe := s.syncReq(c, req, nil)
@@ -177,7 +177,7 @@ func (s *confdbSuite) TestGetViewNoFieldsFound(c *C) {
 	})
 	defer restore()
 
-	req, err := http.NewRequest("GET", "/v2/confdbs/system/network/wifi-setup?fields=ssid,password", nil)
+	req, err := http.NewRequest("GET", "/v2/confdb/system/network/wifi-setup?fields=ssid,password", nil)
 	c.Assert(err, IsNil)
 
 	rspe := s.errorReq(c, req, nil)
@@ -193,7 +193,7 @@ func (s *confdbSuite) TestViewGetDatabagNotFound(c *C) {
 	})
 	defer restore()
 
-	req, err := http.NewRequest("GET", "/v2/confdbs/foo/network/wifi-setup?fields=ssid", nil)
+	req, err := http.NewRequest("GET", "/v2/confdb/foo/network/wifi-setup?fields=ssid", nil)
 	c.Assert(err, IsNil)
 
 	rspe := s.errorReq(c, req, nil)
@@ -241,7 +241,7 @@ func (s *confdbSuite) TestViewSetMany(c *C) {
 	defer restore()
 
 	buf := bytes.NewBufferString(`{"ssid": "foo", "password": "bar"}`)
-	req, err := http.NewRequest("PUT", "/v2/confdbs/system/network/wifi-setup", buf)
+	req, err := http.NewRequest("PUT", "/v2/confdb/system/network/wifi-setup", buf)
 	c.Assert(err, IsNil)
 
 	rspe := s.asyncReq(c, req, nil)
@@ -279,7 +279,7 @@ func (s *confdbSuite) TestGetViewError(c *C) {
 			return nil, t.err
 		})
 
-		req, err := http.NewRequest("GET", "/v2/confdbs/system/network/wifi-setup?fields=ssid", nil)
+		req, err := http.NewRequest("GET", "/v2/confdb/system/network/wifi-setup?fields=ssid", nil)
 		c.Assert(err, IsNil, Commentf("%s test", t.name))
 
 		rspe := s.errorReq(c, req, nil)
@@ -306,7 +306,7 @@ func (s *confdbSuite) TestGetViewMisshapenQuery(c *C) {
 	})
 	defer restore()
 
-	req, err := http.NewRequest("GET", "/v2/confdbs/system/network/wifi-setup?fields=,foo.bar,,[1].foo,foo,", nil)
+	req, err := http.NewRequest("GET", "/v2/confdb/system/network/wifi-setup?fields=,foo.bar,,[1].foo,foo,", nil)
 	c.Assert(err, IsNil)
 
 	rsp := s.syncReq(c, req, nil)
@@ -365,7 +365,7 @@ func (s *confdbSuite) TestSetView(c *C) {
 		c.Check(err, IsNil, cmt)
 
 		buf := bytes.NewBufferString(fmt.Sprintf(`{"ssid": %s}`, jsonVal))
-		req, err := http.NewRequest("PUT", "/v2/confdbs/system/network/wifi-setup", buf)
+		req, err := http.NewRequest("PUT", "/v2/confdb/system/network/wifi-setup", buf)
 		c.Check(err, IsNil, cmt)
 		req.Header.Set("Content-Type", "application/json")
 
@@ -421,7 +421,7 @@ func (s *confdbSuite) TestUnsetView(c *C) {
 	defer restore()
 
 	buf := bytes.NewBufferString(`{"ssid": null}`)
-	req, err := http.NewRequest("PUT", "/v2/confdbs/system/network/wifi-setup", buf)
+	req, err := http.NewRequest("PUT", "/v2/confdb/system/network/wifi-setup", buf)
 	c.Check(err, IsNil)
 	req.Header.Set("Content-Type", "application/json")
 
@@ -469,7 +469,7 @@ func (s *confdbSuite) TestSetViewError(c *C) {
 		cmt := Commentf("%s test", t.name)
 
 		buf := bytes.NewBufferString(`{"ssid": "foo"}`)
-		req, err := http.NewRequest("PUT", "/v2/confdbs/system/network/wifi-setup", buf)
+		req, err := http.NewRequest("PUT", "/v2/confdb/system/network/wifi-setup", buf)
 		c.Assert(err, IsNil, cmt)
 		req.Header.Set("Content-Type", "application/json")
 
@@ -505,7 +505,7 @@ func (s *confdbSuite) TestSetViewBadRequests(c *C) {
 	}
 
 	for _, tc := range tcs {
-		req, err := http.NewRequest("PUT", "/v2/confdbs/system/network/wifi-setup", tc.body)
+		req, err := http.NewRequest("PUT", "/v2/confdb/system/network/wifi-setup", tc.body)
 		req.Header.Set("Content-Type", "application/json")
 		c.Assert(err, IsNil)
 
@@ -530,7 +530,7 @@ func (s *confdbSuite) TestGetBadRequest(c *C) {
 	})
 	defer restore()
 
-	req, err := http.NewRequest("GET", "/v2/confdbs/acc/db/foo?fields=foo", &bytes.Buffer{})
+	req, err := http.NewRequest("GET", "/v2/confdb/acc/db/foo?fields=foo", &bytes.Buffer{})
 	c.Assert(err, IsNil)
 
 	rspe := s.errorReq(c, req, nil)
@@ -557,7 +557,7 @@ func (s *confdbSuite) TestSetBadRequest(c *C) {
 	defer restore()
 
 	buf := bytes.NewBufferString(`{"a.b.c": "foo"}`)
-	req, err := http.NewRequest("PUT", "/v2/confdbs/acc/db/foo", buf)
+	req, err := http.NewRequest("PUT", "/v2/confdb/acc/db/foo", buf)
 	req.Header.Set("Content-Type", "application/json")
 	c.Assert(err, IsNil)
 
@@ -577,7 +577,7 @@ func (s *confdbSuite) TestSetFailUnsetFeatureFlag(c *C) {
 	defer restore()
 
 	buf := bytes.NewBufferString(`{"a.b.c": "foo"}`)
-	req, err := http.NewRequest("PUT", "/v2/confdbs/acc/db/foo", buf)
+	req, err := http.NewRequest("PUT", "/v2/confdb/acc/db/foo", buf)
 	req.Header.Set("Content-Type", "application/json")
 	c.Assert(err, IsNil)
 
@@ -595,7 +595,7 @@ func (s *confdbSuite) TestGetFailUnsetFeatureFlag(c *C) {
 	})
 	defer restore()
 
-	req, err := http.NewRequest("GET", "/v2/confdbs/acc/db/foo?fields=my-field", nil)
+	req, err := http.NewRequest("GET", "/v2/confdb/acc/db/foo?fields=my-field", nil)
 	c.Assert(err, IsNil)
 
 	rspe := s.errorReq(c, req, nil)
@@ -614,7 +614,7 @@ func (s *confdbSuite) TestGetNoFields(c *C) {
 	})
 	defer restore()
 
-	req, err := http.NewRequest("GET", "/v2/confdbs/acc/db/foo", nil)
+	req, err := http.NewRequest("GET", "/v2/confdb/acc/db/foo", nil)
 	c.Assert(err, IsNil)
 
 	rspe := s.syncReq(c, req, nil)
