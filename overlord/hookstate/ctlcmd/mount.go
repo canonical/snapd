@@ -73,7 +73,8 @@ func matchMountPathAttribute(path string, attribute interface{}, snapInfo *snap.
 }
 
 func matchMountSourceAttribute(path string, attribute interface{}, fsType string, snapInfo *snap.Info) bool {
-	if fsType == "nfs" {
+	switch fsType {
+	case "nfs":
 		// NFS mount source AppArmor profiles expects a match for "*:**", so
 		// make sure that the attribute is unset, and the path matches the
 		// format
@@ -87,9 +88,27 @@ func matchMountSourceAttribute(path string, attribute interface{}, fsType string
 		}
 
 		return true
-	}
+	case "cifs":
+		// CIFS mount source AppArmor profiles expects a match for "//**",
+		// make sure that the attribute is unset, and the path matches the
+		// format
+		if _, ok := attribute.(string); ok {
+			return false
+		}
 
-	return matchMountPathAttribute(path, attribute, snapInfo)
+		if !strings.HasPrefix(path, "//") {
+			return false
+		}
+
+		hostSlashShare := strings.TrimPrefix(path, "//")
+		if hostSlashShare == "" {
+			return false
+		}
+
+		return true
+	default:
+		return matchMountPathAttribute(path, attribute, snapInfo)
+	}
 }
 
 // matchConnection checks whether the given mount connection attributes give
@@ -126,6 +145,11 @@ func (m *mountCommand) matchConnection(attributes map[string]interface{}) bool {
 		return false
 	}
 
+	// TODO we do exact match on the mount options, which means that plugs
+	// referencing filesystems, which may require authentication options passed
+	// in -o <option-list>, would need to spell out all authentication options
+	// directly in plug declaration. This may be unacceptable in certain
+	// scenarios, e.g. CIFS with user=foo,password=foo options.
 	if optionsIfaces, ok := attributes["options"].([]interface{}); ok {
 		var allowedOptions []string
 		for _, iface := range optionsIfaces {
