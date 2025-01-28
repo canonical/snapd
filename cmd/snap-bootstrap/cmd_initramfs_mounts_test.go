@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2019-2024 Canonical Ltd
+ * Copyright (C)20 19-2024 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -22,6 +22,7 @@ package main_test
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -40,6 +41,7 @@ import (
 	main "github.com/snapcore/snapd/cmd/snap-bootstrap"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget"
+	"github.com/snapcore/snapd/gadget/install"
 	gadgetInstall "github.com/snapcore/snapd/gadget/install"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
@@ -235,30 +237,49 @@ var (
 	mockStateContent = `{"data":{"auth":{"users":[{"id":1,"name":"mvo"}],"macaroon-key":"not-a-cookie","last-id":1}},"some":{"other":"stuff"}}`
 )
 
-func (s *baseInitramfsMountsSuite) setupSeed(c *C, modelAssertTime time.Time, gadgetSnapFiles [][]string) {
+type setupSeedOpts struct {
+	hasKModsComps bool
+}
+
+func (s *baseInitramfsMountsSuite) setupSeed(c *C, modelAssertTime time.Time, gadgetSnapFiles [][]string, opts setupSeedOpts) {
+	base := "core20"
+	channel := "20"
+	if opts.hasKModsComps {
+		base = "core24"
+		channel = "24"
+	}
 
 	// pretend /run/mnt/ubuntu-seed has a valid seed
 	s.seedDir = boot.InitramfsUbuntuSeedDir
 
-	// now create a minimal uc20 seed dir with snaps/assertions
-	seed20 := &seedtest.TestingSeed20{SeedDir: s.seedDir}
-	seed20.SetupAssertSigning("canonical")
-	restore := seed.MockTrusted(seed20.StoreSigning.Trusted)
+	// now create a minimal uc20+ seed dir with snaps/assertions
+	testSeed := &seedtest.TestingSeed20{SeedDir: s.seedDir}
+	testSeed.SetupAssertSigning("canonical")
+	restore := seed.MockTrusted(testSeed.StoreSigning.Trusted)
 	s.AddCleanup(restore)
 
 	// XXX: we don't really use this but seedtest always expects my-brand
-	seed20.Brands.Register("my-brand", brandPrivKey, map[string]interface{}{
+	testSeed.Brands.Register("my-brand", brandPrivKey, map[string]interface{}{
 		"verification": "verified",
 	})
 
 	// make sure all the assertions use the same time
-	seed20.SetSnapAssertionNow(s.snapDeclAssertsTime)
+	testSeed.SetSnapAssertionNow(s.snapDeclAssertsTime)
 
 	// add a bunch of snaps
-	seed20.MakeAssertedSnap(c, "name: snapd\nversion: 1\ntype: snapd", nil, snap.R(1), "canonical", seed20.StoreSigning.Database)
-	seed20.MakeAssertedSnap(c, "name: pc\nversion: 1\ntype: gadget\nbase: core20", gadgetSnapFiles, snap.R(1), "canonical", seed20.StoreSigning.Database)
-	seed20.MakeAssertedSnap(c, "name: pc-kernel\nversion: 1\ntype: kernel", nil, snap.R(1), "canonical", seed20.StoreSigning.Database)
-	seed20.MakeAssertedSnap(c, "name: core20\nversion: 1\ntype: base", nil, snap.R(1), "canonical", seed20.StoreSigning.Database)
+	testSeed.MakeAssertedSnap(c, "name: snapd\nversion: 1\ntype: snapd", nil, snap.R(1), "canonical", testSeed.StoreSigning.Database)
+	testSeed.MakeAssertedSnap(c, fmt.Sprintf("name: pc\nversion: 1\ntype: gadget\nbase: %s", base),
+		gadgetSnapFiles, snap.R(1), "canonical", testSeed.StoreSigning.Database)
+	testSeed.MakeAssertedSnap(c, fmt.Sprintf("name: %s\nversion: 1\ntype: base", base),
+		nil, snap.R(1), "canonical", testSeed.StoreSigning.Database)
+
+	if opts.hasKModsComps {
+		testSeed.MakeAssertedSnapWithComps(c, seedtest.SampleSnapYaml["pc-kernel=24+kmods"],
+			nil, snap.R(1), nil, "canonical", testSeed.StoreSigning.Database)
+	} else {
+		testSeed.MakeAssertedSnap(c, "name: pc-kernel\nversion: 1\ntype: kernel", nil,
+			snap.R(1), "canonical", testSeed.StoreSigning.Database)
+	}
 
 	// pretend that by default, the model uses an older timestamp than the
 	// snap assertions
@@ -267,30 +288,49 @@ func (s *baseInitramfsMountsSuite) setupSeed(c *C, modelAssertTime time.Time, ga
 	}
 
 	s.sysLabel = "20191118"
+	var kernel map[string]interface{}
+	if opts.hasKModsComps {
+		kernel = map[string]interface{}{
+			"name":            "pc-kernel",
+			"id":              testSeed.AssertedSnapID("pc-kernel"),
+			"type":            "kernel",
+			"default-channel": channel,
+			"components": map[string]interface{}{
+				"kcomp1": "required",
+				"kcomp2": "required",
+				"kcomp3": map[string]interface{}{
+					"presence": "optional",
+					"modes":    []interface{}{"ephemeral"},
+				},
+			},
+		}
+	} else {
+		kernel = map[string]interface{}{
+			"name":            "pc-kernel",
+			"id":              testSeed.AssertedSnapID("pc-kernel"),
+			"type":            "kernel",
+			"default-channel": channel,
+		}
+	}
 	model := map[string]interface{}{
 		"display-name": "my model",
 		"architecture": "amd64",
-		"base":         "core20",
+		"base":         base,
 		"timestamp":    modelAssertTime.Format(time.RFC3339),
 		"snaps": []interface{}{
-			map[string]interface{}{
-				"name":            "pc-kernel",
-				"id":              seed20.AssertedSnapID("pc-kernel"),
-				"type":            "kernel",
-				"default-channel": "20",
-			},
+			kernel,
 			map[string]interface{}{
 				"name":            "pc",
-				"id":              seed20.AssertedSnapID("pc"),
+				"id":              testSeed.AssertedSnapID("pc"),
 				"type":            "gadget",
-				"default-channel": "20",
+				"default-channel": channel,
 			}},
 	}
 	if s.isClassic {
 		model["classic"] = "true"
 		model["distribution"] = "ubuntu"
 	}
-	s.model = seed20.MakeSeed(c, s.sysLabel, "my-brand", "my-model", model, nil)
+	s.model = testSeed.MakeSeed(c, s.sysLabel, "my-brand", "my-model", model, nil)
 }
 
 func (s *baseInitramfsMountsSuite) SetUpTest(c *C) {
@@ -322,7 +362,7 @@ func (s *baseInitramfsMountsSuite) SetUpTest(c *C) {
 	s.snapDeclAssertsTime = time.Now().Add(60 * time.Minute)
 
 	// setup the seed
-	s.setupSeed(c, time.Time{}, nil)
+	s.setupSeed(c, time.Time{}, nil, setupSeedOpts{})
 
 	// Make sure we have a model assertion in the ubuntu-boot partition
 	var err error
@@ -621,6 +661,10 @@ func (s *baseInitramfsMountsSuite) ubuntuPartUUIDMount(partuuid string, mode str
 }
 
 func (s *baseInitramfsMountsSuite) makeSeedSnapSystemdMount(typ snap.Type) systemdMount {
+	return s.makeSeedSnapSystemdMountForBase(typ, "core20")
+}
+
+func (s *baseInitramfsMountsSuite) makeSeedSnapSystemdMountForBase(typ snap.Type, base string) systemdMount {
 	mnt := systemdMount{}
 	var name, dir string
 	switch typ {
@@ -628,7 +672,7 @@ func (s *baseInitramfsMountsSuite) makeSeedSnapSystemdMount(typ snap.Type) syste
 		name = "snapd"
 		dir = "snapd"
 	case snap.TypeBase:
-		name = "core20"
+		name = base
 		dir = "base"
 	case snap.TypeGadget:
 		name = "pc"
@@ -741,6 +785,306 @@ grade=signed
 	c.Check(sealedKeysLocked, Equals, true)
 
 	c.Check(logbuf.String(), testutil.Contains, "snap-bootstrap version 1.2.3 starting\n")
+}
+
+func (s *initramfsMountsSuite) TestInitramfsMountsInstallModeWithCompsHappy(c *C) {
+	failMount := false
+	s.testInitramfsMountsInstallModeWithCompsHappy(c, failMount)
+}
+
+func (s *initramfsMountsSuite) TestInitramfsMountsInstallModeWithCompsFailMount(c *C) {
+	failMount := true
+	s.testInitramfsMountsInstallModeWithCompsHappy(c, failMount)
+}
+
+func (s *initramfsMountsSuite) testInitramfsMountsInstallModeWithCompsHappy(c *C, failMount bool) {
+	var efiArch string
+	switch runtime.GOARCH {
+	case "amd64":
+		efiArch = "x64"
+	case "arm64":
+		efiArch = "aa64"
+	default:
+		c.Skip("Unknown EFI arch")
+	}
+
+	// setup the seed
+	// always remove the ubuntu-seed dir, otherwise setupSeed complains the
+	// model file already exists and can't setup the seed
+	err := os.RemoveAll(filepath.Join(boot.InitramfsUbuntuSeedDir))
+	c.Assert(err, IsNil)
+	s.setupSeed(c, time.Time{}, nil, setupSeedOpts{hasKModsComps: true})
+
+	s.mockProcCmdlineContent(c, "snapd_recovery_mode=install snapd_recovery_system="+s.sysLabel)
+
+	systemDir := filepath.Join(boot.InitramfsUbuntuSeedDir, "systems", s.sysLabel)
+	c.Assert(os.MkdirAll(filepath.Join(boot.InitramfsUbuntuSeedDir, "systems", s.sysLabel), 0755), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(systemDir, "preseed.tgz"), []byte{}, 0640), IsNil)
+
+	kernelSnapYaml := filepath.Join(boot.InitramfsRunMntDir, "kernel", "meta", "snap.yaml")
+	c.Assert(os.MkdirAll(filepath.Dir(kernelSnapYaml), 0755), IsNil)
+	kernelSnapYamlContent := seedtest.SampleSnapYaml["pc-kernel=24+kmods"]
+	c.Assert(os.WriteFile(kernelSnapYaml, []byte(kernelSnapYamlContent), 0555), IsNil)
+
+	for _, compName := range []string{"kcomp1", "kcomp2"} {
+		compFullName := fmt.Sprintf("pc-kernel+%s", compName)
+		compSnapYaml := filepath.Join(boot.InitramfsRunMntDir, fmt.Sprintf("snap-content/%s/meta/component.yaml", compFullName))
+		c.Assert(os.MkdirAll(filepath.Dir(compSnapYaml), 0755), IsNil)
+		compYamlContent := seedtest.SampleSnapYaml[compFullName]
+		c.Assert(os.WriteFile(compSnapYaml, []byte(compYamlContent), 0555), IsNil)
+	}
+
+	baseSnapYaml := filepath.Join(boot.InitramfsRunMntDir, "base", "meta", "snap.yaml")
+	c.Assert(os.MkdirAll(filepath.Dir(baseSnapYaml), 0755), IsNil)
+	baseSnapYamlContent := `{}`
+	c.Assert(os.WriteFile(baseSnapYaml, []byte(baseSnapYamlContent), 0555), IsNil)
+
+	gadgetSnapYaml := filepath.Join(boot.InitramfsRunMntDir, "gadget", "meta", "snap.yaml")
+	c.Assert(os.MkdirAll(filepath.Dir(gadgetSnapYaml), 0755), IsNil)
+	gadgetSnapYamlContent := `{}`
+	c.Assert(os.WriteFile(gadgetSnapYaml, []byte(gadgetSnapYamlContent), 0555), IsNil)
+
+	grubConf := filepath.Join(boot.InitramfsRunMntDir, "gadget", "grub.conf")
+	c.Assert(os.MkdirAll(filepath.Dir(grubConf), 0755), IsNil)
+	c.Assert(os.WriteFile(grubConf, nil, 0555), IsNil)
+
+	bootloader := filepath.Join(boot.InitramfsRunMntDir, "ubuntu-seed", "EFI", "boot", fmt.Sprintf("boot%s.efi", efiArch))
+	c.Assert(os.MkdirAll(filepath.Dir(bootloader), 0755), IsNil)
+	c.Assert(os.WriteFile(bootloader, nil, 0555), IsNil)
+	grub := filepath.Join(boot.InitramfsRunMntDir, "ubuntu-seed", "EFI", "boot", fmt.Sprintf("grub%s.efi", efiArch))
+	c.Assert(os.MkdirAll(filepath.Dir(grub), 0755), IsNil)
+	c.Assert(os.WriteFile(grub, nil, 0555), IsNil)
+
+	writeGadget(c, "ubuntu-seed", "system-seed", "")
+
+	gadgetInstallCalled := false
+	restoreGadgetInstall := main.MockGadgetInstallRun(func(model gadget.Model, gadgetRoot string, kernelSnapInfo *gadgetInstall.KernelSnapInfo, bootDevice string, options gadgetInstall.Options, observer gadget.ContentObserver, perfTimings timings.Measurer) (*gadgetInstall.InstalledSystemSideData, error) {
+		gadgetInstallCalled = true
+		c.Assert(options.Mount, Equals, true)
+		c.Assert(string(options.EncryptionType), Equals, "")
+		c.Assert(bootDevice, Equals, "")
+		c.Assert(model.Classic(), Equals, false)
+		c.Assert(string(model.Grade()), Equals, "signed")
+		c.Assert(gadgetRoot, Equals, filepath.Join(boot.InitramfsRunMntDir, "gadget"))
+		c.Assert(kernelSnapInfo, DeepEquals, &gadgetInstall.KernelSnapInfo{
+			Name:       "pc-kernel",
+			Revision:   snap.R(1),
+			MountPoint: filepath.Join(boot.InitramfsRunMntDir, "kernel"),
+			// As the drivers tree is already in the preseed tarball
+			NeedsDriversTree: false,
+			IsCore:           true,
+			ModulesComps: []install.KernelModulesComponentInfo{
+				{
+					Name:       "kcomp1",
+					Revision:   snap.R(77),
+					MountPoint: filepath.Join(boot.InitramfsRunMntDir, "snap-content/pc-kernel+kcomp1"),
+				},
+				{
+					Name:       "kcomp2",
+					Revision:   snap.R(77),
+					MountPoint: filepath.Join(boot.InitramfsRunMntDir, "snap-content/pc-kernel+kcomp2"),
+				},
+			},
+		})
+		// Simulate creation of drivers tree
+		kernelVer := "6.8.0-51-generic"
+		updatesDir := filepath.Join(dirs.GlobalRootDir,
+			"run/mnt/data/system-data/_writable_defaults/var/lib/snapd/kernel/pc-kernel/1/lib/modules", kernelVer, "updates")
+		c.Assert(os.MkdirAll(updatesDir, 0755), IsNil)
+		os.Symlink(filepath.Join(dirs.SnapMountDir,
+			"pc-kernel/components/mnt/kcomp1/77/modules", kernelVer),
+			filepath.Join(updatesDir, "kcomp1"))
+		os.Symlink(filepath.Join(dirs.SnapMountDir,
+			"pc-kernel/components/mnt/kcomp2/77/modules", kernelVer),
+			filepath.Join(updatesDir, "kcomp2"))
+		return &gadgetInstall.InstalledSystemSideData{}, nil
+	})
+	defer restoreGadgetInstall()
+
+	makeRunnableCalled := false
+	restoreMakeRunnableStandaloneSystem := main.MockMakeRunnableStandaloneSystem(func(model *asserts.Model, bootWith *boot.BootableSet, obs boot.TrustedAssetsInstallObserver) error {
+		makeRunnableCalled = true
+		c.Assert(model.Model(), Equals, "my-model")
+		c.Assert(bootWith.RecoverySystemLabel, Equals, s.sysLabel)
+		c.Assert(bootWith.BasePath, Equals, filepath.Join(s.seedDir, "snaps", "core24_1.snap"))
+		c.Assert(bootWith.KernelPath, Equals, filepath.Join(s.seedDir, "snaps", "pc-kernel_1.snap"))
+		c.Assert(bootWith.GadgetPath, Equals, filepath.Join(s.seedDir, "snaps", "pc_1.snap"))
+		c.Assert(len(bootWith.KernelMods), Equals, 2)
+		c.Check(bootWith.KernelMods, DeepEquals, []boot.BootableKModsComponents{
+			{
+				CompPlaceInfo: snap.MinimalComponentContainerPlaceInfo("kcomp1", snap.R(77), "pc-kernel"),
+				CompPath:      filepath.Join(s.seedDir, "snaps/pc-kernel+kcomp1_77.comp"),
+			},
+			{
+				CompPlaceInfo: snap.MinimalComponentContainerPlaceInfo("kcomp2", snap.R(77), "pc-kernel"),
+				CompPath:      filepath.Join(s.seedDir, "snaps/pc-kernel+kcomp2_77.comp"),
+			},
+		})
+		return nil
+	})
+	defer restoreMakeRunnableStandaloneSystem()
+
+	applyPreseedCalled := false
+	restoreApplyPreseededData := main.MockApplyPreseededData(func(preseedSeed seed.PreseedCapable, writableDir string) error {
+		applyPreseedCalled = true
+		c.Assert(preseedSeed.ArtifactPath("preseed.tgz"), Equals, filepath.Join(systemDir, "preseed.tgz"))
+		c.Assert(writableDir, Equals, filepath.Join(dirs.GlobalRootDir, "/run/mnt/data/system-data"))
+		return nil
+	})
+	defer restoreApplyPreseededData()
+
+	// ensure that we check that access to sealed keys were locked
+	sealedKeysLocked := false
+	defer main.MockSecbootLockSealedKeys(func() error {
+		sealedKeysLocked = true
+		return nil
+	})()
+
+	nextBootEnsured := false
+	defer main.MockEnsureNextBootToRunMode(func(systemLabel string) error {
+		nextBootEnsured = true
+		c.Assert(systemLabel, Equals, s.sysLabel)
+		return nil
+	})()
+
+	observeExistingTrustedRecoveryAssetsCalled := 0
+	mockObserver := &MockObserver{
+		BootLoaderSupportsEfiVariablesFunc: func() bool {
+			return true
+		},
+		ObserveExistingTrustedRecoveryAssetsFunc: func(recoveryRootDir string) error {
+			observeExistingTrustedRecoveryAssetsCalled += 1
+			return nil
+		},
+		ChosenEncryptionKeysFunc: func(key, saveKey keys.EncryptionKey) {
+		},
+		UpdateBootEntryFunc: func() error {
+			return nil
+		},
+		ObserveFunc: func(op gadget.ContentOperation, partRole, root, relativeTarget string, data *gadget.ContentChange) (gadget.ContentChangeAction, error) {
+			return gadget.ChangeApply, nil
+		},
+	}
+
+	defer main.MockBuildInstallObserver(func(model *asserts.Model, gadgetDir string, useEncryption bool) (observer gadget.ContentObserver, trustedObserver boot.TrustedAssetsInstallObserver, err error) {
+		c.Check(model.Classic(), Equals, false)
+		c.Check(string(model.Grade()), Equals, "signed")
+		c.Check(gadgetDir, Equals, filepath.Join(boot.InitramfsRunMntDir, "gadget"))
+
+		return mockObserver, mockObserver, nil
+	})()
+
+	mounts := []systemdMount{
+		s.ubuntuLabelMount("ubuntu-seed", "install"),
+		s.makeSeedSnapSystemdMount(snap.TypeSnapd),
+		s.makeSeedSnapSystemdMount(snap.TypeKernel),
+		s.makeSeedSnapSystemdMountForBase(snap.TypeBase, "core24"),
+		s.makeSeedSnapSystemdMount(snap.TypeGadget),
+		{
+			filepath.Join(s.seedDir, "snaps/pc-kernel+kcomp1_77.comp"),
+			filepath.Join(boot.InitramfsRunMntDir, "snap-content/pc-kernel+kcomp1"),
+			&main.SystemdMountOptions{ReadOnly: true,
+				Private:   true,
+				Ephemeral: true},
+			nil,
+		},
+		{
+			filepath.Join(s.seedDir, "snaps/pc-kernel+kcomp2_77.comp"),
+			filepath.Join(boot.InitramfsRunMntDir, "snap-content/pc-kernel+kcomp2"),
+			&main.SystemdMountOptions{ReadOnly: true,
+				Private:   true,
+				Ephemeral: true},
+			nil,
+		},
+		{
+			filepath.Join(s.tmpDir, "/run/mnt/ubuntu-data"),
+			boot.InitramfsDataDir,
+			bindOpts,
+			nil,
+		}}
+	if failMount {
+		mounts = []systemdMount{
+			s.ubuntuLabelMount("ubuntu-seed", "install"),
+			s.makeSeedSnapSystemdMount(snap.TypeSnapd),
+			s.makeSeedSnapSystemdMount(snap.TypeKernel),
+			s.makeSeedSnapSystemdMountForBase(snap.TypeBase, "core24"),
+			s.makeSeedSnapSystemdMount(snap.TypeGadget),
+			{
+				filepath.Join(s.seedDir, "snaps/pc-kernel+kcomp1_77.comp"),
+				filepath.Join(boot.InitramfsRunMntDir, "snap-content/pc-kernel+kcomp1"),
+				&main.SystemdMountOptions{ReadOnly: true,
+					Private:   true,
+					Ephemeral: true},
+				nil,
+			},
+			{
+				filepath.Join(s.seedDir, "snaps/pc-kernel+kcomp2_77.comp"),
+				filepath.Join(boot.InitramfsRunMntDir, "snap-content/pc-kernel+kcomp2"),
+				&main.SystemdMountOptions{ReadOnly: true,
+					Private:   true,
+					Ephemeral: true},
+				errors.New("error mounting"),
+			},
+		}
+	}
+	restore := s.mockSystemdMountSequence(c, mounts, nil)
+	defer restore()
+
+	cmd := testutil.MockCommand(c, "systemd-mount", ``)
+	defer cmd.Restore()
+
+	c.Assert(os.Remove(filepath.Join(boot.InitramfsUbuntuBootDir, "device/model")), IsNil)
+
+	_, err = main.Parser().ParseArgs([]string{"initramfs-mounts"})
+	result := true
+	expectedCallsObserve := 1
+	if failMount {
+		c.Assert(err, ErrorMatches, "error mounting")
+		result = false
+		expectedCallsObserve = 0
+	} else {
+		c.Assert(err, IsNil)
+	}
+	c.Check(sealedKeysLocked, Equals, true)
+
+	c.Assert(applyPreseedCalled, Equals, result)
+	c.Assert(makeRunnableCalled, Equals, result)
+	c.Assert(gadgetInstallCalled, Equals, result)
+	c.Assert(nextBootEnsured, Equals, result)
+	c.Check(observeExistingTrustedRecoveryAssetsCalled, Equals, expectedCallsObserve)
+
+	if !failMount {
+		checkKernelMounts(c, "/run/mnt/data/system-data", "/writable/system-data",
+			[]string{"kcomp1", "kcomp2"}, []string{"77", "77"}, nil, nil)
+	}
+
+	if failMount {
+		c.Assert(cmd.Calls(), DeepEquals, [][]string{
+			{
+				"systemd-mount",
+				"--umount",
+				filepath.Join(s.tmpDir, "/run/mnt/snap-content/pc-kernel+kcomp1"),
+			},
+		})
+	} else {
+		c.Assert(cmd.Calls(), DeepEquals, [][]string{
+			{
+				"systemd-mount",
+				"--umount",
+				filepath.Join(s.tmpDir, "/run/mnt/kernel"),
+			},
+			{
+				"systemd-mount",
+				"--umount",
+				filepath.Join(s.tmpDir, "/run/mnt/snap-content/pc-kernel+kcomp2"),
+			},
+			{
+				"systemd-mount",
+				"--umount",
+				filepath.Join(s.tmpDir, "/run/mnt/snap-content/pc-kernel+kcomp1"),
+			},
+		})
+	}
 }
 
 func (s *initramfsMountsSuite) TestInitramfsMountsInstallModeBootFlagsSet(c *C) {
@@ -888,7 +1232,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsInstallModeTimeMovesForwardHap
 		// model file already exists and can't setup the seed
 		err := os.RemoveAll(filepath.Join(boot.InitramfsUbuntuSeedDir))
 		c.Assert(err, IsNil, comment)
-		s.setupSeed(c, tc.modelTime, nil)
+		s.setupSeed(c, tc.modelTime, nil, setupSeedOpts{})
 
 		restore := main.MockTimeNow(func() time.Time {
 			return tc.now
@@ -949,7 +1293,7 @@ defaults:
 	c.Assert(os.RemoveAll(s.seedDir), IsNil)
 
 	s.setupSeed(c, time.Time{},
-		[][]string{{"meta/gadget.yaml", gadgetYamlDefaults}})
+		[][]string{{"meta/gadget.yaml", gadgetYamlDefaults}}, setupSeedOpts{})
 
 	s.mockProcCmdlineContent(c, "snapd_recovery_mode=install snapd_recovery_system="+s.sysLabel)
 
@@ -1150,7 +1494,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeTimeMovesForwardHappy(c
 			// model file already exists and can't setup the seed
 			err := os.RemoveAll(filepath.Join(boot.InitramfsUbuntuSeedDir))
 			c.Assert(err, IsNil, comment)
-			s.setupSeed(c, tc.modelTime, nil)
+			s.setupSeed(c, tc.modelTime, nil, setupSeedOpts{})
 
 			restore := main.MockTimeNow(func() time.Time {
 				return tc.now
@@ -2621,28 +2965,32 @@ func (s *initramfsMountsSuite) testInitramfsMountsEncryptedNoModel(c *C, mode, l
 		return fmt.Errorf("blocking keys failed")
 	})()
 
-	var restore func()
-	if mode == "run" {
+	// in install mode we fail before any mount happens
+	// in install / recover mode the code doesn't make it far enough to do
+	// any disk cross checking
+	switch mode {
+	case "run":
 		// run mode will mount ubuntu-boot only before failing
-		restore = s.mockSystemdMountSequence(c, []systemdMount{
+		restore := s.mockSystemdMountSequence(c, []systemdMount{
 			s.ubuntuLabelMount("ubuntu-boot", mode),
 		}, nil)
-		restore2 := disks.MockMountPointDisksToPartitionMapping(
+		defer restore()
+		restore = disks.MockMountPointDisksToPartitionMapping(
 			map[disks.Mountpoint]*disks.MockDiskMapping{
 				{Mountpoint: boot.InitramfsUbuntuBootDir}: defaultEncBootDisk,
 			},
 		)
-		defer restore2()
-	} else {
+		defer restore()
+	default:
 		// install and recover mounts are just ubuntu-seed before we fail
-		restore = s.mockSystemdMountSequence(c, []systemdMount{
+		restore := s.mockSystemdMountSequence(c, []systemdMount{
 			s.ubuntuLabelMount("ubuntu-seed", mode),
 		}, nil)
 
 		// in install / recover mode the code doesn't make it far enough to do
 		// any disk cross checking
+		defer restore()
 	}
-	defer restore()
 
 	if label != "" {
 		s.mockProcCmdlineContent(c,
@@ -2653,7 +3001,7 @@ func (s *initramfsMountsSuite) testInitramfsMountsEncryptedNoModel(c *C, mode, l
 	}
 
 	measureEpochCalls := 0
-	restore = main.MockSecbootMeasureSnapSystemEpochWhenPossible(func() error {
+	restore := main.MockSecbootMeasureSnapSystemEpochWhenPossible(func() error {
 		measureEpochCalls++
 		return nil
 	})
@@ -3295,7 +3643,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeTimeMovesForwardHap
 		err = os.RemoveAll(filepath.Join(boot.InitramfsDataDir))
 		c.Assert(err, IsNil, comment)
 
-		s.setupSeed(c, tc.modelTime, nil)
+		s.setupSeed(c, tc.modelTime, nil, setupSeedOpts{})
 
 		restore := main.MockTimeNow(func() time.Time {
 			return tc.now
@@ -3386,7 +3734,7 @@ defaults:
 
 	s.setupSeed(c, time.Time{}, [][]string{
 		{"meta/gadget.yaml", gadgetYamlDefaults},
-	})
+	}, setupSeedOpts{})
 
 	s.mockProcCmdlineContent(c, "snapd_recovery_mode=recover snapd_recovery_system="+s.sysLabel)
 
@@ -8670,7 +9018,7 @@ func compareLoginFiles(c *C, etcDir string, passwd, shadow, group, gshadow strin
 	}
 }
 
-func checkKernelMounts(c *C, dataRootfs, snapRoot string, compsExist, compsNotExist []int) {
+func checkKernelMounts(c *C, dataRootfs, snapRoot string, compsExist, compsExistRevs, compsNotExist, compsNotExistRevs []string) {
 	// Check mount units for the drivers tree
 	unitsPath := filepath.Join(dirs.GlobalRootDir, "run/systemd/system")
 	snapMntDir := dirs.StripRootDir(dirs.SnapMountDir)
@@ -8695,9 +9043,9 @@ Options=nodev,ro,x-gdu.hide,x-gvfs-hide
 `, what, where))
 
 	// kernel-modules components
-	for _, comp := range compsExist {
-		compName := fmt.Sprint("comp", comp)
-		compRev := fmt.Sprintf("%d%d", comp, comp)
+	for i, comp := range compsExist {
+		compName := comp
+		compRev := compsExistRevs[i]
 		what := filepath.Join(dataRootfs,
 			"var/lib/snapd/snaps/pc-kernel+"+compName+"_"+compRev+".comp")
 		where := filepath.Join(snapRoot, snapMntDir, "pc-kernel/components/mnt",
@@ -8719,9 +9067,9 @@ Options=nodev,ro,x-gdu.hide,x-gvfs-hide
 `, what, where))
 	}
 
-	for _, comp := range compsNotExist {
-		compName := fmt.Sprint("comp", comp)
-		compRev := fmt.Sprintf("%d%d", comp, comp)
+	for i, comp := range compsNotExist {
+		compName := comp
+		compRev := compsNotExistRevs[i]
 		where := filepath.Join(snapRoot, snapMntDir, "pc-kernel/components/mnt",
 			compName, compRev)
 		unit := systemd.EscapeUnitNamePath(where) + ".mount"
@@ -8815,7 +9163,7 @@ func (s *initramfsMountsSuite) testInitramfsMountsRunModeWithDriversTreeHappy(c 
 	_, err = main.Parser().ParseArgs([]string{"initramfs-mounts"})
 	c.Assert(err, IsNil)
 
-	checkKernelMounts(c, "/run/mnt/data/system-data", "/writable/system-data", nil, nil)
+	checkKernelMounts(c, "/run/mnt/data/system-data", "/writable/system-data", nil, nil, nil, nil)
 }
 
 func (s *initramfsClassicMountsSuite) TestInitramfsMountsRunModeWithDriversTreeHappyClassic(c *C) {
@@ -8873,7 +9221,7 @@ func (s *initramfsClassicMountsSuite) TestInitramfsMountsRunModeWithDriversTreeH
 	_, err = main.Parser().ParseArgs([]string{"initramfs-mounts"})
 	c.Assert(err, IsNil)
 
-	checkKernelMounts(c, "/run/mnt/data", "/sysroot", nil, nil)
+	checkKernelMounts(c, "/run/mnt/data", "/sysroot", nil, nil, nil, nil)
 }
 
 func (s *initramfsMountsSuite) TestInitramfsMountsRunModeWithComponentsHappy(c *C) {
@@ -8944,7 +9292,8 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeWithComponentsHappy(c *
 	_, err = main.Parser().ParseArgs([]string{"initramfs-mounts"})
 	c.Assert(err, IsNil)
 
-	checkKernelMounts(c, "/run/mnt/data/system-data", "/writable/system-data", []int{1, 2, 3}, nil)
+	checkKernelMounts(c, "/run/mnt/data/system-data", "/writable/system-data",
+		[]string{"comp1", "comp2", "comp3"}, []string{"11", "22", "33"}, nil, nil)
 }
 
 func (s *initramfsMountsSuite) TestInitramfsMountsRunModeWithComponentsBadComps(c *C) {
@@ -9022,7 +9371,8 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeWithComponentsBadComps(
 	_, err = main.Parser().ParseArgs([]string{"initramfs-mounts"})
 	c.Assert(err, IsNil)
 
-	checkKernelMounts(c, "/run/mnt/data/system-data", "/writable/system-data", nil, []int{1, 2, 3, 4})
+	checkKernelMounts(c, "/run/mnt/data/system-data", "/writable/system-data",
+		nil, nil, []string{"comp1", "comp2", "comp3", "comp4"}, []string{"11", "22", "33", "44"})
 }
 
 func (s *initramfsClassicMountsSuite) TestInitramfsMountsRunModeWithComponentsHappyClassic(c *C) {
@@ -9096,5 +9446,6 @@ func (s *initramfsClassicMountsSuite) TestInitramfsMountsRunModeWithComponentsHa
 	_, err = main.Parser().ParseArgs([]string{"initramfs-mounts"})
 	c.Assert(err, IsNil)
 
-	checkKernelMounts(c, "/run/mnt/data", "/sysroot", []int{1, 2, 3}, nil)
+	checkKernelMounts(c, "/run/mnt/data", "/sysroot",
+		[]string{"comp1", "comp2", "comp3"}, []string{"11", "22", "33"}, nil, nil)
 }

@@ -42,6 +42,7 @@ import (
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/gadget/device"
 	"github.com/snapcore/snapd/gadget/install"
+	"github.com/snapcore/snapd/kernel"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	installLogic "github.com/snapcore/snapd/overlord/install"
@@ -285,12 +286,13 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 
 	kernMntPoint := mntPtForType[snap.TypeKernel]
 	isCore := !deviceCtx.Classic()
-	kSnapInfo, bootKMods := kModsInfo(systemAndSnaps, kernMntPoint, mntPtForComps, isCore)
+	kBootInfo := kBootInfo(systemAndSnaps, kernMntPoint, mntPtForComps, isCore)
 
 	timings.Run(perfTimings, "install-run", "Install the run system", func(tm timings.Measurer) {
 		st.Unlock()
 		defer st.Lock()
-		installedSystem, err = installRun(model, gadgetDir, kSnapInfo, "", bopts, installObserver, tm)
+		installedSystem, err = installRun(model, gadgetDir, kBootInfo.KSnapInfo, "",
+			bopts, installObserver, tm)
 	})
 	if err != nil {
 		return fmt.Errorf("cannot install system: %v", err)
@@ -330,7 +332,7 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 		UnpackedGadgetDir: gadgetDir,
 
 		RecoverySystemLabel: modeEnv.RecoverySystem,
-		KernelMods:          bootKMods,
+		KernelMods:          kBootInfo.BootableKMods,
 	}
 	timings.Run(perfTimings, "boot-make-runnable", "Make target system runnable", func(timings.Measurer) {
 		err = bootMakeRunnable(deviceCtx.Model(), bootWith, trustedInstallObserver)
@@ -566,7 +568,7 @@ func (m *DeviceManager) doFactoryResetRunSystem(t *state.Task, _ *tomb.Tomb) err
 
 	kernMntPoint := mntPtForType[snap.TypeKernel]
 	isCore := !deviceCtx.Classic()
-	kSnapInfo, bootKMods := kModsInfo(systemAndSnaps, kernMntPoint, mntPtForComps, isCore)
+	kBootInfo := kBootInfo(systemAndSnaps, kernMntPoint, mntPtForComps, isCore)
 
 	// run the create partition code
 	logger.Noticef("create and deploy partitions")
@@ -574,7 +576,8 @@ func (m *DeviceManager) doFactoryResetRunSystem(t *state.Task, _ *tomb.Tomb) err
 	timings.Run(perfTimings, "factory-reset", "Factory reset", func(tm timings.Measurer) {
 		st.Unlock()
 		defer st.Lock()
-		installedSystem, err = installFactoryReset(model, gadgetDir, kSnapInfo, "", bopts, installObserver, tm)
+		installedSystem, err = installFactoryReset(model, gadgetDir, kBootInfo.KSnapInfo,
+			"", bopts, installObserver, tm)
 	})
 	if err != nil {
 		return fmt.Errorf("cannot perform factory reset: %v", err)
@@ -659,7 +662,7 @@ func (m *DeviceManager) doFactoryResetRunSystem(t *state.Task, _ *tomb.Tomb) err
 		UnpackedGadgetDir: gadgetDir,
 
 		RecoverySystemLabel: modeEnv.RecoverySystem,
-		KernelMods:          bootKMods,
+		KernelMods:          kBootInfo.BootableKMods,
 	}
 	timings.Run(perfTimings, "boot-make-runnable", "Make target system runnable", func(timings.Measurer) {
 		err = bootMakeRunnableAfterDataReset(deviceCtx.Model(), bootWith, trustedInstallObserver)
@@ -944,57 +947,29 @@ func (m *DeviceManager) loadAndMountSystemLabelSnaps(systemLabel string, essenti
 
 	mntPtForComp := make(map[string]string)
 	for _, seedComp := range systemAndSnaps.CompsByType[snap.TypeKernel] {
-		if seedComp.CompInfo.Type != snap.KernelModulesComponent {
+		if seedComp.Info.Type != snap.KernelModulesComponent {
 			continue
 		}
 
-		mntPt, unmountComp, err := mountSeedContainer(seedComp.CompSeed.Path,
-			seedComp.CompInfo.FullName())
+		mntPt, unmountComp, err := mountSeedContainer(seedComp.Seed.Path,
+			seedComp.Info.FullName())
 		if err != nil {
 			unmount()
 			return nil, nil, nil, nil, err
 		}
 		unmountFuncs = append(unmountFuncs, unmountComp)
-		mntPtForComp[seedComp.CompInfo.FullName()] = mntPt
+		mntPtForComp[seedComp.Info.FullName()] = mntPt
 	}
 
 	return systemAndSnaps, mntPtForType, mntPtForComp, unmount, nil
 }
 
-func kModsInfo(systemAndSnaps *systemAndEssentialSnaps, kernMntPoint string, mntPtForComps map[string]string, isCore bool) (*install.KernelSnapInfo, []boot.BootableKModsComponents) {
+func kBootInfo(systemAndSnaps *systemAndEssentialSnaps, kernMntPoint string, mntPtForComps map[string]string, isCore bool) installLogic.KernelBootInfo {
 	kernInfo := systemAndSnaps.InfosByType[snap.TypeKernel]
-
-	// Find out kernel-modules components in the seed
 	compSeedInfos := systemAndSnaps.CompsByType[snap.TypeKernel]
-	bootKMods := make([]boot.BootableKModsComponents, 0, len(compSeedInfos))
-	modulesComps := make([]install.KernelModulesComponentInfo, 0, len(compSeedInfos))
-	for _, compSeedInfo := range compSeedInfos {
-		ci := compSeedInfo.CompInfo
-		if ci.Type == snap.KernelModulesComponent {
-			cpi := snap.MinimalComponentContainerPlaceInfo(ci.Component.ComponentName,
-				ci.Revision, kernInfo.SnapName())
-			modulesComps = append(modulesComps, install.KernelModulesComponentInfo{
-				Name:       ci.Component.ComponentName,
-				Revision:   ci.Revision,
-				MountPoint: mntPtForComps[ci.FullName()],
-			})
-			bootKMods = append(bootKMods, boot.BootableKModsComponents{
-				CompPlaceInfo: cpi,
-				CompPath:      compSeedInfo.CompSeed.Path,
-			})
-		}
-	}
-
-	kSnapInfo := &install.KernelSnapInfo{
-		Name:             kernInfo.SnapName(),
-		Revision:         kernInfo.Revision,
-		MountPoint:       kernMntPoint,
-		IsCore:           isCore,
-		ModulesComps:     modulesComps,
-		NeedsDriversTree: snapstate.NeedsKernelSetup(systemAndSnaps.Model),
-	}
-
-	return kSnapInfo, bootKMods
+	return installLogic.BuildKernelBootInfo(kernInfo, compSeedInfos, kernMntPoint,
+		mntPtForComps, installLogic.BuildKernelBootInfoOpts{
+			IsCore: isCore, NeedsDriversTree: kernel.NeedsKernelDriversTree(systemAndSnaps.Model)})
 }
 
 // doInstallFinish performs the finish step of the install. It will
@@ -1108,13 +1083,14 @@ func (m *DeviceManager) doInstallFinish(t *state.Task, _ *tomb.Tomb) error {
 
 	// Find out kernel-modules components in the seed
 	isCore := !deviceCtx.Classic()
-	kSnapInfo, bootKMods := kModsInfo(systemAndSnaps, kernMntPoint, mntPtForComps, isCore)
+	kBootInfo := kBootInfo(systemAndSnaps, kernMntPoint, mntPtForComps, isCore)
 
 	logger.Debugf("writing content to partitions")
 	timings.Run(perfTimings, "install-content", "Writing content to partitions", func(tm timings.Measurer) {
 		st.Unlock()
 		defer st.Lock()
-		_, err = installWriteContent(mergedVols, allLaidOutVols, encryptSetupData, kSnapInfo, installObserver, perfTimings)
+		_, err = installWriteContent(mergedVols, allLaidOutVols, encryptSetupData,
+			kBootInfo.KSnapInfo, installObserver, perfTimings)
 	})
 	if err != nil {
 		return fmt.Errorf("cannot write content: %v", err)
@@ -1184,7 +1160,7 @@ func (m *DeviceManager) doInstallFinish(t *state.Task, _ *tomb.Tomb) error {
 		UnpackedGadgetDir: mntPtForType[snap.TypeGadget],
 
 		RecoverySystemLabel: systemLabel,
-		KernelMods:          bootKMods,
+		KernelMods:          kBootInfo.BootableKMods,
 	}
 
 	// installs in system-seed{,-null} partition: grub.cfg, grubenv

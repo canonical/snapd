@@ -47,6 +47,7 @@ import (
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/restart"
+	"github.com/snapcore/snapd/snapdenv"
 	"github.com/snapcore/snapd/store/storetest"
 
 	// So it registers Configure.
@@ -373,6 +374,8 @@ func (s *snapmgrTestSuite) TestInstallTaskEdgesForPreseeding(c *C) {
 	mockSnap := makeTestSnap(c, `name: some-snap
 version: 1.0
 `)
+	restorePreseeding := snapdenv.MockPreseeding(true)
+	defer restorePreseeding()
 
 	for _, skipConfig := range []bool{false, true} {
 		ts, _, err := snapstate.InstallPath(s.state, &snap.SideInfo{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(8)}, mockSnap, "", "", snapstate.Flags{SkipConfigure: skipConfig}, nil)
@@ -6455,6 +6458,15 @@ func (s *snapmgrTestSuite) TestInstallManyComponentsRunThrough(c *C) {
 	})
 }
 
+func (s *snapmgrTestSuite) TestInstallManyComponentsRunThroughPreseed(c *C) {
+	s.testInstallComponentsRunThrough(c, testInstallComponentsRunThroughOpts{
+		snapName:   "some-kernel",
+		snapType:   snap.TypeKernel,
+		components: []string{"standard-component", "kernel-modules-component"},
+		preseed:    true,
+	})
+}
+
 func (s *snapmgrTestSuite) TestInstallManyComponentsUndoRunThrough(c *C) {
 	s.testInstallComponentsRunThrough(c, testInstallComponentsRunThroughOpts{
 		snapName:   "some-kernel",
@@ -6646,11 +6658,19 @@ type testInstallComponentsRunThroughOpts struct {
 	snapType    snap.Type
 	components  []string
 	undo        bool
+	preseed     bool
 }
 
 func (s *snapmgrTestSuite) testInstallComponentsRunThrough(c *C, opts testInstallComponentsRunThroughOpts) {
 	s.state.Lock()
 	defer s.state.Unlock()
+
+	if opts.preseed {
+		restorePreseeding := snapdenv.MockPreseeding(opts.preseed)
+		defer restorePreseeding()
+		mockCmd := testutil.MockCommand(c, "mount", "")
+		defer mockCmd.Restore()
+	}
 
 	r := snapstatetest.MockDeviceModel(MakeModel20("pc", map[string]interface{}{"base": "core24"}))
 	defer r()
@@ -6913,6 +6933,13 @@ func (s *snapmgrTestSuite) testInstallComponentsRunThrough(c *C, opts testInstal
 	}}...)
 
 	if len(kmodComps) > 0 {
+		if opts.preseed {
+			expected = append(expected, fakeOp{
+				op:           "prepare-kernel-modules-components",
+				currentComps: []*snap.ComponentSideInfo{},
+				finalComps:   kmodComps,
+			})
+		}
 		expected = append(expected, fakeOp{
 			op:           "prepare-kernel-modules-components",
 			currentComps: []*snap.ComponentSideInfo{},

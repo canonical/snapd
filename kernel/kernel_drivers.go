@@ -29,6 +29,7 @@ import (
 	"strings"
 	"syscall"
 
+	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
@@ -407,4 +408,23 @@ func EnsureKernelDriversTree(kMntPts MountPoints, compsMntPts []ModulesCompMount
 	}
 
 	return nil
+}
+
+// NeedsKernelDriversTree returns true if we need a kernel drivers tree for this model.
+func NeedsKernelDriversTree(mod *asserts.Model) bool {
+	// Checking if it has modeenv - it must be UC20+ or hybrid
+	if mod.Grade() == asserts.ModelGradeUnset {
+		return false
+	}
+
+	// We assume core24/hybrid 24.04 onwards have the generator, for older
+	// boot bases we return false.
+	// TODO this won't work for a UC2{0,2} -> UC24+ remodel as we need the
+	// new model here. Get to this ASAP after snapd 2.62 release.
+	switch mod.Base() {
+	case "core20", "core22", "core22-desktop":
+		return false
+	default:
+		return true
+	}
 }

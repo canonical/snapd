@@ -135,6 +135,10 @@ func (s *snapmgrBaseTest) mockSystemctlCallsUpdateMounts(c *C) (restore func()) 
 		if len(args) == 3 && args[0] == "--no-reload" && args[1] == "enable" {
 			return []byte(""), nil
 		}
+		if len(args) == 4 && args[0] == "--root" && args[2] == "enable" {
+			// This command is run on preseeding
+			return []byte(""), nil
+		}
 		if len(args) == 2 && args[0] == "restart" {
 			value, ok := s.restarts[args[1]]
 			if ok {
