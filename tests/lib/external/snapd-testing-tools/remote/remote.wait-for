@@ -42,7 +42,7 @@ wait_for_ssh() {
         sleep "$wait"
     done
     echo ""
-    echo "remote.wait-for: ssh connection stablished"
+    echo "remote.wait-for: ssh connection established"
 }
 
 wait_for_no_ssh() {
@@ -91,7 +91,7 @@ get_boot_id() {
 }
 
 wait_for_reconnect_ssh() {
-    echo "remote.wait-for: waiting for ssh is recoonected"
+    echo "remote.wait-for: waiting for ssh to reconnect"
     wait_for_no_ssh "$DEFAULT_WAIT_FOR_NO_SSH_ATTEMPTS" "$DEFAULT_WAIT_FOR_NO_SSH_WAIT"
     wait_for_ssh "$DEFAULT_WAIT_FOR_SSH_ATTEMPTS" "$DEFAULT_WAIT_FOR_SSH_WAIT"
 }
