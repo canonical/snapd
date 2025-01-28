@@ -29,8 +29,7 @@
  * This is exactly the same as the GNU extension to the standard library. It is
  * only used when glibc is not available.
  **/
-char *secure_getenv(const char *name)
-    __attribute__((nonnull(1), warn_unused_result));
-#endif				// ! HAVE_SECURE_GETENV
+char *secure_getenv(const char *name) __attribute__((nonnull(1), warn_unused_result));
+#endif  // ! HAVE_SECURE_GETENV
 
 #endif

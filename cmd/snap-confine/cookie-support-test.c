@@ -22,82 +22,71 @@
 #include "../libsnap-confine-private/test-utils.h"
 
 #include <glib.h>
-#include <stdlib.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 // Set alternate cookie directory
-static void set_cookie_dir(const char *dir)
-{
-	sc_cookie_dir = dir;
+static void set_cookie_dir(const char *dir) { sc_cookie_dir = dir; }
+
+static void set_fake_cookie_dir(void) {
+    char *ctx_dir = NULL;
+    ctx_dir = g_dir_make_tmp(NULL, NULL);
+    g_assert_nonnull(ctx_dir);
+    g_test_queue_free(ctx_dir);
+
+    g_test_queue_destroy((GDestroyNotify)rm_rf_tmp, ctx_dir);
+    g_test_queue_destroy((GDestroyNotify)set_cookie_dir, SC_COOKIE_DIR);
+
+    set_cookie_dir(ctx_dir);
 }
 
-static void set_fake_cookie_dir(void)
-{
-	char *ctx_dir = NULL;
-	ctx_dir = g_dir_make_tmp(NULL, NULL);
-	g_assert_nonnull(ctx_dir);
-	g_test_queue_free(ctx_dir);
+static void create_dumy_cookie_file(const char *snap_name, const char *dummy_cookie) {
+    char path[PATH_MAX] = {0};
+    FILE *f;
+    int n;
 
-	g_test_queue_destroy((GDestroyNotify) rm_rf_tmp, ctx_dir);
-	g_test_queue_destroy((GDestroyNotify) set_cookie_dir, SC_COOKIE_DIR);
+    snprintf(path, sizeof(path), "%s/snap.%s", sc_cookie_dir, snap_name);
 
-	set_cookie_dir(ctx_dir);
+    f = fopen(path, "w");
+    g_assert_nonnull(f);
+
+    n = fwrite(dummy_cookie, 1, strlen(dummy_cookie), f);
+    g_assert_cmpint(n, ==, strlen(dummy_cookie));
+
+    fclose(f);
 }
 
-static void create_dumy_cookie_file(const char *snap_name,
-				    const char *dummy_cookie)
-{
-	char path[PATH_MAX] = { 0 };
-	FILE *f;
-	int n;
+static void test_cookie_get_from_snapd__successful(void) {
+    struct sc_error *err SC_CLEANUP(sc_cleanup_error) = NULL;
+    char *cookie SC_CLEANUP(sc_cleanup_string) = NULL;
 
-	snprintf(path, sizeof(path), "%s/snap.%s", sc_cookie_dir, snap_name);
+    char *dummy = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijmnopqrst";
 
-	f = fopen(path, "w");
-	g_assert_nonnull(f);
+    set_fake_cookie_dir();
+    create_dumy_cookie_file("test-snap", dummy);
 
-	n = fwrite(dummy_cookie, 1, strlen(dummy_cookie), f);
-	g_assert_cmpint(n, ==, strlen(dummy_cookie));
-
-	fclose(f);
+    cookie = sc_cookie_get_from_snapd("test-snap", &err);
+    g_assert_null(err);
+    g_assert_nonnull(cookie);
+    g_assert_cmpint(strlen(cookie), ==, 44);
+    g_assert_cmpstr(cookie, ==, dummy);
 }
 
-static void test_cookie_get_from_snapd__successful(void)
-{
-	struct sc_error *err SC_CLEANUP(sc_cleanup_error) = NULL;
-	char *cookie SC_CLEANUP(sc_cleanup_string) = NULL;
+static void test_cookie_get_from_snapd__nofile(void) {
+    struct sc_error *err SC_CLEANUP(sc_cleanup_error) = NULL;
+    char *cookie SC_CLEANUP(sc_cleanup_string) = NULL;
 
-	char *dummy = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijmnopqrst";
+    set_fake_cookie_dir();
 
-	set_fake_cookie_dir();
-	create_dumy_cookie_file("test-snap", dummy);
-
-	cookie = sc_cookie_get_from_snapd("test-snap", &err);
-	g_assert_null(err);
-	g_assert_nonnull(cookie);
-	g_assert_cmpint(strlen(cookie), ==, 44);
-	g_assert_cmpstr(cookie, ==, dummy);
+    cookie = sc_cookie_get_from_snapd("test-snap2", &err);
+    g_assert_nonnull(err);
+    g_assert_cmpstr(sc_error_domain(err), ==, SC_ERRNO_DOMAIN);
+    g_assert_nonnull(strstr(sc_error_msg(err), "cannot open cookie file"));
+    g_assert_null(cookie);
 }
 
-static void test_cookie_get_from_snapd__nofile(void)
-{
-	struct sc_error *err SC_CLEANUP(sc_cleanup_error) = NULL;
-	char *cookie SC_CLEANUP(sc_cleanup_string) = NULL;
-
-	set_fake_cookie_dir();
-
-	cookie = sc_cookie_get_from_snapd("test-snap2", &err);
-	g_assert_nonnull(err);
-	g_assert_cmpstr(sc_error_domain(err), ==, SC_ERRNO_DOMAIN);
-	g_assert_nonnull(strstr(sc_error_msg(err), "cannot open cookie file"));
-	g_assert_null(cookie);
-}
-
-static void __attribute__((constructor)) init(void)
-{
-	g_test_add_func("/snap-cookie/cookie_get_from_snapd/successful",
-			test_cookie_get_from_snapd__successful);
-	g_test_add_func("/snap-cookie/cookie_get_from_snapd/no_cookie_file",
-			test_cookie_get_from_snapd__nofile);
+static void __attribute__((constructor)) init(void) {
+    g_test_add_func("/snap-cookie/cookie_get_from_snapd/successful", test_cookie_get_from_snapd__successful);
+    g_test_add_func("/snap-cookie/cookie_get_from_snapd/no_cookie_file", test_cookie_get_from_snapd__nofile);
 }

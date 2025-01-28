@@ -37,10 +37,10 @@ bool sc_faulty(const char *name, void *ptr);
 
 struct sc_fault_state;
 
-typedef bool (*sc_fault_fn)(struct sc_fault_state * state, void *ptr);
+typedef bool (*sc_fault_fn)(struct sc_fault_state *state, void *ptr);
 
 struct sc_fault_state {
-	int ncalls;
+    int ncalls;
 };
 
 /**
@@ -62,6 +62,6 @@ void sc_break(const char *name, sc_fault_fn fn);
  **/
 void sc_reset_faults(void);
 
-#endif				// ifndef _ENABLE_FAULT_INJECTION
+#endif  // ifndef _ENABLE_FAULT_INJECTION
 
 #endif

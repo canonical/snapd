@@ -26,4 +26,4 @@
  */
 int sc_run_unit_tests(int *argc, char ***argv);
 
-#endif				// SNAP_CONFINE_SANITY_H
+#endif  // SNAP_CONFINE_SANITY_H
