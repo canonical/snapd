@@ -3,6 +3,10 @@ summary: Check auto-refresh from a pre-download change
 details: |
   Verify that an inhibited auto-refresh triggers a pre-download change and resumes on close
 
+meta:
+    features: []
+    groups: []
+    tags: []
 
 # Ubuntu 14.04's special version of systemd doesn't have StartTransientUnit API.
 systems: [-ubuntu-14.04-*]
