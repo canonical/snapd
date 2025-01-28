@@ -308,6 +308,59 @@ func (s *Store) Download(ctx context.Context, name string, targetPath string, do
 	return s.cacher.Put(downloadInfo.Sha3_384, targetPath)
 }
 
+// DownloadIcon downloads the icon for the snap from the given download URL to
+// the given target path. Snap icons are small (<256kB) files served from an
+// ordinary unauthenticated file server, so this does not require store
+// authentication or user state, nor a progress bar. They are also not revision-
+// specific, and do not use a download cache.
+func DownloadIcon(ctx context.Context, name string, targetPath string, downloadURL string) error {
+	if err := os.MkdirAll(filepath.Dir(targetPath), 0o755); err != nil {
+		return err
+	}
+
+	// Download icon to a temporary file location, since there may be an active
+	// snap icon hard-linked to targetPath. If download fails, don't want to
+	// corrupt the existing icon file contents. Instead, move partialPath to
+	// targetPath once the download succeeds, thus leaving any previous icon
+	// linked to the original unchanged icon contents, until a future task
+	// re-links to the new contents.
+	partialPath := targetPath + ".partial"
+
+	// Open the new partial file and truncate it, since any existing file may
+	// be old, from a previous version of the snap icon. Don't use `resume` as
+	// in `Download()`; always start over.
+	w, err := os.OpenFile(partialPath, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0o600)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		if cerr := w.Close(); cerr != nil && err == nil {
+			err = cerr
+		}
+		if err == nil {
+			return
+		}
+		os.Remove(w.Name())
+	}()
+	logger.Debugf("Starting download of %q.", partialPath)
+
+	err = downloadIcon(ctx, name, downloadURL, w)
+	if err != nil {
+		logger.Debugf("download of %q failed: %#v", downloadURL, err)
+		return err
+	}
+
+	if err = os.Rename(w.Name(), targetPath); err != nil {
+		return err
+	}
+
+	if err = w.Sync(); err != nil {
+		return err
+	}
+
+	return nil
+}
+
 func downloadReqOpts(storeURL *url.URL, cdnHeader string, opts *DownloadOptions) *requestOptions {
 	reqOptions := requestOptions{
 		Method:       "GET",
@@ -596,6 +649,84 @@ func downloadImpl(ctx context.Context, name, sha3_384, downloadURL string, user 
 		}
 
 		logger.Debugf("Download succeeded in %.03fs (%.0f%cB/s).", dt.Seconds(), r, p)
+	}
+	return finalErr
+}
+
+var downloadIcon = downloadIconImpl
+
+// downloadIconImpl writes an http.Request which does not require authentication
+// or a progress.Meter.
+func downloadIconImpl(ctx context.Context, name, downloadURL string, w io.ReadWriteSeeker) error {
+	url, err := url.Parse(downloadURL)
+	if err != nil {
+		return err
+	}
+
+	var finalErr error
+	startTime := time.Now()
+	for attempt := retry.Start(downloadRetryStrategy, nil); attempt.Next(); {
+		// Don't need any special snap-specific headers or download options
+		cdnHeader := ""
+		dlOpts := &DownloadOptions{}
+		reqOptions := downloadReqOpts(url, cdnHeader, dlOpts)
+
+		httputil.MaybeLogRetryAttempt(url.String(), attempt, startTime)
+
+		if cancelled(ctx) {
+			return fmt.Errorf("the download has been cancelled: %s", ctx.Err())
+		}
+
+		cli := httputil.NewHTTPClient(nil)
+		var resp *http.Response
+		resp, finalErr = doIconRequest(ctx, cli, reqOptions)
+		if cancelled(ctx) {
+			return fmt.Errorf("the download has been cancelled: %s", ctx.Err())
+		}
+		if finalErr != nil {
+			if httputil.ShouldRetryAttempt(attempt, finalErr) {
+				continue
+			}
+			break
+		}
+
+		if httputil.ShouldRetryHttpResponse(attempt, resp) {
+			resp.Body.Close()
+			continue
+		}
+
+		// XXX: we're inside retry loop, so this will be closed only on return.
+		defer resp.Body.Close()
+
+		switch resp.StatusCode {
+		case 200: // OK
+		default:
+			return &DownloadError{Code: resp.StatusCode, URL: resp.Request.URL}
+		}
+		if resp.ContentLength == 0 {
+			logger.Debugf("Unexpected Content-Length: 0 for %s", downloadURL)
+		} else {
+			logger.Debugf("Download size for %s: %d", downloadURL, resp.ContentLength)
+		}
+
+		_, finalErr = io.Copy(w, resp.Body)
+
+		if cancelled(ctx) {
+			return fmt.Errorf("the download has been cancelled: %s", ctx.Err())
+		}
+
+		if finalErr != nil {
+			if httputil.ShouldRetryAttempt(attempt, finalErr) {
+				// XXX: is this correct, without resume? Or should we just
+				// error here since we're not doing Range requests?
+				continue
+			}
+			break
+		}
+		break
+	}
+	if finalErr == nil {
+		logger.Debugf("Icon download succeeded")
 	}
 	return finalErr
 }

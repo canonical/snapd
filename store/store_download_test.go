@@ -1252,3 +1252,151 @@ func (s *storeDownloadSuite) TestDownloadInfiniteRedirect(c *C) {
 	err := s.store.Download(s.ctx, "foo", targetFn, &snap.DownloadInfo, nil, s.user, nil)
 	c.Assert(err, ErrorMatches, fmt.Sprintf("Get %q: stopped after 10 redirects", mockServer.URL))
 }
+
+func (s *storeDownloadSuite) TestDownloadIconOK(c *C) {
+	expectedURL := "URL"
+	expectedContent := []byte("I was downloaded")
+
+	restore := store.MockDownloadIcon(func(ctx context.Context, name, url string, w io.ReadWriteSeeker) error {
+		c.Check(url, Equals, expectedURL)
+		w.Write(expectedContent)
+		return nil
+	})
+	defer restore()
+
+	path := filepath.Join(c.MkDir(), "downloaded-file")
+	err := store.DownloadIcon(s.ctx, "foo", path, expectedURL)
+	c.Assert(err, IsNil)
+	defer os.Remove(path)
+
+	c.Assert(path, testutil.FileEquals, expectedContent)
+}
+
+func (s *storeDownloadSuite) TestDownloadIconDoesNotOverwriteLinks(c *C) {
+	expectedURL := "URL"
+	oldContent := []byte("I was already here")
+	newContent := []byte("I was downloaded")
+
+	restore := store.MockDownloadIcon(func(ctx context.Context, name, url string, w io.ReadWriteSeeker) error {
+		c.Check(url, Equals, expectedURL)
+		w.Write(newContent)
+		return nil
+	})
+	defer restore()
+
+	path := filepath.Join(c.MkDir(), "downloaded-file")
+	linkPath := path + "-existing"
+
+	// Create an existing file at the path
+	err := os.MkdirAll(filepath.Dir(path), 0o755)
+	c.Assert(err, IsNil)
+	err = os.WriteFile(path, oldContent, 0o600)
+	c.Assert(err, IsNil)
+	// Create a hard link to the existing file
+	err = os.Link(path, linkPath)
+	c.Assert(err, IsNil)
+
+	err = store.DownloadIcon(s.ctx, "foo", path, expectedURL)
+	c.Assert(err, IsNil)
+	defer os.Remove(path)
+
+	c.Assert(path, testutil.FileEquals, newContent)
+	// Check that the contents of the existing hard-linked file were not overwritten
+	c.Assert(linkPath, testutil.FileEquals, oldContent)
+}
+
+func (s *storeDownloadSuite) TestDownloadIconFails(c *C) {
+	fakeName := "foo"
+	fakeURL := "URL"
+
+	var tmpfile *os.File
+	restore := store.MockDownloadIcon(func(ctx context.Context, name, url string, w io.ReadWriteSeeker) error {
+		c.Assert(name, Equals, fakeName)
+		c.Assert(url, Equals, fakeURL)
+		tmpfile = w.(*os.File)
+		return fmt.Errorf("uh, it failed")
+	})
+	defer restore()
+
+	// simulate a failed download
+	path := filepath.Join(c.MkDir(), "downloaded-file")
+	err := store.DownloadIcon(s.ctx, fakeName, path, fakeURL)
+	c.Assert(err, ErrorMatches, "uh, it failed")
+	// ... and ensure that the tempfile is removed
+	c.Assert(osutil.FileExists(tmpfile.Name()), Equals, false)
+	// ... and not because it succeeded either
+	c.Assert(osutil.FileExists(path), Equals, false)
+}
+
+func (s *storeDownloadSuite) TestDownloadIconFailsDoesNotLeavePartial(c *C) {
+	fakeName := "foo"
+	fakeURL := "URL"
+
+	var tmpfile *os.File
+	restore := store.MockDownloadIcon(func(ctx context.Context, name, url string, w io.ReadWriteSeeker) error {
+		c.Assert(name, Equals, fakeName)
+		c.Assert(url, Equals, fakeURL)
+		tmpfile = w.(*os.File)
+		w.Write([]byte{'X'}) // so it's not empty
+		return fmt.Errorf("uh, it failed")
+	})
+	defer restore()
+
+	// simulate a failed download
+	path := filepath.Join(c.MkDir(), "downloaded-file")
+	err := store.DownloadIcon(s.ctx, fakeName, path, fakeURL)
+	c.Assert(err, ErrorMatches, "uh, it failed")
+	// ... and ensure that the tempfile is removed
+	c.Assert(osutil.FileExists(tmpfile.Name()), Equals, false)
+	// ... and the target path isn't there
+	c.Assert(osutil.FileExists(path), Equals, false)
+}
+
+func (s *storeDownloadSuite) TestDownloadIconSyncFails(c *C) {
+	fakeName := "foo"
+	fakeURL := "URL"
+
+	var tmpfile *os.File
+	restore := store.MockDownloadIcon(func(ctx context.Context, name, url string, w io.ReadWriteSeeker) error {
+		c.Assert(name, Equals, fakeName)
+		c.Assert(url, Equals, fakeURL)
+		tmpfile = w.(*os.File)
+		w.Write([]byte("sync will fail"))
+		err := tmpfile.Close()
+		c.Assert(err, IsNil)
+		return nil
+	})
+	defer restore()
+
+	// simulate a failed sync
+	path := filepath.Join(c.MkDir(), "downloaded-file")
+	err := store.DownloadIcon(s.ctx, fakeName, path, fakeURL)
+	c.Assert(err, ErrorMatches, "(sync|fsync:) .*")
+	// ... and ensure that the tempfile is removed
+	c.Assert(osutil.FileExists(tmpfile.Name()), Equals, false)
+	// ... because it's been renamed to the target path already
+	c.Assert(osutil.FileExists(path), Equals, true)
+}
+
+func (s *storeDownloadSuite) TestDownloadIconInfiniteRedirect(c *C) {
+	n := 0
+	var mockServer *httptest.Server
+
+	mockServer = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// n = 0 -> initial request
+		// n = 10 -> max redirects
+		// n = 11 -> exceeded max redirects
+		c.Assert(n, testutil.IntNotEqual, 11)
+		n++
+		http.Redirect(w, r, mockServer.URL, 302)
+	}))
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	fakeName := "foo"
+	fakeURL := mockServer.URL
+
+	targetPath := filepath.Join(c.MkDir(), "foo.icon")
+	err := store.DownloadIcon(s.ctx, fakeName, targetPath, fakeURL)
+	c.Assert(err, ErrorMatches, fmt.Sprintf("Get %q: stopped after 10 redirects", fakeURL))
+}
