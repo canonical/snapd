@@ -1326,7 +1326,8 @@ nested_start_core_vm_unit() {
                 PARAM_TPM="$PARAM_TPM -device tpm-tis,tpmdev=tpm0"
             fi
         fi
-        PARAM_IMAGE="-drive file=$CURRENT_IMAGE,cache=none,format=raw,id=disk1,if=none -device virtio-blk-pci,drive=disk1,bootindex=1"
+        # addr=5 is to make tests/nested/manual/install-volume-assignment have stable address
+        PARAM_IMAGE="-drive file=$CURRENT_IMAGE,cache=none,format=raw,id=disk1,if=none -device virtio-blk-pci,drive=disk1,bootindex=1,addr=5"
     else
         PARAM_IMAGE="-drive file=$CURRENT_IMAGE,cache=none,format=raw,id=disk1,if=none -device ide-hd,drive=disk1"
     fi

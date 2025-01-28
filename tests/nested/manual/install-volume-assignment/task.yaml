@@ -37,6 +37,8 @@ prepare: |
         device: /dev/disk/by-id/nvme0003
   - assignment-name: test-device
     assignment:
+      # FIXME: we should really not use those kind of paths, they are
+      # difficult to predict
       pc:
         device: /dev/disk/by-path/pci-0000:00:05.0
       backup:
@@ -72,8 +74,11 @@ execute: |
   BACKUP_VOLUME="$NESTED_IMAGES_DIR/$(nested_get_image_name_base core)-backup.img"
 
   # setup extra disk options for tests.nested
-  NESTED_PARAM_EXTRA="-drive file=$BACKUP_VOLUME,if=none,snapshot=off,format=raw,id=disk2 \
-      -device virtio-blk-pci,drive=disk2,serial=target"
+  params=(
+    "-drive" "file=${BACKUP_VOLUME},if=none,snapshot=off,format=raw,id=disk2"
+    "-device" "virtio-blk-pci,drive=disk2,addr=6"
+  )
+  NESTED_PARAM_EXTRA="${params[*]}"
 
   tests.nested create-vm core --extra-param "$NESTED_PARAM_EXTRA"
 
