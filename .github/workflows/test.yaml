@@ -380,10 +380,10 @@ jobs:
       # using the fromJSON expression.
       runs-on: '["self-hosted", "spread-enabled"]'
       group: ${{ matrix.group }}
-      backend: ${{ matrix.backend }}
+      backend: 'google-nested'
       systems: ${{ matrix.systems }}
-      tasks: ${{ matrix.tasks }}
-      rules: ${{ matrix.rules }}
+      tasks: 'tests/nested/...'
+      rules: 'nested'
     strategy:
       # FIXME: enable fail-fast mode once spread can cancel an executing job.
       # Disable fail-fast mode as it doesn't function with spread. It seems
@@ -394,25 +394,13 @@ jobs:
       matrix:
         include:
           - group: nested-ubuntu-18.04
-            backend: google-nested
             systems: 'ubuntu-18.04-64'
-            tasks: 'tests/nested/...'
-            rules: 'nested'
           - group: nested-ubuntu-20.04
-            backend: google-nested
             systems: 'ubuntu-20.04-64'
-            tasks: 'tests/nested/...'
-            rules: 'nested'
           - group: nested-ubuntu-22.04
-            backend: google-nested
             systems: 'ubuntu-22.04-64'
-            tasks: 'tests/nested/...'
-            rules: 'nested'
           - group: nested-ubuntu-24.04
-            backend: google-nested
             systems: 'ubuntu-24.04-64'
-            tasks: 'tests/nested/...'
-            rules: 'nested'
 
 
   # The spread-results-reporter needs the PR number to be able to 
