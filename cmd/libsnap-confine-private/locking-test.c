@@ -155,6 +155,8 @@ static const char *sc_test_use_fake_inhibit_dir(void) {
 
 static void test_sc_snap_is_inhibited__missing_dir(void) {
     char *d = g_dir_make_tmp(NULL, NULL);
+    g_assert_nonnull(d);
+    g_test_queue_free(d);
     g_test_queue_destroy((GDestroyNotify)rm_rf_tmp, d);
 
     char subd[PATH_MAX];
