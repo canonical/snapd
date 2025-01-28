@@ -70,7 +70,7 @@ func MockDevicestateRemoveRecoverySystem(f func(*state.State, string) (*state.Ch
 	return restore
 }
 
-func MockDeviceValidatePassphraseOrPINEntropy(f func(device.AuthMode, string) (float64, float64, error)) (restore func()) {
+func MockDeviceValidatePassphraseOrPINEntropy(f func(device.AuthMode, string) error) (restore func()) {
 	restore = testutil.Backup(&deviceValidatePassphraseOrPINEntropy)
 	deviceValidatePassphraseOrPINEntropy = f
 	return restore

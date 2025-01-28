@@ -651,22 +651,22 @@ func postSystemActionCheckPassphrase(c *Command, systemLabel string, req *system
 		}
 	}
 
-	entropy, minEntropy, err := deviceValidatePassphraseOrPINEntropy(device.AuthModePassphrase, req.Passphrase)
+	err = deviceValidatePassphraseOrPINEntropy(device.AuthModePassphrase, req.Passphrase)
 	if err != nil {
-		var reasons []string
-		if entropy < minEntropy {
-			reasons = append(reasons, "low-entropy")
+		var qualityErr *device.AuthQualityError
+		if errors.As(err, &qualityErr) {
+			return &apiError{
+				Status:  400,
+				Kind:    client.ErrorKindInvalidPassphrase,
+				Message: "passphrase did not pass quality checks",
+				Value: map[string]interface{}{
+					"reasons":     qualityErr.Reasons,
+					"entropy":     qualityErr.Entropy,
+					"min-entropy": qualityErr.MinEntropy,
+				},
+			}
 		}
-		return &apiError{
-			Status:  400,
-			Kind:    client.ErrorKindInvalidPassphrase,
-			Message: "passphrase did not pass quality checks",
-			Value: map[string]interface{}{
-				"reasons":     reasons,
-				"entropy":     entropy,
-				"min-entropy": minEntropy,
-			},
-		}
+		return InternalError(err.Error())
 	}
 
 	return SyncResponse(nil)
@@ -692,22 +692,22 @@ func postSystemActionCheckPIN(c *Command, systemLabel string, req *systemActionR
 		}
 	}
 
-	entropy, minEntropy, err := deviceValidatePassphraseOrPINEntropy(device.AuthModePIN, req.PIN)
+	err = deviceValidatePassphraseOrPINEntropy(device.AuthModePIN, req.PIN)
 	if err != nil {
-		var reasons []string
-		if entropy < minEntropy {
-			reasons = append(reasons, "low-entropy")
+		var qualityErr *device.AuthQualityError
+		if errors.As(err, &qualityErr) {
+			return &apiError{
+				Status:  400,
+				Kind:    client.ErrorKindInvalidPIN,
+				Message: "PIN did not pass quality checks",
+				Value: map[string]interface{}{
+					"reasons":     qualityErr.Reasons,
+					"entropy":     qualityErr.Entropy,
+					"min-entropy": qualityErr.MinEntropy,
+				},
+			}
 		}
-		return &apiError{
-			Status:  400,
-			Kind:    client.ErrorKindInvalidPIN,
-			Message: "PIN did not pass quality checks",
-			Value: map[string]interface{}{
-				"reasons":     reasons,
-				"entropy":     entropy,
-				"min-entropy": minEntropy,
-			},
-		}
+		return InternalError(err.Error())
 	}
 
 	return SyncResponse(nil)
