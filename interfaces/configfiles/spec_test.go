@@ -25,6 +25,7 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/configfiles"
 	"github.com/snapcore/snapd/interfaces/ifacetest"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -42,22 +43,26 @@ var _ = Suite(&specSuite{
 		InterfaceName: "test",
 		ConfigfilesConnectedPlugCallback: func(spec *configfiles.Specification,
 			plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
-			spec.AddPathContent("/etc/conf1.d/a.conf", "aaaa")
+			spec.AddPathContent("/etc/conf1.d/a.conf",
+				&osutil.MemoryFileState{Content: []byte("aaaa"), Mode: 0655})
 			return nil
 		},
 		ConfigfilesConnectedSlotCallback: func(spec *configfiles.Specification,
 			plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
-			spec.AddPathContent("/etc/conf2.d/b.conf", "bbbb")
+			spec.AddPathContent("/etc/conf2.d/b.conf",
+				&osutil.MemoryFileState{Content: []byte("bbbb"), Mode: 0655})
 			return nil
 		},
 		ConfigfilesPermanentPlugCallback: func(spec *configfiles.Specification,
 			plug *snap.PlugInfo) error {
-			spec.AddPathContent("/etc/conf3.d/c.conf", "cccc")
+			spec.AddPathContent("/etc/conf3.d/c.conf",
+				&osutil.MemoryFileState{Content: []byte("cccc"), Mode: 0655})
 			return nil
 		},
 		ConfigfilesPermanentSlotCallback: func(spec *configfiles.Specification,
 			slot *snap.SlotInfo) error {
-			spec.AddPathContent("/etc/conf4.d/d.conf", "dddd")
+			spec.AddPathContent("/etc/conf4.d/d.conf",
+				&osutil.MemoryFileState{Content: []byte("dddd"), Mode: 0655})
 			return nil
 		},
 	},
@@ -86,25 +91,25 @@ slots:
 func (s *specSuite) TestSpecificationIface(c *C) {
 	var r interfaces.Specification = s.spec
 	c.Assert(r.AddConnectedPlug(s.iface1, s.plug, s.slot), IsNil)
-	c.Assert(s.spec.PathContent(), DeepEquals, map[string]string{
-		"/etc/conf1.d/a.conf": "aaaa",
+	c.Assert(s.spec.PathContent(), DeepEquals, map[string]osutil.FileState{
+		"/etc/conf1.d/a.conf": &osutil.MemoryFileState{Content: []byte("aaaa"), Mode: 0655},
 	})
 	c.Assert(r.AddConnectedSlot(s.iface1, s.plug, s.slot), IsNil)
-	c.Assert(s.spec.PathContent(), DeepEquals, map[string]string{
-		"/etc/conf1.d/a.conf": "aaaa",
-		"/etc/conf2.d/b.conf": "bbbb",
+	c.Assert(s.spec.PathContent(), DeepEquals, map[string]osutil.FileState{
+		"/etc/conf1.d/a.conf": &osutil.MemoryFileState{Content: []byte("aaaa"), Mode: 0655},
+		"/etc/conf2.d/b.conf": &osutil.MemoryFileState{Content: []byte("bbbb"), Mode: 0655},
 	})
 	c.Assert(r.AddPermanentPlug(s.iface1, s.plugInfo), IsNil)
-	c.Assert(s.spec.PathContent(), DeepEquals, map[string]string{
-		"/etc/conf1.d/a.conf": "aaaa",
-		"/etc/conf2.d/b.conf": "bbbb",
-		"/etc/conf3.d/c.conf": "cccc",
+	c.Assert(s.spec.PathContent(), DeepEquals, map[string]osutil.FileState{
+		"/etc/conf1.d/a.conf": &osutil.MemoryFileState{Content: []byte("aaaa"), Mode: 0655},
+		"/etc/conf2.d/b.conf": &osutil.MemoryFileState{Content: []byte("bbbb"), Mode: 0655},
+		"/etc/conf3.d/c.conf": &osutil.MemoryFileState{Content: []byte("cccc"), Mode: 0655},
 	})
 	c.Assert(r.AddPermanentSlot(s.iface1, s.slotInfo), IsNil)
-	c.Assert(s.spec.PathContent(), DeepEquals, map[string]string{
-		"/etc/conf1.d/a.conf": "aaaa",
-		"/etc/conf2.d/b.conf": "bbbb",
-		"/etc/conf3.d/c.conf": "cccc",
-		"/etc/conf4.d/d.conf": "dddd",
+	c.Assert(s.spec.PathContent(), DeepEquals, map[string]osutil.FileState{
+		"/etc/conf1.d/a.conf": &osutil.MemoryFileState{Content: []byte("aaaa"), Mode: 0655},
+		"/etc/conf2.d/b.conf": &osutil.MemoryFileState{Content: []byte("bbbb"), Mode: 0655},
+		"/etc/conf3.d/c.conf": &osutil.MemoryFileState{Content: []byte("cccc"), Mode: 0655},
+		"/etc/conf4.d/d.conf": &osutil.MemoryFileState{Content: []byte("dddd"), Mode: 0655},
 	})
 }

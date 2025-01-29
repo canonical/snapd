@@ -23,6 +23,7 @@ import (
 	"fmt"
 
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -33,26 +34,24 @@ import (
 // holds internal state that is used by the configfiles backend during the
 // interface setup process.
 type Specification struct {
-	// pathContent is the a map from absolute file paths to their expected content
-	pathContent map[string]string
+	// pathContent is a map from file paths (relative to the root directory
+	// seen by the snap) to their expected content/permissions expressed as
+	// a osutil.FileState.
+	pathContent map[string]osutil.FileState
 }
 
 // Methods called by interfaces
 
 // AddPathContent adds a configuration file with its content to the specification.
-func (spec *Specification) AddPathContent(path, content string) error {
+func (spec *Specification) AddPathContent(path string, state osutil.FileState) error {
 	if spec.pathContent == nil {
-		spec.pathContent = make(map[string]string)
+		spec.pathContent = make(map[string]osutil.FileState)
 	}
 	if _, ok := spec.pathContent[path]; ok {
 		return fmt.Errorf("%s is already a managed configuration file", path)
 	}
-	spec.pathContent[path] = content
+	spec.pathContent[path] = state
 	return nil
-}
-
-func (spec *Specification) PathContent() map[string]string {
-	return spec.pathContent
 }
 
 // Implementation of methods required by interfaces.Specification

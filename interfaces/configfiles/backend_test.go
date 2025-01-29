@@ -30,6 +30,7 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/configfiles"
 	"github.com/snapcore/snapd/interfaces/ifacetest"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
@@ -152,11 +153,13 @@ func (s *backendSuite) TestConnectDisconnect(c *C) {
 				plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 				switch slot.Snap().InstanceName() {
 				case "egl1":
-					spec.AddPathContent(filepath.Join(
-						dirs.GlobalRootDir, "/etc/conf1.d/a.conf"), "aaaa")
+					spec.AddPathContent(
+						filepath.Join(dirs.GlobalRootDir, "/etc/conf1.d/a.conf"),
+						&osutil.MemoryFileState{Content: []byte("aaaa"), Mode: 0655})
 				case "egl2":
 					spec.AddPathContent(
-						filepath.Join(dirs.GlobalRootDir, "/etc/conf1.d/b.conf"), "bbbb")
+						filepath.Join(dirs.GlobalRootDir, "/etc/conf1.d/b.conf"),
+						&osutil.MemoryFileState{Content: []byte("bbbb"), Mode: 0655})
 				}
 				return nil
 			},
@@ -203,7 +206,8 @@ func (s *backendSuite) TestTwoPlugs(c *C) {
 			ConfigfilesConnectedPlugCallback: func(spec *configfiles.Specification,
 				plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 				spec.AddPathContent(
-					filepath.Join(dirs.GlobalRootDir, "/etc/conf1.d/a.conf"), "a")
+					filepath.Join(dirs.GlobalRootDir, "/etc/conf1.d/a.conf"),
+					&osutil.MemoryFileState{Content: []byte("a"), Mode: 0655})
 				return nil
 			},
 		},
@@ -218,7 +222,8 @@ func (s *backendSuite) TestTwoPlugs(c *C) {
 			ConfigfilesConnectedPlugCallback: func(spec *configfiles.Specification,
 				plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 				spec.AddPathContent(
-					filepath.Join(dirs.GlobalRootDir, "/etc/conf2.d/a.conf"), "a")
+					filepath.Join(dirs.GlobalRootDir, "/etc/conf2.d/a.conf"),
+					&osutil.MemoryFileState{Content: []byte("a"), Mode: 0655})
 				return nil
 			},
 		},
@@ -265,7 +270,8 @@ func (s *backendSuite) TestUnmatchedPattern(c *C) {
 			InterfaceName: "egl-driver-libs",
 			ConfigfilesConnectedPlugCallback: func(spec *configfiles.Specification,
 				plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
-				spec.AddPathContent(filepath.Join(dirs.GlobalRootDir, "/etc/conf1.d/a.txt"), "a")
+				spec.AddPathContent(filepath.Join(dirs.GlobalRootDir, "/etc/conf1.d/a.txt"),
+					&osutil.MemoryFileState{Content: []byte("a"), Mode: 0655})
 				return nil
 			},
 		},

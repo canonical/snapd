@@ -97,9 +97,14 @@ func (b *Backend) ensureConfigfiles(spec *Specification, cfgPatterns []string) e
 	for path := range spec.pathContent {
 		writtenPaths[path] = false
 	}
+	// TODO supported patterns apply currently only to a classic rootfs,
+	// not to the rootfs of a snap. For the latter, the paths will be
+	// relative to a directory in /var/lib/snapd/configfiles/<snap_name>/.
+	// Files in there would be bind mounted so they can be seen by the
+	// snap.
 	for _, pattern := range cfgPatterns {
 		matched := map[string]osutil.FileState{}
-		for path, content := range spec.pathContent {
+		for path, fileState := range spec.pathContent {
 			match, err := filepath.Match(pattern, path)
 			if err != nil {
 				return fmt.Errorf("internal error in configfiles: %w", err)
@@ -107,10 +112,7 @@ func (b *Backend) ensureConfigfiles(spec *Specification, cfgPatterns []string) e
 			if !match {
 				continue
 			}
-			matched[filepath.Base(path)] = &osutil.MemoryFileState{
-				Content: []byte(content),
-				Mode:    0644,
-			}
+			matched[filepath.Base(path)] = fileState
 			writtenPaths[path] = true
 		}
 		targetDir := filepath.Dir(pattern)
