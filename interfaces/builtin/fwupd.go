@@ -126,6 +126,10 @@ const fwupdPermanentSlotAppArmor = `
   /boot/efi/{,**/} r,
   # allow access to fwupd* and fw/ under boot/ for core systems
   /boot/efi/EFI/*/fwupd*.efi* rw,
+  # allow access to the shim and fallback shim
+  /boot/efi/EFI/*/shim*.efi* r,
+  /boot/efi/EFI/BOOT/BOOT*.EFI r,
+  /boot/efi/EFI/*/grub*.efi* r,
   /boot/efi/EFI/*/ rw,
   /boot/efi/EFI/*/fw/ rw,
   /boot/efi/EFI/*/fw/** rw,
