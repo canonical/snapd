@@ -483,33 +483,6 @@ func ProvisionForCVM(initramfsUbuntuSeedDir string) error {
 	return nil
 }
 
-// This helper is a workaround for a secboot bug https://github.com/canonical/secboot/issues/353
-// where NewTPMPassphraseProtectedKey takes an open tpm connection as input, but internally
-// tries to re-open a new connection implicitly causing an error due trying to open two
-// connection for the same TPM device.
-//
-// FIXME: This approach is not thread safe and should be updated when fix lands in secboot.
-func withSingleTPMConnection(fn func(tpm *sb_tpm2.Connection)) error {
-	tpm, err := sbConnectToDefaultTPM()
-	if err != nil {
-		return fmt.Errorf("cannot connect to TPM: %v", err)
-	}
-	defer tpm.Close()
-	if !isTPMEnabled(tpm) {
-		return fmt.Errorf("TPM device is not enabled")
-	}
-
-	// Workaround for secboot to reuse opened tpm connection.
-	old := sb_tpm2.ConnectToTPM
-	sb_tpm2.ConnectToTPM = func() (*sb_tpm2.Connection, error) {
-		return tpm, nil
-	}
-	defer func() { sb_tpm2.ConnectToTPM = old }()
-
-	fn(tpm)
-	return nil
-}
-
 func kdfOptions(volumesAuth *device.VolumesAuthOptions) (sb.KDFOptions, error) {
 	switch volumesAuth.KDFType {
 	case "":
@@ -533,7 +506,7 @@ func kdfOptions(volumesAuth *device.VolumesAuthOptions) (sb.KDFOptions, error) {
 	}
 }
 
-func newTPMProtectedKey(creationParams *sb_tpm2.ProtectKeyParams, volumesAuth *device.VolumesAuthOptions) (protectedKey *sb.KeyData, primaryKey sb.PrimaryKey, unlockKey sb.DiskUnlockKey, err error) {
+func newTPMProtectedKey(tpm *sb_tpm2.Connection, creationParams *sb_tpm2.ProtectKeyParams, volumesAuth *device.VolumesAuthOptions) (protectedKey *sb.KeyData, primaryKey sb.PrimaryKey, unlockKey sb.DiskUnlockKey, err error) {
 	if volumesAuth != nil {
 		switch volumesAuth.Mode {
 		case device.AuthModePassphrase:
@@ -545,12 +518,7 @@ func newTPMProtectedKey(creationParams *sb_tpm2.ProtectKeyParams, volumesAuth *d
 				ProtectKeyParams: *creationParams,
 				KDFOptions:       kdfOptions,
 			}
-			tpmErr := withSingleTPMConnection(func(tpm *sb_tpm2.Connection) {
-				protectedKey, primaryKey, unlockKey, err = sbNewTPMPassphraseProtectedKey(tpm, passphraseParams, volumesAuth.Passphrase)
-			})
-			if tpmErr != nil {
-				return nil, nil, nil, tpmErr
-			}
+			protectedKey, primaryKey, unlockKey, err = sbNewTPMPassphraseProtectedKey(tpm, passphraseParams, volumesAuth.Passphrase)
 		case device.AuthModePIN:
 			// TODO: Implement PIN authentication mode.
 			return nil, nil, nil, fmt.Errorf("%q authentication mode is not implemented", device.AuthModePIN)
@@ -558,12 +526,7 @@ func newTPMProtectedKey(creationParams *sb_tpm2.ProtectKeyParams, volumesAuth *d
 			return nil, nil, nil, fmt.Errorf("internal error: invalid authentication mode %q", volumesAuth.Mode)
 		}
 	} else {
-		tpmErr := withSingleTPMConnection(func(tpm *sb_tpm2.Connection) {
-			protectedKey, primaryKey, unlockKey, err = sbNewTPMProtectedKey(tpm, creationParams)
-		})
-		if tpmErr != nil {
-			return nil, nil, nil, tpmErr
-		}
+		protectedKey, primaryKey, unlockKey, err = sbNewTPMProtectedKey(tpm, creationParams)
 	}
 
 	return protectedKey, primaryKey, unlockKey, err
@@ -576,6 +539,15 @@ func SealKeys(keys []SealKeyRequest, params *SealKeysParams) ([]byte, error) {
 	numModels := len(params.ModelParams)
 	if numModels < 1 {
 		return nil, fmt.Errorf("at least one set of model-specific parameters is required")
+	}
+
+	tpm, err := sbConnectToDefaultTPM()
+	if err != nil {
+		return nil, fmt.Errorf("cannot connect to TPM: %v", err)
+	}
+	defer tpm.Close()
+	if !isTPMEnabled(tpm) {
+		return nil, fmt.Errorf("TPM device is not enabled")
 	}
 
 	var primaryKey sb.PrimaryKey
@@ -598,7 +570,7 @@ func SealKeys(keys []SealKeyRequest, params *SealKeysParams) ([]byte, error) {
 			PCRPolicyCounterHandle: tpm2.Handle(pcrHandle),
 			PrimaryKey:             primaryKey,
 		}
-		protectedKey, primaryKeyOut, unlockKey, err := newTPMProtectedKey(creationParams, params.VolumesAuth)
+		protectedKey, primaryKeyOut, unlockKey, err := newTPMProtectedKey(tpm, creationParams, params.VolumesAuth)
 		if primaryKey == nil {
 			primaryKey = primaryKeyOut
 		}
@@ -917,7 +889,7 @@ func PCRHandleOfSealedKey(p string) (uint32, error) {
 func tpmReleaseResourcesImpl(tpm *sb_tpm2.Connection, handle tpm2.Handle) error {
 	rc, err := tpm.CreateResourceContextFromTPM(handle)
 	if err != nil {
-		if _, ok := err.(tpm2.ResourceUnavailableError); ok {
+		if _, ok := err.(*tpm2.ResourceUnavailableError); ok {
 			// there's nothing to release, the handle isn't used
 			return nil
 		}
