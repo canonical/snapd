@@ -76,7 +76,7 @@ execute: |
   # Install again, but force a failure to check revert
   boot_id=$(tests.nested boot-id)
   remote_chg_id=$(remote.exec sudo snap install --no-wait --dangerous pc-kernel.snap "$comp_file")
-  remote.retry --wait 1 -n 100 'sudo rm /run/mnt/ubuntu-boot/EFI/ubuntu/try-kernel.efi'
+  remote.retry --wait 1 -n 300 'sudo rm /run/mnt/ubuntu-boot/EFI/ubuntu/try-kernel.efi'
   tests.nested wait-for reboot "$boot_id"
   remote.retry --wait 5 -n 60 "snap change $remote_chg_id | MATCH Error"
   # Module is still loaded
