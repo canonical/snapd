@@ -225,7 +225,7 @@ func (fh *fdeHookV2DataHandler) RecoverKeys(data *sb.PlatformKeyData, encryptedP
 	return fde.Reveal(&p)
 }
 
-func (fh *fdeHookV2DataHandler) ChangeAuthKey(data *sb.PlatformKeyData, old, new []byte) ([]byte, error) {
+func (fh *fdeHookV2DataHandler) ChangeAuthKey(data *sb.PlatformKeyData, old, new []byte, context any) ([]byte, error) {
 	return nil, fmt.Errorf("cannot change auth key yet")
 }
 
