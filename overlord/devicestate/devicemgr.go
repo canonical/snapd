@@ -2201,31 +2201,6 @@ func (m *DeviceManager) systems() ([]*System, error) {
 	return systems, nil
 }
 
-func snapdVersionByTypeFromSeed20(s seed.Seed, types []snap.Type) (systemSnapdVersions *install.SystemSnapdVersions, err error) {
-	perf := &timings.Timings{}
-	if err := s.LoadEssentialMeta(types, perf); err != nil {
-		return nil, fmt.Errorf("cannot load essential snaps metadata: %v", err)
-	}
-	systemSnapdVersions = &install.SystemSnapdVersions{}
-	for _, snapSeed := range s.EssentialSnaps() {
-		snapf, err := snapfile.Open(snapSeed.Path)
-		if err != nil {
-			return nil, err
-		}
-		snapdVersion, _, err := snap.SnapdInfoFromSnapFile(snapf, snapSeed.EssentialType)
-		if err != nil {
-			return nil, err
-		}
-		switch snapSeed.EssentialType {
-		case snap.TypeSnapd:
-			systemSnapdVersions.SnapdVersion = snapdVersion
-		case snap.TypeKernel:
-			systemSnapdVersions.SnapdInitramfsVersion = snapdVersion
-		}
-	}
-	return systemSnapdVersions, nil
-}
-
 // SystemAndGadgetAndEncryptionInfo return the system details
 // including the model assertion, gadget details and encryption info
 // for the given system label.
@@ -2234,7 +2209,7 @@ func (m *DeviceManager) SystemAndGadgetAndEncryptionInfo(wantedSystemLabel strin
 	// installer is not anymore.
 
 	// System information
-	systemAndSnaps, err := m.loadSystemAndEssentialSnaps(wantedSystemLabel, []snap.Type{snap.TypeKernel, snap.TypeGadget}, seed.AllModes)
+	systemAndSnaps, err := m.loadSystemAndEssentialSnaps(wantedSystemLabel, []snap.Type{snap.TypeSnapd, snap.TypeKernel, snap.TypeGadget}, seed.AllModes)
 	if err != nil {
 		return nil, nil, nil, err
 	}
@@ -2249,20 +2224,8 @@ func (m *DeviceManager) SystemAndGadgetAndEncryptionInfo(wantedSystemLabel strin
 		return nil, nil, nil, fmt.Errorf("reading gadget information: %v", err)
 	}
 
-	var systemSnapdVersions *install.SystemSnapdVersions
-	// Find snapd versions for snapd and kernel snaps in the seed for
-	// the passphrase/PINs auth checks.
-	// FDE is only supported in UC20+ (i.e. Model grade is set).
-	if systemAndSnaps.Model.Grade() != asserts.ModelGradeUnset {
-		// Snapd snap should exist in UC20+.
-		systemSnapdVersions, err = snapdVersionByTypeFromSeed20(systemAndSnaps.Seed, []snap.Type{snap.TypeSnapd, snap.TypeKernel})
-		if err != nil {
-			return nil, nil, nil, err
-		}
-	}
-
 	// Encryption details
-	encInfo, err := m.encryptionSupportInfo(systemAndSnaps.Model, secboot.TPMProvisionFull, systemAndSnaps.InfosByType[snap.TypeKernel], gadgetInfo, systemSnapdVersions)
+	encInfo, err := m.encryptionSupportInfo(systemAndSnaps.Model, secboot.TPMProvisionFull, systemAndSnaps.InfosByType[snap.TypeKernel], gadgetInfo, &systemAndSnaps.SystemSnapdVersions)
 	if err != nil {
 		return nil, nil, nil, err
 	}
@@ -2280,10 +2243,11 @@ func (m *DeviceManager) SystemAndGadgetAndEncryptionInfo(wantedSystemLabel strin
 
 type systemAndEssentialSnaps struct {
 	*System
-	Seed            seed.Seed
-	InfosByType     map[snap.Type]*snap.Info
-	CompsByType     map[snap.Type][]compSeedInfo
-	SeedSnapsByType map[snap.Type]*seed.Snap
+	Seed                seed.Seed
+	SystemSnapdVersions install.SystemSnapdVersions
+	InfosByType         map[snap.Type]*snap.Info
+	CompsByType         map[snap.Type][]compSeedInfo
+	SeedSnapsByType     map[snap.Type]*seed.Snap
 }
 
 type compSeedInfo struct {
@@ -2346,6 +2310,7 @@ func (m *DeviceManager) loadSystemAndEssentialSnaps(wantedSystemLabel string, ty
 	snapInfos := make(map[snap.Type]*snap.Info)
 	compInfos := make(map[snap.Type][]compSeedInfo)
 	seedSnaps := make(map[snap.Type]*seed.Snap)
+	systemSnapdVersions := install.SystemSnapdVersions{}
 	for _, seedSnap := range s.EssentialSnaps() {
 		typ := seedSnap.EssentialType
 		if seedSnap.Path == "" {
@@ -2388,6 +2353,18 @@ func (m *DeviceManager) loadSystemAndEssentialSnaps(wantedSystemLabel string, ty
 				})
 			}
 		}
+		if typ == snap.TypeSnapd || typ == snap.TypeKernel {
+			snapdVersion, _, err := snap.SnapdInfoFromSnapFile(snapf, typ)
+			if err != nil {
+				return nil, err
+			}
+			switch typ {
+			case snap.TypeSnapd:
+				systemSnapdVersions.SnapdVersion = snapdVersion
+			case snap.TypeKernel:
+				systemSnapdVersions.SnapdInitramfsVersion = snapdVersion
+			}
+		}
 		seedSnaps[typ] = snapForMode
 		snapInfos[typ] = snapInfo
 		compInfos[typ] = compInfosForType
@@ -2397,11 +2374,12 @@ func (m *DeviceManager) loadSystemAndEssentialSnaps(wantedSystemLabel string, ty
 	}
 
 	return &systemAndEssentialSnaps{
-		System:          sys,
-		Seed:            s,
-		InfosByType:     snapInfos,
-		CompsByType:     compInfos,
-		SeedSnapsByType: seedSnaps,
+		System:              sys,
+		Seed:                s,
+		SystemSnapdVersions: systemSnapdVersions,
+		InfosByType:         snapInfos,
+		CompsByType:         compInfos,
+		SeedSnapsByType:     seedSnaps,
 	}, nil
 }
 
