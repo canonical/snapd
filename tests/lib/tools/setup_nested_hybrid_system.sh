@@ -64,7 +64,9 @@ run_muinstaller() {
     fi
 
     # build the muinstaller snap
-    snap install snapcraft --candidate --classic
+    if [ -z "$(command -v snapcraft)" ]; then
+        snap install snapcraft --candidate --classic
+    fi
     "${TESTSTOOLS}/lxd-state" prepare-snap
     (cd "${TESTSLIB}/muinstaller" && snapcraft)
 
@@ -99,6 +101,13 @@ run_muinstaller() {
     done
 
     remote.exec "sudo sh -c 'echo SNAPD_DEBUG=1 >> /etc/environment'"
+    if [ -n "${HYBRID_SYSTEM_SNAPD_ENVIRONMENT-}" ]; then
+        remote.exec "sudo mkdir -p /etc/systemd/system/snapd.service.d"
+        cat <<EOF | remote.exec "sudo tee /etc/systemd/system/snapd.service.d/hybrid-system-environment.conf"
+[Service]
+Environment=${HYBRID_SYSTEM_SNAPD_ENVIRONMENT-}
+EOF
+    fi
     # push our snap down
     # TODO: this abuses /var/lib/snapd to store the deb so that mk-initramfs-classic
     # can pick it up. the real installer will also need a very recent snapd
@@ -147,10 +156,25 @@ run_muinstaller() {
     # run installation
     local install_disk
     install_disk=$(remote.exec "readlink -f /dev/disk/by-id/virtio-target")
+
+    if [ -n "${HYBRID_SYSTEM_MK_ROOT_FS-}" ]; then
+        remote.push "${HYBRID_SYSTEM_MK_ROOT_FS}" /home/user1/custom-rootfs.sh
+        remote.exec "chmod +x /home/user1/custom-rootfs.sh"
+    fi
+    remote.exec "tee /home/user1/mk-classic-rootfs-wrapper.sh" <<\EOF
+#!/bin/bash
+set -eu
+/snap/muinstaller/current/bin/mk-classic-rootfs.sh "$@"
+if [ -x /home/user1/custom-rootfs.sh ]; then
+  /home/user1/custom-rootfs.sh "$@"
+fi
+EOF
+    remote.exec "chmod +x /home/user1/mk-classic-rootfs-wrapper.sh"
+
     remote.exec "sudo muinstaller \
         -label ${label} \
         -device ${install_disk} \
-        -rootfs-creator /snap/muinstaller/current/bin/mk-classic-rootfs.sh"
+        -rootfs-creator /home/user1/mk-classic-rootfs-wrapper.sh"
 
     remote.exec "sudo sync"
 
