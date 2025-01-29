@@ -43,7 +43,7 @@ func getBase(s string) (base int) {
 			if strings.ContainsRune(pool, r) {
 				matched = true
 				if _, ok := matchedSymbolPools[pool]; !ok {
-					base += len([]rune(pool))
+					base += len(pool)
 					matchedSymbolPools[pool] = struct{}{}
 				}
 				break
