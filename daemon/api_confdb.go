@@ -34,7 +34,7 @@ import (
 
 var (
 	confdbCmd = &Command{
-		Path:        "/v2/confdbs/{account}/{confdb}/{view}",
+		Path:        "/v2/confdb/{account}/{confdb}/{view}",
 		GET:         getView,
 		PUT:         setView,
 		ReadAccess:  authenticatedAccess{Polkit: polkitActionManage},
