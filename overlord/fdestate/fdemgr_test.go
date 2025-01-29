@@ -30,6 +30,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/arch/archtest"
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/dirs"
@@ -71,6 +72,8 @@ func (s *fdeMgrSuite) SetUpTest(c *C) {
 	s.rootdir = c.MkDir()
 	dirs.SetRootDir(s.rootdir)
 	s.AddCleanup(func() { dirs.SetRootDir("") })
+
+	s.AddCleanup(archtest.MockArchitecture("amd64"))
 
 	s.o = overlord.Mock()
 
