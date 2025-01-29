@@ -37,6 +37,7 @@ import (
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/devicestate"
+	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 )
 
@@ -117,7 +118,7 @@ func remodelJSON(c *Command, r *http.Request) Response {
 	st.Lock()
 	defer st.Unlock()
 
-	chg, err := devicestateRemodel(st, newModel, nil, devicestate.RemodelOptions{
+	chg, err := devicestateRemodel(st, newModel, devicestate.RemodelOptions{
 		Offline: data.Offline,
 	})
 	if err != nil {
@@ -186,7 +187,7 @@ func startOfflineRemodelChange(st *state.State, newModel *asserts.Model,
 	}
 
 	*pathsToNotRemove = make([]string, 0, len(slInfo.snaps))
-	localSnaps := make([]devicestate.LocalSnap, 0, len(slInfo.snaps))
+	localSnaps := make([]snapstate.PathSnap, 0, len(slInfo.snaps))
 	for _, psi := range slInfo.snaps {
 		// Move file to the same name of what a downloaded one would have
 		dest := filepath.Join(dirs.SnapBlobDir,
@@ -195,17 +196,18 @@ func startOfflineRemodelChange(st *state.State, newModel *asserts.Model,
 		// Avoid trying to remove a file that does not exist anymore
 		*pathsToNotRemove = append(*pathsToNotRemove, psi.tmpPath)
 
-		localSnaps = append(localSnaps, devicestate.LocalSnap{
+		localSnaps = append(localSnaps, snapstate.PathSnap{
 			SideInfo: &psi.info.SideInfo,
 			Path:     dest,
 		})
 	}
 
 	// Now create and start the remodel change
-	chg, err := devicestateRemodel(st, newModel, localSnaps, devicestate.RemodelOptions{
-		// since this is the codepath that parses the form, offline is implcit
+	chg, err := devicestateRemodel(st, newModel, devicestate.RemodelOptions{
+		// since this is the codepath that parses the form, offline is implicit
 		// because local snaps are being provided.
-		Offline: true,
+		Offline:    true,
+		LocalSnaps: localSnaps,
 	})
 	if err != nil {
 		return nil, BadRequest("cannot remodel device: %v", err)
