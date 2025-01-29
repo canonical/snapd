@@ -1027,7 +1027,7 @@ func sortNonEssentialRemodelTaskSetsBasesFirst(snaps []*asserts.ModelSnap) []*as
 }
 
 func remodelTasks(ctx context.Context, st *state.State, current, new *asserts.Model,
-	deviceCtx snapstate.DeviceContext, fromChange string, localSnaps []LocalSnap, opts RemodelOptions) ([]*state.TaskSet, error) {
+	deviceCtx snapstate.DeviceContext, fromChange string, opts RemodelOptions) ([]*state.TaskSet, error) {
 
 	logger.Debugf("creating remodeling tasks")
 
@@ -1046,10 +1046,10 @@ func remodelTasks(ctx context.Context, st *state.State, current, new *asserts.Mo
 		tracker:    snap.NewSelfContainedSetPrereqTracker(),
 		deviceCtx:  deviceCtx,
 		fromChange: fromChange,
-		localSnaps: make(map[string]snapstate.PathSnap, len(localSnaps)),
+		localSnaps: make(map[string]snapstate.PathSnap, len(opts.LocalSnaps)),
 	}
 
-	for _, ls := range localSnaps {
+	for _, ls := range opts.LocalSnaps {
 		rm.localSnaps[ls.SideInfo.RealName] = snapstate.PathSnap{
 			Path:     ls.Path,
 			SideInfo: ls.SideInfo,
@@ -1379,7 +1379,9 @@ type RemodelOptions struct {
 	// should be provided via the parameters to Remodel. Snaps that are already
 	// installed will be used if they match the revisions that are required by
 	// the model.
-	Offline bool
+	Offline         bool
+	LocalSnaps      []snapstate.PathSnap
+	LocalComponents []snapstate.PathComponent
 }
 
 // Remodel takes a new model assertion and generates a change that
@@ -1392,7 +1394,7 @@ type RemodelOptions struct {
 //     (need to check that even unchanged snaps are accessible)
 //   - Make sure this works with Core 20 as well, in the Core 20 case
 //     we must enforce the default-channels from the model as well
-func Remodel(st *state.State, new *asserts.Model, localSnaps []LocalSnap, opts RemodelOptions) (*state.Change, error) {
+func Remodel(st *state.State, new *asserts.Model, opts RemodelOptions) (*state.Change, error) {
 	var seeded bool
 	err := st.Get("seeded", &seeded)
 	if err != nil && !errors.Is(err, state.ErrNoState) {
@@ -1402,8 +1404,14 @@ func Remodel(st *state.State, new *asserts.Model, localSnaps []LocalSnap, opts R
 		return nil, fmt.Errorf("cannot remodel until fully seeded")
 	}
 
-	if !opts.Offline && len(localSnaps) > 0 {
+	if !opts.Offline && len(opts.LocalSnaps) > 0 {
 		return nil, errors.New("cannot do an online remodel with provided local snaps")
+	}
+
+	for _, ls := range opts.LocalSnaps {
+		if ls.Components != nil || ls.InstanceName != "" || ls.RevOpts != (snapstate.RevisionOptions{}) {
+			return nil, errors.New("internal error: locally provided snaps must only provide path and side info")
+		}
 	}
 
 	current, err := findModel(st)
@@ -1530,7 +1538,7 @@ func Remodel(st *state.State, new *asserts.Model, localSnaps []LocalSnap, opts R
 		// the remodel are added to an existing and running change. this will
 		// allow us to avoid things like calling snapstate.CheckChangeConflictRunExclusively again.
 		var err error
-		tss, err = remodelTasks(context.TODO(), st, current, new, remodCtx, "", localSnaps, opts)
+		tss, err = remodelTasks(context.TODO(), st, current, new, remodCtx, "", opts)
 		if err != nil {
 			return nil, err
 		}
