@@ -153,6 +153,11 @@ func (s *systemsSuite) mockSystemSeeds(c *check.C) (restore func()) {
 		"base":         "core20",
 		"snaps": []interface{}{
 			map[string]interface{}{
+				"name": "snapd",
+				"id":   seed20.AssertedSnapID("snapd"),
+				"type": "snapd",
+			},
+			map[string]interface{}{
 				"name":            "pc-kernel",
 				"id":              seed20.AssertedSnapID("pc-kernel"),
 				"type":            "kernel",
@@ -170,6 +175,11 @@ func (s *systemsSuite) mockSystemSeeds(c *check.C) (restore func()) {
 		"architecture": "amd64",
 		"base":         "core20",
 		"snaps": []interface{}{
+			map[string]interface{}{
+				"name": "snapd",
+				"id":   seed20.AssertedSnapID("snapd"),
+				"type": "snapd",
+			},
 			map[string]interface{}{
 				"name":            "pc-kernel",
 				"id":              seed20.AssertedSnapID("pc-kernel"),

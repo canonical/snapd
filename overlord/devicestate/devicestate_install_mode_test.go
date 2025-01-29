@@ -112,15 +112,14 @@ func (s *deviceMgrInstallSuite) setupSystemSeed(c *C, sysLabel, gadgetYaml strin
 			{"pc-boot.img", ""}, {"pc-core.img", ""}, {"grubx64.efi", ""},
 			{"shim.efi.signed", ""}, {"grub.conf", ""}},
 		snap.R(1), "my-brand", s.StoreSigning.Database)
+	kernelFiles := [][]string{{"kernel.efi", ""}}
+	if _, ok := snapdVersionByType[snap.TypeKernel]; ok {
+		kernelFiles = append(kernelFiles, []string{"snapd-info", fmt.Sprintf("VERSION=%s", snapdVersionByType[snap.TypeKernel])})
+	}
 	if len(kModsRevs) > 0 {
-		s.MakeAssertedSnapWithComps(c,
-			seedtest.SampleSnapYaml["pc-kernel=24+kmods"],
-			[][]string{{"kernel.efi", ""}, {"snapd-info", fmt.Sprintf("VERSION=%s", snapdVersionByType[snap.TypeKernel])}},
-			snap.R(1), kModsRevs, "my-brand", s.StoreSigning.Database)
+		s.MakeAssertedSnapWithComps(c, seedtest.SampleSnapYaml["pc-kernel=24+kmods"], kernelFiles, snap.R(1), kModsRevs, "my-brand", s.StoreSigning.Database)
 	} else {
-		s.MakeAssertedSnap(c, seedtest.SampleSnapYaml["pc-kernel=24"],
-			[][]string{{"kernel.efi", ""}, {"snapd-info", fmt.Sprintf("VERSION=%s", snapdVersionByType[snap.TypeKernel])}},
-			snap.R(1), "my-brand", s.StoreSigning.Database)
+		s.MakeAssertedSnap(c, seedtest.SampleSnapYaml["pc-kernel=24"], kernelFiles, snap.R(1), "my-brand", s.StoreSigning.Database)
 	}
 
 	s.MakeAssertedSnapWithComps(c, seedtest.SampleSnapYaml["optional24"], nil, snap.R(1), nil, "my-brand", s.StoreSigning.Database)
