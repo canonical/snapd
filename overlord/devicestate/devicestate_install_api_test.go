@@ -25,6 +25,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 
 	. "gopkg.in/check.v1"
 
@@ -45,6 +46,7 @@ import (
 	"github.com/snapcore/snapd/secboot/keys"
 	"github.com/snapcore/snapd/seed"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/systemd"
 	"github.com/snapcore/snapd/testutil"
 	"github.com/snapcore/snapd/timings"
 )
@@ -588,8 +590,42 @@ func (s *deviceMgrInstallAPISuite) testInstallFinishStep(c *C, opts finishStepOp
 	c.Check(mountVolsCalls, Equals, 1)
 	c.Check(saveStorageTraitsCalls, Equals, 1)
 
-	if !opts.installClassic {
+	if !opts.installClassic || opts.hasSystemSeed {
 		c.Check(seedCopyCalled, Equals, true)
+	}
+
+	// on hybrid systems (classic systems that'll have a seed), we expect a bind
+	// mount from the seed that is mounted /run/mnt/ubuntu-seed from the
+	// initramfs
+	unitFile := systemd.EscapeUnitNamePath(dirs.SnapSeedDir) + ".mount"
+	unitPath := filepath.Join(
+		boot.InstallUbuntuDataDir,
+		"etc/systemd/system",
+		unitFile,
+	)
+	if opts.installClassic && opts.hasSystemSeed {
+		unitContents, err := os.ReadFile(unitPath)
+		c.Assert(err, IsNil)
+
+		contents := string(unitContents)
+		c.Check(strings.Contains(contents, fmt.Sprintf("Where=%s", dirs.SnapSeedDir)), Equals, true)
+		c.Check(strings.Contains(contents, fmt.Sprintf("What=%s", boot.InitramfsUbuntuSeedDir)), Equals, true)
+		c.Check(strings.Contains(contents, "Options=bind"), Equals, true)
+		c.Check(strings.Contains(contents, "Type=none"), Equals, true)
+		c.Check(strings.Contains(contents, "Before=snapd.mounts.target"), Equals, true)
+		c.Check(strings.Contains(contents, "WantedBy=snapd.mounts.target"), Equals, true)
+
+		unitSymlinkPath := filepath.Join(boot.InstallUbuntuDataDir, "etc/systemd/system/snapd.mounts.target.wants", unitFile)
+		info, err := os.Lstat(unitSymlinkPath)
+		c.Assert(err, IsNil)
+
+		c.Check(info.Mode()&os.ModeSymlink != 0, Equals, true)
+		linkTarget, err := os.Readlink(unitSymlinkPath)
+		c.Assert(err, IsNil)
+
+		c.Check(linkTarget, Equals, filepath.Join(dirs.GlobalRootDir, "etc/systemd/system", unitFile))
+	} else {
+		c.Check(unitPath, testutil.FileAbsent)
 	}
 
 	snapdVarDir := "mnt/ubuntu-data/system-data/var/lib/snapd"
