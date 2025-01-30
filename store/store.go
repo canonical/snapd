@@ -768,15 +768,10 @@ func (s *Store) doRequest(ctx context.Context, client *http.Client, reqOptions *
 
 // doIconRequest does an unauthenticated GET request to the given URL.
 func doIconRequest(ctx context.Context, client *http.Client, iconURL *url.URL) (*http.Response, error) {
-	method := "GET"
 	var body io.Reader // empty body
-	req, err := http.NewRequest(method, iconURL.String(), body)
+	req, err := http.NewRequestWithContext(ctx, "GET", iconURL.String(), body)
 	if err != nil {
 		return nil, err
-	}
-
-	if ctx != nil {
-		req = req.WithContext(ctx)
 	}
 
 	resp, err := client.Do(req)
