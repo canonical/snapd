@@ -699,13 +699,17 @@ func downloadIconImpl(ctx context.Context, name, downloadURL string, w io.ReadWr
 		default:
 			return &DownloadError{Code: resp.StatusCode, URL: resp.Request.URL}
 		}
-		if resp.ContentLength == 0 {
-			logger.Debugf("Unexpected Content-Length: 0 for %s", downloadURL)
+
+		const maxIconFilesize int64 = 300000
+
+		if resp.ContentLength == 0 || resp.ContentLength > maxIconFilesize {
+			return fmt.Errorf("unsupported Content-Length for %s (must be nonzero and <%dB): %d", downloadURL, maxIconFilesize, resp.ContentLength)
 		} else {
 			logger.Debugf("Download size for %s: %d", downloadURL, resp.ContentLength)
 		}
 
-		_, finalErr = io.Copy(w, resp.Body)
+		var bytesWritten int64
+		bytesWritten, finalErr = io.Copy(w, resp.Body)
 
 		if cancelled(ctx) {
 			return fmt.Errorf("the download has been cancelled: %s", ctx.Err())
@@ -715,9 +719,13 @@ func downloadIconImpl(ctx context.Context, name, downloadURL string, w io.ReadWr
 			if httputil.ShouldRetryAttempt(attempt, finalErr) {
 				// XXX: is this correct, without resume? Or should we just
 				// error here since we're not doing Range requests?
+				// And should we seek w back to 0?
 				continue
 			}
 			break
+		}
+		if bytesWritten > maxIconFilesize {
+			return fmt.Errorf("the download size exceeded the max icon filesize (%dB), despite that the reported Content-Length was %d: %d", maxIconFilesize, resp.ContentLength, bytesWritten)
 		}
 		break
 	}
