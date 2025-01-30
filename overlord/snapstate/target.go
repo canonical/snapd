@@ -813,19 +813,13 @@ type pathInstallGoal struct {
 
 // PathInstallGoal creates a new InstallGoal to install a snap from a given from
 // a path on disk. If instanceName is not provided, si.RealName will be used.
-func PathInstallGoal(instanceName, path string, si *snap.SideInfo, components map[*snap.ComponentSideInfo]string, opts RevisionOptions) InstallGoal {
-	if instanceName == "" {
-		instanceName = si.RealName
+func PathInstallGoal(sn PathSnap) InstallGoal {
+	if sn.InstanceName == "" {
+		sn.InstanceName = sn.SideInfo.RealName
 	}
 
 	return &pathInstallGoal{
-		snap: PathSnap{
-			InstanceName: instanceName,
-			Path:         path,
-			RevOpts:      opts,
-			SideInfo:     si,
-			Components:   components,
-		},
+		snap: sn,
 	}
 }
 
@@ -843,17 +837,17 @@ func (p *pathInstallGoal) toInstall(ctx context.Context, st *state.State, opts O
 	return []target{t}, nil
 }
 
-func componentSetupsFromPaths(snapInfo *snap.Info, components map[*snap.ComponentSideInfo]string) ([]ComponentSetup, error) {
+func componentSetupsFromPaths(snapInfo *snap.Info, components []PathComponent) ([]ComponentSetup, error) {
 	setups := make([]ComponentSetup, 0, len(components))
-	for csi, path := range components {
-		compInfo, err := validatedComponentInfo(path, snapInfo, csi)
+	for _, pc := range components {
+		compInfo, err := validatedComponentInfo(pc.Path, snapInfo, pc.SideInfo)
 		if err != nil {
 			return nil, err
 		}
 
 		setups = append(setups, ComponentSetup{
-			CompPath:     path,
-			CompSideInfo: csi,
+			CompPath:     pc.Path,
+			CompSideInfo: pc.SideInfo,
 			CompType:     compInfo.Type,
 		})
 	}
@@ -1322,6 +1316,15 @@ func initRefreshAllStoreUpdates(st *state.State, opts Options, allSnaps map[stri
 	return updates, nil
 }
 
+// PathComponent represents a component of a snap that is to be installed
+// alongside a PathSnap.
+type PathComponent struct {
+	// SideInfo contains extra information about the component.
+	SideInfo *snap.ComponentSideInfo
+	// Path is the path to the component on disk.
+	Path string
+}
+
 // PathSnap represents a single snap to be installed or updated from a path on
 // disk.
 type PathSnap struct {
@@ -1336,7 +1339,7 @@ type PathSnap struct {
 	SideInfo *snap.SideInfo
 	// Components is a mapping of component side infos to paths that should be
 	// installed alongside this snap.
-	Components map[*snap.ComponentSideInfo]string
+	Components []PathComponent
 }
 
 // pathUpdateGoal implements the UpdateGoal interface and represents a group of

@@ -791,7 +791,7 @@ func (s *SquashfsTestSuite) TestBuildSupportsMultipleExcludesWithOnlyOneWildcard
 		// the usual:
 		"mksquashfs", ".", snapPath, "-noappend", "-comp", "xz", "-no-fragments", "-no-progress",
 		// the interesting bits:
-		"-wildcards", "-ef", "exclude1", "-ef", "exclude2", "-ef", "exclude3",
+		"-wildcards", "-ef", "exclude1", "-ef", "exclude2", "-ef", "exclude3", "-xattrs",
 	})
 }
 
@@ -864,8 +864,9 @@ func (s *SquashfsTestSuite) TestBuildVariesArgsByType(c *C) {
 	filename := filepath.Join(c.MkDir(), "foo.snap")
 	snap := squashfs.New(filename)
 
-	permissiveTypeArgs := []string{".", filename, "-noappend", "-comp", "xz", "-no-fragments", "-no-progress"}
-	restrictedTypeArgs := append(permissiveTypeArgs, "-all-root", "-no-xattrs")
+	commonTypeArgs := []string{".", filename, "-noappend", "-comp", "xz", "-no-fragments", "-no-progress"}
+	permissiveTypeArgs := append(commonTypeArgs, "-xattrs")
+	restrictedTypeArgs := append(commonTypeArgs, "-all-root", "-no-xattrs")
 	tests := []struct {
 		snapType string
 		args     []string
@@ -874,7 +875,7 @@ func (s *SquashfsTestSuite) TestBuildVariesArgsByType(c *C) {
 		{"app", restrictedTypeArgs},
 		{"gadget", restrictedTypeArgs},
 		{"kernel", restrictedTypeArgs},
-		{"snapd", restrictedTypeArgs},
+		{"snapd", permissiveTypeArgs},
 		{"base", permissiveTypeArgs},
 		{"os", permissiveTypeArgs},
 		{"core", permissiveTypeArgs},

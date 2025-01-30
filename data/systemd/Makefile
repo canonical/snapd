@@ -27,7 +27,7 @@ SYSTEMD_UNITS_GENERATED := $(wildcard *.in)
 SYSTEMD_UNITS = $(sort $(SYSTEMD_UNITS_GENERATED:.in=) $(wildcard *.service) $(wildcard *.timer) $(wildcard *.socket) $(wildcard *.target))
 
 .PHONY: all
-all: $(SYSTEMD_UNITS) check
+all: $(SYSTEMD_UNITS)
 
 .PHONY: check
 check: snapd.run-from-snap snapd.core-fixup.sh

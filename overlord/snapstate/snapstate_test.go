@@ -135,6 +135,10 @@ func (s *snapmgrBaseTest) mockSystemctlCallsUpdateMounts(c *C) (restore func()) 
 		if len(args) == 3 && args[0] == "--no-reload" && args[1] == "enable" {
 			return []byte(""), nil
 		}
+		if len(args) == 4 && args[0] == "--root" && args[2] == "enable" {
+			// This command is run on preseeding
+			return []byte(""), nil
+		}
 		if len(args) == 2 && args[0] == "restart" {
 			value, ok := s.restarts[args[1]]
 			if ok {
@@ -330,7 +334,7 @@ func (s *snapmgrBaseTest) SetUpTest(c *C) {
 
 	// commonly used revisions in tests
 	defaultInfoFile := `
-VERSION=2.54.3+git1.g479e745-dirty
+VERSION=2.54.3+g1.479e745-dirty
 SNAPD_APPARMOR_REEXEC=1
 `
 	for _, snapName := range []string{"snapd", "core"} {
@@ -872,6 +876,7 @@ func (s *snapmgrTestSuite) TestSwitchTasks(c *C) {
 
 	c.Assert(s.state.TaskCount(), Equals, len(ts.Tasks()))
 	c.Assert(taskKinds(ts.Tasks()), DeepEquals, []string{"switch-snap"})
+	c.Assert(ts.MaybeEdge(snapstate.SnapSetupEdge), NotNil)
 }
 
 func (s *snapmgrTestSuite) TestSwitchConflict(c *C) {
@@ -3540,11 +3545,11 @@ func (s *snapmgrTestSuite) testEnsureRemovesVulnerableSnap(c *C, snapName string
 	// make the currently installed snap info file fixed but an old version
 	// vulnerable
 	fixedInfoFile := `
-VERSION=2.57.6+git1.g479e745-dirty
+VERSION=2.57.6+g1.479e745-dirty
 SNAPD_APPARMOR_REEXEC=1
 `
 	vulnInfoFile := `
-VERSION=2.57.5+git1.g479e745-dirty
+VERSION=2.57.5+g1.479e745-dirty
 SNAPD_APPARMOR_REEXEC=1
 `
 
@@ -8161,6 +8166,7 @@ func (s *snapmgrTestSuite) testRemodelLinkNewBaseOrKernelHappy(c *C, model *asse
 	c.Assert(tLink.Kind(), Equals, "link-snap")
 	c.Assert(tLink.Summary(), Equals, `Make snap "some-kernel" (2) available to the system during remodel`)
 	c.Assert(tLink.WaitTasks(), DeepEquals, []*state.Task{tUpdateGadgetAssets})
+	c.Assert(ts.MaybeEdge(snapstate.MaybeRebootEdge), Equals, tLink)
 
 	ts, err = snapstate.LinkNewBaseOrKernel(s.state, "some-base", "")
 	c.Assert(err, IsNil)
@@ -8174,6 +8180,7 @@ func (s *snapmgrTestSuite) testRemodelLinkNewBaseOrKernelHappy(c *C, model *asse
 	c.Assert(tPrepare.Has("snap-setup"), Equals, true)
 	c.Assert(tLink.Kind(), Equals, "link-snap")
 	c.Assert(tLink.Summary(), Equals, `Make snap "some-base" (1) available to the system during remodel`)
+	c.Assert(ts.MaybeEdge(snapstate.MaybeRebootEdge), Equals, tLink)
 }
 
 func (s *snapmgrTestSuite) TestRemodelLinkNewBaseOrKernelBadType(c *C) {
@@ -8290,6 +8297,7 @@ func (s *snapmgrTestSuite) testRemodelAddLinkNewBaseOrKernel(c *C, model *assert
 		c.Assert(tsk.Get("snap-setup-task", &ssID), IsNil)
 		c.Assert(ssID, Equals, tPrepare.ID())
 	}
+	c.Assert(tsNew.MaybeEdge(snapstate.MaybeRebootEdge), Equals, tLink)
 
 	// try with base snap
 	si = &snap.SideInfo{RealName: "some-base", Revision: snap.R(1)}
@@ -8312,6 +8320,7 @@ func (s *snapmgrTestSuite) testRemodelAddLinkNewBaseOrKernel(c *C, model *assert
 	var ssID string
 	c.Assert(tLink.Get("snap-setup-task", &ssID), IsNil)
 	c.Assert(ssID, Equals, tPrepare.ID())
+	c.Assert(tsNew.MaybeEdge(snapstate.MaybeRebootEdge), Equals, tLink)
 
 	// but bails when there is no task with snap setup
 	ts = state.NewTaskSet()
@@ -10176,7 +10185,8 @@ func (s *snapmgrTestSuite) TestDownloadWithComponents(c *C) {
 	c.Assert(begin, NotNil)
 	c.Check(begin.Kind(), Equals, "download-snap")
 
-	verifySnapAndComponentSetupsForDownload(c, begin, ts, downloadDir)
+	const componentExclusive = false
+	verifySnapAndComponentSetupsForDownload(c, begin, ts, downloadDir, componentExclusive)
 }
 
 func (s *snapmgrTestSuite) TestDownloadWithComponentsWithMismatchValidationSets(c *C) {
@@ -10388,7 +10398,8 @@ func (s *snapmgrTestSuite) TestDownloadWithComponentsWithValidationSets(c *C) {
 	c.Assert(begin, NotNil)
 	c.Check(begin.Kind(), Equals, "download-snap")
 
-	verifySnapAndComponentSetupsForDownload(c, begin, ts, downloadDir)
+	const componentExclusive = false
+	verifySnapAndComponentSetupsForDownload(c, begin, ts, downloadDir, componentExclusive)
 }
 
 func (s *snapmgrTestSuite) TestDownloadComponents(c *C) {
@@ -10463,10 +10474,11 @@ func (s *snapmgrTestSuite) TestDownloadComponents(c *C) {
 	c.Assert(begin, NotNil)
 	c.Check(begin.Kind(), Equals, "download-component")
 
-	verifySnapAndComponentSetupsForDownload(c, begin, ts, downloadDir)
+	const componentExclusive = true
+	verifySnapAndComponentSetupsForDownload(c, begin, ts, downloadDir, componentExclusive)
 }
 
-func verifySnapAndComponentSetupsForDownload(c *C, begin *state.Task, ts *state.TaskSet, downloadDir string) {
+func verifySnapAndComponentSetupsForDownload(c *C, begin *state.Task, ts *state.TaskSet, downloadDir string, componentExclusive bool) {
 	var snapsup snapstate.SnapSetup
 	err := begin.Get("snap-setup", &snapsup)
 	c.Assert(err, IsNil)
@@ -10481,6 +10493,8 @@ func verifySnapAndComponentSetupsForDownload(c *C, begin *state.Task, ts *state.
 		expectedDownloadDir,
 		fmt.Sprintf("%s_%s.snap", snapsup.InstanceName(), snapsup.Revision()),
 	))
+
+	c.Assert(snapsup.ComponentExclusiveOperation, Equals, componentExclusive)
 
 	var compsupTaskIDs []string
 	err = begin.Get("component-setup-tasks", &compsupTaskIDs)

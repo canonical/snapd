@@ -191,6 +191,16 @@ parts:
       craftctl default
       python3 "${CRAFT_PROJECT_DIR}/build-aux/snap/local/patch-dl.py" "/snap/snapd/current/usr/lib/${CRAFT_ARCH_TRIPLET_BUILD_FOR}/${DYNAMIC_LINKER}"
 
+  patchelf:
+    plugin: autotools
+    build-packages:
+      - autoconf-archive
+    # as of 0.18.0-1.1build1 in Oracular, here are no relevant patches to apply
+    source: http://archive.ubuntu.com/ubuntu/pool/universe/p/patchelf/patchelf_0.18.0.orig.tar.gz
+    source-checksum: sha256/1451d01ee3a21100340aed867d0b799f46f0b1749680028d38c3f5d0128fb8a7
+    # nothing to prime
+    prime: [-*]
+
   snapd:
     plugin: nil
     source: .
@@ -198,6 +208,7 @@ parts:
       - go/1.23/stable # the default Go toolchain
     after:
       - apparmor
+      - patchelf
     build-packages:
       - git
       - dpkg-dev
@@ -355,14 +366,14 @@ parts:
             TAGS+=(nomanagers)
             case "${VERSION}" in
               1337.*)
-                TAGS+=(withtestkeys faultinject)
+                TAGS+=(withtestkeys faultinject statelocktrace)
                 ;;
             esac
             ;;
           *)
             case "${VERSION}" in
               1337.*)
-                TAGS+=(withtestkeys withbootassetstesting faultinject)
+                TAGS+=(withtestkeys withbootassetstesting faultinject statelocktrace)
                 ;;
             esac
             ;;
@@ -441,7 +452,10 @@ parts:
       - -fips-build-lp
     override-prime: |
       craftctl default
-      python3 "${CRAFT_PROJECT_DIR}/build-aux/snap/local/patch-dl.py" "/snap/snapd/current/usr/lib/${CRAFT_ARCH_TRIPLET_BUILD_FOR}/${DYNAMIC_LINKER}"
+      # use patchelf built in earlier step
+      PATH="${CRAFT_STAGE}"/usr/local/bin:$PATH \
+          "${CRAFT_PROJECT_DIR}/build-aux/snap/local/patch-dl.py" \
+              "/snap/snapd/current/usr/lib/${CRAFT_ARCH_TRIPLET_BUILD_FOR}/${DYNAMIC_LINKER}"
 
   libcrypto-fips:
     plugin: nil
@@ -524,4 +538,5 @@ parts:
     <<:
       - *dynamic-linker
     override-prime: |
-      python3 "${CRAFT_PROJECT_DIR}/build-aux/snap/local/verify-dl.py" "${CRAFT_PRIME}" "/snap/snapd/current/usr/lib/${CRAFT_ARCH_TRIPLET_BUILD_FOR}/${DYNAMIC_LINKER}" ";"
+      "${CRAFT_PROJECT_DIR}/build-aux/snap/local/verify-dl.py" \
+          "/snap/snapd/current/usr/lib/${CRAFT_ARCH_TRIPLET_BUILD_FOR}/${DYNAMIC_LINKER}"

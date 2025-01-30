@@ -22,7 +22,7 @@
 #include <stddef.h>
 
 /**
- * Convert flags for mount(2) system call to a string representation. 
+ * Convert flags for mount(2) system call to a string representation.
  **/
 const char *sc_mount_opt2str(char *buf, size_t buf_size, unsigned long flags);
 
@@ -38,9 +38,8 @@ const char *sc_mount_opt2str(char *buf, size_t buf_size, unsigned long flags);
  *
  * The returned value is always buf, it is provided as a convenience.
  **/
-const char *sc_mount_cmd(char *buf, size_t buf_size, const char *source, const char
-			 *target, const char *fs_type, unsigned long mountflags,
-			 const void *data);
+const char *sc_mount_cmd(char *buf, size_t buf_size, const char *source, const char *target, const char *fs_type,
+                         unsigned long mountflags, const void *data);
 
 /**
  * Compute an equivalent umount(8) command from umount2(2) arguments.
@@ -58,15 +57,13 @@ const char *sc_mount_cmd(char *buf, size_t buf_size, const char *source, const c
  *
  * The returned value is always buf, it is provided as a convenience.
  **/
-const char *sc_umount_cmd(char *buf, size_t buf_size, const char *target,
-			  int flags);
+const char *sc_umount_cmd(char *buf, size_t buf_size, const char *target, int flags);
 
 /**
  * A thin wrapper around mount(2) with logging and error checks.
  **/
-void sc_do_mount(const char *source, const char *target,
-		 const char *fs_type, unsigned long mountflags,
-		 const void *data);
+void sc_do_mount(const char *source, const char *target, const char *fs_type, unsigned long mountflags,
+                 const void *data);
 
 /**
  * A thin wrapper around mount(2) with logging and error checks.
@@ -77,13 +74,12 @@ void sc_do_mount(const char *source, const char *target,
  *
  * The return value indicates if the operation was successful or not.
  **/
-bool sc_do_optional_mount(const char *source, const char *target,
-			  const char *fs_type, unsigned long mountflags,
-			  const void *data);
+bool sc_do_optional_mount(const char *source, const char *target, const char *fs_type, unsigned long mountflags,
+                          const void *data);
 
 /**
  * A thin wrapper around umount(2) with logging and error checks.
  **/
 void sc_do_umount(const char *target, int flags);
 
-#endif				// SNAP_CONFINE_MOUNT_OPT_H
+#endif  // SNAP_CONFINE_MOUNT_OPT_H

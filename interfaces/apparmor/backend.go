@@ -700,6 +700,15 @@ func (b *Backend) addContent(securityTag string, snapInfo *snap.Info, cmdName st
 	}
 	policy = templatePattern.ReplaceAllStringFunc(policy, func(placeholder string) string {
 		switch placeholder {
+		case "###KERNEL_MODULES_AND_FIRMWARE###":
+			if opts.KernelSnap != "" {
+				return fmt.Sprintf(`
+  # Allow access to kernel modules and firmware from the kernel snap
+  /snap/%[1]s/*/{modules,firmware}/{,**} r,
+  /snap/%[1]s/components/mnt/*/*/{modules,firmware}/{,**} r,
+  /var/snap/%[1]s/*/{modules,firmware}/{,**} r,`, opts.KernelSnap)
+			}
+			return ""
 		case "###DEVMODE_SNAP_CONFINE###":
 			if !opts.DevMode {
 				// nothing to add if we are not in devmode

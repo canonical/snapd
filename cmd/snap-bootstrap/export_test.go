@@ -42,8 +42,16 @@ var (
 	MountNonDataPartitionMatchingKernelDisk = mountNonDataPartitionMatchingKernelDisk
 
 	GetNonUEFISystemDisk = getNonUEFISystemDisk
+
+	GenerateMountsFromManifest = generateMountsFromManifest
+
+	ParseImageManifest = parseImageManifest
+
+	CreateOverlayDirs = createOverlayDirs
 )
 
+type OverlayFsOptions = overlayFsOptions
+type DmVerityOptions = dmVerityOptions
 type SystemdMountOptions = systemdMountOptions
 
 type RecoverDegradedState = recoverDegradedState

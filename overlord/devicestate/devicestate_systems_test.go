@@ -50,6 +50,7 @@ import (
 	"github.com/snapcore/snapd/overlord/install"
 	"github.com/snapcore/snapd/overlord/restart"
 	"github.com/snapcore/snapd/overlord/snapstate"
+	"github.com/snapcore/snapd/overlord/snapstate/sequence"
 	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
@@ -1379,10 +1380,10 @@ func (s *deviceMgrSystemsCreateSuite) SetUpTest(c *C) {
 
 	s.state.Lock()
 	defer s.state.Unlock()
-	s.makeSnapInState(c, "pc", snap.R(1), nil)
-	s.makeSnapInState(c, "pc-kernel", snap.R(2), nil)
-	s.makeSnapInState(c, "core20", snap.R(3), nil)
-	s.makeSnapInState(c, "snapd", snap.R(4), nil)
+	s.makeSnapInState(c, "pc", snap.R(1), nil, nil)
+	s.makeSnapInState(c, "pc-kernel", snap.R(2), nil, nil)
+	s.makeSnapInState(c, "core20", snap.R(3), nil, nil)
+	s.makeSnapInState(c, "snapd", snap.R(4), nil, nil)
 
 	s.bootloader = s.deviceMgrSystemsBaseSuite.bootloader.WithRecoveryAwareTrustedAssets()
 	bootloader.Force(s.bootloader)
@@ -1434,10 +1435,9 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemTasks
 	err = tskCreate.Get("recovery-system-setup", &systemSetupData)
 	c.Assert(err, IsNil)
 	c.Assert(systemSetupData, DeepEquals, map[string]interface{}{
-		"label":            "1234",
-		"directory":        filepath.Join(boot.InitramfsUbuntuSeedDir, "systems/1234"),
-		"snap-setup-tasks": nil,
-		"test-system":      true,
+		"label":       "1234",
+		"directory":   filepath.Join(boot.InitramfsUbuntuSeedDir, "systems/1234"),
+		"test-system": true,
 	})
 
 	var otherTaskID string
@@ -1470,7 +1470,59 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemNotSe
 	c.Check(chg, IsNil)
 }
 
-func (s *deviceMgrSystemsCreateSuite) makeSnapInState(c *C, name string, rev snap.Revision, extraFiles [][]string) *snap.Info {
+func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoveryRequiredInVsetNotInModel(c *C) {
+	devicestate.SetBootOkRan(s.mgr, true)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	s.model = s.brands.Model("canonical", "pc-20", map[string]interface{}{
+		"architecture": "amd64",
+		"grade":        "dangerous",
+		"base":         "core20",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":            "pc-kernel",
+				"id":              s.ss.AssertedSnapID("pc-kernel"),
+				"type":            "kernel",
+				"default-channel": "20",
+			},
+			map[string]interface{}{
+				"name":            "pc",
+				"id":              s.ss.AssertedSnapID("pc"),
+				"type":            "gadget",
+				"default-channel": "20",
+			},
+		},
+		"revision": "2",
+	})
+
+	vset, err := s.brands.Signing("canonical").Sign(asserts.ValidationSetType, map[string]interface{}{
+		"type":         "validation-set",
+		"authority-id": "canonical",
+		"series":       "16",
+		"account-id":   "canonical",
+		"name":         "vset-1",
+		"sequence":     "1",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":     "required-snap",
+				"id":       s.ss.AssertedSnapID("other"),
+				"presence": "required",
+			},
+		},
+		"timestamp": time.Now().UTC().Format(time.RFC3339),
+	}, nil, "")
+	c.Assert(err, IsNil)
+
+	chg, err := devicestate.CreateRecoverySystem(s.state, "1234", devicestate.CreateRecoverySystemOptions{
+		ValidationSets: []*asserts.ValidationSet{vset.(*asserts.ValidationSet)},
+	})
+	c.Assert(err, ErrorMatches, `missing required snap in model: required-snap`)
+	c.Check(chg, IsNil)
+}
+
+func (s *deviceMgrSystemsCreateSuite) makeSnapInState(c *C, name string, rev snap.Revision, extraFiles [][]string, components map[string]snap.Revision) *snap.Info {
 	snapID := s.ss.AssertedSnapID(name)
 	if rev.Unset() || rev.Local() {
 		snapID = ""
@@ -1489,10 +1541,62 @@ func (s *deviceMgrSystemsCreateSuite) makeSnapInState(c *C, name string, rev sna
 		s.setupSnapDecl(c, info, "canonical")
 		s.setupSnapRevision(c, info, "canonical", rev)
 	}
+
+	seq := snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si})
+
+	for comp, compRev := range components {
+		if rev.Unset() {
+			continue
+		}
+
+		cref := naming.NewComponentRef(name, comp)
+
+		compYaml, ok := componentYamls[cref.String()]
+		c.Assert(ok, Equals, true, Commentf("component.yaml not found for %q", name))
+
+		compPath := snaptest.MakeTestComponent(c, compYaml)
+
+		csi := snap.ComponentSideInfo{
+			Component: cref,
+			Revision:  compRev,
+		}
+
+		compInfo := snaptest.MockComponent(c, compYaml, info, csi)
+
+		cpi := snap.MinimalComponentContainerPlaceInfo(
+			comp,
+			compRev,
+			name,
+		)
+		err := os.Rename(compPath, cpi.MountFile())
+		c.Assert(err, IsNil)
+
+		s.setupSnapResourcePair(
+			c,
+			comp,
+			snapID,
+			"canonical",
+			compRev,
+			rev,
+		)
+
+		s.setupSnapResourceRevision(
+			c,
+			cpi.MountFile(),
+			comp,
+			snapID,
+			"canonical",
+			compRev,
+		)
+
+		err = seq.AddComponentForRevision(rev, sequence.NewComponentState(snap.NewComponentSideInfo(cref, compRev), compInfo.Type))
+		c.Assert(err, IsNil)
+	}
+
 	snapstate.Set(s.state, info.InstanceName(), &snapstate.SnapState{
 		SnapType: string(info.Type()),
 		Active:   true,
-		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si}),
+		Sequence: seq,
 		Current:  si.Revision,
 	})
 
@@ -1500,10 +1604,10 @@ func (s *deviceMgrSystemsCreateSuite) makeSnapInState(c *C, name string, rev sna
 }
 
 func (s *deviceMgrSystemsCreateSuite) mockStandardSnapsModeenvAndBootloaderState(c *C) {
-	s.makeSnapInState(c, "pc", snap.R(1), nil)
-	s.makeSnapInState(c, "pc-kernel", snap.R(2), nil)
-	s.makeSnapInState(c, "core20", snap.R(3), nil)
-	s.makeSnapInState(c, "snapd", snap.R(4), nil)
+	s.makeSnapInState(c, "pc", snap.R(1), nil, nil)
+	s.makeSnapInState(c, "pc-kernel", snap.R(2), nil, nil)
+	s.makeSnapInState(c, "core20", snap.R(3), nil, nil)
+	s.makeSnapInState(c, "snapd", snap.R(4), nil, nil)
 
 	err := s.bootloader.SetBootVars(map[string]string{
 		"snap_kernel": "pc-kernel_2.snap",
@@ -1662,7 +1766,7 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemRemod
 	tSnapsup1.Set("snap-setup", snapsupFoo)
 	tSnapsup2.Set("snap-setup", snapsupBar)
 
-	tss, err := devicestate.CreateRecoverySystemTasks(s.state, "1234", []string{tSnapsup1.ID(), tSnapsup2.ID()}, devicestate.CreateRecoverySystemOptions{
+	tss, err := devicestate.CreateRecoverySystemTasks(s.state, "1234", []string{tSnapsup1.ID(), tSnapsup2.ID()}, nil, devicestate.CreateRecoverySystemOptions{
 		TestSystem: true,
 	})
 	c.Assert(err, IsNil)
@@ -1827,7 +1931,7 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemRemod
 
 	s.state.Lock()
 
-	tss, err := devicestate.CreateRecoverySystemTasks(s.state, "1234", nil, devicestate.CreateRecoverySystemOptions{
+	tss, err := devicestate.CreateRecoverySystemTasks(s.state, "1234", nil, nil, devicestate.CreateRecoverySystemOptions{
 		TestSystem: true,
 	})
 	c.Assert(err, IsNil)
@@ -1842,10 +1946,9 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemRemod
 	err = tskCreate.Get("recovery-system-setup", &systemSetupData)
 	c.Assert(err, IsNil)
 	c.Assert(systemSetupData, DeepEquals, map[string]interface{}{
-		"label":            "1234",
-		"directory":        filepath.Join(boot.InitramfsUbuntuSeedDir, "systems/1234"),
-		"snap-setup-tasks": nil,
-		"test-system":      true,
+		"label":       "1234",
+		"directory":   filepath.Join(boot.InitramfsUbuntuSeedDir, "systems/1234"),
+		"test-system": true,
 	})
 	// add the test tasks to the change
 	chg := s.state.NewChange("create-recovery-system", "create recovery system")
@@ -2042,7 +2145,7 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemRemod
 	}
 	tSnapsup1.Set("snap-setup", snapsupFoo)
 
-	tss, err := devicestate.CreateRecoverySystemTasks(s.state, "1234missingdownload", []string{tSnapsup1.ID()}, devicestate.CreateRecoverySystemOptions{
+	tss, err := devicestate.CreateRecoverySystemTasks(s.state, "1234missingdownload", []string{tSnapsup1.ID()}, nil, devicestate.CreateRecoverySystemOptions{
 		TestSystem: true,
 	})
 	c.Assert(err, IsNil)
@@ -3381,7 +3484,7 @@ func (s *deviceMgrSystemsCreateSuite) testDeviceManagerCreateRecoverySystemValid
 	validationSets = append(validationSets, vsetAssert.(*asserts.ValidationSet))
 
 	if opts.PreInstallOptionalSnap {
-		s.makeSnapInState(c, "other-required", snapRevisions["other-required"], nil)
+		s.makeSnapInState(c, "other-required", snapRevisions["other-required"], nil, nil)
 	}
 
 	if opts.RequireOptionalSnapInValidationSet {
@@ -3472,13 +3575,13 @@ func (s *deviceMgrSystemsCreateSuite) testDeviceManagerCreateRecoverySystemValid
 			return nil, nil, fmt.Errorf("unexpected snap name %q", name)
 		}
 
-		c.Check(expectedRev, Equals, revOpts.Revision)
+		c.Check(revOpts.Revision.Unset(), Equals, true)
 
 		tDownload := s.state.NewTask("mock-download", fmt.Sprintf("Download %s to track %s", name, revOpts.Channel))
 
 		si := &snap.SideInfo{
 			RealName: name,
-			Revision: revOpts.Revision,
+			Revision: expectedRev,
 			SnapID:   fakeSnapID(name),
 		}
 		tDownload.Set("snap-setup", &snapstate.SnapSetup{
@@ -3488,6 +3591,8 @@ func (s *deviceMgrSystemsCreateSuite) testDeviceManagerCreateRecoverySystemValid
 		})
 
 		_, info := snaptest.MakeTestSnapInfoWithFiles(c, snapYamls[name], snapFiles[name], si)
+
+		opts.PrereqTracker.Add(info)
 
 		tValidate := s.state.NewTask("mock-validate", fmt.Sprintf("Validate %s", name))
 		tValidate.Set("snap-setup-task", tDownload.ID())
@@ -3634,6 +3739,848 @@ func (s *deviceMgrSystemsCreateSuite) testDeviceManagerCreateRecoverySystemValid
 	}
 }
 
+func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemValidationSetsComponents(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	s.testDeviceManagerCreateRecoverySystemValidationSetsComponents(c, testCreateRecoverySystemValidationSetsComponentsOpts{
+		kmodModelPresence: "required",
+		kmodVsetPresence:  "required",
+		blobs:             []string{"snapd_13.snap", "pc-kernel-with-kmods_11.snap", "pc-kernel-with-kmods+kmod_20.comp", "core20_12.snap", "pc_10.snap"},
+		downloadedSnaps:   4,
+		downloadedComps:   1,
+	})
+}
+
+func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemValidationSetsComponentsReuseFromOtherSnap(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// snap doesn't fit in the validation sets, but the component does. we still
+	// will re-download the component because we don't have the correct
+	// snap-resource-pair assertion on the system.
+	s.makeSnapInState(c, "pc-kernel-with-kmods", snap.R(10), nil, map[string]snap.Revision{
+		"kmod": snap.R(20),
+	})
+
+	s.testDeviceManagerCreateRecoverySystemValidationSetsComponents(c, testCreateRecoverySystemValidationSetsComponentsOpts{
+		kmodModelPresence: "required",
+		kmodVsetPresence:  "required",
+		blobs:             []string{"snapd_13.snap", "pc-kernel-with-kmods_11.snap", "pc-kernel-with-kmods+kmod_20.comp", "core20_12.snap", "pc_10.snap"},
+		downloadedSnaps:   4,
+		downloadedComps:   1,
+	})
+}
+
+func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemValidationSetsComponentsRequiredInVsets(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// should still download and install the component, despite the correct snap
+	// being present
+	s.makeSnapInState(c, "pc-kernel-with-kmods", snap.R(11), nil, nil)
+
+	s.testDeviceManagerCreateRecoverySystemValidationSetsComponents(c, testCreateRecoverySystemValidationSetsComponentsOpts{
+		kmodModelPresence: "optional",
+		kmodVsetPresence:  "required",
+		blobs:             []string{"snapd_13.snap", "pc-kernel-with-kmods_11.snap", "pc-kernel-with-kmods+kmod_20.comp", "core20_12.snap", "pc_10.snap"},
+		downloadedSnaps:   3, // snapd, core20, pc
+		downloadedComps:   1, // pc-kernel-with-kmods+kmod
+	})
+}
+
+func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemValidationSetsComponentsNoInstall(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	s.testDeviceManagerCreateRecoverySystemValidationSetsComponents(c, testCreateRecoverySystemValidationSetsComponentsOpts{
+		kmodModelPresence: "optional",
+		kmodVsetPresence:  "optional",
+		blobs:             []string{"snapd_13.snap", "pc-kernel-with-kmods_11.snap", "core20_12.snap", "pc_10.snap"},
+		downloadedSnaps:   4,
+		downloadedComps:   0,
+	})
+}
+
+func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemValidationSetsComponentsAlreadyInstalledComponent(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// snap and components are already installed, but this component revision is
+	// wrong. everything should still happen as if the snap was not installed.
+	s.makeSnapInState(c, "pc-kernel-with-kmods", snap.R(11), nil, map[string]snap.Revision{
+		"kmod": snap.R(19),
+	})
+
+	s.testDeviceManagerCreateRecoverySystemValidationSetsComponents(c, testCreateRecoverySystemValidationSetsComponentsOpts{
+		kmodModelPresence: "required",
+		kmodVsetPresence:  "required",
+		blobs:             []string{"snapd_13.snap", "pc-kernel-with-kmods_11.snap", "pc-kernel-with-kmods+kmod_20.comp", "core20_12.snap", "pc_10.snap"},
+		downloadedSnaps:   3, // snapd, core20, pc
+		downloadedComps:   1, // pc-kernel-with-kmods+kmod
+	})
+}
+
+func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemValidationSetsComponentsAlreadyInstalledComponentOptional(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// even though the component is optional, we still download it since it is
+	// installed on the current system.
+	s.makeSnapInState(c, "pc-kernel-with-kmods", snap.R(11), nil, map[string]snap.Revision{
+		"kmod": snap.R(19),
+	})
+
+	s.testDeviceManagerCreateRecoverySystemValidationSetsComponents(c, testCreateRecoverySystemValidationSetsComponentsOpts{
+		kmodModelPresence: "optional",
+		kmodVsetPresence:  "optional",
+		blobs:             []string{"snapd_13.snap", "pc-kernel-with-kmods_11.snap", "pc-kernel-with-kmods+kmod_20.comp", "core20_12.snap", "pc_10.snap"},
+		downloadedSnaps:   3, // snapd, core20, pc
+		downloadedComps:   1, // pc-kernel-with-kmods+kmod
+	})
+}
+
+type testCreateRecoverySystemValidationSetsComponentsOpts struct {
+	kmodModelPresence string
+	kmodVsetPresence  string
+	blobs             []string
+	downloadedSnaps   int
+	downloadedComps   int
+}
+
+func (s *deviceMgrSystemsCreateSuite) testDeviceManagerCreateRecoverySystemValidationSetsComponents(c *C, opts testCreateRecoverySystemValidationSetsComponentsOpts) {
+	devicestate.SetBootOkRan(s.mgr, true)
+
+	snapComponents := map[string][]string{
+		"pc-kernel-with-kmods": {"kmod"},
+	}
+
+	s.model = s.makeModelAssertionInState(c, "canonical", "pc-20", map[string]interface{}{
+		"architecture": "amd64",
+		"grade":        "dangerous",
+		"base":         "core20",
+		"revision":     "2",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":            "pc-kernel-with-kmods",
+				"id":              s.ss.AssertedSnapID("pc-kernel-with-kmods"),
+				"type":            "kernel",
+				"default-channel": "20",
+				"components": map[string]interface{}{
+					"kmod": map[string]interface{}{
+						"presence": opts.kmodModelPresence,
+					},
+					"other-kmod": map[string]interface{}{
+						"presence": "optional",
+					},
+				},
+			},
+			map[string]interface{}{
+				"name":            "pc",
+				"id":              s.ss.AssertedSnapID("pc"),
+				"type":            "gadget",
+				"default-channel": "20",
+			},
+			map[string]interface{}{
+				"name": "core20",
+				"id":   s.ss.AssertedSnapID("core20"),
+				"type": "base",
+			},
+			map[string]interface{}{
+				"name": "snapd",
+				"id":   s.ss.AssertedSnapID("snapd"),
+				"type": "snapd",
+			},
+		},
+		"validation-sets": []interface{}{
+			map[string]interface{}{
+				"account-id": "canonical",
+				"name":       "vset-model",
+				"mode":       "enforce",
+			},
+		},
+	})
+
+	vsetModel, err := s.brands.Signing("canonical").Sign(asserts.ValidationSetType, map[string]interface{}{
+		"type":         "validation-set",
+		"authority-id": "canonical",
+		"series":       "16",
+		"account-id":   "canonical",
+		"name":         "vset-model",
+		"sequence":     "1",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":     "pc-kernel-with-kmods",
+				"id":       fakeSnapID("pc-kernel-with-kmods"),
+				"presence": "required",
+				"revision": "11",
+				"components": map[string]interface{}{
+					"kmod": map[string]interface{}{
+						"revision": "20",
+						"presence": opts.kmodVsetPresence,
+					},
+				},
+			},
+		},
+		"timestamp": time.Now().UTC().Format(time.RFC3339),
+	}, nil, "")
+	c.Assert(err, IsNil)
+
+	assertstatetest.AddMany(s.state, vsetModel)
+	assertstate.UpdateValidationSet(s.state, &assertstate.ValidationSetTracking{
+		AccountID: "canonical",
+		Name:      "vset-model",
+		Mode:      assertstate.Enforce,
+		Current:   1,
+	})
+
+	snapRevisions := map[string]snap.Revision{
+		"pc":                   snap.R(10),
+		"pc-kernel-with-kmods": snap.R(11),
+		"core20":               snap.R(12),
+		"snapd":                snap.R(13),
+	}
+
+	componentRevisions := map[string]snap.Revision{
+		"pc-kernel-with-kmods+kmod": snap.R(20),
+	}
+
+	componentTypes := map[string]snap.ComponentType{
+		"pc-kernel-with-kmods+kmod": snap.KernelModulesComponent,
+	}
+
+	compsToTypes := func(snapName string) map[string]snap.ComponentType {
+		res := make(map[string]snap.ComponentType)
+		for _, comps := range snapComponents {
+			for _, comp := range comps {
+				res[comp] = componentTypes[naming.NewComponentRef(snapName, comp).String()]
+			}
+		}
+		return res
+	}
+
+	snapTypes := map[string]snap.Type{
+		"pc":                   snap.TypeGadget,
+		"pc-kernel-with-kmods": snap.TypeKernel,
+		"core20":               snap.TypeBase,
+		"snapd":                snap.TypeSnapd,
+	}
+
+	var validationSets []*asserts.ValidationSet
+
+	vsetAssert, err := s.brands.Signing("canonical").Sign(asserts.ValidationSetType, map[string]interface{}{
+		"type":         "validation-set",
+		"authority-id": "canonical",
+		"series":       "16",
+		"account-id":   "canonical",
+		"name":         "vset-1",
+		"sequence":     "1",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":     "pc",
+				"id":       fakeSnapID("pc"),
+				"revision": snapRevisions["pc"].String(),
+				"presence": "required",
+			},
+			map[string]interface{}{
+				"name":     "pc-kernel-with-kmods",
+				"id":       fakeSnapID("pc-kernel-with-kmods"),
+				"revision": snapRevisions["pc-kernel-with-kmods"].String(),
+				"presence": "required",
+			},
+			map[string]interface{}{
+				"name":     "core20",
+				"id":       fakeSnapID("core20"),
+				"revision": snapRevisions["core20"].String(),
+				"presence": "required",
+			},
+			map[string]interface{}{
+				"name":     "snapd",
+				"id":       fakeSnapID("snapd"),
+				"revision": snapRevisions["snapd"].String(),
+				"presence": "required",
+			},
+		},
+		"timestamp": time.Now().UTC().Format(time.RFC3339),
+	}, nil, "")
+	c.Assert(err, IsNil)
+
+	validationSets = append(validationSets, vsetAssert.(*asserts.ValidationSet))
+
+	s.o.TaskRunner().AddHandler("mock-validate", func(task *state.Task, _ *tomb.Tomb) error {
+		st := task.State()
+		st.Lock()
+		defer st.Unlock()
+
+		snapsup, err := snapstate.TaskSnapSetup(task)
+		c.Assert(err, IsNil)
+
+		s.setupSnapDeclForNameAndID(c, snapsup.SideInfo.RealName, snapsup.SideInfo.SnapID, "canonical")
+		s.setupSnapRevisionForFileAndID(
+			c, snapsup.BlobPath(), snapsup.SideInfo.SnapID, "canonical", snapRevisions[snapsup.SideInfo.RealName],
+		)
+
+		return nil
+	}, nil)
+
+	s.o.TaskRunner().AddHandler("mock-download", func(task *state.Task, _ *tomb.Tomb) error {
+		st := task.State()
+		st.Lock()
+		defer st.Unlock()
+
+		snapsup, err := snapstate.TaskSnapSetup(task)
+		c.Assert(err, IsNil)
+		var path string
+		var files [][]string
+		switch snapsup.Type {
+		case snap.TypeBase:
+			path = snaptest.MakeTestSnapWithFiles(
+				c,
+				withComponents(
+					fmt.Sprintf("name: %s\nversion: 1.0\ntype: %s",
+						snapsup.SideInfo.RealName,
+						snapsup.Type,
+					),
+					compsToTypes(snapsup.InstanceName()),
+				),
+				nil,
+			)
+		case snap.TypeGadget:
+			files = [][]string{
+				{"meta/gadget.yaml", uc20gadgetYaml},
+			}
+			fallthrough
+		default:
+			path = snaptest.MakeTestSnapWithFiles(
+				c,
+				withComponents(
+					fmt.Sprintf("name: %s\nversion: 1.0\nbase: %s\ntype: %s",
+						snapsup.SideInfo.RealName,
+						snapsup.Base,
+						snapsup.Type,
+					),
+					compsToTypes(snapsup.InstanceName()),
+				),
+				files,
+			)
+		}
+
+		err = os.Rename(path, filepath.Join(dirs.SnapBlobDir, fmt.Sprintf("%s_%s.snap", snapsup.SideInfo.RealName, snapsup.Revision().String())))
+		c.Assert(err, IsNil)
+		return nil
+	}, nil)
+
+	s.o.TaskRunner().AddHandler("mock-validate-component", func(task *state.Task, _ *tomb.Tomb) error {
+		st := task.State()
+		st.Lock()
+		defer st.Unlock()
+
+		compsup, snapsup, err := snapstate.TaskComponentSetup(task)
+		c.Assert(err, IsNil)
+
+		s.setupSnapResourceRevision(
+			c,
+			compsup.BlobPath(snapsup.InstanceName()),
+			compsup.ComponentName(),
+			snapsup.SideInfo.SnapID,
+			"canonical",
+			componentRevisions[compsup.CompSideInfo.Component.String()],
+		)
+
+		s.setupSnapResourcePair(
+			c,
+			compsup.ComponentName(),
+			snapsup.SideInfo.SnapID,
+			"canonical",
+			componentRevisions[compsup.CompSideInfo.Component.String()],
+			snapRevisions[snapsup.SideInfo.RealName],
+		)
+
+		s.setupSnapRevisionForFileAndID(
+			c, snapsup.BlobPath(), snapsup.SideInfo.SnapID, "canonical", snapRevisions[snapsup.SideInfo.RealName],
+		)
+
+		return nil
+	}, nil)
+
+	s.o.TaskRunner().AddHandler("mock-download-component", func(task *state.Task, _ *tomb.Tomb) error {
+		st := task.State()
+		st.Lock()
+		defer st.Unlock()
+
+		compsup, snapsup, err := snapstate.TaskComponentSetup(task)
+		c.Assert(err, IsNil)
+		path := snaptest.MakeTestComponent(c, fmt.Sprintf(
+			"component: %s\nversion: 1.0\ntype: %s\n",
+			compsup.CompSideInfo.Component.String(),
+			compsup.CompType,
+		))
+
+		err = os.Rename(path, compsup.BlobPath(snapsup.InstanceName()))
+		c.Assert(err, IsNil)
+
+		return nil
+	}, nil)
+
+	restore := devicestate.MockSnapstateDownloadComponents(func(
+		ctx context.Context, st *state.State, name string, components []string, blobDirectory string, revOpts snapstate.RevisionOptions, opts snapstate.Options) (*state.TaskSet, error,
+	) {
+		c.Assert(revOpts.Revision, Equals, snapRevisions[name])
+
+		si := &snap.SideInfo{
+			RealName: name,
+			Revision: snapRevisions[name],
+			SnapID:   fakeSnapID(name),
+		}
+
+		snapsup := &snapstate.SnapSetup{
+			SideInfo: si,
+			Base:     "core20",
+			Type:     snapTypes[name],
+		}
+
+		ts := state.NewTaskSet()
+		var snapsupTask, prev *state.Task
+		add := func(t *state.Task) {
+			ts.AddTask(t)
+			if prev == nil {
+				t.Set("snap-setup", snapsup)
+				snapsupTask = t
+				ts.MarkEdge(t, snapstate.BeginEdge)
+			} else {
+				t.WaitFor(prev)
+				t.Set("snap-setup-task", snapsupTask.ID())
+			}
+			prev = t
+		}
+
+		var compsupTaskIDs []string
+		for _, comp := range components {
+			cref := naming.NewComponentRef(name, comp)
+
+			download := s.state.NewTask("mock-download-component", fmt.Sprintf("Download component %q", cref))
+			download.Set("component-setup", &snapstate.ComponentSetup{
+				CompSideInfo: &snap.ComponentSideInfo{
+					Component: cref,
+					Revision:  componentRevisions[cref.String()],
+				},
+				CompType: componentTypes[cref.String()],
+			})
+			compsupTaskIDs = append(compsupTaskIDs, download.ID())
+			add(download)
+
+			validate := s.state.NewTask("mock-validate-component", fmt.Sprintf("Validate component %q", cref))
+			validate.Set("component-setup-task", download.ID())
+			add(validate)
+		}
+
+		snapsupTask.Set("component-setup-tasks", compsupTaskIDs)
+		ts.MarkEdge(prev, snapstate.LastBeforeLocalModificationsEdge)
+
+		return ts, nil
+	})
+	defer restore()
+
+	restore = devicestate.MockSnapstateDownload(func(
+		ctx context.Context, st *state.State, name string, components []string, dir string, revOpts snapstate.RevisionOptions, opts snapstate.Options) (*state.TaskSet, *snap.Info, error,
+	) {
+		c.Assert(revOpts.Revision.Unset(), Equals, true)
+
+		si := &snap.SideInfo{
+			RealName: name,
+			Revision: snapRevisions[name],
+			SnapID:   fakeSnapID(name),
+		}
+
+		download := s.state.NewTask("mock-download", fmt.Sprintf("Download %s to track %s", name, revOpts.Channel))
+		download.Set("snap-setup", &snapstate.SnapSetup{
+			SideInfo: si,
+			Base:     "core20",
+			Type:     snapTypes[name],
+		})
+
+		ts := state.NewTaskSet(download)
+		ts.MarkEdge(download, snapstate.BeginEdge)
+		prev := download
+		add := func(t *state.Task) {
+			t.WaitFor(prev)
+			t.Set("snap-setup-task", download.ID())
+			ts.AddTask(t)
+			prev = t
+		}
+
+		validate := s.state.NewTask("mock-validate", fmt.Sprintf("Validate %s", name))
+		validate.Set("snap-setup-task", download.ID())
+		add(validate)
+
+		var compsupTaskIDs []string
+		for _, comp := range components {
+			cref := naming.NewComponentRef(name, comp)
+
+			download := s.state.NewTask("mock-download-component", fmt.Sprintf("Download component %q", cref))
+			download.Set("component-setup", &snapstate.ComponentSetup{
+				CompSideInfo: &snap.ComponentSideInfo{
+					Component: cref,
+					Revision:  componentRevisions[cref.String()],
+				},
+				CompType: componentTypes[cref.String()],
+			})
+			compsupTaskIDs = append(compsupTaskIDs, download.ID())
+			add(download)
+
+			validate := s.state.NewTask("mock-validate-component", fmt.Sprintf("Validate component %q", cref))
+			validate.Set("component-setup-task", download.ID())
+			add(validate)
+		}
+
+		download.Set("component-setup-tasks", compsupTaskIDs)
+		ts.MarkEdge(prev, snapstate.LastBeforeLocalModificationsEdge)
+
+		_, info := snaptest.MakeTestSnapInfoWithFiles(c, withComponents(snapYamls[name], compsToTypes(name)), snapFiles[name], si)
+		opts.PrereqTracker.Add(info)
+
+		return ts, info, nil
+	})
+	defer restore()
+
+	s.state.Set("refresh-privacy-key", "some-privacy-key")
+	s.mockStandardSnapsModeenvAndBootloaderState(c)
+
+	chg, err := devicestate.CreateRecoverySystem(s.state, "1234", devicestate.CreateRecoverySystemOptions{
+		ValidationSets: validationSets,
+		TestSystem:     true,
+		MarkDefault:    true,
+	})
+	c.Assert(err, IsNil)
+
+	s.validateCreateRecoverySystemChange(c, chg, nil, opts.blobs, opts.downloadedSnaps, opts.downloadedComps)
+}
+
+func (s *deviceMgrSystemsCreateSuite) validateCreateRecoverySystemChange(
+	c *C,
+	chg *state.Change,
+	runModeSnaps []string,
+	blobs []string,
+	downloadedSnaps, downloadedComps int,
+) {
+	tsks := chg.Tasks()
+
+	// two per snap, two per comp, create system, finalize system
+	c.Check(tsks, HasLen, (2*downloadedSnaps)+(2*downloadedComps)+2)
+
+	tskCreate := tsks[0]
+	tskFinalize := tsks[1]
+	c.Assert(tskCreate.Summary(), Matches, `Create recovery system with label "1234"`)
+	c.Check(tskFinalize.Summary(), Matches, `Finalize recovery system with label "1234"`)
+
+	s.state.Unlock()
+	s.settle(c)
+	s.state.Lock()
+
+	c.Assert(chg.Err(), IsNil)
+	c.Assert(tskCreate.Status(), Equals, state.WaitStatus)
+	c.Assert(tskFinalize.Status(), Equals, state.DoStatus)
+
+	// a reboot is expected
+	c.Check(s.restartRequests, DeepEquals, []restart.RestartType{restart.RestartSystemNow})
+
+	validateCore20Seed(c, "1234", s.model, s.storeSigning.Trusted, runModeSnaps...)
+
+	m, err := s.bootloader.GetBootVars("try_recovery_system", "recovery_system_status")
+	c.Assert(err, IsNil)
+	c.Check(m, DeepEquals, map[string]string{
+		"try_recovery_system":    "1234",
+		"recovery_system_status": "try",
+	})
+	modeenvAfterCreate, err := boot.ReadModeenv("")
+	c.Assert(err, IsNil)
+	c.Check(modeenvAfterCreate, testutil.JsonEquals, boot.Modeenv{
+		Mode: "run",
+		Base: "core20_3.snap",
+		// the setup of this test suite uses a different kernel. this is correct
+		// because that is the current kernel that is installed on this system
+		CurrentKernels:         []string{"pc-kernel_2.snap"},
+		CurrentRecoverySystems: []string{"othersystem", "1234"},
+		GoodRecoverySystems:    []string{"othersystem"},
+
+		Model:          s.model.Model(),
+		BrandID:        s.model.BrandID(),
+		Grade:          string(s.model.Grade()),
+		ModelSignKeyID: s.model.SignKeyID(),
+	})
+
+	var expectedFilesLog bytes.Buffer
+	for _, fname := range blobs {
+		fmt.Fprintln(&expectedFilesLog, filepath.Join(boot.InitramfsUbuntuSeedDir, "snaps", fname))
+	}
+
+	c.Check(filepath.Join(boot.InitramfsUbuntuSeedDir, "systems", "1234", "snapd-new-file-log"),
+		testutil.FileEquals, expectedFilesLog.String())
+
+	// these things happen on snapd startup
+	restart.MockPending(s.state, restart.RestartUnset)
+	s.state.Set("tried-systems", []string{"1234"})
+	s.bootloader.SetBootVars(map[string]string{
+		"try_recovery_system":    "",
+		"recovery_system_status": "",
+	})
+	s.bootloader.SetBootVarsCalls = 0
+
+	s.state.Unlock()
+	s.settle(c)
+	s.state.Lock()
+
+	// simulate a restart and run change to completion
+	s.mockRestartAndSettle(c, s.state, chg)
+
+	c.Assert(chg.Err(), IsNil)
+	c.Check(chg.IsReady(), Equals, true)
+	c.Assert(tskCreate.Status(), Equals, state.DoneStatus)
+	c.Assert(tskFinalize.Status(), Equals, state.DoneStatus)
+
+	var triedSystemsAfterFinalize []string
+	err = s.state.Get("tried-systems", &triedSystemsAfterFinalize)
+	c.Assert(err, testutil.ErrorIs, state.ErrNoState)
+
+	modeenvAfterFinalize, err := boot.ReadModeenv("")
+	c.Assert(err, IsNil)
+	c.Check(modeenvAfterFinalize, testutil.JsonEquals, boot.Modeenv{
+		Mode: "run",
+		Base: "core20_3.snap",
+		// the setup of this test suite uses a different kernel. this is correct
+		// because that is the current kernel that is installed on this system
+		CurrentKernels:         []string{"pc-kernel_2.snap"},
+		CurrentRecoverySystems: []string{"othersystem", "1234"},
+		GoodRecoverySystems:    []string{"othersystem", "1234"},
+
+		Model:          s.model.Model(),
+		BrandID:        s.model.BrandID(),
+		Grade:          string(s.model.Grade()),
+		ModelSignKeyID: s.model.SignKeyID(),
+	})
+
+	// expect 1 more call to bootloader.SetBootVars, since we're marking this
+	// system as seeded
+	c.Check(s.bootloader.SetBootVarsCalls, Equals, 1)
+	c.Check(filepath.Join(boot.InitramfsUbuntuSeedDir, "systems", "1234", "snapd-new-file-log"), testutil.FileAbsent)
+
+	var defaultSystem devicestate.DefaultRecoverySystem
+	err = s.state.Get("default-recovery-system", &defaultSystem)
+	c.Assert(err, IsNil)
+
+	c.Assert(defaultSystem.System, Equals, "1234")
+	c.Assert(defaultSystem.Model, Equals, s.model.Model())
+	c.Assert(defaultSystem.BrandID, Equals, s.model.BrandID())
+}
+
+func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemValidationSetsComponentsReuseInstalled(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	s.makeSnapInState(c, "pc-kernel-with-kmods", snap.R(11), nil, map[string]snap.Revision{
+		"kmod": snap.R(22),
+	})
+
+	devicestate.SetBootOkRan(s.mgr, true)
+
+	s.model = s.makeModelAssertionInState(c, "canonical", "pc-20", map[string]interface{}{
+		"architecture": "amd64",
+		"grade":        "dangerous",
+		"base":         "core20",
+		"revision":     "2",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":            "pc-kernel-with-kmods",
+				"id":              s.ss.AssertedSnapID("pc-kernel-with-kmods"),
+				"type":            "kernel",
+				"default-channel": "20",
+				"components": map[string]interface{}{
+					"kmod": map[string]interface{}{
+						"presence": "required",
+					},
+				},
+			},
+			map[string]interface{}{
+				"name":            "pc",
+				"id":              s.ss.AssertedSnapID("pc"),
+				"type":            "gadget",
+				"default-channel": "20",
+			},
+			map[string]interface{}{
+				"name": "core20",
+				"id":   s.ss.AssertedSnapID("core20"),
+				"type": "base",
+			},
+			map[string]interface{}{
+				"name": "snapd",
+				"id":   s.ss.AssertedSnapID("snapd"),
+				"type": "snapd",
+			},
+		},
+		"validation-sets": []interface{}{
+			map[string]interface{}{
+				"account-id": "canonical",
+				"name":       "vset-model",
+				"mode":       "enforce",
+			},
+		},
+	})
+
+	vset, err := s.brands.Signing("canonical").Sign(asserts.ValidationSetType, map[string]interface{}{
+		"type":         "validation-set",
+		"authority-id": "canonical",
+		"series":       "16",
+		"account-id":   "canonical",
+		"name":         "vset-model",
+		"sequence":     "1",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":     "pc-kernel-with-kmods",
+				"id":       fakeSnapID("pc-kernel-with-kmods"),
+				"presence": "required",
+				"revision": "11",
+				"components": map[string]interface{}{
+					"kmod": map[string]interface{}{
+						"revision": "22",
+						"presence": "required",
+					},
+				},
+			},
+		},
+		"timestamp": time.Now().UTC().Format(time.RFC3339),
+	}, nil, "")
+	c.Assert(err, IsNil)
+
+	assertstatetest.AddMany(s.state, vset)
+	assertstate.UpdateValidationSet(s.state, &assertstate.ValidationSetTracking{
+		AccountID: "canonical",
+		Name:      "vset-model",
+		Mode:      assertstate.Enforce,
+		Current:   1,
+	})
+
+	s.state.Set("refresh-privacy-key", "some-privacy-key")
+	s.mockStandardSnapsModeenvAndBootloaderState(c)
+
+	chg, err := devicestate.CreateRecoverySystem(s.state, "1234", devicestate.CreateRecoverySystemOptions{
+		TestSystem:  true,
+		MarkDefault: true,
+	})
+	c.Assert(err, IsNil)
+	c.Assert(chg, NotNil)
+	tsks := chg.Tasks()
+
+	// create system + finalize system
+	c.Check(tsks, HasLen, 2)
+
+	create, finalize := tsks[0], tsks[1]
+	c.Check(create.Summary(), Matches, `Create recovery system with label "1234"`)
+	c.Check(finalize.Summary(), Matches, `Finalize recovery system with label "1234"`)
+
+	s.state.Unlock()
+	s.settle(c)
+	s.state.Lock()
+
+	c.Assert(chg.Err(), IsNil)
+	c.Assert(create.Status(), Equals, state.WaitStatus)
+	c.Assert(finalize.Status(), Equals, state.DoStatus)
+
+	// a reboot is expected
+	c.Check(s.restartRequests, DeepEquals, []restart.RestartType{restart.RestartSystemNow})
+
+	var runModeSnaps []string
+	validateCore20Seed(c, "1234", s.model, s.storeSigning.Trusted, runModeSnaps...)
+
+	m, err := s.bootloader.GetBootVars("try_recovery_system", "recovery_system_status")
+	c.Assert(err, IsNil)
+	c.Check(m, DeepEquals, map[string]string{
+		"try_recovery_system":    "1234",
+		"recovery_system_status": "try",
+	})
+	modeenvAfterCreate, err := boot.ReadModeenv("")
+	c.Assert(err, IsNil)
+	c.Check(modeenvAfterCreate, testutil.JsonEquals, boot.Modeenv{
+		Mode: "run",
+		Base: "core20_3.snap",
+		// the setup of this test suite uses a different kernel. this is correct
+		// because that is the current kernel that is installed on this system
+		CurrentKernels:         []string{"pc-kernel_2.snap"},
+		CurrentRecoverySystems: []string{"othersystem", "1234"},
+		GoodRecoverySystems:    []string{"othersystem"},
+
+		Model:          s.model.Model(),
+		BrandID:        s.model.BrandID(),
+		Grade:          string(s.model.Grade()),
+		ModelSignKeyID: s.model.SignKeyID(),
+	})
+
+	// verify that new files are tracked correctly
+	expectedFiles := []string{"snapd_4.snap", "pc-kernel-with-kmods_11.snap", "pc-kernel-with-kmods+kmod_22.comp", "core20_3.snap", "pc_1.snap"}
+
+	var expectedFilesLog bytes.Buffer
+	for _, fname := range expectedFiles {
+		fmt.Fprintln(&expectedFilesLog, filepath.Join(boot.InitramfsUbuntuSeedDir, "snaps", fname))
+	}
+
+	c.Check(filepath.Join(boot.InitramfsUbuntuSeedDir, "systems", "1234", "snapd-new-file-log"),
+		testutil.FileEquals, expectedFilesLog.String())
+
+	// these things happen on snapd startup
+	restart.MockPending(s.state, restart.RestartUnset)
+	s.state.Set("tried-systems", []string{"1234"})
+	s.bootloader.SetBootVars(map[string]string{
+		"try_recovery_system":    "",
+		"recovery_system_status": "",
+	})
+	s.bootloader.SetBootVarsCalls = 0
+
+	s.state.Unlock()
+	s.settle(c)
+	s.state.Lock()
+
+	// simulate a restart and run change to completion
+	s.mockRestartAndSettle(c, s.state, chg)
+
+	c.Assert(chg.Err(), IsNil)
+	c.Check(chg.IsReady(), Equals, true)
+	c.Assert(create.Status(), Equals, state.DoneStatus)
+	c.Assert(finalize.Status(), Equals, state.DoneStatus)
+
+	var triedSystemsAfterFinalize []string
+	err = s.state.Get("tried-systems", &triedSystemsAfterFinalize)
+	c.Assert(err, testutil.ErrorIs, state.ErrNoState)
+
+	modeenvAfterFinalize, err := boot.ReadModeenv("")
+	c.Assert(err, IsNil)
+	c.Check(modeenvAfterFinalize, testutil.JsonEquals, boot.Modeenv{
+		Mode: "run",
+		Base: "core20_3.snap",
+		// the setup of this test suite uses a different kernel. this is correct
+		// because that is the current kernel that is installed on this system
+		CurrentKernels:         []string{"pc-kernel_2.snap"},
+		CurrentRecoverySystems: []string{"othersystem", "1234"},
+		GoodRecoverySystems:    []string{"othersystem", "1234"},
+
+		Model:          s.model.Model(),
+		BrandID:        s.model.BrandID(),
+		Grade:          string(s.model.Grade()),
+		ModelSignKeyID: s.model.SignKeyID(),
+	})
+
+	// expect 1 more call to bootloader.SetBootVars, since we're marking this
+	// system as seeded
+	c.Check(s.bootloader.SetBootVarsCalls, Equals, 1)
+	c.Check(filepath.Join(boot.InitramfsUbuntuSeedDir, "systems", "1234", "snapd-new-file-log"), testutil.FileAbsent)
+
+	var defaultSystem devicestate.DefaultRecoverySystem
+	err = s.state.Get("default-recovery-system", &defaultSystem)
+	c.Assert(err, IsNil)
+
+	c.Assert(defaultSystem.System, Equals, "1234")
+	c.Assert(defaultSystem.Model, Equals, s.model.Model())
+	c.Assert(defaultSystem.BrandID, Equals, s.model.BrandID())
+}
+
 func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemOnlineWithLocalError(c *C) {
 	devicestate.SetBootOkRan(s.mgr, true)
 
@@ -3642,9 +4589,9 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemOnlin
 
 	_, err := devicestate.CreateRecoverySystem(s.state, "1234", devicestate.CreateRecoverySystemOptions{
 		TestSystem: true,
-		LocalSnaps: []devicestate.LocalSnap{{SideInfo: &snap.SideInfo{}, Path: "/some/path"}},
+		LocalSnaps: []snapstate.PathSnap{{SideInfo: &snap.SideInfo{}, Path: "/some/path"}},
 	})
-	c.Assert(err, ErrorMatches, "locally provided snaps cannot be provided when creating a recovery system online")
+	c.Assert(err, ErrorMatches, "local snaps/components cannot be provided when creating a recovery system online")
 }
 
 func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemOfflinePreinstalled(c *C) {
@@ -3831,7 +4778,7 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemValid
 		return nil, nil, nil
 	})
 
-	localSnaps := make([]devicestate.LocalSnap, 0, len(snapRevisions))
+	localSnaps := make([]snapstate.PathSnap, 0, len(snapRevisions))
 	for name, rev := range snapRevisions {
 		var files [][]string
 		var base string
@@ -3855,7 +4802,7 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemValid
 		c.Assert(err, IsNil)
 		path = trimmed
 
-		localSnaps = append(localSnaps, devicestate.LocalSnap{
+		localSnaps = append(localSnaps, snapstate.PathSnap{
 			SideInfo: si,
 			Path:     path,
 		})
@@ -3971,6 +4918,314 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemValid
 	c.Check(filepath.Join(boot.InitramfsUbuntuSeedDir, "systems", "1234", "snapd-new-file-log"), testutil.FileAbsent)
 }
 
+func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemValidationSetsOfflineWithComponentsAllOptional(c *C) {
+	s.testDeviceManagerCreateRecoverySystemValidationSetsOfflineWithComponents(c, testCreateRecoverySystemValidationSetsOfflineWithComponents{
+		blobs:          []string{"snapd_4.snap", "pc-kernel-with-kmods_11.snap", "pc-kernel-with-kmods+kmod_22.comp", "core20_3.snap", "pc_1.snap"},
+		snapsToProvide: []string{"pc-kernel-with-kmods"},
+		componentsToProvide: []naming.ComponentRef{
+			naming.NewComponentRef("pc-kernel-with-kmods", "kmod"),
+		},
+		kmodModelPresence: "optional",
+		kmodVsetPresence:  "optional",
+	})
+}
+
+func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemValidationSetsOfflineWithComponentsRequiredInModel(c *C) {
+	s.testDeviceManagerCreateRecoverySystemValidationSetsOfflineWithComponents(c, testCreateRecoverySystemValidationSetsOfflineWithComponents{
+		blobs:          []string{"snapd_4.snap", "pc-kernel-with-kmods_11.snap", "pc-kernel-with-kmods+kmod_22.comp", "core20_3.snap", "pc_1.snap"},
+		snapsToProvide: []string{"pc-kernel-with-kmods"},
+		componentsToProvide: []naming.ComponentRef{
+			naming.NewComponentRef("pc-kernel-with-kmods", "kmod"),
+		},
+		kmodModelPresence: "required",
+		kmodVsetPresence:  "optional",
+	})
+}
+
+func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemValidationSetsOfflineWithComponentsRequiredInVsets(c *C) {
+	s.testDeviceManagerCreateRecoverySystemValidationSetsOfflineWithComponents(c, testCreateRecoverySystemValidationSetsOfflineWithComponents{
+		blobs:          []string{"snapd_4.snap", "pc-kernel-with-kmods_11.snap", "pc-kernel-with-kmods+kmod_22.comp", "core20_3.snap", "pc_1.snap"},
+		snapsToProvide: []string{"pc-kernel-with-kmods"},
+		componentsToProvide: []naming.ComponentRef{
+			naming.NewComponentRef("pc-kernel-with-kmods", "kmod"),
+		},
+		kmodModelPresence: "optional",
+		kmodVsetPresence:  "required",
+	})
+}
+
+func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemValidationSetsOfflineWithComponentsOptionalInstalled(c *C) {
+	s.state.Lock()
+	s.makeSnapInState(c, "pc-kernel-with-kmods", snap.R(11), nil, map[string]snap.Revision{
+		"kmod": snap.R(22),
+	})
+	s.state.Unlock()
+
+	s.testDeviceManagerCreateRecoverySystemValidationSetsOfflineWithComponents(c, testCreateRecoverySystemValidationSetsOfflineWithComponents{
+		blobs: []string{"snapd_4.snap", "pc-kernel-with-kmods_11.snap", "pc-kernel-with-kmods+kmod_22.comp", "core20_3.snap", "pc_1.snap"},
+		componentsToProvide: []naming.ComponentRef{
+			naming.NewComponentRef("pc-kernel-with-kmods", "kmod"),
+		},
+		kmodModelPresence: "optional",
+		kmodVsetPresence:  "optional",
+	})
+}
+
+func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemValidationSetsOfflineWithComponentsUseInstalled(c *C) {
+	s.state.Lock()
+	s.makeSnapInState(c, "pc-kernel-with-kmods", snap.R(11), nil, map[string]snap.Revision{
+		"kmod": snap.R(22),
+	})
+	s.makeSnapInState(c, "snap-with-components", snap.R(12), nil, map[string]snap.Revision{
+		"comp-1": snap.R(23),
+	})
+	s.state.Unlock()
+
+	s.testDeviceManagerCreateRecoverySystemValidationSetsOfflineWithComponents(c, testCreateRecoverySystemValidationSetsOfflineWithComponents{
+		blobs: []string{
+			"snapd_4.snap", "pc-kernel-with-kmods_11.snap", "pc-kernel-with-kmods+kmod_22.comp",
+			"core20_3.snap", "pc_1.snap", "snap-with-components_12.snap", "snap-with-components+comp-1_23.comp",
+		},
+		snapsToProvide: []string{"pc-kernel-with-kmods"},
+		runModeSnaps:   []string{"snap-with-components"},
+		componentsToProvide: []naming.ComponentRef{
+			naming.NewComponentRef("pc-kernel-with-kmods", "kmod"),
+		},
+		kmodModelPresence: "optional",
+		kmodVsetPresence:  "optional",
+	})
+}
+
+func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemValidationSetsOfflineWithComponentsUseLocalOverInstalled(c *C) {
+	s.state.Lock()
+	s.makeSnapInState(c, "pc-kernel-with-kmods", snap.R(11), nil, map[string]snap.Revision{
+		"kmod": snap.R(22),
+	})
+	s.makeSnapInState(c, "snap-with-components", snap.R(12), nil, map[string]snap.Revision{
+		"comp-1": snap.R(23),
+	})
+	s.state.Unlock()
+
+	s.testDeviceManagerCreateRecoverySystemValidationSetsOfflineWithComponents(c, testCreateRecoverySystemValidationSetsOfflineWithComponents{
+		blobs: []string{
+			"snapd_4.snap", "pc-kernel-with-kmods_11.snap", "pc-kernel-with-kmods+kmod_22.comp",
+			"core20_3.snap", "pc_1.snap", "snap-with-components_13.snap", "snap-with-components+comp-1_24.comp",
+		},
+		runModeSnaps:   []string{"snap-with-components"},
+		snapsToProvide: []string{"pc-kernel-with-kmods", "snap-with-components"},
+		componentsToProvide: []naming.ComponentRef{
+			naming.NewComponentRef("pc-kernel-with-kmods", "kmod"),
+			naming.NewComponentRef("snap-with-components", "comp-1"),
+		},
+		kmodModelPresence: "optional",
+		kmodVsetPresence:  "optional",
+	})
+}
+
+type testCreateRecoverySystemValidationSetsOfflineWithComponents struct {
+	blobs               []string
+	runModeSnaps        []string
+	snapsToProvide      []string
+	componentsToProvide []naming.ComponentRef
+	kmodModelPresence   string
+	kmodVsetPresence    string
+}
+
+func (s *deviceMgrSystemsCreateSuite) testDeviceManagerCreateRecoverySystemValidationSetsOfflineWithComponents(c *C, opts testCreateRecoverySystemValidationSetsOfflineWithComponents) {
+	devicestate.SetBootOkRan(s.mgr, true)
+
+	snapRevisions := map[string]snap.Revision{
+		"pc-kernel-with-kmods": snap.R(11),
+		"snap-with-components": snap.R(13),
+	}
+
+	snapComponents := map[string]map[string]snap.ComponentType{
+		"pc-kernel-with-kmods": {
+			"kmod": snap.KernelModulesComponent,
+		},
+		"snap-with-components": {
+			"comp-1": snap.StandardComponent,
+		},
+	}
+
+	componentRevisions := map[naming.ComponentRef]snap.Revision{
+		naming.NewComponentRef("pc-kernel-with-kmods", "kmod"):   snap.R(22),
+		naming.NewComponentRef("snap-with-components", "comp-1"): snap.R(24),
+	}
+
+	snapTypes := map[string]snap.Type{
+		"pc-kernel-with-kmods": snap.TypeKernel,
+		"snap-with-components": snap.TypeApp,
+	}
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	s.model = s.makeModelAssertionInState(c, "canonical", "pc-20", map[string]interface{}{
+		"architecture": "amd64",
+		"grade":        "dangerous",
+		"base":         "core20",
+		"revision":     "2",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":            "pc-kernel-with-kmods",
+				"id":              s.ss.AssertedSnapID("pc-kernel-with-kmods"),
+				"type":            "kernel",
+				"default-channel": "20",
+				"components": map[string]interface{}{
+					"kmod": map[string]interface{}{
+						"presence": opts.kmodModelPresence,
+					},
+					"other-kmod": map[string]interface{}{
+						"presence": "optional",
+					},
+				},
+			},
+			map[string]interface{}{
+				"name":            "pc",
+				"id":              s.ss.AssertedSnapID("pc"),
+				"type":            "gadget",
+				"default-channel": "20",
+			},
+			map[string]interface{}{
+				"name": "core20",
+				"id":   s.ss.AssertedSnapID("core20"),
+				"type": "base",
+			},
+			map[string]interface{}{
+				"name": "snapd",
+				"id":   s.ss.AssertedSnapID("snapd"),
+				"type": "snapd",
+			},
+			map[string]interface{}{
+				"name":     "snap-with-components",
+				"id":       s.ss.AssertedSnapID("snap-with-components"),
+				"type":     "app",
+				"presence": "optional",
+				"components": map[string]interface{}{
+					"comp-1": map[string]interface{}{
+						"presence": "optional",
+					},
+				},
+			},
+		},
+	})
+
+	vset, err := s.brands.Signing("canonical").Sign(asserts.ValidationSetType, map[string]interface{}{
+		"type":         "validation-set",
+		"authority-id": "canonical",
+		"series":       "16",
+		"account-id":   "canonical",
+		"name":         "vset-1",
+		"sequence":     "1",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":     "pc-kernel-with-kmods",
+				"id":       fakeSnapID("pc-kernel-with-kmods"),
+				"revision": snapRevisions["pc-kernel-with-kmods"].String(),
+				"presence": "required",
+				"components": map[string]interface{}{
+					"kmod": map[string]interface{}{
+						"presence": opts.kmodVsetPresence,
+						"revision": componentRevisions[naming.NewComponentRef("pc-kernel-with-kmods", "kmod")].String(),
+					},
+				},
+			},
+			map[string]interface{}{
+				"name":     "snap-with-components",
+				"id":       fakeSnapID("snap-with-components"),
+				"presence": "optional",
+				"components": map[string]interface{}{
+					"comp-1": map[string]interface{}{
+						"presence": "optional",
+					},
+				},
+			},
+		},
+		"timestamp": time.Now().UTC().Format(time.RFC3339),
+	}, nil, "")
+	c.Assert(err, IsNil)
+
+	assertstatetest.AddMany(s.state, vset)
+
+	localSnaps := make([]snapstate.PathSnap, 0, len(snapRevisions))
+	for _, name := range opts.snapsToProvide {
+		var files [][]string
+		var base string
+		switch snapTypes[name] {
+		case snap.TypeGadget:
+			files = [][]string{
+				{"meta/gadget.yaml", uc20gadgetYaml},
+			}
+			fallthrough
+		case snap.TypeApp:
+			base = "core20"
+		}
+		if snapTypes[name] == snap.TypeGadget {
+			base = "core20"
+			files = [][]string{
+				{"meta/gadget.yaml", uc20gadgetYaml},
+			}
+		}
+
+		rev := snapRevisions[name]
+		si := snap.SideInfo{
+			RealName: name,
+			Revision: rev,
+			SnapID:   fakeSnapID(name),
+		}
+
+		yaml := fmt.Sprintf("name: %s\nversion: 1.0\ntype: %s", name, snapTypes[name])
+		if base != "" {
+			yaml += fmt.Sprintf("\nbase: %s", base)
+		}
+		yaml = withComponents(yaml, snapComponents[name])
+
+		path := snaptest.MakeTestSnapWithFiles(c, yaml, files)
+
+		s.setupSnapDeclForNameAndID(c, name, si.SnapID, "canonical")
+		s.setupSnapRevisionForFileAndID(c, path, si.SnapID, "canonical", rev)
+
+		localSnaps = append(localSnaps, snapstate.PathSnap{
+			SideInfo: &si,
+			Path:     path,
+		})
+	}
+
+	localComponents := make([]snapstate.PathComponent, 0, len(opts.componentsToProvide))
+	for _, cref := range opts.componentsToProvide {
+		compRev := componentRevisions[cref]
+		compType := snapComponents[cref.SnapName][cref.ComponentName]
+
+		yaml := fmt.Sprintf("component: %s\nversion: 1.0\ntype: %s\n", cref, compType)
+		compPath := snaptest.MakeTestComponent(c, yaml)
+
+		snapID := fakeSnapID(cref.SnapName)
+		s.setupSnapResourceRevision(c, compPath, cref.ComponentName, snapID, "canonical", compRev)
+		s.setupSnapResourcePair(c, cref.ComponentName, snapID, "canonical", compRev, snapRevisions[cref.SnapName])
+
+		localComponents = append(localComponents, snapstate.PathComponent{
+			SideInfo: snap.NewComponentSideInfo(cref, compRev),
+			Path:     compPath,
+		})
+	}
+
+	s.state.Set("refresh-privacy-key", "some-privacy-key")
+	s.mockStandardSnapsModeenvAndBootloaderState(c)
+
+	chg, err := devicestate.CreateRecoverySystem(s.state, "1234", devicestate.CreateRecoverySystemOptions{
+		ValidationSets:  []*asserts.ValidationSet{vset.(*asserts.ValidationSet)},
+		LocalSnaps:      localSnaps,
+		LocalComponents: localComponents,
+		Offline:         true,
+		TestSystem:      true,
+		MarkDefault:     true,
+	})
+	c.Assert(err, IsNil)
+
+	s.validateCreateRecoverySystemChange(c, chg, opts.runModeSnaps, opts.blobs, 0, 0)
+}
+
 func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemValidationSetsOfflineWrongRevisionSnap(c *C) {
 	devicestate.SetBootOkRan(s.mgr, true)
 
@@ -4038,11 +5293,11 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemValid
 
 	assertstatetest.AddMany(s.state, vsetAssert)
 
-	localSnaps := make([]devicestate.LocalSnap, 0, len(providedRevisions))
+	localSnaps := make([]snapstate.PathSnap, 0, len(providedRevisions))
 	for name, rev := range providedRevisions {
 		si, path := createLocalSnap(c, name, fakeSnapID(name), rev.N, string(snapTypes[name]), "", nil)
 
-		localSnaps = append(localSnaps, devicestate.LocalSnap{
+		localSnaps = append(localSnaps, snapstate.PathSnap{
 			SideInfo: si,
 			Path:     path,
 		})
@@ -4059,6 +5314,204 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemValid
 		Offline:        true,
 	})
 	c.Assert(err, ErrorMatches, `snap "pc" does not match revision required by validation sets: 100 != 10`)
+}
+
+func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemOfflineMissingRequiredComponent(c *C) {
+	devicestate.SetBootOkRan(s.mgr, true)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	s.model = s.makeModelAssertionInState(c, "canonical", "pc-20", map[string]interface{}{
+		"architecture": "amd64",
+		"grade":        "dangerous",
+		"base":         "core24",
+		"revision":     "2",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":            "pc-kernel-with-kmods",
+				"id":              s.ss.AssertedSnapID("pc-kernel-with-kmods"),
+				"type":            "kernel",
+				"default-channel": "20",
+				"components": map[string]interface{}{
+					"kmod": map[string]interface{}{
+						"presence": "required",
+					},
+				},
+			},
+			map[string]interface{}{
+				"name":            "pc",
+				"id":              s.ss.AssertedSnapID("pc"),
+				"type":            "gadget",
+				"default-channel": "20",
+			},
+			map[string]interface{}{
+				"name": "core24",
+				"id":   s.ss.AssertedSnapID("core24"),
+				"type": "base",
+			},
+			map[string]interface{}{
+				"name": "snapd",
+				"id":   s.ss.AssertedSnapID("snapd"),
+				"type": "snapd",
+			},
+		},
+	})
+
+	// note that the revision for "pc" is different than the expected revisions
+	providedRevisions := map[string]snap.Revision{
+		"pc":                   snap.R(100),
+		"pc-kernel-with-kmods": snap.R(11),
+		"core24":               snap.R(12),
+		"snapd":                snap.R(13),
+	}
+
+	snapTypes := map[string]snap.Type{
+		"pc":                   snap.TypeGadget,
+		"pc-kernel-with-kmods": snap.TypeKernel,
+		"core24":               snap.TypeBase,
+		"snapd":                snap.TypeSnapd,
+	}
+
+	localSnaps := make([]snapstate.PathSnap, 0, len(providedRevisions))
+	for name, rev := range providedRevisions {
+		si, path := createLocalSnap(c, name, fakeSnapID(name), rev.N, string(snapTypes[name]), "", nil)
+
+		localSnaps = append(localSnaps, snapstate.PathSnap{
+			SideInfo: si,
+			Path:     path,
+		})
+
+		s.setupSnapDeclForNameAndID(c, name, si.SnapID, "canonical")
+		s.setupSnapRevisionForFileAndID(c, path, si.SnapID, "canonical", rev)
+	}
+
+	s.mockStandardSnapsModeenvAndBootloaderState(c)
+
+	_, err := devicestate.CreateRecoverySystem(s.state, "1234", devicestate.CreateRecoverySystemOptions{
+		LocalSnaps: localSnaps,
+		Offline:    true,
+	})
+	c.Assert(err, ErrorMatches, `missing component from local components provided for offline creation of recovery system: "pc-kernel-with-kmods\+kmod", rev unset`)
+}
+
+func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemOfflineInvalidComponentRevision(c *C) {
+	devicestate.SetBootOkRan(s.mgr, true)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	s.model = s.makeModelAssertionInState(c, "canonical", "pc-20", map[string]interface{}{
+		"architecture": "amd64",
+		"grade":        "dangerous",
+		"base":         "core24",
+		"revision":     "2",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":            "pc-kernel-with-kmods",
+				"id":              s.ss.AssertedSnapID("pc-kernel-with-kmods"),
+				"type":            "kernel",
+				"default-channel": "20",
+				"components": map[string]interface{}{
+					"kmod": map[string]interface{}{
+						"presence": "required",
+					},
+				},
+			},
+			map[string]interface{}{
+				"name":            "pc",
+				"id":              s.ss.AssertedSnapID("pc"),
+				"type":            "gadget",
+				"default-channel": "20",
+			},
+			map[string]interface{}{
+				"name": "core24",
+				"id":   s.ss.AssertedSnapID("core24"),
+				"type": "base",
+			},
+			map[string]interface{}{
+				"name": "snapd",
+				"id":   s.ss.AssertedSnapID("snapd"),
+				"type": "snapd",
+			},
+		},
+	})
+
+	vsetAssert, err := s.brands.Signing("canonical").Sign(asserts.ValidationSetType, map[string]interface{}{
+		"type":         "validation-set",
+		"authority-id": "canonical",
+		"series":       "16",
+		"account-id":   "canonical",
+		"name":         "vset-1",
+		"sequence":     "1",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":     "pc-kernel-with-kmods",
+				"id":       fakeSnapID("pc-kernel-with-kmods"),
+				"presence": "required",
+				"revision": "11",
+				"components": map[string]interface{}{
+					"kmod": map[string]interface{}{
+						"revision": "33",
+						"presence": "required",
+					},
+				},
+			},
+		},
+		"timestamp": time.Now().UTC().Format(time.RFC3339),
+	}, nil, "")
+	c.Assert(err, IsNil)
+
+	assertstatetest.AddMany(s.state, vsetAssert)
+
+	// note that the revision for "pc" is different than the expected revisions
+	providedRevisions := map[string]snap.Revision{
+		"pc":                   snap.R(10),
+		"pc-kernel-with-kmods": snap.R(11),
+		"core24":               snap.R(12),
+		"snapd":                snap.R(13),
+	}
+
+	snapTypes := map[string]snap.Type{
+		"pc":                   snap.TypeGadget,
+		"pc-kernel-with-kmods": snap.TypeKernel,
+		"core24":               snap.TypeBase,
+		"snapd":                snap.TypeSnapd,
+	}
+
+	localSnaps := make([]snapstate.PathSnap, 0, len(providedRevisions))
+	for name, rev := range providedRevisions {
+		si, path := createLocalSnap(c, name, fakeSnapID(name), rev.N, string(snapTypes[name]), "", nil)
+		localSnaps = append(localSnaps, snapstate.PathSnap{
+			SideInfo: si,
+			Path:     path,
+		})
+
+		s.setupSnapDeclForNameAndID(c, name, si.SnapID, "canonical")
+		s.setupSnapRevisionForFileAndID(c, path, si.SnapID, "canonical", rev)
+	}
+
+	snapID := fakeSnapID("pc-kernel-with-kmods")
+	cref := naming.NewComponentRef("pc-kernel-with-kmods", "kmod")
+	compRev := snap.R(22)
+	compPath := snaptest.MakeTestComponent(c, "component: pc-kernel-with-kmods+kmod\nversion: 1.0\ntype: kernel-modules\n")
+	s.setupSnapResourceRevision(c, compPath, "kmod", snapID, "canonical", compRev)
+	s.setupSnapResourcePair(c, "kmod", snapID, "canonical", compRev, providedRevisions["pc-kernel-with-kmods"])
+
+	localComponents := []snapstate.PathComponent{{
+		SideInfo: snap.NewComponentSideInfo(cref, compRev),
+		Path:     compPath,
+	}}
+
+	s.mockStandardSnapsModeenvAndBootloaderState(c)
+
+	_, err = devicestate.CreateRecoverySystem(s.state, "1234", devicestate.CreateRecoverySystemOptions{
+		ValidationSets:  []*asserts.ValidationSet{vsetAssert.(*asserts.ValidationSet)},
+		LocalSnaps:      localSnaps,
+		LocalComponents: localComponents,
+		Offline:         true,
+	})
+	c.Assert(err, ErrorMatches, `component "pc-kernel-with-kmods\+kmod" does not match revision required by validation sets: 22 != 33`)
 }
 
 func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemMissingSnapIDFromModel(c *C) {
@@ -4111,11 +5564,11 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemMissi
 		"snapd":     snap.TypeSnapd,
 	}
 
-	localSnaps := make([]devicestate.LocalSnap, 0, len(snapRevisions))
+	localSnaps := make([]snapstate.PathSnap, 0, len(snapRevisions))
 	for name, rev := range snapRevisions {
 		si, path := createLocalSnap(c, name, fakeSnapID(name), rev.N, string(snapTypes[name]), "", nil)
 
-		localSnaps = append(localSnaps, devicestate.LocalSnap{
+		localSnaps = append(localSnaps, snapstate.PathSnap{
 			SideInfo: si,
 			Path:     path,
 		})
@@ -4150,7 +5603,7 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemMissi
 		"snapd":     snap.TypeSnapd,
 	}
 
-	localSnaps := make([]devicestate.LocalSnap, 0, len(snapRevisions))
+	localSnaps := make([]snapstate.PathSnap, 0, len(snapRevisions))
 	for name, rev := range snapRevisions {
 		si, path := createLocalSnap(c, name, fakeSnapID(name), rev.N, string(snapTypes[name]), "", nil)
 
@@ -4158,7 +5611,7 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemMissi
 			si.SnapID = ""
 		}
 
-		localSnaps = append(localSnaps, devicestate.LocalSnap{
+		localSnaps = append(localSnaps, snapstate.PathSnap{
 			SideInfo: si,
 			Path:     path,
 		})
@@ -4240,11 +5693,11 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemValid
 
 	assertstatetest.AddMany(s.state, vsetAssert)
 
-	localSnaps := make([]devicestate.LocalSnap, 0, len(providedRevisions))
+	localSnaps := make([]snapstate.PathSnap, 0, len(providedRevisions))
 	for name, rev := range providedRevisions {
 		si, path := createLocalSnap(c, name, fakeSnapID(name), rev.N, string(snapTypes[name]), "", nil)
 
-		localSnaps = append(localSnaps, devicestate.LocalSnap{
+		localSnaps = append(localSnaps, snapstate.PathSnap{
 			SideInfo: si,
 			Path:     path,
 		})
@@ -4327,12 +5780,12 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemValid
 			return nil, nil, fmt.Errorf("unexpected snap name %q", name)
 		}
 
-		c.Check(expectedRev, Equals, revOpts.Revision)
+		c.Check(revOpts.Revision.Unset(), Equals, true)
 
 		tDownload := s.state.NewTask("fake-download", fmt.Sprintf("Download %s to track %s", name, revOpts.Channel))
 		si := &snap.SideInfo{
 			RealName: name,
-			Revision: revOpts.Revision,
+			Revision: expectedRev,
 			SnapID:   fakeSnapID(name),
 		}
 
@@ -4366,6 +5819,7 @@ plugs:
 		tDownload.Set("snap-setup", snapsup)
 
 		_, info := snaptest.MakeTestSnapInfoWithFiles(c, yaml, nil, si)
+		opts.PrereqTracker.Add(info)
 
 		tValidate := s.state.NewTask("fake-validate", fmt.Sprintf("Validate %s", name))
 		tValidate.Set("snap-setup-task", tDownload.ID())
@@ -4445,7 +5899,7 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemValid
 
 	vset := vsetAssert.(*asserts.ValidationSet)
 
-	localSnaps := make([]devicestate.LocalSnap, 0, len(snapRevisions))
+	localSnaps := make([]snapstate.PathSnap, 0, len(snapRevisions))
 	for name, rev := range snapRevisions {
 		si := &snap.SideInfo{RealName: name, Revision: snap.R(rev.N), SnapID: fakeSnapID(name)}
 
@@ -4471,7 +5925,7 @@ plugs:
 
 		path := snaptest.MakeTestSnapWithFiles(c, yaml, [][]string(nil))
 
-		localSnaps = append(localSnaps, devicestate.LocalSnap{
+		localSnaps = append(localSnaps, snapstate.PathSnap{
 			SideInfo: si,
 			Path:     path,
 		})
@@ -4693,7 +6147,7 @@ func (s *deviceMgrSystemsCreateSuite) testRemoveRecoverySystem(c *C, mockRetry b
 		}
 
 		// add an extra file in there so that the snap has a new hash
-		s.makeSnapInState(c, name, rev, [][]string{{"random-file", "random-content"}})
+		s.makeSnapInState(c, name, rev, [][]string{{"random-file", "random-content"}}, nil)
 	}
 
 	vsetAssert, err := s.brands.Signing("canonical").Sign(asserts.ValidationSetType, map[string]interface{}{

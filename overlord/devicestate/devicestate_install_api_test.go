@@ -353,7 +353,7 @@ func (s *deviceMgrInstallAPISuite) testInstallFinishStep(c *C, opts finishStepOp
 
 	var kModsRevs map[string]snap.Revision
 	if opts.hasKernelModsComps {
-		kModsRevs = map[string]snap.Revision{"kcomp1": snap.R(77), "kcomp2": snap.R(77)}
+		kModsRevs = map[string]snap.Revision{"kcomp1": snap.R(77), "kcomp2": snap.R(77), "kcomp3": snap.R(77)}
 	}
 	seedOpts := mockSystemSeedWithLabelOpts{
 		isClassic:     opts.installClassic,

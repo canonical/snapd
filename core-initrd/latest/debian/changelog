@@ -1,3 +1,9 @@
+ubuntu-core-initramfs (70+2.67+git124.g98d9ab6+24.10) oracular; urgency=medium
+
+  * Update to snapd version 2.67+git124.g98d9ab6
+
+ -- Alfonso Sanchez-Beato <alfonso.sanchez-beato@canonical.com>  Wed, 08 Jan 2025 13:52:06 -0500
+
 ubuntu-core-initramfs (69) oracular; urgency=medium
 
   * Add systemd-cryptsetup, which is now a separate package, and libkmod2.

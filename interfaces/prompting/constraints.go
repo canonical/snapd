@@ -153,7 +153,7 @@ func (c *ReplyConstraints) ToConstraints(iface string, outcome OutcomeType, life
 		return nil, prompting_errors.NewInvalidInterfaceError(iface, availableInterfaces())
 	}
 	if len(c.Permissions) == 0 {
-		return nil, prompting_errors.NewPermissionsListEmptyError(iface, availablePerms)
+		return nil, prompting_errors.NewPermissionsEmptyError(iface, availablePerms)
 	}
 	var invalidPerms []string
 	permissionMap := make(PermissionMap, len(c.Permissions))
@@ -254,6 +254,9 @@ func (c *RuleConstraintsPatch) PatchRuleConstraints(existing *RuleConstraints, i
 	if len(errs) > 0 {
 		return nil, strutil.JoinErrors(errs...)
 	}
+	if len(newPermissions) == 0 {
+		return nil, prompting_errors.ErrPatchedRuleHasNoPerms
+	}
 	ruleConstraints.Permissions = newPermissions
 	return ruleConstraints, nil
 }
@@ -273,7 +276,7 @@ func (pm PermissionMap) toRulePermissionMap(iface string, currTime time.Time) (R
 		return nil, prompting_errors.NewInvalidInterfaceError(iface, availableInterfaces())
 	}
 	if len(pm) == 0 {
-		return nil, prompting_errors.NewPermissionsListEmptyError(iface, availablePerms)
+		return nil, prompting_errors.NewPermissionsEmptyError(iface, availablePerms)
 	}
 	var errs []error
 	var invalidPerms []string
@@ -314,7 +317,7 @@ func (pm RulePermissionMap) validateForInterface(iface string, currTime time.Tim
 		return false, prompting_errors.NewInvalidInterfaceError(iface, availableInterfaces())
 	}
 	if len(pm) == 0 {
-		return false, prompting_errors.NewPermissionsListEmptyError(iface, availablePerms)
+		return false, prompting_errors.NewPermissionsEmptyError(iface, availablePerms)
 	}
 	var errs []error
 	var invalidPerms []string
@@ -541,11 +544,8 @@ func AbstractPermissionsFromAppArmorPermissions(iface string, permissions any) (
 // AbstractPermissionsToAppArmorPermissions returns AppArmor permissions
 // corresponding to the given permissions for the given interface.
 func AbstractPermissionsToAppArmorPermissions(iface string, permissions []string) (any, error) {
-	if len(permissions) == 0 {
-		availablePerms, _ := AvailablePermissions(iface)
-		// Caller should have already validated iface, so no error can occur
-		return notify.FilePermission(0), prompting_errors.NewPermissionsListEmptyError(iface, availablePerms)
-	}
+	// permissions may be empty, e.g. if we're constructing allowed permissions
+	// and denying all of them.
 	filePermsMap, exists := interfaceFilePermissionsMaps[iface]
 	if !exists {
 		// Should not occur, since we already validated iface and permissions

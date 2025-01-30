@@ -245,6 +245,9 @@ func promptingError(err error) *apiError {
 		if errors.As(err, &parseErr) {
 			apiErr.Value = (*promptingParseError)(parseErr)
 		}
+	case errors.Is(err, prompting_errors.ErrPatchedRuleHasNoPerms):
+		apiErr.Status = 400
+		apiErr.Kind = client.ErrorKindInterfacesRequestsPatchedRuleHasNoPermissions
 	case errors.Is(err, prompting_errors.ErrReplyNotMatchRequestedPath):
 		apiErr.Status = 400
 		apiErr.Kind = client.ErrorKindInterfacesRequestsReplyNotMatchRequest

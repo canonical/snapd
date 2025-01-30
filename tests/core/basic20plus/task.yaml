@@ -15,12 +15,15 @@ execute: |
     case "$SPREAD_SYSTEM" in
       ubuntu-core-24-*)
         base_snap=core24
+        run_mnt_pts=(/run/mnt/base)
         ;;
       ubuntu-core-22-*)
         base_snap=core22
+        run_mnt_pts=(/run/mnt/base /run/mnt/kernel)
         ;;
       ubuntu-core-20-*)
         base_snap=core20
+        run_mnt_pts=(/run/mnt/base /run/mnt/kernel)
         ;;
       *)
         echo "Unsupported ubuntu core system, add missing case here"
@@ -113,12 +116,21 @@ execute: |
     test -f /run/snapd/boot-flags
 
     # make sure that loop devices created by snap-bootstrap initramfs-mounts for snaps are readonly
-    for mount in /run/mnt/base /run/mnt/kernel; do
+    for mount in "${run_mnt_pts[@]}"; do
         mountpoint "${mount}"
         loop="$(findmnt -o source "${mount}" -n)"
         echo "${loop}" | MATCH "/dev/loop[0-9]+"
         losetup -O ro -n --raw "${loop}" | MATCH "1"
     done
+    if [ "$base_snap" = core24 ]; then
+        not mountpoint /run/mnt/kernel
+        findmnt -n -o source /lib/firmware | MATCH /var/lib/snapd/kernel/pc-kernel
+        findmnt -n -o source /lib/modules | MATCH /var/lib/snapd/kernel/pc-kernel
+        # These units should have been created by the initramfs
+        stat /run/systemd/system/sysroot-usr-lib-firmware.mount
+        stat /run/systemd/system/sysroot-usr-lib-modules.mount
+        stat /run/systemd/system/'writable-system\x2ddata-snap-pc\x2dkernel-'*
+    fi
 
     # make sure that ubuntu-{seed,save} is mounted with appropriate flags
     for mount in /run/mnt/ubuntu-seed /run/mnt/ubuntu-save; do

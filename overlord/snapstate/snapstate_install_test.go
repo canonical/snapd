@@ -47,6 +47,7 @@ import (
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/restart"
+	"github.com/snapcore/snapd/snapdenv"
 	"github.com/snapcore/snapd/store/storetest"
 
 	// So it registers Configure.
@@ -237,6 +238,10 @@ func verifyInstallTasksWithComponents(c *C, typ snap.Type, opts, discards int, c
 		}
 	}
 
+	te, err := ts.Edge(snapstate.SnapSetupEdge)
+	c.Assert(err, IsNil)
+	c.Assert(te.Has("component-setup-tasks"), Equals, true)
+
 	var count int
 	for _, t := range ts.Tasks() {
 		switch t.Kind() {
@@ -251,6 +256,9 @@ func verifyInstallTasksWithComponents(c *C, typ snap.Type, opts, discards int, c
 			c.Assert(err, IsNil)
 			c.Check(compsup.CompSideInfo.Component.ComponentName, Equals, components[count])
 			count++
+		case "setup-profiles":
+			c.Assert(t.Has("component-setup-task"), Equals, false)
+			c.Assert(t.Has("component-setup"), Equals, false)
 		}
 	}
 	c.Check(count, Equals, len(components), Commentf("expected %d components, found %d", len(components), count))
@@ -366,6 +374,8 @@ func (s *snapmgrTestSuite) TestInstallTaskEdgesForPreseeding(c *C) {
 	mockSnap := makeTestSnap(c, `name: some-snap
 version: 1.0
 `)
+	restorePreseeding := snapdenv.MockPreseeding(true)
+	defer restorePreseeding()
 
 	for _, skipConfig := range []bool{false, true} {
 		ts, _, err := snapstate.InstallPath(s.state, &snap.SideInfo{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(8)}, mockSnap, "", "", snapstate.Flags{SkipConfigure: skipConfig}, nil)
@@ -1136,7 +1146,10 @@ func (s *snapmgrTestSuite) TestInstallPathTooEarly(c *C) {
 	defer r()
 
 	mockSnap := makeTestSnap(c, "name: some-snap\nversion: 1.0")
-	t := snapstate.PathInstallGoal("some-snap", mockSnap, &snap.SideInfo{RealName: "some-snap"}, nil, snapstate.RevisionOptions{})
+	t := snapstate.PathInstallGoal(snapstate.PathSnap{
+		Path:     mockSnap,
+		SideInfo: &snap.SideInfo{RealName: "some-snap"},
+	})
 	_, _, err := snapstate.InstallWithGoal(context.Background(), s.state, t, snapstate.Options{
 		Seed: true,
 	})
@@ -6445,6 +6458,15 @@ func (s *snapmgrTestSuite) TestInstallManyComponentsRunThrough(c *C) {
 	})
 }
 
+func (s *snapmgrTestSuite) TestInstallManyComponentsRunThroughPreseed(c *C) {
+	s.testInstallComponentsRunThrough(c, testInstallComponentsRunThroughOpts{
+		snapName:   "some-kernel",
+		snapType:   snap.TypeKernel,
+		components: []string{"standard-component", "kernel-modules-component"},
+		preseed:    true,
+	})
+}
+
 func (s *snapmgrTestSuite) TestInstallManyComponentsUndoRunThrough(c *C) {
 	s.testInstallComponentsRunThrough(c, testInstallComponentsRunThroughOpts{
 		snapName:   "some-kernel",
@@ -6636,11 +6658,19 @@ type testInstallComponentsRunThroughOpts struct {
 	snapType    snap.Type
 	components  []string
 	undo        bool
+	preseed     bool
 }
 
 func (s *snapmgrTestSuite) testInstallComponentsRunThrough(c *C, opts testInstallComponentsRunThroughOpts) {
 	s.state.Lock()
 	defer s.state.Unlock()
+
+	if opts.preseed {
+		restorePreseeding := snapdenv.MockPreseeding(opts.preseed)
+		defer restorePreseeding()
+		mockCmd := testutil.MockCommand(c, "mount", "")
+		defer mockCmd.Restore()
+	}
 
 	r := snapstatetest.MockDeviceModel(MakeModel20("pc", map[string]interface{}{"base": "core24"}))
 	defer r()
@@ -6903,6 +6933,13 @@ func (s *snapmgrTestSuite) testInstallComponentsRunThrough(c *C, opts testInstal
 	}}...)
 
 	if len(kmodComps) > 0 {
+		if opts.preseed {
+			expected = append(expected, fakeOp{
+				op:           "prepare-kernel-modules-components",
+				currentComps: []*snap.ComponentSideInfo{},
+				finalComps:   kmodComps,
+			})
+		}
 		expected = append(expected, fakeOp{
 			op:           "prepare-kernel-modules-components",
 			currentComps: []*snap.ComponentSideInfo{},
@@ -7092,7 +7129,7 @@ func (s *snapmgrTestSuite) testInstallComponentsFromPathRunThrough(c *C, opts te
 
 	instanceName := snap.InstanceName(opts.snapName, opts.instanceKey)
 
-	components := make(map[*snap.ComponentSideInfo]string, len(opts.components))
+	components := make([]snapstate.PathComponent, 0, len(opts.components))
 	compPaths := make(map[string]string, len(opts.components))
 	compRevs := make(map[string]snap.Revision)
 	for i, compName := range opts.components {
@@ -7120,7 +7157,10 @@ version: 1.0
 
 		path := snaptest.MakeTestComponent(c, componentYaml)
 		compPaths[csi.Component.ComponentName] = path
-		components[csi] = path
+		components = append(components, snapstate.PathComponent{
+			SideInfo: csi,
+			Path:     path,
+		})
 
 		csSideInfo := &snap.ComponentSideInfo{
 			Component: naming.NewComponentRef(opts.snapName, compName),
@@ -7175,7 +7215,12 @@ components:
 		si.Revision = snap.Revision{}
 	}
 
-	goal := snapstate.PathInstallGoal(instanceName, snapPath, si, components, snapstate.RevisionOptions{})
+	goal := snapstate.PathInstallGoal(snapstate.PathSnap{
+		InstanceName: instanceName,
+		Path:         snapPath,
+		SideInfo:     si,
+		Components:   components,
+	})
 
 	info, ts, err := snapstate.InstallOne(context.Background(), s.state, goal, snapstate.Options{
 		Flags: snapstate.Flags{
@@ -7379,8 +7424,8 @@ components:
 		}
 
 		c.Check(snapPath, fileChecker)
-		for _, compPath := range components {
-			c.Check(compPath, fileChecker)
+		for _, comp := range components {
+			c.Check(comp.Path, fileChecker)
 		}
 	}
 }
@@ -7422,9 +7467,10 @@ func (s *snapmgrTestSuite) TestInstallComponentsFromPathInvalidComponentFile(c *
 	err := os.WriteFile(compPath, []byte("invalid-component"), 0644)
 	c.Assert(err, IsNil)
 
-	components := map[*snap.ComponentSideInfo]string{
-		&csi: compPath,
-	}
+	components := []snapstate.PathComponent{{
+		SideInfo: &csi,
+		Path:     compPath,
+	}}
 
 	snapPath := makeTestSnap(c, `name: test-snap
 version: 1.0
@@ -7438,7 +7484,11 @@ components:
 		Revision: snapRevision,
 	}
 
-	goal := snapstate.PathInstallGoal(snapName, snapPath, si, components, snapstate.RevisionOptions{})
+	goal := snapstate.PathInstallGoal(snapstate.PathSnap{
+		Path:       snapPath,
+		SideInfo:   si,
+		Components: components,
+	})
 	_, _, err = snapstate.InstallOne(context.Background(), s.state, goal, snapstate.Options{})
 	c.Assert(err, ErrorMatches, fmt.Sprintf(`.*cannot process snap or snapdir: file "%s" is invalid.*`, compPath))
 }
@@ -7462,9 +7512,9 @@ func (s *snapmgrTestSuite) TestInstallComponentsFromPathInvalidComponentName(c *
 		Revision:  snap.R(1),
 	}
 
-	components := map[*snap.ComponentSideInfo]string{
-		&csi: "",
-	}
+	components := []snapstate.PathComponent{{
+		SideInfo: &csi,
+	}}
 
 	snapPath := makeTestSnap(c, `name: test-snap
 version: 1.0
@@ -7478,7 +7528,11 @@ components:
 		Revision: snapRevision,
 	}
 
-	goal := snapstate.PathInstallGoal(snapName, snapPath, si, components, snapstate.RevisionOptions{})
+	goal := snapstate.PathInstallGoal(snapstate.PathSnap{
+		Path:       snapPath,
+		SideInfo:   si,
+		Components: components,
+	})
 	_, _, err := snapstate.InstallOne(context.Background(), s.state, goal, snapstate.Options{})
 	c.Assert(err, ErrorMatches, fmt.Sprintf(`invalid snap name: "%s"`, componentName))
 }

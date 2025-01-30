@@ -26,7 +26,12 @@ execute: |
   snap pack "$TESTSLIB/snaps/$SNAP_NAME_BAD"
 
   # store a copy of the built snapd
-  cp /var/lib/snapd/snaps/snapd_x1.snap ./snapd.snap
+  if [ -e /var/lib/snapd/snaps/snapd_x1.snap ]; then
+    cp /var/lib/snapd/snaps/snapd_x1.snap ./snapd.snap
+  else
+    # Beta validation has a different snapd version
+    cp /var/lib/snapd/snaps/snapd_*.snap ./snapd.snap
+  fi
 
   revision=""
   if os.query is_arm; then

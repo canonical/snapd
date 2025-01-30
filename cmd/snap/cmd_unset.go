@@ -20,6 +20,8 @@
 package main
 
 import (
+	"errors"
+
 	"github.com/jessevdk/go-flags"
 
 	"github.com/snapcore/snapd/i18n"
@@ -76,6 +78,10 @@ func init() {
 func (x *cmdUnset) Execute(args []string) error {
 	patchValues := make(map[string]interface{})
 	for _, confKey := range x.Positional.ConfKeys {
+		if confKey == "" {
+			return errors.New(i18n.G("configuration keys cannot be empty"))
+		}
+
 		patchValues[confKey] = nil
 	}
 

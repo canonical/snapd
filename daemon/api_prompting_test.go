@@ -466,10 +466,10 @@ func (s *promptingSuite) TestPromptingError(c *C) {
 			},
 		},
 		{
-			err: prompting_errors.NewPermissionsListEmptyError("foo", []string{"bar", "baz"}),
+			err: prompting_errors.NewPermissionsEmptyError("foo", []string{"bar", "baz"}),
 			body: map[string]interface{}{
 				"result": map[string]interface{}{
-					"message": `invalid permissions for foo interface: permissions list empty`,
+					"message": `invalid permissions for foo interface: permissions empty`,
 					"kind":    "interfaces-requests-invalid-fields",
 					"value": map[string]interface{}{
 						"permissions": map[string]interface{}{
@@ -532,6 +532,18 @@ func (s *promptingSuite) TestPromptingError(c *C) {
 							"value":  "invalid/pattern",
 						},
 					},
+				},
+				"status":      "Bad Request",
+				"status-code": 400.0,
+				"type":        "error",
+			},
+		},
+		{
+			err: prompting_errors.ErrPatchedRuleHasNoPerms,
+			body: map[string]interface{}{
+				"result": map[string]interface{}{
+					"message": "cannot patch rule to have no permissions",
+					"kind":    "interfaces-requests-patched-rule-has-no-permissions",
 				},
 				"status":      "Bad Request",
 				"status-code": 400.0,

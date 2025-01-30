@@ -103,8 +103,8 @@ _SNAP_TAGS=
 # check if we need to include the testkeys in the binary
 ifneq (,$(filter testkeys,$(DEB_BUILD_OPTIONS)))
   # if enabled also enable bootloader assets testing and fault injection
-	_TAGS := withtestkeys,withbootassetstesting,faultinject
-	_SNAP_TAGS := nomanagers,withtestkeys,faultinject
+	_TAGS := withtestkeys,withbootassetstesting,faultinject,statelocktrace
+	_SNAP_TAGS := nomanagers,withtestkeys,faultinject,statelocktrace
 else
 	_SNAP_TAGS=nomanagers
 endif
@@ -289,7 +289,9 @@ ifeq (,$(filter nocheck,$(DEB_BUILD_OPTIONS)))
 endif
 ifeq (,$(filter nocheck,$(DEB_BUILD_OPTIONS)))
 	# run the snap-confine tests
-	$(MAKE) -C cmd check
+	$(MAKE) -C cmd -k check
+	# and data files tests
+	$(MAKE) -C data -k check
 endif
 
 

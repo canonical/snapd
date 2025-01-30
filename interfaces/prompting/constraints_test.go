@@ -234,7 +234,7 @@ func (s *constraintsSuite) TestConstraintsToRuleConstraintsUnhappy(c *C) {
 	}{
 		{
 			perms:  nil,
-			errStr: `invalid permissions for home interface: permissions list empty`,
+			errStr: `invalid permissions for home interface: permissions empty`,
 		},
 		{
 			perms: prompting.PermissionMap{
@@ -324,7 +324,7 @@ func (s *constraintsSuite) TestRuleConstraintsValidateForInterface(c *C) {
 		{
 			"home",
 			prompting.RulePermissionMap{},
-			prompting_errors.NewPermissionsListEmptyError("home", nil).Error(),
+			prompting_errors.NewPermissionsEmptyError("home", nil).Error(),
 		},
 		{
 			"home",
@@ -621,7 +621,7 @@ func (s *constraintsSuite) TestReplyConstraintsToConstraintsUnhappy(c *C) {
 		},
 		{
 			permissions: make([]string, 0),
-			errStr:      `invalid permissions for home interface: permissions list empty`,
+			errStr:      `invalid permissions for home interface: permissions empty`,
 		},
 		{
 			permissions: []string{"read", "append", "write", "create", "execute"},
@@ -701,6 +701,45 @@ func (s *constraintsSuite) TestPatchRuleConstraintsHappy(c *C) {
 						Outcome:    prompting.OutcomeDeny,
 						Lifespan:   prompting.LifespanTimespan,
 						Expiration: origTime.Add(-time.Second), // expired perms are not pruned if patch perms are nil
+					},
+				},
+			},
+		},
+		{
+			initial: &prompting.RuleConstraints{
+				PathPattern: pathPattern,
+				Permissions: prompting.RulePermissionMap{
+					"read": &prompting.RulePermissionEntry{
+						Outcome:    prompting.OutcomeAllow,
+						Lifespan:   prompting.LifespanTimespan,
+						Expiration: patchTime.Add(time.Second),
+					},
+					"write": &prompting.RulePermissionEntry{
+						Outcome:    prompting.OutcomeDeny,
+						Lifespan:   prompting.LifespanTimespan,
+						Expiration: origTime,
+					},
+				},
+			},
+			patch: &prompting.RuleConstraintsPatch{
+				Permissions: prompting.PermissionMap{
+					// Remove both existing permissions, but add a new permission
+					"read":  nil,
+					"write": nil,
+					"execute": &prompting.PermissionEntry{
+						Outcome:  prompting.OutcomeDeny,
+						Lifespan: prompting.LifespanTimespan,
+						Duration: "1m",
+					},
+				},
+			},
+			final: &prompting.RuleConstraints{
+				PathPattern: pathPattern,
+				Permissions: prompting.RulePermissionMap{
+					"execute": &prompting.RulePermissionEntry{
+						Outcome:    prompting.OutcomeDeny,
+						Lifespan:   prompting.LifespanTimespan,
+						Expiration: patchTime.Add(time.Minute),
 					},
 				},
 			},
@@ -854,8 +893,19 @@ func (s *constraintsSuite) TestPatchRuleConstraintsUnhappy(c *C) {
 	expected := joinErrorsUnordered(`invalid duration: cannot have unspecified duration when lifespan is "timespan": ""`, `cannot create rule with lifespan "single"`) + "\n" + `invalid permissions for home interface: ("create", "lock"|"lock", "create")`
 
 	result, err = badPatch.PatchRuleConstraints(goodRule, iface, patchTime)
-	c.Check(result, IsNil)
 	c.Check(err, ErrorMatches, expected)
+	c.Check(result, IsNil)
+
+	badPatch = &prompting.RuleConstraintsPatch{
+		Permissions: prompting.PermissionMap{
+			// Remove all permissions
+			"read":  nil,
+			"write": nil,
+		},
+	}
+	result, err = badPatch.PatchRuleConstraints(goodRule, iface, patchTime)
+	c.Check(err, Equals, prompting_errors.ErrPatchedRuleHasNoPerms)
+	c.Check(result, IsNil)
 }
 
 func (s *constraintsSuite) TestRulePermissionMapExpired(c *C) {
@@ -1099,6 +1149,11 @@ func (s *constraintsSuite) TestAbstractPermissionsToAppArmorPermissionsHappy(c *
 	}{
 		{
 			"home",
+			[]string{},
+			notify.FilePermission(0),
+		},
+		{
+			"home",
 			[]string{"read"},
 			notify.AA_MAY_OPEN | notify.AA_MAY_READ | notify.AA_MAY_GETATTR,
 		},
@@ -1138,11 +1193,6 @@ func (s *constraintsSuite) TestAbstractPermissionsToAppArmorPermissionsUnhappy(c
 		perms  []string
 		errStr string
 	}{
-		{
-			"home",
-			[]string{},
-			"invalid permissions for home interface: permissions list empty",
-		},
 		{
 			"foo",
 			[]string{"read"},

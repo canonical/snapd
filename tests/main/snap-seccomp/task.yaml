@@ -27,6 +27,11 @@ execute: |
         SNAP_SECCOMP="$MOUNT_DIR/snapd/current$SNAP_SECCOMP"
     fi
 
+    # we can dump existing profile
+    $SNAP_SECCOMP dump "${PROFILE}.bin2" "$PWD/bpf-dump"
+    test -s "$PWD/bpf-dump.allow"
+    test -s "$PWD/bpf-dump.deny"
+
     # from the old test_complain
     echo "Test that the @complain keyword works"
     rm -f "${PROFILE}.bin2"

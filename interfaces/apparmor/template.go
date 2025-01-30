@@ -85,6 +85,7 @@ var templateCommon = `
   #include <abstractions/base>
   #include <abstractions/consoles>
   #include <abstractions/openssl>
+  ###KERNEL_MODULES_AND_FIRMWARE###
 
   # While in later versions of the base abstraction, include this explicitly
   # for series 16 and cross-distro

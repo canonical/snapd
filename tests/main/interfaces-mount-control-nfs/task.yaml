@@ -1,4 +1,4 @@
-summary: Test that with mount-control NFS shares can be mounted
+summary: Test mount control with NFS shares
 
 details: |
     Verify that NFS mounts can be performed with mount-control

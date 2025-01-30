@@ -7,6 +7,7 @@ Build-Depends: debhelper-compat (= 13), dh-python,
                cpio,
                fakeroot,
                fonts-ubuntu,
+               golang-go (>=2:1.18~) [!powerpc] | golang-1.18 [!powerpc] | golang-1.21,
                intel-microcode [amd64]
 Standards-Version: 4.4.1
 Homepage: https://launchpad.net/ubuntu-core-initramfs
@@ -15,7 +16,6 @@ Package: ubuntu-core-initramfs
 Architecture: amd64 arm64 armhf riscv64
 Depends: ${python3:Depends}, ${misc:Depends}, dracut-core (>= 051-1),
          python3:any,
-         golang-go (>=2:1.18~) [!powerpc] | golang-1.18 [!powerpc] | golang-1.21,
          dracut-core,
          busybox-initramfs,
          zstd,

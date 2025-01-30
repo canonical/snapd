@@ -15,6 +15,7 @@
 : "${NESTED_CUSTOM_AUTO_IMPORT_ASSERTION:=}"
 : "${NESTED_FAKESTORE_BLOB_DIR:=${NESTED_WORK_DIR}/fakestore/blobs}"
 : "${NESTED_SIGN_SNAPS_FAKESTORE:=false}"
+: "${NESTED_REPACK_FOR_FAKESTORE:=false}"
 : "${NESTED_FAKESTORE_SNAP_DECL_PC_GADGET:=}"
 : "${NESTED_UBUNTU_IMAGE_SNAPPY_FORCE_SAS_URL:=}"
 : "${NESTED_UBUNTU_IMAGE_PRESEED_KEY:=}"
@@ -771,6 +772,14 @@ EOF
                 "$TESTSLIB"/manip_ubuntu_seed.py pc-gadget/meta/gadget.yaml "$NESTED_UBUNTU_SEED_SIZE"
             fi
 
+            if [ "$NESTED_REPACK_FOR_FAKESTORE" = "true" ]; then
+                cat > pc-gadget/meta/hooks/prepare-device << EOF
+#!/bin/sh
+snapctl set device-service.url=http://10.0.2.2:11029
+EOF
+                chmod +x pc-gadget/meta/hooks/prepare-device
+            fi
+
             # pack the gadget
             snap pack pc-gadget/ "$NESTED_ASSETS_DIR"
 
@@ -921,6 +930,9 @@ nested_create_core_vm() {
             for mycomp in $(nested_get_extra_comps); do
                 EXTRA_SNAPS="$EXTRA_SNAPS --comp $mycomp"
             done
+            if [ -n "$NESTED_KERNEL_MODULES_COMP" ] && [ "$(nested_get_version)" -ge "24" ]; then
+                EXTRA_SNAPS="$EXTRA_SNAPS --comp pc-kernel+${NESTED_KERNEL_MODULES_COMP}.comp"
+            fi
 
             # only set SNAPPY_FORCE_SAS_URL because we don't need it defined 
             # anywhere else but here, where snap prepare-image as called by 

@@ -246,7 +246,7 @@ func (s *confdbSuite) TestConfdbGet(c *C) {
 		switch reqs {
 		case 0:
 			c.Check(r.Method, Equals, "GET")
-			c.Check(r.URL.Path, Equals, "/v2/confdbs/foo/bar/baz")
+			c.Check(r.URL.Path, Equals, "/v2/confdb/foo/bar/baz")
 
 			q := r.URL.Query()
 			fields := strutil.CommaSeparatedList(q.Get("fields"))
@@ -283,7 +283,7 @@ func (s *confdbSuite) TestConfdbGetAsDocument(c *C) {
 		switch reqs {
 		case 0:
 			c.Check(r.Method, Equals, "GET")
-			c.Check(r.URL.Path, Equals, "/v2/confdbs/foo/bar/baz")
+			c.Check(r.URL.Path, Equals, "/v2/confdb/foo/bar/baz")
 
 			q := r.URL.Query()
 			fields := strutil.CommaSeparatedList(q.Get("fields"))
@@ -324,7 +324,7 @@ func (s *confdbSuite) TestConfdbGetMany(c *C) {
 		switch reqs {
 		case 0:
 			c.Check(r.Method, Equals, "GET")
-			c.Check(r.URL.Path, Equals, "/v2/confdbs/foo/bar/baz")
+			c.Check(r.URL.Path, Equals, "/v2/confdb/foo/bar/baz")
 
 			q := r.URL.Query()
 			fields := strutil.CommaSeparatedList(q.Get("fields"))
@@ -365,7 +365,7 @@ func (s *confdbSuite) TestConfdbGetManyAsDocument(c *C) {
 		switch reqs {
 		case 0:
 			c.Check(r.Method, Equals, "GET")
-			c.Check(r.URL.Path, Equals, "/v2/confdbs/foo/bar/baz")
+			c.Check(r.URL.Path, Equals, "/v2/confdb/foo/bar/baz")
 
 			q := r.URL.Query()
 			fields := strutil.CommaSeparatedList(q.Get("fields"))
@@ -431,7 +431,7 @@ func (s *confdbSuite) TestConfdbGetNoFields(c *check.C) {
 		switch reqs {
 		case 0:
 			c.Check(r.Method, Equals, "GET")
-			c.Check(r.URL.Path, Equals, "/v2/confdbs/foo/bar/baz")
+			c.Check(r.URL.Path, Equals, "/v2/confdb/foo/bar/baz")
 
 			fields := r.URL.Query().Get("fields")
 			c.Check(fields, Equals, "")

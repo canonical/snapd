@@ -42,6 +42,7 @@ import (
 	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/i18n"
+	"github.com/snapcore/snapd/kernel"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/auth"
@@ -73,12 +74,11 @@ const (
 
 const (
 	BeginEdge                        = state.TaskSetEdge("begin")
+	SnapSetupEdge                    = state.TaskSetEdge("snap-setup")
 	BeforeHooksEdge                  = state.TaskSetEdge("before-hooks")
 	HooksEdge                        = state.TaskSetEdge("hooks")
-	BeforeMaybeRebootEdge            = state.TaskSetEdge("before-maybe-reboot")
 	MaybeRebootEdge                  = state.TaskSetEdge("maybe-reboot")
 	MaybeRebootWaitEdge              = state.TaskSetEdge("maybe-reboot-wait")
-	AfterMaybeRebootWaitEdge         = state.TaskSetEdge("after-maybe-reboot-wait")
 	LastBeforeLocalModificationsEdge = state.TaskSetEdge("last-before-local-modifications")
 	EndEdge                          = state.TaskSetEdge("end")
 )
@@ -574,7 +574,7 @@ func doInstall(st *state.State, snapst *SnapState, snapsup SnapSetup, compsups [
 	}
 
 	// This task is necessary only for UC24+ and hybrid 24.04+
-	if snapsup.Type == snap.TypeKernel && NeedsKernelSetup(deviceCtx.Model()) {
+	if snapsup.Type == snap.TypeKernel && kernel.NeedsKernelDriversTree(deviceCtx.Model()) {
 		setupKernel := st.NewTask("prepare-kernel-snap", fmt.Sprintf(i18n.G("Prepare kernel driver tree for %q%s"), snapsup.InstanceName(), revisionStr))
 		addTask(setupKernel)
 	}
@@ -642,6 +642,25 @@ func doInstall(st *state.State, snapst *SnapState, snapsup SnapSetup, compsups [
 	setupAliases := st.NewTask("setup-aliases", fmt.Sprintf(i18n.G("Setup snap %q aliases"), snapsup.InstanceName()))
 	addTask(setupAliases)
 
+	var setupKmodComponentsPreseed *state.Task
+	if snapdenv.Preseeding() && requiresKmodSetup(snapst, compsups) {
+		// We need this task as the other
+		// prepare-kernel-modules-components defined below will not be
+		// run when creating a preseeding tarball, but we still need to
+		// have a correct driver tree in the tarball. This implies that
+		// if some kernel module is created by the install hook, it
+		// will be available only after full installation on first
+		// boot, but static modules in the components where be
+		// available early.
+		logger.Noticef("kernel-modules components present, creating preseed task for them")
+		// TODO move the setupKernel task here and make it configure
+		// kernel-modules components too so we can remove this task.
+		setupKmodComponentsPreseed = st.NewTask("prepare-kernel-modules-components",
+			fmt.Sprintf(i18n.G("Prepare kernel-modules components for %q%s"),
+				snapsup.InstanceName(), revisionStr))
+		addTask(setupKmodComponentsPreseed)
+	}
+
 	if snapsup.Flags.Prefer {
 		prefer := st.NewTask("prefer-aliases", fmt.Sprintf(i18n.G("Prefer aliases for snap %q"), snapsup.InstanceName()))
 		addTask(prefer)
@@ -686,7 +705,7 @@ func doInstall(st *state.State, snapst *SnapState, snapsup SnapSetup, compsups [
 		addTask(setupKmodComponents)
 	}
 
-	if snapsup.Type == snap.TypeKernel && NeedsKernelSetup(deviceCtx.Model()) {
+	if snapsup.Type == snap.TypeKernel && kernel.NeedsKernelDriversTree(deviceCtx.Model()) {
 		// This task needs to run after we're back and running the new
 		// kernel after a reboot was requested in link-snap handler.
 		discardOldKernelSetup := st.NewTask("discard-old-kernel-snap-setup",
@@ -788,12 +807,15 @@ func doInstall(st *state.State, snapst *SnapState, snapsup SnapSetup, compsups [
 
 	installSet := state.NewTaskSet(tasks...)
 	installSet.MarkEdge(prereq, BeginEdge)
-	installSet.MarkEdge(setupAliases, BeforeHooksEdge)
+	installSet.MarkEdge(prepare, SnapSetupEdge)
+	// BeforeHooksEdge is used by preseeding to know up to which task to run
+	beforeHooksEdgeTask := setupAliases
+	if setupKmodComponentsPreseed != nil {
+		beforeHooksEdgeTask = setupKmodComponentsPreseed
+	}
+	installSet.MarkEdge(beforeHooksEdgeTask, BeforeHooksEdge)
 
 	// Let tasks know if they have to do something about restarts
-	// TODO fix tests so BeforeMaybeRebootEdge and AfterMaybeRebootWaitEdge
-	// are not needed.
-	installSet.MarkEdge(setupSecurity, BeforeMaybeRebootEdge) // this edge is just for tests
 	if setupKmodComponents == nil {
 		// No kernel modules, reboot after link snap
 		installSet.MarkEdge(linkSnap, MaybeRebootEdge)
@@ -812,7 +834,6 @@ func doInstall(st *state.State, snapst *SnapState, snapsup SnapSetup, compsups [
 		setupKmodComponents.Set("set-next-boot", true)
 		afterSetupKmodComps.Set("finish-restart", true)
 	}
-	installSet.MarkEdge(setAutoAliases, AfterMaybeRebootWaitEdge) // this edge is just for tests
 
 	if installHook != nil {
 		installSet.MarkEdge(installHook, HooksEdge)
@@ -907,24 +928,6 @@ func splitComponentTasksForInstall(
 		componentTSS = append(componentTSS, componentTS)
 	}
 	return newMultiComponentInstallTaskSet(componentTSS...), nil
-}
-
-func NeedsKernelSetup(model *asserts.Model) bool {
-	// Checking if it has modeenv - it must be UC20+ or hybrid
-	if model.Grade() == asserts.ModelGradeUnset {
-		return false
-	}
-
-	// We assume core24/hybrid 24.04 onwards have the generator, for older
-	// boot bases we return false.
-	// TODO this won't work for a UC2{0,2} -> UC24+ remodel as we need the
-	// new model here. Get to this ASAP after snapd 2.62 release.
-	switch model.Base() {
-	case "core20", "core22", "core22-desktop":
-		return false
-	default:
-		return true
-	}
 }
 
 func findTasksMatchingKindAndSnap(st *state.State, kind string, snapName string, revision snap.Revision) ([]*state.Task, error) {
@@ -1444,9 +1447,13 @@ type PrereqTracker interface {
 // local revision and sideloading, or full metadata in which case it
 // the snap will appear as installed from the store.
 func InstallPath(st *state.State, si *snap.SideInfo, path, instanceName, channel string, flags Flags, prqt PrereqTracker) (*state.TaskSet, *snap.Info, error) {
-	target := PathInstallGoal(instanceName, path, si, nil, RevisionOptions{
-		Channel: channel,
+	target := PathInstallGoal(PathSnap{
+		InstanceName: instanceName,
+		Path:         path,
+		SideInfo:     si,
+		RevOpts:      RevisionOptions{Channel: channel},
 	})
+
 	// TODO have caller pass a context
 	info, ts, err := InstallOne(context.Background(), st, target, Options{
 		Flags:         flags,
@@ -1524,7 +1531,13 @@ func InstallPathWithDeviceContext(st *state.State, si *snap.SideInfo, path, name
 		opts = &RevisionOptions{}
 	}
 
-	target := PathInstallGoal(name, path, si, nil, *opts)
+	target := PathInstallGoal(PathSnap{
+		InstanceName: name,
+		Path:         path,
+		SideInfo:     si,
+		RevOpts:      *opts,
+	})
+
 	_, ts, err := InstallOne(context.Background(), st, target, Options{
 		Flags:         flags,
 		UserID:        userID,
@@ -1631,18 +1644,19 @@ func downloadTasks(
 	}
 
 	snapsup := &SnapSetup{
-		Channel:            revOpts.Channel,
-		Base:               info.Base,
-		UserID:             opts.UserID,
-		Flags:              opts.Flags.ForSnapSetup(),
-		DownloadInfo:       &info.DownloadInfo,
-		SideInfo:           &info.SideInfo,
-		Type:               info.Type(),
-		Version:            info.Version,
-		InstanceKey:        info.InstanceKey,
-		CohortKey:          revOpts.CohortKey,
-		ExpectedProvenance: info.SnapProvenance,
-		DownloadBlobDir:    downloadDir,
+		Channel:                     revOpts.Channel,
+		Base:                        info.Base,
+		UserID:                      opts.UserID,
+		Flags:                       opts.Flags.ForSnapSetup(),
+		DownloadInfo:                &info.DownloadInfo,
+		SideInfo:                    &info.SideInfo,
+		Type:                        info.Type(),
+		Version:                     info.Version,
+		InstanceKey:                 info.InstanceKey,
+		CohortKey:                   revOpts.CohortKey,
+		ExpectedProvenance:          info.SnapProvenance,
+		DownloadBlobDir:             downloadDir,
+		ComponentExclusiveOperation: skipSnapDownload,
 	}
 
 	if sar.RedirectChannel != "" {
@@ -2430,22 +2444,30 @@ func maybeSwitchSnapMetadataTaskSet(st *state.State, snapsup SnapSetup, snapst S
 		return nil, nil
 	}
 
-	var tasks []*state.Task
 	if err := checkChangeConflictIgnoringOneChange(st, snapst.InstanceName(), nil, opts.FromChange); err != nil {
 		return nil, err
 	}
 
+	var snapsupTask *state.Task
+
+	var tasks []*state.Task
 	if switchChannel || switchCohortKey {
 		summary := switchSummary(snapsup.InstanceName(), snapst.TrackingChannel, snapsup.Channel, snapst.CohortKey, snapsup.CohortKey)
 		switchSnap := st.NewTask("switch-snap-channel", summary)
 		switchSnap.Set("snap-setup", &snapsup)
+		snapsupTask = switchSnap
 
 		tasks = append(tasks, switchSnap)
 	}
 
 	if toggleIgnoreValidation {
 		toggle := st.NewTask("toggle-snap-flags", fmt.Sprintf(i18n.G("Toggle snap %q flags"), snapsup.InstanceName()))
-		toggle.Set("snap-setup", &snapsup)
+		if snapsupTask == nil {
+			toggle.Set("snap-setup", &snapsup)
+			snapsupTask = toggle
+		} else {
+			toggle.Set("snap-setup-task", snapsupTask.ID())
+		}
 
 		for _, tasks := range tasks {
 			toggle.WaitFor(tasks)
@@ -2454,7 +2476,12 @@ func maybeSwitchSnapMetadataTaskSet(st *state.State, snapsup SnapSetup, snapst S
 		tasks = append(tasks, toggle)
 	}
 
-	return state.NewTaskSet(tasks...), nil
+	ts := state.NewTaskSet(tasks...)
+	if snapsupTask != nil {
+		ts.MarkEdge(snapsupTask, SnapSetupEdge)
+	}
+
+	return ts, nil
 }
 
 func splitEssentialUpdates(deviceCtx DeviceContext, updates []update) (essential, nonEssential []update) {
@@ -2801,7 +2828,10 @@ func Switch(st *state.State, name string, opts *RevisionOptions) (*state.TaskSet
 	switchSnap := st.NewTask("switch-snap", summary)
 	switchSnap.Set("snap-setup", &snapsup)
 
-	return state.NewTaskSet(switchSnap), nil
+	ts := state.NewTaskSet(switchSnap)
+	ts.MarkEdge(switchSnap, SnapSetupEdge)
+
+	return ts, nil
 }
 
 // RevisionOptions control the selection of a snap revision.
@@ -3386,7 +3416,7 @@ func LinkNewBaseOrKernel(st *state.State, name string, fromChange string) (*stat
 		if err != nil {
 			return nil, err
 		}
-		if NeedsKernelSetup(deviceCtx.Model()) {
+		if kernel.NeedsKernelDriversTree(deviceCtx.Model()) {
 			setupKernel := st.NewTask("prepare-kernel-snap", fmt.Sprintf(i18n.G("Prepare kernel driver tree for %q (%s) for remodel"), snapsup.InstanceName(), snapst.Current))
 			ts.AddTask(setupKernel)
 			setupKernel.Set("snap-setup-task", prepareSnap.ID())
@@ -3405,8 +3435,10 @@ func LinkNewBaseOrKernel(st *state.State, name string, fromChange string) (*stat
 	linkSnap.Set("snap-setup-task", prepareSnap.ID())
 	linkSnap.WaitFor(prev)
 	ts.AddTask(linkSnap)
+	ts.MarkEdge(linkSnap, MaybeRebootEdge)
 	// prepare-snap is the last task that carries no system modifications
 	ts.MarkEdge(prepareSnap, LastBeforeLocalModificationsEdge)
+	ts.MarkEdge(prepareSnap, SnapSetupEdge)
 	return ts, nil
 }
 
@@ -3445,7 +3477,7 @@ func AddLinkNewBaseOrKernel(st *state.State, ts *state.TaskSet) (*state.TaskSet,
 		if err != nil {
 			return nil, err
 		}
-		if NeedsKernelSetup(deviceCtx.Model()) {
+		if kernel.NeedsKernelDriversTree(deviceCtx.Model()) {
 			setupKernel := st.NewTask("prepare-kernel-snap", fmt.Sprintf(i18n.G("Prepare kernel driver tree for %q (%s) for remodel"), snapsup.InstanceName(), snapsup.Revision()))
 			setupKernel.Set("snap-setup-task", snapSetupTask.ID())
 			setupKernel.WaitFor(prev)
@@ -3466,6 +3498,7 @@ func AddLinkNewBaseOrKernel(st *state.State, ts *state.TaskSet) (*state.TaskSet,
 	linkSnap.Set("snap-setup-task", snapSetupTask.ID())
 	linkSnap.WaitFor(prev)
 	ts.AddTask(linkSnap)
+	ts.MarkEdge(linkSnap, MaybeRebootEdge)
 	// make sure that remodel can identify which tasks introduce actual
 	// changes to the system and order them correctly
 	if edgeTask := ts.MaybeEdge(LastBeforeLocalModificationsEdge); edgeTask == nil {
@@ -3530,6 +3563,7 @@ func SwitchToNewGadget(st *state.State, name string, fromChange string) (*state.
 	ts := state.NewTaskSet(prepareSnap, gadgetUpdate, gadgetCmdline)
 	// prepare-snap is the last task that carries no system modifications
 	ts.MarkEdge(prepareSnap, LastBeforeLocalModificationsEdge)
+	ts.MarkEdge(prepareSnap, SnapSetupEdge)
 	return ts, nil
 }
 

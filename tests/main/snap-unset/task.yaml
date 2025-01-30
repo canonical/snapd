@@ -28,3 +28,7 @@ execute: |
     snap unset basic-hooks bar baz
     snap get basic-hooks bar 2>&1 | MATCH 'snap "basic-hooks" has no "bar" configuration option'
     snap get basic-hooks baz 2>&1 | MATCH 'snap "basic-hooks" has no "baz" configuration option'
+
+
+    echo "Test that 'snap unset' correctly handles empty strings"
+    snap unset basic-hooks '' 2>&1 | MATCH 'configuration keys cannot be empty'

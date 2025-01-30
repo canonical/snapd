@@ -205,7 +205,7 @@ func (s *confdbSuite) mockConfdbServer(c *check.C, expectedRequest string, nowai
 		switch reqs {
 		case 0:
 			c.Check(r.Method, check.Equals, "PUT")
-			c.Check(r.URL.Path, check.Equals, "/v2/confdbs/foo/bar/baz")
+			c.Check(r.URL.Path, check.Equals, "/v2/confdb/foo/bar/baz")
 			c.Check(r.URL.Query(), check.HasLen, 0)
 
 			raw, err := io.ReadAll(r.Body)
@@ -310,4 +310,15 @@ func (s *confdbSuite) TestConfdbSetExclamationMark(c *check.C) {
 
 	_, err := snapset.Parser(snapset.Client()).ParseArgs([]string{"set", "foo/bar/baz", "abc!"})
 	c.Assert(err, check.IsNil)
+}
+
+func (s *confdbSuite) TestSetEmptyKey(c *check.C) {
+	_, err := snapset.Parser(snapset.Client()).ParseArgs([]string{"set", "some-snap", "!"})
+	c.Assert(err, check.ErrorMatches, "configuration keys cannot be empty \\(use key! to unset a key\\)")
+
+	_, err = snapset.Parser(snapset.Client()).ParseArgs([]string{"set", "some-snap", "=value"})
+	c.Assert(err, check.ErrorMatches, "configuration keys cannot be empty")
+
+	_, err = snapset.Parser(snapset.Client()).ParseArgs([]string{"set", "some-snap", "="})
+	c.Assert(err, check.ErrorMatches, "configuration keys cannot be empty")
 }

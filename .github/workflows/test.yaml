@@ -111,10 +111,19 @@ jobs:
     - name: check-branch-ubuntu-daily-spread
       run: |
         # Compare the daily system in master and in the current branch
-        wget -q -O test_master.yaml https://raw.githubusercontent.com/snapcore/snapd/master/.github/workflows/test.yaml
-        system_daily="$(yq '.jobs.spread.strategy.matrix.include.[] | select(.group == "ubuntu-daily") | .systems'  test_master.yaml)"
-        current_daily="$(yq '.jobs.spread.strategy.matrix.include.[] | select(.group == "ubuntu-daily") | .systems'  .github/workflows/test.yaml)"
-        test "$system_daily" == "$current_daily"
+        get_daily_system() {
+          json1=$1
+          json2=$2
+          jq -s '{ include: [ .[0].include, .[1].include ] | add }' "$json1" "$json2" | \
+            jq '.include.[] | select(.group == "ubuntu-daily") | .systems'
+        }
+
+        wget -q -O master_fundsys.json https://raw.githubusercontent.com/snapcore/snapd/master/.github/workflows/fundamental-systems.json
+        wget -q -O master_nonfundsys.json https://raw.githubusercontent.com/snapcore/snapd/master/.github/workflows/non-fundamental-systems.json
+        
+        master_daily="$(get_daily_system master_fundsys.json master_nonfundsys.json)"
+        branch_daily="$(get_daily_system .github/workflows/fundamental-systems.json .github/workflows/non-fundamental-systems.json)"
+        test "$master_daily" == "$branch_daily"
       shell: bash
 
   # The required-static-checks job was introduced to maintain a consistent
@@ -195,6 +204,7 @@ jobs:
           - { go-build-tags: withbootassetstesting, skip-coverage: false, snapd-debug: false, go-test-race: false}
           - { go-build-tags: nosecboot,             skip-coverage: false, snapd-debug: false, go-test-race: false}
           - { go-build-tags: faultinject,           skip-coverage: false, snapd-debug: false, go-test-race: false}
+          - { go-build-tags: statelocktrace,        skip-coverage: true,  snapd-debug: false, go-test-race: false}
           - { go-build-tags: snapdusergo,           skip-coverage: false, snapd-debug: false, go-test-race: false}
           - { go-build-tags: "",                    skip-coverage: true,  snapd-debug: false, go-test-race: true }
 
@@ -264,9 +274,53 @@ jobs:
         files: .coverage/coverage-*.cov
         verbose: true
 
-  spread:
+  read-systems:
+    runs-on: ubuntu-latest
+    outputs:
+      fundamental-systems: ${{ steps.read-systems.outputs.fundamental-systems }}
+      non-fundamental-systems: ${{ steps.read-systems.outputs.non-fundamental-systems }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Read matrix file
+        id: read-systems
+        shell: bash
+        run: |
+          echo "fundamental-systems=$(jq -c . ./.github/workflows/fundamental-systems.json)" >> $GITHUB_OUTPUT
+          echo "non-fundamental-systems=$(jq -c . ./.github/workflows/non-fundamental-systems.json)" >> $GITHUB_OUTPUT
+
+  spread-fundamental:
     uses: ./.github/workflows/spread-tests.yaml
-    needs: [unit-tests, snap-builds]
+    needs: [unit-tests, snap-builds, read-systems]
+    name: "spread ${{ matrix.group }}"
+    with:
+      # Github doesn't support passing sequences as parameters.
+      # Instead here we create a json array and pass it as a string.
+      # Then in the spread workflow it turns it into a sequence 
+      # using the fromJSON expression.
+      runs-on: '["self-hosted", "spread-enabled"]'
+      group: ${{ matrix.group }}
+      backend: ${{ matrix.backend }}
+      systems: ${{ matrix.systems }}
+      tasks: ${{ matrix.tasks }}
+      rules: ${{ matrix.rules }}
+      is-fundamental: true
+    strategy:
+      # FIXME: enable fail-fast mode once spread can cancel an executing job.
+      # Disable fail-fast mode as it doesn't function with spread. It seems
+      # that cancelling tasks requires short, interruptible actions and
+      # interrupting spread, notably, does not work today. As such disable
+      # fail-fast while we tackle that problem upstream.
+      fail-fast: false
+      matrix: ${{ fromJson(needs.read-systems.outputs.fundamental-systems) }}
+
+  spread-not-fundamental-pr:
+    uses: ./.github/workflows/spread-tests.yaml
+    if: github.event_name == 'pull_request'
+    # For workflow runs that are PRs, run this non-fundamental systems job
+    # only after the fundamental systems job succeeds.
+    needs: [unit-tests, snap-builds, read-systems, spread-fundamental]
     name: "spread ${{ matrix.group }}"
     with:
       # Github doesn't support passing sequences as parameters.
@@ -286,126 +340,83 @@ jobs:
       # interrupting spread, notably, does not work today. As such disable
       # fail-fast while we tackle that problem upstream.
       fail-fast: false
+      matrix: ${{ fromJson(needs.read-systems.outputs.non-fundamental-systems) }}
+
+  spread-not-fundamental-not-pr:
+    uses: ./.github/workflows/spread-tests.yaml
+    if: github.event_name != 'pull_request'
+    # For workflow runs that are not for PRs, no need to impose a dependency
+    # on the fundamental systems job's success before running this job.
+    needs: [unit-tests, snap-builds, read-systems]
+    name: "spread ${{ matrix.group }}"
+    with:
+      # Github doesn't support passing sequences as parameters.
+      # Instead here we create a json array and pass it as a string.
+      # Then in the spread workflow it turns it into a sequence 
+      # using the fromJSON expression.
+      runs-on: '["self-hosted", "spread-enabled"]'
+      group: ${{ matrix.group }}
+      backend: ${{ matrix.backend }}
+      systems: ${{ matrix.systems }}
+      tasks: ${{ matrix.tasks }}
+      rules: ${{ matrix.rules }}
+    strategy:
+      # FIXME: enable fail-fast mode once spread can cancel an executing job.
+      # Disable fail-fast mode as it doesn't function with spread. It seems
+      # that cancelling tasks requires short, interruptible actions and
+      # interrupting spread, notably, does not work today. As such disable
+      # fail-fast while we tackle that problem upstream.
+      fail-fast: false
+      matrix: ${{ fromJson(needs.read-systems.outputs.non-fundamental-systems) }}
+
+  spread-nested:
+    uses: ./.github/workflows/spread-tests.yaml
+    needs: [unit-tests, snap-builds]
+    name: "spread ${{ matrix.group }}"
+    with:
+      # Github doesn't support passing sequences as parameters.
+      # Instead here we create a json array and pass it as a string.
+      # Then in the spread workflow it turns it into a sequence 
+      # using the fromJSON expression.
+      runs-on: '["self-hosted", "spread-enabled"]'
+      group: ${{ matrix.group }}
+      backend: 'google-nested'
+      systems: ${{ matrix.systems }}
+      tasks: 'tests/nested/...'
+      rules: 'nested'
+    strategy:
+      # FIXME: enable fail-fast mode once spread can cancel an executing job.
+      # Disable fail-fast mode as it doesn't function with spread. It seems
+      # that cancelling tasks requires short, interruptible actions and
+      # interrupting spread, notably, does not work today. As such disable
+      # fail-fast while we tackle that problem upstream.
+      fail-fast: false
       matrix:
         include:
-          - group: amazon-linux
-            backend: google-distro-1
-            systems: 'amazon-linux-2-64 amazon-linux-2023-64'
-            tasks: 'tests/...'
-            rules: 'main'
-          - group: arch-linux
-            backend: google-distro-2
-            systems: 'arch-linux-64'
-            tasks: 'tests/...'
-            rules: 'main'
-          - group: centos
-            backend: openstack
-            systems: 'centos-9-64'
-            tasks: 'tests/...'
-            rules: 'main'
-          - group: debian-req
-            backend: google-distro-1
-            systems: 'debian-11-64'
-            tasks: 'tests/...'
-            rules: 'main'
-          - group: debian-not-req
-            backend: openstack
-            systems: 'debian-12-64 debian-sid-64'
-            tasks: 'tests/...'
-            rules: 'main'
-          - group: fedora
-            backend: openstack
-            systems: 'fedora-40-64 fedora-41-64'
-            tasks: 'tests/...'
-            rules: 'main'
-          - group: opensuse
-            backend: openstack
-            systems: 'opensuse-15.6-64 opensuse-tumbleweed-64'
-            tasks: 'tests/...'
-            rules: 'main'
-          - group: ubuntu-trusty
-            backend: google
-            systems: 'ubuntu-14.04-64'
-            tasks: 'tests/smoke/ tests/main/canonical-livepatch tests/main/canonical-livepatch-14.04'
-            rules: 'trusty'
-          - group: ubuntu-xenial-bionic
-            backend: google
-            systems: 'ubuntu-16.04-64 ubuntu-18.04-64'
-            tasks: 'tests/...'
-            rules: 'main'
-          - group: ubuntu-focal-jammy
-            backend: google
-            systems: 'ubuntu-20.04-64 ubuntu-22.04-64'
-            tasks: 'tests/...'
-            rules: 'main'
-          - group: ubuntu-noble
-            backend: google
-            systems: 'ubuntu-24.04-64'
-            tasks: 'tests/...'
-            rules: 'main'
-          - group: ubuntu-no-lts
-            backend: google
-            systems: 'ubuntu-24.10-64'
-            tasks: 'tests/...'
-            rules: 'main'
-          - group: ubuntu-daily
-            backend: google
-            systems: 'ubuntu-25.04-64'
-            tasks: 'tests/...'
-            rules: 'main'
-          - group: ubuntu-core-18
-            backend: google-core
-            systems: 'ubuntu-core-18-64'
-            tasks: 'tests/...'
-            rules: 'main'
-          - group: ubuntu-core-20
-            backend: google-core
-            systems: 'ubuntu-core-20-64'
-            tasks: 'tests/...'
-            rules: 'main'
-          - group: ubuntu-core-22
-            backend: google-core
-            systems: 'ubuntu-core-22-64'
-            tasks: 'tests/...'
-            rules: 'main'
-          - group: ubuntu-core-24
-            backend: google-core
-            systems: 'ubuntu-core-24-64'
-            tasks: 'tests/...'
-            rules: 'main'
-          - group: ubuntu-arm64
-            backend: google-arm
-            systems: 'ubuntu-20.04-arm-64 ubuntu-core-22-arm-64'
-            tasks: 'tests/...'
-            rules: 'main'
-          - group: ubuntu-secboot
-            backend: google
-            systems: 'ubuntu-secboot-20.04-64'
-            tasks: 'tests/...'
-            rules: 'main'
-          - group: ubuntu-fips
-            backend: google-pro
-            systems: 'ubuntu-fips-22.04-64'
-            tasks: 'tests/fips/...'
-            # XXX fips test suite comes with separate ruless file
-            rules: 'fips'
           - group: nested-ubuntu-18.04
-            backend: google-nested
             systems: 'ubuntu-18.04-64'
-            tasks: 'tests/nested/...'
-            rules: 'nested'
           - group: nested-ubuntu-20.04
-            backend: google-nested
             systems: 'ubuntu-20.04-64'
-            tasks: 'tests/nested/...'
-            rules: 'nested'
           - group: nested-ubuntu-22.04
-            backend: google-nested
             systems: 'ubuntu-22.04-64'
-            tasks: 'tests/nested/...'
-            rules: 'nested'
           - group: nested-ubuntu-24.04
-            backend: google-nested
             systems: 'ubuntu-24.04-64'
-            tasks: 'tests/nested/...'
-            rules: 'nested'
+
+
+  # The spread-results-reporter needs the PR number to be able to 
+  # comment on the relevant PR with spread failures. Because the PR 
+  # number is not in the github.event object during the 
+  # spread-results-reporter.yaml job run, we upload it along side other 
+  # artifacts to be subsequently downloaded by spread-results-reporter.
+  upload_pr_number:
+    if: ${{ github.event.pull_request.number }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Create PR number file
+        run: echo "${{ github.event.pull_request.number }}" > pr_number
+      
+      - name: Upload PR number
+        uses: actions/upload-artifact@v4
+        with:
+          name: pr_number 
+          path: pr_number

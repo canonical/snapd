@@ -462,6 +462,7 @@ prepare_classic() {
         fi
 
         prepare_reexec_override
+        prepare_state_lock "SNAPD PROJECT"
         prepare_memory_limit_override
         disable_refreshes
 
@@ -697,6 +698,13 @@ Environment=SNAPD_DEBUG_HTTP=7 SNAPD_DEBUG=1 SNAPPY_TESTING=1 SNAPD_CONFIGURE_HO
 StandardOutput=journal+console
 StandardError=journal+console
 EOF
+
+    if [ "$NESTED_REPACK_FOR_FAKESTORE" = "true" ]; then
+        cat <<EOF > "$UNPACK_DIR"/etc/systemd/system/snapd.service.d/store.conf
+[Service]
+Environment=SNAPPY_FORCE_API_URL=http://10.0.2.2:11028
+EOF
+    fi
 
     cp "${SPREAD_PATH}"/data/completion/bash/complete.sh "${UNPACK_DIR}"/usr/lib/snapd/complete.sh
 
@@ -934,6 +942,40 @@ uc20_build_initramfs_kernel_snap() {
     rm -rf repacked-kernel
 }
 
+
+# Modify kernel and create a component, kernel content expected in pc-kernel
+move_module_to_component() {
+    mod_name=$1
+    comp_name=$2
+
+    kern_ver=$(find pc-kernel/modules/* -maxdepth 0 -printf "%f\n")
+    comp_ko_dir=$comp_name/modules/"$kern_ver"/kmod/
+    mkdir -p "$comp_ko_dir"
+    mkdir -p "$comp_name"/meta/
+    cat << EOF > "$comp_name"/meta/component.yaml
+component: pc-kernel+$comp_name
+type: kernel-modules
+version: 1.0
+summary: kernel component
+description: kernel component for testing purposes
+EOF
+    # Replace _ or - with [_-], as it can be any of these
+    glob_mod_name=$(printf '%s' "$mod_name" | sed -r 's/[-_]/[-_]/g')
+    module_path=$(find pc-kernel -name "${glob_mod_name}.ko*")
+    cp "$module_path" "$comp_ko_dir"
+    snap pack --filename=pc-kernel+"$comp_name".comp "$comp_name"
+
+    # remove the kernel module from the kernel snap
+    rm "$module_path"
+    # depmod wants a lib subdir, fake it and remove after invocation
+    mkdir pc-kernel/lib
+    ln -s ../modules pc-kernel/lib/modules
+    depmod -b pc-kernel/ "$kern_ver"
+    rm -rf pc-kernel/lib
+    # append component meta-information
+    printf 'components:\n  %s:\n    type: kernel-modules\n' "$comp_name" >> pc-kernel/meta/snap.yaml
+}
+
 uc24_build_initramfs_kernel_snap() {
     local ORIG_SNAP="$1"
     local TARGET="$2"
@@ -982,6 +1024,11 @@ uc24_build_initramfs_kernel_snap() {
     # copy any extra files that tests may need for the kernel
     if [ -d ./extra-kernel-snap/ ]; then
         cp -a ./extra-kernel-snap/* ./pc-kernel
+    fi
+
+    if [ -n "$NESTED_KERNEL_MODULES_COMP" ] && is_test_target_core_ge 24; then
+        # "split" kernel in kernel-modules component and kernel
+        move_module_to_component "$NESTED_COMP_KERNEL_MODULE_NAME" "$NESTED_KERNEL_MODULES_COMP"
     fi
 
     snap pack pc-kernel
@@ -1517,6 +1564,39 @@ EOF
     rm -rf "$UNPACK_DIR"
 }
 
+prepare_state_lock(){
+    TAG=$1
+    CONF_FILE="/etc/systemd/system/snapd.service.d/state-lock.conf"
+    LOCKS_FILE="$TESTSTMP"/snapd_lock_traces
+    RESTART=false
+
+    if [ "$SNAPD_STATE_LOCK_TRACE_THRESHOLD_MS" -gt 0 ]; then
+        echo "###START: $TAG" >> "$LOCKS_FILE"
+
+        # Generate the config file when it does not exist and when the threshold has changed different
+        if ! [ -f "$CONF_FILE" ] || ! grep -q "SNAPD_STATE_LOCK_TRACE_THRESHOLD_MS=$SNAPD_STATE_LOCK_TRACE_THRESHOLD_MS" < "$CONF_FILE"; then
+            echo "Prepare snapd for getting state lock time"
+            cat <<EOF > "$CONF_FILE"
+[Service]
+Environment=SNAPPY_TESTING=1
+Environment=SNAPD_STATE_LOCK_TRACE_THRESHOLD_MS="$SNAPD_STATE_LOCK_TRACE_THRESHOLD_MS"
+Environment=SNAPD_STATE_LOCK_TRACE_FILE="$LOCKS_FILE"
+EOF
+            RESTART=true
+        fi
+    elif [ -f "$CONF_FILE" ]; then
+        rm -f "$CONF_FILE"
+        RESTART=true
+    fi
+
+    if [ "$RESTART" = "true" ]; then
+        # the service setting may have changed in the service so we need
+        # to ensure snapd is reloaded
+        systemctl daemon-reload
+        systemctl restart snapd
+    fi
+}
+
 # prepare_ubuntu_core will prepare ubuntu-core 16+
 prepare_ubuntu_core() {
     # we are still a "classic" image, prepare the surgery
@@ -1630,6 +1710,7 @@ prepare_ubuntu_core() {
         # or restore will break
         remove_disabled_snaps
         prepare_memory_limit_override
+        prepare_state_lock "SNAPD PROJECT"
         setup_experimental_features
         systemctl stop snapd.service snapd.socket
         save_snapd_state

@@ -36,7 +36,10 @@ var (
 	ErrRuleNotFound   = errors.New("cannot find rule with the given ID")
 	ErrRuleNotAllowed = errors.New("user not allowed to request the rule with the given ID")
 
-	// Validation errors, which should never be used directly apart from
+	// Validation errors which may be returned over the API
+	ErrPatchedRuleHasNoPerms = errors.New("cannot patch rule to have no permissions")
+
+	// Validation errors which should never be used directly apart from
 	// checking errors.Is(), and should otherwise always be wrapped in
 	// dedicated error types defined below.
 	ErrReplyNotMatchRequestedPath        = errors.New("path pattern in reply constraints does not match originally requested path")
@@ -123,13 +126,10 @@ func NewInvalidPermissionsError(iface string, unsupported []string, supported []
 	}
 }
 
-func NewPermissionsListEmptyError(iface string, supported []string) *UnsupportedValueError {
-	// TODO: change language to "permissions empty" rather than "permissions list empty",
-	// since permissions now come as a list in prompt replies but as a map when creating
-	// or modifying rules directly.
+func NewPermissionsEmptyError(iface string, supported []string) *UnsupportedValueError {
 	return &UnsupportedValueError{
 		Field:     "permissions",
-		Msg:       fmt.Sprintf("invalid permissions for %s interface: permissions list empty", iface),
+		Msg:       fmt.Sprintf("invalid permissions for %s interface: permissions empty", iface),
 		Value:     []string{}, // client prefers empty list over null value
 		Supported: supported,
 	}

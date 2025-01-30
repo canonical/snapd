@@ -146,6 +146,10 @@ func (t *Transaction) Set(instanceName, key string, value interface{}) error {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
+	if key == "" {
+		return errors.New("internal error: key cannot be an empty string")
+	}
+
 	config := t.changes[instanceName]
 	if config == nil {
 		config = make(map[string]interface{})

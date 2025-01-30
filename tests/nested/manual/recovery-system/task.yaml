@@ -53,7 +53,7 @@ execute: |
   boot_id="$(tests.nested boot-id)"
 
   # create the system
-  change_id=$(post_json_data /v2/systems '{"action": "create", "label": "new-system", "validation-sets": ["test-snapd/recovery-system-pinned=1"], "test-system": %s, "mark-default": %s}' "${TEST_SYSTEM}" "${MARK_DEFAULT}")
+  change_id=$(post_json_data /v2/systems '{"action": "create", "label": "new-system", "validation-sets": ["test-snapd/recovery-system-pinned=2"], "test-system": %s, "mark-default": %s}' "${TEST_SYSTEM}" "${MARK_DEFAULT}")
 
   if [ "${TEST_SYSTEM}" = 'true' ]; then
     remote.wait-for reboot "${boot_id}"

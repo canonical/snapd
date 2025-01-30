@@ -80,3 +80,14 @@ func (s *parseSuite) TestParseConfigValues(c *C) {
 	})
 	c.Assert(keys, DeepEquals, []string{"foo"})
 }
+
+func (s *parseSuite) TestParseConfigValuesEmptyKey(c *C) {
+	_, _, err := clientutil.ParseConfigValues([]string{""}, nil)
+	c.Assert(err, ErrorMatches, `invalid configuration: "" \(want key=value\)`)
+
+	_, _, err = clientutil.ParseConfigValues([]string{"=value"}, nil)
+	c.Assert(err, ErrorMatches, `configuration keys cannot be empty`)
+
+	_, _, err = clientutil.ParseConfigValues([]string{"!"}, nil)
+	c.Assert(err, ErrorMatches, `configuration keys cannot be empty \(use key! to unset a key\)`)
+}

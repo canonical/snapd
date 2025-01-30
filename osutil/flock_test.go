@@ -83,6 +83,19 @@ func (s *flockSuite) TestNewFileLock(c *C) {
 	c.Assert(fi.Mode().Perm(), Equals, os.FileMode(0600))
 }
 
+// Test that opening and closing a lock works as expected, and that the mode is right.
+func (s *flockSuite) TestNewFileLockWithFile(c *C) {
+	myfile, err := os.OpenFile(filepath.Join(c.MkDir(), "name"), os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0600)
+	c.Assert(err, IsNil)
+
+	lock := osutil.NewFileLockWithFile(myfile)
+	defer lock.Close()
+
+	fi, err := os.Stat(lock.Path())
+	c.Assert(err, IsNil)
+	c.Assert(fi.Mode().Perm(), Equals, os.FileMode(0600))
+}
+
 // Test that we can access the underlying open file.
 func (s *flockSuite) TestFile(c *C) {
 	fname := filepath.Join(c.MkDir(), "name")

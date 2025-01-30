@@ -3117,6 +3117,7 @@ func (s *snapmgrTestSuite) TestUpdateSameRevisionSwitchesChannel(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(ts.Tasks(), HasLen, 1)
 	c.Check(ts.Tasks()[0].Kind(), Equals, "switch-snap-channel")
+	c.Check(ts.MaybeEdge(snapstate.SnapSetupEdge).Kind(), Equals, "switch-snap-channel")
 }
 
 func (s *snapmgrTestSuite) TestUpdateSameRevisionSwitchesChannelConflict(c *C) {
@@ -17260,7 +17261,7 @@ func (s *snapmgrTestSuite) testUpdateWithComponentsFromPathRunThrough(c *C, inst
 		InstanceKey:     instanceKey,
 	})
 
-	components := make(map[*snap.ComponentSideInfo]string, len(compNames))
+	components := make([]snapstate.PathComponent, 0, len(compNames))
 	componentPaths := make(map[string]string, len(compNames))
 	for _, cs := range expectedComponentStates {
 		componentYaml := fmt.Sprintf(`component: %s
@@ -17270,7 +17271,10 @@ version: 1.0
 
 		path := snaptest.MakeTestComponent(c, componentYaml)
 		componentPaths[cs.SideInfo.Component.ComponentName] = path
-		components[cs.SideInfo] = path
+		components = append(components, snapstate.PathComponent{
+			Path:     path,
+			SideInfo: cs.SideInfo,
+		})
 	}
 
 	var snapPath string
@@ -17364,7 +17368,7 @@ components:
 			name:                            instanceName,
 			revno:                           newSnapRev,
 			componentName:                   compName,
-			componentPath:                   components[cs.SideInfo],
+			componentPath:                   componentPaths[cs.SideInfo.Component.ComponentName],
 			componentRev:                    compRev,
 			componentSideInfo:               *cs.SideInfo,
 			componentSkipAssertionsDownload: true,
@@ -17599,8 +17603,8 @@ components:
 		c.Assert(snapst.Sequence, DeepEquals, currentSeq)
 
 		c.Check(snapPath, testutil.FileAbsent)
-		for _, compPath := range components {
-			c.Check(compPath, testutil.FileAbsent)
+		for _, comp := range components {
+			c.Check(comp.Path, testutil.FileAbsent)
 		}
 	} else {
 		// make sure everything is back to how it started

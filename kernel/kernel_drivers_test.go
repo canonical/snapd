@@ -25,13 +25,17 @@ import (
 	"os"
 	"path/filepath"
 	"syscall"
+	"time"
 
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/asserts/assertstest"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/kernel"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -655,4 +659,58 @@ func (s *kernelDriversTestSuite) TestBuildKernelDriversTreeCompsWithTargetDir(c 
 		{"comp1.bin", fs.ModeSymlink, filepath.Join(kmodCont.MountDir(), "firmware/comp1.bin")},
 	}
 	doDirChecks(c, fwUpdates, expected)
+}
+
+func mockModel16(override map[string]interface{}) *asserts.Model {
+	model := map[string]interface{}{
+		"type":         "model",
+		"authority-id": "my-brand",
+		"series":       "16",
+		"brand-id":     "my-brand",
+		"model":        "my-model",
+		"gadget":       "gadget",
+		"kernel":       "krnl",
+		"architecture": "amd64",
+		"timestamp":    time.Now().Format(time.RFC3339),
+	}
+	return assertstest.FakeAssertion(model, override).(*asserts.Model)
+}
+
+func mockModel20plus(override map[string]interface{}) *asserts.Model {
+	model := map[string]interface{}{
+		"type":         "model",
+		"authority-id": "my-brand",
+		"series":       "16",
+		"brand-id":     "my-brand",
+		"model":        "my-model",
+		"display-name": "my model",
+		"architecture": "amd64",
+		"base":         "core20",
+		"grade":        "dangerous",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":            "pc-kernel",
+				"id":              snaptest.AssertedSnapID("pc-kernel"),
+				"type":            "kernel",
+				"default-channel": "20",
+			},
+			map[string]interface{}{
+				"name":            "pc",
+				"id":              snaptest.AssertedSnapID("pc"),
+				"type":            "gadget",
+				"default-channel": "20",
+			}}}
+	for n, v := range override {
+		model[n] = v
+	}
+	return assertstest.FakeAssertion(model, override).(*asserts.Model)
+}
+
+func (s *kernelDriversTestSuite) TestNeedsKernelDriversTree(c *C) {
+	uc16model := mockModel16(nil)
+	c.Assert(kernel.NeedsKernelDriversTree(uc16model), Equals, false)
+	uc20model := mockModel20plus(nil)
+	c.Assert(kernel.NeedsKernelDriversTree(uc20model), Equals, false)
+	uc24model := mockModel20plus(map[string]interface{}{"base": "core24"})
+	c.Assert(kernel.NeedsKernelDriversTree(uc24model), Equals, true)
 }

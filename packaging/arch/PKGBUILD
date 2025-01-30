@@ -11,7 +11,7 @@ pkgdesc="Service and tools for management of snap packages."
 depends=('squashfs-tools' 'libseccomp' 'libsystemd' 'apparmor')
 optdepends=('bash-completion: bash completion support'
             'xdg-desktop-portal: desktop integration')
-pkgver=2.67
+pkgver=2.67.1
 pkgrel=1
 arch=('x86_64' 'i686' 'armv7h' 'aarch64')
 url="https://github.com/snapcore/snapd"
@@ -116,6 +116,7 @@ check() {
   # done, not after building the tree.
   # ./run-checks --static
   TMPDIR=/tmp make -C cmd -k check
+  TMPDIR=/tmp make -C data -k check
 }
 
 package() {
@@ -133,7 +134,7 @@ package() {
     "$pkgdir/usr/share/zsh/site-functions/_snap"
 
   # Install systemd units, dbus services and a script for environment variables
-  make -C data/ install \
+  make -C data install \
      DBUSSERVICESDIR=/usr/share/dbus-1/services \
      BINDIR=/usr/bin \
      SYSTEMDSYSTEMUNITDIR=/usr/lib/systemd/system \

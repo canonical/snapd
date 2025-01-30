@@ -111,6 +111,9 @@ type State struct {
 	// task/changes observing
 	taskHandlers   map[int]func(t *Task, old, new Status) (remove bool)
 	changeHandlers map[int]func(chg *Change, old, new Status)
+
+	lockWaitStart int64
+	lockHoldStart int64
 }
 
 // New returns a new empty state.
@@ -139,8 +142,11 @@ func (s *State) Modified() bool {
 
 // Lock acquires the state lock.
 func (s *State) Lock() {
+	lockWait := lockTimestamp()
 	s.mu.Lock()
 	atomic.AddInt32(&s.muC, 1)
+	s.lockWaitStart = lockWait
+	s.lockHoldStart = lockTimestamp()
 }
 
 func (s *State) reading() {
@@ -158,7 +164,11 @@ func (s *State) writing() {
 
 func (s *State) unlock() {
 	atomic.AddInt32(&s.muC, -1)
+	lockWaitStart, lockHoldStart := s.lockWaitStart, s.lockHoldStart
+	s.lockWaitStart, s.lockHoldStart = 0, 0
+	lockHoldEnd := lockTimestamp()
 	s.mu.Unlock()
+	maybeSaveLockTime(lockWaitStart, lockHoldStart, lockHoldEnd)
 }
 
 type marshalledState struct {

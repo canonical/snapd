@@ -25,6 +25,11 @@ on:
         description: 'The rule .yaml file to use (found under tests/lib/spread/rules) for test discovery'
         required: true
         type: string
+      is-fundamental:
+        description: 'If true, then will mark results as from fundamental systems when uploading to Grafana'
+        required: false
+        type: boolean
+        default: false
       use-snapd-snap-from-master:
         description: 'If true, will use the snapd snap built on the master branch'
         required: false
@@ -108,11 +113,11 @@ jobs:
 
     - name: Get changed files
       id: changed-files
-      uses: tj-actions/changed-files@v41.0.0
+      uses: tj-actions/changed-files@v45.0.6
 
     - name: Save changes files
       run: |
-          CHANGED_FILES="${{ steps.changed-files.outputs.all_changed_files }}"
+          CHANGED_FILES="${{ steps.changed-files.outputs.all_modified_files }}"
           echo "CHANGED_FILES=$CHANGED_FILES" >> $GITHUB_ENV
           echo "The changed files found are: $CHANGED_FILES"
 
@@ -137,7 +142,7 @@ jobs:
             # The tests are just filtered when the change is a PR
             # When 'Run Nested' label is added in a PR, all the nested tests have to be executed
             TASKS_TO_RUN=""
-            if [ -z "${{ github.event.number }}" ] || [ "$RUN_NESTED" = 'true' ] || [ -z "${{ inputs.rules }}" ]; then
+            if [ -z "${{ github.event.number }}" ] || [ "$RUN_NESTED" = 'true' ] || [ -z "${{ inputs.rules }}" ] || [ -z "$changes_param" ]; then
                 for TASKS in ${{ inputs.tasks }}; do
                     TASKS_TO_RUN="$TASKS_TO_RUN $prefix:$TASKS"
                 done
@@ -170,6 +175,16 @@ jobs:
           fi
           echo RUN_TESTS="$RUN_TESTS"  >> $GITHUB_ENV
 
+    - name: Check if system is required
+      if: always()
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: |
+        required=$(gh api repos/${{ github.repository }}/rules/branches/master | \
+          jq -r '.[] | select(.type=="required_status_checks") | .parameters.required_status_checks' | \
+          grep -q "spread ${{ inputs.group }} /" && echo "req" || echo "not-req")
+        echo REQUIRED="$required" >> $GITHUB_ENV
+
     - name: Setup grafana parameters
       if: "!contains(github.event.pull_request.labels.*.name, 'Skip spread')"
       run: |
@@ -178,7 +193,11 @@ jobs:
           if [ -z "$CHANGE_ID" ]; then
             CHANGE_ID="main"
           fi
-          FILTERED_LOG_FILE="spread_${CHANGE_ID}_n${{ github.run_attempt }}.filtered.log"
+          fundamental=""
+          if [ "${{ inputs.is-fundamental }}" = 'true' ]; then
+            fundamental="fund"
+          fi
+          FILTERED_LOG_FILE="spread_${CHANGE_ID}_${fundamental}_${REQUIRED}_n${{ github.run_attempt }}.filtered.log"
           # The log-filter tool is used to filter the spread logs to be stored
           echo FILTER_PARAMS="-o $FILTERED_LOG_FILE -e Debug -e WARNING: -f Failed=NO_LINES -f Error=NO_LINES"  >> $GITHUB_ENV
           echo FILTERED_LOG_FILE="$FILTERED_LOG_FILE"  >> $GITHUB_ENV
@@ -191,7 +210,7 @@ jobs:
       if: "${{ !inputs.use-snapd-snap-from-master && !contains(inputs.group, '-arm64') && !endsWith(inputs.group, '-fips') }}"
       with:
         name: snap-files-amd64-default-test
-        # eg. snapd_1337.2.65.1+git97.gd35b459_amd64.snap
+        # eg. snapd_1337.2.65.1+g97.d35b459_amd64.snap
         pattern: snapd_1337.*.snap
         path: "${{ github.workspace }}/built-snap"
 
@@ -201,7 +220,7 @@ jobs:
       with:
         name: snap-files-arm64-default-test
         pattern: snapd_1337.*.snap
-        # eg. snapd_1337.2.65.1+git97.gd35b459_amd64.snap
+        # eg. snapd_1337.2.65.1+g97.d35b459_amd64.snap
         path: "${{ github.workspace }}/built-snap"
 
     - name: Download built FIPS snap (amd64)
@@ -210,7 +229,7 @@ jobs:
       if: "${{ !inputs.use-snapd-snap-from-master && !contains(inputs.group, '-arm64') && endsWith(inputs.group, '-fips') }}"
       with:
         name: snap-files-amd64-FIPS-test
-        # eg. snapd_1337.2.65.1+git97.gd35b459-fips_amd64.snap
+        # eg. snapd_1337.2.65.1+g97.d35b459-fips_amd64.snap
         pattern: snapd_1337.*-fips_*.snap
         path: "${{ github.workspace }}/built-snap"
 
@@ -335,6 +354,11 @@ jobs:
               echo "No spread log found, saving empty list of failed tests"
               touch "$FAILED_TESTS_FILE"
           fi
+          
+          # Set the TEST_FAILED variable if there are any failed tests
+          if [ -n "$(cat $FAILED_TESTS_FILE)" ]; then
+            echo "TEST_FAILED=true" >> $GITHUB_ENV
+          fi
 
     - name: Save spread test results to cache
       if: always()
@@ -342,3 +366,11 @@ jobs:
       with:
         path: "${{ github.workspace }}/.test-results"
         key: "${{ github.job }}-results-${{ github.run_id }}-${{ inputs.group }}-${{ github.run_attempt }}"
+
+    - name: Save spread.json as an artifact
+      if: ${{ failure() && github.event.pull_request.number && env.TEST_FAILED == 'true' }}
+      uses: actions/upload-artifact@v4
+      with:
+        name: "spread-json-${{ github.run_id }}-${{ github.run_attempt }}-${{ inputs.group }}" 
+        path: "spread-results.json"
+        if-no-files-found: ignore

@@ -20,6 +20,7 @@
 package clientutil
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 
@@ -52,6 +53,10 @@ func ParseConfigValues(confValues []string, opts *ParseConfigOptions) (map[strin
 		parts := strings.SplitN(patchValue, "=", 2)
 		if len(parts) == 1 && strings.HasSuffix(patchValue, "!") {
 			key := strings.TrimSuffix(patchValue, "!")
+			if key == "" {
+				return nil, nil, errors.New(i18n.G("configuration keys cannot be empty (use key! to unset a key)"))
+			}
+
 			patchValues[key] = nil
 			keys = append(keys, key)
 			continue
@@ -59,6 +64,10 @@ func ParseConfigValues(confValues []string, opts *ParseConfigOptions) (map[strin
 
 		if len(parts) != 2 {
 			return nil, nil, fmt.Errorf(i18n.G("invalid configuration: %q (want key=value)"), patchValue)
+		}
+
+		if parts[0] == "" {
+			return nil, nil, errors.New(i18n.G("configuration keys cannot be empty"))
 		}
 
 		if opts.String {

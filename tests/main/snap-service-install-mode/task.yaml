@@ -47,12 +47,12 @@ execute: |
 
     echo "And install-mode: disable activated services can be enabled"
     snap start --enable svc.svc-enabled-by-timer
-    snap services | MATCH 'svc.svc-enabled-by-timer\s+enabled\s+inactive'
+    snap services | MATCH 'svc.svc-enabled-by-timer\s+enabled\s+inactive.*'
 
     echo "And after a refresh the services stays enabled"
     "$TESTSTOOLS"/snaps-state install-local ./svc.v1
     snap services | MATCH 'svc.svc2\s+enabled\s+active'
-    snap services | MATCH 'svc.svc-enabled-by-timer\s+enabled\s+inactive'
+    snap services | MATCH 'svc.svc-enabled-by-timer\s+enabled\s+inactive.*'
 
     # Now test with a refresh from svc.v1 to svc.v2
     # svc.v2 has:
