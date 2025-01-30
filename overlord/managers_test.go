@@ -1075,7 +1075,7 @@ func (s *baseMgrsSuite) mockStore(c *C) *httptest.Server {
 		hit := strings.Replace(hitTemplate, "@URL@", baseURL.String()+"/api/v1/snaps/download/"+name+"/"+revno, -1)
 		hit = strings.Replace(hit, "@NAME@", name, -1)
 		hit = strings.Replace(hit, "@SNAPID@", fakeSnapID(name), -1)
-		hit = strings.Replace(hit, "@ICON@", baseURL.String()+"/icon", -1)
+		hit = strings.Replace(hit, "@ICON@", baseURL.String()+"/v2/icons/"+name+"/icon", -1)
 		hit = strings.Replace(hit, "@VERSION@", info.Version, -1)
 		hit = strings.Replace(hit, "@REVISION@", revno, -1)
 		hit = strings.Replace(hit, `@TYPE@`, string(info.Type()), -1)
@@ -1116,6 +1116,10 @@ func (s *baseMgrsSuite) mockStore(c *C) *httptest.Server {
 			if comps[2] == "assertions" {
 				// preserve "assertions" component
 				comps = comps[2:]
+			} else if comps[2] == "icons" {
+				// we're fetching the snap icon, just write some stand-in data
+				w.Write([]byte("icon contents"))
+				return
 			} else {
 				// drop common "snap" component
 				comps = comps[3:]

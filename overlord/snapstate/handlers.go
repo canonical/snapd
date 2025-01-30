@@ -656,6 +656,19 @@ func (m *SnapManager) doPrepareSnap(t *state.Task, _ *tomb.Tomb) error {
 func (m *SnapManager) undoPrepareSnap(t *state.Task, _ *tomb.Tomb) error {
 	// TODO: add some telemetry here that reports the snaps that were being set
 	// up
+
+	// XXX: should discardSnapIcon() be called here, since this is the undo
+	// handler for doDownloadSnap? Or should doDownloadSnap get a new undo
+	// handler which calls discardSnapIcon() and then calls this function
+	// (undoPrepareSnap)? If either of these happens, discardSnapIcon should
+	// only be called if there is no revision of the snap otherwise present on
+	// the system, otherwise we end up removing the downloaded icon for a snap
+	// which is still present on the system, and on the next snap revert, the
+	// attempt to link the icon to the icons directory will fail, leaving the
+	// snap with no icon.
+	// XXX: or is doDiscardSnap (instead of undoPrepareSnap) responsible for
+	// removing snaps which were previously downloaded (and may or may not have
+	// been successfully installed), and thus can clean up the snap icon as well?
 	return nil
 }
 
@@ -726,6 +739,8 @@ func (m *SnapManager) doDownloadSnap(t *state.Task, tomb *tomb.Tomb) error {
 
 	meter := NewTaskProgressAdapterUnlocked(t)
 	targetFn := snapsup.BlobPath()
+	targetIconFn := iconDownloadFilename(snapsup.SideInfo.SnapID)
+	iconURL := snapsup.Media.IconURL()
 
 	dlOpts := &store.DownloadOptions{
 		Scheduled: snapsup.IsAutoRefresh,
@@ -753,13 +768,47 @@ func (m *SnapManager) doDownloadSnap(t *state.Task, tomb *tomb.Tomb) error {
 		if err != nil {
 			return err
 		}
+
+		// Re-compute icon download filepath and URL if the result info has the
+		// necessary information
+		if result.SnapID != "" {
+			targetIconFn = iconDownloadFilename(result.SnapID)
+		}
+		if resultIconURL := result.Media.IconURL(); resultIconURL != "" {
+			iconURL = resultIconURL
+		}
+
 		timings.Run(perfTimings, "download", fmt.Sprintf("download snap %q", snapsup.SnapName()), func(timings.Measurer) {
-			err = theStore.Download(tomb.Context(nil), snapsup.SnapName(), targetFn, &result.DownloadInfo, meter, user, dlOpts)
+			ctx := tomb.Context(nil)
+			err = theStore.Download(ctx, snapsup.SnapName(), targetFn, &result.DownloadInfo, meter, user, dlOpts)
+			if err != nil {
+				return
+			}
+			// Snap download succeeded, now try to download the snap icon
+			if iconURL == "" {
+				logger.Debugf("cannot download snap icon for %q: no icon URL", snapsup.SnapName())
+				return
+			}
+			if iconErr := store.DownloadIcon(ctx, snapsup.SnapName(), targetIconFn, iconURL); iconErr != nil {
+				logger.Debugf("cannot download snap icon for %q: %#v", snapsup.SnapName(), iconErr)
+			}
 		})
 		snapsup.SideInfo = &result.SideInfo
 	} else {
 		timings.Run(perfTimings, "download", fmt.Sprintf("download snap %q", snapsup.SnapName()), func(timings.Measurer) {
-			err = theStore.Download(tomb.Context(nil), snapsup.SnapName(), targetFn, snapsup.DownloadInfo, meter, user, dlOpts)
+			ctx := tomb.Context(nil)
+			err = theStore.Download(ctx, snapsup.SnapName(), targetFn, snapsup.DownloadInfo, meter, user, dlOpts)
+			if err != nil {
+				return
+			}
+			// Snap download succeeded, now try to download the snap icon
+			if iconURL == "" {
+				logger.Debugf("cannot download snap icon for %q: no icon URL", snapsup.SnapName())
+				return
+			}
+			if iconErr := store.DownloadIcon(ctx, snapsup.SnapName(), targetIconFn, iconURL); iconErr != nil {
+				logger.Debugf("cannot download snap icon for %q: %#v", snapsup.SnapName(), iconErr)
+			}
 		})
 	}
 	if err != nil {
@@ -2409,6 +2458,19 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (err error) {
 				}
 			}()
 		}
+
+		if err := linkSnapIcon(cand.Snap.SnapID); err != nil {
+			// The snap icon may not exist in the icons pool, or another error
+			// occurred. This does not block the install, just log the error.
+			logger.Debugf("%v", err)
+		} else {
+			defer func() {
+				if IsErrAndNotWait(err) {
+					// The install is being undone, so remove the snap icon we just linked
+					unlinkSnapIcon(cand.Snap.SnapID)
+				}
+			}()
+		}
 	}
 
 	// Compatibility with old snapd: check if we have auto-connect task and
@@ -2821,6 +2883,10 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 		// try to remove the auxiliary store info
 		if err := discardAuxStoreInfo(snapsup.SideInfo.SnapID); err != nil {
 			return fmt.Errorf("cannot remove auxiliary store info: %v", err)
+		}
+		// try to remove the linked snap icon as well
+		if err := unlinkSnapIcon(snapsup.SideInfo.SnapID); err != nil {
+			logger.Noticef("cannot remove snap icon for %q: %v", snapsup.InstanceName(), err)
 		}
 	}
 
@@ -3807,6 +3873,17 @@ func (m *SnapManager) doDiscardSnap(t *state.Task, _ *tomb.Tomb) error {
 		// try to remove the auxiliary store info
 		if err := discardAuxStoreInfo(snapsup.SideInfo.SnapID); err != nil {
 			logger.Noticef("Cannot remove auxiliary store info for %q: %v", snapsup.InstanceName(), err)
+		}
+
+		// try to remove the linked snap icon, if it exists
+		if err := unlinkSnapIcon(snapsup.SideInfo.SnapID); err != nil {
+			// icon not existing will not result in an error
+			logger.Noticef("cannot remove snap icon for %q: %v", snapsup.InstanceName(), err)
+		}
+		// also try to remove the icon from icons-pool, if it exists
+		if err := discardSnapIcon(snapsup.SideInfo.SnapID); err != nil {
+			// icon not existing will not result in an error
+			logger.Noticef("cannot remove downloaded icon for %q: %v", snapsup.InstanceName(), err)
 		}
 
 		// XXX: also remove sequence files?
