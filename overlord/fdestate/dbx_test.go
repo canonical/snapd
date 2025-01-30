@@ -156,7 +156,7 @@ func (s *fdeMgrSuite) TestEFIDBXPrepareHappy(c *C) {
 		"recover": {
 			PrimaryKeyID:                   0,
 			Parameters:                     nil,
-			TPM2PCRPolicyRevocationCounter: 0x1880002,
+			TPM2PCRPolicyRevocationCounter: 42,
 		},
 		"run": {
 			PrimaryKeyID: 0, Parameters: map[string]fdestate.KeyslotRoleParameters{
@@ -166,12 +166,12 @@ func (s *fdeMgrSuite) TestEFIDBXPrepareHappy(c *C) {
 					TPM2PCRProfile: secboot.SerializedPCRProfile([]byte("PCR-profile")),
 				},
 			},
-			TPM2PCRPolicyRevocationCounter: 0x1880001,
+			TPM2PCRPolicyRevocationCounter: 41,
 		},
 		"run+recover": {
 			PrimaryKeyID:                   0,
 			Parameters:                     nil,
-			TPM2PCRPolicyRevocationCounter: 0x1880001,
+			TPM2PCRPolicyRevocationCounter: 41,
 		},
 	})
 
@@ -406,7 +406,7 @@ func (s *fdeMgrSuite) TestEFIDBXUpdateAndCleanupRunningAction(c *C) {
 				TPM2PCRProfile: secboot.SerializedPCRProfile([]byte("PCR-profile-dbx-update")),
 			},
 		},
-		TPM2PCRPolicyRevocationCounter: 0x1880001,
+		TPM2PCRPolicyRevocationCounter: 41,
 	})
 
 	// execute a single iteration of task runner, to have the task state switched to doing
@@ -450,7 +450,7 @@ func (s *fdeMgrSuite) TestEFIDBXUpdateAndCleanupRunningAction(c *C) {
 				TPM2PCRProfile: secboot.SerializedPCRProfile([]byte("PCR-profile-boot-chains")),
 			},
 		},
-		TPM2PCRPolicyRevocationCounter: 0x1880001,
+		TPM2PCRPolicyRevocationCounter: 41,
 	})
 
 	c.Check(chg.IsReady(), Equals, true)
@@ -535,7 +535,7 @@ func (s *fdeMgrSuite) TestEFIDBXUpdateAndUnexpectedStartupAction(c *C) {
 				TPM2PCRProfile: secboot.SerializedPCRProfile([]byte("PCR-profile-dbx-update")),
 			},
 		},
-		TPM2PCRPolicyRevocationCounter: 0x1880001,
+		TPM2PCRPolicyRevocationCounter: 41,
 	})
 
 	// and we have change in the state
@@ -577,7 +577,7 @@ func (s *fdeMgrSuite) TestEFIDBXUpdateAndUnexpectedStartupAction(c *C) {
 				TPM2PCRProfile: secboot.SerializedPCRProfile([]byte("PCR-profile-boot-chains-startup")),
 			},
 		},
-		TPM2PCRPolicyRevocationCounter: 0x1880001,
+		TPM2PCRPolicyRevocationCounter: 41,
 	})
 
 	// change has an error now

@@ -523,12 +523,6 @@ func MockSecbootRemoveRecoveryKeys(f func(rkeyDevToKey map[secboot.RecoveryKeyDe
 	return restore
 }
 
-func MockMarkFactoryResetComplete(f func(encrypted bool) error) (restore func()) {
-	restore = testutil.Backup(&bootMarkFactoryResetComplete)
-	bootMarkFactoryResetComplete = f
-	return restore
-}
-
 func MockSecbootMarkSuccessful(f func() error) (restore func()) {
 	r := testutil.Backup(&secbootMarkSuccessful)
 	secbootMarkSuccessful = f
@@ -650,4 +644,12 @@ func MockDisksDMCryptUUIDFromMountPoint(f func(mountpoint string) (string, error
 
 func VolumesAuthOptionsKeyByLabel(label string) volumesAuthOptionsKey {
 	return volumesAuthOptionsKey{label}
+}
+
+func MockSecbootRemoveOldCounterHandles(f func(node string, possibleOldKeys map[string]bool, possibleKeyFiles []string, hintExpectFDEHook bool) error) (restore func()) {
+	old := secbootRemoveOldCounterHandles
+	secbootRemoveOldCounterHandles = f
+	return func() {
+		secbootRemoveOldCounterHandles = old
+	}
 }
