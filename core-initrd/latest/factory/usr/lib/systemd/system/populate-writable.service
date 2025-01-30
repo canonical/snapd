@@ -12,7 +12,7 @@ Requires=sysroot-writable.mount
 Wants=snap-initramfs-mounts.service
 After=snap-initramfs-mounts.service
 
-ConditionPathIsMountPoint=/run/mnt/base
+ConditionPathIsDirectory=/run/mnt/data/system-data
 
 [Service]
 Type=oneshot
