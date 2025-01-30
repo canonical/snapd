@@ -423,7 +423,7 @@ func (s *deviceMgrInstallAPISuite) testInstallFinishStep(c *C, opts finishStepOp
 			Name:             "pc-kernel",
 			Revision:         snap.R(1),
 			MountPoint:       kernelMountDir,
-			IsCore:           false,
+			IsCore:           !opts.installClassic,
 			ModulesComps:     modulesComps,
 			NeedsDriversTree: true,
 		})
