@@ -100,8 +100,49 @@ type seqReq struct {
 
 var _ = Suite(&imageSuite{})
 
+const (
+	brandAccountAssertString = `type: account
+authority-id: canonical
+account-id: my-brand
+display-name: my-brand
+username: my-brand
+validation: unproven
+timestamp: 2020-01-01T00:00:00Z
+body-length: 0
+sign-key-sha3-384: -CvQKAwRQ5h3Ffn10FILJoEZUXOv6km9FwA80-Rcj-f-6jadQ89VRswHNiEB9Lxk
+
+AXNpZw==`
+	delegateAccountAssertString = `type: account
+authority-id: canonical
+account-id: my-brand
+display-name: my-brand
+username: my-brand
+validation: unproven
+timestamp: 2020-01-01T00:00:00Z
+body-length: 0
+sign-key-sha3-384: -CvQKAwRQ5h3Ffn10FILJoEZUXOv6km9FwA80-Rcj-f-6jadQ89VRswHNiEB9Lxk
+
+AXNpZw==`
+	randomAccountAssertString = `type: account
+authority-id: canonical
+account-id: random-user
+display-name: random-user
+username: random-user
+validation: unproven
+timestamp: 2020-01-01T00:00:00Z
+body-length: 0
+sign-key-sha3-384: -CvQKAwRQ5h3Ffn10FILJoEZUXOv6km9FwA80-Rcj-f-6jadQ89VRswHNiEB9Lxk
+
+AXNpZw==`
+)
+
 var (
-	brandPrivKey, _ = assertstest.GenerateKey(752)
+	brandPrivKey, _                = assertstest.GenerateKey(752)
+	brandAccountKeyAssertString    = generateAccountKeyAssert("my-brand", brandPrivKey)
+	delegatePrivKey, _             = assertstest.GenerateKey(752)
+	delegateAccountKeyAssertString = generateAccountKeyAssert("my-delegate", brandPrivKey)
+	randomPrivKey, _               = assertstest.GenerateKey(752)
+	randomAccountKeyAssertString   = generateAccountKeyAssert("random-user", brandPrivKey)
 )
 
 func (s *imageSuite) SetUpTest(c *C) {
@@ -249,6 +290,21 @@ func (s *imageSuite) SeqFormingAssertion(assertType *asserts.AssertionType, sequ
 		return s.StoreSigning.Find(assertType, headers)
 	}
 	return s.StoreSigning.FindSequence(assertType, headers, -1, assertType.MaxSupportedFormat())
+}
+
+func generateAccountKeyAssert(accountID string, key asserts.PrivateKey) string {
+	const accountKeySignerHash = "Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij"
+	pubKeyBody, _ := asserts.EncodePublicKey(key.PublicKey())
+	return "type: account-key\n" +
+		"authority-id: canonical\n" +
+		"account-id: " + accountID + "\n" +
+		"name: default\n" +
+		"public-key-sha3-384: " + key.PublicKey().ID() + "\n" +
+		"since: " + time.Now().Format(time.RFC3339) + "\n" +
+		"body-length: " + fmt.Sprint(len(pubKeyBody)) + "\n" +
+		"sign-key-sha3-384: " + accountKeySignerHash + "\n\n" +
+		string(pubKeyBody) + "\n\n" +
+		"AXNpZw=="
 }
 
 // TODO: use seedtest.SampleSnapYaml for some of these
@@ -3648,11 +3704,17 @@ func (s *imageSuite) TestPrepareWithUC20Preseed(c *C) {
 	})
 	defer restoreSetupSeed()
 
-	var preseedCalled bool
+	var (
+		preseedCalled    bool
+		accountAssert    asserts.Assertion
+		accountKeyAssert asserts.Assertion
+	)
 	restorePreseedCore20 := image.MockPreseedCore20(func(opts *preseed.CoreOptions) error {
 		preseedCalled = true
 		c.Assert(opts.PrepareImageDir, Equals, "/a/dir")
-		c.Assert(opts.PreseedSignKey, Equals, "foo")
+		c.Assert(opts.PreseedSignKey, Equals, &brandPrivKey)
+		c.Assert(opts.PreseedAccountAssert, Equals, accountAssert.(*asserts.Account))
+		c.Assert(opts.PreseedAccountKeyAssert, Equals, accountKeyAssert.(*asserts.AccountKey))
 		c.Assert(opts.AppArmorKernelFeaturesDir, Equals, "/custom/aa/features")
 		c.Assert(opts.SysfsOverlay, Equals, "/sysfs-overlay")
 		return nil
@@ -3663,17 +3725,112 @@ func (s *imageSuite) TestPrepareWithUC20Preseed(c *C) {
 	fn := filepath.Join(c.MkDir(), "model.assertion")
 	c.Assert(os.WriteFile(fn, asserts.Encode(model), 0644), IsNil)
 
-	err := image.Prepare(&image.Options{
-		ModelFile:      fn,
-		Preseed:        true,
-		PrepareDir:     "/a/dir",
-		PreseedSignKey: "foo",
-		SysfsOverlay:   "/sysfs-overlay",
+	accountAssert, err := asserts.Decode([]byte(brandAccountAssertString))
+	c.Assert(err, IsNil)
+
+	accountKeyAssert, err = asserts.Decode([]byte(brandAccountKeyAssertString))
+	c.Assert(err, IsNil)
+
+	err = image.Prepare(&image.Options{
+		ModelFile:               fn,
+		Preseed:                 true,
+		PrepareDir:              "/a/dir",
+		PreseedSignKey:          &brandPrivKey,
+		PreseedAccountAssert:    accountAssert.(*asserts.Account),
+		PreseedAccountKeyAssert: accountKeyAssert.(*asserts.AccountKey),
+		SysfsOverlay:            "/sysfs-overlay",
 
 		AppArmorKernelFeaturesDir: "/custom/aa/features",
 	})
 	c.Assert(err, IsNil)
 	c.Check(preseedCalled, Equals, true)
+}
+
+func (s *imageSuite) TestPrepareWithUC20PreseedDelegation(c *C) {
+	restoreSetupSeed := image.MockSetupSeed(func(tsto *tooling.ToolingStore, model *asserts.Model, opts *image.Options) error {
+		return nil
+	})
+	defer restoreSetupSeed()
+
+	var (
+		preseedCalled            bool
+		delegateAccountAssert    asserts.Assertion
+		delegateAccountKeyAssert asserts.Assertion
+	)
+	restorePreseedCore20 := image.MockPreseedCore20(func(opts *preseed.CoreOptions) error {
+		preseedCalled = true
+		c.Assert(opts.PrepareImageDir, Equals, "/a/dir")
+		c.Assert(opts.PreseedSignKey, Equals, &delegatePrivKey)
+		c.Assert(opts.PreseedAccountAssert, Equals, delegateAccountAssert.(*asserts.Account))
+		c.Assert(opts.PreseedAccountKeyAssert, Equals, delegateAccountKeyAssert.(*asserts.AccountKey))
+		c.Assert(opts.AppArmorKernelFeaturesDir, Equals, "/custom/aa/features")
+		c.Assert(opts.SysfsOverlay, Equals, "/sysfs-overlay")
+		return nil
+	})
+	defer restorePreseedCore20()
+
+	model := s.makeUC20Model(map[string]any{
+		"preseed-authority": []any{"my-delegate"},
+	})
+	fn := filepath.Join(c.MkDir(), "model.assertion")
+	c.Assert(ioutil.WriteFile(fn, asserts.Encode(model), 0644), IsNil)
+
+	delegateAccountAssert, err := asserts.Decode([]byte(delegateAccountAssertString))
+	c.Assert(err, IsNil)
+
+	delegateAccountKeyAssert, err = asserts.Decode([]byte(delegateAccountKeyAssertString))
+	c.Assert(err, IsNil)
+
+	err = image.Prepare(&image.Options{
+		ModelFile:               fn,
+		Preseed:                 true,
+		PrepareDir:              "/a/dir",
+		PreseedSignKey:          &delegatePrivKey,
+		PreseedAccountAssert:    delegateAccountAssert.(*asserts.Account),
+		PreseedAccountKeyAssert: delegateAccountKeyAssert.(*asserts.AccountKey),
+		SysfsOverlay:            "/sysfs-overlay",
+
+		AppArmorKernelFeaturesDir: "/custom/aa/features",
+	})
+	c.Assert(err, IsNil)
+	c.Check(preseedCalled, Equals, true)
+}
+
+func (s *imageSuite) TestPrepareWithUC20PreseedDelegationError(c *C) {
+	restoreSetupSeed := image.MockSetupSeed(func(tsto *tooling.ToolingStore, model *asserts.Model, opts *image.Options) error {
+		return nil
+	})
+	defer restoreSetupSeed()
+
+	restorePreseedCore20 := image.MockPreseedCore20(func(opts *preseed.CoreOptions) error {
+		return nil
+	})
+	defer restorePreseedCore20()
+
+	model := s.makeUC20Model(map[string]any{
+		"preseed-authority": []any{"my-delegate"},
+	})
+	fn := filepath.Join(c.MkDir(), "model.assertion")
+	c.Assert(ioutil.WriteFile(fn, asserts.Encode(model), 0644), IsNil)
+
+	randomAccountAssert, err := asserts.Decode([]byte(randomAccountAssertString))
+	c.Assert(err, IsNil)
+
+	randomAccountKeyAssert, err := asserts.Decode([]byte(randomAccountKeyAssertString))
+	c.Assert(err, IsNil)
+
+	err = image.Prepare(&image.Options{
+		ModelFile:               fn,
+		Preseed:                 true,
+		PrepareDir:              "/a/dir",
+		PreseedSignKey:          &randomPrivKey,
+		PreseedAccountAssert:    randomAccountAssert.(*asserts.Account),
+		PreseedAccountKeyAssert: randomAccountKeyAssert.(*asserts.AccountKey),
+		SysfsOverlay:            "/sysfs-overlay",
+
+		AppArmorKernelFeaturesDir: "/custom/aa/features",
+	})
+	c.Assert(err, ErrorMatches, `preseed key registered to account "random-user", but expected one of \["my-brand" "my-delegate"\]`)
 }
 
 func (s *imageSuite) TestPrepareWithClassicPreseedError(c *C) {
