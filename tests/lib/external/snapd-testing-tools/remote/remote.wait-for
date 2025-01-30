@@ -1,4 +1,4 @@
-#!/bin/bash -e
+#!/bin/bash -xe
 
 # The default values have been selected trying to match with most of
 # the wait times in the tests and also trying to follow common sense.
@@ -17,7 +17,7 @@ show_help() {
     echo "usage: remote.wait-for ssh [--wait WAIT] [-n|--attempts ATTEMPTS]"
     echo "       remote.wait-for no-ssh  [--wait WAIT] [-n|--attempts ATTEMPTS]"
     echo "       remote.wait-for snap-command [--wait WAIT] [-n|--attempts ATTEMPTS]"
-    echo "       remote.wait-for reboot [--wait WAIT] [-n|--attempts ATTEMPTS]"
+    echo "       remote.wait-for reboot [--wait WAIT] [-n|--attempts ATTEMPTS] [--expect-passphrase PASSPHRASE] [--log-file PATH]"
     echo "       remote.wait-for device-initialized [--wait WAIT] [-n|--attempts ATTEMPTS]"
     echo "       remote.wait-for refresh [--wait WAIT] [-n|--attempts ATTEMPTS]"
     echo ""
@@ -99,7 +99,9 @@ wait_for_reconnect_ssh() {
 wait_for_reboot() {
     local attempts=${1:-$DEFAULT_WAIT_FOR_REBOOT_ATTEMPTS}
     local wait=${2:-$DEFAULT_WAIT_FOR_REBOOT_WAIT}
-    local initial_boot_id=$3
+    local expect_passphrase=${3:-}
+    local log_file=${4:-}
+    local initial_boot_id=$5
     local last_boot_id
 
     echo "remote.wait-for: waiting for reboot"
@@ -108,6 +110,24 @@ wait_for_reboot() {
         echo "remote.wait-for: initial boot id not set"
         wait_for_reconnect_ssh
         return
+    fi
+
+    if [ -n "$expect_passphrase" ]; then
+        if [ ! -f "$log_file" ]; then
+            echo "remote.wait-for --expect-passphrase without passing an existing --log-file"
+            return 1
+        fi
+        while [ "$attempts" -ge 0 ]; do
+            echo -n '.'
+            attempts=$(( attempts - 1 ))
+            # Wait for passphrase prompt from serial log file.
+            if MATCH "Please enter the passphrase" < ${log_file}; then
+                # Enter passphrase to continue boot.
+                echo "$expect_passphrase" | netcat -N localhost 7777
+                break
+            fi
+            sleep "$wait"
+        done        
     fi
 
     while [ "$attempts" -ge 0 ]; do
@@ -123,7 +143,10 @@ wait_for_reboot() {
     done
 
     echo ""
-    if [ "$last_boot_id" != "$initial_boot_id" ]; then
+    if [ -z "$last_boot_id" ]; then
+        echo "remote.wait-for: could not get last boot id"
+        return 1
+    elif [ "$last_boot_id" != "$initial_boot_id" ]; then
         echo "remote.wait-for: reboot completed"
     else
         echo "remote.wait-for: boot id did not change"
@@ -241,7 +264,7 @@ main() {
         exit
     fi
 
-    local action wait attempts others
+    local action wait attempts expect_passphrase log_file others
     case "$1" in
         -h|--help)
             show_help
@@ -293,6 +316,14 @@ main() {
                 attempts=$2
                 shift 2
                 ;;
+            --expect-passphrase)
+                expect_passphrase="$2"
+                shift 2
+                ;;
+            --log-file)
+                log_file="$2"
+                shift 2
+                ;;
             *)
                 if [ -z "$others" ]; then
                     others=$1
@@ -304,7 +335,7 @@ main() {
         esac
     done
 
-    "$action" "$attempts" "$wait" "$others"
+    "$action" "$attempts" "$wait" "$expect_passphrase" "$log_file" "$others"
 }
 
 main "$@"
