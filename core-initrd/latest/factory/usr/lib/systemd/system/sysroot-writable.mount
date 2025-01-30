@@ -9,7 +9,7 @@ After=run-mnt-data.mount
 After=run-mnt-base.mount
 After=snap-initramfs-mounts.service
 
-ConditionPathIsMountPoint=/run/mnt/base
+ConditionPathIsDirectory=/run/mnt/data/system-data
 
 [Mount]
 What=/run/mnt/data
