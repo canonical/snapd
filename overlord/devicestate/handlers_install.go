@@ -1076,13 +1076,9 @@ func (m *DeviceManager) doInstallFinish(t *state.Task, _ *tomb.Tomb) error {
 
 	snapInfos := systemAndSnaps.InfosByType
 	snapSeeds := systemAndSnaps.SeedSnapsByType
-	deviceCtx, err := DeviceCtx(st, t, nil)
-	if err != nil {
-		return fmt.Errorf("cannot get device context: %v", err)
-	}
 
 	// Find out kernel-modules components in the seed
-	isCore := !deviceCtx.Classic()
+	isCore := !systemAndSnaps.Model.Classic()
 	kBootInfo := kBootInfo(systemAndSnaps, kernMntPoint, mntPtForComps, isCore)
 
 	logger.Debugf("writing content to partitions")
