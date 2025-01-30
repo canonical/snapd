@@ -1352,10 +1352,36 @@ func (s *storeDownloadSuite) TestDownloadIconFailsDoesNotLeavePartial(c *C) {
 	c.Assert(osutil.FileExists(path), Equals, false)
 }
 
-func (s *storeDownloadSuite) TestDownloadIconSyncFails(c *C) {
+func (s *storeDownloadSuite) TestDownloadIconSyncFailsWithExisting(c *C) {
 	fakeName := "foo"
+	fakePath := filepath.Join(c.MkDir(), "downloaded-file")
 	fakeURL := "URL"
 
+	// Create an existing file at the path
+	oldContent := []byte("I was already here")
+	err := os.MkdirAll(filepath.Dir(fakePath), 0o577)
+	c.Assert(err, IsNil)
+	err = os.WriteFile(fakePath, oldContent, 0o600)
+	c.Assert(err, IsNil)
+
+	s.testDownloadIconSyncFailsGeneric(c, fakeName, fakePath, fakeURL)
+
+	// Check that the existing file contents remain unchanged
+	c.Assert(fakePath, testutil.FileEquals, oldContent)
+}
+
+func (s *storeDownloadSuite) TestDownloadIconSyncFailsWithoutExisting(c *C) {
+	fakeName := "foo"
+	fakePath := filepath.Join(c.MkDir(), "downloaded-file")
+	fakeURL := "URL"
+
+	s.testDownloadIconSyncFailsGeneric(c, fakeName, fakePath, fakeURL)
+
+	// Check that the file was not renamed to fakePath
+	c.Assert(osutil.FileExists(fakePath), Equals, false)
+}
+
+func (s *storeDownloadSuite) testDownloadIconSyncFailsGeneric(c *C, fakeName, fakePath, fakeURL string) {
 	var tmpfile *os.File
 	restore := store.MockDownloadIcon(func(ctx context.Context, name, url string, w io.ReadWriteSeeker) error {
 		c.Assert(name, Equals, fakeName)
@@ -1369,13 +1395,10 @@ func (s *storeDownloadSuite) TestDownloadIconSyncFails(c *C) {
 	defer restore()
 
 	// simulate a failed sync
-	path := filepath.Join(c.MkDir(), "downloaded-file")
-	err := store.DownloadIcon(s.ctx, fakeName, path, fakeURL)
+	err := store.DownloadIcon(s.ctx, fakeName, fakePath, fakeURL)
 	c.Assert(err, ErrorMatches, "(sync|fsync:) .*")
 	// ... and ensure that the tempfile is removed
 	c.Assert(osutil.FileExists(tmpfile.Name()), Equals, false)
-	// ... because it's been renamed to the target path already
-	c.Assert(osutil.FileExists(path), Equals, true)
 }
 
 func (s *storeDownloadSuite) TestDownloadIconInfiniteRedirect(c *C) {

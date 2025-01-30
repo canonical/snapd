@@ -334,12 +334,16 @@ func DownloadIcon(ctx context.Context, name string, targetPath string, downloadU
 		return err
 	}
 	defer func() {
-		if cerr := w.Close(); cerr != nil && err == nil {
-			err = cerr
-		}
-		if err == nil {
-			return
-		}
+		// Unconditionally close the file, whether it's been closed before or
+		// not. If it has been closed before, close will return an error, which
+		// we ignore. If it hasn't been called before, then an error has already
+		// occurred, and we don't care about any new error from calling Close().
+		w.Close()
+		// Unconditionally remove the .partial file, since w.Name() is the name
+		// with which the file was originally opened. If it still exists, then
+		// an error occurred, and we want to remove it. If it doesn't still
+		// exist, then it was successfully renamed, so it's harmless to attempt
+		// to remove the original .partial filename, and we ignore the error.
 		os.Remove(w.Name())
 	}()
 	logger.Debugf("Starting download of %q.", partialPath)
@@ -350,15 +354,17 @@ func DownloadIcon(ctx context.Context, name string, targetPath string, downloadU
 		return err
 	}
 
-	if err = os.Rename(w.Name(), targetPath); err != nil {
-		return err
-	}
-
 	if err = w.Sync(); err != nil {
 		return err
 	}
 
-	return nil
+	if err = w.Close(); err != nil {
+		return err
+	}
+
+	// Only rename once we know all is well, so we don't want to have any side
+	// effects on any existing snap icon if an error occurs.
+	return os.Rename(w.Name(), targetPath)
 }
 
 func downloadReqOpts(storeURL *url.URL, cdnHeader string, opts *DownloadOptions) *requestOptions {
