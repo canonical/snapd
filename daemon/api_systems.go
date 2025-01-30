@@ -660,9 +660,9 @@ func postSystemActionCheckPassphrase(c *Command, systemLabel string, req *system
 				Kind:    client.ErrorKindInvalidPassphrase,
 				Message: "passphrase did not pass quality checks",
 				Value: map[string]interface{}{
-					"reasons":     qualityErr.Reasons,
-					"entropy":     qualityErr.Entropy,
-					"min-entropy": qualityErr.MinEntropy,
+					"reasons":          qualityErr.Reasons,
+					"entropy-bits":     qualityErr.Entropy,
+					"min-entropy-bits": qualityErr.MinEntropy,
 				},
 			}
 		}
@@ -701,9 +701,9 @@ func postSystemActionCheckPIN(c *Command, systemLabel string, req *systemActionR
 				Kind:    client.ErrorKindInvalidPIN,
 				Message: "PIN did not pass quality checks",
 				Value: map[string]interface{}{
-					"reasons":     qualityErr.Reasons,
-					"entropy":     qualityErr.Entropy,
-					"min-entropy": qualityErr.MinEntropy,
+					"reasons":          qualityErr.Reasons,
+					"entropy-bits":     qualityErr.Entropy,
+					"min-entropy-bits": qualityErr.MinEntropy,
 				},
 			}
 		}

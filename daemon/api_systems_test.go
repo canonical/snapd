@@ -1428,9 +1428,9 @@ func (s *systemsSuite) TestSystemActionCheckPassphraseError(c *check.C) {
 			passphrase:     "bad-passphrase",
 			expectedStatus: 400, expectedErrKind: "invalid-passphrase", expectedErrMsg: "passphrase did not pass quality checks",
 			expectedErrValue: map[string]interface{}{
-				"reasons":     []device.AuthQualityErrorReason{device.AuthQualityErrorReasonLowEntropy},
-				"entropy":     expectedEntropy,
-				"min-entropy": expectedMinEntropy,
+				"reasons":          []device.AuthQualityErrorReason{device.AuthQualityErrorReasonLowEntropy},
+				"entropy-bits":     expectedEntropy,
+				"min-entropy-bits": expectedMinEntropy,
 			},
 		},
 	} {
@@ -1517,9 +1517,9 @@ func (s *systemsSuite) TestSystemActionCheckPINError(c *check.C) {
 			pin:            "0",
 			expectedStatus: 400, expectedErrKind: "invalid-pin", expectedErrMsg: "PIN did not pass quality checks",
 			expectedErrValue: map[string]interface{}{
-				"reasons":     []device.AuthQualityErrorReason{device.AuthQualityErrorReasonLowEntropy},
-				"entropy":     expectedEntropy,
-				"min-entropy": expectedMinEntropy,
+				"reasons":          []device.AuthQualityErrorReason{device.AuthQualityErrorReasonLowEntropy},
+				"entropy-bits":     expectedEntropy,
+				"min-entropy-bits": expectedMinEntropy,
 			},
 		},
 	} {

@@ -79,7 +79,7 @@ func removeChar(s []rune, idx int) []rune {
 	return append(s[0:idx], s[idx+1:]...)
 }
 
-// Entropy returns a heuristic value of the passed string entropy.
+// Entropy returns a heuristic value of the passed string entropy in bits.
 func Entropy(s string) float64 {
 	base := getBase(s)
 	length := getPrunedLength(s)
