@@ -87,6 +87,7 @@ type finishStepOpts struct {
 	hasSystemSeed      bool
 	hasKernelModsComps bool
 	optionalContainers *seed.OptionalContainers
+	volumesAuth        *device.VolumesAuthOptions
 }
 
 func mockDiskVolume(opts finishStepOpts) *gadget.OnDiskVolume {
@@ -487,7 +488,7 @@ func (s *deviceMgrInstallAPISuite) testInstallFinishStep(c *C, opts finishStepOp
 			return nil
 		})
 		s.AddCleanup(restore)
-		restore = boot.MockSealKeyToModeenv(func(key, saveKey secboot.BootstrappedContainer, primaryKey []byte, model *asserts.Model, modeenv *boot.Modeenv, flags boot.MockSealKeyToModeenvFlags) error {
+		restore = boot.MockSealKeyToModeenv(func(key, saveKey secboot.BootstrappedContainer, primaryKey []byte, volumesAuth *device.VolumesAuthOptions, model *asserts.Model, modeenv *boot.Modeenv, flags boot.MockSealKeyToModeenvFlags) error {
 			c.Check(model.Classic(), Equals, opts.installClassic)
 			// Note that we cannot compare the full structure and we check
 			// separately bits as the types for these are not exported.
@@ -501,12 +502,14 @@ func (s *deviceMgrInstallAPISuite) testInstallFinishStep(c *C, opts finishStepOp
 			// exact cmdline depends on arch, see
 			// bootloader/assets/grub.go:init()
 			c.Check(modeenv.CurrentKernelCommandLines[0], testutil.Contains, "snapd_recovery_mode=run")
+			// Check that volume authentication options where propagated
+			c.Check(volumesAuth, Equals, opts.volumesAuth)
 			return nil
 		})
 		s.AddCleanup(restore)
 
 		// Insert encryption set-up data in state cache
-		restore = devicestate.MockEncryptionSetupDataInCache(s.state, label)
+		restore = devicestate.MockEncryptionSetupDataInCache(s.state, label, opts.volumesAuth)
 		s.AddCleanup(restore)
 
 		// Write expected boot assets needed when creating bootchain
@@ -643,6 +646,11 @@ func (s *deviceMgrInstallAPISuite) TestInstallClassicFinishNoEncryptionWithKMods
 		encrypted: false, installClassic: true, hasKernelModsComps: true})
 }
 
+func (s *deviceMgrInstallAPISuite) TestInstallClassicFinishEncryptionWithPassphraseAuthHappy(c *C) {
+	volumesAuth := &device.VolumesAuthOptions{Mode: device.AuthModePassphrase, Passphrase: "test"}
+	s.testInstallFinishStep(c, finishStepOpts{encrypted: true, installClassic: true, volumesAuth: volumesAuth})
+}
+
 func (s *deviceMgrInstallAPISuite) TestInstallClassicFinishEncryptionAndSystemSeedHappy(c *C) {
 	s.testInstallFinishStep(c, finishStepOpts{
 		encrypted:      true,
@@ -661,6 +669,11 @@ func (s *deviceMgrInstallAPISuite) TestInstallCoreFinishNoEncryptionHappy(c *C) 
 
 func (s *deviceMgrInstallAPISuite) TestInstallCoreFinishEncryptionHappy(c *C) {
 	s.testInstallFinishStep(c, finishStepOpts{encrypted: true, installClassic: false})
+}
+
+func (s *deviceMgrInstallAPISuite) TestInstallCoreFinishEncryptionWithPassphraseAuthHappy(c *C) {
+	volumesAuth := &device.VolumesAuthOptions{Mode: device.AuthModePassphrase, Passphrase: "test"}
+	s.testInstallFinishStep(c, finishStepOpts{encrypted: true, installClassic: false, volumesAuth: volumesAuth})
 }
 
 func (s *deviceMgrInstallAPISuite) TestInstallCoreFinishWithOptionalContainers(c *C) {
@@ -814,6 +827,8 @@ func (s *deviceMgrInstallAPISuite) testInstallSetupStorageEncryption(c *C, hasTP
 	c.Check(ok, Equals, true)
 	// Check that state has been stored in the cache
 	c.Check(devicestate.CheckEncryptionSetupDataFromCache(s.state, label), IsNil)
+	// Cached auth options are cleaned
+	c.Check(s.state.Cached(devicestate.VolumesAuthOptionsKeyByLabel(label)), IsNil)
 }
 
 func (s *deviceMgrInstallAPISuite) TestInstallSetupStorageEncryptionHappy(c *C) {
@@ -950,4 +965,6 @@ func (s *deviceMgrInstallAPISuite) TestInstallSetupStorageEncryptionBadVolumesAu
 	// Checks now
 	c.Check(chg.Err(), ErrorMatches, `cannot perform the following tasks:
 - install API set-up encryption step \(internal error: wrong data type under volumesAuthOptionsKey\)`)
+	// Cached auth options are cleaned
+	c.Check(s.state.Cached(devicestate.VolumesAuthOptionsKeyByLabel(label)), IsNil)
 }

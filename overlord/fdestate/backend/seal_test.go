@@ -68,19 +68,30 @@ func (s *sealSuite) TestSealKeyForBootChains(c *C) {
 		expReleasePCRHandleCalls int
 		expPCRHandleOfKeyCalls   int
 		disableTokens            bool
+		withVolumesAuth          bool
 	}{
 		{
 			sealErr: nil, expErr: "",
 			expProvisionCalls: 1, expSealCalls: 2,
 		}, {
 			sealErr: nil, expErr: "",
+			expProvisionCalls: 1, expSealCalls: 2, withVolumesAuth: true,
+		}, {
+			sealErr: nil, expErr: "",
 			expProvisionCalls: 1, expSealCalls: 2, disableTokens: true,
+		}, {
+			sealErr: nil, expErr: "",
+			expProvisionCalls: 1, expSealCalls: 2, disableTokens: true, withVolumesAuth: true,
 		}, {
 			sealErr: nil,
 			// old boot assets
 			shimId: "bootx64.efi", grubId: "grubx64.efi",
 			expErr:            "",
 			expProvisionCalls: 1, expSealCalls: 2,
+		}, {
+			sealErr: nil, factoryReset: true, pcrHandleOfKey: secboot.FallbackObjectPCRPolicyCounterHandle,
+			expProvisionCalls: 1, expSealCalls: 2, expPCRHandleOfKeyCalls: 1, expReleasePCRHandleCalls: 1,
+			withVolumesAuth: true,
 		}, {
 			sealErr: nil, factoryReset: true, pcrHandleOfKey: secboot.FallbackObjectPCRPolicyCounterHandle,
 			expProvisionCalls: 1, expSealCalls: 2, expPCRHandleOfKeyCalls: 1, expReleasePCRHandleCalls: 1,
@@ -133,6 +144,11 @@ func (s *sealSuite) TestSealKeyForBootChains(c *C) {
 		// set encryption key
 		myKey := secboot.CreateMockBootstrappedContainer()
 		myKey2 := secboot.CreateMockBootstrappedContainer()
+
+		var volumesAuth *device.VolumesAuthOptions
+		if tc.withVolumesAuth {
+			volumesAuth = &device.VolumesAuthOptions{Mode: device.AuthModePassphrase, Passphrase: "test"}
+		}
 
 		provisionCalls := 0
 		restore := fdeBackend.MockSecbootProvisionTPM(func(mode secboot.TPMProvisionMode, lockoutAuthFile string) error {
@@ -221,6 +237,7 @@ func (s *sealSuite) TestSealKeyForBootChains(c *C) {
 			default:
 				c.Errorf("unexpected additional call to secboot.SealKeys (call # %d)", sealKeysCalls)
 			}
+			c.Assert(params.VolumesAuth, Equals, volumesAuth)
 			c.Assert(params.ModelParams, HasLen, 1)
 
 			shim := bootloader.NewBootFile("", filepath.Join(rootdir, fmt.Sprintf("var/lib/snapd/boot-assets/grub/%s-shim-hash-1", shimId)), bootloader.RoleRecovery)
@@ -351,7 +368,7 @@ func (s *sealSuite) TestSealKeyForBootChains(c *C) {
 			InstallHostWritableDir: filepath.Join(boot.InstallUbuntuDataDir, "system-data"),
 			UseTokens:              !tc.disableTokens,
 		}
-		err := boot.SealKeyForBootChains(device.SealingMethodTPM, myKey, myKey2, nil, params)
+		err := boot.SealKeyForBootChains(device.SealingMethodTPM, myKey, myKey2, nil, volumesAuth, params)
 
 		c.Check(pcrHandleOfKeyCalls, Equals, tc.expPCRHandleOfKeyCalls)
 		c.Check(provisionCalls, Equals, tc.expProvisionCalls)
@@ -536,7 +553,7 @@ func (s *sealSuite) testSealToModeenvWithFdeHookHappy(c *C, useTokens bool) {
 		InstallHostWritableDir: filepath.Join(boot.InstallUbuntuDataDir, "system-data"),
 		UseTokens:              useTokens,
 	}
-	err := boot.SealKeyForBootChains(device.SealingMethodFDESetupHook, dataContainer, saveContainer, nil, params)
+	err := boot.SealKeyForBootChains(device.SealingMethodFDESetupHook, dataContainer, saveContainer, nil, nil, params)
 	c.Assert(err, IsNil)
 	// check that runFDESetupHook was called the expected way
 	c.Check(runFDESetupHookReqs, DeepEquals, []*fde.SetupRequest{
@@ -618,7 +635,7 @@ func (s *sealSuite) TestSealToModeenvWithFdeHookSad(c *C) {
 		FactoryReset:           false,
 		InstallHostWritableDir: filepath.Join(boot.InstallUbuntuDataDir, "system-data"),
 	}
-	err := boot.SealKeyForBootChains(device.SealingMethodFDESetupHook, key, saveKey, nil, params)
+	err := boot.SealKeyForBootChains(device.SealingMethodFDESetupHook, key, saveKey, nil, nil, params)
 	c.Assert(err, ErrorMatches, "hook failed")
 	marker := filepath.Join(dirs.SnapFDEDirUnder(filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data")), "sealed-keys")
 	c.Check(marker, testutil.FileAbsent)

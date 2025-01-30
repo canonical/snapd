@@ -256,7 +256,9 @@ func isAssetHashTrackedInMap(bam bootAssetsMap, assetName, assetHash string) boo
 type TrustedAssetsInstallObserver interface {
 	BootLoaderSupportsEfiVariables() bool
 	ObserveExistingTrustedRecoveryAssets(recoveryRootDir string) error
-	SetBootstrappedContainersAndPrimaryKey(key, saveKey secboot.BootstrappedContainer, primaryKey []byte)
+	// FIXME: Combine relevant FDE params into some FDE context that can be
+	// passed around instead of passing around many params.
+	SetEncryptionParams(key, saveKey secboot.BootstrappedContainer, primaryKey []byte, volumesAuth *device.VolumesAuthOptions)
 	UpdateBootEntry() error
 	Observe(op gadget.ContentOperation, partRole, root, relativeTarget string, data *gadget.ContentChange) (gadget.ContentChangeAction, error)
 }
@@ -286,6 +288,8 @@ type trustedAssetsInstallObserverImpl struct {
 	seedBootloader bootloader.Bootloader
 
 	primaryKey []byte
+
+	volumesAuth *device.VolumesAuthOptions
 }
 
 func (o *trustedAssetsInstallObserverImpl) BootLoaderSupportsEfiVariables() bool {
@@ -370,11 +374,12 @@ func (o *trustedAssetsInstallObserverImpl) currentTrustedRecoveryBootAssetsMap()
 	return o.trackedRecoveryAssets
 }
 
-func (o *trustedAssetsInstallObserverImpl) SetBootstrappedContainersAndPrimaryKey(key, saveKey secboot.BootstrappedContainer, primaryKey []byte) {
+func (o *trustedAssetsInstallObserverImpl) SetEncryptionParams(key, saveKey secboot.BootstrappedContainer, primaryKey []byte, volumesAuth *device.VolumesAuthOptions) {
 	o.useEncryption = true
 	o.dataBootstrappedContainer = key
 	o.saveBootstrappedContainer = saveKey
 	o.primaryKey = primaryKey
+	o.volumesAuth = volumesAuth
 }
 
 func (o *trustedAssetsInstallObserverImpl) UpdateBootEntry() error {
