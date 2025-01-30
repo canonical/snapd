@@ -1684,6 +1684,7 @@ func downloadTasks(
 			t.Set("snap-setup", snapsup)
 			snapsupTask = t
 			ts.MarkEdge(t, BeginEdge)
+			ts.MarkEdge(t, SnapSetupEdge)
 		} else {
 			t.WaitFor(prev)
 			t.Set("snap-setup-task", snapsupTask.ID())
