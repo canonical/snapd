@@ -77,10 +77,8 @@ func LookupDmVerityData(snapPath string, params *IntegrityDataParams) (string, e
 		return "", err
 	}
 
-	alg := strings.ReplaceAll(string(vsb.Algorithm[:]), "\x00", "")
-	encSalt := vsb.EncodedSalt()
-
 	// Check if the verity data that was found matches the passed parameters
+	alg := strings.ReplaceAll(string(vsb.Algorithm[:]), "\x00", "")
 	if alg != params.HashAlg {
 		return "", fmt.Errorf("snap integrity: dm-verity data %q were generated with an unasserted algorithm: %s != %s",
 			hashFileName, alg, params.HashAlg)
@@ -93,6 +91,8 @@ func LookupDmVerityData(snapPath string, params *IntegrityDataParams) (string, e
 		return "", fmt.Errorf("snap integrity: dm-verity data %q were generated with an unasserted hash block size: %d != %d",
 			hashFileName, vsb.HashBlockSize, uint32(params.HashBlockSize))
 	}
+
+	encSalt := vsb.EncodedSalt()
 	if encSalt != params.Salt {
 		return "", fmt.Errorf("snap integrity: dm-verity data %q were generated with an unasserted salt: %s != %s",
 			hashFileName, vsb.EncodedSalt(), params.Salt)
