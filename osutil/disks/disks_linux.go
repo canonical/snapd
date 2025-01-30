@@ -976,7 +976,22 @@ func DMCryptUUIDFromMountPoint(mountpoint string) (string, error) {
 
 	dmUUID, hasDmUUID := props["DM_UUID"]
 	if !hasDmUUID {
-		return "", ErrNoDmUUID
+		// There is a bug in old UC20 kernels where udev does
+		// not retrieve data from cold plugged disks
+		// initialized in initrd.
+		// https://github.com/canonical/core-initrd/pull/58
+		// https://github.com/canonical/core-initrd/pull/203
+		devPath, hasDevPath := props["DEVPATH"]
+		if !hasDevPath {
+			return "", ErrNoDmUUID
+		}
+		devUUIDPath := filepath.Join(dirs.SysfsDir,  devPath, "dm", "uuid")
+		data, err := os.ReadFile(devUUIDPath)
+		if err != nil {
+			return "", ErrNoDmUUID
+		}
+		dmUUID = strings.TrimSuffix(string(data), "\n")
+
 	}
 
 	match := dmUUIDRe.FindStringSubmatchIndex(dmUUID)
