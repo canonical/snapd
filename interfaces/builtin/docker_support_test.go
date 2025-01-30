@@ -20,6 +20,9 @@
 package builtin_test
 
 import (
+	"errors"
+	"os/exec"
+
 	"github.com/snapcore/snapd/strutil"
 	. "gopkg.in/check.v1"
 
@@ -868,6 +871,9 @@ ptrace (read, trace) peer=unconfined,
 
 	// Profile existing profile
 	expectedHash, err := testutil.AppArmorParseAndHashHelper("#include <tunables/global> \nprofile docker_support {" + privilegedProfile + "}")
+	if errors.Is(err, exec.ErrNotFound) {
+		c.Skip(err.Error())
+	}
 	c.Assert(err, IsNil)
 
 	// Profile generated using GenerateAAREExclusionPatterns
