@@ -212,9 +212,18 @@ const (
 	AuthQualityErrorReasonLowEntropy AuthQualityErrorReason = "low-entropy"
 )
 
+// AuthQualityError contains rich inforamtion on why some auth value
+// did not pass quality checks.
 type AuthQualityError struct {
-	Reasons             []AuthQualityErrorReason
-	Entropy, MinEntropy float64
+	// Reasons is a list of reason enums to explain exactly what quality
+	// criteria failed e.g. AuthQualityErrorReasonLowEntropy.
+	Reasons []AuthQualityErrorReason
+	// Entropy is the calculated entropy in bits for the passed passphrase
+	// or PIN.
+	Entropy float64
+	// MinEntropy is the minimum entropy in bits for the corresponding
+	// authentication mode i.e. passhrase or PIN.
+	MinEntropy float64
 
 	err error
 }
