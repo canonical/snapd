@@ -32,15 +32,29 @@ var (
 	readDmVeritySuperblock = dmverity.ReadSuperblock
 )
 
+// IntegrityDataParams struct includes all the parameters that are necessary
+// to generate or lookup integrity data. Currently only data of type "dm-verity"
+// are supported via the GenerateDmVerityData and LookupDmVerityData functions.
 type IntegrityDataParams struct {
-	Type          string
-	Version       uint
-	HashAlg       string
-	DataBlocks    uint64
+	// Type is the type of integrity data (Currently only "dm-verity" is supported).
+	Type string
+	// Version is the type-specific format type.
+	Version uint
+	// HashAlg is the hash algorithm used for integrity data.
+	HashAlg string
+	// DataBlocks is the number of data blocks on the data/target device. Blocks after
+	// DataBlocks are inaccessible. This is not included in the assertion and is generated
+	// by dividing the entire snap's size by the DataBlockSize field.
+	DataBlocks uint64
+	// DataBlockSize is the block size in bytes on a data/target device.
 	DataBlockSize uint64
+	// HashBlockSize is the size of a hash block in bytes.
 	HashBlockSize uint64
-	Digest        string
-	Salt          string
+	// Digest (for the dm-verity type) is the hash of the root hash block in
+	// hexadecimanl encoding.
+	Digest string
+	// Salt is the salt value used during generation in hexadecimal encoding.
+	Salt string
 }
 
 // LookupDmVerityData looks up verity data for a snap and validates that they were generated
