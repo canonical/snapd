@@ -842,25 +842,25 @@ func exportBPF(fout *os.File, filter *seccomp.ScmpFilter) (bpfLen int64, err err
 // the most restrictive action, thus any explicit deny will take precedence.
 // This struct needs to be in sync with seccomp-support.c
 type scSeccompFileHeader struct {
-	header  [2]byte
-	version byte
+	Header  [2]byte
+	Version byte
 	// flags
-	unrestricted byte
+	Unrestricted byte
 	// unused
-	padding [4]byte
+	Padding [4]byte
 	// location of allow/deny, all offsets/len in bytes
-	lenAllowFilter uint32
-	lenDenyFilter  uint32
+	LenAllowFilter uint32
+	LenDenyFilter  uint32
 	// reserved for future use
-	reserved2 [112]byte
+	Reserved2 [112]byte
 }
 
 func writeUnrestrictedFilter(outFile string) error {
 	hdr := scSeccompFileHeader{
-		header:  [2]byte{'S', 'C'},
-		version: 0x1,
+		Header:  [2]byte{'S', 'C'},
+		Version: 0x1,
 		// tell snap-confine
-		unrestricted: 0x1,
+		Unrestricted: 0x1,
 	}
 	fout, err := osutil.NewAtomicFile(outFile, 0644, 0, osutil.NoChown, osutil.NoChown)
 	if err != nil {
@@ -885,8 +885,8 @@ func writeSeccompFilter(outFile string, filterAllow, filterDeny *seccomp.ScmpFil
 	// seccomp filters yet and the only way to know is to export to
 	// a file (until seccomp_export_bpf_mem() becomes available)
 	hdr := scSeccompFileHeader{
-		header:  [2]byte{'S', 'C'},
-		version: 0x1,
+		Header:  [2]byte{'S', 'C'},
+		Version: 0x1,
 	}
 	if err := binary.Write(fout, arch.Endian(), hdr); err != nil {
 		return err
@@ -901,8 +901,8 @@ func writeSeccompFilter(outFile string, filterAllow, filterDeny *seccomp.ScmpFil
 	}
 
 	// now write final header
-	hdr.lenAllowFilter = uint32(allowSize)
-	hdr.lenDenyFilter = uint32(denySize)
+	hdr.LenAllowFilter = uint32(allowSize)
+	hdr.LenDenyFilter = uint32(denySize)
 	if _, err := fout.Seek(0, io.SeekStart); err != nil {
 		return err
 	}
@@ -1040,6 +1040,46 @@ func showSeccompLibraryVersion() error {
 	return nil
 }
 
+func dump(what, prefix string) error {
+	f, err := os.Open(what)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+
+	var hdr scSeccompFileHeader
+
+	if err := binary.Read(f, arch.Endian(), &hdr); err != nil {
+		return fmt.Errorf("cannot read header: %w", err)
+	}
+
+	if !bytes.Equal(hdr.Header[:], []byte{'S', 'C'}) || hdr.Version != 0x01 {
+		return fmt.Errorf("unsupported header: %x version %v", hdr.Header, hdr.Version)
+	}
+
+	var allowRules bytes.Buffer
+	var denyRules bytes.Buffer
+
+	if _, err := io.CopyN(&allowRules, f, int64(hdr.LenAllowFilter)); err != nil {
+		return fmt.Errorf("cannot copy allow rules: %w", err)
+	}
+
+	if _, err := io.CopyN(&denyRules, f, int64(hdr.LenDenyFilter)); err != nil {
+		return fmt.Errorf("cannot copy deny rules: %w", err)
+	}
+
+	if err := os.WriteFile(prefix+".allow", allowRules.Bytes(), 0644); err != nil {
+		return fmt.Errorf("cannot write allow rules to file: %w", err)
+	}
+
+	if err := os.WriteFile(prefix+".deny", denyRules.Bytes(), 0644); err != nil {
+		// TODO remove allow file?
+		return fmt.Errorf("cannot write deny rules to file: %w", err)
+	}
+
+	return nil
+}
+
 func main() {
 	var err error
 	var content []byte
@@ -1065,6 +1105,14 @@ func main() {
 		err = showSeccompLibraryVersion()
 	case "version-info":
 		err = showVersionInfo()
+	case "dump":
+		if len(os.Args) < 4 {
+			fmt.Println("dump needs <file> and <prefix>")
+			os.Exit(1)
+		}
+		what := os.Args[2]
+		prefix := os.Args[3]
+		err = dump(what, prefix)
 	default:
 		err = fmt.Errorf("unsupported argument %q", cmd)
 	}

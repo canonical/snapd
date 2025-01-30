@@ -923,3 +923,27 @@ func (s *snapSeccompSuite) TestExportBpfErrors(c *C) {
 	_, err = main.ExportBPF(fout, &seccomp.ScmpFilter{})
 	c.Check(err, ErrorMatches, "cannot export bpf filter: filter is invalid or uninitialized")
 }
+
+func (s *snapSeccompSuite) TestDump(c *C) {
+	dir := c.MkDir()
+	bpfPath := filepath.Join(dir, "bpf")
+	prof := `
+execve
+uname
+~ioctl
+`
+	err := main.Compile([]byte(prof), bpfPath)
+	c.Assert(err, IsNil)
+	err = main.Dump(filepath.Join(dir, "foo"), filepath.Join(dir, "foo-dump"))
+	c.Assert(err, ErrorMatches, "open .*/foo: no such file or directory")
+
+	err = main.Dump(filepath.Join(dir, "bpf"), filepath.Join(dir, "bpf"))
+	c.Assert(err, IsNil)
+	fi, err := os.Stat(filepath.Join(dir, "bpf.allow"))
+	c.Assert(err, IsNil)
+	c.Check(fi.Size() > 10, Equals, true)
+
+	fi, err = os.Stat(filepath.Join(dir, "bpf.deny"))
+	c.Assert(err, IsNil)
+	c.Check(fi.Size() > 10, Equals, true)
+}

@@ -31,6 +31,7 @@ var (
 	VersionInfo       = versionInfo
 	GoSeccompFeatures = goSeccompFeatures
 	ExportBPF         = exportBPF
+	Dump              = dump
 )
 
 func MockArchDpkgArchitecture(f func() string) (restore func()) {
