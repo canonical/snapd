@@ -42,6 +42,8 @@ var (
 	ApiURL        = apiURL
 	Download      = download
 
+	DownloadIconImpl = downloadIcon
+
 	ApplyDelta = applyDelta
 
 	AuthLocation      = authLocation
@@ -147,6 +149,10 @@ func MockDownload(f func(ctx context.Context, name, sha3_384, downloadURL string
 	return func() {
 		download = origDownload
 	}
+}
+
+func MockDownloadIcon(f func(ctx context.Context, name, downloadURL string, w io.ReadWriteSeeker) error) (restore func()) {
+	return testutil.Mock(&downloadIcon, f)
 }
 
 func MockDoDownloadReq(f func(ctx context.Context, storeURL *url.URL, cdnHeader string, resume int64, s *Store, user *auth.UserState) (*http.Response, error)) (restore func()) {

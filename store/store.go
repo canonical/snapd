@@ -766,6 +766,22 @@ func (s *Store) doRequest(ctx context.Context, client *http.Client, reqOptions *
 	}
 }
 
+// doIconRequest does an unauthenticated GET request to the given URL.
+func doIconRequest(ctx context.Context, client *http.Client, iconURL *url.URL) (*http.Response, error) {
+	var body io.Reader // empty body
+	req, err := http.NewRequestWithContext(ctx, "GET", iconURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+
+	return resp, err
+}
+
 func (s *Store) buildLocationString() (string, error) {
 	if s.dauthCtx == nil {
 		return "", nil
