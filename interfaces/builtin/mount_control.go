@@ -273,7 +273,7 @@ var typeRegexp = regexp.MustCompile(`^[a-z0-9]+$`)
 
 // Because of additional rules imposed on mount attributes, some filesystems can
 // only be specified as a single "type" entry.
-var exclusiveFsTypes = []string{"tmpfs", "nfs"}
+var exclusiveFsTypes = []string{"tmpfs", "nfs", "cifs"}
 
 type MountInfo struct {
 	what       string
@@ -324,7 +324,9 @@ func enumerateMounts(plug interfaces.Attrer, fn func(mountInfo *MountInfo) error
 		}
 
 		disallowSource := false
-		if strutil.ListContains(types, "nfs") || strutil.ListContains(types, "nfs4") {
+		if len(strutil.Intersection(types, []string{"nfs", "nfs4", "cifs"})) != 0 {
+			// one of the filesystems for which source is set implicitly and
+			// cannot be specified in an attribute
 			disallowSource = true
 		}
 
@@ -385,11 +387,16 @@ func validateWhatAttr(mountInfo *MountInfo) error {
 		return validateNoAppArmorRegexpWithError(`cannot use mount-control "what" attribute`, what)
 	}
 
-	if mountInfo.isType("nfs") {
-		if what != "" {
-			return fmt.Errorf(`mount-control "what" attribute must not be specified for nfs mounts`)
+	if isNFS, isCIFS := mountInfo.isType("nfs"), mountInfo.isType("cifs"); isNFS || isCIFS {
+		// 'source' attribute of cifs and nfs entries is implicit and cannot be
+		// set in the plug declaration
+		kind := "nfs"
+		if isCIFS {
+			kind = "cifs"
 		}
-		// that's it for nfs
+		if what != "" {
+			return fmt.Errorf(`mount-control "what" attribute must not be specified for %v mounts`, kind)
+		}
 		return nil
 	}
 
@@ -642,6 +649,11 @@ func (iface *mountControlInterface) AppArmorConnectedPlug(spec *apparmor.Specifi
 			// emit additional rule required by NFS
 			emit("  # Allow lookup of RPC program numbers (due to mount-control)\n")
 			emit("  /etc/rpc r,\n")
+		}
+
+		if mountInfo.isType("cifs") {
+			// override CIFS share source, also see 'cifs-mount' interface
+			source = "//**"
 		}
 
 		var typeRule string
