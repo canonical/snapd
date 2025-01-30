@@ -2209,7 +2209,7 @@ func (m *DeviceManager) SystemAndGadgetAndEncryptionInfo(wantedSystemLabel strin
 	// installer is not anymore.
 
 	// System information
-	systemAndSnaps, err := m.loadSystemAndEssentialSnaps(wantedSystemLabel, []snap.Type{snap.TypeKernel, snap.TypeGadget}, seed.AllModes)
+	systemAndSnaps, err := m.loadSystemAndEssentialSnaps(wantedSystemLabel, []snap.Type{snap.TypeSnapd, snap.TypeKernel, snap.TypeGadget}, seed.AllModes)
 	if err != nil {
 		return nil, nil, nil, err
 	}
@@ -2225,7 +2225,7 @@ func (m *DeviceManager) SystemAndGadgetAndEncryptionInfo(wantedSystemLabel strin
 	}
 
 	// Encryption details
-	encInfo, err := m.encryptionSupportInfo(systemAndSnaps.Model, secboot.TPMProvisionFull, systemAndSnaps.InfosByType[snap.TypeKernel], gadgetInfo)
+	encInfo, err := m.encryptionSupportInfo(systemAndSnaps.Model, secboot.TPMProvisionFull, systemAndSnaps.InfosByType[snap.TypeKernel], gadgetInfo, &systemAndSnaps.SystemSnapdVersions)
 	if err != nil {
 		return nil, nil, nil, err
 	}
@@ -2243,10 +2243,11 @@ func (m *DeviceManager) SystemAndGadgetAndEncryptionInfo(wantedSystemLabel strin
 
 type systemAndEssentialSnaps struct {
 	*System
-	Seed            seed.Seed
-	InfosByType     map[snap.Type]*snap.Info
-	CompsByType     map[snap.Type][]compSeedInfo
-	SeedSnapsByType map[snap.Type]*seed.Snap
+	Seed                seed.Seed
+	SystemSnapdVersions install.SystemSnapdVersions
+	InfosByType         map[snap.Type]*snap.Info
+	CompsByType         map[snap.Type][]compSeedInfo
+	SeedSnapsByType     map[snap.Type]*seed.Snap
 }
 
 type compSeedInfo struct {
@@ -2309,6 +2310,7 @@ func (m *DeviceManager) loadSystemAndEssentialSnaps(wantedSystemLabel string, ty
 	snapInfos := make(map[snap.Type]*snap.Info)
 	compInfos := make(map[snap.Type][]compSeedInfo)
 	seedSnaps := make(map[snap.Type]*seed.Snap)
+	systemSnapdVersions := install.SystemSnapdVersions{}
 	for _, seedSnap := range s.EssentialSnaps() {
 		typ := seedSnap.EssentialType
 		if seedSnap.Path == "" {
@@ -2351,6 +2353,18 @@ func (m *DeviceManager) loadSystemAndEssentialSnaps(wantedSystemLabel string, ty
 				})
 			}
 		}
+		if typ == snap.TypeSnapd || typ == snap.TypeKernel {
+			snapdVersion, _, err := snap.SnapdInfoFromSnapFile(snapf, typ)
+			if err != nil {
+				return nil, err
+			}
+			switch typ {
+			case snap.TypeSnapd:
+				systemSnapdVersions.SnapdVersion = snapdVersion
+			case snap.TypeKernel:
+				systemSnapdVersions.SnapdInitramfsVersion = snapdVersion
+			}
+		}
 		seedSnaps[typ] = snapForMode
 		snapInfos[typ] = snapInfo
 		compInfos[typ] = compInfosForType
@@ -2360,11 +2374,12 @@ func (m *DeviceManager) loadSystemAndEssentialSnaps(wantedSystemLabel string, ty
 	}
 
 	return &systemAndEssentialSnaps{
-		System:          sys,
-		Seed:            s,
-		InfosByType:     snapInfos,
-		CompsByType:     compInfos,
-		SeedSnapsByType: seedSnaps,
+		System:              sys,
+		Seed:                s,
+		SystemSnapdVersions: systemSnapdVersions,
+		InfosByType:         snapInfos,
+		CompsByType:         compInfos,
+		SeedSnapsByType:     seedSnaps,
 	}, nil
 }
 
@@ -2868,6 +2883,6 @@ func (m *DeviceManager) checkEncryption(st *state.State, deviceCtx snapstate.Dev
 	return install.CheckEncryptionSupport(model, tpmMode, kernelInfo, gadgetInfo, m.runFDESetupHook)
 }
 
-func (m *DeviceManager) encryptionSupportInfo(model *asserts.Model, tpmMode secboot.TPMProvisionMode, kernelInfo *snap.Info, gadgetInfo *gadget.Info) (install.EncryptionSupportInfo, error) {
-	return install.GetEncryptionSupportInfo(model, tpmMode, kernelInfo, gadgetInfo, m.runFDESetupHook)
+func (m *DeviceManager) encryptionSupportInfo(model *asserts.Model, tpmMode secboot.TPMProvisionMode, kernelInfo *snap.Info, gadgetInfo *gadget.Info, systemSnapdVersions *install.SystemSnapdVersions) (install.EncryptionSupportInfo, error) {
+	return install.GetEncryptionSupportInfo(model, tpmMode, kernelInfo, gadgetInfo, systemSnapdVersions, m.runFDESetupHook)
 }
