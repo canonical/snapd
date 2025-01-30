@@ -557,6 +557,8 @@ func (tsto *ToolingStore) componentDownload(targetFn string, snapName string, sr
 		return nil, err
 	}
 
+	cref := naming.NewComponentRef(snapName, srr.Name)
+
 	// check if we already have the right file
 	if osutil.FileExists(targetFn) {
 		sha3_384Dgst, size, err := osutil.FileDigest(targetFn, crypto.SHA3_384)
@@ -566,12 +568,13 @@ func (tsto *ToolingStore) componentDownload(targetFn string, snapName string, sr
 			logger.Debugf("not downloading, using existing file %s", targetFn)
 			return &DownloadedComponent{
 				Path: targetFn,
+				Info: snap.NewComponentInfo(cref, ctyp, srr.Version,
+					"", "", "", snap.NewComponentSideInfo(cref, snap.R(srr.Revision))),
 			}, nil
 		}
 		logger.Debugf("File exists but has wrong hash, ignoring (here).")
 	}
 
-	cref := naming.NewComponentRef(snapName, srr.Name)
 	download := func(pb progress.Meter) error {
 		dlOpts := &store.DownloadOptions{LeavePartialOnError: opts.LeavePartialOnError}
 		return tsto.sto.Download(context.TODO(), cref.String(), targetFn,
