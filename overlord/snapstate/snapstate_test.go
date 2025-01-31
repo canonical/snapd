@@ -10087,6 +10087,7 @@ func (s *snapmgrTestSuite) TestDownload(c *C) {
 	downloadSnap := ts.MaybeEdge(snapstate.BeginEdge)
 	c.Assert(downloadSnap, NotNil)
 	c.Check(downloadSnap.Kind(), Equals, "download-snap")
+	c.Check(downloadSnap, DeepEquals, ts.MaybeEdge(snapstate.SnapSetupEdge))
 
 	var snapsup snapstate.SnapSetup
 	err = downloadSnap.Get("snap-setup", &snapsup)
@@ -10184,6 +10185,7 @@ func (s *snapmgrTestSuite) TestDownloadWithComponents(c *C) {
 	begin := ts.MaybeEdge(snapstate.BeginEdge)
 	c.Assert(begin, NotNil)
 	c.Check(begin.Kind(), Equals, "download-snap")
+	c.Check(begin, DeepEquals, ts.MaybeEdge(snapstate.SnapSetupEdge))
 
 	const componentExclusive = false
 	verifySnapAndComponentSetupsForDownload(c, begin, ts, downloadDir, componentExclusive)
@@ -10473,6 +10475,7 @@ func (s *snapmgrTestSuite) TestDownloadComponents(c *C) {
 	begin := ts.MaybeEdge(snapstate.BeginEdge)
 	c.Assert(begin, NotNil)
 	c.Check(begin.Kind(), Equals, "download-component")
+	c.Check(begin, DeepEquals, ts.MaybeEdge(snapstate.SnapSetupEdge))
 
 	const componentExclusive = true
 	verifySnapAndComponentSetupsForDownload(c, begin, ts, downloadDir, componentExclusive)

@@ -3599,6 +3599,7 @@ func (s *deviceMgrSystemsCreateSuite) testDeviceManagerCreateRecoverySystemValid
 
 		tValidate.WaitFor(tDownload)
 		ts := state.NewTaskSet(tDownload, tValidate)
+		ts.MarkEdge(tDownload, snapstate.SnapSetupEdge)
 		ts.MarkEdge(tValidate, snapstate.LastBeforeLocalModificationsEdge)
 		return ts, info, nil
 	})
@@ -4175,6 +4176,7 @@ func (s *deviceMgrSystemsCreateSuite) testDeviceManagerCreateRecoverySystemValid
 		}
 
 		snapsupTask.Set("component-setup-tasks", compsupTaskIDs)
+		ts.MarkEdge(snapsupTask, snapstate.SnapSetupEdge)
 		ts.MarkEdge(prev, snapstate.LastBeforeLocalModificationsEdge)
 
 		return ts, nil
@@ -4234,6 +4236,7 @@ func (s *deviceMgrSystemsCreateSuite) testDeviceManagerCreateRecoverySystemValid
 		}
 
 		download.Set("component-setup-tasks", compsupTaskIDs)
+		ts.MarkEdge(download, snapstate.SnapSetupEdge)
 		ts.MarkEdge(prev, snapstate.LastBeforeLocalModificationsEdge)
 
 		_, info := snaptest.MakeTestSnapInfoWithFiles(c, withComponents(snapYamls[name], compsToTypes(name)), snapFiles[name], si)
@@ -5826,6 +5829,7 @@ plugs:
 
 		tValidate.WaitFor(tDownload)
 		ts := state.NewTaskSet(tDownload, tValidate)
+		ts.MarkEdge(tDownload, snapstate.SnapSetupEdge)
 		ts.MarkEdge(tValidate, snapstate.LastBeforeLocalModificationsEdge)
 		return ts, info, nil
 	})
