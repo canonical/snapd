@@ -42,6 +42,7 @@ import (
 	"github.com/snapcore/snapd/gadget/install"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/overlord/assertstate/assertstatetest"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/overlord/devicestate/devicestatetest"
@@ -77,7 +78,7 @@ func (s *deviceMgrInstallSuite) SetUpTest(c *C) {
 	s.SeedDir = dirs.SnapSeedDir
 }
 
-func (s *deviceMgrInstallSuite) setupSystemSeed(c *C, sysLabel, gadgetYaml string, isClassic bool, kModsRevs map[string]snap.Revision) (*asserts.Model, map[string]interface{}) {
+func (s *deviceMgrInstallSuite) setupSystemSeed(c *C, sysLabel, gadgetYaml string, isClassic bool, kModsRevs map[string]snap.Revision) *asserts.Model {
 	s.StoreSigning = assertstest.NewStoreStack("can0nical", nil)
 
 	s.Brands = assertstest.NewSigningAccounts(s.StoreSigning)
@@ -171,7 +172,7 @@ func (s *deviceMgrInstallSuite) setupSystemSeed(c *C, sysLabel, gadgetYaml strin
 			Name:       "optional24",
 			Components: []seedwriter.OptionsComponent{{Name: "comp1"}},
 		},
-	}), model
+	})
 }
 
 type fakeSeedCopier struct {
@@ -198,7 +199,7 @@ type mockSystemSeedWithLabelOpts struct {
 	types           []snap.Type
 }
 
-func (s *deviceMgrInstallSuite) mockSystemSeedWithLabel(c *C, label string, seedCopyFn func(string, seed.CopyOptions, timings.Measurer) error, opts mockSystemSeedWithLabelOpts) (gadgetSnapPath, kernelSnapPath string, kCompsPaths []string, ginfo *gadget.Info, mountCmd *testutil.MockCmd, rawModel map[string]interface{}) {
+func (s *deviceMgrInstallSuite) mockSystemSeedWithLabel(c *C, label string, seedCopyFn func(string, seed.CopyOptions, timings.Measurer) error, opts mockSystemSeedWithLabelOpts) (gadgetSnapPath, kernelSnapPath string, kCompsPaths []string, ginfo *gadget.Info, mountCmd *testutil.MockCmd, model *asserts.Model) {
 	// Mock partitioned disk
 	gadgetYaml := gadgettest.SingleVolumeUC20GadgetYaml
 	if opts.isClassic {
@@ -222,7 +223,7 @@ func (s *deviceMgrInstallSuite) mockSystemSeedWithLabel(c *C, label string, seed
 	s.AddCleanup(restore)
 
 	// now create a label with snaps/assertions
-	model, rawModel := s.setupSystemSeed(c, label, seedGadget, opts.isClassic, opts.kModsRevs)
+	model = s.setupSystemSeed(c, label, seedGadget, opts.isClassic, opts.kModsRevs)
 	c.Check(model, NotNil)
 
 	// Create fake seed that will return information from the label we created
@@ -299,7 +300,7 @@ func (s *deviceMgrInstallSuite) mockSystemSeedWithLabel(c *C, label string, seed
 	mountCmd = testutil.MockCommand(c, "systemd-mount", "")
 	s.AddCleanup(func() { mountCmd.Restore() })
 
-	return gadgetSnapPath, kernelSnapPath, kCompsPaths, ginfo, mountCmd, rawModel
+	return gadgetSnapPath, kernelSnapPath, kCompsPaths, ginfo, mountCmd, model
 }
 
 type deviceMgrInstallModeSuite struct {
@@ -530,6 +531,17 @@ func (s *deviceMgrInstallModeSuite) makeMockInstallModel(c *C, grade string) *as
 				"type":            "gadget",
 				"default-channel": "20",
 			}},
+	})
+}
+
+func (s *deviceMgrInstallModeSuite) addModelToState(modelAs *asserts.Model) {
+	s.setupBrands()
+	assertstatetest.AddMany(s.state, modelAs)
+
+	devicestatetest.SetDevice(s.state, &auth.DeviceState{
+		Brand: modelAs.BrandID(),
+		Model: modelAs.Model(),
+		// no serial in install mode
 	})
 }
 
@@ -1047,10 +1059,10 @@ func (s *deviceMgrInstallModeSuite) TestInstallRestoresPreseedArtifact(c *C) {
 		preseedArtifact: true,
 		types:           []snap.Type{snap.TypeKernel},
 	}
-	_, _, _, _, _, rawModel := s.mockSystemSeedWithLabel(c, "20200105", seedCopyFn, seedOpts)
+	_, _, _, _, _, model := s.mockSystemSeedWithLabel(c, "20200105", seedCopyFn, seedOpts)
 
 	s.state.Lock()
-	s.makeMockInstallModelExtras(c, "dangerous", rawModel)
+	s.addModelToState(model)
 	s.makeMockInstalledPcKernelAndGadget(c, "", "", core24SnapID)
 	devicestate.SetSystemMode(s.mgr, "install")
 
@@ -1150,10 +1162,10 @@ func (s *deviceMgrInstallModeSuite) TestInstallRestoresPreseedArtifactError(c *C
 		preseedArtifact: true,
 		types:           []snap.Type{snap.TypeKernel},
 	}
-	_, _, _, _, _, rawModel := s.mockSystemSeedWithLabel(c, "20200105", seedCopyFn, seedOpts)
+	_, _, _, _, _, model := s.mockSystemSeedWithLabel(c, "20200105", seedCopyFn, seedOpts)
 
 	s.state.Lock()
-	s.makeMockInstallModelExtras(c, "dangerous", rawModel)
+	s.addModelToState(model)
 	s.makeMockInstalledPcKernelAndGadget(c, "", "", core24SnapID)
 	devicestate.SetSystemMode(s.mgr, "install")
 
@@ -2520,10 +2532,10 @@ func (s *deviceMgrInstallModeSuite) testFactoryResetNoEncryptionHappyFull(c *C, 
 		types:           []snap.Type{snap.TypeKernel},
 		kModsRevs:       kModsRevs,
 	}
-	_, _, _, _, _, rawModel := s.mockSystemSeedWithLabel(c, "20191218", seedCopyFn, seedOpts)
+	_, _, _, _, _, model := s.mockSystemSeedWithLabel(c, "20191218", seedCopyFn, seedOpts)
 
 	s.state.Lock()
-	model := s.makeMockInstallModelExtras(c, "dangerous", rawModel)
+	s.addModelToState(model)
 	s.state.Unlock()
 
 	// for debug timinigs
@@ -2620,10 +2632,10 @@ func (s *deviceMgrInstallModeSuite) testFactoryResetEncryptionHappyFull(c *C, wi
 		types:           []snap.Type{snap.TypeKernel},
 		kModsRevs:       kModsRevs,
 	}
-	_, _, _, _, _, rawModel := s.mockSystemSeedWithLabel(c, "20191218", seedCopyFn, seedOpts)
+	_, _, _, _, _, model := s.mockSystemSeedWithLabel(c, "20191218", seedCopyFn, seedOpts)
 
 	s.state.Lock()
-	model := s.makeMockInstallModelExtras(c, "dangerous", rawModel)
+	s.addModelToState(model)
 	s.state.Unlock()
 
 	// for debug timinigs
@@ -2695,10 +2707,10 @@ func (s *deviceMgrInstallModeSuite) TestFactoryResetEncryptionHappyAfterReboot(c
 		preseedArtifact: false,
 		types:           []snap.Type{snap.TypeKernel},
 	}
-	_, _, _, _, _, rawModel := s.mockSystemSeedWithLabel(c, "20191218", seedCopyFn, seedOpts)
+	_, _, _, _, _, model := s.mockSystemSeedWithLabel(c, "20191218", seedCopyFn, seedOpts)
 
 	s.state.Lock()
-	model := s.makeMockInstallModelExtras(c, "dangerous", rawModel)
+	s.addModelToState(model)
 	s.state.Unlock()
 
 	// for debug timinigs
@@ -2771,10 +2783,10 @@ func (s *deviceMgrInstallModeSuite) TestFactoryResetSerialsWithoutKey(c *C) {
 		preseedArtifact: false,
 		types:           []snap.Type{snap.TypeKernel},
 	}
-	_, _, _, _, _, rawModel := s.mockSystemSeedWithLabel(c, "20191218", seedCopyFn, seedOpts)
+	_, _, _, _, _, model := s.mockSystemSeedWithLabel(c, "20191218", seedCopyFn, seedOpts)
 
 	s.state.Lock()
-	model := s.makeMockInstallModelExtras(c, "dangerous", rawModel)
+	s.addModelToState(model)
 	s.state.Unlock()
 
 	// pretend snap-bootstrap mounted ubuntu-save
@@ -2818,10 +2830,10 @@ func (s *deviceMgrInstallModeSuite) TestFactoryResetNoSerials(c *C) {
 		preseedArtifact: false,
 		types:           []snap.Type{snap.TypeKernel},
 	}
-	_, _, _, _, _, rawModel := s.mockSystemSeedWithLabel(c, "20191218", seedCopyFn, seedOpts)
+	_, _, _, _, _, model := s.mockSystemSeedWithLabel(c, "20191218", seedCopyFn, seedOpts)
 
 	s.state.Lock()
-	model := s.makeMockInstallModelExtras(c, "dangerous", rawModel)
+	s.addModelToState(model)
 	s.state.Unlock()
 
 	// pretend snap-bootstrap mounted ubuntu-save
@@ -2855,10 +2867,10 @@ func (s *deviceMgrInstallModeSuite) TestFactoryResetNoSave(c *C) {
 		preseedArtifact: false,
 		types:           []snap.Type{snap.TypeKernel},
 	}
-	_, _, _, _, _, rawModel := s.mockSystemSeedWithLabel(c, "20191218", seedCopyFn, seedOpts)
+	_, _, _, _, _, model := s.mockSystemSeedWithLabel(c, "20191218", seedCopyFn, seedOpts)
 
 	s.state.Lock()
-	model := s.makeMockInstallModelExtras(c, "dangerous", rawModel)
+	s.addModelToState(model)
 	s.state.Unlock()
 
 	// no ubuntu-save directory, what makes the whole process behave like reinstall
@@ -2939,10 +2951,10 @@ func (s *deviceMgrInstallModeSuite) TestFactoryResetSerialManyOneValid(c *C) {
 		preseedArtifact: false,
 		types:           []snap.Type{snap.TypeKernel},
 	}
-	_, _, _, _, _, rawModel := s.mockSystemSeedWithLabel(c, "20191218", seedCopyFn, seedOpts)
+	_, _, _, _, _, model := s.mockSystemSeedWithLabel(c, "20191218", seedCopyFn, seedOpts)
 
 	s.state.Lock()
-	model := s.makeMockInstallModelExtras(c, "dangerous", rawModel)
+	s.addModelToState(model)
 	s.state.Unlock()
 
 	// pretend snap-bootstrap mounted ubuntu-save
@@ -3013,7 +3025,7 @@ func (s *deviceMgrInstallModeSuite) TestFactoryResetExpectedTasks(c *C) {
 		preseedArtifact: false,
 		types:           []snap.Type{snap.TypeKernel},
 	}
-	_, _, _, _, _, rawModel := s.mockSystemSeedWithLabel(c, "20191218", seedCopyFn, seedOpts)
+	_, _, _, _, _, model := s.mockSystemSeedWithLabel(c, "20191218", seedCopyFn, seedOpts)
 
 	restore := release.MockOnClassic(false)
 	defer restore()
@@ -3041,7 +3053,7 @@ func (s *deviceMgrInstallModeSuite) TestFactoryResetExpectedTasks(c *C) {
 	c.Assert(m.WriteTo(""), IsNil)
 
 	s.state.Lock()
-	s.makeMockInstallModelExtras(c, "dangerous", rawModel)
+	s.addModelToState(model)
 	s.makeMockInstalledPcKernelAndGadget(c, "", "", core24SnapID)
 	devicestate.SetSystemMode(s.mgr, "factory-reset")
 	s.state.Unlock()
@@ -3086,7 +3098,7 @@ func (s *deviceMgrInstallModeSuite) TestFactoryResetInstallDeviceHook(c *C) {
 		preseedArtifact: false,
 		types:           []snap.Type{snap.TypeKernel},
 	}
-	_, _, _, _, _, rawModel := s.mockSystemSeedWithLabel(c, "20191218", seedCopyFn, seedOpts)
+	_, _, _, _, _, model := s.mockSystemSeedWithLabel(c, "20191218", seedCopyFn, seedOpts)
 
 	restore := release.MockOnClassic(false)
 	defer restore()
@@ -3124,7 +3136,7 @@ func (s *deviceMgrInstallModeSuite) TestFactoryResetInstallDeviceHook(c *C) {
 	c.Assert(m.WriteTo(""), IsNil)
 
 	s.state.Lock()
-	s.makeMockInstallModelExtras(c, "dangerous", rawModel)
+	s.addModelToState(model)
 	s.makeMockInstalledPcKernelAndGadget(c, "install-device-hook-content", "", core24SnapID)
 	devicestate.SetSystemMode(s.mgr, "factory-reset")
 	s.state.Unlock()
@@ -3187,10 +3199,10 @@ func (s *deviceMgrInstallModeSuite) TestFactoryResetRunsPrepareRunSystemData(c *
 		preseedArtifact: false,
 		types:           []snap.Type{snap.TypeKernel},
 	}
-	_, _, _, _, _, rawModel := s.mockSystemSeedWithLabel(c, "20191218", seedCopyFn, seedOpts)
+	_, _, _, _, _, model := s.mockSystemSeedWithLabel(c, "20191218", seedCopyFn, seedOpts)
 
 	s.state.Lock()
-	model := s.makeMockInstallModelExtras(c, "dangerous", rawModel)
+	s.addModelToState(model)
 	s.state.Unlock()
 
 	// pretend snap-bootstrap mounted ubuntu-save
