@@ -567,14 +567,17 @@ func run(seedLabel, bootDevice, rootfsCreator, optionalInstallPath string) error
 	if err != nil {
 		return fmt.Errorf("cannot create filesystems: %v", err)
 	}
-	if !isCore {
+
+	if isCore {
+		if err := copySeedToDataPartition(); err != nil {
+			return fmt.Errorf("cannot create seed on data partition: %v", err)
+		}
+	} else {
 		if err := createClassicRootfsIfNeeded(rootfsCreator); err != nil {
 			return fmt.Errorf("cannot create classic rootfs: %v", err)
 		}
 	}
-	if err := copySeedToDataPartition(); err != nil {
-		return fmt.Errorf("cannot create seed on data partition: %v", err)
-	}
+
 	if err := unmountFilesystems(mntPts); err != nil {
 		return fmt.Errorf("cannot unmount filesystems: %v", err)
 	}
