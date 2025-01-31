@@ -717,6 +717,8 @@ func downloadSnapParams(st *state.State, t *state.Task) (*SnapSetup, StoreServic
 	return snapsup, sto, user, nil
 }
 
+var storeDownloadIcon = store.DownloadIcon
+
 func (m *SnapManager) doDownloadSnap(t *state.Task, tomb *tomb.Tomb) error {
 	st := t.State()
 	var rate int64
@@ -789,7 +791,7 @@ func (m *SnapManager) doDownloadSnap(t *state.Task, tomb *tomb.Tomb) error {
 				logger.Debugf("cannot download snap icon for %q: no icon URL", snapsup.SnapName())
 				return
 			}
-			if iconErr := store.DownloadIcon(ctx, snapsup.SnapName(), targetIconFn, iconURL); iconErr != nil {
+			if iconErr := storeDownloadIcon(ctx, snapsup.SnapName(), targetIconFn, iconURL); iconErr != nil {
 				logger.Debugf("cannot download snap icon for %q: %#v", snapsup.SnapName(), iconErr)
 			}
 		})
@@ -806,7 +808,7 @@ func (m *SnapManager) doDownloadSnap(t *state.Task, tomb *tomb.Tomb) error {
 				logger.Debugf("cannot download snap icon for %q: no icon URL", snapsup.SnapName())
 				return
 			}
-			if iconErr := store.DownloadIcon(ctx, snapsup.SnapName(), targetIconFn, iconURL); iconErr != nil {
+			if iconErr := storeDownloadIcon(ctx, snapsup.SnapName(), targetIconFn, iconURL); iconErr != nil {
 				logger.Debugf("cannot download snap icon for %q: %#v", snapsup.SnapName(), iconErr)
 			}
 		})
