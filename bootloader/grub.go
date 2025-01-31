@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 
 	"github.com/snapcore/snapd/arch"
@@ -563,6 +564,15 @@ var grubBootAssetsForArch = map[string]grubBootAssetPath{
 			path: filepath.Join("EFI/ubuntu/", "grubaa64.efi"),
 		},
 	},
+	"riscv64": {
+		defaultGrubBinary: taggedPath{
+			path: filepath.Join("EFI/boot/", "grubriscv64.efi"),
+		},
+		grubBinary: taggedPath{
+			tag:  "ubuntu",
+			path: filepath.Join("EFI/ubuntu/", "grubriscv64.efi"),
+		},
+	},
 }
 
 func (g *grub) getGrubBootAssetsForArch() (*grubBootAssetPath, error) {
@@ -585,7 +595,13 @@ func (g *grub) getGrubRecoveryModeTrustedAssets() ([][]taggedPath, error) {
 	if err != nil {
 		return nil, err
 	}
-	return [][]taggedPath{{assets.shimBinary, assets.grubBinary}, {assets.defaultShimBinary, assets.defaultGrubBinary}}, nil
+	// Currently no shim binary is produced for RISC-V GRUB
+	switch runtime.GOARCH {
+	case "riscv64":
+		return [][]taggedPath{{assets.grubBinary}, {assets.defaultGrubBinary}}, nil
+	default:
+		return [][]taggedPath{{assets.shimBinary, assets.grubBinary}, {assets.defaultShimBinary, assets.defaultGrubBinary}}, nil
+	}
 }
 
 // getGrubRunModeTrustedAssets returns the list of ordered asset
