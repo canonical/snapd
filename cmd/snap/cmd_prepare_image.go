@@ -59,6 +59,7 @@ type cmdPrepareImage struct {
 	ExtraSnaps         []string `long:"extra-snaps" hidden:"yes"` // DEPRECATED
 	RevisionsFile      string   `long:"revisions"`
 	WriteRevisionsFile string   `long:"write-revisions" optional:"true" optional-value:"./seed.manifest"`
+	Validation         string   `long:"validation" choice:"ignore" choice:"enforce"`
 }
 
 func init() {
@@ -100,6 +101,8 @@ For preparing classic images it supports a --classic mode`),
 			"channel": i18n.G("The channel to use"),
 			// TRANSLATORS: This should not start with a lowercase letter.
 			"customize": i18n.G("Image customizations specified as JSON file."),
+			// TRANSLATORS: This should not start with a lowercase letter.
+			"validation": i18n.G("Control whether validations should be ignored or enforced. (default: ignore)"),
 		}, []argDesc{
 			{
 				// TRANSLATORS: This needs to begin with < and end with >
@@ -147,6 +150,11 @@ func (x *cmdPrepareImage) Execute(args []string) error {
 			return err
 		}
 		opts.Customizations = *custo
+	}
+
+	if x.Validation != "" {
+		// validation passed in the command line overrides customizations
+		opts.Customizations.Validation = x.Validation
 	}
 
 	snaps := make([]string, 0, len(x.Snaps)+len(x.ExtraSnaps))
