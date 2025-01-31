@@ -188,16 +188,54 @@ func startOfflineRemodelChange(st *state.State, newModel *asserts.Model,
 
 	*pathsToNotRemove = make([]string, 0, len(slInfo.snaps))
 	localSnaps := make([]snapstate.PathSnap, 0, len(slInfo.snaps))
+	localComponents := make([]snapstate.PathComponent, 0)
 	for _, psi := range slInfo.snaps {
 		// Move file to the same name of what a downloaded one would have
 		dest := filepath.Join(dirs.SnapBlobDir,
 			fmt.Sprintf("%s_%s.snap", psi.info.RealName, psi.info.Revision))
-		os.Rename(psi.tmpPath, dest)
+		if err := os.Rename(psi.tmpPath, dest); err != nil {
+			return nil, InternalError("cannot move uploaded snap file: %v", err)
+		}
+
 		// Avoid trying to remove a file that does not exist anymore
 		*pathsToNotRemove = append(*pathsToNotRemove, psi.tmpPath)
 
 		localSnaps = append(localSnaps, snapstate.PathSnap{
 			SideInfo: &psi.info.SideInfo,
+			Path:     dest,
+		})
+
+		for _, comp := range psi.components {
+			dest := filepath.Join(dirs.SnapBlobDir,
+				fmt.Sprintf("%s_%s.comp", comp.sideInfo.Component, comp.sideInfo.Revision))
+
+			if err := os.Rename(comp.tmpPath, dest); err != nil {
+				return nil, InternalError("cannot move uploaded component file: %v", err)
+			}
+
+			// Avoid trying to remove a file that does not exist anymore
+			*pathsToNotRemove = append(*pathsToNotRemove, comp.tmpPath)
+
+			localComponents = append(localComponents, snapstate.PathComponent{
+				SideInfo: comp.sideInfo,
+				Path:     dest,
+			})
+		}
+	}
+
+	for _, comp := range slInfo.components {
+		dest := filepath.Join(dirs.SnapBlobDir,
+			fmt.Sprintf("%s_%s.comp", comp.sideInfo.Component, comp.sideInfo.Revision))
+
+		if err := os.Rename(comp.tmpPath, dest); err != nil {
+			return nil, InternalError("cannot move uploaded component file: %v", err)
+		}
+
+		// Avoid trying to remove a file that does not exist anymore
+		*pathsToNotRemove = append(*pathsToNotRemove, comp.tmpPath)
+
+		localComponents = append(localComponents, snapstate.PathComponent{
+			SideInfo: comp.sideInfo,
 			Path:     dest,
 		})
 	}
@@ -206,8 +244,9 @@ func startOfflineRemodelChange(st *state.State, newModel *asserts.Model,
 	chg, err := devicestateRemodel(st, newModel, devicestate.RemodelOptions{
 		// since this is the codepath that parses the form, offline is implicit
 		// because local snaps are being provided.
-		Offline:    true,
-		LocalSnaps: localSnaps,
+		Offline:         true,
+		LocalSnaps:      localSnaps,
+		LocalComponents: localComponents,
 	})
 	if err != nil {
 		return nil, BadRequest("cannot remodel device: %v", err)
