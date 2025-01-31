@@ -48,6 +48,7 @@ import (
 	"github.com/snapcore/snapd/osutil/disks"
 	"github.com/snapcore/snapd/osutil/kcmdline"
 	"github.com/snapcore/snapd/snapdtool"
+	"github.com/snapcore/snapd/systemd"
 
 	// to set sysconfig.ApplyFilesystemOnlyDefaultsImpl
 	_ "github.com/snapcore/snapd/overlord/configstate/configcore"
@@ -1837,6 +1838,15 @@ func mountNonDataPartitionMatchingKernelDisk(dir, fallbacklabel string, opts *sy
 	return doSystemdMount(partSrc, dir, opts)
 }
 
+func is24plusSystem(model *asserts.Model) bool {
+	switch model.Base() {
+	case "core20", "core22", "core22-desktop":
+		return false
+	default:
+		return true
+	}
+}
+
 func generateMountsCommonInstallRecoverStart(mst *initramfsMountsState) (model *asserts.Model, sysSnaps map[snap.Type]*seed.Snap, err error) {
 	seedMountOpts := &systemdMountOptions{
 		// always fsck the partition when we are mounting it, as this is the
@@ -1897,10 +1907,32 @@ func generateMountsCommonInstallRecoverStart(mst *initramfsMountsState) (model *
 
 	for _, essentialSnap := range essSnaps {
 		systemSnaps[essentialSnap.EssentialType] = essentialSnap
-		dir := snapTypeToMountDir[essentialSnap.EssentialType]
-		// TODO:UC20: we need to cross-check the kernel path with snapd_recovery_kernel used by grub
-		if err := doSystemdMount(essentialSnap.Path, filepath.Join(boot.InitramfsRunMntDir, dir), mountReadOnlyOptions); err != nil {
-			return nil, nil, err
+		if essentialSnap.EssentialType == snap.TypeBase && is24plusSystem(model) {
+			// Create unit to mount directly to /sysroot. We
+			// restrict this to UC24+ for the moment, until we backport
+			// necessary changes to the UC20/22 initramfs.
+			what := essentialSnap.Path
+			if err := writeSysrootMountUnit(what, "squashfs"); err != nil {
+				return nil, nil, fmt.Errorf(
+					"cannot write sysroot.mount (what: %s): %v", what, err)
+			}
+			// Do a daemon reload so systemd knows about the new sysroot mount unit
+			// (populate-writable.service depends on sysroot.mount, we need to make
+			// sure systemd knows this unit before snap-initramfs-mounts.service
+			// finishes)
+			sysd := systemd.New(systemd.SystemMode, nil)
+			if err := sysd.DaemonReload(); err != nil {
+				return nil, nil, err
+			}
+		} else {
+			dir := snapTypeToMountDir[essentialSnap.EssentialType]
+			// TODO:UC20: we need to cross-check the kernel path
+			// with snapd_recovery_kernel used by grub
+			if err := doSystemdMount(essentialSnap.Path,
+				filepath.Join(boot.InitramfsRunMntDir, dir),
+				mountReadOnlyOptions); err != nil {
+				return nil, nil, err
+			}
 		}
 	}
 
@@ -2356,6 +2388,25 @@ func generateMountsModeRun(mst *initramfsMountsState) error {
 	//            to the function above to make decisions there, or perhaps this
 	//            code actually belongs in the bootloader implementation itself
 
+	typesToMount := typs
+	if is24plusSystem(model) {
+		// Create unit for sysroot (mounts either base or rootfs). We
+		// restrict this to UC24+ for the moment, until we backport
+		// necessary changes to the UC20/22 initramfs.
+		typesToMount = []snap.Type{snap.TypeGadget, snap.TypeKernel}
+		if isClassic {
+			if err := writeSysrootMountUnit(rootfsDir, ""); err != nil {
+				return fmt.Errorf("cannot write sysroot.mount (what: %s): %v", rootfsDir, err)
+			}
+		} else {
+			basePlaceInfo := mounts[snap.TypeBase]
+			what := filepath.Join(dirs.SnapBlobDirUnder(rootfsDir), basePlaceInfo.Filename())
+			if err := writeSysrootMountUnit(what, "squashfs"); err != nil {
+				return fmt.Errorf("cannot write sysroot.mount (what: %s): %v", what, err)
+			}
+		}
+	}
+
 	// Create mounts for kernel modules/firmware if we have a drivers tree.
 	// InitramfsRunModeSelectSnapsToMount guarantees we do have a kernel in the map.
 	kernPlaceInfo := mounts[snap.TypeKernel]
@@ -2365,8 +2416,8 @@ func generateMountsModeRun(mst *initramfsMountsState) error {
 		return err
 	}
 
-	// 4.3 mount base (if UC), gadget and kernel (if there is no drivers tree) snaps
-	for _, typ := range typs {
+	// 4.3 mount the gadget snap and, if there is no drivers tree, the kernel snap
+	for _, typ := range typesToMount {
 		if typ == snap.TypeKernel && hasDriversTree {
 			continue
 		}
@@ -2412,7 +2463,12 @@ func generateMountsModeRun(mst *initramfsMountsState) error {
 		}
 	}
 
-	return nil
+	// Do a daemon reload so systemd knows about the new sysroot mount unit
+	// (populate-writable.service depends on sysroot.mount, we need to make
+	// sure systemd knows this unit before snap-initramfs-mounts.service
+	// finishes)
+	sysd := systemd.New(systemd.SystemMode, nil)
+	return sysd.DaemonReload()
 }
 
 var tryRecoverySystemHealthCheck = func(model gadget.Model) error {
