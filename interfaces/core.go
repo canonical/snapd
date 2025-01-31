@@ -310,6 +310,8 @@ const (
 	SecuritySystemd SecuritySystem = "systemd"
 	// SecurityPolkit identifies the polkit security system.
 	SecurityPolkit SecuritySystem = "polkit"
+	// SecurityLdconfig identifies the ldconfig security system.
+	SecurityLdconfig SecuritySystem = "ldconfig"
 )
 
 var isValidBusName = regexp.MustCompile(`^[a-zA-Z_-][a-zA-Z0-9_-]*(\.[a-zA-Z_-][a-zA-Z0-9_-]*)+$`).MatchString

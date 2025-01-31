@@ -811,16 +811,12 @@ func (r *Repository) Connections(snapName string) ([]*ConnRef, error) {
 
 // guessSystemSnapName returns the name of the system snap if one exists
 func (r *Repository) guessSystemSnapName() (string, error) {
-	switch {
-	case r.appSets["snapd"] != nil:
-		return "snapd", nil
-	case r.appSets["core"] != nil:
-		return "core", nil
-	case r.appSets["ubuntu-core"] != nil:
-		return "ubuntu-core", nil
-	default:
-		return "", fmt.Errorf("cannot guess the name of the core snap")
+	for _, name := range systemSnapNames() {
+		if r.appSets[name] != nil {
+			return name, nil
+		}
 	}
+	return "", fmt.Errorf("cannot guess the name of the core snap")
 }
 
 // DisconnectAll disconnects all provided connection references.
