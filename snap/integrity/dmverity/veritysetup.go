@@ -23,6 +23,7 @@ import (
 	"bufio"
 	"bytes"
 	"encoding/binary"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"os"
@@ -233,6 +234,10 @@ func (sb *VeritySuperblock) Validate() error {
 	}
 
 	return nil
+}
+
+func (sb *VeritySuperblock) EncodedSalt() string {
+	return hex.EncodeToString(sb.Salt[:])[:sb.SaltSize]
 }
 
 // ReadSuperblock reads the dm-verity superblock from a dm-verity hash file.
