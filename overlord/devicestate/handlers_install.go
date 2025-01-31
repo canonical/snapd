@@ -76,6 +76,7 @@ var (
 	installMatchDisksToGadgetVolumes     = install.MatchDisksToGadgetVolumes
 	secbootStageEncryptionKeyChange      = secboot.StageEncryptionKeyChange
 	secbootTransitionEncryptionKeyChange = secboot.TransitionEncryptionKeyChange
+	secbootTemporaryNameOldKeys          = secboot.TemporaryNameOldKeys
 
 	installLogicPrepareRunSystemData = installLogic.PrepareRunSystemData
 )
@@ -1313,9 +1314,10 @@ func (m *DeviceManager) doInstallSetupStorageEncryption(t *state.Task, _ *tomb.T
 
 var (
 	secbootAddBootstrapKeyOnExistingDisk = secboot.AddBootstrapKeyOnExistingDisk
-	secbootRenameOrDeleteKeys            = secboot.RenameOrDeleteKeys
+	secbootRenameKeys                    = secboot.RenameKeys
 	secbootCreateBootstrappedContainer   = secboot.CreateBootstrappedContainer
 	secbootDeleteKeys                    = secboot.DeleteKeys
+	secbootDeleteOldKeys                 = secboot.DeleteOldKeys
 )
 
 func createSaveBootstrappedContainer(saveNode string) (secboot.BootstrappedContainer, error) {
@@ -1352,8 +1354,16 @@ func createSaveBootstrappedContainer(saveNode string) (secboot.BootstrappedConta
 		"default":          "factory-reset-old",
 		"default-fallback": "factory-reset-old-fallback",
 	}
-	if err := secbootRenameOrDeleteKeys(saveNode, renames); err != nil {
-		return nil, err
+	// Temporarily rename keyslots across the factory reset to
+	// allow to create the new ones.
+	if err := secbootRenameKeys(saveNode, renames); err != nil {
+		return nil, fmt.Errorf("cannot rename existing keys: %w", err)
+	}
+
+	// Deal as needed instead with naming unamed keyslots, they
+	// will be removed at the end of factory reset.
+	if err := secbootTemporaryNameOldKeys(saveNode); err != nil {
+		return nil, fmt.Errorf("cannot convert old keys: %w", err)
 	}
 
 	return secbootCreateBootstrappedContainer(secboot.DiskUnlockKey(saveEncryptionKey), saveNode), nil
@@ -1378,5 +1388,16 @@ func deleteOldSaveKey(saveMntPnt string) error {
 		"factory-reset-old-fallback": true,
 	}
 
-	return secbootDeleteKeys(diskPath, toDelete)
+	// DeleteKeys will remove the keys that were renamed from the
+	// previous installation
+	if err := secbootDeleteKeys(diskPath, toDelete); err != nil {
+		return fmt.Errorf("cannot delete previous keys: %w", err)
+	}
+	// DeleteOldKeys will remove the keys that were named by
+	// TemporaryNameOldKeys from an old disk that did not have names on
+	// keys.
+	if err := secbootDeleteOldKeys(diskPath); err != nil {
+		return fmt.Errorf("cannot remove old disk keys: %w", err)
+	}
+	return nil
 }

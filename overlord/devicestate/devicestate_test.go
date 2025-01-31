@@ -2263,12 +2263,21 @@ func (s *deviceMgrSuite) TestDeviceManagerEnsurePostFactoryResetEncrypted(c *C) 
 	})
 	defer restore()
 
+	removeOldDiskKeys := 0
+	restore = devicestate.MockSecbootDeleteOldKeys(func(devicePath string) error {
+		c.Check(devicePath, Equals, "/dev/disk/by-uuid/FOOUUID")
+		removeOldDiskKeys++
+		return nil
+	})
+	defer restore()
+
 	err = s.mgr.Ensure()
 	c.Assert(err, IsNil)
 
 	c.Check(completeCalls, Equals, 1)
 	c.Check(transitionCalls, Equals, 0)
 	c.Check(deleteOldSaveKey, Equals, 1)
+	c.Check(removeOldDiskKeys, Equals, 1)
 	// factory reset marker is gone, the key was verified successfully
 	c.Check(filepath.Join(dirs.SnapDeviceDir, "factory-reset"), testutil.FileAbsent)
 	c.Check(filepath.Join(dirs.SnapFDEDir, "marker"), testutil.FilePresent)
@@ -2276,6 +2285,7 @@ func (s *deviceMgrSuite) TestDeviceManagerEnsurePostFactoryResetEncrypted(c *C) 
 	completeCalls = 0
 	transitionCalls = 0
 	deleteOldSaveKey = 0
+	removeOldDiskKeys = 0
 	// try again, no marker, nothing should happen
 	devicestate.SetPostFactoryResetRan(s.mgr, false)
 	err = s.mgr.Ensure()
@@ -2284,6 +2294,7 @@ func (s *deviceMgrSuite) TestDeviceManagerEnsurePostFactoryResetEncrypted(c *C) 
 	c.Check(completeCalls, Equals, 0)
 	c.Check(transitionCalls, Equals, 0)
 	c.Check(deleteOldSaveKey, Equals, 0)
+	c.Check(removeOldDiskKeys, Equals, 0)
 
 	// have the marker, but migrate the key as if boot code would do it and
 	// try again, in this setup the marker hash matches the migrated key
@@ -2298,6 +2309,7 @@ func (s *deviceMgrSuite) TestDeviceManagerEnsurePostFactoryResetEncrypted(c *C) 
 	c.Check(completeCalls, Equals, 1)
 	c.Check(transitionCalls, Equals, 0)
 	c.Check(deleteOldSaveKey, Equals, 1)
+	c.Check(removeOldDiskKeys, Equals, 1)
 	// the marker was again removed
 	c.Check(filepath.Join(dirs.SnapDeviceDir, "factory-reset"), testutil.FileAbsent)
 }
