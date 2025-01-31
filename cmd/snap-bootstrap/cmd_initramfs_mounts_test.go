@@ -955,7 +955,7 @@ func (s *initramfsMountsSuite) testInitramfsMountsInstallModeWithCompsHappy(c *C
 			observeExistingTrustedRecoveryAssetsCalled += 1
 			return nil
 		},
-		ChosenEncryptionKeysFunc: func(key, saveKey keys.EncryptionKey) {
+		SetBootstrappedContainersAndPrimaryKeyFunc: func(key, saveKey secboot.BootstrappedContainer, primaryKey []byte) {
 		},
 		UpdateBootEntryFunc: func() error {
 			return nil
