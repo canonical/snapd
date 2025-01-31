@@ -28,6 +28,7 @@ import (
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/boot"
+	"github.com/snapcore/snapd/boot/boottest"
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/secboot"
@@ -1067,13 +1068,13 @@ func (s *bootchainSuite) TestBootAssetsToLoadChainWithAlternativeChains(c *C) {
 	}
 
 	// mock relevant files in cache
-	mockAssetsCache(c, s.rootDir, "recovery-bl", []string{
+	boottest.MockAssetsCache(c, s.rootDir, "recovery-bl", []string{
 		"shim-hash0",
 		"shim-hash1",
 		"loader-recovery-hash0",
 		"loader-recovery-hash1",
 	})
-	mockAssetsCache(c, s.rootDir, "run-bl", []string{
+	boottest.MockAssetsCache(c, s.rootDir, "run-bl", []string{
 		"loader-run-hash0",
 		"loader-run-hash1",
 	})

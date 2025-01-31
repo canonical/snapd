@@ -581,3 +581,31 @@ func (s *bootCommandLines) UnmarshalJSON(data []byte) error {
 	*s = bootCommandLines(asList)
 	return nil
 }
+
+// MaybeReadModeenv uses ReadModeenv() with the default root directory, but
+// ignores ENOENT errors and returns a nil, but no error.
+func MaybeReadModeenv() (*Modeenv, error) {
+	modeenv, err := ReadModeenv("")
+	if err != nil && !os.IsNotExist(err) {
+		return nil, fmt.Errorf("cannot read modeenv: %v", err)
+	}
+	return modeenv, nil
+}
+
+// SystemMode returns the current mode of the system and a flag indicating
+// whether the mode is explicitly set through modeenv. When the mode is not set
+// epxlicitly through modeenv, caller provided fallback is returned.
+func SystemMode(fallback string) (mode string, explicit bool, err error) {
+	modeenv, err := MaybeReadModeenv()
+	if err != nil {
+		return "", false, err
+	}
+
+	if modeenv != nil {
+		// we have the modeenv, making the system mode explicit
+		return modeenv.Mode, true, nil
+	}
+
+	// lacking the modeenv, system is implicitly in "run" mode
+	return fallback, false, nil
+}

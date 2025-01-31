@@ -22,12 +22,14 @@ package secboot_test
 
 import (
 	"bytes"
-	"crypto/ecdsa"
+	"crypto/rand"
 	"encoding/base64"
+	"encoding/binary"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -37,6 +39,7 @@ import (
 	"github.com/canonical/go-tpm2/mu"
 	sb "github.com/snapcore/secboot"
 	sb_efi "github.com/snapcore/secboot/efi"
+	sb_hooks "github.com/snapcore/secboot/hooks"
 	sb_tpm2 "github.com/snapcore/secboot/tpm2"
 	. "gopkg.in/check.v1"
 
@@ -47,6 +50,7 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget/device"
 	"github.com/snapcore/snapd/kernel/fde"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/disks"
 	"github.com/snapcore/snapd/secboot"
@@ -59,6 +63,8 @@ import (
 
 type secbootSuite struct {
 	testutil.BaseTest
+
+	currentModel sb.SnapModel
 }
 
 var _ = Suite(&secbootSuite{})
@@ -69,6 +75,14 @@ func (s *secbootSuite) SetUpTest(c *C) {
 	c.Assert(err, IsNil)
 	dirs.SetRootDir(rootDir)
 	s.AddCleanup(func() { dirs.SetRootDir("/") })
+
+	s.AddCleanup(secboot.MockSbSetModel(func(model sb.SnapModel) {
+		s.currentModel = model
+	}))
+	s.AddCleanup(secboot.MockSbSetBootMode(func(mode string) {
+	}))
+	s.AddCleanup(secboot.MockSbSetKeyRevealer(func(kr sb_hooks.KeyRevealer) {
+	}))
 }
 
 func (s *secbootSuite) TestCheckTPMKeySealingSupported(c *C) {
@@ -426,6 +440,7 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncrypted(c *C) {
 			{
 				FilesystemLabel: "name-enc",
 				PartitionUUID:   "enc-dev-partuuid",
+				FilesystemUUID:  "enc-dev-uuid",
 			},
 		},
 	}
@@ -437,45 +452,66 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncrypted(c *C) {
 			{
 				FilesystemLabel: "name",
 				PartitionUUID:   "unenc-dev-partuuid",
+				FilesystemUUID:  "unenc-dev-uuid",
 			},
 		},
 	}
 
 	for idx, tc := range []struct {
-		tpmErr              error
 		tpmEnabled          bool  // TPM storage and endorsement hierarchies disabled, only relevant if TPM available
 		hasEncdev           bool  // an encrypted device exists
 		rkAllow             bool  // allow recovery key activation
 		rkErr               error // recovery key unlock error, only relevant if TPM not available
-		activated           bool  // the activation operation succeeded
 		activateErr         error // the activation error
 		uuidFailure         bool  // failure to get valid uuid
 		err                 string
 		skipDiskEnsureCheck bool // whether to check to ensure the mock disk contains the device label
 		expUnlockMethod     secboot.UnlockMethod
 		disk                *disks.MockDiskMapping
+		oldKeyFormat        bool
+		noKeyFile           bool // when no key file is present, then we expect the key data is in the token
+		errorReadKeyFile    bool
 	}{
 		{
 			// happy case with tpm and encrypted device
 			tpmEnabled: true, hasEncdev: true,
-			activated:       true,
 			disk:            mockDiskWithEncDev,
 			expUnlockMethod: secboot.UnlockedWithSealedKey,
 		}, {
+			// happy case with tpm and encrypted device, and keys on the tokens
+			tpmEnabled: true, hasEncdev: true,
+			disk:            mockDiskWithEncDev,
+			expUnlockMethod: secboot.UnlockedWithSealedKey,
+			noKeyFile:       true,
+		}, {
+			// happy case with tpm and old sealed key
+			tpmEnabled: true, hasEncdev: true,
+			disk:            mockDiskWithEncDev,
+			expUnlockMethod: secboot.UnlockedWithSealedKey,
+			oldKeyFormat:    true,
+		}, {
+			// If we cannot read the key file we should still try to open without key
+			tpmEnabled: true, hasEncdev: true,
+			disk:             mockDiskWithEncDev,
+			expUnlockMethod:  secboot.UnlockedWithSealedKey,
+			errorReadKeyFile: true,
+		}, {
 			// encrypted device: failure to generate uuid based target device name
-			tpmEnabled: true, hasEncdev: true, activated: true, uuidFailure: true,
+			tpmEnabled: true, hasEncdev: true, uuidFailure: true,
 			disk: mockDiskWithEncDev,
 			err:  "mocked uuid error",
 		}, {
 			// device activation fails
 			tpmEnabled: true, hasEncdev: true,
-			err:  "cannot activate encrypted device .*: activation error",
-			disk: mockDiskWithEncDev,
+			activateErr: fmt.Errorf("activation error"),
+			err:         "cannot activate encrypted device .*: activation error",
+			disk:        mockDiskWithEncDev,
 		}, {
 			// device activation fails
 			tpmEnabled: true, hasEncdev: true,
-			err:  "cannot activate encrypted device .*: activation error",
-			disk: mockDiskWithEncDev,
+			activateErr: fmt.Errorf("activation error"),
+			err:         "cannot activate encrypted device .*: activation error",
+			disk:        mockDiskWithEncDev,
 		}, {
 			// happy case without encrypted device
 			tpmEnabled: true,
@@ -483,19 +519,10 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncrypted(c *C) {
 		}, {
 			// happy case with tpm and encrypted device, activation
 			// with recovery key
-			tpmEnabled: true, hasEncdev: true, activated: true,
+			tpmEnabled: true, hasEncdev: true,
 			activateErr:     sb.ErrRecoveryKeyUsed,
 			disk:            mockDiskWithEncDev,
 			expUnlockMethod: secboot.UnlockedWithRecoveryKey,
-		}, {
-			// tpm error, no encrypted device
-			tpmErr: errors.New("tpm error"),
-			disk:   mockDiskWithUnencDev,
-		}, {
-			// tpm error, has encrypted device
-			tpmErr: errors.New("tpm error"), hasEncdev: true,
-			err:  `cannot unlock encrypted device "name": tpm error`,
-			disk: mockDiskWithEncDev,
 		}, {
 			// tpm disabled, no encrypted device
 			disk: mockDiskWithUnencDev,
@@ -503,36 +530,16 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncrypted(c *C) {
 			// tpm disabled, has encrypted device, unlocked using the recovery key
 			hasEncdev:       true,
 			rkAllow:         true,
+			activateErr:     sb.ErrRecoveryKeyUsed,
 			disk:            mockDiskWithEncDev,
 			expUnlockMethod: secboot.UnlockedWithRecoveryKey,
 		}, {
 			// tpm disabled, has encrypted device, recovery key unlocking fails
 			hasEncdev: true, rkErr: errors.New("cannot unlock with recovery key"),
-			rkAllow: true,
-			disk:    mockDiskWithEncDev,
-			err:     `cannot unlock encrypted device ".*/enc-dev-partuuid": cannot unlock with recovery key`,
-		}, {
-			// no tpm, has encrypted device, unlocked using the recovery key
-			tpmErr: sb_tpm2.ErrNoTPM2Device, hasEncdev: true,
-			rkAllow:         true,
-			disk:            mockDiskWithEncDev,
-			expUnlockMethod: secboot.UnlockedWithRecoveryKey,
-		}, {
-			// no tpm, has encrypted device, unlocking with recovery key not allowed
-			tpmErr: sb_tpm2.ErrNoTPM2Device, hasEncdev: true,
-			disk: mockDiskWithEncDev,
-			err:  `cannot activate encrypted device ".*/enc-dev-partuuid": activation error`,
-		}, {
-			// no tpm, has encrypted device, recovery key unlocking fails
-			rkErr:  errors.New("cannot unlock with recovery key"),
-			tpmErr: sb_tpm2.ErrNoTPM2Device, hasEncdev: true,
-			rkAllow: true,
-			disk:    mockDiskWithEncDev,
-			err:     `cannot unlock encrypted device ".*/enc-dev-partuuid": cannot unlock with recovery key`,
-		}, {
-			// no tpm, no encrypted device
-			tpmErr: sb_tpm2.ErrNoTPM2Device,
-			disk:   mockDiskWithUnencDev,
+			rkAllow:     true,
+			activateErr: fmt.Errorf("some error"),
+			disk:        mockDiskWithEncDev,
+			err:         `cannot activate encrypted device "/dev/disk/by-uuid/enc-dev-uuid": some error`,
 		}, {
 			// no disks at all
 			disk:                mockDiskWithoutAnyDev,
@@ -543,120 +550,222 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncrypted(c *C) {
 			err: "error enumerating partitions for disk to find unencrypted device \"name\": filesystem label \"name\" not found",
 		},
 	} {
-		c.Logf("tc %v: %+v", idx, tc)
+		// we need a closure to force calling the "defer"s at the end of the test case
+		func() {
+			c.Logf("tc %v: %+v", idx, tc)
 
-		randomUUID := fmt.Sprintf("random-uuid-for-test-%d", idx)
-		restore := secboot.MockRandomKernelUUID(func() (string, error) {
-			if tc.uuidFailure {
-				return "", errors.New("mocked uuid error")
+			logbuf, restore := logger.MockLogger()
+			defer restore()
+
+			randomUUID := fmt.Sprintf("random-uuid-for-test-%d", idx)
+			restore = secboot.MockRandomKernelUUID(func() (string, error) {
+				if tc.uuidFailure {
+					return "", errors.New("mocked uuid error")
+				}
+				return randomUUID, nil
+			})
+			defer restore()
+
+			restore = secboot.MockIsTPMEnabled(func(tpm *sb_tpm2.Connection) bool {
+				return tc.tpmEnabled
+			})
+			defer restore()
+
+			defaultDevice := "name"
+
+			fsLabel := defaultDevice
+			if tc.hasEncdev {
+				fsLabel += "-enc"
 			}
-			return randomUUID, nil
-		})
-		defer restore()
 
-		_, restoreConnect := mockSbTPMConnection(c, tc.tpmErr)
-		defer restoreConnect()
+			uuid := ""
+			partUUID := ""
+			if !tc.skipDiskEnsureCheck {
+				for _, p := range tc.disk.Structure {
+					if p.FilesystemLabel == fsLabel {
+						uuid = p.FilesystemUUID
+						partUUID = p.PartitionUUID
+						break
+					}
+				}
+				c.Assert(uuid, Not(Equals), "", Commentf("didn't find fs label %s in disk", fsLabel))
+				c.Assert(partUUID, Not(Equals), "", Commentf("didn't find fs label %s in disk", fsLabel))
+			}
 
-		restore = secboot.MockIsTPMEnabled(func(tpm *sb_tpm2.Connection) bool {
-			return tc.tpmEnabled
-		})
-		defer restore()
+			devicePath := filepath.Join("/dev/disk/by-partuuid", partUUID)
+			devicePathUUID := fmt.Sprintf("/dev/disk/by-uuid/%s", uuid)
 
-		defaultDevice := "name"
+			var keyPath string
+			var expectedKeyPath fs.FileInfo
 
-		fsLabel := defaultDevice
-		if tc.hasEncdev {
-			fsLabel += "-enc"
-		}
+			if !tc.noKeyFile && !tc.errorReadKeyFile {
+				if tc.oldKeyFormat {
+					keyPath = filepath.Join("test-data", "keyfile")
+				} else {
+					keyPath = filepath.Join("test-data", "keydata")
+				}
+				finfo, err := os.Lstat(keyPath)
+				c.Assert(err, IsNil)
+				expectedKeyPath = finfo
+			} else {
+				keyPath = "/some/path"
+			}
 
-		partuuid := ""
-		if !tc.skipDiskEnsureCheck {
-			for _, p := range tc.disk.Structure {
-				if p.FilesystemLabel == fsLabel {
-					partuuid = p.PartitionUUID
-					break
+			var expectedKeyData *sb.KeyData
+
+			restore = secboot.MockSbNewKeyDataFromSealedKeyObjectFile(func(path string) (*sb.KeyData, error) {
+				if !tc.oldKeyFormat {
+					c.Errorf("unexpected call")
+				}
+				info, err := os.Lstat(path)
+				c.Assert(err, IsNil)
+				sameFile := os.SameFile(expectedKeyPath, info)
+				c.Check(sameFile, Equals, true)
+
+				kd, err := sb_tpm2.NewKeyDataFromSealedKeyObjectFile(keyPath)
+				c.Assert(err, IsNil)
+
+				if sameFile {
+					c.Check(expectedKeyData, IsNil)
+					expectedKeyData = kd
+				}
+
+				return kd, nil
+			})
+			defer restore()
+
+			var expectedKeyDataReader *sb.FileKeyDataReader
+
+			restore = secboot.MockSbNewFileKeyDataReader(func(path string) (*sb.FileKeyDataReader, error) {
+				if tc.oldKeyFormat || tc.noKeyFile || tc.errorReadKeyFile {
+					c.Errorf("unexpected call")
+				}
+				info, err := os.Lstat(path)
+				c.Assert(err, IsNil)
+				sameFile := os.SameFile(expectedKeyPath, info)
+				c.Check(sameFile, Equals, true)
+
+				kdr, err := sb.NewFileKeyDataReader(keyPath)
+				c.Assert(err, IsNil)
+
+				if sameFile {
+					c.Check(expectedKeyDataReader, IsNil)
+					expectedKeyDataReader = kdr
+				}
+
+				return kdr, nil
+			})
+			defer restore()
+
+			if tc.noKeyFile || tc.errorReadKeyFile {
+				restore = secboot.MockReadKeyFile(func(keyfile string, kl secboot.KeyLoader, hintExpectFDEHook bool) error {
+					if tc.noKeyFile {
+						return fs.ErrNotExist
+					}
+					if tc.errorReadKeyFile {
+						return fmt.Errorf("some other error")
+					}
+					c.Errorf("unexpected call")
+					return fmt.Errorf("unexpected call")
+				})
+				defer restore()
+			}
+
+			restore = secboot.MockSbReadKeyData(func(reader sb.KeyDataReader) (*sb.KeyData, error) {
+				if tc.oldKeyFormat || tc.noKeyFile || tc.errorReadKeyFile {
+					c.Errorf("unexpected call")
+				}
+				c.Check(expectedKeyDataReader, Equals, reader)
+				kd, err := sb.ReadKeyData(reader)
+				c.Assert(err, IsNil)
+
+				if expectedKeyDataReader == reader {
+					c.Check(expectedKeyData, IsNil)
+					expectedKeyData = kd
+				}
+
+				return kd, nil
+			})
+			defer restore()
+
+			restore = secboot.MockSbActivateVolumeWithKeyData(func(volumeName, sourceDevicePath string, authRequestor sb.AuthRequestor, options *sb.ActivateVolumeOptions, keys ...*sb.KeyData) error {
+
+				c.Assert(volumeName, Equals, "name-"+randomUUID)
+				c.Assert(sourceDevicePath, Equals, devicePathUUID)
+				if tc.noKeyFile || tc.errorReadKeyFile {
+					c.Check(keys, HasLen, 0)
+				} else {
+					c.Assert(keys, HasLen, 1)
+					c.Assert(keys[0], Equals, expectedKeyData)
+				}
+
+				if tc.rkAllow {
+					c.Assert(*options, DeepEquals, sb.ActivateVolumeOptions{
+						PassphraseTries:   1,
+						RecoveryKeyTries:  3,
+						KeyringPrefix:     "ubuntu-fde",
+						LegacyDevicePaths: []string{"/dev/disk/by-partuuid/enc-dev-partuuid"},
+					})
+				} else {
+					c.Assert(*options, DeepEquals, sb.ActivateVolumeOptions{
+						PassphraseTries: 1,
+						// activation with recovery key was disabled
+						RecoveryKeyTries:  0,
+						KeyringPrefix:     "ubuntu-fde",
+						LegacyDevicePaths: []string{"/dev/disk/by-partuuid/enc-dev-partuuid"},
+					})
+				}
+				return tc.activateErr
+			})
+			defer restore()
+
+			restore = secboot.MockSbActivateVolumeWithRecoveryKey(func(name, device string, authReq sb.AuthRequestor,
+				options *sb.ActivateVolumeOptions) error {
+				c.Errorf("unexpected call")
+				return fmt.Errorf("unexpected call")
+			})
+			defer restore()
+
+			opts := &secboot.UnlockVolumeUsingSealedKeyOptions{
+				AllowRecoveryKey: tc.rkAllow,
+				WhichModel: func() (*asserts.Model, error) {
+					return fakeModel, nil
+				},
+			}
+			unlockRes, err := secboot.UnlockVolumeUsingSealedKeyIfEncrypted(tc.disk, defaultDevice, keyPath, opts)
+			if tc.errorReadKeyFile {
+				c.Check(logbuf.String(), testutil.Contains, `WARNING: there was an error loading key /some/path: some other error`)
+			} else {
+				c.Check(logbuf.String(), Not(testutil.Contains), `WARNING: there was an error loading key`)
+			}
+			if tc.err == "" {
+				c.Assert(err, IsNil)
+				c.Assert(unlockRes.IsEncrypted, Equals, tc.hasEncdev)
+				c.Assert(unlockRes.PartDevice, Equals, devicePath)
+				if tc.hasEncdev {
+					c.Assert(unlockRes.FsDevice, Equals, filepath.Join("/dev/mapper", defaultDevice+"-"+randomUUID))
+				} else {
+					c.Assert(unlockRes.FsDevice, Equals, devicePath)
+				}
+			} else {
+				c.Assert(err, ErrorMatches, tc.err)
+				// also check that the IsEncrypted value matches, this is
+				// important for robust callers to know whether they should try to
+				// unlock using a different method or not
+				// this is only skipped on some test cases where we get an error
+				// very early, like trying to connect to the tpm
+				c.Assert(unlockRes.IsEncrypted, Equals, tc.hasEncdev)
+				if tc.hasEncdev {
+					c.Check(unlockRes.PartDevice, Equals, devicePath)
+					c.Check(unlockRes.FsDevice, Equals, "")
+				} else {
+					c.Check(unlockRes.PartDevice, Equals, "")
+					c.Check(unlockRes.FsDevice, Equals, "")
 				}
 			}
-			c.Assert(partuuid, Not(Equals), "", Commentf("didn't find fs label %s in disk", fsLabel))
-		}
 
-		devicePath := filepath.Join("/dev/disk/by-partuuid", partuuid)
-
-		keyPath := filepath.Join("test-data", "keyfile")
-		kd, err := sb_tpm2.NewKeyDataFromSealedKeyObjectFile(keyPath)
-		c.Assert(err, IsNil)
-		expectedID, err := kd.UniqueID()
-		c.Assert(err, IsNil)
-
-		restore = secboot.MockSbActivateVolumeWithKeyData(func(volumeName, sourceDevicePath string, keyData *sb.KeyData, options *sb.ActivateVolumeOptions) (sb.SnapModelChecker, error) {
-			c.Assert(volumeName, Equals, "name-"+randomUUID)
-			c.Assert(sourceDevicePath, Equals, devicePath)
-			c.Assert(keyData, NotNil)
-			uID, err := keyData.UniqueID()
-			c.Assert(err, IsNil)
-			c.Check(uID, DeepEquals, expectedID)
-			if tc.rkAllow {
-				c.Assert(*options, DeepEquals, sb.ActivateVolumeOptions{
-					PassphraseTries:  1,
-					RecoveryKeyTries: 3,
-					KeyringPrefix:    "ubuntu-fde",
-				})
-			} else {
-				c.Assert(*options, DeepEquals, sb.ActivateVolumeOptions{
-					PassphraseTries: 1,
-					// activation with recovery key was disabled
-					RecoveryKeyTries: 0,
-					KeyringPrefix:    "ubuntu-fde",
-				})
-			}
-			if !tc.activated && tc.activateErr == nil {
-				return nil, errors.New("activation error")
-			}
-			return nil, tc.activateErr
-		})
-		defer restore()
-
-		restore = secboot.MockSbActivateVolumeWithRecoveryKey(func(name, device string, keyReader io.Reader,
-			options *sb.ActivateVolumeOptions) error {
-			if !tc.rkAllow {
-				c.Fatalf("unexpected attempt to activate with recovery key")
-				return fmt.Errorf("unexpected call")
-			}
-			return tc.rkErr
-		})
-		defer restore()
-
-		opts := &secboot.UnlockVolumeUsingSealedKeyOptions{
-			AllowRecoveryKey: tc.rkAllow,
-		}
-		unlockRes, err := secboot.UnlockVolumeUsingSealedKeyIfEncrypted(tc.disk, defaultDevice, keyPath, opts)
-		if tc.err == "" {
-			c.Assert(err, IsNil)
-			c.Assert(unlockRes.IsEncrypted, Equals, tc.hasEncdev)
-			c.Assert(unlockRes.PartDevice, Equals, devicePath)
-			if tc.hasEncdev {
-				c.Assert(unlockRes.FsDevice, Equals, filepath.Join("/dev/mapper", defaultDevice+"-"+randomUUID))
-			} else {
-				c.Assert(unlockRes.FsDevice, Equals, devicePath)
-			}
-		} else {
-			c.Assert(err, ErrorMatches, tc.err)
-			// also check that the IsEncrypted value matches, this is
-			// important for robust callers to know whether they should try to
-			// unlock using a different method or not
-			// this is only skipped on some test cases where we get an error
-			// very early, like trying to connect to the tpm
-			c.Assert(unlockRes.IsEncrypted, Equals, tc.hasEncdev)
-			if tc.hasEncdev {
-				c.Check(unlockRes.PartDevice, Equals, devicePath)
-				c.Check(unlockRes.FsDevice, Equals, "")
-			} else {
-				c.Check(unlockRes.PartDevice, Equals, "")
-				c.Check(unlockRes.FsDevice, Equals, "")
-			}
-		}
-
-		c.Assert(unlockRes.UnlockMethod, Equals, tc.expUnlockMethod)
+			c.Assert(unlockRes.UnlockMethod, Equals, tc.expUnlockMethod)
+		}()
 	}
 }
 
@@ -679,7 +788,7 @@ func (s *secbootSuite) TestEFIImageFromBootFile(c *C) {
 		{
 			// happy case for EFI image
 			bootFile: bootloader.NewBootFile("", existingFile, bootloader.RoleRecovery),
-			efiImage: sb_efi.FileImage(existingFile),
+			efiImage: sb_efi.NewFileImage(existingFile),
 		},
 		{
 			// missing EFI image
@@ -689,7 +798,7 @@ func (s *secbootSuite) TestEFIImageFromBootFile(c *C) {
 		{
 			// happy case for snap file
 			bootFile: bootloader.NewBootFile(snapFile, "rel", bootloader.RoleRecovery),
-			efiImage: sb_efi.SnapFileImage{Container: snapf, FileName: "rel"},
+			efiImage: sb_efi.NewSnapFileImage(snapf, "rel"),
 		},
 		{
 			// invalid snap file
@@ -789,25 +898,25 @@ func (s *secbootSuite) TestSealKey(c *C) {
 		tpmEnabled           bool
 		missingFile          bool
 		badSnapFile          bool
-		addEFISbPolicyErr    error
-		addEFIBootManagerErr error
+		addPCRProfileErr     error
 		addSystemdEFIStubErr error
 		addSnapModelErr      error
 		provisioningErr      error
 		sealErr              error
 		sealCalls            int
 		expectedErr          string
+		saveToFile           bool
 	}{
 		{tpmErr: mockErr, expectedErr: "cannot connect to TPM: some error"},
 		{tpmEnabled: false, expectedErr: "TPM device is not enabled"},
 		{tpmEnabled: true, missingFile: true, expectedErr: "cannot build EFI image load sequences: file /does/not/exist does not exist"},
-		{tpmEnabled: true, badSnapFile: true, expectedErr: `cannot build EFI image load sequences: cannot process snap or snapdir: cannot read ".*/kernel.snap": EOF`},
-		{tpmEnabled: true, addEFISbPolicyErr: mockErr, expectedErr: "cannot add EFI secure boot policy profile: some error"},
-		{tpmEnabled: true, addEFIBootManagerErr: mockErr, expectedErr: "cannot add EFI boot manager profile: some error"},
+		{tpmEnabled: true, badSnapFile: true, expectedErr: `cannot build EFI image load sequences: cannot process snap or snapdir: cannot read .*\/kernel.snap": EOF`},
+		{tpmEnabled: true, addPCRProfileErr: mockErr, expectedErr: "cannot add EFI secure boot and boot manager policy profiles: some error"},
 		{tpmEnabled: true, addSystemdEFIStubErr: mockErr, expectedErr: "cannot add systemd EFI stub profile: some error"},
 		{tpmEnabled: true, addSnapModelErr: mockErr, expectedErr: "cannot add snap model profile: some error"},
 		{tpmEnabled: true, sealErr: mockErr, sealCalls: 1, expectedErr: "some error"},
-		{tpmEnabled: true, sealCalls: 1, expectedErr: ""},
+		{tpmEnabled: true, sealCalls: 2, expectedErr: ""},
+		{tpmEnabled: true, sealCalls: 2, expectedErr: "", saveToFile: true},
 	} {
 		c.Logf("tc: %v", idx)
 		tmpDir := c.MkDir()
@@ -836,8 +945,6 @@ func (s *secbootSuite) TestSealKey(c *C) {
 
 		mockBF = append(mockBF, bootloader.NewBootFile(snapPath, "kernel.efi", bootloader.RoleRecovery))
 
-		myAuthKey := &ecdsa.PrivateKey{}
-
 		myParams := secboot.SealKeysParams{
 			ModelParams: []*secboot.SealKeyModelParams{
 				{
@@ -865,140 +972,104 @@ func (s *secbootSuite) TestSealKey(c *C) {
 					Model:          &asserts.Model{},
 				},
 			},
-			TPMPolicyAuthKey:       myAuthKey,
-			TPMPolicyAuthKeyFile:   filepath.Join(tmpDir, "policy-auth-key-file"),
+			TPMPolicyAuthKeyFile: filepath.Join(tmpDir, "policy-auth-key-file"),
+
 			PCRPolicyCounterHandle: 42,
 		}
 
-		myKey := keys.EncryptionKey{}
-		myKey2 := keys.EncryptionKey{}
-		for i := range myKey {
-			myKey[i] = byte(i)
-			myKey2[i] = byte(128 + i)
-		}
-
+		containerA := secboot.CreateMockBootstrappedContainer()
+		containerB := secboot.CreateMockBootstrappedContainer()
 		myKeys := []secboot.SealKeyRequest{
 			{
-				Key:     myKey,
-				KeyFile: "keyfile",
+				BootstrappedContainer: containerA,
+				SlotName:              "foo1",
 			},
 			{
-				Key:     myKey2,
-				KeyFile: "keyfile2",
+				BootstrappedContainer: containerB,
+				SlotName:              "foo2",
 			},
+		}
+
+		if tc.saveToFile {
+			myKeys[0].KeyFile = filepath.Join(tmpDir, "key-file-1")
+			myKeys[1].KeyFile = filepath.Join(tmpDir, "key-file-2")
 		}
 
 		// events for
 		// a -> kernel
-		sequences1 := []*sb_efi.ImageLoadEvent{
-			{
-				Source: sb_efi.Firmware,
-				Image:  sb_efi.FileImage(mockBF[0].Path),
-				Next: []*sb_efi.ImageLoadEvent{
-					{
-						Source: sb_efi.Shim,
-						Image: sb_efi.SnapFileImage{
-							Container: kernelSnap,
-							FileName:  "kernel.efi",
-						},
-					},
-				},
-			},
-		}
+		sequences1 := sb_efi.NewImageLoadSequences().Append(
+			sb_efi.NewImageLoadActivity(
+				sb_efi.NewFileImage(mockBF[0].Path),
+			).Loads(sb_efi.NewImageLoadActivity(
+				sb_efi.NewSnapFileImage(
+					kernelSnap,
+					"kernel.efi",
+				),
+			)),
+		)
 
 		// "cdk" events for
 		// c -> kernel OR
 		// d -> kernel
-		cdk := []*sb_efi.ImageLoadEvent{
-			{
-				Source: sb_efi.Shim,
-				Image:  sb_efi.FileImage(mockBF[2].Path),
-				Next: []*sb_efi.ImageLoadEvent{
-					{
-						Source: sb_efi.Shim,
-						Image: sb_efi.SnapFileImage{
-							Container: kernelSnap,
-							FileName:  "kernel.efi",
-						},
-					},
-				},
-			},
-			{
-				Source: sb_efi.Shim,
-				Image:  sb_efi.FileImage(mockBF[3].Path),
-				Next: []*sb_efi.ImageLoadEvent{
-					{
-						Source: sb_efi.Shim,
-						Image: sb_efi.SnapFileImage{
-							Container: kernelSnap,
-							FileName:  "kernel.efi",
-						},
-					},
-				},
-			},
+		cdk := []sb_efi.ImageLoadActivity{
+			sb_efi.NewImageLoadActivity(
+				sb_efi.NewFileImage(mockBF[2].Path),
+			).Loads(sb_efi.NewImageLoadActivity(
+				sb_efi.NewSnapFileImage(
+					kernelSnap,
+					"kernel.efi",
+				),
+			)),
+			sb_efi.NewImageLoadActivity(
+				sb_efi.NewFileImage(mockBF[3].Path),
+			).Loads(sb_efi.NewImageLoadActivity(
+				sb_efi.NewSnapFileImage(
+					kernelSnap,
+					"kernel.efi",
+				),
+			)),
 		}
 
 		// events for
 		// a -> "cdk"
 		// b -> "cdk"
-		sequences2 := []*sb_efi.ImageLoadEvent{
-			{
-				Source: sb_efi.Firmware,
-				Image:  sb_efi.FileImage(mockBF[0].Path),
-				Next:   cdk,
-			},
-			{
-				Source: sb_efi.Firmware,
-				Image:  sb_efi.FileImage(mockBF[1].Path),
-				Next:   cdk,
-			},
-		}
+		sequences2 := sb_efi.NewImageLoadSequences().Append(
+			sb_efi.NewImageLoadActivity(
+				sb_efi.NewFileImage(mockBF[0].Path),
+			).Loads(cdk...),
+			sb_efi.NewImageLoadActivity(
+				sb_efi.NewFileImage(mockBF[1].Path),
+			).Loads(cdk...),
+		)
 
 		tpm, restore := mockSbTPMConnection(c, tc.tpmErr)
 		defer restore()
 
 		// mock adding EFI secure boot policy profile
-		var pcrProfile *sb_tpm2.PCRProtectionProfile
-		addEFISbPolicyCalls := 0
-		restore = secboot.MockSbEfiAddSecureBootPolicyProfile(func(profile *sb_tpm2.PCRProtectionProfile, params *sb_efi.SecureBootPolicyProfileParams) error {
-			addEFISbPolicyCalls++
-			pcrProfile = profile
-			c.Assert(params.PCRAlgorithm, Equals, tpm2.HashAlgorithmSHA256)
-			switch addEFISbPolicyCalls {
-			case 1:
-				c.Assert(params.LoadSequences, DeepEquals, sequences1)
-			case 2:
-				c.Assert(params.LoadSequences, DeepEquals, sequences2)
-			default:
-				c.Error("AddSecureBootPolicyProfile shouldn't be called a third time")
-			}
-			return tc.addEFISbPolicyErr
-		})
-		defer restore()
 
-		// mock adding EFI boot manager profile
-		addEFIBootManagerCalls := 0
-		restore = secboot.MockSbEfiAddBootManagerProfile(func(profile *sb_tpm2.PCRProtectionProfile, params *sb_efi.BootManagerProfileParams) error {
-			addEFIBootManagerCalls++
-			c.Assert(profile, Equals, pcrProfile)
-			c.Assert(params.PCRAlgorithm, Equals, tpm2.HashAlgorithmSHA256)
-			switch addEFISbPolicyCalls {
+		var rootBranch *sb_tpm2.PCRProtectionProfileBranch
+		addPCRProfileCalls := 0
+		restore = secboot.MockSbEfiAddPCRProfile(func(pcrAlg tpm2.HashAlgorithmId, branch *sb_tpm2.PCRProtectionProfileBranch, loadSequences *sb_efi.ImageLoadSequences, options ...sb_efi.PCRProfileOption) error {
+			addPCRProfileCalls++
+			rootBranch = branch
+			c.Assert(pcrAlg, Equals, tpm2.HashAlgorithmSHA256)
+			switch addPCRProfileCalls {
 			case 1:
-				c.Assert(params.LoadSequences, DeepEquals, sequences1)
+				c.Assert(loadSequences, DeepEquals, sequences1)
 			case 2:
-				c.Assert(params.LoadSequences, DeepEquals, sequences2)
+				c.Assert(loadSequences, DeepEquals, sequences2)
 			default:
-				c.Error("AddBootManagerProfile shouldn't be called a third time")
+				c.Error("AddPCRProfile shouldn't be called a third time")
 			}
-			return tc.addEFIBootManagerErr
+			return tc.addPCRProfileErr
 		})
 		defer restore()
 
 		// mock adding systemd EFI stub profile
 		addSystemdEfiStubCalls := 0
-		restore = secboot.MockSbEfiAddSystemdStubProfile(func(profile *sb_tpm2.PCRProtectionProfile, params *sb_efi.SystemdStubProfileParams) error {
+		restore = secboot.MockSbEfiAddSystemdStubProfile(func(profile *sb_tpm2.PCRProtectionProfileBranch, params *sb_efi.SystemdStubProfileParams) error {
 			addSystemdEfiStubCalls++
-			c.Assert(profile, Equals, pcrProfile)
+			c.Assert(profile, Equals, rootBranch)
 			c.Assert(params.PCRAlgorithm, Equals, tpm2.HashAlgorithmSHA256)
 			c.Assert(params.PCRIndex, Equals, 12)
 			switch addSystemdEfiStubCalls {
@@ -1015,9 +1086,9 @@ func (s *secbootSuite) TestSealKey(c *C) {
 
 		// mock adding snap model profile
 		addSnapModelCalls := 0
-		restore = secboot.MockSbAddSnapModelProfile(func(profile *sb_tpm2.PCRProtectionProfile, params *sb_tpm2.SnapModelProfileParams) error {
+		restore = secboot.MockSbAddSnapModelProfile(func(profile *sb_tpm2.PCRProtectionProfileBranch, params *sb_tpm2.SnapModelProfileParams) error {
 			addSnapModelCalls++
-			c.Assert(profile, Equals, pcrProfile)
+			c.Assert(profile, Equals, rootBranch)
 			c.Assert(params.PCRAlgorithm, Equals, tpm2.HashAlgorithmSHA256)
 			c.Assert(params.PCRIndex, Equals, 12)
 			switch addSnapModelCalls {
@@ -1034,13 +1105,11 @@ func (s *secbootSuite) TestSealKey(c *C) {
 
 		// mock sealing
 		sealCalls := 0
-		restore = secboot.MockSbSealKeyToTPMMultiple(func(t *sb_tpm2.Connection, kr []*sb_tpm2.SealKeyRequest, params *sb_tpm2.KeyCreationParams) (sb_tpm2.PolicyAuthKey, error) {
+		restore = secboot.MockSbNewTPMProtectedKey(func(t *sb_tpm2.Connection, params *sb_tpm2.ProtectKeyParams) (protectedKey *sb.KeyData, primaryKey sb.PrimaryKey, unlockKey sb.DiskUnlockKey, err error) {
 			sealCalls++
 			c.Assert(t, Equals, tpm)
-			c.Assert(kr, DeepEquals, []*sb_tpm2.SealKeyRequest{{Key: myKey, Path: "keyfile"}, {Key: myKey2, Path: "keyfile2"}})
-			c.Assert(params.AuthKey, Equals, myAuthKey)
 			c.Assert(params.PCRPolicyCounterHandle, Equals, tpm2.Handle(42))
-			return sb_tpm2.PolicyAuthKey{}, tc.sealErr
+			return &sb.KeyData{}, sb.PrimaryKey{}, sb.DiskUnlockKey{}, tc.sealErr
 		})
 		defer restore()
 
@@ -1050,29 +1119,47 @@ func (s *secbootSuite) TestSealKey(c *C) {
 		})
 		defer restore()
 
-		err := secboot.SealKeys(myKeys, &myParams)
+		_, err := secboot.SealKeys(myKeys, &myParams)
 		if tc.expectedErr == "" {
 			c.Assert(err, IsNil)
-			c.Assert(addEFISbPolicyCalls, Equals, 2)
-			c.Assert(addSystemdEfiStubCalls, Equals, 2)
+			c.Assert(addPCRProfileCalls, Equals, 2)
 			c.Assert(addSnapModelCalls, Equals, 2)
 			c.Assert(osutil.FileExists(myParams.TPMPolicyAuthKeyFile), Equals, true)
+
+			_, aHasSlot := containerA.Slots["foo1"]
+			c.Check(aHasSlot, Equals, true)
+			_, bHasSlot := containerB.Slots["foo2"]
+			c.Check(bHasSlot, Equals, true)
+			if tc.saveToFile {
+				c.Check(containerA.Tokens, HasLen, 0)
+				c.Check(containerB.Tokens, HasLen, 0)
+				c.Check(osutil.FileExists(filepath.Join(tmpDir, "key-file-1")), Equals, true)
+				c.Check(osutil.FileExists(filepath.Join(tmpDir, "key-file-2")), Equals, true)
+			} else {
+				c.Check(osutil.FileExists(filepath.Join(tmpDir, "key-file-1")), Equals, false)
+				c.Check(osutil.FileExists(filepath.Join(tmpDir, "key-file-2")), Equals, false)
+				_, aHasToken := containerA.Tokens["foo1"]
+				c.Check(aHasToken, Equals, true)
+				_, bHasToken := containerB.Tokens["foo2"]
+				c.Check(bHasToken, Equals, true)
+			}
 		} else {
 			c.Assert(err, ErrorMatches, tc.expectedErr)
 		}
 		c.Assert(sealCalls, Equals, tc.sealCalls)
+
 	}
 }
 
 func (s *secbootSuite) TestResealKey(c *C) {
 	mockErr := errors.New("some error")
 
-	for _, tc := range []struct {
+	for idx, tc := range []struct {
 		tpmErr                 error
 		tpmEnabled             bool
+		keyDataInFile          bool
 		missingFile            bool
-		addEFISbPolicyErr      error
-		addEFIBootManagerErr   error
+		addPCRProfileErr       error
 		addSystemdEFIStubErr   error
 		addSnapModelErr        error
 		readSealedKeyObjectErr error
@@ -1082,22 +1169,34 @@ func (s *secbootSuite) TestResealKey(c *C) {
 		revokeErr              error
 		revokeCalls            int
 		expectedErr            string
+		oldKeyFiles            bool
+		buildProfileErr        string
+		dbxUpdate              []byte
 	}{
 		// happy case
-		{tpmEnabled: true, resealCalls: 1, revokeCalls: 1, expectedErr: ""},
+		{tpmEnabled: true, resealCalls: 1},
+		// happy case with key files
+		{tpmEnabled: true, keyDataInFile: true, resealCalls: 1},
+		// happy case with DBX update
+		{tpmEnabled: true, resealCalls: 1, dbxUpdate: []byte("dbx-update")},
+		// happy case, old keys
+		{tpmEnabled: true, resealCalls: 1, revokeCalls: 1, oldKeyFiles: true},
 
 		// unhappy cases
 		{tpmErr: mockErr, expectedErr: "cannot connect to TPM: some error"},
 		{tpmEnabled: false, expectedErr: "TPM device is not enabled"},
-		{tpmEnabled: true, missingFile: true, expectedErr: "cannot build EFI image load sequences: file .*/file.efi does not exist"},
-		{tpmEnabled: true, addEFISbPolicyErr: mockErr, expectedErr: "cannot add EFI secure boot policy profile: some error"},
-		{tpmEnabled: true, addEFIBootManagerErr: mockErr, expectedErr: "cannot add EFI boot manager profile: some error"},
-		{tpmEnabled: true, addSystemdEFIStubErr: mockErr, expectedErr: "cannot add systemd EFI stub profile: some error"},
-		{tpmEnabled: true, addSnapModelErr: mockErr, expectedErr: "cannot add snap model profile: some error"},
-		{tpmEnabled: true, readSealedKeyObjectErr: mockErr, expectedErr: "some error"},
-		{tpmEnabled: true, resealErr: mockErr, resealCalls: 1, expectedErr: "some error"},
-		{tpmEnabled: true, revokeErr: errors.New("revoke error"), resealCalls: 1, revokeCalls: 1, expectedErr: "revoke error"},
+		{tpmEnabled: true, missingFile: true, buildProfileErr: `cannot build EFI image load sequences: file .*\/file.efi does not exist`},
+		{tpmEnabled: true, addPCRProfileErr: mockErr, buildProfileErr: `cannot add EFI secure boot and boot manager policy profiles: some error`},
+		{tpmEnabled: true, addSystemdEFIStubErr: mockErr, buildProfileErr: `cannot add systemd EFI stub profile: some error`},
+		{tpmEnabled: true, addSnapModelErr: mockErr, buildProfileErr: `cannot add snap model profile: some error`},
+		{tpmEnabled: true, readSealedKeyObjectErr: mockErr, expectedErr: `trying to load key data from .* returned "some error", and from .* returned "some error"`},
+		{tpmEnabled: true, resealErr: mockErr, resealCalls: 1, expectedErr: "cannot update legacy PCR protection policy: some error", oldKeyFiles: true},
+		{tpmEnabled: true, resealErr: mockErr, resealCalls: 1, expectedErr: "cannot update PCR protection policy: some error"},
+		{tpmEnabled: true, resealErr: mockErr, resealCalls: 1, expectedErr: "cannot update legacy PCR protection policy: some error", oldKeyFiles: true},
+		{tpmEnabled: true, revokeErr: errors.New("revoke error"), resealCalls: 1, revokeCalls: 1, expectedErr: "cannot revoke old PCR protection policies: revoke error", oldKeyFiles: true},
 	} {
+		c.Logf("reseal tc[%v]: %+v", idx, tc)
+
 		mockTPMPolicyAuthKey := []byte{1, 3, 3, 7}
 		mockTPMPolicyAuthKeyFile := filepath.Join(c.MkDir(), "policy-auth-key-file")
 		err := os.WriteFile(mockTPMPolicyAuthKeyFile, mockTPMPolicyAuthKey, 0600)
@@ -1109,40 +1208,120 @@ func (s *secbootSuite) TestResealKey(c *C) {
 			c.Assert(err, IsNil)
 		}
 
+		modelParams := []*secboot.SealKeyModelParams{
+			{
+				EFILoadChains:         []*secboot.LoadChain{secboot.NewLoadChain(mockEFI)},
+				KernelCmdlines:        []string{"cmdline"},
+				Model:                 &asserts.Model{},
+				EFISignatureDbxUpdate: tc.dbxUpdate,
+			},
+		}
+
+		sequences := sb_efi.NewImageLoadSequences().Append(
+			sb_efi.NewImageLoadActivity(
+				sb_efi.NewFileImage(mockEFI.Path),
+			),
+		)
+
+		var dbUpdateOption sb_efi.PCRProfileOption = sb_efi.WithSignatureDBUpdates()
+		if len(tc.dbxUpdate) > 0 {
+			dbUpdateOption = sb_efi.WithSignatureDBUpdates([]*sb_efi.SignatureDBUpdate{
+				{Name: sb_efi.Dbx, Data: tc.dbxUpdate},
+			}...)
+		}
+
+		addPCRProfileCalls := 0
+		restore := secboot.MockSbEfiAddPCRProfile(func(pcrAlg tpm2.HashAlgorithmId, branch *sb_tpm2.PCRProtectionProfileBranch, loadSequences *sb_efi.ImageLoadSequences, options ...sb_efi.PCRProfileOption) error {
+			addPCRProfileCalls++
+			c.Assert(pcrAlg, Equals, tpm2.HashAlgorithmSHA256)
+			c.Assert(loadSequences, DeepEquals, sequences)
+			c.Assert(options, HasLen, 3)
+			// TODO test other options
+
+			// options are passed as an interface, and the underlying types are
+			// not exported by secboot, so we simply assume that specific options
+			// appear at certain indices, in this case, DBX is added as a last
+			// option
+			c.Assert(options[len(options)-1], DeepEquals, dbUpdateOption)
+
+			return tc.addPCRProfileErr
+		})
+		defer restore()
+
+		// mock adding snap model profile
+		addSnapModelCalls := 0
+		restore = secboot.MockSbAddSnapModelProfile(func(profile *sb_tpm2.PCRProtectionProfileBranch, params *sb_tpm2.SnapModelProfileParams) error {
+			addSnapModelCalls++
+			//c.Assert(profile, Equals, pcrProfile)
+			c.Assert(params.PCRAlgorithm, Equals, tpm2.HashAlgorithmSHA256)
+			c.Assert(params.PCRIndex, Equals, 12)
+			c.Assert(params.Models[0], DeepEquals, modelParams[0].Model)
+			return tc.addSnapModelErr
+		})
+		defer restore()
+
+		// mock adding systemd EFI stub profile
+		addSystemdEfiStubCalls := 0
+		restore = secboot.MockSbEfiAddSystemdStubProfile(func(profile *sb_tpm2.PCRProtectionProfileBranch, params *sb_efi.SystemdStubProfileParams) error {
+			addSystemdEfiStubCalls++
+			//c.Assert(profile, Equals, pcrProfile)
+			c.Assert(params.PCRAlgorithm, Equals, tpm2.HashAlgorithmSHA256)
+			c.Assert(params.PCRIndex, Equals, 12)
+			c.Assert(params.KernelCmdlines, DeepEquals, modelParams[0].KernelCmdlines)
+			return tc.addSystemdEFIStubErr
+		})
+		defer restore()
+
+		pcrProfile, err := secboot.BuildPCRProtectionProfile(modelParams)
+		if len(tc.buildProfileErr) > 0 {
+			c.Assert(err, ErrorMatches, tc.buildProfileErr)
+			continue
+		} else {
+			c.Assert(err, IsNil)
+		}
+
 		tmpdir := c.MkDir()
 		keyFile := filepath.Join(tmpdir, "keyfile")
 		keyFile2 := filepath.Join(tmpdir, "keyfile2")
 		myParams := &secboot.ResealKeysParams{
-			ModelParams: []*secboot.SealKeyModelParams{
+			PCRProfile: pcrProfile,
+			Keys: []secboot.KeyDataLocation{
 				{
-					EFILoadChains:  []*secboot.LoadChain{secboot.NewLoadChain(mockEFI)},
-					KernelCmdlines: []string{"cmdline"},
-					Model:          &asserts.Model{},
+					DevicePath: "/dev/somedevice",
+					SlotName:   "key1",
+					KeyFile:    keyFile,
+				},
+				{
+					DevicePath: "/dev/somedevice",
+					SlotName:   "key2",
+					KeyFile:    keyFile2,
 				},
 			},
-			KeyFiles:             []string{keyFile, keyFile2},
 			TPMPolicyAuthKeyFile: mockTPMPolicyAuthKeyFile,
 		}
 
-		numMockSealedKeyObjects := len(myParams.KeyFiles)
+		numMockSealedKeyObjects := len(myParams.Keys)
 		mockSealedKeyObjects := make([]*sb_tpm2.SealedKeyObject, 0, numMockSealedKeyObjects)
-		for range myParams.KeyFiles {
-			// Copy of
-			// https://github.com/snapcore/secboot/blob/master/internal/compattest/testdata/v1/key
-			// To create full looking
-			// mockSealedKeyObjects, although {},{} would
-			// have been enough as well
-			mockSealedKeyFile := filepath.Join("test-data", "keyfile")
-			mockSealedKeyObject, err := sb_tpm2.ReadSealedKeyObjectFromFile(mockSealedKeyFile)
-			c.Assert(err, IsNil)
-			mockSealedKeyObjects = append(mockSealedKeyObjects, mockSealedKeyObject)
-		}
-
-		sequences := []*sb_efi.ImageLoadEvent{
-			{
-				Source: sb_efi.Firmware,
-				Image:  sb_efi.FileImage(mockEFI.Path),
-			},
+		mockKeyDatas := make([]*sb.KeyData, 0, numMockSealedKeyObjects)
+		for range myParams.Keys {
+			if tc.oldKeyFiles {
+				// Copy of
+				// https://github.com/snapcore/secboot/blob/master/internal/compattest/testdata/v1/key
+				// To create full looking
+				// mockSealedKeyObjects, although {},{} would
+				// have been enough as well
+				mockSealedKeyFile := filepath.Join("test-data", "keyfile")
+				mockSealedKeyObject, err := sb_tpm2.ReadSealedKeyObjectFromFile(mockSealedKeyFile)
+				c.Assert(err, IsNil)
+				mockSealedKeyObjects = append(mockSealedKeyObjects, mockSealedKeyObject)
+			} else {
+				mockSealedKeyFile := filepath.Join("test-data", "keydata")
+				reader, err := sb.NewFileKeyDataReader(mockSealedKeyFile)
+				c.Assert(err, IsNil)
+				kd, err := sb.ReadKeyData(reader)
+				c.Assert(err, IsNil)
+				mockKeyDatas = append(mockKeyDatas, kd)
+			}
 		}
 
 		// mock TPM connection
@@ -1155,92 +1334,113 @@ func (s *secbootSuite) TestResealKey(c *C) {
 		})
 		defer restore()
 
-		// mock adding EFI secure boot policy profile
-		var pcrProfile *sb_tpm2.PCRProtectionProfile
-		addEFISbPolicyCalls := 0
-		restore = secboot.MockSbEfiAddSecureBootPolicyProfile(func(profile *sb_tpm2.PCRProtectionProfile, params *sb_efi.SecureBootPolicyProfileParams) error {
-			addEFISbPolicyCalls++
-			pcrProfile = profile
-			c.Assert(params.PCRAlgorithm, Equals, tpm2.HashAlgorithmSHA256)
-			c.Assert(params.LoadSequences, DeepEquals, sequences)
-			return tc.addEFISbPolicyErr
-		})
-		defer restore()
-
-		// mock adding EFI boot manager profile
-		addEFIBootManagerCalls := 0
-		restore = secboot.MockSbEfiAddBootManagerProfile(func(profile *sb_tpm2.PCRProtectionProfile, params *sb_efi.BootManagerProfileParams) error {
-			addEFIBootManagerCalls++
-			c.Assert(profile, Equals, pcrProfile)
-			c.Assert(params.PCRAlgorithm, Equals, tpm2.HashAlgorithmSHA256)
-			c.Assert(params.LoadSequences, DeepEquals, sequences)
-			return tc.addEFIBootManagerErr
-		})
-		defer restore()
-
-		// mock adding systemd EFI stub profile
-		addSystemdEfiStubCalls := 0
-		restore = secboot.MockSbEfiAddSystemdStubProfile(func(profile *sb_tpm2.PCRProtectionProfile, params *sb_efi.SystemdStubProfileParams) error {
-			addSystemdEfiStubCalls++
-			c.Assert(profile, Equals, pcrProfile)
-			c.Assert(params.PCRAlgorithm, Equals, tpm2.HashAlgorithmSHA256)
-			c.Assert(params.PCRIndex, Equals, 12)
-			c.Assert(params.KernelCmdlines, DeepEquals, myParams.ModelParams[0].KernelCmdlines)
-			return tc.addSystemdEFIStubErr
-		})
-		defer restore()
-
-		// mock adding snap model profile
-		addSnapModelCalls := 0
-		restore = secboot.MockSbAddSnapModelProfile(func(profile *sb_tpm2.PCRProtectionProfile, params *sb_tpm2.SnapModelProfileParams) error {
-			addSnapModelCalls++
-			c.Assert(profile, Equals, pcrProfile)
-			c.Assert(params.PCRAlgorithm, Equals, tpm2.HashAlgorithmSHA256)
-			c.Assert(params.PCRIndex, Equals, 12)
-			c.Assert(params.Models[0], DeepEquals, myParams.ModelParams[0].Model)
-			return tc.addSnapModelErr
-		})
-		defer restore()
-
 		// mock ReadSealedKeyObject
 		readSealedKeyObjectCalls := 0
-		restore = secboot.MockSbReadSealedKeyObjectFromFile(func(keyfile string) (*sb_tpm2.SealedKeyObject, error) {
+		restore = secboot.MockReadKeyFile(func(keyfile string, kl secboot.KeyLoader, hintExpectFDEHook bool) error {
 			readSealedKeyObjectCalls++
-			c.Assert(keyfile, Equals, myParams.KeyFiles[readSealedKeyObjectCalls-1])
-			return mockSealedKeyObjects[readSealedKeyObjectCalls-1], tc.readSealedKeyObjectErr
+			c.Check(hintExpectFDEHook, Equals, false)
+			c.Assert(keyfile, Equals, myParams.Keys[readSealedKeyObjectCalls-1].KeyFile)
+			if tc.oldKeyFiles {
+				kl.LoadedSealedKeyObject(mockSealedKeyObjects[readSealedKeyObjectCalls-1])
+				return tc.readSealedKeyObjectErr
+			} else {
+				kl.LoadedKeyData(mockKeyDatas[readSealedKeyObjectCalls-1])
+				return tc.readSealedKeyObjectErr
+			}
+		})
+		defer restore()
+
+		readKeyTokenCalls := 0
+		restore = secboot.MockReadKeyToken(func(devicePath, slotName string) (*sb.KeyData, error) {
+			readKeyTokenCalls++
+			c.Check(devicePath, Equals, "/dev/somedevice")
+			if tc.keyDataInFile || tc.oldKeyFiles {
+				return nil, fmt.Errorf("token does not work")
+			} else {
+				if tc.readSealedKeyObjectErr != nil {
+					return nil, tc.readSealedKeyObjectErr
+				}
+				switch slotName {
+				case "key1":
+					return mockKeyDatas[0], nil
+				case "key2":
+					return mockKeyDatas[1], nil
+				default:
+					c.Errorf("unexpected call")
+					return nil, fmt.Errorf("unexpected")
+				}
+			}
+		})
+		defer restore()
+
+		keyData1Writer := &myKeyDataWriter{}
+		keyData2Writer := &myKeyDataWriter{}
+		tokenWritten := 0
+		restore = secboot.MockNewLUKS2KeyDataWriter(func(devicePath string, name string) (secboot.KeyDataWriter, error) {
+			tokenWritten++
+			c.Check(devicePath, Equals, "/dev/somedevice")
+			c.Check(tc.keyDataInFile || tc.oldKeyFiles, Equals, false)
+			switch name {
+			case "key1":
+				return keyData1Writer, nil
+			case "key2":
+				return keyData2Writer, nil
+			default:
+				c.Errorf("unexpected call")
+				return nil, fmt.Errorf("unexpected")
+			}
 		})
 		defer restore()
 
 		// mock PCR protection policy update
 		resealCalls := 0
-		restore = secboot.MockSbUpdateKeyPCRProtectionPolicyMultiple(func(t *sb_tpm2.Connection, keys []*sb_tpm2.SealedKeyObject, authKey sb_tpm2.PolicyAuthKey, profile *sb_tpm2.PCRProtectionProfile) error {
+		restore = secboot.MockSbUpdateKeyPCRProtectionPolicyMultiple(func(t *sb_tpm2.Connection, keys []*sb_tpm2.SealedKeyObject, authKey sb.PrimaryKey, profile *sb_tpm2.PCRProtectionProfile) error {
+			c.Assert(tc.oldKeyFiles, Equals, true)
 			resealCalls++
 			c.Assert(t, Equals, tpm)
 			c.Assert(keys, DeepEquals, mockSealedKeyObjects)
-			c.Assert(authKey, DeepEquals, sb_tpm2.PolicyAuthKey(mockTPMPolicyAuthKey))
-			c.Assert(profile, Equals, pcrProfile)
+			c.Assert(authKey, DeepEquals, sb.PrimaryKey(mockTPMPolicyAuthKey))
+			//c.Assert(profile, Equals, pcrProfile)
 			return tc.resealErr
 		})
 		defer restore()
 		// mock PCR protection policy revoke
 		revokeCalls := 0
-		restore = secboot.MockSbSealedKeyObjectRevokeOldPCRProtectionPolicies(func(sko *sb_tpm2.SealedKeyObject, t *sb_tpm2.Connection, authKey sb_tpm2.PolicyAuthKey) error {
+		restore = secboot.MockSbSealedKeyObjectRevokeOldPCRProtectionPolicies(func(sko *sb_tpm2.SealedKeyObject, t *sb_tpm2.Connection, authKey sb.PrimaryKey) error {
+			c.Assert(tc.oldKeyFiles, Equals, true)
 			revokeCalls++
 			c.Assert(sko, Equals, mockSealedKeyObjects[0])
 			c.Assert(t, Equals, tpm)
-			c.Assert(authKey, DeepEquals, sb_tpm2.PolicyAuthKey(mockTPMPolicyAuthKey))
+			c.Assert(authKey, DeepEquals, sb.PrimaryKey(mockTPMPolicyAuthKey))
 			return tc.revokeErr
+		})
+		defer restore()
+
+		restore = secboot.MockSbUpdateKeyDataPCRProtectionPolicy(func(t *sb_tpm2.Connection, authKey sb.PrimaryKey, pcrProfile *sb_tpm2.PCRProtectionProfile, policyVersionOption sb_tpm2.PCRPolicyVersionOption, keys ...*sb.KeyData) error {
+			c.Assert(tc.oldKeyFiles, Equals, false)
+			resealCalls++
+			c.Check(authKey, DeepEquals, sb.PrimaryKey(mockTPMPolicyAuthKey))
+			c.Check(tpm, Equals, tpm)
+			c.Check(keys, DeepEquals, mockKeyDatas)
+			return tc.resealErr
 		})
 		defer restore()
 
 		err = secboot.ResealKeys(myParams)
 		if tc.expectedErr == "" {
 			c.Assert(err, IsNil)
-			c.Assert(addEFISbPolicyCalls, Equals, 1)
+			c.Assert(addPCRProfileCalls, Equals, 1)
 			c.Assert(addSystemdEfiStubCalls, Equals, 1)
 			c.Assert(addSnapModelCalls, Equals, 1)
-			c.Assert(keyFile, testutil.FilePresent)
-			c.Assert(keyFile2, testutil.FilePresent)
+			if tc.keyDataInFile || tc.oldKeyFiles {
+				c.Check(tokenWritten, Equals, 0)
+				c.Assert(keyFile, testutil.FilePresent)
+				c.Assert(keyFile2, testutil.FilePresent)
+			} else {
+				c.Check(tokenWritten, Equals, 2)
+				c.Check(keyFile, Not(testutil.FilePresent))
+				c.Check(keyFile2, Not(testutil.FilePresent))
+			}
 		} else {
 			c.Assert(err, ErrorMatches, tc.expectedErr, Commentf("%v", tc))
 			if revokeCalls == 0 {
@@ -1257,15 +1457,14 @@ func (s *secbootSuite) TestResealKey(c *C) {
 func (s *secbootSuite) TestSealKeyNoModelParams(c *C) {
 	myKeys := []secboot.SealKeyRequest{
 		{
-			Key:     keys.EncryptionKey{},
-			KeyFile: "keyfile",
+			BootstrappedContainer: secboot.CreateMockBootstrappedContainer(),
 		},
 	}
 	myParams := secboot.SealKeysParams{
 		TPMPolicyAuthKeyFile: "policy-auth-key-file",
 	}
 
-	err := secboot.SealKeys(myKeys, &myParams)
+	_, err := secboot.SealKeys(myKeys, &myParams)
 	c.Assert(err, ErrorMatches, "at least one set of model-specific parameters is required")
 }
 
@@ -1299,18 +1498,19 @@ func mockSbTPMConnection(c *C, tpmErr error) (*sb_tpm2.Connection, func()) {
 	return tpm, restore
 }
 
-func (s *secbootSuite) TestUnlockEncryptedVolumeUsingKeyBadDisk(c *C) {
+func (s *secbootSuite) TestUnlockEncryptedVolumeUsingProtectorKeyBadDisk(c *C) {
 	disk := &disks.MockDiskMapping{}
-	unlockRes, err := secboot.UnlockEncryptedVolumeUsingKey(disk, "ubuntu-save", []byte("fooo"))
+	unlockRes, err := secboot.UnlockEncryptedVolumeUsingProtectorKey(disk, "ubuntu-save", []byte("fooo"))
 	c.Assert(err, ErrorMatches, `filesystem label "ubuntu-save-enc" not found`)
 	c.Check(unlockRes, DeepEquals, secboot.UnlockResult{})
 }
 
-func (s *secbootSuite) TestUnlockEncryptedVolumeUsingKeyUUIDError(c *C) {
+func (s *secbootSuite) TestUnlockEncryptedVolumeUsingProtectorKeyUUIDError(c *C) {
 	disk := &disks.MockDiskMapping{
 		Structure: []disks.Partition{
 			{
 				FilesystemLabel: "ubuntu-save-enc",
+				FilesystemUUID:  "321-321-321",
 				PartitionUUID:   "123-123-123",
 			},
 		},
@@ -1320,19 +1520,20 @@ func (s *secbootSuite) TestUnlockEncryptedVolumeUsingKeyUUIDError(c *C) {
 	})
 	defer restore()
 
-	unlockRes, err := secboot.UnlockEncryptedVolumeUsingKey(disk, "ubuntu-save", []byte("fooo"))
+	unlockRes, err := secboot.UnlockEncryptedVolumeUsingProtectorKey(disk, "ubuntu-save", []byte("fooo"))
 	c.Assert(err, ErrorMatches, "mocked uuid error")
 	c.Check(unlockRes, DeepEquals, secboot.UnlockResult{
-		PartDevice:  "/dev/disk/by-partuuid/123-123-123",
+		PartDevice:  "/dev/disk/by-uuid/321-321-321",
 		IsEncrypted: true,
 	})
 }
 
-func (s *secbootSuite) TestUnlockEncryptedVolumeUsingKeyHappy(c *C) {
+func (s *secbootSuite) TestUnlockEncryptedVolumeUsingProtectorKeyOldKeyHappy(c *C) {
 	disk := &disks.MockDiskMapping{
 		Structure: []disks.Partition{
 			{
 				FilesystemLabel: "ubuntu-save-enc",
+				FilesystemUUID:  "321-321-321",
 				PartitionUUID:   "123-123-123",
 			},
 		},
@@ -1341,30 +1542,50 @@ func (s *secbootSuite) TestUnlockEncryptedVolumeUsingKeyHappy(c *C) {
 		return "random-uuid-123-123", nil
 	})
 	defer restore()
+	defer secboot.MockListLUKS2ContainerUnlockKeyNames(func(devicePath string) ([]string, error) {
+		return []string{}, nil
+	})()
 	restore = secboot.MockSbActivateVolumeWithKey(func(volumeName, sourceDevicePath string, key []byte,
 		options *sb.ActivateVolumeOptions) error {
 		c.Check(options, DeepEquals, &sb.ActivateVolumeOptions{})
 		c.Check(key, DeepEquals, []byte("fooo"))
 		c.Check(volumeName, Matches, "ubuntu-save-random-uuid-123-123")
-		c.Check(sourceDevicePath, Equals, "/dev/disk/by-partuuid/123-123-123")
+		c.Check(sourceDevicePath, Equals, "/dev/disk/by-uuid/321-321-321")
 		return nil
 	})
 	defer restore()
-	unlockRes, err := secboot.UnlockEncryptedVolumeUsingKey(disk, "ubuntu-save", []byte("fooo"))
+	unlockRes, err := secboot.UnlockEncryptedVolumeUsingProtectorKey(disk, "ubuntu-save", []byte("fooo"))
 	c.Assert(err, IsNil)
 	c.Check(unlockRes, DeepEquals, secboot.UnlockResult{
-		PartDevice:   "/dev/disk/by-partuuid/123-123-123",
+		PartDevice:   "/dev/disk/by-uuid/321-321-321",
 		FsDevice:     "/dev/mapper/ubuntu-save-random-uuid-123-123",
 		IsEncrypted:  true,
 		UnlockMethod: secboot.UnlockedWithKey,
 	})
 }
 
-func (s *secbootSuite) TestUnlockEncryptedVolumeUsingKeyErr(c *C) {
+type fakeKeyDataReader struct {
+	name string
+	*bytes.Reader
+}
+
+func newFakeKeyDataReader(name string, data []byte) *fakeKeyDataReader {
+	return &fakeKeyDataReader{
+		name:   name,
+		Reader: bytes.NewReader(data),
+	}
+}
+
+func (f *fakeKeyDataReader) ReadableName() string {
+	return f.name
+}
+
+func (s *secbootSuite) TestUnlockEncryptedVolumeUsingProtectorKeyHappy(c *C) {
 	disk := &disks.MockDiskMapping{
 		Structure: []disks.Partition{
 			{
 				FilesystemLabel: "ubuntu-save-enc",
+				FilesystemUUID:  "321-321-321",
 				PartitionUUID:   "123-123-123",
 			},
 		},
@@ -1373,17 +1594,90 @@ func (s *secbootSuite) TestUnlockEncryptedVolumeUsingKeyErr(c *C) {
 		return "random-uuid-123-123", nil
 	})
 	defer restore()
+	defer secboot.MockListLUKS2ContainerUnlockKeyNames(func(devicePath string) ([]string, error) {
+		return []string{"some-key-without-data", "some-other-key", "the-plainkey"}, nil
+	})()
+	defer secboot.MockSbNewLUKS2KeyDataReader(func(device, slot string) (sb.KeyDataReader, error) {
+		switch slot {
+		case "the-plainkey":
+			return newFakeKeyDataReader(slot, []byte(`{"platform_name": "plainkey"}`)), nil
+		case "some-key-without-data":
+			return nil, fmt.Errorf("there is no key data")
+		case "some-other-key":
+			return newFakeKeyDataReader(slot, []byte(`{"platform_name": "foo"}`)), nil
+		default:
+			c.Errorf("unexpected call")
+			return nil, fmt.Errorf("unexpected")
+		}
+	})()
+
+	setProtectorKeysCalls := 0
+	secboot.MockSetProtectorKeys(func(keys ...[]byte) {
+		setProtectorKeysCalls++
+		switch setProtectorKeysCalls {
+		case 1:
+			c.Check(keys, HasLen, 1)
+			c.Check(keys[0], DeepEquals, []byte("fooo"))
+		case 2:
+			c.Check(keys, HasLen, 0)
+		default:
+			c.Errorf("unexpected call")
+		}
+	})
+
+	restore = secboot.MockSbActivateVolumeWithKeyData(func(volumeName string, sourceDevicePath string, authRequestor sb.AuthRequestor, options *sb.ActivateVolumeOptions, keys ...*sb.KeyData) error {
+		c.Check(setProtectorKeysCalls, Equals, 1)
+		c.Check(options, DeepEquals, &sb.ActivateVolumeOptions{KeyringPrefix: "ubuntu-fde"})
+		c.Check(volumeName, Matches, "ubuntu-save-random-uuid-123-123")
+		c.Check(sourceDevicePath, Equals, "/dev/disk/by-uuid/321-321-321")
+		return nil
+	})
+	defer restore()
+	restore = secboot.MockSbActivateVolumeWithKey(func(volumeName, sourceDevicePath string, key []byte,
+		options *sb.ActivateVolumeOptions) error {
+		c.Errorf("unexpected call")
+		return fmt.Errorf("unexpected call")
+	})
+	defer restore()
+	unlockRes, err := secboot.UnlockEncryptedVolumeUsingProtectorKey(disk, "ubuntu-save", []byte("fooo"))
+	c.Assert(err, IsNil)
+	c.Check(unlockRes, DeepEquals, secboot.UnlockResult{
+		PartDevice:   "/dev/disk/by-uuid/321-321-321",
+		FsDevice:     "/dev/mapper/ubuntu-save-random-uuid-123-123",
+		IsEncrypted:  true,
+		UnlockMethod: secboot.UnlockedWithKey,
+	})
+	c.Check(setProtectorKeysCalls, Equals, 2)
+}
+
+func (s *secbootSuite) TestUnlockEncryptedVolumeUsingProtectorKeyErr(c *C) {
+	disk := &disks.MockDiskMapping{
+		Structure: []disks.Partition{
+			{
+				FilesystemLabel: "ubuntu-save-enc",
+				FilesystemUUID:  "321-321-321",
+				PartitionUUID:   "123-123-123",
+			},
+		},
+	}
+	restore := secboot.MockRandomKernelUUID(func() (string, error) {
+		return "random-uuid-123-123", nil
+	})
+	defer restore()
+	defer secboot.MockListLUKS2ContainerUnlockKeyNames(func(devicePath string) ([]string, error) {
+		return []string{}, nil
+	})()
 	restore = secboot.MockSbActivateVolumeWithKey(func(volumeName, sourceDevicePath string, key []byte,
 		options *sb.ActivateVolumeOptions) error {
 		return fmt.Errorf("failed")
 	})
 	defer restore()
-	unlockRes, err := secboot.UnlockEncryptedVolumeUsingKey(disk, "ubuntu-save", []byte("fooo"))
+	unlockRes, err := secboot.UnlockEncryptedVolumeUsingProtectorKey(disk, "ubuntu-save", []byte("fooo"))
 	c.Assert(err, ErrorMatches, "failed")
 	// we would have at least identified that the device is a decrypted one
 	c.Check(unlockRes, DeepEquals, secboot.UnlockResult{
 		IsEncrypted: true,
-		PartDevice:  "/dev/disk/by-partuuid/123-123-123",
+		PartDevice:  "/dev/disk/by-uuid/321-321-321",
 		FsDevice:    "",
 	})
 }
@@ -1403,6 +1697,7 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncryptedFdeRevealKeyErr(
 		Structure: []disks.Partition{
 			{
 				FilesystemLabel: "name-enc",
+				FilesystemUUID:  "enc-dev-uuid",
 				PartitionUUID:   "enc-dev-partuuid",
 			},
 		},
@@ -1410,83 +1705,27 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncryptedFdeRevealKeyErr(
 	defaultDevice := "name"
 	mockSealedKeyFile := makeMockSealedKeyFile(c, nil)
 
-	restore = secboot.MockSbActivateVolumeWithKeyData(func(volumeName, sourceDevicePath string, keyData *sb.KeyData, options *sb.ActivateVolumeOptions) (sb.SnapModelChecker, error) {
+	restore = secboot.MockSbActivateVolumeWithKeyData(func(volumeName, sourceDevicePath string, authRequestor sb.AuthRequestor, options *sb.ActivateVolumeOptions, keys ...*sb.KeyData) error {
 		// XXX: this is what the real
 		// MockSbActivateVolumeWithKeyData will do
+		c.Assert(keys, HasLen, 1)
+		keyData := keys[0]
 		_, _, err := keyData.RecoverKeys()
 		if err != nil {
-			return nil, err
+			return err
 		}
 		c.Fatal("should not get this far")
-		return nil, nil
-	})
-	defer restore()
-
-	opts := &secboot.UnlockVolumeUsingSealedKeyOptions{}
-	_, err := secboot.UnlockVolumeUsingSealedKeyIfEncrypted(mockDiskWithEncDev, defaultDevice, mockSealedKeyFile, opts)
-	c.Assert(err, ErrorMatches, `cannot unlock encrypted partition: cannot recover keys because of an unexpected error: cannot run \["fde-reveal-key"\]: helper error`)
-}
-
-// this test that v1 hooks and raw binary v1 created sealedKey files still work
-func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncryptedFdeRevealKeyV1AndV1GeneratedSealedKeyFile(c *C) {
-	// The v1 hooks will just return raw bytes. This is deprecated but
-	// we need to keep compatbility with the v1 implementation because
-	// there is a project "denver" that ships with v1 hooks.
-	var reqs []*fde.RevealKeyRequest
-	restore := fde.MockRunFDERevealKey(func(req *fde.RevealKeyRequest) ([]byte, error) {
-		reqs = append(reqs, req)
-		return []byte("unsealed-key-64-chars-long-when-not-json-to-match-denver-project"), nil
-	})
-	defer restore()
-
-	restore = secboot.MockFDEHasRevealKey(func() bool {
-		return true
-	})
-	defer restore()
-
-	restore = secboot.MockRandomKernelUUID(func() (string, error) {
-		return "random-uuid-for-test", nil
-	})
-	defer restore()
-
-	mockDiskWithEncDev := &disks.MockDiskMapping{
-		Structure: []disks.Partition{
-			{
-				FilesystemLabel: "device-name-enc",
-				PartitionUUID:   "enc-dev-partuuid",
-			},
-		},
-	}
-
-	activated := 0
-	restore = secboot.MockSbActivateVolumeWithKey(func(volumeName, sourceDevicePath string, key []byte, options *sb.ActivateVolumeOptions) error {
-		activated++
-		c.Check(string(key), Equals, "unsealed-key-64-chars-long-when-not-json-to-match-denver-project")
 		return nil
 	})
 	defer restore()
 
-	defaultDevice := "device-name"
-	// note that we write a v1 created keyfile here, i.e. it's a raw
-	// disk-key without any json
-	mockSealedKeyFile := filepath.Join(c.MkDir(), "keyfile")
-	sealedKeyContent := []byte("USK$sealed-key-not-json-to-match-denver-project")
-	err := os.WriteFile(mockSealedKeyFile, sealedKeyContent, 0600)
-	c.Assert(err, IsNil)
-
-	opts := &secboot.UnlockVolumeUsingSealedKeyOptions{}
-	res, err := secboot.UnlockVolumeUsingSealedKeyIfEncrypted(mockDiskWithEncDev, defaultDevice, mockSealedKeyFile, opts)
-	c.Assert(err, IsNil)
-	c.Check(res, DeepEquals, secboot.UnlockResult{
-		UnlockMethod: secboot.UnlockedWithSealedKey,
-		IsEncrypted:  true,
-		PartDevice:   "/dev/disk/by-partuuid/enc-dev-partuuid",
-		FsDevice:     "/dev/mapper/device-name-random-uuid-for-test",
-	})
-	c.Check(activated, Equals, 1)
-	c.Check(reqs, HasLen, 1)
-	c.Check(reqs[0].Op, Equals, "reveal")
-	c.Check(reqs[0].SealedKey, DeepEquals, sealedKeyContent)
+	opts := &secboot.UnlockVolumeUsingSealedKeyOptions{
+		WhichModel: func() (*asserts.Model, error) {
+			return fakeModel, nil
+		},
+	}
+	_, err := secboot.UnlockVolumeUsingSealedKeyIfEncrypted(mockDiskWithEncDev, defaultDevice, mockSealedKeyFile, opts)
+	c.Assert(err, ErrorMatches, `cannot activate encrypted device "/dev/disk/by-uuid/enc-dev-uuid": cannot perform action because of an unexpected error: cannot run \["fde-reveal-key"\]: helper error`)
 }
 
 func (s *secbootSuite) TestLockSealedKeysCallsFdeReveal(c *C) {
@@ -1507,9 +1746,7 @@ func (s *secbootSuite) TestLockSealedKeysCallsFdeReveal(c *C) {
 	c.Check(ops, DeepEquals, []string{"lock"})
 }
 
-func (s *secbootSuite) TestSealKeysWithFDESetupHookHappy(c *C) {
-	tmpdir := c.MkDir()
-
+func (s *secbootSuite) testSealKeysWithFDESetupHookHappy(c *C, useKeyFiles bool) {
 	n := 0
 	sealedPrefix := []byte("SEALED:")
 	rawHandle1 := json.RawMessage(`{"handle-for":"key1"}`)
@@ -1529,65 +1766,57 @@ func (s *secbootSuite) TestSealKeysWithFDESetupHookHappy(c *C) {
 		return json.Marshal(res)
 	}
 
-	key1 := keys.EncryptionKey{1, 2, 3, 4}
-	key2 := keys.EncryptionKey{5, 6, 7, 8}
-	auxKey := keys.AuxKey{9, 10, 11, 12}
-	key1Fn := filepath.Join(tmpdir, "key1.key")
-	key2Fn := filepath.Join(tmpdir, "key2.key")
-	auxKeyFn := filepath.Join(tmpdir, "aux-key")
+	tmpDir := c.MkDir()
+	auxKeyFn := filepath.Join(tmpDir, "aux-key")
 	params := secboot.SealKeysWithFDESetupHookParams{
 		Model:      fakeModel,
-		AuxKey:     auxKey,
 		AuxKeyFile: auxKeyFn,
 	}
-	err := secboot.SealKeysWithFDESetupHook(runFDESetupHook,
-		[]secboot.SealKeyRequest{
-			{Key: key1, KeyName: "key1", KeyFile: key1Fn},
-			{Key: key2, KeyName: "key2", KeyFile: key2Fn},
-		}, &params)
+	containerA := secboot.CreateMockBootstrappedContainer()
+	containerB := secboot.CreateMockBootstrappedContainer()
+	myKeys := []secboot.SealKeyRequest{
+		{BootstrappedContainer: containerA, KeyName: "key1", SlotName: "foo1"},
+		{BootstrappedContainer: containerB, KeyName: "key2", SlotName: "foo2"},
+	}
+	if useKeyFiles {
+		myKeys[0].KeyFile = filepath.Join(tmpDir, "key-file-1")
+		myKeys[1].KeyFile = filepath.Join(tmpDir, "key-file-2")
+	}
+	err := secboot.SealKeysWithFDESetupHook(runFDESetupHook, myKeys, &params)
 	c.Assert(err, IsNil)
 	// check that runFDESetupHook was called the expected way
-	key1Payload := sb.MarshalKeys([]byte(key1), auxKey[:])
-	key2Payload := sb.MarshalKeys([]byte(key2), auxKey[:])
-	c.Check(runFDESetupHookReqs, DeepEquals, []*fde.SetupRequest{
-		{Op: "initial-setup", Key: key1Payload, KeyName: "key1"},
-		{Op: "initial-setup", Key: key2Payload, KeyName: "key2"},
-	})
-	// check that the sealed keys got written to the expected places
-	for _, p := range []string{key1Fn, key2Fn} {
-		c.Check(p, testutil.FilePresent)
+	c.Check(runFDESetupHookReqs, HasLen, 2)
+	c.Check(runFDESetupHookReqs[0].Op, Equals, "initial-setup")
+	c.Check(runFDESetupHookReqs[1].Op, Equals, "initial-setup")
+	c.Check(runFDESetupHookReqs[0].KeyName, Equals, "key1")
+	c.Check(runFDESetupHookReqs[1].KeyName, Equals, "key2")
+	_, aHasSlot := containerA.Slots["foo1"]
+	c.Check(aHasSlot, Equals, true)
+	_, bHasSlot := containerB.Slots["foo2"]
+	c.Check(bHasSlot, Equals, true)
+	if useKeyFiles {
+		c.Check(containerA.Tokens, HasLen, 0)
+		c.Check(containerB.Tokens, HasLen, 0)
+		c.Check(osutil.FileExists(filepath.Join(tmpDir, "key-file-1")), Equals, true)
+		c.Check(osutil.FileExists(filepath.Join(tmpDir, "key-file-2")), Equals, true)
+	} else {
+		c.Check(osutil.FileExists(filepath.Join(tmpDir, "key-file-1")), Equals, false)
+		c.Check(osutil.FileExists(filepath.Join(tmpDir, "key-file-2")), Equals, false)
+		_, aHasToken := containerA.Tokens["foo1"]
+		c.Check(aHasToken, Equals, true)
+		_, bHasToken := containerB.Tokens["foo2"]
+		c.Check(bHasToken, Equals, true)
 	}
-	c.Check(auxKeyFn, testutil.FileEquals, auxKey[:])
-
-	// roundtrip to check what was written
-	s.checkV2Key(c, key1Fn, sealedPrefix, key1, auxKey[:], fakeModel, &rawHandle1)
-	nullHandle := json.RawMessage("null")
-	s.checkV2Key(c, key2Fn, sealedPrefix, key2, auxKey[:], fakeModel, &nullHandle)
 }
 
-func (s *secbootSuite) TestSealKeysWithFDESetupHookSad(c *C) {
-	tmpdir := c.MkDir()
+func (s *secbootSuite) TestSealKeysWithFDESetupHookHappyKeyFiles(c *C) {
+	const useKeyFiles = true
+	s.testSealKeysWithFDESetupHookHappy(c, useKeyFiles)
+}
 
-	runFDESetupHook := func(req *fde.SetupRequest) ([]byte, error) {
-		return nil, fmt.Errorf("hook failed")
-	}
-
-	key := keys.EncryptionKey{1, 2, 3, 4}
-	auxKey := keys.AuxKey{5, 6, 7, 8}
-	keyFn := filepath.Join(tmpdir, "key.key")
-	auxKeyFn := filepath.Join(tmpdir, "aux-key")
-	params := secboot.SealKeysWithFDESetupHookParams{
-		Model:      fakeModel,
-		AuxKey:     auxKey,
-		AuxKeyFile: auxKeyFn,
-	}
-	err := secboot.SealKeysWithFDESetupHook(runFDESetupHook,
-		[]secboot.SealKeyRequest{
-			{Key: key, KeyName: "key1", KeyFile: keyFn},
-		}, &params)
-	c.Assert(err, ErrorMatches, "hook failed")
-	c.Check(keyFn, testutil.FileAbsent)
-	c.Check(auxKeyFn, testutil.FileAbsent)
+func (s *secbootSuite) TestSealKeysWithFDESetupHookHappyTokens(c *C) {
+	const useKeyFiles = false
+	s.testSealKeysWithFDESetupHookHappy(c, useKeyFiles)
 }
 
 func makeMockDiskKey() keys.EncryptionKey {
@@ -1601,7 +1830,12 @@ func makeMockAuxKey() keys.AuxKey {
 func makeMockUnencryptedPayload() []byte {
 	diskKey := makeMockDiskKey()
 	auxKey := makeMockAuxKey()
-	return sb.MarshalKeys([]byte(diskKey), auxKey[:])
+	payload := new(bytes.Buffer)
+	binary.Write(payload, binary.BigEndian, uint16(len(diskKey)))
+	payload.Write(diskKey)
+	binary.Write(payload, binary.BigEndian, uint16(len(auxKey[:])))
+	payload.Write(auxKey[:])
+	return payload.Bytes()
 }
 
 func makeMockEncryptedPayload() []byte {
@@ -1653,21 +1887,6 @@ var fakeModel = assertstest.FakeAssertion(map[string]interface{}{
 		}},
 }).(*asserts.Model)
 
-type mockSnapModelChecker struct {
-	mockIsAuthorized bool
-	mockError        error
-}
-
-func (c *mockSnapModelChecker) IsModelAuthorized(model sb.SnapModel) (bool, error) {
-	if model.BrandID() != "my-brand" || model.Model() != "my-model" {
-		return false, fmt.Errorf("not the test model")
-	}
-	return c.mockIsAuthorized, c.mockError
-}
-func (c *mockSnapModelChecker) VolumeName() string {
-	return "volume-name"
-}
-
 func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncryptedFdeRevealKeyV2(c *C) {
 	var reqs []*fde.RevealKeyRequest
 	restore := fde.MockRunFDERevealKey(func(req *fde.RevealKeyRequest) ([]byte, error) {
@@ -1690,6 +1909,7 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncryptedFdeRevealKeyV2(c
 		Structure: []disks.Partition{
 			{
 				FilesystemLabel: "device-name-enc",
+				FilesystemUUID:  "enc-dev-uuid",
 				PartitionUUID:   "enc-dev-partuuid",
 			},
 		},
@@ -1698,7 +1918,11 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncryptedFdeRevealKeyV2(c
 	expectedKey := makeMockDiskKey()
 	expectedAuxKey := makeMockAuxKey()
 	activated := 0
-	restore = secboot.MockSbActivateVolumeWithKeyData(func(volumeName, sourceDevicePath string, keyData *sb.KeyData, options *sb.ActivateVolumeOptions) (sb.SnapModelChecker, error) {
+	restore = secboot.MockSbActivateVolumeWithKeyData(func(volumeName, sourceDevicePath string, authRequestor sb.AuthRequestor, options *sb.ActivateVolumeOptions, keys ...*sb.KeyData) error {
+		c.Check(s.currentModel.Model(), Equals, fakeModel.Model())
+		c.Assert(keys, HasLen, 1)
+		keyData := keys[0]
+
 		activated++
 		c.Check(options.RecoveryKeyTries, Equals, 0)
 		// XXX: this is what the real
@@ -1707,8 +1931,7 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncryptedFdeRevealKeyV2(c
 		c.Assert(err, IsNil)
 		c.Check([]byte(key), DeepEquals, []byte(expectedKey))
 		c.Check([]byte(auxKey), DeepEquals, expectedAuxKey[:])
-		modChecker := &mockSnapModelChecker{mockIsAuthorized: true}
-		return modChecker, nil
+		return nil
 	})
 	defer restore()
 
@@ -1736,7 +1959,7 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncryptedFdeRevealKeyV2(c
 	c.Check(reqs[0].Handle, DeepEquals, &handle)
 }
 
-func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncryptedFdeRevealKeyV2ModelUnauthorized(c *C) {
+func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncryptedFdeRevealKeyV2ActivationError(c *C) {
 	restore := secboot.MockFDEHasRevealKey(func() bool {
 		return true
 	})
@@ -1751,24 +1974,16 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncryptedFdeRevealKeyV2Mo
 		Structure: []disks.Partition{
 			{
 				FilesystemLabel: "device-name-enc",
+				FilesystemUUID:  "enc-dev-uuid",
 				PartitionUUID:   "enc-dev-partuuid",
 			},
 		},
 	}
 
 	activated := 0
-	restore = secboot.MockSbActivateVolumeWithKeyData(func(volumeName, sourceDevicePath string, keyData *sb.KeyData, options *sb.ActivateVolumeOptions) (sb.SnapModelChecker, error) {
+	restore = secboot.MockSbActivateVolumeWithKeyData(func(volumeName, sourceDevicePath string, authRequestor sb.AuthRequestor, options *sb.ActivateVolumeOptions, keys ...*sb.KeyData) error {
 		activated++
-		modChecker := &mockSnapModelChecker{mockIsAuthorized: false}
-		return modChecker, nil
-	})
-	defer restore()
-
-	deactivated := 0
-	restore = secboot.MockSbDeactivateVolume(func(volumeName string) error {
-		deactivated++
-		c.Check(volumeName, Equals, "device-name-random-uuid-for-test")
-		return nil
+		return fmt.Errorf("some activation error")
 	})
 	defer restore()
 
@@ -1782,54 +1997,7 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncryptedFdeRevealKeyV2Mo
 		},
 	}
 	res, err := secboot.UnlockVolumeUsingSealedKeyIfEncrypted(mockDiskWithEncDev, defaultDevice, mockSealedKeyFile, opts)
-	c.Assert(err, ErrorMatches, `cannot unlock volume: model my-brand/my-model not authorized`)
-	c.Check(res, DeepEquals, secboot.UnlockResult{
-		IsEncrypted: true,
-		PartDevice:  "/dev/disk/by-partuuid/enc-dev-partuuid",
-	})
-	c.Check(activated, Equals, 1)
-	c.Check(deactivated, Equals, 1)
-}
-
-func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncryptedFdeRevealKeyV2ModelCheckerError(c *C) {
-	restore := secboot.MockFDEHasRevealKey(func() bool {
-		return true
-	})
-	defer restore()
-
-	restore = secboot.MockRandomKernelUUID(func() (string, error) {
-		return "random-uuid-for-test", nil
-	})
-	defer restore()
-
-	mockDiskWithEncDev := &disks.MockDiskMapping{
-		Structure: []disks.Partition{
-			{
-				FilesystemLabel: "device-name-enc",
-				PartitionUUID:   "enc-dev-partuuid",
-			},
-		},
-	}
-
-	activated := 0
-	restore = secboot.MockSbActivateVolumeWithKeyData(func(volumeName, sourceDevicePath string, keyData *sb.KeyData, options *sb.ActivateVolumeOptions) (sb.SnapModelChecker, error) {
-		activated++
-		modChecker := &mockSnapModelChecker{mockError: errors.New("model checker error")}
-		return modChecker, nil
-	})
-	defer restore()
-
-	defaultDevice := "device-name"
-	handle := json.RawMessage(`{"a": "handle"}`)
-	mockSealedKeyFile := makeMockSealedKeyFile(c, handle)
-
-	opts := &secboot.UnlockVolumeUsingSealedKeyOptions{
-		WhichModel: func() (*asserts.Model, error) {
-			return fakeModel, nil
-		},
-	}
-	res, err := secboot.UnlockVolumeUsingSealedKeyIfEncrypted(mockDiskWithEncDev, defaultDevice, mockSealedKeyFile, opts)
-	c.Assert(err, ErrorMatches, `cannot check if model is authorized to unlock disk: model checker error`)
+	c.Assert(err, ErrorMatches, `cannot activate encrypted device "/dev/disk/by-uuid/enc-dev-uuid": some activation error`)
 	c.Check(res, DeepEquals, secboot.UnlockResult{
 		IsEncrypted: true,
 		PartDevice:  "/dev/disk/by-partuuid/enc-dev-partuuid",
@@ -1859,20 +2027,24 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncryptedFdeRevealKeyV2Al
 		Structure: []disks.Partition{
 			{
 				FilesystemLabel: "device-name-enc",
+				FilesystemUUID:  "enc-dev-uuid",
 				PartitionUUID:   "enc-dev-partuuid",
 			},
 		},
 	}
 
 	activated := 0
-	restore = secboot.MockSbActivateVolumeWithKeyData(func(volumeName, sourceDevicePath string, keyData *sb.KeyData, options *sb.ActivateVolumeOptions) (sb.SnapModelChecker, error) {
+	restore = secboot.MockSbActivateVolumeWithKeyData(func(volumeName, sourceDevicePath string, authRequestor sb.AuthRequestor, options *sb.ActivateVolumeOptions, keys ...*sb.KeyData) error {
+		c.Assert(keys, HasLen, 1)
+		keyData := keys[0]
+
 		activated++
 		c.Check(options.RecoveryKeyTries, Equals, 3)
 		// XXX: this is what the real
 		// MockSbActivateVolumeWithKeyData will do
 		_, _, err := keyData.RecoverKeys()
 		c.Assert(err, NotNil)
-		return nil, sb.ErrRecoveryKeyUsed
+		return sb.ErrRecoveryKeyUsed
 	})
 	defer restore()
 
@@ -1880,7 +2052,12 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncryptedFdeRevealKeyV2Al
 	handle := json.RawMessage(`{"a": "handle"}`)
 	mockSealedKeyFile := makeMockSealedKeyFile(c, handle)
 
-	opts := &secboot.UnlockVolumeUsingSealedKeyOptions{AllowRecoveryKey: true}
+	opts := &secboot.UnlockVolumeUsingSealedKeyOptions{
+		AllowRecoveryKey: true,
+		WhichModel: func() (*asserts.Model, error) {
+			return fakeModel, nil
+		},
+	}
 	res, err := secboot.UnlockVolumeUsingSealedKeyIfEncrypted(mockDiskWithEncDev, defaultDevice, mockSealedKeyFile, opts)
 	c.Assert(err, IsNil)
 	c.Check(res, DeepEquals, secboot.UnlockResult{
@@ -1894,69 +2071,6 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncryptedFdeRevealKeyV2Al
 	c.Check(reqs[0].Op, Equals, "reveal")
 	c.Check(reqs[0].SealedKey, DeepEquals, makeMockEncryptedPayload())
 	c.Check(reqs[0].Handle, DeepEquals, &handle)
-}
-
-func (s *secbootSuite) checkV2Key(c *C, keyFn string, prefixToDrop, expectedKey, expectedAuxKey []byte, authModel *asserts.Model, handle *json.RawMessage) {
-	restore := fde.MockRunFDERevealKey(func(req *fde.RevealKeyRequest) ([]byte, error) {
-		c.Check(req.Handle, DeepEquals, handle)
-		c.Check(bytes.HasPrefix(req.SealedKey, prefixToDrop), Equals, true)
-		payload := req.SealedKey[len(prefixToDrop):]
-		return []byte(fmt.Sprintf(`{"key": "%s"}`, base64.StdEncoding.EncodeToString(payload))), nil
-	})
-	defer restore()
-
-	restore = secboot.MockFDEHasRevealKey(func() bool {
-		return true
-	})
-	defer restore()
-
-	restore = secboot.MockRandomKernelUUID(func() (string, error) {
-		return "random-uuid-for-test", nil
-	})
-	defer restore()
-
-	mockDiskWithEncDev := &disks.MockDiskMapping{
-		Structure: []disks.Partition{
-			{
-				FilesystemLabel: "device-name-enc",
-				PartitionUUID:   "enc-dev-partuuid",
-			},
-		},
-	}
-
-	activated := 0
-	restore = secboot.MockSbActivateVolumeWithKeyData(func(volumeName, sourceDevicePath string, keyData *sb.KeyData, options *sb.ActivateVolumeOptions) (sb.SnapModelChecker, error) {
-		activated++
-		// XXX: this is what the real
-		// MockSbActivateVolumeWithKeyData will do
-		key, auxKey, err := keyData.RecoverKeys()
-		c.Assert(err, IsNil)
-		c.Check([]byte(key), DeepEquals, []byte(expectedKey))
-		c.Check([]byte(auxKey), DeepEquals, []byte(expectedAuxKey))
-		// check against model
-		ok, err := keyData.IsSnapModelAuthorized(auxKey, authModel)
-		c.Assert(err, IsNil)
-		c.Check(ok, Equals, true)
-		modChecker := &mockSnapModelChecker{mockIsAuthorized: true}
-		return modChecker, nil
-	})
-	defer restore()
-
-	defaultDevice := "device-name"
-	opts := &secboot.UnlockVolumeUsingSealedKeyOptions{
-		WhichModel: func() (*asserts.Model, error) {
-			return fakeModel, nil
-		},
-	}
-	res, err := secboot.UnlockVolumeUsingSealedKeyIfEncrypted(mockDiskWithEncDev, defaultDevice, keyFn, opts)
-	c.Assert(err, IsNil)
-	c.Check(res, DeepEquals, secboot.UnlockResult{
-		UnlockMethod: secboot.UnlockedWithSealedKey,
-		IsEncrypted:  true,
-		PartDevice:   "/dev/disk/by-partuuid/enc-dev-partuuid",
-		FsDevice:     "/dev/mapper/device-name-random-uuid-for-test",
-	})
-	c.Check(activated, Equals, 1)
 }
 
 func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncryptedFdeRevealKeyV1(c *C) {
@@ -1987,29 +2101,44 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncryptedFdeRevealKeyV1(c
 		Structure: []disks.Partition{
 			{
 				FilesystemLabel: "device-name-enc",
+				FilesystemUUID:  "enc-dev-uuid",
 				PartitionUUID:   "enc-dev-partuuid",
 			},
 		},
 	}
 
-	mockEncryptedDiskKey := []byte("USK$encrypted-key-no-json-to-match-denver-project")
-	activated := 0
-	restore = secboot.MockSbActivateVolumeWithKey(func(volumeName, sourceDevicePath string, key []byte, options *sb.ActivateVolumeOptions) error {
-		activated++
-		c.Check(key, DeepEquals, mockDiskKey)
+	mockSealedKey := []byte("USK$foobar")
+
+	restore = secboot.MockReadKeyFile(func(keyfile string, kl secboot.KeyLoader, hintExpectFDEHook bool) error {
+		c.Check(keyfile, Equals, "the-key-file")
+		c.Check(hintExpectFDEHook, Equals, true)
+		kl.LoadedFDEHookKeyV1(mockSealedKey)
 		return nil
 	})
 	defer restore()
 
+	activated := 0
+	restore = secboot.MockSbActivateVolumeWithKey(func(volumeName, sourceDevicePath string, key []byte, options *sb.ActivateVolumeOptions) error {
+		activated++
+		c.Check(volumeName, Equals, "device-name-random-uuid-for-test")
+		c.Check(sourceDevicePath, Equals, "/dev/disk/by-uuid/enc-dev-uuid")
+		c.Check(key, DeepEquals, mockDiskKey)
+		c.Check(options, DeepEquals, &sb.ActivateVolumeOptions{})
+		return nil
+	})
+
+	defer restore()
+
+	restore = secboot.MockSbActivateVolumeWithKeyData(func(volumeName, sourceDevicePath string, authRequestor sb.AuthRequestor, options *sb.ActivateVolumeOptions, keys ...*sb.KeyData) error {
+		c.Errorf("unexpected calls")
+		return fmt.Errorf("unexpected calls")
+	})
+	defer restore()
+
 	defaultDevice := "device-name"
-	// note that we write a v1 created keyfile here, i.e. it's a raw
-	// disk-key without any json
-	mockSealedKeyFile := filepath.Join(c.MkDir(), "keyfile")
-	err := os.WriteFile(mockSealedKeyFile, mockEncryptedDiskKey, 0600)
-	c.Assert(err, IsNil)
 
 	opts := &secboot.UnlockVolumeUsingSealedKeyOptions{}
-	res, err := secboot.UnlockVolumeUsingSealedKeyIfEncrypted(mockDiskWithEncDev, defaultDevice, mockSealedKeyFile, opts)
+	res, err := secboot.UnlockVolumeUsingSealedKeyIfEncrypted(mockDiskWithEncDev, defaultDevice, "the-key-file", opts)
 	c.Assert(err, IsNil)
 	c.Check(res, DeepEquals, secboot.UnlockResult{
 		UnlockMethod: secboot.UnlockedWithSealedKey,
@@ -2018,10 +2147,111 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncryptedFdeRevealKeyV1(c
 		FsDevice:     "/dev/mapper/device-name-random-uuid-for-test",
 	})
 	c.Check(activated, Equals, 1)
-	c.Check(reqs, HasLen, 1)
+	c.Assert(reqs, HasLen, 1)
 	c.Check(reqs[0].Op, Equals, "reveal")
-	c.Check(reqs[0].SealedKey, DeepEquals, mockEncryptedDiskKey)
+	c.Check(reqs[0].SealedKey, DeepEquals, mockSealedKey)
 	c.Check(reqs[0].Handle, IsNil)
+}
+
+func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncryptedFdeRevealKeyV1FallbackKeyData(c *C) {
+	// If there is an old key file but that does not manage to
+	// open the disk, we should still try to open using key data
+	// because there might be a keyslot that has a key data that
+	// works.
+	mockDiskKey := []byte("unsealed-key--64-chars-long-and-not-json-to-match-denver-project")
+	c.Assert(len(mockDiskKey), Equals, 64)
+
+	var reqs []*fde.RevealKeyRequest
+	// The v1 hooks will just return raw bytes. This is deprecated but
+	// we need to keep compatbility with the v1 implementation because
+	// there is a project "denver" that ships with v1 hooks.
+	restore := fde.MockRunFDERevealKey(func(req *fde.RevealKeyRequest) ([]byte, error) {
+		reqs = append(reqs, req)
+		return mockDiskKey, nil
+	})
+	defer restore()
+
+	restore = secboot.MockFDEHasRevealKey(func() bool {
+		return true
+	})
+	defer restore()
+
+	restore = secboot.MockRandomKernelUUID(func() (string, error) {
+		return "random-uuid-for-test", nil
+	})
+	defer restore()
+
+	mockDiskWithEncDev := &disks.MockDiskMapping{
+		Structure: []disks.Partition{
+			{
+				FilesystemLabel: "device-name-enc",
+				FilesystemUUID:  "enc-dev-uuid",
+				PartitionUUID:   "enc-dev-partuuid",
+			},
+		},
+	}
+
+	mockSealedKey := []byte("USK$foobar")
+
+	restore = secboot.MockReadKeyFile(func(keyfile string, kl secboot.KeyLoader, hintExpectFDEHook bool) error {
+		c.Check(keyfile, Equals, "the-key-file")
+		c.Check(hintExpectFDEHook, Equals, true)
+		kl.LoadedFDEHookKeyV1(mockSealedKey)
+		return nil
+	})
+	defer restore()
+
+	activatedLegacy := 0
+	restore = secboot.MockSbActivateVolumeWithKey(func(volumeName, sourceDevicePath string, key []byte, options *sb.ActivateVolumeOptions) error {
+		activatedLegacy++
+		c.Check(volumeName, Equals, "device-name-random-uuid-for-test")
+		c.Check(sourceDevicePath, Equals, "/dev/disk/by-uuid/enc-dev-uuid")
+		c.Check(key, DeepEquals, mockDiskKey)
+		c.Check(options, DeepEquals, &sb.ActivateVolumeOptions{})
+		return fmt.Errorf("that did not work")
+	})
+
+	defer restore()
+
+	activatedKeyData := 0
+	restore = secboot.MockSbActivateVolumeWithKeyData(func(volumeName, sourceDevicePath string, authRequestor sb.AuthRequestor, options *sb.ActivateVolumeOptions, keys ...*sb.KeyData) error {
+		activatedKeyData++
+		c.Check(volumeName, Equals, "device-name-random-uuid-for-test")
+		c.Check(sourceDevicePath, Equals, "/dev/disk/by-uuid/enc-dev-uuid")
+		c.Check(authRequestor, NotNil)
+		c.Check(options, DeepEquals, &sb.ActivateVolumeOptions{
+			PassphraseTries: 1,
+			KeyringPrefix:   "ubuntu-fde",
+			LegacyDevicePaths: []string{
+				"/dev/disk/by-partuuid/enc-dev-partuuid",
+			},
+		})
+		c.Check(keys, HasLen, 0)
+		return nil
+	})
+	defer restore()
+
+	logbuf, restore := logger.MockLogger()
+	defer restore()
+
+	defaultDevice := "device-name"
+
+	opts := &secboot.UnlockVolumeUsingSealedKeyOptions{}
+	res, err := secboot.UnlockVolumeUsingSealedKeyIfEncrypted(mockDiskWithEncDev, defaultDevice, "the-key-file", opts)
+	c.Assert(err, IsNil)
+	c.Check(res, DeepEquals, secboot.UnlockResult{
+		UnlockMethod: secboot.UnlockedWithSealedKey,
+		IsEncrypted:  true,
+		PartDevice:   "/dev/disk/by-partuuid/enc-dev-partuuid",
+		FsDevice:     "/dev/mapper/device-name-random-uuid-for-test",
+	})
+	c.Check(activatedLegacy, Equals, 1)
+	c.Assert(reqs, HasLen, 1)
+	c.Check(reqs[0].Op, Equals, "reveal")
+	c.Check(reqs[0].SealedKey, DeepEquals, mockSealedKey)
+	c.Check(reqs[0].Handle, IsNil)
+	c.Check(activatedKeyData, Equals, 1)
+	c.Check(logbuf.String(), testutil.Contains, ` WARNING: attempting opening device /dev/disk/by-uuid/enc-dev-uuid  with key file the-key-file failed: that did not work`)
 }
 
 func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncryptedFdeRevealKeyBadJSONv2(c *C) {
@@ -2044,100 +2274,38 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncryptedFdeRevealKeyBadJ
 		Structure: []disks.Partition{
 			{
 				FilesystemLabel: "device-name-enc",
+				FilesystemUUID:  "enc-dev-uuid",
 				PartitionUUID:   "enc-dev-partuuid",
 			},
 		},
 	}
 
-	restore = secboot.MockSbActivateVolumeWithKeyData(func(volumeName, sourceDevicePath string, keyData *sb.KeyData, options *sb.ActivateVolumeOptions) (sb.SnapModelChecker, error) {
+	restore = secboot.MockSbActivateVolumeWithKeyData(func(volumeName, sourceDevicePath string, authRequestor sb.AuthRequestor, options *sb.ActivateVolumeOptions, keys ...*sb.KeyData) error {
+		c.Assert(keys, HasLen, 1)
+		keyData := keys[0]
+
 		// XXX: this is what the real
 		// MockSbActivateVolumeWithKeyData will do
 		_, _, err := keyData.RecoverKeys()
 		if err != nil {
-			return nil, err
+			return err
 		}
 		c.Fatal("should not get this far")
-		return nil, nil
+		return nil
 	})
 	defer restore()
 
 	defaultDevice := "device-name"
 	mockSealedKeyFile := makeMockSealedKeyFile(c, nil)
 
-	opts := &secboot.UnlockVolumeUsingSealedKeyOptions{}
+	opts := &secboot.UnlockVolumeUsingSealedKeyOptions{
+		WhichModel: func() (*asserts.Model, error) {
+			return fakeModel, nil
+		},
+	}
 	_, err := secboot.UnlockVolumeUsingSealedKeyIfEncrypted(mockDiskWithEncDev, defaultDevice, mockSealedKeyFile, opts)
 
-	c.Check(err, ErrorMatches, `cannot unlock encrypted partition: invalid key data:.*`)
-}
-
-func (s *secbootSuite) TestPCRHandleOfSealedKey(c *C) {
-	d := c.MkDir()
-	h, err := secboot.PCRHandleOfSealedKey(filepath.Join(d, "not-found"))
-	c.Assert(err, ErrorMatches, "cannot open key file: .*/not-found: no such file or directory")
-	c.Assert(h, Equals, uint32(0))
-
-	skf := filepath.Join(d, "sealed-key")
-	// partially valid sealed key with correct header magic
-	c.Assert(os.WriteFile(skf, []byte{0x55, 0x53, 0x4b, 0x24, 1, 1, 1, 'k', 'e', 'y', 1, 1, 1}, 0644), IsNil)
-	h, err = secboot.PCRHandleOfSealedKey(skf)
-	c.Assert(err, ErrorMatches, "(?s)cannot open key file: invalid key data: cannot unmarshal AFIS header: .*")
-	c.Check(h, Equals, uint32(0))
-
-	// TODO simulate the happy case, which needs a real (or at least
-	// partially mocked) sealed key object, which could be obtained using
-	// go-tpm2/testutil, but that has a dependency on an older version of
-	// snapd API and cannot be imported or procure a valid sealed key binary
-	// which unfortunately there are no examples of the secboot/tpm2 test
-	// code
-}
-
-func (s *secbootSuite) TestReleasePCRResourceHandles(c *C) {
-	_, restore := mockSbTPMConnection(c, fmt.Errorf("mock err"))
-	defer restore()
-
-	err := secboot.ReleasePCRResourceHandles(0x1234, 0x2345)
-	c.Assert(err, ErrorMatches, "cannot connect to TPM device: mock err")
-
-	conn, restore := mockSbTPMConnection(c, nil)
-	defer restore()
-
-	var handles []tpm2.Handle
-	restore = secboot.MockTPMReleaseResources(func(tpm *sb_tpm2.Connection, handle tpm2.Handle) error {
-		c.Check(tpm, Equals, conn)
-		handles = append(handles, handle)
-		switch handle {
-		case tpm2.Handle(0xeeeeee):
-			return fmt.Errorf("mock release error 1")
-		case tpm2.Handle(0xeeeeef):
-			return fmt.Errorf("mock release error 2")
-		}
-		return nil
-	})
-	defer restore()
-
-	// many handles
-	err = secboot.ReleasePCRResourceHandles(0x1234, 0x2345)
-	c.Assert(err, IsNil)
-	c.Check(handles, DeepEquals, []tpm2.Handle{
-		tpm2.Handle(0x1234), tpm2.Handle(0x2345),
-	})
-
-	// single handle
-	handles = nil
-	err = secboot.ReleasePCRResourceHandles(0x1234)
-	c.Assert(err, IsNil)
-	c.Check(handles, DeepEquals, []tpm2.Handle{tpm2.Handle(0x1234)})
-
-	// an error case
-	handles = nil
-	err = secboot.ReleasePCRResourceHandles(0x1234, 0xeeeeee, 0x2345, 0xeeeeef)
-	c.Assert(err, ErrorMatches, `
-cannot release TPM resources for 2 handles:
-handle 0xeeeeee: mock release error 1
-handle 0xeeeeef: mock release error 2`[1:])
-	c.Check(handles, DeepEquals, []tpm2.Handle{
-		tpm2.Handle(0x1234), tpm2.Handle(0xeeeeee), tpm2.Handle(0x2345), tpm2.Handle(0xeeeeef),
-	})
+	c.Check(err, ErrorMatches, `cannot activate encrypted device \".*\": invalid key data: cannot unmarshal cleartext key payload: EOF`)
 }
 
 func (s *secbootSuite) TestMarkSuccessfulNotEncrypted(c *C) {
@@ -2205,4 +2373,1054 @@ func (s *secbootSuite) testMarkSuccessfulEncrypted(c *C, sealingMethod device.Se
 	c.Check(err, IsNil)
 
 	c.Check(daLockResetCalls, Equals, expectedDaLockResetCalls)
+}
+
+func (s *secbootSuite) TestHookKeyRevealV3(c *C) {
+	k := &secboot.KeyRevealerV3{}
+
+	encryptedKey := []byte{1, 2, 3, 4}
+	decryptedKey := []byte{5, 6, 7, 8}
+
+	restore := fde.MockRunFDERevealKey(func(req *fde.RevealKeyRequest) ([]byte, error) {
+		c.Check(req.Op, Equals, "reveal")
+		c.Check(req.SealedKey, DeepEquals, encryptedKey)
+		c.Assert(req.Handle, NotNil)
+		c.Check(*req.Handle, DeepEquals, json.RawMessage([]byte("the-handle")))
+		return decryptedKey, nil
+	})
+	defer restore()
+
+	plain, err := k.RevealKey([]byte("the-handle"), encryptedKey, []byte{})
+	c.Assert(err, IsNil)
+	c.Check(plain, DeepEquals, decryptedKey)
+}
+
+func (s *secbootSuite) TestHookKeyRevealV3Error(c *C) {
+	k := &secboot.KeyRevealerV3{}
+
+	encryptedKey := []byte{1, 2, 3, 4}
+
+	restore := fde.MockRunFDERevealKey(func(req *fde.RevealKeyRequest) ([]byte, error) {
+		c.Check(req.Op, Equals, "reveal")
+		c.Check(req.SealedKey, DeepEquals, encryptedKey)
+		c.Assert(req.Handle, NotNil)
+		c.Check(*req.Handle, DeepEquals, json.RawMessage([]byte("the-handle")))
+		return nil, fmt.Errorf("some error")
+	})
+	defer restore()
+
+	_, err := k.RevealKey([]byte("the-handle"), encryptedKey, []byte{})
+	c.Assert(err, ErrorMatches, `some error`)
+}
+
+func (s *secbootSuite) TestAddBootstrapKeyOnExistingDisk(c *C) {
+	defer secboot.MockGetDiskUnlockKeyFromKernel(func(prefix string, devicePath string, remove bool) (sb.DiskUnlockKey, error) {
+		c.Check(prefix, Equals, "ubuntu-fde")
+		c.Check(devicePath, Equals, "/dev/foo")
+		c.Check(remove, Equals, false)
+		return []byte{1, 2, 3, 4}, nil
+	})()
+
+	defer secboot.MockAddLUKS2ContainerUnlockKey(func(devicePath string, keyslotName string, existingKey sb.DiskUnlockKey, newKey sb.DiskUnlockKey) error {
+		c.Check(devicePath, Equals, "/dev/foo")
+		c.Check(keyslotName, Equals, "bootstrap-key")
+		c.Check(existingKey, DeepEquals, sb.DiskUnlockKey([]byte{1, 2, 3, 4}))
+		c.Check(newKey, DeepEquals, sb.DiskUnlockKey([]byte{5, 6, 7, 8}))
+		return nil
+	})()
+
+	err := secboot.AddBootstrapKeyOnExistingDisk("/dev/foo", []byte{5, 6, 7, 8})
+	c.Check(err, IsNil)
+}
+
+func (s *secbootSuite) TestAddBootstrapKeyOnExistingDiskKeyringError(c *C) {
+	defer secboot.MockGetDiskUnlockKeyFromKernel(func(prefix string, devicePath string, remove bool) (sb.DiskUnlockKey, error) {
+		c.Check(prefix, Equals, "ubuntu-fde")
+		c.Check(devicePath, Equals, "/dev/foo")
+		c.Check(remove, Equals, false)
+		return nil, fmt.Errorf("some error")
+	})()
+
+	defer secboot.MockAddLUKS2ContainerUnlockKey(func(devicePath string, keyslotName string, existingKey sb.DiskUnlockKey, newKey sb.DiskUnlockKey) error {
+		c.Errorf("unexpected call")
+		return nil
+	})()
+
+	err := secboot.AddBootstrapKeyOnExistingDisk("/dev/foo", []byte{5, 6, 7, 8})
+	c.Check(err, ErrorMatches, `cannot get key for unlocked disk /dev/foo: some error`)
+}
+
+func (s *secbootSuite) TestAddBootstrapKeyOnExistingDiskLUKS2Error(c *C) {
+	defer secboot.MockGetDiskUnlockKeyFromKernel(func(prefix string, devicePath string, remove bool) (sb.DiskUnlockKey, error) {
+		c.Check(prefix, Equals, "ubuntu-fde")
+		c.Check(devicePath, Equals, "/dev/foo")
+		c.Check(remove, Equals, false)
+		return []byte{1, 2, 3, 4}, nil
+	})()
+
+	defer secboot.MockAddLUKS2ContainerUnlockKey(func(devicePath string, keyslotName string, existingKey sb.DiskUnlockKey, newKey sb.DiskUnlockKey) error {
+		c.Check(devicePath, Equals, "/dev/foo")
+		c.Check(keyslotName, Equals, "bootstrap-key")
+		c.Check(existingKey, DeepEquals, sb.DiskUnlockKey([]byte{1, 2, 3, 4}))
+		c.Check(newKey, DeepEquals, sb.DiskUnlockKey([]byte{5, 6, 7, 8}))
+		return fmt.Errorf("some error")
+	})()
+
+	err := secboot.AddBootstrapKeyOnExistingDisk("/dev/foo", []byte{5, 6, 7, 8})
+	c.Check(err, ErrorMatches, `cannot enroll new installation key: some error`)
+}
+
+func (s *secbootSuite) TestRenameKeys(c *C) {
+	defer secboot.MockListLUKS2ContainerUnlockKeyNames(func(devicePath string) ([]string, error) {
+		c.Check(devicePath, Equals, "/dev/foo")
+		return []string{"slot-a", "slot-b", "slot-c"}, nil
+	})()
+
+	expectedRenames := map[string]string{
+		"slot-b": "new-slot-b",
+		"slot-c": "new-slot-c",
+	}
+
+	defer secboot.MockRenameLUKS2ContainerKey(func(devicePath, slotName, renameTo string) error {
+		c.Check(devicePath, Equals, "/dev/foo")
+		newName, expected := expectedRenames[slotName]
+		c.Check(expected, Equals, true)
+		c.Check(renameTo, Equals, newName)
+		delete(expectedRenames, slotName)
+		return nil
+	})()
+
+	toRename := map[string]string{
+		"slot-b": "new-slot-b",
+		"slot-c": "new-slot-c",
+		"slot-d": "new-slot-d",
+	}
+
+	err := secboot.RenameKeys("/dev/foo", toRename)
+	c.Assert(err, IsNil)
+
+	c.Check(expectedRenames, HasLen, 0)
+}
+
+func (s *secbootSuite) TestRenameKeysBadInput(c *C) {
+	defer secboot.MockListLUKS2ContainerUnlockKeyNames(func(devicePath string) ([]string, error) {
+		c.Errorf("unexpected call")
+		return []string{"slot-a", "slot-b", "slot-c"}, nil
+	})()
+
+	defer secboot.MockRenameLUKS2ContainerKey(func(devicePath, slotName, renameTo string) error {
+		c.Errorf("unexpected call")
+		return nil
+	})()
+
+	toRename := map[string]string{
+		"slot-a": "slot-b",
+		"slot-b": "slot-c",
+	}
+
+	err := secboot.RenameKeys("/dev/foo", toRename)
+	c.Assert(err, ErrorMatches, `internal error: keyslot name slot-b used as source and target of a rename`)
+}
+
+func (s *secbootSuite) TestRenameKeysNameExists(c *C) {
+	defer secboot.MockListLUKS2ContainerUnlockKeyNames(func(devicePath string) ([]string, error) {
+		c.Check(devicePath, Equals, "/dev/foo")
+		return []string{"slot-a", "slot-b", "slot-c"}, nil
+	})()
+
+	defer secboot.MockRenameLUKS2ContainerKey(func(devicePath, slotName, renameTo string) error {
+		c.Errorf("unexpected call")
+		return nil
+	})()
+
+	toRename := map[string]string{
+		"slot-a": "slot-b",
+	}
+
+	err := secboot.RenameKeys("/dev/foo", toRename)
+	c.Assert(err, ErrorMatches, `slot name slot-b is already in use`)
+}
+
+func (s *secbootSuite) TestRenameKeysNoRename(c *C) {
+	defer secboot.MockListLUKS2ContainerUnlockKeyNames(func(devicePath string) ([]string, error) {
+		c.Check(devicePath, Equals, "/dev/foo")
+		return []string{"slot-a", "slot-b", "slot-c"}, nil
+	})()
+
+	expectedRenames := map[string]string{
+		"slot-b": "new-slot-b",
+		"slot-c": "new-slot-c",
+	}
+
+	defer secboot.MockRenameLUKS2ContainerKey(func(devicePath, slotName, renameTo string) error {
+		c.Check(devicePath, Equals, "/dev/foo")
+		return sb.ErrMissingCryptsetupFeature
+	})()
+
+	defer secboot.MockCopyAndRemoveLUKS2ContainerKey(func(devicePath, slotName, renameTo string) error {
+		c.Check(devicePath, Equals, "/dev/foo")
+		expectedRename, expected := expectedRenames[slotName]
+		c.Assert(expected, Equals, true)
+		c.Check(renameTo, Equals, expectedRename)
+		delete(expectedRenames, slotName)
+		return nil
+	})()
+
+	toRename := map[string]string{
+		"slot-b": "new-slot-b",
+		"slot-c": "new-slot-c",
+		"slot-d": "new-slot-d",
+	}
+
+	err := secboot.RenameKeys("/dev/foo", toRename)
+	c.Assert(err, IsNil)
+
+	c.Check(expectedRenames, HasLen, 0)
+}
+
+func (s *secbootSuite) TestRenameKeysListError(c *C) {
+	defer secboot.MockListLUKS2ContainerUnlockKeyNames(func(devicePath string) ([]string, error) {
+		c.Check(devicePath, Equals, "/dev/foo")
+		return nil, fmt.Errorf("some error")
+	})()
+
+	defer secboot.MockRenameLUKS2ContainerKey(func(devicePath, slotName, renameTo string) error {
+		c.Errorf("unexpected call")
+		return nil
+	})()
+
+	defer secboot.MockDeleteLUKS2ContainerKey(func(devicePath, slotName string) error {
+		c.Errorf("unexpected call")
+		return nil
+	})()
+
+	toRename := map[string]string{
+		"slot-b": "new-slot-b",
+		"slot-c": "new-slot-c",
+		"slot-d": "new-slot-d",
+	}
+
+	err := secboot.RenameKeys("/dev/foo", toRename)
+	c.Assert(err, ErrorMatches, `cannot list slots in partition save partition: some error`)
+}
+
+func (s *secbootSuite) TestRenameKeysRenameError(c *C) {
+	defer secboot.MockListLUKS2ContainerUnlockKeyNames(func(devicePath string) ([]string, error) {
+		c.Check(devicePath, Equals, "/dev/foo")
+		return []string{"slot-a", "slot-b", "slot-c"}, nil
+	})()
+
+	defer secboot.MockRenameLUKS2ContainerKey(func(devicePath, slotName, renameTo string) error {
+		return fmt.Errorf("some other error")
+	})()
+
+	defer secboot.MockCopyAndRemoveLUKS2ContainerKey(func(devicePath, slotName, renameTo string) error {
+		c.Errorf("unexpected call")
+		return nil
+	})()
+
+	toRename := map[string]string{
+		"slot-b": "new-slot-b",
+		"slot-c": "new-slot-c",
+		"slot-d": "new-slot-d",
+	}
+
+	err := secboot.RenameKeys("/dev/foo", toRename)
+	c.Assert(err, ErrorMatches, `cannot rename container key: some other error`)
+}
+
+func (s *secbootSuite) TestRenameKeysDeleteError(c *C) {
+	defer secboot.MockListLUKS2ContainerUnlockKeyNames(func(devicePath string) ([]string, error) {
+		c.Check(devicePath, Equals, "/dev/foo")
+		return []string{"slot-a", "slot-b", "slot-c"}, nil
+	})()
+
+	defer secboot.MockRenameLUKS2ContainerKey(func(devicePath, slotName, renameTo string) error {
+		return sb.ErrMissingCryptsetupFeature
+	})()
+
+	defer secboot.MockCopyAndRemoveLUKS2ContainerKey(func(devicePath, slotName, renameTo string) error {
+		return fmt.Errorf("some error")
+	})()
+
+	toRename := map[string]string{
+		"slot-b": "new-slot-b",
+		"slot-c": "new-slot-c",
+		"slot-d": "new-slot-d",
+	}
+
+	err := secboot.RenameKeys("/dev/foo", toRename)
+	c.Assert(err, ErrorMatches, `cannot rename old container key: some error`)
+}
+
+func (s *secbootSuite) TestDeleteKeys(c *C) {
+	defer secboot.MockListLUKS2ContainerUnlockKeyNames(func(devicePath string) ([]string, error) {
+		c.Check(devicePath, Equals, "/dev/foo")
+		return []string{"slot-a", "slot-b", "slot-c"}, nil
+	})()
+
+	expectedRemovals := map[string]bool{
+		"slot-b": true,
+		"slot-c": true,
+	}
+
+	defer secboot.MockDeleteLUKS2ContainerKey(func(devicePath, slotName string) error {
+		c.Check(devicePath, Equals, "/dev/foo")
+		_, expected := expectedRemovals[slotName]
+		c.Check(expected, Equals, true)
+		delete(expectedRemovals, slotName)
+		return nil
+	})()
+
+	toRemove := map[string]bool{
+		"slot-b": true,
+		"slot-c": true,
+		"slot-d": true,
+	}
+
+	err := secboot.DeleteKeys("/dev/foo", toRemove)
+	c.Assert(err, IsNil)
+
+	c.Check(expectedRemovals, HasLen, 0)
+}
+
+func (s *secbootSuite) TestDeleteKeysErrorList(c *C) {
+	defer secboot.MockListLUKS2ContainerUnlockKeyNames(func(devicePath string) ([]string, error) {
+		c.Check(devicePath, Equals, "/dev/foo")
+		return nil, fmt.Errorf("some error")
+	})()
+
+	defer secboot.MockDeleteLUKS2ContainerKey(func(devicePath, slotName string) error {
+		c.Errorf("unexpected call")
+		return nil
+	})()
+
+	toRemove := map[string]bool{
+		"slot-b": true,
+		"slot-c": true,
+		"slot-d": true,
+	}
+
+	err := secboot.DeleteKeys("/dev/foo", toRemove)
+	c.Assert(err, ErrorMatches, `cannot list slots in partition save partition: some error`)
+}
+
+func (s *secbootSuite) TestDeleteKeysErrorDelete(c *C) {
+	defer secboot.MockListLUKS2ContainerUnlockKeyNames(func(devicePath string) ([]string, error) {
+		c.Check(devicePath, Equals, "/dev/foo")
+		return []string{"slot-a", "slot-b", "slot-c"}, nil
+	})()
+
+	defer secboot.MockDeleteLUKS2ContainerKey(func(devicePath, slotName string) error {
+		c.Check(devicePath, Equals, "/dev/foo")
+		return fmt.Errorf("some error")
+	})()
+
+	toRemove := map[string]bool{
+		"slot-b": true,
+		"slot-c": true,
+		"slot-d": true,
+	}
+
+	err := secboot.DeleteKeys("/dev/foo", toRemove)
+	c.Assert(err, ErrorMatches, `cannot remove old container key: some error`)
+}
+
+type SomeStructure struct {
+	TPM2PCRProfile secboot.SerializedPCRProfile `json:"tpm2-pcr-profile"`
+}
+
+func (s *secbootSuite) TestSerializedProfile(c *C) {
+	krp := SomeStructure{
+		TPM2PCRProfile: secboot.SerializedPCRProfile("serialized-profile"),
+	}
+
+	data, err := json.Marshal(krp)
+	c.Assert(err, IsNil)
+	var raw map[string]any
+	err = json.Unmarshal(data, &raw)
+	c.Assert(err, IsNil)
+	c.Check(raw, DeepEquals, map[string]any{
+		// binary blobk is serialized to base64 by default
+		"tpm2-pcr-profile": base64.StdEncoding.EncodeToString([]byte("serialized-profile")),
+	})
+}
+
+type testModel struct {
+	name string
+}
+
+func (tm *testModel) Series() string {
+	return "16"
+}
+func (tm *testModel) BrandID() string {
+	return "some-brand"
+}
+func (tm *testModel) Model() string {
+	return tm.name
+}
+func (tm *testModel) Classic() bool {
+	return false
+}
+func (tm *testModel) Grade() asserts.ModelGrade {
+	return asserts.ModelSecured
+}
+func (tm *testModel) SignKeyID() string {
+	return "some-key"
+}
+
+func (s *secbootSuite) TestResealKeysWithFDESetupHookV1(c *C) {
+	auxKey := []byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16}
+	key1 := []byte(`USK$blahblahblah`)
+
+	tmpdir := c.MkDir()
+	key1Fn := filepath.Join(tmpdir, "key1.key")
+	err := os.WriteFile(key1Fn, key1, 0644)
+	c.Assert(err, IsNil)
+	auxKeyFn := filepath.Join(tmpdir, "aux.key")
+	err = os.WriteFile(auxKeyFn, auxKey, 0644)
+	c.Assert(err, IsNil)
+
+	m := &testModel{
+		name: "mytest",
+	}
+
+	key1Location := secboot.KeyDataLocation{
+		DevicePath: "/dev/foo",
+		SlotName:   "default",
+		KeyFile:    key1Fn,
+	}
+
+	err = secboot.ResealKeysWithFDESetupHook([]secboot.KeyDataLocation{key1Location}, auxKeyFn, []secboot.ModelForSealing{m})
+	c.Assert(err, IsNil)
+
+	// Nothing should have happened. But we make sure that they key is still there untouched.
+
+	key, err := os.ReadFile(key1Fn)
+	c.Assert(err, IsNil)
+	c.Check(key, DeepEquals, key1)
+}
+
+func (s *secbootSuite) TestResealKeysWithFDESetupHookV2(c *C) {
+	auxKey := []byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16}
+	key1 := []byte(`{"platform_name":"fde-hook-v2","platform_handle":{"handle-for":"key1"},"encrypted_payload":"U0VBTEVEOgAEAQIDBAAgAQIDBAUGBwgJCgsMDQ4PEAECAwQFBgcICQoLDA0ODxA=","authorized_snap_models":{"alg":"sha256","key_digest":"KTj3yfwaA090S9iS3TuTqEdU8+taRAUy/PVbJAhoqpI=","hmacs":["O8n/7j4ZT12hBjbF4rzPHpSUna69e7I43a90oZaB3HY="]}}`)
+
+	tmpdir := c.MkDir()
+	key1Fn := filepath.Join(tmpdir, "key1.key")
+	err := os.WriteFile(key1Fn, key1, 0644)
+	c.Assert(err, IsNil)
+	auxKeyFn := filepath.Join(tmpdir, "aux.key")
+	err = os.WriteFile(auxKeyFn, auxKey, 0644)
+	c.Assert(err, IsNil)
+
+	m := &testModel{
+		name: "mytest",
+	}
+
+	beforeReader, err := sb.NewFileKeyDataReader(key1Fn)
+	c.Assert(err, IsNil)
+	beforeKeyData, err := sb.ReadKeyData(beforeReader)
+	c.Assert(err, IsNil)
+
+	beforeAuthorized, err := beforeKeyData.IsSnapModelAuthorized(auxKey, m)
+	c.Assert(err, IsNil)
+	c.Check(beforeAuthorized, Equals, false)
+
+	key1Location := secboot.KeyDataLocation{
+		DevicePath: "/dev/foo",
+		SlotName:   "default",
+		KeyFile:    key1Fn,
+	}
+
+	err = secboot.ResealKeysWithFDESetupHook([]secboot.KeyDataLocation{key1Location}, auxKeyFn, []secboot.ModelForSealing{m})
+	c.Assert(err, IsNil)
+
+	afterReader, err := sb.NewFileKeyDataReader(key1Fn)
+	c.Assert(err, IsNil)
+	afterKeyData, err := sb.ReadKeyData(afterReader)
+	c.Assert(err, IsNil)
+
+	afterAuthorized, err := afterKeyData.IsSnapModelAuthorized(auxKey, m)
+	c.Assert(err, IsNil)
+	c.Check(afterAuthorized, Equals, true)
+}
+
+type fakeKeyProtector struct{}
+
+func (fakeKeyProtector) ProtectKey(rand io.Reader, cleartext, aad []byte) (ciphertext []byte, handle []byte, err error) {
+	return cleartext, []byte(`"foo"`), nil
+}
+
+func (s *secbootSuite) TestResealKeysWithFDESetupHook(c *C) {
+	tmpdir := c.MkDir()
+	key1Fn := filepath.Join(tmpdir, "key1.key")
+	primaryKeyFn := filepath.Join(tmpdir, "primary.key")
+
+	oldModel := &testModel{
+		name: "oldmodel",
+	}
+
+	newModel := &testModel{
+		name: "newmodel",
+	}
+
+	primaryKey := []byte{9, 10, 11, 12}
+	err := os.WriteFile(primaryKeyFn, primaryKey, 0644)
+	c.Assert(err, IsNil)
+
+	params := &sb_hooks.KeyParams{
+		PrimaryKey: primaryKey,
+		Role:       "key1",
+		AuthorizedSnapModels: []sb.SnapModel{
+			oldModel,
+		},
+	}
+
+	sb_hooks.SetKeyProtector(&fakeKeyProtector{}, sb_hooks.KeyProtectorNoAEAD)
+	protectedKey, _, _, err := sb_hooks.NewProtectedKey(rand.Reader, params)
+	c.Assert(err, IsNil)
+	sb_hooks.SetKeyProtector(nil, 0)
+
+	restore := secboot.MockReadKeyToken(func(devicePath, slotName string) (*sb.KeyData, error) {
+		c.Check(devicePath, Equals, "/dev/somedevice")
+		c.Check(slotName, Equals, "token-name")
+		return protectedKey, nil
+	})
+	defer restore()
+
+	keyDataWriter := &myKeyDataWriter{}
+	tokenWritten := 0
+	restore = secboot.MockNewLUKS2KeyDataWriter(func(devicePath string, name string) (secboot.KeyDataWriter, error) {
+		tokenWritten++
+		c.Check(devicePath, Equals, "/dev/somedevice")
+		c.Check(name, Equals, "token-name")
+		return keyDataWriter, nil
+	})
+	defer restore()
+
+	modelSet := 0
+	secboot.MockSetAuthorizedSnapModelsOnHooksKeydata(func(kd *sb_hooks.KeyData, rand io.Reader, key sb.PrimaryKey, models ...sb.SnapModel) error {
+		modelSet++
+		c.Check([]byte(key), DeepEquals, primaryKey)
+		c.Assert(models, HasLen, 1)
+		c.Check(models[0].Model(), Equals, "newmodel")
+		return nil
+	})
+
+	key1Location := secboot.KeyDataLocation{
+		DevicePath: "/dev/somedevice",
+		SlotName:   "token-name",
+		KeyFile:    key1Fn,
+	}
+
+	err = secboot.ResealKeysWithFDESetupHook([]secboot.KeyDataLocation{key1Location}, primaryKeyFn, []secboot.ModelForSealing{newModel})
+	c.Assert(err, IsNil)
+	c.Check(modelSet, Equals, 1)
+	c.Check(tokenWritten, Equals, 1)
+}
+
+func (s *secbootSuite) TestResealKeysWithFDESetupHookFromFile(c *C) {
+	tmpdir := c.MkDir()
+	key1Fn := filepath.Join(tmpdir, "key1.key")
+	primaryKeyFn := filepath.Join(tmpdir, "primary.key")
+
+	oldModel := &testModel{
+		name: "oldmodel",
+	}
+
+	newModel := &testModel{
+		name: "newmodel",
+	}
+
+	primaryKey := []byte{9, 10, 11, 12}
+	err := os.WriteFile(primaryKeyFn, primaryKey, 0644)
+	c.Assert(err, IsNil)
+
+	params := &sb_hooks.KeyParams{
+		PrimaryKey: primaryKey,
+		Role:       "key1",
+		AuthorizedSnapModels: []sb.SnapModel{
+			oldModel,
+		},
+	}
+
+	sb_hooks.SetKeyProtector(&fakeKeyProtector{}, sb_hooks.KeyProtectorNoAEAD)
+	protectedKey, _, _, err := sb_hooks.NewProtectedKey(rand.Reader, params)
+	c.Assert(err, IsNil)
+	sb_hooks.SetKeyProtector(nil, 0)
+
+	writer := sb.NewFileKeyDataWriter(key1Fn)
+	c.Assert(writer, NotNil)
+	err = protectedKey.WriteAtomic(writer)
+	c.Assert(err, IsNil)
+
+	readKeyTokenCalls := 0
+	restore := secboot.MockReadKeyToken(func(devicePath, slotName string) (*sb.KeyData, error) {
+		readKeyTokenCalls++
+		c.Check(devicePath, Equals, "/dev/foo")
+		c.Check(slotName, Equals, "default")
+		return nil, fmt.Errorf("some error")
+	})
+	defer restore()
+
+	modelSet := 0
+	secboot.MockSetAuthorizedSnapModelsOnHooksKeydata(func(kd *sb_hooks.KeyData, rand io.Reader, key sb.PrimaryKey, models ...sb.SnapModel) error {
+		modelSet++
+		c.Check([]byte(key), DeepEquals, primaryKey)
+		c.Assert(models, HasLen, 1)
+		c.Check(models[0].Model(), Equals, "newmodel")
+		return nil
+	})
+
+	key1Location := secboot.KeyDataLocation{
+		DevicePath: "/dev/foo",
+		SlotName:   "default",
+		KeyFile:    key1Fn,
+	}
+
+	err = secboot.ResealKeysWithFDESetupHook([]secboot.KeyDataLocation{key1Location}, primaryKeyFn, []secboot.ModelForSealing{newModel})
+	c.Assert(err, IsNil)
+	c.Check(modelSet, Equals, 1)
+	// We tried to read key data from token
+	c.Check(readKeyTokenCalls, Equals, 1)
+}
+
+func (s *secbootSuite) TestReadKeyFileKeyData(c *C) {
+	keyLoader := &secboot.DefaultKeyLoader{}
+	const fdeHookHint = false
+	tmpDir := c.MkDir()
+	keyPath := filepath.Join(tmpDir, "key")
+	// KeyData is a json
+	err := os.WriteFile(keyPath, []byte(`{}`), 0644)
+	c.Assert(err, IsNil)
+
+	newFileKeyDataReaderCalls := 0
+	restore := secboot.MockSbNewFileKeyDataReader(func(kf string) (*sb.FileKeyDataReader, error) {
+		newFileKeyDataReaderCalls++
+		c.Check(kf, Equals, keyPath)
+		return sb.NewFileKeyDataReader(kf)
+	})
+	defer restore()
+
+	readKeyDataCalls := 0
+	restore = secboot.MockSbReadKeyData(func(reader sb.KeyDataReader) (*sb.KeyData, error) {
+		readKeyDataCalls++
+		return sb.ReadKeyData(reader)
+	})
+	defer restore()
+
+	err = secboot.ReadKeyFile(keyPath, keyLoader, fdeHookHint)
+	c.Assert(err, IsNil)
+	c.Check(newFileKeyDataReaderCalls, Equals, 1)
+	c.Check(readKeyDataCalls, Equals, 1)
+	c.Check(keyLoader.KeyData, NotNil)
+	c.Check(keyLoader.SealedKeyObject, IsNil)
+	c.Check(keyLoader.FDEHookKeyV1, IsNil)
+}
+
+func (s *secbootSuite) TestReadKeyFileSealedObject(c *C) {
+	keyLoader := &secboot.DefaultKeyLoader{}
+	const fdeHookHint = false
+	keyPath := filepath.Join("test-data", "keyfile")
+
+	readSealedKeyObjectFromFileCalls := 0
+	restore := secboot.MockSbReadSealedKeyObjectFromFile(func(path string) (*sb_tpm2.SealedKeyObject, error) {
+		readSealedKeyObjectFromFileCalls++
+		c.Check(path, Equals, keyPath)
+		return sb_tpm2.ReadSealedKeyObjectFromFile(path)
+	})
+	defer restore()
+
+	newKeyDataFromSealedKeyObjectFile := 0
+	restore = secboot.MockSbNewKeyDataFromSealedKeyObjectFile(func(path string) (*sb.KeyData, error) {
+		newKeyDataFromSealedKeyObjectFile++
+		c.Check(path, Equals, keyPath)
+		return sb_tpm2.NewKeyDataFromSealedKeyObjectFile(path)
+	})
+	defer restore()
+
+	err := secboot.ReadKeyFile(keyPath, keyLoader, fdeHookHint)
+	c.Assert(err, IsNil)
+	c.Check(readSealedKeyObjectFromFileCalls, Equals, 1)
+	c.Check(newKeyDataFromSealedKeyObjectFile, Equals, 1)
+	c.Check(keyLoader.KeyData, NotNil)
+	c.Check(keyLoader.SealedKeyObject, NotNil)
+	c.Check(keyLoader.FDEHookKeyV1, IsNil)
+}
+
+func (s *secbootSuite) TestReadKeyFileFDEHookV1(c *C) {
+	keyLoader := &secboot.DefaultKeyLoader{}
+	const fdeHookHint = true
+	tmpDir := c.MkDir()
+	keyPath := filepath.Join(tmpDir, "key")
+	// KeyData starts with USK$
+	err := os.WriteFile(keyPath, []byte(`USK$blahblah`), 0644)
+	c.Assert(err, IsNil)
+
+	err = secboot.ReadKeyFile(keyPath, keyLoader, fdeHookHint)
+	c.Assert(err, IsNil)
+	c.Check(keyLoader.KeyData, IsNil)
+	c.Check(keyLoader.SealedKeyObject, IsNil)
+	c.Check(keyLoader.FDEHookKeyV1, DeepEquals, []byte(`USK$blahblah`))
+}
+
+type myFakeSealedKeyData struct {
+	handle uint32
+}
+
+func (m *myFakeSealedKeyData) PCRPolicyCounterHandle() tpm2.Handle {
+	return tpm2.Handle(m.handle)
+}
+
+type myFakeSealedKeyObject struct {
+	handle uint32
+}
+
+func (m *myFakeSealedKeyObject) PCRPolicyCounterHandle() tpm2.Handle {
+	return tpm2.Handle(m.handle)
+}
+
+type myFakeKeyData struct {
+	platformName string
+	handle       uint32
+}
+
+func (k *myFakeKeyData) GetTPMSealedKeyData() (secboot.MockableSealedKeyData, error) {
+	return &myFakeSealedKeyData{handle: k.handle}, nil
+}
+func (k *myFakeKeyData) PlatformName() string {
+	return k.platformName
+}
+
+type myNonTPMFakeKeyData struct {
+	platformName string
+}
+
+func (*myNonTPMFakeKeyData) GetTPMSealedKeyData() (secboot.MockableSealedKeyData, error) {
+	return nil, fmt.Errorf("Not TPM data")
+}
+
+func (k *myNonTPMFakeKeyData) PlatformName() string {
+	return k.platformName
+}
+
+func (s *secbootSuite) TestGetPCRHandle(c *C) {
+	restore := secboot.MockListLUKS2ContainerUnlockKeyNames(func(devicePath string) ([]string, error) {
+		c.Check(devicePath, Equals, "foo")
+		return []string{"some-other-key", "some-key"}, nil
+	})
+	defer restore()
+
+	restore = secboot.MockReadKeyFile(func(keyfile string, kl secboot.KeyLoader, hintExpectFDEHook bool) error {
+		c.Errorf("unexpected call")
+		return fmt.Errorf("unexpected")
+	})
+	defer restore()
+
+	restore = secboot.MockSbNewLUKS2KeyDataReader(func(device, slot string) (sb.KeyDataReader, error) {
+		c.Check(device, Equals, "foo")
+		switch slot {
+		case "some-key":
+			return newFakeKeyDataReader(slot, []byte{}), nil
+		default:
+			c.Errorf("unexpected call")
+			return nil, fmt.Errorf("unexpected")
+		}
+	})
+	defer restore()
+
+	restore = secboot.MockReadKeyData(func(reader sb.KeyDataReader) (secboot.MockableKeyData, error) {
+		return &myFakeKeyData{platformName: "tpm2", handle: 42}, nil
+	})
+	defer restore()
+
+	handle, err := secboot.GetPCRHandle("foo", "some-key", "do-not-read")
+	c.Assert(err, IsNil)
+	c.Check(handle, Equals, uint32(42))
+}
+
+func (s *secbootSuite) TestGetPCRHandleNoKeyslotKeyfile(c *C) {
+	restore := secboot.MockListLUKS2ContainerUnlockKeyNames(func(devicePath string) ([]string, error) {
+		c.Check(devicePath, Equals, "foo")
+		return []string{}, nil
+	})
+	defer restore()
+
+	restore = secboot.MockMockableReadKeyFile(func(keyFile string, kl *secboot.MockableKeyLoader, hintExpectFDEHook bool) error {
+		c.Check(keyFile, Equals, "read-this-file")
+		kl.KeyData = &myFakeKeyData{platformName: "tpm2", handle: 42}
+		return nil
+	})
+	defer restore()
+
+	restore = secboot.MockSbNewLUKS2KeyDataReader(func(device, slot string) (sb.KeyDataReader, error) {
+		c.Errorf("unexpected call")
+		return nil, fmt.Errorf("unexpected")
+	})
+	defer restore()
+
+	handle, err := secboot.GetPCRHandle("foo", "some-key", "read-this-file")
+	c.Assert(err, IsNil)
+	c.Check(handle, Equals, uint32(42))
+}
+
+func (s *secbootSuite) TestGetPCRHandleKeyslotNoKeyDataKeyfile(c *C) {
+	restore := secboot.MockListLUKS2ContainerUnlockKeyNames(func(devicePath string) ([]string, error) {
+		c.Check(devicePath, Equals, "foo")
+		return []string{"some-other-key", "some-key"}, nil
+	})
+	defer restore()
+
+	restore = secboot.MockMockableReadKeyFile(func(keyFile string, kl *secboot.MockableKeyLoader, hintExpectFDEHook bool) error {
+		c.Check(keyFile, Equals, "read-this-file")
+		kl.KeyData = &myFakeKeyData{platformName: "tpm2", handle: 42}
+		return nil
+	})
+	defer restore()
+
+	restore = secboot.MockSbNewLUKS2KeyDataReader(func(device, slot string) (sb.KeyDataReader, error) {
+		c.Check(device, Equals, "foo")
+		switch slot {
+		case "some-key":
+			return nil, fmt.Errorf("some error because data is not here")
+		default:
+			c.Errorf("unexpected call")
+			return nil, fmt.Errorf("unexpected")
+		}
+	})
+	defer restore()
+
+	restore = secboot.MockReadKeyData(func(reader sb.KeyDataReader) (secboot.MockableKeyData, error) {
+		c.Errorf("unexpected call")
+		return nil, fmt.Errorf("unexpected")
+	})
+	defer restore()
+
+	handle, err := secboot.GetPCRHandle("foo", "some-key", "read-this-file")
+	c.Assert(err, IsNil)
+	c.Check(handle, Equals, uint32(42))
+}
+
+func (s *secbootSuite) TestGetPCRHandleNoKeyslotKeyfileOldFormat(c *C) {
+	restore := secboot.MockListLUKS2ContainerUnlockKeyNames(func(devicePath string) ([]string, error) {
+		c.Check(devicePath, Equals, "foo")
+		return []string{}, nil
+	})
+	defer restore()
+
+	restore = secboot.MockMockableReadKeyFile(func(keyFile string, kl *secboot.MockableKeyLoader, hintExpectFDEHook bool) error {
+		c.Check(keyFile, Equals, "read-this-file")
+		kl.SealedKeyObject = &myFakeSealedKeyObject{handle: 42}
+		return nil
+	})
+	defer restore()
+
+	restore = secboot.MockSbNewLUKS2KeyDataReader(func(device, slot string) (sb.KeyDataReader, error) {
+		c.Errorf("unexpected call")
+		return nil, fmt.Errorf("unexpected")
+	})
+	defer restore()
+
+	handle, err := secboot.GetPCRHandle("foo", "some-key", "read-this-file")
+	c.Assert(err, IsNil)
+	c.Check(handle, Equals, uint32(42))
+}
+
+func (s *secbootSuite) TestRemoveOldCounterHandles(c *C) {
+	_, restore := mockSbTPMConnection(c, nil)
+	defer restore()
+
+	restore = secboot.MockListLUKS2ContainerUnlockKeyNames(func(devicePath string) ([]string, error) {
+		c.Check(devicePath, Equals, "foo")
+		return []string{"some-other-key", "some-key"}, nil
+	})
+	defer restore()
+
+	restore = secboot.MockSbNewLUKS2KeyDataReader(func(device, slot string) (sb.KeyDataReader, error) {
+		c.Check(device, Equals, "foo")
+		switch slot {
+		case "some-key":
+			return newFakeKeyDataReader(slot, []byte(`tpm2`)), nil
+		case "some-other-key":
+			return newFakeKeyDataReader(slot, []byte(`other`)), nil
+		default:
+			c.Errorf("unexpected call")
+			return nil, fmt.Errorf("unexpected")
+		}
+	})
+	defer restore()
+
+	restore = secboot.MockReadKeyData(func(reader sb.KeyDataReader) (secboot.MockableKeyData, error) {
+		switch reader.ReadableName() {
+		case "some-key":
+			return &myFakeKeyData{platformName: "tpm2", handle: secboot.PCRPolicyCounterHandleStart + 1}, nil
+		case "some-other-key":
+			return &myNonTPMFakeKeyData{platformName: "other"}, nil
+		default:
+			c.Errorf("unexpected call")
+			return nil, fmt.Errorf("unexpected")
+		}
+	})
+	defer restore()
+
+	restore = secboot.MockMockableReadKeyFile(func(keyFile string, kl *secboot.MockableKeyLoader, hintExpectFDEHook bool) error {
+		switch keyFile {
+		case "new-format":
+			kl.KeyData = &myFakeKeyData{platformName: "tpm2", handle: secboot.PCRPolicyCounterHandleStart + 2}
+		case "old-format":
+			kl.SealedKeyObject = &myFakeSealedKeyObject{handle: secboot.AltFallbackObjectPCRPolicyCounterHandle}
+		case "just-ignore":
+		case "does-not-exist":
+			return os.ErrNotExist
+		default:
+			c.Errorf("unexpected call")
+			return fmt.Errorf("unexpected")
+		}
+		return nil
+	})
+	defer restore()
+
+	released := make(map[uint32]bool)
+	restore = secboot.MockTPMReleaseResources(func(tpm *sb_tpm2.Connection, handle tpm2.Handle) error {
+		released[uint32(handle)] = true
+		return nil
+	})
+	defer restore()
+
+	err := secboot.RemoveOldCounterHandles(
+		"foo",
+		map[string]bool{
+			"some-key":       true,
+			"some-other-key": true,
+		},
+		[]string{
+			"new-format",
+			"old-format",
+			"just-ignore",
+			"does-not-exist",
+		},
+		false,
+	)
+
+	c.Assert(err, IsNil)
+	c.Check(released, DeepEquals, map[uint32]bool{
+		secboot.PCRPolicyCounterHandleStart + 1:         true,
+		secboot.PCRPolicyCounterHandleStart + 2:         true,
+		secboot.AltFallbackObjectPCRPolicyCounterHandle: true,
+		secboot.AltRunObjectPCRPolicyCounterHandle:      true,
+	})
+}
+
+func (s *secbootSuite) TestRemoveOldCounterHandlesFDEHint(c *C) {
+	restore := secboot.MockListLUKS2ContainerUnlockKeyNames(func(devicePath string) ([]string, error) {
+		c.Check(devicePath, Equals, "foo")
+		return []string{"some-other-key", "some-key"}, nil
+	})
+	defer restore()
+
+	restore = secboot.MockSbNewLUKS2KeyDataReader(func(device, slot string) (sb.KeyDataReader, error) {
+		c.Check(device, Equals, "foo")
+		switch slot {
+		case "some-key":
+			return newFakeKeyDataReader(slot, []byte(`tpm2`)), nil
+		case "some-other-key":
+			return newFakeKeyDataReader(slot, []byte(`other`)), nil
+		default:
+			c.Errorf("unexpected call")
+			return nil, fmt.Errorf("unexpected")
+		}
+	})
+	defer restore()
+
+	restore = secboot.MockReadKeyData(func(reader sb.KeyDataReader) (secboot.MockableKeyData, error) {
+		switch reader.ReadableName() {
+		case "some-key":
+			return &myFakeKeyData{platformName: "not-tpm2-for-sure", handle: secboot.PCRPolicyCounterHandleStart + 1}, nil
+		case "some-other-key":
+			return &myNonTPMFakeKeyData{platformName: "other"}, nil
+		default:
+			c.Errorf("unexpected call")
+			return nil, fmt.Errorf("unexpected")
+		}
+	})
+	defer restore()
+
+	restore = secboot.MockMockableReadKeyFile(func(keyFile string, kl *secboot.MockableKeyLoader, hintExpectFDEHook bool) error {
+		c.Check(hintExpectFDEHook, Equals, true)
+		switch keyFile {
+		case "new-format":
+			kl.KeyData = &myFakeKeyData{platformName: "not-tpm2-for-sure", handle: secboot.PCRPolicyCounterHandleStart + 2}
+		case "just-ignore":
+		case "does-not-exist":
+			return os.ErrNotExist
+		default:
+			c.Errorf("unexpected call")
+			return fmt.Errorf("unexpected")
+		}
+		return nil
+	})
+	defer restore()
+
+	restore = secboot.MockTPMReleaseResources(func(tpm *sb_tpm2.Connection, handle tpm2.Handle) error {
+		c.Errorf("unexpected call")
+		return fmt.Errorf("unexpected call")
+	})
+	defer restore()
+
+	err := secboot.RemoveOldCounterHandles(
+		"foo",
+		map[string]bool{
+			"some-key":       true,
+			"some-other-key": true,
+		},
+		[]string{
+			"new-format",
+			"just-ignore",
+			"does-not-exist",
+		},
+		true,
+	)
+
+	c.Assert(err, IsNil)
+}
+
+func (s *secbootSuite) TestFindFreeHandle(c *C) {
+	_, restore := mockSbTPMConnection(c, nil)
+	defer restore()
+
+	restore = secboot.MockTpmGetCapabilityHandles(func(tpm *sb_tpm2.Connection, firstHandle tpm2.Handle, propertyCount uint32, sessions ...tpm2.SessionContext) (handles tpm2.HandleList, err error) {
+		c.Check(sessions, HasLen, 0)
+		c.Check(uint32(firstHandle), Equals, secboot.PCRPolicyCounterHandleStart)
+		c.Check(propertyCount, Equals, secboot.PCRPolicyCounterHandleRange)
+		for i := uint32(0); i < secboot.PCRPolicyCounterHandleRange+1; i++ {
+			if i != 5 {
+				handles = append(handles, tpm2.Handle(secboot.PCRPolicyCounterHandleStart+i))
+			}
+		}
+		return handles, nil
+	})
+	defer restore()
+
+	handle, err := secboot.FindFreeHandle()
+	c.Assert(err, IsNil)
+	c.Check(handle, Equals, secboot.PCRPolicyCounterHandleStart+5)
+}
+
+func (s *secbootSuite) TestFindFreeHandleNoneFree(c *C) {
+	_, restore := mockSbTPMConnection(c, nil)
+	defer restore()
+
+	restore = secboot.MockTpmGetCapabilityHandles(func(tpm *sb_tpm2.Connection, firstHandle tpm2.Handle, propertyCount uint32, sessions ...tpm2.SessionContext) (handles tpm2.HandleList, err error) {
+		c.Check(sessions, HasLen, 0)
+		c.Check(uint32(firstHandle), Equals, secboot.PCRPolicyCounterHandleStart)
+		c.Check(propertyCount, Equals, secboot.PCRPolicyCounterHandleRange)
+		for i := uint32(0); i < secboot.PCRPolicyCounterHandleRange; i++ {
+			handles = append(handles, tpm2.Handle(secboot.PCRPolicyCounterHandleStart+i))
+		}
+		return handles, nil
+	})
+	defer restore()
+
+	_, err := secboot.FindFreeHandle()
+	c.Assert(err, ErrorMatches, `no free handle on TPM`)
 }

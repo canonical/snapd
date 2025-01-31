@@ -21,6 +21,7 @@ package devicestate_test
 
 import (
 	"compress/gzip"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -38,10 +39,12 @@ import (
 	"github.com/snapcore/snapd/bootloader/bootloadertest"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget"
+	"github.com/snapcore/snapd/gadget/device"
 	"github.com/snapcore/snapd/gadget/gadgettest"
 	"github.com/snapcore/snapd/gadget/install"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/osutil/disks"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/overlord/devicestate/devicestatetest"
@@ -582,17 +585,17 @@ type encTestCase struct {
 	bypass            bool
 	encrypt           bool
 	trustedBootloader bool
+	dataContainer     *secboot.MockBootstrappedContainer
+	saveContainer     *secboot.MockBootstrappedContainer
 }
 
-var (
-	dataEncryptionKey = keys.EncryptionKey{'d', 'a', 't', 'a', 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16}
-	saveKey           = keys.EncryptionKey{'s', 'a', 'v', 'e', 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16}
-)
-
-func (s *deviceMgrInstallModeSuite) doRunChangeTestWithEncryption(c *C, grade string, tc encTestCase) error {
+func (s *deviceMgrInstallModeSuite) doRunChangeTestWithEncryption(c *C, grade string, tc *encTestCase) error {
 	restore := release.MockOnClassic(false)
 	defer restore()
 	bootloaderRootdir := c.MkDir()
+
+	tc.dataContainer = secboot.CreateMockBootstrappedContainer()
+	tc.saveContainer = secboot.CreateMockBootstrappedContainer()
 
 	var brGadgetRoot, brDevice string
 	var brOpts install.Options
@@ -610,15 +613,15 @@ func (s *deviceMgrInstallModeSuite) doRunChangeTestWithEncryption(c *C, grade st
 		brOpts = options
 		installSealingObserver = obs
 		installRunCalled++
-		var keyForRole map[string]keys.EncryptionKey
+		var installKeyForRole map[string]secboot.BootstrappedContainer
 		if tc.encrypt {
-			keyForRole = map[string]keys.EncryptionKey{
-				gadget.SystemData: dataEncryptionKey,
-				gadget.SystemSave: saveKey,
+			installKeyForRole = map[string]secboot.BootstrappedContainer{
+				gadget.SystemData: tc.dataContainer,
+				gadget.SystemSave: tc.saveContainer,
 			}
 		}
 		return &install.InstalledSystemSideData{
-			KeyForRole: keyForRole,
+			BootstrappedContainerForRole: installKeyForRole,
 		}, nil
 	})
 	defer restore()
@@ -723,7 +726,7 @@ func (s *deviceMgrInstallModeSuite) doRunChangeTestWithEncryption(c *C, grade st
 	if tc.encrypt {
 		c.Assert(brOpts, DeepEquals, install.Options{
 			Mount:          true,
-			EncryptionType: secboot.EncryptionTypeLUKS,
+			EncryptionType: device.EncryptionTypeLUKS,
 		})
 	} else {
 		c.Assert(brOpts, DeepEquals, install.Options{
@@ -1645,76 +1648,79 @@ func (s *deviceMgrInstallModeSuite) TestInstallModeNotClassic(c *C) {
 }
 
 func (s *deviceMgrInstallModeSuite) TestInstallDangerous(c *C) {
-	err := s.doRunChangeTestWithEncryption(c, "dangerous", encTestCase{tpm: false, bypass: false, encrypt: false})
+	err := s.doRunChangeTestWithEncryption(c, "dangerous", &encTestCase{tpm: false, bypass: false, encrypt: false})
 	c.Assert(err, IsNil)
 }
 
 func (s *deviceMgrInstallModeSuite) TestInstallDangerousWithTPM(c *C) {
-	err := s.doRunChangeTestWithEncryption(c, "dangerous", encTestCase{
+	err := s.doRunChangeTestWithEncryption(c, "dangerous", &encTestCase{
 		tpm: true, bypass: false, encrypt: true, trustedBootloader: true,
 	})
 	c.Assert(err, IsNil)
 }
 
 func (s *deviceMgrInstallModeSuite) TestInstallDangerousBypassEncryption(c *C) {
-	err := s.doRunChangeTestWithEncryption(c, "dangerous", encTestCase{tpm: false, bypass: true, encrypt: false})
+	err := s.doRunChangeTestWithEncryption(c, "dangerous", &encTestCase{tpm: false, bypass: true, encrypt: false})
 	c.Assert(err, IsNil)
 }
 
 func (s *deviceMgrInstallModeSuite) TestInstallDangerousWithTPMBypassEncryption(c *C) {
-	err := s.doRunChangeTestWithEncryption(c, "dangerous", encTestCase{tpm: true, bypass: true, encrypt: false})
+	err := s.doRunChangeTestWithEncryption(c, "dangerous", &encTestCase{tpm: true, bypass: true, encrypt: false})
 	c.Assert(err, IsNil)
 }
 
 func (s *deviceMgrInstallModeSuite) TestInstallSigned(c *C) {
-	err := s.doRunChangeTestWithEncryption(c, "signed", encTestCase{tpm: false, bypass: false, encrypt: false})
+	err := s.doRunChangeTestWithEncryption(c, "signed", &encTestCase{tpm: false, bypass: false, encrypt: false})
 	c.Assert(err, IsNil)
 }
 
 func (s *deviceMgrInstallModeSuite) TestInstallSignedWithTPM(c *C) {
-	err := s.doRunChangeTestWithEncryption(c, "signed", encTestCase{
+	err := s.doRunChangeTestWithEncryption(c, "signed", &encTestCase{
 		tpm: true, bypass: false, encrypt: true, trustedBootloader: true,
 	})
 	c.Assert(err, IsNil)
 }
 
 func (s *deviceMgrInstallModeSuite) TestInstallSignedBypassEncryption(c *C) {
-	err := s.doRunChangeTestWithEncryption(c, "signed", encTestCase{tpm: false, bypass: true, encrypt: false})
+	err := s.doRunChangeTestWithEncryption(c, "signed", &encTestCase{tpm: false, bypass: true, encrypt: false})
 	c.Assert(err, IsNil)
 }
 
 func (s *deviceMgrInstallModeSuite) TestInstallSecured(c *C) {
-	err := s.doRunChangeTestWithEncryption(c, "secured", encTestCase{tpm: false, bypass: false, encrypt: false})
+	err := s.doRunChangeTestWithEncryption(c, "secured", &encTestCase{tpm: false, bypass: false, encrypt: false})
 	c.Assert(err, ErrorMatches, "(?s).*cannot encrypt device storage as mandated by model grade secured:.*TPM not available.*")
 }
 
 func (s *deviceMgrInstallModeSuite) TestInstallSecuredWithTPM(c *C) {
-	err := s.doRunChangeTestWithEncryption(c, "secured", encTestCase{
+	err := s.doRunChangeTestWithEncryption(c, "secured", &encTestCase{
 		tpm: true, bypass: false, encrypt: true, trustedBootloader: true,
 	})
 	c.Assert(err, IsNil)
 }
 
 func (s *deviceMgrInstallModeSuite) TestInstallDangerousEncryptionWithTPMNoTrustedAssets(c *C) {
-	err := s.doRunChangeTestWithEncryption(c, "dangerous", encTestCase{
+	err := s.doRunChangeTestWithEncryption(c, "dangerous", &encTestCase{
 		tpm: true, bypass: false, encrypt: true, trustedBootloader: false,
 	})
 	c.Assert(err, IsNil)
 }
 
 func (s *deviceMgrInstallModeSuite) TestInstallDangerousNoEncryptionWithTrustedAssets(c *C) {
-	err := s.doRunChangeTestWithEncryption(c, "dangerous", encTestCase{
+	err := s.doRunChangeTestWithEncryption(c, "dangerous", &encTestCase{
 		tpm: false, bypass: false, encrypt: false, trustedBootloader: true,
 	})
 	c.Assert(err, IsNil)
 }
 
 func (s *deviceMgrInstallModeSuite) TestInstallSecuredWithTPMAndSave(c *C) {
-	err := s.doRunChangeTestWithEncryption(c, "secured", encTestCase{
+	tc := &encTestCase{
 		tpm: true, bypass: false, encrypt: true, trustedBootloader: true,
-	})
+	}
+	err := s.doRunChangeTestWithEncryption(c, "secured", tc)
 	c.Assert(err, IsNil)
-	c.Check(filepath.Join(filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data/var/lib/snapd/device/fde"), "ubuntu-save.key"), testutil.FileEquals, []byte(saveKey))
+	saveKey, hasSaveKey := tc.saveContainer.Slots["default"]
+	c.Assert(hasSaveKey, Equals, true)
+	c.Check(filepath.Join(filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data/var/lib/snapd/device/fde"), "ubuntu-save.key"), testutil.FileEquals, saveKey)
 	marker, err := os.ReadFile(filepath.Join(filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data/var/lib/snapd/device/fde"), "marker"))
 	c.Assert(err, IsNil)
 	c.Check(marker, HasLen, 32)
@@ -1722,13 +1728,13 @@ func (s *deviceMgrInstallModeSuite) TestInstallSecuredWithTPMAndSave(c *C) {
 }
 
 func (s *deviceMgrInstallModeSuite) TestInstallSecuredBypassEncryption(c *C) {
-	err := s.doRunChangeTestWithEncryption(c, "secured", encTestCase{tpm: false, bypass: true, encrypt: false})
+	err := s.doRunChangeTestWithEncryption(c, "secured", &encTestCase{tpm: false, bypass: true, encrypt: false})
 	c.Assert(err, ErrorMatches, "(?s).*cannot encrypt device storage as mandated by model grade secured:.*TPM not available.*")
 }
 
 func (s *deviceMgrInstallModeSuite) TestInstallBootloaderVarSetFails(c *C) {
-	restore := devicestate.MockInstallRun(func(mod gadget.Model, gadgetRoot string, kernelSnapInfo *install.KernelSnapInfo, device string, options install.Options, _ gadget.ContentObserver, _ timings.Measurer) (*install.InstalledSystemSideData, error) {
-		c.Check(options.EncryptionType, Equals, secboot.EncryptionTypeNone)
+	restore := devicestate.MockInstallRun(func(mod gadget.Model, gadgetRoot string, kernelSnapInfo *install.KernelSnapInfo, _ string, options install.Options, _ gadget.ContentObserver, _ timings.Measurer) (*install.InstalledSystemSideData, error) {
+		c.Check(options.EncryptionType, Equals, device.EncryptionTypeNone)
 		// no keys set
 		return &install.InstalledSystemSideData{}, nil
 	})
@@ -1817,8 +1823,8 @@ func (s *deviceMgrInstallModeSuite) testInstallEncryptionValidityChecks(c *C, er
 }
 
 func (s *deviceMgrInstallModeSuite) TestInstallEncryptionValidityChecksNoKeys(c *C) {
-	restore := devicestate.MockInstallRun(func(mod gadget.Model, gadgetRoot string, kernelSnapInfo *install.KernelSnapInfo, device string, options install.Options, _ gadget.ContentObserver, _ timings.Measurer) (*install.InstalledSystemSideData, error) {
-		c.Check(options.EncryptionType, Equals, secboot.EncryptionTypeLUKS)
+	restore := devicestate.MockInstallRun(func(mod gadget.Model, gadgetRoot string, kernelSnapInfo *install.KernelSnapInfo, _ string, options install.Options, _ gadget.ContentObserver, _ timings.Measurer) (*install.InstalledSystemSideData, error) {
+		c.Check(options.EncryptionType, Equals, device.EncryptionTypeLUKS)
 		// no keys set
 		return &install.InstalledSystemSideData{}, nil
 	})
@@ -1828,12 +1834,12 @@ func (s *deviceMgrInstallModeSuite) TestInstallEncryptionValidityChecksNoKeys(c 
 }
 
 func (s *deviceMgrInstallModeSuite) TestInstallEncryptionValidityChecksNoSystemDataKey(c *C) {
-	restore := devicestate.MockInstallRun(func(mod gadget.Model, gadgetRoot string, kernelSnapInfo *install.KernelSnapInfo, device string, options install.Options, _ gadget.ContentObserver, _ timings.Measurer) (*install.InstalledSystemSideData, error) {
-		c.Check(options.EncryptionType, Equals, secboot.EncryptionTypeLUKS)
+	restore := devicestate.MockInstallRun(func(mod gadget.Model, gadgetRoot string, kernelSnapInfo *install.KernelSnapInfo, _ string, options install.Options, _ gadget.ContentObserver, _ timings.Measurer) (*install.InstalledSystemSideData, error) {
+		c.Check(options.EncryptionType, Equals, device.EncryptionTypeLUKS)
 		// no keys set
 		return &install.InstalledSystemSideData{
 			// empty map
-			KeyForRole: map[string]keys.EncryptionKey{},
+			BootstrappedContainerForRole: map[string]secboot.BootstrappedContainer{},
 		}, nil
 	})
 	defer restore()
@@ -2075,14 +2081,14 @@ func (s *deviceMgrInstallModeSuite) TestInstallCheckEncrypted(c *C) {
 		fdeSetupHookFeatures string
 
 		hasTPM         bool
-		encryptionType secboot.EncryptionType
+		encryptionType device.EncryptionType
 	}{
 		// unhappy: no tpm, no hook
-		{false, "[]", false, secboot.EncryptionTypeNone},
+		{false, "[]", false, device.EncryptionTypeNone},
 		// happy: either tpm or hook or both
-		{false, "[]", true, secboot.EncryptionTypeLUKS},
-		{true, "[]", false, secboot.EncryptionTypeLUKS},
-		{true, "[]", true, secboot.EncryptionTypeLUKS},
+		{false, "[]", true, device.EncryptionTypeLUKS},
+		{true, "[]", false, device.EncryptionTypeLUKS},
+		{true, "[]", true, device.EncryptionTypeLUKS},
 	} {
 		hookInvoke := func(ctx *hookstate.Context, tomb *tomb.Tomb) ([]byte, error) {
 			ctx.Lock()
@@ -2248,11 +2254,11 @@ func (s *deviceMgrInstallModeSuite) doRunFactoryResetChange(c *C, model *asserts
 		brOpts = options
 		installSealingObserver = obs
 		installFactoryResetCalled++
-		var keyForRole map[string]keys.EncryptionKey
+		var installKeyForRole map[string]secboot.BootstrappedContainer
 		if tc.encrypt {
-			keyForRole = map[string]keys.EncryptionKey{
-				gadget.SystemData: dataEncryptionKey,
-				gadget.SystemSave: saveKey,
+			installKeyForRole = map[string]secboot.BootstrappedContainer{
+				gadget.SystemData: secboot.CreateMockBootstrappedContainer(),
+				gadget.SystemSave: secboot.CreateMockBootstrappedContainer(),
 			}
 		}
 		devForRole := map[string]string{
@@ -2263,8 +2269,8 @@ func (s *deviceMgrInstallModeSuite) doRunFactoryResetChange(c *C, model *asserts
 		}
 		c.Assert(os.MkdirAll(dirs.SnapDeviceDirUnder(filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data")), 0755), IsNil)
 		return &install.InstalledSystemSideData{
-			KeyForRole:    keyForRole,
-			DeviceForRole: devForRole,
+			BootstrappedContainerForRole: installKeyForRole,
+			DeviceForRole:                devForRole,
 		}, nil
 	})
 	defer restore()
@@ -2294,34 +2300,70 @@ func (s *deviceMgrInstallModeSuite) doRunFactoryResetChange(c *C, model *asserts
 	s.makeMockInstalledPcKernelAndGadget(c, "", "", core24SnapID)
 	s.state.Unlock()
 
-	var saveKey keys.EncryptionKey
 	restore = devicestate.MockSecbootTransitionEncryptionKeyChange(func(node string, key keys.EncryptionKey) error {
 		c.Errorf("unexpected call")
 		return fmt.Errorf("unexpected call")
 	})
 	defer restore()
 	restore = devicestate.MockSecbootStageEncryptionKeyChange(func(node string, key keys.EncryptionKey) error {
-		if tc.encrypt {
-			c.Check(node, Equals, "/dev/foo-save")
-			saveKey = key
-			return nil
-		}
-		c.Fail()
+		c.Errorf("unexpected call")
 		return fmt.Errorf("unexpected call")
 	})
 	defer restore()
 
-	var recoveryKeyRemoved bool
+	var recoveryKeysRemoved bool
 	defer devicestate.MockSecbootRemoveRecoveryKeys(func(r2k map[secboot.RecoveryKeyDevice]string) error {
 		if tc.encrypt {
-			recoveryKeyRemoved = true
-			c.Check(r2k, DeepEquals, map[secboot.RecoveryKeyDevice]string{
-				{Mountpoint: boot.InitramfsUbuntuSaveDir}: filepath.Join(filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data/var/lib/snapd/device/fde"), "recovery.key"),
+			c.Check(recoveryKeysRemoved, Equals, false)
+			recoveryKeysRemoved = true
+			return nil
+		}
+		c.Errorf("unexpected call")
+		return fmt.Errorf("unexpected call")
+	})()
+
+	var chosenBootstrapKey []byte
+	defer devicestate.MockSecbootAddBootstrapKeyOnExistingDisk(func(node string, newKey keys.EncryptionKey) error {
+		if tc.encrypt {
+			c.Check(node, Equals, "/dev/disk/by-uuid/570faa3d-e3bc-49db-979b-e7814b6bd390")
+			chosenBootstrapKey = newKey
+			return nil
+		}
+		c.Errorf("unexpected call")
+		return fmt.Errorf("unexpected call")
+	})()
+
+	defer devicestate.MockSecbootRenameKeys(func(node string, renames map[string]string) error {
+		if tc.encrypt {
+			c.Check(node, Equals, "/dev/disk/by-uuid/570faa3d-e3bc-49db-979b-e7814b6bd390")
+			c.Check(renames, DeepEquals, map[string]string{
+				"default":          "factory-reset-old",
+				"default-fallback": "factory-reset-old-fallback",
 			})
 			return nil
 		}
 		c.Errorf("unexpected call")
 		return fmt.Errorf("unexpected call")
+	})()
+	defer devicestate.MockSecbootTemporaryNameOldKeys(func(devicePath string) error {
+		if tc.encrypt {
+			c.Check(devicePath, Equals, "/dev/disk/by-uuid/570faa3d-e3bc-49db-979b-e7814b6bd390")
+			return nil
+		}
+		c.Errorf("unexpected call")
+		return fmt.Errorf("unexpected call")
+	})()
+
+	var bootstrapContainer *secboot.MockBootstrappedContainer
+	defer devicestate.MockSecbootCreateBootstrappedContainer(func(key secboot.DiskUnlockKey, devicePath string) secboot.BootstrappedContainer {
+		if tc.encrypt {
+			c.Check([]byte(key), DeepEquals, chosenBootstrapKey)
+			c.Assert(bootstrapContainer, IsNil)
+			bootstrapContainer = secboot.CreateMockBootstrappedContainer()
+			return bootstrapContainer
+		}
+		c.Errorf("unexpected call")
+		return nil
 	})()
 
 	bootMakeBootableCalled := 0
@@ -2419,7 +2461,7 @@ func (s *deviceMgrInstallModeSuite) doRunFactoryResetChange(c *C, model *asserts
 	if tc.encrypt {
 		c.Assert(brOpts, DeepEquals, install.Options{
 			Mount:          true,
-			EncryptionType: secboot.EncryptionTypeLUKS,
+			EncryptionType: device.EncryptionTypeLUKS,
 		})
 	} else {
 		c.Assert(brOpts, DeepEquals, install.Options{
@@ -2441,8 +2483,10 @@ func (s *deviceMgrInstallModeSuite) doRunFactoryResetChange(c *C, model *asserts
 	c.Assert(bootMakeBootableCalled, Equals, 1)
 	c.Assert(s.restartRequests, DeepEquals, []restart.RestartType{restart.RestartSystemNow})
 	if tc.encrypt {
-		c.Assert(saveKey, NotNil)
-		c.Check(recoveryKeyRemoved, Equals, true)
+		c.Check(recoveryKeysRemoved, Equals, true)
+		c.Assert(bootstrapContainer, NotNil)
+		saveKey, hasSaveKey := bootstrapContainer.Slots["default"]
+		c.Assert(hasSaveKey, Equals, true)
 		c.Check(filepath.Join(filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data/var/lib/snapd/device/fde"), "ubuntu-save.key"), testutil.FileEquals, []byte(saveKey))
 		c.Check(filepath.Join(boot.InitramfsSeedEncryptionKeyDir, "ubuntu-data.recovery.sealed-key"), testutil.FileEquals, "new-data")
 		// sha3-384 of the mocked ubuntu-save sealed key
@@ -2652,6 +2696,24 @@ echo "mock output of: $(basename "$0") $*"
 	logbuf, restore := logger.MockLogger()
 	defer restore()
 
+	defer disks.MockUdevPropertiesForDevice(func(string, string) (map[string]string, error) {
+		return map[string]string{
+			"ID_FS_UUID": "570faa3d-e3bc-49db-979b-e7814b6bd390",
+		}, nil
+	})()
+	defer devicestate.MockSecbootRenameKeys(func(node string, renames map[string]string) error {
+		c.Check(node, Equals, "foo")
+		c.Check(renames, DeepEquals, map[string]string{
+			"default":          "factory-reset-old",
+			"default-fallback": "factory-reset-old-fallback",
+		})
+		return nil
+	})()
+	defer devicestate.MockSecbootTemporaryNameOldKeys(func(devicePath string) error {
+		c.Check(devicePath, Equals, "/dev/disk/by-uuid/FOOUUID")
+		return nil
+	})()
+
 	err = s.doRunFactoryResetChange(c, model, resetTestCase{
 		tpm: true, encrypt: true, trustedBootloader: true,
 	})
@@ -2727,6 +2789,24 @@ echo "mock output of: $(basename "$0") $*"
 
 	logbuf, restore := logger.MockLogger()
 	defer restore()
+
+	defer disks.MockUdevPropertiesForDevice(func(string, string) (map[string]string, error) {
+		return map[string]string{
+			"ID_FS_UUID": "570faa3d-e3bc-49db-979b-e7814b6bd390",
+		}, nil
+	})()
+	defer devicestate.MockSecbootRenameKeys(func(node string, renames map[string]string) error {
+		c.Check(node, Equals, "foo")
+		c.Check(renames, DeepEquals, map[string]string{
+			"default":          "factory-reset-old",
+			"default-fallback": "factory-reset-old-fallback",
+		})
+		return nil
+	})()
+	defer devicestate.MockSecbootTemporaryNameOldKeys(func(devicePath string) error {
+		c.Check(devicePath, Equals, "/dev/disk/by-uuid/FOOUUID")
+		return nil
+	})()
 
 	err = s.doRunFactoryResetChange(c, model, resetTestCase{
 		tpm: true, encrypt: true, trustedBootloader: true,
@@ -3398,7 +3478,7 @@ func (s *installStepSuite) TestDeviceManagerInstallSetupStorageEncryptionEmptyLa
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	chg, err := devicestate.InstallSetupStorageEncryption(s.state, "", mockOnVolumes)
+	chg, err := devicestate.InstallSetupStorageEncryption(s.state, "", mockOnVolumes, nil)
 	c.Check(err, ErrorMatches, "cannot setup storage encryption with an empty system label")
 	c.Check(chg, IsNil)
 }
@@ -3407,16 +3487,31 @@ func (s *installStepSuite) TestDeviceManagerInstallSetupStorageEncryptionNoVolum
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	chg, err := devicestate.InstallSetupStorageEncryption(s.state, "1234", nil)
+	chg, err := devicestate.InstallSetupStorageEncryption(s.state, "1234", nil, nil)
 	c.Check(err, ErrorMatches, "cannot setup storage encryption without volumes data")
 	c.Check(chg, IsNil)
 }
 
-func (s *installStepSuite) TestDeviceManagerInstallSetupStorageEncryptionTasksAndChange(c *C) {
+func (s *installStepSuite) TestDeviceManagerInstallSetupStorageEncryptionVolumeAuthError(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	chg, err := devicestate.InstallSetupStorageEncryption(s.state, "1234", mockOnVolumes)
+	volumeOpts := &device.VolumesAuthOptions{Mode: "bad-mode", Passphrase: "1234"}
+	chg, err := devicestate.InstallSetupStorageEncryption(s.state, "1234", mockOnVolumes, volumeOpts)
+	c.Check(err, ErrorMatches, `invalid authentication mode "bad-mode", only "passphrase" and "pin" modes are supported`)
+	c.Check(chg, IsNil)
+}
+
+func (s *installStepSuite) testDeviceManagerInstallSetupStorageEncryptionTasksAndChange(c *C, withVolumesAuth bool) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	var volumesAuth *device.VolumesAuthOptions
+	if withVolumesAuth {
+		volumesAuth = &device.VolumesAuthOptions{Mode: device.AuthModePassphrase, Passphrase: "1234"}
+	}
+
+	chg, err := devicestate.InstallSetupStorageEncryption(s.state, "1234", mockOnVolumes, volumesAuth)
 	c.Assert(err, IsNil)
 	c.Assert(chg, NotNil)
 	c.Check(chg.Summary(), Matches, `Setup storage encryption for installing system "1234"`)
@@ -3432,6 +3527,31 @@ func (s *installStepSuite) TestDeviceManagerInstallSetupStorageEncryptionTasksAn
 	err = tskInstallFinish.Get("on-volumes", &onVols)
 	c.Assert(err, IsNil)
 	c.Assert(onVols, DeepEquals, mockOnVolumes)
+
+	var volumesAuthRequired bool
+	err = tskInstallFinish.Get("volumes-auth-required", &volumesAuthRequired)
+	cached := s.state.Cached(devicestate.VolumesAuthOptionsKeyByLabel("1234"))
+	if withVolumesAuth {
+		c.Assert(err, IsNil)
+		c.Assert(volumesAuthRequired, Equals, true)
+		c.Assert(cached, NotNil)
+		cachedVolumesAuth := cached.(*device.VolumesAuthOptions)
+		c.Check(cachedVolumesAuth, Equals, volumesAuth)
+	} else {
+		c.Assert(errors.Is(err, state.ErrNoState), Equals, true)
+		c.Assert(volumesAuthRequired, Equals, false)
+		c.Assert(cached, IsNil)
+	}
+}
+
+func (s *installStepSuite) TestDeviceManagerInstallSetupStorageEncryptionTasksAndChange(c *C) {
+	const withVolumesAuth = false
+	s.testDeviceManagerInstallSetupStorageEncryptionTasksAndChange(c, withVolumesAuth)
+}
+
+func (s *installStepSuite) TestDeviceManagerInstallSetupStorageEncryptionTasksAndChangeWithVolumesAuth(c *C) {
+	const withVolumesAuth = true
+	s.testDeviceManagerInstallSetupStorageEncryptionTasksAndChange(c, withVolumesAuth)
 }
 
 // TODO make this test a happy one
@@ -3441,7 +3561,7 @@ func (s *installStepSuite) TestDeviceManagerInstallSetupStorageEncryptionRunthro
 	defer st.Unlock()
 
 	s.state.Set("seeded", true)
-	chg, err := devicestate.InstallSetupStorageEncryption(s.state, "1234", mockOnVolumes)
+	chg, err := devicestate.InstallSetupStorageEncryption(s.state, "1234", mockOnVolumes, nil)
 	c.Assert(err, IsNil)
 
 	st.Unlock()

@@ -34,6 +34,7 @@ import (
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget"
+	"github.com/snapcore/snapd/gadget/device"
 	"github.com/snapcore/snapd/gadget/gadgettest"
 	"github.com/snapcore/snapd/gadget/install"
 	"github.com/snapcore/snapd/gadget/quantity"
@@ -42,7 +43,6 @@ import (
 	installLogic "github.com/snapcore/snapd/overlord/install"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/secboot"
-	"github.com/snapcore/snapd/secboot/keys"
 	"github.com/snapcore/snapd/seed"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/testutil"
@@ -487,7 +487,7 @@ func (s *deviceMgrInstallAPISuite) testInstallFinishStep(c *C, opts finishStepOp
 			return nil
 		})
 		s.AddCleanup(restore)
-		restore = boot.MockSealKeyToModeenv(func(key, saveKey keys.EncryptionKey, model *asserts.Model, modeenv *boot.Modeenv, flags boot.MockSealKeyToModeenvFlags) error {
+		restore = boot.MockSealKeyToModeenv(func(key, saveKey secboot.BootstrappedContainer, primaryKey []byte, model *asserts.Model, modeenv *boot.Modeenv, flags boot.MockSealKeyToModeenvFlags) error {
 			c.Check(model.Classic(), Equals, opts.installClassic)
 			// Note that we cannot compare the full structure and we check
 			// separately bits as the types for these are not exported.
@@ -523,6 +523,10 @@ func (s *deviceMgrInstallAPISuite) testInstallFinishStep(c *C, opts finishStepOp
 		bootDir := filepath.Join(dirs.RunDir, "mnt/ubuntu-boot/EFI/boot/")
 		c.Assert(os.MkdirAll(bootDir, 0755), IsNil)
 		c.Assert(os.WriteFile(filepath.Join(bootDir, "grubx64.efi"), []byte{}, 0755), IsNil)
+
+		s.AddCleanup(secboot.MockCreateBootstrappedContainer(func(key secboot.DiskUnlockKey, devicePath string) secboot.BootstrappedContainer {
+			return secboot.CreateMockBootstrappedContainer()
+		}))
 	}
 
 	if opts.hasSystemSeed {
@@ -704,10 +708,11 @@ func (s *deviceMgrInstallAPISuite) TestInstallFinishNoLabel(c *C) {
 - install API finish step \(cannot load assertions for label "classic": no seed assertions\)`)
 }
 
-func (s *deviceMgrInstallAPISuite) testInstallSetupStorageEncryption(c *C, hasTPM bool) {
+func (s *deviceMgrInstallAPISuite) testInstallSetupStorageEncryption(c *C, hasTPM, withVolumesAuth bool) {
 	// Mock label
 	label := "classic"
 	isClassic := true
+	mockVolumesAuth := &device.VolumesAuthOptions{Mode: device.AuthModePassphrase, Passphrase: "1234"}
 	seedCopyFn := func(seedDir string, opts seed.CopyOptions, tm timings.Measurer) error {
 		return fmt.Errorf("unexpected copy call")
 	}
@@ -731,9 +736,9 @@ func (s *deviceMgrInstallAPISuite) testInstallSetupStorageEncryption(c *C, hasTP
 
 	// Mock encryption of partitions
 	encrytpPartCalls := 0
-	restore := devicestate.MockInstallEncryptPartitions(func(onVolumes map[string]*gadget.Volume, encryptionType secboot.EncryptionType, model *asserts.Model, gadgetRoot, kernelRoot string, perfTimings timings.Measurer) (*install.EncryptionSetupData, error) {
+	restore := devicestate.MockInstallEncryptPartitions(func(onVolumes map[string]*gadget.Volume, volumesAuth *device.VolumesAuthOptions, encryptionType device.EncryptionType, model *asserts.Model, gadgetRoot, kernelRoot string, perfTimings timings.Measurer) (*install.EncryptionSetupData, error) {
 		encrytpPartCalls++
-		c.Check(encryptionType, Equals, secboot.EncryptionTypeLUKS)
+		c.Check(encryptionType, Equals, device.EncryptionTypeLUKS)
 		saveFound := false
 		dataFound := false
 		for _, strct := range onVolumes["pc"].Structure {
@@ -743,6 +748,11 @@ func (s *deviceMgrInstallAPISuite) testInstallSetupStorageEncryption(c *C, hasTP
 			case "system-data":
 				dataFound = true
 			}
+		}
+		if withVolumesAuth {
+			c.Check(volumesAuth, Equals, mockVolumesAuth)
+		} else {
+			c.Check(volumesAuth, IsNil)
 		}
 		c.Check(saveFound, Equals, true)
 		c.Check(dataFound, Equals, true)
@@ -760,6 +770,10 @@ func (s *deviceMgrInstallAPISuite) testInstallSetupStorageEncryption(c *C, hasTP
 		"install API set-up encryption step")
 	encryptTask.Set("system-label", label)
 	encryptTask.Set("on-volumes", ginfo.Volumes)
+	if withVolumesAuth {
+		encryptTask.Set("volumes-auth-required", true)
+		s.state.Cache(devicestate.VolumesAuthOptionsKeyByLabel(label), mockVolumesAuth)
+	}
 	chg.AddTask(encryptTask)
 
 	// now let the change run - some checks will happen in the mocked functions
@@ -803,11 +817,21 @@ func (s *deviceMgrInstallAPISuite) testInstallSetupStorageEncryption(c *C, hasTP
 }
 
 func (s *deviceMgrInstallAPISuite) TestInstallSetupStorageEncryptionHappy(c *C) {
-	s.testInstallSetupStorageEncryption(c, true)
+	const hasTPM = true
+	const withVolumesAuth = false
+	s.testInstallSetupStorageEncryption(c, hasTPM, withVolumesAuth)
+}
+
+func (s *deviceMgrInstallAPISuite) TestInstallSetupStorageEncryptionWithVolumesAuth(c *C) {
+	const hasTPM = true
+	const withVolumesAuth = true
+	s.testInstallSetupStorageEncryption(c, hasTPM, withVolumesAuth)
 }
 
 func (s *deviceMgrInstallAPISuite) TestInstallSetupStorageEncryptionNoCrypto(c *C) {
-	s.testInstallSetupStorageEncryption(c, false)
+	const hasTPM = false
+	const withVolumesAuth = false
+	s.testInstallSetupStorageEncryption(c, hasTPM, withVolumesAuth)
 }
 
 func (s *deviceMgrInstallAPISuite) TestInstallSetupStorageEncryptionNoLabel(c *C) {
@@ -843,4 +867,87 @@ func (s *deviceMgrInstallAPISuite) TestInstallSetupStorageEncryptionNoLabel(c *C
 	// Checks now
 	c.Check(chg.Err(), ErrorMatches, `cannot perform the following tasks:
 - install API set-up encryption step \(cannot load assertions for label "classic": no seed assertions\)`)
+}
+
+func (s *deviceMgrInstallAPISuite) TestInstallSetupStorageEncryptionMissingVolumesAuthOptions(c *C) {
+	// Mock label
+	label := "classic"
+	seedCopyFn := func(seedDir string, opts seed.CopyOptions, tm timings.Measurer) error {
+		return fmt.Errorf("unexpected copy call")
+	}
+	seedOpts := mockSystemSeedWithLabelOpts{
+		isClassic:     true,
+		hasSystemSeed: false,
+		hasPartial:    false,
+	}
+	_, _, _, ginfo, _, _ := s.mockSystemSeedWithLabel(c, label, seedCopyFn, seedOpts)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// Create change
+	chg := s.state.NewChange("install-step-setup-storage-encryption",
+		"Setup storage encryption")
+	encryptTask := s.state.NewTask("install-setup-storage-encryption",
+		"install API set-up encryption step")
+	encryptTask.Set("system-label", label)
+	encryptTask.Set("on-volumes", ginfo.Volumes)
+	// Set volumes auth as required without corresponding cached options
+	// mimicing unexpected restart of snapd.
+	encryptTask.Set("volumes-auth-required", true)
+	chg.AddTask(encryptTask)
+
+	// now let the change run - some checks will happen in the mocked functions
+	s.state.Unlock()
+	defer s.state.Lock()
+
+	s.settle(c)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// Checks now
+	c.Check(chg.Err(), ErrorMatches, `cannot perform the following tasks:
+- install API set-up encryption step \(volumes authentication is required but cannot find corresponding cached options\)`)
+}
+
+func (s *deviceMgrInstallAPISuite) TestInstallSetupStorageEncryptionBadVolumesAuthOptionsType(c *C) {
+	// Mock label
+	label := "classic"
+	seedCopyFn := func(seedDir string, opts seed.CopyOptions, tm timings.Measurer) error {
+		return fmt.Errorf("unexpected copy call")
+	}
+	seedOpts := mockSystemSeedWithLabelOpts{
+		isClassic:     true,
+		hasSystemSeed: false,
+		hasPartial:    false,
+	}
+	_, _, _, ginfo, _, _ := s.mockSystemSeedWithLabel(c, label, seedCopyFn, seedOpts)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// Create change
+	chg := s.state.NewChange("install-step-setup-storage-encryption",
+		"Setup storage encryption")
+	encryptTask := s.state.NewTask("install-setup-storage-encryption",
+		"install API set-up encryption step")
+	encryptTask.Set("system-label", label)
+	encryptTask.Set("on-volumes", ginfo.Volumes)
+	encryptTask.Set("volumes-auth-required", true)
+	s.state.Cache(devicestate.VolumesAuthOptionsKeyByLabel(label), "bad-type")
+	chg.AddTask(encryptTask)
+
+	// now let the change run - some checks will happen in the mocked functions
+	s.state.Unlock()
+	defer s.state.Lock()
+
+	s.settle(c)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// Checks now
+	c.Check(chg.Err(), ErrorMatches, `cannot perform the following tasks:
+- install API set-up encryption step \(internal error: wrong data type under volumesAuthOptionsKey\)`)
 }

@@ -35,9 +35,9 @@ import (
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/bootloader/bootloadertest"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/gadget/device"
 	"github.com/snapcore/snapd/osutil/kcmdline"
 	"github.com/snapcore/snapd/release"
-	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/seed"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
@@ -91,18 +91,6 @@ func (s *baseBootenvSuite) mockCmdline(c *C, cmdline string) {
 	c.Assert(os.WriteFile(s.cmdlineFile, []byte(cmdline), 0644), IsNil)
 }
 
-// mockAssetsCache mocks the listed assets in the boot assets cache by creating
-// an empty file for each.
-func mockAssetsCache(c *C, rootdir, bootloaderName string, cachedAssets []string) {
-	p := filepath.Join(dirs.SnapBootAssetsDirUnder(rootdir), bootloaderName)
-	err := os.MkdirAll(p, 0755)
-	c.Assert(err, IsNil)
-	for _, cachedAsset := range cachedAssets {
-		err = os.WriteFile(filepath.Join(p, cachedAsset), nil, 0644)
-		c.Assert(err, IsNil)
-	}
-}
-
 type bootenvSuite struct {
 	baseBootenvSuite
 
@@ -136,6 +124,11 @@ type baseBootenv20Suite struct {
 
 func (s *baseBootenv20Suite) SetUpTest(c *C) {
 	s.baseBootenvSuite.SetUpTest(c)
+
+	restore := boot.MockResealKeyForBootChains(func(unlocker boot.Unlocker, method device.SealingMethod, rootdir string, params *boot.ResealKeyForBootChainsParams, expectReseal bool) error {
+		return nil
+	})
+	s.AddCleanup(restore)
 
 	var err error
 	s.kern1, err = snap.ParsePlaceInfoFromSnapFileName("pc-kernel_1.snap")
@@ -1075,18 +1068,16 @@ func (s *bootenv20Suite) TestCoreParticipant20SetNextNewKernelSnapWithReseal(c *
 	c.Assert(os.WriteFile(filepath.Join(boot.InitramfsUbuntuSeedDir, "asset"), data, 0644), IsNil)
 
 	// mock the files in cache
-	mockAssetsCache(c, dirs.GlobalRootDir, "trusted", []string{
+	boottest.MockAssetsCache(c, dirs.GlobalRootDir, "trusted", []string{
 		"asset-" + dataHash,
 	})
 
-	assetBf := bootloader.NewBootFile("", filepath.Join(dirs.SnapBootAssetsDir, "trusted", fmt.Sprintf("asset-%s", dataHash)), bootloader.RoleRunMode)
-	runKernelBf := bootloader.NewBootFile(filepath.Join(s.kern1.Filename()), "kernel.efi", bootloader.RoleRunMode)
+	tab.KernelBootFileBuilder = func(kernelPath string) bootloader.BootFile {
+		return bootloader.NewBootFile(kernelPath, "kernel.efi", bootloader.RoleRunMode)
+	}
 
 	tab.BootChainList = []bootloader.BootFile{
 		bootloader.NewBootFile("", "asset", bootloader.RoleRunMode),
-		// TODO:UC20: fix mocked trusted assets bootloader to actually
-		// geenerate kernel boot files
-		runKernelBf,
 	}
 
 	coreDev := boottest.MockUC20Device("", nil)
@@ -1118,29 +1109,32 @@ func (s *bootenv20Suite) TestCoreParticipant20SetNextNewKernelSnapWithReseal(c *
 	defer r()
 
 	resealCalls := 0
-	restore := boot.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error {
+	restore := boot.MockResealKeyForBootChains(func(unlocker boot.Unlocker, method device.SealingMethod, rootdir string, params *boot.ResealKeyForBootChainsParams, expectReseal bool) error {
 		resealCalls++
 
-		c.Assert(params.ModelParams, HasLen, 1)
-		mp := params.ModelParams[0]
-		c.Check(mp.Model.Model(), Equals, model.Model())
-		for _, ch := range mp.EFILoadChains {
-			printChain(c, ch, "-")
-		}
-		c.Check(mp.EFILoadChains, DeepEquals, []*secboot.LoadChain{
-			secboot.NewLoadChain(assetBf,
-				secboot.NewLoadChain(runKernelBf)),
-			secboot.NewLoadChain(assetBf,
-				// TODO:UC20: once mock trusted assets
-				// bootloader can generated boot files for the
-				// kernel this will use candidate kernel
-				secboot.NewLoadChain(runKernelBf)),
-		})
-		// actual paths are seen only here
-		c.Check(tab.BootChainKernelPath, DeepEquals, []string{
-			s.kern1.MountFile(),
-			s.kern2.MountFile(),
-		})
+		c.Assert(params.RunModeBootChains, HasLen, 2)
+
+		kern1BootChain := params.RunModeBootChains[0]
+		c.Check(kern1BootChain.Model, Equals, model.Model())
+		c.Assert(kern1BootChain.AssetChain, HasLen, 1)
+		kern1Asset := kern1BootChain.AssetChain[0]
+		c.Check(kern1Asset.Name, Equals, "asset")
+		c.Assert(kern1Asset.Hashes, HasLen, 1)
+		c.Check(kern1Asset.Hashes[0], Equals, dataHash)
+		c.Check(kern1BootChain.KernelBootFile.Snap, Equals, s.kern1.MountFile())
+
+		kern2BootChain := params.RunModeBootChains[1]
+		c.Check(kern2BootChain.Model, Equals, model.Model())
+		c.Assert(kern2BootChain.AssetChain, HasLen, 1)
+		kern2Asset := kern2BootChain.AssetChain[0]
+		c.Check(kern2Asset.Name, Equals, "asset")
+		c.Assert(kern2Asset.Hashes, HasLen, 1)
+		c.Check(kern2Asset.Hashes[0], Equals, dataHash)
+		c.Check(kern2BootChain.KernelBootFile.Snap, Equals, s.kern2.MountFile())
+
+		c.Check(params.RecoveryBootChainsForRunKey, HasLen, 0)
+		c.Check(params.RecoveryBootChains, HasLen, 0)
+
 		return nil
 	})
 	defer restore()
@@ -1195,18 +1189,15 @@ func (s *bootenv20Suite) TestCoreParticipant20SetNextNewUnassertedKernelSnapWith
 	c.Assert(os.WriteFile(filepath.Join(boot.InitramfsUbuntuSeedDir, "asset"), data, 0644), IsNil)
 
 	// mock the files in cache
-	mockAssetsCache(c, dirs.GlobalRootDir, "trusted", []string{
+	boottest.MockAssetsCache(c, dirs.GlobalRootDir, "trusted", []string{
 		"asset-" + dataHash,
 	})
 
-	assetBf := bootloader.NewBootFile("", filepath.Join(dirs.SnapBootAssetsDir, "trusted", fmt.Sprintf("asset-%s", dataHash)), bootloader.RoleRunMode)
-	runKernelBf := bootloader.NewBootFile(filepath.Join(s.ukern1.Filename()), "kernel.efi", bootloader.RoleRunMode)
-
+	tab.KernelBootFileBuilder = func(kernelPath string) bootloader.BootFile {
+		return bootloader.NewBootFile(kernelPath, "kernel.efi", bootloader.RoleRunMode)
+	}
 	tab.BootChainList = []bootloader.BootFile{
 		bootloader.NewBootFile("", "asset", bootloader.RoleRunMode),
-		// TODO:UC20: fix mocked trusted assets bootloader to actually
-		// geenerate kernel boot files
-		runKernelBf,
 	}
 
 	uc20Model := boottest.MakeMockUC20Model()
@@ -1238,29 +1229,32 @@ func (s *bootenv20Suite) TestCoreParticipant20SetNextNewUnassertedKernelSnapWith
 	defer r()
 
 	resealCalls := 0
-	restore := boot.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error {
+	restore := boot.MockResealKeyForBootChains(func(unlocker boot.Unlocker, method device.SealingMethod, rootdir string, params *boot.ResealKeyForBootChainsParams, expectReseal bool) error {
 		resealCalls++
 
-		c.Assert(params.ModelParams, HasLen, 1)
-		mp := params.ModelParams[0]
-		c.Check(mp.Model.Model(), Equals, uc20Model.Model())
-		for _, ch := range mp.EFILoadChains {
-			printChain(c, ch, "-")
-		}
-		c.Check(mp.EFILoadChains, DeepEquals, []*secboot.LoadChain{
-			secboot.NewLoadChain(assetBf,
-				secboot.NewLoadChain(runKernelBf)),
-			secboot.NewLoadChain(assetBf,
-				// TODO:UC20: once mock trusted assets
-				// bootloader can generated boot files for the
-				// kernel this will use candidate kernel
-				secboot.NewLoadChain(runKernelBf)),
-		})
-		// actual paths are seen only here
-		c.Check(tab.BootChainKernelPath, DeepEquals, []string{
-			s.ukern1.MountFile(),
-			s.ukern2.MountFile(),
-		})
+		c.Assert(params.RunModeBootChains, HasLen, 2)
+
+		kern1BootChain := params.RunModeBootChains[0]
+		c.Check(kern1BootChain.Model, Equals, uc20Model.Model())
+		c.Assert(kern1BootChain.AssetChain, HasLen, 1)
+		kern1Asset := kern1BootChain.AssetChain[0]
+		c.Check(kern1Asset.Name, Equals, "asset")
+		c.Assert(kern1Asset.Hashes, HasLen, 1)
+		c.Check(kern1Asset.Hashes[0], Equals, dataHash)
+		c.Check(kern1BootChain.KernelBootFile.Snap, Equals, s.ukern1.MountFile())
+
+		kern2BootChain := params.RunModeBootChains[0]
+		c.Check(kern2BootChain.Model, Equals, uc20Model.Model())
+		c.Assert(kern2BootChain.AssetChain, HasLen, 1)
+		kern2Asset := kern2BootChain.AssetChain[0]
+		c.Check(kern2Asset.Name, Equals, "asset")
+		c.Assert(kern2Asset.Hashes, HasLen, 1)
+		c.Check(kern2Asset.Hashes[0], Equals, dataHash)
+		c.Check(kern2BootChain.KernelBootFile.Snap, Equals, s.ukern1.MountFile())
+
+		c.Check(params.RecoveryBootChainsForRunKey, HasLen, 0)
+		c.Check(params.RecoveryBootChains, HasLen, 0)
+
 		return nil
 	})
 	defer restore()
@@ -1314,7 +1308,7 @@ func (s *bootenv20Suite) TestCoreParticipant20SetNextSameKernelSnapNoReseal(c *C
 	c.Assert(os.WriteFile(filepath.Join(boot.InitramfsUbuntuSeedDir, "asset"), data, 0644), IsNil)
 
 	// mock the files in cache
-	mockAssetsCache(c, dirs.GlobalRootDir, "trusted", []string{
+	boottest.MockAssetsCache(c, dirs.GlobalRootDir, "trusted", []string{
 		"asset-" + dataHash,
 	})
 
@@ -1356,9 +1350,9 @@ func (s *bootenv20Suite) TestCoreParticipant20SetNextSameKernelSnapNoReseal(c *C
 	defer r()
 
 	resealCalls := 0
-	restore := boot.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error {
+	restore := boot.MockResealKeyForBootChains(func(unlocker boot.Unlocker, method device.SealingMethod, rootdir string, params *boot.ResealKeyForBootChainsParams, expectReseal bool) error {
 		resealCalls++
-		return fmt.Errorf("unexpected call")
+		return nil
 	})
 	defer restore()
 
@@ -1366,28 +1360,6 @@ func (s *bootenv20Suite) TestCoreParticipant20SetNextSameKernelSnapNoReseal(c *C
 	bootKern := boot.Participant(s.kern1, snap.TypeKernel, coreDev)
 	// make sure it's not a trivial boot participant
 	c.Assert(bootKern.IsTrivial(), Equals, false)
-
-	// write boot-chains for current state that will stay unchanged
-	bootChains := []boot.BootChain{{
-		BrandID:        "my-brand",
-		Model:          "my-model-uc20",
-		Grade:          "dangerous",
-		ModelSignKeyID: "Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij",
-		AssetChain: []boot.BootAsset{
-			{
-				Role: bootloader.RoleRunMode,
-				Name: "asset",
-				Hashes: []string{
-					"0fa8abfbdaf924ad307b74dd2ed183b9a4a398891a2f6bac8fd2db7041b77f068580f9c6c66f699b496c2da1cbcc7ed8",
-				},
-			},
-		},
-		Kernel:         "pc-kernel",
-		KernelRevision: "1",
-		KernelCmdlines: []string{"snapd_recovery_mode=run"},
-	}}
-	err := boot.WriteBootChains(bootChains, filepath.Join(dirs.SnapFDEDir, "boot-chains"), 0)
-	c.Assert(err, IsNil)
 
 	// make the kernel used on next boot
 	rebootRequired, err := bootKern.SetNextBoot(boot.NextBootContext{BootWithoutTry: false})
@@ -1412,8 +1384,7 @@ func (s *bootenv20Suite) TestCoreParticipant20SetNextSameKernelSnapNoReseal(c *C
 	c.Check(tab.BootChainKernelPath, DeepEquals, []string{
 		s.kern1.MountFile(),
 	})
-	// no actual reseal
-	c.Check(resealCalls, Equals, 0)
+	c.Check(resealCalls, Equals, 1)
 }
 
 func (s *bootenv20Suite) TestCoreParticipant20SetNextSameUnassertedKernelSnapNoReseal(c *C) {
@@ -1434,7 +1405,7 @@ func (s *bootenv20Suite) TestCoreParticipant20SetNextSameUnassertedKernelSnapNoR
 	c.Assert(os.WriteFile(filepath.Join(boot.InitramfsUbuntuSeedDir, "asset"), data, 0644), IsNil)
 
 	// mock the files in cache
-	mockAssetsCache(c, dirs.GlobalRootDir, "trusted", []string{
+	boottest.MockAssetsCache(c, dirs.GlobalRootDir, "trusted", []string{
 		"asset-" + dataHash,
 	})
 
@@ -1476,9 +1447,9 @@ func (s *bootenv20Suite) TestCoreParticipant20SetNextSameUnassertedKernelSnapNoR
 	defer r()
 
 	resealCalls := 0
-	restore := boot.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error {
+	restore := boot.MockResealKeyForBootChains(func(unlocker boot.Unlocker, method device.SealingMethod, rootdir string, params *boot.ResealKeyForBootChainsParams, expectReseal bool) error {
 		resealCalls++
-		return fmt.Errorf("unexpected call")
+		return nil
 	})
 	defer restore()
 
@@ -1486,28 +1457,6 @@ func (s *bootenv20Suite) TestCoreParticipant20SetNextSameUnassertedKernelSnapNoR
 	bootKern := boot.Participant(s.ukern1, snap.TypeKernel, coreDev)
 	// make sure it's not a trivial boot participant
 	c.Assert(bootKern.IsTrivial(), Equals, false)
-
-	// write boot-chains for current state that will stay unchanged
-	bootChains := []boot.BootChain{{
-		BrandID:        "my-brand",
-		Model:          "my-model-uc20",
-		Grade:          "dangerous",
-		ModelSignKeyID: "Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij",
-		AssetChain: []boot.BootAsset{
-			{
-				Role: bootloader.RoleRunMode,
-				Name: "asset",
-				Hashes: []string{
-					"0fa8abfbdaf924ad307b74dd2ed183b9a4a398891a2f6bac8fd2db7041b77f068580f9c6c66f699b496c2da1cbcc7ed8",
-				},
-			},
-		},
-		Kernel:         "pc-kernel",
-		KernelRevision: "",
-		KernelCmdlines: []string{"snapd_recovery_mode=run"},
-	}}
-	err := boot.WriteBootChains(bootChains, filepath.Join(dirs.SnapFDEDir, "boot-chains"), 0)
-	c.Assert(err, IsNil)
 
 	// make the kernel used on next boot
 	rebootRequired, err := bootKern.SetNextBoot(boot.NextBootContext{BootWithoutTry: false})
@@ -1532,8 +1481,7 @@ func (s *bootenv20Suite) TestCoreParticipant20SetNextSameUnassertedKernelSnapNoR
 	c.Check(tab.BootChainKernelPath, DeepEquals, []string{
 		s.ukern1.MountFile(),
 	})
-	// no actual reseal
-	c.Check(resealCalls, Equals, 0)
+	c.Check(resealCalls, Equals, 1)
 }
 
 func (s *bootenv20EnvRefKernelSuite) TestCoreParticipant20SetNextNewKernelSnap(c *C) {
@@ -1797,105 +1745,6 @@ func (s *bootenv20Suite) TestCoreParticipant20SetNextNewBaseSnap(c *C) {
 	c.Assert(m2.TryBase, Equals, s.base2.Filename())
 }
 
-func (s *bootenv20Suite) TestCoreParticipant20SetNextNewBaseSnapNoReseal(c *C) {
-	// checked by resealKeyToModeenv
-	s.stampSealedKeys(c, dirs.GlobalRootDir)
-
-	// set up all the bits required for an encrypted system
-	tab := s.bootloaderWithTrustedAssets(c, map[string]string{
-		"asset": "asset",
-	})
-	data := []byte("foobar")
-	// SHA3-384
-	dataHash := "0fa8abfbdaf924ad307b74dd2ed183b9a4a398891a2f6bac8fd2db7041b77f068580f9c6c66f699b496c2da1cbcc7ed8"
-	c.Assert(os.MkdirAll(filepath.Join(boot.InitramfsUbuntuBootDir), 0755), IsNil)
-	c.Assert(os.WriteFile(filepath.Join(boot.InitramfsUbuntuBootDir, "asset"), data, 0644), IsNil)
-	// mock the files in cache
-	mockAssetsCache(c, dirs.GlobalRootDir, "trusted", []string{
-		"asset-" + dataHash,
-	})
-	runKernelBf := bootloader.NewBootFile(filepath.Join(s.kern1.Filename()), "kernel.efi", bootloader.RoleRunMode)
-	// write boot-chains for current state that will stay unchanged even
-	// though base is changed
-	bootChains := []boot.BootChain{{
-		BrandID:        "my-brand",
-		Model:          "my-model-uc20",
-		Grade:          "dangerous",
-		ModelSignKeyID: "Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij",
-		AssetChain: []boot.BootAsset{{
-			Role: bootloader.RoleRunMode, Name: "asset", Hashes: []string{
-				"0fa8abfbdaf924ad307b74dd2ed183b9a4a398891a2f6bac8fd2db7041b77f068580f9c6c66f699b496c2da1cbcc7ed8",
-			},
-		}},
-		Kernel:         "pc-kernel",
-		KernelRevision: "1",
-		KernelCmdlines: []string{"snapd_recovery_mode=run"},
-	}}
-
-	err := boot.WriteBootChains(boot.ToPredictableBootChains(bootChains), filepath.Join(dirs.SnapFDEDir, "boot-chains"), 0)
-	c.Assert(err, IsNil)
-
-	coreDev := boottest.MockUC20Device("", nil)
-	c.Assert(coreDev.HasModeenv(), Equals, true)
-	model := coreDev.Model()
-
-	resealCalls := 0
-	restore := boot.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error {
-		resealCalls++
-		return nil
-	})
-	defer restore()
-
-	tab.BootChainList = []bootloader.BootFile{
-		bootloader.NewBootFile("", "asset", bootloader.RoleRunMode),
-		runKernelBf,
-	}
-
-	// default state
-	m := &boot.Modeenv{
-		Mode:           "run",
-		Base:           s.base1.Filename(),
-		CurrentKernels: []string{s.kern1.Filename()},
-		CurrentTrustedBootAssets: boot.BootAssetsMap{
-			"asset": []string{dataHash},
-		},
-
-		Model:          model.Model(),
-		BrandID:        model.BrandID(),
-		Grade:          string(model.Grade()),
-		ModelSignKeyID: model.SignKeyID(),
-	}
-	r := setupUC20Bootenv(
-		c,
-		tab.MockBootloader,
-		&bootenv20Setup{
-			modeenv: m,
-			// no kernel setup necessary
-		},
-	)
-	defer r()
-
-	// get the boot base participant from our new base snap
-	bootBase := boot.Participant(s.base2, snap.TypeBase, coreDev)
-	// make sure it's not a trivial boot participant
-	c.Assert(bootBase.IsTrivial(), Equals, false)
-
-	// make the base used on next boot
-	rebootRequired, err := bootBase.SetNextBoot(boot.NextBootContext{BootWithoutTry: false})
-	c.Assert(err, IsNil)
-	c.Assert(rebootRequired, Equals, boot.RebootInfo{RebootRequired: true})
-
-	// make sure the modeenv was updated
-	m2, err := boot.ReadModeenv("")
-	c.Assert(err, IsNil)
-	c.Assert(m2.Base, Equals, m.Base)
-	c.Assert(m2.BaseStatus, Equals, boot.TryStatus)
-	c.Assert(m2.TryBase, Equals, s.base2.Filename())
-
-	// no reseal
-	c.Check(resealCalls, Equals, 0)
-}
-
 func (s *bootenvSuite) TestMarkBootSuccessfulAllSnap(c *C) {
 	coreDev := boottest.MockDevice("some-snap")
 
@@ -2155,16 +2004,16 @@ func (s *bootenv20Suite) TestMarkBootSuccessful20KernelUpdateWithReseal(c *C) {
 	c.Assert(os.WriteFile(filepath.Join(boot.InitramfsUbuntuBootDir, "asset"), data, 0644), IsNil)
 
 	// mock the files in cache
-	mockAssetsCache(c, dirs.GlobalRootDir, "trusted", []string{
+	boottest.MockAssetsCache(c, dirs.GlobalRootDir, "trusted", []string{
 		"asset-" + dataHash,
 	})
 
-	assetBf := bootloader.NewBootFile("", filepath.Join(dirs.SnapBootAssetsDir, "trusted", fmt.Sprintf("asset-%s", dataHash)), bootloader.RoleRunMode)
-	newRunKernelBf := bootloader.NewBootFile(filepath.Join(s.kern2.Filename()), "kernel.efi", bootloader.RoleRunMode)
-
 	tab.BootChainList = []bootloader.BootFile{
 		bootloader.NewBootFile("", "asset", bootloader.RoleRunMode),
-		newRunKernelBf,
+	}
+
+	tab.KernelBootFileBuilder = func(kernelPath string) bootloader.BootFile {
+		return bootloader.NewBootFile(kernelPath, "kernel.efi", bootloader.RoleRunMode)
 	}
 
 	coreDev := boottest.MockUC20Device("", nil)
@@ -2196,59 +2045,30 @@ func (s *bootenv20Suite) TestMarkBootSuccessful20KernelUpdateWithReseal(c *C) {
 	)
 	defer r()
 
-	// write boot-chains that describe a state in which we have a new kernel
-	// candidate (pc-kernel_2)
-	bootChains := []boot.BootChain{{
-		BrandID:        "my-brand",
-		Model:          "my-model-uc20",
-		Grade:          "dangerous",
-		ModelSignKeyID: "Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij",
-		AssetChain: []boot.BootAsset{{
-			Role: bootloader.RoleRunMode, Name: "asset", Hashes: []string{
-				"0fa8abfbdaf924ad307b74dd2ed183b9a4a398891a2f6bac8fd2db7041b77f068580f9c6c66f699b496c2da1cbcc7ed8",
-			},
-		}},
-		Kernel:         "pc-kernel",
-		KernelRevision: "1",
-		KernelCmdlines: []string{"snapd_recovery_mode=run"},
-	}, {
-		BrandID:        "my-brand",
-		Model:          "my-model-uc20",
-		Grade:          "dangerous",
-		ModelSignKeyID: "Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij",
-		AssetChain: []boot.BootAsset{{
-			Role: bootloader.RoleRunMode, Name: "asset", Hashes: []string{
-				"0fa8abfbdaf924ad307b74dd2ed183b9a4a398891a2f6bac8fd2db7041b77f068580f9c6c66f699b496c2da1cbcc7ed8",
-			},
-		}},
-		Kernel:         "pc-kernel",
-		KernelRevision: "2",
-		KernelCmdlines: []string{"snapd_recovery_mode=run"},
-	}}
-
-	err := boot.WriteBootChains(boot.ToPredictableBootChains(bootChains), filepath.Join(dirs.SnapFDEDir, "boot-chains"), 0)
-	c.Assert(err, IsNil)
-
 	resealCalls := 0
-	restore := boot.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error {
+	restore := boot.MockResealKeyForBootChains(func(unlocker boot.Unlocker, method device.SealingMethod, rootdir string, params *boot.ResealKeyForBootChainsParams, expectReseal bool) error {
 		resealCalls++
 
-		c.Assert(params.ModelParams, HasLen, 1)
-		mp := params.ModelParams[0]
-		c.Check(mp.Model.Model(), Equals, model.Model())
-		for _, ch := range mp.EFILoadChains {
-			printChain(c, ch, "-")
-		}
-		c.Check(mp.EFILoadChains, DeepEquals, []*secboot.LoadChain{
-			secboot.NewLoadChain(assetBf,
-				secboot.NewLoadChain(newRunKernelBf)),
-		})
+		c.Assert(params.RunModeBootChains, HasLen, 1)
+
+		kern2BootChain := params.RunModeBootChains[0]
+		c.Check(kern2BootChain.Model, Equals, model.Model())
+		c.Assert(kern2BootChain.AssetChain, HasLen, 1)
+		kern2Asset := kern2BootChain.AssetChain[0]
+		c.Check(kern2Asset.Name, Equals, "asset")
+		c.Assert(kern2Asset.Hashes, HasLen, 1)
+		c.Check(kern2Asset.Hashes[0], Equals, dataHash)
+		c.Check(kern2BootChain.KernelBootFile.Snap, Equals, s.kern2.MountFile())
+
+		c.Check(params.RecoveryBootChainsForRunKey, HasLen, 0)
+		c.Check(params.RecoveryBootChains, HasLen, 0)
+
 		return nil
 	})
 	defer restore()
 
 	// mark successful
-	err = boot.MarkBootSuccessful(coreDev)
+	err := boot.MarkBootSuccessful(coreDev)
 	c.Assert(err, IsNil)
 
 	c.Check(resealCalls, Equals, 1)
@@ -2394,7 +2214,7 @@ func (s *bootenv20Suite) TestMarkBootSuccessful20BootAssetsUpdateHappy(c *C) {
 	c.Assert(os.WriteFile(filepath.Join(boot.InitramfsUbuntuSeedDir, "shim"), shim, 0644), IsNil)
 
 	// mock the files in cache
-	mockAssetsCache(c, dirs.GlobalRootDir, "trusted", []string{
+	boottest.MockAssetsCache(c, dirs.GlobalRootDir, "trusted", []string{
 		"shim-recoveryshimhash",
 		"shim-" + shimHash,
 		"asset-assethash",
@@ -2402,26 +2222,27 @@ func (s *bootenv20Suite) TestMarkBootSuccessful20BootAssetsUpdateHappy(c *C) {
 		"asset-" + dataHash,
 	})
 
-	shimBf := bootloader.NewBootFile("", filepath.Join(dirs.SnapBootAssetsDir, "trusted", fmt.Sprintf("shim-%s", shimHash)), bootloader.RoleRecovery)
-	assetBf := bootloader.NewBootFile("", filepath.Join(dirs.SnapBootAssetsDir, "trusted", fmt.Sprintf("asset-%s", dataHash)), bootloader.RoleRecovery)
-	runKernelBf := bootloader.NewBootFile(filepath.Join(s.kern1.Filename()), "kernel.efi", bootloader.RoleRunMode)
-	recoveryKernelBf := bootloader.NewBootFile("pc-kernel_1.snap", "kernel.efi", bootloader.RoleRecovery)
-
 	tab.BootChainList = []bootloader.BootFile{
 		bootloader.NewBootFile("", "shim", bootloader.RoleRecovery),
 		bootloader.NewBootFile("", "asset", bootloader.RoleRecovery),
-		runKernelBf,
 	}
 	tab.RecoveryBootChainList = []bootloader.BootFile{
 		bootloader.NewBootFile("", "shim", bootloader.RoleRecovery),
 		bootloader.NewBootFile("", "asset", bootloader.RoleRecovery),
-		recoveryKernelBf,
+	}
+
+	tab.KernelBootFileBuilder = func(kernelPath string) bootloader.BootFile {
+		return bootloader.NewBootFile(kernelPath, "kernel.efi", bootloader.RoleRunMode)
+	}
+	tab.RecoveryKernelBootFileBuilder = func(kernelPath string) bootloader.BootFile {
+		return bootloader.NewBootFile(kernelPath, "kernel.efi", bootloader.RoleRecovery)
 	}
 
 	uc20Model := boottest.MakeMockUC20Model()
 
+	kernelSeedSnap := mockKernelSeedSnap(snap.R(1))
 	restore := boot.MockSeedReadSystemEssential(func(seedDir, label string, essentialTypes []snap.Type, tm timings.Measurer) (*asserts.Model, []*seed.Snap, error) {
-		return uc20Model, []*seed.Snap{mockKernelSeedSnap(snap.R(1)), mockGadgetSeedSnap(c, nil)}, nil
+		return uc20Model, []*seed.Snap{kernelSeedSnap, mockGadgetSeedSnap(c, nil)}, nil
 	})
 	defer restore()
 
@@ -2459,34 +2280,55 @@ func (s *bootenv20Suite) TestMarkBootSuccessful20BootAssetsUpdateHappy(c *C) {
 	c.Assert(coreDev.HasModeenv(), Equals, true)
 
 	resealCalls := 0
-	restore = boot.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error {
+	restore = boot.MockResealKeyForBootChains(func(unlocker boot.Unlocker, method device.SealingMethod, rootdir string, params *boot.ResealKeyForBootChainsParams, expectReseal bool) error {
 		resealCalls++
 
-		c.Assert(params.ModelParams, HasLen, 1)
-		mp := params.ModelParams[0]
-		c.Check(mp.Model.Model(), Equals, uc20Model.Model())
-		for _, ch := range mp.EFILoadChains {
-			printChain(c, ch, "-")
-		}
-		switch resealCalls {
-		case 1:
-			c.Check(mp.EFILoadChains, DeepEquals, []*secboot.LoadChain{
-				secboot.NewLoadChain(shimBf,
-					secboot.NewLoadChain(assetBf,
-						secboot.NewLoadChain(runKernelBf))),
-				secboot.NewLoadChain(shimBf,
-					secboot.NewLoadChain(assetBf,
-						secboot.NewLoadChain(recoveryKernelBf))),
-			})
-		case 2:
-			c.Check(mp.EFILoadChains, DeepEquals, []*secboot.LoadChain{
-				secboot.NewLoadChain(shimBf,
-					secboot.NewLoadChain(assetBf,
-						secboot.NewLoadChain(recoveryKernelBf))),
-			})
-		default:
-			c.Errorf("unexpected additional call to secboot.ResealKey (call # %d)", resealCalls)
-		}
+		c.Assert(params.RunModeBootChains, HasLen, 1)
+
+		runBootChain := params.RunModeBootChains[0]
+		c.Check(runBootChain.Model, Equals, uc20Model.Model())
+		c.Assert(runBootChain.AssetChain, HasLen, 2)
+		runShim := runBootChain.AssetChain[0]
+		c.Check(runShim.Name, Equals, "shim")
+		c.Assert(runShim.Hashes, HasLen, 1)
+		c.Check(runShim.Hashes[0], Equals, shimHash)
+		runAsset := runBootChain.AssetChain[1]
+		c.Check(runAsset.Name, Equals, "asset")
+		c.Assert(runAsset.Hashes, HasLen, 1)
+		c.Check(runAsset.Hashes[0], Equals, dataHash)
+		c.Check(runBootChain.KernelBootFile.Snap, Equals, s.kern1.MountFile())
+		c.Check(runBootChain.KernelBootFile.Role, Equals, bootloader.RoleRunMode)
+
+		c.Assert(params.RecoveryBootChainsForRunKey, HasLen, 1)
+		runRecoveryBootChain := params.RecoveryBootChainsForRunKey[0]
+		c.Check(runRecoveryBootChain.Model, Equals, uc20Model.Model())
+		c.Assert(runRecoveryBootChain.AssetChain, HasLen, 2)
+		runRecoveryShim := runRecoveryBootChain.AssetChain[0]
+		c.Check(runRecoveryShim.Name, Equals, "shim")
+		c.Assert(runRecoveryShim.Hashes, HasLen, 1)
+		c.Check(runRecoveryShim.Hashes[0], Equals, shimHash)
+		runRecoveryAsset := runRecoveryBootChain.AssetChain[1]
+		c.Check(runRecoveryAsset.Name, Equals, "asset")
+		c.Assert(runRecoveryAsset.Hashes, HasLen, 1)
+		c.Check(runRecoveryAsset.Hashes[0], Equals, dataHash)
+		c.Check(runRecoveryBootChain.KernelBootFile.Snap, Equals, kernelSeedSnap.Path)
+		c.Check(runRecoveryBootChain.KernelBootFile.Role, Equals, bootloader.RoleRecovery)
+
+		c.Assert(params.RecoveryBootChains, HasLen, 1)
+		recoveryBootChain := params.RecoveryBootChains[0]
+		c.Check(recoveryBootChain.Model, Equals, uc20Model.Model())
+		c.Assert(recoveryBootChain.AssetChain, HasLen, 2)
+		recoveryShim := recoveryBootChain.AssetChain[0]
+		c.Check(recoveryShim.Name, Equals, "shim")
+		c.Assert(recoveryShim.Hashes, HasLen, 1)
+		c.Check(recoveryShim.Hashes[0], Equals, shimHash)
+		recoveryAsset := recoveryBootChain.AssetChain[1]
+		c.Check(recoveryAsset.Name, Equals, "asset")
+		c.Assert(recoveryAsset.Hashes, HasLen, 1)
+		c.Check(recoveryAsset.Hashes[0], Equals, dataHash)
+		c.Check(recoveryBootChain.KernelBootFile.Snap, Equals, kernelSeedSnap.Path)
+		c.Check(recoveryBootChain.KernelBootFile.Role, Equals, bootloader.RoleRecovery)
+
 		return nil
 	})
 	defer restore()
@@ -2511,7 +2353,7 @@ func (s *bootenv20Suite) TestMarkBootSuccessful20BootAssetsUpdateHappy(c *C) {
 		filepath.Join(dirs.SnapBootAssetsDir, "trusted", "asset-"+dataHash),
 		filepath.Join(dirs.SnapBootAssetsDir, "trusted", "shim-"+shimHash),
 	})
-	c.Check(resealCalls, Equals, 2)
+	c.Check(resealCalls, Equals, 1)
 }
 
 func (s *bootenv20Suite) TestMarkBootSuccessful20BootAssetsStableStateHappy(c *C) {
@@ -2538,7 +2380,7 @@ func (s *bootenv20Suite) TestMarkBootSuccessful20BootAssetsStableStateHappy(c *C
 	c.Assert(os.WriteFile(filepath.Join(boot.InitramfsUbuntuSeedDir, "shim"), shim, 0644), IsNil)
 
 	// mock the files in cache
-	mockAssetsCache(c, dirs.GlobalRootDir, "trusted", []string{
+	boottest.MockAssetsCache(c, dirs.GlobalRootDir, "trusted", []string{
 		"shim-" + shimHash,
 		"asset-" + dataHash,
 	})
@@ -2560,7 +2402,7 @@ func (s *bootenv20Suite) TestMarkBootSuccessful20BootAssetsStableStateHappy(c *C
 	uc20Model := boottest.MakeMockUC20Model()
 
 	restore := boot.MockSeedReadSystemEssential(func(seedDir, label string, essentialTypes []snap.Type, tm timings.Measurer) (*asserts.Model, []*seed.Snap, error) {
-		return uc20Model, []*seed.Snap{mockNamedKernelSeedSnap(snap.R(1), "pc-kernel-recovery"), mockGadgetSeedSnap(c, nil)}, nil
+		return uc20Model, []*seed.Snap{boottest.MockNamedKernelSeedSnap(snap.R(1), "pc-kernel-recovery"), mockGadgetSeedSnap(c, nil)}, nil
 	})
 	defer restore()
 
@@ -2599,64 +2441,14 @@ func (s *bootenv20Suite) TestMarkBootSuccessful20BootAssetsStableStateHappy(c *C
 	c.Assert(coreDev.HasModeenv(), Equals, true)
 
 	resealCalls := 0
-	restore = boot.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error {
+	restore = boot.MockResealKeyForBootChains(func(unlocker boot.Unlocker, method device.SealingMethod, rootdir string, params *boot.ResealKeyForBootChainsParams, expectReseal bool) error {
 		resealCalls++
 		return nil
 	})
 	defer restore()
 
-	// write boot-chains for current state that will stay unchanged
-	bootChains := []boot.BootChain{{
-		BrandID:        "my-brand",
-		Model:          "my-model-uc20",
-		Grade:          "dangerous",
-		ModelSignKeyID: "Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij",
-		AssetChain: []boot.BootAsset{{
-			Role: bootloader.RoleRecovery, Name: "shim",
-			Hashes: []string{
-				"dac0063e831d4b2e7a330426720512fc50fa315042f0bb30f9d1db73e4898dcb89119cac41fdfa62137c8931a50f9d7b",
-			},
-		}, {
-			Role: bootloader.RoleRecovery, Name: "asset", Hashes: []string{
-				"0fa8abfbdaf924ad307b74dd2ed183b9a4a398891a2f6bac8fd2db7041b77f068580f9c6c66f699b496c2da1cbcc7ed8",
-			},
-		}},
-		Kernel:         "pc-kernel",
-		KernelRevision: "1",
-		KernelCmdlines: []string{"snapd_recovery_mode=run"},
-	}, {
-		BrandID:        "my-brand",
-		Model:          "my-model-uc20",
-		Grade:          "dangerous",
-		ModelSignKeyID: "Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij",
-		AssetChain: []boot.BootAsset{{
-			Role: bootloader.RoleRecovery, Name: "shim",
-			Hashes: []string{
-				"dac0063e831d4b2e7a330426720512fc50fa315042f0bb30f9d1db73e4898dcb89119cac41fdfa62137c8931a50f9d7b",
-			},
-		}, {
-			Role: bootloader.RoleRecovery, Name: "asset", Hashes: []string{
-				"0fa8abfbdaf924ad307b74dd2ed183b9a4a398891a2f6bac8fd2db7041b77f068580f9c6c66f699b496c2da1cbcc7ed8",
-			},
-		}},
-		Kernel:         "pc-kernel-recovery",
-		KernelRevision: "1",
-		KernelCmdlines: []string{
-			"snapd_recovery_mode=factory-reset snapd_recovery_system=system",
-			"snapd_recovery_mode=recover snapd_recovery_system=system",
-		},
-	}}
-
-	recoveryBootChains := []boot.BootChain{bootChains[1]}
-
-	err := boot.WriteBootChains(boot.ToPredictableBootChains(bootChains), filepath.Join(dirs.SnapFDEDir, "boot-chains"), 0)
-	c.Assert(err, IsNil)
-
-	err = boot.WriteBootChains(boot.ToPredictableBootChains(recoveryBootChains), filepath.Join(dirs.SnapFDEDir, "recovery-boot-chains"), 0)
-	c.Assert(err, IsNil)
-
 	// mark successful
-	err = boot.MarkBootSuccessful(coreDev)
+	err := boot.MarkBootSuccessful(coreDev)
 	c.Assert(err, IsNil)
 
 	// modeenv is unchanged
@@ -2674,8 +2466,7 @@ func (s *bootenv20Suite) TestMarkBootSuccessful20BootAssetsStableStateHappy(c *C
 	c.Check(tab.BootChainKernelPath, DeepEquals, []string{
 		s.kern1.MountFile(),
 	})
-	// no actual reseal
-	c.Check(resealCalls, Equals, 0)
+	c.Check(resealCalls, Equals, 1)
 }
 
 func (s *bootenv20Suite) TestMarkBootSuccessful20BootUnassertedKernelAssetsStableStateHappy(c *C) {
@@ -2702,7 +2493,7 @@ func (s *bootenv20Suite) TestMarkBootSuccessful20BootUnassertedKernelAssetsStabl
 	c.Assert(os.WriteFile(filepath.Join(boot.InitramfsUbuntuSeedDir, "shim"), shim, 0644), IsNil)
 
 	// mock the files in cache
-	mockAssetsCache(c, dirs.GlobalRootDir, "trusted", []string{
+	boottest.MockAssetsCache(c, dirs.GlobalRootDir, "trusted", []string{
 		"shim-" + shimHash,
 		"asset-" + dataHash,
 	})
@@ -2724,7 +2515,7 @@ func (s *bootenv20Suite) TestMarkBootSuccessful20BootUnassertedKernelAssetsStabl
 	uc20Model := boottest.MakeMockUC20Model()
 
 	restore := boot.MockSeedReadSystemEssential(func(seedDir, label string, essentialTypes []snap.Type, tm timings.Measurer) (*asserts.Model, []*seed.Snap, error) {
-		return uc20Model, []*seed.Snap{mockNamedKernelSeedSnap(snap.R(1), "pc-kernel-recovery"), mockGadgetSeedSnap(c, nil)}, nil
+		return uc20Model, []*seed.Snap{boottest.MockNamedKernelSeedSnap(snap.R(1), "pc-kernel-recovery"), mockGadgetSeedSnap(c, nil)}, nil
 	})
 	defer restore()
 
@@ -2764,65 +2555,14 @@ func (s *bootenv20Suite) TestMarkBootSuccessful20BootUnassertedKernelAssetsStabl
 	c.Assert(coreDev.HasModeenv(), Equals, true)
 
 	resealCalls := 0
-	restore = boot.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error {
+	restore = boot.MockResealKeyForBootChains(func(unlocker boot.Unlocker, method device.SealingMethod, rootdir string, params *boot.ResealKeyForBootChainsParams, expectReseal bool) error {
 		resealCalls++
 		return nil
 	})
 	defer restore()
 
-	// write boot-chains for current state that will stay unchanged
-	bootChains := []boot.BootChain{{
-		BrandID:        "my-brand",
-		Model:          "my-model-uc20",
-		Grade:          "dangerous",
-		ModelSignKeyID: "Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij",
-		AssetChain: []boot.BootAsset{{
-			Role: bootloader.RoleRecovery, Name: "shim",
-			Hashes: []string{
-				"dac0063e831d4b2e7a330426720512fc50fa315042f0bb30f9d1db73e4898dcb89119cac41fdfa62137c8931a50f9d7b",
-			},
-		}, {
-			Role: bootloader.RoleRecovery, Name: "asset", Hashes: []string{
-				"0fa8abfbdaf924ad307b74dd2ed183b9a4a398891a2f6bac8fd2db7041b77f068580f9c6c66f699b496c2da1cbcc7ed8",
-			},
-		}},
-		Kernel: "pc-kernel",
-		// unasserted kernel snap
-		KernelRevision: "",
-		KernelCmdlines: []string{"snapd_recovery_mode=run"},
-	}, {
-		BrandID:        "my-brand",
-		Model:          "my-model-uc20",
-		Grade:          "dangerous",
-		ModelSignKeyID: "Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij",
-		AssetChain: []boot.BootAsset{{
-			Role: bootloader.RoleRecovery, Name: "shim",
-			Hashes: []string{
-				"dac0063e831d4b2e7a330426720512fc50fa315042f0bb30f9d1db73e4898dcb89119cac41fdfa62137c8931a50f9d7b",
-			},
-		}, {
-			Role: bootloader.RoleRecovery, Name: "asset", Hashes: []string{
-				"0fa8abfbdaf924ad307b74dd2ed183b9a4a398891a2f6bac8fd2db7041b77f068580f9c6c66f699b496c2da1cbcc7ed8",
-			},
-		}},
-		Kernel:         "pc-kernel-recovery",
-		KernelRevision: "1",
-		KernelCmdlines: []string{
-			"snapd_recovery_mode=factory-reset snapd_recovery_system=system",
-			"snapd_recovery_mode=recover snapd_recovery_system=system",
-		},
-	}}
-
-	recoveryBootChains := []boot.BootChain{bootChains[1]}
-
-	err := boot.WriteBootChains(boot.ToPredictableBootChains(bootChains), filepath.Join(dirs.SnapFDEDir, "boot-chains"), 0)
-	c.Assert(err, IsNil)
-
-	err = boot.WriteBootChains(boot.ToPredictableBootChains(recoveryBootChains), filepath.Join(dirs.SnapFDEDir, "recovery-boot-chains"), 0)
-	c.Assert(err, IsNil)
-
 	// mark successful
-	err = boot.MarkBootSuccessful(coreDev)
+	err := boot.MarkBootSuccessful(coreDev)
 	c.Assert(err, IsNil)
 
 	// modeenv is unchanged
@@ -2840,8 +2580,7 @@ func (s *bootenv20Suite) TestMarkBootSuccessful20BootUnassertedKernelAssetsStabl
 	c.Check(tab.BootChainKernelPath, DeepEquals, []string{
 		s.ukern1.MountFile(),
 	})
-	// no actual reseal
-	c.Check(resealCalls, Equals, 0)
+	c.Check(resealCalls, Equals, 1)
 }
 
 func (s *bootenv20Suite) TestMarkBootSuccessful20BootAssetsUpdateUnexpectedAsset(c *C) {
@@ -2858,7 +2597,7 @@ func (s *bootenv20Suite) TestMarkBootSuccessful20BootAssetsUpdateUnexpectedAsset
 	c.Assert(os.WriteFile(filepath.Join(boot.InitramfsUbuntuBootDir, "EFI/asset"), data, 0644), IsNil)
 	c.Assert(os.WriteFile(filepath.Join(boot.InitramfsUbuntuSeedDir, "EFI/asset"), data, 0644), IsNil)
 	// mock some state in the cache
-	mockAssetsCache(c, dirs.GlobalRootDir, "trusted", []string{
+	boottest.MockAssetsCache(c, dirs.GlobalRootDir, "trusted", []string{
 		"asset-one",
 		"asset-two",
 	})
@@ -2914,7 +2653,7 @@ func (s *bootenv20Suite) TestMarkBootSuccessful20BootAssetsUpdateUnexpectedAsset
 
 func (s *bootenv20Suite) setupMarkBootSuccessful20CommandLine(c *C, model *asserts.Model, mode string, cmdlines boot.BootCommandLines) *boot.Modeenv {
 	// mock some state in the cache
-	mockAssetsCache(c, dirs.GlobalRootDir, "trusted", []string{
+	boottest.MockAssetsCache(c, dirs.GlobalRootDir, "trusted", []string{
 		"asset-one",
 	})
 	// a pending kernel command line change
@@ -3405,6 +3144,11 @@ var _ = Suite(&bootConfigSuite{})
 func (s *bootConfigSuite) SetUpTest(c *C) {
 	s.baseBootenvSuite.SetUpTest(c)
 
+	restore := boot.MockResealKeyForBootChains(func(unlocker boot.Unlocker, method device.SealingMethod, rootdir string, params *boot.ResealKeyForBootChainsParams, expectReseal bool) error {
+		return nil
+	})
+	s.AddCleanup(restore)
+
 	s.bootloader = bootloadertest.Mock("trusted", c.MkDir()).WithTrustedAssets()
 	s.bootloader.StaticCommandLine = "this is mocked panic=-1"
 	s.bootloader.CandidateStaticCommandLine = "mocked candidate panic=-1"
@@ -3437,7 +3181,7 @@ func (s *bootConfigSuite) TestBootConfigUpdateHappyNoKeysNoReseal(c *C) {
 	c.Assert(m.WriteTo(""), IsNil)
 
 	resealCalls := 0
-	restore := boot.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error {
+	restore := boot.MockResealKeyForBootChains(func(unlocker boot.Unlocker, method device.SealingMethod, rootdir string, params *boot.ResealKeyForBootChainsParams, expectReseal bool) error {
 		resealCalls++
 		return nil
 	})
@@ -3458,7 +3202,7 @@ func (s *bootConfigSuite) testBootConfigUpdateHappyWithReseal(c *C, cmdlineAppen
 
 	runKernelBf := bootloader.NewBootFile("/var/lib/snapd/snap/pc-kernel_600.snap", "kernel.efi", bootloader.RoleRunMode)
 	recoveryKernelBf := bootloader.NewBootFile("/var/lib/snapd/seed/snaps/pc-kernel_1.snap", "kernel.efi", bootloader.RoleRecovery)
-	mockAssetsCache(c, dirs.GlobalRootDir, "trusted", []string{
+	boottest.MockAssetsCache(c, dirs.GlobalRootDir, "trusted", []string{
 		"asset-hash-1",
 	})
 
@@ -3489,14 +3233,21 @@ func (s *bootConfigSuite) testBootConfigUpdateHappyWithReseal(c *C, cmdlineAppen
 	newCmdline := strutil.JoinNonEmpty([]string{
 		"snapd_recovery_mode=run mocked candidate panic=-1", cmdlineAppend}, " ")
 	resealCalls := 0
-	restore := boot.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error {
+	restore := boot.MockResealKeyForBootChains(func(unlocker boot.Unlocker, method device.SealingMethod, rootdir string, params *boot.ResealKeyForBootChainsParams, expectReseal bool) error {
 		resealCalls++
 		c.Assert(params, NotNil)
-		c.Assert(params.ModelParams, HasLen, 1)
-		c.Check(params.ModelParams[0].KernelCmdlines, DeepEquals, []string{
-			newCmdline,
+
+		c.Assert(params.RunModeBootChains, HasLen, 1)
+		bootChain := params.RunModeBootChains[0]
+		c.Check(bootChain.KernelCmdlines, DeepEquals, []string{
 			"snapd_recovery_mode=run this is mocked panic=-1",
+			newCmdline,
 		})
+
+		c.Check(params.RecoveryBootChainsForRunKey, HasLen, 0)
+		c.Check(params.RecoveryBootChains, HasLen, 0)
+
+		/**/
 		return nil
 	})
 	defer restore()
@@ -3542,7 +3293,7 @@ func (s *bootConfigSuite) testBootConfigUpdateHappyNoChange(c *C, cmdlineAppend 
 	c.Assert(m.WriteTo(""), IsNil)
 
 	resealCalls := 0
-	restore := boot.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error {
+	restore := boot.MockResealKeyForBootChains(func(unlocker boot.Unlocker, method device.SealingMethod, rootdir string, params *boot.ResealKeyForBootChainsParams, expectReseal bool) error {
 		resealCalls++
 		return nil
 	})
@@ -3676,7 +3427,7 @@ volumes:
 
 	runKernelBf := bootloader.NewBootFile("/var/lib/snapd/snap/pc-kernel_600.snap", "kernel.efi", bootloader.RoleRunMode)
 	recoveryKernelBf := bootloader.NewBootFile("/var/lib/snapd/seed/snaps/pc-kernel_1.snap", "kernel.efi", bootloader.RoleRecovery)
-	mockAssetsCache(c, dirs.GlobalRootDir, "trusted", []string{
+	boottest.MockAssetsCache(c, dirs.GlobalRootDir, "trusted", []string{
 		"asset-hash-1",
 	})
 
@@ -3707,14 +3458,20 @@ volumes:
 	c.Assert(m.WriteTo(""), IsNil)
 
 	resealCalls := 0
-	restore := boot.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error {
+	restore := boot.MockResealKeyForBootChains(func(unlocker boot.Unlocker, method device.SealingMethod, rootdir string, params *boot.ResealKeyForBootChainsParams, expectReseal bool) error {
 		resealCalls++
 		c.Assert(params, NotNil)
-		c.Assert(params.ModelParams, HasLen, 1)
-		c.Check(params.ModelParams[0].KernelCmdlines, DeepEquals, []string{
-			"snapd_recovery_mode=run mocked candidate panic=-1 foo bar baz",
+
+		c.Assert(params.RunModeBootChains, HasLen, 1)
+		bootChain := params.RunModeBootChains[0]
+		c.Check(bootChain.KernelCmdlines, DeepEquals, []string{
 			"snapd_recovery_mode=run this is mocked panic=-1 foo bar baz",
+			"snapd_recovery_mode=run mocked candidate panic=-1 foo bar baz",
 		})
+
+		c.Check(params.RecoveryBootChainsForRunKey, HasLen, 0)
+		c.Check(params.RecoveryBootChains, HasLen, 0)
+
 		return nil
 	})
 	defer restore()
@@ -3767,7 +3524,7 @@ volumes:
 	// reseal does not happen, because the gadget overrides the static
 	// command line which is part of boot config, thus there's no resulting
 	// change in the command lines tracked in modeenv and no need to reseal
-	restore := boot.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error {
+	restore := boot.MockResealKeyForBootChains(func(unlocker boot.Unlocker, method device.SealingMethod, rootdir string, params *boot.ResealKeyForBootChainsParams, expectReseal bool) error {
 		resealCalls++
 		return fmt.Errorf("unexpected call")
 	})
@@ -3804,6 +3561,11 @@ var _ = Suite(&bootKernelCommandLineSuite{})
 func (s *bootKernelCommandLineSuite) SetUpTest(c *C) {
 	s.baseBootenvSuite.SetUpTest(c)
 
+	restore := boot.MockResealKeyForBootChains(func(unlocker boot.Unlocker, method device.SealingMethod, rootdir string, params *boot.ResealKeyForBootChainsParams, expectReseal bool) error {
+		return nil
+	})
+	s.AddCleanup(restore)
+
 	data := []byte("foobar")
 	// SHA3-384
 	dataHash := "0fa8abfbdaf924ad307b74dd2ed183b9a4a398891a2f6bac8fd2db7041b77f068580f9c6c66f699b496c2da1cbcc7ed8"
@@ -3823,7 +3585,7 @@ func (s *bootKernelCommandLineSuite) SetUpTest(c *C) {
 	s.uc20dev = boottest.MockUC20Device("", boottest.MakeMockUC20Model(nil))
 	s.runKernelBf = bootloader.NewBootFile("/var/lib/snapd/snap/pc-kernel_600.snap", "kernel.efi", bootloader.RoleRunMode)
 	s.recoveryKernelBf = bootloader.NewBootFile("/var/lib/snapd/seed/snaps/pc-kernel_1.snap", "kernel.efi", bootloader.RoleRecovery)
-	mockAssetsCache(c, dirs.GlobalRootDir, "trusted", []string{
+	boottest.MockAssetsCache(c, dirs.GlobalRootDir, "trusted", []string{
 		"asset-" + dataHash,
 	})
 
@@ -3859,11 +3621,15 @@ func (s *bootKernelCommandLineSuite) SetUpTest(c *C) {
 
 	s.resealCommandLines = nil
 	s.resealCalls = 0
-	restore := boot.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error {
+	restore = boot.MockResealKeyForBootChains(func(unlocker boot.Unlocker, method device.SealingMethod, rootdir string, params *boot.ResealKeyForBootChainsParams, expectReseal bool) error {
 		s.resealCalls++
 		c.Assert(params, NotNil)
-		c.Assert(params.ModelParams, HasLen, 1)
-		s.resealCommandLines = append(s.resealCommandLines, params.ModelParams[0].KernelCmdlines)
+		c.Assert(params.RunModeBootChains, HasLen, 0)
+		c.Check(params.RecoveryBootChainsForRunKey, HasLen, 0)
+		c.Check(params.RecoveryBootChains, HasLen, 0)
+		/*
+			s.resealCommandLines = append(s.resealCommandLines, params.ModelParams[0].KernelCmdlines)
+		*/
 		return nil
 	})
 	s.AddCleanup(restore)
@@ -4131,14 +3897,14 @@ volumes:
 	c.Assert(s.modeenvWithEncryption.WriteTo(""), IsNil)
 
 	resealCalls := 0
-	restore := boot.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error {
+	restore := boot.MockResealKeyForBootChains(func(unlocker boot.Unlocker, method device.SealingMethod, rootdir string, params *boot.ResealKeyForBootChainsParams, expectReseal bool) error {
 		resealCalls++
 		return fmt.Errorf("reseal fails")
 	})
 	defer restore()
 
 	reboot, err := boot.UpdateCommandLineForGadgetComponent(s.uc20dev, gadgetSnap, "")
-	c.Assert(err, ErrorMatches, "cannot reseal the encryption key: reseal fails")
+	c.Assert(err, ErrorMatches, "reseal fails")
 	c.Check(reboot, Equals, false)
 	c.Check(s.bootloader.SetBootVarsCalls, Equals, 0)
 	c.Check(resealCalls, Equals, 1)
@@ -4275,15 +4041,22 @@ func (s *bootKernelCommandLineSuite) TestCommandLineUpdateUC20OverSpuriousReboot
 	s.stampSealedKeys(c, dirs.GlobalRootDir)
 
 	resealPanic := false
-	restore := boot.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error {
+	restore := boot.MockResealKeyForBootChains(func(unlocker boot.Unlocker, method device.SealingMethod, rootdir string, params *boot.ResealKeyForBootChainsParams, expectReseal bool) error {
 		s.resealCalls++
 		c.Logf("reseal call %v", s.resealCalls)
 		c.Assert(params, NotNil)
-		c.Assert(params.ModelParams, HasLen, 1)
-		s.resealCommandLines = append(s.resealCommandLines, params.ModelParams[0].KernelCmdlines)
+
+		c.Assert(params.RunModeBootChains, HasLen, 1)
+		bootChain := params.RunModeBootChains[0]
+		s.resealCommandLines = append(s.resealCommandLines, bootChain.KernelCmdlines)
+
+		c.Check(params.RecoveryBootChainsForRunKey, HasLen, 0)
+		c.Check(params.RecoveryBootChains, HasLen, 0)
+
 		if resealPanic {
 			panic("reseal panic")
 		}
+
 		return nil
 	})
 	defer restore()
@@ -4811,20 +4584,15 @@ func (s *bootenv20Suite) TestCoreParticipant20UndoKernelSnapInstallNewWithReseal
 	c.Assert(os.WriteFile(filepath.Join(boot.InitramfsUbuntuSeedDir, "asset"), data, 0644), IsNil)
 
 	// mock the files in cache
-	mockAssetsCache(c, dirs.GlobalRootDir, "trusted", []string{
+	boottest.MockAssetsCache(c, dirs.GlobalRootDir, "trusted", []string{
 		"asset-" + dataHash,
 	})
 
-	assetBf := bootloader.NewBootFile("", filepath.Join(dirs.SnapBootAssetsDir,
-		"trusted", fmt.Sprintf("asset-%s", dataHash)), bootloader.RoleRunMode)
-	runKernelBf := bootloader.NewBootFile(filepath.Join(s.kern2.Filename()),
-		"kernel.efi", bootloader.RoleRunMode)
-
+	tab.KernelBootFileBuilder = func(kernelPath string) bootloader.BootFile {
+		return bootloader.NewBootFile(kernelPath, "kernel.efi", bootloader.RoleRunMode)
+	}
 	tab.BootChainList = []bootloader.BootFile{
 		bootloader.NewBootFile("", "asset", bootloader.RoleRunMode),
-		// TODO:UC20: fix mocked trusted assets bootloader to actually
-		// geenerate kernel boot files
-		runKernelBf,
 	}
 
 	coreDev := boottest.MockUC20Device("", nil)
@@ -4856,23 +4624,23 @@ func (s *bootenv20Suite) TestCoreParticipant20UndoKernelSnapInstallNewWithReseal
 	defer r()
 
 	resealCalls := 0
-	restore := boot.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error {
+	restore := boot.MockResealKeyForBootChains(func(unlocker boot.Unlocker, method device.SealingMethod, rootdir string, params *boot.ResealKeyForBootChainsParams, expectReseal bool) error {
 		resealCalls++
 
-		c.Assert(params.ModelParams, HasLen, 1)
-		mp := params.ModelParams[0]
-		c.Check(mp.Model.Model(), Equals, model.Model())
-		for _, ch := range mp.EFILoadChains {
-			printChain(c, ch, "-")
-		}
-		c.Check(mp.EFILoadChains, DeepEquals, []*secboot.LoadChain{
-			secboot.NewLoadChain(assetBf,
-				secboot.NewLoadChain(runKernelBf)),
-		})
-		// actual paths are seen only here
-		c.Check(tab.BootChainKernelPath, DeepEquals, []string{
-			s.kern2.MountFile(),
-		})
+		c.Assert(params.RunModeBootChains, HasLen, 1)
+
+		kern1BootChain := params.RunModeBootChains[0]
+		c.Check(kern1BootChain.Model, Equals, model.Model())
+		c.Assert(kern1BootChain.AssetChain, HasLen, 1)
+		kern1Asset := kern1BootChain.AssetChain[0]
+		c.Check(kern1Asset.Name, Equals, "asset")
+		c.Assert(kern1Asset.Hashes, HasLen, 1)
+		c.Check(kern1Asset.Hashes[0], Equals, dataHash)
+		c.Check(kern1BootChain.KernelBootFile.Snap, Equals, s.kern2.MountFile())
+
+		c.Check(params.RecoveryBootChainsForRunKey, HasLen, 0)
+		c.Check(params.RecoveryBootChains, HasLen, 0)
+
 		return nil
 	})
 	defer restore()
@@ -4927,18 +4695,15 @@ func (s *bootenv20Suite) TestCoreParticipant20UndoUnassertedKernelSnapInstallNew
 	c.Assert(os.WriteFile(filepath.Join(boot.InitramfsUbuntuSeedDir, "asset"), data, 0644), IsNil)
 
 	// mock the files in cache
-	mockAssetsCache(c, dirs.GlobalRootDir, "trusted", []string{
+	boottest.MockAssetsCache(c, dirs.GlobalRootDir, "trusted", []string{
 		"asset-" + dataHash,
 	})
 
-	assetBf := bootloader.NewBootFile("", filepath.Join(dirs.SnapBootAssetsDir, "trusted", fmt.Sprintf("asset-%s", dataHash)), bootloader.RoleRunMode)
-	runKernelBf := bootloader.NewBootFile(filepath.Join(s.ukern2.Filename()), "kernel.efi", bootloader.RoleRunMode)
-
+	tab.KernelBootFileBuilder = func(kernelPath string) bootloader.BootFile {
+		return bootloader.NewBootFile(kernelPath, "kernel.efi", bootloader.RoleRunMode)
+	}
 	tab.BootChainList = []bootloader.BootFile{
 		bootloader.NewBootFile("", "asset", bootloader.RoleRunMode),
-		// TODO:UC20: fix mocked trusted assets bootloader to actually
-		// geenerate kernel boot files
-		runKernelBf,
 	}
 
 	uc20Model := boottest.MakeMockUC20Model()
@@ -4970,23 +4735,23 @@ func (s *bootenv20Suite) TestCoreParticipant20UndoUnassertedKernelSnapInstallNew
 	defer r()
 
 	resealCalls := 0
-	restore := boot.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error {
+	restore := boot.MockResealKeyForBootChains(func(unlocker boot.Unlocker, method device.SealingMethod, rootdir string, params *boot.ResealKeyForBootChainsParams, expectReseal bool) error {
 		resealCalls++
 
-		c.Assert(params.ModelParams, HasLen, 1)
-		mp := params.ModelParams[0]
-		c.Check(mp.Model.Model(), Equals, uc20Model.Model())
-		for _, ch := range mp.EFILoadChains {
-			printChain(c, ch, "-")
-		}
-		c.Check(mp.EFILoadChains, DeepEquals, []*secboot.LoadChain{
-			secboot.NewLoadChain(assetBf,
-				secboot.NewLoadChain(runKernelBf)),
-		})
-		// actual paths are seen only here
-		c.Check(tab.BootChainKernelPath, DeepEquals, []string{
-			s.ukern2.MountFile(),
-		})
+		c.Assert(params.RunModeBootChains, HasLen, 1)
+
+		kern1BootChain := params.RunModeBootChains[0]
+		c.Check(kern1BootChain.Model, Equals, uc20Model.Model())
+		c.Assert(kern1BootChain.AssetChain, HasLen, 1)
+		kern1Asset := kern1BootChain.AssetChain[0]
+		c.Check(kern1Asset.Name, Equals, "asset")
+		c.Assert(kern1Asset.Hashes, HasLen, 1)
+		c.Check(kern1Asset.Hashes[0], Equals, dataHash)
+		c.Check(kern1BootChain.KernelBootFile.Snap, Equals, s.ukern2.MountFile())
+
+		c.Check(params.RecoveryBootChainsForRunKey, HasLen, 0)
+		c.Check(params.RecoveryBootChains, HasLen, 0)
+
 		return nil
 	})
 	defer restore()
@@ -5040,7 +4805,7 @@ func (s *bootenv20Suite) TestCoreParticipant20UndoKernelSnapInstallSameNoReseal(
 	c.Assert(os.WriteFile(filepath.Join(boot.InitramfsUbuntuSeedDir, "asset"), data, 0644), IsNil)
 
 	// mock the files in cache
-	mockAssetsCache(c, dirs.GlobalRootDir, "trusted", []string{
+	boottest.MockAssetsCache(c, dirs.GlobalRootDir, "trusted", []string{
 		"asset-" + dataHash,
 	})
 
@@ -5082,9 +4847,9 @@ func (s *bootenv20Suite) TestCoreParticipant20UndoKernelSnapInstallSameNoReseal(
 	defer r()
 
 	resealCalls := 0
-	restore := boot.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error {
+	restore := boot.MockResealKeyForBootChains(func(unlocker boot.Unlocker, method device.SealingMethod, rootdir string, params *boot.ResealKeyForBootChainsParams, expectReseal bool) error {
 		resealCalls++
-		return fmt.Errorf("unexpected call to mocked secbootResealKeys")
+		return nil
 	})
 	defer restore()
 
@@ -5092,28 +4857,6 @@ func (s *bootenv20Suite) TestCoreParticipant20UndoKernelSnapInstallSameNoReseal(
 	bootKern := boot.Participant(s.kern1, snap.TypeKernel, coreDev)
 	// make sure it's not a trivial boot participant
 	c.Assert(bootKern.IsTrivial(), Equals, false)
-
-	// write boot-chains for current state that will stay unchanged
-	bootChains := []boot.BootChain{{
-		BrandID:        "my-brand",
-		Model:          "my-model-uc20",
-		Grade:          "dangerous",
-		ModelSignKeyID: "Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij",
-		AssetChain: []boot.BootAsset{
-			{
-				Role: bootloader.RoleRunMode,
-				Name: "asset",
-				Hashes: []string{
-					"0fa8abfbdaf924ad307b74dd2ed183b9a4a398891a2f6bac8fd2db7041b77f068580f9c6c66f699b496c2da1cbcc7ed8",
-				},
-			},
-		},
-		Kernel:         "pc-kernel",
-		KernelRevision: "1",
-		KernelCmdlines: []string{"snapd_recovery_mode=run"},
-	}}
-	err := boot.WriteBootChains(bootChains, filepath.Join(dirs.SnapFDEDir, "boot-chains"), 0)
-	c.Assert(err, IsNil)
 
 	// make the kernel used on next boot
 	rebootRequired, err := bootKern.SetNextBoot(boot.NextBootContext{BootWithoutTry: true})
@@ -5138,8 +4881,7 @@ func (s *bootenv20Suite) TestCoreParticipant20UndoKernelSnapInstallSameNoReseal(
 	c.Check(tab.BootChainKernelPath, DeepEquals, []string{
 		s.kern1.MountFile(),
 	})
-	// no actual reseal
-	c.Check(resealCalls, Equals, 0)
+	c.Check(resealCalls, Equals, 1)
 }
 
 func (s *bootenv20Suite) TestCoreParticipant20UndoUnassertedKernelSnapInstallSameNoReseal(c *C) {
@@ -5160,7 +4902,7 @@ func (s *bootenv20Suite) TestCoreParticipant20UndoUnassertedKernelSnapInstallSam
 	c.Assert(os.WriteFile(filepath.Join(boot.InitramfsUbuntuSeedDir, "asset"), data, 0644), IsNil)
 
 	// mock the files in cache
-	mockAssetsCache(c, dirs.GlobalRootDir, "trusted", []string{
+	boottest.MockAssetsCache(c, dirs.GlobalRootDir, "trusted", []string{
 		"asset-" + dataHash,
 	})
 
@@ -5202,9 +4944,9 @@ func (s *bootenv20Suite) TestCoreParticipant20UndoUnassertedKernelSnapInstallSam
 	defer r()
 
 	resealCalls := 0
-	restore := boot.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error {
+	restore := boot.MockResealKeyForBootChains(func(unlocker boot.Unlocker, method device.SealingMethod, rootdir string, params *boot.ResealKeyForBootChainsParams, expectReseal bool) error {
 		resealCalls++
-		return fmt.Errorf("unexpected call")
+		return nil
 	})
 	defer restore()
 
@@ -5212,28 +4954,6 @@ func (s *bootenv20Suite) TestCoreParticipant20UndoUnassertedKernelSnapInstallSam
 	bootKern := boot.Participant(s.ukern1, snap.TypeKernel, coreDev)
 	// make sure it's not a trivial boot participant
 	c.Assert(bootKern.IsTrivial(), Equals, false)
-
-	// write boot-chains for current state that will stay unchanged
-	bootChains := []boot.BootChain{{
-		BrandID:        "my-brand",
-		Model:          "my-model-uc20",
-		Grade:          "dangerous",
-		ModelSignKeyID: "Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij",
-		AssetChain: []boot.BootAsset{
-			{
-				Role: bootloader.RoleRunMode,
-				Name: "asset",
-				Hashes: []string{
-					"0fa8abfbdaf924ad307b74dd2ed183b9a4a398891a2f6bac8fd2db7041b77f068580f9c6c66f699b496c2da1cbcc7ed8",
-				},
-			},
-		},
-		Kernel:         "pc-kernel",
-		KernelRevision: "",
-		KernelCmdlines: []string{"snapd_recovery_mode=run"},
-	}}
-	err := boot.WriteBootChains(bootChains, filepath.Join(dirs.SnapFDEDir, "boot-chains"), 0)
-	c.Assert(err, IsNil)
 
 	// make the kernel used on next boot
 	rebootRequired, err := bootKern.SetNextBoot(boot.NextBootContext{BootWithoutTry: true})
@@ -5258,8 +4978,7 @@ func (s *bootenv20Suite) TestCoreParticipant20UndoUnassertedKernelSnapInstallSam
 	c.Check(tab.BootChainKernelPath, DeepEquals, []string{
 		s.ukern1.MountFile(),
 	})
-	// no actual reseal
-	c.Check(resealCalls, Equals, 0)
+	c.Check(resealCalls, Equals, 1)
 }
 
 func (s *bootenv20Suite) TestCoreParticipant20UndoBaseSnapInstallSame(c *C) {
@@ -5351,36 +5070,17 @@ func (s *bootenv20Suite) TestCoreParticipant20UndoBaseSnapInstallNewNoReseal(c *
 	c.Assert(os.MkdirAll(filepath.Join(boot.InitramfsUbuntuBootDir), 0755), IsNil)
 	c.Assert(os.WriteFile(filepath.Join(boot.InitramfsUbuntuBootDir, "asset"), data, 0644), IsNil)
 	// mock the files in cache
-	mockAssetsCache(c, dirs.GlobalRootDir, "trusted", []string{
+	boottest.MockAssetsCache(c, dirs.GlobalRootDir, "trusted", []string{
 		"asset-" + dataHash,
 	})
 	runKernelBf := bootloader.NewBootFile(filepath.Join(s.kern1.Filename()), "kernel.efi", bootloader.RoleRunMode)
-	// write boot-chains for current state that will stay unchanged even
-	// though base is changed
-	bootChains := []boot.BootChain{{
-		BrandID:        "my-brand",
-		Model:          "my-model-uc20",
-		Grade:          "dangerous",
-		ModelSignKeyID: "Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij",
-		AssetChain: []boot.BootAsset{{
-			Role: bootloader.RoleRunMode, Name: "asset", Hashes: []string{
-				"0fa8abfbdaf924ad307b74dd2ed183b9a4a398891a2f6bac8fd2db7041b77f068580f9c6c66f699b496c2da1cbcc7ed8",
-			},
-		}},
-		Kernel:         "pc-kernel",
-		KernelRevision: "1",
-		KernelCmdlines: []string{"snapd_recovery_mode=run"},
-	}}
-
-	err := boot.WriteBootChains(boot.ToPredictableBootChains(bootChains), filepath.Join(dirs.SnapFDEDir, "boot-chains"), 0)
-	c.Assert(err, IsNil)
 
 	coreDev := boottest.MockUC20Device("", nil)
 	c.Assert(coreDev.HasModeenv(), Equals, true)
 	model := coreDev.Model()
 
 	resealCalls := 0
-	restore := boot.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error {
+	restore := boot.MockResealKeyForBootChains(func(unlocker boot.Unlocker, method device.SealingMethod, rootdir string, params *boot.ResealKeyForBootChainsParams, expectReseal bool) error {
 		resealCalls++
 		return nil
 	})
@@ -5432,8 +5132,7 @@ func (s *bootenv20Suite) TestCoreParticipant20UndoBaseSnapInstallNewNoReseal(c *
 	c.Assert(m2.BaseStatus, Equals, boot.DefaultStatus)
 	c.Assert(m2.TryBase, Equals, "")
 
-	// no reseal
-	c.Check(resealCalls, Equals, 0)
+	c.Check(resealCalls, Equals, 1)
 }
 
 func (s *bootenv20Suite) TestInUseClassicWithModes(c *C) {

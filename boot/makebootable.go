@@ -22,6 +22,7 @@ package boot
 import (
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 
 	"github.com/snapcore/snapd/asserts"
@@ -30,6 +31,7 @@ import (
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/osutil/kcmdline"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snapfile"
 	"github.com/snapcore/snapd/strutil"
@@ -344,6 +346,7 @@ type makeRunnableOptions struct {
 	AfterDataReset bool
 	SeedDir        string
 	StateUnlocker  Unlocker
+	UseTokens      bool
 }
 
 func copyBootSnap(orig string, filename string, dstSnapBlobDir string) error {
@@ -364,6 +367,55 @@ func copyBootSnap(orig string, filename string, dstSnapBlobDir string) error {
 		return err
 	}
 	return nil
+}
+
+func cryptsetupSupportsTokenReplaceImpl() bool {
+	cmd := exec.Command("cryptsetup", "--test-args", "token", "import", "--token-id", "0", "--token-replace", "/dev/null")
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		logger.Noticef("WARNING: cryptsetup does not support option --token-replace: %v: %s", err, out)
+		return false
+	}
+	return true
+}
+
+var cryptsetupSupportsTokenReplace = cryptsetupSupportsTokenReplaceImpl
+
+// UseTokens decides whether KeyData for disk encryption should be
+// stored in the LUKS2 header in tokens. If not it means they should
+// be stored in files in legacy paths.
+func UseTokens(model *asserts.Model) bool {
+	// For now we enable writing key data in tokens only for
+	// classic when it is possible.
+	if model.Classic() {
+		// For classic, we cannot match the version because
+		// the base used in the model does not reflect what is
+		// installed. For some reason new version of hybrid
+		// use core22. So we need to verify that cryptsetup is
+		// new enough. It is likely that the cryptsetup in the
+		// installer will be around the same version as the
+		// one installed, and will contain the same features.
+		return cryptsetupSupportsTokenReplace()
+	} else {
+		if m, err := kcmdline.KeyValues("ubuntu-core.force-experimental-tokens"); err != nil {
+			logger.Noticef("WARNING: error while reading kernel command line: %v", err)
+		} else {
+			value, hasValue := m["ubuntu-core.force-experimental-tokens"]
+			if hasValue {
+				switch value {
+				case "0":
+					return false
+				case "1":
+					return true
+				default:
+					logger.Noticef("WARNING: unexpected value for snapd.force-experimental-tokens")
+				}
+			}
+		}
+
+		// Later we can start to enable tokens on UC24+
+		return false
+	}
 }
 
 func makeRunnableSystem(model *asserts.Model, bootWith *BootableSet, observer TrustedAssetsInstallObserver, makeOpts makeRunnableOptions) error {
@@ -561,17 +613,25 @@ func makeRunnableSystem(model *asserts.Model, bootWith *BootableSet, observer Tr
 			return fmt.Errorf("cannot check for fde-setup hook: %v", err)
 		}
 
+		tokens := UseTokens(model)
+		if tokens {
+			logger.Debugf("key data will be stored in tokens")
+		} else {
+			logger.Debugf("key data will be stored in files")
+		}
+
 		flags := sealKeyToModeenvFlags{
 			HasFDESetupHook: hasHook,
 			FactoryReset:    makeOpts.AfterDataReset,
 			SeedDir:         makeOpts.SeedDir,
 			StateUnlocker:   makeOpts.StateUnlocker,
+			UseTokens:       tokens,
 		}
 		if makeOpts.Standalone {
 			flags.SnapsDir = snapBlobDir
 		}
 		// seal the encryption key to the parameters specified in modeenv
-		if err := sealKeyToModeenv(observerImpl.dataEncryptionKey, observerImpl.saveEncryptionKey, model, modeenv, flags); err != nil {
+		if err := sealKeyToModeenv(observerImpl.dataBootstrappedContainer, observerImpl.saveBootstrappedContainer, observerImpl.primaryKey, model, modeenv, flags); err != nil {
 			return err
 		}
 	}

@@ -22,12 +22,12 @@ package install_test
 
 import (
 	"errors"
-	"fmt"
 	"os"
 
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/gadget/device"
 	"github.com/snapcore/snapd/gadget/install"
 	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/secboot/keys"
@@ -36,8 +36,6 @@ import (
 
 type encryptSuite struct {
 	testutil.BaseTest
-
-	mockCryptsetup *testutil.MockCmd
 
 	mockedEncryptionKey keys.EncryptionKey
 	mockedRecoveryKey   keys.RecoveryKey
@@ -79,25 +77,28 @@ func (s *encryptSuite) TestNewEncryptedDeviceLUKS(c *C) {
 			expectedErr:     "cannot open encrypted device on /dev/node1: open error",
 		},
 	} {
-		script := ""
-		if tc.mockedOpenErr != "" {
-			script = fmt.Sprintf("echo '%s'>&2; exit 1", tc.mockedOpenErr)
+		defer install.MockCryptsetupOpen(func(key secboot.DiskUnlockKey, node, name string) error {
+			if tc.mockedOpenErr != "" {
+				return errors.New(tc.mockedOpenErr)
+			}
+			return nil
+		})()
 
-		}
-		s.mockCryptsetup = testutil.MockCommand(c, "cryptsetup", script)
-		s.AddCleanup(s.mockCryptsetup.Restore)
+		defer install.MockCryptsetupClose(func(name string) error {
+			return nil
+		})()
 
 		calls := 0
-		restore := install.MockSecbootFormatEncryptedDevice(func(key keys.EncryptionKey, encType secboot.EncryptionType, label, node string) error {
+		restore := install.MockSecbootFormatEncryptedDevice(func(key []byte, encType device.EncryptionType, label, node string) error {
 			calls++
-			c.Assert(key, DeepEquals, s.mockedEncryptionKey)
+			c.Assert(key, DeepEquals, []byte(s.mockedEncryptionKey))
 			c.Assert(label, Equals, "some-label-enc")
 			c.Assert(node, Equals, "/dev/node1")
 			return tc.mockedFormatErr
 		})
 		defer restore()
 
-		dev, err := install.NewEncryptedDeviceLUKS("/dev/node1", secboot.EncryptionTypeLUKS, s.mockedEncryptionKey, "some-label", "some-label")
+		dev, err := install.NewEncryptedDeviceLUKS("/dev/node1", device.EncryptionTypeLUKS, secboot.DiskUnlockKey(s.mockedEncryptionKey), "some-label", "some-label")
 		c.Assert(calls, Equals, 1)
 		if tc.expectedErr == "" {
 			c.Assert(err, IsNil)
@@ -109,10 +110,5 @@ func (s *encryptSuite) TestNewEncryptedDeviceLUKS(c *C) {
 
 		err = dev.Close()
 		c.Assert(err, IsNil)
-
-		c.Assert(s.mockCryptsetup.Calls(), DeepEquals, [][]string{
-			{"cryptsetup", "open", "--key-file", "-", "/dev/node1", "some-label"},
-			{"cryptsetup", "close", "some-label"},
-		})
 	}
 }

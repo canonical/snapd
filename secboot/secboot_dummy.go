@@ -21,19 +21,23 @@
 package secboot
 
 import (
+	"crypto"
 	"errors"
 
 	"github.com/snapcore/snapd/kernel/fde"
+	"github.com/snapcore/snapd/secboot/keys"
 )
 
 var errBuildWithoutSecboot = errors.New("build without secboot support")
+
+type DiskUnlockKey []byte
 
 func CheckTPMKeySealingSupported(mode TPMProvisionMode) error {
 	return errBuildWithoutSecboot
 }
 
-func SealKeys(keys []SealKeyRequest, params *SealKeysParams) error {
-	return errBuildWithoutSecboot
+func SealKeys(keys []SealKeyRequest, params *SealKeysParams) ([]byte, error) {
+	return nil, errBuildWithoutSecboot
 }
 
 func SealKeysWithFDESetupHook(runHook fde.RunSetupHookFunc, keys []SealKeyRequest, params *SealKeysWithFDESetupHookParams) error {
@@ -48,14 +52,75 @@ func ProvisionTPM(mode TPMProvisionMode, lockoutAuthFile string) error {
 	return errBuildWithoutSecboot
 }
 
-func PCRHandleOfSealedKey(p string) (uint32, error) {
-	return 0, errBuildWithoutSecboot
-}
-
-func ReleasePCRResourceHandles(handles ...uint32) error {
+func resetLockoutCounter(lockoutAuthFile string) error {
 	return errBuildWithoutSecboot
 }
 
-func resetLockoutCounter(lockoutAuthFile string) error {
+type ActivateVolumeOptions struct {
+}
+
+func ActivateVolumeWithKey(volumeName, sourceDevicePath string, key []byte, options *ActivateVolumeOptions) error {
+	return errBuildWithoutSecboot
+}
+
+func DeactivateVolume(volumeName string) error {
+	return errBuildWithoutSecboot
+}
+
+func AddBootstrapKeyOnExistingDisk(node string, newKey keys.EncryptionKey) error {
+	return errBuildWithoutSecboot
+}
+
+func RenameKeys(node string, renames map[string]string) error {
+	return errBuildWithoutSecboot
+}
+
+func DeleteKeys(node string, matches map[string]bool) error {
+	return errBuildWithoutSecboot
+}
+
+func BuildPCRProtectionProfile(modelParams []*SealKeyModelParams) (SerializedPCRProfile, error) {
+	return nil, errBuildWithoutSecboot
+}
+
+func GetPrimaryKeyDigest(devicePath string, alg crypto.Hash) ([]byte, []byte, error) {
+	return nil, nil, errBuildWithoutSecboot
+}
+
+func VerifyPrimaryKeyDigest(devicePath string, alg crypto.Hash, salt []byte, digest []byte) (bool, error) {
+	return false, errBuildWithoutSecboot
+}
+
+func ResealKeysWithFDESetupHook(keys []KeyDataLocation, primaryKeyFile string, models []ModelForSealing) error {
+	return errBuildWithoutSecboot
+}
+
+type HashAlg crypto.Hash
+
+func (ha HashAlg) MarshalJSON() ([]byte, error) {
+	return nil, errBuildWithoutSecboot
+}
+
+func (ha *HashAlg) UnmarshalJSON([]byte) error {
+	return errBuildWithoutSecboot
+}
+
+func TemporaryNameOldKeys(devicePath string) error {
+	return errBuildWithoutSecboot
+}
+
+func DeleteOldKeys(devicePath string) error {
+	return errBuildWithoutSecboot
+}
+
+func FindFreeHandle() (uint32, error) {
+	return 0, errBuildWithoutSecboot
+}
+
+func GetPCRHandle(node, keySlot, keyFile string) (uint32, error) {
+	return 0, errBuildWithoutSecboot
+}
+
+func RemoveOldCounterHandles(node string, possibleOldKeys map[string]bool, possibleKeyFiles []string, hintExpectFDEHook bool) error {
 	return errBuildWithoutSecboot
 }

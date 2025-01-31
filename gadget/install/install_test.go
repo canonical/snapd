@@ -24,7 +24,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"runtime"
 	"strconv"
 	"strings"
 	"syscall"
@@ -35,6 +34,7 @@ import (
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget"
+	"github.com/snapcore/snapd/gadget/device"
 	"github.com/snapcore/snapd/gadget/gadgettest"
 	"github.com/snapcore/snapd/gadget/install"
 	"github.com/snapcore/snapd/gadget/quantity"
@@ -42,7 +42,6 @@ import (
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/disks"
 	"github.com/snapcore/snapd/secboot"
-	"github.com/snapcore/snapd/secboot/keys"
 	"github.com/snapcore/snapd/testutil"
 	"github.com/snapcore/snapd/timings"
 )
@@ -447,9 +446,6 @@ fi
 		defer restoreMountInfo()
 	}
 
-	mockCryptsetup := testutil.MockCommand(c, "cryptsetup", "")
-	defer mockCryptsetup.Restore()
-
 	if opts.encryption {
 		mockBlockdev := testutil.MockCommand(c, "blockdev", "case ${1} in --getss) echo 4096; exit 0;; esac; exit 1")
 		defer mockBlockdev.Restore()
@@ -607,27 +603,27 @@ fi
 	gadgetRoot, err := gadgettest.WriteGadgetYaml(c.MkDir(), opts.gadgetYaml)
 	c.Assert(err, IsNil)
 
-	var saveEncryptionKey, dataEncryptionKey keys.EncryptionKey
+	keys := make(map[string][]byte)
 
 	secbootFormatEncryptedDeviceCall := 0
-	restore = install.MockSecbootFormatEncryptedDevice(func(key keys.EncryptionKey, encType secboot.EncryptionType, label, node string) error {
+	restore = install.MockSecbootFormatEncryptedDevice(func(key []byte, encType device.EncryptionType, label, node string) error {
 		if !opts.encryption {
 			c.Error("unexpected call to secboot.FormatEncryptedDevice when encryption is off")
 			return fmt.Errorf("no encryption functions should be called")
 		}
-		c.Check(encType, Equals, secboot.EncryptionTypeLUKS)
+		c.Check(encType, Equals, device.EncryptionTypeLUKS)
 		secbootFormatEncryptedDeviceCall++
 		switch secbootFormatEncryptedDeviceCall {
 		case 1:
 			c.Assert(key, HasLen, 32)
 			c.Assert(label, Equals, "ubuntu-save-enc")
 			c.Assert(node, Equals, "/dev/mmcblk0p3")
-			saveEncryptionKey = key
+			keys["ubuntu-save"] = key
 		case 2:
 			c.Assert(key, HasLen, 32)
 			c.Assert(label, Equals, "ubuntu-data-enc")
 			c.Assert(node, Equals, "/dev/mmcblk0p4")
-			dataEncryptionKey = key
+			keys["ubuntu-data"] = key
 		default:
 			c.Errorf("unexpected call to secboot.FormatEncryptedDevice (%d)", secbootFormatEncryptedDeviceCall)
 			return fmt.Errorf("test broken")
@@ -641,22 +637,43 @@ fi
 	// finally actually run the install
 	runOpts := install.Options{}
 	if opts.encryption {
-		runOpts.EncryptionType = secboot.EncryptionTypeLUKS
+		runOpts.EncryptionType = device.EncryptionTypeLUKS
 	}
+
+	defer install.MockCryptsetupOpen(func(key secboot.DiskUnlockKey, node, name string) error {
+		expectedKey, hasKey := keys[name]
+		c.Assert(hasKey, Equals, true)
+		c.Check(key, DeepEquals, secboot.DiskUnlockKey(expectedKey))
+		switch node {
+		case "/dev/mmcblk0p3":
+			c.Check(name, Equals, "ubuntu-save")
+		case "/dev/mmcblk0p4":
+			c.Check(name, Equals, "ubuntu-data")
+		default:
+			c.Errorf("Unexpected node %s", node)
+		}
+		return nil
+	})()
+
+	defer install.MockCryptsetupClose(func(name string) error {
+		switch name {
+		case "ubuntu-data":
+		case "ubuntu-save":
+		default:
+			c.Errorf("Unexpected name %s", name)
+		}
+		return nil
+	})()
+
 	sys, err := install.Run(uc20Mod, gadgetRoot, &install.KernelSnapInfo{}, "", runOpts, nil, timings.New(nil))
 	c.Assert(err, IsNil)
 	if opts.encryption {
-		c.Check(sys, Not(IsNil))
-		c.Assert(sys, DeepEquals, &install.InstalledSystemSideData{
-			KeyForRole: map[string]keys.EncryptionKey{
-				gadget.SystemData: dataEncryptionKey,
-				gadget.SystemSave: saveEncryptionKey,
-			},
-			DeviceForRole: map[string]string{
-				"system-boot": "/dev/mmcblk0p2",
-				"system-save": "/dev/mmcblk0p3",
-				"system-data": "/dev/mmcblk0p4",
-			},
+		c.Assert(sys, Not(IsNil))
+		c.Assert(sys.BootstrappedContainerForRole, HasLen, 2)
+		c.Check(sys.DeviceForRole, DeepEquals, map[string]string{
+			"system-boot": "/dev/mmcblk0p2",
+			"system-save": "/dev/mmcblk0p3",
+			"system-data": "/dev/mmcblk0p4",
 		})
 	} else {
 		c.Assert(sys, DeepEquals, &install.InstalledSystemSideData{
@@ -704,15 +721,6 @@ fi
 	}
 
 	c.Assert(mockUdevadm.Calls(), DeepEquals, udevmadmCalls)
-
-	if opts.encryption {
-		c.Assert(mockCryptsetup.Calls(), DeepEquals, [][]string{
-			{"cryptsetup", "open", "--key-file", "-", "/dev/mmcblk0p3", "ubuntu-save"},
-			{"cryptsetup", "open", "--key-file", "-", "/dev/mmcblk0p4", "ubuntu-data"},
-		})
-	} else {
-		c.Assert(mockCryptsetup.Calls(), HasLen, 0)
-	}
 
 	c.Assert(mkfsCall, Equals, 3)
 	c.Assert(mountCall, Equals, 3)
@@ -950,9 +958,6 @@ fi
 		defer restoreMountInfo()
 	}
 
-	mockCryptsetup := testutil.MockCommand(c, "cryptsetup", "")
-	defer mockCryptsetup.Restore()
-
 	if opts.encryption {
 		mockBlockdev := testutil.MockCommand(c, "blockdev", "case ${1} in --getss) echo 4096; exit 0;; esac; exit 1")
 		defer mockBlockdev.Restore()
@@ -1059,21 +1064,19 @@ fi
 	gadgetRoot, err := gadgettest.WriteGadgetYaml(c.MkDir(), opts.gadgetYaml)
 	c.Assert(err, IsNil)
 
-	var dataPrimaryKey keys.EncryptionKey
 	secbootFormatEncryptedDeviceCall := 0
-	restore = install.MockSecbootFormatEncryptedDevice(func(key keys.EncryptionKey, encType secboot.EncryptionType, label, node string) error {
+	restore = install.MockSecbootFormatEncryptedDevice(func(key []byte, encType device.EncryptionType, label, node string) error {
 		if !opts.encryption {
 			c.Error("unexpected call to secboot.FormatEncryptedDevice")
 			return fmt.Errorf("unexpected call")
 		}
-		c.Check(encType, Equals, secboot.EncryptionTypeLUKS)
+		c.Check(encType, Equals, device.EncryptionTypeLUKS)
 		secbootFormatEncryptedDeviceCall++
 		switch secbootFormatEncryptedDeviceCall {
 		case 1:
 			c.Assert(key, HasLen, 32)
 			c.Assert(label, Equals, "ubuntu-data-enc")
 			c.Assert(node, Equals, "/dev/mmcblk0p4")
-			dataPrimaryKey = key
 		default:
 			c.Errorf("unexpected call to secboot.FormatEncryptedDevice (%d)", secbootFormatEncryptedDeviceCall)
 			return fmt.Errorf("test broken")
@@ -1086,8 +1089,17 @@ fi
 	// finally actually run the factory reset
 	runOpts := install.Options{}
 	if opts.encryption {
-		runOpts.EncryptionType = secboot.EncryptionTypeLUKS
+		runOpts.EncryptionType = device.EncryptionTypeLUKS
 	}
+
+	defer install.MockCryptsetupOpen(func(key secboot.DiskUnlockKey, node, name string) error {
+		return nil
+	})()
+
+	defer install.MockCryptsetupClose(func(name string) error {
+		return nil
+	})()
+
 	sys, err := install.FactoryReset(uc20Mod, gadgetRoot, &install.KernelSnapInfo{}, "", runOpts, nil, timings.New(nil))
 	if opts.err != "" {
 		c.Check(sys, IsNil)
@@ -1111,12 +1123,8 @@ fi
 			DeviceForRole: devsForRoles,
 		})
 	} else {
-		c.Assert(sys, DeepEquals, &install.InstalledSystemSideData{
-			KeyForRole: map[string]keys.EncryptionKey{
-				gadget.SystemData: dataPrimaryKey,
-			},
-			DeviceForRole: devsForRoles,
-		})
+		c.Check(sys.DeviceForRole, DeepEquals, devsForRoles)
+		c.Assert(sys.BootstrappedContainerForRole, HasLen, 1)
 	}
 
 	c.Assert(mockSfdisk.Calls(), HasLen, 0)
@@ -1469,25 +1477,7 @@ func (s *installSuite) TestInstallWriteContentDeviceNotFound(c *C) {
 }
 
 type encryptPartitionsOpts struct {
-	encryptType secboot.EncryptionType
-}
-
-func expectedCipher() string {
-	switch runtime.GOARCH {
-	case "arm":
-		return "aes-cbc-essiv:sha256"
-	default:
-		return "aes-xts-plain64"
-	}
-}
-
-func expectedKeysize() string {
-	switch runtime.GOARCH {
-	case "arm":
-		return "256"
-	default:
-		return "512"
-	}
+	encryptType device.EncryptionType
 }
 
 func (s *installSuite) testEncryptPartitions(c *C, opts encryptPartitionsOpts) {
@@ -1503,9 +1493,6 @@ func (s *installSuite) testEncryptPartitions(c *C, opts encryptPartitionsOpts) {
 	c.Assert(err, IsNil)
 	defer restore()
 
-	mockCryptsetup := testutil.MockCommand(c, "cryptsetup", "")
-	defer mockCryptsetup.Restore()
-
 	mockBlockdev := testutil.MockCommand(c, "blockdev", "case ${1} in --getss) echo 4096; exit 0;; esac; exit 1")
 	defer mockBlockdev.Restore()
 
@@ -1518,7 +1505,20 @@ func (s *installSuite) testEncryptPartitions(c *C, opts encryptPartitionsOpts) {
 		ginfo.Volumes["pc"].Structure[i].Device = "/dev/vda" + strconv.Itoa(partIdx)
 		partIdx++
 	}
-	encryptSetup, err := install.EncryptPartitions(ginfo.Volumes, opts.encryptType, model, gadgetRoot, "", timings.New(nil))
+
+	defer install.MockCryptsetupOpen(func(key secboot.DiskUnlockKey, node, name string) error {
+		return nil
+	})()
+
+	defer install.MockCryptsetupClose(func(name string) error {
+		return nil
+	})()
+
+	defer install.MockSecbootFormatEncryptedDevice(func(key []byte, encType device.EncryptionType, label, node string) error {
+		return nil
+	})()
+
+	encryptSetup, err := install.EncryptPartitions(ginfo.Volumes, nil, opts.encryptType, model, gadgetRoot, "", timings.New(nil))
 	c.Assert(err, IsNil)
 	c.Assert(encryptSetup, NotNil)
 	err = install.CheckEncryptionSetupData(encryptSetup, map[string]string{
@@ -1526,20 +1526,11 @@ func (s *installSuite) testEncryptPartitions(c *C, opts encryptPartitionsOpts) {
 		"ubuntu-data": "/dev/mapper/ubuntu-data",
 	})
 	c.Assert(err, IsNil)
-
-	c.Assert(mockCryptsetup.Calls(), DeepEquals, [][]string{
-		{"cryptsetup", "-q", "luksFormat", "--type", "luks2", "--key-file", "-", "--cipher", expectedCipher(), "--key-size", expectedKeysize(), "--label", "ubuntu-save-enc", "--pbkdf", "argon2i", "--pbkdf-force-iterations", "4", "--pbkdf-memory", "32", "--luks2-metadata-size", "2048k", "--luks2-keyslots-size", "2560k", "/dev/vda4"},
-		{"cryptsetup", "config", "--priority", "prefer", "--key-slot", "0", "/dev/vda4"},
-		{"cryptsetup", "open", "--key-file", "-", "/dev/vda4", "ubuntu-save"},
-		{"cryptsetup", "-q", "luksFormat", "--type", "luks2", "--key-file", "-", "--cipher", expectedCipher(), "--key-size", expectedKeysize(), "--label", "ubuntu-data-enc", "--pbkdf", "argon2i", "--pbkdf-force-iterations", "4", "--pbkdf-memory", "32", "--luks2-metadata-size", "2048k", "--luks2-keyslots-size", "2560k", "/dev/vda5"},
-		{"cryptsetup", "config", "--priority", "prefer", "--key-slot", "0", "/dev/vda5"},
-		{"cryptsetup", "open", "--key-file", "-", "/dev/vda5", "ubuntu-data"},
-	})
 }
 
 func (s *installSuite) TestInstallEncryptPartitionsLUKSHappy(c *C) {
 	s.testEncryptPartitions(c, encryptPartitionsOpts{
-		encryptType: secboot.EncryptionTypeLUKS,
+		encryptType: device.EncryptionTypeLUKS,
 	})
 }
 
@@ -1556,7 +1547,7 @@ func (s *installSuite) TestInstallEncryptPartitionsNoDeviceSet(c *C) {
 	c.Assert(err, IsNil)
 	defer restore()
 
-	encryptSetup, err := install.EncryptPartitions(ginfo.Volumes, secboot.EncryptionTypeLUKS, model, gadgetRoot, "", timings.New(nil))
+	encryptSetup, err := install.EncryptPartitions(ginfo.Volumes, nil, device.EncryptionTypeLUKS, model, gadgetRoot, "", timings.New(nil))
 
 	c.Check(err.Error(), Equals, `volume "pc" has no device assigned`)
 	c.Check(encryptSetup, IsNil)

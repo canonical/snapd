@@ -21,23 +21,23 @@ package install
 
 import (
 	"github.com/snapcore/snapd/gadget"
+	"github.com/snapcore/snapd/gadget/device"
 	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/secboot"
-	"github.com/snapcore/snapd/secboot/keys"
 )
 
 type Options struct {
 	// Also mount the filesystems after creation
 	Mount bool
 	// Encrypt the data/save partitions
-	EncryptionType secboot.EncryptionType
+	EncryptionType device.EncryptionType
 }
 
 // InstalledSystemSideData carries side data of an installed system, eg. secrets
 // to access its partitions.
 type InstalledSystemSideData struct {
 	// KeysForRoles contains key sets for the relevant structure roles.
-	KeyForRole map[string]keys.EncryptionKey
+	BootstrappedContainerForRole map[string]secboot.BootstrappedContainer
 	// DeviceForRole maps a roles to their corresponding device nodes. For
 	// structures with roles that require data to be encrypted, the device
 	// is the raw encrypted device node (eg. /dev/mmcblk0p1).
@@ -50,8 +50,8 @@ type partEncryptionData struct {
 	device          string
 	encryptedDevice string
 
-	volName       string
-	encryptionKey keys.EncryptionKey
+	volName    string
+	installKey secboot.BootstrappedContainer
 	// TODO: this is currently not used
 	encryptedSectorSize quantity.Size
 	encryptionParams    gadget.StructureEncryptionParameters
@@ -86,10 +86,16 @@ func MockEncryptionSetupData(labelToEncDevice map[string]*MockEncryptedDeviceAnd
 	esd := &EncryptionSetupData{
 		parts: map[string]partEncryptionData{}}
 	for label, encryptData := range labelToEncDevice {
+		//TODO: we should use a mock for the bootstrap key. However,
+		//this is still used in place where LegacyKeptKey will be
+		//called to write the save key to a file in
+		//overlord/install/install.go. Once we have removed that call,
+		// we can use mock object instead.
+		bootstrapKey := secboot.CreateMockBootstrappedContainer()
 		esd.parts[label] = partEncryptionData{
 			role:                encryptData.Role,
 			encryptedDevice:     encryptData.EncryptedDevice,
-			encryptionKey:       keys.EncryptionKey{1, 2, 3},
+			installKey:          bootstrapKey,
 			encryptedSectorSize: 512,
 		}
 	}

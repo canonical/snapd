@@ -45,6 +45,7 @@ import (
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/devicestate/internal"
+	fdeBackend "github.com/snapcore/snapd/overlord/fdestate/backend"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/install"
 	"github.com/snapcore/snapd/overlord/restart"
@@ -145,13 +146,14 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.T
 	m.populateStateFromSeed = m.populateStateFromSeedImpl
 
 	if !m.preseed {
-		modeenv, err := maybeReadModeenv()
+		mode, explicit, err := boot.SystemMode("")
 		if err != nil {
 			return nil, err
 		}
-		if modeenv != nil {
-			logger.Debugf("modeenv for model %q found", modeenv.Model)
-			m.sysMode = modeenv.Mode
+
+		if explicit {
+			logger.Debugf("explicitly set system mode")
+			m.sysMode = mode
 		}
 	} else {
 		// cache system label for preseeding of core20; note, this will fail on
@@ -219,7 +221,7 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.T
 
 	// wire FDE kernel hook support into boot
 	boot.HasFDESetupHook = m.hasFDESetupHook
-	boot.RunFDESetupHook = m.runFDESetupHook
+	fdeBackend.RunFDESetupHook = m.runFDESetupHook
 	hookManager.Register(regexp.MustCompile("^fde-setup$"), newFdeSetupHandler)
 
 	return m, nil
@@ -249,24 +251,19 @@ func newBasicHookStateHandler(context *hookstate.Context) hookstate.Handler {
 	return genericHook{}
 }
 
-func maybeReadModeenv() (*boot.Modeenv, error) {
-	modeenv, err := boot.ReadModeenv("")
-	if err != nil && !os.IsNotExist(err) {
-		return nil, fmt.Errorf("cannot read modeenv: %v", err)
-	}
-	return modeenv, nil
-}
-
 // ReloadModeenv is only useful for integration testing
 func (m *DeviceManager) ReloadModeenv() error {
 	osutil.MustBeTestBinary("ReloadModeenv can only be called from tests")
-	modeenv, err := maybeReadModeenv()
+
+	mode, explicit, err := boot.SystemMode("")
 	if err != nil {
 		return err
 	}
-	if modeenv != nil {
-		m.sysMode = modeenv.Mode
+
+	if explicit {
+		m.sysMode = mode
 	}
+
 	return nil
 }
 
@@ -847,7 +844,7 @@ func (m *DeviceManager) seedLabelAndMode() (seedLabel, seedMode string, err erro
 			seedLabel = m.systemForPreseeding()
 		}
 	} else {
-		modeenv, err := maybeReadModeenv()
+		modeenv, err := boot.MaybeReadModeenv()
 		if err != nil {
 			return "", "", err
 		}
@@ -1660,8 +1657,6 @@ func (m *DeviceManager) ensureTriedRecoverySystem() error {
 	return nil
 }
 
-var bootMarkFactoryResetComplete = boot.MarkFactoryResetComplete
-
 func (m *DeviceManager) ensurePostFactoryReset() error {
 	m.state.Lock()
 	defer m.state.Unlock()
@@ -1707,14 +1702,9 @@ func (m *DeviceManager) ensurePostFactoryReset() error {
 		return fmt.Errorf("cannot verify factory reset marker: %v", err)
 	}
 
-	// if encrypted, rotates the fallback keys on disk
-	if err := bootMarkFactoryResetComplete(encrypted); err != nil {
-		return fmt.Errorf("cannot complete factory reset: %v", err)
-	}
-
 	if encrypted {
-		if err := rotateEncryptionKeys(); err != nil {
-			return fmt.Errorf("cannot transition encryption keys: %v", err)
+		if err := rotateSaveKeyAndDeleteOldKeys(boot.InitramfsUbuntuSaveDir); err != nil {
+			return fmt.Errorf("cannot remove old encryption keys: %v", err)
 		}
 	}
 
@@ -2847,7 +2837,7 @@ func (m *DeviceManager) RemoveRecoveryKeys() error {
 // checkEncryption verifies whether encryption should be used based on the
 // model grade and the availability of a TPM device or a fde-setup hook
 // in the kernel.
-func (m *DeviceManager) checkEncryption(st *state.State, deviceCtx snapstate.DeviceContext, tpmMode secboot.TPMProvisionMode) (secboot.EncryptionType, error) {
+func (m *DeviceManager) checkEncryption(st *state.State, deviceCtx snapstate.DeviceContext, tpmMode secboot.TPMProvisionMode) (device.EncryptionType, error) {
 	model := deviceCtx.Model()
 
 	kernelInfo, err := snapstate.KernelInfo(st, deviceCtx)

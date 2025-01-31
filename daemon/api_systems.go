@@ -128,7 +128,7 @@ func storageEncryption(encInfo *install.EncryptionSupportInfo) *client.StorageEn
 	}
 	storageEnc := &client.StorageEncryption{
 		StorageSafety: string(encInfo.StorageSafety),
-		Type:          string(encInfo.Type),
+		Type:          encInfo.Type,
 	}
 	required := (encInfo.StorageSafety == asserts.StorageSafetyEncrypted)
 	switch {
@@ -140,6 +140,9 @@ func storageEncryption(encInfo *install.EncryptionSupportInfo) *client.StorageEn
 	case !encInfo.Available && !required:
 		storageEnc.Support = client.StorageEncryptionSupportUnavailable
 		storageEnc.UnavailableReason = encInfo.UnavailableWarning
+	}
+	if encInfo.PassphraseAuthAvailable {
+		storageEnc.Features = append(storageEnc.Features, client.StorageEncryptionFeaturePassphraseAuth)
 	}
 
 	return storageEnc
@@ -323,7 +326,7 @@ func postSystemActionInstall(c *Command, systemLabel string, req *systemActionRe
 
 	switch req.Step {
 	case client.InstallStepSetupStorageEncryption:
-		chg, err := devicestateInstallSetupStorageEncryption(st, systemLabel, req.OnVolumes)
+		chg, err := devicestateInstallSetupStorageEncryption(st, systemLabel, req.OnVolumes, req.VolumesAuth)
 		if err != nil {
 			return BadRequest("cannot setup storage encryption for install from %q: %v", systemLabel, err)
 		}

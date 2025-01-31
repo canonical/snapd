@@ -71,7 +71,7 @@ type EncryptionSupportInfo struct {
 
 	// Type is set to the EncryptionType that can be used if
 	// Available is true.
-	Type secboot.EncryptionType
+	Type device.EncryptionType
 
 	// UnvailableErr is set if the encryption support availability of
 	// the this device and used gadget do not match the
@@ -80,6 +80,10 @@ type EncryptionSupportInfo struct {
 	// UnavailbleWarning describes why encryption support is not
 	// available in case it is optional.
 	UnavailableWarning string
+
+	// PassphraseAuthAvailable is set if the passphrase authentication
+	// is supported.
+	PassphraseAuthAvailable bool
 }
 
 // ComponentSeedInfo contains information for a component from the seed and
@@ -100,6 +104,8 @@ var (
 
 	secbootCheckTPMKeySealingSupported = secboot.CheckTPMKeySealingSupported
 	sysconfigConfigureTargetSystem     = sysconfig.ConfigureTargetSystem
+
+	bootUseTokens = boot.UseTokens
 )
 
 // BuildKernelBootInfoOpts contains options for BuildKernelBootInfo.
@@ -188,7 +194,7 @@ func GetEncryptionSupportInfo(model *asserts.Model, tpmMode secboot.TPMProvision
 	case checkSecbootEncryption:
 		checkEncryptionErr = secbootCheckTPMKeySealingSupported(tpmMode)
 		if checkEncryptionErr == nil {
-			res.Type = secboot.EncryptionTypeLUKS
+			res.Type = device.EncryptionTypeLUKS
 		}
 	default:
 		return res, fmt.Errorf("internal error: no encryption checked in encryptionSupportInfo")
@@ -213,6 +219,10 @@ func GetEncryptionSupportInfo(model *asserts.Model, tpmMode secboot.TPMProvision
 	// If encryption is available check if the gadget is
 	// compatible with encryption.
 	if res.Available {
+		// TODO: Set res.PassphraseAuthAvailable when passphrase
+		// support is implemented.
+		// TODO: Check that the target system supports passphrase
+		// authentication (e.g. supported kernel/snapd versions).
 		opts := &gadget.ValidationConstraints{
 			EncryptedData: true,
 		}
@@ -223,7 +233,7 @@ func GetEncryptionSupportInfo(model *asserts.Model, tpmMode secboot.TPMProvision
 				res.UnavailableWarning = fmt.Sprintf("cannot use encryption with the gadget, disabling encryption: %v", err)
 			}
 			res.Available = false
-			res.Type = secboot.EncryptionTypeNone
+			res.Type = device.EncryptionTypeNone
 		}
 	}
 
@@ -235,7 +245,7 @@ func hasFDESetupHookInKernel(kernelInfo *snap.Info) bool {
 	return ok
 }
 
-func checkFDEFeatures(runSetupHook fde.RunSetupHookFunc) (et secboot.EncryptionType, err error) {
+func checkFDEFeatures(runSetupHook fde.RunSetupHookFunc) (et device.EncryptionType, err error) {
 	// Run fde-setup hook with "op":"features". If the hook
 	// returns any {"features":[...]} reply we consider the
 	// hardware supported. If the hook errors or if it returns
@@ -246,18 +256,24 @@ func checkFDEFeatures(runSetupHook fde.RunSetupHookFunc) (et secboot.EncryptionT
 	}
 	switch {
 	case strutil.ListContains(features, "inline-crypto-engine"):
-		et = secboot.EncryptionTypeLUKSWithICE
+		et = device.EncryptionTypeLUKSWithICE
 	default:
-		et = secboot.EncryptionTypeLUKS
+		et = device.EncryptionTypeLUKS
 	}
 
 	return et, nil
 }
 
 // CheckEncryptionSupport checks the type of encryption support for disks
-// available if any and returns the corresponding secboot.EncryptionType,
+// available if any and returns the corresponding device.EncryptionType,
 // internally it uses GetEncryptionSupportInfo with the provided parameters.
-func CheckEncryptionSupport(model *asserts.Model, tpmMode secboot.TPMProvisionMode, kernelInfo *snap.Info, gadgetInfo *gadget.Info, runSetupHook fde.RunSetupHookFunc) (secboot.EncryptionType, error) {
+func CheckEncryptionSupport(
+	model *asserts.Model,
+	tpmMode secboot.TPMProvisionMode,
+	kernelInfo *snap.Info,
+	gadgetInfo *gadget.Info,
+	runSetupHook fde.RunSetupHookFunc,
+) (device.EncryptionType, error) {
 	res, err := GetEncryptionSupportInfo(model, tpmMode, kernelInfo, gadgetInfo, runSetupHook)
 	if err != nil {
 		return "", err
@@ -267,7 +283,7 @@ func CheckEncryptionSupport(model *asserts.Model, tpmMode secboot.TPMProvisionMo
 	}
 	// encryption disabled or preferred unencrypted: follow the model preferences here even if encryption would be available
 	if res.Disabled || res.StorageSafety == asserts.StorageSafetyPreferUnencrypted {
-		res.Type = secboot.EncryptionTypeNone
+		res.Type = device.EncryptionTypeNone
 	}
 
 	return res.Type, res.UnavailableErr
@@ -303,24 +319,67 @@ func BuildInstallObserver(model *asserts.Model, gadgetDir string, useEncryption 
 // * save keys and markers for ubuntu-data being able to safely open ubuntu-save
 // It is the responsibility of the caller to call
 // ObserveExistingTrustedRecoveryAssets on trustedInstallObserver.
-func PrepareEncryptedSystemData(model *asserts.Model, keyForRole map[string]keys.EncryptionKey, trustedInstallObserver boot.TrustedAssetsInstallObserver) error {
+func PrepareEncryptedSystemData(model *asserts.Model, installKeyForRole map[string]secboot.BootstrappedContainer, trustedInstallObserver boot.TrustedAssetsInstallObserver) error {
 	// validity check
-	if len(keyForRole) == 0 || keyForRole[gadget.SystemData] == nil || keyForRole[gadget.SystemSave] == nil {
+	if len(installKeyForRole) == 0 || installKeyForRole[gadget.SystemData] == nil || installKeyForRole[gadget.SystemSave] == nil {
 		return fmt.Errorf("internal error: system encryption keys are unset")
 	}
-	dataEncryptionKey := keyForRole[gadget.SystemData]
-	saveEncryptionKey := keyForRole[gadget.SystemSave]
+	dataBootstrappedContainer := installKeyForRole[gadget.SystemData]
+	saveBootstrappedContainer := installKeyForRole[gadget.SystemSave]
 
-	// make note of the encryption keys
-	trustedInstallObserver.ChosenEncryptionKeys(dataEncryptionKey, saveEncryptionKey)
+	var primaryKey []byte
 
-	if err := saveKeys(model, keyForRole); err != nil {
-		return err
+	if saveBootstrappedContainer != nil {
+		if bootUseTokens(model) {
+			protectorKey, err := keys.NewProtectorKey()
+			if err != nil {
+				return err
+			}
+
+			plainKey, generatedPK, diskKey, err := protectorKey.CreateProtectedKey(nil)
+			if err != nil {
+				return err
+			}
+
+			if err := saveBootstrappedContainer.AddKey("default", diskKey); err != nil {
+				return err
+			}
+			tokenWriter, err := saveBootstrappedContainer.GetTokenWriter("default")
+			if err != nil {
+				return err
+			}
+			if err := plainKey.Write(tokenWriter); err != nil {
+				return err
+			}
+
+			if err := saveKeys(model, protectorKey); err != nil {
+				return err
+			}
+
+			primaryKey = generatedPK
+		} else {
+			saveKey, err := keys.NewEncryptionKey()
+			if err != nil {
+				return err
+			}
+
+			if err := saveBootstrappedContainer.AddKey("default", saveKey); err != nil {
+				return err
+			}
+
+			if err := saveLegacyKeys(model, saveKey); err != nil {
+				return err
+			}
+		}
 	}
 	// write markers containing a secret to pair data and save
 	if err := writeMarkers(model); err != nil {
 		return err
 	}
+
+	// make note of the encryption keys
+	trustedInstallObserver.SetBootstrappedContainersAndPrimaryKey(dataBootstrappedContainer, saveBootstrappedContainer, primaryKey)
+
 	return nil
 }
 
@@ -343,20 +402,24 @@ func writeMarkers(model *asserts.Model) error {
 	return device.WriteEncryptionMarkers(boot.InstallHostFDEDataDir(model), boot.InstallHostFDESaveDir, markerSecret)
 }
 
-func saveKeys(model *asserts.Model, keyForRole map[string]keys.EncryptionKey) error {
-	saveEncryptionKey := keyForRole[gadget.SystemSave]
-	if saveEncryptionKey == nil {
-		// no system-save support
-		return nil
-	}
-	// ensure directory for keys exists
-	if err := os.MkdirAll(boot.InstallHostFDEDataDir(model), 0755); err != nil {
+func saveKeys(model *asserts.Model, saveKey keys.ProtectorKey) error {
+	saveKeyPath := device.SaveKeyUnder(boot.InstallHostFDEDataDir(model))
+
+	if err := os.MkdirAll(filepath.Dir(saveKeyPath), 0755); err != nil {
 		return err
 	}
-	if err := saveEncryptionKey.Save(device.SaveKeyUnder(boot.InstallHostFDEDataDir(model))); err != nil {
-		return fmt.Errorf("cannot store system save key: %v", err)
+
+	return saveKey.SaveToFile(saveKeyPath)
+}
+
+func saveLegacyKeys(model *asserts.Model, saveKey keys.EncryptionKey) error {
+	saveKeyPath := device.SaveKeyUnder(boot.InstallHostFDEDataDir(model))
+
+	if err := os.MkdirAll(filepath.Dir(saveKeyPath), 0755); err != nil {
+		return err
 	}
-	return nil
+
+	return saveKey.Save(saveKeyPath)
 }
 
 // PrepareRunSystemData prepares the run system:

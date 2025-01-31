@@ -28,6 +28,7 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/gadget"
+	"github.com/snapcore/snapd/gadget/device"
 	"github.com/snapcore/snapd/gadget/install"
 	"github.com/snapcore/snapd/httputil"
 	"github.com/snapcore/snapd/kernel/fde"
@@ -427,7 +428,7 @@ func MockInstallMountVolumes(f func(onVolumes map[string]*gadget.Volume, encSetu
 	}
 }
 
-func MockInstallEncryptPartitions(f func(onVolumes map[string]*gadget.Volume, encryptionType secboot.EncryptionType, model *asserts.Model, gadgetRoot, kernelRoot string, perfTimings timings.Measurer) (*install.EncryptionSetupData, error)) (restore func()) {
+func MockInstallEncryptPartitions(f func(onVolumes map[string]*gadget.Volume, volumesAuth *device.VolumesAuthOptions, encryptionType device.EncryptionType, model *asserts.Model, gadgetRoot, kernelRoot string, perfTimings timings.Measurer) (*install.EncryptionSetupData, error)) (restore func()) {
 	old := installEncryptPartitions
 	installEncryptPartitions = f
 	return func() {
@@ -486,7 +487,7 @@ func DeviceManagerRunFDESetupHook(mgr *DeviceManager, req *fde.SetupRequest) ([]
 	return mgr.runFDESetupHook(req)
 }
 
-func DeviceManagerCheckEncryption(mgr *DeviceManager, st *state.State, deviceCtx snapstate.DeviceContext, mode secboot.TPMProvisionMode) (secboot.EncryptionType, error) {
+func DeviceManagerCheckEncryption(mgr *DeviceManager, st *state.State, deviceCtx snapstate.DeviceContext, mode secboot.TPMProvisionMode) (device.EncryptionType, error) {
 	return mgr.checkEncryption(st, deviceCtx, mode)
 }
 
@@ -519,12 +520,6 @@ func MockSecbootEnsureRecoveryKey(f func(recoveryKeyFile string, rkeyDevs []secb
 func MockSecbootRemoveRecoveryKeys(f func(rkeyDevToKey map[secboot.RecoveryKeyDevice]string) error) (restore func()) {
 	restore = testutil.Backup(&secbootRemoveRecoveryKeys)
 	secbootRemoveRecoveryKeys = f
-	return restore
-}
-
-func MockMarkFactoryResetComplete(f func(encrypted bool) error) (restore func()) {
-	restore = testutil.Backup(&bootMarkFactoryResetComplete)
-	bootMarkFactoryResetComplete = f
 	return restore
 }
 
@@ -606,3 +601,71 @@ func CleanUpEncryptionSetupDataInCache(st *state.State, label string) {
 }
 
 type UniqueSnapsInRecoverySystem = uniqueSnapsInRecoverySystem
+
+func MockSecbootAddBootstrapKeyOnExistingDisk(f func(node string, newKey keys.EncryptionKey) error) (restore func()) {
+	old := secbootAddBootstrapKeyOnExistingDisk
+	secbootAddBootstrapKeyOnExistingDisk = f
+	return func() {
+		secbootAddBootstrapKeyOnExistingDisk = old
+	}
+}
+
+func MockSecbootRenameKeys(f func(node string, renames map[string]string) error) (restore func()) {
+	old := secbootRenameKeys
+	secbootRenameKeys = f
+	return func() {
+		secbootRenameKeys = old
+	}
+}
+
+func MockSecbootCreateBootstrappedContainer(f func(key secboot.DiskUnlockKey, devicePath string) secboot.BootstrappedContainer) (restore func()) {
+	old := secbootCreateBootstrappedContainer
+	secbootCreateBootstrappedContainer = f
+	return func() {
+		secbootCreateBootstrappedContainer = old
+	}
+}
+
+func MockSecbootDeleteKeys(f func(node string, matches map[string]bool) error) (restore func()) {
+	old := secbootDeleteKeys
+	secbootDeleteKeys = f
+	return func() {
+		secbootDeleteKeys = old
+	}
+}
+
+func MockSecbootDeleteOldKeys(f func(devicePath string) error) (restore func()) {
+	old := secbootDeleteOldKeys
+	secbootDeleteOldKeys = f
+	return func() {
+		secbootDeleteOldKeys = old
+	}
+}
+
+func MockSecbootTemporaryNameOldKeys(f func(devicePath string) error) (restore func()) {
+	old := secbootTemporaryNameOldKeys
+	secbootTemporaryNameOldKeys = f
+	return func() {
+		secbootTemporaryNameOldKeys = old
+	}
+}
+
+func MockDisksDMCryptUUIDFromMountPoint(f func(mountpoint string) (string, error)) (restore func()) {
+	old := disksDMCryptUUIDFromMountPoint
+	disksDMCryptUUIDFromMountPoint = f
+	return func() {
+		disksDMCryptUUIDFromMountPoint = old
+	}
+}
+
+func VolumesAuthOptionsKeyByLabel(label string) volumesAuthOptionsKey {
+	return volumesAuthOptionsKey{label}
+}
+
+func MockSecbootRemoveOldCounterHandles(f func(node string, possibleOldKeys map[string]bool, possibleKeyFiles []string, hintExpectFDEHook bool) error) (restore func()) {
+	old := secbootRemoveOldCounterHandles
+	secbootRemoveOldCounterHandles = f
+	return func() {
+		secbootRemoveOldCounterHandles = old
+	}
+}

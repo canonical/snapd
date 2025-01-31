@@ -25,12 +25,14 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
 	"path/filepath"
 
 	sb "github.com/snapcore/secboot"
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/gadget/device"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/secboot/keys"
@@ -54,25 +56,22 @@ func (s *encryptSuite) TestFormatEncryptedDevice(c *C) {
 		}
 
 		calls := 0
-		restore := secboot.MockSbInitializeLUKS2Container(func(devicePath, label string, key []byte,
+		restore := secboot.MockSbInitializeLUKS2Container(func(devicePath, label string, key sb.DiskUnlockKey,
 			opts *sb.InitializeLUKS2ContainerOptions) error {
 			calls++
 			c.Assert(devicePath, Equals, "/dev/node")
 			c.Assert(label, Equals, "my label")
-			c.Assert(key, DeepEquals, []byte(myKey))
+			c.Assert(key, DeepEquals, sb.DiskUnlockKey(myKey))
 			c.Assert(opts, DeepEquals, &sb.InitializeLUKS2ContainerOptions{
 				MetadataKiBSize:     2048,
 				KeyslotsAreaKiBSize: 2560,
-				KDFOptions: &sb.KDFOptions{
-					MemoryKiB:       32,
-					ForceIterations: 4,
-				},
+				InitialKeyslotName:  "bootstrap-key",
 			})
 			return tc.initErr
 		})
 		defer restore()
 
-		err := secboot.FormatEncryptedDevice(myKey, secboot.EncryptionTypeLUKS, "my label", "/dev/node")
+		err := secboot.FormatEncryptedDevice(myKey, device.EncryptionTypeLUKS, "my label", "/dev/node")
 		c.Assert(calls, Equals, 1)
 		if tc.err == "" {
 			c.Assert(err, IsNil)
@@ -83,7 +82,7 @@ func (s *encryptSuite) TestFormatEncryptedDevice(c *C) {
 }
 
 func (s *encryptSuite) TestFormatEncryptedDeviceInvalidEncType(c *C) {
-	err := secboot.FormatEncryptedDevice(keys.EncryptionKey{}, secboot.EncryptionType("other-enc-type"), "my label", "/dev/node")
+	err := secboot.FormatEncryptedDevice(keys.EncryptionKey{}, device.EncryptionType("other-enc-type"), "my label", "/dev/node")
 	c.Check(err, ErrorMatches, `internal error: FormatEncryptedDevice for "/dev/node" expects a LUKS encryption type, not "other-enc-type"`)
 }
 
@@ -155,6 +154,7 @@ fi
 
 	s.udevadmCmd = testutil.MockCommand(c, "udevadm", `
 	echo "ID_PART_ENTRY_UUID=something"
+        echo "ID_FS_UUID=someuuid"
 `)
 	s.AddCleanup(s.udevadmCmd.Restore)
 
@@ -179,12 +179,12 @@ func (s *keymgrSuite) TestStageEncryptionKeyHappy(c *C) {
 			"systemd-run",
 			"--wait", "--pipe", "--collect", "--service-type=exec", "--quiet",
 			"--property=KeyringMode=inherit", "--",
-			s.keymgrCmd.Exe(), "change-encryption-key", "--device", "/dev/disk/by-partuuid/something",
+			s.keymgrCmd.Exe(), "change-encryption-key", "--device", "/dev/disk/by-uuid/someuuid",
 			"--stage",
 		},
 	})
 	c.Check(s.keymgrCmd.Calls(), DeepEquals, [][]string{
-		{"snap-fde-keymgr", "change-encryption-key", "--device", "/dev/disk/by-partuuid/something", "--stage"},
+		{"snap-fde-keymgr", "change-encryption-key", "--device", "/dev/disk/by-uuid/someuuid", "--stage"},
 	})
 	var b bytes.Buffer
 	json.NewEncoder(&b).Encode(struct {
@@ -201,7 +201,7 @@ func (s *keymgrSuite) TestStageEncryptionKeyBadUdev(c *C) {
 `)
 	defer udevadmCmd.Restore()
 	err := secboot.StageEncryptionKeyChange("/dev/foo/bar", key)
-	c.Assert(err, ErrorMatches, "cannot get UUID of partition /dev/foo/bar: cannot get required udev partition UUID property")
+	c.Assert(err, ErrorMatches, "cannot get UUID of /dev/foo/bar: cannot get required udev ID_FS_UUID property")
 	c.Check(udevadmCmd.Calls(), DeepEquals, [][]string{
 		{"udevadm", "info", "--query", "property", "--name", "/dev/foo/bar"},
 	})
@@ -226,12 +226,12 @@ func (s *keymgrSuite) TestStageTransitionEncryptionKeyBadKeymgr(c *C) {
 			"systemd-run",
 			"--wait", "--pipe", "--collect", "--service-type=exec", "--quiet",
 			"--property=KeyringMode=inherit", "--",
-			keymgrCmd.Exe(), "change-encryption-key", "--device", "/dev/disk/by-partuuid/something",
+			keymgrCmd.Exe(), "change-encryption-key", "--device", "/dev/disk/by-uuid/someuuid",
 			"--stage",
 		},
 	})
 	c.Check(keymgrCmd.Calls(), DeepEquals, [][]string{
-		{"snap-fde-keymgr", "change-encryption-key", "--device", "/dev/disk/by-partuuid/something", "--stage"},
+		{"snap-fde-keymgr", "change-encryption-key", "--device", "/dev/disk/by-uuid/someuuid", "--stage"},
 	})
 
 	s.systemdRunCmd.ForgetCalls()
@@ -246,12 +246,12 @@ func (s *keymgrSuite) TestStageTransitionEncryptionKeyBadKeymgr(c *C) {
 			"systemd-run",
 			"--wait", "--pipe", "--collect", "--service-type=exec", "--quiet",
 			"--property=KeyringMode=inherit", "--",
-			keymgrCmd.Exe(), "change-encryption-key", "--device", "/dev/disk/by-partuuid/foo-uuid",
+			keymgrCmd.Exe(), "change-encryption-key", "--device", "/dev/disk/by-uuid/aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
 			"--transition",
 		},
 	})
 	c.Check(keymgrCmd.Calls(), DeepEquals, [][]string{
-		{"snap-fde-keymgr", "change-encryption-key", "--device", "/dev/disk/by-partuuid/foo-uuid", "--transition"},
+		{"snap-fde-keymgr", "change-encryption-key", "--device", "/dev/disk/by-uuid/aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa", "--transition"},
 	})
 }
 
@@ -275,19 +275,18 @@ func (s *keymgrSuite) TestTransitionEncryptionKeyHappy(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(udevadmCmd.Calls(), DeepEquals, [][]string{
 		{"udevadm", "info", "--query", "property", "--name", "/dev/mapper/foo"},
-		{"udevadm", "info", "--query", "property", "--name", "/dev/disk/by-uuid/5a522809-c87e-4dfa-81a8-8dc5667d1304"},
 	})
 	c.Check(s.systemdRunCmd.Calls(), DeepEquals, [][]string{
 		{
 			"systemd-run",
 			"--wait", "--pipe", "--collect", "--service-type=exec", "--quiet",
 			"--property=KeyringMode=inherit", "--",
-			s.keymgrCmd.Exe(), "change-encryption-key", "--device", "/dev/disk/by-partuuid/foo-uuid",
+			s.keymgrCmd.Exe(), "change-encryption-key", "--device", "/dev/disk/by-uuid/aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
 			"--transition",
 		},
 	})
 	c.Check(s.keymgrCmd.Calls(), DeepEquals, [][]string{
-		{"snap-fde-keymgr", "change-encryption-key", "--device", "/dev/disk/by-partuuid/foo-uuid", "--transition"},
+		{"snap-fde-keymgr", "change-encryption-key", "--device", "/dev/disk/by-uuid/aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa", "--transition"},
 	})
 	var b bytes.Buffer
 	json.NewEncoder(&b).Encode(struct {
@@ -315,11 +314,13 @@ while [ "$#" -gt 1 ]; do
                     echo "DEVTYPE=disk"
                     echo "MAJOR=600"
                     echo "MINOR=3"
+                    echo "DM_UUID=CRYPT-LUKS2-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-foo"
                     ;;
                 /dev/mapper/bar)
                     echo "DEVTYPE=disk"
                     echo "MAJOR=600"
                     echo "MINOR=4"
+                    echo "DM_UUID=CRYPT-LUKS2-bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb-bar"
                     ;;
                 /dev/disk/by-uuid/5a522809-c87e-4dfa-81a8-8dc5667d1304)
                     echo "ID_PART_ENTRY_UUID=foo-uuid"
@@ -337,18 +338,113 @@ done
 `)
 	s.AddCleanup(udevadmCmd.Restore)
 
-	snaptest.PopulateDir(s.rootDir, [][]string{
-		{"/sys/dev/block/600:3/dm/uuid", "CRYPT-LUKS2-5a522809c87e4dfa81a88dc5667d1304-foo"},
-		{"/sys/dev/block/600:3/dm/name", "foo"},
-		{"/sys/dev/block/600:4/dm/uuid", "CRYPT-LUKS2-5a522809c87e4dfa81a88dc5667d1305-bar"},
-		{"/sys/dev/block/600:4/dm/name", "bar"},
-	})
 	return udevadmCmd
 }
 
 func (s *keymgrSuite) TestEnsureRecoveryKey(c *C) {
 	udevadmCmd := s.mocksForDeviceMounts(c)
 
+	defer secboot.MockListLUKS2ContainerUnlockKeyNames(func(devicePath string) ([]string, error) {
+		return []string{"default"}, nil
+	})()
+	defer secboot.MockListLUKS2ContainerRecoveryKeyNames(func(devicePath string) ([]string, error) {
+		return []string{}, nil
+	})()
+	keyringCalled := 0
+	defer secboot.MockGetDiskUnlockKeyFromKernel(func(prefix string, devicePath string, remove bool) (sb.DiskUnlockKey, error) {
+		keyringCalled++
+		return []byte{1, 2, 3, 4, 1, 2, 3, 4, 1, 2, 3, 4, 1, 2, 3, 4}, nil
+	})()
+	defer secboot.MockAddLUKS2ContainerRecoveryKey(func(devicePath string, keyslotName string, existingKey sb.DiskUnlockKey, recoveryKey sb.RecoveryKey) error {
+		return nil
+	})()
+
+	keyFilePath := filepath.Join(c.MkDir(), "key.file")
+	err := os.WriteFile(keyFilePath, []byte{}, 0644)
+	c.Assert(err, IsNil)
+	_, err = secboot.EnsureRecoveryKey(filepath.Join(s.d, "recovery.key"), []secboot.RecoveryKeyDevice{
+		{Mountpoint: "/foo"},
+		{Mountpoint: "/bar", AuthorizingKeyFile: keyFilePath},
+	})
+	c.Assert(err, IsNil)
+	// Make sure that keyring is checked first for the unlock keys
+	c.Check(keyringCalled, Equals, 2)
+	c.Check(udevadmCmd.Calls(), DeepEquals, [][]string{
+		{"udevadm", "info", "--query", "property", "--name", "/dev/mapper/foo"},
+		{"udevadm", "info", "--query", "property", "--name", "/dev/mapper/bar"},
+	})
+
+	// A second call should not do much
+	defer secboot.MockListLUKS2ContainerRecoveryKeyNames(func(devicePath string) ([]string, error) {
+		return []string{"default-recovery"}, nil
+	})()
+
+	defer secboot.MockAddLUKS2ContainerRecoveryKey(func(devicePath string, keyslotName string, existingKey sb.DiskUnlockKey, recoveryKey sb.RecoveryKey) error {
+		c.Errorf("unexpected call")
+		return nil
+	})()
+
+	originalRecovery, err := os.ReadFile(filepath.Join(s.d, "recovery.key"))
+	c.Assert(err, IsNil)
+
+	_, err = secboot.EnsureRecoveryKey(filepath.Join(s.d, "recovery.key"), []secboot.RecoveryKeyDevice{
+		{Mountpoint: "/foo"},
+		{Mountpoint: "/bar", AuthorizingKeyFile: keyFilePath},
+	})
+	c.Assert(err, IsNil)
+	// Make sure that keyring is checked first for the unlock keys
+	c.Check(keyringCalled, Equals, 4)
+
+	recovery, err := os.ReadFile(filepath.Join(s.d, "recovery.key"))
+	c.Assert(err, IsNil)
+
+	c.Check(recovery, DeepEquals, originalRecovery)
+}
+
+func (s *keymgrSuite) TestEnsureRecoveryKeyFallback(c *C) {
+	s.mocksForDeviceMounts(c)
+
+	defer secboot.MockListLUKS2ContainerUnlockKeyNames(func(devicePath string) ([]string, error) {
+		return []string{"default-fallback"}, nil
+	})()
+	defer secboot.MockListLUKS2ContainerRecoveryKeyNames(func(devicePath string) ([]string, error) {
+		return []string{}, nil
+	})()
+	keyringCalled := 0
+	defer secboot.MockGetDiskUnlockKeyFromKernel(func(prefix string, devicePath string, remove bool) (sb.DiskUnlockKey, error) {
+		keyringCalled++
+		return nil, sb.ErrKernelKeyNotFound
+	})()
+	defer secboot.MockAddLUKS2ContainerRecoveryKey(func(devicePath string, keyslotName string, existingKey sb.DiskUnlockKey, recoveryKey sb.RecoveryKey) error {
+		// Verify unlock key directly came from keyfile
+		c.Assert(existingKey, DeepEquals, sb.DiskUnlockKey([]byte{9, 8, 7, 1, 2, 3}))
+		return nil
+	})()
+
+	keyFilePath := filepath.Join(c.MkDir(), "key.file")
+	err := os.WriteFile(keyFilePath, []byte{9, 8, 7, 1, 2, 3}, 0644)
+	c.Assert(err, IsNil)
+	_, err = secboot.EnsureRecoveryKey(filepath.Join(s.d, "recovery.key"), []secboot.RecoveryKeyDevice{
+		{Mountpoint: "/bar", AuthorizingKeyFile: keyFilePath},
+	})
+	c.Assert(err, IsNil)
+	c.Check(keyringCalled, Equals, 1)
+}
+
+func (s *keymgrSuite) TestEnsureRecoveryKeyLegacy(c *C) {
+	udevadmCmd := s.mocksForDeviceMounts(c)
+
+	defer secboot.MockListLUKS2ContainerUnlockKeyNames(func(devicePath string) ([]string, error) {
+		return []string{}, nil
+	})()
+	defer secboot.MockGetDiskUnlockKeyFromKernel(func(prefix string, devicePath string, remove bool) (sb.DiskUnlockKey, error) {
+		c.Errorf("unexpected call")
+		return sb.DiskUnlockKey{}, nil
+	})()
+	defer secboot.MockAddLUKS2ContainerRecoveryKey(func(devicePath string, keyslotName string, existingKey sb.DiskUnlockKey, recoveryKey sb.RecoveryKey) error {
+		c.Errorf("unexpected call")
+		return nil
+	})()
 	rkey, err := secboot.EnsureRecoveryKey(filepath.Join(s.d, "recovery.key"), []secboot.RecoveryKeyDevice{
 		{Mountpoint: "/foo"},
 		{Mountpoint: "/bar", AuthorizingKeyFile: "/authz/key.file"},
@@ -356,9 +452,7 @@ func (s *keymgrSuite) TestEnsureRecoveryKey(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(udevadmCmd.Calls(), DeepEquals, [][]string{
 		{"udevadm", "info", "--query", "property", "--name", "/dev/mapper/foo"},
-		{"udevadm", "info", "--query", "property", "--name", "/dev/disk/by-uuid/5a522809-c87e-4dfa-81a8-8dc5667d1304"},
 		{"udevadm", "info", "--query", "property", "--name", "/dev/mapper/bar"},
-		{"udevadm", "info", "--query", "property", "--name", "/dev/disk/by-uuid/5a522809-c87e-4dfa-81a8-8dc5667d1305"},
 	})
 	c.Check(s.systemdRunCmd.Calls(), DeepEquals, [][]string{
 		{
@@ -367,9 +461,9 @@ func (s *keymgrSuite) TestEnsureRecoveryKey(c *C) {
 			"--property=KeyringMode=inherit", "--",
 			s.keymgrCmd.Exe(), "add-recovery-key",
 			"--key-file", filepath.Join(s.d, "recovery.key"),
-			"--devices", "/dev/disk/by-partuuid/foo-uuid",
+			"--devices", "/dev/disk/by-uuid/aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
 			"--authorizations", "keyring",
-			"--devices", "/dev/disk/by-partuuid/bar-uuid",
+			"--devices", "/dev/disk/by-uuid/bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
 			"--authorizations", "file:/authz/key.file",
 		},
 	})
@@ -377,8 +471,8 @@ func (s *keymgrSuite) TestEnsureRecoveryKey(c *C) {
 		{
 			"snap-fde-keymgr", "add-recovery-key",
 			"--key-file", filepath.Join(s.d, "recovery.key"),
-			"--devices", "/dev/disk/by-partuuid/foo-uuid", "--authorizations", "keyring",
-			"--devices", "/dev/disk/by-partuuid/bar-uuid", "--authorizations", "file:/authz/key.file",
+			"--devices", "/dev/disk/by-uuid/aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa", "--authorizations", "keyring",
+			"--devices", "/dev/disk/by-uuid/bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb", "--authorizations", "file:/authz/key.file",
 		},
 	})
 	c.Check(rkey, DeepEquals, keys.RecoveryKey{'r', 'e', 'c', 'o', 'v', 'e', 'r', 'y', '1', '1', '1', '1', '1', '1', '1', '1'})
@@ -386,6 +480,14 @@ func (s *keymgrSuite) TestEnsureRecoveryKey(c *C) {
 
 func (s *keymgrSuite) TestRemoveRecoveryKey(c *C) {
 	udevadmCmd := s.mocksForDeviceMounts(c)
+
+	defer secboot.MockListLUKS2ContainerRecoveryKeyNames(func(devicePath string) ([]string, error) {
+		return []string{"default-recovery"}, nil
+	})()
+	defer secboot.MockDeleteLUKS2ContainerKey(func(devicePath string, keyslotName string) error {
+		c.Assert(keyslotName, Equals, "default-recovery")
+		return nil
+	})()
 
 	snaptest.PopulateDir(s.d, [][]string{
 		{"recovery.key", "foobar"},
@@ -400,9 +502,40 @@ func (s *keymgrSuite) TestRemoveRecoveryKey(c *C) {
 	expectedUdevCalls := [][]string{
 		// order can change depending on map iteration
 		{"udevadm", "info", "--query", "property", "--name", "/dev/mapper/foo"},
-		{"udevadm", "info", "--query", "property", "--name", "/dev/disk/by-uuid/5a522809-c87e-4dfa-81a8-8dc5667d1304"},
 		{"udevadm", "info", "--query", "property", "--name", "/dev/mapper/bar"},
-		{"udevadm", "info", "--query", "property", "--name", "/dev/disk/by-uuid/5a522809-c87e-4dfa-81a8-8dc5667d1305"},
+	}
+
+	udevCalls := udevadmCmd.Calls()
+	c.Assert(udevCalls, HasLen, len(expectedUdevCalls))
+	// iteration order can be different though
+	c.Assert(udevCalls[0], HasLen, 6)
+}
+
+func (s *keymgrSuite) TestRemoveRecoveryKeyLegacy(c *C) {
+	udevadmCmd := s.mocksForDeviceMounts(c)
+
+	defer secboot.MockListLUKS2ContainerRecoveryKeyNames(func(devicePath string) ([]string, error) {
+		return []string{}, nil
+	})()
+	defer secboot.MockDeleteLUKS2ContainerKey(func(devicePath string, keyslotName string) error {
+		c.Errorf("unexpected call")
+		return nil
+	})()
+
+	snaptest.PopulateDir(s.d, [][]string{
+		{"recovery.key", "foobar"},
+	})
+	// only one of the key files exists
+	err := secboot.RemoveRecoveryKeys(map[secboot.RecoveryKeyDevice]string{
+		{Mountpoint: "/foo"}: filepath.Join(s.d, "recovery.key"),
+		{Mountpoint: "/bar", AuthorizingKeyFile: "/authz/key.file"}: filepath.Join(s.d, "missing-recovery.key"),
+	})
+	c.Assert(err, IsNil)
+
+	expectedUdevCalls := [][]string{
+		// order can change depending on map iteration
+		{"udevadm", "info", "--query", "property", "--name", "/dev/mapper/foo"},
+		{"udevadm", "info", "--query", "property", "--name", "/dev/mapper/bar"},
 	}
 	expectedSystemdRunCalls := [][]string{
 		{
@@ -411,9 +544,9 @@ func (s *keymgrSuite) TestRemoveRecoveryKey(c *C) {
 			"--property=KeyringMode=inherit", "--",
 			s.keymgrCmd.Exe(), "remove-recovery-key",
 			// order can change depending on map iteration
-			"--devices", "/dev/disk/by-partuuid/foo-uuid", "--authorizations", "keyring",
+			"--devices", "/dev/disk/by-uuid/aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa", "--authorizations", "keyring",
 			"--key-files", filepath.Join(s.d, "recovery.key"),
-			"--devices", "/dev/disk/by-partuuid/bar-uuid", "--authorizations", "file:/authz/key.file",
+			"--devices", "/dev/disk/by-uuid/bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb", "--authorizations", "file:/authz/key.file",
 			"--key-files", filepath.Join(s.d, "missing-recovery.key"),
 		},
 	}
@@ -421,9 +554,9 @@ func (s *keymgrSuite) TestRemoveRecoveryKey(c *C) {
 		{
 			"snap-fde-keymgr", "remove-recovery-key",
 			// order can change depending on map iteration
-			"--devices", "/dev/disk/by-partuuid/foo-uuid", "--authorizations", "keyring",
+			"--devices", "/dev/disk/by-uuid/aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa", "--authorizations", "keyring",
 			"--key-files", filepath.Join(s.d, "recovery.key"),
-			"--devices", "/dev/disk/by-partuuid/bar-uuid", "--authorizations", "file:/authz/key.file",
+			"--devices", "/dev/disk/by-uuid/bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb", "--authorizations", "file:/authz/key.file",
 			"--key-files", filepath.Join(s.d, "missing-recovery.key"),
 		},
 	}

@@ -24,6 +24,7 @@ package overlord_test
 import (
 	"bytes"
 	"context"
+	"crypto"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -74,6 +75,8 @@ import (
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/overlord/devicestate/devicestatetest"
+	"github.com/snapcore/snapd/overlord/fdestate"
+	fdeBackend "github.com/snapcore/snapd/overlord/fdestate/backend"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/hookstate/ctlcmd"
 	"github.com/snapcore/snapd/overlord/ifacestate"
@@ -7451,6 +7454,39 @@ func (s *mgrsSuiteCore) testRemodelUC20WithRecoverySystem(c *C, encrypted bool) 
 	mockServer := s.mockStore(c)
 	defer mockServer.Close()
 
+	restore = fdeBackend.MockSecbootBuildPCRProtectionProfile(func(modelParams []*secboot.SealKeyModelParams) (secboot.SerializedPCRProfile, error) {
+		return []byte(`"some-profile"`), nil
+	})
+	defer restore()
+
+	restore = fdestate.MockDMCryptUUIDFromMountPoint(func(mountpoint string) (string, error) {
+		switch mountpoint {
+		case filepath.Join(dirs.GlobalRootDir, "writable"):
+			return "root-uuid", nil
+		case dirs.GlobalRootDir:
+			return "root-uuid", nil
+		case dirs.SnapSaveDir:
+			return "save-uuid", nil
+		}
+		panic(fmt.Sprintf("unexpected mount point: %s", mountpoint))
+	})
+	defer restore()
+
+	restore = fdestate.MockGetPrimaryKeyDigest(func(devicePath string, alg crypto.Hash) ([]byte, []byte, error) {
+		return []byte("aaaa"), []byte("bbbb"), nil
+	})
+	defer restore()
+
+	restore = fdestate.MockVerifyPrimaryKeyDigest(func(devicePath string, alg crypto.Hash, salt []byte, digest []byte) (bool, error) {
+		return true, nil
+	})
+	defer restore()
+
+	restore = fdestate.MockSecbootGetPCRHandle(func(devicePath, keySlot, keyFile string) (uint32, error) {
+		return 0x1880005, nil
+	})
+	defer restore()
+
 	st := s.o.State()
 	st.Lock()
 	defer st.Unlock()
@@ -7588,7 +7624,7 @@ func (s *mgrsSuiteCore) testRemodelUC20WithRecoverySystem(c *C, encrypted bool) 
 	c.Assert(err, IsNil)
 
 	secbootResealCalls := 0
-	restore = boot.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error {
+	restore = fdeBackend.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error {
 		secbootResealCalls++
 		if !encrypted {
 			return fmt.Errorf("unexpected call")
@@ -7596,6 +7632,24 @@ func (s *mgrsSuiteCore) testRemodelUC20WithRecoverySystem(c *C, encrypted bool) 
 		return nil
 	})
 	defer restore()
+
+	// make sure FDE is initialized
+	fdemgr := s.o.FDEManager()
+	c.Assert(fdemgr, NotNil)
+	c.Assert(fdemgr.ReloadModeenv(), IsNil)
+	func() {
+		st.Unlock()
+		defer st.Lock()
+		err = fdemgr.StartUp()
+	}()
+	c.Assert(err, IsNil)
+
+	if encrypted {
+		// FDE state should have been initialized when the system uses encryption
+		var fdeState map[string]any
+		c.Assert(st.Get("fde", &fdeState), IsNil)
+		c.Check(fdeState, NotNil)
+	}
 
 	chg, err := devicestate.Remodel(st, newModel, nil, devicestate.RemodelOptions{})
 	c.Assert(err, IsNil)
@@ -7607,7 +7661,7 @@ func (s *mgrsSuiteCore) testRemodelUC20WithRecoverySystem(c *C, encrypted bool) 
 	st.Lock()
 	c.Assert(err, IsNil, Commentf(s.logbuf.String()))
 
-	dumpTasks(c, "after setteling", chg.Tasks())
+	dumpTasks(c, "after settling", chg.Tasks())
 
 	c.Check(chg.Status(), Equals, state.WaitStatus, Commentf("remodel change failed: %v", chg.Err()))
 	c.Check(devicestate.RemodelingChange(st), NotNil)
@@ -7804,6 +7858,9 @@ func (s *mgrsSuiteCore) testRemodelUC20WithRecoverySystem(c *C, encrypted bool) 
 }
 
 func (s *mgrsSuiteCore) TestRemodelUC20WithRecoverySystemEncrypted(c *C) {
+	if !secboot.WithSecbootSupport {
+		c.Skip("secboot is not available")
+	}
 	const encrypted bool = true
 	s.testRemodelUC20WithRecoverySystem(c, encrypted)
 }
@@ -7935,11 +7992,6 @@ func (s *mgrsSuiteCore) testRemodelUC20WithRecoverySystemSimpleSetUp(c *C, model
 		"snap_kernel": "pc-kernel_2.snap",
 	})
 	c.Assert(err, IsNil)
-
-	restore = boot.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error {
-		return fmt.Errorf("unexpected call")
-	})
-	s.AddCleanup(restore)
 }
 
 func (s *mgrsSuiteCore) TestRemodelUC20DifferentKernelChannel(c *C) {

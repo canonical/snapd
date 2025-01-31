@@ -21,9 +21,11 @@
 package secboot
 
 import (
+	"bytes"
 	"crypto/rand"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -53,15 +55,16 @@ var (
 	sbMeasureSnapSystemEpochToTPM                   = sb_tpm2.MeasureSnapSystemEpochToTPM
 	sbMeasureSnapModelToTPM                         = sb_tpm2.MeasureSnapModelToTPM
 	sbBlockPCRProtectionPolicies                    = sb_tpm2.BlockPCRProtectionPolicies
-	sbefiAddSecureBootPolicyProfile                 = sb_efi.AddSecureBootPolicyProfile
-	sbefiAddBootManagerProfile                      = sb_efi.AddBootManagerProfile
+	sbefiAddPCRProfile                              = sb_efi.AddPCRProfile
 	sbefiAddSystemdStubProfile                      = sb_efi.AddSystemdStubProfile
 	sbAddSnapModelProfile                           = sb_tpm2.AddSnapModelProfile
-	sbSealKeyToTPMMultiple                          = sb_tpm2.SealKeyToTPMMultiple
 	sbUpdateKeyPCRProtectionPolicyMultiple          = sb_tpm2.UpdateKeyPCRProtectionPolicyMultiple
 	sbSealedKeyObjectRevokeOldPCRProtectionPolicies = (*sb_tpm2.SealedKeyObject).RevokeOldPCRProtectionPolicies
-	sbNewKeyDataFromSealedKeyObjectFile             = sb_tpm2.NewKeyDataFromSealedKeyObjectFile
+	sbNewFileKeyDataReader                          = sb.NewFileKeyDataReader
+	sbReadKeyData                                   = sb.ReadKeyData
 	sbReadSealedKeyObjectFromFile                   = sb_tpm2.ReadSealedKeyObjectFromFile
+	sbNewTPMProtectedKey                            = sb_tpm2.NewTPMProtectedKey
+	sbNewKeyDataFromSealedKeyObjectFile             = sb_tpm2.NewKeyDataFromSealedKeyObjectFile
 
 	randutilRandomKernelUUID = randutil.RandomKernelUUID
 
@@ -70,8 +73,11 @@ var (
 	sbTPMEnsureProvisioned              = (*sb_tpm2.Connection).EnsureProvisioned
 	sbTPMEnsureProvisionedWithCustomSRK = (*sb_tpm2.Connection).EnsureProvisionedWithCustomSRK
 	tpmReleaseResources                 = tpmReleaseResourcesImpl
+	tpmGetCapabilityHandles             = (*sb_tpm2.Connection).GetCapabilityHandles
 
 	sbTPMDictionaryAttackLockReset = (*sb_tpm2.Connection).DictionaryAttackLockReset
+
+	sbUpdateKeyDataPCRProtectionPolicy = sb_tpm2.UpdateKeyDataPCRProtectionPolicy
 
 	// check whether the interfaces match
 	_ (sb.SnapModel) = ModelForSealing(nil)
@@ -212,57 +218,17 @@ func lockTPMSealedKeys() error {
 	return sbBlockPCRProtectionPolicies(tpm, []int{initramfsPCR})
 }
 
-func unlockVolumeUsingSealedKeyTPM(name, sealedEncryptionKeyFile, sourceDevice, targetDevice, mapperName string, opts *UnlockVolumeUsingSealedKeyOptions) (UnlockResult, error) {
-	// TODO:UC20: use sb.SecureConnectToDefaultTPM() if we decide there's benefit in doing that or
-	//            we have a hard requirement for a valid EK cert chain for every boot (ie, panic
-	//            if there isn't one). But we can't do that as long as we need to download
-	//            intermediate certs from the manufacturer.
-
-	res := UnlockResult{IsEncrypted: true, PartDevice: sourceDevice}
-	tpmDeviceAvailable := false
-	// Obtain a TPM connection.
-	if tpm, tpmErr := sbConnectToDefaultTPM(); tpmErr != nil {
-		if !xerrors.Is(tpmErr, sb_tpm2.ErrNoTPM2Device) {
-			return res, fmt.Errorf("cannot unlock encrypted device %q: %v", name, tpmErr)
-		}
-		logger.Noticef("cannot open TPM connection: %v", tpmErr)
-	} else {
-		// Also check if the TPM device is enabled. The platform firmware may disable the storage
-		// and endorsement hierarchies, but the device will remain visible to the operating system.
-		tpmDeviceAvailable = isTPMEnabled(tpm)
-		// later during ActivateVolumeWithKeyData secboot will
-		// open the TPM again, close it as it can't be opened
-		// multiple times and also we are done using it here
-		tpm.Close()
+func activateVolOpts(allowRecoveryKey bool, allowPassphrase bool, legacyPaths ...string) *sb.ActivateVolumeOptions {
+	passphraseTry := 0
+	if allowPassphrase {
+		passphraseTry = 1
 	}
-
-	// if we don't have a tpm, and we allow using a recovery key, do that
-	// directly
-	if !tpmDeviceAvailable && opts.AllowRecoveryKey {
-		if err := UnlockEncryptedVolumeWithRecoveryKey(mapperName, sourceDevice); err != nil {
-			return res, err
-		}
-		res.FsDevice = targetDevice
-		res.UnlockMethod = UnlockedWithRecoveryKey
-		return res, nil
-	}
-
-	// otherwise we have a tpm and we should use the sealed key first, but
-	// this method will fallback to using the recovery key if enabled
-	method, err := unlockEncryptedPartitionWithSealedKey(mapperName, sourceDevice, sealedEncryptionKeyFile, opts.AllowRecoveryKey)
-	res.UnlockMethod = method
-	if err == nil {
-		res.FsDevice = targetDevice
-	}
-	return res, err
-}
-
-func activateVolOpts(allowRecoveryKey bool) *sb.ActivateVolumeOptions {
 	options := sb.ActivateVolumeOptions{
-		PassphraseTries: 1,
+		PassphraseTries: passphraseTry,
 		// disable recovery key by default
-		RecoveryKeyTries: 0,
-		KeyringPrefix:    keyringPrefix,
+		RecoveryKeyTries:  0,
+		KeyringPrefix:     keyringPrefix,
+		LegacyDevicePaths: legacyPaths,
 	}
 	if allowRecoveryKey {
 		// enable recovery key only when explicitly allowed
@@ -271,26 +237,181 @@ func activateVolOpts(allowRecoveryKey bool) *sb.ActivateVolumeOptions {
 	return &options
 }
 
-// unlockEncryptedPartitionWithSealedKey unseals the keyfile and opens an encrypted
-// device. If activation with the sealed key fails, this function will attempt to
-// activate it with the fallback recovery key instead.
-func unlockEncryptedPartitionWithSealedKey(mapperName, sourceDevice, keyfile string, allowRecovery bool) (UnlockMethod, error) {
-	keyData, err := sbNewKeyDataFromSealedKeyObjectFile(keyfile)
+func newAuthRequestor() (sb.AuthRequestor, error) {
+	return sb.NewSystemdAuthRequestor(
+		"Please enter the passphrase for volume {{.VolumeName}} for device {{.SourceDevicePath}}",
+		"Please enter the recovery key for volume {{.VolumeName}} for device {{.SourceDevicePath}}",
+	)
+}
+
+func readKeyTokenImpl(devicePath, slotName string) (*sb.KeyData, error) {
+	kdReader, err := sb.NewLUKS2KeyDataReader(devicePath, slotName)
 	if err != nil {
-		return NotUnlocked, fmt.Errorf("cannot read key data: %v", err)
+		return nil, err
 	}
-	options := activateVolOpts(allowRecovery)
-	// ignoring model checker as it doesn't work with tpm "legacy" platform key data
-	_, err = sbActivateVolumeWithKeyData(mapperName, sourceDevice, keyData, options)
-	if err == sb.ErrRecoveryKeyUsed {
-		logger.Noticef("successfully activated encrypted device %q using a fallback activation method", sourceDevice)
-		return UnlockedWithRecoveryKey, nil
-	}
+	return sb.ReadKeyData(kdReader)
+}
+
+var readKeyToken = readKeyTokenImpl
+
+// TODO: we do not really need an interface here, a struct would be
+// enough.
+type keyLoader interface {
+	// LoadedKeyData keeps track of keys in KeyData format.
+	LoadedKeyData(kd *sb.KeyData)
+	// LoadedSealedKeyObject keeps track of sealed key object for
+	// legacy TPM This is useful for resealing. For unlocking, a
+	// matching KeyData will also be emitted.
+	LoadedSealedKeyObject(sko *sb_tpm2.SealedKeyObject)
+	// LoadedFDEHookKeyV1 keeps track of sealed key object for
+	// legacy FDE hooks. In this case no KeyData is emitted.
+	LoadedFDEHookKeyV1(sk []byte)
+}
+
+type defaultKeyLoader struct {
+	KeyData         *sb.KeyData
+	SealedKeyObject *sb_tpm2.SealedKeyObject
+	FDEHookKeyV1    []byte
+}
+
+func (dkl *defaultKeyLoader) LoadedKeyData(kd *sb.KeyData) {
+	dkl.KeyData = kd
+}
+
+func (dkl *defaultKeyLoader) LoadedSealedKeyObject(sko *sb_tpm2.SealedKeyObject) {
+	dkl.SealedKeyObject = sko
+}
+
+func (dkl *defaultKeyLoader) LoadedFDEHookKeyV1(sk []byte) {
+	dkl.FDEHookKeyV1 = sk
+}
+
+func hasOldSealedKeyPrefix(keyfile string) (bool, error) {
+	f, err := os.Open(keyfile)
 	if err != nil {
-		return NotUnlocked, fmt.Errorf("cannot activate encrypted device %q: %v", sourceDevice, err)
+		return false, err
 	}
-	logger.Noticef("successfully activated encrypted device %q with TPM", sourceDevice)
-	return UnlockedWithSealedKey, nil
+	defer f.Close()
+
+	var rawPrefix = []byte("USK$")
+
+	buf := make([]byte, len(rawPrefix))
+	l, err := io.ReadFull(f, buf)
+	if err != nil && err != io.ErrUnexpectedEOF {
+		return false, err
+	}
+
+	return l == len(rawPrefix) && bytes.HasPrefix(buf, rawPrefix), nil
+}
+
+// readKeyFileImpl attempts to read a key file. It will call the
+// different key loader methods depending on the key format found. In
+// case of a legacy sealed key object format, it will decide whether
+// it is for TPM or FDE hooks base on hintExpectFDEHook. For all cases
+// but the v1 FDE hook sealed objects, a KeyData will be provided.  In
+// the case of TPM sealed object, the key object itself will be
+// provided. This is uselful for resealing, as the associated KeyData
+// provided in that case will be enough for unlocking.
+// TODO: consider moving this to secboot
+func readKeyFileImpl(keyfile string, kl keyLoader, hintExpectFDEHook bool) error {
+	oldSealedKey, err := hasOldSealedKeyPrefix(keyfile)
+	if err != nil {
+		return err
+	}
+
+	switch {
+	case oldSealedKey && hintExpectFDEHook:
+		// FDE hook key v1
+		//
+		// It has the same magic header as sealed key object,
+		// but there is no version information. Thus we need
+		// to use a hint that we are using FDE hooks.
+		sealedKey, err := os.ReadFile(keyfile)
+		if err != nil {
+			return fmt.Errorf("cannot read FDE hook v1 key: %v", err)
+		}
+		kl.LoadedFDEHookKeyV1(sealedKey)
+		return nil
+
+	case oldSealedKey && !hintExpectFDEHook:
+		// TPM sealed object
+		sealedObject, err := sbReadSealedKeyObjectFromFile(keyfile)
+		if err != nil {
+			return fmt.Errorf("cannot read key object: %v", err)
+		}
+		keyData, err := sbNewKeyDataFromSealedKeyObjectFile(keyfile)
+		if err != nil {
+			return fmt.Errorf("cannot read key object as key data: %v", err)
+		}
+		kl.LoadedKeyData(keyData)
+		kl.LoadedSealedKeyObject(sealedObject)
+		return nil
+
+	default:
+		reader, err := sbNewFileKeyDataReader(keyfile)
+		if err != nil {
+			return fmt.Errorf("cannot open key data: %v", err)
+		}
+		keyData, err := sbReadKeyData(reader)
+		if err != nil {
+			return err
+		}
+		kl.LoadedKeyData(keyData)
+		return nil
+	}
+}
+
+var readKeyFile = readKeyFileImpl
+
+func (key KeyDataLocation) readTokenAndGetWriter() (*sb.KeyData, sb.KeyDataWriter, error) {
+	kd, err := readKeyToken(key.DevicePath, key.SlotName)
+	if err != nil {
+		return nil, nil, err
+	}
+	writer, err := newLUKS2KeyDataWriter(key.DevicePath, key.SlotName)
+	if err != nil {
+		return nil, nil, err
+	}
+	return kd, writer, nil
+}
+
+// readKeyData reads key data or sealed key object from a token or a
+// file. The key data could be placed either way since the
+// installation decides where to store it. When resealing, we do not
+// know about this decision that might have been done with another
+// version of snapd. So it has to try from both the token and file. It
+// will read in priority from the token. It may return either a
+// KeyData or a SealedKeyObject depending on the format if read from a
+// file. It will return only a KeyData if found in a token. If a
+// KeyData is returned, then a KeyDataWriter is also returned.
+// TODO: consider moving this to secboot_sb.go
+func readKeyData(key KeyDataLocation) (*sb.KeyData, *sb_tpm2.SealedKeyObject, sb.KeyDataWriter, error) {
+	// We try with the token first. If we find it, we will ignore
+	// the file.
+	kd, writer, tokenErr := key.readTokenAndGetWriter()
+	if tokenErr == nil {
+		return kd, nil, writer, nil
+	}
+
+	// We did not find key data in the token. Let's try with the
+	// file.
+	loadedKey := &defaultKeyLoader{}
+	const hintExpectFDEHook = false
+	fileErr := readKeyFile(key.KeyFile, loadedKey, hintExpectFDEHook)
+
+	if fileErr == nil {
+		if loadedKey.SealedKeyObject == nil {
+			return loadedKey.KeyData, nil, sb.NewFileKeyDataWriter(key.KeyFile), nil
+		} else {
+			// loadedKey.SealedKeyObject is not nil, then
+			// the KeyData is just a work-around for
+			// unlocking. Let's ignore it here.
+			// There is no KeyDataWriter.
+			return nil, loadedKey.SealedKeyObject, nil, nil
+		}
+	}
+
+	return nil, nil, nil, fmt.Errorf(`trying to load key data from %s:%s returned "%v", and from %s returned "%v"`, key.DevicePath, key.SlotName, tokenErr, key.KeyFile, fileErr)
 }
 
 // ProvisionTPM provisions the default TPM and saves the lockout authorization
@@ -364,64 +485,75 @@ func ProvisionForCVM(initramfsUbuntuSeedDir string) error {
 // SealKeys seals the encryption keys according to the specified parameters. The
 // TPM must have already been provisioned. If sealed key already exists at the
 // PCR handle, SealKeys will fail and return an error.
-func SealKeys(keys []SealKeyRequest, params *SealKeysParams) error {
+func SealKeys(keys []SealKeyRequest, params *SealKeysParams) ([]byte, error) {
 	numModels := len(params.ModelParams)
 	if numModels < 1 {
-		return fmt.Errorf("at least one set of model-specific parameters is required")
+		return nil, fmt.Errorf("at least one set of model-specific parameters is required")
 	}
 
 	tpm, err := sbConnectToDefaultTPM()
 	if err != nil {
-		return fmt.Errorf("cannot connect to TPM: %v", err)
+		return nil, fmt.Errorf("cannot connect to TPM: %v", err)
 	}
 	defer tpm.Close()
 	if !isTPMEnabled(tpm) {
-		return fmt.Errorf("TPM device is not enabled")
+		return nil, fmt.Errorf("TPM device is not enabled")
 	}
 
 	pcrProfile, err := buildPCRProtectionProfile(params.ModelParams)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	pcrHandle := params.PCRPolicyCounterHandle
 	logger.Noticef("sealing with PCR handle %#x", pcrHandle)
-	// Seal the provided keys to the TPM
-	creationParams := sb_tpm2.KeyCreationParams{
-		PCRProfile:             pcrProfile,
-		PCRPolicyCounterHandle: tpm2.Handle(pcrHandle),
-		AuthKey:                params.TPMPolicyAuthKey,
+
+	var primaryKey sb.PrimaryKey
+	if params.PrimaryKey != nil {
+		primaryKey = params.PrimaryKey
+	}
+	for _, key := range keys {
+		creationParams := &sb_tpm2.ProtectKeyParams{
+			PCRProfile: pcrProfile,
+			// TODO: add roles
+			PCRPolicyCounterHandle: tpm2.Handle(pcrHandle),
+			PrimaryKey:             primaryKey,
+		}
+		protectedKey, primaryKeyOut, unlockKey, err := sbNewTPMProtectedKey(tpm, creationParams)
+		if primaryKey == nil {
+			primaryKey = primaryKeyOut
+		}
+		if err != nil {
+			return nil, err
+		}
+		if err := key.BootstrappedContainer.AddKey(key.SlotName, unlockKey); err != nil {
+			return nil, err
+		}
+
+		keyWriter, err := key.getWriter()
+		if err != nil {
+			return nil, err
+		}
+
+		if err := protectedKey.WriteAtomic(keyWriter); err != nil {
+			return nil, err
+		}
+
 	}
 
-	sbKeys := make([]*sb_tpm2.SealKeyRequest, 0, len(keys))
-	for i := range keys {
-		sbKeys = append(sbKeys, &sb_tpm2.SealKeyRequest{
-			Key:  keys[i].Key,
-			Path: keys[i].KeyFile,
-		})
-	}
-
-	authKey, err := sbSealKeyToTPMMultiple(tpm, sbKeys, &creationParams)
-	if err != nil {
-		logger.Debugf("seal key error: %v", err)
-		return err
-	}
-	if params.TPMPolicyAuthKeyFile != "" {
-		if err := osutil.AtomicWriteFile(params.TPMPolicyAuthKeyFile, authKey, 0600, 0); err != nil {
-			return fmt.Errorf("cannot write the policy auth key file: %v", err)
+	if primaryKey != nil && params.TPMPolicyAuthKeyFile != "" {
+		if err := osutil.AtomicWriteFile(params.TPMPolicyAuthKeyFile, primaryKey, 0600, 0); err != nil {
+			return nil, fmt.Errorf("cannot write the policy auth key file: %v", err)
 		}
 	}
-	return nil
+
+	return primaryKey, nil
 }
 
 // ResealKeys updates the PCR protection policy for the sealed encryption keys
 // according to the specified parameters.
 func ResealKeys(params *ResealKeysParams) error {
-	numModels := len(params.ModelParams)
-	if numModels < 1 {
-		return fmt.Errorf("at least one set of model-specific parameters is required")
-	}
-	numSealedKeyObjects := len(params.KeyFiles)
+	numSealedKeyObjects := len(params.Keys)
 	if numSealedKeyObjects < 1 {
 		return fmt.Errorf("at least one key file is required")
 	}
@@ -435,39 +567,76 @@ func ResealKeys(params *ResealKeysParams) error {
 		return fmt.Errorf("TPM device is not enabled")
 	}
 
-	pcrProfile, err := buildPCRProtectionProfile(params.ModelParams)
-	if err != nil {
+	var pcrProfile sb_tpm2.PCRProtectionProfile
+	if _, err := mu.UnmarshalFromBytes(params.PCRProfile, &pcrProfile); err != nil {
 		return err
 	}
 
+	// FIXME: load primary key from keyring when available
 	authKey, err := os.ReadFile(params.TPMPolicyAuthKeyFile)
 	if err != nil {
-		return fmt.Errorf("cannot read the policy auth key file: %v", err)
+		return fmt.Errorf("cannot read the policy auth key file %s: %w", params.TPMPolicyAuthKeyFile, err)
 	}
 
+	keyDatas := make([]*sb.KeyData, 0, numSealedKeyObjects)
 	sealedKeyObjects := make([]*sb_tpm2.SealedKeyObject, 0, numSealedKeyObjects)
-	for _, keyfile := range params.KeyFiles {
-		sealedKeyObject, err := sbReadSealedKeyObjectFromFile(keyfile)
+	writers := make([]sb.KeyDataWriter, 0, numSealedKeyObjects)
+	for _, key := range params.Keys {
+		keyData, keyObject, writer, err := readKeyData(key)
 		if err != nil {
 			return err
 		}
-		sealedKeyObjects = append(sealedKeyObjects, sealedKeyObject)
-	}
-
-	if err := sbUpdateKeyPCRProtectionPolicyMultiple(tpm, sealedKeyObjects, authKey, pcrProfile); err != nil {
-		return err
-	}
-
-	// write key files
-	for i, sko := range sealedKeyObjects {
-		w := sb_tpm2.NewFileSealedKeyObjectWriter(params.KeyFiles[i])
-		if err := sko.WriteAtomic(w); err != nil {
-			return fmt.Errorf("cannot write key data file: %v", err)
+		if keyObject == nil {
+			if writer == nil {
+				return fmt.Errorf("internal error: new keydata has no writer")
+			}
+			writers = append(writers, writer)
+			keyDatas = append(keyDatas, keyData)
+		} else {
+			sealedKeyObjects = append(sealedKeyObjects, keyObject)
 		}
 	}
 
-	// revoke old policies via the primary key object
-	return sbSealedKeyObjectRevokeOldPCRProtectionPolicies(sealedKeyObjects[0], tpm, authKey)
+	hasOldSealedKeyObjects := len(sealedKeyObjects) != 0
+	hasKeyDatas := len(keyDatas) != 0
+
+	if hasOldSealedKeyObjects && hasKeyDatas {
+		return fmt.Errorf("key files are different formats")
+	}
+
+	if hasOldSealedKeyObjects {
+		if err := sbUpdateKeyPCRProtectionPolicyMultiple(tpm, sealedKeyObjects, authKey, &pcrProfile); err != nil {
+			return fmt.Errorf("cannot update legacy PCR protection policy: %w", err)
+		}
+
+		// write key files
+		for i, sko := range sealedKeyObjects {
+			w := sb_tpm2.NewFileSealedKeyObjectWriter(params.Keys[i].KeyFile)
+			if err := sko.WriteAtomic(w); err != nil {
+				return fmt.Errorf("cannot write key data file %s: %w", params.Keys[i].KeyFile, err)
+			}
+		}
+
+		// revoke old policies via the primary key object
+		if err := sbSealedKeyObjectRevokeOldPCRProtectionPolicies(sealedKeyObjects[0], tpm, authKey); err != nil {
+			return fmt.Errorf("cannot revoke old PCR protection policies: %w", err)
+		}
+	} else {
+		// TODO: find out which context when revocation should happen
+		if err := sbUpdateKeyDataPCRProtectionPolicy(tpm, authKey, &pcrProfile, sb_tpm2.NoNewPCRPolicyVersion, keyDatas...); err != nil {
+			return fmt.Errorf("cannot update PCR protection policy: %w", err)
+		}
+
+		for i, key := range params.Keys {
+			if err := keyDatas[i].WriteAtomic(writers[i]); err != nil {
+				return fmt.Errorf("cannot write key data in keyfile %s:%s: %w", key.DevicePath, key.SlotName, err)
+			}
+		}
+
+		//TODO: revoke after writing? Not sure how.
+
+	}
+	return nil
 }
 
 func buildPCRProtectionProfile(modelParams []*SealKeyModelParams) (*sb_tpm2.PCRProtectionProfile, error) {
@@ -475,6 +644,15 @@ func buildPCRProtectionProfile(modelParams []*SealKeyModelParams) (*sb_tpm2.PCRP
 	modelPCRProfiles := make([]*sb_tpm2.PCRProtectionProfile, 0, numModels)
 
 	for _, mp := range modelParams {
+		var updateDB []*sb_efi.SignatureDBUpdate
+
+		if len(mp.EFISignatureDbxUpdate) > 0 {
+			updateDB = append(updateDB, &sb_efi.SignatureDBUpdate{
+				Name: sb_efi.Dbx,
+				Data: mp.EFISignatureDbxUpdate,
+			})
+		}
+
 		modelProfile := sb_tpm2.NewPCRProtectionProfile()
 
 		loadSequences, err := buildLoadSequences(mp.EFILoadChains)
@@ -482,27 +660,15 @@ func buildPCRProtectionProfile(modelParams []*SealKeyModelParams) (*sb_tpm2.PCRP
 			return nil, fmt.Errorf("cannot build EFI image load sequences: %v", err)
 		}
 
-		// Add EFI secure boot policy profile
-		policyParams := sb_efi.SecureBootPolicyProfileParams{
-			PCRAlgorithm:  tpm2.HashAlgorithmSHA256,
-			LoadSequences: loadSequences,
-			// TODO:UC20: set SignatureDbUpdateKeystore to support applying forbidden
-			//            signature updates to exclude signing keys (after rotating them).
-			//            This also requires integration of sbkeysync, and some work to
-			//            ensure that the PCR profile is updated before/after sbkeysync executes.
-		}
-
-		if err := sbefiAddSecureBootPolicyProfile(modelProfile, &policyParams); err != nil {
-			return nil, fmt.Errorf("cannot add EFI secure boot policy profile: %v", err)
-		}
-
-		// Add EFI boot manager profile
-		bootManagerParams := sb_efi.BootManagerProfileParams{
-			PCRAlgorithm:  tpm2.HashAlgorithmSHA256,
-			LoadSequences: loadSequences,
-		}
-		if err := sbefiAddBootManagerProfile(modelProfile, &bootManagerParams); err != nil {
-			return nil, fmt.Errorf("cannot add EFI boot manager profile: %v", err)
+		if err := sbefiAddPCRProfile(
+			tpm2.HashAlgorithmSHA256,
+			modelProfile.RootBranch(),
+			loadSequences,
+			sb_efi.WithSecureBootPolicyProfile(),
+			sb_efi.WithBootManagerCodeProfile(),
+			sb_efi.WithSignatureDBUpdates(updateDB...),
+		); err != nil {
+			return nil, fmt.Errorf("cannot add EFI secure boot and boot manager policy profiles: %v", err)
 		}
 
 		// Add systemd EFI stub profile
@@ -512,7 +678,7 @@ func buildPCRProtectionProfile(modelParams []*SealKeyModelParams) (*sb_tpm2.PCRP
 				PCRIndex:       initramfsPCR,
 				KernelCmdlines: mp.KernelCmdlines,
 			}
-			if err := sbefiAddSystemdStubProfile(modelProfile, &systemdStubParams); err != nil {
+			if err := sbefiAddSystemdStubProfile(modelProfile.RootBranch(), &systemdStubParams); err != nil {
 				return nil, fmt.Errorf("cannot add systemd EFI stub profile: %v", err)
 			}
 		}
@@ -524,7 +690,7 @@ func buildPCRProtectionProfile(modelParams []*SealKeyModelParams) (*sb_tpm2.PCRP
 				PCRIndex:     initramfsPCR,
 				Models:       []sb.SnapModel{mp.Model},
 			}
-			if err := sbAddSnapModelProfile(modelProfile, &snapModelParams); err != nil {
+			if err := sbAddSnapModelProfile(modelProfile.RootBranch(), &snapModelParams); err != nil {
 				return nil, fmt.Errorf("cannot add snap model profile: %v", err)
 			}
 		}
@@ -532,16 +698,21 @@ func buildPCRProtectionProfile(modelParams []*SealKeyModelParams) (*sb_tpm2.PCRP
 		modelPCRProfiles = append(modelPCRProfiles, modelProfile)
 	}
 
-	var pcrProfile *sb_tpm2.PCRProtectionProfile
-	if numModels > 1 {
-		pcrProfile = sb_tpm2.NewPCRProtectionProfile().AddProfileOR(modelPCRProfiles...)
-	} else {
-		pcrProfile = modelPCRProfiles[0]
-	}
+	pcrProfile := sb_tpm2.NewPCRProtectionProfile().AddProfileOR(modelPCRProfiles...)
 
 	logger.Debugf("PCR protection profile:\n%s", pcrProfile.String())
 
 	return pcrProfile, nil
+}
+
+// BuildPCRProtectionProfile builds and serializes a PCR profile from
+// a list of SealKeyModelParams.
+func BuildPCRProtectionProfile(modelParams []*SealKeyModelParams) (SerializedPCRProfile, error) {
+	pcrProfile, err := buildPCRProtectionProfile(modelParams)
+	if err != nil {
+		return nil, err
+	}
+	return mu.MarshalToBytes(pcrProfile)
 }
 
 func tpmProvision(tpm *sb_tpm2.Connection, mode TPMProvisionMode, lockoutAuthFile string) error {
@@ -581,7 +752,7 @@ func tpmProvision(tpm *sb_tpm2.Connection, mode TPMProvisionMode, lockoutAuthFil
 }
 
 // buildLoadSequences builds EFI load image event trees from this package LoadChains
-func buildLoadSequences(chains []*LoadChain) (loadseqs []*sb_efi.ImageLoadEvent, err error) {
+func buildLoadSequences(chains []*LoadChain) (loadseqs *sb_efi.ImageLoadSequences, err error) {
 	// this will build load event trees for the current
 	// device configuration, e.g. something like:
 	//
@@ -591,23 +762,25 @@ func buildLoadSequences(chains []*LoadChain) (loadseqs []*sb_efi.ImageLoadEvent,
 	//                      |-> normal grub -> run kernel good
 	//                                     |-> run kernel try
 
+	loadseqs = sb_efi.NewImageLoadSequences()
+
 	for _, chain := range chains {
 		// root of load events has source Firmware
-		loadseq, err := chain.loadEvent(sb_efi.Firmware)
+		loadseq, err := chain.loadEvent()
 		if err != nil {
 			return nil, err
 		}
-		loadseqs = append(loadseqs, loadseq)
+		loadseqs.Append(loadseq)
 	}
 	return loadseqs, nil
 }
 
 // loadEvent builds the corresponding load event and its tree
-func (lc *LoadChain) loadEvent(source sb_efi.ImageLoadEventSource) (*sb_efi.ImageLoadEvent, error) {
-	var next []*sb_efi.ImageLoadEvent
+func (lc *LoadChain) loadEvent() (sb_efi.ImageLoadActivity, error) {
+	var next []sb_efi.ImageLoadActivity
 	for _, nextChain := range lc.Next {
 		// everything that is not the root has source shim
-		ev, err := nextChain.loadEvent(sb_efi.Shim)
+		ev, err := nextChain.loadEvent()
 		if err != nil {
 			return nil, err
 		}
@@ -617,11 +790,7 @@ func (lc *LoadChain) loadEvent(source sb_efi.ImageLoadEventSource) (*sb_efi.Imag
 	if err != nil {
 		return nil, err
 	}
-	return &sb_efi.ImageLoadEvent{
-		Source: source,
-		Image:  image,
-		Next:   next,
-	}, nil
+	return sb_efi.NewImageLoadActivity(image).Loads(next...), nil
 }
 
 func efiImageFromBootFile(b *bootloader.BootFile) (sb_efi.Image, error) {
@@ -636,31 +805,16 @@ func efiImageFromBootFile(b *bootloader.BootFile) (sb_efi.Image, error) {
 	if err != nil {
 		return nil, err
 	}
-	return sb_efi.SnapFileImage{
-		Container: snapf,
-		FileName:  b.Path,
-	}, nil
-}
-
-// PCRHandleOfSealedKey retunrs the PCR handle which was used when sealing a
-// given key object.
-func PCRHandleOfSealedKey(p string) (uint32, error) {
-	r, err := sb_tpm2.NewFileSealedKeyObjectReader(p)
-	if err != nil {
-		return 0, fmt.Errorf("cannot open key file: %v", err)
-	}
-	sko, err := sb_tpm2.ReadSealedKeyObject(r)
-	if err != nil {
-		return 0, fmt.Errorf("cannot read sealed key file: %v", err)
-	}
-	handle := uint32(sko.PCRPolicyCounterHandle())
-	return handle, nil
+	return sb_efi.NewSnapFileImage(
+		snapf,
+		b.Path,
+	), nil
 }
 
 func tpmReleaseResourcesImpl(tpm *sb_tpm2.Connection, handle tpm2.Handle) error {
 	rc, err := tpm.CreateResourceContextFromTPM(handle)
 	if err != nil {
-		if _, ok := err.(tpm2.ResourceUnavailableError); ok {
+		if errors.Is(err, &tpm2.ResourceUnavailableError{}) {
 			// there's nothing to release, the handle isn't used
 			return nil
 		}
@@ -672,9 +826,9 @@ func tpmReleaseResourcesImpl(tpm *sb_tpm2.Connection, handle tpm2.Handle) error 
 	return nil
 }
 
-// ReleasePCRResourceHandles releases any TPM resources associated with given
+// releasePCRResourceHandles releases any TPM resources associated with given
 // PCR handles.
-func ReleasePCRResourceHandles(handles ...uint32) error {
+func releasePCRResourceHandles(handles ...uint32) error {
 	tpm, err := sbConnectToDefaultTPM()
 	if err != nil {
 		err = fmt.Errorf("cannot connect to TPM device: %v", err)
@@ -713,4 +867,270 @@ func resetLockoutCounter(lockoutAuthFile string) error {
 	}
 
 	return nil
+}
+
+type mockableSealedKeyData interface {
+	PCRPolicyCounterHandle() tpm2.Handle
+}
+
+type mockableSealedKeyObject interface {
+	PCRPolicyCounterHandle() tpm2.Handle
+}
+
+type mockableKeyData interface {
+	PlatformName() string
+	GetTPMSealedKeyData() (mockableSealedKeyData, error)
+}
+
+type realSealedKeyData struct {
+	*sb_tpm2.SealedKeyData
+}
+
+type realSealedKeyObject struct {
+	*sb_tpm2.SealedKeyObject
+}
+
+type realKeyData struct {
+	*sb.KeyData
+}
+
+func (keyData *realKeyData) GetTPMSealedKeyData() (mockableSealedKeyData, error) {
+	skd, err := sb_tpm2.NewSealedKeyData(keyData.KeyData)
+	if err != nil {
+		return nil, err
+	}
+	return &realSealedKeyData{skd}, nil
+}
+
+func mockableReadKeyDataImpl(r sb.KeyDataReader) (mockableKeyData, error) {
+	keyData, err := sb.ReadKeyData(r)
+	if err != nil {
+		return nil, err
+	}
+	return &realKeyData{keyData}, nil
+}
+
+var mockableReadKeyData = mockableReadKeyDataImpl
+
+type mockableKeyLoader struct {
+	KeyData         mockableKeyData
+	SealedKeyObject mockableSealedKeyObject
+	FDEHookKeyV1    []byte
+}
+
+func (dkl *mockableKeyLoader) LoadedKeyData(kd *sb.KeyData) {
+	dkl.KeyData = &realKeyData{kd}
+}
+
+func (dkl *mockableKeyLoader) LoadedSealedKeyObject(sko *sb_tpm2.SealedKeyObject) {
+	dkl.SealedKeyObject = &realSealedKeyObject{sko}
+}
+
+func (dkl *mockableKeyLoader) LoadedFDEHookKeyV1(sk []byte) {
+	dkl.FDEHookKeyV1 = sk
+}
+
+func mockableReadKeyFileImpl(keyFile string, keyLoader *mockableKeyLoader, hintExpectFDEHook bool) error {
+	return readKeyFile(keyFile, keyLoader, hintExpectFDEHook)
+}
+
+var mockableReadKeyFile = mockableReadKeyFileImpl
+
+// GetPCRHandle returns the handle used by a key. The key will be
+// searched on the token of the keySlot from the node. If that keySlot
+// has no KeyData, then the key will be loaded at path keyFile.
+func GetPCRHandle(node, keySlot, keyFile string) (uint32, error) {
+	slots, err := sbListLUKS2ContainerUnlockKeyNames(node)
+	if err != nil {
+		return 0, fmt.Errorf("cannot list slots in partition save partition: %v", err)
+	}
+
+	var readKeyDataErr error
+	for _, slot := range slots {
+		if slot == keySlot {
+			reader, err := sbNewLUKS2KeyDataReader(node, slot)
+			if err != nil {
+				// We save the error and try the file instead.
+				readKeyDataErr = err
+				break
+			}
+			keyData, err := mockableReadKeyData(reader)
+			if err != nil {
+				return 0, fmt.Errorf("cannot read key data for slot '%s': %w", keySlot, err)
+			}
+			if keyData.PlatformName() != "tpm2" {
+				return 0, nil
+			}
+			sealedKeyData, err := keyData.GetTPMSealedKeyData()
+			if err != nil {
+				return 0, fmt.Errorf("cannot read sealed key data for slot '%s': %w", keySlot, err)
+			}
+			return uint32(sealedKeyData.PCRPolicyCounterHandle()), nil
+		}
+	}
+
+	loadedKey := &mockableKeyLoader{}
+	const hintExpectFDEHook = false
+	err = mockableReadKeyFile(keyFile, loadedKey, hintExpectFDEHook)
+	if err != nil {
+		if os.IsNotExist(err) {
+			if readKeyDataErr != nil {
+				// FIXME: secboot should tell us if
+				// Data was nil, in that case we
+				// should be silent, otherwise we
+				// should return the error.
+				logger.Noticef("WARNING: cannot read key data for slot %s: %v", keySlot, readKeyDataErr)
+				return 0, nil
+			}
+			return 0, nil
+		}
+		return 0, fmt.Errorf("cannot read key file %s: %w", keyFile, err)
+	}
+
+	if loadedKey.SealedKeyObject != nil {
+		return uint32(loadedKey.SealedKeyObject.PCRPolicyCounterHandle()), nil
+	}
+
+	if loadedKey.KeyData != nil {
+		if loadedKey.KeyData.PlatformName() != "tpm2" {
+			return 0, nil
+		}
+		sealedKeyData, err := loadedKey.KeyData.GetTPMSealedKeyData()
+		if err != nil {
+			return 0, fmt.Errorf("cannot read sealed key data from %s: %w", keyFile, err)
+		}
+		return uint32(sealedKeyData.PCRPolicyCounterHandle()), nil
+	}
+
+	return 0, nil
+}
+
+// RemoveOldCounterHandles releases TPM2 handles used by some keys.
+// The keys for which handles are released are:
+//  - in the keyslots of the given device, with names matching possibleOldKeys.
+//  - in key files at paths given by possibleKeyFiles.
+// All TPM2 handles found in any key found will be removed. If keyslots
+// or key files are not found, they are just ignored.
+// hintExpectFDEHook helps reading old key object files.  If not TPM2
+// key is found, nothing happens.
+func RemoveOldCounterHandles(device string, possibleOldKeys map[string]bool, possibleKeyFiles []string, hintExpectFDEHook bool) error {
+	slots, err := sbListLUKS2ContainerUnlockKeyNames(device)
+	if err != nil {
+		return fmt.Errorf("cannot list slots in partition save partition: %v", err)
+	}
+
+	oldHandles := make(map[uint32]bool)
+
+	for _, slot := range slots {
+		if possibleOldKeys[slot] {
+			reader, err := sbNewLUKS2KeyDataReader(device, slot)
+			if err != nil {
+				// FIXME: secboot should tell us if
+				// Data was nil, in that case we
+				// should be silent, otherwise we
+				// should return the error.
+				continue
+			}
+			keyData, err := mockableReadKeyData(reader)
+			if err != nil {
+				return fmt.Errorf("cannot read key data for slot '%s': %w", slot, err)
+			}
+			if keyData.PlatformName() != "tpm2" {
+				continue
+			}
+			sealedKeyData, err := keyData.GetTPMSealedKeyData()
+			if err != nil {
+				return fmt.Errorf("cannot read sealed key data for slot '%s': %w", slot, err)
+			}
+			oldHandles[uint32(sealedKeyData.PCRPolicyCounterHandle())] = true
+		}
+	}
+
+	for _, keyFile := range possibleKeyFiles {
+		loadedKey := &mockableKeyLoader{}
+		err := mockableReadKeyFile(keyFile, loadedKey, hintExpectFDEHook)
+		if err != nil {
+			if os.IsNotExist(err) {
+				continue
+			}
+			return fmt.Errorf("cannot read key file %s: %w", keyFile, err)
+		}
+		if loadedKey.SealedKeyObject != nil {
+			handle := uint32(loadedKey.SealedKeyObject.PCRPolicyCounterHandle())
+			oldHandles[handle] = true
+			// We used multiple handles before. But we
+			// lost track of the handle for the run key as
+			// we reformatted it already. Let's add the
+			// matching run handle.
+			if handle == AltFallbackObjectPCRPolicyCounterHandle {
+				oldHandles[AltRunObjectPCRPolicyCounterHandle] = true
+			} else if handle == FallbackObjectPCRPolicyCounterHandle {
+				oldHandles[RunObjectPCRPolicyCounterHandle] = true
+			} else {
+				logger.Noticef("WARNING: we are deleting an unexpected handle. That should never have happened.")
+			}
+		} else if loadedKey.KeyData != nil {
+			if loadedKey.KeyData.PlatformName() != "tpm2" {
+				continue
+			}
+			sealedKeyData, err := loadedKey.KeyData.GetTPMSealedKeyData()
+			if err != nil {
+				return fmt.Errorf("cannot read sealed key data from %s: %w", keyFile, err)
+			}
+			oldHandles[uint32(sealedKeyData.PCRPolicyCounterHandle())] = true
+		}
+	}
+
+	var oldHandlesList []uint32
+	for handle := range oldHandles {
+		switch {
+		case handle == RunObjectPCRPolicyCounterHandle:
+			fallthrough
+		case handle == FallbackObjectPCRPolicyCounterHandle:
+			fallthrough
+		case handle == AltRunObjectPCRPolicyCounterHandle:
+			fallthrough
+		case handle == AltFallbackObjectPCRPolicyCounterHandle:
+			fallthrough
+		case handle >= PCRPolicyCounterHandleStart && handle < PCRPolicyCounterHandleStart+PCRPolicyCounterHandleRange:
+			oldHandlesList = append(oldHandlesList, handle)
+		}
+	}
+
+	if len(oldHandlesList) == 0 {
+		return nil
+	}
+
+	return releasePCRResourceHandles(oldHandlesList...)
+}
+
+// FindFreeHandle finds and unused handle on the TPM.
+// The handle will be arbitrary in range 0x01880005-0x0188000F.
+func FindFreeHandle() (uint32, error) {
+	tpm, err := sbConnectToDefaultTPM()
+	if err != nil {
+		return 0, fmt.Errorf("cannot connect to TPM: %w", err)
+	}
+	defer tpm.Close()
+
+	handles, err := tpmGetCapabilityHandles(tpm, tpm2.Handle(PCRPolicyCounterHandleStart), PCRPolicyCounterHandleRange)
+	if err != nil {
+		return 0, fmt.Errorf("cannot get free handles: %w", err)
+	}
+
+	takenHandles := make(map[uint32]bool)
+	for _, handle := range handles {
+		logger.Debugf("TPM handle %v is in use", uint32(handle))
+		takenHandles[uint32(handle)] = true
+	}
+
+	for _, tentative := range randutil.Perm(int(PCRPolicyCounterHandleRange)) {
+		handle := PCRPolicyCounterHandleStart + uint32(tentative)
+		if !takenHandles[PCRPolicyCounterHandleStart+uint32(tentative)] {
+			logger.Debugf("TPM handle %v is free, taking it", uint32(handle))
+			return handle, nil
+		}
+	}
+
+	return 0, fmt.Errorf("no free handle on TPM")
 }

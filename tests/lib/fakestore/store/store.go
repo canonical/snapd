@@ -60,6 +60,11 @@ func hexify(in string) string {
 	return fmt.Sprintf("%x", bs)
 }
 
+type snapCachedInfo struct {
+	info *snap.Info
+	err  error
+}
+
 // Store is our snappy software store implementation
 type Store struct {
 	url       string
@@ -72,6 +77,8 @@ type Store struct {
 	srv *http.Server
 
 	channelRepository *ChannelRepository
+
+	snapsCache map[string]snapCachedInfo
 }
 
 // NewStore creates a new store server serving snaps from the given top directory and assertions from topDir/asserts. If assertFallback is true missing assertions are looked up in the main online store.
@@ -97,6 +104,7 @@ func NewStore(topDir, addr string, assertFallback bool) *Store {
 		channelRepository: &ChannelRepository{
 			rootDir: filepath.Join(topDir, "channels"),
 		},
+		snapsCache: make(map[string]snapCachedInfo),
 	}
 
 	mux.HandleFunc("/", rootEndpoint)
@@ -198,18 +206,24 @@ type essentialInfo struct {
 	Base        string
 }
 
-func snapEssentialInfo(fn, snapID string, bs asserts.Backstore) (*essentialInfo, error) {
-	f, err := snapfile.Open(fn)
-	if err != nil {
-		return nil, fmt.Errorf("cannot read: %v: %v", fn, err)
-	}
-
+func (s *Store) snapEssentialInfo(fn, snapID string, bs asserts.Backstore) (*essentialInfo, error) {
 	restoreSanitize := snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {})
 	defer restoreSanitize()
 
-	info, err := snap.ReadInfoFromSnapFile(f, nil)
-	if err != nil {
-		return nil, fmt.Errorf("cannot get info for: %v: %v", fn, err)
+	cached, isCached := s.snapsCache[fn]
+	if !isCached {
+		f, err := snapfile.Open(fn)
+		if err != nil {
+			return nil, fmt.Errorf("cannot read: %v: %v", fn, err)
+		}
+
+		info, err := snap.ReadInfoFromSnapFile(f, nil)
+		cached.info = info
+		cached.err = err
+		s.snapsCache[fn] = cached
+	}
+	if cached.err != nil {
+		return nil, fmt.Errorf("cannot get info for: %v: %v", fn, cached.err)
 	}
 
 	snapDigest, size, err := asserts.SnapFileSHA3_384(fn)
@@ -233,21 +247,21 @@ func snapEssentialInfo(fn, snapID string, bs asserts.Backstore) (*essentialInfo,
 		// XXX: fallback until we are always assertion based
 		develID = defaultDeveloperID
 		devel = defaultDeveloper
-		revision = makeRevision(info)
+		revision = makeRevision(cached.info)
 	}
 
 	return &essentialInfo{
-		Name:        info.SnapName(),
+		Name:        cached.info.SnapName(),
 		SnapID:      snapID,
 		DeveloperID: develID,
 		DevelName:   devel,
 		Revision:    revision,
-		Version:     info.Version,
+		Version:     cached.info.Version,
 		Digest:      snapDigest,
 		Size:        size,
-		Confinement: string(info.Confinement),
-		Type:        string(info.Type()),
-		Base:        info.Base,
+		Confinement: string(cached.info.Confinement),
+		Type:        string(cached.info.Type()),
+		Base:        cached.info.Base,
 	}, nil
 }
 
@@ -448,7 +462,7 @@ func (s *Store) detailsEndpoint(w http.ResponseWriter, req *http.Request) {
 
 	sn := set.getLatest()
 
-	essInfo, err := snapEssentialInfo(sn.path, "", bs)
+	essInfo, err := s.snapEssentialInfo(sn.path, "", bs)
 	if err != nil {
 		http.Error(w, err.Error(), 400)
 		return
@@ -550,7 +564,7 @@ func (s *Store) collectSnaps(bs asserts.Backstore) (map[string]*revisionSet, err
 		// if the snap is asserted, then the returned info will contain the ID
 		// taken from the database
 		const snapID = ""
-		info, err := snapEssentialInfo(fn, snapID, bs)
+		info, err := s.snapEssentialInfo(fn, snapID, bs)
 		if err != nil {
 			return nil, err
 		}
@@ -679,7 +693,7 @@ func (s *Store) bulkEndpoint(w http.ResponseWriter, req *http.Request) {
 
 		sn := set.getLatest()
 
-		essInfo, err := snapEssentialInfo(sn.path, pkg.SnapID, bs)
+		essInfo, err := s.snapEssentialInfo(sn.path, pkg.SnapID, bs)
 		if err != nil {
 			http.Error(w, err.Error(), 400)
 			return
@@ -904,7 +918,7 @@ func (s *Store) snapActionEndpoint(w http.ResponseWriter, req *http.Request) {
 			continue
 		}
 
-		essInfo, err := snapEssentialInfo(sn.path, snapID, bs)
+		essInfo, err := s.snapEssentialInfo(sn.path, snapID, bs)
 		if err != nil {
 			http.Error(w, err.Error(), 400)
 			return

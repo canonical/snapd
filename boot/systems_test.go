@@ -22,7 +22,6 @@ package boot_test
 import (
 	"fmt"
 	"os"
-	"path/filepath"
 
 	. "gopkg.in/check.v1"
 
@@ -31,7 +30,7 @@ import (
 	"github.com/snapcore/snapd/boot/boottest"
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/bootloader/bootloadertest"
-	"github.com/snapcore/snapd/secboot"
+	"github.com/snapcore/snapd/gadget/device"
 	"github.com/snapcore/snapd/seed"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/testutil"
@@ -62,7 +61,7 @@ type systemsSuite struct {
 var _ = Suite(&systemsSuite{})
 
 func (s *systemsSuite) mockTrustedBootloaderWithAssetAndChains(c *C, runKernelBf, recoveryKernelBf bootloader.BootFile) *bootloadertest.MockTrustedAssetsBootloader {
-	mockAssetsCache(c, s.rootdir, "trusted", []string{
+	boottest.MockAssetsCache(c, s.rootdir, "trusted", []string{
 		"asset-asset-hash-1",
 	})
 
@@ -84,7 +83,9 @@ func (s *systemsSuite) mockTrustedBootloaderWithAssetAndChains(c *C, runKernelBf
 func (s *systemsSuite) SetUpTest(c *C) {
 	s.baseBootenvSuite.SetUpTest(c)
 
-	restore := boot.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error { return nil })
+	restore := boot.MockResealKeyForBootChains(func(unlocker boot.Unlocker, method device.SealingMethod, rootdir string, params *boot.ResealKeyForBootChainsParams, expectReseal bool) error {
+		return nil
+	})
 	s.AddCleanup(restore)
 
 	s.uc20dev = boottest.MockUC20Device("", nil)
@@ -101,7 +102,7 @@ func (s *systemsSuite) SetUpTest(c *C) {
 }
 
 func (s *systemsSuite) TestSetTryRecoverySystemEncrypted(c *C) {
-	mockAssetsCache(c, s.rootdir, "trusted", []string{
+	boottest.MockAssetsCache(c, s.rootdir, "trusted", []string{
 		"asset-asset-hash-1",
 	})
 
@@ -144,36 +145,38 @@ func (s *systemsSuite) TestSetTryRecoverySystemEncrypted(c *C) {
 	defer restore()
 
 	resealCalls := 0
-	restore = boot.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error {
+	restore = boot.MockResealKeyForBootChains(func(unlocker boot.Unlocker, method device.SealingMethod, rootdir string, params *boot.ResealKeyForBootChainsParams, expectReseal bool) error {
 		resealCalls++
 		// bootloader variables have already been modified
 		c.Check(mtbl.SetBootVarsCalls, Equals, 1)
-		c.Assert(params, NotNil)
-		c.Assert(params.ModelParams, HasLen, 1)
 		switch resealCalls {
 		case 1:
-			c.Check(params.KeyFiles, DeepEquals, []string{
-				filepath.Join(boot.InitramfsBootEncryptionKeyDir, "ubuntu-data.sealed-key"),
-			})
-			c.Assert(params.ModelParams[0].KernelCmdlines, DeepEquals, []string{
-				"snapd_recovery_mode=factory-reset snapd_recovery_system=20200825 static cmdline",
-				"snapd_recovery_mode=recover snapd_recovery_system=1234 static cmdline",
-				"snapd_recovery_mode=recover snapd_recovery_system=20200825 static cmdline",
+			c.Assert(params.RunModeBootChains, HasLen, 1)
+			bootChain := params.RunModeBootChains[0]
+			c.Check(bootChain.KernelCmdlines, DeepEquals, []string{
 				"snapd_recovery_mode=run static cmdline",
 			})
-			return nil
-		case 2:
-			c.Check(params.KeyFiles, DeepEquals, []string{
-				filepath.Join(boot.InitramfsSeedEncryptionKeyDir, "ubuntu-data.recovery.sealed-key"),
-				filepath.Join(boot.InitramfsSeedEncryptionKeyDir, "ubuntu-save.recovery.sealed-key"),
-			})
-			c.Assert(params.ModelParams[0].KernelCmdlines, DeepEquals, []string{
-				"snapd_recovery_mode=factory-reset snapd_recovery_system=20200825 static cmdline",
+
+			c.Assert(params.RecoveryBootChainsForRunKey, HasLen, 2)
+			recoveryRunBootChain := params.RecoveryBootChainsForRunKey[0]
+			c.Check(recoveryRunBootChain.KernelCmdlines, DeepEquals, []string{
 				"snapd_recovery_mode=recover snapd_recovery_system=20200825 static cmdline",
+				"snapd_recovery_mode=factory-reset snapd_recovery_system=20200825 static cmdline",
+			})
+			tryRecoveryRunBootChain := params.RecoveryBootChainsForRunKey[1]
+			c.Check(tryRecoveryRunBootChain.KernelCmdlines, DeepEquals, []string{
+				"snapd_recovery_mode=recover snapd_recovery_system=1234 static cmdline",
+			})
+
+			c.Assert(params.RecoveryBootChains, HasLen, 1)
+			recoveryBootChain := params.RecoveryBootChains[0]
+			c.Check(recoveryBootChain.KernelCmdlines, DeepEquals, []string{
+				"snapd_recovery_mode=recover snapd_recovery_system=20200825 static cmdline",
+				"snapd_recovery_mode=factory-reset snapd_recovery_system=20200825 static cmdline",
 			})
 			return nil
 		default:
-			c.Errorf("unexpected call to secboot.ResealKeys with count %v", resealCalls)
+			c.Errorf("unexpected call to ResealKeyForBootChains with count %v", resealCalls)
 			return fmt.Errorf("unexpected call")
 		}
 	})
@@ -188,8 +191,7 @@ func (s *systemsSuite) TestSetTryRecoverySystemEncrypted(c *C) {
 		"try_recovery_system":    "1234",
 		"recovery_system_status": "try",
 	})
-	// run and recovery keys
-	c.Check(resealCalls, Equals, 2)
+	c.Check(resealCalls, Equals, 1)
 	c.Check(readSeedSeenLabels, DeepEquals, []string{
 		"20200825", "1234", // current recovery systems for run key
 		"20200825", // good recovery systems for recovery keys
@@ -218,7 +220,7 @@ func (s *systemsSuite) TestSetTryRecoverySystemEncrypted(c *C) {
 }
 
 func (s *systemsSuite) TestSetTryRecoverySystemRemodelEncrypted(c *C) {
-	mockAssetsCache(c, s.rootdir, "trusted", []string{
+	boottest.MockAssetsCache(c, s.rootdir, "trusted", []string{
 		"asset-asset-hash-1",
 	})
 
@@ -268,42 +270,44 @@ func (s *systemsSuite) TestSetTryRecoverySystemRemodelEncrypted(c *C) {
 	defer restore()
 
 	resealCalls := 0
-	restore = boot.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error {
+	restore = boot.MockResealKeyForBootChains(func(unlocker boot.Unlocker, method device.SealingMethod, rootdir string, params *boot.ResealKeyForBootChainsParams, expectReseal bool) error {
 		resealCalls++
 		// bootloader variables have already been modified
 		c.Check(mtbl.SetBootVarsCalls, Equals, 1)
-		c.Assert(params, NotNil)
 		switch resealCalls {
 		case 1:
-			c.Assert(params.ModelParams, HasLen, 2)
-			c.Check(params.KeyFiles, DeepEquals, []string{
-				filepath.Join(boot.InitramfsBootEncryptionKeyDir, "ubuntu-data.sealed-key"),
-			})
-			c.Assert(params.ModelParams[0].KernelCmdlines, DeepEquals, []string{
-				"snapd_recovery_mode=factory-reset snapd_recovery_system=20200825 static cmdline",
-				"snapd_recovery_mode=recover snapd_recovery_system=20200825 static cmdline",
+			c.Assert(params.RunModeBootChains, HasLen, 2)
+			bootChain := params.RunModeBootChains[0]
+			c.Check(bootChain.KernelCmdlines, DeepEquals, []string{
 				"snapd_recovery_mode=run static cmdline",
 			})
-			c.Assert(params.ModelParams[1].KernelCmdlines, DeepEquals, []string{
+			tryBootChain := params.RunModeBootChains[1]
+			c.Check(tryBootChain.KernelCmdlines, DeepEquals, []string{
+				"snapd_recovery_mode=run static cmdline",
+			})
+
+			c.Assert(params.RecoveryBootChainsForRunKey, HasLen, 2)
+			recoveryRunBootChain := params.RecoveryBootChainsForRunKey[0]
+			c.Check(recoveryRunBootChain.KernelCmdlines, DeepEquals, []string{
+				"snapd_recovery_mode=recover snapd_recovery_system=20200825 static cmdline",
+				"snapd_recovery_mode=factory-reset snapd_recovery_system=20200825 static cmdline",
+			})
+			tryRecoveryRunBootChain := params.RecoveryBootChainsForRunKey[1]
+			c.Check(tryRecoveryRunBootChain.KernelCmdlines, DeepEquals, []string{
 				"snapd_recovery_mode=recover snapd_recovery_system=1234 static cmdline",
-				"snapd_recovery_mode=run static cmdline",
 			})
-			return nil
-		case 2:
-			c.Assert(params.ModelParams, HasLen, 1)
-			c.Check(params.KeyFiles, DeepEquals, []string{
-				filepath.Join(boot.InitramfsSeedEncryptionKeyDir, "ubuntu-data.recovery.sealed-key"),
-				filepath.Join(boot.InitramfsSeedEncryptionKeyDir, "ubuntu-save.recovery.sealed-key"),
-			})
-			c.Assert(params.ModelParams[0].KernelCmdlines, DeepEquals, []string{
-				"snapd_recovery_mode=factory-reset snapd_recovery_system=20200825 static cmdline",
+
+			c.Assert(params.RecoveryBootChains, HasLen, 1)
+			recoveryBootChain := params.RecoveryBootChains[0]
+			c.Check(recoveryBootChain.KernelCmdlines, DeepEquals, []string{
 				"snapd_recovery_mode=recover snapd_recovery_system=20200825 static cmdline",
+				"snapd_recovery_mode=factory-reset snapd_recovery_system=20200825 static cmdline",
 			})
-			return nil
 		default:
-			c.Errorf("unexpected call to secboot.ResealKeys with count %v", resealCalls)
+			c.Errorf("unexpected call to ResealKeyForBootChains with count %v", resealCalls)
 			return fmt.Errorf("unexpected call")
 		}
+		return nil
 	})
 	defer restore()
 
@@ -319,7 +323,7 @@ func (s *systemsSuite) TestSetTryRecoverySystemRemodelEncrypted(c *C) {
 		"recovery_system_status": "try",
 	})
 	// run and recovery keys
-	c.Check(resealCalls, Equals, 2)
+	c.Check(resealCalls, Equals, 1)
 	c.Check(readSeedSeenLabels, DeepEquals, []string{
 		"20200825", "1234", // current recovery systems for run key and current model from modeenv
 		"20200825", "1234", // current recovery systems for run key and try model from modeenv
@@ -371,7 +375,7 @@ func (s *systemsSuite) TestSetTryRecoverySystemSimple(c *C) {
 	}
 	c.Assert(modeenv.WriteTo(""), IsNil)
 
-	restore := boot.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error {
+	restore := boot.MockResealKeyForBootChains(func(unlocker boot.Unlocker, method device.SealingMethod, rootdir string, params *boot.ResealKeyForBootChainsParams, expectReseal bool) error {
 		return fmt.Errorf("unexpected call")
 	})
 	s.AddCleanup(restore)
@@ -412,7 +416,7 @@ func (s *systemsSuite) TestSetTryRecoverySystemSetBootVarsErr(c *C) {
 	}
 	c.Assert(modeenv.WriteTo(""), IsNil)
 
-	restore := boot.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error {
+	restore := boot.MockResealKeyForBootChains(func(unlocker boot.Unlocker, method device.SealingMethod, rootdir string, params *boot.ResealKeyForBootChainsParams, expectReseal bool) error {
 		return fmt.Errorf("unexpected call")
 	})
 	s.AddCleanup(restore)
@@ -451,7 +455,7 @@ func (s *systemsSuite) TestSetTryRecoverySystemSetBootVarsErr(c *C) {
 }
 
 func (s *systemsSuite) TestSetTryRecoverySystemCleanupOnErrorBeforeReseal(c *C) {
-	mockAssetsCache(c, s.rootdir, "trusted", []string{
+	boottest.MockAssetsCache(c, s.rootdir, "trusted", []string{
 		"asset-asset-hash-1",
 	})
 
@@ -523,7 +527,7 @@ func (s *systemsSuite) TestSetTryRecoverySystemCleanupOnErrorBeforeReseal(c *C) 
 	defer restore()
 
 	resealCalls := 0
-	restore = boot.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error {
+	restore = boot.MockResealKeyForBootChains(func(unlocker boot.Unlocker, method device.SealingMethod, rootdir string, params *boot.ResealKeyForBootChainsParams, expectReseal bool) error {
 		resealCalls++
 		if cleanupTriggered {
 			return nil
@@ -538,7 +542,7 @@ func (s *systemsSuite) TestSetTryRecoverySystemCleanupOnErrorBeforeReseal(c *C) 
 	// failed after the call to read the 'try' system seed
 	c.Check(readSeedCalls, Equals, 4)
 	// called twice during cleanup for run and recovery keys
-	c.Check(resealCalls, Equals, 2)
+	c.Check(resealCalls, Equals, 1)
 
 	modeenvRead, err := boot.ReadModeenv("")
 	c.Assert(err, IsNil)
@@ -554,7 +558,7 @@ func (s *systemsSuite) TestSetTryRecoverySystemCleanupOnErrorBeforeReseal(c *C) 
 }
 
 func (s *systemsSuite) TestSetTryRecoverySystemCleanupOnErrorAfterReseal(c *C) {
-	mockAssetsCache(c, s.rootdir, "trusted", []string{
+	boottest.MockAssetsCache(c, s.rootdir, "trusted", []string{
 		"asset-asset-hash-1",
 	})
 
@@ -632,14 +636,12 @@ func (s *systemsSuite) TestSetTryRecoverySystemCleanupOnErrorAfterReseal(c *C) {
 	defer restore()
 
 	resealCalls := 0
-	restore = boot.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error {
+	restore = boot.MockResealKeyForBootChains(func(unlocker boot.Unlocker, method device.SealingMethod, rootdir string, params *boot.ResealKeyForBootChainsParams, expectReseal bool) error {
 		resealCalls++
 		switch resealCalls {
 		case 1:
-			// attempt to reseal the run key
 			return fmt.Errorf("reseal fails")
-		case 2, 3:
-			// reseal of run and recovery keys
+		case 2:
 			return nil
 		default:
 			return fmt.Errorf("unexpected call")
@@ -649,13 +651,13 @@ func (s *systemsSuite) TestSetTryRecoverySystemCleanupOnErrorAfterReseal(c *C) {
 	defer restore()
 
 	err := boot.SetTryRecoverySystem(s.uc20dev, "1234")
-	c.Assert(err, ErrorMatches, "cannot reseal the encryption key: reseal fails")
+	c.Assert(err, ErrorMatches, "reseal fails")
 
 	// failed after the call to read the 'try' system seed
 	c.Check(readSeedCalls, Equals, 5)
 	// called 3 times, once when mocked failure occurs, twice during cleanup
 	// for run and recovery keys
-	c.Check(resealCalls, Equals, 3)
+	c.Check(resealCalls, Equals, 2)
 
 	modeenvRead, err := boot.ReadModeenv("")
 	c.Assert(err, IsNil)
@@ -671,7 +673,7 @@ func (s *systemsSuite) TestSetTryRecoverySystemCleanupOnErrorAfterReseal(c *C) {
 }
 
 func (s *systemsSuite) TestSetTryRecoverySystemCleanupError(c *C) {
-	mockAssetsCache(c, s.rootdir, "trusted", []string{
+	boottest.MockAssetsCache(c, s.rootdir, "trusted", []string{
 		"asset-asset-hash-1",
 	})
 
@@ -735,13 +737,12 @@ func (s *systemsSuite) TestSetTryRecoverySystemCleanupError(c *C) {
 	defer restore()
 
 	resealCalls := 0
-	restore = boot.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error {
+	restore = boot.MockResealKeyForBootChains(func(unlocker boot.Unlocker, method device.SealingMethod, rootdir string, params *boot.ResealKeyForBootChainsParams, expectReseal bool) error {
 		resealCalls++
 		switch resealCalls {
 		case 1:
 			return fmt.Errorf("reseal fails")
-		case 2, 3:
-			// reseal of run and recovery keys
+		case 2:
 			return fmt.Errorf("reseal in cleanup fails too")
 		default:
 			return fmt.Errorf("unexpected call")
@@ -751,7 +752,7 @@ func (s *systemsSuite) TestSetTryRecoverySystemCleanupError(c *C) {
 	defer restore()
 
 	err := boot.SetTryRecoverySystem(s.uc20dev, "1234")
-	c.Assert(err, ErrorMatches, `cannot reseal the encryption key: reseal fails \(cleanup failed: cannot reseal the encryption key: reseal in cleanup fails too\)`)
+	c.Assert(err, ErrorMatches, `reseal fails \(cleanup failed: reseal in cleanup fails too\)`)
 
 	// failed after the call to read the 'try' system seed
 	c.Check(readSeedCalls, Equals, 5)
@@ -783,7 +784,7 @@ func (s *systemsSuite) testInspectRecoverySystemOutcomeHappy(c *C, mtbl *bootloa
 	})
 	defer restore()
 
-	restore = boot.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error {
+	restore = boot.MockResealKeyForBootChains(func(unlocker boot.Unlocker, method device.SealingMethod, rootdir string, params *boot.ResealKeyForBootChainsParams, expectReseal bool) error {
 		return fmt.Errorf("unexpected call")
 	})
 	defer restore()
@@ -927,7 +928,7 @@ type clearRecoverySystemTestCase struct {
 }
 
 func (s *systemsSuite) testClearRecoverySystem(c *C, mtbl *bootloadertest.MockTrustedAssetsBootloader, tc clearRecoverySystemTestCase) {
-	mockAssetsCache(c, s.rootdir, "trusted", []string{
+	boottest.MockAssetsCache(c, s.rootdir, "trusted", []string{
 		"asset-asset-hash-1",
 	})
 
@@ -979,28 +980,26 @@ func (s *systemsSuite) testClearRecoverySystem(c *C, mtbl *bootloadertest.MockTr
 	defer restore()
 
 	resealCalls := 0
-	restore = boot.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error {
+	restore = boot.MockResealKeyForBootChains(func(unlocker boot.Unlocker, method device.SealingMethod, rootdir string, params *boot.ResealKeyForBootChainsParams, expectReseal bool) error {
 		resealCalls++
-		c.Assert(params, NotNil)
-		c.Assert(params.ModelParams, HasLen, 1)
 		switch resealCalls {
 		case 1:
-			c.Check(params.KeyFiles, DeepEquals, []string{
-				filepath.Join(boot.InitramfsBootEncryptionKeyDir, "ubuntu-data.sealed-key"),
+			c.Assert(params.RecoveryBootChainsForRunKey, HasLen, 1)
+			recoveryRunBootChain := params.RecoveryBootChainsForRunKey[0]
+			c.Check(recoveryRunBootChain.KernelCmdlines, DeepEquals, []string{
+				"snapd_recovery_mode=recover snapd_recovery_system=20200825 static cmdline",
+				"snapd_recovery_mode=factory-reset snapd_recovery_system=20200825 static cmdline",
+			})
+
+			c.Assert(params.RecoveryBootChains, HasLen, 1)
+			recoveryBootChain := params.RecoveryBootChains[0]
+			c.Check(recoveryBootChain.KernelCmdlines, DeepEquals, []string{
+				"snapd_recovery_mode=recover snapd_recovery_system=20200825 static cmdline",
+				"snapd_recovery_mode=factory-reset snapd_recovery_system=20200825 static cmdline",
 			})
 			return tc.resealErr
-		case 2:
-			c.Check(params.KeyFiles, DeepEquals, []string{
-				filepath.Join(boot.InitramfsSeedEncryptionKeyDir, "ubuntu-data.recovery.sealed-key"),
-				filepath.Join(boot.InitramfsSeedEncryptionKeyDir, "ubuntu-save.recovery.sealed-key"),
-			})
-			c.Assert(params.ModelParams[0].KernelCmdlines, DeepEquals, []string{
-				"snapd_recovery_mode=factory-reset snapd_recovery_system=20200825 static cmdline",
-				"snapd_recovery_mode=recover snapd_recovery_system=20200825 static cmdline",
-			})
-			return nil
 		default:
-			c.Errorf("unexpected call to secboot.ResealKeys with count %v", resealCalls)
+			c.Errorf("unexpected call to ResealKeyForBootChains with count %v", resealCalls)
 			return fmt.Errorf("unexpected call")
 		}
 	})
@@ -1015,13 +1014,7 @@ func (s *systemsSuite) testClearRecoverySystem(c *C, mtbl *bootloadertest.MockTr
 
 	// only one seed system accessed
 	c.Check(readSeedSeenLabels, DeepEquals, []string{"20200825", "20200825"})
-	if tc.resealErr == nil {
-		// called twice, for run and recovery keys
-		c.Check(resealCalls, Equals, 2)
-	} else {
-		// fails on run key
-		c.Check(resealCalls, Equals, 1)
-	}
+	c.Check(resealCalls, Equals, 1)
 
 	modeenvRead, err := boot.ReadModeenv("")
 	c.Assert(err, IsNil)
@@ -1163,7 +1156,7 @@ func (s *systemsSuite) TestClearRecoverySystemResealFails(c *C) {
 	s.testClearRecoverySystem(c, mtbl, clearRecoverySystemTestCase{
 		systemLabel: "1234",
 		resealErr:   fmt.Errorf("reseal fails"),
-		expectedErr: "cannot reseal the encryption key: reseal fails",
+		expectedErr: "reseal fails",
 	})
 	// bootloader variables have been cleared
 	vars, err := mtbl.GetBootVars("try_recovery_system", "recovery_system_status")
@@ -1200,7 +1193,7 @@ func (s *systemsSuite) TestClearRecoverySystemReboot(c *C) {
 	err := mtbl.SetBootVars(setVars)
 	c.Assert(err, IsNil)
 
-	mockAssetsCache(c, s.rootdir, "trusted", []string{
+	boottest.MockAssetsCache(c, s.rootdir, "trusted", []string{
 		"asset-asset-hash-1",
 	})
 
@@ -1242,32 +1235,20 @@ func (s *systemsSuite) TestClearRecoverySystemReboot(c *C) {
 	defer restore()
 
 	resealCalls := 0
-	restore = boot.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error {
+	restore = boot.MockResealKeyForBootChains(func(unlocker boot.Unlocker, method device.SealingMethod, rootdir string, params *boot.ResealKeyForBootChainsParams, expectReseal bool) error {
 		resealCalls++
-		c.Assert(params, NotNil)
-		c.Assert(params.ModelParams, HasLen, 1)
 		switch resealCalls {
 		case 1:
-			c.Check(params.KeyFiles, DeepEquals, []string{
-				filepath.Join(boot.InitramfsBootEncryptionKeyDir, "ubuntu-data.sealed-key"),
-			})
 			panic("reseal panic")
 		case 2:
-			c.Check(params.KeyFiles, DeepEquals, []string{
-				filepath.Join(boot.InitramfsBootEncryptionKeyDir, "ubuntu-data.sealed-key"),
-			})
-			return nil
-		case 3:
-			c.Check(params.KeyFiles, DeepEquals, []string{
-				filepath.Join(boot.InitramfsSeedEncryptionKeyDir, "ubuntu-data.recovery.sealed-key"),
-				filepath.Join(boot.InitramfsSeedEncryptionKeyDir, "ubuntu-save.recovery.sealed-key"),
-			})
-			c.Assert(params.ModelParams[0].KernelCmdlines, DeepEquals, []string{
+			c.Assert(params.RecoveryBootChains, HasLen, 1)
+			recoveryBootChain := params.RecoveryBootChains[0]
+			c.Check(recoveryBootChain.KernelCmdlines, DeepEquals, []string{
 				"snapd_recovery_mode=recover snapd_recovery_system=20200825 static cmdline",
 			})
 			return nil
 		default:
-			c.Errorf("unexpected call to secboot.ResealKeys with count %v", resealCalls)
+			c.Errorf("unexpected call to ResealKeyForBootChains with count %v", resealCalls)
 			return fmt.Errorf("unexpected call")
 
 		}
@@ -1334,7 +1315,7 @@ type recoverySystemGoodTestCase struct {
 
 func (s *systemsSuite) testPromoteTriedRecoverySystem(c *C, systemLabel string, tc recoverySystemGoodTestCase) {
 	mtbl := s.mockTrustedBootloaderWithAssetAndChains(c, s.runKernelBf, s.recoveryKernelBf)
-	mockAssetsCache(c, s.rootdir, "trusted", []string{
+	boottest.MockAssetsCache(c, s.rootdir, "trusted", []string{
 		"asset-asset-hash-1",
 	})
 
@@ -1384,64 +1365,57 @@ func (s *systemsSuite) testPromoteTriedRecoverySystem(c *C, systemLabel string, 
 	defer restore()
 
 	resealCalls := 0
-	restore = boot.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error {
+	restore = boot.MockResealKeyForBootChains(func(unlocker boot.Unlocker, method device.SealingMethod, rootdir string, params *boot.ResealKeyForBootChainsParams, expectReseal bool) error {
 		resealCalls++
-		c.Assert(params, NotNil)
-		c.Assert(params.ModelParams, HasLen, 1)
 		switch resealCalls {
 		case 1:
-			c.Check(params.KeyFiles, DeepEquals, []string{
-				filepath.Join(boot.InitramfsBootEncryptionKeyDir, "ubuntu-data.sealed-key"),
-			})
-			c.Assert(params.ModelParams[0].KernelCmdlines, DeepEquals, []string{
-				fmt.Sprintf("snapd_recovery_mode=factory-reset snapd_recovery_system=%s static cmdline", systemLabel),
-				"snapd_recovery_mode=factory-reset snapd_recovery_system=20200825 static cmdline",
-				fmt.Sprintf("snapd_recovery_mode=recover snapd_recovery_system=%s static cmdline", systemLabel),
+			c.Assert(params.RecoveryBootChainsForRunKey, HasLen, 2)
+			recoveryRunBootChain := params.RecoveryBootChainsForRunKey[0]
+			c.Check(recoveryRunBootChain.KernelCmdlines, DeepEquals, []string{
 				"snapd_recovery_mode=recover snapd_recovery_system=20200825 static cmdline",
-			})
-			return nil
-		case 2:
-			c.Check(params.KeyFiles, DeepEquals, []string{
-				filepath.Join(boot.InitramfsSeedEncryptionKeyDir, "ubuntu-data.recovery.sealed-key"),
-				filepath.Join(boot.InitramfsSeedEncryptionKeyDir, "ubuntu-save.recovery.sealed-key"),
-			})
-			c.Assert(params.ModelParams[0].KernelCmdlines, DeepEquals, []string{
-				fmt.Sprintf("snapd_recovery_mode=factory-reset snapd_recovery_system=%s static cmdline", systemLabel),
 				"snapd_recovery_mode=factory-reset snapd_recovery_system=20200825 static cmdline",
-				fmt.Sprintf("snapd_recovery_mode=recover snapd_recovery_system=%s static cmdline", systemLabel),
-				"snapd_recovery_mode=recover snapd_recovery_system=20200825 static cmdline",
 			})
+			tryRecoveryRunBootChain := params.RecoveryBootChainsForRunKey[1]
+			c.Check(tryRecoveryRunBootChain.KernelCmdlines, DeepEquals, []string{
+				fmt.Sprintf("snapd_recovery_mode=recover snapd_recovery_system=%s static cmdline", systemLabel),
+				fmt.Sprintf("snapd_recovery_mode=factory-reset snapd_recovery_system=%s static cmdline", systemLabel),
+			})
+
+			c.Assert(params.RecoveryBootChains, HasLen, 2)
+			recoveryBootChain := params.RecoveryBootChains[0]
+			c.Check(recoveryBootChain.KernelCmdlines, DeepEquals, []string{
+				"snapd_recovery_mode=recover snapd_recovery_system=20200825 static cmdline",
+				"snapd_recovery_mode=factory-reset snapd_recovery_system=20200825 static cmdline",
+			})
+			tryRecoveryBootChain := params.RecoveryBootChains[1]
+			c.Check(tryRecoveryBootChain.KernelCmdlines, DeepEquals, []string{
+				fmt.Sprintf("snapd_recovery_mode=recover snapd_recovery_system=%s static cmdline", systemLabel),
+				fmt.Sprintf("snapd_recovery_mode=factory-reset snapd_recovery_system=%s static cmdline", systemLabel),
+			})
+
 			return tc.resealRecoveryKeyErr
-		case 3:
+		case 2:
 			// run key boot chain is unchanged, so only recovery key boot chain is resealed
 			if tc.resealRecoveryKeyErr == nil {
-				c.Errorf("unexpected call to secboot.ResealKeys with count %v", resealCalls)
+				c.Errorf("unexpected call to ResealKeyForBootChains with count %v", resealCalls)
 				return fmt.Errorf("unexpected call")
 			}
-			c.Check(params.KeyFiles, DeepEquals, []string{
-				filepath.Join(boot.InitramfsBootEncryptionKeyDir, "ubuntu-data.sealed-key"),
-			})
-			c.Assert(params.ModelParams[0].KernelCmdlines, DeepEquals, []string{
-				"snapd_recovery_mode=factory-reset snapd_recovery_system=20200825 static cmdline",
+			c.Assert(params.RecoveryBootChainsForRunKey, HasLen, 1)
+			recoveryRunBootChain := params.RecoveryBootChainsForRunKey[0]
+			c.Check(recoveryRunBootChain.KernelCmdlines, DeepEquals, []string{
 				"snapd_recovery_mode=recover snapd_recovery_system=20200825 static cmdline",
-			})
-			return nil
-		case 4:
-			if tc.resealRecoveryKeyErr == nil {
-				c.Errorf("unexpected call to secboot.ResealKeys with count %v", resealCalls)
-				return fmt.Errorf("unexpected call")
-			}
-			c.Check(params.KeyFiles, DeepEquals, []string{
-				filepath.Join(boot.InitramfsSeedEncryptionKeyDir, "ubuntu-data.recovery.sealed-key"),
-				filepath.Join(boot.InitramfsSeedEncryptionKeyDir, "ubuntu-save.recovery.sealed-key"),
-			})
-			c.Assert(params.ModelParams[0].KernelCmdlines, DeepEquals, []string{
 				"snapd_recovery_mode=factory-reset snapd_recovery_system=20200825 static cmdline",
+			})
+
+			c.Assert(params.RecoveryBootChains, HasLen, 1)
+			recoveryBootChain := params.RecoveryBootChains[0]
+			c.Check(recoveryBootChain.KernelCmdlines, DeepEquals, []string{
 				"snapd_recovery_mode=recover snapd_recovery_system=20200825 static cmdline",
+				"snapd_recovery_mode=factory-reset snapd_recovery_system=20200825 static cmdline",
 			})
 			return tc.resealRecoveryKeyDuringCleanupErr
 		default:
-			c.Errorf("unexpected call to secboot.ResealKeys with count %v", resealCalls)
+			c.Errorf("unexpected call to ResealKeyForBootChains with count %v", resealCalls)
 			return fmt.Errorf("unexpected call")
 		}
 	})
@@ -1466,7 +1440,7 @@ func (s *systemsSuite) TestPromoteTriedRecoverySystemHappy(c *C) {
 	s.testPromoteTriedRecoverySystem(c, "1234", recoverySystemGoodTestCase{
 		triedSystems: []string{"1234"},
 
-		resealCalls: 2,
+		resealCalls: 1,
 
 		readSeedSystems: []string{
 			// run key
@@ -1484,7 +1458,7 @@ func (s *systemsSuite) TestPromoteTriedRecoverySystemInCurrent(c *C) {
 	s.testPromoteTriedRecoverySystem(c, "1234", recoverySystemGoodTestCase{
 		triedSystems:            []string{"1234"},
 		systemLabelAddToCurrent: true,
-		resealCalls:             2,
+		resealCalls:             1,
 
 		readSeedSystems: []string{
 			// run key
@@ -1503,7 +1477,7 @@ func (s *systemsSuite) TestPromoteTriedRecoverySystemPresentEverywhere(c *C) {
 		systemLabelAddToCurrent: true,
 		systemLabelAddToGood:    true,
 
-		resealCalls: 2,
+		resealCalls: 1,
 
 		readSeedSystems: []string{
 			// run key
@@ -1523,9 +1497,9 @@ func (s *systemsSuite) TestPromoteTriedRecoverySystemResealFails(c *C) {
 		// no failure during cleanup
 		resealRecoveryKeyDuringCleanupErr: nil,
 
-		resealCalls: 4,
+		resealCalls: 2,
 
-		expectedErr: `cannot reseal the fallback encryption keys: recovery key reseal mock failure`,
+		expectedErr: `recovery key reseal mock failure`,
 
 		readSeedSystems: []string{
 			// run key
@@ -1549,9 +1523,9 @@ func (s *systemsSuite) TestPromoteTriedRecoverySystemResealUndoFails(c *C) {
 		resealRecoveryKeyErr:              fmt.Errorf("recovery key reseal mock failure"),
 		resealRecoveryKeyDuringCleanupErr: fmt.Errorf("recovery key reseal mock fail in cleanup"),
 
-		resealCalls: 4,
+		resealCalls: 2,
 
-		expectedErr: `cannot reseal the fallback encryption keys: recovery key reseal mock failure \(cleanup failed: cannot reseal the fallback encryption keys: recovery key reseal mock fail in cleanup\)`,
+		expectedErr: `recovery key reseal mock failure \(cleanup failed: recovery key reseal mock fail in cleanup\)`,
 
 		readSeedSystems: []string{
 			// run key
@@ -1605,7 +1579,7 @@ type recoverySystemDropTestCase struct {
 
 func (s *systemsSuite) testDropRecoverySystem(c *C, systemLabel string, tc recoverySystemDropTestCase) {
 	mtbl := s.mockTrustedBootloaderWithAssetAndChains(c, s.runKernelBf, s.recoveryKernelBf)
-	mockAssetsCache(c, s.rootdir, "trusted", []string{
+	boottest.MockAssetsCache(c, s.rootdir, "trusted", []string{
 		"asset-asset-hash-1",
 	})
 
@@ -1655,32 +1629,26 @@ func (s *systemsSuite) testDropRecoverySystem(c *C, systemLabel string, tc recov
 	defer restore()
 
 	resealCalls := 0
-	restore = boot.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error {
+	restore = boot.MockResealKeyForBootChains(func(unlocker boot.Unlocker, method device.SealingMethod, rootdir string, params *boot.ResealKeyForBootChainsParams, expectReseal bool) error {
 		resealCalls++
-		c.Assert(params, NotNil)
-		c.Assert(params.ModelParams, HasLen, 1)
 		switch resealCalls {
 		case 1:
-			c.Check(params.KeyFiles, DeepEquals, []string{
-				filepath.Join(boot.InitramfsBootEncryptionKeyDir, "ubuntu-data.sealed-key"),
-			})
-			c.Assert(params.ModelParams[0].KernelCmdlines, DeepEquals, []string{
-				"snapd_recovery_mode=factory-reset snapd_recovery_system=20200825 static cmdline",
+			c.Assert(params.RecoveryBootChainsForRunKey, HasLen, 1)
+			recoveryRunBootChain := params.RecoveryBootChainsForRunKey[0]
+			c.Check(recoveryRunBootChain.KernelCmdlines, DeepEquals, []string{
 				"snapd_recovery_mode=recover snapd_recovery_system=20200825 static cmdline",
-			})
-			return nil
-		case 2:
-			c.Check(params.KeyFiles, DeepEquals, []string{
-				filepath.Join(boot.InitramfsSeedEncryptionKeyDir, "ubuntu-data.recovery.sealed-key"),
-				filepath.Join(boot.InitramfsSeedEncryptionKeyDir, "ubuntu-save.recovery.sealed-key"),
-			})
-			c.Assert(params.ModelParams[0].KernelCmdlines, DeepEquals, []string{
 				"snapd_recovery_mode=factory-reset snapd_recovery_system=20200825 static cmdline",
+			})
+
+			c.Assert(params.RecoveryBootChains, HasLen, 1)
+			recoveryBootChain := params.RecoveryBootChains[0]
+			c.Check(recoveryBootChain.KernelCmdlines, DeepEquals, []string{
 				"snapd_recovery_mode=recover snapd_recovery_system=20200825 static cmdline",
+				"snapd_recovery_mode=factory-reset snapd_recovery_system=20200825 static cmdline",
 			})
 			return tc.resealRecoveryKeyErr
 		default:
-			c.Errorf("unexpected call to secboot.ResealKeys with count %v", resealCalls)
+			c.Errorf("unexpected call to ResealKeyForBootChains with count %v", resealCalls)
 			return fmt.Errorf("unexpected call")
 		}
 	})
@@ -1706,7 +1674,7 @@ func (s *systemsSuite) TestDropRecoverySystemHappy(c *C) {
 	s.testDropRecoverySystem(c, "1234", recoverySystemDropTestCase{
 		systemLabelAddToCurrent: true,
 		systemLabelAddToGood:    true,
-		resealCalls:             2,
+		resealCalls:             1,
 
 		expectedGoodSystemsList:    []string{"20200825"},
 		expectedCurrentSystemsList: []string{"20200825"},
@@ -1717,7 +1685,7 @@ func (s *systemsSuite) TestDropRecoverySystemAlreadyGoneFromBoth(c *C) {
 	s.testDropRecoverySystem(c, "1234", recoverySystemDropTestCase{
 		systemLabelAddToCurrent: false,
 		systemLabelAddToGood:    false,
-		resealCalls:             2,
+		resealCalls:             1,
 
 		expectedGoodSystemsList:    []string{"20200825"},
 		expectedCurrentSystemsList: []string{"20200825"},
@@ -1728,7 +1696,7 @@ func (s *systemsSuite) TestDropRecoverySystemAlreadyGoneOne(c *C) {
 	s.testDropRecoverySystem(c, "1234", recoverySystemDropTestCase{
 		systemLabelAddToCurrent: true,
 		systemLabelAddToGood:    false,
-		resealCalls:             2,
+		resealCalls:             1,
 
 		expectedGoodSystemsList:    []string{"20200825"},
 		expectedCurrentSystemsList: []string{"20200825"},
@@ -1739,9 +1707,9 @@ func (s *systemsSuite) TestDropRecoverySystemResealErr(c *C) {
 	s.testDropRecoverySystem(c, "1234", recoverySystemDropTestCase{
 		systemLabelAddToCurrent: true,
 		systemLabelAddToGood:    false,
-		resealCalls:             2,
+		resealCalls:             1,
 		resealRecoveryKeyErr:    fmt.Errorf("mocked error"),
-		expectedErr:             `cannot reseal the fallback encryption keys: mocked error`,
+		expectedErr:             `mocked error`,
 
 		expectedGoodSystemsList:    []string{"20200825"},
 		expectedCurrentSystemsList: []string{"20200825"},

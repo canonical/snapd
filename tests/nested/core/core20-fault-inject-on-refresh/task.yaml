@@ -44,7 +44,15 @@ environment:
     FAULT/kernel_reboot_refresh_gadget_assets: reboot
     TAG/gadget_reboot_refresh_gadget_assets: refresh-gadget-assets
     FAULT/gadget_reboot_refresh_gadget_assets: reboot
-    
+
+    # refresh from store might get some kernel that have an old
+    # initrd. The problem is that a new snapd in seed may require a
+    # new initrd. For instance when adding a new format of key in FDE.
+    # TODO: change it to use fakestore, so we can control all the
+    # snaps we use.
+    NESTED_ENABLE_SECURE_BOOT: false
+    NESTED_ENABLE_TPM: false
+
 prepare: |
     # automatically cleaned up in restore
     echo "Inject a $FAULT on $TAG"

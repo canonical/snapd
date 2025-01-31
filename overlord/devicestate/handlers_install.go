@@ -45,6 +45,7 @@ import (
 	"github.com/snapcore/snapd/kernel"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/osutil/disks"
 	installLogic "github.com/snapcore/snapd/overlord/install"
 	"github.com/snapcore/snapd/overlord/restart"
 	"github.com/snapcore/snapd/overlord/snapstate"
@@ -66,6 +67,7 @@ var (
 	bootMakeRunnableAfterDataReset       = boot.MakeRunnableSystemAfterDataReset
 	bootEnsureNextBootToRunMode          = boot.EnsureNextBootToRunMode
 	bootMakeRecoverySystemBootable       = boot.MakeRecoverySystemBootable
+	disksDMCryptUUIDFromMountPoint       = disks.DMCryptUUIDFromMountPoint
 	installRun                           = install.Run
 	installFactoryReset                  = install.FactoryReset
 	installMountVolumes                  = install.MountVolumes
@@ -75,6 +77,8 @@ var (
 	installMatchDisksToGadgetVolumes     = install.MatchDisksToGadgetVolumes
 	secbootStageEncryptionKeyChange      = secboot.StageEncryptionKeyChange
 	secbootTransitionEncryptionKeyChange = secboot.TransitionEncryptionKeyChange
+	secbootTemporaryNameOldKeys          = secboot.TemporaryNameOldKeys
+	secbootRemoveOldCounterHandles       = secboot.RemoveOldCounterHandles
 
 	installLogicPrepareRunSystemData = installLogic.PrepareRunSystemData
 )
@@ -231,7 +235,7 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 	}
 	kernelDir := kernelInfo.MountDir()
 
-	modeEnv, err := maybeReadModeenv()
+	modeEnv, err := boot.MaybeReadModeenv()
 	if err != nil {
 		return err
 	}
@@ -248,7 +252,7 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 	bopts.EncryptionType = encryptionType
-	useEncryption := (encryptionType != secboot.EncryptionTypeNone)
+	useEncryption := (encryptionType != device.EncryptionTypeNone)
 
 	model := deviceCtx.Model()
 
@@ -306,7 +310,7 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	if useEncryption {
-		if err := installLogic.PrepareEncryptedSystemData(model, installedSystem.KeyForRole, trustedInstallObserver); err != nil {
+		if err := installLogic.PrepareEncryptedSystemData(model, installedSystem.BootstrappedContainerForRole, trustedInstallObserver); err != nil {
 			return err
 		}
 	}
@@ -363,7 +367,7 @@ func (m *DeviceManager) doRestartSystemToRunMode(t *state.Task, _ *tomb.Tomb) er
 	perfTimings := state.TimingsForTask(t)
 	defer perfTimings.Save(st)
 
-	modeEnv, err := maybeReadModeenv()
+	modeEnv, err := boot.MaybeReadModeenv()
 	if err != nil {
 		return err
 	}
@@ -497,7 +501,7 @@ func (m *DeviceManager) doFactoryResetRunSystem(t *state.Task, _ *tomb.Tomb) err
 	}
 	kernelDir := kernelInfo.MountDir()
 
-	modeEnv, err := maybeReadModeenv()
+	modeEnv, err := boot.MaybeReadModeenv()
 	if err != nil {
 		return err
 	}
@@ -514,7 +518,7 @@ func (m *DeviceManager) doFactoryResetRunSystem(t *state.Task, _ *tomb.Tomb) err
 		return err
 	}
 	bopts.EncryptionType = encryptionType
-	useEncryption := (encryptionType != secboot.EncryptionTypeNone)
+	useEncryption := (encryptionType != device.EncryptionTypeNone)
 	hasMarker := device.HasEncryptedMarkerUnder(boot.InstallHostFDESaveDir)
 	// TODO verify that the same encryption mechanism is used
 	if hasMarker != useEncryption {
@@ -616,24 +620,24 @@ func (m *DeviceManager) doFactoryResetRunSystem(t *state.Task, _ *tomb.Tomb) err
 			return fmt.Errorf("cannot remove recovery key: %v", err)
 		}
 
-		// new encryption key for save
-		saveEncryptionKey, err := keys.NewEncryptionKey()
-		if err != nil {
-			return fmt.Errorf("cannot create encryption key: %v", err)
-		}
-
 		saveNode := installedSystem.DeviceForRole[gadget.SystemSave]
 		if saveNode == "" {
 			return fmt.Errorf("internal error: no system-save device")
 		}
 
-		if err := secbootStageEncryptionKeyChange(saveNode, saveEncryptionKey); err != nil {
-			return fmt.Errorf("cannot change encryption keys: %v", err)
+		uuid, err := disks.FilesystemUUID(saveNode)
+		if err != nil {
+			return fmt.Errorf("cannot find uuid for partition %s: %v", saveNode, err)
 		}
-		// keep track of the new ubuntu-save encryption key
-		installedSystem.KeyForRole[gadget.SystemSave] = saveEncryptionKey
+		saveNode = fmt.Sprintf("/dev/disk/by-uuid/%s", uuid)
 
-		if err := installLogic.PrepareEncryptedSystemData(model, installedSystem.KeyForRole, trustedInstallObserver); err != nil {
+		saveBoostrapContainer, err := createSaveBootstrappedContainer(saveNode)
+		if err != nil {
+			return err
+		}
+		installedSystem.BootstrappedContainerForRole[gadget.SystemSave] = saveBoostrapContainer
+
+		if err := installLogic.PrepareEncryptedSystemData(model, installedSystem.BootstrappedContainerForRole, trustedInstallObserver); err != nil {
 			return err
 		}
 	}
@@ -861,18 +865,6 @@ func verifyFactoryResetMarkerInRun(marker string, hasEncryption bool) error {
 	return nil
 }
 
-func rotateEncryptionKeys() error {
-	kd, err := os.ReadFile(filepath.Join(dirs.SnapFDEDir, "ubuntu-save.key"))
-	if err != nil {
-		return fmt.Errorf("cannot open encryption key file: %v", err)
-	}
-	// does the right thing if the key has already been transitioned
-	if err := secbootTransitionEncryptionKeyChange(boot.InitramfsUbuntuSaveDir, keys.EncryptionKey(kd)); err != nil {
-		return fmt.Errorf("cannot transition the encryption key: %v", err)
-	}
-	return nil
-}
-
 type encryptionSetupDataKey struct {
 	systemLabel string
 }
@@ -1061,10 +1053,10 @@ func (m *DeviceManager) doInstallFinish(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	encType := secboot.EncryptionTypeNone
-	// TODO:ICE: support secboot.EncryptionTypeLUKSWithICE in the API
+	encType := device.EncryptionTypeNone
+	// TODO:ICE: support device.EncryptionTypeLUKSWithICE in the API
 	if useEncryption {
-		encType = secboot.EncryptionTypeLUKS
+		encType = device.EncryptionTypeLUKS
 	}
 	kernMntPoint := mntPtForType[snap.TypeKernel]
 	allLaidOutVols, err := gadget.LaidOutVolumesFromGadget(mergedVols,
@@ -1144,7 +1136,7 @@ func (m *DeviceManager) doInstallFinish(t *state.Task, _ *tomb.Tomb) error {
 
 	if useEncryption {
 		if trustedInstallObserver != nil {
-			if err := installLogic.PrepareEncryptedSystemData(systemAndSnaps.Model, install.KeysForRole(encryptSetupData), trustedInstallObserver); err != nil {
+			if err := installLogic.PrepareEncryptedSystemData(systemAndSnaps.Model, install.BootstrappedContainersForRole(encryptSetupData), trustedInstallObserver); err != nil {
 				return err
 			}
 		}
@@ -1209,6 +1201,10 @@ func (m *DeviceManager) doInstallFinish(t *state.Task, _ *tomb.Tomb) error {
 	return nil
 }
 
+type volumesAuthOptionsKey struct {
+	systemLabel string
+}
+
 func (m *DeviceManager) doInstallSetupStorageEncryption(t *state.Task, _ *tomb.Tomb) error {
 	st := t.State()
 	st.Lock()
@@ -1226,6 +1222,22 @@ func (m *DeviceManager) doInstallSetupStorageEncryption(t *state.Task, _ *tomb.T
 		return err
 	}
 	logger.Debugf("install-setup-storage-encryption for %q on %v", systemLabel, onVolumes)
+	var volumesAuthRequired bool
+	if err := t.Get("volumes-auth-required", &volumesAuthRequired); err != nil && !errors.Is(err, state.ErrNoState) {
+		return err
+	}
+	var volumesAuth *device.VolumesAuthOptions
+	if volumesAuthRequired {
+		cached := st.Cached(volumesAuthOptionsKey{systemLabel})
+		if cached == nil {
+			return errors.New("volumes authentication is required but cannot find corresponding cached options")
+		}
+		var ok bool
+		volumesAuth, ok = cached.(*device.VolumesAuthOptions)
+		if !ok {
+			return fmt.Errorf("internal error: wrong data type under volumesAuthOptionsKey")
+		}
+	}
 
 	systemAndSeeds, mntPtForType, _, unmount, err := m.loadAndMountSystemLabelSnapsUnlock(
 		st, systemLabel, []snap.Type{snap.TypeKernel, snap.TypeBase, snap.TypeGadget})
@@ -1258,9 +1270,9 @@ func (m *DeviceManager) doInstallSetupStorageEncryption(t *state.Task, _ *tomb.T
 		return fmt.Errorf("encryption unavailable on this device: %v", whyStr)
 	}
 
-	// TODO:ICE: support secboot.EncryptionTypeLUKSWithICE in the API
-	encType := secboot.EncryptionTypeLUKS
-	encryptionSetupData, err := installEncryptPartitions(onVolumes, encType, systemAndSeeds.Model, mntPtForType[snap.TypeGadget], mntPtForType[snap.TypeKernel], perfTimings)
+	// TODO:ICE: support device.EncryptionTypeLUKSWithICE in the API
+	encType := device.EncryptionTypeLUKS
+	encryptionSetupData, err := installEncryptPartitions(onVolumes, volumesAuth, encType, systemAndSeeds.Model, mntPtForType[snap.TypeGadget], mntPtForType[snap.TypeKernel], perfTimings)
 	if err != nil {
 		return err
 	}
@@ -1274,5 +1286,136 @@ func (m *DeviceManager) doInstallSetupStorageEncryption(t *state.Task, _ *tomb.T
 
 	st.Cache(encryptionSetupDataKey{systemLabel}, encryptionSetupData)
 
+	return nil
+}
+
+var (
+	secbootAddBootstrapKeyOnExistingDisk = secboot.AddBootstrapKeyOnExistingDisk
+	secbootRenameKeys                    = secboot.RenameKeys
+	secbootCreateBootstrappedContainer   = secboot.CreateBootstrappedContainer
+	secbootDeleteKeys                    = secboot.DeleteKeys
+	secbootDeleteOldKeys                 = secboot.DeleteOldKeys
+)
+
+func createSaveBootstrappedContainer(saveNode string) (secboot.BootstrappedContainer, error) {
+	// new encryption key for save
+	saveEncryptionKey, err := keys.NewEncryptionKey()
+	if err != nil {
+		return nil, fmt.Errorf("cannot create encryption key: %v", err)
+	}
+
+	// In order to manipulate the LUKS2 container, we need a
+	// bootstrap key. This key will be removed with
+	// secboot.BootstrappedContainer.RemoveBootstrapKey at the end
+	// of secboot.SealKeyToModeenv
+	if err := secbootAddBootstrapKeyOnExistingDisk(saveNode, saveEncryptionKey); err != nil {
+		return nil, err
+	}
+
+	// We cannot remove keys until we have completed the factory
+	// reset. Otherwise if we lose power during the reset, we
+	// might not be able to unlock the save partitions anymore.
+	// However, we cannot have multiple keys with the same
+	// name. So we need to rename the existing keys that we are
+	// going to create.
+	//
+	// FIXME: If we crash and reboot, and re-run factory reset,
+	// there will be already some old key saved. In that case, we
+	// need to keep those old keys and remove the new ones.  But
+	// we should also verify what keys we used from the
+	//
+	// FIXME: Do we maybe need to only save the default-fallback
+	// key and delete the default key? The default key will not be
+	// able to be used since we re created the data disk.
+	renames := map[string]string{
+		"default":          "factory-reset-old",
+		"default-fallback": "factory-reset-old-fallback",
+	}
+	// Temporarily rename keyslots across the factory reset to
+	// allow to create the new ones.
+	if err := secbootRenameKeys(saveNode, renames); err != nil {
+		return nil, fmt.Errorf("cannot rename existing keys: %w", err)
+	}
+
+	// Deal as needed instead with naming unamed keyslots, they
+	// will be removed at the end of factory reset.
+	if err := secbootTemporaryNameOldKeys(saveNode); err != nil {
+		return nil, fmt.Errorf("cannot convert old keys: %w", err)
+	}
+
+	return secbootCreateBootstrappedContainer(secboot.DiskUnlockKey(saveEncryptionKey), saveNode), nil
+}
+
+
+// rotateSaveKeyAndDeleteOldKeys removes old keys that were used in previous installation after successful factory reset.
+//  - Rotate ubuntu-save recovery key files: replace
+//    ubuntu-save.recovery.sealed-key with
+//    ubuntu-save.recovery.sealed-key.factory-reset which we have
+//    successfully used during factory reset.
+//  - Remove factory-reset-* keyslots.
+//  - Release TPM handles used by the removed keys.
+func rotateSaveKeyAndDeleteOldKeys(saveMntPnt string) error {
+	hasHook, err := boot.HasFDESetupHook(nil)
+	if err != nil {
+		logger.Noticef("WARNING: cannot determine whether FDE hooks are in use: %v", err)
+		hasHook = false
+	}
+
+	uuid, err := disksDMCryptUUIDFromMountPoint(saveMntPnt)
+	if err != nil {
+		return fmt.Errorf("cannot find save partition: %v", err)
+	}
+
+	diskPath := filepath.Join("/dev/disk/by-uuid", uuid)
+
+	oldPossiblyTPMKeySlots := map[string]bool{
+		"factory-reset-old-fallback": true,
+	}
+
+	defaultSaveKey := device.FallbackSaveSealedKeyUnder(boot.InitramfsSeedEncryptionKeyDir)
+	saveFallbackKeyFactory := device.FactoryResetFallbackSaveSealedKeyUnder(boot.InitramfsSeedEncryptionKeyDir)
+
+	var oldKeys []string
+	renameKey := false
+	// If the fallback save key exists, then it is the new
+	// key. That means the default save key is the old save key
+	// that needs to be removed.
+	if osutil.FileExists(saveFallbackKeyFactory) {
+		oldKeys = append(oldKeys, defaultSaveKey)
+		renameKey = true
+	}
+
+	err = secbootRemoveOldCounterHandles(
+		diskPath,
+		oldPossiblyTPMKeySlots,
+		oldKeys,
+		hasHook,
+	)
+	if err != nil {
+		return fmt.Errorf("could not clean up old counter handles: %v", err)
+	}
+
+	if renameKey {
+		if err := os.Rename(saveFallbackKeyFactory, defaultSaveKey); err != nil {
+			return fmt.Errorf("cannot rotate fallback key: %v", err)
+		}
+	}
+
+	oldKeySlots := map[string]bool{
+		"factory-reset-old":          true,
+		"factory-reset-old-fallback": true,
+	}
+
+	// DeleteKeys will remove the keys that were renamed from the
+	// previous installation
+	if err := secbootDeleteKeys(diskPath, oldKeySlots); err != nil {
+		return fmt.Errorf("cannot delete previous keys: %w", err)
+	}
+	// DeleteOldKeys will remove the keys that were named by
+	// TemporaryNameOldKeys from an old disk that did not have names on
+	// keys.
+	if err := secbootDeleteOldKeys(diskPath); err != nil {
+		return fmt.Errorf("cannot remove old disk keys: %w", err)
+	}
 	return nil
 }
