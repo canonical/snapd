@@ -120,9 +120,19 @@ func NoGuardDebugf(format string, v ...interface{}) {
 // MockLogger replaces the existing logger with a buffer and returns
 // the log buffer and a restore function.
 func MockLogger() (buf *bytes.Buffer, restore func()) {
+	return mockLogger(&LoggerOptions{})
+}
+
+// MockDebugLogger replaces the existing logger with a buffer and returns
+// the log buffer and a restore function. The logger records debug messages.
+func MockDebugLogger() (buf *bytes.Buffer, restore func()) {
+	return mockLogger(&LoggerOptions{ForceDebug: true})
+}
+
+func mockLogger(opts *LoggerOptions) (buf *bytes.Buffer, restore func()) {
 	buf = &bytes.Buffer{}
 	oldLogger := logger
-	l, err := New(buf, DefaultFlags, &LoggerOptions{})
+	l, err := New(buf, DefaultFlags, opts)
 	if err != nil {
 		panic(err)
 	}
