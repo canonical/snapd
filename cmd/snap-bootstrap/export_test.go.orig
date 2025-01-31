@@ -52,8 +52,6 @@ var (
 	CreateOverlayDirs = createOverlayDirs
 )
 
-type OverlayFsOptions = overlayFsOptions
-type DmVerityOptions = dmVerityOptions
 type SystemdMountOptions = systemdMountOptions
 
 type RecoverDegradedState = recoverDegradedState
@@ -244,14 +242,13 @@ func MockEnsureNextBootToRunMode(f func(systemLabel string) error) (restore func
 	}
 }
 
+<<<<<<< HEAD
 func MockBuildInstallObserver(f func(model *asserts.Model, gadgetDir string, useEncryption bool) (observer gadget.ContentObserver, trustedObserver boot.TrustedAssetsInstallObserver, err error)) (restore func()) {
 	old := installBuildInstallObserver
 	installBuildInstallObserver = f
 	return func() {
 		installBuildInstallObserver = old
-	}
-}
-
+=======
 func MockChangeEncryptionKey(f func(device string, stage, transition bool, key keys.EncryptionKey) error) (restore func()) {
 	old := fdeKeymgrChangeEncryptionKey
 	fdeKeymgrChangeEncryptionKey = f
@@ -265,5 +262,6 @@ func MockOsStdin(r io.Reader) (restore func()) {
 	osStdin = r
 	return func() {
 		osStdin = old
+>>>>>>> cb7f4761c9 (cmd: snap-bootstrap: add fdekeymgr functionality)
 	}
 }
