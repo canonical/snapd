@@ -343,6 +343,19 @@ var (
 type AuxStoreInfo = auxStoreInfo
 type DisabledServices = disabledServices
 
+// snap icon helpers
+var (
+	IconDownloadFilename = iconDownloadFilename
+	IconInstallFilename  = iconInstallFilename
+	LinkSnapIcon         = linkSnapIcon
+	UnlinkSnapIcon       = unlinkSnapIcon
+	DiscardSnapIcon      = discardSnapIcon
+)
+
+func MockStoreDownloadIcon(f func(ctx context.Context, name, targetPath, downloadURL string) error) (restore func()) {
+	return testutil.Mock(&storeDownloadIcon, f)
+}
+
 // link, misc handlers
 var (
 	MissingDisabledServices = missingDisabledServices

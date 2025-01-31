@@ -20,6 +20,9 @@
 package snapstate_test
 
 import (
+	"context"
+	"errors"
+	"fmt"
 	"path/filepath"
 	"time"
 
@@ -29,6 +32,7 @@ import (
 	"github.com/snapcore/snapd/asserts/assertstest"
 	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
@@ -70,6 +74,16 @@ func (s *downloadSnapSuite) SetUpTest(c *C) {
 func (s *downloadSnapSuite) TestDoDownloadSnapCompatibility(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
+
+	restore := snapstate.MockStoreDownloadIcon(func(ctx context.Context, name, targetPath, downloadURL string) error {
+		c.Fatal("should not have called DownloadIcon when no icon URL was present")
+		return nil
+	})
+	defer restore()
+
+	logbuf, restore := logger.MockDebugLogger()
+	defer restore()
+
 	t := s.state.NewTask("download-snap", "test")
 	t.Set("snap-setup", &snapstate.SnapSetup{
 		SideInfo: &snap.SideInfo{
@@ -122,6 +136,187 @@ func (s *downloadSnapSuite) TestDoDownloadSnapCompatibility(c *C) {
 		Channel:  "some-channel",
 	})
 	c.Check(t.Status(), Equals, state.DoneStatus)
+
+	// check that a debug log was recorded because there no icon URL
+	c.Check(logbuf.String(), testutil.Contains, fmt.Sprintf("cannot download snap icon for %q: no icon URL", "foo"))
+}
+
+func (s *downloadSnapSuite) TestDoDownloadSnapCompatibilityWithIcon(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapID := "foo-id"
+	iconURL := "my-icon-url"
+
+	downloadIconCount := 0
+	restore := snapstate.MockStoreDownloadIcon(func(ctx context.Context, name, targetPath, downloadURL string) error {
+		c.Check(name, Equals, "foo")
+		expectedPath := snapstate.IconDownloadFilename(snapID)
+		c.Check(targetPath, Equals, expectedPath)
+		c.Check(downloadURL, Equals, iconURL)
+
+		downloadIconCount++
+		return nil
+	})
+	defer restore()
+
+	logbuf, restore := logger.MockDebugLogger()
+	defer restore()
+
+	mediaInfos := snap.MediaInfos{
+		{
+			Type: "icon",
+			URL:  iconURL,
+		},
+	}
+	initialSnapsup := &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: "foo",
+		},
+		Channel: "some-channel",
+		// explicitly set to "nil", this ensures the compatibility
+		// code path in the task is hit and the store is queried
+		// in the task (instead of using the new
+		// SnapSetup.{SideInfo,DownloadInfo} that gets set in
+		// snapstate.{Install,Update} directly.
+		DownloadInfo: nil,
+	}
+	initialSnapsup.Media = mediaInfos
+
+	t := s.state.NewTask("download-snap", "test")
+	t.Set("snap-setup", initialSnapsup)
+	chg := s.state.NewChange("sample", "...")
+	chg.AddTask(t)
+
+	s.state.Unlock()
+	s.se.Ensure()
+	s.se.Wait()
+	s.state.Lock()
+
+	c.Assert(chg.Status(), Equals, state.DoneStatus, Commentf("%v", chg.Err()))
+
+	// the compat code called the store "Snap" endpoint
+	c.Assert(s.fakeBackend.ops, DeepEquals, fakeOps{
+		{
+			op: "storesvc-snap-action",
+		},
+		{
+			op: "storesvc-snap-action:action",
+			action: store.SnapAction{
+				Action:       "install",
+				InstanceName: "foo",
+				Channel:      "some-channel",
+			},
+			revno: snap.R(11),
+		},
+		{
+			op:   "storesvc-download",
+			name: "foo",
+		},
+	})
+
+	var snapsup snapstate.SnapSetup
+	t.Get("snap-setup", &snapsup)
+	c.Check(snapsup.SideInfo, DeepEquals, &snap.SideInfo{
+		RealName: "foo",
+		SnapID:   "foo-id",
+		Revision: snap.R(11),
+		Channel:  "some-channel",
+	})
+	c.Check(t.Status(), Equals, state.DoneStatus)
+
+	c.Check(downloadIconCount, Equals, 1)
+	c.Check(logbuf.String(), Not(testutil.Contains), "cannot download snap icon")
+}
+
+func (s *downloadSnapSuite) TestDoDownloadSnapCompatibilityWithIconErrors(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapID := "foo-id"
+	iconURL := "my-icon-url"
+
+	downloadIconCount := 0
+	errorMsg := "fake error"
+	restore := snapstate.MockStoreDownloadIcon(func(ctx context.Context, name, targetPath, downloadURL string) error {
+		c.Check(name, Equals, "foo")
+		expectedPath := snapstate.IconDownloadFilename(snapID)
+		c.Check(targetPath, Equals, expectedPath)
+		c.Check(downloadURL, Equals, iconURL)
+
+		downloadIconCount++
+		return errors.New(errorMsg)
+	})
+	defer restore()
+
+	logbuf, restore := logger.MockDebugLogger()
+	defer restore()
+
+	mediaInfos := snap.MediaInfos{
+		{
+			Type: "icon",
+			URL:  iconURL,
+		},
+	}
+	initialSnapsup := &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: "foo",
+		},
+		Channel: "some-channel",
+		// explicitly set to "nil", this ensures the compatibility
+		// code path in the task is hit and the store is queried
+		// in the task (instead of using the new
+		// SnapSetup.{SideInfo,DownloadInfo} that gets set in
+		// snapstate.{Install,Update} directly.
+		DownloadInfo: nil,
+	}
+	initialSnapsup.Media = mediaInfos
+
+	t := s.state.NewTask("download-snap", "test")
+	t.Set("snap-setup", initialSnapsup)
+	chg := s.state.NewChange("sample", "...")
+	chg.AddTask(t)
+
+	s.state.Unlock()
+	s.se.Ensure()
+	s.se.Wait()
+	s.state.Lock()
+
+	c.Assert(chg.Status(), Equals, state.DoneStatus, Commentf("%v", chg.Err()))
+
+	// the compat code called the store "Snap" endpoint
+	c.Assert(s.fakeBackend.ops, DeepEquals, fakeOps{
+		{
+			op: "storesvc-snap-action",
+		},
+		{
+			op: "storesvc-snap-action:action",
+			action: store.SnapAction{
+				Action:       "install",
+				InstanceName: "foo",
+				Channel:      "some-channel",
+			},
+			revno: snap.R(11),
+		},
+		{
+			op:   "storesvc-download",
+			name: "foo",
+		},
+	})
+
+	var snapsup snapstate.SnapSetup
+	t.Get("snap-setup", &snapsup)
+	c.Check(snapsup.SideInfo, DeepEquals, &snap.SideInfo{
+		RealName: "foo",
+		SnapID:   "foo-id",
+		Revision: snap.R(11),
+		Channel:  "some-channel",
+	})
+	c.Check(t.Status(), Equals, state.DoneStatus)
+
+	c.Check(downloadIconCount, Equals, 1)
+	c.Check(logbuf.String(), testutil.Contains, `cannot download snap icon for "foo":`)
+	c.Check(logbuf.String(), testutil.Contains, errorMsg)
 }
 
 func (s *downloadSnapSuite) TestDoDownloadSnapCompatibilityValidationSets(c *C) {
@@ -341,6 +536,15 @@ func (s *downloadSnapSuite) TestDoDownloadSnapCompatibilityValidationSetsWrongRe
 func (s *downloadSnapSuite) TestDoDownloadSnapNormal(c *C) {
 	s.state.Lock()
 
+	restore := snapstate.MockStoreDownloadIcon(func(ctx context.Context, name, targetPath, downloadURL string) error {
+		c.Fatal("should not have called DownloadIcon when no icon URL was present")
+		return nil
+	})
+	defer restore()
+
+	logbuf, restore := logger.MockDebugLogger()
+	defer restore()
+
 	si := &snap.SideInfo{
 		RealName: "foo",
 		SnapID:   "mySnapID",
@@ -391,6 +595,149 @@ func (s *downloadSnapSuite) TestDoDownloadSnapNormal(c *C) {
 			opts:   nil,
 		},
 	})
+
+	// check that a debug log was recorded because there no icon URL
+	c.Check(logbuf.String(), testutil.Contains, fmt.Sprintf("cannot download snap icon for %q: no icon URL", "foo"))
+}
+
+func (s *downloadSnapSuite) TestDoDownloadSnapWithIcon(c *C) {
+	s.state.Lock()
+
+	snapName := "foo"
+	snapID := "mySnapID"
+	iconURL := "my-icon-url"
+
+	downloadIconCount := 0
+	restore := snapstate.MockStoreDownloadIcon(func(ctx context.Context, name, targetPath, downloadURL string) error {
+		c.Check(name, Equals, snapName)
+		expectedPath := snapstate.IconDownloadFilename(snapID)
+		c.Check(targetPath, Equals, expectedPath)
+		c.Check(downloadURL, Equals, iconURL)
+
+		downloadIconCount++
+		return nil
+	})
+	defer restore()
+
+	logbuf, restore := logger.MockDebugLogger()
+	defer restore()
+
+	si := &snap.SideInfo{
+		RealName: snapName,
+		SnapID:   snapID,
+		Revision: snap.R(11),
+		Channel:  "my-channel",
+	}
+
+	mediaInfos := snap.MediaInfos{
+		{
+			Type: "icon",
+			URL:  iconURL,
+		},
+	}
+	initialSnapsup := &snapstate.SnapSetup{
+		Channel:  "some-channel",
+		SideInfo: si,
+		DownloadInfo: &snap.DownloadInfo{
+			DownloadURL: "http://some-url.com/snap",
+		},
+	}
+	initialSnapsup.Media = mediaInfos
+
+	// download
+	t := s.state.NewTask("download-snap", "test")
+	t.Set("snap-setup", initialSnapsup)
+	chg := s.state.NewChange("sample", "...")
+	chg.AddTask(t)
+
+	s.state.Unlock()
+
+	s.se.Ensure()
+	s.se.Wait()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	c.Assert(chg.Err(), IsNil)
+
+	var snapsup snapstate.SnapSetup
+	t.Get("snap-setup", &snapsup)
+	c.Check(snapsup.SideInfo, DeepEquals, si)
+	c.Check(t.Status(), Equals, state.DoneStatus)
+
+	c.Check(downloadIconCount, Equals, 1)
+	c.Check(logbuf.String(), Not(testutil.Contains), "cannot download snap icon")
+}
+
+func (s *downloadSnapSuite) TestDoDownloadSnapWithIconErrors(c *C) {
+	s.state.Lock()
+
+	snapName := "foo"
+	snapID := "mySnapID"
+	iconURL := "my-icon-url"
+
+	downloadIconCount := 0
+	errorMsg := "fake error"
+	restore := snapstate.MockStoreDownloadIcon(func(ctx context.Context, name, targetPath, downloadURL string) error {
+		c.Check(name, Equals, snapName)
+		expectedPath := snapstate.IconDownloadFilename(snapID)
+		c.Check(targetPath, Equals, expectedPath)
+		c.Check(downloadURL, Equals, iconURL)
+
+		downloadIconCount++
+		return errors.New(errorMsg)
+	})
+	defer restore()
+
+	logbuf, restore := logger.MockDebugLogger()
+	defer restore()
+
+	si := &snap.SideInfo{
+		RealName: snapName,
+		SnapID:   snapID,
+		Revision: snap.R(11),
+		Channel:  "my-channel",
+	}
+
+	mediaInfos := snap.MediaInfos{
+		{
+			Type: "icon",
+			URL:  iconURL,
+		},
+	}
+	initialSnapsup := &snapstate.SnapSetup{
+		Channel:  "some-channel",
+		SideInfo: si,
+		DownloadInfo: &snap.DownloadInfo{
+			DownloadURL: "http://some-url.com/snap",
+		},
+	}
+	initialSnapsup.Media = mediaInfos
+
+	// download
+	t := s.state.NewTask("download-snap", "test")
+	t.Set("snap-setup", initialSnapsup)
+	chg := s.state.NewChange("sample", "...")
+	chg.AddTask(t)
+
+	s.state.Unlock()
+
+	s.se.Ensure()
+	s.se.Wait()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	c.Assert(chg.Err(), IsNil)
+
+	var snapsup snapstate.SnapSetup
+	t.Get("snap-setup", &snapsup)
+	c.Check(snapsup.SideInfo, DeepEquals, si)
+	c.Check(t.Status(), Equals, state.DoneStatus)
+
+	c.Check(downloadIconCount, Equals, 1)
+	c.Check(logbuf.String(), testutil.Contains, fmt.Sprintf("cannot download snap icon for %q:", snapName))
+	c.Check(logbuf.String(), testutil.Contains, errorMsg)
 }
 
 func (s *downloadSnapSuite) TestDoDownloadSnapWithDeviceContext(c *C) {
