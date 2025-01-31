@@ -744,14 +744,6 @@ func (s *baseInitramfsMountsSuite) mockSystemdMountSequence(c *C, mounts []syste
 func (s *initramfsMountsSuite) TestInitramfsMountsInstallModeHappy(c *C) {
 	logbuf, restore := logger.MockLogger()
 	defer restore()
-	var systemctlArgs []string
-	systemctlNumCalls := 0
-	systemctlMock := systemd.MockSystemctl(func(args ...string) (buf []byte, err error) {
-		systemctlArgs = args
-		systemctlNumCalls++
-		return nil, nil
-	})
-	defer systemctlMock()
 
 	restore = snapdtool.MockVersion("1.2.3")
 	defer restore()
@@ -769,6 +761,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsInstallModeHappy(c *C) {
 		s.ubuntuLabelMount("ubuntu-seed", "install"),
 		s.makeSeedSnapSystemdMount(snap.TypeSnapd),
 		s.makeSeedSnapSystemdMount(snap.TypeKernel),
+		s.makeSeedSnapSystemdMount(snap.TypeBase),
 		s.makeSeedSnapSystemdMount(snap.TypeGadget),
 		{
 			"tmpfs",
@@ -796,27 +789,6 @@ grade=signed
 	c.Check(sealedKeysLocked, Equals, true)
 
 	c.Check(logbuf.String(), testutil.Contains, "snap-bootstrap version 1.2.3 starting\n")
-
-	// Check sysroot mount unit bits
-	unitDir := dirs.SnapRuntimeServicesDirUnder(dirs.GlobalRootDir)
-	baseUnitPath := filepath.Join(unitDir, "sysroot.mount")
-	c.Assert(baseUnitPath, testutil.FileEquals, `[Unit]
-DefaultDependencies=no
-Before=initrd-root-fs.target
-After=snap-initramfs-mounts.service
-
-[Mount]
-What=/run/mnt/ubuntu-seed/snaps/core20_1.snap
-Where=/sysroot
-Type=squashfs
-`)
-	symlinkPath := filepath.Join(unitDir, "initrd-root-fs.target.wants", "sysroot.mount")
-	target, err := os.Readlink(symlinkPath)
-	c.Assert(err, IsNil)
-	c.Assert(target, Equals, "../sysroot.mount")
-
-	c.Assert(systemctlNumCalls, Equals, 1)
-	c.Assert(systemctlArgs, DeepEquals, []string{"daemon-reload"})
 }
 
 func (s *initramfsMountsSuite) TestInitramfsMountsInstallModeWithCompsHappy(c *C) {
@@ -839,6 +811,15 @@ func (s *initramfsMountsSuite) testInitramfsMountsInstallModeWithCompsHappy(c *C
 	default:
 		c.Skip("Unknown EFI arch")
 	}
+
+	var systemctlArgs []string
+	systemctlNumCalls := 0
+	systemctlMock := systemd.MockSystemctl(func(args ...string) (buf []byte, err error) {
+		systemctlArgs = args
+		systemctlNumCalls++
+		return nil, nil
+	})
+	defer systemctlMock()
 
 	// setup the seed
 	// always remove the ubuntu-seed dir, otherwise setupSeed complains the
@@ -938,7 +919,6 @@ func (s *initramfsMountsSuite) testInitramfsMountsInstallModeWithCompsHappy(c *C
 		makeRunnableCalled = true
 		c.Assert(model.Model(), Equals, "my-model")
 		c.Assert(bootWith.RecoverySystemLabel, Equals, s.sysLabel)
-		c.Assert(bootWith.BasePath, Equals, filepath.Join(s.seedDir, "snaps", "core24_1.snap"))
 		c.Assert(bootWith.KernelPath, Equals, filepath.Join(s.seedDir, "snaps", "pc-kernel_1.snap"))
 		c.Assert(bootWith.GadgetPath, Equals, filepath.Join(s.seedDir, "snaps", "pc_1.snap"))
 		c.Assert(len(bootWith.KernelMods), Equals, 2)
@@ -1115,6 +1095,27 @@ func (s *initramfsMountsSuite) testInitramfsMountsInstallModeWithCompsHappy(c *C
 			},
 		})
 	}
+
+	// Check sysroot mount unit bits
+	unitDir := dirs.SnapRuntimeServicesDirUnder(dirs.GlobalRootDir)
+	baseUnitPath := filepath.Join(unitDir, "sysroot.mount")
+	c.Assert(baseUnitPath, testutil.FileEquals, `[Unit]
+DefaultDependencies=no
+Before=initrd-root-fs.target
+After=snap-initramfs-mounts.service
+
+[Mount]
+What=/run/mnt/ubuntu-seed/snaps/core24_1.snap
+Where=/sysroot
+Type=squashfs
+`)
+	symlinkPath := filepath.Join(unitDir, "initrd-root-fs.target.wants", "sysroot.mount")
+	target, err := os.Readlink(symlinkPath)
+	c.Assert(err, IsNil)
+	c.Assert(target, Equals, "../sysroot.mount")
+
+	c.Assert(systemctlNumCalls, Equals, 1)
+	c.Assert(systemctlArgs, DeepEquals, []string{"daemon-reload"})
 }
 
 func (s *initramfsMountsSuite) TestInitramfsMountsInstallModeBootFlagsSet(c *C) {
@@ -1147,6 +1148,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsInstallModeBootFlagsSet(c *C) 
 			s.ubuntuLabelMount("ubuntu-seed", "install"),
 			s.makeSeedSnapSystemdMount(snap.TypeSnapd),
 			s.makeSeedSnapSystemdMount(snap.TypeKernel),
+			s.makeSeedSnapSystemdMount(snap.TypeBase),
 			s.makeSeedSnapSystemdMount(snap.TypeGadget),
 			{
 				"tmpfs",
@@ -1214,6 +1216,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeBootFlagsSet(c *C) {
 			s.ubuntuPartUUIDMount("ubuntu-seed-partuuid", "run"),
 			s.ubuntuPartUUIDMount("ubuntu-data-partuuid", "run"),
 			s.ubuntuPartUUIDMount("ubuntu-save-partuuid", "run"),
+			s.makeRunSnapSystemdMount(snap.TypeBase, s.core20),
 			s.makeRunSnapSystemdMount(snap.TypeGadget, s.gadget),
 			s.makeRunSnapSystemdMount(snap.TypeKernel, s.kernel),
 		}, nil)
@@ -1285,6 +1288,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsInstallModeTimeMovesForwardHap
 			s.ubuntuLabelMount("ubuntu-seed", "install"),
 			s.makeSeedSnapSystemdMount(snap.TypeSnapd),
 			s.makeSeedSnapSystemdMount(snap.TypeKernel),
+			s.makeSeedSnapSystemdMount(snap.TypeBase),
 			s.makeSeedSnapSystemdMount(snap.TypeGadget),
 			{
 				"tmpfs",
@@ -1328,6 +1332,7 @@ defaults:
 		s.ubuntuLabelMount("ubuntu-seed", "install"),
 		s.makeSeedSnapSystemdMount(snap.TypeSnapd),
 		s.makeSeedSnapSystemdMount(snap.TypeKernel),
+		s.makeSeedSnapSystemdMount(snap.TypeBase),
 		s.makeSeedSnapSystemdMount(snap.TypeGadget),
 		{
 			"tmpfs",
@@ -1369,7 +1374,7 @@ grade=signed
 	c.Assert(exists, Equals, true)
 
 	// systemctl was called the way we expect
-	c.Assert(sysctlArgs, DeepEquals, [][]string{{"daemon-reload"}, {"--root", filepath.Join(filepath.Join(dirs.GlobalRootDir, "/run/mnt/data/system-data"), "_writable_defaults"), "mask", "rsyslog.service"}})
+	c.Assert(sysctlArgs, DeepEquals, [][]string{{"--root", filepath.Join(filepath.Join(dirs.GlobalRootDir, "/run/mnt/data/system-data"), "_writable_defaults"), "mask", "rsyslog.service"}})
 }
 
 func (s *initramfsMountsSuite) TestInitramfsMountsInstallModeBootedKernelPartitionUUIDHappy(c *C) {
@@ -1387,6 +1392,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsInstallModeBootedKernelPartiti
 		},
 		s.makeSeedSnapSystemdMount(snap.TypeSnapd),
 		s.makeSeedSnapSystemdMount(snap.TypeKernel),
+		s.makeSeedSnapSystemdMount(snap.TypeBase),
 		s.makeSeedSnapSystemdMount(snap.TypeGadget),
 		{
 			"tmpfs",
@@ -1429,6 +1435,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeUnencryptedWithSaveHapp
 		s.ubuntuPartUUIDMount("ubuntu-seed-partuuid", "run"),
 		s.ubuntuPartUUIDMount("ubuntu-data-partuuid", "run"),
 		s.ubuntuPartUUIDMount("ubuntu-save-partuuid", "run"),
+		s.makeRunSnapSystemdMount(snap.TypeBase, s.core20),
 		s.makeRunSnapSystemdMount(snap.TypeGadget, s.gadget),
 		s.makeRunSnapSystemdMount(snap.TypeKernel, s.kernel),
 	}, nil)
@@ -1460,6 +1467,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeUnencryptedWithSaveHapp
 }
 
 func (s *initramfsMountsSuite) TestInitramfsMountsRunModeHappyNoGadgetMount(c *C) {
+	// M
 	s.mockProcCmdlineContent(c, "snapd_recovery_mode=run")
 
 	restore := disks.MockMountPointDisksToPartitionMapping(
@@ -1476,6 +1484,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeHappyNoGadgetMount(c *C
 		s.ubuntuPartUUIDMount("ubuntu-seed-partuuid", "run"),
 		s.ubuntuPartUUIDMount("ubuntu-data-partuuid", "run"),
 		s.ubuntuPartUUIDMount("ubuntu-save-partuuid", "run"),
+		s.makeRunSnapSystemdMount(snap.TypeBase, s.core20),
 		s.makeRunSnapSystemdMount(snap.TypeKernel, s.kernel),
 	}, nil)
 	defer restore()
@@ -1550,6 +1559,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeTimeMovesForwardHappy(c
 				s.ubuntuLabelMount("ubuntu-boot", "run"),
 				s.ubuntuPartUUIDMount("ubuntu-seed-partuuid", "run"),
 				s.ubuntuPartUUIDMount("ubuntu-data-partuuid", "run"),
+				s.makeRunSnapSystemdMount(snap.TypeBase, s.core20),
 				s.makeRunSnapSystemdMount(snap.TypeGadget, s.gadget),
 				s.makeRunSnapSystemdMount(snap.TypeKernel, s.kernel),
 			}
@@ -1624,6 +1634,7 @@ func (s *initramfsMountsSuite) testInitramfsMountsRunModeNoSaveUnencrypted(c *C)
 		s.ubuntuLabelMount("ubuntu-boot", "run"),
 		s.ubuntuPartUUIDMount("ubuntu-seed-partuuid", "run"),
 		s.ubuntuPartUUIDMount("ubuntu-data-partuuid", "run"),
+		s.makeRunSnapSystemdMount(snap.TypeBase, s.core20),
 		s.makeRunSnapSystemdMount(snap.TypeGadget, s.gadget),
 		s.makeRunSnapSystemdMount(snap.TypeKernel, s.kernel),
 	}, nil)
@@ -1728,6 +1739,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsInstallModeRealSystemdMountTim
 func (s *initramfsMountsSuite) TestInitramfsMountsInstallModeHappyRealSystemdMount(c *C) {
 	s.mockProcCmdlineContent(c, "snapd_recovery_mode=install snapd_recovery_system="+s.sysLabel)
 
+	baseMnt := filepath.Join(boot.InitramfsRunMntDir, "base")
 	gadgetMnt := filepath.Join(boot.InitramfsRunMntDir, "gadget")
 	kernelMnt := filepath.Join(boot.InitramfsRunMntDir, "kernel")
 	snapdMnt := filepath.Join(boot.InitramfsRunMntDir, "snapd")
@@ -1753,8 +1765,10 @@ func (s *initramfsMountsSuite) TestInitramfsMountsInstallModeHappyRealSystemdMou
 		case 5, 6:
 			c.Assert(where, Equals, kernelMnt)
 		case 7, 8:
-			c.Assert(where, Equals, gadgetMnt)
+			c.Assert(where, Equals, baseMnt)
 		case 9, 10:
+			c.Assert(where, Equals, gadgetMnt)
+		case 11, 12:
 			c.Assert(where, Equals, boot.InitramfsDataDir)
 		default:
 			c.Errorf("unexpected IsMounted check on %s", where)
@@ -1797,6 +1811,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsInstallModeHappyRealSystemdMou
 			systemd.EscapeUnitNamePath(boot.InitramfsUbuntuSeedDir),
 			systemd.EscapeUnitNamePath(snapdMnt),
 			systemd.EscapeUnitNamePath(kernelMnt),
+			systemd.EscapeUnitNamePath(baseMnt),
 			systemd.EscapeUnitNamePath(gadgetMnt),
 			systemd.EscapeUnitNamePath(boot.InitramfsDataDir),
 		} {
@@ -1809,7 +1824,7 @@ Wants=%[1]s
 	}
 
 	// 2 IsMounted calls per mount point, so 10 total IsMounted calls
-	c.Assert(n, Equals, 10)
+	c.Assert(n, Equals, 12)
 
 	c.Assert(cmd.Calls(), DeepEquals, [][]string{
 		{
@@ -1841,6 +1856,15 @@ Wants=%[1]s
 			"--property=Before=initrd-fs.target",
 		}, {
 			"systemd-mount",
+			filepath.Join(s.seedDir, "snaps", s.core20.Filename()),
+			baseMnt,
+			"--no-pager",
+			"--no-ask-password",
+			"--fsck=no",
+			"--options=ro,private",
+			"--property=Before=initrd-fs.target",
+		}, {
+			"systemd-mount",
 			filepath.Join(s.seedDir, "snaps", s.gadget.Filename()),
 			gadgetMnt,
 			"--no-pager",
@@ -1865,6 +1889,7 @@ Wants=%[1]s
 func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeNoSaveHappyRealSystemdMount(c *C) {
 	s.mockProcCmdlineContent(c, "snapd_recovery_mode=recover snapd_recovery_system="+s.sysLabel)
 
+	baseMnt := filepath.Join(boot.InitramfsRunMntDir, "base")
 	gadgetMnt := filepath.Join(boot.InitramfsRunMntDir, "gadget")
 	kernelMnt := filepath.Join(boot.InitramfsRunMntDir, "kernel")
 	snapdMnt := filepath.Join(boot.InitramfsRunMntDir, "snapd")
@@ -1899,12 +1924,14 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeNoSaveHappyRealSyst
 		case 5, 6:
 			c.Assert(where, Equals, kernelMnt)
 		case 7, 8:
-			c.Assert(where, Equals, gadgetMnt)
+			c.Assert(where, Equals, baseMnt)
 		case 9, 10:
-			c.Assert(where, Equals, boot.InitramfsDataDir)
+			c.Assert(where, Equals, gadgetMnt)
 		case 11, 12:
-			c.Assert(where, Equals, boot.InitramfsUbuntuBootDir)
+			c.Assert(where, Equals, boot.InitramfsDataDir)
 		case 13, 14:
+			c.Assert(where, Equals, boot.InitramfsUbuntuBootDir)
+		case 15, 16:
 			c.Assert(where, Equals, boot.InitramfsHostUbuntuDataDir)
 		default:
 			c.Errorf("unexpected IsMounted check on %s", where)
@@ -1951,7 +1978,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeNoSaveHappyRealSyst
 	err := modeEnv.WriteTo(filepath.Join(dirs.GlobalRootDir, "/run/mnt/data/system-data"))
 	c.Assert(err, IsNil)
 
-	s.testRecoverModeHappy(c)
+	s.testRecoverModeHappy(c, "core20")
 
 	c.Check(s.Stdout.String(), Equals, "")
 
@@ -1964,6 +1991,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeNoSaveHappyRealSyst
 			systemd.EscapeUnitNamePath(boot.InitramfsUbuntuSeedDir),
 			systemd.EscapeUnitNamePath(snapdMnt),
 			systemd.EscapeUnitNamePath(kernelMnt),
+			systemd.EscapeUnitNamePath(baseMnt),
 			systemd.EscapeUnitNamePath(gadgetMnt),
 			systemd.EscapeUnitNamePath(boot.InitramfsDataDir),
 			systemd.EscapeUnitNamePath(boot.InitramfsHostUbuntuDataDir),
@@ -1977,7 +2005,7 @@ Wants=%[1]s
 	}
 
 	// 2 IsMounted calls per mount point, so 14 total IsMounted calls
-	c.Assert(n, Equals, 14)
+	c.Assert(n, Equals, 16)
 
 	c.Assert(cmd.Calls(), DeepEquals, [][]string{
 		{
@@ -2002,6 +2030,15 @@ Wants=%[1]s
 			"systemd-mount",
 			filepath.Join(s.seedDir, "snaps", s.kernel.Filename()),
 			kernelMnt,
+			"--no-pager",
+			"--no-ask-password",
+			"--fsck=no",
+			"--options=ro,private",
+			"--property=Before=initrd-fs.target",
+		}, {
+			"systemd-mount",
+			filepath.Join(s.seedDir, "snaps", s.core20.Filename()),
+			baseMnt,
 			"--no-pager",
 			"--no-ask-password",
 			"--fsck=no",
@@ -2070,6 +2107,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeWithSaveHappyRealSy
 	)
 	defer restore()
 
+	baseMnt := filepath.Join(boot.InitramfsRunMntDir, "base")
 	gadgetMnt := filepath.Join(boot.InitramfsRunMntDir, "gadget")
 	kernelMnt := filepath.Join(boot.InitramfsRunMntDir, "kernel")
 	snapdMnt := filepath.Join(boot.InitramfsRunMntDir, "snapd")
@@ -2106,7 +2144,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeWithSaveHappyRealSy
 	err := modeEnv.WriteTo(filepath.Join(dirs.GlobalRootDir, "/run/mnt/data/system-data"))
 	c.Assert(err, IsNil)
 
-	s.testRecoverModeHappy(c)
+	s.testRecoverModeHappy(c, "core20")
 
 	c.Check(s.Stdout.String(), Equals, "")
 
@@ -2128,6 +2166,7 @@ Wants=%[1]s
 		boot.InitramfsUbuntuSeedDir,
 		snapdMnt,
 		kernelMnt,
+		baseMnt,
 		gadgetMnt,
 		boot.InitramfsDataDir,
 		boot.InitramfsUbuntuBootDir,
@@ -2157,6 +2196,15 @@ Wants=%[1]s
 			"systemd-mount",
 			filepath.Join(s.seedDir, "snaps", s.kernel.Filename()),
 			kernelMnt,
+			"--no-pager",
+			"--no-ask-password",
+			"--fsck=no",
+			"--options=ro,private",
+			"--property=Before=initrd-fs.target",
+		}, {
+			"systemd-mount",
+			filepath.Join(s.seedDir, "snaps", s.core20.Filename()),
+			baseMnt,
 			"--no-pager",
 			"--no-ask-password",
 			"--fsck=no",
@@ -2229,6 +2277,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeHappyNoSaveRealSystemdM
 	)
 	defer restore()
 
+	baseMnt := filepath.Join(boot.InitramfsRunMntDir, "base")
 	gadgetMnt := filepath.Join(boot.InitramfsRunMntDir, "gadget")
 	kernelMnt := filepath.Join(boot.InitramfsRunMntDir, "kernel")
 
@@ -2253,8 +2302,10 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeHappyNoSaveRealSystemdM
 		case 5, 6:
 			c.Assert(where, Equals, boot.InitramfsDataDir)
 		case 7, 8:
-			c.Assert(where, Equals, gadgetMnt)
+			c.Assert(where, Equals, baseMnt)
 		case 9, 10:
+			c.Assert(where, Equals, gadgetMnt)
+		case 11, 12:
 			c.Assert(where, Equals, kernelMnt)
 		default:
 			c.Errorf("unexpected IsMounted check on %s", where)
@@ -2298,6 +2349,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeHappyNoSaveRealSystemdM
 			systemd.EscapeUnitNamePath(boot.InitramfsUbuntuBootDir),
 			systemd.EscapeUnitNamePath(boot.InitramfsUbuntuSeedDir),
 			systemd.EscapeUnitNamePath(boot.InitramfsDataDir),
+			systemd.EscapeUnitNamePath(baseMnt),
 			systemd.EscapeUnitNamePath(gadgetMnt),
 			systemd.EscapeUnitNamePath(kernelMnt),
 		} {
@@ -2310,7 +2362,7 @@ Wants=%[1]s
 	}
 
 	// 2 IsMounted calls per mount point, so 10 total IsMounted calls
-	c.Assert(n, Equals, 10)
+	c.Assert(n, Equals, 12)
 
 	c.Assert(cmd.Calls(), DeepEquals, [][]string{
 		{
@@ -2339,6 +2391,15 @@ Wants=%[1]s
 			"--no-ask-password",
 			"--fsck=yes",
 			"--options=nosuid,private",
+			"--property=Before=initrd-fs.target",
+		}, {
+			"systemd-mount",
+			filepath.Join(dirs.SnapBlobDirUnder(filepath.Join(dirs.GlobalRootDir, "/run/mnt/data/system-data")), s.core20.Filename()),
+			baseMnt,
+			"--no-pager",
+			"--no-ask-password",
+			"--fsck=no",
+			"--options=ro,private",
 			"--property=Before=initrd-fs.target",
 		}, {
 			"systemd-mount",
@@ -2374,6 +2435,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeWithSaveHappyRealSystem
 	)
 	defer restore()
 
+	baseMnt := filepath.Join(boot.InitramfsRunMntDir, "base")
 	gadgetMnt := filepath.Join(boot.InitramfsRunMntDir, "gadget")
 	kernelMnt := filepath.Join(boot.InitramfsRunMntDir, "kernel")
 
@@ -2433,6 +2495,7 @@ Wants=%[1]s
 		boot.InitramfsUbuntuSeedDir,
 		boot.InitramfsDataDir,
 		boot.InitramfsUbuntuSaveDir,
+		baseMnt,
 		gadgetMnt,
 		kernelMnt,
 	})
@@ -2475,6 +2538,15 @@ Wants=%[1]s
 			"--property=Before=initrd-fs.target",
 		}, {
 			"systemd-mount",
+			filepath.Join(dirs.SnapBlobDirUnder(filepath.Join(dirs.GlobalRootDir, "/run/mnt/data/system-data")), s.core20.Filename()),
+			baseMnt,
+			"--no-pager",
+			"--no-ask-password",
+			"--fsck=no",
+			"--options=ro,private",
+			"--property=Before=initrd-fs.target",
+		}, {
+			"systemd-mount",
 			filepath.Join(dirs.SnapBlobDirUnder(filepath.Join(dirs.GlobalRootDir, "/run/mnt/data/system-data")), s.gadget.Filename()),
 			gadgetMnt,
 			"--no-pager",
@@ -2512,6 +2584,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeFirstBootRecoverySystem
 		s.ubuntuPartUUIDMount("ubuntu-seed-partuuid", "run"),
 		s.ubuntuPartUUIDMount("ubuntu-data-partuuid", "run"),
 		s.ubuntuPartUUIDMount("ubuntu-save-partuuid", "run"),
+		s.makeRunSnapSystemdMount(snap.TypeBase, s.core20),
 		s.makeRunSnapSystemdMount(snap.TypeGadget, s.gadget),
 		s.makeRunSnapSystemdMount(snap.TypeKernel, s.kernel),
 		// RecoverySystem set makes us mount the snapd snap here
@@ -2571,6 +2644,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeWithBootedKernelPartUUI
 		},
 		s.ubuntuPartUUIDMount("ubuntu-seed-partuuid", "run"),
 		s.ubuntuPartUUIDMount("ubuntu-data-partuuid", "run"),
+		s.makeRunSnapSystemdMount(snap.TypeBase, s.core20),
 		s.makeRunSnapSystemdMount(snap.TypeGadget, s.gadget),
 		s.makeRunSnapSystemdMount(snap.TypeKernel, s.kernel),
 	}, nil)
@@ -2603,14 +2677,6 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeWithBootedKernelPartUUI
 
 func (s *initramfsMountsSuite) TestInitramfsMountsRunModeEncryptedDataHappy(c *C) {
 	s.mockProcCmdlineContent(c, "snapd_recovery_mode=run")
-	var systemctlArgs []string
-	systemctlNumCalls := 0
-	systemctlMock := systemd.MockSystemctl(func(args ...string) (buf []byte, err error) {
-		systemctlArgs = args
-		systemctlNumCalls++
-		return nil, nil
-	})
-	defer systemctlMock()
 
 	// ensure that we check that access to sealed keys were locked
 	sealedKeysLocked := false
@@ -2643,6 +2709,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeEncryptedDataHappy(c *C
 			needsFsckAndNoSuidNoDevNoExecMountOpts,
 			nil,
 		},
+		s.makeRunSnapSystemdMount(snap.TypeBase, s.core20),
 		s.makeRunSnapSystemdMount(snap.TypeGadget, s.gadget),
 		s.makeRunSnapSystemdMount(snap.TypeKernel, s.kernel),
 	}, nil)
@@ -2738,27 +2805,6 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeEncryptedDataHappy(c *C
 
 	c.Assert(filepath.Join(dirs.SnapBootstrapRunDir, "secboot-epoch-measured"), testutil.FilePresent)
 	c.Assert(filepath.Join(dirs.SnapBootstrapRunDir, "run-model-measured"), testutil.FilePresent)
-
-	// Check sysroot mount unit bits
-	unitDir := dirs.SnapRuntimeServicesDirUnder(dirs.GlobalRootDir)
-	baseUnitPath := filepath.Join(unitDir, "sysroot.mount")
-	c.Assert(baseUnitPath, testutil.FileEquals, `[Unit]
-DefaultDependencies=no
-Before=initrd-root-fs.target
-After=snap-initramfs-mounts.service
-
-[Mount]
-What=/run/mnt/data/system-data/var/lib/snapd/snaps/core20_1.snap
-Where=/sysroot
-Type=squashfs
-`)
-	symlinkPath := filepath.Join(unitDir, "initrd-root-fs.target.wants", "sysroot.mount")
-	target, err := os.Readlink(symlinkPath)
-	c.Assert(err, IsNil)
-	c.Assert(target, Equals, "../sysroot.mount")
-
-	c.Assert(systemctlNumCalls, Equals, 1)
-	c.Assert(systemctlArgs, DeepEquals, []string{"daemon-reload"})
 }
 
 func (s *initramfsMountsSuite) TestInitramfsMountsRunModeEncryptedDataUnhappyNoSave(c *C) {
@@ -3045,6 +3091,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeUpgradeScenarios(c *C) 
 			},
 			additionalMountsFunc: func() []systemdMount {
 				return []systemdMount{
+					s.makeRunSnapSystemdMount(snap.TypeBase, s.core20),
 					s.makeRunSnapSystemdMount(snap.TypeGadget, s.gadget),
 					s.makeRunSnapSystemdMount(snap.TypeKernel, s.kernel),
 				}
@@ -3064,6 +3111,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeUpgradeScenarios(c *C) 
 			},
 			additionalMountsFunc: func() []systemdMount {
 				return []systemdMount{
+					s.makeRunSnapSystemdMount(snap.TypeBase, s.core20),
 					s.makeRunSnapSystemdMount(snap.TypeGadget, s.gadget),
 					s.makeRunSnapSystemdMount(snap.TypeKernel, s.kernelr2),
 				}
@@ -3085,6 +3133,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeUpgradeScenarios(c *C) 
 			},
 			additionalMountsFunc: func() []systemdMount {
 				return []systemdMount{
+					s.makeRunSnapSystemdMount(snap.TypeBase, s.core20r2),
 					s.makeRunSnapSystemdMount(snap.TypeGadget, s.gadget),
 					s.makeRunSnapSystemdMount(snap.TypeKernel, s.kernel),
 				}
@@ -3112,6 +3161,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeUpgradeScenarios(c *C) 
 			},
 			additionalMountsFunc: func() []systemdMount {
 				return []systemdMount{
+					s.makeRunSnapSystemdMount(snap.TypeBase, s.core20r2),
 					s.makeRunSnapSystemdMount(snap.TypeGadget, s.gadget),
 					s.makeRunSnapSystemdMount(snap.TypeKernel, s.kernelr2),
 				}
@@ -3143,6 +3193,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeUpgradeScenarios(c *C) 
 			},
 			additionalMountsFunc: func() []systemdMount {
 				return []systemdMount{
+					s.makeRunSnapSystemdMount(snap.TypeBase, s.core20),
 					s.makeRunSnapSystemdMount(snap.TypeGadget, s.gadget),
 					s.makeRunSnapSystemdMount(snap.TypeKernel, s.kernel),
 				}
@@ -3162,6 +3213,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeUpgradeScenarios(c *C) 
 			},
 			additionalMountsFunc: func() []systemdMount {
 				return []systemdMount{
+					s.makeRunSnapSystemdMount(snap.TypeBase, s.core20),
 					s.makeRunSnapSystemdMount(snap.TypeGadget, s.gadget),
 					s.makeRunSnapSystemdMount(snap.TypeKernel, s.kernel),
 				}
@@ -3181,6 +3233,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeUpgradeScenarios(c *C) 
 			},
 			additionalMountsFunc: func() []systemdMount {
 				return []systemdMount{
+					s.makeRunSnapSystemdMount(snap.TypeBase, s.core20),
 					s.makeRunSnapSystemdMount(snap.TypeGadget, s.gadget),
 					s.makeRunSnapSystemdMount(snap.TypeKernel, s.kernel),
 				}
@@ -3385,6 +3438,7 @@ func (s *initramfsMountsSuite) testInitramfsMountsRunModeUpdateBootloaderVars(
 		s.ubuntuPartUUIDMount("ubuntu-seed-partuuid", "run"),
 		s.ubuntuPartUUIDMount("ubuntu-data-partuuid", "run"),
 		s.ubuntuPartUUIDMount("ubuntu-save-partuuid", "run"),
+		s.makeRunSnapSystemdMount(snap.TypeBase, s.core20),
 		s.makeRunSnapSystemdMount(snap.TypeGadget, s.gadget),
 		s.makeRunSnapSystemdMount(snap.TypeKernel, *finalKernel),
 	}, nil)
@@ -3430,7 +3484,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeUpdateBootloaderVars(c 
 		&s.kernel, boot.DefaultStatus)
 }
 
-func (s *initramfsMountsSuite) testRecoverModeHappy(c *C) {
+func (s *initramfsMountsSuite) testRecoverModeHappy(c *C, base string) {
 	// ensure that we check that access to sealed keys were locked
 	sealedKeysLocked := false
 	restore := main.MockSecbootLockSealedKeys(func() error {
@@ -3505,7 +3559,7 @@ func (s *initramfsMountsSuite) testRecoverModeHappy(c *C) {
 	modeEnv := filepath.Join(ephemeralUbuntuData, "/system-data/var/lib/snapd/modeenv")
 	c.Check(modeEnv, testutil.FileEquals, `mode=recover
 recovery_system=20191118
-base=core20_1.snap
+base=`+base+`_1.snap
 gadget=pc_1.snap
 model=my-brand/my-model
 grade=signed
@@ -3555,6 +3609,13 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeHappy(c *C) {
 	bootloader.Force(bloader)
 	defer bootloader.Force(nil)
 
+	// setup the seed
+	// always remove the ubuntu-seed dir, otherwise setupSeed complains the
+	// model file already exists and can't setup the seed
+	err := os.RemoveAll(filepath.Join(boot.InitramfsUbuntuSeedDir))
+	c.Assert(err, IsNil)
+	s.setupSeed(c, time.Time{}, nil, setupSeedOpts{hasKModsComps: true})
+
 	// mock that we don't know which partition uuid the kernel was booted from
 	restore := main.MockPartitionUUIDForBootedKernelDisk("")
 	defer restore()
@@ -3601,7 +3662,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeHappy(c *C) {
 	}, nil)
 	defer restore()
 
-	s.testRecoverModeHappy(c)
+	s.testRecoverModeHappy(c, "core24")
 
 	// we should not have written a degraded.json
 	c.Assert(filepath.Join(dirs.SnapBootstrapRunDir, "degraded.json"), testutil.FileAbsent)
@@ -3618,7 +3679,7 @@ Before=initrd-root-fs.target
 After=snap-initramfs-mounts.service
 
 [Mount]
-What=/run/mnt/ubuntu-seed/snaps/core20_1.snap
+What=/run/mnt/ubuntu-seed/snaps/core24_1.snap
 Where=/sysroot
 Type=squashfs
 `)
@@ -3682,6 +3743,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeTimeMovesForwardHap
 			s.ubuntuLabelMount("ubuntu-seed", "recover"),
 			s.makeSeedSnapSystemdMount(snap.TypeSnapd),
 			s.makeSeedSnapSystemdMount(snap.TypeKernel),
+			s.makeSeedSnapSystemdMount(snap.TypeBase),
 			s.makeSeedSnapSystemdMount(snap.TypeGadget),
 			{
 				"tmpfs",
@@ -3714,7 +3776,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeTimeMovesForwardHap
 		bootloader.Force(bloader)
 		cleanups = append(cleanups, func() { bootloader.Force(nil) })
 
-		s.testRecoverModeHappy(c)
+		s.testRecoverModeHappy(c, "core20")
 		c.Assert(osutilSetTimeCalls, Equals, tc.setTimeCalls)
 
 		for _, r := range cleanups {
@@ -3765,6 +3827,7 @@ defaults:
 		s.ubuntuLabelMount("ubuntu-seed", "recover"),
 		s.makeSeedSnapSystemdMount(snap.TypeSnapd),
 		s.makeSeedSnapSystemdMount(snap.TypeKernel),
+		s.makeSeedSnapSystemdMount(snap.TypeBase),
 		s.makeSeedSnapSystemdMount(snap.TypeGadget),
 		{
 			"tmpfs",
@@ -3802,7 +3865,7 @@ defaults:
 	})
 	defer systemctlRestorer()
 
-	s.testRecoverModeHappy(c)
+	s.testRecoverModeHappy(c, "core20")
 
 	// we should not have written a degraded.json
 	c.Assert(filepath.Join(dirs.SnapBootstrapRunDir, "degraded.json"), testutil.FileAbsent)
@@ -3816,7 +3879,7 @@ defaults:
 	c.Assert(exists, Equals, true)
 
 	// systemctl was called the way we expect
-	c.Assert(sysctlArgs, DeepEquals, [][]string{{"daemon-reload"}, {"--root", filepath.Join(filepath.Join(dirs.GlobalRootDir, "/run/mnt/data/system-data"), "_writable_defaults"), "mask", "rsyslog.service"}})
+	c.Assert(sysctlArgs, DeepEquals, [][]string{{"--root", filepath.Join(filepath.Join(dirs.GlobalRootDir, "/run/mnt/data/system-data"), "_writable_defaults"), "mask", "rsyslog.service"}})
 }
 
 func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeHappyBootedKernelPartitionUUID(c *C) {
@@ -3849,6 +3912,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeHappyBootedKernelPa
 		},
 		s.makeSeedSnapSystemdMount(snap.TypeSnapd),
 		s.makeSeedSnapSystemdMount(snap.TypeKernel),
+		s.makeSeedSnapSystemdMount(snap.TypeBase),
 		s.makeSeedSnapSystemdMount(snap.TypeGadget),
 		{
 			"tmpfs",
@@ -3877,7 +3941,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeHappyBootedKernelPa
 	}, nil)
 	defer restore()
 
-	s.testRecoverModeHappy(c)
+	s.testRecoverModeHappy(c, "core20")
 
 	// we should not have written a degraded.json
 	c.Assert(filepath.Join(dirs.SnapBootstrapRunDir, "degraded.json"), testutil.FileAbsent)
@@ -3968,6 +4032,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeHappyEncrypted(c *C
 		s.ubuntuLabelMount("ubuntu-seed", "recover"),
 		s.makeSeedSnapSystemdMount(snap.TypeSnapd),
 		s.makeSeedSnapSystemdMount(snap.TypeKernel),
+		s.makeSeedSnapSystemdMount(snap.TypeBase),
 		s.makeSeedSnapSystemdMount(snap.TypeGadget),
 		{
 			"tmpfs",
@@ -3996,7 +4061,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeHappyEncrypted(c *C
 	}, nil)
 	defer restore()
 
-	s.testRecoverModeHappy(c)
+	s.testRecoverModeHappy(c, "core20")
 
 	// we should not have written a degraded.json
 	c.Assert(filepath.Join(dirs.SnapBootstrapRunDir, "degraded.json"), testutil.FileAbsent)
@@ -4126,6 +4191,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeEncryptedDegradedDa
 		s.ubuntuLabelMount("ubuntu-seed", "recover"),
 		s.makeSeedSnapSystemdMount(snap.TypeSnapd),
 		s.makeSeedSnapSystemdMount(snap.TypeKernel),
+		s.makeSeedSnapSystemdMount(snap.TypeBase),
 		s.makeSeedSnapSystemdMount(snap.TypeGadget),
 		{
 			"tmpfs",
@@ -4154,7 +4220,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeEncryptedDegradedDa
 	}, nil)
 	defer restore()
 
-	s.testRecoverModeHappy(c)
+	s.testRecoverModeHappy(c, "core20")
 
 	checkDegradedJSON(c, "degraded.json", map[string]interface{}{
 		"ubuntu-boot": map[string]interface{}{
@@ -4303,6 +4369,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeEncryptedDegradedSa
 		s.ubuntuLabelMount("ubuntu-seed", "recover"),
 		s.makeSeedSnapSystemdMount(snap.TypeSnapd),
 		s.makeSeedSnapSystemdMount(snap.TypeKernel),
+		s.makeSeedSnapSystemdMount(snap.TypeBase),
 		s.makeSeedSnapSystemdMount(snap.TypeGadget),
 		{
 			"tmpfs",
@@ -4331,7 +4398,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeEncryptedDegradedSa
 	}, nil)
 	defer restore()
 
-	s.testRecoverModeHappy(c)
+	s.testRecoverModeHappy(c, "core20")
 
 	checkDegradedJSON(c, "degraded.json", map[string]interface{}{
 		"ubuntu-boot": map[string]interface{}{
@@ -4472,6 +4539,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeEncryptedDegradedAb
 		s.ubuntuLabelMount("ubuntu-seed", "recover"),
 		s.makeSeedSnapSystemdMount(snap.TypeSnapd),
 		s.makeSeedSnapSystemdMount(snap.TypeKernel),
+		s.makeSeedSnapSystemdMount(snap.TypeBase),
 		s.makeSeedSnapSystemdMount(snap.TypeGadget),
 		{
 			"tmpfs",
@@ -4495,7 +4563,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeEncryptedDegradedAb
 	}, nil)
 	defer restore()
 
-	s.testRecoverModeHappy(c)
+	s.testRecoverModeHappy(c, "core20")
 
 	checkDegradedJSON(c, "degraded.json", map[string]interface{}{
 		"ubuntu-boot": map[string]interface{}{
@@ -4634,6 +4702,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeEncryptedDegradedAb
 		s.ubuntuLabelMount("ubuntu-seed", "recover"),
 		s.makeSeedSnapSystemdMount(snap.TypeSnapd),
 		s.makeSeedSnapSystemdMount(snap.TypeKernel),
+		s.makeSeedSnapSystemdMount(snap.TypeBase),
 		s.makeSeedSnapSystemdMount(snap.TypeGadget),
 		{
 			"tmpfs",
@@ -4657,7 +4726,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeEncryptedDegradedAb
 	}, nil)
 	defer restore()
 
-	s.testRecoverModeHappy(c)
+	s.testRecoverModeHappy(c, "core20")
 
 	checkDegradedJSON(c, "degraded.json", map[string]interface{}{
 		"ubuntu-boot": map[string]interface{}{
@@ -4802,6 +4871,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeEncryptedDegradedDa
 		s.ubuntuLabelMount("ubuntu-seed", "recover"),
 		s.makeSeedSnapSystemdMount(snap.TypeSnapd),
 		s.makeSeedSnapSystemdMount(snap.TypeKernel),
+		s.makeSeedSnapSystemdMount(snap.TypeBase),
 		s.makeSeedSnapSystemdMount(snap.TypeGadget),
 		{
 			"tmpfs",
@@ -4991,6 +5061,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeDegradedAbsentDataU
 		s.ubuntuLabelMount("ubuntu-seed", "recover"),
 		s.makeSeedSnapSystemdMount(snap.TypeSnapd),
 		s.makeSeedSnapSystemdMount(snap.TypeKernel),
+		s.makeSeedSnapSystemdMount(snap.TypeBase),
 		s.makeSeedSnapSystemdMount(snap.TypeGadget),
 		{
 			"tmpfs",
@@ -5181,6 +5252,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeDegradedUnencrypted
 		s.ubuntuLabelMount("ubuntu-seed", "recover"),
 		s.makeSeedSnapSystemdMount(snap.TypeSnapd),
 		s.makeSeedSnapSystemdMount(snap.TypeKernel),
+		s.makeSeedSnapSystemdMount(snap.TypeBase),
 		s.makeSeedSnapSystemdMount(snap.TypeGadget),
 		{
 			"tmpfs",
@@ -5203,7 +5275,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeDegradedUnencrypted
 	}, nil)
 	defer restore()
 
-	s.testRecoverModeHappy(c)
+	s.testRecoverModeHappy(c, "core20")
 
 	c.Check(dataActivated, Equals, true)
 	c.Check(unlockVolumeWithSealedKeyCalls, Equals, 1)
@@ -5326,6 +5398,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeDegradedEncryptedDa
 		s.ubuntuLabelMount("ubuntu-seed", "recover"),
 		s.makeSeedSnapSystemdMount(snap.TypeSnapd),
 		s.makeSeedSnapSystemdMount(snap.TypeKernel),
+		s.makeSeedSnapSystemdMount(snap.TypeBase),
 		s.makeSeedSnapSystemdMount(snap.TypeGadget),
 		{
 			"tmpfs",
@@ -5442,6 +5515,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeUnencryptedDataUnen
 		s.ubuntuLabelMount("ubuntu-seed", "recover"),
 		s.makeSeedSnapSystemdMount(snap.TypeSnapd),
 		s.makeSeedSnapSystemdMount(snap.TypeKernel),
+		s.makeSeedSnapSystemdMount(snap.TypeBase),
 		s.makeSeedSnapSystemdMount(snap.TypeGadget),
 		{
 			"tmpfs",
@@ -5470,7 +5544,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeUnencryptedDataUnen
 	}, nil)
 	defer restore()
 
-	s.testRecoverModeHappy(c)
+	s.testRecoverModeHappy(c, "core20")
 
 	c.Check(unlockVolumeWithSealedKeyCalls, Equals, 1)
 	c.Check(measureEpochCalls, Equals, 1)
@@ -5587,6 +5661,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeEncryptedDegradedAb
 		s.ubuntuLabelMount("ubuntu-seed", "recover"),
 		s.makeSeedSnapSystemdMount(snap.TypeSnapd),
 		s.makeSeedSnapSystemdMount(snap.TypeKernel),
+		s.makeSeedSnapSystemdMount(snap.TypeBase),
 		s.makeSeedSnapSystemdMount(snap.TypeGadget),
 		{
 			"tmpfs",
@@ -5792,6 +5867,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeEncryptedDegradedDa
 		s.ubuntuLabelMount("ubuntu-seed", "recover"),
 		s.makeSeedSnapSystemdMount(snap.TypeSnapd),
 		s.makeSeedSnapSystemdMount(snap.TypeKernel),
+		s.makeSeedSnapSystemdMount(snap.TypeBase),
 		s.makeSeedSnapSystemdMount(snap.TypeGadget),
 		{
 			"tmpfs",
@@ -5960,6 +6036,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeEncryptedMismatched
 		s.ubuntuLabelMount("ubuntu-seed", "recover"),
 		s.makeSeedSnapSystemdMount(snap.TypeSnapd),
 		s.makeSeedSnapSystemdMount(snap.TypeKernel),
+		s.makeSeedSnapSystemdMount(snap.TypeBase),
 		s.makeSeedSnapSystemdMount(snap.TypeGadget),
 		{
 			"tmpfs",
@@ -6171,6 +6248,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeEncryptedAttackerFS
 		s.ubuntuLabelMount("ubuntu-seed", "recover"),
 		s.makeSeedSnapSystemdMount(snap.TypeSnapd),
 		s.makeSeedSnapSystemdMount(snap.TypeKernel),
+		s.makeSeedSnapSystemdMount(snap.TypeBase),
 		s.makeSeedSnapSystemdMount(snap.TypeGadget),
 		{
 			"tmpfs",
@@ -6199,7 +6277,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeEncryptedAttackerFS
 	}, nil)
 	defer restore()
 
-	s.testRecoverModeHappy(c)
+	s.testRecoverModeHappy(c, "core20")
 
 	c.Check(activated, Equals, true)
 	c.Check(measureEpochCalls, Equals, 1)
@@ -6217,6 +6295,7 @@ func (s *initramfsMountsSuite) testInitramfsMountsInstallRecoverModeMeasure(c *C
 		s.ubuntuLabelMount("ubuntu-seed", mode),
 		s.makeSeedSnapSystemdMount(snap.TypeSnapd),
 		s.makeSeedSnapSystemdMount(snap.TypeKernel),
+		s.makeSeedSnapSystemdMount(snap.TypeBase),
 		s.makeSeedSnapSystemdMount(snap.TypeGadget),
 		{
 			"tmpfs",
@@ -6302,7 +6381,7 @@ func (s *initramfsMountsSuite) testInitramfsMountsInstallRecoverModeMeasure(c *C
 
 	if mode == "recover" {
 		// use the helper
-		s.testRecoverModeHappy(c)
+		s.testRecoverModeHappy(c, "core20")
 	} else {
 		_, err := main.Parser().ParseArgs([]string{"initramfs-mounts"})
 		c.Assert(err, IsNil)
@@ -6359,6 +6438,7 @@ func (s *baseInitramfsMountsSuite) runInitramfsMountsUnencryptedTryRecovery(c *C
 		s.ubuntuLabelMount("ubuntu-seed", "recover"),
 		s.makeSeedSnapSystemdMount(snap.TypeSnapd),
 		s.makeSeedSnapSystemdMount(snap.TypeKernel),
+		s.makeSeedSnapSystemdMount(snap.TypeBase),
 		s.makeSeedSnapSystemdMount(snap.TypeGadget),
 		{
 			"tmpfs",
@@ -6470,6 +6550,7 @@ func (s *initramfsMountsSuite) testInitramfsMountsTryRecoveryInconsistent(c *C) 
 		s.ubuntuLabelMount("ubuntu-seed", "recover"),
 		s.makeSeedSnapSystemdMount(snap.TypeSnapd),
 		s.makeSeedSnapSystemdMount(snap.TypeKernel),
+		s.makeSeedSnapSystemdMount(snap.TypeBase),
 		s.makeSeedSnapSystemdMount(snap.TypeGadget),
 		{
 			"tmpfs",
@@ -6627,6 +6708,7 @@ func (s *initramfsMountsSuite) testInitramfsMountsTryRecoveryDegraded(c *C, expe
 		s.ubuntuLabelMount("ubuntu-seed", "recover"),
 		s.makeSeedSnapSystemdMount(snap.TypeSnapd),
 		s.makeSeedSnapSystemdMount(snap.TypeKernel),
+		s.makeSeedSnapSystemdMount(snap.TypeBase),
 		s.makeSeedSnapSystemdMount(snap.TypeGadget),
 		{
 			"tmpfs",
@@ -6944,14 +7026,6 @@ func (s *initramfsMountsSuite) TestWaitFileWorksWithFilesAppearingLate(c *C) {
 
 func (s *initramfsMountsSuite) TestInitramfsMountsFactoryResetModeHappyEncrypted(c *C) {
 	s.mockProcCmdlineContent(c, "snapd_recovery_mode=factory-reset snapd_recovery_system="+s.sysLabel)
-	var systemctlArgs []string
-	systemctlNumCalls := 0
-	systemctlMock := systemd.MockSystemctl(func(args ...string) (buf []byte, err error) {
-		systemctlArgs = args
-		systemctlNumCalls++
-		return nil, nil
-	})
-	defer systemctlMock()
 
 	restore := main.MockPartitionUUIDForBootedKernelDisk("")
 	defer restore()
@@ -7021,6 +7095,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsFactoryResetModeHappyEncrypted
 		s.ubuntuLabelMount("ubuntu-seed", "recover"),
 		s.makeSeedSnapSystemdMount(snap.TypeSnapd),
 		s.makeSeedSnapSystemdMount(snap.TypeKernel),
+		s.makeSeedSnapSystemdMount(snap.TypeBase),
 		s.makeSeedSnapSystemdMount(snap.TypeGadget),
 		{
 			"tmpfs",
@@ -7087,27 +7162,6 @@ grade=signed
 
 	c.Assert(filepath.Join(dirs.SnapBootstrapRunDir, "secboot-epoch-measured"), testutil.FilePresent)
 	c.Assert(filepath.Join(dirs.SnapBootstrapRunDir, fmt.Sprintf("%s-model-measured", s.sysLabel)), testutil.FilePresent)
-
-	// Check sysroot mount unit bits
-	unitDir := dirs.SnapRuntimeServicesDirUnder(dirs.GlobalRootDir)
-	baseUnitPath := filepath.Join(unitDir, "sysroot.mount")
-	c.Assert(baseUnitPath, testutil.FileEquals, `[Unit]
-DefaultDependencies=no
-Before=initrd-root-fs.target
-After=snap-initramfs-mounts.service
-
-[Mount]
-What=/run/mnt/ubuntu-seed/snaps/core20_1.snap
-Where=/sysroot
-Type=squashfs
-`)
-	symlinkPath := filepath.Join(unitDir, "initrd-root-fs.target.wants", "sysroot.mount")
-	target, err := os.Readlink(symlinkPath)
-	c.Assert(err, IsNil)
-	c.Assert(target, Equals, "../sysroot.mount")
-
-	c.Assert(systemctlNumCalls, Equals, 1)
-	c.Assert(systemctlArgs, DeepEquals, []string{"daemon-reload"})
 }
 
 func (s *initramfsMountsSuite) TestInitramfsMountsFactoryResetModeHappyUnencrypted(c *C) {
@@ -7150,6 +7204,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsFactoryResetModeHappyUnencrypt
 		s.ubuntuLabelMount("ubuntu-seed", "recover"),
 		s.makeSeedSnapSystemdMount(snap.TypeSnapd),
 		s.makeSeedSnapSystemdMount(snap.TypeKernel),
+		s.makeSeedSnapSystemdMount(snap.TypeBase),
 		s.makeSeedSnapSystemdMount(snap.TypeGadget),
 		{
 			"tmpfs",
@@ -7235,6 +7290,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsFactoryResetModeHappyUnencrypt
 		s.ubuntuLabelMount("ubuntu-seed", "recover"),
 		s.makeSeedSnapSystemdMount(snap.TypeSnapd),
 		s.makeSeedSnapSystemdMount(snap.TypeKernel),
+		s.makeSeedSnapSystemdMount(snap.TypeBase),
 		s.makeSeedSnapSystemdMount(snap.TypeGadget),
 		{
 			"tmpfs",
@@ -7335,6 +7391,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsFactoryResetModeUnhappyUnlockE
 		s.ubuntuLabelMount("ubuntu-seed", "recover"),
 		s.makeSeedSnapSystemdMount(snap.TypeSnapd),
 		s.makeSeedSnapSystemdMount(snap.TypeKernel),
+		s.makeSeedSnapSystemdMount(snap.TypeBase),
 		s.makeSeedSnapSystemdMount(snap.TypeGadget),
 		{
 			"tmpfs",
@@ -7439,6 +7496,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsFactoryResetModeUnhappyMountEn
 		s.ubuntuLabelMount("ubuntu-seed", "recover"),
 		s.makeSeedSnapSystemdMount(snap.TypeSnapd),
 		s.makeSeedSnapSystemdMount(snap.TypeKernel),
+		s.makeSeedSnapSystemdMount(snap.TypeBase),
 		s.makeSeedSnapSystemdMount(snap.TypeGadget),
 		{
 			"tmpfs",
@@ -7814,14 +7872,6 @@ func (s *initramfsClassicMountsSuite) TestInitramfsMountsRunModeHappySystemSeedN
 
 func (s *initramfsClassicMountsSuite) TestInitramfsMountsRunModeEncryptedDataHappy(c *C) {
 	s.mockProcCmdlineContent(c, "snapd_recovery_mode=run")
-	var systemctlArgs []string
-	systemctlNumCalls := 0
-	systemctlMock := systemd.MockSystemctl(func(args ...string) (buf []byte, err error) {
-		systemctlArgs = args
-		systemctlNumCalls++
-		return nil, nil
-	})
-	defer systemctlMock()
 
 	// ensure that we check that access to sealed keys were locked
 	sealedKeysLocked := false
@@ -7954,28 +8004,6 @@ func (s *initramfsClassicMountsSuite) TestInitramfsMountsRunModeEncryptedDataHap
 
 	c.Assert(filepath.Join(dirs.SnapBootstrapRunDir, "secboot-epoch-measured"), testutil.FilePresent)
 	c.Assert(filepath.Join(dirs.SnapBootstrapRunDir, "run-model-measured"), testutil.FilePresent)
-
-	// Check sysroot mount unit bits
-	unitDir := dirs.SnapRuntimeServicesDirUnder(dirs.GlobalRootDir)
-	baseUnitPath := filepath.Join(unitDir, "sysroot.mount")
-	c.Assert(baseUnitPath, testutil.FileEquals, `[Unit]
-DefaultDependencies=no
-Before=initrd-root-fs.target
-After=snap-initramfs-mounts.service
-
-[Mount]
-What=/run/mnt/data
-Where=/sysroot
-Type=none
-Options=bind
-`)
-	symlinkPath := filepath.Join(unitDir, "initrd-root-fs.target.wants", "sysroot.mount")
-	target, err := os.Readlink(symlinkPath)
-	c.Assert(err, IsNil)
-	c.Assert(target, Equals, "../sysroot.mount")
-
-	c.Assert(systemctlNumCalls, Equals, 1)
-	c.Assert(systemctlArgs, DeepEquals, []string{"daemon-reload"})
 }
 
 func (s *initramfsClassicMountsSuite) testInitramfsMountsRunModeHappySeedCapsLabel(c *C, role string) {
@@ -8344,6 +8372,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsInstallAndRunMissingFdeSetup(c
 		s.ubuntuLabelMount("ubuntu-seed", "install"),
 		s.makeSeedSnapSystemdMount(snap.TypeSnapd),
 		s.makeSeedSnapSystemdMount(snap.TypeKernel),
+		s.makeSeedSnapSystemdMount(snap.TypeBase),
 		s.makeSeedSnapSystemdMount(snap.TypeGadget),
 		{
 			"tmpfs",
@@ -8541,6 +8570,7 @@ echo '{"features":[]}'
 		s.ubuntuLabelMount("ubuntu-seed", "install"),
 		s.makeSeedSnapSystemdMount(snap.TypeSnapd),
 		s.makeSeedSnapSystemdMount(snap.TypeKernel),
+		s.makeSeedSnapSystemdMount(snap.TypeBase),
 		s.makeSeedSnapSystemdMount(snap.TypeGadget),
 		{
 			filepath.Join(s.tmpDir, "/run/mnt/ubuntu-data"),
@@ -8699,6 +8729,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsInstallAndRunFdeSetupNotPresen
 		s.ubuntuLabelMount("ubuntu-seed", "install"),
 		s.makeSeedSnapSystemdMount(snap.TypeSnapd),
 		s.makeSeedSnapSystemdMount(snap.TypeKernel),
+		s.makeSeedSnapSystemdMount(snap.TypeBase),
 		s.makeSeedSnapSystemdMount(snap.TypeGadget),
 		{
 			filepath.Join(s.tmpDir, "/run/mnt/ubuntu-data"),
@@ -8751,6 +8782,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsInstallAndRunInstallDeviceHook
 		s.ubuntuLabelMount("ubuntu-seed", "install"),
 		s.makeSeedSnapSystemdMount(snap.TypeSnapd),
 		s.makeSeedSnapSystemdMount(snap.TypeKernel),
+		s.makeSeedSnapSystemdMount(snap.TypeBase),
 		s.makeSeedSnapSystemdMount(snap.TypeGadget),
 		{
 			"tmpfs",
@@ -8791,6 +8823,7 @@ func (s *initramfsClassicMountsSuite) TestInitramfsMountsRecoveryModeHybridSyste
 		s.ubuntuLabelMount("ubuntu-seed", "recover"),
 		s.makeSeedSnapSystemdMount(snap.TypeSnapd),
 		s.makeSeedSnapSystemdMount(snap.TypeKernel),
+		s.makeSeedSnapSystemdMount(snap.TypeBase),
 		s.makeSeedSnapSystemdMount(snap.TypeGadget),
 		{
 			"tmpfs",
@@ -9163,6 +9196,7 @@ func (s *initramfsMountsSuite) testInitramfsMountsRunModeWithDriversTreeHappy(c 
 		s.ubuntuPartUUIDMount("ubuntu-seed-partuuid", "run"),
 		s.ubuntuPartUUIDMount("ubuntu-data-partuuid", "run"),
 		s.ubuntuPartUUIDMount("ubuntu-save-partuuid", "run"),
+		s.makeRunSnapSystemdMount(snap.TypeBase, s.core20),
 		s.makeRunSnapSystemdMount(snap.TypeGadget, s.gadget),
 	}, nil)
 	defer restore()
@@ -9279,6 +9313,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeWithComponentsHappy(c *
 		s.ubuntuPartUUIDMount("ubuntu-seed-partuuid", "run"),
 		s.ubuntuPartUUIDMount("ubuntu-data-partuuid", "run"),
 		s.ubuntuPartUUIDMount("ubuntu-save-partuuid", "run"),
+		s.makeRunSnapSystemdMount(snap.TypeBase, s.core20),
 		s.makeRunSnapSystemdMount(snap.TypeGadget, s.gadget),
 	}, nil)
 	defer restore()
@@ -9350,6 +9385,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeWithComponentsBadComps(
 		s.ubuntuPartUUIDMount("ubuntu-seed-partuuid", "run"),
 		s.ubuntuPartUUIDMount("ubuntu-data-partuuid", "run"),
 		s.ubuntuPartUUIDMount("ubuntu-save-partuuid", "run"),
+		s.makeRunSnapSystemdMount(snap.TypeBase, s.core20),
 		s.makeRunSnapSystemdMount(snap.TypeGadget, s.gadget),
 	}, nil)
 	defer restore()

@@ -1839,6 +1839,15 @@ func mountNonDataPartitionMatchingKernelDisk(dir, fallbacklabel string, opts *sy
 	return doSystemdMount(partSrc, dir, opts)
 }
 
+func is24plusSystem(model *asserts.Model) bool {
+	switch model.Base() {
+	case "core20", "core22", "core22-desktop":
+		return false
+	default:
+		return true
+	}
+}
+
 func generateMountsCommonInstallRecoverStart(mst *initramfsMountsState) (model *asserts.Model, sysSnaps map[snap.Type]*seed.Snap, err error) {
 	seedMountOpts := &systemdMountOptions{
 		// always fsck the partition when we are mounting it, as this is the
@@ -1899,12 +1908,22 @@ func generateMountsCommonInstallRecoverStart(mst *initramfsMountsState) (model *
 
 	for _, essentialSnap := range essSnaps {
 		systemSnaps[essentialSnap.EssentialType] = essentialSnap
-		if essentialSnap.EssentialType == snap.TypeBase {
-			// Create unit to mount directly to /sysroot
+		if essentialSnap.EssentialType == snap.TypeBase && is24plusSystem(model) {
+			// Create unit to mount directly to /sysroot. We
+			// restrict this to UC24+ for the moment, until we backport
+			// necessary changes to the UC20/22 initramfs.
 			what := essentialSnap.Path
 			if err := writeSysrootMountUnit(what, "squashfs"); err != nil {
 				return nil, nil, fmt.Errorf(
 					"cannot write sysroot.mount (what: %s): %v", what, err)
+			}
+			// Do a daemon reload so systemd knows about the new sysroot mount unit
+			// (populate-writable.service depends on sysroot.mount, we need to make
+			// sure systemd knows this unit before snap-initramfs-mounts.service
+			// finishes)
+			sysd := systemd.New(systemd.SystemMode, nil)
+			if err := sysd.DaemonReload(); err != nil {
+				return nil, nil, err
 			}
 		} else {
 			dir := snapTypeToMountDir[essentialSnap.EssentialType]
@@ -1916,15 +1935,6 @@ func generateMountsCommonInstallRecoverStart(mst *initramfsMountsState) (model *
 				return nil, nil, err
 			}
 		}
-	}
-
-	// Do a daemon reload so systemd knows about the new sysroot mount unit
-	// (populate-writable.service depends on sysroot.mount, we need to make
-	// sure systemd knows this unit before snap-initramfs-mounts.service
-	// finishes)
-	sysd := systemd.New(systemd.SystemMode, nil)
-	if err := sysd.DaemonReload(); err != nil {
-		return nil, nil, err
 	}
 
 	return model, systemSnaps, nil
@@ -2379,16 +2389,22 @@ func generateMountsModeRun(mst *initramfsMountsState) error {
 	//            to the function above to make decisions there, or perhaps this
 	//            code actually belongs in the bootloader implementation itself
 
-	// Create unit for sysroot (mounts either base or rootfs)
-	if isClassic {
-		if err := writeSysrootMountUnit(rootfsDir, ""); err != nil {
-			return fmt.Errorf("cannot write sysroot.mount (what: %s): %v", rootfsDir, err)
-		}
-	} else {
-		basePlaceInfo := mounts[snap.TypeBase]
-		what := filepath.Join(dirs.SnapBlobDirUnder(rootfsDir), basePlaceInfo.Filename())
-		if err := writeSysrootMountUnit(what, "squashfs"); err != nil {
-			return fmt.Errorf("cannot write sysroot.mount (what: %s): %v", what, err)
+	typesToMount := typs
+	if is24plusSystem(model) {
+		// Create unit for sysroot (mounts either base or rootfs). We
+		// restrict this to UC24+ for the moment, until we backport
+		// necessary changes to the UC20/22 initramfs.
+		typesToMount = []snap.Type{snap.TypeGadget, snap.TypeKernel}
+		if isClassic {
+			if err := writeSysrootMountUnit(rootfsDir, ""); err != nil {
+				return fmt.Errorf("cannot write sysroot.mount (what: %s): %v", rootfsDir, err)
+			}
+		} else {
+			basePlaceInfo := mounts[snap.TypeBase]
+			what := filepath.Join(dirs.SnapBlobDirUnder(rootfsDir), basePlaceInfo.Filename())
+			if err := writeSysrootMountUnit(what, "squashfs"); err != nil {
+				return fmt.Errorf("cannot write sysroot.mount (what: %s): %v", what, err)
+			}
 		}
 	}
 
@@ -2402,7 +2418,7 @@ func generateMountsModeRun(mst *initramfsMountsState) error {
 	}
 
 	// 4.3 mount the gadget snap and, if there is no drivers tree, the kernel snap
-	for _, typ := range []snap.Type{snap.TypeGadget, snap.TypeKernel} {
+	for _, typ := range typesToMount {
 		if typ == snap.TypeKernel && hasDriversTree {
 			continue
 		}
