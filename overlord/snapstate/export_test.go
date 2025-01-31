@@ -352,6 +352,10 @@ var (
 	DiscardSnapIcon      = discardSnapIcon
 )
 
+func MockStoreDownloadIcon(f func(ctx context.Context, name, targetPath, downloadURL string) error) (restore func()) {
+	return testutil.Mock(&storeDownloadIcon, f)
+}
+
 // link, misc handlers
 var (
 	MissingDisabledServices = missingDisabledServices
