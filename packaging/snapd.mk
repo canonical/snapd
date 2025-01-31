@@ -72,7 +72,7 @@ $(builddir)/snap: GO_TAGS += nomanagers
 $(builddir)/snap $(builddir)/snap-seccomp $(builddir)/snapd-apparmor:
 	go build -o $@ $(if $(GO_TAGS),-tags "$(GO_TAGS)") \
 		-buildmode=pie \
-		-ldflags="-B 0x$$(head -c20 /dev/urandom|od -An -tx1|tr -d ' \n') $(EXTRA_GO_LDFLAGS)" \
+		-ldflags="$(EXTRA_GO_LDFLAGS)" \
 		-mod=vendor \
 		$(EXTRA_GO_BUILD_FLAGS) \
 		$(import_path)/cmd/$(notdir $@)
@@ -94,7 +94,7 @@ $(builddir)/snap-update-ns $(builddir)/snap-exec $(builddir)/snapctl:
 # suite to add test assertions. Do not enable this in distribution packages.
 $(builddir)/snapd:
 	go build -o $@ -buildmode=pie \
-		-ldflags="-B 0x$$(head -c20 /dev/urandom|od -An -tx1|tr -d ' \n') $(EXTRA_GO_LDFLAGS)" \
+		-ldflags="$(EXTRA_GO_LDFLAGS)" \
 		-mod=vendor \
 		$(if $(GO_TAGS),-tags "$(GO_TAGS)") \
 		$(EXTRA_GO_BUILD_FLAGS) \
