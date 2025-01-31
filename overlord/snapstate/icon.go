@@ -54,6 +54,10 @@ func linkSnapIcon(snapID string) error {
 	if snapID == "" {
 		return nil
 	}
+	if err := os.MkdirAll(dirs.SnapIconsDir, 0o755); err != nil {
+		return fmt.Errorf("cannot create directory for snap icons: %v", err)
+	}
+
 	poolPath := iconDownloadFilename(snapID)
 	installPath := iconInstallFilename(snapID)
 	if err := os.Link(poolPath, installPath); err != nil {

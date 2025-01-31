@@ -343,6 +343,15 @@ var (
 type AuxStoreInfo = auxStoreInfo
 type DisabledServices = disabledServices
 
+// snap icon helpers
+var (
+	IconDownloadFilename = iconDownloadFilename
+	IconInstallFilename  = iconInstallFilename
+	LinkSnapIcon         = linkSnapIcon
+	UnlinkSnapIcon       = unlinkSnapIcon
+	DiscardSnapIcon      = discardSnapIcon
+)
+
 // link, misc handlers
 var (
 	MissingDisabledServices = missingDisabledServices
