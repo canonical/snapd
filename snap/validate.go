@@ -171,6 +171,31 @@ func validateHooks(info *Info) error {
 
 	hasDefaultConfigureHook := info.Hooks["default-configure"] != nil
 	hasConfigureHook := info.Hooks["configure"] != nil
+
+	if info.SnapType == TypeOS && info.InstanceName() == "core" && hasDefaultConfigureHook {
+		// The default-configure hook is not supported for core. However, it has an empty configure
+		// hook that is not required, but tolerated to prevent introducing a new error.
+		return fmt.Errorf(`cannot specify "default-configure" hook for %q snap %q`, info.Type(), info.InstanceName())
+	}
+
+	if info.SnapType == TypeSnapd || info.SnapType == TypeBase || (info.SnapType == TypeOS && info.InstanceName() != "core") {
+		var hookNames strings.Builder
+		if hasDefaultConfigureHook {
+			hookNames.WriteString(`"default-configure"`)
+			if hasConfigureHook {
+				hookNames.WriteString(" or ")
+			}
+		}
+		if hasConfigureHook {
+			hookNames.WriteString(`"configure"`)
+		}
+		if hookNames.String() != "" {
+			// neither default-configure nor configure hooks are supported for snapd, base or OS snaps,
+			// except for core snap that is allowed an configure hook that will be ignored
+			return fmt.Errorf("cannot specify %s hook for %q snap %q", hookNames.String(), info.Type(), info.InstanceName())
+		}
+	}
+
 	if hasDefaultConfigureHook && !hasConfigureHook {
 		return fmt.Errorf(`cannot specify "default-configure" hook without "configure" hook`)
 	}
@@ -457,7 +482,7 @@ func ValidateBase(info *Info) error {
 	// validate that bases do not have base fields
 	if info.Type() == TypeOS || info.Type() == TypeBase {
 		if info.Base != "" && info.Base != "none" {
-			return fmt.Errorf(`cannot have "base" field on %q snap %q`, info.Type(), info.InstanceName())
+			return fmt.Errorf(`cannot have "base" field with value other than "none" on %q snap %q`, info.Type(), info.InstanceName())
 		}
 	}
 

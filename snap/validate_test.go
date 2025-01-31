@@ -782,7 +782,7 @@ version: 1.0
 	c.Assert(Validate(info), IsNil)
 }
 
-func (s *ValidateSuite) TestIllegalHookName(c *C) {
+func (s *ValidateSuite) TestValidateHookName(c *C) {
 	hookType := NewHookType(regexp.MustCompile(".*"))
 	restore := MockSupportedHookTypes([]*HookType{hookType})
 	defer restore()
@@ -796,6 +796,62 @@ hooks:
 
 	err = Validate(info)
 	c.Check(err, ErrorMatches, `invalid hook name: "123abc"`)
+}
+
+func (s *ValidateSuite) TestValidateHookCoreWithConfigureHappy(c *C) {
+	info, err := InfoFromSnapYaml([]byte(`name: core
+version: 1.0
+hooks:
+  configure:
+type: os
+`))
+	c.Assert(err, IsNil)
+	err = Validate(info)
+	c.Assert(err, IsNil)
+}
+
+func (s *ValidateSuite) TestValidateHookCoreWithDefaultConfigureError(c *C) {
+	info, err := InfoFromSnapYaml([]byte(`name: core
+version: 1.0
+hooks:
+  default-configure:
+type: os
+`))
+	c.Assert(err, IsNil)
+	err = Validate(info)
+	c.Check(err, ErrorMatches, `cannot specify "default-configure" hook for "os" snap "core"`)
+}
+
+func (s *ValidateSuite) TestValidateHookSnapdBaseOSWithConfigureHooksError(c *C) {
+	var snapYaml []byte
+	for _, snapType := range []string{"snapd", "base", "os"} {
+		snapYaml = []byte(fmt.Sprintf(`name: %[1]s
+version: 1.0
+hooks:
+  default-configure:
+  configure:
+type: %[1]s`, snapType))
+		info, err := InfoFromSnapYaml(snapYaml)
+		c.Assert(err, IsNil)
+		err = Validate(info)
+		c.Check(err, ErrorMatches, fmt.Sprintf(`cannot specify "default-configure" or "configure" hook for %[1]q snap %[1]q`, snapType))
+	}
+}
+
+func (s *ValidateSuite) TestValidateHookKernelGadgetWithConfigureHooksHappy(c *C) {
+	var snapYaml []byte
+	for _, snapType := range []string{"kernel", "gadget"} {
+		snapYaml = []byte(fmt.Sprintf(`name: %[1]s
+version: 1.0
+hooks:
+  default-configure:
+  configure:
+type: %[1]s`, snapType))
+		info, err := InfoFromSnapYaml(snapYaml)
+		c.Assert(err, IsNil)
+		err = Validate(info)
+		c.Assert(err, IsNil)
+	}
 }
 
 func (s *ValidateSuite) TestIllegalHookDefaultConfigureWithoutConfigure(c *C) {
@@ -1672,7 +1728,7 @@ base: bar
 	c.Assert(err, IsNil)
 
 	err = Validate(info)
-	c.Check(err, ErrorMatches, `cannot have "base" field on "os" snap "foo"`)
+	c.Check(err, ErrorMatches, `cannot have "base" field with value other than "none" on "os" snap "foo"`)
 }
 
 func (s *ValidateSuite) TestValidateOsCanHaveBaseNone(c *C) {
@@ -1716,7 +1772,7 @@ base: bar
 	c.Assert(err, IsNil)
 
 	err = Validate(info)
-	c.Check(err, ErrorMatches, `cannot have "base" field on "base" snap "foo"`)
+	c.Check(err, ErrorMatches, `cannot have "base" field with value other than "none" on "base" snap "foo"`)
 }
 
 func (s *ValidateSuite) TestValidateBaseCanHaveBaseNone(c *C) {
