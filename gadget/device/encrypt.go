@@ -28,6 +28,7 @@ import (
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/strutil"
 )
 
 // encryptionMarkerUnder returns the path of the encrypted system marker under a
@@ -180,7 +181,6 @@ func (o *VolumesAuthOptions) Validate() error {
 
 	switch o.Mode {
 	case AuthModePassphrase:
-		// TODO: Add entropy/quality checks on passphrase.
 		if len(o.Passphrase) == 0 {
 			return fmt.Errorf("passphrase cannot be empty")
 		}
@@ -204,4 +204,53 @@ func (o *VolumesAuthOptions) Validate() error {
 	}
 
 	return nil
+}
+
+type AuthQualityErrorReason string
+
+const (
+	AuthQualityErrorReasonLowEntropy AuthQualityErrorReason = "low-entropy"
+)
+
+// AuthQualityError contains rich inforamtion on why some auth value
+// did not pass quality checks.
+type AuthQualityError struct {
+	// Reasons is a list of reason enums to explain exactly what quality
+	// criteria failed e.g. AuthQualityErrorReasonLowEntropy.
+	Reasons []AuthQualityErrorReason
+	// Entropy is the calculated entropy in bits for the passed passphrase
+	// or PIN.
+	Entropy float64
+	// MinEntropy is the minimum entropy in bits for the corresponding
+	// authentication mode i.e. passhrase or PIN.
+	MinEntropy float64
+
+	err error
+}
+
+func (e *AuthQualityError) Error() string {
+	return e.err.Error()
+}
+
+// ValidatePassphraseOrPINEntropy checks quality of given passphrase or PIN based
+// on their entropy. An AuthQualityError error is returned which contains more
+// information about the given passphrase or PIN quality.
+func ValidatePassphraseOrPINEntropy(mode AuthMode, value string) error {
+	var minEntropy float64 = 42
+	if mode == AuthModePIN {
+		minEntropy = 13.3
+	}
+
+	// FIXME: The quality checks need to be revisited to properly support unicode and be more robust.
+	entropy := strutil.Entropy(value)
+	if entropy >= minEntropy {
+		return nil
+	}
+
+	return &AuthQualityError{
+		Reasons:    []AuthQualityErrorReason{AuthQualityErrorReasonLowEntropy},
+		Entropy:    entropy,
+		MinEntropy: minEntropy,
+		err:        fmt.Errorf("calculated entropy (%.2f) is less than the required minimum entropy (%.2f) for the %q authentication mode", entropy, minEntropy, mode),
+	}
 }
