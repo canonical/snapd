@@ -54,8 +54,7 @@ const (
 )
 
 func ioctl(f *os.File, request uintptr, attrp *int32) error {
-	argp := uintptr(unsafe.Pointer(attrp))
-	_, _, errno := syscall.Syscall(syscall.SYS_IOCTL, f.Fd(), request, argp)
+	_, _, errno := syscall.Syscall(syscall.SYS_IOCTL, f.Fd(), request, uintptr(unsafe.Pointer(attrp)))
 	if errno != 0 {
 		return os.NewSyscallError("ioctl", errno)
 	}
