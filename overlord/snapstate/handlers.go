@@ -964,14 +964,14 @@ func addMonitoring(st *state.State, snapName string, abort context.CancelFunc) (
 // removeMonitoring removes monitoring state related to the specified snap.
 func removeMonitoring(st *state.State, snapName string) error {
 	var refreshHints map[string]*refreshCandidate
-	if err := st.Get("refresh-candidates", &refreshHints); err != nil {
+	if err := st.Get("refresh-candidates", &refreshHints); err != nil && !errors.Is(err, state.ErrNoState) {
 		return fmt.Errorf("cannot get refresh-candidates: %v", err)
-	} else if _, ok := refreshHints[snapName]; !ok {
-		return fmt.Errorf(`cannot reset the "monitored" field for %q in "refresh-candidates"`, snapName)
 	}
 
-	refreshHints[snapName].Monitored = false
-	st.Set("refresh-candidates", refreshHints)
+	if _, ok := refreshHints[snapName]; ok {
+		refreshHints[snapName].Monitored = false
+		st.Set("refresh-candidates", refreshHints)
+	}
 
 	abortChans, err := getMonitoringAborts(st)
 	if err != nil {
