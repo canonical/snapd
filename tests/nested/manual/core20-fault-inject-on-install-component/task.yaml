@@ -11,14 +11,14 @@ environment:
     FAULT/kernel_panic_prepare_kernel_components: panic
 
     NESTED_BUILD_SNAPD_FROM_CURRENT: true
-    NESTED_REPACK_KERNEL_SNAP: false
     NESTED_ENABLE_OVMF: true
 
 prepare: |
     # Modify kernel and create a component
-    VERSION="$(tests.nested show version)"
-    snap download --channel="$VERSION"/beta pc-kernel
-    unsquashfs -d kernel pc-kernel_*.snap
+    #shellcheck source=tests/lib/nested.sh
+    . "$TESTSLIB"/nested.sh
+    nested_prepare_kernel
+    unsquashfs -d kernel "$(tests.nested get extra-snaps-path)/pc-kernel.snap"
     kern_ver=$(find kernel/modules/* -maxdepth 0 -printf "%f\n")
     comp_ko_dir=wifi-comp/modules/"$kern_ver"/wireless/
     mkdir -p "$comp_ko_dir"
@@ -35,13 +35,12 @@ prepare: |
     ln -s ../modules kernel/lib/modules
     depmod -b kernel/ "$kern_ver"
     rm -rf kernel/lib
-    rm pc-kernel_*.snap
     # append component meta-information
     printf 'components:\n  wifi-comp:\n    type: kernel-modules\n' >> kernel/meta/snap.yaml
     snap pack kernel
 
-    cp pc-kernel_*.snap "$(tests.nested get extra-snaps-path)"
-    tests.nested build-image core
+    cp pc-kernel_*.snap "$(tests.nested get extra-snaps-path)/pc-kernel.snap"
+    NESTED_REPACK_KERNEL_SNAP=false tests.nested build-image core
     tests.nested create-vm core
 
     echo "Inject a $FAULT on $TAG"
