@@ -61,6 +61,7 @@ func linkSnapIcon(snapID string) error {
 	poolPath := iconDownloadFilename(snapID)
 	installPath := iconInstallFilename(snapID)
 	if err := os.Link(poolPath, installPath); err != nil {
+		// XXX: os.Link() will error if installPath already exists
 		return fmt.Errorf("cannot link snap icon for snap %s: %w", snapID, err)
 	}
 	return nil
