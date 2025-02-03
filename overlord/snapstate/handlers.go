@@ -2448,10 +2448,15 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (err error) {
 			}()
 		}
 
-		if err := linkSnapIcon(cand.Snap.SnapID); err != nil {
+		if e := linkSnapIcon(cand.Snap.SnapID); e != nil {
+			// XXX: careful, if the error variable is `err` here, it'll be used
+			// in the check for `IsErrAndNotWait(err)` in the `else`, which
+			// means the real error will not be checked. Need to use new local
+			// variable explicitly.
+
 			// The snap icon may not exist in the icons pool, or another error
 			// occurred. This does not block the install, just log the error.
-			logger.Debugf("%v", err)
+			logger.Debugf("%v", e)
 		} else {
 			defer func() {
 				if IsErrAndNotWait(err) {

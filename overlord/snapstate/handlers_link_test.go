@@ -38,6 +38,7 @@ import (
 	"github.com/snapcore/snapd/cmd/snaplock"
 	"github.com/snapcore/snapd/cmd/snaplock/runinhibit"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/configstate/config"
@@ -103,11 +104,18 @@ func checkHasCookieForSnap(c *C, st *state.State, instanceName string) {
 }
 
 func (s *linkSnapSuite) TestDoLinkSnapSuccess(c *C) {
+	s.testDoLinkSnapSuccess(c, nil)
+}
+
+func (s *linkSnapSuite) testDoLinkSnapSuccess(c *C, expectedIconContent []byte) {
+	logbuf, restore := logger.MockDebugLogger()
+	defer restore()
+
 	// we start without the auxiliary store info
 	c.Check(snapstate.AuxStoreInfoFilename("foo-id"), testutil.FileAbsent)
 
 	lp := &testLinkParticipant{}
-	restore := snapstate.MockLinkSnapParticipants([]snapstate.LinkSnapParticipant{lp, snapstate.LinkSnapParticipantFunc(ifacestate.OnSnapLinkageChanged)})
+	restore = snapstate.MockLinkSnapParticipants([]snapstate.LinkSnapParticipant{lp, snapstate.LinkSnapParticipantFunc(ifacestate.OnSnapLinkageChanged)})
 	defer restore()
 
 	s.state.Lock()
@@ -152,8 +160,31 @@ func (s *linkSnapSuite) TestDoLinkSnapSuccess(c *C) {
 	// we end with the auxiliary store info
 	c.Check(snapstate.AuxStoreInfoFilename("foo-id"), testutil.FilePresent)
 
+	if expectedIconContent != nil {
+		// check that the snap icon is installed
+		c.Check(snapstate.IconInstallFilename("foo-id"), testutil.FileEquals, expectedIconContent)
+		// check that the snap icon is also still in the pool (installation linked, not moved)
+		c.Check(snapstate.IconDownloadFilename("foo-id"), testutil.FileEquals, expectedIconContent)
+		// check that no debug log related to snap icons was recorded
+		c.Check(logbuf.String(), Not(testutil.Contains), "cannot link snap icon for snap foo-id")
+	} else {
+		// check that the snap icon is not present
+		c.Check(snapstate.IconInstallFilename("foo-id"), Not(testutil.FilePresent))
+		// check that a debug log was recorded with a relevant error
+		c.Check(logbuf.String(), testutil.Contains, "cannot link snap icon for snap foo-id")
+	}
+
 	// link snap participant was invoked
 	c.Check(lp.instanceNames, DeepEquals, []string{"foo"})
+}
+
+func (s *linkSnapSuite) TestDoLinkSnapSuccessWithIcon(c *C) {
+	iconContents := []byte("some icon file contents")
+	// create snap icon in icons pool directory
+	c.Assert(os.MkdirAll(dirs.SnapIconsPoolDir, 0o755), IsNil)
+	c.Assert(os.WriteFile(snapstate.IconDownloadFilename("foo-id"), iconContents, 0o644), IsNil)
+
+	s.testDoLinkSnapSuccess(c, iconContents)
 }
 
 func (s *linkSnapSuite) TestDoLinkSnapSuccessWithCohort(c *C) {
@@ -901,7 +932,11 @@ func (s *linkSnapSuite) TestDoUnlinkCurrentSnapRelinksOnFailure(c *C) {
 	defer s.state.Unlock()
 
 	// With a snap "foo" at revision 42
-	si := &snap.SideInfo{RealName: "foo", Revision: snap.R(42)}
+	si := &snap.SideInfo{
+		RealName: "foo",
+		Revision: snap.R(42),
+		SnapID:   "foo-id", // include for the sake of the snap icon
+	}
 	snapstate.Set(s.state, "foo", &snapstate.SnapState{
 		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si}),
 		Current:  si.Revision,
@@ -969,6 +1004,27 @@ func (s *linkSnapSuite) TestDoUnlinkCurrentSnapRelinksOnFailure(c *C) {
 		},
 	}
 	c.Check(s.fakeBackend.ops, DeepEquals, expected)
+}
+
+func (s *linkSnapSuite) TestDoUnlinkCurrentSnapRelinksOnFailureWithIcon(c *C) {
+	logbuf, restore := logger.MockDebugLogger()
+	defer restore()
+
+	iconContents := []byte("some icon file contents")
+	// we start with the snap icon in the icons pool
+	c.Assert(os.MkdirAll(dirs.SnapIconsPoolDir, 0o755), IsNil)
+	c.Assert(os.WriteFile(snapstate.IconDownloadFilename("foo-id"), iconContents, 0o644), IsNil)
+	// and we link the icon to the icons install directory
+	c.Assert(snapstate.LinkSnapIcon("foo-id"), IsNil)
+
+	s.TestDoUnlinkCurrentSnapRelinksOnFailure(c)
+
+	// we end with the snap icon still installed and in the icons download pool
+	c.Check(snapstate.IconInstallFilename("foo-id"), testutil.FileEquals, iconContents)
+	c.Check(snapstate.IconDownloadFilename("foo-id"), testutil.FileEquals, iconContents)
+
+	// check that the log doesn't show snap icon errors
+	c.Check(logbuf.String(), Not(testutil.Contains), "cannot link snap icon")
 }
 
 func (s *linkSnapSuite) TestDoLinkSnapWithVitalityScore(c *C) {
@@ -1451,6 +1507,90 @@ func (s *linkSnapSuite) TestDoLinkSnapFailGadgetDoesRequestsRestart(c *C) {
 	c.Check(t.Status(), Equals, state.ErrorStatus)
 	c.Check(s.restartRequested, HasLen, 0)
 	c.Check(t.Log(), HasLen, 2)
+}
+
+func (s *linkSnapSuite) TestDoLinkSnapFailGadgetDoesRequestsRestartWithIcon(c *C) {
+	// XXX: for some reason, TestDoLinkSnapFailGadgetDoesRequestsRestart is the
+	// only one (at timem of writing) which hits the case where doLinkSnap hits
+	// an error for which IsErrAndNotWait is true, and the deferred
+	// discardAuxStoreInfo and unlinkSnapIcon are called. So add a test variant
+	// which tests that the defer does truly run and the icon is unlinked during
+	// the error rollback, after previously being linked.
+
+	restore := release.MockOnClassic(false)
+	defer restore()
+
+	logbuf, restore := logger.MockDebugLogger()
+	defer restore()
+
+	// we start with a snap icon in the icons pool
+	iconContents := []byte("some icon file contents")
+	// we start with the snap icon in the icons pool
+	c.Assert(os.MkdirAll(dirs.SnapIconsPoolDir, 0o755), IsNil)
+	c.Assert(os.WriteFile(snapstate.IconDownloadFilename("pc-snap-id"), iconContents, 0o644), IsNil)
+
+	s.state.Lock()
+	si := &snap.SideInfo{
+		RealName: "pc",
+		SnapID:   "pc-snap-id",
+		Revision: snap.R(1),
+	}
+	t := s.state.NewTask("link-snap", "test")
+	t.Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: si,
+		Type:     snap.TypeGadget,
+	})
+	t.Set("set-next-boot", true)
+	chg := s.state.NewChange("sample", "...")
+	chg.AddTask(t)
+
+	// Force failure in a contrieved way by setting
+	// "gadget-restart-required" to a string (we want to make sure that we
+	// unlink on an error after setting next boot)
+	chg.Set("gadget-restart-required", "not-bool")
+
+	s.state.Unlock()
+
+	s.se.Ensure()
+	s.se.Wait()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	expected := fakeOps{
+		{
+			op:    "candidate",
+			sinfo: *si,
+		},
+		{
+			op:   "link-snap",
+			path: filepath.Join(dirs.SnapMountDir, "pc/1"),
+		},
+		{
+			op: "maybe-set-next-boot",
+		},
+		{
+			op:   "unlink-snap",
+			path: filepath.Join(dirs.SnapMountDir, "pc/1"),
+
+			unlinkFirstInstallUndo: true,
+		},
+	}
+	c.Check(s.fakeBackend.ops.Ops(), DeepEquals, expected.Ops())
+	c.Check(s.fakeBackend.ops, DeepEquals, expected)
+
+	// Error, no reboot has been requested
+	c.Check(t.Status(), Equals, state.ErrorStatus)
+	c.Check(s.restartRequested, HasLen, 0)
+	c.Check(t.Log(), HasLen, 2)
+
+	// we end with the snap icon still in the icons pool but not installed
+	c.Check(snapstate.IconDownloadFilename("pc-snap-id"), testutil.FileEquals, iconContents)
+	c.Check(snapstate.IconInstallFilename("pc-snap-id"), testutil.FileAbsent)
+
+	// there are no errors related to linking/unlinking the snap icon
+	c.Check(logbuf.String(), Not(testutil.Contains), "cannot link snap icon")
+	c.Check(logbuf.String(), Not(testutil.Contains), "cannot unlink snap icon")
 }
 
 func (s *linkSnapSuite) TestDoLinkSnapSuccessCoreAndSnapdNoCoreRestart(c *C) {
@@ -2132,6 +2272,12 @@ func (s *linkSnapSuite) TestDoLinkSnapFailureCleansUpAux(c *C) {
 	// we start without the auxiliary store info
 	c.Check(snapstate.AuxStoreInfoFilename("foo-id"), testutil.FileAbsent)
 
+	// we start with the snap icon in the pool but not yet installed
+	iconContents := []byte("some icon file contents")
+	// create snap icon in icons pool directory
+	c.Assert(os.MkdirAll(dirs.SnapIconsPoolDir, 0o755), IsNil)
+	c.Assert(os.WriteFile(snapstate.IconDownloadFilename("foo-id"), iconContents, 0o644), IsNil)
+
 	s.state.Lock()
 	t := s.state.NewTask("link-snap", "test")
 	t.Set("snap-setup", &snapstate.SnapSetup{
@@ -2158,6 +2304,10 @@ func (s *linkSnapSuite) TestDoLinkSnapFailureCleansUpAux(c *C) {
 
 	// we end without the auxiliary store info
 	c.Check(snapstate.AuxStoreInfoFilename("foo-id"), testutil.FileAbsent)
+
+	// we end with the snap icon in the pool but still not installed
+	c.Check(snapstate.IconDownloadFilename("foo-id"), testutil.FileEquals, iconContents)
+	c.Check(snapstate.IconInstallFilename("foo-id"), testutil.FileAbsent)
 }
 
 func (s *linkSnapSuite) TestLinkSnapResetsRefreshInhibitedTime(c *C) {
