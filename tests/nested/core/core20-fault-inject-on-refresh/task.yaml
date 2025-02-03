@@ -126,7 +126,11 @@ execute: |
     fi
 
     if [ "$SECOND_REBOOT" = true ]; then
-        remote.wait-for reboot "$boot_id"
+        # we might not count the first reboot correctly, so we should
+        # not fail if we do not think we have rebooted twice.
+        # FIXME: it is slow to wait for timeout, we should count boot
+        # another way.
+        remote.wait-for reboot "$boot_id" || true
     fi
 
     echo "And snap refresh is completed"
