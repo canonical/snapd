@@ -656,19 +656,6 @@ func (m *SnapManager) doPrepareSnap(t *state.Task, _ *tomb.Tomb) error {
 func (m *SnapManager) undoPrepareSnap(t *state.Task, _ *tomb.Tomb) error {
 	// TODO: add some telemetry here that reports the snaps that were being set
 	// up
-
-	// XXX: should discardSnapIcon() be called here, since this is the undo
-	// handler for doDownloadSnap? Or should doDownloadSnap get a new undo
-	// handler which calls discardSnapIcon() and then calls this function
-	// (undoPrepareSnap)? If either of these happens, discardSnapIcon should
-	// only be called if there is no revision of the snap otherwise present on
-	// the system, otherwise we end up removing the downloaded icon for a snap
-	// which is still present on the system, and on the next snap revert, the
-	// attempt to link the icon to the icons directory will fail, leaving the
-	// snap with no icon.
-	// XXX: or is doDiscardSnap (instead of undoPrepareSnap) responsible for
-	// removing snaps which were previously downloaded (and may or may not have
-	// been successfully installed), and thus can clean up the snap icon as well?
 	return nil
 }
 
