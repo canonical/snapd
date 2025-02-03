@@ -75,7 +75,7 @@ func ParseSchema(raw []byte) (*StorageSchema, error) {
 
 		// TODO: if we want to allow aliases to refer to others, this must be handled
 		// explicitly since the "aliases" map doesn't have any implicit order
-		schema.aliases = make(map[string]*aliasRefParser, len(aliases))
+		schema.aliases = make(map[string]*userDefinedType, len(aliases))
 		for alias, typeDef := range aliases {
 			if !validAliasName.Match([]byte(alias)) {
 				return nil, fmt.Errorf(`cannot parse alias name %q: must match %s`, alias, validAliasName)
@@ -86,7 +86,14 @@ func ParseSchema(raw []byte) (*StorageSchema, error) {
 				return nil, fmt.Errorf(`cannot parse alias %q: %w`, alias, err)
 			}
 
-			schema.aliases[alias] = newAliasRefParser(aliasSchema)
+			if aliasSchema.Ephemeral() {
+				// TODO: this isn't properly forbidden because the type may have other nested types
+				// that are marked as ephemeral. It might be as much effort to fully forbid it
+				// than it is to support it so I'll leave its enablement for a follow-up
+				return nil, fmt.Errorf(`cannot use "ephemeral" in user-defined type: %s`, alias)
+			}
+
+			schema.aliases[alias] = newUserDefinedType(aliasSchema)
 		}
 	}
 
@@ -98,35 +105,101 @@ func ParseSchema(raw []byte) (*StorageSchema, error) {
 	return schema, nil
 }
 
-// aliasRefParser parses references to aliases (e.g., $my-type).
-type aliasRefParser struct {
+// userDefinedType represents a user-defined type defined under "aliases".
+type userDefinedType struct {
 	Schema
 
 	stringBased bool
 }
 
-func newAliasRefParser(s Schema) *aliasRefParser {
+func newUserDefinedType(s Schema) *userDefinedType {
 	_, ok := s.(*stringSchema)
-	return &aliasRefParser{
+	return &userDefinedType{
 		Schema:      s,
 		stringBased: ok,
 	}
 }
 
-// expectsConstraints return false because a reference to an alias doesn't
-// define constraints (these are defined under "aliases" at the top level).
-func (*aliasRefParser) expectsConstraints() bool {
+func (v *userDefinedType) Ephemeral() bool {
+	// TODO: this isn't allowed for now
 	return false
 }
 
-// parseConstraints is a no-op because type references can't define constraints.
-func (v *aliasRefParser) parseConstraints(map[string]json.RawMessage) error {
-	return nil
+// aliasReference represents a reference to a user-defined type in the schema.
+type aliasReference struct {
+	alias *userDefinedType
+
+	ephemeral bool
+}
+
+// expectsConstraints return false because a reference to an alias doesn't
+// necessarily require constraints.
+func (*aliasReference) expectsConstraints() bool {
+	return false
+}
+
+// parseConstraints parses any constraints passed to the alias reference, if any
+// exist.
+func (v *aliasReference) parseConstraints(constraints map[string]json.RawMessage) (err error) {
+	v.ephemeral, err = parseEphemeral(constraints)
+	return err
 }
 
 // isStringBased returns true if this reference's base type is a string.
-func (u *aliasRefParser) isStringBased() bool {
-	return u.stringBased
+func (v *aliasReference) isStringBased() bool {
+	return v.alias.stringBased
+}
+
+// Validate validates the data according to the user-defined type referred to by
+// this reference.
+func (v *aliasReference) Validate(data []byte) error {
+	return v.alias.Validate(data)
+}
+
+// SchemaAt returns the alias reference itself if the path terminates at it. If
+// not, it uses the user-defined type to resolve the path.
+func (v *aliasReference) SchemaAt(path []string) ([]Schema, error) {
+	if len(path) == 0 {
+		return []Schema{v}, nil
+	}
+
+	return v.alias.SchemaAt(path)
+}
+
+// Type uses the user-defined alias to resolve the type.
+func (v *aliasReference) Type() SchemaType {
+	return v.alias.Type()
+}
+
+func (v *aliasReference) Ephemeral() bool {
+	return v.ephemeral
+}
+
+// baseSchema holds the data and behaviours common to all types.
+type baseSchema struct {
+	ephemeral bool
+}
+
+func (s baseSchema) Ephemeral() bool {
+	return s.ephemeral
+}
+
+func (b *baseSchema) parseConstraints(constraints map[string]json.RawMessage) (err error) {
+	b.ephemeral, err = parseEphemeral(constraints)
+	return err
+}
+
+func parseEphemeral(constraints map[string]json.RawMessage) (bool, error) {
+	if rawVal, ok := constraints["ephemeral"]; ok {
+		var eph bool
+		err := json.Unmarshal([]byte(rawVal), &eph)
+		if err != nil {
+			return false, err
+		}
+		return eph, nil
+	}
+
+	return false, nil
 }
 
 // StorageSchema represents a confdb schema and can be used to validate the
@@ -136,7 +209,7 @@ type StorageSchema struct {
 	topLevel Schema
 
 	// aliases are schemas that can validate custom types defined by the user.
-	aliases map[string]*aliasRefParser
+	aliases map[string]*userDefinedType
 }
 
 // Validate validates the provided JSON object.
@@ -151,6 +224,10 @@ func (s *StorageSchema) SchemaAt(path []string) ([]Schema, error) {
 
 func (s *StorageSchema) Type() SchemaType {
 	return s.topLevel.Type()
+}
+
+func (s *StorageSchema) Ephemeral() bool {
+	return s.topLevel.Ephemeral()
 }
 
 func (s *StorageSchema) parse(raw json.RawMessage) (Schema, error) {
@@ -236,14 +313,26 @@ func parseTypeDefinition(raw json.RawMessage) (interface{}, error) {
 // a schema that accepts values matching any alternative.
 func (s *StorageSchema) parseAlternatives(alternatives []json.RawMessage) (*alternativesSchema, error) {
 	alt := &alternativesSchema{schemas: make([]Schema, 0, len(alternatives))}
-	for _, altRaw := range alternatives {
+
+	var ephemeralAlts []int
+	for i, altRaw := range alternatives {
 		schema, err := s.parse(altRaw)
 		if err != nil {
 			return nil, err
 		}
 
+		if schema.Ephemeral() {
+			ephemeralAlts = append(ephemeralAlts, i)
+		}
+
 		alt.schemas = append(alt.schemas, schema)
 	}
+
+	if len(ephemeralAlts) != 0 && len(ephemeralAlts) != len(alternatives) {
+		return nil, errors.New(`alternatives must all be ephemeral or non-ephemeral`)
+	}
+
+	alt.baseSchema.ephemeral = len(ephemeralAlts) != 0
 
 	if len(alt.schemas) == 0 {
 		return nil, fmt.Errorf(`alternative type list cannot be empty`)
@@ -296,15 +385,17 @@ func (s *StorageSchema) newTypeSchema(typ string) (parser, error) {
 	}
 }
 
-func (s *StorageSchema) getAlias(ref string) (*aliasRefParser, error) {
+func (s *StorageSchema) getAlias(ref string) (*aliasReference, error) {
 	if alias, ok := s.aliases[ref]; ok {
-		return alias, nil
+		return &aliasReference{alias: alias}, nil
 	}
 
 	return nil, fmt.Errorf("cannot find alias %q", ref)
 }
 
 type alternativesSchema struct {
+	baseSchema
+
 	// schemas holds schemas for the types allowed for the corresponding value.
 	schemas []Schema
 }
@@ -391,6 +482,8 @@ func (v *alternativesSchema) Type() SchemaType {
 }
 
 type mapSchema struct {
+	baseSchema
+
 	// topSchema is the schema for the top-level schema which contains the aliases.
 	topSchema *StorageSchema
 
@@ -542,6 +635,10 @@ func (v *mapSchema) Type() SchemaType {
 }
 
 func (v *mapSchema) parseConstraints(constraints map[string]json.RawMessage) error {
+	if err := v.baseSchema.parseConstraints(constraints); err != nil {
+		return err
+	}
+
 	err := checkExclusiveMapConstraints(constraints)
 	if err != nil {
 		return fmt.Errorf(`cannot parse map: %w`, err)
@@ -696,6 +793,8 @@ func (v *mapSchema) parseMapKeyType(raw json.RawMessage) (Schema, error) {
 func (v *mapSchema) expectsConstraints() bool { return true }
 
 type stringSchema struct {
+	baseSchema
+
 	// pattern is a regex pattern that the string must match.
 	pattern *regexp.Regexp
 
@@ -750,6 +849,10 @@ func (v *stringSchema) Type() SchemaType {
 }
 
 func (v *stringSchema) parseConstraints(constraints map[string]json.RawMessage) error {
+	if err := v.baseSchema.parseConstraints(constraints); err != nil {
+		return err
+	}
+
 	if rawChoices, ok := constraints["choices"]; ok {
 		var choices []string
 		if err := json.Unmarshal(rawChoices, &choices); err != nil {
@@ -785,6 +888,8 @@ func (v *stringSchema) parseConstraints(constraints map[string]json.RawMessage) 
 func (v *stringSchema) expectsConstraints() bool { return false }
 
 type intSchema struct {
+	baseSchema
+
 	min     *int64
 	max     *int64
 	choices []int64
@@ -830,6 +935,10 @@ func (v *intSchema) Type() SchemaType {
 }
 
 func (v *intSchema) parseConstraints(constraints map[string]json.RawMessage) error {
+	if err := v.baseSchema.parseConstraints(constraints); err != nil {
+		return err
+	}
+
 	if rawChoices, ok := constraints["choices"]; ok {
 		var choices []int64
 		err := json.Unmarshal(rawChoices, &choices)
@@ -877,7 +986,9 @@ func (v *intSchema) parseConstraints(constraints map[string]json.RawMessage) err
 
 func (v *intSchema) expectsConstraints() bool { return false }
 
-type anySchema struct{}
+type anySchema struct {
+	baseSchema
+}
 
 func (v *anySchema) Validate(raw []byte) (err error) {
 	defer func() {
@@ -897,9 +1008,8 @@ func (v *anySchema) Validate(raw []byte) (err error) {
 	return nil
 }
 
-func (v *anySchema) parseConstraints(map[string]json.RawMessage) error {
-	// no error because we're not explicitly rejecting unsupported keywords (for now)
-	return nil
+func (v *anySchema) parseConstraints(constraints map[string]json.RawMessage) error {
+	return v.baseSchema.parseConstraints(constraints)
 }
 
 // SchemaAt returns the "any" schema.
@@ -915,6 +1025,8 @@ func (v *anySchema) Type() SchemaType {
 func (v *anySchema) expectsConstraints() bool { return false }
 
 type numberSchema struct {
+	baseSchema
+
 	min     *float64
 	max     *float64
 	choices []float64
@@ -988,6 +1100,10 @@ func validateNumber[Num ~int64 | ~float64](num Num, choices []Num, min, max *Num
 }
 
 func (v *numberSchema) parseConstraints(constraints map[string]json.RawMessage) error {
+	if err := v.baseSchema.parseConstraints(constraints); err != nil {
+		return err
+	}
+
 	if rawChoices, ok := constraints["choices"]; ok {
 		var choices []float64
 		err := json.Unmarshal(rawChoices, &choices)
@@ -1035,7 +1151,9 @@ func (v *numberSchema) parseConstraints(constraints map[string]json.RawMessage) 
 
 func (v *numberSchema) expectsConstraints() bool { return false }
 
-type booleanSchema struct{}
+type booleanSchema struct {
+	baseSchema
+}
 
 func (v *booleanSchema) Validate(raw []byte) (err error) {
 	defer func() {
@@ -1075,14 +1193,15 @@ func (v *booleanSchema) Type() SchemaType {
 	return Bool
 }
 
-func (v *booleanSchema) parseConstraints(map[string]json.RawMessage) error {
-	// no error because we're not explicitly rejecting unsupported keywords (for now)
-	return nil
+func (v *booleanSchema) parseConstraints(constraints map[string]json.RawMessage) error {
+	return v.baseSchema.parseConstraints(constraints)
 }
 
 func (v *booleanSchema) expectsConstraints() bool { return false }
 
 type arraySchema struct {
+	baseSchema
+
 	// topSchema is the schema for the top-level schema which contains the aliases.
 	topSchema *StorageSchema
 
@@ -1155,6 +1274,10 @@ func (v *arraySchema) Type() SchemaType {
 }
 
 func (v *arraySchema) parseConstraints(constraints map[string]json.RawMessage) error {
+	if err := v.baseSchema.parseConstraints(constraints); err != nil {
+		return err
+	}
+
 	rawValues, ok := constraints["values"]
 	if !ok {
 		return fmt.Errorf(`cannot parse "array": must have "values" constraint`)

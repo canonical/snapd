@@ -143,6 +143,8 @@ func (f *failingSchema) Type() confdb.SchemaType {
 	return confdb.Any
 }
 
+func (f *failingSchema) Ephemeral() bool { return false }
+
 func (s *transactionTestSuite) TestRollBackOnCommitError(c *C) {
 	tx, err := confdbstate.NewTransaction(s.state, "my-account", "my-confdb")
 	c.Assert(err, IsNil)
