@@ -23,6 +23,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"sort"
+	"strings"
 	"time"
 
 	"github.com/snapcore/snapd/confdb"
@@ -151,6 +153,22 @@ func (cc *ConfdbControl) Prerequisites() []*Ref {
 	}
 }
 
+// NewConfdbControl returns an empty confdb-control assertion.
+func NewConfdbControl(brand, model, serial string) *ConfdbControl {
+	return &ConfdbControl{
+		assertionBase: assertionBase{
+			headers: map[string]interface{}{
+				"type":     "confdb-control",
+				"brand-id": brand,
+				"model":    model,
+				"serial":   serial,
+				"groups":   []interface{}{},
+			},
+		},
+		operators: map[string]*confdb.Operator{},
+	}
+}
+
 // BrandID returns the brand identifier of the device.
 func (cc *ConfdbControl) BrandID() string {
 	return cc.HeaderString("brand-id")
@@ -165,6 +183,72 @@ func (cc *ConfdbControl) Model() string {
 // Together with brand-id and model, they form the device's unique identifier.
 func (cc *ConfdbControl) Serial() string {
 	return cc.HeaderString("serial")
+}
+
+// ConfdbControlGroup holds a single group in a confdb-control assertion.
+type ConfdbControlGroup struct {
+	Operators       []string
+	Authentications []string
+	Views           []string
+}
+
+// Groups returns the groups in the raw assertion's format.
+func (cc *ConfdbControl) Groups() []*ConfdbControlGroup {
+	// Map auth to view->operators mapping
+	authMap := map[confdb.Authentication]map[confdb.ViewRef][]string{}
+	var auths []confdb.Authentication
+
+	// Group operators by auth and view
+	for _, operator := range cc.operators {
+		for view, auth := range operator.Delegations {
+			_, exists := authMap[auth]
+			if !exists {
+				authMap[auth] = map[confdb.ViewRef][]string{}
+				auths = append(auths, auth)
+			}
+
+			authMap[auth][view] = append(authMap[auth][view], operator.ID)
+		}
+	}
+
+	// Sort auths for consistent output
+	sort.Slice(auths, func(i, j int) bool {
+		return auths[i] < auths[j]
+	})
+
+	// Create groups
+	var groups []*ConfdbControlGroup
+	for _, auth := range auths {
+		viewMap := authMap[auth]
+		authStrs := confdb.ConvertAuthenticationToStrings(auth)
+
+		// Group by unique operator sets
+		operatorSetMap := map[string]*ConfdbControlGroup{}
+
+		for view, operators := range viewMap {
+			sort.Strings(operators)
+			key := strings.Join(operators, ",")
+
+			if group, exists := operatorSetMap[key]; exists {
+				group.Views = append(group.Views, view.String())
+			} else {
+				group := &ConfdbControlGroup{
+					Operators:       operators,
+					Authentications: authStrs,
+					Views:           []string{view.String()},
+				}
+				operatorSetMap[key] = group
+				groups = append(groups, group)
+			}
+		}
+	}
+
+	// Sort views in each group
+	for _, group := range groups {
+		sort.Strings(group.Views)
+	}
+
+	return groups
 }
 
 // assembleConfdbControl creates a new confdb-control assertion after validating
@@ -209,28 +293,12 @@ func parseConfdbControlGroups(rawGroups []interface{}) (map[string]*confdb.Opera
 			return nil, fmt.Errorf("%s: must be a map", errPrefix)
 		}
 
-		operatorID, err := checkNotEmptyStringWhat(group, "operator-id", "field")
+		auth, err := checkStringListInMap(group, "authentications", "field", nil)
 		if err != nil {
-			return nil, fmt.Errorf("%s: %w", errPrefix, err)
-		}
-
-		// Currently, operatorIDs must be snap store account IDs
-		if !IsValidAccountID(operatorID) {
-			return nil, fmt.Errorf(`%s: invalid "operator-id" %s`, errPrefix, operatorID)
-		}
-
-		operator, ok := operators[operatorID]
-		if !ok {
-			operator = &confdb.Operator{ID: operatorID}
-			operators[operatorID] = operator
-		}
-
-		auth, err := checkStringListInMap(group, "authentication", "field", nil)
-		if err != nil {
-			return nil, fmt.Errorf(`%s: "authentication" %w`, errPrefix, err)
+			return nil, fmt.Errorf(`%s: "authentications" %w`, errPrefix, err)
 		}
 		if auth == nil {
-			return nil, fmt.Errorf(`%s: "authentication" must be provided`, errPrefix)
+			return nil, fmt.Errorf(`%s: "authentications" must be provided`, errPrefix)
 		}
 
 		views, err := checkStringListInMap(group, "views", "field", nil)
@@ -241,8 +309,29 @@ func parseConfdbControlGroups(rawGroups []interface{}) (map[string]*confdb.Opera
 			return nil, fmt.Errorf(`%s: "views" must be provided`, errPrefix)
 		}
 
-		if err := operator.AddControlGroup(views, auth); err != nil {
-			return nil, fmt.Errorf(`%s: %w`, errPrefix, err)
+		operatorIDs, err := checkStringListInMap(group, "operators", "field", nil)
+		if err != nil {
+			return nil, fmt.Errorf("%s: %w", errPrefix, err)
+		}
+		if operatorIDs == nil {
+			return nil, fmt.Errorf(`%s: "operators" must be provided`, errPrefix)
+		}
+
+		for _, operatorID := range operatorIDs {
+			// Currently, operatorIDs must be snap store account IDs
+			if !IsValidAccountID(operatorID) {
+				return nil, fmt.Errorf(`%s: invalid "operator-id" %s`, errPrefix, operatorID)
+			}
+
+			operator, ok := operators[operatorID]
+			if !ok {
+				operator = &confdb.Operator{ID: operatorID}
+				operators[operatorID] = operator
+			}
+
+			if err := operator.Delegate(views, auth); err != nil {
+				return nil, fmt.Errorf(`%s: %w`, errPrefix, err)
+			}
 		}
 	}
 

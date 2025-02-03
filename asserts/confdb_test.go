@@ -28,6 +28,7 @@ import (
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/confdb"
+	"github.com/snapcore/snapd/testutil"
 )
 
 type confdbSuite struct {
@@ -215,25 +216,38 @@ model: generic-classic
 serial: 03961d5d-26e5-443f-838d-6db046126bea
 groups:
   -
-    operator-id: john
-    authentication:
+    operators:
+      - john
+    authentications:
       - operator-key
     views:
       - canonical/network/control-device
       - canonical/network/observe-device
   -
-    operator-id: john
-    authentication:
+    operators:
+      - john
+    authentications:
       - store
     views:
       - canonical/network/control-interfaces
   -
-    operator-id: jane
-    authentication:
+    operators:
+      - jane
+    authentications:
       - store
       - operator-key
     views:
       - canonical/network/observe-interfaces
+  -
+    operators:
+      - alice
+      - bob
+    authentications:
+      - store
+      - operator-key
+    views:
+      - canonical/network/observe-device
+      - canonical/network/control-interfaces
 sign-key-sha3-384: t9yuKGLyiezBq_PXMJZsGdkTukmL7MgrgqXAlxxiZF4TYryOjZcy48nnjDmEHQDp
 
 AXNpZw==`
@@ -294,34 +308,20 @@ func (s *confdbCtrlSuite) TestDecodeOK(c *C) {
 	john, ok := operators["john"]
 	c.Assert(ok, Equals, true)
 	c.Assert(john.ID, Equals, "john")
-	c.Assert(len(john.Groups), Equals, 2)
 
-	g := john.Groups[0]
-	c.Assert(g.Authentication, DeepEquals, []confdb.AuthenticationMethod{"operator-key"})
-	expectedViews := []*confdb.ViewRef{
-		{Account: "canonical", Confdb: "network", View: "control-device"},
-		{Account: "canonical", Confdb: "network", View: "observe-device"},
-	}
-	c.Assert(g.Views, DeepEquals, expectedViews)
-
-	g = john.Groups[1]
-	c.Assert(g.Authentication, DeepEquals, []confdb.AuthenticationMethod{"store"})
-	expectedViews = []*confdb.ViewRef{
-		{Account: "canonical", Confdb: "network", View: "control-interfaces"},
-	}
-	c.Assert(g.Views, DeepEquals, expectedViews)
+	delegated, _ := john.IsDelegated("canonical/network/control-device", []string{"operator-key"})
+	c.Check(delegated, Equals, true)
+	delegated, _ = john.IsDelegated("canonical/network/observe-device", []string{"operator-key"})
+	c.Check(delegated, Equals, true)
+	delegated, _ = john.IsDelegated("canonical/network/control-interfaces", []string{"store"})
+	c.Check(delegated, Equals, true)
 
 	jane, ok := operators["jane"]
 	c.Assert(ok, Equals, true)
 	c.Assert(jane.ID, Equals, "jane")
-	c.Assert(len(jane.Groups), Equals, 1)
 
-	g = jane.Groups[0]
-	c.Assert(g.Authentication, DeepEquals, []confdb.AuthenticationMethod{"operator-key", "store"})
-	expectedViews = []*confdb.ViewRef{
-		{Account: "canonical", Confdb: "network", View: "observe-interfaces"},
-	}
-	c.Assert(g.Views, DeepEquals, expectedViews)
+	delegated, _ = jane.IsDelegated("canonical/network/observe-interfaces", []string{"store", "operator-key"})
+	c.Check(delegated, Equals, true)
 }
 
 func (s *confdbCtrlSuite) TestDecodeInvalid(c *C) {
@@ -340,26 +340,21 @@ func (s *confdbCtrlSuite) TestDecodeInvalid(c *C) {
 		{"groups:", "groups: foo\nviews:", `"groups" header must be a list`},
 		{"groups:", "views:", `"groups" stanza is mandatory`},
 		{"groups:", "groups:\n  - bar", `cannot parse group at position 1: must be a map`},
-		{"    operator-id: jane\n", "", `cannot parse group at position 3: "operator-id" field is mandatory`},
+		{"    operators:\n      - jane\n", "", `cannot parse group at position 3: "operators" must be provided`},
 		{
-			"operator-id: jane\n",
-			"operator-id: \n",
-			`cannot parse group at position 3: "operator-id" field should not be empty`,
-		},
-		{
-			"operator-id: jane\n",
-			"operator-id: @op\n",
+			"      - jane",
+			"      - @op",
 			`cannot parse group at position 3: invalid "operator-id" @op`,
 		},
 		{
-			"    authentication:\n      - store",
-			"    authentication: abcd",
-			`cannot parse group at position 2: "authentication" field must be a list of strings`,
+			"    authentications:\n      - store",
+			"    authentications: abcd",
+			`cannot parse group at position 2: "authentications" field must be a list of strings`,
 		},
 		{
-			"    authentication:\n      - store",
+			"    authentications:\n      - store",
 			"    foo: bar",
-			`cannot parse group at position 2: "authentication" must be provided`,
+			`cannot parse group at position 2: "authentications" must be provided`,
 		},
 		{
 			"    views:\n      - canonical/network/control-interfaces",
@@ -374,12 +369,12 @@ func (s *confdbCtrlSuite) TestDecodeInvalid(c *C) {
 		{
 			"      - operator-key",
 			"      - foo-bar",
-			"cannot parse group at position 1: cannot add group: invalid authentication method: foo-bar",
+			"cannot parse group at position 1: cannot delegate: invalid authentication method: foo-bar",
 		},
 		{
 			"canonical/network/control-interfaces",
 			"canonical",
-			`cannot parse group at position 2: view "canonical" must be in the format account/confdb/view`,
+			`cannot parse group at position 2: cannot delegate: view "canonical" must be in the format account/confdb/view`,
 		},
 	}
 
@@ -445,4 +440,65 @@ func (s *confdbCtrlSuite) TestAckAssertionOK(c *C) {
 
 	err = s.db.Add(a)
 	c.Assert(err, IsNil)
+}
+
+func (s *confdbCtrlSuite) TestGroups(c *C) {
+	confdbCtrl := asserts.NewConfdbControl("canonical", "pc", "42")
+
+	aa := &confdb.Operator{ID: "aa"}
+	aa.Delegate([]string{"dd/ee/ff", "gg/hh/ii", "jj/kk/ll"}, []string{"store", "operator-key"})
+	aa.Delegate([]string{"pp/qq/rr"}, []string{"operator-key"})
+	aa.Delegate([]string{"mm/nn/oo"}, []string{"store"})
+	aa.Delegate([]string{"ss/tt/vv"}, []string{"store"})
+	aa.Delegate([]string{"ss/tt/vv"}, []string{"operator-key"})
+	confdbCtrl.AddOperator(aa)
+
+	bb := &confdb.Operator{ID: "bb"}
+	bb.Delegate([]string{"dd/ee/ff", "gg/hh/ii", "jj/kk/ll", "xx/yy/zz"}, []string{"operator-key", "store"})
+	bb.Delegate([]string{"mm/nn/oo"}, []string{"store"})
+	bb.Delegate([]string{"aa/bb/cc"}, []string{"operator-key"})
+	confdbCtrl.AddOperator(bb)
+
+	cc := &confdb.Operator{ID: "cc"}
+	cc.Delegate([]string{"dd/ee/ff", "gg/hh/ii", "jj/kk/ll", "xx/yy/zz"}, []string{"store", "operator-key"})
+	cc.Delegate([]string{"pp/qq/rr"}, []string{"operator-key"})
+	confdbCtrl.AddOperator(cc)
+
+	groups := confdbCtrl.Groups()
+	c.Assert(groups, HasLen, 6)
+	expectedGroups := []*asserts.ConfdbControlGroup{
+		{
+			Operators:       []string{"aa", "cc"},
+			Authentications: []string{"operator-key"},
+			Views:           []string{"pp/qq/rr"},
+		},
+		{
+			Operators:       []string{"bb"},
+			Authentications: []string{"operator-key"},
+			Views:           []string{"aa/bb/cc"},
+		},
+		{
+			Operators:       []string{"aa", "bb"},
+			Authentications: []string{"store"},
+			Views:           []string{"mm/nn/oo"},
+		},
+		{
+			Operators:       []string{"bb", "cc"},
+			Authentications: []string{"operator-key", "store"},
+			Views:           []string{"xx/yy/zz"},
+		},
+		{
+			Operators:       []string{"aa", "bb", "cc"},
+			Authentications: []string{"operator-key", "store"},
+			Views:           []string{"dd/ee/ff", "gg/hh/ii", "jj/kk/ll"},
+		},
+		{
+			Operators:       []string{"aa"},
+			Authentications: []string{"operator-key", "store"},
+			Views:           []string{"ss/tt/vv"},
+		},
+	}
+	for _, expected := range expectedGroups {
+		c.Assert(groups, testutil.DeepContains, expected)
+	}
 }

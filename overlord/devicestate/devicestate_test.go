@@ -2850,12 +2850,12 @@ func (s *deviceMgrSuite) TestSignConfdbControlInvalid(c *C) {
 	s.makeSerialAssertionInState(c, "canonical", "pc", "serialserialserial")
 	s.addKeyToManagerInState(c)
 
-	groups := []interface{}{map[string]interface{}{"operator-id": "jane"}}
+	groups := []interface{}{map[string]interface{}{"operators": []interface{}{"jane"}}}
 	_, err := s.mgr.SignConfdbControl(groups, 4)
 	c.Assert(
 		err,
 		ErrorMatches,
-		"cannot assemble assertion confdb-control: cannot parse group at position 1: \"authentication\" must be provided",
+		"cannot assemble assertion confdb-control: cannot parse group at position 1: \"authentications\" must be provided",
 	)
 }
 
@@ -2868,8 +2868,8 @@ func (s *deviceMgrSuite) TestSignConfdbControlOK(c *C) {
 	s.addKeyToManagerInState(c)
 
 	jane := map[string]interface{}{
-		"operator-id":    "jane",
-		"authentication": []interface{}{"operator-key"},
+		"operators":       []interface{}{"jane"},
+		"authentications": []interface{}{"operator-key"},
 		"views": []interface{}{
 			"canonical/network/observe-interfaces",
 			"canonical/network/control-interfaces",

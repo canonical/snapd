@@ -28,9 +28,3 @@ func MockMaxValueDepth(newDepth int) (restore func()) {
 		maxValueDepth = oldDepth
 	}
 }
-
-// isValidAuthenticationMethod exposed for tests
-var IsValidAuthenticationMethod = isValidAuthenticationMethod
-
-// convertToAuthenticationMethods exposed for tests
-var ConvertToAuthenticationMethods = convertToAuthenticationMethods
