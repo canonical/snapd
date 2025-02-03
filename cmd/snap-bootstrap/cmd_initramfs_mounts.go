@@ -1949,6 +1949,19 @@ func generateMountsCommonInstallRecoverStart(mst *initramfsMountsState) (model *
 			if err := sysd.DaemonReload(); err != nil {
 				return nil, nil, err
 			}
+			if model.Classic() && model.KernelSnap() != nil {
+				// Mount ephemerally for recover mode to gain access to /etc data
+				dir := snapTypeToMountDir[essentialSnap.EssentialType]
+				if err := doSystemdMount(essentialSnap.Path,
+					filepath.Join(boot.InitramfsRunMntDir, dir),
+					&systemdMountOptions{
+						Ephemeral: true,
+						ReadOnly:  true,
+						Private:   true,
+					}); err != nil {
+					return nil, nil, err
+				}
+			}
 		} else {
 			dir := snapTypeToMountDir[essentialSnap.EssentialType]
 			// TODO:UC20: we need to cross-check the kernel path
