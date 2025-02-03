@@ -1,0 +1,9 @@
+[Unit]
+Description=Synchronization target for gpio-chardev interface setup
+After=sysinit.target
+After=snapd.mounts.target
+Requires=sysinit.target
+Requires=snapd.mounts.target
+
+[Install]
+WantedBy=multi-user.target
