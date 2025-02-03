@@ -60,6 +60,7 @@ import (
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/snap/snapdir"
+	"github.com/snapcore/snapd/snap/snapfile"
 	"github.com/snapcore/snapd/snap/squashfs"
 	"github.com/snapcore/snapd/sysconfig"
 	"github.com/snapcore/snapd/timings"
@@ -266,7 +267,6 @@ func readSnapInfo(sysSnaps map[snap.Type]*seed.Snap, snapType snap.Type) (*snap.
 		info.Revision = snap.R(-1)
 	}
 	return info, nil
-
 }
 
 func readComponentInfo(seedComp *seed.Component, mntPt string, snapInfo *snap.Info, csi *snap.ComponentSideInfo) (*snap.ComponentInfo, error) {
@@ -301,12 +301,36 @@ func hasFDESetupHook(kernelInfo *snap.Info) (bool, error) {
 	return ok, nil
 }
 
+func readSnapInfoFromPath(path string) (*snap.Info, error) {
+	snapf, err := snapfile.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	info, err := snap.ReadInfoFromSnapFile(snapf, nil)
+	if err != nil {
+		return nil, err
+
+	}
+
+	// Comes from the seed and it might be unasserted, set revision in that case
+	if info.Revision.Unset() {
+		info.Revision = snap.R(-1)
+	}
+	return info, nil
+}
+
 func doInstall(mst *initramfsMountsState, model *asserts.Model, sysSnaps map[snap.Type]*seed.Snap) error {
 	kernelSnap, err := readSnapInfo(sysSnaps, snap.TypeKernel)
 	if err != nil {
 		return err
 	}
-	baseSnap, err := readSnapInfo(sysSnaps, snap.TypeBase)
+	var baseSnap *snap.Info
+	if is24plusSystem(model) {
+		// On UC24 the base is not mounted yet, peek into the file
+		baseSnap, err = readSnapInfoFromPath(sysSnaps[snap.TypeKernel].Path)
+	} else {
+		baseSnap, err = readSnapInfo(sysSnaps, snap.TypeBase)
+	}
 	if err != nil {
 		return err
 	}
