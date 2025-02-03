@@ -680,6 +680,8 @@ nested_prepare_kernel() {
                 fi
 
                 if nested_is_core_24_system; then
+                    # shellcheck source=tests/lib/prepare.sh
+                    . "$TESTSLIB"/prepare.sh
                     uc24_build_initramfs_kernel_snap "pc-kernel.snap" "$NESTED_ASSETS_DIR" "$epochBumpTime"
                 else
                     uc20_build_initramfs_kernel_snap "pc-kernel.snap" "$NESTED_ASSETS_DIR" "$epochBumpTime"

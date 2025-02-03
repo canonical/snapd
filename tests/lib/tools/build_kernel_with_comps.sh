@@ -14,8 +14,8 @@ build_kernel_with_comp() {
     kernel_snap_file=${3:-}
 
     if [ -z "${kernel_snap_file}" ]; then
-        VERSION="$(tests.nested show version)"
-        snap download --channel="$VERSION"/beta --basename=pc-kernel pc-kernel
+        nested_prepare_kernel
+        cp "$(tests.nested get extra-snaps-path)/pc-kernel.snap" "pc-kernel.snap"
         kernel_snap_file="pc-kernel.snap"
     fi
     unsquashfs -d kernel "${kernel_snap_file}"
@@ -47,6 +47,8 @@ EOF
     # append component meta-information
     printf 'components:\n  %s:\n    type: kernel-modules\n' "$comp_name" >> kernel/meta/snap.yaml
     snap pack --filename="${kernel_snap_file}" kernel
+    # Just so that nested_prepare_kernel does not recopy the old one
+    cp "${kernel_snap_file}" "${NESTED_ASSETS_DIR}/pc-kernel.snap"
 }
 
 build_kernel_with_comp "$@"
