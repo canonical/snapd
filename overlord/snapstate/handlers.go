@@ -968,6 +968,12 @@ func removeMonitoring(st *state.State, snapName string) error {
 		return fmt.Errorf("cannot get refresh-candidates: %v", err)
 	}
 
+	// There are cases where refresh hint of a snap could have been removed
+	// while the monitoring abort channel is still there. So we should continue
+	// deleting the monitoring abort channel regardless a refresh hint entry
+	// for the given snap exists or not.
+	// For example this could happen due to calls to updateRefreshCandidates
+	// where our snap could be removed from refresh candidates.
 	if _, ok := refreshHints[snapName]; ok {
 		refreshHints[snapName].Monitored = false
 		st.Set("refresh-candidates", refreshHints)
