@@ -250,10 +250,7 @@ func (s *VerityTestSuite) TestReadEmptySuperBlockError(c *C) {
 	c.Assert(err, IsNil)
 
 	// attempt to read superblock from it
-	sb, err := dmverity.ReadSuperblock(testDiskPath)
-	c.Assert(err, IsNil)
-
-	err = sb.Validate()
+	_, err = dmverity.ReadSuperblock(testDiskPath)
 	c.Check(err, ErrorMatches, "invalid dm-verity superblock version")
 }
 

@@ -128,7 +128,7 @@ func (s *IntegrityTestSuite) TestLookupDmVerityDataSuccess(c *C) {
 		Salt:          sb.EncodedSalt(),
 	}
 
-	hashFileName, err := integrity.LookupDmVerityData(snapPath, &integrityDataParams)
+	hashFileName, err := integrity.LookupDmVerityDataAndCrossCheck(snapPath, &integrityDataParams)
 	c.Assert(err, IsNil)
 	c.Check(hashFileName, Equals, snapPath+".verity")
 }
@@ -148,7 +148,7 @@ func (s *IntegrityTestSuite) TestLookupDmVerityDataError(c *C) {
 	})
 	defer restore()
 
-	errMsg := "snap integrity: dm-verity data \"foo.snap.verity\" were generated with an unasserted "
+	errMsg := "unexpected dm-verity data \"foo.snap.verity\": "
 	tests := []struct {
 		idp         integrity.IntegrityDataParams
 		expectedErr string
@@ -160,7 +160,7 @@ func (s *IntegrityTestSuite) TestLookupDmVerityDataError(c *C) {
 				HashBlockSize: 4096,
 				Salt:          sb.EncodedSalt(),
 			},
-			expectedErr: errMsg + "algorithm: sha256 != foo",
+			expectedErr: errMsg + "unexpected algorithm: sha256 != foo",
 		},
 		{
 			idp: integrity.IntegrityDataParams{
@@ -169,7 +169,7 @@ func (s *IntegrityTestSuite) TestLookupDmVerityDataError(c *C) {
 				HashBlockSize: 4096,
 				Salt:          sb.EncodedSalt(),
 			},
-			expectedErr: errMsg + "data block size: 4096 != 1",
+			expectedErr: errMsg + "unexpected data block size: 4096 != 1",
 		},
 		{
 			idp: integrity.IntegrityDataParams{
@@ -178,7 +178,7 @@ func (s *IntegrityTestSuite) TestLookupDmVerityDataError(c *C) {
 				HashBlockSize: 1,
 				Salt:          sb.EncodedSalt(),
 			},
-			expectedErr: errMsg + "hash block size: 4096 != 1",
+			expectedErr: errMsg + "unexpected hash block size: 4096 != 1",
 		},
 		{
 			idp: integrity.IntegrityDataParams{
@@ -187,13 +187,14 @@ func (s *IntegrityTestSuite) TestLookupDmVerityDataError(c *C) {
 				HashBlockSize: 4096,
 				Salt:          "salt",
 			},
-			expectedErr: errMsg + "salt: " + sb.EncodedSalt() + " != salt",
+			expectedErr: errMsg + "unexpected salt: " + sb.EncodedSalt() + " != salt",
 		},
 	}
 
 	for _, t := range tests {
-		hashFileName, err := integrity.LookupDmVerityData(snapPath, &t.idp)
+		hashFileName, err := integrity.LookupDmVerityDataAndCrossCheck(snapPath, &t.idp)
 		c.Assert(hashFileName, Equals, "")
+		c.Check(errors.Is(err, integrity.ErrUnexpectedDmVerityData), Equals, true)
 		c.Check(err, ErrorMatches, t.expectedErr)
 	}
 }
@@ -206,7 +207,8 @@ func (s *IntegrityTestSuite) TestLookupDmVerityDataNotExist(c *C) {
 	})
 	defer restore()
 
-	hashFileName, err := integrity.LookupDmVerityData(snapPath, nil)
-	c.Check(err, IsNil)
+	hashFileName, err := integrity.LookupDmVerityDataAndCrossCheck(snapPath, nil)
 	c.Check(hashFileName, Equals, "")
+	c.Check(errors.Is(err, integrity.ErrDmVerityDataNotFound), Equals, true)
+	c.Check(err, ErrorMatches, "dm-verity data not found: \"foo.snap.verity\" doesn't exist.")
 }
