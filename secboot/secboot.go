@@ -149,6 +149,8 @@ type SealKeysWithFDESetupHookParams struct {
 	// The path to the aux key file (if empty the key will not be
 	// saved)
 	AuxKeyFile string
+	// The primary key to use, nil if needs to be generated
+	PrimaryKey []byte
 }
 
 // KeyDataLocation represents the possible places where key data
