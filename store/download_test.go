@@ -172,14 +172,13 @@ func (s *downloadSuite) TestActualDownloadLessDetailedCloudInfoFromAuthContext(c
 }
 
 func (s *downloadSuite) TestDownloadCancellation(c *C) {
-	// the channel used by mock server to request cancellation from the test
-	syncCh := make(chan struct{})
+	ctx, cancel := context.WithCancel(context.Background())
 
 	n := 0
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		n++
 		io.WriteString(w, "foo")
-		syncCh <- struct{}{}
+		cancel()
 		io.WriteString(w, "bar")
 		time.Sleep(10 * time.Millisecond)
 	}))
@@ -188,23 +187,12 @@ func (s *downloadSuite) TestDownloadCancellation(c *C) {
 
 	theStore := store.New(&store.Config{}, nil)
 
-	ctx, cancel := context.WithCancel(context.Background())
+	sha3 := ""
+	var buf SillyBuffer
+	err := store.Download(ctx, "foo", sha3, mockServer.URL, nil, theStore, &buf, 0, nil, nil)
 
-	result := make(chan string)
-	go func() {
-		sha3 := ""
-		var buf SillyBuffer
-		err := store.Download(ctx, "foo", sha3, mockServer.URL, nil, theStore, &buf, 0, nil, nil)
-		result <- err.Error()
-		close(result)
-	}()
-
-	<-syncCh
-	cancel()
-
-	err := <-result
 	c.Check(n, Equals, 1)
-	c.Assert(err, Equals, "the download has been cancelled: context canceled")
+	c.Assert(err, ErrorMatches, "the download has been cancelled: context canceled")
 }
 
 type nopeSeeker struct{ io.ReadWriter }
@@ -756,36 +744,24 @@ func (s *downloadSuite) TestActualDownloadIconTooLarge(c *C) {
 }
 
 func (s *downloadSuite) TestDownloadIconCancellation(c *C) {
-	// the channel used by mock server to request cancellation from the test
-	syncCh := make(chan struct{})
+	ctx, cancel := context.WithCancel(context.Background())
 
 	n := 0
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		n++
 		io.WriteString(w, "foo")
-		syncCh <- struct{}{}
+		cancel()
 		io.WriteString(w, "bar")
 		time.Sleep(10 * time.Millisecond)
 	}))
 	c.Assert(mockServer, NotNil)
 	defer mockServer.Close()
 
-	ctx, cancel := context.WithCancel(context.Background())
+	var buf SillyBuffer
+	err := store.DownloadIconImpl(ctx, "foo", mockServer.URL, &buf)
 
-	result := make(chan string)
-	go func() {
-		var buf SillyBuffer
-		err := store.DownloadIconImpl(ctx, "foo", mockServer.URL, &buf)
-		result <- err.Error()
-		close(result)
-	}()
-
-	<-syncCh
-	cancel()
-
-	err := <-result
 	c.Check(n, Equals, 1)
-	c.Assert(err, Equals, "the download has been cancelled: context canceled")
+	c.Assert(err, ErrorMatches, ".*: context canceled")
 }
 
 func (s *downloadSuite) TestActualDownloadIcon404(c *C) {

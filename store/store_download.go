@@ -521,7 +521,7 @@ func downloadImpl(ctx context.Context, name, sha3_384, downloadURL string, user 
 			return fmt.Errorf("the download has been cancelled: %s", downloadCtx.Err())
 		}
 		var resp *http.Response
-		cli := s.newHTTPClient(nil)
+		cli := s.newHTTPClient(nil) // XXX: there's no timeout defined for this client, and the context is context.TODO(), so it won't be cancelled
 		oldCheckRedirect := cli.CheckRedirect
 		if oldCheckRedirect == nil {
 			panic("internal error: the httputil.NewHTTPClient-produced http.Client must have CheckRedirect defined")
@@ -663,17 +663,10 @@ func downloadIconImpl(ctx context.Context, name, downloadURL string, w ReadWrite
 		httputil.MaybeLogRetryAttempt(iconURL.String(), attempt, startTime)
 
 		err = func() error {
-			if cancelled(ctx) {
-				return fmt.Errorf("the download has been cancelled: %s", ctx.Err())
-			}
-
-			clientOpts := &httputil.ClientOptions{} // don't need any options
+			clientOpts := &httputil.ClientOptions{} // XXX: should this have a timeout?
 			cli := httputil.NewHTTPClient(clientOpts)
 			var resp *http.Response
 			resp, err = doIconRequest(ctx, cli, iconURL)
-			if cancelled(ctx) {
-				return fmt.Errorf("the download has been cancelled: %s", ctx.Err())
-			}
 			if err != nil {
 				if httputil.ShouldRetryAttempt(attempt, err) {
 					return errRetry
@@ -695,15 +688,10 @@ func downloadIconImpl(ctx context.Context, name, downloadURL string, w ReadWrite
 
 			if resp.ContentLength == 0 || resp.ContentLength > maxIconFilesize {
 				return fmt.Errorf("unsupported Content-Length for %s (must be nonzero and <%dB): %d", downloadURL, maxIconFilesize, resp.ContentLength)
-			} else {
-				logger.Debugf("download size for %s: %d", downloadURL, resp.ContentLength)
 			}
+			logger.Debugf("download size for %s: %d", downloadURL, resp.ContentLength)
 
 			_, err = io.CopyN(w, resp.Body, resp.ContentLength)
-
-			if cancelled(ctx) {
-				return fmt.Errorf("the download has been cancelled: %s", ctx.Err())
-			}
 
 			if err != nil {
 				if httputil.ShouldRetryAttempt(attempt, err) {
