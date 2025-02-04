@@ -735,6 +735,26 @@ func (s *downloadSuite) TestActualDownloadIcon(c *C) {
 	c.Check(n, Equals, 1)
 }
 
+func (s *downloadSuite) TestActualDownloadIconTooLarge(c *C) {
+	var maxSize int64 = 1000 // Must be less than size of SillyBuffer, so we can write enough to exceed the limit
+	restore := store.MockMaxIconFilesize(maxSize)
+	defer restore()
+
+	n := 0
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		n++
+		response := make([]byte, maxSize+1)
+		w.Write(response)
+	}))
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	var buf SillyBuffer
+	err := store.DownloadIconImpl(context.TODO(), "foo", mockServer.URL, &buf)
+	c.Assert(err, ErrorMatches, "unsupported Content-Length .*")
+	c.Check(n, Equals, 1)
+}
+
 func (s *downloadSuite) TestDownloadIconCancellation(c *C) {
 	// the channel used by mock server to request cancellation from the test
 	syncCh := make(chan struct{})

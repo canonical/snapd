@@ -644,7 +644,10 @@ type ReadWriteSeekTruncater interface {
 	Truncate(size int64) error
 }
 
-var downloadIcon = downloadIconImpl
+var (
+	maxIconFilesize int64 = 300000
+	downloadIcon          = downloadIconImpl
+)
 
 // downloadIconImpl writes an http.Request which does not require authentication
 // or a progress.Meter.
@@ -653,8 +656,6 @@ func downloadIconImpl(ctx context.Context, name, downloadURL string, w ReadWrite
 	if err != nil {
 		return err
 	}
-
-	const maxIconFilesize int64 = 300000
 
 	startTime := time.Now()
 	errRetry := errors.New("retry")
