@@ -322,14 +322,14 @@ func AtomicRename(oldName, newName string) (err error) {
 	return err2
 }
 
-const maxSymlinkTries = 10
+const maxLinkTries = 10
 
 // AtomicSymlink attempts to atomically create a symlink at linkPath, pointing
 // to a given target. The process creates a temporary symlink object pointing to
 // the target, and then proceeds to rename it atomically, replacing the
 // linkPath.
 func AtomicSymlink(target, linkPath string) error {
-	for tries := 0; tries < maxSymlinkTries; tries++ {
+	for tries := 0; tries < maxLinkTries; tries++ {
 		tmp := linkPath + "." + randutil.RandomString(12) + "~"
 		if err := os.Symlink(target, tmp); err != nil {
 			if os.IsExist(err) {
@@ -341,4 +341,23 @@ func AtomicSymlink(target, linkPath string) error {
 		return AtomicRename(tmp, linkPath)
 	}
 	return errors.New("cannot create a temporary symlink")
+}
+
+// AtomicLink attempts to atomically create a hardlink at linkPath, referencing
+// the given target. The process creates a temporary hardlink object pointing
+// to the target, and then proceeds to rename it atomically, replacing the
+// linkPath.
+func AtomicLink(target, linkPath string) error {
+	for tries := 0; tries < maxLinkTries; tries++ {
+		tmp := linkPath + "." + randutil.RandomString(12) + "~"
+		if err := os.Link(target, tmp); err != nil {
+			if os.IsExist(err) {
+				continue
+			}
+			return err
+		}
+		defer os.Remove(tmp)
+		return AtomicRename(tmp, linkPath)
+	}
+	return errors.New("cannot create a temporary link")
 }
