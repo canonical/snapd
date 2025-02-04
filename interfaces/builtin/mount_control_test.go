@@ -82,6 +82,9 @@ plugs:
   - type: [nfs]
     where: /media/foo/**
     options: [rw]
+  - type: [cifs]
+    where: /media/cifs/**
+    options: [rw]
 apps:
  app:
   plugs: [mntctl]
@@ -316,8 +319,16 @@ func (s *MountControlInterfaceSuite) TestSanitizePlugUnhappy(c *C) {
 			`mount-control "what" attribute must not be specified for nfs mounts.*`,
 		},
 		{
+			"mount:\n  - what: diag\n    where: /media/foo\n    type: [cifs]\n    options: [rw]",
+			`mount-control "what" attribute must not be specified for cifs mounts.*`,
+		},
+		{
 			"mount:\n  - where: /media/foo\n    type: [nfs, ext4]\n    options: [rw]",
 			`mount-control filesystem type "nfs" cannot be listed with other types`,
+		},
+		{
+			"mount:\n  - where: /media/foo\n    type: [cifs, ext4]\n    options: [rw]",
+			`mount-control filesystem type "cifs" cannot be listed with other types`,
 		},
 		{
 			"mount:\n  - where: /media/foo\n    type: [tmpfs, nfs, ext4]\n    options: [rw]",
@@ -412,6 +423,12 @@ func (s *MountControlInterfaceSuite) TestAppArmorSpec(c *C) {
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, expectedUmountLine8)
 	expectedExtraLine8 := ` /etc/rpc r,`
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, expectedExtraLine8)
+
+	expectedMountLine9 := `mount fstype=(cifs) options=(rw) ` +
+		`"//**" -> "/media/cifs/**{,/}",`
+	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, expectedMountLine9)
+	expectedUmountLine9 := `umount "/media/cifs/**{,/}",`
+	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, expectedUmountLine9)
 }
 
 func (s *MountControlInterfaceSuite) TestStaticInfo(c *C) {
