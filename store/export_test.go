@@ -151,7 +151,7 @@ func MockDownload(f func(ctx context.Context, name, sha3_384, downloadURL string
 	}
 }
 
-func MockDownloadIcon(f func(ctx context.Context, name, downloadURL string, w io.ReadWriteSeeker) error) (restore func()) {
+func MockDownloadIcon(f func(ctx context.Context, name, downloadURL string, w ReadWriteSeekTruncater) error) (restore func()) {
 	return testutil.Mock(&downloadIcon, f)
 }
 

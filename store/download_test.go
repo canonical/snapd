@@ -291,8 +291,8 @@ func (s *downloadSuite) TestActualDownload500Once(c *C) {
 	c.Check(n, Equals, 2)
 }
 
-// SillyBuffer is a ReadWriteSeeker buffer with a limited size for the tests
-// (bytes does not implement an ReadWriteSeeker)
+// SillyBuffer is a ReadWriteSeekTruncater buffer with a limited size for the tests
+// (bytes does not implement an ReadWriteSeekTruncater)
 type SillyBuffer struct {
 	buf [1024]byte
 	pos int64
@@ -332,6 +332,13 @@ func (sb *SillyBuffer) Write(p []byte) (n int, err error) {
 		sb.end = sb.pos
 	}
 	return n, nil
+}
+func (sb *SillyBuffer) Truncate(size int64) error {
+	if size < 0 || size > int64(len(sb.buf)) {
+		return fmt.Errorf("truncate out of bounds: %d", size)
+	}
+	sb.end = size
+	return nil
 }
 func (sb *SillyBuffer) String() string {
 	return string(sb.buf[0:sb.pos])

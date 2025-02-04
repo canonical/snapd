@@ -1257,7 +1257,7 @@ func (s *storeDownloadSuite) TestDownloadIconOK(c *C) {
 	expectedURL := "URL"
 	expectedContent := []byte("I was downloaded")
 
-	restore := store.MockDownloadIcon(func(ctx context.Context, name, url string, w io.ReadWriteSeeker) error {
+	restore := store.MockDownloadIcon(func(ctx context.Context, name, url string, w store.ReadWriteSeekTruncater) error {
 		c.Check(url, Equals, expectedURL)
 		w.Write(expectedContent)
 		return nil
@@ -1277,7 +1277,7 @@ func (s *storeDownloadSuite) TestDownloadIconDoesNotOverwriteLinks(c *C) {
 	oldContent := []byte("I was already here")
 	newContent := []byte("I was downloaded")
 
-	restore := store.MockDownloadIcon(func(ctx context.Context, name, url string, w io.ReadWriteSeeker) error {
+	restore := store.MockDownloadIcon(func(ctx context.Context, name, url string, w store.ReadWriteSeekTruncater) error {
 		c.Check(url, Equals, expectedURL)
 		w.Write(newContent)
 		return nil
@@ -1310,7 +1310,7 @@ func (s *storeDownloadSuite) TestDownloadIconFails(c *C) {
 	fakeURL := "URL"
 
 	var tmpfile *osutil.AtomicFile
-	restore := store.MockDownloadIcon(func(ctx context.Context, name, url string, w io.ReadWriteSeeker) error {
+	restore := store.MockDownloadIcon(func(ctx context.Context, name, url string, w store.ReadWriteSeekTruncater) error {
 		c.Assert(name, Equals, fakeName)
 		c.Assert(url, Equals, fakeURL)
 		tmpfile = w.(*osutil.AtomicFile)
@@ -1333,7 +1333,7 @@ func (s *storeDownloadSuite) TestDownloadIconFailsDoesNotLeavePartial(c *C) {
 	fakeURL := "URL"
 
 	var tmpfile *osutil.AtomicFile
-	restore := store.MockDownloadIcon(func(ctx context.Context, name, url string, w io.ReadWriteSeeker) error {
+	restore := store.MockDownloadIcon(func(ctx context.Context, name, url string, w store.ReadWriteSeekTruncater) error {
 		c.Assert(name, Equals, fakeName)
 		c.Assert(url, Equals, fakeURL)
 		tmpfile = w.(*osutil.AtomicFile)
@@ -1383,7 +1383,7 @@ func (s *storeDownloadSuite) TestDownloadIconFailsWithoutExisting(c *C) {
 
 func (s *storeDownloadSuite) testDownloadIconSyncFailsGeneric(c *C, fakeName, fakePath, fakeURL string) {
 	var tmpfile *osutil.AtomicFile
-	restore := store.MockDownloadIcon(func(ctx context.Context, name, url string, w io.ReadWriteSeeker) error {
+	restore := store.MockDownloadIcon(func(ctx context.Context, name, url string, w store.ReadWriteSeekTruncater) error {
 		c.Assert(name, Equals, fakeName)
 		c.Assert(url, Equals, fakeURL)
 		tmpfile = w.(*osutil.AtomicFile)

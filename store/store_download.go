@@ -636,11 +636,19 @@ func downloadImpl(ctx context.Context, name, sha3_384, downloadURL string, user 
 	return finalErr
 }
 
+type ReadWriteSeekTruncater interface {
+	io.Reader
+	io.Writer
+	io.Seeker
+
+	Truncate(size int64) error
+}
+
 var downloadIcon = downloadIconImpl
 
 // downloadIconImpl writes an http.Request which does not require authentication
 // or a progress.Meter.
-func downloadIconImpl(ctx context.Context, name, downloadURL string, w io.ReadWriteSeeker) error {
+func downloadIconImpl(ctx context.Context, name, downloadURL string, w ReadWriteSeekTruncater) error {
 	iconURL, err := url.Parse(downloadURL)
 	if err != nil {
 		return err
@@ -701,7 +709,9 @@ func downloadIconImpl(ctx context.Context, name, downloadURL string, w io.ReadWr
 					if _, err := w.Seek(0, 0); err != nil {
 						return err
 					}
-					// XXX: need to truncate as well
+					if err := w.Truncate(0); err != nil {
+						return err
+					}
 					return errRetry
 				}
 				return err
