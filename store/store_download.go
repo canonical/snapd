@@ -646,73 +646,81 @@ func downloadIconImpl(ctx context.Context, name, downloadURL string, w io.ReadWr
 		return err
 	}
 
-	var finalErr error
+	const maxIconFilesize int64 = 300000
+
 	startTime := time.Now()
+	errRetry := errors.New("retry")
 	for attempt := retry.Start(downloadRetryStrategy, nil); attempt.Next(); {
 		httputil.MaybeLogRetryAttempt(iconURL.String(), attempt, startTime)
 
-		if cancelled(ctx) {
-			return fmt.Errorf("the download has been cancelled: %s", ctx.Err())
-		}
-
-		clientOpts := &httputil.ClientOptions{} // don't need any options
-		cli := httputil.NewHTTPClient(clientOpts)
-		var resp *http.Response
-		resp, finalErr = doIconRequest(ctx, cli, iconURL)
-		if cancelled(ctx) {
-			return fmt.Errorf("the download has been cancelled: %s", ctx.Err())
-		}
-		if finalErr != nil {
-			if httputil.ShouldRetryAttempt(attempt, finalErr) {
-				continue
+		err = func() error {
+			if cancelled(ctx) {
+				return fmt.Errorf("the download has been cancelled: %s", ctx.Err())
 			}
-			break
-		}
 
-		if httputil.ShouldRetryHttpResponse(attempt, resp) {
-			resp.Body.Close()
+			clientOpts := &httputil.ClientOptions{} // don't need any options
+			cli := httputil.NewHTTPClient(clientOpts)
+			var resp *http.Response
+			resp, err = doIconRequest(ctx, cli, iconURL)
+			if cancelled(ctx) {
+				return fmt.Errorf("the download has been cancelled: %s", ctx.Err())
+			}
+			if err != nil {
+				if httputil.ShouldRetryAttempt(attempt, err) {
+					return errRetry
+				}
+				return err
+			}
+
+			defer resp.Body.Close()
+
+			if httputil.ShouldRetryHttpResponse(attempt, resp) {
+				return errRetry
+			}
+
+			switch resp.StatusCode {
+			case 200: // OK
+			default:
+				return &DownloadError{Code: resp.StatusCode, URL: resp.Request.URL}
+			}
+
+			if resp.ContentLength == 0 || resp.ContentLength > maxIconFilesize {
+				return fmt.Errorf("unsupported Content-Length for %s (must be nonzero and <%dB): %d", downloadURL, maxIconFilesize, resp.ContentLength)
+			} else {
+				logger.Debugf("download size for %s: %d", downloadURL, resp.ContentLength)
+			}
+
+			_, err = io.CopyN(w, resp.Body, resp.ContentLength)
+
+			if cancelled(ctx) {
+				return fmt.Errorf("the download has been cancelled: %s", ctx.Err())
+			}
+
+			if err != nil {
+				if httputil.ShouldRetryAttempt(attempt, err) {
+					if _, err := w.Seek(0, 0); err != nil {
+						return err
+					}
+					// XXX: need to truncate as well
+					return errRetry
+				}
+				return err
+			}
+
+			return nil
+		}()
+
+		if err == errRetry {
 			continue
 		}
 
-		// XXX: we're inside retry loop, so this will be closed only on return.
-		defer resp.Body.Close()
-
-		switch resp.StatusCode {
-		case 200: // OK
-		default:
-			return &DownloadError{Code: resp.StatusCode, URL: resp.Request.URL}
+		if err == nil {
+			logger.Debugf("icon download succeeded for %s", name)
 		}
 
-		const maxIconFilesize int64 = 300000
-
-		if resp.ContentLength == 0 || resp.ContentLength > maxIconFilesize {
-			return fmt.Errorf("unsupported Content-Length for %s (must be nonzero and <%dB): %d", downloadURL, maxIconFilesize, resp.ContentLength)
-		} else {
-			logger.Debugf("Download size for %s: %d", downloadURL, resp.ContentLength)
-		}
-
-		_, finalErr = io.CopyN(w, resp.Body, resp.ContentLength)
-
-		if cancelled(ctx) {
-			return fmt.Errorf("the download has been cancelled: %s", ctx.Err())
-		}
-
-		if finalErr != nil {
-			if httputil.ShouldRetryAttempt(attempt, finalErr) {
-				if _, err := w.Seek(0, 0); err != nil {
-					return err
-				}
-				// XXX: need to truncate as well
-				continue
-			}
-			break
-		}
-		break
+		return err
 	}
-	if finalErr == nil {
-		logger.Debugf("Icon download succeeded")
-	}
-	return finalErr
+	return nil
 }
 
 // DownloadStream will copy the snap from the request to the io.Reader
