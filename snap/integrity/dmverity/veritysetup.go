@@ -224,7 +224,7 @@ func (sb *VeritySuperblock) Size() int {
 
 // Validate will perform consistency checks over an extracted superblock to determine whether it's a valid
 // superblock or not.
-func (sb *VeritySuperblock) Validate() error {
+func (sb *VeritySuperblock) validate() error {
 	if sb.Version != DefaultSuperblockVersion {
 		return errors.New("invalid dm-verity superblock version")
 	}
@@ -253,6 +253,11 @@ func ReadSuperblock(filename string) (*VeritySuperblock, error) {
 		return nil, err
 	}
 	err = binary.Read(bytes.NewReader(verity_sb), binary.LittleEndian, &sb)
+	if err != nil {
+		return nil, err
+	}
+
+	err = sb.validate()
 	if err != nil {
 		return nil, err
 	}

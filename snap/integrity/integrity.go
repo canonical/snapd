@@ -20,6 +20,7 @@
 package integrity
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -57,45 +58,48 @@ type IntegrityDataParams struct {
 	Salt string
 }
 
-// LookupDmVerityData looks up verity data for a snap and validates that they were generated
-// using the input parameters.
-func LookupDmVerityData(snapPath string, params *IntegrityDataParams) (string, error) {
-	hashFileName := snapPath + ".verity"
+func (params *IntegrityDataParams) check(vsb *dmverity.VeritySuperblock) error {
 
-	vsb, err := readDmVeritySuperblock(hashFileName)
-	// if a verity data file doesn't exist simply return empty name
-	if os.IsNotExist(err) {
-		return "", nil
-	}
-
-	if err != nil {
-		return "", err
-	}
-
-	err = vsb.Validate()
-	if err != nil {
-		return "", err
-	}
-
-	// Check if the verity data that was found matches the passed parameters
+	// Check if the verity data that were found match the passed parameters
 	alg := strings.ReplaceAll(string(vsb.Algorithm[:]), "\x00", "")
 	if alg != params.HashAlg {
-		return "", fmt.Errorf("snap integrity: dm-verity data %q were generated with an unasserted algorithm: %s != %s",
-			hashFileName, alg, params.HashAlg)
+		return fmt.Errorf("unexpected algorithm: %s != %s", alg, params.HashAlg)
 	}
 	if vsb.DataBlockSize != uint32(params.DataBlockSize) {
-		return "", fmt.Errorf("snap integrity: dm-verity data %q were generated with an unasserted data block size: %d != %d",
-			hashFileName, vsb.DataBlockSize, uint32(params.DataBlockSize))
+		return fmt.Errorf("unexpected data block size: %d != %d", vsb.DataBlockSize, uint32(params.DataBlockSize))
 	}
 	if vsb.HashBlockSize != uint32(params.HashBlockSize) {
-		return "", fmt.Errorf("snap integrity: dm-verity data %q were generated with an unasserted hash block size: %d != %d",
-			hashFileName, vsb.HashBlockSize, uint32(params.HashBlockSize))
+		return fmt.Errorf("unexpected hash block size: %d != %d", vsb.HashBlockSize, uint32(params.HashBlockSize))
 	}
 
 	encSalt := vsb.EncodedSalt()
 	if encSalt != params.Salt {
-		return "", fmt.Errorf("snap integrity: dm-verity data %q were generated with an unasserted salt: %s != %s",
-			hashFileName, vsb.EncodedSalt(), params.Salt)
+		return fmt.Errorf("unexpected salt: %s != %s", vsb.EncodedSalt(), params.Salt)
+	}
+
+	return nil
+}
+
+var ErrDmVerityDataNotFound = errors.New("dm-verity data not found")
+var ErrUnexpectedDmVerityData = errors.New("unexpected dm-verity data")
+
+// LookupDmVerityDataAndCrossCheck looks up dm-verity data for a snap based on its file name and validates
+// that the superblock properties of the discovered dm-verity data match the passed parameters.
+func LookupDmVerityDataAndCrossCheck(snapPath string, params *IntegrityDataParams) (string, error) {
+	hashFileName := snapPath + ".verity"
+
+	vsb, err := readDmVeritySuperblock(hashFileName)
+	if os.IsNotExist(err) {
+		return "", fmt.Errorf("%w: %q doesn't exist.", ErrDmVerityDataNotFound, hashFileName)
+	}
+
+	if err != nil {
+		return "", err
+	}
+
+	err = params.check(vsb)
+	if err != nil {
+		return "", fmt.Errorf("%w %q: %w", ErrUnexpectedDmVerityData, hashFileName, err)
 	}
 
 	return hashFileName, nil
