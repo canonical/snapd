@@ -22,6 +22,7 @@ usr/bin/snapd /usr/lib/snapd/
 usr/lib/snapd/snap-confine
 usr/lib/snapd/snap-device-helper
 usr/lib/snapd/snap-discard-ns
+usr/lib/snapd/snap-gpio-helper
 # gdb helper
 usr/lib/snapd/snap-gdb-shim
 usr/lib/snapd/snap-gdbserver-shim
