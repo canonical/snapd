@@ -1309,11 +1309,11 @@ func (s *storeDownloadSuite) TestDownloadIconFails(c *C) {
 	fakeName := "foo"
 	fakeURL := "URL"
 
-	var tmpfile *os.File
+	var tmpfile *osutil.AtomicFile
 	restore := store.MockDownloadIcon(func(ctx context.Context, name, url string, w io.ReadWriteSeeker) error {
 		c.Assert(name, Equals, fakeName)
 		c.Assert(url, Equals, fakeURL)
-		tmpfile = w.(*os.File)
+		tmpfile = w.(*osutil.AtomicFile)
 		return fmt.Errorf("uh, it failed")
 	})
 	defer restore()
@@ -1332,11 +1332,11 @@ func (s *storeDownloadSuite) TestDownloadIconFailsDoesNotLeavePartial(c *C) {
 	fakeName := "foo"
 	fakeURL := "URL"
 
-	var tmpfile *os.File
+	var tmpfile *osutil.AtomicFile
 	restore := store.MockDownloadIcon(func(ctx context.Context, name, url string, w io.ReadWriteSeeker) error {
 		c.Assert(name, Equals, fakeName)
 		c.Assert(url, Equals, fakeURL)
-		tmpfile = w.(*os.File)
+		tmpfile = w.(*osutil.AtomicFile)
 		w.Write([]byte{'X'}) // so it's not empty
 		return fmt.Errorf("uh, it failed")
 	})
@@ -1352,7 +1352,7 @@ func (s *storeDownloadSuite) TestDownloadIconFailsDoesNotLeavePartial(c *C) {
 	c.Assert(osutil.FileExists(path), Equals, false)
 }
 
-func (s *storeDownloadSuite) TestDownloadIconSyncFailsWithExisting(c *C) {
+func (s *storeDownloadSuite) TestDownloadIconFailsWithExisting(c *C) {
 	fakeName := "foo"
 	fakePath := filepath.Join(c.MkDir(), "downloaded-file")
 	fakeURL := "URL"
@@ -1370,7 +1370,7 @@ func (s *storeDownloadSuite) TestDownloadIconSyncFailsWithExisting(c *C) {
 	c.Assert(fakePath, testutil.FileEquals, oldContent)
 }
 
-func (s *storeDownloadSuite) TestDownloadIconSyncFailsWithoutExisting(c *C) {
+func (s *storeDownloadSuite) TestDownloadIconFailsWithoutExisting(c *C) {
 	fakeName := "foo"
 	fakePath := filepath.Join(c.MkDir(), "downloaded-file")
 	fakeURL := "URL"
@@ -1382,12 +1382,12 @@ func (s *storeDownloadSuite) TestDownloadIconSyncFailsWithoutExisting(c *C) {
 }
 
 func (s *storeDownloadSuite) testDownloadIconSyncFailsGeneric(c *C, fakeName, fakePath, fakeURL string) {
-	var tmpfile *os.File
+	var tmpfile *osutil.AtomicFile
 	restore := store.MockDownloadIcon(func(ctx context.Context, name, url string, w io.ReadWriteSeeker) error {
 		c.Assert(name, Equals, fakeName)
 		c.Assert(url, Equals, fakeURL)
-		tmpfile = w.(*os.File)
-		w.Write([]byte("sync will fail"))
+		tmpfile = w.(*osutil.AtomicFile)
+		w.Write([]byte("commit will fail"))
 		err := tmpfile.Close()
 		c.Assert(err, IsNil)
 		return nil
@@ -1396,7 +1396,7 @@ func (s *storeDownloadSuite) testDownloadIconSyncFailsGeneric(c *C, fakeName, fa
 
 	// simulate a failed sync
 	err := store.DownloadIcon(s.ctx, fakeName, fakePath, fakeURL)
-	c.Assert(err, ErrorMatches, "(sync|fsync:) .*")
+	c.Assert(err, ErrorMatches, "cannot commit snap icon file for snap foo: .* file already closed")
 	// ... and ensure that the tempfile is removed
 	c.Assert(osutil.FileExists(tmpfile.Name()), Equals, false)
 }

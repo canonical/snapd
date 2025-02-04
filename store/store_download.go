@@ -320,51 +320,28 @@ func DownloadIcon(ctx context.Context, name string, targetPath string, downloadU
 
 	// Download icon to a temporary file location, since there may be an active
 	// snap icon hard-linked to targetPath. If download fails, don't want to
-	// corrupt the existing icon file contents. Instead, move partialPath to
-	// targetPath once the download succeeds, thus leaving any previous icon
-	// linked to the original unchanged icon contents, until a future task
-	// re-links to the new contents.
-	partialPath := targetPath + ".partial"
-
-	// Open the new partial file and truncate it, since any existing file may
-	// be old, from a previous version of the snap icon. Don't use `resume` as
-	// in `Download()`; always start over.
-	w, err := os.OpenFile(partialPath, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0o600)
+	// corrupt the existing icon file contents. Instead, commit the new file
+	// once the download succeeds, thus leaving any previous icon linked to the
+	// original unchanged icon contents, until a future task re-links to the
+	// new contents.
+	aw, err := osutil.NewAtomicFile(targetPath, 0o644, 0, osutil.NoChown, osutil.NoChown)
 	if err != nil {
-		return err
+		return fmt.Errorf("cannot create file for snap icon for snap %s: %v", name, err)
 	}
-	defer func() {
-		// Unconditionally close the file, whether it's been closed before or
-		// not. If it has been closed before, close will return an error, which
-		// we ignore. If it hasn't been called before, then an error has already
-		// occurred, and we don't care about any new error from calling Close().
-		w.Close()
-		// Unconditionally remove the .partial file, since w.Name() is the name
-		// with which the file was originally opened. If it still exists, then
-		// an error occurred, and we want to remove it. If it doesn't still
-		// exist, then it was successfully renamed, so it's harmless to attempt
-		// to remove the original .partial filename, and we ignore the error.
-		os.Remove(w.Name())
-	}()
-	logger.Debugf("Starting download of %q.", partialPath)
+	// on success, Cancel becomes a no-op
+	defer aw.Cancel()
 
-	err = downloadIcon(ctx, name, downloadURL, w)
-	if err != nil {
+	logger.Debugf("Starting download of %q to %q.", downloadURL, targetPath)
+
+	if err = downloadIcon(ctx, name, downloadURL, aw); err != nil {
 		logger.Debugf("download of %q failed: %#v", downloadURL, err)
 		return err
 	}
 
-	if err = w.Sync(); err != nil {
-		return err
+	if err = aw.Commit(); err != nil {
+		return fmt.Errorf("cannot commit snap icon file for snap %s: %v", name, err)
 	}
-
-	if err = w.Close(); err != nil {
-		return err
-	}
-
-	// Only rename once we know all is well, so we don't want to have any side
-	// effects on any existing snap icon if an error occurs.
-	return os.Rename(w.Name(), targetPath)
+	return nil
 }
 
 func downloadReqOpts(storeURL *url.URL, cdnHeader string, opts *DownloadOptions) *requestOptions {
@@ -722,9 +699,10 @@ func downloadIconImpl(ctx context.Context, name, downloadURL string, w io.ReadWr
 
 		if finalErr != nil {
 			if httputil.ShouldRetryAttempt(attempt, finalErr) {
-				// XXX: is this correct, without resume? ShouldRetryAttempt
-				// will return true on io.EOF errors.
-				// And if so, should we seek w back to 0 in the writer?
+				if _, err := w.Seek(0, 0); err != nil {
+					return err
+				}
+				// XXX: need to truncate as well
 				continue
 			}
 			break
