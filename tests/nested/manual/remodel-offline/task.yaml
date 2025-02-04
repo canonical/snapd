@@ -5,9 +5,16 @@ details: |
 systems: [ubuntu-20.04-64]
 
 environment:
+  NESTED_CUSTOM_AUTO_IMPORT_ASSERTION: $TESTSLIB/assertions/test-snapd-remodel-auto-import.assert
   NESTED_ENABLE_TPM: false
   NESTED_ENABLE_SECURE_BOOT: false
-  SNAPD_TEST_BRAND: developer1
+  NESTED_USE_CLOUD_INIT: false
+  NESTED_REPACK_KERNEL_SNAP: false
+  NESTED_REPACK_GADGET_SNAP: false
+  NESTED_REPACK_BASE_SNAP: false
+  SNAPD_TEST_BRAND: test-snapd
+  GADGET_NAME: test-snapd-remodel-pc
+  NEW_GADGET_NAME: test-snapd-remodel-pc-min-size
 
   # provide everything needed for the remodel via the CLI
   USE_INSTALLED_APP/local_snaps: false
@@ -33,129 +40,10 @@ environment:
   USE_INSTALLED_ESSENTIAL_SNAPS/local_assertions: true
   USE_INSTALLED_VSET/local_assertions: false
 
-  NESTED_SIGN_SNAPS_FAKESTORE: true
-  # for the fake store
-  NESTED_FAKESTORE_BLOB_DIR: $(pwd)/fake-store-blobdir
-  NESTED_UBUNTU_IMAGE_SNAPPY_FORCE_SAS_URL: http://localhost:11028
-  REMOTE_SAS_URL: http://10.0.2.2:11028
-
 prepare: |
-  snap install jq remarshal lxd yq
-  lxd init --auto
-
-  mkdir -p updates/
-
-  "${TESTSTOOLS}/store-state" setup-fake-store "${NESTED_FAKESTORE_BLOB_DIR}"
-  cp "${TESTSLIB}/assertions/developer1.account" "${NESTED_FAKESTORE_BLOB_DIR}/asserts"
-  cp "${TESTSLIB}/assertions/developer1.account-key" "${NESTED_FAKESTORE_BLOB_DIR}/asserts"
-  cp "${TESTSLIB}/assertions/testrootorg-store.account-key" "${NESTED_FAKESTORE_BLOB_DIR}/asserts"
-
-  gendeveloper1 sign-model <"${TESTSLIB}/assertions/developer1-test-snapd-remodel-offline-rev0.json" >test-snapd-remodel-offline-rev0.model
-  gendeveloper1 sign-model <"${TESTSLIB}/assertions/developer1-test-snapd-remodel-offline-rev1.json" >test-snapd-remodel-offline-rev1.model
-  gendeveloper1 sign-model <"${TESTSLIB}/assertions/developer1-test-snapd-core22-required-vset.json" >test-snapd-core22-required-vset.assert
-
-  KEY_NAME=$(tests.nested download snakeoil-key)
-
-  lxc launch "ubuntu:22.04" builder-for-22
-  lxcdir="/project/$(realpath --relative-to="${PROJECT_PATH}" "${PWD}")"
-  lxc config device add builder-for-22 project disk source="${PROJECT_PATH}" path=/project shift=true
-  lxc exec --cwd "${lxcdir}" \
-           --env SNAKEOIL_KEY="${lxcdir}/${KEY_NAME}.key" \
-           --env SNAKEOIL_CERT="${lxcdir}/${KEY_NAME}.pem" \
-           builder-for-22 -- bash -x repack-kernel.sh 22 beta
-
-  mv pc-kernel-modified.snap updates/pc-kernel-22.snap
-
-  snap download --channel="latest/edge" --basename="original-core22" "core22"
-  # shellcheck source=tests/lib/prepare.sh
-  . "$TESTSLIB/prepare.sh"
-  repack_core_snap_with_tweaks original-core22.snap updates/core22.snap
-  rm -f original-core22.{snap,assert}
-
-  snap download --channel="22/edge" --basename="original-pc-22" "pc"
-  unsquashfs -d pc original-pc-22.snap
-  rm -f original-pc-22.{snap,assert}
-  SNAKEOIL_KEY="${PWD}/${KEY_NAME}.key"
-  SNAKEOIL_CERT="${PWD}/${KEY_NAME}.pem"
-  # shellcheck source=tests/lib/nested.sh
-  . "$TESTSLIB/nested.sh"
-  nested_secboot_sign_gadget pc "${SNAKEOIL_KEY}" "${SNAKEOIL_CERT}"
-  mkdir -p pc/meta/hooks/
-  cp prepare-device pc/meta/hooks/
-  echo "console=ttyS0 systemd.journald.forward_to_console=1" >>pc/cmdline.extra
-  snap pack pc updates/ --filename="pc-22.snap"
-  rm -rf pc
-
-  snap download --revision=28 hello-world --basename=hello-world-old --target-directory=updates/
-  snap download --channel=latest/stable hello-world --basename=hello-world --target-directory=updates/
-  snap download --channel=latest/stable core --basename=core --target-directory=updates/
-
-  tests.nested prepare-essential-snaps
-
-  unsquashfs -d pc-20 "$(tests.nested get extra-snaps-path)/pc.snap"
-  rm -f "$(tests.nested get extra-snaps-path)/pc.snap"
-  # Add min-size
-  yq -i '(.volumes.pc.structure[]|select(.role == "system-save")|.min-size) = "16M"' pc-20/meta/gadget.yaml
-  mkdir -p pc-20/meta/hooks/
-  cp prepare-device pc-20/meta/hooks/
-  snap pack pc-20 "$(tests.nested get extra-snaps-path)" --filename="pc.snap"
-
-  rm -rf pc-20
-  "$TESTSTOOLS"/store-state make-snap-installable --noack --revision 2 "${NESTED_FAKESTORE_BLOB_DIR}" "$(tests.nested get extra-snaps-path)/pc.snap" "UqFziVZDHLSyO3TqSWgNBoAdHbLI4dAH"
-
-  "$TESTSTOOLS"/store-state make-snap-installable --noack --revision 2 "${NESTED_FAKESTORE_BLOB_DIR}" "updates/pc-kernel-22.snap" "pYVQrBcKmBa0mZ4CCN7ExT6jH8rY1hza"
-  "$TESTSTOOLS"/store-state make-snap-installable --noack --revision 3 "${NESTED_FAKESTORE_BLOB_DIR}" "updates/pc-22.snap" "UqFziVZDHLSyO3TqSWgNBoAdHbLI4dAH"
-  "$TESTSTOOLS"/store-state make-snap-installable --noack --revision 2 "${NESTED_FAKESTORE_BLOB_DIR}" "updates/core22.snap" "amcUKQILKXHHTlmSa7NMdnXSx02dNeeT"
-  "$TESTSTOOLS"/store-state make-snap-installable --noack --revision 28 "${NESTED_FAKESTORE_BLOB_DIR}" "updates/hello-world-old.snap" "buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ"
-  "$TESTSTOOLS"/store-state make-snap-installable --noack --revision 29 "${NESTED_FAKESTORE_BLOB_DIR}" "updates/hello-world.snap" "buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ"
-  "$TESTSTOOLS"/store-state make-snap-installable --noack --revision 1 "${NESTED_FAKESTORE_BLOB_DIR}" "updates/core.snap" "99T7MUlRhtI3U0QFgl5mXXESAiSwt776"
-
-  "$TESTSTOOLS"/store-state add-to-channel "${NESTED_FAKESTORE_BLOB_DIR}" updates/pc-kernel-22.snap 22/edge
-  "$TESTSTOOLS"/store-state add-to-channel "${NESTED_FAKESTORE_BLOB_DIR}" updates/pc-22.snap 22/edge
-
-  "$TESTSTOOLS"/store-state add-to-channel "${NESTED_FAKESTORE_BLOB_DIR}" "$(tests.nested get extra-snaps-path)/pc-kernel.snap" 20/edge
-  "$TESTSTOOLS"/store-state add-to-channel "${NESTED_FAKESTORE_BLOB_DIR}" "$(tests.nested get extra-snaps-path)/pc.snap" 20/edge
-  for snap in "$(tests.nested get extra-snaps-path)"/snapd*.snap; do
-    "$TESTSTOOLS"/store-state add-to-channel "${NESTED_FAKESTORE_BLOB_DIR}" "${snap}" latest/edge
-  done
-
-  "$TESTSTOOLS"/store-state add-to-channel "${NESTED_FAKESTORE_BLOB_DIR}" updates/core22.snap latest/edge
-  "$TESTSTOOLS"/store-state add-to-channel "${NESTED_FAKESTORE_BLOB_DIR}" "$(tests.nested get extra-snaps-path)/core20.snap" latest/edge
-
-  # NEED: updates/hello-world.snap
-
-  "$TESTSTOOLS"/store-state add-to-channel "${NESTED_FAKESTORE_BLOB_DIR}" "updates/hello-world.snap" latest/stable
-  # NEED: updates/core.snap
-  "$TESTSTOOLS"/store-state add-to-channel "${NESTED_FAKESTORE_BLOB_DIR}" updates/core.snap latest/stable
-
-  # start fake device svc
-  systemd-run --collect --unit fakedevicesvc fakedevicesvc localhost:11029
-
-  export NESTED_CUSTOM_MODEL=test-snapd-remodel-offline-rev0.model
-
-  NESTED_BUILD_SNAPD_FROM_CURRENT=false tests.nested build-image core
+  export NESTED_CUSTOM_MODEL="$TESTSLIB/assertions/test-snapd-remodel-offline-rev0.model"
+  tests.nested build-image core
   tests.nested create-vm core
-
-  cat <<EOF >snapd-override.conf
-  [Service]
-  Environment=SNAPPY_FORCE_API_URL=${REMOTE_SAS_URL}
-  EOF
-  remote.push snapd-override.conf
-  remote.exec sudo mkdir -p /etc/systemd/system/snapd.service.d
-  remote.exec sudo cp snapd-override.conf /etc/systemd/system/snapd.service.d/
-  remote.exec sudo systemctl daemon-reload
-  remote.exec sudo systemctl restart snapd
-
-  # For snap commands.
-  echo "SNAPPY_FORCE_API_URL=${REMOTE_SAS_URL}" | remote.exec "sudo tee -a /etc/environment"
-
-restore: |
-  # stop fake device svc
-  systemctl stop fakedevicesvc || true
-
-  "${TESTSTOOLS}/store-state" teardown-fake-store "${NESTED_FAKESTORE_BLOB_DIR}" || true
-
-  rm -rf updates/
 
 execute: |
   boot_id="$(tests.nested boot-id)"
@@ -165,10 +53,10 @@ execute: |
 
   remote.exec "snap model --assertion" | MATCH "brand-id: $SNAPD_TEST_BRAND\$"
   remote.exec "snap model --assertion" | MATCH '^model: test-snapd-remodel-pc$'
-  remote.exec "snap model --assertion --serial" | MATCH "^authority-id: developer1$"
+  remote.exec "snap model --assertion --serial" | MATCH "^authority-id: generic$"
 
   new_model_rev=test-snapd-remodel-offline-rev1.model
-  remote.push "${new_model_rev}"
+  remote.push "$TESTSLIB/assertions/$new_model_rev"
   remodel_options="--no-wait"
 
   # if we are only using preinstalled/acked snaps/assertions, then we have to
@@ -181,48 +69,53 @@ execute: |
   # install/download new bases required for the new model
   for sn_name in core22 core; do
       if [ "${USE_INSTALLED_ESSENTIAL_SNAPS}" = 'true' ]; then
-          remote.exec "sudo snap install ${sn_name}"
+          remote.exec "snap install ${sn_name}"
       else
-          remote.exec "sudo snap download --basename=${sn_name} ${sn_name}"
+          remote.exec "snap download --basename=${sn_name} ${sn_name}"
           remodel_options="$remodel_options --snap ${sn_name}.snap --assertion ${sn_name}.assert"
       fi
   done
 
   # install/download app required for the new model
   if [ "${USE_INSTALLED_APP}" = 'true' ]; then
-      remote.exec "sudo snap install --revision=28 hello-world"
+      remote.exec "snap install --revision=28 hello-world"
 
       # refresh to the latest revision to make sure that remodeling will look
       # for previously installed revisions when doing an offline remodel
-      remote.exec "sudo snap refresh hello-world"
+      remote.exec "snap refresh hello-world"
       remote.exec "snap list hello-world" | awk 'NR != 1 { print $3 }' | NOMATCH 28
   else
       remote.exec "snap download --revision=28 --basename=hello-world hello-world"
       remodel_options="$remodel_options --snap hello-world.snap --assertion hello-world.assert"
   fi
 
-  # gadget has to have the same base as the model. so we need to update with remodeling
-  remote.exec "snap download --channel=22/stable --basename=pc pc"
-  remodel_options="$remodel_options --snap pc.snap --assertion pc.assert"
-
   # install/download new kernel and gadget required for the new model
   if [ "${USE_INSTALLED_ESSENTIAL_SNAPS}" = 'true' ]; then
+      # Get specific revision to grab pc 22 with compatible gadget with the one
+      # in 20/stable.
+      # TODO update this code to use pc from 22/stable when it has min-size
+      # for the ubuntu-save partition
+      remote.exec "snap refresh --revision=148 pc"
+
       # --no-wait here, since this should trigger a reboot
-      KERNEL_CHG_ID=$(remote.exec "sudo snap refresh --no-wait --channel=22/stable pc-kernel")
+      KERNEL_CHG_ID=$(remote.exec "snap refresh --no-wait --channel=22/stable pc-kernel")
 
       remote.wait-for reboot "$boot_id"
       boot_id="$(tests.nested boot-id)"
       # Wait for the change to finish
       remote.exec sudo snap watch "$KERNEL_CHG_ID"
   else
+      remote.exec "snap download --revision=148 --basename=pc pc"
+      remodel_options="$remodel_options --snap pc.snap --assertion pc.assert"
+
       remote.exec "snap download --channel=22/stable --basename=pc-kernel pc-kernel"
       remodel_options="$remodel_options --snap pc-kernel.snap --assertion pc-kernel.assert"
   fi
 
   # ack/add new validation set assertion to CLI params
-  remote.push "test-snapd-core22-required-vset.assert"
+  remote.push "$TESTSLIB/assertions/test-snapd-core22-required-vset.assert"
   if [ "${USE_INSTALLED_VSET}" = 'true' ]; then
-      remote.exec "sudo snap ack test-snapd-core22-required-vset.assert"
+      remote.exec "snap ack test-snapd-core22-required-vset.assert"
   else
       remodel_options="$remodel_options --assertion test-snapd-core22-required-vset.assert"
   fi
@@ -269,5 +162,5 @@ execute: |
   remote.exec "snap model --assertion" | MATCH "brand-id: $SNAPD_TEST_BRAND\$"
   # new model revision
   remote.exec "snap model --assertion" | MATCH '^revision: 1$'
-  remote.exec "sudo snap validate" | MATCH '^developer1/test-snapd-core22-required-vset +enforce +1 +valid'
+  remote.exec "snap validate" | MATCH '^test-snapd/test-snapd-core22-required-vset +enforce +1 +valid'
   remote.exec "snap list hello-world" | awk 'NR != 1 { print $3 }' | MATCH 28
