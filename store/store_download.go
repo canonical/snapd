@@ -680,9 +680,7 @@ func downloadIconImpl(ctx context.Context, name, downloadURL string, w ReadWrite
 				return errRetry
 			}
 
-			switch resp.StatusCode {
-			case 200: // OK
-			default:
+			if resp.StatusCode != 200 {
 				return &DownloadError{Code: resp.StatusCode, URL: resp.Request.URL}
 			}
 
