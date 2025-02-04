@@ -428,10 +428,12 @@ show_how_to_run_qemu() {
     local IMG="$1"
 
     echo "mkimage-uc22: mage ready, run as: "
-    echo kvm -m 1500 -snapshot \
+    echo cp /usr/share/OVMF/OVMF_VARS_4M.fd .
+    echo qemu-system-x86_64 -m q35,accel=kvm -m 1500 -snapshot \
         -netdev user,id=net.0,hostfwd=tcp::10022-:22 \
         -device rtl8139,netdev=net.0 \
-        -bios /usr/share/OVMF/OVMF_CODE.fd \
+        -drive file=/usr/share/OVMF/OVMF_CODE_4M.fd,if=pflash,format=raw,readonly=on \
+        -drive file=OVMF_VARS_4M.fd,if=pflash,format=raw \
         -drive file="$1",if=virtio \
         -serial stdio
 

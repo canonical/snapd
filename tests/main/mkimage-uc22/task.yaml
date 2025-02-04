@@ -41,7 +41,8 @@ prepare: |
     MACHINE_PARAM="-machine ubuntu,accel=kvm"
   fi
 
-  tests.systemd create-and-start-unit "nested-vm" "qemu-system-x86_64 -m 1500 -nographic $MACHINE_PARAM -snapshot -netdev user,id=net.0,hostfwd=tcp::10022-:22 -device rtl8139,netdev=net.0 -bios /usr/share/OVMF/OVMF_CODE.fd -drive file=$PWD/boot.img,if=virtio -serial file:$PWD/serial.log"
+  cp /usr/share/OVMF/OVMF_VARS_4M.fd .
+  tests.systemd create-and-start-unit "nested-vm" "qemu-system-x86_64 -m 1500 -nographic $MACHINE_PARAM -snapshot -netdev user,id=net.0,hostfwd=tcp::10022-:22 -device rtl8139,netdev=net.0 -drive file=/usr/share/OVMF/OVMF_CODE_4M.fd,if=pflash,format=raw,readonly=on -drive file=${PWD}/OVMF_VARS_4M.fd,if=pflash,format=raw -drive file=$PWD/boot.img,if=virtio -serial file:$PWD/serial.log"
 
   # run built image
   remote.setup config --host localhost --port 10022 --user user1 --pass ubuntu
@@ -52,6 +53,10 @@ prepare: |
 
 restore: |
   tests.systemd stop-unit --remove "nested-vm"
+  rm -f OVMF_VARS_4M.fd
+
+debug: |
+  cat serial.log || true
 
 execute: |
   # Check the system loaded properly
