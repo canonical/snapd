@@ -8,8 +8,15 @@ systems: [ubuntu-22.04-64, ubuntu-24.04-64]
 
 environment:
   NESTED_CUSTOM_MODEL: $TESTSLIB/assertions/test-snapd-recovery-system-reboot-pc-{VERSION}.model
-  NESTED_ENABLE_TPM: true
-  NESTED_ENABLE_SECURE_BOOT: true
+  # FIXME: we should use NESTED_BUILD_SNAPD_FROM_CURRENT=true with
+  # NESTED_REPACK_KERNEL_SNAP=false and enable encryption. For now we
+  # disable it until since snap-bootstrap will not be new enough in
+  # the store. A more robust approach is to use the fakestore to
+  # provide/sign a repacked kernel.
+  # NESTED_ENABLE_TPM: true
+  # NESTED_ENABLE_SECURE_BOOT: true
+  NESTED_ENABLE_TPM: false
+  NESTED_ENABLE_SECURE_BOOT: false
   NESTED_BUILD_SNAPD_FROM_CURRENT: true
   NESTED_REPACK_GADGET_SNAP: false
   NESTED_REPACK_KERNEL_SNAP: false
