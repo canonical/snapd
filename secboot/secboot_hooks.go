@@ -71,6 +71,10 @@ func (h *hookKeyProtector) ProtectKey(rand io.Reader, cleartext, aad []byte) (ci
 
 func SealKeysWithFDESetupHook(runHook fde.RunSetupHookFunc, keys []SealKeyRequest, params *SealKeysWithFDESetupHookParams) error {
 	var primaryKey sb.PrimaryKey
+	if params.PrimaryKey != nil {
+		// FIXME: add unit test taking that primary key
+		primaryKey = params.PrimaryKey
+	}
 
 	for _, skr := range keys {
 		protector := &hookKeyProtector{
