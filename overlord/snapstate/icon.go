@@ -27,6 +27,7 @@ import (
 	"path/filepath"
 
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/osutil"
 )
 
 // iconDownloadFilename returns the filepath of the icon in the icons pool
@@ -60,8 +61,12 @@ func linkSnapIcon(snapID string) error {
 
 	poolPath := iconDownloadFilename(snapID)
 	installPath := iconInstallFilename(snapID)
-	if err := os.Link(poolPath, installPath); err != nil {
-		// XXX: os.Link() will error if installPath already exists
+
+	if !osutil.FileExists(poolPath) {
+		return fmt.Errorf("cannot link snap icon for snap %s: icon does not exist in the icons pool", snapID)
+	}
+
+	if err := osutil.AtomicLink(poolPath, installPath); err != nil {
 		return fmt.Errorf("cannot link snap icon for snap %s: %w", snapID, err)
 	}
 	return nil

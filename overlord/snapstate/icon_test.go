@@ -76,29 +76,33 @@ func (s *iconSuite) TestSnapIconLinkUnlinkDiscardPermutations(c *C) {
 		},
 		{
 			functions:                []func(string) error{snapstate.UnlinkSnapIcon, snapstate.DiscardSnapIcon, snapstate.LinkSnapIcon},
-			expectedErrors:           []string{"", "", ".*no such file or directory"},
+			expectedErrors:           []string{"", "", "cannot link snap icon for snap .*: icon does not exist in the icons pool"},
 			poolIconExistsAfter:      []bool{true, false, false},
 			installedIconExistsAfter: []bool{false, false, false},
 		},
 		{
 			functions:                []func(string) error{snapstate.DiscardSnapIcon, snapstate.LinkSnapIcon, snapstate.UnlinkSnapIcon},
-			expectedErrors:           []string{"", ".*no such file or directory", ""},
+			expectedErrors:           []string{"", "cannot link snap icon for snap .*: icon does not exist in the icons pool", ""},
 			poolIconExistsAfter:      []bool{false, false, false},
 			installedIconExistsAfter: []bool{false, false, false},
 		},
 		{
 			functions:                []func(string) error{snapstate.DiscardSnapIcon, snapstate.UnlinkSnapIcon, snapstate.LinkSnapIcon},
-			expectedErrors:           []string{"", "", ".*no such file or directory"},
+			expectedErrors:           []string{"", "", "cannot link snap icon for snap .*: icon does not exist in the icons pool"},
 			poolIconExistsAfter:      []bool{false, false, false},
 			installedIconExistsAfter: []bool{false, false, false},
 		},
-		// calling linkSnapIcon when the icon is already linked is an error
-		// XXX: should this be reconsidered? And if so, how to do it atomically?
 		{
-			functions:                []func(string) error{snapstate.LinkSnapIcon, snapstate.LinkSnapIcon},
-			expectedErrors:           []string{"", "cannot link snap icon .*: file exists"},
-			poolIconExistsAfter:      []bool{true, true},
-			installedIconExistsAfter: []bool{true, true},
+			functions:                []func(string) error{snapstate.LinkSnapIcon, snapstate.LinkSnapIcon, snapstate.UnlinkSnapIcon, snapstate.DiscardSnapIcon},
+			expectedErrors:           []string{"", "", "", ""},
+			poolIconExistsAfter:      []bool{true, true, true, false},
+			installedIconExistsAfter: []bool{true, true, false, false},
+		},
+		{
+			functions:                []func(string) error{snapstate.LinkSnapIcon, snapstate.DiscardSnapIcon, snapstate.LinkSnapIcon},
+			expectedErrors:           []string{"", "", "cannot link snap icon for snap .*: icon does not exist in the icons pool"},
+			poolIconExistsAfter:      []bool{true, false, false},
+			installedIconExistsAfter: []bool{true, true, true},
 		},
 	} {
 		// consistency check on the test case itself
