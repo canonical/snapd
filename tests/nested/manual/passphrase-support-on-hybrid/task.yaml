@@ -136,11 +136,16 @@ execute: |
       remote.exec test -f /run/reboot-required
       remote.exec cat /run/reboot-required.pkgs | MATCH "snap:${snap_name}"
 
-      local log_file="$NESTED_LOGS_DIR"/serial.log
       # Clear old log file to avoid matching passphrase prompt from previous boot.
-      echo "" > "$log_file"
+      echo "" > "$NESTED_LOGS_DIR"/serial.log
       remote.exec sudo reboot || true
-      remote.wait-for reboot --wait 1 -n 200 --expect-passphrase "$PASSPHRASE" --log-file "$log_file" "$boot_id"
+
+      # Wait for passphrase prompt
+      retry -n 120 --wait 1 sh -c "MATCH \"Please enter the passphrase\" < ${NESTED_LOGS_DIR}/serial.log"
+      # Enter passphrase to continue boot
+      echo "$PASSPHRASE" | netcat -N localhost 7777
+
+      remote.wait-for reboot --wait 1 -n 100 "$boot_id"
       remote.exec sudo snap watch --last=install
   }
   # Ensure update-notifier-common is installed so that reboot notification works.
