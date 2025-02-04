@@ -7,14 +7,9 @@ details: |
 systems: [ubuntu-20.04-64]
 
 environment:
-  # encrypted case
-  NESTED_ENABLE_TPM/encrypted: true
-  NESTED_ENABLE_SECURE_BOOT/encrypted: true
-  SAVE_PART_LABEL/encrypted: ubuntu-save-enc
-  # unencrypted case
-  NESTED_ENABLE_TPM/notencrypted: false
-  NESTED_ENABLE_SECURE_BOOT/notencrypted: false
-  SAVE_PART_LABEL/notencrypted: ubuntu-save
+  NESTED_ENABLE_TPM: false
+  NESTED_ENABLE_SECURE_BOOT: false
+  SAVE_PART_LABEL: ubuntu-save
   # needed to use snakeoil keys
   NESTED_BUILD_SNAPD_FROM_CURRENT: true
 
