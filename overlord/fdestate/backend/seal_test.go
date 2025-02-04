@@ -436,6 +436,7 @@ func (s *sealSuite) testSealToModeenvWithFdeHookHappy(c *C, useTokens bool) {
 		c.Check(params.Model.Model(), Equals, model.Model())
 		c.Check(params.Model.Model(), Equals, model.Model())
 		c.Check(params.AuxKeyFile, Equals, filepath.Join(boot.InstallHostFDESaveDir, "aux-key"))
+		c.Check(params.PrimaryKey, DeepEquals, []byte{1, 2, 3, 4})
 		for _, skr := range skrs {
 			var expectedBootstrappedContainer secboot.BootstrappedContainer
 			switch skr.KeyName {
@@ -490,6 +491,7 @@ func (s *sealSuite) testSealToModeenvWithFdeHookHappy(c *C, useTokens bool) {
 		FactoryReset:           false,
 		InstallHostWritableDir: filepath.Join(boot.InstallUbuntuDataDir, "system-data"),
 		UseTokens:              useTokens,
+		PrimaryKey:             []byte{1, 2, 3, 4},
 	}
 	err := boot.SealKeyForBootChains(device.SealingMethodFDESetupHook, dataContainer, saveContainer, nil, params)
 	c.Assert(err, IsNil)
