@@ -20,8 +20,11 @@
 package snapstate_test
 
 import (
+	"os"
+
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/overlord/ifacestate/ifacerepo"
 	"github.com/snapcore/snapd/overlord/servicestate"
@@ -136,10 +139,17 @@ func (s *discardSnapSuite) TestDoDiscardSnapInQuotaGroup(c *C) {
 }
 
 func (s *discardSnapSuite) TestDoDiscardSnapToEmpty(c *C) {
+	snapID := "foo-id"
+	// Create snap icon in the icons pool
+	iconFilename := snapstate.IconDownloadFilename(snapID)
+	iconContents := []byte("some icon file contents")
+	c.Assert(os.MkdirAll(dirs.SnapIconsPoolDir, 0o755), IsNil)
+	c.Assert(os.WriteFile(iconFilename, iconContents, 0o644), IsNil)
+
 	s.state.Lock()
 	snapstate.Set(s.state, "foo", &snapstate.SnapState{
 		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
-			{RealName: "foo", Revision: snap.R(3)},
+			{RealName: "foo", Revision: snap.R(3), SnapID: snapID},
 		}),
 		Current:  snap.R(3),
 		SnapType: "app",
@@ -149,6 +159,7 @@ func (s *discardSnapSuite) TestDoDiscardSnapToEmpty(c *C) {
 		SideInfo: &snap.SideInfo{
 			RealName: "foo",
 			Revision: snap.R(33),
+			SnapID:   snapID,
 		},
 	})
 	s.state.NewChange("sample", "...").AddTask(t)
@@ -163,6 +174,9 @@ func (s *discardSnapSuite) TestDoDiscardSnapToEmpty(c *C) {
 	var snapst snapstate.SnapState
 	err := snapstate.Get(s.state, "foo", &snapst)
 	c.Assert(err, testutil.ErrorIs, state.ErrNoState)
+
+	// Check that snap icon has been removed from the icons download pool
+	c.Check(iconFilename, testutil.FileAbsent)
 }
 
 func (s *discardSnapSuite) TestDoDiscardSnapErrorsForActive(c *C) {
