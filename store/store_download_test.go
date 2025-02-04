@@ -1306,8 +1306,9 @@ func (s *storeDownloadSuite) TestDownloadIconDoesNotOverwriteLinks(c *C) {
 }
 
 func (s *storeDownloadSuite) TestDownloadIconFails(c *C) {
-	fakeName := "foo"
-	fakeURL := "URL"
+	const fakeName = "foo"
+	fakePath := filepath.Join(c.MkDir(), "downloaded-file")
+	const fakeURL = "URL"
 
 	var tmpfile *osutil.AtomicFile
 	restore := store.MockDownloadIcon(func(ctx context.Context, name, url string, w store.ReadWriteSeekTruncater) error {
@@ -1319,18 +1320,18 @@ func (s *storeDownloadSuite) TestDownloadIconFails(c *C) {
 	defer restore()
 
 	// simulate a failed download
-	path := filepath.Join(c.MkDir(), "downloaded-file")
-	err := store.DownloadIcon(s.ctx, fakeName, path, fakeURL)
+	err := store.DownloadIcon(s.ctx, fakeName, fakePath, fakeURL)
 	c.Assert(err, ErrorMatches, "uh, it failed")
 	// ... and ensure that the tempfile is removed
 	c.Assert(osutil.FileExists(tmpfile.Name()), Equals, false)
 	// ... and not because it succeeded either
-	c.Assert(osutil.FileExists(path), Equals, false)
+	c.Assert(osutil.FileExists(fakePath), Equals, false)
 }
 
 func (s *storeDownloadSuite) TestDownloadIconFailsDoesNotLeavePartial(c *C) {
-	fakeName := "foo"
-	fakeURL := "URL"
+	const fakeName = "foo"
+	fakePath := filepath.Join(c.MkDir(), "downloaded-file")
+	const fakeURL = "URL"
 
 	var tmpfile *osutil.AtomicFile
 	restore := store.MockDownloadIcon(func(ctx context.Context, name, url string, w store.ReadWriteSeekTruncater) error {
@@ -1343,19 +1344,18 @@ func (s *storeDownloadSuite) TestDownloadIconFailsDoesNotLeavePartial(c *C) {
 	defer restore()
 
 	// simulate a failed download
-	path := filepath.Join(c.MkDir(), "downloaded-file")
-	err := store.DownloadIcon(s.ctx, fakeName, path, fakeURL)
+	err := store.DownloadIcon(s.ctx, fakeName, fakePath, fakeURL)
 	c.Assert(err, ErrorMatches, "uh, it failed")
 	// ... and ensure that the tempfile is removed
 	c.Assert(osutil.FileExists(tmpfile.Name()), Equals, false)
 	// ... and the target path isn't there
-	c.Assert(osutil.FileExists(path), Equals, false)
+	c.Assert(osutil.FileExists(fakePath), Equals, false)
 }
 
 func (s *storeDownloadSuite) TestDownloadIconFailsWithExisting(c *C) {
-	fakeName := "foo"
+	const fakeName = "foo"
 	fakePath := filepath.Join(c.MkDir(), "downloaded-file")
-	fakeURL := "URL"
+	const fakeURL = "URL"
 
 	// Create an existing file at the path
 	oldContent := []byte("I was already here")
@@ -1371,9 +1371,9 @@ func (s *storeDownloadSuite) TestDownloadIconFailsWithExisting(c *C) {
 }
 
 func (s *storeDownloadSuite) TestDownloadIconFailsWithoutExisting(c *C) {
-	fakeName := "foo"
+	const fakeName = "foo"
 	fakePath := filepath.Join(c.MkDir(), "downloaded-file")
-	fakeURL := "URL"
+	const fakeURL = "URL"
 
 	s.testDownloadIconSyncFailsGeneric(c, fakeName, fakePath, fakeURL)
 
@@ -1416,10 +1416,10 @@ func (s *storeDownloadSuite) TestDownloadIconInfiniteRedirect(c *C) {
 	c.Assert(mockServer, NotNil)
 	defer mockServer.Close()
 
-	fakeName := "foo"
+	const fakeName = "foo"
+	fakePath := filepath.Join(c.MkDir(), "foo.icon")
 	fakeURL := mockServer.URL
 
-	targetPath := filepath.Join(c.MkDir(), "foo.icon")
-	err := store.DownloadIcon(s.ctx, fakeName, targetPath, fakeURL)
+	err := store.DownloadIcon(s.ctx, fakeName, fakePath, fakeURL)
 	c.Assert(err, ErrorMatches, fmt.Sprintf("Get %q: stopped after 10 redirects", fakeURL))
 }
