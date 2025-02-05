@@ -85,11 +85,9 @@ execute: |
   snap pack --filename=pc.snap pc-gadget/
 
   # Retrieve kernel
-  snap download --basename=pc-kernel --channel="$version/edge" pc-kernel
+  snap download --basename=pc-kernel-from-store --channel="$version/edge" pc-kernel
   # the fakestore needs this assertion
-  snap ack pc-kernel.assert
-  # keep original blob just so we can find the assertion later
-  cp pc-kernel.snap pc-kernel.snap.orig
+  snap ack pc-kernel-from-store.assert
   # Build kernel with initramfs with the compiled snap-bootstrap
   kmods_arg=""
   if os.query is-ubuntu-ge 24.04; then
@@ -99,9 +97,9 @@ execute: |
       # build now uc24 initramfs
       uc24_build_initramfs_kernel_snap "$PWD/pc-kernel.snap" "$NESTED_ASSETS_DIR"
   else
-    uc20_build_initramfs_kernel_snap "$PWD/pc-kernel.snap" "$NESTED_ASSETS_DIR"
+      uc20_build_initramfs_kernel_snap "$PWD/pc-kernel-from-store.snap" "$NESTED_ASSETS_DIR"
   fi
-  mv "${NESTED_ASSETS_DIR}"/pc-kernel_*.snap pc-kernel.snap
+  mv "${NESTED_ASSETS_DIR}"/pc-kernel_*.snap pc-kernel-repacked.snap
 
   version="$(nested_get_version)"
   gendeveloper1 sign-model < "$TESTSLIB"/assertions/developer1-"$version"-classic-dangerous.json > classic.model
@@ -124,8 +122,8 @@ execute: |
      --store-dir "${STORE_DIR}" \
      --gadget pc.snap \
      --gadget-assertion pc.assert \
-     --kernel pc-kernel.snap \
-     --kernel-assertion pc-kernel.assert \
+     --kernel pc-kernel-repacked.snap \
+     --kernel-assertion pc-kernel-from-store.assert \
      $kmods_arg \
      --disk disk.img
 
@@ -180,9 +178,9 @@ execute: |
 
   if os.query is-ubuntu-ge 24.04; then
   # test refresh of kernel with component
-      remote.push pc-kernel.snap
+      remote.push pc-kernel-repacked.snap
       remote.push pc-kernel+efi-pstore.comp
-      REMOTE_CHG_ID=$(remote.exec sudo snap install --no-wait --dangerous pc-kernel.snap pc-kernel+efi-pstore.comp)
+      REMOTE_CHG_ID=$(remote.exec sudo snap install --no-wait --dangerous pc-kernel-repacked.snap pc-kernel+efi-pstore.comp)
       retry --wait 1 -n 120 sh -c "remote.exec \"snap change $REMOTE_CHG_ID | grep -E 'Task set to wait until a system restart allows to continue'\""
       boot_id=$(tests.nested boot-id)
       remote.exec sudo reboot || true
@@ -278,8 +276,8 @@ execute: |
   fi
   remote.exec 'grep "This program cannot be run in XXX mode" /run/mnt/ubuntu-boot/EFI/boot/grubx64.efi'
 
-  unsquashfs -d pc-kernel pc-kernel.snap
-  refresh_rebooting_snap pc-kernel pc-kernel.snap.orig ./pc-kernel
+  unsquashfs -d pc-kernel pc-kernel-repacked.snap
+  refresh_rebooting_snap pc-kernel pc-kernel-from-store.snap ./pc-kernel
 
   # test that core22+ refreshes fine and does not revert after a reboot
   # (see https://github.com/snapcore/snapd/pull/12532)
