@@ -75,8 +75,8 @@ const (
 	ConfdbControl
 	// AppArmorPrompting enables AppArmor to prompt the user for permission when apps perform certain operations.
 	AppArmorPrompting
-	// GPIOChardevSupport enables experimental gpio-chardev interface.
-	GPIOChardevSupport
+	// GPIOChardevInterface enables experimental gpio-chardev interface.
+	GPIOChardevInterface
 
 	// lastFeature is the final known feature, it is only used for testing.
 	lastFeature
@@ -127,7 +127,7 @@ var featureNames = map[SnapdFeature]string{
 
 	AppArmorPrompting: "apparmor-prompting",
 
-	GPIOChardevSupport: "gpio-chardev-support",
+	GPIOChardevInterface: "gpio-chardev-interface",
 }
 
 // featuresEnabledWhenUnset contains a set of features that are enabled when not explicitly configured.
@@ -151,7 +151,7 @@ var featuresExported = map[SnapdFeature]bool{
 	RefreshAppAwarenessUX: true,
 	Confdbs:               true,
 	AppArmorPrompting:     true,
-	GPIOChardevSupport:    true,
+	GPIOChardevInterface:  true,
 }
 
 var (
