@@ -24,6 +24,7 @@ import (
 	"os"
 
 	"github.com/jessevdk/go-flags"
+
 	"github.com/snapcore/snapd/snapdtool"
 )
 
