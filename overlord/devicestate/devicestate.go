@@ -620,7 +620,7 @@ func (r *remodeler) maybeInstallOrUpdate(ctx context.Context, st *state.State, r
 
 		return remodelChannelSwitch, []*state.TaskSet{ts}, nil
 	case needsComponentChanges:
-		tss, err := r.installComponents(ctx, st, currentInfo, rt, requiredComponents)
+		tss, err := r.installComponents(ctx, st, currentInfo, requiredComponents)
 		if err != nil {
 			return 0, nil, err
 		}
@@ -857,13 +857,13 @@ func (r *remodeler) updateGoal(st *state.State, sn remodelSnapTarget, components
 	}), nil
 }
 
-func (r *remodeler) installComponents(ctx context.Context, st *state.State, info *snap.Info, rt remodelSnapTarget, components []string) ([]*state.TaskSet, error) {
+func (r *remodeler) installComponents(ctx context.Context, st *state.State, info *snap.Info, components []string) ([]*state.TaskSet, error) {
 	r.tracker.Add(info)
 
 	if r.offline {
 		var tss []*state.TaskSet
 		for _, c := range components {
-			ref := naming.NewComponentRef(rt.name, c)
+			ref := naming.NewComponentRef(info.SnapName(), c)
 
 			lc, ok := r.localComponents[ref.String()]
 			if !ok {
