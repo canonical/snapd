@@ -58,7 +58,7 @@ type IntegrityDataParams struct {
 	Salt string
 }
 
-func (params *IntegrityDataParams) check(vsb *dmverity.VeritySuperblock) error {
+func (params *IntegrityDataParams) crossCheck(vsb *dmverity.VeritySuperblock) error {
 
 	// Check if the verity data that were found match the passed parameters
 	alg := strings.ReplaceAll(string(vsb.Algorithm[:]), "\x00", "")
@@ -101,7 +101,7 @@ func LookupDmVerityDataAndCrossCheck(snapPath string, params *IntegrityDataParam
 		return "", err
 	}
 
-	err = params.check(vsb)
+	err = params.crossCheck(vsb)
 	if err != nil {
 		return "", fmt.Errorf("%w %q: %w", ErrUnexpectedDmVerityData, hashFileName, err)
 	}
