@@ -761,7 +761,7 @@ func (s *downloadSuite) TestDownloadIconCancellation(c *C) {
 	err := store.DownloadIconImpl(ctx, "foo", mockServer.URL, &buf)
 
 	c.Check(n, Equals, 1)
-	c.Assert(err, ErrorMatches, ".*: context canceled")
+	c.Assert(err, testutil.ErrorIs, context.Canceled)
 }
 
 func (s *downloadSuite) TestActualDownloadIcon404(c *C) {
