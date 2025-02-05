@@ -30,14 +30,14 @@ import (
 )
 
 var (
-	appIconCmd = &Command{
+	snapIconCmd = &Command{
 		Path:       "/v2/icons/{name}/icon",
-		GET:        appIconGet,
+		GET:        snapIconGet,
 		ReadAccess: openAccess{},
 	}
 )
 
-func appIconGet(c *Command, r *http.Request, user *auth.UserState) Response {
+func snapIconGet(c *Command, r *http.Request, user *auth.UserState) Response {
 	vars := muxVars(r)
 	name := vars["name"]
 
