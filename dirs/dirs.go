@@ -20,7 +20,10 @@
 package dirs
 
 import (
+	"errors"
 	"fmt"
+	"io"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -33,6 +36,8 @@ import (
 
 // the various file paths
 var (
+	stderr io.Writer = os.Stderr
+
 	GlobalRootDir string = "/"
 
 	RunDir string
@@ -160,6 +165,7 @@ var (
 
 const (
 	defaultSnapMountDir = "/snap"
+	altSnapMountDir     = "/var/lib/snapd/snap"
 
 	// These are directories which are static inside the core snap and
 	// can never be prefixed as they will be always absolute once we
@@ -445,15 +451,19 @@ func AddRootDirCallback(c func(string)) {
 	callbacks = append(callbacks, c)
 }
 
-// SetRootDir allows settings a new global root directory, this is useful
-// for e.g. chroot operations
-func SetRootDir(rootdir string) {
-	if rootdir == "" {
-		rootdir = "/"
+var (
+	// distributions known to use /snap/
+	defaultDirDistros = []string{
+		"ubuntu",
+		"ubuntu-core",
+		"debian",
+		"opensuse",
+		"suse",
+		"yocto",
 	}
-	GlobalRootDir = rootdir
 
-	altDirDistros := []string{
+	// distributions known to use /var/lib/snapd/snap/
+	altDirDistros = []string{
 		"altlinux",
 		"antergos",
 		"arch",
@@ -463,12 +473,78 @@ func SetRootDir(rootdir string) {
 		"manjaro",
 		"manjaro-arm",
 	}
+)
+
+func snapMountDirProbe(rootdir string) string {
+
+	defaultDir := filepath.Join(rootdir, defaultSnapMountDir)
+	altDir := filepath.Join(rootdir, altSnapMountDir)
+
+	// a well known default value
+	dir := "mount-dir-is-unset"
+
+	switch {
+	case release.DistroLike(defaultDirDistros...):
+		dir = defaultDir
+
+	case release.DistroLike(altDirDistros...):
+		dir = altDir
+
+	default:
+		// observe the system state to find out how snapd was packaged,
+		// essentially use the same logic as
+		// sc_probe_snap_mount_dir_from_pid_1_mount_ns() used in snap-confine,
+		// except for hard errors
+		fi, err := os.Lstat(defaultDir)
+		switch {
+		case err != nil:
+			if errors.Is(err, fs.ErrNotExist) {
+				// path does not exist, given that well-known distros are
+				// handled explicitly we are dealing with a distribution we have
+				// no knowledge of and the packaging does not include a default
+				// mount path
+				dir = altDir
+			} else {
+				fmt.Fprintf(stderr, "cannot stat %s: %v\n", defaultDir, err)
+			}
+		case fi.Mode().Type()&fs.ModeSymlink != 0:
+			// exists and is a symlink, find out what the target is, but keep
+			// the checks simple and read the symlink rather than trying
+			// filepath.EvalSymlinks() which needs intermediate directories to
+			// exist
+			p, err := os.Readlink(defaultDir)
+			switch {
+			case err != nil:
+				fmt.Fprintf(stderr, "cannot read %s symlink path: %v\n", defaultDir, err)
+			case p != altSnapMountDir && p != altSnapMountDir[1:] && p != altDir:
+				fmt.Fprintf(stderr, "%v must be a symbolic link to %v\n", defaultDir, altSnapMountDir)
+			default:
+				// we read the symlink and it points to the alternative location
+				dir = altDir
+			}
+		case fi.Mode().Type().IsDir():
+			// exists and is a directory
+			dir = defaultDir
+		}
+	}
+
+	return dir
+}
+
+// SetRootDir allows settings a new global root directory, this is useful
+// for e.g. chroot operations
+func SetRootDir(rootdir string) {
+	if rootdir == "" {
+		rootdir = "/"
+	}
+	GlobalRootDir = rootdir
 
 	isInsideBase, _ := isInsideBaseSnap()
-	if !isInsideBase && release.DistroLike(altDirDistros...) {
-		SnapMountDir = filepath.Join(rootdir, "/var/lib/snapd/snap")
-	} else {
+	if isInsideBase {
+		// when inside the base, the mount directory is always /snap
 		SnapMountDir = filepath.Join(rootdir, defaultSnapMountDir)
+	} else {
+		SnapMountDir = snapMountDirProbe(rootdir)
 	}
 
 	SnapDataDir = filepath.Join(rootdir, "/var/snap")
