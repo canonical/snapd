@@ -35,6 +35,7 @@ import (
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/daemon"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/dirs/dirstest"
 	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/interfaces/ifacetest"
 	"github.com/snapcore/snapd/overlord/auth"
@@ -85,11 +86,31 @@ func (s *generalSuite) TestSysInfo(c *check.C) {
 	req, err := http.NewRequest("GET", "/v2/system-info", nil)
 	c.Assert(err, check.IsNil)
 
+	restore := release.MockReleaseInfo(&release.OS{ID: "distro-id", VersionID: "1.2"})
+	defer restore()
+	restore = release.MockOnClassic(true)
+	defer restore()
+	restore = sandbox.MockForceDevMode(true)
+	defer restore()
+
+	r := c.MkDir()
+	// using unknown distro, set up
+	dirstest.MustMockAltSnapMountDir(r)
+	// reload dirs for release info to have effect
+	dirs.SetRootDir(r)
+
+	restore = daemon.MockSystemdVirt("magic")
+	defer restore()
+	// Set systemd version <230 so QuotaGroups feature unsupported
+	restore = systemd.MockSystemdVersion(229, nil)
+	defer restore()
+
+	buildID := "this-is-my-build-id"
+	restore = daemon.MockBuildID(buildID)
+	defer restore()
+
 	d := s.daemon(c)
 	d.Version = "42b1"
-
-	// check it only does GET
-	s.checkGetOnly(c, req)
 
 	// set both legacy and new refresh schedules. new one takes priority
 	st := d.Overlord().State()
@@ -102,23 +123,8 @@ func (s *generalSuite) TestSysInfo(c *check.C) {
 	tr.Commit()
 	st.Unlock()
 
-	restore := release.MockReleaseInfo(&release.OS{ID: "distro-id", VersionID: "1.2"})
-	defer restore()
-	restore = release.MockOnClassic(true)
-	defer restore()
-	restore = sandbox.MockForceDevMode(true)
-	defer restore()
-	// reload dirs for release info to have effect
-	dirs.SetRootDir(dirs.GlobalRootDir)
-	restore = daemon.MockSystemdVirt("magic")
-	defer restore()
-	// Set systemd version <230 so QuotaGroups feature unsupported
-	restore = systemd.MockSystemdVersion(229, nil)
-	defer restore()
-
-	buildID := "this-is-my-build-id"
-	restore = daemon.MockBuildID(buildID)
-	defer restore()
+	// check it only does GET
+	s.checkGetOnly(c, req)
 
 	rec := httptest.NewRecorder()
 	s.req(c, req, nil).ServeHTTP(rec, nil)
@@ -206,9 +212,6 @@ func (s *generalSuite) TestSysInfoLegacyRefresh(c *check.C) {
 	req, err := http.NewRequest("GET", "/v2/system-info", nil)
 	c.Assert(err, check.IsNil)
 
-	d := s.daemon(c)
-	d.Version = "42b1"
-
 	restore := release.MockReleaseInfo(&release.OS{ID: "distro-id", VersionID: "1.2"})
 	defer restore()
 	restore = release.MockOnClassic(true)
@@ -217,8 +220,19 @@ func (s *generalSuite) TestSysInfoLegacyRefresh(c *check.C) {
 	defer restore()
 	restore = daemon.MockSystemdVirt("kvm")
 	defer restore()
+
+	buildID := "this-is-my-build-id"
+	restore = daemon.MockBuildID(buildID)
+	defer restore()
+
+	r := c.MkDir()
+	// using unknown distro, set up
+	dirstest.MustMockAltSnapMountDir(r)
 	// reload dirs for release info to have effect
-	dirs.SetRootDir(dirs.GlobalRootDir)
+	dirs.SetRootDir(r)
+
+	d := s.daemon(c)
+	d.Version = "42b1"
 
 	// set the legacy refresh schedule
 	st := d.Overlord().State()
@@ -236,9 +250,8 @@ func (s *generalSuite) TestSysInfoLegacyRefresh(c *check.C) {
 	})
 	c.Assert(err, check.IsNil)
 
-	buildID := "this-is-my-build-id"
-	restore = daemon.MockBuildID(buildID)
-	defer restore()
+	// check it only does GET
+	s.checkGetOnly(c, req)
 
 	rec := httptest.NewRecorder()
 	s.req(c, req, nil).ServeHTTP(rec, nil)
