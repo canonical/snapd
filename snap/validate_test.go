@@ -798,33 +798,68 @@ hooks:
 	c.Check(err, ErrorMatches, `invalid hook name: "123abc"`)
 }
 
-func (s *ValidateSuite) TestValidateHookCoreWithConfigureHappy(c *C) {
-	info, err := InfoFromSnapYaml([]byte(`name: core
-version: 1.0
-hooks:
-  configure:
-type: os
-`))
-	c.Assert(err, IsNil)
-	err = Validate(info)
-	c.Assert(err, IsNil)
-}
-
-func (s *ValidateSuite) TestValidateHookCoreWithDefaultConfigureError(c *C) {
-	info, err := InfoFromSnapYaml([]byte(`name: core
-version: 1.0
-hooks:
-  default-configure:
-type: os
-`))
-	c.Assert(err, IsNil)
-	err = Validate(info)
-	c.Check(err, ErrorMatches, `cannot specify "default-configure" hook for "os" snap "core"`)
-}
-
 func (s *ValidateSuite) TestValidateHookSnapdBaseOSWithConfigureHooksError(c *C) {
+	testMap := map[string]struct {
+		snapType string
+		dflt     string
+		conf     string
+	}{
+		"snapd-both":      {"snapd", "default-configure", "configure"},
+		"snapd-dflt-only": {"snapd", "default-configure", ""},
+		"snapd-conf-only": {"snapd", "", "configure"},
+		"base-both":       {"base", "default-configure", "configure"},
+		"os-dflt-only":    {"os", "default-configure", ""},
+	}
+
+	quoteNonEmpty := func(str string) string {
+		if str != "" {
+			str = `"` + str + `"`
+		}
+		return str
+	}
+
 	var snapYaml []byte
-	for _, snapType := range []string{"snapd", "base", "os"} {
+	for name, test := range testMap {
+		dfltDef := test.dflt
+		confDef := test.conf
+		if dfltDef != "" {
+			dfltDef += ":"
+		}
+		if confDef != "" {
+			confDef += ":"
+		}
+		snapYaml = []byte(fmt.Sprintf(`name: %[1]s
+version: 1.0
+hooks:
+  %[2]s
+  %[3]s
+type: %[1]s`, test.snapType, dfltDef, confDef))
+		info, err := InfoFromSnapYaml(snapYaml)
+		c.Assert(err, IsNil)
+		err = Validate(info)
+		c.Check(err, ErrorMatches, fmt.Sprintf(`cannot specify %[2]s( or )?%[3]s hook for %[1]q snap %[1]q`,
+			test.snapType, quoteNonEmpty(test.dflt), quoteNonEmpty(test.conf)), Commentf("Failed test: %s", name))
+	}
+}
+
+func (s *ValidateSuite) TestValidateHookKernelGadgetOSAppWithConfigureHookHappy(c *C) {
+	var snapYaml []byte
+	for _, snapType := range []string{"kernel", "gadget", "os", "app"} {
+		snapYaml = []byte(fmt.Sprintf(`name: %[1]s
+version: 1.0
+hooks:
+  configure:
+type: %[1]s`, snapType))
+		info, err := InfoFromSnapYaml(snapYaml)
+		c.Assert(err, IsNil)
+		err = Validate(info)
+		c.Assert(err, IsNil)
+	}
+}
+
+func (s *ValidateSuite) TestValidateHookKernelGadgetAppWithDefaultConfigureHookHappy(c *C) {
+	var snapYaml []byte
+	for _, snapType := range []string{"kernel", "gadget", "app"} {
 		snapYaml = []byte(fmt.Sprintf(`name: %[1]s
 version: 1.0
 hooks:
@@ -834,27 +869,11 @@ type: %[1]s`, snapType))
 		info, err := InfoFromSnapYaml(snapYaml)
 		c.Assert(err, IsNil)
 		err = Validate(info)
-		c.Check(err, ErrorMatches, fmt.Sprintf(`cannot specify "default-configure" or "configure" hook for %[1]q snap %[1]q`, snapType))
-	}
-}
-
-func (s *ValidateSuite) TestValidateHookKernelGadgetWithConfigureHooksHappy(c *C) {
-	var snapYaml []byte
-	for _, snapType := range []string{"kernel", "gadget"} {
-		snapYaml = []byte(fmt.Sprintf(`name: %[1]s
-version: 1.0
-hooks:
-  default-configure:
-  configure:
-type: %[1]s`, snapType))
-		info, err := InfoFromSnapYaml(snapYaml)
-		c.Assert(err, IsNil)
-		err = Validate(info)
 		c.Assert(err, IsNil)
 	}
 }
 
-func (s *ValidateSuite) TestIllegalHookDefaultConfigureWithoutConfigure(c *C) {
+func (s *ValidateSuite) TestValidateHookDefaultConfigureWithoutConfigureError(c *C) {
 	info, err := InfoFromSnapYaml([]byte(`name: foo
 version: 1.0
 hooks:

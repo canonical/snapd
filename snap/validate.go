@@ -172,13 +172,7 @@ func validateHooks(info *Info) error {
 	hasDefaultConfigureHook := info.Hooks["default-configure"] != nil
 	hasConfigureHook := info.Hooks["configure"] != nil
 
-	if info.SnapType == TypeOS && info.InstanceName() == "core" && hasDefaultConfigureHook {
-		// The default-configure hook is not supported for core. However, it has an empty configure
-		// hook that is not required, but tolerated to prevent introducing a new error.
-		return fmt.Errorf(`cannot specify "default-configure" hook for %q snap %q`, info.Type(), info.InstanceName())
-	}
-
-	if info.SnapType == TypeSnapd || info.SnapType == TypeBase || (info.SnapType == TypeOS && info.InstanceName() != "core") {
+	if info.SnapType == TypeSnapd || info.SnapType == TypeBase || info.SnapType == TypeOS {
 		var hookNames strings.Builder
 		if hasDefaultConfigureHook {
 			hookNames.WriteString(`"default-configure"`)
@@ -186,12 +180,14 @@ func validateHooks(info *Info) error {
 				hookNames.WriteString(" or ")
 			}
 		}
-		if hasConfigureHook {
+		if hasConfigureHook && info.SnapType != TypeOS {
 			hookNames.WriteString(`"configure"`)
 		}
 		if hookNames.String() != "" {
-			// neither default-configure nor configure hooks are supported for snapd, base or OS snaps,
-			// except for core snap that is allowed an configure hook that will be ignored
+			// The default-configure hook is not supported for snapd, base or OS snaps.
+			// The configure hook is also not supported for snapd and base snaps. While
+			// it is not required for OS snaps (core and ubuntu-core), it is tolerated
+			// to prevent errors due to existing configure hooks.
 			return fmt.Errorf("cannot specify %s hook for %q snap %q", hookNames.String(), info.Type(), info.InstanceName())
 		}
 	}

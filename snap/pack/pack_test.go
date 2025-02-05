@@ -167,57 +167,67 @@ apps:
 	c.Assert(err, ErrorMatches, `snap is unusable due to missing files: path "bin/hello-world" does not exist`)
 }
 
-func (s *packSuite) TestPackConfigureHooksHappy(c *C) {
-	sourceDir := makeExampleSnapSourceDir(c, `name: hello
-version: 0
-apps:
- foo:
-  command: bin/hello-world
-`)
-	c.Assert(os.Mkdir(filepath.Join(sourceDir, "meta", "hooks"), 0755), IsNil)
-	configureHooks := []string{"configure", "default-configure"}
-	for _, hook := range configureHooks {
-		c.Assert(os.WriteFile(filepath.Join(sourceDir, "meta", "hooks", hook), []byte("#!/bin/sh"), 0755), IsNil)
-		_, err := pack.Pack(sourceDir, pack.Defaults)
-		c.Assert(err, IsNil)
-	}
-}
-
-func (s *packSuite) TestPackCoreWithConfigureHappy(c *C) {
-	sourceDir := makeExampleSnapSourceDir(c, `name: core
-version: 0
-type: os
-`)
-	c.Assert(os.Mkdir(filepath.Join(sourceDir, "meta", "hooks"), 0755), IsNil)
-	c.Assert(os.WriteFile(filepath.Join(sourceDir, "meta", "hooks", "configure"), []byte("#!/bin/sh"), 0755), IsNil)
-	_, err := pack.Pack(sourceDir, pack.Defaults)
-	c.Assert(err, IsNil)
-}
-
-func (s *packSuite) TestPackCoreWithDefaultConfigureError(c *C) {
-	sourceDir := makeExampleSnapSourceDir(c, `name: core
-version: 0
-type: os
-`)
-	c.Assert(os.Mkdir(filepath.Join(sourceDir, "meta", "hooks"), 0755), IsNil)
-	c.Assert(os.WriteFile(filepath.Join(sourceDir, "meta", "hooks", "default-configure"), []byte("#!/bin/sh"), 0755), IsNil)
-	_, err := pack.Pack(sourceDir, pack.Defaults)
-	c.Check(err, ErrorMatches, `cannot validate snap "core": cannot specify "default-configure" hook for "os" snap "core"`)
-}
-
-func (s *packSuite) TestPackSnapdBaseOSWithConfigureHooksError(c *C) {
-	for _, snapType := range []string{"snapd", "base", "os"} {
+func (s *packSuite) TestPackKernelGadgetOSAppWithConfigureHookHappy(c *C) {
+	for _, snapType := range []string{"kernel", "gadget", "os", "app"} {
 		snapYaml := fmt.Sprintf(`name: %[1]s
 version: 0
 type: %[1]s`, snapType)
 		sourceDir := makeExampleSnapSourceDir(c, snapYaml)
-		configureHooks := []string{"configure", "default-configure"}
+		configureHooks := []string{"configure"}
 		c.Assert(os.Mkdir(filepath.Join(sourceDir, "meta", "hooks"), 0755), IsNil)
 		for _, hook := range configureHooks {
 			c.Assert(os.WriteFile(filepath.Join(sourceDir, "meta", "hooks", hook), []byte("#!/bin/sh"), 0755), IsNil)
 		}
 		_, err := pack.Pack(sourceDir, pack.Defaults)
-		c.Check(err, ErrorMatches, fmt.Sprintf(`cannot validate snap %[1]q: cannot specify "default-configure" or "configure" hook for %[1]q snap %[1]q`, snapType))
+		c.Assert(err, IsNil)
+	}
+}
+
+func (s *packSuite) TestPackKernelGadgetAppWithDefaultConfigureHookHappy(c *C) {
+	for _, snapType := range []string{"kernel", "gadget", "app"} {
+		snapYaml := fmt.Sprintf(`name: %[1]s
+version: 0
+type: %[1]s`, snapType)
+		sourceDir := makeExampleSnapSourceDir(c, snapYaml)
+		configureHooks := []string{"default-configure", "configure"}
+		c.Assert(os.Mkdir(filepath.Join(sourceDir, "meta", "hooks"), 0755), IsNil)
+		for _, hook := range configureHooks {
+			c.Assert(os.WriteFile(filepath.Join(sourceDir, "meta", "hooks", hook), []byte("#!/bin/sh"), 0755), IsNil)
+		}
+		_, err := pack.Pack(sourceDir, pack.Defaults)
+		c.Assert(err, IsNil)
+	}
+}
+
+func (s *packSuite) TestPackSnapdBaseWithConfigureHooksError(c *C) {
+	for _, snapType := range []string{"snapd", "base"} {
+		snapYaml := fmt.Sprintf(`name: %[1]s
+version: 0
+type: %[1]s`, snapType)
+		sourceDir := makeExampleSnapSourceDir(c, snapYaml)
+		configureHooks := []string{"configure"}
+		c.Assert(os.Mkdir(filepath.Join(sourceDir, "meta", "hooks"), 0755), IsNil)
+		for _, hook := range configureHooks {
+			c.Assert(os.WriteFile(filepath.Join(sourceDir, "meta", "hooks", hook), []byte("#!/bin/sh"), 0755), IsNil)
+		}
+		_, err := pack.Pack(sourceDir, pack.Defaults)
+		c.Check(err, ErrorMatches, fmt.Sprintf(`cannot validate snap %[1]q: cannot specify "configure" hook for %[1]q snap %[1]q`, snapType))
+	}
+}
+
+func (s *packSuite) TestPackSnapdBaseOSWithDefaultConfigureHookError(c *C) {
+	for _, snapType := range []string{"snapd", "base", "os"} {
+		snapYaml := fmt.Sprintf(`name: %[1]s
+version: 0
+type: %[1]s`, snapType)
+		sourceDir := makeExampleSnapSourceDir(c, snapYaml)
+		configureHooks := []string{"default-configure"}
+		c.Assert(os.Mkdir(filepath.Join(sourceDir, "meta", "hooks"), 0755), IsNil)
+		for _, hook := range configureHooks {
+			c.Assert(os.WriteFile(filepath.Join(sourceDir, "meta", "hooks", hook), []byte("#!/bin/sh"), 0755), IsNil)
+		}
+		_, err := pack.Pack(sourceDir, pack.Defaults)
+		c.Check(err, ErrorMatches, fmt.Sprintf(`cannot validate snap %[1]q: cannot specify "default-configure" hook for %[1]q snap %[1]q`, snapType))
 	}
 }
 
