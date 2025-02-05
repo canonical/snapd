@@ -51,9 +51,10 @@ func (cmd cmdPaths) Execute(args []string) error {
 		name string
 		path string
 	}{
-		{"SNAPD_MOUNT", dirs.SnapMountDir},
-		{"SNAPD_BIN", dirs.SnapBinariesDir},
-		{"SNAPD_LIBEXEC", dirs.DistroLibExecDir},
+		// strip root directory for tests
+		{"SNAPD_MOUNT", dirs.StripRootDir(dirs.SnapMountDir)},
+		{"SNAPD_BIN", dirs.StripRootDir(dirs.SnapBinariesDir)},
+		{"SNAPD_LIBEXEC", dirs.StripRootDir(dirs.DistroLibExecDir)},
 	} {
 		fmt.Fprintf(Stdout, "%s=%s\n", p.name, p.path)
 	}
