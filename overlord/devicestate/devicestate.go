@@ -735,6 +735,9 @@ func (r *remodeler) installGoal(sn remodelSnapTarget, components []string) (snap
 			ValidationSets: r.vsets,
 		}
 
+		// TODO: snapstate for by-path installs doesn't verify validation sets.
+		// decide if we want to manually verify the given rules here or not.
+
 		return snapstatePathInstallGoal(snapstate.PathSnap{
 			Path:       ls.Path,
 			SideInfo:   ls.SideInfo,
@@ -833,8 +836,8 @@ func (r *remodeler) updateGoal(st *state.State, sn remodelSnapTarget, components
 			ValidationSets: r.vsets,
 		}
 
-		// TODO: verify against validation sets, since we don't do that in
-		// snapstate for by-path installs (why don't we?)
+		// TODO: snapstate for by-path installs doesn't verify validation sets.
+		// decide if we want to manually verify the given rules here or not.
 
 		return snapstatePathUpdateGoal(snapstate.PathSnap{
 			Path:       ls.Path,
@@ -880,8 +883,8 @@ func (r *remodeler) installComponents(ctx context.Context, st *state.State, info
 			}
 			tss = append(tss, ts)
 
-			// TODO: verify against validation sets, since we don't do that in
-			// snapstate for by-path installs (why don't we?)
+			// TODO: snapstate for by-path installs doesn't verify validation sets.
+			// decide if we want to manually verify the given rules here or not.
 		}
 		return tss, nil
 	}
