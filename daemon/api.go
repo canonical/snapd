@@ -41,7 +41,7 @@ var api = []*Command{
 	sysInfoCmd,
 	loginCmd,
 	logoutCmd,
-	appIconCmd,
+	snapIconCmd,
 	findCmd,
 	snapsCmd,
 	snapCmd,
