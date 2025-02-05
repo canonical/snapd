@@ -153,6 +153,21 @@ func Prepare(opts *Options) error {
 		return err
 	}
 
+	for _, assertionFilename := range opts.AdditionalAssertionsFiles {
+
+		// Included in function is type assertion-like check similar to ass.(*asserts.Model)
+		// but for the types that we allow to be injected
+		// Means having a "switch ass.Type()" with and entry for each allowed type, having
+		// an ass.(asserts.<Type>) for each and raising an error for not-allowed types
+		extraAssertion, err := decodeAdditionalAssertion(assertionFilename)
+
+		if err != nil {
+			return err
+		}
+
+		opts.AdditionalAssertions = append(opts.AdditionalAssertions, extraAssertion)
+	}
+
 	if err := setupSeed(tsto, model, opts); err != nil {
 		return err
 	}
@@ -350,6 +365,8 @@ func newImageSeeder(tsto *tooling.ToolingStore, model *asserts.Model, opts *Opti
 		ManifestPath:   opts.SeedManifestPath,
 
 		TestSkipCopyUnverifiedModel: osutil.GetenvBool("UBUNTU_IMAGE_SKIP_COPY_UNVERIFIED_MODEL"),
+
+		AdditionalAssertions: opts.AdditionalAssertions,
 	}
 	w, err := seedwriter.New(model, wOpts)
 	if err != nil {
@@ -1080,4 +1097,31 @@ var setupSeed = func(tsto *tooling.ToolingStore, model *asserts.Model, opts *Opt
 		return err
 	}
 	return s.finish()
+}
+
+func decodeAdditionalAssertion(assFilename string) (asserts.Assertion, error) {
+
+	rawAssert, err := os.ReadFile(assFilename)
+	if err != nil {
+		return nil, fmt.Errorf("cannot read model assertion: %s", err)
+	}
+
+	ass, err := asserts.Decode(rawAssert)
+	if err != nil {
+		return nil, fmt.Errorf("cannot decode model assertion %q: %s", assFilename, err)
+	}
+
+	// Types can be added to this switch when they become supported
+	// We can also use existing functions if present
+	switch ass.Type() {
+	case asserts.StoreType:
+		_, ok := ass.(*asserts.Store)
+		if !ok {
+			return nil, fmt.Errorf("assertion in %v is not a valid Store assertion", assFilename)
+		}
+	default:
+		return nil, fmt.Errorf("assertion in %v is not a valid Store assertion", assFilename)
+	}
+
+	return ass, nil
 }
