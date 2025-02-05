@@ -19,6 +19,10 @@
 
 package dirs
 
+import (
+	"io"
+)
+
 var (
 	IsInsideBaseSnap = isInsideBaseSnap
 )
@@ -28,5 +32,13 @@ func MockMetaSnapPath(path string) (restore func()) {
 	metaSnapPath = path
 	return func() {
 		metaSnapPath = old
+	}
+}
+
+func MockStderr(out io.Writer) (restore func()) {
+	old := stderr
+	stderr = out
+	return func() {
+		stderr = old
 	}
 }

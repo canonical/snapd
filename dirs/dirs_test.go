@@ -20,6 +20,7 @@
 package dirs_test
 
 import (
+	"bytes"
 	"os"
 	"path/filepath"
 	"testing"
@@ -35,7 +36,25 @@ func Test(t *testing.T) { TestingT(t) }
 
 var _ = Suite(&DirsTestSuite{})
 
-type DirsTestSuite struct{}
+type DirsTestSuite struct {
+	logbuf bytes.Buffer
+	r      []func()
+}
+
+func (s *DirsTestSuite) SetUpTest(c *C) {
+	// cannot import testutil due to cyclic imports
+	s.r = append(s.r, dirs.MockStderr(&s.logbuf))
+}
+
+func (s *DirsTestSuite) TearDownTest(c *C) {
+	if s.logbuf.Len() > 0 {
+		c.Logf("logs:\n%s", s.logbuf.String())
+	}
+
+	for _, f := range s.r {
+		f()
+	}
+}
 
 func (s *DirsTestSuite) TestSnapHomeDirs(c *C) {
 	defer dirs.SetRootDir("")
@@ -150,6 +169,21 @@ func (s *DirsTestSuite) TestClassicConfinementSymlinkWorkaround(c *C) {
 	c.Check(dirs.SupportsClassicConfinement(), Equals, true)
 }
 
+func (s *DirsTestSuite) TestClassicConfinementSymlinkAltDistro(c *C) {
+	restore := release.MockReleaseInfo(&release.OS{ID: "my-distro"})
+	defer restore()
+
+	altRoot := c.MkDir()
+
+	c.Assert(os.Symlink(filepath.Join(altRoot, "/var/lib/snapd/snap"), filepath.Join(altRoot, "/snap")), IsNil)
+	dirs.SetRootDir(altRoot)
+	defer dirs.SetRootDir("/")
+	c.Check(dirs.SupportsClassicConfinement(), Equals, false)
+	d := filepath.Join(altRoot, "/var/lib/snapd/snap")
+	os.MkdirAll(d, 0755)
+	c.Check(dirs.SupportsClassicConfinement(), Equals, true)
+}
+
 func (s *DirsTestSuite) TestClassicConfinementSupportOnSpecificDistributions(c *C) {
 	// the test changes RootDir, restore correct one when retuning
 	defer dirs.SetRootDir("/")
@@ -178,6 +212,107 @@ func (s *DirsTestSuite) TestClassicConfinementSupportOnSpecificDistributions(c *
 		dirs.SetRootDir(c.MkDir())
 		c.Check(dirs.SupportsClassicConfinement(), Equals, t.Expected, Commentf("unexpected result for %v", t.ID))
 	}
+}
+
+func (s *DirsTestSuite) TestMountDirKnownDistro(c *C) {
+	// the test changes RootDir, restore correct one when retuning
+	defer dirs.SetRootDir("/")
+
+	for _, t := range []struct {
+		ID           string
+		IDLike       []string
+		canonicalDir bool
+	}{
+		{"fedora", nil, false},
+		{"rhel", []string{"fedora"}, false},
+		{"centos", []string{"fedora"}, false},
+		{"ubuntu", []string{"debian"}, true},
+		{"debian", nil, true},
+		{"suse", nil, true},
+		{"yocto", nil, true},
+		{"arch", []string{"archlinux"}, false},
+		{"archlinux", nil, false},
+		{"altlinux", nil, false},
+	} {
+		c.Logf("case %+v", t)
+		func() {
+			defer release.MockReleaseInfo(&release.OS{ID: t.ID, IDLike: t.IDLike})()
+			// make a new root directory each time to isolate the test from
+			// local filesystem state and any previous test runs
+			dirs.SetRootDir(c.MkDir())
+			if t.canonicalDir {
+				c.Check(dirs.SnapMountDir, Equals, filepath.Join(dirs.GlobalRootDir, "/snap"))
+			} else {
+				c.Check(dirs.SnapMountDir, Equals, filepath.Join(dirs.GlobalRootDir, "/var/lib/snapd/snap"))
+			}
+		}()
+	}
+}
+
+func (s *DirsTestSuite) TestMountDirProbeHappy(c *C) {
+	defer dirs.SetRootDir("/")
+
+	defer release.MockReleaseInfo(&release.OS{ID: "my-distro", IDLike: []string{"no-other-distro"}})()
+
+	d := c.MkDir()
+	dirs.SetRootDir(d)
+	// no /snap or /var/lib/snapd/snap delivered through packaging
+	c.Check(dirs.SnapMountDir, Equals, filepath.Join(dirs.GlobalRootDir, "/var/lib/snapd/snap"))
+
+	// pretend we have a directory
+	c.Assert(os.Mkdir(filepath.Join(d, "snap"), 0o755), IsNil)
+	dirs.SetRootDir(d)
+	c.Check(dirs.SnapMountDir, Equals, filepath.Join(dirs.GlobalRootDir, "/snap"))
+
+	c.Assert(os.Remove(filepath.Join(d, "/snap")), IsNil)
+	// pretend we have a relative symlink
+	c.Assert(os.Symlink("var/lib/snapd/snap", filepath.Join(d, "/snap")), IsNil)
+	dirs.SetRootDir(d)
+	c.Check(dirs.SnapMountDir, Equals, filepath.Join(dirs.GlobalRootDir, "/var/lib/snapd/snap"))
+
+	c.Assert(os.Remove(filepath.Join(d, "/snap")), IsNil)
+	// pretend we have an absolute symlink
+	c.Assert(os.Symlink("/var/lib/snapd/snap", filepath.Join(d, "/snap")), IsNil)
+	dirs.SetRootDir(d)
+	c.Check(dirs.SnapMountDir, Equals, filepath.Join(dirs.GlobalRootDir, "/var/lib/snapd/snap"))
+
+	// also accepts an absolute path under explicit root dir commonly set during tests
+	c.Assert(os.Remove(filepath.Join(d, "/snap")), IsNil)
+	// pretend we have an absolute symlink
+	c.Assert(os.Symlink(filepath.Join(d, "/var/lib/snapd/snap"), filepath.Join(d, "/snap")), IsNil)
+	dirs.SetRootDir(d)
+	c.Check(dirs.SnapMountDir, Equals, filepath.Join(dirs.GlobalRootDir, "/var/lib/snapd/snap"))
+}
+
+func (s *DirsTestSuite) TestMountDirProbeErrBadSymlink(c *C) {
+	defer dirs.SetRootDir("/")
+
+	defer release.MockReleaseInfo(&release.OS{ID: "my-distro", IDLike: []string{"no-other-distro"}})()
+
+	d := c.MkDir()
+	// pretend we have a relative symlink
+	c.Assert(os.Symlink("foo/bar", filepath.Join(d, "/snap")), IsNil)
+	dirs.SetRootDir(d)
+	c.Check(dirs.SnapMountDir, Equals, "mount-dir-is-unset")
+}
+
+func (s *DirsTestSuite) TestMountDirProbeErrBadStat(c *C) {
+	if os.Geteuid() == 0 {
+		c.Skip("test cannot be run as root")
+	}
+
+	defer dirs.SetRootDir("/")
+
+	defer release.MockReleaseInfo(&release.OS{ID: "my-distro", IDLike: []string{"no-other-distro"}})()
+
+	d := c.MkDir()
+	// pretend we have a relative symlink
+	c.Assert(os.Symlink("foo/bar", filepath.Join(d, "/snap")), IsNil)
+	c.Assert(os.Chmod(d, 0o000), IsNil)
+	defer os.Chmod(d, 0o755)
+
+	dirs.SetRootDir(d)
+	c.Check(dirs.SnapMountDir, Equals, "mount-dir-is-unset")
 }
 
 func (s *DirsTestSuite) TestInsideBaseSnap(c *C) {
