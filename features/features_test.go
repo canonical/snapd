@@ -105,7 +105,7 @@ func (*featureSuite) TestIsExported(c *C) {
 	check(features.Confdbs, true)
 	check(features.ConfdbControl, false)
 	check(features.AppArmorPrompting, true)
-	check(features.GPIOChardevSupport, false)
+	check(features.GPIOChardevSupport, true)
 
 	c.Check(tested, Equals, features.NumberOfFeatures())
 }

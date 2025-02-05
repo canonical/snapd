@@ -151,6 +151,7 @@ var featuresExported = map[SnapdFeature]bool{
 	RefreshAppAwarenessUX: true,
 	Confdbs:               true,
 	AppArmorPrompting:     true,
+	GPIOChardevSupport:    true,
 }
 
 var (
