@@ -1458,6 +1458,29 @@ func (s *snapsSuite) TestSnapInfoReturnsRefreshInhibitProceedTime(c *check.C) {
 	c.Check(snapInfo.RefreshInhibit.ProceedTime.Equal(expectedProceedTime), check.Equals, true)
 }
 
+func (s *snapsSuite) TestSnapInfoRefreshInhibitProceedTimeLP2089195(c *check.C) {
+	s.expectSnapsNameReadAccess()
+	d := s.daemon(c)
+	// RefreshInhibitedTime is nil by default
+	s.mkInstalledInState(c, d, "foo", "bar", "v0", snap.R(5), true, "")
+
+	st := d.Overlord().State()
+	st.Lock()
+	// Mark monitored while RefreshInhibitedTime is nil
+	monitored := map[string]context.CancelFunc{"foo": func() {}}
+	st.Cache("monitored-snaps", monitored)
+	st.Unlock()
+
+	req, err := http.NewRequest("GET", "/v2/snaps/foo", nil)
+	c.Assert(err, check.IsNil)
+
+	rsp := s.syncReq(c, req, nil)
+
+	c.Assert(rsp.Result, check.FitsTypeOf, &client.Snap{})
+	snapInfo := rsp.Result.(*client.Snap)
+	c.Assert(snapInfo.RefreshInhibit, check.IsNil)
+}
+
 func (s *snapsSuite) TestSnapManyInfosReturnsRefreshInhibitProceedTime(c *check.C) {
 	s.expectSnapsReadAccess()
 	d := s.daemon(c)

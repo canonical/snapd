@@ -12441,6 +12441,75 @@ func (s *snapmgrTestSuite) TestDeletedMonitoredMapIsCorrectlyDeleted(c *C) {
 	c.Assert(s.state.Cached("monitored-snaps"), IsNil)
 }
 
+func (s *snapmgrTestSuite) TestDeletedMonitoredMapIsCorrectlyDeletedAfterRefreshCandidateChange(c *C) {
+	s.state.Lock()
+	si := &snap.SideInfo{
+		RealName: "foo",
+		SnapID:   "foo-id",
+		Revision: snap.R(1),
+	}
+	snaptest.MockSnap(c, `name: foo`, si)
+	snapstate.Set(s.state, "foo", &snapstate.SnapState{
+		Active:   true,
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si}),
+		Current:  si.Revision,
+	})
+	snapsup := &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: "foo",
+			Revision: snap.R(2),
+		},
+		Flags: snapstate.Flags{IsAutoRefresh: true},
+	}
+	s.state.Set("refresh-candidates", map[string]*snapstate.RefreshCandidate{
+		"foo": {SnapSetup: *snapsup},
+	})
+
+	restore := snapstate.MockRefreshAppsCheck(func(info *snap.Info) error {
+		return snapstate.NewBusySnapError(info, []int{123}, nil, nil)
+	})
+	defer restore()
+
+	restore = snapstate.MockCgroupMonitorSnapEnded(func(name string, done chan<- string) error {
+		return nil
+	})
+	defer restore()
+
+	preDlChg := s.state.NewChange("pre-download", "pre-download change")
+	preDlTask := s.state.NewTask("pre-download-snap", "pre-download task")
+
+	preDlTask.Set("snap-setup", snapsup)
+	preDlTask.Set("refresh-info", &userclient.PendingSnapRefreshInfo{InstanceName: "foo"})
+	preDlChg.AddTask(preDlTask)
+
+	s.settle(c)
+	c.Assert(preDlChg.Status(), Equals, state.DoneStatus)
+
+	// snap is monitored for refresh
+	monitored := s.state.Cached("monitored-snaps").(map[string]context.CancelFunc)
+	abortMonitored := monitored["foo"]
+	c.Assert(monitored["foo"], NotNil)
+	// Abort and remove from refresh candidates while still holding state lock
+	abortMonitored()
+	s.state.Set("refresh-candidates", nil)
+
+	// unblock the monitoring routine which should delete the "monitored-snaps" map
+	// even when corresponding refresh candidate is not available.
+	s.state.Unlock()
+
+	// wait for monitored snaps to be cleared
+	waitFor(s.state, c, func() bool {
+		s.settle(c)
+		return s.state.Cached("monitored-snaps") == nil
+	})
+
+	s.state.Lock()
+	// monitoring removal is robust and doesn't fail when corresponding
+	// refresh candidate is not available.
+	c.Assert(s.state.Cached("monitored-snaps"), IsNil)
+	s.state.Unlock()
+}
+
 func waitFor(st *state.State, c *C, cond func() bool) {
 	for i := 0; i < 5; i++ {
 		st.Lock()

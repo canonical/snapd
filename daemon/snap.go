@@ -224,6 +224,10 @@ func clientHealthFromHealthstate(h *healthstate.HealthState) *client.SnapHealth 
 
 func clientSnapRefreshInhibit(st *state.State, snapst *snapstate.SnapState, instanceName string) *client.SnapRefreshInhibit {
 	proceedTime := snapst.RefreshInhibitProceedTime(st)
+	if proceedTime.IsZero() {
+		return nil
+	}
+
 	if proceedTime.After(time.Now()) || snapstate.IsSnapMonitored(st, instanceName) {
 		return &client.SnapRefreshInhibit{
 			ProceedTime: proceedTime,
