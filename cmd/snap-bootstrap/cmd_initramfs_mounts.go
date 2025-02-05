@@ -29,6 +29,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -36,6 +37,7 @@ import (
 	"github.com/jessevdk/go-flags"
 
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/asserts/sysdb"
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget"
@@ -47,6 +49,7 @@ import (
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/disks"
 	"github.com/snapcore/snapd/osutil/kcmdline"
+	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snapdtool"
 
 	// to set sysconfig.ApplyFilesystemOnlyDefaultsImpl
@@ -121,6 +124,7 @@ var (
 	installBuildInstallObserver      = install.BuildInstallObserver
 	lookupDmVerityDataAndCrossCheck  = integrity.LookupDmVerityDataAndCrossCheck
 	generateDmVerityData             = integrity.GenerateDmVerityData
+	sysdbTrusted                     = sysdb.Trusted
 )
 
 func stampedAction(stamp string, action func() error) error {
@@ -1840,6 +1844,47 @@ func mountNonDataPartitionMatchingKernelDisk(dir, fallbacklabel string, opts *sy
 	return doSystemdMount(partSrc, dir, opts)
 }
 
+func generateMountWithIntegrityData(snapPath string, idp *integrity.IntegrityDataParams, generate bool) (*systemdMountOptions, error) {
+	hashDevice, err := lookupDmVerityDataAndCrossCheck(snapPath, idp)
+
+	switch {
+	case errors.Is(err, integrity.ErrDmVerityDataNotFound):
+		if generate {
+			var rootHash string
+			hashDevice, rootHash, err = generateDmVerityData(snapPath, idp)
+			if err != nil {
+				return nil, err
+			}
+
+			if idp.Digest != rootHash {
+				return nil, fmt.Errorf("computed root hash doesn't match trusted root hash from assertion: %s != %s",
+					idp.Digest, rootHash)
+			}
+		} else {
+			return nil, fmt.Errorf("cannot mount snap %s with integrity data: %w", snapPath, err)
+		}
+	case errors.Is(err, integrity.ErrUnexpectedDmVerityData):
+		return nil, fmt.Errorf("dm-verity data from disk for snap %s don't match trusted data from assertion: %w", snapPath, err)
+	case err != nil:
+		return nil, err
+	}
+
+	// TODO: we currently rely on several parameters from the on-disk unverified superblock
+	// which gets automatically parsed by veritysetup for the mount. Instead we can use
+	// the parameters we already have in the assertion as options to the mount but this
+	// would require extra support in libmount.
+	mountOptions := &systemdMountOptions{
+		ReadOnly: true,
+		Private:  true,
+		FsOpts: &dmVerityOptions{
+			HashDevice: hashDevice,
+			RootHash:   idp.Digest,
+		},
+	}
+
+	return mountOptions, nil
+}
+
 func generateMountsCommonInstallRecoverStart(mst *initramfsMountsState) (model *asserts.Model, sysSnaps map[snap.Type]*seed.Snap, err error) {
 	seedMountOpts := &systemdMountOptions{
 		// always fsck the partition when we are mounting it, as this is the
@@ -1902,49 +1947,20 @@ func generateMountsCommonInstallRecoverStart(mst *initramfsMountsState) (model *
 		systemSnaps[essentialSnap.EssentialType] = essentialSnap
 		dir := snapTypeToMountDir[essentialSnap.EssentialType]
 
-		mountOptions := *mountReadOnlyOptions
+		mountOptions := mountReadOnlyOptions
 
 		// XXX: throw error if integrity data are required by policy
 		// XXX: even if no integrity data were found from a verified revision, we could still
 		// generate and use verity data to detect random errors that could occur.
 		if essentialSnap.IntegrityDataParams != nil && essentialSnap.IntegrityDataParams.Type == "dm-verity" {
-			hashDevice, err := lookupDmVerityDataAndCrossCheck(
-				essentialSnap.Path,
-				essentialSnap.IntegrityDataParams)
-
-			switch {
-			case errors.Is(err, integrity.ErrDmVerityDataNotFound):
-				var rootHash string
-				hashDevice, rootHash, err = generateDmVerityData(
-					essentialSnap.Path,
-					essentialSnap.IntegrityDataParams)
-				if err != nil {
-					return nil, nil, err
-				}
-
-				if essentialSnap.IntegrityDataParams.Digest != rootHash {
-					return nil, nil, fmt.Errorf("computed root hash doesn't match trusted root hash from assertion: %s != %s",
-						essentialSnap.IntegrityDataParams.Digest, rootHash)
-				}
-			case errors.Is(err, integrity.ErrUnexpectedDmVerityData):
-				return nil, nil, fmt.Errorf("dm-verity data from disk for snap %s don't match trusted data from assertion: %w", essentialSnap.Path, err)
-			case err != nil:
+			mountOptions, err = generateMountWithIntegrityData(essentialSnap.Path, essentialSnap.IntegrityDataParams, true)
+			if err != nil {
 				return nil, nil, err
 			}
-
-			mountOptions.FsOpts = &dmVerityOptions{
-				HashDevice: hashDevice,
-				RootHash:   essentialSnap.IntegrityDataParams.Digest,
-			}
-
-			// TODO: we currently rely on several parameters from the on-disk unverified superblock
-			// which gets automatically parsed by veritysetup for the mount. Instead we can use
-			// the parameters we already have in the assertion as options to the mount but this
-			// would require extra support in libmount.
 		}
 
 		// TODO:UC20: we need to cross-check the kernel path with snapd_recovery_kernel used by grub
-		if err := doSystemdMount(essentialSnap.Path, filepath.Join(boot.InitramfsRunMntDir, dir), &mountOptions); err != nil {
+		if err := doSystemdMount(essentialSnap.Path, filepath.Join(boot.InitramfsRunMntDir, dir), mountOptions); err != nil {
 			return nil, nil, err
 		}
 	}
@@ -2195,6 +2211,128 @@ func getCompsFromSymlinks(symLinksDir, kernelName string, compSet map[snap.Compo
 	return nil
 }
 
+func snapRevisionAssertionFromNameAndRevisionNumber(db *asserts.Database, name string, revision snap.Revision) (*asserts.SnapRevision, error) {
+	decls, err := db.FindMany(asserts.SnapDeclarationType, map[string]string{
+		"authority-id": "canonical",
+		"series":       release.Series,
+		"snap-name":    name,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	// XXX: since we can't know the snap-id (which alongside series form a primary key),
+	// we assume that a unique snap-declaration exists with the name, series and the Canonical authority.
+	if len(decls) > 1 {
+		return nil, fmt.Errorf("multiple snap-declaration assertions found which satisfy (authority-id=%s, series=%s, snap-name=%s", "canonical", release.Series, name)
+	}
+
+	decl := decls[0].(*asserts.SnapDeclaration)
+
+	revs, err := db.FindMany(asserts.SnapRevisionType, map[string]string{
+		"snap-id":       decl.SnapID(),
+		"snap-revision": strconv.Itoa(revision.N),
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	// XXX: since we don't want to compute the snap-sha3-384 (which is a primary key),
+	// we assume that a unique snap-revision exists with the snap-id we discovered, and the snap-revision number
+	// we retrieved from the modeenv for this snap-name.
+	if len(revs) > 1 {
+		return nil, fmt.Errorf("multiple snap-revision assertions found which satisfy (snap-id=%s, snap-revision=%s", decl.SnapID(), strconv.Itoa(revision.N))
+	}
+
+	rev := revs[0].(*asserts.SnapRevision)
+	return rev, nil
+}
+
+// LoadAndValidateSnapRevisionAssertions takes as input the essential snaps which are about to be mounted
+// in run mode and validates their snap-revision assertions from the data partition.
+//
+// In order to avoid hashing each snap to get to the 'snap-sha3-384', which is the primary key for snap-revision
+// assertions, the latest snap-revision assertion for each snap is discovered from its name and the latest
+// snap revision number as it is parsed from the modeenv. The snap-revision assertion is then loaded in a
+// temporary in-memory database in order to be validated against the Canonical Root account-key. The asserts
+// Fetcher API will validate the snap-revision assertions prerequisite assertions too.
+func (mst *initramfsMountsState) LoadAndValidateSnapRevisionAssertions(mounts map[snap.Type]snap.PlaceInfo) error {
+	isRunMode := true
+	rootfsDir := boot.InitramfsWritableDir(mst.verifiedModel, isRunMode)
+	assertionsPath := dirs.SnapAssertionsDirUnder(rootfsDir)
+
+	fsdb, err := sysdb.OpenAt(assertionsPath)
+	if err != nil {
+		return err
+	}
+
+	// The snapRevisions found during this step are not verified against the assertion db.
+	unverifiedSnapRevisionsMap := make(map[string]string)
+
+	for _, sn := range mounts {
+		rev, err := snapRevisionAssertionFromNameAndRevisionNumber(fsdb, sn.SnapName(), sn.SnapRevision())
+		if err != nil {
+			return err
+		}
+		unverifiedSnapRevisionsMap[rev.SnapSHA3_384()] = sn.SnapName()
+	}
+
+	// create a temporary in-memory database bootstrapped with the Canonical Root key
+	memdb, err := asserts.OpenDatabase(&asserts.DatabaseConfig{
+		Backstore: asserts.NewMemoryBackstore(),
+		Trusted:   sysdbTrusted(),
+	})
+	if err != nil {
+		return err
+	}
+
+	retrieve := func(ref *asserts.Ref) (asserts.Assertion, error) {
+		return ref.Resolve(fsdb.Find)
+	}
+	save := func(a asserts.Assertion) error {
+		// for checking
+		err := memdb.Add(a)
+		if err != nil {
+			if _, ok := err.(*asserts.RevisionError); ok {
+				return nil
+			}
+			return fmt.Errorf("cannot add assertion %v: %v", a.Ref(), err)
+		}
+
+		if rev, ok := a.(*asserts.SnapRevision); ok {
+			snapName := unverifiedSnapRevisionsMap[rev.SnapSHA3_384()]
+			if snapName != "" {
+				// After validation, store the discovered revisions in the state to be
+				// retrieved later during mount generation in order to retrieve integrity
+				// data.
+				mst.snapRevisions[snapName] = *rev
+			}
+		}
+
+		return nil
+	}
+
+	f := asserts.NewFetcher(memdb, retrieve, save)
+
+	if mst.snapRevisions == nil {
+		mst.snapRevisions = make(map[string]asserts.SnapRevision)
+	}
+
+	// Using the fetcher, the snap revisions that were discovered in the fs-backed assertion database
+	// are read again from the disk and verified against the Canonical Root key.
+	for revHash := range unverifiedSnapRevisionsMap {
+		err := f.Fetch(&asserts.Ref{
+			Type:       asserts.SnapRevisionType,
+			PrimaryKey: []string{revHash},
+		})
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
 func generateMountsModeRun(mst *initramfsMountsState) error {
 	bootMountOpts := &systemdMountOptions{
 		// always fsck the partition when we are mounting it, as this is the
@@ -2396,6 +2534,12 @@ func generateMountsModeRun(mst *initramfsMountsState) error {
 		return err
 	}
 
+	// Load and validate snap-revision assertions for mounts
+	err = mst.LoadAndValidateSnapRevisionAssertions(mounts)
+	if err != nil {
+		return err
+	}
+
 	// TODO:UC20: with grade > dangerous, verify the kernel snap hash against
 	//            what we booted using the tpm log, this may need to be passed
 	//            to the function above to make decisions there, or perhaps this
@@ -2418,7 +2562,27 @@ func generateMountsModeRun(mst *initramfsMountsState) error {
 		if sn, ok := mounts[typ]; ok {
 			dir := snapTypeToMountDir[typ]
 			snapPath := filepath.Join(dirs.SnapBlobDirUnder(rootfsDir), sn.Filename())
-			if err := doSystemdMount(snapPath, filepath.Join(boot.InitramfsRunMntDir, dir), mountReadOnlyOptions); err != nil {
+
+			mountOptions := mountReadOnlyOptions
+
+			// TODO: don't incur the cost of searching for assertions in the fs if integrity data are not
+			// required for this system.
+			integrityDataParams, err := mst.GetIntegrityDataParams(sn.SnapName())
+			if err != nil {
+				return err
+			}
+
+			// XXX: throw error if integrity data are required by policy
+			// XXX: even if no integrity data were found from a verified revision, we could still
+			// generate and use verity data in run mode too to detect random errors that could occur.
+			if integrityDataParams != nil && integrityDataParams.Type == "dm-verity" {
+				mountOptions, err = generateMountWithIntegrityData(snapPath, integrityDataParams, false)
+				if err != nil {
+					return err
+				}
+			}
+
+			if err := doSystemdMount(snapPath, filepath.Join(boot.InitramfsRunMntDir, dir), mountOptions); err != nil {
 				return err
 			}
 		}
@@ -2452,7 +2616,22 @@ func generateMountsModeRun(mst *initramfsMountsState) error {
 			return fmt.Errorf("cannot load metadata and verify snapd snap: %v", err)
 		}
 		essSnaps := theSeed.EssentialSnaps()
-		if err := doSystemdMount(essSnaps[0].Path, filepath.Join(boot.InitramfsRunMntDir, "snapd"), mountReadOnlyOptions); err != nil {
+
+		essentialSnap := essSnaps[0]
+
+		mountOptions := mountReadOnlyOptions
+
+		// XXX: throw error if integrity data are required by policy
+		// XXX: even if no integrity data were found from a verified revision, we could still
+		// generate and use verity data to detect random errors that could occur.
+		if essentialSnap.IntegrityDataParams != nil && essentialSnap.IntegrityDataParams.Type == "dm-verity" {
+			mountOptions, err = generateMountWithIntegrityData(essentialSnap.Path, essentialSnap.IntegrityDataParams, true)
+			if err != nil {
+				return err
+			}
+		}
+
+		if err := doSystemdMount(essentialSnap.Path, filepath.Join(boot.InitramfsRunMntDir, "snapd"), mountOptions); err != nil {
 			return fmt.Errorf("cannot mount snapd snap: %v", err)
 		}
 	}

@@ -3615,7 +3615,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeHappyWithIntegrityA
 
 	c.Assert(os.RemoveAll(s.seedDir), IsNil)
 
-	s.setupSeedWithIntegrityData(c, asid)
+	s.setupSeedWithIntegrityData(c, time.Time{}, asid)
 
 	snaps := make(map[snap.Type]systemdMount)
 
@@ -3681,7 +3681,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeHappyWithIntegrityA
 
 	c.Assert(os.RemoveAll(s.seedDir), IsNil)
 
-	s.setupSeedWithIntegrityData(c, asid)
+	s.setupSeedWithIntegrityData(c, time.Time{}, asid)
 
 	snaps := make(map[snap.Type]systemdMount)
 
@@ -3722,7 +3722,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeErrorWithIntegrityA
 
 	c.Assert(os.RemoveAll(s.seedDir), IsNil)
 
-	s.setupSeedWithIntegrityData(c, asid)
+	s.setupSeedWithIntegrityData(c, time.Time{}, asid)
 
 	snaps := make(map[snap.Type]systemdMount)
 
@@ -3764,7 +3764,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeErrorWithIntegrityA
 
 	c.Assert(os.RemoveAll(s.seedDir), IsNil)
 
-	s.setupSeedWithIntegrityData(c, asid)
+	s.setupSeedWithIntegrityData(c, time.Time{}, asid)
 
 	snaps := make(map[snap.Type]systemdMount)
 
@@ -3803,7 +3803,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeErrorWithIntegrityA
 
 	c.Assert(os.RemoveAll(s.seedDir), IsNil)
 
-	s.setupSeedWithIntegrityData(c, asid)
+	s.setupSeedWithIntegrityData(c, time.Time{}, asid)
 
 	snaps := make(map[snap.Type]systemdMount)
 
@@ -3868,7 +3868,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeErrorWithIntegrityA
 
 	c.Assert(os.RemoveAll(s.seedDir), IsNil)
 
-	s.setupSeedWithIntegrityData(c, asid)
+	s.setupSeedWithIntegrityData(c, time.Time{}, asid)
 
 	snaps := make(map[snap.Type]systemdMount)
 

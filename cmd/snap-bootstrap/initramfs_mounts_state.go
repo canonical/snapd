@@ -33,6 +33,7 @@ import (
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/seed"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/integrity"
 	"github.com/snapcore/snapd/timings"
 )
 
@@ -49,6 +50,8 @@ type initramfsMountsState struct {
 
 	verifiedModel gadget.Model
 	seeds         map[string]seed.Seed
+	// snapNames     map[string]string
+	snapRevisions map[string]asserts.SnapRevision
 }
 
 var errRunModeNoImpliedRecoverySystem = errors.New("internal error: no implied recovery system in run mode")
@@ -74,7 +77,7 @@ func (mst *initramfsMountsState) LoadSeed(recoverySystem string) (seed.Seed, err
 
 	perf := timings.New(nil)
 
-	// get the current time to pass to ReadSystemEssentialAndBetterEarliestTime
+	// get the current time to pass to ReadSeedAndBetterEarliestTime
 	// note that we trust the time we have from the system, because that time
 	// comes from either:
 	// * a RTC on the system that the kernel/systemd consulted and used to move
@@ -158,4 +161,38 @@ func (mst *initramfsMountsState) EphemeralModeenvForModel(model *asserts.Model, 
 		// TODO:UC20: what about current kernel snaps, trusted boot assets and
 		//            kernel command lines?
 	}, nil
+}
+
+func (mst *initramfsMountsState) GetIntegrityDataParams(name string) (*integrity.IntegrityDataParams, error) {
+
+	rev := mst.snapRevisions[name]
+	asid := rev.SnapIntegrityData()
+
+	var idp integrity.IntegrityDataParams
+	for i, sid := range asid {
+		// XXX: The first item in the snap-revision integrity data list is selected.
+		// In future versions, extra logic will be required here to decide which integrity data
+		// should be used based on extra information (i.e from the model).
+		if i > 0 {
+			break
+		}
+
+		switch sid.Type {
+		case "dm-verity":
+			idp.Type = sid.Type
+			idp.Version = sid.Version
+			idp.HashAlg = sid.HashAlg
+			idp.DataBlockSize = uint64(sid.DataBlockSize)
+			idp.HashBlockSize = uint64(sid.HashBlockSize)
+			idp.Digest = sid.Digest
+			idp.Salt = sid.Salt
+
+			idp.DataBlocks = rev.SnapSize() / uint64(sid.DataBlockSize)
+		default:
+			return nil, fmt.Errorf("Unsupported integrity data type: %q.", sid.Type)
+		}
+
+	}
+
+	return &idp, nil
 }

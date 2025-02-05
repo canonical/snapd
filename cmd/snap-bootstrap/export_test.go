@@ -258,3 +258,13 @@ func MockLookupDmVerityDataAndCrossCheck(f func(snapPath string, params *integri
 		lookupDmVerityDataAndCrossCheck = old
 	}
 }
+
+func MockTrusted(mockTrusted []asserts.Assertion) (restore func()) {
+	prevTrusted := sysdbTrusted
+	sysdbTrusted = func() []asserts.Assertion {
+		return mockTrusted
+	}
+	return func() {
+		sysdbTrusted = prevTrusted
+	}
+}

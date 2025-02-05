@@ -308,6 +308,21 @@ var (
 // NewStoreStack creates a new store assertion stack. It panics on error.
 // Optional keys specify private keys to use for the various roles.
 func NewStoreStack(authorityID string, keys *StoreKeys) *StoreStack {
+	return newStoreStack(asserts.NewMemoryBackstore(), authorityID, keys)
+}
+
+// NewFsStoreStack creates a new store assertion stack. It panics on error.
+// Optional keys specify private keys to use for the various roles.
+func NewFsStoreStack(dir, authorityID string, keys *StoreKeys) *StoreStack {
+	bs, err := asserts.OpenFSBackstore(dir)
+	if err != nil {
+		panic(err)
+	}
+
+	return newStoreStack(bs, authorityID, keys)
+}
+
+func newStoreStack(backstore asserts.Backstore, authorityID string, keys *StoreKeys) *StoreStack {
 	if keys == nil {
 		keys = &pregenKeys
 	}
@@ -342,7 +357,7 @@ func NewStoreStack(authorityID string, keys *StoreKeys) *StoreStack {
 	generic := []asserts.Assertion{genericAcct, genericModelsKey}
 
 	db, err := asserts.OpenDatabase(&asserts.DatabaseConfig{
-		Backstore:       asserts.NewMemoryBackstore(),
+		Backstore:       backstore,
 		Trusted:         trusted,
 		OtherPredefined: generic,
 	})
