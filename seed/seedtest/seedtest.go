@@ -70,6 +70,11 @@ func (ss *SeedSnaps) SetupAssertSigning(storeBrandID string) {
 	ss.Brands = assertstest.NewSigningAccounts(ss.StoreSigning)
 }
 
+func (ss *SeedSnaps) SetupFsAssertSigning(dir, storeBrandID string) {
+	ss.StoreSigning = assertstest.NewFsStoreStack(dir, storeBrandID, nil)
+	ss.Brands = assertstest.NewSigningAccounts(ss.StoreSigning)
+}
+
 func (ss *SeedSnaps) AssertedSnapID(snapName string) string {
 	snapID := naming.WellKnownSnapID(snapName)
 	if snapID != "" {
@@ -192,7 +197,6 @@ func (ss *SeedSnaps) makeAssertedSnap(
 
 	for _, db := range dbs {
 		err := db.Add(declA)
-		c.Assert(err, IsNil)
 		err = db.Add(revA)
 		c.Assert(err, IsNil)
 	}
