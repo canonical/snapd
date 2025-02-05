@@ -26,7 +26,7 @@ execute: |
   # TODO add future releases here?
 
   # TODO share reference test data with data from
-  # https://github.com/canonical/snapd/pull/14293
+  # https://github.com/canonical/snapd/pull/14300
 
   # shellcheck disable=SC2035
   cat *.libs | LC_ALL=C sort -ud --stable > drivers-common.libs
