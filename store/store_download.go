@@ -693,7 +693,7 @@ func downloadIconImpl(ctx context.Context, name, downloadURL string, w ReadWrite
 
 			if err != nil {
 				if httputil.ShouldRetryAttempt(attempt, err) {
-					if _, err := w.Seek(0, 0); err != nil {
+					if _, err := w.Seek(0, io.SeekStart); err != nil {
 						return err
 					}
 					if err := w.Truncate(0); err != nil {
@@ -717,7 +717,7 @@ func downloadIconImpl(ctx context.Context, name, downloadURL string, w ReadWrite
 
 		return err
 	}
-	return nil
+	return errors.New("icon download retries exhausted")
 }
 
 // DownloadStream will copy the snap from the request to the io.Reader
