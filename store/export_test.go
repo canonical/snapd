@@ -43,6 +43,7 @@ var (
 	Download      = download
 
 	DownloadIconImpl = downloadIcon
+	ErrIconUnchanged = errIconUnchanged
 
 	ApplyDelta = applyDelta
 
@@ -155,7 +156,7 @@ func MockMaxIconFilesize(maxSize int64) (restore func()) {
 	return testutil.Mock(&maxIconFilesize, maxSize)
 }
 
-func MockDownloadIcon(f func(ctx context.Context, name, downloadURL string, w ReadWriteSeekTruncater) error) (restore func()) {
+func MockDownloadIcon(f func(ctx context.Context, name, etag, downloadURL string, w ReadWriteSeekTruncater) (string, error)) (restore func()) {
 	return testutil.Mock(&downloadIcon, f)
 }
 
