@@ -3865,20 +3865,22 @@ func (m *SnapManager) doDiscardSnap(t *state.Task, _ *tomb.Tomb) error {
 			return fmt.Errorf("cannot remove snap directory: %v", err)
 		}
 
-		// try to remove the auxiliary store info
-		if err := discardAuxStoreInfo(snapsup.SideInfo.SnapID); err != nil {
-			logger.Noticef("Cannot remove auxiliary store info for %q: %v", snapsup.InstanceName(), err)
-		}
+		if !otherInstances {
+			// try to remove the auxiliary store info
+			if err := discardAuxStoreInfo(snapsup.SideInfo.SnapID); err != nil {
+				logger.Noticef("Cannot remove auxiliary store info for %q: %v", snapsup.InstanceName(), err)
+			}
 
-		// try to remove the linked snap icon, if it exists
-		if err := unlinkSnapIcon(snapsup.SideInfo.SnapID); err != nil {
-			// icon not existing will not result in an error
-			logger.Noticef("cannot remove snap icon for %q: %v", snapsup.InstanceName(), err)
-		}
-		// also try to remove the icon from icons-pool, if it exists
-		if err := discardSnapIcon(snapsup.SideInfo.SnapID); err != nil {
-			// icon not existing will not result in an error
-			logger.Noticef("cannot remove downloaded icon for %q: %v", snapsup.InstanceName(), err)
+			// try to remove the linked snap icon, if it exists
+			if err := unlinkSnapIcon(snapsup.SideInfo.SnapID); err != nil {
+				// icon not existing will not result in an error
+				logger.Noticef("cannot remove snap icon for %q: %v", snapsup.InstanceName(), err)
+			}
+			// also try to remove the icon from icons-pool, if it exists
+			if err := discardSnapIcon(snapsup.SideInfo.SnapID); err != nil {
+				// icon not existing will not result in an error
+				logger.Noticef("cannot remove downloaded icon for %q: %v", snapsup.InstanceName(), err)
+			}
 		}
 
 		// XXX: also remove sequence files?
