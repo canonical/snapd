@@ -80,7 +80,11 @@ func (params *IntegrityDataParams) check(vsb *dmverity.VeritySuperblock) error {
 	return nil
 }
 
+// ErrDmVerityDataNotFound is returned when dm-verity data for a snap are not found next to it.
 var ErrDmVerityDataNotFound = errors.New("dm-verity data not found")
+
+// ErrDmVerityDataNotFound is returned when dm-verity data for a snap are available but don't match
+// the parameters passed to LookupDmVerityDataAndCrossCheck.
 var ErrUnexpectedDmVerityData = errors.New("unexpected dm-verity data")
 
 // LookupDmVerityDataAndCrossCheck looks up dm-verity data for a snap based on its file name and validates
