@@ -133,7 +133,7 @@ create_vm() {
             ;;
     esac
 
-    local NESTED_PARAM_CD NESTED_CPUS NESTED_MEM NESTED_PARAM_EXTRA NESTED_KEEP_FIRMWARE_STATE NESTED_EXPECT_PASSPHRASE
+    local NESTED_PARAM_CD NESTED_CPUS NESTED_MEM NESTED_PARAM_EXTRA NESTED_KEEP_FIRMWARE_STATE NESTED_PASSPHRASE
     while [ $# -gt 0 ]; do
         case "$1" in
             --param-cdrom)
@@ -156,8 +156,8 @@ create_vm() {
                 NESTED_KEEP_FIRMWARE_STATE=1
                 shift
                 ;;
-            --expect-passphrase)
-                NESTED_EXPECT_PASSPHRASE="$2"
+            --passphrase)
+                NESTED_PASSPHRASE="$2"
                 shift 2
                 ;;
             *)
@@ -167,9 +167,9 @@ create_vm() {
         esac
     done
 
-    export NESTED_PARAM_CD NESTED_CPUS NESTED_MEM NESTED_PARAM_EXTRA NESTED_KEEP_FIRMWARE_STATE NESTED_EXPECT_PASSPHRASE
+    export NESTED_PARAM_CD NESTED_CPUS NESTED_MEM NESTED_PARAM_EXTRA NESTED_KEEP_FIRMWARE_STATE NESTED_PASSPHRASE
     "$action"
-    unset NESTED_PARAM_CD NESTED_CPUS NESTED_MEM NESTED_PARAM_EXTRA NESTED_KEEP_FIRMWARE_STATE NESTED_EXPECT_PASSPHRASE
+    unset NESTED_PARAM_CD NESTED_CPUS NESTED_MEM NESTED_PARAM_EXTRA NESTED_KEEP_FIRMWARE_STATE NESTED_PASSPHRASE
 }
 
 is_nested() {
