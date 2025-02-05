@@ -74,19 +74,6 @@ restore: |
     "${TESTSTOOLS}/store-state" teardown-fake-store "${NESTED_FAKESTORE_BLOB_DIR}"
 
 execute: |
-  function post_json_data() {
-    route=$1
-    template=$2
-    shift 2
-
-    # shellcheck disable=SC2059
-    response=$(printf "${template}" "$@" | remote.exec "sudo snap debug api -X POST -H 'Content-Type: application/json' ${route}")
-    if ! gojq -e .change <<< "${response}"; then
-      echo "could not get change id from response: ${response}"
-      false
-    fi
-  }
-
   unsquashfs "${NESTED_FAKESTORE_BLOB_DIR}/pc-kernel.snap"
   sed -i -e '/^version/ s/$/-with-comps/' squashfs-root/meta/snap.yaml
   snap pack --filename=pc-kernel-with-comps.snap ./squashfs-root
