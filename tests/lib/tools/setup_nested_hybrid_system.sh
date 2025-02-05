@@ -167,11 +167,11 @@ EOF
     remote.exec "chmod +x /home/user1/mk-classic-rootfs-wrapper.sh"
 
     muinstaller_args=()
-    muinstaller_args+=("-label $label")
-    muinstaller_args+=("-device $install_disk")
-    muinstaller_args+=("-rootfs-creator /home/user1/mk-classic-rootfs-wrapper.sh")
+    muinstaller_args+=("-label" "$label")
+    muinstaller_args+=("-device" "$install_disk")
+    muinstaller_args+=("-rootfs-creator" "/home/user1/mk-classic-rootfs-wrapper.sh")
     if [ -n "$passphrase" ]; then
-        muinstaller_args+=("-passphrase \"$passphrase\"")
+        muinstaller_args+=("-passphrase" "\"$passphrase\"")
     fi
     muinstaller_args+=("${extra_muinstaller_args[@]}")
     remote.exec sudo muinstaller "${muinstaller_args[@]}"
@@ -204,7 +204,7 @@ EOF
 
     # Start installed image
     if [ -n "$passphrase" ]; then
-        tests.nested create-vm core --keep-firmware-state --expect-passphrase "$passphrase"
+        tests.nested create-vm core --keep-firmware-state --passphrase "$passphrase"
     else
         tests.nested create-vm core --keep-firmware-state
     fi

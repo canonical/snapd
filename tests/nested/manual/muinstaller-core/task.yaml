@@ -271,7 +271,7 @@ execute: |
 
   # Start installed image
   if [ -n "$PASSPHRASE" ]; then
-    tests.nested create-vm core --keep-firmware-state --expect-passphrase "$PASSPHRASE"
+    tests.nested create-vm core --keep-firmware-state --passphrase "$PASSPHRASE"
   else
     tests.nested create-vm core --keep-firmware-state
   fi
