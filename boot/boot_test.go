@@ -3456,7 +3456,7 @@ func (s *bootConfigSuite) testBootConfigUpdateHappyWithReseal(c *C, cmdlineAppen
 	coreDev := boottest.MockUC20Device("", nil)
 	c.Assert(coreDev.HasModeenv(), Equals, true)
 
-	runKernelBf := bootloader.NewBootFile("/var/lib/snapd/snap/pc-kernel_600.snap", "kernel.efi", bootloader.RoleRunMode)
+	runKernelBf := bootloader.NewBootFile("/var/lib/snapd/snaps/pc-kernel_600.snap", "kernel.efi", bootloader.RoleRunMode)
 	recoveryKernelBf := bootloader.NewBootFile("/var/lib/snapd/seed/snaps/pc-kernel_1.snap", "kernel.efi", bootloader.RoleRecovery)
 	mockAssetsCache(c, dirs.GlobalRootDir, "trusted", []string{
 		"asset-hash-1",
@@ -3674,7 +3674,7 @@ volumes:
 	coreDev := boottest.MockUC20Device("", nil)
 	c.Assert(coreDev.HasModeenv(), Equals, true)
 
-	runKernelBf := bootloader.NewBootFile("/var/lib/snapd/snap/pc-kernel_600.snap", "kernel.efi", bootloader.RoleRunMode)
+	runKernelBf := bootloader.NewBootFile("/var/lib/snapd/snaps/pc-kernel_600.snap", "kernel.efi", bootloader.RoleRunMode)
 	recoveryKernelBf := bootloader.NewBootFile("/var/lib/snapd/seed/snaps/pc-kernel_1.snap", "kernel.efi", bootloader.RoleRecovery)
 	mockAssetsCache(c, dirs.GlobalRootDir, "trusted", []string{
 		"asset-hash-1",
@@ -3821,7 +3821,7 @@ func (s *bootKernelCommandLineSuite) SetUpTest(c *C) {
 	s.mockCmdline(c, "snapd_recovery_mode=run this is mocked panic=-1")
 	s.gadgetSnap = snaptest.MakeTestSnapWithFiles(c, gadgetSnapYaml, nil)
 	s.uc20dev = boottest.MockUC20Device("", boottest.MakeMockUC20Model(nil))
-	s.runKernelBf = bootloader.NewBootFile("/var/lib/snapd/snap/pc-kernel_600.snap", "kernel.efi", bootloader.RoleRunMode)
+	s.runKernelBf = bootloader.NewBootFile("/var/lib/snapd/snaps/pc-kernel_600.snap", "kernel.efi", bootloader.RoleRunMode)
 	s.recoveryKernelBf = bootloader.NewBootFile("/var/lib/snapd/seed/snaps/pc-kernel_1.snap", "kernel.efi", bootloader.RoleRecovery)
 	mockAssetsCache(c, dirs.GlobalRootDir, "trusted", []string{
 		"asset-" + dataHash,

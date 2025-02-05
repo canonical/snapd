@@ -90,7 +90,7 @@ func (s *systemsSuite) SetUpTest(c *C) {
 	s.uc20dev = boottest.MockUC20Device("", nil)
 
 	// run kernel
-	s.runKernelBf = bootloader.NewBootFile("/var/lib/snapd/snap/pc-kernel_500.snap",
+	s.runKernelBf = bootloader.NewBootFile("/var/lib/snapd/snaps/pc-kernel_500.snap",
 		"kernel.efi", bootloader.RoleRunMode)
 	// seed (recovery) kernel
 	s.recoveryKernelBf = bootloader.NewBootFile("/var/lib/snapd/seed/snaps/pc-kernel_1.snap",
