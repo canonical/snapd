@@ -112,6 +112,6 @@ func (s *iconsSuite) TestSnapIconGetNoApp(c *check.C) {
 
 func (s *iconsSuite) TestNotInstalledSnapIcon(c *check.C) {
 	info := &snap.Info{SuggestedName: "notInstalledSnap", Media: []snap.MediaInfo{{Type: "icon", URL: "icon.svg"}}}
-	iconfile := daemon.SnapIcon(info)
+	iconfile := daemon.SnapIcon(info, "notInstalledSnapID")
 	c.Check(iconfile, check.Equals, "")
 }

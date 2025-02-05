@@ -61,7 +61,7 @@ func iconGet(st *state.State, name string) Response {
 		return NotFound("snap has no current revision")
 	}
 
-	icon := snapIcon(snap.MinimalPlaceInfo(name, sideInfo.Revision))
+	icon := snapIcon(snap.MinimalPlaceInfo(name, sideInfo.Revision), sideInfo.SnapID)
 
 	if icon == "" {
 		return NotFound("local snap has no icon")
