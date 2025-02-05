@@ -767,41 +767,42 @@ func (m *SnapManager) doDownloadSnap(t *state.Task, tomb *tomb.Tomb) error {
 			iconURL = resultIconURL
 		}
 
+		ctx := tomb.Context(nil) // XXX: should this be a real context?
 		timings.Run(perfTimings, "download", fmt.Sprintf("download snap %q", snapsup.SnapName()), func(timings.Measurer) {
-			ctx := tomb.Context(nil)
 			err = theStore.Download(ctx, snapsup.SnapName(), targetFn, &result.DownloadInfo, meter, user, dlOpts)
-			if err != nil {
-				return
-			}
-			// Snap download succeeded, now try to download the snap icon
-			if iconURL == "" {
-				logger.Debugf("cannot download snap icon for %q: no icon URL", snapsup.SnapName())
-				return
-			}
-			if iconErr := storeDownloadIcon(ctx, snapsup.SnapName(), targetIconFn, iconURL); iconErr != nil {
-				logger.Debugf("cannot download snap icon for %q: %#v", snapsup.SnapName(), iconErr)
-			}
 		})
 		snapsup.SideInfo = &result.SideInfo
+		if err != nil {
+			return err
+		}
+		// Snap download succeeded, now try to download the snap icon
+		if iconURL == "" {
+			logger.Debugf("cannot download snap icon for %q: no icon URL", snapsup.SnapName())
+		} else {
+			timings.Run(perfTimings, "download-icon", fmt.Sprintf("download snap icon for %q", snapsup.SnapName()), func(timings.Measurer) {
+				if iconErr := storeDownloadIcon(ctx, snapsup.SnapName(), targetIconFn, iconURL); iconErr != nil {
+					logger.Debugf("cannot download snap icon for %q: %#v", snapsup.SnapName(), iconErr)
+				}
+			})
+		}
 	} else {
+		ctx := tomb.Context(nil) // XXX: should this be a real context?
 		timings.Run(perfTimings, "download", fmt.Sprintf("download snap %q", snapsup.SnapName()), func(timings.Measurer) {
-			ctx := tomb.Context(nil)
 			err = theStore.Download(ctx, snapsup.SnapName(), targetFn, snapsup.DownloadInfo, meter, user, dlOpts)
-			if err != nil {
-				return
-			}
-			// Snap download succeeded, now try to download the snap icon
-			if iconURL == "" {
-				logger.Debugf("cannot download snap icon for %q: no icon URL", snapsup.SnapName())
-				return
-			}
-			if iconErr := storeDownloadIcon(ctx, snapsup.SnapName(), targetIconFn, iconURL); iconErr != nil {
-				logger.Debugf("cannot download snap icon for %q: %#v", snapsup.SnapName(), iconErr)
-			}
 		})
-	}
-	if err != nil {
-		return err
+		if err != nil {
+			return err
+		}
+		// Snap download succeeded, now try to download the snap icon
+		if iconURL == "" {
+			logger.Debugf("cannot download snap icon for %q: no icon URL", snapsup.SnapName())
+		} else {
+			timings.Run(perfTimings, "download-icon", fmt.Sprintf("download snap icon for %q", snapsup.SnapName()), func(timings.Measurer) {
+				if iconErr := storeDownloadIcon(ctx, snapsup.SnapName(), targetIconFn, iconURL); iconErr != nil {
+					logger.Debugf("cannot download snap icon for %q: %#v", snapsup.SnapName(), iconErr)
+				}
+			})
+		}
 	}
 
 	snapsup.SnapPath = targetFn
