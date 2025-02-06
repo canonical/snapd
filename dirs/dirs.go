@@ -456,6 +456,7 @@ var (
 	defaultDirDistros = []string{
 		"ubuntu",
 		"ubuntu-core",
+		"ubuntucoreinitramfs",
 		"debian",
 		"opensuse",
 		"suse",

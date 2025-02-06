@@ -174,7 +174,6 @@ func (s *DirsTestSuite) TestClassicConfinementSymlinkAltDistro(c *C) {
 	defer restore()
 
 	altRoot := c.MkDir()
-
 	c.Assert(os.Symlink(filepath.Join(altRoot, "/var/lib/snapd/snap"), filepath.Join(altRoot, "/snap")), IsNil)
 	dirs.SetRootDir(altRoot)
 	defer dirs.SetRootDir("/")
@@ -227,6 +226,7 @@ func (s *DirsTestSuite) TestMountDirKnownDistro(c *C) {
 		{"rhel", []string{"fedora"}, false},
 		{"centos", []string{"fedora"}, false},
 		{"ubuntu", []string{"debian"}, true},
+		{"ubuntucoreinitramfs", nil, true},
 		{"debian", nil, true},
 		{"suse", nil, true},
 		{"yocto", nil, true},
