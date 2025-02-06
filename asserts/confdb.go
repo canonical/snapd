@@ -194,15 +194,13 @@ type ConfdbControlGroup struct {
 
 // Groups returns the groups in the raw assertion's format.
 func (cc *ConfdbControl) Groups() []*ConfdbControlGroup {
-	// Map auth to view->operators mapping
 	authMap := map[confdb.Authentication]map[confdb.ViewRef][]string{}
 	var auths []confdb.Authentication
 
 	// Group operators by auth and view
 	for _, operator := range cc.operators {
 		for view, auth := range operator.Delegations {
-			_, exists := authMap[auth]
-			if !exists {
+			if _, exists := authMap[auth]; !exists {
 				authMap[auth] = map[confdb.ViewRef][]string{}
 				auths = append(auths, auth)
 			}
@@ -216,16 +214,14 @@ func (cc *ConfdbControl) Groups() []*ConfdbControlGroup {
 		return auths[i] < auths[j]
 	})
 
-	// Create groups
 	var groups []*ConfdbControlGroup
 	for _, auth := range auths {
-		viewMap := authMap[auth]
 		authStrs := confdb.ConvertAuthenticationToStrings(auth)
 
 		// Group by unique operator sets
 		operatorSetMap := map[string]*ConfdbControlGroup{}
 
-		for view, operators := range viewMap {
+		for view, operators := range authMap[auth] {
 			sort.Strings(operators)
 			key := strings.Join(operators, ",")
 
@@ -243,7 +239,6 @@ func (cc *ConfdbControl) Groups() []*ConfdbControlGroup {
 		}
 	}
 
-	// Sort views in each group
 	for _, group := range groups {
 		sort.Strings(group.Views)
 	}
