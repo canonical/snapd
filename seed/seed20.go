@@ -1114,6 +1114,8 @@ func (s *seed20) lookupIntegrityData(snapRef naming.SnapRef, handler ContainerHa
 
 			idp.DataBlocks = snapRev.SnapSize() / uint64(sid.DataBlockSize)
 		default:
+			// The assertion signing code doesn't allow assertions with unsupported
+			// types so this shouldn't be reachable.
 			return nil, fmt.Errorf("Unsupported integrity data type: %q.", sid.Type)
 		}
 
@@ -1175,6 +1177,10 @@ func (s *seed20) lookupSnap(snapRef naming.SnapRef, modelSnap *asserts.ModelSnap
 	timings.Run(tm, "find-integrity-params", fmt.Sprintf("find integrity params for snap %q", snapRef.SnapName()), func(nested timings.Measurer) {
 		integrityData, err = s.lookupIntegrityData(snapRef, handler, snapsDir, tm)
 	})
+	// Currently integrity data are not enforced which means that lookupIntegrityData suppresses any errors that might have occurred
+	// during lookup. Moreover as invalid integrity data types are not allowed by the assertion API, the "Unsupported integrity data
+	// type" error should also not be expected. Despite these,we keep the error handling code here to avoid disruptions caused by a
+	// future change.
 	if err != nil {
 		return nil, err
 	}
