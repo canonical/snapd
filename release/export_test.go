@@ -20,19 +20,8 @@
 package release
 
 var (
-	ReadOSRelease = readOSRelease
+	ReadOSReleaseFromRoot = readOSReleaseFromRoot
 )
-
-func MockOSReleasePath(filename string) (restore func()) {
-	old := osReleasePath
-	oldFallback := fallbackOsReleasePath
-	osReleasePath = filename
-	fallbackOsReleasePath = filename
-	return func() {
-		osReleasePath = old
-		fallbackOsReleasePath = oldFallback
-	}
-}
 
 func MockFileExists(mockFileExists func(string) bool) (restorer func()) {
 	// Cannot use testutil.Backup due to import loop

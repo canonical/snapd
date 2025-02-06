@@ -23,6 +23,7 @@ import (
 	"bufio"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 	"unicode"
 
@@ -53,24 +54,41 @@ func DistroLike(distros ...string) bool {
 var (
 	osReleasePath         = "/etc/os-release"
 	fallbackOsReleasePath = "/usr/lib/os-release"
+	initrdReleasePath     = "/etc/initrd-release"
 )
 
 // readOSRelease returns the os-release information of the current system.
-func readOSRelease() OS {
+func readOSReleaseFromRoot(rootdir string) OS {
 	// TODO: separate this out into its own thing maybe (if made more general)
 	osRelease := OS{
 		// from os-release(5): If not set, defaults to "ID=linux".
 		ID: "linux",
 	}
 
-	f, err := os.Open(osReleasePath)
-	if err != nil {
+	var f *os.File
+	var err error
+	for _, candidate := range []string{
+		// is a default described in os-release(5) and should be valid for both
+		// booted system and an initrd
+		osReleasePath,
 		// this fallback is as per os-release(5)
-		f, err = os.Open(fallbackOsReleasePath)
-		if err != nil {
-			return osRelease
+		fallbackOsReleasePath,
+		// maybe we're in an initrd which is missing a symlink to
+		// /etc/initrd-release?
+		initrdReleasePath,
+	} {
+		f, err = os.Open(filepath.Join(rootdir, candidate))
+		if err == nil {
+			break
 		}
 	}
+
+	if f == nil {
+		// no os-release information source, return a default
+		return osRelease
+	}
+
+	defer f.Close()
 
 	scanner := bufio.NewScanner(f)
 	for scanner.Scan() {
@@ -199,7 +217,7 @@ var WSLVersion int
 var ReleaseInfo OS
 
 func init() {
-	ReleaseInfo = readOSRelease()
+	ReleaseInfo = readOSReleaseFromRoot("/")
 
 	OnClassic = (ReleaseInfo.ID != "ubuntu-core")
 
