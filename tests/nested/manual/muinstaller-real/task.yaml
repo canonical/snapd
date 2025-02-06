@@ -329,6 +329,13 @@ execute: |
   echo "asserted snaps"
   remote.exec "ls /run/mnt/ubuntu-seed/snaps"
 
+  # on hybrid systems, we bind mount the seed from the mount that is set up by
+  # snap-bootstrap (/run/mnt/ubuntu-seed) to /var/lib/snapd/seed. we inject the
+  # systemd mount unit for the bind mount at install time, during the
+  # "install-finish" task.
+  test "$(remote.exec "findmnt /run/mnt/ubuntu-seed/ -o source -n")" = "$(remote.exec "findmnt /var/lib/snapd/seed -o source -n")"
+  remote.exec "systemctl is-active var-lib-snapd-seed.mount"
+
   # check for unasserted snaps
   for sn in pc pc-kernel snapd; do
       sn_version=$(remote.exec "snap list ${sn}" | awk 'NR != 1 { print $2 }' | sed 's/+fake1//')

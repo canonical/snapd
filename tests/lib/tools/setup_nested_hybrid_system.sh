@@ -56,7 +56,6 @@ run_muinstaller() {
         ./classic-seed
 
     mv ./classic-seed/system-seed/systems/* "./classic-seed/system-seed/systems/${label}"
-    cp -a ./classic-seed/system-seed/ /var/lib/snapd/seed
 
     if [ -n "${store_dir}" ]; then
         # if we have a store setup, then we should take it down for now

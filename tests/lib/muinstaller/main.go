@@ -525,7 +525,6 @@ func fillPartiallyDefinedVolume(vol *gadget.Volume, bootDevice string) error {
 }
 
 func run(seedLabel, bootDevice, rootfsCreator, optionalInstallPath string) error {
-	isCore := rootfsCreator == ""
 	logger.Noticef("installing on %q", bootDevice)
 
 	cli := client.New(nil)
@@ -567,14 +566,21 @@ func run(seedLabel, bootDevice, rootfsCreator, optionalInstallPath string) error
 	if err != nil {
 		return fmt.Errorf("cannot create filesystems: %v", err)
 	}
+
+	hasSystemSeed := checkForRole(details, gadget.SystemSeed)
+	isCore := rootfsCreator == ""
+	if isCore || !hasSystemSeed {
+		if err := copySeedToDataPartition(); err != nil {
+			return fmt.Errorf("cannot create seed on data partition: %v", err)
+		}
+	}
+
 	if !isCore {
 		if err := createClassicRootfsIfNeeded(rootfsCreator); err != nil {
 			return fmt.Errorf("cannot create classic rootfs: %v", err)
 		}
 	}
-	if err := copySeedToDataPartition(); err != nil {
-		return fmt.Errorf("cannot create seed on data partition: %v", err)
-	}
+
 	if err := unmountFilesystems(mntPts); err != nil {
 		return fmt.Errorf("cannot unmount filesystems: %v", err)
 	}
@@ -584,6 +590,17 @@ func run(seedLabel, bootDevice, rootfsCreator, optionalInstallPath string) error
 	// TODO: reboot here automatically (optional)
 
 	return nil
+}
+
+func checkForRole(details *client.SystemDetails, role string) bool {
+	for _, v := range details.Volumes {
+		for _, vs := range v.Structure {
+			if vs.Role == role {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 func main() {

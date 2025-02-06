@@ -1076,13 +1076,9 @@ func (m *DeviceManager) doInstallFinish(t *state.Task, _ *tomb.Tomb) error {
 
 	snapInfos := systemAndSnaps.InfosByType
 	snapSeeds := systemAndSnaps.SeedSnapsByType
-	deviceCtx, err := DeviceCtx(st, t, nil)
-	if err != nil {
-		return fmt.Errorf("cannot get device context: %v", err)
-	}
 
 	// Find out kernel-modules components in the seed
-	isCore := !deviceCtx.Classic()
+	isCore := !systemAndSnaps.Model.Classic()
 	kBootInfo := kBootInfo(systemAndSnaps, kernMntPoint, mntPtForComps, isCore)
 
 	logger.Debugf("writing content to partitions")
@@ -1128,6 +1124,40 @@ func (m *DeviceManager) doInstallFinish(t *state.Task, _ *tomb.Tomb) error {
 			OptionalContainers: optional,
 		}, perfTimings); err != nil {
 			return fmt.Errorf("cannot copy seed: %w", err)
+		}
+
+		hybrid := systemAndSnaps.Model.Classic() && systemAndSnaps.Model.KernelSnap() != nil
+		if hybrid {
+			// boot.InitramfsUbuntuSeedDir (/run/mnt/ubuntu-data, usually) is a
+			// mountpoint on hybrid system that is set up in the initramfs.
+			// setting up this bind mount ensures that the system can be seeded
+			// on boot.
+			unitName, _, err := systemd.EnsureMountUnitFileContent(&systemd.MountUnitOptions{
+				Lifetime:                 systemd.Persistent,
+				Description:              "Bind mount seed partition",
+				What:                     boot.InitramfsUbuntuSeedDir,
+				PreventRestartIfModified: true,
+				Where:                    dirs.SnapSeedDir,
+				Fstype:                   "none",
+				Options:                  []string{"bind", "ro"},
+				RootDir:                  boot.InstallUbuntuDataDir,
+			})
+			if err != nil {
+				return fmt.Errorf("cannot create mount unit for seed: %w", err)
+			}
+
+			enabledUnitDir := filepath.Join(boot.InstallUbuntuDataDir, "etc/systemd/system/snapd.mounts.target.wants")
+			if err := os.MkdirAll(enabledUnitDir, 0755); err != nil {
+				return fmt.Errorf("cannot create directory for systemd unit: %w", err)
+			}
+
+			err = os.Symlink(
+				filepath.Join(dirs.GlobalRootDir, "etc/systemd/system", unitName),
+				filepath.Join(enabledUnitDir, unitName),
+			)
+			if err != nil {
+				return fmt.Errorf("cannot create symlink to enable systemd unit: %w", err)
+			}
 		}
 	}
 
