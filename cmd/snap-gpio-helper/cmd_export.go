@@ -24,10 +24,10 @@ import (
 )
 
 type cmdExportChardev struct {
-	ChipLabels []string `long:"chip-label" description:"source chip label(s) to match" required:"yes"`
-	Lines      []uint   `long:"line" description:"gpio line(s) to export" required:"yes"`
-	Gadget     string   `long:"gadget" description:"gadget snap name" required:"yes"`
-	Slot       string   `long:"slot" description:"gpio-chardev slot name" required:"yes"`
+	ChipLabels string `long:"chip-labels" description:"comma-separated list of source chip label(s) to match" required:"yes"`
+	Lines      uint   `long:"line" description:"comma-separated list of gpio line(s) to export" required:"yes"`
+	Gadget     string `long:"gadget" description:"gadget snap name" required:"yes"`
+	Slot       string `long:"slot" description:"gpio-chardev slot name" required:"yes"`
 }
 
 func (c *cmdExportChardev) Execute(args []string) error {
