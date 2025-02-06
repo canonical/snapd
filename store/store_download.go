@@ -717,6 +717,8 @@ func downloadIconImpl(ctx context.Context, name, downloadURL string, w ReadWrite
 
 		return err
 	}
+	// The loop will return an error directly if retries are exhausted and an
+	// error occurs, so we never actually break out of the loop and get here.
 	return errors.New("icon download retries exhausted")
 }
 
