@@ -420,6 +420,7 @@ func (f *fakeStore) snap(spec snapSpec) (*snap.Info, error) {
 				URL:  "http://example.com",
 			},
 		}
+		info.StoreURL = "https://snapcraft.io/example-snap"
 	case "channel-for-desktop-file-ids":
 		info.Plugs = map[string]*snap.PlugInfo{
 			"desktop": {

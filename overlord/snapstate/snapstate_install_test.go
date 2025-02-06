@@ -1513,6 +1513,7 @@ func (s *snapmgrTestSuite) TestInstallRunThrough(c *C) {
 			URL:  "http://example.com",
 		},
 	})
+	c.Check(info.StoreURL, Equals, "https://snapcraft.io/example-snap")
 }
 
 func (s *snapmgrTestSuite) testParallelInstanceInstallRunThrough(c *C, inputFlags, expectedFlags snapstate.Flags) {

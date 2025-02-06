@@ -4604,6 +4604,7 @@ func (s *snapmgrQuerySuite) TestSnapStateCurrentInfo(c *C) {
 	c.Check(info.Version, Equals, "1.2")
 	c.Check(info.Description(), Equals, "Lots of text")
 	c.Check(info.Media, IsNil)
+	c.Check(info.StoreURL, Equals, "")
 	c.Check(info.Website(), Equals, "")
 }
 
@@ -4613,7 +4614,8 @@ func (s *snapmgrQuerySuite) TestSnapStateCurrentInfoLoadsAuxiliaryStoreInfo(c *C
 			Type: "icon",
 			URL:  "http://example.com/favicon.ico",
 		}},
-		Website: "http://example.com/",
+		StoreURL: "https://snapcraft.io/my-snap-name",
+		Website:  "http://example.com/",
 	}
 
 	c.Assert(snapstate.KeepAuxStoreInfo("123123123", storeInfo), IsNil)
@@ -4635,6 +4637,7 @@ func (s *snapmgrQuerySuite) TestSnapStateCurrentInfoLoadsAuxiliaryStoreInfo(c *C
 	c.Check(info.Version, Equals, "1.2")
 	c.Check(info.Description(), Equals, "Lots of text")
 	c.Check(info.Media, DeepEquals, storeInfo.Media)
+	c.Check(info.StoreURL, Equals, storeInfo.StoreURL)
 	c.Check(info.Website(), Equals, storeInfo.Website)
 }
 
