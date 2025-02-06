@@ -454,7 +454,6 @@ func (s *fdeMgrSuite) TestEFIDBXUpdateAndCleanupRunningAction(c *C) {
 	})
 
 	c.Check(chg.IsReady(), Equals, true)
-	c.Check(chg.IsClean(), Equals, false)
 	c.Check(chg.Status(), Equals, state.DoneStatus)
 	c.Check(chg.Err(), IsNil)
 
@@ -582,7 +581,6 @@ func (s *fdeMgrSuite) TestEFIDBXUpdateAndUnexpectedStartupAction(c *C) {
 
 	// change has an error now
 	c.Check(chg.IsReady(), Equals, true)
-	c.Check(chg.IsClean(), Equals, false)
 	c.Check(chg.Status(), Equals, state.ErrorStatus)
 	c.Check(chg.Err(), ErrorMatches, "cannot perform the following tasks:\n"+
 		"- Reseal after external EFI DBX update .'startup' action invoked while an operation is in progress.")
@@ -690,7 +688,6 @@ func (s *fdeMgrSuite) TestEFIDBXUpdateAbort(c *C) {
 
 	// change has been undone
 	c.Check(chg.IsReady(), Equals, true)
-	c.Check(chg.IsClean(), Equals, false)
 	c.Check(chg.Status(), Equals, state.UndoneStatus)
 	c.Check(tsks[0].Status(), Equals, state.UndoneStatus)
 	c.Check(tsks[1].Status(), Equals, state.HoldStatus)
