@@ -743,6 +743,40 @@ func (s *downloadSuite) TestActualDownloadIconTooLarge(c *C) {
 	c.Check(n, Equals, 1)
 }
 
+type BadWriter struct {
+	SillyBuffer
+}
+
+func (bw *BadWriter) Write(p []byte) (n int, err error) {
+	// Do the write
+	bw.SillyBuffer.Write(p)
+	// but return EOF
+	return -1, io.EOF
+}
+
+func (s *downloadSuite) TestActualDownloadIconCopyError(c *C) {
+	n := 0
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		n++
+		response := make([]byte, 5)
+		for i := range response[:5] {
+			// respond with 5 'a' bytes so we can check that it's been seeked and truncated
+			response[i] = 'a'
+		}
+		w.Write(response)
+	}))
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	var buf BadWriter
+	err := store.DownloadIconImpl(context.TODO(), "foo", mockServer.URL, &buf)
+	c.Check(err, testutil.ErrorIs, io.EOF)
+	c.Check(n, Equals, 5)
+	// Check that the buffer only has 5 'a' bytes, indicating that it was
+	// seeked/truncated after each failed attempt
+	c.Check(buf.buf[:15], DeepEquals, []byte{'a', 'a', 'a', 'a', 'a', 0, 0, 0, 0, 0, 0, 0, 0, 0, 0})
+}
+
 func (s *downloadSuite) TestDownloadIconCancellation(c *C) {
 	ctx, cancel := context.WithCancel(context.Background())
 
