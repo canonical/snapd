@@ -19,12 +19,13 @@ build_kernel_with_comp() {
         kernel_snap_file="pc-kernel.snap"
     fi
     unsquashfs -d kernel "${kernel_snap_file}"
+    kernel_name="$(grep 'name:' kernel/meta/snap.yaml | awk '{ print $2 }')"
     kern_ver=$(find kernel/modules/* -maxdepth 0 -printf "%f\n")
     comp_ko_dir=$comp_name/modules/"$kern_ver"/kmod/
     mkdir -p "$comp_ko_dir"
     mkdir -p "$comp_name"/meta/
     cat << EOF > "$comp_name"/meta/component.yaml
-component: pc-kernel+$comp_name
+component: ${kernel_name}+${comp_name}
 type: kernel-modules
 version: 1.0
 summary: kernel component
@@ -34,7 +35,7 @@ EOF
     glob_mod_name=$(printf '%s' "$mod_name" | sed -r 's/[-_]/[-_]/g')
     module_path=$(find kernel -name "${glob_mod_name}.ko*")
     cp "$module_path" "$comp_ko_dir"
-    snap pack --filename=pc-kernel+"$comp_name".comp "$comp_name"
+    snap pack --filename="${kernel_name}+${comp_name}".comp "$comp_name"
 
     # Create kernel without the kernel module
     rm "$module_path"
@@ -47,8 +48,7 @@ EOF
     # append component meta-information
     printf 'components:\n  %s:\n    type: kernel-modules\n' "$comp_name" >> kernel/meta/snap.yaml
     snap pack --filename="${kernel_snap_file}" kernel
-    # Just so that nested_prepare_kernel does not recopy the old one
-    cp "${kernel_snap_file}" "${NESTED_ASSETS_DIR}/pc-kernel.snap"
+    rm -r kernel
 }
 
 build_kernel_with_comp "$@"
