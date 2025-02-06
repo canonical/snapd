@@ -22,8 +22,12 @@ package main
 import "errors"
 
 type cmdUnexportChardev struct {
-	Gadget string `long:"gadget" description:"gadget snap name" required:"yes"`
-	Slot   string `long:"slot" description:"gpio-chardev slot name" required:"yes"`
+	Args struct {
+		ChipLabels string `positional-arg-name:"<gpio-labels>" description:"comma-separated list of source chip label(s) to match"`
+		Lines      string `positional-arg-name:"<lines>" description:"comma-separated list of target gpio line(s)"`
+		Gadget     string `positional-arg-name:"<gadget>" description:"gadget snap name"`
+		Slot       string `positional-arg-name:"<slot>" description:"gpio-chardev slot name"`
+	} `positional-args:"yes" required:"true"`
 }
 
 func (c *cmdUnexportChardev) Execute(args []string) error {
