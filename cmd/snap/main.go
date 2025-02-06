@@ -366,6 +366,7 @@ func Parser(cli *client.Client) *flags.Parser {
 }
 
 var isStdinTTY = terminal.IsTerminal(0)
+var isStdoutTTY = terminal.IsTerminal(1)
 
 // ClientConfig is the configuration of the Client used by all commands.
 var ClientConfig = client.Config{
