@@ -38,6 +38,7 @@ import (
 	"github.com/snapcore/snapd/asserts/assertstest"
 	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/boot"
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/logger"
@@ -6759,6 +6760,7 @@ func (f *fakeSequenceStore) SeqFormingAssertion(assertType *asserts.AssertionTyp
 type expectedSnap struct {
 	name       string
 	revision   snap.Revision
+	path       string
 	snapType   snap.Type
 	snapFiles  [][]string
 	components map[string]expectedComponent
@@ -6766,6 +6768,7 @@ type expectedSnap struct {
 
 type expectedComponent struct {
 	name     string
+	path     string
 	revision snap.Revision
 	compType snap.ComponentType
 }
@@ -7012,6 +7015,10 @@ func mockSnapstateUpdateOneFromFile(c *C, snaps map[string]expectedSnap) (restor
 
 		c.Assert(g.snaps[0].RevOpts.Revision, Equals, expected.revision)
 
+		if expected.path != "" {
+			c.Assert(g.snaps[0].Path, Equals, expected.path)
+		}
+
 		prepare := st.NewTask("prepare-snap", "prepare snap")
 
 		si := snap.SideInfo{
@@ -7048,6 +7055,10 @@ func mockSnapstateUpdateOneFromFile(c *C, snaps map[string]expectedSnap) (restor
 			compName := comp.SideInfo.Component.ComponentName
 			expectedComp, ok := expected.components[compName]
 			c.Assert(ok, Equals, true)
+
+			if expectedComp.path != "" {
+				c.Assert(comp.Path, Equals, expectedComp.path)
+			}
 
 			prepare := st.NewTask("mock-prepare-component", "prepare component")
 			prepare.Set("component-setup", &snapstate.ComponentSetup{
@@ -9853,27 +9864,6 @@ func (s *deviceMgrRemodelSuite) TestOfflineRemodelPreinstalledUseOldRevision(c *
 
 	snapstatetest.InstallEssentialSnaps(c, s.state, "core22", nil, nil)
 
-	snapstatetest.InstallSnap(c, s.state, "name: pc\nversion: 1\ntype: gadget\nbase: core22", nil, &snap.SideInfo{
-		SnapID:   snaptest.AssertedSnapID("pc"),
-		Revision: snap.R(1),
-		RealName: "pc",
-		Channel:  "latest/stable",
-	}, snapstatetest.InstallSnapOptions{Required: true})
-
-	snapstatetest.InstallSnap(c, s.state, "name: pc-kernel\nversion: 1\ntype: kernel\n", nil, &snap.SideInfo{
-		SnapID:   snaptest.AssertedSnapID("pc-kernel"),
-		Revision: snap.R(1),
-		RealName: "pc-kernel",
-		Channel:  "latest/stable",
-	}, snapstatetest.InstallSnapOptions{Required: true})
-
-	snapstatetest.InstallSnap(c, s.state, "name: core22\nversion: 1\ntype: base\n", nil, &snap.SideInfo{
-		SnapID:   snaptest.AssertedSnapID("core22"),
-		Revision: snap.R(1),
-		RealName: "core22",
-		Channel:  "latest/stable",
-	}, snapstatetest.InstallSnapOptions{Required: true})
-
 	// install kernel and base at newer revisions, but the validation set will
 	// require the older revisions. this should result in the remodeling code
 	// finding the older revisions, and calling UpdateWithDeviceContext to swap
@@ -9893,7 +9883,7 @@ func (s *deviceMgrRemodelSuite) TestOfflineRemodelPreinstalledUseOldRevision(c *
 	}, snapstatetest.InstallSnapOptions{Required: true, PreserveSequence: true})
 
 	restore := devicestate.MockSnapstateUpdateOne(func(ctx context.Context, st *state.State, goal snapstate.UpdateGoal, filter func(*snap.Info, *snapstate.SnapState) bool, opts snapstate.Options) (*state.TaskSet, error) {
-		g := goal.(*storeUpdateGoalRecorder)
+		g := goal.(*pathUpdateGoalRecorder)
 		name := g.snaps[0].InstanceName
 
 		var info *snap.Info
@@ -10026,6 +10016,351 @@ func (s *deviceMgrRemodelSuite) TestOfflineRemodelPreinstalledUseOldRevision(c *
 		"create-recovery-system", "finalize-recovery-system",
 		"set-model",
 	})
+}
+
+func (s *deviceMgrRemodelSuite) TestOfflineRemodelPreinstalledUseOldRevisionWithComponents(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+	s.state.Set("seeded", true)
+	s.state.Set("refresh-privacy-key", "some-privacy-key")
+
+	now := time.Now()
+	restore := devicestate.MockTimeNow(func() time.Time { return now })
+	defer restore()
+
+	snapstatetest.InstallEssentialSnaps(c, s.state, "core24", nil, nil)
+
+	kmodComps := map[string]snap.ComponentType{
+		"kmod": snap.KernelModulesComponent,
+	}
+	snapstatetest.InstallSnap(c, s.state, withComponents("name: pc-kernel\nversion: 1\ntype: kernel\n", kmodComps), nil, &snap.SideInfo{
+		SnapID:   fakeSnapID("pc-kernel"),
+		Revision: snap.R(1),
+		RealName: "pc-kernel",
+		Channel:  "latest/stable",
+	}, snapstatetest.InstallSnapOptions{Required: true})
+
+	var snapst snapstate.SnapState
+	err := snapstate.Get(s.state, "pc-kernel", &snapst)
+	c.Assert(err, IsNil)
+
+	err = snapst.Sequence.AddComponentForRevision(snapst.Current, sequence.NewComponentState(&snap.ComponentSideInfo{
+		Component: naming.NewComponentRef("pc-kernel", "kmod"),
+		Revision:  snap.R(11),
+	}, snap.KernelModulesComponent))
+	c.Assert(err, IsNil)
+
+	snapstate.Set(s.state, "pc-kernel", &snapst)
+
+	snapstatetest.InstallSnap(c, s.state, "name: pc-kernel\nversion: 1\ntype: kernel\n", nil, &snap.SideInfo{
+		SnapID:   snaptest.AssertedSnapID("pc-kernel"),
+		Revision: snap.R(2),
+		RealName: "pc-kernel",
+		Channel:  "latest/stable",
+	}, snapstatetest.InstallSnapOptions{Required: true, PreserveSequence: true})
+
+	expectedUpdates := map[string]expectedSnap{
+		"pc-kernel": {
+			name:     "pc-kernel",
+			snapType: "kernel",
+			revision: snap.R(1),
+			path:     filepath.Join(dirs.SnapBlobDir, "pc-kernel_1.snap"),
+			components: map[string]expectedComponent{
+				"kmod": {
+					name:     "kmod",
+					path:     filepath.Join(dirs.SnapBlobDir, "pc-kernel+kmod_11.comp"),
+					revision: snap.R(11),
+					compType: snap.KernelModulesComponent,
+				},
+			},
+		},
+	}
+
+	restore, updated := mockSnapstateUpdateOneFromFile(c, expectedUpdates)
+	defer restore()
+
+	currentModel := s.brands.Model("canonical", "pc-model", map[string]interface{}{
+		"architecture": "amd64",
+		"base":         "core24",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":            "pc-kernel",
+				"id":              snaptest.AssertedSnapID("pc-kernel"),
+				"type":            "kernel",
+				"default-channel": "latest/stable",
+			},
+			map[string]interface{}{
+				"name":            "pc",
+				"id":              snaptest.AssertedSnapID("pc"),
+				"type":            "gadget",
+				"default-channel": "latest/stable",
+			},
+		},
+	})
+	err = assertstate.Add(s.state, currentModel)
+	c.Assert(err, IsNil)
+
+	err = devicestatetest.SetDevice(s.state, &auth.DeviceState{
+		Brand: "canonical",
+		Model: "pc-model",
+	})
+	c.Assert(err, IsNil)
+
+	newModel := s.brands.Model("canonical", "pc-model", map[string]interface{}{
+		"architecture": "amd64",
+		"base":         "core24",
+		"revision":     "1",
+		"validation-sets": []interface{}{
+			map[string]interface{}{
+				"account-id": "canonical",
+				"name":       "vset-1",
+				"mode":       "enforce",
+			},
+		},
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":            "pc-kernel",
+				"id":              snaptest.AssertedSnapID("pc-kernel"),
+				"type":            "kernel",
+				"default-channel": "latest/stable",
+				"components": map[string]interface{}{
+					"kmod": map[string]interface{}{
+						"presence": "required",
+					},
+				},
+			},
+			map[string]interface{}{
+				"name":            "pc",
+				"id":              snaptest.AssertedSnapID("pc"),
+				"type":            "gadget",
+				"default-channel": "latest/stable",
+			},
+		},
+	})
+
+	vset, err := s.brands.Signing("canonical").Sign(asserts.ValidationSetType, map[string]interface{}{
+		"type":         "validation-set",
+		"authority-id": "canonical",
+		"series":       "16",
+		"account-id":   "canonical",
+		"name":         "vset-1",
+		"sequence":     "1",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":     "pc-kernel",
+				"id":       snaptest.AssertedSnapID("pc-kernel"),
+				"presence": "required",
+				"revision": "1",
+			},
+		},
+		"timestamp": time.Now().UTC().Format(time.RFC3339),
+	}, nil, "")
+	c.Assert(err, IsNil)
+
+	err = assertstate.Add(s.state, vset)
+	c.Assert(err, IsNil)
+
+	chg, err := devicestate.Remodel(s.state, newModel, devicestate.RemodelOptions{
+		Offline: true,
+	})
+	c.Assert(err, IsNil)
+
+	kinds := make([]string, 0, len(chg.Tasks()))
+	for _, t := range chg.Tasks() {
+		kinds = append(kinds, t.Kind())
+	}
+
+	c.Check(kinds, DeepEquals, []string{
+		"prepare-snap",
+		"validate-snap",
+		"mock-prepare-component",
+		"mock-validate-component",
+		"link-snap",
+		"link-component",
+		"create-recovery-system",
+		"finalize-recovery-system",
+		"set-model",
+	})
+
+	createRecoverySystem := chg.Tasks()[6]
+	checkRecoverySystemSetup(createRecoverySystem, c, now, []interface{}{
+		updated["pc-kernel"],
+	}, []interface{}{
+		updated["pc-kernel+kmod"],
+	})
+}
+
+func (s *deviceMgrRemodelSuite) TestOfflineRemodelPreinstalledUseOldRevisionMissingRequiredComponent(c *C) {
+	const wrongRevisionInstalled = false
+	s.testOfflineRemodelPreinstalledUseOldRevisionMissingRequiredComponent(c, wrongRevisionInstalled)
+}
+
+func (s *deviceMgrRemodelSuite) TestOfflineRemodelPreinstalledUseOldRevisionWrongComponentRevision(c *C) {
+	const wrongRevisionInstalled = true
+	s.testOfflineRemodelPreinstalledUseOldRevisionMissingRequiredComponent(c, wrongRevisionInstalled)
+}
+
+func (s *deviceMgrRemodelSuite) testOfflineRemodelPreinstalledUseOldRevisionMissingRequiredComponent(c *C, wrongRevisionInstalled bool) {
+	s.state.Lock()
+	defer s.state.Unlock()
+	s.state.Set("seeded", true)
+	s.state.Set("refresh-privacy-key", "some-privacy-key")
+
+	now := time.Now()
+	restore := devicestate.MockTimeNow(func() time.Time { return now })
+	defer restore()
+
+	snapstatetest.InstallEssentialSnaps(c, s.state, "core24", nil, nil)
+
+	if wrongRevisionInstalled {
+		kmodComps := map[string]snap.ComponentType{
+			"kmod": snap.KernelModulesComponent,
+		}
+		snapstatetest.InstallSnap(c, s.state, withComponents("name: pc-kernel\nversion: 1\ntype: kernel\n", kmodComps), nil, &snap.SideInfo{
+			SnapID:   fakeSnapID("pc-kernel"),
+			Revision: snap.R(1),
+			RealName: "pc-kernel",
+			Channel:  "latest/stable",
+		}, snapstatetest.InstallSnapOptions{Required: true})
+
+		var snapst snapstate.SnapState
+		err := snapstate.Get(s.state, "pc-kernel", &snapst)
+		c.Assert(err, IsNil)
+
+		err = snapst.Sequence.AddComponentForRevision(snapst.Current, sequence.NewComponentState(&snap.ComponentSideInfo{
+			Component: naming.NewComponentRef("pc-kernel", "kmod"),
+			Revision:  snap.R(11),
+		}, snap.KernelModulesComponent))
+		c.Assert(err, IsNil)
+
+		snapstate.Set(s.state, "pc-kernel", &snapst)
+	}
+
+	snapstatetest.InstallSnap(c, s.state, "name: pc-kernel\nversion: 1\ntype: kernel\n", nil, &snap.SideInfo{
+		SnapID:   snaptest.AssertedSnapID("pc-kernel"),
+		Revision: snap.R(2),
+		RealName: "pc-kernel",
+		Channel:  "latest/stable",
+	}, snapstatetest.InstallSnapOptions{Required: true, PreserveSequence: true})
+
+	expectedUpdates := map[string]expectedSnap{
+		"pc-kernel": {
+			name:     "pc-kernel",
+			snapType: "kernel",
+			revision: snap.R(1),
+			components: map[string]expectedComponent{
+				"kmod": {
+					name:     "kmod",
+					revision: snap.R(11),
+					compType: snap.KernelModulesComponent,
+				},
+			},
+		},
+	}
+
+	restore, _ = mockSnapstateUpdateOneFromFile(c, expectedUpdates)
+	defer restore()
+
+	currentModel := s.brands.Model("canonical", "pc-model", map[string]interface{}{
+		"architecture": "amd64",
+		"base":         "core24",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":            "pc-kernel",
+				"id":              snaptest.AssertedSnapID("pc-kernel"),
+				"type":            "kernel",
+				"default-channel": "latest/stable",
+			},
+			map[string]interface{}{
+				"name":            "pc",
+				"id":              snaptest.AssertedSnapID("pc"),
+				"type":            "gadget",
+				"default-channel": "latest/stable",
+			},
+		},
+	})
+	err := assertstate.Add(s.state, currentModel)
+	c.Assert(err, IsNil)
+
+	err = devicestatetest.SetDevice(s.state, &auth.DeviceState{
+		Brand: "canonical",
+		Model: "pc-model",
+	})
+	c.Assert(err, IsNil)
+
+	newModel := s.brands.Model("canonical", "pc-model", map[string]interface{}{
+		"architecture": "amd64",
+		"base":         "core24",
+		"revision":     "1",
+		"validation-sets": []interface{}{
+			map[string]interface{}{
+				"account-id": "canonical",
+				"name":       "vset-1",
+				"mode":       "enforce",
+			},
+		},
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":            "pc-kernel",
+				"id":              snaptest.AssertedSnapID("pc-kernel"),
+				"type":            "kernel",
+				"default-channel": "latest/stable",
+				"components": map[string]interface{}{
+					"kmod": map[string]interface{}{
+						"presence": "required",
+					},
+				},
+			},
+			map[string]interface{}{
+				"name":            "pc",
+				"id":              snaptest.AssertedSnapID("pc"),
+				"type":            "gadget",
+				"default-channel": "latest/stable",
+			},
+		},
+	})
+
+	snaps := map[string]interface{}{
+		"name":     "pc-kernel",
+		"id":       snaptest.AssertedSnapID("pc-kernel"),
+		"presence": "required",
+		"revision": "1",
+	}
+
+	if wrongRevisionInstalled {
+		snaps["components"] = map[string]interface{}{
+			"kmod": map[string]interface{}{
+				"revision": "12",
+				"presence": "required",
+			},
+		}
+	}
+
+	vset, err := s.brands.Signing("canonical").Sign(asserts.ValidationSetType, map[string]interface{}{
+		"type":         "validation-set",
+		"authority-id": "canonical",
+		"series":       "16",
+		"account-id":   "canonical",
+		"name":         "vset-1",
+		"sequence":     "1",
+		"snaps": []interface{}{
+			snaps,
+		},
+		"timestamp": time.Now().UTC().Format(time.RFC3339),
+	}, nil, "")
+	c.Assert(err, IsNil)
+
+	err = assertstate.Add(s.state, vset)
+	c.Assert(err, IsNil)
+
+	_, err = devicestate.Remodel(s.state, newModel, devicestate.RemodelOptions{
+		Offline: true,
+	})
+	if wrongRevisionInstalled {
+		c.Assert(err, ErrorMatches, `cannot fall back to component "pc-kernel\+kmod" with revision 11, required revision is 12`)
+	} else {
+		c.Assert(err, ErrorMatches, `cannot find required component in set of already installed components: pc-kernel\+kmod`)
+	}
 }
 
 func (s *deviceMgrSuite) TestRemodelRequiredSnapMissingFromModel(c *C) {
