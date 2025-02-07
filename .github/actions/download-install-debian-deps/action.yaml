@@ -26,4 +26,6 @@ runs:
     run: |
         sudo apt update
         sudo apt build-dep -y "${{ inputs.snapd-src-dir }}"
+        # TODO: this should be added to debian/control?
+        sudo apt install -y gcovr lcov
         rm -rf ./debian-deps
