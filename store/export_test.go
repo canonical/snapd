@@ -44,6 +44,7 @@ var (
 
 	DownloadIconImpl = downloadIcon
 	ErrIconUnchanged = errIconUnchanged
+	MaxEtagSize      = maxEtagSize
 
 	ApplyDelta = applyDelta
 

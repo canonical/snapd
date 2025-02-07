@@ -30,6 +30,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"golang.org/x/crypto/sha3"
@@ -1374,6 +1375,44 @@ func (s *storeDownloadSuite) TestDownloadIconOKWithChangedEtag(c *C) {
 	c.Assert(err, IsNil)
 	writtenEtag := string(etagBuf[:size])
 	c.Check(writtenEtag, Equals, newEtag)
+}
+
+func (s *storeDownloadSuite) TestDownloadIconOKWithEtagTooLong(c *C) {
+	const expectedName = "foo"
+	const expectedURL = "URL"
+	existingContent := []byte("I was already here")
+	expectedContent := []byte("I was downloaded")
+	const existingEtag = "some-unique-value"
+	newEtag := strings.Repeat("a", store.MaxEtagSize+1) // too long
+	path := filepath.Join(c.MkDir(), "downloaded-file")
+
+	// Create existing file
+	c.Assert(os.WriteFile(path, existingContent, 0o644), IsNil)
+	// Set etag xattr
+	c.Assert(unix.Setxattr(path, "user.snapstore-etag", []byte(existingEtag), 0), IsNil)
+
+	logbuf, restore := logger.MockDebugLogger()
+	defer restore()
+
+	restore = store.MockDownloadIcon(func(ctx context.Context, name, etag, url string, w store.ReadWriteSeekTruncater) (string, error) {
+		c.Check(name, Equals, expectedName)
+		c.Check(etag, Equals, existingEtag)
+		c.Check(url, Equals, expectedURL)
+		w.Write(expectedContent)
+		return newEtag, nil
+	})
+	defer restore()
+
+	err := store.DownloadIcon(s.ctx, expectedName, path, expectedURL)
+	c.Assert(err, IsNil)
+	defer os.Remove(path)
+
+	c.Check(path, testutil.FileEquals, expectedContent)
+	// Etag exceeded max size, so no etag should have been written
+	etagBuf := make([]byte, 2*store.MaxEtagSize)
+	_, err = unix.Getxattr(path, "user.snapstore-etag", etagBuf)
+	c.Check(err, testutil.ErrorIs, unix.ENODATA)
+	c.Check(logbuf.String(), testutil.Contains, "snap icon etag exceeds maximum etag length")
 }
 
 func (s *storeDownloadSuite) TestDownloadIconDoesNotOverwriteLinks(c *C) {
