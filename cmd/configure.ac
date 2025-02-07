@@ -319,6 +319,8 @@ AS_IF([test "x$with_unit_tests" = "xyes"], [
   AX_APPEND_COMPILE_FLAGS([-Werror], [CHECK_CFLAGS])
 ])
 
+AC_SUBST([CHECK_CFLAGS])
+
 AC_ARG_WITH([apparmorconfigdir],
     [AS_HELP_STRING([--with-apparmorconfigdir], [path to apparmor.d configuration directory])], [
   APPARMOR_SYSCONFIG="${withval}"
