@@ -564,7 +564,8 @@ else
 APPARMOR_DISTCHECK_CONFIGURE_FLAGS=--disable-apparmor
 endif
 
-coverage.xml: check
+coverage.csv: check
 	gcovr \
+		--csv \
 		--merge-mode-functions=separate \
 		-o $@ .
