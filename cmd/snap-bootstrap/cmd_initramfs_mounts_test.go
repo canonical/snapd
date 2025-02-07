@@ -2736,6 +2736,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeEncryptedDataHappy(c *C
 		mod, err := opts.WhichModel()
 		c.Assert(err, IsNil)
 		c.Check(mod.Model(), Equals, "my-model")
+		c.Check(opts.BootMode, Equals, "run")
 
 		dataActivated = true
 		// return true because we are using an encrypted device
@@ -3993,6 +3994,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeHappyEncrypted(c *C
 		mod, err := opts.WhichModel()
 		c.Assert(err, IsNil)
 		c.Check(mod.Model(), Equals, "my-model")
+		c.Check(opts.BootMode, Equals, "recover")
 
 		dataActivated = true
 		return happyUnlocked("ubuntu-data", secboot.UnlockedWithSealedKey), nil
@@ -4135,6 +4137,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeEncryptedDegradedDa
 			c.Assert(encDevPartUUID, Equals, "ubuntu-data-enc-partuuid")
 			c.Assert(opts.AllowRecoveryKey, Equals, false)
 			c.Assert(opts.WhichModel, NotNil)
+			c.Check(opts.BootMode, Equals, "recover")
 			return foundEncrypted("ubuntu-data"), fmt.Errorf("failed to unlock ubuntu-data")
 
 		case 2:
@@ -4149,6 +4152,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeEncryptedDegradedDa
 			mod, err := opts.WhichModel()
 			c.Assert(err, IsNil)
 			c.Check(mod.Model(), Equals, "my-model")
+			c.Check(opts.BootMode, Equals, "recover")
 
 			dataActivated = true
 			return happyUnlocked("ubuntu-data", secboot.UnlockedWithSealedKey), nil
@@ -4310,6 +4314,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeEncryptedDegradedSa
 			c.Assert(encDevPartUUID, Equals, "ubuntu-data-enc-partuuid")
 			c.Assert(opts.AllowRecoveryKey, Equals, false)
 			c.Assert(opts.WhichModel, NotNil)
+			c.Check(opts.BootMode, Equals, "recover")
 			dataActivated = true
 			return happyUnlocked("ubuntu-data", secboot.UnlockedWithSealedKey), nil
 
@@ -4328,6 +4333,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeEncryptedDegradedSa
 			mod, err := opts.WhichModel()
 			c.Assert(err, IsNil)
 			c.Check(mod.Model(), Equals, "my-model")
+			c.Check(opts.BootMode, Equals, "recover")
 			dataActivated = true
 			return happyUnlocked("ubuntu-save", secboot.UnlockedWithSealedKey), nil
 		default:
@@ -4499,6 +4505,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeEncryptedDegradedAb
 			c.Assert(encDevPartUUID, Equals, "ubuntu-data-enc-partuuid")
 			c.Assert(opts.AllowRecoveryKey, Equals, true)
 			c.Assert(opts.WhichModel, NotNil)
+			c.Check(opts.BootMode, Equals, "recover")
 			dataActivated = true
 			return happyUnlocked("ubuntu-data", secboot.UnlockedWithSealedKey), nil
 		default:
@@ -4660,6 +4667,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeEncryptedDegradedAb
 			c.Assert(encDevPartUUID, Equals, "ubuntu-data-enc-partuuid")
 			c.Assert(opts.AllowRecoveryKey, Equals, true)
 			c.Assert(opts.WhichModel, NotNil)
+			c.Check(opts.BootMode, Equals, "recover")
 			dataActivated = true
 			// it was unlocked with a recovery key
 
@@ -4811,6 +4819,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeEncryptedDegradedDa
 			c.Assert(encDevPartUUID, Equals, "ubuntu-data-enc-partuuid")
 			c.Assert(opts.AllowRecoveryKey, Equals, false)
 			c.Assert(opts.WhichModel, NotNil)
+			c.Check(opts.BootMode, Equals, "recover")
 			dataActivationAttempts++
 			return foundEncrypted("ubuntu-data"), fmt.Errorf("failed to unlock ubuntu-data with run object")
 
@@ -4823,6 +4832,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeEncryptedDegradedDa
 			c.Assert(encDevPartUUID, Equals, "ubuntu-data-enc-partuuid")
 			c.Assert(opts.AllowRecoveryKey, Equals, true)
 			c.Assert(opts.WhichModel, NotNil)
+			c.Check(opts.BootMode, Equals, "recover")
 			dataActivationAttempts++
 			return foundEncrypted("ubuntu-data"), fmt.Errorf("failed to unlock ubuntu-data with fallback object")
 
@@ -4835,6 +4845,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeEncryptedDegradedDa
 			c.Assert(encDevPartUUID, Equals, "ubuntu-save-enc-partuuid")
 			c.Assert(opts.AllowRecoveryKey, Equals, true)
 			c.Assert(opts.WhichModel, NotNil)
+			c.Check(opts.BootMode, Equals, "recover")
 			saveActivated = true
 			return happyUnlocked("ubuntu-save", secboot.UnlockedWithSealedKey), nil
 		default:
@@ -5021,6 +5032,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeDegradedAbsentDataU
 			c.Assert(err, FitsTypeOf, disks.PartitionNotFoundError{})
 			c.Assert(opts.AllowRecoveryKey, Equals, false)
 			c.Assert(opts.WhichModel, NotNil)
+			c.Check(opts.BootMode, Equals, "recover")
 			// validity check that we can't find a normal ubuntu-data either
 			_, err = disk.FindMatchingPartitionUUIDWithFsLabel(name)
 			c.Assert(err, FitsTypeOf, disks.PartitionNotFoundError{})
@@ -5210,6 +5222,8 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeDegradedUnencrypted
 			c.Assert(err, FitsTypeOf, disks.PartitionNotFoundError{})
 			c.Assert(opts.AllowRecoveryKey, Equals, false)
 			c.Assert(opts.WhichModel, NotNil)
+			c.Check(opts.BootMode, Equals, "recover")
+
 			// validity check that we can't find a normal ubuntu-data either
 			partUUID, err := disk.FindMatchingPartitionUUIDWithFsLabel(name)
 			c.Assert(err, IsNil)
@@ -5612,6 +5626,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeEncryptedDegradedAb
 			c.Assert(err, FitsTypeOf, disks.PartitionNotFoundError{})
 			c.Assert(opts.AllowRecoveryKey, Equals, false)
 			c.Assert(opts.WhichModel, NotNil)
+			c.Check(opts.BootMode, Equals, "recover")
 			dataActivated = true
 			// data not found at all
 			return notFoundPart(), fmt.Errorf("error enumerating to find ubuntu-data")
@@ -5625,6 +5640,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeEncryptedDegradedAb
 			c.Assert(encDevPartUUID, Equals, "ubuntu-save-enc-partuuid")
 			c.Assert(opts.AllowRecoveryKey, Equals, true)
 			c.Assert(opts.WhichModel, NotNil)
+			c.Check(opts.BootMode, Equals, "recover")
 			saveActivated = true
 			return happyUnlocked("ubuntu-save", secboot.UnlockedWithSealedKey), nil
 		default:
@@ -5804,6 +5820,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeEncryptedDegradedDa
 			c.Assert(encDevPartUUID, Equals, "ubuntu-data-enc-partuuid")
 			c.Assert(opts.AllowRecoveryKey, Equals, false)
 			c.Assert(opts.WhichModel, NotNil)
+			c.Check(opts.BootMode, Equals, "recover")
 			dataActivationAttempts++
 			return foundEncrypted("ubuntu-data"), fmt.Errorf("failed to unlock ubuntu-data with run object")
 
@@ -5816,6 +5833,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeEncryptedDegradedDa
 			c.Assert(encDevPartUUID, Equals, "ubuntu-data-enc-partuuid")
 			c.Assert(opts.AllowRecoveryKey, Equals, true)
 			c.Assert(opts.WhichModel, NotNil)
+			c.Check(opts.BootMode, Equals, "recover")
 			dataActivationAttempts++
 			return foundEncrypted("ubuntu-data"), fmt.Errorf("failed to unlock ubuntu-data with fallback object")
 
@@ -5830,6 +5848,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeEncryptedDegradedDa
 			c.Assert(encDevPartUUID, Equals, "ubuntu-save-enc-partuuid")
 			c.Assert(opts.AllowRecoveryKey, Equals, true)
 			c.Assert(opts.WhichModel, NotNil)
+			c.Check(opts.BootMode, Equals, "recover")
 			saveUnsealActivationAttempted = true
 			return foundEncrypted("ubuntu-save"), fmt.Errorf("failed to unlock ubuntu-save with fallback object")
 
@@ -5998,6 +6017,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeEncryptedMismatched
 		c.Assert(encDevPartUUID, Equals, "ubuntu-data-enc-partuuid")
 		c.Assert(opts.AllowRecoveryKey, Equals, false)
 		c.Assert(opts.WhichModel, NotNil)
+		c.Check(opts.BootMode, Equals, "recover")
 		dataActivated = true
 		return happyUnlocked("ubuntu-data", secboot.UnlockedWithSealedKey), nil
 	})
@@ -6213,6 +6233,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeEncryptedAttackerFS
 		c.Assert(encDevPartUUID, Equals, "ubuntu-data-enc-partuuid")
 		c.Assert(opts.AllowRecoveryKey, Equals, false)
 		c.Assert(opts.WhichModel, NotNil)
+		c.Check(opts.BootMode, Equals, "recover")
 		activated = true
 		return happyUnlocked("ubuntu-data", secboot.UnlockedWithSealedKey), nil
 	})
@@ -7065,6 +7086,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsFactoryResetModeHappyEncrypted
 		mod, err := opts.WhichModel()
 		c.Assert(err, IsNil)
 		c.Check(mod.Model(), Equals, "my-model")
+		c.Check(opts.BootMode, Equals, "factory-reset")
 
 		saveActivated = true
 		return happyUnlocked("ubuntu-save", secboot.UnlockedWithSealedKey), nil
@@ -7938,6 +7960,7 @@ func (s *initramfsClassicMountsSuite) TestInitramfsMountsRunModeEncryptedDataHap
 			mod, err := opts.WhichModel()
 			c.Assert(err, IsNil)
 			c.Check(mod.Model(), Equals, "my-model")
+			c.Check(opts.BootMode, Equals, "run")
 
 			dataActivated = true
 			// return true because we are using an encrypted device
