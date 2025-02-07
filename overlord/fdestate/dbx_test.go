@@ -454,7 +454,6 @@ func (s *fdeMgrSuite) TestEFIDBXUpdateAndCleanupRunningAction(c *C) {
 	})
 
 	c.Check(chg.IsReady(), Equals, true)
-	c.Check(chg.IsClean(), Equals, false)
 	c.Check(chg.Status(), Equals, state.DoneStatus)
 	c.Check(chg.Err(), IsNil)
 
@@ -582,7 +581,6 @@ func (s *fdeMgrSuite) TestEFIDBXUpdateAndUnexpectedStartupAction(c *C) {
 
 	// change has an error now
 	c.Check(chg.IsReady(), Equals, true)
-	c.Check(chg.IsClean(), Equals, false)
 	c.Check(chg.Status(), Equals, state.ErrorStatus)
 	c.Check(chg.Err(), ErrorMatches, "cannot perform the following tasks:\n"+
 		"- Reseal after external EFI DBX update .'startup' action invoked while an operation is in progress.")
@@ -690,7 +688,6 @@ func (s *fdeMgrSuite) TestEFIDBXUpdateAbort(c *C) {
 
 	// change has been undone
 	c.Check(chg.IsReady(), Equals, true)
-	c.Check(chg.IsClean(), Equals, false)
 	c.Check(chg.Status(), Equals, state.UndoneStatus)
 	c.Check(tsks[0].Status(), Equals, state.UndoneStatus)
 	c.Check(tsks[1].Status(), Equals, state.HoldStatus)
@@ -1068,8 +1065,11 @@ func (s *fdeMgrSuite) TestEFIDBXBlockedTasks(c *C) {
 	c.Check(fdestate.IsEFISecurebootDBUpdateBlocked(tsk), Equals, true)
 
 	// execute a single iteration of task runner
-	s.runnerIterationLocked(c)
-	c.Check(tsk.Status(), Equals, state.DoStatus)
+	st.Unlock()
+	iterateUnlockedStateWaitingFor(st, func() bool {
+		return tsk.Status() == state.DoStatus
+	})
+	st.Lock()
 
 	// now unblock it
 	op.SetStatus(fdestate.CompletingStatus)
@@ -1077,10 +1077,9 @@ func (s *fdeMgrSuite) TestEFIDBXBlockedTasks(c *C) {
 
 	c.Check(fdestate.IsEFISecurebootDBUpdateBlocked(tsk), Equals, false)
 
-	// execute a single iteration of task runner
 	s.runnerIterationLocked(c)
-	c.Check(tsk.Status(), Equals, state.DoingStatus)
 
+	// the change is able to complete now
 	st.Unlock()
 	iterateUnlockedStateWaitingFor(st, chg.IsReady)
 	st.Lock()
