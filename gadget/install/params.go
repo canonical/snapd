@@ -86,7 +86,7 @@ func MockEncryptionSetupData(labelToEncDevice map[string]*MockEncryptedDeviceAnd
 	esd := &EncryptionSetupData{
 		parts: map[string]partEncryptionData{}}
 	for label, encryptData := range labelToEncDevice {
-		//TODO: we should use a mock for the bootstrap key. However,
+		//TODO:FDEM: we should use a mock for the bootstrap key. However,
 		//this is still used in place where LegacyKeptKey will be
 		//called to write the save key to a file in
 		//overlord/install/install.go. Once we have removed that call,

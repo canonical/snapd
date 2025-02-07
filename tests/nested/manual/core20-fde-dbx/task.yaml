@@ -12,7 +12,7 @@ environment:
     NESTED_UBUNTU_SEED_SIZE: 1500M
 
 prepare: |
-    # TODO copy nested vars file to "$NESTED_ASSETS_DIR/OVMF_VARS.snakeoil.fd"
+    # TODO:FDEM: copy nested vars file to "$NESTED_ASSETS_DIR/OVMF_VARS.snakeoil.fd"
     #
     tests.nested build-image core
     tests.nested create-vm core    
@@ -128,7 +128,7 @@ execute: |
 
     fetch_and_check_reseal_count_equal "$((reseal_count_start + 6))"
 
-    # TODO update DBX
+    # TODO:FDEM: update DBX
 
     echo "Attempt a valid 'prepare' request, followed by a reboot"
     echo "{\"action\":\"efi-secureboot-update-db-prepare\",\"key-database\":\"DBX\",\"payload\":\"$update_payload\"}" | \

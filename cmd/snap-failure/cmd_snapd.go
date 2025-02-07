@@ -185,7 +185,7 @@ func (c *cmdSnapd) Execute(args []string) error {
 		}
 	}
 	// start previous snapd
-	// FIXME: we should either run through systemd with
+	// TODO:FDEM:FIX: we should either run through systemd with
 	// KeyringMode=shared or make the re-seeding not initialize
 	// fdestate
 	cmd := runCmd(snapdPath, nil, []string{"SNAPD_REVERT_TO_REV=" + prevRev, "SNAPD_DEBUG=1"})

@@ -123,7 +123,7 @@ func (m *FDEManager) StartUp() error {
 
 	err := func() error {
 		if m.mode == "run" {
-			// TODO should we try to initialize the state in
+			// TODO:FDEM: should we try to initialize the state in
 			// install/recover/factory-reset modes?
 			if err := initializeState(m.state); err != nil {
 				return fmt.Errorf("cannot initialize FDE state: %v", err)
@@ -141,7 +141,7 @@ func (m *FDEManager) StartUp() error {
 }
 
 func (m *FDEManager) isFunctional() error {
-	// TODO use more specific errors to capture different error states
+	// TODO:FDEM: use more specific errors to capture different error states
 	return m.initErr
 }
 

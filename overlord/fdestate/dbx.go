@@ -314,7 +314,7 @@ func (m *FDEManager) doEFISecurebootDBUpdatePrepare(t *state.Task, tomb *tomb.To
 		mgr := fdeMgr(st)
 
 		return boot.WithBootChains(func(bc *boot.ResealKeyForBootChainsParams) error {
-			// TODO are we logging too much?
+			// TODO: are we logging too much?
 			logger.Debugf("attempting reseal for DBX update")
 			logger.Debugf("boot chains: %v\n", bc)
 			logger.Debugf("DBX update payload: %x", updateData.Payload)
@@ -373,7 +373,7 @@ func (m *FDEManager) undoEFISecurebootDBUpdatePrepare(t *state.Task, tomb *tomb.
 		// operation status already indicates error, which means that it failed
 		// in the efi-secureboot-db-update handler
 
-		// TODO should we perform a reseal? one attempt in the 'do' handler
+		// TODO:FDEM: should we perform a reseal? one attempt in the 'do' handler
 		// already failed
 		t.Logf("action already in error state with error: %v", op.Err)
 		return nil
@@ -519,7 +519,7 @@ func isEFISecurebootDBUpdateBlocked(t *state.Task) bool {
 }
 
 func dbxUpdateAffectedSnaps(t *state.Task) ([]string, error) {
-	// TODO check if we have sealed keys at all
+	// TODO:FDEM: check if we have sealed keys at all
 
 	// DBX updates cause a reseal, so any snaps which are either directly
 	// measured or their content is measured during the boot will count as
@@ -532,7 +532,7 @@ func dbxUpdateAffectedSnaps(t *state.Task) ([]string, error) {
 }
 
 func checkDBXChangeConflicts(st *state.State) error {
-	// TODO check if we have sealed keys at all
+	// TODO:FDEM: check if we have sealed keys at all
 
 	snaps, err := fdeRelevantSnaps(st)
 	if err != nil {

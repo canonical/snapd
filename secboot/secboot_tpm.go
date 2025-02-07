@@ -254,7 +254,7 @@ func readKeyTokenImpl(devicePath, slotName string) (*sb.KeyData, error) {
 
 var readKeyToken = readKeyTokenImpl
 
-// TODO: we do not really need an interface here, a struct would be
+// TODO:FDEM: we do not really need an interface here, a struct would be
 // enough.
 type keyLoader interface {
 	// LoadedKeyData keeps track of keys in KeyData format.
@@ -312,7 +312,7 @@ func hasOldSealedKeyPrefix(keyfile string) (bool, error) {
 // the case of TPM sealed object, the key object itself will be
 // provided. This is uselful for resealing, as the associated KeyData
 // provided in that case will be enough for unlocking.
-// TODO: consider moving this to secboot
+// TODO:FDEM: consider moving this to secboot
 func readKeyFileImpl(keyfile string, kl keyLoader, hintExpectFDEHook bool) error {
 	oldSealedKey, err := hasOldSealedKeyPrefix(keyfile)
 	if err != nil {
@@ -384,7 +384,7 @@ func (key KeyDataLocation) readTokenAndGetWriter() (*sb.KeyData, sb.KeyDataWrite
 // KeyData or a SealedKeyObject depending on the format if read from a
 // file. It will return only a KeyData if found in a token. If a
 // KeyData is returned, then a KeyDataWriter is also returned.
-// TODO: consider moving this to secboot_sb.go
+// TODO:FDEM: consider moving this to secboot_sb.go
 func readKeyData(key KeyDataLocation) (*sb.KeyData, *sb_tpm2.SealedKeyObject, sb.KeyDataWriter, error) {
 	// We try with the token first. If we find it, we will ignore
 	// the file.
@@ -515,7 +515,7 @@ func SealKeys(keys []SealKeyRequest, params *SealKeysParams) ([]byte, error) {
 	for _, key := range keys {
 		creationParams := &sb_tpm2.ProtectKeyParams{
 			PCRProfile: pcrProfile,
-			// TODO: add roles
+			// TODO:FDEM:FIX: add roles
 			PCRPolicyCounterHandle: tpm2.Handle(pcrHandle),
 			PrimaryKey:             primaryKey,
 		}
@@ -572,7 +572,7 @@ func ResealKeys(params *ResealKeysParams) error {
 		return err
 	}
 
-	// FIXME: load primary key from keyring when available
+	// TODO:FDEM:FIX: load primary key from keyring when available
 	authKey, err := os.ReadFile(params.TPMPolicyAuthKeyFile)
 	if err != nil {
 		return fmt.Errorf("cannot read the policy auth key file %s: %w", params.TPMPolicyAuthKeyFile, err)
@@ -622,7 +622,7 @@ func ResealKeys(params *ResealKeysParams) error {
 			return fmt.Errorf("cannot revoke old PCR protection policies: %w", err)
 		}
 	} else {
-		// TODO: find out which context when revocation should happen
+		// TODO:FDEM:FIX: find out which context when revocation should happen
 		if err := sbUpdateKeyDataPCRProtectionPolicy(tpm, authKey, &pcrProfile, sb_tpm2.NoNewPCRPolicyVersion, keyDatas...); err != nil {
 			return fmt.Errorf("cannot update PCR protection policy: %w", err)
 		}
@@ -633,7 +633,7 @@ func ResealKeys(params *ResealKeysParams) error {
 			}
 		}
 
-		//TODO: revoke after writing? Not sure how.
+		//TODO:FDEM:FIX: revoke after writing? Not sure how.
 
 	}
 	return nil
@@ -828,7 +828,7 @@ func tpmReleaseResourcesImpl(tpm *sb_tpm2.Connection, handle tpm2.Handle) error 
 
 // releasePCRResourceHandles releases any TPM resources associated with given
 // PCR handles.
-// FIXME: were are not releasing PCR handles, but NV index handles. So
+// TODO:FDEM:FIX: were are not releasing PCR handles, but NV index handles. So
 // the name is confusing
 func releasePCRResourceHandles(handles ...uint32) error {
 	tpm, err := sbConnectToDefaultTPM()
@@ -977,7 +977,7 @@ func GetPCRHandle(node, keySlot, keyFile string) (uint32, error) {
 	if err != nil {
 		if os.IsNotExist(err) {
 			if readKeyDataErr != nil {
-				// FIXME: secboot should tell us if
+				// TODO:FDEM:FIX: secboot should tell us if
 				// Data was nil, in that case we
 				// should be silent, otherwise we
 				// should return the error.
@@ -1009,8 +1009,9 @@ func GetPCRHandle(node, keySlot, keyFile string) (uint32, error) {
 
 // RemoveOldCounterHandles releases TPM2 handles used by some keys.
 // The keys for which handles are released are:
-//  - in the keyslots of the given device, with names matching possibleOldKeys.
-//  - in key files at paths given by possibleKeyFiles.
+//   - in the keyslots of the given device, with names matching possibleOldKeys.
+//   - in key files at paths given by possibleKeyFiles.
+//
 // All TPM2 handles found in any key found will be removed. If keyslots
 // or key files are not found, they are just ignored.
 // hintExpectFDEHook helps reading old key object files.  If not TPM2
@@ -1027,7 +1028,7 @@ func RemoveOldCounterHandles(device string, possibleOldKeys map[string]bool, pos
 		if possibleOldKeys[slot] {
 			reader, err := sbNewLUKS2KeyDataReader(device, slot)
 			if err != nil {
-				// FIXME: secboot should tell us if
+				// TODO:FDEM:FIX: secboot should tell us if
 				// Data was nil, in that case we
 				// should be silent, otherwise we
 				// should return the error.

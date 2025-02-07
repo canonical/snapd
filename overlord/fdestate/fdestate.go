@@ -118,7 +118,7 @@ type KeyslotRoleInfo struct {
 }
 
 // KeyDigest stores a Digest(key, salt) of a key
-// FIXME: take what is implemented in secboot
+// TODO:FDEM: take what is implemented in secboot
 type KeyDigest struct {
 	// Algorithm is the algorithm for
 	Algorithm secboot.HashAlg `json:"alg"`
@@ -179,7 +179,7 @@ func initializeState(st *state.State) error {
 	var s FdeState
 	err := st.Get(fdeStateKey, &s)
 	if err == nil {
-		// TODO: Do we need to do something in recover?
+		// TODO:FDEM: Do we need to do something in recover?
 		return nil
 	}
 
@@ -187,18 +187,18 @@ func initializeState(st *state.State) error {
 		return err
 	}
 
-	// FIXME mount points will be different in recovery or factory-reset modes
+	// TODO:FDEM:FIX: mount points will be different in recovery or factory-reset modes
 	// either inspect degraded.json, or use boot.HostUbuntuDataForMode()
 	dataUUID, dataErr := disksDMCryptUUIDFromMountPoint(dirs.WritableMountPath)
 	saveUUID, saveErr := disksDMCryptUUIDFromMountPoint(dirs.SnapSaveDir)
 	if errors.Is(saveErr, disks.ErrMountPointNotFound) {
-		// TODO: do we need to care about old cases where there is no save partition?
+		// TODO:FDEM: do we need to care about old cases where there is no save partition?
 		return nil
 	}
 
 	if errors.Is(dataErr, disks.ErrNoDmUUID) && errors.Is(saveErr, disks.ErrNoDmUUID) {
 		// There is no encryption, so we ignore it.
-		// TODO: we should verify the device "sealed key method"
+		// TODO:FDEM: we should verify the device "sealed key method"
 		return nil
 	}
 
@@ -264,17 +264,17 @@ func initializeState(st *state.State) error {
 
 	// Note that Parameters will be updated on first update
 	s.KeyslotRoles = map[string]KeyslotRoleInfo{
-		// TODO: use a constant
+		// TODO:FDEM: use a constant
 		"run": {
 			PrimaryKeyID:                   0,
 			TPM2PCRPolicyRevocationCounter: runCounterHandle,
 		},
-		// TODO: use a constant
+		// TODO:FDEM: use a constant
 		"run+recover": {
 			PrimaryKeyID:                   0,
 			TPM2PCRPolicyRevocationCounter: runCounterHandle,
 		},
-		// TODO: use a constant
+		// TODO:FDEM: use a constant
 		"recover": {
 			PrimaryKeyID:                   0,
 			TPM2PCRPolicyRevocationCounter: fallbackCounterHandle,
@@ -378,8 +378,6 @@ func fdeRelevantSnaps(st *state.State) ([]string, error) {
 	}
 
 	// these snaps, or either their content is measured during boot
-	// TODO do we need anything for components?
-
 	return []string{devCtx.Gadget(), devCtx.Kernel(), devCtx.Base()}, nil
 }
 

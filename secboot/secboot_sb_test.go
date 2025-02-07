@@ -1237,7 +1237,7 @@ func (s *secbootSuite) TestResealKey(c *C) {
 			c.Assert(pcrAlg, Equals, tpm2.HashAlgorithmSHA256)
 			c.Assert(loadSequences, DeepEquals, sequences)
 			c.Assert(options, HasLen, 3)
-			// TODO test other options
+			// TODO:FDEM: test other options
 
 			// options are passed as an interface, and the underlying types are
 			// not exported by secboot, so we simply assume that specific options

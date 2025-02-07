@@ -181,7 +181,7 @@ func EnsureRecoveryKey(keyFile string, rkeyDevs []RecoveryKeyDevice) (keys.Recov
 				unlockKey = key
 			}
 
-			// FIXME: we should try to enroll the key and check the error instead of verifying the key is there
+			// TODO:FDEM:FIX: we should try to enroll the key and check the error instead of verifying the key is there
 			slots, err := sbListLUKS2ContainerRecoveryKeyNames(device.node)
 			if err != nil {
 				return keys.RecoveryKey{}, fmt.Errorf("cannot list keys on disk %s: %v", device.node, err)
@@ -225,7 +225,7 @@ func devFromMount(mp string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("cannot partition for mount %v: %v", mp, err)
 	}
-	// TODO: make secboot accept UUID= and use that
+	// TODO:FDEM: make secboot accept UUID= and use that
 	return fmt.Sprintf("/dev/disk/by-uuid/%s", uuid), nil
 }
 
@@ -304,7 +304,7 @@ func StageEncryptionKeyChange(node string, key keys.EncryptionKey) error {
 		return fmt.Errorf("cannot get UUID of %v: %v", node, err)
 	}
 
-	// TODO: make secboot accept UUID= and use that
+	// TODO:FDEM: make secboot accept UUID= and use that
 	dev := fmt.Sprintf("/dev/disk/by-uuid/%s", uuid)
 	logger.Debugf("stage encryption key change on device: %v", dev)
 

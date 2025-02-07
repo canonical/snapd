@@ -202,7 +202,7 @@ func sealKeyForBootChainsBackend(method device.SealingMethod, key, saveKey secbo
 		return err
 	}
 
-	// TODO: refactor sealing functions to take a struct instead of so many
+	// TODO:FDEM: refactor sealing functions to take a struct instead of so many
 	// parameters
 	primaryKey, err = sealRunObjectKeys(key, pbc, primaryKey, params.RoleToBlName, handle, params.UseTokens)
 	if err != nil {
@@ -248,7 +248,7 @@ func init() {
 	boot.SealKeyForBootChains = sealKeyForBootChainsBackend
 }
 
-// TODO move those to export_test.go once we have split tests.
+// TODO:FDEM: move those to export_test.go once we have split tests.
 func MockSecbootProvisionTPM(f func(mode secboot.TPMProvisionMode, lockoutAuthFile string) error) (restore func()) {
 	old := secbootProvisionTPM
 	secbootProvisionTPM = f
