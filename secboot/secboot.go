@@ -193,6 +193,8 @@ type UnlockVolumeUsingSealedKeyOptions struct {
 	// WhichModel if invoked should return the device model
 	// assertion for which the disk is being unlocked.
 	WhichModel func() (*asserts.Model, error)
+	// BootMode is the current boot mode (i.e. snapd_recovery_mode kernel parameter)
+	BootMode string
 }
 
 // UnlockMethod is the method that was used to unlock a volume.

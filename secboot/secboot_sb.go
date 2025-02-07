@@ -161,9 +161,9 @@ func UnlockVolumeUsingSealedKeyIfEncrypted(disk disks.Disk, name string, sealedE
 		// This does not seem to work:
 		//defer sbSetModel(nil)
 	}
-	// TODO:FDEM:FIX: set boot mode
-	//sbSetBootMode("run")
-	//defer sbSetBootMode("")
+
+	sbSetBootMode(opts.BootMode)
+	defer sbSetBootMode("")
 	sbSetKeyRevealer(&keyRevealerV3{})
 	defer sbSetKeyRevealer(nil)
 
