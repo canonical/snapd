@@ -209,6 +209,9 @@ ptrace (read, trace) peer=libvirt-*,
 
 # Used by neutron-ovn-agent.
 unmount /run/netns/ovnmeta-*,
+
+# Required by libvirtd to detect and utilise AMD SEV capabilities for AMD CPU's
+/dev/sev rw,
 `
 
 const microStackSupportConnectedPlugSecComp = `
