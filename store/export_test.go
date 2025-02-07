@@ -42,6 +42,8 @@ var (
 	ApiURL        = apiURL
 	Download      = download
 
+	DownloadIconImpl = downloadIcon
+
 	ApplyDelta = applyDelta
 
 	AuthLocation      = authLocation
@@ -147,6 +149,14 @@ func MockDownload(f func(ctx context.Context, name, sha3_384, downloadURL string
 	return func() {
 		download = origDownload
 	}
+}
+
+func MockMaxIconFilesize(maxSize int64) (restore func()) {
+	return testutil.Mock(&maxIconFilesize, maxSize)
+}
+
+func MockDownloadIcon(f func(ctx context.Context, name, downloadURL string, w ReadWriteSeekTruncater) error) (restore func()) {
+	return testutil.Mock(&downloadIcon, f)
 }
 
 func MockDoDownloadReq(f func(ctx context.Context, storeURL *url.URL, cdnHeader string, resume int64, s *Store, user *auth.UserState) (*http.Response, error)) (restore func()) {

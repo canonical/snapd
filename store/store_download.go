@@ -308,6 +308,42 @@ func (s *Store) Download(ctx context.Context, name string, targetPath string, do
 	return s.cacher.Put(downloadInfo.Sha3_384, targetPath)
 }
 
+// DownloadIcon downloads the icon for the snap from the given download URL to
+// the given target path. Snap icons are small (<256kB) files served from an
+// ordinary unauthenticated file server, so this does not require store
+// authentication or user state, nor a progress bar. They are also not revision-
+// specific, and do not use a download cache.
+func DownloadIcon(ctx context.Context, name string, targetPath string, downloadURL string) error {
+	if err := os.MkdirAll(filepath.Dir(targetPath), 0o755); err != nil {
+		return err
+	}
+
+	// Download icon to a temporary file location, since there may be an active
+	// snap icon hard-linked to targetPath. If download fails, don't want to
+	// corrupt the existing icon file contents. Instead, commit the new file
+	// once the download succeeds, thus leaving any previous icon linked to the
+	// original unchanged icon contents, until a future task re-links to the
+	// new contents.
+	aw, err := osutil.NewAtomicFile(targetPath, 0o644, 0, osutil.NoChown, osutil.NoChown)
+	if err != nil {
+		return fmt.Errorf("cannot create file for snap icon for snap %s: %v", name, err)
+	}
+	// on success, Cancel becomes a no-op
+	defer aw.Cancel()
+
+	logger.Debugf("Starting download of %q to %q.", downloadURL, targetPath)
+
+	if err = downloadIcon(ctx, name, downloadURL, aw); err != nil {
+		logger.Debugf("download of %q failed: %#v", downloadURL, err)
+		return err
+	}
+
+	if err = aw.Commit(); err != nil {
+		return fmt.Errorf("cannot commit snap icon file for snap %s: %v", name, err)
+	}
+	return nil
+}
+
 func downloadReqOpts(storeURL *url.URL, cdnHeader string, opts *DownloadOptions) *requestOptions {
 	reqOptions := requestOptions{
 		Method:       "GET",
@@ -485,7 +521,7 @@ func downloadImpl(ctx context.Context, name, sha3_384, downloadURL string, user 
 			return fmt.Errorf("the download has been cancelled: %s", downloadCtx.Err())
 		}
 		var resp *http.Response
-		cli := s.newHTTPClient(nil)
+		cli := s.newHTTPClient(nil) // XXX: there's no timeout defined for this client, and the context is context.TODO(), so it won't be cancelled
 		oldCheckRedirect := cli.CheckRedirect
 		if oldCheckRedirect == nil {
 			panic("internal error: the httputil.NewHTTPClient-produced http.Client must have CheckRedirect defined")
@@ -598,6 +634,92 @@ func downloadImpl(ctx context.Context, name, sha3_384, downloadURL string, user 
 		logger.Debugf("Download succeeded in %.03fs (%.0f%cB/s).", dt.Seconds(), r, p)
 	}
 	return finalErr
+}
+
+type ReadWriteSeekTruncater interface {
+	io.Reader
+	io.Writer
+	io.Seeker
+
+	Truncate(size int64) error
+}
+
+var (
+	maxIconFilesize int64 = 300000
+	downloadIcon          = downloadIconImpl
+)
+
+// downloadIconImpl writes an http.Request which does not require authentication
+// or a progress.Meter.
+func downloadIconImpl(ctx context.Context, name, downloadURL string, w ReadWriteSeekTruncater) error {
+	iconURL, err := url.Parse(downloadURL)
+	if err != nil {
+		return err
+	}
+
+	startTime := time.Now()
+	errRetry := errors.New("retry")
+	for attempt := retry.Start(downloadRetryStrategy, nil); attempt.Next(); {
+		httputil.MaybeLogRetryAttempt(iconURL.String(), attempt, startTime)
+
+		err = func() error {
+			clientOpts := &httputil.ClientOptions{} // XXX: should this have a timeout?
+			cli := httputil.NewHTTPClient(clientOpts)
+			var resp *http.Response
+			resp, err = doIconRequest(ctx, cli, iconURL)
+			if err != nil {
+				if httputil.ShouldRetryAttempt(attempt, err) {
+					return errRetry
+				}
+				return err
+			}
+
+			defer resp.Body.Close()
+
+			if httputil.ShouldRetryHttpResponse(attempt, resp) {
+				return errRetry
+			}
+
+			if resp.StatusCode != 200 {
+				return &DownloadError{Code: resp.StatusCode, URL: resp.Request.URL}
+			}
+
+			if resp.ContentLength == 0 || resp.ContentLength > maxIconFilesize {
+				return fmt.Errorf("unsupported Content-Length for %s (must be nonzero and <%dB): %d", downloadURL, maxIconFilesize, resp.ContentLength)
+			}
+			logger.Debugf("download size for %s: %d", downloadURL, resp.ContentLength)
+
+			_, err = io.CopyN(w, resp.Body, resp.ContentLength)
+
+			if err != nil {
+				if httputil.ShouldRetryAttempt(attempt, err) {
+					if _, err := w.Seek(0, io.SeekStart); err != nil {
+						return err
+					}
+					if err := w.Truncate(0); err != nil {
+						return err
+					}
+					return errRetry
+				}
+				return err
+			}
+
+			return nil
+		}()
+
+		if err == errRetry {
+			continue
+		}
+
+		if err == nil {
+			logger.Debugf("icon download succeeded for %s", name)
+		}
+
+		return err
+	}
+	// The loop will return an error directly if retries are exhausted and an
+	// error occurs, so we never actually break out of the loop and get here.
+	return errors.New("icon download retries exhausted")
 }
 
 // DownloadStream will copy the snap from the request to the io.Reader

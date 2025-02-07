@@ -172,14 +172,13 @@ func (s *downloadSuite) TestActualDownloadLessDetailedCloudInfoFromAuthContext(c
 }
 
 func (s *downloadSuite) TestDownloadCancellation(c *C) {
-	// the channel used by mock server to request cancellation from the test
-	syncCh := make(chan struct{})
+	ctx, cancel := context.WithCancel(context.Background())
 
 	n := 0
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		n++
 		io.WriteString(w, "foo")
-		syncCh <- struct{}{}
+		cancel()
 		io.WriteString(w, "bar")
 		time.Sleep(10 * time.Millisecond)
 	}))
@@ -188,23 +187,12 @@ func (s *downloadSuite) TestDownloadCancellation(c *C) {
 
 	theStore := store.New(&store.Config{}, nil)
 
-	ctx, cancel := context.WithCancel(context.Background())
+	sha3 := ""
+	var buf SillyBuffer
+	err := store.Download(ctx, "foo", sha3, mockServer.URL, nil, theStore, &buf, 0, nil, nil)
 
-	result := make(chan string)
-	go func() {
-		sha3 := ""
-		var buf SillyBuffer
-		err := store.Download(ctx, "foo", sha3, mockServer.URL, nil, theStore, &buf, 0, nil, nil)
-		result <- err.Error()
-		close(result)
-	}()
-
-	<-syncCh
-	cancel()
-
-	err := <-result
 	c.Check(n, Equals, 1)
-	c.Assert(err, Equals, "the download has been cancelled: context canceled")
+	c.Assert(err, ErrorMatches, "the download has been cancelled: context canceled")
 }
 
 type nopeSeeker struct{ io.ReadWriter }
@@ -291,8 +279,8 @@ func (s *downloadSuite) TestActualDownload500Once(c *C) {
 	c.Check(n, Equals, 2)
 }
 
-// SillyBuffer is a ReadWriteSeeker buffer with a limited size for the tests
-// (bytes does not implement an ReadWriteSeeker)
+// SillyBuffer is a ReadWriteSeekTruncater buffer with a limited size for the tests
+// (bytes does not implement an ReadWriteSeekTruncater)
 type SillyBuffer struct {
 	buf [1024]byte
 	pos int64
@@ -332,6 +320,13 @@ func (sb *SillyBuffer) Write(p []byte) (n int, err error) {
 		sb.end = sb.pos
 	}
 	return n, nil
+}
+func (sb *SillyBuffer) Truncate(size int64) error {
+	if size < 0 || size > int64(len(sb.buf)) {
+		return fmt.Errorf("truncate out of bounds: %d", size)
+	}
+	sb.end = size
+	return nil
 }
 func (sb *SillyBuffer) String() string {
 	return string(sb.buf[0:sb.pos])
@@ -707,4 +702,152 @@ func (s *downloadSuite) TestActualDownloadRateLimited(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(buf.String(), Equals, canary)
 	c.Check(ratelimitReaderUsed, Equals, true)
+}
+
+func (s *downloadSuite) TestActualDownloadIcon(c *C) {
+	n := 0
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		c.Check(r.Header.Get("Snap-CDN"), Equals, "")
+		c.Check(r.Header.Get("Snap-Device-Location"), Equals, "")
+		c.Check(r.Header.Get("Snap-Refresh-Reason"), Equals, "")
+		n++
+		io.WriteString(w, "response-data")
+	}))
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	var buf SillyBuffer
+	err := store.DownloadIconImpl(context.TODO(), "foo", mockServer.URL, &buf)
+	c.Assert(err, IsNil)
+	c.Check(buf.String(), Equals, "response-data")
+	c.Check(n, Equals, 1)
+}
+
+func (s *downloadSuite) TestActualDownloadIconTooLarge(c *C) {
+	var maxSize int64 = 1000 // Must be less than size of SillyBuffer, so we can write enough to exceed the limit
+	restore := store.MockMaxIconFilesize(maxSize)
+	defer restore()
+
+	n := 0
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		n++
+		response := make([]byte, maxSize+1)
+		w.Write(response)
+	}))
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	var buf SillyBuffer
+	err := store.DownloadIconImpl(context.TODO(), "foo", mockServer.URL, &buf)
+	c.Assert(err, ErrorMatches, "unsupported Content-Length .*")
+	c.Check(n, Equals, 1)
+}
+
+type BadWriter struct {
+	SillyBuffer
+}
+
+func (bw *BadWriter) Write(p []byte) (n int, err error) {
+	// Do the write
+	bw.SillyBuffer.Write(p)
+	// but return EOF
+	return -1, io.EOF
+}
+
+func (s *downloadSuite) TestActualDownloadIconCopyError(c *C) {
+	n := 0
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		n++
+		response := make([]byte, 5)
+		for i := range response[:5] {
+			// respond with 5 'a' bytes so we can check that it's been seeked and truncated
+			response[i] = 'a'
+		}
+		w.Write(response)
+	}))
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	var buf BadWriter
+	err := store.DownloadIconImpl(context.TODO(), "foo", mockServer.URL, &buf)
+	c.Check(err, testutil.ErrorIs, io.EOF)
+	c.Check(n, Equals, 5)
+	// Check that the buffer only has 5 'a' bytes, indicating that it was
+	// seeked/truncated after each failed attempt
+	c.Check(buf.buf[:15], DeepEquals, []byte{'a', 'a', 'a', 'a', 'a', 0, 0, 0, 0, 0, 0, 0, 0, 0, 0})
+}
+
+func (s *downloadSuite) TestDownloadIconCancellation(c *C) {
+	ctx, cancel := context.WithCancel(context.Background())
+
+	n := 0
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		n++
+		io.WriteString(w, "foo")
+		cancel()
+		io.WriteString(w, "bar")
+		time.Sleep(10 * time.Millisecond)
+	}))
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	var buf SillyBuffer
+	err := store.DownloadIconImpl(ctx, "foo", mockServer.URL, &buf)
+
+	c.Check(n, Equals, 1)
+	c.Assert(err, testutil.ErrorIs, context.Canceled)
+}
+
+func (s *downloadSuite) TestActualDownloadIcon404(c *C) {
+	n := 0
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		n++
+		w.WriteHeader(404)
+	}))
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	var buf SillyBuffer
+	err := store.DownloadIconImpl(context.TODO(), "foo", mockServer.URL, &buf)
+	c.Assert(err, NotNil)
+	c.Assert(err, FitsTypeOf, &store.DownloadError{})
+	c.Check(err.(*store.DownloadError).Code, Equals, 404)
+	c.Check(n, Equals, 1)
+}
+
+func (s *downloadSuite) TestActualDownloadIcon500(c *C) {
+	n := 0
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		n++
+		w.WriteHeader(500)
+	}))
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	var buf SillyBuffer
+	err := store.DownloadIconImpl(context.TODO(), "foo", mockServer.URL, &buf)
+	c.Assert(err, NotNil)
+	c.Assert(err, FitsTypeOf, &store.DownloadError{})
+	c.Check(err.(*store.DownloadError).Code, Equals, 500)
+	c.Check(n, Equals, 5)
+}
+
+func (s *downloadSuite) TestActualDownloadIcon500Once(c *C) {
+	n := 0
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		n++
+		if n == 1 {
+			w.WriteHeader(500)
+		} else {
+			io.WriteString(w, "response-data")
+		}
+	}))
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	var buf SillyBuffer
+	err := store.DownloadIconImpl(context.TODO(), "foo", mockServer.URL, &buf)
+	c.Assert(err, IsNil)
+	c.Check(buf.String(), Equals, "response-data")
+	c.Check(n, Equals, 2)
 }
