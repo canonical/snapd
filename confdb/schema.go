@@ -332,8 +332,6 @@ func (s *StorageSchema) parseAlternatives(alternatives []json.RawMessage) (*alte
 		return nil, errors.New(`alternatives must all be ephemeral or non-ephemeral`)
 	}
 
-	alt.baseSchema.ephemeral = len(ephemeralAlts) != 0
-
 	if len(alt.schemas) == 0 {
 		return nil, fmt.Errorf(`alternative type list cannot be empty`)
 	}
@@ -394,8 +392,6 @@ func (s *StorageSchema) getAlias(ref string) (*aliasReference, error) {
 }
 
 type alternativesSchema struct {
-	baseSchema
-
 	// schemas holds schemas for the types allowed for the corresponding value.
 	schemas []Schema
 }
@@ -480,6 +476,8 @@ func (v *alternativesSchema) SchemaAt(path []string) ([]Schema, error) {
 func (v *alternativesSchema) Type() SchemaType {
 	return Alt
 }
+
+func (v *alternativesSchema) Ephemeral() bool { return false }
 
 type mapSchema struct {
 	baseSchema
