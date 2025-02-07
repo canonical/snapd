@@ -123,12 +123,16 @@ prepare() {
                                   --output "$target/work/repacked-initrd"
         )
 
+        KEY_NAME=$(tests.nested download snakeoil-key)
+
         # assumes all files are named <name>-$kver
         ubuntu-core-initramfs create-efi \
                               --kernelver "$kver" \
                               --initrd repacked-initrd \
                               --kernel vmlinuz \
-                              --output repacked-kernel.efi
+                              --output repacked-kernel.efi \
+                              --key "${KEY_NAME}.key" \
+                              --cert "${KEY_NAME}.crt"
 
         cp "repacked-kernel.efi-$kver" "$target/kernel/kernel.efi"
 
