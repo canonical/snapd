@@ -1923,7 +1923,6 @@ func (s *diskSuite) TestDMCryptUUIDFromMountPointFallback(c *C) {
 		case "/dev/mapper/something":
 			return map[string]string{
 				"DEVPATH": "/devices/virtual/mydevice",
-
 			}, nil
 		default:
 			c.Errorf("unexpected udev device properties requested: %s", dev)

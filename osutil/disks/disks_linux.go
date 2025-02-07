@@ -985,7 +985,7 @@ func DMCryptUUIDFromMountPoint(mountpoint string) (string, error) {
 		if !hasDevPath {
 			return "", ErrNoDmUUID
 		}
-		devUUIDPath := filepath.Join(dirs.SysfsDir,  devPath, "dm", "uuid")
+		devUUIDPath := filepath.Join(dirs.SysfsDir, devPath, "dm", "uuid")
 		data, err := os.ReadFile(devUUIDPath)
 		if err != nil {
 			return "", ErrNoDmUUID
@@ -1046,5 +1046,5 @@ func Devlinks(node string) ([]string, error) {
 	if devlinks == "" {
 		return []string{}, fmt.Errorf("cannot get required udev DEVLINKS property")
 	}
-	return strings.Split(devlinks," "), nil
+	return strings.Split(devlinks, " "), nil
 }
