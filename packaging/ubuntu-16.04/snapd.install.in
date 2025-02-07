@@ -19,8 +19,6 @@ data/completion/bash/complete.sh /usr/lib/snapd/
 data/completion/bash/etelpmoc.sh /usr/lib/snapd/
 # zsh completion
 data/completion/zsh/_snap /usr/share/zsh/vendor-completions
-# udev, must be installed before 80-udisks
-data/udev/rules.d/66-snapd-autoimport.rules /lib/udev/rules.d
 # snap/snapd version information
 data/info /usr/lib/snapd/
 # apt hook
