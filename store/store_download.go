@@ -744,14 +744,7 @@ func downloadIconImpl(ctx context.Context, name, etag, downloadURL string, w Rea
 			}
 
 			// Save etag, if it exists.
-			// Some servers (Apache) don't use proper header names, so try
-			// multiple variations. This is why we can't use resp.Header.Get().
-			for _, headerName := range []string{http.CanonicalHeaderKey("etag"), "ETag", "Etag", "etag"} {
-				if maybeEtag, ok := resp.Header[headerName]; ok && len(maybeEtag) > 0 {
-					newEtag = maybeEtag[0] // see textproto.MIMEHeader.Get()
-					break
-				}
-			}
+			newEtag = resp.Header.Get("etag")
 
 			return nil
 		}()
