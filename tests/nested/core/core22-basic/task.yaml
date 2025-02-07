@@ -11,6 +11,10 @@ environment:
     EXPECT_TOKENS/tokens: true
     EXPECT_TOKENS/files: false
 
+debug: |
+    cat data.json || true
+    cat save.json || true
+
 execute: |
     if os.query is-ubuntu-lt 24.04 && [ "${EXPECT_TOKENS}" = true ]; then
         # SKIP
