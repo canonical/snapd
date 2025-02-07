@@ -1276,7 +1276,18 @@ func (s *storeDownloadSuite) TestDownloadIconOK(c *C) {
 	c.Assert(path, testutil.FileEquals, expectedContent)
 }
 
+func skipIfXattrsUnsupported(c *C) {
+	f, err := os.CreateTemp(c.MkDir(), "xattr-probe")
+	c.Assert(err, IsNil)
+	defer f.Close()
+	err = unix.Fsetxattr(int(f.Fd()), "user.xattr-probe", []byte("working"), 0)
+	if err != nil {
+		c.Skip("xattrs not supported on this system")
+	}
+}
+
 func (s *storeDownloadSuite) TestDownloadIconOKWithNewEtag(c *C) {
+	skipIfXattrsUnsupported(c)
 	const expectedName = "foo"
 	const expectedURL = "URL"
 	expectedContent := []byte("I was downloaded")
@@ -1305,6 +1316,7 @@ func (s *storeDownloadSuite) TestDownloadIconOKWithNewEtag(c *C) {
 }
 
 func (s *storeDownloadSuite) TestDownloadIconOKWithExistingEtag(c *C) {
+	skipIfXattrsUnsupported(c)
 	const expectedName = "foo"
 	const expectedURL = "URL"
 	existingContent := []byte("I was already here")
@@ -1343,6 +1355,7 @@ func (s *storeDownloadSuite) TestDownloadIconOKWithExistingEtag(c *C) {
 }
 
 func (s *storeDownloadSuite) TestDownloadIconOKWithChangedEtag(c *C) {
+	skipIfXattrsUnsupported(c)
 	const expectedName = "foo"
 	const expectedURL = "URL"
 	existingContent := []byte("I was already here")
@@ -1378,6 +1391,7 @@ func (s *storeDownloadSuite) TestDownloadIconOKWithChangedEtag(c *C) {
 }
 
 func (s *storeDownloadSuite) TestDownloadIconOKWithEtagTooLong(c *C) {
+	skipIfXattrsUnsupported(c)
 	const expectedName = "foo"
 	const expectedURL = "URL"
 	existingContent := []byte("I was already here")
