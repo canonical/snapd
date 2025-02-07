@@ -324,7 +324,7 @@ func DownloadIcon(ctx context.Context, name string, targetPath string, downloadU
 	// Read etag of existing file at targetPath, if it exists
 	var etag string
 	etagBuf := make([]byte, 256) // all etags should be smaller than 256B
-	if size, err := unix.Getxattr(targetPath, "user.etag", etagBuf); err == nil {
+	if size, err := unix.Getxattr(targetPath, "user.snapstore-etag", etagBuf); err == nil {
 		etag = string(etagBuf[:size])
 	}
 
@@ -358,9 +358,9 @@ func DownloadIcon(ctx context.Context, name string, targetPath string, downloadU
 
 	// Success, now try to store the etag
 	if etag != "" {
-		// Ignore any error. If it fails, we'll just redownload the whole icon
-		// next time. No problem.
-		unix.Setxattr(targetPath, "user.etag", []byte(etag), 0)
+		// Ignore any error in case the filesystem does not support xattrs.
+		// If it fails, we'll just redownload the whole icon next time.
+		unix.Setxattr(targetPath, "user.snapstore-etag", []byte(etag), 0)
 	}
 	return nil
 }

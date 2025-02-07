@@ -1297,7 +1297,7 @@ func (s *storeDownloadSuite) TestDownloadIconOKWithNewEtag(c *C) {
 
 	c.Check(path, testutil.FileEquals, expectedContent)
 	etagBuf := make([]byte, 256)
-	size, err := unix.Getxattr(path, "user.etag", etagBuf)
+	size, err := unix.Getxattr(path, "user.snapstore-etag", etagBuf)
 	c.Assert(err, IsNil)
 	writtenEtag := string(etagBuf[:size])
 	c.Check(writtenEtag, Equals, newEtag)
@@ -1314,7 +1314,7 @@ func (s *storeDownloadSuite) TestDownloadIconOKWithExistingEtag(c *C) {
 	// Create existing file
 	c.Assert(os.WriteFile(path, existingContent, 0o644), IsNil)
 	// Set etag xattr
-	c.Assert(unix.Setxattr(path, "user.etag", []byte(existingEtag), 0), IsNil)
+	c.Assert(unix.Setxattr(path, "user.snapstore-etag", []byte(existingEtag), 0), IsNil)
 
 	restore := store.MockDownloadIcon(func(ctx context.Context, name, etag, url string, w store.ReadWriteSeekTruncater) (string, error) {
 		c.Check(name, Equals, expectedName)
@@ -1335,7 +1335,7 @@ func (s *storeDownloadSuite) TestDownloadIconOKWithExistingEtag(c *C) {
 	// Existing file (and etag) should not have been overwritten
 	c.Check(path, testutil.FileEquals, existingContent)
 	etagBuf := make([]byte, 256)
-	size, err := unix.Getxattr(path, "user.etag", etagBuf)
+	size, err := unix.Getxattr(path, "user.snapstore-etag", etagBuf)
 	c.Assert(err, IsNil)
 	writtenEtag := string(etagBuf[:size])
 	c.Check(writtenEtag, Equals, existingEtag)
@@ -1353,7 +1353,7 @@ func (s *storeDownloadSuite) TestDownloadIconOKWithChangedEtag(c *C) {
 	// Create existing file
 	c.Assert(os.WriteFile(path, existingContent, 0o644), IsNil)
 	// Set etag xattr
-	c.Assert(unix.Setxattr(path, "user.etag", []byte(existingEtag), 0), IsNil)
+	c.Assert(unix.Setxattr(path, "user.snapstore-etag", []byte(existingEtag), 0), IsNil)
 
 	restore := store.MockDownloadIcon(func(ctx context.Context, name, etag, url string, w store.ReadWriteSeekTruncater) (string, error) {
 		c.Check(name, Equals, expectedName)
@@ -1370,7 +1370,7 @@ func (s *storeDownloadSuite) TestDownloadIconOKWithChangedEtag(c *C) {
 
 	c.Check(path, testutil.FileEquals, expectedContent)
 	etagBuf := make([]byte, 256)
-	size, err := unix.Getxattr(path, "user.etag", etagBuf)
+	size, err := unix.Getxattr(path, "user.snapstore-etag", etagBuf)
 	c.Assert(err, IsNil)
 	writtenEtag := string(etagBuf[:size])
 	c.Check(writtenEtag, Equals, newEtag)
