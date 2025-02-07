@@ -1,11 +1,10 @@
-summary: remodel to a model that contains components
+summary: remodel to a model that contains components in an offline context
 
 details: |
   This test remodels to a model that contains components. Specifically, this
   tests updating the kernel snap to a version that supports the newly required
-  component and installing that component.
-
-  validates that the newly created system can be rebooted into.
+  component and installing that component. This is done in an offline context,
+  and the snaps an components are provided via local files.
 
 systems: [-ubuntu-1*, -ubuntu-20*, -ubuntu-22*]
 
