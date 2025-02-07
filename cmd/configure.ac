@@ -335,9 +335,11 @@ AS_IF([test "x$with_unit_tests" = "xyes"], [
 
 AS_IF([test "x$enable_test_coverage" = "xyes"], [
   AX_APPEND_COMPILE_FLAGS([--coverage], [CHECK_CFLAGS])
+  AX_APPEND_LINK_FLAGS([--coverage], [CHECK_LDFLAGS])
 ])
 
 AC_SUBST([CHECK_CFLAGS])
+AC_SUBST([CHECK_LDFLAGS])
 
 AC_ARG_WITH([apparmorconfigdir],
     [AS_HELP_STRING([--with-apparmorconfigdir], [path to apparmor.d configuration directory])], [

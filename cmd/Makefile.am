@@ -8,6 +8,7 @@ noinst_PROGRAMS =
 noinst_LIBRARIES =
 
 AM_CFLAGS = $(CHECK_CFLAGS)
+AM_LDFLAGS = $(CHECK_LDFLAGS)
 
 if USE_INTERNAL_BPF_HEADERS
 VENDOR_BPF_HEADERS_CFLAGS = -I$(srcdir)/libsnap-confine-private/bpf/vendor
