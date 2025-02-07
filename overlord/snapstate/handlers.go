@@ -2392,7 +2392,9 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (err error) {
 	if cand.Snap.SnapID != "" {
 		// write the auxiliary store info
 		aux := &auxStoreInfo{
-			Media:   snapsup.Media,
+			Media:    snapsup.Media,
+			StoreURL: snapsup.StoreURL,
+			// XXX we store this for the benefit of old snapd
 			Website: snapsup.Website,
 		}
 		if err := keepAuxStoreInfo(cand.Snap.SnapID, aux); err != nil {

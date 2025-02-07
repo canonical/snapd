@@ -169,7 +169,8 @@ func (t *target) setups(st *state.State, opts Options) (SnapSetup, []ComponentSe
 		ExpectedProvenance: t.info.SnapProvenance,
 		Confdbs:            confdbs,
 		auxStoreInfo: auxStoreInfo{
-			Media: t.info.Media,
+			Media:    t.info.Media,
+			StoreURL: t.info.StoreURL,
 			// XXX we store this for the benefit of old snapd
 			Website: t.info.Website(),
 		},
