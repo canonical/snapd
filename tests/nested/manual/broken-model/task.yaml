@@ -45,7 +45,7 @@ execute: |
 
   remote.wait-for reboot "$boot_id"
 
-  # TODO: also test degraded.json when we report what key was used.
+  # TODO:FDEM: also test degraded.json when we report what key was used.
 
   if os.query is-ubuntu-ge 22.04; then
     snap_bootstrap_service=snap-initramfs-mounts.service

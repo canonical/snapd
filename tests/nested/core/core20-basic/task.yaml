@@ -43,10 +43,10 @@ execute: |
     fi
 
     # single key for ubuntu-data and ubuntu-save
-    # FIXME: for now save partition has 2 keys, one which is sealed in
+    # TODO:FDEM:FIX:: for now save partition has 2 keys, one which is sealed in
     # tpm, one that is data partition plain.
     test "$(remote.exec "sudo cryptsetup luksDump /dev/vda4 |grep Key:" | wc -l)" = "2"
-    # FIXME: for now data partition has 2 keys, default, and
+    # TODO:FDEM:FIX:: for now data partition has 2 keys, default, and
     # default-fallback. Both are sealed in tpm.
     test "$(remote.exec "sudo cryptsetup luksDump /dev/vda5 |grep Key:" | wc -l)" = "2"
 
@@ -67,10 +67,10 @@ execute: |
     remote.exec "sudo cryptsetup luksDump /dev/vda4"
     echo "luksDump for /dev/vda5"
     remote.exec "sudo cryptsetup luksDump /dev/vda5"
-    # FIXME: for now save partition has 3 keys, one which is sealed in
+    # TODO:FDEM:FIX:: for now save partition has 3 keys, one which is sealed in
     # tpm, one that is data partition plain. Then one recovery key.
     test "$(remote.exec "sudo cryptsetup luksDump /dev/vda4 |grep Key:" | wc -l)" = "3"
-    # FIXME: for now data partition has 3 keys, default, and
+    # TODO:FDEM:FIX:: for now data partition has 3 keys, default, and
     # default-fallback. Both are sealed in tpm. Then one that is recovery.
     test "$(remote.exec "sudo cryptsetup luksDump /dev/vda5 |grep Key:" | wc -l)" = "3"
 

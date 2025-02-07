@@ -36,7 +36,7 @@ import (
 const (
 	// The range 0x01880005-0x0188000F
 	//
-	// FIXME: we should apply for a subrange from UAPI group once
+	// TODO:FDEM: we should apply for a subrange from UAPI group once
 	// they got a range assigned by TCG.  See
 	// https://github.com/uapi-group/specifications/pull/118
 	// For now we use a sub range on the unassigned owner handles
@@ -100,7 +100,7 @@ type ModelForSealing interface {
 	SignKeyID() string
 }
 
-// TODO rename and drop Model from the name?
+// TODO:FDEM: rename and drop Model from the name?
 type SealKeyModelParams struct {
 	// The snap model
 	Model ModelForSealing
@@ -109,7 +109,7 @@ type SealKeyModelParams struct {
 	EFILoadChains []*LoadChain
 	// The kernel command line
 	KernelCmdlines []string
-	// TODO move this somewhere else?
+	// TODO:FDEM: move this somewhere else?
 	// The content of an update to EFI DBX
 	EFISignatureDbxUpdate []byte
 }

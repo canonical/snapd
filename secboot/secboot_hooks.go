@@ -72,7 +72,7 @@ func (h *hookKeyProtector) ProtectKey(rand io.Reader, cleartext, aad []byte) (ci
 func SealKeysWithFDESetupHook(runHook fde.RunSetupHookFunc, keys []SealKeyRequest, params *SealKeysWithFDESetupHookParams) error {
 	var primaryKey sb.PrimaryKey
 	if params.PrimaryKey != nil {
-		// FIXME: add unit test taking that primary key
+		// TODO:FDEM:FIX: add unit test taking that primary key
 		primaryKey = params.PrimaryKey
 	}
 
@@ -81,7 +81,7 @@ func SealKeysWithFDESetupHook(runHook fde.RunSetupHookFunc, keys []SealKeyReques
 			runHook: runHook,
 			keyName: skr.KeyName,
 		}
-		// TODO: add support for AEAD
+		// TODO:FDEM: add support for AEAD (consider OP-TEE work)
 		flags := sb_hooks.KeyProtectorNoAEAD
 		sb_hooks.SetKeyProtector(protector, flags)
 		defer sb_hooks.SetKeyProtector(nil, 0)
@@ -92,7 +92,7 @@ func SealKeysWithFDESetupHook(runHook fde.RunSetupHookFunc, keys []SealKeyReques
 			AuthorizedSnapModels: []sb.SnapModel{
 				params.Model,
 			},
-			// TODO: add boot modes
+			// TODO:FDEM:FIX: add boot modes
 		}
 
 		protectedKey, primaryKeyOut, unlockKey, err := sb_hooks.NewProtectedKey(rand.Reader, params)
@@ -135,7 +135,7 @@ var setAuthorizedSnapModelsOnHooksKeydata = setAuthorizedSnapModelsOnHooksKeydat
 // ResealKeysWithFDESetupHook updates hook based keydatas for given
 // files with a specific list of models
 func ResealKeysWithFDESetupHook(keys []KeyDataLocation, primaryKeyFile string, models []ModelForSealing) error {
-	// FIXME: load primary key from keyring when available
+	// TODO:FDEM:FIX: load primary key from keyring when available
 	primaryKeyBuf, err := os.ReadFile(primaryKeyFile)
 	if err != nil {
 		return fmt.Errorf("cannot read primary key file: %v", err)
@@ -179,7 +179,7 @@ func ResealKeysWithFDESetupHook(keys []KeyDataLocation, primaryKeyFile string, m
 				return err
 			}
 		} else {
-			// TODO: also set the run modes
+			// TODO:FDEM:FIX: also set the run modes
 			hooksKeyData, err := sb_hooks.NewKeyData(keyData)
 			if err != nil {
 				return err

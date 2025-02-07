@@ -31,12 +31,12 @@ import (
 )
 
 var systemSecurebootCmd = &Command{
-	// TODO GET returning whether secure boot is relevant for the system?
+	// TODO:FDEM: GET returning whether secure boot is relevant for the system?
 
 	Path: "/v2/system-secureboot",
 	POST: postSystemSecurebootAction,
 	WriteAccess: interfaceProviderRootAccess{
-		// TODO find a specialized interface for this, but for now assume that
+		// TODO:FDEM: find a specialized interface for this, but for now assume that
 		// requests will come only from snaps plugging fwupd interface on the
 		// slot side, which also allows manipulation of EFI variables
 		Interfaces: []string{"fwupd"},

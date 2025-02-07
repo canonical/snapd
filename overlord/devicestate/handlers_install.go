@@ -1349,16 +1349,16 @@ func createSaveBootstrappedContainer(saveNode string) (secboot.BootstrappedConta
 	// name. So we need to rename the existing keys that we are
 	// going to create.
 	//
-	// FIXME: If we crash and reboot, and re-run factory reset,
+	// TODO:FDEM:FIX: If we crash and reboot, and re-run factory reset,
 	// there will be already some old key saved. In that case, we
 	// need to keep those old keys and remove the new ones.  But
 	// we should also verify what keys we used from the
 	//
-	// FIXME: Do we maybe need to only save the default-fallback
+	// TODO:FDEM:FIX: Do we maybe need to only save the default-fallback
 	// key and delete the default key? The default key will not be
 	// able to be used since we re created the data disk.
 	//
-	// FIXME: The keys should be renamed to reprovision-XX and keep
+	// TODO:FDEM:FIX: The keys should be renamed to reprovision-XX and keep
 	// track of the mapping XX to original key name.
 	renames := map[string]string{
 		"default":          "reprovision-default",
@@ -1379,14 +1379,13 @@ func createSaveBootstrappedContainer(saveNode string) (secboot.BootstrappedConta
 	return secbootCreateBootstrappedContainer(secboot.DiskUnlockKey(saveEncryptionKey), saveNode), nil
 }
 
-
 // rotateSaveKeyAndDeleteOldKeys removes old keys that were used in previous installation after successful factory reset.
-//  - Rotate ubuntu-save recovery key files: replace
-//    ubuntu-save.recovery.sealed-key with
-//    ubuntu-save.recovery.sealed-key.factory-reset which we have
-//    successfully used during factory reset.
-//  - Remove factory-reset-* keyslots.
-//  - Release TPM handles used by the removed keys.
+//   - Rotate ubuntu-save recovery key files: replace
+//     ubuntu-save.recovery.sealed-key with
+//     ubuntu-save.recovery.sealed-key.factory-reset which we have
+//     successfully used during factory reset.
+//   - Remove factory-reset-* keyslots.
+//   - Release TPM handles used by the removed keys.
 func rotateSaveKeyAndDeleteOldKeys(saveMntPnt string) error {
 	hasHook, err := boot.HasFDESetupHook(nil)
 	if err != nil {

@@ -23,7 +23,7 @@ while ! resolvectl query api.launchpad.net; do
 done
 
 add-apt-repository ppa:snappy-dev/image -y
-# FIXME: this will need changes for UC24.
+# TODO:FDEM:FIX: this will need changes for UC24.
 apt-get install -y golang ubuntu-core-initramfs
 
 snap download pc-kernel --channel="${version}/${branch}" --basename=pc-kernel --target-directory="${tmpd}"

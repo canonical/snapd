@@ -8,7 +8,7 @@ systems: [ubuntu-22.04-64, ubuntu-24.04-64]
 
 environment:
   NESTED_CUSTOM_MODEL: $TESTSLIB/assertions/test-snapd-recovery-system-reboot-pc-{VERSION}.model
-  # FIXME: we should use NESTED_BUILD_SNAPD_FROM_CURRENT=true with
+  # TODO:FDEM:FIX: we should use NESTED_BUILD_SNAPD_FROM_CURRENT=true with
   # NESTED_REPACK_KERNEL_SNAP=false and enable encryption. For now we
   # disable it until since snap-bootstrap will not be new enough in
   # the store. A more robust approach is to use the fakestore to

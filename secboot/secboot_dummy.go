@@ -105,7 +105,6 @@ func (ha *HashAlg) UnmarshalJSON([]byte) error {
 	return errBuildWithoutSecboot
 }
 
-
 func FindFreeHandle() (uint32, error) {
 	return 0, errBuildWithoutSecboot
 }

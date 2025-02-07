@@ -48,7 +48,7 @@ environment:
     # refresh from store might get some kernel that have an old
     # initrd. The problem is that a new snapd in seed may require a
     # new initrd. For instance when adding a new format of key in FDE.
-    # TODO: change it to use fakestore, so we can control all the
+    # TODO:FDEM: change it to use fakestore, so we can control all the
     # snaps we use.
     NESTED_ENABLE_SECURE_BOOT: false
     NESTED_ENABLE_TPM: false
@@ -128,7 +128,7 @@ execute: |
     if [ "$SECOND_REBOOT" = true ]; then
         # we might not count the first reboot correctly, so we should
         # not fail if we do not think we have rebooted twice.
-        # FIXME: it is slow to wait for timeout, we should count boot
+        # TODO:FDEM:FIX: it is slow to wait for timeout, we should count boot
         # another way.
         remote.wait-for reboot "$boot_id" || true
     fi

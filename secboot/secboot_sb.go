@@ -86,7 +86,7 @@ func LockSealedKeys() error {
 // value will be true, even if error is non-nil. This is so that callers can be
 // robust and try unlocking using another method for example.
 func UnlockVolumeUsingSealedKeyIfEncrypted(disk disks.Disk, name string, sealedEncryptionKeyFile string, opts *UnlockVolumeUsingSealedKeyOptions) (UnlockResult, error) {
-	// FIXME: this function is big. We need to split it.
+	// TODO:FDEM: this function is big. We need to split it.
 
 	res := UnlockResult{}
 
@@ -161,7 +161,7 @@ func UnlockVolumeUsingSealedKeyIfEncrypted(disk disks.Disk, name string, sealedE
 		// This does not seem to work:
 		//defer sbSetModel(nil)
 	}
-	// TODO: set boot mode
+	// TODO:FDEM:FIX: set boot mode
 	//sbSetBootMode("run")
 	//defer sbSetBootMode("")
 	sbSetKeyRevealer(&keyRevealerV3{})
@@ -365,7 +365,7 @@ func RenameKeys(node string, renames map[string]string) error {
 		targets[renameTo] = true
 	}
 
-	// FIXME: listing keys, then modifying could be a TOCTOU issue.
+	// TODO:FDEM:FIX: listing keys, then modifying could be a TOCTOU issue.
 	// we expect here nothing else is messing with the key slots.
 	slots, err := sbListLUKS2ContainerUnlockKeyNames(node)
 	if err != nil {

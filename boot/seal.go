@@ -450,7 +450,7 @@ func recoveryBootChainsForSystemsWithoutTrustedAssets(systems []string, modesFor
 			}
 
 			for _, mode := range modes {
-				// FIXME: we do not really know the
+				// TODO:FDEM:FIX: we do not really know the
 				// command line. But we do know the
 				// mode and system we should give that
 				// to the fde manager.
@@ -618,7 +618,7 @@ func runModeBootChainsWithoutTrustedAssets(modeenv *Modeenv, runSnapsDir string)
 			Classic:        model.Classic(),
 			Grade:          model.Grade(),
 			ModelSignKeyID: model.SignKeyID(),
-			// FIXME: the fde manager will need the run mode. Not the kernel command line.
+			// TODO:FDEM:FIX: the fde manager will need the run mode. Not the kernel command line.
 			KernelCmdlines: []string{"snapd_recovery_mode=run"},
 		})
 	}

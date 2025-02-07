@@ -352,7 +352,7 @@ func updateRunProtectionProfile(
 		TpmPCRProfile: pcrProfile,
 	}
 
-	// TODO: use constants for "run+recover" and "all"
+	// TODO:FDEM: use constants for "run+recover" and "all"
 	if err := manager.Update("run+recover", "all", runParams); err != nil {
 		return err
 	}
@@ -362,7 +362,7 @@ func updateRunProtectionProfile(
 		Models:        modelsRunOnly,
 		TpmPCRProfile: pcrProfileRunOnly,
 	}
-	// TODO: use constants for "run+recover" and "all"
+	// TODO:FDEM: use constants for "run+recover" and "all"
 	if err := manager.Update("run", "all", runOnlyParams); err != nil {
 		return err
 	}
@@ -417,7 +417,7 @@ func updateFallbackProtectionProfile(
 		models = append(models, m.Model)
 	}
 
-	// FIXME: We are missing recover for system-data, for
+	// TODO:FDEM:FIX: We are missing recover for system-data, for
 	// "recover" boot mode. It is different from the run+recover
 	// as this should only include working models.
 
@@ -426,7 +426,7 @@ func updateFallbackProtectionProfile(
 		Models:        models,
 		TpmPCRProfile: pcrProfile,
 	}
-	// TODO: use constants for "recover" (the first parameter) and "system-save"
+	// TODO:FDEM: use constants for "recover" (the first parameter) and "system-save"
 	if err := manager.Update("recover", "system-save", params); err != nil {
 		return err
 	}
@@ -489,7 +489,7 @@ func resealKeys(
 		}
 	case device.SealingMethodTPM, device.SealingMethodLegacyTPM:
 		if err := recalculateParamatersTPM(manager, method, rootdir, inputs, opts); err != nil {
-			// FIXME: remove the save boot chains.
+			// TODO:FDEM:FIX: remove the save boot chains.
 			return err
 		}
 	default:
