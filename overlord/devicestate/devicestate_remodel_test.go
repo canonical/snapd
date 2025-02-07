@@ -152,6 +152,43 @@ func (s *deviceMgrRemodelSuite) TestRemodelInvalidPathSnap(c *C) {
 	c.Assert(err, ErrorMatches, "internal error: locally provided snaps must only provide path and side info")
 }
 
+func (s *deviceMgrRemodelSuite) TestRemodelCannotProvideLocalSnapsWhenNotOffline(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+	s.state.Set("seeded", true)
+
+	model := s.brands.Model("canonical", "pc", map[string]interface{}{
+		"architecture": "amd64",
+		"kernel":       "pc-kernel",
+		"gadget":       "pc",
+	})
+
+	_, err := devicestate.Remodel(s.state, model, devicestate.RemodelOptions{
+		Offline: false,
+		LocalSnaps: []snapstate.PathSnap{
+			{
+				Path:     "/path/to/snap",
+				SideInfo: &snap.SideInfo{},
+				RevOpts: snapstate.RevisionOptions{
+					Channel: "stable",
+				},
+			},
+		},
+	})
+	c.Assert(err, ErrorMatches, "cannot do an online remodel with provided local snaps or components")
+
+	_, err = devicestate.Remodel(s.state, model, devicestate.RemodelOptions{
+		Offline: false,
+		LocalComponents: []snapstate.PathComponent{
+			{
+				Path:     "/path/to/component",
+				SideInfo: &snap.ComponentSideInfo{},
+			},
+		},
+	})
+	c.Assert(err, ErrorMatches, "cannot do an online remodel with provided local snaps or components")
+}
+
 func (s *deviceMgrRemodelSuite) TestRemodelUnhappyNotSeeded(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
