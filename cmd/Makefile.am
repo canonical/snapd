@@ -563,3 +563,8 @@ APPARMOR_DISTCHECK_CONFIGURE_FLAGS=--with-apparmorconfigdir=$${dc_install_base}/
 else
 APPARMOR_DISTCHECK_CONFIGURE_FLAGS=--disable-apparmor
 endif
+
+coverage.xml: check
+	gcovr \
+		--merge-mode-functions=separate \
+		-o $@ .
