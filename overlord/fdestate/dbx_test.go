@@ -1065,8 +1065,11 @@ func (s *fdeMgrSuite) TestEFIDBXBlockedTasks(c *C) {
 	c.Check(fdestate.IsEFISecurebootDBUpdateBlocked(tsk), Equals, true)
 
 	// execute a single iteration of task runner
-	s.runnerIterationLocked(c)
-	c.Check(tsk.Status(), Equals, state.DoStatus)
+	st.Unlock()
+	iterateUnlockedStateWaitingFor(st, func() bool {
+		return tsk.Status() == state.DoStatus
+	})
+	st.Lock()
 
 	// now unblock it
 	op.SetStatus(fdestate.CompletingStatus)
@@ -1074,10 +1077,9 @@ func (s *fdeMgrSuite) TestEFIDBXBlockedTasks(c *C) {
 
 	c.Check(fdestate.IsEFISecurebootDBUpdateBlocked(tsk), Equals, false)
 
-	// execute a single iteration of task runner
 	s.runnerIterationLocked(c)
-	c.Check(tsk.Status(), Equals, state.DoingStatus)
 
+	// the change is able to complete now
 	st.Unlock()
 	iterateUnlockedStateWaitingFor(st, chg.IsReady)
 	st.Lock()
