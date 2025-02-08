@@ -244,3 +244,10 @@ func (s *LogSuite) TestForceDebug(c *C) {
 	l.Debug("xyzzy")
 	c.Check(buf.String(), testutil.Contains, `DEBUG: xyzzy`)
 }
+
+func (s *LogSuite) TestMockDebugLogger(c *C) {
+	logbuf, restore := logger.MockDebugLogger()
+	defer restore()
+	logger.Debugf("xyzzy")
+	c.Check(logbuf.String(), testutil.Contains, "DEBUG: xyzzy")
+}
