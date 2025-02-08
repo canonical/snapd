@@ -2389,27 +2389,34 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (err error) {
 		snapst.LastRefreshTime = &now
 	}
 
-	if cand.Snap.SnapID != "" {
-		// write the auxiliary store info
-		aux := &backend.AuxStoreInfo{
-			Media:    snapsup.Media,
-			StoreURL: snapsup.StoreURL,
-			// XXX we store this for the benefit of old snapd
-			Website: snapsup.Website,
-		}
-		err := backend.InstallStoreMetadata(cand.Snap.SnapID, aux)
-		if err != nil {
-			return err
-		}
-		if len(snapst.Sequence.Revisions) == 1 {
-			defer func() {
-				if IsErrAndNotWait(err) {
-					// the install is getting undone, and there are no more of this snap
-					// try to remove the metadata we just installed
-					backend.DiscardStoreMetadata(cand.Snap.SnapID, otherInstances)
-				}
-			}()
-		}
+	// Assemble the auxiliary store info
+	aux := &backend.AuxStoreInfo{
+		Media:    snapsup.Media,
+		StoreURL: snapsup.StoreURL,
+		// XXX we store this for the benefit of old snapd
+		Website: snapsup.Website,
+	}
+	// Write the revision-agnostic store metadata for this snap. If snap ID is
+	// empty, InstallStoreMetadata is a no-op, so no need to check beforehand.
+	// XXX: Previously, err := ... was used and didn't error, indicating that
+	// the err checked in IsErrAndNotWait was the local err (which we know to
+	// be non-nil at time of the check), not the err returned from the
+	// function. Is this analysis correct, and was this intentional?
+	// XXX: Also, why is cand.Snap.SnapID used instead of snapsup.SnapID?
+	// Previously, all of this was inside `if cand.Snap.SnapID != "" {`, and
+	// AFAICT, snapsup.SnapID should never be "".
+	err = backend.InstallStoreMetadata(cand.Snap.SnapID, aux)
+	if err != nil {
+		return err
+	}
+	if len(snapst.Sequence.Revisions) == 1 {
+		defer func() {
+			if IsErrAndNotWait(err) {
+				// the install is getting undone, and there are no more of this snap
+				// try to remove the metadata we just installed
+				backend.DiscardStoreMetadata(cand.Snap.SnapID, otherInstances)
+			}
+		}()
 	}
 
 	// Compatibility with old snapd: check if we have auto-connect task and

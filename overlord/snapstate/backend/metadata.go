@@ -23,6 +23,9 @@ package backend
 // with the given snap ID. At the moment, this metadata includes auxiliary
 // store information.
 func InstallStoreMetadata(snapID string, aux *AuxStoreInfo) error {
+	if snapID == "" {
+		return nil
+	}
 	if err := keepAuxStoreInfo(snapID, aux); err != nil {
 		return err
 	}
@@ -34,7 +37,7 @@ func InstallStoreMetadata(snapID string, aux *AuxStoreInfo) error {
 // with the given snap ID. At the moment, this metadata includes auxiliary
 // store information. If hasOtherInstances is true, does nothing.
 func DiscardStoreMetadata(snapID string, hasOtherInstances bool) error {
-	if hasOtherInstances {
+	if hasOtherInstances || snapID == "" {
 		return nil
 	}
 	if err := discardAuxStoreInfo(snapID); err != nil {
