@@ -2391,21 +2391,22 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (err error) {
 
 	if cand.Snap.SnapID != "" {
 		// write the auxiliary store info
-		aux := &auxStoreInfo{
+		aux := &backend.AuxStoreInfo{
 			Media:    snapsup.Media,
 			StoreURL: snapsup.StoreURL,
 			// XXX we store this for the benefit of old snapd
 			Website: snapsup.Website,
 		}
-		if err := keepAuxStoreInfo(cand.Snap.SnapID, aux); err != nil {
+		err := backend.InstallStoreMetadata(cand.Snap.SnapID, aux)
+		if err != nil {
 			return err
 		}
 		if len(snapst.Sequence.Revisions) == 1 {
 			defer func() {
 				if IsErrAndNotWait(err) {
 					// the install is getting undone, and there are no more of this snap
-					// try to remove the aux info we just created
-					discardAuxStoreInfo(cand.Snap.SnapID)
+					// try to remove the metadata we just installed
+					backend.DiscardStoreMetadata(cand.Snap.SnapID)
 				}
 			}()
 		}
@@ -2818,9 +2819,9 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 		if err := m.removeSnapCookie(st, snapsup.InstanceName()); err != nil {
 			return fmt.Errorf("cannot remove snap cookie: %v", err)
 		}
-		// try to remove the auxiliary store info
-		if err := discardAuxStoreInfo(snapsup.SideInfo.SnapID); err != nil {
-			return fmt.Errorf("cannot remove auxiliary store info: %v", err)
+		// try to remove the revision-agnostic store metadata
+		if err := backend.DiscardStoreMetadata(snapsup.SideInfo.SnapID); err != nil {
+			return err
 		}
 	}
 
@@ -3804,9 +3805,9 @@ func (m *SnapManager) doDiscardSnap(t *state.Task, _ *tomb.Tomb) error {
 			return fmt.Errorf("cannot remove snap directory: %v", err)
 		}
 
-		// try to remove the auxiliary store info
-		if err := discardAuxStoreInfo(snapsup.SideInfo.SnapID); err != nil {
-			logger.Noticef("Cannot remove auxiliary store info for %q: %v", snapsup.InstanceName(), err)
+		// try to remove the revision-agnostic store metadata
+		if err := backend.DiscardStoreMetadata(snapsup.SideInfo.SnapID); err != nil {
+			logger.Noticef("cannot remove store metadata for %q: %v", snapsup.InstanceName(), err)
 		}
 
 		// XXX: also remove sequence files?

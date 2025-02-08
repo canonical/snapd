@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2018-2022 Canonical Ltd
+ * Copyright (C) 2018-2025 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -17,7 +17,7 @@
  *
  */
 
-package snapstate
+package backend
 
 import (
 	"encoding/json"
@@ -30,10 +30,10 @@ import (
 	"github.com/snapcore/snapd/snap"
 )
 
-// auxStoreInfo is information about a snap (*not* a snap revision), not
+// AuxStoreInfo is information about a snap (*not* a snap revision), not
 // needed in the state, that may be stored to augment the information
 // returned for locally-installed snaps
-type auxStoreInfo struct {
+type AuxStoreInfo struct {
 	Media    snap.MediaInfos `json:"media,omitempty"`
 	StoreURL string          `json:"store-url,omitempty"`
 	// XXX this is now included in snap.SideInfo.EditedLinks but
@@ -41,16 +41,16 @@ type auxStoreInfo struct {
 	Website string `json:"website,omitempty"`
 }
 
-func auxStoreInfoFilename(snapID string) string {
+func AuxStoreInfoFilename(snapID string) string {
 	return filepath.Join(dirs.SnapAuxStoreInfoDir, snapID) + ".json"
 }
 
-// retrieveAuxStoreInfo loads the stored per-snap auxiliary store info into the given *snap.Info
-func retrieveAuxStoreInfo(info *snap.Info) error {
+// RetrieveAuxStoreInfo loads the stored per-snap auxiliary store info into the given *snap.Info
+func RetrieveAuxStoreInfo(info *snap.Info) error {
 	if info.SnapID == "" {
 		return nil
 	}
-	f, err := os.Open(auxStoreInfoFilename(info.SnapID))
+	f, err := os.Open(AuxStoreInfoFilename(info.SnapID))
 	if err != nil {
 		if os.IsNotExist(err) {
 			return nil
@@ -59,7 +59,7 @@ func retrieveAuxStoreInfo(info *snap.Info) error {
 	}
 	defer f.Close()
 
-	var aux auxStoreInfo
+	var aux AuxStoreInfo
 	dec := json.NewDecoder(f)
 	if err := dec.Decode(&aux); err != nil {
 		return fmt.Errorf("cannot decode auxiliary store info for snap %q: %v", info.InstanceName(), err)
@@ -79,7 +79,7 @@ func retrieveAuxStoreInfo(info *snap.Info) error {
 }
 
 // keepAuxStoreInfo saves the given auxiliary store info to disk.
-func keepAuxStoreInfo(snapID string, aux *auxStoreInfo) error {
+func keepAuxStoreInfo(snapID string, aux *AuxStoreInfo) error {
 	if snapID == "" {
 		return nil
 	}
@@ -87,7 +87,7 @@ func keepAuxStoreInfo(snapID string, aux *auxStoreInfo) error {
 		return fmt.Errorf("cannot create directory for auxiliary store info: %v", err)
 	}
 
-	af, err := osutil.NewAtomicFile(auxStoreInfoFilename(snapID), 0644, 0, osutil.NoChown, osutil.NoChown)
+	af, err := osutil.NewAtomicFile(AuxStoreInfoFilename(snapID), 0644, 0, osutil.NoChown, osutil.NoChown)
 	if err != nil {
 		return fmt.Errorf("cannot create file for auxiliary store info for snap %s: %v", snapID, err)
 	}
@@ -109,7 +109,7 @@ func discardAuxStoreInfo(snapID string) error {
 	if snapID == "" {
 		return nil
 	}
-	if err := os.Remove(auxStoreInfoFilename(snapID)); err != nil && !os.IsNotExist(err) {
+	if err := os.Remove(AuxStoreInfoFilename(snapID)); err != nil && !os.IsNotExist(err) {
 		return fmt.Errorf("cannot remove auxiliary store info file for snap %s: %v", snapID, err)
 	}
 	return nil

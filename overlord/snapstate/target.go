@@ -168,7 +168,7 @@ func (t *target) setups(st *state.State, opts Options) (SnapSetup, []ComponentSe
 		InstanceKey:        t.info.InstanceKey,
 		ExpectedProvenance: t.info.SnapProvenance,
 		Confdbs:            confdbs,
-		auxStoreInfo: auxStoreInfo{
+		AuxStoreInfo: backend.AuxStoreInfo{
 			Media:    t.info.Media,
 			StoreURL: t.info.StoreURL,
 			// XXX we store this for the benefit of old snapd
