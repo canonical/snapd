@@ -32,8 +32,11 @@ func InstallStoreMetadata(snapID string, aux *AuxStoreInfo) error {
 
 // DiscardStoreMetadata removes revision-agnostic metadata to disk for the snap
 // with the given snap ID. At the moment, this metadata includes auxiliary
-// store information.
-func DiscardStoreMetadata(snapID string) error {
+// store information. If hasOtherInstances is true, does nothing.
+func DiscardStoreMetadata(snapID string, hasOtherInstances bool) error {
+	if hasOtherInstances {
+		return nil
+	}
 	if err := discardAuxStoreInfo(snapID); err != nil {
 		return err
 	}

@@ -2406,7 +2406,7 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (err error) {
 				if IsErrAndNotWait(err) {
 					// the install is getting undone, and there are no more of this snap
 					// try to remove the metadata we just installed
-					backend.DiscardStoreMetadata(cand.Snap.SnapID)
+					backend.DiscardStoreMetadata(cand.Snap.SnapID, otherInstances)
 				}
 			}()
 		}
@@ -2806,6 +2806,11 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
+	otherInstances, err := hasOtherInstances(st, snapsup.InstanceName())
+	if err != nil {
+		return err
+	}
+
 	firstInstall := oldCurrent.Unset()
 	if firstInstall {
 		// XXX: shouldn't these two just log and carry on? this is an undo handler...
@@ -2820,7 +2825,7 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 			return fmt.Errorf("cannot remove snap cookie: %v", err)
 		}
 		// try to remove the revision-agnostic store metadata
-		if err := backend.DiscardStoreMetadata(snapsup.SideInfo.SnapID); err != nil {
+		if err := backend.DiscardStoreMetadata(snapsup.SideInfo.SnapID, otherInstances); err != nil {
 			return err
 		}
 	}
@@ -2886,11 +2891,6 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 		if err != nil {
 			return err
 		}
-	}
-
-	otherInstances, err := hasOtherInstances(st, newInfo.InstanceName())
-	if err != nil {
-		return err
 	}
 
 	pb := NewTaskProgressAdapterLocked(t)
@@ -3806,7 +3806,7 @@ func (m *SnapManager) doDiscardSnap(t *state.Task, _ *tomb.Tomb) error {
 		}
 
 		// try to remove the revision-agnostic store metadata
-		if err := backend.DiscardStoreMetadata(snapsup.SideInfo.SnapID); err != nil {
+		if err := backend.DiscardStoreMetadata(snapsup.SideInfo.SnapID, otherInstances); err != nil {
 			logger.Noticef("cannot remove store metadata for %q: %v", snapsup.InstanceName(), err)
 		}
 

@@ -38,6 +38,7 @@ func (s *metadataSuite) SetUpTest(c *C) {
 
 func (s *metadataSuite) TestStoreMetadataRoundTrip(c *C) {
 	const snapID = "my-snap-id"
+	const hasOtherInstances = false
 	c.Assert(backend.AuxStoreInfoFilename(snapID), testutil.FileAbsent)
 	aux := &backend.AuxStoreInfo{
 		Media: snap.MediaInfos{
@@ -65,14 +66,35 @@ func (s *metadataSuite) TestStoreMetadataRoundTrip(c *C) {
 	c.Check(info.LegacyWebsite, Equals, aux.Website)
 	c.Check(info.StoreURL, Equals, aux.StoreURL)
 
-	c.Check(backend.DiscardStoreMetadata(snapID), IsNil)
+	c.Check(backend.DiscardStoreMetadata(snapID, hasOtherInstances), IsNil)
 	c.Check(backend.AuxStoreInfoFilename(snapID), testutil.FileAbsent)
 }
 
 func (s *metadataSuite) TestStoreMetadataEmptySnapID(c *C) {
 	const snapID = ""
+	const hasOtherInstances = false
 	var aux *backend.AuxStoreInfo
 	// check that empty snapID does not return an error
 	c.Check(backend.InstallStoreMetadata(snapID, aux), IsNil)
-	c.Check(backend.DiscardStoreMetadata(snapID), IsNil)
+	c.Check(backend.DiscardStoreMetadata(snapID, hasOtherInstances), IsNil)
+}
+
+func (s *metadataSuite) TestDiscardStoreMetadataHasOtherInstances(c *C) {
+	const snapID = "my-snap-id"
+	c.Assert(backend.AuxStoreInfoFilename(snapID), testutil.FileAbsent)
+	aux := &backend.AuxStoreInfo{
+		StoreURL: "https://snapcraft.io/example-snap",
+	}
+	c.Check(backend.InstallStoreMetadata(snapID, aux), IsNil)
+	c.Check(backend.AuxStoreInfoFilename(snapID), testutil.FilePresent)
+
+	// Check that it does not discard if hasOtherInstances is true
+	hasOtherInstances := true
+	c.Check(backend.DiscardStoreMetadata(snapID, hasOtherInstances), IsNil)
+	c.Assert(backend.AuxStoreInfoFilename(snapID), testutil.FilePresent)
+
+	hasOtherInstances = false
+	// Check that it is discarded if hasOtherInstances is false
+	c.Check(backend.DiscardStoreMetadata(snapID, hasOtherInstances), IsNil)
+	c.Assert(backend.AuxStoreInfoFilename(snapID), testutil.FileAbsent)
 }
