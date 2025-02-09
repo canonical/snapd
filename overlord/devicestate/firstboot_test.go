@@ -936,6 +936,10 @@ snaps:
 	tsAll, err := devicestate.PopulateStateFromSeedImpl(mgr, s.perfTimings)
 	c.Assert(err, IsNil)
 
+	// XXX: Experimental
+	_, err = devicestatetest.TaskRunOrder(tsAll)
+	c.Assert(err, IsNil)
+
 	checkSeedTasks(c, tsAll)
 
 	// now run the change and check the result

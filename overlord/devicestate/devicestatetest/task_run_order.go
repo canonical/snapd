@@ -107,13 +107,15 @@ func TaskRunOrder(tsAll []*state.TaskSet) ([]*state.Task, error) {
 		if len(tasksCompletedSameTime) > 1 {
 			fmt.Printf("Tasks completing at the same time:\n")
 			for _, task := range tasksCompletedSameTime {
-				fmt.Printf("[%s] %s\n", task.ID(), task.Summary())
+				fmt.Printf("ID: %-4s | Kind: %-30s | Summary: %s\n", task.ID(), task.Kind(), task.Summary())
 			}
 			return nil, fmt.Errorf("Dependency problem, %d tasks racing for completion\n", len(tasksCompletedSameTime))
 		}
 
 		for taskIndex, task := range tasksCompletedSameTime {
-			fmt.Printf("Done: [%s] %s\n", task.ID(), task.Summary())
+			var instanceName string
+			task.Get("instance-name", &instanceName)
+			fmt.Printf("ID: %-4s | Snap: %-14s | Kind: %-24s | Summary: %s\n", task.ID(), instanceName, task.Kind(), task.Summary())
 
 			completedTasks = append(completedTasks, task)
 			indexToRemove := tasksCompletedSameTimeIndexes[taskIndex]

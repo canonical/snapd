@@ -481,6 +481,12 @@ func (m *DeviceManager) populateStateFromSeedImpl(tm timings.Measurer) ([]*state
 		if err != nil {
 			return nil, err
 		}
+
+		// tag tasks with instance name for improve testability
+		for _, task := range ts.Tasks() {
+			task.Set("instance-name", info.InstanceName())
+		}
+
 		infos = append(infos, info)
 		infoToTs[info] = ts
 	}
@@ -523,6 +529,12 @@ func (m *DeviceManager) populateStateFromSeedImpl(tm timings.Measurer) ([]*state
 		if err != nil {
 			return nil, err
 		}
+
+		// tag tasks with instance name for improve testability
+		for _, task := range ts.Tasks() {
+			task.Set("instance-name", info.InstanceName())
+		}
+
 		infos = append(infos, info)
 		infoToTs[info] = ts
 	}
