@@ -2142,63 +2142,97 @@ snaps:
 	c.Check(seedTime.IsZero(), Equals, false)
 }
 
-// XXX: Correct these tests
-/*
-func (s *firstBoot16Suite) TestCriticalTaskEdgesForPreseed(c *C) {
+// checkCriticalTasks is a helper function for validating devicestate.CriticalTaskEdges outputs against given expectations for error and tasks
+func checkCriticalTasks(c *C, ts *state.TaskSet, expectError, expectTasks bool) (beginEdge, beforeHooksEdge, hooksEdge, beforeConfigureEdge, configureEdge, endEdge *state.Task) {
+	beginEdge, beforeHooksEdge, hooksEdge, beforeConfigureEdge, configureEdge, endEdge, err := devicestate.CriticalTaskEdges(ts)
+	if expectError {
+		c.Assert(err, NotNil)
+	} else {
+		c.Assert(err, IsNil)
+	}
+	for _, task := range []*state.Task{beginEdge, beforeHooksEdge, hooksEdge, beforeConfigureEdge, configureEdge, endEdge} {
+		if expectTasks {
+			c.Assert(task, NotNil)
+		} else {
+			c.Assert(task, IsNil)
+		}
+	}
+	return beginEdge, beforeHooksEdge, hooksEdge, beforeConfigureEdge, configureEdge, endEdge
+}
+
+func (s *firstBoot16Suite) TestCriticalTaskEdgesAllOrNothingHappy(c *C) {
 	s.startOverlord(c)
 	st := s.overlord.State()
 	st.Lock()
 	defer st.Unlock()
 
-	t1 := st.NewTask("task1", "")
-	t2 := st.NewTask("task2", "")
-	t3 := st.NewTask("task2", "")
+	t1 := st.NewTask("prerequisites", "")
+	t2 := st.NewTask("setupAliases", "")
+	t3 := st.NewTask("installHook", "")
+	t4 := st.NewTask("defaultConfigure", "")
+	t5 := st.NewTask("check-health", "")
+	ts := state.NewTaskSet(t1, t2, t3, t4, t5)
 
-	ts := state.NewTaskSet(t1, t2, t3)
-	ts.MarkEdge(t1, snapstate.BeginEdge)
-	ts.MarkEdge(t2, snapstate.BeforeHooksEdge)
-	ts.MarkEdge(t3, snapstate.HooksEdge)
+	// no edges: no error and no tasks
+	expectError := false
+	expectTasks := false
+	checkCriticalTasks(c, ts, expectError, expectTasks)
 
-	beginEdge, beforeHooksEdge, hooksEdge, err := devicestate.CriticalTaskEdges(ts)
-	c.Assert(err, IsNil)
-	c.Assert(beginEdge, NotNil)
-	c.Assert(beforeHooksEdge, NotNil)
-	c.Assert(hooksEdge, NotNil)
+	ts.MarkEdge(t1, snapstate.BeginEdge)       // prerequisites
+	ts.MarkEdge(t2, snapstate.BeforeHooksEdge) // setupAliases
+	ts.MarkEdge(t3, snapstate.HooksEdge)       // installHook
+	ts.MarkEdge(t4, snapstate.ConfigureEdge)   // defaultConfigure
+	ts.MarkEdge(t5, snapstate.EndEdge)         // check-health
 
-	c.Check(beginEdge.Kind(), Equals, "task1")
-	c.Check(beforeHooksEdge.Kind(), Equals, "task2")
-	c.Check(hooksEdge.Kind(), Equals, "task2")
+	// all edges: no error and all tasks
+	expectTasks = true
+	beginEdge, beforeHooksEdge, hooksEdge, beforeConfigureEdge, configureEdge, endEdge := checkCriticalTasks(c, ts, expectError, expectTasks)
+
+	c.Check(beginEdge.Kind(), Equals, "prerequisites")
+	c.Check(beforeHooksEdge.Kind(), Equals, "setupAliases")
+	c.Check(hooksEdge.Kind(), Equals, "installHook")
+	c.Check(beforeConfigureEdge.Kind(), Equals, "installHook")
+	c.Check(configureEdge.Kind(), Equals, "defaultConfigure")
+	c.Check(endEdge.Kind(), Equals, "check-health")
 }
 
-func (s *firstBoot16Suite) TestCriticalTaskEdgesForPreseedMissing(c *C) {
+func (s *firstBoot16Suite) TestCriticalTaskEdgesError(c *C) {
 	s.startOverlord(c)
 	st := s.overlord.State()
 	st.Lock()
 	defer st.Unlock()
 
-	t1 := st.NewTask("task1", "")
-	t2 := st.NewTask("task2", "")
-	t3 := st.NewTask("task2", "")
+	t1 := st.NewTask("prerequisites", "")
+	t2 := st.NewTask("setupAliases", "")
+	t3 := st.NewTask("installHook", "")
+	t4 := st.NewTask("defaultConfigure", "")
+	t5 := st.NewTask("check-health", "")
+	ts := state.NewTaskSet(t1, t2, t3, t4, t5)
 
-	ts := state.NewTaskSet(t1, t2, t3)
+	// one edge
 	ts.MarkEdge(t1, snapstate.BeginEdge)
+	expectError := true
+	expectTasks := false
+	checkCriticalTasks(c, ts, expectError, expectTasks)
 
-	_, _, _, err := devicestate.CriticalTaskEdges(ts)
-	c.Assert(err, NotNil)
+	// two edges
+	ts.MarkEdge(t5, snapstate.EndEdge)
+	checkCriticalTasks(c, ts, expectError, expectTasks)
 
-	ts = state.NewTaskSet(t1, t2, t3)
-	ts.MarkEdge(t1, snapstate.BeginEdge)
+	// three edges
 	ts.MarkEdge(t2, snapstate.BeforeHooksEdge)
-	_, _, _, err = devicestate.CriticalTaskEdges(ts)
-	c.Assert(err, NotNil)
+	checkCriticalTasks(c, ts, expectError, expectTasks)
 
-	ts = state.NewTaskSet(t1, t2, t3)
-	ts.MarkEdge(t1, snapstate.BeginEdge)
+	// four edges
+	ts.MarkEdge(t4, snapstate.ConfigureEdge)
+	checkCriticalTasks(c, ts, expectError, expectTasks)
+
+	// all edges
+	expectError = false
+	expectTasks = true
 	ts.MarkEdge(t3, snapstate.HooksEdge)
-	_, _, _, err = devicestate.CriticalTaskEdges(ts)
-	c.Assert(err, NotNil)
+	checkCriticalTasks(c, ts, expectError, expectTasks)
 }
-*/
 
 func (s *firstBoot16Suite) TestPopulateFromSeedOnClassicWithConnectHook(c *C) {
 	restore := release.MockOnClassic(true)

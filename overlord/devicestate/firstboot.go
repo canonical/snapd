@@ -83,13 +83,19 @@ func installSeedSnap(st *state.State, sn *seed.Snap, flags snapstate.Flags, prqt
 	return ts, info, nil
 }
 
+// criticalTaskEdges returns the tasks associated with each of the critical edges.
+// No tasks (e.g. injected configure tasksets) and a task for every edge are valid
+// scenarios, other returns empty tasks and an error. Note that task beforeConfigureEdge
+// is not based on an actual edge, but calculated relative to ConfigureEdge.
+//
+// XXX: Consider if the BeforeHooksEdge can be completely removed, because the the BeforeEdge can arguable replace it fully.
 func criticalTaskEdges(ts *state.TaskSet) (beginEdge, beforeHooksEdge, hooksEdge, beforeConfigureEdge, configureEdge, endEdge *state.Task, err error) {
 	// we expect all edges, or none (the latter is the case with config task sets).
 	beginEdge, err = ts.Edge(snapstate.BeginEdge)
 	if err != nil {
 		return nil, nil, nil, nil, nil, nil, nil
 	}
-	beforeHooksEdge, err = ts.BeforeEdge(snapstate.HooksEdge)
+	beforeHooksEdge, err = ts.Edge(snapstate.BeforeHooksEdge) /*ts.BeforeEdge(snapstate.HooksEdge)*/
 	if err != nil {
 		return nil, nil, nil, nil, nil, nil, err
 	}
@@ -107,7 +113,7 @@ func criticalTaskEdges(ts *state.TaskSet) (beginEdge, beforeHooksEdge, hooksEdge
 		return nil, nil, nil, nil, nil, nil, err
 	}
 
-	// The last task of the set
+	// last task of the set
 	tasks := ts.Tasks()
 	endEdge = tasks[len(tasks)-1]
 
