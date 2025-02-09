@@ -52,6 +52,8 @@ import (
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/store/storetest"
 	userclient "github.com/snapcore/snapd/usersession/client"
+	"github.com/snapcore/snapd/overlord/devicestate/devicestatetest"
+	"github.com/snapcore/snapd/overlord/state/dot"
 
 	// So it registers Configure.
 	_ "github.com/snapcore/snapd/overlord/configstate"
@@ -9052,6 +9054,8 @@ func (s *snapmgrTestSuite) TestUpdateBaseKernelSingleRebootHappy(c *C) {
 		[]string{"kernel", "core18"}, nil, s.user.ID, &snapstate.Flags{})
 	c.Assert(err, IsNil)
 	c.Assert(affected, DeepEquals, []string{"core18", "kernel"})
+	
+
 
 	// Verify that correct dependencies have been set-up for single-reboot
 	// which is a bit more tricky, as task-sets have been split up into pre-boot
@@ -9496,6 +9500,12 @@ func (s *snapmgrTestSuite) TestUpdateBaseGadgetSingleRebootHappy(c *C) {
 	// mock restart for the 'link-snap' step and run change to
 	// completion.
 	s.mockRestartAndSettle(c, chg)
+
+	err = devicestatetest.TaskRunOrder2(chg)
+	c.Check(err, IsNil)
+
+	g, err := dot.NewChangeGraph(chg, overlord.TaskLabel, "TestUpdateBaseKernelSingleRebootHappy")
+	g.Show(c)
 
 	c.Check(chg.Status(), Equals, state.DoneStatus)
 	// a single system restart was requested

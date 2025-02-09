@@ -56,6 +56,7 @@ import (
 	"github.com/snapcore/snapd/overlord/restart"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/overlord/state/dot"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/seed/seedtest"
 	"github.com/snapcore/snapd/snap"
@@ -938,6 +939,9 @@ snaps:
 	tsAll, err := devicestate.PopulateStateFromSeedImpl(mgr, s.perfTimings)
 	c.Assert(err, IsNil)
 
+	// XXX: Experimental
+	//_, err = devicestatetest.TaskRunOrder(tsAll)
+	//c.Assert(err, IsNil)
 	checkSeedTasks(c, tsAll)
 
 	// now run the change and check the result
@@ -947,6 +951,10 @@ snaps:
 		chg.AddAll(ts)
 	}
 	c.Assert(st.Changes(), HasLen, 1)
+
+	_, err = chg.ProfileExecution()
+	//fmt.Printf("execprof: %v\n", execProf)
+	c.Assert(err, IsNil)
 
 	var configured []string
 	hookInvoke := func(ctx *hookstate.Context, tomb *tomb.Tomb) ([]byte, error) {
@@ -974,6 +982,11 @@ snaps:
 	chg1 := st.NewChange("become-operational", "init device")
 	chg1.SetStatus(state.DoingStatus)
 
+	g, err := dot.NewChangeGraph(chg, overlord.TaskLabel, "PopulateFromSeedConfigureHooks")
+	c.Assert(err, IsNil)
+	fmt.Printf("%s\n", g.String())
+	g.Show(c)
+
 	st.Unlock()
 	err = s.overlord.Settle(settleTimeout)
 	st.Lock()
@@ -988,6 +1001,11 @@ snaps:
 	c.Assert(err, IsNil)
 	state, err := state.ReadState(nil, r)
 	c.Assert(err, IsNil)
+
+	// Check graph
+	//g, err := dot.NewChangeGraph(chg, overlord.TaskLabel, "PopulateFromSeedConfigureHooks")
+	//c.Assert(err, IsNil)
+	//g.Show(c)
 
 	state.Lock()
 	defer state.Unlock()
