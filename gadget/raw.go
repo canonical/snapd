@@ -260,12 +260,13 @@ func (r *rawStructureUpdater) rollbackDifferent(out io.WriteSeeker, pc *LaidOutC
 	return nil
 }
 
-const eMMCSysBlockReadOnlyFmt = "/sys/block/%s%s/force_ro"
+var eMMCDeviceRegex = regexp.MustCompile("mmcblk[0-9]boot[0-1]")
 
-var eMMCDeviceRegex = regexp.MustCompile("mmcblk[0-9]")
-
-var setEMMCPartitionReadWrite = func(device string, part string, rw bool) error {
-	sdevPath := fmt.Sprintf(eMMCSysBlockReadOnlyFmt, device, part)
+// setEMMCPartitionReadWrite changes the read-write status of a eMMC boot partition.
+// Documentation for force_ro here:
+// https://www.kernel.org/doc/Documentation/mmc/mmc-dev-attrs.txt
+var setEMMCPartitionReadWrite = func(device string, rw bool) error {
+	sdevPath := fmt.Sprintf("/sys/block/%s/force_ro", device)
 
 	f, err := os.OpenFile(path.Join(dirs.GlobalRootDir, sdevPath), os.O_WRONLY, 0)
 	if err != nil {
@@ -273,12 +274,50 @@ var setEMMCPartitionReadWrite = func(device string, part string, rw bool) error 
 	}
 	defer f.Close()
 
+	d := "1"
 	if rw {
-		f.Write([]byte("0"))
-	} else {
-		f.Write([]byte("1"))
+		d = "0"
+	}
+	if _, err := f.Write([]byte(d)); err != nil {
+		return fmt.Errorf("cannot change device read only mode to %v: %w", d, err)
 	}
 	return nil
+}
+
+func openDiskForWrite(device string, laidOutStruct *LaidOutStructure) (*os.File, func(), error) {
+	isEMMC := laidOutStruct.VolumeStructure.EnclosingVolume.Schema == schemaEMMC
+
+	var mmcDevice string
+	if isEMMC {
+		// get the emmc block name from the device path
+		mmcDevice = eMMCDeviceRegex.FindString(device)
+		if mmcDevice == "" {
+			return nil, nil, fmt.Errorf("cannot find valid mmc device from %s", device)
+		}
+	}
+
+	setEMMCReadOnly := func() {
+		if isEMMC {
+			setEMMCPartitionReadWrite(mmcDevice, false)
+		}
+	}
+
+	if isEMMC {
+		if err := setEMMCPartitionReadWrite(mmcDevice, true); err != nil {
+			return nil, nil, err
+		}
+	}
+
+	disk, err := os.OpenFile(device, os.O_WRONLY, 0)
+	if err != nil {
+		setEMMCReadOnly()
+		return nil, nil, fmt.Errorf("cannot open device for writing: %v", err)
+	}
+
+	return disk, func() {
+		disk.Close()
+		setEMMCReadOnly()
+	}, nil
 }
 
 // Rollback attempts to restore original content from the backup copies prepared during Backup().
@@ -288,23 +327,11 @@ func (r *rawStructureUpdater) Rollback() error {
 		return err
 	}
 
-	if structForDevice.VolumeStructure.EnclosingVolume.Schema == schemaEMMC {
-		// get the emmc block name from the device path
-		mmcblk := eMMCDeviceRegex.FindString(device)
-		if mmcblk == "" {
-			return fmt.Errorf("cannot find valid mmc device from %s", device)
-		}
-		if err := setEMMCPartitionReadWrite(mmcblk, structForDevice.Name(), true); err != nil {
-			return err
-		}
-		defer setEMMCPartitionReadWrite(mmcblk, structForDevice.Name(), false)
-	}
-
-	disk, err := os.OpenFile(device, os.O_WRONLY, 0)
+	disk, close, err := openDiskForWrite(device, structForDevice)
 	if err != nil {
 		return fmt.Errorf("cannot open device for writing: %v", err)
 	}
-	defer disk.Close()
+	defer close()
 
 	for _, pc := range structForDevice.LaidOutContent {
 		if err := r.rollbackDifferent(disk, &pc); err != nil {
@@ -344,23 +371,11 @@ func (r *rawStructureUpdater) Update() error {
 		return err
 	}
 
-	if structForDevice.VolumeStructure.EnclosingVolume.Schema == schemaEMMC {
-		// get the emmc block name from the device path
-		mmcblk := eMMCDeviceRegex.FindString(device)
-		if mmcblk == "" {
-			return fmt.Errorf("cannot find valid mmc device from %s", device)
-		}
-		if err := setEMMCPartitionReadWrite(mmcblk, structForDevice.Name(), true); err != nil {
-			return err
-		}
-		defer setEMMCPartitionReadWrite(mmcblk, structForDevice.Name(), false)
-	}
-
-	disk, err := os.OpenFile(device, os.O_WRONLY, 0)
+	disk, close, err := openDiskForWrite(device, structForDevice)
 	if err != nil {
 		return fmt.Errorf("cannot open device for writing: %v", err)
 	}
-	defer disk.Close()
+	defer close()
 
 	skipped := 0
 	for _, pc := range structForDevice.LaidOutContent {

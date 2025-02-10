@@ -483,8 +483,9 @@ func (r *rawTestSuite) testRawUpdaterBackupUpdateRestoreDifferentEMMC(c *C, upda
 	ps := &gadget.LaidOutStructure{
 		OnDiskStructure: gadget.OnDiskStructure{},
 		VolumeStructure: &gadget.VolumeStructure{
-			Name: "boot0",
-			Size: 4096,
+			Name:   "boot0",
+			Device: "/dev/mmcblk0boot0",
+			Size:   4096,
 			EnclosingVolume: &gadget.Volume{
 				Schema: "emmc",
 			},
@@ -560,8 +561,8 @@ func (r *rawTestSuite) TestRawUpdaterBackupUpdateRestoreDifferentEMMCWithPaths(c
 
 func (r *rawTestSuite) TestRawUpdaterBackupUpdateRestoreDifferentEMMCCorrectCalls(c *C) {
 	var calls []string
-	restore := gadget.MockSetEMMCPartitionReadWrite(func(device, part string, rw bool) error {
-		calls = append(calls, fmt.Sprintf("%s %s %t", device, part, rw))
+	restore := gadget.MockSetEMMCPartitionReadWrite(func(device string, rw bool) error {
+		calls = append(calls, fmt.Sprintf("%s %t", device, rw))
 		return nil
 	})
 	defer restore()
@@ -571,27 +572,27 @@ func (r *rawTestSuite) TestRawUpdaterBackupUpdateRestoreDifferentEMMCCorrectCall
 
 	// one set for update, one set for rollback
 	c.Check(calls, DeepEquals, []string{
-		"mmcblk1 boot0 true",
-		"mmcblk1 boot0 false",
-		"mmcblk1 boot0 true",
-		"mmcblk1 boot0 false",
+		"mmcblk1boot0 true",
+		"mmcblk1boot0 false",
+		"mmcblk1boot0 true",
+		"mmcblk1boot0 false",
 	})
 }
 
 func (r *rawTestSuite) TestRawUpdaterBackupUpdateRestoreDifferentEMMCCorrectCallsFails(c *C) {
 	var calls []string
-	restore := gadget.MockSetEMMCPartitionReadWrite(func(device, part string, rw bool) error {
-		calls = append(calls, fmt.Sprintf("%s %s %t", device, part, rw))
+	restore := gadget.MockSetEMMCPartitionReadWrite(func(device string, rw bool) error {
+		calls = append(calls, fmt.Sprintf("%s %t", device, rw))
 		return fmt.Errorf("failed to mark rw")
 	})
 	defer restore()
 
 	// test with mock in place to detect correct calls
-	r.testRawUpdaterBackupUpdateRestoreDifferentEMMC(c, "failed to mark rw")
+	r.testRawUpdaterBackupUpdateRestoreDifferentEMMC(c, "cannot open device for writing: failed to mark rw")
 
 	// one enable for update, which fails
 	c.Check(calls, DeepEquals, []string{
-		"mmcblk1 boot0 true",
+		"mmcblk1boot0 true",
 	})
 }
 

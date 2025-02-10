@@ -467,6 +467,26 @@ func (s *ondiskTestSuite) TestOnDiskVolumeFromGadgetVol(c *C) {
 	c.Check(diskVol, IsNil)
 }
 
+func (s *ondiskTestSuite) TestOnDiskVolumeFromGadgetVolWithAssignedDevice(c *C) {
+	gadgetRoot := filepath.Join(c.MkDir(), "gadget")
+	ginfo, _, _, restore, err := gadgettest.MockGadgetPartitionedDisk(gadgettest.MultiVolumeEmmcUC20GadgetYaml, gadgetRoot)
+	c.Assert(err, IsNil)
+	defer restore()
+
+	// Initially without setting devices
+	diskVol, err := gadget.OnDiskVolumeFromGadgetVol(ginfo.Volumes["my-emmc"])
+	c.Check(err.Error(), Equals, `volume "my-emmc" has no device assigned`)
+	c.Check(diskVol, IsNil)
+
+	// Assign a device to the eMMC as we would do through device-assignments
+	// to fix the above "no device assigned" and verify AssignedDevice is respected
+	ginfo.Volumes["my-emmc"].AssignedDevice = "/dev/mmcblk0"
+
+	diskVol, err = gadget.OnDiskVolumeFromGadgetVol(ginfo.Volumes["my-emmc"])
+	c.Check(err, IsNil)
+	c.Check(diskVol, DeepEquals, &gadgettest.MockGadgetEMMCOnDiskVolume)
+}
+
 func (s *ondiskTestSuite) TestOnDiskStructsFromGadget(c *C) {
 	gadgetYaml := `
 volumes:
@@ -519,6 +539,49 @@ volumes:
 			Type:        "83,0FC63DAF-8483-4772-8E79-3D69D8477DE4",
 			StartOffset: 1110 * quantity.OffsetMiB,
 			Size:        quantity.SizeGiB,
+		},
+	})
+}
+
+func (s *ondiskTestSuite) TestOnDiskStructsFromGadgetWithEMMC(c *C) {
+	gadgetYaml := `
+volumes:
+  disk:
+    bootloader: u-boot
+    structure:
+      - name: ubuntu-seed
+        filesystem: vfat
+        size: 500M
+        type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
+      - name: ubuntu-boot
+        filesystem: ext4
+        size: 500M
+        type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
+  my-emmc:
+    schema: emmc
+    structure:
+      - name: boot0
+        size: 1M
+        content:
+          - image: boot0filename
+      - name: boot1
+        size: 1M
+        content:
+          - image: boot1filename
+`
+
+	vol := mustParseVolume(c, gadgetYaml, "my-emmc")
+	c.Assert(vol.Structure, HasLen, 2)
+
+	onDisk := gadget.OnDiskStructsFromGadget(vol)
+	c.Assert(onDisk, DeepEquals, map[int]*gadget.OnDiskStructure{
+		0: {
+			Name: "boot0",
+			Size: quantity.SizeMiB,
+		},
+		1: {
+			Name: "boot1",
+			Size: quantity.SizeMiB,
 		},
 	})
 }
