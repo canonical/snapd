@@ -144,6 +144,20 @@ libsnap_confine_private_debug_a_SOURCES = $(libsnap_confine_private_a_SOURCES)
 libsnap_confine_private_debug_a_CFLAGS = $(AM_CFLAGS) $(VENDOR_BPF_HEADERS_CFLAGS) -DSNAP_CONFINE_DEBUG_BUILD=1
 
 if WITH_UNIT_TESTS
+
+#
+# libsnap-confine-private-test-support: support library for use with *-unit-tests
+# binaries
+#
+noinst_LIBRARIES += libsnap-confine-private-test-support.a
+libsnap_confine_private_test_support_a_SOURCES = \
+	libsnap-confine-private/test-utils.c \
+	libsnap-confine-private/test-utils.h \
+	libsnap-confine-private/unit-tests-main.c \
+	libsnap-confine-private/unit-tests.c \
+	libsnap-confine-private/unit-tests.h
+libsnap_confine_private_test_support_a_CFLAGS = $(AM_CFLAGS) $(GLIB_CFLAGS)
+
 noinst_PROGRAMS += libsnap-confine-private/unit-tests
 libsnap_confine_private_unit_tests_SOURCES = \
 	libsnap-confine-private/cgroup-support-test.c \
@@ -163,15 +177,10 @@ libsnap_confine_private_unit_tests_SOURCES = \
 	libsnap-confine-private/snap-test.c \
 	libsnap-confine-private/string-utils-test.c \
 	libsnap-confine-private/test-utils-test.c \
-	libsnap-confine-private/test-utils.c \
-	libsnap-confine-private/test-utils.h \
-	libsnap-confine-private/unit-tests-main.c \
-	libsnap-confine-private/unit-tests.c \
-	libsnap-confine-private/unit-tests.h \
 	libsnap-confine-private/utils-test.c
 
 libsnap_confine_private_unit_tests_CFLAGS = $(AM_CFLAGS) $(VENDOR_BPF_HEADERS_CFLAGS) $(GLIB_CFLAGS)
-libsnap_confine_private_unit_tests_LDADD = $(GLIB_LIBS)
+libsnap_confine_private_unit_tests_LDADD = $(GLIB_LIBS) libsnap-confine-private-test-support.a
 libsnap_confine_private_unit_tests_CFLAGS += -D_ENABLE_FAULT_INJECTION
 libsnap_confine_private_unit_tests_STATIC =
 
@@ -323,10 +332,6 @@ snap-confine/snap-confine-debug$(EXEEXT): LIBS += -Wl,-Bstatic $(snap_confine_sn
 if WITH_UNIT_TESTS
 noinst_PROGRAMS += snap-confine/unit-tests
 snap_confine_unit_tests_SOURCES = \
-	libsnap-confine-private/test-utils.c \
-	libsnap-confine-private/unit-tests-main.c \
-	libsnap-confine-private/unit-tests.c \
-	libsnap-confine-private/unit-tests.h \
 	snap-confine/cookie-support-test.c \
 	snap-confine/mount-support-test.c \
 	snap-confine/ns-support-test.c \
@@ -334,7 +339,7 @@ snap_confine_unit_tests_SOURCES = \
 	snap-confine/snap-confine-args-test.c \
 	snap-confine/snap-confine-invocation-test.c
 snap_confine_unit_tests_CFLAGS = $(snap_confine_snap_confine_CFLAGS) $(GLIB_CFLAGS)
-snap_confine_unit_tests_LDADD = $(snap_confine_snap_confine_LDADD) $(GLIB_LIBS)
+snap_confine_unit_tests_LDADD = $(snap_confine_snap_confine_LDADD) $(GLIB_LIBS) libsnap-confine-private-test-support.a
 snap_confine_unit_tests_LDFLAGS = $(snap_confine_snap_confine_LDFLAGS)
 snap_confine_unit_tests_STATIC = $(snap_confine_snap_confine_STATIC)
 
@@ -430,20 +435,9 @@ snap_device_helper_snap_device_helper_LDADD = libsnap-confine-private.a
 if WITH_UNIT_TESTS
 noinst_PROGRAMS += snap-device-helper/unit-tests
 snap_device_helper_unit_tests_SOURCES = \
-	libsnap-confine-private/test-utils.c \
-	libsnap-confine-private/string-utils.c \
-	libsnap-confine-private/utils.c \
-	libsnap-confine-private/cleanup-funcs.c \
-	libsnap-confine-private/panic.c \
-	libsnap-confine-private/snap.c \
-	libsnap-confine-private/snap-dir.c \
-	libsnap-confine-private/error.c \
-	libsnap-confine-private/unit-tests-main.c \
-	libsnap-confine-private/unit-tests.c \
-	libsnap-confine-private/unit-tests.h \
 	snap-device-helper/snap-device-helper-test.c
 snap_device_helper_unit_tests_CFLAGS = $(AM_CFLAGS) $(snap_device_helper_snap_device_helper_CFLAGS) $(GLIB_CFLAGS)
-snap_device_helper_unit_tests_LDADD = $(GLIB_LIBS)
+snap_device_helper_unit_tests_LDADD = $(GLIB_LIBS) libsnap-confine-private.a libsnap-confine-private-test-support.a
 snap_device_helper_unit_tests_LDFLAGS =$(snap_device_helper_snap_device_helper_LDFLAGS)
 
 endif  # WITH_UNIT_TESTS
@@ -487,10 +481,8 @@ system_shutdown_system_shutdown_LDADD = libsnap-confine-private.a
 if WITH_UNIT_TESTS
 noinst_PROGRAMS += system-shutdown/unit-tests
 system_shutdown_unit_tests_SOURCES = \
-	libsnap-confine-private/unit-tests-main.c \
-	libsnap-confine-private/unit-tests.c \
 	system-shutdown/system-shutdown-utils-test.c
-system_shutdown_unit_tests_LDADD = libsnap-confine-private.a
+system_shutdown_unit_tests_LDADD = libsnap-confine-private.a libsnap-confine-private-test-support.a
 system_shutdown_unit_tests_CFLAGS = $(AM_CFLAGS) $(GLIB_CFLAGS)
 system_shutdown_unit_tests_LDADD +=  $(GLIB_LIBS)
 endif
