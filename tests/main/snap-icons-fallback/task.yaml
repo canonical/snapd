@@ -1,0 +1,54 @@
+summary: Snapd icons API can use fallback icon from store
+
+details: |
+    If a snap does not provide an icon at "/snap/<name>/<rev>/meta/gui/icon.*",
+    then the icons API should fall back to serving the icon from the snap's
+    store listing, which snapd should have cached during the snap install.
+
+execute: |
+    # Snap which has local icon file and a store icon
+    # Local icon: icon-orange-chest.svg
+    # Store icon: icon-orange-wing.svg
+    SNAP_LOCAL=test-snapd-icons-api-local
+
+    # Snap which only has a store icon, no local icon file
+    # Local icon: none
+    # Store icon: icon-orange-tail.svg
+    SNAP_FALLBACK=test-snapd-icons-api-fallback
+
+
+    echo "Install a snap which has a local icon and a store icon"
+    snap install "$SNAP_LOCAL"
+
+    echo "Install a snap which has a store icon but no local icon"
+    snap install "$SNAP_FALLBACK"
+
+
+    echo "Check that the snap which is supposed to have a local icon does in fact have a local icon"
+    [ -f "/snap/${SNAP_LOCAL}/current/meta/gui/icon.svg" ]
+    echo "Check that it is the expected icon"
+    diff "/snap/${SNAP_LOCAL}/current/meta/gui/icon.svg" icon-orange-chest.svg
+
+    echo "Check that the snap which is NOT supposed to have a local icon does not have no local icon"
+    ls /snap/"${SNAP_FALLBACK}"/current/meta/gui/icon.* | wc -l | MATCH 0
+
+
+    echo "Check that both snaps have store icons"
+    snap debug api "/v2/snaps/$SNAP_LOCAL" | MATCH '"icon"'
+    snap debug api "/v2/snaps/$SNAP_FALLBACK" | MATCH '"icon"'
+
+
+    # Clear any previously-fetched icons from previous runs
+    rm -f "${SNAP_LOCAL}.icon" "${SNAP_FALLBACK}.icon"
+
+    echo "Check that /v2/icons serves the local icon for the snap which has one"
+    snap debug api "/v2/icons/${SNAP_LOCAL}/icon" > "${SNAP_LOCAL}.icon"
+    diff "${SNAP_LOCAL}.icon" "/snap/${SNAP_LOCAL}/current/meta/gui/icon.svg"
+
+    echo "Check that /v2/icons serves the store icon as fallback"
+    snap debug api "/v2/icons/${SNAP_FALLBACK}/icon" > "${SNAP_FALLBACK}.icon"
+    NOMATCH '"local snap has no icon"' "${SNAP_FALLBACK}.icon"
+
+
+    # Clean up fetched icons
+    rm -f "${SNAP_LOCAL}.icon" "${SNAP_FALLBACK}.icon"
