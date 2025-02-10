@@ -1,4 +1,3 @@
-
 EXTRA_DIST = VERSION snap-confine/PORTING
 CLEANFILES =
 TESTS =
@@ -7,8 +6,9 @@ dist_man_MANS =
 noinst_PROGRAMS =
 noinst_LIBRARIES =
 
-AM_CFLAGS = $(CHECK_CFLAGS)
+AM_CFLAGS = $(CHECK_CFLAGS) $(CODE_COVERAGE_CFLAGS)
 AM_LDFLAGS = $(CHECK_LDFLAGS)
+AM_LIBS = $(CODE_COVERAGE_LIBS)
 
 if USE_INTERNAL_BPF_HEADERS
 VENDOR_BPF_HEADERS_CFLAGS = -I$(srcdir)/libsnap-confine-private/bpf/vendor
@@ -224,7 +224,7 @@ decode-mount-opts/decode-mount-opts$(EXEEXT): $(decode_mount_opts_decode_mount_o
 	@rm -f decode-mount-opts/decode-mount-opts$(EXEEXT)
 	$(AM_V_CCLD)$(decode_mount_opts_decode_mount_opts_LINK) $(decode_mount_opts_decode_mount_opts_OBJECTS) $(decode_mount_opts_decode_mount_opts_LDADD) $(LIBS)
 
-decode-mount-opts/decode-mount-opts$(EXEEXT): LIBS += -Wl,-Bstatic $(decode_mount_opts_decode_mount_opts_STATIC) -Wl,-Bdynamic
+decode-mount-opts/decode-mount-opts$(EXEEXT): LIBS += -Wl,-Bstatic $(decode_mount_opts_decode_mount_opts_STATIC) -Wl,-Bdynamic $(AM_LIBS)
 
 ##
 ## snap-confine
@@ -564,8 +564,16 @@ else
 APPARMOR_DISTCHECK_CONFIGURE_FLAGS=--disable-apparmor
 endif
 
+CLEANFILES += coverage.csv
 coverage.csv: check
 	gcovr \
 		--csv \
 		--merge-mode-functions=separate \
-		-o $@ .
+		-o $@ $(builddir)
+
+include $(top_srcdir)/aminclude_static.am
+
+if CODE_COVERAGE_ENABLED
+clean-local: code-coverage-clean
+distclean-local: code-coverage-dist-clean
+endif

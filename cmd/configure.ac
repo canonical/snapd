@@ -333,10 +333,7 @@ AS_IF([test "x$with_unit_tests" = "xyes"], [
   AX_APPEND_COMPILE_FLAGS([-Werror], [CHECK_CFLAGS])
 ])
 
-AS_IF([test "x$enable_test_coverage" = "xyes"], [
-  AX_APPEND_COMPILE_FLAGS([--coverage], [CHECK_CFLAGS])
-  AX_APPEND_LINK_FLAGS([--coverage], [CHECK_LDFLAGS])
-])
+AX_CODE_COVERAGE
 
 AC_SUBST([CHECK_CFLAGS])
 AC_SUBST([CHECK_LDFLAGS])
