@@ -5726,6 +5726,71 @@ func (s *updateTestSuite) TestBuildVolumeStructureToLocationUC20EMMC(c *C) {
 	c.Check(mockLogBuf.String(), testutil.Contains, "structure 3 on volume pc (/dev/vda3) is not mounted read/write anywhere to be able to update it")
 }
 
+func (s *updateTestSuite) TestBuildVolumeStructureToLocationUC20EMMCUnsupportedName(c *C) {
+	traits := map[string]gadget.DiskVolumeDeviceTraits{
+		"my-emmc": {
+			OriginalKernelPath: "/dev/mmcblk0",
+			DiskID:             "86964016-3b5c-477e-9828-24ba9c552d39",
+			Size:               5120 * quantity.SizeMiB,
+			SectorSize:         quantity.Size(512),
+			Schema:             "emmc",
+			Structure: []gadget.DiskStructureDeviceTraits{
+				{
+					OriginalKernelPath: "/dev/mmcblk0rpmb",
+					Offset:             0,
+					Size:               quantity.SizeMiB,
+				},
+			},
+		},
+	}
+
+	mappings := map[string]*disks.MockDiskMapping{
+		"/dev/mmcblk0": {
+			DevNode:             "/dev/mmcblk0",
+			DevPath:             "/sys/devices/pci0000:00/0000:00:04.0/virtio2/block/mmcblk0",
+			DevNum:              "525:1",
+			DiskUsableSectorEnd: 5120 * uint64(quantity.SizeMiB) / 512,
+			DiskSizeInBytes:     5120 * uint64(quantity.SizeMiB),
+			SectorSizeBytes:     512,
+			DiskSchema:          "emmc",
+			ID:                  "86964016-3b5c-477e-9828-24ba9c552d39",
+			Structure: []disks.Partition{
+				{
+					PartitionLabel:   "rpmb",
+					Major:            525,
+					Minor:            2,
+					KernelDeviceNode: "/dev/mmcblk0rpmb",
+					KernelDevicePath: "/sys/devices/pci0000:00/0000:00:04.0/virtio2/block/mmcblk0rpmb",
+					DiskIndex:        1,
+					StartInBytes:     0,
+					SizeInBytes:      uint64(quantity.SizeMiB),
+				},
+			},
+		},
+	}
+
+	restore := disks.MockDeviceNameToDiskMapping(mappings)
+	defer restore()
+
+	vols := map[string]*gadget.Volume{
+		"my-emmc": {
+			Name:   "my-emmc",
+			Schema: "emmc",
+			Structure: []gadget.VolumeStructure{
+				{
+					Name: "rpmb",
+					Size: quantity.SizeMiB,
+				},
+			},
+		},
+	}
+	vols["my-emmc"].Structure[0].EnclosingVolume = vols["my-emmc"]
+
+	missingInitialMappingNo := false
+	_, _, err := gadget.BuildVolumeStructureToLocation(uc20Model, vols, vols, traits, missingInitialMappingNo)
+	c.Assert(err, ErrorMatches, `structure rpmb on volume my-emmc is not a valid eMMC partition`)
+}
+
 func (s *updateTestSuite) testBuildVolumeStructureToLocation(c *C,
 	model gadget.Model,
 	yaml string,

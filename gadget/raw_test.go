@@ -548,6 +548,37 @@ func (r *rawTestSuite) testRawUpdaterBackupUpdateRestoreDifferentEMMC(c *C, upda
 	}
 }
 
+func (r *rawTestSuite) TestRawUpdaterUpdateEMMCWrongDevice(c *C) {
+	ps := &gadget.LaidOutStructure{
+		OnDiskStructure: gadget.OnDiskStructure{},
+		VolumeStructure: &gadget.VolumeStructure{
+			Name:   "boot0",
+			Device: "/dev/sda",
+			Size:   4096,
+			EnclosingVolume: &gadget.Volume{
+				Schema: "emmc",
+			},
+		},
+		LaidOutContent: []gadget.LaidOutContent{
+			{
+				VolumeContent: &gadget.VolumeContent{
+					Image: "foo.img",
+				},
+				Size: 4096,
+			},
+		},
+	}
+	ru, err := gadget.NewRawStructureUpdater(r.dir, ps, r.backup, func(to *gadget.LaidOutStructure) (string, quantity.Offset, error) {
+		c.Check(to, DeepEquals, ps)
+		return "/dev/sda", 0, nil
+	})
+	c.Assert(err, IsNil)
+	c.Assert(ru, NotNil)
+
+	err = ru.Update()
+	c.Assert(err, ErrorMatches, `cannot open device for writing: /dev/sda is not a valid emmc block device`)
+}
+
 func (r *rawTestSuite) TestRawUpdaterBackupUpdateRestoreDifferentEMMCWithPaths(c *C) {
 	dirs.SetRootDir(r.dir)
 

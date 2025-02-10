@@ -292,7 +292,7 @@ func openDiskForWrite(device string, laidOutStruct *LaidOutStructure) (*os.File,
 		// get the emmc block name from the device path
 		mmcDevice = eMMCDeviceRegex.FindString(device)
 		if mmcDevice == "" {
-			return nil, nil, fmt.Errorf("cannot find valid mmc device from %s", device)
+			return nil, nil, fmt.Errorf("%s is not a valid emmc block device", device)
 		}
 	}
 
