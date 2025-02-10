@@ -14,6 +14,10 @@ if USE_INTERNAL_BPF_HEADERS
 VENDOR_BPF_HEADERS_CFLAGS = -I$(srcdir)/libsnap-confine-private/bpf/vendor
 endif
 
+CODE_COVERAGE_LCOV_SHOPTS = --ignore-errors inconsistent,corrupt,unused \
+	--exclude '*-test.c'
+CODE_COVERAGE_GENHTML_OPTIONS = --ignore-errors inconsistent,corrupt
+
 subdirs = \
 		  libsnap-confine-private \
 		  snap-confine \
