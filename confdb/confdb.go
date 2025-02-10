@@ -117,6 +117,7 @@ type DataBag interface {
 // Schema takes in data from the DataBag and validates that it's valid and could
 // be committed.
 type Schema interface {
+	// Validate checks that the data conforms to the schema.
 	Validate(data []byte) error
 
 	// SchemaAt returns the schemas (e.g., string, int, etc) that may be at the
@@ -129,6 +130,11 @@ type Schema interface {
 	// Ephemeral returns true if the data corresponding to this type should not be
 	// saved by snapd.
 	Ephemeral() bool
+
+	// PruneEphemeral parses the data and removes paths marked as ephemeral in the
+	// schema. The data should've been validated previously to ensure that the data
+	// matches the schema.
+	PruneEphemeral(data []byte) ([]byte, error)
 }
 
 type SchemaType uint
@@ -583,18 +589,18 @@ func (v *View) Set(databag DataBag, request string, value interface{}) error {
 		if err := databag.Set(match.storagePath, match.value); err != nil {
 			return err
 		}
+	}
 
-		data, err := databag.Data()
-		if err != nil {
-			return err
-		}
+	data, err := databag.Data()
+	if err != nil {
+		return err
+	}
 
-		// TODO: when using a transaction, the data only changes on commit so
-		// this is a bit of a waste. Maybe cache the result so we only do the first
-		// validation and then in confdbstate on Commit
-		if err := v.confdb.Schema.Validate(data); err != nil {
-			return fmt.Errorf(`cannot write data: %w`, err)
-		}
+	// TODO: when using a transaction, the data only changes on commit so
+	// this is a bit of a waste. Maybe cache the result so we only do the first
+	// validation and then in viewstate on Commit
+	if err := v.confdb.Schema.Validate(data); err != nil {
+		return fmt.Errorf(`cannot write data: %w`, err)
 	}
 
 	return nil
@@ -1572,6 +1578,17 @@ func (s JSONDataBag) Copy() JSONDataBag {
 	return JSONDataBag(copy)
 }
 
+// Overwrite replaces the entire databag with the provided data.
+func (s *JSONDataBag) Overwrite(data []byte) error {
+	var unmarshalledBag map[string]json.RawMessage
+	if err := json.Unmarshal(data, &unmarshalledBag); err != nil {
+		return err
+	}
+
+	*s = JSONDataBag(unmarshalledBag)
+	return nil
+}
+
 // JSONSchema is the Schema implementation corresponding to JSONDataBag and it's
 // able to validate its data.
 type JSONSchema struct{}
@@ -1600,3 +1617,5 @@ func (v JSONSchema) Type() SchemaType {
 func (v JSONSchema) Ephemeral() bool {
 	return false
 }
+
+func (v JSONSchema) PruneEphemeral(b []byte) ([]byte, error) { return b, nil }
