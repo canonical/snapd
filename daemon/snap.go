@@ -25,6 +25,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/snapcore/snapd/client"
@@ -351,6 +352,14 @@ func fillComponentInfo(about aboutSnap) []client.Component {
 func snapIcon(info snap.PlaceInfo, snapID string) string {
 	// Look in the snap itself
 	found, _ := filepath.Glob(filepath.Join(info.MountDir(), "meta", "gui", "icon.*"))
+	// Prioritize svg if it exists, else png, else whatever we can get
+	for _, filetype := range []string{".svg", ".png"} {
+		for _, filename := range found {
+			if strings.HasSuffix(filename, filetype) {
+				return filename
+			}
+		}
+	}
 	if len(found) > 0 {
 		return found[0]
 	}
