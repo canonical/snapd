@@ -554,7 +554,8 @@ install-exec-local:
 AM_DISTCHECK_CONFIGURE_FLAGS =								\
 	SYSTEMD_PREFIX=$${dc_install_base}						\
 	SYSTEMD_SYSTEM_GENERATOR_DIR=$${dc_install_base}/lib/systemd/system-generators	\
-	$(APPARMOR_DISTCHECK_CONFIGURE_FLAGS)
+	$(APPARMOR_DISTCHECK_CONFIGURE_FLAGS) \
+	--with-unit-tests
 
 if APPARMOR
 APPARMOR_DISTCHECK_CONFIGURE_FLAGS=--with-apparmorconfigdir=$${dc_install_base}/etc/apparmor.d
