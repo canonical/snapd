@@ -436,7 +436,9 @@ snap_device_helper_snap_device_helper_LDADD = libsnap-confine-private.a
 if WITH_UNIT_TESTS
 noinst_PROGRAMS += snap-device-helper/unit-tests
 snap_device_helper_unit_tests_SOURCES = \
-	snap-device-helper/snap-device-helper-test.c
+	snap-device-helper/snap-device-helper-test.c \
+	snap-device-helper/snap-device-helper.c \
+	snap-device-helper/snap-device-helper.h
 snap_device_helper_unit_tests_CFLAGS = $(AM_CFLAGS) $(snap_device_helper_snap_device_helper_CFLAGS) $(GLIB_CFLAGS)
 snap_device_helper_unit_tests_LDADD = $(GLIB_LIBS) libsnap-confine-private.a libsnap-confine-private-test-support.a
 snap_device_helper_unit_tests_LDFLAGS =$(snap_device_helper_snap_device_helper_LDFLAGS)

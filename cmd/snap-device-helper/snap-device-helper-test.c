@@ -26,7 +26,7 @@
 #include <sys/wait.h>
 #include <unistd.h>
 
-#include "snap-device-helper.c"
+#include "snap-device-helper.h"
 
 #include "../libsnap-confine-private/device-cgroup-support.h"
 
