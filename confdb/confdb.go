@@ -125,6 +125,10 @@ type Schema interface {
 
 	// Type returns the SchemaType corresponding to the Schema.
 	Type() SchemaType
+
+	// Ephemeral returns true if the data corresponding to this type should not be
+	// saved by snapd.
+	Ephemeral() bool
 }
 
 type SchemaType uint
@@ -1591,4 +1595,8 @@ func (v JSONSchema) SchemaAt(path []string) ([]Schema, error) {
 
 func (v JSONSchema) Type() SchemaType {
 	return Any
+}
+
+func (v JSONSchema) Ephemeral() bool {
+	return false
 }

@@ -52,6 +52,10 @@ func (f *failingSchema) Type() confdb.SchemaType {
 	return confdb.Any
 }
 
+func (f *failingSchema) Ephemeral() bool {
+	return false
+}
+
 func (*viewSuite) TestNewConfdb(c *C) {
 	type testcase struct {
 		confdb map[string]interface{}

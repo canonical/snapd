@@ -2235,6 +2235,28 @@ func (*schemaSuite) TestSchemaAtNestedInArray(c *C) {
 	c.Assert(schemasToTypes(schemas), DeepEquals, []confdb.SchemaType{confdb.String})
 }
 
+func (*schemaSuite) TestSchemaAtInUserDefinedType(c *C) {
+	schemaStr := []byte(`{
+	"aliases": {
+		"my-type": {
+			"type": "map",
+			"schema": {
+				"bar": "string"
+			}
+		}
+	},
+	"schema": {
+		"foo": "$my-type"
+	}
+}`)
+	schema, err := confdb.ParseSchema(schemaStr)
+	c.Assert(err, IsNil)
+
+	schemas, err := schema.SchemaAt([]string{"foo", "bar"})
+	c.Assert(err, IsNil)
+	c.Assert(schemasToTypes(schemas), DeepEquals, []confdb.SchemaType{confdb.String})
+}
+
 func (*schemaSuite) TestSchemaAtExceedingSchemaLeafSchema(c *C) {
 	for _, typ := range []string{"int", "number", "bool", "string"} {
 		cmt := Commentf("type %q test", typ)
@@ -2338,4 +2360,119 @@ func (*schemaSuite) TestSchemaAtAnyAcceptsLongerPath(c *C) {
 	schemas, err := schema.SchemaAt([]string{"foo", "baz"})
 	c.Assert(err, IsNil)
 	c.Assert(schemas, NotNil)
+}
+
+func (*schemaSuite) TestEphemeralTopLevelSchema(c *C) {
+	schemaStr := []byte(`{
+	"schema": {
+		"foo": "any"
+	},
+	"ephemeral": true
+}`)
+	schema, err := confdb.ParseSchema(schemaStr)
+	c.Assert(err, IsNil)
+	c.Assert(schema.Ephemeral(), Equals, true)
+}
+
+func (*schemaSuite) TestEphemeralAllTypes(c *C) {
+	for _, typ := range []string{"number", "int", "bool", "string", "any", `array", "values": "string`} {
+		cmt := Commentf("ephemeral broken for type %q", typ)
+
+		schemaStr := []byte(fmt.Sprintf(`{
+	"schema": {
+		"foo": {
+			"type": "%s",
+			"ephemeral": true
+		}
+	}
+}`, typ))
+		schema, err := confdb.ParseSchema(schemaStr)
+		c.Assert(err, IsNil, cmt)
+
+		nestedSchema, err := schema.SchemaAt([]string{"foo"})
+		c.Assert(err, IsNil, cmt)
+		c.Assert(nestedSchema, HasLen, 1, cmt)
+		c.Check(nestedSchema[0].Ephemeral(), Equals, true, cmt)
+	}
+}
+
+func (*schemaSuite) TestAlternativesAllEphemeralOk(c *C) {
+	schemaStr := []byte(`{
+	"schema": {
+		"foo": [
+		{
+			"type": "number",
+			"ephemeral": true
+		},
+		{
+			"type": "bool",
+			"ephemeral": true
+		}
+		]
+	}
+}`)
+	schema, err := confdb.ParseSchema(schemaStr)
+	c.Assert(err, IsNil)
+
+	nestedSchema, err := schema.SchemaAt([]string{"foo"})
+	c.Assert(err, IsNil)
+	c.Assert(nestedSchema, HasLen, 2)
+	c.Assert(nestedSchema[0].Ephemeral(), Equals, true)
+	c.Assert(nestedSchema[1].Ephemeral(), Equals, true)
+}
+
+func (*schemaSuite) TestAlternativesSomeEphemeralFail(c *C) {
+	schemaStr := []byte(`{
+	"schema": {
+		"foo": [
+		{
+			"type": "number",
+			"ephemeral": true
+		},
+		"bool"
+		]
+	}
+}`)
+	_, err := confdb.ParseSchema(schemaStr)
+	c.Assert(err, ErrorMatches, `cannot parse alternative types: alternatives must all be ephemeral or non-ephemeral`)
+
+}
+
+func (*schemaSuite) TestUserDefinedTypeEphemeralFail(c *C) {
+	schemaStr := []byte(`{
+	"aliases": {
+		"my-type": {
+			"type": "string",
+			"ephemeral": true
+		}
+	},
+	"schema": {
+		"foo": "$my-type"
+	}
+}`)
+	_, err := confdb.ParseSchema(schemaStr)
+	c.Assert(err, ErrorMatches, `cannot use "ephemeral" in user-defined type: my-type`)
+}
+
+func (*schemaSuite) TestUserTypeReferenceEphemeral(c *C) {
+	schemaStr := []byte(`{
+	"aliases": {
+		"my-type": {
+			"type": "string"
+		}
+	},
+	"schema": {
+		"foo": {
+			"type": "$my-type",
+			"ephemeral": true
+		}
+	}
+}`)
+	schema, err := confdb.ParseSchema(schemaStr)
+	c.Assert(err, IsNil)
+
+	nestedSchema, err := schema.SchemaAt([]string{"foo"})
+	c.Assert(err, IsNil)
+	c.Assert(nestedSchema, HasLen, 1)
+	c.Assert(nestedSchema[0].Ephemeral(), Equals, true)
 }
