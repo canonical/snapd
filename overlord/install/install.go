@@ -324,7 +324,10 @@ func BuildInstallObserver(model *asserts.Model, gadgetDir string, useEncryption 
 // * save keys and markers for ubuntu-data being able to safely open ubuntu-save
 // It is the responsibility of the caller to call
 // ObserveExistingTrustedRecoveryAssets on trustedInstallObserver.
-func PrepareEncryptedSystemData(model *asserts.Model, installKeyForRole map[string]secboot.BootstrappedContainer, trustedInstallObserver boot.TrustedAssetsInstallObserver) error {
+func PrepareEncryptedSystemData(
+	model *asserts.Model, installKeyForRole map[string]secboot.BootstrappedContainer,
+	volumesAuth *device.VolumesAuthOptions, trustedInstallObserver boot.TrustedAssetsInstallObserver,
+) error {
 	// validity check
 	if len(installKeyForRole) == 0 || installKeyForRole[gadget.SystemData] == nil || installKeyForRole[gadget.SystemSave] == nil {
 		return fmt.Errorf("internal error: system encryption keys are unset")
@@ -382,8 +385,8 @@ func PrepareEncryptedSystemData(model *asserts.Model, installKeyForRole map[stri
 		return err
 	}
 
-	// make note of the encryption keys
-	trustedInstallObserver.SetBootstrappedContainersAndPrimaryKey(dataBootstrappedContainer, saveBootstrappedContainer, primaryKey)
+	// make note of the encryption keys and auth options
+	trustedInstallObserver.SetEncryptionParams(dataBootstrappedContainer, saveBootstrappedContainer, primaryKey, volumesAuth)
 
 	return nil
 }

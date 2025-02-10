@@ -93,7 +93,7 @@ func fallbackKeySealRequests(key, saveKey secboot.BootstrappedContainer, factory
 	}
 }
 
-func sealRunObjectKeys(key secboot.BootstrappedContainer, pbc boot.PredictableBootChains, maybePrimaryKey []byte, roleToBlName map[bootloader.Role]string, pcrHandle uint32, useTokens bool) ([]byte, error) {
+func sealRunObjectKeys(key secboot.BootstrappedContainer, pbc boot.PredictableBootChains, maybePrimaryKey []byte, volumesAuth *device.VolumesAuthOptions, roleToBlName map[bootloader.Role]string, pcrHandle uint32, useTokens bool) ([]byte, error) {
 	modelParams, err := boot.SealKeyModelParams(pbc, roleToBlName)
 	if err != nil {
 		return nil, fmt.Errorf("cannot prepare for key sealing: %v", err)
@@ -102,6 +102,7 @@ func sealRunObjectKeys(key secboot.BootstrappedContainer, pbc boot.PredictableBo
 	sealKeyParams := &secboot.SealKeysParams{
 		ModelParams:            modelParams,
 		PrimaryKey:             maybePrimaryKey,
+		VolumesAuth:            volumesAuth,
 		TPMPolicyAuthKeyFile:   filepath.Join(boot.InstallHostFDESaveDir, "tpm-policy-auth-key"),
 		PCRPolicyCounterHandle: pcrHandle,
 	}
@@ -120,7 +121,7 @@ func sealRunObjectKeys(key secboot.BootstrappedContainer, pbc boot.PredictableBo
 	return primaryKey, nil
 }
 
-func sealFallbackObjectKeys(key, saveKey secboot.BootstrappedContainer, pbc boot.PredictableBootChains, primaryKey []byte, roleToBlName map[bootloader.Role]string, factoryReset bool, pcrHandle uint32, useTokens bool) error {
+func sealFallbackObjectKeys(key, saveKey secboot.BootstrappedContainer, pbc boot.PredictableBootChains, primaryKey []byte, volumesAuth *device.VolumesAuthOptions, roleToBlName map[bootloader.Role]string, factoryReset bool, pcrHandle uint32, useTokens bool) error {
 	// also seal the keys to the recovery bootchains as a fallback
 	modelParams, err := boot.SealKeyModelParams(pbc, roleToBlName)
 	if err != nil {
@@ -129,6 +130,7 @@ func sealFallbackObjectKeys(key, saveKey secboot.BootstrappedContainer, pbc boot
 	sealKeyParams := &secboot.SealKeysParams{
 		ModelParams:            modelParams,
 		PrimaryKey:             primaryKey,
+		VolumesAuth:            volumesAuth,
 		PCRPolicyCounterHandle: pcrHandle,
 	}
 	logger.Debugf("sealing fallback key with PCR handle: %#x", sealKeyParams.PCRPolicyCounterHandle)
@@ -178,8 +180,9 @@ func sealKeyForBootChainsHook(key, saveKey secboot.BootstrappedContainer, params
 	return nil
 }
 
-func sealKeyForBootChainsBackend(method device.SealingMethod, key, saveKey secboot.BootstrappedContainer, primaryKey []byte, params *boot.SealKeyForBootChainsParams) error {
+func sealKeyForBootChainsBackend(method device.SealingMethod, key, saveKey secboot.BootstrappedContainer, primaryKey []byte, volumesAuth *device.VolumesAuthOptions, params *boot.SealKeyForBootChainsParams) error {
 	if method == device.SealingMethodFDESetupHook {
+		// volumes authentication is not supported for FDE hooks
 		return sealKeyForBootChainsHook(key, saveKey, params)
 	}
 
@@ -204,12 +207,12 @@ func sealKeyForBootChainsBackend(method device.SealingMethod, key, saveKey secbo
 
 	// TODO:FDEM: refactor sealing functions to take a struct instead of so many
 	// parameters
-	primaryKey, err = sealRunObjectKeys(key, pbc, primaryKey, params.RoleToBlName, handle, params.UseTokens)
+	primaryKey, err = sealRunObjectKeys(key, pbc, primaryKey, volumesAuth, params.RoleToBlName, handle, params.UseTokens)
 	if err != nil {
 		return err
 	}
 
-	err = sealFallbackObjectKeys(key, saveKey, rpbc, primaryKey, params.RoleToBlName, params.FactoryReset,
+	err = sealFallbackObjectKeys(key, saveKey, rpbc, primaryKey, volumesAuth, params.RoleToBlName, params.FactoryReset,
 		handle, params.UseTokens)
 	if err != nil {
 		return err

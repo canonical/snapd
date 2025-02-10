@@ -62,6 +62,8 @@ type partEncryptionData struct {
 type EncryptionSetupData struct {
 	// maps from partition label to data
 	parts map[string]partEncryptionData
+	// optional volume authentication options
+	volumesAuth *device.VolumesAuthOptions
 }
 
 // EncryptedDevices returns a map partition role -> LUKS mapper device.
@@ -73,6 +75,11 @@ func (esd *EncryptionSetupData) EncryptedDevices() map[string]string {
 	return m
 }
 
+// VolumesAuth returns attached volumes authentication options if any.
+func (esd *EncryptionSetupData) VolumesAuth() *device.VolumesAuthOptions {
+	return esd.volumesAuth
+}
+
 // MockEncryptedDeviceAndRole is meant to be used for unit tests from other
 // packages.
 type MockEncryptedDeviceAndRole struct {
@@ -82,9 +89,11 @@ type MockEncryptedDeviceAndRole struct {
 
 // MockEncryptionSetupData is meant to be used for unit tests from other
 // packages.
-func MockEncryptionSetupData(labelToEncDevice map[string]*MockEncryptedDeviceAndRole) *EncryptionSetupData {
+func MockEncryptionSetupData(labelToEncDevice map[string]*MockEncryptedDeviceAndRole, volumesAuth *device.VolumesAuthOptions) *EncryptionSetupData {
 	esd := &EncryptionSetupData{
-		parts: map[string]partEncryptionData{}}
+		parts:       map[string]partEncryptionData{},
+		volumesAuth: volumesAuth,
+	}
 	for label, encryptData := range labelToEncDevice {
 		//TODO:FDEM: we should use a mock for the bootstrap key. However,
 		//this is still used in place where LegacyKeptKey will be
