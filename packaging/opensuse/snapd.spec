@@ -99,7 +99,6 @@ Group:          System/Packages
 Url:            https://%{import_path}
 Source0:        https://github.com/snapcore/snapd/releases/download/%{version}/%{name}_%{version}.vendor.tar.xz
 Source1:        snapd-rpmlintrc
-Patch0:         0001-packaging-snapd.mk-drop-randomized-build-ID-generati.patch
 
 Source100:      pie.patch
 BuildRequires:  autoconf
