@@ -20,6 +20,7 @@
 package daemon_test
 
 import (
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -28,6 +29,7 @@ import (
 	"gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/daemon"
+	"github.com/snapcore/snapd/overlord/snapstate/backend"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -82,7 +84,6 @@ func (s *iconsSuite) TestSnapIconGetInactive(c *check.C) {
 func (s *iconsSuite) TestSnapIconGetNoIcon(c *check.C) {
 	d := s.daemon(c)
 
-	// have an *in*active foo in the system
 	info := s.mkInstalledInState(c, d, "foo", "bar", "v1", snap.R(10), true, "")
 
 	// NO ICON!
@@ -96,6 +97,33 @@ func (s *iconsSuite) TestSnapIconGetNoIcon(c *check.C) {
 
 	s.req(c, req, nil).ServeHTTP(rec, req)
 	c.Check(rec.Code/100, check.Equals, 4)
+}
+
+func (s *iconsSuite) TestSnapIconGetFallback(c *check.C) {
+	d := s.daemon(c)
+
+	const snapName = "foo"
+	const snapID = "foo-id" // ID is "<name>-id" for apiBaseSuite
+
+	info := s.mkInstalledInState(c, d, snapName, "bar", "v1", snap.R(10), true, "")
+
+	// NO ICON IN SNAP!
+	err := os.RemoveAll(filepath.Join(info.MountDir(), "meta", "gui", "icon.svg"))
+	c.Assert(err, check.IsNil)
+
+	// but fallback icon installed
+	fallbackIcon := backend.IconInstallFilename(snapID)
+	c.Assert(os.MkdirAll(filepath.Dir(fallbackIcon), 0o755), check.IsNil)
+	c.Check(os.WriteFile(fallbackIcon, []byte("ick"), 0o644), check.IsNil)
+
+	req, err := http.NewRequest("GET", fmt.Sprintf("/v2/icons/%s/icon", snapName), nil)
+	c.Assert(err, check.IsNil)
+
+	rec := httptest.NewRecorder()
+
+	s.req(c, req, nil).ServeHTTP(rec, req)
+	c.Check(rec.Code, check.Equals, 200)
+	c.Check(rec.Body.String(), check.Equals, "ick")
 }
 
 func (s *iconsSuite) TestSnapIconGetNoApp(c *check.C) {
