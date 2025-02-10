@@ -111,7 +111,7 @@ func (s *SnapSuite) runTests(cmds []getCmdArgs, c *C) {
 
 		c.Logf("Test: %s", test.args)
 
-		restore := snapset.MockIsStdinTTY(test.isTerminal)
+		restore := snapset.MockIsStdoutTTY(test.isTerminal)
 		defer restore()
 
 		_, err := snapset.Parser(snapset.Client()).ParseArgs(strings.Fields(test.args))
@@ -313,7 +313,7 @@ func (s *confdbSuite) TestConfdbGetAsDocument(c *C) {
 }
 
 func (s *confdbSuite) TestConfdbGetMany(c *C) {
-	restore := snapset.MockIsStdinTTY(true)
+	restore := snapset.MockIsStdoutTTY(true)
 	defer restore()
 
 	restore = s.mockConfdbFlag(c)
@@ -354,7 +354,7 @@ xyz  false
 }
 
 func (s *confdbSuite) TestConfdbGetManyAsDocument(c *C) {
-	restore := snapset.MockIsStdinTTY(true)
+	restore := snapset.MockIsStdoutTTY(true)
 	defer restore()
 
 	restore = s.mockConfdbFlag(c)

@@ -213,7 +213,7 @@ func (x *cmdGet) outputDefault(conf map[string]interface{}, snapName string, con
 
 	// conf looks like a map
 	if cfg, ok := confToPrint.(map[string]interface{}); ok {
-		if isStdinTTY {
+		if isStdoutTTY {
 			return x.outputList(cfg)
 		}
 

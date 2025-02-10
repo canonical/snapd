@@ -24,8 +24,6 @@ import (
 	"os"
 	"strings"
 
-	"golang.org/x/crypto/ssh/terminal"
-
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/snap"
 )
@@ -88,8 +86,6 @@ func canUnicode(mode string) bool {
 	lang = strings.ToUpper(lang)
 	return strings.Contains(lang, "UTF-8") || strings.Contains(lang, "UTF8")
 }
-
-var isStdoutTTY = terminal.IsTerminal(1)
 
 func colorTable(mode string) escapes {
 	switch mode {
