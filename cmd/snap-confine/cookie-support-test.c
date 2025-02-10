@@ -15,8 +15,7 @@
  *
  */
 
-#include "cookie-support.h"
-#include "cookie-support.c"
+#include "cookie-support-private.h"
 
 #include "../libsnap-confine-private/cleanup-funcs.h"
 #include "../libsnap-confine-private/test-utils.h"
@@ -27,26 +26,27 @@
 #include <string.h>
 
 // Set alternate cookie directory
-static void set_cookie_dir(const char *dir) { sc_cookie_dir = dir; }
+static void my_restore_cookie_dir(gpointer data) { sc_set_cookie_dir(sc_get_default_cookie_dir()); }
 
-static void set_fake_cookie_dir(void) {
+static const char *set_fake_cookie_dir(void) {
     char *ctx_dir = NULL;
     ctx_dir = g_dir_make_tmp(NULL, NULL);
     g_assert_nonnull(ctx_dir);
     g_test_queue_free(ctx_dir);
 
     g_test_queue_destroy((GDestroyNotify)rm_rf_tmp, ctx_dir);
-    g_test_queue_destroy((GDestroyNotify)set_cookie_dir, SC_COOKIE_DIR);
+    g_test_queue_destroy((GDestroyNotify)my_restore_cookie_dir, NULL);
 
-    set_cookie_dir(ctx_dir);
+    sc_set_cookie_dir(ctx_dir);
+    return ctx_dir;
 }
 
-static void create_dumy_cookie_file(const char *snap_name, const char *dummy_cookie) {
+static void create_dumy_cookie_file(const char *cookie_dir, const char *snap_name, const char *dummy_cookie) {
     char path[PATH_MAX] = {0};
     FILE *f;
     int n;
 
-    snprintf(path, sizeof(path), "%s/snap.%s", sc_cookie_dir, snap_name);
+    snprintf(path, sizeof(path), "%s/snap.%s", cookie_dir, snap_name);
 
     f = fopen(path, "w");
     g_assert_nonnull(f);
@@ -63,8 +63,8 @@ static void test_cookie_get_from_snapd__successful(void) {
 
     char *dummy = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijmnopqrst";
 
-    set_fake_cookie_dir();
-    create_dumy_cookie_file("test-snap", dummy);
+    const char *dir = set_fake_cookie_dir();
+    create_dumy_cookie_file(dir, "test-snap", dummy);
 
     cookie = sc_cookie_get_from_snapd("test-snap", &err);
     g_assert_null(err);

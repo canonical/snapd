@@ -15,7 +15,7 @@
  *
  */
 
-#include "cookie-support.h"
+#include "cookie-support-private.h"
 
 #include "../libsnap-confine-private/cleanup-funcs.h"
 #include "../libsnap-confine-private/string-utils.h"
@@ -65,3 +65,8 @@ out:
     sc_error_forward(errorp, err);
     return context;
 }
+
+// Set alternate cookie directory
+void sc_set_cookie_dir(const char *dir) { sc_cookie_dir = dir; }
+
+const char *sc_get_default_cookie_dir(void) { return SC_COOKIE_DIR; }

@@ -249,16 +249,20 @@ EXTRA_DIST += snap-confine/snap-confine.apparmor.in
 snap_confine_snap_confine_SOURCES = \
 	snap-confine/cookie-support.c \
 	snap-confine/cookie-support.h \
+	snap-confine/cookie-support-private.h \
 	snap-confine/mount-support-nvidia.c \
 	snap-confine/mount-support-nvidia.h \
 	snap-confine/mount-support.c \
 	snap-confine/mount-support.h \
+	snap-confine/mount-support-private.h \
 	snap-confine/ns-support.c \
 	snap-confine/ns-support.h \
+	snap-confine/ns-support-private.h \
 	snap-confine/seccomp-support-ext.c \
 	snap-confine/seccomp-support-ext.h \
 	snap-confine/seccomp-support.c \
 	snap-confine/seccomp-support.h \
+	snap-confine/seccomp-support-private.h \
 	snap-confine/snap-confine-args.c \
 	snap-confine/snap-confine-args.h \
 	snap-confine/snap-confine-invocation.c \
@@ -341,9 +345,15 @@ snap-confine/snap-confine-debug$(EXEEXT): LIBS += -Wl,-Bstatic $(snap_confine_sn
 if WITH_UNIT_TESTS
 noinst_PROGRAMS += snap-confine/unit-tests
 snap_confine_unit_tests_SOURCES = \
+	snap-confine/cookie-support.c \
 	snap-confine/cookie-support-test.c \
+	snap-confine/mount-support.c \
+	snap-confine/mount-support-nvidia.c \
 	snap-confine/mount-support-test.c \
+	snap-confine/ns-support.c \
 	snap-confine/ns-support-test.c \
+	snap-confine/seccomp-support.c \
+	snap-confine/seccomp-support-ext.c \
 	snap-confine/seccomp-support-test.c \
 	snap-confine/snap-confine-args-test.c \
 	snap-confine/snap-confine-invocation-test.c

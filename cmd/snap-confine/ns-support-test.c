@@ -15,13 +15,11 @@
  *
  */
 
-#include "ns-support.h"
-#include "ns-support.c"
+#include "ns-support-private.h"
 
-#include "../libsnap-confine-private/cleanup-funcs.h"
 #include "../libsnap-confine-private/test-utils.h"
 
-#include <errno.h>
+#include <dirent.h>
 #include <linux/magic.h>  // for NSFS_MAGIC
 #include <sys/utsname.h>
 #include <sys/vfs.h>
@@ -30,7 +28,7 @@
 #include <glib/gstdio.h>
 
 // Set alternate namespace directory
-static void sc_set_ns_dir(const char *dir) { sc_ns_dir = dir; }
+static void my_restore_ns_dir(gpointer data) { sc_set_ns_dir(sc_get_default_ns_dir()); }
 
 // A variant of unsetenv that is compatible with GDestroyNotify
 static void my_unsetenv(const char *k) { unsetenv(k); }
@@ -54,16 +52,16 @@ static const char *sc_test_use_fake_ns_dir(void) {
         g_test_queue_destroy((GDestroyNotify)my_unsetenv, "SNAP_CONFINE_NS_DIR");
         g_test_queue_destroy((GDestroyNotify)rm_rf_tmp, ns_dir);
     }
-    g_test_queue_destroy((GDestroyNotify)sc_set_ns_dir, SC_NS_DIR);
+    g_test_queue_destroy((GDestroyNotify)my_restore_ns_dir, NULL);
     sc_set_ns_dir(ns_dir);
     return ns_dir;
 }
 
 // Check that allocating a namespace group sets up internal data structures to
 // safe values.
-static void test_sc_alloc_mount_ns(void) {
+static void test_sc_mount_ns_new(void) {
     struct sc_mount_ns *group = NULL;
-    group = sc_alloc_mount_ns();
+    group = sc_mount_ns_new();
     g_test_queue_free(group);
     g_assert_nonnull(group);
     g_assert_cmpint(group->dir_fd, ==, -1);
@@ -133,7 +131,7 @@ static void test_nsfs_fs_id(void) {
 }
 
 static void __attribute__((constructor)) init(void) {
-    g_test_add_func("/ns/sc_alloc_mount_ns", test_sc_alloc_mount_ns);
+    g_test_add_func("/ns/sc_mount_ns_new", test_sc_mount_ns_new);
     g_test_add_func("/ns/sc_open_mount_ns", test_sc_open_mount_ns);
     g_test_add_func("/ns/nsfs_fs_id", test_nsfs_fs_id);
 }
