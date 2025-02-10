@@ -445,12 +445,12 @@ func writeInitramfsMountUnit(what, where string, utype unitType) error {
 	return os.Symlink(filepath.Join("..", unitFileName), linkPath)
 }
 
-// See comment in snapd/core-initrd/latest/factory/usr/lib/systemd/system/sysroot.mount
-// before modifying the dependencies.
 const sysrootMountUnitTmpltTxt = `[Unit]
 DefaultDependencies=no
 Before=initrd-root-fs.target
 After=snap-initramfs-mounts.service
+Before=umount.target
+Conflicts=umount.target
 
 [Mount]
 What={{.What}}

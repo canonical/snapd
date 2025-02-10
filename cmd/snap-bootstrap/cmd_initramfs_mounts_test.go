@@ -812,10 +812,10 @@ func (s *initramfsMountsSuite) testInitramfsMountsInstallModeWithCompsHappy(c *C
 		c.Skip("Unknown EFI arch")
 	}
 
-	var systemctlArgs []string
+	var systemctlArgs [][]string
 	systemctlNumCalls := 0
 	systemctlMock := systemd.MockSystemctl(func(args ...string) (buf []byte, err error) {
-		systemctlArgs = args
+		systemctlArgs = append(systemctlArgs, args)
 		systemctlNumCalls++
 		return nil, nil
 	})
@@ -1103,6 +1103,8 @@ func (s *initramfsMountsSuite) testInitramfsMountsInstallModeWithCompsHappy(c *C
 DefaultDependencies=no
 Before=initrd-root-fs.target
 After=snap-initramfs-mounts.service
+Before=umount.target
+Conflicts=umount.target
 
 [Mount]
 What=/run/mnt/ubuntu-seed/snaps/core24_1.snap
@@ -1114,8 +1116,9 @@ Type=squashfs
 	c.Assert(err, IsNil)
 	c.Assert(target, Equals, "../sysroot.mount")
 
-	c.Assert(systemctlNumCalls, Equals, 1)
-	c.Assert(systemctlArgs, DeepEquals, []string{"daemon-reload"})
+	c.Assert(systemctlNumCalls, Equals, 2)
+	c.Assert(systemctlArgs, DeepEquals, [][]string{{"daemon-reload"},
+		{"start", "--no-block", "initrd-root-fs.target"}})
 }
 
 func (s *initramfsMountsSuite) TestInitramfsMountsInstallModeBootFlagsSet(c *C) {
@@ -3595,10 +3598,10 @@ grade=signed
 
 func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeHappy(c *C) {
 	s.mockProcCmdlineContent(c, "snapd_recovery_mode=recover snapd_recovery_system="+s.sysLabel)
-	var systemctlArgs []string
+	var systemctlArgs [][]string
 	systemctlNumCalls := 0
 	systemctlMock := systemd.MockSystemctl(func(args ...string) (buf []byte, err error) {
-		systemctlArgs = args
+		systemctlArgs = append(systemctlArgs, args)
 		systemctlNumCalls++
 		return nil, nil
 	})
@@ -3677,6 +3680,8 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeHappy(c *C) {
 DefaultDependencies=no
 Before=initrd-root-fs.target
 After=snap-initramfs-mounts.service
+Before=umount.target
+Conflicts=umount.target
 
 [Mount]
 What=/run/mnt/ubuntu-seed/snaps/core24_1.snap
@@ -3688,8 +3693,9 @@ Type=squashfs
 	c.Assert(err, IsNil)
 	c.Assert(target, Equals, "../sysroot.mount")
 
-	c.Assert(systemctlNumCalls, Equals, 1)
-	c.Assert(systemctlArgs, DeepEquals, []string{"daemon-reload"})
+	c.Assert(systemctlNumCalls, Equals, 2)
+	c.Assert(systemctlArgs, DeepEquals, [][]string{{"daemon-reload"},
+		{"start", "--no-block", "initrd-root-fs.target"}})
 }
 
 func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeTimeMovesForwardHappy(c *C) {

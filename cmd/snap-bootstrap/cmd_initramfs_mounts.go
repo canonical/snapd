@@ -497,7 +497,11 @@ func doInstall(mst *initramfsMountsState, model *asserts.Model, sysSnaps map[sna
 		}
 	}
 
-	// Create drivers tree mount units to make it available before switch root
+	// Create drivers tree mount units to make it available before switch root.
+	// daemon-reload is not needed because it is done from initramfs later, this
+	// happens because on UC /etc/fstab is changed and systemd's
+	// initrd-parse-etc.service does the reload, as it detects entries with the
+	// x-initrd.mount option.
 	rootfsDir := filepath.Join(boot.InitramfsDataDir, "system-data")
 	hasDriversTree, err := createKernelMounts(
 		rootfsDir, kernelSnap.SnapName(), kernelSnap.Revision, !isCore)
@@ -1933,9 +1937,11 @@ func generateMountsCommonInstallRecoverStart(mst *initramfsMountsState) (model *
 	for _, essentialSnap := range essSnaps {
 		systemSnaps[essentialSnap.EssentialType] = essentialSnap
 		if essentialSnap.EssentialType == snap.TypeBase && is24plusSystem(model) {
-			// Create unit to mount directly to /sysroot. We
-			// restrict this to UC24+ for the moment, until we backport
-			// necessary changes to the UC20/22 initramfs.
+			// Create unit to mount directly to /sysroot. We restrict
+			// this to UC24+ for the moment, until we backport necessary
+			// changes to the UC20/22 initramfs. Note that a transient
+			// unit is not used as it tries to be restarted after the
+			// switch root, and fails.
 			what := essentialSnap.Path
 			if err := writeSysrootMountUnit(what, "squashfs"); err != nil {
 				return nil, nil, fmt.Errorf(
@@ -1947,6 +1953,13 @@ func generateMountsCommonInstallRecoverStart(mst *initramfsMountsState) (model *
 			// finishes)
 			sysd := systemd.New(systemd.SystemMode, nil)
 			if err := sysd.DaemonReload(); err != nil {
+				return nil, nil, err
+			}
+			// We need to restart initrd-root-fs.target so its dependencies are
+			// re-calculated considering the new sysroot.mount unit. See
+			// https://github.com/systemd/systemd/issues/23034 on why this is
+			// needed.
+			if err := sysd.StartNoBlock([]string{"initrd-root-fs.target"}); err != nil {
 				return nil, nil, err
 			}
 			if model.Classic() && model.KernelSnap() != nil {
@@ -2129,13 +2142,6 @@ func createKernelMounts(runWritableDataDir, kernelName string, rev snap.Revision
 				what, where, err)
 		}
 	}
-
-	// daemon-reload is not needed because it is done from initramfs
-	// later, this happens because
-	// 1. On UC /etc/fstab is changed and systemd's
-	//    initrd-parse-etc.service does the reload, as it detects entries
-	//    with the x-initrd.mount option
-	// 2. On hybrid, this is forced from classic-mounts.service
 
 	return true, nil
 }
@@ -2429,8 +2435,10 @@ func generateMountsModeRun(mst *initramfsMountsState) error {
 	typesToMount := typs
 	if is24plusSystem(model) {
 		// Create unit for sysroot (mounts either base or rootfs). We
-		// restrict this to UC24+ for the moment, until we backport
-		// necessary changes to the UC20/22 initramfs.
+		// restrict this to UC24+ for the moment, until we backport necessary
+		// changes to the UC20/22 initramfs. Note that a transient unit is
+		// not used as it tries to be restarted after the switch root, and
+		// fails.
 		typesToMount = []snap.Type{snap.TypeGadget, snap.TypeKernel}
 		if isClassic {
 			if err := writeSysrootMountUnit(rootfsDir, ""); err != nil {
@@ -2501,12 +2509,25 @@ func generateMountsModeRun(mst *initramfsMountsState) error {
 		}
 	}
 
-	// Do a daemon reload so systemd knows about the new sysroot mount unit
-	// (populate-writable.service depends on sysroot.mount, we need to make
-	// sure systemd knows this unit before snap-initramfs-mounts.service
-	// finishes)
-	sysd := systemd.New(systemd.SystemMode, nil)
-	return sysd.DaemonReload()
+	if is24plusSystem(model) {
+		// Do a daemon reload so systemd knows about the new sysroot mount unit
+		// (populate-writable.service depends on sysroot.mount, we need to make
+		// sure systemd knows this unit before snap-initramfs-mounts.service
+		// finishes) and about the drivers tree mounts (relevant on hybrid).
+		sysd := systemd.New(systemd.SystemMode, nil)
+		if err := sysd.DaemonReload(); err != nil {
+			return err
+		}
+		// We need to restart initrd-root-fs.target so its dependencies are
+		// re-calculated considering the new sysroot.mount unit. See
+		// https://github.com/systemd/systemd/issues/23034 on why this is
+		// needed.
+		if err := sysd.StartNoBlock([]string{"initrd-root-fs.target"}); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 var tryRecoverySystemHealthCheck = func(model gadget.Model) error {
