@@ -20,8 +20,6 @@
 #include <glib.h>
 #include <unistd.h>
 
-#include "infofile.c"
-
 static void test_infofile_get_key(void) {
     int rc;
     sc_error *err;

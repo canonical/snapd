@@ -14,7 +14,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "mountinfo.h"
+#include "mountinfo-private.h"
 
 #include <errno.h>
 #include <stdbool.h>
@@ -25,36 +25,9 @@
 #include "cleanup-funcs.h"
 
 /**
- * Parse a single mountinfo entry (line).
- *
- * The format, described by Linux kernel documentation, is as follows:
- *
- * 36 35 98:0 /mnt1 /mnt2 rw,noatime master:1 - ext3 /dev/root rw,errors=continue
- * (1)(2)(3)   (4)   (5)      (6)      (7)   (8) (9)   (10)         (11)
- *
- * (1) mount ID:  unique identifier of the mount (may be reused after umount)
- * (2) parent ID:  ID of parent (or of self for the top of the mount tree)
- * (3) major:minor:  value of st_dev for files on filesystem
- * (4) root:  root of the mount within the filesystem
- * (5) mount point:  mount point relative to the process's root
- * (6) mount options:  per mount options
- * (7) optional fields:  zero or more fields of the form "tag[:value]"
- * (8) separator:  marks the end of the optional fields
- * (9) filesystem type:  name of filesystem of the form "type[.subtype]"
- * (10) mount source:  filesystem specific information or "none"
- * (11) super options:  per super block options
- **/
-static sc_mountinfo_entry *sc_parse_mountinfo_entry(const char *line) __attribute__((nonnull(1)));
-
-/**
  * Free a sc_mountinfo structure and all its entries.
  **/
 static void sc_free_mountinfo(sc_mountinfo *info) __attribute__((nonnull(1)));
-
-/**
- * Free a sc_mountinfo entry.
- **/
-static void sc_free_mountinfo_entry(sc_mountinfo_entry *entry) __attribute__((nonnull(1)));
 
 sc_mountinfo_entry *sc_first_mountinfo_entry(sc_mountinfo *info) { return info->first; }
 
@@ -217,7 +190,27 @@ static char *parse_last_string_field(sc_mountinfo_entry *entry, const char *line
     return parse_next_string_field_ex(entry, line, offset, true);
 }
 
-static sc_mountinfo_entry *sc_parse_mountinfo_entry(const char *line) {
+/**
+ * Parse a single mountinfo entry (line).
+ *
+ * The format, described by Linux kernel documentation, is as follows:
+ *
+ * 36 35 98:0 /mnt1 /mnt2 rw,noatime master:1 - ext3 /dev/root rw,errors=continue
+ * (1)(2)(3)   (4)   (5)      (6)      (7)   (8) (9)   (10)         (11)
+ *
+ * (1) mount ID:  unique identifier of the mount (may be reused after umount)
+ * (2) parent ID:  ID of parent (or of self for the top of the mount tree)
+ * (3) major:minor:  value of st_dev for files on filesystem
+ * (4) root:  root of the mount within the filesystem
+ * (5) mount point:  mount point relative to the process's root
+ * (6) mount options:  per mount options
+ * (7) optional fields:  zero or more fields of the form "tag[:value]"
+ * (8) separator:  marks the end of the optional fields
+ * (9) filesystem type:  name of filesystem of the form "type[.subtype]"
+ * (10) mount source:  filesystem specific information or "none"
+ * (11) super options:  per super block options
+ **/
+sc_mountinfo_entry *sc_parse_mountinfo_entry(const char *line) {
     // NOTE: the sc_mountinfo structure is allocated along with enough extra
     // storage to hold the whole line we are parsing. This is used as backing
     // store for all text fields.
@@ -300,4 +293,7 @@ static void sc_free_mountinfo(sc_mountinfo *info) {
     free(info);
 }
 
-static void sc_free_mountinfo_entry(sc_mountinfo_entry *entry) { free(entry); }
+/**
+ * Free a sc_mountinfo entry.
+ **/
+void sc_free_mountinfo_entry(sc_mountinfo_entry *entry) { free(entry); }

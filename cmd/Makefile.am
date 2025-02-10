@@ -97,10 +97,12 @@ libsnap_confine_private_a_SOURCES = \
 	libsnap-confine-private/cgroup-freezer-support.h \
 	libsnap-confine-private/cgroup-support.c \
 	libsnap-confine-private/cgroup-support.h \
+	libsnap-confine-private/cgroup-support-private.h \
 	libsnap-confine-private/device-cgroup-support.c \
 	libsnap-confine-private/device-cgroup-support.h \
 	libsnap-confine-private/classic.c \
 	libsnap-confine-private/classic.h \
+	libsnap-confine-private/classic-private.h \
 	libsnap-confine-private/cleanup-funcs.c \
 	libsnap-confine-private/cleanup-funcs.h \
 	libsnap-confine-private/error.c \
@@ -109,14 +111,17 @@ libsnap_confine_private_a_SOURCES = \
 	libsnap-confine-private/fault-injection.h \
 	libsnap-confine-private/feature.c \
 	libsnap-confine-private/feature.h \
+	libsnap-confine-private/feature-private.h \
 	libsnap-confine-private/infofile.c \
 	libsnap-confine-private/infofile.h \
 	libsnap-confine-private/locking.c \
 	libsnap-confine-private/locking.h \
+	libsnap-confine-private/locking-private.h \
 	libsnap-confine-private/mount-opt.c \
 	libsnap-confine-private/mount-opt.h \
 	libsnap-confine-private/mountinfo.c \
 	libsnap-confine-private/mountinfo.h \
+	libsnap-confine-private/mountinfo-private.h \
 	libsnap-confine-private/panic.c \
 	libsnap-confine-private/panic.h \
 	libsnap-confine-private/privs.c \
@@ -125,6 +130,7 @@ libsnap_confine_private_a_SOURCES = \
 	libsnap-confine-private/secure-getenv.h \
 	libsnap-confine-private/snap-dir.c \
 	libsnap-confine-private/snap-dir.h \
+	libsnap-confine-private/snap-dir-private.h \
 	libsnap-confine-private/snap.c \
 	libsnap-confine-private/snap.h \
 	libsnap-confine-private/string-utils.c \
@@ -132,7 +138,8 @@ libsnap_confine_private_a_SOURCES = \
 	libsnap-confine-private/tool.c \
 	libsnap-confine-private/tool.h \
 	libsnap-confine-private/utils.c \
-	libsnap-confine-private/utils.h
+	libsnap-confine-private/utils.h \
+	libsnap-confine-private/utils-private.h
 if ENABLE_BPF
 libsnap_confine_private_a_SOURCES += \
 	libsnap-confine-private/bpf-support.c \
@@ -165,6 +172,7 @@ libsnap_confine_private_unit_tests_SOURCES = \
 	libsnap-confine-private/classic-test.c \
 	libsnap-confine-private/cleanup-funcs-test.c \
 	libsnap-confine-private/error-test.c \
+	libsnap-confine-private/fault-injection.c \
 	libsnap-confine-private/fault-injection-test.c \
 	libsnap-confine-private/feature-test.c \
 	libsnap-confine-private/infofile-test.c \
@@ -181,7 +189,7 @@ libsnap_confine_private_unit_tests_SOURCES = \
 	libsnap-confine-private/utils-test.c
 
 libsnap_confine_private_unit_tests_CFLAGS = $(AM_CFLAGS) $(VENDOR_BPF_HEADERS_CFLAGS) $(GLIB_CFLAGS)
-libsnap_confine_private_unit_tests_LDADD = $(GLIB_LIBS) libsnap-confine-private-test-support.a
+libsnap_confine_private_unit_tests_LDADD = $(GLIB_LIBS) libsnap-confine-private.a libsnap-confine-private-test-support.a
 libsnap_confine_private_unit_tests_CFLAGS += -D_ENABLE_FAULT_INJECTION
 libsnap_confine_private_unit_tests_STATIC =
 

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017 Canonical Ltd
+ * Copyright (C) 2025 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -15,8 +15,11 @@
  *
  */
 
-#include "secure-getenv.h"
+#ifndef SNAP_CONFINE_SNAP_DIR_PRIVATE_H
+#define SNAP_CONFINE_SNAP_DIR_PRIVATE_H
 
-#include <glib.h>
+#include "snap-dir.h"
 
-// TODO: write some tests
+void sc_set_snap_mount_dir(const char *dir);
+
+#endif

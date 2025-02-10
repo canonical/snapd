@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017 Canonical Ltd
+ * Copyright (C) 2025 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -14,9 +14,21 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
  */
+#ifndef SNAP_CONFINE_LOCKING_PRIVATE_H
+#define SNAP_CONFINE_LOCKING_PRIVATE_H
 
-#include "secure-getenv.h"
+#include "locking.h"
 
-#include <glib.h>
+int sc_lock_generic(const char *scope, uid_t uid);
 
-// TODO: write some tests
+// Set alternate inhibit directory
+void sc_set_inhibit_dir(const char *dir);
+
+const char *sc_get_default_inhibit_dir(void);
+
+// Set alternate locking directory
+void sc_set_lock_dir(const char *dir);
+
+const char *sc_get_default_lock_dir(void);
+
+#endif  // SNAP_CONFINE_LOCKING_PRIVATE_H

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017 Canonical Ltd
+ * Copyright (C) 2025 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -15,8 +15,13 @@
  *
  */
 
-#include "secure-getenv.h"
+#ifndef SNAP_CONFINE_FEATURE_PRIVATE_H
+#define SNAP_CONFINE_FEATURE_PRIVATE_H
 
-#include <glib.h>
+#include "feature.h"
 
-// TODO: write some tests
+void sc_set_feature_flag_dir(const char *dir);
+
+const char *sc_get_default_feature_flag_dir(void);
+
+#endif

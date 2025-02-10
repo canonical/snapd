@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017 Canonical Ltd
+ * Copyright (C) 2025 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -15,8 +15,17 @@
  *
  */
 
-#include "secure-getenv.h"
+#ifndef SC_CGROUP_SUPPORT_PRIVATE_H
+#define SC_CGROUP_SUPPORT_PRIVATE_H
 
-#include <glib.h>
+#include "cgroup-support.h"
 
-// TODO: write some tests
+void sc_set_cgroup_root(const char *dir);
+
+const char *sc_get_default_cgroup_root(void);
+
+void sc_set_self_cgroup_path(const char *path);
+
+const char *sc_get_default_self_cgroup_path(void);
+
+#endif

@@ -16,7 +16,7 @@
  */
 
 #include "mount-opt.h"
-#include "mount-opt.c"
+#include "fault-injection.h"
 
 #include <errno.h>
 #include <sys/mount.h>

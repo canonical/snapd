@@ -16,7 +16,6 @@
  */
 
 #include "string-utils.h"
-#include "string-utils.c"
 
 #include <glib.h>
 

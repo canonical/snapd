@@ -15,22 +15,29 @@
  *
  */
 
-#include "locking.h"
-#include "locking.c"
+#include "locking-private.h"
 
 #include "../libsnap-confine-private/cleanup-funcs.h"
+#include "../libsnap-confine-private/string-utils.h"
 #include "../libsnap-confine-private/test-utils.h"
+#include "../libsnap-confine-private/utils.h"
 
 #include <errno.h>
+#include <fcntl.h>
+#include <sys/file.h>
+#include <sys/stat.h>
+#include <sys/types.h>
+#include <unistd.h>
 
 #include <glib.h>
 #include <glib/gstdio.h>
 
-// Set alternate locking directory
-static void sc_set_lock_dir(const char *dir) { sc_lock_dir = dir; }
-
 // A variant of unsetenv that is compatible with GDestroyNotify
 static void my_unsetenv(const char *k) { unsetenv(k); }
+
+static void my_restore_lock_dir(gpointer dir) { sc_set_lock_dir(sc_get_default_lock_dir()); }
+
+static void my_restore_inhibit_dir(gpointer dir) { sc_set_inhibit_dir(sc_get_default_inhibit_dir()); }
 
 // Use temporary directory for locking.
 //
@@ -51,8 +58,7 @@ static const char *sc_test_use_fake_lock_dir(void) {
         g_test_queue_destroy((GDestroyNotify)my_unsetenv, "SNAP_CONFINE_LOCK_DIR");
         g_test_queue_destroy((GDestroyNotify)rm_rf_tmp, lock_dir);
     }
-    g_test_queue_destroy((GDestroyNotify)sc_set_lock_dir, SC_LOCK_DIR);
-    sc_set_lock_dir(lock_dir);
+    g_test_queue_destroy((GDestroyNotify)my_restore_lock_dir, NULL);
     return lock_dir;
 }
 
@@ -136,9 +142,6 @@ static void test_sc_enable_sanity_timeout(void) {
     g_test_trap_assert_stderr("sanity timeout expired: Interrupted system call\n");
 }
 
-// Set alternate inhibit directory
-static void sc_set_inhibit_dir(const char *dir) { sc_inhibit_dir = dir; }
-
 // Use temporary directory for inhibition.
 //
 // The directory is automatically reset to the real value at the end of the
@@ -148,7 +151,7 @@ static const char *sc_test_use_fake_inhibit_dir(void) {
     g_assert_nonnull(inhibit_dir);
     g_test_queue_free(inhibit_dir);
     g_test_queue_destroy((GDestroyNotify)rm_rf_tmp, inhibit_dir);
-    g_test_queue_destroy((GDestroyNotify)sc_set_inhibit_dir, SC_INHIBIT_DIR);
+    g_test_queue_destroy((GDestroyNotify)my_restore_inhibit_dir, NULL);
     sc_set_inhibit_dir(inhibit_dir);
     return inhibit_dir;
 }

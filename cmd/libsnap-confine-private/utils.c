@@ -26,7 +26,7 @@
 
 #include "cleanup-funcs.h"
 #include "panic.h"
-#include "utils.h"
+#include "utils-private.h"
 
 void die(const char *msg, ...) {
     va_list ap;
@@ -53,7 +53,7 @@ static const struct sc_bool_name sc_bool_names[] = {
  *
  * If the text cannot be recognized, the default value is used.
  **/
-static int parse_bool(const char *text, bool *value, bool default_value) {
+int parse_bool(const char *text, bool *value, bool default_value) {
     if (value == NULL) {
         errno = EFAULT;
         return -1;
@@ -234,11 +234,11 @@ bool sc_wait_for_file(const char *path, size_t timeout_sec) {
 
 const char *run_systemd_container = "/run/systemd/container";
 
-static bool _sc_is_in_container(const char *p) {
+bool sc_is_in_container_with_marker(const char *container_marker_file) {
     // see what systemd-detect-virt --container does in, see:
     // https://github.com/systemd/systemd/blob/5dcd6b1d55a1cfe247621d70f0e25d020de6e0ed/src/basic/virt.c#L749-L755
     // https://systemd.io/CONTAINER_INTERFACE/
-    FILE *in SC_CLEANUP(sc_cleanup_file) = fopen(p, "r");
+    FILE *in SC_CLEANUP(sc_cleanup_file) = fopen(container_marker_file, "r");
     if (in == NULL) {
         return false;
     }
@@ -267,4 +267,4 @@ static bool _sc_is_in_container(const char *p) {
     return true;
 }
 
-bool sc_is_in_container(void) { return _sc_is_in_container(run_systemd_container); }
+bool sc_is_in_container(void) { return sc_is_in_container_with_marker(run_systemd_container); }

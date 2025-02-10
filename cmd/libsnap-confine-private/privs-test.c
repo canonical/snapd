@@ -16,7 +16,8 @@
  */
 
 #include "privs.h"
-#include "privs.c"
+
+#include <sys/unistd.h>
 
 #include <glib.h>
 

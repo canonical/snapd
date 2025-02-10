@@ -16,12 +16,12 @@
  */
 
 #include "cleanup-funcs.h"
-#include "cleanup-funcs.c"
 
 #include <glib.h>
 #include <glib/gstdio.h>
 
 #include <fcntl.h>
+#include <mntent.h>
 #include <string.h>
 #include <sys/stat.h>
 #include <sys/timerfd.h>

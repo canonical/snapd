@@ -15,8 +15,7 @@
  *
  */
 
-#include "mountinfo.h"
-#include "mountinfo.c"
+#include "mountinfo-private.h"
 
 #include <glib.h>
 

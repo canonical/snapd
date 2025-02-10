@@ -15,10 +15,10 @@
  *
  */
 
-#include "utils.h"
-#include "utils.c"
+#include "utils-private.h"
 
 #include <glib.h>
+#include <unistd.h>
 
 static void test_parse_bool(void) {
     int err;
@@ -220,27 +220,27 @@ static void test_sc_is_container__empty(void) {
     g_test_in_ephemeral_dir();
     g_test_queue_destroy((GDestroyNotify)my_unlink, "container");
     g_assert_true(g_file_set_contents("container", "", -1, NULL));
-    g_assert_false(_sc_is_in_container("container"));
+    g_assert_false(sc_is_in_container_with_marker("container"));
 }
 
 static void test_sc_is_container__lxc(void) {
     g_test_in_ephemeral_dir();
     g_test_queue_destroy((GDestroyNotify)my_unlink, "container");
     g_assert_true(g_file_set_contents("container", "lxc", -1, NULL));
-    g_assert_true(_sc_is_in_container("container"));
+    g_assert_true(sc_is_in_container_with_marker("container"));
 }
 
 static void test_sc_is_container__lxc_with_newline(void) {
     g_test_in_ephemeral_dir();
     g_test_queue_destroy((GDestroyNotify)my_unlink, "container");
     g_assert_true(g_file_set_contents("container", "lxc\n", -1, NULL));
-    g_assert_true(_sc_is_in_container("container"));
+    g_assert_true(sc_is_in_container_with_marker("container"));
 }
 
 static void test_sc_is_container__no_file(void) {
     g_test_in_ephemeral_dir();
     g_test_queue_destroy((GDestroyNotify)my_unlink, "container");
-    g_assert_false(_sc_is_in_container("container"));
+    g_assert_false(sc_is_in_container_with_marker("container"));
 }
 
 static void __attribute__((constructor)) init(void) {

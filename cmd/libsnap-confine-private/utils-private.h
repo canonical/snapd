@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017 Canonical Ltd
+ * Copyright (C) 2025 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -14,9 +14,13 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
  */
+#ifndef SC_UTILS_PRIVATE_H
+#define SC_UTILS_PRIVATE_H
 
-#include "secure-getenv.h"
+#include "utils.h"
 
-#include <glib.h>
+int parse_bool(const char *text, bool *value, bool default_value);
 
-// TODO: write some tests
+bool sc_is_in_container_with_marker(const char *container_marker_file);
+
+#endif

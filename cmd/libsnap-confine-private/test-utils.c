@@ -16,9 +16,9 @@
  */
 
 #include "test-utils.h"
+#include "snap-dir-private.h"
 #include "string-utils.h"
 
-#include "error.h"
 #include "utils.h"
 
 #if !GLIB_CHECK_VERSION(2, 69, 0)
@@ -97,8 +97,6 @@ void __attribute__((sentinel)) test_argc_argv(int *argcp, char ***argvp, ...) {
     *argcp = argc;
     *argvp = argv;
 }
-
-extern void sc_set_snap_mount_dir(const char *dir);
 
 void snap_mount_dir_fixture_setup(snap_mount_dir_fixture *fix, gconstpointer user_data) {
     sc_set_snap_mount_dir((const char *)user_data);
