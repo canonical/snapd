@@ -43,12 +43,7 @@ func (s *iconsSuite) TestSnapIconGet(c *check.C) {
 	d := s.daemon(c)
 
 	// have an active foo in the system
-	info := s.mkInstalledInState(c, d, "foo", "bar", "v1", snap.R(10), true, "")
-
-	// have an icon for it in the package itself
-	iconfile := filepath.Join(info.MountDir(), "meta", "gui", "icon.ick")
-	c.Assert(os.MkdirAll(filepath.Dir(iconfile), 0755), check.IsNil)
-	c.Check(os.WriteFile(iconfile, []byte("ick"), 0644), check.IsNil)
+	s.mkInstalledInState(c, d, "foo", "bar", "v1", snap.R(10), true, "")
 
 	req, err := http.NewRequest("GET", "/v2/icons/foo/icon", nil)
 	c.Assert(err, check.IsNil)
@@ -57,19 +52,52 @@ func (s *iconsSuite) TestSnapIconGet(c *check.C) {
 
 	s.req(c, req, nil).ServeHTTP(rec, req)
 	c.Check(rec.Code, check.Equals, 200)
-	c.Check(rec.Body.String(), check.Equals, "ick")
+	c.Check(rec.Body.String(), check.Equals, "yadda icon")
+}
+
+func (s *iconsSuite) TestSnapIconGetPriority(c *check.C) {
+	d := s.daemon(c)
+
+	checkIconContents := func(expected string) {
+		req, err := http.NewRequest("GET", "/v2/icons/foo/icon", nil)
+		c.Assert(err, check.IsNil)
+
+		rec := httptest.NewRecorder()
+
+		s.req(c, req, nil).ServeHTTP(rec, req)
+		c.Check(rec.Code, check.Equals, 200)
+		c.Check(rec.Body.String(), check.Equals, expected)
+	}
+
+	// have an active foo in the system
+	info := s.mkInstalledInState(c, d, "foo", "bar", "v1", snap.R(10), true, "")
+
+	// have various icons for it in the package itself
+	icondir := filepath.Join(info.MountDir(), "meta", "gui")
+	c.Assert(os.MkdirAll(icondir, 0o755), check.IsNil)
+	c.Check(os.WriteFile(filepath.Join(icondir, "icon.jpg"), []byte("I'm a jpg"), 0o644), check.IsNil)
+	c.Check(os.WriteFile(filepath.Join(icondir, "icon.svg"), []byte("I'm an svg"), 0o644), check.IsNil)
+	c.Check(os.WriteFile(filepath.Join(icondir, "icon.png"), []byte("I'm a png"), 0o644), check.IsNil)
+
+	// svg should have priority
+	checkIconContents("I'm an svg")
+
+	c.Check(os.Remove(filepath.Join(icondir, "icon.svg")), check.IsNil)
+
+	// followed by png
+	checkIconContents("I'm a png")
+
+	c.Check(os.Remove(filepath.Join(icondir, "icon.png")), check.IsNil)
+
+	// followed by whatever's left
+	checkIconContents("I'm a jpg")
 }
 
 func (s *iconsSuite) TestSnapIconGetInactive(c *check.C) {
 	d := s.daemon(c)
 
 	// have an *in*active foo in the system
-	info := s.mkInstalledInState(c, d, "foo", "bar", "v1", snap.R(10), false, "")
-
-	// have an icon for it in the package itself
-	iconfile := filepath.Join(info.MountDir(), "meta", "gui", "icon.ick")
-	c.Assert(os.MkdirAll(filepath.Dir(iconfile), 0755), check.IsNil)
-	c.Check(os.WriteFile(iconfile, []byte("ick"), 0644), check.IsNil)
+	s.mkInstalledInState(c, d, "foo", "bar", "v1", snap.R(10), false, "")
 
 	req, err := http.NewRequest("GET", "/v2/icons/foo/icon", nil)
 	c.Assert(err, check.IsNil)
@@ -78,7 +106,7 @@ func (s *iconsSuite) TestSnapIconGetInactive(c *check.C) {
 
 	s.req(c, req, nil).ServeHTTP(rec, req)
 	c.Check(rec.Code, check.Equals, 200)
-	c.Check(rec.Body.String(), check.Equals, "ick")
+	c.Check(rec.Body.String(), check.Equals, "yadda icon")
 }
 
 func (s *iconsSuite) TestSnapIconGetNoIcon(c *check.C) {
@@ -114,7 +142,7 @@ func (s *iconsSuite) TestSnapIconGetFallback(c *check.C) {
 	// but fallback icon installed
 	fallbackIcon := backend.IconInstallFilename(snapID)
 	c.Assert(os.MkdirAll(filepath.Dir(fallbackIcon), 0o755), check.IsNil)
-	c.Check(os.WriteFile(fallbackIcon, []byte("ick"), 0o644), check.IsNil)
+	c.Check(os.WriteFile(fallbackIcon, []byte("I'm from the store"), 0o644), check.IsNil)
 
 	req, err := http.NewRequest("GET", fmt.Sprintf("/v2/icons/%s/icon", snapName), nil)
 	c.Assert(err, check.IsNil)
@@ -123,7 +151,7 @@ func (s *iconsSuite) TestSnapIconGetFallback(c *check.C) {
 
 	s.req(c, req, nil).ServeHTTP(rec, req)
 	c.Check(rec.Code, check.Equals, 200)
-	c.Check(rec.Body.String(), check.Equals, "ick")
+	c.Check(rec.Body.String(), check.Equals, "I'm from the store")
 }
 
 func (s *iconsSuite) TestSnapIconGetNoApp(c *check.C) {
