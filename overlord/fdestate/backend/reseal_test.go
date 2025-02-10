@@ -359,13 +359,17 @@ func (s *resealTestSuite) TestTPMResealHappy(c *C) {
 				},
 			})
 		case 2:
-			// Resealing the recovery key for both data and save partitions
+			// Resealing the recovery key for both data partition
 			c.Check(params.Keys, DeepEquals, []secboot.KeyDataLocation{
 				{
 					DevicePath: "/dev/disk/by-partlabel/ubuntu-data",
 					SlotName:   "default-fallback",
 					KeyFile:    filepath.Join(s.rootdir, "run/mnt/ubuntu-seed/device/fde/ubuntu-data.recovery.sealed-key"),
 				},
+			})
+		case 3:
+			// Resealing the recovery key for both save partition
+			c.Check(params.Keys, DeepEquals, []secboot.KeyDataLocation{
 				{
 					DevicePath: "/dev/disk/by-partlabel/ubuntu-save",
 					SlotName:   "default-fallback",
@@ -384,7 +388,7 @@ func (s *resealTestSuite) TestTPMResealHappy(c *C) {
 	err := fdeBackend.ResealKeyForBootChains(myState, device.SealingMethodTPM, s.rootdir, params, expectReseal)
 	c.Assert(err, IsNil)
 
-	c.Check(resealCalls, Equals, 2)
+	c.Check(resealCalls, Equals, 3)
 
 	pbc, cnt, err := boot.ReadBootChains(filepath.Join(dirs.SnapFDEDir, "boot-chains"))
 	c.Assert(err, IsNil)
@@ -663,13 +667,18 @@ func (s *resealTestSuite) TestResealKeyForBootchainsWithSystemFallback(c *C) {
 				})
 			}
 
-			checkRecoveryParams := func() {
+			checkRecoveryParamsData := func() {
 				c.Check(params.Keys, DeepEquals, []secboot.KeyDataLocation{
 					{
 						DevicePath: "/dev/disk/by-partlabel/ubuntu-data",
 						SlotName:   "default-fallback",
 						KeyFile:    filepath.Join(boot.InitramfsSeedEncryptionKeyDir, "ubuntu-data.recovery.sealed-key"),
 					},
+				})
+			}
+
+			checkRecoveryParamsSave := func() {
+				c.Check(params.Keys, DeepEquals, []secboot.KeyDataLocation{
 					{
 						DevicePath: "/dev/disk/by-partlabel/ubuntu-save",
 						SlotName:   "default-fallback",
@@ -682,7 +691,9 @@ func (s *resealTestSuite) TestResealKeyForBootchainsWithSystemFallback(c *C) {
 			case 1:
 				checkRunParams()
 			case 2:
-				checkRecoveryParams()
+				checkRecoveryParamsData()
+			case 3:
+				checkRecoveryParamsSave()
 			default:
 				c.Errorf("unexpected additional call to secboot.ResealKeys (call # %d)", resealKeysCalls)
 			}
@@ -967,7 +978,7 @@ func (s *resealTestSuite) TestResealKeyForBootchainsWithSystemFallback(c *C) {
 			// mocked error is returned on first reseal
 			c.Assert(resealKeysCalls, Equals, 1)
 		} else {
-			c.Assert(resealKeysCalls, Equals, 2)
+			c.Assert(resealKeysCalls, Equals, 3)
 		}
 		if tc.err != "" {
 			continue
@@ -1110,6 +1121,9 @@ func (s *resealTestSuite) TestResealKeyForBootchainsRecoveryKeysForGoodSystemsOn
 					SlotName:   "default-fallback",
 					KeyFile:    filepath.Join(s.rootdir, "run/mnt/ubuntu-seed/device/fde/ubuntu-data.recovery.sealed-key"),
 				},
+			})
+		case 3:
+			c.Check(params.Keys, DeepEquals, []secboot.KeyDataLocation{
 				{
 					DevicePath: "/dev/disk/by-partlabel/ubuntu-save",
 					SlotName:   "default-fallback",
@@ -1255,7 +1269,7 @@ func (s *resealTestSuite) TestResealKeyForBootchainsRecoveryKeysForGoodSystemsOn
 	const expectReseal = false
 	err := fdeBackend.ResealKeyForBootChains(myState, device.SealingMethodTPM, s.rootdir, params, expectReseal)
 	c.Assert(err, IsNil)
-	c.Assert(resealKeysCalls, Equals, 2)
+	c.Assert(resealKeysCalls, Equals, 3)
 
 	// verify the boot chains data file for run key
 	runPbc, cnt, err := boot.ReadBootChains(filepath.Join(dirs.SnapFDEDir, "boot-chains"))
@@ -1430,6 +1444,9 @@ func (s *resealTestSuite) testResealKeyForBootchainsWithTryModel(c *C, shimId, g
 					SlotName:   "default-fallback",
 					KeyFile:    filepath.Join(s.rootdir, "run/mnt/ubuntu-seed/device/fde/ubuntu-data.recovery.sealed-key"),
 				},
+			})
+		case 3:
+			c.Assert(params.Keys, DeepEquals, []secboot.KeyDataLocation{
 				{
 					DevicePath: "/dev/disk/by-partlabel/ubuntu-save",
 					SlotName:   "default-fallback",
@@ -1565,7 +1582,7 @@ func (s *resealTestSuite) testResealKeyForBootchainsWithTryModel(c *C, shimId, g
 	const expectReseal = false
 	err := fdeBackend.ResealKeyForBootChains(myState, device.SealingMethodTPM, s.rootdir, params, expectReseal)
 	c.Assert(err, IsNil)
-	c.Assert(resealKeysCalls, Equals, 2)
+	c.Assert(resealKeysCalls, Equals, 3)
 
 	// verify the boot chains data file for run key
 	runPbc, cnt, err := boot.ReadBootChains(filepath.Join(dirs.SnapFDEDir, "boot-chains"))
@@ -1653,6 +1670,7 @@ func (s *resealTestSuite) TestResealKeyForBootchainsFallbackCmdline(c *C) {
 		switch resealKeysCalls {
 		case 1:
 		case 2:
+		case 3:
 		default:
 			c.Fatalf("unexpected number of reseal calls, %v", params)
 		}
@@ -1740,7 +1758,7 @@ func (s *resealTestSuite) TestResealKeyForBootchainsFallbackCmdline(c *C) {
 	const expectReseal = false
 	err = fdeBackend.ResealKeyForBootChains(myState, device.SealingMethodTPM, s.rootdir, params, expectReseal)
 	c.Assert(err, IsNil)
-	c.Assert(resealKeysCalls, Equals, 2)
+	c.Assert(resealKeysCalls, Equals, 3)
 
 	// verify the boot chains data file
 	pbc, cnt, err := boot.ReadBootChains(filepath.Join(dirs.SnapFDEDir, "boot-chains"))
@@ -1810,13 +1828,20 @@ func (s *resealTestSuite) TestHooksResealHappy(c *C) {
 			c.Assert(models, HasLen, 1)
 			c.Check(models[0].Model(), Equals, model.Model())
 		case 2:
-			// Resealing the recovery key for both data and save partitions
+			// Resealing the recovery key for both data partition
 			c.Check(keys, DeepEquals, []secboot.KeyDataLocation{
 				{
 					DevicePath: "/dev/disk/by-partlabel/ubuntu-data",
 					SlotName:   "default-fallback",
 					KeyFile:    filepath.Join(s.rootdir, "run/mnt/ubuntu-seed/device/fde/ubuntu-data.recovery.sealed-key"),
 				},
+			})
+			c.Check(primaryKeyFile, Equals, filepath.Join(s.rootdir, "run/mnt/ubuntu-save/device/fde/aux-key"))
+			c.Assert(models, HasLen, 1)
+			c.Check(models[0].Model(), Equals, model.Model())
+		case 3:
+			// Resealing the recovery key for both save partition
+			c.Check(keys, DeepEquals, []secboot.KeyDataLocation{
 				{
 					DevicePath: "/dev/disk/by-partlabel/ubuntu-save",
 					SlotName:   "default-fallback",
@@ -1839,7 +1864,7 @@ func (s *resealTestSuite) TestHooksResealHappy(c *C) {
 	err := fdeBackend.ResealKeyForBootChains(myState, device.SealingMethodFDESetupHook, s.rootdir, params, expectReseal)
 	c.Assert(err, IsNil)
 
-	c.Check(resealCalls, Equals, 2)
+	c.Check(resealCalls, Equals, 3)
 }
 
 func (s *resealTestSuite) TestResealKeyForSignatureDBUpdate(c *C) {
@@ -1982,5 +2007,5 @@ func (s *resealTestSuite) TestResealKeyForSignatureDBUpdate(c *C) {
 
 	// reseal was called
 	c.Check(buildProfileCalls, Equals, 3)
-	c.Check(resealKeysCalls, Equals, 2)
+	c.Check(resealKeysCalls, Equals, 3)
 }

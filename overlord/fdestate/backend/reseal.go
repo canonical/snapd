@@ -119,48 +119,67 @@ func getUniqueModels(bootChains []boot.BootChain) []secboot.ModelForSealing {
 	return models
 }
 
+type resealParamsAndLocation struct {
+	params   *SealingParameters
+	location secboot.KeyDataLocation
+}
+
 func doReseal(manager FDEStateManager, method device.SealingMethod, rootdir string) error {
-	runParams, err := manager.Get("run+recover", "all")
+	runParamsData, err := manager.Get("run+recover", "system-data")
 	if err != nil {
 		return err
 	}
 
-	recoveryParams, err := manager.Get("recover", "system-save")
+	recoveryParamsSave, err := manager.Get("recover", "system-save")
 	if err != nil {
 		return err
 	}
 
-	runKeys := []secboot.KeyDataLocation{
-		{
-			DevicePath: "/dev/disk/by-partlabel/ubuntu-data",
-			SlotName:   "default",
-			KeyFile:    device.DataSealedKeyUnder(boot.InitramfsBootEncryptionKeyDir),
-		},
+	recoveryParamsData, err := manager.Get("recover", "system-data")
+	if err != nil {
+		return err
 	}
 
-	recoveryKeys := []secboot.KeyDataLocation{
-		{
-			DevicePath: "/dev/disk/by-partlabel/ubuntu-data",
-			SlotName:   "default-fallback",
-			KeyFile:    device.FallbackDataSealedKeyUnder(boot.InitramfsSeedEncryptionKeyDir),
-		},
-		{
-			DevicePath: "/dev/disk/by-partlabel/ubuntu-save",
-			SlotName:   "default-fallback",
-			KeyFile:    device.FallbackSaveSealedKeyUnder(boot.InitramfsSeedEncryptionKeyDir),
-		},
+	var keys []resealParamsAndLocation
+
+	if runParamsData != nil {
+		keys = append(keys, resealParamsAndLocation{
+			params: runParamsData,
+			location: secboot.KeyDataLocation{
+				DevicePath: "/dev/disk/by-partlabel/ubuntu-data",
+				SlotName:   "default",
+				KeyFile:    device.DataSealedKeyUnder(boot.InitramfsBootEncryptionKeyDir),
+			},
+		})
+	}
+
+	if recoveryParamsData != nil {
+		keys = append(keys, resealParamsAndLocation{
+			params: recoveryParamsData,
+			location: secboot.KeyDataLocation{
+				DevicePath: "/dev/disk/by-partlabel/ubuntu-data",
+				SlotName:   "default-fallback",
+				KeyFile:    device.FallbackDataSealedKeyUnder(boot.InitramfsSeedEncryptionKeyDir),
+			},
+		})
+	}
+
+	if recoveryParamsSave != nil {
+		keys = append(keys, resealParamsAndLocation{
+			params: recoveryParamsSave,
+			location: secboot.KeyDataLocation{
+				DevicePath: "/dev/disk/by-partlabel/ubuntu-save",
+				SlotName:   "default-fallback",
+				KeyFile:    device.FallbackSaveSealedKeyUnder(boot.InitramfsSeedEncryptionKeyDir),
+			},
+		})
 	}
 
 	switch method {
 	case device.SealingMethodFDESetupHook:
 		primaryKeyFile := filepath.Join(boot.InstallHostFDESaveDir, "aux-key")
-		if runParams != nil {
-			if err := secbootResealKeysWithFDESetupHook(runKeys, primaryKeyFile, runParams.Models, runParams.BootModes); err != nil {
-				return err
-			}
-		}
-		if recoveryParams != nil {
-			if err := secbootResealKeysWithFDESetupHook(recoveryKeys, primaryKeyFile, recoveryParams.Models, recoveryParams.BootModes); err != nil {
+		for _, key := range keys {
+			if err := secbootResealKeysWithFDESetupHook([]secboot.KeyDataLocation{key.location}, primaryKeyFile, key.params.Models, key.params.BootModes); err != nil {
 				return err
 			}
 		}
@@ -168,25 +187,15 @@ func doReseal(manager FDEStateManager, method device.SealingMethod, rootdir stri
 	case device.SealingMethodTPM, device.SealingMethodLegacyTPM:
 		saveFDEDir := dirs.SnapFDEDirUnderSave(dirs.SnapSaveDirUnder(rootdir))
 		authKeyFile := filepath.Join(saveFDEDir, "tpm-policy-auth-key")
-		if runParams != nil {
-			runResealKeyParams := &secboot.ResealKeysParams{
-				PCRProfile:           runParams.TpmPCRProfile,
-				Keys:                 runKeys,
+		for _, key := range keys {
+			keyParams := &secboot.ResealKeysParams{
+				PCRProfile:           key.params.TpmPCRProfile,
+				Keys:                 []secboot.KeyDataLocation{key.location},
 				TPMPolicyAuthKeyFile: authKeyFile,
 			}
 
-			if err := secbootResealKeys(runResealKeyParams); err != nil {
+			if err := secbootResealKeys(keyParams); err != nil {
 				return fmt.Errorf("cannot reseal the encryption key: %v", err)
-			}
-		}
-		if recoveryParams != nil {
-			recoveryResealKeyParams := &secboot.ResealKeysParams{
-				PCRProfile:           recoveryParams.TpmPCRProfile,
-				Keys:                 recoveryKeys,
-				TPMPolicyAuthKeyFile: authKeyFile,
-			}
-			if err := secbootResealKeys(recoveryResealKeyParams); err != nil {
-				return fmt.Errorf("cannot reseal the fallback encryption keys: %v", err)
 			}
 		}
 		return nil
@@ -208,11 +217,19 @@ func recalculateParamatersFDEHook(manager FDEStateManager, method device.Sealing
 		return err
 	}
 
-	recoveryParams := &SealingParameters{
+	recoveryParamsData := &SealingParameters{
+		BootModes: []string{"recover"},
+		Models:    recoveryModels,
+	}
+	if err := manager.Update("recover", "system-data", recoveryParamsData); err != nil {
+		return err
+	}
+
+	recoveryParamsSave := &SealingParameters{
 		BootModes: []string{"recover", "factory-reset"},
 		Models:    recoveryModels,
 	}
-	if err := manager.Update("recover", "system-save", recoveryParams); err != nil {
+	if err := manager.Update("recover", "system-save", recoveryParamsSave); err != nil {
 		return err
 	}
 
@@ -417,17 +434,23 @@ func updateFallbackProtectionProfile(
 		models = append(models, m.Model)
 	}
 
-	// TODO:FDEM:FIX: We are missing recover for system-data, for
-	// "recover" boot mode. It is different from the run+recover
-	// as this should only include working models.
-
-	params := &SealingParameters{
+	saveParams := &SealingParameters{
 		BootModes:     []string{"recover", "factory-reset"},
 		Models:        models,
 		TpmPCRProfile: pcrProfile,
 	}
 	// TODO:FDEM: use constants for "recover" (the first parameter) and "system-save"
-	if err := manager.Update("recover", "system-save", params); err != nil {
+	if err := manager.Update("recover", "system-save", saveParams); err != nil {
+		return err
+	}
+
+	dataParams := &SealingParameters{
+		BootModes:     []string{"recover"},
+		Models:        models,
+		TpmPCRProfile: pcrProfile,
+	}
+	// TODO:FDEM: use constants for "recover" (the first parameter) and "system-data"
+	if err := manager.Update("recover", "system-data", dataParams); err != nil {
 		return err
 	}
 

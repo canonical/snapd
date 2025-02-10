@@ -186,6 +186,11 @@ type ResealKeysParams struct {
 	TPMPolicyAuthKeyFile string
 }
 
+type ResealKeysParamsForHooks struct {
+	Models    []ModelForSealing
+	BootModes []string
+}
+
 // UnlockVolumeUsingSealedKeyOptions contains options for unlocking encrypted
 // volumes using keys sealed to the TPM.
 type UnlockVolumeUsingSealedKeyOptions struct {
