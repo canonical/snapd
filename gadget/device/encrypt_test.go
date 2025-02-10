@@ -20,6 +20,7 @@
 package device_test
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"testing"
@@ -191,4 +192,26 @@ func (s *deviceSuite) TestVolumesAuthOptionsValidateError(c *C) {
 	// Negative kdf time
 	opts = &device.VolumesAuthOptions{Mode: device.AuthModePassphrase, Passphrase: "1234", KDFTime: -1}
 	c.Assert(opts.Validate(), ErrorMatches, "kdf time cannot be negative")
+}
+
+func (s *deviceSuite) TestValidatePassphraseOrPINEntropy(c *C) {
+	var qualityErr *device.AuthQualityError
+
+	err := device.ValidatePassphraseOrPINEntropy(device.AuthModePassphrase, "test")
+	c.Assert(errors.As(err, &qualityErr), Equals, true)
+	c.Assert(qualityErr.Entropy < qualityErr.MinEntropy, Equals, true)
+	c.Assert(qualityErr.MinEntropy, Equals, float64(42))
+	c.Assert(err, ErrorMatches, `calculated entropy .* is less than the required minimum entropy \(42.00\) for the "passphrase" authentication mode`)
+
+	err = device.ValidatePassphraseOrPINEntropy(device.AuthModePassphrase, "this is a good password")
+	c.Assert(err, IsNil)
+
+	err = device.ValidatePassphraseOrPINEntropy(device.AuthModePIN, "1234")
+	c.Assert(errors.As(err, &qualityErr), Equals, true)
+	c.Assert(qualityErr.Entropy < qualityErr.MinEntropy, Equals, true)
+	c.Assert(qualityErr.MinEntropy, Equals, float64(13.3))
+	c.Assert(err, ErrorMatches, `calculated entropy .* is less than the required minimum entropy \(13.30\) for the "pin" authentication mode`)
+
+	err = device.ValidatePassphraseOrPINEntropy(device.AuthModePIN, "20250123")
+	c.Assert(err, IsNil)
 }

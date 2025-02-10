@@ -84,6 +84,9 @@ type EncryptionSupportInfo struct {
 	// PassphraseAuthAvailable is set if the passphrase authentication
 	// is supported.
 	PassphraseAuthAvailable bool
+
+	// PINAuthAvailable is set if the pin authentication is supported.
+	PINAuthAvailable bool
 }
 
 // ComponentSeedInfo contains information for a component from the seed and
@@ -223,6 +226,8 @@ func GetEncryptionSupportInfo(model *asserts.Model, tpmMode secboot.TPMProvision
 		// support is implemented.
 		// TODO: Check that the target system supports passphrase
 		// authentication (e.g. supported kernel/snapd versions).
+		// TODO: Set res.PINAuthAvailable when passphrase
+		// support is implemented.
 		opts := &gadget.ValidationConstraints{
 			EncryptedData: true,
 		}

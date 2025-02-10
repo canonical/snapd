@@ -310,3 +310,9 @@ type CreateSystemOptions struct {
 	// snaps/assertions will be considered.
 	Offline bool `json:"offline,omitempty"`
 }
+
+// QualityCheckOptions contains the passphrase or PIN whose quality should be checked.
+type QualityCheckOptions struct {
+	Passphrase string `json:"passphrase,omitempty"`
+	PIN        string `json:"pin,omitempty"`
+}

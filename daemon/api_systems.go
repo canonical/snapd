@@ -33,6 +33,7 @@ import (
 	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/gadget"
+	"github.com/snapcore/snapd/gadget/device"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/devicestate"
@@ -199,6 +200,7 @@ type systemActionRequest struct {
 	client.SystemAction
 	client.InstallSystemOptions
 	client.CreateSystemOptions
+	client.QualityCheckOptions
 }
 
 func postSystemsAction(c *Command, r *http.Request, user *auth.UserState) Response {
@@ -271,6 +273,10 @@ func postSystemsActionJSON(c *Command, r *http.Request) Response {
 		return postSystemActionCreate(c, &req)
 	case "remove":
 		return postSystemActionRemove(c, systemLabel)
+	case "check-passphrase":
+		return postSystemActionCheckPassphrase(c, systemLabel, &req)
+	case "check-pin":
+		return postSystemActionCheckPIN(c, systemLabel, &req)
 	default:
 		return BadRequest("unsupported action %q", req.Action)
 	}
@@ -593,4 +599,116 @@ func postSystemActionRemove(c *Command, systemLabel string) Response {
 	ensureStateSoon(st)
 
 	return AsyncResponse(nil, chg.ID())
+}
+
+type encryptionSupportInfoKey struct{ systemLabel string }
+
+// cachedEncryptionSupportInfoByLabel returns encryption support info for specified system from cache.
+// If no cached value exist it is computed once and reused for future calls.
+//
+// Note that the cached value is never cleared as system seeds are assumed to be immutable.
+func cachedEncryptionSupportInfoByLabel(c *Command, systemLabel string) (*install.EncryptionSupportInfo, error) {
+	c.d.state.Lock()
+	cached := c.d.state.Cached(encryptionSupportInfoKey{systemLabel})
+	c.d.state.Unlock()
+	if cached != nil {
+		encryptionSupportInfo, ok := cached.(*install.EncryptionSupportInfo)
+		if ok {
+			return encryptionSupportInfo, nil
+		}
+	}
+	// no entry found in cache, let's compute encryption support info for target system
+	deviceMgr := c.d.overlord.DeviceManager()
+	_, _, encryptionInfo, err := deviceManagerSystemAndGadgetAndEncryptionInfo(deviceMgr, systemLabel)
+	if err != nil {
+		return nil, err
+	}
+	c.d.state.Lock()
+	c.d.state.Cache(encryptionSupportInfoKey{systemLabel}, encryptionInfo)
+	c.d.state.Unlock()
+	return encryptionInfo, nil
+}
+
+var deviceValidatePassphraseOrPINEntropy = device.ValidatePassphraseOrPINEntropy
+
+func postSystemActionCheckPassphrase(c *Command, systemLabel string, req *systemActionRequest) Response {
+	if systemLabel == "" {
+		return BadRequest("system action requires the system label to be provided")
+	}
+	if req.Passphrase == "" {
+		return BadRequest("passphrase must be provided in request body for action %q", req.Action)
+	}
+
+	encryptionInfo, err := cachedEncryptionSupportInfoByLabel(c, systemLabel)
+	if err != nil {
+		return InternalError(err.Error())
+	}
+	if !encryptionInfo.PassphraseAuthAvailable {
+		return &apiError{
+			Status:  400,
+			Kind:    client.ErrorKindUnsupportedByTargetSystem,
+			Message: "target system does not support passphrase authentication",
+		}
+	}
+
+	err = deviceValidatePassphraseOrPINEntropy(device.AuthModePassphrase, req.Passphrase)
+	if err != nil {
+		var qualityErr *device.AuthQualityError
+		if errors.As(err, &qualityErr) {
+			return &apiError{
+				Status:  400,
+				Kind:    client.ErrorKindInvalidPassphrase,
+				Message: "passphrase did not pass quality checks",
+				Value: map[string]interface{}{
+					"reasons":          qualityErr.Reasons,
+					"entropy-bits":     qualityErr.Entropy,
+					"min-entropy-bits": qualityErr.MinEntropy,
+				},
+			}
+		}
+		return InternalError(err.Error())
+	}
+
+	return SyncResponse(nil)
+}
+
+func postSystemActionCheckPIN(c *Command, systemLabel string, req *systemActionRequest) Response {
+	if systemLabel == "" {
+		return BadRequest("system action requires the system label to be provided")
+	}
+	if req.PIN == "" {
+		return BadRequest("pin must be provided in request body for action %q", req.Action)
+	}
+
+	encryptionInfo, err := cachedEncryptionSupportInfoByLabel(c, systemLabel)
+	if err != nil {
+		return InternalError(err.Error())
+	}
+	if !encryptionInfo.PINAuthAvailable {
+		return &apiError{
+			Status:  400,
+			Kind:    client.ErrorKindUnsupportedByTargetSystem,
+			Message: "target system does not support PIN authentication",
+		}
+	}
+
+	err = deviceValidatePassphraseOrPINEntropy(device.AuthModePIN, req.PIN)
+	if err != nil {
+		var qualityErr *device.AuthQualityError
+		if errors.As(err, &qualityErr) {
+			return &apiError{
+				Status:  400,
+				Kind:    client.ErrorKindInvalidPIN,
+				Message: "PIN did not pass quality checks",
+				Value: map[string]interface{}{
+					"reasons":          qualityErr.Reasons,
+					"entropy-bits":     qualityErr.Entropy,
+					"min-entropy-bits": qualityErr.MinEntropy,
+				},
+			}
+		}
+		return InternalError(err.Error())
+	}
+
+	return SyncResponse(nil)
 }
