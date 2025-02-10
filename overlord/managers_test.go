@@ -5173,7 +5173,7 @@ func (s *mgrsSuiteCore) TestRemodelRequiredSnapsAdded(c *C) {
 		"revision":       "1",
 	})
 
-	chg, err := devicestate.Remodel(st, newModel, nil, devicestate.RemodelOptions{})
+	chg, err := devicestate.Remodel(st, newModel, devicestate.RemodelOptions{})
 	c.Assert(err, IsNil)
 
 	c.Check(devicestate.RemodelingChange(st), NotNil)
@@ -5282,7 +5282,7 @@ func (s *mgrsSuiteCore) TestRemodelRequiredSnapsAddedUndo(c *C) {
 	devicestate.InjectSetModelError(fmt.Errorf("boom"))
 	defer devicestate.InjectSetModelError(nil)
 
-	chg, err := devicestate.Remodel(st, newModel, nil, devicestate.RemodelOptions{})
+	chg, err := devicestate.Remodel(st, newModel, devicestate.RemodelOptions{})
 	c.Assert(err, IsNil)
 
 	st.Unlock()
@@ -5349,7 +5349,7 @@ type: base`
 		"revision": "1",
 	})
 
-	chg, err := devicestate.Remodel(st, newModel, nil, devicestate.RemodelOptions{})
+	chg, err := devicestate.Remodel(st, newModel, devicestate.RemodelOptions{})
 	c.Assert(err, ErrorMatches, "cannot remodel from core to bases yet")
 	c.Assert(chg, IsNil)
 }
@@ -5456,7 +5456,7 @@ version: 20.04`
 		"required-snaps": []interface{}{"foo"},
 	})
 
-	chg, err := devicestate.Remodel(st, newModel, nil, devicestate.RemodelOptions{})
+	chg, err := devicestate.Remodel(st, newModel, devicestate.RemodelOptions{})
 	c.Assert(err, IsNil)
 
 	st.Unlock()
@@ -5628,7 +5628,7 @@ version: 20.04`
 	devicestate.InjectSetModelError(fmt.Errorf("boom"))
 	defer devicestate.InjectSetModelError(nil)
 
-	chg, err := devicestate.Remodel(st, newModel, nil, devicestate.RemodelOptions{})
+	chg, err := devicestate.Remodel(st, newModel, devicestate.RemodelOptions{})
 	c.Assert(err, IsNil)
 
 	st.Unlock()
@@ -5789,7 +5789,7 @@ version: 20.04`
 		"required-snaps": []interface{}{"foo"},
 	})
 
-	chg, err := devicestate.Remodel(st, newModel, nil, devicestate.RemodelOptions{})
+	chg, err := devicestate.Remodel(st, newModel, devicestate.RemodelOptions{})
 	c.Assert(err, IsNil)
 
 	st.Unlock()
@@ -6164,7 +6164,7 @@ func (s *kernelSuite) TestRemodelSwitchKernelTrack(c *C) {
 		"required-snaps": []interface{}{"foo"},
 	})
 
-	chg, err := devicestate.Remodel(st, newModel, nil, devicestate.RemodelOptions{})
+	chg, err := devicestate.Remodel(st, newModel, devicestate.RemodelOptions{})
 	c.Assert(err, IsNil)
 
 	st.Unlock()
@@ -6218,7 +6218,7 @@ func (ms *kernelSuite) TestRemodelSwitchToDifferentKernel(c *C) {
 		"required-snaps": []interface{}{"foo"},
 	})
 
-	chg, err := devicestate.Remodel(st, newModel, nil, devicestate.RemodelOptions{})
+	chg, err := devicestate.Remodel(st, newModel, devicestate.RemodelOptions{})
 	c.Assert(err, IsNil)
 
 	st.Unlock()
@@ -6310,7 +6310,7 @@ func (ms *kernelSuite) TestRemodelSwitchToDifferentKernelUndo(c *C) {
 	devicestate.InjectSetModelError(fmt.Errorf("boom"))
 	defer devicestate.InjectSetModelError(nil)
 
-	chg, err := devicestate.Remodel(st, newModel, nil, devicestate.RemodelOptions{})
+	chg, err := devicestate.Remodel(st, newModel, devicestate.RemodelOptions{})
 	c.Assert(err, IsNil)
 
 	st.Unlock()
@@ -6368,7 +6368,7 @@ func (ms *kernelSuite) TestRemodelSwitchToDifferentKernelUndoOnRollback(c *C) {
 	devicestate.InjectSetModelError(fmt.Errorf("boom"))
 	defer devicestate.InjectSetModelError(nil)
 
-	chg, err := devicestate.Remodel(st, newModel, nil, devicestate.RemodelOptions{})
+	chg, err := devicestate.Remodel(st, newModel, devicestate.RemodelOptions{})
 	c.Assert(err, IsNil)
 
 	st.Unlock()
@@ -6490,7 +6490,7 @@ func (s *mgrsSuiteCore) TestRemodelStoreSwitch(c *C) {
 	s.expectedStore = "switched-store"
 	s.sessionMacaroon = "switched-store-session"
 
-	chg, err := devicestate.Remodel(st, newModel, nil, devicestate.RemodelOptions{})
+	chg, err := devicestate.Remodel(st, newModel, devicestate.RemodelOptions{})
 	c.Assert(err, IsNil)
 
 	st.Unlock()
@@ -6604,7 +6604,7 @@ volumes:
 	})
 	defer r()
 
-	chg, err := devicestate.Remodel(st, newModel, nil, devicestate.RemodelOptions{})
+	chg, err := devicestate.Remodel(st, newModel, devicestate.RemodelOptions{})
 	c.Assert(err, IsNil)
 
 	st.Unlock()
@@ -6772,7 +6772,7 @@ volumes:
 		"revision": "1",
 	})
 
-	chg, err := devicestate.Remodel(st, newModel, nil, devicestate.RemodelOptions{})
+	chg, err := devicestate.Remodel(st, newModel, devicestate.RemodelOptions{})
 	c.Assert(err, IsNil)
 
 	st.Unlock()
@@ -6907,7 +6907,7 @@ volumes:
 		"revision": "1",
 	})
 
-	chg, err := devicestate.Remodel(st, newModel, nil, devicestate.RemodelOptions{})
+	chg, err := devicestate.Remodel(st, newModel, devicestate.RemodelOptions{})
 	c.Assert(err, IsNil)
 
 	st.Unlock()
@@ -7148,7 +7148,7 @@ func (s *mgrsSuiteCore) TestRemodelReregistration(c *C) {
 	s.expectedStore = "my-brand-substore"
 	s.sessionMacaroon = "other-store-session"
 
-	chg, err := devicestate.Remodel(st, newModel, nil, devicestate.RemodelOptions{})
+	chg, err := devicestate.Remodel(st, newModel, devicestate.RemodelOptions{})
 	c.Assert(err, IsNil)
 
 	st.Unlock()
@@ -7651,7 +7651,7 @@ func (s *mgrsSuiteCore) testRemodelUC20WithRecoverySystem(c *C, encrypted bool) 
 		c.Check(fdeState, NotNil)
 	}
 
-	chg, err := devicestate.Remodel(st, newModel, nil, devicestate.RemodelOptions{})
+	chg, err := devicestate.Remodel(st, newModel, devicestate.RemodelOptions{})
 	c.Assert(err, IsNil)
 
 	c.Check(devicestate.RemodelingChange(st), NotNil)
@@ -8038,7 +8038,7 @@ func (s *mgrsSuiteCore) TestRemodelUC20DifferentKernelChannel(c *C) {
 	})
 	defer r()
 
-	chg, err := devicestate.Remodel(st, newModel, nil, devicestate.RemodelOptions{})
+	chg, err := devicestate.Remodel(st, newModel, devicestate.RemodelOptions{})
 	c.Assert(err, IsNil)
 	st.Unlock()
 	err = s.o.Settle(settleTimeout)
@@ -8198,7 +8198,7 @@ func (s *mgrsSuiteCore) TestRemodelUC20DifferentGadgetChannel(c *C) {
 	})
 	defer restore()
 
-	chg, err := devicestate.Remodel(st, newModel, nil, devicestate.RemodelOptions{})
+	chg, err := devicestate.Remodel(st, newModel, devicestate.RemodelOptions{})
 	c.Assert(err, IsNil)
 	st.Unlock()
 	err = s.o.Settle(settleTimeout)
@@ -8322,7 +8322,7 @@ func (s *mgrsSuiteCore) TestRemodelUC20DifferentBaseChannel(c *C) {
 	now := time.Now()
 	expectedLabel := now.Format("20060102")
 
-	chg, err := devicestate.Remodel(st, newModel, nil, devicestate.RemodelOptions{})
+	chg, err := devicestate.Remodel(st, newModel, devicestate.RemodelOptions{})
 	c.Assert(err, IsNil)
 	st.Unlock()
 	err = s.o.Settle(settleTimeout)
@@ -8489,7 +8489,7 @@ func (s *mgrsSuiteCore) TestRemodelUC20BackToPreviousGadget(c *C) {
 	})
 	defer restore()
 
-	chg, err := devicestate.Remodel(st, newModel, nil, devicestate.RemodelOptions{})
+	chg, err := devicestate.Remodel(st, newModel, devicestate.RemodelOptions{})
 	c.Assert(err, IsNil)
 	st.Unlock()
 	err = s.o.Settle(settleTimeout)
@@ -8677,7 +8677,7 @@ func (s *mgrsSuiteCore) TestRemodelUC20ExistingGadgetSnapDifferentChannel(c *C) 
 	})
 	defer restore()
 
-	chg, err := devicestate.Remodel(st, newModel, nil, devicestate.RemodelOptions{})
+	chg, err := devicestate.Remodel(st, newModel, devicestate.RemodelOptions{})
 	c.Assert(err, IsNil)
 	st.Unlock()
 	err = s.o.Settle(settleTimeout)
@@ -8853,7 +8853,7 @@ func (s *mgrsSuiteCore) TestRemodelUC20SnapWithPrereqsMissingDeps(c *C) {
 		},
 	})
 
-	chg, err := devicestate.Remodel(st, newModel, nil, devicestate.RemodelOptions{})
+	chg, err := devicestate.Remodel(st, newModel, devicestate.RemodelOptions{})
 
 	msg := `cannot remodel to model that is not self contained:
   - cannot use snap "prereq": base "prereq-base" is missing
@@ -9162,7 +9162,7 @@ func (s *mgrsSuiteCore) TestRemodelRollbackValidationSets(c *C) {
 	now := time.Now()
 	expectedLabel := now.Format("20060102")
 
-	chg, err := devicestate.Remodel(st, newModel, nil, devicestate.RemodelOptions{})
+	chg, err := devicestate.Remodel(st, newModel, devicestate.RemodelOptions{})
 	c.Assert(err, IsNil)
 	dumpTasks(c, "at the beginning", chg.Tasks())
 
@@ -9622,7 +9622,7 @@ func (s *mgrsSuiteCore) TestRemodelReplaceValidationSets(c *C) {
 	now := time.Now()
 	expectedLabel := now.Format("20060102")
 
-	chg, err := devicestate.Remodel(st, newModel, nil, devicestate.RemodelOptions{})
+	chg, err := devicestate.Remodel(st, newModel, devicestate.RemodelOptions{})
 	c.Assert(err, IsNil)
 	dumpTasks(c, "at the beginning", chg.Tasks())
 
@@ -9930,7 +9930,7 @@ func (s *mgrsSuiteCore) testRemodelUC20ToUC22(c *C, mockSnapdRefresh bool) {
 	now := time.Now()
 	expectedLabel := now.Format("20060102")
 
-	chg, err := devicestate.Remodel(st, newModel, nil, devicestate.RemodelOptions{})
+	chg, err := devicestate.Remodel(st, newModel, devicestate.RemodelOptions{})
 	c.Assert(err, IsNil)
 	dumpTasks(c, "at the beginning", chg.Tasks())
 

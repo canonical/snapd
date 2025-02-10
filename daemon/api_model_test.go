@@ -28,6 +28,8 @@ import (
 	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -39,13 +41,17 @@ import (
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/client/clientutil"
 	"github.com/snapcore/snapd/daemon"
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/overlord/assertstate/assertstatetest"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/overlord/devicestate/devicestatetest"
 	"github.com/snapcore/snapd/overlord/hookstate"
+	"github.com/snapcore/snapd/overlord/snapstate"
+	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/snaptest"
 )
 
 var modelDefaults = map[string]interface{}{
@@ -133,7 +139,7 @@ func (s *modelSuite) testPostRemodel(c *check.C, offline bool) {
 	defer restore()
 
 	var devicestateRemodelGotModel *asserts.Model
-	defer daemon.MockDevicestateRemodel(func(st *state.State, nm *asserts.Model, localSnaps []devicestate.LocalSnap, opts devicestate.RemodelOptions) (*state.Change, error) {
+	defer daemon.MockDevicestateRemodel(func(st *state.State, nm *asserts.Model, opts devicestate.RemodelOptions) (*state.Change, error) {
 		c.Check(opts.Offline, check.Equals, offline)
 		devicestateRemodelGotModel = nm
 		chg := st.NewChange("remodel", "...")
@@ -599,13 +605,12 @@ func (s *modelSuite) testPostOfflineRemodel(c *check.C, params *testPostOfflineR
 	snapName := "snap1"
 	snapRev := 1001
 	var devicestateRemodelGotModel *asserts.Model
-	defer daemon.MockDevicestateRemodel(func(st *state.State, nm *asserts.Model,
-		localSnaps []devicestate.LocalSnap, opts devicestate.RemodelOptions) (*state.Change, error) {
+	defer daemon.MockDevicestateRemodel(func(st *state.State, nm *asserts.Model, opts devicestate.RemodelOptions) (*state.Change, error) {
 		c.Check(opts.Offline, check.Equals, true)
-		c.Check(len(localSnaps), check.Equals, 1)
-		c.Check(localSnaps[0].SideInfo.RealName, check.Equals, snapName)
-		c.Check(localSnaps[0].SideInfo.Revision, check.Equals, snap.Revision{N: snapRev})
-		c.Check(strings.HasSuffix(localSnaps[0].Path,
+		c.Check(len(opts.LocalSnaps), check.Equals, 1)
+		c.Check(opts.LocalSnaps[0].SideInfo.RealName, check.Equals, snapName)
+		c.Check(opts.LocalSnaps[0].SideInfo.Revision, check.Equals, snap.Revision{N: snapRev})
+		c.Check(strings.HasSuffix(opts.LocalSnaps[0].Path,
 			"/var/lib/snapd/snaps/"+snapName+"_"+strconv.Itoa(snapRev)+".snap"),
 			check.Equals, true)
 
@@ -674,4 +679,149 @@ func (s *modelSuite) testPostOfflineRemodel(c *check.C, params *testPostOfflineR
 
 		c.Assert(soon, check.Equals, 1)
 	}
+}
+
+func (s *modelSuite) TestPostOfflineRemodelWithComponents(c *check.C) {
+	s.expectRootAccess()
+
+	oldModel := s.Brands.Model("my-brand", "my-old-model", modelDefaults)
+	newModel := s.Brands.Model("my-brand", "my-old-model", modelDefaults, map[string]interface{}{
+		"revision": "2",
+	})
+
+	d := s.daemonWithOverlordMockAndStore()
+	hookMgr, err := hookstate.Manager(d.Overlord().State(), d.Overlord().TaskRunner())
+	c.Assert(err, check.IsNil)
+	deviceMgr, err := devicestate.Manager(d.Overlord().State(), hookMgr, d.Overlord().TaskRunner(), nil)
+	c.Assert(err, check.IsNil)
+	d.Overlord().AddManager(deviceMgr)
+
+	st := d.Overlord().State()
+	st.Lock()
+	defer st.Unlock()
+
+	st.Set("seeded", true)
+
+	assertstatetest.AddMany(st, s.StoreSigning.StoreAccountKey(""))
+	assertstatetest.AddMany(st, s.Brands.AccountsAndKeys("my-brand")...)
+	s.mockModel(st, oldModel)
+
+	signer := assertstest.NewStoreStack("can0nical", nil)
+	assertstatetest.AddMany(st, signer.StoreAccountKey(""))
+
+	account := assertstest.NewAccount(signer, "developer1", nil, "")
+	c.Assert(signer.Add(account), check.IsNil)
+
+	const snapName = "some-snap"
+	snapID := snaptest.AssertedSnapID(snapName)
+	snapFormData := make(map[string]string)
+
+	snapPath := snaptest.MakeTestSnapWithFiles(c, withComponents("name: some-snap\nversion: 1", []string{"comp"}), nil)
+	digest, size, err := asserts.SnapFileSHA3_384(snapPath)
+	c.Assert(err, check.IsNil)
+
+	content, err := os.ReadFile(snapPath)
+	c.Assert(err, check.IsNil)
+	snapFormData[filepath.Base(snapPath)] = string(content)
+
+	rev := mockStoreAssertion(c, signer, signer.AuthorityID, account.AccountID(), asserts.SnapRevisionType, map[string]interface{}{
+		"snap-id":       snapID,
+		"snap-sha3-384": digest,
+		"developer-id":  account.AccountID(),
+		"snap-size":     strconv.Itoa(int(size)),
+		"snap-revision": "10",
+	})
+
+	decl := mockStoreAssertion(c, signer, signer.AuthorityID, account.AccountID(), asserts.SnapDeclarationType, map[string]interface{}{
+		"series":       "16",
+		"snap-id":      snapID,
+		"snap-name":    snapName,
+		"publisher-id": account.AccountID(),
+	})
+
+	compPath, resRev, resPair := makeStandardComponent(c, signer, signer.AuthorityID, account.AccountID(), snapName, "comp")
+	content, err = os.ReadFile(compPath)
+	c.Assert(err, check.IsNil)
+	snapFormData[filepath.Base(compPath)] = string(content)
+
+	// we handle components that are not associated with any of the snaps that
+	// are being uploaded a little differently, this part of the test helps
+	// cover that case
+	extraSnapDecl := mockStoreAssertion(c, signer, signer.AuthorityID, account.AccountID(), asserts.SnapDeclarationType, map[string]interface{}{
+		"series":       "16",
+		"snap-id":      snaptest.AssertedSnapID("other-snap"),
+		"snap-name":    "other-snap",
+		"publisher-id": account.AccountID(),
+	})
+	extraCompPath, extraResRev, extraResPair := makeStandardComponent(c, signer, signer.AuthorityID, account.AccountID(), "other-snap", "comp")
+	content, err = os.ReadFile(extraCompPath)
+	c.Assert(err, check.IsNil)
+	snapFormData[filepath.Base(extraCompPath)] = string(content)
+
+	snapstate.Set(st, "other-snap", &snapstate.SnapState{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{{
+			RealName: "other-snap",
+			Revision: snap.R(10),
+			SnapID:   snaptest.AssertedSnapID("other-snap"),
+		}}),
+		Current: snap.R(10),
+		Active:  true,
+	})
+
+	var assertions strings.Builder
+	encoder := asserts.NewEncoder(&assertions)
+
+	for _, a := range []asserts.Assertion{rev, decl, resRev, resPair, extraSnapDecl, extraResRev, extraResPair, account} {
+		err := encoder.Encode(a)
+		c.Assert(err, check.IsNil)
+	}
+
+	fields := map[string][]string{
+		"new-model": {string(asserts.Encode(newModel))},
+		"assertion": {assertions.String()},
+	}
+	form, boundary := createFormData(c, fields, snapFormData)
+
+	defer daemon.MockDevicestateRemodel(func(st *state.State, nm *asserts.Model, opts devicestate.RemodelOptions) (*state.Change, error) {
+		c.Check(opts.Offline, check.Equals, true)
+		c.Assert(len(opts.LocalSnaps), check.Equals, 1)
+		c.Check(opts.LocalSnaps[0].SideInfo.RealName, check.Equals, snapName)
+		c.Check(opts.LocalSnaps[0].SideInfo.Revision, check.Equals, snap.Revision{N: 10})
+
+		snapPath := filepath.Join(dirs.SnapBlobDir, "some-snap_10.snap")
+		c.Check(strings.HasSuffix(opts.LocalSnaps[0].Path, snapPath), check.Equals, true)
+
+		c.Assert(len(opts.LocalComponents), check.Equals, 2)
+		compPath := filepath.Join(dirs.SnapBlobDir, "some-snap+comp_20.comp")
+		c.Check(strings.HasSuffix(opts.LocalComponents[0].Path, compPath), check.Equals, true)
+
+		extraCompPath := filepath.Join(dirs.SnapBlobDir, "other-snap+comp_20.comp")
+		c.Check(strings.HasSuffix(opts.LocalComponents[1].Path, extraCompPath), check.Equals, true)
+
+		c.Check(nm, check.DeepEquals, newModel)
+
+		chg := st.NewChange("remodel", "...")
+		return chg, nil
+	})()
+
+	req, err := http.NewRequest("POST", "/v2/model", &form)
+	c.Assert(err, check.IsNil)
+	req.Header.Set("Content-Type", "multipart/form-data; boundary="+boundary)
+	req.Header.Set("Content-Length", strconv.Itoa(form.Len()))
+
+	st.Unlock()
+	rsp := s.asyncReq(c, req, nil)
+	st.Lock()
+
+	c.Assert(rsp.Status, check.Equals, 202)
+	c.Check(rsp.Change, check.DeepEquals, "1")
+
+	chg := st.Change(rsp.Change)
+	c.Assert(chg, check.NotNil)
+
+	c.Assert(st.Changes(), check.HasLen, 1)
+	chg1 := st.Changes()[0]
+	c.Assert(chg, check.DeepEquals, chg1)
+	c.Assert(chg.Kind(), check.Equals, "remodel")
+	c.Assert(chg.Err(), check.IsNil)
 }

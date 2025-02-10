@@ -1654,10 +1654,20 @@ func (s *systemsCreateSuite) mockDevAssertion(c *check.C, t *asserts.AssertionTy
 }
 
 func (s *systemsCreateSuite) mockStoreAssertion(c *check.C, t *asserts.AssertionType, extras map[string]interface{}) asserts.Assertion {
+	return mockStoreAssertion(c, s.storeSigning, s.storeSigning.AuthorityID, s.dev1acct.AccountID(), t, extras)
+}
+
+func mockStoreAssertion(
+	c *check.C,
+	signer assertstest.SignerDB,
+	authorityID, accountID string,
+	t *asserts.AssertionType,
+	extras map[string]interface{},
+) asserts.Assertion {
 	headers := map[string]interface{}{
 		"type":         t.Name,
-		"authority-id": s.storeSigning.AuthorityID,
-		"account-id":   s.dev1acct.AccountID(),
+		"authority-id": authorityID,
+		"account-id":   accountID,
 		"series":       "16",
 		"revision":     "5",
 		"timestamp":    "2030-11-06T09:16:26Z",
@@ -1667,7 +1677,7 @@ func (s *systemsCreateSuite) mockStoreAssertion(c *check.C, t *asserts.Assertion
 		headers[k] = v
 	}
 
-	vs, err := s.storeSigning.Sign(t, headers, nil, "")
+	vs, err := signer.Sign(t, headers, nil, "")
 	c.Assert(err, check.IsNil)
 	return vs
 }
@@ -2321,15 +2331,26 @@ func (s *systemsCreateSuite) TestCreateSystemActionWithComponentsOffline(c *chec
 }
 
 func (s *systemsCreateSuite) makeStandardComponent(c *check.C, snapName string, compName string) (compPath string, resourceRev, resourcePair asserts.Assertion) {
+	return makeStandardComponent(c, s.storeSigning, s.storeSigning.AuthorityID, s.dev1acct.AccountID(), snapName, compName)
+}
+
+func makeStandardComponent(
+	c *check.C,
+	signer assertstest.SignerDB,
+	authorityID string,
+	accountID string,
+	snapName string,
+	compName string,
+) (compPath string, resourceRev, resourcePair asserts.Assertion) {
 	yaml := fmt.Sprintf("component: %s+%s\nversion: 1\ntype: standard", snapName, compName)
 	compPath = snaptest.MakeTestComponent(c, yaml)
 
 	digest, size, err := asserts.SnapFileSHA3_384(compPath)
 	c.Assert(err, check.IsNil)
 
-	resRev := s.mockStoreAssertion(c, asserts.SnapResourceRevisionType, map[string]interface{}{
+	resRev := mockStoreAssertion(c, signer, authorityID, accountID, asserts.SnapResourceRevisionType, map[string]interface{}{
 		"snap-id":           snaptest.AssertedSnapID(snapName),
-		"developer-id":      s.dev1acct.AccountID(),
+		"developer-id":      accountID,
 		"resource-name":     compName,
 		"resource-sha3-384": digest,
 		"resource-revision": "20",
@@ -2337,9 +2358,9 @@ func (s *systemsCreateSuite) makeStandardComponent(c *check.C, snapName string, 
 		"timestamp":         time.Now().Format(time.RFC3339),
 	})
 
-	resPair := s.mockStoreAssertion(c, asserts.SnapResourcePairType, map[string]interface{}{
+	resPair := mockStoreAssertion(c, signer, authorityID, accountID, asserts.SnapResourcePairType, map[string]interface{}{
 		"snap-id":           snaptest.AssertedSnapID(snapName),
-		"developer-id":      s.dev1acct.AccountID(),
+		"developer-id":      accountID,
 		"resource-name":     compName,
 		"resource-revision": "20",
 		"snap-revision":     "10",
