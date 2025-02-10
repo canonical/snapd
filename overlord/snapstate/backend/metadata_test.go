@@ -36,46 +36,73 @@ func (s *metadataSuite) SetUpTest(c *C) {
 	dirs.SetRootDir(c.MkDir())
 }
 
-func (s *metadataSuite) TestStoreMetadataRoundTrip(c *C) {
+func (s *metadataSuite) TestInstallStoreMetadataRevert(c *C) {
 	const snapID = "my-snap-id"
-	const hasOtherInstances = false
-	c.Assert(backend.AuxStoreInfoFilename(snapID), testutil.FileAbsent)
-	aux := &backend.AuxStoreInfo{
-		Media: snap.MediaInfos{
-			snap.MediaInfo{
-				Type:   "icon",
-				URL:    "http://images.com/my-icon",
-				Width:  128,
-				Height: 128,
+	for _, testCase := range []struct {
+		hasOtherInstances bool
+		isInstall         bool
+		shouldExistAfter  bool
+	}{
+		// undo should remove the file iff there are no other instances and it's an install
+		{false, true, false},
+		{true, true, true},
+		{false, false, true},
+		{true, false, true},
+	} {
+		// Need a new tmp root dir so test cases don't collide
+		dirs.SetRootDir(c.MkDir())
+
+		c.Assert(backend.AuxStoreInfoFilename(snapID), testutil.FileAbsent)
+		aux := &backend.AuxStoreInfo{
+			Media: snap.MediaInfos{
+				snap.MediaInfo{
+					Type:   "icon",
+					URL:    "http://images.com/my-icon",
+					Width:  128,
+					Height: 128,
+				},
+				snap.MediaInfo{
+					Type: "website",
+					URL:  "http://another.com",
+				},
 			},
-			snap.MediaInfo{
-				Type: "website",
-				URL:  "http://another.com",
-			},
-		},
-		StoreURL: "https://snapcraft.io/example-snap",
-		Website:  "http://example.com",
+			StoreURL: "https://snapcraft.io/example-snap",
+			Website:  "http://example.com",
+		}
+		undo, err := backend.InstallStoreMetadata(snapID, aux, testCase.hasOtherInstances, testCase.isInstall)
+		c.Check(err, IsNil)
+
+		c.Check(backend.AuxStoreInfoFilename(snapID), testutil.FilePresent)
+
+		checkWrittenInfo := func() {
+			var info snap.Info
+			info.SnapID = snapID
+			c.Check(backend.RetrieveAuxStoreInfo(&info), IsNil)
+			c.Check(info.Media, DeepEquals, aux.Media)
+			c.Check(info.LegacyWebsite, Equals, aux.Website)
+			c.Check(info.StoreURL, Equals, aux.StoreURL)
+		}
+		checkWrittenInfo()
+
+		undo()
+
+		if testCase.shouldExistAfter {
+			checkWrittenInfo()
+		} else {
+			c.Check(backend.AuxStoreInfoFilename(snapID), testutil.FileAbsent)
+		}
 	}
-	c.Check(backend.InstallStoreMetadata(snapID, aux), IsNil)
-	c.Check(backend.AuxStoreInfoFilename(snapID), testutil.FilePresent)
-
-	var info snap.Info
-	info.SnapID = snapID
-	c.Check(backend.RetrieveAuxStoreInfo(&info), IsNil)
-	c.Check(info.Media, DeepEquals, aux.Media)
-	c.Check(info.LegacyWebsite, Equals, aux.Website)
-	c.Check(info.StoreURL, Equals, aux.StoreURL)
-
-	c.Check(backend.DiscardStoreMetadata(snapID, hasOtherInstances), IsNil)
-	c.Check(backend.AuxStoreInfoFilename(snapID), testutil.FileAbsent)
 }
 
 func (s *metadataSuite) TestStoreMetadataEmptySnapID(c *C) {
 	const snapID = ""
 	const hasOtherInstances = false
+	const isInstall = false
 	var aux *backend.AuxStoreInfo
 	// check that empty snapID does not return an error
-	c.Check(backend.InstallStoreMetadata(snapID, aux), IsNil)
+	undo, err := backend.InstallStoreMetadata(snapID, aux, hasOtherInstances, isInstall)
+	c.Check(err, IsNil)
+	c.Check(undo, NotNil)
 	c.Check(backend.DiscardStoreMetadata(snapID, hasOtherInstances), IsNil)
 }
 
@@ -85,7 +112,10 @@ func (s *metadataSuite) TestDiscardStoreMetadataHasOtherInstances(c *C) {
 	aux := &backend.AuxStoreInfo{
 		StoreURL: "https://snapcraft.io/example-snap",
 	}
-	c.Check(backend.InstallStoreMetadata(snapID, aux), IsNil)
+	// Values of hasOtherInstances and isInstall don't matter to
+	// InstallStoreMetadata outside of the returned undo, which we ignore here
+	_, err := backend.InstallStoreMetadata(snapID, aux, false, false)
+	c.Check(err, IsNil)
 	c.Check(backend.AuxStoreInfoFilename(snapID), testutil.FilePresent)
 
 	// Check that it does not discard if hasOtherInstances is true

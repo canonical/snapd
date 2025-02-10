@@ -236,7 +236,9 @@ func (s *snapmgrTestSuite) TestRemoveDiskSpaceForSnapshotError(c *C) {
 }
 
 func (s *snapmgrTestSuite) TestRemoveRunThrough(c *C) {
-	c.Assert(backend.InstallStoreMetadata("some-snap-id", nil), IsNil)
+	// hasOtherInstances and isInstall values don't matter for this test
+	_, err := backend.InstallStoreMetadata("some-snap-id", nil, false, false)
+	c.Check(err, IsNil)
 	c.Check(backend.AuxStoreInfoFilename("some-snap-id"), testutil.FilePresent)
 	si := snap.SideInfo{
 		SnapID:   "some-snap-id",

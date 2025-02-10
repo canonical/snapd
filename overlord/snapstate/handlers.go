@@ -2405,19 +2405,16 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (err error) {
 	// XXX: Also, why is cand.Snap.SnapID used instead of snapsup.SnapID?
 	// Previously, all of this was inside `if cand.Snap.SnapID != "" {`, and
 	// AFAICT, snapsup.SnapID should never be "".
-	err = backend.InstallStoreMetadata(cand.Snap.SnapID, aux)
+	isInstall := len(snapst.Sequence.Revisions) == 1
+	restore, err := backend.InstallStoreMetadata(cand.Snap.SnapID, aux, otherInstances, isInstall)
 	if err != nil {
 		return err
 	}
-	if len(snapst.Sequence.Revisions) == 1 {
-		defer func() {
-			if IsErrAndNotWait(err) {
-				// the install is getting undone, and there are no more of this snap
-				// try to remove the metadata we just installed
-				backend.DiscardStoreMetadata(cand.Snap.SnapID, otherInstances)
-			}
-		}()
-	}
+	defer func() {
+		if IsErrAndNotWait(err) {
+			restore()
+		}
+	}()
 
 	// Compatibility with old snapd: check if we have auto-connect task and
 	// if not, inject it after self (link-snap) for snaps that are not core

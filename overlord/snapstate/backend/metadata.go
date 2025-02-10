@@ -21,16 +21,21 @@ package backend
 
 // InstallStoreMetadata saves revision-agnostic metadata to disk for the snap
 // with the given snap ID. At the moment, this metadata includes auxiliary
-// store information.
-func InstallStoreMetadata(snapID string, aux *AuxStoreInfo) error {
+// store information. Returns a closure to undo the function's actions,
+// depending on whether it's a first install or if there are other instances.
+func InstallStoreMetadata(snapID string, aux *AuxStoreInfo, hasOtherInstances, isInstall bool) (undo func(), err error) {
 	if snapID == "" {
-		return nil
+		return func() {}, nil
 	}
 	if err := keepAuxStoreInfo(snapID, aux); err != nil {
-		return err
+		return nil, err
 	}
 	// TODO: install other types of revision-agnostic metadata
-	return nil
+	return func() {
+		if isInstall {
+			DiscardStoreMetadata(snapID, hasOtherInstances)
+		}
+	}, nil
 }
 
 // DiscardStoreMetadata removes revision-agnostic metadata to disk for the snap

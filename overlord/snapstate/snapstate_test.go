@@ -4618,14 +4618,16 @@ func (s *snapmgrQuerySuite) TestSnapStateCurrentInfoLoadsAuxiliaryStoreInfo(c *C
 		Website:  "http://example.com/",
 	}
 
-	c.Assert(backend.InstallStoreMetadata("123123123", storeInfo), IsNil)
+	// hasOtherInstances and isInstall values don't matter for this test
+	_, err := backend.InstallStoreMetadata("123123123", storeInfo, false, false)
+	c.Check(err, IsNil)
 
 	st := s.st
 	st.Lock()
 	defer st.Unlock()
 
 	var snapst snapstate.SnapState
-	err := snapstate.Get(st, "name1", &snapst)
+	err = snapstate.Get(st, "name1", &snapst)
 	c.Assert(err, IsNil)
 
 	info, err := snapst.CurrentInfo()
