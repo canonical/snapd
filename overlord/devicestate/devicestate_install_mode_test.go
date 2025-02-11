@@ -3547,7 +3547,8 @@ func (s *installStepSuite) testDeviceManagerInstallSetupStorageEncryptionTasksAn
 
 	var volumesAuth *device.VolumesAuthOptions
 	if withVolumesAuth {
-		volumesAuth = &device.VolumesAuthOptions{Mode: device.AuthModePassphrase, Passphrase: "1234"}
+		// TODO:FDEM:FIX: remove pbkdf2 kdf type to test defaults.
+		volumesAuth = &device.VolumesAuthOptions{Mode: device.AuthModePassphrase, Passphrase: "1234", KDFType: "pbkdf2"}
 	}
 
 	chg, err := devicestate.InstallSetupStorageEncryption(s.state, "1234", mockOnVolumes, volumesAuth)

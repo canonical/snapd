@@ -194,9 +194,10 @@ func (o *VolumesAuthOptions) Validate() error {
 	}
 
 	switch o.KDFType {
-	case "argon2i", "argon2id", "pbkdf2", "":
+	case "pbkdf2":
 	default:
-		return fmt.Errorf("invalid kdf type %q, only \"argon2i\", \"argon2id\" and \"pbkdf2\" are supported", o.KDFType)
+		// TODO:FDEM:FIX: add support for argon2i* when out-of-process variant is implemented
+		return fmt.Errorf("invalid kdf type %q, only \"pbkdf2\" is supported", o.KDFType)
 	}
 
 	if o.KDFTime < 0 {

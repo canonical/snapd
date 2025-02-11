@@ -159,7 +159,8 @@ func (s *deviceSuite) TestVolumesAuthOptionsValidateHappy(c *C) {
 	// VolumesAuthOptions can be nil
 	c.Assert(opts.Validate(), IsNil)
 	// Valid kdf types
-	for _, kdfType := range []string{"argon2i", "argon2id", "pbkdf2"} {
+	// TODO:FDEM:FIX: add checks for argon2i* when out-of-process variant is implemented
+	for _, kdfType := range []string{"pbkdf2"} {
 		opts = &device.VolumesAuthOptions{
 			Mode:       device.AuthModePassphrase,
 			Passphrase: "1234",
@@ -168,8 +169,8 @@ func (s *deviceSuite) TestVolumesAuthOptionsValidateHappy(c *C) {
 		}
 		c.Assert(opts.Validate(), IsNil)
 	}
-	// KDF type and time are optional
-	opts = &device.VolumesAuthOptions{Mode: device.AuthModePassphrase, Passphrase: "1234"}
+	// KDF time is optional
+	opts = &device.VolumesAuthOptions{Mode: device.AuthModePassphrase, Passphrase: "1234", KDFType: "pbkdf2"}
 	c.Assert(opts.Validate(), IsNil)
 }
 
@@ -184,13 +185,22 @@ func (s *deviceSuite) TestVolumesAuthOptionsValidateError(c *C) {
 	opts = &device.VolumesAuthOptions{Mode: device.AuthModePIN}
 	c.Assert(opts.Validate(), ErrorMatches, `"pin" authentication mode is not implemented`)
 	// PIN mode + custom kdf type
-	opts = &device.VolumesAuthOptions{Mode: device.AuthModePIN, KDFType: "argon2i"}
+	opts = &device.VolumesAuthOptions{Mode: device.AuthModePIN, KDFType: "pbkdf2"}
 	c.Assert(opts.Validate(), ErrorMatches, `"pin" authentication mode does not support custom kdf types`)
+	// Argon2i kdf type
+	opts = &device.VolumesAuthOptions{Mode: device.AuthModePassphrase, Passphrase: "1234", KDFType: "argon2i"}
+	c.Assert(opts.Validate(), ErrorMatches, `invalid kdf type "argon2i", only "pbkdf2" is supported`)
+	// Argon2id kdf type
+	opts = &device.VolumesAuthOptions{Mode: device.AuthModePassphrase, Passphrase: "1234", KDFType: "argon2id"}
+	c.Assert(opts.Validate(), ErrorMatches, `invalid kdf type "argon2id", only "pbkdf2" is supported`)
+	// Empty kdf type
+	opts = &device.VolumesAuthOptions{Mode: device.AuthModePassphrase, Passphrase: "1234"}
+	c.Assert(opts.Validate(), ErrorMatches, `invalid kdf type "", only "pbkdf2" is supported`)
 	// Bad kdf type
 	opts = &device.VolumesAuthOptions{Mode: device.AuthModePassphrase, Passphrase: "1234", KDFType: "bad-type"}
-	c.Assert(opts.Validate(), ErrorMatches, `invalid kdf type "bad-type", only "argon2i", "argon2id" and "pbkdf2" are supported`)
+	c.Assert(opts.Validate(), ErrorMatches, `invalid kdf type "bad-type", only "pbkdf2" is supported`)
 	// Negative kdf time
-	opts = &device.VolumesAuthOptions{Mode: device.AuthModePassphrase, Passphrase: "1234", KDFTime: -1}
+	opts = &device.VolumesAuthOptions{Mode: device.AuthModePassphrase, Passphrase: "1234", KDFType: "pbkdf2", KDFTime: -1}
 	c.Assert(opts.Validate(), ErrorMatches, "kdf time cannot be negative")
 }
 
