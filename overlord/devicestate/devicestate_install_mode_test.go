@@ -81,7 +81,7 @@ func (s *deviceMgrInstallSuite) SetUpTest(c *C) {
 	s.SeedDir = dirs.SnapSeedDir
 }
 
-func (s *deviceMgrInstallSuite) setupSystemSeed(c *C, sysLabel, gadgetYaml string, isClassic bool, kModsRevs map[string]snap.Revision) *asserts.Model {
+func (s *deviceMgrInstallSuite) setupSystemSeed(c *C, sysLabel, gadgetYaml string, isClassic bool, kModsRevs map[string]snap.Revision, snapdVersionByType map[snap.Type]string) *asserts.Model {
 	s.StoreSigning = assertstest.NewStoreStack("can0nical", nil)
 
 	s.Brands = assertstest.NewSigningAccounts(s.StoreSigning)
@@ -101,7 +101,10 @@ func (s *deviceMgrInstallSuite) setupSystemSeed(c *C, sysLabel, gadgetYaml strin
 
 	assertstest.AddMany(s.StoreSigning.Database, s.Brands.AccountsAndKeys("my-brand")...)
 
-	s.MakeAssertedSnap(c, seedtest.SampleSnapYaml["snapd"], nil, snap.R(1), "my-brand", s.StoreSigning.Database)
+	s.MakeAssertedSnap(c,
+		seedtest.SampleSnapYaml["snapd"],
+		[][]string{{"usr/lib/snapd/info", fmt.Sprintf("VERSION=%s", snapdVersionByType[snap.TypeSnapd])}},
+		snap.R(1), "my-brand", s.StoreSigning.Database)
 	s.MakeAssertedSnap(c, seedtest.SampleSnapYaml["core24"], nil, snap.R(1), "my-brand", s.StoreSigning.Database)
 	s.MakeAssertedSnap(c, seedtest.SampleSnapYaml["pc=24"],
 		[][]string{
@@ -109,13 +112,14 @@ func (s *deviceMgrInstallSuite) setupSystemSeed(c *C, sysLabel, gadgetYaml strin
 			{"pc-boot.img", ""}, {"pc-core.img", ""}, {"grubx64.efi", ""},
 			{"shim.efi.signed", ""}, {"grub.conf", ""}},
 		snap.R(1), "my-brand", s.StoreSigning.Database)
+	kernelFiles := [][]string{{"kernel.efi", ""}}
+	if _, ok := snapdVersionByType[snap.TypeKernel]; ok {
+		kernelFiles = append(kernelFiles, []string{"snapd-info", fmt.Sprintf("VERSION=%s", snapdVersionByType[snap.TypeKernel])})
+	}
 	if len(kModsRevs) > 0 {
-		s.MakeAssertedSnapWithComps(c,
-			seedtest.SampleSnapYaml["pc-kernel=24+kmods"],
-			[][]string{{"kernel.efi", ""}}, snap.R(1), kModsRevs, "my-brand", s.StoreSigning.Database)
+		s.MakeAssertedSnapWithComps(c, seedtest.SampleSnapYaml["pc-kernel=24+kmods"], kernelFiles, snap.R(1), kModsRevs, "my-brand", s.StoreSigning.Database)
 	} else {
-		s.MakeAssertedSnap(c, seedtest.SampleSnapYaml["pc-kernel=24"],
-			[][]string{{"kernel.efi", ""}}, snap.R(1), "my-brand", s.StoreSigning.Database)
+		s.MakeAssertedSnap(c, seedtest.SampleSnapYaml["pc-kernel=24"], kernelFiles, snap.R(1), "my-brand", s.StoreSigning.Database)
 	}
 
 	s.MakeAssertedSnapWithComps(c, seedtest.SampleSnapYaml["optional24"], nil, snap.R(1), nil, "my-brand", s.StoreSigning.Database)
@@ -193,13 +197,14 @@ func (s *fakeSeedCopier) OptionalContainers() (seed.OptionalContainers, error) {
 }
 
 type mockSystemSeedWithLabelOpts struct {
-	isClassic       bool
-	hasSystemSeed   bool
-	hasPartial      bool
-	preseedArtifact bool
-	testCompsMode   bool
-	kModsRevs       map[string]snap.Revision
-	types           []snap.Type
+	isClassic          bool
+	hasSystemSeed      bool
+	hasPartial         bool
+	preseedArtifact    bool
+	testCompsMode      bool
+	kModsRevs          map[string]snap.Revision
+	types              []snap.Type
+	snapdVersionByType map[snap.Type]string
 }
 
 func (s *deviceMgrInstallSuite) mockSystemSeedWithLabel(c *C, label string, seedCopyFn func(string, seed.CopyOptions, timings.Measurer) error, opts mockSystemSeedWithLabelOpts) (gadgetSnapPath, kernelSnapPath string, kCompsPaths []string, ginfo *gadget.Info, mountCmd *testutil.MockCmd, model *asserts.Model) {
@@ -226,11 +231,12 @@ func (s *deviceMgrInstallSuite) mockSystemSeedWithLabel(c *C, label string, seed
 	s.AddCleanup(restore)
 
 	// now create a label with snaps/assertions
-	model = s.setupSystemSeed(c, label, seedGadget, opts.isClassic, opts.kModsRevs)
+	model = s.setupSystemSeed(c, label, seedGadget, opts.isClassic, opts.kModsRevs, opts.snapdVersionByType)
 	c.Check(model, NotNil)
 
 	// Create fake seed that will return information from the label we created
 	// (TODO: needs to be in sync with setupSystemSeed, fix that)
+	snapdSnapPath := filepath.Join(s.SeedDir, "snaps", "snapd_1.snap")
 	kernelSnapPath = filepath.Join(s.SeedDir, "snaps", "pc-kernel_1.snap")
 	baseSnapPath := filepath.Join(s.SeedDir, "snaps", "core24_1.snap")
 	gadgetSnapPath = filepath.Join(s.SeedDir, "snaps", "pc_1.snap")
@@ -258,6 +264,13 @@ func (s *deviceMgrInstallSuite) mockSystemSeedWithLabel(c *C, label string, seed
 	essentialSnaps := make([]*seed.Snap, 0, len(opts.types))
 	for _, typ := range opts.types {
 		switch typ {
+		case snap.TypeSnapd:
+			essentialSnaps = append(essentialSnaps, &seed.Snap{
+				Path: snapdSnapPath,
+				SideInfo: &snap.SideInfo{RealName: "snapd",
+					Revision: snap.R(1), SnapID: s.SeedSnaps.AssertedSnapID("snapd")},
+				EssentialType: snap.TypeSnapd,
+			})
 		case snap.TypeKernel:
 			essentialSnaps = append(essentialSnaps, &seed.Snap{
 				Path: kernelSnapPath,
@@ -1242,6 +1255,7 @@ func (s *deviceMgrInstallModeSuite) TestInstallRestoresPreseedArtifactModelMisma
 type fakeSeed struct {
 	sysDir          string
 	essentialSnaps  []*seed.Snap
+	loadedSnaps     []*seed.Snap
 	model           *asserts.Model
 	preseedArtifact bool
 }
@@ -1270,7 +1284,19 @@ func (*fakeSeed) Brand() (*asserts.Account, error) {
 	return nil, nil
 }
 
-func (*fakeSeed) LoadEssentialMeta(essentialTypes []snap.Type, tm timings.Measurer) error {
+func (fs *fakeSeed) LoadEssentialMeta(essentialTypes []snap.Type, tm timings.Measurer) error {
+	if len(essentialTypes) == 0 {
+		fs.loadedSnaps = nil
+	}
+	fs.loadedSnaps = make([]*seed.Snap, 0, len(essentialTypes))
+	for _, typ := range essentialTypes {
+		for _, seedSnap := range fs.essentialSnaps {
+			if seedSnap.EssentialType == typ {
+				fs.loadedSnaps = append(fs.loadedSnaps, seedSnap)
+				break
+			}
+		}
+	}
 	return nil
 }
 
@@ -1278,7 +1304,8 @@ func (*fakeSeed) LoadEssentialMetaWithSnapHandler([]snap.Type, seed.ContainerHan
 	return nil
 }
 
-func (*fakeSeed) LoadMeta(string, seed.ContainerHandler, timings.Measurer) error {
+func (fs *fakeSeed) LoadMeta(string, seed.ContainerHandler, timings.Measurer) error {
+	fs.loadedSnaps = fs.essentialSnaps
 	return nil
 }
 
@@ -1289,7 +1316,7 @@ func (*fakeSeed) UsesSnapdSnap() bool {
 func (*fakeSeed) SetParallelism(n int) {}
 
 func (fs *fakeSeed) EssentialSnaps() []*seed.Snap {
-	return fs.essentialSnaps
+	return fs.loadedSnaps
 }
 
 func (fs *fakeSeed) ModeSnaps(mode string) ([]*seed.Snap, error) {

@@ -765,11 +765,26 @@ func (s *deviceMgrInstallAPISuite) testInstallSetupStorageEncryption(c *C, hasTP
 	seedCopyFn := func(seedDir string, opts seed.CopyOptions, tm timings.Measurer) error {
 		return fmt.Errorf("unexpected copy call")
 	}
+	var snapdVersionByType map[snap.Type]string
+	if withVolumesAuth {
+		// Passphrase auth requires snapd 2.68 as a minimum in target install system
+		snapdVersionByType = map[snap.Type]string{
+			snap.TypeSnapd:  "2.68",
+			snap.TypeKernel: "2.68",
+		}
+	} else {
+		// mock other versions to cover more cases
+		snapdVersionByType = map[snap.Type]string{
+			snap.TypeSnapd:  "2.67",
+			snap.TypeKernel: "2.66",
+		}
+	}
 	seedOpts := mockSystemSeedWithLabelOpts{
-		isClassic:     isClassic,
-		hasSystemSeed: false,
-		hasPartial:    false,
-		types:         []snap.Type{snap.TypeKernel, snap.TypeBase, snap.TypeGadget},
+		isClassic:          isClassic,
+		hasSystemSeed:      false,
+		hasPartial:         false,
+		types:              []snap.Type{snap.TypeSnapd, snap.TypeKernel, snap.TypeBase, snap.TypeGadget},
+		snapdVersionByType: snapdVersionByType,
 	}
 	gadgetSnapPath, kernelSnapPath, _, ginfo, mountCmd, _ := s.mockSystemSeedWithLabel(
 		c, label, seedCopyFn, seedOpts)
@@ -846,7 +861,7 @@ func (s *deviceMgrInstallAPISuite) testInstallSetupStorageEncryption(c *C, hasTP
 		return
 	}
 
-	c.Check(chg.Err(), IsNil)
+	c.Assert(chg.Err(), IsNil)
 	gadgetDir := filepath.Join(dirs.SnapRunDir, "snap-content/gadget")
 	kernelDir := filepath.Join(dirs.SnapRunDir, "snap-content/kernel")
 	c.Check(mountCmd.Calls(), DeepEquals, [][]string{
@@ -1003,4 +1018,77 @@ func (s *deviceMgrInstallAPISuite) TestInstallSetupStorageEncryptionBadVolumesAu
 - install API set-up encryption step \(internal error: wrong data type under volumesAuthOptionsKey\)`)
 	// Cached auth options are cleaned
 	c.Check(s.state.Cached(devicestate.VolumesAuthOptionsKeyByLabel(label)), IsNil)
+}
+
+func (s *deviceMgrInstallAPISuite) testInstallSetupStorageEncryptionPassphraseAuthUnsupportedSnap(c *C, snapdVersionByType map[snap.Type]string) {
+	// Mock label
+	label := "classic"
+	seedCopyFn := func(seedDir string, opts seed.CopyOptions, tm timings.Measurer) error {
+		return fmt.Errorf("unexpected copy call")
+	}
+	seedOpts := mockSystemSeedWithLabelOpts{
+		isClassic:          true,
+		hasSystemSeed:      false,
+		hasPartial:         false,
+		types:              []snap.Type{snap.TypeSnapd, snap.TypeKernel, snap.TypeBase, snap.TypeGadget},
+		snapdVersionByType: snapdVersionByType,
+	}
+
+	_, _, _, ginfo, _, _ := s.mockSystemSeedWithLabel(c, label, seedCopyFn, seedOpts)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// Simulate system with TPM
+	restore := installLogic.MockSecbootCheckTPMKeySealingSupported(func(tpmMode secboot.TPMProvisionMode) error {
+		c.Check(tpmMode, Equals, secboot.TPMProvisionFull)
+		return nil
+	})
+	s.AddCleanup(restore)
+
+	restore = devicestate.MockInstallEncryptPartitions(func(onVolumes map[string]*gadget.Volume, volumesAuth *device.VolumesAuthOptions, encryptionType device.EncryptionType, model *asserts.Model, gadgetRoot, kernelRoot string, perfTimings timings.Measurer) (*install.EncryptionSetupData, error) {
+		return &install.EncryptionSetupData{}, nil
+	})
+	s.AddCleanup(restore)
+
+	// Create change
+	chg := s.state.NewChange("install-step-setup-storage-encryption",
+		"Setup storage encryption")
+	encryptTask := s.state.NewTask("install-setup-storage-encryption",
+		"install API set-up encryption step")
+	encryptTask.Set("system-label", label)
+	encryptTask.Set("on-volumes", ginfo.Volumes)
+	encryptTask.Set("volumes-auth-required", true)
+	mockVolumesAuth := &device.VolumesAuthOptions{Mode: device.AuthModePassphrase, Passphrase: "1234"}
+	s.state.Cache(devicestate.VolumesAuthOptionsKeyByLabel(label), mockVolumesAuth)
+	chg.AddTask(encryptTask)
+
+	// now let the change run - some checks will happen in the mocked functions
+	s.state.Unlock()
+	defer s.state.Lock()
+
+	s.settle(c)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// Checks now
+	c.Check(chg.Err(), ErrorMatches, `cannot perform the following tasks:
+- install API set-up encryption step \(\"passphrase\" authentication mode is not supported by target system\)`)
+}
+
+func (s *deviceMgrInstallAPISuite) TestInstallSetupStorageEncryptionPassphraseAuthUnsupportedSnapd(c *C) {
+	snapdVersionByType := map[snap.Type]string{
+		snap.TypeSnapd:  "2.67",
+		snap.TypeKernel: "2.68",
+	}
+	s.testInstallSetupStorageEncryptionPassphraseAuthUnsupportedSnap(c, snapdVersionByType)
+}
+
+func (s *deviceMgrInstallAPISuite) TestInstallSetupStorageEncryptionPassphraseAuthUnsupportedKernel(c *C) {
+	snapdVersionByType := map[snap.Type]string{
+		snap.TypeSnapd:  "2.68",
+		snap.TypeKernel: "2.67",
+	}
+	s.testInstallSetupStorageEncryptionPassphraseAuthUnsupportedSnap(c, snapdVersionByType)
 }
