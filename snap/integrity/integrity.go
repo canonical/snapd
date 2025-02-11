@@ -103,7 +103,7 @@ func LookupDmVerityDataAndCrossCheck(snapPath string, params *IntegrityDataParam
 
 	err = params.crossCheck(vsb)
 	if err != nil {
-		return "", fmt.Errorf("%w %q: %w", ErrUnexpectedDmVerityData, hashFileName, err)
+		return "", fmt.Errorf("%w %q: %s", ErrUnexpectedDmVerityData, hashFileName, err.Error())
 	}
 
 	return hashFileName, nil
