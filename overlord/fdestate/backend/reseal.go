@@ -155,12 +155,12 @@ func doReseal(manager FDEStateManager, method device.SealingMethod, rootdir stri
 	case device.SealingMethodFDESetupHook:
 		primaryKeyFile := filepath.Join(boot.InstallHostFDESaveDir, "aux-key")
 		if runParams != nil {
-			if err := secbootResealKeysWithFDESetupHook(runKeys, primaryKeyFile, runParams.Models); err != nil {
+			if err := secbootResealKeysWithFDESetupHook(runKeys, primaryKeyFile, runParams.Models, runParams.BootModes); err != nil {
 				return err
 			}
 		}
 		if recoveryParams != nil {
-			if err := secbootResealKeysWithFDESetupHook(recoveryKeys, primaryKeyFile, recoveryParams.Models); err != nil {
+			if err := secbootResealKeysWithFDESetupHook(recoveryKeys, primaryKeyFile, recoveryParams.Models, recoveryParams.BootModes); err != nil {
 				return err
 			}
 		}
