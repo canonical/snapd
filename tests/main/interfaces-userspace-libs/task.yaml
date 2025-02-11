@@ -1,0 +1,44 @@
+summary: Test for interfaces exposing libraries on classic userspace
+
+details: Test for interfaces exposing libraries on classic userspace
+
+systems: [ubuntu-24*]
+
+environment:
+  PROVIDER_SNAP1: libs-provider1
+  PROVIDER_SNAP2: libs-provider2
+  CUDA_LIBS1_PATH: $PROVIDER_SNAP1/cuda-libs
+  CUDA_LIBS2_PATH: $PROVIDER_SNAP2/cuda-libs
+
+prepare: |
+  gcc square.c -o libsquare.so -fPIC -shared
+  gcc multiply.c -o libmultiply.so -fPIC -shared
+  gcc user.c -lsquare -lmultiply -L. -o user
+
+  mkdir -p "$CUDA_LIBS1_PATH"
+  cp libsquare.so "$CUDA_LIBS1_PATH"
+  snap pack "$PROVIDER_SNAP1"
+
+  mkdir -p "$CUDA_LIBS2_PATH"
+  cp libmultiply.so "$CUDA_LIBS2_PATH"
+  snap pack "$PROVIDER_SNAP2"
+
+execute: |
+  snap install --dangerous "$PROVIDER_SNAP1"_*.snap
+  snap install --dangerous "$PROVIDER_SNAP2"_*.snap
+  snap connect system:cuda-driver-libs "$PROVIDER_SNAP1":cuda-driver-libs
+  snap connect system:cuda-driver-libs "$PROVIDER_SNAP2":cuda-driver-libs
+  MATCH /snap/"$PROVIDER_SNAP1"/x1/cuda-libs < /etc/ld.so.conf.d/snap.system.conf
+  MATCH /snap/"$PROVIDER_SNAP2"/x1/cuda-libs < /etc/ld.so.conf.d/snap.system.conf
+  ldd user | MATCH /snap/"$PROVIDER_SNAP1"/x1/cuda-libs/libsquare.so
+  ldd user | MATCH /snap/"$PROVIDER_SNAP2"/x1/cuda-libs/libmultiply.so
+  ./user 2 | MATCH 8
+
+  snap remove libs-provider2
+  MATCH /snap/"$PROVIDER_SNAP1"/x1/cuda-libs < /etc/ld.so.conf.d/snap.system.conf
+  not MATCH /snap/"$PROVIDER_SNAP2"/x1/cuda-libs < /etc/ld.so.conf.d/snap.system.conf
+
+  snap remove libs-provider1
+  not stat /etc/ld.so.conf.d/snap.system.conf
+  ldd user | MATCH 'libsquare.so => not found'
+  ldd user | MATCH 'libmultiply.so => not found'
