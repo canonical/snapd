@@ -2403,14 +2403,13 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (err error) {
 	// the err checked in IsErrAndNotWait was the local err (which we know to
 	// be non-nil at time of the check), not the err returned from the
 	// function. Is this analysis correct, and was this intentional?
-	isInstall := len(snapst.Sequence.Revisions) == 1
-	restore, err := backend.InstallStoreMetadata(snapsup.SideInfo.SnapID, aux, otherInstances, isInstall)
+	undo, err := backend.InstallStoreMetadata(snapsup.SideInfo.SnapID, aux, linkCtx)
 	if err != nil {
 		return err
 	}
 	defer func() {
 		if IsErrAndNotWait(err) {
-			restore()
+			undo()
 		}
 	}()
 

@@ -23,7 +23,7 @@ package backend
 // with the given snap ID. At the moment, this metadata includes auxiliary
 // store information. Returns a closure to undo the function's actions,
 // depending on whether it's a first install or if there are other instances.
-func InstallStoreMetadata(snapID string, aux *AuxStoreInfo, hasOtherInstances, isInstall bool) (undo func(), err error) {
+func InstallStoreMetadata(snapID string, aux *AuxStoreInfo, linkCtx LinkContext) (undo func(), err error) {
 	if snapID == "" {
 		return func() {}, nil
 	}
@@ -32,8 +32,8 @@ func InstallStoreMetadata(snapID string, aux *AuxStoreInfo, hasOtherInstances, i
 	}
 	// TODO: install other types of revision-agnostic metadata
 	return func() {
-		if isInstall {
-			DiscardStoreMetadata(snapID, hasOtherInstances)
+		if linkCtx.FirstInstall {
+			DiscardStoreMetadata(snapID, linkCtx.HasOtherInstances)
 		}
 	}, nil
 }
