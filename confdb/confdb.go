@@ -133,7 +133,7 @@ type Schema interface {
 
 	// PruneEphemeral parses the data and removes paths marked as ephemeral in the
 	// schema. The data should've been validated previously to ensure that the data
-	// matches the schema.
+	// matches the schema. Returns nil if the entire data was pruned.
 	PruneEphemeral(data []byte) ([]byte, error)
 }
 
