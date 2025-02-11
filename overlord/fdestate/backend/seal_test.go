@@ -170,7 +170,7 @@ func (s *sealSuite) TestSealKeyForBootChains(c *C) {
 				// the run object seals only the ubuntu-data key
 				c.Check(params.TPMPolicyAuthKeyFile, Equals, filepath.Join(boot.InstallHostFDESaveDir, "tpm-policy-auth-key"))
 
-				expectedSKR := secboot.SealKeyRequest{BootstrappedContainer: myKey, KeyName: "ubuntu-data", SlotName: "default"}
+				expectedSKR := secboot.SealKeyRequest{BootstrappedContainer: myKey, KeyName: "ubuntu-data", SlotName: "default", BootModes: []string{"run", "recover"}}
 				if tc.disableTokens {
 					expectedSKR.KeyFile = filepath.Join(rootdir, "run/mnt/ubuntu-boot/device/fde/ubuntu-data.sealed-key")
 				}
@@ -179,8 +179,8 @@ func (s *sealSuite) TestSealKeyForBootChains(c *C) {
 				// the fallback object seals the ubuntu-data and the ubuntu-save keys
 				c.Check(params.TPMPolicyAuthKeyFile, Equals, "")
 
-				expectedDataSKR := secboot.SealKeyRequest{BootstrappedContainer: myKey, KeyName: "ubuntu-data", SlotName: "default-fallback"}
-				expectedSaveSKR := secboot.SealKeyRequest{BootstrappedContainer: myKey2, KeyName: "ubuntu-save", SlotName: "default-fallback"}
+				expectedDataSKR := secboot.SealKeyRequest{BootstrappedContainer: myKey, KeyName: "ubuntu-data", SlotName: "default-fallback", BootModes: []string{"recover", "factory-reset"}}
+				expectedSaveSKR := secboot.SealKeyRequest{BootstrappedContainer: myKey2, KeyName: "ubuntu-save", SlotName: "default-fallback", BootModes: []string{"recover", "factory-reset"}}
 				if tc.disableTokens {
 					expectedDataSKR.KeyFile = filepath.Join(rootdir, "run/mnt/ubuntu-seed/device/fde/ubuntu-data.recovery.sealed-key")
 					if tc.factoryReset {

@@ -58,6 +58,7 @@ func runKeySealRequests(key secboot.BootstrappedContainer, useTokens bool) []sec
 			KeyName:               "ubuntu-data",
 			SlotName:              "default",
 			KeyFile:               keyFile,
+			BootModes:             []string{"run", "recover"},
 		},
 	}
 }
@@ -83,12 +84,16 @@ func fallbackKeySealRequests(key, saveKey secboot.BootstrappedContainer, factory
 			KeyName:               "ubuntu-data",
 			SlotName:              "default-fallback",
 			KeyFile:               dataFallbackKey,
+			// TODO:FDEM:FIX we should not not have "factory-reset" here, but for now
+			// we want to have the same as the pcr profile
+			BootModes: []string{"recover", "factory-reset"},
 		},
 		{
 			BootstrappedContainer: saveKey,
 			KeyName:               "ubuntu-save",
 			SlotName:              "default-fallback",
 			KeyFile:               saveFallbackKey,
+			BootModes:             []string{"recover", "factory-reset"},
 		},
 	}
 }

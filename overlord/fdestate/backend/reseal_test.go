@@ -1793,7 +1793,7 @@ func (s *resealTestSuite) TestHooksResealHappy(c *C) {
 	}
 
 	resealCalls := 0
-	restore := fdeBackend.MockSecbootResealKeysWithFDESetupHook(func(keys []secboot.KeyDataLocation, primaryKeyFile string, models []secboot.ModelForSealing) error {
+	restore := fdeBackend.MockSecbootResealKeysWithFDESetupHook(func(keys []secboot.KeyDataLocation, primaryKeyFile string, models []secboot.ModelForSealing, bootModes []string) error {
 		resealCalls++
 
 		switch resealCalls {
