@@ -44,10 +44,10 @@ func (s *metadataSuite) TestInstallStoreMetadataRevert(c *C) {
 		shouldExistAfter  bool
 	}{
 		// undo should remove the file iff there are no other instances and it's an install
-		{false, true, false},
-		{true, true, true},
-		{false, false, true},
-		{true, false, true},
+		{hasOtherInstances: false, isInstall: true, shouldExistAfter: false},
+		{hasOtherInstances: true, isInstall: true, shouldExistAfter: true},
+		{hasOtherInstances: false, isInstall: false, shouldExistAfter: true},
+		{hasOtherInstances: true, isInstall: false, shouldExistAfter: true},
 	} {
 		// Need a new tmp root dir so test cases don't collide
 		dirs.SetRootDir(c.MkDir())
