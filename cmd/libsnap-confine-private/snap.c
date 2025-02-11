@@ -308,7 +308,7 @@ void sc_snap_component_validate(const char *snap_component, const char *snap_ins
     strncpy(snap_name, snap_component, snap_name_len);
 
     char component_name[SNAP_NAME_LEN + 1] = {0};
-    strncpy(component_name, pos + 1, SNAP_NAME_LEN);
+    strncpy(component_name, pos + 1, sizeof(component_name) - 1);
 
     validate_as_snap_or_component_name(snap_name, SC_SNAP_INVALID_COMPONENT, "snap name in component", &err);
     if (err != NULL) {
