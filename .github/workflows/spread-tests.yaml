@@ -247,7 +247,7 @@ jobs:
       run: |
           # Register a problem matcher to highlight spread failures
           echo "::add-matcher::.github/spread-problem-matcher.json"
-          set -x
+
           SPREAD=spread
           if [[ "${{ inputs.group }}" =~ nested- ]]; then
             export NESTED_BUILD_SNAPD_FROM_CURRENT=true
