@@ -888,11 +888,13 @@ func (s *deviceMgrInstallAPISuite) TestInstallSetupStorageEncryptionHappy(c *C) 
 	s.testInstallSetupStorageEncryption(c, hasTPM, withVolumesAuth)
 }
 
-func (s *deviceMgrInstallAPISuite) TestInstallSetupStorageEncryptionWithVolumesAuth(c *C) {
-	const hasTPM = true
-	const withVolumesAuth = true
-	s.testInstallSetupStorageEncryption(c, hasTPM, withVolumesAuth)
-}
+// TODO:FDEM: passphrases will be supported when out-of-process argon2i* kdf is implemented
+//
+// func (s *deviceMgrInstallAPISuite) TestInstallSetupStorageEncryptionWithVolumesAuth(c *C) {
+// 	const hasTPM = true
+// 	const withVolumesAuth = true
+// 	s.testInstallSetupStorageEncryption(c, hasTPM, withVolumesAuth)
+// }
 
 func (s *deviceMgrInstallAPISuite) TestInstallSetupStorageEncryptionNoCrypto(c *C) {
 	const hasTPM = false

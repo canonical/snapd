@@ -3017,14 +3017,16 @@ func (s *modelAndGadgetInfoSuite) TestSystemAndGadgetAndEncyptionInfoPassphraseS
 	s.testSystemAndGadgetAndEncyptionInfoPassphraseSupport(c, snapdVersionByType, hasPassphraseSupport)
 }
 
-func (s *modelAndGadgetInfoSuite) TestSystemAndGadgetAndEncyptionInfoPassphraseSupportAvailable(c *C) {
-	snapdVersionByType := map[snap.Type]string{
-		snap.TypeSnapd:  "2.68",
-		snap.TypeKernel: "2.68",
-	}
-	const hasPassphraseSupport = true
-	s.testSystemAndGadgetAndEncyptionInfoPassphraseSupport(c, snapdVersionByType, hasPassphraseSupport)
-}
+// TODO:FDEM: passphrases will be supported when out-of-process argon2i* kdf is implemented
+//
+// func (s *modelAndGadgetInfoSuite) TestSystemAndGadgetAndEncyptionInfoPassphraseSupportAvailable(c *C) {
+// 	snapdVersionByType := map[snap.Type]string{
+// 		snap.TypeSnapd:  "2.68",
+// 		snap.TypeKernel: "2.68",
+// 	}
+// 	const hasPassphraseSupport = true
+// 	s.testSystemAndGadgetAndEncyptionInfoPassphraseSupport(c, snapdVersionByType, hasPassphraseSupport)
+// }
 
 func (s *modelAndGadgetInfoSuite) TestSystemAndGadgetInfoErrorInvalidLabel(c *C) {
 	_, _, _, err := s.mgr.SystemAndGadgetAndEncryptionInfo("invalid/label")

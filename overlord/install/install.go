@@ -174,7 +174,9 @@ func MockSecbootCheckTPMKeySealingSupported(f func(tpmMode secboot.TPMProvisionM
 }
 
 func checkPassphraseSupportedByTargetSystem(sysVer *SystemSnapdVersions) (bool, error) {
-	const minSnapdVersion = "2.68"
+	// TODO:FDEM:FIX: the minimum snapd version needs to be updated after passphrase
+	// support is re-enabled when out-of-process argon2i* kdf variants are implemented.
+	const minSnapdVersion = "2.68.1"
 	if sysVer == nil {
 		return false, nil
 	}
@@ -264,7 +266,11 @@ func GetEncryptionSupportInfo(model *asserts.Model, tpmMode secboot.TPMProvision
 		// Hook based setup support does not make sense (at least for now) because
 		// it is usually in the context of embedded systems where passphrase
 		// authentication is not practical.
-		if checkSecbootEncryption {
+		//
+		// TODO:FDEM:FIX: mark passphrase as supported when out-of-process argon2i* kdf
+		// variants are implemented.
+		const disablePassphraseAuth = true
+		if !disablePassphraseAuth && checkSecbootEncryption {
 			passphraseAuthAvailable, err := checkPassphraseSupportedByTargetSystem(systemSnapdVersions)
 			if err != nil {
 				return res, fmt.Errorf("cannot check passphrase support: %v", err)

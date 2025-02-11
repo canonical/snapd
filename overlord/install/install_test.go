@@ -324,43 +324,45 @@ func (s *installSuite) TestEncryptionSupportInfoWithTPM(c *C) {
 				UnavailableErr: fmt.Errorf("cannot encrypt device storage as mandated by model grade secured: no tpm"),
 			},
 		},
+		// TODO:FDEM:FIX: passphrases will be supported when out-of-process argon2i* kdf is implemented
+		//
 		// Passphrase support requires snapd 2.68+
-		{
-			"secured", "encrypted", "2.68", "2.68", nil,
-			install.EncryptionSupportInfo{
-				Available: true, Disabled: false,
-				StorageSafety:           asserts.StorageSafetyEncrypted,
-				Type:                    device.EncryptionTypeLUKS,
-				PassphraseAuthAvailable: true,
-			},
-		},
-		{
-			"secured", "encrypted", "2.69", "2.69", nil,
-			install.EncryptionSupportInfo{
-				Available: true, Disabled: false,
-				StorageSafety:           asserts.StorageSafetyEncrypted,
-				Type:                    device.EncryptionTypeLUKS,
-				PassphraseAuthAvailable: true,
-			},
-		},
-		{
-			"secured", "encrypted", "2.67", "2.68", nil,
-			install.EncryptionSupportInfo{
-				Available: true, Disabled: false,
-				StorageSafety:           asserts.StorageSafetyEncrypted,
-				Type:                    device.EncryptionTypeLUKS,
-				PassphraseAuthAvailable: false,
-			},
-		},
-		{
-			"secured", "encrypted", "2.68", "2.67", nil,
-			install.EncryptionSupportInfo{
-				Available: true, Disabled: false,
-				StorageSafety:           asserts.StorageSafetyEncrypted,
-				Type:                    device.EncryptionTypeLUKS,
-				PassphraseAuthAvailable: false,
-			},
-		},
+		// {
+		// 	"secured", "encrypted", "2.68", "2.68", nil,
+		// 	install.EncryptionSupportInfo{
+		// 		Available: true, Disabled: false,
+		// 		StorageSafety:           asserts.StorageSafetyEncrypted,
+		// 		Type:                    device.EncryptionTypeLUKS,
+		// 		PassphraseAuthAvailable: true,
+		// 	},
+		// },
+		// {
+		// 	"secured", "encrypted", "2.69", "2.69", nil,
+		// 	install.EncryptionSupportInfo{
+		// 		Available: true, Disabled: false,
+		// 		StorageSafety:           asserts.StorageSafetyEncrypted,
+		// 		Type:                    device.EncryptionTypeLUKS,
+		// 		PassphraseAuthAvailable: true,
+		// 	},
+		// },
+		// {
+		// 	"secured", "encrypted", "2.67", "2.68", nil,
+		// 	install.EncryptionSupportInfo{
+		// 		Available: true, Disabled: false,
+		// 		StorageSafety:           asserts.StorageSafetyEncrypted,
+		// 		Type:                    device.EncryptionTypeLUKS,
+		// 		PassphraseAuthAvailable: false,
+		// 	},
+		// },
+		// {
+		// 	"secured", "encrypted", "2.68", "2.67", nil,
+		// 	install.EncryptionSupportInfo{
+		// 		Available: true, Disabled: false,
+		// 		StorageSafety:           asserts.StorageSafetyEncrypted,
+		// 		Type:                    device.EncryptionTypeLUKS,
+		// 		PassphraseAuthAvailable: false,
+		// 	},
+		// },
 	}
 	for _, tc := range testCases {
 		restore := install.MockSecbootCheckTPMKeySealingSupported(func(secboot.TPMProvisionMode) error { return tc.tpmErr })
