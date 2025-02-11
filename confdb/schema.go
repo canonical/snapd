@@ -500,9 +500,19 @@ func (v *alternativesSchema) Type() SchemaType {
 func (v *alternativesSchema) Ephemeral() bool { return false }
 
 func (v *alternativesSchema) PruneEphemeral(data []byte) ([]byte, error) {
-	for _, s := range v.schemas {
+	for i, s := range v.schemas {
+		if err := s.Validate(data); err != nil {
+			if i == len(v.schemas)-1 {
+				// no alternative schema matches the data which shouldn't happen since
+				// we validate beforehand
+				return nil, errors.New("internal error: cannot prune ephemeral: no alternative schema matches data")
+			}
+			continue
+		}
+
 		pruned, err := s.PruneEphemeral(data)
 		if err != nil {
+			// shouldn't happen save for programmer error since we already validated
 			return nil, err
 		}
 
