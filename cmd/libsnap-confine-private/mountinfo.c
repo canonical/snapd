@@ -296,4 +296,4 @@ static void sc_free_mountinfo(sc_mountinfo *info) {
 /**
  * Free a sc_mountinfo entry.
  **/
-void sc_free_mountinfo_entry(sc_mountinfo_entry *entry) { free(entry); }
+void __attribute__((noinline)) sc_free_mountinfo_entry(sc_mountinfo_entry *entry) { free(entry); }
