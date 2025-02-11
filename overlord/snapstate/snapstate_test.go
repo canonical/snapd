@@ -4609,7 +4609,7 @@ func (s *snapmgrQuerySuite) TestSnapStateCurrentInfo(c *C) {
 }
 
 func (s *snapmgrQuerySuite) TestSnapStateCurrentInfoLoadsAuxiliaryStoreInfo(c *C) {
-	storeInfo := &backend.AuxStoreInfo{
+	storeInfo := backend.AuxStoreInfo{
 		Media: snap.MediaInfos{{
 			Type: "icon",
 			URL:  "http://example.com/favicon.ico",

@@ -53,7 +53,7 @@ func (s *metadataSuite) TestInstallStoreMetadataRevert(c *C) {
 		dirs.SetRootDir(c.MkDir())
 
 		c.Assert(backend.AuxStoreInfoFilename(snapID), testutil.FileAbsent)
-		aux := &backend.AuxStoreInfo{
+		aux := backend.AuxStoreInfo{
 			Media: snap.MediaInfos{
 				snap.MediaInfo{
 					Type:   "icon",
@@ -100,7 +100,7 @@ func (s *metadataSuite) TestInstallStoreMetadataRevert(c *C) {
 
 func (s *metadataSuite) TestStoreMetadataEmptySnapID(c *C) {
 	const snapID = ""
-	var aux *backend.AuxStoreInfo
+	var aux backend.AuxStoreInfo
 	const hasOtherInstances = false
 	var linkCtx backend.LinkContext // empty, doesn't matter for this test
 	// check that empty snapID does not return an error
@@ -113,7 +113,7 @@ func (s *metadataSuite) TestStoreMetadataEmptySnapID(c *C) {
 func (s *metadataSuite) TestDiscardStoreMetadataHasOtherInstances(c *C) {
 	const snapID = "my-snap-id"
 	c.Assert(backend.AuxStoreInfoFilename(snapID), testutil.FileAbsent)
-	aux := &backend.AuxStoreInfo{
+	aux := backend.AuxStoreInfo{
 		StoreURL: "https://snapcraft.io/example-snap",
 	}
 	// Value of linkCtx doesn't matter to InstallStoreMetadata outside of the

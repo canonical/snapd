@@ -2390,7 +2390,7 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (err error) {
 	}
 
 	// Assemble the auxiliary store info
-	aux := &backend.AuxStoreInfo{
+	aux := backend.AuxStoreInfo{
 		Media:    snapsup.Media,
 		StoreURL: snapsup.StoreURL,
 		// XXX we store this for the benefit of old snapd

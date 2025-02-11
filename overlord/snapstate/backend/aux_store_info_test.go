@@ -55,7 +55,7 @@ func (s *auxInfoSuite) TestAuxStoreInfoRoundTrip(c *check.C) {
 	c.Check(info.Website(), check.Equals, "")
 	c.Check(info.StoreURL, check.Equals, "")
 
-	aux := &backend.AuxStoreInfo{
+	aux := backend.AuxStoreInfo{
 		Media:    media,
 		Website:  "http://example.com/some-snap",
 		StoreURL: "https://snapcraft.io/some-snap",
