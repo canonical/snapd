@@ -656,6 +656,46 @@ func (cs *taskSuite) TestTaskSetEdge(c *C) {
 	c.Assert(t, IsNil)
 }
 
+func (cs *taskSuite) TestTaskBeforeEdge(c *C) {
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	// setup an example taskset
+	t1 := st.NewTask("download", "1...")
+	t2 := st.NewTask("verify", "2...")
+	t3 := st.NewTask("install", "3...")
+	ts := state.NewTaskSet(t1, t2, t3)
+
+	// edges are just typed strings
+	edge1 := state.TaskSetEdge("on-edge")
+	edge2 := state.TaskSetEdge("eddie")
+	edge3 := state.TaskSetEdge("not-found")
+
+	// no edge marked yet
+	t, err := ts.BeforeEdge(edge1)
+	c.Assert(t, IsNil)
+	c.Assert(err, ErrorMatches, `internal error: missing "on-edge" edge in task set`)
+
+	// one edge
+	ts.MarkEdge(t1, edge1)
+	t, err = ts.BeforeEdge(edge1)
+	c.Check(t, IsNil)
+	c.Check(err, ErrorMatches, `internal error: no task before "on-edge" edge in task set`)
+
+	// two edges
+	ts.MarkEdge(t2, edge2)
+	t, err = ts.BeforeEdge(edge2)
+	c.Assert(err, IsNil)
+	c.Check(t, Equals, t1)
+
+	// three edges
+	ts.MarkEdge(t3, edge3)
+	t, err = ts.BeforeEdge(edge3)
+	c.Assert(err, IsNil)
+	c.Check(t, Equals, t2)
+}
+
 func (cs *taskSuite) TestTaskAddAllWithEdges(c *C) {
 	st := state.New(nil)
 	st.Lock()
