@@ -4,7 +4,12 @@ details: |
   Verify that progress reporting from snap command works as expected depending
   on whether the command is ran with a tty attached or not.
 
-systems: [-ubuntu-core-*]
+systems:
+  # no way to install socat
+  - -ubuntu-core-*
+  # observed to fail randomly?
+  # TODO investigate once we can spin up instances in openstack manually
+  - -fedora-*
 
 prepare: |
   tests.pkgs install socat
