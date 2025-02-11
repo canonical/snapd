@@ -487,15 +487,20 @@ func ProvisionForCVM(initramfsUbuntuSeedDir string) error {
 func kdfOptions(volumesAuth *device.VolumesAuthOptions) (sb.KDFOptions, error) {
 	switch volumesAuth.KDFType {
 	case "":
-		return nil, nil
+		// TODO:FDEM:FIX: default to out-of-process argon2id implementation
+		return &sb.PBKDF2Options{
+			TargetDuration: volumesAuth.KDFTime,
+		}, nil
 	case "argon2id":
-		// TODO:FDEM:FIX: implement out-of-process argon2id implementation
+		// TODO:FDEM:FIX: sb.SetArgon2KDF(sb.InProcessArgon2KDF) or intentionally fail
+		// until out-of-process variant is implemented?
 		return &sb.Argon2Options{
 			Mode:           sb.Argon2id,
 			TargetDuration: volumesAuth.KDFTime,
 		}, nil
 	case "argon2i":
-		// TODO:FDEM:FIX: implement out-of-process argon2i implementation
+		// TODO:FDEM:FIX: sb.SetArgon2KDF(sb.InProcessArgon2KDF) or intentionally fail
+		// until out-of-process variant is implemented?
 		return &sb.Argon2Options{
 			Mode:           sb.Argon2i,
 			TargetDuration: volumesAuth.KDFTime,
