@@ -1145,7 +1145,7 @@ func (s *secbootSuite) TestSealKey(c *C) {
 				expectedKDFOptions = &sb.Argon2Options{Mode: sb.Argon2id, TargetDuration: tc.volumesAuth.KDFTime}
 			case "argon2i":
 				expectedKDFOptions = &sb.Argon2Options{Mode: sb.Argon2i, TargetDuration: tc.volumesAuth.KDFTime}
-			case "pbkdf2":
+			case "pbkdf2", "":
 				expectedKDFOptions = &sb.PBKDF2Options{TargetDuration: tc.volumesAuth.KDFTime}
 			}
 			c.Assert(params.KDFOptions, DeepEquals, expectedKDFOptions)
