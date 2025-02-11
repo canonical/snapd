@@ -49,6 +49,7 @@ import (
 	"github.com/snapcore/snapd/osutil/kcmdline"
 	fdeBackend "github.com/snapcore/snapd/overlord/fdestate/backend"
 	"github.com/snapcore/snapd/snapdtool"
+	"github.com/snapcore/snapd/systemd"
 
 	// to set sysconfig.ApplyFilesystemOnlyDefaultsImpl
 	_ "github.com/snapcore/snapd/overlord/configstate/configcore"
@@ -59,6 +60,7 @@ import (
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/snap/snapdir"
+	"github.com/snapcore/snapd/snap/snapfile"
 	"github.com/snapcore/snapd/snap/squashfs"
 	"github.com/snapcore/snapd/sysconfig"
 	"github.com/snapcore/snapd/timings"
@@ -265,7 +267,6 @@ func readSnapInfo(sysSnaps map[snap.Type]*seed.Snap, snapType snap.Type) (*snap.
 		info.Revision = snap.R(-1)
 	}
 	return info, nil
-
 }
 
 func readComponentInfo(seedComp *seed.Component, mntPt string, snapInfo *snap.Info, csi *snap.ComponentSideInfo) (*snap.ComponentInfo, error) {
@@ -300,12 +301,36 @@ func hasFDESetupHook(kernelInfo *snap.Info) (bool, error) {
 	return ok, nil
 }
 
+func readSnapInfoFromPath(path string) (*snap.Info, error) {
+	snapf, err := snapfile.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	info, err := snap.ReadInfoFromSnapFile(snapf, nil)
+	if err != nil {
+		return nil, err
+
+	}
+
+	// Comes from the seed and it might be unasserted, set revision in that case
+	if info.Revision.Unset() {
+		info.Revision = snap.R(-1)
+	}
+	return info, nil
+}
+
 func doInstall(mst *initramfsMountsState, model *asserts.Model, sysSnaps map[snap.Type]*seed.Snap) error {
 	kernelSnap, err := readSnapInfo(sysSnaps, snap.TypeKernel)
 	if err != nil {
 		return err
 	}
-	baseSnap, err := readSnapInfo(sysSnaps, snap.TypeBase)
+	var baseSnap *snap.Info
+	if is24plusSystem(model) {
+		// On UC24 the base is not mounted yet, peek into the file
+		baseSnap, err = readSnapInfoFromPath(sysSnaps[snap.TypeKernel].Path)
+	} else {
+		baseSnap, err = readSnapInfo(sysSnaps, snap.TypeBase)
+	}
 	if err != nil {
 		return err
 	}
@@ -472,7 +497,11 @@ func doInstall(mst *initramfsMountsState, model *asserts.Model, sysSnaps map[sna
 		}
 	}
 
-	// Create drivers tree mount units to make it available before switch root
+	// Create drivers tree mount units to make it available before switch root.
+	// daemon-reload is not needed because it is done from initramfs later, this
+	// happens because on UC /etc/fstab is changed and systemd's
+	// initrd-parse-etc.service does the reload, as it detects entries with the
+	// x-initrd.mount option.
 	rootfsDir := filepath.Join(boot.InitramfsDataDir, "system-data")
 	hasDriversTree, err := createKernelMounts(
 		rootfsDir, kernelSnap.SnapName(), kernelSnap.Revision, !isCore)
@@ -1838,6 +1867,15 @@ func mountNonDataPartitionMatchingKernelDisk(dir, fallbacklabel string, opts *sy
 	return doSystemdMount(partSrc, dir, opts)
 }
 
+func is24plusSystem(model *asserts.Model) bool {
+	switch model.Base() {
+	case "core20", "core22", "core22-desktop":
+		return false
+	default:
+		return true
+	}
+}
+
 func generateMountsCommonInstallRecoverStart(mst *initramfsMountsState) (model *asserts.Model, sysSnaps map[snap.Type]*seed.Snap, err error) {
 	seedMountOpts := &systemdMountOptions{
 		// always fsck the partition when we are mounting it, as this is the
@@ -1898,10 +1936,54 @@ func generateMountsCommonInstallRecoverStart(mst *initramfsMountsState) (model *
 
 	for _, essentialSnap := range essSnaps {
 		systemSnaps[essentialSnap.EssentialType] = essentialSnap
-		dir := snapTypeToMountDir[essentialSnap.EssentialType]
-		// TODO:UC20: we need to cross-check the kernel path with snapd_recovery_kernel used by grub
-		if err := doSystemdMount(essentialSnap.Path, filepath.Join(boot.InitramfsRunMntDir, dir), mountReadOnlyOptions); err != nil {
-			return nil, nil, err
+		if essentialSnap.EssentialType == snap.TypeBase && is24plusSystem(model) {
+			// Create unit to mount directly to /sysroot. We restrict
+			// this to UC24+ for the moment, until we backport necessary
+			// changes to the UC20/22 initramfs. Note that a transient
+			// unit is not used as it tries to be restarted after the
+			// switch root, and fails.
+			what := essentialSnap.Path
+			if err := writeSysrootMountUnit(what, "squashfs"); err != nil {
+				return nil, nil, fmt.Errorf(
+					"cannot write sysroot.mount (what: %s): %v", what, err)
+			}
+			// Do a daemon reload so systemd knows about the new sysroot mount unit
+			// (populate-writable.service depends on sysroot.mount, we need to make
+			// sure systemd knows this unit before snap-initramfs-mounts.service
+			// finishes)
+			sysd := systemd.New(systemd.SystemMode, nil)
+			if err := sysd.DaemonReload(); err != nil {
+				return nil, nil, err
+			}
+			// We need to restart initrd-root-fs.target so its dependencies are
+			// re-calculated considering the new sysroot.mount unit. See
+			// https://github.com/systemd/systemd/issues/23034 on why this is
+			// needed.
+			if err := sysd.StartNoBlock([]string{"initrd-root-fs.target"}); err != nil {
+				return nil, nil, err
+			}
+			if model.Classic() && model.KernelSnap() != nil {
+				// Mount ephemerally for recover mode to gain access to /etc data
+				dir := snapTypeToMountDir[essentialSnap.EssentialType]
+				if err := doSystemdMount(essentialSnap.Path,
+					filepath.Join(boot.InitramfsRunMntDir, dir),
+					&systemdMountOptions{
+						Ephemeral: true,
+						ReadOnly:  true,
+						Private:   true,
+					}); err != nil {
+					return nil, nil, err
+				}
+			}
+		} else {
+			dir := snapTypeToMountDir[essentialSnap.EssentialType]
+			// TODO:UC20: we need to cross-check the kernel path
+			// with snapd_recovery_kernel used by grub
+			if err := doSystemdMount(essentialSnap.Path,
+				filepath.Join(boot.InitramfsRunMntDir, dir),
+				mountReadOnlyOptions); err != nil {
+				return nil, nil, err
+			}
 		}
 	}
 
@@ -2060,13 +2142,6 @@ func createKernelMounts(runWritableDataDir, kernelName string, rev snap.Revision
 				what, where, err)
 		}
 	}
-
-	// daemon-reload is not needed because it is done from initramfs
-	// later, this happens because
-	// 1. On UC /etc/fstab is changed and systemd's
-	//    initrd-parse-etc.service does the reload, as it detects entries
-	//    with the x-initrd.mount option
-	// 2. On hybrid, this is forced from classic-mounts.service
 
 	return true, nil
 }
@@ -2357,6 +2432,27 @@ func generateMountsModeRun(mst *initramfsMountsState) error {
 	//            to the function above to make decisions there, or perhaps this
 	//            code actually belongs in the bootloader implementation itself
 
+	typesToMount := typs
+	if is24plusSystem(model) {
+		// Create unit for sysroot (mounts either base or rootfs). We
+		// restrict this to UC24+ for the moment, until we backport necessary
+		// changes to the UC20/22 initramfs. Note that a transient unit is
+		// not used as it tries to be restarted after the switch root, and
+		// fails.
+		typesToMount = []snap.Type{snap.TypeGadget, snap.TypeKernel}
+		if isClassic {
+			if err := writeSysrootMountUnit(rootfsDir, ""); err != nil {
+				return fmt.Errorf("cannot write sysroot.mount (what: %s): %v", rootfsDir, err)
+			}
+		} else {
+			basePlaceInfo := mounts[snap.TypeBase]
+			what := filepath.Join(dirs.SnapBlobDirUnder(rootfsDir), basePlaceInfo.Filename())
+			if err := writeSysrootMountUnit(what, "squashfs"); err != nil {
+				return fmt.Errorf("cannot write sysroot.mount (what: %s): %v", what, err)
+			}
+		}
+	}
+
 	// Create mounts for kernel modules/firmware if we have a drivers tree.
 	// InitramfsRunModeSelectSnapsToMount guarantees we do have a kernel in the map.
 	kernPlaceInfo := mounts[snap.TypeKernel]
@@ -2366,8 +2462,8 @@ func generateMountsModeRun(mst *initramfsMountsState) error {
 		return err
 	}
 
-	// 4.3 mount base (if UC), gadget and kernel (if there is no drivers tree) snaps
-	for _, typ := range typs {
+	// 4.3 mount the gadget snap and, if there is no drivers tree, the kernel snap
+	for _, typ := range typesToMount {
 		if typ == snap.TypeKernel && hasDriversTree {
 			continue
 		}
@@ -2410,6 +2506,24 @@ func generateMountsModeRun(mst *initramfsMountsState) error {
 		essSnaps := theSeed.EssentialSnaps()
 		if err := doSystemdMount(essSnaps[0].Path, filepath.Join(boot.InitramfsRunMntDir, "snapd"), mountReadOnlyOptions); err != nil {
 			return fmt.Errorf("cannot mount snapd snap: %v", err)
+		}
+	}
+
+	if is24plusSystem(model) {
+		// Do a daemon reload so systemd knows about the new sysroot mount unit
+		// (populate-writable.service depends on sysroot.mount, we need to make
+		// sure systemd knows this unit before snap-initramfs-mounts.service
+		// finishes) and about the drivers tree mounts (relevant on hybrid).
+		sysd := systemd.New(systemd.SystemMode, nil)
+		if err := sysd.DaemonReload(); err != nil {
+			return err
+		}
+		// We need to restart initrd-root-fs.target so its dependencies are
+		// re-calculated considering the new sysroot.mount unit. See
+		// https://github.com/systemd/systemd/issues/23034 on why this is
+		// needed.
+		if err := sysd.StartNoBlock([]string{"initrd-root-fs.target"}); err != nil {
+			return err
 		}
 	}
 

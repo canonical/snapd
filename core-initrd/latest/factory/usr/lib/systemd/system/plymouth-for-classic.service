@@ -7,7 +7,7 @@ ConditionKernelCommandLine=!plymouth.enable=0
 ConditionKernelCommandLine=!nosplash
 ConditionKernelCommandLine=splash
 ConditionVirtualization=!container
-ConditionPathIsMountPoint=!/run/mnt/base
+ConditionPathIsDirectory=!/run/mnt/data/system-data
 
 [Service]
 Type=oneshot
