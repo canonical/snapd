@@ -86,17 +86,27 @@ jobs:
           cd cmd/
           ./autogen.sh
           make -j$(nproc)
+          make clean
 
     - name: Build Go
       if: ${{ inputs.code == 'go' }}
       run: |
           go build ./...
 
-    - name: Test C
+    - name: Test C (distcheck)
       if: ${{ inputs.code == 'c' }}
       run: |
           cd cmd/ && make distcheck
-    
+
+    - name: Test C (check & ASan)
+      if: ${{ inputs.code == 'c' }}
+      run: |
+          cd cmd/
+          ./autogen.sh --enable-sanitize
+          make -j$(nproc)
+          make check
+          make clean
+
     - name: Set SNAPD_DEBUG=1
       if: ${{ inputs.snapd-debug }}
       run: echo "SNAPD_DEBUG=1" >> $GITHUB_ENV
