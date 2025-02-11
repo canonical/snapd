@@ -52,6 +52,12 @@ func (b *Backend) Name() interfaces.SecuritySystem {
 //
 // If the method fails it should be re-tried (with a sensible strategy) by the caller.
 func (b *Backend) Setup(appSet *interfaces.SnapAppSet, opts interfaces.ConfinementOptions, repo *interfaces.Repository, tm timings.Measurer) error {
+	// For the moment only the system snap is supported - the
+	// snap.system.conf file is owned by it and the set-up of other snaps
+	// must not affect it.
+	if !interfaces.IsTheSystemSnap(appSet.InstanceName()) {
+		return nil
+	}
 	// Get the snippets that apply to this snap
 	spec, err := repo.SnapSpecification(b.Name(), appSet, opts)
 	if err != nil {
