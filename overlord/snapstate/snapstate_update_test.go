@@ -1055,9 +1055,6 @@ func (s *snapmgrTestSuite) testUpdateAmendRunThrough(c *C, tryMode bool, compone
 }
 
 func (s *snapmgrTestSuite) testUpdateRunThrough(c *C, refreshAppAwarenessUX bool) {
-	// we start without the auxiliary store info (or with an older one)
-	c.Check(backend.AuxStoreInfoFilename("services-snap-id"), testutil.FileAbsent)
-
 	// use services-snap here to make sure services would be stopped/started appropriately
 	si := snap.SideInfo{
 		RealName: "services-snap",
@@ -1322,9 +1319,6 @@ func (s *snapmgrTestSuite) testUpdateRunThrough(c *C, refreshAppAwarenessUX bool
 		Revision: snap.R(11),
 	}, nil))
 	c.Check(snapst.CohortKey, Equals, "some-cohort")
-
-	// we end up with the auxiliary store info
-	c.Check(backend.AuxStoreInfoFilename("services-snap-id"), testutil.FilePresent)
 }
 
 func (s *snapmgrTestSuite) TestUpdateRunThrough(c *C) {
@@ -14491,9 +14485,6 @@ func (s *snapmgrTestSuite) TestUpdateBackToPrevRevision(c *C) {
 		return nil
 	}
 
-	// we start without the auxiliary store info (or with an older one)
-	c.Check(backend.AuxStoreInfoFilename(snapID), testutil.FileAbsent)
-
 	currentSI := snap.SideInfo{
 		RealName: snapName,
 		Revision: currentSnapRev,
@@ -14950,9 +14941,6 @@ func (s *snapmgrTestSuite) TestUpdateWithComponentsBackToPrevRevision(c *C) {
 
 	sort.Strings(components)
 
-	// we start without the auxiliary store info (or with an older one)
-	c.Check(backend.AuxStoreInfoFilename(snapID), testutil.FileAbsent)
-
 	currentSI := snap.SideInfo{
 		RealName: snapName,
 		Revision: currentSnapRev,
@@ -15388,9 +15376,6 @@ func (s *snapmgrTestSuite) TestUpdateWithComponentsBackToPrevRevisionAddComponen
 	currentSnapRev := snap.R(11)
 	prevSnapRev := snap.R(7)
 	instanceName := snap.InstanceName(snapName, instanceKey)
-
-	// we start without the auxiliary store info (or with an older one)
-	c.Check(backend.AuxStoreInfoFilename(snapID), testutil.FileAbsent)
 
 	currentSI := snap.SideInfo{
 		RealName: snapName,
@@ -15915,9 +15900,6 @@ func (s *snapmgrTestSuite) testUpdateWithComponentsRunThrough(c *C, opts updateW
 		}
 		return results
 	}
-
-	// we start without the auxiliary store info (or with an older one)
-	c.Check(backend.AuxStoreInfoFilename(snapID), testutil.FileAbsent)
 
 	si := snap.SideInfo{
 		RealName: snapName,
@@ -16496,9 +16478,6 @@ func (s *snapmgrTestSuite) testUpdateWithComponentsRunThrough(c *C, opts updateW
 		}
 
 		c.Assert(snapst.Sequence, DeepEquals, currentSeq)
-
-		// we end up with the auxiliary store info
-		c.Check(backend.AuxStoreInfoFilename(snapID), testutil.FilePresent)
 	} else {
 		// make sure everything is back to how it started
 		c.Assert(snapst.Active, Equals, true)
@@ -16557,8 +16536,6 @@ func (s *snapmgrTestSuite) testUpdateWithComponentsRunThroughShareComponents(c *
 		}
 		return results
 	}
-
-	c.Check(backend.AuxStoreInfoFilename(snapID), testutil.FileAbsent)
 
 	si := snap.SideInfo{
 		RealName: snapName,
@@ -16975,9 +16952,6 @@ func (s *snapmgrTestSuite) testUpdateWithComponentsRunThroughShareComponents(c *
 		currentSeq.Revisions = append(currentSeq.Revisions, cand)
 
 		c.Assert(snapst.Sequence, DeepEquals, currentSeq)
-
-		// we end up with the auxiliary store info
-		c.Check(backend.AuxStoreInfoFilename(snapID), testutil.FilePresent)
 	} else {
 		// make sure everything is back to how it started
 		c.Assert(snapst.Active, Equals, true)
@@ -17789,9 +17763,6 @@ func (s *snapmgrTestSuite) testUpdateWithComponentsRunThroughOnlyComponentUpdate
 		}
 		return results
 	}
-
-	// we start without the auxiliary store info (or with an older one)
-	c.Check(backend.AuxStoreInfoFilename(snapID), testutil.FileAbsent)
 
 	si := snap.SideInfo{
 		RealName: snapName,

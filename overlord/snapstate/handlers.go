@@ -1351,6 +1351,7 @@ func (m *SnapManager) restoreUnlinkOnError(t *state.Task, info *snap.Info, other
 	if err != nil {
 		return err
 	}
+
 	linkCtx := backend.LinkContext{
 		FirstInstall:      false,
 		ServiceOptions:    opts,
@@ -2212,6 +2213,13 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (err error) {
 		return err
 	}
 
+	// set up aux store info in newInfo
+	newInfo.Media = snapsup.Media
+	newInfo.StoreURL = snapsup.StoreURL
+	// store this for the benefit of old snapd
+	newInfo.LegacyWebsite = snapsup.Website
+	// TODO: add unit test to check that these are populated properly
+
 	// record type
 	snapst.SetType(newInfo.Type())
 
@@ -2388,30 +2396,6 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (err error) {
 		now := timeNow()
 		snapst.LastRefreshTime = &now
 	}
-
-	// Assemble the auxiliary store info
-	aux := backend.AuxStoreInfo{
-		Media:    snapsup.Media,
-		StoreURL: snapsup.StoreURL,
-		// XXX we store this for the benefit of old snapd
-		Website: snapsup.Website,
-	}
-	// Write the revision-agnostic store metadata for this snap. If snap ID is
-	// empty (such as because we're sideloading a local snap file), then
-	// InstallStoreMetadata is a no-op, so no need to check beforehand.
-	// XXX: Previously, err := ... was used and didn't error, indicating that
-	// the err checked in IsErrAndNotWait was the local err (which we know to
-	// be non-nil at time of the check), not the err returned from the
-	// function. Is this analysis correct, and was this intentional?
-	undo, err := backend.InstallStoreMetadata(snapsup.SideInfo.SnapID, aux, linkCtx)
-	if err != nil {
-		return err
-	}
-	defer func() {
-		if IsErrAndNotWait(err) {
-			undo()
-		}
-	}()
 
 	// Compatibility with old snapd: check if we have auto-connect task and
 	// if not, inject it after self (link-snap) for snaps that are not core
@@ -2824,10 +2808,6 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 		}
 		if err := m.removeSnapCookie(st, snapsup.InstanceName()); err != nil {
 			return fmt.Errorf("cannot remove snap cookie: %v", err)
-		}
-		// try to remove the revision-agnostic store metadata
-		if err := backend.DiscardStoreMetadata(snapsup.SideInfo.SnapID, otherInstances); err != nil {
-			return err
 		}
 	}
 

@@ -236,10 +236,11 @@ func (s *snapmgrTestSuite) TestRemoveDiskSpaceForSnapshotError(c *C) {
 }
 
 func (s *snapmgrTestSuite) TestRemoveRunThrough(c *C) {
-	aux := backend.AuxStoreInfo{}    // doesn't matter for this test
-	linkCtx := backend.LinkContext{} // doesn't matter for this test
-	_, err := backend.InstallStoreMetadata("some-snap-id", aux, linkCtx)
-	c.Check(err, IsNil)
+	auxInfoFilename := backend.AuxStoreInfoFilename("some-snap-id")
+	c.Assert(os.MkdirAll(filepath.Dir(auxInfoFilename), 0o755), IsNil)
+	f, err := os.Create(backend.AuxStoreInfoFilename("some-snap-id"))
+	c.Assert(err, IsNil)
+	c.Assert(f.Close(), IsNil)
 	c.Check(backend.AuxStoreInfoFilename("some-snap-id"), testutil.FilePresent)
 	si := snap.SideInfo{
 		SnapID:   "some-snap-id",

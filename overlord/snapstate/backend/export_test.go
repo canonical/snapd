@@ -37,8 +37,9 @@ var (
 	SnapDataDirs       = snapDataDirs
 	SnapCommonDataDirs = snapCommonDataDirs
 
-	KeepAuxStoreInfo    = keepAuxStoreInfo
-	DiscardAuxStoreInfo = discardAuxStoreInfo
+	DiscardAuxStoreInfo    = discardAuxStoreInfo
+	InstallStoreMetadata   = installStoreMetadata
+	UninstallStoreMetadata = uninstallStoreMetadata
 )
 
 func MockWrappersAddSnapdSnapServices(f func(s *snap.Info, opts *wrappers.AddSnapdSnapServicesOptions, inter wrappers.Interacter) (wrappers.SnapdRestart, error)) (restore func()) {

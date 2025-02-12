@@ -1317,9 +1317,6 @@ func (s *snapmgrTestSuite) TestInstallRunThrough(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	// we start without the auxiliary store info
-	c.Check(backend.AuxStoreInfoFilename("some-snap-id"), testutil.FileAbsent)
-
 	chg := s.state.NewChange("install", "install a snap")
 	opts := &snapstate.RevisionOptions{Channel: "channel-for-media"}
 	ts, err := snapstate.Install(context.Background(), s.state, "some-snap", opts, s.user.ID, snapstate.Flags{})
@@ -1491,29 +1488,6 @@ func (s *snapmgrTestSuite) TestInstallRunThrough(c *C) {
 		Revision: snap.R(11),
 	}, nil))
 	c.Assert(snapst.Required, Equals, false)
-
-	info := snap.Info{
-		SideInfo: snap.SideInfo{
-			SnapID:   "some-snap-id",
-			RealName: "some-snap",
-		},
-	}
-	err = backend.RetrieveAuxStoreInfo(&info)
-	c.Assert(err, IsNil)
-
-	c.Assert(info.Media, DeepEquals, snap.MediaInfos{
-		snap.MediaInfo{
-			Type:   "icon",
-			URL:    "http://example.com/icon.png",
-			Width:  100,
-			Height: 100,
-		},
-		snap.MediaInfo{
-			Type: "website",
-			URL:  "http://example.com",
-		},
-	})
-	c.Check(info.StoreURL, Equals, "https://snapcraft.io/example-snap")
 }
 
 func (s *snapmgrTestSuite) testParallelInstanceInstallRunThrough(c *C, inputFlags, expectedFlags snapstate.Flags) {
@@ -6691,9 +6665,6 @@ func (s *snapmgrTestSuite) testInstallComponentsRunThrough(c *C, opts testInstal
 
 	instanceName := snap.InstanceName(opts.snapName, opts.instanceKey)
 
-	// we start without the auxiliary store info
-	c.Check(backend.AuxStoreInfoFilename(snapID), testutil.FileAbsent)
-
 	var componentStates []*sequence.ComponentState
 	for i, compName := range opts.components {
 		componentStates = append(componentStates, sequence.NewComponentState(&snap.ComponentSideInfo{
@@ -6994,8 +6965,6 @@ func (s *snapmgrTestSuite) testInstallComponentsRunThrough(c *C, opts testInstal
 		var snapst snapstate.SnapState
 		err = snapstate.Get(s.state, instanceName, &snapst)
 		c.Assert(err, testutil.ErrorIs, state.ErrNoState)
-
-		c.Check(backend.AuxStoreInfoFilename(snapID), testutil.FileAbsent)
 	} else {
 		// verify snap in the system state
 		var snapst snapstate.SnapState
@@ -7026,8 +6995,6 @@ func (s *snapmgrTestSuite) testInstallComponentsRunThrough(c *C, opts testInstal
 
 		// make sure that all of our components are accounted for
 		c.Assert(snapst.Sequence.Revisions[0].Components, DeepEquals, componentStates)
-
-		c.Check(backend.AuxStoreInfoFilename(snapID), testutil.FilePresent)
 	}
 }
 

@@ -20,12 +20,16 @@
 package snapstate_test
 
 import (
+	"os"
+	"path/filepath"
+
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/overlord/ifacestate/ifacerepo"
 	"github.com/snapcore/snapd/overlord/servicestate"
 	"github.com/snapcore/snapd/overlord/snapstate"
+	"github.com/snapcore/snapd/overlord/snapstate/backend"
 	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
@@ -55,11 +59,17 @@ func (s *discardSnapSuite) SetUpTest(c *C) {
 }
 
 func (s *discardSnapSuite) TestDoDiscardSnapSuccess(c *C) {
+	const snapID = "foo-id"
+	auxinfoFilename := backend.AuxStoreInfoFilename(snapID)
+	auxinfoContents := []byte("some auxinfo")
+	c.Assert(os.MkdirAll(filepath.Dir(auxinfoFilename), 0o755), IsNil)
+	c.Assert(os.WriteFile(auxinfoFilename, auxinfoContents, 0o644), IsNil)
+
 	s.state.Lock()
 	snapstate.Set(s.state, "foo", &snapstate.SnapState{
 		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
-			{RealName: "foo", Revision: snap.R(3)},
-			{RealName: "foo", Revision: snap.R(33)},
+			{RealName: "foo", Revision: snap.R(3), SnapID: snapID},
+			{RealName: "foo", Revision: snap.R(33), SnapID: snapID},
 		}),
 		Current:  snap.R(33),
 		SnapType: "app",
@@ -69,6 +79,7 @@ func (s *discardSnapSuite) TestDoDiscardSnapSuccess(c *C) {
 		SideInfo: &snap.SideInfo{
 			RealName: "foo",
 			Revision: snap.R(33),
+			SnapID:   snapID,
 		},
 	})
 	s.state.NewChange("sample", "...").AddTask(t)
@@ -87,6 +98,9 @@ func (s *discardSnapSuite) TestDoDiscardSnapSuccess(c *C) {
 	c.Check(snapst.Sequence.Revisions, HasLen, 1)
 	c.Check(snapst.Current, Equals, snap.R(3))
 	c.Check(t.Status(), Equals, state.DoneStatus)
+
+	// check that auxinfo is not removed if there are other revisions remaining
+	c.Check(auxinfoFilename, testutil.FileEquals, auxinfoContents)
 }
 
 func (s *discardSnapSuite) TestDoDiscardSnapInQuotaGroup(c *C) {
@@ -136,10 +150,16 @@ func (s *discardSnapSuite) TestDoDiscardSnapInQuotaGroup(c *C) {
 }
 
 func (s *discardSnapSuite) TestDoDiscardSnapToEmpty(c *C) {
+	const snapID = "foo-id"
+	auxinfoFilename := backend.AuxStoreInfoFilename(snapID)
+	auxinfoContents := []byte("some auxinfo")
+	c.Assert(os.MkdirAll(filepath.Dir(auxinfoFilename), 0o755), IsNil)
+	c.Assert(os.WriteFile(auxinfoFilename, auxinfoContents, 0o644), IsNil)
+
 	s.state.Lock()
 	snapstate.Set(s.state, "foo", &snapstate.SnapState{
 		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
-			{RealName: "foo", Revision: snap.R(3)},
+			{RealName: "foo", Revision: snap.R(3), SnapID: snapID},
 		}),
 		Current:  snap.R(3),
 		SnapType: "app",
@@ -149,6 +169,7 @@ func (s *discardSnapSuite) TestDoDiscardSnapToEmpty(c *C) {
 		SideInfo: &snap.SideInfo{
 			RealName: "foo",
 			Revision: snap.R(33),
+			SnapID:   snapID,
 		},
 	})
 	s.state.NewChange("sample", "...").AddTask(t)
@@ -163,6 +184,11 @@ func (s *discardSnapSuite) TestDoDiscardSnapToEmpty(c *C) {
 	var snapst snapstate.SnapState
 	err := snapstate.Get(s.state, "foo", &snapst)
 	c.Assert(err, testutil.ErrorIs, state.ErrNoState)
+
+	// check that auxinfo is removed if there are no other revisions remaining
+	c.Check(auxinfoFilename, testutil.FileAbsent)
+
+	// TODO: add test that checks that auxinfo is not removed if there are other instances
 }
 
 func (s *discardSnapSuite) TestDoDiscardSnapErrorsForActive(c *C) {

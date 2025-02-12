@@ -4618,8 +4618,7 @@ func (s *snapmgrQuerySuite) TestSnapStateCurrentInfoLoadsAuxiliaryStoreInfo(c *C
 		Website:  "http://example.com/",
 	}
 
-	linkCtx := backend.LinkContext{} // doesn't matter for this test
-	_, err := backend.InstallStoreMetadata("123123123", storeInfo, linkCtx)
+	err := backend.KeepAuxStoreInfo("123123123", storeInfo)
 	c.Check(err, IsNil)
 
 	st := s.st

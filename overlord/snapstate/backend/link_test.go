@@ -361,6 +361,120 @@ version: 1.0
 	c.Check(fi.IsDir(), Equals, true)
 }
 
+func (s *linkSuite) TestLinkDoUndoStoreMetadata(c *C) {
+	s.testLinkDoUndoStoreMetadata(c, backend.LinkContext{})
+}
+
+func (s *linkSuite) TestLinkDoUndoStoreMetadataFirstInstall(c *C) {
+	s.testLinkDoUndoStoreMetadata(c, backend.LinkContext{FirstInstall: true})
+}
+
+func (s *linkSuite) testLinkDoUndoStoreMetadata(c *C, linkCtx backend.LinkContext) {
+	// This is required for LinkSnap
+	linkCtx.StateUnlocker = func() (relock func()) { return func() {} }
+
+	const yaml = `name: hello
+version: 1.0
+`
+	const snapID = "hello_foo-id"
+	info := snaptest.MockSnapInstance(c, "hello_foo", yaml, &snap.SideInfo{Revision: snap.R(11), SnapID: snapID})
+
+	info.Media = snap.MediaInfos{
+		snap.MediaInfo{
+			Type:   "icon",
+			URL:    "http://images.com/my-icon",
+			Width:  128,
+			Height: 128,
+		},
+		snap.MediaInfo{
+			Type: "website",
+			URL:  "http://another.com",
+		},
+	}
+	info.StoreURL = "https://snapcraft.io/example-snap"
+	info.LegacyWebsite = "http://example.com"
+
+	err := s.be.LinkSnap(info, mockDev, linkCtx, s.perfTimings)
+	c.Assert(err, IsNil)
+
+	// Check that auxinfo was written to disk correctly
+	checkAuxStoreInfoOnDiskMatches(c, info)
+
+	err = s.be.UnlinkSnap(info, linkCtx, progress.Null)
+	c.Assert(err, IsNil)
+
+	if !linkCtx.FirstInstall {
+		// if not first install, then preserve auxinfo so it can be loaded from
+		// disk if we need to undoUnlinksnap
+		checkAuxStoreInfoOnDiskMatches(c, info)
+	} else {
+		c.Assert(backend.AuxStoreInfoFilename(snapID), testutil.FileAbsent)
+	}
+
+	// TODO: check that revision-agnostic metadata which is required to be
+	// removed on unlink even if there are other revisions has been removed.
+}
+
+func checkAuxStoreInfoOnDiskMatches(c *C, info *snap.Info) {
+	c.Assert(info.SnapID, Not(Equals), "")
+	c.Assert(backend.AuxStoreInfoFilename(info.SnapID), testutil.FilePresent)
+	var retrieved snap.Info
+	retrieved.SnapID = info.SnapID
+	c.Assert(backend.RetrieveAuxStoreInfo(&retrieved), IsNil)
+	c.Assert(retrieved.Media, DeepEquals, info.Media)
+	c.Assert(retrieved.StoreURL, Equals, info.StoreURL)
+	c.Assert(retrieved.Website(), Equals, info.Website())
+}
+
+func (s *linkSuite) TestLinkDoUndoParallelFirstInstallStoreMetadata(c *C) {
+	const yaml = `name: hello
+version: 1.0
+`
+	const snapID = "hello_foo-id"
+	info := snaptest.MockSnapInstance(c, "hello_foo", yaml, &snap.SideInfo{Revision: snap.R(11), SnapID: snapID})
+
+	info.Media = snap.MediaInfos{
+		snap.MediaInfo{
+			Type:   "icon",
+			URL:    "http://images.com/my-icon",
+			Width:  128,
+			Height: 128,
+		},
+		snap.MediaInfo{
+			Type: "website",
+			URL:  "http://another.com",
+		},
+	}
+	info.StoreURL = "https://snapcraft.io/example-snap"
+	info.LegacyWebsite = "http://example.com"
+
+	err := s.be.LinkSnap(info, mockDev, backend.LinkContext{
+		FirstInstall:      true, // doesn't actually matter here
+		HasOtherInstances: false,
+		// This is required for LinkSnap
+		StateUnlocker: func() (relock func()) { return func() {} },
+	}, s.perfTimings)
+	c.Assert(err, IsNil)
+
+	// Check that auxinfo was written to disk correctly
+	checkAuxStoreInfoOnDiskMatches(c, info)
+
+	// undo will only remove the auxinfo if there are no other instances
+	for _, other := range []bool{true, false} {
+		err = s.be.UnlinkSnap(info, backend.LinkContext{
+			FirstInstall:      true, // must be true else auxinfo is left
+			HasOtherInstances: other,
+		}, progress.Null)
+		c.Assert(err, IsNil)
+
+		if other {
+			checkAuxStoreInfoOnDiskMatches(c, info)
+		} else {
+			c.Assert(backend.AuxStoreInfoFilename(snapID), testutil.FileAbsent)
+		}
+	}
+}
+
 func (s *linkSuite) TestLinkSetNextBoot(c *C) {
 	coreDev := boottest.MockDevice("base")
 
@@ -454,7 +568,24 @@ apps:
    command: svc
    daemon: simple
 `
-	info := snaptest.MockSnap(c, yaml, &snap.SideInfo{Revision: snap.R(11)})
+	const snapID = "hello-id"
+	info := snaptest.MockSnap(c, yaml, &snap.SideInfo{Revision: snap.R(11), SnapID: snapID})
+
+	// set up media, store url, website to make sure auxinfo is idempotent as well
+	info.Media = snap.MediaInfos{
+		snap.MediaInfo{
+			Type:   "icon",
+			URL:    "http://images.com/my-icon",
+			Width:  128,
+			Height: 128,
+		},
+		snap.MediaInfo{
+			Type: "website",
+			URL:  "http://another.com",
+		},
+	}
+	info.StoreURL = "https://snapcraft.io/example-snap"
+	info.LegacyWebsite = "http://example.com"
 
 	var unlockerCalled, relockCalled int
 	fakeUnlocker := func() (relock func()) {
@@ -469,10 +600,14 @@ apps:
 	c.Check(unlockerCalled, Equals, 1)
 	c.Check(relockCalled, Equals, 1)
 
+	checkAuxStoreInfoOnDiskMatches(c, info)
+
 	err = s.be.LinkSnap(info, mockDev, linkCtx, s.perfTimings)
 	c.Assert(err, IsNil)
 	c.Check(unlockerCalled, Equals, 2)
 	c.Check(relockCalled, Equals, 2)
+
+	checkAuxStoreInfoOnDiskMatches(c, info)
 
 	l, err := filepath.Glob(filepath.Join(dirs.SnapBinariesDir, "*"))
 	c.Assert(err, IsNil)
@@ -508,15 +643,34 @@ apps:
    command: svc
    daemon: simple
 `
-	info := snaptest.MockSnap(c, yaml, &snap.SideInfo{Revision: snap.R(11)})
+	const snapID = "hello-id"
+	info := snaptest.MockSnap(c, yaml, &snap.SideInfo{Revision: snap.R(11), SnapID: snapID})
+
+	// set up media, store url, website to make sure auxinfo is idempotent as well
+	info.Media = snap.MediaInfos{
+		snap.MediaInfo{
+			Type:   "icon",
+			URL:    "http://images.com/my-icon",
+			Width:  128,
+			Height: 128,
+		},
+		snap.MediaInfo{
+			Type: "website",
+			URL:  "http://another.com",
+		},
+	}
+	info.StoreURL = "https://snapcraft.io/example-snap"
+	info.LegacyWebsite = "http://example.com"
 
 	err := s.be.LinkSnap(info, mockDev, mockLinkContextWithStateUnlocker(), s.perfTimings)
 	c.Assert(err, IsNil)
 
-	err = s.be.UnlinkSnap(info, backend.LinkContext{}, progress.Null)
+	checkAuxStoreInfoOnDiskMatches(c, info)
+
+	err = s.be.UnlinkSnap(info, backend.LinkContext{FirstInstall: true}, progress.Null)
 	c.Assert(err, IsNil)
 
-	err = s.be.UnlinkSnap(info, backend.LinkContext{}, progress.Null)
+	err = s.be.UnlinkSnap(info, backend.LinkContext{FirstInstall: true}, progress.Null)
 	c.Assert(err, IsNil)
 
 	// no wrappers
@@ -535,6 +689,9 @@ apps:
 
 	// no inhibition lock
 	c.Check(filepath.Join(runinhibit.InhibitDir, "hello.lock"), testutil.FileAbsent)
+
+	// no auxinfo
+	c.Check(backend.AuxStoreInfoFilename(snapID), testutil.FileAbsent)
 }
 
 func (s *linkSuite) TestLinkFailsForUnsetRevision(c *C) {
