@@ -370,12 +370,8 @@ func MockAssertionPrereqs(f func(a Assertion) []*Ref) func() {
 	return r
 }
 
-// ConfdbControl.operators exposed for tests
-func (cc *ConfdbControl) Operators() map[string]*confdb.Operator {
-	return cc.operators
-}
+// functions exposed for tests
 
-// helper function to add operators
-func (cc *ConfdbControl) AddOperator(operator *confdb.Operator) {
-	cc.operators[operator.ID] = operator
+func (cc *ConfdbControl) InnerConfdbControl() *confdb.ConfdbControl {
+	return cc.confdbControl
 }

@@ -21,6 +21,7 @@ package confdb_test
 
 import (
 	"github.com/snapcore/snapd/confdb"
+	"github.com/snapcore/snapd/testutil"
 	. "gopkg.in/check.v1"
 )
 
@@ -62,27 +63,30 @@ func (s *confdbCtrlSuite) TestViewRefString(c *C) {
 }
 
 func (s *confdbCtrlSuite) TestDelegateOK(c *C) {
-	op := confdb.Operator{ID: "canonical"}
-	op.Delegate(
+	cc := confdb.ConfdbControl{}
+	cc.Delegate(
+		"alice",
 		[]string{"canonical/device/control-device", "canonical/device/observe-device"},
 		[]string{"operator-key"},
 	)
-	op.Delegate(
+	cc.Delegate(
+		"alice",
 		[]string{"canonical/device/control-device", "canonical/network/observe-interface"},
 		[]string{"operator-key", "store"},
 	)
 
-	observeDevice := confdb.ViewRef{Account: "canonical", Confdb: "device", View: "observe-device"}
-	controlDevice := confdb.ViewRef{Account: "canonical", Confdb: "device", View: "control-device"}
-	observeInterface := confdb.ViewRef{Account: "canonical", Confdb: "network", View: "observe-interface"}
+	delegated, _ := cc.IsDelegated("alice", "canonical/device/observe-device", []string{"operator-key"})
+	c.Check(delegated, Equals, true)
 
-	c.Assert(op.Delegations[observeDevice], DeepEquals, confdb.OperatorKey)
-	c.Assert(op.Delegations[controlDevice], DeepEquals, confdb.OperatorKey|confdb.Store)
-	c.Assert(op.Delegations[observeInterface], DeepEquals, confdb.OperatorKey|confdb.Store)
+	delegated, _ = cc.IsDelegated("alice", "canonical/device/control-device", []string{"operator-key", "store"})
+	c.Check(delegated, Equals, true)
+
+	delegated, _ = cc.IsDelegated("alice", "canonical/network/observe-interface", []string{"store", "operator-key"})
+	c.Check(delegated, Equals, true)
 }
 
 func (s *confdbCtrlSuite) TestDelegateFail(c *C) {
-	op := confdb.Operator{ID: "canonical"}
+	cc := confdb.ConfdbControl{}
 
 	type testcase struct {
 		views []string
@@ -116,57 +120,74 @@ func (s *confdbCtrlSuite) TestDelegateFail(c *C) {
 		{
 			views: []string{"canonical/123/control-device"},
 			auth:  []string{"store"},
-			err:   "cannot delegate: invalid confdb name 123",
+			err:   "cannot delegate: invalid confdb name: 123",
 		},
 		{
 			views: []string{"canonical/network/_view"},
 			auth:  []string{"store"},
-			err:   "cannot delegate: invalid view name _view",
+			err:   "cannot delegate: invalid view name: _view",
 		},
 	}
 
 	for i, tc := range tcs {
 		cmt := Commentf("test number %d", i+1)
-		err := op.Delegate(tc.views, tc.auth)
+		err := cc.Delegate("alice", tc.views, tc.auth)
 		c.Assert(err, NotNil, cmt)
 		c.Assert(err, ErrorMatches, tc.err, cmt)
 	}
 }
 
 func (s *confdbCtrlSuite) TestUndelegateOK(c *C) {
-	op := confdb.Operator{ID: "john"}
-	err := op.Delegate(
+	cc := confdb.ConfdbControl{}
+	err := cc.Delegate(
+		"bob",
 		[]string{"canonical/network/control-interface", "canonical/network/observe-interface"},
 		[]string{"operator-key", "store"},
 	)
 	c.Assert(err, IsNil)
 
-	err = op.Undelegate([]string{"canonical/network/control-interface"}, []string{"operator-key"})
+	err = cc.Undelegate(
+		"bob",
+		[]string{"canonical/network/control-interface"},
+		[]string{"operator-key"},
+	)
 	c.Assert(err, IsNil)
-	delegated, err := op.IsDelegated("canonical/network/control-interface", []string{"operator-key"})
+	delegated, err := cc.IsDelegated(
+		"bob",
+		"canonical/network/control-interface",
+		[]string{"operator-key"},
+	)
 	c.Assert(err, IsNil)
 	c.Check(delegated, Equals, false)
 
 	// undelegate non-existing view
-	err = op.Undelegate([]string{"canonical/network/unknown"}, []string{"operator-key"})
+	err = cc.Undelegate("bob", []string{"canonical/network/unknown"}, []string{"operator-key"})
 	c.Assert(err, IsNil)
 
 	// undelegate everything
-	err = op.Undelegate(nil, nil)
+	err = cc.Undelegate("bob", nil, nil)
 	c.Assert(err, IsNil)
-	c.Assert(op.Delegations, HasLen, 0)
 
-	delegated, err = op.IsDelegated("canonical/network/observe-interface", []string{"operator-key"})
+	delegated, err = cc.IsDelegated(
+		"bob",
+		"canonical/network/observe-interface",
+		[]string{"operator-key"},
+	)
 	c.Assert(err, IsNil)
 	c.Check(delegated, Equals, false)
 
-	delegated, err = op.IsDelegated("canonical/network/observe-interface", []string{"store"})
+	delegated, err = cc.IsDelegated(
+		"bob",
+		"canonical/network/observe-interface",
+		[]string{"store"},
+	)
 	c.Assert(err, IsNil)
 	c.Check(delegated, Equals, false)
 }
 
 func (s *confdbCtrlSuite) TestUndelegateFail(c *C) {
-	op := confdb.Operator{ID: "canonical"}
+	cc := confdb.ConfdbControl{}
+	cc.Delegate("alice", []string{"aa/bb/cc"}, []string{"store"})
 
 	type testcase struct {
 		views []string
@@ -188,39 +209,58 @@ func (s *confdbCtrlSuite) TestUndelegateFail(c *C) {
 
 	for i, tc := range tcs {
 		cmt := Commentf("test number %d", i+1)
-		err := op.Undelegate(tc.views, tc.auth)
+		err := cc.Undelegate("alice", tc.views, tc.auth)
 		c.Assert(err, NotNil, cmt)
 		c.Assert(err, ErrorMatches, tc.err, cmt)
 	}
 }
 
 func (s *confdbCtrlSuite) TestIsDelegatedOK(c *C) {
-	op := confdb.Operator{ID: "canonical"}
-	op.Delegate(
+	cc := confdb.ConfdbControl{}
+	cc.Delegate(
+		"alice",
 		[]string{"canonical/device/control-device", "canonical/device/observe-device"},
 		[]string{"operator-key"},
 	)
-	op.Delegate(
+	cc.Delegate(
+		"alice",
 		[]string{"canonical/device/control-device", "canonical/network/observe-interface"},
 		[]string{"operator-key", "store"},
 	)
 
-	delegated, _ := op.IsDelegated("canonical/device/control-device", []string{"store"})
+	delegated, _ := cc.IsDelegated(
+		"alice",
+		"canonical/device/control-device",
+		[]string{"store"},
+	)
 	c.Check(delegated, Equals, true)
-	delegated, _ = op.IsDelegated("canonical/device/control-device", []string{"store", "operator-key"})
+	delegated, _ = cc.IsDelegated(
+		"alice",
+		"canonical/device/control-device",
+		[]string{"store", "operator-key"},
+	)
 	c.Check(delegated, Equals, true)
 
-	delegated, err := op.IsDelegated("canonical/device/observe-device", []string{"store"})
+	delegated, err := cc.IsDelegated(
+		"alice",
+		"canonical/device/observe-device",
+		[]string{"store"},
+	)
 	c.Check(err, IsNil)
 	c.Check(delegated, Equals, false)
 
-	delegated, _ = op.IsDelegated("canonical/unknown/unknown", []string{"operator-key"})
+	delegated, _ = cc.IsDelegated(
+		"alice",
+		"canonical/unknown/unknown",
+		[]string{"operator-key"},
+	)
 	c.Check(err, IsNil)
 	c.Check(delegated, Equals, false)
 }
 
 func (s *confdbCtrlSuite) TestIsDelegatedFail(c *C) {
-	op := confdb.Operator{ID: "canonical"}
+	cc := confdb.ConfdbControl{}
+	cc.Delegate("bob", []string{"aa/bb/cc"}, []string{"store"})
 
 	type testcase struct {
 		view string
@@ -242,9 +282,63 @@ func (s *confdbCtrlSuite) TestIsDelegatedFail(c *C) {
 
 	for i, tc := range tcs {
 		cmt := Commentf("test number %d", i+1)
-		delegated, err := op.IsDelegated(tc.view, tc.auth)
+		delegated, err := cc.IsDelegated("bob", tc.view, tc.auth)
 		c.Assert(err, NotNil, cmt)
 		c.Assert(err, ErrorMatches, tc.err, cmt)
 		c.Assert(delegated, Equals, false, cmt)
+	}
+}
+
+func (s *confdbCtrlSuite) TestGroups(c *C) {
+	cc := confdb.ConfdbControl{}
+
+	cc.Delegate("aa", []string{"dd/ee/ff", "gg/hh/ii", "jj/kk/ll"}, []string{"store", "operator-key"})
+	cc.Delegate("aa", []string{"pp/qq/rr"}, []string{"operator-key"})
+	cc.Delegate("aa", []string{"mm/nn/oo"}, []string{"store"})
+	cc.Delegate("aa", []string{"ss/tt/vv"}, []string{"store", "operator-key"})
+
+	cc.Delegate("bb", []string{"dd/ee/ff", "gg/hh/ii", "jj/kk/ll", "xx/yy/zz"}, []string{"operator-key", "store"})
+	cc.Delegate("bb", []string{"mm/nn/oo"}, []string{"store"})
+	cc.Delegate("bb", []string{"aa/bb/cc"}, []string{"operator-key"})
+
+	cc.Delegate("cc", []string{"dd/ee/ff", "gg/hh/ii", "jj/kk/ll", "xx/yy/zz"}, []string{"store", "operator-key"})
+	cc.Delegate("cc", []string{"pp/qq/rr"}, []string{"operator-key"})
+
+	groups := cc.Groups()
+	c.Assert(groups, HasLen, 6)
+	expectedGroups := []interface{}{
+		map[string]interface{}{
+			"operators":       []interface{}{"aa", "cc"},
+			"authentications": []interface{}{"operator-key"},
+			"views":           []interface{}{"pp/qq/rr"},
+		},
+		map[string]interface{}{
+			"operators":       []interface{}{"bb"},
+			"authentications": []interface{}{"operator-key"},
+			"views":           []interface{}{"aa/bb/cc"},
+		},
+		map[string]interface{}{
+			"operators":       []interface{}{"aa", "bb"},
+			"authentications": []interface{}{"store"},
+			"views":           []interface{}{"mm/nn/oo"},
+		},
+		map[string]interface{}{
+			"operators":       []interface{}{"bb", "cc"},
+			"authentications": []interface{}{"operator-key", "store"},
+			"views":           []interface{}{"xx/yy/zz"},
+		},
+		map[string]interface{}{
+			"operators":       []interface{}{"aa", "bb", "cc"},
+			"authentications": []interface{}{"operator-key", "store"},
+			"views":           []interface{}{"dd/ee/ff", "gg/hh/ii", "jj/kk/ll"},
+		},
+		map[string]interface{}{
+			"operators":       []interface{}{"aa"},
+			"authentications": []interface{}{"operator-key", "store"},
+			"views":           []interface{}{"ss/tt/vv"},
+		},
+	}
+	for _, expected := range expectedGroups {
+		c.Assert(groups, testutil.DeepContains, expected)
 	}
 }
