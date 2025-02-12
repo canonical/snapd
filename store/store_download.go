@@ -311,8 +311,8 @@ func (s *Store) Download(ctx context.Context, name string, targetPath string, do
 
 var errIconUnchanged = errors.New("existing icon unchanged")
 
-// Etags should all be smaller than 1kiB.
-const maxEtagSize = 1024
+// Etags should all be smaller than 256B.
+const maxEtagSize = 256
 
 // DownloadIcon downloads the icon for the snap from the given download URL to
 // the given target path. Snap icons are small (<256kB) files served from an
@@ -363,7 +363,7 @@ func DownloadIcon(ctx context.Context, name string, targetPath string, downloadU
 	// Success, now try to store the etag
 	if etag != "" {
 		if len(etag) >= maxEtagSize { // len doesn't include trailing '\0'
-			logger.Debugf("snap icon etag exceeds maximum etag length: %q", etag)
+			logger.Debugf("snap icon etag exceeds maximum etag length (%d): %d", maxEtagSize, len(etag))
 		} else {
 			// If the filesystem does not support xattrs, we'll just redownload
 			// the whole icon next time, so log but do not return any error.
