@@ -592,7 +592,6 @@ CLEANFILES += coverage.csv
 coverage.csv: check
 	gcovr \
 		--csv \
-		--merge-mode-functions=separate \
 		-o $@ $(builddir)
 
 include $(top_srcdir)/aminclude_static.am
