@@ -372,6 +372,6 @@ func MockAssertionPrereqs(f func(a Assertion) []*Ref) func() {
 
 // functions exposed for tests
 
-func (cc *ConfdbControl) InnerConfdbControl() *confdb.ConfdbControl {
+func (cc *ConfdbControl) ConfdbControl() *confdb.ConfdbControl {
 	return cc.confdbControl
 }

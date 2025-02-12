@@ -85,7 +85,8 @@ func (cc *ConfdbControl) IsDelegated(operatorID, view string, auth []string) (bo
 	return operator.isDelegated(view, auth)
 }
 
-// Groups returns the groups in the raw assertion's format.
+// Groups returns the groups in a format that can be used to assemble the next revision
+// of the confdb control assertion.
 func (cc ConfdbControl) Groups() []interface{} {
 	authMap := map[authentication]map[viewRef][]string{}
 	var auths []authentication
