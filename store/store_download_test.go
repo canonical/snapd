@@ -1269,9 +1269,8 @@ func (s *storeDownloadSuite) TestDownloadIconOK(c *C) {
 	defer restore()
 
 	path := filepath.Join(c.MkDir(), "downloaded-file")
-	err := store.DownloadIcon(s.ctx, expectedName, path, expectedURL)
+	err := s.store.DownloadIcon(s.ctx, expectedName, path, expectedURL)
 	c.Assert(err, IsNil)
-	defer os.Remove(path)
 
 	c.Assert(path, testutil.FileEquals, expectedContent)
 }
@@ -1303,7 +1302,7 @@ func (s *storeDownloadSuite) TestDownloadIconOKWithNewEtag(c *C) {
 	defer restore()
 
 	path := filepath.Join(c.MkDir(), "downloaded-file")
-	err := store.DownloadIcon(s.ctx, expectedName, path, expectedURL)
+	err := s.store.DownloadIcon(s.ctx, expectedName, path, expectedURL)
 	c.Assert(err, IsNil)
 
 	c.Check(path, testutil.FileEquals, expectedContent)
@@ -1340,7 +1339,7 @@ func (s *storeDownloadSuite) TestDownloadIconOKWithExistingEtag(c *C) {
 	})
 	defer restore()
 
-	err := store.DownloadIcon(s.ctx, expectedName, path, expectedURL)
+	err := s.store.DownloadIcon(s.ctx, expectedName, path, expectedURL)
 	c.Assert(err, IsNil)
 
 	// Existing file (and etag) should not have been overwritten
@@ -1376,7 +1375,7 @@ func (s *storeDownloadSuite) TestDownloadIconOKWithChangedEtag(c *C) {
 	})
 	defer restore()
 
-	err := store.DownloadIcon(s.ctx, expectedName, path, expectedURL)
+	err := s.store.DownloadIcon(s.ctx, expectedName, path, expectedURL)
 	c.Assert(err, IsNil)
 
 	c.Check(path, testutil.FileEquals, expectedContent)
@@ -1414,7 +1413,7 @@ func (s *storeDownloadSuite) TestDownloadIconOKWithEtagTooLong(c *C) {
 	})
 	defer restore()
 
-	err := store.DownloadIcon(s.ctx, expectedName, path, expectedURL)
+	err := s.store.DownloadIcon(s.ctx, expectedName, path, expectedURL)
 	c.Assert(err, IsNil)
 
 	c.Check(path, testutil.FileEquals, expectedContent)
@@ -1452,7 +1451,7 @@ func (s *storeDownloadSuite) TestDownloadIconDoesNotOverwriteLinks(c *C) {
 	err = os.Link(path, linkPath)
 	c.Assert(err, IsNil)
 
-	err = store.DownloadIcon(s.ctx, expectedName, path, expectedURL)
+	err = s.store.DownloadIcon(s.ctx, expectedName, path, expectedURL)
 	c.Assert(err, IsNil)
 
 	c.Assert(path, testutil.FileEquals, newContent)
@@ -1475,7 +1474,7 @@ func (s *storeDownloadSuite) TestDownloadIconFails(c *C) {
 	defer restore()
 
 	// simulate a failed download
-	err := store.DownloadIcon(s.ctx, fakeName, fakePath, fakeURL)
+	err := s.store.DownloadIcon(s.ctx, fakeName, fakePath, fakeURL)
 	c.Assert(err, ErrorMatches, "uh, it failed")
 	// ... and ensure that the tempfile is removed
 	c.Assert(osutil.FileExists(tmpfile.Name()), Equals, false)
@@ -1499,7 +1498,7 @@ func (s *storeDownloadSuite) TestDownloadIconFailsDoesNotLeavePartial(c *C) {
 	defer restore()
 
 	// simulate a failed download
-	err := store.DownloadIcon(s.ctx, fakeName, fakePath, fakeURL)
+	err := s.store.DownloadIcon(s.ctx, fakeName, fakePath, fakeURL)
 	c.Assert(err, ErrorMatches, "uh, it failed")
 	// ... and ensure that the tempfile is removed
 	c.Assert(osutil.FileExists(tmpfile.Name()), Equals, false)
@@ -1550,7 +1549,7 @@ func (s *storeDownloadSuite) testDownloadIconSyncFailsGeneric(c *C, fakeName, fa
 	defer restore()
 
 	// simulate a failed sync
-	err := store.DownloadIcon(s.ctx, fakeName, fakePath, fakeURL)
+	err := s.store.DownloadIcon(s.ctx, fakeName, fakePath, fakeURL)
 	c.Assert(err, ErrorMatches, "cannot commit snap icon file for snap foo: .* file already closed")
 	// ... and ensure that the tempfile is removed
 	c.Assert(osutil.FileExists(tmpfile.Name()), Equals, false)
@@ -1575,6 +1574,6 @@ func (s *storeDownloadSuite) TestDownloadIconInfiniteRedirect(c *C) {
 	fakePath := filepath.Join(c.MkDir(), "foo.icon")
 	fakeURL := mockServer.URL
 
-	err := store.DownloadIcon(s.ctx, fakeName, fakePath, fakeURL)
+	err := s.store.DownloadIcon(s.ctx, fakeName, fakePath, fakeURL)
 	c.Assert(err, ErrorMatches, fmt.Sprintf("Get %q: stopped after 10 redirects", fakeURL))
 }
