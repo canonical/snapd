@@ -27,9 +27,6 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/asserts"
-	"github.com/snapcore/snapd/asserts/assertstest"
-	"github.com/snapcore/snapd/confdb"
-	"github.com/snapcore/snapd/testutil"
 )
 
 type confdbSuite struct {
@@ -298,30 +295,22 @@ func (s *confdbCtrlSuite) TestDecodeOK(c *C) {
 	c.Assert(a, NotNil)
 	c.Assert(a.Type(), Equals, asserts.ConfdbControlType)
 
-	cc := a.(*asserts.ConfdbControl)
-	c.Assert(cc.BrandID(), Equals, "generic")
-	c.Assert(cc.Model(), Equals, "generic-classic")
-	c.Assert(cc.Serial(), Equals, "03961d5d-26e5-443f-838d-6db046126bea")
-	c.Assert(cc.AuthorityID(), Equals, "")
+	ccAssertion := a.(*asserts.ConfdbControl)
+	c.Assert(ccAssertion.BrandID(), Equals, "generic")
+	c.Assert(ccAssertion.Model(), Equals, "generic-classic")
+	c.Assert(ccAssertion.Serial(), Equals, "03961d5d-26e5-443f-838d-6db046126bea")
+	c.Assert(ccAssertion.AuthorityID(), Equals, "")
 
-	operators := cc.Operators()
+	cc := ccAssertion.InnerConfdbControl()
 
-	john, ok := operators["john"]
-	c.Assert(ok, Equals, true)
-	c.Assert(john.ID, Equals, "john")
-
-	delegated, _ := john.IsDelegated("canonical/network/control-device", []string{"operator-key"})
+	delegated, _ := cc.IsDelegated("john", "canonical/network/control-device", []string{"operator-key"})
 	c.Check(delegated, Equals, true)
-	delegated, _ = john.IsDelegated("canonical/network/observe-device", []string{"operator-key"})
+	delegated, _ = cc.IsDelegated("john", "canonical/network/observe-device", []string{"operator-key"})
 	c.Check(delegated, Equals, true)
-	delegated, _ = john.IsDelegated("canonical/network/control-interfaces", []string{"store"})
+	delegated, _ = cc.IsDelegated("john", "canonical/network/control-interfaces", []string{"store"})
 	c.Check(delegated, Equals, true)
 
-	jane, ok := operators["jane"]
-	c.Assert(ok, Equals, true)
-	c.Assert(jane.ID, Equals, "jane")
-
-	delegated, _ = jane.IsDelegated("canonical/network/observe-interfaces", []string{"store", "operator-key"})
+	delegated, _ = cc.IsDelegated("jane", "canonical/network/observe-interfaces", []string{"store", "operator-key"})
 	c.Check(delegated, Equals, true)
 }
 
@@ -345,7 +334,7 @@ func (s *confdbCtrlSuite) TestDecodeInvalid(c *C) {
 		{
 			"      - jane",
 			"      - @op",
-			`cannot parse group at position 3: invalid "operator-id" @op`,
+			`cannot parse group at position 3: invalid operator ID: @op`,
 		},
 		{
 			"    authentications:\n      - store",
@@ -441,73 +430,4 @@ func (s *confdbCtrlSuite) TestAckAssertionOK(c *C) {
 
 	err = s.db.Add(a)
 	c.Assert(err, IsNil)
-}
-
-func (s *confdbCtrlSuite) TestGroups(c *C) {
-	a := assertstest.FakeAssertion(
-		map[string]interface{}{
-			"type":     "confdb-control",
-			"brand-id": "canonical",
-			"model":    "pc",
-			"serial":   "42",
-			"groups":   []interface{}{},
-		},
-	)
-	confdbCtrl := a.(*asserts.ConfdbControl)
-
-	aa := &confdb.Operator{ID: "aa"}
-	aa.Delegate([]string{"dd/ee/ff", "gg/hh/ii", "jj/kk/ll"}, []string{"store", "operator-key"})
-	aa.Delegate([]string{"pp/qq/rr"}, []string{"operator-key"})
-	aa.Delegate([]string{"mm/nn/oo"}, []string{"store"})
-	aa.Delegate([]string{"ss/tt/vv"}, []string{"store", "operator-key"})
-	confdbCtrl.AddOperator(aa)
-
-	bb := &confdb.Operator{ID: "bb"}
-	bb.Delegate([]string{"dd/ee/ff", "gg/hh/ii", "jj/kk/ll", "xx/yy/zz"}, []string{"operator-key", "store"})
-	bb.Delegate([]string{"mm/nn/oo"}, []string{"store"})
-	bb.Delegate([]string{"aa/bb/cc"}, []string{"operator-key"})
-	confdbCtrl.AddOperator(bb)
-
-	cc := &confdb.Operator{ID: "cc"}
-	cc.Delegate([]string{"dd/ee/ff", "gg/hh/ii", "jj/kk/ll", "xx/yy/zz"}, []string{"store", "operator-key"})
-	cc.Delegate([]string{"pp/qq/rr"}, []string{"operator-key"})
-	confdbCtrl.AddOperator(cc)
-
-	groups := confdbCtrl.Groups()
-	c.Assert(groups, HasLen, 6)
-	expectedGroups := []*asserts.ConfdbControlGroup{
-		{
-			Operators:       []string{"aa", "cc"},
-			Authentications: []string{"operator-key"},
-			Views:           []string{"pp/qq/rr"},
-		},
-		{
-			Operators:       []string{"bb"},
-			Authentications: []string{"operator-key"},
-			Views:           []string{"aa/bb/cc"},
-		},
-		{
-			Operators:       []string{"aa", "bb"},
-			Authentications: []string{"store"},
-			Views:           []string{"mm/nn/oo"},
-		},
-		{
-			Operators:       []string{"bb", "cc"},
-			Authentications: []string{"operator-key", "store"},
-			Views:           []string{"xx/yy/zz"},
-		},
-		{
-			Operators:       []string{"aa", "bb", "cc"},
-			Authentications: []string{"operator-key", "store"},
-			Views:           []string{"dd/ee/ff", "gg/hh/ii", "jj/kk/ll"},
-		},
-		{
-			Operators:       []string{"aa"},
-			Authentications: []string{"operator-key", "store"},
-			Views:           []string{"ss/tt/vv"},
-		},
-	}
-	for _, expected := range expectedGroups {
-		c.Assert(groups, testutil.DeepContains, expected)
-	}
 }
