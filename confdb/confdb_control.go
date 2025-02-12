@@ -41,11 +41,11 @@ const (
 )
 
 const (
-	AllAuth Authentication = OperatorKey | Store
+	allAuth Authentication = OperatorKey | Store
 )
 
-// ConvertStringsToAuthentication converts []string to Authentication and validates it.
-func ConvertStringsToAuthentication(methods []string) (Authentication, error) {
+// newAuthentication converts []string to Authentication and validates it.
+func newAuthentication(methods []string) (Authentication, error) {
 	var auth Authentication
 	for _, method := range methods {
 		switch method {
@@ -60,14 +60,14 @@ func ConvertStringsToAuthentication(methods []string) (Authentication, error) {
 	return auth, nil
 }
 
-// ConvertAuthenticationToStrings converts Authentication to a SORTED []string.
-func ConvertAuthenticationToStrings(auth Authentication) []string {
-	keys := []string{}
-	if auth&OperatorKey == OperatorKey {
+// Convert Authentication to a sorted []string.
+func (a Authentication) ToStrings() []string {
+	var keys []string
+	if a&OperatorKey == OperatorKey {
 		keys = append(keys, "operator-key")
 	}
 
-	if auth&Store == Store {
+	if a&Store == Store {
 		keys = append(keys, "store")
 	}
 
@@ -104,7 +104,7 @@ func convertToViewRefs(views []string) ([]ViewRef, error) {
 
 		account := viewPath[0]
 		if !validAccountID.MatchString(account) {
-			return nil, fmt.Errorf("invalid Account ID %s", account)
+			return nil, fmt.Errorf("invalid account ID: %s", account)
 		}
 
 		confdb := viewPath[1]
@@ -129,7 +129,7 @@ func (op *Operator) Delegate(views, rawAuth []string) error {
 		return errors.New(`cannot delegate: "authentications" must be a non-empty list`)
 	}
 
-	auth, err := ConvertStringsToAuthentication(rawAuth)
+	auth, err := newAuthentication(rawAuth)
 	if err != nil {
 		return fmt.Errorf("cannot delegate: %w", err)
 	}
@@ -156,10 +156,10 @@ func (op *Operator) Delegate(views, rawAuth []string) error {
 
 // Undelegate withdraws remote access to the views that have been delegated with the given auth.
 func (op *Operator) Undelegate(views, rawAuth []string) error {
-	auth := AllAuth // if no authentication is provided, revoke all auth methods
+	auth := allAuth // if no authentication is provided, revoke all auth methods
 	var err error
 	if len(rawAuth) > 0 {
-		auth, err = ConvertStringsToAuthentication(rawAuth)
+		auth, err = newAuthentication(rawAuth)
 		if err != nil {
 			return fmt.Errorf("cannot undelegate: %w", err)
 		}
@@ -198,7 +198,7 @@ func (op *Operator) IsDelegated(view string, rawAuth []string) (bool, error) {
 		return false, err
 	}
 
-	auth, err := ConvertStringsToAuthentication(rawAuth)
+	auth, err := newAuthentication(rawAuth)
 	if err != nil {
 		return false, err
 	}
