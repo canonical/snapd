@@ -14,9 +14,8 @@ if USE_INTERNAL_BPF_HEADERS
 VENDOR_BPF_HEADERS_CFLAGS = -I$(srcdir)/libsnap-confine-private/bpf/vendor
 endif
 
-CODE_COVERAGE_LCOV_SHOPTS = --ignore-errors unused \
-	--exclude '*-test.c'
-CODE_COVERAGE_GENHTML_OPTIONS = --ignore-errors inconsistent
+CODE_COVERAGE_LCOV_SHOPTS = --exclude '*-test.c'
+CODE_COVERAGE_GENHTML_OPTIONS =
 
 subdirs = \
 		  libsnap-confine-private \
