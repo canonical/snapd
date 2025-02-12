@@ -59,7 +59,7 @@ jobs:
             variant: pristine
 
   cache-build-deps:
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-latest
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
@@ -169,7 +169,7 @@ jobs:
       - static-checks 
     name: "unit-tests default ${{ matrix.gochannel }}"
     with:
-      runs-on: ubuntu-22.04
+      runs-on: ubuntu-latest
       gochannel: ${{ matrix.gochannel }}
       skip-coverage: ${{ matrix.gochannel == 'latest/stable' }}
     strategy:
@@ -188,7 +188,7 @@ jobs:
           ${{ matrix.test-case.go-test-race && ' test-race' || ''}}
           ${{ matrix.test-case.snapd-debug && ' snapd-debug' || ''}})"
     with:
-      runs-on: ubuntu-22.04
+      runs-on: ubuntu-latest
       gochannel: ${{ matrix.gochannel }}
       skip-coverage: ${{ matrix.gochannel == 'latest/stable' || matrix.test-case.skip-coverage }}
       go-build-tags: ${{ matrix.test-case.go-build-tags }}
