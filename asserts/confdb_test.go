@@ -27,6 +27,7 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/asserts/assertstest"
 	"github.com/snapcore/snapd/confdb"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -443,7 +444,16 @@ func (s *confdbCtrlSuite) TestAckAssertionOK(c *C) {
 }
 
 func (s *confdbCtrlSuite) TestGroups(c *C) {
-	confdbCtrl := asserts.NewConfdbControl("canonical", "pc", "42")
+	a := assertstest.FakeAssertion(
+		map[string]interface{}{
+			"type":     "confdb-control",
+			"brand-id": "canonical",
+			"model":    "pc",
+			"serial":   "42",
+			"groups":   []interface{}{},
+		},
+	)
+	confdbCtrl := a.(*asserts.ConfdbControl)
 
 	aa := &confdb.Operator{ID: "aa"}
 	aa.Delegate([]string{"dd/ee/ff", "gg/hh/ii", "jj/kk/ll"}, []string{"store", "operator-key"})

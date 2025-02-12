@@ -153,21 +153,6 @@ func (cc *ConfdbControl) Prerequisites() []*Ref {
 	}
 }
 
-// NewConfdbControl returns an empty confdb-control assertion.
-func NewConfdbControl(brand, model, serial string) *ConfdbControl {
-	return &ConfdbControl{
-		assertionBase: assertionBase{
-			headers: map[string]interface{}{
-				"type":     "confdb-control",
-				"brand-id": brand,
-				"model":    model,
-				"serial":   serial,
-			},
-		},
-		operators: map[string]*confdb.Operator{},
-	}
-}
-
 // BrandID returns the brand identifier of the device.
 func (cc *ConfdbControl) BrandID() string {
 	return cc.HeaderString("brand-id")
@@ -192,7 +177,7 @@ type ConfdbControlGroup struct {
 }
 
 // Groups returns the groups in the raw assertion's format.
-func (cc *ConfdbControl) Groups() []*ConfdbControlGroup {
+func (cc ConfdbControl) Groups() []*ConfdbControlGroup {
 	authMap := map[confdb.Authentication]map[confdb.ViewRef][]string{}
 	var auths []confdb.Authentication
 
