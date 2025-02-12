@@ -2813,6 +2813,7 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	firstInstall := oldCurrent.Unset()
+
 	if firstInstall {
 		// XXX: shouldn't these two just log and carry on? this is an undo handler...
 		timings.Run(perfTimings, "discard-snap-namespace", fmt.Sprintf("discard the namespace of snap %q", snapsup.InstanceName()), func(tm timings.Measurer) {
@@ -2825,10 +2826,19 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 		if err := m.removeSnapCookie(st, snapsup.InstanceName()); err != nil {
 			return fmt.Errorf("cannot remove snap cookie: %v", err)
 		}
-		// try to remove the revision-agnostic store metadata
-		if err := backend.DiscardStoreMetadata(snapsup.SideInfo.SnapID, otherInstances); err != nil {
-			return err
-		}
+	}
+
+	linkCtx := backend.LinkContext{
+		FirstInstall:      firstInstall,
+		HasOtherInstances: otherInstances,
+		StateUnlocker:     st.Unlocker(), // needed later for backend.LinkSnap
+	}
+
+	// try to remove the revision-agnostic store metadata. Do this outside of
+	// the firstInstall check so that any metadata which should be removed
+	// regardless of whether it's a first install or not is removed correctly.
+	if err := backend.DiscardStoreMetadata(snapsup.SideInfo.SnapID, linkCtx); err != nil {
+		return err
 	}
 
 	isRevert := snapsup.Revert
@@ -2895,11 +2905,6 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	pb := NewTaskProgressAdapterLocked(t)
-	linkCtx := backend.LinkContext{
-		FirstInstall:      firstInstall,
-		HasOtherInstances: otherInstances,
-		StateUnlocker:     st.Unlocker(),
-	}
 
 	var backendErr error
 	if newInfo.Type() == snap.TypeSnapd && !firstInstall {
@@ -3806,8 +3811,16 @@ func (m *SnapManager) doDiscardSnap(t *state.Task, _ *tomb.Tomb) error {
 			return fmt.Errorf("cannot remove snap directory: %v", err)
 		}
 
+		// set up a link context, even though this task isn't associated with a
+		// link or unlink, so we can discard store metadata appropriately.
+		linkCtx := backend.LinkContext{
+			// there are no revisions of the snap present, so we're discarding the "first"
+			FirstInstall:      true,
+			HasOtherInstances: otherInstances,
+		}
+
 		// try to remove the revision-agnostic store metadata
-		if err := backend.DiscardStoreMetadata(snapsup.SideInfo.SnapID, otherInstances); err != nil {
+		if err := backend.DiscardStoreMetadata(snapsup.SideInfo.SnapID, linkCtx); err != nil {
 			logger.Noticef("cannot remove store metadata for %q: %v", snapsup.InstanceName(), err)
 		}
 

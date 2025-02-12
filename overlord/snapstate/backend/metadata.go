@@ -32,21 +32,25 @@ func InstallStoreMetadata(snapID string, aux AuxStoreInfo, linkCtx LinkContext) 
 	}
 	// TODO: install other types of revision-agnostic metadata
 	return func() {
-		if linkCtx.FirstInstall {
-			DiscardStoreMetadata(snapID, linkCtx.HasOtherInstances)
-		}
+		DiscardStoreMetadata(snapID, linkCtx)
 	}, nil
 }
 
 // DiscardStoreMetadata removes revision-agnostic metadata to disk for the snap
 // with the given snap ID. At the moment, this metadata includes auxiliary
 // store information. If hasOtherInstances is true, does nothing.
-func DiscardStoreMetadata(snapID string, hasOtherInstances bool) error {
-	if hasOtherInstances || snapID == "" {
+func DiscardStoreMetadata(snapID string, linkCtx LinkContext) error {
+	if linkCtx.HasOtherInstances || snapID == "" {
 		return nil
 	}
-	if err := discardAuxStoreInfo(snapID); err != nil {
-		return err
+	if linkCtx.FirstInstall {
+		// only discard aux store info if there are no other revision of the
+		// snap present, in case we want to roll-back the discard, and need the
+		// auxinfo on disk to re-populate an old snap.Info. This might occur if
+		// e.g. we unlinked the snap and now need to undoUnlinkSnap.
+		if err := discardAuxStoreInfo(snapID); err != nil {
+			return err
+		}
 	}
 	// TODO: discard other types of revision-agnostic metadata
 	return nil
