@@ -19,56 +19,35 @@
 
 package backend
 
-// installStoreMetadata saves revision-agnostic metadata to disk for the snap
+// InstallStoreMetadata saves revision-agnostic metadata to disk for the snap
 // with the given snap ID. At the moment, this metadata includes auxiliary
-// store information. This function should be called when linking the snap.
-func installStoreMetadata(snapID string, aux AuxStoreInfo) error {
+// store information. Returns a closure to undo the function's actions,
+// depending on whether it's a first install or if there are other instances.
+func InstallStoreMetadata(snapID string, aux AuxStoreInfo, linkCtx LinkContext) (undo func(), err error) {
 	if snapID == "" {
-		return nil
+		return func() {}, nil
 	}
-	if err := KeepAuxStoreInfo(snapID, aux); err != nil {
-		return err
+	if err := keepAuxStoreInfo(snapID, aux); err != nil {
+		return nil, err
 	}
 	// TODO: install other types of revision-agnostic metadata
-	return nil
-}
-
-// uninstallStoreMetadata removes revision-agnostic metadata from disk for the
-// snap with the given snap ID. At the moment, this metadata includes auxiliary
-// store information. This function should be called when unlinking the snap,
-// and the given link context governs what, if any, metadata should be removed.
-func uninstallStoreMetadata(snapID string, linkCtx LinkContext) error {
-	if linkCtx.HasOtherInstances || snapID == "" {
-		return nil
-	}
-	if linkCtx.FirstInstall {
-		// We want to preserve aux store info if this is not first install so we
-		// can read the existing info from disk before re-linking another rev,
-		// such as in undoUnlinkSnap.
-		if err := discardAuxStoreInfo(snapID); err != nil {
-			return err
+	return func() {
+		if linkCtx.FirstInstall {
+			DiscardStoreMetadata(snapID, linkCtx.HasOtherInstances)
 		}
-	}
-	// TODO: discard other types of revision-agnostic metadata
-	return nil
+	}, nil
 }
 
-// DiscardStoreMetadata removes revision-agnostic metadata from disk for the
-// snap with the given ID. This function is intended to be called when the snap
-// is being discarded, so there are assumed to be no revisions installed.
-func DiscardStoreMetadata(snapID string, otherInstances bool) error {
-	if otherInstances || snapID == "" {
+// DiscardStoreMetadata removes revision-agnostic metadata to disk for the snap
+// with the given snap ID. At the moment, this metadata includes auxiliary
+// store information. If hasOtherInstances is true, does nothing.
+func DiscardStoreMetadata(snapID string, hasOtherInstances bool) error {
+	if hasOtherInstances || snapID == "" {
 		return nil
 	}
-	linkCtx := LinkContext{
-		// no revisions are installed, so we're discarding the "first install"
-		FirstInstall:      true,
-		HasOtherInstances: otherInstances,
-	}
-	if err := uninstallStoreMetadata(snapID, linkCtx); err != nil {
+	if err := discardAuxStoreInfo(snapID); err != nil {
 		return err
 	}
-	// TODO: discard other types of revision-agnostic metadata which can be
-	// removed when the final revision/instance of the snap
+	// TODO: discard other types of revision-agnostic metadata
 	return nil
 }

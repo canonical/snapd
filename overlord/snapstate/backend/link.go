@@ -226,16 +226,6 @@ func (b Backend) LinkSnap(info *snap.Info, dev snap.Device, linkCtx LinkContext,
 
 	}
 
-	// Set up revision-agnostic snap metadata
-	aux := AuxStoreInfo{
-		Media:    info.Media,
-		StoreURL: info.StoreURL,
-		Website:  info.Website(),
-	}
-	if err := installStoreMetadata(info.SnapID, aux); err != nil {
-		return err
-	}
-
 	// Stop inhibiting application startup by removing the inhibitor file.
 	if err := runinhibit.Unlock(info.InstanceName(), linkCtx.StateUnlocker); err != nil {
 		return err
@@ -412,15 +402,12 @@ func (b Backend) UnlinkSnap(info *snap.Info, linkCtx LinkContext, meter progress
 	// and finally remove current symlinks
 	err2 := removeCurrentSymlinks(info)
 
-	// and remove revision-agnostic metadata, if appropriate
-	err3 := uninstallStoreMetadata(info.SnapID, linkCtx)
-
 	// XXX intentional lack of symmetry with LinkSnap wrt. parallel installs
 	// handling, the directory cleanup is left to be executed during the
 	// last phase of snap removal
 
 	// FIXME: aggregate errors instead
-	return firstErr(err0, err1, err2, err3)
+	return firstErr(err0, err1, err2)
 }
 
 func (b Backend) QueryDisabledServices(info *snap.Info, pb progress.Meter) (*wrappers.DisabledServices, error) {

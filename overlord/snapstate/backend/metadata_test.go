@@ -36,7 +36,7 @@ func (s *metadataSuite) SetUpTest(c *C) {
 	dirs.SetRootDir(c.MkDir())
 }
 
-func (s *metadataSuite) TestInstallUninstallStoreMetadata(c *C) {
+func (s *metadataSuite) TestInstallStoreMetadataRevert(c *C) {
 	const snapID = "my-snap-id"
 	for _, testCase := range []struct {
 		hasOtherInstances bool
@@ -69,7 +69,11 @@ func (s *metadataSuite) TestInstallUninstallStoreMetadata(c *C) {
 			StoreURL: "https://snapcraft.io/example-snap",
 			Website:  "http://example.com",
 		}
-		err := backend.InstallStoreMetadata(snapID, aux)
+		linkCtx := backend.LinkContext{
+			FirstInstall:      testCase.firstInstall,
+			HasOtherInstances: testCase.hasOtherInstances,
+		}
+		undo, err := backend.InstallStoreMetadata(snapID, aux, linkCtx)
 		c.Check(err, IsNil)
 
 		c.Check(backend.AuxStoreInfoFilename(snapID), testutil.FilePresent)
@@ -84,12 +88,7 @@ func (s *metadataSuite) TestInstallUninstallStoreMetadata(c *C) {
 		}
 		checkWrittenInfo()
 
-		linkCtx := backend.LinkContext{
-			FirstInstall:      testCase.firstInstall,
-			HasOtherInstances: testCase.hasOtherInstances,
-		}
-		err = backend.UninstallStoreMetadata(snapID, linkCtx)
-		c.Check(err, IsNil)
+		undo()
 
 		if testCase.shouldExistAfter {
 			checkWrittenInfo()
@@ -102,11 +101,12 @@ func (s *metadataSuite) TestInstallUninstallStoreMetadata(c *C) {
 func (s *metadataSuite) TestStoreMetadataEmptySnapID(c *C) {
 	const snapID = ""
 	var aux backend.AuxStoreInfo
-	var linkCtx backend.LinkContext // empty, doesn't matter for this test
 	const hasOtherInstances = false
+	var linkCtx backend.LinkContext // empty, doesn't matter for this test
 	// check that empty snapID does not return an error
-	c.Check(backend.InstallStoreMetadata(snapID, aux), IsNil)
-	c.Check(backend.UninstallStoreMetadata(snapID, linkCtx), IsNil)
+	undo, err := backend.InstallStoreMetadata(snapID, aux, linkCtx)
+	c.Check(err, IsNil)
+	c.Check(undo, NotNil)
 	c.Check(backend.DiscardStoreMetadata(snapID, hasOtherInstances), IsNil)
 }
 
@@ -116,7 +116,10 @@ func (s *metadataSuite) TestDiscardStoreMetadataHasOtherInstances(c *C) {
 	aux := backend.AuxStoreInfo{
 		StoreURL: "https://snapcraft.io/example-snap",
 	}
-	err := backend.InstallStoreMetadata(snapID, aux)
+	// Value of linkCtx doesn't matter to InstallStoreMetadata outside of the
+	// returned undo, which we ignore here
+	var linkCtx backend.LinkContext
+	_, err := backend.InstallStoreMetadata(snapID, aux, linkCtx)
 	c.Check(err, IsNil)
 	c.Check(backend.AuxStoreInfoFilename(snapID), testutil.FilePresent)
 
