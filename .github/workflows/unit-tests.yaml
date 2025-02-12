@@ -97,10 +97,12 @@ jobs:
           if [ -n "$SKIP_COVERAGE" ]; then
               make check
           else
-              # make check-code-coverage
-              # cp -v snap-confine-*-coverage.info "${{ github.workspace}}/.coverage/"
+              make check-code-coverage
+              cp -v snap-confine-*-coverage.info "${{ github.workspace}}/.coverage/coverage-c-code-lcov.cov"
+              make clean
               make coverage.csv
-              cp coverage.csv "${{ github.workspace }}/.coverage/coverage-c-code.cov"
+              cp coverage.csv "${{ github.workspace }}/.coverage/coverage-c-code-gcovr.cov"
+              make clean
           fi
 
     - name: Test Go
