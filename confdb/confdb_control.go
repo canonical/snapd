@@ -124,12 +124,12 @@ func convertToViewRefs(views []string) ([]ViewRef, error) {
 }
 
 // Delegate grants remote access to the views under the given auth.
-func (op *Operator) Delegate(views, rawAuth []string) error {
-	if len(rawAuth) == 0 {
+func (op *Operator) Delegate(views, authMeth []string) error {
+	if len(authMeth) == 0 {
 		return errors.New(`cannot delegate: "authentications" must be a non-empty list`)
 	}
 
-	auth, err := newAuthentication(rawAuth)
+	auth, err := newAuthentication(authMeth)
 	if err != nil {
 		return fmt.Errorf("cannot delegate: %w", err)
 	}
@@ -155,11 +155,11 @@ func (op *Operator) Delegate(views, rawAuth []string) error {
 }
 
 // Undelegate withdraws remote access to the views that have been delegated with the given auth.
-func (op *Operator) Undelegate(views, rawAuth []string) error {
+func (op *Operator) Undelegate(views, authMeth []string) error {
 	auth := allAuth // if no authentication is provided, revoke all auth methods
 	var err error
-	if len(rawAuth) > 0 {
-		auth, err = newAuthentication(rawAuth)
+	if len(authMeth) > 0 {
+		auth, err = newAuthentication(authMeth)
 		if err != nil {
 			return fmt.Errorf("cannot undelegate: %w", err)
 		}
@@ -192,13 +192,13 @@ func (op *Operator) Undelegate(views, rawAuth []string) error {
 }
 
 // IsDelegated checks if the view is delegated to the operator with the given auth.
-func (op *Operator) IsDelegated(view string, rawAuth []string) (bool, error) {
+func (op *Operator) IsDelegated(view string, authMeth []string) (bool, error) {
 	viewRefs, err := convertToViewRefs([]string{view})
 	if err != nil {
 		return false, err
 	}
 
-	auth, err := newAuthentication(rawAuth)
+	auth, err := newAuthentication(authMeth)
 	if err != nil {
 		return false, err
 	}
