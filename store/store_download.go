@@ -348,11 +348,11 @@ func DownloadIcon(ctx context.Context, name string, targetPath string, downloadU
 	logger.Debugf("Starting download of %q to %q.", downloadURL, targetPath)
 
 	etag, err = downloadIcon(ctx, name, etag, downloadURL, aw)
-	if errors.Is(err, errIconUnchanged) {
-		logger.Debugf("download of snap icon skipped for snap %s: icon unchanged", name)
-		return nil
-	} else if err != nil {
-		logger.Debugf("download of %q failed: %#v", downloadURL, err)
+	if err != nil {
+		if errors.Is(err, errIconUnchanged) {
+			logger.Debugf("download of snap icon skipped for snap %s: icon unchanged", name)
+			return nil
+		}
 		return err
 	}
 
@@ -365,9 +365,11 @@ func DownloadIcon(ctx context.Context, name string, targetPath string, downloadU
 		if len(etag) >= maxEtagSize { // len doesn't include trailing '\0'
 			logger.Debugf("snap icon etag exceeds maximum etag length: %q", etag)
 		} else {
-			// Ignore any error in case the filesystem does not support xattrs.
-			// If it fails, we'll just redownload the whole icon next time.
-			unix.Setxattr(targetPath, "user.snapstore-etag", []byte(etag), 0)
+			// If the filesystem does not support xattrs, we'll just redownload
+			// the whole icon next time, so log but do not return any error.
+			if err := unix.Setxattr(targetPath, "user.snapstore-etag", []byte(etag), 0); err != nil {
+				logger.Debugf("cannot save etag in icon file xattrs: %v", err)
+			}
 		}
 	}
 	return nil
@@ -695,9 +697,9 @@ func downloadIconImpl(ctx context.Context, name, etag, downloadURL string, w Rea
 		err = func() error {
 			clientOpts := &httputil.ClientOptions{} // XXX: should this have a timeout?
 			cli := httputil.NewHTTPClient(clientOpts)
-			reqOptions := &iconRequestOptions{
-				URL:  iconURL,
-				Etag: etag,
+			reqOptions := iconRequestOptions{
+				url:  iconURL,
+				etag: etag,
 			}
 			var resp *http.Response
 			resp, err = doIconRequest(ctx, cli, reqOptions)

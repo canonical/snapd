@@ -617,8 +617,8 @@ func (r *requestOptions) addHeader(k, v string) {
 // iconRequestOptions specifies parameters for icon requests, which do not
 // require headers related to the store or snap. Just an ordinary GET request.
 type iconRequestOptions struct {
-	URL  *url.URL
-	Etag string
+	url  *url.URL
+	etag string
 }
 
 func cancelled(ctx context.Context) bool {
@@ -774,15 +774,15 @@ func (s *Store) doRequest(ctx context.Context, client *http.Client, reqOptions *
 }
 
 // doIconRequest does an unauthenticated GET request to the given URL.
-func doIconRequest(ctx context.Context, client *http.Client, reqOptions *iconRequestOptions) (*http.Response, error) {
+func doIconRequest(ctx context.Context, client *http.Client, reqOptions iconRequestOptions) (*http.Response, error) {
 	var body io.Reader // empty body
-	req, err := http.NewRequestWithContext(ctx, "GET", reqOptions.URL.String(), body)
+	req, err := http.NewRequestWithContext(ctx, "GET", reqOptions.url.String(), body)
 	if err != nil {
 		return nil, err
 	}
 
-	if reqOptions.Etag != "" {
-		req.Header.Set("If-None-Match", reqOptions.Etag)
+	if reqOptions.etag != "" {
+		req.Header.Set("If-None-Match", reqOptions.etag)
 	}
 
 	resp, err := client.Do(req)

@@ -1305,7 +1305,6 @@ func (s *storeDownloadSuite) TestDownloadIconOKWithNewEtag(c *C) {
 	path := filepath.Join(c.MkDir(), "downloaded-file")
 	err := store.DownloadIcon(s.ctx, expectedName, path, expectedURL)
 	c.Assert(err, IsNil)
-	defer os.Remove(path)
 
 	c.Check(path, testutil.FileEquals, expectedContent)
 	etagBuf := make([]byte, 256)
@@ -1343,7 +1342,6 @@ func (s *storeDownloadSuite) TestDownloadIconOKWithExistingEtag(c *C) {
 
 	err := store.DownloadIcon(s.ctx, expectedName, path, expectedURL)
 	c.Assert(err, IsNil)
-	defer os.Remove(path)
 
 	// Existing file (and etag) should not have been overwritten
 	c.Check(path, testutil.FileEquals, existingContent)
@@ -1380,7 +1378,6 @@ func (s *storeDownloadSuite) TestDownloadIconOKWithChangedEtag(c *C) {
 
 	err := store.DownloadIcon(s.ctx, expectedName, path, expectedURL)
 	c.Assert(err, IsNil)
-	defer os.Remove(path)
 
 	c.Check(path, testutil.FileEquals, expectedContent)
 	etagBuf := make([]byte, 256)
@@ -1419,7 +1416,6 @@ func (s *storeDownloadSuite) TestDownloadIconOKWithEtagTooLong(c *C) {
 
 	err := store.DownloadIcon(s.ctx, expectedName, path, expectedURL)
 	c.Assert(err, IsNil)
-	defer os.Remove(path)
 
 	c.Check(path, testutil.FileEquals, expectedContent)
 	// Etag exceeded max size, so no etag should have been written
@@ -1458,7 +1454,6 @@ func (s *storeDownloadSuite) TestDownloadIconDoesNotOverwriteLinks(c *C) {
 
 	err = store.DownloadIcon(s.ctx, expectedName, path, expectedURL)
 	c.Assert(err, IsNil)
-	defer os.Remove(path)
 
 	c.Assert(path, testutil.FileEquals, newContent)
 	// Check that the contents of the existing hard-linked file were not overwritten
