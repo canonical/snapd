@@ -5,9 +5,18 @@ on:
         description: 'A tag to indicate which runner to use'
         required: true
         type: string
+      code:
+        description: 'Code to test (c, go)'
+        required: true
+        type: string
+      c-compiler:
+        description: 'Compiler for C code'
+        type: string
+        default: ''
+        required: false
       gochannel:
         description: 'The snap store channel to use to install the go snap'
-        required: true
+        required: false
         type: string
       skip-coverage:
         description: 'If true, will not generate test coverage files'
@@ -31,9 +40,6 @@ on:
 
 jobs:
   unit-tests:
-    name: "unit-tests (${{ inputs.gochannel }} ${{ inputs.go-build-tags }}
-          ${{ inputs.go-test-race && ' test-race' || ''}}
-          ${{ inputs.snapd-debug && ' snapd-debug' || ''}})"
     runs-on: ${{ inputs.runs-on }}
     env:
       # Set PATH to ignore the load of magic binaries from /usr/local/bin And
@@ -43,6 +49,7 @@ jobs:
       PATH: /snap/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:${{ github.workspace }}/bin
       GOROOT: ""
       GO_BUILD_TAGS: ${{ inputs.go-build-tags }}
+      CC: ${{ inputs.c-compiler }}
       
     steps:
     - name: Checkout code
@@ -56,24 +63,37 @@ jobs:
 
     # golang latest ensures things work on the edge
     - name: Install the go snap
+      if: ${{ inputs.code == 'go' }}
       run: |
+          if [ -z "${{ inputs.gochannel }}" ]; then
+              echo "gochannel is unset"
+              exit 1
+          fi
           sudo snap install --classic --channel=${{ inputs.gochannel }} go
 
     - name: Get deps
+      if: ${{ inputs.code == 'go' }}
       run: |
           ./get-deps.sh
 
     - name: Build C
+      if: ${{ inputs.code == 'c' }}
       run: |
+          if [ -z "${{ inputs.c-compiler }}" ]; then
+              echo "c-compiler is unset"
+              exit 1
+          fi
           cd cmd/
           ./autogen.sh
           make -j$(nproc)
 
     - name: Build Go
+      if: ${{ inputs.code == 'go' }}
       run: |
           go build ./...
 
     - name: Test C
+      if: ${{ inputs.code == 'c' }}
       run: |
           cd cmd/ && make distcheck
     
@@ -90,14 +110,15 @@ jobs:
       run: echo "SKIP_COVERAGE=1" >> $GITHUB_ENV
 
     - name: Test Go
+      if: ${{ inputs.code == 'go' }}
       run: |
           ./run-checks --unit
 
     - name: Create coverage results name
       if: ${{ ! inputs.skip-coverage }}
       run: |
-        converted=$(tr '/' '-' <<<${{ inputs.gochannel }})
-        name="coverage-files-${converted}-${{ inputs.go-build-tags || 'notags' }}${{ inputs.go-test-race && '-race' || ''}}${{ inputs.snapd-debug && '-snapddebug' || ''}}"
+        converted=$(tr '/' '-' <<<'${{ inputs.gochannel }}')
+        name="coverage-files-${{ inputs.code }}-${converted}-${{ inputs.go-build-tags || 'notags' }}${{ inputs.go-test-race && '-race' || ''}}${{ inputs.snapd-debug && '-snapddebug' || ''}}${{ inputs.c-compiler }}"
         echo "COVERAGE_NAME=$name" >> $GITHUB_ENV
 
     - name: Upload the coverage results
