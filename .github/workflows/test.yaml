@@ -167,24 +167,41 @@ jobs:
     needs:
       - go-channels
       - static-checks 
-    name: "unit-tests default ${{ matrix.gochannel }}"
+    name: "unit-tests (Go default ${{ matrix.gochannel }})"
     with:
       runs-on: ubuntu-22.04
       gochannel: ${{ matrix.gochannel }}
       skip-coverage: ${{ matrix.gochannel == 'latest/stable' }}
+      code: 'go'
     strategy:
       # we cache successful runs so it's fine to keep going
       fail-fast: false      
       matrix:
         gochannel: ${{ fromJson(needs.go-channels.outputs.go-channels) }}
 
-  # TODO run unit tests of C code
+  unit-tests-c:
+    uses: ./.github/workflows/unit-tests.yaml
+    needs:
+      - cache-build-deps
+    name: "unit-tests (C ${{ matrix.test-case.c-compiler }})"
+    with:
+      runs-on: ubuntu-latest
+      code: 'c'
+      c-compiler: ${{ matrix.test-case.c-compiler }}
+    strategy:
+      # we cache successful runs so it's fine to keep going
+      fail-fast: false
+      matrix:
+        test-case:
+          - { c-compiler: gcc }
+          - { c-compiler: clang }
+
   unit-tests-special:
     uses: ./.github/workflows/unit-tests.yaml
     needs:
       - go-channels
       - static-checks
-    name: "unit-tests (${{ matrix.gochannel }} ${{ matrix.test-case.go-build-tags }}
+    name: "unit-tests (Go ${{ matrix.gochannel }} ${{ matrix.test-case.go-build-tags }}
           ${{ matrix.test-case.go-test-race && ' test-race' || ''}}
           ${{ matrix.test-case.snapd-debug && ' snapd-debug' || ''}})"
     with:
@@ -194,6 +211,7 @@ jobs:
       go-build-tags: ${{ matrix.test-case.go-build-tags }}
       go-test-race: ${{ matrix.test-case.go-test-race }}
       snapd-debug: ${{ matrix.test-case.snapd-debug }}
+      code: 'go'
     strategy:
       # we cache successful runs so it's fine to keep going
       fail-fast: false
@@ -232,6 +250,7 @@ jobs:
     needs:
       - unit-tests
       - unit-tests-special
+      - unit-tests-c
       - unit-tests-cross-distro
     if: always()
     steps:
@@ -244,7 +263,7 @@ jobs:
           needs-json: ${{ toJSON(needs) }}
 
   code-coverage:
-    needs: [unit-tests, unit-tests-special]
+    needs: [unit-tests, unit-tests-special, unit-tests-c]
     runs-on: ubuntu-20.04
     env:
       GOPATH: ${{ github.workspace }}
@@ -292,7 +311,7 @@ jobs:
 
   spread-fundamental:
     uses: ./.github/workflows/spread-tests.yaml
-    needs: [unit-tests, snap-builds, read-systems]
+    needs: [unit-tests, unit-tests-c, snap-builds, read-systems]
     name: "spread ${{ matrix.group }}"
     with:
       # Github doesn't support passing sequences as parameters.
@@ -320,7 +339,7 @@ jobs:
     if: github.event_name == 'pull_request'
     # For workflow runs that are PRs, run this non-fundamental systems job
     # only after the fundamental systems job succeeds.
-    needs: [unit-tests, snap-builds, read-systems, spread-fundamental]
+    needs: [unit-tests, unit-tests-c, snap-builds, read-systems, spread-fundamental]
     name: "spread ${{ matrix.group }}"
     with:
       # Github doesn't support passing sequences as parameters.
@@ -347,7 +366,7 @@ jobs:
     if: github.event_name != 'pull_request'
     # For workflow runs that are not for PRs, no need to impose a dependency
     # on the fundamental systems job's success before running this job.
-    needs: [unit-tests, snap-builds, read-systems]
+    needs: [unit-tests, unit-tests-c, snap-builds, read-systems]
     name: "spread ${{ matrix.group }}"
     with:
       # Github doesn't support passing sequences as parameters.
@@ -371,7 +390,7 @@ jobs:
 
   spread-nested:
     uses: ./.github/workflows/spread-tests.yaml
-    needs: [unit-tests, snap-builds]
+    needs: [unit-tests, unit-tests-c, snap-builds]
     name: "spread ${{ matrix.group }}"
     with:
       # Github doesn't support passing sequences as parameters.
