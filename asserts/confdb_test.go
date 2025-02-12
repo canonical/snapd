@@ -301,15 +301,13 @@ func (s *confdbCtrlSuite) TestDecodeOK(c *C) {
 	c.Assert(ccAssertion.Serial(), Equals, "03961d5d-26e5-443f-838d-6db046126bea")
 	c.Assert(ccAssertion.AuthorityID(), Equals, "")
 
-	cc := ccAssertion.InnerConfdbControl()
-
+	cc := ccAssertion.ConfdbControl()
 	delegated, _ := cc.IsDelegated("john", "canonical/network/control-device", []string{"operator-key"})
 	c.Check(delegated, Equals, true)
 	delegated, _ = cc.IsDelegated("john", "canonical/network/observe-device", []string{"operator-key"})
 	c.Check(delegated, Equals, true)
 	delegated, _ = cc.IsDelegated("john", "canonical/network/control-interfaces", []string{"store"})
 	c.Check(delegated, Equals, true)
-
 	delegated, _ = cc.IsDelegated("jane", "canonical/network/observe-interfaces", []string{"store", "operator-key"})
 	c.Check(delegated, Equals, true)
 }
