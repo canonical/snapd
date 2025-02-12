@@ -28,32 +28,32 @@ type confdbCtrlSuite struct{}
 
 var _ = Suite(&confdbCtrlSuite{})
 
-func (s *confdbCtrlSuite) TestConvertStringsToAuthentication(c *C) {
+func (s *confdbCtrlSuite) TestNewAuthentication(c *C) {
 	rawAuth := []string{"operator-key", "store", "operator-key"}
 	expected := confdb.OperatorKey | confdb.Store
-	converted, err := confdb.ConvertStringsToAuthentication(rawAuth)
+	converted, err := confdb.NewAuthentication(rawAuth)
 	c.Assert(err, IsNil)
 	c.Assert(converted, DeepEquals, expected)
 
 	rawAuth = []string{"operator-key", "unknown"}
 	expected = 0
-	converted, err = confdb.ConvertStringsToAuthentication(rawAuth)
+	converted, err = confdb.NewAuthentication(rawAuth)
 	c.Assert(err, ErrorMatches, "invalid authentication method: unknown")
 	c.Assert(converted, DeepEquals, expected)
 }
 
 func (s *confdbCtrlSuite) TestConvertAuthenticationToStrings(c *C) {
 	var auth confdb.Authentication = 0
-	expected := []string{}
-	c.Assert(confdb.ConvertAuthenticationToStrings(auth), DeepEquals, expected)
+	var expected []string
+	c.Assert(auth.ToStrings(), DeepEquals, expected)
 
 	auth |= confdb.OperatorKey
 	expected = append(expected, "operator-key")
-	c.Assert(confdb.ConvertAuthenticationToStrings(auth), DeepEquals, expected)
+	c.Assert(auth.ToStrings(), DeepEquals, expected)
 
 	auth |= confdb.Store
 	expected = append(expected, "store")
-	c.Assert(confdb.ConvertAuthenticationToStrings(auth), DeepEquals, expected)
+	c.Assert(auth.ToStrings(), DeepEquals, expected)
 }
 
 func (s *confdbCtrlSuite) TestViewRefString(c *C) {
@@ -111,7 +111,7 @@ func (s *confdbCtrlSuite) TestDelegateFail(c *C) {
 		{
 			views: []string{"@foo/network/control-device"},
 			auth:  []string{"store"},
-			err:   "cannot delegate: invalid Account ID @foo",
+			err:   "cannot delegate: invalid account ID: @foo",
 		},
 		{
 			views: []string{"canonical/123/control-device"},

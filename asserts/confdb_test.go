@@ -449,8 +449,7 @@ func (s *confdbCtrlSuite) TestGroups(c *C) {
 	aa.Delegate([]string{"dd/ee/ff", "gg/hh/ii", "jj/kk/ll"}, []string{"store", "operator-key"})
 	aa.Delegate([]string{"pp/qq/rr"}, []string{"operator-key"})
 	aa.Delegate([]string{"mm/nn/oo"}, []string{"store"})
-	aa.Delegate([]string{"ss/tt/vv"}, []string{"store"})
-	aa.Delegate([]string{"ss/tt/vv"}, []string{"operator-key"})
+	aa.Delegate([]string{"ss/tt/vv"}, []string{"store", "operator-key"})
 	confdbCtrl.AddOperator(aa)
 
 	bb := &confdb.Operator{ID: "bb"}

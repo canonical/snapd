@@ -162,7 +162,6 @@ func NewConfdbControl(brand, model, serial string) *ConfdbControl {
 				"brand-id": brand,
 				"model":    model,
 				"serial":   serial,
-				"groups":   []interface{}{},
 			},
 		},
 		operators: map[string]*confdb.Operator{},
@@ -216,7 +215,7 @@ func (cc *ConfdbControl) Groups() []*ConfdbControlGroup {
 
 	var groups []*ConfdbControlGroup
 	for _, auth := range auths {
-		authStrs := confdb.ConvertAuthenticationToStrings(auth)
+		authStrs := auth.ToStrings()
 
 		// Group by unique operator sets
 		operatorSetMap := map[string]*ConfdbControlGroup{}

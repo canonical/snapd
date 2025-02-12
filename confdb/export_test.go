@@ -28,3 +28,6 @@ func MockMaxValueDepth(newDepth int) (restore func()) {
 		maxValueDepth = oldDepth
 	}
 }
+
+// newAuthentication exposed for tests
+var NewAuthentication = newAuthentication
