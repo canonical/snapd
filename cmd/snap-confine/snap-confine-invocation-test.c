@@ -17,9 +17,9 @@
 
 #include "snap-confine-invocation.h"
 #include "snap-confine-args.h"
-#include "snap-confine-invocation.c"
 
 #include "../libsnap-confine-private/cleanup-funcs.h"
+#include "../libsnap-confine-private/snap-dir.h"
 #include "../libsnap-confine-private/test-utils.h"
 
 #include <stdarg.h>

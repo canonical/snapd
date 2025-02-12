@@ -358,7 +358,9 @@ snap_confine_unit_tests_SOURCES = \
 	snap-confine/seccomp-support.c \
 	snap-confine/seccomp-support-ext.c \
 	snap-confine/seccomp-support-test.c \
+	snap-confine/snap-confine-args.c \
 	snap-confine/snap-confine-args-test.c \
+	snap-confine/snap-confine-invocation.c \
 	snap-confine/snap-confine-invocation-test.c
 snap_confine_unit_tests_CFLAGS = $(snap_confine_snap_confine_CFLAGS) $(GLIB_CFLAGS)
 snap_confine_unit_tests_LDADD = $(snap_confine_snap_confine_LDADD) $(GLIB_LIBS) libsnap-confine-private-test-support.a
