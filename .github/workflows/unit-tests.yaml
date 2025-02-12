@@ -105,6 +105,7 @@ jobs:
               cp coverage.csv "${{ github.workspace }}/.coverage/coverage-c-code-gcovr.cov"
               make clean
           fi
+          rm -f cmd/aminclude_static.am
 
     - name: Test Go
       run: |
