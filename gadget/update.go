@@ -22,7 +22,6 @@ package gadget
 import (
 	"errors"
 	"fmt"
-	"log"
 	"sort"
 	"strings"
 
@@ -138,10 +137,10 @@ func searchVolumeWithTraitsAndMatchParts(vol *Volume, traits DiskVolumeDeviceTra
 	compatibleCandidate := func(candidate disks.Disk, method string, providedErr error) map[int]*OnDiskStructure {
 		if providedErr != nil {
 			if candidate != nil {
-				log.Printf("candidate disk %s not appropriate for volume %s because err: %v", candidate.KernelDeviceNode(), vol.Name, providedErr)
+				logger.Debugf("candidate disk %s not appropriate for volume %s because err: %v", candidate.KernelDeviceNode(), vol.Name, providedErr)
 				return nil
 			}
-			log.Printf("cannot locate disk for volume %s with method %s because err: %v", vol.Name, method, providedErr)
+			logger.Debugf("cannot locate disk for volume %s with method %s because err: %v", vol.Name, method, providedErr)
 
 			return nil
 		}
@@ -151,7 +150,7 @@ func searchVolumeWithTraitsAndMatchParts(vol *Volume, traits DiskVolumeDeviceTra
 			// DiskFromDeviceName or DiskFromDevicePath to get this reference,
 			// so it's unclear how those methods could return a disk that
 			// OnDiskVolumeFromDevice is unhappy about
-			log.Printf("cannot find on disk volume from candidate disk %s: %v", candidate.KernelDeviceNode(), onDiskErr)
+			logger.Debugf("cannot find on disk volume from candidate disk %s: %v", candidate.KernelDeviceNode(), onDiskErr)
 			return nil
 		}
 		// then try to validate it by laying out the volume
@@ -162,7 +161,7 @@ func searchVolumeWithTraitsAndMatchParts(vol *Volume, traits DiskVolumeDeviceTra
 		}
 		gadgetStructToDiskStruct, ensureErr := EnsureVolumeCompatibility(vol, diskLayout, opts)
 		if ensureErr != nil {
-			log.Printf("candidate disk %s not appropriate for volume %s due to incompatibility: %v", candidate.KernelDeviceNode(), vol.Name, ensureErr)
+			logger.Debugf("candidate disk %s not appropriate for volume %s due to incompatibility: %v", candidate.KernelDeviceNode(), vol.Name, ensureErr)
 			return nil
 		}
 
