@@ -29,15 +29,15 @@ type confdbCtrlSuite struct{}
 var _ = Suite(&confdbCtrlSuite{})
 
 func (s *confdbCtrlSuite) TestNewAuthentication(c *C) {
-	rawAuth := []string{"operator-key", "store", "operator-key"}
+	authMeth := []string{"operator-key", "store", "operator-key"}
 	expected := confdb.OperatorKey | confdb.Store
-	converted, err := confdb.NewAuthentication(rawAuth)
+	converted, err := confdb.NewAuthentication(authMeth)
 	c.Assert(err, IsNil)
 	c.Assert(converted, DeepEquals, expected)
 
-	rawAuth = []string{"operator-key", "unknown"}
+	authMeth = []string{"operator-key", "unknown"}
 	expected = 0
-	converted, err = confdb.NewAuthentication(rawAuth)
+	converted, err = confdb.NewAuthentication(authMeth)
 	c.Assert(err, ErrorMatches, "invalid authentication method: unknown")
 	c.Assert(converted, DeepEquals, expected)
 }
