@@ -800,33 +800,27 @@ hooks:
 
 func (s *ValidateSuite) TestValidateHookSnapdBaseOSWithConfigureHooksError(c *C) {
 	testMap := map[string]struct {
-		snapType string
-		dflt     string
-		conf     string
+		snapType  string
+		hasDflt   bool
+		hasConf   bool
+		allowConf bool
 	}{
-		"snapd-both":      {"snapd", "default-configure", "configure"},
-		"snapd-dflt-only": {"snapd", "default-configure", ""},
-		"snapd-conf-only": {"snapd", "", "configure"},
-		"base-both":       {"base", "default-configure", "configure"},
-		"os-dflt-only":    {"os", "default-configure", ""},
-	}
-
-	quoteNonEmpty := func(str string) string {
-		if str != "" {
-			str = `"` + str + `"`
-		}
-		return str
+		"snapd-both":      {"snapd", true, true, false},
+		"snapd-dflt-only": {"snapd", true, false, false},
+		"snapd-conf-only": {"snapd", false, true, false},
+		"base-both":       {"base", true, true, false},
+		"os-both":         {"os", true, true, true},
+		"os-dflt-only":    {"os", true, false, false},
 	}
 
 	var snapYaml []byte
 	for name, test := range testMap {
-		dfltDef := test.dflt
-		confDef := test.conf
-		if dfltDef != "" {
-			dfltDef += ":"
+		var dfltDef, confDef string
+		if test.hasDflt {
+			dfltDef = "default-configure:"
 		}
-		if confDef != "" {
-			confDef += ":"
+		if test.hasConf {
+			confDef = "configure:"
 		}
 		snapYaml = []byte(fmt.Sprintf(`name: %[1]s
 version: 1.0
@@ -837,8 +831,15 @@ type: %[1]s`, test.snapType, dfltDef, confDef))
 		info, err := InfoFromSnapYaml(snapYaml)
 		c.Assert(err, IsNil)
 		err = Validate(info)
-		c.Check(err, ErrorMatches, fmt.Sprintf(`cannot specify %[2]s( or )?%[3]s hook for %[1]q snap %[1]q`,
-			test.snapType, quoteNonEmpty(test.dflt), quoteNonEmpty(test.conf)), Commentf("Failed test: %s", name))
+		var invalidHooks []string
+		if test.hasDflt {
+			invalidHooks = append(invalidHooks, `"default-configure"`)
+		}
+		if test.hasConf && !test.allowConf {
+			invalidHooks = append(invalidHooks, `"configure"`)
+		}
+		c.Check(err, ErrorMatches, fmt.Sprintf(`cannot specify %s hook for %[2]q snap %[2]q`,
+			strings.Join(invalidHooks, " or "), test.snapType), Commentf("Failed test: %s", name))
 	}
 }
 

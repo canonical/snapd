@@ -173,22 +173,19 @@ func validateHooks(info *Info) error {
 	hasConfigureHook := info.Hooks["configure"] != nil
 
 	if info.SnapType == TypeSnapd || info.SnapType == TypeBase || info.SnapType == TypeOS {
-		var hookNames strings.Builder
+		var invalidHooks []string
 		if hasDefaultConfigureHook {
-			hookNames.WriteString(`"default-configure"`)
-			if hasConfigureHook {
-				hookNames.WriteString(" or ")
-			}
+			invalidHooks = append(invalidHooks, `"default-configure"`)
 		}
 		if hasConfigureHook && info.SnapType != TypeOS {
-			hookNames.WriteString(`"configure"`)
+			invalidHooks = append(invalidHooks, `"configure"`)
 		}
-		if hookNames.String() != "" {
+		if len(invalidHooks) > 0 {
 			// The default-configure hook is not supported for snapd, base or OS snaps.
 			// The configure hook is also not supported for snapd and base snaps. While
 			// it is not required for OS snaps (core and ubuntu-core), it is tolerated
 			// to prevent errors due to existing configure hooks.
-			return fmt.Errorf("cannot specify %s hook for %q snap %q", hookNames.String(), info.Type(), info.InstanceName())
+			return fmt.Errorf("cannot specify %s hook for %q snap %q", strings.Join(invalidHooks, " or "), info.Type(), info.InstanceName())
 		}
 	}
 
