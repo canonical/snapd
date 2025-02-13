@@ -23,6 +23,7 @@ import (
 	"bytes"
 	"crypto"
 	_ "crypto/sha1"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -32,6 +33,7 @@ import (
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget/quantity"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 )
 
@@ -284,7 +286,7 @@ var setEMMCPartitionReadWrite = func(device string, rw bool) error {
 	return nil
 }
 
-func openDiskForWrite(device string, laidOutStruct *LaidOutStructure) (*os.File, func(), error) {
+func openDiskForWrite(device string, laidOutStruct *LaidOutStructure) (*os.File, func() error, error) {
 	isEMMC := laidOutStruct.VolumeStructure.EnclosingVolume.Schema == schemaEMMC
 
 	var mmcDevice string
@@ -296,10 +298,11 @@ func openDiskForWrite(device string, laidOutStruct *LaidOutStructure) (*os.File,
 		}
 	}
 
-	setEMMCReadOnly := func() {
+	setEMMCReadOnly := func() error {
 		if isEMMC {
-			setEMMCPartitionReadWrite(mmcDevice, false)
+			return setEMMCPartitionReadWrite(mmcDevice, false)
 		}
+		return nil
 	}
 
 	if isEMMC {
@@ -314,9 +317,8 @@ func openDiskForWrite(device string, laidOutStruct *LaidOutStructure) (*os.File,
 		return nil, nil, fmt.Errorf("cannot open device for writing: %v", err)
 	}
 
-	return disk, func() {
-		disk.Close()
-		setEMMCReadOnly()
+	return disk, func() error {
+		return errors.Join(disk.Close(), setEMMCReadOnly())
 	}, nil
 }
 
@@ -331,7 +333,11 @@ func (r *rawStructureUpdater) Rollback() error {
 	if err != nil {
 		return fmt.Errorf("cannot open device for writing: %v", err)
 	}
-	defer close()
+	defer func() {
+		if err := close(); err != nil {
+			logger.Noticef("cannot close device: %v", err)
+		}
+	}()
 
 	for _, pc := range structForDevice.LaidOutContent {
 		if err := r.rollbackDifferent(disk, &pc); err != nil {
@@ -375,7 +381,11 @@ func (r *rawStructureUpdater) Update() error {
 	if err != nil {
 		return fmt.Errorf("cannot open device for writing: %v", err)
 	}
-	defer close()
+	defer func() {
+		if err := close(); err != nil {
+			logger.Noticef("cannot close device: %v", err)
+		}
+	}()
 
 	skipped := 0
 	for _, pc := range structForDevice.LaidOutContent {
