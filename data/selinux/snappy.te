@@ -33,6 +33,7 @@ type snappy_exec_t;
 init_daemon_domain(snappy_t, snappy_exec_t)
 
 role snappy_roles types snappy_t;
+type unconfined_t;
 
 type snappy_config_t;
 files_config_file(snappy_config_t)
@@ -937,7 +938,42 @@ allow init_t snappy_cli_t:unix_stream_socket create_stream_socket_perms;
 # use Private* directives, while init_t is allowed to remount all fs, we cannot
 # declare fs_type(snappy_snap_t) outside of core policy, add explicit permission
 # instead
+
+
 allow init_t snappy_snap_t:filesystem remount;
+
+# Definir los tipos si no están definidos
+type unconfined_exec_t;
+type unconfined_service_t;
+attribute unconfined_services;
+
+# Asociar los tipos con el atributo
+typeattribute unconfined_exec_t unconfined_services;
+typeattribute unconfined_service_t unconfined_services;
+typeattribute unconfined_t unconfined_services;
+
+# Permitir que unconfined_exec_t acceda a los recursos de ejecución
+allow unconfined_exec_t self:process { execmem execstack };
+
+# Permitir que unconfined_exec_t acceda a los recursos de archivo
+allow unconfined_exec_t self:file { read write open };
+
+# Permitir que unconfined_service_t acceda a los recursos de servicios
+allow unconfined_service_t self:service { start stop };
+
+# Permitir que unconfined_t tenga acceso a los recursos de procesos
+allow unconfined_t self:process { execmem execstack };
+
+# Permitir que unconfined_t tenga acceso a los archivos
+allow unconfined_t self:file { read write open };
+
+# Permitir el acceso sin restricciones a los servicios y procesos de unconfined_t
+allow unconfined_t unconfined_t:process { execmem execstack };
+allow unconfined_t unconfined_t:file { read write open };
+
+# Agregar permisos para los servicios sin restricciones
+allow unconfined_service_t self:service { start stop };
+
 
 ########################################
 #
