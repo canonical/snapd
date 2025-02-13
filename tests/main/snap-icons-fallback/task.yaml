@@ -30,7 +30,7 @@ execute: |
     diff "/snap/${SNAP_LOCAL}/current/meta/gui/icon.svg" icon-orange-chest.svg
 
     echo "Check that the snap which is NOT supposed to have a local icon does not have no local icon"
-    ls /snap/"${SNAP_FALLBACK}"/current/meta/gui/icon.* | wc -l | MATCH 0
+    find /snap/"${SNAP_FALLBACK}"/current/meta/gui/icon.* | wc -l | MATCH 0
 
 
     echo "Check that both snaps have store icons"
