@@ -37,6 +37,7 @@ type ConfdbControl struct {
 	operators map[string]*operator
 }
 
+// Delegate delegates the given views with the provided auth to the operator.
 func (cc *ConfdbControl) Delegate(operatorID string, views, auth []string) error {
 	if !validAccountID.MatchString(operatorID) {
 		return fmt.Errorf("invalid operator ID: %s", operatorID)
@@ -67,11 +68,6 @@ func (cc *ConfdbControl) Undelegate(operatorID string, views, auth []string) err
 		return nil // nothing is delegated to this operator
 	}
 
-	if len(views) == 0 && len(auth) == 0 {
-		delete(cc.operators, operatorID) // completely remove access from this operator
-		return nil
-	}
-
 	return operator.undelegate(views, auth)
 }
 
@@ -87,7 +83,7 @@ func (cc *ConfdbControl) IsDelegated(operatorID, view string, auth []string) (bo
 
 // Groups returns the groups in a format that can be used to assemble the next revision
 // of the confdb control assertion.
-func (cc ConfdbControl) Groups() []interface{} {
+func (cc *ConfdbControl) Groups() []interface{} {
 	authMap := map[authentication]map[viewRef][]string{}
 	var auths []authentication
 
@@ -122,14 +118,27 @@ func (cc ConfdbControl) Groups() []interface{} {
 		for ops, views := range opGroups {
 			sort.Strings(views)
 			groups = append(groups, map[string]interface{}{
-				"operators":       interfaceSlice(strings.Split(ops, ",")),
-				"authentications": interfaceSlice(authStrs),
-				"views":           interfaceSlice(views),
+				"operators":       toInterfaceSlice(strings.Split(ops, ",")),
+				"authentications": toInterfaceSlice(authStrs),
+				"views":           toInterfaceSlice(views),
 			})
 		}
 	}
 
 	return groups
+}
+
+// Clone returns a deep copy of the ConfdbControl.
+func (cc ConfdbControl) Clone() ConfdbControl {
+	clone := ConfdbControl{operators: make(map[string]*operator)}
+
+	for k, v := range cc.operators {
+		if v != nil {
+			clone.operators[k] = v.clone()
+		}
+	}
+
+	return clone
 }
 
 // authentication limits what keys can be used to sign messages used to remotely manage confdbs.
@@ -309,7 +318,22 @@ func (op *operator) isDelegated(view string, authMeth []string) (bool, error) {
 	return delegatedWith&auth == auth, nil
 }
 
-func interfaceSlice(strs []string) []interface{} {
+// clone returns a deep copy of the operator.
+func (op operator) clone() *operator {
+	clone := &operator{
+		ID:          op.ID,
+		Delegations: make(map[viewRef]authentication),
+	}
+
+	for k, v := range op.Delegations {
+		clone.Delegations[k] = v
+	}
+
+	return clone
+}
+
+// toInterfaceSlice converts []string to []interface{}.
+func toInterfaceSlice(strs []string) []interface{} {
 	result := make([]interface{}, len(strs))
 	for i, str := range strs {
 		result[i] = str

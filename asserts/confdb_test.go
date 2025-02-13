@@ -330,6 +330,10 @@ func (s *confdbCtrlSuite) TestDecodeInvalid(c *C) {
 		{"groups:", "groups:\n  - bar", `cannot parse group at position 1: must be a map`},
 		{"    operators:\n      - jane\n", "", `cannot parse group at position 3: "operators" must be provided`},
 		{
+			"    operators:\n      - jane\n",
+			"    operators: abcd\n", `cannot parse group at position 3: field must be a list of strings`,
+		},
+		{
 			"      - jane",
 			"      - @op",
 			`cannot parse group at position 3: invalid operator ID: @op`,

@@ -89,49 +89,68 @@ func (s *confdbCtrlSuite) TestDelegateFail(c *C) {
 	cc := confdb.ConfdbControl{}
 
 	type testcase struct {
-		views []string
-		auth  []string
-		err   string
+		operator string
+		views    []string
+		auth     []string
+		err      string
 	}
 	tcs := []testcase{
-		{err: `cannot delegate: "authentications" must be a non-empty list`},
-		{auth: []string{"magic"}, err: "cannot delegate: invalid authentication method: magic"},
-		{auth: []string{"store"}, err: `cannot delegate: "views" must be a non-empty list`},
+		{err: "invalid operator ID: "},
 		{
-			views: []string{"a/b/c/d"},
-			auth:  []string{"store"},
-			err:   `cannot delegate: view "a/b/c/d" must be in the format account/confdb/view`,
+			operator: "alice",
+			err:      `cannot delegate: "authentications" must be a non-empty list`,
 		},
 		{
-			views: []string{"a/b"},
-			auth:  []string{"store"},
-			err:   `cannot delegate: view "a/b" must be in the format account/confdb/view`,
+			operator: "alice",
+			auth:     []string{"magic"},
+			err:      "cannot delegate: invalid authentication method: magic",
 		},
 		{
-			views: []string{"ab/"},
-			auth:  []string{"store"},
-			err:   `cannot delegate: view "ab/" must be in the format account/confdb/view`,
+			operator: "alice",
+			auth:     []string{"store"},
+			err:      `cannot delegate: "views" must be a non-empty list`,
 		},
 		{
-			views: []string{"@foo/network/control-device"},
-			auth:  []string{"store"},
-			err:   "cannot delegate: invalid account ID: @foo",
+			operator: "alice",
+			views:    []string{"a/b/c/d"},
+			auth:     []string{"store"},
+			err:      `cannot delegate: view "a/b/c/d" must be in the format account/confdb/view`,
 		},
 		{
-			views: []string{"canonical/123/control-device"},
-			auth:  []string{"store"},
-			err:   "cannot delegate: invalid confdb name: 123",
+			operator: "alice",
+			views:    []string{"a/b"},
+			auth:     []string{"store"},
+			err:      `cannot delegate: view "a/b" must be in the format account/confdb/view`,
 		},
 		{
-			views: []string{"canonical/network/_view"},
-			auth:  []string{"store"},
-			err:   "cannot delegate: invalid view name: _view",
+			operator: "alice",
+			views:    []string{"ab/"},
+			auth:     []string{"store"},
+			err:      `cannot delegate: view "ab/" must be in the format account/confdb/view`,
+		},
+		{
+			operator: "alice",
+			views:    []string{"@foo/network/control-device"},
+			auth:     []string{"store"},
+			err:      "cannot delegate: invalid account ID: @foo",
+		},
+		{
+			operator: "alice",
+			views:    []string{"canonical/123/control-device"},
+			auth:     []string{"store"},
+			err:      "cannot delegate: invalid confdb name: 123",
+		},
+		{
+			operator: "alice",
+			views:    []string{"canonical/network/_view"},
+			auth:     []string{"store"},
+			err:      "cannot delegate: invalid view name: _view",
 		},
 	}
 
 	for i, tc := range tcs {
 		cmt := Commentf("test number %d", i+1)
-		err := cc.Delegate("alice", tc.views, tc.auth)
+		err := cc.Delegate(tc.operator, tc.views, tc.auth)
 		c.Assert(err, NotNil, cmt)
 		c.Assert(err, ErrorMatches, tc.err, cmt)
 	}
@@ -152,11 +171,7 @@ func (s *confdbCtrlSuite) TestUndelegateOK(c *C) {
 		[]string{"operator-key"},
 	)
 	c.Assert(err, IsNil)
-	delegated, err := cc.IsDelegated(
-		"bob",
-		"canonical/network/control-interface",
-		[]string{"operator-key"},
-	)
+	delegated, err := cc.IsDelegated("bob", "canonical/network/control-interface", []string{"operator-key"})
 	c.Assert(err, IsNil)
 	c.Check(delegated, Equals, false)
 
@@ -168,21 +183,17 @@ func (s *confdbCtrlSuite) TestUndelegateOK(c *C) {
 	err = cc.Undelegate("bob", nil, nil)
 	c.Assert(err, IsNil)
 
-	delegated, err = cc.IsDelegated(
-		"bob",
-		"canonical/network/observe-interface",
-		[]string{"operator-key"},
-	)
+	delegated, err = cc.IsDelegated("bob", "canonical/network/observe-interface", []string{"operator-key"})
 	c.Assert(err, IsNil)
 	c.Check(delegated, Equals, false)
 
-	delegated, err = cc.IsDelegated(
-		"bob",
-		"canonical/network/observe-interface",
-		[]string{"store"},
-	)
+	delegated, err = cc.IsDelegated("bob", "canonical/network/observe-interface", []string{"store"})
 	c.Assert(err, IsNil)
 	c.Check(delegated, Equals, false)
+
+	// undelegate non-existing operator
+	err = cc.Undelegate("unknown", nil, nil)
+	c.Assert(err, IsNil)
 }
 
 func (s *confdbCtrlSuite) TestUndelegateFail(c *C) {
@@ -228,32 +239,20 @@ func (s *confdbCtrlSuite) TestIsDelegatedOK(c *C) {
 		[]string{"operator-key", "store"},
 	)
 
-	delegated, _ := cc.IsDelegated(
-		"alice",
-		"canonical/device/control-device",
-		[]string{"store"},
-	)
+	delegated, _ := cc.IsDelegated("alice", "canonical/device/control-device", []string{"store"})
 	c.Check(delegated, Equals, true)
-	delegated, _ = cc.IsDelegated(
-		"alice",
-		"canonical/device/control-device",
-		[]string{"store", "operator-key"},
-	)
+	delegated, _ = cc.IsDelegated("alice", "canonical/device/control-device", []string{"store", "operator-key"})
 	c.Check(delegated, Equals, true)
 
-	delegated, err := cc.IsDelegated(
-		"alice",
-		"canonical/device/observe-device",
-		[]string{"store"},
-	)
+	delegated, err := cc.IsDelegated("alice", "canonical/device/observe-device", []string{"store"})
 	c.Check(err, IsNil)
 	c.Check(delegated, Equals, false)
 
-	delegated, _ = cc.IsDelegated(
-		"alice",
-		"canonical/unknown/unknown",
-		[]string{"operator-key"},
-	)
+	delegated, _ = cc.IsDelegated("alice", "canonical/unknown/unknown", []string{"operator-key"})
+	c.Check(err, IsNil)
+	c.Check(delegated, Equals, false)
+
+	delegated, _ = cc.IsDelegated("unknown", "canonical/unknown/unknown", []string{"operator-key"})
 	c.Check(err, IsNil)
 	c.Check(delegated, Equals, false)
 }
@@ -341,4 +340,21 @@ func (s *confdbCtrlSuite) TestGroups(c *C) {
 	for _, expected := range expectedGroups {
 		c.Assert(groups, testutil.DeepContains, expected)
 	}
+}
+
+func (s *confdbCtrlSuite) TestClone(c *C) {
+	original := confdb.ConfdbControl{}
+	original.Delegate("aa", []string{"dd/ee/ff", "gg/hh/ii"}, []string{"store", "operator-key"})
+
+	clone := original.Clone()
+	clone.Undelegate("aa", []string{"dd/ee/ff"}, []string{"store"})
+
+	// confirm that modifying the clone does not affect the original
+	delegated, err := original.IsDelegated("aa", "dd/ee/ff", []string{"store"})
+	c.Assert(err, IsNil)
+	c.Assert(delegated, Equals, true)
+
+	delegated, err = clone.IsDelegated("aa", "dd/ee/ff", []string{"store"})
+	c.Assert(err, IsNil)
+	c.Assert(delegated, Equals, false)
 }
