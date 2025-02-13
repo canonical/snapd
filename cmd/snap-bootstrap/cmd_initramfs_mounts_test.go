@@ -346,6 +346,9 @@ func (s *baseInitramfsMountsSuite) SetUpTest(c *C) {
 
 	s.tmpDir = c.MkDir()
 
+	restore = main.MockOsGetenv(func(envVar string) string { return "" })
+	s.AddCleanup(restore)
+
 	// mock /run/mnt
 	dirs.SetRootDir(s.tmpDir)
 	restore = func() { dirs.SetRootDir("") }
@@ -811,6 +814,12 @@ func (s *initramfsMountsSuite) testInitramfsMountsInstallModeWithCompsHappy(c *C
 	default:
 		c.Skip("Unknown EFI arch")
 	}
+	defer main.MockOsGetenv(func(envVar string) string {
+		if envVar == "CORE24_PLUS_INITRAMFS" {
+			return "1"
+		}
+		return ""
+	})()
 
 	var systemctlArgs [][]string
 	systemctlNumCalls := 0
@@ -3607,6 +3616,12 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeHappy(c *C) {
 		return nil, nil
 	})
 	defer systemctlMock()
+	defer main.MockOsGetenv(func(envVar string) string {
+		if envVar == "CORE24_PLUS_INITRAMFS" {
+			return "1"
+		}
+		return ""
+	})()
 
 	// setup a bootloader for setting the bootenv after we are done
 	bloader := bootloadertest.Mock("mock", c.MkDir())
