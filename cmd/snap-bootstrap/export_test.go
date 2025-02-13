@@ -249,3 +249,11 @@ func MockBuildInstallObserver(f func(model *asserts.Model, gadgetDir string, use
 		installBuildInstallObserver = old
 	}
 }
+
+func MockOsGetenv(mock func(string) string) (restore func()) {
+	old := osGetenv
+	osGetenv = mock
+	return func() {
+		osGetenv = old
+	}
+}
