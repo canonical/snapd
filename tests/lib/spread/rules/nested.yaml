@@ -13,3 +13,28 @@ rules:
     from:
       - tests/lib/assertions/.*
     to: [tests/nested/]
+
+  exclude-tests:
+    from:
+      - .*_test.go
+    to: [$NONE]
+
+  code-changes:
+    from:
+      - secboot/.*
+      - boot/.*
+      - bootloader/.*
+      - overlord/devicestate/.*
+      - overlord/install/.*
+      - overlord/fdestate/.*
+      - overlord/restart/.*
+      - cmd/snap-bootstrap/.*
+      - kernel/.*
+      - gadget/.*
+      - seed/.*
+      - core-initrd/.*
+      - overlord/configstate/configcore/coredump.go
+      - overlord/configstate/configcore/kernel.go
+      - overlord/configstate/configcore/timezone.go
+      - wrappers/core18.go
+    to: [tests/nested/]
