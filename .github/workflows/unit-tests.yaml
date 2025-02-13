@@ -98,7 +98,7 @@ jobs:
       run: |
           cd cmd/ && make distcheck
 
-    - name: Test C (check & ASan)
+    - name: Test C (check & ASan & UBsan)
       if: ${{ inputs.code == 'c' }}
       run: |
           cd cmd/
