@@ -32,6 +32,7 @@ import (
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/sandbox"
+	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/snapdenv"
 	"github.com/snapcore/snapd/snapdtool"
 	"github.com/snapcore/snapd/syscheck"
@@ -55,6 +56,11 @@ func main() {
 		logger.Noticef("running for preseeding")
 	} else {
 		snapdtool.ExecInSnapdOrCoreSnap()
+	}
+
+	if err := secboot.MaybeRunArgon2OutOfProcessRequestHandler(); err != nil {
+		fmt.Fprintf(os.Stderr, "cannot run argon2 out-of-process helper command: %v", err)
+		os.Exit(1)
 	}
 
 	if err := snapdtool.MaybeSetupFIPS(); err != nil {

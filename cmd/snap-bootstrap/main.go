@@ -26,6 +26,7 @@ import (
 	"github.com/jessevdk/go-flags"
 
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/secboot"
 )
 
 var (
@@ -40,6 +41,11 @@ such as initramfs.
 )
 
 func main() {
+	if err := secboot.MaybeRunArgon2OutOfProcessRequestHandler(); err != nil {
+		fmt.Fprintf(os.Stderr, "cannot run argon2 out-of-process helper command: %v", err)
+		os.Exit(1)
+	}
+
 	err := run(os.Args[1:])
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "error: %s\n", err)
