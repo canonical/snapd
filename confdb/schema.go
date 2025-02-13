@@ -156,6 +156,15 @@ func (v *aliasReference) Validate(data []byte) error {
 	return v.alias.Validate(data)
 }
 
+func (v *aliasReference) PruneEphemeral(data []byte) ([]byte, error) {
+	if v.ephemeral {
+		return nil, nil
+	}
+
+	// user-defined types can't be marked as ephemeral so there's nothing else to check
+	return data, nil
+}
+
 // SchemaAt returns the alias reference itself if the path terminates at it. If
 // not, it uses the user-defined type to resolve the path.
 func (v *aliasReference) SchemaAt(path []string) ([]Schema, error) {
@@ -175,16 +184,23 @@ func (v *aliasReference) Ephemeral() bool {
 	return v.ephemeral
 }
 
-// baseSchema holds the data and behaviours common to all types.
-type baseSchema struct {
+// scalarSchema holds the data and behaviours common to all types.
+type scalarSchema struct {
 	ephemeral bool
 }
 
-func (s baseSchema) Ephemeral() bool {
+func (s scalarSchema) Ephemeral() bool {
 	return s.ephemeral
 }
 
-func (b *baseSchema) parseConstraints(constraints map[string]json.RawMessage) (err error) {
+func (s scalarSchema) PruneEphemeral(data []byte) ([]byte, error) {
+	if s.ephemeral {
+		return nil, nil
+	}
+	return data, nil
+}
+
+func (b *scalarSchema) parseConstraints(constraints map[string]json.RawMessage) (err error) {
 	b.ephemeral, err = parseEphemeral(constraints)
 	return err
 }
@@ -228,6 +244,10 @@ func (s *StorageSchema) Type() SchemaType {
 
 func (s *StorageSchema) Ephemeral() bool {
 	return s.topLevel.Ephemeral()
+}
+
+func (s *StorageSchema) PruneEphemeral(data []byte) ([]byte, error) {
+	return s.topLevel.PruneEphemeral(data)
 }
 
 func (s *StorageSchema) parse(raw json.RawMessage) (Schema, error) {
@@ -479,9 +499,36 @@ func (v *alternativesSchema) Type() SchemaType {
 
 func (v *alternativesSchema) Ephemeral() bool { return false }
 
-type mapSchema struct {
-	baseSchema
+func (v *alternativesSchema) PruneEphemeral(data []byte) ([]byte, error) {
+	for i, s := range v.schemas {
+		if err := s.Validate(data); err != nil {
+			if i == len(v.schemas)-1 {
+				// no alternative schema matches the data which shouldn't happen since
+				// we validate beforehand
+				return nil, errors.New("internal error: cannot prune ephemeral: no alternative schema matches data")
+			}
+			continue
+		}
 
+		pruned, err := s.PruneEphemeral(data)
+		if err != nil {
+			// shouldn't happen save for programmer error since we already validated
+			return nil, err
+		}
+
+		// TODO: there's an implicit assumption here: that no two alternative types can
+		// match the data or that, if two types do, any ephemeral tags nested in
+		// them match. Otherwise, what if one requires removing some nested bit and
+		// another doesn't? Pruning then depends on which comes first. This is why
+		// alternative types must be all ephemeral or none (but we don't extend that
+		// constraint to nested types).
+		return pruned, nil
+	}
+
+	return data, nil
+}
+
+type mapSchema struct {
 	// topSchema is the schema for the top-level schema which contains the aliases.
 	topSchema *StorageSchema
 
@@ -498,6 +545,8 @@ type mapSchema struct {
 	// requiredCombs holds combinations of keys that an instance of the map is
 	// allowed to have.
 	requiredCombs [][]string
+
+	ephemeral bool
 }
 
 // Validate that raw is a valid map and meets the constraints set by the
@@ -632,12 +681,83 @@ func (v *mapSchema) Type() SchemaType {
 	return Map
 }
 
-func (v *mapSchema) parseConstraints(constraints map[string]json.RawMessage) error {
-	if err := v.baseSchema.parseConstraints(constraints); err != nil {
-		return err
+func (v *mapSchema) Ephemeral() bool {
+	return v.ephemeral
+}
+
+func (v *mapSchema) PruneEphemeral(data []byte) ([]byte, error) {
+	if v.ephemeral {
+		return nil, nil
 	}
 
-	err := checkExclusiveMapConstraints(constraints)
+	var mapValue map[string]json.RawMessage
+	if err := json.Unmarshal(data, &mapValue); err != nil {
+		return nil, err
+	}
+
+	if v.entrySchemas != nil {
+		for key := range mapValue {
+			val, ok := v.entrySchemas[key]
+			if !ok {
+				// should not be possible, as we validate before pruning
+				return nil, fmt.Errorf("cannot prune ephemeral: unexpected key %s", key)
+			}
+
+			pruned, err := val.PruneEphemeral([]byte(mapValue[key]))
+			if err != nil {
+				return nil, err
+			}
+
+			if pruned == nil {
+				delete(mapValue, key)
+			} else {
+				mapValue[key] = pruned
+			}
+		}
+		return json.Marshal(mapValue)
+	}
+
+	if v.keySchema != nil {
+		for key := range mapValue {
+			pruned, err := v.keySchema.PruneEphemeral([]byte(key))
+			if err != nil {
+				return nil, err
+			}
+
+			if pruned == nil {
+				delete(mapValue, key)
+			}
+			// keys are always string based type so there is nothing nested to be
+			// ephemeral. The whole key is either ephemeral or not
+		}
+	}
+
+	if v.valueSchema != nil {
+		for key, val := range mapValue {
+			pruned, err := v.valueSchema.PruneEphemeral(val)
+			if err != nil {
+				return nil, err
+			}
+
+			if pruned == nil {
+				delete(mapValue, key)
+			} else {
+				mapValue[key] = pruned
+			}
+		}
+	}
+
+	return json.Marshal(mapValue)
+}
+
+func (v *mapSchema) parseConstraints(constraints map[string]json.RawMessage) error {
+	ephemeral, err := parseEphemeral(constraints)
+	if err != nil {
+		return err
+	}
+	v.ephemeral = ephemeral
+
+	err = checkExclusiveMapConstraints(constraints)
 	if err != nil {
 		return fmt.Errorf(`cannot parse map: %w`, err)
 	}
@@ -791,7 +911,7 @@ func (v *mapSchema) parseMapKeyType(raw json.RawMessage) (Schema, error) {
 func (v *mapSchema) expectsConstraints() bool { return true }
 
 type stringSchema struct {
-	baseSchema
+	scalarSchema
 
 	// pattern is a regex pattern that the string must match.
 	pattern *regexp.Regexp
@@ -846,8 +966,15 @@ func (v *stringSchema) Type() SchemaType {
 	return String
 }
 
+func (v *stringSchema) PruneEphemeral(data []byte) ([]byte, error) {
+	if v.ephemeral {
+		return nil, nil
+	}
+	return data, nil
+}
+
 func (v *stringSchema) parseConstraints(constraints map[string]json.RawMessage) error {
-	if err := v.baseSchema.parseConstraints(constraints); err != nil {
+	if err := v.scalarSchema.parseConstraints(constraints); err != nil {
 		return err
 	}
 
@@ -886,7 +1013,7 @@ func (v *stringSchema) parseConstraints(constraints map[string]json.RawMessage) 
 func (v *stringSchema) expectsConstraints() bool { return false }
 
 type intSchema struct {
-	baseSchema
+	scalarSchema
 
 	min     *int64
 	max     *int64
@@ -933,7 +1060,7 @@ func (v *intSchema) Type() SchemaType {
 }
 
 func (v *intSchema) parseConstraints(constraints map[string]json.RawMessage) error {
-	if err := v.baseSchema.parseConstraints(constraints); err != nil {
+	if err := v.scalarSchema.parseConstraints(constraints); err != nil {
 		return err
 	}
 
@@ -985,7 +1112,7 @@ func (v *intSchema) parseConstraints(constraints map[string]json.RawMessage) err
 func (v *intSchema) expectsConstraints() bool { return false }
 
 type anySchema struct {
-	baseSchema
+	scalarSchema
 }
 
 func (v *anySchema) Validate(raw []byte) (err error) {
@@ -1007,7 +1134,7 @@ func (v *anySchema) Validate(raw []byte) (err error) {
 }
 
 func (v *anySchema) parseConstraints(constraints map[string]json.RawMessage) error {
-	return v.baseSchema.parseConstraints(constraints)
+	return v.scalarSchema.parseConstraints(constraints)
 }
 
 // SchemaAt returns the "any" schema.
@@ -1023,7 +1150,7 @@ func (v *anySchema) Type() SchemaType {
 func (v *anySchema) expectsConstraints() bool { return false }
 
 type numberSchema struct {
-	baseSchema
+	scalarSchema
 
 	min     *float64
 	max     *float64
@@ -1098,7 +1225,7 @@ func validateNumber[Num ~int64 | ~float64](num Num, choices []Num, min, max *Num
 }
 
 func (v *numberSchema) parseConstraints(constraints map[string]json.RawMessage) error {
-	if err := v.baseSchema.parseConstraints(constraints); err != nil {
+	if err := v.scalarSchema.parseConstraints(constraints); err != nil {
 		return err
 	}
 
@@ -1150,7 +1277,7 @@ func (v *numberSchema) parseConstraints(constraints map[string]json.RawMessage) 
 func (v *numberSchema) expectsConstraints() bool { return false }
 
 type booleanSchema struct {
-	baseSchema
+	scalarSchema
 }
 
 func (v *booleanSchema) Validate(raw []byte) (err error) {
@@ -1192,14 +1319,12 @@ func (v *booleanSchema) Type() SchemaType {
 }
 
 func (v *booleanSchema) parseConstraints(constraints map[string]json.RawMessage) error {
-	return v.baseSchema.parseConstraints(constraints)
+	return v.scalarSchema.parseConstraints(constraints)
 }
 
 func (v *booleanSchema) expectsConstraints() bool { return false }
 
 type arraySchema struct {
-	baseSchema
-
 	// topSchema is the schema for the top-level schema which contains the aliases.
 	topSchema *StorageSchema
 
@@ -1209,6 +1334,8 @@ type arraySchema struct {
 
 	// unique is true if the array should not contain duplicates.
 	unique bool
+
+	ephemeral bool
 }
 
 func (v *arraySchema) Validate(raw []byte) error {
@@ -1271,10 +1398,52 @@ func (v *arraySchema) Type() SchemaType {
 	return Array
 }
 
+func (v *arraySchema) Ephemeral() bool {
+	return v.ephemeral
+}
+
+func (v *arraySchema) PruneEphemeral(data []byte) ([]byte, error) {
+	if v.ephemeral {
+		return nil, nil
+	}
+
+	var array []json.RawMessage
+	if err := json.Unmarshal(data, &array); err != nil {
+		return nil, err
+	}
+
+	// prune ephemeral data nested in this array
+	var writeIndex int
+	for _, val := range array {
+		nestedData, err := v.elementType.PruneEphemeral([]byte(val))
+		if err != nil {
+			return nil, err
+		}
+
+		if nestedData == nil {
+			// whole nested value was pruned
+			continue
+		}
+
+		array[writeIndex] = nestedData
+		writeIndex++
+	}
+
+	// discard unused entries, so they can be garbage collected
+	for i := writeIndex; i < len(array); i++ {
+		array[i] = nil
+	}
+	array = array[:writeIndex]
+
+	return json.Marshal(array)
+}
+
 func (v *arraySchema) parseConstraints(constraints map[string]json.RawMessage) error {
-	if err := v.baseSchema.parseConstraints(constraints); err != nil {
+	eph, err := parseEphemeral(constraints)
+	if err != nil {
 		return err
 	}
+	v.ephemeral = eph
 
 	rawValues, ok := constraints["values"]
 	if !ok {
