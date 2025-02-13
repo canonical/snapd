@@ -16,6 +16,12 @@ prepare: |
 
     tests.nested build-image core
     tests.nested create-vm core
+    remote.exec sudo snap install --devmode test-snapd-efitools
+    remote.exec sudo test-snapd-efitools.tool efi-readvar -v dbx 2>&1 | tee efi-dbx-state-initial.log
+    # count how many entries we have in DBX initially, this should be identical
+    # across UC20-UC24+ systems since we are using the same OVMF variables blob,
+    # but on UC20 2 additional entries get added at runtime
+    grep -c 'List ' efi-dbx-state-initial.log > initial-dbx-entries-count
 
     keys_dir="$(tests.nested get assets-path)/ovmf/secboot/"
     # generate 2 dbx updates
@@ -33,8 +39,6 @@ prepare: |
 
 
 execute: |
-    remote.exec sudo snap install --devmode test-snapd-efitools
-
     echo "Establish initial state"
     remote.exec sudo cat /var/lib/snapd/device/fde/boot-chains > boot-chains-before.json
     reseal_count_start="$(jq -r '.["reseal-count"]' < boot-chains-before.json )"
@@ -157,6 +161,7 @@ execute: |
     fetch_and_check_reseal_count_equal "$((reseal_count_start + 7))"
 
     echo "Update content of DBX"
+    initial_dbx_entries_count="$(cat initial-dbx-entries-count)"
     # get initial state of all variables
     remote.exec sudo test-snapd-efitools.tool efi-readvar 2>&1 | tee efi-vars.log
     remote.push dbx-1-update.auth
@@ -164,11 +169,11 @@ execute: |
     # update dbx
     remote.exec sudo test-snapd-efitools.tool efi-readvar -v dbx 2>&1 | tee efi-dbx-before.log
     # expecting 2 entries in the list
-    grep -c 'List ' efi-dbx-before.log | MATCH 2
+    grep -c 'List ' efi-dbx-before.log | MATCH "$initial_dbx_entries_count"
     remote.exec sudo test-snapd-efitools.tool efi-updatevar -a -f dbx-1-update.auth dbx
     remote.exec sudo test-snapd-efitools.tool efi-readvar -v dbx 2>&1 | tee efi-dbx-after.log
     # expecting 3 entries in the list
-    grep -c 'List ' efi-dbx-after.log | MATCH 3
+    grep -c 'List ' efi-dbx-after.log | MATCH "$((initial_dbx_entries_count + 1))"
 
     # reboot
     boot_id="$( tests.nested boot-id )"
@@ -192,11 +197,11 @@ execute: |
     remote.exec "sudo chattr -i /sys/firmware/efi/efivars/dbx-*"
     remote.exec sudo test-snapd-efitools.tool efi-readvar -v dbx 2>&1 | tee efi-dbx-before-2.log
     # 3 entries based on the previous update
-    grep -c 'List ' efi-dbx-before-2.log | MATCH 3
+    grep -c 'List ' efi-dbx-before-2.log | MATCH "$((initial_dbx_entries_count + 1))"
     remote.exec sudo test-snapd-efitools.tool efi-updatevar -a -f dbx-2-update.auth dbx
     remote.exec sudo test-snapd-efitools.tool efi-readvar -v dbx 2>&1 | tee efi-dbx-after-2.log
     # a new key appeared as well
-    grep -c 'List ' efi-dbx-after-2.log | MATCH 4
+    grep -c 'List ' efi-dbx-after-2.log | MATCH "$((initial_dbx_entries_count + 2))"
 
     # get the recovery key first
     recovery_key=$(remote.exec "sudo snap recovery --show-keys" | sed 's/^recovery: *//')
