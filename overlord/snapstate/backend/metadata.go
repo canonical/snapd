@@ -59,21 +59,15 @@ func UninstallStoreMetadata(snapID string, linkCtx LinkContext) error {
 
 // DiscardStoreMetadata removes revision-agnostic metadata from disk for the
 // snap with the given snap ID, and is intended to be called when the final
-// revision of that snap is being discarded. At the moment, this only calls
-// UninstallStoreMetadata. If hasOtherInstances is false, this function does
-// nothing, as another instance of the same snap may still require this
-// metadata.
+// revision of that snap is being discarded. At the moment, this metadata
+// includes auxiliary store information. If hasOtherInstances is false, this
+// function does nothing, as another instance of the same snap may still
+// require this metadata.
 func DiscardStoreMetadata(snapID string, hasOtherInstances bool) error {
 	if hasOtherInstances || snapID == "" {
 		return nil
 	}
-	linkCtx := LinkContext{
-		// since the final revision is being discarded, we're effectively
-		// removing the "first" install of the snap
-		FirstInstall:      true,
-		HasOtherInstances: hasOtherInstances,
-	}
-	if err := UninstallStoreMetadata(snapID, linkCtx); err != nil {
+	if err := discardAuxStoreInfo(snapID); err != nil {
 		return err
 	}
 	// TODO: discard other types of revision-agnostic metadata which should be
