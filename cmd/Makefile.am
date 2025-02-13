@@ -9,8 +9,8 @@ noinst_LIBRARIES =
 
 AM_CFLAGS = $(CHECK_CFLAGS)
 if ENABLE_SANITIZE
-SANITIZE_CFLAGS = -fsanitize=address
-SANITIZE_LDFLAGS = -fsanitize=address
+SANITIZE_CFLAGS = -fsanitize=address -fsanitize=undefined
+SANITIZE_LDFLAGS = -fsanitize=address -fsanitize=undefined
 endif
 
 if USE_INTERNAL_BPF_HEADERS
