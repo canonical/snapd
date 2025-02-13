@@ -23,7 +23,6 @@ import (
 	"bytes"
 	"crypto"
 	_ "crypto/sha1"
-	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -313,12 +312,21 @@ func openDiskForWrite(device string, laidOutStruct *LaidOutStructure) (*os.File,
 
 	disk, err := os.OpenFile(device, os.O_WRONLY, 0)
 	if err != nil {
-		setEMMCReadOnly()
+		if err2 := setEMMCReadOnly(); err2 != nil {
+			logger.Noticef("cannot switch %v to read-only: %v", mmcDevice, err2)
+		}
 		return nil, nil, fmt.Errorf("cannot open device for writing: %v", err)
 	}
 
 	return disk, func() error {
-		return errors.Join(disk.Close(), setEMMCReadOnly())
+		if err := disk.Close(); err != nil {
+			// this is bad, try to restore RO status to avoid
+			// leaving device in a weird state
+			if err2 := setEMMCReadOnly(); err2 != nil {
+				logger.Noticef("cannot switch %v to read-only: %v", mmcDevice, err2)
+			}
+		}
+		return setEMMCReadOnly()
 	}, nil
 }
 
