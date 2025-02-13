@@ -1308,7 +1308,7 @@ func (s *storeDownloadSuite) TestDownloadIconOKWithNewEtag(c *C) {
 
 	c.Check(path, testutil.FileEquals, expectedContent)
 	etagBuf := make([]byte, 256)
-	size, err := unix.Getxattr(path, "user.snapstore-etag", etagBuf)
+	size, err := unix.Getxattr(path, store.EtagXattrName, etagBuf)
 	c.Assert(err, IsNil)
 	writtenEtag := string(etagBuf[:size])
 	c.Check(writtenEtag, Equals, newEtag)
@@ -1326,7 +1326,7 @@ func (s *storeDownloadSuite) TestDownloadIconOKWithExistingEtag(c *C) {
 	// Create existing file
 	c.Assert(os.WriteFile(path, existingContent, 0o644), IsNil)
 	// Set etag xattr
-	c.Assert(unix.Setxattr(path, "user.snapstore-etag", []byte(existingEtag), 0), IsNil)
+	c.Assert(unix.Setxattr(path, store.EtagXattrName, []byte(existingEtag), 0), IsNil)
 
 	restore := store.MockDownloadIcon(func(ctx context.Context, name, etag, url string, w store.ReadWriteSeekTruncater) (string, error) {
 		c.Check(name, Equals, expectedName)
@@ -1346,7 +1346,7 @@ func (s *storeDownloadSuite) TestDownloadIconOKWithExistingEtag(c *C) {
 	// Existing file (and etag) should not have been overwritten
 	c.Check(path, testutil.FileEquals, existingContent)
 	etagBuf := make([]byte, 256)
-	size, err := unix.Getxattr(path, "user.snapstore-etag", etagBuf)
+	size, err := unix.Getxattr(path, store.EtagXattrName, etagBuf)
 	c.Assert(err, IsNil)
 	writtenEtag := string(etagBuf[:size])
 	c.Check(writtenEtag, Equals, existingEtag)
@@ -1365,7 +1365,7 @@ func (s *storeDownloadSuite) TestDownloadIconOKWithChangedEtag(c *C) {
 	// Create existing file
 	c.Assert(os.WriteFile(path, existingContent, 0o644), IsNil)
 	// Set etag xattr
-	c.Assert(unix.Setxattr(path, "user.snapstore-etag", []byte(existingEtag), 0), IsNil)
+	c.Assert(unix.Setxattr(path, store.EtagXattrName, []byte(existingEtag), 0), IsNil)
 
 	restore := store.MockDownloadIcon(func(ctx context.Context, name, etag, url string, w store.ReadWriteSeekTruncater) (string, error) {
 		c.Check(name, Equals, expectedName)
@@ -1381,7 +1381,7 @@ func (s *storeDownloadSuite) TestDownloadIconOKWithChangedEtag(c *C) {
 
 	c.Check(path, testutil.FileEquals, expectedContent)
 	etagBuf := make([]byte, 256)
-	size, err := unix.Getxattr(path, "user.snapstore-etag", etagBuf)
+	size, err := unix.Getxattr(path, store.EtagXattrName, etagBuf)
 	c.Assert(err, IsNil)
 	writtenEtag := string(etagBuf[:size])
 	c.Check(writtenEtag, Equals, newEtag)
@@ -1400,7 +1400,7 @@ func (s *storeDownloadSuite) TestDownloadIconOKWithEtagTooLong(c *C) {
 	// Create existing file
 	c.Assert(os.WriteFile(path, existingContent, 0o644), IsNil)
 	// Set etag xattr
-	c.Assert(unix.Setxattr(path, "user.snapstore-etag", []byte(existingEtag), 0), IsNil)
+	c.Assert(unix.Setxattr(path, store.EtagXattrName, []byte(existingEtag), 0), IsNil)
 
 	logbuf, restore := logger.MockDebugLogger()
 	defer restore()
@@ -1420,7 +1420,7 @@ func (s *storeDownloadSuite) TestDownloadIconOKWithEtagTooLong(c *C) {
 	c.Check(path, testutil.FileEquals, expectedContent)
 	// Etag exceeded max size, so no etag should have been written
 	etagBuf := make([]byte, 2*store.MaxEtagSize)
-	_, err = unix.Getxattr(path, "user.snapstore-etag", etagBuf)
+	_, err = unix.Getxattr(path, store.EtagXattrName, etagBuf)
 	c.Check(err, testutil.ErrorIs, unix.ENODATA)
 	c.Check(logbuf.String(), testutil.Contains, "snap icon etag exceeds maximum etag length")
 }

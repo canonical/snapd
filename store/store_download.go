@@ -311,8 +311,11 @@ func (s *Store) Download(ctx context.Context, name string, targetPath string, do
 
 var errIconUnchanged = errors.New("existing icon unchanged")
 
-// Etags should all be smaller than 256B.
-const maxEtagSize = 256
+const (
+	// Etags should all be smaller than 256B.
+	maxEtagSize   = 256
+	etagXattrName = "user.snap_store_etag"
+)
 
 // DownloadIcon downloads the icon for the snap from the given download URL to
 // the given target path. Snap icons are small (<256kB) files served from an
@@ -327,7 +330,7 @@ func DownloadIcon(ctx context.Context, name string, targetPath string, downloadU
 	// Read etag of existing file at targetPath, if it exists
 	var etag string
 	etagBuf := make([]byte, maxEtagSize)
-	if size, err := unix.Getxattr(targetPath, "user.snapstore-etag", etagBuf); err == nil {
+	if size, err := unix.Getxattr(targetPath, etagXattrName, etagBuf); err == nil {
 		// if an error occurs, ignore it, and don't include an etag in the request
 		etag = string(etagBuf[:size])
 	}
@@ -367,7 +370,7 @@ func DownloadIcon(ctx context.Context, name string, targetPath string, downloadU
 		} else {
 			// If the filesystem does not support xattrs, we'll just redownload
 			// the whole icon next time, so log but do not return any error.
-			if err := unix.Setxattr(targetPath, "user.snapstore-etag", []byte(etag), 0); err != nil {
+			if err := unix.Setxattr(targetPath, etagXattrName, []byte(etag), 0); err != nil {
 				logger.Debugf("cannot save etag in icon file xattrs: %v", err)
 			}
 		}
