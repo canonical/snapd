@@ -166,6 +166,11 @@ func (cc *ConfdbControl) Serial() string {
 	return cc.HeaderString("serial")
 }
 
+// ConfdbControl returns the ConfdbControl assembled from the assertion.
+func (cc *ConfdbControl) ConfdbControl() confdb.ConfdbControl {
+	return cc.confdbControl.Clone()
+}
+
 // assembleConfdbControl creates a new confdb-control assertion after validating
 // all required fields and constraints.
 func assembleConfdbControl(assert assertionBase) (Assertion, error) {
