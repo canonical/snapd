@@ -2399,10 +2399,6 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (err error) {
 	// Write the revision-agnostic store metadata for this snap. If snap ID is
 	// empty (such as because we're sideloading a local snap file), then
 	// InstallStoreMetadata is a no-op, so no need to check beforehand.
-	// XXX: Previously, err := ... was used and didn't error, indicating that
-	// the err checked in IsErrAndNotWait was the local err (which we know to
-	// be non-nil at time of the check), not the err returned from the
-	// function. Is this analysis correct, and was this intentional?
 	undo, err := backend.InstallStoreMetadata(snapsup.SideInfo.SnapID, aux, linkCtx)
 	if err != nil {
 		return err
