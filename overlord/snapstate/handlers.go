@@ -2837,7 +2837,7 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	// try to remove the revision-agnostic store metadata. Do this outside of
 	// the firstInstall check so that any metadata which should be removed
 	// regardless of whether it's a first install or not is removed correctly.
-	if err := backend.DiscardStoreMetadata(snapsup.SideInfo.SnapID, linkCtx); err != nil {
+	if err := backend.UninstallStoreMetadata(snapsup.SideInfo.SnapID, linkCtx); err != nil {
 		return err
 	}
 
@@ -3811,16 +3811,8 @@ func (m *SnapManager) doDiscardSnap(t *state.Task, _ *tomb.Tomb) error {
 			return fmt.Errorf("cannot remove snap directory: %v", err)
 		}
 
-		// set up a link context, even though this task isn't associated with a
-		// link or unlink, so we can discard store metadata appropriately.
-		linkCtx := backend.LinkContext{
-			// there are no revisions of the snap present, so we're discarding the "first"
-			FirstInstall:      true,
-			HasOtherInstances: otherInstances,
-		}
-
 		// try to remove the revision-agnostic store metadata
-		if err := backend.DiscardStoreMetadata(snapsup.SideInfo.SnapID, linkCtx); err != nil {
+		if err := backend.DiscardStoreMetadata(snapsup.SideInfo.SnapID, otherInstances); err != nil {
 			logger.Noticef("cannot remove store metadata for %q: %v", snapsup.InstanceName(), err)
 		}
 

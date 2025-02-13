@@ -32,14 +32,15 @@ func InstallStoreMetadata(snapID string, aux AuxStoreInfo, linkCtx LinkContext) 
 	}
 	// TODO: install other types of revision-agnostic metadata
 	return func() {
-		DiscardStoreMetadata(snapID, linkCtx)
+		UninstallStoreMetadata(snapID, linkCtx)
 	}, nil
 }
 
-// DiscardStoreMetadata removes revision-agnostic metadata to disk for the snap
-// with the given snap ID. At the moment, this metadata includes auxiliary
-// store information. If hasOtherInstances is true, does nothing.
-func DiscardStoreMetadata(snapID string, linkCtx LinkContext) error {
+// UninstallStoreMetadata removes revision-agnostic metadata from disk for the
+// snap with the given snap ID. At the moment, this metadata includes auxiliary
+// store information. The given linkCtx governs what metadata is removed and
+// what is preserved.
+func UninstallStoreMetadata(snapID string, linkCtx LinkContext) error {
 	if linkCtx.HasOtherInstances || snapID == "" {
 		return nil
 	}
@@ -53,5 +54,29 @@ func DiscardStoreMetadata(snapID string, linkCtx LinkContext) error {
 		}
 	}
 	// TODO: discard other types of revision-agnostic metadata
+	return nil
+}
+
+// DiscardStoreMetadata removes revision-agnostic metadata from disk for the
+// snap with the given snap ID, and is intended to be called when the final
+// revision of that snap is being discarded. At the moment, this only calls
+// UninstallStoreMetadata. If hasOtherInstances is false, this function does
+// nothing, as another instance of the same snap may still require this
+// metadata.
+func DiscardStoreMetadata(snapID string, hasOtherInstances bool) error {
+	if hasOtherInstances || snapID == "" {
+		return nil
+	}
+	linkCtx := LinkContext{
+		// since the final revision is being discarded, we're effectively
+		// removing the "first" install of the snap
+		FirstInstall:      true,
+		HasOtherInstances: hasOtherInstances,
+	}
+	if err := UninstallStoreMetadata(snapID, linkCtx); err != nil {
+		return err
+	}
+	// TODO: discard other types of revision-agnostic metadata which should be
+	// removed when the final revision of the snap is discarded
 	return nil
 }

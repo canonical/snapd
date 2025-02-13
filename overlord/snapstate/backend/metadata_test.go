@@ -20,6 +20,9 @@
 package backend_test
 
 import (
+	"os"
+	"path/filepath"
+
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/dirs"
@@ -36,7 +39,7 @@ func (s *metadataSuite) SetUpTest(c *C) {
 	dirs.SetRootDir(c.MkDir())
 }
 
-func (s *metadataSuite) TestInstallStoreMetadataRevert(c *C) {
+func (s *metadataSuite) TestInstallStoreMetadataUndo(c *C) {
 	const snapID = "my-snap-id"
 	for _, testCase := range []struct {
 		hasOtherInstances bool
@@ -102,9 +105,57 @@ func (s *metadataSuite) TestStoreMetadataEmptySnapID(c *C) {
 	const snapID = ""
 	var aux backend.AuxStoreInfo
 	var linkCtx backend.LinkContext // empty, doesn't matter for this test
+	const hasOtherInstances = false
 	// check that empty snapID does not return an error
 	undo, err := backend.InstallStoreMetadata(snapID, aux, linkCtx)
 	c.Check(err, IsNil)
 	c.Check(undo, NotNil)
-	c.Check(backend.DiscardStoreMetadata(snapID, linkCtx), IsNil)
+	c.Check(backend.UninstallStoreMetadata(snapID, linkCtx), IsNil)
+	c.Check(backend.DiscardStoreMetadata(snapID, hasOtherInstances), IsNil)
+}
+
+func (s *metadataSuite) TestDiscardStoreMetadata(c *C) {
+	for _, testCase := range []struct {
+		auxInfo        bool
+		otherInstances bool
+		expectRemoved  bool
+	}{
+		{
+			auxInfo:        true,
+			otherInstances: false,
+			expectRemoved:  true,
+		},
+		{
+			auxInfo:        false,
+			otherInstances: false,
+			expectRemoved:  true,
+		},
+		{
+			auxInfo:        true,
+			otherInstances: true,
+			expectRemoved:  false,
+		},
+	} {
+		// Need a new tmp root dir so test cases don't collide
+		dirs.SetRootDir(c.MkDir())
+
+		const snapID = "my-id"
+		var auxinfo = []byte("some links")
+
+		if testCase.auxInfo {
+			c.Assert(os.MkdirAll(filepath.Dir(backend.AuxStoreInfoFilename(snapID)), 0o755), IsNil)
+			c.Assert(os.WriteFile(backend.AuxStoreInfoFilename(snapID), auxinfo, 0o644), IsNil)
+		}
+
+		err := backend.DiscardStoreMetadata(snapID, testCase.otherInstances)
+		c.Check(err, IsNil)
+
+		if testCase.expectRemoved {
+			c.Check(backend.AuxStoreInfoFilename(snapID), testutil.FileAbsent)
+		} else {
+			if testCase.auxInfo {
+				c.Check(backend.AuxStoreInfoFilename(snapID), testutil.FileEquals, auxinfo)
+			}
+		}
+	}
 }
