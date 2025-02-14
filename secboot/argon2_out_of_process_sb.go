@@ -35,7 +35,7 @@ func init() {
 }
 
 const outOfProcessArgon2KDFTimeout = 100 * time.Millisecond
-const argon2Cmd = "run-argon2"
+const outOfProcessArgon2Arg = "--argon2-proc"
 
 func setArgon2KDF() error {
 	// This assumes that the calling binary uses MaybeRunArgon2OutOfProcessRequestHandler early in main().
@@ -45,7 +45,7 @@ func setArgon2KDF() error {
 	}
 
 	handlerCmd := func() (*exec.Cmd, error) {
-		cmd := exec.Command(exe, argon2Cmd)
+		cmd := exec.Command(exe, outOfProcessArgon2Arg)
 		return cmd, nil
 	}
 	argon2KDF := sb.NewOutOfProcessArgon2KDF(handlerCmd, outOfProcessArgon2KDFTimeout, nil)
@@ -61,15 +61,15 @@ var sbWaitForAndRunArgon2OutOfProcessRequest = sb.WaitForAndRunArgon2OutOfProces
 // from the main() of binaries involved with sealing/unsealing of
 // keys (i.e. snapd and snap-bootstrap).
 //
-// This switches the binary to a special mode where it acts as an
-// argon2 out-of-process helper command, and exits when its work
-// is done.
+// This switches the binary to a special mode when the --argon2-proc arg
+// is detected where it acts as an argon2 out-of-process helper command
+// and exits when its work is done.
 //
 // For more context, check docs for sb.WaitForAndRunArgon2OutOfProcessRequest
 // and sb.NewOutOfProcessArgon2KDF for details on how the flow works
 // in secboot.
 func MaybeRunArgon2OutOfProcessRequestHandler() error {
-	if len(os.Args) < 2 || os.Args[1] != argon2Cmd {
+	if len(os.Args) < 2 || os.Args[1] != outOfProcessArgon2Arg {
 		return nil
 	}
 

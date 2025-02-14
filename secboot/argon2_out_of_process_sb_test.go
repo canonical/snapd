@@ -52,7 +52,7 @@ func (*argon2Suite) TestMaybeRunArgon2OutOfProcessRequestHandler(c *C) {
 	})
 	defer restore()
 
-	restore = secboot.MockOsArgs([]string{"/path/to/cmd", "run-argon2"})
+	restore = secboot.MockOsArgs([]string{"/path/to/cmd", "--argon2-proc"})
 	defer restore()
 
 	// Since we override os.Exit(0), we expect to panic
@@ -85,7 +85,7 @@ func (*argon2Suite) TestMaybeRunArgon2OutOfProcessRequestHandlerNotTriggered(c *
 		{},
 		{"/path/to/cmd"},
 		{"/path/to/cmd", "not-run-argon2"},
-		{"/path/to/cmd", "not-run-argon2", "run-argon2"},
+		{"/path/to/cmd", "not-run-argon2", "--argon2-proc"},
 	} {
 		restore := secboot.MockOsArgs(args)
 		defer restore()
@@ -116,7 +116,7 @@ func (*argon2Suite) TestMaybeRunArgon2OutOfProcessRequestHandlerError(c *C) {
 	})
 	defer restore()
 
-	restore = secboot.MockOsArgs([]string{"/path/to/cmd", "run-argon2"})
+	restore = secboot.MockOsArgs([]string{"/path/to/cmd", "--argon2-proc"})
 	defer restore()
 
 	c.Assert(secboot.MaybeRunArgon2OutOfProcessRequestHandler(), ErrorMatches, "cannot run request: boom!")
