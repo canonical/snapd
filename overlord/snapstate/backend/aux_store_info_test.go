@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2018-2022 Canonical Ltd
+ * Copyright (C) 2018-2025 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -17,7 +17,7 @@
  *
  */
 
-package snapstate_test
+package backend_test
 
 import (
 	"path/filepath"
@@ -26,7 +26,7 @@ import (
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
-	"github.com/snapcore/snapd/overlord/snapstate"
+	"github.com/snapcore/snapd/overlord/snapstate/backend"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -40,7 +40,7 @@ func (s *auxInfoSuite) SetUpTest(c *check.C) {
 
 func (s *auxInfoSuite) TestAuxStoreInfoFilename(c *check.C) {
 	// precondition check
-	filename := snapstate.AuxStoreInfoFilename("some-snap-id")
+	filename := backend.AuxStoreInfoFilename("some-snap-id")
 	c.Check(filename, check.Equals, filepath.Join(dirs.SnapAuxStoreInfoDir, "some-snap-id.json"))
 }
 
@@ -48,22 +48,22 @@ func (s *auxInfoSuite) TestAuxStoreInfoRoundTrip(c *check.C) {
 	media := snap.MediaInfos{{Type: "1-2-3-testing"}}
 	info := &snap.Info{SuggestedName: "some-snap"}
 	info.SnapID = "some-id"
-	filename := snapstate.AuxStoreInfoFilename(info.SnapID)
+	filename := backend.AuxStoreInfoFilename(info.SnapID)
 	c.Assert(osutil.FileExists(filename), check.Equals, false)
-	c.Check(snapstate.RetrieveAuxStoreInfo(info), check.IsNil)
+	c.Check(backend.RetrieveAuxStoreInfo(info), check.IsNil)
 	c.Check(info.Media, check.HasLen, 0)
 	c.Check(info.Website(), check.Equals, "")
 	c.Check(info.StoreURL, check.Equals, "")
 
-	aux := &snapstate.AuxStoreInfo{
+	aux := backend.AuxStoreInfo{
 		Media:    media,
 		Website:  "http://example.com/some-snap",
 		StoreURL: "https://snapcraft.io/some-snap",
 	}
-	c.Assert(snapstate.KeepAuxStoreInfo(info.SnapID, aux), check.IsNil)
+	c.Assert(backend.KeepAuxStoreInfo(info.SnapID, aux), check.IsNil)
 	c.Check(osutil.FileExists(filename), check.Equals, true)
 
-	c.Assert(snapstate.RetrieveAuxStoreInfo(info), check.IsNil)
+	c.Assert(backend.RetrieveAuxStoreInfo(info), check.IsNil)
 	c.Check(info.Media, check.HasLen, 1)
 	c.Check(info.Media, check.DeepEquals, media)
 	c.Check(info.Website(), check.Equals, "http://example.com/some-snap")
@@ -75,7 +75,7 @@ func (s *auxInfoSuite) TestAuxStoreInfoRoundTrip(c *check.C) {
 	info.EditedLinks = map[string][]string{
 		"website": {"http://newer-website-com"},
 	}
-	c.Assert(snapstate.RetrieveAuxStoreInfo(info), check.IsNil)
+	c.Assert(backend.RetrieveAuxStoreInfo(info), check.IsNil)
 	c.Check(info.Media, check.HasLen, 1)
 	c.Check(info.Media, check.DeepEquals, media)
 	c.Check(info.Website(), check.Equals, "http://newer-website-com")
@@ -86,13 +86,13 @@ func (s *auxInfoSuite) TestAuxStoreInfoRoundTrip(c *check.C) {
 	info.LegacyWebsite = ""
 	info.StoreURL = ""
 
-	c.Assert(snapstate.DiscardAuxStoreInfo(info.SnapID), check.IsNil)
+	c.Assert(backend.DiscardAuxStoreInfo(info.SnapID), check.IsNil)
 	c.Assert(osutil.FileExists(filename), check.Equals, false)
 
-	c.Check(snapstate.RetrieveAuxStoreInfo(info), check.IsNil)
+	c.Check(backend.RetrieveAuxStoreInfo(info), check.IsNil)
 	c.Check(info.Media, check.HasLen, 0)
 	c.Check(info.Website(), check.Equals, "")
 	c.Check(info.StoreURL, check.Equals, "")
 
-	c.Check(snapstate.DiscardAuxStoreInfo(info.SnapID), check.IsNil)
+	c.Check(backend.DiscardAuxStoreInfo(info.SnapID), check.IsNil)
 }
