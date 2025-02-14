@@ -21,6 +21,9 @@ package notify
 
 import (
 	"fmt"
+
+	"github.com/snapcore/snapd/sandbox/apparmor"
+	"github.com/snapcore/snapd/strutil"
 )
 
 // ProtocolVersion denotes a notification protocol version.
@@ -30,7 +33,7 @@ var (
 	// versions holds the notification protocols snapd supports, in order of
 	// preference. If the first version is supported, try to use it, else try
 	// the next version, etc.
-	versions = []ProtocolVersion{3}
+	versions = []ProtocolVersion{5, 3}
 
 	// versionLikelySupportedChecks provides a function for each known protocol
 	// version which returns true if that version is supported by snapd and
@@ -42,8 +45,32 @@ var (
 	// the next version in the list.
 	versionLikelySupportedChecks = map[ProtocolVersion]func() bool{
 		3: func() bool {
-			// If prompting is supported, version 3 is always assumed to be
-			// supported.
+			kernelFeatures, err := apparmor.KernelFeatures()
+			if err != nil {
+				return false
+			}
+			// Older kernels don't have notify_versions dir at all. In that
+			// case, assume v3 is supported. If the dir does exist, it must
+			// have a file called v3 for v3 to be supported.
+			if strutil.ListContains(kernelFeatures, "policy:notify_versions") {
+				if !strutil.ListContains(kernelFeatures, "policy:notify_versions:v3") {
+					return false
+				}
+			}
+			return true
+		},
+		5: func() bool {
+			kernelFeatures, err := apparmor.KernelFeatures()
+			if err != nil {
+				return false
+			}
+			if !strutil.ListContains(kernelFeatures, "policy:notify_versions:v5") {
+				return false
+			}
+			if !strutil.ListContains(kernelFeatures, "policy:notify:user:tags") {
+				// Don't use v5 if tags are not supported
+				return false
+			}
 			return true
 		},
 	}
