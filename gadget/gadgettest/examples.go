@@ -60,6 +60,36 @@ volumes:
       type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
 `
 
+// Save partition with min-size
+const RaspiSimplifiedMinSizeYaml = `
+volumes:
+  pi:
+    bootloader: u-boot
+    schema: mbr
+    structure:
+    - filesystem: vfat
+      name: ubuntu-seed
+      role: system-seed
+      size: 1200M
+      type: 0C
+    - filesystem: vfat
+      name: ubuntu-boot
+      role: system-boot
+      size: 750M
+      type: 0C
+    - filesystem: ext4
+      name: ubuntu-save
+      role: system-save
+      min-size: 8M
+      size: 32M
+      type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
+    - filesystem: ext4
+      name: ubuntu-data
+      role: system-data
+      size: 1500M
+      type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
+`
+
 // from a rpi without the kernel assets or content layout for simplicity's sake
 // and without ubuntu-save
 const RaspiSimplifiedNoSaveYaml = `
