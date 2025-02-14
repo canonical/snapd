@@ -18,6 +18,10 @@ func MockSyscall(syscall func(trap, a1, a2, a3 uintptr) (r1, r2 uintptr, err uni
 	return testutil.Mock(&doSyscall, syscall)
 }
 
+func MockApparmorKernelFeatures(f func() ([]string, error)) (restore func()) {
+	return testutil.Mock(&apparmorKernelFeatures, f)
+}
+
 // VersionAndCheck couples protocol version with a support check function which
 // returns true if the version is supported. This type is used so that
 // `versions` and `versionLikelySupportedChecks` can be mocked to avoid
