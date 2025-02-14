@@ -343,7 +343,7 @@ func (msg *MsgNotificationResponse) MarshalBinary() ([]byte, error) {
 //	  __u32 allow;
 //	  __u32 deny;
 //	  pid_t pid;          /* pid of task causing notification */
-//	  __u32 label;        /* offset into data */
+//	  __u32 label;        /* offset into data, relative to start of the structure */
 //	  __u16 class;
 //	  __u16 op;
 //	} __attribute__((packed));
@@ -429,19 +429,36 @@ func (msg *MsgNotificationOp) UnmarshalBinary(data []byte) error {
 	return nil
 }
 
-// msgNotificationFileKernel
+// msgNotificationFileKernelBase (protocol version <5)
 //
 //	struct apparmor_notif_file {
 //	  struct apparmor_notif_op base;
 //	  uid_t suid, ouid;
-//	  __u32 name;         /* offset into data */
+//	  __u32 name;         /* offset into data, relative to start of the structure */
 //	  __u8 data[];
 //	} __attribute__((packed));
-type msgNotificationFileKernel struct {
+type msgNotificationFileKernelBase struct {
 	msgNotificationOpKernel
 	SUID uint32
 	OUID uint32
 	Name uint32
+}
+
+// msgNotificationFileKernelWithTags (protocol version >=5)
+//
+//	struct apparmor_notif_file {
+//	  struct apparmor_notif_op base;
+//	  uid_t suid, ouid;
+//	  __u32 name;         /* offset into data, relative to start of the structure */
+//	  __u32 tags;         /* offset into data of first tagset header, relative to start of the structure */
+//	  __u16 tagsets_count;
+//	  __u8 data[];
+//	} __attribute__((packed));
+type msgNotificationFileKernelWithTags struct {
+	msgNotificationFileKernelBase
+	// Tags and TagsetsCount require protocol version 5 or higher
+	Tags         uint32
+	TagsetsCount uint16
 }
 
 // MsgNotificationFile describes a prompt to a specific file.
@@ -454,30 +471,49 @@ type MsgNotificationFile struct {
 	// In the future, this should be mapped to the point of view of snapd, but
 	// this is not always possible yet.
 	Name string
+	// Tagsets maps from permission mask to the ordered list of tags associated
+	// with those permissions. Tagsets requires protocol version 5 or greater.
+	Tagsets map[uint32][]string
 }
 
 // UnmarshalBinary unmarshals the message from binary form.
 func (msg *MsgNotificationFile) UnmarshalBinary(data []byte) error {
 	const prefix = "cannot unmarshal apparmor file notification message"
 
-	// Unpack the base structure.
+	// Unpack the base msgNotificationOp.
 	if err := msg.MsgNotificationOp.UnmarshalBinary(data); err != nil {
 		return err
 	}
 
+	// Unpack the base msgNotificationFile.
+	if err := msg.unmarshalBase(data); err != nil {
+		return fmt.Errorf("%v: %w", prefix, err)
+	}
+
+	// If protocol version supports tagging, unpack tags.
+	if msg.Version >= 5 {
+		if err := msg.unmarshalTags(data); err != nil {
+			return fmt.Errorf("%v: %w", prefix, err)
+		}
+	}
+
+	return nil
+}
+
+func (msg *MsgNotificationFile) unmarshalBase(data []byte) error {
 	// Unpack fixed-size elements.
 	buf := bytes.NewBuffer(data)
-	var raw msgNotificationFileKernel
+	var raw msgNotificationFileKernelBase
 	order := arch.Endian() // ioctl messages are native byte order, verify endianness if using for other messages
 	if err := binary.Read(buf, order, &raw); err != nil {
-		return fmt.Errorf("%s: cannot unpack: %s", prefix, err)
+		return fmt.Errorf("cannot unpack: %v", err)
 	}
 
 	// Unpack variable length elements.
 	unpacker := newStringUnpacker(data)
 	name, err := unpacker.UnpackString(raw.Name)
 	if err != nil {
-		return fmt.Errorf("%s: cannot unpack file name: %v", prefix, err)
+		return fmt.Errorf("cannot unpack file name: %v", err)
 	}
 
 	// Put everything together.
@@ -488,12 +524,62 @@ func (msg *MsgNotificationFile) UnmarshalBinary(data []byte) error {
 	return nil
 }
 
+type tagsetHeader struct {
+	PermissionMask uint32
+	TagCount       uint32
+	TagOffset      uint32
+}
+
+func (msg *MsgNotificationFile) unmarshalTags(data []byte) error {
+	// Unpack fixed-size elements to get tag metadata.
+	buf := bytes.NewBuffer(data)
+	var raw msgNotificationFileKernelWithTags
+	order := arch.Endian() // ioctl messages are native byte order, verify endianness if using for other messages
+	if err := binary.Read(buf, order, &raw); err != nil {
+		return fmt.Errorf("cannot unpack tagset metadata: %v", err)
+	}
+
+	if raw.Tags == 0 || raw.TagsetsCount == 0 {
+		return nil
+	}
+
+	// Unpack the tagset headers.
+	tagsets := make(map[uint32][]string, raw.TagsetsCount)
+	hdrBuf := bytes.NewBuffer(data[raw.Tags:])
+	headers := make([]tagsetHeader, raw.TagsetsCount)
+	if err := binary.Read(hdrBuf, order, headers); err != nil {
+		return fmt.Errorf("cannot unpack tagset headers: %v", err)
+	}
+
+	// Unpack the tags associated with each tagset header.
+	unpacker := newStringUnpacker(data)
+	for _, header := range headers {
+		tags, err := unpacker.UnpackStrings(header.TagOffset, header.TagCount)
+		if err != nil {
+			return fmt.Errorf("cannot unpack tags for header %+v: %v", header, err)
+		}
+		tagsets[header.PermissionMask] = tags
+	}
+
+	msg.Tagsets = tagsets
+
+	return nil
+}
+
+// It should not be necessary to marshal MsgNotificationFile structs outside of
+// test code.
 func (msg *MsgNotificationFile) MarshalBinary() ([]byte, error) {
 	if msg.Version == 0 {
 		return nil, ErrVersionUnset
 	}
-	var raw msgNotificationFileKernel
-	packer := newStringPacker(raw)
+	var raw msgNotificationFileKernelWithTags // prepare the superset of the msgNotificationFileKernel
+	var ptr any
+	if msg.Version < 5 {
+		ptr = &raw.msgNotificationFileKernelBase
+	} else {
+		ptr = &raw
+	}
+	packer := newStringPacker(ptr)
 	raw.Version = msg.Version
 	raw.NotificationType = msg.NotificationType
 	raw.Signalled = msg.Signalled
@@ -509,10 +595,16 @@ func (msg *MsgNotificationFile) MarshalBinary() ([]byte, error) {
 	raw.SUID = msg.SUID
 	raw.OUID = msg.OUID
 	raw.Name = packer.PackString(msg.Name)
+
+	if msg.Version >= 5 {
+		raw.Tags = packer.PackTagsets(msg.Tagsets)
+		raw.TagsetsCount = uint16(len(msg.Tagsets))
+	}
+
 	raw.Length = packer.TotalLen()
 	msgBuf := bytes.NewBuffer(make([]byte, 0, raw.Length))
 	order := arch.Endian() // ioctl messages are native byte order, verify endianness if using for other messages
-	if err := binary.Write(msgBuf, order, raw); err != nil {
+	if err := binary.Write(msgBuf, order, ptr); err != nil {
 		return nil, err
 	}
 	if _, err := msgBuf.Write(packer.Bytes()); err != nil {
