@@ -3366,8 +3366,21 @@ func MigrateHome(st *state.State, snaps []string) ([]*state.TaskSet, error) {
 	return tss, nil
 }
 
-// LinkNewBaseOrKernel creates a new task set with prepare/link-snap, and
-// additionally update-gadget-assets for the kernel snap, tasks for a remodel.
+// LinkNewBaseOrKernel creates a new task set that enables swapping to a base or
+// kernel snap that is already installed on the system. The primary use case for
+// this function is remodeling.
+//
+// For bases, we create prepare-snap and link-snap tasks. Technically this would
+// create link-component tasks for any installed components, but bases do not
+// currently use components.
+//
+// For kernels, we create prepare-snap, an update-gadget-assets task (if
+// needed), link-snap, and link-component tasks for any installed components.
+//
+// Note that this function previously created a prepare-kernel-snap task, but
+// this was not needed. Since this function is only used if the snap is
+// installed already installed, then it is expected that the drivers tree is
+// present. Thus, the prepare-kernel-snap task would be redundant.
 func LinkNewBaseOrKernel(st *state.State, name string, fromChange string) (*state.TaskSet, error) {
 	var snapst SnapState
 	err := Get(st, name, &snapst)
@@ -3441,11 +3454,9 @@ func addLinkNewBaseOrKernelTasks(st *state.State, snapst SnapState, ts *state.Ta
 
 	// preserve the same order as during the update
 	if info.Type() == snap.TypeKernel {
-		// this previously created a prepare-kernel-snap task, but this was not
-		// needed since this function is only used to swap to kernel snaps that
-		// are still installed on the system (but not in use. this can happen
-		// because remodeling leaves around old snaps). if the snap is
-		// installed, then it is expected that the drivers tree is present.
+		// this previously created a prepare-kernel-snap task. however, this
+		// isn't needed since we're only using this function to swap to already
+		// installed kernels. thus, the drivers tree should be present.
 
 		// kernel snaps can carry boot assets
 		gadgetUpdate := st.NewTask("update-gadget-assets", fmt.Sprintf(i18n.G("Update assets from %s %q (%s) for remodel"), info.Type(), info.InstanceName(), snapst.Current))
@@ -3492,8 +3503,24 @@ func findSnapSetupTask(tasks []*state.Task) (*state.Task, *SnapSetup, error) {
 	return nil, nil, nil
 }
 
-// AddLinkNewBaseOrKernel creates the same tasks as LinkNewBaseOrKernel but adds
-// them to the provided task set.
+// AddLinkNewBaseOrKernel appends tasks to a given task set. This enables
+// swapping to a base or kernel snap that is already installed on the system.
+// The primary use case for this function is remodeling.
+//
+// It is expected that the given task set contains a snap setup task.
+// Additionally, it should not perform any modifications to the local system.
+//
+// For bases, we create a link-snap task. Technically this would create
+// link-component tasks for any installed components, but bases do not currently
+// use components.
+//
+// For kernels, we create an update-gadget-assets task (if needed), link-snap,
+// and link-component tasks for any installed components.
+//
+// Note that this function previously created a prepare-kernel-snap task, but
+// this was not needed. Since this function is only used if the snap is
+// installed already installed, then it is expected that the drivers tree is
+// present. Thus, the prepare-kernel-snap task would be redundant.
 func AddLinkNewBaseOrKernel(st *state.State, ts *state.TaskSet) (*state.TaskSet, error) {
 	if ts.MaybeEdge(LastBeforeLocalModificationsEdge) != nil {
 		return nil, errors.New("internal error: cannot add tasks to link new base or kernel to task set that introduces local modifications")
