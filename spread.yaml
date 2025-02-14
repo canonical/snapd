@@ -1,5 +1,9 @@
 project: snapd
 
+artifacts:
+    # Populated with feature tag information when SPREAD_TAG_FEATURES is set.
+    - feature-tags
+
 environment:
     GOHOME: /home/gopath
     GOPATH: $GOHOME
@@ -114,6 +118,13 @@ environment:
     # Whether we should use snapd snap ./built-snap/ directory
     USE_PREBUILT_SNAPD_SNAP: '$(HOST: echo "${SPREAD_USE_PREBUILT_SNAPD_SNAP:-false}")'
     USE_SNAPD_SNAP_URL: '$(HOST: echo "${SPREAD_USE_SNAPD_SNAP_URL:-}")'
+
+    # When populated with a comma-separated list of feature key names,
+    # each spread task will be analyzed for the specified features and 
+    # output a json file with the results. NOTE: this should only be 
+    # used coupled with the -artifact spread tag otherwise the feature 
+    # analyses will not be downloaded from the VMs.
+    TAG_FEATURES: '$(HOST: echo "${SPREAD_TAG_FEATURES:-}")'
 
 backends:
     google:
@@ -1001,7 +1012,9 @@ suites:
             "$TESTSLIB"/prepare-restore.sh --prepare-suite
         prepare-each: |
             "$TESTSLIB"/prepare-restore.sh --prepare-suite-each
+            "$TESTSLIB"/analyze-features.sh --before-non-nested-task
         restore-each: |
+            "$TESTSLIB"/analyze-features.sh --after-non-nested-task
             "$TESTSLIB"/prepare-restore.sh --restore-suite-each
         restore: |
             "$TESTSLIB"/prepare-restore.sh --restore-suite
@@ -1016,7 +1029,9 @@ suites:
             "$TESTSLIB"/prepare-restore.sh --prepare-suite
         prepare-each: |
             "$TESTSLIB"/prepare-restore.sh --prepare-suite-each
+            "$TESTSLIB"/analyze-features.sh --before-non-nested-task
         restore-each: |
+            "$TESTSLIB"/analyze-features.sh --after-non-nested-task
             "$TESTSLIB"/prepare-restore.sh --restore-suite-each
         restore: |
             "$TESTSLIB"/prepare-restore.sh --restore-suite
@@ -1055,7 +1070,9 @@ suites:
             "$TESTSLIB"/prepare-restore.sh --prepare-suite
         prepare-each: |
             "$TESTSLIB"/prepare-restore.sh --prepare-suite-each
+            "$TESTSLIB"/analyze-features.sh --before-non-nested-task
         restore-each: |
+            "$TESTSLIB"/analyze-features.sh --after-non-nested-task
             "$TESTSLIB"/prepare-restore.sh --restore-suite-each
         restore: |
             "$TESTSLIB"/prepare-restore.sh --restore-suite
@@ -1266,13 +1283,14 @@ suites:
                 snap install ubuntu-image --channel="$OLD_UBUNTU_IMAGE_SNAP_CHANNEL" --classic
             fi
         restore-each: |
+            "$TESTSLIB"/analyze-features.sh --after-nested-task
             tests.nested vm remove
             tests.nested restore
             "$TESTSLIB"/prepare-restore.sh --restore-suite-each
         restore: |
             #shellcheck source=tests/lib/pkgdb.sh
             . "$TESTSLIB"/pkgdb.sh
-            distro_purge_package qemu genisoimage sshpass qemu-kvm cloud-image-utils xz-utils
+            distro_purge_package qemu genisoimage sshpass qemu-kvm cloud-image-utils
 
     tests/nested/classic/:
         summary: Tests for nested images
@@ -1326,6 +1344,7 @@ suites:
             "$TESTSLIB"/prepare-restore.sh --prepare-suite-each
             tests.nested create-vm classic
         restore-each: |
+            "$TESTSLIB"/analyze-features.sh --after-nested-task
             tests.nested vm remove
             "$TESTSLIB"/prepare-restore.sh --restore-suite-each
         restore: |
@@ -1333,7 +1352,7 @@ suites:
 
             #shellcheck source=tests/lib/pkgdb.sh
             . "$TESTSLIB"/pkgdb.sh
-            distro_purge_package qemu genisoimage sshpass qemu-kvm cloud-image-utils xz-utils
+            distro_purge_package qemu genisoimage sshpass qemu-kvm cloud-image-utils
 
     tests/nested/core/:
         summary: Tests for nested images
@@ -1392,6 +1411,7 @@ suites:
             "$TESTSLIB"/prepare-restore.sh --prepare-suite-each
             tests.nested create-vm core
         restore-each: |
+            "$TESTSLIB"/analyze-features.sh --after-nested-task
             tests.nested vm remove
             "$TESTSLIB"/prepare-restore.sh --restore-suite-each
         restore: |
@@ -1399,7 +1419,7 @@ suites:
 
             #shellcheck source=tests/lib/pkgdb.sh
             . "$TESTSLIB"/pkgdb.sh
-            distro_purge_package qemu genisoimage sshpass qemu-kvm cloud-image-utils xz-utils
+            distro_purge_package qemu genisoimage sshpass qemu-kvm cloud-image-utils
 
     tests/perf/nested/:
         summary: Performance and Load tests preparation suite

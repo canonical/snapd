@@ -648,6 +648,10 @@ prepare_suite() {
         prepare_classic
     fi
 
+    if [ -n "$TAG_FEATURES" ]; then
+        snap set system journal.persistent=true
+    fi
+
     # Make sure the suite starts with a clean environment and with the snapd state restored
     # shellcheck source=tests/lib/reset.sh
     "$TESTSLIB"/reset.sh --reuse-core
