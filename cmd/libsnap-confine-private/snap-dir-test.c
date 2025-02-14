@@ -15,11 +15,15 @@
  *
  */
 
-#include "snap-dir.h"
-#include "snap-dir.c"
+#define _GNU_SOURCE
 
+#include "snap-dir-private.h"
+#include "snap.h"
+
+#include <fcntl.h>
 #include <glib.h>
 #include <stdint.h>
+#include <unistd.h>
 
 #include "test-utils.h"  // For rm_rf_tmp
 
@@ -144,7 +148,7 @@ static void test_sc_probe_snap_mount_dir__bad_symlink_target(void) {
 }
 
 static void test_sc_snap_mount_dir__not_probed(void) {
-    _snap_mount_dir = NULL;
+    sc_set_snap_mount_dir(NULL);
 
     struct sc_error *err = NULL;
     const char *snap_mount_dir = sc_snap_mount_dir(&err);

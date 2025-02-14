@@ -1,16 +1,23 @@
-#include "classic.h"
+#include "classic-private.h"
+
+#ifdef HAVE_CONFIG_H
+#include "config.h"
+#endif
+
 #include "../libsnap-confine-private/cleanup-funcs.h"
 #include "../libsnap-confine-private/infofile.h"
 #include "../libsnap-confine-private/string-utils.h"
-#include "config.h"
 
 #include <stdbool.h>
 #include <stdio.h>
 #include <string.h>
 #include <unistd.h>
 
-static const char *os_release = "/etc/os-release";
-static const char *meta_snap_yaml = "/meta/snap.yaml";
+static const char *const default_os_release = "/etc/os-release";
+static const char *const default_meta_snap_yaml = "/meta/snap.yaml";
+
+static const char *os_release = default_os_release;
+static const char *meta_snap_yaml = default_meta_snap_yaml;
 
 sc_distro sc_classify_distro(void) {
     FILE *f SC_CLEANUP(sc_cleanup_file) = fopen(os_release, "r");
@@ -81,3 +88,9 @@ bool sc_is_debian_like(void) {
     }
     return false;
 }
+
+void sc_set_os_release(const char *path) { os_release = path; }
+const char *sc_get_default_os_release(void) { return default_os_release; }
+
+void sc_set_meta_snap_yaml(const char *path) { meta_snap_yaml = path; }
+const char *sc_get_default_meta_snap_yaml(void) { return default_meta_snap_yaml; }

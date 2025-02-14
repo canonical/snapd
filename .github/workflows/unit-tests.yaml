@@ -63,20 +63,6 @@ jobs:
       run: |
           ./get-deps.sh
 
-    - name: Build C
-      run: |
-          cd cmd/
-          ./autogen.sh
-          make -j$(nproc)
-
-    - name: Build Go
-      run: |
-          go build ./...
-
-    - name: Test C
-      run: |
-          cd cmd/ && make distcheck
-    
     - name: Set SNAPD_DEBUG=1
       if: ${{ inputs.snapd-debug }}
       run: echo "SNAPD_DEBUG=1" >> $GITHUB_ENV
@@ -88,6 +74,38 @@ jobs:
     - name: Set SKIP_COVERAGE=1
       if: ${{ inputs.skip-coverage }}
       run: echo "SKIP_COVERAGE=1" >> $GITHUB_ENV
+
+    - name: Build C
+      run: |
+          cd cmd/
+          ./autogen.sh \
+              --enable-test-coverage \
+              --enable-code-coverage
+          make -j$(nproc)
+
+    - name: Build Go
+      run: |
+          go build ./...
+
+    - name: Test C (distcheck)
+      run: |
+          cd cmd/ && make distcheck
+
+    - name: Test C (check & coverage)
+      run: |
+          cd cmd/
+          if [ -n "$SKIP_COVERAGE" ]; then
+              make check
+          else
+              mkdir -p "${{ github.workspace}}/.coverage"
+              make check-code-coverage
+              cp -v snap-confine-*-coverage.info "${{ github.workspace}}/.coverage/coverage-c-code-lcov.cov"
+              make clean
+              make coverage.csv
+              cp coverage.csv "${{ github.workspace }}/.coverage/coverage-c-code-gcovr.cov"
+              make clean
+          fi
+          rm -fv aminclude_static.am
 
     - name: Test Go
       run: |

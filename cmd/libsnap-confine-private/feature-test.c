@@ -15,8 +15,7 @@
  *
  */
 
-#include "feature.h"
-#include "feature.c"
+#include "feature-private.h"
 
 #include <limits.h>
 
@@ -33,13 +32,12 @@ static char *sc_testdir(void) {
     return d;
 }
 
-// Set the feature flag directory to given value, useful for cleanup handlers.
-static void set_feature_flag_dir(const char *dir) { feature_flag_dir = dir; }
+static void my_restore_feature_flag_dir(gpointer data) { sc_set_feature_flag_dir(sc_get_default_feature_flag_dir()); }
 
 // Mock the location of the feature flag directory.
 static void sc_mock_feature_flag_dir(const char *d) {
-    g_test_queue_destroy((GDestroyNotify)set_feature_flag_dir, (void *)feature_flag_dir);
-    set_feature_flag_dir(d);
+    g_test_queue_destroy((GDestroyNotify)my_restore_feature_flag_dir, NULL);
+    sc_set_feature_flag_dir(d);
 }
 
 static void test_feature_enabled__missing_dir(void) {

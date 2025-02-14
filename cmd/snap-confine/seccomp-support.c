@@ -14,8 +14,11 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
  */
-#include "seccomp-support.h"
+#ifdef HAVE_CONFIG_H
 #include "config.h"
+#endif
+
+#include "seccomp-support-private.h"
 
 #include <assert.h>
 #include <errno.h>
@@ -42,33 +45,7 @@
 
 static const char *filter_profile_dir = "/var/lib/snapd/seccomp/bpf/";
 
-// MAX_BPF_SIZE is an arbitrary limit.
-#define MAX_BPF_SIZE (32 * 1024)
-
 typedef struct sock_filter bpf_instr;
-
-// Keep in sync with snap-seccomp/main.go
-//
-// Header of a seccomp.bin2 filter file in native byte order.
-struct __attribute__((__packed__)) sc_seccomp_file_header {
-    // header: "SC"
-    char header[2];
-    // version: 0x1
-    uint8_t version;
-    // flags
-    uint8_t unrestricted;
-    // unused
-    uint8_t padding[4];
-
-    // size of allow filter in byte
-    uint32_t len_allow_filter;
-    // size of deny filter in byte
-    uint32_t len_deny_filter;
-    // reserved for future use
-    uint8_t reserved2[112];
-};
-
-static_assert(sizeof(struct sc_seccomp_file_header) == 128, "unexpected struct size");
 
 static void validate_path_has_strict_perms(const char *path) {
     struct stat stat_buf;
@@ -155,8 +132,8 @@ static void sc_must_read_filter_from_file(FILE *file, uint32_t len_bytes, char *
     }
 }
 
-static void sc_must_read_and_validate_header_from_file(FILE *file, const char *profile_path,
-                                                       struct sc_seccomp_file_header *hdr) {
+void sc_must_read_and_validate_header_from_file(FILE *file, const char *profile_path,
+                                                struct sc_seccomp_file_header *hdr) {
     if (file == NULL) {
         die("cannot open seccomp filter %s", profile_path);
     }

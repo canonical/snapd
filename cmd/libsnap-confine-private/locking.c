@@ -19,7 +19,7 @@
 #include "config.h"
 #endif
 
-#include "locking.h"
+#include "locking-private.h"
 
 #include <errno.h>
 #include <fcntl.h>
@@ -130,7 +130,7 @@ static int open_lock(const char *scope, uid_t uid) {
     return lock_fd;
 }
 
-static int sc_lock_generic(const char *scope, uid_t uid) {
+int sc_lock_generic(const char *scope, uid_t uid) {
     int lock_fd = open_lock(scope, uid);
     sc_enable_sanity_timeout();
     debug("acquiring exclusive lock (scope %s, uid %d)", scope ?: "(global)", uid);
@@ -212,3 +212,11 @@ bool sc_snap_is_inhibited(const char *snap_name, sc_snap_inhibition_hint hint) {
 
     return S_ISREG(file_info.st_mode);
 }
+
+void sc_set_inhibit_dir(const char *dir) { sc_inhibit_dir = dir; }
+
+const char *sc_get_default_inhibit_dir(void) { return SC_INHIBIT_DIR; }
+
+void sc_set_lock_dir(const char *dir) { sc_lock_dir = dir; }
+
+const char *sc_get_default_lock_dir(void) { return SC_LOCK_DIR; }

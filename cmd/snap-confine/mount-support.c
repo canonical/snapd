@@ -19,7 +19,7 @@
 #include "config.h"
 #endif
 
-#include "mount-support.h"
+#include "mount-support-private.h"
 
 #include <assert.h>
 #include <errno.h>
@@ -795,7 +795,7 @@ static void sc_detach_views_of_writable(sc_distro distro, bool normal_mode) {
  * @fulllen: full original path length.
  * Returns a pointer to the next path segment, or NULL if done.
  */
-static char *__attribute__((used)) get_nextpath(char *path, size_t *offsetp, size_t fulllen) {
+char *__attribute__((used)) get_nextpath(char *path, size_t *offsetp, size_t fulllen) {
     size_t offset = *offsetp;
 
     if (offset >= fulllen) return NULL;
@@ -810,7 +810,7 @@ static char *__attribute__((used)) get_nextpath(char *path, size_t *offsetp, siz
 /**
  * Check that @subdir is a subdir of @dir.
  **/
-static bool __attribute__((used)) is_subdir(const char *subdir, const char *dir) {
+bool __attribute__((used)) is_subdir(const char *subdir, const char *dir) {
     size_t dirlen = strlen(dir);
     size_t subdirlen = strlen(subdir);
 

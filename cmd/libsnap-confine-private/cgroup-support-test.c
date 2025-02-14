@@ -15,8 +15,6 @@
  *
  */
 
-#include "cgroup-support.c"
-
 #include <fcntl.h>
 #include <glib.h>
 #include <glib/gstdio.h>
@@ -26,11 +24,11 @@
 
 #include "../libsnap-confine-private/cleanup-funcs.h"
 #include "../libsnap-confine-private/test-utils.h"
-#include "cgroup-support.h"
+#include "cgroup-support-private.h"
 
-static void sc_set_self_cgroup_path(const char *mock);
+static void my_restore_cgroup_dir(gpointer data) { sc_set_cgroup_root(sc_get_default_cgroup_root()); }
 
-static void sc_set_cgroup_root(const char *mock) { cgroup_dir = mock; }
+static void my_restore_self_cgroup_path(gpointer data) { sc_set_self_cgroup_path(sc_get_default_self_cgroup_path()); }
 
 typedef struct _cgroupv2_is_tracking_fixture {
     char *self_cgroup;
@@ -45,20 +43,20 @@ static void cgroupv2_is_tracking_set_up(cgroupv2_is_tracking_fixture *fixture, g
     g_close(fd, &err);
     g_assert_no_error(err);
     sc_set_self_cgroup_path(fixture->self_cgroup);
+    g_test_queue_destroy((GDestroyNotify)my_restore_self_cgroup_path, NULL);
 
     fixture->root = g_dir_make_tmp("s-c-unit-test-root.XXXXXX", &err);
     sc_set_cgroup_root(fixture->root);
+    g_test_queue_destroy((GDestroyNotify)my_restore_cgroup_dir, NULL);
 }
 
 static void cgroupv2_is_tracking_tear_down(cgroupv2_is_tracking_fixture *fixture, gconstpointer user_data) {
     GError *err = NULL;
 
-    sc_set_self_cgroup_path("/proc/self/cgroup");
     /* mocked file may have been removed by the test */
     (void)g_remove(fixture->self_cgroup);
     g_free(fixture->self_cgroup);
 
-    sc_set_cgroup_root("/sys/fs/cgroup");
     char *cmd = g_strdup_printf("rm -rf %s", fixture->root);
     g_debug("cleanup command: %s", cmd);
     g_spawn_command_line_sync(cmd, NULL, NULL, NULL, &err);
@@ -172,6 +170,7 @@ static void test_sc_cgroupv2_is_tracking_bad_nesting(cgroupv2_is_tracking_fixtur
 
     /* create a hierarchy so deep that it triggers the nesting error */
     char *prev_path = g_build_filename(fixture->root, NULL);
+    const size_t max_traversal_depth = 32;
     for (size_t i = 0; i < max_traversal_depth; i++) {
         char *np = g_build_filename(prev_path, "nested", NULL);
         int ret = g_mkdir_with_parents(np, 0755);
@@ -232,8 +231,6 @@ static void test_sc_cgroupv2_is_tracking_no_cgroup_root(cgroupv2_is_tracking_fix
     bool is_tracking = sc_cgroup_v2_is_tracking_snap("foo");
     g_assert_false(is_tracking);
 }
-
-static void sc_set_self_cgroup_path(const char *mock) { self_cgroup = mock; }
 
 typedef struct _cgroupv2_own_group_fixture {
     char *self_cgroup;

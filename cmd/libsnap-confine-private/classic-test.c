@@ -15,49 +15,51 @@
  *
  */
 
-#include "classic.h"
-#include "classic.c"
+#include "classic-private.h"
 
 #include <glib.h>
+#include <unistd.h>
 
 /* restore_os_release is an internal helper for mock_os_release */
-static void restore_os_release(gpointer *old) {
-    unlink(os_release);
-    os_release = (const char *)old;
+static void restore_os_release(gpointer mocked) {
+    unlink(mocked);
+    sc_set_os_release(sc_get_default_os_release());
 }
 
 /* mock_os_release replaces the presence and contents of /etc/os-release
    as seen by classic.c. The mocked value may be NULL to have the code refer
    to an absent file. */
 static void mock_os_release(const char *mocked) {
-    const char *old = os_release;
+    const char *mocked_path = "os-release.missing";
+
     if (mocked != NULL) {
-        os_release = "os-release.test";
-        g_assert_true(g_file_set_contents(os_release, mocked, -1, NULL));
-    } else {
-        os_release = "os-release.missing";
+        mocked_path = "os-release.test";
+        g_assert_true(g_file_set_contents(mocked_path, mocked, -1, NULL));
     }
-    g_test_queue_destroy((GDestroyNotify)restore_os_release, (gpointer)old);
+
+    sc_set_os_release(mocked_path);
+    g_test_queue_destroy((GDestroyNotify)restore_os_release, (gpointer)mocked_path);
 }
 
 /* restore_meta_snap_yaml is an internal helper for mock_meta_snap_yaml */
-static void restore_meta_snap_yaml(gpointer *old) {
-    unlink(meta_snap_yaml);
-    meta_snap_yaml = (const char *)old;
+static void restore_meta_snap_yaml(gpointer mocked) {
+    unlink(mocked);
+    sc_set_meta_snap_yaml(sc_get_default_meta_snap_yaml());
 }
 
 /* mock_meta_snap_yaml replaces the presence and contents of /meta/snap.yaml
    as seen by classic.c. The mocked value may be NULL to have the code refer
    to an absent file. */
 static void mock_meta_snap_yaml(const char *mocked) {
-    const char *old = meta_snap_yaml;
+    const char *mocked_path = "snap-yaml.missing";
+
     if (mocked != NULL) {
-        meta_snap_yaml = "snap-yaml.test";
-        g_assert_true(g_file_set_contents(meta_snap_yaml, mocked, -1, NULL));
-    } else {
-        meta_snap_yaml = "snap-yaml.missing";
+        mocked_path = "snap-yaml.test";
+        g_assert_true(g_file_set_contents(mocked_path, mocked, -1, NULL));
     }
-    g_test_queue_destroy((GDestroyNotify)restore_meta_snap_yaml, (gpointer)old);
+
+    sc_set_meta_snap_yaml(mocked_path);
+    g_test_queue_destroy((GDestroyNotify)restore_meta_snap_yaml, (gpointer)mocked_path);
 }
 
 static const char *os_release_classic =

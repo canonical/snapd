@@ -15,10 +15,7 @@
  *
  */
 
-#include "mount-support.h"
-#include "mount-support-nvidia.c"
-#include "mount-support-nvidia.h"
-#include "mount-support.c"
+#include "mount-support-private.h"
 
 #include <glib.h>
 #include <glib/gstdio.h>

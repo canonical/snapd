@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017 Canonical Ltd
+ * Copyright (C) 2025 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -14,9 +14,15 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
  */
+#ifndef SNAP_CONFINE_CLASSIC_PRIVATE_H
+#define SNAP_CONFINE_CLASSIC_PRIVATE_H
 
-#include "secure-getenv.h"
+#include "classic.h"
 
-#include <glib.h>
+void sc_set_os_release(const char *path);
+const char *sc_get_default_os_release(void);
 
-// TODO: write some tests
+void sc_set_meta_snap_yaml(const char *path);
+const char *sc_get_default_meta_snap_yaml(void);
+
+#endif

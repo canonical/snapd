@@ -16,7 +16,6 @@
  */
 
 #include "error.h"
-#include "error.c"
 
 #include <errno.h>
 #include <glib.h>

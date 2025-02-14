@@ -16,9 +16,7 @@
  */
 
 #include "fault-injection.h"
-#include "fault-injection.c"
 
-#include <errno.h>
 #include <glib.h>
 
 static bool broken(struct sc_fault_state *state, void *ptr) { return true; }

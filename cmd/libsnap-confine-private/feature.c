@@ -17,7 +17,7 @@
 
 #define _GNU_SOURCE
 
-#include "feature.h"
+#include "feature-private.h"
 
 #include <errno.h>
 #include <fcntl.h>
@@ -28,7 +28,8 @@
 #include "cleanup-funcs.h"
 #include "utils.h"
 
-static const char *feature_flag_dir = "/var/lib/snapd/features";
+static const char *const default_feature_flag_dir = "/var/lib/snapd/features";
+static const char *feature_flag_dir = default_feature_flag_dir;
 
 bool sc_feature_enabled(sc_feature_flag flag) {
     const char *file_name;
@@ -68,3 +69,8 @@ bool sc_feature_enabled(sc_feature_flag flag) {
 
     return S_ISREG(file_info.st_mode);
 }
+
+// Set the feature flag directory to given value, useful for cleanup handlers.
+void sc_set_feature_flag_dir(const char *dir) { feature_flag_dir = dir; }
+
+const char *sc_get_default_feature_flag_dir(void) { return default_feature_flag_dir; }

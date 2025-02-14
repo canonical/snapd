@@ -183,7 +183,7 @@ void sc_cleanup_args(struct sc_args **ptr) {
     *ptr = NULL;
 }
 
-bool sc_args_is_version_query(const struct sc_args *args) {
+bool __attribute__((noinline)) sc_args_is_version_query(const struct sc_args *args) {
     if (args == NULL) {
         die("cannot obtain version query flag from NULL argument parser");
     }

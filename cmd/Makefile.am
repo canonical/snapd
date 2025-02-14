@@ -1,4 +1,3 @@
-
 EXTRA_DIST = VERSION snap-confine/PORTING
 CLEANFILES =
 TESTS =
@@ -7,11 +6,16 @@ dist_man_MANS =
 noinst_PROGRAMS =
 noinst_LIBRARIES =
 
-AM_CFLAGS = $(CHECK_CFLAGS)
+AM_CFLAGS = $(CHECK_CFLAGS) $(CODE_COVERAGE_CFLAGS)
+AM_LDFLAGS = $(CHECK_LDFLAGS)
+AM_LIBS = $(CODE_COVERAGE_LIBS)
 
 if USE_INTERNAL_BPF_HEADERS
 VENDOR_BPF_HEADERS_CFLAGS = -I$(srcdir)/libsnap-confine-private/bpf/vendor
 endif
+
+CODE_COVERAGE_LCOV_SHOPTS = --exclude '*-test.c'
+CODE_COVERAGE_GENHTML_OPTIONS =
 
 subdirs = \
 		  libsnap-confine-private \
@@ -96,10 +100,12 @@ libsnap_confine_private_a_SOURCES = \
 	libsnap-confine-private/cgroup-freezer-support.h \
 	libsnap-confine-private/cgroup-support.c \
 	libsnap-confine-private/cgroup-support.h \
+	libsnap-confine-private/cgroup-support-private.h \
 	libsnap-confine-private/device-cgroup-support.c \
 	libsnap-confine-private/device-cgroup-support.h \
 	libsnap-confine-private/classic.c \
 	libsnap-confine-private/classic.h \
+	libsnap-confine-private/classic-private.h \
 	libsnap-confine-private/cleanup-funcs.c \
 	libsnap-confine-private/cleanup-funcs.h \
 	libsnap-confine-private/error.c \
@@ -108,14 +114,17 @@ libsnap_confine_private_a_SOURCES = \
 	libsnap-confine-private/fault-injection.h \
 	libsnap-confine-private/feature.c \
 	libsnap-confine-private/feature.h \
+	libsnap-confine-private/feature-private.h \
 	libsnap-confine-private/infofile.c \
 	libsnap-confine-private/infofile.h \
 	libsnap-confine-private/locking.c \
 	libsnap-confine-private/locking.h \
+	libsnap-confine-private/locking-private.h \
 	libsnap-confine-private/mount-opt.c \
 	libsnap-confine-private/mount-opt.h \
 	libsnap-confine-private/mountinfo.c \
 	libsnap-confine-private/mountinfo.h \
+	libsnap-confine-private/mountinfo-private.h \
 	libsnap-confine-private/panic.c \
 	libsnap-confine-private/panic.h \
 	libsnap-confine-private/privs.c \
@@ -124,6 +133,7 @@ libsnap_confine_private_a_SOURCES = \
 	libsnap-confine-private/secure-getenv.h \
 	libsnap-confine-private/snap-dir.c \
 	libsnap-confine-private/snap-dir.h \
+	libsnap-confine-private/snap-dir-private.h \
 	libsnap-confine-private/snap.c \
 	libsnap-confine-private/snap.h \
 	libsnap-confine-private/string-utils.c \
@@ -131,7 +141,8 @@ libsnap_confine_private_a_SOURCES = \
 	libsnap-confine-private/tool.c \
 	libsnap-confine-private/tool.h \
 	libsnap-confine-private/utils.c \
-	libsnap-confine-private/utils.h
+	libsnap-confine-private/utils.h \
+	libsnap-confine-private/utils-private.h
 if ENABLE_BPF
 libsnap_confine_private_a_SOURCES += \
 	libsnap-confine-private/bpf-support.c \
@@ -164,6 +175,7 @@ libsnap_confine_private_unit_tests_SOURCES = \
 	libsnap-confine-private/classic-test.c \
 	libsnap-confine-private/cleanup-funcs-test.c \
 	libsnap-confine-private/error-test.c \
+	libsnap-confine-private/fault-injection.c \
 	libsnap-confine-private/fault-injection-test.c \
 	libsnap-confine-private/feature-test.c \
 	libsnap-confine-private/infofile-test.c \
@@ -180,7 +192,7 @@ libsnap_confine_private_unit_tests_SOURCES = \
 	libsnap-confine-private/utils-test.c
 
 libsnap_confine_private_unit_tests_CFLAGS = $(AM_CFLAGS) $(VENDOR_BPF_HEADERS_CFLAGS) $(GLIB_CFLAGS)
-libsnap_confine_private_unit_tests_LDADD = $(GLIB_LIBS) libsnap-confine-private-test-support.a
+libsnap_confine_private_unit_tests_LDADD = $(GLIB_LIBS) libsnap-confine-private.a libsnap-confine-private-test-support.a
 libsnap_confine_private_unit_tests_CFLAGS += -D_ENABLE_FAULT_INJECTION
 libsnap_confine_private_unit_tests_STATIC =
 
@@ -223,7 +235,7 @@ decode-mount-opts/decode-mount-opts$(EXEEXT): $(decode_mount_opts_decode_mount_o
 	@rm -f decode-mount-opts/decode-mount-opts$(EXEEXT)
 	$(AM_V_CCLD)$(decode_mount_opts_decode_mount_opts_LINK) $(decode_mount_opts_decode_mount_opts_OBJECTS) $(decode_mount_opts_decode_mount_opts_LDADD) $(LIBS)
 
-decode-mount-opts/decode-mount-opts$(EXEEXT): LIBS += -Wl,-Bstatic $(decode_mount_opts_decode_mount_opts_STATIC) -Wl,-Bdynamic
+decode-mount-opts/decode-mount-opts$(EXEEXT): LIBS += -Wl,-Bstatic $(decode_mount_opts_decode_mount_opts_STATIC) -Wl,-Bdynamic $(AM_LIBS)
 
 ##
 ## snap-confine
@@ -240,16 +252,20 @@ EXTRA_DIST += snap-confine/snap-confine.apparmor.in
 snap_confine_snap_confine_SOURCES = \
 	snap-confine/cookie-support.c \
 	snap-confine/cookie-support.h \
+	snap-confine/cookie-support-private.h \
 	snap-confine/mount-support-nvidia.c \
 	snap-confine/mount-support-nvidia.h \
 	snap-confine/mount-support.c \
 	snap-confine/mount-support.h \
+	snap-confine/mount-support-private.h \
 	snap-confine/ns-support.c \
 	snap-confine/ns-support.h \
+	snap-confine/ns-support-private.h \
 	snap-confine/seccomp-support-ext.c \
 	snap-confine/seccomp-support-ext.h \
 	snap-confine/seccomp-support.c \
 	snap-confine/seccomp-support.h \
+	snap-confine/seccomp-support-private.h \
 	snap-confine/snap-confine-args.c \
 	snap-confine/snap-confine-args.h \
 	snap-confine/snap-confine-invocation.c \
@@ -332,11 +348,19 @@ snap-confine/snap-confine-debug$(EXEEXT): LIBS += -Wl,-Bstatic $(snap_confine_sn
 if WITH_UNIT_TESTS
 noinst_PROGRAMS += snap-confine/unit-tests
 snap_confine_unit_tests_SOURCES = \
+	snap-confine/cookie-support.c \
 	snap-confine/cookie-support-test.c \
+	snap-confine/mount-support.c \
+	snap-confine/mount-support-nvidia.c \
 	snap-confine/mount-support-test.c \
+	snap-confine/ns-support.c \
 	snap-confine/ns-support-test.c \
+	snap-confine/seccomp-support.c \
+	snap-confine/seccomp-support-ext.c \
 	snap-confine/seccomp-support-test.c \
+	snap-confine/snap-confine-args.c \
 	snap-confine/snap-confine-args-test.c \
+	snap-confine/snap-confine-invocation.c \
 	snap-confine/snap-confine-invocation-test.c
 snap_confine_unit_tests_CFLAGS = $(snap_confine_snap_confine_CFLAGS) $(GLIB_CFLAGS)
 snap_confine_unit_tests_LDADD = $(snap_confine_snap_confine_LDADD) $(GLIB_LIBS) libsnap-confine-private-test-support.a
@@ -435,7 +459,9 @@ snap_device_helper_snap_device_helper_LDADD = libsnap-confine-private.a
 if WITH_UNIT_TESTS
 noinst_PROGRAMS += snap-device-helper/unit-tests
 snap_device_helper_unit_tests_SOURCES = \
-	snap-device-helper/snap-device-helper-test.c
+	snap-device-helper/snap-device-helper-test.c \
+	snap-device-helper/snap-device-helper.c \
+	snap-device-helper/snap-device-helper.h
 snap_device_helper_unit_tests_CFLAGS = $(AM_CFLAGS) $(snap_device_helper_snap_device_helper_CFLAGS) $(GLIB_CFLAGS)
 snap_device_helper_unit_tests_LDADD = $(GLIB_LIBS) libsnap-confine-private.a libsnap-confine-private-test-support.a
 snap_device_helper_unit_tests_LDFLAGS =$(snap_device_helper_snap_device_helper_LDFLAGS)
@@ -561,4 +587,17 @@ if APPARMOR
 APPARMOR_DISTCHECK_CONFIGURE_FLAGS=--with-apparmorconfigdir=$${dc_install_base}/etc/apparmor.d
 else
 APPARMOR_DISTCHECK_CONFIGURE_FLAGS=--disable-apparmor
+endif
+
+CLEANFILES += coverage.csv
+coverage.csv: check
+	gcovr \
+		--csv \
+		-o $@ $(builddir)
+
+include $(top_srcdir)/aminclude_static.am
+
+if CODE_COVERAGE_ENABLED
+clean-local: code-coverage-clean
+distclean-local: code-coverage-dist-clean
 endif

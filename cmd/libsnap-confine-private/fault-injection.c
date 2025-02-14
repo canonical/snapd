@@ -31,7 +31,7 @@ struct sc_fault {
 
 static struct sc_fault *sc_faults = NULL;
 
-bool sc_faulty(const char *name, void *ptr) {
+static bool _sc_faulty(const char *name, void *ptr) {
     for (struct sc_fault *fault = sc_faults; fault != NULL; fault = fault->next) {
         if (strcmp(name, fault->name) == 0) {
             bool is_faulty = fault->fn(&fault->state, ptr);
@@ -65,6 +65,8 @@ void sc_reset_faults(void) {
 
 #else  // ifndef _ENABLE_FAULT_INJECTION
 
-bool sc_faulty(const char *name, void *ptr) { return false; }
+static bool _sc_faulty(const char *name, void *ptr) { return false; }
 
 #endif  // ifndef _ENABLE_FAULT_INJECTION
+
+bool sc_faulty(const char *name, void *ptr) { return _sc_faulty(name, ptr); }

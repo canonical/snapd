@@ -15,11 +15,12 @@
  *
  */
 
-#include "seccomp-support.c"
-#include "seccomp-support-ext.c"
+#include "../libsnap-confine-private/cleanup-funcs.h"
+#include "seccomp-support-private.h"
 
 #include <glib.h>
 #include <glib/gstdio.h>
+#include <unistd.h>
 
 static void make_seccomp_profile(struct sc_seccomp_file_header *hdr, int *fd, char **fname) {
     *fd = g_file_open_tmp(NULL, fname, NULL);

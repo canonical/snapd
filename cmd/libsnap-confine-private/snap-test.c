@@ -16,7 +16,6 @@
  */
 
 #include "snap.h"
-#include "snap.c"
 
 #include <glib.h>
 

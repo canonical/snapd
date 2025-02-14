@@ -17,7 +17,7 @@
 
 #define _GNU_SOURCE
 
-#include "cgroup-support.h"
+#include "cgroup-support-private.h"
 
 #include <dirent.h>
 #include <errno.h>
@@ -69,7 +69,8 @@ void sc_cgroup_create_and_join(const char *parent, const char *name, pid_t pid) 
     debug("moved process %ld to cgroup hierarchy %s/%s", (long)pid, parent, name);
 }
 
-static const char *cgroup_dir = "/sys/fs/cgroup";
+static const char *const default_cgroup_dir = "/sys/fs/cgroup";
+static const char *cgroup_dir = default_cgroup_dir;
 
 // from statfs(2)
 #ifndef CGROUP2_SUPER_MAGIC
@@ -200,7 +201,8 @@ bool sc_cgroup_v2_is_tracking_snap(const char *snap_instance) {
     return traverse_looking_for_prefix_in_dir(root, tracking_group_name, just_leaf, 1);
 }
 
-static const char *self_cgroup = "/proc/self/cgroup";
+static const char *const default_self_cgroup = "/proc/self/cgroup";
+static const char *self_cgroup = default_self_cgroup;
 
 char *sc_cgroup_v2_own_path_full(void) {
     FILE *in SC_CLEANUP(sc_cleanup_file) = fopen(self_cgroup, "r");
@@ -239,3 +241,11 @@ char *sc_cgroup_v2_own_path_full(void) {
     }
     return own_group;
 }
+
+void sc_set_cgroup_root(const char *dir) { cgroup_dir = dir; }
+
+const char *sc_get_default_cgroup_root(void) { return default_cgroup_dir; }
+
+void sc_set_self_cgroup_path(const char *path) { self_cgroup = path; };
+
+const char *sc_get_default_self_cgroup_path(void) { return default_self_cgroup; }

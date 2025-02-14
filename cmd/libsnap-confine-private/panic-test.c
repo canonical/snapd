@@ -16,9 +16,9 @@
  */
 
 #include "panic.h"
-#include "panic.c"
 
 #include <glib.h>
+#include <stdio.h>
 
 static void test_panic(void) {
     if (g_test_subprocess()) {
