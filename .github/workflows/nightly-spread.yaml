@@ -70,14 +70,26 @@ jobs:
       use-snapd-snap-from-master: true
       spread-experimental-features: gate-auto-refresh-hook
 
-  spread-test-openstack:
-    if: ${{ github.event.schedule == '0 3 * * *' || (github.event_name == 'workflow_dispatch' && inputs.job == 'spread-test-openstack') }}
+  spread-master-google:
+    if: ${{ github.event.schedule == '0 3 * * *' || (github.event_name == 'workflow_dispatch' && inputs.job == 'spread-master-google') }}
+    uses: ./.github/workflows/spread-tests.yaml
+    with:
+      runs-on: '["self-hosted", "spread-enabled"]'
+      group: google
+      backend: google
+      systems: 'ALL'
+      tasks: 'tests/...'
+      rules: ''
+      use-snapd-snap-from-master: true
+
+  spread-master-openstack:
+    if: ${{ github.event.schedule == '0 3 * * *' || (github.event_name == 'workflow_dispatch' && inputs.job == 'spread-master-openstack') }}
     uses: ./.github/workflows/spread-tests.yaml
     with:
       runs-on: '["self-hosted", "spread-enabled"]'
       group: 'openstack'
       backend: 'openstack'
       systems: 'ALL'
-      tasks: 'tests/main/...'
+      tasks: 'tests/...'
       rules: ''
       use-snapd-snap-from-master: true
