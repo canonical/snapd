@@ -263,6 +263,30 @@ var MockGadgetPartitionedOnDiskVolume = gadget.OnDiskVolume{
 	},
 }
 
+// This matches the disk mapping set by MockGadgetPartitionedDisk
+var MockGadgetEMMCOnDiskVolume = gadget.OnDiskVolume{
+	Device:           "/dev/mmcblk0",
+	Schema:           "emmc",
+	Size:             5120 * quantity.SizeMiB,
+	UsableSectorsEnd: 5120 * oneMeg / 512,
+	SectorSize:       512,
+	ID:               "86964016-3b5c-477e-9828-24ba9c552d39",
+	Structure: []gadget.OnDiskStructure{
+		{
+			Name:      "boot0",
+			Node:      "/dev/mmcblk0boot0",
+			Size:      quantity.SizeMiB,
+			DiskIndex: 1,
+		},
+		{
+			Name:      "boot1",
+			Node:      "/dev/mmcblk0boot1",
+			Size:      quantity.SizeMiB,
+			DiskIndex: 2,
+		},
+	},
+}
+
 func MockGadgetPartitionedDisk(gadgetYaml, gadgetRoot string) (ginfo *gadget.Info, laidVols map[string]*gadget.LaidOutVolume, model *asserts.Model, restore func(), err error) {
 	// TODO test for UC systems too
 	model = boottest.MakeMockClassicWithModesModel()
@@ -282,86 +306,134 @@ func MockGadgetPartitionedDisk(gadgetYaml, gadgetRoot string) (ginfo *gadget.Inf
 		return nil, nil, nil, nil, err
 	}
 
+	mappings := make(map[string]*disks.MockDiskMapping)
+
 	// "Real" disk data that will be read. Filesystem type and label are not
 	// filled as the filesystem is considered not created yet, which is
 	// expected by some tests (some option would have to be added to fill or
 	// not if this data is needed by some test in the future).
-	vdaSysPath := "/sys/devices/pci0000:00/0000:00:03.0/virtio1/block/vda"
-	disk := &disks.MockDiskMapping{
-		Structure: []disks.Partition{
-			{
-				PartitionLabel:   "BIOS\\x20Boot",
-				PartitionType:    "21686148-6449-6E6F-744E-656564454649",
-				KernelDeviceNode: "/dev/vda1",
-				DiskIndex:        1,
-				StartInBytes:     oneMeg,
-				SizeInBytes:      oneMeg,
-			},
-			{
-				PartitionLabel:   "EFI System partition",
-				PartitionUUID:    "4b436628-71ba-43f9-aa12-76b84fe32728",
-				PartitionType:    "C12A7328-F81F-11D2-BA4B-00A0C93EC93B",
-				FilesystemUUID:   "04D6-5AE2",
-				FilesystemType:   "vfat",
-				KernelDeviceNode: "/dev/vda2",
-				DiskIndex:        2,
-				StartInBytes:     2 * oneMeg,
-				SizeInBytes:      99 * oneMeg,
-			},
-			{
-				PartitionLabel:   "ubuntu-boot",
-				PartitionUUID:    "ade3ba65-7831-fd40-bbe2-e01c9774ed5b",
-				PartitionType:    "0FC63DAF-8483-4772-8E79-3D69D8477DE4",
-				FilesystemUUID:   "5b3e775a-407d-4af7-aa16-b92a8b7507e6",
-				FilesystemLabel:  "ubuntu-boot",
-				FilesystemType:   "ext4",
-				KernelDeviceNode: "/dev/vda3",
-				DiskIndex:        3,
-				StartInBytes:     1202 * oneMeg,
-				SizeInBytes:      750 * oneMeg,
-			},
-			{
-				PartitionLabel:   "ubuntu-save",
-				PartitionUUID:    "f1d01870-194b-8a45-84c0-0d1c90e17d9d",
-				PartitionType:    "0FC63DAF-8483-4772-8E79-3D69D8477DE4",
-				FilesystemUUID:   "6766b605-9cd5-47ae-bc48-807c778b9987",
-				FilesystemLabel:  "ubuntu-save",
-				FilesystemType:   "ext4",
-				KernelDeviceNode: "/dev/vda4",
-				DiskIndex:        4,
-				StartInBytes:     1952 * oneMeg,
-				SizeInBytes:      16 * oneMeg,
-			},
-			{
-				PartitionLabel:   "ubuntu-data",
-				PartitionUUID:    "4994f0e5-1ead-1a4d-b696-2d8cb1fa980d",
-				PartitionType:    "0FC63DAF-8483-4772-8E79-3D69D8477DE4",
-				FilesystemUUID:   "4e29a1e9-526d-48fc-a5c2-4f97e7e011e2",
-				FilesystemLabel:  "ubuntu-data",
-				FilesystemType:   "ext4",
-				KernelDeviceNode: "/dev/vda5",
-				DiskIndex:        5,
-				StartInBytes:     1968 * oneMeg,
-				SizeInBytes:      4096 * oneMeg,
-			},
-		},
-		DiskHasPartitions: true,
-		DevNum:            "disk1",
-		DevNode:           "/dev/vda",
-		DevPath:           vdaSysPath,
-		// assume 34 sectors at end for GPT headers backup
-		DiskUsableSectorEnd: 7000*oneMeg/512 - 34,
-		DiskSizeInBytes:     7000 * oneMeg,
-		SectorSizeBytes:     512,
-		DiskSchema:          "gpt",
-		ID:                  "f0eef013-a777-4a27-aaf0-dbb5cf68c2b6",
+	for _, vol := range ginfo.Volumes {
+		switch vol.Name {
+		case "pc":
+			vdaSysPath := "/sys/devices/pci0000:00/0000:00:03.0/virtio1/block/vda"
+			disk := &disks.MockDiskMapping{
+				Structure: []disks.Partition{
+					{
+						PartitionLabel:   "BIOS\\x20Boot",
+						PartitionType:    "21686148-6449-6E6F-744E-656564454649",
+						KernelDeviceNode: "/dev/vda1",
+						DiskIndex:        1,
+						StartInBytes:     oneMeg,
+						SizeInBytes:      oneMeg,
+					},
+					{
+						PartitionLabel:   "EFI System partition",
+						PartitionUUID:    "4b436628-71ba-43f9-aa12-76b84fe32728",
+						PartitionType:    "C12A7328-F81F-11D2-BA4B-00A0C93EC93B",
+						FilesystemUUID:   "04D6-5AE2",
+						FilesystemType:   "vfat",
+						KernelDeviceNode: "/dev/vda2",
+						DiskIndex:        2,
+						StartInBytes:     2 * oneMeg,
+						SizeInBytes:      99 * oneMeg,
+					},
+					{
+						PartitionLabel:   "ubuntu-boot",
+						PartitionUUID:    "ade3ba65-7831-fd40-bbe2-e01c9774ed5b",
+						PartitionType:    "0FC63DAF-8483-4772-8E79-3D69D8477DE4",
+						FilesystemUUID:   "5b3e775a-407d-4af7-aa16-b92a8b7507e6",
+						FilesystemLabel:  "ubuntu-boot",
+						FilesystemType:   "ext4",
+						KernelDeviceNode: "/dev/vda3",
+						DiskIndex:        3,
+						StartInBytes:     1202 * oneMeg,
+						SizeInBytes:      750 * oneMeg,
+					},
+					{
+						PartitionLabel:   "ubuntu-save",
+						PartitionUUID:    "f1d01870-194b-8a45-84c0-0d1c90e17d9d",
+						PartitionType:    "0FC63DAF-8483-4772-8E79-3D69D8477DE4",
+						FilesystemUUID:   "6766b605-9cd5-47ae-bc48-807c778b9987",
+						FilesystemLabel:  "ubuntu-save",
+						FilesystemType:   "ext4",
+						KernelDeviceNode: "/dev/vda4",
+						DiskIndex:        4,
+						StartInBytes:     1952 * oneMeg,
+						SizeInBytes:      16 * oneMeg,
+					},
+					{
+						PartitionLabel:   "ubuntu-data",
+						PartitionUUID:    "4994f0e5-1ead-1a4d-b696-2d8cb1fa980d",
+						PartitionType:    "0FC63DAF-8483-4772-8E79-3D69D8477DE4",
+						FilesystemUUID:   "4e29a1e9-526d-48fc-a5c2-4f97e7e011e2",
+						FilesystemLabel:  "ubuntu-data",
+						FilesystemType:   "ext4",
+						KernelDeviceNode: "/dev/vda5",
+						DiskIndex:        5,
+						StartInBytes:     1968 * oneMeg,
+						SizeInBytes:      4096 * oneMeg,
+					},
+				},
+				DiskHasPartitions: true,
+				DevNum:            "disk1",
+				DevNode:           "/dev/vda",
+				DevPath:           vdaSysPath,
+				// assume 34 sectors at end for GPT headers backup
+				DiskUsableSectorEnd: 7000*oneMeg/512 - 34,
+				DiskSizeInBytes:     7000 * oneMeg,
+				SectorSizeBytes:     512,
+				DiskSchema:          "gpt",
+				ID:                  "f0eef013-a777-4a27-aaf0-dbb5cf68c2b6",
+			}
+			mappings[vdaSysPath] = disk
+			// this simulates a symlink in /sys/block which points to the above path
+			mappings["/sys/block/vda"] = disk
+		case "my-emmc":
+			mmcSysPath := "/sys/devices/platform/emmc2bus/fe340000.emmc2/mmc_host/mmc0/mmc0:0001/block/mmcblk0"
+			disk := &disks.MockDiskMapping{
+				DevNode:             "/dev/mmcblk0",
+				DevPath:             mmcSysPath,
+				DevNum:              "525:1",
+				DiskUsableSectorEnd: 5120 * oneMeg / 512,
+				DiskSizeInBytes:     5120 * oneMeg,
+				SectorSizeBytes:     512,
+				DiskSchema:          "emmc",
+				ID:                  "86964016-3b5c-477e-9828-24ba9c552d39",
+				Structure: []disks.Partition{
+					{
+						PartitionLabel:   "boot0",
+						Major:            525,
+						Minor:            2,
+						KernelDeviceNode: "/dev/mmcblk0boot0",
+						KernelDevicePath: fmt.Sprintf("%sboot0", mmcSysPath),
+						DiskIndex:        1,
+						StartInBytes:     0,
+						SizeInBytes:      oneMeg,
+					},
+					{
+						PartitionLabel:   "boot1",
+						Major:            525,
+						Minor:            3,
+						KernelDeviceNode: "/dev/mmcblk0boot1",
+						KernelDevicePath: fmt.Sprintf("%sboot1", mmcSysPath),
+						DiskIndex:        2,
+						StartInBytes:     0,
+						SizeInBytes:      oneMeg,
+					},
+				},
+			}
+			mappings[mmcSysPath] = disk
+			// symlink to the disk in /dev
+			mappings["/dev/mmcblk0"] = disk
+		}
 	}
-	diskMapping := map[string]*disks.MockDiskMapping{
-		vdaSysPath: disk,
-		// this simulates a symlink in /sys/block which points to the above path
-		"/sys/block/vda": disk,
-	}
-	restore = disks.MockDevicePathToDiskMapping(diskMapping)
 
+	rsNamings := disks.MockDeviceNameToDiskMapping(mappings)
+	rsPaths := disks.MockDevicePathToDiskMapping(mappings)
+
+	restore = func() {
+		rsNamings()
+		rsPaths()
+	}
 	return ginfo, laidVols, model, restore, nil
 }

@@ -21,7 +21,6 @@ environment:
   NESTED_REPACK_GADGET_SNAP: false
   NESTED_REPACK_KERNEL_SNAP: false
   NESTED_REPACK_BASE_SNAP: false
-  NESTED_FORCE_MS_KEYS: true
 
   MODE/recover: "recover"
   MODE/factory_reset: "factory-reset"
