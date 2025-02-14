@@ -106,6 +106,11 @@ func createMissingPartitions(dv *gadget.OnDiskVolume, gv *gadget.Volume, opts *C
 	}
 
 	// Re-read the partition table
+	// TODO this is not really working if, in a reinstall, we deleted
+	// partitions of a different size of the ones we are creating (see
+	// comment on why we are not doing this in buildPartitionList). In any
+	// case, it seems that we have had problems in the past with partx and
+	// maybe we should try something else (partprobe?).
 	if err := reloadPartitionTable(opts.GadgetRootDir, dv.Device); err != nil {
 		return nil, err
 	}
@@ -198,6 +203,20 @@ func buildPartitionList(dl *gadget.OnDiskVolume, vol *gadget.Volume, opts *Creat
 			continue
 		}
 
+		// We use the offset/size of removed partitions in reinstalls
+		// instead of using "size" from the gadget. These data can be
+		// different from the gadget size field when it is possible to
+		// specify sizes in the [min-size, size] interval. With this
+		// approach we make sure that:
+		//
+		// - There are no overlaps with non-deleted partitions after
+		//   the deleted ones
+		// - We do not end up with smaller than before data partition
+		// - If using an installer, it might have decided on partition
+		//   sizes and we would be overriding that decision
+		//
+		// If we decide a different approach in the future these points
+		// will need to be considered.
 		var offset quantity.Offset
 		var size quantity.Size
 		if prevOffsetSize, ok := deletedOffsetSize[vs.YamlIndex]; ok {
