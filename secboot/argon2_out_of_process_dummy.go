@@ -20,4 +20,8 @@
 
 package secboot
 
-func MaybeRunArgon2OutOfProcessRequestHandler() {}
+func HijackAndRunArgon2OutOfProcessHandlerOnArg(args []string) {
+	if isOutOfProcessArgon2KDFMode(args) {
+		panic("internal error: unexpected call to execute as argon2 runner in non-secboot binary")
+	}
+}

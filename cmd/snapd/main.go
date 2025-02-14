@@ -58,7 +58,7 @@ func main() {
 		snapdtool.ExecInSnapdOrCoreSnap()
 	}
 
-	secboot.MaybeRunArgon2OutOfProcessRequestHandler()
+	secboot.HijackAndRunArgon2OutOfProcessHandlerOnArg([]string{"--argon2-proc"})
 
 	if err := snapdtool.MaybeSetupFIPS(); err != nil {
 		fmt.Fprintf(os.Stderr, "cannot check or enable FIPS mode: %v", err)

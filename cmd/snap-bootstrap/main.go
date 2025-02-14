@@ -41,7 +41,7 @@ such as initramfs.
 )
 
 func main() {
-	secboot.MaybeRunArgon2OutOfProcessRequestHandler()
+	secboot.HijackAndRunArgon2OutOfProcessHandlerOnArg([]string{"--argon2-proc"})
 
 	err := run(os.Args[1:])
 	if err != nil {

@@ -60,11 +60,12 @@ func (*argon2Suite) TestMaybeRunArgon2OutOfProcessRequestHandlerArgon2Mode(c *C)
 	})
 	defer restore()
 
-	restore = secboot.MockOsArgs([]string{"/path/to/cmd", "--argon2-proc"})
+	restore = secboot.MockOsArgs([]string{"/path/to/cmd", "--test-special-argon2-mode"})
 	defer restore()
 
 	// Since we override os.Exit(0), we expect to panic (injected above)
-	c.Assert(secboot.MaybeRunArgon2OutOfProcessRequestHandler, Panics, "os.Exit(0)")
+	f := func() { secboot.HijackAndRunArgon2OutOfProcessHandlerOnArg([]string{"--test-special-argon2-mode"}) }
+	c.Assert(f, Panics, "os.Exit(0)")
 
 	c.Check(setArgon2Called, Equals, 0)
 	c.Check(runArgon2Called, Equals, 1)
@@ -94,10 +95,11 @@ func (*argon2Suite) TestMaybeRunArgon2OutOfProcessRequestHandlerArgon2ModeError(
 	})
 	defer restore()
 
-	restore = secboot.MockOsArgs([]string{"/path/to/cmd", "--argon2-proc"})
+	restore = secboot.MockOsArgs([]string{"/path/to/cmd", "--test-special-argon2-mode"})
 	defer restore()
 
-	c.Assert(secboot.MaybeRunArgon2OutOfProcessRequestHandler, Panics, "os.Exit(1)")
+	f := func() { secboot.HijackAndRunArgon2OutOfProcessHandlerOnArg([]string{"--test-special-argon2-mode"}) }
+	c.Assert(f, Panics, "os.Exit(1)")
 
 	c.Check(setArgon2Called, Equals, 0)
 	c.Check(runArgon2Called, Equals, 1)
@@ -145,7 +147,7 @@ func (*argon2Suite) TestMaybeRunArgon2OutOfProcessRequestHandlerNormalMode(c *C)
 		cmd, err := newHandlerCmd()
 		c.Assert(err, IsNil)
 		c.Check(cmd.Path, Equals, "/path/to/cmd")
-		c.Check(cmd.Args, DeepEquals, []string{"/path/to/cmd", "--argon2-proc"})
+		c.Check(cmd.Args, DeepEquals, []string{"/path/to/cmd", "--test-special-argon2-mode"})
 
 		return argon2KDF
 	})
@@ -169,7 +171,7 @@ func (*argon2Suite) TestMaybeRunArgon2OutOfProcessRequestHandlerNormalMode(c *C)
 		restore := secboot.MockOsArgs(args)
 		defer restore()
 		// This should exit early before running the argon2 helper and calling os.Exit (and no injected panic)
-		secboot.MaybeRunArgon2OutOfProcessRequestHandler()
+		secboot.HijackAndRunArgon2OutOfProcessHandlerOnArg([]string{"--test-special-argon2-mode"})
 	}
 
 	c.Check(setArgon2Called, Equals, 4)

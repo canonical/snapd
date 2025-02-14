@@ -42,28 +42,23 @@ var (
 
 const (
 	outOfProcessArgon2KDFTimeout = 100 * time.Millisecond
-	outOfProcessArgon2Arg        = "--argon2-proc"
 )
 
-func isOutOfProcessArgon2KDFMode() bool {
-	return len(os.Args) >= 2 && os.Args[1] == outOfProcessArgon2Arg
-}
-
-// MaybeRunArgon2OutOfProcessRequestHandler is supposed to be called
-// from the main() of binaries involved with sealing/unsealing of
-// keys (i.e. snapd and snap-bootstrap).
+// HijackAndRunArgon2OutOfProcessHandlerOnArg is supposed to be called from the
+// main() of binaries involved with sealing/unsealing of keys (i.e. snapd and
+// snap-bootstrap).
 //
-// This switches the binary to a special argon2 mode when the --argon2-proc arg
-// is detected where it acts as an argon2 out-of-process helper command and
-// exits when its work is done, otherwise (in normal mode) it sets the default
-// argon2 kdf implementation be self-invoking into the special argon2 mode of
-// the calling binary.
+// This switches the binary to a special argon2 mode when the matching args are
+// detected where it hijacks the process and acts as an argon2 out-of-process
+// helper command and exits when its work is done, otherwise (in normal mode)
+// it sets the default argon2 kdf implementation to be self-invoking into the
+// special argon2 mode of the calling binary.
 //
 // For more context, check docs for sb.WaitForAndRunArgon2OutOfProcessRequest
 // and sb.NewOutOfProcessArgon2KDF for details on how the flow works
 // in secboot.
-func MaybeRunArgon2OutOfProcessRequestHandler() {
-	if !isOutOfProcessArgon2KDFMode() {
+func HijackAndRunArgon2OutOfProcessHandlerOnArg(args []string) {
+	if !isOutOfProcessArgon2KDFMode(args) {
 		// Binary was invoked in normal mode, let's setup default argon2 kdf implementation
 		// to point to this binary when invoked using special args.
 		exe, err := osReadlink("/proc/self/exe")
@@ -73,7 +68,7 @@ func MaybeRunArgon2OutOfProcessRequestHandler() {
 		}
 
 		handlerCmd := func() (*exec.Cmd, error) {
-			cmd := exec.Command(exe, outOfProcessArgon2Arg)
+			cmd := exec.Command(exe, args...)
 			return cmd, nil
 		}
 		argon2KDF := sbNewOutOfProcessArgon2KDF(handlerCmd, outOfProcessArgon2KDFTimeout, nil)
