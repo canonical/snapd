@@ -294,7 +294,7 @@ backends:
         plan: n2-standard-2
         halt-timeout: 2h
         cpu-family: "Intel Cascade Lake"
-        systems:
+        systems: &google-nested-systems
             - ubuntu-16.04-64:
                   image: ubuntu-1604-64-virt-enabled
                   storage: 20G
@@ -335,27 +335,7 @@ backends:
         plan: n2-standard-4
         halt-timeout: 6h
         cpu-family: "Intel Cascade Lake"
-        systems:
-            - ubuntu-16.04-64:
-                  image: ubuntu-1604-64-virt-enabled
-                  storage: 20G
-                  workers: 3
-            - ubuntu-18.04-64:
-                  image: ubuntu-1804-64-virt-enabled
-                  storage: 20G
-                  workers: 3
-            - ubuntu-20.04-64:
-                  image: ubuntu-2004-64-virt-enabled
-                  storage: 20G
-                  workers: 8
-            - ubuntu-22.04-64:
-                  image: ubuntu-2204-64-virt-enabled
-                  storage: 20G
-                  workers: 8
-            - ubuntu-24.04-64:
-                  image: ubuntu-2404-64-virt-enabled
-                  storage: 20G
-                  workers: 8
+        systems: *google-nested-systems
 
     qemu-nested:
         memory: 4G
