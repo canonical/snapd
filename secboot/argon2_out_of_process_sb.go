@@ -31,54 +31,60 @@ import (
 	"github.com/snapcore/snapd/logger"
 )
 
-func init() {
-	setArgon2KDF()
+var (
+	osExit     = os.Exit
+	osReadlink = os.Readlink
+
+	sbWaitForAndRunArgon2OutOfProcessRequest = sb.WaitForAndRunArgon2OutOfProcessRequest
+	sbNewOutOfProcessArgon2KDF               = sb.NewOutOfProcessArgon2KDF
+	sbSetArgon2KDF                           = sb.SetArgon2KDF
+)
+
+const (
+	outOfProcessArgon2KDFTimeout = 100 * time.Millisecond
+	outOfProcessArgon2Arg        = "--argon2-proc"
+)
+
+func isOutOfProcessArgon2KDFMode() bool {
+	return len(os.Args) >= 2 && os.Args[1] == outOfProcessArgon2Arg
 }
-
-const outOfProcessArgon2KDFTimeout = 100 * time.Millisecond
-const outOfProcessArgon2Arg = "--argon2-proc"
-
-func setArgon2KDF() error {
-	// This assumes that the calling binary uses MaybeRunArgon2OutOfProcessRequestHandler early in main().
-	exe, err := os.Readlink("/proc/self/exe")
-	if err != nil {
-		return err
-	}
-
-	handlerCmd := func() (*exec.Cmd, error) {
-		cmd := exec.Command(exe, outOfProcessArgon2Arg)
-		return cmd, nil
-	}
-	argon2KDF := sb.NewOutOfProcessArgon2KDF(handlerCmd, outOfProcessArgon2KDFTimeout, nil)
-	sb.SetArgon2KDF(argon2KDF)
-
-	return nil
-}
-
-var osExit = os.Exit
-var sbWaitForAndRunArgon2OutOfProcessRequest = sb.WaitForAndRunArgon2OutOfProcessRequest
 
 // MaybeRunArgon2OutOfProcessRequestHandler is supposed to be called
 // from the main() of binaries involved with sealing/unsealing of
 // keys (i.e. snapd and snap-bootstrap).
 //
-// This switches the binary to a special mode when the --argon2-proc arg
-// is detected where it acts as an argon2 out-of-process helper command
-// and exits when its work is done.
+// This switches the binary to a special argon2 mode when the --argon2-proc arg
+// is detected where it acts as an argon2 out-of-process helper command and
+// exits when its work is done, otherwise (in normal mode) it sets the default
+// argon2 kdf implementation be self-invoking into the special argon2 mode of
+// the calling binary.
 //
 // For more context, check docs for sb.WaitForAndRunArgon2OutOfProcessRequest
 // and sb.NewOutOfProcessArgon2KDF for details on how the flow works
 // in secboot.
 func MaybeRunArgon2OutOfProcessRequestHandler() {
-	if len(os.Args) < 2 || os.Args[1] != outOfProcessArgon2Arg {
+	if !isOutOfProcessArgon2KDFMode() {
+		// Binary was invoked in normal mode, let's setup default argon2 kdf implementation
+		// to point to this binary when invoked using special args.
+		exe, err := osReadlink("/proc/self/exe")
+		if err != nil {
+			logger.Noticef("internal error: failed to read symlink of /proc/self/exe: %v", err)
+			return
+		}
+
+		handlerCmd := func() (*exec.Cmd, error) {
+			cmd := exec.Command(exe, outOfProcessArgon2Arg)
+			return cmd, nil
+		}
+		argon2KDF := sbNewOutOfProcessArgon2KDF(handlerCmd, outOfProcessArgon2KDFTimeout, nil)
+		sbSetArgon2KDF(argon2KDF)
+
 		return
 	}
 
-	watchdog := sb.NoArgon2OutOfProcessWatchdogHandler()
-
 	logger.Noticef("running argon2 out-of-process helper")
 	// Ignore the lock release callback and use implicit release on process termination.
-	_, err := sbWaitForAndRunArgon2OutOfProcessRequest(os.Stdin, os.Stdout, watchdog)
+	_, err := sbWaitForAndRunArgon2OutOfProcessRequest(os.Stdin, os.Stdout, sb.NoArgon2OutOfProcessWatchdogHandler())
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "cannot run argon2 out-of-process request: %v", err)
 		osExit(1)
