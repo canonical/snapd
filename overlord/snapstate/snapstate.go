@@ -3503,9 +3503,9 @@ func findSnapSetupTask(tasks []*state.Task) (*state.Task, *SnapSetup, error) {
 	return nil, nil, nil
 }
 
-// LinkNewBaseOrKernel appends tasks to a given task set. This enables swapping
-// to a base or kernel snap that is already installed on the system. The primary
-// use case for this function is remodeling.
+// AddLinkNewBaseOrKernel appends tasks to a given task set. This enables
+// swapping to a base or kernel snap that is already installed on the system.
+// The primary use case for this function is remodeling.
 //
 // It is expected that the given task set contains a snap setup task.
 // Additionally, it should not perform any modifications to the local system.
