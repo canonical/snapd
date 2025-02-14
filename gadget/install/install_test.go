@@ -238,6 +238,24 @@ func (s *installSuite) TestInstallRunExistingPartitions(c *C) {
 	})
 }
 
+func (s *installSuite) TestInstallRunExistingPartitionsMinSize(c *C) {
+	// When we have existing partitions with size within the interval
+	// [min-size, size), make sure that the current on disk size is honored
+	// and that "size" from the gadget is not used instead.
+	s.testInstall(c, installOpts{
+		gadgetYaml: gadgettest.RaspiSimplifiedMinSizeYaml,
+		diskMappings: map[string]*disks.MockDiskMapping{
+			"mmcblk0": gadgettest.ExpectedRaspiMockDiskMapping,
+		},
+		disks:      defaultDiskSetup,
+		traitsJSON: gadgettest.ExpectedRaspiDiskVolumeDeviceTraitsJSON,
+		traits: map[string]gadget.DiskVolumeDeviceTraits{
+			"pi": gadgettest.ExpectedRaspiDiskVolumeDeviceTraits,
+		},
+		existingParts: true,
+	})
+}
+
 func (s *installSuite) TestInstallRunEncryptionExistingPartitions(c *C) {
 	s.testInstall(c, installOpts{
 		gadgetYaml: gadgettest.RaspiSimplifiedYaml,
