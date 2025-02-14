@@ -1,4 +1,5 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
+//go:build !nosecboot
 
 /*
  * Copyright (C) 2025 Canonical Ltd
@@ -68,20 +69,19 @@ var sbWaitForAndRunArgon2OutOfProcessRequest = sb.WaitForAndRunArgon2OutOfProces
 // For more context, check docs for sb.WaitForAndRunArgon2OutOfProcessRequest
 // and sb.NewOutOfProcessArgon2KDF for details on how the flow works
 // in secboot.
-func MaybeRunArgon2OutOfProcessRequestHandler() error {
+func MaybeRunArgon2OutOfProcessRequestHandler() {
 	if len(os.Args) < 2 || os.Args[1] != outOfProcessArgon2Arg {
-		return nil
+		return
 	}
 
 	watchdog := sb.NoArgon2OutOfProcessWatchdogHandler()
 
 	logger.Noticef("running argon2 out-of-process helper")
-	// Lock will be released implicitly on process termination, but let's also
-	// explicitly release lock.
-	lockRelease, err := sbWaitForAndRunArgon2OutOfProcessRequest(os.Stdin, os.Stdout, watchdog)
-	defer lockRelease()
+	// Ignore the lock release callback and use implicit release on process termination.
+	_, err := sbWaitForAndRunArgon2OutOfProcessRequest(os.Stdin, os.Stdout, watchdog)
 	if err != nil {
-		return fmt.Errorf("cannot run request: %w", err)
+		fmt.Fprintf(os.Stderr, "cannot run argon2 out-of-process request: %v", err)
+		osExit(1)
 	}
 
 	// Argon2 request was processed successfully

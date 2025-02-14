@@ -58,10 +58,7 @@ func main() {
 		snapdtool.ExecInSnapdOrCoreSnap()
 	}
 
-	if err := secboot.MaybeRunArgon2OutOfProcessRequestHandler(); err != nil {
-		fmt.Fprintf(os.Stderr, "cannot run argon2 out-of-process helper command: %v", err)
-		os.Exit(1)
-	}
+	secboot.MaybeRunArgon2OutOfProcessRequestHandler()
 
 	if err := snapdtool.MaybeSetupFIPS(); err != nil {
 		fmt.Fprintf(os.Stderr, "cannot check or enable FIPS mode: %v", err)

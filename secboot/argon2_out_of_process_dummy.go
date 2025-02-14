@@ -20,6 +20,4 @@
 
 package secboot
 
-func MaybeRunArgon2OutOfProcessRequestHandler() error {
-	return errBuildWithoutSecboot
-}
+func MaybeRunArgon2OutOfProcessRequestHandler() {}
