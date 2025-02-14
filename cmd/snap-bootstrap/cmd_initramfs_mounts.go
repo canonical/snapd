@@ -1876,6 +1876,12 @@ func mountNonDataPartitionMatchingKernelDisk(dir, fallbacklabel string, opts *sy
 }
 
 func createSysrootMount() bool {
+	// This env var is set by snap-initramfs-mounts.service for 24+ initramfs. We
+	// prefer this to checking the model so 24+ kernels can run with models using
+	// older bases. Although this situation is not really supported as the
+	// initramfs systemd bits would not match those in the base, we allow it as
+	// it has been something done in the past and updates could break those
+	// systems.
 	isCore24plus := osGetenv("CORE24_PLUS_INITRAMFS")
 	if isCore24plus == "1" || isCore24plus == "true" {
 		return true
