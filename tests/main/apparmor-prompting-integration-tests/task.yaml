@@ -36,21 +36,30 @@ environment:
     VARIANT/write_read_multiple_actioned_by_other_pid_deny_allow: write_read_multiple_actioned_by_other_pid_deny_allow
 
     TIMEOUT: "30" # Define common timeout which can be modified as needed
+    SNAPD_NO_MEMORY_LIMIT: 1
 
     # we unfortunately (frequently) run out of memory while setting up prompting-client
     SNAPD_NO_MEMORY_LIMIT: 1
 
 prepare: |
+    if not tests.info is-reexec-in-use && os.query is-ubuntu 22.04; then
+        tests.exec skip-test "Ubuntu 22.04 kernel doesn't support prompting" && exit 0
+    fi
+
     tests.session prepare -u test
     tests.session -u test exec sh -c 'mkdir -p "/home/test/integration-tests"'
     snap install prompting-client
 
 restore: |
+    tests.exec is-skipped && exit 0
+
     snap set system experimental.apparmor-prompting=false
     tests.session -u test exec sh -c 'rm -rf "/home/test/integration-tests"'
     tests.session restore -u test
 
 debug: |
+    tests.exec is-skipped && exit 0
+
     TEST_UID="$(id -u test)"
     echo "outstanding prompts:"
     snap debug api "/v2/interfaces/requests/prompts?user-id=$TEST_UID" || true
@@ -58,6 +67,8 @@ debug: |
     snap debug api "/v2/interfaces/requests/rules?user-id=$TEST_UID" || true
 
 execute: |
+    tests.exec is-skipped && exit 0
+
     echo "Precondition check that snapd is active"
     systemctl is-active snapd.service snapd.socket
 

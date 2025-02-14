@@ -8,6 +8,10 @@ systems:
   - ubuntu-2*
 
 prepare: |
+    if not tests.info is-reexec-in-use && os.query is-ubuntu 22.04; then
+        tests.exec skip-test "Ubuntu 22.04 kernel doesn't support prompting" && exit 0
+    fi
+
     # prerequisite for having a prompts handler service
     snap set system experimental.user-daemons=true
     "$TESTSTOOLS"/snaps-state install-local test-snapd-prompt-handler
@@ -15,9 +19,13 @@ prepare: |
     tests.session -u test prepare
 
 restore: |
+    tests.exec is-skipped && exit 0
+
     tests.session -u test restore
 
 debug: |
+    tests.exec is-skipped && exit 0
+
     echo "Check kernel version"
     uname -a
     echo "Check kernel notification socket presence"
@@ -30,6 +38,8 @@ debug: |
     snap debug api /v2/system-info
 
 execute: |
+    tests.exec is-skipped && exit 0
+
     echo "Enable prompting via snap client where possible"
     # Prompting is unsupported everywhere but the Ubuntu non-core systems with
     # kernels which support apparmor prompting

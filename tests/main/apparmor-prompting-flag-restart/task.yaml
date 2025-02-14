@@ -14,12 +14,18 @@ systems:
   - ubuntu-core-*
 
 prepare: |
+    if not tests.info is-reexec-in-use && os.query is-ubuntu 22.04; then
+        tests.exec skip-test "Ubuntu 22.04 kernel doesn't support prompting" && exit 0
+    fi
+
     # prerequisite for having a prompts handler service
     snap set system experimental.user-daemons=true
     "$TESTSTOOLS"/snaps-state install-local test-snapd-prompt-handler
     snap connect test-snapd-prompt-handler:snap-interfaces-requests-control
 
 restore: |
+    tests.exec is-skipped && exit 0
+
     echo "Restore: Reset start limit so that other queries can succeed"
     systemctl stop snapd.service snapd.socket || true
     systemctl stop snapd.failure.service || true
@@ -28,6 +34,8 @@ restore: |
     retry --wait 1 -n 100 sh -x -c 'systemctl is-active snapd.service snapd.socket'
 
 debug: |
+    tests.exec is-skipped && exit 0
+
     echo "Debug: Check if snapd service and socket are running"
     systemctl is-active snapd.service snapd.socket || true
     systemctl status snapd.service || true
@@ -54,6 +62,8 @@ debug: |
 
 
 execute: |
+    tests.exec is-skipped && exit 0
+
     . /etc/os-release
 
     # Necessary since we restart snapd many times
