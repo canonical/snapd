@@ -14,3 +14,5 @@ ignore_files:
   - packaging/ubuntu-14.04/changelog
   - packaging/ubuntu-16.04/changelog
   - tests/lib/snaps/store/test-snapd-ovmf/snapcraft.yaml
+  - cmd/configure.ac
+  - cmd/Makefile.am

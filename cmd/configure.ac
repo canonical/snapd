@@ -319,6 +319,20 @@ AS_IF([test "x$with_unit_tests" = "xyes"], [
   AX_APPEND_COMPILE_FLAGS([-Werror], [CHECK_CFLAGS])
 ])
 
+AC_ARG_ENABLE([sanitize],
+    AS_HELP_STRING([--enable-sanitize], [Build binaries with address sanitizer (-fsanitize=address)]),
+    [case "$enableval" in
+        yes)
+          enable_sanitize=yes
+          ;;
+        no)
+          enable_sanitize=no
+          ;;
+        *) AC_MSG_ERROR([bad value ${enableval} for --enable-sanitize])
+    esac],
+    [enable_sanitize=no])
+AM_CONDITIONAL([ENABLE_SANITIZE], [test "x$enable_sanitize" = "xyes"])
+
 AC_SUBST([CHECK_CFLAGS])
 
 AC_ARG_WITH([apparmorconfigdir],
