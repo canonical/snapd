@@ -610,6 +610,9 @@ debug-each: |
     go version || true
 
     if tests.nested is-nested; then
+        echo '# free space on the host'
+        df -h || true
+
         echo '# nested VM status'
         tests.nested vm status
         # filter out ^[ to ensure that the debug output gets not messed up
