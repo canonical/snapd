@@ -125,15 +125,28 @@ parts:
       - -usr/lib/$CRAFT_ARCH_TRIPLET_BUILD_FOR/libnss_*.so.2
     override-build: |
       craftctl default
-      cp -rT "${CRAFT_PART_INSTALL}/lib/${CRAFT_ARCH_TRIPLET_BUILD_FOR}" "${CRAFT_PART_INSTALL}/usr/lib/${CRAFT_ARCH_TRIPLET_BUILD_FOR}"
+      cp -avT "${CRAFT_PART_INSTALL}/lib/${CRAFT_ARCH_TRIPLET_BUILD_FOR}" "${CRAFT_PART_INSTALL}/usr/lib/${CRAFT_ARCH_TRIPLET_BUILD_FOR}"
       rm -rf "${CRAFT_PART_INSTALL}/lib/${CRAFT_ARCH_TRIPLET_BUILD_FOR}"
       rm -f "${CRAFT_PART_INSTALL}/lib/${DYNAMIC_LINKER}"
       find "${CRAFT_PART_INSTALL}/usr/share/doc" \( -not -type d -not -name "copyright" -delete \) -o \( -type d -empty -delete \)
     <<:
       - *dynamic-linker
+    # FIXME: uncomment when https://bugs.launchpad.net/snapcraft/+bug/2097440 is fixed
+    # override-prime: |
+    #   craftctl default
+    #   python3 "${CRAFT_PROJECT_DIR}/build-aux/snap/local/patch-dl.py" "/snap/snapd/current/usr/lib/${CRAFT_ARCH_TRIPLET_BUILD_FOR}/${DYNAMIC_LINKER}"
+
+  # FIXME: remove when https://bugs.launchpad.net/snapcraft/+bug/2097440 is fixed
+  prime-runtime:
+    plugin: nil
+    after:
+      - runtime
+    <<:
+      - *dynamic-linker
     override-prime: |
       craftctl default
-      python3 "${CRAFT_PROJECT_DIR}/build-aux/snap/local/patch-dl.py" "/snap/snapd/current/usr/lib/${CRAFT_ARCH_TRIPLET_BUILD_FOR}/${DYNAMIC_LINKER}"
+      CRAFT_PART_INSTALL="${CRAFT_PART_INSTALL}/../../runtime/install" \
+        python3 "${CRAFT_PROJECT_DIR}/build-aux/snap/local/patch-dl.py" "/snap/snapd/current/usr/lib/${CRAFT_ARCH_TRIPLET_BUILD_FOR}/${DYNAMIC_LINKER}"
 
   apparmor:
     plugin: autotools
@@ -171,7 +184,7 @@ parts:
       # copy in a pregenerated list of network address families so that the
       # parser gets built to support as many as possible even if glibc in
       # the current build environment does not support them
-      cp "${LOCAL_APPARMOR_DIR}"/af_names.h .
+      cp -a "${LOCAL_APPARMOR_DIR}"/af_names.h .
       make -j"${CRAFT_PARALLEL_BUILD_COUNT}"
       install -Dm755 -t "${CRAFT_PART_INSTALL}/usr/lib/snapd" apparmor_parser
       install -Dm644 -t "${CRAFT_PART_INSTALL}/usr/lib/snapd/apparmor" parser.conf
@@ -533,10 +546,12 @@ parts:
       # Must run after everything else
       - snapd
       - runtime
+      - prime-runtime
       - apparmor
       - dynamic-linker
     <<:
       - *dynamic-linker
     override-prime: |
+      craftctl default
       "${CRAFT_PROJECT_DIR}/build-aux/snap/local/verify-dl.py" \
           "/snap/snapd/current/usr/lib/${CRAFT_ARCH_TRIPLET_BUILD_FOR}/${DYNAMIC_LINKER}"
