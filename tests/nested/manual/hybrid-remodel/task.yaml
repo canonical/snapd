@@ -149,7 +149,6 @@ prepare: |
 restore: |
   systemctl stop fakedevicesvc.service || true
   "${TESTSTOOLS}/store-state" teardown-fake-store "${NESTED_FAKESTORE_BLOB_DIR}"
-  tests.systemd stop-unit --remove "nested-vm"
 
 debug: |
   journalctl -u fakestore.service
