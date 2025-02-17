@@ -394,6 +394,14 @@ func MockSetAuthorizedSnapModelsOnHooksKeydata(f func(kd *sb_hooks.KeyData, rand
 	}
 }
 
+func MockSetAuthorizedBootModesOnHooksKeydata(f func(kd *sb_hooks.KeyData, rand io.Reader, key sb.PrimaryKey, bootModes ...string) error) (restore func()) {
+	old := setAuthorizedBootModesOnHooksKeydata
+	setAuthorizedBootModesOnHooksKeydata = f
+	return func() {
+		setAuthorizedBootModesOnHooksKeydata = old
+	}
+}
+
 type DefaultKeyLoader = defaultKeyLoader
 
 var ReadKeyFile = readKeyFile
