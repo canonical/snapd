@@ -133,7 +133,7 @@ create_vm() {
             ;;
     esac
 
-    local NESTED_PARAM_CD NESTED_CPUS NESTED_MEM NESTED_PARAM_EXTRA NESTED_KEEP_FIRMWARE_STATE
+    local NESTED_PARAM_CD NESTED_CPUS NESTED_MEM NESTED_PARAM_EXTRA NESTED_KEEP_FIRMWARE_STATE NESTED_PASSPHRASE
     while [ $# -gt 0 ]; do
         case "$1" in
             --param-cdrom)
@@ -156,6 +156,10 @@ create_vm() {
                 NESTED_KEEP_FIRMWARE_STATE=1
                 shift
                 ;;
+            --passphrase)
+                NESTED_PASSPHRASE="$2"
+                shift 2
+                ;;
             *)
                 echo "tests.nested: unsupported parameter $1" >&2
                 exit 1
@@ -163,9 +167,9 @@ create_vm() {
         esac
     done
 
-    export NESTED_PARAM_CD NESTED_CPUS NESTED_MEM NESTED_PARAM_EXTRA NESTED_KEEP_FIRMWARE_STATE
+    export NESTED_PARAM_CD NESTED_CPUS NESTED_MEM NESTED_PARAM_EXTRA NESTED_KEEP_FIRMWARE_STATE NESTED_PASSPHRASE
     "$action"
-    unset NESTED_PARAM_CD NESTED_CPUS NESTED_MEM NESTED_PARAM_EXTRA NESTED_KEEP_FIRMWARE_STATE
+    unset NESTED_PARAM_CD NESTED_CPUS NESTED_MEM NESTED_PARAM_EXTRA NESTED_KEEP_FIRMWARE_STATE NESTED_PASSPHRASE
 }
 
 is_nested() {
