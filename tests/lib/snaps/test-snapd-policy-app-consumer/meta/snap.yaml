@@ -41,6 +41,9 @@ apps:
   cpu-control:
     command: bin/run
     plugs: [ cpu-control ]
+  cuda-driver-libs:
+    command: bin/run
+    plugs: [ cuda-driver-libs ]
   custom-device:
     command: bin/run
     plugs: [ custom-device ]

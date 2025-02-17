@@ -33,7 +33,7 @@ type implicitSuite struct{}
 
 var _ = Suite(&implicitSuite{})
 
-func (implicitSuite) TestAddImplicitSlotsOnCore(c *C) {
+func (implicitSuite) TestAddImplicitInterfacesOnCore(c *C) {
 	restore := release.MockOnClassic(false)
 	defer restore()
 
@@ -50,7 +50,7 @@ func (implicitSuite) TestAddImplicitSlotsOnCore(c *C) {
 	st.Set("hotplug-slots", hotplugSlots)
 
 	info := snaptest.MockInfo(c, "{name: core, type: os, version: 0}", nil)
-	c.Assert(ifacestate.AddImplicitSlots(st, info), IsNil)
+	c.Assert(ifacestate.AddImplicitInterfaces(st, info), IsNil)
 	// Ensure that some slots that exist in core systems are present.
 	for _, name := range []string{"network"} {
 		slot := info.Slots[name]
@@ -58,6 +58,7 @@ func (implicitSuite) TestAddImplicitSlotsOnCore(c *C) {
 		c.Assert(slot.Name, Equals, name)
 		c.Assert(slot.Snap, Equals, info)
 	}
+	// We do not have any implicit plug on core yet
 	// Ensure that some slots that exist is just classic systems are absent.
 	for _, name := range []string{"unity7"} {
 		c.Assert(info.Slots[name], IsNil)
@@ -74,7 +75,7 @@ func (implicitSuite) TestAddImplicitSlotsOnCore(c *C) {
 	c.Assert(slot.HotplugKey, DeepEquals, snap.HotplugKey("1234"))
 }
 
-func (implicitSuite) TestAddImplicitSlotsOnClassic(c *C) {
+func (implicitSuite) TestAddImplicitInterfacesOnClassic(c *C) {
 	restore := release.MockOnClassic(true)
 	defer restore()
 
@@ -84,10 +85,17 @@ func (implicitSuite) TestAddImplicitSlotsOnClassic(c *C) {
 	st.Lock()
 	defer st.Unlock()
 
-	c.Assert(ifacestate.AddImplicitSlots(st, info), IsNil)
+	c.Assert(ifacestate.AddImplicitInterfaces(st, info), IsNil)
 	// Ensure that some slots that exist in classic systems are present.
 	for _, name := range []string{"network", "unity7"} {
 		slot := info.Slots[name]
+		c.Assert(slot.Interface, Equals, name)
+		c.Assert(slot.Name, Equals, name)
+		c.Assert(slot.Snap, Equals, info)
+	}
+	// Ensure that some plugs that exist in core systems are present.
+	for _, name := range []string{"cuda-driver-libs"} {
+		slot := info.Plugs[name]
 		c.Assert(slot.Interface, Equals, name)
 		c.Assert(slot.Name, Equals, name)
 		c.Assert(slot.Snap, Equals, info)
@@ -113,5 +121,5 @@ func (implicitSuite) TestAddImplicitSlotsErrorSlotExists(c *C) {
 	defer st.Unlock()
 	st.Set("hotplug-slots", hotplugSlots)
 
-	c.Assert(ifacestate.AddImplicitSlots(st, info), ErrorMatches, `cannot add hotplug slot unity7: slot already exists`)
+	c.Assert(ifacestate.AddImplicitInterfaces(st, info), ErrorMatches, `cannot add hotplug slot unity7: slot already exists`)
 }
