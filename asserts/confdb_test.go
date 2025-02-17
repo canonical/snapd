@@ -295,20 +295,20 @@ func (s *confdbCtrlSuite) TestDecodeOK(c *C) {
 	c.Assert(a, NotNil)
 	c.Assert(a.Type(), Equals, asserts.ConfdbControlType)
 
-	ccAssertion := a.(*asserts.ConfdbControl)
-	c.Assert(ccAssertion.BrandID(), Equals, "generic")
-	c.Assert(ccAssertion.Model(), Equals, "generic-classic")
-	c.Assert(ccAssertion.Serial(), Equals, "03961d5d-26e5-443f-838d-6db046126bea")
-	c.Assert(ccAssertion.AuthorityID(), Equals, "")
+	cc := a.(*asserts.ConfdbControl)
+	c.Assert(cc.BrandID(), Equals, "generic")
+	c.Assert(cc.Model(), Equals, "generic-classic")
+	c.Assert(cc.Serial(), Equals, "03961d5d-26e5-443f-838d-6db046126bea")
+	c.Assert(cc.AuthorityID(), Equals, "")
 
-	cc := ccAssertion.ConfdbControl()
-	delegated, _ := cc.IsDelegated("john", "canonical/network/control-device", []string{"operator-key"})
+	ctrl := cc.Control()
+	delegated, _ := ctrl.IsDelegated("john", "canonical/network/control-device", []string{"operator-key"})
 	c.Check(delegated, Equals, true)
-	delegated, _ = cc.IsDelegated("john", "canonical/network/observe-device", []string{"operator-key"})
+	delegated, _ = ctrl.IsDelegated("john", "canonical/network/observe-device", []string{"operator-key"})
 	c.Check(delegated, Equals, true)
-	delegated, _ = cc.IsDelegated("john", "canonical/network/control-interfaces", []string{"store"})
+	delegated, _ = ctrl.IsDelegated("john", "canonical/network/control-interfaces", []string{"store"})
 	c.Check(delegated, Equals, true)
-	delegated, _ = cc.IsDelegated("jane", "canonical/network/observe-interfaces", []string{"store", "operator-key"})
+	delegated, _ = ctrl.IsDelegated("jane", "canonical/network/observe-interfaces", []string{"store", "operator-key"})
 	c.Check(delegated, Equals, true)
 }
 
@@ -331,7 +331,7 @@ func (s *confdbCtrlSuite) TestDecodeInvalid(c *C) {
 		{"    operators:\n      - jane\n", "", `cannot parse group at position 3: "operators" must be provided`},
 		{
 			"    operators:\n      - jane\n",
-			"    operators: abcd\n", `cannot parse group at position 3: field must be a list of strings`,
+			"    operators: abcd\n", `cannot parse group at position 3: "operators" field must be a list of strings`,
 		},
 		{
 			"      - jane",

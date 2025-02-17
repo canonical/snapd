@@ -25,11 +25,11 @@ import (
 	. "gopkg.in/check.v1"
 )
 
-type confdbCtrlSuite struct{}
+type ctrlSuite struct{}
 
-var _ = Suite(&confdbCtrlSuite{})
+var _ = Suite(&ctrlSuite{})
 
-func (s *confdbCtrlSuite) TestNewAuthentication(c *C) {
+func (s *ctrlSuite) TestNewAuthentication(c *C) {
 	authMeth := []string{"operator-key", "store", "operator-key"}
 	expected := confdb.OperatorKey | confdb.Store
 	converted, err := confdb.NewAuthentication(authMeth)
@@ -43,7 +43,7 @@ func (s *confdbCtrlSuite) TestNewAuthentication(c *C) {
 	c.Assert(converted, DeepEquals, expected)
 }
 
-func (s *confdbCtrlSuite) TestConvertAuthenticationToStrings(c *C) {
+func (s *ctrlSuite) TestConvertAuthenticationToStrings(c *C) {
 	var auth confdb.Authentication = 0
 	var expected []string
 	c.Assert(auth.ToStrings(), DeepEquals, expected)
@@ -57,13 +57,13 @@ func (s *confdbCtrlSuite) TestConvertAuthenticationToStrings(c *C) {
 	c.Assert(auth.ToStrings(), DeepEquals, expected)
 }
 
-func (s *confdbCtrlSuite) TestViewRefString(c *C) {
+func (s *ctrlSuite) TestViewRefString(c *C) {
 	view := confdb.ViewRef{Account: "canonical", Confdb: "network", View: "control-device"}
 	c.Assert(view.String(), Equals, "canonical/network/control-device")
 }
 
-func (s *confdbCtrlSuite) TestDelegateOK(c *C) {
-	cc := confdb.ConfdbControl{}
+func (s *ctrlSuite) TestDelegateOK(c *C) {
+	cc := confdb.Control{}
 	cc.Delegate(
 		"alice",
 		[]string{"canonical/device/control-device", "canonical/device/observe-device"},
@@ -85,8 +85,8 @@ func (s *confdbCtrlSuite) TestDelegateOK(c *C) {
 	c.Check(delegated, Equals, true)
 }
 
-func (s *confdbCtrlSuite) TestDelegateFail(c *C) {
-	cc := confdb.ConfdbControl{}
+func (s *ctrlSuite) TestDelegateFail(c *C) {
+	cc := confdb.Control{}
 
 	type testcase struct {
 		operator string
@@ -156,8 +156,8 @@ func (s *confdbCtrlSuite) TestDelegateFail(c *C) {
 	}
 }
 
-func (s *confdbCtrlSuite) TestUndelegateOK(c *C) {
-	cc := confdb.ConfdbControl{}
+func (s *ctrlSuite) TestUndelegateOK(c *C) {
+	cc := confdb.Control{}
 	err := cc.Delegate(
 		"bob",
 		[]string{"canonical/network/control-interface", "canonical/network/observe-interface"},
@@ -196,8 +196,8 @@ func (s *confdbCtrlSuite) TestUndelegateOK(c *C) {
 	c.Assert(err, IsNil)
 }
 
-func (s *confdbCtrlSuite) TestUndelegateFail(c *C) {
-	cc := confdb.ConfdbControl{}
+func (s *ctrlSuite) TestUndelegateFail(c *C) {
+	cc := confdb.Control{}
 	cc.Delegate("alice", []string{"aa/bb/cc"}, []string{"store"})
 
 	type testcase struct {
@@ -226,8 +226,8 @@ func (s *confdbCtrlSuite) TestUndelegateFail(c *C) {
 	}
 }
 
-func (s *confdbCtrlSuite) TestIsDelegatedOK(c *C) {
-	cc := confdb.ConfdbControl{}
+func (s *ctrlSuite) TestIsDelegatedOK(c *C) {
+	cc := confdb.Control{}
 	cc.Delegate(
 		"alice",
 		[]string{"canonical/device/control-device", "canonical/device/observe-device"},
@@ -257,8 +257,8 @@ func (s *confdbCtrlSuite) TestIsDelegatedOK(c *C) {
 	c.Check(delegated, Equals, false)
 }
 
-func (s *confdbCtrlSuite) TestIsDelegatedFail(c *C) {
-	cc := confdb.ConfdbControl{}
+func (s *ctrlSuite) TestIsDelegatedFail(c *C) {
+	cc := confdb.Control{}
 	cc.Delegate("bob", []string{"aa/bb/cc"}, []string{"store"})
 
 	type testcase struct {
@@ -288,8 +288,8 @@ func (s *confdbCtrlSuite) TestIsDelegatedFail(c *C) {
 	}
 }
 
-func (s *confdbCtrlSuite) TestGroups(c *C) {
-	cc := confdb.ConfdbControl{}
+func (s *ctrlSuite) TestGroups(c *C) {
+	cc := confdb.Control{}
 
 	cc.Delegate("aa", []string{"dd/ee/ff", "gg/hh/ii", "jj/kk/ll"}, []string{"store", "operator-key"})
 	cc.Delegate("aa", []string{"pp/qq/rr"}, []string{"operator-key"})
@@ -342,8 +342,8 @@ func (s *confdbCtrlSuite) TestGroups(c *C) {
 	}
 }
 
-func (s *confdbCtrlSuite) TestClone(c *C) {
-	original := confdb.ConfdbControl{}
+func (s *ctrlSuite) TestClone(c *C) {
+	original := confdb.Control{}
 	original.Delegate("aa", []string{"dd/ee/ff", "gg/hh/ii"}, []string{"store", "operator-key"})
 
 	clone := original.Clone()

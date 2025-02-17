@@ -31,14 +31,14 @@ var (
 	validAccountID = regexp.MustCompile("^(?:[a-z0-9A-Z]{32}|[-a-z0-9]{2,28})$")
 )
 
-// ConfdbControl holds a lists of views delegated by the device to operators.
-type ConfdbControl struct {
+// Control holds a lists of views delegated by the device to operators.
+type Control struct {
 	// the key is the operator ID
 	operators map[string]*operator
 }
 
-// Delegate delegates the given views with the provided auth to the operator.
-func (cc *ConfdbControl) Delegate(operatorID string, views, auth []string) error {
+// Delegate delegates the given views with the provided authentication methods to the operator.
+func (cc *Control) Delegate(operatorID string, views, authMeth []string) error {
 	if !validAccountID.MatchString(operatorID) {
 		return fmt.Errorf("invalid operator ID: %s", operatorID)
 	}
@@ -52,7 +52,7 @@ func (cc *ConfdbControl) Delegate(operatorID string, views, auth []string) error
 		op = &operator{ID: operatorID}
 	}
 
-	err := op.delegate(views, auth)
+	err := op.delegate(views, authMeth)
 	if err != nil {
 		return err
 	}
@@ -61,30 +61,42 @@ func (cc *ConfdbControl) Delegate(operatorID string, views, auth []string) error
 	return nil
 }
 
-// Undelegate withdraws access to the views that have been delegated with the provided auth.
-func (cc *ConfdbControl) Undelegate(operatorID string, views, auth []string) error {
+// Undelegate withdraws access to the views that have been delegated with the provided authentication methods.
+func (cc *Control) Undelegate(operatorID string, views, authMeth []string) error {
 	operator, ok := cc.operators[operatorID]
 	if !ok {
 		return nil // nothing is delegated to this operator
 	}
 
-	return operator.undelegate(views, auth)
+	err := operator.undelegate(views, authMeth)
+	if err != nil {
+		return err
+	}
+
+	if len(operator.Delegations) == 0 {
+		delete(cc.operators, operatorID)
+	}
+
+	return nil
 }
 
-// IsDelegated checks if the view is delegated to the operator with the given auth.
-func (cc *ConfdbControl) IsDelegated(operatorID, view string, auth []string) (bool, error) {
+// IsDelegated checks if the view is delegated to the operator with the given authentication methods.
+func (cc *Control) IsDelegated(operatorID, view string, authMeth []string) (bool, error) {
 	operator, ok := cc.operators[operatorID]
 	if !ok {
 		return false, nil // nothing is delegated to this operator
 	}
 
-	return operator.isDelegated(view, auth)
+	return operator.isDelegated(view, authMeth)
 }
 
 // Groups returns the groups in a format that can be used to assemble the next revision
 // of the confdb control assertion.
-func (cc *ConfdbControl) Groups() []interface{} {
+func (cc *Control) Groups() []interface{} {
+	// Group operators by authentication and views
+	// i.e. authentication > views > operators
 	authMap := map[authentication]map[viewRef][]string{}
+	// auths will accumulate the authentication methods in use
 	var auths []authentication
 
 	// Group operators by auth and view
@@ -112,7 +124,7 @@ func (cc *ConfdbControl) Groups() []interface{} {
 		for view, ops := range authMap[auth] {
 			sort.Strings(ops)
 			key := strings.Join(ops, ",")
-			opGroups[key] = append(opGroups[key], view.string())
+			opGroups[key] = append(opGroups[key], view.String())
 		}
 
 		for ops, views := range opGroups {
@@ -128,9 +140,9 @@ func (cc *ConfdbControl) Groups() []interface{} {
 	return groups
 }
 
-// Clone returns a deep copy of the ConfdbControl.
-func (cc ConfdbControl) Clone() ConfdbControl {
-	clone := ConfdbControl{operators: make(map[string]*operator)}
+// Clone returns a deep copy of Control.
+func (cc Control) Clone() Control {
+	clone := Control{operators: make(map[string]*operator)}
 
 	for k, v := range cc.operators {
 		if v != nil {
@@ -200,7 +212,7 @@ type viewRef struct {
 }
 
 // String returns the string representation of the viewRef.
-func (v *viewRef) string() string {
+func (v *viewRef) String() string {
 	return fmt.Sprintf("%s/%s/%s", v.Account, v.Confdb, v.View)
 }
 

@@ -115,7 +115,7 @@ func assembleConfdb(assert assertionBase) (Assertion, error) {
 type ConfdbControl struct {
 	assertionBase
 
-	confdbControl *confdb.ConfdbControl
+	control *confdb.Control
 }
 
 // expected interfaces are implemented
@@ -166,9 +166,9 @@ func (cc *ConfdbControl) Serial() string {
 	return cc.HeaderString("serial")
 }
 
-// ConfdbControl returns the ConfdbControl assembled from the assertion.
-func (cc *ConfdbControl) ConfdbControl() confdb.ConfdbControl {
-	return cc.confdbControl.Clone()
+// ConfdbControl returns the confdb.Control assembled from the assertion.
+func (cc *ConfdbControl) Control() confdb.Control {
+	return cc.control.Clone()
 }
 
 // assembleConfdbControl creates a new confdb-control assertion after validating
@@ -198,12 +198,12 @@ func assembleConfdbControl(assert assertionBase) (Assertion, error) {
 
 	return &ConfdbControl{
 		assertionBase: assert,
-		confdbControl: cc,
+		control:       cc,
 	}, nil
 }
 
-func parseConfdbControlGroups(rawGroups []interface{}) (*confdb.ConfdbControl, error) {
-	cc := &confdb.ConfdbControl{}
+func parseConfdbControlGroups(rawGroups []interface{}) (*confdb.Control, error) {
+	cc := &confdb.Control{}
 	for i, rawGroup := range rawGroups {
 		errPrefix := fmt.Sprintf("cannot parse group at position %d", i+1)
 
@@ -212,25 +212,25 @@ func parseConfdbControlGroups(rawGroups []interface{}) (*confdb.ConfdbControl, e
 			return nil, fmt.Errorf("%s: must be a map", errPrefix)
 		}
 
-		auth, err := checkStringListInMap(group, "authentications", "field", nil)
+		auth, err := checkStringListInMap(group, "authentications", `"authentications" field`, nil)
 		if err != nil {
-			return nil, fmt.Errorf(`%s: "authentications" %w`, errPrefix, err)
+			return nil, fmt.Errorf(`%s: %w`, errPrefix, err)
 		}
 		if auth == nil {
 			return nil, fmt.Errorf(`%s: "authentications" must be provided`, errPrefix)
 		}
 
-		views, err := checkStringListInMap(group, "views", "field", nil)
+		views, err := checkStringListInMap(group, "views", `"views" field`, nil)
 		if err != nil {
-			return nil, fmt.Errorf(`%s: "views" %w`, errPrefix, err)
+			return nil, fmt.Errorf(`%s: %w`, errPrefix, err)
 		}
 		if views == nil {
 			return nil, fmt.Errorf(`%s: "views" must be provided`, errPrefix)
 		}
 
-		operatorIDs, err := checkStringListInMap(group, "operators", "field", nil)
+		operatorIDs, err := checkStringListInMap(group, "operators", `"operators" field`, nil)
 		if err != nil {
-			return nil, fmt.Errorf("%s: %w", errPrefix, err)
+			return nil, fmt.Errorf(`%s: %w`, errPrefix, err)
 		}
 		if operatorIDs == nil {
 			return nil, fmt.Errorf(`%s: "operators" must be provided`, errPrefix)

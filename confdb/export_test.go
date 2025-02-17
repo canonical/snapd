@@ -40,7 +40,3 @@ func (a Authentication) ToStrings() []string {
 }
 
 type ViewRef = viewRef
-
-func (v *ViewRef) String() string {
-	return v.string()
-}
