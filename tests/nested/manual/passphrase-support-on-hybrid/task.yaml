@@ -6,24 +6,20 @@ details: |
 
 systems: [ubuntu-24.04-64]
 
-# TODO: Remove this when passphrase support lands.
-manual: true
-
 environment:
   NESTED_ENABLE_TPM: true
   NESTED_ENABLE_SECURE_BOOT: true
 
-  # TODO: Swap 24.10 with 25.04 when the kernel/gadget snaps are available in the store.
-  # Mimic default channels specified in https://github.com/canonical/models/blob/master/ubuntu-classic-2504-amd64-dangerous.json.
-  GADGET_CHANNEL: classic-24.10/edge
-  KERNEL_CHANNEL: 24.10/edge
-  CORE_VERSION: 22
+  GADGET_CHANNEL: classic-25.04/edge
+  KERNEL_CHANNEL: 25.04/edge
 
   # Check if passphrase with space is handled properly
   PASSPHRASE: "ubuntu test"
-  # "pbkdf2" is less memory intensive than argon2i* so we use it by default.
-  # TODO: Add argon2i* variants.
-  KDF_TYPE: pbkdf2
+
+  KDF_TYPE/default: default
+  KDF_TYPE/pbkdf2: pbkdf2
+  KDF_TYPE/argon2i: argon2i
+  KDF_TYPE/argon2id: argon2id
 
   # Ensure we use our latest code.
   NESTED_BUILD_SNAPD_FROM_CURRENT: true
@@ -73,26 +69,66 @@ execute: |
 
   # Retrieve kernel.
   snap download --basename=pc-kernel --channel="$KERNEL_CHANNEL" pc-kernel
+
+  # THIS IS A HACK
+  do_hack() { 
+    local expire_date="$1"
+    local year=${expire_date%%/*}
+    local month=${expire_date#*/}
+    if [[ $(date '+%Y') -lt $year ]]; then
+        return 0
+    fi
+    if [[ $(date '+%Y') -eq $year ]] && [[ $((10#$(date '+%m'))) -le $((10#$month)) ]]; then
+        return 0
+    fi
+    return 1
+  }
+
+  if do_hack "2025/04"; then
+    # Inject snapd-info file to account for kernels that don't yet include snapd 2.68+
+    unsquashfs -d tmp-pc-kernel pc-kernel.snap
+    cat <<EOF > tmp-pc-kernel/snapd-info
+    VERSION=2.68
+    SNAPD_APPARMOR_REEXEC=1
+    SNAPD_ASSERTS_FORMATS='{"account-key":1,"snap-declaration":6,"system-user":2}'
+    EOF
+    rm pc-kernel.snap
+    snap pack tmp-pc-kernel
+    mv pc-kernel_*.snap pc-kernel.snap
+  fi
+  # HACK ENDS
+
   # Build kernel with initramfs with the compiled snap-bootstrap
   uc24_build_initramfs_kernel_snap "$PWD/pc-kernel.snap" "$NESTED_ASSETS_DIR"
   mv "${NESTED_ASSETS_DIR}"/pc-kernel_*.snap pc-kernel.snap
 
   # Create new disk for the installer to work on and attach to VM.
-  truncate --size=6G disk.img
+  truncate --size=10G disk.img
 
-  # setup_nested_hybrid_system.sh runs the muinstaller to install a hybrid
-  # system.
-  gendeveloper1 sign-model < "$TESTSLIB"/assertions/developer1-2410-classic-dangerous.json > classic.model
-  "${TESTSTOOLS}"/setup_nested_hybrid_system.sh \
-     --model classic.model \
-     --store-dir "${STORE_DIR}" \
-     --gadget pc.snap \
-     --gadget-assertion pc.assert \
-     --kernel pc-kernel.snap \
-     --kernel-assertion pc-kernel.assert \
-     --passphrase "$PASSPHRASE" \
-     --extra-muinstaller-arg "-kdf-type $KDF_TYPE" \
-     --disk disk.img
+  # setup_nested_hybrid_system.sh runs the muinstaller to install a hybrid system.
+  gendeveloper1 sign-model < "$TESTSLIB"/assertions/developer1-2504-classic-dangerous.json > classic.model
+  if [[ "$KDF_TYPE" == "default" ]]; then
+    "${TESTSTOOLS}"/setup_nested_hybrid_system.sh \
+      --model classic.model \
+      --store-dir "${STORE_DIR}" \
+      --gadget pc.snap \
+      --gadget-assertion pc.assert \
+      --kernel pc-kernel.snap \
+      --kernel-assertion pc-kernel.assert \
+      --passphrase "$PASSPHRASE" \
+      --disk disk.img
+  else
+    "${TESTSTOOLS}"/setup_nested_hybrid_system.sh \
+      --model classic.model \
+      --store-dir "${STORE_DIR}" \
+      --gadget pc.snap \
+      --gadget-assertion pc.assert \
+      --kernel pc-kernel.snap \
+      --kernel-assertion pc-kernel.assert \
+      --passphrase "$PASSPHRASE" \
+      --extra-muinstaller-arg "-kdf-type $KDF_TYPE" \
+      --disk disk.img
+  fi
 
   # Basic things look fine.
   remote.exec "cat /etc/os-release" | MATCH 'NAME="Ubuntu"'

@@ -7,7 +7,7 @@
     "architecture": "amd64",
     "timestamp": "2024-04-09T22:00:00+00:00",
     "grade": "dangerous",
-    "base": "core22",
+    "base": "core24",
     "classic": "true",
     "distribution": "ubuntu",
     "serial-authority": [
@@ -15,13 +15,13 @@
     ],
     "snaps": [
         {
-            "default-channel": "classic-24.10/edge",
+            "default-channel": "classic-25.04/edge",
             "id": "UqFziVZDHLSyO3TqSWgNBoAdHbLI4dAH",
             "name": "pc",
             "type": "gadget"
         },
         {
-            "default-channel": "24.10/edge",
+            "default-channel": "25.04/edge",
             "id": "pYVQrBcKmBa0mZ4CCN7ExT6jH8rY1hza",
             "name": "pc-kernel",
             "type": "kernel"
