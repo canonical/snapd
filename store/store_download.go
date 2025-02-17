@@ -322,7 +322,7 @@ const (
 // ordinary unauthenticated file server, so this does not require store
 // authentication or user state, nor a progress bar. They are also not revision-
 // specific, and do not use a download cache.
-func DownloadIcon(ctx context.Context, name string, targetPath string, downloadURL string) error {
+func (s *Store) DownloadIcon(ctx context.Context, name string, targetPath string, downloadURL string) error {
 	if err := os.MkdirAll(filepath.Dir(targetPath), 0o755); err != nil {
 		return err
 	}
