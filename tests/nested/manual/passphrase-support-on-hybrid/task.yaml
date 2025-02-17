@@ -71,31 +71,17 @@ execute: |
   snap download --basename=pc-kernel --channel="$KERNEL_CHANNEL" pc-kernel
 
   # THIS IS A HACK
-  do_hack() { 
-    local expire_date="$1"
-    local year=${expire_date%%/*}
-    local month=${expire_date#*/}
-    if [[ $(date '+%Y') -lt $year ]]; then
-        return 0
-    fi
-    if [[ $(date '+%Y') -eq $year ]] && [[ $((10#$(date '+%m'))) -le $((10#$month)) ]]; then
-        return 0
-    fi
-    return 1
-  }
-
-  if do_hack "2025/04"; then
-    # Inject snapd-info file to account for kernels that don't yet include snapd 2.68+
-    unsquashfs -d tmp-pc-kernel pc-kernel.snap
-    cat <<EOF > tmp-pc-kernel/snapd-info
-    VERSION=2.68
-    SNAPD_APPARMOR_REEXEC=1
-    SNAPD_ASSERTS_FORMATS='{"account-key":1,"snap-declaration":6,"system-user":2}'
-    EOF
-    rm pc-kernel.snap
-    snap pack tmp-pc-kernel
-    mv pc-kernel_*.snap pc-kernel.snap
-  fi
+  # TODO: Remove when pc-kernel snapd-info includes snap-bootstrap from snapd 2.68+
+  # Inject snapd-info file to account for kernels that don't yet include snapd 2.68+
+  unsquashfs -d tmp-pc-kernel pc-kernel.snap
+  cat <<EOF > tmp-pc-kernel/snapd-info
+  VERSION=2.68
+  SNAPD_APPARMOR_REEXEC=1
+  SNAPD_ASSERTS_FORMATS='{"account-key":1,"snap-declaration":6,"system-user":2}'
+  EOF
+  rm pc-kernel.snap
+  snap pack tmp-pc-kernel
+  mv pc-kernel_*.snap pc-kernel.snap
   # HACK ENDS
 
   # Build kernel with initramfs with the compiled snap-bootstrap
