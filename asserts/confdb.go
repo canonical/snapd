@@ -166,7 +166,7 @@ func (cc *ConfdbControl) Serial() string {
 	return cc.HeaderString("serial")
 }
 
-// ConfdbControl returns the confdb.Control assembled from the assertion.
+// Control returns the confdb.Control assembled from the assertion.
 func (cc *ConfdbControl) Control() confdb.Control {
 	return cc.control.Clone()
 }

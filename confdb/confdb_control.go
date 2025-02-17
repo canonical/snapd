@@ -63,17 +63,17 @@ func (cc *Control) Delegate(operatorID string, views, authMeth []string) error {
 
 // Undelegate withdraws access to the views that have been delegated with the provided authentication methods.
 func (cc *Control) Undelegate(operatorID string, views, authMeth []string) error {
-	operator, ok := cc.operators[operatorID]
+	op, ok := cc.operators[operatorID]
 	if !ok {
 		return nil // nothing is delegated to this operator
 	}
 
-	err := operator.undelegate(views, authMeth)
+	err := op.undelegate(views, authMeth)
 	if err != nil {
 		return err
 	}
 
-	if len(operator.Delegations) == 0 {
+	if len(op.Delegations) == 0 {
 		delete(cc.operators, operatorID)
 	}
 
@@ -82,16 +82,16 @@ func (cc *Control) Undelegate(operatorID string, views, authMeth []string) error
 
 // IsDelegated checks if the view is delegated to the operator with the given authentication methods.
 func (cc *Control) IsDelegated(operatorID, view string, authMeth []string) (bool, error) {
-	operator, ok := cc.operators[operatorID]
+	op, ok := cc.operators[operatorID]
 	if !ok {
 		return false, nil // nothing is delegated to this operator
 	}
 
-	return operator.isDelegated(view, authMeth)
+	return op.isDelegated(view, authMeth)
 }
 
 // Groups returns the groups in a format that can be used to assemble the next revision
-// of the confdb control assertion.
+// of the confdb-control assertion.
 func (cc *Control) Groups() []interface{} {
 	// Group operators by authentication and views
 	// i.e. authentication > views > operator-ids
@@ -100,14 +100,14 @@ func (cc *Control) Groups() []interface{} {
 	var auths []authentication
 
 	// Group operators by auth and view
-	for _, operator := range cc.operators {
-		for view, auth := range operator.Delegations {
+	for _, op := range cc.operators {
+		for view, auth := range op.Delegations {
 			if _, exists := authMap[auth]; !exists {
 				authMap[auth] = map[viewRef][]string{}
 				auths = append(auths, auth)
 			}
 
-			authMap[auth][view] = append(authMap[auth][view], operator.ID)
+			authMap[auth][view] = append(authMap[auth][view], op.ID)
 		}
 	}
 
@@ -144,9 +144,9 @@ func (cc *Control) Groups() []interface{} {
 func (cc Control) Clone() Control {
 	clone := Control{operators: make(map[string]*operator)}
 
-	for k, v := range cc.operators {
-		if v != nil {
-			clone.operators[k] = v.clone()
+	for id, op := range cc.operators {
+		if op != nil {
+			clone.operators[id] = op.clone()
 		}
 	}
 
@@ -168,9 +168,9 @@ const (
 )
 
 // newAuthentication converts []string to authentication and validates it.
-func newAuthentication(methods []string) (authentication, error) {
+func newAuthentication(authMeth []string) (authentication, error) {
 	var auth authentication
-	for _, method := range methods {
+	for _, method := range authMeth {
 		switch method {
 		case "operator-key":
 			auth |= OperatorKey
@@ -337,8 +337,8 @@ func (op operator) clone() *operator {
 		Delegations: make(map[viewRef]authentication),
 	}
 
-	for k, v := range op.Delegations {
-		clone.Delegations[k] = v
+	for view, auth := range op.Delegations {
+		clone.Delegations[view] = auth
 	}
 
 	return clone
