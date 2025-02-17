@@ -298,7 +298,8 @@ func createPartitions(volumes map[string]*gadget.Volume, gadgetRoot, bootDevice 
 	}
 
 	// remove partitions added during a previous install attempt
-	if err := removeCreatedPartitions(gadgetRoot, bootVol, diskVolume); err != nil {
+	deletedOffsetSize, err := removeCreatedPartitions(gadgetRoot, bootVol, diskVolume)
+	if err != nil {
 		return "", nil, 0, fmt.Errorf("cannot remove partitions from previous install: %v", err)
 	}
 	// at this point we removed any existing partition, nuke any
@@ -315,7 +316,7 @@ func createPartitions(volumes map[string]*gadget.Volume, gadgetRoot, bootDevice 
 		opts := &CreateOptions{
 			GadgetRootDir: gadgetRoot,
 		}
-		created, err = createMissingPartitions(diskVolume, bootVol, opts)
+		created, err = createMissingPartitions(diskVolume, bootVol, opts, deletedOffsetSize)
 	})
 	if err != nil {
 		return "", nil, 0, fmt.Errorf("cannot create the partitions: %v", err)
