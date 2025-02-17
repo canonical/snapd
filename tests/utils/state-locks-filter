@@ -1,0 +1,266 @@
+#!/usr/bin/env python3
+
+import argparse
+import os
+import re
+import sys
+
+
+class Lock:
+    def __init__(self, lines: list[str]):
+        self.lines = lines
+        self.held_time = 0
+        self.wait_time = 0
+        self._calc_held_ms(self.lines[0])
+        self._calc_wait_ms(self.lines[0])
+
+    def _calc_held_ms(self, line: str) -> int:
+        match = re.search('.*held: (.+?) ms.*', line)
+        if match:
+            self.held_time = int(match.group(1))
+
+    def _calc_wait_ms(self, line: str) -> int:
+        match = re.search('.*wait (.+?) ms.*', line)
+        if match:
+            self.wait_time = int(match.group(1))
+
+    def get_held_time(self) -> int:
+        return self.held_time
+
+    def get_wait_time(self) -> int:
+        return self.wait_time
+
+    def get_trace(self) -> str:
+        return "".join(self.lines[1:])
+
+    def str(self) -> str:
+        return "".join(self.lines)
+
+
+class LocksGroup:
+
+    LOCK_PREFIX = "### "
+
+    def __init__(self, lines: list[str]):
+        self.lines = lines
+        self.header = self.lines[0]
+        self.locks = []
+
+        self._read()
+
+    def _read(self):
+        current_line = 1
+        while True:
+            if current_line >= len(self.lines):
+                return
+
+            lock_lines = self._current_lock(current_line)
+            if len(lock_lines) == 0:
+                print("Error parsing lock")
+                sys.exit(1)
+
+            self.locks.append(Lock(lock_lines))
+            current_line = current_line + len(lock_lines)
+
+    def _is_lock(self, line: str) -> bool:
+        return line.startswith(self.LOCK_PREFIX)
+
+    # This function works to detect the current test but also for the current project
+    def _current_lock(self, start_line: int) -> list[str]:
+        curr_lock = []
+        curr_lock.append(self.lines[start_line])
+
+        current_line = start_line + 1
+        while True:
+            if current_line >= len(self.lines) or self._is_lock(self.lines[current_line]): 
+                return curr_lock
+            
+            curr_lock.append(self.lines[current_line])
+            current_line = current_line + 1
+
+    def filter(self, held_time: int, wait_time: int):
+        filtered_locks = []
+
+        for lock in self.locks:
+            filter_ok = True
+            if held_time and held_time > lock.get_held_time():
+                filter_ok = False
+            if wait_time and wait_time > lock.get_wait_time():
+                filter_ok = False
+
+            if filter_ok:
+                filtered_locks.append(lock)
+        
+        self.locks = filtered_locks
+
+    def skip(self, skip_names: list[str]):
+        filtered_locks = []
+
+        for lock in self.locks:
+            match_skip = False
+            for skip_name in skip_names:
+                if skip_name in lock.get_trace():
+                    match_skip = True
+                    break
+
+            if not match_skip:
+                filtered_locks.append(lock)
+        
+        self.locks = filtered_locks
+
+    def get_locks(self) -> list[Lock]:
+        return self.locks
+
+    def get_max_held(self) -> int:
+        max_held = 0
+        for lock in self.locks:
+            if lock.get_held_time() > max_held:
+                max_held = lock.get_held_time()
+                
+        return max_held
+
+    def get_max_wait(self) -> int:
+        max_wait = 0
+        for lock in self.locks:
+            if lock.get_wait_time() > max_wait:
+                max_wait = lock.get_wait_time()
+                
+        return max_wait
+
+    def show(self):        
+        print(self.header)
+        for lock in self.locks:
+            print(lock.str())
+
+
+class LocksFileReader:
+
+    PROJECT_PREFIX = "###START: SNAPD PROJECT"
+    TEST_PREFIX = "###START:"
+
+    def __init__(self, locks_file: str):
+        self.locks_file = locks_file
+        self.lines = []
+        self.total_lines = len(self.lines)
+        
+        self.groups = []
+
+        self._read()
+
+    def _read(self):
+        with open(self.locks_file, "r") as f:
+            self.lines = f.readlines()
+
+        current_line = 0
+        if not self._is_project(self.lines[current_line]):
+            print("First time expected to be the project start.")
+            sys.exit(1)
+
+        # Read the tests
+        while True:
+            if current_line >= len(self.lines):
+                return
+
+            group_lines = self._current_group(current_line)
+            if len(group_lines) == 0:
+                print("Error parsing test.")
+                sys.exit(1)
+
+            self.groups.append(LocksGroup(group_lines))
+            current_line = current_line + len(group_lines)
+
+    # Indicates if the line is a test
+    def _is_test(self, line: str) -> bool:
+        return not self._is_project(line) and line.startswith(self.TEST_PREFIX)
+
+    def _is_project(self, line: str) -> bool:
+        return line.startswith(self.PROJECT_PREFIX)
+    
+    # This function works to detect the current test but also for the current project
+    def _current_group(self, start_line: int) -> list[str]:
+        curr_test = []
+        curr_test.append(self.lines[start_line])
+
+        current_line = start_line + 1
+        while True:
+            if current_line >= len(self.lines) or self._is_test(self.lines[current_line]): 
+                return curr_test
+            
+            curr_test.append(self.lines[current_line])
+            current_line = current_line + 1
+
+    def filter(self, held_time: int, wait_time: int):
+        filtered_groups = []
+        for group in self.groups:
+            group.filter(held_time, wait_time)
+            if len(group.get_locks()) > 0:
+                filtered_groups.append(group)
+
+        self.groups = filtered_groups
+
+    def skip(self, skip_names: list[str]):
+        filtered_groups = []
+        for group in self.groups:
+            group.skip(skip_names)
+            if len(group.get_locks()) > 0:
+                filtered_groups.append(group)
+        
+        self.groups = filtered_groups
+
+    def sort_held_time(self):
+        self.groups = sorted(self.groups, key=lambda x: x.get_max_held(), reverse=True)
+
+    def sort_wait_time(self):
+        self.groups = sorted(self.groups, key=lambda x: x.get_max_wait(), reverse=True)
+
+    def print(self):
+        for group in self.groups:
+            group.show()
+
+def _make_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(description="spread filter helper")
+    parser.add_argument("-f", "--locks-file", type=str, required=True, help="Locks file")
+    parser.add_argument("-ht", "--held-time", type=int, default=0, help="Include locks with longer held time")
+    parser.add_argument("-wt", "--wait-time", type=int, default=0, help="Include locks with longer wait time")
+    parser.add_argument("-s", "--skip", action="append", default=[], help="Include functions to skip")
+    parser.add_argument("--sort-held-time", action='store_true', help="Sort higher held times first")
+    parser.add_argument("--sort-wait-time", action='store_true', help="Sort higher wait times first")
+    
+    return parser
+
+
+if __name__ == "__main__":
+    parser = _make_parser()
+    args = parser.parse_args()
+
+    if not args.locks_file:
+        print("state-lock-filter: no locks file set")
+        sys.exit(1)
+
+    if not os.path.isfile(args.locks_file):
+        print("state-lock-filter: locks file '{}' does not exist".format(args.locks_file))
+        sys.exit(1)
+
+    if args.sort_held_time and args.sort_wait_time:
+        print("state-lock-filter: define just 1 sorting (by held or wait times)")
+        sys.exit(1)
+
+    locks_reader = LocksFileReader(args.locks_file)
+
+    # First filter by time
+    if args.held_time > 0 or args.wait_time > 0:
+        locks_reader.filter(args.held_time, args.wait_time)
+
+    # Then skip traces with matches
+    if args.skip:
+        locks_reader.skip(args.skip)
+
+    # then sort results
+    if args.sort_held_time:
+        locks_reader.sort_held_time()
+
+    if args.sort_wait_time:
+        locks_reader.sort_wait_time()
+
+    # And finally print the results
+    locks_reader.print()
