@@ -21,16 +21,30 @@ package notify
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
+	"strings"
+
+	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/strutil"
 )
 
 // ProtocolVersion denotes a notification protocol version.
 type ProtocolVersion uint16
 
 var (
+	// protocolVersionsDir, if it exists, has a boolean file entry for each
+	// protocol version supported by the kernel.
+	protocolVersionsDir string
+
+	// protocolFeaturesPath contains fields for supported protocol features.
+	protocolFeaturesPath string
+
 	// versions holds the notification protocols snapd supports, in order of
 	// preference. If the first version is supported, try to use it, else try
 	// the next version, etc.
-	versions = []ProtocolVersion{3}
+	versions = []ProtocolVersion{5, 3}
 
 	// versionLikelySupportedChecks provides a function for each known protocol
 	// version which returns true if that version is supported by snapd and
@@ -41,7 +55,34 @@ var (
 	// on the notify socket with that version, in which case we'll need to try
 	// the next version in the list.
 	versionLikelySupportedChecks = map[ProtocolVersion]func() bool{
-		3: SupportAvailable,
+		3: func() bool {
+			if !SupportAvailable() {
+				return false
+			}
+			if osutil.IsDirectory(protocolVersionsDir) && !notifyVersionFileExists(3) {
+				return false
+			}
+			return true
+		},
+		5: func() bool {
+			if !SupportAvailable() {
+				return false
+			}
+			if !notifyVersionFileExists(5) {
+				return false
+			}
+			// XXX: apparmor.KernelFeatures() already has this information, but
+			// we can't import apparmor here since that would be circular.
+			data, err := os.ReadFile(protocolFeaturesPath)
+			if err != nil {
+				return false
+			}
+			features := strings.Fields(string(data))
+			if !strutil.ListContains(features, "tags") {
+				return false
+			}
+			return true
+		},
 	}
 
 	// versionKnown returns true if the given protocol version is known by
@@ -52,6 +93,10 @@ var (
 		return exists
 	}
 )
+
+func notifyVersionFileExists(version ProtocolVersion) bool {
+	return osutil.FileExists(filepath.Join(protocolVersionsDir, fmt.Sprintf("v%d", version)))
+}
 
 // likelySupported returns true if the receiving version is supported by snapd
 // and likely supported by the kernel, as reported by the likely supported
@@ -87,6 +132,16 @@ func likelySupportedProtocolVersion(unsupported map[ProtocolVersion]bool) (Proto
 		return v, true
 	}
 	return ProtocolVersion(0), false
+}
+
+func setupProtocolVersionsPaths(newrootdir string) {
+	protocolVersionsDir = filepath.Join(newrootdir, "/sys/kernel/security/apparmor/features/policy/notify_versions")
+	protocolFeaturesPath = filepath.Join(newrootdir, "/sys/kernel/security/apparmor/features/policy/notify/user")
+}
+
+func init() {
+	dirs.AddRootDirCallback(setupProtocolVersionsPaths)
+	setupProtocolVersionsPaths(dirs.GlobalRootDir)
 }
 
 func MockVersionKnown(f func(v ProtocolVersion) bool) (restore func()) {
