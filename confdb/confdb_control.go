@@ -94,7 +94,7 @@ func (cc *Control) IsDelegated(operatorID, view string, authMeth []string) (bool
 // of the confdb control assertion.
 func (cc *Control) Groups() []interface{} {
 	// Group operators by authentication and views
-	// i.e. authentication > views > operators
+	// i.e. authentication > views > operator-ids
 	authMap := map[authentication]map[viewRef][]string{}
 	// auths will accumulate the authentication methods in use
 	var auths []authentication
