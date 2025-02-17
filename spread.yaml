@@ -612,6 +612,7 @@ debug-each: |
     if tests.nested is-nested; then
         echo '# free space on the host'
         df -h || true
+        du -ch /var/tmp/work-dir || true
 
         echo '# nested VM status'
         tests.nested vm status
