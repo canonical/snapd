@@ -26,7 +26,6 @@ package secboot
 
 import (
 	"errors"
-	"os"
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/bootloader"
@@ -268,18 +267,4 @@ func MarkSuccessful() error {
 	}
 
 	return nil
-}
-
-func isOutOfProcessArgon2KDFMode(args []string) bool {
-	if len(os.Args) != len(args)+1 {
-		return false
-	}
-
-	for i := 0; i < len(args); i++ {
-		if os.Args[i+1] != args[i] {
-			return false
-		}
-	}
-
-	return true
 }

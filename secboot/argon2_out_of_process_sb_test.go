@@ -37,7 +37,7 @@ type argon2Suite struct {
 
 var _ = Suite(&argon2Suite{})
 
-func (*argon2Suite) TestMaybeRunArgon2OutOfProcessRequestHandlerArgon2Mode(c *C) {
+func (*argon2Suite) TestHijackAndRunArgon2OutOfProcessHandlerOnArgArgon2Mode(c *C) {
 	runArgon2Called := 0
 	restore := secboot.MockSbWaitForAndRunArgon2OutOfProcessRequest(func(_ io.Reader, _ io.WriteCloser, _ sb.Argon2OutOfProcessWatchdogHandler) (lockRelease func(), err error) {
 		runArgon2Called++
@@ -72,7 +72,7 @@ func (*argon2Suite) TestMaybeRunArgon2OutOfProcessRequestHandlerArgon2Mode(c *C)
 	c.Check(exitCalled, Equals, 1)
 }
 
-func (*argon2Suite) TestMaybeRunArgon2OutOfProcessRequestHandlerArgon2ModeError(c *C) {
+func (*argon2Suite) TestHijackAndRunArgon2OutOfProcessHandlerOnArgArgon2ModeError(c *C) {
 	runArgon2Called := 0
 	restore := secboot.MockSbWaitForAndRunArgon2OutOfProcessRequest(func(_ io.Reader, _ io.WriteCloser, _ sb.Argon2OutOfProcessWatchdogHandler) (lockRelease func(), err error) {
 		runArgon2Called++
@@ -116,7 +116,7 @@ func (*mockArgon2KDF) Time(mode sb.Argon2Mode, params *sb.Argon2CostParams) (tim
 	return 0, nil
 }
 
-func (*argon2Suite) TestMaybeRunArgon2OutOfProcessRequestHandlerNormalMode(c *C) {
+func (*argon2Suite) TestHijackAndRunArgon2OutOfProcessHandlerOnArgNormalMode(c *C) {
 	runArgon2Called := 0
 	restore := secboot.MockSbWaitForAndRunArgon2OutOfProcessRequest(func(_ io.Reader, _ io.WriteCloser, _ sb.Argon2OutOfProcessWatchdogHandler) (lockRelease func(), err error) {
 		runArgon2Called++
