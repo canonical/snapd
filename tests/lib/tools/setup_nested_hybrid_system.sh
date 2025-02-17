@@ -19,7 +19,7 @@ run_muinstaller() {
     local kernel_assertion="${6}"
     local label="${7}"
     local disk="${8}"
-    local kern_mods_comp="${9:-}"
+    local kern_mods_comp="${9}"
     local passphrase="${10}"
     shift 10
     local extra_muinstaller_args=("${@}")
