@@ -2404,10 +2404,7 @@ func (*schemaSuite) TestAlternativesAllEphemeralOk(c *C) {
 			"type": "number",
 			"ephemeral": true
 		},
-		{
-			"type": "bool",
-			"ephemeral": true
-		}
+		"bool"
 		]
 	}
 }`)
@@ -2418,24 +2415,7 @@ func (*schemaSuite) TestAlternativesAllEphemeralOk(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(nestedSchema, HasLen, 2)
 	c.Assert(nestedSchema[0].Ephemeral(), Equals, true)
-	c.Assert(nestedSchema[1].Ephemeral(), Equals, true)
-}
-
-func (*schemaSuite) TestAlternativesSomeEphemeralFail(c *C) {
-	schemaStr := []byte(`{
-	"schema": {
-		"foo": [
-		{
-			"type": "number",
-			"ephemeral": true
-		},
-		"bool"
-		]
-	}
-}`)
-	_, err := confdb.ParseSchema(schemaStr)
-	c.Assert(err, ErrorMatches, `cannot parse alternative types: alternatives must all be ephemeral or non-ephemeral`)
-
+	c.Assert(nestedSchema[1].Ephemeral(), Equals, false)
 }
 
 func (*schemaSuite) TestUserDefinedTypeEphemeralFail(c *C) {
@@ -2651,38 +2631,6 @@ func (*schemaSuite) TestPruneEphemeralSeveralNested(c *C) {
 	c.Assert(string(data), Equals, `{"foo":[{"baz":2},{}]}`)
 }
 
-func (*schemaSuite) TestPruneEphemeralAlternativesOk(c *C) {
-	schemaStr := []byte(`{
-	"schema": {
-		"foo": {
-			"values": [
-				{
-					"type": "string",
-					"ephemeral": true
-				},
-				{
-					"type": "int",
-					"ephemeral": true
-				}
-			]
-		}
-	}
-}`)
-	schema, err := confdb.ParseSchema(schemaStr)
-	c.Assert(err, IsNil)
-
-	data := []byte(`{
-	"foo": {
-		"a": "b",
-		"c": 2
-	}
-}`)
-
-	data, err = schema.PruneEphemeral(data)
-	c.Assert(err, IsNil)
-	c.Assert(string(data), Equals, `{"foo":{}}`)
-}
-
 func (*schemaSuite) TestPruneEphemeralAlternativesNestedOk(c *C) {
 	schemaStr := []byte(`{
 	"schema": {
@@ -2716,11 +2664,21 @@ func (*schemaSuite) TestPruneEphemeralAlternativesNestedOk(c *C) {
 	c.Assert(string(data), Equals, `{"foo":{"bar":{}}}`)
 }
 
-func (*schemaSuite) TestPruneEphemeralAlternativesNoEph(c *C) {
+func (*schemaSuite) TestAlternativeMixingEphemeral(c *C) {
 	schemaStr := []byte(`{
 	"schema": {
 		"foo": {
-			"values": ["string", "int"]
+			"values": [
+				{
+					"type": "string",
+					"ephemeral": true
+				},
+				"int",
+				{
+					"type": "number",
+					"ephemeral": true
+				}
+			]
 		}
 	}
 }`)
@@ -2730,29 +2688,13 @@ func (*schemaSuite) TestPruneEphemeralAlternativesNoEph(c *C) {
 	data := []byte(`{
 	"foo": {
 		"bar": "baz",
-		"num": 1
+		"num": 1,
+		"dec": 2.0
 	}
 }`)
 
 	data, err = schema.PruneEphemeral(data)
 	c.Assert(err, IsNil)
-	c.Assert(string(data), Equals, `{"foo":{"bar":"baz","num":1}}`)
-}
-
-func (*schemaSuite) TestPruneEphemeralAlternativesFail(c *C) {
-	schemaStr := []byte(`{
-	"schema": {
-		"foo": {
-			"values": [
-				{
-					"type": "string",
-					"ephemeral": true
-				},
-				"int"
-			]
-		}
-	}
-}`)
-	_, err := confdb.ParseSchema(schemaStr)
-	c.Assert(err, ErrorMatches, `cannot parse alternative types: alternatives must all be ephemeral or non-ephemeral`)
+	// 1 wasn't pruned so it matched with the int not number (i.e., in order)
+	c.Assert(string(data), Equals, `{"foo":{"num":1}}`)
 }
