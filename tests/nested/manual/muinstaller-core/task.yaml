@@ -65,15 +65,10 @@ execute: |
   #shellcheck source=tests/lib/nested.sh
   . "$TESTSLIB"/nested.sh
 
-  # TODO: remove this condition when passphrase support lands.
-  if [ -n "$PASSPHRASE" ]; then
-    echo "SKIPPING: passphrase support has not landed yet"
+  if ! os.query is-noble && [ -n "$PASSPHRASE" ]; then
+    echo "SKIPPING: only run passphrase support variant for core24"
     exit 0
   fi
-  # if ! os.query is-noble && [ -n "$PASSPHRASE" ]; then
-  #   echo "SKIPPING: only run passphrase support variant for core24"
-  #   exit 0
-  # fi
 
   version="$(nested_get_version)"
 
@@ -107,6 +102,21 @@ execute: |
 
   # Retrieve kernel
   snap download --basename=pc-kernel --channel="$version/edge" pc-kernel
+
+  # THIS IS A HACK
+  # TODO: Remove when pc-kernel snapd-info includes snap-bootstrap from snapd 2.68+
+  # Inject snapd-info file to account for kernels that don't yet include snapd 2.68+
+  unsquashfs -d tmp-pc-kernel pc-kernel.snap
+  cat <<EOF > tmp-pc-kernel/snapd-info
+  VERSION=2.68
+  SNAPD_APPARMOR_REEXEC=1
+  SNAPD_ASSERTS_FORMATS='{"account-key":1,"snap-declaration":6,"system-user":2}'
+  EOF
+  rm pc-kernel.snap
+  snap pack tmp-pc-kernel
+  mv pc-kernel_*.snap pc-kernel.snap
+  # HACK ENDS
+
   # Build kernel with initramfs with the compiled snap-bootstrap
   if os.query is-ubuntu-ge 24.04; then
     uc24_build_initramfs_kernel_snap "$PWD/pc-kernel.snap" "$NESTED_ASSETS_DIR"
@@ -251,9 +261,7 @@ execute: |
     muinstaller_args="$muinstaller_args -optional ./optional-install.json"
   fi
   if [ -n "$PASSPHRASE" ]; then
-    # pbkdf2 is used because it is less memory intensive than in
-    # process argon2i* variants.
-    muinstaller_args="$muinstaller_args -passphrase $PASSPHRASE --kdf-type pbkdf2"
+    muinstaller_args="$muinstaller_args -passphrase $PASSPHRASE"
   fi
 
   remote.exec "sudo muinstaller $muinstaller_args"
@@ -339,5 +347,8 @@ execute: |
   # model in the seed should match the one that was installed on the system
   remote.exec "diff <(snap model --assertion) /run/mnt/ubuntu-seed/systems/${LABEL}/model"
 
-  # test that we can actually boot into the installed recovery system
-  tests.nested transition "${LABEL}" recover
+  # TODO: update "tests.nested transition" to support rebooting with a passphrase
+  if [ -z "$PASSPHRASE" ]; then
+    # test that we can actually boot into the installed recovery system
+    tests.nested transition "${LABEL}" recover
+  fi
