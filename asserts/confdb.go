@@ -214,7 +214,7 @@ func parseConfdbControlGroups(rawGroups []interface{}) (*confdb.Control, error) 
 
 		auth, err := checkStringListInMap(group, "authentications", `"authentications" field`, nil)
 		if err != nil {
-			return nil, fmt.Errorf(`%s: %w`, errPrefix, err)
+			return nil, fmt.Errorf("%s: %w", errPrefix, err)
 		}
 		if auth == nil {
 			return nil, fmt.Errorf(`%s: "authentications" must be provided`, errPrefix)
@@ -222,7 +222,7 @@ func parseConfdbControlGroups(rawGroups []interface{}) (*confdb.Control, error) 
 
 		views, err := checkStringListInMap(group, "views", `"views" field`, nil)
 		if err != nil {
-			return nil, fmt.Errorf(`%s: %w`, errPrefix, err)
+			return nil, fmt.Errorf("%s: %w", errPrefix, err)
 		}
 		if views == nil {
 			return nil, fmt.Errorf(`%s: "views" must be provided`, errPrefix)
@@ -230,7 +230,7 @@ func parseConfdbControlGroups(rawGroups []interface{}) (*confdb.Control, error) 
 
 		operatorIDs, err := checkStringListInMap(group, "operators", `"operators" field`, nil)
 		if err != nil {
-			return nil, fmt.Errorf(`%s: %w`, errPrefix, err)
+			return nil, fmt.Errorf("%s: %w", errPrefix, err)
 		}
 		if operatorIDs == nil {
 			return nil, fmt.Errorf(`%s: "operators" must be provided`, errPrefix)
@@ -238,7 +238,7 @@ func parseConfdbControlGroups(rawGroups []interface{}) (*confdb.Control, error) 
 
 		for _, operatorID := range operatorIDs {
 			if err := cc.Delegate(operatorID, views, auth); err != nil {
-				return nil, fmt.Errorf(`%s: %w`, errPrefix, err)
+				return nil, fmt.Errorf("%s: %w", errPrefix, err)
 			}
 		}
 	}
