@@ -334,22 +334,12 @@ func parseTypeDefinition(raw json.RawMessage) (interface{}, error) {
 func (s *StorageSchema) parseAlternatives(alternatives []json.RawMessage) (*alternativesSchema, error) {
 	alt := &alternativesSchema{schemas: make([]Schema, 0, len(alternatives))}
 
-	var ephemeralAlts []int
-	for i, altRaw := range alternatives {
+	for _, altRaw := range alternatives {
 		schema, err := s.parse(altRaw)
 		if err != nil {
 			return nil, err
 		}
-
-		if schema.Ephemeral() {
-			ephemeralAlts = append(ephemeralAlts, i)
-		}
-
 		alt.schemas = append(alt.schemas, schema)
-	}
-
-	if len(ephemeralAlts) != 0 && len(ephemeralAlts) != len(alternatives) {
-		return nil, errors.New(`alternatives must all be ephemeral or non-ephemeral`)
 	}
 
 	if len(alt.schemas) == 0 {
@@ -500,32 +490,18 @@ func (v *alternativesSchema) Type() SchemaType {
 func (v *alternativesSchema) Ephemeral() bool { return false }
 
 func (v *alternativesSchema) PruneEphemeral(data []byte) ([]byte, error) {
-	for i, s := range v.schemas {
+	for _, s := range v.schemas {
 		if err := s.Validate(data); err != nil {
-			if i == len(v.schemas)-1 {
-				// no alternative schema matches the data which shouldn't happen since
-				// we validate beforehand
-				return nil, errors.New("internal error: cannot prune ephemeral: no alternative schema matches data")
-			}
+			// alternatives are matched in order so find the first matching schema
+			// and use that to prune
 			continue
 		}
 
-		pruned, err := s.PruneEphemeral(data)
-		if err != nil {
-			// shouldn't happen save for programmer error since we already validated
-			return nil, err
-		}
-
-		// TODO: there's an implicit assumption here: that no two alternative types can
-		// match the data or that, if two types do, any ephemeral tags nested in
-		// them match. Otherwise, what if one requires removing some nested bit and
-		// another doesn't? Pruning then depends on which comes first. This is why
-		// alternative types must be all ephemeral or none (but we don't extend that
-		// constraint to nested types).
-		return pruned, nil
+		return s.PruneEphemeral(data)
 	}
 
-	return data, nil
+	// should not be possible, as we validate before pruning
+	return nil, errors.New("cannot prune ephemeral data: no matching alternative schema")
 }
 
 type mapSchema struct {
