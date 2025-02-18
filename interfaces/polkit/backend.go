@@ -35,11 +35,17 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/timings"
 )
 
 func polkitPolicyName(snapName, nameSuffix string) string {
 	return snap.ScopedSecurityTag(snapName, "interface", nameSuffix) + ".policy"
+}
+
+func polkitRuleName(snapName, nameSuffix string) string {
+	// 70-<security-tag>.<file-name>.rules
+	return fmt.Sprintf("70-%s.%s.rules", snap.SecurityTag(snapName), nameSuffix)
 }
 
 // Backend is responsible for maintaining polkitd policy files.
@@ -55,64 +61,90 @@ func (b *Backend) Name() interfaces.SecuritySystem {
 	return interfaces.SecurityPolkit
 }
 
-// Setup installs the polkit policy files specific to a given snap.
+// Setup installs the polkit policy and rule files specific to a given snap.
 //
 // Polkit has no concept of a complain mode so confinment type is ignored.
 func (b *Backend) Setup(appSet *interfaces.SnapAppSet, opts interfaces.ConfinementOptions, repo *interfaces.Repository, tm timings.Measurer) error {
 	snapName := appSet.InstanceName()
-	// Get the policies that apply to this snap
+	// Get the policies and rules that apply to this snap
 	spec, err := repo.SnapSpecification(b.Name(), appSet, opts)
 	if err != nil {
 		return fmt.Errorf("cannot obtain polkit specification for snap %q: %s", snapName, err)
 	}
 
 	// Get the files that this snap should have
-	glob := polkitPolicyName(snapName, "*")
-	content := deriveContent(spec.(*Specification), appSet)
-	dir := dirs.SnapPolkitPolicyDir
+	policiesContent, rulesContent := deriveContent(spec.(*Specification), appSet)
 
 	// If we do not have any content to write, there is no point
 	// ensuring the directory exists.
-	if content != nil {
-		if err := os.MkdirAll(dir, 0755); err != nil {
-			return fmt.Errorf("cannot create directory for polkit policy files %q: %s", dir, err)
+	if policiesContent != nil {
+		if err := os.MkdirAll(dirs.SnapPolkitPolicyDir, 0755); err != nil {
+			return fmt.Errorf("cannot create directory for polkit policy files %q: %s", dirs.SnapPolkitPolicyDir, err)
 		}
 	}
-	_, _, err = osutil.EnsureDirState(dir, glob, content)
+	glob := polkitPolicyName(snapName, "*")
+	_, _, err = osutil.EnsureDirState(dirs.SnapPolkitPolicyDir, glob, policiesContent)
 	if err != nil {
 		return fmt.Errorf("cannot synchronize polkit policy files for snap %q: %s", snapName, err)
 	}
+
+	if rulesContent != nil {
+		if err := os.MkdirAll(dirs.SnapPolkitRuleDir, 0755); err != nil {
+			return fmt.Errorf("cannot create directory for polkit rule files %q: %s", dirs.SnapPolkitRuleDir, err)
+		}
+	}
+	glob = polkitRuleName(snapName, "*")
+	_, _, err = osutil.EnsureDirState(dirs.SnapPolkitRuleDir, glob, rulesContent)
+	if err != nil {
+		return fmt.Errorf("cannot synchronize polkit rule files for snap %q: %s", snapName, err)
+	}
+
 	return nil
 }
 
-// Remove removes polkit policy files of a given snap.
+// Remove removes polkit policy and rule files of a given snap.
 //
 // This method should be called after removing a snap.
 func (b *Backend) Remove(snapName string) error {
+	// Removal must be best-effort to avoid leaving dangling files on early errors.
 	glob := polkitPolicyName(snapName, "*")
-	_, _, err := osutil.EnsureDirState(dirs.SnapPolkitPolicyDir, glob, nil)
-	if err != nil {
-		return fmt.Errorf("cannot synchronize polkit files for snap %q: %s", snapName, err)
+	_, _, policyErr := osutil.EnsureDirState(dirs.SnapPolkitPolicyDir, glob, nil)
+	glob = polkitRuleName(snapName, "*")
+	_, _, ruleErr := osutil.EnsureDirState(dirs.SnapPolkitRuleDir, glob, nil)
+	if policyErr != nil || ruleErr != nil {
+		return fmt.Errorf("cannot synchronize polkit files for snap %q: %s", snapName, strutil.JoinErrors(policyErr, ruleErr))
 	}
 	return nil
 }
 
 // deriveContent combines security snippets collected from all the interfaces
 // affecting a given snap into a content map applicable to EnsureDirState.
-func deriveContent(spec *Specification, appSet *interfaces.SnapAppSet) map[string]osutil.FileState {
+func deriveContent(spec *Specification, appSet *interfaces.SnapAppSet) (policiesContent, rulesContent map[string]osutil.FileState) {
 	policies := spec.Policies()
-	if len(policies) == 0 {
-		return nil
+	rules := spec.Rules()
+	if len(policies)+len(rules) == 0 {
+		return nil, nil
 	}
-	content := make(map[string]osutil.FileState, len(policies)+1)
+
+	policiesContent = make(map[string]osutil.FileState, len(policies)+1)
 	for nameSuffix, policyContent := range policies {
 		filename := polkitPolicyName(appSet.InstanceName(), nameSuffix)
-		content[filename] = &osutil.MemoryFileState{
+		policiesContent[filename] = &osutil.MemoryFileState{
 			Content: policyContent,
 			Mode:    0644,
 		}
 	}
-	return content
+
+	rulesContent = make(map[string]osutil.FileState, len(rules)+1)
+	for nameSuffix, ruleContent := range rules {
+		filename := polkitRuleName(appSet.InstanceName(), nameSuffix)
+		rulesContent[filename] = &osutil.MemoryFileState{
+			Content: ruleContent,
+			Mode:    0644,
+		}
+	}
+
+	return policiesContent, rulesContent
 }
 
 func (b *Backend) NewSpecification(*interfaces.SnapAppSet, interfaces.ConfinementOptions) interfaces.Specification {
