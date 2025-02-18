@@ -10,11 +10,7 @@ details: |
     https://github.com/canonical/prompting-client/blob/main/docs/running-the-scripted-client.md
 
 
-systems:
-  - ubuntu-16*
-  - ubuntu-18*
-  - ubuntu-2*
-  - ubuntu-core-*-64-*
+systems: [- ubuntu-core-*-32*]
 
 prepare: |
     snap install prompting-client
@@ -30,7 +26,7 @@ execute: |
     not snap set system experimental.apparmor-prompting=true >& err.out
 
     # Apparmor prompting feature is not supported in Ubuntu core
-    if os.query is-core; then        
+    if os.query is-core; then
         MATCH "cannot enable prompting feature as it is not supported on Ubuntu Core systems" < err.out
 
     # Ubuntu 16.04, 18.04 and 20.04 have kernels which don't support prompting
@@ -39,7 +35,11 @@ execute: |
     elif os.query is-ubuntu-le 20.04 || is-ubuntu 22.04 && not tests.info is-reexec-in-use; then
         MATCH "cannot enable prompting feature as it is not supported by the system" < err.out
 
-    # The rest of the systems shouldn't show any errors
+    # Apparmor prompting feature is not supported in non ubuntu systems
+    elif not os.query is-ubuntu; then
+        MATCH "cannot enable prompting feature as it is not supported by the system" < err.out
+
+    # The rest of the ubuntu systems shouldn't show any errors
     else
         test -z "$(cat err.out)"
     fi
