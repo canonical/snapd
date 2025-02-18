@@ -26,6 +26,7 @@ import (
 	"github.com/jessevdk/go-flags"
 
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/secboot"
 )
 
 var (
@@ -40,6 +41,8 @@ such as initramfs.
 )
 
 func main() {
+	secboot.HijackAndRunArgon2OutOfProcessHandlerOnArg([]string{"argon2-proc"})
+
 	err := run(os.Args[1:])
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "error: %s\n", err)
