@@ -345,6 +345,9 @@ install -pm 644 -D %{indigo_srcdir}/data/completion/bash/etelpmoc.sh %{buildroot
 install -d -p %{buildroot}%{_datadir}/zsh/site-functions
 install -pm 644 -D %{indigo_srcdir}/data/completion/zsh/_snap %{buildroot}%{_datadir}/zsh/site-functions/_snap
 
+# Remove gpio-chardev ordering target
+rm -f %{buildroot}%{_unitdir}/snapd.gpio-chardev-setup.target
+
 %verifyscript
 %verify_permissions -e %{_libexecdir}/snapd/snap-confine
 
