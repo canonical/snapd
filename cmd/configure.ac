@@ -320,7 +320,9 @@ AS_IF([test "x$with_unit_tests" = "xyes"], [
 ])
 
 AC_ARG_ENABLE([sanitize],
-    AS_HELP_STRING([--enable-sanitize], [Build binaries with address sanitizer (-fsanitize=address)]),
+    AS_HELP_STRING([--enable-sanitize], [Build binaries with sanitizers (ASan and UBSan).
+                                        Note, this will perform a partial build, skipping binaries which
+                                        cannot be built with sanitizers enabled.]),
     [case "$enableval" in
         yes)
           enable_sanitize=yes
