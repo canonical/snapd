@@ -66,8 +66,6 @@ debug: |
     snap debug api "/v2/interfaces/requests/rules?user-id=$TEST_UID" || true
 
 execute: |
-    tests.exec is-skipped && exit 0
-
     echo "Precondition check that snapd is active"
     systemctl is-active snapd.service snapd.socket
 
@@ -84,6 +82,9 @@ execute: |
 
         exit 0
     fi
+
+    # Just to make sure the previous check didn't exit
+    tests.exec is-skipped && exit 0
 
     SNAPD_PID="$(systemctl show --property MainPID snapd.service | cut -f2 -d=)"
 
