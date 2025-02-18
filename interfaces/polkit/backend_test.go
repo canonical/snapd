@@ -80,6 +80,20 @@ func (s *backendSuite) TestInstallingSnapWritesPolicyFiles(c *C) {
 	}
 }
 
+func (s *backendSuite) TestInstallingSnapWritesRuleFiles(c *C) {
+	// NOTE: Hand out a permanent rule so that .rules file is generated.
+	s.Iface.PolkitPermanentSlotCallback = func(spec *polkit.Specification, slot *snap.SlotInfo) error {
+		return spec.AddRule("foo", polkit.Rule("rule content"))
+	}
+	for _, opts := range testedConfinementOpts {
+		snapInfo := s.InstallSnap(c, opts, "", ifacetest.SambaYamlV1, 0)
+		rule := filepath.Join(dirs.SnapPolkitRuleDir, "70-snap.samba.foo.rules")
+		// file called "70-snap.samba.foo.rules" was created
+		c.Check(rule, testutil.FileContains, "rule content")
+		s.RemoveSnap(c, snapInfo)
+	}
+}
+
 func (s *backendSuite) TestRemovingSnapRemovesPolicyFiles(c *C) {
 	// NOTE: Hand out a permanent snippet so that .policy file is generated.
 	s.Iface.PolkitPermanentSlotCallback = func(spec *polkit.Specification, slot *snap.SlotInfo) error {
@@ -94,18 +108,43 @@ func (s *backendSuite) TestRemovingSnapRemovesPolicyFiles(c *C) {
 	}
 }
 
+func (s *backendSuite) TestRemovingSnapRemovesRuleFiles(c *C) {
+	// NOTE: Hand out a permanent snippet so that .rules file is generated.
+	s.Iface.PolkitPermanentSlotCallback = func(spec *polkit.Specification, slot *snap.SlotInfo) error {
+		return spec.AddRule("foo", polkit.Rule("rule content"))
+	}
+	for _, opts := range testedConfinementOpts {
+		snapInfo := s.InstallSnap(c, opts, "", ifacetest.SambaYamlV1, 0)
+		s.RemoveSnap(c, snapInfo)
+		rule := filepath.Join(dirs.SnapPolkitRuleDir, "70-snap.samba.foo.rules")
+		// file called "70-snap.samba.foo.rules" was removed
+		c.Check(rule, testutil.FileAbsent)
+	}
+}
+
 func (s *backendSuite) TestNoPolicyFiles(c *C) {
 	for _, opts := range testedConfinementOpts {
 		snapInfo := s.InstallSnap(c, opts, "", ifacetest.SambaYamlV1, 0)
 		policy := filepath.Join(dirs.SnapPolkitPolicyDir, "snap.samba.interface.foo.policy")
-		// Without any snippets, there the .conf file is not created.
+		// Without any snippets, there the .policy file is not created.
 		c.Check(policy, testutil.FileAbsent)
 		s.RemoveSnap(c, snapInfo)
 	}
 	c.Check(dirs.SnapPolkitPolicyDir, testutil.FileAbsent)
 }
 
-func (s *backendSuite) TestUnexpectedPolicyFilesremoved(c *C) {
+func (s *backendSuite) TestNoRuleFiles(c *C) {
+	for _, opts := range testedConfinementOpts {
+		snapInfo := s.InstallSnap(c, opts, "", ifacetest.SambaYamlV1, 0)
+		rule := filepath.Join(dirs.SnapPolkitRuleDir, "70-snap.samba.foo.rules")
+		// Without any snippets, there the .rules file is not created.
+		c.Check(rule, testutil.FileAbsent)
+		s.RemoveSnap(c, snapInfo)
+	}
+	c.Check(dirs.SnapPolkitRuleDir, testutil.FileAbsent)
+}
+
+func (s *backendSuite) TestUnexpectedPolicyFilesRemoved(c *C) {
 	err := os.MkdirAll(dirs.SnapPolkitPolicyDir, 0700)
 	c.Assert(err, IsNil)
 	policyFile := filepath.Join(dirs.SnapPolkitPolicyDir, "snap.samba.interface.something.policy")
@@ -120,6 +159,24 @@ func (s *backendSuite) TestUnexpectedPolicyFilesremoved(c *C) {
 		// Removing snap also removes unexpected policy files
 		s.RemoveSnap(c, snapInfo)
 		c.Check(policyFile, testutil.FileAbsent)
+	}
+}
+
+func (s *backendSuite) TestUnexpectedRuleFilesRemoved(c *C) {
+	err := os.MkdirAll(dirs.SnapPolkitRuleDir, 0700)
+	c.Assert(err, IsNil)
+	ruleFile := filepath.Join(dirs.SnapPolkitRuleDir, "70-snap.samba.something.rules")
+
+	for _, opts := range testedConfinementOpts {
+		c.Assert(os.WriteFile(ruleFile, []byte("rule content"), 0644), IsNil)
+		// Installing snap removes unexpected policy files
+		snapInfo := s.InstallSnap(c, opts, "", ifacetest.SambaYamlV1, 0)
+		c.Check(ruleFile, testutil.FileAbsent)
+
+		c.Assert(os.WriteFile(ruleFile, []byte("rule content"), 0644), IsNil)
+		// Removing snap also removes unexpected policy files
+		s.RemoveSnap(c, snapInfo)
+		c.Check(ruleFile, testutil.FileAbsent)
 	}
 }
 
