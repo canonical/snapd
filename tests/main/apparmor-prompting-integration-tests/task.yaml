@@ -66,13 +66,16 @@ debug: |
     snap debug api "/v2/interfaces/requests/rules?user-id=$TEST_UID" || true
 
 execute: |
+    # Just to make sure the previous check didn't exit
+    tests.exec is-skipped && exit 0
+
     echo "Precondition check that snapd is active"
     systemctl is-active snapd.service snapd.socket
 
     echo "Enable prompting via snap client where possible"
     # Prompting is unsupported everywhere but the Ubuntu non-core systems with
     # kernels which support apparmor prompting
-    if ! os.query is-ubuntu || os.query is-core || ! grep 'prompt' /sys/kernel/security/apparmor/features/policy/permstable32 || ! tests.info is-reexec-in-use && os.query is-ubuntu 22.04 ; then
+    if ! os.query is-ubuntu || os.query is-core || ! grep 'prompt' /sys/kernel/security/apparmor/features/policy/permstable32; then
         not snap set system experimental.apparmor-prompting=true >& err.out
         if os.query is-core ; then
             MATCH "cannot enable prompting feature as it is not supported on Ubuntu Core systems" < err.out
@@ -82,10 +85,7 @@ execute: |
 
         exit 0
     fi
-
-    # Just to make sure the previous check didn't exit
-    tests.exec is-skipped && exit 0
-
+    
     SNAPD_PID="$(systemctl show --property MainPID snapd.service | cut -f2 -d=)"
 
     echo "Enable AppArmor prompting experimental feature"
