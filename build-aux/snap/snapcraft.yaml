@@ -236,6 +236,12 @@ parts:
       - libcap2-bin
     override-pull: |
       craftctl default
+
+      # TODO drop
+      # need snapd 2.68
+      snap refresh snapd --beta
+      snap version | grep 2.68
+
       # set version, this needs dpkg-parsechangelog (from dpkg-dev) and git
       VERSION="$(./mkversion.sh --output-only)"
 
