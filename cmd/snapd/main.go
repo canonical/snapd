@@ -32,6 +32,7 @@ import (
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/sandbox"
+	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/snapdenv"
 	"github.com/snapcore/snapd/snapdtool"
 	"github.com/snapcore/snapd/syscheck"
@@ -56,6 +57,8 @@ func main() {
 	} else {
 		snapdtool.ExecInSnapdOrCoreSnap()
 	}
+
+	secboot.HijackAndRunArgon2OutOfProcessHandlerOnArg([]string{"argon2-proc"})
 
 	if err := snapdtool.MaybeSetupFIPS(); err != nil {
 		fmt.Fprintf(os.Stderr, "cannot check or enable FIPS mode: %v", err)
