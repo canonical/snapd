@@ -946,6 +946,9 @@ func (f *fakeStore) Download(ctx context.Context, name, targetFn string, snapInf
 }
 
 func (f *fakeStore) DownloadIcon(ctx context.Context, name string, targetPath string, downloadURL string) error {
+	// we don't want to hold state lock while waiting on the icon download
+	f.pokeStateLock()
+
 	if f.downloadIconCallback != nil {
 		f.downloadIconCallback(targetPath)
 	}
