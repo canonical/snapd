@@ -23,7 +23,7 @@ environment:
 
 prepare: |
     if not tests.info is-reexec-in-use; then
-        tests.exec skip-test "The test uses apparmor from the snapd snap, not valid whit no-reexec" && exit 0
+        tests.exec skip-test "The test uses apparmor from the snapd snap; not valid with no-reexec" && exit 0
     fi
 
     snap install test-snapd-content-plug test-snapd-tools
