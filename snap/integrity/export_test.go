@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2023 Canonical Ltd
+ * Copyright (C) 2023-2024 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -19,9 +19,22 @@
 
 package integrity
 
-var (
-	Align                  = align
-	BlockSize              = blockSize
-	Magic                  = magic
-	NewIntegrityDataHeader = newIntegrityDataHeader
+import (
+	"github.com/snapcore/snapd/snap/integrity/dmverity"
 )
+
+func MockVeritysetupFormat(fn func(string, string, *dmverity.DmVerityParams) (string, error)) (restore func()) {
+	origVeritysetupFormat := veritysetupFormat
+	veritysetupFormat = fn
+	return func() {
+		veritysetupFormat = origVeritysetupFormat
+	}
+}
+
+func MockReadDmVeritySuperblock(f func(filename string) (*dmverity.VeritySuperblock, error)) (restore func()) {
+	origReadDmVeritySuperblock := readDmVeritySuperblock
+	readDmVeritySuperblock = f
+	return func() {
+		readDmVeritySuperblock = origReadDmVeritySuperblock
+	}
+}
