@@ -24,10 +24,13 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/confdb"
 	"github.com/snapcore/snapd/features"
+	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/configstate/config"
+	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/strutil"
 )
@@ -40,6 +43,11 @@ var (
 		ReadAccess:  authenticatedAccess{Polkit: polkitActionManage},
 		WriteAccess: authenticatedAccess{Polkit: polkitActionManage},
 	}
+	confdbControlCmd = &Command{
+		Path:        "/v2/confdb",
+		POST:        handleConfdbControlAction,
+		WriteAccess: authenticatedAccess{Polkit: polkitActionManage},
+	}
 )
 
 func getView(c *Command, r *http.Request, _ *auth.UserState) Response {
@@ -47,7 +55,7 @@ func getView(c *Command, r *http.Request, _ *auth.UserState) Response {
 	st.Lock()
 	defer st.Unlock()
 
-	if err := validateConfdbFeatureFlag(st); err != nil {
+	if err := validateFeatureFlag(st, features.Confdbs); err != nil {
 		return err
 	}
 
@@ -79,7 +87,7 @@ func setView(c *Command, r *http.Request, _ *auth.UserState) Response {
 	st.Lock()
 	defer st.Unlock()
 
-	if err := validateConfdbFeatureFlag(st); err != nil {
+	if err := validateFeatureFlag(st, features.Confdbs); err != nil {
 		return err
 	}
 
@@ -128,16 +136,100 @@ func toAPIError(err error) *apiError {
 	}
 }
 
-func validateConfdbFeatureFlag(st *state.State) *apiError {
+func validateFeatureFlag(st *state.State, feature features.SnapdFeature) *apiError {
 	tr := config.NewTransaction(st)
-	enabled, err := features.Flag(tr, features.Confdb)
+	enabled, err := features.Flag(tr, feature)
 	if err != nil && !config.IsNoOption(err) {
-		return InternalError(fmt.Sprintf("internal error: cannot check confdb feature flag: %s", err))
+		return InternalError(
+			fmt.Sprintf("internal error: cannot check %s feature flag: %s", feature.String(), err),
+		)
 	}
 
 	if !enabled {
-		_, confName := features.Confdb.ConfigOption()
-		return BadRequest(fmt.Sprintf(`"confdb" feature flag is disabled: set '%s' to true`, confName))
+		_, confName := feature.ConfigOption()
+		return BadRequest(
+			fmt.Sprintf(`"%s" feature flag is disabled: set '%s' to true`, feature.String(), confName),
+		)
 	}
 	return nil
+}
+
+type confdbControlAction struct {
+	Action          string   `json:"action"`
+	OperatorID      string   `json:"operator-id"`
+	Authentications []string `json:"authentications"`
+	Views           []string `json:"views"`
+}
+
+func handleConfdbControlAction(c *Command, r *http.Request, user *auth.UserState) Response {
+	st := c.d.state
+	st.Lock()
+	defer st.Unlock()
+
+	if err := validateFeatureFlag(st, features.Confdbs); err != nil {
+		return err
+	}
+	if err := validateFeatureFlag(st, features.ConfdbControl); err != nil {
+		return err
+	}
+
+	devMgr := c.d.overlord.DeviceManager()
+	ctrl, revision, err := getOrCreateConfdbControl(st, devMgr)
+	if err != nil {
+		return InternalError(err.Error())
+	}
+
+	var a confdbControlAction
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&a); err != nil {
+		return BadRequest("cannot decode request body: %v", err)
+	}
+
+	switch a.Action {
+	case "delegate":
+		err = ctrl.Delegate(a.OperatorID, a.Views, a.Authentications)
+	case "undelegate":
+		err = ctrl.Undelegate(a.OperatorID, a.Views, a.Authentications)
+	default:
+		return BadRequest("unknown action %q", a.Action)
+	}
+	if err != nil {
+		return BadRequest(err.Error())
+	}
+
+	cc, err := devicestateSignConfdbControl(devMgr, ctrl.Groups(), revision)
+	if err != nil {
+		return InternalError(err.Error())
+	}
+
+	if err := assertstate.Add(st, cc); err != nil {
+		return InternalError(err.Error())
+	}
+
+	return SyncResponse(nil)
+}
+
+// getOrCreateConfdbControl returns the confdb.Control base to build the next revision of the assertion.
+func getOrCreateConfdbControl(st *state.State, devMgr *devicestate.DeviceManager) (*confdb.Control, int, error) {
+	serial, err := devMgr.Serial()
+	if err != nil {
+		return nil, 0, errors.New("device has no serial assertion")
+	}
+
+	db := assertstate.DB(st)
+	a, err := db.Find(asserts.ConfdbControlType, map[string]string{
+		"brand-id": serial.BrandID(),
+		"model":    serial.Model(),
+		"serial":   serial.Serial(),
+	})
+	if errors.Is(err, &asserts.NotFoundError{}) {
+		return &confdb.Control{}, 0, nil
+	}
+	if err != nil {
+		return nil, 0, err
+	}
+
+	cc := a.(*asserts.ConfdbControl)
+	ctrl := cc.Control()
+	return &ctrl, cc.Revision() + 1, nil
 }
