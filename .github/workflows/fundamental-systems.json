@@ -10,6 +10,7 @@
       {
         "group": "ubuntu-focal (fundamental)",
         "backend": "google",
+        "alternative-backend": "openstack", 
         "systems": "ubuntu-20.04-64",
         "tasks": "tests/...",
         "rules": "main"
@@ -17,6 +18,7 @@
       {
         "group": "ubuntu-noble (fundamental)",
         "backend": "google",
+        "alternative-backend": "openstack", 
         "systems": "ubuntu-24.04-64",
         "tasks": "tests/...",
         "rules": "main"

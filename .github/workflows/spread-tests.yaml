@@ -13,6 +13,10 @@ on:
         description: 'The spread backend to use (for possible values, check spread.yaml). This cannot be empty'
         required: true
         type: string
+      alternative-backend:
+        description: 'The spread backend to use when the backend cannot be used'
+        required: true
+        type: string
       systems:
         description: 'The spread system(s) to use (for possible values, check spread.yaml). If more than one, separate them with a space. To run all, write ALL. To run none, write NONE'
         required: true
@@ -153,6 +157,15 @@ jobs:
             echo "$TASKS_TO_RUN"
           }
 
+          # Determine if the alternative backend has to be used for the current group
+          # Alternative backends usage depends on the value stored in the var USE_ALTERNATIVE_BACKEND,
+          # where it is defined the backend to use when images are ready in both google and openstack.
+          SPREAD_BACKEND="${{ inputs.backend }}"
+          if [ -n "${{ inputs.alternative-backend }}" ] && grep "${{ inputs.group }}: true" << ${{ vars.USE_ALTERNATIVE_BACKEND }}  ; then
+              SPREAD_BACKEND="${{ inputs.alternative-backend }}"
+          fi
+          echo SPREAD_BACKEND="$SPREAD_BACKEND" >> $GITHUB_ENV
+
           CHANGES_PARAM=""
           for CHANGE in $CHANGED_FILES; do
               CHANGES_PARAM="$CHANGES_PARAM -c $CHANGE"
@@ -162,10 +175,10 @@ jobs:
           if [ -n "$FAILED_TESTS" ]; then
               RUN_TESTS="$FAILED_TESTS"
           elif [ "${{ inputs.systems }}" = "ALL" ]; then
-              RUN_TESTS=$(get_new_tasks "${{ inputs.backend }}" "$CHANGES_PARAM")
+              RUN_TESTS=$(get_new_tasks "$SPREAD_BACKEND" "$CHANGES_PARAM")
           elif [ "${{ inputs.systems }}" != "NONE" ]; then
               for SYSTEM in ${{ inputs.systems }}; do
-                NEW_TASKS="$(get_new_tasks "${{ inputs.backend }}:$SYSTEM" "$CHANGES_PARAM")"
+                NEW_TASKS="$(get_new_tasks "$SPREAD_BACKEND:$SYSTEM" "$CHANGES_PARAM")"
                 if [ -z "$RUN_TESTS" ]; then
                     RUN_TESTS="$NEW_TASKS"
                 else
@@ -272,7 +285,7 @@ jobs:
           fi
 
           # Add openstack backend definition to spread.yaml
-          if [ "${{ inputs.backend }}" = openstack ]; then
+          if [ "$SPREAD_BACKEND" = openstack ]; then
               ./tests/lib/spread/add-backend tests/lib/spread/backend.openstack.yaml spread.yaml
           fi
 
@@ -345,7 +358,7 @@ jobs:
               ./tests/lib/external/snapd-testing-tools/utils/log-parser spread.log --output spread-results.json
 
               # Add openstack backend definition to spread.yaml
-              if [ "${{ inputs.backend }}" = openstack ]; then
+              if [ "$SPREAD_BACKEND" = openstack ]; then
                   ./tests/lib/spread/add-backend tests/lib/spread/backend.openstack.yaml spread.yaml
               fi
 
