@@ -12,10 +12,20 @@ backends: [-external]
 systems: [-ubuntu-14.04-64]
 
 prepare: |
+    if [ "$TRUST_TEST_KEYS" = "false" ]; then
+        echo "This test needs test keys to be trusted"
+        exit
+    fi
+
     # acquire session macaroon
     snap find core
 
 execute: |
+    if [ "$TRUST_TEST_KEYS" = "false" ]; then
+        echo "This test needs test keys to be trusted"
+        exit
+    fi
+
     # Check help
     "$TESTSTOOLS"/store-state | MATCH "usage: store-state setup-fake-store <DIR>"
     "$TESTSTOOLS"/store-state -h | MATCH "usage: store-state setup-fake-store <DIR>"
