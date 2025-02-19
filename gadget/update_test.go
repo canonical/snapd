@@ -5669,6 +5669,128 @@ func (s *updateTestSuite) TestBuildVolumeStructureToLocationUC20MultiVolumeNonMo
 	c.Assert(mockLogBuf.String(), testutil.Contains, "structure 2 on volume foo (/dev/vdb2) is not mounted read/write anywhere to be able to update it")
 }
 
+func (s *updateTestSuite) TestBuildVolumeStructureToLocationUC20EMMC(c *C) {
+	traits := map[string]gadget.DiskVolumeDeviceTraits{
+		"pc":      gadgettest.VMSystemVolumeDeviceTraits,
+		"my-emmc": gadgettest.VMEmmcVolumeDeviceTraits,
+	}
+
+	volMappings := map[string]*disks.MockDiskMapping{
+		"pc":      gadgettest.VMSystemVolumeDiskMapping,
+		"my-emmc": gadgettest.VMEmmcVolumeDiskMapping,
+	}
+
+	expMap := map[string]map[int]gadget.StructureLocation{
+		"pc": {
+			// keys are the YamlIndex in the gadget.yaml
+
+			// raw devices have Device + Offset set
+			0: {Device: "/dev/vda", Offset: 0},                  // for mbr
+			1: {Device: "/dev/vda", Offset: quantity.OffsetMiB}, // for bios-boot
+
+			// partition devices have RootMountPoint set
+			2: {RootMountPoint: filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-seed")},
+			3: {RootMountPoint: ""}, // ubuntu-boot is not mounted for some reason
+			4: {RootMountPoint: filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-save")},
+			5: {RootMountPoint: filepath.Join(dirs.GlobalRootDir, "/run/mnt/data")},
+		},
+		"my-emmc": {
+			0: {Device: "/dev/mmcblk0boot0"},
+			1: {Device: "/dev/mmcblk0boot1"},
+		},
+	}
+
+	mockLogBuf, restore := logger.MockLogger()
+	defer restore()
+
+	// setup mountinfo for root mount points of the partitions with some of the filesystems mounted
+	restore = osutil.MockMountInfo(
+		fmt.Sprintf(
+			`
+27 27 600:3 / %[1]s/run/mnt/ubuntu-seed rw,relatime shared:7 - vfat %[1]s/dev/vda2 rw
+29 27 600:5 / %[1]s/run/mnt/ubuntu-save rw,relatime shared:7 - vfat %[1]s/dev/vda4 rw
+30 27 600:6 / %[1]s/run/mnt/data rw,relatime shared:7 - vfat %[1]s/dev/vda5 rw`[1:],
+			dirs.GlobalRootDir,
+		),
+	)
+	defer restore()
+
+	s.testBuildVolumeStructureToLocation(c,
+		uc20Model,
+		gadgettest.MultiVolumeEmmcUC20GadgetYaml,
+		traits,
+		volMappings,
+		expMap,
+	)
+
+	c.Check(mockLogBuf.String(), testutil.Contains, "structure 3 on volume pc (/dev/vda3) is not mounted read/write anywhere to be able to update it")
+}
+
+func (s *updateTestSuite) TestBuildVolumeStructureToLocationUC20EMMCUnsupportedName(c *C) {
+	traits := map[string]gadget.DiskVolumeDeviceTraits{
+		"my-emmc": {
+			OriginalKernelPath: "/dev/mmcblk0",
+			DiskID:             "86964016-3b5c-477e-9828-24ba9c552d39",
+			Size:               5120 * quantity.SizeMiB,
+			SectorSize:         quantity.Size(512),
+			Schema:             "emmc",
+			Structure: []gadget.DiskStructureDeviceTraits{
+				{
+					OriginalKernelPath: "/dev/mmcblk0rpmb",
+					Offset:             0,
+					Size:               quantity.SizeMiB,
+				},
+			},
+		},
+	}
+
+	mappings := map[string]*disks.MockDiskMapping{
+		"/dev/mmcblk0": {
+			DevNode:             "/dev/mmcblk0",
+			DevPath:             "/sys/devices/pci0000:00/0000:00:04.0/virtio2/block/mmcblk0",
+			DevNum:              "525:1",
+			DiskUsableSectorEnd: 5120 * uint64(quantity.SizeMiB) / 512,
+			DiskSizeInBytes:     5120 * uint64(quantity.SizeMiB),
+			SectorSizeBytes:     512,
+			DiskSchema:          "emmc",
+			ID:                  "86964016-3b5c-477e-9828-24ba9c552d39",
+			Structure: []disks.Partition{
+				{
+					PartitionLabel:   "rpmb",
+					Major:            525,
+					Minor:            2,
+					KernelDeviceNode: "/dev/mmcblk0rpmb",
+					KernelDevicePath: "/sys/devices/pci0000:00/0000:00:04.0/virtio2/block/mmcblk0rpmb",
+					DiskIndex:        1,
+					StartInBytes:     0,
+					SizeInBytes:      uint64(quantity.SizeMiB),
+				},
+			},
+		},
+	}
+
+	restore := disks.MockDeviceNameToDiskMapping(mappings)
+	defer restore()
+
+	vols := map[string]*gadget.Volume{
+		"my-emmc": {
+			Name:   "my-emmc",
+			Schema: "emmc",
+			Structure: []gadget.VolumeStructure{
+				{
+					Name: "rpmb",
+					Size: quantity.SizeMiB,
+				},
+			},
+		},
+	}
+	vols["my-emmc"].Structure[0].EnclosingVolume = vols["my-emmc"]
+
+	missingInitialMappingNo := false
+	_, _, err := gadget.BuildVolumeStructureToLocation(uc20Model, vols, vols, traits, missingInitialMappingNo)
+	c.Assert(err, ErrorMatches, `structure rpmb on volume my-emmc is not a valid eMMC partition`)
+}
+
 func (s *updateTestSuite) testBuildVolumeStructureToLocation(c *C,
 	model gadget.Model,
 	yaml string,
@@ -5714,22 +5836,34 @@ func (s *updateTestSuite) setupForVolumeStructureToLocation(c *C,
 	blockDir := filepath.Join(dirs.SysfsDir, "block")
 	err = os.MkdirAll(blockDir, 0755)
 	c.Assert(err, IsNil)
-	for volName := range allLaidOutVolumes {
-		blockDevSym := filepath.Join(blockDir, volName)
-		err := os.Symlink("something", blockDevSym)
-		c.Assert(err, IsNil)
+	for volName, vol := range allLaidOutVolumes {
+		switch vol.Schema {
+		case "emmc":
+			mmcBlk := filepath.Join(blockDir, "mmcblk0")
+			mmcBlkBoot0 := filepath.Join(blockDir, "mmcblk0boot0")
+			mmcBlkBoot1 := filepath.Join(blockDir, "mmcblk0boot1")
 
-		devicePathMapping[blockDevSym] = volMappings[volName]
+			c.Assert(os.Symlink("mmcblk0", mmcBlk), IsNil)
+			devicePathMapping[mmcBlk] = volMappings[volName]
+			c.Assert(os.Symlink("mmcblk0boot0", mmcBlkBoot0), IsNil)
+			devicePathMapping[mmcBlkBoot0] = volMappings[volName]
+			c.Assert(os.Symlink("mmcblk0boot1", mmcBlkBoot1), IsNil)
+			devicePathMapping[mmcBlkBoot1] = volMappings[volName]
+		default:
+			blockDevSym := filepath.Join(blockDir, volName)
+			err := os.Symlink("something", blockDevSym)
+			c.Assert(err, IsNil)
+			devicePathMapping[blockDevSym] = volMappings[volName]
+		}
 	}
 
 	restore := disks.MockDevicePathToDiskMapping(devicePathMapping)
 	s.AddCleanup(restore)
 
 	// setup symlinks in /dev
-	err = os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-partlabel"), 0755)
-	c.Assert(err, IsNil)
-	err = os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-label"), 0755)
-	c.Assert(err, IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-partlabel"), 0755), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-label"), 0755), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-path"), 0755), IsNil)
 
 	partDeviceNodeMappings := map[string]*disks.MockDiskMapping{}
 	diskDeviceNodeMappings := map[string]*disks.MockDiskMapping{}
@@ -5754,19 +5888,33 @@ func (s *updateTestSuite) setupForVolumeStructureToLocation(c *C,
 			c.Assert(err, IsNil)
 			err = os.WriteFile(fakedevicepart, nil, 0644)
 			c.Assert(err, IsNil)
+			partDeviceNodeMappings[filepath.Join(dirs.GlobalRootDir, firstPartDev)] = volMappings[volName]
+			diskDeviceNodeMappings[traits[volName].OriginalKernelPath] = volMappings[volName]
 		case "dos":
 			fakedevicepart := filepath.Join(dirs.GlobalRootDir, firstPartDev)
 			err = os.Symlink(fakedevicepart, filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-label", fslabel))
 			c.Assert(err, IsNil)
 			err = os.WriteFile(fakedevicepart, nil, 0644)
 			c.Assert(err, IsNil)
+			partDeviceNodeMappings[filepath.Join(dirs.GlobalRootDir, firstPartDev)] = volMappings[volName]
+			diskDeviceNodeMappings[traits[volName].OriginalKernelPath] = volMappings[volName]
+		case "emmc":
+			fakedevicepart := filepath.Join(dirs.GlobalRootDir, "mmcblk0boot0")
+			c.Assert(os.Symlink(fakedevicepart, filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-path", "mmcblk0.mmc-boot0")), IsNil)
+			c.Assert(os.WriteFile(fakedevicepart, nil, 0644), IsNil)
+			fakedevicepart = filepath.Join(dirs.GlobalRootDir, "mmcblk0boot1")
+			c.Assert(os.Symlink(fakedevicepart, filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-path", "mmcblk0.mmc-boot1")), IsNil)
+			c.Assert(os.WriteFile(fakedevicepart, nil, 0644), IsNil)
+
+			diskDeviceNodeMappings[traits[volName].OriginalKernelPath] = volMappings[volName]
+			diskDeviceNodeMappings[traits[volName].OriginalKernelPath+"boot0"] = volMappings[volName]
+			diskDeviceNodeMappings[traits[volName].OriginalKernelPath+"boot1"] = volMappings[volName]
+
+			partDeviceNodeMappings[filepath.Join(dirs.GlobalRootDir, "/dev/mmcblk0boot0")] = volMappings[volName]
+			partDeviceNodeMappings[filepath.Join(dirs.GlobalRootDir, "/dev/mmcblk0boot1")] = volMappings[volName]
 		default:
 			panic(fmt.Sprintf("unexpected schema %s", traits[volName].Schema))
 		}
-
-		partDeviceNodeMappings[filepath.Join(dirs.GlobalRootDir, firstPartDev)] = volMappings[volName]
-
-		diskDeviceNodeMappings[traits[volName].OriginalKernelPath] = volMappings[volName]
 	}
 
 	// mock the partition device node to mock disk

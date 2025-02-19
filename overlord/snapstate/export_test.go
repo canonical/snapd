@@ -332,15 +332,6 @@ func MockReRefreshRetryTimeout(d time.Duration) (restore func()) {
 	}
 }
 
-// aux store info
-var (
-	AuxStoreInfoFilename = auxStoreInfoFilename
-	RetrieveAuxStoreInfo = retrieveAuxStoreInfo
-	KeepAuxStoreInfo     = keepAuxStoreInfo
-	DiscardAuxStoreInfo  = discardAuxStoreInfo
-)
-
-type AuxStoreInfo = auxStoreInfo
 type DisabledServices = disabledServices
 
 // link, misc handlers

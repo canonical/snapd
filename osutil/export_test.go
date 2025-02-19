@@ -239,3 +239,7 @@ func ParseRawExpandableEnv(entries []string) (ExpandableEnv, error) {
 	}
 	return ExpandableEnv{OrderedMap: om}, nil
 }
+
+func ReadGoBuildID(fname string) (string, error) {
+	return readGenericBuildID(fname, goElfNote, goHdrType)
+}

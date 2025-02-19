@@ -30,9 +30,11 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"golang.org/x/crypto/sha3"
+	"golang.org/x/sys/unix"
 	. "gopkg.in/check.v1"
 	"gopkg.in/retry.v1"
 
@@ -1254,33 +1256,187 @@ func (s *storeDownloadSuite) TestDownloadInfiniteRedirect(c *C) {
 }
 
 func (s *storeDownloadSuite) TestDownloadIconOK(c *C) {
-	expectedURL := "URL"
+	const expectedName = "foo"
+	const expectedURL = "URL"
 	expectedContent := []byte("I was downloaded")
 
-	restore := store.MockDownloadIcon(func(ctx context.Context, name, url string, w store.ReadWriteSeekTruncater) error {
+	restore := store.MockDownloadIcon(func(ctx context.Context, name, etag, url string, w store.ReadWriteSeekTruncater) (string, error) {
+		c.Check(name, Equals, expectedName)
 		c.Check(url, Equals, expectedURL)
 		w.Write(expectedContent)
-		return nil
+		return "", nil
 	})
 	defer restore()
 
 	path := filepath.Join(c.MkDir(), "downloaded-file")
-	err := store.DownloadIcon(s.ctx, "foo", path, expectedURL)
+	err := store.DownloadIcon(s.ctx, expectedName, path, expectedURL)
 	c.Assert(err, IsNil)
 	defer os.Remove(path)
 
 	c.Assert(path, testutil.FileEquals, expectedContent)
 }
 
+func skipIfXattrsUnsupported(c *C) {
+	f, err := os.CreateTemp(c.MkDir(), "xattr-probe")
+	c.Assert(err, IsNil)
+	defer f.Close()
+	err = unix.Fsetxattr(int(f.Fd()), "user.xattr-probe", []byte("working"), 0)
+	if err != nil {
+		c.Skip("xattrs not supported on this system")
+	}
+}
+
+func (s *storeDownloadSuite) TestDownloadIconOKWithNewEtag(c *C) {
+	skipIfXattrsUnsupported(c)
+	const expectedName = "foo"
+	const expectedURL = "URL"
+	expectedContent := []byte("I was downloaded")
+	const newEtag = "some-unique-value"
+
+	restore := store.MockDownloadIcon(func(ctx context.Context, name, etag, url string, w store.ReadWriteSeekTruncater) (string, error) {
+		c.Check(name, Equals, expectedName)
+		c.Check(etag, Equals, "")
+		c.Check(url, Equals, expectedURL)
+		w.Write(expectedContent)
+		return newEtag, nil
+	})
+	defer restore()
+
+	path := filepath.Join(c.MkDir(), "downloaded-file")
+	err := store.DownloadIcon(s.ctx, expectedName, path, expectedURL)
+	c.Assert(err, IsNil)
+
+	c.Check(path, testutil.FileEquals, expectedContent)
+	etagBuf := make([]byte, 256)
+	size, err := unix.Getxattr(path, store.EtagXattrName, etagBuf)
+	c.Assert(err, IsNil)
+	writtenEtag := string(etagBuf[:size])
+	c.Check(writtenEtag, Equals, newEtag)
+}
+
+func (s *storeDownloadSuite) TestDownloadIconOKWithExistingEtag(c *C) {
+	skipIfXattrsUnsupported(c)
+	const expectedName = "foo"
+	const expectedURL = "URL"
+	existingContent := []byte("I was already here")
+	responseContent := []byte("I should not be written")
+	const existingEtag = "some-unique-value"
+	path := filepath.Join(c.MkDir(), "downloaded-file")
+
+	// Create existing file
+	c.Assert(os.WriteFile(path, existingContent, 0o644), IsNil)
+	// Set etag xattr
+	c.Assert(unix.Setxattr(path, store.EtagXattrName, []byte(existingEtag), 0), IsNil)
+
+	restore := store.MockDownloadIcon(func(ctx context.Context, name, etag, url string, w store.ReadWriteSeekTruncater) (string, error) {
+		c.Check(name, Equals, expectedName)
+		c.Check(etag, Equals, existingEtag)
+		c.Check(url, Equals, expectedURL)
+		w.Write(responseContent)
+		// Return errIconUnchanged, as if the store returned 304 Not Modified.
+		// Technically, a 304 would not write the response body, but do so to
+		// check that it is ignored and the existing file is left untouched.
+		return "", store.ErrIconUnchanged
+	})
+	defer restore()
+
+	err := store.DownloadIcon(s.ctx, expectedName, path, expectedURL)
+	c.Assert(err, IsNil)
+
+	// Existing file (and etag) should not have been overwritten
+	c.Check(path, testutil.FileEquals, existingContent)
+	etagBuf := make([]byte, 256)
+	size, err := unix.Getxattr(path, store.EtagXattrName, etagBuf)
+	c.Assert(err, IsNil)
+	writtenEtag := string(etagBuf[:size])
+	c.Check(writtenEtag, Equals, existingEtag)
+}
+
+func (s *storeDownloadSuite) TestDownloadIconOKWithChangedEtag(c *C) {
+	skipIfXattrsUnsupported(c)
+	const expectedName = "foo"
+	const expectedURL = "URL"
+	existingContent := []byte("I was already here")
+	expectedContent := []byte("I was downloaded")
+	const existingEtag = "some-unique-value"
+	const newEtag = "another-unique-value"
+	path := filepath.Join(c.MkDir(), "downloaded-file")
+
+	// Create existing file
+	c.Assert(os.WriteFile(path, existingContent, 0o644), IsNil)
+	// Set etag xattr
+	c.Assert(unix.Setxattr(path, store.EtagXattrName, []byte(existingEtag), 0), IsNil)
+
+	restore := store.MockDownloadIcon(func(ctx context.Context, name, etag, url string, w store.ReadWriteSeekTruncater) (string, error) {
+		c.Check(name, Equals, expectedName)
+		c.Check(etag, Equals, existingEtag)
+		c.Check(url, Equals, expectedURL)
+		w.Write(expectedContent)
+		return newEtag, nil
+	})
+	defer restore()
+
+	err := store.DownloadIcon(s.ctx, expectedName, path, expectedURL)
+	c.Assert(err, IsNil)
+
+	c.Check(path, testutil.FileEquals, expectedContent)
+	etagBuf := make([]byte, 256)
+	size, err := unix.Getxattr(path, store.EtagXattrName, etagBuf)
+	c.Assert(err, IsNil)
+	writtenEtag := string(etagBuf[:size])
+	c.Check(writtenEtag, Equals, newEtag)
+}
+
+func (s *storeDownloadSuite) TestDownloadIconOKWithEtagTooLong(c *C) {
+	skipIfXattrsUnsupported(c)
+	const expectedName = "foo"
+	const expectedURL = "URL"
+	existingContent := []byte("I was already here")
+	expectedContent := []byte("I was downloaded")
+	const existingEtag = "some-unique-value"
+	newEtag := strings.Repeat("a", store.MaxEtagSize+1) // too long
+	path := filepath.Join(c.MkDir(), "downloaded-file")
+
+	// Create existing file
+	c.Assert(os.WriteFile(path, existingContent, 0o644), IsNil)
+	// Set etag xattr
+	c.Assert(unix.Setxattr(path, store.EtagXattrName, []byte(existingEtag), 0), IsNil)
+
+	logbuf, restore := logger.MockDebugLogger()
+	defer restore()
+
+	restore = store.MockDownloadIcon(func(ctx context.Context, name, etag, url string, w store.ReadWriteSeekTruncater) (string, error) {
+		c.Check(name, Equals, expectedName)
+		c.Check(etag, Equals, existingEtag)
+		c.Check(url, Equals, expectedURL)
+		w.Write(expectedContent)
+		return newEtag, nil
+	})
+	defer restore()
+
+	err := store.DownloadIcon(s.ctx, expectedName, path, expectedURL)
+	c.Assert(err, IsNil)
+
+	c.Check(path, testutil.FileEquals, expectedContent)
+	// Etag exceeded max size, so no etag should have been written
+	etagBuf := make([]byte, 2*store.MaxEtagSize)
+	_, err = unix.Getxattr(path, store.EtagXattrName, etagBuf)
+	c.Check(err, testutil.ErrorIs, unix.ENODATA)
+	c.Check(logbuf.String(), testutil.Contains, "snap icon etag exceeds maximum etag length")
+}
+
 func (s *storeDownloadSuite) TestDownloadIconDoesNotOverwriteLinks(c *C) {
-	expectedURL := "URL"
+	const expectedName = "foo"
+	const expectedURL = "URL"
 	oldContent := []byte("I was already here")
 	newContent := []byte("I was downloaded")
 
-	restore := store.MockDownloadIcon(func(ctx context.Context, name, url string, w store.ReadWriteSeekTruncater) error {
+	restore := store.MockDownloadIcon(func(ctx context.Context, name, etag, url string, w store.ReadWriteSeekTruncater) (string, error) {
+		c.Check(name, Equals, expectedName)
+		c.Check(etag, Equals, "")
 		c.Check(url, Equals, expectedURL)
 		w.Write(newContent)
-		return nil
+		return "", nil
 	})
 	defer restore()
 
@@ -1296,9 +1452,8 @@ func (s *storeDownloadSuite) TestDownloadIconDoesNotOverwriteLinks(c *C) {
 	err = os.Link(path, linkPath)
 	c.Assert(err, IsNil)
 
-	err = store.DownloadIcon(s.ctx, "foo", path, expectedURL)
+	err = store.DownloadIcon(s.ctx, expectedName, path, expectedURL)
 	c.Assert(err, IsNil)
-	defer os.Remove(path)
 
 	c.Assert(path, testutil.FileEquals, newContent)
 	// Check that the contents of the existing hard-linked file were not overwritten
@@ -1311,11 +1466,11 @@ func (s *storeDownloadSuite) TestDownloadIconFails(c *C) {
 	const fakeURL = "URL"
 
 	var tmpfile *osutil.AtomicFile
-	restore := store.MockDownloadIcon(func(ctx context.Context, name, url string, w store.ReadWriteSeekTruncater) error {
+	restore := store.MockDownloadIcon(func(ctx context.Context, name, etag, url string, w store.ReadWriteSeekTruncater) (string, error) {
 		c.Assert(name, Equals, fakeName)
 		c.Assert(url, Equals, fakeURL)
 		tmpfile = w.(*osutil.AtomicFile)
-		return fmt.Errorf("uh, it failed")
+		return "", fmt.Errorf("uh, it failed")
 	})
 	defer restore()
 
@@ -1334,12 +1489,12 @@ func (s *storeDownloadSuite) TestDownloadIconFailsDoesNotLeavePartial(c *C) {
 	const fakeURL = "URL"
 
 	var tmpfile *osutil.AtomicFile
-	restore := store.MockDownloadIcon(func(ctx context.Context, name, url string, w store.ReadWriteSeekTruncater) error {
+	restore := store.MockDownloadIcon(func(ctx context.Context, name, etag, url string, w store.ReadWriteSeekTruncater) (string, error) {
 		c.Assert(name, Equals, fakeName)
 		c.Assert(url, Equals, fakeURL)
 		tmpfile = w.(*osutil.AtomicFile)
 		w.Write([]byte{'X'}) // so it's not empty
-		return fmt.Errorf("uh, it failed")
+		return "", fmt.Errorf("uh, it failed")
 	})
 	defer restore()
 
@@ -1383,14 +1538,14 @@ func (s *storeDownloadSuite) TestDownloadIconFailsWithoutExisting(c *C) {
 
 func (s *storeDownloadSuite) testDownloadIconSyncFailsGeneric(c *C, fakeName, fakePath, fakeURL string) {
 	var tmpfile *osutil.AtomicFile
-	restore := store.MockDownloadIcon(func(ctx context.Context, name, url string, w store.ReadWriteSeekTruncater) error {
+	restore := store.MockDownloadIcon(func(ctx context.Context, name, etag, url string, w store.ReadWriteSeekTruncater) (string, error) {
 		c.Assert(name, Equals, fakeName)
 		c.Assert(url, Equals, fakeURL)
 		tmpfile = w.(*osutil.AtomicFile)
 		w.Write([]byte("commit will fail"))
 		err := tmpfile.Close()
 		c.Assert(err, IsNil)
-		return nil
+		return "", nil
 	})
 	defer restore()
 

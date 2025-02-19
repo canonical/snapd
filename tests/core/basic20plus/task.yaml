@@ -15,7 +15,7 @@ execute: |
     case "$SPREAD_SYSTEM" in
       ubuntu-core-24-*)
         base_snap=core24
-        run_mnt_pts=(/run/mnt/base)
+        run_mnt_pts=()
         ;;
       ubuntu-core-22-*)
         base_snap=core22
@@ -116,13 +116,14 @@ execute: |
     test -f /run/snapd/boot-flags
 
     # make sure that loop devices created by snap-bootstrap initramfs-mounts for snaps are readonly
-    for mount in "${run_mnt_pts[@]}"; do
-        mountpoint "${mount}"
-        loop="$(findmnt -o source "${mount}" -n)"
-        echo "${loop}" | MATCH "/dev/loop[0-9]+"
-        losetup -O ro -n --raw "${loop}" | MATCH "1"
-    done
-    if [ "$base_snap" = core24 ]; then
+    if [ "$base_snap" = core20 ] || [ "$base_snap" = core22 ]; then
+        for mount in "${run_mnt_pts[@]}"; do
+            mountpoint "${mount}"
+            loop="$(findmnt -o source "${mount}" -n)"
+            echo "${loop}" | MATCH "/dev/loop[0-9]+"
+            losetup -O ro -n --raw "${loop}" | MATCH "1"
+        done
+    else
         not mountpoint /run/mnt/kernel
         findmnt -n -o source /lib/firmware | MATCH /var/lib/snapd/kernel/pc-kernel
         findmnt -n -o source /lib/modules | MATCH /var/lib/snapd/kernel/pc-kernel
@@ -130,6 +131,10 @@ execute: |
         stat /run/systemd/system/sysroot-usr-lib-firmware.mount
         stat /run/systemd/system/sysroot-usr-lib-modules.mount
         stat /run/systemd/system/'writable-system\x2ddata-snap-pc\x2dkernel-'*
+
+        not mountpoint /run/mnt/base
+        loop="$(findmnt -o source / -n)"
+        losetup -O back-file -n --raw "$loop" | MATCH '/run/mnt/data/.*/core24_.*'
     fi
 
     # make sure that ubuntu-{seed,save} is mounted with appropriate flags

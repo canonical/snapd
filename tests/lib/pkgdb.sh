@@ -817,7 +817,7 @@ pkg_dependencies_opensuse(){
         "
     if os.query is-opensuse tumbleweed; then
         echo "
-            libfwupd2
+            libfwupd3
         "
     fi
 }

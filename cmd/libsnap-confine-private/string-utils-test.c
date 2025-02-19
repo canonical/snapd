@@ -803,7 +803,6 @@ static void test_sc_string_split_null_string(void) {
 
 static void test_sc_string_split_null_prefix_and_suffix(void) {
     if (g_test_subprocess()) {
-        char dest[10] = {0};
         sc_string_split("some_string", '_', NULL, 0, NULL, 0);
         return;
     }

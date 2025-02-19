@@ -270,6 +270,9 @@ override_dh_install-arch:
 	rm $(CURDIR)/debian/snapd/$(SYSTEMD_UNITS_DESTDIR)/snapd.snap-repair.timer
 	rm $(CURDIR)/debian/snapd/$(SYSTEMD_UNITS_DESTDIR)/snapd.system-shutdown.service
 	rm $(CURDIR)/debian/snapd/usr/lib/snapd/snapd.run-from-snap
+	# New gpio-chardev interface only support on ubuntu for now, we don't need
+	# to install the ordering target
+	rm $(CURDIR)/debian/snapd/$(SYSTEMD_UNITS_DESTDIR)/snapd.gpio-chardev-setup.target
 
 	dh_install
 

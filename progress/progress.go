@@ -94,7 +94,7 @@ func MockMeter(meter Meter) func() {
 var inTesting bool = (osutil.IsTestBinary()) || os.Getenv("SPREAD_SYSTEM") != ""
 
 var isTerminal = func() bool {
-	return !inTesting && terminal.IsTerminal(int(os.Stdin.Fd()))
+	return !inTesting && terminal.IsTerminal(int(os.Stdout.Fd()))
 }
 
 // MakeProgressBar creates an appropriate progress.Meter for the environ in

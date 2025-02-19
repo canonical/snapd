@@ -106,3 +106,9 @@ func MockFindVolumesMatchingDeviceAssignment(f func(gi *Info) (map[string]*Volum
 	VolumesForCurrentDeviceAssignment = f
 	return r
 }
+
+func MockSetEMMCPartitionReadWrite(mock func(device string, rw bool) error) (restore func()) {
+	r := testutil.Backup(&setEMMCPartitionReadWrite)
+	setEMMCPartitionReadWrite = mock
+	return r
+}

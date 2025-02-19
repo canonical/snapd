@@ -136,7 +136,7 @@ func (s *systemsSuite) mockSystemSeeds(c *check.C) (restore func()) {
 
 	assertstest.AddMany(s.StoreSigning.Database, s.Brands.AccountsAndKeys("my-brand")...)
 	// add essential snaps
-	seed20.MakeAssertedSnap(c, "name: snapd\nversion: 1\ntype: snapd", nil, snap.R(1), "my-brand", s.StoreSigning.Database)
+	seed20.MakeAssertedSnap(c, "name: snapd\nversion: 1\ntype: snapd", [][]string{{"usr/lib/snapd/info", "VERSION=1"}}, snap.R(1), "my-brand", s.StoreSigning.Database)
 	gadgetFiles := [][]string{
 		{"meta/gadget.yaml", string(pcGadgetUCYaml)},
 		{"pc-boot.img", "pc-boot.img content"},
@@ -152,6 +152,11 @@ func (s *systemsSuite) mockSystemSeeds(c *check.C) (restore func()) {
 		"architecture": "amd64",
 		"base":         "core20",
 		"snaps": []interface{}{
+			map[string]interface{}{
+				"name": "snapd",
+				"id":   seed20.AssertedSnapID("snapd"),
+				"type": "snapd",
+			},
 			map[string]interface{}{
 				"name":            "pc-kernel",
 				"id":              seed20.AssertedSnapID("pc-kernel"),
@@ -170,6 +175,11 @@ func (s *systemsSuite) mockSystemSeeds(c *check.C) (restore func()) {
 		"architecture": "amd64",
 		"base":         "core20",
 		"snaps": []interface{}{
+			map[string]interface{}{
+				"name": "snapd",
+				"id":   seed20.AssertedSnapID("snapd"),
+				"type": "snapd",
+			},
 			map[string]interface{}{
 				"name":            "pc-kernel",
 				"id":              seed20.AssertedSnapID("pc-kernel"),
@@ -978,6 +988,7 @@ func (s *systemsSuite) TestSystemsGetSpecificLabelIntegration(c *check.C) {
 		// mockSystemSeed will ensure everything here is coming from
 		// the mocked seed except the encryptionInfo
 		sys, gadgetInfo, encInfo, err := deviceMgr.SystemAndGadgetAndEncryptionInfo(label)
+		c.Assert(err, check.IsNil)
 		// encryptionInfo needs get overridden here to get reliable tests
 		encInfo.Available = false
 		encInfo.StorageSafety = asserts.StorageSafetyPreferEncrypted

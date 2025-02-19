@@ -115,8 +115,7 @@ func assembleConfdb(assert assertionBase) (Assertion, error) {
 type ConfdbControl struct {
 	assertionBase
 
-	// the key is the operator ID
-	operators map[string]*confdb.Operator
+	control *confdb.Control
 }
 
 // expected interfaces are implemented
@@ -167,6 +166,11 @@ func (cc *ConfdbControl) Serial() string {
 	return cc.HeaderString("serial")
 }
 
+// Control returns the confdb.Control reflecting the assertion.
+func (cc *ConfdbControl) Control() confdb.Control {
+	return cc.control.Clone()
+}
+
 // assembleConfdbControl creates a new confdb-control assertion after validating
 // all required fields and constraints.
 func assembleConfdbControl(assert assertionBase) (Assertion, error) {
@@ -187,20 +191,19 @@ func assembleConfdbControl(assert assertionBase) (Assertion, error) {
 		return nil, errors.New(`"groups" stanza is mandatory`)
 	}
 
-	operators, err := parseConfdbControlGroups(groups)
+	cc, err := parseConfdbControlGroups(groups)
 	if err != nil {
 		return nil, err
 	}
 
-	cc := &ConfdbControl{
+	return &ConfdbControl{
 		assertionBase: assert,
-		operators:     operators,
-	}
-	return cc, nil
+		control:       cc,
+	}, nil
 }
 
-func parseConfdbControlGroups(rawGroups []interface{}) (map[string]*confdb.Operator, error) {
-	operators := map[string]*confdb.Operator{}
+func parseConfdbControlGroups(rawGroups []interface{}) (*confdb.Control, error) {
+	cc := &confdb.Control{}
 	for i, rawGroup := range rawGroups {
 		errPrefix := fmt.Sprintf("cannot parse group at position %d", i+1)
 
@@ -209,42 +212,36 @@ func parseConfdbControlGroups(rawGroups []interface{}) (map[string]*confdb.Opera
 			return nil, fmt.Errorf("%s: must be a map", errPrefix)
 		}
 
-		operatorID, err := checkNotEmptyStringWhat(group, "operator-id", "field")
+		auth, err := checkStringListInMap(group, "authentications", `"authentications" field`, nil)
 		if err != nil {
 			return nil, fmt.Errorf("%s: %w", errPrefix, err)
 		}
-
-		// Currently, operatorIDs must be snap store account IDs
-		if !IsValidAccountID(operatorID) {
-			return nil, fmt.Errorf(`%s: invalid "operator-id" %s`, errPrefix, operatorID)
-		}
-
-		operator, ok := operators[operatorID]
-		if !ok {
-			operator = &confdb.Operator{ID: operatorID}
-			operators[operatorID] = operator
-		}
-
-		auth, err := checkStringListInMap(group, "authentication", "field", nil)
-		if err != nil {
-			return nil, fmt.Errorf(`%s: "authentication" %w`, errPrefix, err)
-		}
 		if auth == nil {
-			return nil, fmt.Errorf(`%s: "authentication" must be provided`, errPrefix)
+			return nil, fmt.Errorf(`%s: "authentications" must be provided`, errPrefix)
 		}
 
-		views, err := checkStringListInMap(group, "views", "field", nil)
+		views, err := checkStringListInMap(group, "views", `"views" field`, nil)
 		if err != nil {
-			return nil, fmt.Errorf(`%s: "views" %w`, errPrefix, err)
+			return nil, fmt.Errorf("%s: %w", errPrefix, err)
 		}
 		if views == nil {
 			return nil, fmt.Errorf(`%s: "views" must be provided`, errPrefix)
 		}
 
-		if err := operator.AddControlGroup(views, auth); err != nil {
-			return nil, fmt.Errorf(`%s: %w`, errPrefix, err)
+		operatorIDs, err := checkStringListInMap(group, "operators", `"operators" field`, nil)
+		if err != nil {
+			return nil, fmt.Errorf("%s: %w", errPrefix, err)
+		}
+		if operatorIDs == nil {
+			return nil, fmt.Errorf(`%s: "operators" must be provided`, errPrefix)
+		}
+
+		for _, operatorID := range operatorIDs {
+			if err := cc.Delegate(operatorID, views, auth); err != nil {
+				return nil, fmt.Errorf("%s: %w", errPrefix, err)
+			}
 		}
 	}
 
-	return operators, nil
+	return cc, nil
 }

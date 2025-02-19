@@ -728,11 +728,26 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncrypted(c *C) {
 			})
 			defer restore()
 
+			modeSet := 0
+			restore = secboot.MockSbSetBootMode(func(mode string) {
+				modeSet++
+				switch modeSet {
+				case 1:
+					c.Check(mode, Equals, "some-weird-mode")
+				case 2:
+					c.Check(mode, Equals, "")
+				default:
+					c.Error("mode set a third time?")
+				}
+			})
+			defer restore()
+
 			opts := &secboot.UnlockVolumeUsingSealedKeyOptions{
 				AllowRecoveryKey: tc.rkAllow,
 				WhichModel: func() (*asserts.Model, error) {
 					return fakeModel, nil
 				},
+				BootMode: "some-weird-mode",
 			}
 			unlockRes, err := secboot.UnlockVolumeUsingSealedKeyIfEncrypted(tc.disk, defaultDevice, keyPath, opts)
 			if tc.errorReadKeyFile {
@@ -745,6 +760,7 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncrypted(c *C) {
 				c.Assert(unlockRes.IsEncrypted, Equals, tc.hasEncdev)
 				c.Assert(unlockRes.PartDevice, Equals, devicePath)
 				if tc.hasEncdev {
+					c.Check(modeSet, Equals, 2)
 					c.Assert(unlockRes.FsDevice, Equals, filepath.Join("/dev/mapper", defaultDevice+"-"+randomUUID))
 				} else {
 					c.Assert(unlockRes.FsDevice, Equals, devicePath)

@@ -24,7 +24,7 @@
 #include "test-utils.h"  // For rm_rf_tmp
 
 // For compatibility with g_test_queue_destroy.
-static void close_noerr(uintptr_t fd) { (void)close((int)fd); }
+static void close_noerr(gpointer fd) { (void)close(GPOINTER_TO_INT(fd)); }
 
 static void test_sc_probe_snap_mount_dir__absent(void) {
     char *root_dir = g_dir_make_tmp(NULL, NULL);
@@ -34,7 +34,7 @@ static void test_sc_probe_snap_mount_dir__absent(void) {
 
     int root_fd = open(root_dir, O_PATH | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC);
     g_assert_cmpint(root_fd, !=, -1);
-    g_test_queue_destroy((GDestroyNotify)close_noerr, (void *)(uintptr_t)root_fd);
+    g_test_queue_destroy((GDestroyNotify)close_noerr, GINT_TO_POINTER(root_fd));
 
     sc_probe_snap_mount_dir_from_pid_1_mount_ns(root_fd, NULL);
     const char *snap_mount_dir = sc_snap_mount_dir(NULL);
@@ -55,7 +55,7 @@ static void test_sc_probe_snap_mount_dir__canonical(void) {
 
     int root_fd = open(root_dir, O_PATH | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC);
     g_assert_cmpint(root_fd, !=, -1);
-    g_test_queue_destroy((GDestroyNotify)close_noerr, (void *)(uintptr_t)root_fd);
+    g_test_queue_destroy((GDestroyNotify)close_noerr, GINT_TO_POINTER(root_fd));
 
     sc_probe_snap_mount_dir_from_pid_1_mount_ns(root_fd, NULL);
     const char *snap_mount_dir = sc_snap_mount_dir(NULL);
@@ -81,7 +81,7 @@ static void test_sc_probe_snap_mount_dir__alternate_absolute(void) {
 
     int root_fd = open(root_dir, O_PATH | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC);
     g_assert_cmpint(root_fd, !=, -1);
-    g_test_queue_destroy((GDestroyNotify)close_noerr, (void *)(uintptr_t)root_fd);
+    g_test_queue_destroy((GDestroyNotify)close_noerr, GINT_TO_POINTER(root_fd));
 
     sc_probe_snap_mount_dir_from_pid_1_mount_ns(root_fd, NULL);
     const char *snap_mount_dir = sc_snap_mount_dir(NULL);
@@ -107,7 +107,7 @@ static void test_sc_probe_snap_mount_dir__alternate_relative(void) {
 
     int root_fd = open(root_dir, O_PATH | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC);
     g_assert_cmpint(root_fd, !=, -1);
-    g_test_queue_destroy((GDestroyNotify)close_noerr, (void *)(uintptr_t)root_fd);
+    g_test_queue_destroy((GDestroyNotify)close_noerr, GINT_TO_POINTER(root_fd));
 
     sc_probe_snap_mount_dir_from_pid_1_mount_ns(root_fd, NULL);
     const char *snap_mount_dir = sc_snap_mount_dir(NULL);
@@ -133,7 +133,7 @@ static void test_sc_probe_snap_mount_dir__bad_symlink_target(void) {
 
     int root_fd = open(root_dir, O_PATH | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC);
     g_assert_cmpint(root_fd, !=, -1);
-    g_test_queue_destroy((GDestroyNotify)close_noerr, (void *)(uintptr_t)root_fd);
+    g_test_queue_destroy((GDestroyNotify)close_noerr, GINT_TO_POINTER(root_fd));
 
     struct sc_error *err = NULL;
     (void)sc_probe_snap_mount_dir_from_pid_1_mount_ns(root_fd, &err);

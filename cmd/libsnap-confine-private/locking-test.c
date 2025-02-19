@@ -166,7 +166,7 @@ static void test_sc_snap_is_inhibited__missing_dir(void) {
 }
 
 static void test_sc_snap_is_inhibited__missing_file(void) {
-    const char *d = sc_test_use_fake_inhibit_dir();
+    sc_test_use_fake_inhibit_dir();
     g_assert_false(sc_snap_is_inhibited("foo", SC_SNAP_HINT_INHIBITED_FOR_REMOVE));
 }
 

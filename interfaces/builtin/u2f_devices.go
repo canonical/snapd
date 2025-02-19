@@ -202,6 +202,11 @@ var u2fDevices = []u2fDevice{
 		VendorIDPattern:  "1a44",
 		ProductIDPattern: "1501|1502|1503|1506|1507|1508|1509|150A",
 	},
+	{
+		Name:             "Arculus AuthentiKey",
+		VendorIDPattern:  "3752",
+		ProductIDPattern: "0001",
+	},
 }
 
 const u2fDevicesConnectedPlugAppArmor = `

@@ -22,6 +22,9 @@ package secboot
 
 import (
 	"io"
+	"os"
+	"os/exec"
+	"time"
 
 	"github.com/canonical/go-tpm2"
 	sb "github.com/snapcore/secboot"
@@ -448,4 +451,28 @@ func MockDisksDevlinks(f func(node string) ([]string, error)) (restore func()) {
 	return func() {
 		disksDevlinks = old
 	}
+}
+
+func MockOsArgs(args []string) (restore func()) {
+	return testutil.Mock(&os.Args, args)
+}
+
+func MockOsExit(f func(code int)) (restore func()) {
+	return testutil.Mock(&osExit, f)
+}
+
+func MockOsReadlink(f func(name string) (string, error)) (restore func()) {
+	return testutil.Mock(&osReadlink, f)
+}
+
+func MockSbWaitForAndRunArgon2OutOfProcessRequest(f func(in io.Reader, out io.WriteCloser, watchdog sb.Argon2OutOfProcessWatchdogHandler) (lockRelease func(), err error)) (restore func()) {
+	return testutil.Mock(&sbWaitForAndRunArgon2OutOfProcessRequest, f)
+}
+
+func MockSbNewOutOfProcessArgon2KDF(f func(newHandlerCmd func() (*exec.Cmd, error), timeout time.Duration, watchdog sb.Argon2OutOfProcessWatchdogMonitor) sb.Argon2KDF) (restore func()) {
+	return testutil.Mock(&sbNewOutOfProcessArgon2KDF, f)
+}
+
+func MockSbSetArgon2KDF(f func(kdf sb.Argon2KDF) sb.Argon2KDF) (restore func()) {
+	return testutil.Mock(&sbSetArgon2KDF, f)
 }

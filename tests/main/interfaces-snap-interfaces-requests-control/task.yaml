@@ -18,10 +18,16 @@ environment:
     PYTHONIOENCODING: utf-8
 
 prepare: |
+    if not tests.info is-reexec-in-use && os.query is-ubuntu 22.04; then
+        tests.exec skip-test "Ubuntu 22.04 kernel doesn't support prompting" && exit 0
+    fi
+
     # prerequisite for having a prompts handler service
     snap set system experimental.user-daemons=true
 
 debug: |
+    tests.exec is-skipped && exit 0
+
     echo "Check kernel version"
     uname -a
     echo "Check kernel notification socket presence"
@@ -34,6 +40,8 @@ debug: |
     snap debug api /v2/system-info
 
 execute: |
+    tests.exec is-skipped && exit 0
+
     "$TESTSTOOLS"/snaps-state install-local api-client
     echo "The snap-interfaces-requests-control plug on the api-client snap is initially disconnected"
     snap connections api-client | MATCH "snap-interfaces-requests-control +api-client:snap-interfaces-requests-control +- +-"

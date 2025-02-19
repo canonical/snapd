@@ -149,6 +149,9 @@ func (s *buildIDSuite) TestReadBuildGo(c *C) {
 	err := os.WriteFile(goTruth+".go", []byte(`package main; func main(){}`), 0644)
 	c.Assert(err, IsNil)
 	// force specific Go BuildID
+	//
+	// XXX: note, Go toolchain, specifically 1.24+ started adding GNU BuildID by
+	// default which the code tries to read first
 	cmd := exec.Command("go", "build", "-o", goTruth, "-ldflags=-buildid=foobar", goTruth+".go")
 	// set custom homedir to ensure tests work in an sbuild environment
 	// that force a non-existing homedir
@@ -158,7 +161,7 @@ func (s *buildIDSuite) TestReadBuildGo(c *C) {
 	c.Assert(string(output), Equals, "")
 	c.Assert(err, IsNil)
 
-	id, err := osutil.ReadBuildID(goTruth)
+	id, err := osutil.ReadGoBuildID(goTruth)
 	c.Assert(err, IsNil)
 
 	// ReadBuildID returns a hex encoded string, however buildID()

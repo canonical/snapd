@@ -26,9 +26,13 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path"
 	"path/filepath"
+	"regexp"
 
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget/quantity"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 )
 
@@ -257,6 +261,75 @@ func (r *rawStructureUpdater) rollbackDifferent(out io.WriteSeeker, pc *LaidOutC
 	return nil
 }
 
+var eMMCDeviceRegex = regexp.MustCompile("mmcblk[0-9]boot[0-1]")
+
+// setEMMCPartitionReadWrite changes the read-write status of a eMMC boot partition.
+// Documentation for force_ro here:
+// https://www.kernel.org/doc/Documentation/mmc/mmc-dev-attrs.txt
+var setEMMCPartitionReadWrite = func(device string, rw bool) error {
+	sdevPath := fmt.Sprintf("/sys/block/%s/force_ro", device)
+
+	f, err := os.OpenFile(path.Join(dirs.GlobalRootDir, sdevPath), os.O_WRONLY, 0)
+	if err != nil {
+		return fmt.Errorf("cannot open device for writing: %v", err)
+	}
+	defer f.Close()
+
+	d := "1"
+	if rw {
+		d = "0"
+	}
+	if _, err := f.Write([]byte(d)); err != nil {
+		return fmt.Errorf("cannot change device read only mode to %v: %w", d, err)
+	}
+	return nil
+}
+
+func openDiskForWrite(device string, laidOutStruct *LaidOutStructure) (*os.File, func() error, error) {
+	isEMMC := laidOutStruct.VolumeStructure.EnclosingVolume.Schema == schemaEMMC
+
+	var mmcDevice string
+	if isEMMC {
+		// get the emmc block name from the device path
+		mmcDevice = eMMCDeviceRegex.FindString(device)
+		if mmcDevice == "" {
+			return nil, nil, fmt.Errorf("%s is not a valid emmc block device", device)
+		}
+	}
+
+	setEMMCReadOnly := func() error {
+		if isEMMC {
+			return setEMMCPartitionReadWrite(mmcDevice, false)
+		}
+		return nil
+	}
+
+	if isEMMC {
+		if err := setEMMCPartitionReadWrite(mmcDevice, true); err != nil {
+			return nil, nil, err
+		}
+	}
+
+	disk, err := os.OpenFile(device, os.O_WRONLY, 0)
+	if err != nil {
+		if err2 := setEMMCReadOnly(); err2 != nil {
+			logger.Noticef("cannot switch %v to read-only: %v", mmcDevice, err2)
+		}
+		return nil, nil, fmt.Errorf("cannot open device for writing: %v", err)
+	}
+
+	return disk, func() error {
+		if err := disk.Close(); err != nil {
+			// this is bad, try to restore RO status to avoid
+			// leaving device in a weird state
+			if err2 := setEMMCReadOnly(); err2 != nil {
+				logger.Noticef("cannot switch %v to read-only: %v", mmcDevice, err2)
+			}
+		}
+		return setEMMCReadOnly()
+	}, nil
+}
+
 // Rollback attempts to restore original content from the backup copies prepared during Backup().
 func (r *rawStructureUpdater) Rollback() error {
 	device, structForDevice, err := r.matchDevice()
@@ -264,11 +337,15 @@ func (r *rawStructureUpdater) Rollback() error {
 		return err
 	}
 
-	disk, err := os.OpenFile(device, os.O_WRONLY, 0)
+	disk, close, err := openDiskForWrite(device, structForDevice)
 	if err != nil {
 		return fmt.Errorf("cannot open device for writing: %v", err)
 	}
-	defer disk.Close()
+	defer func() {
+		if err := close(); err != nil {
+			logger.Noticef("cannot close device: %v", err)
+		}
+	}()
 
 	for _, pc := range structForDevice.LaidOutContent {
 		if err := r.rollbackDifferent(disk, &pc); err != nil {
@@ -308,11 +385,15 @@ func (r *rawStructureUpdater) Update() error {
 		return err
 	}
 
-	disk, err := os.OpenFile(device, os.O_WRONLY, 0)
+	disk, close, err := openDiskForWrite(device, structForDevice)
 	if err != nil {
 		return fmt.Errorf("cannot open device for writing: %v", err)
 	}
-	defer disk.Close()
+	defer func() {
+		if err := close(); err != nil {
+			logger.Noticef("cannot close device: %v", err)
+		}
+	}()
 
 	skipped := 0
 	for _, pc := range structForDevice.LaidOutContent {

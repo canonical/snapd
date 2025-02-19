@@ -45,6 +45,7 @@ import (
 	"github.com/snapcore/snapd/overlord/restart"
 	"github.com/snapcore/snapd/overlord/servicestate"
 	"github.com/snapcore/snapd/overlord/snapstate"
+	"github.com/snapcore/snapd/overlord/snapstate/backend"
 	"github.com/snapcore/snapd/overlord/snapstate/sequence"
 	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
@@ -104,7 +105,7 @@ func checkHasCookieForSnap(c *C, st *state.State, instanceName string) {
 
 func (s *linkSnapSuite) TestDoLinkSnapSuccess(c *C) {
 	// we start without the auxiliary store info
-	c.Check(snapstate.AuxStoreInfoFilename("foo-id"), testutil.FileAbsent)
+	c.Check(backend.AuxStoreInfoFilename("foo-id"), testutil.FileAbsent)
 
 	lp := &testLinkParticipant{}
 	restore := snapstate.MockLinkSnapParticipants([]snapstate.LinkSnapParticipant{lp, snapstate.LinkSnapParticipantFunc(ifacestate.OnSnapLinkageChanged)})
@@ -150,7 +151,7 @@ func (s *linkSnapSuite) TestDoLinkSnapSuccess(c *C) {
 	c.Check(s.restartRequested, HasLen, 0)
 
 	// we end with the auxiliary store info
-	c.Check(snapstate.AuxStoreInfoFilename("foo-id"), testutil.FilePresent)
+	c.Check(backend.AuxStoreInfoFilename("foo-id"), testutil.FilePresent)
 
 	// link snap participant was invoked
 	c.Check(lp.instanceNames, DeepEquals, []string{"foo"})
@@ -158,7 +159,7 @@ func (s *linkSnapSuite) TestDoLinkSnapSuccess(c *C) {
 
 func (s *linkSnapSuite) TestDoLinkSnapSuccessWithCohort(c *C) {
 	// we start without the auxiliary store info
-	c.Check(snapstate.AuxStoreInfoFilename("foo-id"), testutil.FileAbsent)
+	c.Check(backend.AuxStoreInfoFilename("foo-id"), testutil.FileAbsent)
 
 	s.state.Lock()
 	t := s.state.NewTask("link-snap", "test")
@@ -201,7 +202,7 @@ func (s *linkSnapSuite) TestDoLinkSnapSuccessWithCohort(c *C) {
 	c.Check(s.restartRequested, HasLen, 0)
 
 	// we end with the auxiliary store info
-	c.Check(snapstate.AuxStoreInfoFilename("foo-id"), testutil.FilePresent)
+	c.Check(backend.AuxStoreInfoFilename("foo-id"), testutil.FilePresent)
 }
 
 func (s *linkSnapSuite) TestDoLinkSnapSuccessNoUserID(c *C) {
@@ -2130,7 +2131,7 @@ func (s *linkSnapSuite) TestDoLinkSnapFailureCleansUpAux(c *C) {
 	c.Assert(os.WriteFile(dirs.SnapSeqDir, nil, 0644), IsNil)
 
 	// we start without the auxiliary store info
-	c.Check(snapstate.AuxStoreInfoFilename("foo-id"), testutil.FileAbsent)
+	c.Check(backend.AuxStoreInfoFilename("foo-id"), testutil.FileAbsent)
 
 	s.state.Lock()
 	t := s.state.NewTask("link-snap", "test")
@@ -2157,7 +2158,7 @@ func (s *linkSnapSuite) TestDoLinkSnapFailureCleansUpAux(c *C) {
 	c.Check(s.restartRequested, HasLen, 0)
 
 	// we end without the auxiliary store info
-	c.Check(snapstate.AuxStoreInfoFilename("foo-id"), testutil.FileAbsent)
+	c.Check(backend.AuxStoreInfoFilename("foo-id"), testutil.FileAbsent)
 }
 
 func (s *linkSnapSuite) TestLinkSnapResetsRefreshInhibitedTime(c *C) {

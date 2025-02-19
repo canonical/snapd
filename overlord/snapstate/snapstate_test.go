@@ -4609,7 +4609,7 @@ func (s *snapmgrQuerySuite) TestSnapStateCurrentInfo(c *C) {
 }
 
 func (s *snapmgrQuerySuite) TestSnapStateCurrentInfoLoadsAuxiliaryStoreInfo(c *C) {
-	storeInfo := &snapstate.AuxStoreInfo{
+	storeInfo := backend.AuxStoreInfo{
 		Media: snap.MediaInfos{{
 			Type: "icon",
 			URL:  "http://example.com/favicon.ico",
@@ -4618,14 +4618,16 @@ func (s *snapmgrQuerySuite) TestSnapStateCurrentInfoLoadsAuxiliaryStoreInfo(c *C
 		Website:  "http://example.com/",
 	}
 
-	c.Assert(snapstate.KeepAuxStoreInfo("123123123", storeInfo), IsNil)
+	linkCtx := backend.LinkContext{} // doesn't matter for this test
+	_, err := backend.InstallStoreMetadata("123123123", storeInfo, linkCtx)
+	c.Check(err, IsNil)
 
 	st := s.st
 	st.Lock()
 	defer st.Unlock()
 
 	var snapst snapstate.SnapState
-	err := snapstate.Get(st, "name1", &snapst)
+	err = snapstate.Get(st, "name1", &snapst)
 	c.Assert(err, IsNil)
 
 	info, err := snapst.CurrentInfo()

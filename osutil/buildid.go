@@ -90,7 +90,7 @@ func readGenericBuildID(fname, elfNote string, hdrType uint32) (string, error) {
 			return "", err
 		}
 
-		// We are only interested in GNU build IDs
+		// We are only in a specific note
 		if string(noteName) != elfNote {
 			continue
 		}

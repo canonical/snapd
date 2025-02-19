@@ -5,14 +5,12 @@ DefaultDependencies=no
 Before=initrd-root-fs.target
 After=run-mnt-data.mount
 After=run-mnt-base.mount
-After=sysroot.mount
 After=sysroot-writable.mount
-Requires=sysroot.mount
 Requires=sysroot-writable.mount
 Wants=snap-initramfs-mounts.service
 After=snap-initramfs-mounts.service
 
-ConditionPathIsMountPoint=/run/mnt/base
+ConditionPathIsDirectory=/run/mnt/data/system-data
 
 [Service]
 Type=oneshot

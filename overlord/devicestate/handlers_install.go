@@ -1231,6 +1231,23 @@ func (m *DeviceManager) doInstallFinish(t *state.Task, _ *tomb.Tomb) error {
 	return nil
 }
 
+func checkVolumesAuth(volumesAuth *device.VolumesAuthOptions, encryptInfo installLogic.EncryptionSupportInfo) error {
+	if volumesAuth == nil {
+		return nil
+	}
+	switch volumesAuth.Mode {
+	case device.AuthModePassphrase:
+		if !encryptInfo.PassphraseAuthAvailable {
+			return fmt.Errorf("%q authentication mode is not supported by target system", device.AuthModePassphrase)
+		}
+	case device.AuthModePIN:
+		return fmt.Errorf("%q authentication mode is not implemented", device.AuthModePIN)
+	default:
+		return fmt.Errorf("invalid authentication mode %q, only %q and %q modes are supported", volumesAuth.Mode, device.AuthModePassphrase, device.AuthModePIN)
+	}
+	return nil
+}
+
 type volumesAuthOptionsKey struct {
 	systemLabel string
 }
@@ -1271,7 +1288,7 @@ func (m *DeviceManager) doInstallSetupStorageEncryption(t *state.Task, _ *tomb.T
 	}
 
 	systemAndSeeds, mntPtForType, _, unmount, err := m.loadAndMountSystemLabelSnapsUnlock(
-		st, systemLabel, []snap.Type{snap.TypeKernel, snap.TypeBase, snap.TypeGadget})
+		st, systemLabel, []snap.Type{snap.TypeSnapd, snap.TypeKernel, snap.TypeBase, snap.TypeGadget})
 	if err != nil {
 		return err
 	}
@@ -1287,7 +1304,7 @@ func (m *DeviceManager) doInstallSetupStorageEncryption(t *state.Task, _ *tomb.T
 		return fmt.Errorf("reading gadget information: %v", err)
 	}
 
-	encryptInfo, err := m.encryptionSupportInfo(systemAndSeeds.Model, secboot.TPMProvisionFull, systemAndSeeds.InfosByType[snap.TypeKernel], gadgetInfo)
+	encryptInfo, err := m.encryptionSupportInfo(systemAndSeeds.Model, secboot.TPMProvisionFull, systemAndSeeds.InfosByType[snap.TypeKernel], gadgetInfo, &systemAndSeeds.SystemSnapdVersions)
 	if err != nil {
 		return err
 	}
@@ -1299,6 +1316,9 @@ func (m *DeviceManager) doInstallSetupStorageEncryption(t *state.Task, _ *tomb.T
 			whyStr = encryptInfo.UnavailableWarning
 		}
 		return fmt.Errorf("encryption unavailable on this device: %v", whyStr)
+	}
+	if err := checkVolumesAuth(volumesAuth, encryptInfo); err != nil {
+		return err
 	}
 
 	// TODO:ICE: support device.EncryptionTypeLUKSWithICE in the API

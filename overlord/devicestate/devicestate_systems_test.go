@@ -2867,7 +2867,7 @@ volumes:
         role: system-data
 `
 
-func (s *modelAndGadgetInfoSuite) makeMockUC20SeedWithGadgetYaml(c *C, label, gadgetYaml string, isClassic bool) *asserts.Model {
+func (s *modelAndGadgetInfoSuite) makeMockUC20SeedWithGadgetYaml(c *C, label, gadgetYaml string, isClassic bool, snapdVersionByType map[snap.Type]string) *asserts.Model {
 	seed20 := &seedtest.TestingSeed20{
 		SeedSnaps: seedtest.SeedSnaps{
 			StoreSigning: s.storeSigning,
@@ -2880,8 +2880,21 @@ func (s *modelAndGadgetInfoSuite) makeMockUC20SeedWithGadgetYaml(c *C, label, ga
 
 	assertstest.AddMany(s.storeSigning.Database, s.brands.AccountsAndKeys("my-brand")...)
 
-	seed20.MakeAssertedSnap(c, "name: snapd\nversion: 1\ntype: snapd", nil, snap.R(1), "my-brand", s.storeSigning.Database)
-	seed20.MakeAssertedSnap(c, "name: pc-kernel\nversion: 1\ntype: kernel", nil, snap.R(1), "my-brand", s.storeSigning.Database)
+	if snapdVersionByType == nil {
+		snapdVersionByType = map[snap.Type]string{
+			snap.TypeSnapd:  "1",
+			snap.TypeKernel: "1",
+		}
+	}
+
+	seed20.MakeAssertedSnap(c,
+		"name: snapd\nversion: 1\ntype: snapd",
+		[][]string{{"usr/lib/snapd/info", fmt.Sprintf("VERSION=%s", snapdVersionByType[snap.TypeSnapd])}},
+		snap.R(1), "my-brand", s.storeSigning.Database)
+	seed20.MakeAssertedSnap(c,
+		"name: pc-kernel\nversion: 1\ntype: kernel",
+		[][]string{{"snapd-info", fmt.Sprintf("VERSION=%s", snapdVersionByType[snap.TypeKernel])}},
+		snap.R(1), "my-brand", s.storeSigning.Database)
 	seed20.MakeAssertedSnap(c, "name: core20\nversion: 1\ntype: base", nil, snap.R(1), "my-brand", s.storeSigning.Database)
 	seed20.MakeAssertedSnap(c, "name: optional-snap\nversion: 1\ntype: app\nbase: core20", nil, snap.R(1), "my-brand", s.storeSigning.Database)
 	gadgetFiles := [][]string{
@@ -2894,6 +2907,11 @@ func (s *modelAndGadgetInfoSuite) makeMockUC20SeedWithGadgetYaml(c *C, label, ga
 		"architecture": "amd64",
 		"base":         "core20",
 		"snaps": []interface{}{
+			map[string]interface{}{
+				"name": "snapd",
+				"id":   seed20.AssertedSnapID("snapd"),
+				"type": "snapd",
+			},
 			map[string]interface{}{
 				"name":            "pc-kernel",
 				"id":              seed20.AssertedSnapID("pc-kernel"),
@@ -2926,7 +2944,7 @@ func (s *modelAndGadgetInfoSuite) makeMockUC20SeedWithGadgetYaml(c *C, label, ga
 
 func (s *modelAndGadgetInfoSuite) TestSystemAndGadgetAndEncyptionInfoHappy(c *C) {
 	isClassic := false
-	fakeModel := s.makeMockUC20SeedWithGadgetYaml(c, "some-label", mockGadgetUCYaml, isClassic)
+	fakeModel := s.makeMockUC20SeedWithGadgetYaml(c, "some-label", mockGadgetUCYaml, isClassic, nil)
 	expectedGadgetInfo, err := gadget.InfoFromGadgetYaml([]byte(mockGadgetUCYaml), fakeModel)
 	c.Assert(err, IsNil)
 
@@ -2952,6 +2970,62 @@ func (s *modelAndGadgetInfoSuite) TestSystemAndGadgetAndEncyptionInfoHappy(c *C)
 	})
 }
 
+func (s *modelAndGadgetInfoSuite) testSystemAndGadgetAndEncyptionInfoPassphraseSupport(c *C, snapdVersionByType map[snap.Type]string, hasPassphraseSupport bool) {
+	isClassic := false
+	fakeModel := s.makeMockUC20SeedWithGadgetYaml(c, "some-label", mockGadgetUCYaml, isClassic, snapdVersionByType)
+	expectedGadgetInfo, err := gadget.InfoFromGadgetYaml([]byte(mockGadgetUCYaml), fakeModel)
+	c.Assert(err, IsNil)
+
+	restore := install.MockSecbootCheckTPMKeySealingSupported(func(secboot.TPMProvisionMode) error { return nil })
+	defer restore()
+
+	system, gadgetInfo, encInfo, err := s.mgr.SystemAndGadgetAndEncryptionInfo("some-label")
+	c.Assert(err, IsNil)
+	c.Check(system, DeepEquals, &devicestate.System{
+		Label:   "some-label",
+		Model:   fakeModel,
+		Brand:   s.brands.Account("my-brand"),
+		Actions: defaultSystemActions,
+		OptionalContainers: devicestate.OptionalContainers{
+			Snaps: []string{"optional-snap"},
+		},
+	})
+	c.Check(gadgetInfo.Volumes, DeepEquals, expectedGadgetInfo.Volumes)
+	c.Check(encInfo, DeepEquals, &install.EncryptionSupportInfo{
+		Available:               true,
+		Type:                    "cryptsetup",
+		StorageSafety:           asserts.StorageSafetyPreferEncrypted,
+		PassphraseAuthAvailable: hasPassphraseSupport,
+	})
+}
+
+func (s *modelAndGadgetInfoSuite) TestSystemAndGadgetAndEncyptionInfoPassphraseSupportOldSnapd(c *C) {
+	snapdVersionByType := map[snap.Type]string{
+		snap.TypeSnapd:  "2.67",
+		snap.TypeKernel: "2.68",
+	}
+	const hasPassphraseSupport = false
+	s.testSystemAndGadgetAndEncyptionInfoPassphraseSupport(c, snapdVersionByType, hasPassphraseSupport)
+}
+
+func (s *modelAndGadgetInfoSuite) TestSystemAndGadgetAndEncyptionInfoPassphraseSupportOldKernel(c *C) {
+	snapdVersionByType := map[snap.Type]string{
+		snap.TypeSnapd:  "2.68",
+		snap.TypeKernel: "2.67",
+	}
+	const hasPassphraseSupport = false
+	s.testSystemAndGadgetAndEncyptionInfoPassphraseSupport(c, snapdVersionByType, hasPassphraseSupport)
+}
+
+func (s *modelAndGadgetInfoSuite) TestSystemAndGadgetAndEncyptionInfoPassphraseSupportAvailable(c *C) {
+	snapdVersionByType := map[snap.Type]string{
+		snap.TypeSnapd:  "2.68",
+		snap.TypeKernel: "2.68",
+	}
+	const hasPassphraseSupport = true
+	s.testSystemAndGadgetAndEncyptionInfoPassphraseSupport(c, snapdVersionByType, hasPassphraseSupport)
+}
+
 func (s *modelAndGadgetInfoSuite) TestSystemAndGadgetInfoErrorInvalidLabel(c *C) {
 	_, _, _, err := s.mgr.SystemAndGadgetAndEncryptionInfo("invalid/label")
 	c.Assert(err, ErrorMatches, `cannot open: invalid seed system label: "invalid/label"`)
@@ -2964,7 +3038,7 @@ func (s *modelAndGadgetInfoSuite) TestSystemAndGadgetInfoErrorNoSeedDir(c *C) {
 
 func (s *modelAndGadgetInfoSuite) TestSystemAndGadgetInfoErrorNoGadget(c *C) {
 	isClassic := false
-	s.makeMockUC20SeedWithGadgetYaml(c, "some-label", mockGadgetUCYaml, isClassic)
+	s.makeMockUC20SeedWithGadgetYaml(c, "some-label", mockGadgetUCYaml, isClassic, nil)
 	// break the seed by removing the gadget
 	err := os.Remove(filepath.Join(dirs.SnapSeedDir, "snaps", "pc_1.snap"))
 	c.Assert(err, IsNil)
@@ -2975,7 +3049,7 @@ func (s *modelAndGadgetInfoSuite) TestSystemAndGadgetInfoErrorNoGadget(c *C) {
 
 func (s *modelAndGadgetInfoSuite) TestSystemAndGadgetInfoErrorWrongGadget(c *C) {
 	isClassic := false
-	s.makeMockUC20SeedWithGadgetYaml(c, "some-label", mockGadgetUCYaml, isClassic)
+	s.makeMockUC20SeedWithGadgetYaml(c, "some-label", mockGadgetUCYaml, isClassic, nil)
 	// break the seed by changing things
 	err := os.WriteFile(filepath.Join(dirs.SnapSeedDir, "snaps", "pc_1.snap"), []byte(`content-changed`), 0644)
 	c.Assert(err, IsNil)
@@ -2986,7 +3060,7 @@ func (s *modelAndGadgetInfoSuite) TestSystemAndGadgetInfoErrorWrongGadget(c *C) 
 
 func (s *modelAndGadgetInfoSuite) TestSystemAndGadgetInfoErrorInvalidGadgetYaml(c *C) {
 	isClassic := false
-	s.makeMockUC20SeedWithGadgetYaml(c, "some-label", "", isClassic)
+	s.makeMockUC20SeedWithGadgetYaml(c, "some-label", "", isClassic, nil)
 
 	_, _, _, err := s.mgr.SystemAndGadgetAndEncryptionInfo("some-label")
 	c.Assert(err, ErrorMatches, "reading gadget information: bootloader not declared in any volume")
@@ -3008,7 +3082,7 @@ func (s *modelAndGadgetInfoSuite) TestSystemAndGadgetInfoBadClassicGadget(c *C) 
 	restore := release.MockOnClassic(true)
 	defer restore()
 	isClassic := true
-	s.makeMockUC20SeedWithGadgetYaml(c, "some-label", mockGadgetUCYamlNoBootRole, isClassic)
+	s.makeMockUC20SeedWithGadgetYaml(c, "some-label", mockGadgetUCYamlNoBootRole, isClassic, nil)
 
 	_, _, _, err := s.mgr.SystemAndGadgetAndEncryptionInfo("some-label")
 	c.Assert(err, ErrorMatches, `cannot validate gadget.yaml: system-boot and system-data roles are needed on classic`)
