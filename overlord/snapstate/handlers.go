@@ -756,33 +756,12 @@ func (m *SnapManager) doDownloadSnap(t *state.Task, tomb *tomb.Tomb) error {
 			return err
 		}
 
-		// Re-compute icon download filepath and URL if the result info has the
-		// necessary information
-		if result.SnapID != "" {
-			targetIconFn = backend.IconDownloadFilename(result.SnapID)
-		}
-		if resultIconURL := result.Media.IconURL(); resultIconURL != "" {
-			iconURL = resultIconURL
-		}
-
-		ctx := tomb.Context(nil) // XXX: should this be a real context?
-
 		timings.Run(perfTimings, "download", fmt.Sprintf("download snap %q", snapsup.SnapName()), func(timings.Measurer) {
-			err = theStore.Download(ctx, snapsup.SnapName(), targetFn, &result.DownloadInfo, meter, user, dlOpts)
+			err = theStore.Download(nil, snapsup.SnapName(), targetFn, &result.DownloadInfo, meter, user, dlOpts)
 		})
 		snapsup.SideInfo = &result.SideInfo
 		if err != nil {
 			return err
-		}
-		// Snap download succeeded, now try to download the snap icon
-		if iconURL == "" {
-			logger.Debugf("cannot download snap icon for %q: no icon URL", snapsup.SnapName())
-		} else {
-			timings.Run(perfTimings, "download-icon", fmt.Sprintf("download snap icon for %q", snapsup.SnapName()), func(timings.Measurer) {
-				if iconErr := theStore.DownloadIcon(ctx, snapsup.SnapName(), targetIconFn, iconURL); iconErr != nil {
-					logger.Debugf("cannot download snap icon for %q: %#v", snapsup.SnapName(), iconErr)
-				}
-			})
 		}
 	} else {
 		ctx := tomb.Context(nil) // XXX: should this be a real context?
@@ -798,7 +777,7 @@ func (m *SnapManager) doDownloadSnap(t *state.Task, tomb *tomb.Tomb) error {
 		} else {
 			timings.Run(perfTimings, "download-icon", fmt.Sprintf("download snap icon for %q", snapsup.SnapName()), func(timings.Measurer) {
 				if iconErr := theStore.DownloadIcon(ctx, snapsup.SnapName(), targetIconFn, iconURL); iconErr != nil {
-					logger.Debugf("cannot download snap icon for %q: %#v", snapsup.SnapName(), iconErr)
+					logger.Debugf("cannot download snap icon for %q: %v", snapsup.SnapName(), iconErr)
 				}
 			})
 		}
