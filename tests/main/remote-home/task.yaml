@@ -108,9 +108,13 @@ prepare: |
     # Later on, restart snapd and ensure that nfs/cifs workaround is gone.
     # This cleanup handler is registered before we mount the cifs file system.
     if [ "$(snap debug confinement)" = strict ]; then
-        # We are testing on Ubuntu where we know that reexec is active and we
-        # use an internal apparmor userspace stack.
-        tests.cleanup defer test ! -e /var/lib/snapd/apparmor/snap-confine.internal/nfs-support
+        if tests.info is-reexec-in-use; then
+          # We are testing on Ubuntu where we know that reexec is active and we
+          # use an internal apparmor userspace stack.
+          tests.cleanup defer test ! -e /var/lib/snapd/apparmor/snap-confine.internal/nfs-support
+        else
+          tests.cleanup defer test ! -e /var/lib/snapd/apparmor/snap-confine/nfs-support
+        fi
     fi
     tests.cleanup defer systemctl restart snapd.service
     tests.cleanup defer systemctl reset-failed snapd.service snapd.socket
@@ -140,7 +144,11 @@ prepare: |
     systemctl reset-failed snapd.service snapd.socket
     systemctl restart snapd.service
     if [ "$(snap debug confinement)" = strict ]; then
-        MATCH 'network inet,' < /var/lib/snapd/apparmor/snap-confine.internal/nfs-support
+        if tests.info is-reexec-in-use; then
+          MATCH 'network inet,' < /var/lib/snapd/apparmor/snap-confine.internal/nfs-support
+        else
+          MATCH 'network inet,' < /var/lib/snapd/apparmor/snap-confine/nfs-support
+        fi
         MATCH 'network inet,' < /var/lib/snapd/apparmor/profiles/snap.test-snapd-sh.with-home-plug
     fi
 
