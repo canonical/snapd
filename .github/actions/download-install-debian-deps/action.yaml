@@ -26,4 +26,5 @@ runs:
     run: |
         sudo apt update
         sudo apt build-dep -y "${{ inputs.snapd-src-dir }}"
+        sudo apt install -y clang
         rm -rf ./debian-deps

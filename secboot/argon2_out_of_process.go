@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2024 Canonical Ltd
+ * Copyright (C) 2025 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -17,26 +17,20 @@
  *
  */
 
-package confdb
+package secboot
 
-var GetValuesThroughPaths = getValuesThroughPaths
+import "os"
 
-func MockMaxValueDepth(newDepth int) (restore func()) {
-	oldDepth := maxValueDepth
-	maxValueDepth = newDepth
-	return func() {
-		maxValueDepth = oldDepth
+func isOutOfProcessArgon2KDFMode(args []string) bool {
+	if len(os.Args) != len(args)+1 {
+		return false
 	}
+
+	for i := 0; i < len(args); i++ {
+		if os.Args[i+1] != args[i] {
+			return false
+		}
+	}
+
+	return true
 }
-
-// functions & types exposed for tests
-
-var NewAuthentication = newAuthentication
-
-type Authentication = authentication
-
-func (a Authentication) ToStrings() []string {
-	return a.toStrings()
-}
-
-type ViewRef = viewRef

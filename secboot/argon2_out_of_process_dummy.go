@@ -1,7 +1,8 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
+//go:build nosecboot
 
 /*
- * Copyright (C) 2024 Canonical Ltd
+ * Copyright (C) 2025 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -17,26 +18,10 @@
  *
  */
 
-package confdb
+package secboot
 
-var GetValuesThroughPaths = getValuesThroughPaths
-
-func MockMaxValueDepth(newDepth int) (restore func()) {
-	oldDepth := maxValueDepth
-	maxValueDepth = newDepth
-	return func() {
-		maxValueDepth = oldDepth
+func HijackAndRunArgon2OutOfProcessHandlerOnArg(args []string) {
+	if isOutOfProcessArgon2KDFMode(args) {
+		panic("internal error: unexpected call to execute as argon2 runner in non-secboot binary")
 	}
 }
-
-// functions & types exposed for tests
-
-var NewAuthentication = newAuthentication
-
-type Authentication = authentication
-
-func (a Authentication) ToStrings() []string {
-	return a.toStrings()
-}
-
-type ViewRef = viewRef

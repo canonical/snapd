@@ -294,7 +294,7 @@ backends:
         plan: n2-standard-2
         halt-timeout: 2h
         cpu-family: "Intel Cascade Lake"
-        systems:
+        systems: &google-nested-systems
             - ubuntu-16.04-64:
                   image: ubuntu-1604-64-virt-enabled
                   storage: 20G
@@ -335,27 +335,7 @@ backends:
         plan: n2-standard-4
         halt-timeout: 6h
         cpu-family: "Intel Cascade Lake"
-        systems:
-            - ubuntu-16.04-64:
-                  image: ubuntu-1604-64-virt-enabled
-                  storage: 20G
-                  workers: 3
-            - ubuntu-18.04-64:
-                  image: ubuntu-1804-64-virt-enabled
-                  storage: 20G
-                  workers: 3
-            - ubuntu-20.04-64:
-                  image: ubuntu-2004-64-virt-enabled
-                  storage: 20G
-                  workers: 8
-            - ubuntu-22.04-64:
-                  image: ubuntu-2204-64-virt-enabled
-                  storage: 20G
-                  workers: 8
-            - ubuntu-24.04-64:
-                  image: ubuntu-2404-64-virt-enabled
-                  storage: 20G
-                  workers: 8
+        systems: *google-nested-systems
 
     qemu-nested:
         memory: 4G
@@ -627,6 +607,10 @@ debug-each: |
     go version || true
 
     if tests.nested is-nested; then
+        echo '# free space on the host'
+        df -h || true
+        du -ch /var/tmp/work-dir || true
+
         echo '# nested VM status'
         tests.nested vm status
         # filter out ^[ to ensure that the debug output gets not messed up
@@ -772,14 +756,6 @@ prepare: |
 
     # Note that os.query or any other tool cannot be used here before the current.delta file is unpacked
     if [[ "$SPREAD_SYSTEM" == fedora-* ]]; then
-        # The Fedora archive mirror seems to be unreliable.
-        # Switch to the main archive by commenting out metalink and uncommenting
-        # baseurl with a tweak to go to dl.fedoraproject.org which doens't redirect
-        # to mirrors again.
-        #
-        # https://forum.snapcraft.io/t/issues-with-the-fedora-mirror-network/3489/
-        sed -i -s -E -e 's@^#?baseurl=http://download.fedoraproject.org/@baseurl=http://dl.fedoraproject.org/@g' -e 's@^metalink=@#metalink@g' /etc/yum.repos.d/fedora*.repo
-
         dnf --refresh -y makecache
 
         # enable audit daemon
