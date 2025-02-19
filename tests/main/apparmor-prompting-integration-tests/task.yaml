@@ -49,8 +49,8 @@ prepare: |
     tests.session -u test exec sh -c 'mkdir -p "/home/test/integration-tests"'
     snap install prompting-client
 
-    # Ensure lsof is installed (for now, assumes apt)
-    command -v lsof || apt install -y lsof
+    # Ensure lsof is installed
+    command -v lsof || tests.pkgs install lsof
 
 restore: |
     tests.exec is-skipped && exit 0
