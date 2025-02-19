@@ -65,6 +65,7 @@ const blockDevicesConnectedPlugAppArmor = `
 /dev/i2o/hd{,[a-c]}[a-z] rwk,                              # I2O hard disk
 /dev/i2o/hdd[a-x] rwk,                                     # I2O hard disk continued
 /dev/mmcblk[0-9]{,[0-9],[0-9][0-9]} rwk,                   # MMC (up to 1000 devices)
+/dev/mmcblk[0-9]{,[0-9],[0-9][0-9]}rpmb rwk,               # MMC RPMB
 /dev/vd[a-z] rwk,                                          # virtio
 /dev/loop[0-9]{,[0-9],[0-9][0-9]} rwk,                     # loopback (up to 1000 devices)
 /dev/loop-control rw,                                      # loopback control
@@ -118,6 +119,7 @@ var blockDevicesConnectedPlugUDev = []string{
 	// allow for manipulation of the block devices and so are grouped here as
 	// well
 	`SUBSYSTEM=="nvme"`,
+	`SUBSYSTEM=="mmc_rpmb"`,
 	`KERNEL=="mpt2ctl*"`,
 	`KERNEL=="megaraid_sas_ioctl_node"`,
 }
