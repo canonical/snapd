@@ -49,8 +49,6 @@ func IconInstallFilename(snapID string) string {
 	return filepath.Join(dirs.SnapIconsDir, fmt.Sprintf("%s.icon", snapID))
 }
 
-var errIconNotExist = errors.New("icon does not exist in the icons download pool")
-
 // linkSnapIcon creates a hardlink from the downloaded icons pool to the icons
 // directory for the given snap ID.
 func linkSnapIcon(snapID string) error {
@@ -62,15 +60,15 @@ func linkSnapIcon(snapID string) error {
 	installPath := IconInstallFilename(snapID)
 
 	if !osutil.FileExists(poolPath) {
-		return fmt.Errorf("cannot link snap icon for snap %s: %w", snapID, errIconNotExist)
+		return fmt.Errorf("icon for snap: %w", fs.ErrNotExist)
 	}
 
 	if err := os.MkdirAll(dirs.SnapIconsDir, 0o755); err != nil {
-		return fmt.Errorf("cannot create directory for snap icons: %v", err)
+		return fmt.Errorf("cannot create directory for snap icons: %w", err)
 	}
 
 	if err := osutil.AtomicLink(poolPath, installPath); err != nil {
-		return fmt.Errorf("cannot link snap icon for snap %s: %w", snapID, err)
+		return fmt.Errorf("cannot link snap icon: %w", err)
 	}
 	return nil
 }
@@ -82,7 +80,7 @@ func unlinkSnapIcon(snapID string) error {
 		return nil
 	}
 	if err := os.Remove(IconInstallFilename(snapID)); err != nil && !errors.Is(err, fs.ErrNotExist) {
-		return fmt.Errorf("cannot unlink snap icon for snap %s: %w", snapID, err)
+		return fmt.Errorf("cannot unlink snap icon: %w", err)
 	}
 	return nil
 }
@@ -94,7 +92,7 @@ func discardSnapIcon(snapID string) error {
 		return nil
 	}
 	if err := os.Remove(IconDownloadFilename(snapID)); err != nil && !errors.Is(err, fs.ErrNotExist) {
-		return fmt.Errorf("cannot remove snap icon from pool for snap %s: %v", snapID, err)
+		return fmt.Errorf("cannot remove snap icon from pool: %w", err)
 	}
 	return nil
 }

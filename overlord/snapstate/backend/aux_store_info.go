@@ -84,22 +84,22 @@ func keepAuxStoreInfo(snapID string, aux AuxStoreInfo) error {
 		return nil
 	}
 	if err := os.MkdirAll(dirs.SnapAuxStoreInfoDir, 0755); err != nil {
-		return fmt.Errorf("cannot create directory for auxiliary store info: %v", err)
+		return fmt.Errorf("cannot create directory for auxiliary store info: %w", err)
 	}
 
 	af, err := osutil.NewAtomicFile(AuxStoreInfoFilename(snapID), 0644, 0, osutil.NoChown, osutil.NoChown)
 	if err != nil {
-		return fmt.Errorf("cannot create file for auxiliary store info for snap %s: %v", snapID, err)
+		return fmt.Errorf("cannot create file for auxiliary store info: %w", err)
 	}
 	// on success, Cancel becomes a nop
 	defer af.Cancel()
 
 	if err := json.NewEncoder(af).Encode(aux); err != nil {
-		return fmt.Errorf("cannot encode auxiliary store info for snap %s: %v", snapID, err)
+		return fmt.Errorf("cannot encode auxiliary store info: %w", err)
 	}
 
 	if err := af.Commit(); err != nil {
-		return fmt.Errorf("cannot commit auxiliary store info file for snap %s: %v", snapID, err)
+		return fmt.Errorf("cannot commit auxiliary store info file: %w", err)
 	}
 	return nil
 }
@@ -110,7 +110,7 @@ func discardAuxStoreInfo(snapID string) error {
 		return nil
 	}
 	if err := os.Remove(AuxStoreInfoFilename(snapID)); err != nil && !os.IsNotExist(err) {
-		return fmt.Errorf("cannot remove auxiliary store info file for snap %s: %v", snapID, err)
+		return fmt.Errorf("error removing auxiliary store info file: %w", err)
 	}
 	return nil
 }

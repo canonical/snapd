@@ -20,6 +20,8 @@
 package backend_test
 
 import (
+	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 
@@ -164,7 +166,7 @@ func (s *metadataSuite) TestInstallStoreMetadataNoIcon(c *C) {
 	c.Check(err, IsNil)
 
 	// but a debug log is recorded
-	c.Check(logbuf.String(), testutil.Contains, "cannot link snap icon for snap my-id: icon does not exist in the icons download pool")
+	c.Check(logbuf.String(), testutil.Contains, fmt.Sprintf("cannot link snap icon for snap my-id: icon for snap: %v", fs.ErrNotExist))
 }
 
 func (s *metadataSuite) TestDiscardStoreMetadata(c *C) {

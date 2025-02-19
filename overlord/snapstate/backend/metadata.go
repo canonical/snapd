@@ -21,6 +21,8 @@ package backend
 
 import (
 	"errors"
+	"fmt"
+	"io/fs"
 
 	"github.com/snapcore/snapd/logger"
 )
@@ -34,13 +36,13 @@ func InstallStoreMetadata(snapID string, aux AuxStoreInfo, linkCtx LinkContext) 
 		return func() {}, nil
 	}
 	if err := keepAuxStoreInfo(snapID, aux); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("cannot save auxiliary store info for snap %v: %w", snapID, err)
 	}
 	if err := linkSnapIcon(snapID); err != nil {
-		if !errors.Is(err, errIconNotExist) {
-			return nil, err
+		if !errors.Is(err, fs.ErrNotExist) {
+			return nil, fmt.Errorf("cannot link snap icon for snap %v: %w", snapID, err)
 		}
-		logger.Debugf("%v", err)
+		logger.Debugf("cannot link snap icon for snap %v: %v", snapID, err)
 	}
 	return func() {
 		UninstallStoreMetadata(snapID, linkCtx)
@@ -61,11 +63,11 @@ func UninstallStoreMetadata(snapID string, linkCtx LinkContext) error {
 		// auxinfo on disk to re-populate an old snap.Info. This might occur if
 		// e.g. we unlinked the snap and now need to undoUnlinkSnap.
 		if err := discardAuxStoreInfo(snapID); err != nil {
-			return err
+			return fmt.Errorf("cannot remove auxiliary store info for snap %v: %w", snapID, err)
 		}
 	}
 	if err := unlinkSnapIcon(snapID); err != nil {
-		return err
+		return fmt.Errorf("cannot unlink icon for snap %v: %w", snapID, err)
 	}
 	return nil
 }
@@ -82,13 +84,13 @@ func DiscardStoreMetadata(snapID string, hasOtherInstances bool) error {
 		return nil
 	}
 	if err := discardAuxStoreInfo(snapID); err != nil {
-		return err
+		return fmt.Errorf("cannot remove auxiliary store info for snap %v: %w", snapID, err)
 	}
 	if err := unlinkSnapIcon(snapID); err != nil {
-		return err
+		return fmt.Errorf("cannot unlink icon for snap %v: %w", snapID, err)
 	}
 	if err := discardSnapIcon(snapID); err != nil {
-		return err
+		return fmt.Errorf("cannot discard icon for snap %v: %w", snapID, err)
 	}
 	return nil
 }

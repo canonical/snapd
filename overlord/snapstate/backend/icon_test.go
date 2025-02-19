@@ -21,6 +21,7 @@ package backend_test
 
 import (
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 
@@ -76,19 +77,19 @@ func (s *iconSuite) TestSnapIconLinkUnlinkDiscardPermutations(c *C) {
 		},
 		{
 			functions:                []func(string) error{backend.UnlinkSnapIcon, backend.DiscardSnapIcon, backend.LinkSnapIcon},
-			expectedErrors:           []string{"", "", "cannot link snap icon for snap .*: icon does not exist in the icons download pool"},
+			expectedErrors:           []string{"", "", fmt.Sprintf("icon for snap: %v", fs.ErrNotExist)},
 			poolIconExistsAfter:      []bool{true, false, false},
 			installedIconExistsAfter: []bool{false, false, false},
 		},
 		{
 			functions:                []func(string) error{backend.DiscardSnapIcon, backend.LinkSnapIcon, backend.UnlinkSnapIcon},
-			expectedErrors:           []string{"", "cannot link snap icon for snap .*: icon does not exist in the icons download pool", ""},
+			expectedErrors:           []string{"", fmt.Sprintf("icon for snap: %v", fs.ErrNotExist), ""},
 			poolIconExistsAfter:      []bool{false, false, false},
 			installedIconExistsAfter: []bool{false, false, false},
 		},
 		{
 			functions:                []func(string) error{backend.DiscardSnapIcon, backend.UnlinkSnapIcon, backend.LinkSnapIcon},
-			expectedErrors:           []string{"", "", "cannot link snap icon for snap .*: icon does not exist in the icons download pool"},
+			expectedErrors:           []string{"", "", fmt.Sprintf("icon for snap: %v", fs.ErrNotExist)},
 			poolIconExistsAfter:      []bool{false, false, false},
 			installedIconExistsAfter: []bool{false, false, false},
 		},
@@ -100,7 +101,7 @@ func (s *iconSuite) TestSnapIconLinkUnlinkDiscardPermutations(c *C) {
 		},
 		{
 			functions:                []func(string) error{backend.LinkSnapIcon, backend.DiscardSnapIcon, backend.LinkSnapIcon},
-			expectedErrors:           []string{"", "", "cannot link snap icon for snap .*: icon does not exist in the icons download pool"},
+			expectedErrors:           []string{"", "", fmt.Sprintf("icon for snap: %v", fs.ErrNotExist)},
 			poolIconExistsAfter:      []bool{true, false, false},
 			installedIconExistsAfter: []bool{true, true, true},
 		},
