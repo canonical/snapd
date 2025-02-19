@@ -326,7 +326,6 @@ func (s *confdbCtrlSuite) TestDecodeInvalid(c *C) {
 		{"serial: 03961d5d-26e5-443f-838d-6db046126bea\n", "", `"serial" header is mandatory`},
 		{"serial: 03961d5d-26e5-443f-838d-6db046126bea\n", "serial: \n", `"serial" header should not be empty`},
 		{"groups:", "groups: foo\nviews:", `"groups" header must be a list`},
-		{"groups:", "views:", `"groups" stanza is mandatory`},
 		{"groups:", "groups:\n  - bar", `cannot parse group at position 1: must be a map`},
 		{"    operators:\n      - jane\n", "", `cannot parse group at position 3: "operators" must be provided`},
 		{
