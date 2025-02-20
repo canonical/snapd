@@ -41,6 +41,7 @@ import (
 	"github.com/snapcore/snapd/kernel/fde"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/osutil/disks"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/configstate/config"
@@ -2873,4 +2874,66 @@ func (m *DeviceManager) checkEncryption(st *state.State, deviceCtx snapstate.Dev
 
 func (m *DeviceManager) encryptionSupportInfo(model *asserts.Model, tpmMode secboot.TPMProvisionMode, kernelInfo *snap.Info, gadgetInfo *gadget.Info, systemSnapdVersions *install.SystemSnapdVersions) (install.EncryptionSupportInfo, error) {
 	return install.GetEncryptionSupportInfo(model, tpmMode, kernelInfo, gadgetInfo, systemSnapdVersions, m.runFDESetupHook)
+}
+
+type EncryptedDisk struct {
+	UUID       string
+	Role       string
+	LegacyKeys map[string]string
+}
+
+func (disk *EncryptedDisk) GetDevPath() string {
+	return fmt.Sprintf("/dev/disk/by-uuid/%s", disk.UUID)
+}
+
+func (m *DeviceManager) GetEncryptedDisks() ([]*EncryptedDisk, error) {
+	var foundDisks []*EncryptedDisk
+
+	deviceCtx, err := DeviceCtx(m.state, nil, nil)
+	if err != nil {
+		return nil, err
+	}
+	model := deviceCtx.Model()
+
+	dataMountPoints, err := boot.HostUbuntuDataForMode(m.SystemMode(SysHasModeenv), model)
+	if err != nil {
+		logger.Noticef("cannot determine the data mount in this mode: %v", err)
+	}
+	if err == nil && len(dataMountPoints) != 0 {
+		uuid, err := disksDMCryptUUIDFromMountPoint(dataMountPoints[0])
+		if err != nil {
+			if !errors.Is(err, disks.ErrNoDmUUID) {
+				return nil, fmt.Errorf("cannot find UUID for mount %s: %v", dataMountPoints[0], err)
+			}
+		} else {
+			legacyKeys := make(map[string]string)
+			defaultPath := device.DataSealedKeyUnder(boot.InitramfsBootEncryptionKeyDir)
+			if osutil.FileExists(defaultPath) {
+				legacyKeys["default"] = defaultPath
+			}
+			defaultFallbackPath := device.FallbackDataSealedKeyUnder(boot.InitramfsSeedEncryptionKeyDir)
+			if osutil.FileExists(defaultFallbackPath) {
+				legacyKeys["default-fallback"] = defaultFallbackPath
+			}
+
+			foundDisks = append(foundDisks, &EncryptedDisk{UUID: uuid, Role: "ubuntu-data", LegacyKeys: legacyKeys})
+		}
+	}
+
+	uuid, err := disksDMCryptUUIDFromMountPoint(dirs.SnapSaveDir)
+
+	if err != nil {
+		if !errors.Is(err, disks.ErrNoDmUUID) {
+			return nil, fmt.Errorf("cannot find UUID for mount %s: %v", dirs.SnapSaveDir, err)
+		}
+	} else {
+		legacyKeys := make(map[string]string)
+		defaultFallbackPath := device.FallbackSaveSealedKeyUnder(boot.InitramfsSeedEncryptionKeyDir)
+		if osutil.FileExists(defaultFallbackPath) {
+			legacyKeys["default-fallback"] = defaultFallbackPath
+		}
+		foundDisks = append(foundDisks, &EncryptedDisk{UUID: uuid, Role: "ubuntu-save", LegacyKeys: legacyKeys})
+	}
+
+	return foundDisks, nil
 }

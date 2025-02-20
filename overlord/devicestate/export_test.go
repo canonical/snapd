@@ -659,14 +659,6 @@ func MockSecbootTemporaryNameOldKeys(f func(devicePath string) error) (restore f
 	}
 }
 
-func MockDisksDMCryptUUIDFromMountPoint(f func(mountpoint string) (string, error)) (restore func()) {
-	old := disksDMCryptUUIDFromMountPoint
-	disksDMCryptUUIDFromMountPoint = f
-	return func() {
-		disksDMCryptUUIDFromMountPoint = old
-	}
-}
-
 func VolumesAuthOptionsKeyByLabel(label string) volumesAuthOptionsKey {
 	return volumesAuthOptionsKey{label}
 }
