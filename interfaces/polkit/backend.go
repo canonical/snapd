@@ -72,29 +72,34 @@ func (b *Backend) Setup(appSet *interfaces.SnapAppSet, opts interfaces.Confineme
 		return fmt.Errorf("cannot obtain polkit specification for snap %q: %s", snapName, err)
 	}
 
-	// Get the files that this snap should have
-	policiesContent, rulesContent := deriveContent(spec.(*Specification), appSet)
-
+	// Get the policy files that this snap should have
+	glob := polkitPolicyName(snapName, "*")
+	content := derivePoliciesContent(spec.(*Specification), appSet)
+	dir := dirs.SnapPolkitPolicyDir
 	// If we do not have any content to write, there is no point
 	// ensuring the directory exists.
-	if policiesContent != nil {
-		if err := os.MkdirAll(dirs.SnapPolkitPolicyDir, 0755); err != nil {
-			return fmt.Errorf("cannot create directory for polkit policy files %q: %s", dirs.SnapPolkitPolicyDir, err)
+	if content != nil {
+		if err := os.MkdirAll(dir, 0755); err != nil {
+			return fmt.Errorf("cannot create directory for polkit policy files %q: %s", dir, err)
 		}
 	}
-	glob := polkitPolicyName(snapName, "*")
-	_, _, err = osutil.EnsureDirState(dirs.SnapPolkitPolicyDir, glob, policiesContent)
+	_, _, err = osutil.EnsureDirState(dir, glob, content)
 	if err != nil {
 		return fmt.Errorf("cannot synchronize polkit policy files for snap %q: %s", snapName, err)
 	}
 
-	if rulesContent != nil {
-		if err := os.MkdirAll(dirs.SnapPolkitRuleDir, 0755); err != nil {
-			return fmt.Errorf("cannot create directory for polkit rule files %q: %s", dirs.SnapPolkitRuleDir, err)
+	// Get the rule files that this snap should have
+	glob = polkitRuleName(snapName, "*")
+	content = deriveRulesContent(spec.(*Specification), appSet)
+	dir = dirs.SnapPolkitRuleDir
+	// If we do not have any content to write, there is no point
+	// ensuring the directory exists.
+	if content != nil {
+		if err := os.MkdirAll(dir, 0755); err != nil {
+			return fmt.Errorf("cannot create directory for polkit rule files %q: %s", dir, err)
 		}
 	}
-	glob = polkitRuleName(snapName, "*")
-	_, _, err = osutil.EnsureDirState(dirs.SnapPolkitRuleDir, glob, rulesContent)
+	_, _, err = osutil.EnsureDirState(dir, glob, content)
 	if err != nil {
 		return fmt.Errorf("cannot synchronize polkit rule files for snap %q: %s", snapName, err)
 	}
@@ -117,34 +122,40 @@ func (b *Backend) Remove(snapName string) error {
 	return nil
 }
 
-// deriveContent combines security snippets collected from all the interfaces
+// derivePoliciesContent combines polkit policies collected from all the interfaces
 // affecting a given snap into a content map applicable to EnsureDirState.
-func deriveContent(spec *Specification, appSet *interfaces.SnapAppSet) (policiesContent, rulesContent map[string]osutil.FileState) {
+func derivePoliciesContent(spec *Specification, appSet *interfaces.SnapAppSet) map[string]osutil.FileState {
 	policies := spec.Policies()
-	rules := spec.Rules()
-	if len(policies)+len(rules) == 0 {
-		return nil, nil
+	if len(policies) == 0 {
+		return nil
 	}
-
-	policiesContent = make(map[string]osutil.FileState, len(policies)+1)
+	content := make(map[string]osutil.FileState, len(policies)+1)
 	for nameSuffix, policyContent := range policies {
 		filename := polkitPolicyName(appSet.InstanceName(), nameSuffix)
-		policiesContent[filename] = &osutil.MemoryFileState{
+		content[filename] = &osutil.MemoryFileState{
 			Content: policyContent,
 			Mode:    0644,
 		}
 	}
+	return content
+}
 
-	rulesContent = make(map[string]osutil.FileState, len(rules)+1)
+// deriveRulesContent combines polkit rules collected from all the interfaces
+// affecting a given snap into a content map applicable to EnsureDirState.
+func deriveRulesContent(spec *Specification, appSet *interfaces.SnapAppSet) map[string]osutil.FileState {
+	rules := spec.Rules()
+	if len(rules) == 0 {
+		return nil
+	}
+	content := make(map[string]osutil.FileState, len(rules)+1)
 	for nameSuffix, ruleContent := range rules {
 		filename := polkitRuleName(appSet.InstanceName(), nameSuffix)
-		rulesContent[filename] = &osutil.MemoryFileState{
+		content[filename] = &osutil.MemoryFileState{
 			Content: ruleContent,
 			Mode:    0644,
 		}
 	}
-
-	return policiesContent, rulesContent
+	return content
 }
 
 func (b *Backend) NewSpecification(*interfaces.SnapAppSet, interfaces.ConfinementOptions) interfaces.Specification {
