@@ -64,6 +64,12 @@ func Manager(st *state.State, hookMgr *hookstate.HookManager, runner *state.Task
 	hookMgr.Register(regexp.MustCompile("^.+-view-changed$"), func(context *hookstate.Context) hookstate.Handler {
 		return &hookstate.SnapHookHandler{}
 	})
+	hookMgr.Register(regexp.MustCompile("^query-view-.+$"), func(context *hookstate.Context) hookstate.Handler {
+		return &hookstate.SnapHookHandler{}
+	})
+	hookMgr.Register(regexp.MustCompile("^load-view-.+$"), func(context *hookstate.Context) hookstate.Handler {
+		return &hookstate.SnapHookHandler{}
+	})
 
 	return m
 }
