@@ -842,6 +842,10 @@ func (s *imageSeeder) warnOnUnassertedSnaps() error {
 }
 
 func (s *imageSeeder) finish() error {
+	if err := s.w.VerifySnapBootstrapCompatibility(); err != nil {
+		fmt.Fprintf(Stderr, "WARNING: %v\n", err)
+	}
+
 	// print any warnings that occurred during the download phase
 	for _, warn := range s.w.Warnings() {
 		fmt.Fprintf(Stderr, "WARNING: %s\n", warn)
