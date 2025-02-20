@@ -75,6 +75,7 @@ jobs:
     outputs:
       fundamental-systems: ${{ steps.read-systems.outputs.fundamental-systems }}
       non-fundamental-systems: ${{ steps.read-systems.outputs.non-fundamental-systems }}
+      nested-systems: ${{ steps.read-systems.outputs.nested-systems }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
