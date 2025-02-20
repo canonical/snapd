@@ -15,12 +15,11 @@
  *
  */
 
+#include "config.h"
+
 #include "privs.h"
 
-#define _GNU_SOURCE
-
-#include <unistd.h>
-
+#include <errno.h>
 #include <grp.h>
 #include <linux/securebits.h>
 #include <stdbool.h>
@@ -89,6 +88,7 @@ void sc_set_capabilities(const sc_capabilities *capabilities) {
     cap_data[1].permitted = capabilities->permitted >> 32;
     cap_data[0].inheritable = capabilities->inheritable & 0xffffffff;
     cap_data[1].inheritable = capabilities->inheritable >> 32;
+    /* TODO:nonseuid: use libcap types */
     if (capset(&hdr, cap_data) != 0) {
         die("capset failed");
     }
@@ -114,7 +114,7 @@ void sc_set_ambient_capabilities(sc_cap_mask capabilities) {
     for (int i = 0; i < CAP_LAST_CAP; i++) {
         if (capabilities & SC_CAP_TO_MASK(i)) {
             debug("setting ambient capability %d", i);
-            if (prctl(PR_CAP_AMBIENT, PR_CAP_AMBIENT_RAISE, i, 0, 0) < 0) {
+            if (sc_cap_set_ambient(i, CAP_SET) < 0) {
                 die("cannot set ambient capability %d", i);
             }
         }
@@ -133,4 +133,36 @@ void sc_debug_capabilities(const char *msg_prefix) {
         }
         debug("%s: %s", msg_prefix, caps_as_str);
     }
+}
+
+int sc_cap_set_ambient(cap_value_t cap, cap_flag_value_t set) {
+#if HAVE_CAP_SET_AMBIENT == 1
+    return cap_set_ambient(cap, set);
+#else
+    // see:
+    // https://git.kernel.org/pub/scm/libs/libcap/libcap.git/tree/libcap/cap_proc.c?id=31ed2fef38340e5d4ddc1e3d2a4449d3d046ff2d#n283
+    int val;
+    switch (set) {
+        case CAP_SET:
+            val = PR_CAP_AMBIENT_RAISE;
+            break;
+        case CAP_CLEAR:
+            val = PR_CAP_AMBIENT_LOWER;
+            break;
+        default:
+            errno = EINVAL;
+            return -1;
+    }
+    return prctl(PR_CAP_AMBIENT, val, cap, 0, 0);
+#endif
+}
+
+int sc_cap_reset_ambient(void) {
+#if HAVE_CAP_SET_AMBIENT == 1
+    return cap_reset_ambient();
+#else
+    // see:
+    // https://git.kernel.org/pub/scm/libs/libcap/libcap.git/tree/libcap/cap_proc.c?id=31ed2fef38340e5d4ddc1e3d2a4449d3d046ff2d#n310
+    return prctl(PR_CAP_AMBIENT, PR_CAP_AMBIENT_CLEAR_ALL, 0, 0, 0);
+#endif
 }
