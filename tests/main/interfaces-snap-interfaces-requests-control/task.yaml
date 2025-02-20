@@ -72,23 +72,7 @@ execute: |
     echo "Check snap can access snap info via /v2/snaps/{name}"
     api-client --socket /run/snapd-snap.socket "/v2/snaps/$SNAP_NAME" | gojq '."status-code"' | MATCH '^200$'
 
-    echo "Ensure AppArmor Prompting experimental feature can be enabled where possible"
-    # Prompting is unsupported everywhere but the Ubuntu non-core systems with
-    # kernels which support apparmor prompting
-    if ! os.query is-ubuntu || os.query is-core || ! grep 'prompt' /sys/kernel/security/apparmor/features/policy/permstable32 ; then
-        not snap set system experimental.apparmor-prompting=true >& err.out
-        if os.query is-core; then
-            # there is a more specific error on Ubuntu Core
-            MATCH "cannot enable prompting feature as it is not supported on Ubuntu Core systems" < err.out
-        else
-            MATCH "cannot enable prompting feature as it is not supported by the system" < err.out
-        fi
-
-        # even if unsupported setting it to false should succeed
-        snap set system experimental.apparmor-prompting=false
-        exit 0
-    fi
-
+    echo "Enable AppArmor prompting experimental feature"
     snap set system experimental.apparmor-prompting=true
 
     echo 'Check "apparmor-prompting" is shown as enabled in /v2/system-info'
