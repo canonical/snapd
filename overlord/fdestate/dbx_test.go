@@ -112,7 +112,7 @@ func (s *fdeMgrSuite) TestEFIDBXPrepareHappy(c *C) {
 	c.Assert(s.o.StartUp(), IsNil)
 
 	model := s.mockBootAssetsStateForModeenv(c)
-	s.mockDeviceInState(model)
+	s.mockDeviceInState(model, "run")
 
 	resealCalls := 0
 	defer fdestate.MockBackendResealKeysForSignaturesDBUpdate(func(mgr backend.FDEStateManager, method device.SealingMethod, rootdir string, params *boot.ResealKeyForBootChainsParams, update []byte) error {
@@ -208,7 +208,7 @@ func (s *fdeMgrSuite) TestEFIDBXPrepareConflictSelf(c *C) {
 	c.Assert(s.o.StartUp(), IsNil)
 
 	model := s.mockBootAssetsStateForModeenv(c)
-	s.mockDeviceInState(model)
+	s.mockDeviceInState(model, "run")
 
 	resealCalls := 0
 	defer fdestate.MockBackendResealKeysForSignaturesDBUpdate(func(mgr backend.FDEStateManager, method device.SealingMethod, rootdir string, params *boot.ResealKeyForBootChainsParams, update []byte) error {
@@ -258,7 +258,7 @@ func (s *fdeMgrSuite) TestEFIDBXPrepareConflictOperationNotInDoingYet(c *C) {
 	c.Assert(s.o.StartUp(), IsNil)
 
 	model := s.mockBootAssetsStateForModeenv(c)
-	s.mockDeviceInState(model)
+	s.mockDeviceInState(model, "run")
 
 	resealCalls := 0
 	defer fdestate.MockBackendResealKeysForSignaturesDBUpdate(func(mgr backend.FDEStateManager, method device.SealingMethod, rootdir string, params *boot.ResealKeyForBootChainsParams, update []byte) error {
@@ -302,7 +302,7 @@ func (s *fdeMgrSuite) TestEFIDBXPrepareConflictSnapChanges(c *C) {
 	c.Assert(s.o.StartUp(), IsNil)
 
 	model := s.mockBootAssetsStateForModeenv(c)
-	s.mockDeviceInState(model)
+	s.mockDeviceInState(model, "run")
 
 	defer testutil.Mock(&snapstate.EnforcedValidationSets, func(st *state.State, extraVss ...*asserts.ValidationSet) (*snapasserts.ValidationSets, error) {
 		return nil, nil
@@ -352,7 +352,7 @@ func (s *fdeMgrSuite) TestEFIDBXUpdateAndCleanupRunningAction(c *C) {
 	c.Assert(s.o.StartUp(), IsNil)
 
 	model := s.mockBootAssetsStateForModeenv(c)
-	s.mockDeviceInState(model)
+	s.mockDeviceInState(model, "run")
 
 	resealForDBUPdateCalls := 0
 	resealForBootChainsCalls := 0
@@ -480,7 +480,7 @@ func (s *fdeMgrSuite) TestEFIDBXUpdateAndUnexpectedStartupAction(c *C) {
 	c.Assert(s.o.StartUp(), IsNil)
 
 	model := s.mockBootAssetsStateForModeenv(c)
-	s.mockDeviceInState(model)
+	s.mockDeviceInState(model, "run")
 
 	resealForDBUPdateCalls := 0
 	resealForBootChainsCalls := 0
@@ -621,7 +621,7 @@ func (s *fdeMgrSuite) TestEFIDBXUpdateAbort(c *C) {
 	c.Assert(s.o.StartUp(), IsNil)
 
 	model := s.mockBootAssetsStateForModeenv(c)
-	s.mockDeviceInState(model)
+	s.mockDeviceInState(model, "run")
 
 	resealForDBUpdateCalls := 0
 	resealForBootChainsCalls := 0
@@ -726,7 +726,7 @@ func (s *fdeMgrSuite) TestEFIDBXUpdateResealFailedAborts(c *C) {
 	c.Assert(s.o.StartUp(), IsNil)
 
 	model := s.mockBootAssetsStateForModeenv(c)
-	s.mockDeviceInState(model)
+	s.mockDeviceInState(model, "run")
 
 	resealForDBUPdateCalls := 0
 	resealForBootChainsCalls := 0
@@ -788,7 +788,7 @@ func (s *fdeMgrSuite) TestEFIDBXUpdatePostUpdateResealFailed(c *C) {
 	c.Assert(s.o.StartUp(), IsNil)
 
 	model := s.mockBootAssetsStateForModeenv(c)
-	s.mockDeviceInState(model)
+	s.mockDeviceInState(model, "run")
 
 	resealForDBUPdateCalls := 0
 	resealForBootChainsCalls := 0
@@ -866,7 +866,7 @@ func (s *fdeMgrSuite) TestEFIDBXUpdateUndoResealFails(c *C) {
 	c.Assert(s.o.StartUp(), IsNil)
 
 	model := s.mockBootAssetsStateForModeenv(c)
-	s.mockDeviceInState(model)
+	s.mockDeviceInState(model, "run")
 
 	resealForDBUPdateCalls := 0
 	resealForBootChainsCalls := 0
@@ -1141,7 +1141,7 @@ func (s *fdeMgrSuite) TestEFIDBXUpdateAffectedSnaps(c *C) {
 	s.startedManager(c, onClassic)
 
 	model := s.mockBootAssetsStateForModeenv(c)
-	s.mockDeviceInState(model)
+	s.mockDeviceInState(model, "run")
 
 	st.Lock()
 	defer st.Unlock()
@@ -1170,7 +1170,7 @@ func (s *fdeMgrSuite) TestEFIDBXConflictingSnaps(c *C) {
 	c.Assert(s.o.StartUp(), IsNil)
 
 	model := s.mockBootAssetsStateForModeenv(c)
-	s.mockDeviceInState(model)
+	s.mockDeviceInState(model, "run")
 
 	resealForDBUPdateCalls := 0
 	resealForBootChainsCalls := 0
