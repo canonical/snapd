@@ -121,7 +121,7 @@ func (s *backendSuite) TestInstallingCreatesLdconf(c *C) {
 	libcConfPath := filepath.Join(confDir, "libc.conf")
 	c.Assert(os.WriteFile(libcConfPath, []byte{}, 0644), IsNil)
 
-	// Add callback and register the interface
+	// Add callbacks and register the interface
 	s.Iface.LdconfigConnectedPlugCallback = func(spec *ldconfig.Specification,
 		plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 		switch slot.Snap().InstanceName() {
@@ -132,6 +132,7 @@ func (s *backendSuite) TestInstallingCreatesLdconf(c *C) {
 		}
 		return nil
 	}
+
 	s.Iface.InterfaceName = "cuda-driver-libs"
 	c.Assert(s.Repo.AddInterface(s.Iface), IsNil)
 
