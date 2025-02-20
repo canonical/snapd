@@ -748,7 +748,7 @@ loop:
 		if t.Kind() != "commit-confdb-tx" {
 			// all tasks (other than the commit) are linked to the commit task
 			var id string
-			err := t.Get("commit-task", &id)
+			err := t.Get("tx-task", &id)
 			c.Assert(err, IsNil)
 			c.Assert(id, Equals, commitTask.ID())
 		}
@@ -795,7 +795,7 @@ func (s *confdbTestSuite) TestGetStoredTransaction(c *C) {
 
 	refTask := s.state.NewTask("links-to-commit", "")
 	chg.AddTask(refTask)
-	refTask.Set("commit-task", commitTask.ID())
+	refTask.Set("tx-task", commitTask.ID())
 
 	for _, t := range []*state.Task{commitTask, refTask} {
 		storedTx, saveChanges, err := confdbstate.GetStoredTransaction(t)
@@ -1093,7 +1093,7 @@ func (s *confdbTestSuite) testGetReadableOngoingTransaction(c *C, hook string) *
 	chg.AddTask(hookTask)
 	setup := &hookstate.HookSetup{Snap: "test-snap", Revision: snap.R(1), Hook: hook}
 	mockHandler := hooktest.NewMockHandler()
-	hookTask.Set("commit-task", commitTask.ID())
+	hookTask.Set("tx-task", commitTask.ID())
 
 	ctx, err := hookstate.NewContext(hookTask, s.state, setup, mockHandler, "")
 	c.Assert(err, IsNil)
@@ -1122,7 +1122,7 @@ func (s *confdbTestSuite) TestGetDifferentTransactionThanOngoing(c *C) {
 
 	refTask := s.state.NewTask("change-view-setup", "")
 	chg.AddTask(refTask)
-	refTask.Set("commit-task", commitTask.ID())
+	refTask.Set("tx-task", commitTask.ID())
 
 	// make some other confdb to access concurrently
 	confdb, err := confdb.New("foo", "bar", map[string]interface{}{
