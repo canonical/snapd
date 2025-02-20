@@ -34,10 +34,27 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget/device"
 	"github.com/snapcore/snapd/overlord/fdestate/backend"
-	fdeBackend "github.com/snapcore/snapd/overlord/fdestate/backend"
 	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/testutil"
 )
+
+type encryptedContainer struct {
+	uuid          string
+	containerRole string
+	legacyKeys    map[string]string
+}
+
+func (disk *encryptedContainer) ContainerRole() string {
+	return disk.containerRole
+}
+
+func (disk *encryptedContainer) LegacyKeys() map[string]string {
+	return disk.legacyKeys
+}
+
+func (disk *encryptedContainer) DevPath() string {
+	return fmt.Sprintf("/dev/disk/by-uuid/%s", disk.uuid)
+}
 
 func isChainPresent(allowed []*secboot.LoadChain, files []bootloader.BootFile) bool {
 	if len(files) == 0 {
@@ -114,9 +131,10 @@ func (s *resealTestSuite) SetUpTest(c *C) {
 }
 
 type fakeState struct {
-	state       map[string]*backend.SealingParameters
-	isUnlocked  bool
-	hasUnlocked int
+	state               map[string]*backend.SealingParameters
+	isUnlocked          bool
+	hasUnlocked         int
+	EncryptedContainers []backend.EncryptedContainer
 }
 
 func (fs *fakeState) Update(role string, containerRole string, params *backend.SealingParameters) error {
@@ -147,6 +165,13 @@ func (fs *fakeState) Unlock() (relock func()) {
 	return func() {
 		fs.isUnlocked = false
 	}
+}
+
+func (fs *fakeState) GetEncryptedContainers() ([]backend.EncryptedContainer, error) {
+	if fs.EncryptedContainers == nil {
+		return nil, fmt.Errorf("EncryptedContainers were not set")
+	}
+	return fs.EncryptedContainers, nil
 }
 
 func (s *resealTestSuite) TestTPMResealHappy(c *C) {
@@ -304,7 +329,7 @@ func (s *resealTestSuite) TestTPMResealHappy(c *C) {
 	}
 
 	buildProfileCalls := 0
-	restore := fdeBackend.MockSecbootBuildPCRProtectionProfile(func(modelParams []*secboot.SealKeyModelParams) (secboot.SerializedPCRProfile, error) {
+	restore := backend.MockSecbootBuildPCRProtectionProfile(func(modelParams []*secboot.SealKeyModelParams) (secboot.SerializedPCRProfile, error) {
 		buildProfileCalls++
 
 		c.Assert(modelParams, HasLen, 1)
@@ -342,7 +367,7 @@ func (s *resealTestSuite) TestTPMResealHappy(c *C) {
 	defer restore()
 
 	resealCalls := 0
-	restore = fdeBackend.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error {
+	restore = backend.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error {
 		resealCalls++
 
 		c.Check(params.TPMPolicyAuthKeyFile, Equals, filepath.Join(dirs.SnapSaveDir, "device/fde", "tpm-policy-auth-key"))
@@ -353,7 +378,7 @@ func (s *resealTestSuite) TestTPMResealHappy(c *C) {
 			// Resealing the run+recover key for data partition
 			c.Check(params.Keys, DeepEquals, []secboot.KeyDataLocation{
 				{
-					DevicePath: "/dev/disk/by-partlabel/ubuntu-data",
+					DevicePath: "/dev/disk/by-uuid/123",
 					SlotName:   "default",
 					KeyFile:    filepath.Join(s.rootdir, "run/mnt/ubuntu-boot/device/fde/ubuntu-data.sealed-key"),
 				},
@@ -362,7 +387,7 @@ func (s *resealTestSuite) TestTPMResealHappy(c *C) {
 			// Resealing the recovery key for both data partition
 			c.Check(params.Keys, DeepEquals, []secboot.KeyDataLocation{
 				{
-					DevicePath: "/dev/disk/by-partlabel/ubuntu-data",
+					DevicePath: "/dev/disk/by-uuid/123",
 					SlotName:   "default-fallback",
 					KeyFile:    filepath.Join(s.rootdir, "run/mnt/ubuntu-seed/device/fde/ubuntu-data.recovery.sealed-key"),
 				},
@@ -371,7 +396,7 @@ func (s *resealTestSuite) TestTPMResealHappy(c *C) {
 			// Resealing the recovery key for both save partition
 			c.Check(params.Keys, DeepEquals, []secboot.KeyDataLocation{
 				{
-					DevicePath: "/dev/disk/by-partlabel/ubuntu-save",
+					DevicePath: "/dev/disk/by-uuid/456",
 					SlotName:   "default-fallback",
 					KeyFile:    filepath.Join(s.rootdir, "run/mnt/ubuntu-seed/device/fde/ubuntu-save.recovery.sealed-key"),
 				},
@@ -384,8 +409,26 @@ func (s *resealTestSuite) TestTPMResealHappy(c *C) {
 	defer restore()
 
 	myState := &fakeState{}
+	myState.EncryptedContainers = []backend.EncryptedContainer{
+		&encryptedContainer{
+			uuid:          "123",
+			containerRole: "system-data",
+			legacyKeys: map[string]string{
+				"default":          filepath.Join(s.rootdir, "run/mnt/ubuntu-boot/device/fde/ubuntu-data.sealed-key"),
+				"default-fallback": filepath.Join(s.rootdir, "run/mnt/ubuntu-seed/device/fde/ubuntu-data.recovery.sealed-key"),
+			},
+		},
+		&encryptedContainer{
+			uuid:          "456",
+			containerRole: "system-save",
+			legacyKeys: map[string]string{
+				"default-fallback": filepath.Join(s.rootdir, "run/mnt/ubuntu-seed/device/fde/ubuntu-save.recovery.sealed-key"),
+			},
+		},
+	}
+
 	const expectReseal = true
-	err := fdeBackend.ResealKeyForBootChains(myState, device.SealingMethodTPM, s.rootdir, params, expectReseal)
+	err := backend.ResealKeyForBootChains(myState, device.SealingMethodTPM, s.rootdir, params, expectReseal)
 	c.Assert(err, IsNil)
 
 	c.Check(resealCalls, Equals, 3)
@@ -439,6 +482,24 @@ func (s *resealTestSuite) TestResealKeyForBootchainsWithSystemFallback(c *C) {
 		dirs.SetRootDir(rootdir)
 		defer dirs.SetRootDir("/")
 
+		myState.EncryptedContainers = []backend.EncryptedContainer{
+			&encryptedContainer{
+				uuid:          "123",
+				containerRole: "system-data",
+				legacyKeys: map[string]string{
+					"default":          filepath.Join(rootdir, "run/mnt/ubuntu-boot/device/fde/ubuntu-data.sealed-key"),
+					"default-fallback": filepath.Join(rootdir, "run/mnt/ubuntu-seed/device/fde/ubuntu-data.recovery.sealed-key"),
+				},
+			},
+			&encryptedContainer{
+				uuid:          "456",
+				containerRole: "system-save",
+				legacyKeys: map[string]string{
+					"default-fallback": filepath.Join(rootdir, "run/mnt/ubuntu-seed/device/fde/ubuntu-save.recovery.sealed-key"),
+				},
+			},
+		}
+
 		shimId := tc.shimId
 		if shimId == "" {
 			shimId = "ubuntu:shimx64.efi"
@@ -488,7 +549,7 @@ func (s *resealTestSuite) TestResealKeyForBootchainsWithSystemFallback(c *C) {
 		mockAssetsCache(c, rootdir, "grub", expectedCache)
 
 		buildProfileCalls := 0
-		restore := fdeBackend.MockSecbootBuildPCRProtectionProfile(func(modelParams []*secboot.SealKeyModelParams) (secboot.SerializedPCRProfile, error) {
+		restore := backend.MockSecbootBuildPCRProtectionProfile(func(modelParams []*secboot.SealKeyModelParams) (secboot.SerializedPCRProfile, error) {
 			buildProfileCalls++
 
 			c.Assert(modelParams, HasLen, 1)
@@ -651,7 +712,7 @@ func (s *resealTestSuite) TestResealKeyForBootchainsWithSystemFallback(c *C) {
 
 		// set mock key resealing
 		resealKeysCalls := 0
-		restore = fdeBackend.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error {
+		restore = backend.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error {
 			c.Check(params.TPMPolicyAuthKeyFile, Equals, filepath.Join(dirs.SnapSaveDir, "device/fde", "tpm-policy-auth-key"))
 
 			resealKeysCalls++
@@ -660,7 +721,7 @@ func (s *resealTestSuite) TestResealKeyForBootchainsWithSystemFallback(c *C) {
 			checkRunParams := func() {
 				c.Check(params.Keys, DeepEquals, []secboot.KeyDataLocation{
 					{
-						DevicePath: "/dev/disk/by-partlabel/ubuntu-data",
+						DevicePath: "/dev/disk/by-uuid/123",
 						SlotName:   "default",
 						KeyFile:    filepath.Join(boot.InitramfsBootEncryptionKeyDir, "ubuntu-data.sealed-key"),
 					},
@@ -670,7 +731,7 @@ func (s *resealTestSuite) TestResealKeyForBootchainsWithSystemFallback(c *C) {
 			checkRecoveryParamsData := func() {
 				c.Check(params.Keys, DeepEquals, []secboot.KeyDataLocation{
 					{
-						DevicePath: "/dev/disk/by-partlabel/ubuntu-data",
+						DevicePath: "/dev/disk/by-uuid/123",
 						SlotName:   "default-fallback",
 						KeyFile:    filepath.Join(boot.InitramfsSeedEncryptionKeyDir, "ubuntu-data.recovery.sealed-key"),
 					},
@@ -680,7 +741,7 @@ func (s *resealTestSuite) TestResealKeyForBootchainsWithSystemFallback(c *C) {
 			checkRecoveryParamsSave := func() {
 				c.Check(params.Keys, DeepEquals, []secboot.KeyDataLocation{
 					{
-						DevicePath: "/dev/disk/by-partlabel/ubuntu-save",
+						DevicePath: "/dev/disk/by-uuid/456",
 						SlotName:   "default-fallback",
 						KeyFile:    filepath.Join(boot.InitramfsSeedEncryptionKeyDir, "ubuntu-save.recovery.sealed-key"),
 					},
@@ -968,7 +1029,7 @@ func (s *resealTestSuite) TestResealKeyForBootchainsWithSystemFallback(c *C) {
 		}
 
 		const expectReseal = false
-		err := fdeBackend.ResealKeyForBootChains(myState, device.SealingMethodTPM, rootdir, params, expectReseal)
+		err := backend.ResealKeyForBootChains(myState, device.SealingMethodTPM, rootdir, params, expectReseal)
 		if tc.err == "" {
 			c.Assert(err, IsNil)
 		} else {
@@ -1016,7 +1077,7 @@ func (s *resealTestSuite) TestResealKeyForBootchainsRecoveryKeysForGoodSystemsOn
 	})
 
 	buildProfileCalls := 0
-	restore := fdeBackend.MockSecbootBuildPCRProtectionProfile(func(modelParams []*secboot.SealKeyModelParams) (secboot.SerializedPCRProfile, error) {
+	restore := backend.MockSecbootBuildPCRProtectionProfile(func(modelParams []*secboot.SealKeyModelParams) (secboot.SerializedPCRProfile, error) {
 		buildProfileCalls++
 
 		// shared parameters
@@ -1099,7 +1160,7 @@ func (s *resealTestSuite) TestResealKeyForBootchainsRecoveryKeysForGoodSystemsOn
 
 	// set mock key resealing
 	resealKeysCalls := 0
-	restore = fdeBackend.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error {
+	restore = backend.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error {
 		c.Check(params.TPMPolicyAuthKeyFile, Equals, filepath.Join(dirs.SnapSaveDir, "device/fde", "tpm-policy-auth-key"))
 
 		resealKeysCalls++
@@ -1109,7 +1170,7 @@ func (s *resealTestSuite) TestResealKeyForBootchainsRecoveryKeysForGoodSystemsOn
 		case 1: // run key
 			c.Assert(params.Keys, DeepEquals, []secboot.KeyDataLocation{
 				{
-					DevicePath: "/dev/disk/by-partlabel/ubuntu-data",
+					DevicePath: "/dev/disk/by-uuid/123",
 					SlotName:   "default",
 					KeyFile:    filepath.Join(boot.InitramfsBootEncryptionKeyDir, "ubuntu-data.sealed-key"),
 				},
@@ -1117,7 +1178,7 @@ func (s *resealTestSuite) TestResealKeyForBootchainsRecoveryKeysForGoodSystemsOn
 		case 2: // recovery keys
 			c.Check(params.Keys, DeepEquals, []secboot.KeyDataLocation{
 				{
-					DevicePath: "/dev/disk/by-partlabel/ubuntu-data",
+					DevicePath: "/dev/disk/by-uuid/123",
 					SlotName:   "default-fallback",
 					KeyFile:    filepath.Join(s.rootdir, "run/mnt/ubuntu-seed/device/fde/ubuntu-data.recovery.sealed-key"),
 				},
@@ -1125,7 +1186,7 @@ func (s *resealTestSuite) TestResealKeyForBootchainsRecoveryKeysForGoodSystemsOn
 		case 3:
 			c.Check(params.Keys, DeepEquals, []secboot.KeyDataLocation{
 				{
-					DevicePath: "/dev/disk/by-partlabel/ubuntu-save",
+					DevicePath: "/dev/disk/by-uuid/456",
 					SlotName:   "default-fallback",
 					KeyFile:    filepath.Join(s.rootdir, "run/mnt/ubuntu-seed/device/fde/ubuntu-save.recovery.sealed-key"),
 				},
@@ -1266,8 +1327,26 @@ func (s *resealTestSuite) TestResealKeyForBootchainsRecoveryKeysForGoodSystemsOn
 	}
 
 	myState := &fakeState{}
+	myState.EncryptedContainers = []backend.EncryptedContainer{
+		&encryptedContainer{
+			uuid:          "123",
+			containerRole: "system-data",
+			legacyKeys: map[string]string{
+				"default":          filepath.Join(s.rootdir, "run/mnt/ubuntu-boot/device/fde/ubuntu-data.sealed-key"),
+				"default-fallback": filepath.Join(s.rootdir, "run/mnt/ubuntu-seed/device/fde/ubuntu-data.recovery.sealed-key"),
+			},
+		},
+		&encryptedContainer{
+			uuid:          "456",
+			containerRole: "system-save",
+			legacyKeys: map[string]string{
+				"default-fallback": filepath.Join(s.rootdir, "run/mnt/ubuntu-seed/device/fde/ubuntu-save.recovery.sealed-key"),
+			},
+		},
+	}
+
 	const expectReseal = false
-	err := fdeBackend.ResealKeyForBootChains(myState, device.SealingMethodTPM, s.rootdir, params, expectReseal)
+	err := backend.ResealKeyForBootChains(myState, device.SealingMethodTPM, s.rootdir, params, expectReseal)
 	c.Assert(err, IsNil)
 	c.Assert(resealKeysCalls, Equals, 3)
 
@@ -1292,7 +1371,7 @@ func (s *resealTestSuite) testResealKeyForBootchainsWithTryModel(c *C, shimId, g
 	})
 
 	buildProfileCalls := 0
-	restore := fdeBackend.MockSecbootBuildPCRProtectionProfile(func(modelParams []*secboot.SealKeyModelParams) (secboot.SerializedPCRProfile, error) {
+	restore := backend.MockSecbootBuildPCRProtectionProfile(func(modelParams []*secboot.SealKeyModelParams) (secboot.SerializedPCRProfile, error) {
 		buildProfileCalls++
 
 		switch buildProfileCalls {
@@ -1422,7 +1501,7 @@ func (s *resealTestSuite) testResealKeyForBootchainsWithTryModel(c *C, shimId, g
 
 	// set mock key resealing
 	resealKeysCalls := 0
-	restore = fdeBackend.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error {
+	restore = backend.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error {
 		c.Check(params.TPMPolicyAuthKeyFile, Equals, filepath.Join(dirs.SnapSaveDir, "device/fde", "tpm-policy-auth-key"))
 
 		resealKeysCalls++
@@ -1432,7 +1511,7 @@ func (s *resealTestSuite) testResealKeyForBootchainsWithTryModel(c *C, shimId, g
 		case 1: // run key
 			c.Assert(params.Keys, DeepEquals, []secboot.KeyDataLocation{
 				{
-					DevicePath: "/dev/disk/by-partlabel/ubuntu-data",
+					DevicePath: "/dev/disk/by-uuid/123",
 					SlotName:   "default",
 					KeyFile:    filepath.Join(boot.InitramfsBootEncryptionKeyDir, "ubuntu-data.sealed-key"),
 				},
@@ -1440,7 +1519,7 @@ func (s *resealTestSuite) testResealKeyForBootchainsWithTryModel(c *C, shimId, g
 		case 2: // recovery keys
 			c.Assert(params.Keys, DeepEquals, []secboot.KeyDataLocation{
 				{
-					DevicePath: "/dev/disk/by-partlabel/ubuntu-data",
+					DevicePath: "/dev/disk/by-uuid/123",
 					SlotName:   "default-fallback",
 					KeyFile:    filepath.Join(s.rootdir, "run/mnt/ubuntu-seed/device/fde/ubuntu-data.recovery.sealed-key"),
 				},
@@ -1448,7 +1527,7 @@ func (s *resealTestSuite) testResealKeyForBootchainsWithTryModel(c *C, shimId, g
 		case 3:
 			c.Assert(params.Keys, DeepEquals, []secboot.KeyDataLocation{
 				{
-					DevicePath: "/dev/disk/by-partlabel/ubuntu-save",
+					DevicePath: "/dev/disk/by-uuid/456",
 					SlotName:   "default-fallback",
 					KeyFile:    filepath.Join(s.rootdir, "run/mnt/ubuntu-seed/device/fde/ubuntu-save.recovery.sealed-key"),
 				},
@@ -1579,8 +1658,26 @@ func (s *resealTestSuite) testResealKeyForBootchainsWithTryModel(c *C, shimId, g
 	}
 
 	myState := &fakeState{}
+	myState.EncryptedContainers = []backend.EncryptedContainer{
+		&encryptedContainer{
+			uuid:          "123",
+			containerRole: "system-data",
+			legacyKeys: map[string]string{
+				"default":          filepath.Join(s.rootdir, "run/mnt/ubuntu-boot/device/fde/ubuntu-data.sealed-key"),
+				"default-fallback": filepath.Join(s.rootdir, "run/mnt/ubuntu-seed/device/fde/ubuntu-data.recovery.sealed-key"),
+			},
+		},
+		&encryptedContainer{
+			uuid:          "456",
+			containerRole: "system-save",
+			legacyKeys: map[string]string{
+				"default-fallback": filepath.Join(s.rootdir, "run/mnt/ubuntu-seed/device/fde/ubuntu-save.recovery.sealed-key"),
+			},
+		},
+	}
+
 	const expectReseal = false
-	err := fdeBackend.ResealKeyForBootChains(myState, device.SealingMethodTPM, s.rootdir, params, expectReseal)
+	err := backend.ResealKeyForBootChains(myState, device.SealingMethodTPM, s.rootdir, params, expectReseal)
 	c.Assert(err, IsNil)
 	c.Assert(resealKeysCalls, Equals, 3)
 
@@ -1633,7 +1730,7 @@ func (s *resealTestSuite) TestResealKeyForBootchainsFallbackCmdline(c *C) {
 	defer bootloader.Force(nil)
 
 	buildProfileCalls := 0
-	restore := fdeBackend.MockSecbootBuildPCRProtectionProfile(func(modelParams []*secboot.SealKeyModelParams) (secboot.SerializedPCRProfile, error) {
+	restore := backend.MockSecbootBuildPCRProtectionProfile(func(modelParams []*secboot.SealKeyModelParams) (secboot.SerializedPCRProfile, error) {
 		buildProfileCalls++
 
 		c.Assert(modelParams, HasLen, 1)
@@ -1662,7 +1759,7 @@ func (s *resealTestSuite) TestResealKeyForBootchainsFallbackCmdline(c *C) {
 
 	// set mock key resealing
 	resealKeysCalls := 0
-	restore = fdeBackend.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error {
+	restore = backend.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error {
 		resealKeysCalls++
 
 		c.Check(params.PCRProfile, DeepEquals, secboot.SerializedPCRProfile(`"serialized-pcr-profile"`))
@@ -1755,8 +1852,26 @@ func (s *resealTestSuite) TestResealKeyForBootchainsFallbackCmdline(c *C) {
 	}
 
 	myState := &fakeState{}
+	myState.EncryptedContainers = []backend.EncryptedContainer{
+		&encryptedContainer{
+			uuid:          "123",
+			containerRole: "system-data",
+			legacyKeys: map[string]string{
+				"default":          filepath.Join(s.rootdir, "run/mnt/ubuntu-boot/device/fde/ubuntu-data.sealed-key"),
+				"default-fallback": filepath.Join(s.rootdir, "run/mnt/ubuntu-seed/device/fde/ubuntu-data.recovery.sealed-key"),
+			},
+		},
+		&encryptedContainer{
+			uuid:          "456",
+			containerRole: "system-save",
+			legacyKeys: map[string]string{
+				"default-fallback": filepath.Join(s.rootdir, "run/mnt/ubuntu-seed/device/fde/ubuntu-save.recovery.sealed-key"),
+			},
+		},
+	}
+
 	const expectReseal = false
-	err = fdeBackend.ResealKeyForBootChains(myState, device.SealingMethodTPM, s.rootdir, params, expectReseal)
+	err = backend.ResealKeyForBootChains(myState, device.SealingMethodTPM, s.rootdir, params, expectReseal)
 	c.Assert(err, IsNil)
 	c.Assert(resealKeysCalls, Equals, 3)
 
@@ -1811,7 +1926,7 @@ func (s *resealTestSuite) TestHooksResealHappy(c *C) {
 	}
 
 	resealCalls := 0
-	restore := fdeBackend.MockSecbootResealKeysWithFDESetupHook(func(keys []secboot.KeyDataLocation, primaryKeyFile string, models []secboot.ModelForSealing, bootModes []string) error {
+	restore := backend.MockSecbootResealKeysWithFDESetupHook(func(keys []secboot.KeyDataLocation, primaryKeyFile string, models []secboot.ModelForSealing, bootModes []string) error {
 		resealCalls++
 
 		switch resealCalls {
@@ -1819,7 +1934,7 @@ func (s *resealTestSuite) TestHooksResealHappy(c *C) {
 			// Resealing the run+recover key for data partition
 			c.Check(keys, DeepEquals, []secboot.KeyDataLocation{
 				{
-					DevicePath: "/dev/disk/by-partlabel/ubuntu-data",
+					DevicePath: "/dev/disk/by-uuid/123",
 					SlotName:   "default",
 					KeyFile:    filepath.Join(s.rootdir, "run/mnt/ubuntu-boot/device/fde/ubuntu-data.sealed-key"),
 				},
@@ -1832,7 +1947,7 @@ func (s *resealTestSuite) TestHooksResealHappy(c *C) {
 			// Resealing the recovery key for both data partition
 			c.Check(keys, DeepEquals, []secboot.KeyDataLocation{
 				{
-					DevicePath: "/dev/disk/by-partlabel/ubuntu-data",
+					DevicePath: "/dev/disk/by-uuid/123",
 					SlotName:   "default-fallback",
 					KeyFile:    filepath.Join(s.rootdir, "run/mnt/ubuntu-seed/device/fde/ubuntu-data.recovery.sealed-key"),
 				},
@@ -1845,7 +1960,7 @@ func (s *resealTestSuite) TestHooksResealHappy(c *C) {
 			// Resealing the recovery key for both save partition
 			c.Check(keys, DeepEquals, []secboot.KeyDataLocation{
 				{
-					DevicePath: "/dev/disk/by-partlabel/ubuntu-save",
+					DevicePath: "/dev/disk/by-uuid/456",
 					SlotName:   "default-fallback",
 					KeyFile:    filepath.Join(s.rootdir, "run/mnt/ubuntu-seed/device/fde/ubuntu-save.recovery.sealed-key"),
 				},
@@ -1863,8 +1978,26 @@ func (s *resealTestSuite) TestHooksResealHappy(c *C) {
 	defer restore()
 
 	myState := &fakeState{}
+	myState.EncryptedContainers = []backend.EncryptedContainer{
+		&encryptedContainer{
+			uuid:          "123",
+			containerRole: "system-data",
+			legacyKeys: map[string]string{
+				"default":          filepath.Join(s.rootdir, "run/mnt/ubuntu-boot/device/fde/ubuntu-data.sealed-key"),
+				"default-fallback": filepath.Join(s.rootdir, "run/mnt/ubuntu-seed/device/fde/ubuntu-data.recovery.sealed-key"),
+			},
+		},
+		&encryptedContainer{
+			uuid:          "456",
+			containerRole: "system-save",
+			legacyKeys: map[string]string{
+				"default-fallback": filepath.Join(s.rootdir, "run/mnt/ubuntu-seed/device/fde/ubuntu-save.recovery.sealed-key"),
+			},
+		},
+	}
+
 	const expectReseal = true
-	err := fdeBackend.ResealKeyForBootChains(myState, device.SealingMethodFDESetupHook, s.rootdir, params, expectReseal)
+	err := backend.ResealKeyForBootChains(myState, device.SealingMethodFDESetupHook, s.rootdir, params, expectReseal)
 	c.Assert(err, IsNil)
 
 	c.Check(resealCalls, Equals, 3)
@@ -1979,7 +2112,7 @@ func (s *resealTestSuite) TestResealKeyForSignatureDBUpdate(c *C) {
 	}
 
 	buildProfileCalls := 0
-	restore := fdeBackend.MockSecbootBuildPCRProtectionProfile(func(modelParams []*secboot.SealKeyModelParams) (secboot.SerializedPCRProfile, error) {
+	restore := backend.MockSecbootBuildPCRProtectionProfile(func(modelParams []*secboot.SealKeyModelParams) (secboot.SerializedPCRProfile, error) {
 		buildProfileCalls++
 
 		c.Assert(modelParams, HasLen, 1)
@@ -1992,7 +2125,7 @@ func (s *resealTestSuite) TestResealKeyForSignatureDBUpdate(c *C) {
 
 	// set mock key resealing
 	resealKeysCalls := 0
-	restore = fdeBackend.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error {
+	restore = backend.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error {
 		resealKeysCalls++
 
 		c.Check(params.PCRProfile, DeepEquals, secboot.SerializedPCRProfile(`"serialized-pcr-profile-with-dbx"`))
@@ -2003,6 +2136,23 @@ func (s *resealTestSuite) TestResealKeyForSignatureDBUpdate(c *C) {
 	defer restore()
 
 	myState := &fakeState{}
+	myState.EncryptedContainers = []backend.EncryptedContainer{
+		&encryptedContainer{
+			uuid:          "123",
+			containerRole: "system-data",
+			legacyKeys: map[string]string{
+				"default":          filepath.Join(s.rootdir, "run/mnt/ubuntu-boot/device/fde/ubuntu-data.sealed-key"),
+				"default-fallback": filepath.Join(s.rootdir, "run/mnt/ubuntu-seed/device/fde/ubuntu-data.recovery.sealed-key"),
+			},
+		},
+		&encryptedContainer{
+			uuid:          "456",
+			containerRole: "system-save",
+			legacyKeys: map[string]string{
+				"default-fallback": filepath.Join(s.rootdir, "run/mnt/ubuntu-seed/device/fde/ubuntu-save.recovery.sealed-key"),
+			},
+		},
+	}
 
 	err = backend.ResealKeysForSignaturesDBUpdate(myState, device.SealingMethodTPM, dirs.GlobalRootDir,
 		params, []byte("dbx-payload"))
