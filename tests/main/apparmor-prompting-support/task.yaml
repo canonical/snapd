@@ -39,11 +39,6 @@ execute: |
         not snap set system experimental.apparmor-prompting=true >& err.out
         MATCH "cannot enable prompting feature as it is not supported by the system" < err.out
 
-    # Apparmor prompting feature is not supported in non ubuntu systems
-    elif not os.query is-ubuntu; then
-        not snap set system experimental.apparmor-prompting=true >& err.out
-        MATCH "cannot enable prompting feature as it is not supported by the system" < err.out
-
     # The rest of the ubuntu systems shouldn't show any errors
     else
         snap set system experimental.apparmor-prompting=true >& err.out
