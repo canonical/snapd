@@ -90,7 +90,22 @@ class LocksGroup:
 
             if filter_ok:
                 filtered_locks.append(lock)
-        
+
+        self.locks = filtered_locks
+
+    def match(self, match_names: list[str]):
+        filtered_locks = []
+
+        for lock in self.locks:
+            match = False
+            for match_name in match_names:
+                if match_name in lock.get_trace():
+                    match = True
+                    break
+
+            if match:
+                filtered_locks.append(lock)
+
         self.locks = filtered_locks
 
     def skip(self, skip_names: list[str]):
@@ -105,7 +120,7 @@ class LocksGroup:
 
             if not match_skip:
                 filtered_locks.append(lock)
-        
+
         self.locks = filtered_locks
 
     def get_locks(self) -> list[Lock]:
@@ -198,6 +213,15 @@ class LocksFileReader:
 
         self.groups = filtered_groups
 
+    def match(self, match_names: list[str]):
+        filtered_groups = []
+        for group in self.groups:
+            group.match(match_names)
+            if len(group.get_locks()) > 0:
+                filtered_groups.append(group)
+
+        self.groups = filtered_groups
+
     def skip(self, skip_names: list[str]):
         filtered_groups = []
         for group in self.groups:
@@ -222,6 +246,7 @@ def _make_parser() -> argparse.ArgumentParser:
     parser.add_argument("-f", "--locks-file", type=str, required=True, help="Locks file")
     parser.add_argument("-ht", "--held-time", type=int, default=0, help="Include locks with longer held time")
     parser.add_argument("-wt", "--wait-time", type=int, default=0, help="Include locks with longer wait time")
+    parser.add_argument("-m", "--match", action="append", default=[], help="Include functions to match")
     parser.add_argument("-s", "--skip", action="append", default=[], help="Include functions to skip")
     parser.add_argument("--sort-held-time", action='store_true', help="Sort higher held times first")
     parser.add_argument("--sort-wait-time", action='store_true', help="Sort higher wait times first")
@@ -250,6 +275,10 @@ if __name__ == "__main__":
     # First filter by time
     if args.held_time > 0 or args.wait_time > 0:
         locks_reader.filter(args.held_time, args.wait_time)
+
+    # Then keep traces with matches
+    if args.match:
+        locks_reader.match(args.match)
 
     # Then skip traces with matches
     if args.skip:
