@@ -78,6 +78,8 @@ func (spec *Specification) AddRule(nameSuffix string, content Rule) error {
 }
 
 // Rules returns a map of polkit rules added to the Specification.
+// This maps from rule name suffixes (without the ".rules" suffix)
+// to the content required to be installed.
 func (spec *Specification) Rules() map[string]Rule {
 	if spec.ruleFiles == nil {
 		return nil
