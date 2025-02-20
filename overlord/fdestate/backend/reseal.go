@@ -70,6 +70,17 @@ type SealingParameters struct {
 	TpmPCRProfile []byte
 }
 
+// EncryptedDisk gives information on the role, path and path to extra
+// legacy keys.
+type EncryptedDisk interface {
+	// GetRole gives the container role of the disk. See KeyslotRoleInfo.Parameters.
+	GetRole() string
+	// GetDevPath gives the path to the device node. This should be the same as the path used for keyring.
+	GetDevPath() string
+	// GetLegacyKeys gives path the legacy keys index by the key name that matches the token key
+	GetLegacyKeys() map[string]string
+}
+
 // FDEStateManager represents an interface for a manager that can
 // store a state for sealing parameters.
 type FDEStateManager interface {
@@ -79,6 +90,8 @@ type FDEStateManager interface {
 	Get(role string, containerRole string) (parameters *SealingParameters, err error)
 	// Unlock notifies the manager that the state can be unlocked and returns a function to relock it.
 	Unlock() (relock func())
+	// GetEncryptedDisks returns the list of encrypted disks for the device
+	GetEncryptedDisks() ([]EncryptedDisk, error)
 }
 
 // comparableModel is just a representation of secboot.ModelForSealing
@@ -125,54 +138,61 @@ type resealParamsAndLocation struct {
 }
 
 func doReseal(manager FDEStateManager, method device.SealingMethod, rootdir string) error {
-	runParamsData, err := manager.Get("run+recover", "system-data")
-	if err != nil {
-		return err
-	}
-
-	recoveryParamsSave, err := manager.Get("recover", "system-save")
-	if err != nil {
-		return err
-	}
-
-	recoveryParamsData, err := manager.Get("recover", "system-data")
+	disks, err := manager.GetEncryptedDisks()
 	if err != nil {
 		return err
 	}
 
 	var keys []resealParamsAndLocation
 
-	if runParamsData != nil {
-		keys = append(keys, resealParamsAndLocation{
-			params: runParamsData,
-			location: secboot.KeyDataLocation{
-				DevicePath: "/dev/disk/by-partlabel/ubuntu-data",
+	for _, disk := range disks {
+		legacyKeys := disk.GetLegacyKeys()
+
+		switch disk.GetRole() {
+		case "system-data":
+			runParamsData, err := manager.Get("run+recover", disk.GetRole())
+			if err != nil {
+				return err
+			}
+
+			defaultLegacyKey, hasDefaultLegacyKey := legacyKeys["default"]
+
+			runKey := secboot.KeyDataLocation{
+				DevicePath: disk.GetDevPath(),
 				SlotName:   "default",
-				KeyFile:    device.DataSealedKeyUnder(boot.InitramfsBootEncryptionKeyDir),
-			},
-		})
-	}
+			}
+			if hasDefaultLegacyKey {
+				runKey.KeyFile = defaultLegacyKey
+			}
+			keys = append(keys, resealParamsAndLocation{
+				params:   runParamsData,
+				location: runKey,
+			})
+		}
 
-	if recoveryParamsData != nil {
-		keys = append(keys, resealParamsAndLocation{
-			params: recoveryParamsData,
-			location: secboot.KeyDataLocation{
-				DevicePath: "/dev/disk/by-partlabel/ubuntu-data",
-				SlotName:   "default-fallback",
-				KeyFile:    device.FallbackDataSealedKeyUnder(boot.InitramfsSeedEncryptionKeyDir),
-			},
-		})
-	}
+		switch disk.GetRole() {
+		case "system-save", "system-data":
+			recoveryParams, err := manager.Get("recover", disk.GetRole())
+			if err != nil {
+				return err
+			}
 
-	if recoveryParamsSave != nil {
-		keys = append(keys, resealParamsAndLocation{
-			params: recoveryParamsSave,
-			location: secboot.KeyDataLocation{
-				DevicePath: "/dev/disk/by-partlabel/ubuntu-save",
+			fallbackLegacyKey, hasFallbackLegacyKey := legacyKeys["default-fallback"]
+
+			fallbackKey := secboot.KeyDataLocation{
+				DevicePath: disk.GetDevPath(),
 				SlotName:   "default-fallback",
-				KeyFile:    device.FallbackSaveSealedKeyUnder(boot.InitramfsSeedEncryptionKeyDir),
-			},
-		})
+			}
+
+			if hasFallbackLegacyKey {
+				fallbackKey.KeyFile = fallbackLegacyKey
+			}
+
+			keys = append(keys, resealParamsAndLocation{
+				params:   recoveryParams,
+				location: fallbackKey,
+			})
+		}
 	}
 
 	switch method {
