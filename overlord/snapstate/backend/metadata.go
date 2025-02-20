@@ -19,6 +19,14 @@
 
 package backend
 
+import (
+	"errors"
+	"fmt"
+	"io/fs"
+
+	"github.com/snapcore/snapd/logger"
+)
+
 // InstallStoreMetadata saves revision-agnostic metadata to disk for the snap
 // with the given snap ID. At the moment, this metadata includes auxiliary
 // store information. Returns a closure to undo the function's actions,
@@ -28,9 +36,14 @@ func InstallStoreMetadata(snapID string, aux AuxStoreInfo, linkCtx LinkContext) 
 		return func() {}, nil
 	}
 	if err := keepAuxStoreInfo(snapID, aux); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("cannot save auxiliary store info for snap %v: %w", snapID, err)
 	}
-	// TODO: install other types of revision-agnostic metadata
+	if err := linkSnapIcon(snapID); err != nil {
+		if !errors.Is(err, fs.ErrNotExist) {
+			return nil, fmt.Errorf("cannot link snap icon for snap %v: %w", snapID, err)
+		}
+		logger.Debugf("cannot link snap icon for snap %v: %v", snapID, err)
+	}
 	return func() {
 		UninstallStoreMetadata(snapID, linkCtx)
 	}, nil
@@ -38,8 +51,8 @@ func InstallStoreMetadata(snapID string, aux AuxStoreInfo, linkCtx LinkContext) 
 
 // UninstallStoreMetadata removes revision-agnostic metadata from disk for the
 // snap with the given snap ID. At the moment, this metadata includes auxiliary
-// store information. The given linkCtx governs what metadata is removed and
-// what is preserved.
+// store information and installed snap icon. The given linkCtx governs what
+// metadata is removed and what is preserved.
 func UninstallStoreMetadata(snapID string, linkCtx LinkContext) error {
 	if linkCtx.HasOtherInstances || snapID == "" {
 		return nil
@@ -50,27 +63,34 @@ func UninstallStoreMetadata(snapID string, linkCtx LinkContext) error {
 		// auxinfo on disk to re-populate an old snap.Info. This might occur if
 		// e.g. we unlinked the snap and now need to undoUnlinkSnap.
 		if err := discardAuxStoreInfo(snapID); err != nil {
-			return err
+			return fmt.Errorf("cannot remove auxiliary store info for snap %v: %w", snapID, err)
 		}
 	}
-	// TODO: discard other types of revision-agnostic metadata
+	if err := unlinkSnapIcon(snapID); err != nil {
+		return fmt.Errorf("cannot unlink icon for snap %v: %w", snapID, err)
+	}
 	return nil
 }
 
 // DiscardStoreMetadata removes revision-agnostic metadata from disk for the
 // snap with the given snap ID, and is intended to be called when the final
-// revision of that snap is being discarded. At the moment, this metadata
-// includes auxiliary store information. If hasOtherInstances is false, this
-// function does nothing, as another instance of the same snap may still
-// require this metadata.
+// revision of that snap is being discarded. In addition to the snap's
+// auxiliary store information, the snap's icon is removed from both the icon
+// install directory and the icon download pool, if it exists in either place.
+// If hasOtherInstances is false, this function does nothing, as another
+// instance of the same snap may wtill require this metadata.
 func DiscardStoreMetadata(snapID string, hasOtherInstances bool) error {
 	if hasOtherInstances || snapID == "" {
 		return nil
 	}
 	if err := discardAuxStoreInfo(snapID); err != nil {
-		return err
+		return fmt.Errorf("cannot remove auxiliary store info for snap %v: %w", snapID, err)
 	}
-	// TODO: discard other types of revision-agnostic metadata which should be
-	// removed when the final revision of the snap is discarded
+	if err := unlinkSnapIcon(snapID); err != nil {
+		return fmt.Errorf("cannot unlink icon for snap %v: %w", snapID, err)
+	}
+	if err := discardSnapIcon(snapID); err != nil {
+		return fmt.Errorf("cannot discard icon for snap %v: %w", snapID, err)
+	}
 	return nil
 }

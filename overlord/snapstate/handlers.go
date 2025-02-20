@@ -726,6 +726,8 @@ func (m *SnapManager) doDownloadSnap(t *state.Task, tomb *tomb.Tomb) error {
 
 	meter := NewTaskProgressAdapterUnlocked(t)
 	targetFn := snapsup.BlobPath()
+	targetIconFn := backend.IconDownloadFilename(snapsup.SideInfo.SnapID)
+	iconURL := snapsup.Media.IconURL()
 
 	dlOpts := &store.DownloadOptions{
 		Scheduled: snapsup.IsAutoRefresh,
@@ -753,17 +755,32 @@ func (m *SnapManager) doDownloadSnap(t *state.Task, tomb *tomb.Tomb) error {
 		if err != nil {
 			return err
 		}
+
 		timings.Run(perfTimings, "download", fmt.Sprintf("download snap %q", snapsup.SnapName()), func(timings.Measurer) {
 			err = theStore.Download(tomb.Context(nil), snapsup.SnapName(), targetFn, &result.DownloadInfo, meter, user, dlOpts)
 		})
 		snapsup.SideInfo = &result.SideInfo
+		if err != nil {
+			return err
+		}
 	} else {
+		ctx := tomb.Context(nil) // XXX: should this be a real context?
 		timings.Run(perfTimings, "download", fmt.Sprintf("download snap %q", snapsup.SnapName()), func(timings.Measurer) {
-			err = theStore.Download(tomb.Context(nil), snapsup.SnapName(), targetFn, snapsup.DownloadInfo, meter, user, dlOpts)
+			err = theStore.Download(ctx, snapsup.SnapName(), targetFn, snapsup.DownloadInfo, meter, user, dlOpts)
 		})
-	}
-	if err != nil {
-		return err
+		if err != nil {
+			return err
+		}
+		// Snap download succeeded, now try to download the snap icon
+		if iconURL == "" {
+			logger.Debugf("cannot download snap icon for %q: no icon URL", snapsup.SnapName())
+		} else {
+			timings.Run(perfTimings, "download-icon", fmt.Sprintf("download snap icon for %q", snapsup.SnapName()), func(timings.Measurer) {
+				if iconErr := theStore.DownloadIcon(ctx, snapsup.SnapName(), targetIconFn, iconURL); iconErr != nil {
+					logger.Debugf("cannot download snap icon for %q: %v", snapsup.SnapName(), iconErr)
+				}
+			})
+		}
 	}
 
 	snapsup.SnapPath = targetFn
