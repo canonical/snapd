@@ -296,23 +296,14 @@ const (
 )
 
 func createChangeConfdbTasks(st *state.State, tx *Transaction, view *confdb.View, callingSnap string) (*state.TaskSet, error) {
-	custodianPlugs, err := getCustodianPlugsForView(st, view)
+	custodians, custodianPlugs, err := getCustodianPlugsForView(st, view)
 	if err != nil {
 		return nil, err
 	}
 
-	if len(custodianPlugs) == 0 {
+	if len(custodians) == 0 {
 		return nil, fmt.Errorf("cannot commit changes to confdb %s/%s: no custodian snap installed", view.Confdb().Account, view.Confdb().Name)
 	}
-
-	custodianNames := make([]string, 0, len(custodianPlugs))
-	for name := range custodianPlugs {
-		custodianNames = append(custodianNames, name)
-	}
-
-	// process the change/save hooks in a deterministic order (useful for testing
-	// and potentially for the snaps themselves)
-	sort.Strings(custodianNames)
 
 	ts := state.NewTaskSet()
 	linkTask := func(t *state.Task) {
@@ -329,7 +320,7 @@ func createChangeConfdbTasks(st *state.State, tx *Transaction, view *confdb.View
 
 	// look for plugs that reference the relevant view and create run-hooks for
 	// them, if the snap has those hooks
-	for _, name := range custodianNames {
+	for _, name := range custodians {
 		plug := custodianPlugs[name]
 		custodian := plug.Snap
 		if _, ok := custodian.Hooks["change-view-"+plug.Name]; !ok {
@@ -342,7 +333,7 @@ func createChangeConfdbTasks(st *state.State, tx *Transaction, view *confdb.View
 		linkTask(chgViewTask)
 	}
 
-	for _, name := range custodianNames {
+	for _, name := range custodians {
 		plug := custodianPlugs[name]
 		custodian := plug.Snap
 		if _, ok := custodian.Hooks["save-view-"+plug.Name]; !ok {
@@ -397,21 +388,25 @@ func createChangeConfdbTasks(st *state.State, tx *Transaction, view *confdb.View
 	// clear the ongoing tx from the state and unblock other writers waiting for it
 	clearTxTask := st.NewTask("clear-confdb-tx", "Clears the ongoing confdb transaction from state")
 	linkTask(clearTxTask)
-	clearTxTask.Set("commit-task", commitTask.ID())
+	clearTxTask.Set("tx-task", commitTask.ID())
 	ts.MarkEdge(clearTxTask, clearTxEdge)
 
 	return ts, nil
 }
 
-func getCustodianPlugsForView(st *state.State, view *confdb.View) (map[string]*snap.PlugInfo, error) {
+// getCustodianPlugsForView returns a list of snaps that have connected plugs
+// declaring them as custodians of a confdb view. The list of custodians is
+// sorted. It also returns a map of the snap names to plugs.
+func getCustodianPlugsForView(st *state.State, view *confdb.View) ([]string, map[string]*snap.PlugInfo, error) {
 	repo := ifacerepo.Get(st)
 	plugs := repo.AllPlugs("confdb")
 
-	custodians := make(map[string]*snap.PlugInfo)
+	var custodians []string
+	custodianPlugs := make(map[string]*snap.PlugInfo)
 	for _, plug := range plugs {
 		conns, err := repo.Connected(plug.Snap.InstanceName(), plug.Name)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		if len(conns) == 0 {
 			continue
@@ -423,7 +418,7 @@ func getCustodianPlugsForView(st *state.State, view *confdb.View) (map[string]*s
 
 		account, confdbName, viewName, err := snap.ConfdbPlugAttrs(plug)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 
 		if view.Confdb().Account != account || view.Confdb().Name != confdbName ||
@@ -434,10 +429,15 @@ func getCustodianPlugsForView(st *state.State, view *confdb.View) (map[string]*s
 		// TODO: if a snap has more than one plug providing access to a view, then
 		// which plug we're getting here becomes unpredictable. We should check
 		// for this at some point (interface connection?)
-		custodians[plug.Snap.SnapName()] = plug
+		custodianPlugs[plug.Snap.SnapName()] = plug
+		custodians = append(custodians, plug.Snap.InstanceName())
 	}
 
-	return custodians, nil
+	// we want to process these in a deterministic order (useful for testing
+	// and potentially for the snaps themselves)
+	sort.Strings(custodians)
+
+	return custodians, custodianPlugs, nil
 }
 
 func getPlugsAffectedByPaths(st *state.State, confdb *confdb.Confdb, storagePaths []string) (map[string][]*snap.PlugInfo, error) {
