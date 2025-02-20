@@ -10,6 +10,9 @@ systems: [ -ubuntu-core-*-arm-* ]
 prepare: |
   snap install hello-world go-example-webserver test-snapd-tools
 
+restore: |
+  snap remove-quota group-one || true
+
 execute: |
   if os.query is-trusty || os.query is-amazon-linux 2 || os.query is-centos 7 || os.query is-xenial || os.query is-core16; then
     # just check that we can't do anything with quota groups on systems with
