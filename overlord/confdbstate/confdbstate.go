@@ -389,7 +389,7 @@ func createChangeConfdbTasks(st *state.State, tx *Transaction, view *confdb.View
 	commitTask.Set("confdb-transaction", tx)
 	// link all previous tasks to the commit task that carries the transaction
 	for _, t := range ts.Tasks() {
-		t.Set("commit-task", commitTask.ID())
+		t.Set("tx-task", commitTask.ID())
 	}
 	linkTask(commitTask)
 	ts.MarkEdge(commitTask, commitEdge)
@@ -494,7 +494,7 @@ func GetStoredTransaction(t *state.Task) (tx *Transaction, saveTxChanges func(),
 	}
 
 	var id string
-	err = t.Get("commit-task", &id)
+	err = t.Get("tx-task", &id)
 	if err != nil {
 		return nil, nil, err
 	}
