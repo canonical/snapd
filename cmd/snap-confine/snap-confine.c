@@ -277,7 +277,7 @@ static void log_startup_stage(const char *stage) {
     }
     struct timeval tv;
     gettimeofday(&tv, NULL);
-    debug("-- snap startup {\"stage\":\"%s\", \"time\":\"%lu.%06lu\"}", stage, tv.tv_sec, tv.tv_usec);
+    debug("-- snap startup {\"stage\":\"%s\", \"time\":\"%lld.%06lld\"}", stage, (long long int)tv.tv_sec, (long long int)tv.tv_usec);
 }
 
 /**
