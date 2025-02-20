@@ -1,9 +1,3 @@
-ubuntu-core-initramfs (71+2.68+g387.699b1b4+24.10ubuntu1) plucky; urgency=medium
-
-  * First plucky release
-
- -- Alfonso Sanchez-Beato <alfonso.sanchez-beato@canonical.com>  Thu, 20 Feb 2025 07:55:44 -0500
-
 ubuntu-core-initramfs (70+2.68+g387.699b1b4+24.10) oracular; urgency=medium
 
   * Update to snapd version 2.68+g387.699b1b4
