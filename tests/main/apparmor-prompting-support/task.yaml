@@ -6,8 +6,8 @@ details: |
     all other systems.
 
 prepare: |
-    # Before enabling prompting, we must have a snap installs which provides
-    # a prompting `handler-service` with a connection via the
+    # Before enabling prompting, we must have a snap installed which provides
+    # a prompting `handler-service` attribute with a connection via the
     # `snap-interfaces-requests-control` interface.
     
     # Prerequisite for having a prompts handler service
