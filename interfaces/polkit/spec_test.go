@@ -115,3 +115,8 @@ func (s *specSuite) TestSpecificationIfaceAddRuleOverwriteError(c *C) {
 	c.Assert(s.spec.AddRule("test", polkit.Rule("content 1")), IsNil)
 	c.Assert(s.spec.AddRule("test", polkit.Rule("content 2")), ErrorMatches, "internal error: polkit rule content for \"test\" re-defined with different content")
 }
+
+func (s *specSuite) TestSpecificationIfaceAddRuleInvalidSuffix(c *C) {
+	c.Assert(s.spec.AddRule("?", polkit.Rule("content")), ErrorMatches, `"\?" does not match .*`)
+	c.Assert(s.spec.AddRule("..", polkit.Rule("content")), ErrorMatches, `"\.\." does not match .*`)
+}
