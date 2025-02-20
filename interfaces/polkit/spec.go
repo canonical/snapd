@@ -24,6 +24,7 @@ import (
 	"fmt"
 
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/polkit/validate"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -63,6 +64,9 @@ func (spec *Specification) Policies() map[string]Policy {
 
 // AddRule adds a polkit rule file to install.
 func (spec *Specification) AddRule(nameSuffix string, content Rule) error {
+	if err := validate.ValidateRuleNameSuffix(nameSuffix); err != nil {
+		return err
+	}
 	if old, ok := spec.ruleFiles[nameSuffix]; ok && !bytes.Equal(old, content) {
 		return fmt.Errorf("internal error: polkit rule content for %q re-defined with different content", nameSuffix)
 	}
