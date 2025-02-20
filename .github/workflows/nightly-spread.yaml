@@ -143,4 +143,4 @@ jobs:
       rules: ${{ matrix.rules }}
     strategy:
       fail-fast: false
-      matrix: ${{ fromJson(needs.read-systems.outputs.nesteds-systems) }}
+      matrix: ${{ fromJson(needs.read-systems.outputs.nested-systems) }}
