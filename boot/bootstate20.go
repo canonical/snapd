@@ -69,12 +69,12 @@ func modeenvUnlock() {
 	modeenvMu.Unlock()
 }
 
-func isModeeenvLocked() bool {
+func isModeenvLocked() bool {
 	return atomic.LoadInt32(&modeenvLocked) == 1
 }
 
 func loadModeenv() (*Modeenv, error) {
-	if !isModeeenvLocked() {
+	if !isModeenvLocked() {
 		return nil, fmt.Errorf("internal error: cannot read modeenv without the lock")
 	}
 	modeenv, err := ReadModeenv("")
@@ -184,7 +184,7 @@ func newBootStateUpdate20(m *Modeenv) (*bootStateUpdate20, error) {
 
 // commit will write out boot state persistently to disk.
 func (u20 *bootStateUpdate20) commit() error {
-	if !isModeeenvLocked() {
+	if !isModeenvLocked() {
 		return fmt.Errorf("internal error: cannot commit modeenv without the lock")
 	}
 
