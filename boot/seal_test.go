@@ -74,7 +74,7 @@ func mockGadgetSeedSnap(c *C, files [][]string) *seed.Snap {
 }
 
 func (s *sealSuite) TestSealKeyToModeenv(c *C) {
-	defer boot.MockModeenvLocked()()
+	defer boot.MockSealModeenvLocked()()
 
 	for idx, tc := range []struct {
 		sealErr       error
@@ -1638,7 +1638,7 @@ func (s *sealSuite) TestSealToModeenvWithFdeHookHappy(c *C) {
 	})
 	defer restore()
 
-	defer boot.MockModeenvLocked()()
+	defer boot.MockSealModeenvLocked()()
 
 	err := boot.SealKeyToModeenv(myKey, myKey2, nil, nil, model, modeenv, boot.MockSealKeyToModeenvFlags{HasFDESetupHook: true, UseTokens: true})
 	c.Assert(err, IsNil)
@@ -1671,7 +1671,7 @@ func (s *sealSuite) TestSealToModeenvWithFdeHookSad(c *C) {
 	key := secboot.CreateMockBootstrappedContainer()
 	saveKey := secboot.CreateMockBootstrappedContainer()
 
-	defer boot.MockModeenvLocked()()
+	defer boot.MockSealModeenvLocked()()
 
 	err := boot.SealKeyToModeenv(key, saveKey, nil, nil, model, modeenv, boot.MockSealKeyToModeenvFlags{HasFDESetupHook: true})
 	c.Assert(err, ErrorMatches, `seal key failed`)

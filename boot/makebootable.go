@@ -24,6 +24,8 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sync"
+	"sync/atomic"
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/bootloader"
@@ -418,6 +420,30 @@ func UseTokens(model *asserts.Model) bool {
 	}
 }
 
+// sealModeenvMu is used to protect sections doing:
+//   - write fresh modeenv/seal from it
+//
+// while we might want to release the global state lock as seal/reseal are slow
+// (see Unlocker for that)
+var (
+	sealModeenvMu     sync.Mutex
+	sealModeenvLocked int32
+)
+
+func sealModeenvLock() {
+	sealModeenvMu.Lock()
+	atomic.AddInt32(&sealModeenvLocked, 1)
+}
+
+func sealModeenvUnlock() {
+	atomic.AddInt32(&sealModeenvLocked, -1)
+	sealModeenvMu.Unlock()
+}
+
+func isSealModeenvLocked() bool {
+	return atomic.LoadInt32(&sealModeenvLocked) == 1
+}
+
 func makeRunnableSystem(model *asserts.Model, bootWith *BootableSet, observer TrustedAssetsInstallObserver, makeOpts makeRunnableOptions) error {
 	if model.Grade() == asserts.ModelGradeUnset {
 		return fmt.Errorf("internal error: cannot make pre-UC20 system runnable")
@@ -425,8 +451,8 @@ func makeRunnableSystem(model *asserts.Model, bootWith *BootableSet, observer Tr
 	if bootWith.RecoverySystemDir != "" {
 		return fmt.Errorf("internal error: RecoverySystemDir unexpectedly set for MakeRunnableSystem")
 	}
-	modeenvLock()
-	defer modeenvUnlock()
+	sealModeenvLock()
+	defer sealModeenvUnlock()
 
 	// TODO:UC20:
 	// - figure out what to do for uboot gadgets, currently we require them to

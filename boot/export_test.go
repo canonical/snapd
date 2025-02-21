@@ -199,6 +199,13 @@ func MockModeenvLocked() (restore func()) {
 	}
 }
 
+func MockSealModeenvLocked() (restore func()) {
+	atomic.AddInt32(&sealModeenvLocked, 1)
+	return func() {
+		atomic.AddInt32(&sealModeenvLocked, -1)
+	}
+}
+
 func MockAdditionalBootFlags(bootFlags []string) (restore func()) {
 	old := understoodBootFlags
 	understoodBootFlags = append(understoodBootFlags, bootFlags...)
