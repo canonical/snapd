@@ -21,6 +21,7 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <glob.h>
+#include <inttypes.h>
 #include <sched.h>
 #include <signal.h>
 #include <stdbool.h>
@@ -277,7 +278,13 @@ static void log_startup_stage(const char *stage) {
     }
     struct timeval tv;
     gettimeofday(&tv, NULL);
-    debug("-- snap startup {\"stage\":\"%s\", \"time\":\"%lu.%06lu\"}", stage, tv.tv_sec, tv.tv_usec);
+#if __TIMESIZE == 32
+#define PRI_TT PRId32
+#else
+#define PRI_TT PRId64
+#endif
+    debug("-- snap startup {\"stage\":\"%s\", \"time\":\"%" PRI_TT ".%06" PRI_TT "\"}", stage, tv.tv_sec, tv.tv_usec);
+#undef PRI_TT
 }
 
 /**
