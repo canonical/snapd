@@ -94,7 +94,7 @@ static void setup_private_tmp(const char *snap_instance) {
     // systemd-tmpfiles but we can try create it anyway since snapd may have
     // just been installed in which case the tmpfiles conf would not have
     // got executed yet
-    if (mkdir(SNAP_PRIVATE_TMP_ROOT_DIR, 0700) < 0 && errno != EEXIST) {
+    if (sc_ensure_mkdir(SNAP_PRIVATE_TMP_ROOT_DIR, 0700, 0, 0) != 0) {
         die("cannot create /tmp/snap-private-tmp");
     }
     private_tmp_root_fd = open(SNAP_PRIVATE_TMP_ROOT_DIR, O_RDONLY | O_DIRECTORY | O_CLOEXEC | O_NOFOLLOW);
@@ -110,7 +110,7 @@ static void setup_private_tmp(const char *snap_instance) {
     }
     // Create /tmp/snap-private-tmp/snap.$SNAP_INSTANCE_NAME/ 0700 root:root.
     sc_must_snprintf(base, sizeof(base), "snap.%s", snap_instance);
-    if (mkdirat(private_tmp_root_fd, base, 0700) < 0 && errno != EEXIST) {
+    if (sc_ensure_mkdirat(private_tmp_root_fd, base, 0700, 0, 0) != 0) {
         die("cannot create base directory: %s", base);
     }
     base_dir_fd = openat(private_tmp_root_fd, base, O_RDONLY | O_DIRECTORY | O_CLOEXEC | O_NOFOLLOW);
@@ -125,7 +125,7 @@ static void setup_private_tmp(const char *snap_instance) {
     }
     // Create /tmp/$PRIVATE/snap.$SNAP_NAME/tmp 01777 root:root Ignore EEXIST since we
     // want to reuse and we will open with O_NOFOLLOW, below.
-    if (mkdirat(base_dir_fd, "tmp", 01777) < 0 && errno != EEXIST) {
+    if (sc_ensure_mkdirat(base_dir_fd, "tmp", 01777, 0, 0) != 0) {
         die("cannot create private tmp directory %s/tmp", base);
     }
     (void)sc_set_effective_identity(old);
@@ -237,7 +237,7 @@ static void sc_do_mounts(const char *scratch_dir, const struct sc_mount *mounts)
     for (const struct sc_mount *mnt = mounts; mnt && mnt->path != NULL; mnt++) {
         if (mnt->is_bidirectional) {
             sc_identity old = sc_set_effective_identity(sc_root_group_identity());
-            if (mkdir(mnt->path, 0755) < 0 && errno != EEXIST) {
+            if (sc_ensure_mkdir(mnt->path, 0755, 0, 0) != 0) {
                 die("cannot create %s", mnt->path);
             }
             (void)sc_set_effective_identity(old);
