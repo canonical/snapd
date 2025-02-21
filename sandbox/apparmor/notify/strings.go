@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"encoding/binary"
 	"fmt"
+
+	"github.com/snapcore/snapd/arch"
 )
 
 // stringPacker assists in packing apparmor data structures with
@@ -37,6 +39,57 @@ func (sp *stringPacker) PackString(s string) uint32 {
 	sp.buffer.WriteString(s)
 	sp.buffer.WriteRune(0)
 	return offset + uint32(sp.baseOffset)
+}
+
+// PackTagsets computes the layout of the tagsets encoded in an apparmor message.
+// Tagset headers are contiguous, and the start of the first header must be
+// 8-byte-aligned. The return value is the offset of the beginning of the first
+// header relative to the start of the structure, captured by baseOffset.
+//
+// Each header contains information about a tagset, including its associated
+// permissions, the number of tags in the tagset, and the offset of the
+// beginning of the first tag, again relative to the start of the structure.
+//
+// The tagsets themselves may occur before or after the tagset headers, and
+// need not be contiguous, either between tagsets or with the tagset headers.
+// All the tags in any given tagset must be contiguous, however.
+//
+// For code simplicity, we encode all the tagsets first, then the headers.
+// By convention, there is an additional \0 byte after the end of each tagset,
+// but in the future, tagsets may overlap to save space, so this should not be
+// relied upon, so we do not include it here.
+func (sp *stringPacker) PackTagsets(ts map[uint32][]string) uint32 {
+	if len(ts) == 0 {
+		return 0
+	}
+	headers := make([]tagsetHeader, len(ts))
+	i := 0
+	for perm, tags := range ts {
+		if len(tags) == 0 {
+			continue
+		}
+		// order of permissions from map is not guaranteed
+		headers[i].PermissionMask = perm
+		headers[i].TagCount = uint32(len(tags))
+		headers[i].TagOffset = sp.PackString(tags[0])
+		for _, tag := range tags[1:] {
+			sp.PackString(tag)
+		}
+		i++
+	}
+
+	// Now add padding to align the tagset headers
+	totalLength := sp.buffer.Len() + int(sp.baseOffset)
+	alignmentPadding := make([]byte, totalLength%8)
+	sp.buffer.Write(alignmentPadding)
+
+	headerOffset := uint32(sp.buffer.Len())
+
+	// Now write the headers themselves
+	order := arch.Endian()
+	binary.Write(&sp.buffer, order, headers)
+
+	return headerOffset + uint32(sp.baseOffset)
 }
 
 // TotalLen returns the total length of the data which is being packed,
@@ -77,4 +130,29 @@ func (su *stringUnpacker) UnpackString(offset uint32) (string, error) {
 		return "", fmt.Errorf("unterminated string at address %d", offset)
 	}
 	return string(tmp[:idx]), nil
+}
+
+// UnpackStrings unpacks N contiguous NUL-terminated strings at a given offset
+// into the buffer.
+func (su *stringUnpacker) UnpackStrings(offset uint32, n uint32) ([]string, error) {
+	if offset == 0 {
+		return nil, nil
+	}
+	if offset >= uint32(len(su.Bytes)) {
+		return nil, fmt.Errorf("address %d points outside of message body", offset)
+	}
+	if n == 0 {
+		return nil, nil
+	}
+	strs := make([]string, n)
+	for i := uint32(0); i < n; i++ {
+		tmp := su.Bytes[offset:]
+		idx := bytes.IndexByte(tmp, 0)
+		if idx < 0 {
+			return nil, fmt.Errorf("unterminated string at address %d", offset)
+		}
+		strs[i] = string(tmp[:idx])
+		offset += uint32(idx + 1) // advance offset to start of next string
+	}
+	return strs, nil
 }
