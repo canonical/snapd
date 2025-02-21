@@ -80,4 +80,11 @@ int sc_cap_set_ambient(cap_value_t cap, cap_flag_value_t set);
  */
 int sc_cap_reset_ambient(void);
 
+/**
+ * Release cap_t allocated through libcap.
+ *
+ * This function is designed to be used with SC_CLEANUP() macro.
+ **/
+void sc_cleanup_cap_t(cap_t *ptr);
+
 #endif

@@ -60,4 +60,18 @@ static void test_sc_privs_drop(void) {
     g_test_trap_assert_passed();
 }
 
-static void __attribute__((constructor)) init(void) { g_test_add_func("/privs/sc_privs_drop", test_sc_privs_drop); }
+static void test_sc_privs_cleanup(void) {
+    cap_t start SC_CLEANUP(sc_cleanup_cap_t) = cap_get_proc();
+    g_assert_nonnull(start);
+
+    char *text SC_CLEANUP(sc_cleanup_cap_str) = cap_to_text(start, NULL);
+    g_assert_nonnull(text);
+
+    cap_t working SC_CLEANUP(sc_cleanup_cap_t) = cap_init();
+    g_assert_nonnull(working);
+}
+
+static void __attribute__((constructor)) init(void) {
+    g_test_add_func("/privs/sc_privs_drop", test_sc_privs_drop);
+    g_test_add_func("/privs/sc_cleanup_cap", test_sc_privs_cleanup);
+}
