@@ -31,6 +31,7 @@ import (
 	"github.com/snapcore/snapd/daemon"
 	"github.com/snapcore/snapd/overlord/snapstate/backend"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/testutil"
 )
 
 var _ = check.Suite(&iconsSuite{})
@@ -152,6 +153,34 @@ func (s *iconsSuite) TestSnapIconGetFallback(c *check.C) {
 	s.req(c, req, nil).ServeHTTP(rec, req)
 	c.Check(rec.Code, check.Equals, 200)
 	c.Check(rec.Body.String(), check.Equals, "I'm from the store")
+}
+
+func (s *iconsSuite) TestSnapIconGetUnasserted(c *check.C) {
+	d := s.daemon(c)
+
+	const snapName = "foo"
+	const snapID = "foo-id" // ID is "<name>-id" for apiBaseSuite
+
+	// no developer, fake revision
+	info := s.mkInstalledInState(c, d, snapName, "", "v1", snap.R(-1), true, "")
+
+	// NO ICON IN SNAP!
+	err := os.RemoveAll(filepath.Join(info.MountDir(), "meta", "gui", "icon.svg"))
+	c.Assert(err, check.IsNil)
+
+	// but fallback icon installed (even though it wouldn't be)
+	fallbackIcon := backend.IconInstallFilename(snapID)
+	c.Assert(os.MkdirAll(filepath.Dir(fallbackIcon), 0o755), check.IsNil)
+	c.Check(os.WriteFile(fallbackIcon, []byte("I'm from the store"), 0o644), check.IsNil)
+
+	req, err := http.NewRequest("GET", fmt.Sprintf("/v2/icons/%s/icon", snapName), nil)
+	c.Assert(err, check.IsNil)
+
+	rec := httptest.NewRecorder()
+
+	s.req(c, req, nil).ServeHTTP(rec, req)
+	c.Check(rec.Code, check.Equals, 404)
+	c.Check(rec.Body.String(), testutil.Contains, "local snap has no icon")
 }
 
 func (s *iconsSuite) TestSnapIconGetNoApp(c *check.C) {
