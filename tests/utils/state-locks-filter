@@ -155,7 +155,8 @@ class LockTraceManager:
         filtered_traces = dict[LockTrace, list[GroupTimes]]()
         for trace, times in self.traces.items():
             filtered_times = [time for time in self.traces.get(trace) if time.get_held_time() >= held_time and time.get_wait_time() >= wait_time]
-            filtered_traces[trace] = filtered_times
+            if len(filtered_times) > 0:
+                filtered_traces[trace] = filtered_times
     
         self.traces = filtered_traces
 
@@ -299,13 +300,14 @@ if __name__ == "__main__":
         sys.exit()
 
     trace_manager = LockTraceManager(locks_reader.get_traces_times())
-    # First filter by time
-    if args.held_time > 0 or args.wait_time > 0:
-        trace_manager.filter(args.held_time, args.wait_time)
 
     # Then keep traces with matches
     if args.match:
         trace_manager.match(args.match)
+
+    # First filter by time
+    if args.held_time > 0 or args.wait_time > 0:
+        trace_manager.filter(args.held_time, args.wait_time)
 
     # And finally print the sorted results (if required)
     trace_manager.print(args.sort_held_time, args.sort_wait_time)   
