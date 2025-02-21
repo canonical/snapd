@@ -5221,3 +5221,72 @@ func (s *writerSuite) TestSeedSnapsWriteMetaCore20BadLocalComps(c *C) {
 	c.Assert(w.SetInfo(sn, info, seedComps), ErrorMatches,
 		`component comp1 has type kernel-modules while snap required20 defines type standard for it`)
 }
+
+func (s *writerSuite) TestVerifySnapBootstrapCompatibility(c *C) {
+	model := s.Brands.Model("my-brand", "my-model", map[string]interface{}{
+		"display-name": "my model",
+		"architecture": "amd64",
+		"store":        "my-store",
+		"base":         "core24",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":            "pc-kernel",
+				"id":              s.AssertedSnapID("pc-kernel"),
+				"type":            "kernel",
+				"default-channel": "24/stable",
+			},
+			map[string]interface{}{
+				"name":            "pc",
+				"id":              s.AssertedSnapID("pc"),
+				"type":            "gadget",
+				"default-channel": "24/stable",
+			},
+			map[string]interface{}{
+				"name":            "snapd",
+				"id":              s.AssertedSnapID("snapd"),
+				"type":            "snapd",
+				"default-channel": "latest/stable",
+			},
+			map[string]interface{}{
+				"name":            "core24",
+				"id":              s.AssertedSnapID("core24"),
+				"type":            "base",
+				"default-channel": "latest/stable",
+			},
+		},
+	})
+
+	s.opts.Label = "20250220"
+
+	w, err := seedwriter.New(model, s.opts)
+	c.Assert(err, IsNil)
+
+	newSnapd := `VERSION=2.68`
+	oldSnapd := `VERSION=2.67+git123`
+
+	snapdFiles := [][]string{
+		{"/usr/lib/snapd/info", newSnapd},
+	}
+	kernelFiles := [][]string{
+		{"/snapd-info", oldSnapd},
+	}
+
+	s.MakeAssertedSnap(c, snapYaml["snapd"], snapdFiles, snap.R(1), "canonical", s.StoreSigning.Database)
+	s.MakeAssertedSnap(c, snapYaml["pc-kernel"], kernelFiles, snap.R(1), "canonical", s.StoreSigning.Database)
+	s.makeSnap(c, "core24", "")
+	s.makeSnap(c, "pc", "")
+
+	err = w.Start(s.db, s.rf)
+	c.Assert(err, IsNil)
+
+	snaps, err := w.SnapsToDownload()
+	c.Assert(err, IsNil)
+	c.Check(snaps, HasLen, 4)
+
+	for _, sn := range snaps {
+		s.fillDownloadedSnap(c, w, sn)
+	}
+
+	err = w.VerifySnapBootstrapCompatibility()
+	c.Check(err, ErrorMatches, `snapd 2.68[+] will not work in the same seed as kernel with snapd less then 2.68`)
+}
