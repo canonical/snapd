@@ -89,15 +89,8 @@ static void setup_private_tmp(const char *snap_instance) {
     // systemd-tmpfiles but we can try create it anyway since snapd may have
     // just been installed in which case the tmpfiles conf would not have
     // got executed yet
-    if (mkdir(SNAP_PRIVATE_TMP_ROOT_DIR, 0700) < 0) {
-        if (errno != EEXIST) {
-            die("cannot create /tmp/snap-private-tmp");
-        }
-    } else {
-        // new directory, ensure correct ownership
-        if (chown(SNAP_PRIVATE_TMP_ROOT_DIR, 0, 0) < 0) {
-            die("cannot set ownership for /tmp/snap-private-tmp");
-        }
+    if (sc_ensure_mkdir(SNAP_PRIVATE_TMP_ROOT_DIR, 0700, 0, 0) != 0) {
+        die("cannot create /tmp/snap-private-tmp");
     }
     private_tmp_root_fd = open(SNAP_PRIVATE_TMP_ROOT_DIR, O_RDONLY | O_DIRECTORY | O_CLOEXEC | O_NOFOLLOW);
     if (private_tmp_root_fd < 0) {
@@ -112,15 +105,8 @@ static void setup_private_tmp(const char *snap_instance) {
     }
     // Create /tmp/snap-private-tmp/snap.$SNAP_INSTANCE_NAME/ 0700 root:root.
     sc_must_snprintf(base, sizeof(base), "snap.%s", snap_instance);
-    if (mkdirat(private_tmp_root_fd, base, 0700) < 0) {
-        if (errno != EEXIST) {
-            die("cannot create base directory: %s", base);
-        }
-    } else {
-        // new directory, ensure correct ownership
-        if (fchownat(private_tmp_root_fd, base, 0, 0, AT_SYMLINK_NOFOLLOW) < 0) {
-            die("cannot set ownership for directory %s", base);
-        }
+    if (sc_ensure_mkdirat(private_tmp_root_fd, base, 0700, 0, 0) != 0) {
+        die("cannot create base directory: %s", base);
     }
 
     base_dir_fd = openat(private_tmp_root_fd, base, O_RDONLY | O_DIRECTORY | O_CLOEXEC | O_NOFOLLOW);
@@ -135,15 +121,8 @@ static void setup_private_tmp(const char *snap_instance) {
     }
     // Create /tmp/$PRIVATE/snap.$SNAP_NAME/tmp 01777 root:root Ignore EEXIST since we
     // want to reuse and we will open with O_NOFOLLOW, below.
-    if (mkdirat(base_dir_fd, "tmp", 01777) < 0) {
-        if (errno != EEXIST) {
-            die("cannot create private tmp directory %s/tmp", base);
-        }
-    } else {
-        // new directory, ensure correct ownership
-        if (fchownat(base_dir_fd, "tmp", 0, 0, AT_SYMLINK_NOFOLLOW) < 0) {
-            die("cannot set ownership for private tmp directory %s/tmp", base);
-        }
+    if (sc_ensure_mkdirat(base_dir_fd, "tmp", 01777, 0, 0) != 0) {
+        die("cannot create private tmp directory %s/tmp", base);
     }
     tmp_dir_fd = openat(base_dir_fd, "tmp", O_RDONLY | O_DIRECTORY | O_CLOEXEC | O_NOFOLLOW);
     if (tmp_dir_fd < 0) {
@@ -250,7 +229,7 @@ static void sc_do_mounts(const char *scratch_dir, const struct sc_mount *mounts)
     // disabling the "is_bidirectional" flag as can be seen below.
     for (const struct sc_mount *mnt = mounts; mnt && mnt->path != NULL; mnt++) {
         if (mnt->is_bidirectional) {
-            if (mkdir(mnt->path, 0755) < 0 && errno != EEXIST) {
+            if (sc_ensure_mkdir(mnt->path, 0755, 0, 0) != 0) {
                 die("cannot create %s", mnt->path);
             }
         }
@@ -383,6 +362,7 @@ static void sc_replicate_base_rootfs(const char *scratch_dir, const char *rootfs
 
         sc_must_snprintf(full_path, sizeof(full_path), "%s/%s", scratch_dir, ent->d_name);
         if (ent->d_type == DT_DIR) {
+            /* TODO:nonsetuid: sc_ensure_mkdir? */
             if (mkdir(full_path, 0755) < 0) {
                 die("cannot create directory \"%s\"", full_path);
             }
