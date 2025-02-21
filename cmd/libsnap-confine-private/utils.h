@@ -143,4 +143,15 @@ int sc_ensure_mkdirat(int fd, const char *name, mode_t mode, uid_t uid, uid_t gi
  */
 int sc_ensure_mkdir(const char *name, mode_t mode, uid_t uid, uid_t gid);
 
+/**
+ * Macro which calculates array size.
+ *
+ * Based on ARRAY_SIZE from the Linux kernel, see
+ * https://elixir.bootlin.com/linux/v6.13.3/source/include/linux/array_size.h#L11
+ */
+#define SC_ARRAY_SIZE(arr)                                                                                  \
+    (sizeof(arr) / sizeof((arr)[0]) + ((int)sizeof(struct {                                                 \
+         _Static_assert(!__builtin_types_compatible_p(typeof(arr), typeof(&(arr)[0])), "must be an array"); \
+     })))
+
 #endif
