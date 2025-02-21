@@ -61,13 +61,6 @@ class Lock:
     def get_trace(self) -> LockTrace:
         return self.trace
 
-    def str(self) -> str:
-        all_lines = list[str](self.header)
-        all_lines.extend(self.trace.get_trace_lines())
-        return "".join(all_lines)
-
-
-
 class LocksGroup:
 
     LOCK_PREFIX = "### "
@@ -93,6 +86,9 @@ class LocksGroup:
             self.locks.append(Lock(lock_lines))
             current_line = current_line + len(lock_lines)
 
+    def __str__(self) -> str:
+        return "".join(self.lines)
+
     def _is_lock(self, line: str) -> bool:
         return line.startswith(self.LOCK_PREFIX)
 
@@ -112,69 +108,8 @@ class LocksGroup:
     def get_name(self) -> str:
         return self.header
 
-    def filter(self, held_time: int, wait_time: int):
-        filtered_locks = []
-
-        for lock in self.locks:
-            filter_ok = True
-            if held_time and held_time > lock.get_held_time():
-                filter_ok = False
-            if wait_time and wait_time > lock.get_wait_time():
-                filter_ok = False
-
-            if filter_ok:
-                filtered_locks.append(lock)
-
-        self.locks = filtered_locks
-
-    def match(self, match_names: list[str]):
-        filtered_locks = []
-
-        for lock in self.locks:
-            match = False
-            for match_name in match_names:
-                if lock.get_trace().match(match_name):
-                    match = True
-                    break
-
-            if match:
-                filtered_locks.append(lock)
-
-        self.locks = filtered_locks
-
-    def skip(self, skip_names: list[str]):
-        filtered_locks = []
-
-        for lock in self.locks:
-            match_skip = False
-            for skip_name in skip_names:
-                if skip_name in lock.get_trace():
-                    match_skip = True
-                    break
-
-            if not match_skip:
-                filtered_locks.append(lock)
-
-        self.locks = filtered_locks
-
     def get_locks(self) -> list[Lock]:
         return self.locks
-
-    def get_max_held(self) -> int:
-        max_held = 0
-        for lock in self.locks:
-            if lock.get_held_time() > max_held:
-                max_held = lock.get_held_time()
-                
-        return max_held
-
-    def get_max_wait(self) -> int:
-        max_wait = 0
-        for lock in self.locks:
-            if lock.get_wait_time() > max_wait:
-                max_wait = lock.get_wait_time()
-                
-        return max_wait
 
     def get_traces(self) -> list[LockTrace]:
         traces = []
@@ -196,47 +131,6 @@ class LocksGroup:
             
         return 0
 
-    def show(self):        
-        print(self.header)
-        for lock in self.locks:
-            print(lock.str())
-
-class LocksFilter:
-
-    def __init__(self, groups: list[LocksGroup]):
-        self.groups = groups
-
-    def filter(self, held_time: int, wait_time: int):
-        filtered_groups = []
-        for group in self.groups:
-            group.filter(held_time, wait_time)
-            if len(group.get_locks()) > 0:
-                filtered_groups.append(group)
-
-        self.groups = filtered_groups
-
-    def match(self, match_names: list[str]):
-        filtered_groups = []
-        for group in self.groups:
-            group.match(match_names)
-            if len(group.get_locks()) > 0:
-                filtered_groups.append(group)
-
-        self.groups = filtered_groups
-
-    def skip(self, skip_names: list[str]):
-        filtered_groups = []
-        for group in self.groups:
-            group.skip(skip_names)
-            if len(group.get_locks()) > 0:
-                filtered_groups.append(group)
-        
-        self.groups = filtered_groups
-
-    def get_groups(self) -> list[LocksGroup]:
-        return self.groups
-
-
 class GroupTimes:
     def __init__(self, group_name: str, held_time: int, wait_time: int):
         self.group_name = group_name
@@ -252,57 +146,46 @@ class GroupTimes:
     def get_wait_time(self) -> int: 
         return self.wait_time
 
-class LocksPrinter:
-    def __init__(self, groups: list[LocksGroup]):
-        self.groups = groups
+class LockTraceManager:
+    def __init__(self, traces: dict[LockTrace, list[GroupTimes]]):
+        self.traces = traces
 
-    def _get_traces_times(self) -> dict[LockTrace, list[GroupTimes]]:
-        traces = dict[LockTrace, list[GroupTimes]]()
-        for group in self.groups:
-            group_traces = group.get_traces()
-            for trace in group_traces:
-                group_time = GroupTimes(group.get_name(), 
-                                        group.get_lock_held_time(trace),
-                                        group.get_lock_wait_time(trace))
-                if not self._is_trace_in_list(trace, traces.keys()):
-                    traces[trace] = list[GroupTimes]()
-                traces.get(trace).append(group_time)
+    # Filter the times for each trace
+    def filter(self, held_time: int, wait_time: int):
+        filtered_traces = dict[LockTrace, list[GroupTimes]]()
+        for trace, times in self.traces.items():
+            filtered_times = [time for time in self.traces.get(trace) if time.get_held_time() >= held_time and time.get_wait_time() >= wait_time]
+            filtered_traces[trace] = filtered_times
+    
+        self.traces = filtered_traces
 
-        return traces
+    # Keep the traces that match with the params
+    def match(self, match_names: list[str]):
+        filtered_traces = dict[LockTrace, list[GroupTimes]]()
+        for trace, times in self.traces.items():
+            for match_name in match_names:
+                if trace.match(match_name):
+                    filtered_traces[trace] = times
+    
+        self.traces = filtered_traces
 
-    def _is_trace_in_list(self, trace: LockTrace, traces: list[LockTrace]) -> bool:
-        for t in traces:
-            if t == trace:
-                return True
-            
-        return False
+    # print the traces with their times for each test
+    def print(self, sort_held_time, sort_wait_time):
+        if sort_held_time:
+            for trace, times in self.traces.items():
+                self.traces[trace] = sorted(times, key=lambda x: x.get_held_time(), reverse=True)
+        if sort_wait_time:
+            for trace, times in self.traces.items():
+                self.traces[trace] = sorted(times, key=lambda x: x.get_held_time(), reverse=True)
 
-    def print(self, group_results, sort_held_time, sort_wait_time):
-        if not group_results:
-            if sort_held_time:
-                groups = sorted(self.groups, key=lambda x: x.get_max_held(), reverse=True)
-            elif sort_wait_time:
-                groups = sorted(self.groups, key=lambda x: x.get_max_wait(), reverse=True)
-
-            for group in groups:
-                group.show()
-        else:
-            traces_times = self._get_traces_times()
-
-            if sort_held_time:
-                for trace, times in traces_times.items():
-                    traces_times[trace] = sorted(times, key=lambda x: x.get_held_time(), reverse=True)
-            if sort_wait_time:
-                for trace, times in traces_times.items():
-                    traces_times[trace] = sorted(times, key=lambda x: x.get_held_time(), reverse=True)
-
-            for trace, times in traces_times.items():                
-                print("-"*20+"TRACE"+"-"*20)
-                print(trace)
-                print("")
-                for time in times:
-                    print("{} held: {} ms, wait: {} ms".format(time.get_group_name(), time.get_held_time(), time.get_wait_time()))
-                print("")                
+        for trace, times in self.traces.items():                
+            print("-"*20+"TRACE"+"-"*20)
+            print("")
+            print(trace)
+            print("")
+            for time in times:
+                print("{} held: {} ms, wait: {} ms".format(time.get_group_name(), time.get_held_time(), time.get_wait_time()))
+            print("")                
 
 class LocksFileReader:
 
@@ -342,6 +225,7 @@ class LocksFileReader:
     def _is_test(self, line: str) -> bool:
         return not self._is_project(line) and line.startswith(self.TEST_PREFIX)
 
+    # Indicates if the line is the project declaration
     def _is_project(self, line: str) -> bool:
         return line.startswith(self.PROJECT_PREFIX)
     
@@ -358,21 +242,42 @@ class LocksFileReader:
             curr_test.append(self.lines[current_line])
             current_line = current_line + 1
 
-    def get_groups(self) -> list[LocksGroup]:
-        return self.groups         
+    # Retrieve the test lines
+    def get_test(self, test: str) -> list[str]:
+        for group in self.groups:
+            if test in group.get_name():
+                return str(group)
+            
+        return ""
+
+    # Retrieve the times for each trace in the file
+    # For each trace, there is a list with the times for each test where the trace appears
+    def get_traces_times(self) -> dict[LockTrace, list[GroupTimes]]:
+        traces = dict[LockTrace, list[GroupTimes]]()
+        for group in self.groups:
+            group_traces = group.get_traces()
+            for trace in group_traces:
+                group_time = GroupTimes(group.get_name(), 
+                                        group.get_lock_held_time(trace),
+                                        group.get_lock_wait_time(trace))
+                if not trace in traces.keys():
+                    traces[trace] = list[GroupTimes]()
+                traces.get(trace).append(group_time)
+
+        return traces
 
 
 def _make_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="spread filter helper")
     parser.add_argument("-f", "--locks-file", type=str, required=True, help="Locks file")
-    parser.add_argument("-ht", "--held-time", type=int, default=0, help="Include locks with longer held time")
-    parser.add_argument("-wt", "--wait-time", type=int, default=0, help="Include locks with longer wait time")
-    parser.add_argument("-m", "--match", action="append", default=[], help="Include functions to match")
-    parser.add_argument("-s", "--skip", action="append", default=[], help="Include functions to skip")
-    parser.add_argument("--sort-held-time", action='store_true', help="Sort higher held times first")
-    parser.add_argument("--sort-wait-time", action='store_true', help="Sort higher wait times first")
-    parser.add_argument("-g", "--group-results", action='store_true', help="Group results with the same traces")
-    
+    parser.add_argument("--test", default="", 
+                        help="Show results for this test, when test is selected no other filters are applied.")
+    parser.add_argument("--match", action='append', default=[], help="Show traces that match this specific word")
+    parser.add_argument("--held-time", type=int, default=0, help="Include locks with longer held time")
+    parser.add_argument("--wait-time", type=int, default=0, help="Include locks with longer wait time")
+    parser.add_argument("--sort-held-time", action="store_true", help="Sort higher times first by held time")
+    parser.add_argument("--sort-wait-time", action="store_true", help="Sort higher times first by wait time")
+
     return parser
 
 
@@ -389,22 +294,18 @@ if __name__ == "__main__":
         sys.exit(1)
 
     locks_reader = LocksFileReader(args.locks_file)
-    locks_filter = LocksFilter(locks_reader.get_groups())
+    if args.test:        
+        print(locks_reader.get_test(args.test))
+        sys.exit()
 
+    trace_manager = LockTraceManager(locks_reader.get_traces_times())
     # First filter by time
     if args.held_time > 0 or args.wait_time > 0:
-        locks_filter.filter(args.held_time, args.wait_time)
+        trace_manager.filter(args.held_time, args.wait_time)
 
     # Then keep traces with matches
     if args.match:
-        locks_filter.match(args.match)
+        trace_manager.match(args.match)
 
-    # Then skip traces with matches
-    if args.skip:
-        locks_filter.skip(args.skip)
-
-    # Once the locks have been filtered, it is time to print them
-    locks_printer = LocksPrinter(locks_filter.get_groups())
-
-    # And finally print the results
-    locks_printer.print(args.group_results, args.sort_held_time, args.sort_wait_time)   
+    # And finally print the sorted results (if required)
+    trace_manager.print(args.sort_held_time, args.sort_wait_time)   
