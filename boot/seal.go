@@ -115,8 +115,8 @@ func sealKeyToModeenvImpl(
 	modeenv *Modeenv,
 	flags sealKeyToModeenvFlags,
 ) error {
-	if !isModeenvLocked() {
-		return fmt.Errorf("internal error: cannot seal without the modeenv lock")
+	if !isSealModeenvLocked() {
+		return fmt.Errorf("internal error: cannot seal without the seal modeenv lock")
 	}
 
 	// make sure relevant locations exist
