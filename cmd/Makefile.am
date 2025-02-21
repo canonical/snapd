@@ -390,10 +390,6 @@ if APPARMOR
 endif
 	rmdir $(DESTDIR)$(snapdstatedir)/void || true
 
-install-exec-hook:
-# Ensure that snap-confine is u+s (setuid)
-	chmod 4755 $(DESTDIR)$(libexecdir)/snap-confine
-
 ##
 ## snap-mgmt
 ##
