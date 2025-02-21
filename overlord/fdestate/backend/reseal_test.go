@@ -1827,6 +1827,7 @@ func (s *resealTestSuite) TestHooksResealHappy(c *C) {
 			c.Check(primaryKeyFile, Equals, filepath.Join(s.rootdir, "run/mnt/ubuntu-save/device/fde/aux-key"))
 			c.Assert(models, HasLen, 1)
 			c.Check(models[0].Model(), Equals, model.Model())
+			c.Check(bootModes, DeepEquals, []string{"run", "recover"})
 		case 2:
 			// Resealing the recovery key for both data partition
 			c.Check(keys, DeepEquals, []secboot.KeyDataLocation{
@@ -1839,6 +1840,7 @@ func (s *resealTestSuite) TestHooksResealHappy(c *C) {
 			c.Check(primaryKeyFile, Equals, filepath.Join(s.rootdir, "run/mnt/ubuntu-save/device/fde/aux-key"))
 			c.Assert(models, HasLen, 1)
 			c.Check(models[0].Model(), Equals, model.Model())
+			c.Check(bootModes, DeepEquals, []string{"recover"})
 		case 3:
 			// Resealing the recovery key for both save partition
 			c.Check(keys, DeepEquals, []secboot.KeyDataLocation{
@@ -1851,6 +1853,7 @@ func (s *resealTestSuite) TestHooksResealHappy(c *C) {
 			c.Check(primaryKeyFile, Equals, filepath.Join(s.rootdir, "run/mnt/ubuntu-save/device/fde/aux-key"))
 			c.Assert(models, HasLen, 1)
 			c.Check(models[0].Model(), Equals, model.Model())
+			c.Check(bootModes, DeepEquals, []string{"recover", "factory-reset"})
 		default:
 			c.Errorf("unexpected additional call to secboot.ResealKey (call # %d)", resealCalls)
 		}

@@ -87,7 +87,7 @@ type SealKeyRequest struct {
 	// The file to store the key data. If empty, the key data will
 	// be saved to the token.
 	KeyFile string
-	// The boot modes allow (i.e. snapd_recovery_mode kernel parameter)
+	// The boot modes allowed (i.e. snapd_recovery_mode kernel parameter)
 	BootModes []string
 }
 
@@ -184,11 +184,6 @@ type ResealKeysParams struct {
 	Keys []KeyDataLocation
 	// The path to the authorization policy update key file (only relevant for TPM)
 	TPMPolicyAuthKeyFile string
-}
-
-type ResealKeysParamsForHooks struct {
-	Models    []ModelForSealing
-	BootModes []string
 }
 
 // UnlockVolumeUsingSealedKeyOptions contains options for unlocking encrypted
