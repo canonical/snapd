@@ -1,0 +1,9 @@
+bin/ubuntu-core-initramfs usr/bin
+postinst.d etc/kernel/
+snakeoil/* usr/lib/ubuntu-core-initramfs/snakeoil/
+debian/tmp/* usr/lib/ubuntu-core-initramfs/main
+modules usr/lib/ubuntu-core-initramfs/
+fips usr/lib/ubuntu-core-initramfs/
+snap-bootstrap usr/lib/ubuntu-core-initramfs/main/usr/lib/snapd/
+snapd/info usr/lib/ubuntu-core-initramfs/main/usr/lib/snapd/
+snapd/snapd.recovery-chooser-trigger.service usr/lib/ubuntu-core-initramfs/main/usr/lib/systemd/system/

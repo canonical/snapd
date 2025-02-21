@@ -1,7 +1,7 @@
 Source: ubuntu-core-initramfs
 Section: utils
 Priority: optional
-Maintainer: Dimitri John Ledkov <xnox@ubuntu.com>
+Maintainer: Alfonso Sanchez-Beato <alfonso.sanchez-beato@canonical.com>
 Build-Depends: debhelper-compat (= 13), dh-python,
                amd64-microcode [amd64],
                cpio,
