@@ -79,6 +79,7 @@ void sc_call_snap_update_ns(int snap_update_ns_fd, const char *snap_name, struct
 
     /* Switch the group to root so that directories, files and locks created by
      * snap-update-ns are owned by the root group. */
+    /* TODO:nonsetuid: drop in phase 2 */
     sc_identity root_identity = {
         .change_uid = 1,
         .change_gid = 1,
