@@ -10,13 +10,13 @@ execute: |
     # Local icon: icon-orange-chest.svg
     # Store icon: icon-orange-wing.svg
     SNAP_LOCAL=test-snapd-icons-api-local
-    SNAP_LOCAL_ID="$(snap info ${SNAP_LOCAL} | grep snap-id | tr -s ' ' | cut -d ' ' -f 2)"
+    SNAP_LOCAL_ID="$(snap info ${SNAP_LOCAL} | gojq --yaml-input -r '."snap-id"')"
 
     # Snap which only has a store icon, no local icon file
     # Local icon: none
     # Store icon: icon-orange-tail.svg
     SNAP_FALLBACK=test-snapd-icons-api-fallback
-    SNAP_FALLBACK_ID="$(snap info ${SNAP_FALLBACK} | grep snap-id | tr -s ' ' | cut -d ' ' -f 2)"
+    SNAP_FALLBACK_ID="$(snap info ${SNAP_FALLBACK} | gojq --yaml-input -r '."snap-id"')"
 
     echo "Ensure that snaps don't previously have icons cached"
     test ! -e "/var/cache/snapd/icons-pool/${SNAP_LOCAL_ID}.icon"
@@ -34,7 +34,7 @@ execute: |
     echo "Check that the snap which is supposed to have a local icon does in fact have a local icon"
     [ -f "/snap/${SNAP_LOCAL}/current/meta/gui/icon.svg" ]
     echo "Check that it is the expected icon"
-    diff -a "/snap/${SNAP_LOCAL}/current/meta/gui/icon.svg" icon-orange-chest.svg
+    cmp "/snap/${SNAP_LOCAL}/current/meta/gui/icon.svg" icon-orange-chest.svg
 
     echo "Check that the snap which is NOT supposed to have a local icon does not have no local icon"
     find /snap/"${SNAP_FALLBACK}"/current/meta/gui/icon.* | wc -l | MATCH 0
@@ -68,7 +68,7 @@ execute: |
 
     echo "Check that /v2/icons serves the local icon for the snap which has one"
     snap debug api "/v2/icons/${SNAP_LOCAL}/icon" > "${SNAP_LOCAL}.icon"
-    diff "${SNAP_LOCAL}.icon" "/snap/${SNAP_LOCAL}/current/meta/gui/icon.svg"
+    cmp "${SNAP_LOCAL}.icon" "/snap/${SNAP_LOCAL}/current/meta/gui/icon.svg"
 
     echo "Check that /v2/icons serves the store icon as fallback"
     snap debug api "/v2/icons/${SNAP_FALLBACK}/icon" > "${SNAP_FALLBACK}.icon"
