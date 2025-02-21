@@ -173,6 +173,20 @@ AC_PATH_PROG([HAVE_VALGRIND],[valgrind])
 AM_CONDITIONAL([HAVE_VALGRIND], [test "x${HAVE_VALGRIND}" != "x"])
 AS_IF([test "x$HAVE_VALGRIND" = "x"], [AC_MSG_WARN(["cannot find the valgrind tool, will not run unit tests through valgrind"])])
 
+AC_MSG_CHECKING([for cap_set_ambient() in libcap])
+saved_CFLAGS="$CFLAGS"
+CFLAGS="$CFLAGS -Werror"
+AC_COMPILE_IFELSE([AC_LANG_SOURCE([[
+  #include <sys/capability.h>
+  static int f(void) { return cap_set_ambient(CAP_SYS_ADMIN, CAP_SET); }
+]])],[
+  AC_DEFINE([HAVE_CAP_SET_AMBIENT], 1, [Define 1 if libcap has cap_set_ambient])
+  AC_MSG_RESULT(yes)
+],[
+  AC_MSG_RESULT(no)
+])
+CFLAGS="$saved_CFLAGS"
+
 # Allow linking selected libraries statically for reexec.
 AC_ARG_ENABLE([static-libcap],
     AS_HELP_STRING([--enable-static-libcap], [Link libcap statically]),
