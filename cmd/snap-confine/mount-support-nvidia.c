@@ -278,16 +278,9 @@ static void sc_mkdir_and_mount_and_glob_files(const char *rootfs_dir, const char
     sc_must_snprintf(buf, sizeof(buf), "%s%s", rootfs_dir, tgt_dir);
     const char *libgl_dir = buf;
 
-    sc_identity old = sc_set_effective_identity(sc_root_group_identity());
-    int res = mkdir(libgl_dir, 0755);
-    if (res != 0 && errno != EEXIST) {
+    if (sc_ensure_mkdir(libgl_dir, 0755, 0, 0) != 0) {
         die("cannot create tmpfs target %s", libgl_dir);
     }
-    if (res == 0 && (chown(libgl_dir, 0, 0) < 0)) {
-        // Adjust the ownership only if we created the directory.
-        die("cannot change ownership of %s", libgl_dir);
-    }
-    (void)sc_set_effective_identity(old);
 
     debug("mounting tmpfs at %s", libgl_dir);
     if (mount("none", libgl_dir, "tmpfs", MS_NODEV | MS_NOEXEC, NULL) != 0) {
@@ -415,16 +408,9 @@ static void sc_mkdir_and_mount_and_bind(const char *rootfs_dir, const char *src_
     if (access(src, F_OK) != 0) {
         return;
     }
-    sc_identity old = sc_set_effective_identity(sc_root_group_identity());
-    int res = mkdir(dst, 0755);
-    if (res != 0 && errno != EEXIST) {
+    if (sc_ensure_mkdir(dst, 0755, 0, 0) != 0) {
         die("cannot create directory %s", dst);
     }
-    if (res == 0 && (chown(dst, 0, 0) < 0)) {
-        // Adjust the ownership only if we created the directory.
-        die("cannot change ownership of %s", dst);
-    }
-    (void)sc_set_effective_identity(old);
     // Bind mount the binary nvidia driver into $tgt_dir (i.e. /var/lib/snapd/lib/gl).
     debug("bind mounting nvidia driver %s -> %s", src, dst);
     if (mount(src, dst, NULL, MS_BIND, NULL) != 0) {
