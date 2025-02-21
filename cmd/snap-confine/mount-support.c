@@ -362,6 +362,7 @@ static void sc_replicate_base_rootfs(const char *scratch_dir, const char *rootfs
 
         sc_must_snprintf(full_path, sizeof(full_path), "%s/%s", scratch_dir, ent->d_name);
         if (ent->d_type == DT_DIR) {
+            /* TODO:nonsetuid: sc_ensure_mkdir? */
             if (mkdir(full_path, 0755) < 0) {
                 die("cannot create directory \"%s\"", full_path);
             }
