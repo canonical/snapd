@@ -2322,3 +2322,16 @@ func InstallSetupStorageEncryption(st *state.State, label string, onVolumes map[
 
 	return chg, nil
 }
+
+func GetEncryptedDisks(st *state.State) ([]*EncryptedDisk, error) {
+	return deviceMgr(st).GetEncryptedDisks()
+}
+
+func MockDisksDMCryptUUIDFromMountPoint(f func(mountpoint string) (string, error)) (restore func()) {
+	osutil.MustBeTestBinary("MockDisksDMCryptUUIDFromMountPoint can only be called from tests")
+	old := disksDMCryptUUIDFromMountPoint
+	disksDMCryptUUIDFromMountPoint = f
+	return func() {
+		disksDMCryptUUIDFromMountPoint = old
+	}
+}
