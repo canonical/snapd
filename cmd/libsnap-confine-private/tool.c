@@ -54,14 +54,14 @@ static int sc_open_snapd_tool(const char *tool_name);
  * If such string is present, the "x" is replaced with either "0" or "1" depending on
  * the result of is_sc_debug_enabled().
  **/
-static void sc_call_snapd_tool(int tool_fd, const char *tool_name, char **argv, char **envp);
+static void sc_call_snapd_tool(int tool_fd, const char *tool_name, sc_identity identity, char **argv, char **envp);
 
 /**
  * sc_call_snapd_tool_with_apparmor calls a snapd tool by file descriptor,
  * possibly confining the program with a specific apparmor profile.
  **/
 static void sc_call_snapd_tool_with_apparmor(int tool_fd, const char *tool_name, struct sc_apparmor *apparmor,
-                                             const char *aa_profile, char **argv, char **envp);
+                                             const char *aa_profile, sc_identity identity, char **argv, char **envp);
 
 int sc_open_snap_update_ns(void) { return sc_open_snapd_tool("snap-update-ns"); }
 
@@ -79,9 +79,15 @@ void sc_call_snap_update_ns(int snap_update_ns_fd, const char *snap_name, struct
 
     /* Switch the group to root so that directories, files and locks created by
      * snap-update-ns are owned by the root group. */
-    sc_identity old = sc_set_effective_identity(sc_root_group_identity());
-    sc_call_snapd_tool_with_apparmor(snap_update_ns_fd, "snap-update-ns", apparmor, aa_profile, argv, envp);
-    (void)sc_set_effective_identity(old);
+    /* TODO:nonsetuid: drop in phase 2 */
+    sc_identity root_identity = {
+        .change_uid = 1,
+        .change_gid = 1,
+        .uid = 0,
+        .gid = 0,
+    };
+    sc_call_snapd_tool_with_apparmor(snap_update_ns_fd, "snap-update-ns", apparmor, aa_profile, root_identity, argv,
+                                     envp);
 }
 
 void sc_call_snap_update_ns_as_user(int snap_update_ns_fd, const char *snap_name, struct sc_apparmor *apparmor) {
@@ -112,7 +118,12 @@ void sc_call_snap_update_ns_as_user(int snap_update_ns_fd, const char *snap_name
                      * with either SNAPD_DEBUG=0 or SNAPD_DEBUG=1, see that function
                      * for details. */
                     "SNAPD_DEBUG=x", xdg_runtime_dir_env, snap_real_home_env, NULL};
-    sc_call_snapd_tool_with_apparmor(snap_update_ns_fd, "snap-update-ns", apparmor, aa_profile, argv, envp);
+    /* keep the current identity */
+    sc_identity identity = {
+        .change_gid = 0,
+        .change_uid = 0,
+    };
+    sc_call_snapd_tool_with_apparmor(snap_update_ns_fd, "snap-update-ns", apparmor, aa_profile, identity, argv, envp);
 }
 
 int sc_open_snap_discard_ns(void) { return sc_open_snapd_tool("snap-discard-ns"); }
@@ -126,9 +137,13 @@ void sc_call_snap_discard_ns(int snap_discard_ns_fd, const char *snap_name) {
     char *envp[] = {"SNAPD_DEBUG=x", NULL};
     /* Switch the group to root so that directories and locks created by
      * snap-discard-ns are owned by the root group. */
-    sc_identity old = sc_set_effective_identity(sc_root_group_identity());
-    sc_call_snapd_tool(snap_discard_ns_fd, "snap-discard-ns", argv, envp);
-    (void)sc_set_effective_identity(old);
+    sc_identity root_identity = {
+        .change_uid = 1,
+        .change_gid = 1,
+        .uid = 0,
+        .gid = 0,
+    };
+    sc_call_snapd_tool(snap_discard_ns_fd, "snap-discard-ns", root_identity, argv, envp);
 }
 
 static int sc_open_snapd_tool(const char *tool_name) {
@@ -164,18 +179,19 @@ static int sc_open_snapd_tool(const char *tool_name) {
     return tool_fd;
 }
 
-static void sc_call_snapd_tool(int tool_fd, const char *tool_name, char **argv, char **envp) {
-    sc_call_snapd_tool_with_apparmor(tool_fd, tool_name, NULL, NULL, argv, envp);
+static void sc_call_snapd_tool(int tool_fd, const char *tool_name, sc_identity identity, char **argv, char **envp) {
+    sc_call_snapd_tool_with_apparmor(tool_fd, tool_name, NULL, NULL, identity, argv, envp);
 }
 
 static void sc_call_snapd_tool_with_apparmor(int tool_fd, const char *tool_name, struct sc_apparmor *apparmor,
-                                             const char *aa_profile, char **argv, char **envp) {
+                                             const char *aa_profile, sc_identity identity, char **argv, char **envp) {
     debug("calling snapd tool %s", tool_name);
     pid_t child = fork();
     if (child < 0) {
         die("cannot fork to run snapd tool %s", tool_name);
     }
     if (child == 0) {
+        sc_set_effective_identity(identity);
         /* If the caller provided template environment entry for SNAPD_DEBUG
          * then expand it to the actual value. */
         for (char **env = envp;

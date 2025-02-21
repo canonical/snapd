@@ -233,8 +233,15 @@ parts:
       - libcap-dev
       - libseccomp-dev
       - pkg-config
+      - libcap2-bin
     override-pull: |
       craftctl default
+
+      # TODO drop
+      # need snapd 2.68
+      snap refresh snapd --beta
+      snap version | grep 2.68
+
       # set version, this needs dpkg-parsechangelog (from dpkg-dev) and git
       VERSION="$(./mkversion.sh --output-only)"
 
@@ -313,6 +320,11 @@ parts:
 
       make -j"${CRAFT_PARALLEL_BUILD_COUNT}"
       make DESTDIR="${CRAFT_PART_INSTALL}" install
+      echo "snap-confine capabilities"
+      setcap \
+          cap_dac_override,cap_dac_read_search,cap_sys_admin,cap_sys_chroot,cap_chown,cap_fowner,cap_sys_ptrace,cap_setuid,cap_setgid=ep \
+          "${CRAFT_PART_INSTALL}/usr/lib/snapd/snap-confine"
+      getcap "${CRAFT_PART_INSTALL}/usr/lib/snapd/snap-confine"
 
       cd "${CRAFT_PART_BUILD}"
 
@@ -448,6 +460,7 @@ parts:
         ) > "${CRAFT_PART_INSTALL}/usr/lib/snapd/dirty-git-tree-info.txt"
       fi
 
+      # XXX this will drop xatts from snap-confie
       find "${CRAFT_PART_INSTALL}/usr/lib/snapd" "${CRAFT_PART_INSTALL}/usr/bin" -type f -exec strip {} ";"
 
       if [ -f fips-build ]; then
@@ -456,6 +469,12 @@ parts:
       if [ -f fips-build-lp ]; then
         touch "${CRAFT_PART_INSTALL}/fips-build-lp"
       fi
+
+      # TODO: restore capabilities after stripping
+      setcap \
+          cap_dac_override,cap_dac_read_search,cap_sys_admin,cap_sys_chroot,cap_chown,cap_fowner,cap_sys_ptrace,cap_setuid,cap_setgid=ep \
+          "${CRAFT_PART_INSTALL}/usr/lib/snapd/snap-confine"
+      getcap "${CRAFT_PART_INSTALL}/usr/lib/snapd/snap-confine"
 
     <<:
       - *dynamic-linker
@@ -469,6 +488,11 @@ parts:
       PATH="${CRAFT_STAGE}"/usr/local/bin:$PATH \
           "${CRAFT_PROJECT_DIR}/build-aux/snap/local/patch-dl.py" \
               "/snap/snapd/current/usr/lib/${CRAFT_ARCH_TRIPLET_BUILD_FOR}/${DYNAMIC_LINKER}"
+
+      # XXX verify file capabilities
+      caps="$(getcap "${CRAFT_PART_INSTALL}/usr/lib/snapd/snap-confine")"
+      echo "-- caps: $caps"
+      test -n "$caps"
 
   libcrypto-fips:
     plugin: nil

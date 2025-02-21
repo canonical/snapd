@@ -64,7 +64,9 @@ jobs:
 
     - name: Check built artifact
       run: |
-        unsquashfs snapd*.snap snap/manifest.yaml meta/snap.yaml usr/lib/snapd/
+        sudo apt install fakeroot -y
+        fakeroot \
+            unsquashfs snapd*.snap snap/manifest.yaml meta/snap.yaml usr/lib/snapd/
         if cat squashfs-root/meta/snap.yaml | grep -q "version:.*dirty.*"; then
           echo "PR produces dirty snapd snap version"
           cat squashfs-root/usr/lib/snapd/dirty-git-tree-info.txt
