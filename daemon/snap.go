@@ -35,7 +35,6 @@ import (
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/healthstate"
 	"github.com/snapcore/snapd/overlord/snapstate"
-	"github.com/snapcore/snapd/overlord/snapstate/backend"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
 )
@@ -365,7 +364,7 @@ func snapIcon(info snap.PlaceInfo, snapID string) string {
 	}
 
 	// Look in the snap icons directory as a fallback
-	if fallback := backend.IconInstallFilename(snapID); fallback != "" && osutil.FileExists(fallback) {
+	if fallback := snapstate.IconInstallFilename(snapID); fallback != "" && osutil.FileExists(fallback) {
 		return fallback
 	}
 
