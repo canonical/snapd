@@ -243,6 +243,19 @@ static void test_sc_is_container__no_file(void) {
     g_assert_false(_sc_is_in_container("container"));
 }
 
+static void test_sc_array_size(void) {
+    char a1[] = {1, 2, 3, 4, 5};
+    char a_empty[] = {};
+    g_assert_cmpint(SC_ARRAY_SIZE(a1), ==, 5);
+    g_assert_cmpint(SC_ARRAY_SIZE(a_empty), ==, 0);
+
+#if 0
+    /* DOES NOT COMPILE due to static assert */
+    char *a_bad = "foobar";
+    g_assert_cmpint(SC_ARRAY_SIZE(a_bad), ==, 0);
+#endif
+}
+
 static void __attribute__((constructor)) init(void) {
     g_test_add_func("/utils/parse_bool", test_parse_bool);
     g_test_add_func("/utils/sc_is_expected_path", test_sc_is_expected_path);
@@ -254,4 +267,5 @@ static void __attribute__((constructor)) init(void) {
     g_test_add_func("/utils/sc_is_in_container/no_file", test_sc_is_container__no_file);
     g_test_add_func("/utils/sc_is_in_container/lxc", test_sc_is_container__lxc);
     g_test_add_func("/utils/sc_is_in_container/lxc_newline", test_sc_is_container__lxc_with_newline);
+    g_test_add_func("/utils/sc_array_size", test_sc_array_size);
 }

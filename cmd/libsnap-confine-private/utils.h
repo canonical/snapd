@@ -20,6 +20,17 @@
 #include <stdbool.h>
 #include <stdlib.h>
 
+/**
+ * Macro which calculates array size.
+ *
+ * Based on ARRAY_SIZE from the Linux kernel, see
+ * https://elixir.bootlin.com/linux/v6.13.3/source/include/linux/array_size.h#L11
+ */
+#define SC_ARRAY_SIZE(arr)                                                                                  \
+    (sizeof(arr) / sizeof((arr)[0]) + ((int)sizeof(struct {                                                 \
+         _Static_assert(!__builtin_types_compatible_p(typeof(arr), typeof(&(arr)[0])), "must be an array"); \
+     })))
+
 __attribute__((noreturn)) __attribute__((format(printf, 1, 2))) void die(const char *fmt, ...);
 
 __attribute__((format(printf, 1, 2))) void debug(const char *fmt, ...);
