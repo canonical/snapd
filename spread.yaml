@@ -1290,7 +1290,7 @@ suites:
         restore: |
             #shellcheck source=tests/lib/pkgdb.sh
             . "$TESTSLIB"/pkgdb.sh
-            distro_purge_package qemu genisoimage sshpass qemu-kvm cloud-image-utils
+            distro_purge_package qemu genisoimage sshpass qemu-kvm cloud-image-utils xz-utils
 
     tests/nested/classic/:
         summary: Tests for nested images
@@ -1352,7 +1352,7 @@ suites:
 
             #shellcheck source=tests/lib/pkgdb.sh
             . "$TESTSLIB"/pkgdb.sh
-            distro_purge_package qemu genisoimage sshpass qemu-kvm cloud-image-utils
+            distro_purge_package qemu genisoimage sshpass qemu-kvm cloud-image-utils xz-utils
 
     tests/nested/core/:
         summary: Tests for nested images
@@ -1419,7 +1419,7 @@ suites:
 
             #shellcheck source=tests/lib/pkgdb.sh
             . "$TESTSLIB"/pkgdb.sh
-            distro_purge_package qemu genisoimage sshpass qemu-kvm cloud-image-utils
+            distro_purge_package qemu genisoimage sshpass qemu-kvm cloud-image-utils xz-utils
 
     tests/perf/nested/:
         summary: Performance and Load tests preparation suite
