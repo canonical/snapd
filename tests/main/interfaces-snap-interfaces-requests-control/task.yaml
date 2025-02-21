@@ -11,6 +11,8 @@ details: |
       - /v2/system-info: to check whether prompting is supported/enabled
       - /v2/snaps/{name}: to get details about installed snaps
 
+systems: [ubuntu-2*]
+
 environment:
     # not all terminals support UTF-8, but Python tries to be smart and attempts
     # to guess the encoding as if the output would go to the terminal, but in
