@@ -45,9 +45,12 @@ prepare: |
         tests.exec skip-test "Ubuntu 22.04 AppArmor parser doesn't support prompting" && exit 0
     fi
 
-    tests.session prepare -u test                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               
+    tests.session prepare -u test
     tests.session -u test exec sh -c 'mkdir -p "/home/test/integration-tests"'
     snap install prompting-client
+
+    # Ensure lsof is installed
+    command -v lsof || tests.pkgs install lsof
 
 restore: |
     tests.exec is-skipped && exit 0
@@ -85,7 +88,7 @@ execute: |
 
         exit 0
     fi
-    
+
     SNAPD_PID="$(systemctl show --property MainPID snapd.service | cut -f2 -d=)"
 
     echo "Enable AppArmor prompting experimental feature"
