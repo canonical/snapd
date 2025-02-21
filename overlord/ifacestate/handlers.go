@@ -122,7 +122,7 @@ func (m *InterfaceManager) setupAffectedSnaps(task *state.Task, affectingSnap st
 		if err != nil {
 			return err
 		}
-		if err := addImplicitSlots(st, affectedSnapInfo); err != nil {
+		if err := addImplicitInterfaces(st, affectedSnapInfo); err != nil {
 			return err
 		}
 
@@ -182,7 +182,7 @@ func (m *InterfaceManager) doSetupProfiles(task *state.Task, tomb *tomb.Tomb) er
 		return err
 	}
 
-	if err := addImplicitSlots(task.State(), snapInfo); err != nil {
+	if err := addImplicitInterfaces(task.State(), snapInfo); err != nil {
 		return err
 	}
 
@@ -317,7 +317,7 @@ func (m *InterfaceManager) setupProfilesForAppSet(task *state.Task, appSet *inte
 		if err != nil {
 			return err
 		}
-		if err := addImplicitSlots(st, snapInfo); err != nil {
+		if err := addImplicitInterfaces(st, snapInfo); err != nil {
 			return err
 		}
 
@@ -468,7 +468,7 @@ func (m *InterfaceManager) undoSetupProfiles(task *state.Task, tomb *tomb.Tomb) 
 			return err
 		}
 
-		if err := addImplicitSlots(st, snapInfo); err != nil {
+		if err := addImplicitInterfaces(st, snapInfo); err != nil {
 			return err
 		}
 
