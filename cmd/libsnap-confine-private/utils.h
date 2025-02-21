@@ -60,8 +60,8 @@ bool sc_is_in_container(void);
 typedef struct sc_identity {
     uid_t uid;
     gid_t gid;
-    unsigned change_uid : 1;
-    unsigned change_gid : 1;
+    bool change_uid : 1;
+    bool change_gid : 1;
 } sc_identity;
 
 /**
@@ -75,8 +75,8 @@ static inline sc_identity sc_root_group_identity(void) {
     sc_identity id = {
         /* Explicitly set our intent of changing just the GID.
          * Refactoring of this code must retain this property. */
-        .change_uid = 0,
-        .change_gid = 1,
+        .change_uid = false,
+        .change_gid = true,
         .gid = 0,
     };
     return id;
