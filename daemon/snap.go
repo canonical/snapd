@@ -25,11 +25,13 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/client/clientutil"
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/healthstate"
 	"github.com/snapcore/snapd/overlord/snapstate"
@@ -245,7 +247,7 @@ func mapLocal(about aboutSnap, sd clientutil.StatusDecorator) *client.Snap {
 	}
 	result.InstalledSize = localSnap.Size
 
-	if icon := snapIcon(localSnap); icon != "" {
+	if icon := snapIcon(localSnap, localSnap.SnapID); icon != "" {
 		result.Icon = icon
 	}
 
@@ -343,12 +345,29 @@ func fillComponentInfo(about aboutSnap) []client.Component {
 	return comps
 }
 
-// snapIcon tries to find the icon inside the snap
-func snapIcon(info snap.PlaceInfo) string {
+// snapIcon tries to find the icon inside the snap at meta/gui/icon.*, and if
+// the snap does not ship an icon there, then tries to find the fallback icon
+// in the icons install directory.
+func snapIcon(info snap.PlaceInfo, snapID string) string {
+	// Look in the snap itself
 	found, _ := filepath.Glob(filepath.Join(info.MountDir(), "meta", "gui", "icon.*"))
-	if len(found) == 0 {
-		return ""
+	// Prioritize svg if it exists, else png, else whatever we can get
+	for _, filetype := range []string{".svg", ".png"} {
+		for _, filename := range found {
+			if strings.HasSuffix(filename, filetype) {
+				return filename
+			}
+		}
+	}
+	if len(found) > 0 {
+		return found[0]
 	}
 
-	return found[0]
+	// Look in the snap icons directory as a fallback
+	if fallback := snapstate.IconInstallFilename(snapID); fallback != "" && osutil.FileExists(fallback) {
+		return fallback
+	}
+
+	// Didn't find an icon
+	return ""
 }

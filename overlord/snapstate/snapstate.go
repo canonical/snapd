@@ -4830,6 +4830,14 @@ var cleanSnapDownloads = func(st *state.State, snapName string) error {
 	return err
 }
 
+// IconInstallFilename returns the path at which the cached icon would be
+// located for the snap with the given ID, if it exists. This function always
+// returns the path (for non-empty snap ID), and does not check whether the
+// snap is installed or the icon is actually present.
+func IconInstallFilename(snapID string) string {
+	return backend.IconInstallFilename(snapID)
+}
+
 func MockOsutilCheckFreeSpace(mock func(path string, minSize uint64) error) (restore func()) {
 	old := osutilCheckFreeSpace
 	osutilCheckFreeSpace = mock
