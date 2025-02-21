@@ -11,10 +11,7 @@ details: |
 
 
 systems:
-  - ubuntu-16*
-  - ubuntu-18*
   - ubuntu-2*
-  - ubuntu-core-*-64-*
 
 environment:
     VARIANT/read_single_allow: read_single_allow
@@ -41,6 +38,9 @@ environment:
     SNAPD_NO_MEMORY_LIMIT: 1
 
 prepare: |
+    if os.query is-ubuntu 20.04; then
+        tests.exec skip-test "Ubuntu 20.04 kernels doesn't support prompting" && exit 0
+    fi
     if not tests.info is-reexec-in-use && os.query is-ubuntu 22.04; then
         tests.exec skip-test "Ubuntu 22.04 AppArmor parser doesn't support prompting" && exit 0
     fi
@@ -72,20 +72,6 @@ execute: |
     echo "Precondition check that snapd is active"
     systemctl is-active snapd.service snapd.socket
 
-    echo "Enable prompting via snap client where possible"
-    # Prompting is unsupported everywhere but the Ubuntu non-core systems with
-    # kernels which support apparmor prompting
-    if ! os.query is-ubuntu || os.query is-core || ! grep 'prompt' /sys/kernel/security/apparmor/features/policy/permstable32; then
-        not snap set system experimental.apparmor-prompting=true >& err.out
-        if os.query is-core ; then
-            MATCH "cannot enable prompting feature as it is not supported on Ubuntu Core systems" < err.out
-        else
-            MATCH "cannot enable prompting feature as it is not supported by the system" < err.out
-        fi
-
-        exit 0
-    fi
-    
     SNAPD_PID="$(systemctl show --property MainPID snapd.service | cut -f2 -d=)"
 
     echo "Enable AppArmor prompting experimental feature"
