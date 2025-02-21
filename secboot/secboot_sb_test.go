@@ -2849,7 +2849,7 @@ func (s *secbootSuite) TestResealKeysWithFDESetupHookV1(c *C) {
 		KeyFile:    key1Fn,
 	}
 
-	err = secboot.ResealKeysWithFDESetupHook([]secboot.KeyDataLocation{key1Location}, auxKeyFn, []secboot.ModelForSealing{m})
+	err = secboot.ResealKeysWithFDESetupHook([]secboot.KeyDataLocation{key1Location}, auxKeyFn, []secboot.ModelForSealing{m}, []string{"run"})
 	c.Assert(err, IsNil)
 
 	// Nothing should have happened. But we make sure that they key is still there untouched.
@@ -2890,7 +2890,7 @@ func (s *secbootSuite) TestResealKeysWithFDESetupHookV2(c *C) {
 		KeyFile:    key1Fn,
 	}
 
-	err = secboot.ResealKeysWithFDESetupHook([]secboot.KeyDataLocation{key1Location}, auxKeyFn, []secboot.ModelForSealing{m})
+	err = secboot.ResealKeysWithFDESetupHook([]secboot.KeyDataLocation{key1Location}, auxKeyFn, []secboot.ModelForSealing{m}, []string{"run"})
 	c.Assert(err, IsNil)
 
 	afterReader, err := sb.NewFileKeyDataReader(key1Fn)
@@ -2965,15 +2965,24 @@ func (s *secbootSuite) TestResealKeysWithFDESetupHook(c *C) {
 		return nil
 	})
 
+	bootModesSet := 0
+	secboot.MockSetAuthorizedBootModesOnHooksKeydata(func(kd *sb_hooks.KeyData, rand io.Reader, key sb.PrimaryKey, bootModes ...string) error {
+		bootModesSet++
+		c.Check([]byte(key), DeepEquals, primaryKey)
+		c.Check(bootModes, DeepEquals, []string{"some-mode"})
+		return nil
+	})
+
 	key1Location := secboot.KeyDataLocation{
 		DevicePath: "/dev/somedevice",
 		SlotName:   "token-name",
 		KeyFile:    key1Fn,
 	}
 
-	err = secboot.ResealKeysWithFDESetupHook([]secboot.KeyDataLocation{key1Location}, primaryKeyFn, []secboot.ModelForSealing{newModel})
+	err = secboot.ResealKeysWithFDESetupHook([]secboot.KeyDataLocation{key1Location}, primaryKeyFn, []secboot.ModelForSealing{newModel}, []string{"some-mode"})
 	c.Assert(err, IsNil)
 	c.Check(modelSet, Equals, 1)
+	c.Check(bootModesSet, Equals, 1)
 	c.Check(tokenWritten, Equals, 1)
 }
 
@@ -3030,15 +3039,24 @@ func (s *secbootSuite) TestResealKeysWithFDESetupHookFromFile(c *C) {
 		return nil
 	})
 
+	bootModesSet := 0
+	secboot.MockSetAuthorizedBootModesOnHooksKeydata(func(kd *sb_hooks.KeyData, rand io.Reader, key sb.PrimaryKey, bootModes ...string) error {
+		bootModesSet++
+		c.Check([]byte(key), DeepEquals, primaryKey)
+		c.Check(bootModes, DeepEquals, []string{"some-mode"})
+		return nil
+	})
+
 	key1Location := secboot.KeyDataLocation{
 		DevicePath: "/dev/foo",
 		SlotName:   "default",
 		KeyFile:    key1Fn,
 	}
 
-	err = secboot.ResealKeysWithFDESetupHook([]secboot.KeyDataLocation{key1Location}, primaryKeyFn, []secboot.ModelForSealing{newModel})
+	err = secboot.ResealKeysWithFDESetupHook([]secboot.KeyDataLocation{key1Location}, primaryKeyFn, []secboot.ModelForSealing{newModel}, []string{"some-mode"})
 	c.Assert(err, IsNil)
 	c.Check(modelSet, Equals, 1)
+	c.Check(bootModesSet, Equals, 1)
 	// We tried to read key data from token
 	c.Check(readKeyTokenCalls, Equals, 1)
 }
