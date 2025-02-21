@@ -7,9 +7,9 @@ import subprocess
 
 
 class All:
-    pattern = r"(.*)"
+    regex = re.compile(r"(.*)")
     name = "all"
-    parent = "all"
+    parent = "all"    
 
     @staticmethod
     def compose_dict(re_search):
@@ -78,9 +78,8 @@ def _get_snapd_entries_after_timestamp(boot_list, log_dir, timestamp):
     :param boot_list: list of boot numbers to search for snapd entries
     :param log_dir: (optional) directory containing journal files. If None, will search the system journal
     :param timestamp: (optional) timestamp from when to begin the search for snapd entries. If None, will return all snapd entries
-    :return: list of snapd entries
+    :return: iterator of snapd entries
     '''
-    output = []
     for boot in boot_list:
         cmd = ['journalctl', '-u', 'snapd', '--no-pager', '-b', boot]
         if log_dir:
@@ -88,14 +87,16 @@ def _get_snapd_entries_after_timestamp(boot_list, log_dir, timestamp):
         if timestamp:
             cmd.extend(['--since', timestamp])
 
-        boot_output = subprocess.check_output(cmd, universal_newlines=True)
-        output.extend(boot_output.splitlines())
-    return output
+        process = subprocess.Popen(
+            cmd, stdout=subprocess.PIPE, universal_newlines=True)
+        for line in process.stdout:
+            yield line
+        process.terminate()
 
 
-def get_snapd_entires(log_dir=None, beginning_tag=None):
+def get_snapd_entries(log_dir=None, beginning_tag=None):
     '''
-    Returns snapd entires in the journal after the (optional) beginning_tag.
+    Returns snapd entries in the journal after the (optional) beginning_tag.
 
     :param log_dir: (optional) directory containing journal files. If None, will search the system journal
     :param beginning_tag: (optional) tag from where to begin searching the journal
@@ -130,7 +131,7 @@ def get_feature_dictionary(log_lines, feature_list):
 
     for line in log_lines:
         for feature_class in feature_classes:
-            search = re.search(feature_class.pattern, line)
+            search = feature_class.regex.search(line)
             if search:
                 feature_entry = feature_class.compose_dict(search)
                 if feature_class.parent not in feature_dict:
@@ -154,6 +155,6 @@ if __name__ == "__main__":
         '-t', '--tag', help='Tag from where to begin searching the journal', required=False)
     args = parser.parse_args()
 
-    snapd_journal = get_snapd_entires(args.directory, args.tag)
+    snapd_journal = get_snapd_entries(args.directory, args.tag)
     feature_dictionary = get_feature_dictionary(snapd_journal, args.features)
     json.dump(feature_dictionary, open(args.output, "w"), indent=4)
