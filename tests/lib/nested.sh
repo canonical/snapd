@@ -1222,7 +1222,7 @@ nested_start_core_vm_unit() {
     PARAM_EXTRA="${NESTED_PARAM_EXTRA:-}"
 
     local PASSPHRASE
-    PASSPHRASE=${NESTED_PASSPHRASE:-}
+    PASSPHRASE=${NESTED_PASSPHRASE}
 
     # Open port 7777 on the host so that failures in the nested VM (e.g. to
     # create users) can be debugged interactively via
