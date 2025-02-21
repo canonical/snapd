@@ -28,7 +28,23 @@
 #include <sys/types.h>
 #include <unistd.h>
 
+#include "cleanup-funcs.h"
 #include "utils.h"
+
+void sc_cleanup_cap_t(cap_t *ptr) {
+    if (ptr != NULL && *ptr != NULL) {
+        cap_free(*ptr);
+        *ptr = NULL;
+    }
+}
+
+/* the same as sc_cleanup_cap_t but applicable to char* type */
+static void sc_cleanup_cap_str(char **ptr) {
+    if (ptr != NULL && *ptr != NULL) {
+        cap_free(*ptr);
+        *ptr = NULL;
+    }
+}
 
 static bool sc_has_capability(const char *cap_name) {
     // Lookup capability with the given name.
@@ -123,11 +139,11 @@ void sc_set_ambient_capabilities(sc_cap_mask capabilities) {
 
 void sc_debug_capabilities(const char *msg_prefix) {
     if (sc_is_debug_enabled()) {
-        cap_t caps SC_CLEANUP(cap_free) = cap_get_proc();
+        cap_t caps SC_CLEANUP(sc_cleanup_cap_t) = cap_get_proc();
         if (caps == NULL) {
             die("cannot obtain current capabilities");
         }
-        char *caps_as_str SC_CLEANUP(cap_free) = cap_to_text(caps, NULL);
+        char *caps_as_str SC_CLEANUP(sc_cleanup_cap_str) = cap_to_text(caps, NULL);
         if (caps_as_str == NULL) {
             die("cannot format capabilities string");
         }
