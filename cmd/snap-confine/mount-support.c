@@ -89,6 +89,7 @@ static void setup_private_tmp(const char *snap_instance) {
     // systemd-tmpfiles but we can try create it anyway since snapd may have
     // just been installed in which case the tmpfiles conf would not have
     // got executed yet
+    /* TODO:nonseuid: sc_ensure_mkdir */
     if (mkdir(SNAP_PRIVATE_TMP_ROOT_DIR, 0700) < 0) {
         if (errno != EEXIST) {
             die("cannot create /tmp/snap-private-tmp");
@@ -112,6 +113,7 @@ static void setup_private_tmp(const char *snap_instance) {
     }
     // Create /tmp/snap-private-tmp/snap.$SNAP_INSTANCE_NAME/ 0700 root:root.
     sc_must_snprintf(base, sizeof(base), "snap.%s", snap_instance);
+    /* TODO:nonsetuid: sc_ensure_mkdirat */
     if (mkdirat(private_tmp_root_fd, base, 0700) < 0) {
         if (errno != EEXIST) {
             die("cannot create base directory: %s", base);
@@ -135,6 +137,7 @@ static void setup_private_tmp(const char *snap_instance) {
     }
     // Create /tmp/$PRIVATE/snap.$SNAP_NAME/tmp 01777 root:root Ignore EEXIST since we
     // want to reuse and we will open with O_NOFOLLOW, below.
+    /* TODO:nonsetuid: sc_ensure_mkdirat */
     if (mkdirat(base_dir_fd, "tmp", 01777) < 0) {
         if (errno != EEXIST) {
             die("cannot create private tmp directory %s/tmp", base);
@@ -250,6 +253,7 @@ static void sc_do_mounts(const char *scratch_dir, const struct sc_mount *mounts)
     // disabling the "is_bidirectional" flag as can be seen below.
     for (const struct sc_mount *mnt = mounts; mnt && mnt->path != NULL; mnt++) {
         if (mnt->is_bidirectional) {
+            /* TODO:nontseuid: sc_ensure_mkdir */
             if (mkdir(mnt->path, 0755) < 0 && errno != EEXIST) {
                 die("cannot create %s", mnt->path);
             }
@@ -383,6 +387,7 @@ static void sc_replicate_base_rootfs(const char *scratch_dir, const char *rootfs
 
         sc_must_snprintf(full_path, sizeof(full_path), "%s/%s", scratch_dir, ent->d_name);
         if (ent->d_type == DT_DIR) {
+            /* TODO:nonsetuid: sc_ensure_mkdir */
             if (mkdir(full_path, 0755) < 0) {
                 die("cannot create directory \"%s\"", full_path);
             }
