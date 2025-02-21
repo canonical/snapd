@@ -30,6 +30,7 @@
 #include "../libsnap-confine-private/infofile.h"
 #include "../libsnap-confine-private/mountinfo.h"
 #include "../libsnap-confine-private/string-utils.h"
+#include "../libsnap-confine-private/utils.h"
 
 static sc_mountinfo_entry *find_dir_mountinfo(sc_mountinfo *mounts, const char *mnt_dir) {
     sc_mountinfo_entry *cur, *root = NULL;
@@ -123,7 +124,7 @@ static int ensure_kernel_drivers_mounts(const char *normal_dir) {
     // complains, and older initramfs won't come in a kernel snap with
     // support for components anyway.
     const char *const kern_mntpts[] = {FIRMWARE_MNTPOINT, MODULES_MNTPOINT};
-    for (size_t i = 0; i < sizeof kern_mntpts / sizeof(char *); ++i) {
+    for (size_t i = 0; i < SC_ARRAY_SIZE(kern_mntpts); ++i) {
         sc_mountinfo_entry *minfo = find_dir_mountinfo(mounts, kern_mntpts[i]);
         // If the mounts already exist (old initramfs), do not create them -
         // note that we additionally check for SNAPD_DRIVERS_TREE_DIR in the

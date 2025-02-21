@@ -220,7 +220,7 @@ static void test_sdh_action_nvme(sdh_test_fixture *fixture, gconstpointer test_d
 
     int bogus = 0;
 
-    for (size_t i = 0; i < sizeof(tcs) / sizeof(tcs[0]); i++) {
+    for (size_t i = 0; i < SC_ARRAY_SIZE(tcs); i++) {
         mocks_reset();
         /* make cgroup_device_new return a non-NULL */
         mocks.new_ret = &bogus;
@@ -308,7 +308,7 @@ static void test_sdh_action_remove_fallback_devtype(sdh_test_fixture *fixture, g
 
     int bogus = 0;
 
-    for (size_t i = 0; i < sizeof(tcs) / sizeof(tcs[0]); i++) {
+    for (size_t i = 0; i < SC_ARRAY_SIZE(tcs); i++) {
         mocks_reset();
         /* make cgroup_device_new return a non-NULL */
         mocks.new_ret = &bogus;

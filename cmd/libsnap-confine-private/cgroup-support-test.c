@@ -77,7 +77,7 @@ static void _test_sc_cgroupv2_is_tracking_happy(cgroupv2_is_tracking_fixture *fi
         "/user/slice/other/app",
     };
 
-    for (size_t i = 0; i < sizeof dirs / sizeof dirs[0]; i++) {
+    for (size_t i = 0; i < SC_ARRAY_SIZE(dirs); i++) {
         char *np = g_build_filename(fixture->root, dirs[i], NULL);
         int ret = g_mkdir_with_parents(np, 0755);
         g_assert_cmpint(ret, ==, 0);
@@ -112,7 +112,7 @@ static void test_sc_cgroupv2_is_tracking_just_own_group(cgroupv2_is_tracking_fix
         "/user/slice/other/app",
     };
 
-    for (size_t i = 0; i < sizeof dirs / sizeof dirs[0]; i++) {
+    for (size_t i = 0; i < SC_ARRAY_SIZE(dirs); i++) {
         char *np = g_build_filename(fixture->root, dirs[i], NULL);
         int ret = g_mkdir_with_parents(np, 0755);
         g_assert_cmpint(ret, ==, 0);
@@ -135,7 +135,7 @@ static void test_sc_cgroupv2_is_tracking_other_snaps(cgroupv2_is_tracking_fixtur
         "/user/slice/other/app",
     };
 
-    for (size_t i = 0; i < sizeof dirs / sizeof dirs[0]; i++) {
+    for (size_t i = 0; i < SC_ARRAY_SIZE(dirs); i++) {
         char *np = g_build_filename(fixture->root, dirs[i], NULL);
         int ret = g_mkdir_with_parents(np, 0755);
         g_assert_cmpint(ret, ==, 0);
@@ -202,7 +202,7 @@ static void test_sc_cgroupv2_is_tracking_dir_permissions(cgroupv2_is_tracking_fi
         "/foo/bar/bad",
         "/foo/bar/bad/badperm",
     };
-    for (size_t i = 0; i < sizeof dirs / sizeof dirs[0]; i++) {
+    for (size_t i = 0; i < SC_ARRAY_SIZE(dirs); i++) {
         int mode = 0755;
         if (g_str_has_suffix(dirs[i], "/badperm")) {
             mode = 0000;

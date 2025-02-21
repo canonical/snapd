@@ -2,6 +2,7 @@
 #include "../libsnap-confine-private/cleanup-funcs.h"
 #include "../libsnap-confine-private/infofile.h"
 #include "../libsnap-confine-private/string-utils.h"
+#include "../libsnap-confine-private/utils.h"
 #include "config.h"
 
 #include <stdbool.h>
@@ -63,7 +64,7 @@ bool sc_is_debian_like(void) {
         "ID",      /* actual debian only sets ID */
         "ID_LIKE", /* distros based on debian */
     };
-    size_t id_keys_to_try_len = sizeof id_keys_to_try / sizeof *id_keys_to_try;
+    size_t id_keys_to_try_len = SC_ARRAY_SIZE(id_keys_to_try);
     for (size_t i = 0; i < id_keys_to_try_len; i++) {
         if (fseek(f, 0L, SEEK_SET) == -1) {
             return false;
