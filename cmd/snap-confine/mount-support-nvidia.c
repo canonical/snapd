@@ -52,14 +52,14 @@ static const char *vulkan_globs[] = {
     "icd.d/*nvidia*.json",
 };
 
-static const size_t vulkan_globs_len = sizeof vulkan_globs / sizeof *vulkan_globs;
+static const size_t vulkan_globs_len = SC_ARRAY_SIZE(vulkan_globs);
 
 // Location of EGL vendor files
 static const char *egl_vendor_globs[] = {
     "egl_vendor.d/*nvidia*.json",
 };
 
-static const size_t egl_vendor_globs_len = sizeof egl_vendor_globs / sizeof *egl_vendor_globs;
+static const size_t egl_vendor_globs_len = SC_ARRAY_SIZE(egl_vendor_globs);
 
 #if defined(NVIDIA_BIARCH) || defined(NVIDIA_MULTIARCH)
 
@@ -162,14 +162,14 @@ static const char *nvidia_globs[] = {
     "libcudnn_ops_train*",
 };
 
-static const size_t nvidia_globs_len = sizeof nvidia_globs / sizeof *nvidia_globs;
+static const size_t nvidia_globs_len = SC_ARRAY_SIZE(nvidia_globs);
 
 static const char *glvnd_globs[] = {
     "libEGL.so*",          "libGL.so*",  "libOpenGL.so*",     "libGLESv1_CM.so*", "libGLESv2.so*",
     "libGLX_indirect.so*", "libGLX.so*", "libGLdispatch.so*", "libGLU.so*",
 };
 
-static const size_t glvnd_globs_len = sizeof glvnd_globs / sizeof *glvnd_globs;
+static const size_t glvnd_globs_len = SC_ARRAY_SIZE(glvnd_globs);
 
 #endif  // defined(NVIDIA_BIARCH) || defined(NVIDIA_MULTIARCH)
 
@@ -331,7 +331,7 @@ static void sc_mount_nvidia_driver_biarch(const char *rootfs_dir, const char **g
         NATIVE_LIBDIR,
         NATIVE_LIBDIR "/nvidia*",
     };
-    const size_t native_sources_len = sizeof native_sources / sizeof *native_sources;
+    const size_t native_sources_len = SC_ARRAY_SIZE(native_sources);
 
 #if UINTPTR_MAX == 0xffffffffffffffff
     // Alternative 32-bit support
@@ -339,7 +339,7 @@ static void sc_mount_nvidia_driver_biarch(const char *rootfs_dir, const char **g
         LIB32_DIR,
         LIB32_DIR "/nvidia*",
     };
-    const size_t lib32_sources_len = sizeof lib32_sources / sizeof *lib32_sources;
+    const size_t lib32_sources_len = SC_ARRAY_SIZE(lib32_sources);
 #endif
 
     // Primary arch
@@ -470,7 +470,7 @@ static void sc_mount_nvidia_driver_multiarch(const char *rootfs_dir, const char 
         // initialize native_sources accordingly, but calculate the array length
         // dynamically to make adjustments to native_sources easier.
         const char *native_sources[] = {native_libdir};
-        const size_t native_sources_len = sizeof native_sources / sizeof *native_sources;
+        const size_t native_sources_len = SC_ARRAY_SIZE(native_sources);
         // Primary arch
         sc_mkdir_and_mount_and_glob_files(rootfs_dir, native_sources, native_sources_len, SC_LIBGL_DIR, globs,
                                           globs_len);
@@ -481,7 +481,7 @@ static void sc_mount_nvidia_driver_multiarch(const char *rootfs_dir, const char 
             // initialize lib32_sources accordingly, but calculate the array length
             // dynamically to make adjustments to lib32_sources easier.
             const char *lib32_sources[] = {lib32_libdir};
-            const size_t lib32_sources_len = sizeof lib32_sources / sizeof *lib32_sources;
+            const size_t lib32_sources_len = SC_ARRAY_SIZE(lib32_sources);
             sc_mkdir_and_mount_and_glob_files(rootfs_dir, lib32_sources, lib32_sources_len, SC_LIBGL32_DIR, globs,
                                               globs_len);
         }
@@ -499,7 +499,7 @@ static void sc_mount_vulkan(const char *rootfs_dir) {
     const char *vulkan_sources[] = {
         SC_VULKAN_SOURCE_DIR,
     };
-    const size_t vulkan_sources_len = sizeof vulkan_sources / sizeof *vulkan_sources;
+    const size_t vulkan_sources_len = SC_ARRAY_SIZE(vulkan_sources);
 
     sc_mkdir_and_mount_and_glob_files(rootfs_dir, vulkan_sources, vulkan_sources_len, SC_VULKAN_DIR, vulkan_globs,
                                       vulkan_globs_len);
@@ -507,7 +507,7 @@ static void sc_mount_vulkan(const char *rootfs_dir) {
 
 static void sc_mount_egl(const char *rootfs_dir) {
     const char *egl_vendor_sources[] = {SC_EGL_VENDOR_SOURCE_DIR};
-    const size_t egl_vendor_sources_len = sizeof egl_vendor_sources / sizeof *egl_vendor_sources;
+    const size_t egl_vendor_sources_len = SC_ARRAY_SIZE(egl_vendor_sources);
 
     sc_mkdir_and_mount_and_glob_files(rootfs_dir, egl_vendor_sources, egl_vendor_sources_len, SC_GLVND_DIR,
                                       egl_vendor_globs, egl_vendor_globs_len);

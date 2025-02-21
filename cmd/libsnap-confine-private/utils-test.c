@@ -95,7 +95,7 @@ static void test_sc_is_expected_path(void) {
         {"/var/lib/snapd/snap/snapd/23374/usr/lib/snapd/snap-confine", true},
     };
     size_t i;
-    for (i = 0; i < sizeof(test_cases) / sizeof(test_cases[0]); i++) {
+    for (i = 0; i < SC_ARRAY_SIZE(test_cases); i++) {
         bool result = sc_is_expected_path(test_cases[i].path);
         g_assert_cmpint(result, ==, test_cases[i].expected);
     }
@@ -246,8 +246,14 @@ static void test_sc_is_container__no_file(void) {
 static void test_sc_array_size(void) {
     char a1[] = {1, 2, 3, 4, 5};
     char a_empty[] = {};
+    char *a_strings[] = {
+        "foo",
+        "bar",
+    };
+
     g_assert_cmpint(SC_ARRAY_SIZE(a1), ==, 5);
     g_assert_cmpint(SC_ARRAY_SIZE(a_empty), ==, 0);
+    g_assert_cmpint(SC_ARRAY_SIZE(a_strings), ==, 2);
 
 #if 0
     /* DOES NOT COMPILE due to static assert */
