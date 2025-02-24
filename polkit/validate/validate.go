@@ -286,7 +286,7 @@ func validateDefaultAuth(auth []Element, name string) error {
 	return nil
 }
 
-var ruleNameSuffixRegexp = regexp.MustCompile(`^([\w-]+)(\.[\w-]+)*$`)
+var ruleNameSuffixRegexp = regexp.MustCompile(`^(\w[\w-]*)(\.\w[\w-]*)*$`)
 
 const maxRuleNameSuffixLength = 64
 

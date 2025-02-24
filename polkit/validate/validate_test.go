@@ -390,8 +390,12 @@ func (s *validateSuite) TestValidateRuleFileName(c *C) {
 	c.Check(validate.ValidateRuleFileName("/path/to/rule/foo.bar.rules"), IsNil)
 	// Errors
 	c.Check(validate.ValidateRuleFileName(".rules"), ErrorMatches, `invalid polkit rule file name: rule file name cannot be empty`)
-	c.Check(validate.ValidateRuleFileName("test"), ErrorMatches, `invalid polkit rule file name: "test" must end with "\.rules"`)
-	c.Check(validate.ValidateRuleFileName(".ss.rules"), ErrorMatches, `invalid polkit rule file name: ".*" does not match .*`)
+	c.Check(validate.ValidateRuleFileName("foo"), ErrorMatches, `invalid polkit rule file name: "foo" must end with "\.rules"`)
+	c.Check(validate.ValidateRuleFileName(".foo.rules"), ErrorMatches, `invalid polkit rule file name: ".*" does not match .*`)
+	c.Check(validate.ValidateRuleFileName("---.rules"), ErrorMatches, `invalid polkit rule file name: ".*" does not match .*`)
+	c.Check(validate.ValidateRuleFileName("--.--.rules"), ErrorMatches, `invalid polkit rule file name: ".*" does not match .*`)
+	c.Check(validate.ValidateRuleFileName("foo.---.rules"), ErrorMatches, `invalid polkit rule file name: ".*" does not match .*`)
+	c.Check(validate.ValidateRuleFileName("foo..rules"), ErrorMatches, `invalid polkit rule file name: ".*" does not match .*`)
 	c.Check(validate.ValidateRuleFileName("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.rules"), ErrorMatches, `invalid polkit rule file name: ".*" is longer than 64 characters`)
 }
 
@@ -402,4 +406,8 @@ func (s *validateSuite) TestValidateRuleNameSuffix(c *C) {
 	c.Check(validate.ValidateRuleNameSuffix(""), ErrorMatches, `rule file name cannot be empty`)
 	c.Check(validate.ValidateRuleNameSuffix("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"), ErrorMatches, `".*" is longer than 64 characters`)
 	c.Check(validate.ValidateRuleNameSuffix("?"), ErrorMatches, `"\?" does not match .*`)
+	c.Check(validate.ValidateRuleNameSuffix("---"), ErrorMatches, `".*" does not match .*`)
+	c.Check(validate.ValidateRuleNameSuffix("--.--"), ErrorMatches, `".*" does not match .*`)
+	c.Check(validate.ValidateRuleNameSuffix("foo.---"), ErrorMatches, `".*" does not match .*`)
+	c.Check(validate.ValidateRuleNameSuffix("foo."), ErrorMatches, `".*" does not match .*`)
 }
