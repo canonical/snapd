@@ -118,7 +118,7 @@ func (iface *posixMQInterface) checkPosixMQAppArmorSupport() error {
 		return err
 	}
 
-	if !strutil.ListContains(features, "mqueue") {
+	if !strutil.ListContains(features, "mqueue-posix") {
 		return fmt.Errorf("AppArmor does not support POSIX message queues - cannot setup or connect interfaces")
 	}
 
@@ -295,7 +295,7 @@ func (iface *posixMQInterface) generateSnippet(name, plugOrSlot string, permissi
 
 	snippet.WriteString(fmt.Sprintf("  # POSIX Message Queue %s: %s\n", plugOrSlot, name))
 	for _, path := range paths {
-		snippet.WriteString(fmt.Sprintf("  mqueue (%s) \"%s\",\n", aaPerms, path))
+		snippet.WriteString(fmt.Sprintf("  mqueue (%s) type=posix \"%s\",\n", aaPerms, path))
 	}
 
 	return snippet.String()
