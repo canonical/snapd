@@ -47,12 +47,17 @@ on:
         description: 'Comma-separated list of experimental snapd features to enable with: snap set system "experimental.<feature-name>=true"'
         required: false
         type: string
+      spread-tag-features:
+        description: 'If specified, will tag the spread results with the specified features (comma-separated)'
+        required: false
+        type: string
 
 
 jobs:
   run-spread:
     env:
       SPREAD_EXPERIMENTAL_FEATURES: ${{ inputs.spread-experimental-features }}
+      SPREAD_TAG_FEATURES: ${{ inputs.spread-tag-features }}
       
     runs-on: ${{ fromJSON(inputs.runs-on) }}
     steps:
@@ -306,6 +311,12 @@ jobs:
             exit 0
           fi
 
+          SPREAD_FLAGS='-no-debug-output -logs spread-logs'
+          if [ -n "$SPREAD_TAG_FEATURES" ]; then
+            SPREAD_FLAGS="$SPREAD_FLAGS -artifacts spread-artifacts"
+            echo "ARTIFACTS_FOLDER=spread-artifacts" >> $GITHUB_ENV
+          fi
+
           # Run spread tests
           # "pipefail" ensures that a non-zero status from the spread is
           # propagated; and we use a subshell as this option could trigger
@@ -313,7 +324,7 @@ jobs:
           echo "Running command: $SPREAD $RUN_TESTS"
           (
             set -o pipefail 
-            $SPREAD -no-debug-output -logs spread-logs $RUN_TESTS | \
+            $SPREAD $SPREAD_FLAGS $RUN_TESTS | \
               ./tests/lib/external/snapd-testing-tools/utils/log-filter $FILTER_PARAMS | \
               tee spread.log
           )
@@ -377,6 +388,22 @@ jobs:
           if [ -n "$(cat $FAILED_TESTS_FILE)" ]; then
             echo "TEST_FAILED=true" >> $GITHUB_ENV
           fi
+
+    - name: Analyze feature tags
+      if: always() && env.SPREAD_TAG_FEATURES != ''
+      run: |
+        ./tests/lib/compose-features.py \
+            --dir "${ARTIFACTS_FOLDER}/feature-tags" \
+            --output "feature-tags" \
+            --failed-tests "$(cat $FAILED_TESTS_FILE)" \
+            --env-variables "SPREAD_EXPERIMENTAL_FEATURES=${SPREAD_EXPERIMENTAL_FEATURES},SPREAD_SNAPD_DEB_FROM_REPO=${SPREAD_SNAPD_DEB_FROM_REPO}"
+
+    - name: Upload feature tags
+      if: always() && env.SPREAD_TAG_FEATURES != ''
+      uses: actions/upload-artifact@v4
+      with:
+        name: "feature-tags-${{ inputs.group }}-${{ inputs.systems }}"
+        path: "feature-tags"
 
     - name: Save spread test results to cache
       if: always()

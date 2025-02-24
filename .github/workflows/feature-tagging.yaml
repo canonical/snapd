@@ -1,0 +1,80 @@
+name: Feature Tagging
+
+on:
+  workflow_dispatch:
+    inputs:
+      features:
+        type: string
+        description: 'Comma-separated list of features to tag'
+        default: 'all'
+
+jobs:
+  read-systems:
+    runs-on: ubuntu-latest
+    outputs:
+      fundamental-systems: ${{ steps.read-systems.outputs.fundamental-systems }}
+      non-fundamental-systems: ${{ steps.read-systems.outputs.non-fundamental-systems }}
+      nested-systems: ${{ steps.read-systems.outputs.nested-systems }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Read matrix file
+        id: read-systems
+        shell: bash
+        run: |
+          echo "fundamental-systems=$(jq -c . ./.github/workflows/fundamental-systems.json)" >> $GITHUB_OUTPUT
+          echo "non-fundamental-systems=$(jq -c . ./.github/workflows/non-fundamental-systems.json)" >> $GITHUB_OUTPUT
+          echo "nested-systems=$(jq -c . ./.github/workflows/nested-systems.json)" >> $GITHUB_OUTPUT
+
+  tag-features-fundamental:
+    uses: ./.github/workflows/spread-tests.yaml
+    needs: [read-systems]
+    name: "spread ${{ matrix.group }}"
+    with:
+      runs-on: '["self-hosted", "spread-enabled"]'
+      group: ${{ matrix.group }}
+      backend: ${{ matrix.backend }}
+      systems: ${{ matrix.systems }}  
+      tasks: ${{ matrix.tasks }}
+      rules: ${{ matrix.rules }}
+      is-fundamental: true
+      use-snapd-snap-from-master: true
+      spread-tag-features: ${{ inputs.features }}
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.read-systems.outputs.fundamental-systems) }}
+
+  tag-features-non-fundamental:
+    uses: ./.github/workflows/spread-tests.yaml
+    needs: [read-systems]
+    name: "spread ${{ matrix.group }}"
+    with:
+      runs-on: '["self-hosted", "spread-enabled"]'
+      group: ${{ matrix.group }}
+      backend: ${{ matrix.backend }}
+      systems: ${{ matrix.systems }}  
+      tasks: ${{ matrix.tasks }}
+      rules: ${{ matrix.rules }}
+      use-snapd-snap-from-master: true
+      spread-tag-features: ${{ inputs.features }}
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.read-systems.outputs.non-fundamental-systems) }}
+
+  tag-features-nested:
+    uses: ./.github/workflows/spread-tests.yaml
+    needs: [read-systems]
+    name: "spread ${{ matrix.group }}"
+    with:
+      runs-on: '["self-hosted", "spread-enabled"]'
+      group: ${{ matrix.group }}
+      backend: ${{ matrix.backend }}
+      systems: ${{ matrix.systems }}  
+      tasks: ${{ matrix.tasks }}
+      rules: ${{ matrix.rules }}
+      use-snapd-snap-from-master: true
+      spread-tag-features: ${{ inputs.features }}
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.read-systems.outputs.nested-systems) }}
