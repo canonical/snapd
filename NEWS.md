@@ -1,3 +1,6 @@
+# New in snapd 2.68.1
+* Fix snap-confine type specifier type mismatch on armhf
+
 # New in snapd 2.68
 * FDE: add support for new and more extensible key format that is unified between TPM and FDE hook
 * FDE: add support for adding passphrases during installation
