@@ -116,10 +116,7 @@ void sc_call_snap_update_ns_as_user(int snap_update_ns_fd, const char *snap_name
                      * for details. */
                     "SNAPD_DEBUG=x", xdg_runtime_dir_env, snap_real_home_env, NULL};
     /* keep the current identity */
-    sc_identity no_change_identity = {
-        .change_gid = false,
-        .change_uid = false,
-    };
+    sc_identity no_change_identity = sc_no_change_identity();
     sc_call_snapd_tool_with_apparmor(snap_update_ns_fd, "snap-update-ns", apparmor, aa_profile, no_change_identity,
                                      argv, envp);
 }
