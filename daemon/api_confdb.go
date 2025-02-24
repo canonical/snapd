@@ -24,13 +24,11 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/confdb"
 	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/configstate/config"
-	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/strutil"
 )
@@ -141,14 +139,14 @@ func validateFeatureFlag(st *state.State, feature features.SnapdFeature) *apiErr
 	enabled, err := features.Flag(tr, feature)
 	if err != nil && !config.IsNoOption(err) {
 		return InternalError(
-			fmt.Sprintf("internal error: cannot check %s feature flag: %s", feature.String(), err),
+			fmt.Sprintf("internal error: cannot check %q feature flag: %s", feature, err),
 		)
 	}
 
 	if !enabled {
 		_, confName := feature.ConfigOption()
 		return BadRequest(
-			fmt.Sprintf(`"%s" feature flag is disabled: set '%s' to true`, feature.String(), confName),
+			fmt.Sprintf(`feature flag %q is disabled: set '%s' to true`, feature, confName),
 		)
 	}
 	return nil
@@ -174,9 +172,19 @@ func handleConfdbControlAction(c *Command, r *http.Request, user *auth.UserState
 	}
 
 	devMgr := c.d.overlord.DeviceManager()
-	ctrl, revision, err := getOrCreateConfdbControl(st, devMgr)
+	cc, err := devMgr.ConfdbControl()
 	if err != nil {
 		return InternalError(err.Error())
+	}
+
+	var ctrl confdb.Control
+	var revision int
+	if cc == nil {
+		ctrl = confdb.Control{}
+		revision = 0
+	} else {
+		ctrl = cc.Control()
+		revision = cc.Revision() + 1
 	}
 
 	var a confdbControlAction
@@ -197,7 +205,7 @@ func handleConfdbControlAction(c *Command, r *http.Request, user *auth.UserState
 		return BadRequest(err.Error())
 	}
 
-	cc, err := devicestateSignConfdbControl(devMgr, ctrl.Groups(), revision)
+	cc, err = devicestateSignConfdbControl(devMgr, ctrl.Groups(), revision)
 	if err != nil {
 		return InternalError(err.Error())
 	}
@@ -207,29 +215,4 @@ func handleConfdbControlAction(c *Command, r *http.Request, user *auth.UserState
 	}
 
 	return SyncResponse(nil)
-}
-
-// getOrCreateConfdbControl returns the confdb.Control base to build the next revision of the assertion.
-func getOrCreateConfdbControl(st *state.State, devMgr *devicestate.DeviceManager) (*confdb.Control, int, error) {
-	serial, err := devMgr.Serial()
-	if err != nil {
-		return nil, 0, errors.New("device has no serial assertion")
-	}
-
-	db := assertstate.DB(st)
-	a, err := db.Find(asserts.ConfdbControlType, map[string]string{
-		"brand-id": serial.BrandID(),
-		"model":    serial.Model(),
-		"serial":   serial.Serial(),
-	})
-	if errors.Is(err, &asserts.NotFoundError{}) {
-		return &confdb.Control{}, 0, nil
-	}
-	if err != nil {
-		return nil, 0, err
-	}
-
-	cc := a.(*asserts.ConfdbControl)
-	ctrl := cc.Control()
-	return &ctrl, cc.Revision() + 1, nil
 }
