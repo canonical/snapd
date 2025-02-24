@@ -16,7 +16,7 @@ after_non_nested_task() {
     # Write to the directory specified in the spread.yaml file for artifacts
     local write_dir="${SPREAD_PATH}/feature-tags"
     mkdir -p "$write_dir"
-    "$TESTSTOOLS"/journal-analyzer.py -t "end-of-prepare-suite-each for $SPREAD_JOB" -f "$TAG_FEATURES" -o "${write_dir}/${SPREAD_JOB//\//_}"
+    "$TESTSTOOLS"/journal-analyzer.py -t "end-of-prepare-suite-each for $SPREAD_JOB" -f "$TAG_FEATURES" -o "${write_dir}/${SPREAD_JOB//\//\\}"
 }
 
 after_nested_task() {
