@@ -569,7 +569,7 @@ func (s *confdbControlSuite) TestConfdbFlagNotEnabled(c *C) {
 
 	rspe := s.errorReq(c, req, nil)
 	c.Check(rspe.Status, Equals, 400)
-	c.Check(rspe.Message, Equals, `"confdbs" feature flag is disabled: set 'experimental.confdbs' to true`)
+	c.Check(rspe.Message, Equals, `feature flag "confdbs" is disabled: set 'experimental.confdbs' to true`)
 }
 
 func (s *confdbControlSuite) TestConfdbControlFlagNotEnabled(c *C) {
@@ -580,21 +580,7 @@ func (s *confdbControlSuite) TestConfdbControlFlagNotEnabled(c *C) {
 
 	rspe := s.errorReq(c, req, nil)
 	c.Check(rspe.Status, Equals, 400)
-	c.Check(rspe.Message, Equals, `"confdb-control" feature flag is disabled: set 'experimental.confdb-control' to true`)
-}
-
-func (s *confdbSuite) TestValidateFeatureFlagErr(c *C) {
-	s.st.Lock()
-	tr := config.NewTransaction(s.st)
-	tr.Set("core", "experimental.confdb-control", "wut")
-	tr.Commit()
-
-	err := daemon.ValidateFeatureFlag(s.st, features.ConfdbControl)
-	c.Check(
-		err.Message, Equals,
-		`internal error: cannot check confdb-control feature flag: confdb-control can only be set to 'true' or 'false', got "wut"`,
-	)
-	s.st.Unlock()
+	c.Check(rspe.Message, Equals, `feature flag "confdb-control" is disabled: set 'experimental.confdb-control' to true`)
 }
 
 func (s *confdbControlSuite) TestConfdbControlActionNoSerial(c *C) {

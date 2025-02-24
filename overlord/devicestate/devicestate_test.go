@@ -2884,3 +2884,42 @@ func (s *deviceMgrSuite) TestSignConfdbControlOK(c *C) {
 	// Confirm we can ack it
 	assertstatetest.AddMany(s.state, cc)
 }
+
+func (s *deviceMgrSuite) TestConfdbControlNoSerial(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	_, err := s.mgr.ConfdbControl()
+	c.Assert(err, ErrorMatches, "device has no serial assertion")
+}
+
+func (s *deviceMgrSuite) TestConfdbControlNotFound(c *C) {
+	s.setPCModelInState(c)
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	s.makeSerialAssertionInState(c, "canonical", "pc", "serialserialserial")
+	s.addKeyToManagerInState(c)
+
+	cc, err := s.mgr.ConfdbControl()
+	c.Assert(cc, IsNil)
+	c.Assert(err, IsNil)
+}
+
+func (s *deviceMgrSuite) TestConfdbControlFindExisting(c *C) {
+	s.setPCModelInState(c)
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	s.makeSerialAssertionInState(c, "canonical", "pc", "serialserialserial")
+	s.addKeyToManagerInState(c)
+
+	// add assertion
+	cc, err := s.mgr.SignConfdbControl([]interface{}{}, 10)
+	c.Assert(err, IsNil)
+	assertstatetest.AddMany(s.state, cc)
+
+	found, err := s.mgr.ConfdbControl()
+	c.Assert(err, IsNil)
+	c.Assert(found, DeepEquals, cc)
+}
