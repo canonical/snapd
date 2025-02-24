@@ -257,7 +257,11 @@ jobs:
           export SPREAD_USE_PREBUILT_SNAPD_SNAP=true
           
           if [ "${{ inputs.use-snapd-snap-from-master }}" = true ]; then
-            export SPREAD_USE_SNAPD_SNAP_URL=https://storage.googleapis.com/snapd-spread-tests/snapd-tests/snaps/snapd_master_amd64.snap
+            if [[ "${{ inputs.group }}" == *"-arm64"* ]]; then
+              export SPREAD_USE_SNAPD_SNAP_URL=https://storage.googleapis.com/snapd-spread-tests/snapd-tests/snaps/snapd_master_arm64.snap
+            else
+              export SPREAD_USE_SNAPD_SNAP_URL=https://storage.googleapis.com/snapd-spread-tests/snapd-tests/snaps/snapd_master_amd64.snap
+            fi
           fi
 
           # This could be the case when either there are not systems for a group or
