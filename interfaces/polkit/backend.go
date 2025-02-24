@@ -91,15 +91,9 @@ func (b *Backend) Setup(appSet *interfaces.SnapAppSet, opts interfaces.Confineme
 	// Get the rule files that this snap should have
 	glob = polkitRuleName(snapName, "*")
 	content = deriveRulesContent(spec.(*Specification), appSet)
-	dir = dirs.SnapPolkitRuleDir
-	// If we do not have any content to write, there is no point
-	// ensuring the directory exists.
-	if content != nil {
-		if err := os.MkdirAll(dir, 0755); err != nil {
-			return fmt.Errorf("cannot create directory for polkit rule files %q: %s", dir, err)
-		}
-	}
-	_, _, err = osutil.EnsureDirState(dir, glob, content)
+	// Rules directory should already exist as it comes with distro packaging, don't attempt
+	// to create it to avoid messing with permissions and just fail if it doesn't exist.
+	_, _, err = osutil.EnsureDirState(dirs.SnapPolkitRuleDir, glob, content)
 	if err != nil {
 		return fmt.Errorf("cannot synchronize polkit rule files for snap %q: %s", snapName, err)
 	}

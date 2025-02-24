@@ -31,6 +31,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/ifacetest"
 	"github.com/snapcore/snapd/interfaces/polkit"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -85,12 +86,33 @@ func (s *backendSuite) TestInstallingSnapWritesRuleFiles(c *C) {
 	s.Iface.PolkitPermanentSlotCallback = func(spec *polkit.Specification, slot *snap.SlotInfo) error {
 		return spec.AddRule("foo", polkit.Rule("rule content"))
 	}
+	c.Assert(os.MkdirAll(dirs.SnapPolkitRuleDir, 0755), IsNil)
+
 	for _, opts := range testedConfinementOpts {
 		snapInfo := s.InstallSnap(c, opts, "", ifacetest.SambaYamlV1, 0)
 		rule := filepath.Join(dirs.SnapPolkitRuleDir, "70-snap.samba.foo.rules")
 		// file called "70-snap.samba.foo.rules" was created
 		c.Check(rule, testutil.FileContains, "rule content")
 		s.RemoveSnap(c, snapInfo)
+	}
+}
+
+func (s *backendSuite) TestInstallingSnapWritesRuleFilesNoRuleDirectory(c *C) {
+	s.Iface.PolkitPermanentSlotCallback = func(spec *polkit.Specification, slot *snap.SlotInfo) error {
+		return spec.AddRule("foo", polkit.Rule("rule content"))
+	}
+	c.Assert(os.RemoveAll(dirs.SnapPolkitRuleDir), IsNil)
+
+	snapInfo := snaptest.MockInfo(c, ifacetest.SambaYamlV1, &snap.SideInfo{
+		Revision: snap.R(0),
+	})
+	appSet, err := interfaces.NewSnapAppSet(snapInfo, nil)
+	c.Assert(err, IsNil)
+	err = s.Repo.AddAppSet(appSet)
+	c.Assert(err, IsNil)
+	for _, opts := range testedConfinementOpts {
+		err = s.Backend.Setup(appSet, opts, s.Repo, nil)
+		c.Assert(err, ErrorMatches, `cannot synchronize polkit rule files for snap "samba":.*: no such file or directory`)
 	}
 }
 
@@ -113,6 +135,8 @@ func (s *backendSuite) TestRemovingSnapRemovesRuleFiles(c *C) {
 	s.Iface.PolkitPermanentSlotCallback = func(spec *polkit.Specification, slot *snap.SlotInfo) error {
 		return spec.AddRule("foo", polkit.Rule("rule content"))
 	}
+	c.Assert(os.MkdirAll(dirs.SnapPolkitRuleDir, 0755), IsNil)
+
 	for _, opts := range testedConfinementOpts {
 		snapInfo := s.InstallSnap(c, opts, "", ifacetest.SambaYamlV1, 0)
 		s.RemoveSnap(c, snapInfo)
