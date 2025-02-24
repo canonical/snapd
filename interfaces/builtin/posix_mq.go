@@ -301,6 +301,18 @@ func (iface *posixMQInterface) generateSnippet(name, plugOrSlot string, permissi
 	return snippet.String()
 }
 
+func (iface *posixMQInterface) extendPermissions(perms []string) []string {
+	extended := make([]string, len(perms), len(perms)+1)
+	copy(extended, perms)
+
+	// Always allow "open"
+	if !strutil.ListContains(perms, "open") {
+		extended = append(extended, "open")
+	}
+
+	return extended
+}
+
 func (iface *posixMQInterface) AppArmorPermanentSlot(spec *apparmor.Specification, slot *snap.SlotInfo) error {
 	if implicitSystemPermanentSlot(slot) {
 		return nil
@@ -329,10 +341,7 @@ func (iface *posixMQInterface) AppArmorConnectedPlug(spec *apparmor.Specificatio
 		return err
 	}
 
-	// Always allow "open"
-	if !strutil.ListContains(perms, "open") {
-		perms = append(perms, "open")
-	}
+	perms = iface.extendPermissions(perms)
 
 	snippet := iface.generateSnippet(plug.Name(), "plug", perms, paths)
 	spec.AddSnippet(snippet)
