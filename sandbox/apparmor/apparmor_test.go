@@ -904,6 +904,10 @@ func (s *apparmorSuite) TestSetupConfCacheDirsWithInternalApparmor(c *C) {
 func (s *apparmorSuite) TestSetupNotifySocketPath(c *C) {
 	apparmor.SetupNotifySocketPath("/newdir")
 	c.Check(apparmor.NotifySocketPath, Equals, "/newdir/sys/kernel/security/apparmor/.notify")
+
+	newRoot := c.MkDir()
+	dirs.SetRootDir(newRoot)
+	c.Check(apparmor.NotifySocketPath, Equals, filepath.Join(newRoot, "/sys/kernel/security/apparmor/.notify"))
 }
 
 func (s *apparmorSuite) TestSystemAppArmorLoadsSnapPolicyErr(c *C) {
