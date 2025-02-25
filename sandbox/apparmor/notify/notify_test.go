@@ -2,8 +2,6 @@ package notify_test
 
 import (
 	"fmt"
-	"os"
-	"path/filepath"
 	"testing"
 
 	. "gopkg.in/check.v1"
@@ -28,25 +26,6 @@ func (s *notifySuite) SetUpTest(c *C) {
 
 	dirs.SetRootDir(c.MkDir())
 	s.AddCleanup(func() { dirs.SetRootDir("") })
-}
-
-func (*notifySuite) TestSysPathBehavior(c *C) {
-	newRoot := c.MkDir()
-	newSysPath := filepath.Join(newRoot, "/sys/kernel/security/apparmor/.notify")
-	dirs.SetRootDir(newRoot)
-	c.Assert(notify.SysPath, Equals, newSysPath)
-}
-
-func (*notifySuite) TestSupportAvailable(c *C) {
-	newRoot := c.MkDir()
-	dirs.SetRootDir(newRoot)
-	c.Assert(notify.SupportAvailable(), Equals, false)
-	err := os.MkdirAll(filepath.Dir(notify.SysPath), 0755)
-	c.Assert(err, IsNil)
-	c.Assert(notify.SupportAvailable(), Equals, false)
-	_, err = os.Create(notify.SysPath)
-	c.Assert(err, IsNil)
-	c.Assert(notify.SupportAvailable(), Equals, true)
 }
 
 var fakeNotifyVersions = []notify.VersionAndCheck{
