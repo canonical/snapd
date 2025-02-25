@@ -36,10 +36,7 @@ jobs:
       matrix:
         runs-on:
           - '["ubuntu-22.04"]'
-          # Tags to identify the self-hosted runners to use from
-          # internal runner collection. See internal self-hosted
-          # runners doc for the complete list of options.
-          - '["self-hosted", "Linux", "jammy", "ARM64", "large"]'
+          - '["ubuntu-22.04-arm"]'
         toolchain:
           - default
           - FIPS
@@ -53,9 +50,9 @@ jobs:
         # to keep the number of builds down as we currently don't have a
         # clear need for these excluded builds.
         exclude:
-          - runs-on: '["self-hosted", "Linux", "jammy", "ARM64", "large"]'
+          - runs-on: '["ubuntu-22.04-arm"]'
             toolchain: FIPS
-          - runs-on: '["self-hosted", "Linux", "jammy", "ARM64", "large"]'
+          - runs-on: '["ubuntu-22.04-arm"]'
             variant: pristine
 
   cache-build-deps:
