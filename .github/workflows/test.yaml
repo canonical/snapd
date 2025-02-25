@@ -392,7 +392,7 @@ jobs:
 
   spread-nested:
     uses: ./.github/workflows/spread-tests.yaml
-    needs: [unit-tests, unit-tests-c, snap-builds]
+    needs: [unit-tests, unit-tests-c, snap-builds, read-systems]
     name: "spread ${{ matrix.group }}"
     with:
       # Github doesn't support passing sequences as parameters.
