@@ -116,6 +116,25 @@ func (s *backendSuite) TestInstallingSnapWritesRuleFilesNoRuleDirectory(c *C) {
 	}
 }
 
+func (s *backendSuite) TestInstallingSnapWritesRuleFilesBadNameSuffix(c *C) {
+	s.Iface.PolkitPermanentSlotCallback = func(spec *polkit.Specification, slot *snap.SlotInfo) error {
+		return spec.AddRule("--", polkit.Rule("rule content"))
+	}
+	c.Assert(os.RemoveAll(dirs.SnapPolkitRuleDir), IsNil)
+
+	snapInfo := snaptest.MockInfo(c, ifacetest.SambaYamlV1, &snap.SideInfo{
+		Revision: snap.R(0),
+	})
+	appSet, err := interfaces.NewSnapAppSet(snapInfo, nil)
+	c.Assert(err, IsNil)
+	err = s.Repo.AddAppSet(appSet)
+	c.Assert(err, IsNil)
+	for _, opts := range testedConfinementOpts {
+		err = s.Backend.Setup(appSet, opts, s.Repo, nil)
+		c.Assert(err, ErrorMatches, `cannot obtain polkit specification for snap "samba": "--" does not match ".*"`)
+	}
+}
+
 func (s *backendSuite) TestRemovingSnapRemovesPolicyFiles(c *C) {
 	// NOTE: Hand out a permanent snippet so that .policy file is generated.
 	s.Iface.PolkitPermanentSlotCallback = func(spec *polkit.Specification, slot *snap.SlotInfo) error {
