@@ -49,9 +49,9 @@ var (
 			if err != nil {
 				return false
 			}
-			// Older kernels don't have notify_versions dir at all. In that
-			// case, assume v3 is supported. If the dir does exist, it must
-			// have a file called v3 for v3 to be supported.
+			// Older kernels which only support v3 don't have notify_versions
+			// dir at all. If the dir does exist, protocol support for version
+			// 3 requires a v3 file to be present.
 			if strutil.ListContains(kernelFeatures, "policy:notify_versions") {
 				if !strutil.ListContains(kernelFeatures, "policy:notify_versions:v3") {
 					return false
@@ -64,6 +64,8 @@ var (
 			if err != nil {
 				return false
 			}
+			// Support for protocol version 5 requires that the notify_versions
+			// directory must exist and contain a file named v5.
 			if !strutil.ListContains(kernelFeatures, "policy:notify_versions:v5") {
 				return false
 			}
