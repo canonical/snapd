@@ -34,7 +34,6 @@ import (
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/sandbox/apparmor"
-	"github.com/snapcore/snapd/sandbox/apparmor/notify"
 	"github.com/snapcore/snapd/snapdtool"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -765,7 +764,7 @@ func (s *apparmorSuite) TestPromptingSupported(c *C) {
 
 	// Create a file at the notify path, doesn't matter what kind of file.
 	// The actual file is a socket, but a directory will do here for convenience.
-	c.Assert(os.MkdirAll(notify.SysPath, 0o755), IsNil)
+	c.Assert(os.MkdirAll(apparmor.NotifySocketPath, 0o755), IsNil)
 	restore = apparmor.MockFeatures(goodKernelFeatures, nil, goodParserFeatures, nil)
 	defer restore()
 
@@ -900,6 +899,11 @@ func (s *apparmorSuite) TestSetupConfCacheDirsWithInternalApparmor(c *C) {
 
 	apparmor.SetupConfCacheDirs("/newdir")
 	c.Check(apparmor.SnapConfineAppArmorDir, Equals, "/newdir/var/lib/snapd/apparmor/snap-confine.internal")
+}
+
+func (s *apparmorSuite) TestSetupNotifySocketPath(c *C) {
+	apparmor.SetupNotifySocketPath("/newdir")
+	c.Check(apparmor.NotifySocketPath, Equals, "/newdir/sys/kernel/security/apparmor/.notify")
 }
 
 func (s *apparmorSuite) TestSystemAppArmorLoadsSnapPolicyErr(c *C) {
