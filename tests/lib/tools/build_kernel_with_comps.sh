@@ -13,7 +13,11 @@ build_kernel_with_comp() {
     comp_name=$2
     kernel_snap_file=${3:-}
 
-    if [ -z "${kernel_snap_file}" ]; then
+    test -z "$kernel_snap_file"
+    # shellcheck disable=SC2319
+    use_provided_kernel=$?
+
+    if [ "${use_provided_kernel}" -eq 0 ]; then
         nested_prepare_kernel
         cp "$(tests.nested get extra-snaps-path)/pc-kernel.snap" "pc-kernel.snap"
         kernel_snap_file="pc-kernel.snap"
@@ -49,7 +53,7 @@ EOF
     printf 'components:\n  %s:\n    type: kernel-modules\n' "$comp_name" >> kernel/meta/snap.yaml
     snap pack --filename="${kernel_snap_file}" kernel
 
-    if [ -z "${kernel_snap_file}" ]; then
+    if [ "${use_provided_kernel}" -eq 0 ]; then
         # Just so that nested_prepare_kernel does not recopy the old one
         cp "${kernel_snap_file}" "${NESTED_ASSETS_DIR}/pc-kernel.snap"
     fi
