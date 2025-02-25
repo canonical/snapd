@@ -41,7 +41,11 @@ var (
 	// on the notify socket with that version, in which case we'll need to try
 	// the next version in the list.
 	versionLikelySupportedChecks = map[ProtocolVersion]func() bool{
-		3: SupportAvailable,
+		3: func() bool {
+			// If prompting is supported, version 3 is always assumed to be
+			// supported.
+			return true
+		},
 	}
 
 	// versionKnown returns true if the given protocol version is known by
