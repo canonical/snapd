@@ -122,8 +122,8 @@ prepare: |
       ./pc-kernel-efi-pstore+efi-comp.comp
 
 restore: |
-    systemctl stop fakedevicesvc
-    "${TESTSTOOLS}/store-state" teardown-fake-store "${NESTED_FAKESTORE_BLOB_DIR}"
+  systemctl stop fakedevicesvc
+  "${TESTSTOOLS}/store-state" teardown-fake-store "${NESTED_FAKESTORE_BLOB_DIR}"
 
 execute: |
   echo 'Swap to the first new kernel and component pc-kernel-mac80211-hwsim+wifi-comp'
