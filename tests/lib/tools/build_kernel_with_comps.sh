@@ -13,11 +13,17 @@ build_kernel_with_comp() {
     comp_name=$2
     kernel_snap_file=${3:-}
 
+    use_provided_kernel=true
     if [ -z "${kernel_snap_file}" ]; then
+        use_provided_kernel=false
+    fi
+
+    if [ "${use_provided_kernel}" = false ]; then
         nested_prepare_kernel
         cp "$(tests.nested get extra-snaps-path)/pc-kernel.snap" "pc-kernel.snap"
         kernel_snap_file="pc-kernel.snap"
     fi
+
     unsquashfs -d kernel "${kernel_snap_file}"
     kernel_name="$(grep 'name:' kernel/meta/snap.yaml | awk '{ print $2 }')"
     kern_ver=$(find kernel/modules/* -maxdepth 0 -printf "%f\n")
@@ -48,6 +54,12 @@ EOF
     # append component meta-information
     printf 'components:\n  %s:\n    type: kernel-modules\n' "$comp_name" >> kernel/meta/snap.yaml
     snap pack --filename="${kernel_snap_file}" kernel
+
+    if [ "${use_provided_kernel}" = false ]; then
+        # Just so that nested_prepare_kernel does not recopy the old one
+        cp "${kernel_snap_file}" "${NESTED_ASSETS_DIR}/pc-kernel.snap"
+    fi
+
     rm -r kernel
 }
 
