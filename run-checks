@@ -42,23 +42,24 @@ STATIC=
 UNIT=
 
 case "${1:-all}" in
-    all)
-        STATIC=1
-        UNIT=1
-        ;;
-    --static)
-        STATIC=1
-        ;;
-    --unit)
-        UNIT=1
-        ;;
-    --short-unit)
-        UNIT=1
-        short=1
-        ;;
-    *)
-        echo "Wrong flag ${1}. To run a single suite use --static, --unit."
-        exit 1
+all)
+    STATIC=1
+    UNIT=1
+    ;;
+--static)
+    STATIC=1
+    ;;
+--unit)
+    UNIT=1
+    ;;
+--short-unit)
+    UNIT=1
+    short=1
+    ;;
+*)
+    echo "Wrong flag ${1}. To run a single suite use --static, --unit."
+    exit 1
+    ;;
 esac
 
 CURRENTTRAP="true"
@@ -113,30 +114,30 @@ missing_interface_spread_test() {
     snap_yaml="tests/lib/snaps/test-snapd-policy-app-consumer/meta/snap.yaml"
     core_snap_yaml="tests/main/interfaces-many-snap-provided/test-snapd-policy-app-provider-core/meta/snap.yaml"
     classic_snap_yaml="tests/main/interfaces-many-snap-provided/test-snapd-policy-app-provider-classic/meta/snap.yaml"
-    for iface in $(go run ./tests/lib/list-interfaces.go) ; do
+    for iface in $(go run ./tests/lib/list-interfaces.go); do
         search="plugs: \\[ $iface \\]"
         case "$iface" in
-            bool-file|gpio|pwm|dsp|netlink-driver|hidraw|i2c|iio|serial-port|spi|confdb)
-                # skip gadget provided interfaces for now
-                continue
-                ;;
+        bool-file | gpio | pwm | dsp | netlink-driver | hidraw | i2c | iio | serial-port | spi | confdb)
+            # skip gadget provided interfaces for now
+            continue
+            ;;
             cuda-driver-libs|egl-driver-libs)
-                # skip interfaces with plug side only in rootfs for now
-                continue
-                ;;
-            dbus|content)
-                search="interface: $iface"
-                ;;
-            autopilot)
-                search='plugs: \[ autopilot-introspection \]'
-                ;;
+            # skip interfaces with plug side only in rootfs for now
+            continue
+            ;;
+        dbus | content)
+            search="interface: $iface"
+            ;;
+        autopilot)
+            search='plugs: \[ autopilot-introspection \]'
+            ;;
         esac
 
         # check if a standalone test already exists and that it at least
         # connects and disconnects the interface
         dedicated_test=$(find tests/main/ -maxdepth 1 -name "interfaces-$iface")
         if [ -n "$dedicated_test" ]; then
-            if grep -q "$search" "$snap_yaml" ; then
+            if grep -q "$search" "$snap_yaml"; then
                 echo "Dedicated test '$dedicated_test' found for '$iface'."
                 echo "Please remove '$iface' from '$snap_yaml'."
                 exit 1
@@ -146,7 +147,7 @@ missing_interface_spread_test() {
         fi
 
         # check if high-level minimal test exists for interface
-        if ! grep -q "$search" "$snap_yaml" ; then
+        if ! grep -q "$search" "$snap_yaml"; then
             echo "Missing high-level test for interface '$iface'. Please add to:"
             echo "* $snap_yaml"
             echo "* $core_snap_yaml (if needed)"
@@ -155,7 +156,6 @@ missing_interface_spread_test() {
         fi
     done
 }
-
 
 if [ "$STATIC" = 1 ]; then
     ./get-deps.sh
@@ -179,7 +179,7 @@ if [ "$STATIC" = 1 ]; then
     if [ -z "${SKIP_GOFMT:-}" ]; then
         echo Checking formatting
         fmt=""
-        for dir in $(go list -f '{{.Dir}}' ./... | grep -v '/\(c-\)\?vendor/' ); do
+        for dir in $(go list -f '{{.Dir}}' ./... | grep -v '/\(c-\)\?vendor/'); do
             # skip vendor packages
             s="$(${GOFMT:-gofmt} -s -d "$dir" || true)"
             if [ -n "$s" ]; then
@@ -200,7 +200,7 @@ if [ "$STATIC" = 1 ]; then
 
     echo 'Checking for usages of http.Status*'
     got=""
-    for dir in $(go list -f '{{.Dir}}' ./... | grep -v '/vendor/' ); do
+    for dir in $(go list -f '{{.Dir}}' ./... | grep -v '/vendor/'); do
         s="$(grep -nP 'http\.Status(?!Text)' "$dir"/*.go || true)"
         if [ -n "$s" ]; then
             got="$s\\n$got"
@@ -215,7 +215,7 @@ if [ "$STATIC" = 1 ]; then
 
     echo "Checking for direct usages of math/rand"
     got=""
-    for dir in $(go list -f '{{.Dir}}' ./... | grep -v '/vendor/' ); do
+    for dir in $(go list -f '{{.Dir}}' ./... | grep -v '/vendor/'); do
         # shellcheck disable=SC2063
         s="$(grep -nP --exclude '*_test.go' --exclude 'randutil/*.go' math/rand "$dir"/*.go || true)"
         if [ -n "$s" ]; then
@@ -231,7 +231,7 @@ if [ "$STATIC" = 1 ]; then
 
     echo "Checking for usages of deprecated io/ioutil"
     got=""
-    for dir in $(go list -f '{{.Dir}}' ./... | grep -v '/vendor/' ); do
+    for dir in $(go list -f '{{.Dir}}' ./... | grep -v '/vendor/'); do
         # shellcheck disable=SC2063
         s="$(grep -nP io/ioutil "$dir"/*.go || true)"
         if [ -n "$s" ]; then
@@ -252,10 +252,10 @@ if [ "$STATIC" = 1 ]; then
             echo "Checking just the changed bash files"
             echo "Changed files: $CHANGED_FILES"
             # shellcheck disable=SC2086
-            INITIAL_FILES="$( file -N $CHANGED_FILES | awk -F": " '$2~/shell.script/{print $1}' )"
+            INITIAL_FILES="$(file -N $CHANGED_FILES | awk -F": " '$2~/shell.script/{print $1}')"
         else
             echo "Checking all the bash files"
-            INITIAL_FILES="$( ( git ls-files -z 2>/dev/null || find . \( -name .git -o -name vendor -o -name c-vendor \) -prune -o -print0) | xargs -0 file -N | awk -F": " '$2~/shell.script/{print $1}' )"
+            INITIAL_FILES="$( (git ls-files -z 2>/dev/null || find . \( -name .git -o -name vendor -o -name c-vendor \) -prune -o -print0) | xargs -0 file -N | awk -F": " '$2~/shell.script/{print $1}')"
         fi
 
         echo "Filtering files"
@@ -274,7 +274,7 @@ if [ "$STATIC" = 1 ]; then
         fi
 
         regexp='GOPATH(?!%%:\*)(?!:)[^= ]*/'
-        if  grep -qPr                   --exclude HACKING.md --exclude 'Makefile.*' --exclude-dir .git --exclude-dir vendor "$regexp"; then
+        if grep -qPr --exclude HACKING.md --exclude 'Makefile.*' --exclude-dir .git --exclude-dir vendor "$regexp"; then
             echo "Using GOPATH as if it were a single entry and not a list:"
             grep -PHrn -C1 --color=auto --exclude HACKING.md --exclude 'Makefile.*' --exclude-dir .git --exclude-dir vendor "$regexp"
             echo "Use GOHOME, or {GOPATH%%:*}, instead."
@@ -309,7 +309,7 @@ if [ "$STATIC" = 1 ]; then
         # exportfs is used in the nfs-support test
         # becuase because of misspell in upstream steam rules (PR#12657)
         MISSPELL_IGNORE="auther,PROCES,PROCESSS,proces,processs,exportfs,becuase"
-        git ls-files -z -- . ':!:./po' ':!:./vendor' ':!:./c-vendor' ':!:./cmd/libsnap-confine-private/bpf/vendor' ':!:./build-aux/snap/local/apparmor'|
+        git ls-files -z -- . ':!:./po' ':!:./vendor' ':!:./c-vendor' ':!:./cmd/libsnap-confine-private/bpf/vendor' ':!:./build-aux/snap/local/apparmor' |
             xargs -0 misspell -error -i "$MISSPELL_IGNORE"
     fi
 
@@ -342,8 +342,8 @@ if [ "$STATIC" = 1 ]; then
     missing_interface_spread_test
 
     echo "Checking for incorrect multiline strings in spread tests"
-    badmultiline=$(find tests -name 'task.yaml' -print0 -o -name 'spread.yaml' -print0 | \
-                       xargs -0 grep -R -n -E '(restore*|prepare*|execute|debug):\s*$' || true)
+    badmultiline=$(find tests -name 'task.yaml' -print0 -o -name 'spread.yaml' -print0 |
+        xargs -0 grep -R -n -E '(restore*|prepare*|execute|debug):\s*$' || true)
     if [ -n "$badmultiline" ]; then
         echo "Incorrect multiline strings at the following locations:"
         echo "$badmultiline"
@@ -351,8 +351,8 @@ if [ "$STATIC" = 1 ]; then
     fi
 
     echo "Checking for potentially incorrect use of MATCH -v"
-    badMATCH=$(find tests -name 'task.yaml' -print0 -o -name 'spread.yaml' -print0 | \
-                       xargs -0 grep -R -n -E 'MATCH +-v' || true)
+    badMATCH=$(find tests -name 'task.yaml' -print0 -o -name 'spread.yaml' -print0 |
+        xargs -0 grep -R -n -E 'MATCH +-v' || true)
     if [ -n "$badMATCH" ]; then
         echo "Potentially incorrect use of MATCH -v at the following locations:"
         echo "$badMATCH"
@@ -392,10 +392,10 @@ if [ "$STATIC" = 1 ]; then
     fi
 
     echo "Checking for usages of !=, == or Equals with ErrNoState"
-    if got=$(grep -n -R -E "(\!=|==|Equals,) (state\.)?ErrNoState" --include=*.go) ; then
-      echo "Don't use equality checks with ErrNoState, use errors.Is() instead"
-      echo "$got"
-      exit 1
+    if got=$(grep -n -R -E "(\!=|==|Equals,) (state\.)?ErrNoState" --include=*.go); then
+        echo "Don't use equality checks with ErrNoState, use errors.Is() instead"
+        echo "$got"
+        exit 1
     fi
 
     if [ -z "${SKIP_GOLANGCI_LINT:-}" ]; then
@@ -407,7 +407,7 @@ if [ "$STATIC" = 1 ]; then
             exit 1
         fi
 
-        if echo "$gcil" | grep -q '/snap/bin/' ; then
+        if echo "$gcil" | grep -q '/snap/bin/'; then
             # golangci-lint was installed from the snap
             if snap refresh --list | grep -q golangci-lint; then
                 echo "WARNING: your golangci-lint snap is out of date. The CI will install a fresh version, which may differ from yours."
@@ -421,7 +421,7 @@ if [ "$STATIC" = 1 ]; then
         gcil_go_ver=$(golangci-lint --version | grep -o 'go[0-9]*\.[0-9]*\.[0-9]*' | cut -c 3-)
         go_ver=$(go version | grep -o 'go[0-9]*\.[0-9]*\.[0-9]*' | cut -c 3-)
         if [ "$(printf '%s\n' "$go_ver" "$gcil_go_ver" | sort -V | head -n1)" != "$go_ver" ]; then
-           echo "WARNING: Your go version ($go_ver) is greater than the version of go that golangci-lint was built with ($gcil_go_ver)."
+            echo "WARNING: Your go version ($go_ver) is greater than the version of go that golangci-lint was built with ($gcil_go_ver)."
         fi
 
         # don't run with --new-from-rev as the diff might not be enough to tell
@@ -447,7 +447,7 @@ if [ "$UNIT" = 1 ]; then
     if [ -n "${GO_TEST_RACE:-}" ]; then
         echo "Using go test -race"
         race="-race"
-        timeout="$((TIMEOUT*2))m"
+        timeout="$((TIMEOUT * 2))m"
     fi
 
     echo Building
@@ -457,9 +457,9 @@ if [ "$UNIT" = 1 ]; then
     # tests
     echo Running tests from "$PWD"
     if [ "$short" = 1 ]; then
-            echo "Running without test coverage"
-            # shellcheck disable=SC2046,SC2086
-            GOTRACEBACK=1 $goctest $tags $race -short -timeout $timeout
+        echo "Running without test coverage"
+        # shellcheck disable=SC2046,SC2086
+        GOTRACEBACK=1 $goctest $tags $race -short -timeout $timeout
     else
         coverage=""
         if [ -z "${SKIP_COVERAGE:-}" ]; then
@@ -483,7 +483,7 @@ if [ "$UNIT" = 1 ]; then
     command -v pytest-3 && PYTHONDONTWRITEBYTECODE=1 pytest-3 ./release-tools
 fi
 
-UNCLEAN="$(git status -s|grep '^??')" || true
+UNCLEAN="$(git status -s | grep '^??')" || true
 SKIP_UNCLEAN=${SKIP_UNCLEAN=}
 if [ -n "$UNCLEAN" ] && [ -z "$SKIP_UNCLEAN" ]; then
     cat <<EOF
