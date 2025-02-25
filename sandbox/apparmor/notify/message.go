@@ -61,7 +61,7 @@ func (msg *MsgHeader) UnmarshalBinary(data []byte) error {
 func (msg *MsgHeader) unmarshalBinaryImpl(data []byte) error {
 	// Unpack fixed-size elements.
 	order := arch.Endian() // ioctl messages are native byte order, verify endianness if using for other messages
-	buf := bytes.NewBuffer(data)
+	buf := bytes.NewReader(data)
 	if err := binary.Read(buf, order, msg); err != nil {
 		return err
 	}
@@ -146,7 +146,7 @@ func (msg *MsgNotificationFilter) UnmarshalBinary(data []byte) error {
 	}
 
 	// Unpack fixed-size elements.
-	buf := bytes.NewBuffer(data)
+	buf := bytes.NewReader(data)
 	var raw msgNotificationFilterKernel
 	order := arch.Endian() // ioctl messages are native byte order, verify endianness if using for other messages
 	if err := binary.Read(buf, order, &raw); err != nil {
@@ -252,7 +252,7 @@ func (msg *MsgNotification) UnmarshalBinary(data []byte) error {
 	}
 
 	// Unpack fixed-size elements.
-	buf := bytes.NewBuffer(data)
+	buf := bytes.NewReader(data)
 	order := arch.Endian() // ioctl messages are native byte order, verify endianness if using for other messages
 	if err := binary.Read(buf, order, msg); err != nil {
 		return fmt.Errorf("%s: cannot unpack: %s", prefix, err)
@@ -404,7 +404,7 @@ func (msg *MsgNotificationOp) UnmarshalBinary(data []byte) error {
 	}
 
 	// Unpack fixed-size elements.
-	buf := bytes.NewBuffer(data)
+	buf := bytes.NewReader(data)
 	var raw msgNotificationOpKernel
 	order := arch.Endian() // ioctl messages are native byte order, verify endianness if using for other messages
 	if err := binary.Read(buf, order, &raw); err != nil {
@@ -502,7 +502,7 @@ func (msg *MsgNotificationFile) UnmarshalBinary(data []byte) error {
 
 func (msg *MsgNotificationFile) unmarshalBase(data []byte) error {
 	// Unpack fixed-size elements.
-	buf := bytes.NewBuffer(data)
+	buf := bytes.NewReader(data)
 	var raw msgNotificationFileKernelBase
 	order := arch.Endian() // ioctl messages are native byte order, verify endianness if using for other messages
 	if err := binary.Read(buf, order, &raw); err != nil {
@@ -532,7 +532,7 @@ type tagsetHeader struct {
 
 func (msg *MsgNotificationFile) unmarshalTags(data []byte) error {
 	// Unpack fixed-size elements to get tag metadata.
-	buf := bytes.NewBuffer(data)
+	buf := bytes.NewReader(data)
 	var raw msgNotificationFileKernelWithTags
 	order := arch.Endian() // ioctl messages are native byte order, verify endianness if using for other messages
 	if err := binary.Read(buf, order, &raw); err != nil {
@@ -545,7 +545,7 @@ func (msg *MsgNotificationFile) unmarshalTags(data []byte) error {
 
 	// Unpack the tagset headers.
 	tagsets := make(map[uint32][]string, raw.TagsetsCount)
-	hdrBuf := bytes.NewBuffer(data[raw.Tags:])
+	hdrBuf := bytes.NewReader(data[raw.Tags:])
 	headers := make([]tagsetHeader, raw.TagsetsCount)
 	if err := binary.Read(hdrBuf, order, headers); err != nil {
 		return fmt.Errorf("cannot unpack tagset headers: %v", err)
