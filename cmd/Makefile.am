@@ -56,6 +56,11 @@ endif
 fmt:: $(foreach dir,$(subdirs),$(wildcard $(srcdir)/$(dir)/*.[ch]))
 	clang-format -i $^
 
+# fmt-check is intended for use by tests
+.PHONY: fmt-check
+fmt-check:: $(foreach dir,$(subdirs),$(wildcard $(srcdir)/$(dir)/*.[ch]))
+	clang-format --dry-run --Werror $^
+
 # The hack target helps developers work on snap-confine on their live system by
 # installing a fresh copy of snap confine and the appropriate apparmor profile.
 .PHONY: hack

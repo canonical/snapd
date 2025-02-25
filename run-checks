@@ -428,6 +428,18 @@ if [ "$STATIC" = 1 ]; then
         # the change introduces problems (e.g., removing the last call to a function)
         golangci-lint --path-prefix= run
     fi
+
+    echo "Checking C source code formatting"
+    if command -v clang-format >/dev/null; then
+        current=$(pwd)
+        cd cmd/
+        ./autogen.sh
+        if ! make fmt-check; then
+            echo "C files are not formatted correctly, run 'make fmt'"
+            exit 1
+        fi
+        cd "$current"
+    fi
 fi
 
 if [ "$UNIT" = 1 ]; then
