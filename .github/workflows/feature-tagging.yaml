@@ -7,6 +7,10 @@ on:
         type: string
         description: 'Comma-separated list of features to tag'
         default: 'all'
+      maximum-reruns:
+        type: number
+        description: 'Maximum number of times to rerun failed spread tasks upon failure'
+        default: 3
 
 jobs:
   read-systems:
@@ -83,11 +87,74 @@ jobs:
     permissions:
       actions: write
     needs: [tag-features-fundamental, tag-features-non-fundamental, tag-features-nested]
-    # If the spread tests ended in failure, rerun the workflow up to 2 times
-    if: failure() && fromJSON(github.run_attempt) < 3
+    # If the spread tests ended in failure, rerun the workflow up to maximum-reruns-1 times
+    if: failure() && fromJSON(github.run_attempt) < fromJSON(inputs.maximum-reruns)
     runs-on: ubuntu-latest
     steps:
       - env:
           GH_REPO: ${{ github.repository }}
           GH_TOKEN: ${{ github.token }}
         run: gh workflow run rerun.yaml -F run_id=${{ github.run_id }}
+
+  create-reports:
+    needs: [tag-features-fundamental, tag-features-non-fundamental, tag-features-nested]
+    runs-on: ubuntu-latest
+    if: success() || fromJSON(github.run_attempt) >= fromJSON(inputs.maximum-reruns)
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Get generated data
+        uses: actions/github-script@v6
+        with:
+          script: |
+            let page = 1;
+            let per_page = 100;
+            let allArtifacts = [];
+            let response;
+            do {
+              response = await github.rest.actions.listWorkflowRunArtifacts({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                run_id: context.runId,
+                per_page: per_page,
+                page: page
+              });
+              allArtifacts = allArtifacts.concat(response.data.artifacts);
+              page++;
+            } while (response.data.artifacts.length === per_page);
+
+            let matchingArtifacts = allArtifacts.filter((artifact) => {
+              return artifact.name.startsWith(`feature-tags`);
+            });
+
+            for (let artifact of matchingArtifacts) {
+              let download = await github.rest.actions.downloadArtifact({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                artifact_id: artifact.id,
+                archive_format: 'zip',
+              });
+              let fs = require('fs');
+              fs.writeFileSync(`${process.env.GITHUB_WORKSPACE}/${artifact.name}.zip`, Buffer.from(download.data));
+              console.log(`Downloaded artifact: ${artifact.name}.zip`);
+            }
+      - name: Unzip artifacts
+        run: |
+          mkdir -p feature-tags-artifacts
+          find . -name "feature-tags*.zip" | while read filename; do 
+            unzip "$filename" -d "feature-tags-artifacts"
+          done
+      
+      - name: Consolidate feature data
+        run: |
+          ./tests/lib/compose-features.py \
+            --dir "feature-tags-artifacts" \
+            --output "final-feature-tags" \
+            --replace-old-runs
+
+      - name: Upload feature data
+        uses: actions/upload-artifact@v4
+        with:
+          name: "feature-tags"
+          path: "final-feature-tags"
