@@ -27,7 +27,7 @@ jobs:
       id: set_artifact_name
       run: |
         postfix="${{ inputs.toolchain }}-${{ inputs.variant }}"
-        if grep -iq "arm64" <<<"${{ inputs.runs-on }}"; then
+        if grep -iq "arm" <<<"${{ inputs.runs-on }}"; then
           echo "artifact_name=snap-files-arm64-${postfix}" >> $GITHUB_OUTPUT
         else
           echo "artifact_name=snap-files-amd64-${postfix}" >> $GITHUB_OUTPUT
