@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/binary"
 	"fmt"
+	"slices"
 
 	"github.com/snapcore/snapd/arch"
 )
@@ -64,11 +65,20 @@ func (sp *stringPacker) PackTagsets(ts map[uint32][]string) uint32 {
 	}
 	headers := make([]tagsetHeader, len(ts))
 	i := 0
-	for perm, tags := range ts {
+
+	// Make marshalled message deterministic by including tagsets sorted by
+	// their associated permissions.
+	perms := make([]uint32, 0, len(ts))
+	for perm := range ts {
+		perms = append(perms, perm)
+	}
+	slices.Sort(perms)
+
+	for _, perm := range perms {
+		tags := ts[perm]
 		if len(tags) == 0 {
 			continue
 		}
-		// order of permissions from map is not guaranteed
 		headers[i].PermissionMask = perm
 		headers[i].TagCount = uint32(len(tags))
 		headers[i].TagOffset = sp.PackString(tags[0])
@@ -152,7 +162,7 @@ func (su *stringUnpacker) UnpackStrings(offset uint32, n uint32) ([]string, erro
 			return nil, fmt.Errorf("unterminated string at address %d", offset)
 		}
 		strs[i] = string(tmp[:idx])
-		offset += uint32(idx + 1) // advance offset to start of next string
+		offset += uint32(idx) + 1 // advance offset to start of next string
 	}
 	return strs, nil
 }
