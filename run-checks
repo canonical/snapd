@@ -3,11 +3,6 @@
 export LANG=C.UTF-8
 export LANGUAGE=en
 
-if command -v goctest >/dev/null; then
-    goctest="goctest ./..."
-else
-    goctest="go test ./..."
-fi
 COVERMODE=${COVERMODE:-atomic}
 COVERAGE_SUFFIX=${GO_BUILD_TAGS:-notags}
 COVERAGE_OUT=${COVERAGE_OUT:-.coverage/coverage-$COVERAGE_SUFFIX.cov}
@@ -36,31 +31,48 @@ fi
 GOBINS=$(go env GOPATH | sed 's|:|/bin:|g' | sed 's|.*|\0/bin|g')
 export PATH="$PATH:$GOBINS"
 
-short=
+missing_interface_spread_test() {
+    snap_yaml="tests/lib/snaps/test-snapd-policy-app-consumer/meta/snap.yaml"
+    core_snap_yaml="tests/main/interfaces-many-snap-provided/test-snapd-policy-app-provider-core/meta/snap.yaml"
+    classic_snap_yaml="tests/main/interfaces-many-snap-provided/test-snapd-policy-app-provider-classic/meta/snap.yaml"
+    for iface in $(go run ./tests/lib/list-interfaces.go); do
+        search="plugs: \\[ $iface \\]"
+        case "$iface" in
+        bool-file | gpio | pwm | dsp | netlink-driver | hidraw | i2c | iio | serial-port | spi | confdb)
+            # skip gadget provided interfaces for now
+            continue
+            ;;
+        dbus | content)
+            search="interface: $iface"
+            ;;
+        autopilot)
+            search='plugs: \[ autopilot-introspection \]'
+            ;;
+        esac
 
-STATIC=
-UNIT=
+        # check if a standalone test already exists and that it at least
+        # connects and disconnects the interface
+        dedicated_test=$(find tests/main/ -maxdepth 1 -name "interfaces-$iface")
+        if [ -n "$dedicated_test" ]; then
+            if grep -q "$search" "$snap_yaml"; then
+                echo "Dedicated test '$dedicated_test' found for '$iface'."
+                echo "Please remove '$iface' from '$snap_yaml'."
+                exit 1
+            fi
+            # dedicated test already exists, skip high-level test check below
+            continue
+        fi
 
-case "${1:-all}" in
-all)
-    STATIC=1
-    UNIT=1
-    ;;
---static)
-    STATIC=1
-    ;;
---unit)
-    UNIT=1
-    ;;
---short-unit)
-    UNIT=1
-    short=1
-    ;;
-*)
-    echo "Wrong flag ${1}. To run a single suite use --static, --unit."
-    exit 1
-    ;;
-esac
+        # check if high-level minimal test exists for interface
+        if ! grep -q "$search" "$snap_yaml"; then
+            echo "Missing high-level test for interface '$iface'. Please add to:"
+            echo "* $snap_yaml"
+            echo "* $core_snap_yaml (if needed)"
+            echo "* $classic_snap_yaml (if needed)"
+            exit 1
+        fi
+    done
+}
 
 CURRENTTRAP="true"
 EXIT_CODE=99
@@ -110,52 +122,30 @@ endmsg() {
 }
 addtrap endmsg
 
-missing_interface_spread_test() {
-    snap_yaml="tests/lib/snaps/test-snapd-policy-app-consumer/meta/snap.yaml"
-    core_snap_yaml="tests/main/interfaces-many-snap-provided/test-snapd-policy-app-provider-core/meta/snap.yaml"
-    classic_snap_yaml="tests/main/interfaces-many-snap-provided/test-snapd-policy-app-provider-classic/meta/snap.yaml"
-    for iface in $(go run ./tests/lib/list-interfaces.go); do
-        search="plugs: \\[ $iface \\]"
-        case "$iface" in
-        bool-file | gpio | pwm | dsp | netlink-driver | hidraw | i2c | iio | serial-port | spi | confdb)
-            # skip gadget provided interfaces for now
-            continue
-            ;;
-            cuda-driver-libs|egl-driver-libs)
-            # skip interfaces with plug side only in rootfs for now
-            continue
-            ;;
-        dbus | content)
-            search="interface: $iface"
-            ;;
-        autopilot)
-            search='plugs: \[ autopilot-introspection \]'
-            ;;
-        esac
+short=
+STATIC=
+UNIT=
 
-        # check if a standalone test already exists and that it at least
-        # connects and disconnects the interface
-        dedicated_test=$(find tests/main/ -maxdepth 1 -name "interfaces-$iface")
-        if [ -n "$dedicated_test" ]; then
-            if grep -q "$search" "$snap_yaml"; then
-                echo "Dedicated test '$dedicated_test' found for '$iface'."
-                echo "Please remove '$iface' from '$snap_yaml'."
-                exit 1
-            fi
-            # dedicated test already exists, skip high-level test check below
-            continue
-        fi
-
-        # check if high-level minimal test exists for interface
-        if ! grep -q "$search" "$snap_yaml"; then
-            echo "Missing high-level test for interface '$iface'. Please add to:"
-            echo "* $snap_yaml"
-            echo "* $core_snap_yaml (if needed)"
-            echo "* $classic_snap_yaml (if needed)"
-            exit 1
-        fi
-    done
-}
+case "${1:-all}" in
+all)
+    STATIC=1
+    UNIT=1
+    ;;
+--static)
+    STATIC=1
+    ;;
+--unit)
+    UNIT=1
+    ;;
+--short-unit)
+    UNIT=1
+    short=1
+    ;;
+*)
+    echo "Wrong flag ${1}. To run a single suite use --static, --unit."
+    exit 1
+    ;;
+esac
 
 if [ "$STATIC" = 1 ]; then
     ./get-deps.sh
@@ -465,6 +455,12 @@ if [ "$UNIT" = 1 ]; then
     echo Building
     # shellcheck disable=SC2086
     go build -v $tags $race github.com/snapcore/snapd/...
+
+    if command -v goctest >/dev/null; then
+        goctest="goctest ./..."
+    else
+        goctest="go test ./..."
+    fi
 
     # tests
     echo Running tests from "$PWD"
