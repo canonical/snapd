@@ -305,11 +305,19 @@ const (
 )
 
 var (
-	ConfDir                string
-	CacheDir               string
-	SystemCacheDir         string
+	// ConfDir is the path to the directory holding AppArmor configuration.
+	ConfDir string
+	// CacheDir is the path to the cache directory for AppArmor.
+	CacheDir string
+	// SystemCacheDir is the path to the system cache directory for AppArmor,
+	// which may or may not be different from CacheDir.
+	SystemCacheDir string
+	// SnapConfineAppArmorDir is the path to the AppArmor snap confine
+	// directory.
 	SnapConfineAppArmorDir string
-	NotifySocketPath       string
+	// NotifySocketPath is the path to the socket over which listeners can
+	// communicate with AppArmor in the kernel.
+	NotifySocketPath string
 )
 
 func setupConfCacheDirs(newrootdir string) {
