@@ -396,13 +396,14 @@ jobs:
             --dir "${ARTIFACTS_FOLDER}/feature-tags" \
             --output "feature-tags" \
             --failed-tests "$(cat $FAILED_TESTS_FILE)" \
+            --run-attempt ${{ github.run_attempt }} \
             --env-variables "SPREAD_EXPERIMENTAL_FEATURES=${SPREAD_EXPERIMENTAL_FEATURES},SPREAD_SNAPD_DEB_FROM_REPO=${SPREAD_SNAPD_DEB_FROM_REPO}"
 
     - name: Upload feature tags
       if: always() && env.SPREAD_TAG_FEATURES != ''
       uses: actions/upload-artifact@v4
       with:
-        name: "feature-tags-${{ inputs.group }}-${{ inputs.systems }}"
+        name: "feature-tags-${{ inputs.group }}-${{ inputs.systems }}_${{ github.run_attempt }}"
         path: "feature-tags"
 
     - name: Save spread test results to cache
