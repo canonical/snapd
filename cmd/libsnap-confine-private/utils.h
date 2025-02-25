@@ -83,6 +83,21 @@ static inline sc_identity sc_root_group_identity(void) {
 }
 
 /**
+ * Produce value indicating no change in current identity.
+ *
+ * Produce a value of sc_identity which indicates no change in the identity of
+ * the current process.
+ **/
+static inline sc_identity sc_no_change_identity(void) {
+    sc_identity id = {
+        /* Explicit no change in either uid or gid. */
+        .change_uid = false,
+        .change_gid = false,
+    };
+    return id;
+}
+
+/**
  * Set the effective user and group IDs to given values.
  *
  * Effective user and group identifiers are applied to the system. The

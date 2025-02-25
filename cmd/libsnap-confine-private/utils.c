@@ -18,6 +18,7 @@
 #include <fcntl.h>
 #include <regex.h>
 #include <stdarg.h>
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -124,13 +125,13 @@ sc_identity sc_set_effective_identity(sc_identity identity) {
     /* We are being careful not to return a value instructing us to change GID
      * or UID by accident. */
     sc_identity old = {
-        .change_gid = 0,
-        .change_uid = 0,
+        .change_gid = false,
+        .change_uid = false,
     };
 
     if (identity.change_gid) {
         old.gid = getegid();
-        old.change_gid = 1;
+        old.change_gid = true;
         if (setegid(identity.gid) < 0) {
             die("cannot set effective group to %d", identity.gid);
         }
@@ -140,7 +141,7 @@ sc_identity sc_set_effective_identity(sc_identity identity) {
     }
     if (identity.change_uid) {
         old.uid = geteuid();
-        old.change_uid = 1;
+        old.change_uid = true;
         if (seteuid(identity.uid) < 0) {
             die("cannot set effective user to %d", identity.uid);
         }
