@@ -522,6 +522,10 @@ func IsConfdbHook(ctx *hookstate.Context) bool {
 			strings.HasSuffix(ctx.HookName(), "-view-changed"))
 }
 
+// createLoadConfdbTasks returns a taskset with the hooks and tasks required to
+// read a transaction through the given view. In case no custodian snap has any
+// load-view or query-view hooks, nil is returned. If there are hooks to run,
+// a clear-confdb-tx task is also scheduled to remove the ongoing transaction at the end.
 func createLoadConfdbTasks(st *state.State, tx *Transaction, view *confdb.View) (*state.TaskSet, error) {
 	custodians, custodianPlugs, err := getCustodianPlugsForView(st, view)
 	if err != nil {
