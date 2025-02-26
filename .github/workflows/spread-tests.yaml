@@ -161,7 +161,7 @@ jobs:
           # Alternative backends usage depends on the value stored in the var USE_ALTERNATIVE_BACKEND,
           # where it is defined the backend to use when images are ready in both google and openstack.
           SPREAD_BACKEND="${{ inputs.backend }}"
-          if [ -n "${{ inputs.alternative-backend }}" ] && grep "${{ inputs.group }}: true" << ${{ vars.USE_ALTERNATIVE_BACKEND }}  ; then
+          if [ -n "${{ inputs.alternative-backend }}" ] && grep "${{ inputs.group }}: true" <<< ${{ vars.USE_ALTERNATIVE_BACKEND }}  ; then
               SPREAD_BACKEND="${{ inputs.alternative-backend }}"
           fi
           echo SPREAD_BACKEND="$SPREAD_BACKEND" >> $GITHUB_ENV
