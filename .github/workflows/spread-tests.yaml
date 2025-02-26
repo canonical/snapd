@@ -139,8 +139,6 @@ jobs:
 
     - name: Setup run tests variable
       if: "!contains(github.event.pull_request.labels.*.name, 'Skip spread')"
-      env:
-          USE_ALTERNATIVE_BACKEND: ${{ vars.USE_ALTERNATIVE_BACKEND }}
       run: |
           get_new_tasks() {
             local prefix=$1
@@ -160,8 +158,9 @@ jobs:
           }
 
           # Determine if the alternative backend has to be used for the current group
-          # Alternative backends usage depends on the value stored in the var USE_ALTERNATIVE_BACKEND,
+          # Alternative backends usage depends on the value stored in the file USE_ALTERNATIVE_BACKEND,
           # where it is defined the backend to use when images are ready in both google and openstack.
+          USE_ALTERNATIVE_BACKEND="$(curl -s https://storage.googleapis.com/snapd-spread-tests/snapd-tests/ci/USE_ALTERNATIVE_BACKEND)"
           SPREAD_BACKEND="${{ inputs.backend }}"
           if [ -n "${{ inputs.alternative-backend }}" ] && grep "${{ inputs.group }}: true" <<< "$USE_ALTERNATIVE_BACKEND"  ; then
               SPREAD_BACKEND="${{ inputs.alternative-backend }}"
