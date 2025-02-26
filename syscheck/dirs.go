@@ -20,14 +20,53 @@
 package syscheck
 
 import (
+	"fmt"
+
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/release"
 )
 
 func init() {
 	checks = append(checks, checkSnapMountDir)
 }
 
+var (
+	// distributions known to use /snap/
+	defaultDirDistros = []string{
+		"ubuntu",
+		"ubuntu-core",
+		"ubuntucoreinitramfs",
+		"debian",
+		"opensuse",
+		"suse",
+		"yocto",
+	}
+
+	// distributions known to use /var/lib/snapd/snap/
+	altDirDistros = []string{
+		"altlinux",
+		"antergos",
+		"arch",
+		"archlinux",
+		"fedora",
+		"gentoo",
+		"manjaro",
+		"manjaro-arm",
+	}
+)
+
 func checkSnapMountDir() error {
-	// trivla helper, nothing to see really
-	return dirs.SnapMountDirDetectionOutcome()
+	if err := dirs.SnapMountDirDetectionOutcome(); err != nil {
+		return err
+	}
+
+	smd := dirs.StripRootDir(dirs.SnapMountDir)
+	switch {
+	case release.DistroLike(defaultDirDistros...) && smd != dirs.DefaultSnapMountDir:
+		fallthrough
+	case release.DistroLike(altDirDistros...) && smd != dirs.AltSnapMountDir:
+		return fmt.Errorf("unexpected snap mount directory %v on %v", smd, release.ReleaseInfo.ID)
+	}
+
+	return nil
 }
