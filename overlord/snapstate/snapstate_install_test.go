@@ -39,6 +39,7 @@ import (
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/dirs/dirstest"
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/ifacetest"
@@ -3879,12 +3880,9 @@ func (s *snapmgrTestSuite) TestInstallFailsWhenClassicSnapsAreNotSupported(c *C)
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	reset := release.MockReleaseInfo(&release.OS{
-		ID: "fedora",
-	})
-	defer reset()
-
 	// this needs doing because dirs depends on the release info
+	c.Check(os.RemoveAll(dirs.SnapMountDir), IsNil)
+	dirstest.MustMockAltSnapMountDir(dirs.GlobalRootDir)
 	dirs.SetRootDir(dirs.GlobalRootDir)
 
 	opts := &snapstate.RevisionOptions{Channel: "channel-for-classic"}

@@ -41,6 +41,7 @@ import (
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/bootloader/bootloadertest"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/dirs/dirstest"
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/logger"
@@ -155,7 +156,9 @@ func (s *snapmgrBaseTest) mockSystemctlCallsUpdateMounts(c *C) (restore func()) 
 
 func (s *snapmgrBaseTest) SetUpTest(c *C) {
 	s.BaseTest.SetUpTest(c)
-	dirs.SetRootDir(c.MkDir())
+	rd := c.MkDir()
+	dirstest.MustMockCanonicalSnapMountDir(rd)
+	dirs.SetRootDir(rd)
 
 	s.o = overlord.Mock()
 	s.state = s.o.State()
