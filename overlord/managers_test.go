@@ -59,6 +59,7 @@ import (
 	"github.com/snapcore/snapd/bootloader/grubenv"
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/dirs/dirstest"
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/gadget/gadgettest"
 	"github.com/snapcore/snapd/gadget/quantity"
@@ -184,6 +185,7 @@ func (s *baseMgrsSuite) SetUpTest(c *C) {
 	}
 
 	s.tempdir = c.MkDir()
+	dirstest.MustMockCanonicalSnapMountDir(s.tempdir)
 	dirs.SetRootDir(s.tempdir)
 	s.AddCleanup(func() { dirs.SetRootDir("") })
 
@@ -10317,7 +10319,7 @@ Description=Service for snap application test-snap.svc1
 Requires=%[1]s
 Wants=network.target
 After=%[1]s network.target snapd.apparmor.service
-%[3]s=usr-lib-snapd.mount
+%[2]s=usr-lib-snapd.mount
 After=usr-lib-snapd.mount
 X-Snappy=yes
 
@@ -10326,7 +10328,7 @@ EnvironmentFile=-/etc/environment
 ExecStart=/usr/bin/snap run test-snap.svc1
 SyslogIdentifier=test-snap.svc1
 Restart=on-failure
-WorkingDirectory=%[2]s/var/snap/test-snap/42
+WorkingDirectory=/var/snap/test-snap/42
 TimeoutStopSec=30
 Type=simple
 
@@ -10335,8 +10337,7 @@ WantedBy=multi-user.target
 `
 
 	initialUnitFile := fmt.Sprintf(unitTempl,
-		systemd.EscapeUnitNamePath(filepath.Join(dirs.SnapMountDir, "test-snap", "42.mount")),
-		dirs.GlobalRootDir,
+		systemd.EscapeUnitNamePath(dirs.StripRootDir(filepath.Join(dirs.SnapMountDir, "test-snap", "42.mount"))),
 		"Requires",
 	)
 
@@ -10500,8 +10501,7 @@ NeedDaemonReload=no
 
 	// the unit file was rewritten to use Wants= now
 	rewrittenUnitFile := fmt.Sprintf(unitTempl,
-		systemd.EscapeUnitNamePath(filepath.Join(dirs.SnapMountDir, "test-snap", "42.mount")),
-		dirs.GlobalRootDir,
+		systemd.EscapeUnitNamePath(dirs.StripRootDir(filepath.Join(dirs.SnapMountDir, "test-snap", "42.mount"))),
 		"Wants",
 	)
 	c.Assert(filepath.Join(dirs.SnapServicesDir, "snap.test-snap.svc1.service"), testutil.FileEquals, rewrittenUnitFile)
@@ -10554,7 +10554,7 @@ Description=Service for snap application test-snap.svc1
 Requires=%[1]s
 Wants=network.target
 After=%[1]s network.target snapd.apparmor.service
-%[3]s=usr-lib-snapd.mount
+%[2]s=usr-lib-snapd.mount
 After=usr-lib-snapd.mount
 X-Snappy=yes
 
@@ -10563,7 +10563,7 @@ EnvironmentFile=-/etc/environment
 ExecStart=/usr/bin/snap run test-snap.svc1
 SyslogIdentifier=test-snap.svc1
 Restart=on-failure
-WorkingDirectory=%[2]s/var/snap/test-snap/42
+WorkingDirectory=/var/snap/test-snap/42
 TimeoutStopSec=30
 Type=simple
 
@@ -10572,8 +10572,7 @@ WantedBy=multi-user.target
 `
 
 	initialUnitFile := fmt.Sprintf(unitTempl,
-		systemd.EscapeUnitNamePath(filepath.Join(dirs.SnapMountDir, "test-snap", "42.mount")),
-		dirs.GlobalRootDir,
+		systemd.EscapeUnitNamePath(dirs.StripRootDir(filepath.Join(dirs.SnapMountDir, "test-snap", "42.mount"))),
 		"Requires",
 	)
 
@@ -10669,7 +10668,7 @@ NeedDaemonReload=no
 	})
 	s.AddCleanup(r)
 	// make sure that we get the expected number of systemctl calls
-	s.AddCleanup(func() { c.Assert(systemctlCalls, Equals, 15) })
+	defer func() { c.Assert(systemctlCalls, Equals, 15) }()
 
 	// also add the snapd snap to state which we will refresh
 	si1 := &snap.SideInfo{RealName: "snapd", Revision: snap.R(1)}
@@ -10749,8 +10748,7 @@ NeedDaemonReload=no
 
 	// the unit file was rewritten to use Wants= now
 	rewrittenUnitFile := fmt.Sprintf(unitTempl,
-		systemd.EscapeUnitNamePath(filepath.Join(dirs.SnapMountDir, "test-snap", "42.mount")),
-		dirs.GlobalRootDir,
+		systemd.EscapeUnitNamePath(dirs.StripRootDir(filepath.Join(dirs.SnapMountDir, "test-snap", "42.mount"))),
 		"Wants",
 	)
 	c.Assert(filepath.Join(dirs.SnapServicesDir, "snap.test-snap.svc1.service"), testutil.FileEquals, rewrittenUnitFile)
