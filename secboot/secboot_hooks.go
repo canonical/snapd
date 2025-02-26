@@ -45,7 +45,8 @@ const legacyFdeHooksPlatformName = "fde-hook-v2"
 
 func init() {
 	v2Handler := &fdeHookV2DataHandler{}
-	sb.RegisterPlatformKeyDataHandler(legacyFdeHooksPlatformName, v2Handler)
+	flags := sb.PlatformKeyDataHandlerFlags(0)
+	sb.RegisterPlatformKeyDataHandler(legacyFdeHooksPlatformName, v2Handler, flags)
 }
 
 type hookKeyProtector struct {
