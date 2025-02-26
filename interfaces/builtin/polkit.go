@@ -21,21 +21,27 @@ package builtin
 
 import (
 	"bytes"
+	"crypto"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 
+	_ "golang.org/x/crypto/sha3"
+	"golang.org/x/sys/unix"
+
+	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/polkit"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/polkit/validate"
 	"github.com/snapcore/snapd/snap"
-	"golang.org/x/sys/unix"
 )
 
-const polkitSummary = `allows access to polkitd to check authorisation`
+const polkitSummary = `allows installing polkit rules and/or access to polkitd to check authorisation`
 
 const polkitBaseDeclarationPlugs = `
   polkit:
@@ -118,7 +124,7 @@ func loadPolkitPolicy(filename, actionPrefix string) (polkit.Policy, error) {
 	return polkit.Policy(content), nil
 }
 
-func (iface *polkitInterface) PolkitConnectedPlug(spec *polkit.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
+func (iface *polkitInterface) loadPolkitPolicies(spec *polkit.Specification, plug *interfaces.ConnectedPlug) error {
 	actionPrefix, err := iface.getActionPrefix(plug)
 	if err != nil {
 		return err
@@ -145,9 +151,166 @@ func (iface *polkitInterface) PolkitConnectedPlug(spec *polkit.Specification, pl
 	return nil
 }
 
-func (iface *polkitInterface) BeforePreparePlug(plug *snap.PlugInfo) error {
-	_, err := iface.getActionPrefix(plug)
+type polkitInstallRule struct {
+	Name, Sha3_384 string
+}
+
+func (iface *polkitInterface) getInstallRules(attribs interfaces.Attrer) ([]polkitInstallRule, error) {
+	var ruleEntries []map[string]string
+	if err := attribs.Attr("install-rules", &ruleEntries); err != nil {
+		return nil, err
+	}
+	if len(ruleEntries) == 0 {
+		return nil, fmt.Errorf("\"install-rules\" must have at least one entry")
+	}
+	rules := make([]polkitInstallRule, len(ruleEntries))
+	for i, ruleEntry := range ruleEntries {
+		rule := polkitInstallRule{}
+		for key, val := range ruleEntry {
+			switch key {
+			case "name":
+				if err := validate.ValidateRuleFileName(val); err != nil {
+					return nil, err
+				}
+				rule.Name = val
+			case "sha3-384":
+				rule.Sha3_384 = val
+			default:
+				return nil, fmt.Errorf("unexpected key %q for \"install-rules\" entry", key)
+			}
+		}
+		if rule.Name == "" {
+			return nil, fmt.Errorf("key \"name\" is required for \"install-rules\" entry")
+		}
+		if rule.Sha3_384 == "" {
+			return nil, fmt.Errorf("key \"sha3-384\" is required for \"install-rules\" entry")
+		}
+		rules[i] = rule
+	}
+	return rules, nil
+}
+
+func loadPolkitRule(filename string, installRules []polkitInstallRule) (polkit.Rule, error) {
+	// Find matching install-rules entry
+	base := filepath.Base(filename)
+	var exptectedHash string
+	for _, installRule := range installRules {
+		if installRule.Name == base {
+			exptectedHash = installRule.Sha3_384
+			break
+		}
+	}
+	if exptectedHash == "" {
+		return nil, fmt.Errorf("no matching \"install-rule\" entry found for %q", filename)
+	}
+	// Compute sha3-384 hash of matched file
+	hashDigest, _, err := osutil.FileDigest(filename, crypto.SHA3_384)
+	if err != nil {
+		return nil, fmt.Errorf("cannot read hash digest of %q: %v", filename, err)
+	}
+	hash, err := asserts.EncodeDigest(crypto.SHA3_384, hashDigest)
+	if err != nil {
+		return nil, err
+	}
+	if hash != exptectedHash {
+		return nil, fmt.Errorf("unexpected hash digest of %q, expected %q, found %q", filename, exptectedHash, hash)
+	}
+	// Hash matched, return rule content
+	content, err := os.ReadFile(filename)
+	if err != nil {
+		return nil, fmt.Errorf("cannot read file %q: %v", filename, err)
+	}
+	return polkit.Rule(content), nil
+}
+
+func (iface *polkitInterface) loadPolkitRules(spec *polkit.Specification, plug *interfaces.ConnectedPlug) error {
+	installRules, err := iface.getInstallRules(plug)
+	if err != nil {
+		return err
+	}
+
+	mountDir := plug.Snap().MountDir()
+	ruleFiles, err := filepath.Glob(filepath.Join(mountDir, "meta", "polkit", "*.rules"))
+	if err != nil {
+		return err
+	}
+	if len(ruleFiles) == 0 {
+		return fmt.Errorf("cannot find any rule files for plug %q", plug.Name())
+	}
+	for _, filename := range ruleFiles {
+		suffix := strings.TrimSuffix(filepath.Base(filename), ".rules")
+		rule, err := loadPolkitRule(filename, installRules)
+		if err != nil {
+			return err
+		}
+		if err := spec.AddRule(suffix, rule); err != nil {
+			return err
+		}
+	}
 	return err
+}
+
+type polkitMissingAttrErr struct {
+	snapName string
+}
+
+func (err *polkitMissingAttrErr) Error() string {
+	return fmt.Sprintf("snap %q must have at lease one of (\"action-prefix\", \"install-rules\") attributes set for interface \"polkit\"", err.snapName)
+}
+
+func (iface *polkitInterface) PolkitConnectedPlug(spec *polkit.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
+	// At least one of ("action-prefix", "install-rules") attributes must be set.
+	policyErr := iface.loadPolkitPolicies(spec, plug)
+	if policyErr != nil && !errors.Is(policyErr, snap.AttributeNotFoundError{}) {
+		return policyErr
+	}
+	ruleErr := iface.loadPolkitRules(spec, plug)
+	if ruleErr != nil && !errors.Is(ruleErr, snap.AttributeNotFoundError{}) {
+		return ruleErr
+	}
+	// Check if both attributes are not set.
+	if policyErr != nil && ruleErr != nil {
+		return &polkitMissingAttrErr{plug.Snap().InstanceName()}
+	}
+	return nil
+}
+
+func (iface *polkitInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
+	// Allow talking to polkitd's CheckAuthorization API only when "action-prefix" is set.
+	_, err := iface.getActionPrefix(plug)
+	if err == nil {
+		spec.AddSnippet(polkitConnectedPlugAppArmor)
+	}
+	if errors.Is(err, snap.AttributeNotFoundError{}) {
+		// "action-prefix" can be unset.
+		return nil
+	}
+	return err
+}
+
+func (iface *polkitInterface) BeforePreparePlug(plug *snap.PlugInfo) error {
+	// At least one of ("action-prefix", "install-rules") attributes must be set.
+	_, policyErr := iface.getActionPrefix(plug)
+	if policyErr != nil && !errors.Is(policyErr, snap.AttributeNotFoundError{}) {
+		return policyErr
+	}
+	if policyErr == nil && !polkitPoliciesSupported() {
+		return fmt.Errorf("cannot use \"action-prefix\" attribute: polkit policies are not supported")
+	}
+
+	_, ruleErr := iface.getInstallRules(plug)
+	if ruleErr != nil && !errors.Is(ruleErr, snap.AttributeNotFoundError{}) {
+		return ruleErr
+	}
+	if ruleErr == nil && !polkitRulesSupported() {
+		return fmt.Errorf("cannot use \"install-rules\" attribute: polkit rules are not supported")
+	}
+
+	// Check if both attributes are not set.
+	if policyErr != nil && ruleErr != nil {
+		return &polkitMissingAttrErr{plug.Snap.InstanceName()}
+	}
+	return nil
 }
 
 var (
@@ -174,9 +337,19 @@ func polkitPoliciesSupported() bool {
 	return hasPolkitDaemonExecutable() && canWriteToPolkitActionsDir()
 }
 
+func canWriteToPolkitRulesDir() bool {
+	return unix.Access(dirs.SnapPolkitRuleDir, unix.W_OK) == nil
+}
+
+func polkitRulesSupported() bool {
+	// We must have the polkit daemon present on the system and be able to write
+	// to the polkit rules directory.
+	return hasPolkitDaemonExecutable() && canWriteToPolkitRulesDir()
+}
+
 func (iface *polkitInterface) StaticInfo() interfaces.StaticInfo {
 	info := iface.commonInterface.StaticInfo()
-	info.ImplicitOnCore = polkitPoliciesSupported()
+	info.ImplicitOnCore = polkitPoliciesSupported() || polkitRulesSupported()
 	return info
 }
 
@@ -186,10 +359,9 @@ func init() {
 			name:    "polkit",
 			summary: polkitSummary,
 			// implicitOnCore is computed dynamically
-			implicitOnClassic:     true,
-			baseDeclarationPlugs:  polkitBaseDeclarationPlugs,
-			baseDeclarationSlots:  polkitBaseDeclarationSlots,
-			connectedPlugAppArmor: polkitConnectedPlugAppArmor,
+			implicitOnClassic:    true,
+			baseDeclarationPlugs: polkitBaseDeclarationPlugs,
+			baseDeclarationSlots: polkitBaseDeclarationSlots,
 		},
 	})
 }
