@@ -105,6 +105,7 @@ func (s *specSuite) TestSpecificationIface(c *C) {
 		"/etc/conf2.d/b.conf": &osutil.MemoryFileState{Content: []byte("bbbb"), Mode: 0655},
 		"/etc/conf3.d/c.conf": &osutil.MemoryFileState{Content: []byte("cccc"), Mode: 0655},
 	})
+	c.Assert(s.spec.Plugs(), DeepEquals, []string{"name"})
 	c.Assert(r.AddPermanentSlot(s.iface1, s.slotInfo), IsNil)
 	c.Assert(s.spec.PathContent(), DeepEquals, map[string]osutil.FileState{
 		"/etc/conf1.d/a.conf": &osutil.MemoryFileState{Content: []byte("aaaa"), Mode: 0655},

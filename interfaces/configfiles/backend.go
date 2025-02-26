@@ -97,6 +97,12 @@ func (b *Backend) SandboxFeatures() []string {
 }
 
 func (b *Backend) ensureConfigfiles(spec *Specification, cfgPatterns []string) error {
+	// Setup configfiles only if the snap has plugs that require it. For the
+	// moment this is only the system snap.
+	if len(spec.plugs) == 0 {
+		return nil
+	}
+
 	// Configuration files are created only if the files in the spec match
 	// the patterns registered by interfaces.
 	writtenPaths := make(map[string]bool, len(spec.pathContent))
