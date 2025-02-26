@@ -5288,5 +5288,5 @@ func (s *writerSuite) TestVerifySnapBootstrapCompatibility(c *C) {
 	}
 
 	err = w.VerifySnapBootstrapCompatibility()
-	c.Check(err, ErrorMatches, `snapd 2.68[+] will not work in the same seed as kernel with snapd less then 2.68`)
+	c.Check(err, ErrorMatches, `snapd 2.68[+] is not compatible with a kernel containing snapd prior to 2.68`)
 }

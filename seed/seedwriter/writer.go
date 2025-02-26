@@ -1800,7 +1800,7 @@ func (w *Writer) VerifySnapBootstrapCompatibility() error {
 			return fmt.Errorf("could not parse version %s: %w", kernelVersion, err)
 		}
 		if res < 0 {
-			return fmt.Errorf("snapd 2.68+ will not work in the same seed as kernel with snapd less then 2.68")
+			return fmt.Errorf("snapd 2.68+ is not compatible with a kernel containing snapd prior to 2.68")
 		}
 	}
 
