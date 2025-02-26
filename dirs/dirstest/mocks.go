@@ -27,20 +27,18 @@ import (
 // MustMockClassicConfinementAltDirSupport set up classic confinement support with
 // alternative snap mount directory under a given root.
 func MustMockClassicConfinementAltDirSupport(root string) {
-	MustMockAltSnapMountDir(root)
-
-	if err := os.MkdirAll(filepath.Join(root, "/var/lib/snapd/snap"), 0o755); err != nil {
-		panic(fmt.Errorf("cannot mkdir path: %w", err))
-	}
-}
-
-// MustMockAltSnapMountDir set up alternative snap mount directory in a given root.
-func MustMockAltSnapMountDir(root string) {
 	if err := os.Symlink(
 		filepath.Join(root, "/var/lib/snapd/snap"),
 		filepath.Join(root, "/snap"),
 	); err != nil {
 		panic(fmt.Errorf("cannot set up symlink: %w", err))
+	}
+}
+
+// MustMockAltSnapMountDir set up alternative snap mount directory in a given root.
+func MustMockAltSnapMountDir(root string) {
+	if err := os.MkdirAll(filepath.Join(root, "/var/lib/snapd/snap"), 0o755); err != nil {
+		panic(fmt.Errorf("cannot mkdir path: %w", err))
 	}
 }
 
