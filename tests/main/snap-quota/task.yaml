@@ -12,6 +12,19 @@ prepare: |
 
 restore: |
   snap remove-quota group-one || true
+  snap remove-quota group-two || true
+  snap remove-quota group-sub-one || true
+  snap remove-quota group-one || true
+  snap remove-quota group-sub-sub-three || true
+  snap remove-quota group-sub-three || true
+  snap remove-quota group-three || true
+  snap remove-quota group-top1 || true
+  snap remove-quota group-top2 || true
+  # no groups remain
+  test "$(find /sys/fs/cgroup/ -name 'snap.group*' | wc -l)" = "0"
+
+debug: |
+  find /sys/fs/cgroup/ -name 'snap.group*' -ls || true
 
 execute: |
   if os.query is-trusty || os.query is-amazon-linux 2 || os.query is-centos 7 || os.query is-xenial || os.query is-core16; then
