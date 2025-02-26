@@ -27,15 +27,20 @@ if ! mountpoint /run/mnt/kernel; then
     exit 0
 fi
 
-# Otherwise, mount /lib/{firmware,modules} directly from directories in the
+# Otherwise, mount /lib/{firmware,modules,modprobe.d} directly from directories in the
 # kernel snap. This will happen on install/recover modes.
 
 cat <<'EOF' >>/sysroot/etc/fstab
 /run/mnt/kernel/firmware /usr/lib/firmware none bind,x-initrd.mount 0 0
 /run/mnt/kernel/modules /usr/lib/modules none bind,x-initrd.mount 0 0
 EOF
+if [ -d /run/mnt/kernel/modprobe.d ]; then
+	cat <<'EOF' >>/sysroot/etc/fstab
+/run/mnt/kernel/modprobe.d /usr/lib/modprobe.d none bind,x-initrd.mount 0 0
+EOF
+fi
 
-for subdir in firmware modules; do
+for subdir in firmware modules modprobe.d; do
     drop_d=/etc/systemd/system/sysroot-usr-lib-"$subdir".mount.d
     mkdir -p "$drop_d"
     cat <<EOF >"$drop_d"/what.conf
