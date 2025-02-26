@@ -302,12 +302,22 @@ func (iface *posixMQInterface) generateSnippet(name, plugOrSlot string, permissi
 }
 
 func (iface *posixMQInterface) extendPermissions(perms []string) []string {
-	extended := make([]string, len(perms), len(perms)+1)
+	extended := make([]string, len(perms), len(perms)+3)
 	copy(extended, perms)
 
 	// Always allow "open"
 	if !strutil.ListContains(perms, "open") {
 		extended = append(extended, "open")
+	}
+
+	// Make "read" imply "getattr".
+	if !strutil.ListContains(perms, "getattr") && strutil.ListContains(perms, "read") {
+		extended = append(extended, "getattr")
+	}
+
+	// Make "write" imply "setattr".
+	if !strutil.ListContains(perms, "setattr") && strutil.ListContains(perms, "write") {
+		extended = append(extended, "setattr")
 	}
 
 	return extended
@@ -324,7 +334,8 @@ func (iface *posixMQInterface) AppArmorPermanentSlot(spec *apparmor.Specificatio
 	}
 
 	// Slots always have all permissions enabled for the given message queue path
-	snippet := iface.generateSnippet(slot.Name, "slot", posixMQPlugPermissions, paths)
+	perms := iface.extendPermissions(posixMQPlugPermissions)
+	snippet := iface.generateSnippet(slot.Name, "slot", perms, paths)
 	spec.AddSnippet(snippet)
 
 	return nil
