@@ -22,7 +22,6 @@ package dirs
 import (
 	"errors"
 	"fmt"
-	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -36,8 +35,6 @@ import (
 
 // the various file paths
 var (
-	stderr io.Writer = os.Stderr
-
 	GlobalRootDir string = "/"
 
 	RunDir string
@@ -164,8 +161,8 @@ var (
 )
 
 const (
-	defaultSnapMountDir = "/snap"
-	altSnapMountDir     = "/var/lib/snapd/snap"
+	DefaultSnapMountDir = "/snap"
+	AltSnapMountDir     = "/var/lib/snapd/snap"
 
 	// These are directories which are static inside the core snap and
 	// can never be prefixed as they will be always absolute once we
@@ -312,7 +309,7 @@ func SupportsClassicConfinement() bool {
 	// location for snaps, that is /snap or if using the alternate mount
 	// location, /var/lib/snapd/snap along with the /snap ->
 	// /var/lib/snapd/snap symlink in place.
-	smd := filepath.Join(GlobalRootDir, defaultSnapMountDir)
+	smd := filepath.Join(GlobalRootDir, DefaultSnapMountDir)
 	if SnapMountDir == smd {
 		return true
 	}
@@ -453,26 +450,8 @@ func AddRootDirCallback(c func(string)) {
 
 var (
 	// distributions known to use /snap/
-	defaultDirDistros = []string{
-		"ubuntu",
-		"ubuntu-core",
+	flakyDefaultDirDistros = []string{
 		"ubuntucoreinitramfs",
-		"debian",
-		"opensuse",
-		"suse",
-		"yocto",
-	}
-
-	// distributions known to use /var/lib/snapd/snap/
-	altDirDistros = []string{
-		"altlinux",
-		"antergos",
-		"arch",
-		"archlinux",
-		"fedora",
-		"gentoo",
-		"manjaro",
-		"manjaro-arm",
 	}
 
 	// snapMountDirDetectionError is set when it was not possible to resolve the
@@ -491,52 +470,48 @@ func SnapMountDirDetectionOutcome() error {
 }
 
 func snapMountDirProbe(rootdir string) (string, error) {
-	defaultDir := filepath.Join(rootdir, defaultSnapMountDir)
-	altDir := filepath.Join(rootdir, altSnapMountDir)
+	defaultDir := filepath.Join(rootdir, DefaultSnapMountDir)
+	altDir := filepath.Join(rootdir, AltSnapMountDir)
 
-	switch {
-	case release.DistroLike(defaultDirDistros...):
+	// notable exception for Ubuntu Core initramfs
+	if release.DistroLike(flakyDefaultDirDistros...) {
 		return defaultDir, nil
+	}
 
-	case release.DistroLike(altDirDistros...):
-		return altDir, nil
-
-	default:
-		// observe the system state to find out how snapd was packaged,
-		// essentially use the same logic as
-		// sc_probe_snap_mount_dir_from_pid_1_mount_ns() used in snap-confine,
-		// except for hard errors
-		fi, err := os.Lstat(defaultDir)
+	// observe the system state to find out how snapd was packaged,
+	// essentially use the same logic as
+	// sc_probe_snap_mount_dir_from_pid_1_mount_ns() used in snap-confine,
+	// except for hard errors
+	fi, err := os.Lstat(defaultDir)
+	switch {
+	case err != nil:
+		if errors.Is(err, fs.ErrNotExist) {
+			// path does not exist, given that well-known distros are
+			// handled explicitly we are dealing with a distribution we have
+			// no knowledge of and the packaging does not include a default
+			// mount path
+			return altDir, nil
+		} else {
+			return "", fmt.Errorf("cannot stat %s: %w", defaultDir, err)
+		}
+	case fi.Mode().Type()&fs.ModeSymlink != 0:
+		// exists and is a symlink, find out what the target is, but keep
+		// the checks simple and read the symlink rather than trying
+		// filepath.EvalSymlinks() which needs intermediate directories to
+		// exist
+		p, err := os.Readlink(defaultDir)
 		switch {
 		case err != nil:
-			if errors.Is(err, fs.ErrNotExist) {
-				// path does not exist, given that well-known distros are
-				// handled explicitly we are dealing with a distribution we have
-				// no knowledge of and the packaging does not include a default
-				// mount path
-				return altDir, nil
-			} else {
-				return "", fmt.Errorf("cannot stat %s: %w", defaultDir, err)
-			}
-		case fi.Mode().Type()&fs.ModeSymlink != 0:
-			// exists and is a symlink, find out what the target is, but keep
-			// the checks simple and read the symlink rather than trying
-			// filepath.EvalSymlinks() which needs intermediate directories to
-			// exist
-			p, err := os.Readlink(defaultDir)
-			switch {
-			case err != nil:
-				return "", fmt.Errorf("cannot read %s symlink path: %w", defaultDir, err)
-			case p != altSnapMountDir && p != altSnapMountDir[1:] && p != altDir:
-				return "", fmt.Errorf("%v must be a symbolic link to %v", defaultDir, altSnapMountDir)
-			default:
-				// we read the symlink and it points to the alternative location
-				return altDir, nil
-			}
-		case fi.Mode().Type().IsDir():
-			// exists and is a directory
-			return defaultDir, nil
+			return "", fmt.Errorf("cannot read %s symlink path: %w", defaultDir, err)
+		case p != AltSnapMountDir && p != AltSnapMountDir[1:] && p != altDir:
+			return "", fmt.Errorf("%v must be a symbolic link to %v", defaultDir, AltSnapMountDir)
+		default:
+			// we read the symlink and it points to the alternative location
+			return altDir, nil
 		}
+	case fi.Mode().Type().IsDir():
+		// exists and is a directory
+		return defaultDir, nil
 	}
 
 	return "", errors.New("internal error: unresolved snap mount dir")
@@ -553,7 +528,7 @@ func SetRootDir(rootdir string) {
 	isInsideBase, _ := isInsideBaseSnap()
 	if isInsideBase {
 		// when inside the base, the mount directory is always /snap
-		SnapMountDir = filepath.Join(rootdir, defaultSnapMountDir)
+		SnapMountDir = filepath.Join(rootdir, DefaultSnapMountDir)
 	} else {
 		if dir, err := snapMountDirProbe(rootdir); err == nil {
 			SnapMountDir = dir
