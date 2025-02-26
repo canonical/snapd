@@ -20,6 +20,7 @@
 package syscheck_test
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 
@@ -67,4 +68,89 @@ func (s *dirsSuite) TestUndetermined(c *C) {
 	c.Check(dirs.SnapMountDirDetectionOutcome(), NotNil)
 
 	c.Check(syscheck.CheckSnapMountDir(), ErrorMatches, "cannot resolve snap mount directory: .*")
+}
+
+var (
+	known = []struct {
+		ID           string
+		IDLike       []string
+		canonicalDir bool
+	}{
+		{"fedora", nil, false},
+		{"rhel", []string{"fedora"}, false},
+		{"centos", []string{"fedora"}, false},
+		{"ubuntu", []string{"debian"}, true},
+		{"debian", nil, true},
+		{"suse", nil, true},
+		{"yocto", nil, true},
+		{"arch", []string{"archlinux"}, false},
+		{"archlinux", nil, false},
+		{"altlinux", nil, false},
+	}
+
+	knownSpecial = []struct {
+		ID  string
+		dir string
+	}{
+		{"ubuntucoreinitramfs", dirs.DefaultSnapMountDir},
+	}
+)
+
+func (s *dirsSuite) TestMountDirKnownDistroHappy(c *C) {
+	defer dirs.SetRootDir("")
+
+	for _, tc := range known {
+		c.Logf("happy case %+v", tc)
+		func() {
+			defer release.MockReleaseInfo(&release.OS{ID: tc.ID, IDLike: tc.IDLike})()
+			d := c.MkDir()
+			if tc.canonicalDir {
+				dirstest.MustMockCanonicalSnapMountDir(d)
+			} else {
+				dirstest.MustMockAltSnapMountDir(d)
+			}
+			dirs.SetRootDir(d)
+
+			c.Check(syscheck.CheckSnapMountDir(), IsNil)
+		}()
+	}
+}
+
+func (s *dirsSuite) TestMountDirKnownDistroMismatch(c *C) {
+	defer dirs.SetRootDir("")
+
+	for _, tc := range known {
+		c.Logf("mismatch case %+v", tc)
+		func() {
+			defer release.MockReleaseInfo(&release.OS{ID: tc.ID, IDLike: tc.IDLike})()
+			d := c.MkDir()
+			// do the complete opposite so that the mount directory does not
+			// have the expected value based on what we know about distributions
+			// packaging snapd
+			if tc.canonicalDir {
+				dirstest.MustMockAltSnapMountDir(d)
+			} else {
+				dirstest.MustMockCanonicalSnapMountDir(d)
+			}
+			dirs.SetRootDir(d)
+
+			c.Check(syscheck.CheckSnapMountDir(), ErrorMatches,
+				fmt.Sprintf("unexpected snap mount directory /.*snap on %s", tc.ID))
+		}()
+	}
+}
+
+func (s *dirsSuite) TestMountDirKnownDistroSpecial(c *C) {
+	defer dirs.SetRootDir("")
+
+	for _, tc := range knownSpecial {
+		c.Logf("distro special case %+v", tc)
+		func() {
+			defer release.MockReleaseInfo(&release.OS{ID: tc.ID})()
+			d := c.MkDir()
+			dirs.SetRootDir(d)
+
+			c.Check(syscheck.CheckSnapMountDir(), IsNil)
+		}()
+	}
 }
