@@ -484,7 +484,7 @@ func (s *PosixMQInterfaceSuite) TestReadWriteMQAppArmor(c *C) {
 
 	slotSnippet := spec.SnippetForTag("snap.producer.app")
 	c.Check(slotSnippet, testutil.Contains, `# POSIX Message Queue slot: test-rw`)
-	c.Check(slotSnippet, testutil.Contains, `mqueue (open read write create delete) type=posix "/test-rw",`)
+	c.Check(slotSnippet, testutil.Contains, `mqueue (open read write create delete getattr setattr) type=posix "/test-rw",`)
 
 	spec = apparmor.NewSpecification(s.testReadOnlyPlug.AppSet())
 	err = spec.AddConnectedPlug(s.iface, s.testReadWritePlug, s.testReadWriteSlot)
@@ -493,7 +493,7 @@ func (s *PosixMQInterfaceSuite) TestReadWriteMQAppArmor(c *C) {
 
 	plugSnippet := spec.SnippetForTag("snap.consumer.app")
 	c.Check(plugSnippet, testutil.Contains, `# POSIX Message Queue plug: test-rw`)
-	c.Check(plugSnippet, testutil.Contains, `mqueue (read write open) type=posix "/test-rw",`)
+	c.Check(plugSnippet, testutil.Contains, `mqueue (read write open getattr setattr) type=posix "/test-rw",`)
 }
 
 func (s *PosixMQInterfaceSuite) TestReadWriteMQSeccomp(c *C) {
@@ -531,7 +531,7 @@ func (s *PosixMQInterfaceSuite) TestDefaultReadWriteMQAppArmor(c *C) {
 
 	slotSnippet := spec.SnippetForTag("snap.producer.app")
 	c.Check(slotSnippet, testutil.Contains, `# POSIX Message Queue slot: test-default`)
-	c.Check(slotSnippet, testutil.Contains, `mqueue (open read write create delete) type=posix "/test-default",`)
+	c.Check(slotSnippet, testutil.Contains, `mqueue (open read write create delete getattr setattr) type=posix "/test-default",`)
 
 	spec = apparmor.NewSpecification(s.testDefaultPermsPlug.AppSet())
 	err = spec.AddConnectedPlug(s.iface, s.testDefaultPermsPlug, s.testDefaultPermsSlot)
@@ -540,7 +540,7 @@ func (s *PosixMQInterfaceSuite) TestDefaultReadWriteMQAppArmor(c *C) {
 
 	plugSnippet := spec.SnippetForTag("snap.consumer.app")
 	c.Check(plugSnippet, testutil.Contains, `# POSIX Message Queue plug: test-default`)
-	c.Check(plugSnippet, testutil.Contains, `mqueue (read write open) type=posix "/test-default",`)
+	c.Check(plugSnippet, testutil.Contains, `mqueue (read write open getattr setattr) type=posix "/test-default",`)
 }
 
 func (s *PosixMQInterfaceSuite) TestDefaultReadWriteMQSeccomp(c *C) {
@@ -576,7 +576,7 @@ func (s *PosixMQInterfaceSuite) TestReadOnlyMQAppArmor(c *C) {
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.producer.app"})
 
 	slotSnippet := spec.SnippetForTag("snap.producer.app")
-	c.Check(slotSnippet, testutil.Contains, `mqueue (open read write create delete) type=posix "/test-ro",`)
+	c.Check(slotSnippet, testutil.Contains, `mqueue (open read write create delete getattr setattr) type=posix "/test-ro",`)
 
 	spec = apparmor.NewSpecification(s.testReadOnlyPlug.AppSet())
 	err = spec.AddConnectedPlug(s.iface, s.testReadOnlyPlug, s.testReadOnlySlot)
@@ -584,7 +584,7 @@ func (s *PosixMQInterfaceSuite) TestReadOnlyMQAppArmor(c *C) {
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
 
 	plugSnippet := spec.SnippetForTag("snap.consumer.app")
-	c.Check(plugSnippet, testutil.Contains, `mqueue (read open) type=posix "/test-ro",`)
+	c.Check(plugSnippet, testutil.Contains, `mqueue (read open getattr) type=posix "/test-ro",`)
 }
 
 func (s *PosixMQInterfaceSuite) TestReadOnlyMQSeccomp(c *C) {
@@ -621,9 +621,9 @@ func (s *PosixMQInterfaceSuite) TestPathArrayMQAppArmor(c *C) {
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.producer.app"})
 
 	slotSnippet := spec.SnippetForTag("snap.producer.app")
-	c.Check(slotSnippet, testutil.Contains, `  mqueue (open read write create delete) type=posix "/test-array-1",
-  mqueue (open read write create delete) type=posix "/test-array-2",
-  mqueue (open read write create delete) type=posix "/test-array-3",
+	c.Check(slotSnippet, testutil.Contains, `  mqueue (open read write create delete getattr setattr) type=posix "/test-array-1",
+  mqueue (open read write create delete getattr setattr) type=posix "/test-array-2",
+  mqueue (open read write create delete getattr setattr) type=posix "/test-array-3",
 `)
 
 	spec = apparmor.NewSpecification(s.testPathArrayPlug.AppSet())
@@ -632,9 +632,9 @@ func (s *PosixMQInterfaceSuite) TestPathArrayMQAppArmor(c *C) {
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
 
 	plugSnippet := spec.SnippetForTag("snap.consumer.app")
-	c.Check(plugSnippet, testutil.Contains, `  mqueue (read write open) type=posix "/test-array-1",
-  mqueue (read write open) type=posix "/test-array-2",
-  mqueue (read write open) type=posix "/test-array-3",
+	c.Check(plugSnippet, testutil.Contains, `  mqueue (read write open getattr setattr) type=posix "/test-array-1",
+  mqueue (read write open getattr setattr) type=posix "/test-array-2",
+  mqueue (read write open getattr setattr) type=posix "/test-array-3",
 `)
 }
 
@@ -672,7 +672,7 @@ func (s *PosixMQInterfaceSuite) TestAllPermsMQAppArmor(c *C) {
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.producer.app"})
 
 	slotSnippet := spec.SnippetForTag("snap.producer.app")
-	c.Check(slotSnippet, testutil.Contains, `mqueue (open read write create delete) type=posix "/test-all-perms",`)
+	c.Check(slotSnippet, testutil.Contains, `mqueue (open read write create delete getattr setattr) type=posix "/test-all-perms",`)
 
 	spec = apparmor.NewSpecification(s.testAllPermsPlug.AppSet())
 	err = spec.AddConnectedPlug(s.iface, s.testAllPermsPlug, s.testAllPermsSlot)
@@ -680,7 +680,7 @@ func (s *PosixMQInterfaceSuite) TestAllPermsMQAppArmor(c *C) {
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
 
 	plugSnippet := spec.SnippetForTag("snap.consumer.app")
-	c.Check(plugSnippet, testutil.Contains, `mqueue (create delete read write open) type=posix "/test-all-perms",`)
+	c.Check(plugSnippet, testutil.Contains, `mqueue (create delete read write open getattr setattr) type=posix "/test-all-perms",`)
 }
 
 func (s *PosixMQInterfaceSuite) TestAllPermsMQSeccomp(c *C) {
