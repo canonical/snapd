@@ -257,23 +257,27 @@ func (s *DirsTestSuite) TestMountDirProbeHappy(c *C) {
 	d := c.MkDir()
 	dirs.SetRootDir(d)
 	// no /snap or /var/lib/snapd/snap delivered through packaging
+	c.Check(dirs.SnapMountDirDetectionOutcome(), IsNil)
 	c.Check(dirs.SnapMountDir, Equals, filepath.Join(dirs.GlobalRootDir, "/var/lib/snapd/snap"))
 
 	// pretend we have a directory
 	c.Assert(os.Mkdir(filepath.Join(d, "snap"), 0o755), IsNil)
 	dirs.SetRootDir(d)
+	c.Check(dirs.SnapMountDirDetectionOutcome(), IsNil)
 	c.Check(dirs.SnapMountDir, Equals, filepath.Join(dirs.GlobalRootDir, "/snap"))
 
 	c.Assert(os.Remove(filepath.Join(d, "/snap")), IsNil)
 	// pretend we have a relative symlink
 	c.Assert(os.Symlink("var/lib/snapd/snap", filepath.Join(d, "/snap")), IsNil)
 	dirs.SetRootDir(d)
+	c.Check(dirs.SnapMountDirDetectionOutcome(), IsNil)
 	c.Check(dirs.SnapMountDir, Equals, filepath.Join(dirs.GlobalRootDir, "/var/lib/snapd/snap"))
 
 	c.Assert(os.Remove(filepath.Join(d, "/snap")), IsNil)
 	// pretend we have an absolute symlink
 	c.Assert(os.Symlink("/var/lib/snapd/snap", filepath.Join(d, "/snap")), IsNil)
 	dirs.SetRootDir(d)
+	c.Check(dirs.SnapMountDirDetectionOutcome(), IsNil)
 	c.Check(dirs.SnapMountDir, Equals, filepath.Join(dirs.GlobalRootDir, "/var/lib/snapd/snap"))
 
 	// also accepts an absolute path under explicit root dir commonly set during tests
@@ -281,6 +285,7 @@ func (s *DirsTestSuite) TestMountDirProbeHappy(c *C) {
 	// pretend we have an absolute symlink
 	c.Assert(os.Symlink(filepath.Join(d, "/var/lib/snapd/snap"), filepath.Join(d, "/snap")), IsNil)
 	dirs.SetRootDir(d)
+	c.Check(dirs.SnapMountDirDetectionOutcome(), IsNil)
 	c.Check(dirs.SnapMountDir, Equals, filepath.Join(dirs.GlobalRootDir, "/var/lib/snapd/snap"))
 }
 
@@ -294,6 +299,7 @@ func (s *DirsTestSuite) TestMountDirProbeErrBadSymlink(c *C) {
 	c.Assert(os.Symlink("foo/bar", filepath.Join(d, "/snap")), IsNil)
 	dirs.SetRootDir(d)
 	c.Check(dirs.SnapMountDir, Equals, "mount-dir-is-unset")
+	c.Check(dirs.SnapMountDirDetectionOutcome(), ErrorMatches, "cannot resolve snap mount directory: /.*/snap must be a symbolic link to /var/lib/snapd/snap")
 }
 
 func (s *DirsTestSuite) TestMountDirProbeErrBadStat(c *C) {
@@ -313,6 +319,7 @@ func (s *DirsTestSuite) TestMountDirProbeErrBadStat(c *C) {
 
 	dirs.SetRootDir(d)
 	c.Check(dirs.SnapMountDir, Equals, "mount-dir-is-unset")
+	c.Check(dirs.SnapMountDirDetectionOutcome(), ErrorMatches, "cannot resolve snap mount directory: cannot stat /.*/snap: lstat /.*/snap: permission denied")
 }
 
 func (s *DirsTestSuite) TestInsideBaseSnap(c *C) {

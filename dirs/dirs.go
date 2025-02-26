@@ -474,22 +474,32 @@ var (
 		"manjaro",
 		"manjaro-arm",
 	}
+
+	// snapMountDirDetectionError is set when it was not possible to resolve the
+	// snap mount directory location.
+	snapMountDirDetectionError error = nil
+	// a well known default value, with which it will be impossible to carry out
+	// operations on the filesystem
+	snapMountDirUnresolvedPlaceholder = "mount-dir-is-unset"
 )
 
-func snapMountDirProbe(rootdir string) string {
+// SnapMountDirDetectionOutcome returns an error, if any, which occurred when
+// probing the mount directory location. A non-nil error indicates that snap
+// mount dir could no thave been properly determined.
+func SnapMountDirDetectionOutcome() error {
+	return snapMountDirDetectionError
+}
 
+func snapMountDirProbe(rootdir string) (string, error) {
 	defaultDir := filepath.Join(rootdir, defaultSnapMountDir)
 	altDir := filepath.Join(rootdir, altSnapMountDir)
 
-	// a well known default value
-	dir := "mount-dir-is-unset"
-
 	switch {
 	case release.DistroLike(defaultDirDistros...):
-		dir = defaultDir
+		return defaultDir, nil
 
 	case release.DistroLike(altDirDistros...):
-		dir = altDir
+		return altDir, nil
 
 	default:
 		// observe the system state to find out how snapd was packaged,
@@ -504,9 +514,9 @@ func snapMountDirProbe(rootdir string) string {
 				// handled explicitly we are dealing with a distribution we have
 				// no knowledge of and the packaging does not include a default
 				// mount path
-				dir = altDir
+				return altDir, nil
 			} else {
-				fmt.Fprintf(stderr, "cannot stat %s: %v\n", defaultDir, err)
+				return "", fmt.Errorf("cannot stat %s: %w", defaultDir, err)
 			}
 		case fi.Mode().Type()&fs.ModeSymlink != 0:
 			// exists and is a symlink, find out what the target is, but keep
@@ -516,20 +526,20 @@ func snapMountDirProbe(rootdir string) string {
 			p, err := os.Readlink(defaultDir)
 			switch {
 			case err != nil:
-				fmt.Fprintf(stderr, "cannot read %s symlink path: %v\n", defaultDir, err)
+				return "", fmt.Errorf("cannot read %s symlink path: %w", defaultDir, err)
 			case p != altSnapMountDir && p != altSnapMountDir[1:] && p != altDir:
-				fmt.Fprintf(stderr, "%v must be a symbolic link to %v\n", defaultDir, altSnapMountDir)
+				return "", fmt.Errorf("%v must be a symbolic link to %v", defaultDir, altSnapMountDir)
 			default:
 				// we read the symlink and it points to the alternative location
-				dir = altDir
+				return altDir, nil
 			}
 		case fi.Mode().Type().IsDir():
 			// exists and is a directory
-			dir = defaultDir
+			return defaultDir, nil
 		}
 	}
 
-	return dir
+	return "", errors.New("internal error: unresolved snap mount dir")
 }
 
 // SetRootDir allows settings a new global root directory, this is useful
@@ -545,7 +555,13 @@ func SetRootDir(rootdir string) {
 		// when inside the base, the mount directory is always /snap
 		SnapMountDir = filepath.Join(rootdir, defaultSnapMountDir)
 	} else {
-		SnapMountDir = snapMountDirProbe(rootdir)
+		if dir, err := snapMountDirProbe(rootdir); err == nil {
+			SnapMountDir = dir
+			snapMountDirDetectionError = nil
+		} else {
+			SnapMountDir = snapMountDirUnresolvedPlaceholder
+			snapMountDirDetectionError = fmt.Errorf("cannot resolve snap mount directory: %w", err)
+		}
 	}
 
 	SnapDataDir = filepath.Join(rootdir, "/var/snap")
