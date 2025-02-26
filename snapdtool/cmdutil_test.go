@@ -29,6 +29,7 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/dirs/dirstest"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snapdtool"
@@ -92,7 +93,7 @@ func (s *cmdutilSuite) TestCommandFromSystemSnapOldTrick(c *C) {
 }
 
 func (s *cmdutilSuite) TestCommandFromSystemSnapNoTrickNeeded(c *C) {
-	defer release.MockReleaseInfo(&release.OS{ID: "ubuntu"})()
+	dirstest.MustMockCanonicalSnapMountDir(dirs.GlobalRootDir)
 	dirs.SetRootDir(dirs.GlobalRootDir)
 
 	c.Logf("mount dir: %v", dirs.SnapMountDir)
