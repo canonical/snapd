@@ -96,6 +96,7 @@ func (s *generalSuite) TestSysInfo(c *check.C) {
 	r := c.MkDir()
 	// using unknown distro, set up
 	dirstest.MustMockAltSnapMountDir(r)
+	dirstest.MustMockClassicConfinementAltDirSupport(r)
 	// reload dirs for release info to have effect
 	dirs.SetRootDir(r)
 
@@ -228,6 +229,7 @@ func (s *generalSuite) TestSysInfoLegacyRefresh(c *check.C) {
 	r := c.MkDir()
 	// using unknown distro, set up
 	dirstest.MustMockAltSnapMountDir(r)
+	dirstest.MustMockClassicConfinementAltDirSupport(r)
 	// reload dirs for release info to have effect
 	dirs.SetRootDir(r)
 
