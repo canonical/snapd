@@ -30,14 +30,19 @@ execute: |
     echo "Install a snap which has a store icon but no local icon"
     snap install "$SNAP_FALLBACK"
 
+    SNAP_DIR="/snap"
+    if [ ! -d "/snap" ] ; then
+        # Snap mount dir is different on some non-Ubuntu systems
+        SNAP_DIR="/var/lib/snapd/snap"
+    fi
 
     echo "Check that the snap which is supposed to have a local icon does in fact have a local icon"
-    [ -f "/snap/${SNAP_LOCAL}/current/meta/gui/icon.svg" ]
+    test -f "${SNAP_DIR}/${SNAP_LOCAL}/current/meta/gui/icon.svg"
     echo "Check that it is the expected icon"
-    cmp "/snap/${SNAP_LOCAL}/current/meta/gui/icon.svg" icon-orange-chest.svg
+    cmp "${SNAP_DIR}/${SNAP_LOCAL}/current/meta/gui/icon.svg" icon-orange-chest.svg
 
     echo "Check that the snap which is NOT supposed to have a local icon does not have no local icon"
-    find /snap/"${SNAP_FALLBACK}"/current/meta/gui/icon.* | wc -l | MATCH 0
+    find "${SNAP_DIR}/${SNAP_FALLBACK}"/current/meta/gui/icon.* | wc -l | MATCH 0
 
 
     echo "Check that both snaps have store icons"
@@ -68,7 +73,7 @@ execute: |
 
     echo "Check that /v2/icons serves the local icon for the snap which has one"
     snap debug api "/v2/icons/${SNAP_LOCAL}/icon" > "${SNAP_LOCAL}.icon"
-    cmp "${SNAP_LOCAL}.icon" "/snap/${SNAP_LOCAL}/current/meta/gui/icon.svg"
+    cmp "${SNAP_LOCAL}.icon" "${SNAP_DIR}/${SNAP_LOCAL}/current/meta/gui/icon.svg"
 
     echo "Check that /v2/icons serves the store icon as fallback"
     snap debug api "/v2/icons/${SNAP_FALLBACK}/icon" > "${SNAP_FALLBACK}.icon"
