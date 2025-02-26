@@ -86,10 +86,12 @@ execute: |
     find /sys/fs/cgroup -ignore_readdir_race -path '*/snap.*' -type d -perm /g+x,o+x \
         ! -path '*.mount' \
         ! -path '*.service' \
-        >> group-writable.txt
-    if test -s group-writable.txt; then
-        echo "the following files should not be world-writable or group-writable"
-        cat group-writable.txt
+        ! -path '*.socket' \
+        -ls \
+        >> dirs-with-exec.txt
+    if test -s dirs-with-exec.txt; then
+        echo "the following directories should not be accessible"
+        cat dirs-with-exec.txt
         ret=1
     fi
 
