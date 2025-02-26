@@ -19,6 +19,9 @@ on:
           - spread-test-build-from-current
           - spread-test-experimental
           - spread-test-openstack
+          - spread-master-fundamental
+          - spread-master-not-fundamental
+          - spread-master-nested
 
 jobs:
 
@@ -92,6 +95,7 @@ jobs:
     if: ${{ github.event.schedule == '0 3 * * *' || (github.event_name == 'workflow_dispatch' && inputs.job == 'spread-master-fundamental') }}
     uses: ./.github/workflows/spread-tests.yaml
     name: "spread master ${{ matrix.group }}"
+    needs: [read-systems]
     with:
       # Github doesn't support passing sequences as parameters.
       # Instead here we create a json array and pass it as a string.
@@ -112,6 +116,7 @@ jobs:
     if: ${{ github.event.schedule == '0 3 * * *' || (github.event_name == 'workflow_dispatch' && inputs.job == 'spread-master-not-fundamental') }}
     uses: ./.github/workflows/spread-tests.yaml
     name: "spread master ${{ matrix.group }}"
+    needs: [read-systems]
     with:
       # Github doesn't support passing sequences as parameters.
       # Instead here we create a json array and pass it as a string.
@@ -131,6 +136,7 @@ jobs:
     if: ${{ github.event.schedule == '0 3 * * *' || (github.event_name == 'workflow_dispatch' && inputs.job == 'spread-master-nested') }}
     uses: ./.github/workflows/spread-tests.yaml
     name: "spread master ${{ matrix.group }}"
+    needs: [read-systems]
     with:
       # Github doesn't support passing sequences as parameters.
       # Instead here we create a json array and pass it as a string.
