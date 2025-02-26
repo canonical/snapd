@@ -27,6 +27,7 @@ import (
 	"text/template"
 	"time"
 
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/snap"
@@ -286,8 +287,8 @@ WantedBy={{.ServicesTarget}}
 	case snap.SystemDaemon:
 		wrapperData.ServicesTarget = systemd.ServicesTarget
 		wrapperData.PrerequisiteTarget = systemd.PrerequisiteTarget
-		wrapperData.MountUnit = filepath.Base(systemd.MountUnitPath(appInfo.Snap.MountDir()))
-		wrapperData.WorkingDir = appInfo.Snap.DataDir()
+		wrapperData.MountUnit = filepath.Base(systemd.MountUnitPath(dirs.StripRootDir(appInfo.Snap.MountDir())))
+		wrapperData.WorkingDir = dirs.StripRootDir(appInfo.Snap.DataDir())
 		wrapperData.After = append(wrapperData.After, "snapd.apparmor.service")
 	case snap.UserDaemon:
 		wrapperData.ServicesTarget = systemd.UserServicesTarget
