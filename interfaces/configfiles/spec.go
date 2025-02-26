@@ -42,6 +42,10 @@ type Specification struct {
 	pathContent map[string]osutil.FileState
 }
 
+func (spec *Specification) PathContent() map[string]osutil.FileState {
+	return spec.pathContent
+}
+
 // Methods called by interfaces
 
 // AddPathContent adds a configuration file with its content to the specification.
