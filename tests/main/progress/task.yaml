@@ -10,6 +10,8 @@ systems:
   # observed to fail randomly?
   # TODO investigate once we can spin up instances in openstack manually
   - -fedora-*
+  # has socat 1.7.4.x which handles timeout in a buggy way
+  - -centos-*
 
 prepare: |
   tests.pkgs install socat
