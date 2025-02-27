@@ -108,23 +108,12 @@ class LocksGroup:
     def __str__(self) -> str:
         return "".join(self.lines)
 
-    def _is_lock(self, line: str) -> bool:
-        return line.startswith(self.LOCK_PREFIX)
-
     # This function works to detect the current test but also for the current project
     def _current_lock(self, start_line: int) -> list[str]:
-        curr_lock = []
-        curr_lock.append(self.lines[start_line])
-
-        current_line = start_line + 1
-        while True:
-            if current_line >= len(self.lines) or self._is_lock(
-                self.lines[current_line]
-            ):
-                return curr_lock
-
-            curr_lock.append(self.lines[current_line])
-            current_line = current_line + 1
+        next_match = get_next_match(self.lines, start_line, self.LOCK_PREFIX)
+        if next_match == -1:
+            return self.lines[start_line:len(self.lines)]
+        return self.lines[start_line:next_match]
 
     def get_name(self) -> str:
         return self.header
@@ -279,28 +268,16 @@ class LocksFileReader:
             self.groups.append(LocksGroup(group_lines))
             current_line = current_line + len(group_lines)
 
-    # Indicates if the line is a test
-    def _is_test(self, line: str) -> bool:
-        return not self._is_project(line) and line.startswith(self.TEST_PREFIX)
-
     # Indicates if the line is the project declaration
     def _is_project(self, line: str) -> bool:
         return line.startswith(self.PROJECT_PREFIX)
 
     # This function works to detect the current test but also for the current project
     def _current_group(self, start_line: int) -> list[str]:
-        curr_test = []
-        curr_test.append(self.lines[start_line])
-
-        current_line = start_line + 1
-        while True:
-            if current_line >= len(self.lines) or self._is_test(
-                self.lines[current_line]
-            ):
-                return curr_test
-
-            curr_test.append(self.lines[current_line])
-            current_line = current_line + 1
+        next_match = get_next_match(self.lines, start_line, self.TEST_PREFIX)
+        if next_match == -1:
+            return self.lines[start_line:len(self.lines)]
+        return self.lines[start_line:next_match]
 
     # Retrieve the test lines
     def get_test(self, test: str) -> list[str]:
@@ -329,8 +306,35 @@ class LocksFileReader:
         return traces
 
 
+"""
+Generic function used to iterate a list of strings until it is found an
+element which starts with the prefix passed as parameter. The function
+returns the index for the first match, and -1 in case there isn't any.
+"""
+def get_next_match(lines: list[str], start: int, prefix: str) -> int:
+    for current_line in range(start+1, len(lines)):
+        if lines[current_line].startswith(prefix):
+            return current_line
+    return -1
+
+
+"""
+A locks file must:
+- begin with "###START: SNAPD PROJECT"
+- contain at least one group, indicated by the key string "###START"
+
+It parses the lock information by:
+- grouping its contents based on consecutive lines that begin with "###START"
+- creating subgroups for each group by searching for the key string "###" and creating a subgroup for each instance found of consecutive lines between instances of that key string
+
+One may filter data based on:
+- matching string found in a sequence of sub-group lock information. If a match is found, then only sub-groups that contain that match will be shown
+- only showing held or wait times above a certain threshold
+- a singular test
+"""
 def _make_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="spread filter helper")
+    parser = argparse.ArgumentParser(prog="state-locks-filter", 
+                                     description="Reads a locks file and extracts lock information.")
     parser.add_argument(
         "-f", "--locks-file", type=str, required=True, help="Locks file"
     )
