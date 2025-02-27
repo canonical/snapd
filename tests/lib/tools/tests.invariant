@@ -188,6 +188,16 @@ check_cgroup_scopes() {
 	fi
 }
 
+check_cgroups() {
+	n="$1" # invariant name
+	find /sys/fs/cgroup -type d -name 'snap.*' -ls > "$TESTSTMP/tests.invariant.$n"
+	if [ -s "$TESTSTMP/tests.invariant.$n" ]; then
+		echo "tests.invariant: leftover cgroups" >&2
+		cat "$TESTSTMP/tests.invariant.$n" >&2
+		return 1
+	fi
+}
+
 check_segmentation_violations() {
 	n="$1" # invariant name
 
@@ -230,6 +240,9 @@ check_invariant() {
 		cgroup-scopes)
 			check_cgroup_scopes "$1"
 			;;
+		cgroups)
+			check_cgroups "$1"
+			;;
 		segmentation-violations)
 			check_segmentation_violations "$1"
 			;;
@@ -244,7 +257,18 @@ check_invariant() {
 }
 
 main() {
-	ALL_INVARIANTS="root-files-in-home crashed-snap-confine lxcfs-mounted stray-dbus-daemon leftover-defer-sh broken-snaps cgroup-scopes segmentation-violations check-fakestore-cleaned"
+	ALL_INVARIANTS="
+	root-files-in-home
+	crashed-snap-confine
+	lxcfs-mounted
+	stray-dbus-daemon
+	leftover-defer-sh
+	broken-snaps
+	cgroup-scopes
+	cgroups
+	segmentation-violations
+	check-fakestore-cleaned
+	"
 
 	case "$action" in
 		check)
