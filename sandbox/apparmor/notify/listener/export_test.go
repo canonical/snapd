@@ -25,6 +25,7 @@ import (
 	"golang.org/x/sys/unix"
 
 	"github.com/snapcore/snapd/osutil/epoll"
+	"github.com/snapcore/snapd/sandbox/apparmor"
 	"github.com/snapcore/snapd/sandbox/apparmor/notify"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -56,7 +57,7 @@ func MockOsOpenWithSocket() (restore func()) {
 		if err != nil {
 			return nil, err
 		}
-		notifyFile := os.NewFile(uintptr(socket), notify.SysPath)
+		notifyFile := os.NewFile(uintptr(socket), apparmor.NotifySocketPath)
 		return notifyFile, nil
 	}
 	restore = MockOsOpen(f)
