@@ -343,20 +343,7 @@ static int _sc_cgroup_v2_init_bpf(sc_device_cgroup *self, int flags) {
         die("cannot open %s", bpf_base);
     }
 
-    if (mkdirat(bpf_fd, "snap", 0000) == 0) {
-        /* the new directory must be owned by root:root. */
-        if (fchownat(bpf_fd, "snap", 0, 0, AT_SYMLINK_NOFOLLOW) < 0) {
-            die("cannot set root ownership on %s/snap directory", bpf_base);
-        }
-        if (fchmodat(bpf_fd, "snap", 0700, AT_SYMLINK_NOFOLLOW) < 0) {
-            /* On Debian, this fails with "operation not supported. But it
-             * should not be a critical error, we can also leave with 0000
-             * permissions. */
-            if (errno != ENOTSUP) {
-                die("cannot set 0700 permissions on %s/snap directory", bpf_base);
-            }
-        }
-    } else if (errno != EEXIST) {
+    if (sc_ensure_mkdirat(bpf_fd, "snap", 0700, 0, 0) != 0) {
         die("cannot create %s/snap directory", bpf_base);
     }
     close(bpf_fd);
@@ -401,6 +388,10 @@ static int _sc_cgroup_v2_init_bpf(sc_device_cgroup *self, int flags) {
         if (bpf_pin_to_path(devmap_fd, path) < 0) {
             /* we checked that the map did not exist, so fail on EEXIST too */
             die("cannot pin map to %s", path);
+        }
+        /* make sure it's owned by root */
+        if (chown(path, 0, 0) != 0) {
+            die("cannot chmod BPF map");
         }
     } else if (!from_existing) {
         /* the devices access map exists, and we have been asked to setup a
@@ -707,19 +698,8 @@ static int sc_udev_open_cgroup_v1(const char *security_tag, int flags, sc_cgroup
 
     const char *security_tag_relpath = security_tag;
     if (!from_existing) {
-        /* Open snap.$SNAP_NAME.$APP_NAME relative to /sys/fs/cgroup/devices,
-         * creating the directory if necessary.
-         * Using 0000 permissions to avoid a race condition; we'll set the
-         * right permissions after chmod. */
-        if (mkdirat(devices_fd, security_tag_relpath, 0000) == 0) {
-            /* the new directory must be owned by root:root. */
-            if (fchownat(devices_fd, security_tag_relpath, 0, 0, AT_SYMLINK_NOFOLLOW) < 0) {
-                die("cannot set root ownership on %s/%s/%s", cgroup_path, devices_relpath, security_tag_relpath);
-            }
-            if (fchmodat(devices_fd, security_tag_relpath, 0700, 0) < 0) {
-                die("cannot set 0700 permissions on %s/%s/%s", cgroup_path, devices_relpath, security_tag_relpath);
-            }
-        } else if (errno != EEXIST) {
+        /* Create snap.$SNAP_NAME.$APP_NAME relative to /sys/fs/cgroup/devices */
+        if (sc_ensure_mkdirat(devices_fd, security_tag_relpath, 0700, 0, 0) != 0) {
             die("cannot create directory %s/%s/%s", cgroup_path, devices_relpath, security_tag_relpath);
         }
     }
