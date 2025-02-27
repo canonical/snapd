@@ -28,6 +28,7 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/dirs/dirstest"
 	"github.com/snapcore/snapd/gadget/quantity"
 	_ "github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/release"
@@ -162,7 +163,7 @@ apps:
 }
 
 func (s *serviceUnitGenSuite) TestGenerateSnapServiceOnCore(c *C) {
-	defer func() { dirs.SetRootDir("/") }()
+	defer dirs.SetRootDir("/")
 
 	expectedAppServiceOnCore := `[Unit]
 # Auto-generated, DO NOT EDIT
@@ -203,7 +204,9 @@ apps:
 	defer restore()
 	restore = release.MockReleaseInfo(&release.OS{ID: "ubuntu-core"})
 	defer restore()
-	dirs.SetRootDir("/")
+	r := c.MkDir()
+	dirstest.MustMockCanonicalSnapMountDir(r)
+	dirs.SetRootDir(r)
 
 	opts := internal.SnapServicesUnitOptions{
 		CoreMountedSnapdSnapDep: "",
