@@ -4,21 +4,9 @@ package notify
 import (
 	"errors"
 	"fmt"
-	"path/filepath"
 
 	"golang.org/x/sys/unix"
-
-	"github.com/snapcore/snapd/dirs"
-	"github.com/snapcore/snapd/osutil"
 )
-
-var SysPath string
-
-// SupportAvailable returns true if SysPath exists, indicating that apparmor
-// prompting messages may be received from SysPath.
-func SupportAvailable() bool {
-	return osutil.FileExists(SysPath)
-}
 
 var doIoctl = Ioctl
 
@@ -55,13 +43,4 @@ func RegisterFileDescriptor(fd uintptr) (ProtocolVersion, error) {
 		}
 		return protocolVersion, nil
 	}
-}
-
-func setupSysPath(newrootdir string) {
-	SysPath = filepath.Join(newrootdir, "/sys/kernel/security/apparmor/.notify")
-}
-
-func init() {
-	dirs.AddRootDirCallback(setupSysPath)
-	setupSysPath(dirs.GlobalRootDir)
 }
