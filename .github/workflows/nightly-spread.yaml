@@ -108,6 +108,7 @@ jobs:
       tasks: ${{ matrix.tasks }}
       rules: ${{ matrix.rules }}
       is-fundamental: true
+      use-snapd-snap-from-master: true
     strategy:
       fail-fast: false
       matrix: ${{ fromJson(needs.read-systems.outputs.fundamental-systems) }}
@@ -128,6 +129,7 @@ jobs:
       systems: ${{ matrix.systems }}
       tasks: ${{ matrix.tasks }}
       rules: ${{ matrix.rules }}
+      use-snapd-snap-from-master: true
     strategy:
       fail-fast: false
       matrix: ${{ fromJson(needs.read-systems.outputs.non-fundamental-systems) }}
@@ -148,6 +150,7 @@ jobs:
       systems: ${{ matrix.systems }}
       tasks: ${{ matrix.tasks }}
       rules: ${{ matrix.rules }}
+      use-snapd-snap-from-master: true
     strategy:
       fail-fast: false
       matrix: ${{ fromJson(needs.read-systems.outputs.nested-systems) }}
