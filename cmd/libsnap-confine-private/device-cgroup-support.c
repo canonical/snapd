@@ -699,7 +699,7 @@ static int sc_udev_open_cgroup_v1(const char *security_tag, int flags, sc_cgroup
     const char *security_tag_relpath = security_tag;
     if (!from_existing) {
         /* Open snap.$SNAP_NAME.$APP_NAME relative to /sys/fs/cgroup/devices */
-        if (sc_ensure_mkdirat(devices_fd, security_tag_relpath, 0700, 0, 0) == 0) {
+        if (sc_ensure_mkdirat(devices_fd, security_tag_relpath, 0700, 0, 0) != 0) {
             die("cannot create directory %s/%s/%s", cgroup_path, devices_relpath, security_tag_relpath);
         }
     }
