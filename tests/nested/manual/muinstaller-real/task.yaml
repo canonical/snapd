@@ -277,6 +277,11 @@ execute: |
   remote.exec 'grep "This program cannot be run in XXX mode" /run/mnt/ubuntu-boot/EFI/boot/grubx64.efi'
 
   unsquashfs -d pc-kernel pc-kernel-repacked.snap
+  # The kernel snap version has grown too much and when we use the fakestore
+  # we append a fake1 string to the version, which can make the string grown
+  # beyond the 32 characters limit. Cut '+' character and what goes after to
+  # workaround this issue.
+  sed -i 's#\(version: .*\)+.*#\1#' pc-kernel/meta/snap.yaml
   refresh_rebooting_snap pc-kernel pc-kernel-from-store.snap ./pc-kernel
 
   # test that core22+ refreshes fine and does not revert after a reboot

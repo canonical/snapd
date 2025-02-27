@@ -86,6 +86,8 @@ environment:
     SNAPD_WORK_DIR: '$(HOST: echo "${SPREAD_SNAPD_WORK_DIR:-/var/tmp/work-dir}")'
     # Threshold used to determine which stake locks have to be collected during runtime
     SNAPD_STATE_LOCK_TRACE_THRESHOLD_MS: '$(HOST: echo "${SPREAD_SNAPD_STATE_LOCK_TRACE_THRESHOLD_MS:-0}")'
+    # Allow mismatch in snapd/kernel versions
+    SNAPD_ALLOW_SNAPD_KERNEL_MISMATCH: '$(HOST: echo "${SNAPD_ALLOW_SNAPD_KERNEL_MISMATCH:-true}")'
 
     # Directory where the nested images and test assets are stored
     NESTED_WORK_DIR: '$(HOST: echo "${NESTED_WORK_DIR:-/var/tmp/work-dir}")'
@@ -109,7 +111,6 @@ environment:
     NESTED_REPACK_KERNEL_SNAP: '$(HOST: echo "${NESTED_REPACK_KERNEL_SNAP:-true}")'
     NESTED_REPACK_GADGET_SNAP: '$(HOST: echo "${NESTED_REPACK_GADGET_SNAP:-true}")'
     NESTED_REPACK_BASE_SNAP: '$(HOST: echo "${NESTED_REPACK_BASE_SNAP:-true}")'
-    NESTED_FORCE_MS_KEYS: '$(HOST: echo "${NESTED_FORCE_MS_KEYS:-false}")'
     NESTED_KERNEL_MODULES_COMP: '$(HOST: echo "${NESTED_KERNEL_MODULES_COMP:-}")'
     
     # Whether we should use snapd snap ./built-snap/ directory
@@ -295,7 +296,7 @@ backends:
         plan: n2-standard-2
         halt-timeout: 2h
         cpu-family: "Intel Cascade Lake"
-        systems:
+        systems: &google-nested-systems
             - ubuntu-16.04-64:
                   image: ubuntu-1604-64-virt-enabled
                   storage: 20G
@@ -336,27 +337,7 @@ backends:
         plan: n2-standard-4
         halt-timeout: 6h
         cpu-family: "Intel Cascade Lake"
-        systems:
-            - ubuntu-16.04-64:
-                  image: ubuntu-1604-64-virt-enabled
-                  storage: 20G
-                  workers: 3
-            - ubuntu-18.04-64:
-                  image: ubuntu-1804-64-virt-enabled
-                  storage: 20G
-                  workers: 3
-            - ubuntu-20.04-64:
-                  image: ubuntu-2004-64-virt-enabled
-                  storage: 20G
-                  workers: 8
-            - ubuntu-22.04-64:
-                  image: ubuntu-2204-64-virt-enabled
-                  storage: 20G
-                  workers: 8
-            - ubuntu-24.04-64:
-                  image: ubuntu-2404-64-virt-enabled
-                  storage: 20G
-                  workers: 8
+        systems: *google-nested-systems
 
     qemu-nested:
         memory: 4G
@@ -628,6 +609,10 @@ debug-each: |
     go version || true
 
     if tests.nested is-nested; then
+        echo '# free space on the host'
+        df -h || true
+        du -ch /var/tmp/work-dir || true
+
         echo '# nested VM status'
         tests.nested vm status
         # filter out ^[ to ensure that the debug output gets not messed up
@@ -773,14 +758,6 @@ prepare: |
 
     # Note that os.query or any other tool cannot be used here before the current.delta file is unpacked
     if [[ "$SPREAD_SYSTEM" == fedora-* ]]; then
-        # The Fedora archive mirror seems to be unreliable.
-        # Switch to the main archive by commenting out metalink and uncommenting
-        # baseurl with a tweak to go to dl.fedoraproject.org which doens't redirect
-        # to mirrors again.
-        #
-        # https://forum.snapcraft.io/t/issues-with-the-fedora-mirror-network/3489/
-        sed -i -s -E -e 's@^#?baseurl=http://download.fedoraproject.org/@baseurl=http://dl.fedoraproject.org/@g' -e 's@^metalink=@#metalink@g' /etc/yum.repos.d/fedora*.repo
-
         dnf --refresh -y makecache
 
         # enable audit daemon

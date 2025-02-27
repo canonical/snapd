@@ -87,6 +87,8 @@ type SealKeyRequest struct {
 	// The file to store the key data. If empty, the key data will
 	// be saved to the token.
 	KeyFile string
+	// The boot modes allowed (i.e. snapd_recovery_mode kernel parameter)
+	BootModes []string
 }
 
 // ModelForSealing provides information about the model for use in the context

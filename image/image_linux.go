@@ -284,11 +284,12 @@ type imageSeeder struct {
 	model *asserts.Model
 	tsto  *tooling.ToolingStore
 
-	classic        bool
-	prepareDir     string
-	wideCohortKey  string
-	customizations *Customizations
-	architecture   string
+	classic                  bool
+	prepareDir               string
+	wideCohortKey            string
+	customizations           *Customizations
+	architecture             string
+	allowSnapdKernelMismatch bool
 
 	hasModes    bool
 	rootDir     string
@@ -313,12 +314,17 @@ func newImageSeeder(tsto *tooling.ToolingStore, model *asserts.Model, opts *Opti
 		wideCohortKey: opts.WideCohortKey,
 		// keep a pointer to the customization object in opts as the Validation
 		// member might be defaulted if not set.
-		customizations: &opts.Customizations,
-		architecture:   determineImageArchitecture(model, opts),
+		customizations:           &opts.Customizations,
+		architecture:             determineImageArchitecture(model, opts),
+		allowSnapdKernelMismatch: opts.AllowSnapdKernelMismatch,
 
 		hasModes: model.Grade() != asserts.ModelGradeUnset,
 		model:    model,
 		tsto:     tsto,
+	}
+
+	if os.Getenv("SNAPD_ALLOW_SNAPD_KERNEL_MISMATCH") == "true" {
+		s.allowSnapdKernelMismatch = true
 	}
 
 	if !s.hasModes {
@@ -842,6 +848,17 @@ func (s *imageSeeder) warnOnUnassertedSnaps() error {
 }
 
 func (s *imageSeeder) finish() error {
+	// Ensure that the snapd snap is compatible with the snap-bootstrap
+	// contained within the kernel snap.
+	if err := s.w.VerifySnapBootstrapCompatibility(); err != nil {
+		if !s.allowSnapdKernelMismatch {
+			// If not, error out as there is no reason to allow
+			// this as the resulting image will be invalid.
+			return err
+		}
+		fmt.Fprintf(Stderr, "WARNING: %v\n", err)
+	}
+
 	// print any warnings that occurred during the download phase
 	for _, warn := range s.w.Warnings() {
 		fmt.Fprintf(Stderr, "WARNING: %s\n", warn)

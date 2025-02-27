@@ -115,8 +115,8 @@ func sealKeyToModeenvImpl(
 	modeenv *Modeenv,
 	flags sealKeyToModeenvFlags,
 ) error {
-	if !isModeeenvLocked() {
-		return fmt.Errorf("internal error: cannot seal without the modeenv lock")
+	if !isSealModeenvLocked() {
+		return fmt.Errorf("internal error: cannot seal without the seal modeenv lock")
 	}
 
 	// make sure relevant locations exist
@@ -265,7 +265,7 @@ var resealKeyToModeenv = resealKeyToModeenvImpl
 // transient/in-memory information with the risk that successive
 // reseals during in-progress operations produce diverging outcomes.
 func resealKeyToModeenvImpl(rootdir string, modeenv *Modeenv, expectReseal bool, unlocker Unlocker) error {
-	if !isModeeenvLocked() {
+	if !isModeenvLocked() {
 		return fmt.Errorf("internal error: cannot reseal without the modeenv lock")
 	}
 

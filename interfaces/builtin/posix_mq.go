@@ -118,7 +118,7 @@ func (iface *posixMQInterface) checkPosixMQAppArmorSupport() error {
 		return err
 	}
 
-	if !strutil.ListContains(features, "mqueue") {
+	if !strutil.ListContains(features, "mqueue-posix") {
 		return fmt.Errorf("AppArmor does not support POSIX message queues - cannot setup or connect interfaces")
 	}
 
@@ -295,10 +295,32 @@ func (iface *posixMQInterface) generateSnippet(name, plugOrSlot string, permissi
 
 	snippet.WriteString(fmt.Sprintf("  # POSIX Message Queue %s: %s\n", plugOrSlot, name))
 	for _, path := range paths {
-		snippet.WriteString(fmt.Sprintf("  mqueue (%s) \"%s\",\n", aaPerms, path))
+		snippet.WriteString(fmt.Sprintf("  mqueue (%s) type=posix \"%s\",\n", aaPerms, path))
 	}
 
 	return snippet.String()
+}
+
+func (iface *posixMQInterface) extendPermissions(perms []string) []string {
+	extended := make([]string, len(perms), len(perms)+3)
+	copy(extended, perms)
+
+	// Always allow "open"
+	if !strutil.ListContains(perms, "open") {
+		extended = append(extended, "open")
+	}
+
+	// Make "read" imply "getattr".
+	if !strutil.ListContains(perms, "getattr") && strutil.ListContains(perms, "read") {
+		extended = append(extended, "getattr")
+	}
+
+	// Make "write" imply "setattr".
+	if !strutil.ListContains(perms, "setattr") && strutil.ListContains(perms, "write") {
+		extended = append(extended, "setattr")
+	}
+
+	return extended
 }
 
 func (iface *posixMQInterface) AppArmorPermanentSlot(spec *apparmor.Specification, slot *snap.SlotInfo) error {
@@ -312,7 +334,8 @@ func (iface *posixMQInterface) AppArmorPermanentSlot(spec *apparmor.Specificatio
 	}
 
 	// Slots always have all permissions enabled for the given message queue path
-	snippet := iface.generateSnippet(slot.Name, "slot", posixMQPlugPermissions, paths)
+	perms := iface.extendPermissions(posixMQPlugPermissions)
+	snippet := iface.generateSnippet(slot.Name, "slot", perms, paths)
 	spec.AddSnippet(snippet)
 
 	return nil
@@ -329,10 +352,7 @@ func (iface *posixMQInterface) AppArmorConnectedPlug(spec *apparmor.Specificatio
 		return err
 	}
 
-	// Always allow "open"
-	if !strutil.ListContains(perms, "open") {
-		perms = append(perms, "open")
-	}
+	perms = iface.extendPermissions(perms)
 
 	snippet := iface.generateSnippet(plug.Name(), "plug", perms, paths)
 	spec.AddSnippet(snippet)

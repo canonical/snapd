@@ -197,9 +197,6 @@ apps:
   polkit-agent:
     command: bin/run
     plugs: [ polkit-agent ]
-  posix-mq:
-    command: bin/run
-    plugs: [ posix-mq ]
   power-control:
     command: bin/run
     plugs: [ power-control ]

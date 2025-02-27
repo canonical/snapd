@@ -32,6 +32,7 @@ import (
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/channel"
 	"github.com/snapcore/snapd/snap/naming"
+	"github.com/snapcore/snapd/snap/squashfs"
 	"github.com/snapcore/snapd/strutil"
 )
 
@@ -1756,4 +1757,52 @@ func (w *Writer) UnassertedSnaps() ([]naming.SnapRef, error) {
 		res = append(res, sn.SnapRef)
 	}
 	return res, nil
+}
+
+func (w *Writer) VerifySnapBootstrapCompatibility() error {
+	var kernelSnap, snapdSnap *SeedSnap
+
+	saveSnap := func(sn *SeedSnap) {
+		switch sn.Info.SnapType {
+		case snap.TypeSnapd:
+			snapdSnap = sn
+		case snap.TypeKernel:
+			kernelSnap = sn
+		}
+	}
+	for _, sn := range w.snapsFromModel {
+		saveSnap(sn)
+	}
+	for _, sn := range w.extraSnaps {
+		saveSnap(sn)
+	}
+
+	if kernelSnap == nil || snapdSnap == nil {
+		return nil
+	}
+
+	kernelVersion, _, err := snap.SnapdInfoFromSnapFile(squashfs.New(kernelSnap.Path), snap.TypeKernel)
+	if err != nil {
+		return fmt.Errorf("error while reading snapd-info from kernel snap: %w", err)
+	}
+	snapdVersion, _, err := snap.SnapdInfoFromSnapFile(squashfs.New(snapdSnap.Path), snap.TypeSnapd)
+	if err != nil {
+		return fmt.Errorf("error while reading snapd-info from snapd snap: %w", err)
+	}
+
+	res, err := strutil.VersionCompare(snapdVersion, "2.68")
+	if err != nil {
+		return fmt.Errorf("could not parse version %s: %w", snapdVersion, err)
+	}
+	if res >= 0 {
+		res, err = strutil.VersionCompare(kernelVersion, "2.68")
+		if err != nil {
+			return fmt.Errorf("could not parse version %s: %w", kernelVersion, err)
+		}
+		if res < 0 {
+			return fmt.Errorf("snapd 2.68+ is not compatible with a kernel containing snapd prior to 2.68")
+		}
+	}
+
+	return nil
 }

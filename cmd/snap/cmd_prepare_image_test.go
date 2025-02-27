@@ -208,6 +208,26 @@ func (s *SnapPrepareImageSuite) TestPrepareImageCustomizeValidated(c *C) {
 	})
 }
 
+func (s *SnapPrepareImageSuite) TestPrepareImageAllowSnapdKernelMismatch(c *C) {
+	var opts *image.Options
+	prep := func(o *image.Options) error {
+		opts = o
+		return nil
+	}
+	r := cmdsnap.MockImagePrepare(prep)
+	defer r()
+
+	rest, err := cmdsnap.Parser(cmdsnap.Client()).ParseArgs([]string{"prepare-image", "model", "prepare-dir", "--allow-snapd-kernel-mismatch"})
+	c.Assert(err, IsNil)
+	c.Assert(rest, DeepEquals, []string{})
+
+	c.Check(opts, DeepEquals, &image.Options{
+		ModelFile:                "model",
+		PrepareDir:               "prepare-dir",
+		AllowSnapdKernelMismatch: true,
+	})
+}
+
 func (s *SnapPrepareImageSuite) TestReadSeedManifest(c *C) {
 	var opts *image.Options
 	prep := func(o *image.Options) error {

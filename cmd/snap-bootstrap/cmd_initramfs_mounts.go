@@ -94,6 +94,7 @@ func (c *cmdInitramfsMounts) Execute([]string) error {
 
 var (
 	osutilIsMounted = osutil.IsMounted
+	osGetenv        = os.Getenv
 
 	snapTypeToMountDir = map[snap.Type]string{
 		snap.TypeBase:   "base",
@@ -325,8 +326,8 @@ func doInstall(mst *initramfsMountsState, model *asserts.Model, sysSnaps map[sna
 		return err
 	}
 	var baseSnap *snap.Info
-	if is24plusSystem(model) {
-		// On UC24 the base is not mounted yet, peek into the file
+	if createSysrootMount() {
+		// On UC24+ the base is not mounted yet, peek into the file
 		baseSnap, err = readSnapInfoFromPath(sysSnaps[snap.TypeKernel].Path)
 	} else {
 		baseSnap, err = readSnapInfo(sysSnaps, snap.TypeBase)
@@ -1874,13 +1875,15 @@ func mountNonDataPartitionMatchingKernelDisk(dir, fallbacklabel string, opts *sy
 	return doSystemdMount(partSrc, dir, opts)
 }
 
-func is24plusSystem(model *asserts.Model) bool {
-	switch model.Base() {
-	case "core20", "core22", "core22-desktop":
-		return false
-	default:
-		return true
-	}
+func createSysrootMount() bool {
+	// This env var is set by snap-initramfs-mounts.service for 24+ initramfs. We
+	// prefer this to checking the model so 24+ kernels can run with models using
+	// older bases. Although this situation is not really supported as the
+	// initramfs systemd bits would not match those in the base, we allow it as
+	// it has been something done in the past and updates could break those
+	// systems.
+	isCore24plus := osGetenv("CORE24_PLUS_INITRAMFS")
+	return isCore24plus == "1" || isCore24plus == "true"
 }
 
 func generateMountsCommonInstallRecoverStart(mst *initramfsMountsState) (model *asserts.Model, sysSnaps map[snap.Type]*seed.Snap, err error) {
@@ -1943,7 +1946,7 @@ func generateMountsCommonInstallRecoverStart(mst *initramfsMountsState) (model *
 
 	for _, essentialSnap := range essSnaps {
 		systemSnaps[essentialSnap.EssentialType] = essentialSnap
-		if essentialSnap.EssentialType == snap.TypeBase && is24plusSystem(model) {
+		if essentialSnap.EssentialType == snap.TypeBase && createSysrootMount() {
 			// Create unit to mount directly to /sysroot. We restrict
 			// this to UC24+ for the moment, until we backport necessary
 			// changes to the UC20/22 initramfs. Note that a transient
@@ -2441,7 +2444,7 @@ func generateMountsModeRun(mst *initramfsMountsState) error {
 	//            code actually belongs in the bootloader implementation itself
 
 	typesToMount := typs
-	if is24plusSystem(model) {
+	if createSysrootMount() {
 		// Create unit for sysroot (mounts either base or rootfs). We
 		// restrict this to UC24+ for the moment, until we backport necessary
 		// changes to the UC20/22 initramfs. Note that a transient unit is
@@ -2517,7 +2520,7 @@ func generateMountsModeRun(mst *initramfsMountsState) error {
 		}
 	}
 
-	if is24plusSystem(model) {
+	if createSysrootMount() {
 		// Do a daemon reload so systemd knows about the new sysroot mount unit
 		// (populate-writable.service depends on sysroot.mount, we need to make
 		// sure systemd knows this unit before snap-initramfs-mounts.service

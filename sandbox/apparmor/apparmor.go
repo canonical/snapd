@@ -732,6 +732,11 @@ func probeParserFeatures() ([]string, error) {
 			minVer:  "4.0.1",
 		},
 		{
+			feature: "mqueue-posix",
+			probe:   "mqueue type=posix,",
+			minVer:  "4.0.1",
+		},
+		{
 			feature: "allow-all",
 			probe:   "allow all,",
 			minVer:  "4.0.2",
