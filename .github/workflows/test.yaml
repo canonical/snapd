@@ -336,7 +336,7 @@ jobs:
 
   spread-not-fundamental-pr:
     uses: ./.github/workflows/spread-tests.yaml
-    if: github.event_name == 'pull_request'
+    if: github.event_name == 'pull_request' && !contains(github.base_ref, 'release')
     # For workflow runs that are PRs, run this non-fundamental systems job
     # only after the fundamental systems job succeeds.
     needs: [unit-tests, unit-tests-c, snap-builds, read-systems, spread-fundamental]
@@ -363,7 +363,7 @@ jobs:
 
   spread-not-fundamental-not-pr:
     uses: ./.github/workflows/spread-tests.yaml
-    if: github.event_name != 'pull_request'
+    if: github.event_name != 'pull_request' || contains(github.base_ref, 'release')
     # For workflow runs that are not for PRs, no need to impose a dependency
     # on the fundamental systems job's success before running this job.
     needs: [unit-tests, unit-tests-c, snap-builds, read-systems]
