@@ -156,7 +156,9 @@ void sc_call_snap_discard_ns(int snap_discard_ns_fd, const char *snap_name) {
     char *envp[] = {"SNAPD_DEBUG=x", NULL};
     /* keep the current identity, privileges are carried over through capabilities */
     const cap_value_t caps[] = {
-        CAP_SYS_ADMIN, /* for umount */
+        CAP_DAC_OVERRIDE, /* poking around as a regular user */
+        CAP_SYS_ADMIN,    /* umount() */
+        CAP_CHOWN,        /* file ownership */
     };
     sc_tool_privs privs = {
         .identity = sc_no_change_identity(),
