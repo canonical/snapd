@@ -193,16 +193,8 @@ int sc_nonfatal_mkpath(const char *const path, mode_t mode, uid_t uid, uid_t gid
         // this as it may stay stale (errno is not reset if mkdirat(2) returns
         // successfully).
         errno = 0;
-        if (mkdirat(fd, path_segment, 0000) < 0) {
-            if (errno != EEXIST) {
-                return -1;
-            }
-        } else {
-            // new directory: set the right permissions and mode
-            if (fchownat(fd, path_segment, uid, gid, AT_SYMLINK_NOFOLLOW) < 0 ||
-                fchmodat(fd, path_segment, mode, 0) < 0) {
-                return -1;
-            }
+        if (sc_ensure_mkdirat(fd, path_segment, mode, uid, gid) != 0) {
+            return -1;
         }
         // Open the parent directory we just made (and close the previous one
         // (but not the special value AT_FDCWD) so we can continue down the
