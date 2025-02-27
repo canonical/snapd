@@ -221,6 +221,9 @@ override_dh_install:
 	rm $(CURDIR)/debian/snapd/$(SYSTEMD_UNITS_DESTDIR)/snapd.apparmor.service
 	rm $(CURDIR)/debian/tmp/usr/bin/snapd-apparmor
 
+	# trusty doesn't support gpio-chardev, we don't need to install snap-gpiod-helper.
+	rm $(CURDIR)/debian/tmp/usr/bin/snap-gpio-helper
+
 	dh_install
 
 override_dh_auto_install: snap.8
