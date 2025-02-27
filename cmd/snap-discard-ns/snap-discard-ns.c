@@ -50,6 +50,7 @@ static void assert_caps(void) {
     cap_value_t expected_caps[] = {
         CAP_SYS_ADMIN,    /* umount */
         CAP_DAC_OVERRIDE, /* for poking around /run/snapd */
+        CAP_CHOWN,        /* for lock file and directory */
     };
 
     for (size_t i = 0; i < SC_ARRAY_SIZE(expected_caps); i++) {
