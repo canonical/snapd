@@ -38,10 +38,14 @@ jobs:
             # TODO these are needed only by cmd/snap-seccomp unit tests, and
             # should be added to BuildRequires
             dnf install -y glibc-devel.i686 glibc-static.i686
+            dnf install -y clang-tools-extra # required by run-checks
+            dnf install -y python3-pytest # required by run-checks
             ;;
         opensuse/*)
             zypper --non-interactive install -y rpmdevtools rpm-build git
             zypper --non-interactive install -y $(rpmspec -q --buildrequires "./packaging/$distroname/snapd.spec")
+            zypper --non-interactive install -y llvm-clang # required by run-checks
+            zypper --non-interactive install -y python3-pytest # required by run-checks
             ;;
         *)
             echo "Unsupported distribution variant ${{ inputs.distro }}"
