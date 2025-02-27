@@ -4,4 +4,9 @@ base: core24
 slots:
   cuda-driver-libs:
     source:
-      - $SNAP/cuda-libs
+      - $SNAP/libs
+  egl-driver-libs:
+    priority: 15
+    client-driver: libsquare.so
+    source:
+      - $SNAP/libs
