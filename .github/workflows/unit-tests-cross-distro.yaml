@@ -40,6 +40,7 @@ jobs:
             dnf install -y glibc-devel.i686 glibc-static.i686
             dnf install -y clang-tools-extra # required by run-checks
             dnf install -y python3-pytest # required by run-checks
+            dnf install -y python3-markdown # required by release-tools
             ;;
         opensuse/*)
             zypper --non-interactive install -y rpmdevtools rpm-build git
