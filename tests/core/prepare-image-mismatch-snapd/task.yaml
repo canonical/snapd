@@ -49,7 +49,7 @@ execute: |
     cp /var/lib/snapd/snaps/snapd_*.snap ./snapd.snap
 
     echo "Executing prepare-image and expecting an error surrounding snapd / kernel versions"
-    ! SNAPD_ALLOW_SNAPD_KERNEL_MISMATCH=false snap prepare-image --snap ./pc-kernel_*.snap --snap ./snapd.snap "$TESTSLIB/assertions/ubuntu-core-${UC_VERSION}-amd64.model" "$ROOT" 2>&1 | tee output.log
+    not SNAPD_ALLOW_SNAPD_KERNEL_MISMATCH=false snap prepare-image --snap ./pc-kernel_*.snap --snap ./snapd.snap "$TESTSLIB/assertions/ubuntu-core-${UC_VERSION}-amd64.model" "$ROOT" 2>&1 | tee output.log
 
     MATCH "error: snapd 2.68\+ is not compatible with a kernel containing snapd prior to 2.68" < output.log
 
