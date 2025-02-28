@@ -178,6 +178,9 @@ func expectedDoInstallTasks(typ snap.Type, opts, compOpts, discards int, startTa
 		expected = append(expected, "run-hook[default-configure]")
 	}
 
+	// TODO: it seems that removing this line doesn't break any tests
+	expected = append(expected, tasksBeforeDiscard...)
+
 	expected = append(expected, "start-snap-services")
 	for i := 0; i < discards; i++ {
 		expected = append(expected,
