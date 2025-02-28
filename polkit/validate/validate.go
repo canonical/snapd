@@ -23,6 +23,8 @@ import (
 	"encoding/xml"
 	"fmt"
 	"io"
+	"path/filepath"
+	"regexp"
 	"strings"
 )
 
@@ -280,6 +282,44 @@ func validateDefaultAuth(auth []Element, name string) error {
 		}
 	default:
 		return fmt.Errorf("multiple %s elements found under <defaults>", name)
+	}
+	return nil
+}
+
+var ruleNameSuffixRegexp = regexp.MustCompile(`^(\w[\w-]*)(\.\w[\w-]*)*$`)
+
+const maxRuleNameSuffixLength = 64
+
+// ValidateRuleFileName validates polkit rule file name to be installed
+// according to the following rules:
+//   - Suffix passes ValidateRuleNameSuffix.
+//   - Ends with ".rules".
+func ValidateRuleFileName(filename string) error {
+	base := filepath.Base(filename)
+	if !strings.HasSuffix(base, ".rules") {
+		return fmt.Errorf("invalid polkit rule file name: %q must end with \".rules\"", filename)
+	}
+	suffix := strings.TrimSuffix(base, ".rules")
+	if err := ValidateRuleNameSuffix(suffix); err != nil {
+		return fmt.Errorf("invalid polkit rule file name: %v", err)
+	}
+	return nil
+}
+
+// ValidateRuleFileName validates polkit rule file name suffix to be installed
+// according to the following rules:
+//   - A sequence of non-empty elements separated by dots.
+//   - Each of which contains only characters from the set [A-Za-z0-9-_].
+//   - Has maximum length of maxRuleFileNameLength characters.
+func ValidateRuleNameSuffix(suffix string) error {
+	if len(suffix) == 0 {
+		return fmt.Errorf("rule file name cannot be empty")
+	}
+	if len(suffix) > maxRuleNameSuffixLength {
+		return fmt.Errorf("%q is longer than %d characters", suffix, maxRuleNameSuffixLength)
+	}
+	if !ruleNameSuffixRegexp.MatchString(suffix) {
+		return fmt.Errorf("%q does not match %q", suffix, ruleNameSuffixRegexp)
 	}
 	return nil
 }
