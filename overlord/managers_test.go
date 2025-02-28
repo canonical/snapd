@@ -1075,7 +1075,7 @@ func (s *baseMgrsSuite) mockStore(c *C) *httptest.Server {
 		hit := strings.Replace(hitTemplate, "@URL@", baseURL.String()+"/api/v1/snaps/download/"+name+"/"+revno, -1)
 		hit = strings.Replace(hit, "@NAME@", name, -1)
 		hit = strings.Replace(hit, "@SNAPID@", fakeSnapID(name), -1)
-		hit = strings.Replace(hit, "@ICON@", baseURL.String()+"/icon", -1)
+		hit = strings.Replace(hit, "@ICON@", "http://example.com/icon.svg", -1)
 		hit = strings.Replace(hit, "@VERSION@", info.Version, -1)
 		hit = strings.Replace(hit, "@REVISION@", revno, -1)
 		hit = strings.Replace(hit, `@TYPE@`, string(info.Type()), -1)
@@ -1092,6 +1092,14 @@ func (s *baseMgrsSuite) mockStore(c *C) *httptest.Server {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if s.storeObserver != nil {
 			s.storeObserver(r)
+		}
+
+		if r.URL.Path == "http://example.com/icon.svg" {
+			// the http server was hit while requesting the snap icon, so just
+			// write some stand-in data
+			iconContents := fmt.Sprintf("icon contents")
+			w.Write([]byte(iconContents))
+			return
 		}
 
 		// all URLS are /api/v1/snaps/... or /v2/snaps/ or /v2/assertions/... so

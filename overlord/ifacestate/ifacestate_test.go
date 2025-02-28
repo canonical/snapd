@@ -6216,6 +6216,7 @@ func (s *interfaceManagerSuite) TestCheckInterfacesConsidersImplicitSlots(c *C) 
 	defer s.state.Unlock()
 	c.Check(ifacestate.CheckInterfaces(s.state, snapInfo, deviceCtx), IsNil)
 	c.Check(snapInfo.Slots["home"], NotNil)
+	c.Check(snapInfo.Plugs["cuda-driver-libs"], NotNil)
 }
 
 // Test that setup-snap-security gets undone correctly when a snap is installed

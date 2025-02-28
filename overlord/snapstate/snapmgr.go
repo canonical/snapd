@@ -107,7 +107,7 @@ type SnapSetup struct {
 
 	DownloadInfo *snap.DownloadInfo `json:"download-info,omitempty"`
 	SideInfo     *snap.SideInfo     `json:"side-info,omitempty"`
-	auxStoreInfo
+	backend.AuxStoreInfo
 
 	// InstanceKey is set by the user during installation and differs for
 	// each instance of given snap
@@ -624,7 +624,7 @@ func readInfo(name string, si *snap.SideInfo, flags int) (*snap.Info, error) {
 		err = nil
 	}
 	if err == nil && flags&withAuxStoreInfo != 0 {
-		if err := retrieveAuxStoreInfo(info); err != nil {
+		if err := backend.RetrieveAuxStoreInfo(info); err != nil {
 			logger.Debugf("cannot read auxiliary store info for snap %q: %v", name, err)
 		}
 	}

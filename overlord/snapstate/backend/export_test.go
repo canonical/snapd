@@ -36,6 +36,13 @@ var (
 	RemoveIfEmpty      = removeIfEmpty
 	SnapDataDirs       = snapDataDirs
 	SnapCommonDataDirs = snapCommonDataDirs
+
+	KeepAuxStoreInfo    = keepAuxStoreInfo
+	DiscardAuxStoreInfo = discardAuxStoreInfo
+
+	LinkSnapIcon    = linkSnapIcon
+	UnlinkSnapIcon  = unlinkSnapIcon
+	DiscardSnapIcon = discardSnapIcon
 )
 
 func MockWrappersAddSnapdSnapServices(f func(s *snap.Info, opts *wrappers.AddSnapdSnapServicesOptions, inter wrappers.Interacter) (wrappers.SnapdRestart, error)) (restore func()) {

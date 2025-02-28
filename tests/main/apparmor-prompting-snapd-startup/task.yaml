@@ -11,12 +11,26 @@ systems:
   - ubuntu-2*
 
 prepare: |
+    if os.query is-ubuntu 20.04; then
+        tests.exec skip-test "Ubuntu 20.04 kernels doesn't support prompting" && exit 0
+    fi
+    if not tests.info is-reexec-in-use && os.query is-ubuntu 22.04; then
+        tests.exec skip-test "Ubuntu 22.04 AppArmor parser doesn't support prompting" && exit 0
+    fi
+
     # prerequisite for having a prompt handler service
     snap set system experimental.user-daemons=true
     "$TESTSTOOLS"/snaps-state install-local test-snapd-prompt-handler
     snap connect test-snapd-prompt-handler:snap-interfaces-requests-control
 
+restore: |
+    tests.exec is-skipped && exit 0
+
+    snap set system experimental.apparmor-prompting=false
+
 debug: |
+    tests.exec is-skipped && exit 0
+
     echo "Check kernel version"
     uname -a
     echo "Check kernel notification socket presence"
@@ -29,6 +43,8 @@ debug: |
     snap debug api /v2/system-info
 
 execute: |
+    tests.exec is-skipped && exit 0
+
     RULES_PATH="/var/lib/snapd/interfaces-requests/request-rules.json"
 
     echo "Write three rules to disk, one of which is partially expired,"
@@ -107,21 +123,6 @@ execute: |
         }
       ]
     }' | tee "$RULES_PATH"
-
-    # Prompting is unsupported everywhere but the Ubuntu non-core systems with
-    # kernels which support apparmor prompting
-    if ! os.query is-ubuntu || os.query is-core || ! grep 'prompt' /sys/kernel/security/apparmor/features/policy/permstable32 ; then
-        not snap set system experimental.apparmor-prompting=true >& err.out
-        if os.query is-core; then
-            # there is a more specific error on Ubuntu Core
-            MATCH "cannot enable prompting feature as it is not supported on Ubuntu Core systems" < err.out
-        else
-            MATCH "cannot enable prompting feature as it is not supported by the system" < err.out
-        fi
-        # even if unsupported setting it to false should succeed
-        snap set system experimental.apparmor-prompting=false
-        exit 0
-    fi
 
     CURRTIME="$(date --rfc-3339=ns --utc | tr ' ' 'T' | sed 's/\+00:00/Z/')"
 

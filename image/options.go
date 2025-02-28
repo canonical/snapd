@@ -69,6 +69,10 @@ type Options struct {
 	// useful only for classic mode. If set must match the model otherwise.
 	Architecture string
 
+	// AllowSnapdKernelMismatch if set, will allow building images with a snap/kernel
+	// combination that would otherwise be unsupported.
+	AllowSnapdKernelMismatch bool
+
 	Customizations Customizations
 }
 

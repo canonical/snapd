@@ -66,6 +66,7 @@ nested_wait_vm_ready() {
         # Check the vm is active
         if ! systemctl is-active "$NESTED_VM"; then
             echo "Unit $NESTED_VM is not active. Aborting!"
+            journalctl -u "${NESTED_VM}"
             return 1
         fi
 
@@ -399,12 +400,11 @@ nested_refresh_to_new_core() {
 }
 
 nested_get_snakeoil_key() {
-    local KEYNAME="PkKek-1-snakeoil"
-    local VERSION
-    VERSION="$(nested_get_version)"
-    wget -q https://raw.githubusercontent.com/snapcore/pc-amd64-gadget/"$VERSION"/snakeoil/"$KEYNAME".key
-    wget -q https://raw.githubusercontent.com/snapcore/pc-amd64-gadget/"$VERSION"/snakeoil/"$KEYNAME".pem
-    echo "$KEYNAME"
+    nested_ensure_ovmf >/dev/null
+
+    cp "${NESTED_ASSETS_DIR}/ovmf/secboot/DB.key" DB.key
+    cp "${NESTED_ASSETS_DIR}/ovmf/secboot/DB.crt" DB.pem
+    echo DB
 }
 
 nested_secboot_remove_signature() {
@@ -982,7 +982,7 @@ nested_create_core_vm() {
             BOOTVOLUME=pc
             if [ -e pc-gadget/meta/gadget.yaml ]; then
                 # shellcheck disable=SC2016
-                BOOTVOLUME="$(gojq --yaml-input '.volumes | to_entries[] | .key as $p | .value.structure[] | select(.name == "ubuntu-boot") | $p' pc-gadget/meta/gadget.yaml | tr -d '"')"
+                BOOTVOLUME="$(gojq --yaml-input --raw-output '.volumes | to_entries[] | .key as $p | .value.structure[] | select(.name == "ubuntu-boot") | $p' pc-gadget/meta/gadget.yaml)"
                 if [ -z "$BOOTVOLUME" ]; then
                     echo "was not able to deduce the ubuntu-boot partition from gadget.yaml in pc-gadget/meta/gadget.yaml"
                     echo "please inspect it and make sure it looks as expected"
@@ -1160,6 +1160,16 @@ nested_force_stop_vm() {
     systemctl stop "$NESTED_VM"
 }
 
+nested_ensure_ovmf() {
+    if [ -d "${NESTED_ASSETS_DIR}/ovmf" ]; then
+        return
+    fi
+    if ! [ -f "${NESTED_ASSETS_DIR}/test-snapd-ovmf.snap" ]; then
+        snap download --channel=latest/edge test-snapd-ovmf --basename=test-snapd-ovmf --target-directory="${NESTED_ASSETS_DIR}"
+    fi
+    unsquashfs -d "${NESTED_ASSETS_DIR}/ovmf" "${NESTED_ASSETS_DIR}/test-snapd-ovmf.snap"
+}
+
 nested_force_start_vm() {
     # if the $NESTED_VM is using a swtpm, we need to wait until the file exists
     # because the file disappears temporarily after qemu exits
@@ -1274,43 +1284,27 @@ nested_start_core_vm_unit() {
         PARAM_ASSERTIONS="-drive if=none,id=stick,format=raw,file=$NESTED_ASSETS_DIR/assertions.disk,cache=none,format=raw -device nec-usb-xhci,id=xhci -device usb-storage,bus=xhci.0,removable=true,drive=stick"
     fi
     if nested_is_core_ge 20; then
-        # use a bundle EFI bios by default
-        local OVMF_CODE OVMF_VARS
-        OVMF_CODE=""
-        OVMF_VARS=""
-
-        if nested_is_core_ge 22; then
-            wget -q https://storage.googleapis.com/snapd-spread-tests/dependencies/OVMF_CODE.secboot.fd
-            mv OVMF_CODE.secboot.fd /usr/share/OVMF/OVMF_CODE.secboot.fd
-            wget -q https://storage.googleapis.com/snapd-spread-tests/dependencies/OVMF_VARS.snakeoil.fd
-            mv OVMF_VARS.snakeoil.fd /usr/share/OVMF/OVMF_VARS.snakeoil.fd
-            wget -q https://storage.googleapis.com/snapd-spread-tests/dependencies/OVMF_VARS.ms.fd
-            mv OVMF_VARS.ms.fd /usr/share/OVMF/OVMF_VARS.ms.fd
-            OVMF_CODE="_4M"
-            OVMF_VARS="_4M"
-        fi
-
-        if nested_is_secure_boot_enabled; then
-            OVMF_CODE=".secboot"
-            if [ "$NESTED_FORCE_MS_KEYS" != "true" ] && { [ "$NESTED_BUILD_SNAPD_FROM_CURRENT" = "true" ] || [ "${NESTED_FORCE_SNAKEOIL_KEYS:-false}" = "true" ] ; }; then
-                OVMF_VARS=".snakeoil"
-            else
-                OVMF_VARS=".ms"
-            fi
-        fi
-
+        nested_ensure_ovmf
+        local OVMF_CODE OVMF_VARS OVMF_VARS_SECBOOT OVMF_VARS_CURRENT OVMF
         if os.query is-arm; then
-            if [ -z "${NESTED_KEEP_FIRMWARE_STATE-}" ] || ! [ -e "$NESTED_ASSETS_DIR/AAVMF_VARS.fd" ]; then
-                cp -f "/usr/share/AAVMF/AAVMF_VARS.fd" "$NESTED_ASSETS_DIR/AAVMF_VARS.fd"
-            fi
-            PARAM_BIOS="-drive file=/usr/share/AAVMF/AAVMF_CODE.fd,if=pflash,format=raw,unit=0,readonly=on -drive file=$NESTED_ASSETS_DIR/AAVMF_VARS.fd,if=pflash,format=raw"
+            OVMF=QEMU
         else
-            if [ -z "${NESTED_KEEP_FIRMWARE_STATE-}" ] || ! [ -e "$NESTED_ASSETS_DIR/OVMF_VARS${OVMF_VARS}.fd" ]; then
-                cp -f "/usr/share/OVMF/OVMF_VARS${OVMF_VARS}.fd" "$NESTED_ASSETS_DIR/OVMF_VARS${OVMF_VARS}.fd"
-            fi
-            PARAM_BIOS="-drive file=/usr/share/OVMF/OVMF_CODE${OVMF_CODE}.fd,if=pflash,format=raw,unit=0,readonly=on -drive file=$NESTED_ASSETS_DIR/OVMF_VARS${OVMF_VARS}.fd,if=pflash,format=raw"
-            PARAM_MACHINE="-machine q35${ATTR_KVM} -global ICH9-LPC.disable_s3=1"
+            OVMF=OVMF
         fi
+        OVMF_CODE="${NESTED_ASSETS_DIR}/ovmf/fw/${OVMF}_CODE.fd"
+        OVMF_VARS="${NESTED_ASSETS_DIR}/ovmf/fw/${OVMF}_VARS.fd"
+        OVMF_VARS_SECBOOT="${NESTED_ASSETS_DIR}/ovmf/fw/${OVMF}_VARS.enrolled.fd"
+        OVMF_VARS_CURRENT="${NESTED_ASSETS_DIR}/ovmf/fw/${OVMF}_VARS.current.fd"
+
+        if [ -z "${NESTED_KEEP_FIRMWARE_STATE-}" ] || ! [ -e "${OVMF_VARS_CURRENT}" ]; then
+            if nested_is_secure_boot_enabled; then
+                cp -fv "${OVMF_VARS_SECBOOT}" "${OVMF_VARS_CURRENT}"
+            else
+                cp -fv "${OVMF_VARS}" "${OVMF_VARS_CURRENT}"
+            fi
+        fi
+        PARAM_BIOS="-drive file=${OVMF_CODE},if=pflash,format=raw,readonly=on -drive file=${OVMF_VARS_CURRENT},if=pflash,format=raw"
+        PARAM_MACHINE="-machine q35${ATTR_KVM}"
 
         if nested_is_tpm_enabled; then
             if snap list test-snapd-swtpm >/dev/null; then
@@ -1784,26 +1778,4 @@ nested_wait_for_device_initialized_change() {
         fi
         sleep "$wait"
     done
-}
-
-nested_check_spread_results() {
-    SPREAD_LOG=$1
-    if [ -z "$SPREAD_LOG" ]; then
-        return 1
-    fi
-
-    if grep -eq "Successful tasks:" "$SPREAD_LOG"; then
-        if grep -E "Failed (task|suite|project)" "$SPREAD_LOG"; then
-            return 1
-        fi
-        if ! grep -eq "Aborted tasks: 0" "$SPREAD_LOG"; then
-            return 1
-        fi
-
-        if [ "$EXIT_STATUS" = "0" ]; then
-            return 0
-        fi    
-    else
-        return 1
-    fi
 }

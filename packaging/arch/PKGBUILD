@@ -170,4 +170,7 @@ package() {
   rm -fv "$pkgdir/usr/lib/systemd/system/snapd.aa-prompt-listener.service"
   rm -fv "$pkgdir/usr/lib/systemd/user/snapd.aa-prompt-ui.service"
   rm -fv "$pkgdir/usr/share/dbus-1/services/io.snapcraft.Prompt.service"
+
+  # Remove gpio-chardev ordering target
+  rm -fv "$pkgdir/usr/lib/systemd/system/snapd.gpio-chardev-setup.target"
 }

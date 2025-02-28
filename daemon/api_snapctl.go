@@ -61,9 +61,11 @@ func runSnapctl(c *Command, r *http.Request, user *auth.UserState) Response {
 	// Actual context is validated later by get/set.
 	context, _ := c.d.overlord.HookManager().Context(snapctlPostData.ContextID)
 
-	// make the data read from stdin available for the hook
+	// Make the data read from stdin available for the hook via the
+	// context. If no context was found, calls to ensureContext() make sure
+	// we return with error before stdin is actually used.
 	// TODO: use a forwarded stdin here
-	if snapctlPostData.Stdin != nil {
+	if snapctlPostData.Stdin != nil && context != nil {
 		context.Lock()
 		context.Set("stdin", snapctlPostData.Stdin)
 		context.Unlock()

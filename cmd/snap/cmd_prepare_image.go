@@ -54,12 +54,13 @@ type cmdPrepareImage struct {
 	Customize string `long:"customize" hidden:"yes"`
 
 	// TODO: introduce SnapWithChannel?
-	Snaps              []string `long:"snap" value-name:"<snap>[=<channel>]"`
-	Components         []string `long:"comp" value-name:"<snap>+<comp>"`
-	ExtraSnaps         []string `long:"extra-snaps" hidden:"yes"` // DEPRECATED
-	RevisionsFile      string   `long:"revisions"`
-	WriteRevisionsFile string   `long:"write-revisions" optional:"true" optional-value:"./seed.manifest"`
-	Validation         string   `long:"validation" choice:"ignore" choice:"enforce"`
+	Snaps                    []string `long:"snap" value-name:"<snap>[=<channel>]"`
+	Components               []string `long:"comp" value-name:"<snap>+<comp>"`
+	ExtraSnaps               []string `long:"extra-snaps" hidden:"yes"` // DEPRECATED
+	RevisionsFile            string   `long:"revisions"`
+	WriteRevisionsFile       string   `long:"write-revisions" optional:"true" optional-value:"./seed.manifest"`
+	Validation               string   `long:"validation" choice:"ignore" choice:"enforce"`
+	AllowSnapdKernelMismatch bool     `long:"allow-snapd-kernel-mismatch"`
 }
 
 func init() {
@@ -103,6 +104,8 @@ For preparing classic images it supports a --classic mode`),
 			"customize": i18n.G("Image customizations specified as JSON file."),
 			// TRANSLATORS: This should not start with a lowercase letter.
 			"validation": i18n.G("Control whether validations should be ignored or enforced. (default: ignore)"),
+			// TRANSLATORS: This should not start with a lowercase letter.
+			"allow-snapd-kernel-mismatch": i18n.G("Whether a mismatch between versions of the snapd snap and snapd in kernel is allowed"),
 		}, []argDesc{
 			{
 				// TRANSLATORS: This needs to begin with < and end with >
@@ -128,12 +131,13 @@ func (x *cmdPrepareImage) Execute(args []string) error {
 	snap.SanitizePlugsSlots = builtin.SanitizePlugsSlots
 
 	opts := &image.Options{
-		Snaps:            x.ExtraSnaps,
-		Components:       x.Components,
-		ModelFile:        x.Positional.ModelAssertionFn,
-		Channel:          x.Channel,
-		Architecture:     x.Architecture,
-		SeedManifestPath: x.WriteRevisionsFile,
+		Snaps:                    x.ExtraSnaps,
+		Components:               x.Components,
+		ModelFile:                x.Positional.ModelAssertionFn,
+		Channel:                  x.Channel,
+		Architecture:             x.Architecture,
+		SeedManifestPath:         x.WriteRevisionsFile,
+		AllowSnapdKernelMismatch: x.AllowSnapdKernelMismatch,
 	}
 
 	if x.RevisionsFile != "" {

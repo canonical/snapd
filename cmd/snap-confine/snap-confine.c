@@ -428,8 +428,8 @@ int main(int argc, char **argv) {
     sc_identity real_user_identity = {
         .uid = real_uid,
         .gid = real_gid,
-        .change_uid = 1,
-        .change_gid = 1,
+        .change_uid = true,
+        .change_gid = true,
     };
     sc_set_effective_identity(real_user_identity);
     // Ensure that the user data path exists. When creating it use the identity

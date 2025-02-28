@@ -1056,7 +1056,7 @@ func (s *snapmgrTestSuite) testUpdateAmendRunThrough(c *C, tryMode bool, compone
 
 func (s *snapmgrTestSuite) testUpdateRunThrough(c *C, refreshAppAwarenessUX bool) {
 	// we start without the auxiliary store info (or with an older one)
-	c.Check(snapstate.AuxStoreInfoFilename("services-snap-id"), testutil.FileAbsent)
+	c.Check(backend.AuxStoreInfoFilename("services-snap-id"), testutil.FileAbsent)
 
 	// use services-snap here to make sure services would be stopped/started appropriately
 	si := snap.SideInfo{
@@ -1324,7 +1324,7 @@ func (s *snapmgrTestSuite) testUpdateRunThrough(c *C, refreshAppAwarenessUX bool
 	c.Check(snapst.CohortKey, Equals, "some-cohort")
 
 	// we end up with the auxiliary store info
-	c.Check(snapstate.AuxStoreInfoFilename("services-snap-id"), testutil.FilePresent)
+	c.Check(backend.AuxStoreInfoFilename("services-snap-id"), testutil.FilePresent)
 }
 
 func (s *snapmgrTestSuite) TestUpdateRunThrough(c *C) {
@@ -14492,7 +14492,7 @@ func (s *snapmgrTestSuite) TestUpdateBackToPrevRevision(c *C) {
 	}
 
 	// we start without the auxiliary store info (or with an older one)
-	c.Check(snapstate.AuxStoreInfoFilename(snapID), testutil.FileAbsent)
+	c.Check(backend.AuxStoreInfoFilename(snapID), testutil.FileAbsent)
 
 	currentSI := snap.SideInfo{
 		RealName: snapName,
@@ -14951,7 +14951,7 @@ func (s *snapmgrTestSuite) TestUpdateWithComponentsBackToPrevRevision(c *C) {
 	sort.Strings(components)
 
 	// we start without the auxiliary store info (or with an older one)
-	c.Check(snapstate.AuxStoreInfoFilename(snapID), testutil.FileAbsent)
+	c.Check(backend.AuxStoreInfoFilename(snapID), testutil.FileAbsent)
 
 	currentSI := snap.SideInfo{
 		RealName: snapName,
@@ -15390,7 +15390,7 @@ func (s *snapmgrTestSuite) TestUpdateWithComponentsBackToPrevRevisionAddComponen
 	instanceName := snap.InstanceName(snapName, instanceKey)
 
 	// we start without the auxiliary store info (or with an older one)
-	c.Check(snapstate.AuxStoreInfoFilename(snapID), testutil.FileAbsent)
+	c.Check(backend.AuxStoreInfoFilename(snapID), testutil.FileAbsent)
 
 	currentSI := snap.SideInfo{
 		RealName: snapName,
@@ -15917,7 +15917,7 @@ func (s *snapmgrTestSuite) testUpdateWithComponentsRunThrough(c *C, opts updateW
 	}
 
 	// we start without the auxiliary store info (or with an older one)
-	c.Check(snapstate.AuxStoreInfoFilename(snapID), testutil.FileAbsent)
+	c.Check(backend.AuxStoreInfoFilename(snapID), testutil.FileAbsent)
 
 	si := snap.SideInfo{
 		RealName: snapName,
@@ -16498,7 +16498,7 @@ func (s *snapmgrTestSuite) testUpdateWithComponentsRunThrough(c *C, opts updateW
 		c.Assert(snapst.Sequence, DeepEquals, currentSeq)
 
 		// we end up with the auxiliary store info
-		c.Check(snapstate.AuxStoreInfoFilename(snapID), testutil.FilePresent)
+		c.Check(backend.AuxStoreInfoFilename(snapID), testutil.FilePresent)
 	} else {
 		// make sure everything is back to how it started
 		c.Assert(snapst.Active, Equals, true)
@@ -16558,7 +16558,7 @@ func (s *snapmgrTestSuite) testUpdateWithComponentsRunThroughShareComponents(c *
 		return results
 	}
 
-	c.Check(snapstate.AuxStoreInfoFilename(snapID), testutil.FileAbsent)
+	c.Check(backend.AuxStoreInfoFilename(snapID), testutil.FileAbsent)
 
 	si := snap.SideInfo{
 		RealName: snapName,
@@ -16977,7 +16977,7 @@ func (s *snapmgrTestSuite) testUpdateWithComponentsRunThroughShareComponents(c *
 		c.Assert(snapst.Sequence, DeepEquals, currentSeq)
 
 		// we end up with the auxiliary store info
-		c.Check(snapstate.AuxStoreInfoFilename(snapID), testutil.FilePresent)
+		c.Check(backend.AuxStoreInfoFilename(snapID), testutil.FilePresent)
 	} else {
 		// make sure everything is back to how it started
 		c.Assert(snapst.Active, Equals, true)
@@ -17791,7 +17791,7 @@ func (s *snapmgrTestSuite) testUpdateWithComponentsRunThroughOnlyComponentUpdate
 	}
 
 	// we start without the auxiliary store info (or with an older one)
-	c.Check(snapstate.AuxStoreInfoFilename(snapID), testutil.FileAbsent)
+	c.Check(backend.AuxStoreInfoFilename(snapID), testutil.FileAbsent)
 
 	si := snap.SideInfo{
 		RealName: snapName,

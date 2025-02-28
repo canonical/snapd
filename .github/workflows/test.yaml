@@ -3,7 +3,7 @@ on:
   pull_request:
     branches: [ "master", "release/**", "core-snap-security-release/**", "security-release/**" ]
   push:
-    branches: [ "master", "release/**", "core-snap-security-release/**", "security-release/**" ]
+    branches: [ "release/**", "core-snap-security-release/**", "security-release/**" ]
 
 concurrency:
   group: ${{ github.head_ref || github.run_id }}
@@ -36,10 +36,7 @@ jobs:
       matrix:
         runs-on:
           - '["ubuntu-22.04"]'
-          # Tags to identify the self-hosted runners to use from
-          # internal runner collection. See internal self-hosted
-          # runners doc for the complete list of options.
-          - '["self-hosted", "Linux", "jammy", "ARM64", "large"]'
+          - '["ubuntu-22.04-arm"]'
         toolchain:
           - default
           - FIPS
@@ -53,13 +50,13 @@ jobs:
         # to keep the number of builds down as we currently don't have a
         # clear need for these excluded builds.
         exclude:
-          - runs-on: '["self-hosted", "Linux", "jammy", "ARM64", "large"]'
+          - runs-on: '["ubuntu-22.04-arm"]'
             toolchain: FIPS
-          - runs-on: '["self-hosted", "Linux", "jammy", "ARM64", "large"]'
+          - runs-on: '["ubuntu-22.04-arm"]'
             variant: pristine
 
   cache-build-deps:
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-latest
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
@@ -167,33 +164,51 @@ jobs:
     needs:
       - go-channels
       - static-checks 
-    name: "unit-tests default ${{ matrix.gochannel }}"
+    name: "unit-tests (Go default ${{ matrix.gochannel }})"
     with:
-      runs-on: ubuntu-22.04
+      runs-on: ubuntu-latest
       gochannel: ${{ matrix.gochannel }}
       skip-coverage: ${{ matrix.gochannel == 'latest/stable' }}
+      code: 'go'
     strategy:
       # we cache successful runs so it's fine to keep going
       fail-fast: false      
       matrix:
         gochannel: ${{ fromJson(needs.go-channels.outputs.go-channels) }}
 
-  # TODO run unit tests of C code
+  unit-tests-c:
+    uses: ./.github/workflows/unit-tests.yaml
+    needs:
+      - cache-build-deps
+    name: "unit-tests (C ${{ matrix.test-case.c-compiler }})"
+    with:
+      runs-on: ubuntu-latest
+      code: 'c'
+      c-compiler: ${{ matrix.test-case.c-compiler }}
+    strategy:
+      # we cache successful runs so it's fine to keep going
+      fail-fast: false
+      matrix:
+        test-case:
+          - { c-compiler: gcc }
+          - { c-compiler: clang }
+
   unit-tests-special:
     uses: ./.github/workflows/unit-tests.yaml
     needs:
       - go-channels
       - static-checks
-    name: "unit-tests (${{ matrix.gochannel }} ${{ matrix.test-case.go-build-tags }}
+    name: "unit-tests (Go ${{ matrix.gochannel }} ${{ matrix.test-case.go-build-tags }}
           ${{ matrix.test-case.go-test-race && ' test-race' || ''}}
           ${{ matrix.test-case.snapd-debug && ' snapd-debug' || ''}})"
     with:
-      runs-on: ubuntu-22.04
+      runs-on: ubuntu-latest
       gochannel: ${{ matrix.gochannel }}
       skip-coverage: ${{ matrix.gochannel == 'latest/stable' || matrix.test-case.skip-coverage }}
       go-build-tags: ${{ matrix.test-case.go-build-tags }}
       go-test-race: ${{ matrix.test-case.go-test-race }}
       snapd-debug: ${{ matrix.test-case.snapd-debug }}
+      code: 'go'
     strategy:
       # we cache successful runs so it's fine to keep going
       fail-fast: false
@@ -232,6 +247,7 @@ jobs:
     needs:
       - unit-tests
       - unit-tests-special
+      - unit-tests-c
       - unit-tests-cross-distro
     if: always()
     steps:
@@ -244,7 +260,7 @@ jobs:
           needs-json: ${{ toJSON(needs) }}
 
   code-coverage:
-    needs: [unit-tests, unit-tests-special]
+    needs: [unit-tests, unit-tests-special, unit-tests-c]
     runs-on: ubuntu-20.04
     env:
       GOPATH: ${{ github.workspace }}
@@ -263,12 +279,13 @@ jobs:
         merge-multiple: true
 
     - name: Upload coverage to Codecov
-      uses: codecov/codecov-action@v4
+      uses: codecov/codecov-action@v5
       # uploading to codecov occasionally fails, so continue running the test
       # workflow regardless of the upload
       continue-on-error: true
       with:
         fail_ci_if_error: true
+        token: ${{ secrets.CODECOV_TOKEN }}
         flags: unittests
         name: codecov-umbrella
         files: .coverage/coverage-*.cov
@@ -279,6 +296,7 @@ jobs:
     outputs:
       fundamental-systems: ${{ steps.read-systems.outputs.fundamental-systems }}
       non-fundamental-systems: ${{ steps.read-systems.outputs.non-fundamental-systems }}
+      nested-systems: ${{ steps.read-systems.outputs.nested-systems }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -289,10 +307,11 @@ jobs:
         run: |
           echo "fundamental-systems=$(jq -c . ./.github/workflows/fundamental-systems.json)" >> $GITHUB_OUTPUT
           echo "non-fundamental-systems=$(jq -c . ./.github/workflows/non-fundamental-systems.json)" >> $GITHUB_OUTPUT
+          echo "nested-systems=$(jq -c . ./.github/workflows/nested-systems.json)" >> $GITHUB_OUTPUT
 
   spread-fundamental:
     uses: ./.github/workflows/spread-tests.yaml
-    needs: [unit-tests, snap-builds, read-systems]
+    needs: [unit-tests, unit-tests-c, snap-builds, read-systems]
     name: "spread ${{ matrix.group }}"
     with:
       # Github doesn't support passing sequences as parameters.
@@ -317,10 +336,10 @@ jobs:
 
   spread-not-fundamental-pr:
     uses: ./.github/workflows/spread-tests.yaml
-    if: github.event_name == 'pull_request'
+    if: github.event_name == 'pull_request' && !contains(github.base_ref, 'release')
     # For workflow runs that are PRs, run this non-fundamental systems job
     # only after the fundamental systems job succeeds.
-    needs: [unit-tests, snap-builds, read-systems, spread-fundamental]
+    needs: [unit-tests, unit-tests-c, snap-builds, read-systems, spread-fundamental]
     name: "spread ${{ matrix.group }}"
     with:
       # Github doesn't support passing sequences as parameters.
@@ -344,10 +363,10 @@ jobs:
 
   spread-not-fundamental-not-pr:
     uses: ./.github/workflows/spread-tests.yaml
-    if: github.event_name != 'pull_request'
+    if: github.event_name != 'pull_request' || contains(github.base_ref, 'release')
     # For workflow runs that are not for PRs, no need to impose a dependency
     # on the fundamental systems job's success before running this job.
-    needs: [unit-tests, snap-builds, read-systems]
+    needs: [unit-tests, unit-tests-c, snap-builds, read-systems]
     name: "spread ${{ matrix.group }}"
     with:
       # Github doesn't support passing sequences as parameters.
@@ -371,7 +390,7 @@ jobs:
 
   spread-nested:
     uses: ./.github/workflows/spread-tests.yaml
-    needs: [unit-tests, snap-builds]
+    needs: [unit-tests, unit-tests-c, snap-builds, read-systems]
     name: "spread ${{ matrix.group }}"
     with:
       # Github doesn't support passing sequences as parameters.
@@ -380,10 +399,10 @@ jobs:
       # using the fromJSON expression.
       runs-on: '["self-hosted", "spread-enabled"]'
       group: ${{ matrix.group }}
-      backend: 'google-nested'
+      backend: ${{ matrix.backend }}
       systems: ${{ matrix.systems }}
-      tasks: 'tests/nested/...'
-      rules: 'nested'
+      tasks: ${{ matrix.tasks }}
+      rules: ${{ matrix.rules }}
     strategy:
       # FIXME: enable fail-fast mode once spread can cancel an executing job.
       # Disable fail-fast mode as it doesn't function with spread. It seems
@@ -391,17 +410,7 @@ jobs:
       # interrupting spread, notably, does not work today. As such disable
       # fail-fast while we tackle that problem upstream.
       fail-fast: false
-      matrix:
-        include:
-          - group: nested-ubuntu-18.04
-            systems: 'ubuntu-18.04-64'
-          - group: nested-ubuntu-20.04
-            systems: 'ubuntu-20.04-64'
-          - group: nested-ubuntu-22.04
-            systems: 'ubuntu-22.04-64'
-          - group: nested-ubuntu-24.04
-            systems: 'ubuntu-24.04-64'
-
+      matrix: ${{ fromJson(needs.read-systems.outputs.nested-systems) }}
 
   # The spread-results-reporter needs the PR number to be able to 
   # comment on the relevant PR with spread failures. Because the PR 

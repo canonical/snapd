@@ -157,7 +157,7 @@ int main(int argc, char** argv) {
             {.pattern = usr_fstab_pattern},
             {.pattern = sys_info_pattern},
         };
-        for (size_t i = 0; i < sizeof variants / sizeof *variants; ++i) {
+        for (size_t i = 0; i < SC_ARRAY_SIZE(variants); ++i) {
             struct variant* v = &variants[i];
             debug("checking if %s matches %s", dname, v->pattern);
             int match_result = fnmatch(v->pattern, dname, 0);

@@ -10,6 +10,8 @@ systems:
   # observed to fail randomly?
   # TODO investigate once we can spin up instances in openstack manually
   - -fedora-*
+  # has socat 1.7.4.x which handles timeout in a buggy way
+  - -centos-*
 
 prepare: |
   tests.pkgs install socat
@@ -29,8 +31,8 @@ execute: |
   (
   # work around progress.go check for SPREAD_SYSTEM
   unset SPREAD_SYSTEM;
-  socat system:'snap install test-snapd-tools-core24',pty,raw,echo=0 - | tr '\r' '\n' > tty-install.log
-  socat system:'snap remove test-snapd-tools-core24',pty,raw,echo=0 - | tr '\r' '\n' > tty-remove.log
+  socat -dddd -T30 system:'snap install test-snapd-tools-core24',pty,raw,echo=0 - | tr '\r' '\n' > tty-install.log
+  socat -dddd -T30 system:'snap remove test-snapd-tools-core24',pty,raw,echo=0 - | tr '\r' '\n' > tty-remove.log
   )
   # more than one line for each operation
   test "$(wc -l < tty-install.log)" -gt "1"
