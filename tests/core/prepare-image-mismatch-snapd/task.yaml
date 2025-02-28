@@ -20,6 +20,8 @@ restore: |
     rm -rf "$ROOT"
 
 execute: |
+    set -o pipefail
+
     case "$SPREAD_SYSTEM" in
       ubuntu-core-24-*)
         UC_VERSION=24
@@ -47,7 +49,7 @@ execute: |
     cp /var/lib/snapd/snaps/snapd_*.snap ./snapd.snap
 
     echo "Executing prepare-image and expecting an error surrounding snapd / kernel versions"
-    SNAPD_ALLOW_SNAPD_KERNEL_MISMATCH=false snap prepare-image --snap ./pc-kernel_*.snap --snap ./snapd.snap "$TESTSLIB/assertions/ubuntu-core-${UC_VERSION}-amd64.model" "$ROOT" 2>&1 | tee output.log
+    ! SNAPD_ALLOW_SNAPD_KERNEL_MISMATCH=false snap prepare-image --snap ./pc-kernel_*.snap --snap ./snapd.snap "$TESTSLIB/assertions/ubuntu-core-${UC_VERSION}-amd64.model" "$ROOT" 2>&1 | tee output.log
 
     MATCH "error: snapd 2.68\+ is not compatible with a kernel containing snapd prior to 2.68" < output.log
 
