@@ -556,6 +556,122 @@ backends:
             - opensuse-tumbleweed-64:
                   username: opensuse
                   password: opensuse
+    garden:
+        type: adhoc
+        allocate: |
+            # Spread automatically injects /snap/bin to PATH. When we are
+            # running from the image-garden snap then SPREAD_HOST_PATH is the
+            # original path before such modifications were applied. Snap
+            # applications cannot normally run /snap/bin/* entry-points
+            # successfully so re-set PATH to the original value, as provided by
+            # snapcraft.
+            if [ -n "${SPREAD_HOST_PATH-}" ]; then
+                PATH="${SPREAD_HOST_PATH}"
+            fi
+            # Spread does not expose any settings to ad-hoc backends.
+            export QEMU_MEM_OPTION="-m 3072"
+            export QEMU_SMP_OPTION="-smp 4"
+            # Convert convention of system names used by snapd to corresponding image-garden name:
+            # - amazon-linux-2023-64    => amazonlinux-cloud-2023-$(uname -m)
+            # - arch-linux-64           => archlinux-cloud.$(uname -m)
+            # - centos-10-64            => centos-cloud-10.$(uname -m)
+            # - debian-sid-64           => debian-cloud-sid.$(uname -m)
+            # - fedora-42-64            => fedora-cloud-42.$(uname -m)
+            # - opensuse-tumbleweed-64  => opensuse-cloud-tumbleweed.$(uname -m)
+            # - ubuntu-24.04-64         => ubuntu-cloud-24.04.$(uname -m)
+            # - ubuntu-core-24-64       => ubuntu-cloud-24.04.$(uname -m)
+            exec image-garden allocate "$(echo "$SPREAD_SYSTEM" | sed \
+              -e 's/ubuntu-core-16/ubuntu-16.04/' \
+              -e 's/ubuntu-core-18/ubuntu-18.04/' \
+              -e 's/ubuntu-core-20/ubuntu-20.04/' \
+              -e 's/ubuntu-core-22/ubuntu-22.04/' \
+              -e 's/ubuntu-core-24/ubuntu-24.04/' \
+              -e 's/\(\w\+\)-linux/\1linux/' \
+              -e 's/\(\w\+\)/\1-cloud/' \
+              -e 's/-64$/.'"$(uname -m)"'/g')"
+        discard: |
+            # Spread automatically injects /snap/bin to PATH. When we are
+            # running from the image-garden snap then SPREAD_HOST_PATH is the
+            # original path before such modifications were applied. Snap
+            # applications cannot normally run /snap/bin/* entry-points
+            # successfully so re-set PATH to the original value, as provided by
+            # snapcraft.
+            if [ -n "${SPREAD_HOST_PATH-}" ]; then
+                PATH="${SPREAD_HOST_PATH}"
+            fi
+            # Stop the running qemu instance corresponding to the given address.
+            exec image-garden discard "$SPREAD_SYSTEM_ADDRESS"
+        systems:
+            - ubuntu-core-16-64:
+                  image: ubuntu-16.04-64
+                  username: root
+                  password: root
+                  # Disable due to ENOSPC.
+                  manual: true
+            - ubuntu-core-18-64:
+                  image: ubuntu-18.04-64
+                  username: root
+                  password: root
+            - ubuntu-core-20-64:
+                  image: ubuntu-20.04-64
+                  username: root
+                  password: root
+            - ubuntu-core-22-64:
+                  image: ubuntu-22.04-64
+                  username: root
+                  password: root
+            - ubuntu-core-24-64:
+                  image: ubuntu-24.04-64
+                  username: root
+                  password: root
+            - ubuntu-16.04-64:
+                  username: root
+                  password: root
+            - ubuntu-18.04-64:
+                  username: root
+                  password: root
+            - ubuntu-20.04-64:
+                  username: root
+                  password: root
+            - ubuntu-22.04-64:
+                  username: root
+                  password: root
+            - ubuntu-24.04-64:
+                  username: root
+                  password: root
+            - ubuntu-24.10-64:
+                  username: root
+                  password: root
+            - ubuntu-25.04-64:
+                  username: root
+                  password: root
+            - ubuntu-25.10-64:
+                  username: root
+                  password: root
+            - debian-11-64:
+                  username: root
+                  password: root
+            - debian-12-64:
+                  username: root
+                  password: root
+            - debian-sid-64:
+                  username: root
+                  password: root
+            - opensuse-tumbleweed-64:
+                  username: root
+                  password: root
+            - fedora-41-64:
+                  username: root
+                  password: root
+            - centos-9-64:
+                  username: root
+                  password: root
+            - arch-linux-64:
+                  username: root
+                  password: root
+            - amazon-linux-2023-64:
+                  username: root
+                  password: root
     autopkgtest:
         type: adhoc
         allocate: |
@@ -730,9 +846,7 @@ exclude:
     - "*.pyc"
     - ./vendor
     - "*.snap"
-    - "*.qcow2"
-    - "*.log"
-    - "*.iso"
+    - ".image-garden"
 
 debug-each: |
     if [ "$SPREAD_DEBUG_EACH" != 1 ]; then
