@@ -58,7 +58,7 @@ static void assert_caps(void) {
         const char* cap_name SC_CLEANUP(cap_free) = cap_to_name(cap);
 
         cap_flag_value_t set = CAP_CLEAR;
-        if (cap_get_flag(current, CAP_SYS_ADMIN, CAP_EFFECTIVE, &set) != 0) {
+        if (cap_get_flag(current, cap, CAP_EFFECTIVE, &set) != 0) {
             die("cannot assert %s state", cap_name);
         }
 
