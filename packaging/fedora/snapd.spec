@@ -104,7 +104,7 @@
 %endif
 
 Name:           snapd
-Version:        2.68
+Version:        2.68.1
 Release:        0%{?dist}
 Summary:        A transactional software package manager
 License:        GPL-3.0-only
@@ -1006,6 +1006,10 @@ fi
 
 
 %changelog
+* Mon Feb 24 2025 Ernest Lotter <ernest.lotter@canonical.com>
+- New upstream release 2.68.1
+ - Fix snap-confine type specifier type mismatch on armhf
+
 * Thu Feb 13 2025 Ernest Lotter <ernest.lotter@canonical.com>
 - New upstream release 2.68
  - FDE: add support for new and more extensible key format that is

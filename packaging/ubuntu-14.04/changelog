@@ -1,3 +1,10 @@
+snapd (2.68.1~14.04) trusty; urgency=medium
+
+  * New upstream release, LP: #2098137
+    - Fix snap-confine type specifier type mismatch on armhf
+
+ -- Ernest Lotter <ernest.lotter@canonical.com>  Mon, 24 Feb 2025 10:31:49 +0200
+
 snapd (2.68~14.04) trusty; urgency=medium
 
   * New upstream release, LP: #2098137
