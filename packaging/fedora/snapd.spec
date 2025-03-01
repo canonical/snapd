@@ -104,7 +104,7 @@
 %endif
 
 Name:           snapd
-Version:        2.68.1
+Version:        2.68.2
 Release:        0%{?dist}
 Summary:        A transactional software package manager
 License:        GPL-3.0-only
@@ -1006,6 +1006,24 @@ fi
 
 
 %changelog
+* Thu Feb 27 2025 Ernest Lotter <ernest.lotter@canonical.com>
+- New upstream release 2.68.2
+ - FDE: use boot mode for FDE hooks
+ - FDE: add snap-bootstrap compatibility check to prevent image
+   creation with incompatible snapd and kernel snap
+ - FDE: add argon2 out-of-process KDF support
+ - FDE: have separate mutex for the sections writing a fresh modeenv
+ - FDE: LP: #2099709 update secboot to e07f4ae48e98
+ - Confdb: support pruning ephemeral data and process alternative
+   types in order
+ - core-initrd: look at env to mount directly to /sysroot
+ - core-initrd: prepare for Plucky build and split out 24.10
+   (Oracular)
+ - Fix missing primed packages in snapd snap manifest
+ - Interfaces: posix-mq | fix incorrect clobbering of global variable
+   and make interface more precise
+ - Interfaces: opengl | add more kernel fusion driver files
+
 * Mon Feb 24 2025 Ernest Lotter <ernest.lotter@canonical.com>
 - New upstream release 2.68.1
  - Fix snap-confine type specifier type mismatch on armhf
