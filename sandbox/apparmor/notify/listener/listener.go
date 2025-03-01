@@ -32,6 +32,7 @@ import (
 
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil/epoll"
+	"github.com/snapcore/snapd/sandbox/apparmor"
 	"github.com/snapcore/snapd/sandbox/apparmor/notify"
 )
 
@@ -186,7 +187,7 @@ const (
 //
 // If the kernel does not support the notification mechanism the error is ErrNotSupported.
 func Register() (listener *Listener, err error) {
-	path := notify.SysPath
+	path := apparmor.NotifySocketPath
 	if override := os.Getenv("PROMPT_NOTIFY_PATH"); override != "" {
 		path = override
 	}

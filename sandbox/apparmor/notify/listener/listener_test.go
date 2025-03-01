@@ -37,6 +37,7 @@ import (
 	"github.com/snapcore/snapd/arch"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil/epoll"
+	"github.com/snapcore/snapd/sandbox/apparmor"
 	"github.com/snapcore/snapd/sandbox/apparmor/notify"
 	"github.com/snapcore/snapd/sandbox/apparmor/notify/listener"
 	"github.com/snapcore/snapd/testutil"
@@ -150,7 +151,7 @@ func (*listenerSuite) TestRegisterOverridePath(c *C) {
 	l, err := listener.Register()
 	c.Assert(err, IsNil)
 
-	c.Assert(outputOverridePath, Equals, notify.SysPath)
+	c.Assert(outputOverridePath, Equals, apparmor.NotifySocketPath)
 
 	err = l.Close()
 	c.Assert(err, IsNil)
@@ -191,7 +192,7 @@ func (*listenerSuite) TestRegisterErrors(c *C) {
 
 	l, err = listener.Register()
 	c.Assert(l, IsNil)
-	c.Assert(err, ErrorMatches, fmt.Sprintf("cannot open %q: %v", notify.SysPath, customError))
+	c.Assert(err, ErrorMatches, fmt.Sprintf("cannot open %q: %v", apparmor.NotifySocketPath, customError))
 
 	restoreOpen = listener.MockOsOpen(func(name string) (*os.File, error) {
 		placeholderSocket, err := unix.Socket(unix.AF_UNIX, unix.SOCK_STREAM, 0)
@@ -230,7 +231,7 @@ func (*listenerSuite) TestRegisterErrors(c *C) {
 
 	l, err = listener.Register()
 	c.Assert(l, IsNil)
-	c.Assert(err, ErrorMatches, fmt.Sprintf("cannot register epoll on %q: bad file descriptor", notify.SysPath))
+	c.Assert(err, ErrorMatches, fmt.Sprintf("cannot register epoll on %q: bad file descriptor", apparmor.NotifySocketPath))
 }
 
 // An expedient abstraction over notify.MsgNotificationFile to allow defining
@@ -256,13 +257,26 @@ type msgNotificationFile struct {
 	SUID uint32
 	OUID uint32
 	Name uint32
+	// msgNotificationFileKernel version 5+
+	Tags         uint32
+	TagsetsCount uint16
 }
 
 func (msg *msgNotificationFile) MarshalBinary(c *C) []byte {
+	// Check that all the variable-length fields are 0, since we're not packing
+	// strings at the end of the message.
+	c.Assert(msg.Label, Equals, uint32(0))
+	c.Assert(msg.Name, Equals, uint32(0))
+	c.Assert(msg.Tags, Equals, uint32(0))
+
 	msgBuf := bytes.NewBuffer(make([]byte, 0, msg.Length))
 	order := arch.Endian()
 	c.Assert(binary.Write(msgBuf, order, msg), IsNil)
-	return msgBuf.Bytes()
+	length := msgBuf.Len()
+	if msg.Version < 5 {
+		length -= 6 // cut off Tags and TagsetsCount
+	}
+	return msgBuf.Bytes()[:length]
 }
 
 func (*listenerSuite) TestRunSimple(c *C) {
@@ -447,13 +461,15 @@ func (*listenerSuite) TestRunMultipleRequestsInBuffer(c *C) {
 
 // Check that the system of epoll event listening works as expected.
 func (*listenerSuite) TestRunEpoll(c *C) {
+	listener.ExitOnError()
+
 	sockets, err := unix.Socketpair(unix.AF_UNIX, unix.SOCK_STREAM, 0)
 	c.Assert(err, IsNil)
-	notifyFile := os.NewFile(uintptr(sockets[0]), notify.SysPath)
+	notifyFile := os.NewFile(uintptr(sockets[0]), apparmor.NotifySocketPath)
 	kernelSocket := sockets[1]
 
 	restoreOpen := listener.MockOsOpen(func(name string) (*os.File, error) {
-		c.Assert(name, Equals, notify.SysPath)
+		c.Assert(name, Equals, apparmor.NotifySocketPath)
 		return notifyFile, nil
 	})
 	defer restoreOpen()
@@ -695,6 +711,13 @@ func (*listenerSuite) TestRunErrors(c *C) {
 				Length: 1234,
 			},
 			`cannot extract first message: length in header exceeds data length: 1234 > 52`,
+		},
+		{
+			msgNotificationFile{
+				Length:  1234,
+				Version: 1123,
+			},
+			`cannot extract first message: length in header exceeds data length: 1234 > 58`,
 		},
 		{
 			msgNotificationFile{
