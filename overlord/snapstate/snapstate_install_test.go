@@ -1318,7 +1318,18 @@ func (s *snapmgrTestSuite) TestInstallRunThrough(c *C) {
 	defer s.state.Unlock()
 
 	// we start without the auxiliary store info
-	c.Check(snapstate.AuxStoreInfoFilename("some-snap-id"), testutil.FileAbsent)
+	c.Check(backend.AuxStoreInfoFilename("some-snap-id"), testutil.FileAbsent)
+
+	iconContents := []byte("I'm an svg")
+	// set up the downloadIcon callback to write the fake icon to the icons pool
+	var downloadIconCalls int
+	s.fakeStore.downloadIconCallback = func(targetPath string) {
+		downloadIconCalls++
+		c.Assert(downloadIconCalls, Equals, 1)
+
+		c.Assert(os.MkdirAll(filepath.Dir(targetPath), 0o755), IsNil)
+		c.Assert(os.WriteFile(targetPath, iconContents, 0o644), IsNil)
+	}
 
 	chg := s.state.NewChange("install", "install a snap")
 	opts := &snapstate.RevisionOptions{Channel: "channel-for-media"}
@@ -1336,6 +1347,11 @@ func (s *snapmgrTestSuite) TestInstallRunThrough(c *C) {
 		macaroon: s.user.StoreMacaroon,
 		name:     "some-snap",
 		target:   filepath.Join(dirs.SnapBlobDir, "some-snap_11.snap"),
+	}})
+	c.Check(s.fakeStore.iconDownloads, DeepEquals, []fakeIconDownload{{
+		name:   "some-snap",
+		target: backend.IconDownloadFilename("some-snap-id"),
+		url:    "http://example.com/icon.png",
 	}})
 	c.Check(s.fakeStore.seenPrivacyKeys["privacy-key"], Equals, true, Commentf("salts seen: %v", s.fakeStore.seenPrivacyKeys))
 	expected := fakeOps{
@@ -1355,6 +1371,10 @@ func (s *snapmgrTestSuite) TestInstallRunThrough(c *C) {
 		},
 		{
 			op:   "storesvc-download",
+			name: "some-snap",
+		},
+		{
+			op:   "storesvc-download-icon",
 			name: "some-snap",
 		},
 		{
@@ -1498,7 +1518,7 @@ func (s *snapmgrTestSuite) TestInstallRunThrough(c *C) {
 			RealName: "some-snap",
 		},
 	}
-	err = snapstate.RetrieveAuxStoreInfo(&info)
+	err = backend.RetrieveAuxStoreInfo(&info)
 	c.Assert(err, IsNil)
 
 	c.Assert(info.Media, DeepEquals, snap.MediaInfos{
@@ -1514,6 +1534,8 @@ func (s *snapmgrTestSuite) TestInstallRunThrough(c *C) {
 		},
 	})
 	c.Check(info.StoreURL, Equals, "https://snapcraft.io/example-snap")
+
+	c.Check(backend.IconInstallFilename("some-snap-id"), testutil.FileEquals, iconContents)
 }
 
 func (s *snapmgrTestSuite) testParallelInstanceInstallRunThrough(c *C, inputFlags, expectedFlags snapstate.Flags) {
@@ -6692,7 +6714,7 @@ func (s *snapmgrTestSuite) testInstallComponentsRunThrough(c *C, opts testInstal
 	instanceName := snap.InstanceName(opts.snapName, opts.instanceKey)
 
 	// we start without the auxiliary store info
-	c.Check(snapstate.AuxStoreInfoFilename(snapID), testutil.FileAbsent)
+	c.Check(backend.AuxStoreInfoFilename(snapID), testutil.FileAbsent)
 
 	var componentStates []*sequence.ComponentState
 	for i, compName := range opts.components {
@@ -6995,7 +7017,7 @@ func (s *snapmgrTestSuite) testInstallComponentsRunThrough(c *C, opts testInstal
 		err = snapstate.Get(s.state, instanceName, &snapst)
 		c.Assert(err, testutil.ErrorIs, state.ErrNoState)
 
-		c.Check(snapstate.AuxStoreInfoFilename(snapID), testutil.FileAbsent)
+		c.Check(backend.AuxStoreInfoFilename(snapID), testutil.FileAbsent)
 	} else {
 		// verify snap in the system state
 		var snapst snapstate.SnapState
@@ -7027,7 +7049,7 @@ func (s *snapmgrTestSuite) testInstallComponentsRunThrough(c *C, opts testInstal
 		// make sure that all of our components are accounted for
 		c.Assert(snapst.Sequence.Revisions[0].Components, DeepEquals, componentStates)
 
-		c.Check(snapstate.AuxStoreInfoFilename(snapID), testutil.FilePresent)
+		c.Check(backend.AuxStoreInfoFilename(snapID), testutil.FilePresent)
 	}
 }
 

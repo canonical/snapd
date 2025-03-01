@@ -72,6 +72,25 @@ func (s *snapctlSuite) TestSnapctlForbiddenError(c *check.C) {
 	c.Assert(rsp.Status, check.Equals, 403)
 }
 
+func (s *snapctlSuite) TestSnapctlForbiddenErrorWithStdin(c *check.C) {
+	s.daemon(c)
+
+	defer daemon.MockUcrednetGet(func(string) (*daemon.Ucrednet, error) {
+		return &daemon.Ucrednet{Uid: 100, Pid: 9999, Socket: dirs.SnapSocket}, nil
+	})()
+
+	defer daemon.MockCtlcmdRun(func(ctx *hookstate.Context, arg []string, uid uint32) ([]byte, []byte, error) {
+		return nil, nil, &ctlcmd.ForbiddenCommandError{}
+	})()
+
+	// stdin is "123" in base64
+	buf := bytes.NewBufferString(fmt.Sprintf(`{"context-id": "", "args": [%q, %q], "stdin": "MTIz"}`, "set", "foo=bar"))
+	req, err := http.NewRequest("POST", "/v2/snapctl", buf)
+	c.Assert(err, check.IsNil)
+	rsp := s.errorReq(c, req, nil)
+	c.Assert(rsp.Status, check.Equals, 403)
+}
+
 func (s *snapctlSuite) TestSnapctlUnsuccesfulError(c *check.C) {
 	s.daemon(c)
 

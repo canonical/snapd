@@ -24,7 +24,6 @@ import (
 	"time"
 
 	"github.com/snapcore/snapd/asserts/internal"
-	"github.com/snapcore/snapd/confdb"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -368,9 +367,4 @@ func MockAssertionPrereqs(f func(a Assertion) []*Ref) func() {
 	r := testutil.Backup(&assertionPrereqs)
 	assertionPrereqs = f
 	return r
-}
-
-// ConfdbControl.operators exposed for tests
-func (cc *ConfdbControl) Operators() map[string]*confdb.Operator {
-	return cc.operators
 }

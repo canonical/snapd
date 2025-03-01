@@ -19,6 +19,9 @@ on:
           - spread-test-build-from-current
           - spread-test-experimental
           - spread-test-openstack
+          - spread-master-fundamental
+          - spread-master-not-fundamental
+          - spread-master-nested
 
 jobs:
 
@@ -70,14 +73,84 @@ jobs:
       use-snapd-snap-from-master: true
       spread-experimental-features: gate-auto-refresh-hook
 
-  spread-test-openstack:
-    if: ${{ github.event.schedule == '0 3 * * *' || (github.event_name == 'workflow_dispatch' && inputs.job == 'spread-test-openstack') }}
+  read-systems:
+    runs-on: ubuntu-latest
+    outputs:
+      fundamental-systems: ${{ steps.read-systems.outputs.fundamental-systems }}
+      non-fundamental-systems: ${{ steps.read-systems.outputs.non-fundamental-systems }}
+      nested-systems: ${{ steps.read-systems.outputs.nested-systems }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Read matrix file
+        id: read-systems
+        shell: bash
+        run: |
+          echo "fundamental-systems=$(jq -c . ./.github/workflows/fundamental-systems.json)" >> $GITHUB_OUTPUT
+          echo "non-fundamental-systems=$(jq -c . ./.github/workflows/non-fundamental-systems.json)" >> $GITHUB_OUTPUT
+          echo "nested-systems=$(jq -c . ./.github/workflows/nested-systems.json)" >> $GITHUB_OUTPUT
+
+  spread-master-fundamental:
+    if: ${{ github.event.schedule == '0 3 * * *' || (github.event_name == 'workflow_dispatch' && inputs.job == 'spread-master-fundamental') }}
     uses: ./.github/workflows/spread-tests.yaml
+    name: "spread master ${{ matrix.group }}"
+    needs: [read-systems]
     with:
+      # Github doesn't support passing sequences as parameters.
+      # Instead here we create a json array and pass it as a string.
+      # Then in the spread workflow it turns it into a sequence
+      # using the fromJSON expression.
       runs-on: '["self-hosted", "spread-enabled"]'
-      group: 'openstack'
-      backend: 'openstack'
-      systems: 'ALL'
-      tasks: 'tests/main/...'
-      rules: ''
+      group: ${{ matrix.group }}
+      backend: ${{ matrix.backend }}
+      systems: ${{ matrix.systems }}
+      tasks: ${{ matrix.tasks }}
+      rules: ${{ matrix.rules }}
+      is-fundamental: true
       use-snapd-snap-from-master: true
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.read-systems.outputs.fundamental-systems) }}
+
+  spread-master-not-fundamental:
+    if: ${{ github.event.schedule == '0 3 * * *' || (github.event_name == 'workflow_dispatch' && inputs.job == 'spread-master-not-fundamental') }}
+    uses: ./.github/workflows/spread-tests.yaml
+    name: "spread master ${{ matrix.group }}"
+    needs: [read-systems]
+    with:
+      # Github doesn't support passing sequences as parameters.
+      # Instead here we create a json array and pass it as a string.
+      # Then in the spread workflow it turns it into a sequence
+      # using the fromJSON expression.
+      runs-on: '["self-hosted", "spread-enabled"]'
+      group: ${{ matrix.group }}
+      backend: ${{ matrix.backend }}
+      systems: ${{ matrix.systems }}
+      tasks: ${{ matrix.tasks }}
+      rules: ${{ matrix.rules }}
+      use-snapd-snap-from-master: true
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.read-systems.outputs.non-fundamental-systems) }}
+
+  spread-master-nested:
+    if: ${{ github.event.schedule == '0 3 * * *' || (github.event_name == 'workflow_dispatch' && inputs.job == 'spread-master-nested') }}
+    uses: ./.github/workflows/spread-tests.yaml
+    name: "spread master ${{ matrix.group }}"
+    needs: [read-systems]
+    with:
+      # Github doesn't support passing sequences as parameters.
+      # Instead here we create a json array and pass it as a string.
+      # Then in the spread workflow it turns it into a sequence
+      # using the fromJSON expression.
+      runs-on: '["self-hosted", "spread-enabled"]'
+      group: ${{ matrix.group }}
+      backend: ${{ matrix.backend }}
+      systems: ${{ matrix.systems }}
+      tasks: ${{ matrix.tasks }}
+      rules: ${{ matrix.rules }}
+      use-snapd-snap-from-master: true
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.read-systems.outputs.nested-systems) }}

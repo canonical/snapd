@@ -244,6 +244,8 @@ func isCompatibleSchema(gadgetSchema, diskSchema string) bool {
 		return diskSchema == "gpt"
 	case "mbr":
 		return diskSchema == "dos"
+	case "emmc":
+		return diskSchema == "emmc"
 	default:
 		return false
 	}
@@ -946,6 +948,100 @@ type StructureLocation struct {
 	RootMountPoint string
 }
 
+func buildLocationsForVolumeStructures(vol *Volume, disk disks.Disk, structs map[int]*OnDiskStructure, encryptionParams map[string]StructureEncryptionParameters) (map[int]StructureLocation, error) {
+	locations := make(map[int]StructureLocation)
+	// the index here is 0-based and is equal to VolumeStructure.YamlIndex
+	for volYamlIndex, volStruct := range vol.Structure {
+		structStartOffset := structs[volYamlIndex].StartOffset
+		loc := StructureLocation{}
+
+		if volStruct.HasFilesystem() {
+			// Here we know what disk is associated with this volume, so we
+			// just need to find what partition is associated with this
+			// structure to find it's root mount points. On GPT since
+			// partition labels/names are unique in the partition table, we
+			// could do a lookup by matching partition label, but this won't
+			// work on MBR which doesn't have such a concept, so instead we
+			// use the start offset to locate which disk partition this
+			// structure is equal to.
+			partitions, err := disk.Partitions()
+			if err != nil {
+				return nil, err
+			}
+
+			var foundP disks.Partition
+			found := false
+			for _, p := range partitions {
+				if p.StartInBytes == uint64(structStartOffset) {
+					foundP = p
+					found = true
+					break
+				}
+			}
+			if !found {
+				return nil, fmt.Errorf("cannot locate structure %d on volume %s: no matching start offset", volYamlIndex, vol.Name)
+			}
+
+			// if this structure is an encrypted one, then we can't just
+			// get the root mount points for the device node, we would need
+			// to find the decrypted mapper device for the encrypted device
+			// node and then find the root mount point of the mapper device
+			if _, ok := encryptionParams[volStruct.Name]; ok {
+				logger.Noticef("gadget asset update for assets on encrypted partition %s unsupported", volStruct.Name)
+
+				// leaving this structure as an empty location will
+				// mean when an update to this structure is actually
+				// performed it will fail, but we won't fail updates to
+				// other structures - it is treated like an unmounted
+				// partition
+				locations[volYamlIndex] = loc
+				continue
+			}
+
+			// otherwise normal unencrypted filesystem, find the rw mount
+			// points
+			mountpts, err := disks.MountPointsForPartitionRoot(foundP, map[string]string{"rw": ""})
+			if err != nil {
+				return nil, fmt.Errorf("cannot locate structure %d on volume %s: error searching for root mount points: %v", volYamlIndex, vol.Name, err)
+			}
+			var mountpt string
+			if len(mountpts) == 0 {
+				// this filesystem is not already mounted, we probably
+				// should mount it in order to proceed with the update?
+
+				// TODO: do something better here?
+				logger.Noticef("structure %d on volume %s (%s) is not mounted read/write anywhere to be able to update it", volYamlIndex, vol.Name, foundP.KernelDeviceNode)
+			} else {
+				// use the first one, it doesn't really matter to us
+				// which one is used to update the contents
+				mountpt = mountpts[0]
+			}
+			loc.RootMountPoint = mountpt
+		} else {
+			// no filesystem, the device for this one is just the device
+			// for the disk itself
+			loc.Device = disk.KernelDeviceNode()
+			loc.Offset = structStartOffset
+
+			// Specifically for eMMC devices, the boot0 and boot1 partitions are not
+			// really partitions, but actually pseudo devices. So even though there
+			// is no filesystem, we still must address each sub-device like if the
+			// device had a filesystem
+			if vol.Schema == schemaEMMC {
+				switch volStruct.Name {
+				case "boot0", "boot1":
+					loc.Device += volStruct.Name
+				// rpmb also exists but we do not handle this
+				default:
+					return nil, fmt.Errorf("structure %s on volume %s is not a valid eMMC partition", volStruct.Name, vol.Name)
+				}
+			}
+		}
+		locations[volYamlIndex] = loc
+	}
+	return locations, nil
+}
+
 // buildVolumeStructureToLocation builds a map of gadget volumes to
 // locations and to matched disk structures.
 func buildVolumeStructureToLocation(mod Model,
@@ -978,7 +1074,6 @@ func buildVolumeStructureToLocation(mod Model,
 	// unsupported structure change is present in the new one, but we check that
 	// situation after we have built the mapping
 	for volName, diskDeviceTraits := range volToDeviceMapping {
-		volumeStructureToLocation[volName] = make(map[int]StructureLocation)
 		gadgetVolToPartMap[volName] = make(map[int]*OnDiskStructure)
 		oldVol, ok := oldVolumes[volName]
 		if !ok {
@@ -1005,86 +1100,11 @@ func buildVolumeStructureToLocation(mod Model,
 		}
 		gadgetVolToPartMap[volName] = gadgetToDiskStruct
 
-		// the index here is 0-based and is equal to VolumeStructure.YamlIndex
-		for volYamlIndex, volStruct := range oldVol.Structure {
-			structStartOffset := gadgetToDiskStruct[volYamlIndex].StartOffset
-
-			loc := StructureLocation{}
-
-			if volStruct.HasFilesystem() {
-				// Here we know what disk is associated with this volume, so we
-				// just need to find what partition is associated with this
-				// structure to find it's root mount points. On GPT since
-				// partition labels/names are unique in the partition table, we
-				// could do a lookup by matching partition label, but this won't
-				// work on MBR which doesn't have such a concept, so instead we
-				// use the start offset to locate which disk partition this
-				// structure is equal to.
-
-				partitions, err := disk.Partitions()
-				if err != nil {
-					return nil, nil, err
-				}
-
-				var foundP disks.Partition
-				found := false
-				for _, p := range partitions {
-					if p.StartInBytes == uint64(structStartOffset) {
-						foundP = p
-						found = true
-						break
-					}
-				}
-				if !found {
-					dieErr := fmt.Errorf("cannot locate structure %d on volume %s: no matching start offset", volYamlIndex, volName)
-					return nil, nil, maybeFatalError(dieErr)
-				}
-
-				// if this structure is an encrypted one, then we can't just
-				// get the root mount points for the device node, we would need
-				// to find the decrypted mapper device for the encrypted device
-				// node and then find the root mount point of the mapper device
-				if _, ok := diskDeviceTraits.StructureEncryption[volStruct.Name]; ok {
-					logger.Noticef("gadget asset update for assets on encrypted partition %s unsupported", volStruct.Name)
-
-					// leaving this structure as an empty location will
-					// mean when an update to this structure is actually
-					// performed it will fail, but we won't fail updates to
-					// other structures - it is treated like an unmounted
-					// partition
-					volumeStructureToLocation[volName][volYamlIndex] = loc
-					continue
-				}
-
-				// otherwise normal unencrypted filesystem, find the rw mount
-				// points
-				mountpts, err := disks.MountPointsForPartitionRoot(foundP, map[string]string{"rw": ""})
-				if err != nil {
-					dieErr := fmt.Errorf("cannot locate structure %d on volume %s: error searching for root mount points: %v", volYamlIndex, volName, err)
-					return nil, nil, maybeFatalError(dieErr)
-				}
-				var mountpt string
-				if len(mountpts) == 0 {
-					// this filesystem is not already mounted, we probably
-					// should mount it in order to proceed with the update?
-
-					// TODO: do something better here?
-					logger.Noticef("structure %d on volume %s (%s) is not mounted read/write anywhere to be able to update it", volYamlIndex, volName, foundP.KernelDeviceNode)
-				} else {
-					// use the first one, it doesn't really matter to us
-					// which one is used to update the contents
-					mountpt = mountpts[0]
-				}
-				loc.RootMountPoint = mountpt
-			} else {
-				// no filesystem, the device for this one is just the device
-				// for the disk itself
-				loc.Device = disk.KernelDeviceNode()
-				loc.Offset = structStartOffset
-			}
-
-			volumeStructureToLocation[volName][volYamlIndex] = loc
+		locations, err := buildLocationsForVolumeStructures(oldVol, disk, gadgetToDiskStruct, diskDeviceTraits.StructureEncryption)
+		if err != nil {
+			return nil, nil, maybeFatalError(err)
 		}
+		volumeStructureToLocation[volName] = locations
 	}
 
 	return volumeStructureToLocation, gadgetVolToPartMap, nil

@@ -982,7 +982,7 @@ nested_create_core_vm() {
             BOOTVOLUME=pc
             if [ -e pc-gadget/meta/gadget.yaml ]; then
                 # shellcheck disable=SC2016
-                BOOTVOLUME="$(gojq --yaml-input '.volumes | to_entries[] | .key as $p | .value.structure[] | select(.name == "ubuntu-boot") | $p' pc-gadget/meta/gadget.yaml | tr -d '"')"
+                BOOTVOLUME="$(gojq --yaml-input --raw-output '.volumes | to_entries[] | .key as $p | .value.structure[] | select(.name == "ubuntu-boot") | $p' pc-gadget/meta/gadget.yaml)"
                 if [ -z "$BOOTVOLUME" ]; then
                     echo "was not able to deduce the ubuntu-boot partition from gadget.yaml in pc-gadget/meta/gadget.yaml"
                     echo "please inspect it and make sure it looks as expected"
@@ -1778,26 +1778,4 @@ nested_wait_for_device_initialized_change() {
         fi
         sleep "$wait"
     done
-}
-
-nested_check_spread_results() {
-    SPREAD_LOG=$1
-    if [ -z "$SPREAD_LOG" ]; then
-        return 1
-    fi
-
-    if grep -eq "Successful tasks:" "$SPREAD_LOG"; then
-        if grep -E "Failed (task|suite|project)" "$SPREAD_LOG"; then
-            return 1
-        fi
-        if ! grep -eq "Aborted tasks: 0" "$SPREAD_LOG"; then
-            return 1
-        fi
-
-        if [ "$EXIT_STATUS" = "0" ]; then
-            return 0
-        fi    
-    else
-        return 1
-    fi
 }

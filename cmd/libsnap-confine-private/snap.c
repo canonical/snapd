@@ -51,7 +51,7 @@ bool sc_security_tag_validate(const char *security_tag, const char *snap_instanc
         die("internal error: all regex capture groups not fully accounted for");
     }
 
-    int status = regexec(&re, security_tag, sizeof matches / sizeof *matches, matches, 0);
+    int status = regexec(&re, security_tag, SC_ARRAY_SIZE(matches), matches, 0);
     regfree(&re);
 
     // Fail if no match or if snap name wasn't captured in the 2nd match group
