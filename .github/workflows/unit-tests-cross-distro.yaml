@@ -50,7 +50,7 @@ jobs:
             zypper --non-interactive install -y $(rpmspec -q --buildrequires "./packaging/$distroname/snapd.spec")
             zypper --non-interactive install -y llvm-clang # required by run-checks
             zypper --non-interactive install -y python3-pytest # required by run-checks
-            ln -s (command -v pytest) /usr/local/bin/pytest-3 # required by run-checks
+            ln -s "$(command -v pytest)" /usr/local/bin/pytest-3 # required by run-checks
             zypper --non-interactive install -y python3-markdown # required by release-tools
             zypper --non-interactive install -y python3-markdown # required by release-tools
             zypper --non-interactive install -y python3-beautifulsoup4 # required by release-tools
