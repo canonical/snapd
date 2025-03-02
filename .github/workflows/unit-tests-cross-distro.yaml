@@ -43,6 +43,7 @@ jobs:
             dnf install -y python3-markdown # required by release-tools
             dnf install -y python3-beautifulsoup4 # required by release-tools
             dnf install -y python3-debian # required by release-tools
+            dnf install -y python3-flake8 # required by release-tools
             ;;
         opensuse/*)
             zypper --non-interactive install -y rpmdevtools rpm-build git
