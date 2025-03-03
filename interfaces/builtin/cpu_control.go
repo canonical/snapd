@@ -38,6 +38,7 @@ const cpuControlConnectedPlugAppArmor = `
 
 /sys/module/cpu_boost/parameters/input_boost_freq rw,
 /sys/module/cpu_boost/parameters/input_boost_ms rw,
+/sys/devices/system/cpu/cpu[0-9]*/cpufreq/scaling_governor rw,
 /sys/devices/system/cpu/cpu[0-9]*/cpufreq/scaling_min_freq rw,
 /sys/devices/system/cpu/cpu[0-9]*/cpufreq/scaling_max_freq rw,
 /sys/devices/system/cpu/cpu[0-9]*/core_ctl/min_cpus rw,
