@@ -18,7 +18,7 @@ export DH_GOLANG_GO_GENERATE=1
 
 VERSION := $(shell dpkg-parsechangelog -S Version)
 
-ifneq (,$(findstring +fips,$(VERSION))))
+ifneq (,$(findstring +fips,$(VERSION)))
 	# the version has +fips tag, we're building a FIPS variant
 	FIPSBUILD = 1
 else
