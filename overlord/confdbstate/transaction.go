@@ -29,12 +29,12 @@ import (
 
 // Transaction performs read and writes to a databag in an atomic way.
 type Transaction struct {
-	pristine confdb.JSONDataBag
+	pristine confdb.JSONDatabag
 
 	ConfdbAccount string
 	ConfdbName    string
 
-	modified      confdb.JSONDataBag
+	modified      confdb.JSONDatabag
 	deltas        []map[string]interface{}
 	appliedDeltas int
 
@@ -59,12 +59,12 @@ func NewTransaction(st *state.State, account, confdbName string) (*Transaction, 
 }
 
 type marshalledTransaction struct {
-	Pristine confdb.JSONDataBag `json:"pristine,omitempty"`
+	Pristine confdb.JSONDatabag `json:"pristine,omitempty"`
 
 	ConfdbAccount string `json:"confdb-account,omitempty"`
 	ConfdbName    string `json:"confdb-name,omitempty"`
 
-	Modified      confdb.JSONDataBag       `json:"modified,omitempty"`
+	Modified      confdb.JSONDatabag       `json:"modified,omitempty"`
 	Deltas        []map[string]interface{} `json:"deltas,omitempty"`
 	AppliedDeltas int                      `json:"applied-deltas,omitempty"`
 
@@ -243,7 +243,7 @@ func (t *Transaction) applyChanges() error {
 	return nil
 }
 
-func applyDeltas(bag confdb.JSONDataBag, deltas []map[string]interface{}) error {
+func applyDeltas(bag confdb.JSONDatabag, deltas []map[string]interface{}) error {
 	// changes must be applied in the order they were written
 	for _, delta := range deltas {
 		for k, v := range delta {
@@ -297,6 +297,6 @@ func (t *Transaction) AbortInfo() (snap, reason string) {
 	return t.abortingSnap, t.abortReason
 }
 
-func (t *Transaction) Pristine() confdb.DataBag {
+func (t *Transaction) Pristine() confdb.Databag {
 	return t.pristine
 }

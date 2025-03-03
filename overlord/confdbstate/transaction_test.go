@@ -50,13 +50,13 @@ func (s *transactionTestSuite) SetUpTest(c *C) {
 	s.readCalled = 0
 	s.writeCalled = 0
 
-	restore := confdbstate.MockReadDatabag(func(st *state.State, account, confdbName string) (confdb.JSONDataBag, error) {
+	restore := confdbstate.MockReadDatabag(func(st *state.State, account, confdbName string) (confdb.JSONDatabag, error) {
 		s.readCalled++
 		return confdbstate.ReadDatabag(st, account, confdbName)
 	})
 	s.AddCleanup(restore)
 
-	restore = confdbstate.MockWriteDatabag(func(st *state.State, bag confdb.JSONDataBag, account, confdbName string) error {
+	restore = confdbstate.MockWriteDatabag(func(st *state.State, bag confdb.JSONDatabag, account, confdbName string) error {
 		s.writeCalled++
 		return confdbstate.WriteDatabag(st, bag, account, confdbName)
 	})
@@ -275,7 +275,7 @@ func (s *transactionTestSuite) TestCommittedIncludesPreviousCommit(c *C) {
 
 func (s *transactionTestSuite) TestTransactionBagReadError(c *C) {
 	var readErr error
-	restore := confdbstate.MockReadDatabag(func(st *state.State, account, confdbName string) (confdb.JSONDataBag, error) {
+	restore := confdbstate.MockReadDatabag(func(st *state.State, account, confdbName string) (confdb.JSONDatabag, error) {
 		return nil, readErr
 	})
 	defer restore()
@@ -295,7 +295,7 @@ func (s *transactionTestSuite) TestTransactionBagReadError(c *C) {
 
 func (s *transactionTestSuite) TestTransactionBagWriteError(c *C) {
 	writeErr := errors.New("expected")
-	restore := confdbstate.MockWriteDatabag(func(st *state.State, bag confdb.JSONDataBag, account, confdbName string) error {
+	restore := confdbstate.MockWriteDatabag(func(st *state.State, bag confdb.JSONDatabag, account, confdbName string) error {
 		return writeErr
 	})
 	defer restore()
@@ -352,7 +352,7 @@ func (s *transactionTestSuite) TestUnset(c *C) {
 }
 
 func (s *transactionTestSuite) TestSerializable(c *C) {
-	bag := confdb.NewJSONDataBag()
+	bag := confdb.NewJSONDatabag()
 	err := bag.Set("other", "value")
 	c.Assert(err, IsNil)
 
@@ -436,7 +436,7 @@ func (s *transactionTestSuite) TestAbortPreventsReadsAndWrites(c *C) {
 }
 
 func (s *transactionTestSuite) TestTransactionPristine(c *C) {
-	bag := confdb.NewJSONDataBag()
+	bag := confdb.NewJSONDatabag()
 	err := bag.Set("foo", "bar")
 	c.Assert(err, IsNil)
 

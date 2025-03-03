@@ -106,15 +106,15 @@ func badRequestErrorFrom(v *View, operation, request, msg string) *BadRequestErr
 	}
 }
 
-// DataBag controls access to the confdb data storage.
-type DataBag interface {
+// Databag controls access to the confdb data storage.
+type Databag interface {
 	Get(path string) (interface{}, error)
 	Set(path string, value interface{}) error
 	Unset(path string) error
 	Data() ([]byte, error)
 }
 
-// Schema takes in data from the DataBag and validates that it's valid and could
+// Schema takes in data from the Databag and validates that it's valid and could
 // be committed.
 type Schema interface {
 	// Validate checks that the data conforms to the schema.
@@ -530,7 +530,7 @@ func validateSetValue(v interface{}, depth int) error {
 }
 
 // Set sets the named view to a specified non-nil value.
-func (v *View) Set(databag DataBag, request string, value interface{}) error {
+func (v *View) Set(databag Databag, request string, value interface{}) error {
 	if err := validateViewDottedPath(request, nil); err != nil {
 		return badRequestErrorFrom(v, "set", request, err.Error())
 	}
@@ -606,7 +606,7 @@ func (v *View) Set(databag DataBag, request string, value interface{}) error {
 	return nil
 }
 
-func (v *View) Unset(databag DataBag, request string) error {
+func (v *View) Unset(databag Databag, request string) error {
 	if err := validateViewDottedPath(request, nil); err != nil {
 		return badRequestErrorFrom(v, "unset", request, err.Error())
 	}
@@ -981,7 +981,7 @@ func namespaceResult(res interface{}, suffixParts []string) (interface{}, error)
 
 // Get returns the view value identified by the request. If either the named
 // view or the corresponding value can't be found, a NotFoundError is returned.
-func (v *View) Get(databag DataBag, request string) (interface{}, error) {
+func (v *View) Get(databag Databag, request string) (interface{}, error) {
 	if request != "" {
 		if err := validateViewDottedPath(request, nil); err != nil {
 			return nil, badRequestErrorFrom(v, "get", request, err.Error())
@@ -1311,19 +1311,19 @@ func pathErrorf(str string, v ...interface{}) PathError {
 	return PathError(fmt.Sprintf(str, v...))
 }
 
-// JSONDataBag is a simple DataBag implementation that keeps JSON in-memory.
-type JSONDataBag map[string]json.RawMessage
+// JSONDatabag is a simple Databag implementation that keeps JSON in-memory.
+type JSONDatabag map[string]json.RawMessage
 
-// NewJSONDataBag returns a DataBag implementation that stores data in JSON.
+// NewJSONDatabag returns a Databag implementation that stores data in JSON.
 // The top-level of the JSON structure is always a map.
-func NewJSONDataBag() JSONDataBag {
-	return JSONDataBag(make(map[string]json.RawMessage))
+func NewJSONDatabag() JSONDatabag {
+	return JSONDatabag(make(map[string]json.RawMessage))
 }
 
 // Get takes a path and a pointer to a variable into which the value referenced
 // by the path is written. The path can be dotted. For each dot a JSON object
 // is expected to exist (e.g., "a.b" is mapped to {"a": {"b": <value>}}).
-func (s JSONDataBag) Get(path string) (interface{}, error) {
+func (s JSONDatabag) Get(path string) (interface{}, error) {
 	// TODO: create this in the return below as well?
 	var value interface{}
 	subKeys := strings.Split(path, ".")
@@ -1426,7 +1426,7 @@ func get(subKeys []string, index int, node map[string]json.RawMessage, result *i
 // Set takes a path to which the value will be written. The path can be dotted,
 // in which case, a nested JSON object is created for each sub-key found after a dot.
 // If the value is nil, the entry is deleted.
-func (s JSONDataBag) Set(path string, value interface{}) error {
+func (s JSONDatabag) Set(path string, value interface{}) error {
 	subKeys := strings.Split(path, ".")
 
 	var err error
@@ -1500,7 +1500,7 @@ func set(subKeys []string, index int, node map[string]json.RawMessage, value int
 	return json.Marshal(node)
 }
 
-func (s JSONDataBag) Unset(path string) error {
+func (s JSONDatabag) Unset(path string) error {
 	subKeys := strings.Split(path, ".")
 	_, err := unset(subKeys, 0, s)
 	return err
@@ -1562,12 +1562,12 @@ func unset(subKeys []string, index int, node map[string]json.RawMessage) (json.R
 }
 
 // Data returns all of the bag's data encoded in JSON.
-func (s JSONDataBag) Data() ([]byte, error) {
+func (s JSONDatabag) Data() ([]byte, error) {
 	return json.Marshal(s)
 }
 
 // Copy returns a copy of the databag.
-func (s JSONDataBag) Copy() JSONDataBag {
+func (s JSONDatabag) Copy() JSONDatabag {
 	toplevel := map[string]json.RawMessage(s)
 	copy := make(map[string]json.RawMessage, len(toplevel))
 
@@ -1575,25 +1575,25 @@ func (s JSONDataBag) Copy() JSONDataBag {
 		copy[k] = v
 	}
 
-	return JSONDataBag(copy)
+	return JSONDatabag(copy)
 }
 
 // Overwrite replaces the entire databag with the provided data.
-func (s *JSONDataBag) Overwrite(data []byte) error {
+func (s *JSONDatabag) Overwrite(data []byte) error {
 	var unmarshalledBag map[string]json.RawMessage
 	if err := json.Unmarshal(data, &unmarshalledBag); err != nil {
 		return err
 	}
 
-	*s = JSONDataBag(unmarshalledBag)
+	*s = JSONDatabag(unmarshalledBag)
 	return nil
 }
 
-// JSONSchema is the Schema implementation corresponding to JSONDataBag and it's
+// JSONSchema is the Schema implementation corresponding to JSONDatabag and it's
 // able to validate its data.
 type JSONSchema struct{}
 
-// NewJSONSchema returns a Schema able to validate a JSONDataBag's data.
+// NewJSONSchema returns a Schema able to validate a JSONDatabag's data.
 func NewJSONSchema() JSONSchema {
 	return JSONSchema{}
 }

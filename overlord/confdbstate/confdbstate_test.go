@@ -163,10 +163,10 @@ func (s *confdbTestSuite) TestGetView(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	databag := confdb.NewJSONDataBag()
+	databag := confdb.NewJSONDatabag()
 	err := databag.Set("wifi.ssid", "foo")
 	c.Assert(err, IsNil)
-	s.state.Set("confdb-databags", map[string]map[string]confdb.JSONDataBag{s.devAccID: {"network": databag}})
+	s.state.Set("confdb-databags", map[string]map[string]confdb.JSONDatabag{s.devAccID: {"network": databag}})
 
 	res, err := confdbstate.Get(s.state, s.devAccID, "network", "setup-wifi", []string{"ssid"})
 	c.Assert(err, IsNil)
@@ -205,7 +205,7 @@ func (s *confdbTestSuite) TestSetView(c *C) {
 	err := confdbstate.Set(s.state, s.devAccID, "network", "setup-wifi", map[string]interface{}{"ssid": "foo"})
 	c.Assert(err, IsNil)
 
-	var databags map[string]map[string]confdb.JSONDataBag
+	var databags map[string]map[string]confdb.JSONDatabag
 	err = s.state.Get("confdb-databags", &databags)
 	c.Assert(err, IsNil)
 
@@ -231,7 +231,7 @@ func (s *confdbTestSuite) TestUnsetView(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	databag := confdb.NewJSONDataBag()
+	databag := confdb.NewJSONDatabag()
 	err := confdbstate.Set(s.state, s.devAccID, "network", "setup-wifi", map[string]interface{}{"ssid": "foo"})
 	c.Assert(err, IsNil)
 
@@ -247,10 +247,10 @@ func (s *confdbTestSuite) TestConfdbstateSetWithExistingState(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	bag := confdb.NewJSONDataBag()
+	bag := confdb.NewJSONDatabag()
 	err := bag.Set("wifi.ssid", "bar")
 	c.Assert(err, IsNil)
-	databags := map[string]map[string]confdb.JSONDataBag{
+	databags := map[string]map[string]confdb.JSONDatabag{
 		s.devAccID: {"network": bag},
 	}
 
@@ -274,22 +274,22 @@ func (s *confdbTestSuite) TestConfdbstateSetWithExistingState(c *C) {
 
 func (s *confdbTestSuite) TestConfdbstateSetWithNoState(c *C) {
 	type testcase struct {
-		state map[string]map[string]confdb.JSONDataBag
+		state map[string]map[string]confdb.JSONDatabag
 	}
 
 	testcases := []testcase{
 		{
-			state: map[string]map[string]confdb.JSONDataBag{
+			state: map[string]map[string]confdb.JSONDatabag{
 				s.devAccID: {"network": nil},
 			},
 		},
 		{
-			state: map[string]map[string]confdb.JSONDataBag{
+			state: map[string]map[string]confdb.JSONDatabag{
 				s.devAccID: nil,
 			},
 		},
 		{
-			state: map[string]map[string]confdb.JSONDataBag{},
+			state: map[string]map[string]confdb.JSONDatabag{},
 		},
 		{
 			state: nil,
@@ -304,7 +304,7 @@ func (s *confdbTestSuite) TestConfdbstateSetWithNoState(c *C) {
 		err := confdbstate.Set(s.state, s.devAccID, "network", "setup-wifi", map[string]interface{}{"ssid": "bar"})
 		c.Assert(err, IsNil)
 
-		var databags map[string]map[string]confdb.JSONDataBag
+		var databags map[string]map[string]confdb.JSONDatabag
 		err = s.state.Get("confdb-databags", &databags)
 		c.Assert(err, IsNil)
 

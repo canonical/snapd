@@ -58,7 +58,7 @@ func Set(st *state.State, account, confdbName, viewName string, requests map[str
 }
 
 // SetViaView uses the view to set the requests in the transaction's databag.
-func SetViaView(bag confdb.DataBag, view *confdb.View, requests map[string]interface{}) error {
+func SetViaView(bag confdb.Databag, view *confdb.View, requests map[string]interface{}) error {
 	for field, value := range requests {
 		var err error
 		if value == nil {
@@ -116,7 +116,7 @@ func Get(st *state.State, account, confdbName, viewName string, fields []string)
 
 // GetViaView uses the view to get values for the fields from the databag in
 // the transaction.
-func GetViaView(bag confdb.DataBag, view *confdb.View, fields []string) (interface{}, error) {
+func GetViaView(bag confdb.Databag, view *confdb.View, fields []string) (interface{}, error) {
 	if len(fields) == 0 {
 		val, err := view.Get(bag, "")
 		if err != nil {
@@ -160,30 +160,30 @@ func GetViaView(bag confdb.DataBag, view *confdb.View, fields []string) (interfa
 	return results, nil
 }
 
-var readDatabag = func(st *state.State, account, confdbName string) (confdb.JSONDataBag, error) {
-	var databags map[string]map[string]confdb.JSONDataBag
+var readDatabag = func(st *state.State, account, confdbName string) (confdb.JSONDatabag, error) {
+	var databags map[string]map[string]confdb.JSONDatabag
 	if err := st.Get("confdb-databags", &databags); err != nil {
 		if errors.Is(err, &state.NoStateError{}) {
-			return confdb.NewJSONDataBag(), nil
+			return confdb.NewJSONDatabag(), nil
 		}
 		return nil, err
 	}
 
 	if databags[account] == nil || databags[account][confdbName] == nil {
-		return confdb.NewJSONDataBag(), nil
+		return confdb.NewJSONDatabag(), nil
 	}
 
 	return databags[account][confdbName], nil
 }
 
-var writeDatabag = func(st *state.State, databag confdb.JSONDataBag, account, confdbName string) error {
-	var databags map[string]map[string]confdb.JSONDataBag
+var writeDatabag = func(st *state.State, databag confdb.JSONDatabag, account, confdbName string) error {
+	var databags map[string]map[string]confdb.JSONDatabag
 	err := st.Get("confdb-databags", &databags)
 	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
 	} else if errors.Is(err, &state.NoStateError{}) || databags[account] == nil || databags[account][confdbName] == nil {
-		databags = map[string]map[string]confdb.JSONDataBag{
-			account: {confdbName: confdb.NewJSONDataBag()},
+		databags = map[string]map[string]confdb.JSONDatabag{
+			account: {confdbName: confdb.NewJSONDatabag()},
 		}
 	}
 

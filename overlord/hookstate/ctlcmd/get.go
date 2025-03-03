@@ -401,7 +401,7 @@ func (c *getCommand) getConfdbValues(ctx *hookstate.Context, plugName string, re
 	return c.printPatch(res)
 }
 
-func (c *getCommand) getDatabag(ctx *hookstate.Context, view *confdb.View, pristine bool) (bag confdb.DataBag, err error) {
+func (c *getCommand) getDatabag(ctx *hookstate.Context, view *confdb.View, pristine bool) (bag confdb.Databag, err error) {
 	account, confdbName := view.ConfdbSchema().Account, view.ConfdbSchema().Name
 
 	var tx *confdbstate.Transaction

@@ -57,8 +57,8 @@ func (s *confdbSuite) SetUpTest(c *C) {
 	s.d = daemon.NewWithOverlord(o)
 
 	s.st.Lock()
-	databags := map[string]map[string]confdb.JSONDataBag{
-		"system": {"network": confdb.NewJSONDataBag()},
+	databags := map[string]map[string]confdb.JSONDatabag{
+		"system": {"network": confdb.NewJSONDatabag()},
 	}
 	s.st.Set("confdb-databags", databags)
 	s.st.Unlock()
