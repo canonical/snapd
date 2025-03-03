@@ -17,6 +17,11 @@ prepare: |
     snap set system experimental.user-daemons=true
 
 restore: |
+    snap remove --purge test-snapd-service || true
+    snap remove --purge socket-activation || true
+    snap remove --purge test-snapd-timer-service || true
+    snap remove --purge test-snapd-dbus-service || true
+    snap remove --purge test-snapd-user-service || true
     snap unset system experimental.user-daemons
 
 execute: |
