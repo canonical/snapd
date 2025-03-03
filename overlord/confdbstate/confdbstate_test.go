@@ -56,7 +56,7 @@ type confdbTestSuite struct {
 	state *state.State
 	o     *overlord.Overlord
 
-	confdb   *confdb.Confdb
+	confdb   *confdb.ConfdbSchema
 	devAccID string
 
 	repo *interfaces.Repository
@@ -145,15 +145,15 @@ func (s *confdbTestSuite) SetUpTest(c *C) {
   }
 }`)
 
-	as, err := signingDB.Sign(asserts.ConfdbType, headers, body, "")
+	as, err := signingDB.Sign(asserts.ConfdbSchemaType, headers, body, "")
 	c.Assert(err, IsNil)
 	c.Assert(assertstate.Add(s.state, as), IsNil)
 
 	s.devAccID = devAccKey.AccountID()
-	s.confdb = as.(*asserts.Confdb).Confdb()
+	s.confdb = as.(*asserts.ConfdbSchema).ConfdbSchema()
 
 	tr := config.NewTransaction(s.state)
-	_, confOption := features.Confdbs.ConfigOption()
+	_, confOption := features.Confdb.ConfigOption()
 	err = tr.Set("core", confOption, true)
 	c.Assert(err, IsNil)
 	tr.Commit()
@@ -364,7 +364,7 @@ func mockInstalledSnap(c *C, st *state.State, snapYaml string, hooks []string) *
 }
 
 func (s *confdbTestSuite) TestPlugsAffectedByPaths(c *C) {
-	confdb, err := confdb.New(s.devAccID, "confdb", map[string]interface{}{
+	confdb, err := confdb.NewSchema(s.devAccID, "confdb", map[string]interface{}{
 		// exact match
 		"view-1": map[string]interface{}{
 			"rules": []interface{}{
@@ -1125,7 +1125,7 @@ func (s *confdbTestSuite) TestGetDifferentTransactionThanOngoing(c *C) {
 	refTask.Set("commit-task", commitTask.ID())
 
 	// make some other confdb to access concurrently
-	confdb, err := confdb.New("foo", "bar", map[string]interface{}{
+	confdb, err := confdb.NewSchema("foo", "bar", map[string]interface{}{
 		"foo": map[string]interface{}{
 			"rules": []interface{}{
 				map[string]interface{}{"request": "foo", "storage": "foo"},

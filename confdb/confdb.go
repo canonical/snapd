@@ -171,8 +171,8 @@ var (
 	subkeyRegex    = "[a-z](?:-?[a-z0-9])*"
 )
 
-// Confdb holds a series of related views.
-type Confdb struct {
+// ConfdbSchema holds a series of related views.
+type ConfdbSchema struct {
 	Account string
 	Name    string
 	Schema  Schema
@@ -181,7 +181,7 @@ type Confdb struct {
 
 // GetViewsAffectedByPath returns all the views in the confdb that have visibility
 // into a storage path.
-func (db *Confdb) GetViewsAffectedByPath(path string) []*View {
+func (db *ConfdbSchema) GetViewsAffectedByPath(path string) []*View {
 	var views []*View
 	for _, view := range db.views {
 		for _, rule := range view.rules {
@@ -219,13 +219,13 @@ func pathChangeAffects(modified, affected string) bool {
 	return true
 }
 
-// New returns a new confdb with the specified views and their rules.
-func New(account string, confdbName string, views map[string]interface{}, schema Schema) (*Confdb, error) {
+// NewSchema returns a new confdb with the specified views and their rules.
+func NewSchema(account string, confdbName string, views map[string]interface{}, schema Schema) (*ConfdbSchema, error) {
 	if len(views) == 0 {
 		return nil, errors.New(`cannot define confdb: no views`)
 	}
 
-	confdb := &Confdb{
+	confdb := &ConfdbSchema{
 		Account: account,
 		Name:    confdbName,
 		Schema:  schema,
@@ -264,7 +264,7 @@ func New(account string, confdbName string, views map[string]interface{}, schema
 	return confdb, nil
 }
 
-func newView(confdb *Confdb, name string, viewRules []interface{}) (*View, error) {
+func newView(confdb *ConfdbSchema, name string, viewRules []interface{}) (*View, error) {
 	view := &View{
 		Name:   name,
 		rules:  make([]*viewRule, 0, len(viewRules)),
@@ -461,7 +461,7 @@ func getPlaceholders(viewStr string) map[string]bool {
 }
 
 // View returns a view from the confdb.
-func (db *Confdb) View(view string) *View {
+func (db *ConfdbSchema) View(view string) *View {
 	return db.views[view]
 }
 
@@ -469,10 +469,10 @@ func (db *Confdb) View(view string) *View {
 type View struct {
 	Name   string
 	rules  []*viewRule
-	confdb *Confdb
+	confdb *ConfdbSchema
 }
 
-func (v *View) Confdb() *Confdb {
+func (v *View) ConfdbSchema() *ConfdbSchema {
 	return v.confdb
 }
 

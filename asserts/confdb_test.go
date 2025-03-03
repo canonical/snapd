@@ -42,7 +42,7 @@ func (s *confdbSuite) SetUpSuite(c *C) {
 }
 
 const (
-	confdbExample = `type: confdb
+	confdbExample = `type: confdb-schema
 authority-id: brand-id1
 account-id: brand-id1
 name: my-network
@@ -94,18 +94,18 @@ func (s *confdbSuite) TestDecodeOK(c *C) {
 	a, err := asserts.Decode([]byte(encoded))
 	c.Assert(err, IsNil)
 	c.Check(a, NotNil)
-	c.Check(a.Type(), Equals, asserts.ConfdbType)
-	ar := a.(*asserts.Confdb)
+	c.Check(a.Type(), Equals, asserts.ConfdbSchemaType)
+	ar := a.(*asserts.ConfdbSchema)
 	c.Check(ar.AuthorityID(), Equals, "brand-id1")
 	c.Check(ar.AccountID(), Equals, "brand-id1")
 	c.Check(ar.Name(), Equals, "my-network")
-	confdb := ar.Confdb()
+	confdb := ar.ConfdbSchema()
 	c.Assert(confdb, NotNil)
 	c.Check(confdb.View("wifi-setup"), NotNil)
 }
 
 func (s *confdbSuite) TestDecodeInvalid(c *C) {
-	const validationSetErrPrefix = "assertion confdb: "
+	const validationSetErrPrefix = "assertion confdb-schema: "
 
 	encoded := strings.Replace(confdbExample, "TSLINE", s.tsLine, 1)
 
@@ -175,7 +175,7 @@ func (s *confdbSuite) TestAssembleAndSignChecksSchemaFormatOK(c *C) {
     }
   }
 }`
-	acct1, err := asserts.AssembleAndSignInTest(asserts.ConfdbType, headers, []byte(schema), testPrivKey0)
+	acct1, err := asserts.AssembleAndSignInTest(asserts.ConfdbSchemaType, headers, []byte(schema), testPrivKey0)
 	c.Assert(err, IsNil)
 	c.Assert(string(acct1.Body()), Equals, schema)
 }
@@ -197,8 +197,8 @@ func (s *confdbSuite) TestAssembleAndSignChecksSchemaFormatFail(c *C) {
 	}
 
 	schema := `{ "storage": { "schema": { "foo": "any" } } }`
-	_, err := asserts.AssembleAndSignInTest(asserts.ConfdbType, headers, []byte(schema), testPrivKey0)
-	c.Assert(err, ErrorMatches, `assertion confdb: JSON in body must be indented with 2 spaces and sort object entries by key`)
+	_, err := asserts.AssembleAndSignInTest(asserts.ConfdbSchemaType, headers, []byte(schema), testPrivKey0)
+	c.Assert(err, ErrorMatches, `assertion confdb-schema: JSON in body must be indented with 2 spaces and sort object entries by key`)
 }
 
 type confdbCtrlSuite struct {

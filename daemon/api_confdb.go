@@ -124,14 +124,14 @@ func toAPIError(err error) *apiError {
 
 func validateConfdbFeatureFlag(st *state.State) *apiError {
 	tr := config.NewTransaction(st)
-	enabled, err := features.Flag(tr, features.Confdbs)
+	enabled, err := features.Flag(tr, features.Confdb)
 	if err != nil && !config.IsNoOption(err) {
-		return InternalError(fmt.Sprintf("internal error: cannot check confdbs feature flag: %s", err))
+		return InternalError(fmt.Sprintf("internal error: cannot check confdb feature flag: %s", err))
 	}
 
 	if !enabled {
-		_, confName := features.Confdbs.ConfigOption()
-		return BadRequest(fmt.Sprintf(`"confdbs" feature flag is disabled: set '%s' to true`, confName))
+		_, confName := features.Confdb.ConfigOption()
+		return BadRequest(fmt.Sprintf(`"confdb" feature flag is disabled: set '%s' to true`, confName))
 	}
 	return nil
 }

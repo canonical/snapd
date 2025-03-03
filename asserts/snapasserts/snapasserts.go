@@ -531,7 +531,7 @@ func FetchStore(f asserts.Fetcher, storeID string) error {
 // name using the given fetcher.
 func FetchConfdb(f asserts.Fetcher, account, confdbName string) error {
 	ref := &asserts.Ref{
-		Type:       asserts.ConfdbType,
+		Type:       asserts.ConfdbSchemaType,
 		PrimaryKey: []string{account, confdbName},
 	}
 

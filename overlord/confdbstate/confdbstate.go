@@ -54,7 +54,7 @@ func Set(st *state.State, account, confdbName, viewName string, requests map[str
 		return err
 	}
 
-	return tx.Commit(st, view.Confdb().Schema)
+	return tx.Commit(st, view.ConfdbSchema().Schema)
 }
 
 // SetViaView uses the view to set the requests in the transaction's databag.
@@ -86,7 +86,7 @@ func GetView(st *state.State, account, confdbName, viewName string) (*confdb.Vie
 		}
 		return nil, fmt.Errorf(i18n.G("cannot find confdb assertion %s/%s: %v"), account, confdbName, err)
 	}
-	db := confdbAssert.Confdb()
+	db := confdbAssert.ConfdbSchema()
 
 	view := db.View(viewName)
 	if view == nil {
@@ -154,7 +154,7 @@ func GetViaView(bag confdb.DataBag, view *confdb.View, fields []string) (interfa
 			reqStr = fmt.Sprintf(i18n.G(" %s through"), strutil.Quoted(fields))
 		}
 
-		return nil, confdb.NewNotFoundError(i18n.G("cannot get%s %s/%s/%s: no view data"), reqStr, view.Confdb().Account, view.Confdb().Name, view.Name)
+		return nil, confdb.NewNotFoundError(i18n.G("cannot get%s %s/%s/%s: no view data"), reqStr, view.ConfdbSchema().Account, view.ConfdbSchema().Name, view.Name)
 	}
 
 	return results, nil
@@ -201,7 +201,7 @@ type CommitTxFunc func() (changeID string, waitChan <-chan struct{}, err error)
 // ID and a wait channel that will be closed on the commit is done). If a transaction
 // already existed, changes to it will be saved on ctx.Done().
 func GetTransactionToModify(ctx *hookstate.Context, st *state.State, view *confdb.View) (*Transaction, CommitTxFunc, error) {
-	account, confdbName := view.Confdb().Account, view.Confdb().Name
+	account, confdbName := view.ConfdbSchema().Account, view.ConfdbSchema().Name
 
 	// check if we're already running in the context of a committing transaction
 	if IsConfdbHook(ctx) {
@@ -302,7 +302,7 @@ func createChangeConfdbTasks(st *state.State, tx *Transaction, view *confdb.View
 	}
 
 	if len(custodianPlugs) == 0 {
-		return nil, fmt.Errorf("cannot commit changes to confdb %s/%s: no custodian snap installed", view.Confdb().Account, view.Confdb().Name)
+		return nil, fmt.Errorf("cannot commit changes to confdb %s/%s: no custodian snap installed", view.ConfdbSchema().Account, view.ConfdbSchema().Name)
 	}
 
 	custodianNames := make([]string, 0, len(custodianPlugs))
@@ -359,7 +359,7 @@ func createChangeConfdbTasks(st *state.State, tx *Transaction, view *confdb.View
 	// run view-changed hooks for any plug that references a view that could have
 	// changed with this data modification
 	paths := tx.AlteredPaths()
-	affectedPlugs, err := getPlugsAffectedByPaths(st, view.Confdb(), paths)
+	affectedPlugs, err := getPlugsAffectedByPaths(st, view.ConfdbSchema(), paths)
 	if err != nil {
 		return nil, err
 	}
@@ -385,7 +385,7 @@ func createChangeConfdbTasks(st *state.State, tx *Transaction, view *confdb.View
 	}
 
 	// commit after custodians save ephemeral data
-	commitTask := st.NewTask("commit-confdb-tx", fmt.Sprintf("Commit changes to confdb \"%s/%s\"", view.Confdb().Account, view.Confdb().Name))
+	commitTask := st.NewTask("commit-confdb-tx", fmt.Sprintf("Commit changes to confdb \"%s/%s\"", view.ConfdbSchema().Account, view.ConfdbSchema().Name))
 	commitTask.Set("confdb-transaction", tx)
 	// link all previous tasks to the commit task that carries the transaction
 	for _, t := range ts.Tasks() {
@@ -426,7 +426,7 @@ func getCustodianPlugsForView(st *state.State, view *confdb.View) (map[string]*s
 			return nil, err
 		}
 
-		if view.Confdb().Account != account || view.Confdb().Name != confdbName ||
+		if view.ConfdbSchema().Account != account || view.ConfdbSchema().Name != confdbName ||
 			view.Name != viewName {
 			continue
 		}
@@ -440,7 +440,7 @@ func getCustodianPlugsForView(st *state.State, view *confdb.View) (map[string]*s
 	return custodians, nil
 }
 
-func getPlugsAffectedByPaths(st *state.State, confdb *confdb.Confdb, storagePaths []string) (map[string][]*snap.PlugInfo, error) {
+func getPlugsAffectedByPaths(st *state.State, confdb *confdb.ConfdbSchema, storagePaths []string) (map[string][]*snap.PlugInfo, error) {
 	var viewNames []string
 	for _, path := range storagePaths {
 		views := confdb.GetViewsAffectedByPath(path)

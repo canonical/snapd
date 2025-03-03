@@ -287,9 +287,9 @@ func (x *cmdGet) Execute(args []string) error {
 }
 
 func validateConfdbFeatureFlag() error {
-	if !features.Confdbs.IsEnabled() {
-		_, confName := features.Confdbs.ConfigOption()
-		return fmt.Errorf(`the "confdbs" feature is disabled: set '%s' to true`, confName)
+	if !features.Confdb.IsEnabled() {
+		_, confName := features.Confdb.ConfigOption()
+		return fmt.Errorf(`the "confdb" feature is disabled: set '%s' to true`, confName)
 	}
 	return nil
 }

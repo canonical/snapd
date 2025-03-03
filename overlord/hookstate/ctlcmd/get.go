@@ -402,7 +402,7 @@ func (c *getCommand) getConfdbValues(ctx *hookstate.Context, plugName string, re
 }
 
 func (c *getCommand) getDatabag(ctx *hookstate.Context, view *confdb.View, pristine bool) (bag confdb.DataBag, err error) {
-	account, confdbName := view.Confdb().Account, view.Confdb().Name
+	account, confdbName := view.ConfdbSchema().Account, view.ConfdbSchema().Name
 
 	var tx *confdbstate.Transaction
 	if confdbstate.IsConfdbHook(ctx) {
@@ -455,21 +455,21 @@ func getConfdbViewID(ctx *hookstate.Context, plugName string) (account, confdbNa
 	return account, confdbName, viewName, nil
 }
 
-// validateConfdbsFeatureFlag checks whether the confdbs experimental flag
+// validateConfdbsFeatureFlag checks whether the confdb experimental flag
 // is enabled. The state should not be locked by the caller.
 func validateConfdbsFeatureFlag(st *state.State) error {
 	st.Lock()
 	defer st.Unlock()
 
 	tr := config.NewTransaction(st)
-	enabled, err := features.Flag(tr, features.Confdbs)
+	enabled, err := features.Flag(tr, features.Confdb)
 	if err != nil && !config.IsNoOption(err) {
-		return fmt.Errorf(i18n.G("internal error: cannot check confdbs feature flag: %v"), err)
+		return fmt.Errorf(i18n.G("internal error: cannot check confdb feature flag: %v"), err)
 	}
 
 	if !enabled {
-		_, confName := features.Confdbs.ConfigOption()
-		return fmt.Errorf(i18n.G(`"confdbs" feature flag is disabled: set '%s' to true`), confName)
+		_, confName := features.Confdb.ConfigOption()
+		return fmt.Errorf(i18n.G(`"confdb" feature flag is disabled: set '%s' to true`), confName)
 	}
 
 	return nil
