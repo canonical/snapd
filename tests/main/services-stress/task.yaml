@@ -3,6 +3,9 @@ details: |
     Install snap which carries many services and make sure that service
     operations work correctly.
 
+restore: |
+    snap remove --purge test-snapd-service-many || true
+
 execute: |
     echo "Install a snap with multiple services"
     "$TESTSTOOLS"/snaps-state install-local test-snapd-service-many

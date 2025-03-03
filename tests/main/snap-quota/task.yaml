@@ -11,9 +11,9 @@ prepare: |
   snap install hello-world go-example-webserver test-snapd-tools
 
 restore: |
+  snap remove-quota group-sub-one || true
   snap remove-quota group-one || true
   snap remove-quota group-two || true
-  snap remove-quota group-sub-one || true
   snap remove-quota group-one || true
   snap remove-quota group-sub-sub-three || true
   snap remove-quota group-sub-three || true
