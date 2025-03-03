@@ -12,6 +12,8 @@ prepare: |
     tests.session -u test prepare
 
 restore: |
+    snap remove --purge test-snapd-service-writer || true
+    snap remove --purge socket-activation || true
     tests.session -u test restore
 
 execute: |

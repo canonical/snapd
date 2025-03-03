@@ -19,7 +19,8 @@ prepare: |
 
 restore: |
   echo "Stop the service"
-  snap stop test-snapd-stressd.spawner
+  snap remove --purge test-snapd-stressd || true
+  snap remove-quota group-one || true
 
 execute: |
   # Spawner spawns 32 workers per default in the snap, but the total

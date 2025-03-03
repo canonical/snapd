@@ -32,6 +32,7 @@ prepare: |
 restore: |
     systemctl stop snap.test-snapd-service.test-snapd-service.service
     rm -f /sys/fs/bpf/snap/snap_test-snapd-service_sh
+    snap remove --purge test-snapd-service || true
     tests.session -u test restore
     if test -f enforcing.mode; then
         setenforce "$(cat enforcing.mode)"

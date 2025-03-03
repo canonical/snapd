@@ -24,6 +24,12 @@ systems:
 prepare: |
   snap install hello-world go-example-webserver
 
+restore: |
+  snap remove --purge go-example-webserver || true
+  snap remove-quota sub2 || true
+  snap remove-quota sub || true
+  snap remove-quota top || true
+
 execute: |
   # the bug mainly happens when we create a quota group with nothing in it,
   # then systemd reports using a huge amount of memory or tasks
