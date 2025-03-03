@@ -31,6 +31,15 @@
 #include "cleanup-funcs.h"
 #include "utils.h"
 
+// Ubuntu 14.04 has a 4.4 kernel, but these macros are not defined
+#ifndef PR_CAP_AMBIENT
+#define PR_CAP_AMBIENT 47
+#define PR_CAP_AMBIENT_IS_SET 1
+#define PR_CAP_AMBIENT_RAISE 2
+#define PR_CAP_AMBIENT_LOWER 3
+#define PR_CAP_AMBIENT_CLEAR_ALL 4
+#endif
+
 void sc_privs_drop(void) {
     /* _ENABLE_FAULT_INJECTION is only set when building for unit tests */
 #ifndef _ENABLE_FAULT_INJECTION
