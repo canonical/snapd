@@ -135,8 +135,8 @@ static int verify_caps(void) {
                              .cap = CAP_DAC_OVERRIDE,
                              .err = "CAP_DAC_OVERRIDE capability not in effective set",
                          }};
-
-    for (size_t i = 0; i < sizeof expected_caps / sizeof expected_caps[0]; i++) {
+    size_t i;
+    for (i = 0; i < sizeof expected_caps / sizeof expected_caps[0]; i++) {
         if ((data.effective & CAP_TO_MASK(expected_caps[i].cap)) == 0) {
             bootstrap_errno = EPERM;
             bootstrap_msg = expected_caps[i].err;
