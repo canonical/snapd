@@ -33,6 +33,14 @@ execute: |
 
     echo "And the user mode systemd instance is started"
     tests.session -u test prepare
+    # Staring with Ubuntu 25.04, many programs gain dedicated apparmor
+    # profiles.  This includes the nc program which is now confined and does
+    # not allow for cap_dac_override required to traverse /run/user/$(id -u
+    # test)/ or /home/test, which do not have o+x permission.  As such, poke a
+    # small hole to allow that.
+    chmod +x /run/user/"$(id -u test)" ~test
+    # The runtime directory will be removed by now.
+    tests.cleanup defer chmod -x ~test
 
     echo "It's sockets are created in the test user's directories and activate the service"
     [ -S ~test/snap/test-snapd-user-service-sockets/common/common.sock ]
