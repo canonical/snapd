@@ -32,6 +32,7 @@ import (
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/disks"
 	"github.com/snapcore/snapd/secboot"
+	"github.com/snapcore/snapd/systemd"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -87,10 +88,72 @@ func (s *initramfsCVMMountsSuite) SetUpTest(c *C) {
 	}))
 }
 
+func checkSysrootMount(c *C, onCore24Plus bool, systemctlNumCalls int, systemctlArgs [][]string) {
+	// Check sysroot mount unit bits
+	unitDir := dirs.SnapRuntimeServicesDirUnder(dirs.GlobalRootDir)
+	baseUnitPath := filepath.Join(unitDir, "sysroot.mount")
+	if onCore24Plus {
+		c.Assert(baseUnitPath, testutil.FileEquals, `[Unit]
+DefaultDependencies=no
+Before=initrd-root-fs.target
+After=snap-initramfs-mounts.service
+Before=umount.target
+Conflicts=umount.target
+
+[Mount]
+What=/run/mnt/data
+Where=/sysroot
+Type=none
+Options=bind
+`)
+		symlinkPath := filepath.Join(unitDir, "initrd-root-fs.target.wants", "sysroot.mount")
+		target, err := os.Readlink(symlinkPath)
+		c.Assert(err, IsNil)
+		c.Assert(target, Equals, "../sysroot.mount")
+
+		c.Assert(systemctlNumCalls, Equals, 2)
+		c.Assert(systemctlArgs, DeepEquals, [][]string{{"daemon-reload"},
+			{"start", "--no-block", "initrd-root-fs.target"}})
+	} else {
+		// sysroot.mount is actually present in 24- but as a static
+		// file on the base. We expect it to be absent as far as the
+		// testsuite is concerned.
+		c.Assert(baseUnitPath, testutil.FileAbsent)
+		c.Assert(systemctlNumCalls, Equals, 0)
+	}
+}
+
 func (s *initramfsCVMMountsSuite) TestInitramfsMountsRunCVMModeHappy(c *C) {
+	onCore24Plus := false
+	s.testInitramfsMountsRunCVMModeHappy(c, onCore24Plus)
+}
+
+func (s *initramfsCVMMountsSuite) TestInitramfsMountsRunCVMModeOn24PlusHappy(c *C) {
+	onCore24Plus := true
+	s.testInitramfsMountsRunCVMModeHappy(c, onCore24Plus)
+}
+
+func (s *initramfsCVMMountsSuite) testInitramfsMountsRunCVMModeHappy(c *C, onCore24Plus bool) {
 	s.mockProcCmdlineContent(c, "snapd_recovery_mode=cloudimg-rootfs")
 
 	restore := main.MockPartitionUUIDForBootedKernelDisk("specific-ubuntu-seed-partuuid")
+	defer restore()
+
+	restore = main.MockOsGetenv(func(envVar string) string {
+		if onCore24Plus && envVar == "CORE24_PLUS_INITRAMFS" {
+			return "1"
+		}
+		return ""
+	})
+	defer restore()
+
+	var systemctlArgs [][]string
+	systemctlNumCalls := 0
+	restore = systemd.MockSystemctl(func(args ...string) (buf []byte, err error) {
+		systemctlArgs = append(systemctlArgs, args)
+		systemctlNumCalls++
+		return nil, nil
+	})
 	defer restore()
 
 	restore = disks.MockMountPointDisksToPartitionMapping(
@@ -196,9 +259,21 @@ func (s *initramfsCVMMountsSuite) TestInitramfsMountsRunCVMModeHappy(c *C) {
 
 	c.Check(provisionTPMCVMCalled, Equals, true)
 	c.Check(cloudimgActivated, Equals, true)
+
+	checkSysrootMount(c, onCore24Plus, systemctlNumCalls, systemctlArgs)
 }
 
 func (s *initramfsCVMMountsSuite) TestInitramfsMountsRunCVMModeEphemeralOverlayHappy(c *C) {
+	onCore24Plus := false
+	s.testInitramfsMountsRunCVMModeEphemeralOverlayHappy(c, onCore24Plus)
+}
+
+func (s *initramfsCVMMountsSuite) TestInitramfsMountsRunCVMModeEphemeralOverlayOn24PlusHappy(c *C) {
+	onCore24Plus := true
+	s.testInitramfsMountsRunCVMModeEphemeralOverlayHappy(c, onCore24Plus)
+}
+
+func (s *initramfsCVMMountsSuite) testInitramfsMountsRunCVMModeEphemeralOverlayHappy(c *C, onCore24Plus bool) {
 	s.mockProcCmdlineContent(c, "snapd_recovery_mode=cloudimg-rootfs")
 
 	restore := main.MockPartitionUUIDForBootedKernelDisk("specific-ubuntu-seed-partuuid")
@@ -209,6 +284,23 @@ func (s *initramfsCVMMountsSuite) TestInitramfsMountsRunCVMModeEphemeralOverlayH
 			{Mountpoint: boot.InitramfsUbuntuSeedDir}: defaultCVMDiskVerity,
 		},
 	)
+	defer restore()
+
+	restore = main.MockOsGetenv(func(envVar string) string {
+		if onCore24Plus && envVar == "CORE24_PLUS_INITRAMFS" {
+			return "1"
+		}
+		return ""
+	})
+	defer restore()
+
+	var systemctlArgs [][]string
+	systemctlNumCalls := 0
+	restore = systemd.MockSystemctl(func(args ...string) (buf []byte, err error) {
+		systemctlArgs = append(systemctlArgs, args)
+		systemctlNumCalls++
+		return nil, nil
+	})
 	defer restore()
 
 	// don't do anything from systemd-mount, we verify the arguments passed at
@@ -349,6 +441,8 @@ func (s *initramfsCVMMountsSuite) TestInitramfsMountsRunCVMModeEphemeralOverlayH
 
 	c.Check(provisionTPMCVMCalled, Equals, true)
 	c.Check(cloudimgActivated, Equals, true)
+
+	checkSysrootMount(c, onCore24Plus, systemctlNumCalls, systemctlArgs)
 }
 
 func (s *initramfsCVMMountsSuite) TestGenerateMountsFromManifest(c *C) {
