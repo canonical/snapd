@@ -38,6 +38,7 @@ var (
 	secbootResealKeys                 = secboot.ResealKeys
 	secbootBuildPCRProtectionProfile  = secboot.BuildPCRProtectionProfile
 	secbootResealKeysWithFDESetupHook = secboot.ResealKeysWithFDESetupHook
+	secbootGetPrimaryKey              = secboot.GetPrimaryKey
 )
 
 // MockSecbootResealKeys is only useful in testing. Note that this is a very low
@@ -57,6 +58,15 @@ func MockSecbootBuildPCRProtectionProfile(f func(modelParams []*secboot.SealKeyM
 	secbootBuildPCRProtectionProfile = f
 	return func() {
 		secbootBuildPCRProtectionProfile = old
+	}
+}
+
+func MockSecbootGetPrimaryKey(f func(devices []string, fallbackKeyFile string) ([]byte, error)) (restore func()) {
+	osutil.MustBeTestBinary("secbootGetPrimaryKey only can be mocked in tests")
+	old := secbootGetPrimaryKey
+	secbootGetPrimaryKey = f
+	return func() {
+		secbootGetPrimaryKey = old
 	}
 }
 
@@ -145,7 +155,10 @@ func doReseal(manager FDEStateManager, method device.SealingMethod, rootdir stri
 
 	var keys []resealParamsAndLocation
 
+	var devices []string
+
 	for _, disk := range disks {
+		devices = append(devices, disk.DevPath())
 		legacyKeys := disk.LegacyKeys()
 
 		switch disk.ContainerRole() {
@@ -205,9 +218,14 @@ func doReseal(manager FDEStateManager, method device.SealingMethod, rootdir stri
 
 	switch method {
 	case device.SealingMethodFDESetupHook:
+		// Note this is the fallback key path for old installations. The file might not exist.
 		primaryKeyFile := filepath.Join(boot.InstallHostFDESaveDir, "aux-key")
+		primaryKey, err := secbootGetPrimaryKey(devices, primaryKeyFile)
+		if err != nil {
+			return err
+		}
 		for _, key := range keys {
-			if err := secbootResealKeysWithFDESetupHook([]secboot.KeyDataLocation{key.location}, primaryKeyFile, key.params.Models, key.params.BootModes); err != nil {
+			if err := secbootResealKeysWithFDESetupHook([]secboot.KeyDataLocation{key.location}, primaryKey, key.params.Models, key.params.BootModes); err != nil {
 				return err
 			}
 		}
@@ -215,11 +233,15 @@ func doReseal(manager FDEStateManager, method device.SealingMethod, rootdir stri
 	case device.SealingMethodTPM, device.SealingMethodLegacyTPM:
 		saveFDEDir := dirs.SnapFDEDirUnderSave(dirs.SnapSaveDirUnder(rootdir))
 		authKeyFile := filepath.Join(saveFDEDir, "tpm-policy-auth-key")
+		primaryKey, err := secbootGetPrimaryKey(devices, authKeyFile)
+		if err != nil {
+			return err
+		}
 		for _, key := range keys {
 			keyParams := &secboot.ResealKeysParams{
-				PCRProfile:           key.params.TpmPCRProfile,
-				Keys:                 []secboot.KeyDataLocation{key.location},
-				TPMPolicyAuthKeyFile: authKeyFile,
+				PCRProfile: key.params.TpmPCRProfile,
+				Keys:       []secboot.KeyDataLocation{key.location},
+				PrimaryKey: primaryKey,
 			}
 
 			if err := secbootResealKeys(keyParams); err != nil {
