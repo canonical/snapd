@@ -35,10 +35,17 @@ systemctl_stop() {
         echo "Waiting until unit $unit is stopped [attempt $i]"
         if ! systemctl is-active -q "$unit"; then
             echo "$unit is stopped."
-            return
+            break
         fi
         sleep .5
     done
+
+    if echo "$unit" | grep -q '.*\.service' ; then
+        # snap services can request KillMode=process, which would result in only
+        # the main process getting stopped, however during purge we are doing a
+        # full cleanup
+        systemctl kill -q "$unit" || true
+    fi
 }
 
 is_component_mount_unit() {
