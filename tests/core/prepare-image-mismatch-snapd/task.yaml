@@ -6,8 +6,10 @@ details: |
     command line switch, based on the version of the snapd snap vs the snapd in the kernel.
 
 # the kernel for core18 does not carry snapd-info
+# skip arm64, no reason
 systems:
   - -ubuntu-core-18-*
+  - -ubuntu-core-*-arm-*
 
 environment:
     ROOT: /home/test/tmp/
