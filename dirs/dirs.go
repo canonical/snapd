@@ -450,8 +450,8 @@ func AddRootDirCallback(c func(string)) {
 }
 
 var (
-	// distributions known to use /snap/
-	flakyDefaultDirDistros = []string{
+	// distributions known to use /snap/ but are packaged in a special way
+	specialDefaultDirDistros = []string{
 		"ubuntucoreinitramfs",
 	}
 
@@ -475,7 +475,7 @@ func snapMountDirProbe(rootdir string) (string, error) {
 	altDir := filepath.Join(rootdir, AltSnapMountDir)
 
 	// notable exception for Ubuntu Core initramfs
-	if release.DistroLike(flakyDefaultDirDistros...) {
+	if release.DistroLike(specialDefaultDirDistros...) {
 		return defaultDir, nil
 	}
 
@@ -496,10 +496,11 @@ func snapMountDirProbe(rootdir string) (string, error) {
 			return "", fmt.Errorf("cannot stat %s: %w", defaultDir, err)
 		}
 	case fi.Mode().Type()&fs.ModeSymlink != 0:
-		// exists and is a symlink, find out what the target is, but keep
-		// the checks simple and read the symlink rather than trying
+		// exists and is a symlink, find out what the target is, but keep the
+		// checks simple and read the symlink rather than trying
 		// filepath.EvalSymlinks() which needs intermediate directories to
-		// exist
+		// exist; the symlink can be relative so cehck both with and without the
+		// leading /
 		p, err := os.Readlink(defaultDir)
 		switch {
 		case err != nil:
