@@ -44,8 +44,8 @@ func (f *failingSchema) Validate([]byte) error {
 	return f.err
 }
 
-func (f *failingSchema) SchemaAt(path []string) ([]confdb.Schema, error) {
-	return []confdb.Schema{f}, nil
+func (f *failingSchema) SchemaAt(path []string) ([]confdb.DatabagSchema, error) {
+	return []confdb.DatabagSchema{f}, nil
 }
 
 func (f *failingSchema) Type() confdb.SchemaType {

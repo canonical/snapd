@@ -114,15 +114,15 @@ type Databag interface {
 	Data() ([]byte, error)
 }
 
-// Schema takes in data from the Databag and validates that it's valid and could
-// be committed.
-type Schema interface {
+// DatabagSchema takes in data from the Databag and validates that it's valid
+// and could be committed.
+type DatabagSchema interface {
 	// Validate checks that the data conforms to the schema.
 	Validate(data []byte) error
 
 	// SchemaAt returns the schemas (e.g., string, int, etc) that may be at the
 	// provided path. If the path cannot be followed, an error is returned.
-	SchemaAt(path []string) ([]Schema, error)
+	SchemaAt(path []string) ([]DatabagSchema, error)
 
 	// Type returns the SchemaType corresponding to the Schema.
 	Type() SchemaType
@@ -173,10 +173,10 @@ var (
 
 // ConfdbSchema holds a series of related views.
 type ConfdbSchema struct {
-	Account string
-	Name    string
-	Schema  Schema
-	views   map[string]*View
+	Account       string
+	Name          string
+	DatabagSchema DatabagSchema
+	views         map[string]*View
 }
 
 // GetViewsAffectedByPath returns all the views in the confdb that have visibility
@@ -220,16 +220,16 @@ func pathChangeAffects(modified, affected string) bool {
 }
 
 // NewSchema returns a new confdb with the specified views and their rules.
-func NewSchema(account string, confdbName string, views map[string]interface{}, schema Schema) (*ConfdbSchema, error) {
+func NewSchema(account string, confdbName string, views map[string]interface{}, schema DatabagSchema) (*ConfdbSchema, error) {
 	if len(views) == 0 {
 		return nil, errors.New(`cannot define confdb: no views`)
 	}
 
 	confdb := &ConfdbSchema{
-		Account: account,
-		Name:    confdbName,
-		Schema:  schema,
-		views:   make(map[string]*View, len(views)),
+		Account:       account,
+		Name:          confdbName,
+		DatabagSchema: schema,
+		views:         make(map[string]*View, len(views)),
 	}
 
 	for name, v := range views {
@@ -303,7 +303,7 @@ func newView(confdb *ConfdbSchema, name string, viewRules []interface{}) (*View,
 	}
 
 	for _, rules := range pathToRules {
-		if err := checkSchemaMismatch(confdb.Schema, rules); err != nil {
+		if err := checkSchemaMismatch(confdb.DatabagSchema, rules); err != nil {
 			return nil, err
 		}
 	}
@@ -599,7 +599,7 @@ func (v *View) Set(databag Databag, request string, value interface{}) error {
 	// TODO: when using a transaction, the data only changes on commit so
 	// this is a bit of a waste. Maybe cache the result so we only do the first
 	// validation and then in viewstate on Commit
-	if err := v.confdb.Schema.Validate(data); err != nil {
+	if err := v.confdb.DatabagSchema.Validate(data); err != nil {
 		return fmt.Errorf(`cannot write data: %w`, err)
 	}
 
@@ -633,7 +633,7 @@ func (v *View) Unset(databag Databag, request string) error {
 		// TODO: when using a transaction, the data only changes on commit so
 		// this is a bit of a waste. Maybe cache the result so we only do the first
 		// validation and then in viewstate on Commit
-		if err := v.confdb.Schema.Validate(data); err != nil {
+		if err := v.confdb.DatabagSchema.Validate(data); err != nil {
 			return fmt.Errorf(`cannot unset data: %w`, err)
 		}
 	}
@@ -671,7 +671,7 @@ func (v *View) matchWriteRequest(request string) ([]requestMatch, error) {
 
 // checkSchemaMismatch checks whether the rules accept compatible schema types.
 // If not, then no data can satisfy these rules and the view should be rejected.
-func checkSchemaMismatch(schema Schema, rules []*viewRule) error {
+func checkSchemaMismatch(schema DatabagSchema, rules []*viewRule) error {
 	pathTypes := make(map[string][]SchemaType)
 out:
 	for _, rule := range rules {
@@ -1606,8 +1606,8 @@ func (s JSONSchema) Validate(jsonData []byte) error {
 }
 
 // SchemaAt always returns the JSONSchema.
-func (v JSONSchema) SchemaAt(path []string) ([]Schema, error) {
-	return []Schema{v}, nil
+func (v JSONSchema) SchemaAt(path []string) ([]DatabagSchema, error) {
+	return []DatabagSchema{v}, nil
 }
 
 func (v JSONSchema) Type() SchemaType {

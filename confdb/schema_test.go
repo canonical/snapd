@@ -2121,7 +2121,7 @@ func (*schemaSuite) TestInvalidTypeDefinition(c *C) {
 	c.Assert(err, ErrorMatches, `cannot parse type definition: type must be expressed as map, string or list: json: cannot unmarshal number.*`)
 }
 
-func schemasToTypes(schemas []confdb.Schema) []confdb.SchemaType {
+func schemasToTypes(schemas []confdb.DatabagSchema) []confdb.SchemaType {
 	var types []confdb.SchemaType
 	for _, s := range schemas {
 		types = append(types, s.Type())

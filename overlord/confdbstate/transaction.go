@@ -154,7 +154,7 @@ func (t *Transaction) Get(path string) (interface{}, error) {
 
 // Commit applies the previous writes and validates the final databag. If any
 // error occurs, the original databag is kept.
-func (t *Transaction) Commit(st *state.State, schema confdb.Schema) error {
+func (t *Transaction) Commit(st *state.State, schema confdb.DatabagSchema) error {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 

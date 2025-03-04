@@ -54,7 +54,7 @@ func Set(st *state.State, account, confdbName, viewName string, requests map[str
 		return err
 	}
 
-	return tx.Commit(st, view.ConfdbSchema().Schema)
+	return tx.Commit(st, view.ConfdbSchema().DatabagSchema)
 }
 
 // SetViaView uses the view to set the requests in the transaction's databag.

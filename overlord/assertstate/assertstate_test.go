@@ -5397,7 +5397,7 @@ func (s *assertMgrSuite) TestConfdb(c *C) {
 	confdb := confdbAs.ConfdbSchema()
 	c.Check(confdb.Account, Equals, s.dev1AcctKey.AccountID())
 	c.Check(confdb.Name, Equals, "foo")
-	c.Check(confdb.Schema, NotNil)
+	c.Check(confdb.DatabagSchema, NotNil)
 }
 
 func (s *assertMgrSuite) TestValidateComponent(c *C) {
