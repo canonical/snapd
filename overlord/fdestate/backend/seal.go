@@ -150,7 +150,6 @@ func sealFallbackObjectKeys(key, saveKey secboot.BootstrappedContainer, pbc boot
 
 func sealKeyForBootChainsHook(key, saveKey secboot.BootstrappedContainer, params *boot.SealKeyForBootChainsParams) error {
 	sealingParams := secboot.SealKeysWithFDESetupHookParams{
-		AuxKeyFile: filepath.Join(boot.InstallHostFDESaveDir, "aux-key"),
 		PrimaryKey: params.PrimaryKey,
 	}
 

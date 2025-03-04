@@ -451,7 +451,6 @@ func (s *sealSuite) testSealToModeenvWithFdeHookHappy(c *C, useTokens bool) {
 	restore = fdeBackend.MockSecbootSealKeysWithFDESetupHook(func(runHook fde.RunSetupHookFunc, skrs []secboot.SealKeyRequest, params *secboot.SealKeysWithFDESetupHookParams) error {
 		c.Check(params.Model.Model(), Equals, model.Model())
 		c.Check(params.Model.Model(), Equals, model.Model())
-		c.Check(params.AuxKeyFile, Equals, filepath.Join(boot.InstallHostFDESaveDir, "aux-key"))
 		c.Check(params.PrimaryKey, DeepEquals, []byte{1, 2, 3, 4})
 		for _, skr := range skrs {
 			var expectedBootstrappedContainer secboot.BootstrappedContainer
