@@ -179,10 +179,7 @@ func handleConfdbControlAction(c *Command, r *http.Request, user *auth.UserState
 
 	var ctrl confdb.Control
 	var revision int
-	if cc == nil {
-		ctrl = confdb.Control{}
-		revision = 0
-	} else {
+	if cc != nil {
 		ctrl = cc.Control()
 		revision = cc.Revision() + 1
 	}
