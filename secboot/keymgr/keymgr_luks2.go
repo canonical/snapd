@@ -20,13 +20,16 @@
 package keymgr
 
 import (
+	"errors"
 	"fmt"
 	"regexp"
+	"strings"
 	"time"
 
 	sb "github.com/snapcore/secboot"
 
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/osutil/disks"
 	"github.com/snapcore/snapd/secboot/keys"
 	"github.com/snapcore/snapd/secboot/luks2"
 )
@@ -42,19 +45,44 @@ const (
 
 var (
 	sbGetDiskUnlockKeyFromKernel = sb.GetDiskUnlockKeyFromKernel
+	disksDevlinks                = disks.Devlinks
 )
 
 func getEncryptionKeyFromUserKeyring(dev string) ([]byte, error) {
 	const remove = false
 	const defaultPrefix = "ubuntu-fde"
+
 	// note this is the unlock key, which can be either the main key which
 	// was unsealed, or the recovery key, in which case some operations may
 	// not make sense
-	currKey, err := sbGetDiskUnlockKeyFromKernel(defaultPrefix, dev, remove)
-	if err != nil {
+	p, err := sbGetDiskUnlockKeyFromKernel(defaultPrefix, dev, remove)
+	if err == nil {
+		return p, nil
+	}
+	if !errors.Is(err, sb.ErrKernelKeyNotFound) {
 		return nil, fmt.Errorf("cannot obtain current unlock key for %v: %v", dev, err)
 	}
-	return currKey, err
+
+	// Old kernels will use "by-partuuid" symlinks. So let's
+	// look at all the symlinks of the device.
+	devlinks, errDevlinks := disksDevlinks(dev)
+	if errDevlinks != nil {
+		return nil, err
+	}
+	var errDevlink error
+	for _, devlink := range devlinks {
+		if !strings.HasPrefix(devlink, "/dev/disk/by-partuuid/") {
+			continue
+		}
+		p, errDevlink = sbGetDiskUnlockKeyFromKernel(defaultPrefix, devlink, remove)
+		if errDevlink == nil {
+			return p, nil
+		}
+		if !errors.Is(errDevlink, sb.ErrKernelKeyNotFound) {
+			return nil, fmt.Errorf("cannot obtain current unlock key for %v: %v", devlink, err)
+		}
+	}
+	return nil, fmt.Errorf("cannot obtain current unlock key for %v: no key in keyring", dev)
 }
 
 // TODO rather than inspecting the error messages, parse the LUKS2 headers
