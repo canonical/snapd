@@ -39,14 +39,6 @@ apps:
         stop-command: bin/stop-stop-mode sigusr2-all
         daemon: simple
         stop-mode: sigusr2-all
-    test-snapd-sigterm-service:
-        command: bin/start-stop-mode-sigterm
-        daemon: simple
-        stop-mode: sigterm
-    test-snapd-sigterm-all-service:
-        command: bin/start-stop-mode-sigterm
-        daemon: simple
-        stop-mode: sigterm-all
     test-snapd-sigint-service:
         command: bin/start-stop-mode sigint
         stop-command: bin/stop-stop-mode sigint

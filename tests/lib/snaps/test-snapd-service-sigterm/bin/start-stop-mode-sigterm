@@ -1,0 +1,22 @@
+#!/usr/bin/python3
+import subprocess
+import os
+import os.path
+
+
+def main() -> None:
+    print("start-refresh-mode-sigkill")
+    print("running a process")
+    # This actual sleep process is (ahem) actually needed because the test is
+    # looking for it. In addition this actually checks how children are (or
+    # are not) killed by systemd.
+    proc = subprocess.Popen(["sleep", "3133731337"])
+    # write ready marker file
+    with open(os.path.join(os.getenv("SNAP_COMMON", ""), "ready"), "w"):
+        pass
+
+    proc.wait()
+
+
+if __name__ == "__main__":
+    main()
