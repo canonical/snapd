@@ -44,8 +44,8 @@ func (f *failingSchema) Validate([]byte) error {
 	return f.err
 }
 
-func (f *failingSchema) SchemaAt(path []string) ([]confdb.Schema, error) {
-	return []confdb.Schema{f}, nil
+func (f *failingSchema) SchemaAt(path []string) ([]confdb.DatabagSchema, error) {
+	return []confdb.DatabagSchema{f}, nil
 }
 
 func (f *failingSchema) Type() confdb.SchemaType {
@@ -144,7 +144,7 @@ func (*viewSuite) TestNewConfdb(c *C) {
 
 	for i, tc := range tcs {
 		cmt := Commentf("test number %d", i+1)
-		confdb, err := confdb.New("acc", "foo", tc.confdb, confdb.NewJSONSchema())
+		confdb, err := confdb.NewSchema("acc", "foo", tc.confdb, confdb.NewJSONSchema())
 		if tc.err != "" {
 			c.Assert(err, NotNil)
 			c.Assert(err.Error(), Equals, tc.err, cmt)
@@ -156,7 +156,7 @@ func (*viewSuite) TestNewConfdb(c *C) {
 }
 
 func (s *viewSuite) TestMissingRequestDefaultsToStorage(c *C) {
-	databag := confdb.NewJSONDataBag()
+	databag := confdb.NewJSONDatabag()
 	views := map[string]interface{}{
 		"foo": map[string]interface{}{
 			"rules": []interface{}{
@@ -164,7 +164,7 @@ func (s *viewSuite) TestMissingRequestDefaultsToStorage(c *C) {
 			},
 		},
 	}
-	db, err := confdb.New("acc", "foo", views, confdb.NewJSONSchema())
+	db, err := confdb.NewSchema("acc", "foo", views, confdb.NewJSONSchema())
 	c.Assert(err, IsNil)
 
 	view := db.View("foo")
@@ -194,14 +194,14 @@ func (s *viewSuite) TestBundleWithSample(c *C) {
 			},
 		},
 	}
-	db, err := confdb.New("acc", "foo", views, confdb.NewJSONSchema())
+	db, err := confdb.NewSchema("acc", "foo", views, confdb.NewJSONSchema())
 	c.Assert(err, IsNil)
 
 	view := db.View("other")
 	c.Assert(view, IsNil)
 	view = db.View("wifi-setup")
 	c.Assert(view, NotNil)
-	c.Assert(view.Confdb(), Equals, db)
+	c.Assert(view.ConfdbSchema(), Equals, db)
 }
 
 func (s *viewSuite) TestAccessTypes(c *C) {
@@ -228,7 +228,7 @@ func (s *viewSuite) TestAccessTypes(c *C) {
 			err:    true,
 		},
 	} {
-		confdb, err := confdb.New("acc", "foo", map[string]interface{}{
+		confdb, err := confdb.NewSchema("acc", "foo", map[string]interface{}{
 			"bar": map[string]interface{}{
 				"rules": []interface{}{
 					map[string]interface{}{"request": "a", "storage": "b", "access": t.access},
@@ -248,8 +248,8 @@ func (s *viewSuite) TestAccessTypes(c *C) {
 }
 
 func (*viewSuite) TestGetAndSetViews(c *C) {
-	databag := confdb.NewJSONDataBag()
-	confdb, err := confdb.New("system", "network", map[string]interface{}{
+	databag := confdb.NewJSONDatabag()
+	confdb, err := confdb.NewSchema("system", "network", map[string]interface{}{
 		"wifi-setup": map[string]interface{}{
 			"rules": []interface{}{
 				map[string]interface{}{"request": "ssids", "storage": "wifi.ssids"},
@@ -297,8 +297,8 @@ func (*viewSuite) TestGetAndSetViews(c *C) {
 }
 
 func (*viewSuite) TestSetWithNilValueFail(c *C) {
-	databag := confdb.NewJSONDataBag()
-	confdb, err := confdb.New("system", "test", map[string]interface{}{
+	databag := confdb.NewJSONDatabag()
+	confdb, err := confdb.NewSchema("system", "test", map[string]interface{}{
 		"test": map[string]interface{}{
 			"rules": []interface{}{
 				map[string]interface{}{"request": "foo", "storage": "foo"},
@@ -321,8 +321,8 @@ func (*viewSuite) TestSetWithNilValueFail(c *C) {
 }
 
 func (s *viewSuite) TestConfdbNotFound(c *C) {
-	databag := confdb.NewJSONDataBag()
-	db, err := confdb.New("acc", "foo", map[string]interface{}{
+	databag := confdb.NewJSONDatabag()
+	db, err := confdb.NewSchema("acc", "foo", map[string]interface{}{
 		"bar": map[string]interface{}{
 			"rules": []interface{}{
 				map[string]interface{}{"request": "top-level", "storage": "top-level"},
@@ -367,8 +367,8 @@ func (s *viewSuite) TestConfdbNotFound(c *C) {
 }
 
 func (s *viewSuite) TestViewBadRead(c *C) {
-	databag := confdb.NewJSONDataBag()
-	confdb, err := confdb.New("acc", "foo", map[string]interface{}{
+	databag := confdb.NewJSONDatabag()
+	confdb, err := confdb.NewSchema("acc", "foo", map[string]interface{}{
 		"bar": map[string]interface{}{
 			"rules": []interface{}{
 				map[string]interface{}{"request": "one", "storage": "one"},
@@ -411,8 +411,8 @@ func (s *viewSuite) TestViewAccessControl(c *C) {
 		},
 	} {
 		cmt := Commentf("sub-test with %q access failed", t.access)
-		databag := confdb.NewJSONDataBag()
-		db, err := confdb.New("acc", "confdb", map[string]interface{}{
+		databag := confdb.NewJSONDatabag()
+		db, err := confdb.NewSchema("acc", "confdb", map[string]interface{}{
 			"foo": map[string]interface{}{
 				"rules": []interface{}{
 					map[string]interface{}{"request": "foo", "storage": "foo", "access": t.access},
@@ -439,36 +439,36 @@ func (s *viewSuite) TestViewAccessControl(c *C) {
 	}
 }
 
-type witnessDataBag struct {
-	bag              confdb.DataBag
+type witnessDatabag struct {
+	bag              confdb.Databag
 	getPath, setPath string
 }
 
-func newWitnessDataBag(bag confdb.DataBag) *witnessDataBag {
-	return &witnessDataBag{bag: bag}
+func newWitnessDatabag(bag confdb.Databag) *witnessDatabag {
+	return &witnessDatabag{bag: bag}
 }
 
-func (s *witnessDataBag) Get(path string) (interface{}, error) {
+func (s *witnessDatabag) Get(path string) (interface{}, error) {
 	s.getPath = path
 	return s.bag.Get(path)
 }
 
-func (s *witnessDataBag) Set(path string, value interface{}) error {
+func (s *witnessDatabag) Set(path string, value interface{}) error {
 	s.setPath = path
 	return s.bag.Set(path, value)
 }
 
-func (s *witnessDataBag) Unset(path string) error {
+func (s *witnessDatabag) Unset(path string) error {
 	s.setPath = path
 	return s.bag.Unset(path)
 }
 
-func (s *witnessDataBag) Data() ([]byte, error) {
+func (s *witnessDatabag) Data() ([]byte, error) {
 	return s.bag.Data()
 }
 
 // getLastPaths returns the last paths passed into Get and Set and resets them.
-func (s *witnessDataBag) getLastPaths() (get, set string) {
+func (s *witnessDatabag) getLastPaths() (get, set string) {
 	get, set = s.getPath, s.setPath
 	s.getPath, s.setPath = "", ""
 	return get, set
@@ -520,7 +520,7 @@ func (s *viewSuite) TestViewAssertionWithPlaceholder(c *C) {
 	} {
 		cmt := Commentf("sub-test %q failed", t.testName)
 
-		db, err := confdb.New("acc", "db", map[string]interface{}{
+		db, err := confdb.NewSchema("acc", "db", map[string]interface{}{
 			"foo": map[string]interface{}{
 				"rules": []interface{}{t.rule},
 			},
@@ -528,7 +528,7 @@ func (s *viewSuite) TestViewAssertionWithPlaceholder(c *C) {
 		c.Assert(err, IsNil)
 		view := db.View("foo")
 
-		databag := newWitnessDataBag(confdb.NewJSONDataBag())
+		databag := newWitnessDatabag(confdb.NewJSONDatabag())
 		err = view.Set(databag, t.request, "expectedValue")
 		c.Assert(err, IsNil, cmt)
 
@@ -604,7 +604,7 @@ func (s *viewSuite) TestViewRequestAndStorageValidation(c *C) {
 			request:  "a. .c", storage: "a.b", err: `invalid request "a. .c": invalid subkey " "`,
 		},
 	} {
-		_, err := confdb.New("acc", "foo", map[string]interface{}{
+		_, err := confdb.NewSchema("acc", "foo", map[string]interface{}{
 			"foo": map[string]interface{}{
 				"rules": []interface{}{
 					map[string]interface{}{"request": tc.request, "storage": tc.storage},
@@ -619,8 +619,8 @@ func (s *viewSuite) TestViewRequestAndStorageValidation(c *C) {
 }
 
 func (s *viewSuite) TestViewUnsetTopLevelEntry(c *C) {
-	databag := confdb.NewJSONDataBag()
-	db, err := confdb.New("acc", "foo", map[string]interface{}{
+	databag := confdb.NewJSONDatabag()
+	db, err := confdb.NewSchema("acc", "foo", map[string]interface{}{
 		"my-view": map[string]interface{}{
 			"rules": []interface{}{
 				map[string]interface{}{"request": "foo", "storage": "foo"},
@@ -649,8 +649,8 @@ func (s *viewSuite) TestViewUnsetTopLevelEntry(c *C) {
 }
 
 func (s *viewSuite) TestViewUnsetLeafWithSiblings(c *C) {
-	databag := confdb.NewJSONDataBag()
-	db, err := confdb.New("acc", "foo", map[string]interface{}{
+	databag := confdb.NewJSONDatabag()
+	db, err := confdb.NewSchema("acc", "foo", map[string]interface{}{
 		"my-view": map[string]interface{}{
 			"rules": []interface{}{
 				map[string]interface{}{"request": "bar", "storage": "foo.bar"},
@@ -680,8 +680,8 @@ func (s *viewSuite) TestViewUnsetLeafWithSiblings(c *C) {
 }
 
 func (s *viewSuite) TestViewUnsetWithNestedEntry(c *C) {
-	databag := confdb.NewJSONDataBag()
-	db, err := confdb.New("acc", "foo", map[string]interface{}{
+	databag := confdb.NewJSONDatabag()
+	db, err := confdb.NewSchema("acc", "foo", map[string]interface{}{
 		"my-view": map[string]interface{}{
 			"rules": []interface{}{
 				map[string]interface{}{"request": "foo", "storage": "foo"},
@@ -706,8 +706,8 @@ func (s *viewSuite) TestViewUnsetWithNestedEntry(c *C) {
 }
 
 func (s *viewSuite) TestViewUnsetLeafLeavesEmptyParent(c *C) {
-	databag := confdb.NewJSONDataBag()
-	confdb, err := confdb.New("acc", "foo", map[string]interface{}{
+	databag := confdb.NewJSONDatabag()
+	confdb, err := confdb.NewSchema("acc", "foo", map[string]interface{}{
 		"my-view": map[string]interface{}{
 			"rules": []interface{}{
 				map[string]interface{}{"request": "foo", "storage": "foo"},
@@ -734,8 +734,8 @@ func (s *viewSuite) TestViewUnsetLeafLeavesEmptyParent(c *C) {
 }
 
 func (s *viewSuite) TestViewUnsetAlreadyUnsetEntry(c *C) {
-	databag := confdb.NewJSONDataBag()
-	db, err := confdb.New("acc", "foo", map[string]interface{}{
+	databag := confdb.NewJSONDatabag()
+	db, err := confdb.NewSchema("acc", "foo", map[string]interface{}{
 		"my-view": map[string]interface{}{
 			"rules": []interface{}{
 				map[string]interface{}{"request": "foo", "storage": "foo"},
@@ -753,8 +753,8 @@ func (s *viewSuite) TestViewUnsetAlreadyUnsetEntry(c *C) {
 	c.Assert(err, IsNil)
 }
 
-func (s *viewSuite) TestJSONDataBagCopy(c *C) {
-	bag := confdb.NewJSONDataBag()
+func (s *viewSuite) TestJSONDatabagCopy(c *C) {
+	bag := confdb.NewJSONDatabag()
 	err := bag.Set("foo", "bar")
 	c.Assert(err, IsNil)
 
@@ -786,7 +786,7 @@ func (s *viewSuite) TestJSONDataBagCopy(c *C) {
 }
 
 func (s *viewSuite) TestJSONDataOverwrite(c *C) {
-	bag := confdb.NewJSONDataBag()
+	bag := confdb.NewJSONDatabag()
 	err := bag.Set("foo", "bar")
 	c.Assert(err, IsNil)
 
@@ -808,8 +808,8 @@ func (s *viewSuite) TestJSONDataOverwrite(c *C) {
 }
 
 func (s *viewSuite) TestViewGetResultNamespaceMatchesRequest(c *C) {
-	databag := confdb.NewJSONDataBag()
-	confdb, err := confdb.New("acc", "confdb", map[string]interface{}{
+	databag := confdb.NewJSONDatabag()
+	confdb, err := confdb.NewSchema("acc", "confdb", map[string]interface{}{
 		"bar": map[string]interface{}{
 			"rules": []interface{}{
 				map[string]interface{}{"request": "one", "storage": "one"},
@@ -839,8 +839,8 @@ func (s *viewSuite) TestViewGetResultNamespaceMatchesRequest(c *C) {
 }
 
 func (s *viewSuite) TestViewGetMatchesOnPrefix(c *C) {
-	databag := confdb.NewJSONDataBag()
-	confdb, err := confdb.New("acc", "confdb", map[string]interface{}{
+	databag := confdb.NewJSONDatabag()
+	confdb, err := confdb.NewSchema("acc", "confdb", map[string]interface{}{
 		"statuses": map[string]interface{}{
 			"rules": []interface{}{
 				map[string]interface{}{"request": "snapd.status", "storage": "snaps.snapd.status"},
@@ -867,8 +867,8 @@ func (s *viewSuite) TestViewGetMatchesOnPrefix(c *C) {
 }
 
 func (s *viewSuite) TestViewUnsetValidates(c *C) {
-	databag := confdb.NewJSONDataBag()
-	confdb, err := confdb.New("acc", "confdb", map[string]interface{}{
+	databag := confdb.NewJSONDatabag()
+	confdb, err := confdb.NewSchema("acc", "confdb", map[string]interface{}{
 		"test": map[string]interface{}{
 			"rules": []interface{}{
 				map[string]interface{}{"request": "foo", "storage": "foo"},
@@ -883,8 +883,8 @@ func (s *viewSuite) TestViewUnsetValidates(c *C) {
 }
 
 func (s *viewSuite) TestViewUnsetSkipsReadOnly(c *C) {
-	databag := confdb.NewJSONDataBag()
-	confdb, err := confdb.New("acc", "confdb", map[string]interface{}{
+	databag := confdb.NewJSONDatabag()
+	confdb, err := confdb.NewSchema("acc", "confdb", map[string]interface{}{
 		"test": map[string]interface{}{
 			"rules": []interface{}{
 				map[string]interface{}{"request": "foo", "storage": "foo", "access": "read"},
@@ -899,8 +899,8 @@ func (s *viewSuite) TestViewUnsetSkipsReadOnly(c *C) {
 }
 
 func (s *viewSuite) TestViewGetNoMatchRequestLongerThanPattern(c *C) {
-	databag := confdb.NewJSONDataBag()
-	db, err := confdb.New("acc", "confdb", map[string]interface{}{
+	databag := confdb.NewJSONDatabag()
+	db, err := confdb.NewSchema("acc", "confdb", map[string]interface{}{
 		"statuses": map[string]interface{}{
 			"rules": []interface{}{
 				map[string]interface{}{"request": "snapd", "storage": "snaps.snapd"},
@@ -920,8 +920,8 @@ func (s *viewSuite) TestViewGetNoMatchRequestLongerThanPattern(c *C) {
 }
 
 func (s *viewSuite) TestViewManyPrefixMatches(c *C) {
-	databag := confdb.NewJSONDataBag()
-	confdb, err := confdb.New("acc", "confdb", map[string]interface{}{
+	databag := confdb.NewJSONDatabag()
+	confdb, err := confdb.NewSchema("acc", "confdb", map[string]interface{}{
 		"statuses": map[string]interface{}{
 			"rules": []interface{}{
 				map[string]interface{}{"request": "status.firefox", "storage": "snaps.firefox.status"},
@@ -948,8 +948,8 @@ func (s *viewSuite) TestViewManyPrefixMatches(c *C) {
 }
 
 func (s *viewSuite) TestViewCombineNamespacesInPrefixMatches(c *C) {
-	databag := confdb.NewJSONDataBag()
-	confdb, err := confdb.New("acc", "confdb", map[string]interface{}{
+	databag := confdb.NewJSONDatabag()
+	confdb, err := confdb.NewSchema("acc", "confdb", map[string]interface{}{
 		"statuses": map[string]interface{}{
 			"rules": []interface{}{
 				map[string]interface{}{"request": "status.foo.bar.firefox", "storage": "snaps.firefox.status"},
@@ -985,8 +985,8 @@ func (s *viewSuite) TestViewCombineNamespacesInPrefixMatches(c *C) {
 }
 
 func (s *viewSuite) TestGetScalarOverwritesLeafOfMapValue(c *C) {
-	databag := confdb.NewJSONDataBag()
-	confdb, err := confdb.New("acc", "confdb", map[string]interface{}{
+	databag := confdb.NewJSONDatabag()
+	confdb, err := confdb.NewSchema("acc", "confdb", map[string]interface{}{
 		"motors": map[string]interface{}{
 			"rules": []interface{}{
 				map[string]interface{}{"request": "motors.a.speed", "storage": "new-speed.a"},
@@ -1016,8 +1016,8 @@ func (s *viewSuite) TestGetScalarOverwritesLeafOfMapValue(c *C) {
 }
 
 func (s *viewSuite) TestGetSingleScalarOk(c *C) {
-	databag := confdb.NewJSONDataBag()
-	confdb, err := confdb.New("acc", "confdb", map[string]interface{}{
+	databag := confdb.NewJSONDatabag()
+	confdb, err := confdb.NewSchema("acc", "confdb", map[string]interface{}{
 		"foo": map[string]interface{}{
 			"rules": []interface{}{
 				map[string]interface{}{"request": "foo", "storage": "foo"},
@@ -1037,8 +1037,8 @@ func (s *viewSuite) TestGetSingleScalarOk(c *C) {
 }
 
 func (s *viewSuite) TestGetMatchScalarAndMapError(c *C) {
-	databag := confdb.NewJSONDataBag()
-	confdb, err := confdb.New("acc", "confdb", map[string]interface{}{
+	databag := confdb.NewJSONDatabag()
+	confdb, err := confdb.NewSchema("acc", "confdb", map[string]interface{}{
 		"foo": map[string]interface{}{
 			"rules": []interface{}{
 				map[string]interface{}{"request": "foo", "storage": "bar"},
@@ -1060,8 +1060,8 @@ func (s *viewSuite) TestGetMatchScalarAndMapError(c *C) {
 }
 
 func (s *viewSuite) TestGetRulesAreSortedByParentage(c *C) {
-	databag := confdb.NewJSONDataBag()
-	confdb, err := confdb.New("acc", "confdb", map[string]interface{}{
+	databag := confdb.NewJSONDatabag()
+	confdb, err := confdb.NewSchema("acc", "confdb", map[string]interface{}{
 		"foo": map[string]interface{}{
 			"rules": []interface{}{
 				map[string]interface{}{"request": "foo.bar.baz", "storage": "third"},
@@ -1099,8 +1099,8 @@ func (s *viewSuite) TestGetRulesAreSortedByParentage(c *C) {
 }
 
 func (s *viewSuite) TestGetUnmatchedPlaceholderReturnsAll(c *C) {
-	databag := confdb.NewJSONDataBag()
-	confdb, err := confdb.New("acc", "confdb", map[string]interface{}{
+	databag := confdb.NewJSONDatabag()
+	confdb, err := confdb.NewSchema("acc", "confdb", map[string]interface{}{
 		"snaps": map[string]interface{}{
 			"rules": []interface{}{
 				map[string]interface{}{"request": "snaps.{snap}", "storage": "snaps.{snap}"},
@@ -1125,8 +1125,8 @@ func (s *viewSuite) TestGetUnmatchedPlaceholderReturnsAll(c *C) {
 }
 
 func (s *viewSuite) TestGetUnmatchedPlaceholdersWithNestedValues(c *C) {
-	databag := confdb.NewJSONDataBag()
-	confdb, err := confdb.New("acc", "confdb", map[string]interface{}{
+	databag := confdb.NewJSONDatabag()
+	confdb, err := confdb.NewSchema("acc", "confdb", map[string]interface{}{
 		"statuses": map[string]interface{}{
 			"rules": []interface{}{
 				map[string]interface{}{"request": "snaps.{snap}.status", "storage": "snaps.{snap}.status"},
@@ -1153,8 +1153,8 @@ func (s *viewSuite) TestGetUnmatchedPlaceholdersWithNestedValues(c *C) {
 }
 
 func (s *viewSuite) TestGetSeveralUnmatchedPlaceholders(c *C) {
-	databag := confdb.NewJSONDataBag()
-	confdb, err := confdb.New("acc", "confdb", map[string]interface{}{
+	databag := confdb.NewJSONDatabag()
+	confdb, err := confdb.NewSchema("acc", "confdb", map[string]interface{}{
 		"foo": map[string]interface{}{
 			"rules": []interface{}{
 				map[string]interface{}{"request": "a.{b}.c.{d}.e", "storage": "a.{b}.c.{d}.e"},
@@ -1203,8 +1203,8 @@ func (s *viewSuite) TestGetSeveralUnmatchedPlaceholders(c *C) {
 }
 
 func (s *viewSuite) TestGetMergeAtDifferentLevels(c *C) {
-	databag := confdb.NewJSONDataBag()
-	confdb, err := confdb.New("acc", "confdb", map[string]interface{}{
+	databag := confdb.NewJSONDatabag()
+	confdb, err := confdb.NewSchema("acc", "confdb", map[string]interface{}{
 		"foo": map[string]interface{}{
 			"rules": []interface{}{
 				map[string]interface{}{"request": "a.{b}.c.{d}.e", "storage": "a.{b}.c.{d}.e"},
@@ -1244,8 +1244,8 @@ func (s *viewSuite) TestGetMergeAtDifferentLevels(c *C) {
 }
 
 func (s *viewSuite) TestBadRequestPaths(c *C) {
-	databag := confdb.NewJSONDataBag()
-	confdb, err := confdb.New("acc", "confdb", map[string]interface{}{
+	databag := confdb.NewJSONDatabag()
+	confdb, err := confdb.NewSchema("acc", "confdb", map[string]interface{}{
 		"foo": map[string]interface{}{
 			"rules": []interface{}{
 				map[string]interface{}{"request": "a.{b}.c", "storage": "a.{b}.c"},
@@ -1325,8 +1325,8 @@ func (s *viewSuite) TestBadRequestPaths(c *C) {
 }
 
 func (s *viewSuite) TestSetAllowedOnSameRequestButDifferentPaths(c *C) {
-	databag := confdb.NewJSONDataBag()
-	confdb, err := confdb.New("acc", "confdb", map[string]interface{}{
+	databag := confdb.NewJSONDatabag()
+	confdb, err := confdb.NewSchema("acc", "confdb", map[string]interface{}{
 		"foo": map[string]interface{}{
 			"rules": []interface{}{
 				map[string]interface{}{"request": "a.b.c", "storage": "new", "access": "write"},
@@ -1351,8 +1351,8 @@ func (s *viewSuite) TestSetAllowedOnSameRequestButDifferentPaths(c *C) {
 }
 
 func (s *viewSuite) TestSetWritesToMoreNestedLast(c *C) {
-	databag := confdb.NewJSONDataBag()
-	confdb, err := confdb.New("acc", "confdb", map[string]interface{}{
+	databag := confdb.NewJSONDatabag()
+	confdb, err := confdb.NewSchema("acc", "confdb", map[string]interface{}{
 		// purposefully unordered to check that Set doesn't depend on well-ordered entries in assertions
 		"foo": map[string]interface{}{
 			"rules": []interface{}{
@@ -1382,8 +1382,8 @@ func (s *viewSuite) TestSetWritesToMoreNestedLast(c *C) {
 }
 
 func (s *viewSuite) TestReadWriteRead(c *C) {
-	databag := confdb.NewJSONDataBag()
-	confdb, err := confdb.New("acc", "confdb", map[string]interface{}{
+	databag := confdb.NewJSONDatabag()
+	confdb, err := confdb.NewSchema("acc", "confdb", map[string]interface{}{
 		"foo": map[string]interface{}{
 			"rules": []interface{}{
 				map[string]interface{}{"request": "a.b.c", "storage": "a.b.c"},
@@ -1416,8 +1416,8 @@ func (s *viewSuite) TestReadWriteRead(c *C) {
 }
 
 func (s *viewSuite) TestReadWriteSameDataAtDifferentLevels(c *C) {
-	databag := confdb.NewJSONDataBag()
-	confdb, err := confdb.New("acc", "confdb", map[string]interface{}{
+	databag := confdb.NewJSONDatabag()
+	confdb, err := confdb.NewSchema("acc", "confdb", map[string]interface{}{
 		"foo": map[string]interface{}{
 			"rules": []interface{}{
 				map[string]interface{}{"request": "a.b.c", "storage": "a.b.c"},
@@ -1450,8 +1450,8 @@ func (s *viewSuite) TestReadWriteSameDataAtDifferentLevels(c *C) {
 }
 
 func (s *viewSuite) TestSetValueMissingNestedLevels(c *C) {
-	databag := confdb.NewJSONDataBag()
-	confdb, err := confdb.New("acc", "confdb", map[string]interface{}{
+	databag := confdb.NewJSONDatabag()
+	confdb, err := confdb.NewSchema("acc", "confdb", map[string]interface{}{
 		"foo": map[string]interface{}{
 			"rules": []interface{}{
 				map[string]interface{}{"request": "a.b", "storage": "a.b"},
@@ -1474,8 +1474,8 @@ func (s *viewSuite) TestGetReadsStorageLessNestedNamespaceBefore(c *C) {
 	// tests for this and showcases why it matters. In Get we care about building
 	// a virtual document from locations in the storage that may evolve over time.
 	// In this example, the storage evolve to have version data in a different place
-	databag := confdb.NewJSONDataBag()
-	confdb, err := confdb.New("acc", "confdb", map[string]interface{}{
+	databag := confdb.NewJSONDatabag()
+	confdb, err := confdb.NewSchema("acc", "confdb", map[string]interface{}{
 		"foo": map[string]interface{}{
 			"rules": []interface{}{
 				map[string]interface{}{"request": "snaps.snapd", "storage": "snaps.snapd"},
@@ -1508,8 +1508,8 @@ func (s *viewSuite) TestGetReadsStorageLessNestedNamespaceBefore(c *C) {
 }
 
 func (s *viewSuite) TestSetValidateError(c *C) {
-	databag := confdb.NewJSONDataBag()
-	confdb, err := confdb.New("acc", "confdb", map[string]interface{}{
+	databag := confdb.NewJSONDatabag()
+	confdb, err := confdb.NewSchema("acc", "confdb", map[string]interface{}{
 		"foo": map[string]interface{}{
 			"rules": []interface{}{
 				map[string]interface{}{"request": "bar", "storage": "bar"},
@@ -1526,7 +1526,7 @@ func (s *viewSuite) TestSetValidateError(c *C) {
 }
 
 func (s *viewSuite) TestSetOverwriteValueWithNewLevel(c *C) {
-	databag := confdb.NewJSONDataBag()
+	databag := confdb.NewJSONDatabag()
 	err := databag.Set("foo", "bar")
 	c.Assert(err, IsNil)
 
@@ -1562,8 +1562,8 @@ func (s *viewSuite) TestSetValidatesDataWithSchemaPass(c *C) {
 }`))
 	c.Assert(err, IsNil)
 
-	databag := confdb.NewJSONDataBag()
-	confdb, err := confdb.New("acc", "confdb", map[string]interface{}{
+	databag := confdb.NewJSONDatabag()
+	confdb, err := confdb.NewSchema("acc", "confdb", map[string]interface{}{
 		"foo": map[string]interface{}{
 			"rules": []interface{}{
 				map[string]interface{}{"request": "foo", "storage": "foo"},
@@ -1638,7 +1638,7 @@ func (s *viewSuite) TestSetPreCheckValueFailsIncompatibleTypes(c *C) {
 }`, one.schemaStr, other.schemaStr)))
 			c.Assert(err, IsNil)
 
-			_, err = confdb.New("acc", "confdb", map[string]interface{}{
+			_, err = confdb.NewSchema("acc", "confdb", map[string]interface{}{
 				"foo": map[string]interface{}{
 					"rules": []interface{}{
 						map[string]interface{}{"request": "foo", "storage": "foo", "access": "write"},
@@ -1660,8 +1660,8 @@ func (s *viewSuite) TestSetPreCheckValueAllowsIntNumberMismatch(c *C) {
 }`))
 	c.Assert(err, IsNil)
 
-	databag := confdb.NewJSONDataBag()
-	confdb, err := confdb.New("acc", "confdb", map[string]interface{}{
+	databag := confdb.NewJSONDatabag()
+	confdb, err := confdb.NewSchema("acc", "confdb", map[string]interface{}{
 		"foo": map[string]interface{}{
 			"rules": []interface{}{
 				map[string]interface{}{"request": "foo", "storage": "foo", "access": "write"},
@@ -1692,7 +1692,7 @@ func (*viewSuite) TestSetPreCheckMultipleAlternativeTypesFail(c *C) {
 	schema, err := confdb.ParseSchema(schemaStr)
 	c.Assert(err, IsNil)
 
-	_, err = confdb.New("acc", "confdb", map[string]interface{}{
+	_, err = confdb.NewSchema("acc", "confdb", map[string]interface{}{
 		"foo": map[string]interface{}{
 			"rules": []interface{}{
 				map[string]interface{}{"request": "foo", "storage": "foo", "access": "write"},
@@ -1717,7 +1717,7 @@ func (*viewSuite) TestAssertionRuleSchemaMismatch(c *C) {
 	schema, err := confdb.ParseSchema(schemaStr)
 	c.Assert(err, IsNil)
 
-	confdb, err := confdb.New("acc", "confdb", map[string]interface{}{
+	confdb, err := confdb.NewSchema("acc", "confdb", map[string]interface{}{
 		"foo": map[string]interface{}{
 			"rules": []interface{}{
 				map[string]interface{}{"request": "foo", "storage": "foo.b.c", "access": "write"},
@@ -1746,7 +1746,7 @@ func (*viewSuite) TestSchemaMismatchCheckDifferentLevelPaths(c *C) {
 	schema, err := confdb.ParseSchema(schemaStr)
 	c.Assert(err, IsNil)
 
-	_, err = confdb.New("acc", "confdb", map[string]interface{}{
+	_, err = confdb.NewSchema("acc", "confdb", map[string]interface{}{
 		"foo": map[string]interface{}{
 			"rules": []interface{}{
 				map[string]interface{}{"request": "snaps.{snap}", "storage": "snaps.{snap}"},
@@ -1767,8 +1767,8 @@ func (*viewSuite) TestSchemaMismatchCheckMultipleAlternativeTypesHappy(c *C) {
 	schema, err := confdb.ParseSchema(schemaStr)
 	c.Assert(err, IsNil)
 
-	databag := confdb.NewJSONDataBag()
-	confdb, err := confdb.New("acc", "confdb", map[string]interface{}{
+	databag := confdb.NewJSONDatabag()
+	confdb, err := confdb.NewSchema("acc", "confdb", map[string]interface{}{
 		"foo": map[string]interface{}{
 			"rules": []interface{}{
 				map[string]interface{}{"request": "foo", "storage": "foo", "access": "write"},
@@ -1786,8 +1786,8 @@ func (*viewSuite) TestSchemaMismatchCheckMultipleAlternativeTypesHappy(c *C) {
 }
 
 func (s *viewSuite) TestSetUnmatchedPlaceholderLeaf(c *C) {
-	databag := confdb.NewJSONDataBag()
-	confdb, err := confdb.New("acc", "confdb", map[string]interface{}{
+	databag := confdb.NewJSONDatabag()
+	confdb, err := confdb.NewSchema("acc", "confdb", map[string]interface{}{
 		"foo": map[string]interface{}{
 			"rules": []interface{}{
 				map[string]interface{}{"request": "foo.{bar}", "storage": "foo.{bar}"},
@@ -1814,8 +1814,8 @@ func (s *viewSuite) TestSetUnmatchedPlaceholderLeaf(c *C) {
 }
 
 func (s *viewSuite) TestSetUnmatchedPlaceholderMidPath(c *C) {
-	databag := confdb.NewJSONDataBag()
-	confdb, err := confdb.New("acc", "confdb", map[string]interface{}{
+	databag := confdb.NewJSONDatabag()
+	confdb, err := confdb.NewSchema("acc", "confdb", map[string]interface{}{
 		"foo": map[string]interface{}{
 			"rules": []interface{}{
 				map[string]interface{}{"request": "foo.{bar}.nested", "storage": "foo.{bar}.nested"},
@@ -1842,8 +1842,8 @@ func (s *viewSuite) TestSetUnmatchedPlaceholderMidPath(c *C) {
 }
 
 func (s *viewSuite) TestSetManyUnmatchedPlaceholders(c *C) {
-	databag := confdb.NewJSONDataBag()
-	confdb, err := confdb.New("acc", "confdb", map[string]interface{}{
+	databag := confdb.NewJSONDatabag()
+	confdb, err := confdb.NewSchema("acc", "confdb", map[string]interface{}{
 		"foo": map[string]interface{}{
 			"rules": []interface{}{
 				map[string]interface{}{"request": "foo.{bar}.a.{baz}", "storage": "foo.{bar}.{baz}"},
@@ -1882,8 +1882,8 @@ func (s *viewSuite) TestSetManyUnmatchedPlaceholders(c *C) {
 }
 
 func (s *viewSuite) TestUnsetUnmatchedPlaceholderLast(c *C) {
-	databag := confdb.NewJSONDataBag()
-	db, err := confdb.New("acc", "confdb", map[string]interface{}{
+	databag := confdb.NewJSONDatabag()
+	db, err := confdb.NewSchema("acc", "confdb", map[string]interface{}{
 		"foo": map[string]interface{}{
 			"rules": []interface{}{
 				map[string]interface{}{"request": "foo.{bar}", "storage": "foo.{bar}"},
@@ -1910,8 +1910,8 @@ func (s *viewSuite) TestUnsetUnmatchedPlaceholderLast(c *C) {
 }
 
 func (s *viewSuite) TestUnsetUnmatchedPlaceholderMid(c *C) {
-	databag := confdb.NewJSONDataBag()
-	confdb, err := confdb.New("acc", "confdb", map[string]interface{}{
+	databag := confdb.NewJSONDatabag()
+	confdb, err := confdb.NewSchema("acc", "confdb", map[string]interface{}{
 		"foo": map[string]interface{}{
 			"rules": []interface{}{
 				map[string]interface{}{"request": "all.{bar}", "storage": "foo.{bar}"},
@@ -2085,8 +2085,8 @@ func (s *viewSuite) TestViewSetErrorIfValueContainsUnusedParts(c *C) {
 
 	for i, tc := range tcs {
 		cmt := Commentf("failed test number %d", i+1)
-		databag := confdb.NewJSONDataBag()
-		confdb, err := confdb.New("acc", "confdb", map[string]interface{}{
+		databag := confdb.NewJSONDatabag()
+		confdb, err := confdb.NewSchema("acc", "confdb", map[string]interface{}{
 			"foo": map[string]interface{}{
 				"rules": []interface{}{
 					map[string]interface{}{"request": "a.{x}.d", "storage": "a.{x}"},
@@ -2116,7 +2116,7 @@ func (*viewSuite) TestViewSummaryWrongType(c *C) {
 		[]interface{}{"foo"},
 		map[string]interface{}{"foo": "bar"},
 	} {
-		confdb, err := confdb.New("acc", "confdb", map[string]interface{}{
+		confdb, err := confdb.NewSchema("acc", "confdb", map[string]interface{}{
 			"foo": map[string]interface{}{
 				"summary": val,
 				"rules": []interface{}{
@@ -2130,7 +2130,7 @@ func (*viewSuite) TestViewSummaryWrongType(c *C) {
 }
 
 func (*viewSuite) TestViewSummary(c *C) {
-	confdb, err := confdb.New("acc", "confdb", map[string]interface{}{
+	confdb, err := confdb.NewSchema("acc", "confdb", map[string]interface{}{
 		"foo": map[string]interface{}{
 			"summary": "some summary of the view",
 			"rules": []interface{}{
@@ -2143,8 +2143,8 @@ func (*viewSuite) TestViewSummary(c *C) {
 }
 
 func (s *viewSuite) TestGetEntireView(c *C) {
-	databag := confdb.NewJSONDataBag()
-	confdb, err := confdb.New("acc", "confdb", map[string]interface{}{
+	databag := confdb.NewJSONDatabag()
+	confdb, err := confdb.NewSchema("acc", "confdb", map[string]interface{}{
 		"foo": map[string]interface{}{
 			"rules": []interface{}{
 				map[string]interface{}{"request": "foo.{bar}", "storage": "foo-path.{bar}"},
@@ -2200,10 +2200,10 @@ func (*viewSuite) TestViewContentRule(c *C) {
 		},
 	}
 
-	db, err := confdb.New("acc", "foo", views, confdb.NewJSONSchema())
+	db, err := confdb.NewSchema("acc", "foo", views, confdb.NewJSONSchema())
 	c.Assert(err, IsNil)
 
-	databag := confdb.NewJSONDataBag()
+	databag := confdb.NewJSONDatabag()
 	err = databag.Set("c.d", "value")
 	c.Assert(err, IsNil)
 
@@ -2240,10 +2240,10 @@ func (*viewSuite) TestViewWriteContentRuleNestedInRead(c *C) {
 		},
 	}
 
-	db, err := confdb.New("acc", "foo", views, confdb.NewJSONSchema())
+	db, err := confdb.NewSchema("acc", "foo", views, confdb.NewJSONSchema())
 	c.Assert(err, IsNil)
 
-	databag := confdb.NewJSONDataBag()
+	databag := confdb.NewJSONDatabag()
 	view := db.View("bar")
 	err = view.Set(databag, "a.b", "value")
 	c.Assert(err, IsNil)
@@ -2290,7 +2290,7 @@ func (*viewSuite) TestViewInvalidContentRules(c *C) {
 			},
 		}
 
-		_, err := confdb.New("acc", "foo", rules, confdb.NewJSONSchema())
+		_, err := confdb.NewSchema("acc", "foo", rules, confdb.NewJSONSchema())
 		c.Assert(err, ErrorMatches, tc.err)
 	}
 }
@@ -2319,10 +2319,10 @@ func (*viewSuite) TestViewSeveralNestedContentRules(c *C) {
 		},
 	}
 
-	db, err := confdb.New("acc", "foo", rules, confdb.NewJSONSchema())
+	db, err := confdb.NewSchema("acc", "foo", rules, confdb.NewJSONSchema())
 	c.Assert(err, IsNil)
 
-	databag := confdb.NewJSONDataBag()
+	databag := confdb.NewJSONDatabag()
 	view := db.View("bar")
 	err = view.Set(databag, "a.b.c.d", "value")
 	c.Assert(err, IsNil)
@@ -2333,7 +2333,7 @@ func (*viewSuite) TestViewSeveralNestedContentRules(c *C) {
 }
 
 func (*viewSuite) TestViewInvalidMapKeys(c *C) {
-	db, err := confdb.New("acc", "foo", map[string]interface{}{
+	db, err := confdb.NewSchema("acc", "foo", map[string]interface{}{
 		"bar": map[string]interface{}{
 			"rules": []interface{}{
 				map[string]interface{}{
@@ -2345,7 +2345,7 @@ func (*viewSuite) TestViewInvalidMapKeys(c *C) {
 	}, confdb.NewJSONSchema())
 	c.Assert(err, IsNil)
 
-	databag := confdb.NewJSONDataBag()
+	databag := confdb.NewJSONDatabag()
 	view := db.View("bar")
 
 	type testcase struct {
@@ -2396,8 +2396,8 @@ func (*viewSuite) TestViewInvalidMapKeys(c *C) {
 }
 
 func (s *viewSuite) TestSetUsingMapWithNilValuesAtLeaves(c *C) {
-	databag := confdb.NewJSONDataBag()
-	confdb, err := confdb.New("acc", "confdb", map[string]interface{}{
+	databag := confdb.NewJSONDatabag()
+	confdb, err := confdb.NewSchema("acc", "confdb", map[string]interface{}{
 		"foo": map[string]interface{}{
 			"rules": []interface{}{
 				map[string]interface{}{"request": "foo", "storage": "foo"},
@@ -2429,8 +2429,8 @@ func (s *viewSuite) TestSetUsingMapWithNilValuesAtLeaves(c *C) {
 }
 
 func (s *viewSuite) TestSetWithMultiplePathsNestedAtLeaves(c *C) {
-	databag := confdb.NewJSONDataBag()
-	confdb, err := confdb.New("acc", "confdb", map[string]interface{}{
+	databag := confdb.NewJSONDatabag()
+	confdb, err := confdb.NewSchema("acc", "confdb", map[string]interface{}{
 		"foo": map[string]interface{}{
 			"rules": []interface{}{
 				map[string]interface{}{"request": "foo.a", "storage": "foo.a"},
@@ -2469,8 +2469,8 @@ func (s *viewSuite) TestSetWithMultiplePathsNestedAtLeaves(c *C) {
 }
 
 func (s *viewSuite) TestSetWithNilAndNonNilLeaves(c *C) {
-	databag := confdb.NewJSONDataBag()
-	confdb, err := confdb.New("acc", "db", map[string]interface{}{
+	databag := confdb.NewJSONDatabag()
+	confdb, err := confdb.NewSchema("acc", "db", map[string]interface{}{
 		"foo": map[string]interface{}{
 			"rules": []interface{}{
 				map[string]interface{}{"request": "foo", "storage": "foo"},
@@ -2506,7 +2506,7 @@ func (*viewSuite) TestSetEnforcesNestednessLimit(c *C) {
 	restore := confdb.MockMaxValueDepth(2)
 	defer restore()
 
-	db, err := confdb.New("acc", "foo", map[string]interface{}{
+	db, err := confdb.NewSchema("acc", "foo", map[string]interface{}{
 		"bar": map[string]interface{}{
 			"rules": []interface{}{
 				map[string]interface{}{
@@ -2518,7 +2518,7 @@ func (*viewSuite) TestSetEnforcesNestednessLimit(c *C) {
 	}, confdb.NewJSONSchema())
 	c.Assert(err, IsNil)
 
-	databag := confdb.NewJSONDataBag()
+	databag := confdb.NewJSONDatabag()
 	view := db.View("bar")
 
 	err = view.Set(databag, "foo", map[string]interface{}{
@@ -2662,7 +2662,7 @@ func (*viewSuite) TestGetAffectedViews(c *C) {
 
 	for i, tc := range tcs {
 		cmt := Commentf("test %d out of %d failed (1-indexed)", (i + 1), len(tcs))
-		db, err := confdb.New("acc", "db", tc.views, confdb.NewJSONSchema())
+		db, err := confdb.NewSchema("acc", "db", tc.views, confdb.NewJSONSchema())
 		c.Assert(err, IsNil, cmt)
 
 		affectedViews := db.GetViewsAffectedByPath(tc.modified)

@@ -425,7 +425,7 @@ func MockConfdbstateGetView(f func(_ *state.State, _, _, _ string) (*confdb.View
 	return testutil.Mock(&confdbstateGetView, f)
 }
 
-func MockConfdbstateSetViaView(f func(confdb.DataBag, *confdb.View, map[string]interface{}) error) (restore func()) {
+func MockConfdbstateSetViaView(f func(confdb.Databag, *confdb.View, map[string]interface{}) error) (restore func()) {
 	return testutil.Mock(&confdbstateSetViaView, f)
 }
 

@@ -88,7 +88,7 @@ func (s *confdbSuite) TestConfdbUnsetDisabledFlag(c *check.C) {
 	})
 
 	_, err := snapunset.Parser(snapunset.Client()).ParseArgs([]string{"unset", "foo/bar/baz", "abc"})
-	c.Assert(err, check.ErrorMatches, `the "confdbs" feature is disabled: set 'experimental.confdbs' to true`)
+	c.Assert(err, check.ErrorMatches, `the "confdb" feature is disabled: set 'experimental.confdb' to true`)
 }
 
 func (s *confdbSuite) TestConfdbUnsetInvalidConfdbID(c *check.C) {

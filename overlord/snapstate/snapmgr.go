@@ -150,9 +150,9 @@ type SnapSetup struct {
 	// effect on which tasks get created to update the snap.
 	AlwaysUpdate bool `json:"-"`
 
-	// Confdbs is the set of confdbs that the snap plugs, identified by
+	// PluggedConfdbIDs is the set of confdb IDs that the snap plugs, identified by
 	// account and confdb name pairs.
-	Confdbs []ConfdbID `json:"confdbs,omitempty"`
+	PluggedConfdbIDs []ConfdbID `json:"plugged-confdb-ids,omitempty"`
 
 	// PreUpdateKernelModuleComponents is set if the kernel-modules component
 	// that are set up, prior to any changes to the state. This is used in the

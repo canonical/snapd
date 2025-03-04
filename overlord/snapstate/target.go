@@ -133,7 +133,7 @@ func (t *target) setups(st *state.State, opts Options) (SnapSetup, []ComponentSe
 		flags.IgnoreValidation = t.snapst.IgnoreValidation
 	}
 
-	var confdbs []ConfdbID
+	var confdbIDs []ConfdbID
 	for _, plug := range t.info.Plugs {
 		if plug.Interface != "confdb" {
 			continue
@@ -144,7 +144,7 @@ func (t *target) setups(st *state.State, opts Options) (SnapSetup, []ComponentSe
 			return SnapSetup{}, nil, err
 		}
 
-		confdbs = append(confdbs, ConfdbID{Account: account, Confdb: confdb})
+		confdbIDs = append(confdbIDs, ConfdbID{Account: account, Confdb: confdb})
 	}
 
 	providerContentAttrs := defaultProviderContentAttrs(st, t.info, opts.PrereqTracker)
@@ -167,7 +167,7 @@ func (t *target) setups(st *state.State, opts Options) (SnapSetup, []ComponentSe
 		PlugsOnly:          len(t.info.Slots) == 0,
 		InstanceKey:        t.info.InstanceKey,
 		ExpectedProvenance: t.info.SnapProvenance,
-		Confdbs:            confdbs,
+		PluggedConfdbIDs:   confdbIDs,
 		AuxStoreInfo: backend.AuxStoreInfo{
 			Media:    t.info.Media,
 			StoreURL: t.info.StoreURL,

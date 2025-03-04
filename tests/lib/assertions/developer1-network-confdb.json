@@ -1,5 +1,5 @@
 {
-	"type": "confdb",
+	"type": "confdb-schema",
 	"account-id": "developer1",
 	"authority-id": "developer1",
 	"name": "network",
