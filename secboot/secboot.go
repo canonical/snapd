@@ -150,9 +150,6 @@ type SealKeysParams struct {
 type SealKeysWithFDESetupHookParams struct {
 	// Initial model to bind sealed keys to.
 	Model ModelForSealing
-	// The path to the aux key file (if empty the key will not be
-	// saved)
-	AuxKeyFile string
 	// The primary key to use, nil if needs to be generated
 	PrimaryKey []byte
 }

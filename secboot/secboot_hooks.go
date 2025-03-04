@@ -23,6 +23,7 @@ package secboot
 import (
 	"crypto/rand"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -33,7 +34,6 @@ import (
 
 	"github.com/snapcore/snapd/kernel/fde"
 	"github.com/snapcore/snapd/logger"
-	"github.com/snapcore/snapd/osutil"
 )
 
 var fdeHasRevealKey = fde.HasRevealKey
@@ -118,12 +118,6 @@ func SealKeysWithFDESetupHook(runHook fde.RunSetupHookFunc, keys []SealKeyReques
 		}
 	}
 
-	if primaryKey != nil && params.AuxKeyFile != "" {
-		if err := osutil.AtomicWriteFile(params.AuxKeyFile, primaryKey, 0600, 0); err != nil {
-			return fmt.Errorf("cannot write the policy auth key file: %v", err)
-		}
-	}
-
 	return nil
 }
 
@@ -142,12 +136,25 @@ var setAuthorizedBootModesOnHooksKeydata = setAuthorizedBootModesOnHooksKeydataI
 // ResealKeysWithFDESetupHook updates hook based keydatas for given
 // files with a specific list of models
 func ResealKeysWithFDESetupHook(keys []KeyDataLocation, primaryKeyFile string, models []ModelForSealing, bootModes []string) error {
-	// TODO:FDEM:FIX: load primary key from keyring when available
-	primaryKeyBuf, err := os.ReadFile(primaryKeyFile)
-	if err != nil {
-		return fmt.Errorf("cannot read primary key file: %v", err)
+	var primaryKey sb.PrimaryKey
+
+	for _, key := range keys {
+		p, err := findPrimaryKey(key.DevicePath)
+		if !errors.Is(err, sb.ErrKernelKeyNotFound) {
+			return err
+		}
+		if err == nil {
+			primaryKey = sb.PrimaryKey(p)
+			break
+		}
 	}
-	primaryKey := sb.PrimaryKey(primaryKeyBuf)
+	if primaryKey == nil {
+		primaryKeyBuf, err := os.ReadFile(primaryKeyFile)
+		if err != nil {
+			return fmt.Errorf("cannot read primary key file: %v", err)
+		}
+		primaryKey = sb.PrimaryKey(primaryKeyBuf)
+	}
 
 	var sbModels []sb.SnapModel
 	for _, model := range models {
