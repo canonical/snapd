@@ -2,31 +2,31 @@
 
 ## Supported versions
 <!-- Include start supported versions -->
-Snapd has two types of releases:
+snapd has two types of releases:
 
-- Major releases, that introduce complete or partial features along with bug
-  fixes
-- Minor releases, as required to fix one or more bugs or security
-  vulnerabilities
+- Major releases: Introduce partial/complete features along with bug fixes.
+- Minor releases: Fix bugs or security vulnerabilities.
 
-We do a single release at a time, and only support the latest release with
-follow-up minor releases for bugfixes or security fixes up to the next major
-release.
+A snapd release typically involves publishing snapd snaps to the Snap Store and
+snapd debs to supported Ubuntu releases. Minor releases containing security
+fixes are developed in a private snapd repository, with fixes merged back into
+the public repository once they are ready for disclosure.
 
-A Snapd release typically includes releasing Snapd snaps to the snap store as
-well as Snapd debs to supported Ubuntu releases. Minor releases for the purpose
-of security fixes are done in a private Snapd repository and the fixes merged
-back into public repository when it is ready to be disclosed.
+The latest snapd snap major release receives support through minor releases
+until the next major release. Similarly, snapd debs for Ubuntu versions within
+standard support receive minor releases up to the next major release. For
+Ubuntu versions outside standard support, snapd debs continue receiving minor
+releases typically based on the last major release before the end of standard
+support.
 
 <!-- Include end supported versions -->
 
 ## What qualifies as a security issue
 
-Without custom flags at installation, snaps are confined to a restrictive
-security sandbox with no access to system resources outside of the snap other
-than whats allowed by store approved interfaces. Any vulnerability that allows
-snaps to operate outside of the intended restrictions qualifies as a security
-issue.
+By default, snaps are confined within a restrictive security sandbox,
+preventing access to system resources beyond what is explicitly allowed by
+store-approved interfaces. Any vulnerability that enables a snap to operate
+outside of these intended restrictions qualifies as a security issue.
 
 ## Reporting a vulnerability
 
@@ -36,13 +36,10 @@ The easiest way to report a security issue is through
 vulnerability](https://docs.github.com/en/code-security/security-advisories/guidance-on-reporting-and-writing/privately-reporting-a-security-vulnerability)
 for instructions.
 
-Alternatively, please email [security@ubuntu.com](mailto:security@ubuntu.com) with a description of the issue, the
-steps you took to create the issue, affected versions, and, if known, mitigations for the issue.
-
-The Snapd GitHub admins will be notified of the issue and will work with you
+The snapd GitHub admins will be notified of the issue and will work with you
 to determine whether the issue qualifies as a security issue and, if so, in
 which component. We will then handle figuring out a fix, getting a CVE
-assigned and coordinating the release of the fix to the Snapd snap and the
+assigned and coordinating the release of the fix to the snapd snap and the
 various Ubuntu releases and Linux distributions.
 
 The [Ubuntu Security disclosure and embargo
