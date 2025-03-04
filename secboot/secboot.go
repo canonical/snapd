@@ -182,8 +182,8 @@ type ResealKeysParams struct {
 	PCRProfile SerializedPCRProfile
 	// The locations to the key data
 	Keys []KeyDataLocation
-	// The path to the authorization policy update key file (only relevant for TPM)
-	TPMPolicyAuthKeyFile string
+	// The primary key
+	PrimaryKey []byte
 }
 
 // UnlockVolumeUsingSealedKeyOptions contains options for unlocking encrypted

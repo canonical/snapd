@@ -525,3 +525,24 @@ func sbCopyAndRemoveLUKS2ContainerKeyImpl(devicePath, keyslotName, renameTo stri
 }
 
 var sbCopyAndRemoveLUKS2ContainerKey = sbCopyAndRemoveLUKS2ContainerKeyImpl
+
+// GetPrimaryKey finds the primary from the keyring based on the path of
+// encrypted devices. If it does not find any primary in the keyring,
+// it then tries to read the key from a fallback key file.
+func GetPrimaryKey(devices []string, fallbackKeyFile string) ([]byte, error) {
+	for _, device := range devices {
+		primaryKey, err := findPrimaryKey(device)
+		if err == nil {
+			return primaryKey, nil
+		}
+		if !errors.Is(err, sb.ErrKernelKeyNotFound) {
+			return nil, err
+		}
+	}
+
+	primaryKey, err := os.ReadFile(fallbackKeyFile)
+	if err != nil {
+		return nil, fmt.Errorf("could not find primary in keyring and cannot read fallback primary key file %s: %w", fallbackKeyFile, err)
+	}
+	return primaryKey, nil
+}

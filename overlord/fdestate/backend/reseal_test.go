@@ -370,7 +370,7 @@ func (s *resealTestSuite) TestTPMResealHappy(c *C) {
 	restore = backend.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error {
 		resealCalls++
 
-		c.Check(params.TPMPolicyAuthKeyFile, Equals, filepath.Join(dirs.SnapSaveDir, "device/fde", "tpm-policy-auth-key"))
+		c.Check(params.PrimaryKey, DeepEquals, []byte{1, 2, 3, 4})
 
 		c.Check(params.PCRProfile, DeepEquals, secboot.SerializedPCRProfile(`"serialized-pcr-profile"`))
 		switch resealCalls {
@@ -426,6 +426,12 @@ func (s *resealTestSuite) TestTPMResealHappy(c *C) {
 			},
 		},
 	}
+
+	defer backend.MockSecbootGetPrimaryKey(func(devices []string, fallbackKeyFile string) ([]byte, error) {
+		c.Check(fallbackKeyFile, Equals, filepath.Join(dirs.SnapSaveDir, "device/fde", "tpm-policy-auth-key"))
+		c.Check(devices, DeepEquals, []string{"/dev/disk/by-uuid/123", "/dev/disk/by-uuid/456"})
+		return []byte{1, 2, 3, 4}, nil
+	})()
 
 	const expectReseal = true
 	err := backend.ResealKeyForBootChains(myState, device.SealingMethodTPM, s.rootdir, params, expectReseal)
@@ -713,7 +719,7 @@ func (s *resealTestSuite) TestResealKeyForBootchainsWithSystemFallback(c *C) {
 		// set mock key resealing
 		resealKeysCalls := 0
 		restore = backend.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error {
-			c.Check(params.TPMPolicyAuthKeyFile, Equals, filepath.Join(dirs.SnapSaveDir, "device/fde", "tpm-policy-auth-key"))
+			c.Check(params.PrimaryKey, DeepEquals, []byte{1, 2, 3, 4})
 
 			resealKeysCalls++
 			c.Check(params.PCRProfile, DeepEquals, secboot.SerializedPCRProfile(`"serialized-pcr-profile"`))
@@ -1028,6 +1034,12 @@ func (s *resealTestSuite) TestResealKeyForBootchainsWithSystemFallback(c *C) {
 			},
 		}
 
+		defer backend.MockSecbootGetPrimaryKey(func(devices []string, fallbackKeyFile string) ([]byte, error) {
+			c.Check(fallbackKeyFile, Equals, filepath.Join(dirs.SnapSaveDir, "device/fde", "tpm-policy-auth-key"))
+			c.Check(devices, DeepEquals, []string{"/dev/disk/by-uuid/123", "/dev/disk/by-uuid/456"})
+			return []byte{1, 2, 3, 4}, nil
+		})()
+
 		const expectReseal = false
 		err := backend.ResealKeyForBootChains(myState, device.SealingMethodTPM, rootdir, params, expectReseal)
 		if tc.err == "" {
@@ -1161,7 +1173,7 @@ func (s *resealTestSuite) TestResealKeyForBootchainsRecoveryKeysForGoodSystemsOn
 	// set mock key resealing
 	resealKeysCalls := 0
 	restore = backend.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error {
-		c.Check(params.TPMPolicyAuthKeyFile, Equals, filepath.Join(dirs.SnapSaveDir, "device/fde", "tpm-policy-auth-key"))
+		c.Check(params.PrimaryKey, DeepEquals, []byte{1, 2, 3, 4})
 
 		resealKeysCalls++
 		c.Check(params.PCRProfile, DeepEquals, secboot.SerializedPCRProfile(`"serialized-pcr-profile"`))
@@ -1345,6 +1357,12 @@ func (s *resealTestSuite) TestResealKeyForBootchainsRecoveryKeysForGoodSystemsOn
 		},
 	}
 
+	defer backend.MockSecbootGetPrimaryKey(func(devices []string, fallbackKeyFile string) ([]byte, error) {
+		c.Check(fallbackKeyFile, Equals, filepath.Join(dirs.SnapSaveDir, "device/fde", "tpm-policy-auth-key"))
+		c.Check(devices, DeepEquals, []string{"/dev/disk/by-uuid/123", "/dev/disk/by-uuid/456"})
+		return []byte{1, 2, 3, 4}, nil
+	})()
+
 	const expectReseal = false
 	err := backend.ResealKeyForBootChains(myState, device.SealingMethodTPM, s.rootdir, params, expectReseal)
 	c.Assert(err, IsNil)
@@ -1502,7 +1520,7 @@ func (s *resealTestSuite) testResealKeyForBootchainsWithTryModel(c *C, shimId, g
 	// set mock key resealing
 	resealKeysCalls := 0
 	restore = backend.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error {
-		c.Check(params.TPMPolicyAuthKeyFile, Equals, filepath.Join(dirs.SnapSaveDir, "device/fde", "tpm-policy-auth-key"))
+		c.Check(params.PrimaryKey, DeepEquals, []byte{1, 2, 3, 4})
 
 		resealKeysCalls++
 		c.Check(params.PCRProfile, DeepEquals, secboot.SerializedPCRProfile(`"serialized-pcr-profile"`))
@@ -1675,6 +1693,12 @@ func (s *resealTestSuite) testResealKeyForBootchainsWithTryModel(c *C, shimId, g
 			},
 		},
 	}
+
+	defer backend.MockSecbootGetPrimaryKey(func(devices []string, fallbackKeyFile string) ([]byte, error) {
+		c.Check(fallbackKeyFile, Equals, filepath.Join(dirs.SnapSaveDir, "device/fde", "tpm-policy-auth-key"))
+		c.Check(devices, DeepEquals, []string{"/dev/disk/by-uuid/123", "/dev/disk/by-uuid/456"})
+		return []byte{1, 2, 3, 4}, nil
+	})()
 
 	const expectReseal = false
 	err := backend.ResealKeyForBootChains(myState, device.SealingMethodTPM, s.rootdir, params, expectReseal)
@@ -1870,6 +1894,12 @@ func (s *resealTestSuite) TestResealKeyForBootchainsFallbackCmdline(c *C) {
 		},
 	}
 
+	defer backend.MockSecbootGetPrimaryKey(func(devices []string, fallbackKeyFile string) ([]byte, error) {
+		c.Check(fallbackKeyFile, Equals, filepath.Join(dirs.SnapSaveDir, "device/fde", "tpm-policy-auth-key"))
+		c.Check(devices, DeepEquals, []string{"/dev/disk/by-uuid/123", "/dev/disk/by-uuid/456"})
+		return []byte{1, 2, 3, 4}, nil
+	})()
+
 	const expectReseal = false
 	err = backend.ResealKeyForBootChains(myState, device.SealingMethodTPM, s.rootdir, params, expectReseal)
 	c.Assert(err, IsNil)
@@ -1926,7 +1956,7 @@ func (s *resealTestSuite) TestHooksResealHappy(c *C) {
 	}
 
 	resealCalls := 0
-	restore := backend.MockSecbootResealKeysWithFDESetupHook(func(keys []secboot.KeyDataLocation, primaryKeyFile string, models []secboot.ModelForSealing, bootModes []string) error {
+	restore := backend.MockSecbootResealKeysWithFDESetupHook(func(keys []secboot.KeyDataLocation, primaryKey []byte, models []secboot.ModelForSealing, bootModes []string) error {
 		resealCalls++
 
 		switch resealCalls {
@@ -1939,7 +1969,7 @@ func (s *resealTestSuite) TestHooksResealHappy(c *C) {
 					KeyFile:    filepath.Join(s.rootdir, "run/mnt/ubuntu-boot/device/fde/ubuntu-data.sealed-key"),
 				},
 			})
-			c.Check(primaryKeyFile, Equals, filepath.Join(s.rootdir, "run/mnt/ubuntu-save/device/fde/aux-key"))
+			c.Check(primaryKey, DeepEquals, []byte{1, 2, 3, 4})
 			c.Assert(models, HasLen, 1)
 			c.Check(models[0].Model(), Equals, model.Model())
 			c.Check(bootModes, DeepEquals, []string{"run", "recover"})
@@ -1952,7 +1982,7 @@ func (s *resealTestSuite) TestHooksResealHappy(c *C) {
 					KeyFile:    filepath.Join(s.rootdir, "run/mnt/ubuntu-seed/device/fde/ubuntu-data.recovery.sealed-key"),
 				},
 			})
-			c.Check(primaryKeyFile, Equals, filepath.Join(s.rootdir, "run/mnt/ubuntu-save/device/fde/aux-key"))
+			c.Check(primaryKey, DeepEquals, []byte{1, 2, 3, 4})
 			c.Assert(models, HasLen, 1)
 			c.Check(models[0].Model(), Equals, model.Model())
 			c.Check(bootModes, DeepEquals, []string{"recover"})
@@ -1965,7 +1995,7 @@ func (s *resealTestSuite) TestHooksResealHappy(c *C) {
 					KeyFile:    filepath.Join(s.rootdir, "run/mnt/ubuntu-seed/device/fde/ubuntu-save.recovery.sealed-key"),
 				},
 			})
-			c.Check(primaryKeyFile, Equals, filepath.Join(s.rootdir, "run/mnt/ubuntu-save/device/fde/aux-key"))
+			c.Check(primaryKey, DeepEquals, []byte{1, 2, 3, 4})
 			c.Assert(models, HasLen, 1)
 			c.Check(models[0].Model(), Equals, model.Model())
 			c.Check(bootModes, DeepEquals, []string{"recover", "factory-reset"})
@@ -1995,6 +2025,12 @@ func (s *resealTestSuite) TestHooksResealHappy(c *C) {
 			},
 		},
 	}
+
+	defer backend.MockSecbootGetPrimaryKey(func(devices []string, fallbackKeyFile string) ([]byte, error) {
+		c.Check(fallbackKeyFile, Equals, filepath.Join(s.rootdir, "run/mnt/ubuntu-save/device/fde/aux-key"))
+		c.Check(devices, DeepEquals, []string{"/dev/disk/by-uuid/123", "/dev/disk/by-uuid/456"})
+		return []byte{1, 2, 3, 4}, nil
+	})()
 
 	const expectReseal = true
 	err := backend.ResealKeyForBootChains(myState, device.SealingMethodFDESetupHook, s.rootdir, params, expectReseal)
@@ -2153,6 +2189,12 @@ func (s *resealTestSuite) TestResealKeyForSignatureDBUpdate(c *C) {
 			},
 		},
 	}
+
+	defer backend.MockSecbootGetPrimaryKey(func(devices []string, fallbackKeyFile string) ([]byte, error) {
+		c.Check(fallbackKeyFile, Equals, filepath.Join(dirs.SnapSaveDir, "device/fde", "tpm-policy-auth-key"))
+		c.Check(devices, DeepEquals, []string{"/dev/disk/by-uuid/123", "/dev/disk/by-uuid/456"})
+		return []byte{1, 2, 3, 4}, nil
+	})()
 
 	err = backend.ResealKeysForSignaturesDBUpdate(myState, device.SealingMethodTPM, dirs.GlobalRootDir,
 		params, []byte("dbx-payload"))

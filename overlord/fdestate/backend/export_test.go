@@ -23,7 +23,7 @@ import (
 	"github.com/snapcore/snapd/secboot"
 )
 
-func MockSecbootResealKeysWithFDESetupHook(f func(keys []secboot.KeyDataLocation, primaryKeyFile string, models []secboot.ModelForSealing, bootModes []string) error) (restore func()) {
+func MockSecbootResealKeysWithFDESetupHook(f func(keys []secboot.KeyDataLocation, primaryKey []byte, models []secboot.ModelForSealing, bootModes []string) error) (restore func()) {
 	old := secbootResealKeysWithFDESetupHook
 	secbootResealKeysWithFDESetupHook = f
 	return func() {
