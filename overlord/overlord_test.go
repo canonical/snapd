@@ -37,6 +37,7 @@ import (
 
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/dirs/dirstest"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/devicestate/devicestatetest"
@@ -90,6 +91,7 @@ func (ovs *overlordSuite) SetUpTest(c *C) {
 	}
 
 	tmpdir := c.MkDir()
+	dirstest.MustMockCanonicalSnapMountDir(tmpdir)
 	dirs.SetRootDir(tmpdir)
 	ovs.AddCleanup(func() { dirs.SetRootDir("") })
 	ovs.AddCleanup(osutil.MockMountInfo(""))
