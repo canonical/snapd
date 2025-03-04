@@ -35,7 +35,6 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
-	"github.com/snapcore/snapd/sandbox/apparmor/notify"
 	"github.com/snapcore/snapd/snapdtool"
 	"github.com/snapcore/snapd/strutil"
 )
@@ -305,6 +304,14 @@ const (
 	Full
 )
 
+var (
+	ConfDir                string
+	CacheDir               string
+	SystemCacheDir         string
+	SnapConfineAppArmorDir string
+	NotifySocketPath       string
+)
+
 func setupConfCacheDirs(newrootdir string) {
 	ConfDir = filepath.Join(newrootdir, "/etc/apparmor.d")
 	CacheDir = filepath.Join(newrootdir, "/var/cache/apparmor")
@@ -329,17 +336,17 @@ func setupConfCacheDirs(newrootdir string) {
 	SnapConfineAppArmorDir = filepath.Join(dirs.SnapdStateDir(newrootdir), "apparmor", snapConfineDir)
 }
 
+func setupNotifySocketPath(newrootdir string) {
+	NotifySocketPath = filepath.Join(newrootdir, "/sys/kernel/security/apparmor/.notify")
+}
+
 func init() {
 	dirs.AddRootDirCallback(setupConfCacheDirs)
 	setupConfCacheDirs(dirs.GlobalRootDir)
-}
 
-var (
-	ConfDir                string
-	CacheDir               string
-	SystemCacheDir         string
-	SnapConfineAppArmorDir string
-)
+	dirs.AddRootDirCallback(setupNotifySocketPath)
+	setupNotifySocketPath(dirs.GlobalRootDir)
+}
 
 func (level LevelType) String() string {
 	switch level {
@@ -464,7 +471,7 @@ func PromptingSupportedByFeatures(apparmorFeatures *FeaturesSupported) (bool, st
 			return false, "apparmor kernel features do not support prompting for file access"
 		}
 	}
-	if !notify.SupportAvailable() {
+	if !osutil.FileExists(NotifySocketPath) {
 		return false, "apparmor kernel notification socket required by prompting listener is not present"
 	}
 	version, err := probeKernelFeaturesPermstable32Version()
@@ -664,8 +671,6 @@ func probeKernelFeatures() ([]string, error) {
 		}
 	}
 	if data, err := os.ReadFile(filepath.Join(rootPath, featuresSysPath, "policy", "notify", "user")); err == nil {
-		// XXX: there's no feature added for policy:notify:user, since user is
-		// a file rather than a directory.
 		notifyUserFeatures := strings.Fields(string(data))
 		for _, feat := range notifyUserFeatures {
 			features = append(features, "policy:notify:user:"+feat)
@@ -683,12 +688,12 @@ func probeKernelFeaturesInDirRecursively(dir string, prefix string) ([]string, e
 	}
 	features := make([]string, 0, len(dentries))
 	for _, fi := range dentries {
+		featureName := fi.Name()
+		if prefix != "" {
+			featureName = prefix + ":" + fi.Name()
+		}
+		features = append(features, featureName)
 		if fi.IsDir() {
-			featureName := fi.Name()
-			if prefix != "" {
-				featureName = prefix + ":" + fi.Name()
-			}
-			features = append(features, featureName)
 			subFeatures, err := probeKernelFeaturesInDirRecursively(filepath.Join(dir, fi.Name()), featureName)
 			if err != nil {
 				return []string{}, err
