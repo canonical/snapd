@@ -24,14 +24,17 @@ import (
 	"fmt"
 
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/polkit/validate"
 	"github.com/snapcore/snapd/snap"
 )
 
 type Policy []byte
+type Rule []byte
 
 // Specification keeps all the polkit policies.
 type Specification struct {
 	policyFiles map[string]Policy
+	ruleFiles   map[string]Rule
 }
 
 // AddPolicy adds a polkit policy file to install.
@@ -54,6 +57,36 @@ func (spec *Specification) Policies() map[string]Policy {
 	result := make(map[string]Policy, len(spec.policyFiles))
 	for k, v := range spec.policyFiles {
 		result[k] = make(Policy, len(v))
+		copy(result[k], v)
+	}
+	return result
+}
+
+// AddRule adds a polkit rule file to install.
+func (spec *Specification) AddRule(nameSuffix string, content Rule) error {
+	if err := validate.ValidateRuleNameSuffix(nameSuffix); err != nil {
+		return err
+	}
+	if old, ok := spec.ruleFiles[nameSuffix]; ok && !bytes.Equal(old, content) {
+		return fmt.Errorf("internal error: polkit rule content for %q re-defined with different content", nameSuffix)
+	}
+	if spec.ruleFiles == nil {
+		spec.ruleFiles = make(map[string]Rule)
+	}
+	spec.ruleFiles[nameSuffix] = content
+	return nil
+}
+
+// Rules returns a map of polkit rules added to the Specification.
+// This maps from rule name suffixes (without the ".rules" suffix)
+// to the content required to be installed.
+func (spec *Specification) Rules() map[string]Rule {
+	if spec.ruleFiles == nil {
+		return nil
+	}
+	result := make(map[string]Rule, len(spec.ruleFiles))
+	for k, v := range spec.ruleFiles {
+		result[k] = make(Rule, len(v))
 		copy(result[k], v)
 	}
 	return result
