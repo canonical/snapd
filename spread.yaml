@@ -797,6 +797,9 @@ prepare: |
         else
             exit 1
         fi
+        # workaround for https://warthogs.atlassian.net/browse/SNAPDENG-34591
+        awk '/\[community\]/ {print "#" $0; getline; print "#" $0; next} {print}' < /etc/pacman.conf > /etc/pacman.conf.spread
+        mv /etc/pacman.conf.spread /etc/pacman.conf
     fi
 
     if [[ "$SPREAD_SYSTEM" == debian-* ]]; then
