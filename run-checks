@@ -120,7 +120,7 @@ missing_interface_spread_test() {
                 # skip gadget provided interfaces for now
                 continue
                 ;;
-            cuda-driver-libs)
+            cuda-driver-libs|egl-driver-libs)
                 # skip interfaces with plug side only in rootfs for now
                 continue
                 ;;
