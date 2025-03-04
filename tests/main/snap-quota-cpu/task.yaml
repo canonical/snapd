@@ -19,6 +19,7 @@ prepare: |
 restore: |
   echo "Stopping the service"
   snap stop test-snapd-stressd.stress-sc
+  snap remove-quota group-one || true
 
 execute: |
   echo "Starting service and verifying cpu usage"
