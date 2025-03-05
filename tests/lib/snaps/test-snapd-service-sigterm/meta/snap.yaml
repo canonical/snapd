@@ -6,6 +6,6 @@ apps:
         daemon: simple
         stop-mode: sigterm
     test-snapd-sigterm-all-service:
-        command: bin/start-stop-mode-sigterm
+        command: bin/start-stop-mode-sigterm --sigterm-all
         daemon: simple
         stop-mode: sigterm-all
