@@ -2547,7 +2547,7 @@ func (s *infoSuite) TestConfdbPlugAttrsInvalid(c *C) {
 			iface:   "confdb",
 			account: "my-acc",
 			view:    "reg",
-			err:     "\"view\" must conform to <confdb>/<view>: reg",
+			err:     "\"view\" must conform to <confdb-schema>/<view>: reg",
 		},
 	}
 

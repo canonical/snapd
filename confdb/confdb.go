@@ -79,7 +79,7 @@ func NewNotFoundError(msg string, v ...any) *NotFoundError {
 
 type BadRequestError struct {
 	Account    string
-	ConfdbName string
+	SchemaName string
 	View       string
 	Operation  string
 	Request    string
@@ -87,7 +87,7 @@ type BadRequestError struct {
 }
 
 func (e *BadRequestError) Error() string {
-	return fmt.Sprintf("cannot %s %q in confdb view %s/%s/%s: %s", e.Operation, e.Request, e.Account, e.ConfdbName, e.View, e.Cause)
+	return fmt.Sprintf("cannot %s %q in confdb view %s/%s/%s: %s", e.Operation, e.Request, e.Account, e.SchemaName, e.View, e.Cause)
 }
 
 func (e *BadRequestError) Is(err error) bool {
@@ -97,8 +97,8 @@ func (e *BadRequestError) Is(err error) bool {
 
 func badRequestErrorFrom(v *View, operation, request, msg string) *BadRequestError {
 	return &BadRequestError{
-		Account:    v.confdb.Account,
-		ConfdbName: v.confdb.Name,
+		Account:    v.schema.Account,
+		SchemaName: v.schema.Name,
 		View:       v.Name,
 		Operation:  operation,
 		Request:    request,
@@ -180,8 +180,8 @@ type Schema struct {
 	views         map[string]*View
 }
 
-// GetViewsAffectedByPath returns all the views in the confdb that have visibility
-// into a storage path.
+// GetViewsAffectedByPath returns all the views in the confdb schema that have
+// visibility into a storage path.
 func (s *Schema) GetViewsAffectedByPath(path string) []*View {
 	var views []*View
 	for _, view := range s.views {
@@ -220,15 +220,16 @@ func pathChangeAffects(modified, affected string) bool {
 	return true
 }
 
-// NewSchema returns a new confdb with the specified views and their rules.
-func NewSchema(account string, confdbName string, views map[string]interface{}, schema DatabagSchema) (*Schema, error) {
+// NewSchema returns a new confdb schema with the specified views (and their
+// rules) and storage schema.
+func NewSchema(account string, dbSchemaName string, views map[string]interface{}, schema DatabagSchema) (*Schema, error) {
 	if len(views) == 0 {
-		return nil, errors.New(`cannot define confdb: no views`)
+		return nil, errors.New(`cannot define confdb schema: no views`)
 	}
 
-	confdb := &Schema{
+	dbSchema := &Schema{
 		Account:       account,
-		Name:          confdbName,
+		Name:          dbSchemaName,
 		DatabagSchema: schema,
 		views:         make(map[string]*View, len(views)),
 	}
@@ -254,22 +255,22 @@ func NewSchema(account string, confdbName string, views map[string]interface{}, 
 			return nil, fmt.Errorf("cannot define view %q: view rules must be non-empty list", name)
 		}
 
-		view, err := newView(confdb, name, rules)
+		view, err := newView(dbSchema, name, rules)
 		if err != nil {
 			return nil, fmt.Errorf("cannot define view %q: %w", name, err)
 		}
 
-		confdb.views[name] = view
+		dbSchema.views[name] = view
 	}
 
-	return confdb, nil
+	return dbSchema, nil
 }
 
-func newView(confdb *Schema, name string, viewRules []interface{}) (*View, error) {
+func newView(dbSchema *Schema, name string, viewRules []interface{}) (*View, error) {
 	view := &View{
 		Name:   name,
 		rules:  make([]*viewRule, 0, len(viewRules)),
-		confdb: confdb,
+		schema: dbSchema,
 	}
 
 	for _, ruleRaw := range viewRules {
@@ -304,7 +305,7 @@ func newView(confdb *Schema, name string, viewRules []interface{}) (*View, error
 	}
 
 	for _, rules := range pathToRules {
-		if err := checkSchemaMismatch(confdb.DatabagSchema, rules); err != nil {
+		if err := checkSchemaMismatch(dbSchema.DatabagSchema, rules); err != nil {
 			return nil, err
 		}
 	}
@@ -461,20 +462,20 @@ func getPlaceholders(viewStr string) map[string]bool {
 	return placeholders
 }
 
-// View returns a view from the confdb.
+// View returns a view from the confdb schema.
 func (s *Schema) View(view string) *View {
 	return s.views[view]
 }
 
-// View carries access rules for a particular view in a confdb.
+// View carries access rules for a particular view in a confdb schema.
 type View struct {
 	Name   string
 	rules  []*viewRule
-	confdb *Schema
+	schema *Schema
 }
 
 func (v *View) ConfdbSchema() *Schema {
-	return v.confdb
+	return v.schema
 }
 
 type expandedMatch struct {
@@ -551,7 +552,7 @@ func (v *View) Set(databag Databag, request string, value interface{}) error {
 	}
 
 	if len(matches) == 0 {
-		return NewNotFoundError(i18n.G("cannot set %q through %s/%s/%s: no matching rule"), request, v.confdb.Account, v.confdb.Name, v.Name)
+		return NewNotFoundError(i18n.G("cannot set %q through %s/%s/%s: no matching rule"), request, v.schema.Account, v.schema.Name, v.Name)
 	}
 
 	// sort less nested paths before more nested ones so that writes aren't overwritten
@@ -600,7 +601,7 @@ func (v *View) Set(databag Databag, request string, value interface{}) error {
 	// TODO: when using a transaction, the data only changes on commit so
 	// this is a bit of a waste. Maybe cache the result so we only do the first
 	// validation and then in viewstate on Commit
-	if err := v.confdb.DatabagSchema.Validate(data); err != nil {
+	if err := v.schema.DatabagSchema.Validate(data); err != nil {
 		return fmt.Errorf(`cannot write data: %w`, err)
 	}
 
@@ -618,7 +619,7 @@ func (v *View) Unset(databag Databag, request string) error {
 	}
 
 	if len(matches) == 0 {
-		return NewNotFoundError(i18n.G("cannot unset %q through %s/%s/%s: no matching rule"), request, v.confdb.Account, v.confdb.Name, v.Name)
+		return NewNotFoundError(i18n.G("cannot unset %q through %s/%s/%s: no matching rule"), request, v.schema.Account, v.schema.Name, v.Name)
 	}
 
 	for _, match := range matches {
@@ -634,7 +635,7 @@ func (v *View) Unset(databag Databag, request string) error {
 		// TODO: when using a transaction, the data only changes on commit so
 		// this is a bit of a waste. Maybe cache the result so we only do the first
 		// validation and then in viewstate on Commit
-		if err := v.confdb.DatabagSchema.Validate(data); err != nil {
+		if err := v.schema.DatabagSchema.Validate(data); err != nil {
 			return fmt.Errorf(`cannot unset data: %w`, err)
 		}
 	}
@@ -1023,7 +1024,7 @@ func (v *View) Get(databag Databag, request string) (interface{}, error) {
 			reqStr = fmt.Sprintf(" %q through", request)
 		}
 
-		return nil, NewNotFoundError(i18n.G("cannot get%s %s/%s/%s: no view data"), reqStr, v.confdb.Account, v.confdb.Name, v.Name)
+		return nil, NewNotFoundError(i18n.G("cannot get%s %s/%s/%s: no view data"), reqStr, v.schema.Account, v.schema.Name, v.Name)
 	}
 
 	return merged, nil
@@ -1107,7 +1108,7 @@ func (v *View) matchGetRequest(request string) (matches []requestMatch, err erro
 	}
 
 	if len(matches) == 0 {
-		return nil, NewNotFoundError(i18n.G("cannot get %q through %s/%s/%s: no matching rule"), request, v.confdb.Account, v.confdb.Name, v.Name)
+		return nil, NewNotFoundError(i18n.G("cannot get %q through %s/%s/%s: no matching rule"), request, v.schema.Account, v.schema.Name, v.Name)
 	}
 
 	// sort matches by namespace (unmatched suffix) to ensure that nested matches

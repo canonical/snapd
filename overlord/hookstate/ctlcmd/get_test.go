@@ -774,12 +774,12 @@ func (s *confdbSuite) TestConfdbGetAndSetAssertionNotFound(c *C) {
 	s.state.Unlock()
 
 	stdout, stderr, err := ctlcmd.Run(s.mockContext, []string{"get", "--view", ":read-wifi"}, 0)
-	c.Assert(err, ErrorMatches, fmt.Sprintf("cannot find confdb %s/network: assertion not found", s.devAccID))
+	c.Assert(err, ErrorMatches, fmt.Sprintf("cannot find confdb schema %s/network: assertion not found", s.devAccID))
 	c.Check(stdout, IsNil)
 	c.Check(stderr, IsNil)
 
 	stdout, stderr, err = ctlcmd.Run(s.mockContext, []string{"set", "--view", ":write-wifi", "ssid=my-ssid"}, 0)
-	c.Assert(err, ErrorMatches, fmt.Sprintf("cannot find confdb %s/network: assertion not found", s.devAccID))
+	c.Assert(err, ErrorMatches, fmt.Sprintf("cannot find confdb schema %s/network: assertion not found", s.devAccID))
 	c.Check(stdout, IsNil)
 	c.Check(stderr, IsNil)
 }
@@ -815,12 +815,12 @@ func (s *confdbSuite) TestConfdbGetAndSetViewNotFound(c *C) {
 	s.state.Unlock()
 
 	stdout, stderr, err := ctlcmd.Run(s.mockContext, []string{"get", "--view", ":read-wifi"}, 0)
-	c.Assert(err, ErrorMatches, fmt.Sprintf("cannot find view \"read-wifi\" in confdb %s/network", s.devAccID))
+	c.Assert(err, ErrorMatches, fmt.Sprintf("cannot find view \"read-wifi\" in confdb schema %s/network", s.devAccID))
 	c.Check(stdout, IsNil)
 	c.Check(stderr, IsNil)
 
 	stdout, stderr, err = ctlcmd.Run(s.mockContext, []string{"set", "--view", ":write-wifi", "ssid=my-ssid"}, 0)
-	c.Assert(err, ErrorMatches, fmt.Sprintf("cannot find view \"write-wifi\" in confdb %s/network", s.devAccID))
+	c.Assert(err, ErrorMatches, fmt.Sprintf("cannot find view \"write-wifi\" in confdb schema %s/network", s.devAccID))
 	c.Check(stdout, IsNil)
 	c.Check(stderr, IsNil)
 }

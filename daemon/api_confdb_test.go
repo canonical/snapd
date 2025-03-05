@@ -521,7 +521,7 @@ func (s *confdbSuite) TestGetBadRequest(c *C) {
 	restore := daemon.MockConfdbstateGet(func(_ *state.State, acc, confdbName, view string, fields []string) (interface{}, error) {
 		return nil, &confdb.BadRequestError{
 			Account:    "acc",
-			ConfdbName: "db",
+			SchemaName: "db",
 			View:       "foo",
 			Operation:  "get",
 			Request:    "foo",
@@ -547,7 +547,7 @@ func (s *confdbSuite) TestSetBadRequest(c *C) {
 		// but the error handling is the same so this shortens the test
 		return nil, &confdb.BadRequestError{
 			Account:    "acc",
-			ConfdbName: "db",
+			SchemaName: "db",
 			View:       "foo",
 			Operation:  "set",
 			Request:    "foo",

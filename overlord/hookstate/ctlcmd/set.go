@@ -34,7 +34,7 @@ import (
 	"github.com/snapcore/snapd/overlord/hookstate"
 )
 
-var confdbstateGetTransaction = confdbstate.GetTransactionToModify
+var confdbstateGetTransaction = confdbstate.GetTransactionToSet
 
 type setCommand struct {
 	baseCommand
@@ -236,12 +236,12 @@ func setConfdbValues(ctx *hookstate.Context, plugName string, requests map[strin
 	ctx.Lock()
 	defer ctx.Unlock()
 
-	account, confdbName, viewName, err := getConfdbViewID(ctx, plugName)
+	account, dbSchemaName, viewName, err := getConfdbViewID(ctx, plugName)
 	if err != nil {
 		return err
 	}
 
-	view, err := confdbstateGetView(ctx.State(), account, confdbName, viewName)
+	view, err := confdbstateGetView(ctx.State(), account, dbSchemaName, viewName)
 	if err != nil {
 		return err
 	}

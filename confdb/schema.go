@@ -218,8 +218,8 @@ func parseEphemeral(constraints map[string]json.RawMessage) (bool, error) {
 	return false, nil
 }
 
-// StorageSchema represents a confdb schema and can be used to validate the
-// storage.
+// StorageSchema represents a confdb storage schema and can be used to validate
+// the storage.
 type StorageSchema struct {
 	// topLevel is the schema for the top level map.
 	topLevel DatabagSchema
@@ -526,7 +526,7 @@ type mapSchema struct {
 }
 
 // Validate that raw is a valid map and meets the constraints set by the
-// confdb schema.
+// confdb storage schema.
 func (v *mapSchema) Validate(raw []byte) error {
 	var mapValue map[string]json.RawMessage
 	if err := json.Unmarshal(raw, &mapValue); err != nil {

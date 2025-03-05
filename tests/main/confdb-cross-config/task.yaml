@@ -53,7 +53,7 @@ execute: |
   test-custodian-snap.sh -c 'snapctl set --view :manage-wifi ssid=first'
   changeAfterID "$OLD_CHANGE"
 
-  retry -n 5 --wait 1 sh -c 'snap changes | tail -n 2 | grep "Done.*Modify confdb \"developer1/network\""'
+  retry -n 5 --wait 1 sh -c 'snap changes | tail -n 2 | grep "Done.*Set confdb through \"developer1/network/wifi-setup\""'
   # check that the right hooks were called and they can see the expected values
   MATCH "first" < /var/snap/test-custodian-snap/common/change-view-manage-wifi-ran
   # the value was modified by change-confdb
@@ -71,7 +71,7 @@ execute: |
   OLD_CHANGE=$(snap changes | tail -n 2 | head -n 1 | awk '{print $1}')
   test-snap.sh -c 'snapctl set --view :setup-wifi ssid=second'
   changeAfterID "$OLD_CHANGE"
-  retry -n 5 --wait 1 sh -c 'snap changes | tail -n 2 | grep "Done.*Modify confdb \"developer1/network\""'
+  retry -n 5 --wait 1 sh -c 'snap changes | tail -n 2 | grep "Done.*Set confdb through \"developer1/network/wifi-setup\""'
   MATCH "second" < /var/snap/test-custodian-snap/common/change-view-manage-wifi-ran
   # the value was modified by the custodian snap
   MATCH "second-custodian" < /var/snap/test-custodian-snap/common/save-view-manage-wifi-ran
@@ -90,7 +90,7 @@ execute: |
   test-snap.sh -c 'snapctl set --view :setup-wifi ssid=third'
   changeAfterID "$OLD_CHANGE"
 
-  retry -n 5 --wait 1 sh -c 'snap changes | tail -n 2 | grep "Error.*Modify confdb \"developer1/network\""'
+  retry -n 5 --wait 1 sh -c 'snap changes | tail -n 2 | grep "Error.*Set confdb through \"developer1/network/wifi-setup\""'
   MATCH "third" < /var/snap/test-custodian-snap/common/change-view-manage-wifi-ran
   # the value was modified by test-custodian-snap
   MATCH "third-custodian" < /var/snap/test-failing-custodian-snap/common/change-view-manage-wifi-ran

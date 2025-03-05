@@ -174,7 +174,7 @@ var (
 	assertstateFetchAllValidationSets        = assertstate.FetchAllValidationSets
 
 	confdbstateGetView        = confdbstate.GetView
-	confdbstateGetTransaction = confdbstate.GetTransactionToModify
+	confdbstateGetTransaction = confdbstate.GetTransactionToSet
 	confdbstateGet            = confdbstate.Get
 	confdbstateSetViaView     = confdbstate.SetViaView
 )

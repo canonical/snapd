@@ -68,7 +68,7 @@ func (*viewSuite) TestNewConfdb(c *C) {
 
 	tcs := []testcase{
 		{
-			err: `cannot define confdb: no views`,
+			err: `cannot define confdb schema: no views`,
 		},
 		{
 			confdb: map[string]interface{}{"0-a": map[string]interface{}{}},
