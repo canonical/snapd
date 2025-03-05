@@ -46,7 +46,15 @@ on:
 
 
 jobs:
+  skip-spread:
+    if: "contains(github.event.pull_request.labels.*.name, 'Skip spread')"
+    runs-on: ${{ fromJSON(inputs.runs-on) }}
+    steps:
+      - name: Skip spread
+        run: echo "Spread tests are skipped"
+        
   run-spread:
+    if: "!contains(github.event.pull_request.labels.*.name, 'Skip spread')"
     env:
       SPREAD_EXPERIMENTAL_FEATURES: ${{ inputs.spread-experimental-features }}
       
@@ -241,7 +249,6 @@ jobs:
         done
 
     - name: Run spread tests
-      if: "!contains(github.event.pull_request.labels.*.name, 'Skip spread')"
       env:
           SPREAD_GOOGLE_KEY: ${{ secrets.SPREAD_GOOGLE_KEY }}
       run: |
