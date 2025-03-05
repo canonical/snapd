@@ -337,7 +337,8 @@ parts:
             lib/snapd/snap-seccomp
             lib/snapd/snap-update-ns
             lib/snapd/snapctl
-            lib/snapd/snapd-apparmor)
+            lib/snapd/snapd-apparmor
+            lib/snapd/snap-gpio-helper)
       for cmd in "${CMDS[@]}"; do
         case "${cmd}" in
            # FIXME: some binaries need to be run confined in apps. But

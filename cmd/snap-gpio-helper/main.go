@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2023-2024 Canonical Ltd
+ * Copyright (C) 2025 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -17,24 +17,37 @@
  *
  */
 
-package integrity
+package main
 
 import (
-	"github.com/snapcore/snapd/snap/integrity/dmverity"
+	"fmt"
+	"os"
+
+	"github.com/jessevdk/go-flags"
+
+	"github.com/snapcore/snapd/snapdtool"
 )
 
-func MockVeritysetupFormat(fn func(string, string, *dmverity.DmVerityParams) (string, error)) (restore func()) {
-	origVeritysetupFormat := veritysetupFormat
-	veritysetupFormat = fn
-	return func() {
-		veritysetupFormat = origVeritysetupFormat
-	}
+type options struct {
+	CmdExportChardev   cmdExportChardev   `command:"export-chardev"`
+	CmdUnexportChardev cmdUnexportChardev `command:"unexport-chardev"`
 }
 
-func MockReadDmVeritySuperblock(f func(filename string) (*dmverity.VeritySuperblock, error)) (restore func()) {
-	origReadDmVeritySuperblock := readDmVeritySuperblock
-	readDmVeritySuperblock = f
-	return func() {
-		readDmVeritySuperblock = origReadDmVeritySuperblock
+func run(osArgs1 []string) error {
+	var opts options
+	p := flags.NewParser(&opts, flags.HelpFlag|flags.PassDoubleDash)
+
+	if _, err := p.ParseArgs(osArgs1); err != nil {
+		return err
+	}
+	return nil
+}
+
+func main() {
+	snapdtool.ExecInSnapdOrCoreSnap()
+
+	if err := run(os.Args[1:]); err != nil {
+		fmt.Fprintf(os.Stderr, "error: %v\n", err)
+		os.Exit(1)
 	}
 }

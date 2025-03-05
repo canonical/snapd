@@ -29,6 +29,7 @@ var (
 	WriteDatabag            = writeDatabag
 	GetPlugsAffectedByPaths = getPlugsAffectedByPaths
 	CreateChangeConfdbTasks = createChangeConfdbTasks
+	CreateLoadConfdbTasks   = createLoadConfdbTasks
 	SetOngoingTransaction   = setOngoingTransaction
 	UnsetOngoingTransaction = unsetOngoingTransaction
 )

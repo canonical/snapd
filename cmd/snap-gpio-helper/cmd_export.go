@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2023-2024 Canonical Ltd
+ * Copyright (C) 2025 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -17,24 +17,21 @@
  *
  */
 
-package integrity
+package main
 
 import (
-	"github.com/snapcore/snapd/snap/integrity/dmverity"
+	"errors"
 )
 
-func MockVeritysetupFormat(fn func(string, string, *dmverity.DmVerityParams) (string, error)) (restore func()) {
-	origVeritysetupFormat := veritysetupFormat
-	veritysetupFormat = fn
-	return func() {
-		veritysetupFormat = origVeritysetupFormat
-	}
+type cmdExportChardev struct {
+	Args struct {
+		ChipLabels string `positional-arg-name:"<gpio-labels>" description:"comma-separated list of source chip label(s) to match"`
+		Lines      string `positional-arg-name:"<lines>" description:"comma-separated list of target gpio line(s)"`
+		Gadget     string `positional-arg-name:"<gadget>" description:"gadget snap name"`
+		Slot       string `positional-arg-name:"<slot>" description:"gpio-chardev slot name"`
+	} `positional-args:"yes" required:"true"`
 }
 
-func MockReadDmVeritySuperblock(f func(filename string) (*dmverity.VeritySuperblock, error)) (restore func()) {
-	origReadDmVeritySuperblock := readDmVeritySuperblock
-	readDmVeritySuperblock = f
-	return func() {
-		readDmVeritySuperblock = origReadDmVeritySuperblock
-	}
+func (c *cmdExportChardev) Execute(args []string) error {
+	return errors.New("not implemented")
 }
