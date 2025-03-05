@@ -171,8 +171,9 @@ var (
 	subkeyRegex    = "[a-z](?:-?[a-z0-9])*"
 )
 
-// ConfdbSchema holds a series of related views.
-type ConfdbSchema struct {
+// Schema holds a set of views that describe how the confdb can be accessed as
+// well as a schema for the storage.
+type Schema struct {
 	Account       string
 	Name          string
 	DatabagSchema DatabagSchema
@@ -181,9 +182,9 @@ type ConfdbSchema struct {
 
 // GetViewsAffectedByPath returns all the views in the confdb that have visibility
 // into a storage path.
-func (db *ConfdbSchema) GetViewsAffectedByPath(path string) []*View {
+func (s *Schema) GetViewsAffectedByPath(path string) []*View {
 	var views []*View
-	for _, view := range db.views {
+	for _, view := range s.views {
 		for _, rule := range view.rules {
 			if pathChangeAffects(path, rule.originalStorage) {
 				views = append(views, view)
@@ -220,12 +221,12 @@ func pathChangeAffects(modified, affected string) bool {
 }
 
 // NewSchema returns a new confdb with the specified views and their rules.
-func NewSchema(account string, confdbName string, views map[string]interface{}, schema DatabagSchema) (*ConfdbSchema, error) {
+func NewSchema(account string, confdbName string, views map[string]interface{}, schema DatabagSchema) (*Schema, error) {
 	if len(views) == 0 {
 		return nil, errors.New(`cannot define confdb: no views`)
 	}
 
-	confdb := &ConfdbSchema{
+	confdb := &Schema{
 		Account:       account,
 		Name:          confdbName,
 		DatabagSchema: schema,
@@ -264,7 +265,7 @@ func NewSchema(account string, confdbName string, views map[string]interface{}, 
 	return confdb, nil
 }
 
-func newView(confdb *ConfdbSchema, name string, viewRules []interface{}) (*View, error) {
+func newView(confdb *Schema, name string, viewRules []interface{}) (*View, error) {
 	view := &View{
 		Name:   name,
 		rules:  make([]*viewRule, 0, len(viewRules)),
@@ -461,18 +462,18 @@ func getPlaceholders(viewStr string) map[string]bool {
 }
 
 // View returns a view from the confdb.
-func (db *ConfdbSchema) View(view string) *View {
-	return db.views[view]
+func (s *Schema) View(view string) *View {
+	return s.views[view]
 }
 
 // View carries access rules for a particular view in a confdb.
 type View struct {
 	Name   string
 	rules  []*viewRule
-	confdb *ConfdbSchema
+	confdb *Schema
 }
 
-func (v *View) ConfdbSchema() *ConfdbSchema {
+func (v *View) ConfdbSchema() *Schema {
 	return v.confdb
 }
 

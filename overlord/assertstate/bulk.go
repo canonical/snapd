@@ -142,7 +142,7 @@ func bulkRefreshSnapDeclarations(s *state.State, snapStates map[string]*snapstat
 	return nil
 }
 
-func bulkRefreshConfdbSchemas(s *state.State, confdbSchemas []*confdb.ConfdbSchema, userID int, deviceCtx snapstate.DeviceContext, opts *RefreshAssertionsOptions) error {
+func bulkRefreshConfdbSchemas(s *state.State, confdbSchemas []*confdb.Schema, userID int, deviceCtx snapstate.DeviceContext, opts *RefreshAssertionsOptions) error {
 	db := cachedDB(s)
 
 	// all assertion refs will be in the same group

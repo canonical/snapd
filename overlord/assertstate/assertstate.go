@@ -422,7 +422,7 @@ func autoRefreshConfdbAssertions(st *state.State, userID int, opts *RefreshAsser
 		return err
 	}
 
-	var confdbSchemas []*confdb.ConfdbSchema
+	var confdbSchemas []*confdb.Schema
 	for _, dbAs := range confdbAsserts {
 		confdb := dbAs.(*asserts.ConfdbSchema).ConfdbSchema()
 		confdbSchemas = append(confdbSchemas, confdb)
@@ -434,7 +434,7 @@ func autoRefreshConfdbAssertions(st *state.State, userID int, opts *RefreshAsser
 // refreshConfdbAssertions fetches new revisions for the assertions referenced
 // by the provided confdb schemas. It attempts a bulk refresh and if that
 // fails, it falls back to fetching the assertions one by one.
-func refreshConfdbAssertions(st *state.State, confdbSchemas []*confdb.ConfdbSchema, userID int, opts *RefreshAssertionsOptions) error {
+func refreshConfdbAssertions(st *state.State, confdbSchemas []*confdb.Schema, userID int, opts *RefreshAssertionsOptions) error {
 	if opts == nil {
 		opts = &RefreshAssertionsOptions{}
 	}

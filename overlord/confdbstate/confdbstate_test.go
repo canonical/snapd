@@ -56,7 +56,7 @@ type confdbTestSuite struct {
 	state *state.State
 	o     *overlord.Overlord
 
-	confdb   *confdb.ConfdbSchema
+	dbSchema *confdb.Schema
 	devAccID string
 
 	repo *interfaces.Repository
@@ -150,7 +150,7 @@ func (s *confdbTestSuite) SetUpTest(c *C) {
 	c.Assert(assertstate.Add(s.state, as), IsNil)
 
 	s.devAccID = devAccKey.AccountID()
-	s.confdb = as.(*asserts.ConfdbSchema).ConfdbSchema()
+	s.dbSchema = as.(*asserts.ConfdbSchema).ConfdbSchema()
 
 	tr := config.NewTransaction(s.state)
 	_, confOption := features.Confdb.ConfigOption()
@@ -477,7 +477,7 @@ func (s *confdbTestSuite) TestConfdbTasksUserSetWithCustodianInstalled(c *C) {
 	err = tx.Set("wifi.ssid", "my-ssid")
 	c.Assert(err, IsNil)
 
-	view := s.confdb.View("setup-wifi")
+	view := s.dbSchema.View("setup-wifi")
 	chg := s.state.NewChange("modify-confdb", "")
 
 	// a user (not a snap) changes a confdb
@@ -533,7 +533,7 @@ func (s *confdbTestSuite) TestConfdbTasksCustodianSnapSet(c *C) {
 	err = tx.Set("wifi.ssid", "my-ssid")
 	c.Assert(err, IsNil)
 
-	view := s.confdb.View("setup-wifi")
+	view := s.dbSchema.View("setup-wifi")
 	chg := s.state.NewChange("modify-confdb", "")
 
 	// a user (not a snap) changes a confdb
@@ -574,7 +574,7 @@ func (s *confdbTestSuite) TestConfdbTasksObserverSnapSetWithCustodianInstalled(c
 	err = tx.Set("wifi.ssid", "my-ssid")
 	c.Assert(err, IsNil)
 
-	view := s.confdb.View("setup-wifi")
+	view := s.dbSchema.View("setup-wifi")
 	chg := s.state.NewChange("modify-confdb", "")
 
 	// a non-custodian snap modifies a confdb
@@ -641,7 +641,7 @@ func (s *confdbTestSuite) testConfdbTasksNoCustodian(c *C) {
 	err = tx.Set("wifi.ssid", "my-ssid")
 	c.Assert(err, IsNil)
 
-	view := s.confdb.View("setup-wifi")
+	view := s.dbSchema.View("setup-wifi")
 
 	// a non-custodian snap modifies a confdb
 	_, err = confdbstate.CreateChangeConfdbTasks(s.state, tx, view, "test-snap-1")
@@ -851,7 +851,7 @@ func (s *confdbTestSuite) TestGetTransactionFromUserCreatesNewChange(c *C) {
 	// only one custodian snap is installed
 	s.setupConfdbModificationScenario(c, []string{"custodian-snap"}, nil)
 
-	view := s.confdb.View("setup-wifi")
+	view := s.dbSchema.View("setup-wifi")
 
 	tx, commitTxFunc, err := confdbstate.GetTransactionToModify(nil, s.state, view)
 	c.Assert(err, IsNil)

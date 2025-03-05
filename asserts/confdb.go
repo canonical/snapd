@@ -34,7 +34,7 @@ import (
 type ConfdbSchema struct {
 	assertionBase
 
-	confdbSchema *confdb.ConfdbSchema
+	confdbSchema *confdb.Schema
 	timestamp    time.Time
 }
 
@@ -50,7 +50,7 @@ func (ar *ConfdbSchema) Name() string {
 
 // ConfdbSchema returns a ConfdbSchema assembled from the assertion that can be used
 // to access confdb views.
-func (ar *ConfdbSchema) ConfdbSchema() *confdb.ConfdbSchema {
+func (ar *ConfdbSchema) ConfdbSchema() *confdb.Schema {
 	return ar.confdbSchema
 }
 

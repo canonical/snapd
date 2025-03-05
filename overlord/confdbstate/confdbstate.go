@@ -86,9 +86,9 @@ func GetView(st *state.State, account, confdbName, viewName string) (*confdb.Vie
 		}
 		return nil, fmt.Errorf(i18n.G("cannot find confdb assertion %s/%s: %v"), account, confdbName, err)
 	}
-	db := confdbAssert.ConfdbSchema()
+	dbSchema := confdbAssert.ConfdbSchema()
 
-	view := db.View(viewName)
+	view := dbSchema.View(viewName)
 	if view == nil {
 		return nil, confdb.NewNotFoundError(i18n.G("cannot find view %q in confdb %s/%s"), viewName, account, confdbName)
 	}
@@ -440,7 +440,7 @@ func getCustodianPlugsForView(st *state.State, view *confdb.View) (map[string]*s
 	return custodians, nil
 }
 
-func getPlugsAffectedByPaths(st *state.State, confdb *confdb.ConfdbSchema, storagePaths []string) (map[string][]*snap.PlugInfo, error) {
+func getPlugsAffectedByPaths(st *state.State, confdb *confdb.Schema, storagePaths []string) (map[string][]*snap.PlugInfo, error) {
 	var viewNames []string
 	for _, path := range storagePaths {
 		views := confdb.GetViewsAffectedByPath(path)
