@@ -15,7 +15,7 @@ on:
         type: string
       alternative-backend:
         description: 'The spread backend to use when the backend cannot be used'
-        required: true
+        required: false
         type: string
       systems:
         description: 'The spread system(s) to use (for possible values, check spread.yaml). If more than one, separate them with a space. To run all, write ALL. To run none, write NONE'

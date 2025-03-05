@@ -104,6 +104,7 @@ jobs:
       runs-on: '["self-hosted", "spread-enabled"]'
       group: ${{ matrix.group }}
       backend: ${{ matrix.backend }}
+      alternative-backend: ${{ matrix.alternative-backend }}
       systems: ${{ matrix.systems }}
       tasks: ${{ matrix.tasks }}
       rules: ${{ matrix.rules }}
@@ -126,6 +127,7 @@ jobs:
       runs-on: '["self-hosted", "spread-enabled"]'
       group: ${{ matrix.group }}
       backend: ${{ matrix.backend }}
+      alternative-backend: ${{ matrix.alternative-backend }}
       systems: ${{ matrix.systems }}
       tasks: ${{ matrix.tasks }}
       rules: ${{ matrix.rules }}
@@ -147,6 +149,7 @@ jobs:
       runs-on: '["self-hosted", "spread-enabled"]'
       group: ${{ matrix.group }}
       backend: ${{ matrix.backend }}
+      alternative-backend: ${{ matrix.alternative-backend }}
       systems: ${{ matrix.systems }}
       tasks: ${{ matrix.tasks }}
       rules: ${{ matrix.rules }}

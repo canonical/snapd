@@ -3,6 +3,7 @@
       {
         "group": "amazon-linux",
         "backend": "google-distro-1",
+        "alternative-backend": "google-distro-1",
         "systems": "amazon-linux-2-64 amazon-linux-2023-64",
         "tasks": "tests/...",
         "rules": "main"
@@ -10,6 +11,7 @@
       {
         "group": "arch-linux",
         "backend": "google-distro-2",
+        "alternative-backend": "google-distro-2",
         "systems": "arch-linux-64",
         "tasks": "tests/...",
         "rules": "main"
@@ -34,6 +36,7 @@
         "group": "fedora",
         "backend": "openstack",
         "systems": "fedora-41-64 fedora-40-64",
+        "alternative-backend": "openstack",
         "tasks": "tests/...",
         "rules": "main"
       },
@@ -48,6 +51,7 @@
       {
         "group": "ubuntu-trusty",
         "backend": "google",
+        "alternative-backend": "google",
         "systems": "ubuntu-14.04-64",
         "tasks": "tests/smoke/ tests/main/canonical-livepatch tests/main/canonical-livepatch-14.04",
         "rules": "trusty"
@@ -55,6 +59,7 @@
       {
         "group": "ubuntu-xenial-bionic",
         "backend": "google",
+        "alternative-backend": "google",
         "systems": "ubuntu-16.04-64 ubuntu-18.04-64",
         "tasks": "tests/...",
         "rules": "main"
@@ -62,6 +67,7 @@
       {
         "group": "ubuntu-jammy",
         "backend": "google",
+        "alternative-backend": "openstack",
         "systems": "ubuntu-22.04-64",
         "tasks": "tests/...",
         "rules": "main"
@@ -69,6 +75,7 @@
       {
         "group": "ubuntu-daily",
         "backend": "google",
+        "alternative-backend": "google",
         "systems": "ubuntu-25.04-64",
         "tasks": "tests/...",
         "rules": "main"
@@ -76,6 +83,7 @@
       {
         "group": "ubuntu-core-22",
         "backend": "google-core",
+        "alternative-backend": "google-core",
         "systems": "ubuntu-core-22-64",
         "tasks": "tests/...",
         "rules": "main"
@@ -83,6 +91,7 @@
       {
         "group": "ubuntu-arm64",
         "backend": "google-arm",
+        "alternative-backend": "google-arm",
         "systems": "ubuntu-20.04-arm-64 ubuntu-core-22-arm-64",
         "tasks": "tests/...",
         "rules": "main"
@@ -90,6 +99,7 @@
       {
         "group": "ubuntu-secboot",
         "backend": "google",
+        "alternative-backend": "google",
         "systems": "ubuntu-secboot-20.04-64",
         "tasks": "tests/...",
         "rules": "main"
@@ -97,6 +107,7 @@
       {
         "group": "ubuntu-fips",
         "backend": "google-pro",
+        "alternative-backend": "google-pro",
         "systems": "ubuntu-fips-22.04-64",
         "tasks": "tests/fips/...",
         "rules": "fips"
