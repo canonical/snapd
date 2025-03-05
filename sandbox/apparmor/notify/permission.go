@@ -5,7 +5,12 @@ import (
 	"strings"
 )
 
+// AppArmorPermission defines the requirements common to the permission types
+// for all mediation classes, so that functions and helpers can be safely used
+// for all AppArmor permission types.
 type AppArmorPermission interface {
+	// AsAppArmorOpMask returns the receiver as an AppArmor operation mask, as
+	// found in MsgNotificationOp and MsgNotificationResponse.
 	AsAppArmorOpMask() uint32
 }
 
