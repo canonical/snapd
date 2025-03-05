@@ -504,7 +504,7 @@ func snapMountDirProbe(rootdir string) (string, error) {
 		p, err := os.Readlink(defaultDir)
 		switch {
 		case err != nil:
-			return "", fmt.Errorf("cannot read %s symlink path: %w", defaultDir, err)
+			return "", err
 		case p != AltSnapMountDir && p != AltSnapMountDir[1:] && p != altDir:
 			return "", fmt.Errorf("%v must be a symbolic link to %v", defaultDir, AltSnapMountDir)
 		default:
