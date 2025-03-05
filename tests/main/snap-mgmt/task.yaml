@@ -84,6 +84,16 @@ prepare: |
     fi
 
 restore: |
+    # during purge, there is no way to stop snap services running in user
+    # sessions, so take a best effort approach to kill all the processes which
+    # are in cgroups that resemble snap services in  user sessions
+    find /sys/fs/cgroup/ -type d -path "*/user.slice/*/snap.*service" -prune | while read -r svc; do
+        while (("$(wc -l < "$svc/cgroup.procs" || echo 0)" > 0)); do
+            echo 1 > "$svc/cgroup.kill"
+            sleep 1
+        done
+        rmdir "$svc" || true
+    done
     #shellcheck source=tests/lib/pkgdb.sh
     . "$TESTSLIB/pkgdb.sh"
     if [ -e pkg-removed ]; then
