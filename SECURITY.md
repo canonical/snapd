@@ -4,14 +4,15 @@
 <!-- Include start supported versions -->
 snapd has two types of releases:
 
-- Major releases: Introduce partial/complete features along with bug fixes.
-- Minor releases: Fix bugs or security vulnerabilities.
+- Major releases to introduce partial/complete features, along with bug fixes.
+- Minor releases to fix bugs or security vulnerabilities.
 
 A snapd release typically involves publishing snapd snaps to the Snap Store and
 snapd debs to supported [Ubuntu releases](https://ubuntu.com/about/release-cycle)
-and [other distributions](https://snapcraft.io/docs/distro-support). Minor
-releases containing security fixes are developed in a private snapd repository,
-with fixes merged back into the public repository when ready for disclosure.
+alongside packages for [other supported distributions](https://snapcraft.io/docs/distro-support).
+Minor releases containing security fixes are developed in a private snapd
+repository, with fixes merged back into the public repository when ready for
+disclosure.
 
 The latest snapd snap major release receives support through minor releases
 until the next major release. Similarly, snapd debs for Ubuntu versions within
