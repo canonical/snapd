@@ -25,10 +25,10 @@ execute: |
     test ! -e "/var/cache/snapd/icons/${SNAP_FALLBACK_ID}.icon"
 
     echo "Install a snap which has a local icon and a store icon"
-    snap install "$SNAP_LOCAL"
+    snap install --edge "$SNAP_LOCAL"
 
     echo "Install a snap which has a store icon but no local icon"
-    snap install "$SNAP_FALLBACK"
+    snap install --edge "$SNAP_FALLBACK"
 
     SNAP_DIR="/snap"
     if [ ! -d "/snap" ] ; then
