@@ -36,7 +36,7 @@ func ExitOnError() (restore func()) {
 	return restore
 }
 
-func FakeRequestWithClassAndReplyChan(class notify.MediationClass, replyChan chan any) *Request {
+func FakeRequestWithClassAndReplyChan(class notify.MediationClass, replyChan chan notify.AppArmorPermission) *Request {
 	return &Request{
 		Class:     class,
 		replyChan: replyChan,

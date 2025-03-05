@@ -65,7 +65,7 @@ func (s *listenerSuite) SetUpTest(c *C) {
 }
 
 func (*listenerSuite) TestReply(c *C) {
-	rc := make(chan any, 1)
+	rc := make(chan notify.AppArmorPermission, 1)
 	req := listener.FakeRequestWithClassAndReplyChan(notify.AA_CLASS_FILE, rc)
 	response := notify.FilePermission(1234)
 	req.Reply(response)
@@ -74,24 +74,30 @@ func (*listenerSuite) TestReply(c *C) {
 }
 
 func (*listenerSuite) TestReplyNil(c *C) {
-	rc := make(chan any, 1)
+	rc := make(chan notify.AppArmorPermission, 1)
 	req := listener.FakeRequestWithClassAndReplyChan(notify.AA_CLASS_FILE, rc)
 	req.Reply(nil)
 	resp := <-rc
-	var response any
+	var response notify.AppArmorPermission
 	c.Assert(resp, Equals, response)
 }
 
+type fakeAaPerm string
+
+func (p fakeAaPerm) AsAppArmorOpMask() uint32 {
+	return uint32(len(p))
+}
+
 func (*listenerSuite) TestBadReply(c *C) {
-	rc := make(chan any, 1)
+	rc := make(chan notify.AppArmorPermission, 1)
 	req := listener.FakeRequestWithClassAndReplyChan(notify.AA_CLASS_FILE, rc)
-	response := "read"
+	response := fakeAaPerm("read")
 	err := req.Reply(response)
 	c.Assert(err, ErrorMatches, "invalid reply: response permission must be of type notify.FilePermission")
 }
 
 func (*listenerSuite) TestReplyTwice(c *C) {
-	rc := make(chan any, 1)
+	rc := make(chan notify.AppArmorPermission, 1)
 	req := listener.FakeRequestWithClassAndReplyChan(notify.AA_CLASS_FILE, rc)
 	response := notify.FilePermission(1234)
 	err := req.Reply(response)
@@ -630,7 +636,7 @@ func (*listenerSuite) TestRunNoReply(c *C) {
 
 	c.Check(l.Close(), IsNil)
 
-	response := true // doesn't matter what the response is
+	response := fakeAaPerm("foo") // doesn't matter what the response is
 	req.Reply(response)
 
 	c.Check(t.Wait(), Equals, listener.ErrClosed)
@@ -978,7 +984,7 @@ func (*listenerSuite) TestWaitAndRespondAaClassFile(c *C) {
 	msgDeny := uint32(0b0011)
 
 	for _, testCase := range []struct {
-		allowedPermission any
+		allowedPermission notify.AppArmorPermission
 		respAllow         uint32
 		respDeny          uint32
 	}{
@@ -1068,7 +1074,7 @@ func (*listenerSuite) TestWaitAndRespondAaClassFile(c *C) {
 			0b0000,
 		},
 	} {
-		replyChan := make(chan any, 1)
+		replyChan := make(chan notify.AppArmorPermission, 1)
 		req := listener.FakeRequestWithClassAndReplyChan(notify.AA_CLASS_FILE, replyChan)
 
 		msg := &notify.MsgNotificationFile{

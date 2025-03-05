@@ -970,12 +970,12 @@ func (s *constraintsSuite) TestRulePermissionMapExpired(c *C) {
 	}
 }
 
-func constructPermissionsMaps() []map[string]map[string]any {
-	var permissionsMaps []map[string]map[string]any
+func constructPermissionsMaps() []map[string]map[string]notify.AppArmorPermission {
+	var permissionsMaps []map[string]map[string]notify.AppArmorPermission
 	// interfaceFilePermissionsMaps
-	filePermissionsMaps := make(map[string]map[string]any)
+	filePermissionsMaps := make(map[string]map[string]notify.AppArmorPermission)
 	for iface, permsMap := range prompting.InterfaceFilePermissionsMaps {
-		filePermissionsMaps[iface] = make(map[string]any, len(permsMap))
+		filePermissionsMaps[iface] = make(map[string]notify.AppArmorPermission, len(permsMap))
 		for perm, val := range permsMap {
 			filePermissionsMaps[iface][perm] = val
 		}
@@ -1046,7 +1046,7 @@ func (s *constraintsSuite) TestAvailablePermissions(c *C) {
 func (s *constraintsSuite) TestAbstractPermissionsFromAppArmorPermissionsHappy(c *C) {
 	cases := []struct {
 		iface string
-		perms any
+		perms notify.AppArmorPermission
 		list  []string
 	}{
 		{
@@ -1087,15 +1087,21 @@ func (s *constraintsSuite) TestAbstractPermissionsFromAppArmorPermissionsHappy(c
 	}
 }
 
+type fakeAaPerm string
+
+func (p fakeAaPerm) AsAppArmorOpMask() uint32 {
+	return uint32(len(p))
+}
+
 func (s *constraintsSuite) TestAbstractPermissionsFromAppArmorPermissionsUnhappy(c *C) {
 	for _, testCase := range []struct {
 		iface  string
-		perms  any
+		perms  notify.AppArmorPermission
 		errStr string
 	}{
 		{
 			"home",
-			"not a file permission",
+			fakeAaPerm("not a file permission"),
 			"cannot parse the given permissions as file permissions.*",
 		},
 		{
@@ -1115,7 +1121,7 @@ func (s *constraintsSuite) TestAbstractPermissionsFromAppArmorPermissionsUnhappy
 	}
 	for _, testCase := range []struct {
 		iface    string
-		perms    any
+		perms    notify.AppArmorPermission
 		abstract []string
 		errStr   string
 	}{
@@ -1145,7 +1151,7 @@ func (s *constraintsSuite) TestAbstractPermissionsToAppArmorPermissionsHappy(c *
 	cases := []struct {
 		iface string
 		list  []string
-		perms any
+		perms notify.AppArmorPermission
 	}{
 		{
 			"home",
