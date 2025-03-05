@@ -64,6 +64,12 @@ func Manager(st *state.State, hookMgr *hookstate.HookManager, runner *state.Task
 	hookMgr.Register(regexp.MustCompile("^.+-view-changed$"), func(context *hookstate.Context) hookstate.Handler {
 		return &hookstate.SnapHookHandler{}
 	})
+	hookMgr.Register(regexp.MustCompile("^query-view-.+$"), func(context *hookstate.Context) hookstate.Handler {
+		return &hookstate.SnapHookHandler{}
+	})
+	hookMgr.Register(regexp.MustCompile("^load-view-.+$"), func(context *hookstate.Context) hookstate.Handler {
+		return &hookstate.SnapHookHandler{}
+	})
 
 	return m
 }
@@ -197,7 +203,7 @@ func (h *saveViewHandler) Error(origErr error) (ignoreErr bool, err error) {
 	st := h.ctx.State()
 
 	var commitTaskID string
-	if err := t.Get("commit-task", &commitTaskID); err != nil {
+	if err := t.Get("tx-task", &commitTaskID); err != nil {
 		return false, err
 	}
 
@@ -220,7 +226,7 @@ func (h *saveViewHandler) Error(origErr error) (ignoreErr bool, err error) {
 		// if we fail to rollback, there's nothing we can do
 		ignoreError := true
 		rollbackTask := setupConfdbHook(st, hooksup.Snap, hooksup.Hook, ignoreError)
-		rollbackTask.Set("commit-task", commitTaskID)
+		rollbackTask.Set("tx-task", commitTaskID)
 		rollbackTask.WaitFor(last)
 		curTask.Change().AddTask(rollbackTask)
 		last = rollbackTask
