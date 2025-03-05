@@ -21,6 +21,8 @@ restore: |
   echo "Stop the service"
   snap remove --purge test-snapd-stressd || true
   snap remove-quota group-one || true
+  # despite removing groups, in 18.04 and 20.04, the slices stay behind
+  find /sys/fs/cgroup/ -type d -name 'snap.*.slice' -prune -ls -exec rmdir \{\} \;
 
 execute: |
   # Spawner spawns 32 workers per default in the snap, but the total
