@@ -1,2 +1,3 @@
 # TODO set caps
-/usr/lib/snapd/snap-confine root:root 4755 +capabilities cap_dac_override,cap_dac_read_search,cap_sys_admin,cap_sys_chroot,cap_chown,cap_fowner,cap_sys_ptrace,cap_setuid,cap_setgid=p
+/usr/lib/snapd/snap-confine root:root 4755
+ +capabilities cap_dac_override,cap_dac_read_search,cap_sys_admin,cap_sys_chroot,cap_chown,cap_fowner,cap_sys_ptrace,cap_setuid,cap_setgid=p
