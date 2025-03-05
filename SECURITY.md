@@ -8,9 +8,10 @@ snapd has two types of releases:
 - Minor releases: Fix bugs or security vulnerabilities.
 
 A snapd release typically involves publishing snapd snaps to the Snap Store and
-snapd debs to supported Ubuntu releases. Minor releases containing security
-fixes are developed in a private snapd repository, with fixes merged back into
-the public repository once they are ready for disclosure.
+snapd debs to supported [Ubuntu releases](https://ubuntu.com/about/release-cycle)
+and [other distributions](https://snapcraft.io/docs/distro-support). Minor
+releases containing security fixes are developed in a private snapd repository,
+with fixes merged back into the public repository when ready for disclosure.
 
 The latest snapd snap major release receives support through minor releases
 until the next major release. Similarly, snapd debs for Ubuntu versions within
@@ -24,9 +25,12 @@ support.
 ## What qualifies as a security issue
 
 By default, snaps are confined within a restrictive security sandbox,
-preventing access to system resources beyond what is explicitly allowed by
-store-approved interfaces. Any vulnerability that enables a snap to operate
-outside of these intended restrictions qualifies as a security issue.
+limiting access to system resources beyond what is explicitly allowed by
+store-approved interfaces. Any vulnerability that allows a snap to bypass these
+restrictions is considered a security issue. Likewise, any flaw in snapd that
+enables an unprivileged user or snap to escalate privileges, cause a denial of
+service, or otherwise compromise system integrity also qualifies as a security
+issue.
 
 ## Reporting a vulnerability
 
