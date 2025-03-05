@@ -35,7 +35,6 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
-	"github.com/snapcore/snapd/sandbox/apparmor/notify"
 	"github.com/snapcore/snapd/snapdtool"
 	"github.com/snapcore/snapd/strutil"
 )
@@ -305,6 +304,22 @@ const (
 	Full
 )
 
+var (
+	// ConfDir is the path to the directory holding AppArmor configuration.
+	ConfDir string
+	// CacheDir is the path to the cache directory for AppArmor.
+	CacheDir string
+	// SystemCacheDir is the path to the system cache directory for AppArmor,
+	// which may or may not be different from CacheDir.
+	SystemCacheDir string
+	// SnapConfineAppArmorDir is the path to the AppArmor snap confine
+	// directory.
+	SnapConfineAppArmorDir string
+	// NotifySocketPath is the path to the socket over which listeners can
+	// communicate with AppArmor in the kernel.
+	NotifySocketPath string
+)
+
 func setupConfCacheDirs(newrootdir string) {
 	ConfDir = filepath.Join(newrootdir, "/etc/apparmor.d")
 	CacheDir = filepath.Join(newrootdir, "/var/cache/apparmor")
@@ -329,17 +344,17 @@ func setupConfCacheDirs(newrootdir string) {
 	SnapConfineAppArmorDir = filepath.Join(dirs.SnapdStateDir(newrootdir), "apparmor", snapConfineDir)
 }
 
+func setupNotifySocketPath(newrootdir string) {
+	NotifySocketPath = filepath.Join(newrootdir, "/sys/kernel/security/apparmor/.notify")
+}
+
 func init() {
 	dirs.AddRootDirCallback(setupConfCacheDirs)
 	setupConfCacheDirs(dirs.GlobalRootDir)
-}
 
-var (
-	ConfDir                string
-	CacheDir               string
-	SystemCacheDir         string
-	SnapConfineAppArmorDir string
-)
+	dirs.AddRootDirCallback(setupNotifySocketPath)
+	setupNotifySocketPath(dirs.GlobalRootDir)
+}
 
 func (level LevelType) String() string {
 	switch level {
@@ -464,7 +479,7 @@ func PromptingSupportedByFeatures(apparmorFeatures *FeaturesSupported) (bool, st
 			return false, "apparmor kernel features do not support prompting for file access"
 		}
 	}
-	if !notify.SupportAvailable() {
+	if !osutil.FileExists(NotifySocketPath) {
 		return false, "apparmor kernel notification socket required by prompting listener is not present"
 	}
 	version, err := probeKernelFeaturesPermstable32Version()
