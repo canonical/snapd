@@ -21,6 +21,13 @@ prepare: |
 
   rm -f /var/lib/snapd/state.json
 
+  if [ -L /snap ]; then
+      # we have a symlink which is part of the snapd package, e.g. on Amazon
+      # Linux
+      mv /snap /snap.backup
+      tests.cleanup defer mv /snap.backup /snap
+  fi
+
   # prepare should have removed the mount directory
   not test -d "$SNAP_MOUNT_DIR"
 
