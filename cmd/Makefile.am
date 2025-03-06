@@ -17,6 +17,10 @@ if USE_INTERNAL_BPF_HEADERS
 VENDOR_BPF_HEADERS_CFLAGS = -I$(srcdir)/libsnap-confine-private/bpf/vendor
 endif
 
+# only set permitted capabilities
+SNAP_CONFINE_CAPS = \
+	cap_dac_override,cap_dac_read_search,cap_sys_admin,cap_sys_chroot,cap_chown,cap_fowner,cap_sys_ptrace,cap_setuid,cap_setgid=p
+
 subdirs = \
 		  libsnap-confine-private \
 		  snap-confine \
@@ -60,7 +64,8 @@ fmt:: $(foreach dir,$(subdirs),$(wildcard $(srcdir)/$(dir)/*.[ch]))
 # installing a fresh copy of snap confine and the appropriate apparmor profile.
 .PHONY: hack
 hack: snap-confine/snap-confine-debug snap-confine/snap-confine.apparmor snap-update-ns/snap-update-ns snap-seccomp/snap-seccomp snap-discard-ns/snap-discard-ns snap-device-helper/snap-device-helper snapd-apparmor/snapd-apparmor
-	sudo install -D -m 4755 snap-confine/snap-confine-debug $(DESTDIR)$(libexecdir)/snap-confine
+	sudo install -D -m 755 snap-confine/snap-confine-debug $(DESTDIR)$(libexecdir)/snap-confine
+	sudo setcap "$(SNAP_CONFINE_CAPS)" $(DESTDIR)$(libexecdir)/snap-confine
 	if [ -d $(DESTDIR)$(APPARMOR_SYSCONFIG) ]; then sudo install -m 644 snap-confine/snap-confine.apparmor $(DESTDIR)$(APPARMOR_SYSCONFIG)/$(patsubst .%,%,$(subst /,.,$(libexecdir))).snap-confine.real; fi
 	sudo install -d -m 755 $(DESTDIR)$(snapdstatedir)/apparmor/snap-confine/
 	if [ "$$(command -v apparmor_parser)" != "" ]; then sudo apparmor_parser -r snap-confine/snap-confine.apparmor; fi
@@ -385,10 +390,6 @@ if APPARMOR
 endif
 	rmdir $(DESTDIR)$(snapdstatedir)/void || true
 
-install-exec-hook:
-# Ensure that snap-confine is u+s (setuid)
-	chmod 4755 $(DESTDIR)$(libexecdir)/snap-confine
-
 ##
 ## snap-mgmt
 ##
@@ -457,6 +458,11 @@ snap_discard_ns_snap_discard_ns_SOURCES = \
 snap_discard_ns_snap_discard_ns_LDFLAGS = $(AM_LDFLAGS) $(SANITIZE_LDFLAGS)
 snap_discard_ns_snap_discard_ns_LDADD = libsnap-confine-private.a
 snap_discard_ns_snap_discard_ns_STATIC =
+if STATIC_LIBCAP
+snap_discard_ns_snap_discard_ns_STATIC += -lcap
+else
+snap_discard_ns_snap_discard_ns_LDADD += -lcap
+endif  # STATIC_LIBCAP
 
 # Use a hacked rule if we're doing static build. This allows us to inject the LIBS += .. rule below.
 snap-discard-ns/snap-discard-ns$(EXEEXT): $(snap_discard_ns_snap_discard_ns_OBJECTS) $(snap_discard_ns_snap_discard_ns_DEPENDENCIES) $(EXTRA_snap_discard_ns_snap_discard_ns_DEPENDENCIES) snap-discard-ns/$(am__dirstamp)
