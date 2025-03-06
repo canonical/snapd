@@ -31,7 +31,7 @@
       {
         "group": "fedora",
         "backend": "openstack",
-        "systems": "fedora-41-64 fedora-40-64",
+        "systems": "fedora-40-64",
         "tasks": "tests/...",
         "rules": "main"
       },
