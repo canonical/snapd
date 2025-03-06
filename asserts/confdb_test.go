@@ -99,9 +99,9 @@ func (s *confdbSuite) TestDecodeOK(c *C) {
 	c.Check(ar.AuthorityID(), Equals, "brand-id1")
 	c.Check(ar.AccountID(), Equals, "brand-id1")
 	c.Check(ar.Name(), Equals, "my-network")
-	confdb := ar.ConfdbSchema()
-	c.Assert(confdb, NotNil)
-	c.Check(confdb.View("wifi-setup"), NotNil)
+	schema := ar.Schema()
+	c.Assert(schema, NotNil)
+	c.Check(schema.View("wifi-setup"), NotNil)
 }
 
 func (s *confdbSuite) TestDecodeInvalid(c *C) {

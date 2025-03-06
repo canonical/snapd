@@ -112,7 +112,7 @@ func doValidateSnap(t *state.Task, _ *tomb.Tomb) error {
 		}
 
 		for _, confdbID := range snapsup.PluggedConfdbIDs {
-			if err := snapasserts.FetchConfdb(f, confdbID.Account, confdbID.Confdb); err != nil {
+			if err := snapasserts.FetchConfdbSchema(f, confdbID.Account, confdbID.Name); err != nil {
 				return err
 			}
 		}

@@ -34,8 +34,8 @@ import (
 type ConfdbSchema struct {
 	assertionBase
 
-	confdbSchema *confdb.Schema
-	timestamp    time.Time
+	schema    *confdb.Schema
+	timestamp time.Time
 }
 
 // AccountID returns the identifier of the account that signed this assertion.
@@ -48,10 +48,10 @@ func (ar *ConfdbSchema) Name() string {
 	return ar.HeaderString("name")
 }
 
-// ConfdbSchema returns a ConfdbSchema assembled from the assertion that can be used
-// to access confdb views.
-func (ar *ConfdbSchema) ConfdbSchema() *confdb.Schema {
-	return ar.confdbSchema
+// Schema returns a confdb.Schema assembled from the assertion that can
+// be used to access confdb views.
+func (ar *ConfdbSchema) Schema() *confdb.Schema {
+	return ar.schema
 }
 
 func assembleConfdbSchema(assert assertionBase) (Assertion, error) {
@@ -105,7 +105,7 @@ func assembleConfdbSchema(assert assertionBase) (Assertion, error) {
 
 	return &ConfdbSchema{
 		assertionBase: assert,
-		confdbSchema:  confdbSchema,
+		schema:        confdbSchema,
 		timestamp:     timestamp,
 	}, nil
 }

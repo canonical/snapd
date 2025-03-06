@@ -14412,7 +14412,7 @@ func checkSnapsupHasConfdb(ts *state.TaskSet, c *C) {
 
 	snapsup, err := snapstate.TaskSnapSetup(tasks[0])
 	c.Assert(err, IsNil)
-	c.Assert(snapsup.PluggedConfdbIDs, DeepEquals, []snapstate.ConfdbID{{Account: "my-publisher", Confdb: "my-reg"}})
+	c.Assert(snapsup.PluggedConfdbIDs, DeepEquals, []snapstate.ConfdbSchemaID{{Account: "my-publisher", Name: "my-reg"}})
 }
 
 func findTaskForSnap(c *C, chg *state.Change, kind, snap string) *state.Task {

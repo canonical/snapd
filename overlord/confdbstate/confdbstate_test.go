@@ -150,7 +150,7 @@ func (s *confdbTestSuite) SetUpTest(c *C) {
 	c.Assert(assertstate.Add(s.state, as), IsNil)
 
 	s.devAccID = devAccKey.AccountID()
-	s.dbSchema = as.(*asserts.ConfdbSchema).ConfdbSchema()
+	s.dbSchema = as.(*asserts.ConfdbSchema).Schema()
 
 	tr := config.NewTransaction(s.state)
 	_, confOption := features.Confdb.ConfigOption()

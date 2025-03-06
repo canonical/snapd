@@ -402,7 +402,7 @@ func (c *getCommand) getConfdbValues(ctx *hookstate.Context, plugName string, re
 }
 
 func (c *getCommand) getDatabag(ctx *hookstate.Context, view *confdb.View, pristine bool) (bag confdb.Databag, err error) {
-	account, dbSchemaName := view.ConfdbSchema().Account, view.ConfdbSchema().Name
+	account, dbSchemaName := view.Schema().Account, view.Schema().Name
 
 	var tx *confdbstate.Transaction
 	if confdbstate.IsConfdbHook(ctx) {

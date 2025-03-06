@@ -46,7 +46,7 @@ execute: |
     
     declare -A exclusion_map
     # confdb are still in the experimental phase so its page is not exposed yet
-    exclusion_map["confdb"]="2025/03"
+    exclusion_map["confdb"]="2025/04"
     # we're actually missing this page but can't add it yet due to the same Discourse issues
     exclusion_map["nomad-support"]="2024/12"
     # need to add https://snapcraft.io/docs/checkbox-support-interface

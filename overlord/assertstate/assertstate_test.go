@@ -5388,16 +5388,16 @@ func (s *assertMgrSuite) TestConfdb(c *C) {
 	err = assertstate.Add(s.state, confdbFoo)
 	c.Assert(err, IsNil)
 
-	_, err = assertstate.Confdb(s.state, "no-account", "foo")
+	_, err = assertstate.ConfdbSchema(s.state, "no-account", "foo")
 	c.Assert(err, testutil.ErrorIs, &asserts.NotFoundError{})
 
-	confdbAs, err := assertstate.Confdb(s.state, s.dev1AcctKey.AccountID(), "foo")
+	confdbSchemaAs, err := assertstate.ConfdbSchema(s.state, s.dev1AcctKey.AccountID(), "foo")
 	c.Assert(err, IsNil)
 
-	confdb := confdbAs.ConfdbSchema()
-	c.Check(confdb.Account, Equals, s.dev1AcctKey.AccountID())
-	c.Check(confdb.Name, Equals, "foo")
-	c.Check(confdb.DatabagSchema, NotNil)
+	schema := confdbSchemaAs.Schema()
+	c.Check(schema.Account, Equals, s.dev1AcctKey.AccountID())
+	c.Check(schema.Name, Equals, "foo")
+	c.Check(schema.DatabagSchema, NotNil)
 }
 
 func (s *assertMgrSuite) TestValidateComponent(c *C) {
@@ -5698,7 +5698,7 @@ func (s *assertMgrSuite) TestFetchConfdbAssertion(c *C) {
 		SnapPath:         snapPath,
 		UserID:           0,
 		SideInfo:         si,
-		PluggedConfdbIDs: []snapstate.ConfdbID{{Account: s.dev1Acct.AccountID(), Confdb: "my-confdb"}},
+		PluggedConfdbIDs: []snapstate.ConfdbSchemaID{{Account: s.dev1Acct.AccountID(), Name: "my-confdb"}},
 	}
 
 	t.Set("snap-setup", snapsup)

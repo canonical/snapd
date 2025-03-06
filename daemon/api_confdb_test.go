@@ -231,8 +231,8 @@ func (s *confdbSuite) TestViewSetMany(c *C) {
 		calls++
 		c.Assert(ctx, IsNil)
 		c.Assert(view.Name, Equals, "wifi-setup")
-		c.Assert(view.ConfdbSchema().Account, Equals, "system")
-		c.Assert(view.ConfdbSchema().Name, Equals, "network")
+		c.Assert(view.Schema().Account, Equals, "system")
+		c.Assert(view.Schema().Name, Equals, "network")
 
 		c.Assert(err, IsNil)
 
@@ -355,8 +355,8 @@ func (s *confdbSuite) TestSetView(c *C) {
 			calls++
 			c.Assert(ctx, IsNil, cmt)
 			c.Assert(view.Name, Equals, "wifi-setup", cmt)
-			c.Assert(view.ConfdbSchema().Account, Equals, "system", cmt)
-			c.Assert(view.ConfdbSchema().Name, Equals, "network", cmt)
+			c.Assert(view.Schema().Account, Equals, "system", cmt)
+			c.Assert(view.Schema().Name, Equals, "network", cmt)
 
 			return tx, func() (string, <-chan struct{}, error) { return "123", nil, nil }, nil
 		})
@@ -413,8 +413,8 @@ func (s *confdbSuite) TestUnsetView(c *C) {
 		calls++
 		c.Assert(ctx, IsNil)
 		c.Assert(view.Name, Equals, "wifi-setup")
-		c.Assert(view.ConfdbSchema().Account, Equals, "system")
-		c.Assert(view.ConfdbSchema().Name, Equals, "network")
+		c.Assert(view.Schema().Account, Equals, "system")
+		c.Assert(view.Schema().Name, Equals, "network")
 
 		return tx, func() (string, <-chan struct{}, error) { return "123", nil, nil }, nil
 	})

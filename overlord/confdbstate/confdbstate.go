@@ -35,7 +35,7 @@ import (
 	"github.com/snapcore/snapd/strutil"
 )
 
-var assertstateConfdb = assertstate.Confdb
+var assertstateConfdbSchema = assertstate.ConfdbSchema
 
 // Set finds the view identified by the account, confdb schema and view names
 // and sets the request fields to their respective values.
@@ -54,7 +54,7 @@ func Set(st *state.State, account, dbSchemaName, viewName string, requests map[s
 		return err
 	}
 
-	return tx.Commit(st, view.ConfdbSchema().DatabagSchema)
+	return tx.Commit(st, view.Schema().DatabagSchema)
 }
 
 // SetViaView uses the view to set the requests in the transaction's databag.
@@ -77,7 +77,7 @@ func SetViaView(bag confdb.Databag, view *confdb.View, requests map[string]inter
 
 // GetView returns the view identified by the account, confdb schema and view name.
 func GetView(st *state.State, account, dbSchemaName, viewName string) (*confdb.View, error) {
-	confdbAssert, err := assertstateConfdb(st, account, dbSchemaName)
+	confdbSchemaAs, err := assertstateConfdbSchema(st, account, dbSchemaName)
 	if err != nil {
 		if errors.Is(err, &asserts.NotFoundError{}) {
 			// replace the not found error so the output matches the usual confdb ID layout
@@ -86,7 +86,7 @@ func GetView(st *state.State, account, dbSchemaName, viewName string) (*confdb.V
 
 		return nil, fmt.Errorf(i18n.G("cannot find confdb-schema assertion %s/%s: %v"), account, dbSchemaName, err)
 	}
-	dbSchema := confdbAssert.ConfdbSchema()
+	dbSchema := confdbSchemaAs.Schema()
 
 	view := dbSchema.View(viewName)
 	if view == nil {
@@ -154,7 +154,7 @@ func GetViaView(bag confdb.Databag, view *confdb.View, fields []string) (interfa
 			reqStr = fmt.Sprintf(i18n.G(" %s through"), strutil.Quoted(fields))
 		}
 
-		return nil, confdb.NewNotFoundError(i18n.G("cannot get%s %s/%s/%s: no view data"), reqStr, view.ConfdbSchema().Account, view.ConfdbSchema().Name, view.Name)
+		return nil, confdb.NewNotFoundError(i18n.G("cannot get%s %s/%s/%s: no view data"), reqStr, view.Schema().Account, view.Schema().Name, view.Name)
 	}
 
 	return results, nil
@@ -201,7 +201,7 @@ type CommitTxFunc func() (changeID string, waitChan <-chan struct{}, err error)
 // ID and a wait channel that will be closed on the commit is done). If a transaction
 // already existed, changes to it will be saved on ctx.Done().
 func GetTransactionToSet(ctx *hookstate.Context, st *state.State, view *confdb.View) (*Transaction, CommitTxFunc, error) {
-	account, dbSchemaName := view.ConfdbSchema().Account, view.ConfdbSchema().Name
+	account, dbSchemaName := view.Schema().Account, view.Schema().Name
 
 	// check if we're already running in the context of a committing transaction
 	if IsConfdbHook(ctx) {
@@ -302,7 +302,7 @@ func createChangeConfdbTasks(st *state.State, tx *Transaction, view *confdb.View
 	}
 
 	if len(custodianPlugs) == 0 {
-		return nil, fmt.Errorf("cannot commit changes to confdb made through view %s/%s/%s: no custodian snap installed", view.ConfdbSchema().Account, view.ConfdbSchema().Name, view.Name)
+		return nil, fmt.Errorf("cannot commit changes to confdb made through view %s/%s/%s: no custodian snap installed", view.Schema().Account, view.Schema().Name, view.Name)
 	}
 
 	ts := state.NewTaskSet()
@@ -350,7 +350,7 @@ func createChangeConfdbTasks(st *state.State, tx *Transaction, view *confdb.View
 	// run view-changed hooks for any plug that references a view that could have
 	// changed with this data modification
 	paths := tx.AlteredPaths()
-	affectedPlugs, err := getPlugsAffectedByPaths(st, view.ConfdbSchema(), paths)
+	affectedPlugs, err := getPlugsAffectedByPaths(st, view.Schema(), paths)
 	if err != nil {
 		return nil, err
 	}
@@ -376,7 +376,7 @@ func createChangeConfdbTasks(st *state.State, tx *Transaction, view *confdb.View
 	}
 
 	// commit after custodians save ephemeral data
-	commitTask := st.NewTask("commit-confdb-tx", fmt.Sprintf("Commit changes to confdb (%s/%s/%s)", view.ConfdbSchema().Account, view.ConfdbSchema().Name, view.Name))
+	commitTask := st.NewTask("commit-confdb-tx", fmt.Sprintf("Commit changes to confdb (%s/%s/%s)", view.Schema().Account, view.Schema().Name, view.Name))
 	commitTask.Set("confdb-transaction", tx)
 	// link all previous tasks to the commit task that carries the transaction
 	for _, t := range ts.Tasks() {
@@ -421,7 +421,7 @@ func getCustodianPlugsForView(st *state.State, view *confdb.View) ([]string, map
 			return nil, nil, err
 		}
 
-		if view.ConfdbSchema().Account != account || view.ConfdbSchema().Name != dbSchemaName ||
+		if view.Schema().Account != account || view.Schema().Name != dbSchemaName ||
 			view.Name != viewName {
 			continue
 		}
@@ -533,7 +533,7 @@ func createLoadConfdbTasks(st *state.State, tx *Transaction, view *confdb.View) 
 	}
 
 	if len(custodians) == 0 {
-		return nil, fmt.Errorf("cannot load confdb through view %s/%s/%s: no custodian snap connected", view.ConfdbSchema().Account, view.ConfdbSchema().Name, view.Name)
+		return nil, fmt.Errorf("cannot load confdb through view %s/%s/%s: no custodian snap connected", view.Schema().Account, view.Schema().Name, view.Name)
 	}
 
 	ts := state.NewTaskSet()

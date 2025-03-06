@@ -474,7 +474,7 @@ type View struct {
 	schema *Schema
 }
 
-func (v *View) ConfdbSchema() *Schema {
+func (v *View) Schema() *Schema {
 	return v.schema
 }
 
