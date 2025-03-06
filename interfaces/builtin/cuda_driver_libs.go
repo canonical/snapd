@@ -115,10 +115,6 @@ func (iface *cudaDriverLibsInterface) validateVersionsRange(versRange string) er
 }
 
 func (iface *cudaDriverLibsInterface) BeforePrepareSlot(slot *snap.SlotInfo) error {
-	libDirs := []string{}
-	if err := slot.Attr("source", &libDirs); err != nil {
-		return err
-	}
 	// Validate format of API version - we don't actually need to do
 	// anything else with it until we start to support regular snaps.
 	var versions string
@@ -128,27 +124,12 @@ func (iface *cudaDriverLibsInterface) BeforePrepareSlot(slot *snap.SlotInfo) err
 		}
 	}
 	// Validate directories
-	for _, dir := range libDirs {
-		if !strings.HasPrefix(dir, "$SNAP/") && !strings.HasPrefix(dir, "${SNAP}/") {
-			return fmt.Errorf(
-				"cuda-driver-libs source directory %q must start with $SNAP/ or ${SNAP}/", dir)
-		}
-	}
-
-	return nil
+	return validateLdconfigLibDirs(slot)
 }
 
 func (iface *cudaDriverLibsInterface) LdconfigConnectedPlug(spec *ldconfig.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
-	libDirs := []string{}
-	if err := slot.Attr("source", &libDirs); err != nil {
-		return err
-	}
-	expandedDirs := make([]string, 0, len(libDirs))
-	for _, dir := range libDirs {
-		expandedDirs = append(expandedDirs, slot.Snap().ExpandSnapVariables(dir))
-	}
-	spec.AddLibDirs(expandedDirs)
-	return nil
+	// The plug can only be the system plug for the time being
+	return addLdconfigLibDirs(spec, slot)
 }
 
 func (iface *cudaDriverLibsInterface) AutoConnect(*snap.PlugInfo, *snap.SlotInfo) bool {
