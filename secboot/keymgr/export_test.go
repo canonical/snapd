@@ -31,3 +31,9 @@ func MockGetDiskUnlockKeyFromKernel(f func(prefix, devicePath string, remove boo
 }
 
 var RecoveryKDF = recoveryKDF
+
+func MockDisksDevlinks(f func(devPath string) ([]string, error)) (restore func()) {
+	restore = testutil.Backup(&disksDevlinks)
+	disksDevlinks = f
+	return restore
+}
