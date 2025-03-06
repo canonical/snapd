@@ -25,6 +25,7 @@ var (
 	CheckApparmorUsable = checkApparmorUsable
 	CheckWSL            = checkWSL
 	CheckCgroup         = checkCgroup
+	CheckSnapMountDir   = checkSnapMountDir
 
 	CheckFuse = firstCheckFuse
 )
