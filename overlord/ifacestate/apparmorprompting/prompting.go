@@ -31,6 +31,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/prompting/requestrules"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/sandbox/apparmor/notify"
 	"github.com/snapcore/snapd/sandbox/apparmor/notify/listener"
 	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/strutil"
@@ -43,7 +44,9 @@ var (
 	listenerRun      = func(l *listener.Listener) error { return l.Run() }
 	listenerReqs     = func(l *listener.Listener) <-chan *listener.Request { return l.Reqs() }
 
-	requestReply = func(req *listener.Request, allowedPermission any) error { return req.Reply(allowedPermission) }
+	requestReply = func(req *listener.Request, allowedPermission notify.AppArmorPermission) error {
+		return req.Reply(allowedPermission)
+	}
 )
 
 // A Manager holds outstanding prompts and mediates their replies, further it

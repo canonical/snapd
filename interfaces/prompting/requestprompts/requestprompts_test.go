@@ -81,7 +81,7 @@ func (s *requestpromptsSuite) SetUpTest(c *C) {
 }
 
 func (s *requestpromptsSuite) TestNew(c *C) {
-	restore := requestprompts.MockSendReply(func(listenerReq *listener.Request, allowedPermission any) error {
+	restore := requestprompts.MockSendReply(func(listenerReq *listener.Request, allowedPermission notify.AppArmorPermission) error {
 		c.Fatalf("should not have called sendReply")
 		return nil
 	})
@@ -101,7 +101,7 @@ func (s *requestpromptsSuite) TestNew(c *C) {
 }
 
 func (s *requestpromptsSuite) TestNewValidMaxID(c *C) {
-	restore := requestprompts.MockSendReply(func(listenerReq *listener.Request, allowedPermission any) error {
+	restore := requestprompts.MockSendReply(func(listenerReq *listener.Request, allowedPermission notify.AppArmorPermission) error {
 		c.Fatalf("should not have called sendReply")
 		return nil
 	})
@@ -151,7 +151,7 @@ func (s *requestpromptsSuite) TestNewValidMaxID(c *C) {
 }
 
 func (s *requestpromptsSuite) TestNewInvalidMaxID(c *C) {
-	restore := requestprompts.MockSendReply(func(listenerReq *listener.Request, allowedPermission any) error {
+	restore := requestprompts.MockSendReply(func(listenerReq *listener.Request, allowedPermission notify.AppArmorPermission) error {
 		c.Fatalf("should not have called sendReply")
 		return nil
 	})
@@ -193,7 +193,7 @@ func (s *requestpromptsSuite) TestNewInvalidMaxID(c *C) {
 }
 
 func (s *requestpromptsSuite) TestNewNextIDUniqueIDs(c *C) {
-	restore := requestprompts.MockSendReply(func(listenerReq *listener.Request, allowedPermission any) error {
+	restore := requestprompts.MockSendReply(func(listenerReq *listener.Request, allowedPermission notify.AppArmorPermission) error {
 		c.Fatalf("should not have called sendReply")
 		return nil
 	})
@@ -255,7 +255,7 @@ func (s *requestpromptsSuite) checkWrittenMaxID(c *C, id uint64) {
 }
 
 func (s *requestpromptsSuite) TestAddOrMerge(c *C) {
-	restore := requestprompts.MockSendReply(func(listenerReq *listener.Request, allowedPermission any) error {
+	restore := requestprompts.MockSendReply(func(listenerReq *listener.Request, allowedPermission notify.AppArmorPermission) error {
 		c.Fatalf("should not have called sendReply")
 		return nil
 	})
@@ -385,7 +385,7 @@ func sortSliceParams(list []*noticeInfo) ([]*noticeInfo, func(i, j int) bool) {
 }
 
 func (s *requestpromptsSuite) TestAddOrMergeTooMany(c *C) {
-	restore := requestprompts.MockSendReply(func(listenerReq *listener.Request, allowedPermission any) error {
+	restore := requestprompts.MockSendReply(func(listenerReq *listener.Request, allowedPermission notify.AppArmorPermission) error {
 		c.Fatalf("should not have called sendReply")
 		return nil
 	})
@@ -419,7 +419,7 @@ func (s *requestpromptsSuite) TestAddOrMergeTooMany(c *C) {
 	path := fmt.Sprintf("/home/test/Documents/%d.txt", requestprompts.MaxOutstandingPromptsPerUser)
 	lr := &listener.Request{}
 
-	restore = requestprompts.MockSendReply(func(listenerReq *listener.Request, allowedPermission any) error {
+	restore = requestprompts.MockSendReply(func(listenerReq *listener.Request, allowedPermission notify.AppArmorPermission) error {
 		c.Assert(listenerReq, Equals, lr)
 		c.Assert(allowedPermission, DeepEquals, notify.FilePermission(0))
 		return nil
@@ -456,7 +456,7 @@ func (s *requestpromptsSuite) TestAddOrMergeTooMany(c *C) {
 }
 
 func (s *requestpromptsSuite) TestPromptWithIDErrors(c *C) {
-	restore := requestprompts.MockSendReply(func(listenerReq *listener.Request, allowedPermission any) error {
+	restore := requestprompts.MockSendReply(func(listenerReq *listener.Request, allowedPermission notify.AppArmorPermission) error {
 		c.Fatalf("should not have called sendReply")
 		return nil
 	})
@@ -501,8 +501,8 @@ func (s *requestpromptsSuite) TestPromptWithIDErrors(c *C) {
 
 func (s *requestpromptsSuite) TestReply(c *C) {
 	listenerReqChan := make(chan *listener.Request, 2)
-	replyChan := make(chan any, 2)
-	restore := requestprompts.MockSendReply(func(listenerReq *listener.Request, allowedPermission any) error {
+	replyChan := make(chan notify.AppArmorPermission, 2)
+	restore := requestprompts.MockSendReply(func(listenerReq *listener.Request, allowedPermission notify.AppArmorPermission) error {
 		listenerReqChan <- listenerReq
 		replyChan <- allowedPermission
 		return nil
@@ -569,7 +569,7 @@ func (s *requestpromptsSuite) TestReply(c *C) {
 	}
 }
 
-func (s *requestpromptsSuite) waitForListenerReqAndReply(c *C, listenerReqChan <-chan *listener.Request, replyChan <-chan any) (req *listener.Request, allowedPermission any, err error) {
+func (s *requestpromptsSuite) waitForListenerReqAndReply(c *C, listenerReqChan <-chan *listener.Request, replyChan <-chan notify.AppArmorPermission) (req *listener.Request, allowedPermission notify.AppArmorPermission, err error) {
 	select {
 	case req = <-listenerReqChan:
 	case <-time.NewTimer(10 * time.Second).C:
@@ -585,7 +585,7 @@ func (s *requestpromptsSuite) waitForListenerReqAndReply(c *C, listenerReqChan <
 
 func (s *requestpromptsSuite) TestReplyErrors(c *C) {
 	fakeError := fmt.Errorf("fake reply error")
-	restore := requestprompts.MockSendReply(func(listenerReq *listener.Request, allowedPermission any) error {
+	restore := requestprompts.MockSendReply(func(listenerReq *listener.Request, allowedPermission notify.AppArmorPermission) error {
 		return fakeError
 	})
 	defer restore()
@@ -628,8 +628,8 @@ func (s *requestpromptsSuite) TestReplyErrors(c *C) {
 
 func (s *requestpromptsSuite) TestHandleNewRule(c *C) {
 	listenerReqChan := make(chan *listener.Request, 2)
-	replyChan := make(chan any, 2)
-	restore := requestprompts.MockSendReply(func(listenerReq *listener.Request, allowedPermission any) error {
+	replyChan := make(chan notify.AppArmorPermission, 2)
+	restore := requestprompts.MockSendReply(func(listenerReq *listener.Request, allowedPermission notify.AppArmorPermission) error {
 		listenerReqChan <- listenerReq
 		replyChan <- allowedPermission
 		return nil
@@ -764,8 +764,8 @@ func promptIDListContains(haystack []prompting.IDType, needle prompting.IDType) 
 
 func (s *requestpromptsSuite) TestHandleNewRuleNonMatches(c *C) {
 	listenerReqChan := make(chan *listener.Request, 1)
-	replyChan := make(chan any, 1)
-	restore := requestprompts.MockSendReply(func(listenerReq *listener.Request, allowedPermission any) error {
+	replyChan := make(chan notify.AppArmorPermission, 1)
+	restore := requestprompts.MockSendReply(func(listenerReq *listener.Request, allowedPermission notify.AppArmorPermission) error {
 		listenerReqChan <- listenerReq
 		replyChan <- allowedPermission
 		return nil
@@ -902,7 +902,7 @@ func (s *requestpromptsSuite) TestClose(c *C) {
 	})
 	defer restore()
 
-	restore = requestprompts.MockSendReply(func(listenerReq *listener.Request, allowedPermission any) error {
+	restore = requestprompts.MockSendReply(func(listenerReq *listener.Request, allowedPermission notify.AppArmorPermission) error {
 		c.Fatalf("should not have called sendReply")
 		return nil
 	})
@@ -967,7 +967,7 @@ func (s *requestpromptsSuite) TestClose(c *C) {
 }
 
 func (s *requestpromptsSuite) TestCloseThenOperate(c *C) {
-	restore := requestprompts.MockSendReply(func(listenerReq *listener.Request, allowedPermission any) error {
+	restore := requestprompts.MockSendReply(func(listenerReq *listener.Request, allowedPermission notify.AppArmorPermission) error {
 		c.Fatalf("should not have called sendReply")
 		return nil
 	})
@@ -1011,7 +1011,7 @@ func (s *requestpromptsSuite) TestCloseThenOperate(c *C) {
 }
 
 func (s *requestpromptsSuite) TestPromptMarshalJSON(c *C) {
-	restore := requestprompts.MockSendReply(func(listenerReq *listener.Request, allowedPermission any) error {
+	restore := requestprompts.MockSendReply(func(listenerReq *listener.Request, allowedPermission notify.AppArmorPermission) error {
 		c.Fatalf("should not have called sendReply")
 		return nil
 	})
@@ -1059,7 +1059,7 @@ func (s *requestpromptsSuite) TestPromptExpiration(c *C) {
 	defer restore()
 
 	replyChan := make(chan notify.FilePermission, 1)
-	restore = requestprompts.MockSendReply(func(listenerReq *listener.Request, allowedPermission any) error {
+	restore = requestprompts.MockSendReply(func(listenerReq *listener.Request, allowedPermission notify.AppArmorPermission) error {
 		allowedFilePermission, ok := allowedPermission.(notify.FilePermission)
 		c.Assert(ok, Equals, true)
 		replyChan <- allowedFilePermission
@@ -1205,7 +1205,7 @@ func (s *requestpromptsSuite) TestPromptExpirationRace(c *C) {
 	defer restore()
 
 	replyChan := make(chan notify.FilePermission, 1)
-	restore = requestprompts.MockSendReply(func(listenerReq *listener.Request, allowedPermission any) error {
+	restore = requestprompts.MockSendReply(func(listenerReq *listener.Request, allowedPermission notify.AppArmorPermission) error {
 		allowedFilePermission, ok := allowedPermission.(notify.FilePermission)
 		c.Assert(ok, Equals, true)
 		replyChan <- allowedFilePermission
