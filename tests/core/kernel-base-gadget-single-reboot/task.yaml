@@ -80,7 +80,7 @@ execute: |
             cp pc-snap/meta/gadget.yaml gadget.yaml.orig
 
             system_seed=""
-            if os.query is-core20 || os.query is-core22 ; then
+            if os.query is-core-ge 20; then
                 system_seed="--system-seed"
             fi
 
@@ -89,7 +89,7 @@ execute: |
             echo 'this is foo-x2' > foo-x2.img
             cp foo-x2.img pc-snap/foo.img
             echo 'this is foo.cfg' > pc-snap/foo.cfg
-            if os.query is-core20 || os.query is-core22; then
+            if os.query is-core-ge 20; then
                 echo 'this is foo-seed.cfg' > pc-snap/foo-seed.cfg
             fi
             sed -i -e 's/^version: \(.*\)-1/version: \1-2/' pc-snap/meta/snap.yaml
@@ -158,7 +158,7 @@ execute: |
             MATCH 'snap_mode=try' < boot-vars.dump
             MATCH 'snap_try_core=core18_.*.snap' < boot-vars.dump
             MATCH 'snap_try_kernel=pc-kernel_.*.snap' < boot-vars.dump
-        elif os.query is-core20 || os.query is-core22 || os.query is-core24; then
+        elif os.query is-core-ge 20; then
             stat /boot/grub/kernel.efi | MATCH 'pc-kernel.*.snap/kernel.efi'
             stat -L /boot/grub/kernel.efi
             stat /boot/grub/try-kernel.efi | MATCH 'pc-kernel.*.snap/kernel.efi'
