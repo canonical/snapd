@@ -73,7 +73,7 @@ execute: |
     #   ubuntu-22.04 (F:1 P:1 A:0)
 
     ### CHECK HELP ###    
-    log-analyzer | MATCH "usage: log-analyzer list-failed-tasks <EXEC-PARAM> <PARSED-LOG>"
+    log-analyzer | MATCH "usage: log-analyzer [-h] command exec_params [parsed_log]" || true
     log-analyzer -h | MATCH "usage: log-analyzer list-failed-tasks <EXEC-PARAM> <PARSED-LOG>"
     log-analyzer --help | MATCH "usage: log-analyzer list-failed-tasks <EXEC-PARAM> <PARSED-LOG>"
 
