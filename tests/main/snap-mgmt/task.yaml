@@ -89,7 +89,15 @@ restore: |
     # are in cgroups that resemble snap services in  user sessions
     find /sys/fs/cgroup/ -type d -path "*/user.slice/*/snap.*service" -prune | while read -r svc; do
         while (("$(wc -l < "$svc/cgroup.procs" || echo 0)" > 0)); do
-            echo 1 > "$svc/cgroup.kill"
+            # for compatibility with v1/hybrid and old kernels not having cgroup.kill
+            if [ -f "$svc/cgroup.kill" ]; then
+                echo 1 > "$svc/cgroup.kill"
+            else
+                # shellcheck disable=SC2002
+                cat "$svc/cgroup.procs" | while read -r killpid; do
+                    kill -9 "$killpid" || true
+                done
+            fi
             sleep 1
         done
         rmdir "$svc" || true
