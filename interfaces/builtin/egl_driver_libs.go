@@ -22,10 +22,10 @@ package builtin
 import (
 	"errors"
 	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
 
-	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/configfiles"
 	"github.com/snapcore/snapd/interfaces/ldconfig"
@@ -74,37 +74,17 @@ func (iface *eglDriverLibsInterface) BeforePrepareSlot(slot *snap.SlotInfo) erro
 	if err := slot.Attr("client-driver", &clientDriver); err != nil {
 		return fmt.Errorf("invalid client-driver: %w", err)
 	}
-	if filepath.Dir(clientDriver) != "." {
+	// We want a file name in client-driver, without directories
+	if strings.ContainsRune(clientDriver, os.PathSeparator) {
 		return fmt.Errorf("client-driver value %q should be a file", clientDriver)
 	}
-	// Validate directories and make sure the client driver is around
-	libDirs := []string{}
-	if err := slot.Attr("source", &libDirs); err != nil {
-		return err
-	}
-	for _, dir := range libDirs {
-		if !strings.HasPrefix(dir, "$SNAP/") && !strings.HasPrefix(dir, "${SNAP}/") {
-			return fmt.Errorf(
-				"egl-driver-libs source directory %q must start with $SNAP/ or ${SNAP}/", dir)
-		}
-	}
-
-	return nil
+	// Validate directories
+	return validateLdconfigLibDirs(slot)
 }
 
 func (iface *eglDriverLibsInterface) LdconfigConnectedPlug(spec *ldconfig.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
-	libDirs := []string{}
-	if err := slot.Attr("source", &libDirs); err != nil {
-		return err
-	}
-	expandedDirs := make([]string, 0, len(libDirs))
-	for _, dir := range libDirs {
-		expandedDirs = append(expandedDirs, filepath.Clean(slot.Snap().ExpandSnapVariables(
-			filepath.Join(dirs.GlobalRootDir, dir))))
-	}
-	spec.AddLibDirs(expandedDirs)
-
-	return nil
+	// The plug can only be the system plug for the time being
+	return addLdconfigLibDirs(spec, slot)
 }
 
 var _ = interfaces.ConfigfilesUser(&eglDriverLibsInterface{})
@@ -116,6 +96,7 @@ func (t *eglDriverLibsInterface) PathPatterns() []string {
 }
 
 func (iface *eglDriverLibsInterface) ConfigfilesConnectedPlug(spec *configfiles.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
+	// The plug can only be the system plug for the time being
 	const icdTemplate = `{
     "file_format_version" : "1.0.0",
     "ICD" : {
