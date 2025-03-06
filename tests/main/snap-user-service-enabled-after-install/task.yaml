@@ -53,6 +53,7 @@ prepare: |
     fi
 
 restore: |
+    snap remove --purge test-snapd-user-service-disabled || true
     tests.session -u test2 restore || true
     if ! userdel -rf test2; then
         userdel --extrausers -rf test2 || true

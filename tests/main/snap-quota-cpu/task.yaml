@@ -19,6 +19,9 @@ prepare: |
 restore: |
   echo "Stopping the service"
   snap stop test-snapd-stressd.stress-sc
+  snap remove-quota group-one || true
+  # despite removing groups, in 18.04 and 20.04, the slices stay behind
+  find /sys/fs/cgroup/ -type d -name 'snap.*.slice' -prune -ls -exec rmdir \{\} \;
 
 execute: |
   echo "Starting service and verifying cpu usage"

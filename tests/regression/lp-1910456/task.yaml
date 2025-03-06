@@ -35,6 +35,14 @@ prepare: |
         snap install --dangerous --classic test-snapd-classic-container-mgrs*.snap
     fi
 
+restore: |
+    if os.query is-xenial || os.query is-bionic; then
+        # old system is not doing cleanups
+        find /sys/fs/cgroup/ -type d -name "snap.*" -prune | while read -r svc; do
+             rmdir "$svc" || true
+        done
+    fi
+
 execute: |
     #shellcheck source=tests/lib/systems.sh
     . "$TESTSLIB"/systems.sh

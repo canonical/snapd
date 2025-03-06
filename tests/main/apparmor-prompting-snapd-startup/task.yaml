@@ -25,7 +25,7 @@ prepare: |
 
 restore: |
     tests.exec is-skipped && exit 0
-
+    snap remove --purge test-snapd-prompt-handler || true
     snap set system experimental.apparmor-prompting=false
 
 debug: |

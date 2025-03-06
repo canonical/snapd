@@ -75,6 +75,13 @@ restore: |
         groupdel "$user" || groupdel --extrausers "$user" || true
     done
 
+    if os.query is-xenial || os.query is-bionic; then
+        # old system is not doing cleanups
+        find /sys/fs/cgroup/ -type d -name "snap.*" -prune | while read -r svc; do
+             rmdir "$svc" || true
+        done
+    fi
+
 execute: |
     snap install --channel="$CHANNEL" microk8s
     microk8s status --wait-ready

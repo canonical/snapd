@@ -54,6 +54,9 @@ prepare: |
     fi
 
 restore: |
+    snap remove --purge test-snapd-mixed-service || true
+    snap remove --purge test-snapd-mixed-service-v2 || true
+
     tests.session -u test2 restore
     if ! userdel -rf test2; then
         userdel --extrausers -rf test2
