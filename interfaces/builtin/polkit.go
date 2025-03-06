@@ -155,7 +155,7 @@ type polkitInstallRule struct {
 	Name, Sha3_384 string
 }
 
-func (iface *polkitInterface) getInstallRules(attribs interfaces.Attrer) ([]polkitInstallRule, error) {
+func (iface *polkitInterface) parseAndValidateInstallRules(attribs interfaces.Attrer) ([]polkitInstallRule, error) {
 	var ruleEntries []map[string]string
 	if err := attribs.Attr("install-rules", &ruleEntries); err != nil {
 		return nil, err
@@ -224,7 +224,7 @@ func loadPolkitRule(filename string, installRules []polkitInstallRule) (polkit.R
 }
 
 func (iface *polkitInterface) loadPolkitRules(spec *polkit.Specification, plug *interfaces.ConnectedPlug) error {
-	installRules, err := iface.getInstallRules(plug)
+	installRules, err := iface.parseAndValidateInstallRules(plug)
 	if err != nil {
 		return err
 	}
@@ -298,7 +298,7 @@ func (iface *polkitInterface) BeforePreparePlug(plug *snap.PlugInfo) error {
 		return fmt.Errorf("cannot use \"action-prefix\" attribute: polkit policies are not supported")
 	}
 
-	_, ruleErr := iface.getInstallRules(plug)
+	_, ruleErr := iface.parseAndValidateInstallRules(plug)
 	if ruleErr != nil && !errors.Is(ruleErr, snap.AttributeNotFoundError{}) {
 		return ruleErr
 	}
