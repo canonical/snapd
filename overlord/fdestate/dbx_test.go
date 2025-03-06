@@ -33,6 +33,7 @@ import (
 	"github.com/snapcore/snapd/boot/boottest"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget/device"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/fdestate"
 	"github.com/snapcore/snapd/overlord/fdestate/backend"
 	"github.com/snapcore/snapd/overlord/snapstate"
@@ -102,6 +103,9 @@ func (s *fdeMgrSuite) TestEFIDBXStartupClean(c *C) {
 }
 
 func (s *fdeMgrSuite) TestEFIDBXPrepareHappy(c *C) {
+	mountinfo := `26 27 8:3 / %s/var/lib/snapd/save rw,relatime shared:7 - ext4 /dev/fakedevice0p1 rw,data=ordered`
+	defer osutil.MockMountInfo(fmt.Sprintf(mountinfo, dirs.GlobalRootDir))()
+
 	c.Assert(device.StampSealedKeys(dirs.GlobalRootDir, device.SealingMethodTPM), IsNil)
 
 	st := s.st
@@ -112,7 +116,7 @@ func (s *fdeMgrSuite) TestEFIDBXPrepareHappy(c *C) {
 	c.Assert(s.o.StartUp(), IsNil)
 
 	model := s.mockBootAssetsStateForModeenv(c)
-	s.mockDeviceInState(model)
+	s.mockDeviceInState(model, "run")
 
 	resealCalls := 0
 	defer fdestate.MockBackendResealKeysForSignaturesDBUpdate(func(mgr backend.FDEStateManager, method device.SealingMethod, rootdir string, params *boot.ResealKeyForBootChainsParams, update []byte) error {
@@ -198,6 +202,9 @@ func (s *fdeMgrSuite) TestEFIDBXPrepareHappy(c *C) {
 }
 
 func (s *fdeMgrSuite) TestEFIDBXPrepareConflictSelf(c *C) {
+	mountinfo := `26 27 8:3 / %s/var/lib/snapd/save rw,relatime shared:7 - ext4 /dev/fakedevice0p1 rw,data=ordered`
+	defer osutil.MockMountInfo(fmt.Sprintf(mountinfo, dirs.GlobalRootDir))()
+
 	c.Assert(device.StampSealedKeys(dirs.GlobalRootDir, device.SealingMethodTPM), IsNil)
 
 	st := s.st
@@ -208,7 +215,7 @@ func (s *fdeMgrSuite) TestEFIDBXPrepareConflictSelf(c *C) {
 	c.Assert(s.o.StartUp(), IsNil)
 
 	model := s.mockBootAssetsStateForModeenv(c)
-	s.mockDeviceInState(model)
+	s.mockDeviceInState(model, "run")
 
 	resealCalls := 0
 	defer fdestate.MockBackendResealKeysForSignaturesDBUpdate(func(mgr backend.FDEStateManager, method device.SealingMethod, rootdir string, params *boot.ResealKeyForBootChainsParams, update []byte) error {
@@ -246,6 +253,9 @@ func (s *fdeMgrSuite) TestEFIDBXPrepareConflictSelf(c *C) {
 }
 
 func (s *fdeMgrSuite) TestEFIDBXPrepareConflictOperationNotInDoingYet(c *C) {
+	mountinfo := `26 27 8:3 / %s/var/lib/snapd/save rw,relatime shared:7 - ext4 /dev/fakedevice0p1 rw,data=ordered`
+	defer osutil.MockMountInfo(fmt.Sprintf(mountinfo, dirs.GlobalRootDir))()
+
 	// attempting to run cleanup or startup when the operation has not yet
 	// reached Doing status raises a conflict
 	c.Assert(device.StampSealedKeys(dirs.GlobalRootDir, device.SealingMethodTPM), IsNil)
@@ -258,7 +268,7 @@ func (s *fdeMgrSuite) TestEFIDBXPrepareConflictOperationNotInDoingYet(c *C) {
 	c.Assert(s.o.StartUp(), IsNil)
 
 	model := s.mockBootAssetsStateForModeenv(c)
-	s.mockDeviceInState(model)
+	s.mockDeviceInState(model, "run")
 
 	resealCalls := 0
 	defer fdestate.MockBackendResealKeysForSignaturesDBUpdate(func(mgr backend.FDEStateManager, method device.SealingMethod, rootdir string, params *boot.ResealKeyForBootChainsParams, update []byte) error {
@@ -292,6 +302,9 @@ func (s *fdeMgrSuite) TestEFIDBXPrepareConflictOperationNotInDoingYet(c *C) {
 }
 
 func (s *fdeMgrSuite) TestEFIDBXPrepareConflictSnapChanges(c *C) {
+	mountinfo := `26 27 8:3 / %s/var/lib/snapd/save rw,relatime shared:7 - ext4 /dev/fakedevice0p1 rw,data=ordered`
+	defer osutil.MockMountInfo(fmt.Sprintf(mountinfo, dirs.GlobalRootDir))()
+
 	c.Assert(device.StampSealedKeys(dirs.GlobalRootDir, device.SealingMethodTPM), IsNil)
 
 	st := s.st
@@ -302,7 +315,7 @@ func (s *fdeMgrSuite) TestEFIDBXPrepareConflictSnapChanges(c *C) {
 	c.Assert(s.o.StartUp(), IsNil)
 
 	model := s.mockBootAssetsStateForModeenv(c)
-	s.mockDeviceInState(model)
+	s.mockDeviceInState(model, "run")
 
 	defer testutil.Mock(&snapstate.EnforcedValidationSets, func(st *state.State, extraVss ...*asserts.ValidationSet) (*snapasserts.ValidationSets, error) {
 		return nil, nil
@@ -342,6 +355,9 @@ func (s *fdeMgrSuite) TestEFIDBXPrepareConflictSnapChanges(c *C) {
 }
 
 func (s *fdeMgrSuite) TestEFIDBXUpdateAndCleanupRunningAction(c *C) {
+	mountinfo := `26 27 8:3 / %s/var/lib/snapd/save rw,relatime shared:7 - ext4 /dev/fakedevice0p1 rw,data=ordered`
+	defer osutil.MockMountInfo(fmt.Sprintf(mountinfo, dirs.GlobalRootDir))()
+
 	c.Assert(device.StampSealedKeys(dirs.GlobalRootDir, device.SealingMethodTPM), IsNil)
 
 	st := s.st
@@ -352,7 +368,7 @@ func (s *fdeMgrSuite) TestEFIDBXUpdateAndCleanupRunningAction(c *C) {
 	c.Assert(s.o.StartUp(), IsNil)
 
 	model := s.mockBootAssetsStateForModeenv(c)
-	s.mockDeviceInState(model)
+	s.mockDeviceInState(model, "run")
 
 	resealForDBUPdateCalls := 0
 	resealForBootChainsCalls := 0
@@ -470,6 +486,9 @@ func (s *fdeMgrSuite) TestEFIDBXUpdateAndCleanupRunningAction(c *C) {
 }
 
 func (s *fdeMgrSuite) TestEFIDBXUpdateAndUnexpectedStartupAction(c *C) {
+	mountinfo := `26 27 8:3 / %s/var/lib/snapd/save rw,relatime shared:7 - ext4 /dev/fakedevice0p1 rw,data=ordered`
+	defer osutil.MockMountInfo(fmt.Sprintf(mountinfo, dirs.GlobalRootDir))()
+
 	c.Assert(device.StampSealedKeys(dirs.GlobalRootDir, device.SealingMethodTPM), IsNil)
 
 	st := s.st
@@ -480,7 +499,7 @@ func (s *fdeMgrSuite) TestEFIDBXUpdateAndUnexpectedStartupAction(c *C) {
 	c.Assert(s.o.StartUp(), IsNil)
 
 	model := s.mockBootAssetsStateForModeenv(c)
-	s.mockDeviceInState(model)
+	s.mockDeviceInState(model, "run")
 
 	resealForDBUPdateCalls := 0
 	resealForBootChainsCalls := 0
@@ -611,6 +630,9 @@ func (s *fdeMgrSuite) TestEFIDBXUpdateAbort(c *C) {
 	// simulate a case when prepare is requested, but neither cleanup nor
 	// startup is called, the change will wait till it is auto aborted
 
+	mountinfo := `26 27 8:3 / %s/var/lib/snapd/save rw,relatime shared:7 - ext4 /dev/fakedevice0p1 rw,data=ordered`
+	defer osutil.MockMountInfo(fmt.Sprintf(mountinfo, dirs.GlobalRootDir))()
+
 	c.Assert(device.StampSealedKeys(dirs.GlobalRootDir, device.SealingMethodTPM), IsNil)
 
 	st := s.st
@@ -621,7 +643,7 @@ func (s *fdeMgrSuite) TestEFIDBXUpdateAbort(c *C) {
 	c.Assert(s.o.StartUp(), IsNil)
 
 	model := s.mockBootAssetsStateForModeenv(c)
-	s.mockDeviceInState(model)
+	s.mockDeviceInState(model, "run")
 
 	resealForDBUpdateCalls := 0
 	resealForBootChainsCalls := 0
@@ -716,6 +738,9 @@ func (s *fdeMgrSuite) TestEFIDBXUpdateAbort(c *C) {
 }
 
 func (s *fdeMgrSuite) TestEFIDBXUpdateResealFailedAborts(c *C) {
+	mountinfo := `26 27 8:3 / %s/var/lib/snapd/save rw,relatime shared:7 - ext4 /dev/fakedevice0p1 rw,data=ordered`
+	defer osutil.MockMountInfo(fmt.Sprintf(mountinfo, dirs.GlobalRootDir))()
+
 	c.Assert(device.StampSealedKeys(dirs.GlobalRootDir, device.SealingMethodTPM), IsNil)
 
 	st := s.st
@@ -726,7 +751,7 @@ func (s *fdeMgrSuite) TestEFIDBXUpdateResealFailedAborts(c *C) {
 	c.Assert(s.o.StartUp(), IsNil)
 
 	model := s.mockBootAssetsStateForModeenv(c)
-	s.mockDeviceInState(model)
+	s.mockDeviceInState(model, "run")
 
 	resealForDBUPdateCalls := 0
 	resealForBootChainsCalls := 0
@@ -776,6 +801,9 @@ func (s *fdeMgrSuite) TestEFIDBXUpdateResealFailedAborts(c *C) {
 }
 
 func (s *fdeMgrSuite) TestEFIDBXUpdatePostUpdateResealFailed(c *C) {
+	mountinfo := `26 27 8:3 / %s/var/lib/snapd/save rw,relatime shared:7 - ext4 /dev/fakedevice0p1 rw,data=ordered`
+	defer osutil.MockMountInfo(fmt.Sprintf(mountinfo, dirs.GlobalRootDir))()
+
 	// mock an error in a reseal which happens in the 'do' handler after snapd
 	// has been notified of a completed update
 	c.Assert(device.StampSealedKeys(dirs.GlobalRootDir, device.SealingMethodTPM), IsNil)
@@ -788,7 +816,7 @@ func (s *fdeMgrSuite) TestEFIDBXUpdatePostUpdateResealFailed(c *C) {
 	c.Assert(s.o.StartUp(), IsNil)
 
 	model := s.mockBootAssetsStateForModeenv(c)
-	s.mockDeviceInState(model)
+	s.mockDeviceInState(model, "run")
 
 	resealForDBUPdateCalls := 0
 	resealForBootChainsCalls := 0
@@ -854,6 +882,9 @@ func (s *fdeMgrSuite) TestEFIDBXUpdatePostUpdateResealFailed(c *C) {
 }
 
 func (s *fdeMgrSuite) TestEFIDBXUpdateUndoResealFails(c *C) {
+	mountinfo := `26 27 8:3 / %s/var/lib/snapd/save rw,relatime shared:7 - ext4 /dev/fakedevice0p1 rw,data=ordered`
+	defer osutil.MockMountInfo(fmt.Sprintf(mountinfo, dirs.GlobalRootDir))()
+
 	// mock an error in a reseal which happens in the 'undo' path after snapd
 	// has been notified of a restart in the external DBX manager process
 	c.Assert(device.StampSealedKeys(dirs.GlobalRootDir, device.SealingMethodTPM), IsNil)
@@ -866,7 +897,7 @@ func (s *fdeMgrSuite) TestEFIDBXUpdateUndoResealFails(c *C) {
 	c.Assert(s.o.StartUp(), IsNil)
 
 	model := s.mockBootAssetsStateForModeenv(c)
-	s.mockDeviceInState(model)
+	s.mockDeviceInState(model, "run")
 
 	resealForDBUPdateCalls := 0
 	resealForBootChainsCalls := 0
@@ -1141,7 +1172,7 @@ func (s *fdeMgrSuite) TestEFIDBXUpdateAffectedSnaps(c *C) {
 	s.startedManager(c, onClassic)
 
 	model := s.mockBootAssetsStateForModeenv(c)
-	s.mockDeviceInState(model)
+	s.mockDeviceInState(model, "run")
 
 	st.Lock()
 	defer st.Unlock()
@@ -1158,6 +1189,9 @@ func (s *fdeMgrSuite) TestEFIDBXUpdateAffectedSnaps(c *C) {
 }
 
 func (s *fdeMgrSuite) TestEFIDBXConflictingSnaps(c *C) {
+	mountinfo := `26 27 8:3 / %s/var/lib/snapd/save rw,relatime shared:7 - ext4 /dev/fakedevice0p1 rw,data=ordered`
+	defer osutil.MockMountInfo(fmt.Sprintf(mountinfo, dirs.GlobalRootDir))()
+
 	// mock an error in a reseal which happens in the 'undo' path after snapd
 	// has been notified of a restart in the external DBX manager process
 	c.Assert(device.StampSealedKeys(dirs.GlobalRootDir, device.SealingMethodTPM), IsNil)
@@ -1170,7 +1204,7 @@ func (s *fdeMgrSuite) TestEFIDBXConflictingSnaps(c *C) {
 	c.Assert(s.o.StartUp(), IsNil)
 
 	model := s.mockBootAssetsStateForModeenv(c)
-	s.mockDeviceInState(model)
+	s.mockDeviceInState(model, "run")
 
 	resealForDBUPdateCalls := 0
 	resealForBootChainsCalls := 0

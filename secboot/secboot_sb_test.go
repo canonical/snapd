@@ -1825,10 +1825,8 @@ func (s *secbootSuite) testSealKeysWithFDESetupHookHappy(c *C, useKeyFiles bool)
 	}
 
 	tmpDir := c.MkDir()
-	auxKeyFn := filepath.Join(tmpDir, "aux-key")
 	params := secboot.SealKeysWithFDESetupHookParams{
 		Model:      fakeModel,
-		AuxKeyFile: auxKeyFn,
 	}
 	containerA := secboot.CreateMockBootstrappedContainer()
 	containerB := secboot.CreateMockBootstrappedContainer()
