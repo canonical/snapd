@@ -162,7 +162,7 @@ jobs:
           # where it is defined the backend to use when images are ready in both google and openstack.
           USE_ALTERNATIVE_BACKEND="$(curl -s https://storage.googleapis.com/snapd-spread-tests/snapd-tests/ci/use_alternative_backend.json)"
           SPREAD_BACKEND="${{ inputs.backend }}"
-          if [ -n "${{ inputs.alternative-backend }}" ] && [ $(jq -r '."${{ inputs.group }}"'' <<< "$USE_ALTERNATIVE_BACKEND") == true ]; then
+          if [ -n "${{ inputs.alternative-backend }}" ] && [ $(jq -r ".\"${{ inputs.group }}\"" <<< "$USE_ALTERNATIVE_BACKEND") == true ]; then
               SPREAD_BACKEND="${{ inputs.alternative-backend }}"
           fi
           echo SPREAD_BACKEND="$SPREAD_BACKEND" >> $GITHUB_ENV
