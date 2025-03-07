@@ -124,7 +124,7 @@ func readPolkitPolicy(filename, actionPrefix string) (polkit.Policy, error) {
 	return polkit.Policy(content), nil
 }
 
-func (iface *polkitInterface) readPolkitPolicies(spec *polkit.Specification, plug *interfaces.ConnectedPlug) error {
+func (iface *polkitInterface) addPolkitPolicies(spec *polkit.Specification, plug *interfaces.ConnectedPlug) error {
 	actionPrefix, err := iface.getActionPrefix(plug)
 	if err != nil {
 		return err
@@ -223,7 +223,7 @@ func readPolkitRule(filename string, installRules []polkitInstallRule) (polkit.R
 	return polkit.Rule(content), nil
 }
 
-func (iface *polkitInterface) readPolkitRules(spec *polkit.Specification, plug *interfaces.ConnectedPlug) error {
+func (iface *polkitInterface) addPolkitRules(spec *polkit.Specification, plug *interfaces.ConnectedPlug) error {
 	installRules, err := iface.parseAndValidateInstallRules(plug)
 	if err != nil {
 		return err
@@ -260,11 +260,11 @@ func (err *polkitMissingAttrErr) Error() string {
 
 func (iface *polkitInterface) PolkitConnectedPlug(spec *polkit.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	// At least one of ("action-prefix", "install-rules") attributes must be set.
-	policyErr := iface.readPolkitPolicies(spec, plug)
+	policyErr := iface.addPolkitPolicies(spec, plug)
 	if policyErr != nil && !errors.Is(policyErr, snap.AttributeNotFoundError{}) {
 		return policyErr
 	}
-	ruleErr := iface.readPolkitRules(spec, plug)
+	ruleErr := iface.addPolkitRules(spec, plug)
 	if ruleErr != nil && !errors.Is(ruleErr, snap.AttributeNotFoundError{}) {
 		return ruleErr
 	}
