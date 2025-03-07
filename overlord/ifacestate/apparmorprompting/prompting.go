@@ -199,7 +199,7 @@ func (m *InterfacesRequestsManager) handleListenerReq(req *listener.Request) err
 	snap := req.Label // Default to apparmor label, in case process is not a snap
 	tag, err := naming.ParseSecurityTag(req.Label)
 	if err == nil {
-		// the triggering process is not a snap, so treat apparmor label as snap field
+		// the triggering process is a snap, so use instance name as snap field
 		snap = tag.InstanceName()
 	}
 
