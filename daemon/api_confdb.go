@@ -34,7 +34,7 @@ import (
 
 var (
 	confdbCmd = &Command{
-		Path:        "/v2/confdb/{account}/{confdb}/{view}",
+		Path:        "/v2/confdb/{account}/{confdb-schema}/{view}",
 		GET:         getView,
 		PUT:         setView,
 		ReadAccess:  authenticatedAccess{Polkit: polkitActionManage},
@@ -52,7 +52,7 @@ func getView(c *Command, r *http.Request, _ *auth.UserState) Response {
 	}
 
 	vars := muxVars(r)
-	account, confdbName, view := vars["account"], vars["confdb"], vars["view"]
+	account, dbSchemaName, view := vars["account"], vars["confdb-schema"], vars["view"]
 	fieldStr := r.URL.Query().Get("fields")
 
 	var fields []string
@@ -60,7 +60,7 @@ func getView(c *Command, r *http.Request, _ *auth.UserState) Response {
 		fields = strutil.CommaSeparatedList(fieldStr)
 	}
 
-	results, err := confdbstateGet(st, account, confdbName, view, fields)
+	results, err := confdbstateGet(st, account, dbSchemaName, view, fields)
 	if err != nil {
 		return toAPIError(err)
 	}
@@ -78,7 +78,7 @@ func setView(c *Command, r *http.Request, _ *auth.UserState) Response {
 	}
 
 	vars := muxVars(r)
-	account, confdbName, viewName := vars["account"], vars["confdb"], vars["view"]
+	account, dbSchemaName, viewName := vars["account"], vars["confdb-schema"], vars["view"]
 
 	decoder := json.NewDecoder(r.Body)
 	var values map[string]interface{}
@@ -86,7 +86,7 @@ func setView(c *Command, r *http.Request, _ *auth.UserState) Response {
 		return BadRequest("cannot decode confdb request body: %v", err)
 	}
 
-	view, err := confdbstateGetView(st, account, confdbName, viewName)
+	view, err := confdbstateGetView(st, account, dbSchemaName, viewName)
 	if err != nil {
 		return toAPIError(err)
 	}
@@ -124,14 +124,14 @@ func toAPIError(err error) *apiError {
 
 func validateConfdbFeatureFlag(st *state.State) *apiError {
 	tr := config.NewTransaction(st)
-	enabled, err := features.Flag(tr, features.Confdbs)
+	enabled, err := features.Flag(tr, features.Confdb)
 	if err != nil && !config.IsNoOption(err) {
-		return InternalError(fmt.Sprintf("internal error: cannot check confdbs feature flag: %s", err))
+		return InternalError(fmt.Sprintf("internal error: cannot check confdb feature flag: %s", err))
 	}
 
 	if !enabled {
-		_, confName := features.Confdbs.ConfigOption()
-		return BadRequest(fmt.Sprintf(`"confdbs" feature flag is disabled: set '%s' to true`, confName))
+		_, confName := features.Confdb.ConfigOption()
+		return BadRequest(fmt.Sprintf(`"confdb" feature flag is disabled: set '%s' to true`, confName))
 	}
 	return nil
 }

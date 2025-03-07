@@ -86,11 +86,11 @@ func (m *ConfdbManager) doCommitTransaction(t *state.Task, _ *tomb.Tomb) (err er
 		return err
 	}
 
-	confdbAssert, err := assertstateConfdb(st, tx.ConfdbAccount, tx.ConfdbName)
+	confdbAssert, err := assertstateConfdbSchema(st, tx.ConfdbAccount, tx.ConfdbName)
 	if err != nil {
 		return err
 	}
-	schema := confdbAssert.Confdb().Schema
+	schema := confdbAssert.Schema().DatabagSchema
 
 	return tx.Commit(st, schema)
 }

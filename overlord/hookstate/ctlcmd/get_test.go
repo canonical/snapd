@@ -536,7 +536,7 @@ func (s *confdbSuite) SetUpTest(c *C) {
   }
 }`)
 
-	as, err := s.signingDB.Sign(asserts.ConfdbType, headers, body, "")
+	as, err := s.signingDB.Sign(asserts.ConfdbSchemaType, headers, body, "")
 	c.Assert(err, IsNil)
 	c.Assert(assertstate.Add(s.state, as), IsNil)
 
@@ -600,7 +600,7 @@ slots:
 
 func (s *confdbSuite) setConfdbFlag(val bool, c *C) {
 	tr := config.NewTransaction(s.state)
-	_, confOption := features.Confdbs.ConfigOption()
+	_, confOption := features.Confdb.ConfigOption()
 	err := tr.Set("core", confOption, val)
 	c.Assert(err, IsNil)
 	tr.Commit()
@@ -774,12 +774,12 @@ func (s *confdbSuite) TestConfdbGetAndSetAssertionNotFound(c *C) {
 	s.state.Unlock()
 
 	stdout, stderr, err := ctlcmd.Run(s.mockContext, []string{"get", "--view", ":read-wifi"}, 0)
-	c.Assert(err, ErrorMatches, fmt.Sprintf("cannot find confdb %s/network: assertion not found", s.devAccID))
+	c.Assert(err, ErrorMatches, fmt.Sprintf("cannot find confdb schema %s/network: assertion not found", s.devAccID))
 	c.Check(stdout, IsNil)
 	c.Check(stderr, IsNil)
 
 	stdout, stderr, err = ctlcmd.Run(s.mockContext, []string{"set", "--view", ":write-wifi", "ssid=my-ssid"}, 0)
-	c.Assert(err, ErrorMatches, fmt.Sprintf("cannot find confdb %s/network: assertion not found", s.devAccID))
+	c.Assert(err, ErrorMatches, fmt.Sprintf("cannot find confdb schema %s/network: assertion not found", s.devAccID))
 	c.Check(stdout, IsNil)
 	c.Check(stderr, IsNil)
 }
@@ -808,19 +808,19 @@ func (s *confdbSuite) TestConfdbGetAndSetViewNotFound(c *C) {
   }
 }`)
 
-	as, err := s.signingDB.Sign(asserts.ConfdbType, headers, body, "")
+	as, err := s.signingDB.Sign(asserts.ConfdbSchemaType, headers, body, "")
 	c.Assert(err, IsNil)
 	s.state.Lock()
 	c.Assert(assertstate.Add(s.state, as), IsNil)
 	s.state.Unlock()
 
 	stdout, stderr, err := ctlcmd.Run(s.mockContext, []string{"get", "--view", ":read-wifi"}, 0)
-	c.Assert(err, ErrorMatches, fmt.Sprintf("cannot find view \"read-wifi\" in confdb %s/network", s.devAccID))
+	c.Assert(err, ErrorMatches, fmt.Sprintf("cannot find view \"read-wifi\" in confdb schema %s/network", s.devAccID))
 	c.Check(stdout, IsNil)
 	c.Check(stderr, IsNil)
 
 	stdout, stderr, err = ctlcmd.Run(s.mockContext, []string{"set", "--view", ":write-wifi", "ssid=my-ssid"}, 0)
-	c.Assert(err, ErrorMatches, fmt.Sprintf("cannot find view \"write-wifi\" in confdb %s/network", s.devAccID))
+	c.Assert(err, ErrorMatches, fmt.Sprintf("cannot find view \"write-wifi\" in confdb schema %s/network", s.devAccID))
 	c.Check(stdout, IsNil)
 	c.Check(stderr, IsNil)
 }
@@ -879,7 +879,7 @@ func (s *confdbSuite) TestConfdbGetDifferentViewThanOngoingTx(c *C) {
 	defer s.state.Lock()
 
 	restore := ctlcmd.MockConfdbstateGetView(func(st *state.State, account, confdbName, viewName string) (*confdb.View, error) {
-		reg, err := confdb.New(s.devAccID, "other", map[string]interface{}{
+		reg, err := confdb.NewSchema(s.devAccID, "other", map[string]interface{}{
 			"other": map[string]interface{}{
 				"rules": []interface{}{
 					map[string]interface{}{"request": "ssid", "storage": "ssid"},
@@ -905,7 +905,7 @@ func (s *confdbSuite) TestConfdbExperimentalFlag(c *C) {
 
 	for _, cmd := range []string{"get", "set", "unset"} {
 		stdout, stderr, err := ctlcmd.Run(s.mockContext, []string{cmd, "--view", ":read-wifi"}, 0)
-		c.Assert(err, ErrorMatches, i18n.G(`"confdbs" feature flag is disabled: set 'experimental.confdbs' to true`))
+		c.Assert(err, ErrorMatches, i18n.G(`"confdb" feature flag is disabled: set 'experimental.confdb' to true`))
 		c.Check(stdout, IsNil)
 		c.Check(stderr, IsNil)
 	}

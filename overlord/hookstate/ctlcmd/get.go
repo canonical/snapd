@@ -378,12 +378,12 @@ func (c *getCommand) getConfdbValues(ctx *hookstate.Context, plugName string, re
 	ctx.Lock()
 	defer ctx.Unlock()
 
-	account, confdbName, viewName, err := getConfdbViewID(ctx, plugName)
+	account, dbSchemaName, viewName, err := getConfdbViewID(ctx, plugName)
 	if err != nil {
 		return err
 	}
 
-	view, err := confdbstateGetView(ctx.State(), account, confdbName, viewName)
+	view, err := confdbstateGetView(ctx.State(), account, dbSchemaName, viewName)
 	if err != nil {
 		return err
 	}
@@ -401,20 +401,20 @@ func (c *getCommand) getConfdbValues(ctx *hookstate.Context, plugName string, re
 	return c.printPatch(res)
 }
 
-func (c *getCommand) getDatabag(ctx *hookstate.Context, view *confdb.View, pristine bool) (bag confdb.DataBag, err error) {
-	account, confdbName := view.Confdb().Account, view.Confdb().Name
+func (c *getCommand) getDatabag(ctx *hookstate.Context, view *confdb.View, pristine bool) (bag confdb.Databag, err error) {
+	account, dbSchemaName := view.Schema().Account, view.Schema().Name
 
 	var tx *confdbstate.Transaction
 	if confdbstate.IsConfdbHook(ctx) {
-		// running in the context of a transaction, so if the referenced confdb
-		// doesn't match that tx, we only allow the caller to read the other confdb
+		// running in the context of a transaction, so if the referenced confdb schema
+		// doesn't match that tx, we only allow the caller to read through other confdb schema
 		t, _ := ctx.Task()
 		tx, _, err = confdbstateGetStoredTransaction(t)
 		if err != nil {
-			return nil, fmt.Errorf("cannot access confdb view %s/%s/%s: cannot get transaction: %v", account, confdbName, view.Name, err)
+			return nil, fmt.Errorf("cannot access confdb through view %s/%s/%s: cannot get transaction: %v", account, dbSchemaName, view.Name, err)
 		}
 
-		if tx.ConfdbAccount != account || tx.ConfdbName != confdbName {
+		if tx.ConfdbAccount != account || tx.ConfdbName != dbSchemaName {
 			// we're reading a different transaction
 			tx = nil
 		}
@@ -423,7 +423,7 @@ func (c *getCommand) getDatabag(ctx *hookstate.Context, view *confdb.View, prist
 	// reading a view but there's no ongoing transaction for it, make a temporary
 	// transaction just as a pass-through databag
 	if tx == nil {
-		tx, err = confdbstateNewTransaction(ctx.State(), account, confdbName)
+		tx, err = confdbstateNewTransaction(ctx.State(), account, dbSchemaName)
 		if err != nil {
 			return nil, err
 		}
@@ -435,7 +435,7 @@ func (c *getCommand) getDatabag(ctx *hookstate.Context, view *confdb.View, prist
 	return tx, nil
 }
 
-func getConfdbViewID(ctx *hookstate.Context, plugName string) (account, confdbName, viewName string, err error) {
+func getConfdbViewID(ctx *hookstate.Context, plugName string) (account, dbSchemaName, viewName string, err error) {
 	repo := ifacerepo.Get(ctx.State())
 
 	plug := repo.Plug(ctx.InstanceName(), plugName)
@@ -447,29 +447,29 @@ func getConfdbViewID(ctx *hookstate.Context, plugName string) (account, confdbNa
 		return "", "", "", fmt.Errorf(i18n.G("cannot use --view with non-confdb plug :%s"), plugName)
 	}
 
-	account, confdbName, viewName, err = snap.ConfdbPlugAttrs(plug)
+	account, dbSchemaName, viewName, err = snap.ConfdbPlugAttrs(plug)
 	if err != nil {
 		return "", "", "", fmt.Errorf(i18n.G("invalid plug :%s: %w"), plugName, err)
 	}
 
-	return account, confdbName, viewName, nil
+	return account, dbSchemaName, viewName, nil
 }
 
-// validateConfdbsFeatureFlag checks whether the confdbs experimental flag
+// validateConfdbsFeatureFlag checks whether the confdb experimental flag
 // is enabled. The state should not be locked by the caller.
 func validateConfdbsFeatureFlag(st *state.State) error {
 	st.Lock()
 	defer st.Unlock()
 
 	tr := config.NewTransaction(st)
-	enabled, err := features.Flag(tr, features.Confdbs)
+	enabled, err := features.Flag(tr, features.Confdb)
 	if err != nil && !config.IsNoOption(err) {
-		return fmt.Errorf(i18n.G("internal error: cannot check confdbs feature flag: %v"), err)
+		return fmt.Errorf(i18n.G("internal error: cannot check confdb feature flag: %v"), err)
 	}
 
 	if !enabled {
-		_, confName := features.Confdbs.ConfigOption()
-		return fmt.Errorf(i18n.G(`"confdbs" feature flag is disabled: set '%s' to true`), confName)
+		_, confName := features.Confdb.ConfigOption()
+		return fmt.Errorf(i18n.G(`"confdb" feature flag is disabled: set '%s' to true`), confName)
 	}
 
 	return nil

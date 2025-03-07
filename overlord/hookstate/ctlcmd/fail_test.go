@@ -73,7 +73,7 @@ func (s *confdbSuite) TestFailErrors(c *C) {
 	s.state.Unlock()
 
 	stdout, stderr, err := ctlcmd.Run(s.mockContext, []string{"fail", "reason"}, 0)
-	c.Assert(err, ErrorMatches, i18n.G(`"confdbs" feature flag is disabled: set 'experimental.confdbs' to true`))
+	c.Assert(err, ErrorMatches, i18n.G(`"confdb" feature flag is disabled: set 'experimental.confdb' to true`))
 	c.Check(stdout, IsNil)
 	c.Check(stderr, IsNil)
 

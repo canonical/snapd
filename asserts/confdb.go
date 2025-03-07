@@ -28,33 +28,33 @@ import (
 	"github.com/snapcore/snapd/confdb"
 )
 
-// Confdb holds a confdb assertion, which is a definition by an account of
-// access views and a storage schema for a set of related configuration options
-// under the purview of the account.
-type Confdb struct {
+// ConfdbSchema holds a confdb-schema assertion, which is a definition by an
+// account of access views and a storage schema for a set of related
+// configuration options under the purview of the account.
+type ConfdbSchema struct {
 	assertionBase
 
-	confdb    *confdb.Confdb
+	schema    *confdb.Schema
 	timestamp time.Time
 }
 
 // AccountID returns the identifier of the account that signed this assertion.
-func (ar *Confdb) AccountID() string {
+func (ar *ConfdbSchema) AccountID() string {
 	return ar.HeaderString("account-id")
 }
 
 // Name returns the name for the confdb.
-func (ar *Confdb) Name() string {
+func (ar *ConfdbSchema) Name() string {
 	return ar.HeaderString("name")
 }
 
-// Confdb returns a Confdb assembled from the assertion that can be used
-// to access confdb views.
-func (ar *Confdb) Confdb() *confdb.Confdb {
-	return ar.confdb
+// Schema returns a confdb.Schema assembled from the assertion that can
+// be used to access confdb views.
+func (ar *ConfdbSchema) Schema() *confdb.Schema {
+	return ar.schema
 }
 
-func assembleConfdb(assert assertionBase) (Assertion, error) {
+func assembleConfdbSchema(assert assertionBase) (Assertion, error) {
 	authorityID := assert.AuthorityID()
 	accountID := assert.HeaderString("account-id")
 	if accountID != authorityID {
@@ -93,7 +93,7 @@ func assembleConfdb(assert assertionBase) (Assertion, error) {
 		return nil, fmt.Errorf(`invalid schema: %w`, err)
 	}
 
-	confdb, err := confdb.New(accountID, name, viewsMap, schema)
+	confdbSchema, err := confdb.NewSchema(accountID, name, viewsMap, schema)
 	if err != nil {
 		return nil, err
 	}
@@ -103,9 +103,9 @@ func assembleConfdb(assert assertionBase) (Assertion, error) {
 		return nil, err
 	}
 
-	return &Confdb{
+	return &ConfdbSchema{
 		assertionBase: assert,
-		confdb:        confdb,
+		schema:        confdbSchema,
 		timestamp:     timestamp,
 	}, nil
 }

@@ -56,7 +56,7 @@ type confdbTestSuite struct {
 	state *state.State
 	o     *overlord.Overlord
 
-	confdb   *confdb.Confdb
+	dbSchema *confdb.Schema
 	devAccID string
 
 	repo *interfaces.Repository
@@ -145,15 +145,15 @@ func (s *confdbTestSuite) SetUpTest(c *C) {
   }
 }`)
 
-	as, err := signingDB.Sign(asserts.ConfdbType, headers, body, "")
+	as, err := signingDB.Sign(asserts.ConfdbSchemaType, headers, body, "")
 	c.Assert(err, IsNil)
 	c.Assert(assertstate.Add(s.state, as), IsNil)
 
 	s.devAccID = devAccKey.AccountID()
-	s.confdb = as.(*asserts.Confdb).Confdb()
+	s.dbSchema = as.(*asserts.ConfdbSchema).Schema()
 
 	tr := config.NewTransaction(s.state)
-	_, confOption := features.Confdbs.ConfigOption()
+	_, confOption := features.Confdb.ConfigOption()
 	err = tr.Set("core", confOption, true)
 	c.Assert(err, IsNil)
 	tr.Commit()
@@ -163,10 +163,10 @@ func (s *confdbTestSuite) TestGetView(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	databag := confdb.NewJSONDataBag()
+	databag := confdb.NewJSONDatabag()
 	err := databag.Set("wifi.ssid", "foo")
 	c.Assert(err, IsNil)
-	s.state.Set("confdb-databags", map[string]map[string]confdb.JSONDataBag{s.devAccID: {"network": databag}})
+	s.state.Set("confdb-databags", map[string]map[string]confdb.JSONDatabag{s.devAccID: {"network": databag}})
 
 	res, err := confdbstate.Get(s.state, s.devAccID, "network", "setup-wifi", []string{"ssid"})
 	c.Assert(err, IsNil)
@@ -179,7 +179,7 @@ func (s *confdbTestSuite) TestGetNotFound(c *C) {
 
 	res, err := confdbstate.Get(s.state, s.devAccID, "network", "other-view", []string{"ssid"})
 	c.Assert(err, FitsTypeOf, &confdb.NotFoundError{})
-	c.Assert(err, ErrorMatches, fmt.Sprintf(`cannot find view "other-view" in confdb %s/network`, s.devAccID))
+	c.Assert(err, ErrorMatches, fmt.Sprintf(`cannot find view "other-view" in confdb schema %s/network`, s.devAccID))
 	c.Check(res, IsNil)
 
 	res, err = confdbstate.Get(s.state, s.devAccID, "network", "setup-wifi", []string{"ssid"})
@@ -205,7 +205,7 @@ func (s *confdbTestSuite) TestSetView(c *C) {
 	err := confdbstate.Set(s.state, s.devAccID, "network", "setup-wifi", map[string]interface{}{"ssid": "foo"})
 	c.Assert(err, IsNil)
 
-	var databags map[string]map[string]confdb.JSONDataBag
+	var databags map[string]map[string]confdb.JSONDatabag
 	err = s.state.Get("confdb-databags", &databags)
 	c.Assert(err, IsNil)
 
@@ -224,14 +224,14 @@ func (s *confdbTestSuite) TestSetNotFound(c *C) {
 
 	err = confdbstate.Set(s.state, s.devAccID, "network", "other-view", map[string]interface{}{"foo": "bar"})
 	c.Assert(err, FitsTypeOf, &confdb.NotFoundError{})
-	c.Assert(err, ErrorMatches, fmt.Sprintf(`cannot find view "other-view" in confdb %s/network`, s.devAccID))
+	c.Assert(err, ErrorMatches, fmt.Sprintf(`cannot find view "other-view" in confdb schema %s/network`, s.devAccID))
 }
 
 func (s *confdbTestSuite) TestUnsetView(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	databag := confdb.NewJSONDataBag()
+	databag := confdb.NewJSONDatabag()
 	err := confdbstate.Set(s.state, s.devAccID, "network", "setup-wifi", map[string]interface{}{"ssid": "foo"})
 	c.Assert(err, IsNil)
 
@@ -247,10 +247,10 @@ func (s *confdbTestSuite) TestConfdbstateSetWithExistingState(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	bag := confdb.NewJSONDataBag()
+	bag := confdb.NewJSONDatabag()
 	err := bag.Set("wifi.ssid", "bar")
 	c.Assert(err, IsNil)
-	databags := map[string]map[string]confdb.JSONDataBag{
+	databags := map[string]map[string]confdb.JSONDatabag{
 		s.devAccID: {"network": bag},
 	}
 
@@ -274,22 +274,22 @@ func (s *confdbTestSuite) TestConfdbstateSetWithExistingState(c *C) {
 
 func (s *confdbTestSuite) TestConfdbstateSetWithNoState(c *C) {
 	type testcase struct {
-		state map[string]map[string]confdb.JSONDataBag
+		state map[string]map[string]confdb.JSONDatabag
 	}
 
 	testcases := []testcase{
 		{
-			state: map[string]map[string]confdb.JSONDataBag{
+			state: map[string]map[string]confdb.JSONDatabag{
 				s.devAccID: {"network": nil},
 			},
 		},
 		{
-			state: map[string]map[string]confdb.JSONDataBag{
+			state: map[string]map[string]confdb.JSONDatabag{
 				s.devAccID: nil,
 			},
 		},
 		{
-			state: map[string]map[string]confdb.JSONDataBag{},
+			state: map[string]map[string]confdb.JSONDatabag{},
 		},
 		{
 			state: nil,
@@ -304,7 +304,7 @@ func (s *confdbTestSuite) TestConfdbstateSetWithNoState(c *C) {
 		err := confdbstate.Set(s.state, s.devAccID, "network", "setup-wifi", map[string]interface{}{"ssid": "bar"})
 		c.Assert(err, IsNil)
 
-		var databags map[string]map[string]confdb.JSONDataBag
+		var databags map[string]map[string]confdb.JSONDatabag
 		err = s.state.Get("confdb-databags", &databags)
 		c.Assert(err, IsNil)
 
@@ -364,7 +364,7 @@ func mockInstalledSnap(c *C, st *state.State, snapYaml string, hooks []string) *
 }
 
 func (s *confdbTestSuite) TestPlugsAffectedByPaths(c *C) {
-	confdb, err := confdb.New(s.devAccID, "confdb", map[string]interface{}{
+	confdb, err := confdb.NewSchema(s.devAccID, "confdb", map[string]interface{}{
 		// exact match
 		"view-1": map[string]interface{}{
 			"rules": []interface{}{
@@ -478,7 +478,7 @@ func (s *confdbTestSuite) TestConfdbTasksUserSetWithCustodianInstalled(c *C) {
 	err = tx.Set("wifi.ssid", "my-ssid")
 	c.Assert(err, IsNil)
 
-	view := s.confdb.View("setup-wifi")
+	view := s.dbSchema.View("setup-wifi")
 	chg := s.state.NewChange("modify-confdb", "")
 
 	// a user (not a snap) changes a confdb
@@ -518,7 +518,7 @@ func (s *confdbTestSuite) TestConfdbTasksUserSetWithCustodianInstalled(c *C) {
 		},
 	}
 
-	checkModifyConfdbTasks(c, chg, tasks, hooks)
+	checkSetConfdbTasks(c, chg, tasks, hooks)
 }
 
 func (s *confdbTestSuite) TestConfdbTasksCustodianSnapSet(c *C) {
@@ -535,8 +535,8 @@ func (s *confdbTestSuite) TestConfdbTasksCustodianSnapSet(c *C) {
 	err = tx.Set("wifi.ssid", "my-ssid")
 	c.Assert(err, IsNil)
 
-	view := s.confdb.View("setup-wifi")
-	chg := s.state.NewChange("modify-confdb", "")
+	view := s.dbSchema.View("setup-wifi")
+	chg := s.state.NewChange("set-confdb", "")
 
 	// a user (not a snap) changes a confdb
 	ts, err := confdbstate.CreateChangeConfdbTasks(s.state, tx, view, "custodian-snap")
@@ -560,7 +560,7 @@ func (s *confdbTestSuite) TestConfdbTasksCustodianSnapSet(c *C) {
 		},
 	}
 
-	checkModifyConfdbTasks(c, chg, tasks, hooks)
+	checkSetConfdbTasks(c, chg, tasks, hooks)
 }
 
 func (s *confdbTestSuite) TestConfdbTasksObserverSnapSetWithCustodianInstalled(c *C) {
@@ -577,7 +577,7 @@ func (s *confdbTestSuite) TestConfdbTasksObserverSnapSetWithCustodianInstalled(c
 	err = tx.Set("wifi.ssid", "my-ssid")
 	c.Assert(err, IsNil)
 
-	view := s.confdb.View("setup-wifi")
+	view := s.dbSchema.View("setup-wifi")
 	chg := s.state.NewChange("modify-confdb", "")
 
 	// a non-custodian snap modifies a confdb
@@ -615,7 +615,7 @@ func (s *confdbTestSuite) TestConfdbTasksObserverSnapSetWithCustodianInstalled(c
 		},
 	}
 
-	checkModifyConfdbTasks(c, chg, tasks, hooks)
+	checkSetConfdbTasks(c, chg, tasks, hooks)
 }
 
 func (s *confdbTestSuite) TestConfdbTasksDisconnectedCustodianSnap(c *C) {
@@ -646,11 +646,11 @@ func (s *confdbTestSuite) testConfdbTasksNoCustodian(c *C) {
 	err = tx.Set("wifi.ssid", "my-ssid")
 	c.Assert(err, IsNil)
 
-	view := s.confdb.View("setup-wifi")
+	view := s.dbSchema.View("setup-wifi")
 
 	// a non-custodian snap modifies a confdb
 	_, err = confdbstate.CreateChangeConfdbTasks(s.state, tx, view, "test-snap-1")
-	c.Assert(err, ErrorMatches, fmt.Sprintf("cannot commit changes to confdb %s/network: no custodian snap connected", s.devAccID))
+	c.Assert(err, ErrorMatches, fmt.Sprintf("cannot commit changes to confdb made through view %s/network/%s: no custodian snap installed", s.devAccID, view.Name))
 }
 
 func (s *confdbTestSuite) setupConfdbScenario(c *C, noHooks bool, custodians, nonCustodians []string) {
@@ -731,7 +731,7 @@ plugs:
 	}
 }
 
-func checkModifyConfdbTasks(c *C, chg *state.Change, taskKinds []string, hooksups []*hookstate.HookSetup) {
+func checkSetConfdbTasks(c *C, chg *state.Change, taskKinds []string, hooksups []*hookstate.HookSetup) {
 	c.Assert(chg.Tasks(), HasLen, len(taskKinds))
 	commitTask := findTask(chg, "commit-confdb-tx")
 
@@ -859,9 +859,9 @@ func (s *confdbTestSuite) TestGetTransactionFromUserCreatesNewChange(c *C) {
 	const noHooks bool = false
 	s.setupConfdbScenario(c, noHooks, []string{"custodian-snap"}, nil)
 
-	view := s.confdb.View("setup-wifi")
+	view := s.dbSchema.View("setup-wifi")
 
-	tx, commitTxFunc, err := confdbstate.GetTransactionToModify(nil, s.state, view)
+	tx, commitTxFunc, err := confdbstate.GetTransactionToSet(nil, s.state, view)
 	c.Assert(err, IsNil)
 	c.Assert(tx, NotNil)
 	c.Assert(commitTxFunc, NotNil)
@@ -884,10 +884,10 @@ func (s *confdbTestSuite) TestGetTransactionFromUserCreatesNewChange(c *C) {
 
 	c.Assert(s.state.Changes(), HasLen, 1)
 	chg := s.state.Changes()[0]
-	c.Assert(chg.Kind(), Equals, "modify-confdb")
+	c.Assert(chg.Kind(), Equals, "set-confdb")
 	c.Assert(changeID, Equals, chg.ID())
 
-	s.checkModifyConfdbChange(c, chg, hooks)
+	s.checkSetConfdbChange(c, chg, hooks)
 }
 
 func (s *confdbTestSuite) TestGetTransactionFromSnapCreatesNewChange(c *C) {
@@ -925,9 +925,9 @@ func (s *confdbTestSuite) TestGetTransactionFromSnapCreatesNewChange(c *C) {
 	s.state.Lock()
 	c.Assert(s.state.Changes(), HasLen, 1)
 	chg := s.state.Changes()[0]
-	c.Assert(chg.Kind(), Equals, "modify-confdb")
+	c.Assert(chg.Kind(), Equals, "set-confdb")
 
-	s.checkModifyConfdbChange(c, chg, hooks)
+	s.checkSetConfdbChange(c, chg, hooks)
 }
 
 func (s *confdbTestSuite) TestGetTransactionFromNonConfdbHookAddsConfdbTx(c *C) {
@@ -991,7 +991,7 @@ func (s *confdbTestSuite) TestGetTransactionFromNonConfdbHookAddsConfdbTx(c *C) 
 	}
 
 	s.state.Lock()
-	s.checkModifyConfdbChange(c, chg, &hooks)
+	s.checkSetConfdbChange(c, chg, &hooks)
 }
 
 func (s *confdbTestSuite) mockConfdbHooks(c *C) (*[]string, func()) {
@@ -1014,7 +1014,7 @@ func (s *confdbTestSuite) mockConfdbHooks(c *C) (*[]string, func()) {
 	return &hooks, restore
 }
 
-func (s *confdbTestSuite) checkModifyConfdbChange(c *C, chg *state.Change, hooks *[]string) {
+func (s *confdbTestSuite) checkSetConfdbChange(c *C, chg *state.Change, hooks *[]string) {
 	c.Assert(chg.Status(), Equals, state.DoneStatus)
 	c.Assert(*hooks, DeepEquals, []string{"change-view-setup", "save-view-setup", "setup-view-changed"})
 
@@ -1136,7 +1136,7 @@ func (s *confdbTestSuite) TestGetDifferentTransactionThanOngoing(c *C) {
 	refTask.Set("tx-task", commitTask.ID())
 
 	// make some other confdb to access concurrently
-	confdb, err := confdb.New("foo", "bar", map[string]interface{}{
+	confdb, err := confdb.NewSchema("foo", "bar", map[string]interface{}{
 		"foo": map[string]interface{}{
 			"rules": []interface{}{
 				map[string]interface{}{"request": "foo", "storage": "foo"},
@@ -1150,9 +1150,9 @@ func (s *confdbTestSuite) TestGetDifferentTransactionThanOngoing(c *C) {
 	c.Assert(err, IsNil)
 
 	ctx.Lock()
-	tx, commitTxFunc, err := confdbstate.GetTransactionToModify(ctx, s.state, confdb.View("foo"))
+	tx, commitTxFunc, err := confdbstate.GetTransactionToSet(ctx, s.state, confdb.View("foo"))
 	ctx.Unlock()
-	c.Assert(err, ErrorMatches, fmt.Sprintf(`cannot access confdb foo/bar: ongoing transaction for %s/network`, s.devAccID))
+	c.Assert(err, ErrorMatches, fmt.Sprintf(`cannot access confdb through view foo/bar/foo: ongoing transaction for %s/network`, s.devAccID))
 	c.Assert(tx, IsNil)
 	c.Assert(commitTxFunc, IsNil)
 }
@@ -1185,11 +1185,11 @@ func (s *confdbTestSuite) testConfdbLoadNoCustodian(c *C) {
 	err = tx.Set("wifi.ssid", "my-ssid")
 	c.Assert(err, IsNil)
 
-	view := s.confdb.View("setup-wifi")
+	view := s.dbSchema.View("setup-wifi")
 
 	// a non-custodian snap modifies a confdb
 	_, err = confdbstate.CreateLoadConfdbTasks(s.state, tx, view)
-	c.Assert(err, ErrorMatches, fmt.Sprintf("cannot load confdb %s/network: no custodian snap connected", s.devAccID))
+	c.Assert(err, ErrorMatches, fmt.Sprintf("cannot load confdb through view %s/network/setup-wifi: no custodian snap connected", s.devAccID))
 }
 
 func checkLoadConfdbTasks(c *C, chg *state.Change, taskKinds []string, hooksups []*hookstate.HookSetup) {
@@ -1245,7 +1245,7 @@ func (s *confdbTestSuite) TestConfdbLoadCustodianInstalled(c *C) {
 	err = tx.Set("wifi.ssid", "my-ssid")
 	c.Assert(err, IsNil)
 
-	view := s.confdb.View("setup-wifi")
+	view := s.dbSchema.View("setup-wifi")
 	chg := s.state.NewChange("load-confdb", "")
 
 	ts, err := confdbstate.CreateLoadConfdbTasks(s.state, tx, view)
@@ -1290,7 +1290,7 @@ func (s *confdbTestSuite) TestConfdbLoadCustodianWithNoHooks(c *C) {
 	err = tx.Set("wifi.ssid", "my-ssid")
 	c.Assert(err, IsNil)
 
-	view := s.confdb.View("setup-wifi")
+	view := s.dbSchema.View("setup-wifi")
 	ts, err := confdbstate.CreateLoadConfdbTasks(s.state, tx, view)
 	c.Assert(err, IsNil)
 	// no hooks, nothing to run
@@ -1314,7 +1314,7 @@ func (s *confdbTestSuite) TestConfdbLoadTasks(c *C) {
 	err = tx.Set("wifi.ssid", "my-ssid")
 	c.Assert(err, IsNil)
 
-	view := s.confdb.View("setup-wifi")
+	view := s.dbSchema.View("setup-wifi")
 	ts, err := confdbstate.CreateLoadConfdbTasks(s.state, tx, view)
 	c.Assert(err, IsNil)
 
