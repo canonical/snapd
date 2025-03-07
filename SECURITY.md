@@ -18,8 +18,8 @@ The latest snapd snap major release receives support through minor releases
 until the next major release. Similarly, snapd debs for Ubuntu releases
 within standard support, as well as snapd packages for other supported
 distributions, receive minor releases up to the next major release. For Ubuntu
-releases that have moved beyond standard support but remain within the expanded
-or legacy support, minor releases are typically based on the last major release
+releases that have moved beyond standard support but remain within expanded or
+legacy support, minor releases are typically based on the last major release
 issued before the transition out of standard support. Refer to the
 [Ubuntu release cycle documentation](https://ubuntu.com/about/release-cycle) for
 more details about the Ubuntu lifecycle and release cadence.
