@@ -20,6 +20,7 @@
 package builtin
 
 import (
+	"errors"
 	"fmt"
 	"path/filepath"
 	"strings"
@@ -57,6 +58,26 @@ type gpioChardevInterface struct {
 	commonInterface
 }
 
+func validateSourceChips(sourceChip []string) error {
+	if len(sourceChip) == 0 {
+		return errors.New(`"source-chip" must contain at least one chip`)
+	}
+	exists := make(map[string]bool)
+	for _, chip := range sourceChip {
+		if chip == "" {
+			return errors.New("source chip cannot be empty")
+		}
+		if chip != strings.TrimSpace(chip) {
+			return fmt.Errorf("source chip cannot contain leading or trailing white space, found %q", chip)
+		}
+		if exists[chip] {
+			return fmt.Errorf(`"source-chip" cannot contain duplicate chip names, found %q`, chip)
+		}
+		exists[chip] = true
+	}
+	return nil
+}
+
 // XXX: What should be the limit on max range.
 const maxLinesCount = 65536
 
@@ -66,6 +87,9 @@ func (iface *gpioChardevInterface) BeforePrepareSlot(slot *snap.SlotInfo) error 
 	// "source-chip" attribute is mandatory.
 	if err := slot.Attr("source-chip", &sourceChip); err != nil {
 		return err
+	}
+	if err := validateSourceChips(sourceChip); err != nil {
+		return fmt.Errorf(`invalid "source-chip" attribute: %w`, err)
 	}
 
 	var lines string
