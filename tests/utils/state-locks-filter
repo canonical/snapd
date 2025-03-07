@@ -6,12 +6,12 @@ import re
 import sys
 
 """
-LockTrace: Represents a trace in the log file.
+LockOpTrace: Represents a Lock Operation trace in the log file.
 It holds the lines for the trace and allows matching against a part of the trace.
 """
 
 
-class LockTrace:
+class LockOpTrace:
     def __init__(self, lines: list[str]):
         self.lines = lines
 
@@ -32,7 +32,7 @@ class LockTrace:
         return hash(str(self))
 
     def __eq__(self, other) -> bool:
-        if not isinstance(other, LockTrace):
+        if not isinstance(other, LockOpTrace):
             # don't attempt to compare against unrelated types
             return NotImplemented
 
@@ -40,14 +40,14 @@ class LockTrace:
 
 
 """
-Lock: Represents a lock in the log file, including its header and times (held and wait times).
-It is tied to the LockTrace class.
+LockOp: Represents a lock operation in the log file, including its header and times (held and wait times).
+It is tied to the LockOpTrace class.
 """
 
 
-class Lock:
+class LockOp:
     def __init__(self, lines: list[str]):
-        self.trace = LockTrace(lines[1:])
+        self.trace = LockOpTrace(lines[1:])
         self.header = lines[0]
         self.held_time = 0
         self.wait_time = 0
@@ -70,7 +70,7 @@ class Lock:
     def get_wait_time(self) -> int:
         return self.wait_time
 
-    def get_trace(self) -> LockTrace:
+    def get_trace(self) -> LockOpTrace:
         return self.trace
 
 
@@ -84,10 +84,12 @@ class LocksGroup:
 
     LOCK_PREFIX = "### "
 
+    locks: list[LockOp]
+
     def __init__(self, lines: list[str]):
         self.lines = lines
         self.header = self.lines[0]
-        self.locks = list[Lock]()
+        self.locks = []
 
         self._read()
 
@@ -102,7 +104,7 @@ class LocksGroup:
                 print("Error parsing lock")
                 sys.exit(1)
 
-            self.locks.append(Lock(lock_lines))
+            self.locks.append(LockOp(lock_lines))
             current_line = current_line + len(lock_lines)
 
     def __str__(self) -> str:
@@ -118,10 +120,10 @@ class LocksGroup:
     def get_name(self) -> str:
         return self.header
 
-    def get_locks(self) -> list[Lock]:
+    def get_locks(self) -> list[LockOp]:
         return self.locks
 
-    def get_traces(self) -> list[LockTrace]:
+    def get_traces(self) -> list[LockOpTrace]:
         traces = []
         for lock in self.locks:
             traces.append(lock.get_trace())
@@ -170,12 +172,12 @@ It provides methods to filter the traces by time and to print the results in a s
 
 
 class LockTraceManager:
-    def __init__(self, traces: dict[LockTrace, list[GroupTimes]]):
+    def __init__(self, traces: dict[LockOpTrace, list[GroupTimes]]):
         self.traces = traces
 
     # Filter the times for each trace
     def filter(self, held_time: int, wait_time: int):
-        filtered_traces = dict[LockTrace, list[GroupTimes]]()
+        filtered_traces = dict[LockOpTrace, list[GroupTimes]]()
         for trace, times in self.traces.items():
             filtered_times = [
                 time
@@ -190,7 +192,7 @@ class LockTraceManager:
 
     # Keep the traces that match with the params
     def match(self, match_names: list[str]):
-        filtered_traces = dict[LockTrace, list[GroupTimes]]()
+        filtered_traces = dict[LockOpTrace, list[GroupTimes]]()
         for trace, times in self.traces.items():
             for match_name in match_names:
                 if trace.match(match_name):
@@ -239,16 +241,17 @@ class LocksFileReader:
     PROJECT_PREFIX = "###START: SNAPD PROJECT"
     TEST_PREFIX = "###START:"
 
-    def __init__(self, locks_file: str):
-        self.locks_file = locks_file
-        self.lines = list[str]()
-        self.groups = list[LocksGroup]()
+    lines: list[str]
+    groups: list[LocksGroup]
 
-        self._read()
+    def __init__(self, locks_file: argparse.FileType):
+        self.lines = []
+        self.groups = []
 
-    def _read(self):
-        with open(self.locks_file, "r") as f:
-            self.lines = f.readlines()
+        self._read(locks_file)
+
+    def _read(self, locks_file: argparse.FileType):
+        self.lines =  locks_file.readlines()
 
         current_line = 0
         if not self._is_project(self.lines[current_line]):
@@ -289,8 +292,8 @@ class LocksFileReader:
 
     # Retrieve the times for each trace in the file
     # For each trace, there is a list with the times for each test where the trace appears
-    def get_traces_times(self) -> dict[LockTrace, list[GroupTimes]]:
-        traces = dict[LockTrace, list[GroupTimes]]()
+    def get_traces_times(self) -> dict[LockOpTrace, list[GroupTimes]]:
+        traces = dict[LockOpTrace, list[GroupTimes]]()
         for group in self.groups:
             group_traces = group.get_traces()
             for trace in group_traces:
@@ -336,7 +339,7 @@ def _make_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="state-locks-filter", 
                                      description="Reads a locks file and extracts lock information.")
     parser.add_argument(
-        "-f", "--locks-file", type=str, required=True, help="Locks file"
+        "-f", "--locks-file", type=argparse.FileType("r"), required=True, help="Locks file"
     )
     parser.add_argument(
         "--test",
@@ -372,12 +375,6 @@ def _make_parser() -> argparse.ArgumentParser:
 if __name__ == "__main__":
     parser = _make_parser()
     args = parser.parse_args()
-
-    if not os.path.isfile(args.locks_file):
-        print(
-            "state-lock-filter: locks file '{}' does not exist".format(args.locks_file)
-        )
-        sys.exit(1)
 
     if args.sort_held_time and args.sort_wait_time:
         print("state-lock-filter: define just 1 sorting (by held or wait times)")
