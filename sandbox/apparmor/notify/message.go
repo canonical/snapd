@@ -319,18 +319,41 @@ type MsgNotificationResponse struct {
 	// or the notification will result in a denial.
 }
 
-// ResponseForRequest returns a response message for a given request.
-func ResponseForRequest(req *MsgNotification) MsgNotificationResponse {
+// BuildResponse returns a MsgNotificationResponse with the given information.
+func BuildResponse(version ProtocolVersion, id uint64, initiallyAllowed, requested, explicitlyAllowed AppArmorPermission) MsgNotificationResponse {
+	aaDenyMask := requested.AsAppArmorOpMask()
+	// If permission was originally both allowed and denied in the message,
+	// treat it as initially denied.
+	aaAllowMask := initiallyAllowed.AsAppArmorOpMask() &^ aaDenyMask
+
+	userAllowMask := uint32(0)
+	if explicitlyAllowed != nil {
+		userAllowMask = explicitlyAllowed.AsAppArmorOpMask()
+	}
+
+	// Allow permissions which AppArmor initially allowed, along with those
+	// which were initially denied but the user then explicitly allowed.
+	finalAllow := aaAllowMask | (userAllowMask & aaDenyMask)
+	// Deny permissions which were initially denied and not explicitly allowed
+	// by the user.
+	finalDeny := aaDenyMask &^ userAllowMask
+
+	// Any permissions which are omitted from both the allow and deny fields
+	// will be default denied by the kernel.
+
 	return MsgNotificationResponse{
 		MsgNotification: MsgNotification{
 			MsgHeader: MsgHeader{
-				Version: req.Version,
+				Version: version,
 			},
 			NotificationType: APPARMOR_NOTIF_RESP,
 			NoCache:          1,
-			ID:               req.ID,
-			Error:            req.Error,
+			ID:               id,
+			Error:            0, // ignored in response ?
 		},
+		Error: 0, // ignored in response ?
+		Allow: finalAllow,
+		Deny:  finalDeny,
 	}
 }
 
@@ -452,6 +475,55 @@ type tagsetHeader struct {
 	PermissionMask uint32
 	TagCount       uint32
 	TagOffset      uint32
+}
+
+func (msg *MsgNotificationOp) MsgID() uint64 {
+	return msg.ID
+}
+
+func (msg *MsgNotificationOp) MsgPID() uint32 {
+	return msg.Pid
+}
+
+func (msg *MsgNotificationOp) MsgLabel() string {
+	return msg.Label
+}
+
+func (msg *MsgNotificationOp) MsgClass() MediationClass {
+	return msg.Class
+}
+
+// MsgNotificationGeneric define the methods which the message types for each
+// mediation class must provide.
+//
+// Many (but not all) of these methods are implemented on MsgNotificationOp, so
+// any struct which embeds a MsgNotificationOp need only implement the methods
+// which are specific to the mediation class associated with that message type.
+type MsgNotificationGeneric interface {
+	// The following methods are implemented on MsgNotificationOp, and thus need
+	// not be implemented on any type which embeds a MsgNotificationOp.
+
+	// MsgID returns the unique ID of the notification message.
+	MsgID() uint64
+	// MsgPID returns the PID of the process triggering the notification.
+	MsgPID() uint32
+	// MsgLabel returns the AppArmor label of the process triggering the notification.
+	MsgLabel() string
+	// MsgClass returns the mediation class of the message.
+	MsgClass() MediationClass
+
+	// The following methods must be implemented on each mediation class-specific
+	// message type which embeds a MsgNotificationOp in order for that message
+	// type to implement MsgNotificationGeneric.
+
+	// MsgAllowedDeniedPermissions returns the AppArmor permission masks which
+	// were originally allowed and originally denied by AppArmor rules.
+	MsgAllowedDeniedPermissions() (AppArmorPermission, AppArmorPermission, error)
+	// MsgSUID returns the UID of the user triggering the notification.
+	MsgSUID() uint32
+	// MsgName is the identifier of the resource to which access is requested.
+	// For mediation class file, Name is the filepath of the requested file.
+	MsgName() string
 }
 
 // msgNotificationFileKernelBase (protocol version <5)
@@ -631,4 +703,16 @@ func (msg *MsgNotificationFile) MarshalBinary() ([]byte, error) {
 		return nil, err
 	}
 	return msgBuf.Bytes(), nil
+}
+
+func (msg *MsgNotificationFile) MsgAllowedDeniedPermissions() (allowed, denied AppArmorPermission, err error) {
+	return msg.DecodeFilePermissions()
+}
+
+func (msg *MsgNotificationFile) MsgSUID() uint32 {
+	return msg.SUID
+}
+
+func (msg *MsgNotificationFile) MsgName() string {
+	return msg.Name
 }
