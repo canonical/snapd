@@ -20,7 +20,7 @@
 package builtin
 
 import (
-	"errors"
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -53,8 +53,6 @@ const eglDriverLibsBaseDeclarationSlots = `
     allow-installation: false
     deny-auto-connection: true
 `
-
-var eglDirLibsAttrTypeError = errors.New(`egl-driver-libs "source" attribute must be a list`)
 
 // eglDriverLibsInterface allows exposing EGL driver libraries to the system or snaps.
 type eglDriverLibsInterface struct {
@@ -97,13 +95,7 @@ func (t *eglDriverLibsInterface) PathPatterns() []string {
 
 func (iface *eglDriverLibsInterface) ConfigfilesConnectedPlug(spec *configfiles.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	// The plug can only be the system plug for the time being
-	const icdTemplate = `{
-    "file_format_version" : "1.0.0",
-    "ICD" : {
-        "library_path" : "%s"
-    }
-}
-`
+
 	var priority int64
 	if err := slot.Attr("priority", &priority); err != nil {
 		return fmt.Errorf("invalid priority: %w", err)
@@ -112,10 +104,24 @@ func (iface *eglDriverLibsInterface) ConfigfilesConnectedPlug(spec *configfiles.
 	if err := slot.Attr("client-driver", &clientDriver); err != nil {
 		return fmt.Errorf("invalid client-driver: %w", err)
 	}
+
+	var icd struct {
+		FileFormatVersion string `json:"file_format_version"`
+		ICD               struct {
+			LibraryPath string `json:"library_path"`
+		} `json:"ICD"`
+	}
+	icd.FileFormatVersion = "1.0.0"
+	icd.ICD.LibraryPath = clientDriver
+	icdContent, err := json.MarshalIndent(icd, "", "    ")
+	if err != nil {
+		return err
+	}
+	icdContent = append(icdContent, byte('\n'))
+
 	icdPath := filepath.Join(eglVendorPath, fmt.Sprintf(
 		"%d_snap_%s_%s.json", priority, slot.Snap().InstanceName(), slot.Name()))
-	return spec.AddPathContent(icdPath, &osutil.MemoryFileState{
-		Content: []byte(fmt.Sprintf(icdTemplate, clientDriver)), Mode: 0644})
+	return spec.AddPathContent(icdPath, &osutil.MemoryFileState{Content: icdContent, Mode: 0644})
 }
 
 func (iface *eglDriverLibsInterface) AutoConnect(*snap.PlugInfo, *snap.SlotInfo) bool {
