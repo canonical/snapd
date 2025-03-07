@@ -531,6 +531,7 @@ pkg_dependencies_ubuntu_generic(){
         libglib2.0-dev
         libseccomp-dev
         libudev-dev
+        lsof
         man
         mtools
         netcat-openbsd
@@ -552,6 +553,7 @@ pkg_dependencies_ubuntu_classic(){
         fontconfig
         gnome-keyring
         jq
+        lsof
         man
         nfs-kernel-server
         printer-driver-cups-pdf
@@ -706,6 +708,7 @@ pkg_dependencies_fedora_centos_common(){
         jq
         iptables
         iptables-services
+        lsof
         man
         net-tools
         nmap-ncat
@@ -764,6 +767,7 @@ pkg_dependencies_amazon(){
         jq
         iptables-services
         libcap-static
+        lsof
         man
         nc
         net-tools
@@ -798,6 +802,7 @@ pkg_dependencies_opensuse(){
         iptables
         jq
         lsb-release
+        lsof
         man
         man-pages
         nfs-kernel-server
@@ -843,6 +848,7 @@ pkg_dependencies_arch(){
     libseccomp
     libcap
     libx11
+    lsof
     man
     net-tools
     nfs-utils
