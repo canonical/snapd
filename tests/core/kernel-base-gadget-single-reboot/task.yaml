@@ -119,9 +119,9 @@ execute: |
             cp -av "$SNAP_PATH" "$BLOB_DIR/"
         }
 
-        prepare_snap pc UqFziVZDHLSyO3TqSWgNBoAdHbLI4dAH 1000 "$(ls pc_*.snap)"
-        prepare_snap pc-kernel pYVQrBcKmBa0mZ4CCN7ExT6jH8rY1hza 1000 "$(ls pc-kernel_*.snap)"
-        prepare_snap "$core_snap" "$core_id" 1000 "$(ls ${core_snap}_*.snap)"
+        prepare_snap pc UqFziVZDHLSyO3TqSWgNBoAdHbLI4dAH "$(($(cat pc.rev) + 1))" "$(ls pc_*.snap)"
+        prepare_snap pc-kernel pYVQrBcKmBa0mZ4CCN7ExT6jH8rY1hza "$(($(cat pc-kernel.rev) + 1))" "$(ls pc-kernel_*.snap)"
+        prepare_snap "$core_snap" "$core_id" "$(($(cat core.rev) + 1))" "$(ls ${core_snap}_*.snap)"
 
         if os.query is-core-ge 20; then
             # on uc20+, snap we booted with is unasserted for extra debugging
