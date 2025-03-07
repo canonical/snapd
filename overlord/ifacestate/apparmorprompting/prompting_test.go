@@ -988,7 +988,7 @@ func (s *apparmorpromptingSuite) testReplyRuleHandlesFuturePrompts(c *C, outcome
 	resp, err := waitForReply(replyChan)
 	c.Assert(err, IsNil)
 	c.Check(resp.Request, Equals, readReq)
-	var expectedPermission any
+	var expectedPermission notify.AppArmorPermission
 	switch outcome {
 	case prompting.OutcomeAllow:
 		expectedPermission, err = prompting.AbstractPermissionsToAppArmorPermissions("home", []string{"read"})
@@ -1035,7 +1035,7 @@ func (s *apparmorpromptingSuite) testReplyRuleHandlesFuturePrompts(c *C, outcome
 	for i := 0; i < 2; i++ {
 		resp, err := waitForReply(replyChan)
 		c.Assert(err, IsNil)
-		var expectedPermission any
+		var expectedPermission notify.AppArmorPermission
 		switch outcome {
 		case prompting.OutcomeAllow:
 			// Round-trip to abstract permissions and back to get full permission mask

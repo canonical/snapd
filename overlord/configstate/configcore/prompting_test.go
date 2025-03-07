@@ -48,7 +48,6 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/sandbox/apparmor"
-	"github.com/snapcore/snapd/sandbox/apparmor/notify"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
 )
@@ -70,7 +69,7 @@ func (s *promptingSuite) SetUpTest(c *C) {
 		[]string{"prompt"}, nil,
 	))
 	// mock the presence of the notification socket
-	os.MkdirAll(notify.SysPath, 0o755)
+	os.MkdirAll(apparmor.NotifySocketPath, 0o755)
 	// mock the presence of permstable32_version with supported version
 	s.AddCleanup(apparmor.MockFsRootPath(dirs.GlobalRootDir))
 	os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "sys/kernel/security/apparmor/features/policy"), 0o755)

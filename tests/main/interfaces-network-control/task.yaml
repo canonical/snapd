@@ -85,6 +85,13 @@ execute: |
     echo "A network namespace can be created"
     network-control-consumer.cmd ip netns add test-ns
     ip netns list | MATCH test-ns
+    echo "Listed"
+    network-control-consumer.cmd ip netns list | MATCH test-ns
+    echo "And removed"
+    network-control-consumer.cmd ip netns delete test-ns
+
+    # re-add to continue with the test
+    network-control-consumer.cmd ip netns add test-ns
 
     echo "And a veth interface can be added to the namespace"
 

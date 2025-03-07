@@ -25,6 +25,7 @@ import (
 	"golang.org/x/sys/unix"
 
 	"github.com/snapcore/snapd/osutil/epoll"
+	"github.com/snapcore/snapd/sandbox/apparmor"
 	"github.com/snapcore/snapd/sandbox/apparmor/notify"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -35,7 +36,7 @@ func ExitOnError() (restore func()) {
 	return restore
 }
 
-func FakeRequestWithClassAndReplyChan(class notify.MediationClass, replyChan chan any) *Request {
+func FakeRequestWithClassAndReplyChan(class notify.MediationClass, replyChan chan notify.AppArmorPermission) *Request {
 	return &Request{
 		Class:     class,
 		replyChan: replyChan,
@@ -56,7 +57,7 @@ func MockOsOpenWithSocket() (restore func()) {
 		if err != nil {
 			return nil, err
 		}
-		notifyFile := os.NewFile(uintptr(socket), notify.SysPath)
+		notifyFile := os.NewFile(uintptr(socket), apparmor.NotifySocketPath)
 		return notifyFile, nil
 	}
 	restore = MockOsOpen(f)

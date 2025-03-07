@@ -252,7 +252,7 @@ apps:
 		c.Check(err, testutil.ErrorIs, snap.ErrBadModes)
 		c.Check(err, ErrorMatches, fmt.Sprintf(`snap is unusable due to bad permissions: "meta/hooks/%s" should be executable, and isn't: -rw-r--r--`, hook))
 		// Fix hook error to catch next hook's error
-		c.Assert(os.Chmod(filepath.Join(sourceDir, "meta", "hooks", hook), 755), IsNil)
+		c.Assert(os.Chmod(filepath.Join(sourceDir, "meta", "hooks", hook), 0755), IsNil)
 	}
 }
 
