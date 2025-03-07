@@ -461,22 +461,18 @@ func (s *deviceMgrBaseSuite) makeSerialAssertionInState(c *C, brandID, model, se
 	return makeSerialAssertionInState(c, s.brands, s.state, brandID, model, serialN)
 }
 
-func (s *deviceMgrBaseSuite) addKeyToManagerInState(c *C, key asserts.PrivateKey) {
-	if key == nil {
-		key = devKey
-	}
-
+func (s *deviceMgrBaseSuite) addKeyToManagerInState(c *C) {
 	device, err := devicestatetest.Device(s.state)
 	c.Assert(err, IsNil)
 
-	err = devicestate.KeypairManager(s.mgr).Put(key)
+	err = devicestate.KeypairManager(s.mgr).Put(devKey)
 	c.Assert(err, IsNil)
 
 	err = devicestatetest.SetDevice(s.state, &auth.DeviceState{
 		Brand:  device.Brand,
 		Model:  device.Model,
 		Serial: device.Serial,
-		KeyID:  key.PublicKey().ID(),
+		KeyID:  devKey.PublicKey().ID(),
 	})
 	c.Assert(err, IsNil)
 }
@@ -2852,7 +2848,7 @@ func (s *deviceMgrSuite) TestSignConfdbControlInvalid(c *C) {
 	defer s.state.Unlock()
 
 	s.makeSerialAssertionInState(c, "canonical", "pc", "serialserialserial")
-	s.addKeyToManagerInState(c, devKey)
+	s.addKeyToManagerInState(c)
 
 	groups := []interface{}{map[string]interface{}{"operators": []interface{}{"jane"}}}
 	_, err := s.mgr.SignConfdbControl(groups, 4)
@@ -2869,7 +2865,7 @@ func (s *deviceMgrSuite) TestSignConfdbControlOK(c *C) {
 	defer s.state.Unlock()
 
 	s.makeSerialAssertionInState(c, "canonical", "pc", "serialserialserial")
-	s.addKeyToManagerInState(c, devKey)
+	s.addKeyToManagerInState(c)
 
 	jane := map[string]interface{}{
 		"operators":       []interface{}{"jane"},
@@ -2903,7 +2899,7 @@ func (s *deviceMgrSuite) TestConfdbControlNotFound(c *C) {
 	defer s.state.Unlock()
 
 	s.makeSerialAssertionInState(c, "canonical", "pc", "serialserialserial")
-	s.addKeyToManagerInState(c, devKey)
+	s.addKeyToManagerInState(c)
 
 	cc, err := s.mgr.ConfdbControl()
 	c.Assert(cc, IsNil)
@@ -2916,7 +2912,7 @@ func (s *deviceMgrSuite) TestConfbControlUnknownSigningKey(c *C) {
 	defer s.state.Unlock()
 
 	s.makeSerialAssertionInState(c, "canonical", "pc", "serialserialserial")
-	s.addKeyToManagerInState(c, devKey)
+	s.addKeyToManagerInState(c)
 
 	cc, err := s.mgr.SignConfdbControl([]interface{}{}, 10)
 	c.Assert(err, IsNil)
@@ -2952,7 +2948,7 @@ func (s *deviceMgrSuite) TestConfdbControlFindExisting(c *C) {
 	defer s.state.Unlock()
 
 	s.makeSerialAssertionInState(c, "canonical", "pc", "serialserialserial")
-	s.addKeyToManagerInState(c, devKey)
+	s.addKeyToManagerInState(c)
 
 	// add assertion
 	cc, err := s.mgr.SignConfdbControl([]interface{}{}, 10)
