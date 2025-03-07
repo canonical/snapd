@@ -150,9 +150,12 @@ func doReseal(manager FDEStateManager, method device.SealingMethod, rootdir stri
 
 		switch disk.GetRole() {
 		case "system-data":
-			runParamsData, err := manager.Get("run+recover", disk.GetRole())
+			parameters, err := manager.Get("run+recover", disk.GetRole())
 			if err != nil {
 				return err
+			}
+			if parameters == nil {
+				return fmt.Errorf("error while resealing: no parameters for run+recover for %s", disk.GetRole())
 			}
 
 			defaultLegacyKey, hasDefaultLegacyKey := legacyKeys["default"]
@@ -165,16 +168,19 @@ func doReseal(manager FDEStateManager, method device.SealingMethod, rootdir stri
 				runKey.KeyFile = defaultLegacyKey
 			}
 			keys = append(keys, resealParamsAndLocation{
-				params:   runParamsData,
+				params:   parameters,
 				location: runKey,
 			})
 		}
 
 		switch disk.GetRole() {
 		case "system-save", "system-data":
-			recoveryParams, err := manager.Get("recover", disk.GetRole())
+			parameters, err := manager.Get("recover", disk.GetRole())
 			if err != nil {
 				return err
+			}
+			if parameters == nil {
+				return fmt.Errorf("error while resealing: no parameters for run+recover for %s", disk.GetRole())
 			}
 
 			fallbackLegacyKey, hasFallbackLegacyKey := legacyKeys["default-fallback"]
@@ -189,7 +195,7 @@ func doReseal(manager FDEStateManager, method device.SealingMethod, rootdir stri
 			}
 
 			keys = append(keys, resealParamsAndLocation{
-				params:   recoveryParams,
+				params:   parameters,
 				location: fallbackKey,
 			})
 		}
