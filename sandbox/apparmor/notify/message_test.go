@@ -433,7 +433,7 @@ func (*messageSuite) TestMsgNotificationMarshalBinary(c *C) {
 	})
 }
 
-func (s *messageSuite) TestMsgNotificationFileMarshalUnmarshalBinary(c *C) {
+func (s *messageSuite) TestMsgNotificationFileUnmarshalBinaryV3(c *C) {
 	if arch.Endian() == binary.BigEndian {
 		c.Skip("test only written for little-endian architectures")
 	}
@@ -463,7 +463,7 @@ func (s *messageSuite) TestMsgNotificationFileMarshalUnmarshalBinary(c *C) {
 	var msg notify.MsgNotificationFile
 	err := msg.UnmarshalBinary(bytes)
 	c.Assert(err, IsNil)
-	c.Assert(msg, DeepEquals, notify.MsgNotificationFile{
+	expected := notify.MsgNotificationFile{
 		MsgNotificationOp: notify.MsgNotificationOp{
 			MsgNotification: notify.MsgNotification{
 				MsgHeader: notify.MsgHeader{
@@ -481,11 +481,110 @@ func (s *messageSuite) TestMsgNotificationFileMarshalUnmarshalBinary(c *C) {
 			Class: notify.AA_CLASS_FILE,
 		},
 		Name: "/root/.ssh/",
-	})
+	}
+	c.Assert(msg, DeepEquals, expected)
 
+	// Check that MsgNotificationFiles can be marshalled and are identical
+	// after unmarshal.
 	buf, err := msg.MarshalBinary()
 	c.Assert(err, IsNil)
-	c.Assert(buf, DeepEquals, bytes)
+	var roundTripMsg notify.MsgNotificationFile
+	err = roundTripMsg.UnmarshalBinary(buf)
+	c.Assert(err, IsNil)
+	c.Assert(roundTripMsg, DeepEquals, expected)
+}
+
+func (s *messageSuite) TestMsgNotificationFileUnmarshalBinaryV5(c *C) {
+	if arch.Endian() == binary.BigEndian {
+		c.Skip("test only written for little-endian architectures")
+	}
+	// Notification for accessing a the /root/.ssh/ file.
+	bytes := []byte{
+		0x7f, 0x0, // Length == 127 bytes
+		0x5, 0x0, // Protocol
+		0x4, 0x0, // Notification type == notify.APPARMOR_NOTIF_OP
+		0x0,                                    // Signalled
+		0x0,                                    // Reserved
+		0x2, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, // ID (request #2, just a number)
+		0xf3, 0xff, 0xff, 0xff, // Error -13 EACCESS
+		0xaa, 0xaa, 0xaa, 0xaa, // Allow - ???
+		0x55, 0x55, 0x55, 0x55, // Deny - ???
+		0x19, 0x8, 0x0, 0x0, // PID
+		0x40, 0x0, 0x0, 0x0, // Label at +64 bytes into buffer
+		0x2, 0x0, // Class - AA_CLASS_FILE
+		0x0, 0x0, // Op - ???
+		0xe8, 0x03, 0x0, 0x0, // SUID - 1000
+		0xe8, 0x03, 0x0, 0x0, // OUID
+		0x48, 0x0, 0x0, 0x0, // Name at +72 bytes into buffer
+		0x50, 0x0, 0x0, 0x0, // Tagset headers at +80 bytes into the buffer (need to be 8-byte-aligned)
+		0x02, 0x0, // Tagset count - 2
+		0x0, 0x0, 0x0, 0x0, 0x0, 0x0, // padding to make []data 8-byte-aligned
+		0x70, 0x72, 0x6f, 0x66, 0x69, 0x6c, 0x65, 0x0, // "profile\0"
+		0x2f, 0x66, 0x69, 0x6c, 0x65, 0x0, // "/file\0"
+		0x0, 0x0, // padding to make tagset headers 8-byte-aligned
+		0x03, 0x01, 0x00, 0x00, // tagset 1 permission mask
+		0x03, 0x00, 0x00, 0x00, // tagset 1 tag count
+		0x68, 0x00, 0x00, 0x00, // tagset 1 starts at +104 into the buffer
+		0x0c, 0x00, 0x00, 0x00, // tagset 2 permission mask
+		0x02, 0x00, 0x00, 0x00, // tagset 2 tag count
+		0x77, 0x00, 0x00, 0x00, // tagset 2 starts at +119 into the buffer
+		0x6f, 0x6e, 0x65, 0x00, // "one\0"
+		0x74, 0x77, 0x6f, 0x00, // "two\0"
+		0x74, 0x68, 0x72, 0x65, 0x65, 0x00, // "three\0"
+		0x00,                   // end of tagset 1
+		0x61, 0x62, 0x63, 0x00, // "abc\0"
+		0x65, 0x66, 0x00, // "ef\0"
+		0x00, // end of tagset 2
+	}
+	c.Assert(bytes, HasLen, 127)
+
+	var msg notify.MsgNotificationFile
+	err := msg.UnmarshalBinary(bytes)
+	c.Assert(err, IsNil)
+	expected := notify.MsgNotificationFile{
+		MsgNotificationOp: notify.MsgNotificationOp{
+			MsgNotification: notify.MsgNotification{
+				MsgHeader: notify.MsgHeader{
+					Length:  127,
+					Version: 5,
+				},
+				NotificationType: notify.APPARMOR_NOTIF_OP,
+				ID:               2,
+				Error:            -13,
+			},
+			Allow: 0xaaaaaaaa,
+			Deny:  0x55555555,
+			Pid:   0x819,
+			Label: "profile",
+			Class: notify.AA_CLASS_FILE,
+		},
+		SUID: 1000,
+		OUID: 1000,
+		Name: "/file",
+		Tagsets: map[uint32][]string{
+			0x0103: {
+				"one",
+				"two",
+				"three",
+			},
+			0x000c: {
+				"abc",
+				"ef",
+			},
+		},
+	}
+	c.Assert(msg, DeepEquals, expected)
+
+	// Check that MsgNotificationFiles can be marshalled and are identical
+	// after unmarshal.
+	buf, err := msg.MarshalBinary()
+	c.Assert(err, IsNil)
+	var roundTripMsg notify.MsgNotificationFile
+	err = roundTripMsg.UnmarshalBinary(buf)
+	c.Assert(err, IsNil)
+	// Messages may be marshalled slightly different, so length needs to be adjusted
+	expected.Length = roundTripMsg.Length
+	c.Assert(roundTripMsg, DeepEquals, expected)
 }
 
 func (s *messageSuite) TestMsgNotificationValidate(c *C) {
