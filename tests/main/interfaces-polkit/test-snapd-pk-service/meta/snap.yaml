@@ -1,10 +1,17 @@
 name: test-snapd-pk-service
 version: 1
 plugs:
-  polkit:
+  polkit-action:
+    interface: polkit
     action-prefix: org.example.foo
+  polkit-rule:
+    interface: polkit
+    install-rules:
+      - name: polkit.bar.rules
+        sha3-384: 2YM8oyXyE7xuXR07EXqUpixvr8duiJwgPQqhnxZgrBCU8ZSDowV0Gyujvs1j0-KR
 apps:
   check-pid:
     command: bin/check-pid.sh
     plugs:
-      - polkit
+      - polkit-action
+      - polkit-rule
