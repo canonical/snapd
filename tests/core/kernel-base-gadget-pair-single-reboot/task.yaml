@@ -119,12 +119,26 @@ execute: |
         snap ack "$TESTSLIB/assertions/testrootorg-store.account-key"
         "$TESTSTOOLS"/store-state setup-fake-store "$BLOB_DIR"
 
+        next_snap_revision() {
+            local SNAP_REV_FILE="$1"
+            SNAP_REV="$(cat ${SNAP_REV_FILE})"
+            if [[ "$SNAP_REV" = "x1" ]]; then
+                SNAP_REV=1000
+            else
+                SNAP_REV="$(($SNAP_REV + 1))"
+            fi
+            echo "$SNAP_REV"
+        }
+
         prepare_snap() {
             local SNAP_NAME="$1"
             local SNAP_ID="$2"
-            local SNAP_REV="$3"
+            local SNAP_REV_FILE="$3"
             local SNAP_PATH="$4"
-            
+            local SNAP_REV
+
+            SNAP_REV="$(next_snap_revision ${SNAP_REV_FILE})"
+
             cat <<EOF > "$SNAP_NAME-decl-headers.json"
     {"snap-id": "$SNAP_ID"}
     EOF
@@ -140,10 +154,10 @@ execute: |
         }
 
         if [[ "$SNAP_ONE" == "pc" ]] || [[ "$SNAP_TWO" == "pc" ]]; then
-            prepare_snap pc UqFziVZDHLSyO3TqSWgNBoAdHbLI4dAH "$(($(cat pc.rev) + 1))" "$(ls pc_*.snap)"
+            prepare_snap pc UqFziVZDHLSyO3TqSWgNBoAdHbLI4dAH pc.rev "$(ls pc_*.snap)"
         fi
-        prepare_snap pc-kernel pYVQrBcKmBa0mZ4CCN7ExT6jH8rY1hza "$(($(cat pc-kernel.rev) + 1))" "$(ls pc-kernel_*.snap)"
-        prepare_snap "$core_snap" "$core_id" "$(($(cat core.rev) + 1))" "$(ls ${core_snap}_*.snap)"
+        prepare_snap pc-kernel pYVQrBcKmBa0mZ4CCN7ExT6jH8rY1hza pc-kernel.rev "$(ls pc-kernel_*.snap)"
+        prepare_snap "$core_snap" "$core_id" core.rev "$(ls ${core_snap}_*.snap)"
 
         if os.query is-core-ge 20; then
             # on uc20+, snap we booted with is unasserted for extra debugging
@@ -216,15 +230,15 @@ execute: |
         # fake refreshes generate revision numbers that are n+1
         # verify that current points to new revisions
         if [[ "$SNAP_ONE" == *"core"* ]] || [[ "$SNAP_TWO" == *"core"* ]]; then
-            expecting_core="$(($(cat core.rev) + 1))"
+            expecting_core="$(next_snap_revision core.rev)"
             test "$(readlink /snap/$core_snap/current)" = "$expecting_core"
         fi
         if [[ "$SNAP_ONE" == "pc" ]] || [[ "$SNAP_TWO" == "pc" ]]; then
-            expecting_gadget="$(($(cat pc.rev) + 1))"
+            expecting_gadget="$(next_snap_revision pc.rev)"
             test "$(readlink /snap/pc/current)" = "$expecting_gadget"
         fi
         if [[ "$SNAP_ONE" == "pc-kernel" ]] || [[ "$SNAP_TWO" == "pc-kernel" ]]; then
-            expecting_kernel="$(($(cat pc-kernel.rev) + 1))"
+            expecting_kernel="$(next_snap_revision pc-kernel.rev)"
             test "$(readlink /snap/pc-kernel/current)" = "$expecting_kernel"
         fi
 
