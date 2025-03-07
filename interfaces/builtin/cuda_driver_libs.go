@@ -20,7 +20,6 @@
 package builtin
 
 import (
-	"errors"
 	"fmt"
 	"strings"
 
@@ -33,12 +32,10 @@ import (
 const cudaDriverLibsSummary = `allows exposing CUDA driver libraries to the system`
 
 // Plugs only supported for the system on classic for the moment
+// We do not allow installations as the plug can only be implicit in classic systems at the moment.
 const cudaDriverLibsBaseDeclarationPlugs = `
   cuda-driver-libs:
-    allow-installation:
-      plug-snap-type:
-        - core
-      on-classic: true
+    allow-installation: false
     allow-connection:
       slots-per-plug: *
     deny-auto-connection: true
@@ -50,8 +47,6 @@ const cudaDriverLibsBaseDeclarationSlots = `
     allow-installation: false
     deny-auto-connection: true
 `
-
-var dirLibsAttrTypeError = errors.New(`cuda-driver-libs "source" attribute must be a list`)
 
 // cudaDriverLibsInterface allows exposing CUDA driver libraries to the system or snaps.
 type cudaDriverLibsInterface struct {

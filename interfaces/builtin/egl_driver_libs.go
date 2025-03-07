@@ -36,12 +36,10 @@ import (
 const eglDriverLibsSummary = `allows exposing EGL driver libraries to the system`
 
 // Plugs only supported for the system on classic for the moment
+// We do not allow installations as the plug can only be implicit in classic systems at the moment.
 const eglDriverLibsBaseDeclarationPlugs = `
   egl-driver-libs:
-    allow-installation:
-      plug-snap-type:
-        - core
-      on-classic: true
+    allow-installation: false
     allow-connection:
       slots-per-plug: *
     deny-auto-connection: true
