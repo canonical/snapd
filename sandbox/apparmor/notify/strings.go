@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"encoding/binary"
 	"fmt"
-	"slices"
+	"sort"
 
 	"github.com/snapcore/snapd/arch"
 )
@@ -72,7 +72,10 @@ func (sp *stringPacker) PackTagsets(ts map[uint32][]string) uint32 {
 	for perm := range ts {
 		perms = append(perms, perm)
 	}
-	slices.Sort(perms)
+	// TODO: use slices.Sort() once we're on go 1.21+
+	sort.Slice(perms, func(i, j int) bool {
+		return perms[i] < perms[j]
+	})
 
 	for _, perm := range perms {
 		tags := ts[perm]
