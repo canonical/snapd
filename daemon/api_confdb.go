@@ -173,7 +173,7 @@ func handleConfdbControlAction(c *Command, r *http.Request, user *auth.UserState
 
 	devMgr := c.d.overlord.DeviceManager()
 	cc, err := devMgr.ConfdbControl()
-	if err != nil {
+	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return InternalError(err.Error())
 	}
 

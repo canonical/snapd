@@ -2069,13 +2069,19 @@ func (m *DeviceManager) ConfdbControl() (*asserts.ConfdbControl, error) {
 		"serial":   serial.Serial(),
 	})
 	if errors.Is(err, &asserts.NotFoundError{}) {
-		return nil, nil
+		return nil, state.ErrNoState
 	}
 	if err != nil {
 		return nil, err
 	}
 
-	return a.(*asserts.ConfdbControl), nil
+	cc := a.(*asserts.ConfdbControl)
+	key := serial.DeviceKey()
+	if key.ID() != cc.SignKeyID() {
+		return nil, errors.New("confdb-control's signing key doesn't match the device key")
+	}
+
+	return cc, nil
 }
 
 type SystemModeInfo struct {
