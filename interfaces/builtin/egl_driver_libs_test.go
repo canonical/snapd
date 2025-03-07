@@ -209,9 +209,9 @@ func (s *EglDriverLibsInterfaceSuite) TestConfigfilesSpec(c *C) {
 	c.Check(spec.PathContent(), DeepEquals, map[string]osutil.FileState{
 		"/usr/share/glvnd/egl_vendor.d/10_snap_egl-provider_egl-driver-libs.json": &osutil.MemoryFileState{
 			Content: []byte(`{
-    "file_format_version" : "1.0.0",
-    "ICD" : {
-        "library_path" : "libEGL_nvidia.so.0"
+    "file_format_version": "1.0.0",
+    "ICD": {
+        "library_path": "libEGL_nvidia.so.0"
     }
 }
 `), Mode: 0644},
