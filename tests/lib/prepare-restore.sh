@@ -53,11 +53,17 @@ create_test_user(){
     fi
     unset owner
 
-    # Add a new line first to prevent an error which happens when
-    # the file has not new line, and we see this:
-    # syntax error, unexpected WORD, expecting END or ':' or '\n'
-    echo >> /etc/sudoers
-    echo 'test ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers
+    if [ -d /etc/sudoers.d ]; then
+        # this also works around systems where /etc/sudo is empty and /etc could
+        # be ephemeral, eg. openSUSE Tumbleweed which keeps /usr/etc/sudoers
+        echo 'test ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers.d/99-test-user
+    else
+        # Add a new line first to prevent an error which happens when
+        # the file has not new line, and we see this:
+        # syntax error, unexpected WORD, expecting END or ':' or '\n'
+        echo >> /etc/sudoers
+        echo 'test ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers
+    fi
 
     chown test:test -R "$SPREAD_PATH"
     chown test:test "$SPREAD_PATH/../"
