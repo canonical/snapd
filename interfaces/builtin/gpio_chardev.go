@@ -22,7 +22,6 @@ package builtin
 import (
 	"fmt"
 	"path/filepath"
-	"strconv"
 	"strings"
 
 	"github.com/snapcore/snapd/features"
@@ -31,6 +30,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/systemd"
 	"github.com/snapcore/snapd/interfaces/udev"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/strutil"
 )
 
 // TODO: Snapd should validate the correctness of slot declarations
@@ -53,69 +53,12 @@ var gpioChardevConnectedSlotKmod = []string{
 	"gpio-aggregator",
 }
 
-// XXX: What should be the limit on max range.
-const maxLinesCount = 65536
-
-func parseLineToken(lineToken string) ([]uint64, error) {
-	if !strings.Contains(lineToken, "-") {
-		line, err := strconv.ParseUint(lineToken, 10, 32)
-		if err != nil {
-			return nil, err
-		}
-		return []uint64{line}, nil
-	}
-	// Parse line range e.g. 2-5
-	tokens := strings.SplitN(lineToken, "-", 2)
-	if len(tokens) != 2 {
-		return nil, fmt.Errorf("invalid line range %q", lineToken)
-	}
-	first, err := strconv.ParseUint(tokens[0], 10, 32)
-	if err != nil {
-		return nil, fmt.Errorf("invalid line range %q: %w", lineToken, err)
-	}
-	last, err := strconv.ParseUint(tokens[1], 10, 32)
-	if err != nil {
-		return nil, fmt.Errorf("invalid line range %q: %w", lineToken, err)
-	}
-	if last <= first {
-		return nil, fmt.Errorf("invalid line range %q: range end has to be larger than range start", lineToken)
-	}
-	if last-first+1 > maxLinesCount {
-		return nil, fmt.Errorf("invalid line range %q: range cannot be more than %d lines", lineToken, maxLinesCount)
-	}
-	lines := make([]uint64, 0, last-first+1)
-	for i := first; i <= last; i++ {
-		lines = append(lines, i)
-	}
-	return lines, nil
-}
-
-func validateLines(linesAttr string) error {
-	tokens := strings.Split(linesAttr, ",")
-
-	lines := make(map[uint64]bool, len(tokens))
-	for _, token := range tokens {
-		tokenLines, err := parseLineToken(token)
-		if err != nil {
-			return err
-		}
-		for _, line := range tokenLines {
-			if _, exists := lines[line]; exists {
-				return fmt.Errorf(`duplicate line found "%d"`, line)
-			}
-			lines[line] = true
-		}
-	}
-	if len(lines) > maxLinesCount {
-		return fmt.Errorf("number of lines cannot be more than %d", maxLinesCount)
-	}
-
-	return nil
-}
-
 type gpioChardevInterface struct {
 	commonInterface
 }
+
+// XXX: What should be the limit on max range.
+const maxLinesCount = 65536
 
 // BeforePrepareSlot checks validity of the defined slot.
 func (iface *gpioChardevInterface) BeforePrepareSlot(slot *snap.SlotInfo) error {
@@ -130,8 +73,19 @@ func (iface *gpioChardevInterface) BeforePrepareSlot(slot *snap.SlotInfo) error 
 	if err := slot.Attr("lines", &lines); err != nil {
 		return err
 	}
-	if err := validateLines(lines); err != nil {
+	r, err := strutil.ParseRange(lines)
+	if err != nil {
 		return fmt.Errorf(`invalid "lines" attribute: %w`, err)
+	}
+	// Check that range is not unrealistically large.
+	if r.Size() > maxLinesCount {
+		return fmt.Errorf(`invalid "lines" attribute: range size cannot exceed %d, found %d`, maxLinesCount, r.Size())
+	}
+	// Check that only non-negative lines are passed.
+	for _, span := range r.Spans {
+		if span.Start < 0 {
+			return fmt.Errorf(`invalid "lines" attribute: line entry cannot be negative, found %d`, span.Start)
+		}
 	}
 
 	return nil
