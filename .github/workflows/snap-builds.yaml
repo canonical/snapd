@@ -15,7 +15,15 @@ on:
         type: string
 
 jobs:
+  skip-snap-builds:
+    if: "contains(github.event.pull_request.labels.*.name, 'Skip spread')"
+    runs-on: ${{ fromJSON(inputs.runs-on) }}
+    steps:
+    - name: Skip spread
+      run: echo "Snap builds are skipped because spread tests are skipped"
+
   snap-builds:
+    if: "!contains(github.event.pull_request.labels.*.name, 'Skip spread')"
     runs-on: ${{ fromJSON(inputs.runs-on) }}
     steps:
     - name: Checkout code
