@@ -70,10 +70,30 @@ slots:
   no-lines-attr:
     interface: gpio-chardev
     source-chip: [chip2]
+  duplicate-source-chip:
+    interface: gpio-chardev
+    source-chip: ["chip","chip"]
+    lines: 3,4,1-2,5
   duplicate-line:
     interface: gpio-chardev
     source-chip: [chip3]
     lines: 2-6,3
+  bad-source-chip-0:
+    interface: gpio-chardev
+    source-chip: []
+    lines: 3,4,1-2,5
+  bad-source-chip-1:
+    interface: gpio-chardev
+    source-chip: [" s"]
+    lines: 3,4,1-2,5
+  bad-source-chip-2:
+    interface: gpio-chardev
+    source-chip: ["s "]
+    lines: 3,4,1-2,5
+  bad-source-chip-3:
+    interface: gpio-chardev
+    source-chip: [""]
+    lines: 3,4,1-2,5
   bad-range-0:
     interface: gpio-chardev
     source-chip: [chip4]
@@ -140,17 +160,22 @@ func (s *GpioChardevInterfaceSuite) TestSanitizeSlot(c *C) {
 
 	info := snaptest.MockInfo(c, gpioChardevGadgetYaml, nil)
 	expectedError := map[string]string{
-		"no-source-chip-attr": `snap "my-device" does not have attribute "source-chip" for interface "gpio-chardev"`,
-		"no-lines-attr":       `snap "my-device" does not have attribute "lines" for interface "gpio-chardev"`,
-		"duplicate-line":      `invalid "lines" attribute: overlapping range span found "3"`,
-		"bad-range-0":         `invalid "lines" attribute: invalid range "2-":.*: invalid syntax`,
-		"bad-range-1":         `invalid "lines" attribute: invalid range "a-3":.*: invalid syntax`,
-		"bad-range-2":         `invalid "lines" attribute: range size cannot exceed 65536, found 10000001`,
-		"bad-range-3":         `invalid "lines" attribute: invalid range "4-2": range end has to be larger than range start`,
-		"bad-range-4":         `invalid "lines" attribute: invalid range "0--1": range end has to be larger than range start`,
-		"bad-line-0":          `invalid "lines" attribute:.*: invalid syntax`,
-		"bad-line-1":          `invalid "lines" attribute: line entry cannot be negative, found -1`,
-		"bad-lines-count":     `invalid "lines" attribute: range size cannot exceed 65536, found 65537`,
+		"no-source-chip-attr":   `snap "my-device" does not have attribute "source-chip" for interface "gpio-chardev"`,
+		"no-lines-attr":         `snap "my-device" does not have attribute "lines" for interface "gpio-chardev"`,
+		"duplicate-line":        `invalid "lines" attribute: overlapping range span found "3"`,
+		"duplicate-source-chip": `invalid "source-chip" attribute: "source-chip" cannot contain duplicate chip names, found "chip"`,
+		"bad-source-chip-0":     `invalid "source-chip" attribute: "source-chip" must contain at least one chip`,
+		"bad-source-chip-1":     `invalid "source-chip" attribute: source chip cannot contain leading or trailing white space, found " s"`,
+		"bad-source-chip-2":     `invalid "source-chip" attribute: source chip cannot contain leading or trailing white space, found "s "`,
+		"bad-source-chip-3":     `invalid "source-chip" attribute: source chip cannot be empty`,
+		"bad-range-0":           `invalid "lines" attribute: invalid range "2-":.*: invalid syntax`,
+		"bad-range-1":           `invalid "lines" attribute: invalid range "a-3":.*: invalid syntax`,
+		"bad-range-2":           `invalid "lines" attribute: range size cannot exceed 65536, found 10000001`,
+		"bad-range-3":           `invalid "lines" attribute: invalid range "4-2": range end has to be larger than range start`,
+		"bad-range-4":           `invalid "lines" attribute: invalid range "0--1": range end has to be larger than range start`,
+		"bad-line-0":            `invalid "lines" attribute:.*: invalid syntax`,
+		"bad-line-1":            `invalid "lines" attribute: line entry cannot be negative, found -1`,
+		"bad-lines-count":       `invalid "lines" attribute: range size cannot exceed 65536, found 65537`,
 	}
 	for slotName := range info.Slots {
 		if slotName == "gpio-chardev-good" {
