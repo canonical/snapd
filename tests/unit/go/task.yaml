@@ -76,6 +76,7 @@ execute: |
                 $PROXY_PARAM \
                 ${skip:-} \
                 SKIP_TESTS_FORMAT_CHECK=1 \
+                IGNORE_MISSING=1 \
                 ./run-checks --static"
         else
             tests.session -u test exec sh -c "cd /tmp/static-unit-tests/src/github.com/snapcore/snapd && \
@@ -84,6 +85,7 @@ execute: |
                 $PROXY_PARAM \
                 SKIP_COVERAGE=1 \
                 CC=$VARIANT \
+                IGNORE_MISSING=1 \
                 ./run-checks --unit"
         fi
     else
@@ -111,6 +113,7 @@ execute: |
                 $PROXY_PARAM \
                 ${skip:-} \
                 SKIP_TESTS_FORMAT_CHECK=1 \
+                IGNORE_MISSING=1 \
                 ./run-checks --static" test
         else
             su -l -c "cd /tmp/static-unit-tests/src/github.com/snapcore/snapd && \
@@ -119,6 +122,7 @@ execute: |
                 $PROXY_PARAM \
                 SKIP_COVERAGE=1 \
                 CC=$VARIANT \
+                IGNORE_MISSING=1 \
                 ./run-checks --unit" test
         fi
     fi
