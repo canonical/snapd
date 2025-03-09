@@ -85,7 +85,7 @@ func getConnectedPlugCallback(iface interfaces.Interface, instanceName string) (
 		if !interfaces.IsTheSystemSnap(instanceName) {
 			return nil, errors.New("internal error: ldconfig plugs can be defined only by the system snap")
 		}
-		return iface.(ConnectedPlugCallback), nil
+		return iface, nil
 	}
 	return nil, nil
 }
