@@ -17,6 +17,7 @@ environment:
     SNAP_ONE/kernel_gadget: pc
     SNAP_TWO/kernel_gadget: pc-kernel
 
+    SNAPD_NO_MEMORY_LIMIT: 1
     BLOB_DIR: $(pwd)/fake-store-blobdir
 
 prepare: |
