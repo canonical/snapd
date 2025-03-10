@@ -20,7 +20,7 @@
         "group": "nested-ubuntu-22.04",
         "backend": "google-nested",
         "alternative-backend": "google-nested",
-        "systems": "ubuntu-24.04-64",
+        "systems": "ubuntu-22.04-64",
         "tasks": "tests/nested/...",
         "rules": "nested"
       },
