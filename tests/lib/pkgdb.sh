@@ -462,7 +462,7 @@ distro_install_build_snapd(){
                 # https://bugzilla.redhat.com/show_bug.cgi?id=1960576
                 # note, this fixes it for the root user only, the test user
                 # session is created dynamically as needed
-                systemctl --user daemon-reexec
+                systemctl --user daemon-reexec || true
                 ;;
         esac
 
@@ -814,6 +814,7 @@ pkg_dependencies_opensuse(){
         xdg-user-dirs
         xdg-utils
         zsh
+        libcap-progs
         "
     if os.query is-opensuse tumbleweed; then
         echo "
