@@ -821,6 +821,7 @@ var (
 		"empty":                     {"app"},
 		"fwupd":                     {"app", "core"},
 		"gpio":                      {"core", "gadget"},
+		"gpio-chardev":              {"gadget"},
 		"gpio-control":              {"core"},
 		"greengrass-support":        {"core"},
 		"hidraw":                    {"core", "gadget"},
