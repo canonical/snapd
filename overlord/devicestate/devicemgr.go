@@ -2055,6 +2055,35 @@ func (m *DeviceManager) Serial() (*asserts.Serial, error) {
 	return findSerial(m.state, nil)
 }
 
+// ConfdbControl returns the device's confdb-control assertion.
+func (m *DeviceManager) ConfdbControl() (*asserts.ConfdbControl, error) {
+	serial, err := m.Serial()
+	if err != nil {
+		return nil, errors.New("device has no serial assertion")
+	}
+
+	db := assertstate.DB(m.state)
+	a, err := db.Find(asserts.ConfdbControlType, map[string]string{
+		"brand-id": serial.BrandID(),
+		"model":    serial.Model(),
+		"serial":   serial.Serial(),
+	})
+	if errors.Is(err, &asserts.NotFoundError{}) {
+		return nil, state.ErrNoState
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	cc := a.(*asserts.ConfdbControl)
+	key := serial.DeviceKey()
+	if key.ID() != cc.SignKeyID() {
+		return nil, errors.New("confdb-control's signing key doesn't match the device key")
+	}
+
+	return cc, nil
+}
+
 type SystemModeInfo struct {
 	Mode              string
 	HasModeenv        bool
