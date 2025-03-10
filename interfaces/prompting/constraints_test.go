@@ -20,7 +20,9 @@
 package prompting_test
 
 import (
+	"encoding/json"
 	"fmt"
+	"runtime"
 	"time"
 
 	. "gopkg.in/check.v1"
@@ -983,6 +985,37 @@ func constructPermissionsMaps() []map[string]map[string]notify.AppArmorPermissio
 	permissionsMaps = append(permissionsMaps, filePermissionsMaps)
 	// TODO: do the same for other maps of permissions maps in the future
 	return permissionsMaps
+}
+
+func (s *constraintsSuite) TestMarshalRulePermissionEntry(c *C) {
+	if runtime.Version() < "go1.24" {
+		c.Skip("omitzero requires go version 1.24 or higher")
+	}
+	timeNow := time.Date(2025, time.February, 20, 16, 0, 27, 913561089, time.UTC)
+	for _, testCase := range []struct {
+		entry    prompting.RulePermissionEntry
+		expected string
+	}{
+		{
+			entry: prompting.RulePermissionEntry{
+				Outcome:  prompting.OutcomeAllow,
+				Lifespan: prompting.LifespanForever,
+			},
+			expected: `{"outcome":"allow","lifespan":"forever"}`,
+		},
+		{
+			entry: prompting.RulePermissionEntry{
+				Outcome:    prompting.OutcomeDeny,
+				Lifespan:   prompting.LifespanTimespan,
+				Expiration: timeNow,
+			},
+			expected: `{"outcome":"deny","lifespan":"timespan","expiration":"2025-02-20T16:00:27.913561089Z"}`,
+		},
+	} {
+		marshalled, err := json.Marshal(testCase.entry)
+		c.Check(err, IsNil, Commentf("testCase: %+v", testCase))
+		c.Check(string(marshalled), Equals, testCase.expected, Commentf("testCase: %+v", testCase))
+	}
 }
 
 func (s *constraintsSuite) TestInterfacesAndPermissionsCompleteness(c *C) {
