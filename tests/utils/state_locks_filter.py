@@ -14,6 +14,7 @@ It holds the lines for the trace and allows matching against a part of the trace
 class LockOpTrace:
     def __init__(self, lines: list[str]):
         self.lines = lines
+        self.hash = hash(str(self))
 
     def get_trace_lines(self) -> list[str]:
         return self.lines
@@ -29,7 +30,7 @@ class LockOpTrace:
         return "".join(self.lines)
 
     def __hash__(self):
-        return hash(str(self))
+        return self.hash
 
     def __eq__(self, other) -> bool:
         if not isinstance(other, LockOpTrace):
