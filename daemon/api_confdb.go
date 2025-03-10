@@ -53,7 +53,7 @@ func getView(c *Command, r *http.Request, _ *auth.UserState) Response {
 	st.Lock()
 	defer st.Unlock()
 
-	if err := validateFeatureFlag(st, features.Confdbs); err != nil {
+	if err := validateFeatureFlag(st, features.Confdb); err != nil {
 		return err
 	}
 
@@ -85,7 +85,7 @@ func setView(c *Command, r *http.Request, _ *auth.UserState) Response {
 	st.Lock()
 	defer st.Unlock()
 
-	if err := validateFeatureFlag(st, features.Confdbs); err != nil {
+	if err := validateFeatureFlag(st, features.Confdb); err != nil {
 		return err
 	}
 
@@ -164,7 +164,7 @@ func handleConfdbControlAction(c *Command, r *http.Request, user *auth.UserState
 	st.Lock()
 	defer st.Unlock()
 
-	if err := validateFeatureFlag(st, features.Confdbs); err != nil {
+	if err := validateFeatureFlag(st, features.Confdb); err != nil {
 		return err
 	}
 	if err := validateFeatureFlag(st, features.ConfdbControl); err != nil {

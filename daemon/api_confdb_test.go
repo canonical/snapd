@@ -449,7 +449,7 @@ func (s *confdbSuite) TestSetFailUnsetFeatureFlag(c *C) {
 
 	rspe := s.errorReq(c, req, nil)
 	c.Check(rspe.Status, Equals, 400)
-	c.Check(rspe.Message, Equals, `"confdb" feature flag is disabled: set 'experimental.confdb' to true`)
+	c.Check(rspe.Message, Equals, `feature flag "confdb" is disabled: set 'experimental.confdb' to true`)
 	c.Check(rspe.Kind, Equals, client.ErrorKind(""))
 }
 
@@ -459,7 +459,7 @@ func (s *confdbSuite) TestGetFailUnsetFeatureFlag(c *C) {
 
 	rspe := s.errorReq(c, req, nil)
 	c.Check(rspe.Status, Equals, 400)
-	c.Check(rspe.Message, Equals, `"confdb" feature flag is disabled: set 'experimental.confdb' to true`)
+	c.Check(rspe.Message, Equals, `feature flag "confdb" is disabled: set 'experimental.confdb' to true`)
 	c.Check(rspe.Kind, Equals, client.ErrorKind(""))
 }
 
@@ -536,7 +536,7 @@ func (s *confdbControlSuite) setFeatureFlag(c *C, confName string) {
 }
 
 func (s *confdbControlSuite) prereqs(c *C) {
-	s.setFeatureFlag(c, "experimental.confdbs")
+	s.setFeatureFlag(c, "experimental.confdb")
 	s.setFeatureFlag(c, "experimental.confdb-control")
 
 	s.st.Lock()
@@ -569,11 +569,11 @@ func (s *confdbControlSuite) TestConfdbFlagNotEnabled(c *C) {
 
 	rspe := s.errorReq(c, req, nil)
 	c.Check(rspe.Status, Equals, 400)
-	c.Check(rspe.Message, Equals, `feature flag "confdbs" is disabled: set 'experimental.confdbs' to true`)
+	c.Check(rspe.Message, Equals, `feature flag "confdb" is disabled: set 'experimental.confdb' to true`)
 }
 
 func (s *confdbControlSuite) TestConfdbControlFlagNotEnabled(c *C) {
-	s.setFeatureFlag(c, "experimental.confdbs")
+	s.setFeatureFlag(c, "experimental.confdb")
 
 	req, err := http.NewRequest("POST", "/v2/confdb", nil)
 	c.Assert(err, IsNil)
@@ -584,7 +584,7 @@ func (s *confdbControlSuite) TestConfdbControlFlagNotEnabled(c *C) {
 }
 
 func (s *confdbControlSuite) TestConfdbControlActionNoSerial(c *C) {
-	s.setFeatureFlag(c, "experimental.confdbs")
+	s.setFeatureFlag(c, "experimental.confdb")
 	s.setFeatureFlag(c, "experimental.confdb-control")
 
 	req, err := http.NewRequest("POST", "/v2/confdb", nil)
