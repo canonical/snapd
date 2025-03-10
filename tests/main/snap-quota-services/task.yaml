@@ -6,12 +6,9 @@ details: |
   single service. Check that systemd reports the services as belonging to the
   expected slices.
 
-# memory cgroup is disabled on external devices like rpi3
-backends:
-  - -external
-
 # these systems do not support journal quota groups due to their old systemd versions.
 # requires systemd v245+
+# memory cgroup is disabled on arm devices like rpi3
 systems:
   - -amazon-linux-2-*
   - -ubuntu-14.04-*
@@ -19,6 +16,7 @@ systems:
   - -ubuntu-18.04-*
   - -ubuntu-core-16-*
   - -ubuntu-core-18-*
+  - -ubuntu-core-*-arm-*
 
 prepare: |
   snap install test-snapd-stressd --edge --devmode

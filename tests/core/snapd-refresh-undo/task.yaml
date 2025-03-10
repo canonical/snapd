@@ -34,8 +34,10 @@ execute: |
   fi
 
   revision=""
-  if os.query is_arm; then
+  if os.query is-arm64; then
     revision=18363
+  elif os.query is-armhf; then
+    revision=18359
   else
     revision=18357
   fi

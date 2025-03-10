@@ -28,6 +28,7 @@ import (
 
 	"github.com/jessevdk/go-flags"
 
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/secboot/keymgr"
 	"github.com/snapcore/snapd/secboot/keys"
@@ -243,6 +244,10 @@ func run(osArgs1 []string) error {
 }
 
 func main() {
+	if err := logger.SimpleSetup(nil); err != nil {
+		fmt.Fprintf(os.Stderr, "WARNING: failed to activate logging: %v\n", err)
+	}
+
 	if err := run(os.Args[1:]); err != nil {
 		fmt.Fprintf(os.Stderr, "error: %v\n", err)
 		os.Exit(1)

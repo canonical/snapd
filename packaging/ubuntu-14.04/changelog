@@ -1,3 +1,14 @@
+snapd (2.68.3~14.04) trusty; urgency=medium
+
+  * New upstream release, LP: #2098137
+    - FDE: LP: #2101834 snapd 2.68+ and snap-bootstrap <2.68 fallback to
+      old keyring path
+    - Fix Plucky snapd deb build issue related to /var/lib/snapd/void
+      permissions
+    - Fix snapd deb build complaint about ifneq with extra bracket
+
+ -- Ernest Lotter <ernest.lotter@canonical.com>  Mon, 10 Mar 2025 20:13:38 +0200
+
 snapd (2.68.2~14.04) trusty; urgency=medium
 
   * New upstream release, LP: #2098137

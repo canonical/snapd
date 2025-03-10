@@ -131,6 +131,38 @@ func (s *keymgrSuite) TestAddRecoveryKeyToDeviceUnlockFromKeyring(c *C) {
 	s.verifyCryptsetupAddKey(c, cmd, []byte(unlockKey), mockRecoveryKey[:])
 }
 
+func (s *keymgrSuite) TestAddRecoveryKeyToDeviceUnlockFromKeyringFallbackPath(c *C) {
+	unlockKey := "1234abcd"
+	getCalls := 0
+	restore := keymgr.MockGetDiskUnlockKeyFromKernel(func(prefix, devicePath string, remove bool) (sb.DiskUnlockKey, error) {
+		c.Check(remove, Equals, false)
+		c.Check(prefix, Equals, "ubuntu-fde")
+		getCalls++
+		switch devicePath {
+		case "/dev/foobar":
+			return nil, sb.ErrKernelKeyNotFound
+		case "/dev/disk/by-partuuid/baz":
+			return []byte(unlockKey), nil
+		}
+		c.Errorf("unexpected call")
+		return nil, fmt.Errorf("unexpected call")
+	})
+	defer restore()
+
+	restore = keymgr.MockDisksDevlinks(func(devPath string) ([]string, error) {
+		c.Check(devPath, Equals, "/dev/foobar")
+		return []string{"/dev/foobar", "/dev/disk/by-partuuid/baz"}, nil
+	})
+	defer restore()
+
+	cmd := s.mockCryptsetupForAddKey(c)
+	defer cmd.Restore()
+	err := keymgr.AddRecoveryKeyToLUKSDevice(mockRecoveryKey, "/dev/foobar")
+	c.Assert(err, IsNil)
+	c.Assert(getCalls, Equals, 2)
+	s.verifyCryptsetupAddKey(c, cmd, []byte(unlockKey), mockRecoveryKey[:])
+}
+
 func (s *keymgrSuite) TestAddRecoveryKeyToDeviceNoUnlockKey(c *C) {
 	getCalls := 0
 	restore := keymgr.MockGetDiskUnlockKeyFromKernel(func(prefix, devicePath string, remove bool) (sb.DiskUnlockKey, error) {

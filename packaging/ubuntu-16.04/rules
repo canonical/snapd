@@ -18,7 +18,7 @@ export DH_GOLANG_GO_GENERATE=1
 
 VERSION := $(shell dpkg-parsechangelog -S Version)
 
-ifneq (,$(findstring +fips,$(VERSION))))
+ifneq (,$(findstring +fips,$(VERSION)))
 	# the version has +fips tag, we're building a FIPS variant
 	FIPSBUILD = 1
 else
@@ -331,6 +331,9 @@ override_dh_install: debian/snapd.install
 	mv debian/snapd/etc/profile.d/snapd.sh debian/snapd/etc/profile.d/apps-bin-path.sh
 
 	$(MAKE) -C cmd install DESTDIR=$(CURDIR)/debian/tmp
+	# Permission 111 breaks deb builds on plucky e.g. "Can't opendir(debian/tmp/var/lib/snapd/void): Permission denied".
+	# The desired permission 111 is re-applied in postinst.
+	chmod 755 $(CURDIR)/debian/tmp/var/lib/snapd/void
 
 	# Rename the apparmor profile, see dh_apparmor call above for an explanation.
 	mv $(CURDIR)/debian/tmp/etc/apparmor.d/usr.lib.snapd.snap-confine $(CURDIR)/debian/tmp/etc/apparmor.d/usr.lib.snapd.snap-confine.real
