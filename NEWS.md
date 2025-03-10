@@ -1,3 +1,8 @@
+# New in snapd 2.68.3
+* FDE: LP: #2101834 snapd 2.68+ and snap-bootstrap <2.68 fallback to old keyring path
+* Fix Plucky snapd deb build issue related to /var/lib/snapd/void permissions
+* Fix snapd deb build complaint about ifneq with extra bracket
+
 # New in snapd 2.68.2
 * FDE: use boot mode for FDE hooks
 * FDE: add snap-bootstrap compatibility check to prevent image creation with incompatible snapd and kernel snap
