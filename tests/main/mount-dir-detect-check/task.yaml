@@ -1,0 +1,73 @@
+summary: Verify mount directory detection checks
+details: |
+  Verify that detection of snap mount directory will correctly identify and flag
+  unexpected path on a distribution where we have historical knowledge of the
+  correct location.
+
+systems:
+  - -ubuntu-core-*
+
+prepare: |
+  if tests.info is-snapd-from-archive ; then
+       tests.exec skip-test "snapd deb from archive has no mount detection" && exit 0
+  fi
+
+  tests.systemd stop-unit snapd.service
+  echo "Ensure all snaps are gone"
+  snapd.tool exec snap-mgmt --purge
+
+  SNAP_MOUNT_DIR="$(os.paths snap-mount-dir)"
+  tests.cleanup defer mkdir -p "$SNAP_MOUNT_DIR"
+
+  rm -f /var/lib/snapd/state.json
+
+  if [ -L /snap ]; then
+      # we have a symlink which is part of the snapd package, e.g. on Amazon
+      # Linux
+      mv /snap /snap.backup
+      tests.cleanup defer mv /snap.backup /snap
+  fi
+
+  # prepare should have removed the mount directory
+  not test -d "$SNAP_MOUNT_DIR"
+
+  baddir=""
+  case "$SNAP_MOUNT_DIR" in
+  /snap)
+      baddir="/var/lib/snapd/snap"
+      ;;
+  /var/lib/snapd/snap)
+      baddir="/snap"
+      ;;
+  *)
+      echo "unexpected snap mount directory $SNAP_MOUNT_DIR"
+      exit 1
+      ;;
+  esac
+
+  mkdir -p "$baddir"
+  tests.cleanup defer rm -rf "$baddir"
+
+  echo "$baddir" > mock-mount-dir
+
+  systemctl start snapd
+  snap wait system seed.loaded
+
+  test "$(snap list | wc -l)" = "0"
+
+execute: |
+  tests.exec is-skipped && exit 0
+
+  SNAP_MOUNT_DIR="$(os.paths snap-mount-dir)"
+  baddir="$(cat mock-mount-dir)"
+
+  echo "No snaps can be installed if detection found unexpected snap mount directory"
+  "$TESTSTOOLS"/snaps-state install-local test-snapd-sh-core24 2>&1 | MATCH "unexpected snap mount directory"
+
+  echo "After restoring the correct snap mount directory"
+  rm -rf "$baddir"
+  mkdir -p "$SNAP_MOUNT_DIR"
+  systemctl restart snapd.service
+
+  echo "Snaps can be installed again"
+  "$TESTSTOOLS"/snaps-state install-local test-snapd-sh-core24
