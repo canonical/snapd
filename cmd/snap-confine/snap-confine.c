@@ -254,11 +254,8 @@ the_void:
      * created on demand. */
     void_dir_fd = open(sc_void_dir, O_DIRECTORY | O_PATH | O_NOFOLLOW | O_CLOEXEC);
     if (void_dir_fd < 0 && errno == ENOENT) {
-        if (mkdir(sc_void_dir, 0111) < 0) {
+        if (sc_ensure_mkdir(sc_void_dir, 0111, 0, 0) != 0) {
             die("cannot create void directory: %s", sc_void_dir);
-        }
-        if (lchown(sc_void_dir, 0, 0) < 0) {
-            die("cannot change ownership of void directory %s", sc_void_dir);
         }
         void_dir_fd = open(sc_void_dir, O_DIRECTORY | O_PATH | O_NOFOLLOW | O_CLOEXEC);
     }
