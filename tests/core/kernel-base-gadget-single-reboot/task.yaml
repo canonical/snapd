@@ -23,9 +23,6 @@ prepare: |
         exit
     fi
 
-    snap install remarshal
-    tests.cleanup defer snap remove remarshal
-
     # does not work for 16, but we don't support 16 for this
     core_snap="core${VERSION_ID}"
 

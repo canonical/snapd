@@ -29,9 +29,6 @@ prepare: |
         exit
     fi
 
-    snap install remarshal
-    tests.cleanup defer snap remove remarshal
-
     # does not work for 16, but we don't support 16 for this
     core_snap="core${VERSION_ID}"
 
@@ -68,9 +65,13 @@ execute: |
     # does not work for 16, but we don't support 16 for this
     core_snap="core${VERSION_ID}"
     core_id="$(snap info "$core_snap" | awk -F: '$1 == "snap-id" {sub(/^[^:]+:/, "");print}' | xargs)"
+    
+    # for some reason when running in spread both core20 and core24 report
+    # an empty snap-id...
     if os.query is-core20; then
-        # snap-id doesn't appear on core20?
         core_id=DLqre5XGLbDqg9jPtiAhRRjDuPVa5X1q
+    elif os.query is-core24; then
+        core_id=dwTAh7MZZ01zyriOZErqd1JynQLiOGvM
     fi
 
     # correct the naming based on the system we are testing
