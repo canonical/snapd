@@ -101,8 +101,7 @@ class LocksGroup:
 
             lock_lines = self._current_lock(current_line)
             if len(lock_lines) == 0:
-                print("Error parsing lock")
-                sys.exit(1)
+                raise RuntimeError("Error parsing lock")
 
             self.locks.append(LockOp(lock_lines))
             current_line = current_line + len(lock_lines)
@@ -265,8 +264,7 @@ class LocksFileReader:
 
             group_lines = self._current_group(current_line)
             if len(group_lines) == 0:
-                print("Error parsing test.")
-                sys.exit(1)
+                raise RuntimeError("Error parsing test.")
 
             self.groups.append(LocksGroup(group_lines))
             current_line = current_line + len(group_lines)
