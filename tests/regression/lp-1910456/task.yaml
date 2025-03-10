@@ -35,6 +35,15 @@ prepare: |
         snap install --dangerous --classic test-snapd-classic-container-mgrs*.snap
     fi
 
+restore: |
+    tests.cleanup restore
+    if os.query is-xenial || os.query is-bionic; then
+        # old system is not doing cleanups
+        find /sys/fs/cgroup/ -type d -name "snap.*" -prune | while read -r svc; do
+             rmdir "$svc" || true
+        done
+    fi
+
 execute: |
     #shellcheck source=tests/lib/systems.sh
     . "$TESTSLIB"/systems.sh
@@ -125,7 +134,7 @@ execute: |
 
     CHANNEL=latest/stable
     snap install --channel="$CHANNEL" docker
-    tests.cleanup defer snap remove docker
+    tests.cleanup defer snap remove --purge docker
 
     echo "Test that docker container cgroups on ubuntu are not moved when systemctl daemon-reload is executed"
 

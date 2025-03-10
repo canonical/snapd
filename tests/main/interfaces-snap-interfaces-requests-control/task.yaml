@@ -27,6 +27,7 @@ prepare: |
         tests.exec skip-test "Ubuntu 22.04 AppArmor parser doesn't support prompting" && exit 0
     fi
 
+    snap remove --purge api-client || true
     # prerequisite for having a prompts handler service
     snap set system experimental.user-daemons=true
 

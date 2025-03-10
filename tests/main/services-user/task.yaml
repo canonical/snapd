@@ -42,6 +42,7 @@ prepare: |
     fi
 
 restore: |
+    snap remove --purge test-snapd-user-service || true
     tests.session -u test restore
     tests.session -u test2 restore
     if ! userdel -rf test2; then
