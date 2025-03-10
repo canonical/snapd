@@ -108,6 +108,7 @@ const openglConnectedPlugAppArmor = `
 @{PROC}/modules r,
 /dev/nvidia* rw,
 unix (send, receive) type=dgram peer=(addr="@nvidia[0-9a-f]*"),
+unix (send, receive) type=stream peer=(label="Xorg"),
 # driver profiles
 /usr/share/nvidia/ r,
 /usr/share/nvidia/** r,
