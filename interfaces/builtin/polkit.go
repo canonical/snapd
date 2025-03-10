@@ -24,6 +24,7 @@ import (
 	"crypto"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -161,7 +162,7 @@ func (iface *polkitInterface) parseAndValidateInstallRules(attribs interfaces.At
 		return nil, err
 	}
 	if len(ruleEntries) == 0 {
-		return nil, fmt.Errorf("\"install-rules\" must have at least one entry")
+		return nil, fmt.Errorf(`"install-rules" must have at least one entry`)
 	}
 	rules := make([]polkitInstallRule, len(ruleEntries))
 	for i, ruleEntry := range ruleEntries {
@@ -176,14 +177,14 @@ func (iface *polkitInterface) parseAndValidateInstallRules(attribs interfaces.At
 			case "sha3-384":
 				rule.Sha3_384 = val
 			default:
-				return nil, fmt.Errorf("unexpected key %q for \"install-rules\" entry", key)
+				return nil, fmt.Errorf(`unexpected key %q for "install-rules" entry`, key)
 			}
 		}
 		if rule.Name == "" {
-			return nil, fmt.Errorf("key \"name\" is required for \"install-rules\" entry")
+			return nil, fmt.Errorf(`key "name" is required for "install-rules" entry`)
 		}
 		if rule.Sha3_384 == "" {
-			return nil, fmt.Errorf("key \"sha3-384\" is required for \"install-rules\" entry")
+			return nil, fmt.Errorf(`key "sha3-384" is required for "install-rules" entry`)
 		}
 		rules[i] = rule
 	}
@@ -201,14 +202,21 @@ func readPolkitRule(filename string, installRules []polkitInstallRule) (polkit.R
 		}
 	}
 	if exptectedHash == "" {
-		return nil, fmt.Errorf("no matching \"install-rule\" entry found for %q", filename)
+		return nil, fmt.Errorf(`no matching "install-rule" entry found for %q`, filename)
+	}
+	f, err := os.Open(filename)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+	h := crypto.SHA3_384.New()
+	content := &bytes.Buffer{}
+	w := io.MultiWriter(content, h)
+	if _, err := io.Copy(w, f); err != nil {
+		return nil, fmt.Errorf("cannot obtain hash of %q: %w", filename, err)
 	}
 	// Compute sha3-384 hash of matched file
-	hashDigest, _, err := osutil.FileDigest(filename, crypto.SHA3_384)
-	if err != nil {
-		return nil, fmt.Errorf("cannot read hash digest of %q: %v", filename, err)
-	}
-	hash, err := asserts.EncodeDigest(crypto.SHA3_384, hashDigest)
+	hash, err := asserts.EncodeDigest(crypto.SHA3_384, h.Sum(nil))
 	if err != nil {
 		return nil, err
 	}
@@ -216,11 +224,7 @@ func readPolkitRule(filename string, installRules []polkitInstallRule) (polkit.R
 		return nil, fmt.Errorf("unexpected hash digest of %q, expected %q, found %q", filename, exptectedHash, hash)
 	}
 	// Hash matched, return rule content
-	content, err := os.ReadFile(filename)
-	if err != nil {
-		return nil, fmt.Errorf("cannot read file %q: %v", filename, err)
-	}
-	return polkit.Rule(content), nil
+	return polkit.Rule(content.Bytes()), nil
 }
 
 func (iface *polkitInterface) addPolkitRules(spec *polkit.Specification, plug *interfaces.ConnectedPlug) error {
@@ -255,7 +259,7 @@ type polkitMissingAttrErr struct {
 }
 
 func (err *polkitMissingAttrErr) Error() string {
-	return fmt.Sprintf("snap %q must have at lease one of (\"action-prefix\", \"install-rules\") attributes set for interface \"polkit\"", err.snapName)
+	return fmt.Sprintf(`snap %q must have at least one of ("action-prefix", "install-rules") attributes set for interface "polkit"`, err.snapName)
 }
 
 func (iface *polkitInterface) PolkitConnectedPlug(spec *polkit.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
@@ -295,7 +299,7 @@ func (iface *polkitInterface) BeforePreparePlug(plug *snap.PlugInfo) error {
 		return policyErr
 	}
 	if policyErr == nil && !polkitPoliciesSupported() {
-		return fmt.Errorf("cannot use \"action-prefix\" attribute: polkit policies are not supported")
+		return fmt.Errorf(`cannot use "action-prefix" attribute: polkit policies are not supported`)
 	}
 
 	_, ruleErr := iface.parseAndValidateInstallRules(plug)
@@ -303,7 +307,7 @@ func (iface *polkitInterface) BeforePreparePlug(plug *snap.PlugInfo) error {
 		return ruleErr
 	}
 	if ruleErr == nil && !polkitRulesSupported() {
-		return fmt.Errorf("cannot use \"install-rules\" attribute: polkit rules are not supported")
+		return fmt.Errorf(`cannot use "install-rules" attribute: polkit rules are not supported`)
 	}
 
 	// Check if both attributes are not set.

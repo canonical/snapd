@@ -192,7 +192,7 @@ apps:
 
 	polkitSpec := &polkit.Specification{}
 	err := polkitSpec.AddConnectedPlug(s.iface, plug, s.slot)
-	c.Assert(err, ErrorMatches, `snap "other" must have at lease one of \("action-prefix", "install-rules"\) attributes set for interface "polkit"`)
+	c.Assert(err, ErrorMatches, `snap "other" must have at least one of \("action-prefix", "install-rules"\) attributes set for interface "polkit"`)
 }
 
 func computeRuleHash(c *C, data []byte) string {
@@ -281,7 +281,7 @@ func (s *polkitInterfaceSuite) TestConnectedPlugPolkitRuleNotFile(c *C) {
 
 	polkitSpec := &polkit.Specification{}
 	err := polkitSpec.AddConnectedPlug(s.iface, plug, s.slot)
-	c.Check(err, ErrorMatches, `cannot read hash digest of ".*/meta/polkit/foo.bar.rules": read .*: is a directory`)
+	c.Check(err, ErrorMatches, `cannot obtain hash of ".*/meta/polkit/foo.bar.rules": read .*: is a directory`)
 }
 
 func (s *polkitInterfaceSuite) TestConnectedPlugPolkitPolicyBadXML(c *C) {
@@ -417,7 +417,7 @@ plugs:
 		inp    string
 		errStr string
 	}{
-		{"", `snap "polkit-plug-snap" must have at lease one of \("action-prefix", "install-rules"\) attributes set for interface "polkit"`},
+		{"", `snap "polkit-plug-snap" must have at least one of \("action-prefix", "install-rules"\) attributes set for interface "polkit"`},
 
 		{`action-prefix: true`, `snap "polkit-plug-snap" has interface "polkit" with invalid value type bool for "action-prefix" attribute: \*string`},
 		{`action-prefix: 42`, `snap "polkit-plug-snap" has interface "polkit" with invalid value type int64 for "action-prefix" attribute: \*string`},
@@ -465,7 +465,7 @@ plugs:
 		inp    string
 		errStr string
 	}{
-		{"", `snap "polkit-plug-snap" must have at lease one of \("action-prefix", "install-rules"\) attributes set for interface "polkit"`},
+		{"", `snap "polkit-plug-snap" must have at least one of \("action-prefix", "install-rules"\) attributes set for interface "polkit"`},
 
 		{`install-rules: true`, `snap "polkit-plug-snap" has interface "polkit" with invalid value type bool for "install-rules" attribute: \*\[\]map\[string\]string`},
 		{`install-rules: 42`, `snap "polkit-plug-snap" has interface "polkit" with invalid value type int64 for "install-rules" attribute: \*\[\]map\[string\]string`},
@@ -526,21 +526,26 @@ func (s *polkitInterfaceSuite) TestStaticInfo(c *C) {
 func (s *polkitInterfaceSuite) TestPolkitPoliciesSupported(c *C) {
 	// From now the actions directory is writable so daemon permissions matter.
 	c.Assert(os.Chmod(dirs.SnapPolkitPolicyDir, 0o700), IsNil)
+	// But not the rules to isolate te StaticInfo checks.
+	c.Assert(os.Chmod(dirs.SnapPolkitRuleDir, 0o500), IsNil)
 
 	// Neither daemon is executable so polkit policies are not supported.
 	c.Assert(os.Chmod(s.daemonPath1, 0o600), IsNil)
 	c.Assert(os.Chmod(s.daemonPath2, 0o600), IsNil)
 	c.Check(builtin.PolkitPoliciesSupported(), Equals, false)
+	c.Check(interfaces.StaticInfoOf(s.iface).ImplicitOnCore, Equals, false)
 
 	// The 1st daemon is executable so polkit policies are supported.
 	c.Assert(os.Chmod(s.daemonPath1, 0o700), IsNil)
 	c.Assert(os.Chmod(s.daemonPath2, 0o600), IsNil)
 	c.Check(builtin.PolkitPoliciesSupported(), Equals, true)
+	c.Check(interfaces.StaticInfoOf(s.iface).ImplicitOnCore, Equals, true)
 
 	// The 2nd daemon is executable so polkit policies are supported.
 	c.Assert(os.Chmod(s.daemonPath1, 0o600), IsNil)
 	c.Assert(os.Chmod(s.daemonPath2, 0o700), IsNil)
 	c.Check(builtin.PolkitPoliciesSupported(), Equals, true)
+	c.Check(interfaces.StaticInfoOf(s.iface).ImplicitOnCore, Equals, true)
 
 	// From now own, both daemons are executable so mounts matter.
 	c.Assert(os.Chmod(s.daemonPath1, 0o700), IsNil)
@@ -549,30 +554,37 @@ func (s *polkitInterfaceSuite) TestPolkitPoliciesSupported(c *C) {
 	// Actions directory is not writable so polkit policies are not supported.
 	c.Assert(os.Chmod(dirs.SnapPolkitPolicyDir, 0o500), IsNil)
 	c.Check(builtin.PolkitPoliciesSupported(), Equals, false)
+	c.Check(interfaces.StaticInfoOf(s.iface).ImplicitOnCore, Equals, false)
 
 	// Actions directory is writable so polkit policies are supported.
 	c.Assert(os.Chmod(dirs.SnapPolkitPolicyDir, 0o700), IsNil)
 	c.Check(builtin.PolkitPoliciesSupported(), Equals, true)
+	c.Check(interfaces.StaticInfoOf(s.iface).ImplicitOnCore, Equals, true)
 }
 
 func (s *polkitInterfaceSuite) TestPolkitRulesSupported(c *C) {
 	// From now the rules directory is writable so daemon permissions matter.
 	c.Assert(os.Chmod(dirs.SnapPolkitRuleDir, 0o700), IsNil)
+	// But not the actions directory to isolate te StaticInfo checks.
+	c.Assert(os.Chmod(dirs.SnapPolkitPolicyDir, 0o500), IsNil)
 
 	// Neither daemon is executable so polkit rules are not supported.
 	c.Assert(os.Chmod(s.daemonPath1, 0o600), IsNil)
 	c.Assert(os.Chmod(s.daemonPath2, 0o600), IsNil)
 	c.Check(builtin.PolkitRulesSupported(), Equals, false)
+	c.Check(interfaces.StaticInfoOf(s.iface).ImplicitOnCore, Equals, false)
 
 	// The 1st daemon is executable so polkit rules are supported.
 	c.Assert(os.Chmod(s.daemonPath1, 0o700), IsNil)
 	c.Assert(os.Chmod(s.daemonPath2, 0o600), IsNil)
 	c.Check(builtin.PolkitRulesSupported(), Equals, true)
+	c.Check(interfaces.StaticInfoOf(s.iface).ImplicitOnCore, Equals, true)
 
 	// The 2nd daemon is executable so polkit rules are supported.
 	c.Assert(os.Chmod(s.daemonPath1, 0o600), IsNil)
 	c.Assert(os.Chmod(s.daemonPath2, 0o700), IsNil)
 	c.Check(builtin.PolkitRulesSupported(), Equals, true)
+	c.Check(interfaces.StaticInfoOf(s.iface).ImplicitOnCore, Equals, true)
 
 	// From now own, both daemons are executable so mounts matter.
 	c.Assert(os.Chmod(s.daemonPath1, 0o700), IsNil)
@@ -581,10 +593,12 @@ func (s *polkitInterfaceSuite) TestPolkitRulesSupported(c *C) {
 	// Rules directory is not writable so polkit rules are not supported.
 	c.Assert(os.Chmod(dirs.SnapPolkitRuleDir, 0o500), IsNil)
 	c.Check(builtin.PolkitRulesSupported(), Equals, false)
+	c.Check(interfaces.StaticInfoOf(s.iface).ImplicitOnCore, Equals, false)
 
 	// Rules directory is writable so polkit rules are supported.
 	c.Assert(os.Chmod(dirs.SnapPolkitRuleDir, 0o700), IsNil)
 	c.Check(builtin.PolkitRulesSupported(), Equals, true)
+	c.Check(interfaces.StaticInfoOf(s.iface).ImplicitOnCore, Equals, true)
 }
 
 func (s *polkitInterfaceSuite) TestInterfaces(c *C) {
