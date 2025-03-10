@@ -409,7 +409,7 @@ func (c *getCommand) getDatabag(ctx *hookstate.Context, view *confdb.View, prist
 		// running in the context of a transaction, so if the referenced confdb schema
 		// doesn't match that tx, we only allow the caller to read through other confdb schema
 		t, _ := ctx.Task()
-		tx, _, err = confdbstateGetStoredTransaction(t)
+		tx, _, _, err = confdbstateGetStoredTransaction(t)
 		if err != nil {
 			return nil, fmt.Errorf("cannot access confdb through view %s/%s/%s: cannot get transaction: %v", account, dbSchemaName, view.Name, err)
 		}

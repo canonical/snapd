@@ -68,7 +68,7 @@ func (c *failCommand) Execute(args []string) error {
 	}
 
 	t, _ := ctx.Task()
-	tx, saveChanges, err := confdbstate.GetStoredTransaction(t)
+	tx, _, saveChanges, err := confdbstate.GetStoredTransaction(t)
 	if err != nil {
 		return fmt.Errorf(i18n.G("internal error: cannot get confdb transaction to fail: %v"), err)
 	}

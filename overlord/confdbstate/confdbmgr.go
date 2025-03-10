@@ -81,7 +81,7 @@ func (m *ConfdbManager) doCommitTransaction(t *state.Task, _ *tomb.Tomb) (err er
 	st.Lock()
 	defer st.Unlock()
 
-	tx, _, err := GetStoredTransaction(t)
+	tx, _, _, err := GetStoredTransaction(t)
 	if err != nil {
 		return err
 	}
@@ -100,12 +100,12 @@ func (m *ConfdbManager) clearOngoingTransaction(t *state.Task, _ *tomb.Tomb) err
 	st.Lock()
 	defer st.Unlock()
 
-	tx, _, err := GetStoredTransaction(t)
+	tx, txTask, _, err := GetStoredTransaction(t)
 	if err != nil {
 		return err
 	}
 
-	err = unsetOngoingTransaction(st, tx.ConfdbAccount, tx.ConfdbName)
+	err = unsetOngoingTransaction(st, tx.ConfdbAccount, tx.ConfdbName, txTask.ID())
 	if err != nil {
 		return err
 	}
@@ -114,52 +114,109 @@ func (m *ConfdbManager) clearOngoingTransaction(t *state.Task, _ *tomb.Tomb) err
 	return nil
 }
 
-func setOngoingTransaction(st *state.State, account, confdbName, commitTaskID string) error {
-	var commitTasks map[string]string
-	err := st.Get("confdb-commit-tasks", &commitTasks)
-	if err != nil {
-		if !errors.Is(err, &state.NoStateError{}) {
-			return err
-		}
-
-		commitTasks = make(map[string]string, 1)
-	}
-
-	confdbRef := account + "/" + confdbName
-	if taskID, ok := commitTasks[confdbRef]; ok {
-		return fmt.Errorf("internal error: cannot set task %q as ongoing commit task for confdb %s: already have %q", commitTaskID, confdbRef, taskID)
-	}
-
-	commitTasks[confdbRef] = commitTaskID
-	st.Set("confdb-commit-tasks", commitTasks)
-	return nil
+type confdbTransactions struct {
+	ReadTxIDs []string `json:"read-tx-ids,omitempty"`
+	WriteTxID string   `json:"write-tx-id,omitempty"`
 }
 
-func unsetOngoingTransaction(st *state.State, account, confdbName string) error {
-	var commitTasks map[string]string
-	err := st.Get("confdb-commit-tasks", &commitTasks)
+// addReadTransaction adds a read transaction for the specified confdb, if no
+// write transactions is ongoing.
+func addReadTransaction(st *state.State, account, confdbName, id string) error {
+	txs, updateFunc, err := getOngoingTxs(st, account, confdbName)
 	if err != nil {
-		if errors.Is(err, &state.NoStateError{}) {
-			// already unset, nothing to do
-			return nil
-		}
 		return err
 	}
 
-	confdbRef := account + "/" + confdbName
-	if _, ok := commitTasks[confdbRef]; !ok {
-		// already unset, nothing to do
+	if txs == nil {
+		txs = &confdbTransactions{}
+	}
+
+	if txs.WriteTxID != "" {
+		return fmt.Errorf("cannot read confdb (%s/%s): a write transaction is ongoing", account, confdbName)
+	}
+
+	txs.ReadTxIDs = append(txs.ReadTxIDs, id)
+	updateFunc(txs)
+	return nil
+}
+
+// setWriteTransaction sets a write transaction for the specified confdb schema,
+// if no other transactions (read or write) are ongoing.
+func setWriteTransaction(st *state.State, account, schemaName, id string) error {
+	txs, updateFunc, err := getOngoingTxs(st, account, schemaName)
+	if err != nil {
+		return err
+	}
+
+	if txs == nil {
+		txs = &confdbTransactions{}
+	}
+
+	if txs.WriteTxID != "" || len(txs.ReadTxIDs) != 0 {
+		op := "read"
+		if txs.WriteTxID != "" {
+			op = "write"
+		}
+
+		return fmt.Errorf("cannot write confdb (%s/%s): a %s transaction is ongoing", account, schemaName, op)
+	}
+
+	txs.WriteTxID = id
+	updateFunc(txs)
+	return nil
+}
+
+func getOngoingTxs(st *state.State, account, schemaName string) (*confdbTransactions, func(*confdbTransactions), error) {
+	var confdbTxs map[string]*confdbTransactions
+	err := st.Get("confdb-ongoing-txs", &confdbTxs)
+	if err != nil {
+		if !errors.Is(err, &state.NoStateError{}) {
+			return nil, nil, err
+		}
+
+		confdbTxs = make(map[string]*confdbTransactions, 1)
+	}
+
+	ref := account + "/" + schemaName
+	updateFunc := func(ongoingTxs *confdbTransactions) {
+		if ongoingTxs == nil || (ongoingTxs.WriteTxID == "" && len(ongoingTxs.ReadTxIDs) == 0) {
+			delete(confdbTxs, ref)
+		} else {
+			confdbTxs[ref] = ongoingTxs
+		}
+
+		if len(confdbTxs) == 0 {
+			st.Set("confdb-ongoing-txs", nil)
+		} else {
+			st.Set("confdb-ongoing-txs", confdbTxs)
+		}
+	}
+	return confdbTxs[ref], updateFunc, nil
+}
+
+func unsetOngoingTransaction(st *state.State, account, schemaName, id string) error {
+	txs, updateFunc, err := getOngoingTxs(st, account, schemaName)
+	if err != nil {
+		return err
+	}
+
+	if txs == nil {
+		// no ongoing txs, nothing to unset
 		return nil
 	}
 
-	delete(commitTasks, confdbRef)
-
-	if len(commitTasks) == 0 {
-		st.Set("confdb-commit-tasks", nil)
+	if txs.WriteTxID == id {
+		txs.WriteTxID = ""
 	} else {
-		st.Set("confdb-commit-tasks", commitTasks)
+		for i, txID := range txs.ReadTxIDs {
+			if txID == id {
+				txs.ReadTxIDs = append(txs.ReadTxIDs[:i], txs.ReadTxIDs[i+1:]...)
+				break
+			}
+		}
 	}
 
+	updateFunc(txs)
 	return nil
 }
 
@@ -177,7 +234,7 @@ func (h *changeViewHandler) Done() error {
 	defer h.ctx.Unlock()
 
 	t, _ := h.ctx.Task()
-	tx, _, err := GetStoredTransaction(t)
+	tx, _, _, err := GetStoredTransaction(t)
 	if err != nil {
 		return fmt.Errorf("cannot get transaction in change-confdb handler: %v", err)
 	}
@@ -246,7 +303,7 @@ func (h *saveViewHandler) Error(origErr error) (ignoreErr bool, err error) {
 	// save the original error so we can return that once the rollback is done
 	last.Set("original-error", origErr.Error())
 
-	tx, saveChanges, err := GetStoredTransaction(t)
+	tx, _, saveChanges, err := GetStoredTransaction(t)
 	if err != nil {
 		return false, fmt.Errorf("cannot rollback failed save-view: cannot get transaction: %v", err)
 	}
