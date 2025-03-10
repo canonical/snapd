@@ -21,6 +21,7 @@ package builtin_test
 
 import (
 	"crypto"
+	"crypto/rand"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -362,6 +363,22 @@ func (s *polkitInterfaceSuite) TestConnectedPlugPolkitRuleBadHash(c *C) {
 	polkitSpec := &polkit.Specification{}
 	err := polkitSpec.AddConnectedPlug(s.iface, plug, s.slot)
 	c.Assert(err, ErrorMatches, `unexpected hash digest of ".*/meta/polkit/foo.bar.rules", expected "bad-hash", found ".*"`)
+}
+
+func (s *polkitInterfaceSuite) TestConnectedPlugPolkitRuleBadFileSize(c *C) {
+	plug, plugInfo := mockPolkitRuleConnectedPlug(c, "hash")
+
+	c.Assert(os.MkdirAll(filepath.Join(plugInfo.Snap.MountDir(), "meta/polkit"), 0755), IsNil)
+	rulePath := filepath.Join(plugInfo.Snap.MountDir(), "meta/polkit/foo.bar.rules")
+	ruleContent := make([]byte, 128*1024+1)
+	n, err := rand.Read(ruleContent)
+	c.Assert(err, IsNil)
+	c.Assert(n, Equals, 128*1024+1)
+	c.Assert(os.WriteFile(rulePath, ruleContent, 0644), IsNil)
+
+	polkitSpec := &polkit.Specification{}
+	err = polkitSpec.AddConnectedPlug(s.iface, plug, s.slot)
+	c.Assert(err, ErrorMatches, `".*/meta/polkit/foo.bar.rules" is 131073 bytes, max rule file size is 131072`)
 }
 
 func (s *polkitInterfaceSuite) TestSanitizeSlot(c *C) {

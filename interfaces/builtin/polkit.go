@@ -191,6 +191,8 @@ func (iface *polkitInterface) parseAndValidateInstallRules(attribs interfaces.At
 	return rules, nil
 }
 
+const maxPolkitRuleFileSize = 128 * 1024
+
 func readPolkitRule(filename string, installRules []polkitInstallRule) (polkit.Rule, error) {
 	// Find matching install-rules entry
 	base := filepath.Base(filename)
@@ -209,13 +211,22 @@ func readPolkitRule(filename string, installRules []polkitInstallRule) (polkit.R
 		return nil, err
 	}
 	defer f.Close()
+	// Check rule file size
+	finfo, err := f.Stat()
+	if err != nil {
+		return nil, err
+	}
+	fsize := finfo.Size()
+	if fsize > maxPolkitRuleFileSize {
+		return nil, fmt.Errorf(`%q is %d bytes, max rule file size is %d`, filename, fsize, maxPolkitRuleFileSize)
+	}
+	// Read rule and compute sha3-384 hash of matched file
 	h := crypto.SHA3_384.New()
 	content := &bytes.Buffer{}
 	w := io.MultiWriter(content, h)
 	if _, err := io.Copy(w, f); err != nil {
 		return nil, fmt.Errorf("cannot obtain hash of %q: %w", filename, err)
 	}
-	// Compute sha3-384 hash of matched file
 	hash, err := asserts.EncodeDigest(crypto.SHA3_384, h.Sum(nil))
 	if err != nil {
 		return nil, err
