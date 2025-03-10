@@ -10,6 +10,12 @@ details: |
 systems: [ubuntu-14.04-64]
 
 restore: |
+    snap remove --purge canonical-livepatch || true
+    # compat system will not do any cleanups, do them ourselves
+    find /sys/fs/cgroup/ -type d -name "snap.*" -prune | while read -r svc; do
+        rmdir "$svc" || true
+    done
+
     #shellcheck source=tests/lib/pkgdb.sh
     . "$TESTSLIB/pkgdb.sh"
     distro_install_build_snapd
