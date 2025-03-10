@@ -210,7 +210,9 @@ func (disk *EncryptedDisk) GetDevPath() string {
 	return fmt.Sprintf("/dev/disk/by-uuid/%s", disk.UUID)
 }
 
-// GetEncryptedDisks returns the disk
+// GetEncryptedDisks returns the encrypted disks with their keys for
+// the current device.
+// The list of encrypted disks has no specific order.
 func (m *FDEManager) GetEncryptedDisks() ([]backend.EncryptedDisk, error) {
 	return getEncryptedDisks(m.state)
 }

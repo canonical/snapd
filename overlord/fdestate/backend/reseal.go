@@ -155,7 +155,8 @@ func doReseal(manager FDEStateManager, method device.SealingMethod, rootdir stri
 				return err
 			}
 			if parameters == nil {
-				return fmt.Errorf("error while resealing: no parameters for run+recover for %s", disk.GetRole())
+				logger.Debugf("there was no parameters for run+recover/%s", disk.GetRole())
+				continue
 			}
 
 			defaultLegacyKey, hasDefaultLegacyKey := legacyKeys["default"]
@@ -180,7 +181,8 @@ func doReseal(manager FDEStateManager, method device.SealingMethod, rootdir stri
 				return err
 			}
 			if parameters == nil {
-				return fmt.Errorf("error while resealing: no parameters for run+recover for %s", disk.GetRole())
+				logger.Debugf("there was no parameters for recover/%s", disk.GetRole())
+				continue
 			}
 
 			fallbackLegacyKey, hasFallbackLegacyKey := legacyKeys["default-fallback"]

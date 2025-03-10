@@ -258,6 +258,11 @@ func initializeState(st *state.State) error {
 		}
 	}
 
+	_, hasStatePrimaryKey := s.PrimaryKeys[0]
+	if !hasStatePrimaryKey {
+		logger.Noticef("WARNING: no primary key was found")
+	}
+
 	st.Set(fdeStateKey, s)
 
 	return nil
