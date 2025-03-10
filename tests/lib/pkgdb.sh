@@ -552,15 +552,11 @@ pkg_dependencies_ubuntu_classic(){
         fish
         fontconfig
         gnome-keyring
-        jq
-        lsof
-        man
         nfs-kernel-server
         printer-driver-cups-pdf
         python3-dbus
         python3-gi
         python3-yaml
-        upower
         weston
         xdg-user-dirs
         xdg-utils
