@@ -86,9 +86,9 @@ func (e ErrNoDeviceIdentityYet) Error() string {
 	return "device has no identity yet"
 }
 
-func (e ErrNoDeviceIdentityYet) Is(target error) bool {
-	_, ok := target.(ErrNoDeviceIdentityYet)
-	return ok || target == state.ErrNoState
+func (e ErrNoDeviceIdentityYet) Is(err error) bool {
+	_, ok := err.(ErrNoDeviceIdentityYet)
+	return ok || errors.Is(err, state.ErrNoState)
 }
 
 // DeviceManager is responsible for managing the device identity and device
