@@ -154,6 +154,12 @@ type fakeDownload struct {
 	opts     *store.DownloadOptions
 }
 
+type fakeIconDownload struct {
+	name   string
+	target string
+	url    string
+}
+
 type byName []store.CurrentSnap
 
 func (bna byName) Len() int      { return len(bna) }
@@ -183,6 +189,7 @@ type fakeStore struct {
 	mu sync.Mutex
 
 	downloads           []fakeDownload
+	iconDownloads       []fakeIconDownload
 	refreshRevnos       map[string]snap.Revision
 	fakeBackend         *fakeSnappyBackend
 	fakeCurrentProgress int
@@ -196,7 +203,8 @@ type fakeStore struct {
 	// it should return the resources that the snap should have.
 	snapResourcesFn func(*snap.Info) []store.SnapResourceResult
 
-	downloadCallback func()
+	downloadCallback     func()
+	downloadIconCallback func(targetPath string)
 
 	namesToAssertedIDs map[string]string
 	idsToNames         map[string]string
@@ -248,6 +256,12 @@ func (f *fakeStore) appendDownload(dl *fakeDownload) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.downloads = append(f.downloads, *dl)
+}
+
+func (f *fakeStore) appendIconDownload(dl *fakeIconDownload) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.iconDownloads = append(f.iconDownloads, *dl)
 }
 
 type snapSpec struct {
@@ -927,6 +941,23 @@ func (f *fakeStore) Download(ctx context.Context, name, targetFn string, snapInf
 	if e, ok := f.downloadError[name]; ok {
 		return e
 	}
+
+	return nil
+}
+
+func (f *fakeStore) DownloadIcon(ctx context.Context, name string, targetPath string, downloadURL string) error {
+	// we don't want to hold state lock while waiting on the icon download
+	f.pokeStateLock()
+
+	if f.downloadIconCallback != nil {
+		f.downloadIconCallback(targetPath)
+	}
+	f.appendIconDownload(&fakeIconDownload{
+		name:   name,
+		target: targetPath,
+		url:    downloadURL,
+	})
+	f.fakeBackend.appendOp(&fakeOp{op: "storesvc-download-icon", name: name})
 
 	return nil
 }

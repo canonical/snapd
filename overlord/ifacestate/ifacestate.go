@@ -287,6 +287,10 @@ func initialConnectAttributes(st *state.State, plugSnapInfo *snap.Info, plugSnap
 		return nil, nil, err
 	}
 
+	if err := addImplicitInterfaces(st, plugSnapInfo); err != nil {
+		return nil, nil, err
+	}
+
 	plug, ok := plugSnapInfo.Plugs[plugName]
 	if !ok {
 		return nil, nil, fmt.Errorf("snap %q has no plug named %q", plugSnap, plugName)
@@ -298,7 +302,7 @@ func initialConnectAttributes(st *state.State, plugSnapInfo *snap.Info, plugSnap
 		return nil, nil, err
 	}
 
-	if err := addImplicitSlots(st, slotSnapInfo); err != nil {
+	if err := addImplicitInterfaces(st, slotSnapInfo); err != nil {
 		return nil, nil, err
 	}
 
@@ -475,7 +479,7 @@ func disconnectTasks(st *state.State, conn *interfaces.Connection, flags disconn
 // CheckInterfaces checks whether plugs and slots of snap are allowed for installation.
 func CheckInterfaces(st *state.State, snapInfo *snap.Info, deviceCtx snapstate.DeviceContext) error {
 	// XXX: addImplicitSlots is really a brittle interface
-	if err := addImplicitSlots(st, snapInfo); err != nil {
+	if err := addImplicitInterfaces(st, snapInfo); err != nil {
 		return err
 	}
 

@@ -24,6 +24,8 @@
 : "${NESTED_DISK_PHYSICAL_BLOCK_SIZE:=512}"
 : "${NESTED_DISK_LOGICAL_BLOCK_SIZE:=512}"
 
+: "${NESTED_PASSPHRASE:=}"
+
 nested_wait_for_ssh() {
     local retry=${1:-800}
     local wait=${2:-1}
@@ -982,7 +984,7 @@ nested_create_core_vm() {
             BOOTVOLUME=pc
             if [ -e pc-gadget/meta/gadget.yaml ]; then
                 # shellcheck disable=SC2016
-                BOOTVOLUME="$(gojq --yaml-input '.volumes | to_entries[] | .key as $p | .value.structure[] | select(.name == "ubuntu-boot") | $p' pc-gadget/meta/gadget.yaml | tr -d '"')"
+                BOOTVOLUME="$(gojq --yaml-input --raw-output '.volumes | to_entries[] | .key as $p | .value.structure[] | select(.name == "ubuntu-boot") | $p' pc-gadget/meta/gadget.yaml)"
                 if [ -z "$BOOTVOLUME" ]; then
                     echo "was not able to deduce the ubuntu-boot partition from gadget.yaml in pc-gadget/meta/gadget.yaml"
                     echo "please inspect it and make sure it looks as expected"
@@ -1219,6 +1221,9 @@ nested_start_core_vm_unit() {
     PARAM_RTC="${NESTED_PARAM_RTC:-}"
     PARAM_EXTRA="${NESTED_PARAM_EXTRA:-}"
 
+    local PASSPHRASE
+    PASSPHRASE=${NESTED_PASSPHRASE}
+
     # Open port 7777 on the host so that failures in the nested VM (e.g. to
     # create users) can be debugged interactively via
     # "telnet localhost 7777". Also keeps the logs
@@ -1226,6 +1231,10 @@ nested_start_core_vm_unit() {
     # XXX: should serial just be logged to stdout so that we just need
     #      to "journalctl -u $NESTED_VM" to see what is going on ?
     if "$QEMU" -version | grep '2\.5'; then
+        if [ -z "$PASSPHRASE" ]; then
+            echo "internal error: NESTED_PASSPHRASE is set and qemu doesn't support chardev over socket"
+            exit 1
+        fi
         # XXX: remove once we no longer support xenial hosts
         PARAM_SERIAL="-serial file:${NESTED_LOGS_DIR}/serial.log"
     else
@@ -1366,6 +1375,13 @@ nested_start_core_vm_unit() {
         ${PARAM_USB} \
         ${PARAM_CD}  \
         ${PARAM_EXTRA} " "${PARAM_REEXEC_ON_FAILURE}"
+
+    if [ -n "$PASSPHRASE" ]; then
+        # Wait for passphrase prompt from serial log file.
+        retry -n 120 --wait 1 sh -c "MATCH \"Please enter the passphrase\" < ${NESTED_LOGS_DIR}/serial.log"
+        # Enter passphrase to continue boot.
+        echo "$PASSPHRASE" | netcat -N localhost 7777
+    fi
 
     local EXPECT_SHUTDOWN
     EXPECT_SHUTDOWN=${NESTED_EXPECT_SHUTDOWN:-}
@@ -1778,26 +1794,4 @@ nested_wait_for_device_initialized_change() {
         fi
         sleep "$wait"
     done
-}
-
-nested_check_spread_results() {
-    SPREAD_LOG=$1
-    if [ -z "$SPREAD_LOG" ]; then
-        return 1
-    fi
-
-    if grep -eq "Successful tasks:" "$SPREAD_LOG"; then
-        if grep -E "Failed (task|suite|project)" "$SPREAD_LOG"; then
-            return 1
-        fi
-        if ! grep -eq "Aborted tasks: 0" "$SPREAD_LOG"; then
-            return 1
-        fi
-
-        if [ "$EXIT_STATUS" = "0" ]; then
-            return 0
-        fi    
-    else
-        return 1
-    fi
 }

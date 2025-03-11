@@ -41,6 +41,7 @@ import (
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/bootloader/bootloadertest"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/dirs/dirstest"
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/logger"
@@ -155,7 +156,9 @@ func (s *snapmgrBaseTest) mockSystemctlCallsUpdateMounts(c *C) (restore func()) 
 
 func (s *snapmgrBaseTest) SetUpTest(c *C) {
 	s.BaseTest.SetUpTest(c)
-	dirs.SetRootDir(c.MkDir())
+	rd := c.MkDir()
+	dirstest.MustMockCanonicalSnapMountDir(rd)
+	dirs.SetRootDir(rd)
 
 	s.o = overlord.Mock()
 	s.state = s.o.State()
@@ -4609,7 +4612,7 @@ func (s *snapmgrQuerySuite) TestSnapStateCurrentInfo(c *C) {
 }
 
 func (s *snapmgrQuerySuite) TestSnapStateCurrentInfoLoadsAuxiliaryStoreInfo(c *C) {
-	storeInfo := &snapstate.AuxStoreInfo{
+	storeInfo := backend.AuxStoreInfo{
 		Media: snap.MediaInfos{{
 			Type: "icon",
 			URL:  "http://example.com/favicon.ico",
@@ -4618,14 +4621,16 @@ func (s *snapmgrQuerySuite) TestSnapStateCurrentInfoLoadsAuxiliaryStoreInfo(c *C
 		Website:  "http://example.com/",
 	}
 
-	c.Assert(snapstate.KeepAuxStoreInfo("123123123", storeInfo), IsNil)
+	linkCtx := backend.LinkContext{} // doesn't matter for this test
+	_, err := backend.InstallStoreMetadata("123123123", storeInfo, linkCtx)
+	c.Check(err, IsNil)
 
 	st := s.st
 	st.Lock()
 	defer st.Unlock()
 
 	var snapst snapstate.SnapState
-	err := snapstate.Get(st, "name1", &snapst)
+	err = snapstate.Get(st, "name1", &snapst)
 	c.Assert(err, IsNil)
 
 	info, err := snapst.CurrentInfo()
@@ -8059,7 +8064,7 @@ version: 1`), &snap.SideInfo{Revision: snap.R("5")})
 	c.Check(ignoreValidation, DeepEquals, map[string]bool{"bar": true})
 }
 
-func (s *snapmgrTestSuite) addSnapsForRemodel(c *C) {
+func (s *snapmgrTestSuite) addSnapsForRemodel(c *C, withComponents bool) {
 	si := &snap.SideInfo{
 		RealName: "some-base", Revision: snap.R(1),
 	}
@@ -8075,12 +8080,25 @@ func (s *snapmgrTestSuite) addSnapsForRemodel(c *C) {
 		RealName: "some-kernel", Revision: snap.R(2),
 	}
 	snaptest.MockSnapCurrent(c, "name: some-kernel\nversion: 1.0\ntype: kernel\n", si)
+	seq := snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si})
+	if withComponents {
+		seq.AddComponentForRevision(si.Revision, sequence.NewComponentState(&snap.ComponentSideInfo{
+			Component: naming.NewComponentRef("some-kernel", "comp-1"),
+			Revision:  snap.R(22),
+		}, snap.KernelModulesComponent))
+
+		seq.AddComponentForRevision(si.Revision, sequence.NewComponentState(&snap.ComponentSideInfo{
+			Component: naming.NewComponentRef("some-kernel", "comp-2"),
+			Revision:  snap.R(33),
+		}, snap.KernelModulesComponent))
+	}
 	snapstate.Set(s.state, "some-kernel", &snapstate.SnapState{
 		Active:   true,
-		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si}),
+		Sequence: seq,
 		Current:  si.Revision,
 		SnapType: "kernel",
 	})
+
 	si = &snap.SideInfo{
 		RealName: "some-gadget", Revision: snap.R(3),
 	}
@@ -8094,6 +8112,7 @@ func (s *snapmgrTestSuite) addSnapsForRemodel(c *C) {
 }
 
 var nonReLinkKinds = []string{
+	"prepare-kernel-snap",
 	"copy-snap-data",
 	"setup-profiles",
 	"auto-connect",
@@ -8105,6 +8124,7 @@ var nonReLinkKinds = []string{
 	"run-hook[configure]",
 	"run-hook[check-health]",
 	"discard-old-kernel-snap-setup",
+	"mount-component",
 }
 
 func kindsToSet(kinds []string) map[string]bool {
@@ -8120,6 +8140,10 @@ func (s *snapmgrTestSuite) TestRemodelLinkNewBaseOrKernelHappy(c *C) {
 }
 
 func (s *snapmgrTestSuite) TestRemodelLinkNewBaseOrUC20KernelHappy(c *C) {
+	s.testRemodelLinkNewBaseOrKernelHappy(c, MakeModel20("brand-gadget", nil), 0)
+}
+
+func (s *snapmgrTestSuite) TestRemodelLinkNewBaseOrUC20KernelHappyWithKmodComponent(c *C) {
 	s.testRemodelLinkNewBaseOrKernelHappy(c, MakeModel20("brand-gadget", nil), 0)
 }
 
@@ -8140,27 +8164,20 @@ func (s *snapmgrTestSuite) testRemodelLinkNewBaseOrKernelHappy(c *C, model *asse
 
 	defer snapstatetest.MockDeviceModel(model)()
 
-	s.addSnapsForRemodel(c)
+	const withComponents = false
+	s.addSnapsForRemodel(c, withComponents)
 
 	ts, err := snapstate.LinkNewBaseOrKernel(s.state, "some-kernel", "")
 	c.Assert(err, IsNil)
+
 	tasks := ts.Tasks()
 	c.Check(taskKinds(tasks), DeepEquals, expectedDoInstallTasks(snap.TypeKernel, opts, 0, 0, []string{"prepare-snap"}, nil, kindsToSet(nonReLinkKinds)))
+	c.Assert(tasks, HasLen, 3)
+
 	tPrepare := tasks[0]
-	var tLink, tUpdateGadgetAssets *state.Task
-	if opts&needsKernelSetup != 0 {
-		c.Assert(tasks, HasLen, 4)
-		tSetupKernelSnap := tasks[1]
-		c.Assert(tSetupKernelSnap.Kind(), Equals, "prepare-kernel-snap")
-		c.Assert(tSetupKernelSnap.Summary(), Equals, `Prepare kernel driver tree for "some-kernel" (2) for remodel`)
-		c.Assert(tSetupKernelSnap.WaitTasks(), DeepEquals, []*state.Task{tPrepare})
-		tUpdateGadgetAssets = tasks[2]
-		tLink = tasks[3]
-	} else {
-		c.Assert(tasks, HasLen, 3)
-		tUpdateGadgetAssets = tasks[1]
-		tLink = tasks[2]
-	}
+	tUpdateGadgetAssets := tasks[1]
+	tLink := tasks[2]
+
 	c.Assert(tPrepare.Kind(), Equals, "prepare-snap")
 	c.Assert(tPrepare.Summary(), Equals, `Prepare snap "some-kernel" (2) for remodel`)
 	c.Assert(tPrepare.Has("snap-setup"), Equals, true)
@@ -8186,6 +8203,92 @@ func (s *snapmgrTestSuite) testRemodelLinkNewBaseOrKernelHappy(c *C, model *asse
 	c.Assert(ts.MaybeEdge(snapstate.MaybeRebootEdge), Equals, tLink)
 }
 
+func (s *snapmgrTestSuite) TestRemodelLinkNewBaseOrKernelWithComponent(c *C) {
+	model := MakeModel20("brand-gadget", nil)
+
+	restore := release.MockOnClassic(false)
+	defer restore()
+
+	s.AddCleanup(snapstate.MockSnapReadInfo(snap.ReadInfo))
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	defer snapstatetest.MockDeviceModel(model)()
+
+	const withComponents = true
+	s.addSnapsForRemodel(c, withComponents)
+
+	ts, err := snapstate.LinkNewBaseOrKernel(s.state, "some-kernel", "")
+	c.Assert(err, IsNil)
+
+	comps := []string{"comp-1", "comp-2"}
+	startTasks := []string{"prepare-snap"}
+
+	tasks := ts.Tasks()
+	c.Check(taskKinds(tasks), DeepEquals, expectedDoInstallTasks(snap.TypeKernel, 0, 0, 0, startTasks, comps, kindsToSet(nonReLinkKinds)))
+	c.Assert(tasks, HasLen, 5)
+
+	prepare := ts.MaybeEdge(snapstate.SnapSetupEdge)
+	c.Assert(prepare, NotNil)
+	c.Assert(prepare.Kind(), Equals, "prepare-snap")
+	c.Assert(prepare.Has("snap-setup"), Equals, true)
+
+	link := ts.MaybeEdge(snapstate.MaybeRebootEdge)
+	c.Assert(link, NotNil)
+	c.Assert(link.Kind(), Equals, "link-snap")
+
+	for _, t := range ts.Tasks() {
+		if t.Kind() == "link-component" {
+			c.Assert(t.Has("component-setup"), Equals, true)
+		}
+	}
+}
+
+func (s *snapmgrTestSuite) TestRemodelAddLinkNewBaseOrKernelWithComponent(c *C) {
+	model := MakeModel20("brand-gadget", nil)
+
+	restore := release.MockOnClassic(false)
+	defer restore()
+
+	s.AddCleanup(snapstate.MockSnapReadInfo(snap.ReadInfo))
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	defer snapstatetest.MockDeviceModel(model)()
+
+	const withComponents = true
+	s.addSnapsForRemodel(c, withComponents)
+
+	switchSnap := s.state.NewTask("switch-snap", "switch snap")
+	switchSnap.Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{RealName: "some-kernel", Revision: snap.R(2)},
+		Type:     "kernel",
+		Channel:  "new-channel",
+	})
+
+	ts := state.NewTaskSet(switchSnap)
+
+	ts, err := snapstate.AddLinkNewBaseOrKernel(s.state, ts)
+	c.Assert(err, IsNil)
+
+	comps := []string{"comp-1", "comp-2"}
+	startTasks := []string{"switch-snap"}
+
+	tasks := ts.Tasks()
+	c.Check(taskKinds(tasks), DeepEquals, expectedDoInstallTasks(snap.TypeKernel, 0, 0, 0, startTasks, comps, kindsToSet(nonReLinkKinds)))
+	c.Assert(tasks, HasLen, 5)
+
+	link := ts.MaybeEdge(snapstate.MaybeRebootEdge)
+	c.Assert(link, NotNil)
+	c.Assert(link.Kind(), Equals, "link-snap")
+
+	for _, t := range ts.Tasks() {
+		if t.Kind() == "link-component" {
+			c.Assert(t.Has("component-setup"), Equals, true)
+		}
+	}
+}
+
 func (s *snapmgrTestSuite) TestRemodelLinkNewBaseOrKernelBadType(c *C) {
 	restore := release.MockOnClassic(false)
 	defer restore()
@@ -8193,7 +8296,9 @@ func (s *snapmgrTestSuite) TestRemodelLinkNewBaseOrKernelBadType(c *C) {
 	s.BaseTest.AddCleanup(snapstate.MockSnapReadInfo(snap.ReadInfo))
 	s.state.Lock()
 	defer s.state.Unlock()
-	s.addSnapsForRemodel(c)
+
+	const withComponents = false
+	s.addSnapsForRemodel(c, withComponents)
 
 	si := &snap.SideInfo{RealName: "some-snap", Revision: snap.R(3)}
 	snaptest.MockSnapCurrent(c, "name: snap-gadget\nversion: 1.0\n", si)
@@ -8219,7 +8324,9 @@ func (s *snapmgrTestSuite) TestRemodelLinkNewBaseOrKernelNoRemodelConflict(c *C)
 	s.BaseTest.AddCleanup(snapstate.MockSnapReadInfo(snap.ReadInfo))
 	s.state.Lock()
 	defer s.state.Unlock()
-	s.addSnapsForRemodel(c)
+
+	const withComponents = false
+	s.addSnapsForRemodel(c, withComponents)
 
 	tugc := s.state.NewTask("update-managed-boot-config", "update managed boot config")
 	chg := s.state.NewChange("remodel", "remodel")
@@ -8254,6 +8361,8 @@ func (s *snapmgrTestSuite) testRemodelAddLinkNewBaseOrKernel(c *C, model *assert
 
 	defer snapstatetest.MockDeviceModel(model)()
 
+	s.addSnapsForRemodel(c, false)
+
 	// try a kernel snap first
 	si := &snap.SideInfo{RealName: "some-kernel", Revision: snap.R(2)}
 	tPrepare := s.state.NewTask("prepare-snap", "test task")
@@ -8271,22 +8380,9 @@ func (s *snapmgrTestSuite) testRemodelAddLinkNewBaseOrKernel(c *C, model *assert
 	tasks := tsNew.Tasks()
 	c.Check(taskKinds(tasks), DeepEquals, expectedDoInstallTasks(snap.TypeKernel, opts, 0, 0, []string{"prepare-snap", "test-task"}, nil, kindsToSet(nonReLinkKinds)))
 	// since this is the kernel, we have our task + test task + update-gadget-assets + link-snap
-	var tLink, tUpdateGadgetAssets *state.Task
-	if opts&needsKernelSetup != 0 {
-		c.Assert(tasks, HasLen, 5)
-		tSetupKernelSnap := tasks[2]
-		c.Assert(tSetupKernelSnap.Kind(), Equals, "prepare-kernel-snap")
-		c.Assert(tSetupKernelSnap.Summary(), Equals, `Prepare kernel driver tree for "some-kernel" (2) for remodel`)
-		c.Assert(tSetupKernelSnap.WaitTasks(), DeepEquals, []*state.Task{
-			testTask,
-		})
-		tUpdateGadgetAssets = tasks[3]
-		tLink = tasks[4]
-	} else {
-		c.Assert(tasks, HasLen, 4)
-		tUpdateGadgetAssets = tasks[2]
-		tLink = tasks[3]
-	}
+	c.Assert(tasks, HasLen, 4)
+	tUpdateGadgetAssets := tasks[2]
+	tLink := tasks[3]
 	c.Assert(tUpdateGadgetAssets.Kind(), Equals, "update-gadget-assets")
 	c.Assert(tUpdateGadgetAssets.Summary(), Equals, `Update assets from kernel "some-kernel" (2) for remodel`)
 	c.Assert(tLink.Kind(), Equals, "link-snap")
@@ -8339,7 +8435,9 @@ func (s *snapmgrTestSuite) TestRemodelSwitchNewGadget(c *C) {
 	s.BaseTest.AddCleanup(snapstate.MockSnapReadInfo(snap.ReadInfo))
 	s.state.Lock()
 	defer s.state.Unlock()
-	s.addSnapsForRemodel(c)
+
+	const withComponents = false
+	s.addSnapsForRemodel(c, withComponents)
 
 	ts, err := snapstate.SwitchToNewGadget(s.state, "some-gadget", "")
 	c.Assert(err, IsNil)
@@ -8369,7 +8467,9 @@ func (s *snapmgrTestSuite) TestRemodelSwitchNewGadgetNoRemodelConflict(c *C) {
 	s.BaseTest.AddCleanup(snapstate.MockSnapReadInfo(snap.ReadInfo))
 	s.state.Lock()
 	defer s.state.Unlock()
-	s.addSnapsForRemodel(c)
+
+	const withComponents = false
+	s.addSnapsForRemodel(c, withComponents)
 
 	tugc := s.state.NewTask("update-managed-boot-config", "update managed boot config")
 	chg := s.state.NewChange("remodel", "remodel")
@@ -8386,7 +8486,9 @@ func (s *snapmgrTestSuite) TestRemodelSwitchNewGadgetBadType(c *C) {
 	s.BaseTest.AddCleanup(snapstate.MockSnapReadInfo(snap.ReadInfo))
 	s.state.Lock()
 	defer s.state.Unlock()
-	s.addSnapsForRemodel(c)
+
+	const withComponent = false
+	s.addSnapsForRemodel(c, withComponent)
 
 	si := &snap.SideInfo{RealName: "some-snap", Revision: snap.R(3)}
 	snaptest.MockSnapCurrent(c, "name: snap-gadget\nversion: 1.0\n", si)
@@ -8414,7 +8516,9 @@ func (s *snapmgrTestSuite) TestRemodelSwitchNewGadgetConflict(c *C) {
 	s.BaseTest.AddCleanup(snapstate.MockSnapReadInfo(snap.ReadInfo))
 	s.state.Lock()
 	defer s.state.Unlock()
-	s.addSnapsForRemodel(c)
+
+	const withComponents = false
+	s.addSnapsForRemodel(c, withComponents)
 
 	tugc := s.state.NewTask("update-gadget-cmdline", "update gadget cmdline")
 	chg := s.state.NewChange("optional-kernel-cmdline", "optional kernel cmdline")
@@ -8440,7 +8544,9 @@ func (s *snapmgrTestSuite) TestRemodelSwitchNewGadgetConflictExclusiveKind(c *C)
 	s.BaseTest.AddCleanup(snapstate.MockSnapReadInfo(snap.ReadInfo))
 	s.state.Lock()
 	defer s.state.Unlock()
-	s.addSnapsForRemodel(c)
+
+	const withComponent = false
+	s.addSnapsForRemodel(c, withComponent)
 
 	tugc := s.state.NewTask("some-random-task", "...")
 	chg := s.state.NewChange("transition-ubuntu-core", "...")

@@ -20,6 +20,15 @@ systems:
 prepare: |
   snap install go-example-webserver hello-world
 
+restore: |
+  snap remove-quota group-five || true
+  snap remove-quota group-four || true
+  snap remove-quota group-three || true
+  snap remove-quota too-small || true
+  snap remove-quota group-one || true
+  # despite removing groups, in 18.04 and 20.04, the slices stay behind
+  find /sys/fs/cgroup/ -type d -name 'snap.*.slice' -prune -ls -exec rmdir \{\} \;
+
 execute: |
   echo "Create a group with a snap in it"
   snap set-quota group-one --memory=100MB go-example-webserver

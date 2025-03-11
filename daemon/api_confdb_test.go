@@ -57,15 +57,15 @@ func (s *confdbSuite) SetUpTest(c *C) {
 	s.d = daemon.NewWithOverlord(o)
 
 	s.st.Lock()
-	databags := map[string]map[string]confdb.JSONDataBag{
-		"system": {"network": confdb.NewJSONDataBag()},
+	databags := map[string]map[string]confdb.JSONDatabag{
+		"system": {"network": confdb.NewJSONDatabag()},
 	}
 	s.st.Set("confdb-databags", databags)
 	s.st.Unlock()
 }
 
 func (s *confdbSuite) setFeatureFlag(c *C) {
-	_, confOption := features.Confdbs.ConfigOption()
+	_, confOption := features.Confdb.ConfigOption()
 
 	s.st.Lock()
 	defer s.st.Unlock()
@@ -214,7 +214,7 @@ func (s *confdbSuite) TestViewSetMany(c *C) {
 			},
 		}
 
-		db, err := confdb.New("system", "network", views, confdb.NewJSONSchema())
+		db, err := confdb.NewSchema("system", "network", views, confdb.NewJSONSchema())
 		c.Assert(err, IsNil)
 
 		return db.View(viewName), nil
@@ -231,8 +231,8 @@ func (s *confdbSuite) TestViewSetMany(c *C) {
 		calls++
 		c.Assert(ctx, IsNil)
 		c.Assert(view.Name, Equals, "wifi-setup")
-		c.Assert(view.Confdb().Account, Equals, "system")
-		c.Assert(view.Confdb().Name, Equals, "network")
+		c.Assert(view.Schema().Account, Equals, "system")
+		c.Assert(view.Schema().Name, Equals, "network")
 
 		c.Assert(err, IsNil)
 
@@ -326,7 +326,7 @@ func (s *confdbSuite) TestSetView(c *C) {
 			},
 		}
 
-		db, err := confdb.New("system", "network", views, confdb.NewJSONSchema())
+		db, err := confdb.NewSchema("system", "network", views, confdb.NewJSONSchema())
 		c.Assert(err, IsNil)
 
 		return db.View(viewName), nil
@@ -355,8 +355,8 @@ func (s *confdbSuite) TestSetView(c *C) {
 			calls++
 			c.Assert(ctx, IsNil, cmt)
 			c.Assert(view.Name, Equals, "wifi-setup", cmt)
-			c.Assert(view.Confdb().Account, Equals, "system", cmt)
-			c.Assert(view.Confdb().Name, Equals, "network", cmt)
+			c.Assert(view.Schema().Account, Equals, "system", cmt)
+			c.Assert(view.Schema().Name, Equals, "network", cmt)
 
 			return tx, func() (string, <-chan struct{}, error) { return "123", nil, nil }, nil
 		})
@@ -393,7 +393,7 @@ func (s *confdbSuite) TestUnsetView(c *C) {
 			},
 		}
 
-		db, err := confdb.New("system", "network", views, confdb.NewJSONSchema())
+		db, err := confdb.NewSchema("system", "network", views, confdb.NewJSONSchema())
 		c.Assert(err, IsNil)
 
 		return db.View(viewName), nil
@@ -413,8 +413,8 @@ func (s *confdbSuite) TestUnsetView(c *C) {
 		calls++
 		c.Assert(ctx, IsNil)
 		c.Assert(view.Name, Equals, "wifi-setup")
-		c.Assert(view.Confdb().Account, Equals, "system")
-		c.Assert(view.Confdb().Name, Equals, "network")
+		c.Assert(view.Schema().Account, Equals, "system")
+		c.Assert(view.Schema().Name, Equals, "network")
 
 		return tx, func() (string, <-chan struct{}, error) { return "123", nil, nil }, nil
 	})
@@ -446,7 +446,7 @@ func (s *confdbSuite) TestSetViewError(c *C) {
 			},
 		}
 
-		db, err := confdb.New("system", "network", views, confdb.NewJSONSchema())
+		db, err := confdb.NewSchema("system", "network", views, confdb.NewJSONSchema())
 		c.Assert(err, IsNil)
 
 		return db.View(viewName), nil
@@ -521,7 +521,7 @@ func (s *confdbSuite) TestGetBadRequest(c *C) {
 	restore := daemon.MockConfdbstateGet(func(_ *state.State, acc, confdbName, view string, fields []string) (interface{}, error) {
 		return nil, &confdb.BadRequestError{
 			Account:    "acc",
-			ConfdbName: "db",
+			SchemaName: "db",
 			View:       "foo",
 			Operation:  "get",
 			Request:    "foo",
@@ -547,7 +547,7 @@ func (s *confdbSuite) TestSetBadRequest(c *C) {
 		// but the error handling is the same so this shortens the test
 		return nil, &confdb.BadRequestError{
 			Account:    "acc",
-			ConfdbName: "db",
+			SchemaName: "db",
 			View:       "foo",
 			Operation:  "set",
 			Request:    "foo",
@@ -583,7 +583,7 @@ func (s *confdbSuite) TestSetFailUnsetFeatureFlag(c *C) {
 
 	rspe := s.errorReq(c, req, nil)
 	c.Check(rspe.Status, Equals, 400)
-	c.Check(rspe.Message, Equals, `"confdbs" feature flag is disabled: set 'experimental.confdbs' to true`)
+	c.Check(rspe.Message, Equals, `"confdb" feature flag is disabled: set 'experimental.confdb' to true`)
 	c.Check(rspe.Kind, Equals, client.ErrorKind(""))
 }
 
@@ -600,7 +600,7 @@ func (s *confdbSuite) TestGetFailUnsetFeatureFlag(c *C) {
 
 	rspe := s.errorReq(c, req, nil)
 	c.Check(rspe.Status, Equals, 400)
-	c.Check(rspe.Message, Equals, `"confdbs" feature flag is disabled: set 'experimental.confdbs' to true`)
+	c.Check(rspe.Message, Equals, `"confdb" feature flag is disabled: set 'experimental.confdb' to true`)
 	c.Check(rspe.Kind, Equals, client.ErrorKind(""))
 }
 

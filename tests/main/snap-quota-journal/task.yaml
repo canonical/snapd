@@ -19,6 +19,11 @@ prepare: |
   snap set system experimental.quota-groups=true
   tests.cleanup defer snap unset system experimental.quota-groups
 
+restore: |
+  snap remove-quota group-one || true
+  # despite removing groups, in 18.04 and 20.04, the slices stay behind
+  find /sys/fs/cgroup/ -type d -name 'snap.*.slice' -prune -ls -exec rmdir \{\} \;
+
 execute: |
   echo "Starting service and verifying that log messages are sent to default journal namespace"
   snap start test-snapd-journal-quota.logger

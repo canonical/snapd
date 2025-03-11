@@ -210,7 +210,7 @@ func (s *hookHandlerSuite) TestSaveViewHookErrorRollsBackSaves(c *C) {
 	secondTask.WaitFor(firstTask)
 	secondTask.SetStatus(state.DoingStatus)
 	secondTask.Set("hook-setup", hooksup)
-	secondTask.Set("commit-task", commitTask.ID())
+	secondTask.Set("tx-task", commitTask.ID())
 
 	ctx, err := hookstate.NewContext(secondTask, s.state, hooksup, nil, "")
 	c.Assert(err, IsNil)
@@ -298,7 +298,7 @@ func (s *hookHandlerSuite) TestSaveViewHookErrorHoldsTasks(c *C) {
 	chg.AddTask(firstTask)
 	firstTask.SetStatus(state.DoingStatus)
 	firstTask.Set("hook-setup", hooksup)
-	firstTask.Set("commit-task", commitTask.ID())
+	firstTask.Set("tx-task", commitTask.ID())
 
 	// Error looks for a non run-hook task in order to stop
 	prereq := s.state.NewTask("other", "")
@@ -451,7 +451,7 @@ func (s *confdbTestSuite) TestClearOngoingTransaction(c *C) {
 
 	t := s.state.NewTask("clear-confdb-tx", "")
 	chg.AddTask(t)
-	t.Set("commit-task", commitTask.ID())
+	t.Set("tx-task", commitTask.ID())
 
 	confdbstate.SetOngoingTransaction(s.state, s.devAccID, "network", commitTask.ID())
 
@@ -481,7 +481,7 @@ func (s *confdbTestSuite) TestClearTransactionOnError(c *C) {
 	commitTask := s.state.NewTask("commit-confdb-tx", "")
 	chg.AddTask(commitTask)
 	commitTask.WaitFor(clearTask)
-	clearTask.Set("commit-task", commitTask.ID())
+	clearTask.Set("tx-task", commitTask.ID())
 
 	tx, err := confdbstate.NewTransaction(s.state, s.devAccID, "network")
 	c.Assert(err, IsNil)

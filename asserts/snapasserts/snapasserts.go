@@ -527,12 +527,12 @@ func FetchStore(f asserts.Fetcher, storeID string) error {
 	return f.Fetch(ref)
 }
 
-// FetchConfdb fetches a confdb assertion described by account and confdb
-// name using the given fetcher.
-func FetchConfdb(f asserts.Fetcher, account, confdbName string) error {
+// FetchConfdbSchema fetches a confdb-schema assertion described by account and
+// confdb schema name using the given fetcher.
+func FetchConfdbSchema(f asserts.Fetcher, account, schemaName string) error {
 	ref := &asserts.Ref{
-		Type:       asserts.ConfdbType,
-		PrimaryKey: []string{account, confdbName},
+		Type:       asserts.ConfdbSchemaType,
+		PrimaryKey: []string{account, schemaName},
 	}
 
 	return f.Fetch(ref)

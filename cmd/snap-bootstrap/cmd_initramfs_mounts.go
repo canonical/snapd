@@ -2236,6 +2236,22 @@ func getCompsFromSymlinks(symLinksDir, kernelName string, compSet map[snap.Compo
 	return nil
 }
 
+func recalculateRootfsTarget() error {
+	// Do a daemon reload so systemd knows about the new sysroot mount unit
+	// (populate-writable.service depends on sysroot.mount, we need to make
+	// sure systemd knows this unit before snap-initramfs-mounts.service
+	// finishes) and about the drivers tree mounts (relevant on hybrid).
+	sysd := systemd.New(systemd.SystemMode, nil)
+	if err := sysd.DaemonReload(); err != nil {
+		return err
+	}
+	// We need to restart initrd-root-fs.target so its dependencies are
+	// re-calculated considering the new sysroot.mount unit. See
+	// https://github.com/systemd/systemd/issues/23034 on why this is
+	// needed.
+	return sysd.StartNoBlock([]string{"initrd-root-fs.target"})
+}
+
 func generateMountsModeRun(mst *initramfsMountsState) error {
 	bootMountOpts := &systemdMountOptions{
 		// always fsck the partition when we are mounting it, as this is the
@@ -2521,19 +2537,7 @@ func generateMountsModeRun(mst *initramfsMountsState) error {
 	}
 
 	if createSysrootMount() {
-		// Do a daemon reload so systemd knows about the new sysroot mount unit
-		// (populate-writable.service depends on sysroot.mount, we need to make
-		// sure systemd knows this unit before snap-initramfs-mounts.service
-		// finishes) and about the drivers tree mounts (relevant on hybrid).
-		sysd := systemd.New(systemd.SystemMode, nil)
-		if err := sysd.DaemonReload(); err != nil {
-			return err
-		}
-		// We need to restart initrd-root-fs.target so its dependencies are
-		// re-calculated considering the new sysroot.mount unit. See
-		// https://github.com/systemd/systemd/issues/23034 on why this is
-		// needed.
-		if err := sysd.StartNoBlock([]string{"initrd-root-fs.target"}); err != nil {
+		if err := recalculateRootfsTarget(); err != nil {
 			return err
 		}
 	}

@@ -3366,8 +3366,21 @@ func MigrateHome(st *state.State, snaps []string) ([]*state.TaskSet, error) {
 	return tss, nil
 }
 
-// LinkNewBaseOrKernel creates a new task set with prepare/link-snap, and
-// additionally update-gadget-assets for the kernel snap, tasks for a remodel.
+// LinkNewBaseOrKernel creates a new task set that enables swapping to a base or
+// kernel snap that is already installed on the system. The primary use case for
+// this function is remodeling.
+//
+// For bases, we create prepare-snap and link-snap tasks. Technically this would
+// create link-component tasks for any installed components, but bases do not
+// currently use components.
+//
+// For kernels, we create prepare-snap, an update-gadget-assets task (if
+// needed), link-snap, and link-component tasks for any installed components.
+//
+// Note that this function previously created a prepare-kernel-snap task, but
+// this was not needed. Since this function is only used if the snap is
+// installed already installed, then it is expected that the drivers tree is
+// present. Thus, the prepare-kernel-snap task would be redundant.
 func LinkNewBaseOrKernel(st *state.State, name string, fromChange string) (*state.TaskSet, error) {
 	var snapst SnapState
 	err := Get(st, name, &snapst)
@@ -3404,43 +3417,77 @@ func LinkNewBaseOrKernel(st *state.State, name string, fromChange string) (*stat
 		InstanceKey: snapst.InstanceKey,
 	}
 
+	// note that prepare-snap doesn't actually do anything here, and is mostly
+	// used as a task to carry the snap-setup information.
 	prepareSnap := st.NewTask("prepare-snap", fmt.Sprintf(i18n.G("Prepare snap %q (%s) for remodel"), snapsup.InstanceName(), snapst.Current))
 	prepareSnap.Set("snap-setup", &snapsup)
-	prev := prepareSnap
-	ts := state.NewTaskSet(prepareSnap)
-	// preserve the same order as during the update
-	if info.Type() == snap.TypeKernel {
-		// TODO in a remodel this would use the old model, we need to fix this
-		// as needsKernelSetup needs to know the new model for UC2{0,2} -> UC24
-		// remodel case.
-		deviceCtx, err := DeviceCtx(st, nil, nil)
-		if err != nil {
-			return nil, err
-		}
-		if kernel.NeedsKernelDriversTree(deviceCtx.Model()) {
-			setupKernel := st.NewTask("prepare-kernel-snap", fmt.Sprintf(i18n.G("Prepare kernel driver tree for %q (%s) for remodel"), snapsup.InstanceName(), snapst.Current))
-			ts.AddTask(setupKernel)
-			setupKernel.Set("snap-setup-task", prepareSnap.ID())
-			setupKernel.WaitFor(prev)
-			prev = setupKernel
-		}
 
-		// kernel snaps can carry boot assets
-		gadgetUpdate := st.NewTask("update-gadget-assets", fmt.Sprintf(i18n.G("Update assets from %s %q (%s) for remodel"), snapsup.Type, snapsup.InstanceName(), snapst.Current))
-		gadgetUpdate.Set("snap-setup-task", prepareSnap.ID())
-		gadgetUpdate.WaitFor(prev)
-		ts.AddTask(gadgetUpdate)
-		prev = gadgetUpdate
-	}
-	linkSnap := st.NewTask("link-snap", fmt.Sprintf(i18n.G("Make snap %q (%s) available to the system during remodel"), snapsup.InstanceName(), snapst.Current))
-	linkSnap.Set("snap-setup-task", prepareSnap.ID())
-	linkSnap.WaitFor(prev)
-	ts.AddTask(linkSnap)
-	ts.MarkEdge(linkSnap, MaybeRebootEdge)
-	// prepare-snap is the last task that carries no system modifications
+	ts := state.NewTaskSet(prepareSnap)
 	ts.MarkEdge(prepareSnap, LastBeforeLocalModificationsEdge)
 	ts.MarkEdge(prepareSnap, SnapSetupEdge)
+
+	if err := addLinkNewBaseOrKernelTasks(st, snapst, ts, prepareSnap); err != nil {
+		return nil, err
+	}
+
 	return ts, nil
+}
+
+func addLinkNewBaseOrKernelTasks(st *state.State, snapst SnapState, ts *state.TaskSet, snapsupTask *state.Task) error {
+	tasks := ts.Tasks()
+	if len(tasks) == 0 {
+		return errors.New("internal error: task set must be seeded with at least one task")
+	}
+
+	prev := tasks[len(tasks)-1]
+	add := func(t *state.Task) {
+		t.Set("snap-setup-task", snapsupTask.ID())
+		t.WaitFor(prev)
+		ts.AddTask(t)
+		prev = t
+	}
+
+	info, err := snapst.CurrentInfo()
+	if err != nil {
+		return err
+	}
+
+	// preserve the same order as during the update
+	if info.Type() == snap.TypeKernel {
+		// this previously created a prepare-kernel-snap task. however, this
+		// isn't needed since we're only using this function to swap to already
+		// installed kernels. thus, the drivers tree should be present.
+
+		// kernel snaps can carry boot assets
+		gadgetUpdate := st.NewTask("update-gadget-assets", fmt.Sprintf(i18n.G("Update assets from %s %q (%s) for remodel"), info.Type(), info.InstanceName(), snapst.Current))
+		add(gadgetUpdate)
+	}
+
+	linkSnap := st.NewTask("link-snap", fmt.Sprintf(i18n.G("Make snap %q (%s) available to the system during remodel"), info.InstanceName(), snapst.Current))
+	add(linkSnap)
+	ts.MarkEdge(linkSnap, MaybeRebootEdge)
+
+	components := snapst.Sequence.ComponentsForRevision(snapst.Current)
+	compsupTasks := make([]string, 0, len(components))
+	for _, cs := range components {
+		compsup := ComponentSetup{
+			CompSideInfo: cs.SideInfo,
+			CompType:     cs.CompType,
+		}
+
+		cref := compsup.CompSideInfo.Component
+		compRev := compsup.CompSideInfo.Revision
+
+		link := st.NewTask("link-component", fmt.Sprintf(i18n.G("Make component %q (%s) available to the system during remodel"), cref, compRev))
+		link.Set("component-setup", compsup)
+		add(link)
+
+		compsupTasks = append(compsupTasks, link.ID())
+	}
+
+	snapsupTask.Set("component-setup-tasks", compsupTasks)
+
+	return nil
 }
 
 func findSnapSetupTask(tasks []*state.Task) (*state.Task, *SnapSetup, error) {
@@ -3456,58 +3503,56 @@ func findSnapSetupTask(tasks []*state.Task) (*state.Task, *SnapSetup, error) {
 	return nil, nil, nil
 }
 
-// AddLinkNewBaseOrKernel creates the same tasks as LinkNewBaseOrKernel but adds
-// them to the provided task set.
+// AddLinkNewBaseOrKernel appends tasks to a given task set. This enables
+// swapping to a base or kernel snap that is already installed on the system.
+// The primary use case for this function is remodeling.
+//
+// It is expected that the given task set contains a snap setup task.
+// Additionally, it should not perform any modifications to the local system.
+//
+// For bases, we create a link-snap task. Technically this would create
+// link-component tasks for any installed components, but bases do not currently
+// use components.
+//
+// For kernels, we create an update-gadget-assets task (if needed), link-snap,
+// and link-component tasks for any installed components.
+//
+// Note that this function previously created a prepare-kernel-snap task, but
+// this was not needed. Since this function is only used if the snap is
+// installed already installed, then it is expected that the drivers tree is
+// present. Thus, the prepare-kernel-snap task would be redundant.
 func AddLinkNewBaseOrKernel(st *state.State, ts *state.TaskSet) (*state.TaskSet, error) {
+	if ts.MaybeEdge(LastBeforeLocalModificationsEdge) != nil {
+		return nil, errors.New("internal error: cannot add tasks to link new base or kernel to task set that introduces local modifications")
+	}
+
 	allTasks := ts.Tasks()
 	snapSetupTask, snapsup, err := findSnapSetupTask(allTasks)
 	if err != nil {
 		return nil, err
 	}
 	if snapSetupTask == nil {
-		return nil, fmt.Errorf("internal error: cannot identify task with snap-setup")
+		return nil, errors.New("internal error: cannot identify task with snap-setup")
 	}
-	// the first task added here waits for the last task in the existing set
-	prev := allTasks[len(allTasks)-1]
-	// preserve the same order as during the update
-	if snapsup.Type == snap.TypeKernel {
-		// TODO in a remodel this would use the old model, we need to fix this
-		// as needsKernelSetup needs to know the new model for UC2{0,2} -> UC24
-		// remodel case.
-		deviceCtx, err := DeviceCtx(st, nil, nil)
-		if err != nil {
-			return nil, err
-		}
-		if kernel.NeedsKernelDriversTree(deviceCtx.Model()) {
-			setupKernel := st.NewTask("prepare-kernel-snap", fmt.Sprintf(i18n.G("Prepare kernel driver tree for %q (%s) for remodel"), snapsup.InstanceName(), snapsup.Revision()))
-			setupKernel.Set("snap-setup-task", snapSetupTask.ID())
-			setupKernel.WaitFor(prev)
-			ts.AddTask(setupKernel)
-			prev = setupKernel
-		}
 
-		// kernel snaps can carry boot assets
-		gadgetUpdate := st.NewTask("update-gadget-assets", fmt.Sprintf(i18n.G("Update assets from %s %q (%s) for remodel"), snapsup.Type, snapsup.InstanceName(), snapsup.Revision()))
-		gadgetUpdate.Set("snap-setup-task", snapSetupTask.ID())
-		// wait for the last task in existing set
-		gadgetUpdate.WaitFor(prev)
-		ts.AddTask(gadgetUpdate)
-		prev = gadgetUpdate
+	var snapst SnapState
+	if err := Get(st, snapsup.InstanceName(), &snapst); err != nil {
+		return nil, err
 	}
-	linkSnap := st.NewTask("link-snap",
-		fmt.Sprintf(i18n.G("Make snap %q (%s) available to the system during remodel"), snapsup.InstanceName(), snapsup.SideInfo.Revision))
-	linkSnap.Set("snap-setup-task", snapSetupTask.ID())
-	linkSnap.WaitFor(prev)
-	ts.AddTask(linkSnap)
-	ts.MarkEdge(linkSnap, MaybeRebootEdge)
-	// make sure that remodel can identify which tasks introduce actual
-	// changes to the system and order them correctly
-	if edgeTask := ts.MaybeEdge(LastBeforeLocalModificationsEdge); edgeTask == nil {
-		// no task in the task set is marked as last before system
-		// modifications are introduced, so we need to mark the last
-		// task in the set, as tasks introduced here modify system state
-		ts.MarkEdge(allTasks[len(allTasks)-1], LastBeforeLocalModificationsEdge)
+
+	if snapst.Current != snapsup.Revision() {
+		return nil, errors.New("internal error: cannot add tasks to link new base or kernel to task set that changes the snap revision")
 	}
+
+	// no task in the task set is marked as last before system modifications are
+	// introduced, so we need to mark the last task in the original set, as
+	// tasks introduced here modify system state
+	ts.MarkEdge(allTasks[len(allTasks)-1], LastBeforeLocalModificationsEdge)
+
+	if err := addLinkNewBaseOrKernelTasks(st, snapst, ts, snapSetupTask); err != nil {
+		return nil, err
+	}
+
 	return ts, nil
 }
 
@@ -4828,6 +4873,14 @@ var cleanSnapDownloads = func(st *state.State, snapName string) error {
 	}
 
 	return err
+}
+
+// IconInstallFilename returns the path at which the cached icon would be
+// located for the snap with the given ID, if it exists. This function always
+// returns the path (for non-empty snap ID), and does not check whether the
+// snap is installed or the icon is actually present.
+func IconInstallFilename(snapID string) string {
+	return backend.IconInstallFilename(snapID)
 }
 
 func MockOsutilCheckFreeSpace(mock func(path string, minSize uint64) error) (restore func()) {

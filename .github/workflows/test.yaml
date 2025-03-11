@@ -3,7 +3,7 @@ on:
   pull_request:
     branches: [ "master", "release/**", "core-snap-security-release/**", "security-release/**" ]
   push:
-    branches: [ "master", "release/**", "core-snap-security-release/**", "security-release/**" ]
+    branches: [ "release/**", "core-snap-security-release/**", "security-release/**" ]
 
 concurrency:
   group: ${{ github.head_ref || github.run_id }}
@@ -56,7 +56,7 @@ jobs:
             variant: pristine
 
   cache-build-deps:
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-latest
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
@@ -166,7 +166,7 @@ jobs:
       - static-checks 
     name: "unit-tests (Go default ${{ matrix.gochannel }})"
     with:
-      runs-on: ubuntu-22.04
+      runs-on: ubuntu-latest
       gochannel: ${{ matrix.gochannel }}
       skip-coverage: ${{ matrix.gochannel == 'latest/stable' }}
       code: 'go'
@@ -202,7 +202,7 @@ jobs:
           ${{ matrix.test-case.go-test-race && ' test-race' || ''}}
           ${{ matrix.test-case.snapd-debug && ' snapd-debug' || ''}})"
     with:
-      runs-on: ubuntu-22.04
+      runs-on: ubuntu-latest
       gochannel: ${{ matrix.gochannel }}
       skip-coverage: ${{ matrix.gochannel == 'latest/stable' || matrix.test-case.skip-coverage }}
       go-build-tags: ${{ matrix.test-case.go-build-tags }}
@@ -296,6 +296,7 @@ jobs:
     outputs:
       fundamental-systems: ${{ steps.read-systems.outputs.fundamental-systems }}
       non-fundamental-systems: ${{ steps.read-systems.outputs.non-fundamental-systems }}
+      nested-systems: ${{ steps.read-systems.outputs.nested-systems }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -306,6 +307,7 @@ jobs:
         run: |
           echo "fundamental-systems=$(jq -c . ./.github/workflows/fundamental-systems.json)" >> $GITHUB_OUTPUT
           echo "non-fundamental-systems=$(jq -c . ./.github/workflows/non-fundamental-systems.json)" >> $GITHUB_OUTPUT
+          echo "nested-systems=$(jq -c . ./.github/workflows/nested-systems.json)" >> $GITHUB_OUTPUT
 
   spread-fundamental:
     uses: ./.github/workflows/spread-tests.yaml
@@ -319,6 +321,7 @@ jobs:
       runs-on: '["self-hosted", "spread-enabled"]'
       group: ${{ matrix.group }}
       backend: ${{ matrix.backend }}
+      alternative-backend: ${{ matrix.alternative-backend }}
       systems: ${{ matrix.systems }}
       tasks: ${{ matrix.tasks }}
       rules: ${{ matrix.rules }}
@@ -334,7 +337,7 @@ jobs:
 
   spread-not-fundamental-pr:
     uses: ./.github/workflows/spread-tests.yaml
-    if: github.event_name == 'pull_request'
+    if: github.event_name == 'pull_request' && !contains(github.base_ref, 'release') && !contains(github.event.pull_request.labels.*.name, 'cross-distro')
     # For workflow runs that are PRs, run this non-fundamental systems job
     # only after the fundamental systems job succeeds.
     needs: [unit-tests, unit-tests-c, snap-builds, read-systems, spread-fundamental]
@@ -347,6 +350,7 @@ jobs:
       runs-on: '["self-hosted", "spread-enabled"]'
       group: ${{ matrix.group }}
       backend: ${{ matrix.backend }}
+      alternative-backend: ${{ matrix.alternative-backend }}
       systems: ${{ matrix.systems }}
       tasks: ${{ matrix.tasks }}
       rules: ${{ matrix.rules }}
@@ -361,7 +365,7 @@ jobs:
 
   spread-not-fundamental-not-pr:
     uses: ./.github/workflows/spread-tests.yaml
-    if: github.event_name != 'pull_request'
+    if: github.event_name != 'pull_request' || contains(github.base_ref, 'release') || contains(github.event.pull_request.labels.*.name, 'cross-distro')
     # For workflow runs that are not for PRs, no need to impose a dependency
     # on the fundamental systems job's success before running this job.
     needs: [unit-tests, unit-tests-c, snap-builds, read-systems]
@@ -374,6 +378,7 @@ jobs:
       runs-on: '["self-hosted", "spread-enabled"]'
       group: ${{ matrix.group }}
       backend: ${{ matrix.backend }}
+      alternative-backend: ${{ matrix.alternative-backend }}
       systems: ${{ matrix.systems }}
       tasks: ${{ matrix.tasks }}
       rules: ${{ matrix.rules }}
@@ -397,10 +402,11 @@ jobs:
       # using the fromJSON expression.
       runs-on: '["self-hosted", "spread-enabled"]'
       group: ${{ matrix.group }}
-      backend: 'google-nested'
+      backend: ${{ matrix.backend }}
+      alternative-backend: ${{ matrix.alternative-backend }}
       systems: ${{ matrix.systems }}
-      tasks: 'tests/nested/...'
-      rules: 'nested'
+      tasks: ${{ matrix.tasks }}
+      rules: ${{ matrix.rules }}
     strategy:
       # FIXME: enable fail-fast mode once spread can cancel an executing job.
       # Disable fail-fast mode as it doesn't function with spread. It seems
@@ -408,17 +414,7 @@ jobs:
       # interrupting spread, notably, does not work today. As such disable
       # fail-fast while we tackle that problem upstream.
       fail-fast: false
-      matrix:
-        include:
-          - group: nested-ubuntu-18.04
-            systems: 'ubuntu-18.04-64'
-          - group: nested-ubuntu-20.04
-            systems: 'ubuntu-20.04-64'
-          - group: nested-ubuntu-22.04
-            systems: 'ubuntu-22.04-64'
-          - group: nested-ubuntu-24.04
-            systems: 'ubuntu-24.04-64'
-
+      matrix: ${{ fromJson(needs.read-systems.outputs.nested-systems) }}
 
   # The spread-results-reporter needs the PR number to be able to 
   # comment on the relevant PR with spread failures. Because the PR 

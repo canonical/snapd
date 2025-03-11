@@ -782,7 +782,7 @@ version: 1.0
 	c.Assert(Validate(info), IsNil)
 }
 
-func (s *ValidateSuite) TestIllegalHookName(c *C) {
+func (s *ValidateSuite) TestValidateHookName(c *C) {
 	hookType := NewHookType(regexp.MustCompile(".*"))
 	restore := MockSupportedHookTypes([]*HookType{hookType})
 	defer restore()
@@ -798,7 +798,83 @@ hooks:
 	c.Check(err, ErrorMatches, `invalid hook name: "123abc"`)
 }
 
-func (s *ValidateSuite) TestIllegalHookDefaultConfigureWithoutConfigure(c *C) {
+func (s *ValidateSuite) TestValidateHookSnapdBaseOSWithConfigureHooksError(c *C) {
+	testMap := map[string]struct {
+		snapType  string
+		hasDflt   bool
+		hasConf   bool
+		allowConf bool
+	}{
+		"snapd-both":      {"snapd", true, true, false},
+		"snapd-dflt-only": {"snapd", true, false, false},
+		"snapd-conf-only": {"snapd", false, true, false},
+		"base-both":       {"base", true, true, false},
+		"os-both":         {"os", true, true, true},
+		"os-dflt-only":    {"os", true, false, false},
+	}
+
+	var snapYaml []byte
+	for name, test := range testMap {
+		var dfltDef, confDef string
+		if test.hasDflt {
+			dfltDef = "default-configure:"
+		}
+		if test.hasConf {
+			confDef = "configure:"
+		}
+		snapYaml = []byte(fmt.Sprintf(`name: %[1]s
+version: 1.0
+hooks:
+  %[2]s
+  %[3]s
+type: %[1]s`, test.snapType, dfltDef, confDef))
+		info, err := InfoFromSnapYaml(snapYaml)
+		c.Assert(err, IsNil)
+		err = Validate(info)
+		var invalidHooks []string
+		if test.hasDflt {
+			invalidHooks = append(invalidHooks, `"default-configure"`)
+		}
+		if test.hasConf && !test.allowConf {
+			invalidHooks = append(invalidHooks, `"configure"`)
+		}
+		c.Check(err, ErrorMatches, fmt.Sprintf(`cannot specify %s hook for %[2]q snap %[2]q`,
+			strings.Join(invalidHooks, " or "), test.snapType), Commentf("Failed test: %s", name))
+	}
+}
+
+func (s *ValidateSuite) TestValidateHookKernelGadgetOSAppWithConfigureHookHappy(c *C) {
+	var snapYaml []byte
+	for _, snapType := range []string{"kernel", "gadget", "os", "app"} {
+		snapYaml = []byte(fmt.Sprintf(`name: %[1]s
+version: 1.0
+hooks:
+  configure:
+type: %[1]s`, snapType))
+		info, err := InfoFromSnapYaml(snapYaml)
+		c.Assert(err, IsNil)
+		err = Validate(info)
+		c.Assert(err, IsNil)
+	}
+}
+
+func (s *ValidateSuite) TestValidateHookKernelGadgetAppWithDefaultConfigureHookHappy(c *C) {
+	var snapYaml []byte
+	for _, snapType := range []string{"kernel", "gadget", "app"} {
+		snapYaml = []byte(fmt.Sprintf(`name: %[1]s
+version: 1.0
+hooks:
+  default-configure:
+  configure:
+type: %[1]s`, snapType))
+		info, err := InfoFromSnapYaml(snapYaml)
+		c.Assert(err, IsNil)
+		err = Validate(info)
+		c.Assert(err, IsNil)
+	}
+}
+
+func (s *ValidateSuite) TestValidateHookDefaultConfigureWithoutConfigureError(c *C) {
 	info, err := InfoFromSnapYaml([]byte(`name: foo
 version: 1.0
 hooks:
@@ -1672,7 +1748,7 @@ base: bar
 	c.Assert(err, IsNil)
 
 	err = Validate(info)
-	c.Check(err, ErrorMatches, `cannot have "base" field on "os" snap "foo"`)
+	c.Check(err, ErrorMatches, `cannot have "base" field with value other than "none" on "os" snap "foo"`)
 }
 
 func (s *ValidateSuite) TestValidateOsCanHaveBaseNone(c *C) {
@@ -1716,7 +1792,7 @@ base: bar
 	c.Assert(err, IsNil)
 
 	err = Validate(info)
-	c.Check(err, ErrorMatches, `cannot have "base" field on "base" snap "foo"`)
+	c.Check(err, ErrorMatches, `cannot have "base" field with value other than "none" on "base" snap "foo"`)
 }
 
 func (s *ValidateSuite) TestValidateBaseCanHaveBaseNone(c *C) {

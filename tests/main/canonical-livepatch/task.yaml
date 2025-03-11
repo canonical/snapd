@@ -7,6 +7,15 @@ details: |
 # livepatch works only on LTS amd64 systems
 systems: [ubuntu-14.04-64, ubuntu-16.04-64, ubuntu-18.04-64, ubuntu-20.04-64, ubuntu-22.04-64]
 
+restore: |
+    snap remove --purge canonical-livepatch || true
+    if os.query is-trusty || os.query is-xenial || os.query is-bionic; then
+        # old systemd is not doing cleanups
+        find /sys/fs/cgroup/ -type d -name "snap.*" -prune | while read -r svc; do
+             rmdir "$svc" || true
+        done
+    fi
+
 execute: |
     echo "Ensure canonical-livepatch can be installed"
     snap install canonical-livepatch

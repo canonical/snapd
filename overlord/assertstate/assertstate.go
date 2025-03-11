@@ -414,7 +414,7 @@ func AutoRefreshAssertions(s *state.State, userID int) error {
 // confdb assertions.
 func autoRefreshConfdbAssertions(st *state.State, userID int, opts *RefreshAssertionsOptions) error {
 	db := cachedDB(st)
-	confdbAsserts, err := db.FindMany(asserts.ConfdbType, nil)
+	confdbAsserts, err := db.FindMany(asserts.ConfdbSchemaType, nil)
 	if err != nil {
 		if errors.Is(err, &asserts.NotFoundError{}) {
 			return nil
@@ -422,19 +422,19 @@ func autoRefreshConfdbAssertions(st *state.State, userID int, opts *RefreshAsser
 		return err
 	}
 
-	var confdbs []*confdb.Confdb
+	var confdbSchemas []*confdb.Schema
 	for _, dbAs := range confdbAsserts {
-		confdb := dbAs.(*asserts.Confdb).Confdb()
-		confdbs = append(confdbs, confdb)
+		schema := dbAs.(*asserts.ConfdbSchema).Schema()
+		confdbSchemas = append(confdbSchemas, schema)
 	}
 
-	return refreshConfdbAssertions(st, confdbs, userID, opts)
+	return refreshConfdbAssertions(st, confdbSchemas, userID, opts)
 }
 
-// refreshConfdbAssertions fetches new revisions for the confdb assertions
-// referenced by the provided confdbs. It attempts a bulk refresh and if that
+// refreshConfdbAssertions fetches new revisions for the assertions referenced
+// by the provided confdb schemas. It attempts a bulk refresh and if that
 // fails, it falls back to fetching the assertions one by one.
-func refreshConfdbAssertions(st *state.State, confdbs []*confdb.Confdb, userID int, opts *RefreshAssertionsOptions) error {
+func refreshConfdbAssertions(st *state.State, confdbSchemas []*confdb.Schema, userID int, opts *RefreshAssertionsOptions) error {
 	if opts == nil {
 		opts = &RefreshAssertionsOptions{}
 	}
@@ -444,7 +444,7 @@ func refreshConfdbAssertions(st *state.State, confdbs []*confdb.Confdb, userID i
 		return err
 	}
 
-	err = bulkRefreshConfdbs(st, confdbs, userID, deviceCtx, opts)
+	err = bulkRefreshConfdbSchemas(st, confdbSchemas, userID, deviceCtx, opts)
 	if err == nil {
 		return nil
 	}
@@ -457,8 +457,8 @@ func refreshConfdbAssertions(st *state.State, confdbs []*confdb.Confdb, userID i
 	logger.Noticef("bulk refresh of confdb assertions failed, falling back to one-by-one assertion fetching: %v", err)
 
 	return doFetch(st, userID, deviceCtx, nil, func(f asserts.Fetcher) error {
-		for _, confdb := range confdbs {
-			if err := snapasserts.FetchConfdb(f, confdb.Account, confdb.Name); err != nil {
+		for _, schema := range confdbSchemas {
+			if err := snapasserts.FetchConfdbSchema(f, schema.Account, schema.Name); err != nil {
 				return err
 			}
 		}
@@ -1328,17 +1328,17 @@ func resolveValidationSetAssertion(seq *asserts.AtSequence, db asserts.RODatabas
 	return seq.Resolve(db.Find)
 }
 
-// Confdb returns the confdb for the given account and confdb name,
-// if it's present in the system assertion database.
-func Confdb(s *state.State, account, confdbName string) (*asserts.Confdb, error) {
+// ConfdbSchema returns the confdb-schema for the given account and confdb
+// schema name, if it's present in the system assertion database.
+func ConfdbSchema(s *state.State, account, schemaName string) (*asserts.ConfdbSchema, error) {
 	db := DB(s)
-	as, err := db.Find(asserts.ConfdbType, map[string]string{
+	as, err := db.Find(asserts.ConfdbSchemaType, map[string]string{
 		"account-id": account,
-		"name":       confdbName,
+		"name":       schemaName,
 	})
 	if err != nil {
 		return nil, err
 	}
 
-	return as.(*asserts.Confdb), nil
+	return as.(*asserts.ConfdbSchema), nil
 }

@@ -34,6 +34,7 @@ import (
 	prompting_errors "github.com/snapcore/snapd/interfaces/prompting/errors"
 	"github.com/snapcore/snapd/interfaces/prompting/internal/maxidmmap"
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/sandbox/apparmor/notify"
 	"github.com/snapcore/snapd/sandbox/apparmor/notify/listener"
 	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/timeutil"
@@ -118,7 +119,7 @@ func (p *Prompt) sendReply(outcome prompting.OutcomeType) error {
 	return p.sendReplyWithPermission(allowedPermission)
 }
 
-func (p *Prompt) sendReplyWithPermission(allowedPermission any) error {
+func (p *Prompt) sendReplyWithPermission(allowedPermission notify.AppArmorPermission) error {
 	for _, listenerReq := range p.listenerReqs {
 		if err := sendReply(listenerReq, allowedPermission); err != nil {
 			// Error should only occur if reply is malformed, and since these
@@ -244,7 +245,7 @@ func (pc *promptConstraints) applyRuleConstraints(constraints *prompting.RuleCon
 // The response is the AppArmor permission which should be allowed. This
 // corresponds to the originally requested permissions from the prompt
 // constraints, except with all denied permissions removed.
-func (pc *promptConstraints) buildResponse(iface string, deniedPermissions []string) any {
+func (pc *promptConstraints) buildResponse(iface string, deniedPermissions []string) notify.AppArmorPermission {
 	allowedPerms := pc.originalPermissions
 	if len(deniedPermissions) > 0 {
 		allowedPerms = make([]string, 0, len(pc.originalPermissions)-len(deniedPermissions))
@@ -726,7 +727,7 @@ func (pdb *PromptDB) isClosed() bool {
 // MockSendReply mocks the function to send a reply back to the listener so
 // tests, both for this package and for consumers of this package, can mock
 // the listener.
-func MockSendReply(f func(listenerReq *listener.Request, allowedPermission any) error) (restore func()) {
+func MockSendReply(f func(listenerReq *listener.Request, allowedPermission notify.AppArmorPermission) error) (restore func()) {
 	orig := sendReply
 	sendReply = f
 	return func() {

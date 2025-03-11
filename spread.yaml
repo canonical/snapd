@@ -402,6 +402,12 @@ backends:
             - ubuntu-24.04-64:
                   username: ubuntu
                   password: ubuntu
+            - ubuntu-24.10-64:
+                  username: ubuntu
+                  password: ubuntu
+            - ubuntu-25.04-64:
+                  username: ubuntu
+                  password: ubuntu
             - debian-11-64:
                   username: debian
                   password: debian

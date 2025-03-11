@@ -32,6 +32,7 @@ import (
 
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil/epoll"
+	"github.com/snapcore/snapd/sandbox/apparmor"
 	"github.com/snapcore/snapd/sandbox/apparmor/notify"
 )
 
@@ -74,16 +75,16 @@ type Request struct {
 	// Class is the mediation class corresponding to this request.
 	Class notify.MediationClass
 	// Permission is the opaque permission that is being requested.
-	Permission any
+	Permission notify.AppArmorPermission
 
 	// replyChan is a channel for sending the explicitly allowed permissions.
-	replyChan chan any
+	replyChan chan notify.AppArmorPermission
 	// replied indicates whether a reply has already been sent for this request.
 	replied uint32
 }
 
 func newRequest(msg *notify.MsgNotificationFile) (*Request, error) {
-	var perm any
+	var perm notify.AppArmorPermission
 	switch msg.Class {
 	case notify.AA_CLASS_FILE:
 		// DecodeFilePermissions returns:
@@ -109,13 +110,13 @@ func newRequest(msg *notify.MsgNotificationFile) (*Request, error) {
 		Class:      msg.Class,
 		Permission: perm,
 
-		replyChan: make(chan any, 1),
+		replyChan: make(chan notify.AppArmorPermission, 1),
 	}, nil
 }
 
 // Reply tells the listener to send back a response to the kernel allowing any
 // of the given permissions which were originally requested.
-func (r *Request) Reply(allowedPermission any) error {
+func (r *Request) Reply(allowedPermission notify.AppArmorPermission) error {
 	var ok bool
 	switch r.Class {
 	case notify.AA_CLASS_FILE:
@@ -186,7 +187,7 @@ const (
 //
 // If the kernel does not support the notification mechanism the error is ErrNotSupported.
 func Register() (listener *Listener, err error) {
-	path := notify.SysPath
+	path := apparmor.NotifySocketPath
 	if override := os.Getenv("PROMPT_NOTIFY_PATH"); override != "" {
 		path = override
 	}
@@ -446,7 +447,7 @@ func (l *Listener) waitAndRespondAaClassFile(req *Request, msg *notify.MsgNotifi
 			logger.Debugf("invalid reply from client: %+v; denying request", responsePermission)
 			break
 		}
-		explicitlyAllowed = uint32(perms)
+		explicitlyAllowed = perms.AsAppArmorOpMask()
 	case <-l.tomb.Dying():
 		// don't bother sending deny response, kernel will auto-deny if needed
 		return nil

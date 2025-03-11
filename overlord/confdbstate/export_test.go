@@ -29,6 +29,7 @@ var (
 	WriteDatabag            = writeDatabag
 	GetPlugsAffectedByPaths = getPlugsAffectedByPaths
 	CreateChangeConfdbTasks = createChangeConfdbTasks
+	CreateLoadConfdbTasks   = createLoadConfdbTasks
 	SetOngoingTransaction   = setOngoingTransaction
 	UnsetOngoingTransaction = unsetOngoingTransaction
 )
@@ -46,7 +47,7 @@ func SaveViewHandlerGenerator(ctx *hookstate.Context) hookstate.Handler {
 	return &saveViewHandler{ctx: ctx}
 }
 
-func MockReadDatabag(f func(st *state.State, account, confdbName string) (confdb.JSONDataBag, error)) func() {
+func MockReadDatabag(f func(st *state.State, account, confdbName string) (confdb.JSONDatabag, error)) func() {
 	old := readDatabag
 	readDatabag = f
 	return func() {
@@ -54,7 +55,7 @@ func MockReadDatabag(f func(st *state.State, account, confdbName string) (confdb
 	}
 }
 
-func MockWriteDatabag(f func(st *state.State, databag confdb.JSONDataBag, account, confdbName string) error) func() {
+func MockWriteDatabag(f func(st *state.State, databag confdb.JSONDatabag, account, confdbName string) error) func() {
 	old := writeDatabag
 	writeDatabag = f
 	return func() {

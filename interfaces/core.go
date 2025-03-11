@@ -230,6 +230,11 @@ type StaticInfo struct {
 	// ImplicitOnClassic controls if a slot is automatically added to classic systems.
 	ImplicitOnClassic bool
 
+	// ImplicitOnCore controls if a plug is automatically added to core (non-classic) systems.
+	ImplicitPlugOnCore bool
+	// ImplicitOnClassic controls if a plug is automatically added to classic systems.
+	ImplicitPlugOnClassic bool
+
 	// AffectsPlugOnRefresh tells if refreshing of a snap with a slot of this interface
 	// is disruptive for the snap on the plug side (when the interface is connected),
 	// meaning that a refresh of the slot-side affects snap(s) on the plug side

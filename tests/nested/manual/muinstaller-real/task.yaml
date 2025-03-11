@@ -39,7 +39,6 @@ prepare: |
       echo "This test needs test keys to be trusted"
       exit
   fi
-  apt install dosfstools kpartx
   "$TESTSTOOLS"/store-state setup-fake-store "$STORE_DIR"
 
 restore: |

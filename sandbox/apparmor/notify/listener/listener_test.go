@@ -37,6 +37,7 @@ import (
 	"github.com/snapcore/snapd/arch"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil/epoll"
+	"github.com/snapcore/snapd/sandbox/apparmor"
 	"github.com/snapcore/snapd/sandbox/apparmor/notify"
 	"github.com/snapcore/snapd/sandbox/apparmor/notify/listener"
 	"github.com/snapcore/snapd/testutil"
@@ -64,7 +65,7 @@ func (s *listenerSuite) SetUpTest(c *C) {
 }
 
 func (*listenerSuite) TestReply(c *C) {
-	rc := make(chan any, 1)
+	rc := make(chan notify.AppArmorPermission, 1)
 	req := listener.FakeRequestWithClassAndReplyChan(notify.AA_CLASS_FILE, rc)
 	response := notify.FilePermission(1234)
 	req.Reply(response)
@@ -73,24 +74,30 @@ func (*listenerSuite) TestReply(c *C) {
 }
 
 func (*listenerSuite) TestReplyNil(c *C) {
-	rc := make(chan any, 1)
+	rc := make(chan notify.AppArmorPermission, 1)
 	req := listener.FakeRequestWithClassAndReplyChan(notify.AA_CLASS_FILE, rc)
 	req.Reply(nil)
 	resp := <-rc
-	var response any
+	var response notify.AppArmorPermission
 	c.Assert(resp, Equals, response)
 }
 
+type fakeAaPerm string
+
+func (p fakeAaPerm) AsAppArmorOpMask() uint32 {
+	return uint32(len(p))
+}
+
 func (*listenerSuite) TestBadReply(c *C) {
-	rc := make(chan any, 1)
+	rc := make(chan notify.AppArmorPermission, 1)
 	req := listener.FakeRequestWithClassAndReplyChan(notify.AA_CLASS_FILE, rc)
-	response := "read"
+	response := fakeAaPerm("read")
 	err := req.Reply(response)
 	c.Assert(err, ErrorMatches, "invalid reply: response permission must be of type notify.FilePermission")
 }
 
 func (*listenerSuite) TestReplyTwice(c *C) {
-	rc := make(chan any, 1)
+	rc := make(chan notify.AppArmorPermission, 1)
 	req := listener.FakeRequestWithClassAndReplyChan(notify.AA_CLASS_FILE, rc)
 	response := notify.FilePermission(1234)
 	err := req.Reply(response)
@@ -150,7 +157,7 @@ func (*listenerSuite) TestRegisterOverridePath(c *C) {
 	l, err := listener.Register()
 	c.Assert(err, IsNil)
 
-	c.Assert(outputOverridePath, Equals, notify.SysPath)
+	c.Assert(outputOverridePath, Equals, apparmor.NotifySocketPath)
 
 	err = l.Close()
 	c.Assert(err, IsNil)
@@ -191,7 +198,7 @@ func (*listenerSuite) TestRegisterErrors(c *C) {
 
 	l, err = listener.Register()
 	c.Assert(l, IsNil)
-	c.Assert(err, ErrorMatches, fmt.Sprintf("cannot open %q: %v", notify.SysPath, customError))
+	c.Assert(err, ErrorMatches, fmt.Sprintf("cannot open %q: %v", apparmor.NotifySocketPath, customError))
 
 	restoreOpen = listener.MockOsOpen(func(name string) (*os.File, error) {
 		placeholderSocket, err := unix.Socket(unix.AF_UNIX, unix.SOCK_STREAM, 0)
@@ -230,7 +237,7 @@ func (*listenerSuite) TestRegisterErrors(c *C) {
 
 	l, err = listener.Register()
 	c.Assert(l, IsNil)
-	c.Assert(err, ErrorMatches, fmt.Sprintf("cannot register epoll on %q: bad file descriptor", notify.SysPath))
+	c.Assert(err, ErrorMatches, fmt.Sprintf("cannot register epoll on %q: bad file descriptor", apparmor.NotifySocketPath))
 }
 
 // An expedient abstraction over notify.MsgNotificationFile to allow defining
@@ -449,11 +456,11 @@ func (*listenerSuite) TestRunMultipleRequestsInBuffer(c *C) {
 func (*listenerSuite) TestRunEpoll(c *C) {
 	sockets, err := unix.Socketpair(unix.AF_UNIX, unix.SOCK_STREAM, 0)
 	c.Assert(err, IsNil)
-	notifyFile := os.NewFile(uintptr(sockets[0]), notify.SysPath)
+	notifyFile := os.NewFile(uintptr(sockets[0]), apparmor.NotifySocketPath)
 	kernelSocket := sockets[1]
 
 	restoreOpen := listener.MockOsOpen(func(name string) (*os.File, error) {
-		c.Assert(name, Equals, notify.SysPath)
+		c.Assert(name, Equals, apparmor.NotifySocketPath)
 		return notifyFile, nil
 	})
 	defer restoreOpen()
@@ -629,7 +636,7 @@ func (*listenerSuite) TestRunNoReply(c *C) {
 
 	c.Check(l.Close(), IsNil)
 
-	response := true // doesn't matter what the response is
+	response := fakeAaPerm("foo") // doesn't matter what the response is
 	req.Reply(response)
 
 	c.Check(t.Wait(), Equals, listener.ErrClosed)
@@ -977,7 +984,7 @@ func (*listenerSuite) TestWaitAndRespondAaClassFile(c *C) {
 	msgDeny := uint32(0b0011)
 
 	for _, testCase := range []struct {
-		allowedPermission any
+		allowedPermission notify.AppArmorPermission
 		respAllow         uint32
 		respDeny          uint32
 	}{
@@ -1067,7 +1074,7 @@ func (*listenerSuite) TestWaitAndRespondAaClassFile(c *C) {
 			0b0000,
 		},
 	} {
-		replyChan := make(chan any, 1)
+		replyChan := make(chan notify.AppArmorPermission, 1)
 		req := listener.FakeRequestWithClassAndReplyChan(notify.AA_CLASS_FILE, replyChan)
 
 		msg := &notify.MsgNotificationFile{

@@ -1,0 +1,101 @@
+summary: Snapd icons API can use fallback icon from store
+
+details: |
+    If a snap does not provide an icon at "/snap/<name>/<rev>/meta/gui/icon.*",
+    then the icons API should fall back to serving the icon from the snap's
+    store listing, which snapd should have cached during the snap install.
+
+execute: |
+    # Snap which has local icon file and a store icon
+    # Local icon: icon-orange-chest.svg
+    # Store icon: icon-orange-wing.svg
+    SNAP_LOCAL=test-snapd-icons-api-local
+    SNAP_LOCAL_ID="$(snap info ${SNAP_LOCAL} | gojq --yaml-input -r '."snap-id"')"
+
+    # Snap which only has a store icon, no local icon file
+    # Local icon: none
+    # Store icon: icon-orange-tail.svg
+    SNAP_FALLBACK=test-snapd-icons-api-fallback
+    SNAP_FALLBACK_ID="$(snap info ${SNAP_FALLBACK} | gojq --yaml-input -r '."snap-id"')"
+
+    echo "Ensure that snaps don't previously have icons cached"
+    test ! -e "/var/cache/snapd/icons-pool/${SNAP_LOCAL_ID}.icon"
+    test ! -e "/var/cache/snapd/icons-pool/${SNAP_FALLBACK_ID}.icon"
+    test ! -e "/var/cache/snapd/icons/${SNAP_LOCAL_ID}.icon"
+    test ! -e "/var/cache/snapd/icons/${SNAP_FALLBACK_ID}.icon"
+
+    echo "Install a snap which has a local icon and a store icon"
+    snap install --edge "$SNAP_LOCAL"
+
+    echo "Install a snap which has a store icon but no local icon"
+    snap install --edge "$SNAP_FALLBACK"
+
+    SNAP_DIR="/snap"
+    if [ ! -d "/snap" ] ; then
+        # Snap mount dir is different on some non-Ubuntu systems
+        SNAP_DIR="/var/lib/snapd/snap"
+    fi
+
+    echo "Check that the snap which is supposed to have a local icon does in fact have a local icon"
+    test -f "${SNAP_DIR}/${SNAP_LOCAL}/current/meta/gui/icon.svg"
+    echo "Check that it is the expected icon"
+    cmp "${SNAP_DIR}/${SNAP_LOCAL}/current/meta/gui/icon.svg" icon-orange-chest.svg
+
+    echo "Check that the snap which is NOT supposed to have a local icon does not have no local icon"
+    find "${SNAP_DIR}/${SNAP_FALLBACK}"/current/meta/gui/icon.* | wc -l | MATCH 0
+
+
+    echo "Check that both snaps have store icons"
+    snap debug api "/v2/snaps/$SNAP_LOCAL" | MATCH '"icon"'
+    snap debug api "/v2/snaps/$SNAP_FALLBACK" | MATCH '"icon"'
+
+
+    echo "Check that installed snaps now have icons downloaded and installed"
+    test -e "/var/cache/snapd/icons-pool/${SNAP_LOCAL_ID}.icon"
+    test -e "/var/cache/snapd/icons-pool/${SNAP_FALLBACK_ID}.icon"
+    test -e "/var/cache/snapd/icons/${SNAP_LOCAL_ID}.icon"
+    test -e "/var/cache/snapd/icons/${SNAP_FALLBACK_ID}.icon"
+
+    echo "Check that icons download and install directories are only writable by root"
+    # root must have wrx, but otherwise only care that non-root doesn't have write
+    stat --format %A "/var/cache/snapd/icons-pool" | MATCH -e 'drwx.-..-.'
+    stat --format %A "/var/cache/snapd/icons" | MATCH -e 'drwx.-..-.'
+
+    echo "Check that icons downloaded and installed icons are only writable by root"
+    stat --format %A "/var/cache/snapd/icons-pool/${SNAP_LOCAL_ID}.icon" | MATCH -e '-rw-.--.--'
+    stat --format %A "/var/cache/snapd/icons-pool/${SNAP_FALLBACK_ID}.icon" | MATCH -e '-rw-.--.--'
+    stat --format %A "/var/cache/snapd/icons/${SNAP_LOCAL_ID}.icon" | MATCH -e '-rw-.--.--'
+    stat --format %A "/var/cache/snapd/icons/${SNAP_FALLBACK_ID}.icon" | MATCH -e '-rw-.--.--'
+
+
+    # Clear any previously-fetched icons from previous runs
+    rm -f "${SNAP_LOCAL}.icon" "${SNAP_FALLBACK}.icon"
+
+    echo "Check that /v2/icons serves the local icon for the snap which has one"
+    snap debug api "/v2/icons/${SNAP_LOCAL}/icon" > "${SNAP_LOCAL}.icon"
+    cmp "${SNAP_LOCAL}.icon" "${SNAP_DIR}/${SNAP_LOCAL}/current/meta/gui/icon.svg"
+
+    echo "Check that /v2/icons serves the store icon as fallback"
+    snap debug api "/v2/icons/${SNAP_FALLBACK}/icon" > "${SNAP_FALLBACK}.icon"
+    NOMATCH '"local snap has no icon"' "${SNAP_FALLBACK}.icon"
+
+
+    echo "Uninstall the snaps"
+    snap remove "${SNAP_LOCAL}"
+    snap remove "${SNAP_FALLBACK}"
+
+    echo "Check that the snap icons are no longer installed"
+    test ! -e "/var/cache/snapd/icons/${SNAP_LOCAL_ID}.icon"
+    test ! -e "/var/cache/snapd/icons/${SNAP_FALLBACK_ID}.icon"
+
+    # If we had more than one channel of the snap, we could refresh to another
+    # channel and back, which would mean snap remove would not discard the snap
+    # files or icons
+    # echo "Check that the snap icons are still in the pool"
+    # test -e "/var/cache/snapd/icons-pool/${SNAP_LOCAL_ID}.icon"
+    # test -e "/var/cache/snapd/icons-pool/${SNAP_FALLBACK_ID}.icon"
+
+
+    echo "Check that /v2/icons no longer serves icons since the snaps are uninstalled"
+    snap debug api "/v2/icons/${SNAP_LOCAL}/icon" | MATCH '"status-code": 404'
+    snap debug api "/v2/icons/${SNAP_FALLBACK}/icon" | MATCH '"status-code": 404'

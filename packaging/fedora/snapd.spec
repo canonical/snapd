@@ -737,6 +737,9 @@ rm %{buildroot}%{_libexecdir}/snapd/system-shutdown
 rm -f %{buildroot}%{_unitdir}/snapd.apparmor.service
 rm -f %{buildroot}%{_libexecdir}/snapd/snapd-apparmor
 
+# Remove gpio-chardev ordering target
+rm -f %{buildroot}%{_unitdir}/snapd.gpio-chardev-setup.target
+
 # Disable re-exec by default
 echo 'SNAP_REEXEC=0' > %{buildroot}%{_sysconfdir}/sysconfig/snapd
 

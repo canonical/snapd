@@ -45,7 +45,7 @@ prepare: |
         tests.exec skip-test "Ubuntu 22.04 AppArmor parser doesn't support prompting" && exit 0
     fi
 
-    tests.session prepare -u test                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               
+    tests.session prepare -u test
     tests.session -u test exec sh -c 'mkdir -p "/home/test/integration-tests"'
     snap install prompting-client
 

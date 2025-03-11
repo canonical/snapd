@@ -20,6 +20,17 @@
 #include <stdbool.h>
 #include <stdlib.h>
 
+/**
+ * Macro which calculates array size.
+ *
+ * Based on ARRAY_SIZE from the Linux kernel, see
+ * https://elixir.bootlin.com/linux/v6.13.3/source/include/linux/array_size.h#L11
+ */
+#define SC_ARRAY_SIZE(arr)                                                                                  \
+    (sizeof(arr) / sizeof((arr)[0]) + ((int)sizeof(struct {                                                 \
+         _Static_assert(!__builtin_types_compatible_p(typeof(arr), typeof(&(arr)[0])), "must be an array"); \
+     })))
+
 __attribute__((noreturn)) __attribute__((format(printf, 1, 2))) void die(const char *fmt, ...);
 
 __attribute__((format(printf, 1, 2))) void debug(const char *fmt, ...);
@@ -60,8 +71,8 @@ bool sc_is_in_container(void);
 typedef struct sc_identity {
     uid_t uid;
     gid_t gid;
-    unsigned change_uid : 1;
-    unsigned change_gid : 1;
+    bool change_uid : 1;
+    bool change_gid : 1;
 } sc_identity;
 
 /**
@@ -75,9 +86,24 @@ static inline sc_identity sc_root_group_identity(void) {
     sc_identity id = {
         /* Explicitly set our intent of changing just the GID.
          * Refactoring of this code must retain this property. */
-        .change_uid = 0,
-        .change_gid = 1,
+        .change_uid = false,
+        .change_gid = true,
         .gid = 0,
+    };
+    return id;
+}
+
+/**
+ * Produce value indicating no change in current identity.
+ *
+ * Produce a value of sc_identity which indicates no change in the identity of
+ * the current process.
+ **/
+static inline sc_identity sc_no_change_identity(void) {
+    sc_identity id = {
+        /* Explicit no change in either uid or gid. */
+        .change_uid = false,
+        .change_gid = false,
     };
     return id;
 }
