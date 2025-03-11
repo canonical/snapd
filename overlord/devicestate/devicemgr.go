@@ -78,6 +78,19 @@ var (
 // during managers' startup.
 var EarlyConfig func(st *state.State, preloadGadget func() (sysconfig.Device, *gadget.Info, error)) error
 
+// ErrNoDeviceIdentityYet is returned when the device doesn't have a serial assertion.
+// It's a special case of ErrNoState.
+type ErrNoDeviceIdentityYet struct{}
+
+func (e ErrNoDeviceIdentityYet) Error() string {
+	return "device has no identity yet"
+}
+
+func (e ErrNoDeviceIdentityYet) Is(target error) bool {
+	_, ok := target.(ErrNoDeviceIdentityYet)
+	return ok || target == state.ErrNoState
+}
+
 // DeviceManager is responsible for managing the device identity and device
 // policies.
 type DeviceManager struct {
@@ -2059,7 +2072,7 @@ func (m *DeviceManager) Serial() (*asserts.Serial, error) {
 func (m *DeviceManager) ConfdbControl() (*asserts.ConfdbControl, error) {
 	serial, err := m.Serial()
 	if err != nil {
-		return nil, errors.New("device has no serial assertion")
+		return nil, ErrNoDeviceIdentityYet{}
 	}
 
 	db := assertstate.DB(m.state)

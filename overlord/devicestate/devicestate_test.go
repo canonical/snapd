@@ -2890,7 +2890,7 @@ func (s *deviceMgrSuite) TestConfdbControlNoSerial(c *C) {
 	defer s.state.Unlock()
 
 	_, err := s.mgr.ConfdbControl()
-	c.Assert(err, ErrorMatches, "device has no serial assertion")
+	c.Assert(err, ErrorMatches, "device has no identity yet")
 }
 
 func (s *deviceMgrSuite) TestConfdbControlNotFound(c *C) {
