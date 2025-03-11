@@ -24,6 +24,10 @@ systems:
     # Not very useful to build snapd snap from 14.04 given it has to use lxd.
     # The VMs for 14.04 do not have enough. So let's disable the test anyway.
     - -ubuntu-14.04-*
+    # Do not waste time building on very old releases which are unlikely to be
+    # used as development environments anyway
+    - -ubuntu-16.04-*
+    - -ubuntu-18.04-*
 
 # Start early as it takes a long time.
 priority: 100
