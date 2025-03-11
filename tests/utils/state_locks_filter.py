@@ -1,17 +1,16 @@
 #!/usr/bin/env python3
 
 import argparse
-import os
 import re
 import sys
 
-"""
-LockOpTrace: Represents a Lock Operation trace in the log file.
-It holds the lines for the trace and allows matching against a part of the trace.
-"""
-
 
 class LockOpTrace:
+    """
+    LockOpTrace: Represents a Lock Operation trace in the log file.
+    It holds the lines for the trace and allows matching against a part of the trace.
+    """
+
     def __init__(self, lines: list[str]):
         self.lines = lines
         self.hash = hash(str(self))
@@ -40,13 +39,13 @@ class LockOpTrace:
         return hash(str(self)) == hash(str(other))
 
 
-"""
-LockOp: Represents a lock operation in the log file, including its header and times (held and wait times).
-It is tied to the LockOpTrace class.
-"""
-
 
 class LockOp:
+    """
+    LockOp: Represents a lock operation in the log file, including its header and times (held and wait times).
+    It is tied to the LockOpTrace class.
+    """
+
     def __init__(self, lines: list[str]):
         self.trace = LockOpTrace(lines[1:])
         self.header = lines[0]
@@ -75,13 +74,11 @@ class LockOp:
         return self.trace
 
 
-"""
-LocksGroup: Represents a group of locks, which could correspond to a test case or a project setup.
-It holds a header (name) and a list of Lock objects.
-"""
-
-
 class LocksGroup:
+    """
+    LocksGroup: Represents a group of locks, which could correspond to a test case or a project setup.
+    It holds a header (name) and a list of Lock objects.
+    """
 
     LOCK_PREFIX = "### "
 
@@ -129,14 +126,14 @@ class LocksGroup:
             traces.append(lock.get_trace())
         return traces
 
-    def get_lock_held_time(self, trace) -> int:
+    def get_lock_held_time(self, trace: LockOpTrace) -> int:
         for lock in self.locks:
             if lock.get_trace() == trace:
                 return lock.get_held_time()
 
         return 0
 
-    def get_lock_wait_time(self, trace) -> int:
+    def get_lock_wait_time(self, trace: LockOpTrace) -> int:
         for lock in self.locks:
             if lock.get_trace() == trace:
                 return lock.get_wait_time()
@@ -144,12 +141,11 @@ class LocksGroup:
         return 0
 
 
-"""
-GroupTimes: A tuple-like class that associates the group name with the held and wait times for each lock trace.
-"""
-
-
 class GroupTimes:
+    """
+    GroupTimes: A tuple-like class that associates the group name with the held and wait times for each lock trace.
+    """
+
     def __init__(self, group_name: str, held_time: int, wait_time: int):
         self.group_name = group_name
         self.held_time = held_time
@@ -165,13 +161,12 @@ class GroupTimes:
         return self.wait_time
 
 
-"""
-LockTraceManager: Handles filtering and managing the lock traces and associated group times.
-It provides methods to filter the traces by time and to print the results in a sorted manner.
-"""
-
-
 class LockTraceManager:
+    """
+    LockTraceManager: Handles filtering and managing the lock traces and associated group times.
+    It provides methods to filter the traces by time and to print the results in a sorted manner.
+    """
+
     def __init__(self, traces: dict[LockOpTrace, list[GroupTimes]]):
         self.traces = traces
 
@@ -229,14 +224,12 @@ class LockTraceManager:
             print("")
 
 
-"""
-LocksFileReader: Reads the lock file and parses the different test cases and groups.
-It extracts the relevant trace data and stores it in LocksGroup instances.
-It can also return a dictionary of traces and associated group times.
-"""
-
-
 class LocksFileReader:
+    """
+    LocksFileReader: Reads the lock file and parses the different test cases and groups.
+    It extracts the relevant trace data and stores it in LocksGroup instances.
+    It can also return a dictionary of traces and associated group times.
+    """
 
     PROJECT_PREFIX = "###START: SNAPD PROJECT"
     TEST_PREFIX = "###START:"
