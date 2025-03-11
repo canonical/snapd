@@ -67,6 +67,13 @@ restore: |
     # invariant checker.
     systemctl --user stop dbus.service || true
 
+    if os.query is-xenial || os.query is-bionic; then
+        # old system is not doing cleanups
+        find /sys/fs/cgroup/ -type d -name "snap.*" -prune | while read -r svc; do
+             rmdir "$svc" || true
+        done
+    fi
+
 debug: |
     # debug output from lxd
     "$TESTSTOOLS"/journal-state get-log -u snap.lxd.daemon.service

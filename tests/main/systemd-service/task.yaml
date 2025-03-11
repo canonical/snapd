@@ -8,6 +8,9 @@ details: |
 environment:
     SERVICE_NAME: snap.test-snapd-service.test-snapd-service.service
 
+restore: |
+    snap remove --purge test-snapd-service || true
+
 execute: |
     echo "Given a service snap is installed"
     "$TESTSTOOLS"/snaps-state install-local test-snapd-service
