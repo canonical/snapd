@@ -7,7 +7,7 @@ plugs:
   polkit-rule:
     interface: polkit
     install-rules:
-      - name: polkit.bar.rules
+      - name: polkit-rule.bar.rules
         sha3-384: 2YM8oyXyE7xuXR07EXqUpixvr8duiJwgPQqhnxZgrBCU8ZSDowV0Gyujvs1j0-KR
 apps:
   check-pid:

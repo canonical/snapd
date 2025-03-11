@@ -72,13 +72,13 @@ execute: |
     snap connections test-snapd-pk-service | MATCH "polkit +test-snapd-pk-service:polkit-rule +- +-"
 
     echo "The polkit rule file is not installed"
-    test ! -f /etc/polkit-1/rules.d/70-snap.test-snapd-pk-service.polkit.bar.rules
+    test ! -f /etc/polkit-1/rules.d/70-snap.test-snapd-pk-service.polkit-rule.bar.rules
 
     echo "The polkit-rule plug can be connected"
     snap connect test-snapd-pk-service:polkit-rule
     snap connections test-snapd-pk-service | MATCH "polkit +test-snapd-pk-service:polkit-rule +:polkit +manual"
 
     echo "Snapd has installed the rule file for the service"
-    test -f /etc/polkit-1/rules.d/70-snap.test-snapd-pk-service.polkit.bar.rules
+    test -f /etc/polkit-1/rules.d/70-snap.test-snapd-pk-service.polkit-rule.bar.rules
     echo "The contents match the file provided by the snap"
-    cmp /etc/polkit-1/rules.d/70-snap.test-snapd-pk-service.polkit.bar.rules ./test-snapd-pk-service/meta/polkit/polkit.bar.rules
+    cmp /etc/polkit-1/rules.d/70-snap.test-snapd-pk-service.polkit-rule.bar.rules ./test-snapd-pk-service/meta/polkit/polkit-rule.bar.rules

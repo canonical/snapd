@@ -245,7 +245,7 @@ func (iface *polkitInterface) addPolkitRules(spec *polkit.Specification, plug *i
 	}
 
 	mountDir := plug.Snap().MountDir()
-	ruleFiles, err := filepath.Glob(filepath.Join(mountDir, "meta", "polkit", "*.rules"))
+	ruleFiles, err := filepath.Glob(filepath.Join(mountDir, "meta", "polkit", plug.Name()+".*.rules"))
 	if err != nil {
 		return err
 	}
