@@ -10,6 +10,15 @@ environment:
 prepare: |
     "$TESTSTOOLS"/snaps-state install-local test-snapd-sh
 
+restore: |
+    snap remove --purge test-snapd-sh
+    if os.query is-xenial || os.query is-bionic; then
+        # old system is not doing cleanups
+        find /sys/fs/cgroup/ -type d -name "snap.*" -prune | while read -r svc; do
+             rmdir "$svc" || true
+        done
+    fi
+
 execute: |
     echo "When the interface is connected"
     snap connect "$SNAP_NAME":microstack-support

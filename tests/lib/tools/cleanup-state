@@ -50,6 +50,38 @@ main() {
 
 	case "$action" in
 		pre-invariant)
+			# we try to remove snaps with user services, nevertheless some user
+			# services may have been started for root or $SPREAD_SYSTEM_USER and
+			# attempts to stop them during snap removal are best effort
+			find /sys/fs/cgroup/ -type d -path '*/user.slice/*/snap.*service' -prune | while read -r svc; do
+				# do not worry about putting a time bound/iteration limit,
+				# worst case we hit a test timeout which will allow to identify
+				# a problem
+				while (("$(wc -l < "$svc/cgroup.procs" || echo 0)" > 0)); do
+					# for compatibility with v1/hybrid and old kernels not having cgroup.kill
+					if [ -f "$svc/cgroup.kill" ]; then
+						echo 1 > "$svc/cgroup.kill"
+					else
+						# shellcheck disable=SC2002
+						cat "$svc/cgroup.procs" | while read -r killpid; do
+							kill -9 "$killpid" || true
+						done
+					fi
+					sleep 1
+				done
+				rmdir "$svc" || true
+			done
+
+			# If using cgroups v1, the current snapd code does not remove
+			# freezer or device cgroups, just clean them up here
+			if [ -d /sys/fs/cgroup/freezer ]; then
+				find /sys/fs/cgroup/freezer/ -type d -name 'snap.*' -prune -ls -exec rmdir \{\} \;
+			fi
+
+			if [ -d /sys/fs/cgroup/devices ]; then
+				find /sys/fs/cgroup/devices/ -type d -name 'snap.*' -prune -ls -exec rmdir \{\} \;
+			fi
+
 			# If the root user has a systemd --user instance then ask it to reload.
 			# This prevents tests from leaking user-session services that stay in
 			# memory but are not present on disk, or have been modified on disk, as is

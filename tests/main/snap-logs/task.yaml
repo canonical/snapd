@@ -7,6 +7,9 @@ details: |
 prepare: |
     "$TESTSTOOLS"/snaps-state install-local test-snapd-service
 
+restore: |
+    snap remove --purge test-snapd-service || true
+
 execute: |
     echo "check the logs are displayed by service-name and service-name.app"
     snap logs test-snapd-service | MATCH "running"

@@ -12,6 +12,9 @@ details: |
 
 kill-timeout: 10m
 
+restore: |
+    snap remove --purge test-snapd-service || true
+
 execute: |
     echo "When the service snap is installed"
     "$TESTSTOOLS"/snaps-state install-local test-snapd-service
