@@ -29,6 +29,7 @@ import (
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/configstate/config"
+	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/strutil"
 )
@@ -173,7 +174,9 @@ func handleConfdbControlAction(c *Command, r *http.Request, user *auth.UserState
 
 	devMgr := c.d.overlord.DeviceManager()
 	cc, err := devMgr.ConfdbControl()
-	if err != nil && !errors.Is(err, state.ErrNoState) {
+	if err != nil &&
+		(!errors.Is(err, state.ErrNoState) ||
+			errors.Is(err, devicestate.ErrNoDeviceIdentityYet{})) {
 		return InternalError(err.Error())
 	}
 

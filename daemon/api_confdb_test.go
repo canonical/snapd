@@ -592,7 +592,7 @@ func (s *confdbControlSuite) TestConfdbControlActionNoSerial(c *C) {
 
 	rspe := s.errorReq(c, req, nil)
 	c.Check(rspe.Status, Equals, 500)
-	c.Check(rspe.Message, Equals, "device has no serial assertion")
+	c.Check(rspe.Message, Equals, "device has no identity yet")
 }
 
 func (s *confdbControlSuite) TestConfdbControlActionOK(c *C) {
