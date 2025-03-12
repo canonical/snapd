@@ -25,6 +25,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
@@ -38,6 +39,14 @@ import (
 // (i.e. lines across slots are unique) when installing the gadget
 // snap e.g. when validating snap.yaml
 
+// The interface operates as follows:
+//   - uses snap-gpio-helper to set up a virtual GPIO device exposing specific
+//     lines defined in the slot as character device node at
+//     /dev/snap/gpio-chardev/<slot-snap>/<slot-name>
+//   - sets up a symlink at /dev/snap/gpio-chardev/<plug-snap>/<plug-name>
+//     pointing at the virtual slot device
+//   - slot devices are given a specific udev tag, which consumer rules match on
+//
 // https://docs.kernel.org/userspace-api/gpio/chardev.html
 // https://docs.kernel.org/admin-guide/gpio/gpio-aggregator.html
 const gpioChardevSummary = `allows access to specific GPIO chardev lines`
@@ -137,9 +146,11 @@ func (iface *gpioChardevInterface) SystemdConnectedSlot(spec *systemd.Specificat
 		Type:            "oneshot",
 		RemainAfterExit: true,
 		// snap-gpio-helper export-chardev "<chip-labels>" "<lines>" "<gadget>" "<slot-name>"
-		ExecStart: fmt.Sprintf("/usr/lib/snapd/snap-gpio-helper export-chardev %q %q %q %q", strings.Join(sourceChip, ","), lines, snapName, slotName),
+		ExecStart: fmt.Sprintf("%s/snap-gpio-helper export-chardev %q %q %q %q",
+			dirs.DistroLibExecDir, strings.Join(sourceChip, ","), lines, snapName, slotName),
 		// snap-gpio-helper unexport-chardev "<chip-labels>" "<lines>" "<gadget>" "<slot-name>"
-		ExecStop: fmt.Sprintf("/usr/lib/snapd/snap-gpio-helper unexport-chardev %q %q %q %q", strings.Join(sourceChip, ","), lines, snapName, slotName),
+		ExecStop: fmt.Sprintf("%s/snap-gpio-helper unexport-chardev %q %q %q %q",
+			dirs.DistroLibExecDir, strings.Join(sourceChip, ","), lines, snapName, slotName),
 		// snapd.gpio-chardev-setup.target is used for synchronization of
 		// app services and virtual device setup during boot.
 		WantedBy: "snapd.gpio-chardev-setup.target",
