@@ -53,6 +53,12 @@ dbus (send)
     interface=org.freedesktop.DBus.Introspectable
     member=Introspect,
 
+dbus (send)
+    bus=system
+    path=/org/freedesktop/systemd1
+    interface=org.freedesktop.DBus.Properties
+    member="Get{,All}",
+
 dbus (receive)
     bus=system
     path=/org/freedesktop/hostname1
@@ -65,6 +71,9 @@ dbus(receive, send)
     interface=org.freedesktop.hostname1
     member=Set{,Pretty,Static}Hostname,
 
+# hostnamectl needs to bind the client side of the socket
+unix (bind) type=stream addr="@*/bus/hostnamectl/system",
+
 # Needed to use 'sethostname' and 'hostnamectl set-hostname'. See man 7
 # capabilities
 capability sys_admin,
@@ -73,6 +82,8 @@ capability sys_admin,
 const hostnameControlConnectedPlugSecComp = `
 # Description: Can configure the system hostname.
 sethostname
+# hostnamectl needs to bind the client side of the socket
+bind
 `
 
 func init() {
