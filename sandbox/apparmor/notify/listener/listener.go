@@ -399,20 +399,20 @@ func parseMsgNotificationFile(buf []byte) (*notify.MsgNotificationFile, error) {
 }
 
 func (l *Listener) newRequest(msg notify.MsgNotificationGeneric) (*Request, error) {
-	aaAllowed, aaDenied, err := msg.MsgAllowedDeniedPermissions()
+	aaAllowed, aaDenied, err := msg.AllowedDeniedPermissions()
 	if err != nil {
 		return nil, err
 	}
 	return &Request{
-		ID:       msg.MsgID(),
+		ID:       msg.ID(),
 		Listener: l,
 
-		PID:        msg.MsgPID(),
-		Label:      msg.MsgLabel(),
-		SubjectUID: msg.MsgSUID(),
+		PID:        msg.PID(),
+		Label:      msg.ProcessLabel(),
+		SubjectUID: msg.SubjectUID(),
 
-		Path:       msg.MsgName(),
-		Class:      msg.MsgClass(),
+		Path:       msg.Name(),
+		Class:      msg.MediationClass(),
 		Permission: aaDenied, // Request permissions which were initially denied
 		AaAllowed:  aaAllowed,
 	}, nil
