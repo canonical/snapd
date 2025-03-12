@@ -12,6 +12,20 @@ prepare: |
     echo "Install test snap"
     mkdir testsnap/import
     "$TESTSTOOLS"/snaps-state install-local testsnap
+    if os.query is_ubuntu_ge 25.04; then
+        # TODO remove this when it is no longer needed
+        # Currently the unshare profile also restricts the program shell,
+        # which causes the setup_mount_namespace.sh script to fail.
+        apparmor_parser --replace --Complain /etc/apparmor.d/unshare-userns-restrict
+    fi
+
+restore: |
+    if os.query is_ubuntu_ge 25.04; then
+        # TODO remove this when it is no longer needed
+        # Currently the unshare profile also restricts the program shell,
+        # which causes the setup_mount_namespace.sh script to fail.
+        apparmor_parser --replace /etc/apparmor.d/unshare-userns-restrict
+    fi
 
 execute: |
     echo "Checking if the unshare command supports saving the namespace"
