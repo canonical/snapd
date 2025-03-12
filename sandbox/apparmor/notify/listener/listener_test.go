@@ -77,7 +77,7 @@ func (*listenerSuite) TestReply(c *C) {
 	)
 
 	restore := listener.MockEncodeAndSendResponse(func(l *listener.Listener, resp *notify.MsgNotificationResponse) error {
-		c.Check(resp.ID, Equals, id)
+		c.Check(resp.Id, Equals, id)
 		c.Check(resp.Version, Equals, version)
 		c.Check(resp.Allow, Equals, uint32(0b1011))
 		c.Check(resp.Deny, Equals, uint32(0b0100))
@@ -102,7 +102,7 @@ func (*listenerSuite) TestReplyNil(c *C) {
 	)
 
 	restore := listener.MockEncodeAndSendResponse(func(l *listener.Listener, resp *notify.MsgNotificationResponse) error {
-		c.Check(resp.ID, Equals, id)
+		c.Check(resp.Id, Equals, id)
 		c.Check(resp.Version, Equals, version)
 		c.Check(resp.Allow, Equals, aaAllow.AsAppArmorOpMask())
 		c.Check(resp.Deny, Equals, aaDeny.AsAppArmorOpMask())
@@ -271,7 +271,7 @@ func (*listenerSuite) TestReplyPermissions(c *C) {
 		},
 	} {
 		restore := listener.MockEncodeAndSendResponse(func(l *listener.Listener, resp *notify.MsgNotificationResponse) error {
-			c.Check(resp.ID, Equals, id)
+			c.Check(resp.Id, Equals, id)
 			c.Check(resp.Version, Equals, version)
 			c.Check(resp.Allow, Equals, testCase.respAllow, Commentf("testCase: %+v", testCase))
 			c.Check(resp.Deny, Equals, testCase.respDeny, Commentf("testCase: %+v", testCase))
@@ -427,7 +427,7 @@ type msgNotificationFile struct {
 	NotificationType notify.NotificationType
 	Signalled        uint8
 	NoCache          uint8
-	ID               uint64
+	Id               uint64
 	Error            int32
 	// msgNotificationOpKernel
 	Allow uint32
@@ -437,9 +437,9 @@ type msgNotificationFile struct {
 	Class uint16
 	Op    uint16
 	// msgNotificationFileKernel
-	SUID uint32
-	OUID uint32
-	Name uint32
+	SUID     uint32
+	OUID     uint32
+	Filename uint32
 }
 
 func (msg *msgNotificationFile) MarshalBinary(c *C) []byte {
@@ -835,14 +835,14 @@ func newMsgNotificationFile(protocolVersion notify.ProtocolVersion, id uint64, l
 	msg.Version = protocolVersion
 	msg.NotificationType = notify.APPARMOR_NOTIF_OP
 	msg.NoCache = 1
-	msg.ID = id
+	msg.Id = id
 	msg.Allow = allow
 	msg.Deny = deny
 	msg.Pid = 1234
 	msg.Label = label
 	msg.Class = notify.AA_CLASS_FILE
 	msg.SUID = 1000
-	msg.Name = name
+	msg.Filename = name
 	return &msg
 }
 
@@ -854,7 +854,7 @@ func newMsgNotificationResponse(protocolVersion notify.ProtocolVersion, id uint6
 		MsgHeader:        msgHeader,
 		NotificationType: notify.APPARMOR_NOTIF_RESP,
 		NoCache:          1,
-		ID:               id,
+		Id:               id,
 		Error:            0,
 	}
 	resp := notify.MsgNotificationResponse{
@@ -1088,7 +1088,7 @@ func (*listenerSuite) TestRunConcurrency(c *C) {
 		id := uint64(0)
 		for {
 			id += 1
-			msg.ID = id
+			msg.Id = id
 			buf, err := msg.MarshalBinary()
 			c.Assert(err, IsNil)
 			select {
