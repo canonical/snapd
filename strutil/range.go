@@ -32,7 +32,7 @@ type RangeSpan struct {
 	Start, End uint
 }
 
-// Intersets checks if passed span intersects with this span.
+// Intersects checks if passed span intersects with this span.
 func (s1 RangeSpan) Intersects(s2 RangeSpan) bool {
 	return (s1.Start <= s2.End) && (s2.Start <= s1.End)
 }
@@ -47,7 +47,7 @@ type Range struct {
 	Spans []RangeSpan
 }
 
-// Intersets checks if passed span intersects with this range of spans.
+// Intersects checks if passed span intersects with this range of spans.
 func (r Range) Intersects(s RangeSpan) bool {
 	for _, rangeSpan := range r.Spans {
 		if rangeSpan.Intersects(s) {
