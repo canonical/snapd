@@ -104,7 +104,7 @@
 %endif
 
 Name:           snapd
-Version:        2.68.2
+Version:        2.68.3
 Release:        0%{?dist}
 Summary:        A transactional software package manager
 License:        GPL-3.0-only
@@ -1006,6 +1006,14 @@ fi
 
 
 %changelog
+* Mon Mar 10 2025 Ernest Lotter <ernest.lotter@canonical.com>
+- New upstream release 2.68.3
+ - FDE: LP: #2101834 snapd 2.68+ and snap-bootstrap <2.68 fallback to
+   old keyring path
+ - Fix Plucky snapd deb build issue related to /var/lib/snapd/void
+   permissions
+ - Fix snapd deb build complaint about ifneq with extra bracket
+
 * Thu Feb 27 2025 Ernest Lotter <ernest.lotter@canonical.com>
 - New upstream release 2.68.2
  - FDE: use boot mode for FDE hooks
