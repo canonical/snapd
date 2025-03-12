@@ -412,7 +412,7 @@ func (e *PermissionEntry) toRulePermissionEntry(currTime time.Time) (*RulePermis
 type RulePermissionEntry struct {
 	Outcome    OutcomeType  `json:"outcome"`
 	Lifespan   LifespanType `json:"lifespan"`
-	Expiration time.Time    `json:"expiration,omitempty"`
+	Expiration time.Time    `json:"expiration,omitzero"`
 }
 
 // Expired returns true if the receiving permission entry has expired and

@@ -63,7 +63,7 @@ type UserState struct {
 	Discharges      []string  `json:"discharges,omitempty"`
 	StoreMacaroon   string    `json:"store-macaroon,omitempty"`
 	StoreDischarges []string  `json:"store-discharges,omitempty"`
-	Expiration      time.Time `json:"expiration,omitempty"`
+	Expiration      time.Time `json:"expiration,omitzero"`
 }
 
 // identificationOnly returns a *UserState with only the
