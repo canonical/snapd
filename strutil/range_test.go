@@ -51,6 +51,15 @@ func (s *rangeSuite) TestParseRangeError(c *C) {
 	_, err = strutil.ParseRange("1,0-2")
 	c.Assert(err, ErrorMatches, `overlapping range span found "0-2"`)
 
+	_, err = strutil.ParseRange("1-3,0-2")
+	c.Assert(err, ErrorMatches, `overlapping range span found "0-2"`)
+
+	_, err = strutil.ParseRange("0-2,1-3")
+	c.Assert(err, ErrorMatches, `overlapping range span found "1-3"`)
+
+	_, err = strutil.ParseRange("0-2,2-3")
+	c.Assert(err, ErrorMatches, `overlapping range span found "2-3"`)
+
 	_, err = strutil.ParseRange("1-")
 	c.Assert(err, ErrorMatches, `invalid range span "1-": .*`)
 
