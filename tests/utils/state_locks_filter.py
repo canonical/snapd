@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
 
+from __future__ import annotations
+
 import argparse
 import re
 import sys
-
+from typing import IO
 
 class LockOpTrace:
     """
@@ -28,15 +30,15 @@ class LockOpTrace:
     def __str__(self) -> str:
         return "".join(self.lines)
 
-    def __hash__(self):
+    def __hash__(self) -> int:
         return self.hash
 
-    def __eq__(self, other) -> bool:
+    def __eq__(self, other: object) -> bool:
         if not isinstance(other, LockOpTrace):
             # don't attempt to compare against unrelated types
             return NotImplemented
 
-        return hash(str(self)) == hash(str(other))
+        return self.hash == other.hash
 
 
 
@@ -58,11 +60,16 @@ class LockOp:
         match = re.search(".*held: (.+?) ms.*", line)
         if match:
             self.held_time = int(match.group(1))
+        else:
+            raise ValueError("No held time in line: {}".format(line))
 
     def _calc_wait_ms(self, line: str) -> int:
         match = re.search(".*wait (.+?) ms.*", line)
         if match:
             self.wait_time = int(match.group(1))
+        else:
+            raise ValueError("No wait time in line: {}".format(line))
+
 
     def get_held_time(self) -> int:
         return self.held_time
@@ -91,12 +98,9 @@ class LocksGroup:
 
         self._read()
 
-    def _read(self):
+    def _read(self) -> None:
         current_line = 1
-        while True:
-            if current_line >= len(self.lines):
-                return
-
+        while current_line < len(self.lines):
             lock_lines = self._current_lock(current_line)
             if len(lock_lines) == 0:
                 raise RuntimeError("Error parsing lock")
@@ -167,16 +171,17 @@ class LockTraceManager:
     It provides methods to filter the traces by time and to print the results in a sorted manner.
     """
 
+    traces: dict[LockOpTrace, list[GroupTimes]]
+
     def __init__(self, traces: dict[LockOpTrace, list[GroupTimes]]):
         self.traces = traces
 
     # Filter the times for each trace
-    def filter(self, held_time: int, wait_time: int):
+    def filter(self, held_time: int, wait_time: int) -> None:
         filtered_traces = dict[LockOpTrace, list[GroupTimes]]()
         for trace, times in self.traces.items():
             filtered_times = [
-                time
-                for time in self.traces.get(trace)
+                time for time in times
                 if time.get_held_time() >= held_time
                 and time.get_wait_time() >= wait_time
             ]
@@ -186,7 +191,7 @@ class LockTraceManager:
         self.traces = filtered_traces
 
     # Keep the traces that match with the params
-    def match(self, match_names: list[str]):
+    def match(self, match_names: list[str]) -> None:
         filtered_traces = dict[LockOpTrace, list[GroupTimes]]()
         for trace, times in self.traces.items():
             for match_name in match_names:
@@ -196,7 +201,7 @@ class LockTraceManager:
         self.traces = filtered_traces
 
     # print the traces with their times for each test
-    def print(self, sort_held_time, sort_wait_time):
+    def print(self, sort_held_time: bool, sort_wait_time: bool) -> None:
         if sort_held_time:
             for trace, times in self.traces.items():
                 self.traces[trace] = sorted(
@@ -237,13 +242,13 @@ class LocksFileReader:
     lines: list[str]
     groups: list[LocksGroup]
 
-    def __init__(self, locks_file: argparse.FileType):
+    def __init__(self, locks_file: IO[str]):
         self.lines = []
         self.groups = []
 
         self._read(locks_file)
 
-    def _read(self, locks_file: argparse.FileType):
+    def _read(self, locks_file: IO[str]) -> None:
         self.lines =  locks_file.readlines()
 
         current_line = 0
@@ -252,10 +257,7 @@ class LocksFileReader:
             sys.exit(1)
 
         # Read the tests
-        while True:
-            if current_line >= len(self.lines):
-                return
-
+        while current_line < len(self.lines):
             group_lines = self._current_group(current_line)
             if len(group_lines) == 0:
                 raise RuntimeError("Error parsing test.")
@@ -275,7 +277,7 @@ class LocksFileReader:
         return self.lines[start_line:next_match]
 
     # Retrieve the test lines
-    def get_test(self, test: str) -> list[str]:
+    def get_test(self, test: str) -> str:
         for group in self.groups:
             if test in group.get_name():
                 return str(group)
@@ -296,7 +298,10 @@ class LocksFileReader:
                 )
                 if not trace in traces.keys():
                     traces[trace] = list[GroupTimes]()
-                traces.get(trace).append(group_time)
+                try:
+                    traces[trace].append(group_time)
+                except KeyError:
+                    traces[trace] = list[GroupTimes]([group_time])
 
         return traces
 
@@ -328,7 +333,7 @@ One may filter data based on:
 - a singular test
 """
 def _make_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(prog="state-locks-filter", 
+    parser = argparse.ArgumentParser(prog="state-locks-filter",
                                      description="Reads a locks file and extracts lock information.")
     parser.add_argument(
         "-f", "--locks-file", type=argparse.FileType("r"), required=True, help="Locks file"
