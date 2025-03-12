@@ -57,6 +57,17 @@ prepare: |
         exit 0
     fi
 
+    # a workaround for
+    # https://github.com/canonical/craft-application/issues/679
+    # https://github.com/canonical/snapcraft/issues/5321
+    # on non-Ubuntu, craft-application hardcodes a fallback path to core22
+
+    if ! os.query is-ubuntu && ! os.query is-debian; then
+        if ! snap list core22; then
+             snap install core22
+        fi
+    fi
+
     echo "Install snapcraft from ${SNAPCRAFT_SNAP_CHANNEL}"
     snap install snapcraft --channel="${SNAPCRAFT_SNAP_CHANNEL}" --classic
     tests.cleanup defer snap remove --purge snapcraft
