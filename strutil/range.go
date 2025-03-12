@@ -21,6 +21,7 @@ package strutil
 
 import (
 	"fmt"
+	"sort"
 	"strconv"
 	"strings"
 )
@@ -28,16 +29,16 @@ import (
 // RangeSpan represents a span of numbers inside a range. A span with
 // equal Start and End describes a span of a single number.
 type RangeSpan struct {
-	Start, End int
+	Start, End uint
 }
 
 // Intersets checks if passed span intersects with this span.
-func (s1 RangeSpan) Intersets(s2 RangeSpan) bool {
+func (s1 RangeSpan) Intersects(s2 RangeSpan) bool {
 	return (s1.Start <= s2.End) && (s2.Start <= s1.End)
 }
 
 func (s RangeSpan) Size() int {
-	return s.End - s.Start + 1
+	return int(s.End) - int(s.Start) + 1
 }
 
 // Range of discrete numbers represented as set of non overlapping spans.
@@ -47,9 +48,9 @@ type Range struct {
 }
 
 // Intersets checks if passed span intersects with this range of spans.
-func (r Range) Intersets(s RangeSpan) bool {
+func (r Range) Intersects(s RangeSpan) bool {
 	for _, rangeSpan := range r.Spans {
-		if rangeSpan.Intersets(s) {
+		if rangeSpan.Intersects(s) {
 			return true
 		}
 	}
@@ -63,9 +64,15 @@ func (r Range) Size() (size int) {
 	return size
 }
 
-// ParseRange parses a range represented as a string. The entries are
-// joining them with a comma: n[,m] or as a range: n-m or a combination
-// of both, assuming the ranges do not overlap, e.g.: n,m,x-y.
+type spansByStart []RangeSpan
+
+func (s spansByStart) Len() int           { return len(s) }
+func (s spansByStart) Less(i, j int) bool { return s[i].Start < s[j].Start }
+func (s spansByStart) Swap(i, j int)      { s[i], s[j] = s[j], s[i] }
+
+// ParseRange parses a range represented as a string. The entries are joining
+// them with a comma: n[,m] or as a range: n-m or a combination of both, assuming
+// the ranges are non-negative and do not overlap, e.g.: n,m,x-y.
 func ParseRange(in string) (Range, error) {
 	tokens := strings.Split(in, ",")
 	r := Range{}
@@ -74,45 +81,38 @@ func ParseRange(in string) (Range, error) {
 		if err != nil {
 			return Range{}, err
 		}
-		if r.Intersets(s) {
+		if r.Intersects(s) {
 			return Range{}, fmt.Errorf("overlapping range span found %q", token)
 		}
 		r.Spans = append(r.Spans, s)
 	}
+	sort.Sort(spansByStart(r.Spans))
 	return r, nil
 }
 
 func parseRangeSpan(in string) (RangeSpan, error) {
-	hasNegativeStart := strings.HasPrefix(in, "-")
-	in = strings.TrimPrefix(in, "-")
 	if !strings.Contains(in, "-") {
-		val, err := strconv.ParseInt(in, 10, 32)
+		val, err := strconv.ParseUint(in, 10, 32)
 		if err != nil {
 			return RangeSpan{}, err
 		}
-		if hasNegativeStart {
-			val = -val
-		}
-		return RangeSpan{int(val), int(val)}, nil
+		return RangeSpan{uint(val), uint(val)}, nil
 	}
 	// Parse range e.g. 2-5
 	tokens := strings.SplitN(in, "-", 2)
 	if len(tokens) != 2 {
-		return RangeSpan{}, fmt.Errorf("invalid range %q", in)
+		return RangeSpan{}, fmt.Errorf("invalid range span %q", in)
 	}
-	start, err := strconv.ParseInt(tokens[0], 10, 32)
+	start, err := strconv.ParseUint(tokens[0], 10, 32)
 	if err != nil {
-		return RangeSpan{}, fmt.Errorf("invalid range %q: %w", in, err)
+		return RangeSpan{}, fmt.Errorf("invalid range span %q: %w", in, err)
 	}
-	if hasNegativeStart {
-		start = -start
-	}
-	end, err := strconv.ParseInt(tokens[1], 10, 32)
+	end, err := strconv.ParseUint(tokens[1], 10, 32)
 	if err != nil {
-		return RangeSpan{}, fmt.Errorf("invalid range %q: %w", in, err)
+		return RangeSpan{}, fmt.Errorf("invalid range span %q: %w", in, err)
 	}
 	if end <= start {
-		return RangeSpan{}, fmt.Errorf("invalid range %q: range end has to be larger than range start", in)
+		return RangeSpan{}, fmt.Errorf("invalid range span %q: span end has to be larger than span start", in)
 	}
-	return RangeSpan{int(start), int(end)}, nil
+	return RangeSpan{uint(start), uint(end)}, nil
 }

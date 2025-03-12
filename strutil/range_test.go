@@ -29,33 +29,37 @@ type rangeSuite struct{}
 var _ = Suite(&rangeSuite{})
 
 func (s *rangeSuite) TestParseRange(c *C) {
-	r, err := strutil.ParseRange("3,2,-100--20,-1")
+	r, err := strutil.ParseRange("20-100,0,3,2")
 	c.Assert(err, IsNil)
 
-	c.Check(r.Spans[0], Equals, strutil.RangeSpan{3, 3})
+	// Parsed and sorted by start
+	c.Check(r.Spans[0], Equals, strutil.RangeSpan{0, 0})
 	c.Check(r.Spans[1], Equals, strutil.RangeSpan{2, 2})
-	c.Check(r.Spans[2], Equals, strutil.RangeSpan{-100, -20})
-	c.Check(r.Spans[3], Equals, strutil.RangeSpan{-1, -1})
+	c.Check(r.Spans[2], Equals, strutil.RangeSpan{3, 3})
+	c.Check(r.Spans[3], Equals, strutil.RangeSpan{20, 100})
 
 	c.Check(r.Size(), Equals, 84)
-	c.Check(r.Intersets(strutil.RangeSpan{0, 5}), Equals, true)
-	c.Check(r.Intersets(strutil.RangeSpan{-101, -100}), Equals, true)
-	c.Check(r.Intersets(strutil.RangeSpan{5, 5}), Equals, false)
+	c.Check(r.Intersects(strutil.RangeSpan{0, 1}), Equals, true)
+	c.Check(r.Intersects(strutil.RangeSpan{5, 20}), Equals, true)
+	c.Check(r.Intersects(strutil.RangeSpan{5, 5}), Equals, false)
 }
 
 func (s *rangeSuite) TestParseRangeError(c *C) {
 	_, err := strutil.ParseRange(" 1")
-	c.Assert(err, ErrorMatches, `strconv.ParseInt: parsing " 1": invalid syntax`)
+	c.Assert(err, ErrorMatches, `strconv.ParseUint: parsing " 1": invalid syntax`)
 
-	_, err = strutil.ParseRange("1,-1-2")
-	c.Assert(err, ErrorMatches, `overlapping range span found "-1-2"`)
+	_, err = strutil.ParseRange("1,0-2")
+	c.Assert(err, ErrorMatches, `overlapping range span found "0-2"`)
 
 	_, err = strutil.ParseRange("1-")
-	c.Assert(err, ErrorMatches, `invalid range "1-": .*`)
+	c.Assert(err, ErrorMatches, `invalid range span "1-": .*`)
 
 	_, err = strutil.ParseRange("a-2")
-	c.Assert(err, ErrorMatches, `invalid range "a-2": .*`)
+	c.Assert(err, ErrorMatches, `invalid range span "a-2": .*`)
 
 	_, err = strutil.ParseRange("1--2")
-	c.Assert(err, ErrorMatches, `invalid range "1--2": range end has to be larger than range start`)
+	c.Assert(err, ErrorMatches, `invalid range span "1--2": strconv.ParseUint: parsing \"-2\": invalid syntax`)
+
+	_, err = strutil.ParseRange("2-1")
+	c.Assert(err, ErrorMatches, `invalid range span "2-1": span end has to be larger than span start`)
 }
