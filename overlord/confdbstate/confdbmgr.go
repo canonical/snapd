@@ -122,7 +122,7 @@ type confdbTransactions struct {
 // addReadTransaction adds a read transaction for the specified confdb, if no
 // write transactions is ongoing.
 func addReadTransaction(st *state.State, account, confdbName, id string) error {
-	txs, updateFunc, err := getOngoingTxs(st, account, confdbName)
+	txs, updateTxStateFunc, err := getOngoingTxs(st, account, confdbName)
 	if err != nil {
 		return err
 	}
@@ -136,14 +136,14 @@ func addReadTransaction(st *state.State, account, confdbName, id string) error {
 	}
 
 	txs.ReadTxIDs = append(txs.ReadTxIDs, id)
-	updateFunc(txs)
+	updateTxStateFunc(txs)
 	return nil
 }
 
 // setWriteTransaction sets a write transaction for the specified confdb schema,
 // if no other transactions (read or write) are ongoing.
 func setWriteTransaction(st *state.State, account, schemaName, id string) error {
-	txs, updateFunc, err := getOngoingTxs(st, account, schemaName)
+	txs, updateTxStateFunc, err := getOngoingTxs(st, account, schemaName)
 	if err != nil {
 		return err
 	}
@@ -162,13 +162,16 @@ func setWriteTransaction(st *state.State, account, schemaName, id string) error 
 	}
 
 	txs.WriteTxID = id
-	updateFunc(txs)
+	updateTxStateFunc(txs)
 	return nil
 }
 
-func getOngoingTxs(st *state.State, account, schemaName string) (*confdbTransactions, func(*confdbTransactions), error) {
+// getOngoingTxs returns a confdbTransactions struct with the task IDs associated
+// with the ongoing transactions for that confdb-schema, it may be nil if there
+// aren't any. It also returns a function to update the state with a modified struct.
+func getOngoingTxs(st *state.State, account, schemaName string) (ongoingTxs *confdbTransactions, updateTxStateFunc func(*confdbTransactions), err error) {
 	var confdbTxs map[string]*confdbTransactions
-	err := st.Get("confdb-ongoing-txs", &confdbTxs)
+	err = st.Get("confdb-ongoing-txs", &confdbTxs)
 	if err != nil {
 		if !errors.Is(err, &state.NoStateError{}) {
 			return nil, nil, err
@@ -178,7 +181,7 @@ func getOngoingTxs(st *state.State, account, schemaName string) (*confdbTransact
 	}
 
 	ref := account + "/" + schemaName
-	updateFunc := func(ongoingTxs *confdbTransactions) {
+	updateTxStateFunc = func(ongoingTxs *confdbTransactions) {
 		if ongoingTxs == nil || (ongoingTxs.WriteTxID == "" && len(ongoingTxs.ReadTxIDs) == 0) {
 			delete(confdbTxs, ref)
 		} else {
@@ -191,11 +194,11 @@ func getOngoingTxs(st *state.State, account, schemaName string) (*confdbTransact
 			st.Set("confdb-ongoing-txs", confdbTxs)
 		}
 	}
-	return confdbTxs[ref], updateFunc, nil
+	return confdbTxs[ref], updateTxStateFunc, nil
 }
 
 func unsetOngoingTransaction(st *state.State, account, schemaName, id string) error {
-	txs, updateFunc, err := getOngoingTxs(st, account, schemaName)
+	txs, updateTxStateFunc, err := getOngoingTxs(st, account, schemaName)
 	if err != nil {
 		return err
 	}
@@ -216,7 +219,7 @@ func unsetOngoingTransaction(st *state.State, account, schemaName, id string) er
 		}
 	}
 
-	updateFunc(txs)
+	updateTxStateFunc(txs)
 	return nil
 }
 
