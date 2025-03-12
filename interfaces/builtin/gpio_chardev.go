@@ -65,10 +65,10 @@ func validateSourceChips(sourceChip []string) error {
 	exists := make(map[string]bool)
 	for _, chip := range sourceChip {
 		if chip == "" {
-			return errors.New("source chip cannot be empty")
+			return errors.New(`chip in "source-chip" cannot be empty`)
 		}
 		if chip != strings.TrimSpace(chip) {
-			return fmt.Errorf("source chip cannot contain leading or trailing white space, found %q", chip)
+			return fmt.Errorf(`chip in "source-chip" cannot contain leading or trailing white space, found %q`, chip)
 		}
 		if exists[chip] {
 			return fmt.Errorf(`"source-chip" cannot contain duplicate chip names, found %q`, chip)
@@ -104,12 +104,6 @@ func (iface *gpioChardevInterface) BeforePrepareSlot(slot *snap.SlotInfo) error 
 	// Check that range is not unrealistically large.
 	if r.Size() > maxLinesCount {
 		return fmt.Errorf(`invalid "lines" attribute: range size cannot exceed %d, found %d`, maxLinesCount, r.Size())
-	}
-	// Check that only non-negative lines are passed.
-	for _, span := range r.Spans {
-		if span.Start < 0 {
-			return fmt.Errorf(`invalid "lines" attribute: line entry cannot be negative, found %d`, span.Start)
-		}
 	}
 
 	return nil
