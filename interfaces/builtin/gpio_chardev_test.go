@@ -35,6 +35,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/kmod"
 	"github.com/snapcore/snapd/interfaces/systemd"
 	"github.com/snapcore/snapd/interfaces/udev"
+	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
@@ -48,6 +49,8 @@ type GpioChardevInterfaceSuite struct {
 	slotInfo *snap.SlotInfo
 	plug     *interfaces.ConnectedPlug
 	plugInfo *snap.PlugInfo
+
+	rootdir string
 }
 
 var _ = Suite(&GpioChardevInterfaceSuite{
@@ -140,8 +143,12 @@ plugs:
 `
 
 func (s *GpioChardevInterfaceSuite) SetUpTest(c *C) {
-	dirs.SetRootDir(c.MkDir())
+	s.rootdir = c.MkDir()
+	dirs.SetRootDir(s.rootdir)
 	s.AddCleanup(func() { dirs.SetRootDir("") })
+
+	restore := release.MockReleaseInfo(&release.OS{ID: "ubuntu"})
+	s.AddCleanup(restore)
 
 	c.Assert(os.MkdirAll(dirs.FeaturesDir, 0755), check.IsNil)
 	c.Assert(os.WriteFile(features.GPIOChardevInterface.ControlFile(), []byte(nil), 0644), check.IsNil)
@@ -206,8 +213,8 @@ func (s *GpioChardevInterfaceSuite) TestSystemdConnectedSlot(c *C) {
 		"gpio-chardev-gpio-chardev-good": {
 			Type:            "oneshot",
 			RemainAfterExit: true,
-			ExecStart:       `/usr/lib/snapd/snap-gpio-helper export-chardev "chip0,chip1" "3,4,1-2,5" "my-device" "gpio-chardev-good"`,
-			ExecStop:        `/usr/lib/snapd/snap-gpio-helper unexport-chardev "chip0,chip1" "3,4,1-2,5" "my-device" "gpio-chardev-good"`,
+			ExecStart:       fmt.Sprintf(`%s/usr/lib/snapd/snap-gpio-helper export-chardev "chip0,chip1" "3,4,1-2,5" "my-device" "gpio-chardev-good"`, s.rootdir),
+			ExecStop:        fmt.Sprintf(`%s/usr/lib/snapd/snap-gpio-helper unexport-chardev "chip0,chip1" "3,4,1-2,5" "my-device" "gpio-chardev-good"`, s.rootdir),
 			WantedBy:        "snapd.gpio-chardev-setup.target",
 			Before:          "snapd.gpio-chardev-setup.target",
 		},
