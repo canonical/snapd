@@ -1010,7 +1010,6 @@ func (s *secbootSuite) TestSealKey(c *C) {
 					Model:          &asserts.Model{},
 				},
 			},
-			TPMPolicyAuthKeyFile:   filepath.Join(tmpDir, "policy-auth-key-file"),
 			PCRPolicyCounterHandle: 42,
 			VolumesAuth:            tc.volumesAuth,
 		}
@@ -1181,7 +1180,6 @@ func (s *secbootSuite) TestSealKey(c *C) {
 			c.Assert(err, IsNil)
 			c.Assert(addPCRProfileCalls, Equals, 2)
 			c.Assert(addSnapModelCalls, Equals, 2)
-			c.Assert(osutil.FileExists(myParams.TPMPolicyAuthKeyFile), Equals, true)
 
 			_, aHasSlot := containerA.Slots["foo1"]
 			c.Check(aHasSlot, Equals, true)
@@ -1531,9 +1529,7 @@ func (s *secbootSuite) TestSealKeyNoModelParams(c *C) {
 			BootstrappedContainer: secboot.CreateMockBootstrappedContainer(),
 		},
 	}
-	myParams := secboot.SealKeysParams{
-		TPMPolicyAuthKeyFile: "policy-auth-key-file",
-	}
+	myParams := secboot.SealKeysParams{}
 
 	_, err := secboot.SealKeys(myKeys, &myParams)
 	c.Assert(err, ErrorMatches, "at least one set of model-specific parameters is required")
@@ -1838,10 +1834,8 @@ func (s *secbootSuite) testSealKeysWithFDESetupHookHappy(c *C, useKeyFiles bool)
 	}
 
 	tmpDir := c.MkDir()
-	auxKeyFn := filepath.Join(tmpDir, "aux-key")
 	params := secboot.SealKeysWithFDESetupHookParams{
-		Model:      fakeModel,
-		AuxKeyFile: auxKeyFn,
+		Model: fakeModel,
 	}
 	containerA := secboot.CreateMockBootstrappedContainer()
 	containerB := secboot.CreateMockBootstrappedContainer()
