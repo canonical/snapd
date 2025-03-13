@@ -176,7 +176,7 @@ func handleConfdbControlAction(c *Command, r *http.Request, user *auth.UserState
 	cc, err := devMgr.ConfdbControl()
 	if err != nil &&
 		(!errors.Is(err, state.ErrNoState) ||
-			errors.Is(err, devicestate.ErrNoDeviceIdentityYet{})) {
+			errors.Is(err, devicestate.ErrNoDeviceIdentityYet)) {
 		return InternalError(err.Error())
 	}
 
