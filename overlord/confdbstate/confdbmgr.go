@@ -120,7 +120,7 @@ type confdbTransactions struct {
 }
 
 // addReadTransaction adds a read transaction for the specified confdb, if no
-// write transactions is ongoing.
+// write transactions is ongoing. The state must be locked by the caller.
 func addReadTransaction(st *state.State, account, confdbName, id string) error {
 	txs, updateTxStateFunc, err := getOngoingTxs(st, account, confdbName)
 	if err != nil {
@@ -141,7 +141,8 @@ func addReadTransaction(st *state.State, account, confdbName, id string) error {
 }
 
 // setWriteTransaction sets a write transaction for the specified confdb schema,
-// if no other transactions (read or write) are ongoing.
+// if no other transactions (read or write) are ongoing. The state must be locked
+// by the caller.
 func setWriteTransaction(st *state.State, account, schemaName, id string) error {
 	txs, updateTxStateFunc, err := getOngoingTxs(st, account, schemaName)
 	if err != nil {
@@ -168,7 +169,8 @@ func setWriteTransaction(st *state.State, account, schemaName, id string) error 
 
 // getOngoingTxs returns a confdbTransactions struct with the task IDs associated
 // with the ongoing transactions for that confdb-schema, it may be nil if there
-// aren't any. It also returns a function to update the state with a modified struct.
+// aren't any. It also returns a function to update the state with a modified struct,
+// which should be used without unlocking and re-locking the state.
 func getOngoingTxs(st *state.State, account, schemaName string) (ongoingTxs *confdbTransactions, updateTxStateFunc func(*confdbTransactions), err error) {
 	var confdbTxs map[string]*confdbTransactions
 	err = st.Get("confdb-ongoing-txs", &confdbTxs)
@@ -197,6 +199,8 @@ func getOngoingTxs(st *state.State, account, schemaName string) (ongoingTxs *con
 	return confdbTxs[ref], updateTxStateFunc, nil
 }
 
+// Removes the transaction represented by the id from the tracked state. The
+// state must be locked by the caller.
 func unsetOngoingTransaction(st *state.State, account, schemaName, id string) error {
 	txs, updateTxStateFunc, err := getOngoingTxs(st, account, schemaName)
 	if err != nil {

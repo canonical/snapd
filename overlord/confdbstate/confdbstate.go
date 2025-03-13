@@ -530,10 +530,10 @@ func IsConfdbHook(ctx *hookstate.Context) bool {
 			strings.HasSuffix(ctx.HookName(), "-view-changed"))
 }
 
-// LoadConfdbFromSnapctl gets a transaction to read the view's confdb. It schedules
-// tasks to load the confdb as needed, unless no custodian defined relevant hooks.
-// Blocks until the confdb has been loaded into the Transaction. If no tasks need
-// to execute to load the confdb, returns without blocking.
+// GetTransactionForSnapctlGet gets a transaction to read the view's confdb. It
+// schedules tasks to load the confdb as needed, unless no custodian defined
+// relevant hooks. Blocks until the confdb has been loaded into the Transaction.
+// If no tasks need to run to load the confdb, returns without blocking.
 func GetTransactionForSnapctlGet(ctx *hookstate.Context, view *confdb.View) (*Transaction, error) {
 	st := ctx.State()
 	account, schemaName := view.Schema().Account, view.Schema().Name
