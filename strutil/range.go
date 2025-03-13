@@ -73,8 +73,8 @@ func (s spansByStart) Swap(i, j int)      { s[i], s[j] = s[j], s[i] }
 // ParseRange parses a range represented as a string. The entries are joining
 // them with a comma: n[,m] or as a range: n-m or a combination of both, assuming
 // the ranges are non-negative and do not overlap, e.g.: n,m,x-y.
-func ParseRange(in string) (Range, error) {
-	tokens := strings.Split(in, ",")
+func ParseRange(input string) (Range, error) {
+	tokens := strings.Split(input, ",")
 	r := Range{}
 	for _, token := range tokens {
 		s, err := parseRangeSpan(token)

@@ -128,7 +128,7 @@ slots:
   bad-lines-count:
     interface: gpio-chardev
     source-chip: [chip11]
-    lines: 0,1-65536
+    lines: 0,1-512
 `
 
 const gpioChardevConsumerYaml = `name: consumer
@@ -177,12 +177,12 @@ func (s *GpioChardevInterfaceSuite) TestSanitizeSlot(c *C) {
 		"bad-source-chip-3":     `invalid "source-chip" attribute: chip in "source-chip" cannot be empty`,
 		"bad-range-0":           `invalid "lines" attribute: invalid range span "2-":.*: invalid syntax`,
 		"bad-range-1":           `invalid "lines" attribute: invalid range span "a-3":.*: invalid syntax`,
-		"bad-range-2":           `invalid "lines" attribute: range size cannot exceed 65536, found 10000001`,
+		"bad-range-2":           `invalid "lines" attribute: range size cannot exceed 512, found 10000001`,
 		"bad-range-3":           `invalid "lines" attribute: invalid range span "4-2": span end has to be larger than span start`,
 		"bad-range-4":           `invalid "lines" attribute: invalid range span "0--1":.*: invalid syntax`,
 		"bad-line-0":            `invalid "lines" attribute:.*: invalid syntax`,
 		"bad-line-1":            `invalid "lines" attribute: invalid range span "-1":.*: invalid syntax`,
-		"bad-lines-count":       `invalid "lines" attribute: range size cannot exceed 65536, found 65537`,
+		"bad-lines-count":       `invalid "lines" attribute: range size cannot exceed 512, found 513`,
 	}
 	for slotName := range info.Slots {
 		if slotName == "gpio-chardev-good" {
