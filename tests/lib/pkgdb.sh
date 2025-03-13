@@ -805,6 +805,7 @@ pkg_dependencies_opensuse(){
         nss-mdns
         osc
         PackageKit
+        procps
         python3-yaml
         strace
         netcat-openbsd
