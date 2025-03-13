@@ -17,6 +17,8 @@ systems:
     - -ubuntu-core-*
     # LXD doesn't work properly on Amazon Linux
     - -amazon-linux-*
+    # reexecs but apparmor support is lacking
+    - -debian-11-*
     # snapcraft does not support running on CentOS 7 due to errors with the
     # locale, see https://bugs.launchpad.net/snapcraft/+bug/1922140
     # a separate error occurs on CentOS 8, see https://bugs.launchpad.net/snapcraft/+bug/1922981
