@@ -34,10 +34,10 @@ def main() -> None:
 
     total = 0
 
-    def _report(blocks: int, bsize: int, tot: int):
+    def _report(sofar: int, tot: int):
         nonlocal total
         total = tot
-        logging.debug("got %d/%d kB", blocks * bsize / 1024.0, total / 1024.0)
+        logging.debug("got %d/%d kB", sofar / 1024.0, total / 1024.0)
 
     # create a temp in the same directory as output
     outdir = os.path.dirname(output)
@@ -59,14 +59,13 @@ def main() -> None:
             # recreate what urlretrieve() does
             with request.urlopen(req) as rsp:
                 bsize = 8 * 1024
-                bcount = 0
                 read = 0
                 size = -1
 
                 if "Content-Length" in rsp.headers:
                     size = int(rsp.headers["Content-Length"])
 
-                _report(bcount, bsize, size)
+                _report(read, size)
                 while True:
                     data = rsp.read(bsize)
                     if len(data) == 0:
@@ -75,7 +74,7 @@ def main() -> None:
 
                     read += len(data)
                     outf.write(data)
-                    _report(bcount, bsize, size)
+                    _report(read, size)
 
                 if size > 0 and read < size:
                     raise request.ContentTooShortError(
