@@ -5428,3 +5428,91 @@ func (s *imageSuite) TestSetupSeedLocalComponentBadType(c *C) {
 	err := image.SetupSeed(s.tsto, model, opts)
 	c.Assert(err, ErrorMatches, "component comp1 has type kernel-modules while snap required20 defines type standard for it")
 }
+
+func (s *imageSuite) TestPrepareAdditionalProxyStoreAssertions(c *C) {
+	restore := image.MockTrusted(s.StoreSigning.Trusted)
+	defer restore()
+
+	restore = image.MockNewToolingStoreFromModel(func(model *asserts.Model, fallbackArchitecture string) (*tooling.ToolingStore, error) {
+		return s.tsto, nil
+	})
+	defer restore()
+
+	s.setupSnaps(c, map[string]string{
+		"pc-kernel": "canonical",
+		"pc":        "canonical",
+	}, "")
+
+	preparedir := c.MkDir()
+
+	model := s.Brands.Model("my-brand", "my-model", map[string]interface{}{
+		"display-name": "my display name",
+		"architecture": "amd64",
+		"gadget":       "pc",
+		"kernel":       "pc-kernel",
+	})
+
+	modelFn := filepath.Join(preparedir, "model.assertion")
+	err := os.WriteFile(modelFn, asserts.Encode(model), 0644)
+	c.Assert(err, IsNil)
+
+	// Create assertion for proxy1 and write to file
+	proxyStoreAssertion, err := s.StoreSigning.Sign(asserts.StoreType, map[string]interface{}{
+		"store":        "my-proxy-store",
+		"operator-id":  "my-brand",
+		"authority-id": "canonical",
+		"url":          "https://my-proxy-store.com",
+		"timestamp":    time.Now().UTC().Format(time.RFC3339),
+	}, nil, "")
+	c.Assert(err, IsNil)
+	proxyFn := "proxy.assertion"
+	proxyFilePath := filepath.Join(preparedir, proxyFn)
+	err = os.WriteFile(proxyFilePath, asserts.Encode(proxyStoreAssertion), 0644)
+	c.Assert(err, IsNil)
+
+	accountAssertion, err := s.StoreSigning.Sign(asserts.AccountType, map[string]interface{}{
+		"type":         "account",
+		"authority-id": "canonical",
+		"account-id":   "my-brand",
+		"validation":   "verified",
+		"display-name": "Predef",
+		"timestamp":    time.Now().Format(time.RFC3339),
+	}, nil, "")
+	c.Assert(err, IsNil)
+	accountFn := "account.assertion"
+	accountFilePath := filepath.Join(preparedir, accountFn)
+	err = os.WriteFile(accountFilePath, asserts.Encode(accountAssertion), 0644)
+	c.Assert(err, IsNil)
+
+	// Prepare image with the two additional filepaths
+	err = image.Prepare(&image.Options{
+		ModelFile:            modelFn,
+		PrepareDir:           preparedir,
+		ExtraAssertionsFiles: []string{proxyFilePath, accountFilePath},
+	})
+	c.Assert(err, IsNil)
+
+	// Check that the proxy assertions are written in the seed
+
+	seedDir := filepath.Join(preparedir, "image/var/lib/snapd/seed/assertions")
+
+	l, err := os.ReadDir(seedDir)
+	c.Assert(err, IsNil)
+	c.Check(l, HasLen, 11)
+
+	foundProxyAssertion := false
+	foundAccountAssertion := false
+
+	for _, fn := range l {
+		if fn.Name() == "my-proxy-store.store" {
+			foundProxyAssertion = true
+		}
+
+		if fn.Name() == "my-brand.account" {
+			foundAccountAssertion = true
+		}
+	}
+
+	c.Assert(foundProxyAssertion, Equals, true)
+	c.Assert(foundAccountAssertion, Equals, true)
+}
