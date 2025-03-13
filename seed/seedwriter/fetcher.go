@@ -41,6 +41,8 @@ type SeedAssertionFetcher interface {
 type assertionFetcher struct {
 	fetcher asserts.Fetcher
 	refs    []*asserts.Ref
+
+	extraAssertions []asserts.Assertion
 }
 
 func (af *assertionFetcher) Fetch(ref *asserts.Ref) error {
@@ -58,6 +60,29 @@ func (af *assertionFetcher) FetchSequence(seq *asserts.AtSequence) error {
 }
 
 func (af *assertionFetcher) Save(a asserts.Assertion) error {
+
+	// Check prerequisites against extraAssertions only if there are any
+	if len(af.extraAssertions) != 0 {
+
+		for _, prerequisite := range a.Prerequisites() {
+			for _, extraAssertion := range af.extraAssertions {
+
+				if prerequisite.Unique() == extraAssertion.Ref().Unique() {
+
+					if err := af.Save(extraAssertion); err != nil {
+						return fmt.Errorf(
+							"cannot fetch and check prerequisites for injected assertion that is prerequisite: %v",
+							err,
+						)
+					}
+
+					// This prerequisite has been matched to an extraAssertion, proceed with the next
+					break
+				}
+			}
+		}
+	}
+
 	return af.fetcher.Save(a)
 }
 
@@ -76,12 +101,13 @@ type NewFetcherFunc func(save func(asserts.Assertion) error) asserts.Fetcher
 // MakeSeedAssertionFetcher makes a SeedAssertionFetcher using newFetcher which can
 // build a base Fetcher with an additional save function, to capture assertion
 // references.
-func MakeSeedAssertionFetcher(newFetcher NewFetcherFunc) SeedAssertionFetcher {
+func MakeSeedAssertionFetcher(newFetcher NewFetcherFunc, extraAssertions ...asserts.Assertion) SeedAssertionFetcher {
 	var af assertionFetcher
 	save := func(a asserts.Assertion) error {
 		af.refs = append(af.refs, a.Ref())
 		return nil
 	}
 	af.fetcher = newFetcher(save)
+	af.extraAssertions = extraAssertions
 	return &af
 }
