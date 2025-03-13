@@ -26,6 +26,7 @@ import (
 
 	"github.com/gorilla/mux"
 
+	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/client/clientutil"
@@ -34,6 +35,7 @@ import (
 	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/confdbstate"
+	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/restart"
 	"github.com/snapcore/snapd/overlord/snapstate"
@@ -431,4 +433,8 @@ func MockConfdbstateSetViaView(f func(confdb.Databag, *confdb.View, map[string]i
 
 func MockAssertstateFetchAllValidationSets(f func(*state.State, int, *assertstate.RefreshAssertionsOptions) error) (restore func()) {
 	return testutil.Mock(&assertstateFetchAllValidationSets, f)
+}
+
+func MockDeviceStateSignConfdbControl(f func(m *devicestate.DeviceManager, groups []interface{}, revision int) (*asserts.ConfdbControl, error)) (restore func()) {
+	return testutil.Mock(&devicestateSignConfdbControl, f)
 }
