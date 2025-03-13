@@ -32,7 +32,6 @@ import (
 
 	"github.com/snapcore/snapd/kernel/fde"
 	"github.com/snapcore/snapd/logger"
-	"github.com/snapcore/snapd/osutil"
 )
 
 var fdeHasRevealKey = fde.HasRevealKey
@@ -114,12 +113,6 @@ func SealKeysWithFDESetupHook(runHook fde.RunSetupHookFunc, keys []SealKeyReques
 
 		if err := protectedKey.WriteAtomic(keyWriter); err != nil {
 			return err
-		}
-	}
-
-	if primaryKey != nil && params.AuxKeyFile != "" {
-		if err := osutil.AtomicWriteFile(params.AuxKeyFile, primaryKey, 0600, 0); err != nil {
-			return fmt.Errorf("cannot write the policy auth key file: %v", err)
 		}
 	}
 
