@@ -267,7 +267,7 @@ func (s *confdbSuite) TestConfdbSetInvalidAspectID(c *check.C) {
 
 	_, err := snapset.Parser(snapset.Client()).ParseArgs([]string{"set", "foo//bar", "foo=bar"})
 	c.Assert(err, check.NotNil)
-	c.Check(err.Error(), check.Equals, "confdb identifier must conform to format: <account-id>/<confdb>/<view>")
+	c.Check(err.Error(), check.Equals, "confdb-schema view id must conform to format: <account-id>/<confdb-schema>/<view>")
 }
 
 func (s *confdbSuite) TestConfdbSetNoWait(c *check.C) {

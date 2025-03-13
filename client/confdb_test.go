@@ -28,12 +28,16 @@ import (
 )
 
 func (cs *clientSuite) TestConfdbGet(c *C) {
-	cs.rsp = `{"type": "sync", "result":{"foo":"baz","bar":1}}`
+	cs.status = 202
+	cs.rsp = `{
+		"change": "123",
+		"status-code": 202,
+		"type": "async"
+	}`
 
-	res, err := cs.cli.ConfdbGetViaView("a/b/c", []string{"foo", "bar"})
-	c.Check(err, IsNil)
-	c.Check(res, DeepEquals, map[string]interface{}{"foo": "baz", "bar": json.Number("1")})
-	c.Assert(cs.reqs, HasLen, 1)
+	chgID, err := cs.cli.ConfdbGetViaView("a/b/c", []string{"foo", "bar"})
+	c.Assert(err, IsNil)
+	c.Assert(chgID, Equals, "123")
 	c.Check(cs.reqs[0].Method, Equals, "GET")
 	c.Check(cs.reqs[0].URL.Path, Equals, "/v2/confdb/a/b/c")
 	c.Check(cs.reqs[0].URL.Query(), DeepEquals, url.Values{"fields": []string{"foo,bar"}})

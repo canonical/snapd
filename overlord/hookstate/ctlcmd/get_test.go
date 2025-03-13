@@ -893,7 +893,7 @@ func (s *confdbSuite) TestConfdbGetDifferentViewThanOngoingTx(c *C) {
 
 	stdout, stderr, err := ctlcmd.Run(ctx, []string{"get", "--view", ":other", "ssid"}, 0)
 	// error is for no stored value, meaning we read the right confdb
-	c.Assert(err, ErrorMatches, `.*: no view data`)
+	c.Assert(err, ErrorMatches, `.*: no data`)
 	c.Check(stdout, IsNil)
 	c.Check(stderr, IsNil)
 }

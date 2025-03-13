@@ -190,7 +190,7 @@ func (s *confdbSuite) TestConfdbUnsetManyViews(c *C) {
 	s.state.Lock()
 	_, err = confdbstate.Get(s.state, s.devAccID, "network", "write-wifi", []string{"ssid", "password"})
 	s.state.Unlock()
-	c.Assert(err, ErrorMatches, `cannot get "ssid", "password" .*: no view data`)
+	c.Assert(err, ErrorMatches, `cannot get "ssid", "password" .*: no data`)
 }
 
 func (s *confdbSuite) TestConfdbUnsetInvalid(c *C) {
