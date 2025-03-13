@@ -60,6 +60,9 @@ type Options struct {
 	// IgnoreOptionFileExtentions if set, snaps and components will not be
 	// required to end in .snap or .comp, respectively.
 	IgnoreOptionFileExtentions bool
+
+	// Assertions to inject into the built image
+	ExtraAssertions []asserts.Assertion
 }
 
 // manifest returns either the manifest already provided by the
@@ -629,6 +632,15 @@ func (w *Writer) Start(db asserts.RODatabase, f SeedAssertionFetcher) error {
 	// fetch model validation sets if any
 	if err := w.fetchValidationSets(f); err != nil {
 		return err
+	}
+
+	for _, extraAssertion := range w.opts.ExtraAssertions {
+		if err := f.Save(extraAssertion); err != nil {
+			return fmt.Errorf(
+				"cannot fetch and check prerequisites for an injected assertion: %v",
+				err,
+			)
+		}
 	}
 
 	w.modelRefs = f.Refs()
