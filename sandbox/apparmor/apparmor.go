@@ -783,6 +783,10 @@ func probeParserFeatures() ([]string, error) {
 			feature: "prompt",
 			probe:   "prompt /foo r,",
 		},
+		{
+			feature: "tags",
+			probe:   "/bar r tags=(foo),",
+		},
 	}
 	_, internal, err := AppArmorParser()
 	if err != nil {
