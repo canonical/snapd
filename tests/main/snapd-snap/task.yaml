@@ -164,7 +164,7 @@ execute: |
     touch test-build
 
     echo "Build the snap"
-    snap run snapcraft snap --output=snapd_spread-test.snap
+    snap run snapcraft --verbose --output=snapd_spread-test.snap
     popd
 
     mv "$PROJECT_PATH/snapd_spread-test.snap" "$PWD/snapd_spread-test.snap"
