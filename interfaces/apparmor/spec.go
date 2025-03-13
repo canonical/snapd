@@ -28,6 +28,7 @@ import (
 
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/logger"
+	apparmor_sandbox "github.com/snapcore/snapd/sandbox/apparmor"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/strutil"
 )
@@ -188,6 +189,34 @@ func (spec *Specification) setScope(securityTags []string) (restore func()) {
 	return func() {
 		spec.securityTags = nil
 	}
+}
+
+var metadataTagsSupported = apparmor_sandbox.MetadataTagsSupported
+
+// MetadataTagSnippet wraps the given AppArmor rule snippet in the given
+// metadata tags if tagging is supported, and returns the resulting snippet.
+// If tagging is not supported, returns the snippet unchanged, without error.
+// If any of the tags contain parentheses or AppArmor regular expression
+// characters, returns an error.
+//
+// For example, MetadataTagSnippet("/foo r,", []string{"bar", "baz"}) would
+// return `tags=(bar,baz) { /foo r, }`.
+func MetadataTagSnippet(snippet string, tags []string) (string, error) {
+	if len(tags) == 0 || !metadataTagsSupported() {
+		return snippet, nil
+	}
+	for _, tag := range tags {
+		if strings.ContainsAny(tag, "()") {
+			return snippet, fmt.Errorf("cannot add tag: %q contains a parenthesis", tag)
+		}
+		if err := ValidateNoAppArmorRegexp(tag); err != nil {
+			return snippet, fmt.Errorf("cannot add tag: %v", err)
+		}
+	}
+	if strings.Contains(snippet, "\n") {
+		return fmt.Sprintf("tags=(%s) {\n%s\n}", strings.Join(tags, ","), snippet), nil
+	}
+	return fmt.Sprintf("tags=(%s) { %s }", strings.Join(tags, ","), snippet), nil
 }
 
 // AddSnippet adds a new apparmor snippet to all applications and hooks using the interface.

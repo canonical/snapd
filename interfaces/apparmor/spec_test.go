@@ -20,6 +20,7 @@
 package apparmor_test
 
 import (
+	"fmt"
 	"strings"
 
 	. "gopkg.in/check.v1"
@@ -115,6 +116,155 @@ func (s *specSuite) TestSpecificationIface(c *C) {
 	c.Assert(spec.Snippets(), DeepEquals, map[string][]string{
 		"snap.snap2.app2": {"connected-slot", "permanent-slot"},
 	})
+}
+
+// MetadataTagSnippet wraps a snippet in the given metadata tags.
+func (s *specSuite) TestMetadataTagSnippetHappy(c *C) {
+	restore := apparmor.MockMetadataTagsSupported(func() bool { return true })
+	defer restore()
+
+	snippetShort := "/foo r,"
+	snippetLong := `/path/to/dir/1 r,
+/path/to/dir/2 rw,
+/path/to/dir/3 rwkl,`
+
+	for _, testCase := range []struct {
+		snippet  string
+		tags     []string
+		expected string
+	}{
+		{
+			snippet:  snippetShort,
+			tags:     []string{},
+			expected: snippetShort,
+		},
+		{
+			snippet:  snippetShort,
+			tags:     []string{"bar"},
+			expected: "tags=(bar) { /foo r, }",
+		},
+		{
+			snippet:  snippetShort,
+			tags:     []string{"bar", "baz"},
+			expected: "tags=(bar,baz) { /foo r, }",
+		},
+		{
+			snippet:  snippetLong,
+			tags:     []string{},
+			expected: snippetLong,
+		},
+		{
+			snippet: snippetLong,
+			tags:    []string{"bar"},
+			expected: `tags=(bar) {
+/path/to/dir/1 r,
+/path/to/dir/2 rw,
+/path/to/dir/3 rwkl,
+}`,
+		},
+		{
+			snippet: snippetLong,
+			tags:    []string{"bar", "baz"},
+			expected: `tags=(bar,baz) {
+/path/to/dir/1 r,
+/path/to/dir/2 rw,
+/path/to/dir/3 rwkl,
+}`,
+		},
+	} {
+		result, err := apparmor.MetadataTagSnippet(testCase.snippet, testCase.tags)
+		c.Check(err, IsNil)
+		c.Check(result, Equals, testCase.expected)
+	}
+
+	// Tags may be nested
+
+	inner, err := apparmor.MetadataTagSnippet("/ijk rwkl,", []string{"foo", "bar"})
+	c.Check(err, IsNil)
+	snippet := fmt.Sprintf("/abc r,\n%s\n/xyz w,", inner)
+	result, err := apparmor.MetadataTagSnippet(snippet, []string{"baz", "qux"})
+	c.Check(err, IsNil)
+	c.Check(result, Equals, `tags=(baz,qux) {
+/abc r,
+tags=(foo,bar) { /ijk rwkl, }
+/xyz w,
+}`)
+
+	// When metadata tags are not supported, snippets should be returned unchanged
+
+	restore = apparmor.MockMetadataTagsSupported(func() bool { return false })
+	defer restore()
+
+	for _, tags := range [][]string{
+		{},
+		{"bar"},
+		{"bar", "baz"},
+	} {
+		result, err := apparmor.MetadataTagSnippet(snippetShort, tags)
+		c.Check(err, IsNil)
+		c.Check(result, Equals, snippetShort)
+
+		result, err = apparmor.MetadataTagSnippet(snippetLong, tags)
+		c.Check(err, IsNil)
+		c.Check(result, Equals, snippetLong)
+	}
+}
+
+func (s *specSuite) TestMetadataTagSnippetUnhappy(c *C) {
+	restore := apparmor.MockMetadataTagsSupported(func() bool { return true })
+	defer restore()
+
+	snippet := "/path/to/foo rwkl,"
+
+	for _, testCase := range []struct {
+		tags   []string
+		errStr string
+	}{
+		{
+			tags:   []string{"bar", "b(z"},
+			errStr: `cannot add tag: "b\(z" contains a parenthesis`,
+		},
+		{
+			tags:   []string{"b)r"},
+			errStr: `cannot add tag: ".*" contains a parenthesis`,
+		},
+		{
+			tags:   []string{"f?o"},
+			errStr: `cannot add tag: ".*" contains a reserved apparmor char.*`,
+		},
+		{
+			tags:   []string{"f*o"},
+			errStr: `cannot add tag: ".*" contains a reserved apparmor char.*`,
+		},
+		{
+			tags:   []string{"f[o"},
+			errStr: `cannot add tag: ".*" contains a reserved apparmor char.*`,
+		},
+		{
+			tags:   []string{"f]o"},
+			errStr: `cannot add tag: ".*" contains a reserved apparmor char.*`,
+		},
+		{
+			tags:   []string{"f{o"},
+			errStr: `cannot add tag: ".*" contains a reserved apparmor char.*`,
+		},
+		{
+			tags:   []string{"f}o"},
+			errStr: `cannot add tag: ".*" contains a reserved apparmor char.*`,
+		},
+		{
+			tags:   []string{"f^o"},
+			errStr: `cannot add tag: ".*" contains a reserved apparmor char.*`,
+		},
+		{
+			tags:   []string{`f"o`},
+			errStr: `cannot add tag: ".*" contains a reserved apparmor char.*`,
+		},
+	} {
+		result, err := apparmor.MetadataTagSnippet(snippet, testCase.tags)
+		c.Check(result, Equals, snippet)
+		c.Check(err, ErrorMatches, testCase.errStr)
+	}
 }
 
 // AddSnippet adds a snippet for the given security tag.
