@@ -748,6 +748,97 @@ func (client *Client) SysInfo() (*SysInfo, error) {
 	return &sysInfo, nil
 }
 
+const (
+	ActionProceed = "proceed"
+	// ActionCompatProceed indicates a fallback compatibility mode in which
+	// snapd is unable to process a mismatch advisory request
+	ActionCompatProceed = "compat-proceed"
+	ActionWaitForChange = "wait-for-change"
+)
+
+type AdvisedAction struct {
+	SuggestedAction string
+	// ChangeID carries the change to wait for if action was "wait-for-change".
+	ChangeID string
+}
+
+// SystemKeyMismatchAdvise is usually called after having detected a mismatch of
+// the system keys and performs an access to snapd API with the goal of getting
+// an instruction from snapd on how to proceed. The request is expected to carry
+// system-key derived by the client.
+func (client *Client) SystemKeyMismatchAdvise(systemKey string) (*AdvisedAction, error) {
+	if systemKey == "" {
+		return nil, fmt.Errorf("no system key provided")
+	}
+
+	opts := &doOptions{
+		Timeout: 25 * time.Second,
+		Retry:   doRetry,
+	}
+
+	// needed?
+	client.checkMaintenanceJSON()
+
+	var rsp response
+	var body io.Reader
+
+	q := url.Values{}
+	q.Add("system-key-mismatch", "true")
+
+	d, err := json.Marshal(struct {
+		SystemKey string `json:"system-key"`
+	}{
+		SystemKey: systemKey,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("cannot marshal request data: %w", err)
+	}
+
+	body = bytes.NewReader(d)
+
+	statusCode, err := client.do("POST", "/v2/system-info", q, nil, body, &rsp, opts)
+	if err != nil {
+		return nil, err
+	}
+
+	if statusCode == 405 {
+		// Method Not Allowed, most likely we are talking to an older version of
+		// snapd, which does not support the advisory system key mismatch
+		// handling, but since we got a response, snapd must be up already
+		return &AdvisedAction{
+			SuggestedAction: ActionCompatProceed,
+		}, nil
+	}
+
+	if err := rsp.err(client, statusCode); err != nil {
+		return nil, err
+	}
+
+	var act *AdvisedAction
+
+	switch rsp.Type {
+	case "sync":
+		// body in the request?
+		act = &AdvisedAction{
+			SuggestedAction: ActionProceed,
+		}
+	case "async":
+		// async response with change implies that the client should wait
+		if rsp.Change == "" {
+			return nil, fmt.Errorf("async response without change reference")
+		}
+		act = &AdvisedAction{
+			SuggestedAction: ActionWaitForChange,
+			ChangeID:        rsp.Change,
+		}
+	}
+
+	client.warningCount = rsp.WarningCount
+	client.warningTimestamp = rsp.WarningTimestamp
+
+	return act, nil
+}
+
 type debugAction struct {
 	Action string      `json:"action"`
 	Params interface{} `json:"params,omitempty"`
