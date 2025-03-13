@@ -87,8 +87,7 @@ func validateSourceChips(sourceChip []string) error {
 	return nil
 }
 
-// XXX: What should be the limit on max range.
-const maxLinesCount = 65536
+const maxLinesCount = 512
 
 // BeforePrepareSlot checks validity of the defined slot.
 func (iface *gpioChardevInterface) BeforePrepareSlot(slot *snap.SlotInfo) error {
