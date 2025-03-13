@@ -143,12 +143,12 @@ plugs:
 `
 
 func (s *GpioChardevInterfaceSuite) SetUpTest(c *C) {
+	restore := release.MockReleaseInfo(&release.OS{ID: "ubuntu"})
+	s.AddCleanup(restore)
+
 	s.rootdir = c.MkDir()
 	dirs.SetRootDir(s.rootdir)
 	s.AddCleanup(func() { dirs.SetRootDir("") })
-
-	restore := release.MockReleaseInfo(&release.OS{ID: "ubuntu"})
-	s.AddCleanup(restore)
 
 	c.Assert(os.MkdirAll(dirs.FeaturesDir, 0755), check.IsNil)
 	c.Assert(os.WriteFile(features.GPIOChardevInterface.ControlFile(), []byte(nil), 0644), check.IsNil)
