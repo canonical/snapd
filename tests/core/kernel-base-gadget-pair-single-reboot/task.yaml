@@ -17,17 +17,9 @@ environment:
     SNAP_ONE/kernel_gadget: pc
     SNAP_TWO/kernel_gadget: pc-kernel
 
-    SNAPD_NO_MEMORY_LIMIT: 1
-    BLOB_DIR: $(pwd)/fake-store-blobdir
-
 prepare: |
     # To get VERSION_ID defined
     . /etc/os-release
-
-    if [ "$TRUST_TEST_KEYS" = "false" ]; then
-        echo "This test needs test keys to be trusted"
-        exit
-    fi
 
     # does not work for 16, but we don't support 16 for this
     core_snap="core${VERSION_ID}"
@@ -37,13 +29,6 @@ prepare: |
     readlink "/snap/$core_snap/current" > core.rev
     readlink "/snap/pc/current" > pc.rev
 
-restore: |
-    if [ "$TRUST_TEST_KEYS" = "false" ]; then
-        echo "This test needs test keys to be trusted"
-        exit
-    fi
-    "$TESTSTOOLS"/store-state teardown-fake-store "$BLOB_DIR"
-
 debug: |
     change_id="$(cat refresh-change-id)"
     snap debug state --change "$change_id" /var/lib/snapd/state.json
@@ -51,11 +36,6 @@ debug: |
 execute: |
     # To get VERSION_ID defined
     . /etc/os-release
-
-    if [ "$TRUST_TEST_KEYS" = "false" ]; then
-        echo "This test needs test keys to be trusted"
-        exit
-    fi
 
     if not snap list pc; then
         echo "This test needs a host using 'pc' gadget snap"
@@ -95,7 +75,6 @@ execute: |
         echo Downloading snaps needed
         snap download pc-kernel --channel="$VERSION_ID"/edge
 
-        # repack the base snap, we always stuff it into the fakestore
         snap download "$core_snap" --edge
         unsquashfs -d base-snap "${core_snap}"_*.snap
         rm "${core_snap}"_*
@@ -125,38 +104,6 @@ execute: |
             sed -i -e 's/^version: \(.*\)-1/version: \1-2/' pc-snap/meta/snap.yaml
             snap pack pc-snap --filename=pc_x1.snap
         fi
-
-        snap ack "$TESTSLIB/assertions/testrootorg-store.account-key"
-        "$TESTSTOOLS"/store-state setup-fake-store "$BLOB_DIR"
-
-        prepare_snap() {
-            local SNAP_NAME="$1"
-            local SNAP_ID="$2"
-            local SNAP_REV_FILE="$3"
-            local SNAP_PATH="$4"
-            local SNAP_REV
-
-            SNAP_REV="$(next_snap_revision "${SNAP_REV_FILE}")"
-
-            cat <<EOF > "$SNAP_NAME-decl-headers.json"
-    {"snap-id": "$SNAP_ID"}
-    EOF
-            cat <<EOF > "$SNAP_NAME-rev-headers.json"
-    {"snap-id": "$SNAP_ID", "snap-revision": "$SNAP_REV"}
-    EOF
-
-            p=$(fakestore new-snap-declaration --dir "$BLOB_DIR" "$SNAP_NAME" --snap-decl-json "$SNAP_NAME-decl-headers.json")
-            snap ack "$p"
-            p=$(fakestore new-snap-revision --dir "$BLOB_DIR" "$SNAP_PATH" --snap-rev-json "$SNAP_NAME-rev-headers.json")
-            snap ack "$p"
-            cp -av "$SNAP_PATH" "$BLOB_DIR/"
-        }
-
-        if [[ "$SNAP_ONE" == "pc" ]] || [[ "$SNAP_TWO" == "pc" ]]; then
-            prepare_snap pc UqFziVZDHLSyO3TqSWgNBoAdHbLI4dAH pc.rev "$(ls pc_*.snap)"
-        fi
-        prepare_snap pc-kernel pYVQrBcKmBa0mZ4CCN7ExT6jH8rY1hza pc-kernel.rev "$(ls pc-kernel_*.snap)"
-        prepare_snap "$core_snap" "$core_id" core.rev "$(ls ${core_snap}_*.snap)"
 
         if os.query is-core-ge 20; then
             # on uc20+, snap we booted with is unasserted for extra debugging
