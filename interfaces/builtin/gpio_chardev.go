@@ -27,6 +27,7 @@ import (
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/features"
+	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/systemd"
@@ -165,8 +166,8 @@ func (iface *gpioChardevInterface) SystemdConnectedPlug(spec *systemd.Specificat
 	plugName := plug.Name()
 	plugSnapName := plug.Snap().InstanceName()
 
-	target := filepath.Join("/dev/snap/gpio-chardev", slotSnapName, slotName)
-	symlink := filepath.Join("/dev/snap/gpio-chardev", plugSnapName, plugName)
+	target := gadget.SnapGpioChardevPath(slotSnapName, slotName)
+	symlink := gadget.SnapGpioChardevPath(plugSnapName, plugName)
 
 	// Create symlink pointing to exported virtual slot device.
 	serviceSuffix := fmt.Sprintf("gpio-chardev-%s", plugName)
