@@ -39,6 +39,8 @@ environment:
     SNAPCRAFT_BUILD_ENVIRONMENT/destructive: host
     SNAPCRAFT_BUILD_ENVIRONMENT/lxd: lxd
     CONSUMER_SNAP: test-snapd-policy-app-consumer
+    # workaround for running on openstack backend
+    no_proxy: ppa.launchpad.net
 
 prepare: |
     # shellcheck source=tests/lib/systems.sh
