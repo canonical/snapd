@@ -34,8 +34,7 @@ execute: |
     remote.exec "test ! -e /var/lib/snapd/device/fde/recovery.key"
 
 
-    echo "and the tpm-{policy-auth-key,lockout-auth} files are in ubuntu-save"
-    remote.exec "test -e /var/lib/snapd/save/device/fde/tpm-policy-auth-key"
+    echo "and the tpm-lockout-auth file is in ubuntu-save"
     remote.exec "test -e /var/lib/snapd/save/device/fde/tpm-lockout-auth"
 
     echo "Grab modeenv content and checksums"

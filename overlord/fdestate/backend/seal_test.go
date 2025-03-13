@@ -167,9 +167,6 @@ func (s *sealSuite) TestSealKeyForBootChains(c *C) {
 			sealKeysCalls++
 			switch sealKeysCalls {
 			case 1:
-				// the run object seals only the ubuntu-data key
-				c.Check(params.TPMPolicyAuthKeyFile, Equals, filepath.Join(boot.InstallHostFDESaveDir, "tpm-policy-auth-key"))
-
 				expectedSKR := secboot.SealKeyRequest{BootstrappedContainer: myKey, KeyName: "ubuntu-data", SlotName: "default", BootModes: []string{"run", "recover"}}
 				if tc.disableTokens {
 					expectedSKR.KeyFile = filepath.Join(rootdir, "run/mnt/ubuntu-boot/device/fde/ubuntu-data.sealed-key")
@@ -177,9 +174,6 @@ func (s *sealSuite) TestSealKeyForBootChains(c *C) {
 				c.Check(keys, DeepEquals, []secboot.SealKeyRequest{expectedSKR})
 				c.Check(params.KeyRole, Equals, "run+recover")
 			case 2:
-				// the fallback object seals the ubuntu-data and the ubuntu-save keys
-				c.Check(params.TPMPolicyAuthKeyFile, Equals, "")
-
 				expectedDataSKR := secboot.SealKeyRequest{BootstrappedContainer: myKey, KeyName: "ubuntu-data", SlotName: "default-fallback", BootModes: []string{"recover"}}
 				expectedSaveSKR := secboot.SealKeyRequest{BootstrappedContainer: myKey2, KeyName: "ubuntu-save", SlotName: "default-fallback", BootModes: []string{"recover", "factory-reset"}}
 				if tc.disableTokens {
@@ -453,7 +447,6 @@ func (s *sealSuite) testSealToModeenvWithFdeHookHappy(c *C, useTokens bool) {
 	restore = fdeBackend.MockSecbootSealKeysWithFDESetupHook(func(runHook fde.RunSetupHookFunc, skrs []secboot.SealKeyRequest, params *secboot.SealKeysWithFDESetupHookParams) error {
 		c.Check(params.Model.Model(), Equals, model.Model())
 		c.Check(params.Model.Model(), Equals, model.Model())
-		c.Check(params.AuxKeyFile, Equals, filepath.Join(boot.InstallHostFDESaveDir, "aux-key"))
 		c.Check(params.PrimaryKey, DeepEquals, []byte{1, 2, 3, 4})
 		for _, skr := range skrs {
 			var expectedBootstrappedContainer secboot.BootstrappedContainer
