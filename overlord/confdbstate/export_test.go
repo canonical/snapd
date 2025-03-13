@@ -19,6 +19,8 @@
 package confdbstate
 
 import (
+	"time"
+
 	"github.com/snapcore/snapd/confdb"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/state"
@@ -30,8 +32,13 @@ var (
 	GetPlugsAffectedByPaths = getPlugsAffectedByPaths
 	CreateChangeConfdbTasks = createChangeConfdbTasks
 	CreateLoadConfdbTasks   = createLoadConfdbTasks
-	SetOngoingTransaction   = setOngoingTransaction
+	SetWriteTransaction     = setWriteTransaction
+	AddReadTransaction      = addReadTransaction
 	UnsetOngoingTransaction = unsetOngoingTransaction
+)
+
+type (
+	ConfdbTransactions = confdbTransactions
 )
 
 const (
@@ -68,5 +75,13 @@ func MockEnsureNow(f func(*state.State)) func() {
 	ensureNow = f
 	return func() {
 		ensureNow = old
+	}
+}
+
+func MockTransactionTimeout(dur time.Duration) func() {
+	old := transactionTimeout
+	transactionTimeout = dur
+	return func() {
+		transactionTimeout = old
 	}
 }

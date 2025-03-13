@@ -826,13 +826,13 @@ func (s *confdbSuite) TestConfdbGetAndSetViewNotFound(c *C) {
 }
 
 func (s *confdbSuite) TestConfdbGetPristine(c *C) {
-	restore := ctlcmd.MockConfdbstateGetStoredTransaction(func(*state.Task) (*confdbstate.Transaction, func(), error) {
+	restore := ctlcmd.MockConfdbstateGetStoredTransaction(func(*state.Task) (*confdbstate.Transaction, *state.Task, func(), error) {
 		tx, _ := confdbstate.NewTransaction(s.state, s.devAccID, "network")
 		c.Assert(tx.Set("wifi.ssid", "foo"), IsNil)
 		c.Assert(tx.Commit(s.state, confdb.NewJSONSchema()), IsNil)
 
 		c.Assert(tx.Set("wifi.ssid", "bar"), IsNil)
-		return tx, func() {}, nil
+		return tx, nil, func() {}, nil
 	})
 	defer restore()
 

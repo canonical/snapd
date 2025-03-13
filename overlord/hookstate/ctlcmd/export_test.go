@@ -205,7 +205,7 @@ func MockConfdbstateNewTransaction(f func(*state.State, string, string) (*confdb
 	}
 }
 
-func MockConfdbstateGetStoredTransaction(f func(*state.Task) (*confdbstate.Transaction, func(), error)) (restore func()) {
+func MockConfdbstateGetStoredTransaction(f func(*state.Task) (*confdbstate.Transaction, *state.Task, func(), error)) (restore func()) {
 	old := confdbstateGetStoredTransaction
 	confdbstateGetStoredTransaction = f
 	return func() {
