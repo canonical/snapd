@@ -16,38 +16,29 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
  */
-
 package main
 
 import (
-	"fmt"
-	"os"
+	"time"
 
-	"github.com/jessevdk/go-flags"
-
-	"github.com/snapcore/snapd/snapdtool"
+	"github.com/snapcore/snapd/testutil"
+	"golang.org/x/sys/unix"
 )
 
-type options struct {
-	CmdExportChardev   cmdExportChardev   `command:"export-chardev"`
-	CmdUnexportChardev cmdUnexportChardev `command:"unexport-chardev"`
+var Run = run
+
+func MockGetGpioInfo(f func(path string) (GPIOChardev, error)) (restore func()) {
+	return testutil.Mock(&getChipInfo, f)
 }
 
-func run(args []string) error {
-	var opts options
-	p := flags.NewParser(&opts, flags.HelpFlag|flags.PassDoubleDash)
-
-	if _, err := p.ParseArgs(args); err != nil {
-		return err
-	}
-	return nil
+func MockUnixStat(f func(path string, stat *unix.Stat_t) (err error)) (restore func()) {
+	return testutil.Mock(&unixStat, f)
 }
 
-func main() {
-	snapdtool.ExecInSnapdOrCoreSnap()
+func MockUnixMknod(f func(path string, mode uint32, dev int) (err error)) (restore func()) {
+	return testutil.Mock(&unixMknod, f)
+}
 
-	if err := run(os.Args[1:]); err != nil {
-		fmt.Fprintf(os.Stderr, "error: %v\n", err)
-		os.Exit(1)
-	}
+func MockAggregatorCreationTimeout(t time.Duration) (restore func()) {
+	return testutil.Mock(&aggregatorCreationTimeout, t)
 }
