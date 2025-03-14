@@ -97,7 +97,7 @@ func (s *confdbSuite) TestConfdbUnsetInvalidConfdbID(c *check.C) {
 
 	_, err := snapunset.Parser(snapunset.Client()).ParseArgs([]string{"unset", "foo//bar", "abc"})
 	c.Assert(err, check.NotNil)
-	c.Check(err.Error(), check.Equals, "confdb identifier must conform to format: <account-id>/<confdb>/<view>")
+	c.Check(err.Error(), check.Equals, "confdb-schema view id must conform to format: <account-id>/<confdb-schema>/<view>")
 }
 
 func (s *confdbSuite) TestUnsetEmptyKey(c *check.C) {

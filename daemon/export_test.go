@@ -387,12 +387,8 @@ var (
 	MaxReadBuflen = maxReadBuflen
 )
 
-func MockConfdbstateGet(f func(_ *state.State, _, _, _ string, _ []string) (interface{}, error)) (restore func()) {
-	return testutil.Mock(&confdbstateGet, f)
-}
-
 func MockConfdbstateGetTransaction(f func(*hookstate.Context, *state.State, *confdb.View) (*confdbstate.Transaction, confdbstate.CommitTxFunc, error)) (restore func()) {
-	return testutil.Mock(&confdbstateGetTransaction, f)
+	return testutil.Mock(&confdbstateGetTransactionToSet, f)
 }
 
 func MockRebootNoticeWait(d time.Duration) (restore func()) {
@@ -431,4 +427,8 @@ func MockConfdbstateSetViaView(f func(confdb.Databag, *confdb.View, map[string]i
 
 func MockAssertstateFetchAllValidationSets(f func(*state.State, int, *assertstate.RefreshAssertionsOptions) error) (restore func()) {
 	return testutil.Mock(&assertstateFetchAllValidationSets, f)
+}
+
+func MockConfdbstateLoadConfdbAsync(f func(_ *state.State, _ *confdb.View, _ []string) (string, error)) (restore func()) {
+	return testutil.Mock(&confdbstateLoadConfdbAsync, f)
 }

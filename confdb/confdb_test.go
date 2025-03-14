@@ -349,11 +349,11 @@ func (s *viewSuite) TestConfdbNotFound(c *C) {
 
 	_, err = view.Get(databag, "top-level")
 	c.Assert(err, testutil.ErrorIs, &confdb.NotFoundError{})
-	c.Assert(err, ErrorMatches, `cannot get "top-level" through acc/foo/bar: no view data`)
+	c.Assert(err, ErrorMatches, `cannot get "top-level" through acc/foo/bar: no data`)
 
 	_, err = view.Get(databag, "")
 	c.Assert(err, testutil.ErrorIs, &confdb.NotFoundError{})
-	c.Assert(err, ErrorMatches, `cannot get acc/foo/bar: no view data`)
+	c.Assert(err, ErrorMatches, `cannot get acc/foo/bar: no data`)
 
 	err = view.Set(databag, "nested", "thing")
 	c.Assert(err, IsNil)
@@ -363,7 +363,7 @@ func (s *viewSuite) TestConfdbNotFound(c *C) {
 
 	_, err = view.Get(databag, "other-nested")
 	c.Assert(err, testutil.ErrorIs, &confdb.NotFoundError{})
-	c.Assert(err, ErrorMatches, `cannot get "other-nested" through acc/foo/bar: no view data`)
+	c.Assert(err, ErrorMatches, `cannot get "other-nested" through acc/foo/bar: no data`)
 }
 
 func (s *viewSuite) TestViewBadRead(c *C) {
@@ -402,7 +402,7 @@ func (s *viewSuite) TestViewAccessControl(c *C) {
 		{
 			access: "read",
 			// non-access control error, access ok
-			getErr: `cannot get "foo" through acc/confdb/foo: no view data`,
+			getErr: `cannot get "foo" through acc/confdb/foo: no data`,
 			setErr: `cannot set "foo" through acc/confdb/foo: no matching rule`,
 		},
 		{
@@ -1906,7 +1906,7 @@ func (s *viewSuite) TestUnsetUnmatchedPlaceholderLast(c *C) {
 
 	_, err = view.Get(databag, "foo")
 	c.Assert(err, testutil.ErrorIs, &confdb.NotFoundError{})
-	c.Assert(err, ErrorMatches, `cannot get "foo" through acc/confdb/foo: no view data`)
+	c.Assert(err, ErrorMatches, `cannot get "foo" through acc/confdb/foo: no data`)
 }
 
 func (s *viewSuite) TestUnsetUnmatchedPlaceholderMid(c *C) {

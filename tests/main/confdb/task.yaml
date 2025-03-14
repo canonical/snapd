@@ -26,7 +26,7 @@ execute: |
   # hook was called
   MATCH "canonical" < /var/snap/test-custodian-snap/common/manage-wifi-view-changed-ran
   snap set developer1/network/wifi-setup ssid!
-  snap get developer1/network/wifi-setup ssid 2>&1 | tr -d '\n' | tr -s '  ' ' ' | MATCH $'cannot get "ssid" through developer1/network/wifi-setup: no view data'
+  snap get developer1/network/wifi-setup ssid 2>&1 | tr -d '\n' | tr -s '  ' ' ' | MATCH $'cannot get "ssid" through developer1/network/wifi-setup: no data'
 
   # check writing, reading and unsetting using placeholders
   snap set -t developer1/network/wifi-setup private.my-company=\"my-config\" private.your-company=\"your-config\"
@@ -34,7 +34,7 @@ execute: |
   snap get developer1/network/wifi-setup private.your-company | MATCH "your-config"
 
   snap set developer1/network/wifi-setup private.my-company!
-  snap get developer1/network/wifi-setup private.my-company 2>&1 | tr -d '\n' | tr -s '  ' ' ' | MATCH $'cannot get "private.my-company" through developer1/network/wifi-setup: no view data'
+  snap get developer1/network/wifi-setup private.my-company 2>&1 | tr -d '\n' | tr -s '  ' ' ' | MATCH $'cannot get "private.my-company" through developer1/network/wifi-setup: no data'
 
   snap get developer1/network/wifi-setup private.your-company | MATCH "your-config"
   snap set developer1/network/wifi-setup private.your-company!

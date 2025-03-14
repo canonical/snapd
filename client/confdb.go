@@ -27,17 +27,12 @@ import (
 	"strings"
 )
 
-func (c *Client) ConfdbGetViaView(viewID string, requests []string) (result map[string]interface{}, err error) {
+func (c *Client) ConfdbGetViaView(viewID string, requests []string) (changeID string, err error) {
 	query := url.Values{}
 	query.Add("fields", strings.Join(requests, ","))
-
 	endpoint := fmt.Sprintf("/v2/confdb/%s", viewID)
-	_, err = c.doSync("GET", endpoint, query, nil, nil, &result)
-	if err != nil {
-		return nil, err
-	}
 
-	return result, nil
+	return c.doAsync("GET", endpoint, query, nil, nil)
 }
 
 func (c *Client) ConfdbSetViaView(viewID string, requestValues map[string]interface{}) (changeID string, err error) {

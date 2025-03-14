@@ -246,7 +246,8 @@ func setConfdbValues(ctx *hookstate.Context, plugName string, requests map[strin
 		return err
 	}
 
-	if confdbstate.IsConfdbHook(ctx) && !strings.HasPrefix(ctx.HookName(), "change-view-") {
+	if confdbstate.IsConfdbHook(ctx) && !strings.HasPrefix(ctx.HookName(), "change-view-") &&
+		!strings.HasPrefix(ctx.HookName(), "load-view-") {
 		return fmt.Errorf("cannot modify confdb in %q hook", ctx.HookName())
 	}
 

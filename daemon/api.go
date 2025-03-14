@@ -173,10 +173,10 @@ var (
 	assertstateRestoreValidationSetsTracking = assertstate.RestoreValidationSetsTracking
 	assertstateFetchAllValidationSets        = assertstate.FetchAllValidationSets
 
-	confdbstateGetView        = confdbstate.GetView
-	confdbstateGetTransaction = confdbstate.GetTransactionToSet
-	confdbstateGet            = confdbstate.Get
-	confdbstateSetViaView     = confdbstate.SetViaView
+	confdbstateGetView             = confdbstate.GetView
+	confdbstateGetTransactionToSet = confdbstate.GetTransactionToSet
+	confdbstateSetViaView          = confdbstate.SetViaView
+	confdbstateLoadConfdbAsync     = confdbstate.LoadConfdbAsync
 )
 
 func ensureStateSoonImpl(st *state.State) {

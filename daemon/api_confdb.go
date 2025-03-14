@@ -52,7 +52,7 @@ func getView(c *Command, r *http.Request, _ *auth.UserState) Response {
 	}
 
 	vars := muxVars(r)
-	account, dbSchemaName, view := vars["account"], vars["confdb-schema"], vars["view"]
+	account, schemaName, viewName := vars["account"], vars["confdb-schema"], vars["view"]
 	fieldStr := r.URL.Query().Get("fields")
 
 	var fields []string
@@ -60,12 +60,18 @@ func getView(c *Command, r *http.Request, _ *auth.UserState) Response {
 		fields = strutil.CommaSeparatedList(fieldStr)
 	}
 
-	results, err := confdbstateGet(st, account, dbSchemaName, view, fields)
+	view, err := confdbstateGetView(st, account, schemaName, viewName)
 	if err != nil {
 		return toAPIError(err)
 	}
 
-	return SyncResponse(results)
+	chgID, err := confdbstateLoadConfdbAsync(st, view, fields)
+	if err != nil {
+		return toAPIError(err)
+	}
+
+	ensureStateSoon(st)
+	return AsyncResponse(nil, chgID)
 }
 
 func setView(c *Command, r *http.Request, _ *auth.UserState) Response {
@@ -78,7 +84,7 @@ func setView(c *Command, r *http.Request, _ *auth.UserState) Response {
 	}
 
 	vars := muxVars(r)
-	account, dbSchemaName, viewName := vars["account"], vars["confdb-schema"], vars["view"]
+	account, schemaName, viewName := vars["account"], vars["confdb-schema"], vars["view"]
 
 	decoder := json.NewDecoder(r.Body)
 	var values map[string]interface{}
@@ -86,12 +92,12 @@ func setView(c *Command, r *http.Request, _ *auth.UserState) Response {
 		return BadRequest("cannot decode confdb request body: %v", err)
 	}
 
-	view, err := confdbstateGetView(st, account, dbSchemaName, viewName)
+	view, err := confdbstateGetView(st, account, schemaName, viewName)
 	if err != nil {
 		return toAPIError(err)
 	}
 
-	tx, commitTxFunc, err := confdbstateGetTransaction(nil, st, view)
+	tx, commitTxFunc, err := confdbstateGetTransactionToSet(nil, st, view)
 	if err != nil {
 		return toAPIError(err)
 	}

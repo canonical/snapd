@@ -1024,7 +1024,7 @@ func (v *View) Get(databag Databag, request string) (interface{}, error) {
 			reqStr = fmt.Sprintf(" %q through", request)
 		}
 
-		return nil, NewNotFoundError(i18n.G("cannot get%s %s/%s/%s: no view data"), reqStr, v.schema.Account, v.schema.Name, v.Name)
+		return nil, NewNotFoundError(i18n.G("cannot get%s %s/%s/%s: no data"), reqStr, v.schema.Account, v.schema.Name, v.Name)
 	}
 
 	return merged, nil
