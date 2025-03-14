@@ -36,14 +36,6 @@ execute: |
 
     # does not work for 16, but we don't support 16 for this
     core_snap="core${VERSION_ID}"
-    core_id="$(snap info "$core_snap" | awk -F: '$1 == "snap-id" {sub(/^[^:]+:/, "");print}' | xargs)"
-
-    # snap-id is not printed for core20 and core24 when run in spread
-    if os.query is-core20; then
-        core_id=DLqre5XGLbDqg9jPtiAhRRjDuPVa5X1q
-    elif os.query is-core24; then
-        core_id=dwTAh7MZZ01zyriOZErqd1JynQLiOGvM
-    fi
 
     if [ "$SPREAD_REBOOT" = 0 ]; then
         echo Downloading snaps needed
