@@ -30,6 +30,7 @@ import (
 	"github.com/snapcore/snapd/osutil/disks"
 	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/seed"
+	"github.com/snapcore/snapd/snap/integrity"
 	"github.com/snapcore/snapd/testutil"
 	"github.com/snapcore/snapd/timings"
 )
@@ -255,5 +256,13 @@ func MockOsGetenv(mock func(string) string) (restore func()) {
 	osGetenv = mock
 	return func() {
 		osGetenv = old
+	}
+}
+
+func MockLookupDmVerityDataAndCrossCheck(f func(snapPath string, params *integrity.IntegrityDataParams) (string, error)) (restore func()) {
+	old := lookupDmVerityDataAndCrossCheck
+	lookupDmVerityDataAndCrossCheck = f
+	return func() {
+		lookupDmVerityDataAndCrossCheck = old
 	}
 }
