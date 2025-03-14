@@ -1708,7 +1708,7 @@ nested_prepare_tools() {
     if [ -n "$TAG_FEATURES" ]; then
         # If feature tagging is enabled, then we need to enable debug logging
         remote.exec "sudo mkdir -p /etc/systemd/system/snapd.service.d"
-        remote.exec "echo -e '[Service]\nEnvironment=SNAPD_DEBUG_HTTP=7 SNAPD_DEBUG=1 SNAPPY_TESTING=1' | sudo tee /etc/systemd/system/snapd.service.d/local.conf"
+        remote.exec "printf '[Service]\nEnvironment=SNAPD_DEBUG_HTTP=7 SNAPD_DEBUG=1 SNAPPY_TESTING=1\n' | sudo tee /etc/systemd/system/snapd.service.d/99-feature-tags.conf"
         # Persist journal logs
         remote.exec "sudo snap set system journal.persistent=true"
         # We changed the service configuration so we need to reload and restart
