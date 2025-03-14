@@ -61,10 +61,11 @@ jobs:
       backend: ${{ matrix.backend }}
       systems: ${{ matrix.systems }}  
       tasks: ${{ matrix.tasks }}
-      rules: ${{ needs.set-inputs.outputs.run-all && matrix.rules || feature-tagging.yaml }}
+      rules: ${{ fromJSON(needs.set-inputs.outputs.run-all) && matrix.rules || 'feature-tagging.yaml' }}
       is-fundamental: true
       use-snapd-snap-from-master: true
       spread-tag-features: ${{ needs.set-inputs.outputs.features }}
+      force-use-ruleset: ${{ ! fromJSON(needs.set-inputs.outputs.run-all) }}
     strategy:
       fail-fast: false
       matrix: ${{ fromJson(needs.read-systems.outputs.fundamental-systems) }}
@@ -79,9 +80,10 @@ jobs:
       backend: ${{ matrix.backend }}
       systems: ${{ matrix.systems }}  
       tasks: ${{ matrix.tasks }}
-      rules: ${{ needs.set-inputs.outputs.run-all && matrix.rules || feature-tagging.yaml }}
+      rules: ${{ fromJSON(needs.set-inputs.outputs.run-all) && matrix.rules || 'feature-tagging.yaml' }}
       use-snapd-snap-from-master: true
       spread-tag-features: ${{ needs.set-inputs.outputs.features }}
+      force-use-ruleset: ${{ ! fromJSON(needs.set-inputs.outputs.run-all) }}
     strategy:
       fail-fast: false
       matrix: ${{ fromJson(needs.read-systems.outputs.non-fundamental-systems) }}
@@ -96,9 +98,10 @@ jobs:
       backend: ${{ matrix.backend }}
       systems: ${{ matrix.systems }}  
       tasks: ${{ matrix.tasks }}
-      rules: ${{ needs.set-inputs.outputs.run-all && matrix.rules || feature-tagging.yaml }}
+      rules: ${{ fromJSON(needs.set-inputs.outputs.run-all) && matrix.rules || 'feature-tagging.yaml' }}
       use-snapd-snap-from-master: true
       spread-tag-features: ${{ needs.set-inputs.outputs.features }}
+      force-use-ruleset: ${{ ! fromJSON(needs.set-inputs.outputs.run-all) }}
     strategy:
       fail-fast: false
       matrix: ${{ fromJson(needs.read-systems.outputs.nested-systems) }}
