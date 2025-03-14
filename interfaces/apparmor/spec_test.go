@@ -118,8 +118,15 @@ func (s *specSuite) TestSpecificationIface(c *C) {
 	})
 }
 
+var (
+	tagFoo = apparmor.RegisterMetadataTagWithInterface("foo", "an-interface")
+	tagBar = apparmor.RegisterMetadataTagWithInterface("bar", "another")
+	tagBaz = apparmor.RegisterMetadataTagWithoutInterface("baz")
+	tagQux = apparmor.RegisterMetadataTagWithInterface("qux", "an-interface")
+)
+
 // MetadataTagSnippet wraps a snippet in the given metadata tags.
-func (s *specSuite) TestMetadataTagSnippetHappy(c *C) {
+func (s *specSuite) TestMetadataTagSnippet(c *C) {
 	restore := apparmor.MockMetadataTagsSupported(func() bool { return true })
 	defer restore()
 
@@ -130,32 +137,32 @@ func (s *specSuite) TestMetadataTagSnippetHappy(c *C) {
 
 	for _, testCase := range []struct {
 		snippet  string
-		tags     []string
+		tags     []apparmor.MetadataTag
 		expected string
 	}{
 		{
 			snippet:  snippetShort,
-			tags:     []string{},
+			tags:     []apparmor.MetadataTag{},
 			expected: snippetShort,
 		},
 		{
 			snippet:  snippetShort,
-			tags:     []string{"bar"},
+			tags:     []apparmor.MetadataTag{tagBar},
 			expected: "tags=(bar) { /foo r, }",
 		},
 		{
 			snippet:  snippetShort,
-			tags:     []string{"bar", "baz"},
+			tags:     []apparmor.MetadataTag{tagBar, tagBaz},
 			expected: "tags=(bar,baz) { /foo r, }",
 		},
 		{
 			snippet:  snippetLong,
-			tags:     []string{},
+			tags:     []apparmor.MetadataTag{},
 			expected: snippetLong,
 		},
 		{
 			snippet: snippetLong,
-			tags:    []string{"bar"},
+			tags:    []apparmor.MetadataTag{tagBar},
 			expected: `tags=(bar) {
 /path/to/dir/1 r,
 /path/to/dir/2 rw,
@@ -164,7 +171,7 @@ func (s *specSuite) TestMetadataTagSnippetHappy(c *C) {
 		},
 		{
 			snippet: snippetLong,
-			tags:    []string{"bar", "baz"},
+			tags:    []apparmor.MetadataTag{tagBar, tagBaz},
 			expected: `tags=(bar,baz) {
 /path/to/dir/1 r,
 /path/to/dir/2 rw,
@@ -179,10 +186,10 @@ func (s *specSuite) TestMetadataTagSnippetHappy(c *C) {
 
 	// Tags may be nested
 
-	inner, err := apparmor.MetadataTagSnippet("/ijk rwkl,", []string{"foo", "bar"})
+	inner, err := apparmor.MetadataTagSnippet("/ijk rwkl,", []apparmor.MetadataTag{tagFoo, tagBar})
 	c.Check(err, IsNil)
 	snippet := fmt.Sprintf("/abc r,\n%s\n/xyz w,", inner)
-	result, err := apparmor.MetadataTagSnippet(snippet, []string{"baz", "qux"})
+	result, err := apparmor.MetadataTagSnippet(snippet, []apparmor.MetadataTag{tagBaz, tagQux})
 	c.Check(err, IsNil)
 	c.Check(result, Equals, `tags=(baz,qux) {
 /abc r,
@@ -195,10 +202,10 @@ tags=(foo,bar) { /ijk rwkl, }
 	restore = apparmor.MockMetadataTagsSupported(func() bool { return false })
 	defer restore()
 
-	for _, tags := range [][]string{
+	for _, tags := range [][]apparmor.MetadataTag{
 		{},
-		{"bar"},
-		{"bar", "baz"},
+		{tagBar},
+		{tagBar, tagBaz},
 	} {
 		result, err := apparmor.MetadataTagSnippet(snippetShort, tags)
 		c.Check(err, IsNil)
@@ -207,63 +214,6 @@ tags=(foo,bar) { /ijk rwkl, }
 		result, err = apparmor.MetadataTagSnippet(snippetLong, tags)
 		c.Check(err, IsNil)
 		c.Check(result, Equals, snippetLong)
-	}
-}
-
-func (s *specSuite) TestMetadataTagSnippetUnhappy(c *C) {
-	restore := apparmor.MockMetadataTagsSupported(func() bool { return true })
-	defer restore()
-
-	snippet := "/path/to/foo rwkl,"
-
-	for _, testCase := range []struct {
-		tags   []string
-		errStr string
-	}{
-		{
-			tags:   []string{"bar", "b(z"},
-			errStr: `cannot add tag: "b\(z" contains a parenthesis`,
-		},
-		{
-			tags:   []string{"b)r"},
-			errStr: `cannot add tag: ".*" contains a parenthesis`,
-		},
-		{
-			tags:   []string{"f?o"},
-			errStr: `cannot add tag: ".*" contains a reserved apparmor char.*`,
-		},
-		{
-			tags:   []string{"f*o"},
-			errStr: `cannot add tag: ".*" contains a reserved apparmor char.*`,
-		},
-		{
-			tags:   []string{"f[o"},
-			errStr: `cannot add tag: ".*" contains a reserved apparmor char.*`,
-		},
-		{
-			tags:   []string{"f]o"},
-			errStr: `cannot add tag: ".*" contains a reserved apparmor char.*`,
-		},
-		{
-			tags:   []string{"f{o"},
-			errStr: `cannot add tag: ".*" contains a reserved apparmor char.*`,
-		},
-		{
-			tags:   []string{"f}o"},
-			errStr: `cannot add tag: ".*" contains a reserved apparmor char.*`,
-		},
-		{
-			tags:   []string{"f^o"},
-			errStr: `cannot add tag: ".*" contains a reserved apparmor char.*`,
-		},
-		{
-			tags:   []string{`f"o`},
-			errStr: `cannot add tag: ".*" contains a reserved apparmor char.*`,
-		},
-	} {
-		result, err := apparmor.MetadataTagSnippet(snippet, testCase.tags)
-		c.Check(result, Equals, snippet)
-		c.Check(err, ErrorMatches, testCase.errStr)
 	}
 }
 
@@ -818,4 +768,81 @@ func (s *specSuite) TestMoreSnippets(c *C) {
 	c.Assert(keylist, testutil.Contains, "testkey2")
 	c.Assert(len(keylist), Equals, 2)
 
+}
+
+var (
+	_ = apparmor.RegisterMetadataTagWithInterface("testtag1", "an-interface")
+	_ = apparmor.RegisterMetadataTagWithInterface("testtag2", "another")
+	_ = apparmor.RegisterMetadataTagWithoutInterface("testtag3")
+	_ = apparmor.RegisterMetadataTagWithInterface("testtag4", "an-interface")
+	_ = apparmor.RegisterMetadataTagWithInterface("testtag5", "another")
+	_ = apparmor.RegisterMetadataTagWithoutInterface("testtag6")
+)
+
+func (s *specSuite) TestInterfaceForMetadataTag(c *C) {
+	iface, ok := apparmor.InterfaceForMetadataTag("testtag1")
+	c.Check(ok, Equals, true)
+	c.Check(iface, Equals, "an-interface")
+
+	iface, ok = apparmor.InterfaceForMetadataTag("testtag2")
+	c.Check(ok, Equals, true)
+	c.Check(iface, Equals, "another")
+
+	iface, ok = apparmor.InterfaceForMetadataTag("testtag3")
+	c.Check(ok, Equals, false)
+	c.Check(iface, Equals, "")
+
+	iface, ok = apparmor.InterfaceForMetadataTag("testtag4")
+	c.Check(ok, Equals, true)
+	c.Check(iface, Equals, "an-interface")
+
+	iface, ok = apparmor.InterfaceForMetadataTag("testtag5")
+	c.Check(ok, Equals, true)
+	c.Check(iface, Equals, "another")
+
+	iface, ok = apparmor.InterfaceForMetadataTag("testtag6")
+	c.Check(ok, Equals, false)
+	c.Check(iface, Equals, "")
+}
+
+func (s *specSuite) TestRegisterSameTagSameInterfaceTwice(c *C) {
+	tag1 := apparmor.RegisterMetadataTagWithInterface("will-be-associated", "with-me")
+	c.Check(tag1.String(), Equals, "will-be-associated")
+	tag2 := apparmor.RegisterMetadataTagWithInterface("will-be-associated", "with-me")
+	c.Check(tag2.String(), Equals, "will-be-associated")
+
+	iface, ok := apparmor.InterfaceForMetadataTag("will-be-associated")
+	c.Check(ok, Equals, true)
+	c.Check(iface, Equals, "with-me")
+
+	tag3 := apparmor.RegisterMetadataTagWithoutInterface("will_be_unassociated")
+	c.Check(tag3.String(), Equals, "will_be_unassociated")
+	tag4 := apparmor.RegisterMetadataTagWithoutInterface("will_be_unassociated")
+	c.Check(tag4.String(), Equals, "will_be_unassociated")
+
+	iface, ok = apparmor.InterfaceForMetadataTag("will_be_unassociated")
+	c.Check(ok, Equals, false)
+	c.Check(iface, Equals, "")
+}
+
+func (s *specSuite) TestRegisterSameTagDifferentInterface(c *C) {
+	tag1 := apparmor.RegisterMetadataTagWithInterface("something", "an-interface")
+	c.Check(tag1.String(), Equals, "something")
+
+	c.Check(func() { apparmor.RegisterMetadataTagWithInterface("something", "another") }, PanicMatches, `cannot register metadata tag "something" to two different interfaces: "an-interface" and "another"`)
+	c.Check(func() { apparmor.RegisterMetadataTagWithoutInterface("something") }, PanicMatches, `cannot register metadata tag "something" as unassociated when it was previously associated with interface "an-interface"`)
+
+	tag2 := apparmor.RegisterMetadataTagWithoutInterface("something-else")
+	c.Check(tag2.String(), Equals, "something-else")
+	c.Check(func() { apparmor.RegisterMetadataTagWithInterface("something-else", "not-unassociated") }, PanicMatches, `cannot register metadata tag "something-else" to interface "not-unassociated" when it was previously registered as unassociated`)
+}
+
+func (s *specSuite) TestRegisterMetadataTagWithInterfaceEmpty(c *C) {
+	c.Check(func() { apparmor.RegisterMetadataTagWithInterface("to-nothing", "") }, PanicMatches, `cannot register metadata tag "to-nothing" to empty string; use RegisterMetadataTagWithoutInterface instead`)
+}
+
+func (s *specSuite) TestRegisterMetadataTagInvalid(c *C) {
+	for _, badTag := range []string{"a,b", "a(b", "a)b", "a[b", "a]b", "a{b", "a}b", "a?b", "a*b", "a^b", `a"b`} {
+		c.Check(func() { apparmor.RegisterMetadataTagWithInterface(badTag, "something") }, PanicMatches, `cannot register invalid metadata tag: .*`)
+	}
 }
