@@ -8,7 +8,7 @@ import shutil
 
 def _parse_file_name(file_name: str) -> tuple[str, str, str, str]:
     '''
-    Given a file name in the format with inverted slashes <backend>:<system>:suite\\path\\test:variant,
+    Given a file name in the format with double slashes <backend>:<system>:suite--path--test:variant,
     it returns the original name, the suite name, the test name and the variant name.
     So in the example, it returns:
     - original_name = <backend>:<system>:suite/path/test:variant
@@ -19,7 +19,7 @@ def _parse_file_name(file_name: str) -> tuple[str, str, str, str]:
     :param file_name: The file name to parse
     :returns: A tuple with the original name, the suite name, the test name and the variant name. If variant is not present, it returns None.
     '''
-    original_name = file_name.replace('\\', '/')
+    original_name = file_name.replace('--', '/')
     task = ":".join(original_name.split(':')[2:])
     suite_name = "/".join(task.split('/')[:-1])
     test_name = task.split('/')[-1]
@@ -173,6 +173,13 @@ def replace_old_runs(dir, output_dir):
                             os.path.join(output_dir, '_'.join(file.split('_')[:-1]) + '.json'))
 
 
+def run_attempt_type(value):
+    if value is not int or int(value) <= 0:
+        raise argparse.ArgumentTypeError(
+            "%s is invalid. Run attempts are integers and start at 1" % value)
+    return value
+
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="""
                                      Can be run in two modes: composed feature generation or composed feature consolidation
@@ -192,7 +199,7 @@ if __name__ == '__main__':
                                      So if a file contains one test that was later rerun, the new consolidated file will contain
                                      unaltered content from the original run except for the one test rerun that will replace
                                      the old.
-                                     """)
+                                     """, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument('-d', '--dir', type=str, required=True,
                         help='Path to the folder containing json files')
     parser.add_argument('-o', '--output', type=str,
@@ -203,7 +210,7 @@ if __name__ == '__main__':
                         help='Comma-separated list of environment variables as key=value', default="")
     parser.add_argument('-f', '--failed-tests', type=str,
                         help='List of failed tests', default="")
-    parser.add_argument('--run-attempt', type=int, help="""Run attempt number of the json files contained in the folder [1,). 
+    parser.add_argument('--run-attempt', type=run_attempt_type, help="""Run attempt number of the json files contained in the folder [1,). 
                         Only needed when rerunning spread for failed tests. When specified, will append the run attempt 
                         number on the filename, which will then be used when running this script with the --replace-old-runs
                         flag to determine replacement order""")
@@ -217,9 +224,6 @@ if __name__ == '__main__':
 
     attempt = ""
     if args.run_attempt:
-        if args.run_attempt == 0:
-            raise RuntimeError(
-                "The first run attempt must be 1. 0 is not allowed")
         attempt = "_%s" % args.run_attempt
     os.makedirs(args.output, exist_ok=True)
     systems = get_system_list(args.dir)
