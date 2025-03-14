@@ -1002,9 +1002,10 @@ func (s *initramfsMountsSuite) TestInitramfsMountsInstallModeHappyWithIntegrityA
 		snaps: snaps,
 	})
 
-	// test snaps have a fixed size of 16384 so this is divided by the 4096 blockSize
-	// to get the --data-blocks argument to veritysetup
-	dataBlocks := 4
+	snapPath := filepath.Join(s.seedDir, "snaps", s.snapd.Filename())
+	fileInfo, err := os.Stat(snapPath)
+	c.Assert(err, IsNil)
+	dataBlocks := int(fileInfo.Size()) / 4096
 
 	var calls [][]string
 
@@ -1188,9 +1189,10 @@ func (s *initramfsMountsSuite) TestInitramfsMountsInstallModeErrorWithIntegrityA
 		fmt.Errorf("internal error: unexpected root hash length"),
 	)
 
-	// test snaps have a fixed size of 16384 so this is divided by the 4096 blockSize
-	// to get the --data-blocks argument to veritysetup
-	dataBlocks := 4
+	snapPath := filepath.Join(s.seedDir, "snaps", s.snapd.Filename())
+	fileInfo, err := os.Stat(snapPath)
+	c.Assert(err, IsNil)
+	dataBlocks := int(fileInfo.Size()) / 4096
 
 	var calls [][]string
 
@@ -1256,9 +1258,10 @@ func (s *initramfsMountsSuite) TestInitramfsMountsInstallModeErrorWithIntegrityA
 		fmt.Errorf("computed root hash doesn't match trusted root hash from assertion: %s != %s", assertedRootHash, computedRootHash),
 	)
 
-	// test snaps have a fixed size of 16384 so this is divided by the 4096 blockSize
-	// to get the --data-blocks argument to veritysetup
-	dataBlocks := 4
+	snapPath := filepath.Join(s.seedDir, "snaps", s.snapd.Filename())
+	fileInfo, err := os.Stat(snapPath)
+	c.Assert(err, IsNil)
+	dataBlocks := int(fileInfo.Size()) / 4096
 
 	var calls [][]string
 
