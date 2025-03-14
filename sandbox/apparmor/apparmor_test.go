@@ -920,7 +920,7 @@ func (s *apparmorSuite) TestSnapdAppArmorSupportsReexecImpl(c *C) {
 	// with no info file should indicate it does not support reexec
 	c.Check(apparmor.SnapdAppArmorSupportsRexecImpl(), Equals, false)
 
-	d := filepath.Join(dirs.GlobalRootDir, dirs.CoreLibExecDir)
+	d := dirs.DistroLibExecDir
 	c.Assert(os.MkdirAll(d, 0755), IsNil)
 	infoFile := filepath.Join(d, "info")
 	c.Assert(os.WriteFile(infoFile, []byte("VERSION=foo"), 0644), IsNil)
