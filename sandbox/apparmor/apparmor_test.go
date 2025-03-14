@@ -852,6 +852,56 @@ func (s *apparmorSuite) TestPromptingSupported(c *C) {
 	}
 }
 
+func (s *apparmorSuite) TestMetadataTagsSupported(c *C) {
+	for _, testCase := range []struct {
+		kernelFeatures  []string
+		parserFeatures  []string
+		expectedSupport bool
+	}{
+		{
+			kernelFeatures:  []string{"policy:notify:user:file"},
+			parserFeatures:  []string{"prompt"},
+			expectedSupport: false,
+		},
+		{
+			kernelFeatures:  []string{"policy:notify:user:tags"},
+			parserFeatures:  []string{"prompt"},
+			expectedSupport: false,
+		},
+		{
+			kernelFeatures:  []string{"policy:notify:user:file"},
+			parserFeatures:  []string{"tags"},
+			expectedSupport: false,
+		},
+		{
+			kernelFeatures:  []string{"policy:notify:user:tags"},
+			parserFeatures:  []string{"tags"},
+			expectedSupport: true,
+		},
+	} {
+		restore := apparmor.MockFeatures(testCase.kernelFeatures, nil, testCase.parserFeatures, nil)
+
+		result := apparmor.MetadataTagsSupported()
+		c.Check(result, Equals, testCase.expectedSupport)
+
+		restore()
+	}
+
+	// If any error occurs, metadata tagging is not supported
+	kernelFeatures := []string{"policy:notify:user:tags"}
+	parserFeatures := []string{"tags"}
+
+	restore := apparmor.MockFeatures(kernelFeatures, fmt.Errorf("kernel error"), parserFeatures, nil)
+	result := apparmor.MetadataTagsSupported()
+	c.Check(result, Equals, false)
+	restore()
+
+	restore = apparmor.MockFeatures(kernelFeatures, nil, parserFeatures, fmt.Errorf("parser error"))
+	result = apparmor.MetadataTagsSupported()
+	c.Check(result, Equals, false)
+	restore()
+}
+
 func (s *apparmorSuite) TestValidateFreeFromAAREUnhappy(c *C) {
 	var testCases = []string{"a?", "*b", "c[c", "dd]", "e{", "f}", "g^", `h"`, "f\000", "g\x00"}
 
