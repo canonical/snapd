@@ -57,12 +57,14 @@ jobs:
         esac
 
     - name: Build snapd snap
+      if: "!contains(github.event.pull_request.labels.*.name, 'Skip spread')"
       uses: snapcore/action-build@v1.3.0
       with:
         snapcraft-channel: 8.x/stable
         snapcraft-args: --verbose
 
     - name: Check built artifact
+      if: "!contains(github.event.pull_request.labels.*.name, 'Skip spread')"
       run: |
         unsquashfs snapd*.snap snap/manifest.yaml meta/snap.yaml usr/lib/snapd/
         if cat squashfs-root/meta/snap.yaml | grep -q "version:.*dirty.*"; then
@@ -83,6 +85,7 @@ jobs:
         fi
 
     - name: Uploading snapd snap artifact
+      if: "!contains(github.event.pull_request.labels.*.name, 'Skip spread')"
       uses: actions/upload-artifact@v4
       with:
         name: ${{ steps.set_artifact_name.outputs.artifact_name }}
