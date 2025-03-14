@@ -11,6 +11,32 @@ import (
 
 var ErrVersionUnset = errors.New("cannot marshal message without protocol version")
 
+// MsgNotificationGeneric define the methods which the message types for each
+// mediation class must provide.
+//
+// Many of these methods, including ID, PID, ProcessLabel, and MediationClass,
+// are implemented on MsgNotificationOp, so any struct which embeds a
+// MsgNotificationOp need only implement the remaining methods.
+type MsgNotificationGeneric interface {
+	// ID returns the unique ID of the notification message.
+	ID() uint64
+	// PID returns the PID of the process triggering the notification.
+	PID() uint32
+	// ProcessLabel returns the AppArmor label of the process triggering the notification.
+	ProcessLabel() string
+	// MediationClass returns the mediation class of the message.
+	MediationClass() MediationClass
+
+	// AllowedDeniedPermissions returns the AppArmor permission masks which
+	// were originally allowed and originally denied by AppArmor rules.
+	AllowedDeniedPermissions() (AppArmorPermission, AppArmorPermission, error)
+	// SubjectUID returns the UID of the user triggering the notification.
+	SubjectUID() uint32
+	// Name is the identifier of the resource to which access is requested.
+	// For mediation class file, Name is the filepath of the requested file.
+	Name() string
+}
+
 // Message fields are defined as raw sized integer types as the same type may be
 // packed as 16 bit or 32 bit integer, to accommodate other fields in the
 // structure.
@@ -491,39 +517,6 @@ func (msg *MsgNotificationOp) ProcessLabel() string {
 
 func (msg *MsgNotificationOp) MediationClass() MediationClass {
 	return msg.Class
-}
-
-// MsgNotificationGeneric define the methods which the message types for each
-// mediation class must provide.
-//
-// Many (but not all) of these methods are implemented on MsgNotificationOp, so
-// any struct which embeds a MsgNotificationOp need only implement the methods
-// which are specific to the mediation class associated with that message type.
-type MsgNotificationGeneric interface {
-	// The following methods are implemented on MsgNotificationOp, and thus need
-	// not be implemented on any type which embeds a MsgNotificationOp.
-
-	// ID returns the unique ID of the notification message.
-	ID() uint64
-	// PID returns the PID of the process triggering the notification.
-	PID() uint32
-	// ProcessLabel returns the AppArmor label of the process triggering the notification.
-	ProcessLabel() string
-	// MediationClass returns the mediation class of the message.
-	MediationClass() MediationClass
-
-	// The following methods must be implemented on each mediation class-specific
-	// message type which embeds a MsgNotificationOp in order for that message
-	// type to implement MsgNotificationGeneric.
-
-	// AllowedDeniedPermissions returns the AppArmor permission masks which
-	// were originally allowed and originally denied by AppArmor rules.
-	AllowedDeniedPermissions() (AppArmorPermission, AppArmorPermission, error)
-	// SubjectUID returns the UID of the user triggering the notification.
-	SubjectUID() uint32
-	// Name is the identifier of the resource to which access is requested.
-	// For mediation class file, Name is the filepath of the requested file.
-	Name() string
 }
 
 // msgNotificationFileKernelBase (protocol version <5)
