@@ -187,7 +187,7 @@ if __name__ == '__main__':
                                      Composed feature generation mode
 
                                      Given a directory containing files with outputs of journal-analzyer.py with filenames
-                                     of format <backend>:<system>:suite\\path\\<test>:<variant>, it will construct a json
+                                     of format <backend>:<system>:suite--path--<test>:<variant>, it will construct a json
                                      file for each <backend>:<system> with feature-tagging information, accompanied with
                                      additional test information.
 

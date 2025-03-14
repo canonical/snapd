@@ -5,6 +5,11 @@ on:
         description: 'A json list of tags to indicate which runner to use'
         required: true
         type: string
+      force-use-ruleset:
+        description: 'If true, will force the use of the rulesset specified in the rules input'
+        required: false
+        default: false
+        type: boolean
       group:
         description: 'The name of the group of backends, systems, tests, and rules'
         required: true
@@ -151,7 +156,11 @@ jobs:
             # The tests are just filtered when the change is a PR
             # When 'Run Nested' label is added in a PR, all the nested tests have to be executed
             TASKS_TO_RUN=""
-            if [ -z "${{ github.event.number }}" ] || [ "$RUN_NESTED" = 'true' ] || [ -z "${{ inputs.rules }}" ] || [ -z "$changes_param" ]; then
+            if [ "${{ inputs.force-use-ruleset }}" == "false" ] && \
+                ( [ -z "${{ github.event.number }}" ] || \
+                  [ "$RUN_NESTED" = 'true' ] || \
+                  [ -z "${{ inputs.rules }}" ] || \
+                  [ -z "$changes_param" ] ); then
                 for TASKS in ${{ inputs.tasks }}; do
                     TASKS_TO_RUN="$TASKS_TO_RUN $prefix:$TASKS"
                 done
