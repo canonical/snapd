@@ -253,7 +253,7 @@ func (l *Listener) Run() error {
 			close(l.reqs)
 		}()
 		for {
-			err = l.runOnce()
+			err = l.handleRequests()
 			if err != nil {
 				if err == ErrClosed {
 					// Don't treat the listener closing as a real error
@@ -274,7 +274,7 @@ var listenerEpollWait = func(l *Listener) ([]epoll.Event, error) {
 	return l.poll.Wait()
 }
 
-func (l *Listener) runOnce() error {
+func (l *Listener) handleRequests() error {
 	events, err := listenerEpollWait(l)
 	if err != nil {
 		// The epoll syscall returned an error, so let's see whether it was
@@ -374,11 +374,12 @@ func (l *Listener) decodeAndDispatchRequest(buf []byte) error {
 		case l.reqs <- req:
 			// request received
 		case <-l.closeChan:
-			// XXX: since returning an error causes the request channel to be
-			// closed, the request we received from the kernel will not be
-			// delivered to the manager. It will appear to the kernel that we
+			// The listener is being closed, so stop trying to deliver the
+			// message up to the manager. It will appear to the kernel that we
 			// have received and processed the request, when in reality, we
-			// have not.
+			// have not. The higher-level restart handling logic will ensure
+			// that the request will be re-sent to snapd when it restarts and
+			// registers a new listener.
 			return ErrClosed
 		}
 
