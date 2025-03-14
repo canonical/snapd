@@ -263,13 +263,26 @@ type msgNotificationFile struct {
 	SUID uint32
 	OUID uint32
 	Name uint32
+	// msgNotificationFileKernel version 5+
+	Tags         uint32
+	TagsetsCount uint16
 }
 
 func (msg *msgNotificationFile) MarshalBinary(c *C) []byte {
+	// Check that all the variable-length fields are 0, since we're not packing
+	// strings at the end of the message.
+	c.Assert(msg.Label, Equals, uint32(0))
+	c.Assert(msg.Name, Equals, uint32(0))
+	c.Assert(msg.Tags, Equals, uint32(0))
+
 	msgBuf := bytes.NewBuffer(make([]byte, 0, msg.Length))
 	order := arch.Endian()
 	c.Assert(binary.Write(msgBuf, order, msg), IsNil)
-	return msgBuf.Bytes()
+	length := msgBuf.Len()
+	if msg.Version < 5 {
+		length -= 6 // cut off Tags and TagsetsCount
+	}
+	return msgBuf.Bytes()[:length]
 }
 
 func (*listenerSuite) TestRunSimple(c *C) {
@@ -454,6 +467,8 @@ func (*listenerSuite) TestRunMultipleRequestsInBuffer(c *C) {
 
 // Check that the system of epoll event listening works as expected.
 func (*listenerSuite) TestRunEpoll(c *C) {
+	listener.ExitOnError()
+
 	sockets, err := unix.Socketpair(unix.AF_UNIX, unix.SOCK_STREAM, 0)
 	c.Assert(err, IsNil)
 	notifyFile := os.NewFile(uintptr(sockets[0]), apparmor.NotifySocketPath)
@@ -702,6 +717,13 @@ func (*listenerSuite) TestRunErrors(c *C) {
 				Length: 1234,
 			},
 			`cannot extract first message: length in header exceeds data length: 1234 > 52`,
+		},
+		{
+			msgNotificationFile{
+				Length:  1234,
+				Version: 1123,
+			},
+			`cannot extract first message: length in header exceeds data length: 1234 > 58`,
 		},
 		{
 			msgNotificationFile{

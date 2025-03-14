@@ -23,10 +23,11 @@ var ErrVersionUnset = errors.New("cannot marshal message without protocol versio
 // This structure corresponds to the kernel type struct apparmor_notif_common
 // described below.
 //
+//	/* base notification struct embedded as head of notifications to userspace */
 //	struct apparmor_notif_common {
-//	  __u16 len;        /* actual len data */
-//	  __u16 version;    /* interface version */
-//	}
+//		__u16 len;			/* actual len data */
+//		__u16 version;			/* interface version */
+//	} __attribute__((packed));
 type MsgHeader struct {
 	// Length is the length of the entire message, including any more
 	// specialized messages appended after the header and any variable-length
@@ -61,7 +62,7 @@ func (msg *MsgHeader) UnmarshalBinary(data []byte) error {
 func (msg *MsgHeader) unmarshalBinaryImpl(data []byte) error {
 	// Unpack fixed-size elements.
 	order := arch.Endian() // ioctl messages are native byte order, verify endianness if using for other messages
-	buf := bytes.NewBuffer(data)
+	buf := bytes.NewReader(data)
 	if err := binary.Read(buf, order, msg); err != nil {
 		return err
 	}
@@ -107,11 +108,11 @@ func ExtractFirstMsg(data []byte) (first []byte, rest []byte, err error) {
 // unmarshaling. Application code should use MsgNotificationFilter instead.
 //
 //	struct apparmor_notif_filter {
-//	  struct apparmor_notif_common base;
-//	  __u32 modeset;      /* which notification mode */
-//	  __u32 ns;           /* offset into data, relative to start of the structure */
-//	  __u32 filter;       /* offset into data, relative to start of the structure */
-//	  __u8 data[];
+//		struct apparmor_notif_common base;
+//		__u32 modeset;		/* which notification mode */
+//		__u32 ns;			/* offset into data, relative to start of the structure */
+//		__u32 filter;		/* offset into data, relative to start of the structure */
+//		__u8 data[];
 //	} __attribute__((packed));
 type msgNotificationFilterKernel struct {
 	MsgHeader
@@ -146,7 +147,7 @@ func (msg *MsgNotificationFilter) UnmarshalBinary(data []byte) error {
 	}
 
 	// Unpack fixed-size elements.
-	buf := bytes.NewBuffer(data)
+	buf := bytes.NewReader(data)
 	var raw msgNotificationFilterKernel
 	order := arch.Endian() // ioctl messages are native byte order, verify endianness if using for other messages
 	if err := binary.Read(buf, order, &raw); err != nil {
@@ -155,7 +156,7 @@ func (msg *MsgNotificationFilter) UnmarshalBinary(data []byte) error {
 
 	// Unpack variable length elements.
 	unpacker := newStringUnpacker(data)
-	ns, err := unpacker.UnpackString(raw.NS)
+	ns, err := unpacker.unpackString(raw.NS)
 	if err != nil {
 		return fmt.Errorf("%s: cannot unpack namespace: %v", prefix, err)
 	}
@@ -179,20 +180,20 @@ func (msg *MsgNotificationFilter) MarshalBinary() (data []byte, err error) {
 	packer := newStringPacker(raw)
 	raw.Version = msg.Version
 	raw.ModeSet = uint32(msg.ModeSet)
-	raw.NS = packer.PackString(msg.NameSpace)
+	raw.NS = packer.packString(msg.NameSpace)
 	filter := msg.Filter
 	if filter != nil {
-		raw.Filter = uint32(packer.TotalLen()) // filter []byte will follow the other packed strings
+		raw.Filter = uint32(packer.totalLen()) // filter []byte will follow the other packed strings
 	} else {
 		raw.Filter = 0 // use 0 to indicate that that filter is not included
 	}
-	raw.Length = packer.TotalLen() + uint16(len(filter))
+	raw.Length = packer.totalLen() + uint16(len(filter))
 	msgBuf := bytes.NewBuffer(make([]byte, 0, raw.Length))
 	order := arch.Endian() // ioctl messages are native byte order, verify endianness if using for other messages
 	if err := binary.Write(msgBuf, order, raw); err != nil {
 		return nil, err
 	}
-	if _, err := msgBuf.Write(packer.Bytes()); err != nil {
+	if _, err := msgBuf.Write(packer.bytes()); err != nil {
 		return nil, err
 	}
 	if filter != nil {
@@ -211,18 +212,28 @@ func (msg *MsgNotificationFilter) Validate() error {
 	return nil
 }
 
+// Flags for MsgNotification.
+const (
+	// URESPONSE_NO_CACHE tells the kernel not to cache the response.
+	URESPONSE_NO_CACHE = iota
+	// Other flags which are not currently needed by snapd:
+	// URESPONSE_LOOKUP
+	// URESPONSE_PROFILE
+	// URESPONSE_TAILGLOB
+)
+
 // MsgNotification describes a kernel notification message.
 //
 // This structure corresponds to the kernel type struct apparmor_notif
 // described below.
 //
 //	struct apparmor_notif {
-//	  struct apparmor_notif_common base;
-//	  __u16 ntype;        /* notify type */
-//	  __u8 signalled;
-//	  __u8 no_cache;
-//	  __u64 id;           /* unique id, not globally unique*/
-//	  __s32 error;        /* error if unchanged */
+//		struct apparmor_notif_common base;
+//		__u16 ntype;			/* notify type */
+//		__u8 signalled;
+//		__u8 flags;
+//		__u64 id;			/* unique id, not globally unique*/
+//		__s32 error;			/* error if unchanged */
 //	} __attribute__((packed));
 type MsgNotification struct {
 	MsgHeader
@@ -232,7 +243,7 @@ type MsgNotification struct {
 	NotificationType NotificationType
 	// Signaled is unused, but previously used for interrupt information.
 	Signalled uint8
-	// Set NoCache to 1 to NOT cache.
+	// Set NoCache to URESPONSE_NO_CACHE to NOT cache.
 	NoCache uint8
 	// ID is an opaque kernel identifier of the notification message. It must be
 	// repeated in the MsgNotificationResponse if one is sent back.
@@ -252,7 +263,7 @@ func (msg *MsgNotification) UnmarshalBinary(data []byte) error {
 	}
 
 	// Unpack fixed-size elements.
-	buf := bytes.NewBuffer(data)
+	buf := bytes.NewReader(data)
 	order := arch.Endian() // ioctl messages are native byte order, verify endianness if using for other messages
 	if err := binary.Read(buf, order, msg); err != nil {
 		return fmt.Errorf("%s: cannot unpack: %s", prefix, err)
@@ -285,14 +296,15 @@ func (msg *MsgNotification) Validate() error {
 
 // MsgNotificationResponse describes a response to a MsgNotification.
 //
-// This structure corresponds to the kernel type struct apparmor_notif
-// described below.
+// This structure corresponds to the kernel type struct apparmor_notif_resp_perm
+// described below. The kernel also has other response types we don't yet use.
 //
-//	struct apparmor_notif_resp {
-//	  struct apparmor_notif base;
-//	  __s32 error;        /* error if unchanged */
-//	  __u32 allow;
-//	  __u32 deny;
+//	/* userspace response to notification that expects a response */
+//	struct apparmor_notif_resp_perm {
+//		struct apparmor_notif base;
+//		__s32 error;			/* error if unchanged */
+//		__u32 allow;
+//		__u32 deny;
 //	} __attribute__((packed));
 type MsgNotificationResponse struct {
 	MsgNotification
@@ -339,13 +351,13 @@ func (msg *MsgNotificationResponse) MarshalBinary() ([]byte, error) {
 // msgNotificationOpKernel
 //
 //	struct apparmor_notif_op {
-//	  struct apparmor_notif base;
-//	  __u32 allow;
-//	  __u32 deny;
-//	  pid_t pid;          /* pid of task causing notification */
-//	  __u32 label;        /* offset into data */
-//	  __u16 class;
-//	  __u16 op;
+//		struct apparmor_notif base;
+//		__u32 allow;
+//		__u32 deny;
+//		pid_t pid;			/* pid of task causing notification */
+//		__u32 label;		/* offset into data, relative to start of the structure */
+//		__u16 class;
+//		__u16 op;
 //	} __attribute__((packed));
 type msgNotificationOpKernel struct {
 	MsgNotification
@@ -404,7 +416,7 @@ func (msg *MsgNotificationOp) UnmarshalBinary(data []byte) error {
 	}
 
 	// Unpack fixed-size elements.
-	buf := bytes.NewBuffer(data)
+	buf := bytes.NewReader(data)
 	var raw msgNotificationOpKernel
 	order := arch.Endian() // ioctl messages are native byte order, verify endianness if using for other messages
 	if err := binary.Read(buf, order, &raw); err != nil {
@@ -413,7 +425,7 @@ func (msg *MsgNotificationOp) UnmarshalBinary(data []byte) error {
 
 	// Unpack variable length elements.
 	unpacker := newStringUnpacker(data)
-	label, err := unpacker.UnpackString(raw.Label)
+	label, err := unpacker.unpackString(raw.Label)
 	if err != nil {
 		return fmt.Errorf("%s: cannot unpack label: %v", prefix, err)
 	}
@@ -429,55 +441,106 @@ func (msg *MsgNotificationOp) UnmarshalBinary(data []byte) error {
 	return nil
 }
 
-// msgNotificationFileKernel
+// tagsetHeader describes the configuration of a kernel-side tagset header.
+//
+//	struct apparmor_tags_header_v5 {
+//		u32 mask;
+//		u32 count;
+//		u32 tagset;		/* offset into data, relative to the start of the message structure */
+//	};
+type tagsetHeader struct {
+	PermissionMask uint32
+	TagCount       uint32
+	TagOffset      uint32
+}
+
+// msgNotificationFileKernelBase (protocol version <5)
 //
 //	struct apparmor_notif_file {
-//	  struct apparmor_notif_op base;
-//	  uid_t suid, ouid;
-//	  __u32 name;         /* offset into data */
-//	  __u8 data[];
+//		struct apparmor_notif_op base;
+//		uid_t subj_uid, obj_uid;
+//		__u32 name;		/* offset into data, relative to start of the structure */
+//		__u8 data[];	/* data section contains padding and data for label and name */
 //	} __attribute__((packed));
-type msgNotificationFileKernel struct {
+type msgNotificationFileKernelBase struct {
 	msgNotificationOpKernel
 	SUID uint32
 	OUID uint32
 	Name uint32
 }
 
+// msgNotificationFileKernelWithTags (protocol version >=5)
+//
+//	struct apparmor_notif_file_v5 {
+//		struct apparmor_notif_op base;
+//		uid_t subj_uid, obj_uid;
+//		__u32 name;			/* offset into data, relative to the start of the structure */
+//		__u32 tags;			/* offset into data of first tagset header, relative to start of the structure */
+//		__u16 tags_count;
+//		__u8 data[];
+//	} __attribute__((packed));
+type msgNotificationFileKernelWithTags struct {
+	msgNotificationFileKernelBase
+	// Tags and TagsetsCount require protocol version 5 or higher
+	Tags         uint32
+	TagsetsCount uint16
+}
+
 // MsgNotificationFile describes a prompt to a specific file.
 type MsgNotificationFile struct {
 	MsgNotificationOp
+	// The UID of the user triggering the notification.
 	SUID uint32
+	// The UID of the owner of the file being accessed.
 	OUID uint32
 	// Name of the file being accessed.
 	// This is the path from the point of view of the process being mediated.
 	// In the future, this should be mapped to the point of view of snapd, but
 	// this is not always possible yet.
 	Name string
+	// Tagsets maps from permission mask to the ordered list of tags associated
+	// with those permissions. Tagsets requires protocol version 5 or greater.
+	Tagsets map[AppArmorPermission][]string
 }
 
 // UnmarshalBinary unmarshals the message from binary form.
 func (msg *MsgNotificationFile) UnmarshalBinary(data []byte) error {
 	const prefix = "cannot unmarshal apparmor file notification message"
 
-	// Unpack the base structure.
+	// Unpack the base msgNotificationOp.
 	if err := msg.MsgNotificationOp.UnmarshalBinary(data); err != nil {
 		return err
 	}
 
+	// Unpack the base msgNotificationFile.
+	if err := msg.unmarshalBase(data); err != nil {
+		return fmt.Errorf("%v: %w", prefix, err)
+	}
+
+	// If protocol version supports tagging, unpack tags.
+	if msg.Version >= 5 {
+		if err := msg.unmarshalTags(data); err != nil {
+			return fmt.Errorf("%v: %w", prefix, err)
+		}
+	}
+
+	return nil
+}
+
+func (msg *MsgNotificationFile) unmarshalBase(data []byte) error {
 	// Unpack fixed-size elements.
-	buf := bytes.NewBuffer(data)
-	var raw msgNotificationFileKernel
+	buf := bytes.NewReader(data)
+	var raw msgNotificationFileKernelBase
 	order := arch.Endian() // ioctl messages are native byte order, verify endianness if using for other messages
 	if err := binary.Read(buf, order, &raw); err != nil {
-		return fmt.Errorf("%s: cannot unpack: %s", prefix, err)
+		return fmt.Errorf("cannot unpack: %v", err)
 	}
 
 	// Unpack variable length elements.
 	unpacker := newStringUnpacker(data)
-	name, err := unpacker.UnpackString(raw.Name)
+	name, err := unpacker.unpackString(raw.Name)
 	if err != nil {
-		return fmt.Errorf("%s: cannot unpack file name: %v", prefix, err)
+		return fmt.Errorf("cannot unpack file name: %v", err)
 	}
 
 	// Put everything together.
@@ -488,12 +551,55 @@ func (msg *MsgNotificationFile) UnmarshalBinary(data []byte) error {
 	return nil
 }
 
+func (msg *MsgNotificationFile) unmarshalTags(data []byte) error {
+	// Unpack fixed-size elements to get tag metadata.
+	buf := bytes.NewReader(data)
+	var raw msgNotificationFileKernelWithTags
+	order := arch.Endian() // ioctl messages are native byte order, verify endianness if using for other messages
+	if err := binary.Read(buf, order, &raw); err != nil {
+		return fmt.Errorf("cannot unpack tagset metadata: %v", err)
+	}
+
+	if raw.Tags == 0 || raw.TagsetsCount == 0 {
+		return nil
+	}
+
+	// Unpack each tagset header and its associated tags.
+	tagsets := make(map[AppArmorPermission][]string, raw.TagsetsCount)
+	hdrBuf := bytes.NewReader(data[raw.Tags:])
+	unpacker := newStringUnpacker(data)
+	for i := uint16(0); i < raw.TagsetsCount; i++ {
+		var header tagsetHeader
+		if err := binary.Read(hdrBuf, order, &header); err != nil {
+			return fmt.Errorf("cannot unpack tagset header: %v", err)
+		}
+		tags, err := unpacker.unpackStrings(header.TagOffset, header.TagCount)
+		if err != nil {
+			return fmt.Errorf("cannot unpack tags for header %+v: %v", header, err)
+		}
+		perm := FilePermission(header.PermissionMask)
+		tagsets[perm] = tags
+	}
+
+	msg.Tagsets = tagsets
+
+	return nil
+}
+
+// It should not be necessary to marshal MsgNotificationFile structs outside of
+// test code.
 func (msg *MsgNotificationFile) MarshalBinary() ([]byte, error) {
 	if msg.Version == 0 {
 		return nil, ErrVersionUnset
 	}
-	var raw msgNotificationFileKernel
-	packer := newStringPacker(raw)
+	var raw msgNotificationFileKernelWithTags // prepare the superset of the msgNotificationFileKernel
+	var ptr any
+	if msg.Version < 5 {
+		ptr = &raw.msgNotificationFileKernelBase
+	} else {
+		ptr = &raw
+	}
+	packer := newStringPacker(ptr)
 	raw.Version = msg.Version
 	raw.NotificationType = msg.NotificationType
 	raw.Signalled = msg.Signalled
@@ -503,19 +609,25 @@ func (msg *MsgNotificationFile) MarshalBinary() ([]byte, error) {
 	raw.Allow = msg.Allow
 	raw.Deny = msg.Deny
 	raw.Pid = msg.Pid
-	raw.Label = packer.PackString(msg.Label)
+	raw.Label = packer.packString(msg.Label)
 	raw.Class = uint16(msg.Class)
 	raw.Op = msg.Op
 	raw.SUID = msg.SUID
 	raw.OUID = msg.OUID
-	raw.Name = packer.PackString(msg.Name)
-	raw.Length = packer.TotalLen()
+	raw.Name = packer.packString(msg.Name)
+
+	if msg.Version >= 5 {
+		raw.Tags = packer.packTagsets(msg.Tagsets)
+		raw.TagsetsCount = uint16(len(msg.Tagsets))
+	}
+
+	raw.Length = packer.totalLen()
 	msgBuf := bytes.NewBuffer(make([]byte, 0, raw.Length))
 	order := arch.Endian() // ioctl messages are native byte order, verify endianness if using for other messages
-	if err := binary.Write(msgBuf, order, raw); err != nil {
+	if err := binary.Write(msgBuf, order, ptr); err != nil {
 		return nil, err
 	}
-	if _, err := msgBuf.Write(packer.Bytes()); err != nil {
+	if _, err := msgBuf.Write(packer.bytes()); err != nil {
 		return nil, err
 	}
 	return msgBuf.Bytes(), nil
