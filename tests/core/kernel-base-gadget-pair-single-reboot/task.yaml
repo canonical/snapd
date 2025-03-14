@@ -17,6 +17,9 @@ environment:
     SNAP_ONE/kernel_gadget: pc
     SNAP_TWO/kernel_gadget: pc-kernel
 
+    GADGET_CHANNEL: edge
+    CORE18_GADGET_REPACK: true
+
 prepare: |
     # To get VERSION_ID defined
     . /etc/os-release
@@ -27,7 +30,7 @@ prepare: |
     # read all for simplification
     readlink /snap/pc-kernel/current > pc-kernel.rev
     readlink "/snap/$core_snap/current" > core.rev
-    readlink "/snap/pc/current" > pc.rev
+    readlink /snap/pc/current > pc.rev
 
 debug: |
     change_id="$(cat refresh-change-id)"
@@ -105,13 +108,8 @@ execute: |
             snap pack pc-snap --filename=pc_x1.snap
         fi
 
-        if os.query is-core-ge 20; then
-            # on uc20+, snap we booted with is unasserted for extra debugging
-            snap install "$(ls ${SNAP_ONE}_*.snap)" "$(ls ${SNAP_TWO}_*.snap)" --dangerous --no-wait > refresh-change-id
-        else
-            # all other platforms, the pc snap is asserted, so no flags
-            snap install "$(ls ${SNAP_ONE}_*.snap)" "$(ls ${SNAP_TWO}_*.snap)" --no-wait > refresh-change-id
-        fi
+        snap install "$(ls ${SNAP_ONE}_*.snap)" "$(ls ${SNAP_TWO}_*.snap)" --dangerous --no-wait > refresh-change-id
+
         test -n "$(cat refresh-change-id)"
         change_id="$(cat refresh-change-id)"
         
@@ -178,23 +176,15 @@ execute: |
         if [[ "$SNAP_ONE" == *"core"* ]] || [[ "$SNAP_TWO" == *"core"* ]]; then
             expecting_core="x2"
             if os.query is-core18; then
-                expecting_core="$(next_snap_revision core.rev)"
+                expecting_core="x1"
             fi
             test "$(readlink /snap/$core_snap/current)" = "$expecting_core"
         fi
         if [[ "$SNAP_ONE" == "pc" ]] || [[ "$SNAP_TWO" == "pc" ]]; then
-            expecting_gadget="x2"
-            if os.query is-core18; then
-                expecting_gadget="$(next_snap_revision pc.rev)"
-            fi
-            test "$(readlink /snap/pc/current)" = "$expecting_gadget"
+            test "$(readlink /snap/pc/current)" = "x2"
         fi
         if [[ "$SNAP_ONE" == "pc-kernel" ]] || [[ "$SNAP_TWO" == "pc-kernel" ]]; then
-            expecting_kernel="x2"
-            if os.query is-core18; then
-                expecting_kernel="$(next_snap_revision pc-kernel.rev)"
-            fi
-            test "$(readlink /snap/pc-kernel/current)" = "$expecting_kernel"
+            test "$(readlink /snap/pc-kernel/current)" = "x2"
         fi
 
         # now we need to revert both snaps for restore to behave properly, go from

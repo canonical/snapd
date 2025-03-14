@@ -11,6 +11,9 @@ environment:
     UPDATE_VARIANT/gadget_reboot: reboot
     UPDATE_VARIANT/gadget_noreboot: no-reboot
 
+    GADGET_CHANNEL: edge
+    CORE18_GADGET_REPACK: true
+
 prepare: |
     # To get VERSION_ID defined
     . /etc/os-release
@@ -79,13 +82,7 @@ execute: |
             snap pack pc-snap --filename=pc_x1.snap
         fi
 
-        if os.query is-core-ge 20; then
-            # on uc20+, snap we booted with is unasserted for extra debugging
-            snap install "$(ls ${core_snap}_*.snap)" "$(ls pc_*.snap)" "$(ls pc-kernel_*.snap)" --dangerous --no-wait > refresh-change-id
-        else
-            # all other platforms, the pc snap is asserted, so no flags
-            snap install "$(ls ${core_snap}_*.snap)" "$(ls pc_*.snap)" "$(ls pc-kernel_*.snap)" --no-wait > refresh-change-id
-        fi
+        snap install "$(ls ${core_snap}_*.snap)" "$(ls pc_*.snap)" "$(ls pc-kernel_*.snap)" --dangerous --no-wait > refresh-change-id
         
         test -n "$(cat refresh-change-id)"
         change_id="$(cat refresh-change-id)"
