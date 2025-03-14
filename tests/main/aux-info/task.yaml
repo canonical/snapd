@@ -12,7 +12,7 @@ environment:
     SNAPD_NO_MEMORY_LIMIT: 1
 
 prepare: |
-  snap install --candidate snap-store
+  snap install --channel 1/stable snap-store
 
 execute: |
   snap_id=$(snap info snap-store | gojq -r --yaml-input '.["snap-id"]')
