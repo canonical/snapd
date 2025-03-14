@@ -19,7 +19,10 @@
 
 package image
 
-import "github.com/snapcore/snapd/seed/seedwriter"
+import (
+	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/seed/seedwriter"
+)
 
 type Options struct {
 	ModelFile string
@@ -74,6 +77,12 @@ type Options struct {
 	AllowSnapdKernelMismatch bool
 
 	Customizations Customizations
+
+	// Assertion files to inject into the built image
+	// The first field is for filenames passed as input, the second one
+	// for the validated assertions that the Writer and Fetcher will use
+	ExtraAssertionsFiles []string
+	ExtraAssertions      []asserts.Assertion
 }
 
 // Customizatons defines possible image customizations. Not all of
