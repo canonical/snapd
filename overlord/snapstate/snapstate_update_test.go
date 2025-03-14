@@ -11760,8 +11760,8 @@ func (s *snapmgrTestSuite) TestDownloadTaskWaitsForPreDownload(c *C) {
 
 			c.Assert(s.o.TaskRunner().Ensure(), IsNil)
 
-			for i := 0; i < 5; i++ {
-				<-time.After(time.Second)
+			for i := 0; i < 5000; i++ {
+				<-time.After(time.Millisecond)
 				s.state.Lock()
 				atTime := dlTask.AtTime()
 				s.state.Unlock()
@@ -12511,7 +12511,7 @@ func (s *snapmgrTestSuite) TestDeletedMonitoredMapIsCorrectlyDeletedAfterRefresh
 }
 
 func waitFor(st *state.State, c *C, cond func() bool) {
-	for i := 0; i < 5; i++ {
+	for i := 0; i < 5000; i++ {
 		st.Lock()
 		condMet := cond()
 		st.Unlock()
@@ -12519,7 +12519,7 @@ func waitFor(st *state.State, c *C, cond func() bool) {
 			return
 		}
 
-		<-time.After(time.Second)
+		<-time.After(time.Millisecond)
 	}
 
 	c.Fatal("condition wasn't met within 5 seconds")
@@ -12603,9 +12603,9 @@ func (s *snapmgrTestSuite) TestPreDownloadWithIgnoreRunningRefresh(c *C) {
 	c.Assert(chg.Err(), IsNil)
 
 	// wait for the monitoring to be cleared
-	for i := 0; i < 5; i++ {
+	for i := 0; i < 1000; i++ {
 		s.state.Unlock()
-		<-time.After(2 * time.Second)
+		<-time.After(1 * time.Millisecond)
 		s.state.Lock()
 
 		// the monitoring has stopped but no auto-refresh was or will be attempted
