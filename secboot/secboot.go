@@ -140,9 +140,6 @@ type SealKeysParams struct {
 	PrimaryKey []byte
 	// The handle at which to create a NV index for dynamic authorization policy revocation support
 	PCRPolicyCounterHandle uint32
-	// The path to the authorization policy update key file (only relevant for TPM,
-	// if empty the key will not be saved)
-	TPMPolicyAuthKeyFile string
 	// Optional volume authentication options
 	VolumesAuth *device.VolumesAuthOptions
 }
@@ -150,9 +147,6 @@ type SealKeysParams struct {
 type SealKeysWithFDESetupHookParams struct {
 	// Initial model to bind sealed keys to.
 	Model ModelForSealing
-	// The path to the aux key file (if empty the key will not be
-	// saved)
-	AuxKeyFile string
 	// The primary key to use, nil if needs to be generated
 	PrimaryKey []byte
 }
@@ -182,8 +176,8 @@ type ResealKeysParams struct {
 	PCRProfile SerializedPCRProfile
 	// The locations to the key data
 	Keys []KeyDataLocation
-	// The path to the authorization policy update key file (only relevant for TPM)
-	TPMPolicyAuthKeyFile string
+	// The primary key
+	PrimaryKey []byte
 }
 
 // UnlockVolumeUsingSealedKeyOptions contains options for unlocking encrypted
