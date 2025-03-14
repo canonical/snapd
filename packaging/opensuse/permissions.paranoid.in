@@ -1,1 +1,1 @@
-@LIBEXECDIR@/snapd/snap-confine                             root:root         755
+@LIBEXECDIR@/snapd/snap-confine root:root 0755

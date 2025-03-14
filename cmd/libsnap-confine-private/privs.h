@@ -18,6 +18,8 @@
 #ifndef SNAP_CONFINE_PRIVS_H
 #define SNAP_CONFINE_PRIVS_H
 
+#include <sys/capability.h>
+
 /**
  * Permanently drop elevated permissions.
  *
@@ -34,5 +36,19 @@
  * nothing at all.
  **/
 void sc_privs_drop(void);
+
+void sc_set_keep_caps_flag(void);
+
+void sc_debug_capabilities(const char *msg_prefix);
+
+/**
+ * Compatibility wrapper around cap_set_ambient().
+ */
+int sc_cap_set_ambient(cap_value_t cap, cap_flag_value_t set);
+
+/**
+ * Compatibility wrapper around cap_reset_ambient().
+ */
+int sc_cap_reset_ambient(void);
 
 #endif
