@@ -853,8 +853,7 @@ func systemAppArmorLoadsSnapPolicy() bool {
 }
 
 func snapdAppArmorSupportsReexecImpl() bool {
-	hostInfoDir := filepath.Join(dirs.GlobalRootDir, dirs.CoreLibExecDir)
-	_, flags, err := snapdtool.SnapdVersionFromInfoFile(hostInfoDir)
+	_, flags, err := snapdtool.SnapdVersionFromInfoFile(dirs.DistroLibExecDir)
 	return err == nil && flags["SNAPD_APPARMOR_REEXEC"] == "1"
 }
 
