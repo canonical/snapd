@@ -44,6 +44,7 @@ func run(args []string) error {
 }
 
 func main() {
+	// XXX: should a check be added for the experimental.gpio-chardev-interface flag?
 	snapdtool.ExecInSnapdOrCoreSnap()
 
 	if err := run(os.Args[1:]); err != nil {
