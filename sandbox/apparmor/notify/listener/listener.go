@@ -55,9 +55,6 @@ var (
 type Request struct {
 	// ID is the unique ID of the message notification associated with the request.
 	ID uint64
-	// Listener is a pointer to the Listener which will handle the reply.
-	Listener *Listener
-
 	// PID is the identifier of the process which triggered the request.
 	PID uint32
 	// Label is the apparmor label on the process which triggered the request.
@@ -74,6 +71,9 @@ type Request struct {
 	// AaAllowed is the opaque permission mask which was already allowed by
 	// AppArmor rules.
 	AaAllowed notify.AppArmorPermission
+
+	// listener is a pointer to the Listener which will handle the reply.
+	listener *Listener
 }
 
 // Reply validates that the given permission is of the appropriate type for
@@ -94,9 +94,9 @@ func (r *Request) Reply(allowedPermission notify.AppArmorPermission) error {
 		return fmt.Errorf("invalid reply: response permission must be of type %s", expectedType)
 	}
 
-	resp := notify.BuildResponse(r.Listener.protocolVersion, r.ID, r.AaAllowed, r.Permission, allowedPermission)
+	resp := notify.BuildResponse(r.listener.protocolVersion, r.ID, r.AaAllowed, r.Permission, allowedPermission)
 
-	return encodeAndSendResponse(r.Listener, &resp)
+	return encodeAndSendResponse(r.listener, &resp)
 }
 
 func expectedResponseTypeForClass(class notify.MediationClass) string {
@@ -405,9 +405,7 @@ func (l *Listener) newRequest(msg notify.MsgNotificationGeneric) (*Request, erro
 		return nil, err
 	}
 	return &Request{
-		ID:       msg.ID(),
-		Listener: l,
-
+		ID:         msg.ID(),
 		PID:        msg.PID(),
 		Label:      msg.ProcessLabel(),
 		SubjectUID: msg.SubjectUID(),
@@ -416,6 +414,8 @@ func (l *Listener) newRequest(msg notify.MsgNotificationGeneric) (*Request, erro
 		Class:      msg.MediationClass(),
 		Permission: aaDenied, // Request permissions which were initially denied
 		AaAllowed:  aaAllowed,
+
+		listener: l,
 	}, nil
 }
 
