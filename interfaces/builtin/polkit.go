@@ -274,7 +274,6 @@ func (err *polkitMissingAttrErr) Error() string {
 }
 
 func (iface *polkitInterface) PolkitConnectedPlug(spec *polkit.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
-	// At least one of ("action-prefix", "install-rules") attributes must be set.
 	policyErr := iface.addPolkitPolicies(spec, plug)
 	if policyErr != nil && !errors.Is(policyErr, snap.AttributeNotFoundError{}) {
 		return policyErr
@@ -282,10 +281,6 @@ func (iface *polkitInterface) PolkitConnectedPlug(spec *polkit.Specification, pl
 	ruleErr := iface.addPolkitRules(spec, plug)
 	if ruleErr != nil && !errors.Is(ruleErr, snap.AttributeNotFoundError{}) {
 		return ruleErr
-	}
-	// Check if both attributes are not set.
-	if policyErr != nil && ruleErr != nil {
-		return &polkitMissingAttrErr{plug.Snap().InstanceName()}
 	}
 	return nil
 }

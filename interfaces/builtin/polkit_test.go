@@ -181,21 +181,6 @@ func (s *polkitInterfaceSuite) TestConnectedPlugPolkitPolicy(c *C) {
 	})
 }
 
-func (s *polkitInterfaceSuite) TestConnectedPlugPolkitMissingAttrs(c *C) {
-	const mockPlugSnapInfoYaml = `name: other
-version: 1.0
-apps:
- app:
-  command: foo
-  plugs: [polkit]
-`
-	plug, _ := MockConnectedPlug(c, mockPlugSnapInfoYaml, nil, "polkit")
-
-	polkitSpec := &polkit.Specification{}
-	err := polkitSpec.AddConnectedPlug(s.iface, plug, s.slot)
-	c.Assert(err, ErrorMatches, `snap "other" must have at least one of \("action-prefix", "install-rules"\) attributes set for interface "polkit"`)
-}
-
 func computeRuleHash(c *C, data []byte) string {
 	h := crypto.SHA3_384.New()
 	_, err := h.Write(data)
