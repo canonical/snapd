@@ -19,13 +19,17 @@
 package main
 
 import (
+	"syscall"
 	"time"
 
 	"github.com/snapcore/snapd/testutil"
 	"golang.org/x/sys/unix"
 )
 
-var Run = run
+var (
+	Run         = run
+	GetChipInfo = getChipInfo
+)
 
 func MockGetGpioInfo(f func(path string) (GPIOChardev, error)) (restore func()) {
 	return testutil.Mock(&getChipInfo, f)
@@ -39,6 +43,14 @@ func MockUnixMknod(f func(path string, mode uint32, dev int) (err error)) (resto
 	return testutil.Mock(&unixMknod, f)
 }
 
+func MockUnixSyscall(f func(trap uintptr, a1 uintptr, a2 uintptr, a3 uintptr) (r1 uintptr, r2 uintptr, err syscall.Errno)) (restore func()) {
+	return testutil.Mock(&unixSyscall, f)
+}
+
 func MockAggregatorCreationTimeout(t time.Duration) (restore func()) {
 	return testutil.Mock(&aggregatorCreationTimeout, t)
+}
+
+func MockLockAggregator(f func() (unlocker func(), err error)) (restore func()) {
+	return testutil.Mock(&lockAggregator, f)
 }
