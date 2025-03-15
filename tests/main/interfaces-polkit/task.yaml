@@ -10,7 +10,12 @@ details: |
 
 # amazon-linux-2023: polkit not installed by default
 # ubuntu-core < uc24: polkit rules path is not writable 
-systems: [-ubuntu-core-1*, -ubuntu-core-20, -ubuntu-core-22, -amazon-linux-2023-*]
+systems:
+    - -ubuntu-core-16-64
+    - -ubuntu-core-18-64
+    - -ubuntu-core-20-64
+    - -ubuntu-core-22-64
+    - -amazon-linux-2023-64
 
 prepare: |
     if ! tests.session has-session-systemd-and-dbus; then
@@ -66,19 +71,23 @@ execute: |
             | MATCH '^\(bba\{ss\}\) false false '
     fi
 
-    echo "Test polkit rules installation"
+    # Skip rule checks for debian 11 and focal because they don't support the
+    # /etc/polkit-1/rules.d rules directory.
+    if ! os.query is-focal && ! os.query is-debian 11 ;then
+        echo "Test polkit rules installation"
 
-    echo "The polkit-rule plug is disconnected by default"
-    snap connections test-snapd-pk-service | MATCH "polkit +test-snapd-pk-service:polkit-rule +- +-"
+        echo "The polkit-rule plug is disconnected by default"
+        snap connections test-snapd-pk-service | MATCH "polkit +test-snapd-pk-service:polkit-rule +- +-"
 
-    echo "The polkit rule file is not installed"
-    test ! -f /etc/polkit-1/rules.d/70-snap.test-snapd-pk-service.polkit-rule.bar.rules
+        echo "The polkit rule file is not installed"
+        test ! -f /etc/polkit-1/rules.d/70-snap.test-snapd-pk-service.polkit-rule.bar.rules
 
-    echo "The polkit-rule plug can be connected"
-    snap connect test-snapd-pk-service:polkit-rule
-    snap connections test-snapd-pk-service | MATCH "polkit +test-snapd-pk-service:polkit-rule +:polkit +manual"
+        echo "The polkit-rule plug can be connected"
+        snap connect test-snapd-pk-service:polkit-rule
+        snap connections test-snapd-pk-service | MATCH "polkit +test-snapd-pk-service:polkit-rule +:polkit +manual"
 
-    echo "Snapd has installed the rule file for the service"
-    test -f /etc/polkit-1/rules.d/70-snap.test-snapd-pk-service.polkit-rule.bar.rules
-    echo "The contents match the file provided by the snap"
-    cmp /etc/polkit-1/rules.d/70-snap.test-snapd-pk-service.polkit-rule.bar.rules ./test-snapd-pk-service/meta/polkit/polkit-rule.bar.rules
+        echo "Snapd has installed the rule file for the service"
+        test -f /etc/polkit-1/rules.d/70-snap.test-snapd-pk-service.polkit-rule.bar.rules
+        echo "The contents match the file provided by the snap"
+        cmp /etc/polkit-1/rules.d/70-snap.test-snapd-pk-service.polkit-rule.bar.rules ./test-snapd-pk-service/meta/polkit/polkit-rule.bar.rules
+    fi
