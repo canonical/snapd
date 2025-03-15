@@ -75,8 +75,9 @@ func (c *chipInfo) String() string {
 
 const _GPIO_GET_CHIPINFO_IOCTL uintptr = 0x8044b401
 
+var unixSyscall = unix.Syscall
+
 var getChipInfo = func(path string) (GPIOChardev, error) {
-	// TODO: Check that file descriptor points to char device with /sys/bus/gpio subsystem.
 	f, err := os.OpenFile(path, os.O_RDONLY, 0)
 	if err != nil {
 		return nil, err
@@ -84,7 +85,7 @@ var getChipInfo = func(path string) (GPIOChardev, error) {
 	defer f.Close()
 
 	var kci kernelChipInfo
-	_, _, errno := unix.Syscall(unix.SYS_IOCTL, f.Fd(), _GPIO_GET_CHIPINFO_IOCTL, uintptr(unsafe.Pointer(&kci)))
+	_, _, errno := unixSyscall(unix.SYS_IOCTL, f.Fd(), _GPIO_GET_CHIPINFO_IOCTL, uintptr(unsafe.Pointer(&kci)))
 	if errno != 0 {
 		return nil, errno
 	}

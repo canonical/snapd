@@ -21,142 +21,15 @@ package main_test
 
 import (
 	"errors"
-	"fmt"
-	"os"
 	"path/filepath"
-	"strings"
-	"testing"
 	"time"
 
 	main "github.com/snapcore/snapd/cmd/snap-gpio-helper"
-	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
-	"github.com/snapcore/snapd/osutil/inotify"
 	"github.com/snapcore/snapd/testutil"
 	"golang.org/x/sys/unix"
 	. "gopkg.in/check.v1"
 )
-
-// Hook up check.v1 into the "go test" runner
-func Test(t *testing.T) { TestingT(t) }
-
-type snapGpioHelperSuite struct {
-	testutil.BaseTest
-
-	rootdir           string
-	newDeviceCallback func(cmd string)
-	mockChipInfos     map[string]main.GPIOChardev
-	mockStats         map[string]*unix.Stat_t
-	udevadmCmd        *testutil.MockCmd
-}
-
-var _ = Suite(&snapGpioHelperSuite{})
-
-func (s *snapGpioHelperSuite) SetUpTest(c *C) {
-	s.rootdir = c.MkDir()
-	dirs.SetRootDir(s.rootdir)
-	s.AddCleanup(func() { dirs.SetRootDir("") })
-
-	s.mockChipInfos = make(map[string]main.GPIOChardev)
-	s.mockStats = make(map[string]*unix.Stat_t)
-
-	// Allow mocking gpio chardev devices
-	restore := main.MockGetGpioInfo(func(path string) (main.GPIOChardev, error) {
-		chip, ok := s.mockChipInfos[path]
-		if !ok {
-			return nil, fmt.Errorf("unexpected gpio chip path %s", path)
-		}
-		return chip, nil
-	})
-	s.AddCleanup(restore)
-	// and their stat
-	restore = main.MockUnixStat(func(path string, stat *unix.Stat_t) (err error) {
-		target, ok := s.mockStats[path]
-		if !ok {
-			return fmt.Errorf("unexpected path %s", path)
-		}
-		*stat = *target
-		return nil
-	})
-	s.AddCleanup(restore)
-
-	// Mock gpio-aggregator sysfs structure
-	c.Assert(os.MkdirAll(filepath.Join(s.rootdir, "/sys/bus/platform/drivers/gpio-aggregator"), 0755), IsNil)
-	c.Assert(os.WriteFile(filepath.Join(s.rootdir, "/sys/bus/platform/drivers/gpio-aggregator/new_device"), nil, 0644), IsNil)
-	// Mock gpio-aggregator new_device sysfs call
-	s.newDeviceCallback = func(cmd string) {
-		mockStat := &unix.Stat_t{
-			Rdev: 0x100,
-			Mode: unix.S_IFCHR | 0644,
-		}
-		s.mockChip(c, "gpiochip10", filepath.Join(s.rootdir, "/dev/gpiochip10"), "some-label", 7, mockStat)
-	}
-	// Setup watcher
-	done := make(chan bool, 1)
-	s.AddCleanup(func() { done <- true })
-	watcher, err := inotify.NewWatcher()
-	c.Assert(err, IsNil)
-	err = watcher.AddWatch(filepath.Join(s.rootdir, "/sys/bus/platform/drivers/gpio-aggregator/new_device"), inotify.InModify)
-	c.Assert(err, IsNil)
-	go func() {
-		for {
-			select {
-			case event := <-watcher.Event:
-				path := event.Name
-				switch {
-				case strings.HasSuffix(path, "new_device"):
-					cmd, err := os.ReadFile(path)
-					c.Check(err, IsNil)
-					s.newDeviceCallback(string(cmd))
-				}
-			case <-done:
-				return
-			}
-		}
-	}()
-
-	// Mock away any real udev interaction
-	s.udevadmCmd = testutil.MockCommand(c, "udevadm", "")
-	s.AddCleanup(s.udevadmCmd.Restore)
-
-	s.AddCleanup(main.MockUnixMknod(func(path string, mode uint32, dev int) (err error) { return nil }))
-}
-
-func (s *snapGpioHelperSuite) mockNewDeviceCallback(f func(cmd string)) (restore func()) {
-	return testutil.Mock(&s.newDeviceCallback, f)
-}
-
-type mockChipInfo struct {
-	name, path, label string
-	lines             uint
-}
-
-func (chip *mockChipInfo) Name() string {
-	return chip.name
-}
-
-func (chip *mockChipInfo) Path() string {
-	return chip.path
-}
-
-func (chip *mockChipInfo) Label() string {
-	return chip.label
-}
-
-func (chip *mockChipInfo) NumLines() uint {
-	return chip.lines
-}
-
-func (s *snapGpioHelperSuite) mockChip(c *C, name, path, label string, lines uint, stat *unix.Stat_t) main.GPIOChardev {
-	chip := &mockChipInfo{name, path, label, lines}
-	s.mockChipInfos[path] = chip
-	if stat != nil {
-		s.mockStats[path] = stat
-	}
-	c.Assert(os.MkdirAll(filepath.Dir(path), 0755), IsNil)
-	c.Assert(os.WriteFile(path, nil, 0644), IsNil)
-	return chip
-}
 
 func (s *snapGpioHelperSuite) TestExportGpioChardev(c *C) {
 	s.mockChip(c, "gpiochip0", filepath.Join(s.rootdir, "/dev/gpiochip0"), "label-0", 3, nil)
@@ -177,7 +50,7 @@ func (s *snapGpioHelperSuite) TestExportGpioChardev(c *C) {
 			Rdev: 0x101,
 			Mode: unix.S_IFCHR | 0600,
 		}
-		s.mockChip(c, "gpiochip3", chipPath, "aggregated-chip", 7, mockStat)
+		s.mockChip(c, "gpiochip3", chipPath, "gpio-aggregator.0", 7, mockStat)
 	})
 	defer restore()
 
@@ -187,6 +60,11 @@ func (s *snapGpioHelperSuite) TestExportGpioChardev(c *C) {
 		c.Check(path, Equals, filepath.Join(s.rootdir, "/dev/snap/gpio-chardev/gadget-name/slot-name"))
 		c.Check(mode, Equals, uint32(unix.S_IFCHR|0600))
 		c.Check(dev, Equals, 0x101)
+		mockStat := &unix.Stat_t{
+			Rdev: 0x101,
+			Mode: unix.S_IFCHR | 0600,
+		}
+		s.mockChip(c, "gpiochip3", path, "gpio-aggregator.0", 7, mockStat)
 		return nil
 	})
 	defer restore()
@@ -196,8 +74,12 @@ func (s *snapGpioHelperSuite) TestExportGpioChardev(c *C) {
 	})
 	c.Assert(err, IsNil)
 
+	// Aggregator lock is unlocked
+	c.Check(aggregatorLock.TryLock(), IsNil)
+	// Unlock for unxport-chardev command below
+	aggregatorLock.Unlock()
 	// Ephermal udev rule is dropped under /run/udev/rules.d
-	udevRulePath := fmt.Sprintf("%s/run/udev/rules.d/69-snap.gadget-name.interface.gpio-chardev-slot-name.rules", s.rootdir)
+	udevRulePath := filepath.Join(s.rootdir, "/run/udev/rules.d/69-snap.gadget-name.interface.gpio-chardev-slot-name.rules")
 	expectedRule := `SUBSYSTEM=="gpio", KERNEL=="gpiochip3", TAG+="snap_gadget-name_interface_gpio_chardev_slot-name"` + "\n"
 	c.Check(udevRulePath, testutil.FileEquals, expectedRule)
 	// Udev rules are reloaded and triggered

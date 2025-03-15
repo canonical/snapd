@@ -38,21 +38,23 @@ import (
 )
 
 func init() {
-	// Needed for testing.
+	// needed for testing
 	dirs.AddRootDirCallback(func(s string) {
 		aggregatorLockPath = filepath.Join(s, "/sys/bus/platform/drivers/gpio-aggregator")
 		aggregatorNewDevicePath = filepath.Join(s, "/sys/bus/platform/drivers/gpio-aggregator/new_device")
+		aggregatorDeleteDevicePath = filepath.Join(s, "/sys/bus/platform/drivers/gpio-aggregator/delete_device")
 		ephermalUdevRulesDir = filepath.Join(s, "/run/udev/rules.d")
 	})
 }
 
 var (
-	aggregatorLockPath      = "/sys/bus/platform/drivers/gpio-aggregator"
-	aggregatorNewDevicePath = "/sys/bus/platform/drivers/gpio-aggregator/new_device"
-	ephermalUdevRulesDir    = "/run/udev/rules.d"
+	aggregatorLockPath         = "/sys/bus/platform/drivers/gpio-aggregator"
+	aggregatorNewDevicePath    = "/sys/bus/platform/drivers/gpio-aggregator/new_device"
+	aggregatorDeleteDevicePath = "/sys/bus/platform/drivers/gpio-aggregator/delete_device"
+	ephermalUdevRulesDir       = "/run/udev/rules.d"
 )
 
-func lockAggregator() (unlocker func(), err error) {
+var lockAggregator = func() (unlocker func(), err error) {
 	flock, err := osutil.OpenExistingLockForReading(aggregatorLockPath)
 	if err != nil {
 		return nil, err
@@ -68,7 +70,7 @@ func lockAggregator() (unlocker func(), err error) {
 var aggregatorCreationTimeout = 120 * time.Second
 
 func addAggregatedChip(sourceChip GPIOChardev, commaSeparatedLines string) (chip GPIOChardev, err error) {
-	// Synchronize gpio helpers' access to the aggregator interface.
+	// synchronize gpio helpers' access to the aggregator interface
 	unlocker, err := lockAggregator()
 	if err != nil {
 		return nil, err
@@ -102,7 +104,7 @@ func addAggregatedChip(sourceChip GPIOChardev, commaSeparatedLines string) (chip
 		select {
 		case event := <-watcher.Event:
 			path := event.Name
-			// Check prefix /dev/gpiochipX
+			// check prefix /dev/gpiochipX
 			if strings.HasPrefix(path, filepath.Join(dirs.DevDir, "gpiochip")) {
 				return getChipInfo(path)
 			}
@@ -112,27 +114,31 @@ func addAggregatedChip(sourceChip GPIOChardev, commaSeparatedLines string) (chip
 	}
 }
 
-func addEphermalUdevTaggingRule(chip GPIOChardev, gadget, slot string) error {
+func aggregatedChipUdevRulePath(instanceName, slotName string) string {
+	fname := fmt.Sprintf("69-snap.%s.interface.gpio-chardev-%s.rules", instanceName, slotName)
+	return filepath.Join(ephermalUdevRulesDir, fname)
+}
+
+func addEphermalUdevTaggingRule(chip GPIOChardev, instanceName, slotName string) error {
 	if err := os.MkdirAll(ephermalUdevRulesDir, 0755); err != nil {
 		return err
 	}
 
-	tag := fmt.Sprintf("snap_%s_interface_gpio_chardev_%s", gadget, slot)
+	tag := fmt.Sprintf("snap_%s_interface_gpio_chardev_%s", instanceName, slotName)
 	rule := fmt.Sprintf("SUBSYSTEM==\"gpio\", KERNEL==\"%s\", TAG+=\"%s\"\n", chip.Name(), tag)
 
-	fname := fmt.Sprintf("69-snap.%s.interface.gpio-chardev-%s.rules", gadget, slot)
-	path := filepath.Join(ephermalUdevRulesDir, fname)
+	path := aggregatedChipUdevRulePath(instanceName, slotName)
 	if err := os.WriteFile(path, []byte(rule), 0644); err != nil {
 		return err
 	}
 
-	// Make sure the rule we just dropped is loaded as sometimes it doesn't get
-	// picked up right away.
+	// make sure the rule we just dropped is loaded as sometimes it doesn't get
+	// picked up right away
 	output, err := exec.Command("udevadm", "control", "--reload-rules").CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("cannot reload udev rules: %s\nudev output:\n%s", err, string(output))
 	}
-	// Trigger the tagging rule.
+	// trigger the tagging rule
 	output, err = exec.Command("udevadm", "trigger", "--name-match", chip.Name()).CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("%s\nudev output:\n%s", err, string(output))
@@ -155,6 +161,47 @@ func addGadgetSlotDevice(chip GPIOChardev, instanceName, slotName string) error 
 		return err
 	}
 	if err := unixMknod(devPath, stat.Mode, int(stat.Rdev)); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func removeGadgetSlotDevice(instanceName, slotName string) (aggregatedChip GPIOChardev, err error) {
+	devPath := gadget.SnapGpioChardevPath(instanceName, slotName)
+	aggregatedChip, err = getChipInfo(devPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := os.Remove(devPath); err != nil {
+		return nil, err
+	}
+
+	return aggregatedChip, nil
+}
+
+func removeEphermalUdevTaggingRule(gadget, slot string) error {
+	// XXX: ss rule reload/trigger nessacary
+	path := aggregatedChipUdevRulePath(gadget, slot)
+	return os.Remove(path)
+}
+
+func removeAggregatedChip(aggregatedChip GPIOChardev) error {
+	// synchronize gpio helpers' access to the aggregator interface
+	unlocker, err := lockAggregator()
+	if err != nil {
+		return err
+	}
+	defer unlocker()
+
+	f, err := os.OpenFile(aggregatorDeleteDevicePath, os.O_WRONLY, 0)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+
+	if _, err = f.WriteString(aggregatedChip.Label()); err != nil {
 		return err
 	}
 

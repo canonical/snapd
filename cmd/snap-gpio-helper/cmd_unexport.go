@@ -19,8 +19,6 @@
 
 package main
 
-import "errors"
-
 type cmdUnexportChardev struct {
 	Args struct {
 		ChipLabels string `positional-arg-name:"<gpio-labels>" description:"comma-separated list of source chip label(s) to match"`
@@ -31,5 +29,18 @@ type cmdUnexportChardev struct {
 }
 
 func (c *cmdUnexportChardev) Execute(args []string) error {
-	return errors.New("not implemented")
+	aggregatedChip, err := removeGadgetSlotDevice(c.Args.Gadget, c.Args.Slot)
+	if err != nil {
+		return err
+	}
+
+	if err := removeEphermalUdevTaggingRule(c.Args.Gadget, c.Args.Slot); err != nil {
+		return err
+	}
+
+	if err := removeAggregatedChip(aggregatedChip); err != nil {
+		return err
+	}
+
+	return nil
 }
