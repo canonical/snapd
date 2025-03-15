@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2025 Canonical Ltd
+ * Copyright (C) 2023 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -17,37 +17,25 @@
  *
  */
 
-package main
+package gadget_test
 
 import (
-	"fmt"
-	"os"
+	"path/filepath"
 
-	"github.com/jessevdk/go-flags"
+	. "gopkg.in/check.v1"
 
-	"github.com/snapcore/snapd/snapdtool"
+	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/gadget"
 )
 
-type options struct {
-	CmdExportChardev   cmdExportChardev   `command:"export-chardev"`
-	CmdUnexportChardev cmdUnexportChardev `command:"unexport-chardev"`
-}
+type gpioChardevTestSuite struct{}
 
-func run(args []string) error {
-	var opts options
-	p := flags.NewParser(&opts, flags.HelpFlag|flags.PassDoubleDash)
+var _ = Suite(&gpioChardevTestSuite{})
 
-	if _, err := p.ParseArgs(args); err != nil {
-		return err
-	}
-	return nil
-}
+func (s *gpioChardevTestSuite) TestSnapGpioChardevPath(c *C) {
+	rootdir := c.MkDir()
+	dirs.SetRootDir(rootdir)
 
-func main() {
-	snapdtool.ExecInSnapdOrCoreSnap()
-
-	if err := run(os.Args[1:]); err != nil {
-		fmt.Fprintf(os.Stderr, "error: %v\n", err)
-		os.Exit(1)
-	}
+	devPath := gadget.SnapGpioChardevPath("snap-name", "slot-name")
+	c.Check(devPath, Equals, filepath.Join(rootdir, "/dev/snap/gpio-chardev/snap-name/slot-name"))
 }

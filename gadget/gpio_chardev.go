@@ -17,37 +17,14 @@
  *
  */
 
-package main
+package gadget
 
 import (
-	"fmt"
-	"os"
+	"path/filepath"
 
-	"github.com/jessevdk/go-flags"
-
-	"github.com/snapcore/snapd/snapdtool"
+	"github.com/snapcore/snapd/dirs"
 )
 
-type options struct {
-	CmdExportChardev   cmdExportChardev   `command:"export-chardev"`
-	CmdUnexportChardev cmdUnexportChardev `command:"unexport-chardev"`
-}
-
-func run(args []string) error {
-	var opts options
-	p := flags.NewParser(&opts, flags.HelpFlag|flags.PassDoubleDash)
-
-	if _, err := p.ParseArgs(args); err != nil {
-		return err
-	}
-	return nil
-}
-
-func main() {
-	snapdtool.ExecInSnapdOrCoreSnap()
-
-	if err := run(os.Args[1:]); err != nil {
-		fmt.Fprintf(os.Stderr, "error: %v\n", err)
-		os.Exit(1)
-	}
+func SnapGpioChardevPath(instanceName, plugOrSlot string) string {
+	return filepath.Join(dirs.SnapGpioChardevDir, instanceName, plugOrSlot)
 }

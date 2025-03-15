@@ -31,6 +31,10 @@ type Service struct {
 	RemainAfterExit bool
 	ExecStart       string
 	ExecStop        string
+	Wants           string
+	WantedBy        string
+	After           string
+	Before          string
 }
 
 func (s *Service) String() string {
@@ -52,6 +56,18 @@ func (s *Service) String() string {
 	}
 	if s.ExecStop != "" {
 		fmt.Fprintf(&buf, "ExecStop=%s\n", s.ExecStop)
+	}
+	if s.Wants != "" {
+		fmt.Fprintf(&buf, "Wants=%s\n", s.Wants)
+	}
+	if s.WantedBy != "" {
+		fmt.Fprintf(&buf, "WantedBy=%s\n", s.WantedBy)
+	}
+	if s.After != "" {
+		fmt.Fprintf(&buf, "After=%s\n", s.After)
+	}
+	if s.Before != "" {
+		fmt.Fprintf(&buf, "Before=%s\n", s.Before)
 	}
 	fmt.Fprintf(&buf, "\n[Install]\nWantedBy=multi-user.target\n")
 	return buf.String()
