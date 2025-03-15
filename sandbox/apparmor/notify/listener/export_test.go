@@ -42,10 +42,10 @@ func FakeRequestWithIDVersionClassAllowDeny(id uint64, version notify.ProtocolVe
 	}
 	return &Request{
 		ID:         id,
-		Listener:   listener,
 		Class:      class,
 		Permission: aaDeny,
 		AaAllowed:  aaAllow,
+		listener:   listener,
 	}
 }
 
