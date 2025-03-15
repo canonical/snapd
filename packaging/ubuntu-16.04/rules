@@ -197,6 +197,19 @@ override_dh_clean:
 	# XXX: hacky^2
 	(cd c-vendor/squashfuse && rm -f snapfuse && make distclean || true )
 
+
+override_dh_auto_configure:
+	# The package udev is a build dependency used to satisfy the pkg-config
+	# dependency on udev (udev.pc). Starting from Ubuntu Noble (24.04+),
+	# udev.pc is provided by package systemd-dev instead of udev. This step
+	# attempts to install systemd-dev when the pkg-config dependency on udev
+	# is not yet resolved.
+	if ! pkg-config udev; then \
+		echo "pkg-config dependency udev missing, installing systemd-dev"; \
+		apt-get install -y systemd-dev > /dev/null 2>&1 || echo "warning: failed to install systemd-dev"; \
+	fi; \
+	dh_auto_configure
+
 override_dh_auto_build:
 	# very ugly test for FIPS variant of a toolchain
 	# see https://warthogs.atlassian.net/browse/FR-8860
