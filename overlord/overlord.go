@@ -745,7 +745,7 @@ func (mb mockBackend) EnsureBefore(d time.Duration) {
 	mb.o.ensureBefore(d)
 }
 
-// TaskLabel produce a unique label string for the given task.
+// TaskLabel produces unique label string for the given task.
 // XXX move this to snapstate using a callback mechanism like conflicts
 func TaskLabel(t *state.Task) (string, error) {
 	snapsup, err := snapstate.TaskSnapSetup(t)
@@ -771,7 +771,7 @@ func TaskLabel(t *state.Task) (string, error) {
 			if err := t.Get("plug", &plugRef); err != nil && !errors.Is(err, state.ErrNoState) {
 				return "", err
 			}
-			if err := t.Get("plug", &slotRef); err != nil && !errors.Is(err, state.ErrNoState) {
+			if err := t.Get("slot", &slotRef); err != nil && !errors.Is(err, state.ErrNoState) {
 				return "", err
 			}
 			// some kind of connect-like task
