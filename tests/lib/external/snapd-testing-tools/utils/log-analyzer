@@ -5,17 +5,28 @@
 import argparse
 import json
 import subprocess
-from typing import Callable, TypedDict
+from typing import Callable, TypedDict, Literal, Union
 
 
-class SpreadLog(TypedDict):
+class SpreadLog_TypePhase(TypedDict):
+    type: Literal["phase"]
     task: str
-    type: str
     verb: str
+
+
+class SpreadLogDetail(TypedDict):
+    lines: list[str]
+
+
+class SpreadLog_TypeResult(TypedDict):
+    type: Literal["result"]
     result_type: str
     level: str
     stage: str
-    detail: dict[str, list[str]]
+    detail: SpreadLogDetail
+
+
+SpreadLog = Union[SpreadLog_TypePhase, SpreadLog_TypeResult]
 
 
 def filter_with_spread(exec_param: str) -> list[str]:
