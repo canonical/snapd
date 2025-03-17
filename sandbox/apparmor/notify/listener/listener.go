@@ -248,6 +248,8 @@ var exitOnError = false
 func (l *Listener) Run() error {
 	var err error
 	l.once.Do(func() {
+		// Run should only be called once, so this once.Do is really only an
+		// extra precaution to ensure that l.reqs is only closed once.
 		defer func() {
 			// When listener run loop ends, close the requests channel.
 			close(l.reqs)
@@ -255,7 +257,7 @@ func (l *Listener) Run() error {
 		for {
 			err = l.handleRequests()
 			if err != nil {
-				if err == ErrClosed {
+				if errors.Is(err, ErrClosed) {
 					// Don't treat the listener closing as a real error
 					err = nil
 					return
