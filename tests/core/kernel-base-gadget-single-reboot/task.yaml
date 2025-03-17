@@ -141,6 +141,11 @@ execute: |
         expecting_kernel="$(($(grep -o -E '[0-9]+' < pc-kernel.rev) + 1))"
         expecting_gadget="$(($(grep -o -E '[0-9]+' < pc.rev) + 1))"
         expecting_core="$(($(grep -o -E '[0-9]+' < core.rev) + 1))"
+        
+        # we start with an asserted base on core18
+        if os.query is-core18; then
+            expecting_core="x1"
+        fi
 
         # verify that current points to new revisions
         test "$(readlink /snap/pc-kernel/current | grep -o -E '[0-9]+')" = "$expecting_kernel"
