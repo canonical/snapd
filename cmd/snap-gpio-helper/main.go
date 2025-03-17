@@ -25,6 +25,7 @@ import (
 
 	"github.com/jessevdk/go-flags"
 
+	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/snapdtool"
 )
 
@@ -34,6 +35,11 @@ type options struct {
 }
 
 func run(args []string) error {
+	if !features.GPIOChardevInterface.IsEnabled() {
+		_, flag := features.GPIOChardevInterface.ConfigOption()
+		return fmt.Errorf("gpio-chardev interface requires the %q flag to be set", flag)
+	}
+
 	var opts options
 	p := flags.NewParser(&opts, flags.HelpFlag|flags.PassDoubleDash)
 
@@ -44,7 +50,6 @@ func run(args []string) error {
 }
 
 func main() {
-	// XXX: should a check be added for the experimental.gpio-chardev-interface flag?
 	snapdtool.ExecInSnapdOrCoreSnap()
 
 	if err := run(os.Args[1:]); err != nil {

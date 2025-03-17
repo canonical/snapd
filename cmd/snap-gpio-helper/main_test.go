@@ -29,9 +29,11 @@ import (
 
 	main "github.com/snapcore/snapd/cmd/snap-gpio-helper"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/osutil/inotify"
 	"github.com/snapcore/snapd/testutil"
 	"golang.org/x/sys/unix"
+	"gopkg.in/check.v1"
 	. "gopkg.in/check.v1"
 )
 
@@ -60,6 +62,10 @@ func (s *snapGpioHelperSuite) SetUpTest(c *C) {
 
 	s.mockChipInfos = make(map[string]main.GPIOChardev)
 	s.mockStats = make(map[string]*unix.Stat_t)
+
+	// Mock experimental.gpio-chardev-interface
+	c.Assert(os.MkdirAll(dirs.FeaturesDir, 0755), check.IsNil)
+	c.Assert(os.WriteFile(features.GPIOChardevInterface.ControlFile(), []byte(nil), 0644), check.IsNil)
 
 	// Allow mocking gpio chardev devices
 	restore := main.MockGetGpioInfo(func(path string) (main.GPIOChardev, error) {
@@ -253,4 +259,18 @@ func (s *snapGpioHelperSuite) TestExportUnexportGpioChardevRunthrough(c *C) {
 	// Aggregator device is deleted
 	c.Check(s.mockChipInfos[aggregatedChipPath], IsNil)
 	c.Check(s.mockChipInfos[slotDevicePath], IsNil)
+}
+
+func (s *snapGpioHelperSuite) TestGpioChardevExperimentlFlagUnset(c *C) {
+	c.Assert(os.Remove(features.GPIOChardevInterface.ControlFile()), check.IsNil)
+
+	err := main.Run([]string{
+		"export-chardev", "label-0", "0,2", "gadget-name", "slot-name",
+	})
+	c.Check(err, ErrorMatches, `gpio-chardev interface requires the "experimental.gpio-chardev-interface" flag to be set`)
+
+	err = main.Run([]string{
+		"unexport-chardev", "label-0", "0,2", "gadget-name", "slot-name",
+	})
+	c.Check(err, ErrorMatches, `gpio-chardev interface requires the "experimental.gpio-chardev-interface" flag to be set`)
 }
