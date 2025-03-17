@@ -577,7 +577,7 @@ func generateMountsModeInstall(mst *initramfsMountsState) error {
 		}
 		return nil
 	} else {
-		if err := generateMountsCommonInstallRecoverContinue(mst, model, snaps); err != nil {
+		if err := generateMountsCommonInstallRecoverContinue(model, snaps); err != nil {
 			return err
 		}
 
@@ -1972,7 +1972,7 @@ func generateMountsCommonInstallRecoverStart(mst *initramfsMountsState) (model *
 	return model, systemSnaps, nil
 }
 
-func generateMountsCommonInstallRecoverContinue(mst *initramfsMountsState, model *asserts.Model, sysSnaps map[snap.Type]*seed.Snap) (err error) {
+func generateMountsCommonInstallRecoverContinue(model *asserts.Model, sysSnaps map[snap.Type]*seed.Snap) (err error) {
 	// TODO:UC20: after we have the kernel and base snaps mounted, we should do
 	//            the bind mounts from the kernel modules on top of the base
 	//            mount and delete the corresponding systemd units from the
@@ -2037,7 +2037,7 @@ func generateMountsRecoverOrFactoryReset(mst *initramfsMountsState) (model *asse
 		return nil, nil, err
 	}
 
-	if err := generateMountsCommonInstallRecoverContinue(mst, model, snaps); err != nil {
+	if err := generateMountsCommonInstallRecoverContinue(model, snaps); err != nil {
 		return nil, nil, err
 	}
 
