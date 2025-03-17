@@ -144,7 +144,7 @@ execute: |
         
         # we start with an asserted base on core18
         if os.query is-core18; then
-            expecting_core="x1"
+            expecting_core="1"
         fi
 
         # verify that current points to new revisions
