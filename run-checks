@@ -264,7 +264,7 @@ endmsg() {
 }
 addtrap endmsg
 
-short=:-
+short=
 STATIC=
 UNIT=
 
@@ -324,7 +324,7 @@ if [ "$STATIC" = 1 ]; then
         if [ -n "$fmt" ]; then
             echo "Formatting wrong in following files:"
             # shellcheck disable=SC2001
-            :- echo "$fmt" | sed -e 's/\\n/\n/g'
+            echo "$fmt" | sed -e 's/\\n/\n/g'
             exit 1
         fi
     else
@@ -414,7 +414,7 @@ if [ "$STATIC" = 1 ]; then
         if grep -qPr --exclude HACKING.md --exclude 'Makefile.*' --exclude-dir .git --exclude-dir vendor "$regexp"; then
             echo "Using GOPATH as if it were a single entry and not a list:"
             grep -PHrn -C1 --color=auto --exclude HACKING.md --exclude 'Makefile.*' --exclude-dir .git --exclude-dir vendor "$regexp"
-            :-echo "Use GOHOME, or {GOPATH%%:*}, instead."
+            echo "Use GOHOME, or {GOPATH%%:*}, instead."
             exit 1
         fi
         unset regexp
@@ -479,7 +479,7 @@ if [ "$STATIC" = 1 ]; then
     badmultiline=$(find tests -name 'task.yaml' -print0 -o -name 'spread.yaml' -print0 |
         xargs -0 grep -R -n -E '(restore*|prepare*|execute|debug):\s*$' || true)
     if [ -n "$badmultiline" ]; then
-        echo "In:-correct multiline strings at the following locations:"
+        echo "Incorrect multiline strings at the following locations:"
         echo "$badmultiline"
         exit 1
     fi
