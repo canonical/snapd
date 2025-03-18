@@ -281,7 +281,7 @@ all)
     ;;
 --short-unit)
     UNIT=1
-    short=1
+    short="-short"
     ;;
 *)
     echo "Wrong flag ${1}. To run a single suite use --static, --unit."
@@ -603,10 +603,10 @@ if [ "$UNIT" = 1 ]; then
 
     # tests
     echo ">> [Go] Running go unit tests from $PWD"
-    if [ "$short" = 1 ] || [ -n "${SKIP_COVERAGE:-}" ]; then
+    if [ "$short" = "-short" ] || [ -n "${SKIP_COVERAGE:-}" ]; then
         echo ">> [Go] Skipping coverage"
         # shellcheck disable=SC2046,SC2086
-        GOTRACEBACK=1 $goctest $tags $race -short -timeout $timeout
+        GOTRACEBACK=1 $goctest $tags $race $short -timeout $timeout
     else
         coverage="-coverprofile=$COVERAGE_OUT -covermode=$COVERMODE"
         echo ">> [Go] Checking coverage with params: $coverage"
