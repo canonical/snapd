@@ -24,7 +24,7 @@ execute: |
   snap set developer1/network/wifi-setup ssid=canonical
   snap get developer1/network/wifi-setup ssid | MATCH "canonical"
   # hook was called
-  MATCH "canonical" < /var/snap/test-custodian-snap/common/manage-wifi-view-changed-ran
+  MATCH "canonical" < /var/snap/test-custodian-snap/common/observe-view-manage-wifi-ran
   snap set developer1/network/wifi-setup ssid!
   snap get developer1/network/wifi-setup ssid 2>&1 | tr -d '\n' | tr -s '  ' ' ' | MATCH $'cannot get "ssid" through developer1/network/wifi-setup: no view data'
 

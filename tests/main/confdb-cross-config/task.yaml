@@ -58,7 +58,7 @@ execute: |
   MATCH "first" < /var/snap/test-custodian-snap/common/change-view-manage-wifi-ran
   # the value was modified by change-confdb
   MATCH "first-custodian" < /var/snap/test-custodian-snap/common/save-view-manage-wifi-ran
-  MATCH "first-custodian" < /var/snap/test-snap/common/setup-wifi-view-changed-ran
+  MATCH "first-custodian" < /var/snap/test-snap/common/observe-view-setup-wifi-ran
 
   # check no other hooks were called
   test "2" = "$(find /var/snap/test-custodian-snap/common/* -maxdepth 1 | wc -l)"
@@ -75,7 +75,7 @@ execute: |
   MATCH "second" < /var/snap/test-custodian-snap/common/change-view-manage-wifi-ran
   # the value was modified by the custodian snap
   MATCH "second-custodian" < /var/snap/test-custodian-snap/common/save-view-manage-wifi-ran
-  MATCH "second-custodian" < /var/snap/test-custodian-snap/common/manage-wifi-view-changed-ran
+  MATCH "second-custodian" < /var/snap/test-custodian-snap/common/observe-view-manage-wifi-ran
   # check no other hooks were called
   test "3" = "$(find /var/snap/test-custodian-snap/common/* -maxdepth 1 | wc -l)"
   test "0" = "$(find /var/snap/test-snap/common/* -maxdepth 1 | wc -l)"

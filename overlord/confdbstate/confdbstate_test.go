@@ -512,7 +512,7 @@ func (s *confdbTestSuite) TestConfdbTasksUserSetWithCustodianInstalled(c *C) {
 		},
 		{
 			Snap:        "custodian-snap",
-			Hook:        "setup-view-changed",
+			Hook:        "observe-view-setup",
 			Optional:    true,
 			IgnoreError: true,
 		},
@@ -585,7 +585,7 @@ func (s *confdbTestSuite) TestConfdbTasksObserverSnapSetWithCustodianInstalled(c
 	c.Assert(err, IsNil)
 	chg.AddAll(ts)
 
-	// we trigger hooks for the custodian snap and for the -view-changed for the
+	// we trigger hooks for the custodian snap and for the observe-view- for the
 	// observer snap that didn't trigger the change
 	tasks := []string{"clear-confdb-tx-on-error", "run-hook", "run-hook", "run-hook", "run-hook", "commit-confdb-tx", "clear-confdb-tx"}
 	hooks := []*hookstate.HookSetup{
@@ -603,13 +603,13 @@ func (s *confdbTestSuite) TestConfdbTasksObserverSnapSetWithCustodianInstalled(c
 		},
 		{
 			Snap:        "custodian-snap",
-			Hook:        "setup-view-changed",
+			Hook:        "observe-view-setup",
 			Optional:    true,
 			IgnoreError: true,
 		},
 		{
 			Snap:        "test-snap-2",
-			Hook:        "setup-view-changed",
+			Hook:        "observe-view-setup",
 			Optional:    true,
 			IgnoreError: true,
 		},
@@ -717,14 +717,14 @@ plugs:
 	}
 
 	// mock custodians
-	hooks := []string{"change-view-setup", "save-view-setup", "query-view-setup", "load-view-setup", "setup-view-changed"}
+	hooks := []string{"change-view-setup", "save-view-setup", "query-view-setup", "load-view-setup", "observe-view-setup"}
 	for _, snap := range custodians {
 		isCustodian := true
 		mockSnap(snap, isCustodian, hooks)
 	}
 
 	// mock non-custodians
-	hooks = []string{"setup-view-changed", "install"}
+	hooks = []string{"observe-view-setup", "install"}
 	for _, snap := range nonCustodians {
 		isCustodian := false
 		mockSnap(snap, isCustodian, hooks)
@@ -1017,7 +1017,7 @@ func (s *confdbTestSuite) mockConfdbHooks(c *C) (*[]string, func()) {
 
 func (s *confdbTestSuite) checkSetConfdbChange(c *C, chg *state.Change, hooks *[]string) {
 	c.Assert(chg.Status(), Equals, state.DoneStatus)
-	c.Assert(*hooks, DeepEquals, []string{"change-view-setup", "save-view-setup", "setup-view-changed"})
+	c.Assert(*hooks, DeepEquals, []string{"change-view-setup", "save-view-setup", "observe-view-setup"})
 
 	commitTask := findTask(chg, "commit-confdb-tx")
 	tx, _, _, err := confdbstate.GetStoredTransaction(commitTask)
@@ -1074,11 +1074,11 @@ func (s *confdbTestSuite) TestGetTransactionFromSaveViewHook(c *C) {
 }
 
 func (s *confdbTestSuite) TestGetTransactionFromViewChangedHook(c *C) {
-	ctx := s.testGetReadableOngoingTransaction(c, "setup-view-changed")
+	ctx := s.testGetReadableOngoingTransaction(c, "observe-view-setup")
 
 	// non change-view hooks cannot modify the transaction
 	stdout, stderr, err := ctlcmd.Run(ctx, []string{"set", "--view", ":setup", "ssid=bar"}, 0)
-	c.Assert(err, ErrorMatches, `cannot modify confdb in "setup-view-changed" hook`)
+	c.Assert(err, ErrorMatches, `cannot modify confdb in "observe-view-setup" hook`)
 	c.Assert(stdout, IsNil)
 	c.Assert(stderr, IsNil)
 }

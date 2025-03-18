@@ -353,7 +353,7 @@ func createChangeConfdbTasks(st *state.State, tx *Transaction, view *confdb.View
 		linkTask(saveViewTask)
 	}
 
-	// run view-changed hooks for any plug that references a view that could have
+	// run observe-view hooks for any plug that references a view that could have
 	// changed with this data modification
 	paths := tx.AlteredPaths()
 	affectedPlugs, err := getPlugsAffectedByPaths(st, view.Schema(), paths)
@@ -376,7 +376,7 @@ func createChangeConfdbTasks(st *state.State, tx *Transaction, view *confdb.View
 		for _, plug := range affectedPlugs[snapName] {
 			// TODO: run these concurrently or keep sequential for predictability?
 			const ignoreError = true
-			task := setupConfdbHook(st, snapName, plug.Name+"-view-changed", ignoreError)
+			task := setupConfdbHook(st, snapName, "observe-view-"+plug.Name, ignoreError)
 			linkTask(task)
 		}
 	}
@@ -527,7 +527,7 @@ func IsConfdbHook(ctx *hookstate.Context) bool {
 			strings.HasPrefix(ctx.HookName(), "save-view-") ||
 			strings.HasPrefix(ctx.HookName(), "load-view-") ||
 			strings.HasPrefix(ctx.HookName(), "query-view-") ||
-			strings.HasSuffix(ctx.HookName(), "-view-changed"))
+			strings.HasPrefix(ctx.HookName(), "observe-view-"))
 }
 
 // GetTransactionForSnapctlGet gets a transaction to read the view's confdb. It
