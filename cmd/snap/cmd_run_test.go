@@ -62,6 +62,19 @@ hooks:
  configure:
 `)
 
+var mockYamlCore26 = []byte(`name: snapname
+version: 1.0
+base: core26
+apps:
+ app:
+  command: run-app
+ svc:
+  command: run-svc
+  daemon: simple
+hooks:
+ configure:
+`)
+
 var mockYamlWithComponent = []byte(`name: snapname
 version: 1.0
 components:
@@ -2892,6 +2905,51 @@ func (s *RunSuite) TestSnapRunTrackingFailure(c *check.C) {
 
 	// Ensure that the debug message is printed.
 	c.Assert(logbuf.String(), testutil.Contains, "snapd cannot track the started application\n")
+}
+
+func (s *RunSuite) TestSnapRunTrackingFailureCore26(c *check.C) {
+	restore := mockSnapConfine(filepath.Join(dirs.SnapMountDir, "core", "111", dirs.CoreLibExecDir))
+	defer restore()
+
+	// mock installed snap
+	snaptest.MockSnapCurrent(c, string(mockYamlCore26), &snap.SideInfo{
+		Revision: snap.R("x2"),
+	})
+
+	// pretend to be running from core
+	restore = snaprun.MockOsReadlink(func(string) (string, error) {
+		return filepath.Join(dirs.SnapMountDir, "core/111/usr/bin/snap"), nil
+	})
+	defer restore()
+
+	restore = snaprun.MockCreateTransientScopeForTracking(func(securityTag string, opts *cgroup.TrackingOptions) error {
+		c.Assert(securityTag, check.Equals, "snap.snapname.app")
+		c.Assert(opts, check.NotNil)
+		c.Assert(opts.AllowSessionBus, check.Equals, true)
+		// Pretend that the tracking system was unable to track this application.
+		return cgroup.ErrCannotTrackProcess
+	})
+	defer restore()
+
+	restore = snaprun.MockConfirmSystemdServiceTracking(func(securityTag string) error {
+		panic("apps need to create a scope and do not use systemd service tracking")
+	})
+	defer restore()
+
+	// redirect exec
+	restore = snaprun.MockSyscallExec(func(arg0 string, args []string, envv []string) error {
+		panic("did not expect to run through exec")
+	})
+	defer restore()
+
+	// Capture the non-debug log that is printed by this test.
+	logbuf, restore := logger.MockLogger()
+	defer restore()
+
+	// Ensure that the error message is printed.
+	_, err := snaprun.Parser(snaprun.Client()).ParseArgs([]string{"run", "--", "snapname.app", "--arg1", "arg2"})
+	c.Assert(err, check.ErrorMatches, "cannot track application process")
+	c.Assert(logbuf.String(), testutil.Contains, "See https://forum.snapcraft.io/t/46210 for more details.\n")
 }
 
 var mockKernelYaml = []byte(`name: pc-kernel
