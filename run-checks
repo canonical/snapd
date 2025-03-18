@@ -173,8 +173,7 @@ verify_tools() {
 
     # check go first that includes setting up go paths required to find or install
     # other go based tools, error early when missing
-    tool="go"
-    install_conf_show_tool "$tool" "$auto_install" "0"
+    install_conf_show_tool "go" "$auto_install" "0"
 
     # check other tools
     for tool in $tools; do
