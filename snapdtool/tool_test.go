@@ -28,6 +28,7 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/dirs/dirstest"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snapdtool"
@@ -361,20 +362,17 @@ func (s *toolSuite) TestInternalToolPathSnapdSnapNotExecutable(c *C) {
 }
 
 func (s *toolSuite) TestInternalToolPathWithLibexecdirLocation(c *C) {
-	defer dirs.SetRootDir(s.fakeroot)
-	restore := release.MockReleaseInfo(&release.OS{ID: "fedora"})
-	defer restore()
-	// reload directory paths
-	dirs.SetRootDir("/")
+	dirstest.MustMockAltLibExecDir(s.fakeroot)
+	dirs.SetRootDir(s.fakeroot)
 
-	restore = snapdtool.MockOsReadlink(func(string) (string, error) {
+	restore := snapdtool.MockOsReadlink(func(string) (string, error) {
 		return filepath.Join("/usr/bin/snap"), nil
 	})
 	defer restore()
 
 	path, err := snapdtool.InternalToolPath("potato")
 	c.Check(err, IsNil)
-	c.Check(path, Equals, filepath.Join("/usr/libexec/snapd/potato"))
+	c.Check(dirs.StripRootDir(path), Equals, filepath.Join("/usr/libexec/snapd/potato"))
 }
 
 func (s *toolSuite) TestExecInSnapdOrCoreSnap(c *C) {
