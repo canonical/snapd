@@ -8,20 +8,21 @@ import subprocess
 from typing import Callable, TypedDict, Literal, Union
 
 
-class SpreadLog_TypePhase(TypedDict):
-    type: Literal["phase"]
-    task: str
-    verb: str
-
-
 class SpreadLogDetail(TypedDict):
     lines: list[str]
 
 
+class SpreadLog_TypePhase(TypedDict):
+    type: Literal["phase"]
+    task: str
+    verb: str # log_helper.ExecutionPhase
+    detail: SpreadLogDetail
+
+
 class SpreadLog_TypeResult(TypedDict):
     type: Literal["result"]
-    result_type: str
-    level: str
+    result_type: str # log_helper.Result
+    level: str # log_helper.ExecutionLevel
     stage: str
     detail: SpreadLogDetail
 
@@ -29,11 +30,10 @@ class SpreadLog_TypeResult(TypedDict):
 SpreadLog = Union[SpreadLog_TypePhase, SpreadLog_TypeResult]
 
 
-def filter_with_spread(exec_param: str) -> list[str]:
-    exec_param = exec_param.replace(",", " ")
+def filter_with_spread(exec_param: list[str]) -> list[str]:
     cmd = ["spread", "-list"]
-    cmd.extend(exec_param.split())
-    return subprocess.check_output(cmd, universal_newlines=True).splitlines()
+    cmd.extend(exec_param)
+    return subprocess.check_output(cmd, text=True).splitlines()
 
 
 def list_executed_tasks(
@@ -50,15 +50,12 @@ def list_executed_tasks(
 def _get_detail_lines(
     spread_logs: list[SpreadLog], log_condition_func: Callable[[SpreadLog], bool]
 ) -> list[str]:
-    result = [log["detail"]["lines"] for log in spread_logs if log_condition_func(log)]
+    result = [log["detail"]["lines"]
+              for log in spread_logs if log_condition_func(log)]
 
-    def clean_entry(entry: str) -> str:
-        entry = entry.strip()
-        if entry.startswith("-"):
-            entry = entry[1:]
-        return entry.strip()
-
-    return [clean_entry(log) for sublist in result for log in sublist]
+    # Each entry in ['detail']['lines'] is a spread task prefaced with a '-' and
+    # surrounding by whitespace
+    return [log.strip().removeprefix('-').strip() for sublist in result for log in sublist]
 
 
 def list_failed_tasks(
@@ -102,7 +99,8 @@ def list_aborted_tasks(
 ) -> set[str]:
     executed_tasks = list_executed_tasks(filtered_exec_param, spread_logs)
     if len(executed_tasks) == 0:
-        exec_and_failed = list_executed_and_failed(filtered_exec_param, spread_logs)
+        exec_and_failed = list_executed_and_failed(
+            filtered_exec_param, spread_logs)
         return filtered_exec_param.difference(exec_and_failed)
     return filtered_exec_param.difference(executed_tasks)
 
@@ -123,17 +121,19 @@ def list_rexecute_tasks(
     exec_param: str, filtered_exec_param: set[str], spread_logs: list[SpreadLog]
 ) -> set[str]:
     aborted_tasks = list_aborted_tasks(filtered_exec_param, spread_logs)
-    exec_and_failed = list_executed_and_failed(filtered_exec_param, spread_logs)
+    exec_and_failed = list_executed_and_failed(
+        filtered_exec_param, spread_logs)
     exec_and_failed = exec_and_failed.intersection(filtered_exec_param)
     union = aborted_tasks.union(exec_and_failed)
     if len(filtered_exec_param.difference(union)) == 0:
-        return set(exec_param.split())
+        return set(exec_param)
     return union
 
 
 def add_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
         "exec_params",
+        nargs='+',
         help="This is the parameter used to run spread (something like this BACKEND:SYSTEM:SUITE)",
     )
     parser.add_argument(
@@ -143,7 +143,7 @@ def add_arguments(parser: argparse.ArgumentParser) -> None:
     )
 
 
-if __name__ == "__main__":
+def main() -> None:
     parser = argparse.ArgumentParser(
         description="""
         Usage: log-analyzer list-failed-tasks <EXEC-PARAM> <PARSED-LOG>
@@ -183,7 +183,8 @@ if __name__ == "__main__":
         "list-reexecute-tasks",
         help="list the tasks to re-execute to complete (includes aborted and failed tasks)",
     )
-    list_all = subparsers.add_parser("list-all-tasks", help="list all the tasks")
+    list_all = subparsers.add_parser(
+        "list-all-tasks", help="list all the tasks")
 
     add_arguments(failed)
     add_arguments(executed)
@@ -192,6 +193,7 @@ if __name__ == "__main__":
     add_arguments(reexecute)
     list_all.add_argument(
         "exec_params",
+        nargs='+',
         help="This is the parameter used to run spread (something like this BACKEND:SYSTEM:SUITE)",
     )
 
@@ -215,6 +217,11 @@ if __name__ == "__main__":
     elif args.command == "list-all-tasks":
         print(" ".join(filtered_exec_param))
     elif args.command == "list-reexecute-tasks":
-        print(" ".join(list_rexecute_tasks(args.exec_params, filtered_exec_param, log)))
+        print(" ".join(list_rexecute_tasks(
+            args.exec_params, filtered_exec_param, log)))
     else:
         raise RuntimeError("log.analyzer: no such command: %s" % args.command)
+
+
+if __name__ == "__main__":
+    main()

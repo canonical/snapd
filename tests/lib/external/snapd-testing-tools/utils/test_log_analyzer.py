@@ -1,8 +1,12 @@
+import argparse
+import json
 from importlib.util import spec_from_loader, module_from_spec
 from importlib.machinery import SourceFileLoader
+from io import StringIO
 import os
-import unittest
 from typing import Any, Tuple, TypedDict, Literal, Union
+import unittest
+from unittest.mock import Mock, patch
 
 # Since log-analyzer has a hyphen and is missing the .py extension,
 # we need to do some extra work to import the module to test
@@ -69,7 +73,8 @@ def create_data(
 
     # The tasks that executed are those that didn't fail plus those that failed during execution or restore
     spread_logs: list[SpreadLog] = [
-        SpreadLog_TypePhase({"type": "phase", "verb": "Executing", "task": param})
+        SpreadLog_TypePhase(
+            {"type": "phase", "verb": "Executing", "task": param})
         for param in exec_param[
             : num_executed_no_fail + num_fail_execution + num_fail_restore
         ]
@@ -84,6 +89,7 @@ def create_data(
                 "type": "result",
                 "result_type": "Failed",
                 "level": "tasks",
+                "stage": "",
                 "detail": {
                     "lines": ["- %s\n" % param for param in exec_param[begin:end]]
                 },
@@ -142,7 +148,7 @@ class TestLogAnalyzer(unittest.TestCase):
             num_fail_prepare=10,
             num_not_executed=10,
         )
-        self.exec_param_mixed = "tests/..."
+        self.exec_param_mixed = ["tests/...", "other-tests/..."]
 
         self.filtered_exec_param_no_failed, self.spread_logs_no_failed = create_data(
             num_executed_no_fail=10,
@@ -151,7 +157,7 @@ class TestLogAnalyzer(unittest.TestCase):
             num_fail_prepare=0,
             num_not_executed=0,
         )
-        self.exec_param_no_failed = "tests/..."
+        self.exec_param_no_failed = ["tests/...", "other-tests/..."]
 
         self.filtered_exec_param_no_exec, self.spread_logs_no_exec = create_data(
             num_executed_no_fail=0,
@@ -160,7 +166,7 @@ class TestLogAnalyzer(unittest.TestCase):
             num_fail_prepare=10,
             num_not_executed=10,
         )
-        self.exec_param_no_exec = "tests/..."
+        self.exec_param_no_exec = ["tests/...", "other-tests/..."]
 
         (
             self.filtered_exec_param_mix_success_abort,
@@ -172,7 +178,7 @@ class TestLogAnalyzer(unittest.TestCase):
             num_fail_prepare=0,
             num_not_executed=10,
         )
-        self.exec_param_mix_success_abort = "tests/..."
+        self.exec_param_mix_success_abort = ["tests/...", "other-tests/..."]
 
     # The following test group has mixed results with task results
     # of all kinds: successful, failed in all three phases, and not run
@@ -303,7 +309,7 @@ class TestLogAnalyzer(unittest.TestCase):
             self.filtered_exec_param_no_exec,
             self.spread_logs_no_exec,
         )
-        self.assertSetEqual(set(["tests/..."]), actual)
+        self.assertSetEqual(set(self.exec_param_no_exec), actual)
 
     # The following test group has tasks that either
     # were successful or did not run at all
@@ -354,6 +360,99 @@ class TestLogAnalyzer(unittest.TestCase):
         )
         expected = set(["test_" + str(i) for i in range(10, 20)])
         self.assertSetEqual(expected, actual)
+
+    # The following test group checks the main function with
+    # mixed results (some failures, some aborts, some successes)
+
+    @patch('argparse.ArgumentParser.parse_args')
+    def test_list_executed__main(self, parse_args_mock: Mock) -> None:
+        log_analyzer.filter_with_spread = Mock()
+        log_analyzer.filter_with_spread.return_value = [
+            "test_" + str(i) for i in range(50)]
+        parse_args_mock.return_value = argparse.Namespace(
+            command='list-executed-tasks',
+            exec_params=self.exec_param_mixed,
+            parsed_log=StringIO(json.dumps(self.spread_logs_mixed))
+        )
+        with patch('sys.stdout', new=StringIO()) as stdout_patch:
+            log_analyzer.main()
+            expected = set(["test_" + str(i) for i in range(30)])
+            self.assertSetEqual(expected, set(stdout_patch.getvalue().split()))
+
+    @patch('argparse.ArgumentParser.parse_args')
+    def test_list_failed__main(self, parse_args_mock: Mock) -> None:
+        log_analyzer.filter_with_spread = Mock()
+        log_analyzer.filter_with_spread.return_value = [
+            "test_" + str(i) for i in range(50)]
+        parse_args_mock.return_value = argparse.Namespace(
+            command='list-failed-tasks',
+            exec_params=self.exec_param_mixed,
+            parsed_log=StringIO(json.dumps(self.spread_logs_mixed))
+        )
+        with patch('sys.stdout', new=StringIO()) as stdout_patch:
+            log_analyzer.main()
+            expected = set(["test_" + str(i) for i in range(10, 20)])
+            self.assertSetEqual(expected, set(stdout_patch.getvalue().split()))
+
+    @patch('argparse.ArgumentParser.parse_args')
+    def test_list_successful__main(self, parse_args_mock: Mock) -> None:
+        log_analyzer.filter_with_spread = Mock()
+        log_analyzer.filter_with_spread.return_value = [
+            "test_" + str(i) for i in range(50)]
+        parse_args_mock.return_value = argparse.Namespace(
+            command='list-successful-tasks',
+            exec_params=self.exec_param_mixed,
+            parsed_log=StringIO(json.dumps(self.spread_logs_mixed))
+        )
+        with patch('sys.stdout', new=StringIO()) as stdout_patch:
+            log_analyzer.main()
+            expected = set(["test_" + str(i) for i in range(10)])
+            self.assertSetEqual(expected, set(stdout_patch.getvalue().split()))
+
+    @patch('argparse.ArgumentParser.parse_args')
+    def test_aborted_tasks__main(self, parse_args_mock: Mock) -> None:
+        log_analyzer.filter_with_spread = Mock()
+        log_analyzer.filter_with_spread.return_value = [
+            "test_" + str(i) for i in range(50)]
+        parse_args_mock.return_value = argparse.Namespace(
+            command='list-aborted-tasks',
+            exec_params=self.exec_param_mixed,
+            parsed_log=StringIO(json.dumps(self.spread_logs_mixed))
+        )
+        with patch('sys.stdout', new=StringIO()) as stdout_patch:
+            log_analyzer.main()
+            expected = set(["test_" + str(i) for i in range(30, 50)])
+            self.assertSetEqual(expected, set(stdout_patch.getvalue().split()))
+
+    @patch('argparse.ArgumentParser.parse_args')
+    def test_reexecute_tasks__main(self, parse_args_mock: Mock) -> None:
+        log_analyzer.filter_with_spread = Mock()
+        log_analyzer.filter_with_spread.return_value = [
+            "test_" + str(i) for i in range(50)]
+        parse_args_mock.return_value = argparse.Namespace(
+            command='list-reexecute-tasks',
+            exec_params=self.exec_param_mixed,
+            parsed_log=StringIO(json.dumps(self.spread_logs_mixed))
+        )
+        with patch('sys.stdout', new=StringIO()) as stdout_patch:
+            log_analyzer.main()
+            expected = set(["test_" + str(i) for i in range(10, 50)])
+            self.assertSetEqual(expected, set(stdout_patch.getvalue().split()))
+
+    @patch('argparse.ArgumentParser.parse_args')
+    def test_reexecute_tasks__main_no_exec(self, parse_args_mock: Mock) -> None:
+        log_analyzer.filter_with_spread = Mock()
+        log_analyzer.filter_with_spread.return_value = [
+            "test_" + str(i) for i in range(50)]
+        parse_args_mock.return_value = argparse.Namespace(
+            command='list-reexecute-tasks',
+            exec_params=self.exec_param_no_exec,
+            parsed_log=StringIO(json.dumps(self.spread_logs_no_exec))
+        )
+        with patch('sys.stdout', new=StringIO()) as stdout_patch:
+            log_analyzer.main()
+            expected = set(self.exec_param_no_exec)
+            self.assertSetEqual(expected, set(stdout_patch.getvalue().split()))
 
 
 if __name__ == "__main__":

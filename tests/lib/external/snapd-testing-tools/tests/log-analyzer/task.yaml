@@ -242,7 +242,6 @@ execute: |
 
     ### CHECK ALL ###
     compare_tasks_count "$(log-analyzer list-all-tasks google:)" 10
-    compare_tasks_count "$(log-analyzer list-all-tasks 'google:ubuntu-20.04-64: google:ubuntu-22.04-64:')" 10
-    compare_tasks_count "$(log-analyzer list-all-tasks 'google:ubuntu-20.04-64:,google:ubuntu-22.04-64:')" 10
+    compare_tasks_count "$(log-analyzer list-all-tasks google:ubuntu-20.04-64: google:ubuntu-22.04-64:)" 10
     compare_tasks_count "$(log-analyzer list-all-tasks google:ubuntu-20.04-64:)" 5
     compare_tasks_count "$(log-analyzer list-all-tasks google:ubuntu-22.04-64:)" 5
