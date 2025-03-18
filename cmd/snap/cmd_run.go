@@ -1819,11 +1819,21 @@ func (x *cmdRun) runSnapConfine(info *snap.Info, runner runnable, beforeExec fun
 			if err != cgroup.ErrCannotTrackProcess {
 				return err
 			}
-			// If we cannot track the process then log a debug message.
-			// TODO: if we could, create a warning. Currently this is not possible
-			// because only snapd can create warnings, internally.
-			logger.Debugf("snapd cannot track the started application")
-			logger.Debugf("snap refreshes will not be postponed by this process")
+			switch runner.info.Base {
+			case "", "core", "core18", "core20", "core22", "core24":
+				// If we cannot track the process then log a debug message.
+				// TODO: if we could, create a warning. Currently this is not possible
+				// because only snapd can create warnings, internally.
+				logger.Debugf("snapd cannot track the started application")
+				logger.Debugf("snap refreshes will not be postponed by this process")
+			default:
+				// For apps using core26+, fail hard.
+				if usr, err := userCurrent(); err == nil {
+					logger.Noticef("The user %s cannot run snap applications on this system.\n"+
+						"See https://forum.snapcraft.io/t/46210 for more details.", usr.Username)
+				}
+				return err
+			}
 		}
 	}
 
