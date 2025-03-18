@@ -438,7 +438,7 @@ if [ "$STATIC" = 1 ]; then
         echo ">> [Bash] Skipping shellcheck check"
     fi
 
-    if [ -z "${SKIP_MISSPELL:-}" ] || ! command -v misspell >/dev/null; then
+    if [ -z "${SKIP_MISSPELL:-}" ] && command -v misspell >/dev/null; then
         echo ">> Checking spelling"
         # FIXME: author is only misspelled in the changelog so we should fix there
         # PROCES is used in the seccomp tests (PRIO_PROCES{,S,SS})
@@ -451,7 +451,7 @@ if [ "$STATIC" = 1 ]; then
         echo ">> Skipping spelling check"
     fi
 
-    if [ -z "${SKIP_INEFFASSIGN:-}" ] || ! command -v ineffassign >/dev/null; then
+    if [ -z "${SKIP_INEFFASSIGN:-}" ] && command -v ineffassign >/dev/null; then
         if dpkg --compare-versions "$(go version | awk '$3 ~ /^go[0-9]/ {print substr($3, 3)}')" ge 1.12; then
             echo ">> [Go] Checking for ineffective assignments"
             # ineffassign knows about ignoring vendor/ \o/
@@ -462,7 +462,7 @@ if [ "$STATIC" = 1 ]; then
     fi
 
     echo ">> [Go] Checking for naked returns"
-    if [ -z "${SKIP_NAKEDRET:-}" ] || ! command -v nakedret >/dev/null; then
+    if [ -z "${SKIP_NAKEDRET:-}" ] && command -v nakedret >/dev/null; then
         got=$(go list ./... | grep -v '/osutil/udev/' | grep -v '/vendor/' | xargs nakedret 2>&1)
         if [ -n "$got" ]; then
             echo "$got"
