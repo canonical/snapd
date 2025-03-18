@@ -25,7 +25,6 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
-	"strconv"
 	"strings"
 	"sync"
 
@@ -640,44 +639,14 @@ func SetRootDir(rootdir string) {
 	LocaleDir = filepath.Join(rootdir, "/usr/share/locale")
 	ClassicDir = filepath.Join(rootdir, "/writable/classic")
 
-	opensuseFlavorWithLibexec := func() bool {
-		// XXX: this is pretty naive if openSUSE ever starts going back
-		// and forth about the change
-
-		if release.DistroLike("opensuse-slowroll") {
-			// Slowroll does not need further checks, it has used /usr/libexec
-			// since the start
-			return true
+	DistroLibExecDir = filepath.Join(rootdir, DefaultDistroLibexecDir)
+	if _, err := os.Stat(DistroLibExecDir); errors.Is(err, fs.ErrNotExist) {
+		// the default /usr/lib/snapd does not exist, but maybe we have the
+		// alternative dir /usr/libexec/snapd
+		alt := filepath.Join(rootdir, AltDistroLibexecDir)
+		if _, err := os.Stat(alt); err == nil {
+			DistroLibExecDir = alt
 		}
-
-		if !release.DistroLike("opensuse-tumbleweed") {
-			// Leap and the like, are there others?
-			return false
-		}
-
-		// TW snapshots are YYYYMMDD
-		v, err := strconv.Atoi(release.ReleaseInfo.VersionID)
-		if err != nil {
-			// nothing we can do here
-			return false
-		}
-
-		// TODO: drop? do we still care about such old snapshot?
-		// first seen on snapshot "20200826"
-		if v < 20200826 {
-			return false
-		}
-
-		return true
-	}
-
-	if release.DistroLike("fedora") || opensuseFlavorWithLibexec() {
-		// RHEL, CentOS, Fedora and derivatives, some more recent
-		// snapshots of openSUSE Tumbleweed and Slowroll;
-		// both RHEL and CentOS list "fedora" in ID_LIKE
-		DistroLibExecDir = filepath.Join(rootdir, AltDistroLibexecDir)
-	} else {
-		DistroLibExecDir = filepath.Join(rootdir, DefaultDistroLibexecDir)
 	}
 
 	XdgRuntimeDirBase = filepath.Join(rootdir, "/run/user")
