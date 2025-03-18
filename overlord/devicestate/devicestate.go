@@ -805,10 +805,18 @@ func (r *remodeler) installedRevisionUpdateGoal(
 		})
 	}
 
+	sideInfo := *ss.Snap
+
+	// despite swapping back to an old revision in the sequence, we still might
+	// need to swap to a new channel to track.
+	if sn.channel != "" {
+		sideInfo.Channel = sn.channel
+	}
+
 	return snapstatePathUpdateGoal(snapstate.PathSnap{
 		InstanceName: sn.name,
 		Path:         snap.MountFile(sn.name, constraints.Revision),
-		SideInfo:     ss.Snap,
+		SideInfo:     &sideInfo,
 		Components:   comps,
 		RevOpts: snapstate.RevisionOptions{
 			Channel:        sn.channel,
