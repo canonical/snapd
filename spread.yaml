@@ -1480,4 +1480,47 @@ suites:
                 systemctl status snapd.socket || true
             fi
 
+    # a subset of the main test suite but for cross distro and with reexec enabled
+    tests/cross-distro-reexec/:
+        summary: Cross-distro reeexec
+        systems:
+          - arch-linux-*
+          # TODO: enable the following:
+          # - opensuse-*
+          # - fedora-*
+          # - amazon-linux-*
+        environment:
+          # enable snap rexec
+          SNAP_REEXEC: "1"
+        prepare: |
+            "$TESTSLIB"/prepare-restore.sh --prepare-suite
+        prepare-each: |
+            "$TESTSLIB"/prepare-restore.sh --prepare-suite-each
+            SNAP_MOUNT_DIR="$(os.paths snap-mount-dir)"
+            case "$SNAP_MOUNT_DIR" in
+                /var/lib/snapd/snap)
+                    ln -sf "$SNAP_MOUNT_DIR" /snap
+                    tests.cleanup defer rm -f /snap
+                    ;;
+            esac
+
+            systemctl restart snapd.service
+
+            # assert state of reexec
+            pmap -p "$(pidof snapd)" | MATCH "$SNAP_MOUNT_DIR/snapd/.*/usr/lib/snapd/snapd"
+            snap debug execution snap | MATCH 'is-reexecd: true'
+            # assert internal apparmor?
+            if command -v aa-enabled 2>/dev/null && aa-enabled ; then
+                snap debug execution apparmor | MATCH 'internal: true'
+            fi
+
+        restore-each: |
+            "$TESTSLIB"/prepare-restore.sh --restore-suite-each
+        restore: |
+            "$TESTSLIB"/prepare-restore.sh --restore-suite
+        debug: |
+            if [ "$SPREAD_DEBUG_EACH" = 1 ]; then
+                systemctl status snapd.socket || true
+            fi
+
 # vim:ts=4:sw=4:et
