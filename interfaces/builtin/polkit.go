@@ -328,15 +328,13 @@ var (
 	polkitDaemonPath1 = "/usr/libexec/polkitd"
 	// polkitDaemonPath2 is the path of polkid on core>=24.
 	polkitDaemonPath2 = "/usr/lib/polkit-1/polkitd"
-	// polkitDaemonPath3 is the path of polkitd on Ubuntu 20.04 and Debian 11.
-	polkitDaemonPath3 = "/usr/lib/policykit-1/polkitd"
 )
 
 // hasPolkitDaemonExecutable checks known paths on core for the presence of
 // the polkit daemon executable. This function can be shortened but keep it like
 // this for readability.
 func hasPolkitDaemonExecutable() bool {
-	return osutil.IsExecutable(polkitDaemonPath1) || osutil.IsExecutable(polkitDaemonPath2) || osutil.IsExecutable(polkitDaemonPath3)
+	return osutil.IsExecutable(polkitDaemonPath1) || osutil.IsExecutable(polkitDaemonPath2)
 }
 
 func canWriteToPolkitActionsDir() bool {

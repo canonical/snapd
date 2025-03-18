@@ -50,7 +50,6 @@ type polkitInterfaceSuite struct {
 
 	daemonPath1  string
 	daemonPath2  string
-	daemonPath3  string
 	restorePaths func()
 }
 
@@ -62,8 +61,7 @@ func (s *polkitInterfaceSuite) SetUpSuite(c *C) {
 	d := c.MkDir()
 	s.daemonPath1 = filepath.Join(d, "polkitd-1")
 	s.daemonPath2 = filepath.Join(d, "polkitd-2")
-	s.daemonPath3 = filepath.Join(d, "polkitd-3")
-	s.restorePaths = builtin.MockPolkitDaemonPaths(s.daemonPath1, s.daemonPath2, s.daemonPath3)
+	s.restorePaths = builtin.MockPolkitDaemonPaths(s.daemonPath1, s.daemonPath2)
 }
 
 func (s *polkitInterfaceSuite) TearDownSuite(c *C) {
@@ -89,7 +87,6 @@ slots:
 
 	c.Assert(os.WriteFile(s.daemonPath1, nil, 0o600), IsNil)
 	c.Assert(os.WriteFile(s.daemonPath2, nil, 0o600), IsNil)
-	c.Assert(os.WriteFile(s.daemonPath3, nil, 0o600), IsNil)
 	c.Assert(os.MkdirAll(dirs.SnapPolkitPolicyDir, 0o700), IsNil)
 	c.Assert(os.MkdirAll(dirs.SnapPolkitRuleDir, 0o700), IsNil)
 }
@@ -542,38 +539,27 @@ func (s *polkitInterfaceSuite) TestPolkitPoliciesSupported(c *C) {
 	// But not the rules to isolate te StaticInfo checks.
 	c.Assert(os.Chmod(dirs.SnapPolkitRuleDir, 0o500), IsNil)
 
-	// No daemon executable is found so polkit policies are not supported.
+	// Neither daemon is executable so polkit policies are not supported.
 	c.Assert(os.Chmod(s.daemonPath1, 0o600), IsNil)
 	c.Assert(os.Chmod(s.daemonPath2, 0o600), IsNil)
-	c.Assert(os.Chmod(s.daemonPath3, 0o600), IsNil)
 	c.Check(builtin.PolkitPoliciesSupported(), Equals, false)
 	c.Check(interfaces.StaticInfoOf(s.iface).ImplicitOnCore, Equals, false)
 
 	// The 1st daemon is executable so polkit policies are supported.
 	c.Assert(os.Chmod(s.daemonPath1, 0o700), IsNil)
 	c.Assert(os.Chmod(s.daemonPath2, 0o600), IsNil)
-	c.Assert(os.Chmod(s.daemonPath3, 0o600), IsNil)
 	c.Check(builtin.PolkitPoliciesSupported(), Equals, true)
 	c.Check(interfaces.StaticInfoOf(s.iface).ImplicitOnCore, Equals, true)
 
 	// The 2nd daemon is executable so polkit policies are supported.
 	c.Assert(os.Chmod(s.daemonPath1, 0o600), IsNil)
 	c.Assert(os.Chmod(s.daemonPath2, 0o700), IsNil)
-	c.Assert(os.Chmod(s.daemonPath3, 0o600), IsNil)
 	c.Check(builtin.PolkitPoliciesSupported(), Equals, true)
 	c.Check(interfaces.StaticInfoOf(s.iface).ImplicitOnCore, Equals, true)
 
-	// The 3nd daemon is executable so polkit policies are supported.
-	c.Assert(os.Chmod(s.daemonPath1, 0o600), IsNil)
-	c.Assert(os.Chmod(s.daemonPath2, 0o600), IsNil)
-	c.Assert(os.Chmod(s.daemonPath3, 0o700), IsNil)
-	c.Check(builtin.PolkitPoliciesSupported(), Equals, true)
-	c.Check(interfaces.StaticInfoOf(s.iface).ImplicitOnCore, Equals, true)
-
-	// From now own, all daemons are executable so mounts matter.
+	// From now own, both daemons are executable so mounts matter.
 	c.Assert(os.Chmod(s.daemonPath1, 0o700), IsNil)
 	c.Assert(os.Chmod(s.daemonPath2, 0o700), IsNil)
-	c.Assert(os.Chmod(s.daemonPath3, 0o700), IsNil)
 
 	// Actions directory is not writable so polkit policies are not supported.
 	c.Assert(os.Chmod(dirs.SnapPolkitPolicyDir, 0o500), IsNil)
@@ -592,38 +578,27 @@ func (s *polkitInterfaceSuite) TestPolkitRulesSupported(c *C) {
 	// But not the actions directory to isolate te StaticInfo checks.
 	c.Assert(os.Chmod(dirs.SnapPolkitPolicyDir, 0o500), IsNil)
 
-	// No daemon executable is found so polkit rules are not supported.
+	// Neither daemon is executable so polkit rules are not supported.
 	c.Assert(os.Chmod(s.daemonPath1, 0o600), IsNil)
 	c.Assert(os.Chmod(s.daemonPath2, 0o600), IsNil)
-	c.Assert(os.Chmod(s.daemonPath3, 0o600), IsNil)
 	c.Check(builtin.PolkitRulesSupported(), Equals, false)
 	c.Check(interfaces.StaticInfoOf(s.iface).ImplicitOnCore, Equals, false)
 
 	// The 1st daemon is executable so polkit rules are supported.
 	c.Assert(os.Chmod(s.daemonPath1, 0o700), IsNil)
 	c.Assert(os.Chmod(s.daemonPath2, 0o600), IsNil)
-	c.Assert(os.Chmod(s.daemonPath3, 0o600), IsNil)
 	c.Check(builtin.PolkitRulesSupported(), Equals, true)
 	c.Check(interfaces.StaticInfoOf(s.iface).ImplicitOnCore, Equals, true)
 
 	// The 2nd daemon is executable so polkit rules are supported.
 	c.Assert(os.Chmod(s.daemonPath1, 0o600), IsNil)
 	c.Assert(os.Chmod(s.daemonPath2, 0o700), IsNil)
-	c.Assert(os.Chmod(s.daemonPath3, 0o600), IsNil)
 	c.Check(builtin.PolkitRulesSupported(), Equals, true)
 	c.Check(interfaces.StaticInfoOf(s.iface).ImplicitOnCore, Equals, true)
 
-	// The 3nd daemon is executable so polkit rules are supported.
-	c.Assert(os.Chmod(s.daemonPath1, 0o600), IsNil)
-	c.Assert(os.Chmod(s.daemonPath2, 0o600), IsNil)
-	c.Assert(os.Chmod(s.daemonPath3, 0o700), IsNil)
-	c.Check(builtin.PolkitRulesSupported(), Equals, true)
-	c.Check(interfaces.StaticInfoOf(s.iface).ImplicitOnCore, Equals, true)
-
-	// From now own, all daemons are executable so mounts matter.
+	// From now own, both daemons are executable so mounts matter.
 	c.Assert(os.Chmod(s.daemonPath1, 0o700), IsNil)
 	c.Assert(os.Chmod(s.daemonPath2, 0o700), IsNil)
-	c.Assert(os.Chmod(s.daemonPath3, 0o700), IsNil)
 
 	// Rules directory is not writable so polkit rules are not supported.
 	c.Assert(os.Chmod(dirs.SnapPolkitRuleDir, 0o500), IsNil)
