@@ -27,7 +27,7 @@ import (
 )
 
 func init() {
-	checks = append(checks, checkSnapMountDir)
+	checks = append(checks, checkSnapMountDir, checkLibExecDir)
 }
 
 var (
@@ -66,6 +66,47 @@ func checkSnapMountDir() error {
 		fallthrough
 	case release.DistroLike(altDirDistros...) && smd != dirs.AltSnapMountDir:
 		return fmt.Errorf("unexpected snap mount directory %v on %v", smd, release.ReleaseInfo.ID)
+	}
+
+	return nil
+}
+
+var (
+	// distributions known to use /usr/lib/snapd/
+	defaulLibExectDirDistros = []string{
+		"ubuntu",
+		"ubuntu-core",
+		"ubuntucoreinitramfs",
+		"debian",
+		"opensuse-leap",
+		"yocto",
+		"altlinux",
+		"antergos",
+		"arch",
+		"archlinux",
+		"gentoo",
+		"manjaro",
+		"manjaro-arm",
+	}
+
+	// distributions known to use /usr/libexec/snapd/
+	altLibExecDirDistros = []string{
+		"fedora",
+		"opensuse-tumbleweed",
+		"opensuse-slowroll",
+	}
+)
+
+func checkLibExecDir() error {
+	d := dirs.StripRootDir(dirs.DistroLibExecDir)
+	switch {
+	case release.DistroLike(altLibExecDirDistros...) && d != dirs.AltDistroLibexecDir:
+		// RHEL, CentOS, Fedora and derivatives, openSUSE Tumbleweed (since
+		// snapshot 20200826) and Slowroll; both RHEL and CentOS list "fedora"
+		// in ID_LIKE
+		fallthrough
+	case release.DistroLike(defaulLibExectDirDistros...) && d != dirs.DefaultDistroLibexecDir:
+		return fmt.Errorf("unexpected snapd tooling directory %v on %v", d, release.ReleaseInfo.ID)
 	}
 
 	return nil
