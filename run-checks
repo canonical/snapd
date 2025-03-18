@@ -71,8 +71,8 @@ tool_install() {
         goinstall github.com/client9/misspell/cmd/misspell >/dev/null
         ;;
     golangci-lint)
-	# Decided to start using latest instead of pinning specific version, if this approach
-	# introduces too much instability, revert back to pinning a working version.
+        # Decided to start using latest instead of pinning specific version, if this approach
+        # introduces too much instability, revert back to pinning a working version.
         goinstall github.com/golangci/golangci-lint/cmd/golangci-lint >/dev/null
         ;;
     go) ;&         # fallthrough
@@ -194,7 +194,7 @@ missing_interface_spread_test() {
             # skip gadget provided interfaces for now
             continue
             ;;
-        cuda-driver-libs)
+        cuda-driver-libs | egl-driver-libs)
             # skip interfaces with plug side only in rootfs for now
             continue
             ;;
