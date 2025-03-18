@@ -304,16 +304,20 @@ func (iface *polkitInterface) BeforePreparePlug(plug *snap.PlugInfo) error {
 	if policyErr != nil && !errors.Is(policyErr, snap.AttributeNotFoundError{}) {
 		return policyErr
 	}
-	if policyErr == nil && !polkitPoliciesSupported() {
-		return fmt.Errorf(`cannot use "action-prefix" attribute: polkit policies are not supported`)
+	if policyErr == nil {
+		if err := canWriteToDir(dirs.SnapPolkitPolicyDir); err != nil {
+			return fmt.Errorf(`cannot use "action-prefix" attribute: %w`, err)
+		}
 	}
 
 	_, ruleErr := iface.parseAndValidateInstallRules(plug)
 	if ruleErr != nil && !errors.Is(ruleErr, snap.AttributeNotFoundError{}) {
 		return ruleErr
 	}
-	if ruleErr == nil && !polkitRulesSupported() {
-		return fmt.Errorf(`cannot use "install-rules" attribute: polkit rules are not supported`)
+	if ruleErr == nil {
+		if err := canWriteToDir(dirs.SnapPolkitRuleDir); err != nil {
+			return fmt.Errorf(`cannot use "install-rules" attribute: %w`, err)
+		}
 	}
 
 	// Check if both attributes are not set.
@@ -337,29 +341,17 @@ func hasPolkitDaemonExecutable() bool {
 	return osutil.IsExecutable(polkitDaemonPath1) || osutil.IsExecutable(polkitDaemonPath2)
 }
 
-func canWriteToPolkitActionsDir() bool {
-	return unix.Access(dirs.SnapPolkitPolicyDir, unix.W_OK) == nil
-}
-
-func polkitPoliciesSupported() bool {
-	// We must have the polkit daemon present on the system and be able to write
-	// to the polkit actions directory.
-	return hasPolkitDaemonExecutable() && canWriteToPolkitActionsDir()
-}
-
-func canWriteToPolkitRulesDir() bool {
-	return unix.Access(dirs.SnapPolkitRuleDir, unix.W_OK) == nil
-}
-
-func polkitRulesSupported() bool {
-	// We must have the polkit daemon present on the system and be able to write
-	// to the polkit rules directory.
-	return hasPolkitDaemonExecutable() && canWriteToPolkitRulesDir()
+func canWriteToDir(dir string) error {
+	if err := unix.Access(dir, unix.W_OK); err != nil {
+		return fmt.Errorf("%q is not writable: %w", dir, err)
+	}
+	return nil
 }
 
 func (iface *polkitInterface) StaticInfo() interfaces.StaticInfo {
 	info := iface.commonInterface.StaticInfo()
-	info.ImplicitOnCore = polkitPoliciesSupported() || polkitRulesSupported()
+	// We must have the polkit daemon present on the system.
+	info.ImplicitOnCore = hasPolkitDaemonExecutable()
 	return info
 }
 

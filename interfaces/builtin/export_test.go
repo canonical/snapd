@@ -37,8 +37,6 @@ var (
 	ImplicitSystemPermanentSlot = implicitSystemPermanentSlot
 	ImplicitSystemConnectedSlot = implicitSystemConnectedSlot
 	StringListAttribute         = stringListAttribute
-	PolkitPoliciesSupported     = polkitPoliciesSupported
-	PolkitRulesSupported        = polkitRulesSupported
 )
 
 func MprisGetName(iface interfaces.Interface, attribs map[string]interface{}) (string, error) {

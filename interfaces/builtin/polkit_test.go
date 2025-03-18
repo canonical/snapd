@@ -416,6 +416,24 @@ plugs:
 	c.Assert(interfaces.BeforePreparePlug(s.iface, plug), IsNil)
 }
 
+func (s *polkitInterfaceSuite) TestSanitizePlugPolicyDirNotWritable(c *C) {
+	_, plugInfo := mockPolkitPolicyConnectedPlug(c)
+
+	// Actions directory is not writable.
+	c.Assert(os.Chmod(dirs.SnapPolkitPolicyDir, 0o500), IsNil)
+	err := interfaces.BeforePreparePlug(s.iface, plugInfo)
+	c.Assert(err, ErrorMatches, `cannot use "action-prefix" attribute: ".*/usr/share/polkit-1/actions" is not writable: permission denied`)
+}
+
+func (s *polkitInterfaceSuite) TestSanitizePlugRuleDirNotWritable(c *C) {
+	_, plugInfo := mockPolkitRuleConnectedPlug(c, "hash")
+
+	// Rules directory is not writable.
+	c.Assert(os.Chmod(dirs.SnapPolkitRuleDir, 0o500), IsNil)
+	err := interfaces.BeforePreparePlug(s.iface, plugInfo)
+	c.Assert(err, ErrorMatches, `cannot use "install-rules" attribute: ".*/etc/polkit-1/rules.d" is not writable: permission denied`)
+}
+
 func (s *polkitInterfaceSuite) TestSanitizePlugPolicyUnhappy(c *C) {
 	const mockSnapYaml = `name: polkit-plug-snap
 version: 1.0
@@ -525,90 +543,37 @@ slots:
 }
 
 func (s *polkitInterfaceSuite) TestStaticInfo(c *C) {
+	// Basic checks
 	si := interfaces.StaticInfoOf(s.iface)
-	// ImplicitOnCore is only tested in TestPolkitPoliciesSupported and TestPolkitRulesSupported.
-	c.Check(si.ImplicitOnClassic, Equals, true)
 	c.Check(si.Summary, Equals, "allows installing polkit rules and/or access to polkitd to check authorisation")
 	c.Check(si.BaseDeclarationPlugs, testutil.Contains, "polkit")
 	c.Check(si.BaseDeclarationSlots, testutil.Contains, "polkit")
-}
 
-func (s *polkitInterfaceSuite) TestPolkitPoliciesSupported(c *C) {
-	// From now the actions directory is writable so daemon permissions matter.
-	c.Assert(os.Chmod(dirs.SnapPolkitPolicyDir, 0o700), IsNil)
-	// But not the rules to isolate te StaticInfo checks.
-	c.Assert(os.Chmod(dirs.SnapPolkitRuleDir, 0o500), IsNil)
+	// Implicit slot checks
 
-	// Neither daemon is executable so polkit policies are not supported.
+	// 1. Neither daemon is executable so polkit interface is not supported on core.
 	c.Assert(os.Chmod(s.daemonPath1, 0o600), IsNil)
 	c.Assert(os.Chmod(s.daemonPath2, 0o600), IsNil)
-	c.Check(builtin.PolkitPoliciesSupported(), Equals, false)
-	c.Check(interfaces.StaticInfoOf(s.iface).ImplicitOnCore, Equals, false)
+	si = interfaces.StaticInfoOf(s.iface)
+	c.Check(si.ImplicitOnCore, Equals, false)
+	// But always supported on classic.
+	c.Check(si.ImplicitOnClassic, Equals, true)
 
-	// The 1st daemon is executable so polkit policies are supported.
+	// 2. The 1st daemon is executable so polkit policies are supported.
 	c.Assert(os.Chmod(s.daemonPath1, 0o700), IsNil)
 	c.Assert(os.Chmod(s.daemonPath2, 0o600), IsNil)
-	c.Check(builtin.PolkitPoliciesSupported(), Equals, true)
-	c.Check(interfaces.StaticInfoOf(s.iface).ImplicitOnCore, Equals, true)
+	si = interfaces.StaticInfoOf(s.iface)
+	c.Check(si.ImplicitOnCore, Equals, true)
+	// But always supported on classic.
+	c.Check(si.ImplicitOnClassic, Equals, true)
 
-	// The 2nd daemon is executable so polkit policies are supported.
+	// 3. The 2nd daemon is executable so polkit policies are supported.
 	c.Assert(os.Chmod(s.daemonPath1, 0o600), IsNil)
 	c.Assert(os.Chmod(s.daemonPath2, 0o700), IsNil)
-	c.Check(builtin.PolkitPoliciesSupported(), Equals, true)
-	c.Check(interfaces.StaticInfoOf(s.iface).ImplicitOnCore, Equals, true)
-
-	// From now own, both daemons are executable so mounts matter.
-	c.Assert(os.Chmod(s.daemonPath1, 0o700), IsNil)
-	c.Assert(os.Chmod(s.daemonPath2, 0o700), IsNil)
-
-	// Actions directory is not writable so polkit policies are not supported.
-	c.Assert(os.Chmod(dirs.SnapPolkitPolicyDir, 0o500), IsNil)
-	c.Check(builtin.PolkitPoliciesSupported(), Equals, false)
-	c.Check(interfaces.StaticInfoOf(s.iface).ImplicitOnCore, Equals, false)
-
-	// Actions directory is writable so polkit policies are supported.
-	c.Assert(os.Chmod(dirs.SnapPolkitPolicyDir, 0o700), IsNil)
-	c.Check(builtin.PolkitPoliciesSupported(), Equals, true)
-	c.Check(interfaces.StaticInfoOf(s.iface).ImplicitOnCore, Equals, true)
-}
-
-func (s *polkitInterfaceSuite) TestPolkitRulesSupported(c *C) {
-	// From now the rules directory is writable so daemon permissions matter.
-	c.Assert(os.Chmod(dirs.SnapPolkitRuleDir, 0o700), IsNil)
-	// But not the actions directory to isolate te StaticInfo checks.
-	c.Assert(os.Chmod(dirs.SnapPolkitPolicyDir, 0o500), IsNil)
-
-	// Neither daemon is executable so polkit rules are not supported.
-	c.Assert(os.Chmod(s.daemonPath1, 0o600), IsNil)
-	c.Assert(os.Chmod(s.daemonPath2, 0o600), IsNil)
-	c.Check(builtin.PolkitRulesSupported(), Equals, false)
-	c.Check(interfaces.StaticInfoOf(s.iface).ImplicitOnCore, Equals, false)
-
-	// The 1st daemon is executable so polkit rules are supported.
-	c.Assert(os.Chmod(s.daemonPath1, 0o700), IsNil)
-	c.Assert(os.Chmod(s.daemonPath2, 0o600), IsNil)
-	c.Check(builtin.PolkitRulesSupported(), Equals, true)
-	c.Check(interfaces.StaticInfoOf(s.iface).ImplicitOnCore, Equals, true)
-
-	// The 2nd daemon is executable so polkit rules are supported.
-	c.Assert(os.Chmod(s.daemonPath1, 0o600), IsNil)
-	c.Assert(os.Chmod(s.daemonPath2, 0o700), IsNil)
-	c.Check(builtin.PolkitRulesSupported(), Equals, true)
-	c.Check(interfaces.StaticInfoOf(s.iface).ImplicitOnCore, Equals, true)
-
-	// From now own, both daemons are executable so mounts matter.
-	c.Assert(os.Chmod(s.daemonPath1, 0o700), IsNil)
-	c.Assert(os.Chmod(s.daemonPath2, 0o700), IsNil)
-
-	// Rules directory is not writable so polkit rules are not supported.
-	c.Assert(os.Chmod(dirs.SnapPolkitRuleDir, 0o500), IsNil)
-	c.Check(builtin.PolkitRulesSupported(), Equals, false)
-	c.Check(interfaces.StaticInfoOf(s.iface).ImplicitOnCore, Equals, false)
-
-	// Rules directory is writable so polkit rules are supported.
-	c.Assert(os.Chmod(dirs.SnapPolkitRuleDir, 0o700), IsNil)
-	c.Check(builtin.PolkitRulesSupported(), Equals, true)
-	c.Check(interfaces.StaticInfoOf(s.iface).ImplicitOnCore, Equals, true)
+	si = interfaces.StaticInfoOf(s.iface)
+	c.Check(si.ImplicitOnCore, Equals, true)
+	// But always supported on classic.
+	c.Check(si.ImplicitOnClassic, Equals, true)
 }
 
 func (s *polkitInterfaceSuite) TestInterfaces(c *C) {
