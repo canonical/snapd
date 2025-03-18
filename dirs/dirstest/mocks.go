@@ -49,3 +49,17 @@ func MustMockCanonicalSnapMountDir(root string) {
 		panic(fmt.Errorf("cannot set up symlink: %w", err))
 	}
 }
+
+// MustMockDefaultLibExecDir sets up a default snapd libexecdir in a given root.
+func MustMockDefaultLibExecDir(root string) {
+	if err := os.MkdirAll(filepath.Join(root, "/usr/lib/snapd/"), 0o755); err != nil {
+		panic(fmt.Errorf("cannot set up default libexecdir: %w", err))
+	}
+}
+
+// MustMockAltLibExecDir sets up an alternative snapd libexecdir in a given root.
+func MustMockAltLibExecDir(root string) {
+	if err := os.MkdirAll(filepath.Join(root, "/usr/libexec/snapd/"), 0o755); err != nil {
+		panic(fmt.Errorf("cannot set up alt libexecdir: %w", err))
+	}
+}
