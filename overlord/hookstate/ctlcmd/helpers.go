@@ -291,8 +291,19 @@ func createSnapctlInstallTasks(hctx *hookstate.Context, cmd managementCommand) (
 	if err != nil {
 		return nil, err
 	}
+
+	var seeded bool
+	err = st.Get("seeded", &seeded)
+	if err != nil && !errors.Is(err, state.ErrNoState) {
+		return nil, err
+	}
+
+	// TODO if called while seeding, we need to check that the component is
+	// not already in the seed, to make this a no-op
+
+	// opts.Seed is true if the system is not seeded yet
 	return snapstateInstallComponents(context.TODO(), st, cmd.components, info, nil,
-		snapstate.Options{ExpectOneSnap: true, FromChange: changeIDIfNotEphemeral(hctx)})
+		snapstate.Options{ExpectOneSnap: true, FromChange: changeIDIfNotEphemeral(hctx), Seed: !seeded})
 }
 
 func createSnapctlRemoveTasks(hctx *hookstate.Context, cmd managementCommand) (tss []*state.TaskSet, err error) {
