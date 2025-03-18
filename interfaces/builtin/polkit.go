@@ -304,20 +304,16 @@ func (iface *polkitInterface) BeforePreparePlug(plug *snap.PlugInfo) error {
 	if policyErr != nil && !errors.Is(policyErr, snap.AttributeNotFoundError{}) {
 		return policyErr
 	}
-	if policyErr == nil {
-		if err := canWriteToDir(dirs.SnapPolkitPolicyDir); err != nil {
-			return fmt.Errorf(`cannot use "action-prefix" attribute: %w`, err)
-		}
+	if policyErr == nil && !canWriteToDir(dirs.SnapPolkitPolicyDir) {
+		return fmt.Errorf(`cannot use "action-prefix" attribute: %q is not writable`, dirs.SnapPolkitPolicyDir)
 	}
 
 	_, ruleErr := iface.parseAndValidateInstallRules(plug)
 	if ruleErr != nil && !errors.Is(ruleErr, snap.AttributeNotFoundError{}) {
 		return ruleErr
 	}
-	if ruleErr == nil {
-		if err := canWriteToDir(dirs.SnapPolkitRuleDir); err != nil {
-			return fmt.Errorf(`cannot use "install-rules" attribute: %w`, err)
-		}
+	if ruleErr == nil && !canWriteToDir(dirs.SnapPolkitRuleDir) {
+		return fmt.Errorf(`cannot use "install-rules" attribute: %q is not writable`, dirs.SnapPolkitRuleDir)
 	}
 
 	// Check if both attributes are not set.
@@ -334,24 +330,22 @@ var (
 	polkitDaemonPath2 = "/usr/lib/polkit-1/polkitd"
 )
 
-// hasPolkitDaemonExecutable checks known paths on core for the presence of
+// hasPolkitDaemonExecutableOnCore checks known paths on core for the presence of
 // the polkit daemon executable. This function can be shortened but keep it like
 // this for readability.
-func hasPolkitDaemonExecutable() bool {
+func hasPolkitDaemonExecutableOnCore() bool {
 	return osutil.IsExecutable(polkitDaemonPath1) || osutil.IsExecutable(polkitDaemonPath2)
 }
 
-func canWriteToDir(dir string) error {
-	if err := unix.Access(dir, unix.W_OK); err != nil {
-		return fmt.Errorf("%q is not writable: %w", dir, err)
-	}
-	return nil
+func canWriteToDir(dir string) bool {
+	return unix.Access(dir, unix.W_OK) == nil
 }
 
 func (iface *polkitInterface) StaticInfo() interfaces.StaticInfo {
 	info := iface.commonInterface.StaticInfo()
-	// We must have the polkit daemon present on the system.
-	info.ImplicitOnCore = hasPolkitDaemonExecutable()
+	// We must have the polkit daemon present on the system and be able to write
+	// to either the polkit actions directory or the polkit rules directory.
+	info.ImplicitOnCore = hasPolkitDaemonExecutableOnCore() && (canWriteToDir(dirs.SnapPolkitPolicyDir) || canWriteToDir(dirs.SnapPolkitRuleDir))
 	return info
 }
 
