@@ -39,7 +39,7 @@ prepare: |
 
 debug: |
     change_id="$(cat refresh-change-id)"
-    # snap debug state --change "$change_id" /var/lib/snapd/state.json
+    snap debug state --change "$change_id" /var/lib/snapd/state.json
 
 execute: |
     # To get VERSION_ID defined
@@ -64,9 +64,9 @@ execute: |
         echo Downloading snaps needed
         snap download pc-kernel --channel="$VERSION_ID"/edge
 
-        snap download "$core_snap" --edge
-        unsquashfs -d base-snap "${core_snap}"_*.snap
-        rm "${core_snap}"_*
+        snap download "$core_snap" --edge --basename=core-for-repack
+        unsquashfs -d base-snap core-for-repack.snap
+        rm core-for-repack.snap core-for-repack.assert
         snap pack base-snap
 
         # prepare gadget update if gadget variant
