@@ -34,7 +34,6 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
-	"text/template"
 	"time"
 
 	"github.com/snapcore/snapd/dirs"
@@ -1411,44 +1410,41 @@ func ExistingMountUnitPath(mountPointDir string) string {
 
 var squashfsFsType = squashfs.FsType
 
-// Note that WantedBy=multi-user.target and Before=local-fs.target are
-// only used to allow downgrading to an older version of snapd.
-//
-// We want (see isBeforeDrivers) some snaps and components to be mounted before
-// modules are loaded (that is before systemd-{udevd,modules-load}).
-const snapMountUnitTmpl = `[Unit]
-Description={{.Description}}
+const (
+	snappyOriginModule = "X-SnapdOrigin"
+)
+
+func assembleMountUnitContent(u *MountUnitOptions) string {
+	before := "Before=snapd.mounts.target"
+	if u.MountUnitType == BeforeDriversLoadMountUnit {
+		// We want some snaps and components to be mounted before
+		// modules are loaded (that is before systemd-{udevd,modules-load}).
+		before += "\nBefore=systemd-udevd.service systemd-modules-load.service\nBefore=usr-lib-modules.mount usr-lib-firmware.mount"
+	}
+	origin := ""
+	if u.Origin != "" {
+		origin = fmt.Sprintf("%s=%s\n", snappyOriginModule, u.Origin)
+	}
+	// Note that WantedBy=multi-user.target is only used to allow
+	// downgrading to an older version of snapd.
+	unitContent := fmt.Sprintf(`[Unit]
+Description=%[1]s
 After=snapd.mounts-pre.target
-Before=snapd.mounts.target{{if isBeforeDrivers .MountUnitType}}
-Before=systemd-udevd.service systemd-modules-load.service
-Before=usr-lib-modules.mount usr-lib-firmware.mount{{end}}
+%[2]s
 
 [Mount]
-What={{.What}}
-Where={{.Where}}
-Type={{.Fstype}}
-Options={{join .Options ","}}
+What=%[3]s
+Where=%[4]s
+Type=%[5]s
+Options=%[6]s
 LazyUnmount=yes
 
 [Install]
 WantedBy=snapd.mounts.target
 WantedBy=multi-user.target
-{{- with .Origin}}
-X-SnapdOrigin={{.}}
-{{- end}}
-`
-
-func isBeforeDriversLoadMountUnit(mType MountUnitType) bool {
-	return mType == BeforeDriversLoadMountUnit
+%[7]s`, u.Description, before, u.What, u.Where, u.Fstype, strings.Join(u.Options, ","), origin)
+	return unitContent
 }
-
-var templateFuncs = template.FuncMap{"join": strings.Join,
-	"isBeforeDrivers": isBeforeDriversLoadMountUnit}
-var parsedMountUnitTmpl = template.Must(template.New("unit").Funcs(templateFuncs).Parse(snapMountUnitTmpl))
-
-const (
-	snappyOriginModule = "X-SnapdOrigin"
-)
 
 // EnsureMountUnitFileContent creates a mount unit file.
 func EnsureMountUnitFileContent(u *MountUnitOptions) (mountUnitName string, modified MountUpdateStatus, err error) {
@@ -1457,10 +1453,6 @@ func EnsureMountUnitFileContent(u *MountUnitOptions) (mountUnitName string, modi
 	}
 
 	mu := mountUnitPathWithLifetime(u.Lifetime, u.Where, u.RootDir)
-	var unitContent bytes.Buffer
-	if err := parsedMountUnitTmpl.Execute(&unitContent, &u); err != nil {
-		return "", MountUnchanged, fmt.Errorf("cannot generate mount unit: %v", err)
-	}
 
 	if osutil.FileExists(mu) {
 		modified = MountUpdated
@@ -1472,8 +1464,9 @@ func EnsureMountUnitFileContent(u *MountUnitOptions) (mountUnitName string, modi
 		return "", MountUnchanged, fmt.Errorf("cannot create directory %s: %v", filepath.Dir(mu), err)
 	}
 
+	unitContent := assembleMountUnitContent(u)
 	stateErr := osutil.EnsureFileState(mu, &osutil.MemoryFileState{
-		Content: unitContent.Bytes(),
+		Content: []byte(unitContent),
 		Mode:    0644,
 	})
 
