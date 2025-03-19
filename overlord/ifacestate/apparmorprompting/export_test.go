@@ -62,7 +62,10 @@ func MockListener() (reqChan chan *listener.Request, replyChan chan RequestRespo
 	})
 	restoreRun := MockListenerRun(func(l *listener.Listener) error {
 		<-closeChan
-		return listener.ErrClosed
+		// In production, listener.Run() does not return on error, and when
+		// the listener is closed, it returns nil. So it should always return
+		// nil in practice.
+		return nil
 	})
 	restoreReqs := MockListenerReqs(func(l *listener.Listener) <-chan *listener.Request {
 		return reqChan
