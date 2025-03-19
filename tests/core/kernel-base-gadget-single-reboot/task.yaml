@@ -46,9 +46,9 @@ execute: |
         echo Downloading snaps needed
         snap download pc-kernel --channel="$VERSION_ID"/edge
 
-        snap download "${core_snap}" --edge
-        unsquashfs -d base-snap "${core_snap}"_*.snap
-        rm "${core_snap}"_*
+        snap download "$core_snap" --edge --basename=core-for-repack
+        unsquashfs -d base-snap core-for-repack.snap
+        rm core-for-repack.snap core-for-repack.assert
         snap pack base-snap
 
         # We run one with a vanilla gadget, and one with another gadget
