@@ -530,6 +530,13 @@ func IsConfdbHook(ctx *hookstate.Context) bool {
 			strings.HasSuffix(ctx.HookName(), "-view-changed"))
 }
 
+// IsConfdbHook returns whether the hook context belongs to a confdb hook.
+func IsModifyConfdbHook(ctx *hookstate.Context) bool {
+	return ctx != nil && !ctx.IsEphemeral() &&
+		(strings.HasPrefix(ctx.HookName(), "change-view-") ||
+			strings.HasPrefix(ctx.HookName(), "load-view-"))
+}
+
 // GetTransactionForSnapctlGet gets a transaction to read the view's confdb. It
 // schedules tasks to load the confdb as needed, unless no custodian defined
 // relevant hooks. Blocks until the confdb has been loaded into the Transaction.
@@ -661,21 +668,10 @@ func LoadConfdbAsync(st *state.State, view *confdb.View, requests []string) (cha
 	} else {
 		// no hooks to run so we can just load the values directly into the change
 		// (we still need the change because the API is async)
-		result, err := GetViaView(tx, view, requests)
+		err := readViewIntoChange(chg, tx, view, requests)
 		if err != nil {
-			if errors.Is(err, &confdb.NotFoundError{}) {
-				chg.Set("api-data", map[string]interface{}{
-					"confdb-error": err.Error(),
-				})
-				chg.SetStatus(state.DoneStatus)
-				return chg.ID(), nil
-			}
-			return "", fmt.Errorf("cannot read confdb %s/%s: %w", tx.ConfdbAccount, tx.ConfdbName, err)
+			return "", err
 		}
-
-		chg.Set("api-data", map[string]interface{}{
-			"confdb-data": result,
-		})
 		chg.SetStatus(state.DoneStatus)
 	}
 

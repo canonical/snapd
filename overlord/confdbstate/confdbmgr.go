@@ -143,8 +143,12 @@ func (m *ConfdbManager) doLoadDataIntoChange(t *state.Task, _ *tomb.Tomb) error 
 		return fmt.Errorf("internal error: cannot get view: %w", err)
 	}
 
+	return readViewIntoChange(t.Change(), tx, view, requests)
+}
+
+func readViewIntoChange(chg *state.Change, tx *Transaction, view *confdb.View, requests []string) error {
 	var apiData map[string]interface{}
-	err = t.Change().Get("api-data", &apiData)
+	err := chg.Get("api-data", &apiData)
 	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
 	}
@@ -157,14 +161,14 @@ func (m *ConfdbManager) doLoadDataIntoChange(t *state.Task, _ *tomb.Tomb) error 
 	if err != nil {
 		if errors.Is(err, &confdb.NotFoundError{}) {
 			apiData["confdb-error"] = err.Error()
-			t.Change().Set("api-data", apiData)
+			chg.Set("api-data", apiData)
 			return nil
 		}
 		return fmt.Errorf("cannot read confdb %s/%s: %w", tx.ConfdbAccount, tx.ConfdbName, err)
 	}
 
 	apiData["confdb-data"] = result
-	t.Change().Set("api-data", apiData)
+	chg.Set("api-data", apiData)
 	return nil
 }
 
