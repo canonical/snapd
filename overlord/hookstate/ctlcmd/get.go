@@ -39,9 +39,8 @@ import (
 )
 
 var (
-	confdbstateGetView              = confdbstate.GetView
-	confdbstateNewTransaction       = confdbstate.NewTransaction
-	confdbstateGetStoredTransaction = confdbstate.GetStoredTransaction
+	confdbstateGetView           = confdbstate.GetView
+	confdbstateTransactionForGet = confdbstate.GetTransactionForSnapctlGet
 )
 
 type getCommand struct {
@@ -388,9 +387,14 @@ func (c *getCommand) getConfdbValues(ctx *hookstate.Context, plugName string, re
 		return err
 	}
 
-	bag, err := c.getDatabag(ctx, view, pristine)
+	tx, err := confdbstateTransactionForGet(ctx, view)
 	if err != nil {
 		return err
+	}
+
+	var bag confdb.Databag = tx
+	if pristine {
+		bag = tx.Pristine()
 	}
 
 	res, err := confdbstate.GetViaView(bag, view, requests)
@@ -399,40 +403,6 @@ func (c *getCommand) getConfdbValues(ctx *hookstate.Context, plugName string, re
 	}
 
 	return c.printPatch(res)
-}
-
-func (c *getCommand) getDatabag(ctx *hookstate.Context, view *confdb.View, pristine bool) (bag confdb.Databag, err error) {
-	account, dbSchemaName := view.Schema().Account, view.Schema().Name
-
-	var tx *confdbstate.Transaction
-	if confdbstate.IsConfdbHook(ctx) {
-		// running in the context of a transaction, so if the referenced confdb schema
-		// doesn't match that tx, we only allow the caller to read through other confdb schema
-		t, _ := ctx.Task()
-		tx, _, _, err = confdbstateGetStoredTransaction(t)
-		if err != nil {
-			return nil, fmt.Errorf("cannot access confdb through view %s/%s/%s: cannot get transaction: %v", account, dbSchemaName, view.Name, err)
-		}
-
-		if tx.ConfdbAccount != account || tx.ConfdbName != dbSchemaName {
-			// we're reading a different transaction
-			tx = nil
-		}
-	}
-
-	// reading a view but there's no ongoing transaction for it, make a temporary
-	// transaction just as a pass-through databag
-	if tx == nil {
-		tx, err = confdbstateNewTransaction(ctx.State(), account, dbSchemaName)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	if pristine {
-		return tx.Pristine(), nil
-	}
-	return tx, nil
 }
 
 func getConfdbViewID(ctx *hookstate.Context, plugName string) (account, dbSchemaName, viewName string, err error) {

@@ -175,7 +175,7 @@ func (s *confdbSuite) TestConfdbUnsetManyViews(c *C) {
 	err = tx.Set("wifi.psk", "bar")
 	c.Assert(err, IsNil)
 
-	ctlcmd.MockConfdbstateGetTransaction(func(*hookstate.Context, *state.State, *confdb.View) (*confdbstate.Transaction, confdbstate.CommitTxFunc, error) {
+	ctlcmd.MockConfdbstateTransactionForSet(func(*hookstate.Context, *state.State, *confdb.View) (*confdbstate.Transaction, confdbstate.CommitTxFunc, error) {
 		return tx, nil, nil
 	})
 
