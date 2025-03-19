@@ -41,15 +41,12 @@ func (s RangeSpan) Size() int {
 	return int(s.End) - int(s.Start) + 1
 }
 
-// Range of discrete numbers represented as set of non overlapping spans.
-type Range struct {
-	// Spans within the range, ordered by Start.
-	Spans []RangeSpan
-}
+// Range of discrete numbers represented as a set of non overlapping RangeSpan(s).
+type Range []RangeSpan
 
 // Intersects checks if passed span intersects with this range of spans.
 func (r Range) Intersects(s RangeSpan) bool {
-	for _, rangeSpan := range r.Spans {
+	for _, rangeSpan := range r {
 		if rangeSpan.Intersects(s) {
 			return true
 		}
@@ -58,7 +55,7 @@ func (r Range) Intersects(s RangeSpan) bool {
 }
 
 func (r Range) Size() (size int) {
-	for _, s := range r.Spans {
+	for _, s := range r {
 		size += s.Size()
 	}
 	return size
@@ -79,14 +76,14 @@ func ParseRange(input string) (Range, error) {
 	for _, token := range tokens {
 		s, err := parseRangeSpan(token)
 		if err != nil {
-			return Range{}, err
+			return nil, err
 		}
 		if r.Intersects(s) {
-			return Range{}, fmt.Errorf("overlapping range span found %q", token)
+			return nil, fmt.Errorf("overlapping range span found %q", token)
 		}
-		r.Spans = append(r.Spans, s)
+		r = append(r, s)
 	}
-	sort.Sort(spansByStart(r.Spans))
+	sort.Sort(spansByStart(r))
 	return r, nil
 }
 
