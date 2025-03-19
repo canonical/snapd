@@ -145,6 +145,8 @@ type SealKeysParams struct {
 	TPMPolicyAuthKeyFile string
 	// Optional volume authentication options
 	VolumesAuth *device.VolumesAuthOptions
+	// The key role (run, run+recover, recover)
+	KeyRole string
 }
 
 type SealKeysWithFDESetupHookParams struct {
