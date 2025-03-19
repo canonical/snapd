@@ -714,14 +714,14 @@ def mkcpio(path, output, *, compress=True):
             raise RuntimeError("zstd failed")
 
 
-def mk_amd_ucode(output):
-    for path in glob.glob('/lib/firmware/amd-ucode/*.bin'):
+def mk_amd_ucode(root, output):
+    for path in glob.glob(f'{root}/lib/firmware/amd-ucode/*.bin'):
         with open(path, 'rb') as f:
             shutil.copyfileobj(f, output)
 
 
-def mk_intel_ucode(output_path):
-    check_call(['iucode_tool', f'--write-to={output_path}', '/lib/firmware/intel-ucode/'])
+def mk_intel_ucode(root, output_path):
+    check_call(['iucode_tool', f'--write-to={output_path}', '{root}/lib/firmware/intel-ucode/'])
 
 
 def reset_time(path):
@@ -842,8 +842,8 @@ def create_initrd(parser, args):
                     microcode_dir = os.path.join(d, 'kernel/x86/microcode')
                     os.makedirs(microcode_dir)
                     with open(os.path.join(microcode_dir, 'AuthenticAMD.bin'), 'wb') as f:
-                        mk_amd_ucode(f)
-                    mk_intel_ucode(os.path.join(microcode_dir, 'GenuineIntel.bin'))
+                        mk_amd_ucode(args.root, f)
+                    mk_intel_ucode(args.root, os.path.join(microcode_dir, 'GenuineIntel.bin'))
                     # Time is irrelevant. And we should make it reproducible.
                     # It is also what update-microcode-initrd from package does.
                     reset_time(d)
