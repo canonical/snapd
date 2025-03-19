@@ -118,7 +118,6 @@ BuildRequires:  pkgconfig(glib-2.0)
 BuildRequires:  pkgconfig(libseccomp)
 BuildRequires:  pkgconfig(libudev)
 BuildRequires:  pkgconfig(systemd)
-BuildRequires:  pkgconfig(udev)
 BuildRequires:  systemd-rpm-macros
 %if %{with valgrind}
 BuildRequires:  valgrind
