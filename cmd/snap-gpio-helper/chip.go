@@ -20,10 +20,10 @@
 package main
 
 import (
+	"bytes"
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 	"unsafe"
 
 	"github.com/snapcore/snapd/dirs"
@@ -52,12 +52,12 @@ type chipInfo struct {
 
 func (c *chipInfo) Name() string {
 	// remove terminating null character
-	return strings.TrimRight(string(c.name[:]), "\x00")
+	return string(bytes.TrimRight(c.name[:], "\x00"))
 }
 
 func (c *chipInfo) Label() string {
 	// remove terminating null character
-	return strings.TrimRight(string(c.label[:]), "\x00")
+	return string(bytes.TrimRight(c.label[:], "\x00"))
 }
 
 func (c *chipInfo) NumLines() uint {
@@ -69,8 +69,7 @@ func (c *chipInfo) Path() string {
 }
 
 func (c *chipInfo) String() string {
-	s := fmt.Sprintf("(name: %s, label: %s, lines: %d)", string(c.name[:]), string(c.label[:]), c.lines)
-	return s
+	return fmt.Sprintf("(name: %s, label: %s, lines: %d)", c.Name(), c.Label(), c.lines)
 }
 
 const _GPIO_GET_CHIPINFO_IOCTL uintptr = 0x8044b401

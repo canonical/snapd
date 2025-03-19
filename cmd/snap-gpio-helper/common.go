@@ -37,17 +37,7 @@ import (
 	"github.com/snapcore/snapd/strutil"
 )
 
-func init() {
-	// needed for testing
-	dirs.AddRootDirCallback(func(s string) {
-		aggregatorLockPath = filepath.Join(s, "/sys/bus/platform/drivers/gpio-aggregator")
-		aggregatorNewDevicePath = filepath.Join(s, "/sys/bus/platform/drivers/gpio-aggregator/new_device")
-		aggregatorDeleteDevicePath = filepath.Join(s, "/sys/bus/platform/drivers/gpio-aggregator/delete_device")
-		ephermalUdevRulesDir = filepath.Join(s, "/run/udev/rules.d")
-	})
-}
-
-var (
+const (
 	aggregatorLockPath         = "/sys/bus/platform/drivers/gpio-aggregator"
 	aggregatorNewDevicePath    = "/sys/bus/platform/drivers/gpio-aggregator/new_device"
 	aggregatorDeleteDevicePath = "/sys/bus/platform/drivers/gpio-aggregator/delete_device"
@@ -55,7 +45,7 @@ var (
 )
 
 var lockAggregator = func() (unlocker func(), err error) {
-	flock, err := osutil.OpenExistingLockForReading(aggregatorLockPath)
+	flock, err := osutil.OpenExistingLockForReading(filepath.Join(dirs.GlobalRootDir, aggregatorLockPath))
 	if err != nil {
 		return nil, err
 	}
@@ -77,7 +67,7 @@ func addAggregatedChip(sourceChip GPIOChardev, commaSeparatedLines string) (chip
 	}
 	defer unlocker()
 
-	f, err := os.OpenFile(aggregatorNewDevicePath, os.O_WRONLY, 0)
+	f, err := os.OpenFile(filepath.Join(dirs.GlobalRootDir, aggregatorNewDevicePath), os.O_WRONLY, 0)
 	if err != nil {
 		return nil, err
 	}
@@ -93,8 +83,8 @@ func addAggregatedChip(sourceChip GPIOChardev, commaSeparatedLines string) (chip
 	}
 
 	// <label> <lines>
-	cmd := fmt.Sprintf("%s %s", sourceChip.Label(), commaSeparatedLines)
-	if _, err = f.WriteString(cmd); err != nil {
+	_, err = fmt.Fprintf(f, "%s %s", sourceChip.Label(), commaSeparatedLines)
+	if err != nil {
 		return nil, err
 	}
 
@@ -116,11 +106,11 @@ func addAggregatedChip(sourceChip GPIOChardev, commaSeparatedLines string) (chip
 
 func aggregatedChipUdevRulePath(instanceName, slotName string) string {
 	fname := fmt.Sprintf("69-snap.%s.interface.gpio-chardev-%s.rules", instanceName, slotName)
-	return filepath.Join(ephermalUdevRulesDir, fname)
+	return filepath.Join(filepath.Join(dirs.GlobalRootDir, ephermalUdevRulesDir), fname)
 }
 
 func addEphermalUdevTaggingRule(chip GPIOChardev, instanceName, slotName string) error {
-	if err := os.MkdirAll(ephermalUdevRulesDir, 0755); err != nil {
+	if err := os.MkdirAll(filepath.Join(dirs.GlobalRootDir, ephermalUdevRulesDir), 0755); err != nil {
 		return err
 	}
 
@@ -151,8 +141,8 @@ var unixStat = unix.Stat
 var unixMknod = unix.Mknod
 
 func addGadgetSlotDevice(chip GPIOChardev, instanceName, slotName string) error {
-	stat := &unix.Stat_t{}
-	if err := unixStat(chip.Path(), stat); err != nil {
+	var stat unix.Stat_t
+	if err := unixStat(chip.Path(), &stat); err != nil {
 		return err
 	}
 
@@ -182,9 +172,9 @@ func removeGadgetSlotDevice(instanceName, slotName string) (aggregatedChip GPIOC
 }
 
 func removeEphermalUdevTaggingRule(gadget, slot string) error {
-	// XXX: ss rule reload/trigger nessacary
+	// XXX: is rule reload/trigger nessacary
 	path := aggregatedChipUdevRulePath(gadget, slot)
-	return os.Remove(path)
+	return os.RemoveAll(path)
 }
 
 func removeAggregatedChip(aggregatedChip GPIOChardev) error {
@@ -195,7 +185,7 @@ func removeAggregatedChip(aggregatedChip GPIOChardev) error {
 	}
 	defer unlocker()
 
-	f, err := os.OpenFile(aggregatorDeleteDevicePath, os.O_WRONLY, 0)
+	f, err := os.OpenFile(filepath.Join(dirs.GlobalRootDir, aggregatorDeleteDevicePath), os.O_WRONLY, 0)
 	if err != nil {
 		return err
 	}
@@ -214,7 +204,7 @@ func validateLines(chip GPIOChardev, linesArg string) error {
 		return err
 	}
 
-	for _, span := range r.Spans {
+	for _, span := range r {
 		if uint(span.End) >= chip.NumLines() {
 			return fmt.Errorf("invalid line offset %d: line does not exist in %q", span.End, chip.Name())
 		}
