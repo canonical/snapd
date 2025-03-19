@@ -11,10 +11,10 @@ details: |
 # amazon-linux-2023: polkit not installed by default
 # ubuntu-core < uc24: polkit rules path is not writable 
 systems:
-    - -ubuntu-core-16-64
-    - -ubuntu-core-18-64
-    - -ubuntu-core-20-64
-    - -ubuntu-core-22-64
+    - -ubuntu-core-16-*
+    - -ubuntu-core-18-*
+    - -ubuntu-core-20-*
+    - -ubuntu-core-22-*
     - -amazon-linux-2023-64
 
 prepare: |
@@ -71,9 +71,9 @@ execute: |
             | MATCH '^\(bba\{ss\}\) false false '
     fi
 
-    # Skip rule checks for debian 11 and focal because they don't support the
+    # Skip rule checks for Ubuntu <= 20.04 and Debian 11 because they don't support the
     # /etc/polkit-1/rules.d rules directory.
-    if ! os.query is-focal && ! os.query is-debian 11 ;then
+    if ! os.query is-ubuntu-le 20.04 && ! os.query is-debian 11 ;then
         echo "Test polkit rules installation"
 
         echo "The polkit-rule plug is disconnected by default"
