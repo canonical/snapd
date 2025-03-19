@@ -33,10 +33,10 @@ func (s *rangeSuite) TestParseRange(c *C) {
 	c.Assert(err, IsNil)
 
 	// Parsed and sorted by start
-	c.Check(r.Spans[0], Equals, strutil.RangeSpan{0, 0})
-	c.Check(r.Spans[1], Equals, strutil.RangeSpan{2, 2})
-	c.Check(r.Spans[2], Equals, strutil.RangeSpan{3, 3})
-	c.Check(r.Spans[3], Equals, strutil.RangeSpan{20, 100})
+	c.Check(r[0], Equals, strutil.RangeSpan{0, 0})
+	c.Check(r[1], Equals, strutil.RangeSpan{2, 2})
+	c.Check(r[2], Equals, strutil.RangeSpan{3, 3})
+	c.Check(r[3], Equals, strutil.RangeSpan{20, 100})
 
 	c.Check(r.Size(), Equals, 84)
 	c.Check(r.Intersects(strutil.RangeSpan{0, 1}), Equals, true)
