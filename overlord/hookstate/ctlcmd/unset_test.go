@@ -187,10 +187,8 @@ func (s *confdbSuite) TestConfdbUnsetManyViews(c *C) {
 	_, err = tx.Get("wifi.ssid")
 	c.Assert(err, ErrorMatches, `no value was found under path "wifi.ssid"`)
 
-	s.state.Lock()
-	_, err = confdbstate.Get(s.state, s.devAccID, "network", "write-wifi", []string{"ssid", "password"})
-	s.state.Unlock()
-	c.Assert(err, ErrorMatches, `cannot get "ssid", "password" .*: no data`)
+	_, err = tx.Get("wifi.psk")
+	c.Assert(err, ErrorMatches, `no value was found under path "wifi.psk"`)
 }
 
 func (s *confdbSuite) TestConfdbUnsetInvalid(c *C) {
