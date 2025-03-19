@@ -1,3 +1,5 @@
+# This file is used by spread-filter to determine what spread tests are run
+# This will run only spread tests whose task.yaml has been changed
 rules:
   tests:
     from:
