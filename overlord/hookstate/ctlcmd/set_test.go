@@ -411,7 +411,7 @@ func (s *confdbSuite) TestConfdbSetSingleView(c *C) {
 	s.state.Unlock()
 	c.Assert(err, IsNil)
 
-	restore := ctlcmd.MockConfdbstateGetTransaction(func(*hookstate.Context, *state.State, *confdb.View) (*confdbstate.Transaction, confdbstate.CommitTxFunc, error) {
+	restore := ctlcmd.MockConfdbstateTransactionForSet(func(*hookstate.Context, *state.State, *confdb.View) (*confdbstate.Transaction, confdbstate.CommitTxFunc, error) {
 		return tx, nil, nil
 	})
 	defer restore()
@@ -436,7 +436,7 @@ func (s *confdbSuite) TestConfdbSetSingleViewNewTransaction(c *C) {
 	c.Assert(err, IsNil)
 
 	var called bool
-	restore := ctlcmd.MockConfdbstateGetTransaction(func(*hookstate.Context, *state.State, *confdb.View) (*confdbstate.Transaction, confdbstate.CommitTxFunc, error) {
+	restore := ctlcmd.MockConfdbstateTransactionForSet(func(*hookstate.Context, *state.State, *confdb.View) (*confdbstate.Transaction, confdbstate.CommitTxFunc, error) {
 		return tx, func() (string, <-chan struct{}, error) {
 			called = true
 			waitChan := make(chan struct{})
@@ -464,7 +464,7 @@ func (s *confdbSuite) TestConfdbSetManyViews(c *C) {
 	s.state.Unlock()
 	c.Assert(err, IsNil)
 
-	restore := ctlcmd.MockConfdbstateGetTransaction(func(*hookstate.Context, *state.State, *confdb.View) (*confdbstate.Transaction, confdbstate.CommitTxFunc, error) {
+	restore := ctlcmd.MockConfdbstateTransactionForSet(func(*hookstate.Context, *state.State, *confdb.View) (*confdbstate.Transaction, confdbstate.CommitTxFunc, error) {
 		return tx, nil, nil
 	})
 	defer restore()
@@ -520,7 +520,7 @@ func (s *confdbSuite) TestConfdbSetExclamationMark(c *C) {
 	err = tx.Set("wifi.psk", "bar")
 	c.Assert(err, IsNil)
 
-	restore := ctlcmd.MockConfdbstateGetTransaction(func(*hookstate.Context, *state.State, *confdb.View) (*confdbstate.Transaction, confdbstate.CommitTxFunc, error) {
+	restore := ctlcmd.MockConfdbstateTransactionForSet(func(*hookstate.Context, *state.State, *confdb.View) (*confdbstate.Transaction, confdbstate.CommitTxFunc, error) {
 		return tx, nil, nil
 	})
 	defer restore()
@@ -550,7 +550,7 @@ func (s *confdbSuite) TestConfdbOnlyChangeViewCanSet(c *C) {
 	tx, err := confdbstate.NewTransaction(s.state, s.devAccID, "network")
 	c.Assert(err, IsNil)
 
-	restore := ctlcmd.MockConfdbstateGetTransaction(func(*hookstate.Context, *state.State, *confdb.View) (*confdbstate.Transaction, confdbstate.CommitTxFunc, error) {
+	restore := ctlcmd.MockConfdbstateTransactionForSet(func(*hookstate.Context, *state.State, *confdb.View) (*confdbstate.Transaction, confdbstate.CommitTxFunc, error) {
 		return tx, nil, nil
 	})
 	defer restore()

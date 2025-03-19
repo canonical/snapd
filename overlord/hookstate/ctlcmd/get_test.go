@@ -607,13 +607,15 @@ func (s *confdbSuite) setConfdbFlag(val bool, c *C) {
 }
 
 func (s *confdbSuite) TestConfdbGetSingleView(c *C) {
-	restore := ctlcmd.MockConfdbstateNewTransaction(func(st *state.State, account string, confdbName string) (*confdbstate.Transaction, error) {
-		c.Assert(account, Equals, s.devAccID)
-		c.Assert(confdbName, Equals, "network")
+	s.state.Lock()
+	tx, err := confdbstate.NewTransaction(s.state, s.devAccID, "network")
+	c.Assert(err, IsNil)
+	c.Assert(tx.Set("wifi.ssid", "my-ssid"), IsNil)
+	s.state.Unlock()
 
-		tx, _ := confdbstate.NewTransaction(st, account, confdbName)
-		c.Assert(tx.Set("wifi.ssid", "my-ssid"), IsNil)
-
+	restore := ctlcmd.MockConfdbstateTransactionForGet(func(ctx *hookstate.Context, view *confdb.View) (*confdbstate.Transaction, error) {
+		c.Assert(view.Schema().Account, Equals, s.devAccID)
+		c.Assert(view.Schema().Name, Equals, "network")
 		return tx, nil
 	})
 	defer restore()
@@ -625,14 +627,16 @@ func (s *confdbSuite) TestConfdbGetSingleView(c *C) {
 }
 
 func (s *confdbSuite) TestConfdbGetManyViews(c *C) {
-	restore := ctlcmd.MockConfdbstateNewTransaction(func(st *state.State, account string, confdbName string) (*confdbstate.Transaction, error) {
-		c.Assert(account, Equals, s.devAccID)
-		c.Assert(confdbName, Equals, "network")
+	s.state.Lock()
+	tx, err := confdbstate.NewTransaction(s.state, s.devAccID, "network")
+	c.Assert(err, IsNil)
+	c.Assert(tx.Set("wifi.ssid", "my-ssid"), IsNil)
+	c.Assert(tx.Set("wifi.psk", "secret"), IsNil)
+	s.state.Unlock()
 
-		tx, _ := confdbstate.NewTransaction(st, account, confdbName)
-		c.Assert(tx.Set("wifi.ssid", "my-ssid"), IsNil)
-		c.Assert(tx.Set("wifi.psk", "secret"), IsNil)
-
+	restore := ctlcmd.MockConfdbstateTransactionForGet(func(ctx *hookstate.Context, view *confdb.View) (*confdbstate.Transaction, error) {
+		c.Assert(view.Schema().Account, Equals, s.devAccID)
+		c.Assert(view.Schema().Name, Equals, "network")
 		return tx, nil
 	})
 	defer restore()
@@ -648,14 +652,16 @@ func (s *confdbSuite) TestConfdbGetManyViews(c *C) {
 }
 
 func (s *confdbSuite) TestConfdbGetNoRequest(c *C) {
-	restore := ctlcmd.MockConfdbstateNewTransaction(func(st *state.State, account string, confdbName string) (*confdbstate.Transaction, error) {
-		c.Assert(account, Equals, s.devAccID)
-		c.Assert(confdbName, Equals, "network")
+	s.state.Lock()
+	tx, err := confdbstate.NewTransaction(s.state, s.devAccID, "network")
+	c.Assert(err, IsNil)
+	c.Assert(tx.Set("wifi.ssid", "my-ssid"), IsNil)
+	c.Assert(tx.Set("wifi.psk", "secret"), IsNil)
+	s.state.Unlock()
 
-		tx, _ := confdbstate.NewTransaction(st, account, confdbName)
-		c.Assert(tx.Set("wifi.ssid", "my-ssid"), IsNil)
-		c.Assert(tx.Set("wifi.psk", "secret"), IsNil)
-
+	restore := ctlcmd.MockConfdbstateTransactionForGet(func(ctx *hookstate.Context, view *confdb.View) (*confdbstate.Transaction, error) {
+		c.Assert(view.Schema().Account, Equals, s.devAccID)
+		c.Assert(view.Schema().Name, Equals, "network")
 		return tx, nil
 	})
 	defer restore()
@@ -826,13 +832,17 @@ func (s *confdbSuite) TestConfdbGetAndSetViewNotFound(c *C) {
 }
 
 func (s *confdbSuite) TestConfdbGetPristine(c *C) {
-	restore := ctlcmd.MockConfdbstateGetStoredTransaction(func(*state.Task) (*confdbstate.Transaction, *state.Task, func(), error) {
-		tx, _ := confdbstate.NewTransaction(s.state, s.devAccID, "network")
-		c.Assert(tx.Set("wifi.ssid", "foo"), IsNil)
-		c.Assert(tx.Commit(s.state, confdb.NewJSONSchema()), IsNil)
+	s.state.Lock()
+	tx, err := confdbstate.NewTransaction(s.state, s.devAccID, "network")
+	c.Assert(err, IsNil)
 
-		c.Assert(tx.Set("wifi.ssid", "bar"), IsNil)
-		return tx, nil, func() {}, nil
+	c.Assert(tx.Set("wifi.ssid", "foo"), IsNil)
+	c.Assert(tx.Commit(s.state, confdb.NewJSONSchema()), IsNil)
+	c.Assert(tx.Set("wifi.ssid", "bar"), IsNil)
+	s.state.Unlock()
+
+	restore := ctlcmd.MockConfdbstateTransactionForGet(func(ctx *hookstate.Context, view *confdb.View) (*confdbstate.Transaction, error) {
+		return tx, nil
 	})
 	defer restore()
 
@@ -864,9 +874,6 @@ func (s *confdbSuite) TestConfdbGetDifferentViewThanOngoingTx(c *C) {
 	tx, err := confdbstate.NewTransaction(s.state, s.devAccID, "network")
 	c.Assert(err, IsNil)
 
-	err = tx.Set("wifi.ssid", "foo")
-	c.Assert(err, IsNil)
-
 	task := s.state.NewTask("run-hook", "")
 	setup := &hookstate.HookSetup{Snap: "test-snap", Hook: "save-view-plug"}
 	ctx, err := hookstate.NewContext(task, s.state, setup, s.mockHandler, "")
@@ -892,8 +899,7 @@ func (s *confdbSuite) TestConfdbGetDifferentViewThanOngoingTx(c *C) {
 	defer restore()
 
 	stdout, stderr, err := ctlcmd.Run(ctx, []string{"get", "--view", ":other", "ssid"}, 0)
-	// error is for no stored value, meaning we read the right confdb
-	c.Assert(err, ErrorMatches, `.*: no data`)
+	c.Assert(err, ErrorMatches, fmt.Sprintf(`cannot load confdb %[1]s/other: ongoing transaction for %[1]s/network`, s.devAccID))
 	c.Check(stdout, IsNil)
 	c.Check(stderr, IsNil)
 }
