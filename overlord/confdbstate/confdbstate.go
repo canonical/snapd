@@ -38,26 +38,6 @@ import (
 
 var assertstateConfdbSchema = assertstate.ConfdbSchema
 
-// Set finds the view identified by the account, confdb schema and view names
-// and sets the request fields to their respective values.
-func Set(st *state.State, account, dbSchemaName, viewName string, requests map[string]interface{}) error {
-	view, err := GetView(st, account, dbSchemaName, viewName)
-	if err != nil {
-		return err
-	}
-
-	tx, err := NewTransaction(st, account, dbSchemaName)
-	if err != nil {
-		return err
-	}
-
-	if err := SetViaView(tx, view, requests); err != nil {
-		return err
-	}
-
-	return tx.Commit(st, view.Schema().DatabagSchema)
-}
-
 // SetViaView uses the view to set the requests in the transaction's databag.
 func SetViaView(bag confdb.Databag, view *confdb.View, requests map[string]interface{}) error {
 	for field, value := range requests {
@@ -95,24 +75,6 @@ func GetView(st *state.State, account, dbSchemaName, viewName string) (*confdb.V
 	}
 
 	return view, nil
-}
-
-// Get finds the view identified by the account, confdb schema and view names and
-// uses it to get the values for the specified fields. The results are returned
-// in a map of fields to their values, unless there are no fields in which case
-// case all views are returned.
-func Get(st *state.State, account, dbSchemaName, viewName string, fields []string) (interface{}, error) {
-	view, err := GetView(st, account, dbSchemaName, viewName)
-	if err != nil {
-		return nil, err
-	}
-
-	bag, err := readDatabag(st, account, dbSchemaName)
-	if err != nil {
-		return nil, err
-	}
-
-	return GetViaView(bag, view, fields)
 }
 
 // GetViaView uses the view to get values for the fields from the databag in
