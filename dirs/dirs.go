@@ -165,6 +165,12 @@ const (
 	DefaultSnapMountDir = "/snap"
 	AltSnapMountDir     = "/var/lib/snapd/snap"
 
+	// DefaultDistroLibexecDir is a default libexecdir used on most
+	// distributions
+	DefaultDistroLibexecDir = "/usr/lib/snapd"
+	// AltDistroLibexecDir is an anterlative libexec dir used on some distributions
+	AltDistroLibexecDir = "/usr/libexec/snapd"
+
 	// These are directories which are static inside the core snap and
 	// can never be prefixed as they will be always absolute once we
 	// are in the snap confinement environment.
@@ -669,9 +675,9 @@ func SetRootDir(rootdir string) {
 		// RHEL, CentOS, Fedora and derivatives, some more recent
 		// snapshots of openSUSE Tumbleweed and Slowroll;
 		// both RHEL and CentOS list "fedora" in ID_LIKE
-		DistroLibExecDir = filepath.Join(rootdir, "/usr/libexec/snapd")
+		DistroLibExecDir = filepath.Join(rootdir, AltDistroLibexecDir)
 	} else {
-		DistroLibExecDir = filepath.Join(rootdir, "/usr/lib/snapd")
+		DistroLibExecDir = filepath.Join(rootdir, DefaultDistroLibexecDir)
 	}
 
 	XdgRuntimeDirBase = filepath.Join(rootdir, "/run/user")

@@ -160,6 +160,21 @@ func mustUnsetenv(key string) {
 	}
 }
 
+// pathInSnapdSnap transforms the original path to one which would be
+// appropriate for lookup within the snapd snap.
+func pathInSnapdSnap(relativeExePath string) string {
+	// the only discrepancy comes from using /usr/libexec/snapd instead of
+	// /usr/lib/snapd, all other paths are left unchanged
+	altLibexecDirRelative := dirs.AltDistroLibexecDir[1:]
+	if !strings.HasPrefix(relativeExePath, altLibexecDirRelative) {
+		// we're using alternative libexecdir, which needs to be replaced
+		return relativeExePath
+	}
+
+	rest := relativeExePath[len(altLibexecDirRelative):]
+	return filepath.Join(dirs.DefaultDistroLibexecDir, rest)
+}
+
 // ExecInSnapdOrCoreSnap makes sure you're executing the binary that ships in
 // the snapd/core snap.
 func ExecInSnapdOrCoreSnap() {
@@ -199,15 +214,16 @@ func ExecInSnapdOrCoreSnap() {
 		}
 	}
 
-	// TODO pay attention to libexecdir when enabling reexec on non-Ubuntu
-	// with /usr/libexec/
+	// find out what the executable path would be if it was within the snapd
+	// snap
+	exeInSnapd := pathInSnapdSnap(exe)
 
 	// Is this executable in the core snap too?
 	coreOrSnapdPath := snapdSnap
-	full := filepath.Join(snapdSnap, exe)
+	full := filepath.Join(snapdSnap, exeInSnapd)
 	if !osutil.FileExists(full) {
 		coreOrSnapdPath = coreSnap
-		full = filepath.Join(coreSnap, exe)
+		full = filepath.Join(coreSnap, exeInSnapd)
 		if !osutil.FileExists(full) {
 			return
 		}
