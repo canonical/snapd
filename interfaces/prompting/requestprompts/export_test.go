@@ -33,6 +33,8 @@ const (
 	MaxOutstandingPromptsPerUser = maxOutstandingPromptsPerUser
 )
 
+type IDMappingJSON = idMappingJSON
+
 func NewPrompt(id prompting.IDType, timestamp time.Time, snap string, iface string, path string, outstandingPermissions []string, availablePermissions []string, originalPermissions []string) *Prompt {
 	constraints := &promptConstraints{
 		path:                   path,
