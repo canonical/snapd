@@ -219,7 +219,7 @@ func (tr *tree16) localComponentPath(*SeedComponent, string) (string, error) {
 	return "", errors.New("components not supported on UC16")
 }
 
-func (tr *tree16) writeAssertions(db asserts.RODatabase, modelRefs []*asserts.Ref, snapsFromModel []*SeedSnap, extraSnaps []*SeedSnap) error {
+func (tr *tree16) writeAssertions(db asserts.RODatabase, modelRefs []*asserts.Ref, extraRefs []*asserts.Ref, snapsFromModel []*SeedSnap, extraSnaps []*SeedSnap) error {
 	seedAssertsDir := filepath.Join(tr.opts.SeedDir, "assertions")
 	if err := os.MkdirAll(seedAssertsDir, 0755); err != nil {
 		return err
@@ -246,6 +246,10 @@ func (tr *tree16) writeAssertions(db asserts.RODatabase, modelRefs []*asserts.Re
 	}
 
 	if err := writeByRefs(modelRefs); err != nil {
+		return err
+	}
+
+	if err := writeByRefs(extraRefs); err != nil {
 		return err
 	}
 
