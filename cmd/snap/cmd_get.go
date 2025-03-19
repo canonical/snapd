@@ -61,7 +61,7 @@ view paths.
 `)
 
 type cmdGet struct {
-	waitMixin
+	mustWaitMixin
 	Positional struct {
 		Snap installedSnapName `required:"yes"`
 		Keys []string
@@ -77,15 +77,19 @@ func init() {
 		longGetHelp += longConfdbGetHelp
 	}
 
-	addCommand("get", shortGetHelp, longGetHelp, func() flags.Commander { return &cmdGet{} },
-		waitDescs.also(map[string]string{
+	addCommand("get", shortGetHelp, longGetHelp, func() flags.Commander {
+		// a confdb transaction shouldn't be cancelled mid-way since we need to be
+		// consistent when running hooks (i.e., not run for some but not others)
+		return &cmdGet{mustWaitMixin: mustWaitMixin{skipAbort: true}}
+	},
+		map[string]string{
 			// TRANSLATORS: This should not start with a lowercase letter.
 			"d": i18n.G("Always return document, even with single key"),
 			// TRANSLATORS: This should not start with a lowercase letter.
 			"l": i18n.G("Always return list, even with single key"),
 			// TRANSLATORS: This should not start with a lowercase letter.
 			"t": i18n.G("Strict typing with nulls and quoted strings"),
-		}), []argDesc{
+		}, []argDesc{
 			{
 				name: "<snap>",
 				// TRANSLATORS: This should not start with a lowercase letter.
@@ -260,9 +264,6 @@ func (x *cmdGet) Execute(args []string) error {
 	var err error
 	if isConfdbViewID(snapName) {
 		// first argument is a confdbViewID, use the confdb API
-		if x.NoWait {
-			return errors.New("cannot use --no-wait when reading confdb")
-		}
 		conf, err = x.getConfdb(snapName, confKeys)
 	} else {
 		conf, err = x.client.Conf(snapName, confKeys)

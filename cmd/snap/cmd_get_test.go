@@ -498,7 +498,8 @@ func (s *confdbSuite) TestConfdbGetNoWait(c *check.C) {
 	defer restore()
 
 	_, err := snapset.Parser(snapset.Client()).ParseArgs([]string{"get", "foo/bar/baz", "--no-wait"})
-	c.Assert(err, ErrorMatches, "cannot use --no-wait when reading confdb")
+	// although a confdb snap get waits for a change, there's no --no-wait option
+	c.Assert(err, ErrorMatches, "unknown flag `no-wait'")
 }
 
 func (s *confdbSuite) TestConfdbGetNoDataError(c *check.C) {

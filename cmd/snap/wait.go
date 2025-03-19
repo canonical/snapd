@@ -36,27 +36,15 @@ var (
 	pollTime    = 100 * time.Millisecond
 )
 
-type waitMixin struct {
+type mustWaitMixin struct {
 	clientMixin
-	NoWait    bool `long:"no-wait"`
 	skipAbort bool
 
 	// Wait also for tasks in the "wait" state.
 	waitForTasksInWaitStatus bool
 }
 
-var waitDescs = mixinDescs{
-	// TRANSLATORS: This should not start with a lowercase letter.
-	"no-wait": i18n.G("Do not wait for the operation to finish but just print the change id."),
-}
-
-var noWait = errors.New("no wait for op")
-
-func (wmx waitMixin) wait(id string) (*client.Change, error) {
-	if wmx.NoWait {
-		fmt.Fprintf(Stdout, "%s\n", id)
-		return nil, noWait
-	}
+func (wmx mustWaitMixin) wait(id string) (*client.Change, error) {
 	cli := wmx.client
 	// Intercept sigint
 	c := make(chan os.Signal, 2)
@@ -188,6 +176,26 @@ func (wmx waitMixin) wait(id string) (*client.Change, error) {
 		// 100ms.
 		time.Sleep(pollTime)
 	}
+}
+
+type waitMixin struct {
+	mustWaitMixin
+	NoWait bool `long:"no-wait"`
+}
+
+var waitDescs = mixinDescs{
+	// TRANSLATORS: This should not start with a lowercase letter.
+	"no-wait": i18n.G("Do not wait for the operation to finish but just print the change id."),
+}
+
+var noWait = errors.New("no wait for op")
+
+func (wmx waitMixin) wait(id string) (*client.Change, error) {
+	if wmx.NoWait {
+		fmt.Fprintf(Stdout, "%s\n", id)
+		return nil, noWait
+	}
+	return wmx.mustWaitMixin.wait(id)
 }
 
 func lastLogStr(logs []string) string {
