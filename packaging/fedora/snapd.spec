@@ -221,7 +221,6 @@ BuildRequires:  pkgconfig(libselinux)
 %endif
 BuildRequires:  pkgconfig(libudev)
 BuildRequires:  pkgconfig(systemd)
-BuildRequires:  pkgconfig(udev)
 BuildRequires:  xfsprogs-devel
 BuildRequires:  glibc-static
 %if ! 0%{?rhel}

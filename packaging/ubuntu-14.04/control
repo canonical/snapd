@@ -33,7 +33,6 @@ Build-Depends: autoconf,
                python3-docutils,
                python3-markdown,
                squashfs-tools,
-               udev,
                xfslibs-dev
 Recommends: gnupg1 | gnupg
 Suggests: zenity | kdialog
