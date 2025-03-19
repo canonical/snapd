@@ -154,17 +154,17 @@ execute: |
 
         # now we need to revert both snaps for restore to behave properly, start
         # with the kernel
-        snap revert pc-kernel
+        snap revert --no-wait pc-kernel
         REBOOT
     elif [ "$SPREAD_REBOOT" = 2 ]; then
         snap watch --last=revert\?
         # now the gadget
-        snap revert pc
+        snap revert --no-wait pc
         REBOOT
     elif [ "$SPREAD_REBOOT" = 3 ]; then
         snap watch --last=revert\?
         # now the base
-        snap revert "$core_snap"
+        snap revert --no-wait "$core_snap"
         REBOOT
     elif [ "$SPREAD_REBOOT" = 4 ]; then
         snap watch --last=revert\?
