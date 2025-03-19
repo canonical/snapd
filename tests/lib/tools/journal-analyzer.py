@@ -1,19 +1,10 @@
 #!/usr/bin/env python3
 
 import argparse
+from features import FEATURE_LIST
 import json
 import re
 import subprocess
-
-
-class All:
-    regex = re.compile(r"(.*)")
-    name = "all"
-    parent = "all"    
-
-    @staticmethod
-    def compose_dict(re_search):
-        return {All.name: re_search.group(1)}
 
 
 def _get_boot_list(log_dir=None):
@@ -99,7 +90,7 @@ def _get_snapd_entries_after_timestamp(log_dir, timestamp):
     :param timestamp: timestamp from when to begin the search for snapd entries. If None, will return all snapd entries
     :return: iterator of snapd entries
     '''
-    cmd = ['journalctl', '-u', 'snapd', '--no-pager', '--since', timestamp]
+    cmd = ['journalctl', '-u', 'snapd', '--no-pager', '--output', 'cat', '--since', timestamp]
     if log_dir:
         cmd.extend(['--directory', log_dir])
 
@@ -133,24 +124,26 @@ def get_feature_dictionary(log_lines, feature_list):
     :return: dictionary of features
     :raises: ValueError if an invalid feature name is provided
     '''
+    feature_list = feature_list.split(",")
+
     feature_dict = {}
-    feature_classes = [cls for cls in globals().values()
-                       if isinstance(cls, type) and
-                       hasattr(cls, 'name') and
-                       cls.name in feature_list.split(",")]
-    if len(feature_classes) != len(feature_list.split(",")):
+    feature_classes = [cls for cls in FEATURE_LIST
+                       if cls.name in feature_list]
+    if len(feature_classes) != len(feature_list):
         raise ValueError(
-            "Error: Invalid feature name in feature list %s" % feature_list)
+            "Error: Invalid feature name in feature list {}".format(feature_list))
 
     for line in log_lines:
-        for feature_class in feature_classes:
-            search = feature_class.regex.search(line)
-            if search:
-                feature_entry = feature_class.compose_dict(search)
-                if feature_class.parent not in feature_dict:
-                    feature_dict[feature_class.parent] = []
-                feature_dict[feature_class.parent].append(feature_entry)
-                break
+        try:
+            line_json = json.loads(line)
+            for feature_class in feature_classes:
+                feature_entry = feature_class.extract_feature(line_json)
+                if feature_entry:
+                    if feature_class.parent not in feature_dict:
+                        feature_dict[feature_class.parent] = []
+                    feature_dict[feature_class.parent].append(feature_entry)
+        except ValueError:
+            print("Error parsing json: " + line)
     return feature_dict
 
 
