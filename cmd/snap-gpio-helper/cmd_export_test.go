@@ -97,7 +97,7 @@ func (s *snapGpioHelperSuite) TestExportGpioChardevBadLine(c *C) {
 	for lines, expectedErr := range map[string]string{
 		"0-3":   `invalid lines argument: invalid line offset 3: line does not exist in "gpiochip0"`,
 		"0-2,1": `invalid lines argument: overlapping range span found "1"`,
-		"1-0":   `invalid lines argument: invalid range "1-0": range end has to be larger than range start`,
+		"1-0":   `invalid lines argument: invalid range span "1-0": ends before it starts`,
 		"0-":    `invalid lines argument: .*: invalid syntax`,
 		"a":     `invalid lines argument: .*: invalid syntax`,
 	} {

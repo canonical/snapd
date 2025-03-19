@@ -74,6 +74,6 @@ func (s *chipSuite) TestGpioChardevInfo(c *C) {
 	c.Check(chip.Path(), Equals, chipPath)
 	c.Check(chip.Name(), Equals, "gpiochip0")
 	c.Check(chip.Label(), Equals, "label-0")
-	c.Check(chip.Label(), Equals, "label-0")
 	c.Check(chip.NumLines(), Equals, uint(12))
+	c.Check(fmt.Sprintf("%s", chip), Equals, "(name: gpiochip0, label: label-0, lines: 12)")
 }
