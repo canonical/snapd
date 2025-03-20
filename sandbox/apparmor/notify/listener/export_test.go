@@ -98,7 +98,7 @@ func MockNotifyIoctl(f func(fd uintptr, req notify.IoctlRequest, buf notify.Ioct
 // a SEND call via ioctl, the data is instead written to the send channel.
 func MockEpollWaitNotifyIoctl(protoVersion notify.ProtocolVersion) (recvChan chan<- []byte, sendChan <-chan []byte, restore func()) {
 	recvChanRW := make(chan []byte)
-	sendChanRW := make(chan []byte, 1) // need to have buffer size 1 since reply is synchronous
+	sendChanRW := make(chan []byte, 1) // need to have buffer size 1 since reply does not run in a goroutine and the test would otherwise block
 	internalRecvChan := make(chan []byte, 1)
 	epollF := func(l *Listener) ([]epoll.Event, error) {
 		for {
