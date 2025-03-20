@@ -5456,10 +5456,10 @@ func (s *imageSuite) TestPrepareExtraAssertions(c *C) {
 	err := os.WriteFile(modelFn, asserts.Encode(model), 0644)
 	c.Assert(err, IsNil)
 
-	// Create assertion for proxy1 and write to file
+	// Create assertion for proxy store and write to file
 	proxyStoreAssertion, err := s.StoreSigning.Sign(asserts.StoreType, map[string]interface{}{
 		"store":        "my-proxy-store",
-		"operator-id":  "my-brand",
+		"operator-id":  "other-brand",
 		"authority-id": "canonical",
 		"url":          "https://my-proxy-store.com",
 		"timestamp":    time.Now().UTC().Format(time.RFC3339),
@@ -5473,7 +5473,7 @@ func (s *imageSuite) TestPrepareExtraAssertions(c *C) {
 	accountAssertion, err := s.StoreSigning.Sign(asserts.AccountType, map[string]interface{}{
 		"type":         "account",
 		"authority-id": "canonical",
-		"account-id":   "my-brand",
+		"account-id":   "other-brand",
 		"validation":   "verified",
 		"display-name": "Predef",
 		"timestamp":    time.Now().Format(time.RFC3339),
@@ -5492,29 +5492,14 @@ func (s *imageSuite) TestPrepareExtraAssertions(c *C) {
 	})
 	c.Assert(err, IsNil)
 
-	// Check that the proxy assertions are written in the seed
+	// check assertions
+	seedAssertsDir := filepath.Join(preparedir, "image/var/lib/snapd/seed/assertions")
 
-	seedDir := filepath.Join(preparedir, "image/var/lib/snapd/seed/assertions")
-
-	l, err := os.ReadDir(seedDir)
+	_, err = os.Open(filepath.Join(seedAssertsDir, "my-proxy-store.store"))
 	c.Assert(err, IsNil)
-	c.Check(l, HasLen, 11)
 
-	foundProxyAssertion := false
-	foundAccountAssertion := false
-
-	for _, fn := range l {
-		if fn.Name() == "my-proxy-store.store" {
-			foundProxyAssertion = true
-		}
-
-		if fn.Name() == "my-brand.account" {
-			foundAccountAssertion = true
-		}
-	}
-
-	c.Assert(foundProxyAssertion, Equals, true)
-	c.Assert(foundAccountAssertion, Equals, true)
+	_, err = os.Open(filepath.Join(seedAssertsDir, "other-brand.account"))
+	c.Assert(err, IsNil)
 }
 
 func (s *imageSuite) TestPrepareExtraAssertionsFileNotFound(c *C) {

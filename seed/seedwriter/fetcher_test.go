@@ -161,7 +161,6 @@ func (s *fetcherSuite) TestAssertFetcherInvalidSequenceFormingFetcher(c *C) {
 }
 
 func (s *fetcherSuite) TestAssertFetcherSaveExtraAssertions(c *C) {
-
 	as := s.setupTestAssertion(c)
 
 	db, err := asserts.OpenDatabase(&asserts.DatabaseConfig{
@@ -181,7 +180,7 @@ func (s *fetcherSuite) TestAssertFetcherSaveExtraAssertions(c *C) {
 
 	proxyStoreAssertion, err := s.storeSigning.Sign(asserts.StoreType, map[string]interface{}{
 		"store":        "my-proxy-store",
-		"operator-id":  "my-brand",
+		"operator-id":  "other-brand",
 		"authority-id": "canonical",
 		"url":          "https://my-proxy-store.com",
 		"timestamp":    time.Now().UTC().Format(time.RFC3339),
@@ -191,16 +190,18 @@ func (s *fetcherSuite) TestAssertFetcherSaveExtraAssertions(c *C) {
 	accountAssertion, err := s.storeSigning.Sign(asserts.AccountType, map[string]interface{}{
 		"type":         "account",
 		"authority-id": "canonical",
-		"account-id":   "my-brand",
+		"account-id":   "other-brand",
 		"validation":   "verified",
 		"display-name": "Predef",
 		"timestamp":    time.Now().Format(time.RFC3339),
 	}, nil, "")
 	c.Assert(err, IsNil)
 
-	af := seedwriter.MakeSeedAssertionFetcher(newFetcher, proxyStoreAssertion, accountAssertion)
+	af := seedwriter.MakeSeedAssertionFetcher(newFetcher)
 	c.Assert(af, NotNil)
 	c.Check(newFetcherCalled, Equals, 1)
+
+	af.AddExtraAssertions([]asserts.Assertion{proxyStoreAssertion, accountAssertion})
 
 	// Fetch the model assertion, then let's verify the refs was added.
 	err = af.Save(as)
@@ -217,6 +218,6 @@ func (s *fetcherSuite) TestAssertFetcherSaveExtraAssertions(c *C) {
 	c.Check(err, IsNil)
 
 	c.Assert(af.Refs(), HasLen, 4)
-	c.Check(af.Refs()[2].String(), Equals, "account (my-brand)")
+	c.Check(af.Refs()[2].String(), Equals, "account (other-brand)")
 	c.Check(af.Refs()[3].String(), Equals, "store (my-proxy-store)")
 }

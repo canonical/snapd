@@ -62,7 +62,7 @@ type cmdPrepareImage struct {
 	Validation               string   `long:"validation" choice:"ignore" choice:"enforce"`
 	AllowSnapdKernelMismatch bool     `long:"allow-snapd-kernel-mismatch"`
 
-	// Filenames for injected assertions
+	// Filenames for extra assertions
 	ExtraAssertionFiles []string `long:"assert" value-name:"<filename>"`
 }
 
