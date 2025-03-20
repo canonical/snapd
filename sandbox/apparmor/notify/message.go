@@ -29,7 +29,7 @@ type MsgNotificationGeneric interface {
 
 	// AllowedDeniedPermissions returns the AppArmor permission masks which
 	// were originally allowed and originally denied by AppArmor rules.
-	AllowedDeniedPermissions() (AppArmorPermission, AppArmorPermission, error)
+	AllowedDeniedPermissions() (allowed, denied AppArmorPermission, err error)
 	// SubjectUID returns the UID of the user triggering the notification.
 	SubjectUID() uint32
 	// Name is the identifier of the resource to which access is requested.
@@ -271,9 +271,10 @@ type MsgNotification struct {
 	Signalled uint8
 	// Set NoCache to URESPONSE_NO_CACHE to NOT cache.
 	NoCache uint8
-	// Id is an opaque kernel identifier of the notification message. It must be
-	// repeated in the MsgNotificationResponse if one is sent back.
-	Id uint64
+	// KernelNotificationID is an opaque kernel identifier of the notification
+	// message. It must be repeated in the MsgNotificationResponse if one is
+	// sent back.
+	KernelNotificationID uint64
 	// Error is the error the kernel will return to the application if the
 	// notification is denied.  In version 3, this is ignored in responses.
 	Error int32
@@ -372,10 +373,10 @@ func BuildResponse(version ProtocolVersion, id uint64, initiallyAllowed, request
 			MsgHeader: MsgHeader{
 				Version: version,
 			},
-			NotificationType: APPARMOR_NOTIF_RESP,
-			NoCache:          1,
-			Id:               id,
-			Error:            0, // ignored in response ?
+			NotificationType:     APPARMOR_NOTIF_RESP,
+			NoCache:              1,
+			KernelNotificationID: id,
+			Error:                0, // ignored in response ?
 		},
 		Error: 0, // ignored in response ?
 		Allow: finalAllow,
@@ -504,7 +505,7 @@ type tagsetHeader struct {
 }
 
 func (msg *MsgNotificationOp) ID() uint64 {
-	return msg.Id
+	return msg.KernelNotificationID
 }
 
 func (msg *MsgNotificationOp) PID() int32 {
@@ -669,7 +670,7 @@ func (msg *MsgNotificationFile) MarshalBinary() ([]byte, error) {
 	raw.NotificationType = msg.NotificationType
 	raw.Signalled = msg.Signalled
 	raw.NoCache = msg.NoCache
-	raw.Id = msg.Id
+	raw.KernelNotificationID = msg.KernelNotificationID
 	raw.Error = msg.Error
 	raw.Allow = msg.Allow
 	raw.Deny = msg.Deny
