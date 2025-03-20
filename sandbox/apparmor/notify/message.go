@@ -21,7 +21,7 @@ type MsgNotificationGeneric interface {
 	// ID returns the unique ID of the notification message.
 	ID() uint64
 	// PID returns the PID of the process triggering the notification.
-	PID() uint32
+	PID() int32
 	// ProcessLabel returns the AppArmor label of the process triggering the notification.
 	ProcessLabel() string
 	// MediationClass returns the mediation class of the message.
@@ -412,7 +412,7 @@ type msgNotificationOpKernel struct {
 	MsgNotification
 	Allow uint32
 	Deny  uint32
-	Pid   uint32
+	Pid   int32
 	Label uint32
 	Class uint16
 	Op    uint16
@@ -434,7 +434,7 @@ type MsgNotificationOp struct {
 	// the mediation class is AA_CLASS_FILE.
 	Deny uint32
 	// Pid of the process triggering the notification.
-	Pid uint32
+	Pid int32
 	// Label is the apparmor label of the process triggering the notification.
 	Label string
 	// Class of the mediation operation.
@@ -507,7 +507,7 @@ func (msg *MsgNotificationOp) ID() uint64 {
 	return msg.Id
 }
 
-func (msg *MsgNotificationOp) PID() uint32 {
+func (msg *MsgNotificationOp) PID() int32 {
 	return msg.Pid
 }
 

@@ -1001,19 +1001,19 @@ func (*messageSuite) TestDecodeFilePermissionsWrongClass(c *C) {
 
 func (*messageSuite) TestMsgNotificationFileAsGeneric(c *C) {
 	var msg notify.MsgNotificationFile
-	msg.Id = uint64(123)
-	msg.Pid = uint32(456)
+	msg.Id = 123
+	msg.Pid = 456
 	msg.Label = "hello there"
 	msg.Class = notify.AA_CLASS_FILE
-	msg.Allow = uint32(0xaaaa)
-	msg.Deny = uint32(0xbbbb)
-	msg.SUID = uint32(789)
+	msg.Allow = 0xaaaa
+	msg.Deny = 0xbbbb
+	msg.SUID = 789
 	msg.Filename = "/foo/bar"
 
 	testMsgNotificationGeneric(c, &msg, msg.Id, msg.Pid, msg.Label, msg.Class, msg.Allow, msg.Deny, msg.SUID, msg.Filename)
 }
 
-func testMsgNotificationGeneric(c *C, generic notify.MsgNotificationGeneric, id uint64, pid uint32, label string, class notify.MediationClass, allowed, denied, suid uint32, name string) {
+func testMsgNotificationGeneric(c *C, generic notify.MsgNotificationGeneric, id uint64, pid int32, label string, class notify.MediationClass, allowed, denied, suid uint32, name string) {
 	c.Check(generic.ID(), Equals, id)
 	c.Check(generic.PID(), Equals, pid)
 	c.Check(generic.ProcessLabel(), Equals, label)

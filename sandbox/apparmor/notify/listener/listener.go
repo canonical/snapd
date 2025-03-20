@@ -56,7 +56,7 @@ type Request struct {
 	// ID is the unique ID of the message notification associated with the request.
 	ID uint64
 	// PID is the identifier of the process which triggered the request.
-	PID uint32
+	PID int32
 	// Label is the apparmor label on the process which triggered the request.
 	Label string
 	// SubjectUID is the UID of the subject which triggered the request.
