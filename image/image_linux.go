@@ -154,13 +154,9 @@ func Prepare(opts *Options) error {
 	}
 
 	for _, assertionFilename := range opts.ExtraAssertionsFiles {
-
-		// Included in function is type assertion-like check similar to ass.(*asserts.Model)
-		// but for the types that we allow to be injected
-		// Means having a "switch ass.Type()" with and entry for each allowed type, having
-		// an ass.(asserts.<Type>) for each and raising an error for not-allowed types
-		extraAssertion, err := decodeAdditionalAssertion(assertionFilename)
-
+		// Function reads the assertion from the file, decodes it and rejects
+		// assertion types that are not allowed
+		extraAssertion, err := decodeExtraAssertion(assertionFilename)
 		if err != nil {
 			return err
 		}
@@ -1116,39 +1112,23 @@ var setupSeed = func(tsto *tooling.ToolingStore, model *asserts.Model, opts *Opt
 	return s.finish()
 }
 
-func decodeAdditionalAssertion(assFilename string) (asserts.Assertion, error) {
-
-	rawAssert, err := os.ReadFile(assFilename)
+func decodeExtraAssertion(assertionFilename string) (asserts.Assertion, error) {
+	assertionFile, err := os.Open(assertionFilename)
 	if err != nil {
-		return nil, fmt.Errorf("cannot read model assertion: %s", err)
+		return nil, fmt.Errorf("cannot read extra assertion: %s", err)
+	}
+	defer assertionFile.Close()
+
+	// only decode a single assertion as we read a single file
+	extraAssertion, err := asserts.NewDecoder(assertionFile).Decode()
+	if err != nil {
+		return nil, fmt.Errorf("failed to decode extra assertion in %v: %v", assertionFilename, err)
 	}
 
-	ass, err := asserts.Decode(rawAssert)
-	if err != nil {
-		return nil, fmt.Errorf("cannot decode model assertion %q: %s", assFilename, err)
-	}
-
-	// Types can be added to this switch when they become supported
-	// We can also use existing functions if present
-	switch ass.Type() {
-	case asserts.StoreType:
-		_, ok := ass.(*asserts.Store)
-		if !ok {
-			return nil, fmt.Errorf("assertion in %v is not a valid Store assertion", assFilename)
-		}
-	case asserts.AccountType:
-		_, ok := ass.(*asserts.Account)
-		if !ok {
-			return nil, fmt.Errorf("assertion in %v is not a valid Account assertion", assFilename)
-		}
-	case asserts.AccountKeyType:
-		_, ok := ass.(*asserts.AccountKey)
-		if !ok {
-			return nil, fmt.Errorf("assertion in %v is not a valid AccountKey assertion", assFilename)
-		}
+	switch extraAssertion.Type() {
+	case asserts.SnapDeclarationType, asserts.SnapRevisionType, asserts.ModelType, asserts.SerialType, asserts.ValidationSetType:
+		return nil, fmt.Errorf("assertion in %v of type %v is not of an allowed type", assertionFilename, extraAssertion.Type().Name)
 	default:
-		return nil, fmt.Errorf("assertion in %v of type %v is not of an allowed type: [Store, Account, AccountKey]", assFilename, ass.Type())
+		return extraAssertion, nil
 	}
-
-	return ass, nil
 }
