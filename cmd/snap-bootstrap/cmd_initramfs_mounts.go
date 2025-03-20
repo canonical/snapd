@@ -493,7 +493,7 @@ func doInstall(mst *initramfsMountsState, model *asserts.Model, sysSnaps map[sna
 	isRunMode := false
 	rootfsDir := boot.InitramfsWritableDir(model, isRunMode)
 	snapdSeed := sysSnaps[snap.TypeSnapd]
-	if err := writeSeedSnapMountUnit(rootfsDir, snapdSeed); err != nil {
+	if err := prepareSeedSnapdSnap(rootfsDir, snapdSeed); err != nil {
 		return err
 	}
 
@@ -2043,7 +2043,7 @@ func generateMountsCommonInstallRecoverContinue(model *asserts.Model, sysSnaps m
 	isRunMode := false
 	rootfsDir := boot.InitramfsWritableDir(model, isRunMode)
 	snapdSeed := sysSnaps[snap.TypeSnapd]
-	if err := writeSeedSnapMountUnit(rootfsDir, snapdSeed); err != nil {
+	if err := prepareSeedSnapdSnap(rootfsDir, snapdSeed); err != nil {
 		return err
 	}
 
@@ -2551,7 +2551,7 @@ func generateMountsModeRun(mst *initramfsMountsState) error {
 		}
 
 		snapdSeed := theSeed.EssentialSnaps()[0]
-		if err := writeSeedSnapMountUnit(rootfsDir, snapdSeed); err != nil {
+		if err := prepareSeedSnapdSnap(rootfsDir, snapdSeed); err != nil {
 			return err
 		}
 	}
@@ -2565,17 +2565,19 @@ func generateMountsModeRun(mst *initramfsMountsState) error {
 	return nil
 }
 
-func writeSeedSnapMountUnit(rootfsDir string, seedSnap *seed.Snap) error {
+// prepareSeedSnapdSnap makes sure that snapd from the snap is ready to be used
+// after switch root when starting from a UC seed.
+func prepareSeedSnapdSnap(rootfsDir string, snapdSeedSnap *seed.Snap) error {
 	// We need to replicate the mount unit that snapd would create, but
 	// differently to other mounts we have to do here we do not need to
 	// start it from the initramfs. As this is first boot, do it in
 	// _writable_defaults to make sure we do not prevent files already
 	// there to be copied.
-	si := seedSnap.SideInfo
+	si := snapdSeedSnap.SideInfo
 	cpi := snap.MinimalSnapContainerPlaceInfo(si.RealName, si.Revision)
 	destRoot := sysconfig.WritableDefaultsDir(rootfsDir)
 	logger.Debugf("writing %s mount unit to %s", si.RealName, destRoot)
-	if err := writeSnapMountUnit(destRoot, seedSnap.Path, cpi.MountDir(),
+	if err := writeSnapMountUnit(destRoot, snapdSeedSnap.Path, cpi.MountDir(),
 		systemd.RegularMountUnit, cpi.MountDescription()); err != nil {
 		return fmt.Errorf("while writing %s first boot mount unit: %v", si.RealName, err)
 	}
