@@ -149,6 +149,8 @@ execute: |
         NOMATCH '^Error' < tasks.done
         # nothing was undone
         NOMATCH '^Undone' < tasks.done
+        # nothing is waiting
+        NOMATCH '^Wait' < tasks.done
         # we did not even try to hijack shutdown (/bin/systemctl) because that
         # could race with snapd (if that wanted to call it), so just check that
         # the system is in a stable state once we have already determined that
@@ -175,25 +177,20 @@ execute: |
 
         # now we need to revert both snaps for restore to behave properly, go from
         # reverse order
-        snap revert --no-wait "$SNAP_TWO"
+        snap revert "$SNAP_TWO"
         REBOOT
     elif [ "$SPREAD_REBOOT" = 2 ]; then
         snap watch --last=revert\?
         # now the first
-        snap revert --no-wait "$SNAP_ONE"
+        snap revert "$SNAP_ONE"
         REBOOT
     elif [ "$SPREAD_REBOOT" = 3 ]; then
         snap watch --last=revert\?
+        
         # we're done, verify current symlinks to the right revisions
-        if [[ "$SNAP_ONE" == *"core"* ]] || [[ "$SNAP_TWO" == *"core"* ]]; then
-            test "$(readlink /snap/$core_snap/current)" = "$(cat core.rev)"
-        fi
-        if [[ "$SNAP_ONE" == "pc" ]] || [[ "$SNAP_TWO" == "pc" ]]; then
-            test "$(readlink /snap/pc/current)" = "$(cat pc.rev)"
-        fi
-        if [[ "$SNAP_ONE" == "pc-kernel" ]] || [[ "$SNAP_TWO" == "pc-kernel" ]]; then
-            test "$(readlink /snap/pc-kernel/current)" = "$(cat pc-kernel.rev)"
-        fi
+        test "$(readlink /snap/$core_snap/current)" = "$(cat core.rev)"
+        test "$(readlink /snap/pc/current)" = "$(cat pc.rev)"
+        test "$(readlink /snap/pc-kernel/current)" = "$(cat pc-kernel.rev)"
     else
         echo "unexpected reboot"
         exit 1
