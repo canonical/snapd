@@ -175,6 +175,7 @@ func (s *sealSuite) TestSealKeyForBootChains(c *C) {
 					expectedSKR.KeyFile = filepath.Join(rootdir, "run/mnt/ubuntu-boot/device/fde/ubuntu-data.sealed-key")
 				}
 				c.Check(keys, DeepEquals, []secboot.SealKeyRequest{expectedSKR})
+				c.Check(params.KeyRole, Equals, "run+recover")
 			case 2:
 				// the fallback object seals the ubuntu-data and the ubuntu-save keys
 				c.Check(params.TPMPolicyAuthKeyFile, Equals, "")
@@ -190,6 +191,7 @@ func (s *sealSuite) TestSealKeyForBootChains(c *C) {
 					}
 				}
 				c.Check(keys, DeepEquals, []secboot.SealKeyRequest{expectedDataSKR, expectedSaveSKR})
+				c.Check(params.KeyRole, Equals, "recover")
 			default:
 				c.Errorf("unexpected additional call to secboot.SealKeys (call # %d)", sealKeysCalls)
 			}
