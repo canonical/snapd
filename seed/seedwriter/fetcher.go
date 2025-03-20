@@ -36,6 +36,7 @@ type SeedAssertionFetcher interface {
 	Save(asserts.Assertion) error
 	Refs() []*asserts.Ref
 	ResetRefs()
+	AddExtraAssertions(extraAssertions []asserts.Assertion)
 }
 
 type assertionFetcher struct {
@@ -63,17 +64,11 @@ func (af *assertionFetcher) Save(a asserts.Assertion) error {
 
 	// Check prerequisites against extraAssertions only if there are any
 	if len(af.extraAssertions) != 0 {
-
 		for _, prerequisite := range a.Prerequisites() {
 			for _, extraAssertion := range af.extraAssertions {
-
 				if prerequisite.Unique() == extraAssertion.Ref().Unique() {
-
 					if err := af.Save(extraAssertion); err != nil {
-						return fmt.Errorf(
-							"cannot fetch and check prerequisites for injected assertion that is prerequisite: %v",
-							err,
-						)
+						return err
 					}
 
 					// This prerequisite has been matched to an extraAssertion, proceed with the next
@@ -94,6 +89,10 @@ func (af *assertionFetcher) ResetRefs() {
 	af.refs = nil
 }
 
+func (af *assertionFetcher) AddExtraAssertions(extraAssertions []asserts.Assertion) {
+	af.extraAssertions = extraAssertions
+}
+
 // A NewFetcherFunc can build a Fetcher saving to an (implicit)
 // database and also calling the given additional save function.
 type NewFetcherFunc func(save func(asserts.Assertion) error) asserts.Fetcher
@@ -101,13 +100,13 @@ type NewFetcherFunc func(save func(asserts.Assertion) error) asserts.Fetcher
 // MakeSeedAssertionFetcher makes a SeedAssertionFetcher using newFetcher which can
 // build a base Fetcher with an additional save function, to capture assertion
 // references.
-func MakeSeedAssertionFetcher(newFetcher NewFetcherFunc, extraAssertions ...asserts.Assertion) SeedAssertionFetcher {
+func MakeSeedAssertionFetcher(newFetcher NewFetcherFunc) SeedAssertionFetcher {
 	var af assertionFetcher
 	save := func(a asserts.Assertion) error {
 		af.refs = append(af.refs, a.Ref())
 		return nil
 	}
 	af.fetcher = newFetcher(save)
-	af.extraAssertions = extraAssertions
+	af.extraAssertions = []asserts.Assertion{}
 	return &af
 }
