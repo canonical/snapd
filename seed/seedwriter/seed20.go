@@ -270,7 +270,7 @@ func (tr *tree20) localComponentPath(sc *SeedComponent, snapVersion string) (str
 		sc.ComponentRef.String(), sc.Info.Version(snapVersion))), nil
 }
 
-func (tr *tree20) writeAssertions(db asserts.RODatabase, modelRefs []*asserts.Ref, snapsFromModel []*SeedSnap, extraSnaps []*SeedSnap) error {
+func (tr *tree20) writeAssertions(db asserts.RODatabase, modelRefs []*asserts.Ref, extraRefs []*asserts.Ref, snapsFromModel []*SeedSnap, extraSnaps []*SeedSnap) error {
 	assertsDir := filepath.Join(tr.systemDir, "assertions")
 	if err := os.MkdirAll(assertsDir, 0755); err != nil {
 		return err

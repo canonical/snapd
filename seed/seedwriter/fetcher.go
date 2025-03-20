@@ -36,11 +36,14 @@ type SeedAssertionFetcher interface {
 	Save(asserts.Assertion) error
 	Refs() []*asserts.Ref
 	ResetRefs()
+	AddExtraAssertions(extraAssertions []asserts.Assertion)
 }
 
 type assertionFetcher struct {
 	fetcher asserts.Fetcher
 	refs    []*asserts.Ref
+
+	extraAssertions []asserts.Assertion
 }
 
 func (af *assertionFetcher) Fetch(ref *asserts.Ref) error {
@@ -58,6 +61,23 @@ func (af *assertionFetcher) FetchSequence(seq *asserts.AtSequence) error {
 }
 
 func (af *assertionFetcher) Save(a asserts.Assertion) error {
+
+	// Check prerequisites against extraAssertions only if there are any
+	if len(af.extraAssertions) != 0 {
+		for _, prerequisite := range a.Prerequisites() {
+			for _, extraAssertion := range af.extraAssertions {
+				if prerequisite.Unique() == extraAssertion.Ref().Unique() {
+					if err := af.Save(extraAssertion); err != nil {
+						return err
+					}
+
+					// This prerequisite has been matched to an extraAssertion, proceed with the next
+					break
+				}
+			}
+		}
+	}
+
 	return af.fetcher.Save(a)
 }
 
@@ -67,6 +87,10 @@ func (af *assertionFetcher) Refs() []*asserts.Ref {
 
 func (af *assertionFetcher) ResetRefs() {
 	af.refs = nil
+}
+
+func (af *assertionFetcher) AddExtraAssertions(extraAssertions []asserts.Assertion) {
+	af.extraAssertions = extraAssertions
 }
 
 // A NewFetcherFunc can build a Fetcher saving to an (implicit)
@@ -83,5 +107,6 @@ func MakeSeedAssertionFetcher(newFetcher NewFetcherFunc) SeedAssertionFetcher {
 		return nil
 	}
 	af.fetcher = newFetcher(save)
+	af.extraAssertions = []asserts.Assertion{}
 	return &af
 }

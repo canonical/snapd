@@ -153,6 +153,17 @@ func Prepare(opts *Options) error {
 		return err
 	}
 
+	for _, assertionFilename := range opts.ExtraAssertionsFiles {
+		// Function reads the assertion from the file, decodes it and rejects
+		// assertion types that are not allowed
+		extraAssertion, err := decodeExtraAssertion(assertionFilename)
+		if err != nil {
+			return err
+		}
+
+		opts.ExtraAssertions = append(opts.ExtraAssertions, extraAssertion)
+	}
+
 	if err := setupSeed(tsto, model, opts); err != nil {
 		return err
 	}
@@ -356,6 +367,8 @@ func newImageSeeder(tsto *tooling.ToolingStore, model *asserts.Model, opts *Opti
 		ManifestPath:   opts.SeedManifestPath,
 
 		TestSkipCopyUnverifiedModel: osutil.GetenvBool("UBUNTU_IMAGE_SKIP_COPY_UNVERIFIED_MODEL"),
+
+		ExtraAssertions: opts.ExtraAssertions,
 	}
 	w, err := seedwriter.New(model, wOpts)
 	if err != nil {
@@ -1097,4 +1110,25 @@ var setupSeed = func(tsto *tooling.ToolingStore, model *asserts.Model, opts *Opt
 		return err
 	}
 	return s.finish()
+}
+
+func decodeExtraAssertion(assertionFilename string) (asserts.Assertion, error) {
+	assertionFile, err := os.Open(assertionFilename)
+	if err != nil {
+		return nil, fmt.Errorf("cannot read extra assertion: %s", err)
+	}
+	defer assertionFile.Close()
+
+	// only decode a single assertion as we read a single file
+	extraAssertion, err := asserts.NewDecoder(assertionFile).Decode()
+	if err != nil {
+		return nil, fmt.Errorf("failed to decode extra assertion in %v: %v", assertionFilename, err)
+	}
+
+	switch extraAssertion.Type() {
+	case asserts.SnapDeclarationType, asserts.SnapRevisionType, asserts.ModelType, asserts.SerialType, asserts.ValidationSetType:
+		return nil, fmt.Errorf("assertion in %v of type %v is not of an allowed type", assertionFilename, extraAssertion.Type().Name)
+	default:
+		return extraAssertion, nil
+	}
 }

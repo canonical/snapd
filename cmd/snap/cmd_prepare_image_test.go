@@ -336,3 +336,23 @@ func (s *SnapPrepareImageSuite) TestPrepareImageValidation(c *C) {
 		},
 	})
 }
+
+func (s *SnapPrepareImageSuite) TestPrepareImageCoreExtraAssertions(c *C) {
+	var opts *image.Options
+	prep := func(o *image.Options) error {
+		opts = o
+		return nil
+	}
+	r := cmdsnap.MockImagePrepare(prep)
+	defer r()
+
+	rest, err := cmdsnap.Parser(cmdsnap.Client()).ParseArgs([]string{"prepare-image", "model", "prepare-dir", "--assert", "extra1", "--assert", "extra2"})
+	c.Assert(err, IsNil)
+	c.Assert(rest, DeepEquals, []string{})
+
+	c.Check(opts, DeepEquals, &image.Options{
+		ModelFile:            "model",
+		PrepareDir:           "prepare-dir",
+		ExtraAssertionsFiles: []string{"extra1", "extra2"},
+	})
+}

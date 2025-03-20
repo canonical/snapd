@@ -60,6 +60,9 @@ type Options struct {
 	// IgnoreOptionFileExtentions if set, snaps and components will not be
 	// required to end in .snap or .comp, respectively.
 	IgnoreOptionFileExtentions bool
+
+	// Assertions to inject into the built image
+	ExtraAssertions []asserts.Assertion
 }
 
 // manifest returns either the manifest already provided by the
@@ -226,6 +229,7 @@ type Writer struct {
 	expectedStep writerStep
 
 	modelRefs []*asserts.Ref
+	extraRefs []*asserts.Ref
 
 	optionsSnaps []*OptionsSnap
 	// consumedOptSnapNum counts which options snaps have been consumed
@@ -297,7 +301,7 @@ type tree interface {
 	localSnapPath(*SeedSnap) (string, error)
 	localComponentPath(*SeedComponent, string) (string, error)
 
-	writeAssertions(db asserts.RODatabase, modelRefs []*asserts.Ref, snapsFromModel []*SeedSnap, extraSnaps []*SeedSnap) error
+	writeAssertions(db asserts.RODatabase, modelRefs []*asserts.Ref, extraRefs []*asserts.Ref, snapsFromModel []*SeedSnap, extraSnaps []*SeedSnap) error
 
 	writeMeta(snapsFromModel []*SeedSnap, extraSnaps []*SeedSnap) error
 }
@@ -348,6 +352,7 @@ func New(model *asserts.Model, opts *Options) (*Writer, error) {
 
 	w.tree = treeImpl
 	w.policy = pol
+	w.extraRefs = []*asserts.Ref{}
 	return w, nil
 }
 
@@ -632,6 +637,36 @@ func (w *Writer) Start(db asserts.RODatabase, f SeedAssertionFetcher) error {
 	}
 
 	w.modelRefs = f.Refs()
+
+	if len(w.opts.ExtraAssertions) != 0 {
+		// By resetting the fetcher's refs we might retrieve some of them a second time
+		// but we skip extra cycles of the second for loop cause by the model and all the snaps
+		f.ResetRefs()
+
+		f.AddExtraAssertions(w.opts.ExtraAssertions)
+
+		for _, extraAssertion := range w.opts.ExtraAssertions {
+			if err := f.Save(extraAssertion); err != nil {
+				return fmt.Errorf(
+					"cannot fetch and check prerequisites for an injected assertion: %v",
+					err,
+				)
+			}
+		}
+
+		for _, maybeExtraRef := range f.Refs() {
+			alreadySaved := false
+			for _, modelRef := range w.modelRefs {
+				if maybeExtraRef.Unique() == modelRef.Unique() {
+					alreadySaved = true
+					break
+				}
+			}
+			if !alreadySaved {
+				w.extraRefs = append(w.extraRefs, maybeExtraRef)
+			}
+		}
+	}
 
 	if err := w.tree.mkFixedDirs(); err != nil {
 		return err
@@ -1697,7 +1732,7 @@ func (w *Writer) WriteMeta() error {
 	snapsFromModel := w.snapsFromModel
 	extraSnaps := w.extraSnaps
 
-	if err := w.tree.writeAssertions(w.db, w.modelRefs, snapsFromModel, extraSnaps); err != nil {
+	if err := w.tree.writeAssertions(w.db, w.modelRefs, w.extraRefs, snapsFromModel, extraSnaps); err != nil {
 		return err
 	}
 
