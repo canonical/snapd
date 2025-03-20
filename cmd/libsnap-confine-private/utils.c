@@ -282,6 +282,8 @@ static int compat_fchmodat_symlink_nofollow(int fd, const char *name, mode_t mod
 }
 
 int sc_ensure_mkdirat(int fd, const char *name, mode_t mode, uid_t uid, uid_t gid) {
+    /* Using 0000 permissions to avoid a race condition; we'll set the right
+     * permissions after chown. */
     if (mkdirat(fd, name, 0000) < 0) {
         if (errno != EEXIST) {
             return -1;
@@ -297,6 +299,8 @@ int sc_ensure_mkdirat(int fd, const char *name, mode_t mode, uid_t uid, uid_t gi
 }
 
 int sc_ensure_mkdir(const char *path, mode_t mode, uid_t uid, uid_t gid) {
+    /* Using 0000 permissions to avoid a race condition; we'll set the right
+     * permissions after chown. */
     if (mkdir(path, 0000) < 0) {
         if (errno != EEXIST) {
             return -1;
