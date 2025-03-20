@@ -371,7 +371,7 @@ class TestLogAnalyzer(unittest.TestCase):
             "test_" + str(i) for i in range(50)]
         parse_args_mock.return_value = argparse.Namespace(
             command='list-executed-tasks',
-            exec_params=self.exec_param_mixed,
+            exec_params=' '.join(self.exec_param_mixed),
             parsed_log=StringIO(json.dumps(self.spread_logs_mixed))
         )
         with patch('sys.stdout', new=StringIO()) as stdout_patch:
@@ -386,7 +386,7 @@ class TestLogAnalyzer(unittest.TestCase):
             "test_" + str(i) for i in range(50)]
         parse_args_mock.return_value = argparse.Namespace(
             command='list-failed-tasks',
-            exec_params=self.exec_param_mixed,
+            exec_params=' '.join(self.exec_param_mixed),
             parsed_log=StringIO(json.dumps(self.spread_logs_mixed))
         )
         with patch('sys.stdout', new=StringIO()) as stdout_patch:
@@ -401,7 +401,7 @@ class TestLogAnalyzer(unittest.TestCase):
             "test_" + str(i) for i in range(50)]
         parse_args_mock.return_value = argparse.Namespace(
             command='list-successful-tasks',
-            exec_params=self.exec_param_mixed,
+            exec_params=' '.join(self.exec_param_mixed),
             parsed_log=StringIO(json.dumps(self.spread_logs_mixed))
         )
         with patch('sys.stdout', new=StringIO()) as stdout_patch:
@@ -416,7 +416,7 @@ class TestLogAnalyzer(unittest.TestCase):
             "test_" + str(i) for i in range(50)]
         parse_args_mock.return_value = argparse.Namespace(
             command='list-aborted-tasks',
-            exec_params=self.exec_param_mixed,
+            exec_params=' '.join(self.exec_param_mixed),
             parsed_log=StringIO(json.dumps(self.spread_logs_mixed))
         )
         with patch('sys.stdout', new=StringIO()) as stdout_patch:
@@ -431,7 +431,7 @@ class TestLogAnalyzer(unittest.TestCase):
             "test_" + str(i) for i in range(50)]
         parse_args_mock.return_value = argparse.Namespace(
             command='list-reexecute-tasks',
-            exec_params=self.exec_param_mixed,
+            exec_params=' '.join(self.exec_param_mixed),
             parsed_log=StringIO(json.dumps(self.spread_logs_mixed))
         )
         with patch('sys.stdout', new=StringIO()) as stdout_patch:
@@ -446,7 +446,7 @@ class TestLogAnalyzer(unittest.TestCase):
             "test_" + str(i) for i in range(50)]
         parse_args_mock.return_value = argparse.Namespace(
             command='list-reexecute-tasks',
-            exec_params=self.exec_param_no_exec,
+            exec_params=' '.join(self.exec_param_no_exec),
             parsed_log=StringIO(json.dumps(self.spread_logs_no_exec))
         )
         with patch('sys.stdout', new=StringIO()) as stdout_patch:

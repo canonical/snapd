@@ -133,7 +133,6 @@ def list_rexecute_tasks(
 def add_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
         "exec_params",
-        nargs='+',
         help="This is the parameter used to run spread (something like this BACKEND:SYSTEM:SUITE)",
     )
     parser.add_argument(
@@ -193,13 +192,13 @@ def main() -> None:
     add_arguments(reexecute)
     list_all.add_argument(
         "exec_params",
-        nargs='+',
         help="This is the parameter used to run spread (something like this BACKEND:SYSTEM:SUITE)",
     )
 
     args = parser.parse_args()
 
-    filtered_exec_param = set(filter_with_spread(args.exec_params))
+    exec_params = args.exec_params.replace(",", " ").split()
+    filtered_exec_param = set(filter_with_spread(exec_params))
 
     if hasattr(args, "parsed_log"):
         log = json.load(args.parsed_log)
@@ -218,7 +217,7 @@ def main() -> None:
         print(" ".join(filtered_exec_param))
     elif args.command == "list-reexecute-tasks":
         print(" ".join(list_rexecute_tasks(
-            args.exec_params, filtered_exec_param, log)))
+            exec_params, filtered_exec_param, log)))
     else:
         raise RuntimeError("log.analyzer: no such command: %s" % args.command)
 
