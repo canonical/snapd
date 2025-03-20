@@ -156,7 +156,7 @@ bool sc_wait_for_file(const char *path, size_t timeout_sec);
  *
  * Returns -1 in case of error.
  */
-int sc_ensure_mkdirat(int fd, const char *name, mode_t mode, uid_t uid, uid_t gid);
+__attribute__((warn_unused_result)) int sc_ensure_mkdirat(int fd, const char *name, mode_t mode, uid_t uid, uid_t gid);
 
 /**
  * Ensure a directory exists. Essentially a convenience wrapper around mkdirat()
@@ -164,6 +164,6 @@ int sc_ensure_mkdirat(int fd, const char *name, mode_t mode, uid_t uid, uid_t gi
  *
  * Returns -1 in case of error.
  */
-int sc_ensure_mkdir(const char *name, mode_t mode, uid_t uid, uid_t gid);
+__attribute__((warn_unused_result)) int sc_ensure_mkdir(const char *name, mode_t mode, uid_t uid, uid_t gid);
 
 #endif
