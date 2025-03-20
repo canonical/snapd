@@ -412,11 +412,11 @@ func (*messageSuite) TestMsgNotificationMarshalBinary(c *C) {
 		c.Skip("test only written for little-endian architectures")
 	}
 	msg := notify.MsgNotification{
-		NotificationType: notify.APPARMOR_NOTIF_RESP,
-		Signalled:        1,
-		NoCache:          0,
-		ID:               0x1234,
-		Error:            0xFF,
+		NotificationType:     notify.APPARMOR_NOTIF_RESP,
+		Signalled:            1,
+		NoCache:              0,
+		KernelNotificationID: 0x1234,
+		Error:                0xFF,
 	}
 	msg.Version = notify.ProtocolVersion(0xAA)
 	data, err := msg.MarshalBinary()
@@ -454,7 +454,7 @@ func (s *messageSuite) TestMsgNotificationFileUnmarshalBinaryV3(c *C) {
 		0x0, 0x0, // Op - ???
 		0x0, 0x0, 0x0, 0x0, // SUID
 		0x0, 0x0, 0x0, 0x0, // OUID
-		0x40, 0x0, 0x0, 0x0, // Name at +64 bytes into buffer
+		0x40, 0x0, 0x0, 0x0, // Filename at +64 bytes into buffer
 		0x74, 0x65, 0x73, 0x74, 0x2d, 0x70, 0x72, 0x6f, 0x6d, 0x70, 0x74, 0x0, // "test-prompt\0"
 		0x2f, 0x72, 0x6f, 0x6f, 0x74, 0x2f, 0x2e, 0x73, 0x73, 0x68, 0x2f, 0x0, // "/root/.ssh/\0"
 	}
@@ -470,9 +470,9 @@ func (s *messageSuite) TestMsgNotificationFileUnmarshalBinaryV3(c *C) {
 					Length:  76,
 					Version: 3,
 				},
-				NotificationType: notify.APPARMOR_NOTIF_OP,
-				ID:               2,
-				Error:            -13,
+				NotificationType:     notify.APPARMOR_NOTIF_OP,
+				KernelNotificationID: 2,
+				Error:                -13,
 			},
 			Allow: 4,
 			Deny:  4,
@@ -480,7 +480,7 @@ func (s *messageSuite) TestMsgNotificationFileUnmarshalBinaryV3(c *C) {
 			Label: "test-prompt",
 			Class: notify.AA_CLASS_FILE,
 		},
-		Name: "/root/.ssh/",
+		Filename: "/root/.ssh/",
 	}
 	c.Assert(msg, DeepEquals, expected)
 
@@ -533,9 +533,9 @@ func (s *messageSuite) TestMsgNotificationFileUnmarshalBinaryV5WithoutTags(c *C)
 					Length:  82,
 					Version: 5,
 				},
-				NotificationType: notify.APPARMOR_NOTIF_OP,
-				ID:               2,
-				Error:            -13,
+				NotificationType:     notify.APPARMOR_NOTIF_OP,
+				KernelNotificationID: 2,
+				Error:                -13,
 			},
 			Allow: 4,
 			Deny:  4,
@@ -543,7 +543,7 @@ func (s *messageSuite) TestMsgNotificationFileUnmarshalBinaryV5WithoutTags(c *C)
 			Label: "test-prompt",
 			Class: notify.AA_CLASS_FILE,
 		},
-		Name: "/root/.ssh/",
+		Filename: "/root/.ssh/",
 	}
 	c.Assert(msg, DeepEquals, expected)
 
@@ -611,9 +611,9 @@ func (s *messageSuite) TestMsgNotificationFileUnmarshalBinaryV5(c *C) {
 					Length:  127,
 					Version: 5,
 				},
-				NotificationType: notify.APPARMOR_NOTIF_OP,
-				ID:               2,
-				Error:            -13,
+				NotificationType:     notify.APPARMOR_NOTIF_OP,
+				KernelNotificationID: 2,
+				Error:                -13,
 			},
 			Allow: 0xaaaaaaaa,
 			Deny:  0x55555555,
@@ -621,9 +621,9 @@ func (s *messageSuite) TestMsgNotificationFileUnmarshalBinaryV5(c *C) {
 			Label: "profile",
 			Class: notify.AA_CLASS_FILE,
 		},
-		SUID: 1000,
-		OUID: 1000,
-		Name: "/file",
+		SUID:     1000,
+		OUID:     1000,
+		Filename: "/file",
 		Tagsets: map[notify.AppArmorPermission][]string{
 			notify.FilePermission(0x0103): {
 				"one",
@@ -709,9 +709,9 @@ func (s *messageSuite) TestMsgNotificationFileUnmarshalBinaryV5WithOverlappingAn
 					Length:  147,
 					Version: 5,
 				},
-				NotificationType: notify.APPARMOR_NOTIF_OP,
-				ID:               2,
-				Error:            -13,
+				NotificationType:     notify.APPARMOR_NOTIF_OP,
+				KernelNotificationID: 2,
+				Error:                -13,
 			},
 			Allow: 0xaaaaaaaa,
 			Deny:  0x55555555,
@@ -719,9 +719,9 @@ func (s *messageSuite) TestMsgNotificationFileUnmarshalBinaryV5WithOverlappingAn
 			Label: "profile",
 			Class: notify.AA_CLASS_FILE,
 		},
-		SUID: 1000,
-		OUID: 1000,
-		Name: "/file",
+		SUID:     1000,
+		OUID:     1000,
+		Filename: "/file",
 		Tagsets: map[notify.AppArmorPermission][]string{
 			notify.FilePermission(0x01): []string(nil),
 			notify.FilePermission(0x02): {
@@ -829,21 +829,113 @@ func (s *messageSuite) TestMsgNotificationValidate(c *C) {
 	c.Check(msg.Validate(), ErrorMatches, "unsupported notification type: 5")
 }
 
-func (s *messageSuite) TestResponseForRequest(c *C) {
-	req := notify.MsgNotification{
-		MsgHeader: notify.MsgHeader{
-			Version: 0xabcd,
+func (s *messageSuite) TestBuildResponse(c *C) {
+	var (
+		protocol  = notify.ProtocolVersion(123)
+		id        = uint64(456)
+		aaAllowed = notify.FilePermission(0b0101)
+		requested = notify.FilePermission(0b0011)
+	)
+
+	for _, testCase := range []struct {
+		userAllowed   notify.AppArmorPermission
+		expectedAllow uint32
+		expectedDeny  uint32
+	}{
+		{
+			nil,
+			0b0100,
+			0b0011,
 		},
-		ID:    1234,
-		Error: 0xbad,
+		{
+			notify.FilePermission(0b0000),
+			0b0100,
+			0b0011,
+		},
+		{
+			notify.FilePermission(0b0001),
+			0b0101,
+			0b0010,
+		},
+		{
+			notify.FilePermission(0b0010),
+			0b0110,
+			0b0001,
+		},
+		{
+			notify.FilePermission(0b0011),
+			0b0111,
+			0b0000,
+		},
+		{
+			notify.FilePermission(0b0100),
+			0b0100,
+			0b0011,
+		},
+		{
+			notify.FilePermission(0b0101),
+			0b0101,
+			0b0010,
+		},
+		{
+			notify.FilePermission(0b0110),
+			0b0110,
+			0b0001,
+		},
+		{
+			notify.FilePermission(0b0111),
+			0b0111,
+			0b0000,
+		},
+		{
+			notify.FilePermission(0b1000),
+			0b0100,
+			0b0011,
+		},
+		{
+			notify.FilePermission(0b1001),
+			0b0101,
+			0b0010,
+		},
+		{
+			notify.FilePermission(0b1010),
+			0b0110,
+			0b0001,
+		},
+		{
+			notify.FilePermission(0b1011),
+			0b0111,
+			0b0000,
+		},
+		{
+			notify.FilePermission(0b1100),
+			0b0100,
+			0b0011,
+		},
+		{
+			notify.FilePermission(0b1101),
+			0b0101,
+			0b0010,
+		},
+		{
+			notify.FilePermission(0b1110),
+			0b0110,
+			0b0001,
+		},
+		{
+			notify.FilePermission(0b1111),
+			0b0111,
+			0b0000,
+		},
+	} {
+		resp := notify.BuildResponse(protocol, id, aaAllowed, requested, testCase.userAllowed)
+		c.Check(resp.Version, Equals, protocol)
+		c.Check(resp.NotificationType, Equals, notify.APPARMOR_NOTIF_RESP)
+		c.Check(resp.NoCache, Equals, uint8(1))
+		c.Check(resp.KernelNotificationID, Equals, id)
+		c.Check(resp.Allow, Equals, testCase.expectedAllow)
+		c.Check(resp.Deny, Equals, testCase.expectedDeny)
 	}
-	resp := notify.ResponseForRequest(&req)
-	c.Assert(resp.NotificationType, Equals, notify.APPARMOR_NOTIF_RESP)
-	c.Assert(resp.NoCache, Equals, uint8(1))
-	c.Assert(resp.ID, Equals, req.ID)
-	c.Assert(resp.MsgNotification.Error, Equals, req.Error)
-	_, err := resp.MarshalBinary()
-	c.Assert(err, IsNil)
 }
 
 func (s *messageSuite) TestMsgNotificationResponseMarshalBinary(c *C) {
@@ -855,11 +947,11 @@ func (s *messageSuite) TestMsgNotificationResponseMarshalBinary(c *C) {
 			MsgHeader: notify.MsgHeader{
 				Version: 43,
 			},
-			NotificationType: 0x11,
-			Signalled:        0x22,
-			NoCache:          0x33,
-			ID:               0x44,
-			Error:            0x55,
+			NotificationType:     0x11,
+			Signalled:            0x22,
+			NoCache:              0x33,
+			KernelNotificationID: 0x44,
+			Error:                0x55,
 		},
 		Error: 0x66,
 		Allow: 0x77,
@@ -905,4 +997,31 @@ func (*messageSuite) TestDecodeFilePermissionsWrongClass(c *C) {
 	}
 	_, _, err := msg.DecodeFilePermissions()
 	c.Assert(err, ErrorMatches, "mediation class AA_CLASS_DBUS does not describe file permissions")
+}
+
+func (*messageSuite) TestMsgNotificationFileAsGeneric(c *C) {
+	var msg notify.MsgNotificationFile
+	msg.KernelNotificationID = 123
+	msg.Pid = 456
+	msg.Label = "hello there"
+	msg.Class = notify.AA_CLASS_FILE
+	msg.Allow = 0xaaaa
+	msg.Deny = 0xbbbb
+	msg.SUID = 789
+	msg.Filename = "/foo/bar"
+
+	testMsgNotificationGeneric(c, &msg, msg.KernelNotificationID, msg.Pid, msg.Label, msg.Class, msg.Allow, msg.Deny, msg.SUID, msg.Filename)
+}
+
+func testMsgNotificationGeneric(c *C, generic notify.MsgNotificationGeneric, id uint64, pid int32, label string, class notify.MediationClass, allowed, denied, suid uint32, name string) {
+	c.Check(generic.ID(), Equals, id)
+	c.Check(generic.PID(), Equals, pid)
+	c.Check(generic.ProcessLabel(), Equals, label)
+	c.Check(generic.MediationClass(), Equals, class)
+	msgAllow, msgDeny, err := generic.AllowedDeniedPermissions()
+	c.Check(err, IsNil)
+	c.Check(msgAllow.AsAppArmorOpMask(), Equals, allowed)
+	c.Check(msgDeny.AsAppArmorOpMask(), Equals, denied)
+	c.Check(generic.SubjectUID(), Equals, suid)
+	c.Check(generic.Name(), Equals, name)
 }
