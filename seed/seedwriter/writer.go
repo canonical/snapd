@@ -644,6 +644,8 @@ func (w *Writer) Start(db asserts.RODatabase, f SeedAssertionFetcher) error {
 		// but we skip extra cycles from the model and all the snaps in the second for loop
 		f.ResetRefs()
 
+		f.AddExtraAssertions(w.opts.ExtraAssertions)
+
 		for _, extraAssertion := range w.opts.ExtraAssertions {
 			if err := f.Save(extraAssertion); err != nil {
 				return fmt.Errorf(
