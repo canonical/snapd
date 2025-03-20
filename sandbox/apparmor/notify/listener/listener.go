@@ -210,18 +210,18 @@ func (l *Listener) Close() error {
 		return ErrAlreadyClosed
 	}
 
-	// Close the close channel so that the the run loop knows to stop trying
-	// to send requests over the request channel, and so that once the epoll
-	// FD is closed (causing the syscall to error), it can check the closeChan
-	// to see whether Close was called or whether a real error occurred.
-	close(l.closeChan)
-
 	// Closing the notify file signals to the kernel that the listener is
 	// disconnecting, so the kernel will send back denials or pass requests
 	// on to other listeners which connect. Do this before closing the epoll
 	// instance so that the kernel does not try to send any further messages
 	// which won't be received.
 	err1 := l.notifyFile.Close()
+
+	// Close the close channel so that the the run loop knows to stop trying
+	// to send requests over the request channel, and so that once the epoll
+	// FD is closed (causing the syscall to error), it can check the closeChan
+	// to see whether Close was called or whether a real error occurred.
+	close(l.closeChan)
 
 	// Close the epoll so that if the run loop is waiting on an event, it will
 	// return an error.
