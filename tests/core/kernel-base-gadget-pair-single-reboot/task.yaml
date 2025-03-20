@@ -7,6 +7,10 @@ details: |
 
 systems: [ubuntu-core-18-*, ubuntu-core-2*]
 
+# run before remodel test, unfortunately some tests mess with snaps installed
+# and this causes this test to be messed with
+priority: 500
+
 environment:
     SNAP_ONE/kernel_base: core
     SNAP_TWO/kernel_base: pc-kernel
@@ -59,6 +63,27 @@ execute: |
     elif [ "$SNAP_TWO" = "core" ]; then
         SNAP_TWO=$core_snap
     fi
+
+    wait_and_verify_change() {
+        local CHANGE_ID="$1"
+        snap watch "$CHANGE_ID" || true
+        snap changes | MATCH "$CHANGE_ID\s+Done"
+        snap change "$CHANGE_ID" > tasks.done
+        # nothing has failed
+        NOMATCH '^Error' < tasks.done
+        # nothing was undone
+        NOMATCH '^Undone' < tasks.done
+        # nothing is waiting
+        NOMATCH '^Wait' < tasks.done
+
+        # we did not even try to hijack shutdown (/bin/systemctl) because that
+        # could race with snapd (if that wanted to call it), so just check that
+        # the system is in a stable state once we have already determined that
+        # the change is complete
+        # XXX systemctl exits with non-0 when in degraded state
+        # Note: on bionic, is-system-running does not support --wait
+        retry -n 30 sh -c '(systemctl is-system-running || true) | MATCH "(running|degraded)"'
+    }
 
     if [ "$SPREAD_REBOOT" = 0 ]; then
         echo Downloading snaps needed
@@ -141,59 +166,65 @@ execute: |
         REBOOT
     elif [ "$SPREAD_REBOOT" = 1 ]; then
         change_id="$(cat refresh-change-id)"
-        # XXX: is this sufficiently robust?
-        snap watch "$change_id" || true
-        snap changes | MATCH "$change_id\s+Done"
-        snap change "$change_id" > tasks.done
-        # nothing has failed
-        NOMATCH '^Error' < tasks.done
-        # nothing was undone
-        NOMATCH '^Undone' < tasks.done
-        # we did not even try to hijack shutdown (/bin/systemctl) because that
-        # could race with snapd (if that wanted to call it), so just check that
-        # the system is in a stable state once we have already determined that
-        # the change is complete
-        # XXX systemctl exits with non-0 when in degraded state
-        # Note: on bionic, is-system-running does not support --wait
-        retry -n 30 sh -c '(systemctl is-system-running || true) | MATCH "(running|degraded)"'
+        wait_and_verify_change "$change_id"
+        
+        expecting_kernel="$(($(grep -o -E '[0-9]+' < pc-kernel.rev) + 1))"
+        expecting_gadget="$(($(grep -o -E '[0-9]+' < pc.rev) + 1))"
+        expecting_core="$(($(grep -o -E '[0-9]+' < core.rev) + 1))"
+        if ! grep "x" ./core.rev; then
+            expecting_core="1"
+        fi
 
         # fake refreshes generate revision numbers that are n+1
         # verify that current points to new revisions
         if [[ "$SNAP_ONE" == *"core"* ]] || [[ "$SNAP_TWO" == *"core"* ]]; then
-            expecting_core="x2"
-            if os.query is-core18; then
-                expecting_core="x1"
-            fi
-            test "$(readlink /snap/$core_snap/current)" = "$expecting_core"
+            test "$(readlink /snap/$core_snap/current | grep -o -E '[0-9]+')" = "$expecting_core"
         fi
         if [[ "$SNAP_ONE" == "pc" ]] || [[ "$SNAP_TWO" == "pc" ]]; then
-            test "$(readlink /snap/pc/current)" = "x2"
+            test "$(readlink /snap/pc/current | grep -o -E '[0-9]+')" = "$expecting_gadget"
         fi
         if [[ "$SNAP_ONE" == "pc-kernel" ]] || [[ "$SNAP_TWO" == "pc-kernel" ]]; then
-            test "$(readlink /snap/pc-kernel/current)" = "x2"
+            test "$(readlink /snap/pc-kernel/current | grep -o -E '[0-9]+')" = "$expecting_kernel"
         fi
 
         # now we need to revert both snaps for restore to behave properly, go from
         # reverse order
-        snap revert --no-wait "$SNAP_TWO"
+        snap revert "$SNAP_TWO" --no-wait > revert-change-id
+
+        # no reboot on pc revert
+        if [[ "$SNAP_TWO" == "pc" ]]; then
+            change_id="$(cat revert-change-id)"
+            wait_and_verify_change "$change_id"
+
+            # now the first
+            snap revert "$SNAP_ONE" --no-wait > revert-change-id
+        fi
+
+        retry -n 50 --wait 1 sh -c 'journalctl -b -u snapd | MATCH "Waiting for system reboot"'
         REBOOT
-    elif [ "$SPREAD_REBOOT" = 2 ]; then
-        snap watch --last=revert\?
+    elif [ "$SPREAD_REBOOT" = 2 ] && [[ "$SNAP_ONE" != "pc" ]] && [[ "$SNAP_TWO" != "pc" ]]; then
+        change_id="$(cat revert-change-id)"
+        wait_and_verify_change "$change_id"
+
         # now the first
-        snap revert --no-wait "$SNAP_ONE"
+        snap revert "$SNAP_ONE" --no-wait > revert-change-id
+
+        retry -n 50 --wait 1 sh -c 'journalctl -b -u snapd | MATCH "Waiting for system reboot"'
         REBOOT
-    elif [ "$SPREAD_REBOOT" = 3 ]; then
-        snap watch --last=revert\?
+    elif [ "$SPREAD_REBOOT" = 2 ] || [ "$SPREAD_REBOOT" = 3 ]; then
+        change_id="$(cat revert-change-id)"
+        wait_and_verify_change "$change_id"
+
+        if [[ "$SNAP_ONE" == "pc" ]]; then
+            snap revert "$SNAP_ONE" --no-wait > revert-change-id
+            change_id="$(cat revert-change-id)"
+            wait_and_verify_change "$change_id"
+        fi
+        
         # we're done, verify current symlinks to the right revisions
-        if [[ "$SNAP_ONE" == *"core"* ]] || [[ "$SNAP_TWO" == *"core"* ]]; then
-            test "$(readlink /snap/$core_snap/current)" = "$(cat core.rev)"
-        fi
-        if [[ "$SNAP_ONE" == "pc" ]] || [[ "$SNAP_TWO" == "pc" ]]; then
-            test "$(readlink /snap/pc/current)" = "$(cat pc.rev)"
-        fi
-        if [[ "$SNAP_ONE" == "pc-kernel" ]] || [[ "$SNAP_TWO" == "pc-kernel" ]]; then
-            test "$(readlink /snap/pc-kernel/current)" = "$(cat pc-kernel.rev)"
-        fi
+        test "$(readlink /snap/$core_snap/current)" = "$(cat core.rev)"
+        test "$(readlink /snap/pc/current)" = "$(cat pc.rev)"
+        test "$(readlink /snap/pc-kernel/current)" = "$(cat pc-kernel.rev)"
     else
         echo "unexpected reboot"
         exit 1

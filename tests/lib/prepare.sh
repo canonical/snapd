@@ -1370,7 +1370,7 @@ EOF
     fi
 
     # for core18 if we need an unasserted gadget, allow this
-    if [ "$CORE18_GADGET_REPACK" = "true" ]; then
+    if is_test_target_core 18 && [[ "$CORE18_GADGET_REPACK" == "true" ]]; then
         snap download --basename=pc --channel="18/${GADGET_CHANNEL}" pc
         test -e pc.snap
         unsquashfs -d pc-gadget pc.snap

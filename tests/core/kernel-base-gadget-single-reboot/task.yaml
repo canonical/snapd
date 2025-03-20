@@ -7,6 +7,10 @@ details: |
 
 systems: [ubuntu-core-18-*, ubuntu-core-2*]
 
+# run before remodel test, unfortunately some tests mess with snaps installed
+# and this causes this test to be messed with
+priority: 500
+
 environment:
     UPDATE_VARIANT/gadget_reboot: reboot
     UPDATE_VARIANT/gadget_noreboot: no-reboot
@@ -41,6 +45,28 @@ execute: |
 
     # does not work for 16, but we don't support 16 for this
     core_snap="core${VERSION_ID}"
+
+    wait_and_verify_change() {
+        local CHANGE_ID="$1"
+        # XXX: is this sufficiently robust?
+        snap watch "$CHANGE_ID" || true
+        snap changes | MATCH "$CHANGE_ID\s+Done"
+        snap change "$CHANGE_ID" > tasks.done
+        # nothing has failed
+        NOMATCH '^Error' < tasks.done
+        # nothing was undone
+        NOMATCH '^Undone' < tasks.done
+        # nothing is waiting
+        NOMATCH '^Wait' < tasks.done
+
+        # we did not even try to hijack shutdown (/bin/systemctl) because that
+        # could race with snapd (if that wanted to call it), so just check that
+        # the system is in a stable state once we have already determined that
+        # the change is complete
+        # XXX systemctl exits with non-0 when in degraded state
+        # Note: on bionic, is-system-running does not support --wait
+        retry -n 30 sh -c '(systemctl is-system-running || true) | MATCH "(running|degraded)"'
+    }
 
     if [ "$SPREAD_REBOOT" = 0 ]; then
         echo Downloading snaps needed
@@ -121,31 +147,12 @@ execute: |
         REBOOT
     elif [ "$SPREAD_REBOOT" = 1 ]; then
         change_id="$(cat refresh-change-id)"
-        # XXX: is this sufficiently robust?
-        snap watch "$change_id" || true
-        snap changes | MATCH "$change_id\s+Done"
-        snap change "$change_id" > tasks.done
-        # nothing has failed
-        NOMATCH '^Error' < tasks.done
-        # nothing was undone
-        NOMATCH '^Undone' < tasks.done
-        # we did not even try to hijack shutdown (/bin/systemctl) because that
-        # could race with snapd (if that wanted to call it), so just check that
-        # the system is in a stable state once we have already determined that
-        # the change is complete
-        # XXX systemctl exits with non-0 when in degraded state
-        # Note: on bionic, is-system-running does not support --wait
-        retry -n 30 sh -c '(systemctl is-system-running || true) | MATCH "(running|degraded)"'
-
+        wait_and_verify_change "$change_id"
+        
         # expect generate revision numbers that are n+1
         expecting_kernel="$(($(grep -o -E '[0-9]+' < pc-kernel.rev) + 1))"
         expecting_gadget="$(($(grep -o -E '[0-9]+' < pc.rev) + 1))"
-        expecting_core="$(($(grep -o -E '[0-9]+' < core.rev) + 1))"
-        
-        # we start with an asserted base on core18
-        if os.query is-core18; then
-            expecting_core="1"
-        fi
+        expecting_core="1"
 
         # verify that current points to new revisions
         test "$(readlink /snap/pc-kernel/current | grep -o -E '[0-9]+')" = "$expecting_kernel"
@@ -154,20 +161,28 @@ execute: |
 
         # now we need to revert both snaps for restore to behave properly, start
         # with the kernel
-        snap revert --no-wait pc-kernel
+        snap revert pc-kernel --no-wait > revert-change-id
+        retry -n 50 --wait 1 sh -c 'journalctl -b -u snapd | MATCH "Waiting for system reboot"'
+
         REBOOT
     elif [ "$SPREAD_REBOOT" = 2 ]; then
-        snap watch --last=revert\?
+        change_id="$(cat revert-change-id)"
+        wait_and_verify_change "$change_id"
+
         # now the gadget
-        snap revert --no-wait pc
+        snap revert pc --no-wait > revert-change-id
+        change_id="$(cat revert-change-id)"
+        wait_and_verify_change "$change_id"
+
+        # now the base
+        snap revert "$core_snap" --no-wait > revert-change-id
+        retry -n 50 --wait 1 sh -c 'journalctl -b -u snapd | MATCH "Waiting for system reboot"'
+
         REBOOT
     elif [ "$SPREAD_REBOOT" = 3 ]; then
-        snap watch --last=revert\?
-        # now the base
-        snap revert --no-wait "$core_snap"
-        REBOOT
-    elif [ "$SPREAD_REBOOT" = 4 ]; then
-        snap watch --last=revert\?
+        change_id="$(cat revert-change-id)"
+        wait_and_verify_change "$change_id"
+
         # we're done, verify current symlinks to the right revisions
         test "$(readlink /snap/pc-kernel/current)" = "$(cat pc-kernel.rev)"
         test "$(readlink /snap/pc/current)" = "$(cat pc.rev)"
