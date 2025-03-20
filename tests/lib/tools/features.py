@@ -6,7 +6,8 @@ class AllFeature:
     parent = "AllFeatures"
     
     @staticmethod
-    def extract_feature(json_entry: dict):
+    def maybe_add_feature(feature_dict, json_entry: dict):
+        feature_dict[AllFeature.parent].append(json_entry['MESSAGE'])
         return json_entry
 
 
@@ -16,8 +17,8 @@ class NoneFeature:
     parent = "NoneFeatures"
     
     @staticmethod
-    def extract_feature(json_entry):
-        return {}
+    def maybe_add_feature(feature_dict, json_entry):
+        pass
     
 
 FEATURE_LIST = [AllFeature, NoneFeature]

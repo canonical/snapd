@@ -1,9 +1,5 @@
 project: snapd
 
-artifacts:
-    # Populated with feature tag information when SPREAD_TAG_FEATURES is set.
-    - feature-tags
-
 environment:
     GOHOME: /home/gopath
     GOPATH: $GOHOME
@@ -602,6 +598,10 @@ backends:
 
 path: /home/gopath/src/github.com/snapcore/snapd
 
+artifacts:
+    # Populated with feature tag information when SPREAD_TAG_FEATURES is set.
+    - feature-tags
+
 exclude:
     - .git
     - cmd/snap/snap
@@ -1012,9 +1012,7 @@ suites:
             "$TESTSLIB"/prepare-restore.sh --prepare-suite
         prepare-each: |
             "$TESTSLIB"/prepare-restore.sh --prepare-suite-each
-            "$TESTSLIB"/analyze-features.sh --before-non-nested-task
         restore-each: |
-            "$TESTSLIB"/analyze-features.sh --after-non-nested-task
             "$TESTSLIB"/prepare-restore.sh --restore-suite-each
         restore: |
             "$TESTSLIB"/prepare-restore.sh --restore-suite
@@ -1029,9 +1027,7 @@ suites:
             "$TESTSLIB"/prepare-restore.sh --prepare-suite
         prepare-each: |
             "$TESTSLIB"/prepare-restore.sh --prepare-suite-each
-            "$TESTSLIB"/analyze-features.sh --before-non-nested-task
         restore-each: |
-            "$TESTSLIB"/analyze-features.sh --after-non-nested-task
             "$TESTSLIB"/prepare-restore.sh --restore-suite-each
         restore: |
             "$TESTSLIB"/prepare-restore.sh --restore-suite
@@ -1070,9 +1066,7 @@ suites:
             "$TESTSLIB"/prepare-restore.sh --prepare-suite
         prepare-each: |
             "$TESTSLIB"/prepare-restore.sh --prepare-suite-each
-            "$TESTSLIB"/analyze-features.sh --before-non-nested-task
         restore-each: |
-            "$TESTSLIB"/analyze-features.sh --after-non-nested-task
             "$TESTSLIB"/prepare-restore.sh --restore-suite-each
         restore: |
             "$TESTSLIB"/prepare-restore.sh --restore-suite
