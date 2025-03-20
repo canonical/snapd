@@ -96,7 +96,7 @@ func (r *Request) Reply(allowedPermission notify.AppArmorPermission) error {
 
 	resp := notify.BuildResponse(r.listener.protocolVersion, r.ID, r.AaAllowed, r.Permission, allowedPermission)
 
-	return encodeAndSendResponse(r.listener, &resp)
+	return encodeAndSendResponse(r.listener, resp)
 }
 
 func expectedResponseTypeForClass(class notify.MediationClass) string {

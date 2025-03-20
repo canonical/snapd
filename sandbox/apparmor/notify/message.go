@@ -346,7 +346,7 @@ type MsgNotificationResponse struct {
 }
 
 // BuildResponse returns a MsgNotificationResponse with the given information.
-func BuildResponse(version ProtocolVersion, id uint64, initiallyAllowed, requested, explicitlyAllowed AppArmorPermission) MsgNotificationResponse {
+func BuildResponse(version ProtocolVersion, id uint64, initiallyAllowed, requested, explicitlyAllowed AppArmorPermission) *MsgNotificationResponse {
 	aaDenyMask := requested.AsAppArmorOpMask()
 	// If permission was originally both allowed and denied in the message,
 	// treat it as initially denied.
@@ -367,7 +367,7 @@ func BuildResponse(version ProtocolVersion, id uint64, initiallyAllowed, request
 	// Any permissions which are omitted from both the allow and deny fields
 	// will be default denied by the kernel.
 
-	return MsgNotificationResponse{
+	return &MsgNotificationResponse{
 		MsgNotification: MsgNotification{
 			MsgHeader: MsgHeader{
 				Version: version,
