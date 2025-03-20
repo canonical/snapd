@@ -10,7 +10,7 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  go-channels-required:
+  go-channels:
     runs-on: ubuntu-latest
     outputs:
       go-channels: ${{ steps.resolve-go-channels.outputs.go-channels }}
@@ -25,23 +25,6 @@ jobs:
           include-snapd-build-go-channel: true
           include-snapd-build-fips-go-channel: true
           include-latest-go-channel: false
-
-
-  go-channels-not-required:
-    runs-on: ubuntu-latest
-    outputs:
-      go-channels: ${{ steps.resolve-go-channels.outputs.go-channels }}
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Resolve Go snap channels
-        id: resolve-go-channels
-        uses: ./.github/actions/resolve-go-channels
-        with:
-          include-snapd-build-go-channel: false
-          include-snapd-build-fips-go-channel: false
-          include-latest-go-channel: true
 
   snap-builds:
     uses: ./.github/workflows/snap-builds.yaml
@@ -99,7 +82,7 @@ jobs:
   static-checks:
     uses: ./.github/workflows/static-checks.yaml
     needs:
-      - go-channels-required
+      - go-channels
       - cache-build-deps
     with:
       runs-on: ubuntu-latest
@@ -109,22 +92,15 @@ jobs:
       # we cache successful runs so it's fine to keep going
       fail-fast: false      
       matrix:
-        gochannel: ${{ fromJson(needs.go-channels-required.outputs.go-channels) }}
+        gochannel: ${{ fromJson(needs.go-channels.outputs.go-channels) }}
     
   static-checks-not-required:
     uses: ./.github/workflows/static-checks.yaml
     needs:
-      - go-channels-not-required
       - cache-build-deps
     with:
       runs-on: ubuntu-latest
-      gochannel: ${{ matrix.gochannel }}
-
-    strategy:
-      # we cache successful runs so it's fine to keep going
-      fail-fast: false      
-      matrix:
-        gochannel: ${{ fromJson(needs.go-channels-not-required.outputs.go-channels) }}
+      gochannel: 'latest/stable'
 
   branch-static-checks:
     runs-on: ubuntu-latest
@@ -194,7 +170,7 @@ jobs:
   unit-tests:
     uses: ./.github/workflows/unit-tests.yaml
     needs:
-      - go-channels-required
+      - go-channels
       - static-checks 
     name: "unit-tests (Go default ${{ matrix.gochannel }})"
     with:
@@ -206,24 +182,18 @@ jobs:
       # we cache successful runs so it's fine to keep going
       fail-fast: false      
       matrix:
-        gochannel: ${{ fromJson(needs.go-channels-required.outputs.go-channels) }}
+        gochannel: ${{ fromJson(needs.go-channels.outputs.go-channels) }}
 
   unit-tests-not-required:
     uses: ./.github/workflows/unit-tests.yaml
     needs:
-      - go-channels-not-required
       - static-checks-not-required
-    name: "unit-tests (Go default ${{ matrix.gochannel }})"
+    name: "unit-tests (Go default latest/stable})"
     with:
       runs-on: ubuntu-latest
-      gochannel: ${{ matrix.gochannel }}
+      gochannel: 'latest/stable'
       skip-coverage: true
       code: 'go'
-    strategy:
-      # we cache successful runs so it's fine to keep going
-      fail-fast: false      
-      matrix:
-        gochannel: ${{ fromJson(needs.go-channels-not-required.outputs.go-channels) }}
 
   unit-tests-c:
     uses: ./.github/workflows/unit-tests.yaml
@@ -245,7 +215,7 @@ jobs:
   unit-tests-special:
     uses: ./.github/workflows/unit-tests.yaml
     needs:
-      - go-channels-required
+      - go-channels
       - static-checks
     name: "unit-tests (Go ${{ matrix.gochannel }} ${{ matrix.test-case.go-build-tags }}
           ${{ matrix.test-case.go-test-race && ' test-race' || ''}}
@@ -262,7 +232,7 @@ jobs:
       # we cache successful runs so it's fine to keep going
       fail-fast: false
       matrix:
-        gochannel: ${{ fromJson(needs.go-channels-required.outputs.go-channels) }}
+        gochannel: ${{ fromJson(needs.go-channels.outputs.go-channels) }}
         test-case:
           - { go-build-tags: snapd_debug,           skip-coverage: false, snapd-debug: true,  go-test-race: false}
           - { go-build-tags: withbootassetstesting, skip-coverage: false, snapd-debug: false, go-test-race: false}
@@ -275,14 +245,13 @@ jobs:
   unit-tests-special-not-required:
     uses: ./.github/workflows/unit-tests.yaml
     needs:
-      - go-channels-not-required
       - static-checks-not-required
-    name: "unit-tests (Go ${{ matrix.gochannel }} ${{ matrix.test-case.go-build-tags }}
+    name: "unit-tests (Go latest/stable ${{ matrix.test-case.go-build-tags }}
           ${{ matrix.test-case.go-test-race && ' test-race' || ''}}
           ${{ matrix.test-case.snapd-debug && ' snapd-debug' || ''}})"
     with:
       runs-on: ubuntu-latest
-      gochannel: ${{ matrix.gochannel }}
+      gochannel: 'latest/stable'
       skip-coverage: true
       go-build-tags: ${{ matrix.test-case.go-build-tags }}
       go-test-race: ${{ matrix.test-case.go-test-race }}
@@ -292,7 +261,6 @@ jobs:
       # we cache successful runs so it's fine to keep going
       fail-fast: false
       matrix:
-        gochannel: ${{ fromJson(needs.go-channels-not-required.outputs.go-channels) }}
         test-case:
           - { go-build-tags: snapd_debug,           snapd-debug: true,  go-test-race: false}
           - { go-build-tags: withbootassetstesting, snapd-debug: false, go-test-race: false}
