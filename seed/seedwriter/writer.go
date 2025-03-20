@@ -639,9 +639,8 @@ func (w *Writer) Start(db asserts.RODatabase, f SeedAssertionFetcher) error {
 	w.modelRefs = f.Refs()
 
 	if len(w.opts.ExtraAssertions) != 0 {
-
 		// By resetting the fetcher's refs we might retrieve some of them a second time
-		// but we skip extra cycles from the model and all the snaps in the second for loop
+		// but we skip extra cycles of the second for loop cause by the model and all the snaps
 		f.ResetRefs()
 
 		f.AddExtraAssertions(w.opts.ExtraAssertions)
