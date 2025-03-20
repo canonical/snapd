@@ -184,12 +184,12 @@ func (s *confdbTestSuite) TestGetNotFound(c *C) {
 
 	res, err = confdbstate.Get(s.state, s.devAccID, "network", "setup-wifi", []string{"ssid"})
 	c.Assert(err, FitsTypeOf, &confdb.NotFoundError{})
-	c.Assert(err, ErrorMatches, fmt.Sprintf(`cannot get "ssid" through %s/network/setup-wifi: no view data`, s.devAccID))
+	c.Assert(err, ErrorMatches, fmt.Sprintf(`cannot get "ssid" through %s/network/setup-wifi: no data`, s.devAccID))
 	c.Check(res, IsNil)
 
 	res, err = confdbstate.Get(s.state, s.devAccID, "network", "setup-wifi", []string{"ssid", "ssids"})
 	c.Assert(err, FitsTypeOf, &confdb.NotFoundError{})
-	c.Assert(err, ErrorMatches, fmt.Sprintf(`cannot get "ssid", "ssids" through %s/network/setup-wifi: no view data`, s.devAccID))
+	c.Assert(err, ErrorMatches, fmt.Sprintf(`cannot get "ssid", "ssids" through %s/network/setup-wifi: no data`, s.devAccID))
 	c.Check(res, IsNil)
 
 	res, err = confdbstate.Get(s.state, s.devAccID, "network", "setup-wifi", []string{"other-field"})
@@ -1008,6 +1008,10 @@ func (s *confdbTestSuite) mockConfdbHooks(c *C) (*[]string, func()) {
 			return nil, err
 		}
 
+		if !confdbstate.IsConfdbHook(ctx) {
+			// ignore non-confdb hooks
+			return nil, nil
+		}
 		hooks = append(hooks, hooksup.Hook)
 		return nil, nil
 	})
@@ -1529,18 +1533,45 @@ func (s *confdbTestSuite) TestGetTransactionTimesOut(c *C) {
 	c.Assert(tx, IsNil)
 }
 
-func (s *confdbTestSuite) checkGetConfdbTasks(c *C, chg *state.Change, hooks *[]string) {
+func (s *confdbTestSuite) checkGetConfdbTasks(c *C, chg *state.Change, executedHooks *[]string) {
 	c.Assert(chg.Status(), Equals, state.DoneStatus)
 
-	// using DeepContains because there may be an install hook as well
-	for _, hookName := range []string{"load-view-setup", "query-view-setup"} {
-		c.Assert(*hooks, testutil.DeepContains, hookName)
+	// check that the change's hooks and the actual executed hooks (if any) are in the right order
+	expectedHooks := []string{"load-view-setup", "query-view-setup"}
+	tasks := chg.Tasks()
+	var i int
+	for len(tasks) > 0 {
+		t := tasks[0]
+		if t.Kind() != "run-hook" {
+			break
+		}
+
+		var hooksup hookstate.HookSetup
+		err := t.Get("hook-setup", &hooksup)
+		c.Assert(err, IsNil)
+
+		if hooksup.Hook == "install" {
+			// the test might be using an "install" hook as a starting point so it
+			// shows up here (in reality it would be the first one running)
+			tasks = tasks[1:]
+			continue
+		}
+
+		// check hook order
+		if executedHooks != nil {
+			c.Assert((*executedHooks)[i], Equals, expectedHooks[i])
+		}
+		c.Assert(hooksup.Hook, Equals, expectedHooks[i])
+		i++
+
+		tasks = tasks[1:]
 	}
 
-	clearTask := findTask(chg, "clear-confdb-tx")
+	// next task should be the clearing ()
+	clearTask := tasks[0]
+	c.Assert(clearTask.Kind(), Equals, "clear-confdb-tx")
 	_, _, _, err := confdbstate.GetStoredTransaction(clearTask)
 	c.Assert(err, IsNil)
-	// TODO?
 
 	// the state was cleared
 	var ongoingTxs map[string]string
@@ -1562,4 +1593,148 @@ func (s *confdbTestSuite) checkOngoingReadConfdbTx(c *C, account, confdbName str
 	clearTask := s.state.Task(txTasks.ReadTxIDs[0])
 	c.Assert(clearTask.Kind(), Equals, "clear-confdb-tx")
 	c.Assert(clearTask.Status(), Equals, state.DoStatus)
+}
+
+func (s *confdbTestSuite) TestGetTransactionForAPI(c *C) {
+	s.state.Lock()
+	const noHooks = false
+	s.setupConfdbScenario(c, noHooks, []string{"custodian-snap"}, []string{"test-snap"})
+
+	hooks, restore := s.mockConfdbHooks(c)
+	defer restore()
+
+	// write some value for the get to read
+	bag := confdb.NewJSONDatabag()
+	err := bag.Set("wifi.ssid", "foo")
+	c.Assert(err, IsNil)
+	err = bag.Set("wifi.ssids", []string{"abc", "xyz"})
+	c.Assert(err, IsNil)
+
+	s.state.Set("confdb-databags", map[string]map[string]confdb.JSONDatabag{s.devAccID: {"network": bag}})
+
+	view := s.dbSchema.View("setup-wifi")
+	chgID, err := confdbstate.LoadConfdbAsync(s.state, view, []string{"ssid", "ssids"})
+	c.Assert(err, IsNil)
+	c.Assert(s.state.Changes(), HasLen, 1)
+
+	s.state.Unlock()
+	c.Assert(s.o.Settle(5*time.Second), IsNil)
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	chg := s.state.Change(chgID)
+	s.checkGetConfdbTasks(c, chg, hooks)
+
+	loadTask := chg.Tasks()[len(chg.Tasks())-1]
+	c.Assert(loadTask.Kind(), Equals, "load-confdb-change")
+	var viewName string
+	c.Assert(loadTask.Get("view-name", &viewName), IsNil)
+	c.Assert(viewName, Equals, "setup-wifi")
+	var requests []string
+	c.Assert(loadTask.Get("requests", &requests), IsNil)
+	c.Assert(requests, DeepEquals, []string{"ssid", "ssids"})
+
+	var apiData map[string]interface{}
+	err = chg.Get("api-data", &apiData)
+	c.Assert(err, IsNil)
+	val := apiData["confdb-data"]
+	c.Assert(val, DeepEquals, map[string]interface{}{
+		"ssid":  "foo",
+		"ssids": []interface{}{"abc", "xyz"},
+	})
+}
+
+func (s *confdbTestSuite) TestGetTransactionForAPINoHooks(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	const noHooks = true
+	s.setupConfdbScenario(c, noHooks, []string{"custodian-snap"}, []string{"test-snap"})
+
+	// write some value for the get to read
+	bag := confdb.NewJSONDatabag()
+	err := bag.Set("wifi.ssid", "foo")
+	c.Assert(err, IsNil)
+	err = bag.Set("wifi.ssids", []string{"abc", "xyz"})
+	c.Assert(err, IsNil)
+
+	s.state.Set("confdb-databags", map[string]map[string]confdb.JSONDatabag{s.devAccID: {"network": bag}})
+
+	view := s.dbSchema.View("setup-wifi")
+	chgID, err := confdbstate.LoadConfdbAsync(s.state, view, []string{"ssid", "ssids"})
+	c.Assert(err, IsNil)
+	c.Assert(s.state.Changes(), HasLen, 1)
+
+	// no hooks so we loaded the data directly into the change
+	chg := s.state.Change(chgID)
+	c.Assert(chg.Tasks(), HasLen, 0)
+	c.Assert(chg.Status(), Equals, state.DoneStatus)
+
+	var ongoingTxs map[string]string
+	err = s.state.Get("confdb-tx-commits", &ongoingTxs)
+	c.Assert(err, testutil.ErrorIs, &state.NoStateError{})
+
+	var apiData map[string]interface{}
+	err = chg.Get("api-data", &apiData)
+	c.Assert(err, IsNil)
+	val := apiData["confdb-data"]
+	c.Assert(val, DeepEquals, map[string]interface{}{
+		"ssid":  "foo",
+		"ssids": []interface{}{"abc", "xyz"},
+	})
+}
+
+func (s *confdbTestSuite) TestGetTransactionForAPINoHooksError(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+	const noHooks = true
+	s.setupConfdbScenario(c, noHooks, []string{"custodian-snap"}, []string{"test-snap"})
+
+	view := s.dbSchema.View("setup-wifi")
+	chgID, err := confdbstate.LoadConfdbAsync(s.state, view, []string{"ssid"})
+	c.Assert(err, IsNil)
+	c.Assert(s.state.Changes(), HasLen, 1)
+
+	// no hooks so we loaded the data directly into the change
+	chg := s.state.Change(chgID)
+	c.Assert(chg.Tasks(), HasLen, 0)
+	c.Assert(chg.Status(), Equals, state.DoneStatus)
+
+	var ongoingTxs map[string]string
+	err = s.state.Get("confdb-tx-commits", &ongoingTxs)
+	c.Assert(err, testutil.ErrorIs, &state.NoStateError{})
+
+	var apiData map[string]interface{}
+	err = chg.Get("api-data", &apiData)
+	c.Assert(err, IsNil)
+	errStr := apiData["confdb-error"].(string)
+	c.Assert(errStr, Equals, fmt.Sprintf(`cannot get "ssid" through %s/network/setup-wifi: no data`, s.devAccID))
+}
+
+func (s *confdbTestSuite) TestGetTransactionForAPIError(c *C) {
+	s.state.Lock()
+	const noHooks = false
+	s.setupConfdbScenario(c, noHooks, []string{"custodian-snap"}, []string{"test-snap"})
+
+	_, restore := s.mockConfdbHooks(c)
+	defer restore()
+
+	view := s.dbSchema.View("setup-wifi")
+	chgID, err := confdbstate.LoadConfdbAsync(s.state, view, []string{"ssid"})
+	c.Assert(err, IsNil)
+	c.Assert(s.state.Changes(), HasLen, 1)
+
+	s.state.Unlock()
+	c.Assert(s.o.Settle(5*time.Second), IsNil)
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	chg := s.state.Change(chgID)
+	s.checkGetConfdbTasks(c, chg, nil)
+
+	var apiData map[string]interface{}
+	err = chg.Get("api-data", &apiData)
+	c.Assert(err, IsNil, Commentf("%+v", chg))
+	errStr := apiData["confdb-error"].(string)
+	c.Assert(errStr, Equals, fmt.Sprintf(`cannot get "ssid" through %s/network/setup-wifi: no data`, s.devAccID))
 }

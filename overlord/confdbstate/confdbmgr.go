@@ -24,6 +24,7 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/snapcore/snapd/confdb"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/hookstate"
@@ -54,6 +55,7 @@ func Manager(st *state.State, hookMgr *hookstate.HookManager, runner *state.Task
 	// unblock others who may be waiting for it
 	runner.AddHandler("clear-confdb-tx-on-error", m.noop, m.clearOngoingTransaction)
 	runner.AddHandler("clear-confdb-tx", m.clearOngoingTransaction, nil)
+	runner.AddHandler("load-confdb-change", m.doLoadDataIntoChange, nil)
 
 	hookMgr.Register(regexp.MustCompile("^change-view-.+$"), func(context *hookstate.Context) hookstate.Handler {
 		return &changeViewHandler{ctx: context}
@@ -111,6 +113,62 @@ func (m *ConfdbManager) clearOngoingTransaction(t *state.Task, _ *tomb.Tomb) err
 	}
 
 	// TODO: unblock next waiting confdb writer once we add the blocking logic
+	return nil
+}
+
+func (m *ConfdbManager) doLoadDataIntoChange(t *state.Task, _ *tomb.Tomb) error {
+	st := t.State()
+	st.Lock()
+	defer st.Unlock()
+
+	tx, _, _, err := GetStoredTransaction(t)
+	if err != nil {
+		return err
+	}
+
+	var viewName string
+	err = t.Get("view-name", &viewName)
+	if err != nil {
+		return fmt.Errorf(`internal error: cannot get "view-name" from task: %w`, err)
+	}
+
+	var requests []string
+	err = t.Get("requests", &requests)
+	if err != nil {
+		return fmt.Errorf(`internal error: cannot get "requests" from task: %w`, err)
+	}
+
+	view, err := GetView(st, tx.ConfdbAccount, tx.ConfdbName, viewName)
+	if err != nil {
+		return fmt.Errorf("internal error: cannot get view: %w", err)
+	}
+
+	return readViewIntoChange(t.Change(), tx, view, requests)
+}
+
+func readViewIntoChange(chg *state.Change, tx *Transaction, view *confdb.View, requests []string) error {
+	var apiData map[string]interface{}
+	err := chg.Get("api-data", &apiData)
+	if err != nil && !errors.Is(err, state.ErrNoState) {
+		return err
+	}
+
+	if apiData == nil {
+		apiData = make(map[string]interface{})
+	}
+
+	result, err := GetViaView(tx, view, requests)
+	if err != nil {
+		if errors.Is(err, &confdb.NotFoundError{}) {
+			apiData["confdb-error"] = err.Error()
+			chg.Set("api-data", apiData)
+			return nil
+		}
+		return fmt.Errorf("cannot read confdb %s/%s: %w", tx.ConfdbAccount, tx.ConfdbName, err)
+	}
+
+	apiData["confdb-data"] = result
+	chg.Set("api-data", apiData)
 	return nil
 }
 

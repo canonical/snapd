@@ -155,7 +155,7 @@ func GetViaView(bag confdb.Databag, view *confdb.View, fields []string) (interfa
 			reqStr = fmt.Sprintf(i18n.G(" %s through"), strutil.Quoted(fields))
 		}
 
-		return nil, confdb.NewNotFoundError(i18n.G("cannot get%s %s/%s/%s: no view data"), reqStr, view.Schema().Account, view.Schema().Name, view.Name)
+		return nil, confdb.NewNotFoundError(i18n.G("cannot get%s %s/%s/%s: no data"), reqStr, view.Schema().Account, view.Schema().Name, view.Name)
 	}
 
 	return results, nil
@@ -530,6 +530,13 @@ func IsConfdbHook(ctx *hookstate.Context) bool {
 			strings.HasPrefix(ctx.HookName(), "observe-view-"))
 }
 
+// IsConfdbHook returns whether the hook context belongs to a confdb hook.
+func IsModifyConfdbHook(ctx *hookstate.Context) bool {
+	return ctx != nil && !ctx.IsEphemeral() &&
+		(strings.HasPrefix(ctx.HookName(), "change-view-") ||
+			strings.HasPrefix(ctx.HookName(), "load-view-"))
+}
+
 // GetTransactionForSnapctlGet gets a transaction to read the view's confdb. It
 // schedules tasks to load the confdb as needed, unless no custodian defined
 // relevant hooks. Blocks until the confdb has been loaded into the Transaction.
@@ -617,6 +624,58 @@ func GetTransactionForSnapctlGet(ctx *hookstate.Context, view *confdb.View) (*Tr
 		return nil, err
 	}
 	return tx, nil
+}
+
+// LoadConfdbAsync schedules a change to load a confdb, running any appropriate
+// hooks and fulfilling the requests by reading the view and placing the resulting
+// data in the change's data (so it can be read by the client).
+func LoadConfdbAsync(st *state.State, view *confdb.View, requests []string) (changeID string, err error) {
+	account, schemaName := view.Schema().Account, view.Schema().Name
+
+	tx, err := NewTransaction(st, account, schemaName)
+	if err != nil {
+		return "", fmt.Errorf("cannot access confdb view %s/%s/%s: cannot create transaction: %v", account, schemaName, view.Name, err)
+	}
+
+	ts, err := createLoadConfdbTasks(st, tx, view)
+	if err != nil {
+		return "", err
+	}
+
+	chg := st.NewChange("get-confdb", fmt.Sprintf(`Get confdb through "%s/%s/%s"`, account, schemaName, view.Name))
+	if ts != nil {
+		// if there are hooks to run, link the read-confdb task to those tasks
+		clearTxTask, err := ts.Edge(clearTxEdge)
+		if err != nil {
+			return "", err
+		}
+
+		// schedule a task to read the tx after the hook and add the data to the
+		// change so it can be read by the client
+		loadConfdbTask := st.NewTask("load-confdb-change", "Load confdb data into the change")
+		loadConfdbTask.Set("requests", requests)
+		loadConfdbTask.Set("view-name", view.Name)
+
+		loadConfdbTask.Set("tx-task", clearTxTask.ID())
+		loadConfdbTask.WaitFor(clearTxTask)
+		chg.AddAll(ts)
+
+		err = addReadTransaction(st, account, schemaName, clearTxTask.ID())
+		if err != nil {
+			return "", err
+		}
+		chg.AddTask(loadConfdbTask)
+	} else {
+		// no hooks to run so we can just load the values directly into the change
+		// (we still need the change because the API is async)
+		err := readViewIntoChange(chg, tx, view, requests)
+		if err != nil {
+			return "", err
+		}
+		chg.SetStatus(state.DoneStatus)
+	}
+
+	return chg.ID(), nil
 }
 
 // createLoadConfdbTasks returns a taskset with the hooks and tasks required to
