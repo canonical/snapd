@@ -60,7 +60,7 @@ execute: |
         SNAP_TWO=$core_snap
     fi
 
-    wait_and_verify_change {
+    wait_and_verify_change() {
         local CHANGE_ID="$1"
         snap watch "$CHANGE_ID" || true
         snap changes | MATCH "$CHANGE_ID\s+Done"

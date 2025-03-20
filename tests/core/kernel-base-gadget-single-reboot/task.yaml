@@ -42,7 +42,7 @@ execute: |
     # does not work for 16, but we don't support 16 for this
     core_snap="core${VERSION_ID}"
 
-    wait_and_verify_change {
+    wait_and_verify_change() {
         local CHANGE_ID="$1"
         # XXX: is this sufficiently robust?
         snap watch "$CHANGE_ID" || true
