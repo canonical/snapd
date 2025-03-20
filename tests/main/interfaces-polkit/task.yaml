@@ -71,9 +71,9 @@ execute: |
             | MATCH '^\(bba\{ss\}\) false false '
     fi
 
-    # Skip rule checks for Ubuntu <= 20.04 and Debian 11 because they don't support the
-    # /etc/polkit-1/rules.d rules directory.
-    if ! os.query is-ubuntu-le 20.04 && ! os.query is-debian 11 ;then
+    # Skip rule checks for Ubuntu <= 22.04 and Debian 11 because they don't support the
+    # /etc/polkit-1/rules.d rules directory i.e polkit version < 0.106
+    if ! os.query is-ubuntu-le 22.04 && ! os.query is-debian 11 ;then
         echo "Test polkit rules installation"
 
         echo "The polkit-rule plug is disconnected by default"
