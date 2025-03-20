@@ -412,11 +412,11 @@ func (*messageSuite) TestMsgNotificationMarshalBinary(c *C) {
 		c.Skip("test only written for little-endian architectures")
 	}
 	msg := notify.MsgNotification{
-		NotificationType: notify.APPARMOR_NOTIF_RESP,
-		Signalled:        1,
-		NoCache:          0,
-		Id:               0x1234,
-		Error:            0xFF,
+		NotificationType:     notify.APPARMOR_NOTIF_RESP,
+		Signalled:            1,
+		NoCache:              0,
+		KernelNotificationID: 0x1234,
+		Error:                0xFF,
 	}
 	msg.Version = notify.ProtocolVersion(0xAA)
 	data, err := msg.MarshalBinary()
@@ -470,9 +470,9 @@ func (s *messageSuite) TestMsgNotificationFileUnmarshalBinaryV3(c *C) {
 					Length:  76,
 					Version: 3,
 				},
-				NotificationType: notify.APPARMOR_NOTIF_OP,
-				Id:               2,
-				Error:            -13,
+				NotificationType:     notify.APPARMOR_NOTIF_OP,
+				KernelNotificationID: 2,
+				Error:                -13,
 			},
 			Allow: 4,
 			Deny:  4,
@@ -533,9 +533,9 @@ func (s *messageSuite) TestMsgNotificationFileUnmarshalBinaryV5WithoutTags(c *C)
 					Length:  82,
 					Version: 5,
 				},
-				NotificationType: notify.APPARMOR_NOTIF_OP,
-				Id:               2,
-				Error:            -13,
+				NotificationType:     notify.APPARMOR_NOTIF_OP,
+				KernelNotificationID: 2,
+				Error:                -13,
 			},
 			Allow: 4,
 			Deny:  4,
@@ -611,9 +611,9 @@ func (s *messageSuite) TestMsgNotificationFileUnmarshalBinaryV5(c *C) {
 					Length:  127,
 					Version: 5,
 				},
-				NotificationType: notify.APPARMOR_NOTIF_OP,
-				Id:               2,
-				Error:            -13,
+				NotificationType:     notify.APPARMOR_NOTIF_OP,
+				KernelNotificationID: 2,
+				Error:                -13,
 			},
 			Allow: 0xaaaaaaaa,
 			Deny:  0x55555555,
@@ -709,9 +709,9 @@ func (s *messageSuite) TestMsgNotificationFileUnmarshalBinaryV5WithOverlappingAn
 					Length:  147,
 					Version: 5,
 				},
-				NotificationType: notify.APPARMOR_NOTIF_OP,
-				Id:               2,
-				Error:            -13,
+				NotificationType:     notify.APPARMOR_NOTIF_OP,
+				KernelNotificationID: 2,
+				Error:                -13,
 			},
 			Allow: 0xaaaaaaaa,
 			Deny:  0x55555555,
@@ -932,7 +932,7 @@ func (s *messageSuite) TestBuildResponse(c *C) {
 		c.Check(resp.Version, Equals, protocol)
 		c.Check(resp.NotificationType, Equals, notify.APPARMOR_NOTIF_RESP)
 		c.Check(resp.NoCache, Equals, uint8(1))
-		c.Check(resp.Id, Equals, id)
+		c.Check(resp.KernelNotificationID, Equals, id)
 		c.Check(resp.Allow, Equals, testCase.expectedAllow)
 		c.Check(resp.Deny, Equals, testCase.expectedDeny)
 	}
@@ -947,11 +947,11 @@ func (s *messageSuite) TestMsgNotificationResponseMarshalBinary(c *C) {
 			MsgHeader: notify.MsgHeader{
 				Version: 43,
 			},
-			NotificationType: 0x11,
-			Signalled:        0x22,
-			NoCache:          0x33,
-			Id:               0x44,
-			Error:            0x55,
+			NotificationType:     0x11,
+			Signalled:            0x22,
+			NoCache:              0x33,
+			KernelNotificationID: 0x44,
+			Error:                0x55,
 		},
 		Error: 0x66,
 		Allow: 0x77,
@@ -1001,7 +1001,7 @@ func (*messageSuite) TestDecodeFilePermissionsWrongClass(c *C) {
 
 func (*messageSuite) TestMsgNotificationFileAsGeneric(c *C) {
 	var msg notify.MsgNotificationFile
-	msg.Id = 123
+	msg.KernelNotificationID = 123
 	msg.Pid = 456
 	msg.Label = "hello there"
 	msg.Class = notify.AA_CLASS_FILE
@@ -1010,7 +1010,7 @@ func (*messageSuite) TestMsgNotificationFileAsGeneric(c *C) {
 	msg.SUID = 789
 	msg.Filename = "/foo/bar"
 
-	testMsgNotificationGeneric(c, &msg, msg.Id, msg.Pid, msg.Label, msg.Class, msg.Allow, msg.Deny, msg.SUID, msg.Filename)
+	testMsgNotificationGeneric(c, &msg, msg.KernelNotificationID, msg.Pid, msg.Label, msg.Class, msg.Allow, msg.Deny, msg.SUID, msg.Filename)
 }
 
 func testMsgNotificationGeneric(c *C, generic notify.MsgNotificationGeneric, id uint64, pid int32, label string, class notify.MediationClass, allowed, denied, suid uint32, name string) {
