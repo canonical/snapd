@@ -216,6 +216,22 @@ type ConfigfilesUser interface {
 	PathPatterns() []string
 }
 
+// SymlinksUser must be implemented by Interfaces that use the symlinks backend.
+type SymlinksUser interface {
+	// Directories is a list of directories that might contain symlinks
+	// under control of snapd. They are understood to be under control if
+	// they point to inside snap content or data. These directories apply
+	// to either the rootfs or to the mount namespace of a snap (TODO).
+	// AddSymlink from the backend is called to add a symlink that must be
+	// created. Symlinks that point to a snap that are not in the table are
+	// removed.
+	//
+	// TODO it is possible that we might want to use different paths in the
+	// classic rootfs and in the mount namespace of a snap so the string
+	// could evolve to a type with path + rootfs type.
+	Directories() []string
+}
+
 // StaticInfo describes various static-info of a given interface.
 //
 // The Summary must be a one-line string of length suitable for listing views.
@@ -333,6 +349,8 @@ const (
 	SecurityLdconfig SecuritySystem = "ldconfig"
 	// SecurityConfigfiles identifies the configfiles security system.
 	SecurityConfigfiles SecuritySystem = "configfiles"
+	// SecuritySymlinks identifies the symlinks security system.
+	SecuritySymlinks SecuritySystem = "symlinks"
 )
 
 var isValidBusName = regexp.MustCompile(`^[a-zA-Z_-][a-zA-Z0-9_-]*(\.[a-zA-Z_-][a-zA-Z0-9_-]*)+$`).MatchString
