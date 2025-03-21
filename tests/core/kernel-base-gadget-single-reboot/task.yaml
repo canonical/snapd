@@ -172,10 +172,6 @@ execute: |
 
         # now the gadget
         snap revert pc --no-wait > revert-change-id
-        retry -n 50 --wait 1 sh -c 'journalctl -b -u snapd | MATCH "Waiting for system reboot"'
-
-        REBOOT
-    elif [ "$SPREAD_REBOOT" = 3 ]; then
         change_id="$(cat revert-change-id)"
         wait_and_verify_change "$change_id"
 
