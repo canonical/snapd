@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C)20 19-2024 Canonical Ltd
+ * Copyright (C) 2019-2024 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -502,9 +502,22 @@ func (s *baseInitramfsMountsSuite) SetUpTest(c *C) {
 
 type setupSeedOpts struct {
 	hasKModsComps bool
+	// integrityData is an array of integrity data because multiple integrity data
+	// can be found in a single snap-revision assertion
+	integrityData *[]asserts.SnapIntegrityData
 }
 
 func (s *baseInitramfsMountsSuite) setupSeed(c *C, modelAssertTime time.Time, gadgetSnapFiles [][]string, opts setupSeedOpts) {
+	s.setupSeedGeneric(c, modelAssertTime, gadgetSnapFiles, opts)
+}
+
+func (s *baseInitramfsMountsSuite) setupSeedWithIntegrityData(c *C, integrityData []asserts.SnapIntegrityData) {
+	s.setupSeedGeneric(c, time.Time{}, nil, setupSeedOpts{
+		integrityData: &integrityData,
+	})
+}
+
+func (s *baseInitramfsMountsSuite) setupSeedGeneric(c *C, modelAssertTime time.Time, gadgetSnapFiles [][]string, opts setupSeedOpts) {
 	base := "core20"
 	channel := "20"
 	if opts.hasKModsComps {
@@ -530,18 +543,31 @@ func (s *baseInitramfsMountsSuite) setupSeed(c *C, modelAssertTime time.Time, ga
 	testSeed.SetSnapAssertionNow(s.snapDeclAssertsTime)
 
 	// add a bunch of snaps
-	testSeed.MakeAssertedSnap(c, "name: snapd\nversion: 1\ntype: snapd", nil, snap.R(1), "canonical", testSeed.StoreSigning.Database)
-	testSeed.MakeAssertedSnap(c, fmt.Sprintf("name: pc\nversion: 1\ntype: gadget\nbase: %s", base),
-		gadgetSnapFiles, snap.R(1), "canonical", testSeed.StoreSigning.Database)
-	testSeed.MakeAssertedSnap(c, fmt.Sprintf("name: %s\nversion: 1\ntype: base", base),
-		nil, snap.R(1), "canonical", testSeed.StoreSigning.Database)
+	if opts.integrityData != nil {
+		testSeed.MakeAssertedSnapWithIntegrityData(c, "name: snapd\nversion: 1\ntype: snapd", nil, snap.R(1), *opts.integrityData, "canonical", testSeed.StoreSigning.Database)
+		testSeed.MakeAssertedSnapWithIntegrityData(c, fmt.Sprintf("name: pc\nversion: 1\ntype: gadget\nbase: %s", base),
+			gadgetSnapFiles, snap.R(1), *opts.integrityData, "canonical", testSeed.StoreSigning.Database)
+		testSeed.MakeAssertedSnapWithIntegrityData(c, fmt.Sprintf("name: %s\nversion: 1\ntype: base", base),
+			nil, snap.R(1), *opts.integrityData, "canonical", testSeed.StoreSigning.Database)
+	} else {
+		testSeed.MakeAssertedSnap(c, "name: snapd\nversion: 1\ntype: snapd", nil, snap.R(1), "canonical", testSeed.StoreSigning.Database)
+		testSeed.MakeAssertedSnap(c, fmt.Sprintf("name: pc\nversion: 1\ntype: gadget\nbase: %s", base),
+			gadgetSnapFiles, snap.R(1), "canonical", testSeed.StoreSigning.Database)
+		testSeed.MakeAssertedSnap(c, fmt.Sprintf("name: %s\nversion: 1\ntype: base", base),
+			nil, snap.R(1), "canonical", testSeed.StoreSigning.Database)
+	}
 
 	if opts.hasKModsComps {
 		testSeed.MakeAssertedSnapWithComps(c, seedtest.SampleSnapYaml["pc-kernel=24+kmods"],
 			nil, snap.R(1), nil, "canonical", testSeed.StoreSigning.Database)
 	} else {
-		testSeed.MakeAssertedSnap(c, "name: pc-kernel\nversion: 1\ntype: kernel", nil,
-			snap.R(1), "canonical", testSeed.StoreSigning.Database)
+		if opts.integrityData != nil {
+			testSeed.MakeAssertedSnapWithIntegrityData(c, "name: pc-kernel\nversion: 1\ntype: kernel", nil,
+				snap.R(1), *opts.integrityData, "canonical", testSeed.StoreSigning.Database)
+		} else {
+			testSeed.MakeAssertedSnap(c, "name: pc-kernel\nversion: 1\ntype: kernel", nil,
+				snap.R(1), "canonical", testSeed.StoreSigning.Database)
+		}
 	}
 
 	// pretend that by default, the model uses an older timestamp than the
@@ -638,10 +664,31 @@ func (s *baseInitramfsMountsSuite) mockUbuntuSaveMarker(c *C, rootDir, marker st
 }
 
 type systemdMount struct {
-	what  string
-	where string
-	opts  *main.SystemdMountOptions
-	err   error
+	what          string
+	where         string
+	opts          *main.SystemdMountOptions
+	err           error
+	integrityData *asserts.SnapIntegrityData
+}
+
+func (mnt *systemdMount) addIntegrityData(integrityData *asserts.SnapIntegrityData) systemdMount {
+	mnt.integrityData = integrityData
+
+	mnt.opts = &main.SystemdMountOptions{
+		ReadOnly: true,
+		Private:  true,
+		FsOpts: &main.DmVerityOptions{
+			RootHash:   integrityData.Digest,
+			HashDevice: mnt.what + ".verity",
+		},
+	}
+
+	return *mnt
+}
+
+type testSnapOpts struct {
+	base  string
+	snaps map[snap.Type]systemdMount
 }
 
 // this is a function so we evaluate InitramfsUbuntuBootDir, etc at the time of
@@ -811,11 +858,13 @@ func (s *baseInitramfsMountsSuite) runInitramfsMountsUnencryptedTryRecovery(c *C
 			boot.InitramfsDataDir,
 			tmpfsMountOpts,
 			nil,
+			nil,
 		},
 		{
 			"/dev/disk/by-partuuid/ubuntu-boot-partuuid",
 			boot.InitramfsUbuntuBootDir,
 			needsFsckDiskMountOpts,
+			nil,
 			nil,
 		},
 		{
@@ -823,11 +872,13 @@ func (s *baseInitramfsMountsSuite) runInitramfsMountsUnencryptedTryRecovery(c *C
 			boot.InitramfsHostUbuntuDataDir,
 			needsNoSuidDiskMountOpts,
 			nil,
+			nil,
 		},
 		{
 			"/dev/disk/by-partuuid/ubuntu-save-partuuid",
 			boot.InitramfsUbuntuSaveDir,
 			needsNoSuidNoDevNoExecMountOpts,
+			nil,
 			nil,
 		},
 	}, nil)
@@ -966,6 +1017,10 @@ func (s *initramfsMountsSuite) timeTestCases() []timeTestCase {
 }
 
 func (s *initramfsMountsSuite) testRecoverModeHappy(c *C, base string) {
+	s.testRecoverMode(c, base, nil)
+}
+
+func (s *initramfsMountsSuite) testRecoverMode(c *C, base string, expErr error) {
 	// ensure that we check that access to sealed keys were locked
 	sealedKeysLocked := false
 	restore := main.MockSecbootLockSealedKeys(func() error {
@@ -1032,7 +1087,12 @@ func (s *initramfsMountsSuite) testRecoverModeHappy(c *C, base string) {
 	c.Assert(err, IsNil)
 
 	_, err = main.Parser().ParseArgs([]string{"initramfs-mounts"})
-	c.Assert(err, IsNil)
+	if expErr != nil {
+		c.Check(err, ErrorMatches, expErr.Error())
+		return
+	} else {
+		c.Assert(err, IsNil)
+	}
 
 	// we always need to lock access to sealed keys
 	c.Check(sealedKeysLocked, Equals, true)
@@ -1096,6 +1156,7 @@ func (s *initramfsMountsSuite) testInitramfsMountsInstallRecoverModeMeasure(c *C
 			boot.InitramfsDataDir,
 			tmpfsMountOpts,
 			nil,
+			nil,
 		},
 	}
 
@@ -1121,17 +1182,20 @@ func (s *initramfsMountsSuite) testInitramfsMountsInstallRecoverModeMeasure(c *C
 				boot.InitramfsUbuntuBootDir,
 				needsFsckDiskMountOpts,
 				nil,
+				nil,
 			},
 			systemdMount{
 				"/dev/disk/by-partuuid/ubuntu-data-partuuid",
 				boot.InitramfsHostUbuntuDataDir,
 				needsNoSuidDiskMountOpts,
 				nil,
+				nil,
 			},
 			systemdMount{
 				"/dev/disk/by-partuuid/ubuntu-save-partuuid",
 				boot.InitramfsUbuntuSaveDir,
 				needsNoSuidNoDevNoExecMountOpts,
+				nil,
 				nil,
 			})
 
