@@ -8,7 +8,7 @@
 
 pkgname=snapd
 pkgdesc="Service and tools for management of snap packages."
-depends=('squashfs-tools' 'libseccomp' 'libsystemd' 'apparmor')
+depends=('squashfs-tools' 'libseccomp' 'libsystemd' 'libcap' 'apparmor')
 optdepends=('bash-completion: bash completion support'
             'xdg-desktop-portal: desktop integration')
 pkgver=2.68.3
