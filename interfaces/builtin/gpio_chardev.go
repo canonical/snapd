@@ -69,18 +69,18 @@ type gpioChardevInterface struct {
 
 func validateSourceChips(sourceChip []string) error {
 	if len(sourceChip) == 0 {
-		return errors.New(`"source-chip" must contain at least one chip`)
+		return errors.New(`cannot be empty`)
 	}
-	exists := make(map[string]bool)
+	exists := make(map[string]bool, len(sourceChip))
 	for _, chip := range sourceChip {
 		if chip == "" {
-			return errors.New(`chip in "source-chip" cannot be empty`)
+			return errors.New(`chip cannot be empty`)
 		}
 		if chip != strings.TrimSpace(chip) {
-			return fmt.Errorf(`chip in "source-chip" cannot contain leading or trailing white space, found %q`, chip)
+			return fmt.Errorf(`chip cannot contain leading or trailing white space, found %q`, chip)
 		}
 		if exists[chip] {
-			return fmt.Errorf(`"source-chip" cannot contain duplicate chip names, found %q`, chip)
+			return fmt.Errorf(`cannot contain duplicate chip names, found %q`, chip)
 		}
 		exists[chip] = true
 	}
@@ -140,16 +140,17 @@ func (iface *gpioChardevInterface) SystemdConnectedSlot(spec *systemd.Specificat
 	snapName := slot.Snap().InstanceName()
 	slotName := slot.Name()
 
+	helperPath := filepath.Join(dirs.DistroLibExecDir, "snap-gpio-helper")
 	serviceSuffix := fmt.Sprintf("gpio-chardev-%s", slotName)
 	service := &systemd.Service{
 		Type:            "oneshot",
 		RemainAfterExit: true,
 		// snap-gpio-helper export-chardev "<chip-labels>" "<lines>" "<gadget>" "<slot-name>"
-		ExecStart: fmt.Sprintf("%s/snap-gpio-helper export-chardev %q %q %q %q",
-			dirs.DistroLibExecDir, strings.Join(sourceChip, ","), lines, snapName, slotName),
+		ExecStart: fmt.Sprintf("%s export-chardev %q %q %q %q",
+			helperPath, strings.Join(sourceChip, ","), lines, snapName, slotName),
 		// snap-gpio-helper unexport-chardev "<chip-labels>" "<lines>" "<gadget>" "<slot-name>"
-		ExecStop: fmt.Sprintf("%s/snap-gpio-helper unexport-chardev %q %q %q %q",
-			dirs.DistroLibExecDir, strings.Join(sourceChip, ","), lines, snapName, slotName),
+		ExecStop: fmt.Sprintf("%s unexport-chardev %q %q %q %q",
+			helperPath, strings.Join(sourceChip, ","), lines, snapName, slotName),
 		// snapd.gpio-chardev-setup.target is used for synchronization of
 		// app services and virtual device setup during boot.
 		WantedBy: "snapd.gpio-chardev-setup.target",
@@ -164,8 +165,8 @@ func (iface *gpioChardevInterface) SystemdConnectedPlug(spec *systemd.Specificat
 	plugName := slot.Name()
 	plugSnapName := plug.Snap().InstanceName()
 
-	target := fmt.Sprintf("/dev/snap/gpio-chardev/%s/%s", slotSnapName, slotName)
-	symlink := fmt.Sprintf("/dev/snap/gpio-chardev/%s/%s", plugSnapName, plugName)
+	target := filepath.Join("/dev/snap/gpio-chardev", slotSnapName, slotName)
+	symlink := filepath.Join("/dev/snap/gpio-chardev", plugSnapName, plugName)
 
 	// Create symlink pointing to exported virtual slot device.
 	serviceSuffix := fmt.Sprintf("gpio-chardev-%s", plugName)
@@ -173,7 +174,7 @@ func (iface *gpioChardevInterface) SystemdConnectedPlug(spec *systemd.Specificat
 		Type:            "oneshot",
 		RemainAfterExit: true,
 		ExecStart:       fmt.Sprintf("/bin/sh -c 'mkdir -p %q && ln -s %q %q'", filepath.Dir(symlink), target, symlink),
-		ExecStop:        fmt.Sprintf("/bin/sh -c 'rm -f %q'", symlink),
+		ExecStop:        fmt.Sprintf("/bin/rm -f %q", symlink),
 		WantedBy:        "snapd.gpio-chardev-setup.target",
 		Before:          "snapd.gpio-chardev-setup.target",
 	}
@@ -187,8 +188,7 @@ func (iface *gpioChardevInterface) AppArmorConnectedPlug(spec *apparmor.Specific
 	// Allow access to exported virtual slot device.
 	snippet += fmt.Sprintf("/dev/snap/gpio-chardev/%s/%s rwk,\n", slotSnapName, slot.Name())
 	// Allow access to plug-side symlink to exported virtual slot device.
-	snippet += fmt.Sprintf("/dev/snap/gpio-chardev/%s/ r,\n", plugSnapName)
-	snippet += fmt.Sprintf("/dev/snap/gpio-chardev/%s/* r,", plugSnapName)
+	snippet += fmt.Sprintf("/dev/snap/gpio-chardev/%s/{,*} r,\n", plugSnapName)
 	spec.AddSnippet(snippet)
 
 	return nil

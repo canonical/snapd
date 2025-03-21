@@ -61,14 +61,14 @@ func (s *rangeSuite) TestParseRangeError(c *C) {
 	c.Assert(err, ErrorMatches, `overlapping range span found "2-3"`)
 
 	_, err = strutil.ParseRange("1-")
-	c.Assert(err, ErrorMatches, `invalid range span "1-": .*`)
+	c.Assert(err, ErrorMatches, `invalid range span end "1-": .*`)
 
 	_, err = strutil.ParseRange("a-2")
-	c.Assert(err, ErrorMatches, `invalid range span "a-2": .*`)
+	c.Assert(err, ErrorMatches, `invalid range span start "a-2": .*`)
 
 	_, err = strutil.ParseRange("1--2")
-	c.Assert(err, ErrorMatches, `invalid range span "1--2": strconv.ParseUint: parsing \"-2\": invalid syntax`)
+	c.Assert(err, ErrorMatches, `invalid range span end "1--2": strconv.ParseUint: parsing \"-2\": invalid syntax`)
 
 	_, err = strutil.ParseRange("2-1")
-	c.Assert(err, ErrorMatches, `invalid range span "2-1": span end has to be larger than span start`)
+	c.Assert(err, ErrorMatches, `invalid range span "2-1": ends before it starts`)
 }
