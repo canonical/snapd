@@ -170,18 +170,18 @@ func (s *GpioChardevInterfaceSuite) TestSanitizeSlot(c *C) {
 		"no-source-chip-attr":   `snap "my-device" does not have attribute "source-chip" for interface "gpio-chardev"`,
 		"no-lines-attr":         `snap "my-device" does not have attribute "lines" for interface "gpio-chardev"`,
 		"duplicate-line":        `invalid "lines" attribute: overlapping range span found "3"`,
-		"duplicate-source-chip": `invalid "source-chip" attribute: "source-chip" cannot contain duplicate chip names, found "chip"`,
-		"bad-source-chip-0":     `invalid "source-chip" attribute: "source-chip" must contain at least one chip`,
-		"bad-source-chip-1":     `invalid "source-chip" attribute: chip in "source-chip" cannot contain leading or trailing white space, found " s"`,
-		"bad-source-chip-2":     `invalid "source-chip" attribute: chip in "source-chip" cannot contain leading or trailing white space, found "s "`,
-		"bad-source-chip-3":     `invalid "source-chip" attribute: chip in "source-chip" cannot be empty`,
-		"bad-range-0":           `invalid "lines" attribute: invalid range span "2-":.*: invalid syntax`,
-		"bad-range-1":           `invalid "lines" attribute: invalid range span "a-3":.*: invalid syntax`,
+		"duplicate-source-chip": `invalid "source-chip" attribute: cannot contain duplicate chip names, found "chip"`,
+		"bad-source-chip-0":     `invalid "source-chip" attribute: cannot be empty`,
+		"bad-source-chip-1":     `invalid "source-chip" attribute: chip cannot contain leading or trailing white space, found " s"`,
+		"bad-source-chip-2":     `invalid "source-chip" attribute: chip cannot contain leading or trailing white space, found "s "`,
+		"bad-source-chip-3":     `invalid "source-chip" attribute: chip cannot be empty`,
+		"bad-range-0":           `invalid "lines" attribute: invalid range span end "2-":.*: invalid syntax`,
+		"bad-range-1":           `invalid "lines" attribute: invalid range span start "a-3":.*: invalid syntax`,
 		"bad-range-2":           `invalid "lines" attribute: range size cannot exceed 512, found 10000001`,
-		"bad-range-3":           `invalid "lines" attribute: invalid range span "4-2": span end has to be larger than span start`,
-		"bad-range-4":           `invalid "lines" attribute: invalid range span "0--1":.*: invalid syntax`,
+		"bad-range-3":           `invalid "lines" attribute: invalid range span "4-2": ends before it starts`,
+		"bad-range-4":           `invalid "lines" attribute: invalid range span end "0--1":.*: invalid syntax`,
 		"bad-line-0":            `invalid "lines" attribute:.*: invalid syntax`,
-		"bad-line-1":            `invalid "lines" attribute: invalid range span "-1":.*: invalid syntax`,
+		"bad-line-1":            `invalid "lines" attribute: invalid range span start "-1":.*: invalid syntax`,
 		"bad-lines-count":       `invalid "lines" attribute: range size cannot exceed 512, found 513`,
 	}
 	for slotName := range info.Slots {
@@ -230,7 +230,7 @@ func (s *GpioChardevInterfaceSuite) TestSystemdConnectedPlug(c *C) {
 	symlink := "/dev/snap/gpio-chardev/consumer/gpio-chardev-good"
 
 	expectedExecStart := fmt.Sprintf("/bin/sh -c 'mkdir -p %q && ln -s %q %q'", filepath.Dir(symlink), target, symlink)
-	expectedExecStop := fmt.Sprintf("/bin/sh -c 'rm -f %q'", symlink)
+	expectedExecStop := fmt.Sprintf("/bin/rm -f %q", symlink)
 	c.Assert(spec.Services(), DeepEquals, map[string]*systemd.Service{
 		"gpio-chardev-gpio-chardev-good": {
 			Type:            "oneshot",
@@ -256,8 +256,7 @@ func (s *GpioChardevInterfaceSuite) TestApparmorConnectedPlug(c *C) {
 	err := spec.AddConnectedPlug(s.iface, s.plug, s.slot)
 	c.Assert(err, IsNil)
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `/dev/snap/gpio-chardev/my-device/gpio-chardev-good rwk`)
-	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `/dev/snap/gpio-chardev/consumer/ r`)
-	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `/dev/snap/gpio-chardev/consumer/* r`)
+	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `/dev/snap/gpio-chardev/consumer/{,*} r`)
 }
 
 func (s *GpioChardevInterfaceSuite) TestUDevConnectedPlug(c *C) {

@@ -37,54 +37,9 @@ func (s1 RangeSpan) Intersects(s2 RangeSpan) bool {
 	return (s1.Start <= s2.End) && (s2.Start <= s1.End)
 }
 
+// Size is the length of the range span from start to end inclusive.
 func (s RangeSpan) Size() int {
 	return int(s.End) - int(s.Start) + 1
-}
-
-// Range of discrete numbers represented as a set of non overlapping RangeSpan(s).
-type Range []RangeSpan
-
-// Intersects checks if passed span intersects with this range of spans.
-func (r Range) Intersects(s RangeSpan) bool {
-	for _, rangeSpan := range r {
-		if rangeSpan.Intersects(s) {
-			return true
-		}
-	}
-	return false
-}
-
-func (r Range) Size() (size int) {
-	for _, s := range r {
-		size += s.Size()
-	}
-	return size
-}
-
-type spansByStart []RangeSpan
-
-func (s spansByStart) Len() int           { return len(s) }
-func (s spansByStart) Less(i, j int) bool { return s[i].Start < s[j].Start }
-func (s spansByStart) Swap(i, j int)      { s[i], s[j] = s[j], s[i] }
-
-// ParseRange parses a range represented as a string. The entries are joining
-// them with a comma: n[,m] or as a range: n-m or a combination of both, assuming
-// the ranges are non-negative and do not overlap, e.g.: n,m,x-y.
-func ParseRange(input string) (Range, error) {
-	tokens := strings.Split(input, ",")
-	r := Range{}
-	for _, token := range tokens {
-		s, err := parseRangeSpan(token)
-		if err != nil {
-			return nil, err
-		}
-		if r.Intersects(s) {
-			return nil, fmt.Errorf("overlapping range span found %q", token)
-		}
-		r = append(r, s)
-	}
-	sort.Sort(spansByStart(r))
-	return r, nil
 }
 
 func parseRangeSpan(in string) (RangeSpan, error) {
@@ -102,14 +57,55 @@ func parseRangeSpan(in string) (RangeSpan, error) {
 	}
 	start, err := strconv.ParseUint(tokens[0], 10, 32)
 	if err != nil {
-		return RangeSpan{}, fmt.Errorf("invalid range span %q: %w", in, err)
+		return RangeSpan{}, fmt.Errorf("invalid range span start %q: %w", in, err)
 	}
 	end, err := strconv.ParseUint(tokens[1], 10, 32)
 	if err != nil {
-		return RangeSpan{}, fmt.Errorf("invalid range span %q: %w", in, err)
+		return RangeSpan{}, fmt.Errorf("invalid range span end %q: %w", in, err)
 	}
 	if end <= start {
-		return RangeSpan{}, fmt.Errorf("invalid range span %q: span end has to be larger than span start", in)
+		return RangeSpan{}, fmt.Errorf("invalid range span %q: ends before it starts", in)
 	}
 	return RangeSpan{uint(start), uint(end)}, nil
+}
+
+// Range of discrete numbers represented as a set of non overlapping RangeSpan(s).
+type Range []RangeSpan
+
+// Intersects checks if passed span intersects with this range of spans.
+func (r Range) Intersects(s RangeSpan) bool {
+	for _, rangeSpan := range r {
+		if rangeSpan.Intersects(s) {
+			return true
+		}
+	}
+	return false
+}
+
+// Size is the sum of sizes of all range spans in the range.
+func (r Range) Size() (size int) {
+	for _, s := range r {
+		size += s.Size()
+	}
+	return size
+}
+
+// ParseRange parses a range represented as a string. The entries are joining
+// them with a comma: n[,m] or as a range: n-m or a combination of both, assuming
+// the ranges are non-negative and do not overlap, e.g.: n,m,x-y.
+func ParseRange(input string) (Range, error) {
+	tokens := strings.Split(input, ",")
+	r := Range{}
+	for _, token := range tokens {
+		s, err := parseRangeSpan(token)
+		if err != nil {
+			return nil, err
+		}
+		if r.Intersects(s) {
+			return nil, fmt.Errorf("overlapping range span found %q", token)
+		}
+		r = append(r, s)
+	}
+	sort.Slice(r, func(i, j int) bool { return r[i].Start < r[j].Start })
+	return r, nil
 }
