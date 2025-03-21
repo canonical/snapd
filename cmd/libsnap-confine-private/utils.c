@@ -120,6 +120,7 @@ void write_string_to_file(const char *filepath, const char *buf) {
     if (fclose(f) != 0) die("fclose failed");
 }
 
+// TODO drop completely, not used by current code
 sc_identity sc_set_effective_identity(sc_identity identity) {
     debug("set_effective_identity uid:%d (change: %s), gid:%d (change: %s)", identity.uid,
           identity.change_uid ? "yes" : "no", identity.gid, identity.change_gid ? "yes" : "no");
