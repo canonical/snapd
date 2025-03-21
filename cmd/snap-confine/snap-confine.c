@@ -358,8 +358,6 @@ int main(int argc, char **argv) {
         CAP_CHOWN,            // file ownership
         CAP_FOWNER,           // to create tmp dir with sticky bit
         CAP_SYS_PTRACE,       // to inspect the mount namespace of PID1
-        CAP_SETUID,           // assume user identity
-        CAP_SETGID,           // and group identity, e.g. switching to root when running s-u-n
     };
 
     /* We may be invoking tools such as snap-update-ns or snap-discard which are
