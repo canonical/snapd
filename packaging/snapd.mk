@@ -74,6 +74,7 @@ $(builddir)/snap $(builddir)/snap-seccomp $(builddir)/snapd-apparmor:
 		-buildmode=pie \
 		-ldflags="$(EXTRA_GO_LDFLAGS)" \
 		-mod=vendor \
+		-buildvcs=false \
 		$(EXTRA_GO_BUILD_FLAGS) \
 		$(import_path)/cmd/$(notdir $@)
 
@@ -84,6 +85,7 @@ $(builddir)/snap-update-ns $(builddir)/snap-exec $(builddir)/snapctl:
 	# Explicit request to use an external linker, otherwise extldflags may not be
 	# used
 	go build -o $@ -buildmode=default -mod=vendor \
+		-buildvcs=false \
 		$(if $(GO_TAGS),-tags "$(GO_TAGS)") \
 		-ldflags '-linkmode external -extldflags "-static" $(EXTRA_GO_LDFLAGS)' \
 		$(EXTRA_GO_BUILD_FLAGS) \
@@ -94,6 +96,7 @@ $(builddir)/snap-update-ns $(builddir)/snap-exec $(builddir)/snapctl:
 # suite to add test assertions. Do not enable this in distribution packages.
 $(builddir)/snapd:
 	go build -o $@ -buildmode=pie \
+		-buildvcs=false \
 		-ldflags="$(EXTRA_GO_LDFLAGS)" \
 		-mod=vendor \
 		$(if $(GO_TAGS),-tags "$(GO_TAGS)") \

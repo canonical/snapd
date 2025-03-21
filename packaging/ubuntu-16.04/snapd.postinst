@@ -70,6 +70,13 @@ case "$1" in
         if dpkg --compare-versions "$2" lt-nl "2.45.2"; then
             pkill -f "snap userd" || true
         fi
+
+        # ensure required caps on snap-confine
+        setcap \
+            cap_dac_override,cap_dac_read_search,cap_sys_admin,cap_sys_chroot,cap_chown,cap_fowner,cap_sys_ptrace=p \
+            /usr/lib/snapd/snap-confine
+
+        ;;
 esac
 
 #DEBHELPER#

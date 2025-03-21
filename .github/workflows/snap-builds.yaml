@@ -66,7 +66,7 @@ jobs:
     - name: Check built artifact
       if: "!contains(github.event.pull_request.labels.*.name, 'Skip spread')"
       run: |
-        unsquashfs snapd*.snap snap/manifest.yaml meta/snap.yaml usr/lib/snapd/
+        unsquashfs -no-xattrs snapd*.snap snap/manifest.yaml meta/snap.yaml usr/lib/snapd/
         if cat squashfs-root/meta/snap.yaml | grep -q "version:.*dirty.*"; then
           echo "PR produces dirty snapd snap version"
           cat squashfs-root/usr/lib/snapd/dirty-git-tree-info.txt
