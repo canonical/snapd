@@ -16,7 +16,7 @@ jobs:
         uses: tj-actions/changed-files@2f7c5bfce28377bc069a65ba478de0a74aa0ca32 # v46.0.1
 
       - name: woke
-        uses: get-woke/woke-action-reviewdog@v0
+        uses: get-woke/woke-action-reviewdog@d71fd0115146a01c3181439ce714e21a69d75e31 # v0
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           reporter: github-pr-check
