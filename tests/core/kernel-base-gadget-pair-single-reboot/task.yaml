@@ -11,13 +11,11 @@ environment:
     SNAP_ONE/kernel_base: core
     SNAP_TWO/kernel_base: pc-kernel
 
-    # let gadget be SNAP_TWO as it doesn't reboot on revert
-    SNAP_ONE/gadget_base: pc
-    SNAP_TWO/gadget_base: core
+    SNAP_ONE/gadget_base: core
+    SNAP_TWO/gadget_base: pc
     
-    # let gadget be SNAP_TWO as it doesn't reboot on revert
-    SNAP_ONE/kernel_gadget: pc-kernel
-    SNAP_TWO/kernel_gadget: pc
+    SNAP_ONE/kernel_gadget: pc
+    SNAP_TWO/kernel_gadget: pc-kernel
 
     GADGET_CHANNEL: edge
     CORE18_GADGET_REPACK: true
@@ -185,30 +183,28 @@ execute: |
         # now we need to revert both snaps for restore to behave properly, go from
         # reverse order
         snap revert "$SNAP_TWO" --no-wait > revert-change-id
-        retry -n 50 --wait 1 sh -c 'journalctl -b -u snapd | MATCH "Waiting for system reboot"'
 
+        # no reboot on pc revert
+        if [[ "$SNAP_TWO" == "pc" ]]; then
+            change_id="$(cat revert-change-id)"
+            wait_and_verify_change "$change_id"
+
+            # now the first
+            snap revert "$SNAP_ONE" --no-wait > revert-change-id
+        fi
+
+        retry -n 50 --wait 1 sh -c 'journalctl -b -u snapd | MATCH "Waiting for system reboot"'
         REBOOT
-    elif [ "$SPREAD_REBOOT" = 2 ]; then
+    elif [ "$SPREAD_REBOOT" = 2 ] && ! [[ "$SNAP_TWO" == "pc" ]]; then
         change_id="$(cat revert-change-id)"
         wait_and_verify_change "$change_id"
 
         # now the first
         snap revert "$SNAP_ONE" --no-wait > revert-change-id
 
-        # no reboot on pc revert
-        if [[ "$SNAP_ONE" == "pc" ]] || [[ "$SNAP_TWO" == "pc" ]]; then
-            change_id="$(cat revert-change-id)"
-            wait_and_verify_change "$change_id"
-            
-            # we're done, verify current symlinks to the right revisions
-            test "$(readlink /snap/$core_snap/current)" = "$(cat core.rev)"
-            test "$(readlink /snap/pc/current)" = "$(cat pc.rev)"
-            test "$(readlink /snap/pc-kernel/current)" = "$(cat pc-kernel.rev)"
-        else
-            retry -n 50 --wait 1 sh -c 'journalctl -b -u snapd | MATCH "Waiting for system reboot"'
-            REBOOT
-        fi
-    elif [ "$SPREAD_REBOOT" = 3 ]; then
+        retry -n 50 --wait 1 sh -c 'journalctl -b -u snapd | MATCH "Waiting for system reboot"'
+        REBOOT
+    elif [[ "$SNAP_TWO" == "pc" ]] || [ "$SPREAD_REBOOT" = 3 ]; then
         change_id="$(cat revert-change-id)"
         wait_and_verify_change "$change_id"
         
