@@ -29,9 +29,6 @@ import (
 )
 
 func (s *SnapSuite) TestPathsUbuntu(c *C) {
-	restore := release.MockReleaseInfo(&release.OS{ID: "ubuntu"})
-	defer restore()
-
 	dirstest.MustMockCanonicalSnapMountDir(dirs.GlobalRootDir)
 	dirs.SetRootDir(dirs.GlobalRootDir)
 	defer dirs.SetRootDir("/")
@@ -45,11 +42,9 @@ func (s *SnapSuite) TestPathsUbuntu(c *C) {
 	c.Assert(s.Stderr(), Equals, "")
 }
 
-func (s *SnapSuite) TestPathsFedora(c *C) {
-	restore := release.MockReleaseInfo(&release.OS{ID: "fedora"})
-	defer restore()
-
+func (s *SnapSuite) TestPathsLibexecDir(c *C) {
 	dirstest.MustMockAltSnapMountDir(dirs.GlobalRootDir)
+	dirstest.MustMockAltLibExecDir(dirs.GlobalRootDir)
 	dirs.SetRootDir(dirs.GlobalRootDir)
 	defer dirs.SetRootDir("/")
 
@@ -62,12 +57,8 @@ func (s *SnapSuite) TestPathsFedora(c *C) {
 	c.Assert(s.Stderr(), Equals, "")
 }
 
-func (s *SnapSuite) TestPathsArch(c *C) {
+func (s *SnapSuite) TestPathsAltMountDir(c *C) {
 	defer dirs.SetRootDir("/")
-
-	// old /etc/os-release contents
-	restore := release.MockReleaseInfo(&release.OS{ID: "arch", IDLike: []string{"archlinux"}})
-	defer restore()
 
 	dirstest.MustMockAltSnapMountDir(dirs.GlobalRootDir)
 	dirs.SetRootDir(dirs.GlobalRootDir)
@@ -81,20 +72,6 @@ func (s *SnapSuite) TestPathsArch(c *C) {
 	c.Assert(s.Stderr(), Equals, "")
 
 	s.ResetStdStreams()
-
-	// new contents, as set by filesystem-2018.12-1
-	restore = release.MockReleaseInfo(&release.OS{ID: "archlinux"})
-	defer restore()
-
-	dirs.SetRootDir(dirs.GlobalRootDir)
-
-	_, err = snap.Parser(snap.Client()).ParseArgs([]string{"debug", "paths"})
-	c.Assert(err, IsNil)
-	c.Assert(s.Stdout(), Equals, ""+
-		"SNAPD_MOUNT=/var/lib/snapd/snap\n"+
-		"SNAPD_BIN=/var/lib/snapd/snap/bin\n"+
-		"SNAPD_LIBEXEC=/usr/lib/snapd\n")
-	c.Assert(s.Stderr(), Equals, "")
 }
 
 func (s *SnapSuite) TestPathsMyDistro(c *C) {

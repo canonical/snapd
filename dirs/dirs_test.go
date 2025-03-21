@@ -348,33 +348,28 @@ func (s *DirsTestSuite) TestAddRootDirCallback(c *C) {
 	c.Assert(someDerivedVar, Equals, filepath.Join("/hello", "var", "snap", "other", "mnt"))
 }
 
-func (s *DirsTestSuite) TestLibexecdirOpenSUSEFlavors(c *C) {
-	restore := release.MockReleaseInfo(&release.OS{ID: "opensuse-leap",
-		IDLike: []string{"suse", "opensuse"}, VersionID: "15.6"})
-	defer restore()
-	dirs.SetRootDir("/")
-	c.Check(dirs.DistroLibExecDir, Equals, "/usr/lib/snapd")
+func (s *DirsTestSuite) TestLibexecDirDetect(c *C) {
+	defer dirs.SetRootDir("/")
 
-	restore = release.MockReleaseInfo(&release.OS{ID: "opensuse-tumbleweed", VersionID: "20200820"})
-	defer restore()
-	dirs.SetRootDir("/")
-	c.Check(dirs.DistroLibExecDir, Equals, "/usr/lib/snapd")
+	d := c.MkDir()
+	// no libexec directory, we default to /usr/lib/snapd
+	dirs.SetRootDir(d)
+	c.Check(dirs.StripRootDir(dirs.DistroLibExecDir), Equals, "/usr/lib/snapd")
 
-	restore = release.MockReleaseInfo(&release.OS{ID: "opensuse-tumbleweed", VersionID: "20200826"})
-	defer restore()
-	dirs.SetRootDir("/")
-	c.Check(dirs.DistroLibExecDir, Equals, "/usr/libexec/snapd")
+	d = c.MkDir()
+	// with /usr/lib/snapd present
+	dirstest.MustMockDefaultLibExecDir(d)
+	dirs.SetRootDir(d)
+	c.Check(dirs.StripRootDir(dirs.DistroLibExecDir), Equals, "/usr/lib/snapd")
+	// which has priority even if /usr/libexec/snapd was to exist
+	dirstest.MustMockAltLibExecDir(d)
+	dirs.SetRootDir(d)
+	c.Check(dirs.StripRootDir(dirs.DistroLibExecDir), Equals, "/usr/lib/snapd")
 
-	restore = release.MockReleaseInfo(&release.OS{ID: "opensuse-tumbleweed", VersionID: "20200901"})
-	defer restore()
-	dirs.SetRootDir("/")
-	c.Check(dirs.DistroLibExecDir, Equals, "/usr/libexec/snapd")
-
-	// from https://forum.snapcraft.io/t/tumbleweed-snapd-service-wont-start/42148
-	restore = release.MockReleaseInfo(&release.OS{ID: "opensuse-slowroll", VersionID: "20240904"})
-	defer restore()
-	dirs.SetRootDir("/")
-	c.Check(dirs.DistroLibExecDir, Equals, "/usr/libexec/snapd")
+	d = c.MkDir()
+	dirstest.MustMockAltLibExecDir(d)
+	dirs.SetRootDir(d)
+	c.Check(dirs.StripRootDir(dirs.DistroLibExecDir), Equals, "/usr/libexec/snapd")
 }
 
 func (s *DirsTestSuite) TestWritableMountPath(c *C) {

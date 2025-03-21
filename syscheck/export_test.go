@@ -26,8 +26,12 @@ var (
 	CheckWSL            = checkWSL
 	CheckCgroup         = checkCgroup
 	CheckSnapMountDir   = checkSnapMountDir
+	CheckLibExecDir     = checkLibExecDir
 
 	CheckFuse = firstCheckFuse
+
+	DefaultLibExecDirDistros = defaulLibExectDirDistros
+	AltLibExecDirDistros     = altLibExecDirDistros
 )
 
 func Checks() []func() error {

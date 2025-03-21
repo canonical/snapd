@@ -154,3 +154,78 @@ func (s *dirsSuite) TestMountDirKnownDistroSpecial(c *C) {
 		}()
 	}
 }
+
+func (s *dirsSuite) TestLibExecDirDefault(c *C) {
+	defer dirs.SetRootDir("")
+
+	for _, tc := range syscheck.DefaultLibExecDirDistros {
+		c.Logf("distro libexecdir default case %+v", tc)
+		func() {
+			defer release.MockReleaseInfo(&release.OS{ID: tc})()
+			d := c.MkDir()
+			dirstest.MustMockDefaultLibExecDir(d)
+			dirs.SetRootDir(d)
+
+			c.Check(syscheck.CheckLibExecDir(), IsNil)
+		}()
+	}
+}
+
+func (s *dirsSuite) TestLibExecDirAlt(c *C) {
+	defer dirs.SetRootDir("")
+
+	for _, tc := range syscheck.AltLibExecDirDistros {
+		c.Logf("distro libexecdir alt case %+v", tc)
+		func() {
+			defer release.MockReleaseInfo(&release.OS{ID: tc})()
+			d := c.MkDir()
+			dirstest.MustMockAltLibExecDir(d)
+			dirs.SetRootDir(d)
+
+			c.Check(syscheck.CheckLibExecDir(), IsNil)
+		}()
+	}
+}
+
+func (s *dirsSuite) TestLibExecDirUnexpected(c *C) {
+	defer dirs.SetRootDir("")
+
+	for _, tc := range append(syscheck.DefaultLibExecDirDistros, syscheck.AltLibExecDirDistros...) {
+		c.Logf("distro mismatch case %+v", tc)
+		func() {
+			defer release.MockReleaseInfo(&release.OS{ID: tc})()
+			d := c.MkDir()
+			switch tc {
+			case "fedora", "opensuse-tumbleweed", "opensuse-slowroll":
+				dirstest.MustMockDefaultLibExecDir(d)
+			default:
+				dirstest.MustMockAltLibExecDir(d)
+			}
+			dirs.SetRootDir(d)
+
+			c.Check(syscheck.CheckLibExecDir(), ErrorMatches, "unexpected snapd tooling directory /usr/lib(exec)?/snapd on "+tc)
+		}()
+	}
+}
+
+func (s *dirsSuite) TestLibExecDirUnknownDistro(c *C) {
+	defer dirs.SetRootDir("")
+
+	func() {
+		defer release.MockReleaseInfo(&release.OS{ID: "not-fedora"})()
+		d := c.MkDir()
+		dirstest.MustMockDefaultLibExecDir(d)
+		dirs.SetRootDir(d)
+
+		c.Check(syscheck.CheckLibExecDir(), IsNil)
+	}()
+
+	func() {
+		defer release.MockReleaseInfo(&release.OS{ID: "not-ubuntu"})()
+		d := c.MkDir()
+		dirstest.MustMockAltLibExecDir(d)
+		dirs.SetRootDir(d)
+
+		c.Check(syscheck.CheckLibExecDir(), IsNil)
+	}()
+}
