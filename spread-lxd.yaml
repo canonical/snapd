@@ -1,0 +1,55 @@
+# just a trivial grouping for resource definitions reused by all systems
+resoures:
+  common: &common-resources
+    mem: 4096MiB
+    cpu: 4
+    # root disk size
+    size: 15GiB
+
+# list of actual systems that are expected to match ones requested by spread
+system:
+  ubuntu-25.04-64:
+    image: ubuntu-daily:25.04
+    setup-steps: ubuntu
+    resources: *common-resources
+  ubuntu-24.10.04-64:
+    image: ubuntu:24.10
+    setup-steps: ubuntu
+    resources: *common-resources
+  ubuntu-24.04-64:
+    image: ubuntu:24.04
+    # this is the default
+    vm: true
+    setup-steps: ubuntu
+    resources: *common-resources
+  ubuntu-22.04-64:
+    image: ubuntu:22.04
+    setup-steps: ubuntu
+    resources: *common-resources
+  ubuntu-20.04-64:
+    image: ubuntu:20.04
+    setup-steps: ubuntu
+    resources: *common-resources
+  ubuntu-core-24-64:
+    image: ubuntu:24.04
+    setup-steps: ubuntu
+    resources: *common-resources
+    # enable/disable secure boot
+    secure-boot: false
+
+# setup steps after a system has been allocated
+setup:
+  ubuntu:
+    # wait for the host to complete startup and set up SSH such that spread can
+    # log in using user and password
+    # note, the snippets are those are copied directly from spread
+    - cloud-init status --wait
+    - sed -i "s/^\s*#\?\s*\(PermitRootLogin\|PasswordAuthentication\)\>.*/\1 yes/" /etc/ssh/sshd_config
+    - |
+      if [ -d /etc/ssh/sshd_config.d ]; then
+        cat <<EOF > /etc/ssh/sshd_config.d/01-spread-overides.conf
+      PermitRootLogin yes
+      PasswordAuthentication yes
+      EOF
+      fi
+    - killall -HUP sshd || true
