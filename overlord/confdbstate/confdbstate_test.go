@@ -163,12 +163,15 @@ func (s *confdbTestSuite) TestGetView(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	databag := confdb.NewJSONDatabag()
-	err := databag.Set("wifi.ssid", "foo")
+	bag := confdb.NewJSONDatabag()
+	err := bag.Set("wifi.ssid", "foo")
 	c.Assert(err, IsNil)
-	s.state.Set("confdb-databags", map[string]map[string]confdb.JSONDatabag{s.devAccID: {"network": databag}})
+	s.state.Set("confdb-databags", map[string]map[string]confdb.JSONDatabag{s.devAccID: {"network": bag}})
 
-	res, err := confdbstate.Get(s.state, s.devAccID, "network", "setup-wifi", []string{"ssid"})
+	view, err := confdbstate.GetView(s.state, s.devAccID, "network", "setup-wifi")
+	c.Assert(err, IsNil)
+
+	res, err := confdbstate.GetViaView(bag, view, []string{"ssid"})
 	c.Assert(err, IsNil)
 	c.Assert(res, DeepEquals, map[string]interface{}{"ssid": "foo"})
 }
@@ -177,22 +180,27 @@ func (s *confdbTestSuite) TestGetNotFound(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	res, err := confdbstate.Get(s.state, s.devAccID, "network", "other-view", []string{"ssid"})
+	bag := confdb.NewJSONDatabag()
+
+	view, err := confdbstate.GetView(s.state, s.devAccID, "network", "other-view")
 	c.Assert(err, FitsTypeOf, &confdb.NotFoundError{})
 	c.Assert(err, ErrorMatches, fmt.Sprintf(`cannot find view "other-view" in confdb schema %s/network`, s.devAccID))
-	c.Check(res, IsNil)
+	c.Check(view, IsNil)
 
-	res, err = confdbstate.Get(s.state, s.devAccID, "network", "setup-wifi", []string{"ssid"})
+	view, err = confdbstate.GetView(s.state, s.devAccID, "network", "setup-wifi")
+	c.Assert(err, IsNil)
+
+	res, err := confdbstate.GetViaView(bag, view, []string{"ssid"})
 	c.Assert(err, FitsTypeOf, &confdb.NotFoundError{})
 	c.Assert(err, ErrorMatches, fmt.Sprintf(`cannot get "ssid" through %s/network/setup-wifi: no data`, s.devAccID))
 	c.Check(res, IsNil)
 
-	res, err = confdbstate.Get(s.state, s.devAccID, "network", "setup-wifi", []string{"ssid", "ssids"})
+	res, err = confdbstate.GetViaView(bag, view, []string{"ssid", "ssids"})
 	c.Assert(err, FitsTypeOf, &confdb.NotFoundError{})
 	c.Assert(err, ErrorMatches, fmt.Sprintf(`cannot get "ssid", "ssids" through %s/network/setup-wifi: no data`, s.devAccID))
 	c.Check(res, IsNil)
 
-	res, err = confdbstate.Get(s.state, s.devAccID, "network", "setup-wifi", []string{"other-field"})
+	res, err = confdbstate.GetViaView(bag, view, []string{"other-field"})
 	c.Assert(err, FitsTypeOf, &confdb.NotFoundError{})
 	c.Assert(err, ErrorMatches, fmt.Sprintf(`cannot get "other-field" through %s/network/setup-wifi: no matching rule`, s.devAccID))
 	c.Check(res, IsNil)
@@ -202,14 +210,14 @@ func (s *confdbTestSuite) TestSetView(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	err := confdbstate.Set(s.state, s.devAccID, "network", "setup-wifi", map[string]interface{}{"ssid": "foo"})
+	bag := confdb.NewJSONDatabag()
+	view, err := confdbstate.GetView(s.state, s.devAccID, "network", "setup-wifi")
 	c.Assert(err, IsNil)
 
-	var databags map[string]map[string]confdb.JSONDatabag
-	err = s.state.Get("confdb-databags", &databags)
+	err = confdbstate.SetViaView(bag, view, map[string]interface{}{"ssid": "foo"})
 	c.Assert(err, IsNil)
 
-	val, err := databags[s.devAccID]["network"].Get("wifi.ssid")
+	val, err := bag.Get("wifi.ssid")
 	c.Assert(err, IsNil)
 	c.Assert(val, DeepEquals, "foo")
 }
@@ -218,117 +226,55 @@ func (s *confdbTestSuite) TestSetNotFound(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	err := confdbstate.Set(s.state, s.devAccID, "network", "setup-wifi", map[string]interface{}{"foo": "bar"})
+	bag := confdb.NewJSONDatabag()
+	view, err := confdbstate.GetView(s.state, s.devAccID, "network", "setup-wifi")
+	c.Assert(err, IsNil)
+
+	err = confdbstate.SetViaView(bag, view, map[string]interface{}{"foo": "bar"})
 	c.Assert(err, FitsTypeOf, &confdb.NotFoundError{})
 	c.Assert(err, ErrorMatches, fmt.Sprintf(`cannot set "foo" through %s/network/setup-wifi: no matching rule`, s.devAccID))
 
-	err = confdbstate.Set(s.state, s.devAccID, "network", "other-view", map[string]interface{}{"foo": "bar"})
+	view, err = confdbstate.GetView(s.state, s.devAccID, "network", "other-view")
 	c.Assert(err, FitsTypeOf, &confdb.NotFoundError{})
 	c.Assert(err, ErrorMatches, fmt.Sprintf(`cannot find view "other-view" in confdb schema %s/network`, s.devAccID))
+	c.Check(view, IsNil)
 }
 
 func (s *confdbTestSuite) TestUnsetView(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	databag := confdb.NewJSONDatabag()
-	err := confdbstate.Set(s.state, s.devAccID, "network", "setup-wifi", map[string]interface{}{"ssid": "foo"})
+	bag := confdb.NewJSONDatabag()
+	err := bag.Set("wifi.ssid", "foo")
 	c.Assert(err, IsNil)
 
-	err = confdbstate.Set(s.state, s.devAccID, "network", "setup-wifi", map[string]interface{}{"ssid": nil})
+	view, err := confdbstate.GetView(s.state, s.devAccID, "network", "setup-wifi")
 	c.Assert(err, IsNil)
 
-	val, err := databag.Get("wifi.ssid")
+	err = confdbstate.SetViaView(bag, view, map[string]interface{}{"ssid": nil})
+	c.Assert(err, IsNil)
+
+	val, err := bag.Get("wifi.ssid")
 	c.Assert(err, FitsTypeOf, confdb.PathError(""))
 	c.Assert(val, Equals, nil)
-}
-
-func (s *confdbTestSuite) TestConfdbstateSetWithExistingState(c *C) {
-	s.state.Lock()
-	defer s.state.Unlock()
-
-	bag := confdb.NewJSONDatabag()
-	err := bag.Set("wifi.ssid", "bar")
-	c.Assert(err, IsNil)
-	databags := map[string]map[string]confdb.JSONDatabag{
-		s.devAccID: {"network": bag},
-	}
-
-	s.state.Set("confdb-databags", databags)
-
-	results, err := confdbstate.Get(s.state, s.devAccID, "network", "setup-wifi", []string{"ssid"})
-	c.Assert(err, IsNil)
-	resultsMap, ok := results.(map[string]interface{})
-	c.Assert(ok, Equals, true)
-	c.Assert(resultsMap["ssid"], Equals, "bar")
-
-	err = confdbstate.Set(s.state, s.devAccID, "network", "setup-wifi", map[string]interface{}{"ssid": "baz"})
-	c.Assert(err, IsNil)
-
-	err = s.state.Get("confdb-databags", &databags)
-	c.Assert(err, IsNil)
-	value, err := databags[s.devAccID]["network"].Get("wifi.ssid")
-	c.Assert(err, IsNil)
-	c.Assert(value, Equals, "baz")
-}
-
-func (s *confdbTestSuite) TestConfdbstateSetWithNoState(c *C) {
-	type testcase struct {
-		state map[string]map[string]confdb.JSONDatabag
-	}
-
-	testcases := []testcase{
-		{
-			state: map[string]map[string]confdb.JSONDatabag{
-				s.devAccID: {"network": nil},
-			},
-		},
-		{
-			state: map[string]map[string]confdb.JSONDatabag{
-				s.devAccID: nil,
-			},
-		},
-		{
-			state: map[string]map[string]confdb.JSONDatabag{},
-		},
-		{
-			state: nil,
-		},
-	}
-
-	s.state.Lock()
-	defer s.state.Unlock()
-	for _, tc := range testcases {
-		s.state.Set("confdb-databags", tc.state)
-
-		err := confdbstate.Set(s.state, s.devAccID, "network", "setup-wifi", map[string]interface{}{"ssid": "bar"})
-		c.Assert(err, IsNil)
-
-		var databags map[string]map[string]confdb.JSONDatabag
-		err = s.state.Get("confdb-databags", &databags)
-		c.Assert(err, IsNil)
-
-		value, err := databags[s.devAccID]["network"].Get("wifi.ssid")
-		c.Assert(err, IsNil)
-		c.Assert(value, Equals, "bar")
-	}
 }
 
 func (s *confdbTestSuite) TestConfdbstateGetEntireView(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	err := confdbstate.Set(s.state, s.devAccID, "network", "setup-wifi", map[string]interface{}{
-		"ssids":    []interface{}{"foo", "bar"},
-		"password": "pass",
-		"private": map[string]interface{}{
-			"a": 1,
-			"b": 2,
-		},
-	})
+	bag := confdb.NewJSONDatabag()
+	c.Assert(bag.Set("wifi.ssids", []interface{}{"foo", "bar"}), IsNil)
+	c.Assert(bag.Set("wifi.psk", "pass"), IsNil)
+	c.Assert(bag.Set("private", map[string]interface{}{
+		"a": 1,
+		"b": 2,
+	}), IsNil)
+
+	view, err := confdbstate.GetView(s.state, s.devAccID, "network", "setup-wifi")
 	c.Assert(err, IsNil)
 
-	res, err := confdbstate.Get(s.state, s.devAccID, "network", "setup-wifi", nil)
+	res, err := confdbstate.GetViaView(bag, view, nil)
 	c.Assert(err, IsNil)
 	c.Assert(res, DeepEquals, map[string]interface{}{
 		"ssids": []interface{}{"foo", "bar"},
