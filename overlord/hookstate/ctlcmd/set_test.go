@@ -538,14 +538,9 @@ func (s *confdbSuite) TestConfdbSetExclamationMark(c *C) {
 	c.Assert(val, Equals, "foo")
 }
 
-func (s *confdbSuite) TestConfdbOnlyChangeViewCanSet(c *C) {
+func (s *confdbSuite) TestConfdbModifyHooks(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
-	task := s.state.NewTask("run-hook", "")
-
-	setup := &hookstate.HookSetup{Snap: "test-snap", Hook: "save-view-plug"}
-	ctx, err := hookstate.NewContext(task, s.state, setup, s.mockHandler, "")
-	c.Assert(err, IsNil)
 
 	tx, err := confdbstate.NewTransaction(s.state, s.devAccID, "network")
 	c.Assert(err, IsNil)
@@ -555,21 +550,30 @@ func (s *confdbSuite) TestConfdbOnlyChangeViewCanSet(c *C) {
 	})
 	defer restore()
 
-	s.state.Unlock()
-	stdout, stderr, err := ctlcmd.Run(ctx, []string{"set", "--view", ":write-wifi", "password=thing"}, 0)
-	s.state.Lock()
-	c.Assert(err, ErrorMatches, `cannot modify confdb in "save-view-plug" hook`)
-	c.Check(stdout, IsNil)
-	c.Check(stderr, IsNil)
+	task := s.state.NewTask("run-hook", "")
+	for _, hook := range []string{"save-view-plug", "observe-view-plug"} {
+		setup := &hookstate.HookSetup{Snap: "test-snap", Hook: hook}
+		ctx, err := hookstate.NewContext(task, s.state, setup, s.mockHandler, "")
+		c.Assert(err, IsNil)
 
-	setup.Hook = "change-view-plug"
-	ctx, err = hookstate.NewContext(task, s.state, setup, s.mockHandler, "")
-	c.Assert(err, IsNil)
+		s.state.Unlock()
+		stdout, stderr, err := ctlcmd.Run(ctx, []string{"set", "--view", ":write-wifi", "password=thing"}, 0)
+		s.state.Lock()
+		c.Assert(err, ErrorMatches, fmt.Sprintf(`cannot modify confdb in %q hook`, hook))
+		c.Check(stdout, IsNil)
+		c.Check(stderr, IsNil)
+	}
 
-	s.state.Unlock()
-	stdout, stderr, err = ctlcmd.Run(ctx, []string{"set", "--view", ":write-wifi", "password=thing"}, 0)
-	s.state.Lock()
-	c.Assert(err, IsNil)
-	c.Check(stdout, IsNil)
-	c.Check(stderr, IsNil)
+	for _, hook := range []string{"change-view-plug", "load-view-plug", "query-view-plug"} {
+		setup := &hookstate.HookSetup{Snap: "test-snap", Hook: hook}
+		ctx, err := hookstate.NewContext(task, s.state, setup, s.mockHandler, "")
+		c.Assert(err, IsNil)
+
+		s.state.Unlock()
+		stdout, stderr, err := ctlcmd.Run(ctx, []string{"set", "--view", ":write-wifi", "password=thing"}, 0)
+		s.state.Lock()
+		c.Assert(err, IsNil)
+		c.Check(stdout, IsNil)
+		c.Check(stderr, IsNil)
+	}
 }

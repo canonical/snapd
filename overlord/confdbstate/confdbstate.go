@@ -496,6 +496,7 @@ func IsConfdbHook(ctx *hookstate.Context) bool {
 func IsModifyConfdbHook(ctx *hookstate.Context) bool {
 	return ctx != nil && !ctx.IsEphemeral() &&
 		(strings.HasPrefix(ctx.HookName(), "change-view-") ||
+			strings.HasPrefix(ctx.HookName(), "query-view-") ||
 			strings.HasPrefix(ctx.HookName(), "load-view-"))
 }
 
