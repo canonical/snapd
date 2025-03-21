@@ -13,16 +13,21 @@ from urllib.parse import urlparse
 def parse_arguments() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="simple file getter")
     parser.add_argument("-o", "--output", help="output file name")
+    parser.add_argument("-v", "--verbose", action='store_true', help="set verbose output")
     parser.add_argument("-H", "--header", action="append", help="set a header")
     parser.add_argument("URL", help="download URL")
     return parser.parse_args()
 
 
 def main() -> None:
-    logging.basicConfig(
-        format="%(asctime)s - %(levelname)s - %(message)s", level=logging.DEBUG
-    )
     opts = parse_arguments()
+
+    loglevel=logging.ERROR
+    if opts.verbose:
+        loglevel=logging.DEBUG
+    logging.basicConfig(
+        format="%(asctime)s - %(levelname)s - %(message)s", level=loglevel
+    )
 
     fromurl = urlparse(opts.URL).path
     output = os.path.basename(fromurl)
