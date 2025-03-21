@@ -263,10 +263,6 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeTimeMovesForwardHappy(c
 				s.makeRunSnapSystemdMount(snap.TypeKernel, s.kernel),
 			}
 
-			if isFirstBoot {
-				mnts = append(mnts, s.makeSeedSnapSystemdMount(snap.TypeSnapd))
-			}
-
 			restore = s.mockSystemdMountSequence(c, mnts, nil)
 			cleanups = append(cleanups, restore)
 
@@ -304,6 +300,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeTimeMovesForwardHappy(c
 
 			if isFirstBoot {
 				c.Assert(osutilSetTimeCalls, Equals, tc.setTimeCalls, comment)
+				checkSnapdMountUnit(c)
 			} else {
 				// non-first boot should not have moved the time at all since it
 				// doesn't read assertions
@@ -709,8 +706,6 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeFirstBootRecoverySystem
 		s.makeRunSnapSystemdMount(snap.TypeBase, s.core20),
 		s.makeRunSnapSystemdMount(snap.TypeGadget, s.gadget),
 		s.makeRunSnapSystemdMount(snap.TypeKernel, s.kernel),
-		// RecoverySystem set makes us mount the snapd snap here
-		s.makeSeedSnapSystemdMount(snap.TypeSnapd),
 	}, nil)
 	defer restore()
 
@@ -741,6 +736,9 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeFirstBootRecoverySystem
 
 	// we should not have written a degraded.json
 	c.Assert(filepath.Join(dirs.SnapBootstrapRunDir, "degraded.json"), testutil.FileAbsent)
+
+	// RecoverySystem set makes us mount the snapd snap here, check unit
+	checkSnapdMountUnit(c)
 }
 
 func (s *initramfsMountsSuite) TestInitramfsMountsRunModeWithBootedKernelPartUUIDHappy(c *C) {
