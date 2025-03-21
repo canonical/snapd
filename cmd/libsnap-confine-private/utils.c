@@ -301,17 +301,5 @@ int sc_ensure_mkdirat(int fd, const char *name, mode_t mode, uid_t uid, uid_t gi
 }
 
 int sc_ensure_mkdir(const char *path, mode_t mode, uid_t uid, uid_t gid) {
-    /* Using 0000 permissions to avoid a race condition; we'll set the right
-     * permissions after chown. */
-    if (mkdir(path, 0000) < 0) {
-        if (errno != EEXIST) {
-            return -1;
-        }
-    } else {
-        // new directory: set the right permissions and mode
-        if (chown(path, uid, gid) < 0 || chmod(path, mode)) {
-            return -1;
-        }
-    }
-    return 0;
+    return sc_ensure_mkdirat(AT_FDCWD, path, mode, uid, gid);
 }
