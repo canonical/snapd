@@ -21,6 +21,10 @@ package main
 
 import (
 	"errors"
+	"fmt"
+	"strings"
+
+	"github.com/snapcore/snapd/strutil"
 )
 
 type cmdExportChardev struct {
@@ -33,5 +37,38 @@ type cmdExportChardev struct {
 }
 
 func (c *cmdExportChardev) Execute(args []string) error {
-	return errors.New("not implemented")
+	chipLabels := strings.Split(c.Args.ChipLabels, ",")
+	filter := func(chip GPIOChardev) bool {
+		return strutil.ListContains(chipLabels, chip.Label())
+	}
+	chips, err := findChips(filter)
+	if err != nil {
+		return err
+	}
+	if len(chips) == 0 {
+		return errors.New("no matching gpio chips found matching passed labels")
+	}
+	if len(chips) > 1 {
+		return errors.New("more than one gpio chips were found matching passed labels")
+	}
+
+	chip := chips[0]
+	if err := validateLines(chip, c.Args.Lines); err != nil {
+		return fmt.Errorf("invalid lines argument: %w", err)
+	}
+
+	aggregatedChip, err := addAggregatedChip(chip, c.Args.Lines)
+	if err != nil {
+		return fmt.Errorf("cannot add aggregator device: %w", err)
+	}
+
+	if err := addEphermalUdevTaggingRule(aggregatedChip, c.Args.Gadget, c.Args.Slot); err != nil {
+		return fmt.Errorf("cannot add udev tagging rule: %w", err)
+	}
+
+	if err := addGadgetSlotDevice(aggregatedChip, c.Args.Gadget, c.Args.Slot); err != nil {
+		return fmt.Errorf("cannot add gadget slot device: %w", err)
+	}
+
+	return nil
 }
