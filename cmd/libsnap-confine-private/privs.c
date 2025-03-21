@@ -67,8 +67,6 @@ void sc_privs_drop(void) {
     }
 }
 
-void sc_set_keep_caps_flag(void) { prctl(PR_SET_KEEPCAPS, 1); }
-
 void sc_debug_capabilities(const char *msg_prefix) {
     if (sc_is_debug_enabled()) {
         cap_t caps SC_CLEANUP(sc_cleanup_cap_t) = cap_get_proc();
