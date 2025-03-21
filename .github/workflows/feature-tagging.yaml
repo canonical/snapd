@@ -1,0 +1,183 @@
+name: Feature Tagging
+
+on:
+  push:
+    branches: ["master"]
+
+  workflow_dispatch:
+    inputs:
+      features:
+        type: string
+        description: 'Comma-separated list of features to tag'
+        default: 'all'
+      maximum-reruns:
+        type: number
+        description: 'Maximum number of times to rerun failed spread tasks upon failure'
+        default: 3
+      run-all:
+        type: boolean
+        description: 'If true, will run all spread tests. If false, will only run tagging on changed spread tests in the last commit'
+        default: false
+
+jobs:
+  set-inputs:
+    runs-on: ubuntu-latest
+    outputs:
+      features: ${{ steps.step1.outputs.features }}
+      maximum-reruns: ${{ steps.step1.outputs.maximum-reruns }}
+      run-all: ${{ steps.step1.outputs.run-all }}
+    steps:
+      - name: Set inputs
+        run: |
+          echo "features=${{ inputs.features || 'all' }}" >> $GITHUB_OUTPUT
+          echo "maximum-reruns=${{ inputs.maximum-reruns || 3 }}" >> $GITHUB_OUTPUT
+          echo "run-all=${{ inputs.run-all || false }}" >> $GITHUB_OUTPUT
+
+  read-systems:
+    runs-on: ubuntu-latest
+    outputs:
+      fundamental-systems: ${{ steps.read-systems.outputs.fundamental-systems }}
+      non-fundamental-systems: ${{ steps.read-systems.outputs.non-fundamental-systems }}
+      nested-systems: ${{ steps.read-systems.outputs.nested-systems }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Read matrix file
+        id: read-systems
+        shell: bash
+        run: |
+          echo "fundamental-systems=$(jq -c . ./.github/workflows/fundamental-systems.json)" >> $GITHUB_OUTPUT
+          echo "non-fundamental-systems=$(jq -c . ./.github/workflows/non-fundamental-systems.json)" >> $GITHUB_OUTPUT
+          echo "nested-systems=$(jq -c . ./.github/workflows/nested-systems.json)" >> $GITHUB_OUTPUT
+
+  tag-features-fundamental:
+    uses: ./.github/workflows/spread-tests.yaml
+    needs: [set-inputs, read-systems]
+    name: "spread ${{ matrix.group }}"
+    with:
+      runs-on: '["self-hosted", "spread-enabled"]'
+      group: ${{ matrix.group }}
+      backend: ${{ matrix.backend }}
+      systems: ${{ matrix.systems }}  
+      tasks: ${{ matrix.tasks }}
+      rules: ${{ fromJSON(needs.set-inputs.outputs.run-all) && matrix.rules || 'feature-tagging.yaml' }}
+      is-fundamental: true
+      use-snapd-snap-from-master: true
+      spread-tag-features: ${{ needs.set-inputs.outputs.features }}
+      force-use-ruleset: ${{ ! fromJSON(needs.set-inputs.outputs.run-all) }}
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.read-systems.outputs.fundamental-systems) }}
+
+  tag-features-non-fundamental:
+    uses: ./.github/workflows/spread-tests.yaml
+    needs: [set-inputs, read-systems]
+    name: "spread ${{ matrix.group }}"
+    with:
+      runs-on: '["self-hosted", "spread-enabled"]'
+      group: ${{ matrix.group }}
+      backend: ${{ matrix.backend }}
+      systems: ${{ matrix.systems }}  
+      tasks: ${{ matrix.tasks }}
+      rules: ${{ fromJSON(needs.set-inputs.outputs.run-all) && matrix.rules || 'feature-tagging.yaml' }}
+      use-snapd-snap-from-master: true
+      spread-tag-features: ${{ needs.set-inputs.outputs.features }}
+      force-use-ruleset: ${{ ! fromJSON(needs.set-inputs.outputs.run-all) }}
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.read-systems.outputs.non-fundamental-systems) }}
+
+  tag-features-nested:
+    uses: ./.github/workflows/spread-tests.yaml
+    needs: [set-inputs, read-systems]
+    name: "spread ${{ matrix.group }}"
+    with:
+      runs-on: '["self-hosted", "spread-enabled"]'
+      group: ${{ matrix.group }}
+      backend: ${{ matrix.backend }}
+      systems: ${{ matrix.systems }}  
+      tasks: ${{ matrix.tasks }}
+      rules: ${{ fromJSON(needs.set-inputs.outputs.run-all) && matrix.rules || 'feature-tagging.yaml' }}
+      use-snapd-snap-from-master: true
+      spread-tag-features: ${{ needs.set-inputs.outputs.features }}
+      force-use-ruleset: ${{ ! fromJSON(needs.set-inputs.outputs.run-all) }}
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.read-systems.outputs.nested-systems) }}
+
+  re-run:
+    permissions:
+      actions: write
+    needs: [set-inputs, tag-features-fundamental, tag-features-non-fundamental, tag-features-nested]
+    # If the spread tests ended in failure, rerun the workflow up to maximum-reruns-1 times
+    if: failure() && fromJSON(github.run_attempt) < fromJSON(needs.set-inputs.outputs.maximum-reruns)
+    runs-on: ubuntu-latest
+    steps:
+      - env:
+          GH_REPO: ${{ github.repository }}
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run rerun.yaml -F run_id=${{ github.run_id }}
+
+  create-reports:
+    needs: [set-inputs, tag-features-fundamental, tag-features-non-fundamental, tag-features-nested]
+    runs-on: ubuntu-latest
+    if: success() || fromJSON(github.run_attempt) >= fromJSON(needs.set-inputs.outputs.maximum-reruns)
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Get generated data
+        uses: actions/github-script@v6
+        with:
+          script: |
+            let page = 1;
+            let per_page = 100;
+            let allArtifacts = [];
+            let response;
+            do {
+              response = await github.rest.actions.listWorkflowRunArtifacts({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                run_id: context.runId,
+                per_page: per_page,
+                page: page
+              });
+              allArtifacts = allArtifacts.concat(response.data.artifacts);
+              page++;
+            } while (response.data.artifacts.length === per_page);
+
+            let matchingArtifacts = allArtifacts.filter((artifact) => {
+              return artifact.name.startsWith(`feature-tags`);
+            });
+
+            for (let artifact of matchingArtifacts) {
+              let download = await github.rest.actions.downloadArtifact({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                artifact_id: artifact.id,
+                archive_format: 'zip',
+              });
+              let fs = require('fs');
+              fs.writeFileSync(`${process.env.GITHUB_WORKSPACE}/${artifact.name}.zip`, Buffer.from(download.data));
+              console.log(`Downloaded artifact: ${artifact.name}.zip`);
+            }
+      - name: Unzip artifacts
+        run: |
+          mkdir -p feature-tags-artifacts
+          find . -name "feature-tags*.zip" | while read filename; do 
+            unzip "$filename" -d "feature-tags-artifacts"
+          done
+      
+      - name: Consolidate feature data
+        run: |
+          ./tests/lib/compose-features.py \
+            --dir "feature-tags-artifacts" \
+            --output "final-feature-tags" \
+            --replace-old-runs
+
+      - name: Upload feature data
+        uses: actions/upload-artifact@v4
+        with:
+          name: "feature-tags"
+          path: "final-feature-tags"
