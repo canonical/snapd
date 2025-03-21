@@ -269,3 +269,47 @@ static bool _sc_is_in_container(const char *p) {
 }
 
 bool sc_is_in_container(void) { return _sc_is_in_container(run_systemd_container); }
+
+static int compat_fchmodat_symlink_nofollow(int fd, const char *name, mode_t mode) {
+    /* not all kernels support fchmodat(.., AT_SYMLINK_NOFOLLOW) (at least 4.14
+     * on AMZN2 does not), attempt to handle that gracefully */
+    int ret = fchmodat(fd, name, mode, AT_SYMLINK_NOFOLLOW);
+    if (ret != 0 && errno == ENOTSUP) {
+        /* AT_SYMLINK_NOFOLLOW is not supported by the kernel */
+        ret = fchmodat(fd, name, mode, 0);
+    }
+    return ret;
+}
+
+int sc_ensure_mkdirat(int fd, const char *name, mode_t mode, uid_t uid, uid_t gid) {
+    /* Using 0000 permissions to avoid a race condition; we'll set the right
+     * permissions after chown. */
+    if (mkdirat(fd, name, 0000) < 0) {
+        if (errno != EEXIST) {
+            return -1;
+        }
+    } else {
+        // new directory: set the right permissions and mode
+        if (fchownat(fd, name, uid, gid, AT_SYMLINK_NOFOLLOW) < 0 ||
+            compat_fchmodat_symlink_nofollow(fd, name, mode) < 0) {
+            return -1;
+        }
+    }
+    return 0;
+}
+
+int sc_ensure_mkdir(const char *path, mode_t mode, uid_t uid, uid_t gid) {
+    /* Using 0000 permissions to avoid a race condition; we'll set the right
+     * permissions after chown. */
+    if (mkdir(path, 0000) < 0) {
+        if (errno != EEXIST) {
+            return -1;
+        }
+    } else {
+        // new directory: set the right permissions and mode
+        if (chown(path, uid, gid) < 0 || chmod(path, mode)) {
+            return -1;
+        }
+    }
+    return 0;
+}
