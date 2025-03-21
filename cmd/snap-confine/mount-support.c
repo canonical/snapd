@@ -90,7 +90,7 @@ static void setup_private_tmp(const char *snap_instance) {
     // just been installed in which case the tmpfiles conf would not have
     // got executed yet
     if (sc_ensure_mkdir(SNAP_PRIVATE_TMP_ROOT_DIR, 0700, 0, 0) != 0) {
-        die("cannot create /tmp/snap-private-tmp");
+        die("cannot create " SNAP_PRIVATE_TMP_ROOT_DIR);
     }
     private_tmp_root_fd = open(SNAP_PRIVATE_TMP_ROOT_DIR, O_RDONLY | O_DIRECTORY | O_CLOEXEC | O_NOFOLLOW);
     if (private_tmp_root_fd < 0) {
