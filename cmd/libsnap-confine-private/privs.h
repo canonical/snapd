@@ -37,8 +37,6 @@
  **/
 void sc_privs_drop(void);
 
-void sc_set_keep_caps_flag(void);
-
 void sc_debug_capabilities(const char *msg_prefix);
 
 /**
