@@ -281,6 +281,8 @@ static void sc_initialize_ns_fstab(const char *snap_instance_name) {
     char info_path[PATH_MAX] = {0};
     sc_must_snprintf(info_path, sizeof info_path, "/run/snapd/ns/snap.%s.fstab", snap_instance_name);
     int fd = -1;
+    /* no need for 0000 mode, parent directory is already owned and only
+     * writable by root */
     fd = open(info_path, O_WRONLY | O_CREAT | O_TRUNC | O_CLOEXEC | O_NOFOLLOW, 0644);
     if (fd < 0) {
         die("cannot open %s", info_path);
@@ -362,7 +364,8 @@ static void sc_replicate_base_rootfs(const char *scratch_dir, const char *rootfs
 
         sc_must_snprintf(full_path, sizeof(full_path), "%s/%s", scratch_dir, ent->d_name);
         if (ent->d_type == DT_DIR) {
-            /* TODO:nonsetuid: sc_ensure_mkdir? */
+            /* no need for 0000, parent directory already owned and writable by
+             * root only */
             if (mkdir(full_path, 0755) < 0) {
                 die("cannot create directory \"%s\"", full_path);
             }
@@ -409,7 +412,9 @@ static void sc_replicate_base_rootfs(const char *scratch_dir, const char *rootfs
                 die("cannot change ownership for link \"%s\"", full_path);
             }
         } else if (ent->d_type == DT_REG) {
-            // Create an empty file which can be used as a mount point
+            // Create an empty file which can be used as a mount point, no need
+            // for 0000, parent directory already owned and writable by root
+            // only.
             int fd = open(full_path, O_CREAT | O_TRUNC, 0644);
             if (fd < 0) {
                 die("cannot create mount point for file \"%s\"", full_path);
