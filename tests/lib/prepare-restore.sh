@@ -654,6 +654,10 @@ prepare_suite() {
         prepare_classic
     fi
 
+    if [ -n "$TAG_FEATURES" ]; then
+        snap set system journal.persistent=true
+    fi
+
     # Make sure the suite starts with a clean environment and with the snapd state restored
     # shellcheck source=tests/lib/reset.sh
     "$TESTSLIB"/reset.sh --reuse-core
@@ -736,9 +740,13 @@ prepare_suite_each() {
         "$TESTSTOOLS"/cleanup-state pre-invariant
     fi
     tests.invariant check
+    "$TESTSLIB"/analyze-features.sh --before-non-nested-task
 }
 
 restore_suite_each() {
+    if not tests.nested is-nested; then
+        "$TESTSLIB"/analyze-features.sh --after-non-nested-task
+    fi
     local variant="$1"
 
     rm -f "$RUNTIME_STATE_PATH/audit-stamp"
