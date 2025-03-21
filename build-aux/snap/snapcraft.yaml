@@ -384,6 +384,14 @@ parts:
                 ;;
             esac
             ;;
+          lib/snapd/snap-bootstrap)
+            TAGS+=(nomanagers)
+            case "${VERSION}" in
+              1337.*)
+                TAGS+=(withtestkeys withbootassetstesting faultinject statelocktrace)
+                ;;
+            esac
+            ;;
           *)
             case "${VERSION}" in
               1337.*)
