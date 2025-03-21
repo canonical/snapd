@@ -75,12 +75,11 @@ func init() {
 	// With EastAsianWidth = true (the default value if LC_ALL is set to one of CJK locales), runewidth assumes
 	// the width of the character '…' is 2. But we expected it to be 1.
 	//
-	// But in the real world, most of terminal applications render it as 1 column. Even if the UI language of
-	// the console application is CJK.
-	// I have tested on GNOME Shell, Konsole, Tilda and Linux Console with default monospace font on Ubuntu Noble.
-	// All of them rendered it as 1 column.
-	// To get closer to the real world, we disable EastAsianWidth here. And we will show correct progress bar in most
-	// of terminal applications.
+	// But in the real world, most of terminal applications render it as 1 column, even if the UI language of
+	// the console application is CJK. This appears to be true for GNOME Terminal, Konsole, Tilda and
+	// Linux Console with default monospace font on Ubuntu Noble, all of them rendered it as 1 column.
+	// To get closer to the real world, we disable EastAsianWidth here. And we will show correct progress
+	// bar in most of terminal applications.
 	//
 	// See "Ambiguous Characters" in http://www.unicode.org/reports/tr11/
 	runewidth.DefaultCondition.EastAsianWidth = false
