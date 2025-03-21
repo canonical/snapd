@@ -104,10 +104,9 @@ PKG_CHECK_MODULES([SELINUX], [libselinux], [
 AC_DEFINE([HAVE_SELINUX], [1], [Build with SELinux support])])
 ])
 
-# Check if udev and libudev are available.
-# Those are now used unconditionally even if apparmor is disabled.
+# Check if libudev is available. It is used unconditionally even if apparmor is
+# disabled.
 PKG_CHECK_MODULES([LIBUDEV], [libudev])
-PKG_CHECK_MODULES([UDEV], [udev])
 
 # Check if libcap is available.
 # PKG_CHECK_MODULES([LIBCAP], [libcap])
