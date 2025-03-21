@@ -45,7 +45,6 @@
 static int sc_open_snapd_tool(const char *tool_name);
 
 typedef struct {
-    sc_identity identity;
     /* number of entries in @caps */
     size_t n_caps;
     const cap_value_t *caps;
@@ -96,7 +95,6 @@ void sc_call_snap_update_ns(int snap_update_ns_fd, const char *snap_name, struct
         CAP_CHOWN,        /* file ownership */
     };
     sc_tool_privs privs = {
-        .identity = sc_no_change_identity(),
         .n_caps = SC_ARRAY_SIZE(caps),
         .caps = caps,
     };
@@ -138,7 +136,6 @@ void sc_call_snap_update_ns_as_user(int snap_update_ns_fd, const char *snap_name
         CAP_CHOWN,        /* file ownership */
     };
     sc_tool_privs privs = {
-        .identity = sc_no_change_identity(),
         .n_caps = SC_ARRAY_SIZE(caps),
         .caps = caps,
     };
@@ -161,7 +158,6 @@ void sc_call_snap_discard_ns(int snap_discard_ns_fd, const char *snap_name) {
         CAP_CHOWN,        /* file ownership */
     };
     sc_tool_privs privs = {
-        .identity = sc_no_change_identity(),
         .n_caps = SC_ARRAY_SIZE(caps),
         .caps = caps,
     };
@@ -213,9 +209,6 @@ static void sc_call_snapd_tool_with_apparmor(int tool_fd, const char *tool_name,
         die("cannot fork to run snapd tool %s", tool_name);
     }
     if (child == 0) {
-        /* change identity first, in case caps will drop CAP_SETUID/CAP_SETGID */
-        sc_set_effective_identity(privs.identity);
-
         if (sc_cap_reset_ambient() != 0) {
             die("cannot reset ambient capabilities");
         }
