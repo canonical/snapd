@@ -48,6 +48,8 @@ owner /run/user/[0-9]*/pipewire-[0-9] rw,
 
 const pipewireConnectedPlugAppArmorCore = `
 owner /run/user/[0-9]*/###SLOT_SECURITY_TAGS###/pipewire-[0-9] rw,
+# To allow to use pipewire in system mode, instead of user mode
+owner /var/snap/###SLOT_INSTANCE_NAME###/common/pipewire-[0-9] rw,
 `
 
 const pipewireConnectedPlugSecComp = `
@@ -90,6 +92,9 @@ func (iface *pipewireInterface) AppArmorConnectedPlug(spec *apparmor.Specificati
 		old := "###SLOT_SECURITY_TAGS###"
 		new := "snap." + slot.Snap().InstanceName() // forms the snap-instance-specific subdirectory name of /run/user/*/ used for XDG_RUNTIME_DIR
 		snippet := strings.Replace(pipewireConnectedPlugAppArmorCore, old, new, -1)
+		old2 := "###SLOT_INSTANCE_NAME###"
+		new2 := slot.Snap().InstanceName() // forms the snap-instance-specific subdirectory name of /var/snap/*/common used for SNAP_COMMON
+		snippet = strings.Replace(snippet, old2, new2, -1)
 		spec.AddSnippet(snippet)
 	}
 	return nil
