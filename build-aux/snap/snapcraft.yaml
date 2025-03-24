@@ -466,9 +466,8 @@ parts:
       fi
 
       # ensure capabilities are set
-      setcap \
-          cap_dac_override,cap_dac_read_search,cap_sys_admin,cap_sys_chroot,cap_chown,cap_fowner,cap_sys_ptrace=p \
-          "${CRAFT_PART_INSTALL}/usr/lib/snapd/snap-confine"
+      setcap -q - "${CRAFT_PART_INSTALL}/usr/lib/snapd/snap-confine" \
+           < "${CRAFT_PART_INSTALL}/usr/lib/snapd/snap-confine.caps"
       getcap "${CRAFT_PART_INSTALL}/usr/lib/snapd/snap-confine"
 
     <<:
@@ -485,9 +484,11 @@ parts:
               "/snap/snapd/current/usr/lib/${CRAFT_ARCH_TRIPLET_BUILD_FOR}/${DYNAMIC_LINKER}"
 
       # verify file capabilities
-      caps="$(getcap "${CRAFT_PART_INSTALL}/usr/lib/snapd/snap-confine")"
-      echo "-- caps: $caps"
-      test -n "$caps"
+      caps="$(getcap "${CRAFT_PART_INSTALL}/usr/lib/snapd/snap-confine" | awk '{print $2}')"
+      expected_caps="$(cat "${CRAFT_PART_INSTALL}/usr/lib/snapd/snap-confine.caps")"
+      echo "-- expecting caps: $expected_caps"
+      echo "-- actual caps:    $caps"
+      test "$caps" = "$expected_caps"
 
   libcrypto-fips:
     plugin: nil
