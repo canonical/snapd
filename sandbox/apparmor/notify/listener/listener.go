@@ -162,11 +162,6 @@ func Register() (listener *Listener, err error) {
 		}
 	}()
 
-	protoVersion, err := notifyRegisterFileDescriptor(notifyFile.Fd())
-	if err != nil {
-		return nil, err
-	}
-
 	poll, err := epoll.Open()
 	if err != nil {
 		return nil, fmt.Errorf("cannot open epoll file descriptor: %v", err)
@@ -178,6 +173,11 @@ func Register() (listener *Listener, err error) {
 	}()
 	if err = poll.Register(int(notifyFile.Fd()), epoll.Readable); err != nil {
 		return nil, fmt.Errorf("cannot register epoll on %q: %v", path, err)
+	}
+
+	protoVersion, err := notifyRegisterFileDescriptor(notifyFile.Fd())
+	if err != nil {
+		return nil, err
 	}
 
 	listener = &Listener{
