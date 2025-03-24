@@ -110,6 +110,9 @@ linters:
         path: i18n/xgettext-go/main_test.go
       - linters:
           - testpackage
+        path: interfaces/builtin/common_test.go
+      - linters:
+          - testpackage
         path: interfaces/hotplug/deviceinfo_test.go
       - linters:
           - testpackage
