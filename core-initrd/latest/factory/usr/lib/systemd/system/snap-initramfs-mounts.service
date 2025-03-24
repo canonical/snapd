@@ -7,8 +7,8 @@ DefaultDependencies=no
 After=sysinit.target
 Before=initrd-root-device.target
 
-BindsTo=dev-ubuntu-disk.device
-After=dev-ubuntu-disk.device
+BindsTo=dev-disk-ubuntu-disk.device
+After=dev-disk-ubuntu-disk.device
 
 Wants=dbus.socket
 After=dbus.socket

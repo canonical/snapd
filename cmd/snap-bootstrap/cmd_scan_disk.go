@@ -25,26 +25,30 @@
  *
  * ENV{DEVTYPE}=="partition", IMPORT{parent}="UBUNTU_*_UUID"
  * IMPORT{program}="/usr/lib/snapd/snap-bootstrap scan-disk"
- * ENV{DEVTYPE}=="disk", ENV{UBUNTU_DISK}=="1", SYMLINK+="ubuntu/disk"
- * ENV{DEVTYPE}=="partition", ENV{UBUNTU_SEED}=="1", SYMLINK+="ubuntu/seed"
- * ENV{DEVTYPE}=="partition", ENV{UBUNTU_BOOT}=="1", SYMLINK+="ubuntu/boot"
- * ENV{DEVTYPE}=="partition", ENV{UBUNTU_DATA}=="1", ENV{ID_FS_TYPE}=="crypto_LUKS", SYMLINK+="ubuntu/data-luks"
- * ENV{DEVTYPE}=="partition", ENV{UBUNTU_DATA}=="1", ENV{ID_FS_TYPE}!="crypto_LUKS", SYMLINK+="ubuntu/data"
- * ENV{DEVTYPE}=="partition", ENV{UBUNTU_SAVE}=="1", ENV{ID_FS_TYPE}=="crypto_LUKS", SYMLINK+="ubuntu/save-luks"
- * ENV{DEVTYPE}=="partition", ENV{UBUNTU_SAVE}=="1", ENV{ID_FS_TYPE}!="crypto_LUKS", SYMLINK+="ubuntu/save"
- * ENV{DM_UUID}=="CRYPT-*", ENV{DM_NAME}=="ubuntu-data-*", SYMLINK+="ubuntu/data"
- * ENV{DM_UUID}=="CRYPT-*", ENV{DM_NAME}=="ubuntu-save-*", SYMLINK+="ubuntu/save"
+ * ENV{DEVTYPE}=="disk", ENV{UBUNTU_DISK}=="1", SYMLINK+="disk/ubuntu/disk"
+ * ENV{DEVTYPE}=="partition", ENV{UBUNTU_SEED}=="1", SYMLINK+="disk/ubuntu/seed"
+ * ENV{DEVTYPE}=="partition", ENV{UBUNTU_BOOT}=="1", SYMLINK+="disk/ubuntu/boot"
+ * ENV{DEVTYPE}=="partition", ENV{UBUNTU_DATA}=="1", ENV{ID_FS_TYPE}=="crypto_LUKS", SYMLINK+="disk/ubuntu/data-luks"
+ * ENV{DEVTYPE}=="partition", ENV{UBUNTU_DATA}=="1", ENV{ID_FS_TYPE}!="crypto_LUKS", SYMLINK+="disk/ubuntu/data"
+ * ENV{DEVTYPE}=="partition", ENV{UBUNTU_SAVE}=="1", ENV{ID_FS_TYPE}=="crypto_LUKS", SYMLINK+="disk/ubuntu/save-luks"
+ * ENV{DEVTYPE}=="partition", ENV{UBUNTU_SAVE}=="1", ENV{ID_FS_TYPE}!="crypto_LUKS", SYMLINK+="disk/ubuntu/save"
+ * ENV{DM_UUID}=="CRYPT-*", ENV{DM_NAME}=="ubuntu-data-*", SYMLINK+="disk/ubuntu/data"
+ * ENV{DM_UUID}=="CRYPT-*", ENV{DM_NAME}=="ubuntu-save-*", SYMLINK+="disk/ubuntu/save"
  *
  * LABEL="ubuntu_core_partitions_end"
  * ```
  *
- * Note that symlink /dev/ubuntu/disk can be expected by
+ * See
+ * core-initrd/latest/factory/usr/lib/udev/rules.d/90-ubuntu-core-partitions.rules
+ * for implementation.
+ *
+ * Note that symlink /dev/disk/ubuntu/disk can be expected by
  * snap-bootstrap. In that case, snap-initramfs-mounts.service should
  * have:
  *
  * ```
- * BindsTo=dev-ubuntu-disk.device
- * After=dev-ubuntu-disk.device
+ * BindsTo=dev-disk-ubuntu-disk.device
+ * After=dev-disk-ubuntu-disk.device
  * ```
  *
  */
