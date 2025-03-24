@@ -12,20 +12,6 @@ TIMEOUT=${TIMEOUT:-15}
 AUTO_INSTALL=${AUTO_INSTALL:-1}     # Automatically install supported tool dependencies (default: install)
 IGNORE_MISSING=${IGNORE_MISSING:-0} # Do not error on missing tool dependencies (default: error)
 
-goinstall() {
-    local pkg="$1"
-    local version="${2:-latest}"
-    # go1.18+ will no longer build/install packages. Here "go install"
-    # must be used but it will only fetch remote packages if the @latest
-    # (or similar syntax is used). Instead of checking the version we
-    # check if the "go install" help mentions this new feature.
-    if go help install | grep -q @latest; then
-        go install "${pkg}"@"${version}"
-    else
-        go get -u "${pkg}"@"${version}"
-    fi
-}
-
 tool_version() {
     local tool=$1
     case "$tool" in
@@ -62,18 +48,18 @@ tool_install() {
     local tool=$1
     case "$tool" in
     ineffassign)
-        goinstall github.com/gordonklaus/ineffassign >/dev/null
+        go install github.com/gordonklaus/ineffassign@latest >/dev/null
         ;;
     nakedret)
-        goinstall github.com/alexkohler/nakedret v1.0.1 >/dev/null
+        go install github.com/alexkohler/nakedret@v1.0.1 >/dev/null
         ;;
     misspell)
-        goinstall github.com/client9/misspell/cmd/misspell >/dev/null
+        go install github.com/client9/misspell/cmd/misspell@latest >/dev/null
         ;;
     golangci-lint)
         # Decided to start using latest instead of pinning specific version, if this approach
         # introduces too much instability, revert back to pinning a working version.
-        goinstall github.com/golangci/golangci-lint/cmd/golangci-lint >/dev/null
+        go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest >/dev/null
         ;;
     go) ;&         # fallthrough
     shellcheck) ;& # fallthrough
@@ -230,7 +216,7 @@ missing_interface_spread_test() {
     done
 }
 
-CURRENTTRAP="true"
+CURRENT_TRAP="true"
 EXIT_CODE=99
 
 store_exit_code() {
@@ -242,9 +228,9 @@ exit_with_exit_code() {
 }
 
 addtrap() {
-    CURRENTTRAP="$CURRENTTRAP ; $1"
+    CURRENT_TRAP="$CURRENT_TRAP ; $1"
     # shellcheck disable=SC2064
-    trap "store_exit_code; $CURRENTTRAP ; exit_with_exit_code" EXIT
+    trap "store_exit_code; $CURRENT_TRAP ; exit_with_exit_code" EXIT
 }
 
 endmsg() {
