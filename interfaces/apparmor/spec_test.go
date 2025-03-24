@@ -146,14 +146,22 @@ func (s *specSuite) TestMetadataTagSnippet(c *C) {
 			expected: snippetShort,
 		},
 		{
-			snippet:  snippetShort,
-			tags:     []apparmor.MetadataTag{tagBar},
-			expected: "tags=(bar) { /foo r, }",
+			snippet: snippetShort,
+			tags:    []apparmor.MetadataTag{tagBar},
+			expected: `
+tags=(bar) {
+/foo r,
+}
+`,
 		},
 		{
-			snippet:  snippetShort,
-			tags:     []apparmor.MetadataTag{tagBar, tagBaz},
-			expected: "tags=(bar,baz) { /foo r, }",
+			snippet: snippetShort,
+			tags:    []apparmor.MetadataTag{tagBar, tagBaz},
+			expected: `
+tags=(bar,baz) {
+/foo r,
+}
+`,
 		},
 		{
 			snippet:  snippetLong,
@@ -163,20 +171,24 @@ func (s *specSuite) TestMetadataTagSnippet(c *C) {
 		{
 			snippet: snippetLong,
 			tags:    []apparmor.MetadataTag{tagBar},
-			expected: `tags=(bar) {
+			expected: `
+tags=(bar) {
 /path/to/dir/1 r,
 /path/to/dir/2 rw,
 /path/to/dir/3 rwkl,
-}`,
+}
+`,
 		},
 		{
 			snippet: snippetLong,
 			tags:    []apparmor.MetadataTag{tagBar, tagBaz},
-			expected: `tags=(bar,baz) {
+			expected: `
+tags=(bar,baz) {
 /path/to/dir/1 r,
 /path/to/dir/2 rw,
 /path/to/dir/3 rwkl,
-}`,
+}
+`,
 		},
 	} {
 		result, err := apparmor.MetadataTagSnippet(testCase.snippet, testCase.tags)
@@ -191,11 +203,17 @@ func (s *specSuite) TestMetadataTagSnippet(c *C) {
 	snippet := fmt.Sprintf("/abc r,\n%s\n/xyz w,", inner)
 	result, err := apparmor.MetadataTagSnippet(snippet, []apparmor.MetadataTag{tagBaz, tagQux})
 	c.Check(err, IsNil)
-	c.Check(result, Equals, `tags=(baz,qux) {
+	c.Check(result, Equals, `
+tags=(baz,qux) {
 /abc r,
-tags=(foo,bar) { /ijk rwkl, }
+
+tags=(foo,bar) {
+/ijk rwkl,
+}
+
 /xyz w,
-}`)
+}
+`)
 
 	// When metadata tags are not supported, snippets should be returned unchanged
 

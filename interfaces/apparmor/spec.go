@@ -287,14 +287,31 @@ func MetadataTagSnippet(snippet string, tags []MetadataTag) (string, error) {
 	if len(tags) == 0 || !metadataTagsSupported() {
 		return snippet, nil
 	}
-	tagStrs := make([]string, len(tags))
+
+	var b strings.Builder
+
+	// Put a blank line before the tagged block and open the tags set
+	b.WriteString("\ntags=(")
+
+	// Write the tags, separated by commas
 	for i, tag := range tags {
-		tagStrs[i] = tag.String()
+		if i > 0 {
+			b.WriteString(",")
+		}
+		b.WriteString(tag.String())
 	}
-	if strings.Contains(snippet, "\n") {
-		return fmt.Sprintf("tags=(%s) {\n%s\n}", strings.Join(tagStrs, ","), snippet), nil
-	}
-	return fmt.Sprintf("tags=(%s) { %s }", strings.Join(tagStrs, ","), snippet), nil
+
+	// Close the tags, open the rules bracket, and prepare to write the snippet
+	// on a new line
+	b.WriteString(") {\n")
+
+	// Write the snippet itself
+	b.WriteString(snippet)
+
+	// Write the closing bracket, and add an extra newline afterwards
+	b.WriteString("\n}\n")
+
+	return b.String(), nil
 }
 
 // AddSnippet adds a new apparmor snippet to all applications and hooks using the interface.
