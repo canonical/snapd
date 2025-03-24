@@ -143,7 +143,7 @@ KERNEL=="hidraw*", ATTRS{idVendor}=="20d6", ATTRS{idProduct}=="a713", MODE="0660
 
 # PowerA Wireless Controller for Nintendo Switch we have to use
 # ATTRS{name} since VID/PID are reported as zeros. We use /bin/sh
-# instead of udevadm directly becuase we need to use '*' glob at the
+# instead of udevadm directly because we need to use '*' glob at the
 # end of "hidraw" name since we don't know the index it'd have.
 #
 KERNEL=="input*", ATTRS{name}=="Lic Pro Controller", RUN{program}+="/bin/sh -c 'udevadm test-builtin uaccess /sys/%p/../../hidraw/hidraw*'"
