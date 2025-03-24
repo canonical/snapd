@@ -11,12 +11,12 @@ import (
 
 var ErrVersionUnset = errors.New("cannot marshal message without protocol version")
 
-// MsgNotificationGeneric define the methods which the message types for each
+// MsgNotificationGeneric defines the methods which the message types for each
 // mediation class must provide.
 //
 // Many of these methods, including ID, PID, ProcessLabel, and MediationClass,
 // are implemented on MsgNotificationOp, so any struct which embeds a
-// MsgNotificationOp need only implement the remaining methods.
+// MsgNotificationOp needs only to implement the remaining methods.
 type MsgNotificationGeneric interface {
 	// ID returns the unique ID of the notification message.
 	ID() uint64
