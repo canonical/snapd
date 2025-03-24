@@ -195,7 +195,7 @@ func (p *ANSIMeter) Set(current float64) {
 	rtimeleft := []rune(timeleft)
 	msg := make([]rune, 0, col)
 	// XXX: assuming terminal can display `col` number of runes
-	msg = append(msg, norm(col-runeWidth(rpercent)-runeWidth(rspeed)-runeWidth(rtimeleft), p.label)...)
+	msg = append(msg, norm(col-len(rpercent)-len(rspeed)-runeWidth(rtimeleft), p.label)...)
 	msg = append(msg, rpercent...)
 	msg = append(msg, rspeed...)
 	msg = append(msg, rtimeleft...)
