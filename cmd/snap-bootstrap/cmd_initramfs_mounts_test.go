@@ -1486,7 +1486,7 @@ func (s *initramfsMountsSuite) TestGetDiskNotUEFISeedPartCapitalFsLabel(c *C) {
 func (s *initramfsClassicMountsSuite) TestInitramfsMountsObeyDevLink(c *C) {
 	s.mockProcCmdlineContent(c, "snapd_system_disk=/should/be/ignored snapd_recovery_mode=run")
 
-	devLink := filepath.Join(dirs.GlobalRootDir, "/dev/ubuntu/disk")
+	devLink := filepath.Join(dirs.GlobalRootDir, "/dev/disk/ubuntu/disk")
 	c.Assert(os.MkdirAll(filepath.Dir(devLink), 0755), IsNil)
 	fakeDevice := filepath.Join(dirs.GlobalRootDir, "/dev/sda")
 	c.Assert(os.WriteFile(fakeDevice, []byte{}, 0644), IsNil)
@@ -1555,7 +1555,7 @@ func (s *initramfsClassicMountsSuite) TestInitramfsMountsObeyDevLink(c *C) {
 func (s *initramfsClassicMountsSuite) TestInitramfsMountsInstallObeyDevLink(c *C) {
 	s.mockProcCmdlineContent(c, "snapd_system_disk=/should/be/ignored snapd_recovery_mode=install snapd_recovery_system="+s.sysLabel)
 
-	devLink := filepath.Join(dirs.GlobalRootDir, "/dev/ubuntu/disk")
+	devLink := filepath.Join(dirs.GlobalRootDir, "/dev/disk/ubuntu/disk")
 	c.Assert(os.MkdirAll(filepath.Dir(devLink), 0755), IsNil)
 	fakeDevice := filepath.Join(dirs.GlobalRootDir, "/dev/sda")
 	c.Assert(os.WriteFile(fakeDevice, []byte{}, 0644), IsNil)
