@@ -29,7 +29,7 @@ const scsiGenericBaseDeclarationSlots = `
     deny-auto-connection: true
 `
 const scsiGenericBaseDeclarationPlugs = `
-  block-devices:
+  scsi-devices:
     allow-installation: false
     deny-auto-connection: true
 `
@@ -52,6 +52,7 @@ func init() {
 		implicitOnCore:        true,
 		implicitOnClassic:     true,
 		baseDeclarationSlots:  scsiGenericBaseDeclarationSlots,
+		baseDeclarationPlugs:  scsiGenericBaseDeclarationPlugs,
 		connectedPlugAppArmor: scsiGenericConnectedPlugAppArmor,
 		connectedPlugUDev:     scsiGenericConnectedPlugUDev,
 	})
