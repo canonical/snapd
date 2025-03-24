@@ -30,7 +30,6 @@ tool_version() {
     golangci-lint) ;& # fallthrough
     python3) ;&       # fallthrough
     pytest-3) ;&      # fallthrough
-    goctest) ;&       # fallthrough
     clang-format)
         $tool --version
         ;;
@@ -64,7 +63,6 @@ tool_install() {
     shellcheck) ;& # fallthrough
     python3) ;&    # fallthrough
     pytest-3) ;&   # fallthrough
-    goctest) ;&    # fallthrough
     clang-format) ;;
     *)
         return 1
@@ -105,7 +103,6 @@ tool_configure() {
     golangci-lint) ;& # fallthrough
     python3) ;&       # fallthrough
     pytest-3) ;&      # fallthrough
-    goctest) ;&       # fallthrough
     clang-format) ;;
     *)
         return 1
@@ -127,7 +124,7 @@ install_conf_show_tool() {
     fi
 
     if ! executable=$(command -v "$tool"); then # ignore-tool
-        if [ "$ignore_missing" != "1" ] && [ "$tool" != "goctest" ]; then
+        if [ "$ignore_missing" != "1" ]; then
             echo "ERROR: Tool $tool is not available"
             return 1
         else
@@ -577,24 +574,18 @@ if [ "$UNIT" = 1 ]; then
     # shellcheck disable=SC2086
     go build -v $tags $race github.com/snapcore/snapd/...
 
-    if command -v goctest >/dev/null; then
-        goctest="goctest ./..."
-    else
-        goctest="go test ./..."
-    fi
-
     # tests
     echo ">> [Go] Running go unit tests from $PWD"
     if [ "$short" = "-short" ] || [ -n "${SKIP_COVERAGE:-}" ]; then
         echo ">> [Go] Skipping coverage"
         # shellcheck disable=SC2046,SC2086
-        GOTRACEBACK=1 $goctest $tags $race $short -timeout $timeout
+        GOTRACEBACK=1 go test ./... $tags $race $short -timeout $timeout
     else
         coverage="-coverprofile=$COVERAGE_OUT -covermode=$COVERMODE"
         echo ">> [Go] Checking coverage with params: $coverage"
         mkdir -p "$(dirname "$COVERAGE_OUT")"
         # shellcheck disable=SC2046,SC2086
-        GOTRACEBACK=1 $goctest $tags $race -timeout $timeout $coverage
+        GOTRACEBACK=1 go test ./... $tags $race -timeout $timeout $coverage
     fi
     # python unit test for mountinfo.query and version-compare
     if command -v python3; then
