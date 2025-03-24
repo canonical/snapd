@@ -479,7 +479,7 @@ func (w *TransferSpeedMonitoringWriter) Monitor() (quit chan bool) {
 					return
 				}
 				// reset the measurement every downloadSpeedMeasureWindow,
-				// we want average speed per second over the mesure time window,
+				// we want average speed per second over the measure time window,
 				// otherwise a large download with initial good download
 				// speed could get stuck at the end of the download, and it
 				// would take long time for overall average to "catch up".
