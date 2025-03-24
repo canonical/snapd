@@ -162,7 +162,7 @@ func (iface *gpioChardevInterface) SystemdConnectedSlot(spec *systemd.Specificat
 func (iface *gpioChardevInterface) SystemdConnectedPlug(spec *systemd.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	slotName := slot.Name()
 	slotSnapName := slot.Snap().InstanceName()
-	plugName := slot.Name()
+	plugName := plug.Name()
 	plugSnapName := plug.Snap().InstanceName()
 
 	target := filepath.Join("/dev/snap/gpio-chardev", slotSnapName, slotName)

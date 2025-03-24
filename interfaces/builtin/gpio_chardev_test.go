@@ -61,7 +61,7 @@ const gpioChardevGadgetYaml = `name: my-device
 version: 0
 type: gadget
 slots:
-  gpio-chardev-good:
+  gpio-chardev-good-slot:
     interface: gpio-chardev
     source-chip:
       - chip0
@@ -136,9 +136,9 @@ version: 0
 apps:
   app:
     plugs:
-      - gpio-chardev-good
+      - gpio-chardev-good-plug
 plugs:
-  gpio-chardev-good:
+  gpio-chardev-good-plug:
     interface: gpio-chardev
 `
 
@@ -153,8 +153,8 @@ func (s *GpioChardevInterfaceSuite) SetUpTest(c *C) {
 	c.Assert(os.MkdirAll(dirs.FeaturesDir, 0755), check.IsNil)
 	c.Assert(os.WriteFile(features.GPIOChardevInterface.ControlFile(), []byte(nil), 0644), check.IsNil)
 
-	s.slot, s.slotInfo = MockConnectedSlot(c, gpioChardevGadgetYaml, nil, "gpio-chardev-good")
-	s.plug, s.plugInfo = MockConnectedPlug(c, gpioChardevConsumerYaml, nil, "gpio-chardev-good")
+	s.slot, s.slotInfo = MockConnectedSlot(c, gpioChardevGadgetYaml, nil, "gpio-chardev-good-slot")
+	s.plug, s.plugInfo = MockConnectedPlug(c, gpioChardevConsumerYaml, nil, "gpio-chardev-good-plug")
 }
 
 func (s *GpioChardevInterfaceSuite) TestName(c *C) {
@@ -185,7 +185,7 @@ func (s *GpioChardevInterfaceSuite) TestSanitizeSlot(c *C) {
 		"bad-lines-count":       `invalid "lines" attribute: range size cannot exceed 512, found 513`,
 	}
 	for slotName := range info.Slots {
-		if slotName == "gpio-chardev-good" {
+		if slotName == "gpio-chardev-good-slot" {
 			continue
 		}
 		slotInfo := MockSlot(c, gpioChardevGadgetYaml, nil, slotName)
@@ -210,11 +210,11 @@ func (s *GpioChardevInterfaceSuite) TestSystemdConnectedSlot(c *C) {
 	err := spec.AddConnectedSlot(s.iface, s.plug, s.slot)
 	c.Assert(err, IsNil)
 	c.Assert(spec.Services(), DeepEquals, map[string]*systemd.Service{
-		"gpio-chardev-gpio-chardev-good": {
+		"gpio-chardev-gpio-chardev-good-slot": {
 			Type:            "oneshot",
 			RemainAfterExit: true,
-			ExecStart:       fmt.Sprintf(`%s/usr/lib/snapd/snap-gpio-helper export-chardev "chip0,chip1" "3,4,1-2,5" "my-device" "gpio-chardev-good"`, s.rootdir),
-			ExecStop:        fmt.Sprintf(`%s/usr/lib/snapd/snap-gpio-helper unexport-chardev "chip0,chip1" "3,4,1-2,5" "my-device" "gpio-chardev-good"`, s.rootdir),
+			ExecStart:       fmt.Sprintf(`%s/usr/lib/snapd/snap-gpio-helper export-chardev "chip0,chip1" "3,4,1-2,5" "my-device" "gpio-chardev-good-slot"`, s.rootdir),
+			ExecStop:        fmt.Sprintf(`%s/usr/lib/snapd/snap-gpio-helper unexport-chardev "chip0,chip1" "3,4,1-2,5" "my-device" "gpio-chardev-good-slot"`, s.rootdir),
 			WantedBy:        "snapd.gpio-chardev-setup.target",
 			Before:          "snapd.gpio-chardev-setup.target",
 		},
@@ -226,13 +226,13 @@ func (s *GpioChardevInterfaceSuite) TestSystemdConnectedPlug(c *C) {
 	err := spec.AddConnectedPlug(s.iface, s.plug, s.slot)
 	c.Assert(err, IsNil)
 
-	target := "/dev/snap/gpio-chardev/my-device/gpio-chardev-good"
-	symlink := "/dev/snap/gpio-chardev/consumer/gpio-chardev-good"
+	target := "/dev/snap/gpio-chardev/my-device/gpio-chardev-good-slot"
+	symlink := "/dev/snap/gpio-chardev/consumer/gpio-chardev-good-plug"
 
 	expectedExecStart := fmt.Sprintf("/bin/sh -c 'mkdir -p %q && ln -s %q %q'", filepath.Dir(symlink), target, symlink)
 	expectedExecStop := fmt.Sprintf("/bin/rm -f %q", symlink)
 	c.Assert(spec.Services(), DeepEquals, map[string]*systemd.Service{
-		"gpio-chardev-gpio-chardev-good": {
+		"gpio-chardev-gpio-chardev-good-plug": {
 			Type:            "oneshot",
 			RemainAfterExit: true,
 			ExecStart:       expectedExecStart,
@@ -255,7 +255,7 @@ func (s *GpioChardevInterfaceSuite) TestApparmorConnectedPlug(c *C) {
 	spec := apparmor.NewSpecification(s.plug.AppSet())
 	err := spec.AddConnectedPlug(s.iface, s.plug, s.slot)
 	c.Assert(err, IsNil)
-	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `/dev/snap/gpio-chardev/my-device/gpio-chardev-good rwk`)
+	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `/dev/snap/gpio-chardev/my-device/gpio-chardev-good-slot rwk`)
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `/dev/snap/gpio-chardev/consumer/{,*} r`)
 }
 
@@ -263,7 +263,7 @@ func (s *GpioChardevInterfaceSuite) TestUDevConnectedPlug(c *C) {
 	spec := udev.NewSpecification(s.plug.AppSet())
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Assert(spec.Snippets(), testutil.Contains, `# gpio-chardev
-TAG=="snap_my-device_interface_gpio_chardev_gpio-chardev-good", TAG+="snap_consumer_app"`)
+TAG=="snap_my-device_interface_gpio_chardev_gpio-chardev-good-slot", TAG+="snap_consumer_app"`)
 }
 
 func (s *GpioChardevInterfaceSuite) TestStaticInfo(c *C) {
