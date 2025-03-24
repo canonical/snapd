@@ -319,7 +319,7 @@ if [ "$STATIC" = 1 ]; then
 
     # go vet
     echo ">> [Go] Running go vet"
-    go list ./... | grep -v '/vendor/' | xargs go vet
+    go vet ./...
 
     echo '>> [Go] Checking for usages of http.Status*'
     got=""
