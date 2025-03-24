@@ -155,6 +155,11 @@ func samePath(a, b string) (bool, error) {
 }
 
 func scanDiskNode(output io.Writer, node string) error {
+	/*
+	 * We need to find out if the give contains the ESP that was booted.
+	 * The boot loader will set LoaderDevicePartUUID. We will need to scan all
+	 * the partitions for that UUID.
+	 */
 	fmt.Fprintf(os.Stderr, "Scanning disk %s\n", node)
 	fallback := false
 	var fallbackPartition string
@@ -171,6 +176,11 @@ func scanDiskNode(output io.Writer, node string) error {
 		return fmt.Errorf("Cannot get partitions: %s\n", err)
 	}
 
+	/*
+	 * If LoaderDevicePartUUID was not set, it is probably because
+	 * we did not boot with UEFI. In that case we try to detect
+	 * disk with partition labels.
+	 */
 	if fallback {
 		mode, _, err := boot.ModeAndRecoverySystemFromKernelCommandLine()
 		if err != nil {
@@ -192,6 +202,11 @@ func scanDiskNode(output io.Writer, node string) error {
 		}
 	}
 
+	/*
+	 * If we are not in UEFI mode and snapd_system_disk is
+	 * defined, we need to verify the disk also matches that. If
+	 * not, we just return, ignoring this disk.
+	 */
 	if fallback {
 		values, err := kcmdline.KeyValues("snapd_system_disk")
 		if err != nil {
@@ -221,6 +236,13 @@ func scanDiskNode(output io.Writer, node string) error {
 		}
 	}
 
+	/*
+	 * Now we scan the partitions. For each partition we need to find out:
+	 *  - If its label matches a known partition type. In this
+	 *    case we save the UUID of that partition.
+	 *  - If the paritition is the booted ESP. In that case, we can confirm
+	 *    we are looking at the booted disk.
+	 */
 	found := false
 	hasFallbackPartition := false
 	hasSeed := false
@@ -234,10 +256,18 @@ func scanDiskNode(output io.Writer, node string) error {
 	for _, part := range partitions {
 		if !fallback {
 			if part.UUID == bootUUID {
+				/*
+				 * We have just found the ESP boot partition!
+				 */
 				found = true
 			}
 		}
 		if fallback && part.Name == fallbackPartition {
+			/*
+			 * We are not in UEFI boot, and we have found
+			 * a partition that looks like the boot
+			 * partition.
+			 */
 			hasFallbackPartition = true
 		}
 		if part.Name == "ubuntu-seed" {
@@ -261,6 +291,11 @@ func scanDiskNode(output io.Writer, node string) error {
 		}
 	}
 
+	/*
+	 * We now print the result if either:
+	 *  - We are in UEFI mode and we confirmed we found the boot ESP.
+	 *  - We are not in UEFI mode and the disks look like the boot disk.
+	 */
 	if (!fallback && found && (hasSeed || hasBoot)) || (fallback && hasFallbackPartition) {
 		fmt.Fprintf(output, "UBUNTU_DISK=1\n")
 		if hasSeed {
@@ -294,6 +329,13 @@ func checkPartitionUUID(output io.Writer, suffix string, partUUID string) {
 }
 
 func scanPartitionNode(output io.Writer, node string) error {
+	/*
+	 * scanDiskNode has scanned the partition table. And exported
+	 * information about partitions in `UBUNTU_*_UUID`
+	 * variables. No we are looking at a partition. We need to
+	 * confirm which partition it is.
+	 */
+
 	fmt.Fprintf(os.Stderr, "Scanning partition %s\n", node)
 
 	probe, err := blkid.NewProbeFromFilename(node)
