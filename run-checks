@@ -297,9 +297,8 @@ if [ "$STATIC" = 1 ]; then
     if [ -z "${SKIP_GOFMT:-}" ]; then
         echo ">> [Go] Checking go formatting"
         fmt=""
-        for dir in $(go list -f '{{.Dir}}' ./... | grep -v '/\(c-\)\?vendor/'); do
-            # skip vendor packages
-            s="$(${GOFMT:-gofmt} -s -d "$dir" || true)"
+        for dir in $(go list -f '{{.Dir}}' ./...); do
+            s="$(gofmt -s -d "$dir" || true)"
             if [ -n "$s" ]; then
                 fmt="$s\\n$fmt"
             fi
@@ -320,7 +319,7 @@ if [ "$STATIC" = 1 ]; then
 
     echo '>> [Go] Checking for usages of http.Status*'
     got=""
-    for dir in $(go list -f '{{.Dir}}' ./... | grep -v '/vendor/'); do
+    for dir in $(go list -f '{{.Dir}}' ./...); do
         s="$(grep -nP 'http\.Status(?!Text)' "$dir"/*.go || true)"
         if [ -n "$s" ]; then
             got="$s\\n$got"
@@ -335,7 +334,7 @@ if [ "$STATIC" = 1 ]; then
 
     echo ">> [Go] Checking for direct usages of math/rand"
     got=""
-    for dir in $(go list -f '{{.Dir}}' ./... | grep -v '/vendor/'); do
+    for dir in $(go list -f '{{.Dir}}' ./...); do
         # shellcheck disable=SC2063
         s="$(grep -nP --exclude '*_test.go' --exclude 'randutil/*.go' math/rand "$dir"/*.go || true)"
         if [ -n "$s" ]; then
@@ -351,7 +350,7 @@ if [ "$STATIC" = 1 ]; then
 
     echo ">> [Go] Checking for usages of deprecated io/ioutil"
     got=""
-    for dir in $(go list -f '{{.Dir}}' ./... | grep -v '/vendor/'); do
+    for dir in $(go list -f '{{.Dir}}' ./...); do
         # shellcheck disable=SC2063
         s="$(grep -nP io/ioutil "$dir"/*.go || true)"
         if [ -n "$s" ]; then
@@ -446,7 +445,7 @@ if [ "$STATIC" = 1 ]; then
 
     echo ">> [Go] Checking for naked returns"
     if [ -z "${SKIP_NAKEDRET:-}" ] && command -v nakedret >/dev/null; then
-        got=$(go list ./... | grep -v '/osutil/udev/' | grep -v '/vendor/' | xargs nakedret 2>&1)
+        got=$(go list ./... | grep -v '/osutil/udev/' | xargs nakedret 2>&1)
         if [ -n "$got" ]; then
             echo "$got"
             exit 1
