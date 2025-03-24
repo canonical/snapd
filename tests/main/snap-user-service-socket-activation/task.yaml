@@ -38,9 +38,10 @@ execute: |
     # not allow for cap_dac_override required to traverse /run/user/$(id -u
     # test)/ or /home/test, which do not have o+x permission.  As such, poke a
     # small hole to allow that.
+    HOME_TEST_MODE="$(stat -c '%a' ~test)"
     chmod +x /run/user/"$(id -u test)" ~test
     # The runtime directory will be removed by now.
-    tests.cleanup defer chmod -x ~test
+    tests.cleanup defer chmod "$HOME_TEST_MODE" ~test
 
     echo "It's sockets are created in the test user's directories and activate the service"
     [ -S ~test/snap/test-snapd-user-service-sockets/common/common.sock ]
