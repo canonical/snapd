@@ -28,7 +28,6 @@ tool_version() {
         $tool --version | grep version
         ;;
     golangci-lint) ;& # fallthrough
-    python2) ;&       # fallthrough
     python3) ;&       # fallthrough
     pytest-3) ;&      # fallthrough
     goctest) ;&       # fallthrough
@@ -63,7 +62,6 @@ tool_install() {
         ;;
     go) ;&         # fallthrough
     shellcheck) ;& # fallthrough
-    python2) ;&    # fallthrough
     python3) ;&    # fallthrough
     pytest-3) ;&   # fallthrough
     goctest) ;&    # fallthrough
@@ -105,7 +103,6 @@ tool_configure() {
     misspell) ;&      # fallthrough
     shellcheck) ;&    # fallthrough
     golangci-lint) ;& # fallthrough
-    python2) ;&       # fallthrough
     python3) ;&       # fallthrough
     pytest-3) ;&      # fallthrough
     goctest) ;&       # fallthrough
@@ -130,7 +127,7 @@ install_conf_show_tool() {
     fi
 
     if ! executable=$(command -v "$tool"); then # ignore-tool
-        if [ "$ignore_missing" != "1" ] && [ "$tool" != "python2" ] && [ "$tool" != "goctest" ]; then
+        if [ "$ignore_missing" != "1" ] && [ "$tool" != "goctest" ]; then
             echo "ERROR: Tool $tool is not available"
             return 1
         else
@@ -601,13 +598,6 @@ if [ "$UNIT" = 1 ]; then
         GOTRACEBACK=1 $goctest $tags $race -timeout $timeout $coverage
     fi
     # python unit test for mountinfo.query and version-compare
-    if command -v python2; then
-        echo ">> [Python] Running python2 unit tests for mountinfo.query and version-compare"
-        python2 ./tests/lib/tools/mountinfo.query --run-unit-tests
-        python2 ./tests/lib/tools/version-compare --run-unit-tests
-    else
-        echo ">> [Python] Skipping python2 unit tests for mountinfo.query and version-compare"
-    fi
     if command -v python3; then
         echo ">> [Python] Running python3 unit tests for mountinfo.query and version-compare"
         python3 ./tests/lib/tools/mountinfo.query --run-unit-tests
