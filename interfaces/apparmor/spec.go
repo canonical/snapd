@@ -282,10 +282,10 @@ var metadataTagsSupported = apparmor_sandbox.MetadataTagsSupported
 
 // MetadataTagSnippet wraps the given AppArmor rule snippet in the given
 // metadata tags if tagging is supported, and returns the resulting snippet.
-// If tagging is not supported, returns the snippet unchanged, without error.
-func MetadataTagSnippet(snippet string, tags []MetadataTag) (string, error) {
+// If tagging is not supported, returns the snippet unchanged.
+func MetadataTagSnippet(snippet string, tags []MetadataTag) string {
 	if len(tags) == 0 || !metadataTagsSupported() {
-		return snippet, nil
+		return snippet
 	}
 
 	var b strings.Builder
@@ -311,7 +311,7 @@ func MetadataTagSnippet(snippet string, tags []MetadataTag) (string, error) {
 	// Write the closing bracket, and add an extra newline afterwards
 	b.WriteString("\n}\n")
 
-	return b.String(), nil
+	return b.String()
 }
 
 // AddSnippet adds a new apparmor snippet to all applications and hooks using the interface.

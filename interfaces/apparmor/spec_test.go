@@ -191,18 +191,15 @@ tags=(bar,baz) {
 `,
 		},
 	} {
-		result, err := apparmor.MetadataTagSnippet(testCase.snippet, testCase.tags)
-		c.Check(err, IsNil)
+		result := apparmor.MetadataTagSnippet(testCase.snippet, testCase.tags)
 		c.Check(result, Equals, testCase.expected)
 	}
 
 	// Tags may be nested
 
-	inner, err := apparmor.MetadataTagSnippet("/ijk rwkl,", []apparmor.MetadataTag{tagFoo, tagBar})
-	c.Check(err, IsNil)
+	inner := apparmor.MetadataTagSnippet("/ijk rwkl,", []apparmor.MetadataTag{tagFoo, tagBar})
 	snippet := fmt.Sprintf("/abc r,\n%s\n/xyz w,", inner)
-	result, err := apparmor.MetadataTagSnippet(snippet, []apparmor.MetadataTag{tagBaz, tagQux})
-	c.Check(err, IsNil)
+	result := apparmor.MetadataTagSnippet(snippet, []apparmor.MetadataTag{tagBaz, tagQux})
 	c.Check(result, Equals, `
 tags=(baz,qux) {
 /abc r,
@@ -225,12 +222,10 @@ tags=(foo,bar) {
 		{tagBar},
 		{tagBar, tagBaz},
 	} {
-		result, err := apparmor.MetadataTagSnippet(snippetShort, tags)
-		c.Check(err, IsNil)
+		result := apparmor.MetadataTagSnippet(snippetShort, tags)
 		c.Check(result, Equals, snippetShort)
 
-		result, err = apparmor.MetadataTagSnippet(snippetLong, tags)
-		c.Check(err, IsNil)
+		result = apparmor.MetadataTagSnippet(snippetLong, tags)
 		c.Check(result, Equals, snippetLong)
 	}
 }
