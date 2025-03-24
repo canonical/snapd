@@ -36,26 +36,42 @@ const (
 	BLKID_PARTS_ENTRY_DETAILS int = C.BLKID_PARTS_ENTRY_DETAILS
 )
 
+
+// AbstractBlkidProbe is wrapper for blkid_probe
+// See "Low-level" section of libblkid documentation
 type AbstractBlkidProbe interface {
+	// LookupValue is a wrapper for blkid_probe_lookup_value
 	LookupValue(entryName string) (string, error)
+	// Close is a wrapper for blkid_free_probe
 	Close()
+	// EnablePartitions is a wrapper for blkid_probe_enable_partitions
 	EnablePartitions(value bool)
+	// EnableSuperblocks is a wrapper for blkid_probe_enable_superblocks
 	EnableSuperblocks(value bool)
+	// SetPartitionsFlags is a wrapper for blkid_probe_set_partitions_flags
 	SetPartitionsFlags(flags int)
+	// DoSafeprobe is a wrapper for blkid_do_safeprobe
 	DoSafeprobe() error
+	// GetPartitions is a wrapper for blkid_probe_get_partitions
 	GetPartitions() (AbstractBlkidPartlist, error)
 }
 
+// AbstractBlkidPartlist is a wrapper for blkid_partlist
 type AbstractBlkidPartlist interface {
+	// GetPartitions is a wrapper for blkid_partlist_get_partition
+	// and blkid_partlist_numof_partitions.
 	GetPartitions() []AbstractBlkidPartition
 }
 
+// AbstractBlkidPartition is a wrapper for blkid_partition
 type AbstractBlkidPartition interface {
+	// GetName is a wrapper for blkid_partition_get_name
 	GetName() string
+	// GetUUID is a wrapper for blkid_partition_get_uuid
 	GetUUID() string
 }
 
-type BlkidProbe struct {
+type blkidProbe struct {
 	probeHandle C.blkid_probe
 }
 
@@ -67,12 +83,12 @@ func newProbeFromFilenameImpl(node string) (AbstractBlkidProbe, error) {
 	if probe == nil {
 		return nil, err
 	}
-	return &BlkidProbe{probe}, nil
+	return &blkidProbe{probe}, nil
 }
 
 var NewProbeFromFilename = newProbeFromFilenameImpl
 
-func (p *BlkidProbe) LookupValue(entryName string) (string, error) {
+func (p *blkidProbe) LookupValue(entryName string) (string, error) {
 	var value *C.char
 	var value_len C.size_t
 	cname := C.CString(entryName)
@@ -88,11 +104,11 @@ func (p *BlkidProbe) LookupValue(entryName string) (string, error) {
 	}
 }
 
-func (p *BlkidProbe) Close() {
+func (p *blkidProbe) Close() {
 	C.blkid_free_probe(p.probeHandle)
 }
 
-func (p *BlkidProbe) EnablePartitions(value bool) {
+func (p *blkidProbe) EnablePartitions(value bool) {
 	v := 0
 	if value {
 		v = 1
@@ -100,7 +116,7 @@ func (p *BlkidProbe) EnablePartitions(value bool) {
 	C.blkid_probe_enable_partitions(p.probeHandle, C.int(v))
 }
 
-func (p *BlkidProbe) EnableSuperblocks(value bool) {
+func (p *blkidProbe) EnableSuperblocks(value bool) {
 	v := 0
 	if value {
 		v = 1
@@ -108,11 +124,11 @@ func (p *BlkidProbe) EnableSuperblocks(value bool) {
 	C.blkid_probe_enable_superblocks(p.probeHandle, C.int(v))
 }
 
-func (p *BlkidProbe) SetPartitionsFlags(flags int) {
+func (p *blkidProbe) SetPartitionsFlags(flags int) {
 	C.blkid_probe_set_partitions_flags(p.probeHandle, C.int(flags))
 }
 
-func (p *BlkidProbe) DoSafeprobe() error {
+func (p *blkidProbe) DoSafeprobe() error {
 	res, err := C.blkid_do_safeprobe(p.probeHandle)
 	if res < 0 {
 		return err
@@ -120,36 +136,36 @@ func (p *BlkidProbe) DoSafeprobe() error {
 	return nil
 }
 
-type BlkidPartlist struct {
+type blkidPartlist struct {
 	partlistHandle C.blkid_partlist
 }
 
-func (p *BlkidProbe) GetPartitions() (AbstractBlkidPartlist, error) {
+func (p *blkidProbe) GetPartitions() (AbstractBlkidPartlist, error) {
 	partitions, err := C.blkid_probe_get_partitions(p.probeHandle)
 	if partitions == nil {
 		return nil, err
 	}
-	return &BlkidPartlist{partitions}, nil
+	return &blkidPartlist{partitions}, nil
 }
 
-type BlkidPartition struct {
+type blkidPartition struct {
 	partitionHandle C.blkid_partition
 }
 
-func (p *BlkidPartlist) GetPartitions() []AbstractBlkidPartition {
+func (p *blkidPartlist) GetPartitions() []AbstractBlkidPartition {
 	npartitions := C.blkid_partlist_numof_partitions(p.partlistHandle)
 	ret := make([]AbstractBlkidPartition, npartitions)
 	for i := 0; i < int(npartitions); i++ {
 		partition := C.blkid_partlist_get_partition(p.partlistHandle, C.int(i))
-		ret[i] = &BlkidPartition{partition}
+		ret[i] = &blkidPartition{partition}
 	}
 	return ret
 }
 
-func (p *BlkidPartition) GetName() string {
+func (p *blkidPartition) GetName() string {
 	return C.GoString(C.blkid_partition_get_name(p.partitionHandle))
 }
 
-func (p *BlkidPartition) GetUUID() string {
+func (p *blkidPartition) GetUUID() string {
 	return C.GoString(C.blkid_partition_get_uuid(p.partitionHandle))
 }
