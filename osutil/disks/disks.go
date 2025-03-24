@@ -35,6 +35,9 @@ type Options struct {
 
 // Disk is a single physical disk device that contains partitions.
 type Disk interface {
+	// FindMatchingPartitionWithUUID finds a partition with a matching
+	// partition UUID on the disk. If no matching partition is found,
+	// a PartitionNotFoundError will be returned.
 	FindMatchingPartitionWithPartUUID(string) (Partition, error)
 
 	// FindMatchingPartitionWithFsLabel finds the partition with a matching
