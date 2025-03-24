@@ -1,7 +1,5 @@
 _set_snap_confine_caps() {
-  /usr/bin/setcap \
-    cap_dac_override,cap_dac_read_search,cap_sys_admin,cap_sys_chroot,cap_chown,cap_fowner,cap_sys_ptrace=p \
-    /usr/lib/snapd/snap-confine
+  /usr/bin/setcap -q - /usr/lib/snapd/snap-confine < /usr/lib/snapd/snap-confine.caps
 }
 
 ## arg 1:  the new package version
