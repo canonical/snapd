@@ -62,46 +62,48 @@ var stateJSON = []byte(`
 	},
 	"tasks": {
 		"11": {
-				"id": "11",
-				"change": "9",
-				"kind": "download-snap",
-				"summary": "Download snap a from channel edge",
-				"status": 4,
-				"data": {"snap-setup": {
-						"channel": "edge",
-						"flags": 1
-				}},
-				"halt-tasks": ["12"]
+			"id": "11",
+			"change": "9",
+			"kind": "download-snap",
+			"summary": "Download snap a from channel edge",
+			"status": 4,
+			"data": { "snap-setup": {
+					"channel": "edge",
+					"flags": 1,
+					"side-info" : {
+						"name": "a"
+					}
+			}},
+			"halt-tasks": ["12"]
 		},
 		"12": {"id": "12", "change": "9", "kind": "some-other-task"},
 		"21": {
-				"id": "21",
-				"change": "10",
-				"kind": "download-snap",
-				"summary": "Download snap b from channel beta",
-				"status": 4,
-				"data": {"snap-setup": {
-						"channel": "beta",
-						"flags": 2
-				}},
-				"halt-tasks": ["12"]
+			"id": "21",
+			"change": "10",
+			"kind": "download-snap",
+			"summary": "Download snap b from channel beta",
+			"status": 4,
+			"data": {"snap-setup": {
+					"channel": "beta",
+					"flags": 2
+			}},
+			"halt-tasks": ["12"]
 		},
 		"31": {
-				"id": "31",
-				"change": "10",
-				"kind": "prepare-snap",
-				"summary": "Prepare snap c",
-				"status": 4,
-				"data": {"snap-setup": {
-						"channel": "stable",
-						"flags": 1073741828
-				}},
-				"halt-tasks": ["12"],
-				"log": ["logline1", "logline2"]
+			"id": "31",
+			"change": "10",
+			"kind": "prepare-snap",
+			"summary": "Prepare snap c",
+			"status": 4,
+			"data": {"snap-setup": {
+					"channel": "stable",
+					"flags": 1073741828
+			}},
+			"halt-tasks": ["12"],
+			"log": ["logline1", "logline2"]
 		}
 	}
-}
-`)
+}`)
 
 var stateConnsJSON = []byte(`
 {
@@ -218,8 +220,83 @@ var stateCyclesJSON = []byte(`
 			"lanes": [2]
 		}
 	}
+}`)
+
+var stateRunHookJSON = []byte(`
+{
+        "changes": {
+                "1": {
+                        "id": "1",
+                        "kind": "install snap",
+                        "summary": "install a snap",
+                        "status": 0,
+                        "data": {"snap-names": ["a"]},
+                        "task-ids": ["1"],
+                        "spawn-time": "2009-11-10T23:00:00Z"
+                }
+	},
+	"tasks": {
+		"1": {
+			"id": "1",
+			"change": "1",
+			"kind": "run-hook",
+			"summary": "Running a hook",
+			"status": 4
+		}
+	}
+}`)
+
+func (s *SnapSuite) TestDebugChange(c *C) {
+	dir := c.MkDir()
+	stateFile := filepath.Join(dir, "test-state.json")
+	c.Assert(os.WriteFile(stateFile, stateJSON, 0644), IsNil)
+
+	rest, err := main.Parser(main.Client()).ParseArgs([]string{"debug", "state", "--change=9", stateFile})
+	c.Assert(err, IsNil)
+	c.Assert(rest, DeepEquals, []string{})
+	c.Check(s.Stdout(), Equals, "Lanes  ID   Status  Spawn       Ready       Kind             Summary\n"+
+		"0      11   Done    0001-01-01  0001-01-01  download-snap    Download snap a from channel edge\n"+
+		"0      12   Do      0001-01-01  0001-01-01  some-other-task  \n")
+	c.Check(s.Stderr(), Equals, "")
 }
-`)
+
+func (s *SnapSuite) TestDebugChangeDot(c *C) {
+	dir := c.MkDir()
+	stateFile := filepath.Join(dir, "test-state.json")
+	c.Assert(os.WriteFile(stateFile, stateJSON, 0644), IsNil)
+
+	rest, err := main.Parser(main.Client()).ParseArgs([]string{"debug", "state", "--change=9", "--dot", stateFile})
+	c.Assert(err, IsNil)
+	c.Assert(rest, DeepEquals, []string{})
+	c.Check(s.Stdout(), Equals, "digraph {\n"+
+		"label=<<b>[9] install-snap</b>>; labelloc=top; fontsize=24\n"+
+		"subgraph \"cluster[0]\" {\n"+
+		"label=<<b>Tasks on lanes: [0]</b>>; fontsize=18\n"+
+		"  \"[11] a:download-snap\"\n"+
+		"  \"[12] some-other-task\"\n"+
+		"}\n"+
+		"\"[11] a:download-snap\" -> \"[12] some-other-task\"\n"+
+		"}\n")
+	c.Check(s.Stderr(), Equals, "")
+}
+
+func (s *SnapSuite) TestDebugChangeDotErrorNoSuchChange(c *C) {
+	dir := c.MkDir()
+	stateFile := filepath.Join(dir, "test-state.json")
+	c.Assert(os.WriteFile(stateFile, stateRunHookJSON, 0644), IsNil)
+
+	_, err := main.Parser(main.Client()).ParseArgs([]string{"debug", "state", "--change=0", "--dot", stateFile})
+	c.Check(err, ErrorMatches, "no such change: 0")
+}
+
+func (s *SnapSuite) TestDebugChangeDotErrorGraph(c *C) {
+	dir := c.MkDir()
+	stateFile := filepath.Join(dir, "test-state.json")
+	c.Assert(os.WriteFile(stateFile, stateRunHookJSON, 0644), IsNil)
+
+	_, err := main.Parser(main.Client()).ParseArgs([]string{"debug", "state", "--change=1", "--dot", stateFile})
+	c.Check(err, ErrorMatches, "cannot create dot graph: no state entry for key \"hook-setup\"")
+}
 
 func (s *SnapSuite) TestDebugChanges(c *C) {
 	dir := c.MkDir()
