@@ -96,7 +96,7 @@ func (s *changeGraphSuite) TestString(c *C) {
 	c.Assert(err, IsNil)
 
 	// XXX remove the show before landing
-	c.Check(g.Show(c).String(), Equals, strings.TrimSpace(`
+	c.Check(g.String(), Equals, strings.TrimSpace(`
 subgraph "cluster[0]" {
   "d"
 }
@@ -126,22 +126,22 @@ func (s *changeGraphSuite) TestWriteDotTo(c *C) {
 	err = g.WriteDotTo(b)
 	c.Assert(err, IsNil)
 	c.Check(b.String(), Equals, `digraph {
-label="chg - TestWriteDotTo"
+label=<<b>[1] chg - TestWriteDotTo</b>>; labelloc=top; fontsize=24
 subgraph "cluster[0]" {
-label="[0]"
+label=<<b>Tasks on lanes: [0]</b>>; fontsize=18
   "d"
 }
 subgraph "cluster[1]" {
-label="[1]"
+label=<<b>Tasks on lanes: [1]</b>>; fontsize=18
   "a:one"
   "a:two"
 }
 subgraph "cluster[1 2]" {
-label="[1 2]"
+label=<<b>Tasks on lanes: [1 2]</b>>; fontsize=18
   "b"
 }
 subgraph "cluster[2]" {
-label="[2]"
+label=<<b>Tasks on lanes: [2]</b>>; fontsize=18
   "c:three"
 }
 "a:one" -> "a:two"
@@ -150,4 +150,37 @@ label="[2]"
 "b" -> "c:three" [style=bold]
 }
 `)
+}
+
+func (s *changeGraphSuite) TestDot(c *C) {
+	s.chg.State().Lock()
+	defer s.chg.State().Unlock()
+	g, err := dot.NewChangeGraph(s.chg, taskLabel, "TestDot")
+	c.Assert(err, IsNil)
+	c.Check(g.Dot(), Equals, `digraph {
+label=<<b>[1] chg - TestDot</b>>; labelloc=top; fontsize=24
+subgraph "cluster[0]" {
+label=<<b>Tasks on lanes: [0]</b>>; fontsize=18
+  "d"
+}
+subgraph "cluster[1]" {
+label=<<b>Tasks on lanes: [1]</b>>; fontsize=18
+  "a:one"
+  "a:two"
+}
+subgraph "cluster[1 2]" {
+label=<<b>Tasks on lanes: [1 2]</b>>; fontsize=18
+  "b"
+}
+subgraph "cluster[2]" {
+label=<<b>Tasks on lanes: [2]</b>>; fontsize=18
+  "c:three"
+}
+"a:one" -> "a:two"
+"a:one" -> "b" [style=bold]
+"a:two" -> "b" [style=bold]
+"b" -> "c:three" [style=bold]
+}
+`)
+	g.Show(c)
 }
