@@ -135,26 +135,6 @@ func (iface *posixMQInterface) validatePermissionList(perms []string, name strin
 	return nil
 }
 
-func (iface *posixMQInterface) validatePermissionsAttr(permsAttr interface{}) ([]string, error) {
-	var perms []string
-	permsList, ok := permsAttr.([]interface{})
-
-	if !ok {
-		return nil, fmt.Errorf(`posix-mq slot "permissions" attribute must be a list of strings, not %v`, permsAttr)
-	}
-
-	// Ensure that each permission in the list is a string
-	for _, i := range permsList {
-		perm, ok := i.(string)
-		if !ok {
-			return nil, fmt.Errorf(`each posix-mq slot permission must be a string, not %v`, permsAttr)
-		}
-		perms = append(perms, perm)
-	}
-
-	return perms, nil
-}
-
 func (iface *posixMQInterface) getPermissions(attrs interfaces.Attrer, name string) ([]string, error) {
 	var perms []string
 

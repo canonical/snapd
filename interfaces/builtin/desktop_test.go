@@ -356,7 +356,7 @@ version: 1.0
 plugs:
   desktop:
 `
-	_, plugInfo = MockConnectedPlug(c, mockSnapYaml, nil, "desktop")
+	_, plugInfo = MockConnectedPlug(c, mockSnapYamlEmpty, nil, "desktop")
 	c.Check(interfaces.BeforePreparePlug(s.iface, plugInfo), IsNil)
 }
 
