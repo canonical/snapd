@@ -69,6 +69,13 @@ func RegisterFileDescriptor(fd uintptr) (version ProtocolVersion, pendingCount i
 		if err := setFilterForListener(fd, protocolVersion); err != nil {
 			if errors.Is(err, unix.EPROTONOSUPPORT) {
 				unsupported[protocolVersion] = true
+				// XXX: pendingCount may still be set, if the current protocol
+				// version supports registration but not setting filter. This
+				// should never happen in the real world. If the next protocol
+				// version we try supports setting filter but not registration,
+				// then we will leak the pendingCount from this previous
+				// version, though technically this registration and the
+				// pendingCount are still valid, so this is... not incorrect.
 				continue
 			}
 			return 0, 0, err
