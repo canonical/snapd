@@ -49,7 +49,7 @@ func (gclu gcluster) appendTo(w io.Writer, withAttrs bool) error {
 		return err
 	}
 	if withAttrs {
-		_, err := fmt.Fprintf(w, "label=\"%s\"\n", gclu.label)
+		_, err := fmt.Fprintf(w, "label=<<b>Tasks on lanes: %s</b>>; fontsize=18\n", gclu.label)
 		if err != nil {
 			return err
 		}
@@ -190,7 +190,7 @@ func (g *ChangeGraph) WriteDotTo(w io.Writer) error {
 	if _, err := io.WriteString(w, "digraph {\n"); err != nil {
 		return err
 	}
-	if _, err := fmt.Fprintf(w, "label=\"%s\"; labelloc = top\n", strings.Join(g.tags, " - ")); err != nil {
+	if _, err := fmt.Fprintf(w, "label=<<b>%s</b>>; labelloc=top; fontsize=24\n", strings.Join(g.tags, " - ")); err != nil {
 		return err
 	}
 	const withAttrs = true
