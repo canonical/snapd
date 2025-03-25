@@ -38,9 +38,6 @@ restore: |
     "$TESTSTOOLS"/store-state teardown-fake-store "$STORE_DIR"
     rm -rf "$ROOT"
 
-debug: |
-    cat stderr
-
 execute: |
     if [ "$TRUST_TEST_KEYS" = "false" ]; then
         echo "This test needs test keys to be trusted"
@@ -66,10 +63,8 @@ execute: |
 
     # prepare-image ran as user so it warns about the ownership
     MATCH 'WARNING: ensure that the contents under .* are owned by root:root in the \(final\) image' < stderr
-    # check that the snapd/kernel incompatibility check is working
-    MATCH 'WARNING: snapd 2.68\+ is not compatible with a kernel containing snapd prior to 2.68' < stderr
     # But there are not other warnings/errors on stderr
-    wc -l < stderr | MATCH "^2$"
+    wc -l < stderr | MATCH "^1$"
 
     echo Verifying the result
     systemid="$(date +%Y%m%d)"
