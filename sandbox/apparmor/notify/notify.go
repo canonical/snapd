@@ -53,6 +53,13 @@ func RegisterFileDescriptor(fd uintptr) (ProtocolVersion, error) {
 				}
 				return 0, err
 			}
+
+			// Attempt to resend previously-sent requests
+			if err := resendRequests(fd, protocolVersion); err != nil {
+				// If REGISTER succeeded but RESEND failed, a real error
+				// occurred, and it's not a problem with protocol version
+				return 0, err
+			}
 		}
 
 		// Set filter on the listener
@@ -143,6 +150,24 @@ func saveListenerID(id uint64) error {
 		return err
 	}
 	return osutil.AtomicWriteFile(listenerIDFilepath(), buf.Bytes(), 0o600, 0)
+}
+
+// resendRequests tells the kernel to resend all pending requests previously
+// sent by the listener associated with the given notify file descriptor.
+//
+// XXX: Is there a race if a new request is sent between when the listener is
+// re-registered and when the resend command is issued? That new request could
+// not have been read yet, but would it be sent twice, once without the
+// NOTIF_RESENT flag and once with?
+func resendRequests(fd uintptr, version ProtocolVersion) error {
+	// TODO: at the moment, the spec does not specify any input or output
+	// messages for the APPARMOR_NOTIF_RESEND command, though it does suggest
+	// that apparmor_notif_reclaim may be sent as output in the future.
+	ioctlBuf := NewIoctlRequestBuffer(version)
+	if _, err := doIoctl(fd, APPARMOR_NOTIF_RESEND, ioctlBuf); err != nil {
+		return err
+	}
+	return nil
 }
 
 // setFilterForListener sets a filter on the listener corresponding to the
