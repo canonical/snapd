@@ -79,9 +79,10 @@ func (s *notifySuite) TestRegisterFileDescriptor(c *C) {
 	})
 	defer restoreSyscall()
 
-	receivedVersion, err := notify.RegisterFileDescriptor(fakeFD)
+	receivedVersion, pendingCount, err := notify.RegisterFileDescriptor(fakeFD)
 	c.Check(err, IsNil)
 	c.Check(receivedVersion, Equals, notify.ProtocolVersion(7))
+	c.Check(pendingCount, Equals, 0) // TODO: set to something interesting and check it here
 }
 
 func checkIoctlBuffer(c *C, receivedBuf notify.IoctlRequestBuffer, expectedVersion notify.ProtocolVersion) {
@@ -125,9 +126,10 @@ func (s *notifySuite) TestRegisterFileDescriptorErrors(c *C) {
 	})
 	defer restoreSyscall()
 
-	receivedVersion, err := notify.RegisterFileDescriptor(fakeFD)
+	receivedVersion, pendingCount, err := notify.RegisterFileDescriptor(fakeFD)
 	c.Check(err, ErrorMatches, "cannot register notify socket: no mutually supported protocol versions")
 	c.Check(receivedVersion, Equals, notify.ProtocolVersion(0))
+	c.Check(pendingCount, Equals, 0)
 
 	calledIoctl := false
 	restoreSyscallError := notify.MockIoctl(func(fd uintptr, req notify.IoctlRequest, buf notify.IoctlRequestBuffer) ([]byte, error) {
@@ -141,7 +143,8 @@ func (s *notifySuite) TestRegisterFileDescriptorErrors(c *C) {
 	})
 	defer restoreSyscallError()
 
-	receivedVersion, err = notify.RegisterFileDescriptor(fakeFD)
+	receivedVersion, pendingCount, err = notify.RegisterFileDescriptor(fakeFD)
 	c.Check(err, ErrorMatches, `cannot perform IOCTL request APPARMOR_NOTIF_SET_FILTER: invalid argument \(EINVAL\)`)
 	c.Check(receivedVersion, Equals, notify.ProtocolVersion(0))
+	c.Check(pendingCount, Equals, 0)
 }
