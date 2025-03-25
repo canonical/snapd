@@ -44,10 +44,10 @@ type IoctlRequestBuffer []byte
 // NewIoctlRequestBuffer returns a new buffer for communication with the kernel.
 //
 // The buffer contains encoded information about its size and protocol version.
-func NewIoctlRequestBuffer() IoctlRequestBuffer {
+func NewIoctlRequestBuffer(version ProtocolVersion) IoctlRequestBuffer {
 	bufSize := 0xFFFF
 	buf := bytes.NewBuffer(make([]byte, 0, bufSize))
-	header := MsgHeader{Version: 3, Length: uint16(bufSize)}
+	header := MsgHeader{Version: version, Length: uint16(bufSize)}
 	order := arch.Endian()
 	binary.Write(buf, order, &header)
 	buf.Write(make([]byte, bufSize-buf.Len()))
