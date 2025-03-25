@@ -24,7 +24,7 @@ done
 
 add-apt-repository ppa:snappy-dev/image -y
 # TODO:FDEM:FIX: this will need changes for UC24.
-apt-get install -y golang ubuntu-core-initramfs
+apt-get install -y golang ubuntu-core-initramfs libblkid-dev
 
 snap download pc-kernel --channel="${version}/${branch}" --basename=pc-kernel --target-directory="${tmpd}"
 unsquashfs -d "${tmpd}/pc-kernel" "${tmpd}/pc-kernel.snap"
