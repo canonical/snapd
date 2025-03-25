@@ -752,6 +752,7 @@ func TaskLabel(t *state.Task) (string, error) {
 	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return "", err
 	}
+
 	var label string
 	switch t.Kind() {
 	case "run-hook":
@@ -759,13 +760,13 @@ func TaskLabel(t *state.Task) (string, error) {
 		if err := t.Get("hook-setup", &hooksup); err != nil {
 			return "", err
 		}
-		label = fmt.Sprintf("run-hook[%s]:%s", hooksup.Hook, hooksup.Snap)
+		label = fmt.Sprintf("[%s] %s:run-hook{%s}", t.ID(), hooksup.Snap, hooksup.Hook)
 	default:
 		if snapsup != nil {
 			snapName := snapsup.InstanceName()
-			label = fmt.Sprintf("%s:%s", t.Kind(), snapName)
+			label = fmt.Sprintf("[%s] %s:%s", t.ID(), snapName, t.Kind())
 		} else {
-			label = t.Kind()
+			label = fmt.Sprintf("[%s] %s", t.ID(), t.Kind())
 			var plugRef interfaces.PlugRef
 			var slotRef interfaces.SlotRef
 			if err := t.Get("plug", &plugRef); err != nil && !errors.Is(err, state.ErrNoState) {
@@ -776,7 +777,7 @@ func TaskLabel(t *state.Task) (string, error) {
 			}
 			// some kind of connect-like task
 			if plugRef.Snap != "" && slotRef.Snap != "" {
-				label = fmt.Sprintf("%s:[%s:%s %s:%s]", label, plugRef.Snap, plugRef.Name, slotRef.Snap, slotRef.Name)
+				label = fmt.Sprintf("[%s] %s[%s:%s %s:%s]", t.ID(), t.Kind(), plugRef.Snap, plugRef.Name, slotRef.Snap, slotRef.Name)
 			}
 		}
 	}
