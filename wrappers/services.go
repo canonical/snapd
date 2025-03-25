@@ -893,6 +893,80 @@ func EnsureSnapServices(snaps map[*snap.Info]*SnapServiceOptions, opts *EnsureSn
 	return context.reloadModified()
 }
 
+type SnapServiceOverride struct {
+	Name    string
+	Content []byte
+}
+
+type EnsureSnapServiceOverridesOptions struct {
+	Prefix string
+}
+
+func serviceOverridesDir(svc *snap.AppInfo) string {
+	return svc.ServiceFile() + ".d"
+}
+
+func overrideFileName(prefix, name string) string {
+	return fmt.Sprintf("%s%s.conf", prefix, name)
+}
+
+func EnsureSnapServiceOverrides(svcs map[*snap.AppInfo][]SnapServiceOverride, opts *EnsureSnapServiceOverridesOptions, inter Interacter) (err error) {
+	if opts == nil {
+		opts = &EnsureSnapServiceOverridesOptions{}
+	}
+
+	defer func() {
+		if err == nil {
+			return
+		}
+		// best effort erase mode
+		for svc := range svcs {
+			osutil.EnsureDirState(serviceOverridesDir(svc), overrideFileName(opts.Prefix, "*"), nil)
+		}
+	}()
+
+	var systemDaemonReloadNeeded, userDaemonReloadNeeded bool
+	for svc, overrides := range svcs {
+		overridesDir := serviceOverridesDir(svc)
+		if err := os.MkdirAll(overridesDir, 0755); err != nil {
+			return err
+		}
+		content := make(map[string]osutil.FileState, len(overrides))
+		for _, override := range overrides {
+			fname := overrideFileName(opts.Prefix, override.Name)
+			content[fname] = &osutil.MemoryFileState{
+				Content: override.Content,
+				Mode:    os.FileMode(0644),
+			}
+		}
+		changed, removed, err := osutil.EnsureDirState(overridesDir, overrideFileName(opts.Prefix, "*"), content)
+		if err != nil {
+			return err
+		}
+		if len(changed)+len(removed) != 0 {
+			switch svc.DaemonScope {
+			case snap.SystemDaemon:
+				systemDaemonReloadNeeded = true
+			case snap.UserDaemon:
+				userDaemonReloadNeeded = true
+			}
+		}
+	}
+
+	if systemDaemonReloadNeeded {
+		sysd := systemd.New(systemd.SystemMode, inter)
+		if err := sysd.DaemonReload(); err != nil {
+			return err
+		}
+	}
+	if userDaemonReloadNeeded {
+		if err := userDaemonReload(); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // serviceUnitsFromApps returns a list of service units ordered by
 // the same order that 'app' is passed into.
 func serviceUnitsFromApps(apps []*snap.AppInfo, includeActivatedServices bool) []string {
