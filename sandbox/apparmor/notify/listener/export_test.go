@@ -76,7 +76,7 @@ func MockEpollWait(f func(l *Listener) ([]epoll.Event, error)) (restore func()) 
 	return restore
 }
 
-func MockNotifyRegisterFileDescriptor(f func(fd uintptr) (notify.ProtocolVersion, error)) (restore func()) {
+func MockNotifyRegisterFileDescriptor(f func(fd uintptr) (notify.ProtocolVersion, int, error)) (restore func()) {
 	restore = testutil.Backup(&notifyRegisterFileDescriptor)
 	notifyRegisterFileDescriptor = f
 	return restore
@@ -137,8 +137,10 @@ func MockEpollWaitNotifyIoctl(protoVersion notify.ProtocolVersion) (recvChan cha
 		}
 		return buf, nil
 	}
-	rfdF := func(fd uintptr) (notify.ProtocolVersion, error) {
-		return protoVersion, nil
+	rfdF := func(fd uintptr) (notify.ProtocolVersion, int, error) {
+		pendingCount := 0
+		// TODO: set pendingCount to something interesting
+		return protoVersion, pendingCount, nil
 	}
 	restoreEpoll := testutil.Mock(&listenerEpollWait, epollF)
 	restoreIoctl := testutil.Mock(&notifyIoctl, ioctlF)

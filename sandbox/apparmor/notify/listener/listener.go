@@ -175,10 +175,14 @@ func Register() (listener *Listener, err error) {
 		return nil, fmt.Errorf("cannot register epoll on %q: %v", path, err)
 	}
 
-	protoVersion, err := notifyRegisterFileDescriptor(notifyFile.Fd())
+	protoVersion, _, err := notifyRegisterFileDescriptor(notifyFile.Fd())
 	if err != nil {
 		return nil, err
 	}
+
+	// TODO: use pendingCount from notifyRegisterFileDescriptor to ensure that
+	// all pending requests are handled before any new requests, replies, or
+	// rules are accepted
 
 	listener = &Listener{
 		reqs: make(chan *Request),

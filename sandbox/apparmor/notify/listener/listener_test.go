@@ -294,8 +294,9 @@ func (*listenerSuite) TestRegisterClose(c *C) {
 	restoreOpen := listener.MockOsOpenWithSocket()
 	defer restoreOpen()
 
-	restoreRegisterFileDescriptor := listener.MockNotifyRegisterFileDescriptor(func(fd uintptr) (notify.ProtocolVersion, error) {
-		return notify.ProtocolVersion(12345), nil
+	restoreRegisterFileDescriptor := listener.MockNotifyRegisterFileDescriptor(func(fd uintptr) (notify.ProtocolVersion, int, error) {
+		pendingCount := 5
+		return notify.ProtocolVersion(12345), pendingCount, nil
 	})
 	defer restoreRegisterFileDescriptor()
 
@@ -324,8 +325,9 @@ func (*listenerSuite) TestRegisterOverridePath(c *C) {
 	})
 	defer restoreOpen()
 
-	restoreRegisterFileDescriptor := listener.MockNotifyRegisterFileDescriptor(func(fd uintptr) (notify.ProtocolVersion, error) {
-		return notify.ProtocolVersion(12345), nil
+	restoreRegisterFileDescriptor := listener.MockNotifyRegisterFileDescriptor(func(fd uintptr) (notify.ProtocolVersion, int, error) {
+		pendingCount := 1
+		return notify.ProtocolVersion(12345), pendingCount, nil
 	})
 	defer restoreRegisterFileDescriptor()
 
@@ -389,8 +391,8 @@ func (*listenerSuite) TestRegisterErrors(c *C) {
 	})
 	defer restoreOpen()
 
-	restoreRegisterFileDescriptor := listener.MockNotifyRegisterFileDescriptor(func(fd uintptr) (notify.ProtocolVersion, error) {
-		return 0, customError
+	restoreRegisterFileDescriptor := listener.MockNotifyRegisterFileDescriptor(func(fd uintptr) (notify.ProtocolVersion, int, error) {
+		return 0, 0, customError
 	})
 	defer restoreRegisterFileDescriptor()
 
@@ -411,8 +413,9 @@ func (*listenerSuite) TestRegisterErrors(c *C) {
 	})
 	defer restoreOpen()
 
-	restoreRegisterFileDescriptor = listener.MockNotifyRegisterFileDescriptor(func(fd uintptr) (notify.ProtocolVersion, error) {
-		return notify.ProtocolVersion(12345), nil
+	restoreRegisterFileDescriptor = listener.MockNotifyRegisterFileDescriptor(func(fd uintptr) (notify.ProtocolVersion, int, error) {
+		pendingCount := 0
+		return notify.ProtocolVersion(12345), pendingCount, nil
 	})
 	defer restoreRegisterFileDescriptor()
 
@@ -682,8 +685,9 @@ func (*listenerSuite) TestRunEpoll(c *C) {
 
 	protoVersion := notify.ProtocolVersion(12345)
 
-	restoreRegisterFileDescriptor := listener.MockNotifyRegisterFileDescriptor(func(fd uintptr) (notify.ProtocolVersion, error) {
-		return protoVersion, nil
+	restoreRegisterFileDescriptor := listener.MockNotifyRegisterFileDescriptor(func(fd uintptr) (notify.ProtocolVersion, int, error) {
+		pendingCount := 0 // TODO: set to 1, send 2 messages, with second one NOTIF_RESENT, and check that the second is received first
+		return protoVersion, pendingCount, nil
 	})
 	defer restoreRegisterFileDescriptor()
 
@@ -751,8 +755,9 @@ func (*listenerSuite) TestRunNoEpoll(c *C) {
 	})
 	defer restoreEpoll()
 
-	restoreRegisterFileDescriptor := listener.MockNotifyRegisterFileDescriptor(func(fd uintptr) (notify.ProtocolVersion, error) {
-		return notify.ProtocolVersion(12345), nil
+	restoreRegisterFileDescriptor := listener.MockNotifyRegisterFileDescriptor(func(fd uintptr) (notify.ProtocolVersion, int, error) {
+		pendingCount := 1
+		return notify.ProtocolVersion(12345), pendingCount, nil
 	})
 	defer restoreRegisterFileDescriptor()
 
@@ -1006,8 +1011,9 @@ func (*listenerSuite) TestRunMultipleTimes(c *C) {
 	})
 	defer restoreEpoll()
 
-	restoreRegisterFileDescriptor := listener.MockNotifyRegisterFileDescriptor(func(fd uintptr) (notify.ProtocolVersion, error) {
-		return notify.ProtocolVersion(12345), nil
+	restoreRegisterFileDescriptor := listener.MockNotifyRegisterFileDescriptor(func(fd uintptr) (notify.ProtocolVersion, int, error) {
+		pendingCount := 0
+		return notify.ProtocolVersion(12345), pendingCount, nil
 	})
 	defer restoreRegisterFileDescriptor()
 
@@ -1060,8 +1066,9 @@ func (*listenerSuite) TestCloseThenRun(c *C) {
 	restoreOpen := listener.MockOsOpenWithSocket()
 	defer restoreOpen()
 
-	restoreRegisterFileDescriptor := listener.MockNotifyRegisterFileDescriptor(func(fd uintptr) (notify.ProtocolVersion, error) {
-		return notify.ProtocolVersion(12345), nil
+	restoreRegisterFileDescriptor := listener.MockNotifyRegisterFileDescriptor(func(fd uintptr) (notify.ProtocolVersion, int, error) {
+		pendingCount := 3
+		return notify.ProtocolVersion(12345), pendingCount, nil
 	})
 	defer restoreRegisterFileDescriptor()
 
