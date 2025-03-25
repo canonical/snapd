@@ -435,7 +435,7 @@ func (s *transactionTestSuite) TestAbortPreventsReadsAndWrites(c *C) {
 	c.Assert(err, ErrorMatches, "cannot commit aborted transaction")
 }
 
-func (s *transactionTestSuite) TestTransactionPristine(c *C) {
+func (s *transactionTestSuite) TestTransactionPrevious(c *C) {
 	bag := confdb.NewJSONDatabag()
 	err := bag.Set("foo", "bar")
 	c.Assert(err, IsNil)
@@ -449,16 +449,16 @@ func (s *transactionTestSuite) TestTransactionPristine(c *C) {
 	err = tx.Set("foo", "baz")
 	c.Assert(err, IsNil)
 
-	checkPristine := func(key, expected string) {
-		pristineBag := tx.Pristine()
-		val, err := pristineBag.Get(key)
+	checkPrevious := func() {
+		previousBag := tx.Previous()
+		val, err := previousBag.Get("foo")
 		c.Assert(err, IsNil)
-		c.Check(val, Equals, expected)
+		c.Check(val, Equals, "bar")
 	}
-	checkPristine("foo", "bar")
+	checkPrevious()
 
 	err = tx.Commit(s.state, confdb.NewJSONSchema())
 	c.Assert(err, IsNil)
 
-	checkPristine("foo", "baz")
+	checkPrevious()
 }

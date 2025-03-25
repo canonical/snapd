@@ -831,40 +831,55 @@ func (s *confdbSuite) TestConfdbGetAndSetViewNotFound(c *C) {
 	c.Check(stderr, IsNil)
 }
 
-func (s *confdbSuite) TestConfdbGetPristine(c *C) {
+func (s *confdbSuite) TestConfdbGetPrevious(c *C) {
 	s.state.Lock()
 	tx, err := confdbstate.NewTransaction(s.state, s.devAccID, "network")
 	c.Assert(err, IsNil)
 
 	c.Assert(tx.Set("wifi.ssid", "foo"), IsNil)
 	c.Assert(tx.Commit(s.state, confdb.NewJSONSchema()), IsNil)
+
+	tx, err = confdbstate.NewTransaction(s.state, s.devAccID, "network")
+	c.Assert(err, IsNil)
 	c.Assert(tx.Set("wifi.ssid", "bar"), IsNil)
-	s.state.Unlock()
 
 	restore := ctlcmd.MockConfdbstateTransactionForGet(func(ctx *hookstate.Context, view *confdb.View) (*confdbstate.Transaction, error) {
 		return tx, nil
 	})
 	defer restore()
 
-	s.state.Lock()
-	defer s.state.Unlock()
 	task := s.state.NewTask("run-hook", "")
 	setup := &hookstate.HookSetup{Snap: "test-snap", Hook: "save-view-plug"}
 	ctx, err := hookstate.NewContext(task, s.state, setup, s.mockHandler, "")
 	c.Assert(err, IsNil)
-
 	s.state.Unlock()
-	defer s.state.Lock()
 
-	stdout, stderr, err := ctlcmd.Run(ctx, []string{"get", "--view", "--pristine", ":read-wifi", "ssid"}, 0)
+	// current transaction has uncommitted write "bar"
+	stdout, stderr, err := ctlcmd.Run(ctx, []string{"get", "--view", ":read-wifi", "ssid"}, 0)
+	c.Assert(err, IsNil)
+	c.Check(string(stdout), Equals, "bar\n")
+	c.Check(stderr, IsNil)
+
+	// but --previous show "foo"
+	stdout, stderr, err = ctlcmd.Run(ctx, []string{"get", "--view", "--previous", ":read-wifi", "ssid"}, 0)
 	c.Assert(err, IsNil)
 	c.Check(string(stdout), Equals, "foo\n")
 	c.Check(stderr, IsNil)
 
-	stdout, stderr, err = ctlcmd.Run(ctx, []string{"get", "--view", ":read-wifi", "ssid"}, 0)
+	s.state.Lock()
+	// simulate a commit and then a observe-view- hook
+	c.Assert(tx.Commit(s.state, confdb.NewJSONSchema()), IsNil)
+	setup = &hookstate.HookSetup{Snap: "test-snap", Hook: "observe-view-plug"}
+	ctx, err = hookstate.NewContext(task, s.state, setup, s.mockHandler, "")
 	c.Assert(err, IsNil)
-	c.Check(string(stdout), Equals, "bar\n")
+	s.state.Unlock()
+
+	// --previous in observe-view hook refers to pre-commit databag
+	stdout, stderr, err = ctlcmd.Run(ctx, []string{"get", "--view", "--previous", ":read-wifi", "ssid"}, 0)
+	c.Assert(err, IsNil)
+	c.Check(string(stdout), Equals, "foo\n")
 	c.Check(stderr, IsNil)
+
 }
 
 func (s *confdbSuite) TestConfdbGetDifferentViewThanOngoingTx(c *C) {
