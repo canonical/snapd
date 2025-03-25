@@ -129,9 +129,6 @@ func (s *AudioPlaybackInterfaceSuite) TestSecCompOnClassic(c *C) {
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), Not(testutil.Contains), "owner /run/user/[0-9]*/snap.audio-playback/pulse/ r,\n")
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), Not(testutil.Contains), "owner /run/user/[0-9]*/snap.audio-playback/pulse/native rwk,\n")
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), Not(testutil.Contains), "owner /run/user/[0-9]*/snap.audio-playback/pulse/pid r,\n")
-	c.Assert(spec.SnippetForTag("snap.consumer.app"), Not(testutil.Contains), "owner /var/snap/snap.audio-playback/common/pulse/r,\n")
-	c.Assert(spec.SnippetForTag("snap.consumer.app"), Not(testutil.Contains), "owner /var/snap/snap.audio-playback/common/pulse/native rwk,\n")
-	c.Assert(spec.SnippetForTag("snap.consumer.app"), Not(testutil.Contains), "owner /var/snap/snap.audio-playback/common/pulse/pid r,\n")
 
 	// connected classic slot to plug
 	spec = seccomp.NewSpecification(s.classicSlot.AppSet())
@@ -187,6 +184,9 @@ func (s *AudioPlaybackInterfaceSuite) TestAppArmorOnClassic(c *C) {
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
 	c.Check(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "/{run,dev}/shm/pulse-shm-* mrwk,\n")
 	c.Check(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "/etc/pulse/ r,\n")
+	c.Assert(spec.SnippetForTag("snap.consumer.app"), Not(testutil.Contains), "owner /var/snap/snap.audio-playback/common/pulse/r,\n")
+	c.Assert(spec.SnippetForTag("snap.consumer.app"), Not(testutil.Contains), "owner /var/snap/snap.audio-playback/common/pulse/native rwk,\n")
+	c.Assert(spec.SnippetForTag("snap.consumer.app"), Not(testutil.Contains), "owner /var/snap/snap.audio-playback/common/pulse/pid r,\n")
 
 	// connected classic slot to plug
 	spec = apparmor.NewSpecification(s.classicSlot.AppSet())

@@ -134,7 +134,6 @@ func (s *pipewireInterfaceSuite) TestSecCompOnClassic(c *C) {
 	c.Assert(spec.SecurityTags(), HasLen, 0)
 
 	c.Assert(spec.SnippetForTag("snap.pipewire.app1"), Not(testutil.Contains), "owner /run/user/[0-9]*/pipewire-[0-9] rwk,\n")
-	c.Assert(spec.SnippetForTag("snap.pipewire.app1"), Not(testutil.Contains), "owner /var/snap/pipewire/common/pipewire-[0-9] r,\n")
 }
 
 func (s *pipewireInterfaceSuite) TestAppArmor(c *C) {
@@ -183,6 +182,7 @@ func (s *pipewireInterfaceSuite) TestAppArmorOnClassic(c *C) {
 	spec = apparmor.NewSpecification(s.classicSlot.AppSet())
 	c.Assert(spec.AddPermanentSlot(s.iface, s.classicSlotInfo), IsNil)
 	c.Assert(spec.SecurityTags(), HasLen, 0)
+	c.Assert(spec.SnippetForTag("snap.pipewire.app1"), Not(testutil.Contains), "owner /var/snap/pipewire/common/pipewire-[0-9] r,\n")
 }
 
 func (s *pipewireInterfaceSuite) TestUDev(c *C) {
