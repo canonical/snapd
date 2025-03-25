@@ -162,7 +162,7 @@ func NewChangeGraph(chg *state.Change, taskLabeler func(*state.Task) (label stri
 			})
 		}
 	}
-	tags := []string{chg.Kind()}
+	tags := []string{chg.Label()}
 	if tag != "" {
 		tags = append(tags, tag)
 	}
@@ -190,7 +190,7 @@ func (g *ChangeGraph) WriteDotTo(w io.Writer) error {
 	if _, err := io.WriteString(w, "digraph {\n"); err != nil {
 		return err
 	}
-	if _, err := fmt.Fprintf(w, "label=\"%s\"\n", strings.Join(g.tags, " - ")); err != nil {
+	if _, err := fmt.Fprintf(w, "label=\"%s\"; labelloc = top\n", strings.Join(g.tags, " - ")); err != nil {
 		return err
 	}
 	const withAttrs = true
