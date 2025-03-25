@@ -2,12 +2,18 @@
 package notify
 
 import (
+	"bytes"
+	"encoding/binary"
 	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
 
 	"golang.org/x/sys/unix"
 
 	"github.com/snapcore/snapd/arch"
+	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/osutil"
 )
 
 var (
@@ -17,9 +23,16 @@ var (
 	nativeByteOrder = arch.Endian() // ioctl messages are native byte order
 )
 
-// RegisterFileDescriptor registers a notification socket using the given file
-// descriptor. Attempts to use the latest notification protocol version which
-// both snapd and the kernel support, and returns that version.
+// RegisterFileDescriptor registers a listener for and sets a filter on the
+// given file descriptor.
+//
+// If the protocol version supports it, and there is a previously-registered
+// listener ID saved, attempt to re-register the listener with that ID,
+// otherwise ask the kernel for the ID of the new listener and save it to disk.
+//
+// Then, register a new filter with the protocol
+// Attempts to use the latest notification protocol version which both snapd
+// and the kernel support, and returns that version.
 //
 // If no protocol version is mutually supported, or some other error occurs,
 // returns an error.
@@ -30,24 +43,127 @@ func RegisterFileDescriptor(fd uintptr) (ProtocolVersion, error) {
 		if !ok {
 			return 0, fmt.Errorf("cannot register notify socket: no mutually supported protocol versions")
 		}
-		msg := MsgNotificationFilter{
-			MsgHeader: MsgHeader{
-				Version: protocolVersion,
-			},
-			ModeSet: APPARMOR_MODESET_USER,
+
+		if protocolVersion >= 5 {
+			// Attempt to register the listener ID before setting the filter
+			if err := registerListenerID(fd, protocolVersion); err != nil {
+				if errors.Is(err, unix.EINVAL) {
+					unsupported[protocolVersion] = true
+					continue
+				}
+				return 0, err
+			}
 		}
-		data, err := msg.MarshalBinary()
-		if err != nil {
-			return 0, err
-		}
-		ioctlBuf := IoctlRequestBuffer(data)
-		if _, err = doIoctl(fd, APPARMOR_NOTIF_SET_FILTER, ioctlBuf); err != nil {
+
+		// Set filter on the listener
+		if err := setFilterForListener(fd, protocolVersion); err != nil {
 			if errors.Is(err, unix.EPROTONOSUPPORT) {
 				unsupported[protocolVersion] = true
 				continue
 			}
 			return 0, err
 		}
+
 		return protocolVersion, nil
 	}
+}
+
+// registerListenerID checks whether there's a saved listener ID, and if so,
+// attempts to register the given file descriptor with it. If not, or if a
+// listener with the saved ID is not found, requests the new listener ID and
+// saves it to disk.
+func registerListenerID(fd uintptr, version ProtocolVersion) error {
+	listenerID, ok := retrieveSavedListenerID()
+	if !ok {
+		// Listener ID not found, so request the new ID by setting the ID to 0.
+		listenerID = 0
+	}
+
+	msg := MsgNotificationResend{
+		MsgHeader: MsgHeader{
+			Version: version,
+		},
+		// If KernelListenerID is 0, the kernel will populate the struct in the
+		// buffer with the ID the kernel has assigned to the new listener. If
+		// it's not 0, we attempt to re-register the existing listener with the
+		// given ID.
+		KernelListenerID: listenerID,
+	}
+	data, err := msg.MarshalBinary()
+	if err != nil {
+		return err
+	}
+	ioctlBuf := IoctlRequestBuffer(data)
+	buf, err := doIoctl(fd, APPARMOR_NOTIF_REGISTER, ioctlBuf)
+	if err != nil {
+		return err
+	}
+	// Success, now get the listener ID which was populated by the kernel. If
+	// we had the ID set to 0 in the register command, the kernel should have
+	// populated the field with the listener ID. Otherwise, it should be the
+	// same ID that we passed to the kernel. Regardless, we want to save it to
+	// disk.
+	if err = msg.UnmarshalBinary(buf); err != nil {
+		return err
+	}
+	// Now save the listener ID to disk so we can retrieve it later. It may be
+	// the case that the subsequent set filter command fails, but there's no
+	// harm in reclaiming a previous listener for which we had yet to set a
+	// filter. This way the caller of this function doesn't have to worry about
+	// the listener ID file.
+	return saveListenerID(msg.KernelListenerID)
+}
+
+// retrieveSavedListenerID returns the listener ID which is saved on disk, if
+// one exists and can be read, and true if so.
+func retrieveSavedListenerID() (id uint64, ok bool) {
+	f, err := os.Open(listenerIDFilepath())
+	if err != nil {
+		return 0, false
+	}
+	if err = binary.Read(f, nativeByteOrder, &id); err != nil {
+		return 0, false
+	}
+	return id, true
+}
+
+// listenerIDFilepath returns the filepath at which the listener ID should be
+// saved.
+func listenerIDFilepath() string {
+	return filepath.Join(dirs.SnapInterfacesRequestsRunDir, "listener-id")
+}
+
+// saveListenerID writes the given listener ID to disk.
+func saveListenerID(id uint64) error {
+	buf := bytes.NewBuffer(make([]byte, 0, binary.Size(id)))
+	if err := binary.Write(buf, nativeByteOrder, id); err != nil {
+		return err
+	}
+	if err := os.MkdirAll(dirs.SnapInterfacesRequestsRunDir, 0o755); err != nil {
+		return err
+	}
+	return osutil.AtomicWriteFile(listenerIDFilepath(), buf.Bytes(), 0o600, 0)
+}
+
+// setFilterForListener sets a filter on the listener corresponding to the
+// given file descriptor, using the given protocol version.
+//
+// TODO: do we want to avoid re-setting an identical filter with an identical
+// protocol version on a reclaimed listener which already had that filter?
+func setFilterForListener(fd uintptr, version ProtocolVersion) error {
+	msg := MsgNotificationFilter{
+		MsgHeader: MsgHeader{
+			Version: version,
+		},
+		ModeSet: APPARMOR_MODESET_USER,
+	}
+	data, err := msg.MarshalBinary()
+	if err != nil {
+		return err
+	}
+	ioctlBuf := IoctlRequestBuffer(data)
+	if _, err = doIoctl(fd, APPARMOR_NOTIF_SET_FILTER, ioctlBuf); err != nil {
+		return err
+	}
+	return nil
 }
