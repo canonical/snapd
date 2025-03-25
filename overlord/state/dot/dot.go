@@ -209,7 +209,7 @@ func (g *ChangeGraph) WriteDotTo(w io.Writer) error {
 // and stdout are used instead.
 func (g *ChangeGraph) Show(logfer interface {
 	Logf(format string, args ...interface{})
-}) *ChangeGraph {
+}) {
 	f, err := os.CreateTemp("", fmt.Sprintf("%s-*.svg", strings.Join(g.tags, "-")))
 	fprintfln := func(w io.Writer, format string, args ...interface{}) {
 		if logfer != nil {
@@ -220,7 +220,6 @@ func (g *ChangeGraph) Show(logfer interface {
 	}
 	if err != nil {
 		fprintfln(os.Stderr, "cannot create .svg file: %v", err)
-		return g
 	}
 	output := f.Name()
 	f.Close()
@@ -230,14 +229,11 @@ func (g *ChangeGraph) Show(logfer interface {
 	dotCmd.Stdin = gbuf
 	if o, err := dotCmd.CombinedOutput(); err != nil {
 		if _, ok := err.(*exec.Error); ok {
-			return g
 		}
 		fprintfln(os.Stderr, "cannot process dot definition: %v", osutil.OutputErr(o, err))
-		return g
 	}
 	fprintfln(os.Stdout, "%s => %s", strings.Join(g.tags, " "), output)
 	exec.Command("xdg-open", output).Run()
-	return g
 }
 
 func clusterLabel(lanes []int) string {
