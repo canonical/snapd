@@ -68,7 +68,7 @@ func (af *assertionFetcher) Save(a asserts.Assertion) error {
 			for _, extraAssertion := range af.extraAssertions {
 				if prerequisite.Unique() == extraAssertion.Ref().Unique() {
 					if err := af.Save(extraAssertion); err != nil {
-						return err
+						return fmt.Errorf("prerequisite injected assertion: %s", err)
 					}
 
 					// This prerequisite has been matched to an extraAssertion, proceed with the next
