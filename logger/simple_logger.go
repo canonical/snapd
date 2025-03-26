@@ -22,7 +22,6 @@ package logger
 
 import (
 	"io"
-	"log"
 )
 
 // New creates a log.Logger using the given io.Writer and flag, using the
@@ -31,10 +30,5 @@ func New(w io.Writer, flag int, opts *LoggerOptions) (Logger, error) {
 	if opts == nil {
 		opts = &LoggerOptions{}
 	}
-	logger := &Log{
-		log:   log.New(w, "", flag),
-		debug: opts.ForceDebug || debugEnabledOnKernelCmdline(),
-		flags: flag,
-	}
-	return logger, nil
+	return newLog(w, flag, opts)
 }

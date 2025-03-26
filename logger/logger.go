@@ -22,6 +22,7 @@ package logger
 import (
 	"bytes"
 	"fmt"
+	"io"
 	"log"
 	"os"
 	"sync"
@@ -110,6 +111,9 @@ func Debug(msg string) {
 }
 
 func Trace(msg string, attrs ...any) {
+	lock.Lock()
+	defer lock.Unlock()
+
 	logger.Trace(msg, attrs...)
 }
 
@@ -203,6 +207,15 @@ func (l *Log) NoGuardDebug(msg string) {
 	// this frame + single package level API func() + actual caller
 	calldepth := 1 + 1 + 1
 	l.log.Output(calldepth, "DEBUG: "+msg)
+}
+
+func newLog(w io.Writer, flag int, opts *LoggerOptions) (Logger, error) {
+	logger := &Log{
+		log:   log.New(w, "", flag),
+		debug: opts.ForceDebug || debugEnabledOnKernelCmdline(),
+		flags: flag,
+	}
+	return logger, nil
 }
 
 type LoggerOptions struct {

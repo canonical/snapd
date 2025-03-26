@@ -102,7 +102,7 @@ func (s *LogStructuredSuite) TestTraceEnvStructured(c *C) {
 	err := json.Unmarshal(s.logbuf.Bytes(), &data)
 	c.Check(err, IsNil)
 	c.Check(data.Msg, Equals, "xyzzy")
-	c.Check(data.Level, Equals, logger.LevelNames[logger.LevelTrace])
+	c.Check(data.Level, Equals, "TRACE")
 	c.Check(data.Attr, Equals, "val")
 	c.Check(data.Source.File, Equals, "structured_logger_test.go")
 }
@@ -127,7 +127,7 @@ func (s *LogStructuredSuite) TestNoticeStructured(c *C) {
 	err := json.Unmarshal(s.logbuf.Bytes(), &data)
 	c.Check(err, IsNil)
 	c.Check(data.Msg, Equals, "xyzzy")
-	c.Check(data.Level, Equals, logger.LevelNames[logger.LevelNotice])
+	c.Check(data.Level, Equals, "NOTICE")
 	c.Check(data.Attr, Equals, "")
 	c.Check(data.Source.File, Equals, "structured_logger_test.go")
 }
@@ -160,7 +160,7 @@ func (s *LogStructuredSuite) TestPanicfStructured(c *C) {
 	err := json.Unmarshal(s.logbuf.Bytes(), &data)
 	c.Check(err, IsNil)
 	c.Check(data.Msg, Equals, "PANIC xyzzy")
-	c.Check(data.Level, Equals, logger.LevelNames[logger.LevelNotice])
+	c.Check(data.Level, Equals, "NOTICE")
 	c.Check(data.Attr, Equals, "")
 }
 
@@ -174,7 +174,7 @@ func (s *LogStructuredSuite) TestWithLoggerLockStructured(c *C) {
 		err := json.Unmarshal(s.logbuf.Bytes(), &data)
 		c.Check(err, IsNil)
 		c.Check(data.Msg, Equals, "xyzzy")
-		c.Check(data.Level, Equals, logger.LevelNames[logger.LevelNotice])
+		c.Check(data.Level, Equals, "NOTICE")
 		c.Check(data.Attr, Equals, "")
 		c.Check(data.Source.File, Equals, "structured_logger_test.go")
 	})

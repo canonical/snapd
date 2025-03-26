@@ -35,18 +35,19 @@ import (
 type StructuredLog struct {
 	log   *slog.Logger
 	debug bool
+	trace bool
 	quiet bool
 	flags int
 }
 
 const (
-	LevelTrace  = slog.Level(-8)
-	LevelNotice = slog.Level(2)
+	levelTrace  = slog.Level(-8)
+	levelNotice = slog.Level(2)
 )
 
-var LevelNames = map[slog.Level]string{
-	LevelTrace:  "TRACE",
-	LevelNotice: "NOTICE",
+var levelNames = map[slog.Level]string{
+	levelTrace:  "TRACE",
+	levelNotice: "NOTICE",
 }
 
 func (l *StructuredLog) debugEnabled() bool {
@@ -68,7 +69,7 @@ func (l *StructuredLog) Notice(msg string) {
 	if !l.quiet {
 		var pcs [1]uintptr
 		runtime.Callers(3, pcs[:])
-		r := slog.NewRecord(time.Now(), LevelNotice, msg, pcs[0])
+		r := slog.NewRecord(time.Now(), levelNotice, msg, pcs[0])
 		l.log.Handler().Handle(context.Background(), r)
 	}
 }
@@ -82,12 +83,22 @@ func (l *StructuredLog) NoGuardDebug(msg string) {
 	l.log.Handler().Handle(context.Background(), r)
 }
 
-// Trace only prints if SNAPD_TRACE is set
-func (l *StructuredLog) Trace(msg string, attrs ...any) {
+func (l *StructuredLog) traceEnabled() bool {
+	if l.trace {
+		return true
+	}
 	if osutil.GetenvBool("SNAPD_TRACE") {
+		l.trace = true
+		return true
+	}
+	return false
+}
+
+func (l *StructuredLog) Trace(msg string, attrs ...any) {
+	if l.traceEnabled() {
 		var pcs [1]uintptr
 		runtime.Callers(3, pcs[:])
-		r := slog.NewRecord(time.Now(), LevelTrace, msg, pcs[0])
+		r := slog.NewRecord(time.Now(), levelTrace, msg, pcs[0])
 		r.Add(attrs...)
 		l.log.Handler().Handle(context.Background(), r)
 	}
@@ -100,16 +111,16 @@ func New(w io.Writer, flag int, opts *LoggerOptions) (Logger, error) {
 		opts = &LoggerOptions{}
 	}
 	if !osutil.GetenvBool("SNAPD_JSON_LOGGING") {
-		logger := &Log{
-			log:   log.New(w, "", flag),
-			debug: opts.ForceDebug || debugEnabledOnKernelCmdline(),
-			flags: flag,
-		}
-		return logger, nil
+		return newLog(w, flag, opts)
 	}
 	options := &slog.HandlerOptions{
 		AddSource: true,
 		ReplaceAttr: func(groups []string, a slog.Attr) slog.Attr {
+			// The simple logger uses the flag to determine what gets
+			// added to the logs. slog uses attributes. To keep the
+			// same functionality as with the simple log, here we check
+			// the flags if the timestamp should be removed and if the
+			// filename only should be considered instead of full path.
 			if a.Key == slog.TimeKey && (flag&log.Ldate) != log.Ldate {
 				// Remove timestamp
 				return slog.Attr{}
@@ -125,7 +136,7 @@ func New(w io.Writer, flag int, opts *LoggerOptions) (Logger, error) {
 			if a.Key == slog.LevelKey {
 				// Add TRACE and NOTICE level names
 				level := a.Value.Any().(slog.Level)
-				levelLabel, exists := LevelNames[level]
+				levelLabel, exists := levelNames[level]
 				if !exists {
 					levelLabel = level.String()
 				}
@@ -138,6 +149,7 @@ func New(w io.Writer, flag int, opts *LoggerOptions) (Logger, error) {
 		log:   slog.New(slog.NewJSONHandler(w, options)),
 		debug: opts.ForceDebug || debugEnabledOnKernelCmdline(),
 		flags: flag,
+		trace: false,
 	}
 	return logger, nil
 }
