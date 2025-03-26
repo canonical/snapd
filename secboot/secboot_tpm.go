@@ -592,12 +592,6 @@ func SealKeys(keys []SealKeyRequest, params *SealKeysParams) ([]byte, error) {
 
 	}
 
-	if primaryKey != nil && params.TPMPolicyAuthKeyFile != "" {
-		if err := osutil.AtomicWriteFile(params.TPMPolicyAuthKeyFile, primaryKey, 0600, 0); err != nil {
-			return nil, fmt.Errorf("cannot write the policy auth key file: %v", err)
-		}
-	}
-
 	return primaryKey, nil
 }
 
@@ -621,12 +615,6 @@ func ResealKeys(params *ResealKeysParams) error {
 	var pcrProfile sb_tpm2.PCRProtectionProfile
 	if _, err := mu.UnmarshalFromBytes(params.PCRProfile, &pcrProfile); err != nil {
 		return err
-	}
-
-	// TODO:FDEM:FIX: load primary key from keyring when available
-	authKey, err := os.ReadFile(params.TPMPolicyAuthKeyFile)
-	if err != nil {
-		return fmt.Errorf("cannot read the policy auth key file %s: %w", params.TPMPolicyAuthKeyFile, err)
 	}
 
 	keyDatas := make([]*sb.KeyData, 0, numSealedKeyObjects)
@@ -656,7 +644,7 @@ func ResealKeys(params *ResealKeysParams) error {
 	}
 
 	if hasOldSealedKeyObjects {
-		if err := sbUpdateKeyPCRProtectionPolicyMultiple(tpm, sealedKeyObjects, authKey, &pcrProfile); err != nil {
+		if err := sbUpdateKeyPCRProtectionPolicyMultiple(tpm, sealedKeyObjects, params.PrimaryKey, &pcrProfile); err != nil {
 			return fmt.Errorf("cannot update legacy PCR protection policy: %w", err)
 		}
 
@@ -669,12 +657,12 @@ func ResealKeys(params *ResealKeysParams) error {
 		}
 
 		// revoke old policies via the primary key object
-		if err := sbSealedKeyObjectRevokeOldPCRProtectionPolicies(sealedKeyObjects[0], tpm, authKey); err != nil {
+		if err := sbSealedKeyObjectRevokeOldPCRProtectionPolicies(sealedKeyObjects[0], tpm, params.PrimaryKey); err != nil {
 			return fmt.Errorf("cannot revoke old PCR protection policies: %w", err)
 		}
 	} else {
 		// TODO:FDEM:FIX: find out which context when revocation should happen
-		if err := sbUpdateKeyDataPCRProtectionPolicy(tpm, authKey, &pcrProfile, sb_tpm2.NoNewPCRPolicyVersion, keyDatas...); err != nil {
+		if err := sbUpdateKeyDataPCRProtectionPolicy(tpm, params.PrimaryKey, &pcrProfile, sb_tpm2.NoNewPCRPolicyVersion, keyDatas...); err != nil {
 			return fmt.Errorf("cannot update PCR protection policy: %w", err)
 		}
 
