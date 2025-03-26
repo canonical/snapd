@@ -44,7 +44,7 @@ const (
 	LevelNotice = slog.Level(2)
 )
 
-var LevelNames = map[slog.Leveler]string{
+var LevelNames = map[slog.Level]string{
 	LevelTrace:  "TRACE",
 	LevelNotice: "NOTICE",
 }

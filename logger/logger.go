@@ -110,8 +110,6 @@ func Debug(msg string) {
 }
 
 func Trace(msg string, attrs ...any) {
-	lock.Lock()
-	defer lock.Unlock()
 	logger.Trace(msg, attrs...)
 }
 
