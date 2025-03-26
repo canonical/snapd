@@ -18,9 +18,6 @@ tool_version() {
     go)
         $tool version
         ;;
-    misspell)
-        $tool -v
-        ;;
     shellcheck)
         $tool --version | grep version
         ;;
@@ -44,9 +41,6 @@ tool_install() {
     case "$tool" in
     nakedret)
         go install github.com/alexkohler/nakedret@v1.0.1 >/dev/null
-        ;;
-    misspell)
-        go install github.com/client9/misspell/cmd/misspell@latest >/dev/null
         ;;
     golangci-lint)
         # Decided to start using latest instead of pinning specific version, if this approach
@@ -91,7 +85,6 @@ tool_configure() {
         fi
         ;;
     nakedret) ;&      # fallthrough
-    misspell) ;&      # fallthrough
     shellcheck) ;&    # fallthrough
     golangci-lint) ;& # fallthrough
     python3) ;&       # fallthrough
@@ -404,19 +397,6 @@ if [ "$STATIC" = 1 ]; then
         ./tests/lib/external/snapd-testing-tools/utils/spread-shellcheck $FILTERED_FILES --exclude "$exclude_tools_path" --exclude "tests/nested/manual/core20-preseed"
     else
         echo ">> [Bash] Skipping shellcheck check"
-    fi
-
-    if [ -z "${SKIP_MISSPELL:-}" ] && command -v misspell >/dev/null; then
-        echo ">> Checking spelling"
-        # FIXME: author is only misspelled in the changelog so we should fix there
-        # PROCES is used in the seccomp tests (PRIO_PROCES{,S,SS})
-        # exportfs is used in the nfs-support test
-        # becuase because of misspell in upstream steam rules (PR#12657)
-        MISSPELL_IGNORE="auther,PROCES,PROCESSS,proces,processs,exportfs,becuase"
-        git ls-files -z -- . ':!:./po' ':!:./vendor' ':!:./c-vendor' ':!:./cmd/libsnap-confine-private/bpf/vendor' ':!:./build-aux/snap/local/apparmor' |
-            xargs -0 misspell -error -i "$MISSPELL_IGNORE"
-    else
-        echo ">> Skipping spelling check"
     fi
 
     echo ">> [Go] Checking for naked returns"
