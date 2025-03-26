@@ -18,9 +18,6 @@ tool_version() {
     go)
         $tool version
         ;;
-    ineffassign)
-        $tool -version 2>&1
-        ;;
     misspell)
         $tool -v
         ;;
@@ -45,9 +42,6 @@ tool_version() {
 tool_install() {
     local tool=$1
     case "$tool" in
-    ineffassign)
-        go install github.com/gordonklaus/ineffassign@latest >/dev/null
-        ;;
     nakedret)
         go install github.com/alexkohler/nakedret@v1.0.1 >/dev/null
         ;;
@@ -96,7 +90,6 @@ tool_configure() {
             export PATH=/usr/lib/go-1.18/bin:"${PATH}"
         fi
         ;;
-    ineffassign) ;&   # fallthrough
     nakedret) ;&      # fallthrough
     misspell) ;&      # fallthrough
     shellcheck) ;&    # fallthrough
@@ -424,16 +417,6 @@ if [ "$STATIC" = 1 ]; then
             xargs -0 misspell -error -i "$MISSPELL_IGNORE"
     else
         echo ">> Skipping spelling check"
-    fi
-
-    if [ -z "${SKIP_INEFFASSIGN:-}" ] && command -v ineffassign >/dev/null; then
-        if dpkg --compare-versions "$(go version | awk '$3 ~ /^go[0-9]/ {print substr($3, 3)}')" ge 1.12; then
-            echo ">> [Go] Checking for ineffective assignments"
-            # ineffassign knows about ignoring vendor/ \o/
-            ineffassign ./...
-        fi
-    else
-        echo ">> [Go] Skipping ineffective assignments check"
     fi
 
     echo ">> [Go] Checking for naked returns"
