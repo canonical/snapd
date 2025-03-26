@@ -317,11 +317,11 @@ func (tr *tree20) writeAssertions(db asserts.RODatabase, modelRefs []*asserts.Re
 	modelOnly := func(aRef *asserts.Ref) bool { return aRef.Type == asserts.ModelType }
 	excludeModel := func(aRef *asserts.Ref) bool { return aRef.Type != asserts.ModelType }
 
-	modelRefsGen := func(include func(*asserts.Ref) bool) func(stop <-chan struct{}) <-chan *asserts.Ref {
+	modelRefsGen := func(writeRefs []*asserts.Ref, include func(*asserts.Ref) bool) func(stop <-chan struct{}) <-chan *asserts.Ref {
 		return func(stop <-chan struct{}) <-chan *asserts.Ref {
 			refs := make(chan *asserts.Ref)
 			go func() {
-				for _, aRef := range modelRefs {
+				for _, aRef := range writeRefs {
 					if include(aRef) {
 						if !pushRef(refs, aRef, stop) {
 							return
@@ -334,12 +334,18 @@ func (tr *tree20) writeAssertions(db asserts.RODatabase, modelRefs []*asserts.Re
 		}
 	}
 
-	if err := writeByRefs("../model", modelRefsGen(modelOnly)); err != nil {
+	if err := writeByRefs("../model", modelRefsGen(modelRefs, modelOnly)); err != nil {
 		return err
 	}
 
-	if err := writeByRefs("model-etc", modelRefsGen(excludeModel)); err != nil {
+	if err := writeByRefs("model-etc", modelRefsGen(modelRefs, excludeModel)); err != nil {
 		return err
+	}
+
+	if len(extraRefs) != 0 {
+		if err := writeByRefs("extra-assertions", modelRefsGen(extraRefs, excludeModel)); err != nil {
+			return err
+		}
 	}
 
 	snapsRefGen := func(snaps []*SeedSnap) func(stop <-chan struct{}) <-chan *asserts.Ref {

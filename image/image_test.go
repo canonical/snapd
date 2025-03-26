@@ -5495,11 +5495,8 @@ func (s *imageSuite) TestPrepareExtraAssertions(c *C) {
 	// check assertions
 	seedAssertsDir := filepath.Join(preparedir, "image/var/lib/snapd/seed/assertions")
 
-	_, err = os.Open(filepath.Join(seedAssertsDir, "my-proxy-store.store"))
-	c.Assert(err, IsNil)
-
-	_, err = os.Open(filepath.Join(seedAssertsDir, "other-brand.account"))
-	c.Assert(err, IsNil)
+	c.Assert(filepath.Join(seedAssertsDir, "my-proxy-store.store"), testutil.FilePresent)
+	c.Assert(filepath.Join(seedAssertsDir, "other-brand.account"), testutil.FilePresent)
 }
 
 func (s *imageSuite) TestPrepareExtraAssertionsFileNotFound(c *C) {
