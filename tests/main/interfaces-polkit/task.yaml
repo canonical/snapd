@@ -38,26 +38,28 @@ execute: |
     fi
 
     echo "Install the test snap"
-    "$TESTSTOOLS"/snaps-state install-local test-snapd-pk-service
+    snap install --edge test-snapd-polkit
+
+    snap_mount_dir="$(os.paths snap-mount-dir)"
 
     # Run policy checks only on classic because /usr/share/polkit-1/actions is not writable on Ubuntu Core.
     if ! os.query is-core; then
         echo "Test polkit actions"
 
         echo "The polkit-action plug is disconnected by default"
-        snap connections test-snapd-pk-service | MATCH "polkit +test-snapd-pk-service:polkit-action +- +-"
+        snap connections test-snapd-polkit | MATCH "polkit +test-snapd-polkit:polkit-action +- +-"
 
         echo "The polkit policy file is not installed"
-        test ! -f /usr/share/polkit-1/actions/snap.test-snapd-pk-service.interface.polkit-action.foo.policy
+        test ! -f /usr/share/polkit-1/actions/snap.test-snapd-polkit.interface.polkit-action.foo.policy
 
         echo "The polkit-action plug can be connected"
-        snap connect test-snapd-pk-service:polkit-action
-        snap connections test-snapd-pk-service | MATCH "polkit +test-snapd-pk-service:polkit-action +:polkit +manual"
+        snap connect test-snapd-polkit:polkit-action
+        snap connections test-snapd-polkit | MATCH "polkit +test-snapd-polkit:polkit-action +:polkit +manual"
 
         echo "Snapd has installed the policy file for the service"
-        test -f /usr/share/polkit-1/actions/snap.test-snapd-pk-service.interface.polkit-action.foo.policy
+        test -f /usr/share/polkit-1/actions/snap.test-snapd-polkit.interface.polkit-action.foo.policy
         echo "The contents match the file provided by the snap"
-        cmp /usr/share/polkit-1/actions/snap.test-snapd-pk-service.interface.polkit-action.foo.policy ./test-snapd-pk-service/meta/polkit/polkit-action.foo.policy
+        cmp /usr/share/polkit-1/actions/snap.test-snapd-polkit.interface.polkit-action.foo.policy "$snap_mount_dir"/test-snapd-polkit/current/meta/polkit/polkit-action.foo.policy
 
         echo "Create a non-privileged process, and get its pid"
         tests.session -u test exec systemd-run --user --unit test-snapd-sleep.service sh -c 'touch /home/test/sleep.stamp && exec sleep 1h'
@@ -65,9 +67,9 @@ execute: |
         user_pid=$(tests.session -u test exec systemctl --user show --property=MainPID test-snapd-sleep.service | cut -d = -f 2)
 
         echo "The snap can talk to polkitd"
-        test-snapd-pk-service.check-pid "$user_pid" org.example.foo.AlwaysAllow \
+        test-snapd-polkit.check-pid "$user_pid" org.example.foo.AlwaysAllow \
             | MATCH '^\(bba\{ss\}\) true false '
-        test-snapd-pk-service.check-pid "$user_pid" org.example.foo.AlwaysDeny \
+        test-snapd-polkit.check-pid "$user_pid" org.example.foo.AlwaysDeny \
             | MATCH '^\(bba\{ss\}\) false false '
     fi
 
@@ -77,17 +79,17 @@ execute: |
         echo "Test polkit rules installation"
 
         echo "The polkit-rule plug is disconnected by default"
-        snap connections test-snapd-pk-service | MATCH "polkit +test-snapd-pk-service:polkit-rule +- +-"
+        snap connections test-snapd-polkit | MATCH "polkit +test-snapd-polkit:polkit-rule +- +-"
 
         echo "The polkit rule file is not installed"
-        test ! -f /etc/polkit-1/rules.d/70-snap.test-snapd-pk-service.polkit-rule.bar.rules
+        test ! -f /etc/polkit-1/rules.d/70-snap.test-snapd-polkit.polkit-rule.bar.rules
 
         echo "The polkit-rule plug can be connected"
-        snap connect test-snapd-pk-service:polkit-rule
-        snap connections test-snapd-pk-service | MATCH "polkit +test-snapd-pk-service:polkit-rule +:polkit +manual"
+        snap connect test-snapd-polkit:polkit-rule
+        snap connections test-snapd-polkit | MATCH "polkit +test-snapd-polkit:polkit-rule +:polkit +manual"
 
         echo "Snapd has installed the rule file for the service"
-        test -f /etc/polkit-1/rules.d/70-snap.test-snapd-pk-service.polkit-rule.bar.rules
+        test -f /etc/polkit-1/rules.d/70-snap.test-snapd-polkit.polkit-rule.bar.rules
         echo "The contents match the file provided by the snap"
-        cmp /etc/polkit-1/rules.d/70-snap.test-snapd-pk-service.polkit-rule.bar.rules ./test-snapd-pk-service/meta/polkit/polkit-rule.bar.rules
+        cmp /etc/polkit-1/rules.d/70-snap.test-snapd-polkit.polkit-rule.bar.rules "$snap_mount_dir"/test-snapd-polkit/current/meta/polkit/polkit-rule.bar.rules
     fi
