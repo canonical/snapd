@@ -57,7 +57,7 @@ tool_install() {
     golangci-lint)
         # Decided to start using latest instead of pinning specific version, if this approach
         # introduces too much instability, revert back to pinning a working version.
-        go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest >/dev/null
+        go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.0.2 >/dev/null
         ;;
     go) ;&         # fallthrough
     shellcheck) ;& # fallthrough
