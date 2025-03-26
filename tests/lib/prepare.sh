@@ -967,13 +967,13 @@ EOF
 
     # remove the kernel module from the kernel snap
     rm "$module_path"
-    # depmod wants a lib subdir, fake it and remove after invocation
-    mkdir pc-kernel/lib
+    # depmod wants a lib subdir
+    mkdir -p pc-kernel/lib
     ln -s ../modules pc-kernel/lib/modules
     depmod -b pc-kernel/ "$kern_ver"
-    rm -rf pc-kernel/lib
     # append component meta-information
-    printf 'components:\n  %s:\n    type: kernel-modules\n' "$comp_name" >> pc-kernel/meta/snap.yaml
+    snap install yq
+    COMP_NAME="${comp_name}" yq '.components = {env(COMP_NAME):{"type":"kernel-modules"}}' -i pc-kernel/meta/snap.yaml
 }
 
 uc24_build_initramfs_kernel_snap() {
