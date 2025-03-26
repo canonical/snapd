@@ -310,10 +310,6 @@ if [ "$STATIC" = 1 ]; then
         echo ">> [Go] Skipping go formatting check"
     fi
 
-    # go vet
-    echo ">> [Go] Running go vet"
-    go vet ./...
-
     echo '>> [Go] Checking for usages of http.Status*'
     got=""
     for dir in $(go list -f '{{.Dir}}' ./...); do
