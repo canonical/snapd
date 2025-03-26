@@ -172,14 +172,14 @@ type serviceSnippetIface struct {
 
 	sanitizerErr error
 
-	snips []string
+	snips []interfaces.PlugServiceSnippet
 }
 
 func (ssi serviceSnippetIface) BeforePreparePlug(plug *snap.PlugInfo) error {
 	return ssi.sanitizerErr
 }
 
-func (ssi serviceSnippetIface) ServicePermanentPlug(plug *snap.PlugInfo) []string {
+func (ssi serviceSnippetIface) ServicePermanentPlug(plug *snap.PlugInfo) []interfaces.PlugServiceSnippet {
 	return ssi.snips
 }
 
@@ -188,7 +188,10 @@ func (s *CoreSuite) TestPermanentPlugServiceSnippets(c *C) {
 	// builtin package which set ByName to a real implementation
 	ssi := serviceSnippetIface{
 		simpleIface: simpleIface{name: "mock-service-snippets"},
-		snips:       []string{"foo1", "foo2"},
+		snips: []interfaces.PlugServiceSnippet{
+			{interfaces.PlugServiceSnippetServiceSection, "foo1"},
+			{interfaces.PlugServiceSnippetUnitSection, "foo2"},
+		},
 	}
 	r := builtin.MockInterface(ssi)
 	defer r()
@@ -208,7 +211,10 @@ plugs:
 
 	snips, err := interfaces.PermanentPlugServiceSnippets(iface, plug)
 	c.Assert(err, IsNil)
-	c.Assert(snips, DeepEquals, []string{"foo1", "foo2"})
+	c.Assert(snips, DeepEquals, []interfaces.PlugServiceSnippet{
+		{interfaces.PlugServiceSnippetServiceSection, "foo1"},
+		{interfaces.PlugServiceSnippetUnitSection, "foo2"},
+	})
 }
 
 func (s *CoreSuite) TestPermanentPlugServiceSnippetsSanitizesPlugs(c *C) {

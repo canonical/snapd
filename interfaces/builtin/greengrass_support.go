@@ -400,7 +400,7 @@ mknod - |S_IFCHR -
 mknodat - - |S_IFCHR -
 `
 
-func (iface *greengrassSupportInterface) ServicePermanentPlug(plug *snap.PlugInfo) []string {
+func (iface *greengrassSupportInterface) ServicePermanentPlug(plug *snap.PlugInfo) []interfaces.PlugServiceSnippet {
 	var flavor string
 	_ = plug.Attr("flavor", &flavor)
 
@@ -412,7 +412,10 @@ func (iface *greengrassSupportInterface) ServicePermanentPlug(plug *snap.PlugInf
 		return nil
 	}
 
-	return []string{"Delegate=true"}
+	return []interfaces.PlugServiceSnippet{{
+		Section: interfaces.PlugServiceSnippetServiceSection,
+		Content: "Delegate=true",
+	}}
 }
 
 func (iface *greengrassSupportInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {

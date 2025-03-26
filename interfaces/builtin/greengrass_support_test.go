@@ -263,10 +263,10 @@ func (s *GreengrassSupportInterfaceSuite) TestPermanentSlotAppArmorSessionClassi
 func (s *GreengrassSupportInterfaceSuite) TestPermanentPlugServiceSnippets(c *C) {
 	for _, t := range []struct {
 		plug *snap.PlugInfo
-		exp  []string
+		exp  []interfaces.PlugServiceSnippet
 	}{
-		{s.plugInfo, []string{"Delegate=true"}},
-		{s.containerModePlugInfo, []string{"Delegate=true"}},
+		{s.plugInfo, []interfaces.PlugServiceSnippet{{Section: "service", Content: "Delegate=true"}}},
+		{s.containerModePlugInfo, []interfaces.PlugServiceSnippet{{Section: "service", Content: "Delegate=true"}}},
 		// the process-mode or no-container plug doesn't get Delegate=true
 		{s.processModePlugInfo, nil},
 	} {

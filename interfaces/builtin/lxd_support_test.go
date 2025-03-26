@@ -180,5 +180,5 @@ func (s *LxdSupportInterfaceSuite) TestInterfaces(c *C) {
 func (s *LxdSupportInterfaceSuite) TestServicePermanentPlugSnippets(c *C) {
 	snips, err := interfaces.PermanentPlugServiceSnippets(s.iface, s.plugInfo)
 	c.Assert(err, IsNil)
-	c.Check(snips, DeepEquals, []string{"Delegate=true"})
+	c.Check(snips, DeepEquals, []interfaces.PlugServiceSnippet{{Section: "service", Content: "Delegate=true"}})
 }

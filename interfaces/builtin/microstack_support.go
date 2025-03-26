@@ -19,6 +19,8 @@
 
 package builtin
 
+import "github.com/snapcore/snapd/interfaces"
+
 /*
  * Microstack is a full OpenStack in a single snap package.
  * Virtual machines are spawned as QEMU processes with libvirt acting as a management
@@ -225,6 +227,11 @@ mknod - |S_IFBLK -
 mknodat - - |S_IFBLK -
 `
 
+var microstackSupportServiceSnippet = interfaces.PlugServiceSnippet{
+	Section: interfaces.PlugServiceSnippetServiceSection,
+	Content: "Delegate=true",
+}
+
 type microStackInterface struct {
 	commonInterface
 }
@@ -257,6 +264,6 @@ func init() {
 		connectedPlugAppArmor:    microStackSupportConnectedPlugAppArmor,
 		connectedPlugSecComp:     microStackSupportConnectedPlugSecComp,
 		connectedPlugKModModules: microStackSupportConnectedPlugKmod,
-		serviceSnippets:          []string{`Delegate=true`},
+		serviceSnippets:          []interfaces.PlugServiceSnippet{microstackSupportServiceSnippet},
 	}})
 }
