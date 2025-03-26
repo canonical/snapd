@@ -6,7 +6,7 @@ after_non_nested_task() {
     local task_dir="${write_dir}/${SPREAD_JOB//\//--}"
     mkdir -p "$write_dir"
     mkdir -p "$task_dir"
-    "$TESTSTOOLS"/journal-state get-log -u snapd --no-pager --output cat > "$task_dir"/journal.txt
+    "$TESTSTOOLS"/journal-state get-log --no-pager --output cat | grep '"TRACE"' > "$task_dir"/journal.txt
     cp /var/lib/snapd/state.json "$task_dir"
 }
 
@@ -16,7 +16,7 @@ after_nested_task() {
     mkdir -p "$write_dir"
     mkdir -p "$task_dir"
 
-    "$TESTSTOOLS"/remote.exec "sudo journalctl -u snapd --no-pager --output cat" > "$task_dir"/journal.txt
+    "$TESTSTOOLS"/remote.exec "sudo journalctl --no-pager --output cat | grep '\"TRACE\"'" > "$task_dir"/journal.txt
     "$TESTSTOOLS"/remote.exec "sudo chmod 777 /var/lib/snapd/state.json"
     "$TESTSTOOLS"/remote.pull "/var/lib/snapd/state.json" "$task_dir"
 }
