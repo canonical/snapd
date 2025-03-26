@@ -48,6 +48,14 @@ execute: |
         skip='SKIP_GOFMT=1'
     fi
 
+    if os.query is-xenial || os.query is-trusty || os.query is-bionic || os.query is-focal || ! os.query is-ubuntu; then
+        skip="${skip:-} SKIP_MISSPELL=1 SKIP_INEFFASSIGN=1"
+    fi
+
+    if [[ -n "${SKIP_NAKEDRET:-}" ]]; then
+        skip="${skip:-} SKIP_NAKEDRET=1"
+    fi
+
     # golangci-lint checks are system agnostic and were already checked in the github
     # test workflow static checks. They can therefore be safely skipped here.
     skip="${skip:-} SKIP_GOLANGCI_LINT=1"

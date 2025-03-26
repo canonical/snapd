@@ -465,16 +465,38 @@ if [ "$STATIC" = 1 ]; then
             fi
         fi
 
-        # Check whether golangci-lint was built with go version >= the installed go version
-        gcil_go_ver=$(golangci-lint --version | grep -o 'go[0-9]*\.[0-9]*\.[0-9]*' | cut -c 3-)
-        go_ver=$(go version | grep -o 'go[0-9]*\.[0-9]*\.[0-9]*' | cut -c 3-)
-        if [ "$(printf '%s\n' "$go_ver" "$gcil_go_ver" | sort -V | head -n1)" != "$go_ver" ]; then
-            echo "WARNING: Your go version ($go_ver) is greater than the version of go that golangci-lint was built with ($gcil_go_ver)."
+        # only linters can be disabled, formatters require configuration change
+        disable=""
+        if [ -n "${SKIP_INEFFASSIGN:-}" ]; then
+            disable+=" ineffassign"
+        fi
+        if [ -n "${SKIP_MISSPELL:-}" ]; then
+            disable+=" misspell"
+        fi
+        if [ -n "${SKIP_NAKEDRET:-}" ]; then
+            disable+=" nakedret"
         fi
 
-        # don't run with --new-from-rev as the diff might not be enough to tell
-        # the change introduces problems (e.g., removing the last call to a function)
-        golangci-lint --path-prefix= run
+        enabled=$(golangci-lint linters | awk '
+        /^Enabled by your configuration linters:/ { in_section=1; next }
+        /^Disabled by your configuration linters:/ { in_section=0 }
+        in_section && NF {
+        sub(/:.*/, "", $1)
+        linters = linters ? linters "," $1 : $1
+        }
+        END { print linters }')
+
+        echo ">> [Go] Enabled golangci-lint linters: $enabled"
+
+        if [ -n "${disable:-}" ]; then
+            disable="$(echo "$disable" | sed 's/^ *//' | tr ' ' ',')"
+            echo ">> [Go] Disabling the following golangci-lint linters on request: $disable"
+            golangci-lint --path-prefix= run --disable "$disable"
+        else
+            # don't run with --new-from-rev as the diff might not be enough to tell
+            # the change introduces problems (e.g., removing the last call to a function)
+            golangci-lint --path-prefix= run
+        fi
     else
         echo ">> [Go] Skipping golangci-lint check"
     fi
