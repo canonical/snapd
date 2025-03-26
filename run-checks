@@ -56,15 +56,6 @@ tool_configure() {
     local tool=$1
     case "$tool" in
     go)
-        # add workaround for https://github.com/golang/go/issues/24449
-        if [ "$(uname -m)" = "s390x" ]; then
-            if go version | grep -q go1.10; then
-                echo "covermode 'atomic' crashes on s390x with go1.10, reseting"
-                echo "to 'set'. see https://github.com/golang/go/issues/24449"
-                COVERMODE="set"
-            fi
-        fi
-
         # If GOPATH is set in the shell environment, the path will be reflected
         # in $(go env GOPATH). If no shell path was set, Go will default the internal
         # GOPATH to $HOME/go. Note that GOPATH may contain a colon delimited set
@@ -74,8 +65,9 @@ tool_configure() {
         export PATH="$PATH:$GOBINS"
 
         # when *not* running inside github, and go-1.18 is available, use it
-        if [ -z "${GITHUB_WORKFLOW:-}" ] && [ -e "/usr/lib/go-1.18/bin" ]; then
+        if [ "${CI:-}" != "true" ] && [ -e "/usr/lib/go-1.18/bin" ]; then
             export PATH=/usr/lib/go-1.18/bin:"${PATH}"
+	    echo "WARNING: Forcing the use of Go 1.18 (preferred version for this project)" >&2
         fi
         ;;
     shellcheck) ;&    # fallthrough
@@ -96,27 +88,27 @@ install_conf_show_tool() {
 
     echo ">> Depends on \"$tool\""
 
-    if [ "$auto_install" = "1" ] && ! command -v "$tool" >/dev/null; then # ignore-tool
+    if [ "$auto_install" -eq 1 ] && ! command -v "$tool" >/dev/null; then # ignore-tool
         if ! tool_install "$tool"; then
-            echo "WARNING: Cannot install tool $tool"
+            echo "WARNING: Cannot install tool $tool" >&2
         fi
     fi
 
     if ! executable=$(command -v "$tool"); then # ignore-tool
-        if [ "$ignore_missing" != "1" ]; then
-            echo "ERROR: Tool $tool is not available"
+        if [ "$ignore_missing" -ne 1 ]; then
+            echo "ERROR: Tool $tool is not available" >&2
             return 1
         else
-            echo "WARNING: Tool $tool is not available"
+            echo "WARNING: Tool $tool is not available" >&2
         fi
     else
         if ! tool_configure "$tool"; then
-            echo "ERROR: Cannot configure $tool"
+            echo "ERROR: Cannot configure $tool" >&2
             return 1
         fi
 
         if ! version=$(tool_version "$tool"); then
-            echo "ERROR: Cannot retrieve version of $tool"
+            echo "ERROR: Cannot retrieve version of $tool" >&2
             return 1
         else
             echo "Version: $version"
@@ -130,7 +122,7 @@ verify_tools() {
     local ignore_missing=$2
 
     # find tool dependencies but ignore those marked with `# check-tools-ignore`
-    tools=$(grep -v '# ignore-tool' "$this_file" | grep -oP 'command -v \K[\w-]+' | sort | uniq)
+    tools=$(grep -v '# ignore-tool' "$this_file" | grep -oP 'command -v \K[\w-]+' | sort -u)
 
     # check go first that includes setting up go paths required to find or install
     # other go based tools, error early when missing
@@ -170,8 +162,8 @@ missing_interface_spread_test() {
         dedicated_test=$(find tests/main/ -maxdepth 1 -name "interfaces-$iface")
         if [ -n "$dedicated_test" ]; then
             if grep -q "$search" "$snap_yaml"; then
-                echo "Dedicated test '$dedicated_test' found for '$iface'."
-                echo "Please remove '$iface' from '$snap_yaml'."
+                echo "Dedicated test '$dedicated_test' found for '$iface'." >&2
+                echo "Please remove '$iface' from '$snap_yaml'." >&2
                 exit 1
             fi
             # dedicated test already exists, skip high-level test check below
@@ -180,10 +172,10 @@ missing_interface_spread_test() {
 
         # check if high-level minimal test exists for interface
         if ! grep -q "$search" "$snap_yaml"; then
-            echo "Missing high-level test for interface '$iface'. Please add to:"
-            echo "* $snap_yaml"
-            echo "* $core_snap_yaml (if needed)"
-            echo "* $classic_snap_yaml (if needed)"
+            echo "Missing high-level test for interface '$iface'. Please add to:" >&2
+            echo "* $snap_yaml" >&2
+            echo "* $core_snap_yaml (if needed)" >&2
+            echo "* $classic_snap_yaml (if needed)" >&2
             exit 1
         fi
     done
@@ -299,8 +291,8 @@ if [ "$STATIC" = 1 ]; then
     done
 
     if [ -n "$got" ]; then
-        echo 'Usages of http.Status*, we prefer the numeric values directly:'
-        echo "$got"
+        echo 'Usages of http.Status*, we prefer the numeric values directly:' >&2
+        echo "$got" >&2
         exit 1
     fi
 
@@ -315,8 +307,8 @@ if [ "$STATIC" = 1 ]; then
     done
 
     if [ -n "$got" ]; then
-        echo 'Direct usages of math/rand, we prefer randutil:'
-        echo "$got"
+        echo 'Direct usages of math/rand, we prefer randutil:' >&2
+        echo "$got" >&2
         exit 1
     fi
 
@@ -331,8 +323,8 @@ if [ "$STATIC" = 1 ]; then
     done
 
     if [ -n "$got" ]; then
-        echo 'Found usages of deprecated io/ioutil, please use "io" or "os" equivalents'
-        echo "$got"
+        echo 'Found usages of deprecated io/ioutil, please use "io" or "os" equivalents' >&2
+        echo "$got" >&2
         exit 1
     fi
 
@@ -366,9 +358,9 @@ if [ "$STATIC" = 1 ]; then
 
         regexp='GOPATH(?!%%:\*)(?!:)[^= ]*/'
         if grep -qPr --exclude HACKING.md --exclude 'Makefile.*' --exclude-dir .git --exclude-dir vendor "$regexp"; then
-            echo "Using GOPATH as if it were a single entry and not a list:"
+            echo "Using GOPATH as if it were a single entry and not a list:" >&2
             grep -PHrn -C1 --color=auto --exclude HACKING.md --exclude 'Makefile.*' --exclude-dir .git --exclude-dir vendor "$regexp"
-            echo "Use GOHOME, or {GOPATH%%:*}, instead."
+            echo "Use GOHOME, or {GOPATH%%:*}, instead." >&2
             exit 1
         fi
         unset regexp
@@ -399,8 +391,8 @@ if [ "$STATIC" = 1 ]; then
     badmultiline=$(find tests -name 'task.yaml' -print0 -o -name 'spread.yaml' -print0 |
         xargs -0 grep -R -n -E '(restore*|prepare*|execute|debug):\s*$' || true)
     if [ -n "$badmultiline" ]; then
-        echo "Incorrect multiline strings at the following locations:"
-        echo "$badmultiline"
+        echo "Incorrect multiline strings at the following locations:" >&2
+        echo "$badmultiline" >&2
         exit 1
     fi
 
@@ -408,8 +400,8 @@ if [ "$STATIC" = 1 ]; then
     badMATCH=$(find tests -name 'task.yaml' -print0 -o -name 'spread.yaml' -print0 |
         xargs -0 grep -R -n -E 'MATCH +-v' || true)
     if [ -n "$badMATCH" ]; then
-        echo "Potentially incorrect use of MATCH -v at the following locations:"
-        echo "$badMATCH"
+        echo "Potentially incorrect use of MATCH -v at the following locations:" >&2
+        echo "$badMATCH" >&2
         exit 1
     fi
 
@@ -448,8 +440,8 @@ if [ "$STATIC" = 1 ]; then
 
     echo ">> [Go] Checking for usages of !=, == or Equals with ErrNoState"
     if got=$(grep -n -R -E "(\!=|==|Equals,) (state\.)?ErrNoState" --include=*.go); then
-        echo "Don't use equality checks with ErrNoState, use errors.Is() instead"
-        echo "$got"
+        echo "Don't use equality checks with ErrNoState, use errors.Is() instead" >&2
+        echo "$got" >&2
         exit 1
     fi
 
@@ -458,10 +450,10 @@ if [ "$STATIC" = 1 ]; then
         if echo "$gcil" | grep -q '/snap/bin/'; then
             # golangci-lint was installed from the snap
             if snap refresh --list | grep -q golangci-lint; then
-                echo "WARNING: your golangci-lint snap is out of date. The CI will install a fresh version, which may differ from yours."
+                echo "WARNING: your golangci-lint snap is out of date. The CI will install a fresh version, which may differ from yours." >&2
             fi
             if ! snap list golangci-lint | grep -q latest; then
-                echo "WARNING: your golangci-lint snap is not installed from the latest/* channel."
+                echo "WARNING: your golangci-lint snap is not installed from the latest/* channel." >&2
             fi
         fi
 
@@ -507,7 +499,7 @@ if [ "$STATIC" = 1 ]; then
         cd cmd/
         ./autogen.sh
         if ! make fmt-check; then
-            echo "C files are not formatted correctly, run 'make fmt'"
+            echo "C files are not formatted correctly, run 'make fmt'" >&2
             exit 1
         fi
         cd "$current"
@@ -572,7 +564,7 @@ else
     echo "> [Git] Checking for leftover files in git tree"
     UNCLEAN="$(git status -s | grep '^??')" || true
     if [ -n "$UNCLEAN" ]; then
-        cat <<EOF
+        cat >&2 <<EOF
 
 There are files left in the git tree after the tests:
 
@@ -588,7 +580,7 @@ if [ -n "${SKIP_DIRTY_CHECK:-}" ]; then
 fi
 echo "> [Git] Checking for dirty build tree"
 if git describe --always --dirty | grep -q dirty; then
-    echo "Build tree is dirty"
-    git diff
+    echo "Build tree is dirty" >&2
+    git diff >&2
     exit 1
 fi
