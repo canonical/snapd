@@ -96,17 +96,11 @@ func RegisteredSnippetKeys() []string {
 // information which the kernel can then send back to snapd when it sends a
 // message notification.
 //
-// When each metadata tag is registered, it must either be associated with a
-// particular interface or associated with no interface.
-//
-// Once a tag is registered in association with an interface, any attempt to
-// register it in association with a different interface or with no interface
-// at all will result in a panic, though a tag may be re-registered in
-// association with the same interface with which it was originally registered.
-//
-// Likewise, once registered as unassociated with any interface, attempts to
-// re-register the same tag in association with an interface will result in a
-// panic, but the tag may be re-registered as unassociated again.
+// When each metadata tag is registered, it associated with a particular
+// interface. Once registered in association with an interface, any attempt to
+// register it in association with a different interface will result in a panic,
+// though a tag may be repeatedly registered in association with the same
+// interface with which it was originally registered.
 type MetadataTag struct {
 	tag string
 }
@@ -129,48 +123,28 @@ func newMetadataTag(tag string) MetadataTag {
 // unassociated with any interface, its value in the map is "".
 var registeredMetadataTags map[MetadataTag]string = make(map[MetadataTag]string)
 
-const tagUnassociated = ""
-
 // RegisterMetadataTagWithInterface marks the given tag as being associated
 // with the given interface and returns the tag as a MetadataTag. If the tag
-// is already associated with a different interface, or it is explicitly
-// registered as unassociated with any interface, panics with an error.
+// is already associated with a different interface, this function panics.
 func RegisterMetadataTagWithInterface(tag string, iface string) MetadataTag {
 	if iface == "" {
-		logger.Panicf("cannot register metadata tag %q to empty string; use RegisterMetadataTagWithoutInterface instead", tag)
+		logger.Panicf("cannot register metadata tag with missing interface: %q", tag)
 	}
 	metadataTag := newMetadataTag(tag)
 	if val, ok := registeredMetadataTags[metadataTag]; ok && val != iface {
-		if val == tagUnassociated {
-			logger.Panicf("cannot register metadata tag %q to interface %q when it was previously registered as unassociated", tag, iface)
-		} else {
-			logger.Panicf("cannot register metadata tag %q to two different interfaces: %q and %q", tag, val, iface)
-		}
+		logger.Panicf("cannot register metadata tag %q to two different interfaces: %q and %q", tag, val, iface)
 	}
 	registeredMetadataTags[metadataTag] = iface
 	return metadataTag
 }
 
-// RegisterMetadataTagWithoutInterface marks the given tag as being unassociated
-// with any interface and returns the tag as a MetadataTag. If the tag is
-// already associated with an interface, panics with an error.
-func RegisterMetadataTagWithoutInterface(tag string) MetadataTag {
-	metadataTag := newMetadataTag(tag)
-	if val, ok := registeredMetadataTags[metadataTag]; ok && val != tagUnassociated {
-		logger.Panicf("cannot register metadata tag %q as unassociated when it was previously associated with interface %q", tag, val)
-	}
-	registeredMetadataTags[metadataTag] = tagUnassociated
-	return metadataTag
-}
-
 // InterfaceForMetadataTag retrieves the interface associated with the given
 // tag, if the tag was registered as associated with an interface. If the tag
-// was not registered, or was registered as unassociated with any interface,
-// returns false.
+// was not registered, returns false.
 func InterfaceForMetadataTag(tag string) (string, bool) {
 	metadataTag := newMetadataTag(tag)
 	iface, ok := registeredMetadataTags[metadataTag]
-	if !ok || iface == tagUnassociated {
+	if !ok {
 		return "", false
 	}
 	return iface, true
