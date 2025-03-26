@@ -89,6 +89,10 @@ execute: |
 
   lxc launch "ubuntu:20.04" my-ubuntu
 
+  echo "Wait for snapd to be ready in the container"
+  # Otherwise, "Initialize system state" can error and take a while to retry.
+  retry -n 60 --wait 1 sh -c 'lxc exec my-ubuntu -- snap changes | MATCH "Done.*Initialize system state"'
+
   # use a privileged and unconfined lxd container that is close to launchpad
   # builders configuration; this is required for mounting inside the container.
   # based on lxd config created by https://git.launchpad.net/launchpad-buildd/tree/lpbuildd/target/lxd.py
@@ -129,13 +133,6 @@ execute: |
           exit 1
       fi
       lxc file push "$CURRENT_SNAPD_SNAP" "my-ubuntu/$GOHOME/"
-      for iter in $(seq 30); do
-          echo "checking snapd ready in container: iter $iter"
-          if lxc exec my-ubuntu -- sh -c 'snap changes' | MATCH "Done.*Initialize system state"; then
-              break
-          fi
-          sleep 1
-      done
       lxc exec my-ubuntu -- snap install --dangerous "$GOHOME/$CURRENT_SNAPD_SNAP_NAME"
 
       MOUNT_DIR="$(os.paths snap-mount-dir)"
@@ -144,7 +141,7 @@ execute: |
   else
       lxc file push "$SNAP_PRESEED" "my-ubuntu/$GOHOME/"
       lxc exec my-ubuntu -- "$GOHOME"/snap-preseed "$IMAGE_MOUNTPOINT"
-  fi    
+  fi
 
   echo "Precondition check of mount units"
   # preseeded image is mounted on the host, so we can directly inspect
