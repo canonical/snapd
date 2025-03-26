@@ -268,6 +268,15 @@ func (s *GpioChardevInterfaceSuite) TestUDevConnectedPlug(c *C) {
 TAG=="snap_my-device_interface_gpio_chardev_gpio-chardev-good-slot", TAG+="snap_consumer_app"`)
 }
 
+func (s *GpioChardevInterfaceSuite) TestServicePermanentPlugSnippets(c *C) {
+	snips, err := interfaces.PermanentPlugServiceSnippets(s.iface, s.plugInfo)
+	c.Assert(err, IsNil)
+	c.Check(snips, DeepEquals, []interfaces.PlugServiceSnippet{
+		{Section: "unit", Content: "After=snapd.gpio-chardev-setup.target"},
+		{Section: "unit", Content: "Wants=snapd.gpio-chardev-setup.target"},
+	})
+}
+
 func (s *GpioChardevInterfaceSuite) TestStaticInfo(c *C) {
 	si := interfaces.StaticInfoOf(s.iface)
 	c.Assert(si.ImplicitOnCore, Equals, false)
