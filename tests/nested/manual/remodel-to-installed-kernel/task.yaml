@@ -38,6 +38,7 @@ prepare: |
         exit
     fi
 
+    snap install yq
     # although nested_start_core_vm_unit usually installs this, the fake store
     # will already have been set up, so we need to install it here
     snap install test-snapd-swtpm --edge

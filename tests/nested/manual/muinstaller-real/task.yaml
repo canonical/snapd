@@ -39,6 +39,8 @@ prepare: |
       echo "This test needs test keys to be trusted"
       exit
   fi
+  snap install yq
+
   "$TESTSTOOLS"/store-state setup-fake-store "$STORE_DIR"
 
 restore: |

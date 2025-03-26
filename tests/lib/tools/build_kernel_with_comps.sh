@@ -51,7 +51,7 @@ EOF
     depmod -b kernel/ "$kern_ver"
     rm "${kernel_snap_file}"
     # append component meta-information
-    printf 'components:\n  %s:\n    type: kernel-modules\n' "$comp_name" >> kernel/meta/snap.yaml
+    COMP_NAME="${comp_name}" yq '.components = {env(COMP_NAME):{"type":"kernel-modules"}}' -i kernel/meta/snap.yaml
     snap pack --filename="${kernel_snap_file}" kernel
 
     if [ "${use_provided_kernel}" = false ]; then

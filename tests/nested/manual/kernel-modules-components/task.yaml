@@ -17,6 +17,8 @@ environment:
   NESTED_ENABLE_OVMF: true
 
 prepare: |
+  snap install yq
+
   # Modify kernel and create a component
   "$TESTSTOOLS"/build_kernel_with_comps.sh mac80211_hwsim wifi-comp
 
