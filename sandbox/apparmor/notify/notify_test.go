@@ -1,7 +1,9 @@
 package notify_test
 
 import (
+	"encoding/binary"
 	"fmt"
+	"path/filepath"
 	"testing"
 
 	. "gopkg.in/check.v1"
@@ -57,6 +59,9 @@ func (s *notifySuite) TestRegisterFileDescriptor(c *C) {
 
 	var fakeFD uintptr = 1234
 
+	// Check that there's no listener ID currently stored
+	c.Check(filepath.Join(dirs.SnapInterfacesRequestsRunDir, "listener-id"), testutil.FileAbsent)
+
 	ioctlCalls := 0
 	restoreSyscall := notify.MockIoctl(func(fd uintptr, req notify.IoctlRequest, buf notify.IoctlRequestBuffer) ([]byte, error) {
 		c.Assert(fd, Equals, fakeFD)
@@ -87,7 +92,7 @@ func (s *notifySuite) TestRegisterFileDescriptor(c *C) {
 			respBuf := checkIoctlBufferSetFilter(c, buf, notify.ProtocolVersion(3))
 			return respBuf, nil
 		default:
-			c.Fatal("called Ioctl more than twice")
+			c.Fatalf("called Ioctl more than expected: %d (most recent: %v, %v)", ioctlCalls, req, buf)
 			return buf, nil
 		}
 	})
@@ -106,6 +111,12 @@ func (s *notifySuite) TestRegisterFileDescriptor(c *C) {
 	// was returned correctly, though in practice we're testing an edge case
 	// which leaks pendingCount.
 	c.Check(pendingCount, Equals, 789)
+	// Check that there's now a listener ID stored as well
+	if notify.NativeByteOrder == binary.LittleEndian {
+		c.Check(filepath.Join(dirs.SnapInterfacesRequestsRunDir, "listener-id"), testutil.FileEquals, []byte{123, 0, 0, 0, 0, 0, 0, 0})
+	} else {
+		c.Check(filepath.Join(dirs.SnapInterfacesRequestsRunDir, "listener-id"), testutil.FileEquals, []byte{0, 0, 0, 0, 0, 0, 0, 123})
+	}
 }
 
 func checkIoctlBufferRegister(c *C, receivedBuf notify.IoctlRequestBuffer, expectedVersion notify.ProtocolVersion, expectedListenerID, setListenerID uint64, ready uint32, pending uint32) []byte {
@@ -158,6 +169,83 @@ func checkIoctlBufferSetFilter(c *C, receivedBuf notify.IoctlRequestBuffer, expe
 	return receivedBuf
 }
 
+func (s *notifySuite) TestRegisterFileDescriptorLoadsListenerID(c *C) {
+	restoreVersions := notify.MockVersionLikelySupportedChecks(fakeNotifyVersions)
+	defer restoreVersions()
+
+	var (
+		expectedVersion = notify.ProtocolVersion(7)
+
+		fakeFD      uintptr = 1234
+		fakeReady   uint32  = 112
+		fakePending uint32  = 358
+		listenerID  uint64  = 0xf00ba4
+	)
+
+	listenerIDBytes := []byte{0xa4, 0x0b, 0xf0, 0x0, 0x0, 0x0, 0x0, 0x0}
+	if notify.NativeByteOrder == binary.BigEndian {
+		listenerIDBytes = []byte{0x0, 0x0, 0x0, 0x0, 0x0, 0xf0, 0x0b, 0xa4}
+	}
+
+	ioctlCalls := 0
+	restoreSyscall := notify.MockIoctl(func(fd uintptr, req notify.IoctlRequest, buf notify.IoctlRequestBuffer) ([]byte, error) {
+		c.Assert(fd, Equals, fakeFD)
+
+		ioctlCalls++
+
+		// Expect version 7, but we'll be registering listeners twice, so
+		// expect each request twice.
+		switch ioctlCalls {
+		case 1:
+			// v7 APPARMOR_NOTIF_REGISTER first time
+			c.Check(req, Equals, notify.APPARMOR_NOTIF_REGISTER)
+			// Expect listener ID 0, set listener ID, and 0 for ready and pending
+			respBuf := checkIoctlBufferRegister(c, buf, expectedVersion, 0, listenerID, 0, 0)
+			return respBuf, nil
+		case 4:
+			// v7 APPARMOR_NOTIF_REGISTER second time
+			c.Check(req, Equals, notify.APPARMOR_NOTIF_REGISTER)
+			// Expect the saved listener ID, resend it, and some arbitrary
+			// values for ready and pending
+			respBuf := checkIoctlBufferRegister(c, buf, expectedVersion, listenerID, listenerID, fakeReady, fakePending)
+			return respBuf, nil
+		case 2, 5:
+			// v7 APPARMOR_NOTIF_RESEND
+			c.Check(req, Equals, notify.APPARMOR_NOTIF_RESEND)
+			respBuf := checkIoctlBufferResend(c, buf, expectedVersion)
+			return respBuf, nil
+		case 3, 6:
+			// v7 APPARMOR_NOTIF_SET_FILTER
+			c.Check(req, Equals, notify.APPARMOR_NOTIF_SET_FILTER)
+			respBuf := checkIoctlBufferSetFilter(c, buf, expectedVersion)
+			return respBuf, nil
+		default:
+			c.Fatalf("called Ioctl more than expected: %d (most recent: %v, %v)", ioctlCalls, req, buf)
+			return buf, nil
+		}
+	})
+	defer restoreSyscall()
+
+	// Check that there's no listener ID currently stored
+	c.Check(filepath.Join(dirs.SnapInterfacesRequestsRunDir, "listener-id"), testutil.FileAbsent)
+
+	receivedVersion, pendingCount, err := notify.RegisterFileDescriptor(fakeFD)
+	c.Check(err, IsNil)
+	c.Check(receivedVersion, Equals, expectedVersion)
+	c.Check(pendingCount, Equals, 0)
+
+	// Check that there's now a listener ID stored
+	c.Check(filepath.Join(dirs.SnapInterfacesRequestsRunDir, "listener-id"), testutil.FileEquals, listenerIDBytes)
+
+	receivedVersion, pendingCount, err = notify.RegisterFileDescriptor(fakeFD)
+	c.Check(err, IsNil)
+	c.Check(receivedVersion, Equals, expectedVersion)
+	c.Check(pendingCount, Equals, int(fakePending))
+
+	// Check that there's still a listener ID stored
+	c.Check(filepath.Join(dirs.SnapInterfacesRequestsRunDir, "listener-id"), testutil.FileEquals, listenerIDBytes)
+}
+
 func (s *notifySuite) TestRegisterFileDescriptorErrors(c *C) {
 	restoreVersions := notify.MockVersionLikelySupportedChecks(fakeNotifyVersions)
 	defer restoreVersions()
@@ -183,7 +271,7 @@ func (s *notifySuite) TestRegisterFileDescriptorErrors(c *C) {
 			respBuf := checkIoctlBufferSetFilter(c, buf, notify.ProtocolVersion(3))
 			return respBuf, fmt.Errorf("cannot perform IOCTL request %v: %w (%s)", req, unix.EPROTONOSUPPORT, unix.ErrnoName(unix.EPROTONOSUPPORT))
 		default:
-			c.Fatal("called Ioctl more than twice")
+			c.Fatalf("called Ioctl more than expected: %d (most recent: %v, %v)", ioctlCalls, req, buf)
 			return buf, fmt.Errorf("called Ioctl more than twice")
 		}
 	})
@@ -233,7 +321,7 @@ func (s *notifySuite) TestRegisterFileDescriptorErrors(c *C) {
 			respBuf := checkIoctlBufferResend(c, buf, notify.ProtocolVersion(7))
 			return respBuf, fmt.Errorf("cannot perform IOCTL request %v: %w (%s)", req, unix.EINVAL, unix.ErrnoName(unix.EINVAL))
 		default:
-			c.Fatal("called Ioctl more than twice")
+			c.Fatalf("called Ioctl more than expected: %d (most recent: %v, %v)", ioctlCalls, req, buf)
 			return buf, nil
 		}
 	})
@@ -268,7 +356,7 @@ func (s *notifySuite) TestRegisterFileDescriptorErrors(c *C) {
 			respBuf := checkIoctlBufferSetFilter(c, buf, notify.ProtocolVersion(7))
 			return respBuf, fmt.Errorf("cannot perform IOCTL request %v: %w (%s)", req, unix.EINVAL, unix.ErrnoName(unix.EINVAL))
 		default:
-			c.Fatal("called Ioctl more than thrice")
+			c.Fatalf("called Ioctl more than expected: %d (most recent: %v, %v)", ioctlCalls, req, buf)
 			return buf, nil
 		}
 	})
