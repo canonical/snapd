@@ -1718,7 +1718,6 @@ nested_prepare_tools() {
         remote.exec "sudo systemctl stop snapd.socket"
         # start the service (it pulls up the socket)
         remote.exec "sudo systemctl start snapd.service"
-        "$TESTSLIB"/analyze-features.sh --before-nested-task
     fi
 }
 

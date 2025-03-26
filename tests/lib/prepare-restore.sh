@@ -734,12 +734,11 @@ prepare_suite_each() {
         "$TESTSTOOLS"/cleanup-state pre-invariant
     fi
     tests.invariant check
-    "$TESTSLIB"/analyze-features.sh --before-non-nested-task
 }
 
 restore_suite_each() {
     if not tests.nested is-nested; then
-        "$TESTSLIB"/analyze-features.sh --after-non-nested-task
+        "$TESTSLIB"/collect-features.sh --after-non-nested-task
     fi
     local variant="$1"
 
