@@ -972,8 +972,8 @@ EOF
     ln -s ../modules pc-kernel/lib/modules
     depmod -b pc-kernel/ "$kern_ver"
     # append component meta-information
-    snap install yq
-    COMP_NAME="${comp_name}" yq '.components = {env(COMP_NAME):{"type":"kernel-modules"}}' -i pc-kernel/meta/snap.yaml
+    gojq --arg COMP_NAME "${comp_name}" '.components = {env(COMP_NAME):{"type":"kernel-modules"}}' --yaml-input kernel/meta/snap.yaml --yaml-ouput >pc-kernel/meta/snap.yaml.new
+    mv pc-kernel/meta/snap.yaml.new pc-kernel/meta/snap.yaml
 }
 
 uc24_build_initramfs_kernel_snap() {
