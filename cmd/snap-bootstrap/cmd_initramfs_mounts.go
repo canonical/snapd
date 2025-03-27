@@ -1817,11 +1817,20 @@ func mountNonDataPartitionMatchingKernelDisk(dir, fallbacklabel string, opts *sy
 		if err != nil {
 			return err
 		}
-		partition, err := disk.FindMatchingPartitionWithFsLabel(fallbacklabel)
-		if err != nil {
-			return err
+		partuuid, err := bootFindPartitionUUIDForBootedKernelDisk()
+		if err == nil {
+			partition, err := disk.FindMatchingPartitionWithPartUUID(partuuid)
+			if err != nil {
+				return err
+			}
+			partSrc = partition.KernelDeviceNode
+		} else {
+			partition, err := disk.FindMatchingPartitionWithFsLabel(fallbacklabel)
+			if err != nil {
+				return err
+			}
+			partSrc = partition.KernelDeviceNode
 		}
-		partSrc = partition.KernelDeviceNode
 	} else {
 		partuuid, err := bootFindPartitionUUIDForBootedKernelDisk()
 		if err == nil {

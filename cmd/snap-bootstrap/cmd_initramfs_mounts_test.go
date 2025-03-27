@@ -1497,7 +1497,7 @@ func (s *initramfsClassicMountsSuite) TestInitramfsMountsObeyDevLink(c *C) {
 	})
 	defer restoreDiskMapping()
 
-	restore := main.MockPartitionUUIDForBootedKernelDisk("shouldbeignored")
+	restore := main.MockPartitionUUIDForBootedKernelDisk("ubuntu-boot-partuuid")
 	defer restore()
 
 	restore = disks.MockMountPointDisksToPartitionMapping(
@@ -1566,7 +1566,7 @@ func (s *initramfsClassicMountsSuite) TestInitramfsMountsInstallObeyDevLink(c *C
 	})
 	defer restoreDiskMapping()
 
-	restore := main.MockPartitionUUIDForBootedKernelDisk("shouldbeignored")
+	restore := main.MockPartitionUUIDForBootedKernelDisk("ubuntu-seed-partuuid")
 	defer restore()
 
 	restore = disks.MockMountPointDisksToPartitionMapping(

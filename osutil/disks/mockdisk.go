@@ -67,13 +67,13 @@ func (d *MockDiskMapping) FindMatchingPartitionWithPartUUID(uuid string) (Partit
 	osutil.MustBeTestBinary("mock disks only to be used in tests")
 
 	for _, p := range d.Structure {
-		if p.FilesystemUUID == uuid {
+		if p.PartitionUUID == uuid {
 			return p, nil
 		}
 	}
 
 	return Partition{}, PartitionNotFoundError{
-		SearchType:  "filesystem-uuid",
+		SearchType:  "partition-uuid",
 		SearchQuery: uuid,
 	}
 }
