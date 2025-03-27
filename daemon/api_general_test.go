@@ -37,6 +37,7 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/dirs/dirstest"
 	"github.com/snapcore/snapd/features"
+	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/ifacetest"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/configstate/config"
@@ -54,6 +55,10 @@ type generalSuite struct {
 
 func (s *generalSuite) expectSystemInfoReadAccess() {
 	s.expectReadAccess(daemon.InterfaceOpenAccess{Interfaces: []string{"snap-interfaces-requests-control"}})
+}
+
+func (s *generalSuite) expectSystemInfoWriteAccess() {
+	s.expectWriteAccess(daemon.OpenAccess{})
 }
 
 func (s *generalSuite) expectChangesReadAccess() {
@@ -124,8 +129,7 @@ func (s *generalSuite) TestSysInfo(c *check.C) {
 	tr.Commit()
 	st.Unlock()
 
-	// check it only does GET
-	s.checkGetOnly(c, req)
+	s.expectSystemInfoReadAccess()
 
 	rec := httptest.NewRecorder()
 	s.req(c, req, nil).ServeHTTP(rec, nil)
@@ -252,8 +256,7 @@ func (s *generalSuite) TestSysInfoLegacyRefresh(c *check.C) {
 	})
 	c.Assert(err, check.IsNil)
 
-	// check it only does GET
-	s.checkGetOnly(c, req)
+	s.expectSystemInfoReadAccess()
 
 	rec := httptest.NewRecorder()
 	s.req(c, req, nil).ServeHTTP(rec, nil)
@@ -423,6 +426,284 @@ func (s *generalSuite) TestSysInfoWorksDegraded(c *check.C) {
 
 	rsp := s.syncReq(c, req, nil)
 	c.Check(rsp.Status, check.Equals, 200)
+}
+
+func (s *generalSuite) TestSysInfoClientAdviceProceedMatchingKey(c *check.C) {
+	s.expectSystemInfoWriteAccess()
+	s.daemon(c)
+
+	s.AddCleanup(interfaces.MockSystemKey(`
+{
+"build-id": "7a94e9736c091b3984bd63f5aebfc883c4d859e0",
+"apparmor-features": ["caps", "dbus"]
+}`))
+	c.Assert(interfaces.WriteSystemKey(interfaces.SystemKeyExtraData{}), check.IsNil)
+
+	k, err := interfaces.RecordedSystemKey()
+	c.Assert(err, check.IsNil)
+	ks := k.(fmt.Stringer).String()
+
+	b, err := json.Marshal(map[string]string{
+		"action":     "advise-system-key-mismatch",
+		"system-key": ks,
+	})
+	c.Assert(err, check.IsNil)
+	req, err := http.NewRequest("POST", "/v2/system-info", bytes.NewReader(b))
+	c.Assert(err, check.IsNil)
+
+	// no need to start overlord's loop as the key is a match
+	rec := httptest.NewRecorder()
+	s.req(c, req, nil).ServeHTTP(rec, nil)
+	c.Logf("rec: %v", rec)
+	c.Check(rec.Code, check.Equals, 200)
+}
+
+func (s *generalSuite) TestSysInfoClientAdviceAwaitChangeMismatch(c *check.C) {
+	s.expectSystemInfoWriteAccess()
+	d := s.daemon(c)
+	s.AddCleanup(interfaces.MockSystemKey(`
+{
+"build-id": "7a94e9736c091b3984bd63f5aebfc883c4d859e0",
+"apparmor-features": ["caps", "dbus"]
+}`))
+	c.Assert(interfaces.WriteSystemKey(interfaces.SystemKeyExtraData{}), check.IsNil)
+
+	k, err := interfaces.RecordedSystemKey()
+	c.Assert(err, check.IsNil)
+	ks := k.(fmt.Stringer).String()
+
+	// write a changed system key to cause a mismatch so that snapd and client
+	// observe different values
+	s.AddCleanup(interfaces.MockSystemKey(`
+{
+"build-id": "7a94e9736c091b3984bd63f5aebfc883c4d859e0",
+"apparmor-features": ["caps", "dbus", "new-feature"]
+}`))
+	c.Assert(interfaces.WriteSystemKey(interfaces.SystemKeyExtraData{}), check.IsNil)
+
+	b, err := json.Marshal(map[string]string{
+		"action":     "advise-system-key-mismatch",
+		"system-key": ks,
+	})
+	c.Assert(err, check.IsNil)
+	req, err := http.NewRequest("POST", "/v2/system-info", bytes.NewReader(b))
+	c.Assert(err, check.IsNil)
+
+	d.Overlord().Loop()
+	defer d.Overlord().Stop()
+
+	rec := httptest.NewRecorder()
+	s.req(c, req, nil).ServeHTTP(rec, nil)
+	c.Check(rec.Code, check.Equals, 202)
+
+	var body map[string]any
+	err = json.Unmarshal(rec.Body.Bytes(), &body)
+	c.Check(err, check.IsNil)
+	id := body["change"].(string)
+	st := d.Overlord().State()
+	st.Lock()
+	chg := st.Change(id)
+	c.Check(chg.Summary(), check.Equals, `Regenerate security profiles`)
+	st.Unlock()
+	c.Assert(chg, check.NotNil)
+}
+
+func (s *generalSuite) TestSysInfoClientAdviceInternalError(c *check.C) {
+	s.expectSystemInfoWriteAccess()
+	s.daemon(c)
+	s.AddCleanup(interfaces.MockSystemKey(`
+{
+"build-id": "7a94e9736c091b3984bd63f5aebfc883c4d859e0",
+"apparmor-features": ["caps", "dbus"]
+}`))
+	c.Assert(interfaces.WriteSystemKey(interfaces.SystemKeyExtraData{}), check.IsNil)
+	k, err := interfaces.RecordedSystemKey()
+	c.Assert(err, check.IsNil)
+	ks := k.(fmt.Stringer).String()
+
+	// no system key, will cause internal error from ifacestate
+	c.Assert(interfaces.RemoveSystemKey(), check.IsNil)
+
+	b, err := json.Marshal(map[string]string{
+		"action":     "advise-system-key-mismatch",
+		"system-key": ks,
+	})
+	c.Assert(err, check.IsNil)
+	req, err := http.NewRequest("POST", "/v2/system-info", bytes.NewReader(b))
+	c.Assert(err, check.IsNil)
+
+	// no need to start overlord's loop as no change is added
+	rec := httptest.NewRecorder()
+	s.req(c, req, nil).ServeHTTP(rec, nil)
+	c.Check(rec.Code, check.Equals, 500)
+	assertResponseBody(c, rec.Body, map[string]any{
+		"type":        "error",
+		"status-code": float64(500),
+		"status":      "Internal Server Error",
+		"result": map[string]any{
+			"message": `cannot process system key: system-key missing on disk`,
+		},
+	})
+}
+
+func (s *generalSuite) TestSysInfoClientAdviceUnsupportedSystemKey(c *check.C) {
+	s.expectSystemInfoWriteAccess()
+	s.daemon(c)
+	s.AddCleanup(interfaces.MockSystemKey(`
+{
+"version": 999,
+"build-id": "7a94e9736c091b3984bd63f5aebfc883c4d859e0",
+"apparmor-features": ["caps", "dbus"]
+}`))
+	c.Assert(interfaces.WriteSystemKey(interfaces.SystemKeyExtraData{}), check.IsNil)
+	k, err := interfaces.RecordedSystemKey()
+	c.Assert(err, check.IsNil)
+	ks := k.(fmt.Stringer).String()
+
+	// actual snapd system key is of lower version
+	s.AddCleanup(interfaces.MockSystemKey(`
+{
+"version": 11,
+"build-id": "7a94e9736c091b3984bd63f5aebfc883c4d859e0",
+"apparmor-features": ["caps", "dbus"]
+}`))
+	c.Assert(interfaces.WriteSystemKey(interfaces.SystemKeyExtraData{}), check.IsNil)
+
+	b, err := json.Marshal(map[string]string{
+		"action":     "advise-system-key-mismatch",
+		"system-key": ks,
+	})
+	c.Assert(err, check.IsNil)
+	req, err := http.NewRequest("POST", "/v2/system-info", bytes.NewReader(b))
+	c.Assert(err, check.IsNil)
+
+	// no need to start overlord's loop as no change is added
+	rec := httptest.NewRecorder()
+	s.req(c, req, nil).ServeHTTP(rec, nil)
+	c.Check(rec.Code, check.Equals, 400)
+	assertResponseBody(c, rec.Body, map[string]any{
+		"type":        "error",
+		"status-code": float64(400),
+		"status":      "Bad Request",
+		"result": map[string]any{
+			"kind":    "unsupported-system-key-version",
+			"message": "system-key version higher than supported",
+			"value":   "",
+		},
+	})
+}
+
+func (s *generalSuite) TestSysInfoClientAdviceBadRequest(c *check.C) {
+	s.expectSystemInfoWriteAccess()
+	s.daemon(c)
+	s.AddCleanup(interfaces.MockSystemKey(`
+{
+"build-id": "7a94e9736c091b3984bd63f5aebfc883c4d859e0",
+"apparmor-features": ["caps", "dbus"]
+}`))
+	c.Assert(interfaces.WriteSystemKey(interfaces.SystemKeyExtraData{}), check.IsNil)
+
+	b, err := json.Marshal(map[string]string{
+		"action":     "advise-system-key-mismatch",
+		"system-key": "not-a-system-key",
+	})
+	c.Assert(err, check.IsNil)
+	req, err := http.NewRequest("POST", "/v2/system-info", bytes.NewReader(b))
+	c.Assert(err, check.IsNil)
+
+	// no need to start overlord's loop as the key is a match
+	rec := httptest.NewRecorder()
+	s.req(c, req, nil).ServeHTTP(rec, nil)
+	c.Check(rec.Code, check.Equals, 400)
+	assertResponseBody(c, rec.Body, map[string]any{
+		"type":        "error",
+		"status-code": float64(400),
+		"status":      "Bad Request",
+		"result": map[string]any{
+			"message": `cannot decode system key: invalid character 'o' in literal null (expecting 'u')`,
+		},
+	})
+
+	req, err = http.NewRequest("POST", "/v2/system-info", bytes.NewReader([]byte(`{}{}`)))
+	c.Assert(err, check.IsNil)
+
+	// no need to start overlord's loop as the key is a match
+	rec = httptest.NewRecorder()
+	s.req(c, req, nil).ServeHTTP(rec, nil)
+	c.Check(rec.Code, check.Equals, 400)
+	assertResponseBody(c, rec.Body, map[string]any{
+		"type":        "error",
+		"status-code": float64(400),
+		"status":      "Bad Request",
+		"result": map[string]any{
+			"message": `unexpected additional content in request body`,
+		},
+	})
+
+	// no system key at all
+	b, err = json.Marshal(map[string]string{
+		"action": "advise-system-key-mismatch",
+	})
+	c.Assert(err, check.IsNil)
+	req, err = http.NewRequest("POST", "/v2/system-info", bytes.NewReader(b))
+	c.Assert(err, check.IsNil)
+
+	// no need to start overlord's loop as the key is a match
+	rec = httptest.NewRecorder()
+	s.req(c, req, nil).ServeHTTP(rec, nil)
+	c.Check(rec.Code, check.Equals, 400)
+	assertResponseBody(c, rec.Body, map[string]any{
+		"type":        "error",
+		"status-code": float64(400),
+		"status":      "Bad Request",
+		"result": map[string]any{
+			"message": `cannot decode system key: EOF`,
+		},
+	})
+}
+
+func (s *generalSuite) TestSysInfoPostAction(c *check.C) {
+	s.expectSystemInfoWriteAccess()
+	s.daemon(c)
+
+	// unknown action
+	b, err := json.Marshal(map[string]string{
+		"action": "unexpected",
+	})
+	c.Assert(err, check.IsNil)
+	req, err := http.NewRequest("POST", "/v2/system-info", bytes.NewReader(b))
+	c.Assert(err, check.IsNil)
+
+	// no need to start overlord's loop as the key is a match
+	rec := httptest.NewRecorder()
+	s.req(c, req, nil).ServeHTTP(rec, nil)
+	c.Check(rec.Code, check.Equals, 400)
+	assertResponseBody(c, rec.Body, map[string]any{
+		"type":        "error",
+		"status-code": float64(400),
+		"status":      "Bad Request",
+		"result": map[string]any{
+			"message": `unsupported action "unexpected"`,
+		},
+	})
+	// no action at all
+	b, err = json.Marshal(map[string]string{})
+	c.Assert(err, check.IsNil)
+	req, err = http.NewRequest("POST", "/v2/system-info", bytes.NewReader(b))
+	c.Assert(err, check.IsNil)
+
+	// no need to start overlord's loop as the key is a match
+	rec = httptest.NewRecorder()
+	s.req(c, req, nil).ServeHTTP(rec, nil)
+	c.Check(rec.Code, check.Equals, 400)
+	assertResponseBody(c, rec.Body, map[string]any{
+		"type":        "error",
+		"status-code": float64(400),
+		"status":      "Bad Request",
+		"result": map[string]any{
+			"message": `no action`,
+		},
+	})
 }
 
 func setupChanges(st *state.State) []string {
