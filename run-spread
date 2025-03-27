@@ -47,8 +47,25 @@ else
 			touch "${WRITE_DIR}/failed-tests.txt"
 		fi
 
+		featarg=""
+		for feature in ${SPREAD_TAG_FEATURES}; do
+			featarg+="-f $feature "
+		done
+		featdir="${WRITE_DIR}/extracted-tags"
+		mkdir -p "$featdir"
+		for dir in "${WRITE_DIR}/feature-tags"/*/; do
+			if [ -f "${dir}/journal.txt" ] && [ -f "${dir}/state.json" ]; then
+				#shellcheck disable=SC2086
+				./tests/lib/tools/feature_extractor.py \
+					$featarg \
+					--journal "${dir}/journal.txt" \
+					--state "${dir}/state.json" \
+					--output "$featdir/$(basename "${dir}")"
+			fi
+		done
+
 		./tests/lib/compose-features.py \
-			--dir ${WRITE_DIR}/features-artifacts/feature-tags \
+			--dir ${featdir} \
 			--output ${WRITE_DIR}/composed-feature-tags \
 			--failed-tests "$(cat ${WRITE_DIR}/failed-tests.txt)" \
 			--run-attempt "${i}"
