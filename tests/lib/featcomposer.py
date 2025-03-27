@@ -1,14 +1,18 @@
 #!/usr/bin/env python3
 
 import argparse
+from collections import namedtuple
 import json
 import os
 import shutil
 from typing import Any
-import feature_dict
+import features
 
 
-def _parse_file_name(file_name: str) -> tuple[str, str, str, str]:
+SpreadTaskNames = namedtuple('SpreadTaskNames', ['original', 'suite', 'task', 'variant'])
+
+
+def _parse_file_name(file_name: str) -> SpreadTaskNames:
     '''
     Given a file name in the format with double slashes <backend>:<system>:suite--path--task:variant
     and optionally an extension, it returns the original name, the suite name, the task name, 
@@ -19,7 +23,7 @@ def _parse_file_name(file_name: str) -> tuple[str, str, str, str]:
     - variant_name = variant
 
     :param file_name: The file name to parse
-    :returns: A tuple with the original name, the suite name, the task name and the variant name. If variant is not present, it returns None.
+    :returns: A namedtuple with the original name, the suite name, the task name and the variant name. If variant is not present, it returns None.
     '''
     file_name = os.path.splitext(file_name)[0]
     original_name = file_name.replace('--', '/')
@@ -30,33 +34,33 @@ def _parse_file_name(file_name: str) -> tuple[str, str, str, str]:
     if task_name.count(':') == 1:
         variant_name = task_name.split(':')[1]
         task_name = task_name.split(':')[0]
-    return original_name, suite_name, task_name, variant_name
+    return SpreadTaskNames(original_name, suite_name, task_name, variant_name)
 
 
-def _compose_test(dir: str, file: str, failed_tests: str) -> feature_dict.TaskFeatures:
+def _compose_test(dir: str, file: str, failed_tests: str) -> features.TaskFeatures:
     '''
     Creates a dictionary with the features of a test and test information.
     The features are read from the file and the test information is extracted from the file name.
 
     :param dir: The directory where the file is located
     :param file: The file name
-    :param failed_tests: A list of failed tests
+    :param failed_tests: String containing the names of failing tests in any format
     :returns: A dictionary with test information and features
     '''
-    with open(os.path.join(dir, file), 'r') as f:
+    with open(os.path.join(dir, file), 'r', encoding='utf-8') as f:
         original, suite_name, result_name, variant_name = _parse_file_name(
             file)
-        features = feature_dict.TaskFeatures(
+        task_features = features.TaskFeatures(
             suite=suite_name,
             task_name=result_name,
             variant=variant_name,
             success=original not in failed_tests
         )
-        features.update(json.loads(f.read()))
-        return features
+        task_features.update(json.loads(f.read()))
+        return task_features
 
 
-def _compose_env_variables(env_variables: str) -> list[feature_dict.EnvVariables]:
+def _compose_env_variables(env_variables: list[str]) -> list[features.EnvVariables]:
     '''
     Given environment variables in the form of a comma-separated list of key=value,
     it creates a list of dictionaries of [{"name": <env1-name>, "value": <env1-value>}...]
@@ -65,13 +69,16 @@ def _compose_env_variables(env_variables: str) -> list[feature_dict.EnvVariables
     :returns: A list of dictionaries
     '''
     composed = []
-    for env in env_variables.split(',') if env_variables else []:
-        name, value = env.split('=')
-        composed.append(feature_dict.EnvVariables(name = name.strip(), value=value.strip()))
+    for env in env_variables:
+        name, sep, value = env.partition('=')
+        if sep != '=':
+            raise ValueError("Not a key=value pair {}".format(env))
+        composed.append(features.EnvVariables(
+            name=name.strip(), value=value.strip()))
     return composed
 
 
-def compose_system(dir: str, system: str, failed_tests: str = '', env_variables: str = '', scenarios: str = '') -> feature_dict.SystemFeatures:
+def compose_system(dir: str, system: str, failed_tests: str = '', env_variables: list[str] = [], scenarios: list[str] = []) -> features.SystemFeatures:
     '''
     Given a containing directory, a system-identifying string, and other information
     about failed tests, environment variables, and scenarios, it creates a dictionary 
@@ -80,18 +87,18 @@ def compose_system(dir: str, system: str, failed_tests: str = '', env_variables:
 
     :param dir: Directory that contains feature-tagging files
     :param system: Identifying string to select only files with that string
-    :param failed_tests: String containing the names of failing tests
+    :param failed_tests: String containing the names of failing tests in any format
     :param env_variables: Comma-separated string of key=value environment variables
     :param scenarios: Comma-separated string of scenario names
     :returns: Dictionary containing all tests and tests information for the system
     '''
     files = [file for file in os.listdir(
         dir) if system in file and file.count(':') >= 2]
-    return feature_dict.SystemFeatures(
+    return features.SystemFeatures(
         schema_version='0.0.0',
         system=system,
         scenarios=[scenario.strip()
-                   for scenario in scenarios.split(',')] if scenarios else [],
+                   for scenario in scenarios] if scenarios else [],
         env_variables=_compose_env_variables(env_variables),
         tests=[_compose_test(dir, file, failed_tests) for file in files]
     )
@@ -110,7 +117,7 @@ def get_system_list(dir: str) -> set[str]:
             for file in files if file.count(':') >= 2}
 
 
-def _replace_tests(old_json_file: str, new_json_file: str) -> feature_dict.SystemFeatures:
+def _replace_tests(old_json_file: str, new_json_file: str) -> features.SystemFeatures:
     '''
     The new_json_file contains a subset of the tests found in the old_json_file.
     This function leaves not-rerun tests untouched, while replacing old test
@@ -123,9 +130,9 @@ def _replace_tests(old_json_file: str, new_json_file: str) -> feature_dict.Syste
     :returns: dictionary that contains the first run data with rerun tests 
     replaced by the rerun data from the new_json_file
     '''
-    with open(old_json_file, 'r') as f:
+    with open(old_json_file, 'r', encoding='utf-8') as f:
         old_json = json.load(f)
-    with open(new_json_file, 'r') as f:
+    with open(new_json_file, 'r', encoding='utf-8') as f:
         new_json = json.load(f)
     for test in new_json['tests']:
         for old_test in old_json['tests']:
@@ -198,7 +205,7 @@ def replace_old_runs(dir: str, output_dir: str) -> None:
                 f'The rerun {rerun} does not have a corresponding original run')
         tests = _replace_tests(os.path.join(
             dir, original[0]), os.path.join(dir, rerun))
-        with open(os.path.join(output_dir, result_name + '.json'), 'w') as f:
+        with open(os.path.join(output_dir, result_name + '.json'), 'w', encoding='utf-8') as f:
             f.write(json.dumps(tests))
 
     # Search for system test results that had no reruns and
@@ -210,7 +217,7 @@ def replace_old_runs(dir: str, output_dir: str) -> None:
 
 
 def run_attempt_type(value: Any) -> Any:
-    if value is not int or int(value) <= 0:
+    if not isinstance(value, int) or int(value) <= 0:
         raise argparse.ArgumentTypeError(
             f'{value} is invalid. Run attempts are integers and start at 1')
     return value
@@ -242,10 +249,10 @@ if __name__ == '__main__':
                         help='Path to the folder containing json files')
     parser.add_argument('-o', '--output', type=str,
                         help='Output directory', required=True)
-    parser.add_argument('-s', '--scenarios', type=str,
-                        help='Comma-separated list of scenarios', default='')
-    parser.add_argument('-e', '--env-variables', type=str,
-                        help='Comma-separated list of environment variables as key=value', default='')
+    parser.add_argument('-s', '--scenarios', type=str, nargs='*',
+                        help='List of scenarios', default='')
+    parser.add_argument('-e', '--env-variables', type=str, nargs='*',
+                        help='List of environment variables as key=value', default='')
     parser.add_argument('-f', '--failed-tests', type=str,
                         help='List of failed tests', default='')
     parser.add_argument('--run-attempt', type=run_attempt_type, help='''
@@ -269,5 +276,5 @@ if __name__ == '__main__':
     for system in systems:
         composed = compose_system(dir=args.dir, system=system,
                                   failed_tests=args.failed_tests, env_variables=args.env_variables)
-        with open(os.path.join(args.output, system + attempt + '.json'), 'w') as f:
+        with open(os.path.join(args.output, system + attempt + '.json'), 'w', encoding='utf-8') as f:
             json.dump(composed, f)
