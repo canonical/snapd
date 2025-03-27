@@ -156,7 +156,7 @@ func maybeWaitForSecurityProfileRegeneration(cli *client.Client) error {
 	}
 	// check if the security profiles key has changed, if so, we need
 	// to wait for snapd to re-generate all profiles
-	mismatch, _, err := interfaces.SystemKeyMismatch(extraData)
+	mismatch, my, err := interfaces.SystemKeyMismatch(extraData)
 	if err == nil && !mismatch {
 		return nil
 	}
@@ -198,17 +198,42 @@ func maybeWaitForSecurityProfileRegeneration(cli *client.Client) error {
 		}
 	}
 
+	var skey string
+	if s, ok := my.(fmt.Stringer); ok {
+		skey = s.String()
+	} else {
+		return fmt.Errorf("internal error: system key does not implement stringer")
+	}
+
 	logger.Debugf("system key mismatch detected, waiting for snapd to start responding...")
+	logger.Debugf("my system key: %s", skey)
 
 	for i := 0; i < timeout; i++ {
 		// TODO: we could also check cli.Maintenance() here too in case snapd is
 		// down semi-permanently for a refresh, but what message do we show to
 		// the user or what do we do if we know snapd is down for maintenance?
-		if _, err := cli.SysInfo(); err == nil {
-			return nil
-		} else {
-			logger.Debugf("cannot obtain system info: %v", err)
+		act, err := cli.SystemKeyMismatchAdvise(skey)
+		if err == nil {
+			switch act.SuggestedAction {
+			case client.ActionCompatProceed:
+				logger.Debugf("compatibility proceed when interacting with older snapd")
+				return nil
+			case client.ActionProceed:
+				// we're good to go
+				logger.Debugf("continue execution")
+				return nil
+			case client.ActionWaitForChange:
+				// snapd sent us an ID of a change to wait for
+				logger.Debugf("snapd started a regenerate profiles change with ID: %v", act.ChangeID)
+				// TODO wait for actual change
+
+				return nil
+			default:
+				return fmt.Errorf("unexpected, no action")
+			}
 		}
+
+		logger.Debugf("cannot obtain system info: %v", err)
 		// sleep a little bit for good measure
 		time.Sleep(1 * time.Second)
 	}
