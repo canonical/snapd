@@ -119,8 +119,7 @@ func newMetadataTag(tag string) MetadataTag {
 }
 
 // registeredMetadataTags is a mapping from metadata tag to the interface with
-// which it was associated when registered. If the tag was registered as
-// unassociated with any interface, its value in the map is "".
+// which it was associated when registered.
 var registeredMetadataTags map[MetadataTag]string = make(map[MetadataTag]string)
 
 // RegisterMetadataTagWithInterface marks the given tag as being associated
