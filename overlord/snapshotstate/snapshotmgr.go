@@ -85,6 +85,7 @@ func Manager(st *state.State, runner *state.TaskRunner) *SnapshotManager {
 
 // Ensure is part of the overlord.StateManager interface.
 func (mgr *SnapshotManager) Ensure() error {
+	logger.Trace("Ensure", "manager", "snapshotmgr", "func", "Ensure")
 	// process expired snapshots once a day.
 	if time.Now().After(mgr.lastForgetExpiredSnapshotTime.Add(autoExpirationInterval)) {
 		return mgr.forgetExpiredSnapshots()
