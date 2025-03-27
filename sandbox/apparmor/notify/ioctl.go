@@ -109,7 +109,7 @@ func Ioctl(fd uintptr, req IoctlRequest, buf IoctlRequestBuffer) ([]byte, error)
 type IoctlRequest uintptr
 
 // Available ioctl(2) requests for .notify file.
-// Those are not documented beyond the implementeation in the kernel.
+// Those are not documented beyond the implementation in the kernel.
 const (
 	APPARMOR_NOTIF_SET_FILTER  IoctlRequest = 0x4008F800
 	APPARMOR_NOTIF_GET_FILTER  IoctlRequest = 0x8008F801

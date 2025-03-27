@@ -11,6 +11,32 @@ import (
 
 var ErrVersionUnset = errors.New("cannot marshal message without protocol version")
 
+// MsgNotificationGeneric defines the methods which the message types for each
+// mediation class must provide.
+//
+// Many of these methods, including ID, PID, ProcessLabel, and MediationClass,
+// are implemented on MsgNotificationOp, so any struct which embeds a
+// MsgNotificationOp needs only to implement the remaining methods.
+type MsgNotificationGeneric interface {
+	// ID returns the unique ID of the notification message.
+	ID() uint64
+	// PID returns the PID of the process triggering the notification.
+	PID() int32
+	// ProcessLabel returns the AppArmor label of the process triggering the notification.
+	ProcessLabel() string
+	// MediationClass returns the mediation class of the message.
+	MediationClass() MediationClass
+
+	// AllowedDeniedPermissions returns the AppArmor permission masks which
+	// were originally allowed and originally denied by AppArmor rules.
+	AllowedDeniedPermissions() (allowed, denied AppArmorPermission, err error)
+	// SubjectUID returns the UID of the user triggering the notification.
+	SubjectUID() uint32
+	// Name is the identifier of the resource to which access is requested.
+	// For mediation class file, Name is the filepath of the requested file.
+	Name() string
+}
+
 // Message fields are defined as raw sized integer types as the same type may be
 // packed as 16 bit or 32 bit integer, to accommodate other fields in the
 // structure.
@@ -245,9 +271,10 @@ type MsgNotification struct {
 	Signalled uint8
 	// Set NoCache to URESPONSE_NO_CACHE to NOT cache.
 	NoCache uint8
-	// ID is an opaque kernel identifier of the notification message. It must be
-	// repeated in the MsgNotificationResponse if one is sent back.
-	ID uint64
+	// KernelNotificationID is an opaque kernel identifier of the notification
+	// message. It must be repeated in the MsgNotificationResponse if one is
+	// sent back.
+	KernelNotificationID uint64
 	// Error is the error the kernel will return to the application if the
 	// notification is denied.  In version 3, this is ignored in responses.
 	Error int32
@@ -319,18 +346,41 @@ type MsgNotificationResponse struct {
 	// or the notification will result in a denial.
 }
 
-// ResponseForRequest returns a response message for a given request.
-func ResponseForRequest(req *MsgNotification) MsgNotificationResponse {
-	return MsgNotificationResponse{
+// BuildResponse returns a MsgNotificationResponse with the given information.
+func BuildResponse(version ProtocolVersion, id uint64, initiallyAllowed, requested, explicitlyAllowed AppArmorPermission) *MsgNotificationResponse {
+	aaDenyMask := requested.AsAppArmorOpMask()
+	// If permission was originally both allowed and denied in the message,
+	// treat it as initially denied.
+	aaAllowMask := initiallyAllowed.AsAppArmorOpMask() &^ aaDenyMask
+
+	userAllowMask := uint32(0)
+	if explicitlyAllowed != nil {
+		userAllowMask = explicitlyAllowed.AsAppArmorOpMask()
+	}
+
+	// Allow permissions which AppArmor initially allowed, along with those
+	// which were initially denied but the user then explicitly allowed.
+	finalAllow := aaAllowMask | (userAllowMask & aaDenyMask)
+	// Deny permissions which were initially denied and not explicitly allowed
+	// by the user.
+	finalDeny := aaDenyMask &^ userAllowMask
+
+	// Any permissions which are omitted from both the allow and deny fields
+	// will be default denied by the kernel.
+
+	return &MsgNotificationResponse{
 		MsgNotification: MsgNotification{
 			MsgHeader: MsgHeader{
-				Version: req.Version,
+				Version: version,
 			},
-			NotificationType: APPARMOR_NOTIF_RESP,
-			NoCache:          1,
-			ID:               req.ID,
-			Error:            req.Error,
+			NotificationType:     APPARMOR_NOTIF_RESP,
+			NoCache:              1,
+			KernelNotificationID: id,
+			Error:                0, // ignored in response ?
 		},
+		Error: 0, // ignored in response ?
+		Allow: finalAllow,
+		Deny:  finalDeny,
 	}
 }
 
@@ -363,7 +413,7 @@ type msgNotificationOpKernel struct {
 	MsgNotification
 	Allow uint32
 	Deny  uint32
-	Pid   uint32
+	Pid   int32
 	Label uint32
 	Class uint16
 	Op    uint16
@@ -385,7 +435,7 @@ type MsgNotificationOp struct {
 	// the mediation class is AA_CLASS_FILE.
 	Deny uint32
 	// Pid of the process triggering the notification.
-	Pid uint32
+	Pid int32
 	// Label is the apparmor label of the process triggering the notification.
 	Label string
 	// Class of the mediation operation.
@@ -454,6 +504,22 @@ type tagsetHeader struct {
 	TagOffset      uint32
 }
 
+func (msg *MsgNotificationOp) ID() uint64 {
+	return msg.KernelNotificationID
+}
+
+func (msg *MsgNotificationOp) PID() int32 {
+	return msg.Pid
+}
+
+func (msg *MsgNotificationOp) ProcessLabel() string {
+	return msg.Label
+}
+
+func (msg *MsgNotificationOp) MediationClass() MediationClass {
+	return msg.Class
+}
+
 // msgNotificationFileKernelBase (protocol version <5)
 //
 //	struct apparmor_notif_file {
@@ -493,11 +559,11 @@ type MsgNotificationFile struct {
 	SUID uint32
 	// The UID of the owner of the file being accessed.
 	OUID uint32
-	// Name of the file being accessed.
+	// Filename of the file being accessed.
 	// This is the path from the point of view of the process being mediated.
 	// In the future, this should be mapped to the point of view of snapd, but
 	// this is not always possible yet.
-	Name string
+	Filename string
 	// Tagsets maps from permission mask to the ordered list of tags associated
 	// with those permissions. Tagsets requires protocol version 5 or greater.
 	Tagsets map[AppArmorPermission][]string
@@ -546,7 +612,7 @@ func (msg *MsgNotificationFile) unmarshalBase(data []byte) error {
 	// Put everything together.
 	msg.SUID = raw.SUID
 	msg.OUID = raw.OUID
-	msg.Name = name
+	msg.Filename = name
 
 	return nil
 }
@@ -604,7 +670,7 @@ func (msg *MsgNotificationFile) MarshalBinary() ([]byte, error) {
 	raw.NotificationType = msg.NotificationType
 	raw.Signalled = msg.Signalled
 	raw.NoCache = msg.NoCache
-	raw.ID = msg.ID
+	raw.KernelNotificationID = msg.KernelNotificationID
 	raw.Error = msg.Error
 	raw.Allow = msg.Allow
 	raw.Deny = msg.Deny
@@ -614,7 +680,7 @@ func (msg *MsgNotificationFile) MarshalBinary() ([]byte, error) {
 	raw.Op = msg.Op
 	raw.SUID = msg.SUID
 	raw.OUID = msg.OUID
-	raw.Name = packer.packString(msg.Name)
+	raw.Name = packer.packString(msg.Filename)
 
 	if msg.Version >= 5 {
 		raw.Tags = packer.packTagsets(msg.Tagsets)
@@ -631,4 +697,16 @@ func (msg *MsgNotificationFile) MarshalBinary() ([]byte, error) {
 		return nil, err
 	}
 	return msgBuf.Bytes(), nil
+}
+
+func (msg *MsgNotificationFile) AllowedDeniedPermissions() (allowed, denied AppArmorPermission, err error) {
+	return msg.DecodeFilePermissions()
+}
+
+func (msg *MsgNotificationFile) SubjectUID() uint32 {
+	return msg.SUID
+}
+
+func (msg *MsgNotificationFile) Name() string {
+	return msg.Filename
 }
