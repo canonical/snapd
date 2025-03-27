@@ -1614,15 +1614,15 @@ suites:
     tests/cross-distro-reexec/:
         summary: Cross-distro reeexec
         systems:
-          - arch-linux-*
-          - opensuse-*
-          - amazon-linux-2-*
-          - amazon-linux-2023-*
-          - fedora-*
-          - centos-*
+            - arch-linux-*
+            - opensuse-*
+            - amazon-linux-2-*
+            - amazon-linux-2023-*
+            - fedora-*
+            - centos-*
         environment:
-          # enable snap rexec
-          SNAP_REEXEC: "1"
+            # enable snap rexec
+            SNAP_REEXEC: "1"
         prepare: |
             "$TESTSLIB"/prepare-restore.sh --prepare-suite
         prepare-each: |
