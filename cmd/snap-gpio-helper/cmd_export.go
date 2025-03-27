@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/snapcore/snapd/gadget/device"
 	"github.com/snapcore/snapd/strutil"
 )
 
@@ -38,8 +39,8 @@ type cmdExportChardev struct {
 
 func (c *cmdExportChardev) Execute(args []string) error {
 	chipLabels := strings.Split(c.Args.ChipLabels, ",")
-	filter := func(chip GPIOChardev) bool {
-		return strutil.ListContains(chipLabels, chip.Label())
+	filter := func(chip *device.GPIOChardev) bool {
+		return strutil.ListContains(chipLabels, chip.Label)
 	}
 	chips, err := findChips(filter)
 	if err != nil {

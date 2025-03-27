@@ -31,7 +31,7 @@ import (
 	"golang.org/x/sys/unix"
 
 	"github.com/snapcore/snapd/dirs"
-	"github.com/snapcore/snapd/gadget"
+	"github.com/snapcore/snapd/gadget/device"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/inotify"
 	"github.com/snapcore/snapd/strutil"
@@ -58,8 +58,9 @@ var lockAggregator = func() (unlocker func(), err error) {
 }
 
 var aggregatorCreationTimeout = 120 * time.Second
+var deviceGetGpioChardevChipInfo = device.GetGpioChardevChipInfo
 
-func addAggregatedChip(sourceChip GPIOChardev, commaSeparatedLines string) (chip GPIOChardev, err error) {
+func addAggregatedChip(sourceChip *device.GPIOChardev, commaSeparatedLines string) (chip *device.GPIOChardev, err error) {
 	// synchronize gpio helpers' access to the aggregator interface
 	unlocker, err := lockAggregator()
 	if err != nil {
@@ -83,7 +84,7 @@ func addAggregatedChip(sourceChip GPIOChardev, commaSeparatedLines string) (chip
 	}
 
 	// <label> <lines>
-	_, err = fmt.Fprintf(f, "%s %s", sourceChip.Label(), commaSeparatedLines)
+	_, err = fmt.Fprintf(f, "%s %s", sourceChip.Label, commaSeparatedLines)
 	if err != nil {
 		return nil, err
 	}
@@ -96,7 +97,7 @@ func addAggregatedChip(sourceChip GPIOChardev, commaSeparatedLines string) (chip
 			path := event.Name
 			// check prefix /dev/gpiochipX
 			if strings.HasPrefix(path, filepath.Join(dirs.DevDir, "gpiochip")) {
-				return getChipInfo(path)
+				return deviceGetGpioChardevChipInfo(path)
 			}
 		case <-ctxWithTimeout.Done():
 			return nil, fmt.Errorf("max timeout exceeded")
@@ -109,13 +110,13 @@ func aggregatedChipUdevRulePath(instanceName, slotName string) string {
 	return filepath.Join(filepath.Join(dirs.GlobalRootDir, ephermalUdevRulesDir), fname)
 }
 
-func addEphermalUdevTaggingRule(chip GPIOChardev, instanceName, slotName string) error {
+func addEphermalUdevTaggingRule(chip *device.GPIOChardev, instanceName, slotName string) error {
 	if err := os.MkdirAll(filepath.Join(dirs.GlobalRootDir, ephermalUdevRulesDir), 0755); err != nil {
 		return err
 	}
 
 	tag := fmt.Sprintf("snap_%s_interface_gpio_chardev_%s", instanceName, slotName)
-	rule := fmt.Sprintf("SUBSYSTEM==\"gpio\", KERNEL==\"%s\", TAG+=\"%s\"\n", chip.Name(), tag)
+	rule := fmt.Sprintf("SUBSYSTEM==\"gpio\", KERNEL==\"%s\", TAG+=\"%s\"\n", chip.Name, tag)
 
 	path := aggregatedChipUdevRulePath(instanceName, slotName)
 	if err := os.WriteFile(path, []byte(rule), 0644); err != nil {
@@ -129,7 +130,7 @@ func addEphermalUdevTaggingRule(chip GPIOChardev, instanceName, slotName string)
 		return fmt.Errorf("cannot reload udev rules: %s\nudev output:\n%s", err, string(output))
 	}
 	// trigger the tagging rule
-	output, err = exec.Command("udevadm", "trigger", "--name-match", chip.Name()).CombinedOutput()
+	output, err = exec.Command("udevadm", "trigger", "--name-match", chip.Name).CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("%s\nudev output:\n%s", err, string(output))
 	}
@@ -140,13 +141,13 @@ func addEphermalUdevTaggingRule(chip GPIOChardev, instanceName, slotName string)
 var unixStat = unix.Stat
 var unixMknod = unix.Mknod
 
-func addGadgetSlotDevice(chip GPIOChardev, instanceName, slotName string) error {
+func addGadgetSlotDevice(chip *device.GPIOChardev, instanceName, slotName string) error {
 	var stat unix.Stat_t
-	if err := unixStat(chip.Path(), &stat); err != nil {
+	if err := unixStat(chip.Path, &stat); err != nil {
 		return err
 	}
 
-	devPath := gadget.SnapGpioChardevPath(instanceName, slotName)
+	devPath := device.SnapGpioChardevPath(instanceName, slotName)
 	if err := os.MkdirAll(filepath.Dir(devPath), 0755); err != nil {
 		return err
 	}
@@ -157,9 +158,9 @@ func addGadgetSlotDevice(chip GPIOChardev, instanceName, slotName string) error 
 	return nil
 }
 
-func removeGadgetSlotDevice(instanceName, slotName string) (aggregatedChip GPIOChardev, err error) {
-	devPath := gadget.SnapGpioChardevPath(instanceName, slotName)
-	aggregatedChip, err = getChipInfo(devPath)
+func removeGadgetSlotDevice(instanceName, slotName string) (aggregatedChip *device.GPIOChardev, err error) {
+	devPath := device.SnapGpioChardevPath(instanceName, slotName)
+	aggregatedChip, err = deviceGetGpioChardevChipInfo(devPath)
 	if err != nil {
 		return nil, err
 	}
@@ -177,7 +178,7 @@ func removeEphermalUdevTaggingRule(gadget, slot string) error {
 	return os.RemoveAll(path)
 }
 
-func removeAggregatedChip(aggregatedChip GPIOChardev) error {
+func removeAggregatedChip(aggregatedChip *device.GPIOChardev) error {
 	// synchronize gpio helpers' access to the aggregator interface
 	unlocker, err := lockAggregator()
 	if err != nil {
@@ -191,24 +192,44 @@ func removeAggregatedChip(aggregatedChip GPIOChardev) error {
 	}
 	defer f.Close()
 
-	if _, err = f.WriteString(aggregatedChip.Label()); err != nil {
+	if _, err = f.WriteString(aggregatedChip.Label); err != nil {
 		return err
 	}
 
 	return nil
 }
 
-func validateLines(chip GPIOChardev, linesArg string) error {
+func validateLines(chip *device.GPIOChardev, linesArg string) error {
 	r, err := strutil.ParseRange(linesArg)
 	if err != nil {
 		return err
 	}
 
 	for _, span := range r {
-		if uint(span.End) >= chip.NumLines() {
-			return fmt.Errorf("invalid line offset %d: line does not exist in %q", span.End, chip.Name())
+		if uint(span.End) >= chip.NumLines {
+			return fmt.Errorf("invalid line offset %d: line does not exist in %q", span.End, chip.Name)
 		}
 	}
 
 	return nil
+}
+
+func findChips(filter func(chip *device.GPIOChardev) bool) ([]*device.GPIOChardev, error) {
+	allPaths, err := filepath.Glob(filepath.Join(dirs.DevDir, "/gpiochip*"))
+	if err != nil {
+		return nil, err
+	}
+
+	var matched []*device.GPIOChardev
+	for _, path := range allPaths {
+		chip, err := deviceGetGpioChardevChipInfo(path)
+		if err != nil {
+			return nil, err
+		}
+		if filter(chip) {
+			matched = append(matched, chip)
+		}
+	}
+
+	return matched, nil
 }

@@ -30,6 +30,7 @@ import (
 	main "github.com/snapcore/snapd/cmd/snap-gpio-helper"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/features"
+	"github.com/snapcore/snapd/gadget/device"
 	"github.com/snapcore/snapd/osutil/inotify"
 	"github.com/snapcore/snapd/testutil"
 	"golang.org/x/sys/unix"
@@ -46,7 +47,7 @@ type snapGpioHelperSuite struct {
 	rootdir              string
 	newDeviceCallback    func(cmd string)
 	deleteDeviceCallback func(cmd string)
-	mockChipInfos        map[string]main.GPIOChardev
+	mockChipInfos        map[string]*device.GPIOChardev
 	mockStats            map[string]*unix.Stat_t
 	udevadmCmd           *testutil.MockCmd
 	// This is needed because calls to c.Error in the inotify goroutine are not registered
@@ -60,7 +61,7 @@ func (s *snapGpioHelperSuite) SetUpTest(c *C) {
 	dirs.SetRootDir(s.rootdir)
 	s.AddCleanup(func() { dirs.SetRootDir("") })
 
-	s.mockChipInfos = make(map[string]main.GPIOChardev)
+	s.mockChipInfos = make(map[string]*device.GPIOChardev)
 	s.mockStats = make(map[string]*unix.Stat_t)
 
 	// Mock experimental.gpio-chardev-interface
@@ -68,7 +69,7 @@ func (s *snapGpioHelperSuite) SetUpTest(c *C) {
 	c.Assert(os.WriteFile(features.GPIOChardevInterface.ControlFile(), []byte(nil), 0644), check.IsNil)
 
 	// Allow mocking gpio chardev devices
-	restore := main.MockGetGpioInfo(func(path string) (main.GPIOChardev, error) {
+	restore := main.MockDeviceGetGpioChardevChipInfo(func(path string) (*device.GPIOChardev, error) {
 		chip, ok := s.mockChipInfos[path]
 		if !ok {
 			return nil, fmt.Errorf("unexpected gpio chip path %s", path)
@@ -155,29 +156,13 @@ func (s *snapGpioHelperSuite) mockDeleteDeviceCallback(f func(cmd string)) (rest
 	return testutil.Mock(&s.deleteDeviceCallback, f)
 }
 
-type mockChipInfo struct {
-	name, path, label string
-	lines             uint
-}
-
-func (chip *mockChipInfo) Name() string {
-	return chip.name
-}
-
-func (chip *mockChipInfo) Path() string {
-	return chip.path
-}
-
-func (chip *mockChipInfo) Label() string {
-	return chip.label
-}
-
-func (chip *mockChipInfo) NumLines() uint {
-	return chip.lines
-}
-
-func (s *snapGpioHelperSuite) mockChip(c *C, name, path, label string, lines uint, stat *unix.Stat_t) main.GPIOChardev {
-	chip := &mockChipInfo{name, path, label, lines}
+func (s *snapGpioHelperSuite) mockChip(c *C, name, path, label string, lines uint, stat *unix.Stat_t) *device.GPIOChardev {
+	chip := &device.GPIOChardev{
+		Path:     path,
+		Name:     name,
+		Label:    label,
+		NumLines: lines,
+	}
 	s.mockChipInfos[path] = chip
 	if stat != nil {
 		s.mockStats[path] = stat
@@ -189,7 +174,7 @@ func (s *snapGpioHelperSuite) mockChip(c *C, name, path, label string, lines uin
 
 func (s *snapGpioHelperSuite) removeMockedChipInfo(label string) {
 	for path, chip := range s.mockChipInfos {
-		if chip.Label() == label {
+		if chip.Label == label {
 			delete(s.mockChipInfos, path)
 		}
 	}

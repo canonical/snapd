@@ -17,7 +17,7 @@
  *
  */
 
-package main
+package device
 
 import (
 	"bytes"
@@ -30,11 +30,19 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-type GPIOChardev interface {
-	Name() string
-	Path() string
-	Label() string
-	NumLines() uint
+func SnapGpioChardevPath(instanceName, plugOrSlot string) string {
+	return filepath.Join(dirs.SnapGpioChardevDir, instanceName, plugOrSlot)
+}
+
+type GPIOChardev struct {
+	Path     string
+	Name     string
+	Label    string
+	NumLines uint
+}
+
+func (c *GPIOChardev) String() string {
+	return fmt.Sprintf("(name: %s, label: %s, lines: %d)", c.Name, c.Label, c.NumLines)
 }
 
 // This has to match the memory layout of `struct gpiochip_info` found
@@ -44,39 +52,11 @@ type kernelChipInfo struct {
 	lines       uint32
 }
 
-type chipInfo struct {
-	kernelChipInfo
-
-	path string
-}
-
-func (c *chipInfo) Name() string {
-	// remove terminating null character
-	return string(bytes.TrimRight(c.name[:], "\x00"))
-}
-
-func (c *chipInfo) Label() string {
-	// remove terminating null character
-	return string(bytes.TrimRight(c.label[:], "\x00"))
-}
-
-func (c *chipInfo) NumLines() uint {
-	return uint(c.lines)
-}
-
-func (c *chipInfo) Path() string {
-	return c.path
-}
-
-func (c *chipInfo) String() string {
-	return fmt.Sprintf("(name: %s, label: %s, lines: %d)", c.Name(), c.Label(), c.lines)
-}
-
 const _GPIO_GET_CHIPINFO_IOCTL uintptr = 0x8044b401
 
 var unixSyscall = unix.Syscall
 
-var getChipInfo = func(path string) (GPIOChardev, error) {
+var ioctlGetChipInfo = func(path string) (*kernelChipInfo, error) {
 	f, err := os.OpenFile(path, os.O_RDONLY, 0)
 	if err != nil {
 		return nil, err
@@ -89,29 +69,20 @@ var getChipInfo = func(path string) (GPIOChardev, error) {
 		return nil, errno
 	}
 
-	chip := &chipInfo{
-		path:           path,
-		kernelChipInfo: kci,
-	}
-	return chip, nil
+	return &kci, nil
 }
 
-func findChips(filter func(chip GPIOChardev) bool) ([]GPIOChardev, error) {
-	allPaths, err := filepath.Glob(filepath.Join(dirs.DevDir, "/gpiochip*"))
+func GetGpioChardevChipInfo(path string) (*GPIOChardev, error) {
+	kci, err := ioctlGetChipInfo(path)
 	if err != nil {
 		return nil, err
 	}
 
-	var matched []GPIOChardev
-	for _, path := range allPaths {
-		chip, err := getChipInfo(path)
-		if err != nil {
-			return nil, err
-		}
-		if filter(chip) {
-			matched = append(matched, chip)
-		}
+	chip := &GPIOChardev{
+		Path:     path,
+		Name:     string(bytes.TrimRight(kci.name[:], "\x00")),
+		Label:    string(bytes.TrimRight(kci.label[:], "\x00")),
+		NumLines: uint(kci.lines),
 	}
-
-	return matched, nil
+	return chip, nil
 }

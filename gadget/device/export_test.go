@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2023 Canonical Ltd
+ * Copyright (C) 2025 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -16,26 +16,23 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
  */
-
-package gadget_test
+package device
 
 import (
-	"path/filepath"
+	"syscall"
 
-	. "gopkg.in/check.v1"
-
-	"github.com/snapcore/snapd/dirs"
-	"github.com/snapcore/snapd/gadget"
+	"github.com/snapcore/snapd/testutil"
 )
 
-type gpioChardevTestSuite struct{}
+var IoctlGetChipInfo = ioctlGetChipInfo
 
-var _ = Suite(&gpioChardevTestSuite{})
+func MockUnixSyscall(f func(trap uintptr, a1 uintptr, a2 uintptr, a3 uintptr) (r1 uintptr, r2 uintptr, err syscall.Errno)) (restore func()) {
+	return testutil.Mock(&unixSyscall, f)
+}
 
-func (s *gpioChardevTestSuite) TestSnapGpioChardevPath(c *C) {
-	rootdir := c.MkDir()
-	dirs.SetRootDir(rootdir)
-
-	devPath := gadget.SnapGpioChardevPath("snap-name", "slot-name")
-	c.Check(devPath, Equals, filepath.Join(rootdir, "/dev/snap/gpio-chardev/snap-name/slot-name"))
+func MockIoctlGetChipInfo(f func(path string) (name, label [32]byte, lines uint32, err error)) (restore func()) {
+	return testutil.Mock(&ioctlGetChipInfo, func(path string) (*kernelChipInfo, error) {
+		name, label, lines, err := f(path)
+		return &kernelChipInfo{name, label, lines}, err
+	})
 }
