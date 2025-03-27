@@ -154,7 +154,7 @@ var profilesNeedRegenerationImpl = func(m *InterfaceManager) bool {
 	extraData := interfaces.SystemKeyExtraData{
 		AppArmorPrompting: m.useAppArmorPrompting,
 	}
-	mismatch, err := interfaces.SystemKeyMismatch(extraData)
+	mismatch, _, err := interfaces.SystemKeyMismatch(extraData)
 	if err != nil {
 		logger.Noticef("error trying to compare the snap system key: %v", err)
 		return true
