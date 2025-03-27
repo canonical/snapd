@@ -59,7 +59,7 @@ environment:
     SNAPPY_USE_STAGING_STORE: '$(HOST: if [ "$SPREAD_REMOTE_STORE" = staging ]; then echo 1; else echo 0; fi)'
     DELTA_REF: 2.62
     DELTA_PREFIX: snapd-$DELTA_REF/
-    REPACK_KEEP_VENDOR: '$(HOST: echo "${REPACK_KEEP_VENDOR:-n}")'    
+    REPACK_KEEP_VENDOR: '$(HOST: echo "${REPACK_KEEP_VENDOR:-n}")'
     HTTP_PROXY: '$(HOST: echo "$SPREAD_HTTP_PROXY")'
     HTTPS_PROXY: '$(HOST: echo "$SPREAD_HTTPS_PROXY")'
     NO_PROXY: "127.0.0.1"
@@ -112,15 +112,15 @@ environment:
     NESTED_REPACK_GADGET_SNAP: '$(HOST: echo "${NESTED_REPACK_GADGET_SNAP:-true}")'
     NESTED_REPACK_BASE_SNAP: '$(HOST: echo "${NESTED_REPACK_BASE_SNAP:-true}")'
     NESTED_KERNEL_MODULES_COMP: '$(HOST: echo "${NESTED_KERNEL_MODULES_COMP:-}")'
-    
+
     # Whether we should use snapd snap ./built-snap/ directory
     USE_PREBUILT_SNAPD_SNAP: '$(HOST: echo "${SPREAD_USE_PREBUILT_SNAPD_SNAP:-false}")'
     USE_SNAPD_SNAP_URL: '$(HOST: echo "${SPREAD_USE_SNAPD_SNAP_URL:-}")'
 
     # When SPREAD_TAG_FEATURES is populated with a non-empty value,
     # each spread task will extract relevant information form its
-    # journal and copy it and the state.json to the artifacts folder. 
-    # NOTE: this should only be used coupled with the -artifact spread 
+    # journal and copy it and the state.json to the artifacts folder.
+    # NOTE: this should only be used coupled with the -artifact spread
     # tag otherwise the data will not be downloaded from the VMs.
     TAG_FEATURES: '$(HOST: echo "${SPREAD_TAG_FEATURES:-}")'
     # Set the following to SPREAD_TAG_FEATURES by default
@@ -325,7 +325,7 @@ backends:
         location: snapd-spread/us-central1-a
         plan: n2-standard-2
         halt-timeout: 2h
-        environment: 
+        environment:
             NESTED_ARCHITECTURE: amd64
         systems: &google-nested-systems
             - ubuntu-16.04-64:
@@ -355,7 +355,7 @@ backends:
         location: snapd-spread/us-central1-a
         plan: c4a-highcpu-4
         halt-timeout: 2h
-        environment: 
+        environment:
             NESTED_ARCHITECTURE: arm64
             NESTED_ENABLE_KVM: false
             NESTED_ENABLE_TPM: '$(HOST: echo "${NESTED_ENABLE_TPM:-false}")'
@@ -376,7 +376,7 @@ backends:
         location: snapd-spread/northamerica-northeast1-a
         plan: n2-standard-4
         halt-timeout: 6h
-        environment: 
+        environment:
             NESTED_ARCHITECTURE: amd64
         systems: *google-nested-systems
 
@@ -385,7 +385,7 @@ backends:
         plan: staging-cpu2-ram4-disk20
         halt-timeout: 2h
         wait-timeout: 5m
-        groups: [default]        
+        groups: [default]
         environment:
             HTTP_PROXY: 'http://squid.internal:3128'
             HTTPS_PROXY: 'http://squid.internal:3128'
@@ -1307,7 +1307,7 @@ suites:
                 PIDs="$(ps -ef | grep -e '^root.*python3.*load-generator' | awk '{print $2}')"
                 # shellcheck disable=SC2086
                 for pid in $PIDs; do
-                    if ps -p "$pid" &>/dev/null; then 
+                    if ps -p "$pid" &>/dev/null; then
                         kill -9 "$pid"
                     fi
                 done
@@ -1329,15 +1329,15 @@ suites:
             # Enable secure boot in the nested vm in case it is supported
             NESTED_ENABLE_SECURE_BOOT: '$(HOST: echo "${NESTED_ENABLE_SECURE_BOOT:-}")'
             # Add snapd debug and log to serial console
-            NESTED_SNAPD_DEBUG_TO_SERIAL:  '$(HOST: echo "${NESTED_SNAPD_DEBUG_TO_SERIAL:-false}")'
+            NESTED_SNAPD_DEBUG_TO_SERIAL: '$(HOST: echo "${NESTED_SNAPD_DEBUG_TO_SERIAL:-false}")'
             # Add any extra cmd line parameter to the nested vm
-            NESTED_EXTRA_CMDLINE:  '$(HOST: echo "${NESTED_EXTRA_CMDLINE:-}")'
+            NESTED_EXTRA_CMDLINE: '$(HOST: echo "${NESTED_EXTRA_CMDLINE:-}")'
             # Generic image name which has to be overwritten in the test
             NESTED_IMAGE_ID: "unset"
             # Configuration file used for remote tools
             REMOTE_CFG_FILE: "$PROJECT_PATH/remote.setup.cfg"
             # Define which tests to run in the nested vm in run-spread test
-            NESTED_SPREAD_TESTS:  '$(HOST: echo "${NESTED_SPREAD_TESTS:-}")'
+            NESTED_SPREAD_TESTS: '$(HOST: echo "${NESTED_SPREAD_TESTS:-}")'
             # Indicates that by default snapd pkg is built from current
             SNAPD_DEB_FROM_REPO: '$(HOST: echo "${SPREAD_SNAPD_DEB_FROM_REPO:-false}")'
         manual: true
@@ -1359,7 +1359,7 @@ suites:
                 #shellcheck source=tests/lib/image.sh
                 . "$TESTSLIB"/image.sh
                 get_ubuntu_image
-            fi  
+            fi
 
             # Install the snapd built
             dpkg -i "$GOHOME"/snapd_*.deb
@@ -1452,9 +1452,9 @@ suites:
             # Enable secure boot in the nested vm in case it is supported
             NESTED_ENABLE_SECURE_BOOT: '$(HOST: echo "${NESTED_ENABLE_SECURE_BOOT:-}")'
             # Add snapd debug and log to serial console
-            NESTED_SNAPD_DEBUG_TO_SERIAL:  '$(HOST: echo "${NESTED_SNAPD_DEBUG_TO_SERIAL:-false}")'
+            NESTED_SNAPD_DEBUG_TO_SERIAL: '$(HOST: echo "${NESTED_SNAPD_DEBUG_TO_SERIAL:-false}")'
             # Add any extra cmd line parameter to the nested vm
-            NESTED_EXTRA_CMDLINE:  '$(HOST: echo "${NESTED_EXTRA_CMDLINE:-}")'
+            NESTED_EXTRA_CMDLINE: '$(HOST: echo "${NESTED_EXTRA_CMDLINE:-}")'
             # Configuration file used for remote tools
             REMOTE_CFG_FILE: "$PROJECT_PATH/remote.setup.cfg"
             # Indicates that by default snapd pkg is built from current
@@ -1464,7 +1464,7 @@ suites:
             #shellcheck source=tests/lib/pkgdb.sh
             . "$TESTSLIB"/pkgdb.sh
             install_pkg_dependencies
-        
+
             if os.query is-xenial; then
                 # the new ubuntu-image expects mkfs to support -d option, which was not
                 # supported yet by the version of mkfs that shipped with Ubuntu 16.04
@@ -1547,7 +1547,7 @@ suites:
                 . "$TESTSLIB"/image.sh
                 get_ubuntu_image
             fi
-  
+
             # Install the snapd built
             dpkg -i "$GOHOME"/snapd_*.deb
 
