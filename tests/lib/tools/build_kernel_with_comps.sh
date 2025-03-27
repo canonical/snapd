@@ -51,7 +51,7 @@ EOF
     depmod -b kernel/ "$kern_ver"
     rm "${kernel_snap_file}"
     # append component meta-information
-    gojq --arg COMP_NAME "${comp_name}" '.components = {env(COMP_NAME):{"type":"kernel-modules"}}' --yaml-input kernel/meta/snap.yaml --yaml-ouput >kernel/meta/snap.yaml.new
+    gojq --arg COMP_NAME "${comp_name}" '.components = {env(COMP_NAME):{"type":"kernel-modules"}}' --yaml-input kernel/meta/snap.yaml --yaml-output >kernel/meta/snap.yaml.new
     mv kernel/meta/snap.yaml.new kernel/meta/snap.yaml
     snap pack --filename="${kernel_snap_file}" kernel
 
