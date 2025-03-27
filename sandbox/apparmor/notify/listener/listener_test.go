@@ -662,8 +662,10 @@ func (*listenerSuite) TestRunEpoll(c *C) {
 	})
 	defer restoreOpen()
 
+	protoVersion := notify.ProtocolVersion(12345)
+
 	restoreRegisterFileDescriptor := listener.MockNotifyRegisterFileDescriptor(func(fd uintptr) (notify.ProtocolVersion, error) {
-		return notify.ProtocolVersion(12345), nil
+		return protoVersion, nil
 	})
 	defer restoreRegisterFileDescriptor()
 
@@ -673,7 +675,7 @@ func (*listenerSuite) TestRunEpoll(c *C) {
 		case notify.APPARMOR_NOTIF_SET_FILTER:
 			c.Fatalf("unexpectedly called notifyIoctl directly: req: %v, buf: %v", req, buf)
 		case notify.APPARMOR_NOTIF_RECV:
-			buf := notify.NewIoctlRequestBuffer()
+			buf := notify.NewIoctlRequestBuffer(protoVersion)
 			n, err := unix.Read(int(fd), buf)
 			c.Assert(err, IsNil)
 			return buf[:n], nil
@@ -684,7 +686,6 @@ func (*listenerSuite) TestRunEpoll(c *C) {
 	})
 	defer restoreIoctl()
 
-	protoVersion := notify.ProtocolVersion(12345)
 	id := uint64(0x1234)
 	label := "snap.foo.bar"
 	path := "/home/Documents/foo/bar"

@@ -305,7 +305,7 @@ func (l *Listener) handleRequests() error {
 		// Prepare a receive buffer for incoming request. The buffer is of the
 		// maximum allowed size and will contain one or more kernel requests
 		// upon return.
-		ioctlBuf := notify.NewIoctlRequestBuffer()
+		ioctlBuf := notify.NewIoctlRequestBuffer(l.protocolVersion)
 		buf, err := l.doIoctl(notify.APPARMOR_NOTIF_RECV, ioctlBuf)
 		if err != nil {
 			return err
