@@ -113,6 +113,7 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.T
 	addHandler("hotplug-update-slot", m.doHotplugUpdateSlot, nil)
 	addHandler("hotplug-remove-slot", m.doHotplugRemoveSlot, nil)
 	addHandler("hotplug-disconnect", m.doHotplugDisconnect, nil)
+	addHandler("regenerate-security-profiles", m.doRegenerateAllSecurityProfiles, nil)
 
 	// don't block on hotplug-seq-wait task
 	runner.AddHandler("hotplug-seq-wait", m.doHotplugSeqWait, nil)
