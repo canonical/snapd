@@ -117,6 +117,13 @@ environment:
     USE_PREBUILT_SNAPD_SNAP: '$(HOST: echo "${SPREAD_USE_PREBUILT_SNAPD_SNAP:-false}")'
     USE_SNAPD_SNAP_URL: '$(HOST: echo "${SPREAD_USE_SNAPD_SNAP_URL:-}")'
 
+    # When populated with a comma-separated list of feature key names,
+    # each spread task will be analyzed for the specified features and 
+    # output a json file with the results. NOTE: this should only be 
+    # used coupled with the -artifact spread tag otherwise the feature 
+    # analyses will not be downloaded from the VMs.
+    TAG_FEATURES: '$(HOST: echo "${SPREAD_TAG_FEATURES:-}")'
+
 backends:
     google:
         key: '$(HOST: echo "$SPREAD_GOOGLE_KEY")'
@@ -578,6 +585,10 @@ backends:
                   password: ubuntu123
 
 path: /home/gopath/src/github.com/snapcore/snapd
+
+artifacts:
+    # Populated with feature tag information when SPREAD_TAG_FEATURES is set.
+    - feature-tags
 
 exclude:
     - .git
@@ -1250,6 +1261,7 @@ suites:
                 snap install ubuntu-image --channel="$OLD_UBUNTU_IMAGE_SNAP_CHANNEL" --classic
             fi
         restore-each: |
+            "$TESTSLIB"/collect-features.sh --after-nested-task
             tests.nested vm remove
             tests.nested restore
             "$TESTSLIB"/prepare-restore.sh --restore-suite-each
@@ -1310,6 +1322,7 @@ suites:
             "$TESTSLIB"/prepare-restore.sh --prepare-suite-each
             tests.nested create-vm classic
         restore-each: |
+            "$TESTSLIB"/collect-features.sh --after-nested-task
             tests.nested vm remove
             "$TESTSLIB"/prepare-restore.sh --restore-suite-each
         restore: |
@@ -1376,6 +1389,7 @@ suites:
             "$TESTSLIB"/prepare-restore.sh --prepare-suite-each
             tests.nested create-vm core
         restore-each: |
+            "$TESTSLIB"/collect-features.sh --after-nested-task
             tests.nested vm remove
             "$TESTSLIB"/prepare-restore.sh --restore-suite-each
         restore: |
