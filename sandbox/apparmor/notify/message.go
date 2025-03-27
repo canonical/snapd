@@ -14,12 +14,14 @@ var ErrVersionUnset = errors.New("cannot marshal message without protocol versio
 // MsgNotificationGeneric defines the methods which the message types for each
 // mediation class must provide.
 //
-// Many of these methods, including ID, PID, ProcessLabel, and MediationClass,
-// are implemented on MsgNotificationOp, so any struct which embeds a
-// MsgNotificationOp needs only to implement the remaining methods.
+// Many of these methods, including ID, Flags, PID, ProcessLabel, and
+// MediationClass, are implemented on MsgNotificationOp, so any struct which
+// embeds a MsgNotificationOp needs only to implement the remaining methods.
 type MsgNotificationGeneric interface {
 	// ID returns the unique ID of the notification message.
 	ID() uint64
+	// Resent returns true if the message was previously sent by the kernel.
+	Resent() bool
 	// PID returns the PID of the process triggering the notification.
 	PID() int32
 	// ProcessLabel returns the AppArmor label of the process triggering the notification.
@@ -573,6 +575,10 @@ type tagsetHeader struct {
 
 func (msg *MsgNotificationOp) ID() uint64 {
 	return msg.KernelNotificationID
+}
+
+func (msg *MsgNotificationOp) Resent() bool {
+	return msg.Flags&NOTIF_RESENT != 0
 }
 
 func (msg *MsgNotificationOp) PID() int32 {
