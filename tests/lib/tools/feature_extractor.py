@@ -3,7 +3,7 @@
 import argparse
 from collections import defaultdict
 import json
-from typing import TextIO
+from typing import Any, TextIO
 
 
 # This will be removed
@@ -12,14 +12,14 @@ class AllFeature:
     parent = "all"
     
     @staticmethod
-    def maybe_add_feature(feature_dict: dict, json_entry: dict, state_json: dict):
+    def maybe_add_feature(feature_dict: dict[str, list[Any]], json_entry: dict[str, Any], state_json: dict[str, Any]):
         feature_dict[AllFeature.parent].append({AllFeature.name: json_entry})
     
 
 FEATURE_LIST = [AllFeature]
 
 
-def get_feature_dictionary(log_file: TextIO, feature_list: list[str], state_json: dict):
+def get_feature_dictionary(log_file: TextIO, feature_list: list[str], state_json: dict[str, Any]):
     '''
     Extracts features from the journal entries and places them in a dictionary.
 
@@ -55,7 +55,7 @@ if __name__ == "__main__":
         features will be saved in a dictionary and written to the indicated file in output.""")
     parser.add_argument('-o', '--output', help='Output file', required=True)
     parser.add_argument(
-        '-f', '--features', help='Features to extract from journal {all}', nargs='+')
+        '-f', '--feature', help='Features to extract from journal {all}; can be repeated multiple times', nargs='+')
     parser.add_argument(
         '-j', '--journal', help='Text file containing journal entries', required=True, type=argparse.FileType('r'))
     parser.add_argument(
