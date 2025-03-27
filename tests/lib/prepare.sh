@@ -973,7 +973,7 @@ EOF
     depmod -b pc-kernel/ "$kern_ver"
     # append component meta-information
     #shellcheck disable=SC2016
-    gojq --arg COMP_NAME "${comp_name}" '.components = {$COMP_NAME:{"type":"kernel-modules"}}' --yaml-input kernel/meta/snap.yaml --yaml-output >pc-kernel/meta/snap.yaml.new
+    gojq --arg COMP_NAME "${comp_name}" '.components = {$COMP_NAME:{"type":"kernel-modules"}}' --yaml-input pc-kernel/meta/snap.yaml --yaml-output >pc-kernel/meta/snap.yaml.new
     mv pc-kernel/meta/snap.yaml.new pc-kernel/meta/snap.yaml
 }
 
