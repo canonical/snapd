@@ -18,24 +18,16 @@ prepare: |
     # On such systems, install systemd-timesyncd to get the implementation we
     # can test. On other systems remember the current setting of the NTP
     # property and restore it later.
-    case "$SPREAD_SYSTEM" in
-        debian-sid-*)
-            apt-get remove -y ntp
-            tests.cleanup defer apt-get install -y ntp
+    case "$(busctl get-property org.freedesktop.timedate1 /org/freedesktop/timedate1 org.freedesktop.timedate1 NTP)" in
+        "b true")
+            tests.cleanup defer busctl call org.freedesktop.timedate1 /org/freedesktop/timedate1 org.freedesktop.timedate1 SetNTP bb true false
+            ;;
+        "b false")
+            tests.cleanup defer busctl call org.freedesktop.timedate1 /org/freedesktop/timedate1 org.freedesktop.timedate1 SetNTP bb false false
             ;;
         *)
-            case "$(busctl get-property org.freedesktop.timedate1 /org/freedesktop/timedate1 org.freedesktop.timedate1 NTP)" in
-                "b true")
-                    tests.cleanup defer busctl call org.freedesktop.timedate1 /org/freedesktop/timedate1 org.freedesktop.timedate1 SetNTP bb true false
-                    ;;
-                "b false")
-                    tests.cleanup defer busctl call org.freedesktop.timedate1 /org/freedesktop/timedate1 org.freedesktop.timedate1 SetNTP bb false false
-                    ;;
-                *)
-                    echo "Unexpected value of NTP property"
-                    exit 1
-                    ;;
-            esac
+            echo "Unexpected value of NTP property"
+            exit 1
             ;;
     esac
 
