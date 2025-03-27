@@ -92,6 +92,12 @@ var (
 	_ fmt.Stringer = (*systemKey)(nil)
 )
 
+// SystemKeyFromString unpacks the system key from a string obtained previously
+// by using the system key's Stringer interface.
+func SystemKeyFromString(s string) (any, error) {
+	return UnmarshalJSONSystemKey(strings.NewReader(s))
+}
+
 // IMPORTANT: when adding/removing/changing inputs bump this
 const systemKeyVersion = 11
 
@@ -173,7 +179,7 @@ func generateSystemKey() (*systemKey, error) {
 
 // UnmarshalJSONSystemKey unmarshalls the data from the reader as JSON into a
 // system key usable with SystemKeysMatch.
-func UnmarshalJSONSystemKey(r io.Reader) (interface{}, error) {
+func UnmarshalJSONSystemKey(r io.Reader) (any, error) {
 	sk := &systemKey{}
 	err := json.NewDecoder(r).Decode(sk)
 	if err != nil {
@@ -378,11 +384,10 @@ func RemoveSystemKey() error {
 }
 
 func MockSystemKey(s string) func() {
-	var sk systemKey
-	err := json.Unmarshal([]byte(s), &sk)
+	sk, err := SystemKeyFromString(s)
 	if err != nil {
 		panic(err)
 	}
-	mockedSystemKey = &sk
+	mockedSystemKey = sk.(*systemKey)
 	return func() { mockedSystemKey = nil }
 }
