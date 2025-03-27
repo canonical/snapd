@@ -28,6 +28,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"time"
 	"unicode"
 	"unicode/utf8"
 
@@ -532,6 +533,8 @@ type unknownCommandError struct {
 func (e unknownCommandError) Error() string {
 	return e.msg
 }
+
+var timeAfter func(d time.Duration) <-chan time.Time = time.After
 
 func run() error {
 	cli := mkClient()
