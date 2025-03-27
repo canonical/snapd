@@ -293,7 +293,7 @@ type kubernetesSupportInterface struct {
 	commonInterface
 }
 
-func (iface *kubernetesSupportInterface) ServicePermanentPlug(plug *snap.PlugInfo) []interfaces.PlugServiceSnippet {
+func (iface *kubernetesSupportInterface) ServicePermanentPlug(plug *snap.PlugInfo) []interfaces.PlugServicesSnippet {
 	// only autobind-unix flavor does not get Delegate=true, all other flavors
 	// are usable to manage control groups of processes/containers, and thus
 	// need Delegate=true
@@ -302,10 +302,9 @@ func (iface *kubernetesSupportInterface) ServicePermanentPlug(plug *snap.PlugInf
 		return nil
 	}
 
-	return []interfaces.PlugServiceSnippet{{
-		Section: interfaces.PlugServiceSnippetServiceSection,
-		Content: "Delegate=true",
-	}}
+	return []interfaces.PlugServicesSnippet{
+		interfaces.PlugServicesServiceSectionSnippet("Delegate=true"),
+	}
 }
 
 func k8sFlavor(plug interfaces.Attrer) string {

@@ -105,13 +105,13 @@ func GenerateSnapServiceUnitFile(appInfo *snap.AppInfo, opts *SnapServicesUnitOp
 			return nil, fmt.Errorf("error processing plugs while generating service unit for %v: %v", appInfo.SecurityTag(), err)
 		}
 		for _, snip := range snips {
-			switch snip.Section {
-			case interfaces.PlugServiceSnippetUnitSection:
-				ifaceUnitSnippets.Put(snip.Content)
-			case interfaces.PlugServiceSnippetServiceSection:
-				ifaceServiceSnippets.Put(snip.Content)
+			switch snip.Section() {
+			case interfaces.PlugServicesSnippetUnitSection:
+				ifaceUnitSnippets.Put(snip.String())
+			case interfaces.PlugServicesSnippetServiceSection:
+				ifaceServiceSnippets.Put(snip.String())
 			default:
-				return nil, fmt.Errorf("internal error: unknown plug service snippet section %q", snip.Section)
+				return nil, fmt.Errorf("internal error: unknown plug service snippet section %q", snip.Section())
 			}
 		}
 	}

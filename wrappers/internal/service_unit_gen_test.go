@@ -853,24 +853,24 @@ func (s *serviceUnitGenSuite) TestQuotaGroupLogNamespaceInheritParent(c *C) {
 }
 
 type ifaceWithServiceSnippet struct {
-	snips []interfaces.PlugServiceSnippet
+	snips []interfaces.PlugServicesSnippet
 }
 
 func (iface ifaceWithServiceSnippet) Name() string { return "iface-with-service-snippet" }
 func (iface ifaceWithServiceSnippet) AutoConnect(plug *snap.PlugInfo, slot *snap.SlotInfo) bool {
 	return false
 }
-func (iface ifaceWithServiceSnippet) ServicePermanentPlug(plug *snap.PlugInfo) []interfaces.PlugServiceSnippet {
+func (iface ifaceWithServiceSnippet) ServicePermanentPlug(plug *snap.PlugInfo) []interfaces.PlugServicesSnippet {
 	return iface.snips
 }
 
 func (s *serviceUnitGenSuite) TestPlugServiceSnippets(c *C) {
 	restore := builtin.MockInterface(&ifaceWithServiceSnippet{
-		snips: []interfaces.PlugServiceSnippet{
-			{Section: "unit", Content: "X-Unit-Snippet-1=true"},
-			{Section: "unit", Content: "X-Unit-Snippet-2=true"},
-			{Section: "service", Content: "X-Service-Snippet-1=true"},
-			{Section: "service", Content: "X-Service-Snippet-2=true"},
+		snips: []interfaces.PlugServicesSnippet{
+			interfaces.PlugServicesUnitSectionSnippet("X-Unit-Snippet-1=true"),
+			interfaces.PlugServicesUnitSectionSnippet("X-Unit-Snippet-2=true"),
+			interfaces.PlugServicesServiceSectionSnippet("X-Service-Snippet-1=true"),
+			interfaces.PlugServicesServiceSectionSnippet("X-Service-Snippet-2=true"),
 		},
 	})
 	defer restore()
@@ -891,12 +891,12 @@ apps:
 
 	generatedWrapper, err := internal.GenerateSnapServiceUnitFile(app, nil)
 	c.Assert(err, IsNil)
-	c.Check(string(generatedWrapper), Equals, `[Unit]
+	c.Check(string(generatedWrapper), Equals, fmt.Sprintf(`[Unit]
 # Auto-generated, DO NOT EDIT
 Description=Service for snap application foo.app
-Requires=snap-foo-44.mount
+Requires=%s-foo-44.mount
 Wants=network.target
-After=snap-foo-44.mount network.target snapd.apparmor.service
+After=%s-foo-44.mount network.target snapd.apparmor.service
 X-Unit-Snippet-1=true
 X-Unit-Snippet-2=true
 X-Snappy=yes
@@ -914,13 +914,20 @@ X-Service-Snippet-2=true
 
 [Install]
 WantedBy=multi-user.target
-`)
+`, mountUnitPrefix, mountUnitPrefix))
 }
+
+type mockBadPlugSnippetSection string
+
+func (s mockBadPlugSnippetSection) Section() interfaces.PlugServicesSnippetSection {
+	return "bad"
+}
+func (s mockBadPlugSnippetSection) String() string { return string(s) }
 
 func (s *serviceUnitGenSuite) TestPlugServiceSnippetsBadSection(c *C) {
 	restore := builtin.MockInterface(&ifaceWithServiceSnippet{
-		snips: []interfaces.PlugServiceSnippet{
-			{Section: "bad", Content: "X-Snippet=true"},
+		snips: []interfaces.PlugServicesSnippet{
+			mockBadPlugSnippetSection("X-Snippet=true"),
 		},
 	})
 	defer restore()

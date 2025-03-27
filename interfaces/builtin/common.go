@@ -90,7 +90,7 @@ type commonInterface struct {
 
 	controlsDeviceCgroup bool
 
-	serviceSnippets []interfaces.PlugServiceSnippet
+	serviceSnippets []interfaces.PlugServicesSnippet
 }
 
 // Name returns the interface name.
@@ -116,7 +116,7 @@ func (iface *commonInterface) StaticInfo() interfaces.StaticInfo {
 	}
 }
 
-func (iface *commonInterface) ServicePermanentPlug(plug *snap.PlugInfo) []interfaces.PlugServiceSnippet {
+func (iface *commonInterface) ServicePermanentPlug(plug *snap.PlugInfo) []interfaces.PlugServicesSnippet {
 	return iface.serviceSnippets
 }
 
