@@ -1144,7 +1144,11 @@ suites:
     tests/completion/:
         summary: completion tests
         # ppc64el disabled because of https://bugs.launchpad.net/snappy/+bug/1655594
-        systems: [-ubuntu-core-*, -ubuntu-*-ppc64el, -ubuntu-secboot-*, -ubuntu-fips-*]
+        systems:
+            - -ubuntu-core-*
+            - -ubuntu-*-ppc64el
+            - -ubuntu-secboot-*
+            - -ubuntu-fips-*
         prepare: |
             "$TESTSLIB"/prepare-restore.sh --prepare-suite
         prepare-each: |
@@ -1319,7 +1323,11 @@ suites:
 
     tests/nested/manual/:
         summary: Tests for nested images controlled manually from the tests
-        backends: [google-nested, google-nested-dev, qemu-nested, google-nested-arm]
+        backends:
+            - google-nested
+            - google-nested-dev
+            - qemu-nested
+            - google-nested-arm
         environment:
             NESTED_TYPE: "classic"
             # Enable kvm in the qemu command line
@@ -1390,7 +1398,11 @@ suites:
 
     tests/nested/classic/:
         summary: Tests for nested images
-        backends: [google-nested, google-nested-dev, qemu-nested, google-nested-arm]
+        backends:
+            - google-nested
+            - google-nested-dev
+            - qemu-nested
+            - google-nested-arm
         environment:
             NESTED_TYPE: "classic"
             # Channel used to create the nested vm
@@ -1442,7 +1454,11 @@ suites:
 
     tests/nested/core/:
         summary: Tests for nested images
-        backends: [google-nested, google-nested-dev, qemu-nested, google-nested-arm]
+        backends:
+            - google-nested
+            - google-nested-dev
+            - qemu-nested
+            - google-nested-arm
         environment:
             NESTED_TYPE: "core"
             # Enable kvm in the qemu command line
