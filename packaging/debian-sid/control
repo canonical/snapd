@@ -56,7 +56,6 @@ Build-Depends: autoconf,
                squashfs-tools,
                systemd-dev,
                tzdata,
-               udev,
                xfslibs-dev
 Standards-Version: 4.6.0
 Homepage: https://github.com/snapcore/snapd
