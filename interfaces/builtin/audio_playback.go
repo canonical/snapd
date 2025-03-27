@@ -84,6 +84,10 @@ const audioPlaybackConnectedPlugAppArmorCore = `
 owner /run/user/[0-9]*/###SLOT_SECURITY_TAGS###/pulse/ r,
 owner /run/user/[0-9]*/###SLOT_SECURITY_TAGS###/pulse/native rwk,
 owner /run/user/[0-9]*/###SLOT_SECURITY_TAGS###/pulse/pid r,
+# To allow to use pipewire-pulse in system mode, instead of user mode
+owner /var/snap/###SLOT_INSTANCE_NAME###/common/pulse/ r,
+owner /var/snap/###SLOT_INSTANCE_NAME###/common/pulse/native rwk,
+owner /var/snap/###SLOT_INSTANCE_NAME###/common/pulse/pid r,
 `
 
 const audioPlaybackConnectedPlugSecComp = `
@@ -164,6 +168,9 @@ func (iface *audioPlaybackInterface) AppArmorConnectedPlug(spec *apparmor.Specif
 		old := "###SLOT_SECURITY_TAGS###"
 		new := "snap." + slot.Snap().InstanceName() // forms the snap-instance-specific subdirectory name of /run/user/*/ used for XDG_RUNTIME_DIR
 		snippet := strings.Replace(audioPlaybackConnectedPlugAppArmorCore, old, new, -1)
+		old2 := "###SLOT_INSTANCE_NAME###"
+		new2 := slot.Snap().InstanceName() // forms the snap-instance-specific subdirectory name of /var/snap/*/common used for SNAP_COMMON
+		snippet = strings.Replace(snippet, old2, new2, -1)
 		spec.AddSnippet(snippet)
 	}
 	return nil
