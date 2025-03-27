@@ -99,6 +99,8 @@ var (
 
 	GetSnapDirOptions                   = getSnapDirOptions
 	SnapInstancesAndComponentsFromNames = snapInstancesAndComponentsFromNames
+
+	GetSystemKeyRetryCount = getSystemKeyRetryCount
 )
 
 func HiddenCmd(descr string, completeHidden bool) *cmdInfo {
@@ -478,4 +480,12 @@ func MockSeedWriterReadManifest(f func(manifestFile string) (*seedwriter.Manifes
 	restore = testutil.Backup(&seedwriterReadManifest)
 	seedwriterReadManifest = f
 	return restore
+}
+
+func MockGetSystemKeyRetryCount(f func() int) (restore func()) {
+	return testutil.Mock(&getSystemKeyRetryCount, f)
+}
+
+func MockTimeAfter(f func(d time.Duration) <-chan time.Time) (restore func()) {
+	return testutil.Mock(&timeAfter, f)
 }
