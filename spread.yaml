@@ -1587,12 +1587,12 @@ suites:
     tests/fips/:
         summary: FIPS enabled test suite
         systems:
-          - ubuntu-fips-*
+            - ubuntu-fips-*
         environment:
-          # disable reexec so that the tests run with deb
-          SNAP_REEXEC/deb: "0"
-          # but keep it enabled when using the snap
-          SNAP_REEXEC/snap: "1"
+            # disable reexec so that the tests run with deb
+            SNAP_REEXEC/deb: "0"
+            # but keep it enabled when using the snap
+            SNAP_REEXEC/snap: "1"
         prepare: |
             "$TESTSLIB"/prepare-restore.sh --prepare-suite
         prepare-each: |
