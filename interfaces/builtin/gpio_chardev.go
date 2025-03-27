@@ -64,9 +64,9 @@ var gpioChardevConnectedSlotKmod = []string{
 	"gpio-aggregator",
 }
 
-var gpioChardevPlugServiceSnippets = []interfaces.PlugServiceSnippet{
-	{Section: interfaces.PlugServiceSnippetUnitSection, Content: "After=snapd.gpio-chardev-setup.target"},
-	{Section: interfaces.PlugServiceSnippetUnitSection, Content: "Wants=snapd.gpio-chardev-setup.target"},
+var gpioChardevPlugServiceSnippets = []interfaces.PlugServicesSnippet{
+	interfaces.PlugServicesUnitSectionSnippet(`After=snapd.gpio-chardev-setup.target`),
+	interfaces.PlugServicesUnitSectionSnippet(`Wants=snapd.gpio-chardev-setup.target`),
 }
 
 type gpioChardevInterface struct {

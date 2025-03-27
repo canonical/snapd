@@ -88,10 +88,7 @@ lchown
 lchownat
 `
 
-var nomadSupportServiceSnippet = interfaces.PlugServiceSnippet{
-	Section: interfaces.PlugServiceSnippetServiceSection,
-	Content: "Delegate=true",
-}
+const nomadSupportServiceSnippet = interfaces.PlugServicesServiceSectionSnippet(`Delegate=true`)
 
 type nomadSupportInterface struct {
 	commonInterface
@@ -108,6 +105,6 @@ func init() {
 		baseDeclarationSlots:  nomadSupportBaseDeclarationSlots,
 		connectedPlugAppArmor: nomadSupportConnectedPlugAppArmor,
 		connectedPlugSecComp:  nomadSupportConnectedPlugSecComp,
-		serviceSnippets:       []interfaces.PlugServiceSnippet{nomadSupportServiceSnippet},
+		serviceSnippets:       []interfaces.PlugServicesSnippet{nomadSupportServiceSnippet},
 	}})
 }

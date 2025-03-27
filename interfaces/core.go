@@ -286,29 +286,49 @@ type StaticInfo struct {
 	AppArmorUnconfinedSlots bool
 }
 
-type PlugServiceSnippetSection string
+type PlugServicesSnippetSection string
 
 const (
-	PlugServiceSnippetUnitSection    PlugServiceSnippetSection = "unit"
-	PlugServiceSnippetServiceSection PlugServiceSnippetSection = "service"
+	PlugServicesSnippetUnitSection    PlugServicesSnippetSection = "unit"
+	PlugServicesSnippetServiceSection PlugServicesSnippetSection = "service"
 )
 
 // PlugServiceSnippet describes a systemd service snippet to be generated
 // for a snap with a plug whose interface implements ServicePermanentPlug.
-type PlugServiceSnippet struct {
+type PlugServicesSnippet interface {
 	// Section is the target unit file section for the snippet to be
 	// injected in (i.e. [Unit], [Service]).
-	Section PlugServiceSnippetSection
-	// Content is the actual snippet to be injected.
-	Content string
+	Section() PlugServicesSnippetSection
+	// This is the actual snippet content to be injected.
+	String() string
 }
+
+// PlugServicesUnitSectionSnippet describes a systemd service snippet to be
+// generated under the [Unit] section for a snap with a plug whose interface
+// implements ServicePermanentPlug.
+type PlugServicesUnitSectionSnippet string
+
+func (s PlugServicesUnitSectionSnippet) Section() PlugServicesSnippetSection {
+	return PlugServicesSnippetUnitSection
+}
+func (s PlugServicesUnitSectionSnippet) String() string { return string(s) }
+
+// PlugServicesUnitSectionSnippet describes a systemd service snippet to be
+// generated under the [Service] section for a snap with a plug whose interface
+// implements ServicePermanentPlug.
+type PlugServicesServiceSectionSnippet string
+
+func (s PlugServicesServiceSectionSnippet) Section() PlugServicesSnippetSection {
+	return PlugServicesSnippetServiceSection
+}
+func (s PlugServicesServiceSectionSnippet) String() string { return string(s) }
 
 // PermanentPlugServiceSnippets will return the set of snippets for the systemd
 // service unit that should be generated for a snap with the specified plug.
 // The list returned is not unique, callers must de-duplicate themselves.
 // The plug is provided because the snippet may depend on plug attributes for
 // example. The plug is sanitized before the snippets are returned.
-func PermanentPlugServiceSnippets(iface Interface, plug *snap.PlugInfo) (snips []PlugServiceSnippet, err error) {
+func PermanentPlugServiceSnippets(iface Interface, plug *snap.PlugInfo) (snips []PlugServicesSnippet, err error) {
 	// sanitize the plug first
 	err = BeforePreparePlug(iface, plug)
 	if err != nil {
@@ -316,7 +336,7 @@ func PermanentPlugServiceSnippets(iface Interface, plug *snap.PlugInfo) (snips [
 	}
 
 	type serviceSnippetPlugger interface {
-		ServicePermanentPlug(plug *snap.PlugInfo) []PlugServiceSnippet
+		ServicePermanentPlug(plug *snap.PlugInfo) []PlugServicesSnippet
 	}
 	if iface, ok := iface.(serviceSnippetPlugger); ok {
 		snips = iface.ServicePermanentPlug(plug)

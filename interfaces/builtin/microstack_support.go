@@ -227,10 +227,7 @@ mknod - |S_IFBLK -
 mknodat - - |S_IFBLK -
 `
 
-var microstackSupportServiceSnippet = interfaces.PlugServiceSnippet{
-	Section: interfaces.PlugServiceSnippetServiceSection,
-	Content: "Delegate=true",
-}
+const microstackSupportServiceSnippet = interfaces.PlugServicesServiceSectionSnippet(`Delegate=true`)
 
 type microStackInterface struct {
 	commonInterface
@@ -264,6 +261,6 @@ func init() {
 		connectedPlugAppArmor:    microStackSupportConnectedPlugAppArmor,
 		connectedPlugSecComp:     microStackSupportConnectedPlugSecComp,
 		connectedPlugKModModules: microStackSupportConnectedPlugKmod,
-		serviceSnippets:          []interfaces.PlugServiceSnippet{microstackSupportServiceSnippet},
+		serviceSnippets:          []interfaces.PlugServicesSnippet{microstackSupportServiceSnippet},
 	}})
 }
