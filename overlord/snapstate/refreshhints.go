@@ -155,6 +155,7 @@ func (r *refreshHints) Ensure() error {
 	if !needsUpdate {
 		return nil
 	}
+	logger.Trace("Ensure", "manager", "snapmgr", "func", "Ensure")
 	return r.refresh()
 }
 

@@ -25,6 +25,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"os"
@@ -265,15 +266,38 @@ func (d *Daemon) SetDegradedMode(err error) {
 	d.degradedErr = err
 }
 
+func logHTTP(h http.Handler, path string) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if osutil.GetenvBool("SNAPD_TRACE") {
+			loggedWithAction := false
+			if r.Method == "POST" {
+				bodyBytes, _ := io.ReadAll(r.Body)
+				var data map[string]any
+				if err := json.Unmarshal(bodyBytes, &data); err == nil {
+					if action, ok := data["action"]; ok {
+						loggedWithAction = true
+						logger.Trace("Endpoint", "method", r.Method, "path", path, "action", action)
+					}
+				}
+				r.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
+			}
+			if !loggedWithAction {
+				logger.Trace("Endpoint", "method", r.Method, "path", path)
+			}
+		}
+		h.ServeHTTP(w, r)
+	})
+}
+
 func (d *Daemon) addRoutes() {
 	d.router = mux.NewRouter()
 
 	for _, c := range api {
 		c.d = d
 		if c.PathPrefix == "" {
-			d.router.Handle(c.Path, c).Name(c.Path)
+			d.router.Handle(c.Path, logHTTP(c, c.Path)).Name(c.Path)
 		} else {
-			d.router.PathPrefix(c.PathPrefix).Handler(c).Name(c.PathPrefix)
+			d.router.PathPrefix(c.PathPrefix).Handler(logHTTP(c, c.Path)).Name(c.PathPrefix)
 		}
 	}
 
