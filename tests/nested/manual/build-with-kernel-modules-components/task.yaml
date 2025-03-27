@@ -19,8 +19,6 @@ environment:
   KMOD_COMP: efi-pstore
 
 prepare: |
-  snap install yq
-
   # Modify kernel and create a component
   "$TESTSTOOLS"/build_kernel_with_comps.sh efi_pstore "$KMOD_COMP"
 

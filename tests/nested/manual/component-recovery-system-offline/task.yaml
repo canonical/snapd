@@ -29,7 +29,6 @@ prepare: |
         exit
     fi
 
-    snap install yq
     snap install test-snapd-swtpm --edge
     snap download test-snapd-curl --edge --basename=test-snapd-curl
     snap download core18 --basename=core18

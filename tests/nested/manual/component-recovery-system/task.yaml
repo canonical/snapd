@@ -25,7 +25,6 @@ prepare: |
         exit
     fi
 
-    snap install yq
     snap install test-snapd-swtpm --edge
 
     "${TESTSTOOLS}/store-state" setup-fake-store "${NESTED_FAKESTORE_BLOB_DIR}"
