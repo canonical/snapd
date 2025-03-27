@@ -131,15 +131,7 @@ func (s *scanDiskSuite) TestDetectBootDisk(c *C) {
 
 	_, hasDisk := lines["UBUNTU_DISK=1"]
 	c.Assert(hasDisk, Equals, true)
-	_, hasSeed := lines["UBUNTU_SEED_UUID=6ae5a792-912e-43c9-ac92-e36723bbda12"]
-	_, hasBoot := lines["UBUNTU_BOOT_UUID=29261148-b8ba-4335-b934-417ed71e9e91"]
-	_, hasData := lines["UBUNTU_DATA_UUID=c01a272d-fc72-40de-92fb-242c2da82533"]
-	_, hasSave := lines["UBUNTU_SAVE_UUID=050ee326-ab58-4eb4-ba7d-13694b2d0c8a"]
-	c.Assert(hasSeed, Equals, true)
-	c.Assert(hasBoot, Equals, true)
-	c.Assert(hasData, Equals, true)
-	c.Assert(hasSave, Equals, true)
-	c.Assert(len(lines), Equals, 5)
+	c.Assert(len(lines), Equals, 1)
 }
 
 func (s *scanDiskSuite) TestDetectBootDiskNotUEFIBoot(c *C) {
@@ -167,15 +159,7 @@ func (s *scanDiskSuite) TestDetectBootDiskFallback(c *C) {
 
 	_, hasDisk := lines["UBUNTU_DISK=1"]
 	c.Assert(hasDisk, Equals, true)
-	_, hasSeed := lines["UBUNTU_SEED_UUID=6ae5a792-912e-43c9-ac92-e36723bbda12"]
-	_, hasBoot := lines["UBUNTU_BOOT_UUID=29261148-b8ba-4335-b934-417ed71e9e91"]
-	_, hasData := lines["UBUNTU_DATA_UUID=c01a272d-fc72-40de-92fb-242c2da82533"]
-	_, hasSave := lines["UBUNTU_SAVE_UUID=050ee326-ab58-4eb4-ba7d-13694b2d0c8a"]
-	c.Assert(hasSeed, Equals, true)
-	c.Assert(hasBoot, Equals, true)
-	c.Assert(hasData, Equals, true)
-	c.Assert(hasSave, Equals, true)
-	c.Assert(len(lines), Equals, 5)
+	c.Assert(len(lines), Equals, 1)
 }
 
 func (s *scanDiskSuite) TestDetectBootDiskFallbackInstall(c *C) {
@@ -199,9 +183,7 @@ func (s *scanDiskSuite) TestDetectBootDiskFallbackInstall(c *C) {
 
 	_, hasDisk := lines["UBUNTU_DISK=1"]
 	c.Assert(hasDisk, Equals, true)
-	_, hasSeed := lines["UBUNTU_SEED_UUID=6ae5a792-912e-43c9-ac92-e36723bbda12"]
-	c.Assert(hasSeed, Equals, true)
-	c.Assert(len(lines), Equals, 2)
+	c.Assert(len(lines), Equals, 1)
 }
 
 func (s *scanDiskSuite) TestDetectBootDiskFallbackMissingBoot(c *C) {
@@ -266,15 +248,7 @@ func (s *scanDiskSuite) TestDetectBootDiskFallbackKernelParam(c *C) {
 
 	_, hasDisk := lines["UBUNTU_DISK=1"]
 	c.Assert(hasDisk, Equals, true)
-	_, hasSeed := lines["UBUNTU_SEED_UUID=6ae5a792-912e-43c9-ac92-e36723bbda12"]
-	_, hasBoot := lines["UBUNTU_BOOT_UUID=29261148-b8ba-4335-b934-417ed71e9e91"]
-	_, hasData := lines["UBUNTU_DATA_UUID=c01a272d-fc72-40de-92fb-242c2da82533"]
-	_, hasSave := lines["UBUNTU_SAVE_UUID=050ee326-ab58-4eb4-ba7d-13694b2d0c8a"]
-	c.Assert(hasSeed, Equals, true)
-	c.Assert(hasBoot, Equals, true)
-	c.Assert(hasData, Equals, true)
-	c.Assert(hasSave, Equals, true)
-	c.Assert(len(lines), Equals, 5)
+	c.Assert(len(lines), Equals, 1)
 }
 
 func (s *scanDiskSuite) TestDetectBootDiskFallbackKernelParamDevPath(c *C) {
@@ -295,31 +269,5 @@ func (s *scanDiskSuite) TestDetectBootDiskFallbackKernelParamDevPath(c *C) {
 
 	_, hasDisk := lines["UBUNTU_DISK=1"]
 	c.Assert(hasDisk, Equals, true)
-	_, hasSeed := lines["UBUNTU_SEED_UUID=6ae5a792-912e-43c9-ac92-e36723bbda12"]
-	_, hasBoot := lines["UBUNTU_BOOT_UUID=29261148-b8ba-4335-b934-417ed71e9e91"]
-	_, hasData := lines["UBUNTU_DATA_UUID=c01a272d-fc72-40de-92fb-242c2da82533"]
-	_, hasSave := lines["UBUNTU_SAVE_UUID=050ee326-ab58-4eb4-ba7d-13694b2d0c8a"]
-	c.Assert(hasSeed, Equals, true)
-	c.Assert(hasBoot, Equals, true)
-	c.Assert(hasData, Equals, true)
-	c.Assert(hasSave, Equals, true)
-	c.Assert(len(lines), Equals, 5)
-}
-
-func (s *scanDiskSuite) TestDetectDataPartition(c *C) {
-	s.env["DEVNAME"] = "/dev/foop3"
-	s.env["DEVTYPE"] = "partition"
-	s.env["UBUNTU_SEED_UUID"] = "6ae5a792-912e-43c9-ac92-e36723bbda12"
-	s.env["UBUNTU_BOOT_UUID"] = "29261148-b8ba-4335-b934-417ed71e9e91"
-	s.env["UBUNTU_DATA_UUID"] = "c01a272d-fc72-40de-92fb-242c2da82533"
-	s.env["UBUNTU_SAVE_UUID"] = "050ee326-ab58-4eb4-ba7d-13694b2d0c8a"
-
-	output := newBuffer()
-	err := main.ScanDisk(output.File())
-	c.Assert(err, IsNil)
-	lines := output.GetLines()
-
-	_, hasData := lines["UBUNTU_DATA=1"]
-	c.Assert(hasData, Equals, true)
 	c.Assert(len(lines), Equals, 1)
 }
