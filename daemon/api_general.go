@@ -37,6 +37,7 @@ import (
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/devicestate"
+	"github.com/snapcore/snapd/overlord/ifacestate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
@@ -53,9 +54,11 @@ var (
 	}
 
 	sysInfoCmd = &Command{
-		Path:       "/v2/system-info",
-		GET:        sysInfo,
-		ReadAccess: interfaceOpenAccess{Interfaces: []string{"snap-interfaces-requests-control"}},
+		Path:        "/v2/system-info",
+		GET:         sysInfo,
+		POST:        sysInfoPost,
+		ReadAccess:  interfaceOpenAccess{Interfaces: []string{"snap-interfaces-requests-control"}},
+		WriteAccess: interfaceOpenAccess{Interfaces: []string{"snap-interfaces-requests-control"}},
 	}
 
 	stateChangeCmd = &Command{
@@ -170,6 +173,40 @@ func sysInfo(c *Command, r *http.Request, user *auth.UserState) Response {
 	}
 
 	return SyncResponse(m)
+}
+
+func sysInfoPost(c *Command, r *http.Request, user *auth.UserState) Response {
+	var d struct {
+		SystemKey string `json:"system-key"`
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&d); err != nil {
+		return BadRequest("cannot decode request body: %v", err)
+	}
+
+	sk, err := interfaces.SystemKeyFromString(d.SystemKey)
+	if err != nil {
+		return BadRequest("cannot decode system key: %v", err)
+	}
+
+	st := c.d.state
+	st.Lock()
+	defer st.Unlock()
+
+	logger.Debugf("client reports mismatch with system-key: %v", d.SystemKey)
+	chg, err := ifacestate.AdviseReportedSystemKeyMismatch(c.d.state, sk)
+	if err != nil {
+		return InternalError("cannot process system key: %v", err)
+	}
+
+	if chg == nil {
+		// proceed
+		return SyncResponse("")
+	}
+
+	ensureStateSoon(c.d.state)
+	// we have a new change
+	return AsyncResponse(nil, chg.ID())
 }
 
 func formatRefreshTime(t time.Time) string {
