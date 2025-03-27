@@ -582,6 +582,35 @@ func (s *systemKeySuite) TestSystemKeysUnmarshalSame(c *C) {
 	c.Check(ok, Equals, true, Commentf("key1:%#v key2:%#v", key1, key2))
 }
 
+func (s *systemKeySuite) TestSystemKeyFromString(c *C) {
+	mockedSk := `
+{
+"build-id": "7a94e9736c091b3984bd63f5aebfc883c4d859e0",
+"apparmor-features": ["caps", "dbus", "more", "and", "more"]
+}
+`
+	s.AddCleanup(interfaces.MockSystemKey(mockedSk))
+	// full cycle of marshal <-> unmarshal
+	sk, err := interfaces.CurrentSystemKey()
+	c.Assert(err, IsNil)
+	c.Assert(sk, NotNil)
+	sks := stringifySystemKey(c, sk)
+	c.Check(sks, Equals,
+		`{"version":0,"build-id":"7a94e9736c091b3984bd63f5aebfc883c4d859e0",`+
+			`"apparmor-features":["caps","dbus","more","and","more"],"apparmor-parser-mtime":0,`+
+			`"apparmor-parser-features":null,"apparmor-prompting":false,"nfs-home":false,`+
+			`"overlay-root":"","seccomp-features":null,"seccomp-compiler-version":"",`+
+			`"cgroup-version":""}`)
+	recoveredSk, err := interfaces.SystemKeyFromString(sks)
+	c.Assert(err, IsNil)
+	c.Check(recoveredSk, DeepEquals, sk)
+
+	// also works with mocked data
+	recoveredMockedSk, err := interfaces.SystemKeyFromString(mockedSk)
+	c.Assert(err, IsNil)
+	c.Check(recoveredMockedSk, DeepEquals, sk)
+}
+
 func (s *systemKeySuite) TestRemoveSystemKey(c *C) {
 	extraData := interfaces.SystemKeyExtraData{}
 	systemKeyJSON := `{}`
