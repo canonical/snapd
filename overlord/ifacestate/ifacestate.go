@@ -628,3 +628,28 @@ func InterfacesRequestsControlHandlerServices(st *state.State) ([]*snap.AppInfo,
 
 	return handlers, nil
 }
+
+// AdviseReportedSystemKeyMismatch inspects the system key mismatch received
+// typically from the client and decides to either create a state change for
+// regenerating security profiles, thus returns a change, or do nothing, in
+// which case no change is returned.
+func AdviseReportedSystemKeyMismatch(st *state.State, systemKey any) (*state.Change, error) {
+	action, err := interfaces.SystemKeyMismatchAdvise(systemKey)
+	if err != nil {
+		return nil, err
+	}
+
+	if action == interfaces.SystemKeyMismatchProceed {
+		// nothing to do
+		return nil, nil
+	}
+
+	for _, chg := range st.Changes() {
+		if chg.Kind() == "regenerate-security-profiles" && !chg.IsReady() {
+			return chg, nil
+		}
+	}
+
+	// TODO create a new change
+	return nil, fmt.Errorf("not implemented")
+}
