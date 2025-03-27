@@ -10,3 +10,7 @@ apps:
   cmd:
     command: bin/cmd
     plugs: [log-observe]
+  klogctl:
+    command: bin/klogctl
+    plugs: [log-observe]
+  
