@@ -51,6 +51,12 @@ type systemKeySuite struct {
 
 var _ = Suite(&systemKeySuite{})
 
+func stringifySystemKey(c *C, key any) string {
+	s, ok := key.(fmt.Stringer)
+	c.Assert(ok, Equals, true)
+	return s.String()
+}
+
 func (s *systemKeySuite) SetUpTest(c *C) {
 	s.BaseTest.SetUpTest(c)
 
@@ -200,15 +206,17 @@ func (s *systemKeySuite) TestInterfaceSystemKeyMismatchHappy(c *C) {
 
 	// no system-key yet -> Error
 	c.Assert(osutil.FileExists(dirs.SnapSystemKeyFile), Equals, false)
-	_, err := interfaces.SystemKeyMismatch(extraData)
+	_, my, err := interfaces.SystemKeyMismatch(extraData)
 	c.Assert(err, Equals, interfaces.ErrSystemKeyMissing)
+	c.Check(my, IsNil)
 
 	// create a system-key -> no mismatch anymore
 	err = interfaces.WriteSystemKey(extraData)
 	c.Assert(err, IsNil)
-	mismatch, err := interfaces.SystemKeyMismatch(extraData)
+	mismatch, my, err := interfaces.SystemKeyMismatch(extraData)
 	c.Assert(err, IsNil)
 	c.Check(mismatch, Equals, false)
+	c.Check(my, IsNil)
 
 	// change our system-key to have more apparmor features
 	s.AddCleanup(interfaces.MockSystemKey(`
@@ -217,9 +225,16 @@ func (s *systemKeySuite) TestInterfaceSystemKeyMismatchHappy(c *C) {
 "apparmor-features": ["caps", "dbus", "more", "and", "more"]
 }
 `))
-	mismatch, err = interfaces.SystemKeyMismatch(extraData)
+	mismatch, my, err = interfaces.SystemKeyMismatch(extraData)
 	c.Assert(err, IsNil)
 	c.Check(mismatch, Equals, true)
+	c.Assert(my, NotNil)
+	c.Check(stringifySystemKey(c, my), Equals,
+		`{"version":0,"build-id":"7a94e9736c091b3984bd63f5aebfc883c4d859e0",`+
+			`"apparmor-features":["caps","dbus","more","and","more"],"apparmor-parser-mtime":0,`+
+			`"apparmor-parser-features":null,"apparmor-prompting":false,"nfs-home":false,`+
+			`"overlay-root":"","seccomp-features":null,"seccomp-compiler-version":"",`+
+			`"cgroup-version":""}`)
 }
 
 func (s *systemKeySuite) TestInterfaceSystemKeyMismatchParserMtimeHappy(c *C) {
@@ -234,13 +249,13 @@ func (s *systemKeySuite) TestInterfaceSystemKeyMismatchParserMtimeHappy(c *C) {
 
 	// no system-key yet -> Error
 	c.Assert(osutil.FileExists(dirs.SnapSystemKeyFile), Equals, false)
-	_, err := interfaces.SystemKeyMismatch(extraData)
+	_, _, err := interfaces.SystemKeyMismatch(extraData)
 	c.Assert(err, Equals, interfaces.ErrSystemKeyMissing)
 
 	// create a system-key -> no mismatch anymore
 	err = interfaces.WriteSystemKey(extraData)
 	c.Assert(err, IsNil)
-	mismatch, err := interfaces.SystemKeyMismatch(extraData)
+	mismatch, _, err := interfaces.SystemKeyMismatch(extraData)
 	c.Assert(err, IsNil)
 	c.Check(mismatch, Equals, false)
 
@@ -251,9 +266,16 @@ func (s *systemKeySuite) TestInterfaceSystemKeyMismatchParserMtimeHappy(c *C) {
 "apparmor-parser-mtime": 5678
 }
 `))
-	mismatch, err = interfaces.SystemKeyMismatch(extraData)
+	mismatch, my, err := interfaces.SystemKeyMismatch(extraData)
 	c.Assert(err, IsNil)
 	c.Check(mismatch, Equals, true)
+	c.Assert(my, NotNil)
+	c.Check(stringifySystemKey(c, my), Equals,
+		`{"version":0,"build-id":"7a94e9736c091b3984bd63f5aebfc883c4d859e0",`+
+			`"apparmor-features":null,"apparmor-parser-mtime":5678,`+
+			`"apparmor-parser-features":null,"apparmor-prompting":false,"nfs-home":false,`+
+			`"overlay-root":"","seccomp-features":null,"seccomp-compiler-version":"",`+
+			`"cgroup-version":""}`)
 }
 
 func (s *systemKeySuite) TestInterfaceSystemKeyMismatchAppArmorPromptingHappy(c *C) {
@@ -270,7 +292,7 @@ func (s *systemKeySuite) TestInterfaceSystemKeyMismatchAppArmorPromptingHappy(c 
 
 	// no system-key yet -> Error
 	c.Assert(osutil.FileExists(dirs.SnapSystemKeyFile), Equals, false)
-	_, err := interfaces.SystemKeyMismatch(extraData)
+	_, _, err := interfaces.SystemKeyMismatch(extraData)
 	c.Assert(err, Equals, interfaces.ErrSystemKeyMissing)
 
 	// create a system-key -> no mismatch anymore
@@ -278,7 +300,7 @@ func (s *systemKeySuite) TestInterfaceSystemKeyMismatchAppArmorPromptingHappy(c 
 	c.Assert(err, IsNil)
 	// Even though prompting flag is enabled, since prompting unsupported,
 	// both prompting-related fields will still be false.
-	mismatch, err := interfaces.SystemKeyMismatch(extraData)
+	mismatch, _, err := interfaces.SystemKeyMismatch(extraData)
 	c.Assert(err, IsNil)
 	c.Check(mismatch, Equals, false)
 
@@ -345,7 +367,7 @@ func (s *systemKeySuite) TestInterfaceSystemKeyMismatchAppArmorPromptingHappy(c 
 		extraData = interfaces.SystemKeyExtraData{
 			AppArmorPrompting: testCase.newValue,
 		}
-		mismatch, err = interfaces.SystemKeyMismatch(extraData)
+		mismatch, _, err = interfaces.SystemKeyMismatch(extraData)
 		c.Assert(err, IsNil)
 		c.Check(mismatch, Equals, testCase.mismatch, Commentf("test case: %+v", testCase))
 
@@ -371,7 +393,7 @@ func (s *systemKeySuite) TestInterfaceSystemKeyMismatchVersions(c *C) {
 	extraData := interfaces.SystemKeyExtraData{}
 
 	// when we encounter different versions we get the right error
-	_, err = interfaces.SystemKeyMismatch(extraData)
+	_, _, err = interfaces.SystemKeyMismatch(extraData)
 	c.Assert(err, Equals, interfaces.ErrSystemKeyVersion)
 }
 
@@ -543,6 +565,35 @@ func (s *systemKeySuite) TestSystemKeysUnmarshalSame(c *C) {
 	c.Check(ok, Equals, true, Commentf("key1:%#v key2:%#v", key1, key2))
 }
 
+func (s *systemKeySuite) TestSystemKeyFromString(c *C) {
+	mockedSk := `
+{
+"build-id": "7a94e9736c091b3984bd63f5aebfc883c4d859e0",
+"apparmor-features": ["caps", "dbus", "more", "and", "more"]
+}
+`
+	s.AddCleanup(interfaces.MockSystemKey(mockedSk))
+	// full cycle of marshal <-> unmarshal
+	sk, err := interfaces.CurrentSystemKey()
+	c.Assert(err, IsNil)
+	c.Assert(sk, NotNil)
+	sks := stringifySystemKey(c, sk)
+	c.Check(sks, Equals,
+		`{"version":0,"build-id":"7a94e9736c091b3984bd63f5aebfc883c4d859e0",`+
+			`"apparmor-features":["caps","dbus","more","and","more"],"apparmor-parser-mtime":0,`+
+			`"apparmor-parser-features":null,"apparmor-prompting":false,"nfs-home":false,`+
+			`"overlay-root":"","seccomp-features":null,"seccomp-compiler-version":"",`+
+			`"cgroup-version":""}`)
+	recoveredSk, err := interfaces.SystemKeyFromString(sks)
+	c.Assert(err, IsNil)
+	c.Check(recoveredSk, DeepEquals, sk)
+
+	// also works with mocked data
+	recoveredMockedSk, err := interfaces.SystemKeyFromString(mockedSk)
+	c.Assert(err, IsNil)
+	c.Check(recoveredMockedSk, DeepEquals, sk)
+}
+
 func (s *systemKeySuite) TestRemoveSystemKey(c *C) {
 	extraData := interfaces.SystemKeyExtraData{}
 	systemKeyJSON := `{}`
@@ -565,4 +616,53 @@ func (s *systemKeySuite) TestRemoveSystemKey(c *C) {
 	// when it does not exist in the first place
 	err = interfaces.RemoveSystemKey()
 	c.Assert(err, IsNil)
+}
+
+func (s *systemKeySuite) TestSystemKeyMismatchAdviseTrivial(c *C) {
+	_, err := interfaces.SystemKeyMismatchAdvise("not-a-system-key")
+	c.Assert(err, ErrorMatches, "internal error: not a system key")
+
+	mockedSkS := `
+{
+"build-id": "7a94e9736c091b3984bd63f5aebfc883c4d859e0",
+"apparmor-features": ["caps", "dbus", "more", "and", "more"]
+}
+`
+	s.AddCleanup(interfaces.MockSystemKey(mockedSkS))
+
+	c.Assert(interfaces.WriteSystemKey(interfaces.SystemKeyExtraData{}), IsNil)
+
+	mockedSk, err := interfaces.SystemKeyFromString(mockedSkS)
+	c.Assert(err, IsNil)
+
+	// compareing with self, so nothing to regenerate
+	act, err := interfaces.SystemKeyMismatchAdvise(mockedSk)
+	c.Assert(err, IsNil)
+	c.Check(act, Equals, interfaces.SystemKeyMismatchProceed)
+}
+
+func (s *systemKeySuite) TestSystemKeyMismatchAdviseNFSHome(c *C) {
+	_, err := interfaces.SystemKeyMismatchAdvise("not-a-system-key")
+	c.Assert(err, ErrorMatches, "internal error: not a system key")
+
+	mockedSkS := `{
+"build-id": "7a94e9736c091b3984bd63f5aebfc883c4d859e0",
+"apparmor-features": ["caps", "dbus", "more", "and", "more"],
+"nfs-home": false
+}`
+	s.AddCleanup(interfaces.MockSystemKey(mockedSkS))
+
+	c.Assert(interfaces.WriteSystemKey(interfaces.SystemKeyExtraData{}), IsNil)
+
+	mockedSk, err := interfaces.SystemKeyFromString(`{
+"build-id": "7a94e9736c091b3984bd63f5aebfc883c4d859e0",
+"apparmor-features": ["caps", "dbus", "more", "and", "more"],
+"nfs-home": true
+}`)
+	c.Assert(err, IsNil)
+
+	// compareing with self, so nothing to regenerate
+	act, err := interfaces.SystemKeyMismatchAdvise(mockedSk)
+	c.Assert(err, IsNil)
+	c.Check(act, Equals, interfaces.SystemKeyMismatchRegenerateProfiles)
 }

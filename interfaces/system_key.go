@@ -83,6 +83,21 @@ type systemKey struct {
 	CgroupVersion          string   `json:"cgroup-version"`
 }
 
+func (s *systemKey) String() string {
+	d, _ := json.Marshal(s)
+	return string(d)
+}
+
+var (
+	_ fmt.Stringer = (*systemKey)(nil)
+)
+
+// SystemKeyFromString unpacks the system key from a string obtained previously
+// by using the system key's Stringer interface.
+func SystemKeyFromString(s string) (any, error) {
+	return UnmarshalJSONSystemKey(strings.NewReader(s))
+}
+
 // IMPORTANT: when adding/removing/changing inputs bump this
 const systemKeyVersion = 11
 
@@ -164,7 +179,7 @@ func generateSystemKey() (*systemKey, error) {
 
 // UnmarshalJSONSystemKey unmarshalls the data from the reader as JSON into a
 // system key usable with SystemKeysMatch.
-func UnmarshalJSONSystemKey(r io.Reader) (interface{}, error) {
+func UnmarshalJSONSystemKey(r io.Reader) (any, error) {
 	sk := &systemKey{}
 	err := json.NewDecoder(r).Decode(sk)
 	if err != nil {
@@ -250,15 +265,17 @@ func WriteSystemKey(extraData SystemKeyExtraData) error {
 // to disk whenever apparmor-parser-mtime changes (in this manner
 // snap run only has to obtain the mtime of apparmor_parser and
 // doesn't have to invoke it)
-func SystemKeyMismatch(extraData SystemKeyExtraData) (bool, error) {
+//
+// Returns the current system key when a mismatch is detected.
+func SystemKeyMismatch(extraData SystemKeyExtraData) (mismatch bool, myKey any, err error) {
 	mySystemKey, err := generateSystemKey()
 	if err != nil {
-		return false, err
+		return false, nil, err
 	}
 
 	diskSystemKey, err := readSystemKey()
 	if err != nil {
-		return false, err
+		return false, nil, err
 	}
 
 	// deal with the race that "snap run" may start, then snapd
@@ -267,7 +284,7 @@ func SystemKeyMismatch(extraData SystemKeyExtraData) (bool, error) {
 	// should be fine because new security profiles will also
 	// have been written to disk.
 	if mySystemKey.Version != diskSystemKey.Version {
-		return false, ErrSystemKeyVersion
+		return false, nil, ErrSystemKeyVersion
 	}
 
 	// special case to detect local runs
@@ -276,7 +293,7 @@ func SystemKeyMismatch(extraData SystemKeyExtraData) (bool, error) {
 			// detect running local local builds
 			if !strings.HasPrefix(exe, "/usr") && !strings.HasPrefix(exe, dirs.SnapMountDir) {
 				logger.Noticef("running from non-installed location %s: ignoring system-key", exe)
-				return false, ErrSystemKeyVersion
+				return false, nil, ErrSystemKeyVersion
 			}
 		}
 	}
@@ -308,10 +325,10 @@ func SystemKeyMismatch(extraData SystemKeyExtraData) (bool, error) {
 
 	ok, err := SystemKeysMatch(mySystemKey, diskSystemKey)
 	if err != nil || !ok {
-		return true, err
+		return true, mySystemKey, err
 	}
 
-	return false, nil
+	return false, nil, nil
 }
 
 func readSystemKey() (*systemKey, error) {
@@ -330,7 +347,7 @@ func readSystemKey() (*systemKey, error) {
 }
 
 // RecordedSystemKey returns the system key read from the disk as opaque interface{}.
-func RecordedSystemKey() (interface{}, error) {
+func RecordedSystemKey() (any, error) {
 	diskSystemKey, err := readSystemKey()
 	if err != nil {
 		return nil, err
@@ -339,13 +356,13 @@ func RecordedSystemKey() (interface{}, error) {
 }
 
 // CurrentSystemKey calculates and returns the current system key as opaque interface{}.
-func CurrentSystemKey() (interface{}, error) {
+func CurrentSystemKey() (any, error) {
 	currentSystemKey, err := generateSystemKey()
 	return currentSystemKey, err
 }
 
 // SystemKeysMatch returns whether the given system keys match.
-func SystemKeysMatch(systemKey1, systemKey2 interface{}) (bool, error) {
+func SystemKeysMatch(systemKey1, systemKey2 any) (bool, error) {
 	// precondition check
 	_, ok1 := systemKey1.(*systemKey)
 	_, ok2 := systemKey2.(*systemKey)
@@ -367,11 +384,41 @@ func RemoveSystemKey() error {
 }
 
 func MockSystemKey(s string) func() {
-	var sk systemKey
-	err := json.Unmarshal([]byte(s), &sk)
+	sk, err := SystemKeyFromString(s)
 	if err != nil {
 		panic(err)
 	}
-	mockedSystemKey = &sk
+	mockedSystemKey = sk.(*systemKey)
 	return func() { mockedSystemKey = nil }
+}
+
+type SystemKeyMismatchAction string
+
+const (
+	SystemKeyMismatchProceed            = SystemKeyMismatchAction("proceed")
+	SystemKeyMismatchRegenerateProfiles = SystemKeyMismatchAction("regenerate-profiles")
+)
+
+// SystemKeyMismatchAdvise checks the provided and currently saved system keys
+// to device whether security profiles should be regenerated.
+func SystemKeyMismatchAdvise(maybeOther any) (SystemKeyMismatchAction, error) {
+	other, ok := maybeOther.(*systemKey)
+	if !ok {
+		return "", fmt.Errorf("internal error: not a system key")
+	}
+
+	my, err := readSystemKey()
+	if err != nil {
+		return "", err
+	}
+
+	if other.Version == my.Version {
+		if other.NFSHome != my.NFSHome && !my.NFSHome {
+			// they are reporing that user's home is on a network filesystem
+			return SystemKeyMismatchRegenerateProfiles, nil
+		}
+		// TODO: inspect other fields?
+	}
+
+	return SystemKeyMismatchProceed, nil
 }
