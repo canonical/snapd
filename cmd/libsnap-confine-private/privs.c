@@ -15,62 +15,100 @@
  *
  */
 
+#include "config.h"
+
 #include "privs.h"
 
-#define _GNU_SOURCE
-
-#include <unistd.h>
-
+#include <errno.h>
 #include <grp.h>
+#include <linux/securebits.h>
 #include <stdbool.h>
 #include <sys/capability.h>
+#include <sys/prctl.h>
 #include <sys/types.h>
 #include <unistd.h>
 
+#include "cleanup-funcs.h"
 #include "utils.h"
 
-static bool sc_has_capability(const char *cap_name) {
-    // Lookup capability with the given name.
-    cap_value_t cap;
-    if (cap_from_name(cap_name, &cap) < 0) {
-        die("cannot resolve capability name %s", cap_name);
+// Ubuntu 14.04 has a 4.4 kernel, but these macros are not defined
+#ifndef PR_CAP_AMBIENT
+#define PR_CAP_AMBIENT 47
+#define PR_CAP_AMBIENT_IS_SET 1
+#define PR_CAP_AMBIENT_RAISE 2
+#define PR_CAP_AMBIENT_LOWER 3
+#define PR_CAP_AMBIENT_CLEAR_ALL 4
+#endif
+
+void sc_cleanup_cap_t(cap_t *ptr) {
+    if (ptr != NULL && *ptr != NULL) {
+        cap_free(*ptr);
+        *ptr = NULL;
     }
-    // Get the capability state of the current process.
-    cap_t caps;
-    if ((caps = cap_get_proc()) == NULL) {
-        die("cannot obtain capability state (cap_get_proc)");
+}
+
+/* the same as sc_cleanup_cap_t but applicable to char* type */
+static void sc_cleanup_cap_str(char **ptr) {
+    if (ptr != NULL && *ptr != NULL) {
+        cap_free(*ptr);
+        *ptr = NULL;
     }
-    // Read the effective value of the flag we're dealing with
-    cap_flag_value_t cap_flags_value;
-    if (cap_get_flag(caps, cap, CAP_EFFECTIVE, &cap_flags_value) < 0) {
-        cap_free(caps);  // don't bother checking, we die anyway.
-        die("cannot obtain value of capability flag (cap_get_flag)");
-    }
-    // Free the representation of the capability state of the current process.
-    if (cap_free(caps) < 0) {
-        die("cannot free capability flag (cap_free)");
-    }
-    // Check if the effective bit of the capability is set.
-    return cap_flags_value == CAP_SET;
 }
 
 void sc_privs_drop(void) {
-    gid_t gid = getgid();
-    uid_t uid = getuid();
+    /* TODO: this should use cap_set_mode(CAP_MODE_NOPRIV) for better effect,
+     * but it's not supported by libcap 2.25 in 18.04 */
+    cap_t working SC_CLEANUP(sc_cleanup_cap_t) = cap_init();
+    if (working == NULL) {
+        die("cannot allocate working caps set");
+    }
+    if (cap_set_proc(working) != 0) {
+        die("cannot drop capabilities");
+    }
+}
 
-    // Drop extra group membership if we can.
-    if (sc_has_capability("cap_setgid")) {
-        gid_t gid_list[1] = {gid};
-        if (setgroups(1, gid_list) < 0) {
-            die("cannot set supplementary group identifiers");
+void sc_debug_capabilities(const char *msg_prefix) {
+    if (sc_is_debug_enabled()) {
+        cap_t caps SC_CLEANUP(sc_cleanup_cap_t) = cap_get_proc();
+        if (caps == NULL) {
+            die("cannot obtain current capabilities");
         }
+        char *caps_as_str SC_CLEANUP(sc_cleanup_cap_str) = cap_to_text(caps, NULL);
+        if (caps_as_str == NULL) {
+            die("cannot format capabilities string");
+        }
+        debug("%s: %s", msg_prefix, caps_as_str);
     }
-    // Switch to real group ID
-    if (setgid(getgid()) < 0) {
-        die("cannot set group identifier to %d", gid);
+}
+
+int sc_cap_set_ambient(cap_value_t cap, cap_flag_value_t set) {
+#if HAVE_CAP_SET_AMBIENT == 1
+    return cap_set_ambient(cap, set);
+#else
+    // see:
+    // https://git.kernel.org/pub/scm/libs/libcap/libcap.git/tree/libcap/cap_proc.c?id=31ed2fef38340e5d4ddc1e3d2a4449d3d046ff2d#n283
+    int val;
+    switch (set) {
+        case CAP_SET:
+            val = PR_CAP_AMBIENT_RAISE;
+            break;
+        case CAP_CLEAR:
+            val = PR_CAP_AMBIENT_LOWER;
+            break;
+        default:
+            errno = EINVAL;
+            return -1;
     }
-    // Switch to real user ID
-    if (setuid(getuid()) < 0) {
-        die("cannot set user identifier to %d", uid);
-    }
+    return prctl(PR_CAP_AMBIENT, val, cap, 0, 0);
+#endif
+}
+
+int sc_cap_reset_ambient(void) {
+#if HAVE_CAP_SET_AMBIENT == 1
+    return cap_reset_ambient();
+#else
+    // see:
+    // https://git.kernel.org/pub/scm/libs/libcap/libcap.git/tree/libcap/cap_proc.c?id=31ed2fef38340e5d4ddc1e3d2a4449d3d046ff2d#n310
+    return prctl(PR_CAP_AMBIENT, PR_CAP_AMBIENT_CLEAR_ALL, 0, 0, 0);
+#endif
 }

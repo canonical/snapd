@@ -1,5 +1,11 @@
+_set_snap_confine_caps() {
+  /usr/bin/setcap -q - /usr/lib/snapd/snap-confine < /usr/lib/snapd/snap-confine.caps
+}
+
 ## arg 1:  the new package version
 post_install() {
+  _set_snap_confine_caps
+
   echo
   echo 'To use snapd start/enable the snapd.socket'
   echo
@@ -38,6 +44,8 @@ pre_upgrade() {
 }
 
 post_upgrade() {
+  _set_snap_confine_caps
+
   /usr/bin/systemctl daemon-reload > /dev/null 2>&1 || :
 
   # restore the services after an upgrade
