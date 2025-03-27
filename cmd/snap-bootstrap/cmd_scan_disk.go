@@ -23,19 +23,22 @@
  * ```
  * SUBSYSTEM!="block", GOTO="ubuntu_core_partitions_end"
  *
- * ENV{DEVTYPE}=="partition", IMPORT{parent}="UBUNTU_*_UUID"
- * IMPORT{program}="/usr/lib/snapd/snap-bootstrap scan-disk"
- * ENV{DEVTYPE}=="disk", ENV{UBUNTU_DISK}=="1", SYMLINK+="disk/ubuntu/disk"
- * ENV{DEVTYPE}=="partition", ENV{UBUNTU_SEED}=="1", SYMLINK+="disk/ubuntu/seed"
- * ENV{DEVTYPE}=="partition", ENV{UBUNTU_BOOT}=="1", SYMLINK+="disk/ubuntu/boot"
- * ENV{DEVTYPE}=="partition", ENV{UBUNTU_DATA}=="1", ENV{ID_FS_TYPE}=="crypto_LUKS", SYMLINK+="disk/ubuntu/data-luks"
- * ENV{DEVTYPE}=="partition", ENV{UBUNTU_DATA}=="1", ENV{ID_FS_TYPE}!="crypto_LUKS", SYMLINK+="disk/ubuntu/data"
- * ENV{DEVTYPE}=="partition", ENV{UBUNTU_SAVE}=="1", ENV{ID_FS_TYPE}=="crypto_LUKS", SYMLINK+="disk/ubuntu/save-luks"
- * ENV{DEVTYPE}=="partition", ENV{UBUNTU_SAVE}=="1", ENV{ID_FS_TYPE}!="crypto_LUKS", SYMLINK+="disk/ubuntu/save"
- * ENV{DM_UUID}=="CRYPT-*", ENV{DM_NAME}=="ubuntu-data-*", SYMLINK+="disk/ubuntu/data"
- * ENV{DM_UUID}=="CRYPT-*", ENV{DM_NAME}=="ubuntu-save-*", SYMLINK+="disk/ubuntu/save"
+ * ENV{DEVTYPE}=="disk", IMPORT{program}="/usr/lib/snapd/snap-bootstrap scan-disk"
+ * ENV{DEVTYPE}=="partition", IMPORT{parent}="UBUNTU_DISK"
+ * ENV{UBUNTU_DISK}!="1", GOTO="ubuntu_core_partitions_end"
+ *
+ * ENV{DEVTYPE}=="disk", SYMLINK+="disk/ubuntu/disk"
+ * ENV{DEVTYPE}=="partition", ENV{ID_PART_ENTRY_NAME}="ubuntu-seed", SYMLINK+="disk/ubuntu/seed"
+ * ENV{DEVTYPE}=="partition", ENV{ID_PART_ENTRY_NAME}="ubuntu-boot", SYMLINK+="disk/ubuntu/boot"
+ * ENV{DEVTYPE}=="partition", ENV{ID_PART_ENTRY_NAME}="ubuntu-data", ENV{ID_FS_TYPE}=="crypto_LUKS", SYMLINK+="disk/ubuntu/data-luks"
+ * ENV{DEVTYPE}=="partition", ENV{ID_PART_ENTRY_NAME}="ubuntu-data", ENV{ID_FS_TYPE}!="crypto_LUKS", SYMLINK+="disk/ubuntu/data"
+ * ENV{DEVTYPE}=="partition", ENV{ID_PART_ENTRY_NAME}="ubuntu-save", ENV{ID_FS_TYPE}=="crypto_LUKS", SYMLINK+="disk/ubuntu/save-luks"
+ * ENV{DEVTYPE}=="partition", ENV{ID_PART_ENTRY_NAME}="ubuntu-save", ENV{ID_FS_TYPE}!="crypto_LUKS", SYMLINK+="disk/ubuntu/save"
  *
  * LABEL="ubuntu_core_partitions_end"
+ *
+ * ENV{DM_UUID}=="CRYPT-*", ENV{DM_NAME}=="ubuntu-data-*", SYMLINK+="disk/ubuntu/data"
+ * ENV{DM_UUID}=="CRYPT-*", ENV{DM_NAME}=="ubuntu-save-*", SYMLINK+="disk/ubuntu/save"
  * ```
  *
  * See
@@ -246,13 +249,7 @@ func scanDiskNode(output io.Writer, node string) error {
 	found := false
 	hasFallbackPartition := false
 	hasSeed := false
-	var seed_uuid string
 	hasBoot := false
-	var boot_uuid string
-	hasData := false
-	var data_uuid string
-	hasSave := false
-	var save_uuid string
 	for _, part := range partitions {
 		if !fallback {
 			if part.UUID == bootUUID {
@@ -272,22 +269,8 @@ func scanDiskNode(output io.Writer, node string) error {
 		}
 		if part.Name == "ubuntu-seed" {
 			hasSeed = true
-			seed_uuid = part.UUID
 		} else if part.Name == "ubuntu-boot" {
 			hasBoot = true
-			boot_uuid = part.UUID
-		} else if part.Name == "ubuntu-data-enc" {
-			hasData = true
-			data_uuid = part.UUID
-		} else if part.Name == "ubuntu-data" {
-			hasData = true
-			data_uuid = part.UUID
-		} else if part.Name == "ubuntu-save-enc" {
-			hasSave = true
-			save_uuid = part.UUID
-		} else if part.Name == "ubuntu-save" {
-			hasSave = true
-			save_uuid = part.UUID
 		}
 	}
 
@@ -298,67 +281,6 @@ func scanDiskNode(output io.Writer, node string) error {
 	 */
 	if (!fallback && found && (hasSeed || hasBoot)) || (fallback && hasFallbackPartition) {
 		fmt.Fprintf(output, "UBUNTU_DISK=1\n")
-		if hasSeed {
-			fmt.Fprintf(os.Stderr, "Detected partition for seed: %s\n", seed_uuid)
-			fmt.Fprintf(output, "UBUNTU_SEED_UUID=%s\n", seed_uuid)
-		}
-		if hasBoot {
-			fmt.Fprintf(os.Stderr, "Detected partition for boot: %s\n", boot_uuid)
-			fmt.Fprintf(output, "UBUNTU_BOOT_UUID=%s\n", boot_uuid)
-		}
-		if hasData {
-			fmt.Fprintf(os.Stderr, "Detected partition for data: %s\n", data_uuid)
-			fmt.Fprintf(output, "UBUNTU_DATA_UUID=%s\n", data_uuid)
-		}
-		if hasSave {
-			fmt.Fprintf(os.Stderr, "Detected partition for save: %s\n", save_uuid)
-			fmt.Fprintf(output, "UBUNTU_SAVE_UUID=%s\n", save_uuid)
-		}
-	}
-
-	return nil
-}
-
-func checkPartitionUUID(output io.Writer, suffix string, partUUID string) {
-	varname := fmt.Sprintf("UBUNTU_%s_UUID", suffix)
-	expectedUUID := osGetenv(varname)
-	if len(expectedUUID) > 0 && expectedUUID == partUUID {
-		fmt.Fprintf(os.Stderr, "Detected partition as %s\n", suffix)
-		fmt.Fprintf(output, "UBUNTU_%s=1\n", suffix)
-	}
-}
-
-func scanPartitionNode(output io.Writer, node string) error {
-	/*
-	 * scanDiskNode has scanned the partition table. And exported
-	 * information about partitions in `UBUNTU_*_UUID`
-	 * variables. No we are looking at a partition. We need to
-	 * confirm which partition it is.
-	 */
-
-	fmt.Fprintf(os.Stderr, "Scanning partition %s\n", node)
-
-	probe, err := blkid.NewProbeFromFilename(node)
-	if err != nil {
-		return err
-	}
-	defer probe.Close()
-
-	probe.EnablePartitions(true)
-	probe.SetPartitionsFlags(blkid.BLKID_PARTS_ENTRY_DETAILS)
-	probe.EnableSuperblocks(true)
-
-	if err := probe.DoSafeprobe(); err != nil {
-		return fmt.Errorf("Cannot probe partition %s: %s\n", node, err)
-	}
-
-	partUUID, err := probe.LookupValue("PART_ENTRY_UUID")
-	if err != nil {
-		return fmt.Errorf("Cannot get uuid for partition: %s\n", err)
-	}
-
-	for _, suffix := range []string{"SEED", "BOOT", "DATA", "SAVE"} {
-		checkPartitionUUID(output, suffix, partUUID)
 	}
 
 	return nil
@@ -368,8 +290,6 @@ func ScanDisk(output io.Writer) error {
 	devname := osGetenv("DEVNAME")
 	if osGetenv("DEVTYPE") == "disk" {
 		return scanDiskNode(output, devname)
-	} else if osGetenv("DEVTYPE") == "partition" {
-		return scanPartitionNode(output, devname)
 	} else {
 		return fmt.Errorf("Unknown type for block device %s\n", devname)
 	}
