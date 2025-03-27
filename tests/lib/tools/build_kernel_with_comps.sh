@@ -51,6 +51,7 @@ EOF
     depmod -b kernel/ "$kern_ver"
     rm "${kernel_snap_file}"
     # append component meta-information
+    #shellcheck disable=SC2016
     gojq --arg COMP_NAME "${comp_name}" '.components = {$COMP_NAME:{"type":"kernel-modules"}}' --yaml-input kernel/meta/snap.yaml --yaml-output >kernel/meta/snap.yaml.new
     mv kernel/meta/snap.yaml.new kernel/meta/snap.yaml
     snap pack --filename="${kernel_snap_file}" kernel
