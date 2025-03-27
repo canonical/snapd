@@ -106,6 +106,7 @@ func (p *blkidProbe) LookupValue(entryName string) (string, error) {
 
 func (p *blkidProbe) Close() {
 	C.blkid_free_probe(p.probeHandle)
+	p.probeHandle = C.blkid_probe(nil)
 }
 
 func (p *blkidProbe) EnablePartitions(value bool) {
