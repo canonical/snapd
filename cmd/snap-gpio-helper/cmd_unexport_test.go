@@ -50,7 +50,7 @@ func (s *snapGpioHelperSuite) TestUnexportGpioChardev(c *C) {
 
 	deleteDeviceDone := make(chan struct{})
 	deleteDeviceCalled := 0
-	restore = s.mockDeleteDeviceCallback(func(cmd string) {
+	s.mockDeleteDeviceCallback(func(cmd string) {
 		deleteDeviceCalled++
 		// Validate aggregator command
 		c.Check(cmd, Equals, "gpio-aggregator.0")
@@ -58,7 +58,6 @@ func (s *snapGpioHelperSuite) TestUnexportGpioChardev(c *C) {
 		s.removeMockedChipInfo(cmd)
 		close(deleteDeviceDone)
 	})
-	defer restore()
 
 	err := main.Run([]string{
 		"unexport-chardev", "label-2", "0-6", "gadget-name", "slot-name",
