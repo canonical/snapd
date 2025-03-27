@@ -401,12 +401,27 @@ jobs:
     - name: Analyze feature tags
       if: always() && env.SPREAD_TAG_FEATURES != ''
       run: |
+        featarg=""
+        for feature in ${SPREAD_TAG_FEATURES}; do
+          featarg+="-f $feature "
+        done
+        featdir="${ARTIFACTS_FOLDER}/extracted-tags"
+        mkdir -p "$featdir"
+        for dir in "${ARTIFACTS_FOLDER}/feature-tags"/*/; do
+          if [ -f "${dir}/journal.txt" ] && [ -f "${dir}/state.json" ]; then
+            ./tests/lib/tools/feature_extractor.py \
+              $featarg \
+              --journal "${dir}/journal.txt" \
+              --state "${dir}/state.json" \
+              --output "$featdir/$(basename ${dir})"
+          fi
+        done
         ./tests/lib/compose-features.py \
-            --dir "${ARTIFACTS_FOLDER}/feature-tags" \
+            --dir "$featdir" \
             --output "feature-tags" \
             --failed-tests "$(cat $FAILED_TESTS_FILE)" \
             --run-attempt ${{ github.run_attempt }} \
-            --env-variables "SPREAD_EXPERIMENTAL_FEATURES=${SPREAD_EXPERIMENTAL_FEATURES},SPREAD_SNAPD_DEB_FROM_REPO=${SPREAD_SNAPD_DEB_FROM_REPO}"
+            --env-variables SPREAD_EXPERIMENTAL_FEATURES=${SPREAD_EXPERIMENTAL_FEATURES} SPREAD_SNAPD_DEB_FROM_REPO=${SPREAD_SNAPD_DEB_FROM_REPO}
 
     - name: Upload feature tags
       if: always() && env.SPREAD_TAG_FEATURES != ''
