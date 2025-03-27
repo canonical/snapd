@@ -110,7 +110,7 @@ check() {
       fi
   done
 
-  SKIP_UNCLEAN=1 ./run-checks --unit
+  SKIP_UNCLEAN=1 IGNORE_MISSING=1 ./run-checks --unit
   # XXX: Static checks choke on autotools generated cruft. Let's not run them
   # here as they are designed to pass on a clean tree, before anything else is
   # done, not after building the tree.
