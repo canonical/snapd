@@ -391,3 +391,34 @@ func MockSystemKey(s string) func() {
 	mockedSystemKey = sk.(*systemKey)
 	return func() { mockedSystemKey = nil }
 }
+
+type SystemKeyMismatchAction string
+
+const (
+	SystemKeyMismatchProceed            = SystemKeyMismatchAction("proceed")
+	SystemKeyMismatchRegenerateProfiles = SystemKeyMismatchAction("regenerate-profiles")
+)
+
+// SystemKeyMismatchAdvise checks the provided and currently saved system keys
+// to device whether security profiles should be regenerated.
+func SystemKeyMismatchAdvise(maybeOther any) (SystemKeyMismatchAction, error) {
+	other, ok := maybeOther.(*systemKey)
+	if !ok {
+		return "", fmt.Errorf("internal error: not a system key")
+	}
+
+	my, err := readSystemKey()
+	if err != nil {
+		return "", err
+	}
+
+	if other.Version == my.Version {
+		if other.NFSHome != my.NFSHome && !my.NFSHome {
+			// they are reporing that user's home is on a network filesystem
+			return SystemKeyMismatchRegenerateProfiles, nil
+		}
+		// TODO: inspect other fields?
+	}
+
+	return SystemKeyMismatchProceed, nil
+}

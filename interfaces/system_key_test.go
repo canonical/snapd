@@ -617,3 +617,52 @@ func (s *systemKeySuite) TestRemoveSystemKey(c *C) {
 	err = interfaces.RemoveSystemKey()
 	c.Assert(err, IsNil)
 }
+
+func (s *systemKeySuite) TestSystemKeyMismatchAdviseTrivial(c *C) {
+	_, err := interfaces.SystemKeyMismatchAdvise("not-a-system-key")
+	c.Assert(err, ErrorMatches, "internal error: not a system key")
+
+	mockedSkS := `
+{
+"build-id": "7a94e9736c091b3984bd63f5aebfc883c4d859e0",
+"apparmor-features": ["caps", "dbus", "more", "and", "more"]
+}
+`
+	s.AddCleanup(interfaces.MockSystemKey(mockedSkS))
+
+	c.Assert(interfaces.WriteSystemKey(interfaces.SystemKeyExtraData{}), IsNil)
+
+	mockedSk, err := interfaces.SystemKeyFromString(mockedSkS)
+	c.Assert(err, IsNil)
+
+	// compareing with self, so nothing to regenerate
+	act, err := interfaces.SystemKeyMismatchAdvise(mockedSk)
+	c.Assert(err, IsNil)
+	c.Check(act, Equals, interfaces.SystemKeyMismatchProceed)
+}
+
+func (s *systemKeySuite) TestSystemKeyMismatchAdviseNFSHome(c *C) {
+	_, err := interfaces.SystemKeyMismatchAdvise("not-a-system-key")
+	c.Assert(err, ErrorMatches, "internal error: not a system key")
+
+	mockedSkS := `{
+"build-id": "7a94e9736c091b3984bd63f5aebfc883c4d859e0",
+"apparmor-features": ["caps", "dbus", "more", "and", "more"],
+"nfs-home": false
+}`
+	s.AddCleanup(interfaces.MockSystemKey(mockedSkS))
+
+	c.Assert(interfaces.WriteSystemKey(interfaces.SystemKeyExtraData{}), IsNil)
+
+	mockedSk, err := interfaces.SystemKeyFromString(`{
+"build-id": "7a94e9736c091b3984bd63f5aebfc883c4d859e0",
+"apparmor-features": ["caps", "dbus", "more", "and", "more"],
+"nfs-home": true
+}`)
+	c.Assert(err, IsNil)
+
+	// compareing with self, so nothing to regenerate
+	act, err := interfaces.SystemKeyMismatchAdvise(mockedSk)
+	c.Assert(err, IsNil)
+	c.Check(act, Equals, interfaces.SystemKeyMismatchRegenerateProfiles)
+}
