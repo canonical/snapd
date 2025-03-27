@@ -39,7 +39,7 @@ func (s *snapGpioHelperSuite) TestExportGpioChardev(c *C) {
 	aggregatorLock, err := osutil.OpenExistingLockForReading(filepath.Join(s.rootdir, "/sys/bus/platform/drivers/gpio-aggregator"))
 	c.Assert(err, IsNil)
 
-	restore := s.mockNewDeviceCallback(func(cmd string) {
+	s.mockNewDeviceCallback(func(cmd string) {
 		// Creating a new aggregator device is synchronized with a lock.
 		c.Check(aggregatorLock.TryLock(), Equals, osutil.ErrAlreadyLocked)
 		// Validate aggregator command
@@ -52,10 +52,9 @@ func (s *snapGpioHelperSuite) TestExportGpioChardev(c *C) {
 		}
 		s.mockChip(c, "gpiochip3", chipPath, "gpio-aggregator.0", 7, mockStat)
 	})
-	defer restore()
 
 	mknodCalled := 0
-	restore = main.MockUnixMknod(func(path string, mode uint32, dev int) (err error) {
+	restore := main.MockUnixMknod(func(path string, mode uint32, dev int) (err error) {
 		mknodCalled++
 		c.Check(path, Equals, filepath.Join(s.rootdir, "/dev/snap/gpio-chardev/gadget-name/slot-name"))
 		c.Check(mode, Equals, uint32(unix.S_IFCHR|0600))
@@ -128,11 +127,10 @@ func (s *snapGpioHelperSuite) TestExportGpioChardevMultipleMatchingChips(c *C) {
 func (s *snapGpioHelperSuite) TestExportGpioChardevTimeout(c *C) {
 	s.mockChip(c, "gpiochip0", filepath.Join(s.rootdir, "/dev/gpiochip0"), "label-0", 3, nil)
 
-	// Do nothing to force waiting
-	restore := s.mockNewDeviceCallback(func(cmd string) {})
-	defer restore()
+	// // Do nothing to force waiting
+	s.mockNewDeviceCallback(func(cmd string) {})
 
-	restore = main.MockAggregatorCreationTimeout(1 * time.Nanosecond)
+	restore := main.MockAggregatorCreationTimeout(100 * time.Millisecond)
 	defer restore()
 
 	err := main.Run([]string{

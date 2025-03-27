@@ -24,6 +24,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -52,6 +53,8 @@ type snapGpioHelperSuite struct {
 	udevadmCmd           *testutil.MockCmd
 	// This is needed because calls to c.Error in the inotify goroutine are not registered
 	callbackErrors []error
+
+	mu sync.Mutex
 }
 
 var _ = Suite(&snapGpioHelperSuite{})
@@ -70,6 +73,8 @@ func (s *snapGpioHelperSuite) SetUpTest(c *C) {
 
 	// Allow mocking gpio chardev devices
 	restore := main.MockDeviceGetGpioChardevChipInfo(func(path string) (*device.GPIOChardev, error) {
+		s.mu.Lock()
+		defer s.mu.Unlock()
 		chip, ok := s.mockChipInfos[path]
 		if !ok {
 			return nil, fmt.Errorf("unexpected gpio chip path %s", path)
@@ -115,6 +120,7 @@ func (s *snapGpioHelperSuite) SetUpTest(c *C) {
 		for {
 			select {
 			case event := <-watcher.Event:
+				s.mu.Lock()
 				path := event.Name
 				cmd, err := os.ReadFile(path)
 				s.callbackErrors = append(s.callbackErrors, err)
@@ -126,6 +132,7 @@ func (s *snapGpioHelperSuite) SetUpTest(c *C) {
 				default:
 					s.callbackErrors = append(s.callbackErrors, fmt.Errorf("unexpected gpio-aggregator sysfs event: %q", path))
 				}
+				s.mu.Unlock()
 			case <-watcherDone:
 				return
 			}
@@ -142,18 +149,24 @@ func (s *snapGpioHelperSuite) SetUpTest(c *C) {
 func (s *snapGpioHelperSuite) TearDownTest(c *C) {
 	s.BaseTest.TearDownTest(c)
 
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	// This is needed because calls to c.Error in the inotify goroutine (in SetUpTest) are not registered
 	for _, err := range s.callbackErrors {
 		c.Check(err, IsNil)
 	}
 }
 
-func (s *snapGpioHelperSuite) mockNewDeviceCallback(f func(cmd string)) (restore func()) {
-	return testutil.Mock(&s.newDeviceCallback, f)
+func (s *snapGpioHelperSuite) mockNewDeviceCallback(f func(cmd string)) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.newDeviceCallback = f
 }
 
-func (s *snapGpioHelperSuite) mockDeleteDeviceCallback(f func(cmd string)) (restore func()) {
-	return testutil.Mock(&s.deleteDeviceCallback, f)
+func (s *snapGpioHelperSuite) mockDeleteDeviceCallback(f func(cmd string)) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.deleteDeviceCallback = f
 }
 
 func (s *snapGpioHelperSuite) mockChip(c *C, name, path, label string, lines uint, stat *unix.Stat_t) *device.GPIOChardev {
@@ -197,7 +210,7 @@ func (s *snapGpioHelperSuite) TestExportUnexportGpioChardevRunthrough(c *C) {
 
 	deleteDeviceDone := make(chan struct{})
 	deleteDeviceCalled := 0
-	restore = s.mockDeleteDeviceCallback(func(cmd string) {
+	s.mockDeleteDeviceCallback(func(cmd string) {
 		deleteDeviceCalled++
 		// Validate aggregator command
 		c.Check(cmd, Equals, "gpio-aggregator.10")
@@ -205,7 +218,6 @@ func (s *snapGpioHelperSuite) TestExportUnexportGpioChardevRunthrough(c *C) {
 		s.removeMockedChipInfo(cmd)
 		close(deleteDeviceDone)
 	})
-	defer restore()
 
 	// 1. Export
 	err := main.Run([]string{
