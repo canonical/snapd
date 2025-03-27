@@ -1034,6 +1034,7 @@ func (*messageSuite) TestDecodeFilePermissionsWrongClass(c *C) {
 
 func (*messageSuite) TestMsgNotificationFileAsGeneric(c *C) {
 	var msg notify.MsgNotificationFile
+	msg.Flags = 0
 	msg.KernelNotificationID = 123
 	msg.Pid = 456
 	msg.Label = "hello there"
@@ -1043,11 +1044,15 @@ func (*messageSuite) TestMsgNotificationFileAsGeneric(c *C) {
 	msg.SUID = 789
 	msg.Filename = "/foo/bar"
 
-	testMsgNotificationGeneric(c, &msg, msg.KernelNotificationID, msg.Pid, msg.Label, msg.Class, msg.Allow, msg.Deny, msg.SUID, msg.Filename)
+	testMsgNotificationGeneric(c, &msg, msg.KernelNotificationID, false, msg.Pid, msg.Label, msg.Class, msg.Allow, msg.Deny, msg.SUID, msg.Filename)
+
+	msg.Flags = notify.NOTIF_RESENT
+	testMsgNotificationGeneric(c, &msg, msg.KernelNotificationID, true, msg.Pid, msg.Label, msg.Class, msg.Allow, msg.Deny, msg.SUID, msg.Filename)
 }
 
-func testMsgNotificationGeneric(c *C, generic notify.MsgNotificationGeneric, id uint64, pid int32, label string, class notify.MediationClass, allowed, denied, suid uint32, name string) {
+func testMsgNotificationGeneric(c *C, generic notify.MsgNotificationGeneric, id uint64, resent bool, pid int32, label string, class notify.MediationClass, allowed, denied, suid uint32, name string) {
 	c.Check(generic.ID(), Equals, id)
+	c.Check(generic.Resent(), Equals, resent)
 	c.Check(generic.PID(), Equals, pid)
 	c.Check(generic.ProcessLabel(), Equals, label)
 	c.Check(generic.MediationClass(), Equals, class)
