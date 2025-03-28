@@ -180,12 +180,12 @@ execute: |
 
   remote.exec "snap download --basename=snapd-edge --channel=latest/edge snapd"
   remote.exec "snap download --basename=core22-edge --channel=latest/edge core22"
-  remote.exec "snap download --basename=pc-kernel-edge --channel=\"$version/edge\" pc-kernel"
+  remote.exec "snap download --basename=pc-kernel-channel --channel=\"$version/${KERNEL_CHANNEL}\" pc-kernel"
   remote.exec "snap download --basename=test-snapd-sh-edge --channel=latest/edge test-snapd-sh"
   remote.exec "snap download --basename=test-snapd-tools-core22-edge --channel=latest/edge test-snapd-tools-core22"
 
   echo "Update all snaps at once"
-  remote.exec "sudo snap install --dangerous ./snapd-edge.snap ./pc-kernel-edge.snap ./pc-edge.snap ./core22-edge.snap ./test-snapd-sh-edge.snap ./test-snapd-tools-core22-edge.snap"
+  remote.exec "sudo snap install --dangerous ./snapd-edge.snap ./pc-kernel-channel.snap ./pc-edge.snap ./core22-edge.snap ./test-snapd-sh-edge.snap ./test-snapd-tools-core22-edge.snap"
   CHG_ID=$(remote.exec snap changes | grep "Install.*from files" | awk '{print $1}')
 
   echo "Check that the essential snaps' refresh is pending on a reboot"
