@@ -14,7 +14,7 @@ environment:
   KERNEL_CHANNEL: 25.04/edge
 
   # Check if passphrase with space is handled properly
-  PASSPHRASE: "ubuntu test"
+  NESTED_PASSPHRASE: "ubuntu test"
 
   KDF_TYPE/default: default
   KDF_TYPE/pbkdf2: pbkdf2
@@ -101,7 +101,7 @@ execute: |
       --gadget-assertion pc.assert \
       --kernel pc-kernel.snap \
       --kernel-assertion pc-kernel.assert \
-      --passphrase "$PASSPHRASE" \
+      --passphrase "${NESTED_PASSPHRASE}" \
       --disk disk.img
   else
     "${TESTSTOOLS}"/setup_nested_hybrid_system.sh \
@@ -111,7 +111,7 @@ execute: |
       --gadget-assertion pc.assert \
       --kernel pc-kernel.snap \
       --kernel-assertion pc-kernel.assert \
-      --passphrase "$PASSPHRASE" \
+      --passphrase "${NESTED_PASSPHRASE}" \
       --extra-muinstaller-arg "-kdf-type $KDF_TYPE" \
       --disk disk.img
   fi
@@ -161,11 +161,6 @@ execute: |
       # Clear old log file to avoid matching passphrase prompt from previous boot.
       echo "" > "$NESTED_LOGS_DIR"/serial.log
       remote.exec sudo reboot || true
-
-      # Wait for passphrase prompt
-      retry -n 120 --wait 1 sh -c "MATCH \"Please enter the passphrase\" < ${NESTED_LOGS_DIR}/serial.log"
-      # Enter passphrase to continue boot
-      echo "$PASSPHRASE" | netcat -N localhost 7777
 
       remote.wait-for reboot --wait 1 -n 100 "$boot_id"
       remote.exec sudo snap watch --last=install
