@@ -125,6 +125,43 @@ type Listener struct {
 	// Only the main run loop may close this channel.
 	reqs chan *Request
 
+	// pendingCount is the number of "pending" (NOTIF_RESENT) messages still
+	// expected to be re-received from the kernel.
+	//
+	// XXX: In order for this count to be accurate, it is important that the
+	// pending messages at time of registration are only re-sent by the kernel
+	// once, and that no messages which were first sent this listener was
+	// registered are resent. If, however, we are able to reset this count
+	// based on the result of the resend command, and the ready channel has not
+	// yet been closed, this is okay.
+	pendingCount int
+	// ready is a channel which is closed once all requests which were pending
+	// at time of registration have been re-received from the kernel and sent
+	// over the reqs channel. This occurs once pendingCount reaches 0.
+	//
+	// Until this occurs, other new (not NOTF_RESENT) requests will be queued
+	// up by the listener, and only sent once all NOTIF_RESENT requests have
+	// been sent over the reqs channel.
+	ready chan struct{}
+	// readyQueue is the queue of "ready" (not NOTIF_RESENT) requests from the
+	// kernel which were received before any remaining pending requests were
+	// re-received. Once the final pending (NOTIF_RESENT) message is received
+	// from the kernel and sent over the reqs channel, then send all of these
+	// requests (in the order they were received) and discard the queue.
+	//
+	// The motivation for queueing non-resent requests until the listener is
+	// ready is so that consumers of the listener requests can re-create their
+	// state (i.e. prompts) fully before any new requests are received. In
+	// particular, if a request were received with the same content as one
+	// which was previously sent, before the latter was re-sent, a prompt may
+	// be created for the new request with a new ID. Then, when the original
+	// request is re-received, it must either be merged into the new prompt,
+	// and its original prompt ID marked as cancelled, or a prompt with the
+	// original ID can be recreated, resulting in two different prompts with
+	// the same contents. By ensuring all pending requests are re-received
+	// before any new ones are sent, situations like these can be avoided.
+	readyQueue []*Request
+
 	// protocolVersion is the notification protocol version associated with the
 	// listener's notify socket. Once registered with a particular version,
 	// that version will be used for all messages sent or received over that
@@ -175,23 +212,25 @@ func Register() (listener *Listener, err error) {
 		return nil, fmt.Errorf("cannot register epoll on %q: %v", path, err)
 	}
 
-	protoVersion, _, err := notifyRegisterFileDescriptor(notifyFile.Fd())
+	protoVersion, pendingCount, err := notifyRegisterFileDescriptor(notifyFile.Fd())
 	if err != nil {
 		return nil, err
 	}
 
-	// TODO: use pendingCount from notifyRegisterFileDescriptor to ensure that
-	// all pending requests are handled before any new requests, replies, or
-	// rules are accepted
-
 	listener = &Listener{
 		reqs: make(chan *Request),
+
+		pendingCount: pendingCount,
+		ready:        make(chan struct{}),
 
 		protocolVersion: protoVersion,
 
 		notifyFile: notifyFile,
 		poll:       poll,
 		closeChan:  make(chan struct{}),
+	}
+	if pendingCount == 0 {
+		close(listener.ready)
 	}
 	return listener, nil
 }
@@ -246,6 +285,17 @@ func (l *Listener) Reqs() <-chan *Request {
 	return l.reqs
 }
 
+// Ready returns a read-only channel which will be closed once all requests
+// which were pending when the listener was registered have been re-received
+// from the kernel and sent over the reqs channel. No non-resent requests will
+// be sent until all originally-pending requests have been resent.
+//
+// The caller may wish to block new prompt replies or rules until after the
+// ready channel has been closed.
+func (l *Listener) Ready() <-chan struct{} {
+	return l.ready
+}
+
 // Allow tests to kill the listener instead of logging errors so that tests
 // don't have race condition failures.
 var exitOnError = false
@@ -263,6 +313,13 @@ func (l *Listener) Run() error {
 		defer func() {
 			// When listener run loop ends, close the requests channel.
 			close(l.reqs)
+
+			// If the ready channel has still not been closed, close it.
+			// This will unblock new replies and rules, but those attempts
+			// will find the backends closing, so they should not succeed.
+			if l.pendingCount > 0 {
+				close(l.ready)
+			}
 		}()
 		for {
 			err = l.handleRequests()
@@ -345,11 +402,13 @@ func (l *Listener) doIoctl(sendOrRecv notify.IoctlRequest, buf notify.IoctlReque
 // creates a Request from that message, and attempts to send it to the manager
 // via the request channel.
 func (l *Listener) decodeAndDispatchRequest(buf []byte) error {
-	for {
+	for len(buf) > 0 {
 		first, rest, err := notify.ExtractFirstMsg(buf)
 		if err != nil {
 			return err
 		}
+		buf = rest
+
 		var nmsg notify.MsgNotification
 		if err := nmsg.UnmarshalBinary(first); err != nil {
 			return err
@@ -384,6 +443,15 @@ func (l *Listener) decodeAndDispatchRequest(buf []byte) error {
 			return err
 		}
 
+		// Before sending the request, check if it should instead be queued.
+		if l.pendingCount > 0 && !msg.Resent() {
+			// Not a previously-sent pending message, so it's from the
+			// kernel's ready queue, not the pending queue. Queue it up to
+			// be sent once all pending messages have been re-received.
+			l.readyQueue = append(l.readyQueue, req)
+			continue
+		}
+
 		// Try to send request to manager, or wait for listener to be closed
 		select {
 		case l.reqs <- req:
@@ -398,11 +466,36 @@ func (l *Listener) decodeAndDispatchRequest(buf []byte) error {
 			return ErrClosed
 		}
 
-		if len(rest) == 0 {
-			return nil
+		// Now that the request was sent, check if was the last NOTIF_RESENT
+		// message we were waiting for, and if so, close the ready channel and
+		// send all the messages from the ready queue.
+		if l.pendingCount > 0 && msg.Resent() {
+			// Message was previously-sent, so let's decrease the pendingCount
+			l.pendingCount--
+			if l.pendingCount > 0 {
+				// This wasn't the last pending message
+				continue
+			}
+			// That was the last pending message, so now close the ready chan
+			// send all messages from the ready queue, and clear the queue.
+			// The queue won't be needed again.
+			close(l.ready)
+			for _, req := range l.readyQueue {
+				// Try to send request to manager, or wait for listener to be closed
+				select {
+				case l.reqs <- req:
+					// request received
+				case <-l.closeChan:
+					return ErrClosed
+				}
+			}
+			// Clear the ready queue. Since every pending request has been
+			// re-received, we'll never need the queue again and all future
+			// requests can be sent directly.
+			l.readyQueue = nil
 		}
-		buf = rest
 	}
+	return nil
 }
 
 func parseMsgNotificationFile(buf []byte) (*notify.MsgNotificationFile, error) {
