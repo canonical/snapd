@@ -1027,7 +1027,7 @@ uc24_build_initramfs_kernel_snap() {
         cp -a ./extra-kernel-snap/* ./pc-kernel
     fi
 
-    if [ -n "${NESTED_KERNEL_REMOVE_COMPONENTS}" ]; then
+    if [ -n "${NESTED_KERNEL_REMOVE_COMPONENTS-}" ]; then
         #shellcheck disable=SC2016
         gojq 'del(.components)' --yaml-input pc-kernel/meta/snap.yaml --yaml-output >pc-kernel/meta/snap.yaml.new
         mv pc-kernel/meta/snap.yaml.new pc-kernel/meta/snap.yaml
