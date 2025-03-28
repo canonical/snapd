@@ -5,9 +5,6 @@ details: |
     to the snaps. Run the test on a live backend which sets instance data
     properly.
 
-# GCE backend sets instance data
-backends: [google, openstack]
-
 prepare: |
     cat <<EOF > /etc/systemd/system/snapd.service.d/http-debug.conf
     [Service]
@@ -20,6 +17,10 @@ restore: |
     systemctl restart snapd.service
 
 execute: |
+    if ! [ "$SPREAD_BACKEND" = "google" ] && ! [ "$SPREAD_BACKEND" = "openstack" ]; then
+        tests.exec skip-test "This test is only valid for google and openstack backends that provide cloud info" && exit 0
+    fi
+
     if [[ ! -e /run/cloud-init/instance-data.json ]]; then
         echo "cloud-init instance data is required to execute the test"
 
