@@ -176,6 +176,11 @@ func createModulesSubtree(kMntPts MountPoints, kernelTree, kversion string, comp
 }
 
 func createKernelModulesSymlinks(modsRoot, kMntPt string) error {
+	// FIXME: having a symlink for something not yet mounted is
+	// not enough. During boot after the switch root, the kernel
+	// might request modules for algorithms (like encryption or
+	// compression). These can happen any time during the boot,
+	// even before udevd is started.
 	for _, d := range []string{"kernel", "vdso"} {
 		lname := filepath.Join(modsRoot, d)
 		to := filepath.Join(kMntPt, d)
