@@ -1129,7 +1129,7 @@ func (m *SnapManager) ensureVulnerableSnapConfineVersionsRemovedOnClassic() erro
 		return nil
 	}
 
-	logger.Trace("Ensure", "manager", "snapmgr", "func", "ensureVulnerableSnapConfineVersionsRemovedOnClassic")
+	logger.Trace("ensure", "manager", "SnapManager", "func", "ensureVulnerableSnapConfineVersionsRemovedOnClassic")
 
 	m.state.Lock()
 	defer m.state.Unlock()
@@ -1170,7 +1170,7 @@ func (m *SnapManager) ensureForceDevmodeDropsDevmodeFromState() error {
 		return nil
 	}
 
-	logger.Trace("Ensure", "manager", "snapmgr", "func", "ensureForceDevmodeDropsDevmodeFromState")
+	logger.Trace("ensure", "manager", "SnapManager", "func", "ensureForceDevmodeDropsDevmodeFromState")
 
 	for _, name := range []string{"core", "ubuntu-core"} {
 		var snapst SnapState
@@ -1257,7 +1257,7 @@ func (m *SnapManager) ensureUbuntuCoreTransition() error {
 		return nil
 	}
 
-	logger.Trace("Ensure", "manager", "snapmgr", "func", "ensureUbuntuCoreTransition")
+	logger.Trace("ensure", "manager", "SnapManager", "func", "ensureUbuntuCoreTransition")
 
 	m.state.Set("ubuntu-core-transition-last-retry-time", now)
 
@@ -1291,7 +1291,7 @@ func (m *SnapManager) atSeed() error {
 		// already seeded or other error
 		return err
 	}
-	logger.Trace("Ensure", "manager", "snapmgr", "func", "atSeed")
+	logger.Trace("ensure", "manager", "SnapManager", "func", "atSeed")
 	if err := m.autoRefresh.AtSeed(); err != nil {
 		return err
 	}
@@ -1397,7 +1397,7 @@ func (m *SnapManager) ensureMountsUpdated() error {
 		return err
 	}
 
-	logger.Trace("Ensure", "manager", "snapmgr", "func", "ensureMountsUpdated")
+	logger.Trace("ensure", "manager", "SnapManager", "func", "ensureMountsUpdated")
 
 	if len(allStates) != 0 {
 		sysd := getSystemD()
@@ -1479,7 +1479,7 @@ func (m *SnapManager) ensureDesktopFilesUpdated() error {
 		}
 		snaps = append(snaps, info)
 	}
-	logger.Trace("Ensure", "manager", "snapmgr", "func", "ensureDesktopFilesUpdated")
+	logger.Trace("ensure", "manager", "SnapManager", "func", "ensureDesktopFilesUpdated")
 	if err := wrappers.EnsureSnapDesktopFiles(snaps); err != nil {
 		return err
 	}
@@ -1507,7 +1507,7 @@ func (m *SnapManager) ensureDownloadsCleaned() error {
 		return nil
 	}
 
-	logger.Trace("Ensure", "manager", "snapmgr", "func", "ensureDownloadsCleaned")
+	logger.Trace("ensure", "manager", "SnapManager", "func", "ensureDownloadsCleaned")
 
 	if err := cleanDownloads(m.state); err != nil {
 		return err
@@ -1523,7 +1523,7 @@ func (m *SnapManager) Ensure() error {
 	if m.preseed {
 		return nil
 	}
-	logger.Trace("Ensure", "manager", "snapmgr", "func", "Ensure")
+	logger.Trace("ensure", "manager", "SnapManager")
 
 	// do not exit right away on error
 	errs := []error{

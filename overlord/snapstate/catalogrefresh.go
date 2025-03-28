@@ -93,7 +93,7 @@ func (r *catalogRefresh) Ensure() error {
 		return nil
 	}
 
-	logger.Trace("Ensure", "manager", "snapmgr", "func", "Ensure")
+	logger.Trace("ensure", "manager", "catalogRefresh")
 
 	now := time.Now()
 	delay := catalogRefreshDelayBase

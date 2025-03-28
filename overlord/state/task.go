@@ -246,7 +246,7 @@ func (t *Task) changeStatus(old, new Status) {
 	if old == new {
 		return
 	}
-	logger.Trace("Task status change", "task-name", t.kind, "id", t.id, "status", new.String())
+	logger.Trace("task-status-change", "task-name", t.kind, "id", t.id, "status", new.String())
 	t.status = new
 	if !old.Ready() && new.Ready() {
 		t.readyTime = timeNow()
