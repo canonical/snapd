@@ -309,7 +309,7 @@ func (s *DockerSupportInterfaceSuite) TestUdevTaggingDisablingRemoveFirst(c *C) 
 func (s *DockerSupportInterfaceSuite) TestServicePermanentPlugSnippets(c *C) {
 	snips, err := interfaces.PermanentPlugServiceSnippets(s.iface, s.plugInfo)
 	c.Assert(err, IsNil)
-	c.Check(snips, DeepEquals, []string{"Delegate=true"})
+	c.Check(snips, DeepEquals, []interfaces.PlugServicesSnippet{interfaces.PlugServicesServiceSectionSnippet("Delegate=true")})
 
 	// check that a malformed plug with bad attribute returns non-nil error
 	// from PermanentPlugServiceSnippets, thereby ensuring that function

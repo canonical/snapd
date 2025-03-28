@@ -19,6 +19,8 @@
 
 package builtin
 
+import "github.com/snapcore/snapd/interfaces"
+
 // The nomad-support interface enables running Hashicorp Nomad within
 // a strictly confined snap
 // https://www.nomadproject.io/
@@ -86,6 +88,8 @@ lchown
 lchownat
 `
 
+const nomadSupportServiceSnippet = interfaces.PlugServicesServiceSectionSnippet(`Delegate=true`)
+
 type nomadSupportInterface struct {
 	commonInterface
 }
@@ -101,6 +105,6 @@ func init() {
 		baseDeclarationSlots:  nomadSupportBaseDeclarationSlots,
 		connectedPlugAppArmor: nomadSupportConnectedPlugAppArmor,
 		connectedPlugSecComp:  nomadSupportConnectedPlugSecComp,
-		serviceSnippets:       []string{`Delegate=true`},
+		serviceSnippets:       []interfaces.PlugServicesSnippet{nomadSupportServiceSnippet},
 	}})
 }
