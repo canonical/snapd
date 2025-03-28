@@ -76,7 +76,7 @@ func MockEpollWait(f func(l *Listener) ([]epoll.Event, error)) (restore func()) 
 	return restore
 }
 
-func MockNotifyRegisterFileDescriptor(f func(fd uintptr) (notify.ProtocolVersion, error)) (restore func()) {
+func MockNotifyRegisterFileDescriptor(f func(fd uintptr) (notify.ProtocolVersion, int, error)) (restore func()) {
 	restore = testutil.Backup(&notifyRegisterFileDescriptor)
 	notifyRegisterFileDescriptor = f
 	return restore
@@ -96,7 +96,7 @@ func MockNotifyIoctl(f func(fd uintptr, req notify.IoctlRequest, buf notify.Ioct
 // call), it triggers an epoll event with the listener's notify socket fd, and
 // then passes the data on to the next ioctl RECV call. When the listener makes
 // a SEND call via ioctl, the data is instead written to the send channel.
-func MockEpollWaitNotifyIoctl(protoVersion notify.ProtocolVersion) (recvChan chan<- []byte, sendChan <-chan []byte, restore func()) {
+func MockEpollWaitNotifyIoctl(protoVersion notify.ProtocolVersion, pendingCount int) (recvChan chan<- []byte, sendChan <-chan []byte, restore func()) {
 	recvChanRW := make(chan []byte)
 	sendChanRW := make(chan []byte, 1) // need to have buffer size 1 since reply does not run in a goroutine and the test would otherwise block
 	internalRecvChan := make(chan []byte, 1)
@@ -131,8 +131,8 @@ func MockEpollWaitNotifyIoctl(protoVersion notify.ProtocolVersion) (recvChan cha
 		}
 		return buf, nil
 	}
-	rfdF := func(fd uintptr) (notify.ProtocolVersion, error) {
-		return protoVersion, nil
+	rfdF := func(fd uintptr) (notify.ProtocolVersion, int, error) {
+		return protoVersion, pendingCount, nil
 	}
 	restoreEpoll := testutil.Mock(&listenerEpollWait, epollF)
 	restoreIoctl := testutil.Mock(&notifyIoctl, ioctlF)

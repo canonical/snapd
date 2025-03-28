@@ -407,6 +407,36 @@ func (*messageSuite) TestMsgNotificationFilterValidate(c *C) {
 	c.Check(msg.Validate(), ErrorMatches, "unsupported modeset: 10000")
 }
 
+func (*messageSuite) TestMsgNotificationReclaimMarshalUnmarshal(c *C) {
+	if arch.Endian() == binary.BigEndian {
+		c.Skip("test only written for little-endian architectures")
+	}
+
+	msg := notify.MsgNotificationReclaim{
+		KernelListenerID: 0x0123456789abcdef,
+		Ready:            0x11235813,
+		Pending:          0xabcdef,
+	}
+	msg.Version = notify.ProtocolVersion(0x3)
+
+	expectedBytes := []byte{
+		0x14, 0x0, // Length
+		0x3, 0x0, // Protocol
+		0xef, 0xcd, 0xab, 0x89, 0x67, 0x45, 0x23, 0x01, // KernelListenerID
+		0x13, 0x58, 0x23, 0x11, // Ready
+		0xef, 0xcd, 0xab, 0x00, // Pending
+	}
+
+	result, err := msg.MarshalBinary()
+	c.Check(err, IsNil)
+	c.Check(result, DeepEquals, expectedBytes)
+
+	var unmarshalled notify.MsgNotificationReclaim
+	err = unmarshalled.UnmarshalBinary(result)
+	c.Assert(err, IsNil)
+	c.Assert(unmarshalled, DeepEquals, msg)
+}
+
 func (*messageSuite) TestMsgNotificationMarshalBinary(c *C) {
 	if arch.Endian() == binary.BigEndian {
 		c.Skip("test only written for little-endian architectures")
@@ -414,7 +444,7 @@ func (*messageSuite) TestMsgNotificationMarshalBinary(c *C) {
 	msg := notify.MsgNotification{
 		NotificationType:     notify.APPARMOR_NOTIF_RESP,
 		Signalled:            1,
-		NoCache:              0,
+		Flags:                3,
 		KernelNotificationID: 0x1234,
 		Error:                0xFF,
 	}
@@ -427,7 +457,7 @@ func (*messageSuite) TestMsgNotificationMarshalBinary(c *C) {
 		0xAA, 0x0, // Protocol
 		0x0, 0x0, // Notification Type
 		0x1,                                            // Signalled
-		0x0,                                            // Reserved
+		0x3,                                            // Flags
 		0x34, 0x12, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // ID
 		0xFF, 0x00, 0x00, 0x00, // Error
 	})
@@ -443,7 +473,7 @@ func (s *messageSuite) TestMsgNotificationFileUnmarshalBinaryV3(c *C) {
 		0x3, 0x0, // Protocol
 		0x4, 0x0, // Notification type == notify.APPARMOR_NOTIF_OP
 		0x0,                                    // Signalled
-		0x0,                                    // Reserved
+		0x3,                                    // Flags
 		0x2, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, // ID (request #2, just a number)
 		0xf3, 0xff, 0xff, 0xff, // Error -13 EACCESS
 		0x4, 0x0, 0x0, 0x0, // Allow - ???
@@ -471,6 +501,7 @@ func (s *messageSuite) TestMsgNotificationFileUnmarshalBinaryV3(c *C) {
 					Version: 3,
 				},
 				NotificationType:     notify.APPARMOR_NOTIF_OP,
+				Flags:                0x3,
 				KernelNotificationID: 2,
 				Error:                -13,
 			},
@@ -504,7 +535,7 @@ func (s *messageSuite) TestMsgNotificationFileUnmarshalBinaryV5WithoutTags(c *C)
 		0x5, 0x0, // Protocol
 		0x4, 0x0, // Notification type == notify.APPARMOR_NOTIF_OP
 		0x0,                                    // Signalled
-		0x0,                                    // Reserved
+		0x2,                                    // Flags
 		0x2, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, // ID (request #2, just a number)
 		0xf3, 0xff, 0xff, 0xff, // Error -13 EACCESS
 		0x4, 0x0, 0x0, 0x0, // Allow - ???
@@ -534,6 +565,7 @@ func (s *messageSuite) TestMsgNotificationFileUnmarshalBinaryV5WithoutTags(c *C)
 					Version: 5,
 				},
 				NotificationType:     notify.APPARMOR_NOTIF_OP,
+				Flags:                0x2,
 				KernelNotificationID: 2,
 				Error:                -13,
 			},
@@ -567,7 +599,7 @@ func (s *messageSuite) TestMsgNotificationFileUnmarshalBinaryV5(c *C) {
 		0x5, 0x0, // Protocol
 		0x4, 0x0, // Notification type == notify.APPARMOR_NOTIF_OP
 		0x0,                                    // Signalled
-		0x0,                                    // Reserved
+		0xaa,                                   // Flags
 		0x2, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, // ID (request #2, just a number)
 		0xf3, 0xff, 0xff, 0xff, // Error -13 EACCESS
 		0xaa, 0xaa, 0xaa, 0xaa, // Allow - ???
@@ -612,6 +644,7 @@ func (s *messageSuite) TestMsgNotificationFileUnmarshalBinaryV5(c *C) {
 					Version: 5,
 				},
 				NotificationType:     notify.APPARMOR_NOTIF_OP,
+				Flags:                0xaa,
 				KernelNotificationID: 2,
 				Error:                -13,
 			},
@@ -660,7 +693,7 @@ func (s *messageSuite) TestMsgNotificationFileUnmarshalBinaryV5WithOverlappingAn
 		0x5, 0x0, // Protocol
 		0x4, 0x0, // Notification type == notify.APPARMOR_NOTIF_OP
 		0x0,                                    // Signalled
-		0x0,                                    // Reserved
+		0x43,                                   // Flags
 		0x2, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, // ID (request #2, just a number)
 		0xf3, 0xff, 0xff, 0xff, // Error -13 EACCESS
 		0xaa, 0xaa, 0xaa, 0xaa, // Allow - ???
@@ -710,6 +743,7 @@ func (s *messageSuite) TestMsgNotificationFileUnmarshalBinaryV5WithOverlappingAn
 					Version: 5,
 				},
 				NotificationType:     notify.APPARMOR_NOTIF_OP,
+				Flags:                0x43,
 				KernelNotificationID: 2,
 				Error:                -13,
 			},
@@ -762,7 +796,7 @@ func (s *messageSuite) TestMsgNotificationFileUnmarshalBinaryV5Errors(c *C) {
 		0x5, 0x0, // Protocol
 		0x4, 0x0, // Notification type == notify.APPARMOR_NOTIF_OP
 		0x0,                                    // Signalled
-		0x0,                                    // Reserved
+		0x1,                                    // Flags
 		0x2, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, // ID (request #2, just a number)
 		0xf3, 0xff, 0xff, 0xff, // Error -13 EACCESS
 		0xaa, 0xaa, 0xaa, 0xaa, // Allow - ???
@@ -931,7 +965,7 @@ func (s *messageSuite) TestBuildResponse(c *C) {
 		resp := notify.BuildResponse(protocol, id, aaAllowed, requested, testCase.userAllowed)
 		c.Check(resp.Version, Equals, protocol)
 		c.Check(resp.NotificationType, Equals, notify.APPARMOR_NOTIF_RESP)
-		c.Check(resp.NoCache, Equals, uint8(1))
+		c.Check(resp.Flags, Equals, uint8(1))
 		c.Check(resp.KernelNotificationID, Equals, id)
 		c.Check(resp.Allow, Equals, testCase.expectedAllow)
 		c.Check(resp.Deny, Equals, testCase.expectedDeny)
@@ -949,7 +983,7 @@ func (s *messageSuite) TestMsgNotificationResponseMarshalBinary(c *C) {
 			},
 			NotificationType:     0x11,
 			Signalled:            0x22,
-			NoCache:              0x33,
+			Flags:                0x33,
 			KernelNotificationID: 0x44,
 			Error:                0x55,
 		},
@@ -964,7 +998,7 @@ func (s *messageSuite) TestMsgNotificationResponseMarshalBinary(c *C) {
 		43, 0x0, // Version
 		0x11, 0x0, // Notification Type
 		0x22,                                    // Signalled
-		0x33,                                    // Reserved
+		0x33,                                    // Flags
 		0x44, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, // ID
 		0x55, 0x0, 0x0, 0x0, // Error
 		0x66, 0x0, 0x0, 0x0, // The other Error field?
@@ -1001,6 +1035,7 @@ func (*messageSuite) TestDecodeFilePermissionsWrongClass(c *C) {
 
 func (*messageSuite) TestMsgNotificationFileAsGeneric(c *C) {
 	var msg notify.MsgNotificationFile
+	msg.Flags = 0
 	msg.KernelNotificationID = 123
 	msg.Pid = 456
 	msg.Label = "hello there"
@@ -1010,11 +1045,15 @@ func (*messageSuite) TestMsgNotificationFileAsGeneric(c *C) {
 	msg.SUID = 789
 	msg.Filename = "/foo/bar"
 
-	testMsgNotificationGeneric(c, &msg, msg.KernelNotificationID, msg.Pid, msg.Label, msg.Class, msg.Allow, msg.Deny, msg.SUID, msg.Filename)
+	testMsgNotificationGeneric(c, &msg, msg.KernelNotificationID, false, msg.Pid, msg.Label, msg.Class, msg.Allow, msg.Deny, msg.SUID, msg.Filename)
+
+	msg.Flags = notify.NOTIF_RESENT
+	testMsgNotificationGeneric(c, &msg, msg.KernelNotificationID, true, msg.Pid, msg.Label, msg.Class, msg.Allow, msg.Deny, msg.SUID, msg.Filename)
 }
 
-func testMsgNotificationGeneric(c *C, generic notify.MsgNotificationGeneric, id uint64, pid int32, label string, class notify.MediationClass, allowed, denied, suid uint32, name string) {
+func testMsgNotificationGeneric(c *C, generic notify.MsgNotificationGeneric, id uint64, resent bool, pid int32, label string, class notify.MediationClass, allowed, denied, suid uint32, name string) {
 	c.Check(generic.ID(), Equals, id)
+	c.Check(generic.Resent(), Equals, resent)
 	c.Check(generic.PID(), Equals, pid)
 	c.Check(generic.ProcessLabel(), Equals, label)
 	c.Check(generic.MediationClass(), Equals, class)
