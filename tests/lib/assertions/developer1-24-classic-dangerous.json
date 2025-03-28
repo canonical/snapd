@@ -21,7 +21,7 @@
             "type": "gadget"
         },
         {
-            "default-channel": "24/edge",
+            "default-channel": "24/beta",
             "id": "pYVQrBcKmBa0mZ4CCN7ExT6jH8rY1hza",
             "name": "pc-kernel",
             "type": "kernel"

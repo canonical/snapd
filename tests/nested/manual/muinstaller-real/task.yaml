@@ -340,6 +340,9 @@ execute: |
 
   # check for unasserted snaps
   for sn in pc pc-kernel snapd; do
+      # FIXME: this is fragile, since the model does not follow
+      # KERNEL_CHANNEL, the version in the seed might be different
+      # than what we expect.
       sn_version=$(remote.exec "snap list ${sn}" | awk 'NR != 1 { print $2 }' | sed 's/+fake1//')
       remote.exec "test -f /run/mnt/ubuntu-seed/systems/classic/snaps/${sn}_${sn_version}.snap"
   done
