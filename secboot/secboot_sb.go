@@ -169,11 +169,7 @@ func UnlockVolumeUsingSealedKeyIfEncrypted(disk disks.Disk, name string, sealedE
 
 	const allowPassphrase = true
 	options := activateVolOpts(opts.AllowRecoveryKey, allowPassphrase, partDevice)
-	authRequestor, err := newAuthRequestor()
-	if err != nil {
-		res.UnlockMethod = NotUnlocked
-		return res, fmt.Errorf("internal error: cannot build an auth requestor: %v", err)
-	}
+	authRequestor := newAuthRequestor()
 
 	// Non-nil FDEHookKeyV1 indicates that V1 hook key is used
 	if loadedKey.FDEHookKeyV1 != nil {
