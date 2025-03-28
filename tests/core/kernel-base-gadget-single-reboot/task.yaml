@@ -9,7 +9,7 @@ systems: [ubuntu-core-18-*, ubuntu-core-2*]
 
 # run before remodel test, unfortunately some tests mess with snaps installed
 # and this causes this test to be messed with
-priority: 500
+priority: 600
 
 environment:
     UPDATE_VARIANT/gadget_reboot: reboot
@@ -152,7 +152,10 @@ execute: |
         # expect generate revision numbers that are n+1
         expecting_kernel="$(($(grep -o -E '[0-9]+' < pc-kernel.rev) + 1))"
         expecting_gadget="$(($(grep -o -E '[0-9]+' < pc.rev) + 1))"
-        expecting_core="1"
+        expecting_core="$(($(grep -o -E '[0-9]+' < core.rev) + 1))"
+        if ! grep "x" ./core.rev; then
+            expecting_core="1"
+        fi
 
         # verify that current points to new revisions
         test "$(readlink /snap/pc-kernel/current | grep -o -E '[0-9]+')" = "$expecting_kernel"

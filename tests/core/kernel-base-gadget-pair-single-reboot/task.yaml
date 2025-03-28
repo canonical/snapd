@@ -9,7 +9,7 @@ systems: [ubuntu-core-18-*, ubuntu-core-2*]
 
 # run before remodel test, unfortunately some tests mess with snaps installed
 # and this causes this test to be messed with
-priority: 500
+priority: 600
 
 environment:
     SNAP_ONE/kernel_base: core
