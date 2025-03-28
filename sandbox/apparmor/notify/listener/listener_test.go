@@ -484,7 +484,7 @@ func (*listenerSuite) TestRunSimple(c *C) {
 	}()
 
 	// since pendingCount == 0, should be immediately ready
-	checkListenerReady(c, l, true, 0)
+	checkListenerReady(c, l, true)
 
 	t.Go(l.Run)
 
@@ -542,20 +542,38 @@ func (*listenerSuite) TestRunSimple(c *C) {
 	}
 }
 
-func checkListenerReady(c *C, l *listener.Listener, ready bool, timeout time.Duration) {
-	timer := time.NewTimer(timeout)
+func checkListenerReady(c *C, l *listener.Listener, ready bool) {
 	if ready {
 		select {
 		case <-l.Ready():
 			// all good
-		case <-timer.C:
+		default:
 			c.Error("listener not ready")
 		}
 	} else {
 		select {
 		case <-l.Ready():
 			c.Error("listener unexpectedly ready")
-		case <-timer.C:
+		default:
+			// all good
+		}
+	}
+}
+
+func checkListenerReadyWithTimeout(c *C, l *listener.Listener, ready bool, timeout time.Duration) {
+	c.Assert(timeout, Not(Equals), time.Duration(0))
+	if ready {
+		select {
+		case <-l.Ready():
+			// all good
+		case <-time.NewTimer(timeout).C:
+			c.Error("listener not ready")
+		}
+	} else {
+		select {
+		case <-l.Ready():
+			c.Error("listener unexpectedly ready")
+		case <-time.NewTimer(timeout).C:
 			// all good
 		}
 	}
@@ -579,7 +597,7 @@ func (*listenerSuite) TestRunWithPendingReady(c *C) {
 		c.Check(t.Wait(), IsNil)
 	}()
 
-	checkListenerReady(c, l, false, 0) // not ready
+	checkListenerReady(c, l, false) // not ready
 
 	t.Go(l.Run)
 
@@ -596,7 +614,7 @@ func (*listenerSuite) TestRunWithPendingReady(c *C) {
 	buf, err := msg.MarshalBinary()
 	c.Assert(err, IsNil)
 	recvChan <- buf
-	checkListenerReady(c, l, false, 0) // still not ready
+	checkListenerReady(c, l, false) // still not ready
 	// Since we're not ready yet, it's not sent until all the pending requests are sent
 	select {
 	case req := <-l.Reqs():
@@ -611,7 +629,7 @@ func (*listenerSuite) TestRunWithPendingReady(c *C) {
 	buf, err = msg.MarshalBinary()
 	c.Assert(err, IsNil)
 	recvChan <- buf
-	checkListenerReady(c, l, false, 0) // still not ready
+	checkListenerReady(c, l, false) // still not ready
 	// We're still not ready, but since it's resent, it'll be sent over reqs
 	select {
 	case req := <-l.Reqs():
@@ -626,7 +644,7 @@ func (*listenerSuite) TestRunWithPendingReady(c *C) {
 	buf, err = msg.MarshalBinary()
 	c.Assert(err, IsNil)
 	recvChan <- buf
-	checkListenerReady(c, l, false, 0) // still not ready
+	checkListenerReady(c, l, false) // still not ready
 	// Since we're not ready yet, it's not sent until all the pending requests are sent
 	select {
 	case req := <-l.Reqs():
@@ -641,7 +659,7 @@ func (*listenerSuite) TestRunWithPendingReady(c *C) {
 	buf, err = msg.MarshalBinary()
 	c.Assert(err, IsNil)
 	recvChan <- buf
-	checkListenerReady(c, l, false, 0) // still not ready
+	checkListenerReady(c, l, false) // still not ready
 	// We're still not ready, but since it's resent, it'll be sent over reqs
 	select {
 	case req := <-l.Reqs():
@@ -664,7 +682,7 @@ func (*listenerSuite) TestRunWithPendingReady(c *C) {
 	case <-time.NewTimer(10 * time.Millisecond).C:
 		c.Fatalf("failed to receive request with NOTIF_RESENT")
 	}
-	checkListenerReady(c, l, true, 10*time.Millisecond) // ready now that all pending requests have been received
+	checkListenerReadyWithTimeout(c, l, true, 10*time.Millisecond) // ready now that all pending requests have been received
 	// Then expect the previous non-NOTIF_RESENT requests which were queued
 	for _, id := range []uint64{0xf00, 0xabc} {
 		select {
@@ -681,7 +699,7 @@ func (*listenerSuite) TestRunWithPendingReady(c *C) {
 	buf, err = msg.MarshalBinary()
 	c.Assert(err, IsNil)
 	recvChan <- buf
-	checkListenerReady(c, l, true, 0)
+	checkListenerReady(c, l, true)
 	select {
 	case req := <-l.Reqs():
 		c.Assert(req.ID, Equals, msg.KernelNotificationID)
@@ -711,7 +729,7 @@ func (*listenerSuite) TestRegisterWriteRun(c *C) {
 	}()
 
 	// since pendingCount == 0, should be immediately ready
-	checkListenerReady(c, l, true, 0)
+	checkListenerReady(c, l, true)
 
 	id := uint64(0x1234)
 	label := "snap.foo.bar"
@@ -777,7 +795,7 @@ func (*listenerSuite) TestRunMultipleRequestsInBuffer(c *C) {
 	}()
 
 	// since pendingCount == 0, should be immediately ready
-	checkListenerReady(c, l, true, 0)
+	checkListenerReady(c, l, true)
 
 	t.Go(l.Run)
 
@@ -947,7 +965,7 @@ func (*listenerSuite) TestRunNoReceiver(c *C) {
 	l, err := listener.Register()
 	c.Assert(err, IsNil)
 
-	checkListenerReady(c, l, true, 0)
+	checkListenerReady(c, l, true)
 
 	t.Go(l.Run)
 
@@ -996,7 +1014,7 @@ func (*listenerSuite) TestRunNoReceiverWithPending(c *C) {
 
 	t.Go(l.Run)
 
-	checkListenerReady(c, l, false, 0)
+	checkListenerReady(c, l, false)
 
 	id := uint64(0x1234)
 	label := "snap.foo.bar"
@@ -1019,12 +1037,12 @@ func (*listenerSuite) TestRunNoReceiverWithPending(c *C) {
 		c.Errorf("failed to synchronize on ioctl call")
 	}
 
-	checkListenerReady(c, l, false, 10*time.Millisecond)
+	checkListenerReadyWithTimeout(c, l, false, 10*time.Millisecond)
 
 	c.Check(l.Close(), IsNil)
 
 	// Close() should call listener to become ready
-	checkListenerReady(c, l, true, 10*time.Millisecond)
+	checkListenerReadyWithTimeout(c, l, true, 10*time.Millisecond)
 
 	c.Check(t.Wait(), IsNil)
 }
