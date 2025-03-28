@@ -8,6 +8,9 @@ description: |
 grade: stable
 confinement: strict
 
+environment:
+  PYTHONPATH: "$SNAP/usr/lib/python3/dist-packages:${PYTHONPATH}"
+
 plugs:
   polkit-action:
     interface: polkit
@@ -20,17 +23,21 @@ plugs:
 
 apps:
   check-pid:
-    command: bin/check-pid.sh
+    command: bin/check-pid.py
     plugs:
       - polkit-action
       - polkit-rule
 
 parts:
+  part-python:
+    plugin: python
+    source: .
+    stage-packages: [python3-dbus]
   part-check-pid:
     plugin: dump
     source: bin
     organize:
-      check-pid.sh: bin/check-pid.sh
+      check-pid.py: bin/check-pid.py
   part-polkit-files:
     plugin: dump
     source: polkit

@@ -65,12 +65,14 @@ execute: |
         tests.session -u test exec systemd-run --user --unit test-snapd-sleep.service sh -c 'touch /home/test/sleep.stamp && exec sleep 1h'
         retry -n 30 --wait 0.1 test -e /home/test/sleep.stamp
         user_pid=$(tests.session -u test exec systemctl --user show --property=MainPID test-snapd-sleep.service | cut -d = -f 2)
+        uid="$(stat --format %u "/proc/$user_pid")"
+        pid_start="$(sed 's/([^)]*)/program/' < "/proc/$user_pid/stat" | cut -d ' ' -f 22)"
 
         echo "The snap can talk to polkitd"
-        test-snapd-polkit.check-pid "$user_pid" org.example.foo.AlwaysAllow \
-            | MATCH '^\(bba\{ss\}\) true false '
-        test-snapd-polkit.check-pid "$user_pid" org.example.foo.AlwaysDeny \
-            | MATCH '^\(bba\{ss\}\) false false '
+        test-snapd-polkit.check-pid "$user_pid" "$pid_start" "$uid" org.example.foo.AlwaysAllow \
+            | MATCH '^\(bba\{ss\}\) True False '
+        test-snapd-polkit.check-pid "$user_pid" "$pid_start" "$uid" org.example.foo.AlwaysDeny \
+            | MATCH '^\(bba\{ss\}\) False False '
     fi
 
     # Skip rule checks for Ubuntu <= 22.04 and Debian 11 because they don't support the
