@@ -240,6 +240,7 @@ jobs:
           - { go-build-tags: faultinject,           skip-coverage: false, snapd-debug: false, go-test-race: false}
           - { go-build-tags: statelocktrace,        skip-coverage: true,  snapd-debug: false, go-test-race: false}
           - { go-build-tags: snapdusergo,           skip-coverage: false, snapd-debug: false, go-test-race: false}
+          - { go-build-tags: structuredlogging,     skip-coverage: true,  snapd-debug: false, go-test-race: false}
           - { go-build-tags: "",                    skip-coverage: true,  snapd-debug: false, go-test-race: true }
 
   unit-tests-special-not-required:
