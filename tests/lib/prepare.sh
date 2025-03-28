@@ -1027,6 +1027,14 @@ uc24_build_initramfs_kernel_snap() {
         cp -a ./extra-kernel-snap/* ./pc-kernel
     fi
 
+    if [ -n "${NESTED_KERNEL_REMOVE_COMPONENTS-}" ]; then
+        #shellcheck disable=SC2016
+        gojq 'del(.components)' --yaml-input pc-kernel/meta/snap.yaml --yaml-output >pc-kernel/meta/snap.yaml.new
+        mv pc-kernel/meta/snap.yaml.new pc-kernel/meta/snap.yaml
+        gojq 'del(.slots)' --yaml-input pc-kernel/meta/snap.yaml --yaml-output >pc-kernel/meta/snap.yaml.new
+        mv pc-kernel/meta/snap.yaml.new pc-kernel/meta/snap.yaml
+    fi
+
     if [ -n "$NESTED_KERNEL_MODULES_COMP" ] && is_test_target_core_ge 24; then
         # "split" kernel in kernel-modules component and kernel
         move_module_to_component "$NESTED_COMP_KERNEL_MODULE_NAME" "$NESTED_KERNEL_MODULES_COMP"
