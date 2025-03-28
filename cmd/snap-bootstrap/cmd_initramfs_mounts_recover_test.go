@@ -49,7 +49,6 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeNoSaveHappyRealSyst
 	baseMnt := filepath.Join(boot.InitramfsRunMntDir, "base")
 	gadgetMnt := filepath.Join(boot.InitramfsRunMntDir, "gadget")
 	kernelMnt := filepath.Join(boot.InitramfsRunMntDir, "kernel")
-	snapdMnt := filepath.Join(boot.InitramfsRunMntDir, "snapd")
 
 	restore := disks.MockMountPointDisksToPartitionMapping(
 		map[disks.Mountpoint]*disks.MockDiskMapping{
@@ -77,18 +76,16 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeNoSaveHappyRealSyst
 		case 1, 2:
 			c.Assert(where, Equals, boot.InitramfsUbuntuSeedDir)
 		case 3, 4:
-			c.Assert(where, Equals, snapdMnt)
-		case 5, 6:
 			c.Assert(where, Equals, kernelMnt)
-		case 7, 8:
+		case 5, 6:
 			c.Assert(where, Equals, baseMnt)
-		case 9, 10:
+		case 7, 8:
 			c.Assert(where, Equals, gadgetMnt)
-		case 11, 12:
+		case 9, 10:
 			c.Assert(where, Equals, boot.InitramfsDataDir)
-		case 13, 14:
+		case 11, 12:
 			c.Assert(where, Equals, boot.InitramfsUbuntuBootDir)
-		case 15, 16:
+		case 13, 14:
 			c.Assert(where, Equals, boot.InitramfsHostUbuntuDataDir)
 		default:
 			c.Errorf("unexpected IsMounted check on %s", where)
@@ -146,7 +143,6 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeNoSaveHappyRealSyst
 	} {
 		for _, mountUnit := range []string{
 			systemd.EscapeUnitNamePath(boot.InitramfsUbuntuSeedDir),
-			systemd.EscapeUnitNamePath(snapdMnt),
 			systemd.EscapeUnitNamePath(kernelMnt),
 			systemd.EscapeUnitNamePath(baseMnt),
 			systemd.EscapeUnitNamePath(gadgetMnt),
@@ -162,7 +158,7 @@ Wants=%[1]s
 	}
 
 	// 2 IsMounted calls per mount point, so 14 total IsMounted calls
-	c.Assert(n, Equals, 16)
+	c.Assert(n, Equals, 14)
 
 	c.Assert(cmd.Calls(), DeepEquals, [][]string{
 		{
@@ -173,15 +169,6 @@ Wants=%[1]s
 			"--no-ask-password",
 			"--fsck=yes",
 			"--options=nodev,nosuid,noexec,private",
-			"--property=Before=initrd-fs.target",
-		}, {
-			"systemd-mount",
-			filepath.Join(s.seedDir, "snaps", s.snapd.Filename()),
-			snapdMnt,
-			"--no-pager",
-			"--no-ask-password",
-			"--fsck=no",
-			"--options=ro,private",
 			"--property=Before=initrd-fs.target",
 		}, {
 			"systemd-mount",
@@ -249,6 +236,8 @@ Wants=%[1]s
 
 	// save is optional and not found in this test
 	c.Check(s.logs.String(), testutil.Contains, "ubuntu-save was not found")
+
+	checkSnapdMountUnit(c)
 }
 
 func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeWithSaveHappyRealSystemdMount(c *C) {
@@ -267,7 +256,6 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeWithSaveHappyRealSy
 	baseMnt := filepath.Join(boot.InitramfsRunMntDir, "base")
 	gadgetMnt := filepath.Join(boot.InitramfsRunMntDir, "gadget")
 	kernelMnt := filepath.Join(boot.InitramfsRunMntDir, "kernel")
-	snapdMnt := filepath.Join(boot.InitramfsRunMntDir, "snapd")
 
 	// don't do anything from systemd-mount, we verify the arguments passed at
 	// the end with cmd.Calls
@@ -321,7 +309,6 @@ Wants=%[1]s
 
 	c.Check(isMountedChecks, DeepEquals, []string{
 		boot.InitramfsUbuntuSeedDir,
-		snapdMnt,
 		kernelMnt,
 		baseMnt,
 		gadgetMnt,
@@ -339,15 +326,6 @@ Wants=%[1]s
 			"--no-ask-password",
 			"--fsck=yes",
 			"--options=nodev,nosuid,noexec,private",
-			"--property=Before=initrd-fs.target",
-		}, {
-			"systemd-mount",
-			filepath.Join(s.seedDir, "snaps", s.snapd.Filename()),
-			snapdMnt,
-			"--no-pager",
-			"--no-ask-password",
-			"--fsck=no",
-			"--options=ro,private",
 			"--property=Before=initrd-fs.target",
 		}, {
 			"systemd-mount",
@@ -421,6 +399,8 @@ Wants=%[1]s
 
 	// save is optional and found in this test
 	c.Check(s.logs.String(), Not(testutil.Contains), "ubuntu-save was not found")
+
+	checkSnapdMountUnit(c)
 }
 
 func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeEncryptedNoModel(c *C) {
@@ -472,7 +452,6 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeHappy(c *C) {
 
 	restore = s.mockSystemdMountSequence(c, []systemdMount{
 		s.ubuntuLabelMount("ubuntu-seed", "recover"),
-		s.makeSeedSnapSystemdMount(snap.TypeSnapd),
 		s.makeSeedSnapSystemdMount(snap.TypeKernel),
 		s.makeSeedSnapSystemdMount(snap.TypeGadget),
 		{
@@ -533,6 +512,8 @@ Type=squashfs
 	c.Assert(systemctlNumCalls, Equals, 2)
 	c.Assert(systemctlArgs, DeepEquals, [][]string{{"daemon-reload"},
 		{"start", "--no-block", "initrd-root-fs.target"}})
+
+	checkSnapdMountUnit(c)
 }
 
 func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeTimeMovesForwardHappy(c *C) {
@@ -584,7 +565,6 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeTimeMovesForwardHap
 
 		restore = s.mockSystemdMountSequence(c, []systemdMount{
 			s.ubuntuLabelMount("ubuntu-seed", "recover"),
-			s.makeSeedSnapSystemdMount(snap.TypeSnapd),
 			s.makeSeedSnapSystemdMount(snap.TypeKernel),
 			s.makeSeedSnapSystemdMount(snap.TypeBase),
 			s.makeSeedSnapSystemdMount(snap.TypeGadget),
@@ -626,6 +606,8 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeTimeMovesForwardHap
 			r()
 		}
 	}
+
+	checkSnapdMountUnit(c)
 }
 
 func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeGadgetDefaultsHappy(c *C) {
@@ -668,7 +650,6 @@ defaults:
 
 	restore = s.mockSystemdMountSequence(c, []systemdMount{
 		s.ubuntuLabelMount("ubuntu-seed", "recover"),
-		s.makeSeedSnapSystemdMount(snap.TypeSnapd),
 		s.makeSeedSnapSystemdMount(snap.TypeKernel),
 		s.makeSeedSnapSystemdMount(snap.TypeBase),
 		s.makeSeedSnapSystemdMount(snap.TypeGadget),
@@ -723,6 +704,8 @@ defaults:
 
 	// systemctl was called the way we expect
 	c.Assert(sysctlArgs, DeepEquals, [][]string{{"--root", filepath.Join(filepath.Join(dirs.GlobalRootDir, "/run/mnt/data/system-data"), "_writable_defaults"), "mask", "rsyslog.service"}})
+
+	checkSnapdMountUnit(c)
 }
 
 func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeHappyBootedKernelPartitionUUID(c *C) {
@@ -753,7 +736,6 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeHappyBootedKernelPa
 			needsFsckAndNoSuidNoDevNoExecMountOpts,
 			nil,
 		},
-		s.makeSeedSnapSystemdMount(snap.TypeSnapd),
 		s.makeSeedSnapSystemdMount(snap.TypeKernel),
 		s.makeSeedSnapSystemdMount(snap.TypeBase),
 		s.makeSeedSnapSystemdMount(snap.TypeGadget),
@@ -788,6 +770,8 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeHappyBootedKernelPa
 
 	// we should not have written a degraded.json
 	c.Assert(filepath.Join(dirs.SnapBootstrapRunDir, "degraded.json"), testutil.FileAbsent)
+
+	checkSnapdMountUnit(c)
 }
 
 func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeHappyEncrypted(c *C) {
@@ -874,7 +858,6 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeHappyEncrypted(c *C
 
 	restore = s.mockSystemdMountSequence(c, []systemdMount{
 		s.ubuntuLabelMount("ubuntu-seed", "recover"),
-		s.makeSeedSnapSystemdMount(snap.TypeSnapd),
 		s.makeSeedSnapSystemdMount(snap.TypeKernel),
 		s.makeSeedSnapSystemdMount(snap.TypeBase),
 		s.makeSeedSnapSystemdMount(snap.TypeGadget),
@@ -918,6 +901,8 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeHappyEncrypted(c *C
 
 	c.Assert(filepath.Join(dirs.SnapBootstrapRunDir, "secboot-epoch-measured"), testutil.FilePresent)
 	c.Assert(filepath.Join(dirs.SnapBootstrapRunDir, fmt.Sprintf("%s-model-measured", s.sysLabel)), testutil.FilePresent)
+
+	checkSnapdMountUnit(c)
 }
 
 func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeEncryptedDegradedDataUnlockFallbackHappy(c *C) {
@@ -1025,7 +1010,6 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeEncryptedDegradedDa
 
 	restore = s.mockSystemdMountSequence(c, []systemdMount{
 		s.ubuntuLabelMount("ubuntu-seed", "recover"),
-		s.makeSeedSnapSystemdMount(snap.TypeSnapd),
 		s.makeSeedSnapSystemdMount(snap.TypeKernel),
 		s.makeSeedSnapSystemdMount(snap.TypeBase),
 		s.makeSeedSnapSystemdMount(snap.TypeGadget),
@@ -1095,6 +1079,8 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeEncryptedDegradedDa
 
 	c.Assert(filepath.Join(dirs.SnapBootstrapRunDir, "secboot-epoch-measured"), testutil.FilePresent)
 	c.Assert(filepath.Join(dirs.SnapBootstrapRunDir, fmt.Sprintf("%s-model-measured", s.sysLabel)), testutil.FilePresent)
+
+	checkSnapdMountUnit(c)
 }
 
 func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeEncryptedDegradedSaveUnlockFallbackHappy(c *C) {
@@ -1205,7 +1191,6 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeEncryptedDegradedSa
 
 	restore = s.mockSystemdMountSequence(c, []systemdMount{
 		s.ubuntuLabelMount("ubuntu-seed", "recover"),
-		s.makeSeedSnapSystemdMount(snap.TypeSnapd),
 		s.makeSeedSnapSystemdMount(snap.TypeKernel),
 		s.makeSeedSnapSystemdMount(snap.TypeBase),
 		s.makeSeedSnapSystemdMount(snap.TypeGadget),
@@ -1275,6 +1260,8 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeEncryptedDegradedSa
 
 	c.Assert(filepath.Join(dirs.SnapBootstrapRunDir, "secboot-epoch-measured"), testutil.FilePresent)
 	c.Assert(filepath.Join(dirs.SnapBootstrapRunDir, fmt.Sprintf("%s-model-measured", s.sysLabel)), testutil.FilePresent)
+
+	checkSnapdMountUnit(c)
 }
 
 func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeEncryptedDegradedAbsentBootDataUnlockFallbackHappy(c *C) {
@@ -1376,7 +1363,6 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeEncryptedDegradedAb
 
 	restore = s.mockSystemdMountSequence(c, []systemdMount{
 		s.ubuntuLabelMount("ubuntu-seed", "recover"),
-		s.makeSeedSnapSystemdMount(snap.TypeSnapd),
 		s.makeSeedSnapSystemdMount(snap.TypeKernel),
 		s.makeSeedSnapSystemdMount(snap.TypeBase),
 		s.makeSeedSnapSystemdMount(snap.TypeGadget),
@@ -1437,6 +1423,8 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeEncryptedDegradedAb
 
 	c.Assert(filepath.Join(dirs.SnapBootstrapRunDir, "secboot-epoch-measured"), testutil.FilePresent)
 	c.Assert(filepath.Join(dirs.SnapBootstrapRunDir, fmt.Sprintf("%s-model-measured", s.sysLabel)), testutil.FilePresent)
+
+	checkSnapdMountUnit(c)
 }
 
 func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeEncryptedDegradedAbsentBootDataUnlockRecoveryKeyHappy(c *C) {
@@ -1540,7 +1528,6 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeEncryptedDegradedAb
 
 	restore = s.mockSystemdMountSequence(c, []systemdMount{
 		s.ubuntuLabelMount("ubuntu-seed", "recover"),
-		s.makeSeedSnapSystemdMount(snap.TypeSnapd),
 		s.makeSeedSnapSystemdMount(snap.TypeKernel),
 		s.makeSeedSnapSystemdMount(snap.TypeBase),
 		s.makeSeedSnapSystemdMount(snap.TypeGadget),
@@ -1601,6 +1588,8 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeEncryptedDegradedAb
 
 	c.Assert(filepath.Join(dirs.SnapBootstrapRunDir, "secboot-epoch-measured"), testutil.FilePresent)
 	c.Assert(filepath.Join(dirs.SnapBootstrapRunDir, fmt.Sprintf("%s-model-measured", s.sysLabel)), testutil.FilePresent)
+
+	checkSnapdMountUnit(c)
 }
 
 func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeEncryptedDegradedDataUnlockFailSaveUnlockFallbackHappy(c *C) {
@@ -1712,7 +1701,6 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeEncryptedDegradedDa
 
 	restore = s.mockSystemdMountSequence(c, []systemdMount{
 		s.ubuntuLabelMount("ubuntu-seed", "recover"),
-		s.makeSeedSnapSystemdMount(snap.TypeSnapd),
 		s.makeSeedSnapSystemdMount(snap.TypeKernel),
 		s.makeSeedSnapSystemdMount(snap.TypeBase),
 		s.makeSeedSnapSystemdMount(snap.TypeGadget),
@@ -1808,6 +1796,8 @@ grade=signed
 
 	c.Assert(filepath.Join(dirs.SnapBootstrapRunDir, "secboot-epoch-measured"), testutil.FilePresent)
 	c.Assert(filepath.Join(dirs.SnapBootstrapRunDir, fmt.Sprintf("%s-model-measured", s.sysLabel)), testutil.FilePresent)
+
+	checkSnapdMountUnit(c)
 }
 
 func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeDegradedAbsentDataUnencryptedSaveHappy(c *C) {
@@ -1903,7 +1893,6 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeDegradedAbsentDataU
 
 	restore = s.mockSystemdMountSequence(c, []systemdMount{
 		s.ubuntuLabelMount("ubuntu-seed", "recover"),
-		s.makeSeedSnapSystemdMount(snap.TypeSnapd),
 		s.makeSeedSnapSystemdMount(snap.TypeKernel),
 		s.makeSeedSnapSystemdMount(snap.TypeBase),
 		s.makeSeedSnapSystemdMount(snap.TypeGadget),
@@ -1994,6 +1983,8 @@ grade=signed
 
 	c.Assert(filepath.Join(dirs.SnapBootstrapRunDir, "secboot-epoch-measured"), testutil.FilePresent)
 	c.Assert(filepath.Join(dirs.SnapBootstrapRunDir, fmt.Sprintf("%s-model-measured", s.sysLabel)), testutil.FilePresent)
+
+	checkSnapdMountUnit(c)
 }
 
 func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeDegradedUnencryptedDataSaveEncryptedHappy(c *C) {
@@ -2096,7 +2087,6 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeDegradedUnencrypted
 
 	restore = s.mockSystemdMountSequence(c, []systemdMount{
 		s.ubuntuLabelMount("ubuntu-seed", "recover"),
-		s.makeSeedSnapSystemdMount(snap.TypeSnapd),
 		s.makeSeedSnapSystemdMount(snap.TypeKernel),
 		s.makeSeedSnapSystemdMount(snap.TypeBase),
 		s.makeSeedSnapSystemdMount(snap.TypeGadget),
@@ -2135,6 +2125,8 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeDegradedUnencrypted
 	// the system is not encrypted, even if encrypted save exists it gets
 	// ignored
 	c.Check(s.logs.String(), testutil.Contains, "ignoring unexpected encrypted ubuntu-save")
+
+	checkSnapdMountUnit(c)
 }
 
 func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeDegradedEncryptedDataUnencryptedSaveHappy(c *C) {
@@ -2242,7 +2234,6 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeDegradedEncryptedDa
 
 	restore = s.mockSystemdMountSequence(c, []systemdMount{
 		s.ubuntuLabelMount("ubuntu-seed", "recover"),
-		s.makeSeedSnapSystemdMount(snap.TypeSnapd),
 		s.makeSeedSnapSystemdMount(snap.TypeKernel),
 		s.makeSeedSnapSystemdMount(snap.TypeBase),
 		s.makeSeedSnapSystemdMount(snap.TypeGadget),
@@ -2285,6 +2276,8 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeDegradedEncryptedDa
 
 	c.Assert(filepath.Join(dirs.SnapBootstrapRunDir, "secboot-epoch-measured"), testutil.FilePresent)
 	c.Assert(filepath.Join(dirs.SnapBootstrapRunDir, fmt.Sprintf("%s-model-measured", s.sysLabel)), testutil.FilePresent)
+
+	checkSnapdMountUnit(c)
 }
 
 func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeUnencryptedDataUnencryptedSaveHappy(c *C) {
@@ -2359,7 +2352,6 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeUnencryptedDataUnen
 
 	restore = s.mockSystemdMountSequence(c, []systemdMount{
 		s.ubuntuLabelMount("ubuntu-seed", "recover"),
-		s.makeSeedSnapSystemdMount(snap.TypeSnapd),
 		s.makeSeedSnapSystemdMount(snap.TypeKernel),
 		s.makeSeedSnapSystemdMount(snap.TypeBase),
 		s.makeSeedSnapSystemdMount(snap.TypeGadget),
@@ -2398,6 +2390,8 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeUnencryptedDataUnen
 
 	c.Assert(filepath.Join(dirs.SnapBootstrapRunDir, "secboot-epoch-measured"), testutil.FilePresent)
 	c.Assert(filepath.Join(dirs.SnapBootstrapRunDir, fmt.Sprintf("%s-model-measured", s.sysLabel)), testutil.FilePresent)
+
+	checkSnapdMountUnit(c)
 }
 
 func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeEncryptedDegradedAbsentDataSaveUnlockFallbackHappy(c *C) {
@@ -2507,7 +2501,6 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeEncryptedDegradedAb
 
 	restore = s.mockSystemdMountSequence(c, []systemdMount{
 		s.ubuntuLabelMount("ubuntu-seed", "recover"),
-		s.makeSeedSnapSystemdMount(snap.TypeSnapd),
 		s.makeSeedSnapSystemdMount(snap.TypeKernel),
 		s.makeSeedSnapSystemdMount(snap.TypeBase),
 		s.makeSeedSnapSystemdMount(snap.TypeGadget),
@@ -2600,6 +2593,8 @@ grade=signed
 
 	c.Assert(filepath.Join(dirs.SnapBootstrapRunDir, "secboot-epoch-measured"), testutil.FilePresent)
 	c.Assert(filepath.Join(dirs.SnapBootstrapRunDir, fmt.Sprintf("%s-model-measured", s.sysLabel)), testutil.FilePresent)
+
+	checkSnapdMountUnit(c)
 }
 
 func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeEncryptedDegradedDataUnlockFailSaveUnlockFailHappy(c *C) {
@@ -2716,7 +2711,6 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeEncryptedDegradedDa
 
 	restore = s.mockSystemdMountSequence(c, []systemdMount{
 		s.ubuntuLabelMount("ubuntu-seed", "recover"),
-		s.makeSeedSnapSystemdMount(snap.TypeSnapd),
 		s.makeSeedSnapSystemdMount(snap.TypeKernel),
 		s.makeSeedSnapSystemdMount(snap.TypeBase),
 		s.makeSeedSnapSystemdMount(snap.TypeGadget),
@@ -2804,6 +2798,8 @@ grade=signed
 
 	c.Assert(filepath.Join(dirs.SnapBootstrapRunDir, "secboot-epoch-measured"), testutil.FilePresent)
 	c.Assert(filepath.Join(dirs.SnapBootstrapRunDir, fmt.Sprintf("%s-model-measured", s.sysLabel)), testutil.FilePresent)
+
+	checkSnapdMountUnit(c)
 }
 
 func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeEncryptedMismatchedMarker(c *C) {
@@ -2886,7 +2882,6 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeEncryptedMismatched
 
 	restore = s.mockSystemdMountSequence(c, []systemdMount{
 		s.ubuntuLabelMount("ubuntu-seed", "recover"),
-		s.makeSeedSnapSystemdMount(snap.TypeSnapd),
 		s.makeSeedSnapSystemdMount(snap.TypeKernel),
 		s.makeSeedSnapSystemdMount(snap.TypeBase),
 		s.makeSeedSnapSystemdMount(snap.TypeGadget),
@@ -2987,6 +2982,8 @@ grade=signed
 
 	c.Assert(filepath.Join(dirs.SnapBootstrapRunDir, "secboot-epoch-measured"), testutil.FilePresent)
 	c.Assert(filepath.Join(dirs.SnapBootstrapRunDir, fmt.Sprintf("%s-model-measured", s.sysLabel)), testutil.FilePresent)
+
+	checkSnapdMountUnit(c)
 }
 
 func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeEncryptedAttackerFSAttachedHappy(c *C) {
@@ -3099,7 +3096,6 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeEncryptedAttackerFS
 
 	restore = s.mockSystemdMountSequence(c, []systemdMount{
 		s.ubuntuLabelMount("ubuntu-seed", "recover"),
-		s.makeSeedSnapSystemdMount(snap.TypeSnapd),
 		s.makeSeedSnapSystemdMount(snap.TypeKernel),
 		s.makeSeedSnapSystemdMount(snap.TypeBase),
 		s.makeSeedSnapSystemdMount(snap.TypeGadget),
@@ -3139,6 +3135,8 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeEncryptedAttackerFS
 
 	c.Assert(filepath.Join(dirs.SnapBootstrapRunDir, "secboot-epoch-measured"), testutil.FilePresent)
 	c.Assert(filepath.Join(dirs.SnapBootstrapRunDir, fmt.Sprintf("%s-model-measured", s.sysLabel)), testutil.FilePresent)
+
+	checkSnapdMountUnit(c)
 }
 
 func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeMeasure(c *C) {
@@ -3167,7 +3165,6 @@ func (s *initramfsMountsSuite) testInitramfsMountsTryRecoveryInconsistent(c *C) 
 	defer restore()
 	restore = s.mockSystemdMountSequence(c, []systemdMount{
 		s.ubuntuLabelMount("ubuntu-seed", "recover"),
-		s.makeSeedSnapSystemdMount(snap.TypeSnapd),
 		s.makeSeedSnapSystemdMount(snap.TypeKernel),
 		s.makeSeedSnapSystemdMount(snap.TypeBase),
 		s.makeSeedSnapSystemdMount(snap.TypeGadget),
@@ -3184,6 +3181,8 @@ func (s *initramfsMountsSuite) testInitramfsMountsTryRecoveryInconsistent(c *C) 
 		main.Parser().ParseArgs([]string{"initramfs-mounts"})
 	}
 	c.Assert(runParser, PanicMatches, `finalize try recovery system did not reboot, last error: <nil>`)
+
+	checkSnapdMountUnit(c)
 }
 
 func (s *initramfsMountsSuite) TestInitramfsMountsTryRecoveryInconsistentBogusStatus(c *C) {
@@ -3325,7 +3324,6 @@ func (s *initramfsMountsSuite) testInitramfsMountsTryRecoveryDegraded(c *C, expe
 	}
 	mountSequence := []systemdMount{
 		s.ubuntuLabelMount("ubuntu-seed", "recover"),
-		s.makeSeedSnapSystemdMount(snap.TypeSnapd),
 		s.makeSeedSnapSystemdMount(snap.TypeKernel),
 		s.makeSeedSnapSystemdMount(snap.TypeBase),
 		s.makeSeedSnapSystemdMount(snap.TypeGadget),
@@ -3435,6 +3433,8 @@ func (s *initramfsMountsSuite) testInitramfsMountsTryRecoveryDegraded(c *C, expe
 		// recovery system is cleared
 		"snapd_recovery_system": "",
 	})
+
+	checkSnapdMountUnit(c)
 }
 
 func (s *initramfsMountsSuite) TestInitramfsMountsTryRecoveryDegradedStopAfterData(c *C) {
