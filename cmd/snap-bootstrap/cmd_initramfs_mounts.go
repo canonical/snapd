@@ -805,7 +805,7 @@ type partitionState struct {
 	partDevice string
 }
 
-type recoverDegradedState struct {
+type diskUnlockState struct {
 	// UbuntuData is the state of the ubuntu-data (or ubuntu-data-enc)
 	// partition.
 	UbuntuData partitionState
@@ -818,7 +818,7 @@ type recoverDegradedState struct {
 	ErrorLog []string
 }
 
-func (r *recoverDegradedState) serializeTo(name string) error {
+func (r *diskUnlockState) serializeTo(name string) error {
 	exportState := &boot.DiskUnlockState{
 		UbuntuData: r.UbuntuData.PartitionState,
 		UbuntuBoot: r.UbuntuBoot.PartitionState,
@@ -829,13 +829,13 @@ func (r *recoverDegradedState) serializeTo(name string) error {
 	return exportState.WriteTo(name)
 }
 
-func (r *recoverDegradedState) LogErrorf(format string, v ...interface{}) {
+func (r *diskUnlockState) LogErrorf(format string, v ...interface{}) {
 	msg := fmt.Sprintf(format, v...)
 	r.ErrorLog = append(r.ErrorLog, msg)
 	logger.Notice(msg)
 }
 
-func (r *recoverDegradedState) partition(part string) *partitionState {
+func (r *diskUnlockState) partition(part string) *partitionState {
 	switch part {
 	case "ubuntu-data":
 		return &r.UbuntuData
@@ -877,7 +877,7 @@ type recoverModeStateMachine struct {
 
 	// state for tracking what happens as we progress through degraded mode of
 	// recovery
-	degradedState *recoverDegradedState
+	degradedState *diskUnlockState
 }
 
 func (m *recoverModeStateMachine) whichModel() (*asserts.Model, error) {
@@ -995,8 +995,15 @@ func (m *recoverModeStateMachine) setMountState(part, where string, err error) e
 	return nil
 }
 
-func (m *recoverModeStateMachine) setUnlockStateWithRunKey(partName string, unlockRes secboot.UnlockResult, err error) error {
-	part := m.degradedState.partition(partName)
+func (m *recoverModeStateMachine) setUnlockStateWithRunKey(partName string, unlockRes secboot.UnlockResult, err error) {
+	if unlockRes.IsEncrypted {
+		m.isEncryptedDev = true
+	}
+	m.degradedState.setUnlockStateWithRunKey(partName, unlockRes, err)
+}
+
+func (d *diskUnlockState) setUnlockStateWithRunKey(partName string, unlockRes secboot.UnlockResult, err error) {
+	part := d.partition(partName)
 	// save the device if we found it from secboot
 	if unlockRes.PartDevice != "" {
 		part.FindState = boot.PartitionFound
@@ -1005,32 +1012,38 @@ func (m *recoverModeStateMachine) setUnlockStateWithRunKey(partName string, unlo
 	} else {
 		part.FindState = boot.PartitionNotFound
 	}
-	if unlockRes.IsEncrypted {
-		m.isEncryptedDev = true
-	}
 
 	if err != nil {
 		// create different error message for encrypted vs unencrypted
 		if unlockRes.IsEncrypted {
 			// if we know the device is decrypted we must also always know at
 			// least the partDevice (which is the encrypted block device)
-			m.degradedState.LogErrorf("cannot unlock encrypted %s (device %s) with sealed run key: %v", partName, part.partDevice, err)
+			d.LogErrorf("cannot unlock encrypted %s (device %s) with sealed run key: %v", partName, part.partDevice, err)
 			part.UnlockState = boot.PartitionErrUnlocking
 		} else {
 			// TODO: we don't know if this is a plain not found or  a different error
-			m.degradedState.LogErrorf("cannot locate %s partition for mounting host data: %v", partName, err)
+			d.LogErrorf("cannot locate %s partition for mounting host data: %v", partName, err)
 		}
 
-		return nil
+		return
 	}
 
 	if unlockRes.IsEncrypted {
 		// unlocked successfully
 		part.UnlockState = boot.PartitionUnlocked
-		part.UnlockKey = boot.KeyRun
-	}
 
-	return nil
+		switch unlockRes.UnlockMethod {
+		case secboot.UnlockedWithSealedKey:
+			part.UnlockKey = boot.KeyRun
+		case secboot.UnlockedWithRecoveryKey:
+			part.UnlockKey = boot.KeyRecovery
+		case secboot.UnlockedWithKey:
+			// This is the case when opening the save with the key file
+			part.UnlockKey = boot.KeyRun
+		default:
+			panic(fmt.Errorf("Unexpected unlock method: %v", unlockRes.UnlockMethod))
+		}
+	}
 }
 
 func (m *recoverModeStateMachine) setUnlockStateWithFallbackKey(partName string, unlockRes secboot.UnlockResult, err error) error {
@@ -1131,7 +1144,7 @@ func newRecoverModeStateMachine(model *asserts.Model, bootMode string, disk disk
 		model: model,
 		mode:  bootMode,
 		disk:  disk,
-		degradedState: &recoverDegradedState{
+		degradedState: &diskUnlockState{
 			ErrorLog: []string{},
 		},
 		noFallback: !allowFallback,
@@ -1272,9 +1285,7 @@ func (m *recoverModeStateMachine) unlockDataRunKey() (stateFunc, error) {
 		BootMode:         m.mode,
 	}
 	unlockRes, unlockErr := secbootUnlockVolumeUsingSealedKeyIfEncrypted(m.disk, "ubuntu-data", runModeKey, unlockOpts)
-	if err := m.setUnlockStateWithRunKey("ubuntu-data", unlockRes, unlockErr); err != nil {
-		return nil, err
-	}
+	m.setUnlockStateWithRunKey("ubuntu-data", unlockRes, unlockErr)
 	if unlockErr != nil {
 		// we couldn't unlock ubuntu-data with the primary key, or we didn't
 		// find it in the unencrypted case
@@ -1374,9 +1385,7 @@ func (m *recoverModeStateMachine) unlockEncryptedSaveRunKey() (stateFunc, error)
 	}
 
 	unlockRes, unlockErr := secbootUnlockEncryptedVolumeUsingProtectorKey(m.disk, "ubuntu-save", key)
-	if err := m.setUnlockStateWithRunKey("ubuntu-save", unlockRes, unlockErr); err != nil {
-		return nil, err
-	}
+	m.setUnlockStateWithRunKey("ubuntu-save", unlockRes, unlockErr)
 	if unlockErr != nil {
 		// failed to unlock with run key, try fallback key
 		return m.unlockEncryptedSaveFallbackKey, nil
@@ -1483,6 +1492,26 @@ func (m *recoverModeStateMachine) mountSave() (stateFunc, error) {
 	return nil, nil
 }
 
+func (m *recoverModeStateMachine) writeRecoverUnlockState() error {
+	// write out degraded.json if we ended up falling back somewhere
+	if m.degraded() {
+		if err := m.degradedState.serializeTo(boot.DegradedStateFileName); err != nil {
+			return err
+		}
+	}
+
+	// we always output unlocked.json
+	return m.degradedState.serializeTo(boot.UnlockedStateFileName)
+}
+
+func (m *recoverModeStateMachine) writeFactoryResetUnlockState() error {
+	if err := m.degradedState.serializeTo(boot.FactoryResetStateFileName); err != nil {
+		return err
+	}
+
+	return m.degradedState.serializeTo(boot.UnlockedStateFileName)
+}
+
 func generateMountsModeRecover(mst *initramfsMountsState) error {
 	// steps 1 and 2 are shared with install mode
 	model, snaps, err := generateMountsRecoverOrFactoryReset(mst)
@@ -1566,11 +1595,9 @@ func generateMountsModeRecover(mst *initramfsMountsState) error {
 		return err
 	}
 
-	// 3.1 write out degraded.json if we ended up falling back somewhere
-	if machine.degraded() {
-		if err := machine.degradedState.serializeTo("degraded.json"); err != nil {
-			return err
-		}
+	// 3.1 write out unlock states (unlocked.json, and eventually degraded.json)
+	if err := machine.writeRecoverUnlockState(); err != nil {
+		return err
 	}
 
 	// 4. final step: copy the auth data and network config from
@@ -1694,7 +1721,7 @@ func generateMountsModeFactoryReset(mst *initramfsMountsState) error {
 		return err
 	}
 
-	if err := machine.degradedState.serializeTo("factory-reset-bootstrap.json"); err != nil {
+	if err := machine.writeFactoryResetUnlockState(); err != nil {
 		return err
 	}
 
@@ -2076,7 +2103,7 @@ func generateMountsRecoverOrFactoryReset(mst *initramfsMountsState) (model *asse
 	return model, snaps, nil
 }
 
-func maybeMountSave(disk disks.Disk, rootdir string, encrypted bool, mountOpts *systemdMountOptions) (haveSave bool, err error) {
+func maybeMountSave(disk disks.Disk, rootdir string, encrypted bool, mountOpts *systemdMountOptions) (haveSave bool, unlockRes secboot.UnlockResult, err error) {
 	var saveDevice string
 	if encrypted {
 		saveKey := device.SaveKeyUnder(dirs.SnapFDEDirUnder(rootdir))
@@ -2084,16 +2111,16 @@ func maybeMountSave(disk disks.Disk, rootdir string, encrypted bool, mountOpts *
 		if !osutil.FileExists(saveKey) {
 			// ubuntu-data is encrypted, but we appear to be missing
 			// a key to open ubuntu-save
-			return false, fmt.Errorf("cannot find ubuntu-save encryption key at %v", saveKey)
+			return false, unlockRes, fmt.Errorf("cannot find ubuntu-save encryption key at %v", saveKey)
 		}
 		// we have save.key, volume exists and is encrypted
 		key, err := os.ReadFile(saveKey)
 		if err != nil {
-			return true, err
+			return true, unlockRes, err
 		}
-		unlockRes, err := secbootUnlockEncryptedVolumeUsingProtectorKey(disk, "ubuntu-save", key)
+		unlockRes, err = secbootUnlockEncryptedVolumeUsingProtectorKey(disk, "ubuntu-save", key)
 		if err != nil {
-			return true, fmt.Errorf("cannot unlock ubuntu-save volume: %v", err)
+			return true, unlockRes, fmt.Errorf("cannot unlock ubuntu-save volume: %v", err)
 		}
 		saveDevice = unlockRes.FsDevice
 	} else {
@@ -2102,16 +2129,16 @@ func maybeMountSave(disk disks.Disk, rootdir string, encrypted bool, mountOpts *
 			if _, ok := err.(disks.PartitionNotFoundError); ok {
 				// this is ok, ubuntu-save may not exist for
 				// non-encrypted device
-				return false, nil
+				return false, unlockRes, nil
 			}
-			return false, err
+			return false, unlockRes, err
 		}
 		saveDevice = filepath.Join("/dev/disk/by-partuuid", partUUID)
 	}
 	if err := doSystemdMount(saveDevice, boot.InitramfsUbuntuSaveDir, mountOpts); err != nil {
-		return true, err
+		return true, unlockRes, err
 	}
-	return true, nil
+	return true, unlockRes, nil
 }
 
 func createKernelMounts(runWritableDataDir, kernelName string, rev snap.Revision, isClassic bool) (bool, error) {
@@ -2346,6 +2373,8 @@ func generateMountsModeRun(mst *initramfsMountsState) error {
 		return err
 	}
 
+	diskState := &diskUnlockState{}
+
 	// at this point on a system with TPM-based encryption
 	// data can be open only if the measured model matches the actual
 	// run model.
@@ -2364,6 +2393,8 @@ func generateMountsModeRun(mst *initramfsMountsState) error {
 	if err != nil {
 		return err
 	}
+
+	diskState.setUnlockStateWithRunKey("ubuntu-data", unlockRes, nil)
 
 	// TODO: do we actually need fsck if we are mounting a mapper device?
 	// probably not?
@@ -2395,7 +2426,7 @@ func generateMountsModeRun(mst *initramfsMountsState) error {
 		NoSuid:    true,
 		NoExec:    true,
 	}
-	haveSave, err := maybeMountSave(disk, rootfsDir, isEncryptedDev, saveMountOpts)
+	haveSave, saveUnlockRes, err := maybeMountSave(disk, rootfsDir, isEncryptedDev, saveMountOpts)
 	if err != nil {
 		return err
 	}
@@ -2418,6 +2449,8 @@ func generateMountsModeRun(mst *initramfsMountsState) error {
 		return fmt.Errorf("cannot validate boot: ubuntu-data mountpoint is expected to be from disk %s but is not", disk.Dev())
 	}
 	if haveSave {
+		diskState.setUnlockStateWithRunKey("ubuntu-save", saveUnlockRes, nil)
+
 		// 4.1a we have ubuntu-save, verify it as well
 		matches, err = disk.MountPointIsFromDisk(boot.InitramfsUbuntuSaveDir, diskOpts)
 		if err != nil {
@@ -2445,6 +2478,10 @@ func generateMountsModeRun(mst *initramfsMountsState) error {
 			}
 		}
 	}
+
+	// All the required disks were unlocked. We now write down
+	// their unlock state.
+	diskState.serializeTo(boot.UnlockedStateFileName)
 
 	// 4.2. read modeenv
 	modeEnv, err := boot.ReadModeenv(rootfsDir)
