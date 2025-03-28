@@ -284,7 +284,7 @@ func (m *InterfaceManager) Ensure() error {
 		return nil
 	}
 
-	logger.Trace("Ensure", "manager", "ifacemgr", "func", "Ensure")
+	logger.Trace("ensure", "manager", "ifacemgr", "func", "Ensure")
 
 	// retry udev monitor initialization every 5 minutes
 	now := time.Now()

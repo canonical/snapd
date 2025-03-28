@@ -549,7 +549,6 @@ func loggerWithJournalMaybe() error {
 		if err != nil {
 			return err
 		}
-		// writer := io.MultiWriter(Stderr, journalWriter)
 		l, err := logger.New(journalWriter, logger.DefaultFlags, nil)
 		if err != nil {
 			return err
@@ -568,7 +567,7 @@ func loggerWithJournalMaybe() error {
 func run() error {
 	cli := mkClient()
 	parser := Parser(cli)
-	logger.Trace("Executing command", "cmd", strings.Join(os.Args[1:], " "))
+	logger.Trace("command-execution", "cmd", strings.Join(os.Args[1:], " "))
 	xtra, err := parser.Parse()
 	if err != nil {
 		if e, ok := err.(*flags.Error); ok {
