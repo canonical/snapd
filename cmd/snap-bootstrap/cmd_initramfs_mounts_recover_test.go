@@ -421,6 +421,28 @@ Wants=%[1]s
 
 	// save is optional and found in this test
 	c.Check(s.logs.String(), Not(testutil.Contains), "ubuntu-save was not found")
+
+	checkDegradedJSON(c, "unlocked.json", map[string]interface{}{
+		"ubuntu-boot": map[string]interface{}{
+			"mount-state":    "mounted",
+			"mount-location": boot.InitramfsUbuntuBootDir,
+			"device":         "/dev/disk/by-partuuid/ubuntu-boot-partuuid",
+			"find-state":     "found",
+		},
+		"ubuntu-data": map[string]interface{}{
+			"mount-state":    "mounted",
+			"device":         "/dev/disk/by-partuuid/ubuntu-data-partuuid",
+			"find-state":     "found",
+			"mount-location": boot.InitramfsHostUbuntuDataDir,
+		},
+		"ubuntu-save": map[string]interface{}{
+			"mount-state":    "mounted",
+			"device":         "/dev/disk/by-partuuid/ubuntu-save-partuuid",
+			"find-state":     "found",
+			"mount-location": boot.InitramfsUbuntuSaveDir,
+		},
+		"error-log": []interface{}{},
+	})
 }
 
 func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeEncryptedNoModel(c *C) {
@@ -506,6 +528,28 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeHappy(c *C) {
 
 	// we should not have written a degraded.json
 	c.Assert(filepath.Join(dirs.SnapBootstrapRunDir, "degraded.json"), testutil.FileAbsent)
+
+	checkDegradedJSON(c, "unlocked.json", map[string]interface{}{
+		"ubuntu-boot": map[string]interface{}{
+			"mount-state":    "mounted",
+			"mount-location": boot.InitramfsUbuntuBootDir,
+			"device":         "/dev/disk/by-partuuid/ubuntu-boot-partuuid",
+			"find-state":     "found",
+		},
+		"ubuntu-data": map[string]interface{}{
+			"mount-state":    "mounted",
+			"device":         "/dev/disk/by-partuuid/ubuntu-data-partuuid",
+			"find-state":     "found",
+			"mount-location": boot.InitramfsHostUbuntuDataDir,
+		},
+		"ubuntu-save": map[string]interface{}{
+			"mount-state":    "mounted",
+			"device":         "/dev/disk/by-partuuid/ubuntu-save-partuuid",
+			"find-state":     "found",
+			"mount-location": boot.InitramfsUbuntuSaveDir,
+		},
+		"error-log": []interface{}{},
+	})
 
 	// we also should have written an empty boot-flags file
 	c.Assert(filepath.Join(dirs.SnapRunDir, "boot-flags"), testutil.FileEquals, "")
@@ -909,6 +953,32 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeHappyEncrypted(c *C
 
 	// we should not have written a degraded.json
 	c.Assert(filepath.Join(dirs.SnapBootstrapRunDir, "degraded.json"), testutil.FileAbsent)
+
+	checkDegradedJSON(c, "unlocked.json", map[string]interface{}{
+		"ubuntu-boot": map[string]interface{}{
+			"mount-state":    "mounted",
+			"mount-location": boot.InitramfsUbuntuBootDir,
+			"device":         "/dev/disk/by-partuuid/ubuntu-boot-partuuid",
+			"find-state":     "found",
+		},
+		"ubuntu-data": map[string]interface{}{
+			"mount-state":    "mounted",
+			"device":         "/dev/mapper/ubuntu-data-random",
+			"find-state":     "found",
+			"unlock-key":     "run",
+			"unlock-state":   "unlocked",
+			"mount-location": boot.InitramfsHostUbuntuDataDir,
+		},
+		"ubuntu-save": map[string]interface{}{
+			"mount-state":    "mounted",
+			"device":         "/dev/mapper/ubuntu-save-random",
+			"find-state":     "found",
+			"unlock-key":     "run",
+			"unlock-state":   "unlocked",
+			"mount-location": boot.InitramfsUbuntuSaveDir,
+		},
+		"error-log": []interface{}{},
+	})
 
 	c.Check(dataActivated, Equals, true)
 	c.Check(saveActivated, Equals, true)
