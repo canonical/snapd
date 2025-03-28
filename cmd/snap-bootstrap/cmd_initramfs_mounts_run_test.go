@@ -684,6 +684,17 @@ Wants=%[1]s
 			"--property=Before=initrd-fs.target",
 		},
 	})
+
+	checkDegradedJSON(c, "unlocked.json", map[string]interface{}{
+		"ubuntu-boot": map[string]interface{}{},
+		"ubuntu-data": map[string]interface{}{
+			"find-state": "found",
+		},
+		"ubuntu-save": map[string]interface{}{
+			"find-state": "not-found",
+		},
+		"error-log": interface{}(nil),
+	})
 }
 
 func (s *initramfsMountsSuite) TestInitramfsMountsRunModeFirstBootRecoverySystemSetHappy(c *C) {
@@ -926,6 +937,170 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeEncryptedDataHappy(c *C
 
 	c.Assert(filepath.Join(dirs.SnapBootstrapRunDir, "secboot-epoch-measured"), testutil.FilePresent)
 	c.Assert(filepath.Join(dirs.SnapBootstrapRunDir, "run-model-measured"), testutil.FilePresent)
+
+	checkDegradedJSON(c, "unlocked.json", map[string]interface{}{
+		"ubuntu-boot": map[string]interface{}{},
+		"ubuntu-data": map[string]interface{}{
+			"find-state":   "found",
+			"unlock-state": "unlocked",
+			"unlock-key":   "run",
+		},
+		"ubuntu-save": map[string]interface{}{
+			"find-state":   "found",
+			"unlock-state": "unlocked",
+			"unlock-key":   "run",
+		},
+		"error-log": interface{}(nil),
+	})
+}
+
+func (s *initramfsMountsSuite) TestInitramfsMountsRunModeEncryptedDataHappyRecoveryKey(c *C) {
+	s.mockProcCmdlineContent(c, "snapd_recovery_mode=run")
+
+	// ensure that we check that access to sealed keys were locked
+	sealedKeysLocked := false
+	defer main.MockSecbootLockSealedKeys(func() error {
+		sealedKeysLocked = true
+		return nil
+	})()
+
+	restore := disks.MockMountPointDisksToPartitionMapping(
+		map[disks.Mountpoint]*disks.MockDiskMapping{
+			{Mountpoint: boot.InitramfsUbuntuBootDir}:                          defaultEncBootDisk,
+			{Mountpoint: boot.InitramfsDataDir, IsDecryptedDevice: true}:       defaultEncBootDisk,
+			{Mountpoint: boot.InitramfsUbuntuSaveDir, IsDecryptedDevice: true}: defaultEncBootDisk,
+		},
+	)
+	defer restore()
+
+	restore = s.mockSystemdMountSequence(c, []systemdMount{
+		s.ubuntuLabelMount("ubuntu-boot", "run"),
+		s.ubuntuPartUUIDMount("ubuntu-seed-partuuid", "run"),
+		{
+			"/dev/mapper/ubuntu-data-random",
+			boot.InitramfsDataDir,
+			needsFsckAndNoSuidDiskMountOpts,
+			nil,
+		},
+		{
+			"/dev/mapper/ubuntu-save-random",
+			boot.InitramfsUbuntuSaveDir,
+			needsFsckAndNoSuidNoDevNoExecMountOpts,
+			nil,
+		},
+		s.makeRunSnapSystemdMount(snap.TypeBase, s.core20),
+		s.makeRunSnapSystemdMount(snap.TypeGadget, s.gadget),
+		s.makeRunSnapSystemdMount(snap.TypeKernel, s.kernel),
+	}, nil)
+	defer restore()
+
+	// write the installed model like makebootable does it
+	err := os.MkdirAll(filepath.Join(boot.InitramfsUbuntuBootDir, "device"), 0755)
+	c.Assert(err, IsNil)
+	mf, err := os.Create(filepath.Join(boot.InitramfsUbuntuBootDir, "device/model"))
+	c.Assert(err, IsNil)
+	defer mf.Close()
+	err = asserts.NewEncoder(mf).Encode(s.model)
+	c.Assert(err, IsNil)
+
+	dataActivated := false
+	restore = main.MockSecbootUnlockVolumeUsingSealedKeyIfEncrypted(func(disk disks.Disk, name string, sealedEncryptionKeyFile string, opts *secboot.UnlockVolumeUsingSealedKeyOptions) (secboot.UnlockResult, error) {
+		c.Assert(name, Equals, "ubuntu-data")
+		c.Assert(sealedEncryptionKeyFile, Equals, filepath.Join(s.tmpDir, "run/mnt/ubuntu-boot/device/fde/ubuntu-data.sealed-key"))
+		c.Assert(opts.AllowRecoveryKey, Equals, true)
+		c.Assert(opts.WhichModel, NotNil)
+		mod, err := opts.WhichModel()
+		c.Assert(err, IsNil)
+		c.Check(mod.Model(), Equals, "my-model")
+		c.Check(opts.BootMode, Equals, "run")
+
+		dataActivated = true
+		// return true because we are using an encrypted device
+		return happyUnlocked("ubuntu-data", secboot.UnlockedWithRecoveryKey), nil
+	})
+	defer restore()
+
+	s.mockUbuntuSaveKeyAndMarker(c, filepath.Join(dirs.GlobalRootDir, "/run/mnt/data/system-data"), "foo", "marker")
+	s.mockUbuntuSaveMarker(c, boot.InitramfsUbuntuSaveDir, "marker")
+
+	saveActivated := false
+	restore = main.MockSecbootUnlockEncryptedVolumeUsingProtectorKey(func(disk disks.Disk, name string, key []byte) (secboot.UnlockResult, error) {
+		c.Check(dataActivated, Equals, true, Commentf("ubuntu-data not activated yet"))
+		saveActivated = true
+		c.Assert(name, Equals, "ubuntu-save")
+		c.Assert(key, DeepEquals, []byte("foo"))
+		// secboot.UnlockedWithSealedKey is used when using a plainkey
+		return happyUnlocked("ubuntu-save", secboot.UnlockedWithSealedKey), nil
+	})
+	defer restore()
+
+	measureEpochCalls := 0
+	measureModelCalls := 0
+	restore = main.MockSecbootMeasureSnapSystemEpochWhenPossible(func() error {
+		measureEpochCalls++
+		return nil
+	})
+	defer restore()
+
+	var measuredModel *asserts.Model
+	restore = main.MockSecbootMeasureSnapModelWhenPossible(func(findModel func() (*asserts.Model, error)) error {
+		measureModelCalls++
+		var err error
+		measuredModel, err = findModel()
+		if err != nil {
+			return err
+		}
+		return nil
+	})
+	defer restore()
+
+	// mock a bootloader
+	bloader := boottest.MockUC20RunBootenv(bootloadertest.Mock("mock", c.MkDir()))
+	bootloader.Force(bloader)
+	defer bootloader.Force(nil)
+
+	// set the current kernel
+	restore = bloader.SetEnabledKernel(s.kernel)
+	defer restore()
+
+	s.makeSnapFilesOnEarlyBootUbuntuData(c, s.kernel, s.core20, s.gadget)
+
+	// write modeenv
+	modeEnv := boot.Modeenv{
+		Mode:           "run",
+		Base:           s.core20.Filename(),
+		Gadget:         s.gadget.Filename(),
+		CurrentKernels: []string{s.kernel.Filename()},
+	}
+	err = modeEnv.WriteTo(filepath.Join(dirs.GlobalRootDir, "/run/mnt/data/system-data"))
+	c.Assert(err, IsNil)
+
+	_, err = main.Parser().ParseArgs([]string{"initramfs-mounts"})
+	c.Assert(err, IsNil)
+	c.Check(dataActivated, Equals, true)
+	c.Check(saveActivated, Equals, true)
+	c.Check(measureEpochCalls, Equals, 1)
+	c.Check(measureModelCalls, Equals, 1)
+	c.Check(measuredModel, DeepEquals, s.model)
+	c.Check(sealedKeysLocked, Equals, true)
+
+	c.Assert(filepath.Join(dirs.SnapBootstrapRunDir, "secboot-epoch-measured"), testutil.FilePresent)
+	c.Assert(filepath.Join(dirs.SnapBootstrapRunDir, "run-model-measured"), testutil.FilePresent)
+
+	checkDegradedJSON(c, "unlocked.json", map[string]interface{}{
+		"ubuntu-boot": map[string]interface{}{},
+		"ubuntu-data": map[string]interface{}{
+			"find-state":   "found",
+			"unlock-state": "unlocked",
+			"unlock-key":   "recovery",
+		},
+		"ubuntu-save": map[string]interface{}{
+			"find-state":   "found",
+			"unlock-state": "unlocked",
+			"unlock-key":   "run",
+		},
+		"error-log": interface{}(nil),
+	})
 }
 
 func (s *initramfsMountsSuite) TestInitramfsMountsRunModeEncryptedDataUnhappyNoSave(c *C) {
