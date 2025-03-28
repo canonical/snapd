@@ -467,7 +467,7 @@ func (m *SnapManager) ensureAliasesV2() error {
 		return err
 	}
 
-	logger.Trace("Ensure", "manager", "snapmgr", "func", "ensureAliasesV2")
+	logger.Trace("ensure", "manager", "SnapManager", "func", "ensureAliasesV2")
 
 	// mark pending "alias" tasks as errored
 	// they were never parts of lanes but either standalone or at

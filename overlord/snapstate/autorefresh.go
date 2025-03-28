@@ -342,7 +342,7 @@ func (m *autoRefresh) Ensure() (err error) {
 		return nil
 	}
 
-	logger.Trace("Ensure", "manager", "snapmgr", "func", "Ensure")
+	logger.Trace("ensure", "manager", "autoRefresh")
 
 	now := time.Now()
 	// compute next refresh attempt time (if needed)
