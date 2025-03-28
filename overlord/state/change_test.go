@@ -1579,3 +1579,12 @@ func (cs *changeSuite) TestChangeLastRecordedNoitceStatusPersisted(c *C) {
 	obtainedStatus := state.Status(chgData["last-recorded-notice-status"].(float64))
 	c.Check(obtainedStatus, Equals, state.DoingStatus)
 }
+
+func (cs *changeSuite) TestChangeLabel(c *C) {
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	chg := st.NewChange("change-kind", "summary...")
+	c.Assert(chg.Label(), Equals, "[1] change-kind")
+}
