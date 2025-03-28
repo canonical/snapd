@@ -43,6 +43,7 @@ var (
 	listenerRegister = listener.Register
 	listenerClose    = func(l *listener.Listener) error { return l.Close() }
 	listenerRun      = func(l *listener.Listener) error { return l.Run() }
+	listenerReady    = func(l *listener.Listener) <-chan struct{} { return l.Ready() }
 	listenerReqs     = func(l *listener.Listener) <-chan *listener.Request { return l.Reqs() }
 
 	requestReply = func(req *listener.Request, allowedPermission notify.AppArmorPermission) error {
@@ -321,6 +322,10 @@ func (m *InterfacesRequestsManager) Stop() error {
 // If clientActivity is true, reset the expiration timeout for prompts for
 // the given user.
 func (m *InterfacesRequestsManager) Prompts(userID uint32, clientActivity bool) ([]*requestprompts.Prompt, error) {
+	// Wait until the listener has re-sent pending requests and prompts have
+	// been re-created.
+	<-listenerReady(m.listener)
+
 	m.lock.RLock()
 	defer m.lock.RUnlock()
 	return m.prompts.Prompts(userID, clientActivity)
@@ -331,6 +336,10 @@ func (m *InterfacesRequestsManager) Prompts(userID uint32, clientActivity bool) 
 // If clientActivity is true, reset the expiration timeout for prompts for
 // the given user.
 func (m *InterfacesRequestsManager) PromptWithID(userID uint32, promptID prompting.IDType, clientActivity bool) (*requestprompts.Prompt, error) {
+	// Wait until the listener has re-sent pending requests and prompts have
+	// been re-created.
+	<-listenerReady(m.listener)
+
 	m.lock.RLock()
 	defer m.lock.RUnlock()
 	return m.prompts.PromptWithID(userID, promptID, clientActivity)
@@ -345,6 +354,10 @@ func (m *InterfacesRequestsManager) PromptWithID(userID uint32, promptID prompti
 // If clientActivity is true, reset the expiration timeout for prompts for
 // the given user.
 func (m *InterfacesRequestsManager) HandleReply(userID uint32, promptID prompting.IDType, replyConstraints *prompting.ReplyConstraints, outcome prompting.OutcomeType, lifespan prompting.LifespanType, duration string, clientActivity bool) (satisfiedPromptIDs []prompting.IDType, retErr error) {
+	// Wait until the listener has re-sent pending requests and prompts have
+	// been re-created.
+	<-listenerReady(m.listener)
+
 	m.lock.Lock()
 	defer m.lock.Unlock()
 
@@ -468,6 +481,10 @@ func (m *InterfacesRequestsManager) Rules(userID uint32, snap string, iface stri
 // AddRule creates a new rule with the given contents and then checks it against
 // outstanding prompts, resolving any prompts which it satisfies.
 func (m *InterfacesRequestsManager) AddRule(userID uint32, snap string, iface string, constraints *prompting.Constraints) (*requestrules.Rule, error) {
+	// Wait until the listener has re-sent pending requests and prompts have
+	// been re-created.
+	<-listenerReady(m.listener)
+
 	m.lock.Lock()
 	defer m.lock.Unlock()
 
@@ -515,6 +532,10 @@ func (m *InterfacesRequestsManager) RuleWithID(userID uint32, ruleID prompting.I
 // PatchRule updates the rule with the given ID using the provided contents.
 // Any of the given fields which are empty/nil are not updated in the rule.
 func (m *InterfacesRequestsManager) PatchRule(userID uint32, ruleID prompting.IDType, constraintsPatch *prompting.RuleConstraintsPatch) (*requestrules.Rule, error) {
+	// Wait until the listener has re-sent pending requests and prompts have
+	// been re-created.
+	<-listenerReady(m.listener)
+
 	m.lock.Lock()
 	defer m.lock.Unlock()
 
