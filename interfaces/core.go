@@ -268,8 +268,8 @@ type StaticInfo struct {
 type PlugServicesSnippetSection string
 
 const (
-	PlugServicesSnippetUnitSection    PlugServicesSnippetSection = "unit"
-	PlugServicesSnippetServiceSection PlugServicesSnippetSection = "service"
+	PlugServicesSnippetUnitSection    PlugServicesSnippetSection = "Unit"
+	PlugServicesSnippetServiceSection PlugServicesSnippetSection = "Service"
 )
 
 // PlugServiceSnippet describes a systemd service snippet to be generated

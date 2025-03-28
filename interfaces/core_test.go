@@ -212,9 +212,9 @@ plugs:
 	snips, err := interfaces.PermanentPlugServiceSnippets(iface, plug)
 	c.Assert(err, IsNil)
 	c.Assert(snips, HasLen, 2)
-	c.Check(string(snips[0].Section()), Equals, "service")
+	c.Check(string(snips[0].Section()), Equals, "Service")
 	c.Check(snips[0].String(), Equals, "foo1")
-	c.Check(string(snips[1].Section()), Equals, "unit")
+	c.Check(string(snips[1].Section()), Equals, "Unit")
 	c.Check(snips[1].String(), Equals, "foo2")
 }
 
