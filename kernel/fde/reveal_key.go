@@ -109,6 +109,7 @@ func Reveal(params *RevealParams) (payload []byte, err error) {
 		// deprecated but needed for v1 hooks
 		KeyName: "deprecated-" + randutil.RandomString(12),
 	}
+
 	output, err := runFDERevealKey(req)
 	if err != nil {
 		return nil, err
