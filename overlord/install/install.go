@@ -228,10 +228,20 @@ func GetEncryptionSupportInfo(model *asserts.Model, tpmMode secboot.TPMProvision
 	// Note that having a fde-setup hook will disable the internal
 	// secboot based encryption
 	checkSecbootEncryption := !checkFDESetupHookEncryption
+
+	// TODO: this check will probably be fallible (unlike looking at the hook),
+	// do we need some other indicator that we're going to use the optee
+	// integration? maybe something from the gadget snap? unsure
+	//
+	// also, go's style guide says use all caps for acronyms, but this looks
+	// crazy
+	checkOPTEEEncryption := !checkFDESetupHookEncryption && fde.HasOPTEETrustedApplication()
 	var checkEncryptionErr error
 	switch {
 	case checkFDESetupHookEncryption:
 		res.Type, checkEncryptionErr = checkFDEFeatures(runSetupHook)
+	case checkOPTEEEncryption:
+		res.Type = device.EncryptionTypeLUKS
 	case checkSecbootEncryption:
 		checkEncryptionErr = secbootCheckTPMKeySealingSupported(tpmMode)
 		if checkEncryptionErr == nil {

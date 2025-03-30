@@ -634,6 +634,7 @@ func makeRunnableSystem(model *asserts.Model, bootWith *BootableSet, observer Tr
 	}
 
 	if observer != nil && observerImpl.useEncryption {
+		// TODO: consider using the optee integration here
 		hasHook, err := HasFDESetupHook(bootWith.Kernel)
 		if err != nil {
 			return fmt.Errorf("cannot check for fde-setup hook: %v", err)

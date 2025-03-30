@@ -85,6 +85,14 @@ func MockSealKeyToModeenv(f func(key, saveKey secboot.BootstrappedContainer, pri
 }
 
 type sealKeyToModeenvFlags struct {
+	// TODO: this flag maybe needs a rename, since we might want to use it for
+	// both the hook and OPTEE style. either that, or we need a new flag. the
+	// only real result of this flag being set is that we pick
+	// [device.SealingMethodFDESetupHook] as the [device.SealingMethod]. i think
+	// that a theoretical [device.SealingMethodOPTEE] might result in the same
+	// behavior as [device.SealingMethodFDESetupHook]. looking for feedback
+	// here.
+	//
 	// HasFDESetupHook is true if the kernel has a fde-setup hook to use
 	HasFDESetupHook bool
 	// FactoryReset indicates that the sealing is happening during factory

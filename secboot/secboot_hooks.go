@@ -31,6 +31,7 @@ import (
 	sb_hooks "github.com/snapcore/secboot/hooks"
 
 	"github.com/snapcore/snapd/kernel/fde"
+	"github.com/snapcore/snapd/kernel/fde/optee"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 )
@@ -53,6 +54,13 @@ type hookKeyProtector struct {
 	keyName string
 }
 
+func NewHookKeyProtector(runHook fde.RunSetupHookFunc, keyName string) *hookKeyProtector {
+	return &hookKeyProtector{
+		runHook: runHook,
+		keyName: keyName,
+	}
+}
+
 func (h *hookKeyProtector) ProtectKey(rand io.Reader, cleartext, aad []byte) (ciphertext []byte, handle []byte, err error) {
 	keyParams := &fde.InitialSetupParams{
 		Key:     cleartext,
@@ -69,7 +77,22 @@ func (h *hookKeyProtector) ProtectKey(rand io.Reader, cleartext, aad []byte) (ci
 	}
 }
 
-func SealKeysWithFDESetupHook(runHook fde.RunSetupHookFunc, keys []SealKeyRequest, params *SealKeysWithFDESetupHookParams) error {
+type opteeKeyProtector struct{}
+
+func NewOpteeKeyProtector() *opteeKeyProtector {
+	return &opteeKeyProtector{}
+}
+
+func (o *opteeKeyProtector) ProtectKey(rand io.Reader, cleartext, aad []byte) (ciphertext []byte, handle []byte, err error) {
+	handle, sealed, err := optee.EncryptKey(cleartext)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return sealed, handle, nil
+}
+
+func SealKeysWithProtector(newProtector func(name string) sb_hooks.KeyProtector, keys []SealKeyRequest, params *SealKeysWithFDESetupHookParams) error {
 	var primaryKey sb.PrimaryKey
 	if params.PrimaryKey != nil {
 		// TODO:FDEM:FIX: add unit test taking that primary key
@@ -77,13 +100,14 @@ func SealKeysWithFDESetupHook(runHook fde.RunSetupHookFunc, keys []SealKeyReques
 	}
 
 	for _, skr := range keys {
-		protector := &hookKeyProtector{
-			runHook: runHook,
-			keyName: skr.KeyName,
-		}
+		protector := newProtector(skr.KeyName)
+
 		// TODO:FDEM: add support for AEAD (consider OP-TEE work)
 		flags := sb_hooks.KeyProtectorNoAEAD
 		sb_hooks.SetKeyProtector(protector, flags)
+
+		// TODO: this is only running at the end of the function, seems we
+		// should probably just defer this once at the top of the loop
 		defer sb_hooks.SetKeyProtector(nil, 0)
 
 		params := &sb_hooks.KeyParams{
@@ -234,8 +258,7 @@ func (fh *fdeHookV2DataHandler) RecoverKeysWithAuthKey(data *sb.PlatformKeyData,
 	return nil, fmt.Errorf("cannot recover keys with auth keys yet")
 }
 
-type keyRevealerV3 struct {
-}
+type keyRevealerV3 struct{}
 
 func (kr *keyRevealerV3) RevealKey(data, ciphertext, aad []byte) (plaintext []byte, err error) {
 	logger.Noticef("Called reveal key")
@@ -250,4 +273,10 @@ func (kr *keyRevealerV3) RevealKey(data, ciphertext, aad []byte) (plaintext []by
 		V2Payload: true,
 	}
 	return fde.Reveal(&p)
+}
+
+type opteeKeyRevealer struct{}
+
+func (o *opteeKeyRevealer) RevealKey(data, ciphertext, aad []byte) (plaintext []byte, err error) {
+	return optee.DecryptKey(ciphertext, data)
 }
