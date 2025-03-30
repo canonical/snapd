@@ -7643,6 +7643,14 @@ func (s *mgrsSuiteCore) testRemodelUC20WithRecoverySystem(c *C, encrypted bool) 
 	})
 	defer restore()
 
+	restore = fdeBackend.MockSecbootGetPrimaryKey(func(devices []string, fallbackKeyFile string) ([]byte, error) {
+		if !encrypted {
+			return nil, fmt.Errorf("unexpected call")
+		}
+		return []byte{1, 2, 3, 4}, nil
+	})
+	defer restore()
+
 	// make sure FDE is initialized
 	fdemgr := s.o.FDEManager()
 	c.Assert(fdemgr, NotNil)
