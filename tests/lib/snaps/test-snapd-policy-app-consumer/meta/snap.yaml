@@ -5,6 +5,9 @@ description: Test policy app matching snapd version
 confinement: strict
 
 apps:
+  accel:
+    command: bin/run
+    plugs: [ accel ]
   acrn-support:
     command: bin/run
     plugs: [ acrn-support ]
