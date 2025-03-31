@@ -401,8 +401,9 @@ jobs:
     - name: Analyze feature tags
       if: always() && env.SPREAD_TAG_FEATURES != ''
       run: |
+        IFS=',' read -ra features <<< "$SPREAD_TAG_FEATURES"
         featarg=""
-        for feature in ${SPREAD_TAG_FEATURES}; do
+        for feature in "${features[@]}"; do
           featarg+="-f $feature "
         done
         featdir="${ARTIFACTS_FOLDER}/extracted-tags"

@@ -171,7 +171,7 @@ jobs:
       
       - name: Consolidate feature data
         run: |
-          ./tests/lib/compose-features.py \
+          ./tests/lib/featcomposer.py \
             --dir "feature-tags-artifacts" \
             --output "final-feature-tags" \
             --replace-old-runs

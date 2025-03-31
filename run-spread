@@ -47,13 +47,14 @@ else
 			touch "${WRITE_DIR}/failed-tests.txt"
 		fi
 
+		IFS=',' read -ra features <<< "${SPREAD_TAG_FEATURES}"
 		featarg=""
-		for feature in ${SPREAD_TAG_FEATURES}; do
+		for feature in "${features[@]}"; do
 			featarg+="-f $feature "
 		done
 		featdir="${WRITE_DIR}/extracted-tags"
 		mkdir -p "$featdir"
-		for dir in "${WRITE_DIR}/feature-tags"/*/; do
+		for dir in "${WRITE_DIR}"/features-artifacts/feature-tags/*/; do
 			if [ -f "${dir}/journal.txt" ] && [ -f "${dir}/state.json" ]; then
 				#shellcheck disable=SC2086
 				./tests/lib/tools/feature_extractor.py \
@@ -64,7 +65,7 @@ else
 			fi
 		done
 
-		./tests/lib/compose-features.py \
+		./tests/lib/featcomposer.py \
 			--dir ${featdir} \
 			--output ${WRITE_DIR}/composed-feature-tags \
 			--failed-tests "$(cat ${WRITE_DIR}/failed-tests.txt)" \
@@ -77,7 +78,7 @@ else
 		mapfile RUN_TESTS <"${WRITE_DIR}"/failed-tests.txt
 	done
 
-	./tests/lib/compose-features.py \
+	./tests/lib/featcomposer.py \
 		--dir ${WRITE_DIR}/composed-feature-tags \
 		--output ${WRITE_DIR}/final-feature-tags \
 		--replace-old-runs
