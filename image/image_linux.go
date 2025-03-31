@@ -153,15 +153,21 @@ func Prepare(opts *Options) error {
 		return err
 	}
 
-	for _, assertionFilename := range opts.ExtraAssertionsFiles {
-		// Function reads the assertion from the file, decodes it and rejects
+	for _, assertionsFilename := range opts.ExtraAssertionsFiles {
+		// Function reads the assertions from the file, decodes them and rejects
 		// assertion types that are not allowed
-		extraAssertion, err := decodeExtraAssertion(assertionFilename)
+
+		assertionsFile, err := os.Open(assertionsFilename)
+		if err != nil {
+			return fmt.Errorf("cannot read extra assertion: %s", err)
+		}
+		defer assertionsFile.Close()
+		extraAssertions, err := decodeExtraAssertions(assertionsFile)
 		if err != nil {
 			return err
 		}
 
-		opts.ExtraAssertions = append(opts.ExtraAssertions, extraAssertion)
+		opts.ExtraAssertions = append(opts.ExtraAssertions, extraAssertions...)
 	}
 
 	if err := setupSeed(tsto, model, opts); err != nil {
@@ -1112,23 +1118,26 @@ var setupSeed = func(tsto *tooling.ToolingStore, model *asserts.Model, opts *Opt
 	return s.finish()
 }
 
-func decodeExtraAssertion(assertionFilename string) (asserts.Assertion, error) {
-	assertionFile, err := os.Open(assertionFilename)
-	if err != nil {
-		return nil, fmt.Errorf("cannot read extra assertion: %s", err)
-	}
-	defer assertionFile.Close()
+func decodeExtraAssertions(r io.Reader) ([]asserts.Assertion, error) {
+	var extraAssertions []asserts.Assertion
 
-	// only decode a single assertion as we read a single file
-	extraAssertion, err := asserts.NewDecoder(assertionFile).Decode()
-	if err != nil {
-		return nil, fmt.Errorf("failed to decode extra assertion in %v: %v", assertionFilename, err)
+	dec := asserts.NewDecoder(r)
+	for {
+		a, err := dec.Decode()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return nil, fmt.Errorf("failed to decode extra assertion: %v", err)
+		}
+
+		switch a.Type() {
+		case asserts.SnapDeclarationType, asserts.SnapRevisionType, asserts.ModelType, asserts.SerialType, asserts.ValidationSetType:
+			return nil, fmt.Errorf("assertion type %v is not allowed for extra assertions", a.Type().Name)
+		}
+
+		extraAssertions = append(extraAssertions, a)
 	}
 
-	switch extraAssertion.Type() {
-	case asserts.SnapDeclarationType, asserts.SnapRevisionType, asserts.ModelType, asserts.SerialType, asserts.ValidationSetType:
-		return nil, fmt.Errorf("assertion in %v of type %v is not of an allowed type", assertionFilename, extraAssertion.Type().Name)
-	default:
-		return extraAssertion, nil
-	}
+	return extraAssertions, nil
 }

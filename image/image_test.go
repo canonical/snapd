@@ -5604,7 +5604,7 @@ func (s *imageSuite) TestPrepareExtraAssertionsInvalidAssertion(c *C) {
 		PrepareDir:           preparedir,
 		ExtraAssertionsFiles: []string{proxyFilePath, accountFilePath},
 	})
-	c.Assert(err.Error(), testutil.Contains, "failed to decode extra assertion in "+proxyFilePath+": unexpected EOF")
+	c.Assert(err.Error(), testutil.Contains, "failed to decode extra assertion: unexpected EOF")
 }
 
 func (s *imageSuite) TestPrepareExtraAssertionsForbiddenType(c *C) {
@@ -5640,6 +5640,6 @@ func (s *imageSuite) TestPrepareExtraAssertionsForbiddenType(c *C) {
 		// Pass model assertion as extra assertion
 		ExtraAssertionsFiles: []string{modelFn},
 	})
-	c.Assert(err.Error(), testutil.Contains, "assertion in "+modelFn+" of type model is not of an allowed type")
+	c.Assert(err.Error(), testutil.Contains, "assertion type model is not allowed for extra assertions")
 
 }
