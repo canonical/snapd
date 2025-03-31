@@ -384,6 +384,16 @@ func (s *toolSuite) TestExecInSnapdOrCoreSnap(c *C) {
 	c.Check(s.lastExecArgv, DeepEquals, os.Args)
 }
 
+func (s *toolSuite) TestExecInSnapdOrCoreSnapFixArg0(c *C) {
+	defer s.mockReExecFor(c, s.snapdPath, "snapdtool.test", dirs.DefaultDistroLibexecDir)()
+
+	c.Check(snapdtool.ExecInSnapdOrCoreSnap, PanicMatches, `>exec of "[^"]+/snapdtool.test" in tests<`)
+	c.Check(s.execCalled, Equals, 1)
+	c.Check(s.lastExecArgv0, Equals, filepath.Join(s.snapdPath, "/usr/lib/snapd/snapdtool.test"))
+	c.Check(s.lastExecArgv[0], Equals, filepath.Join(s.snapdPath, "/usr/lib/snapd/snapdtool.test"))
+	c.Check(s.lastExecArgv[1:], DeepEquals, os.Args[1:])
+}
+
 func (s *toolSuite) TestExecInOldCoreSnap(c *C) {
 	defer s.mockReExecFor(c, s.corePath, "potato", dirs.DefaultDistroLibexecDir)()
 
