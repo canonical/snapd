@@ -22,7 +22,7 @@
     # the .so suffix, eg. ld-linux-aarch64.so.1
     /{,{,var/lib/snapd/}snap/{snapd,core}/*/}{,usr/}lib{,32,64,x32}/{,@{multiarch}/{,atomics/}}ld{-*,64}.so* mrix,
     # libc, you are funny
-    /{,{,var/lib/snapd/}snap/{snapd,core}/*/}{,usr/}lib{,32,64,x32}/{,@{multiarch}/{,atomics/}}libc{,-[0-9]*}.so* mr,
+    /{,{,var/lib/snapd/}snap/{snapd,core}/*/}{,usr/}lib{,32,64,x32}/{,glibc-hwcaps/*/,@{multiarch}/{,atomics/}}libc{,-[0-9]*}.so* mr,
     /{,{,var/lib/snapd/}snap/{snapd,core}/*/}{,usr/}lib{,32,64,x32}/{,@{multiarch}/{,atomics/}}libpthread{,-[0-9]*}.so* mr,
     /{,{,var/lib/snapd/}snap/{snapd,core}/*/}{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libreadline{,-[0-9]*}.so* mr,
     /{,{,var/lib/snapd/}snap/{snapd,core}/*/}{,usr/}lib{,32,64,x32}/{,@{multiarch}/{,atomics/}}librt{,-[0-9]*}.so* mr,
@@ -514,7 +514,7 @@
         /etc/ld.so.cache r,
         /{,{,var/lib/snapd/}snap/{snapd,core}/*/}{,usr/}lib{,32,64,x32}/{,@{multiarch}/{,atomics/}}ld{-*,64}.so* mrix,
         # libc, you are funny
-        /{,{,var/lib/snapd/}snap/{snapd,core}/*/}{,usr/}lib{,32,64,x32}/{,@{multiarch}/{,atomics/}}libc{,-[0-9]*}.so* mr,
+        /{,{,var/lib/snapd/}snap/{snapd,core}/*/}{,usr/}lib{,32,64,x32}/{,glibc-hwcaps/*/,@{multiarch}/{,atomics/}}libc{,-[0-9]*}.so* mr,
         /{,{,var/lib/snapd/}snap/{snapd,core}/*/}{,usr/}lib{,32,64,x32}/{,@{multiarch}/{,atomics/}}libpthread{,-[0-9]*}.so* mr,
         /{,{,var/lib/snapd/}snap/{snapd,core}/*/}{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libreadline{,-[0-9]*}.so* mr,
         /{,{,var/lib/snapd/}snap/{snapd,core}/*/}{,usr/}lib{,32,64,x32}/{,@{multiarch}/{,atomics/}}librt{,-[0-9]*}.so* mr,
