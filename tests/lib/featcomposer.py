@@ -15,7 +15,7 @@ SpreadTaskNames = namedtuple('SpreadTaskNames', ['original', 'suite', 'task', 'v
 def _parse_file_name(file_name: str) -> SpreadTaskNames:
     '''
     Given a file name in the format with double slashes <backend>:<system>:suite--path--task:variant
-    and optionally an extension, it returns the original name, the suite name, the task name, 
+    and optionally a json extension, it returns the original name, the suite name, the task name, 
     and the variant name. So in the example, it returns:
     - original_name = <backend>:<system>:suite/path/task:variant
     - suite_name = suite/path
@@ -25,7 +25,8 @@ def _parse_file_name(file_name: str) -> SpreadTaskNames:
     :param file_name: The file name to parse
     :returns: A namedtuple with the original name, the suite name, the task name and the variant name. If variant is not present, it returns None.
     '''
-    file_name = os.path.splitext(file_name)[0]
+    if file_name.endswith('.json'):
+        file_name = os.path.splitext(file_name)[0]
     original_name = file_name.replace('--', '/')
     task = ':'.join(original_name.split(':')[2:])
     suite_name = '/'.join(task.split('/')[:-1])
@@ -216,13 +217,6 @@ def replace_old_runs(dir: str, output_dir: str) -> None:
                             os.path.join(output_dir, _get_name_without_run_number(file) + '.json'))
 
 
-def run_attempt_type(value: Any) -> Any:
-    if not isinstance(value, int) or int(value) <= 0:
-        raise argparse.ArgumentTypeError(
-            f'{value} is invalid. Run attempts are integers and start at 1')
-    return value
-
-
 if __name__ == '__main__':
     description = '''
     Can be run in two modes: composed feature generation or composed feature consolidation
@@ -255,8 +249,8 @@ if __name__ == '__main__':
                         help='List of environment variables as key=value', default='')
     parser.add_argument('-f', '--failed-tests', type=str,
                         help='List of failed tests', default='')
-    parser.add_argument('--run-attempt', type=run_attempt_type, help='''
-                        Run attempt number of the json files contained in the folder [1,). 
+    parser.add_argument('--run-attempt', type=int, choices=range(1,10), help='''
+                        Run attempt number of the json files contained in the folder [1,10). 
                         Only needed when rerunning spread for failed tests. When specified, will append the run attempt 
                         number on the filename, which will then be used when running this script with the --replace-old-runs
                         flag to determine replacement order''')
