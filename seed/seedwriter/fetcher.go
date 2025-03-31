@@ -90,7 +90,7 @@ func (af *assertionFetcher) ResetRefs() {
 }
 
 func (af *assertionFetcher) AddExtraAssertions(extraAssertions []asserts.Assertion) {
-	af.extraAssertions = extraAssertions
+	af.extraAssertions = append(af.extraAssertions, extraAssertions...)
 }
 
 // A NewFetcherFunc can build a Fetcher saving to an (implicit)

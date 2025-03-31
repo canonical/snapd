@@ -352,7 +352,6 @@ func New(model *asserts.Model, opts *Options) (*Writer, error) {
 
 	w.tree = treeImpl
 	w.policy = pol
-	w.extraRefs = []*asserts.Ref{}
 	return w, nil
 }
 
@@ -639,9 +638,6 @@ func (w *Writer) Start(db asserts.RODatabase, f SeedAssertionFetcher) error {
 	w.modelRefs = f.Refs()
 
 	if len(w.opts.ExtraAssertions) != 0 {
-		// By resetting the fetcher's refs we might retrieve some of them a second time
-		// but we skip extra cycles of the second for loop cause by the model and all the snaps
-		f.ResetRefs()
 
 		f.AddExtraAssertions(w.opts.ExtraAssertions)
 
@@ -654,18 +650,7 @@ func (w *Writer) Start(db asserts.RODatabase, f SeedAssertionFetcher) error {
 			}
 		}
 
-		for _, maybeExtraRef := range f.Refs() {
-			alreadySaved := false
-			for _, modelRef := range w.modelRefs {
-				if maybeExtraRef.Unique() == modelRef.Unique() {
-					alreadySaved = true
-					break
-				}
-			}
-			if !alreadySaved {
-				w.extraRefs = append(w.extraRefs, maybeExtraRef)
-			}
-		}
+		w.extraRefs = f.Refs()[len(w.modelRefs):]
 	}
 
 	if err := w.tree.mkFixedDirs(); err != nil {
