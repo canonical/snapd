@@ -1,4 +1,8 @@
 
+'''
+Dictionaries to specify structure of feature logs
+'''
+
 from enum import Enum
 from typing import TypedDict
 
