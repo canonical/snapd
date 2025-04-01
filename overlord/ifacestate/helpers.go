@@ -182,7 +182,7 @@ func snapdAppArmorServiceIsDisabledImpl() bool {
 }
 
 // regenerateAllSecurityProfiles will regenerate all security profiles.
-func (m *InterfaceManager) regenerateAllSecurityProfiles(tm timings.Measurer) error {
+func (m *InterfaceManager) regenerateAllSecurityProfiles(tm timings.Measurer, unlockState bool) error {
 	// Get all the security backends
 	securityBackends := m.repo.Backends()
 
@@ -240,19 +240,26 @@ func (m *InterfaceManager) regenerateAllSecurityProfiles(tm timings.Measurer) er
 		return precompOpts[instanceName]
 	}
 
-	// For each backend:
-	for _, backend := range securityBackends {
-		if backend.Name() == "" {
-			continue // Test backends have no name, skip them to simplify testing.
+	func() {
+		if unlockState {
+			m.state.Unlock()
+			defer m.state.Lock()
 		}
-		if errors := interfaces.SetupMany(m.repo, backend, appSets, precomputedConfinementOpts, tm); len(errors) > 0 {
-			logger.Noticef("cannot regenerate %s profiles", backend.Name())
-			for _, err := range errors {
-				logger.Notice(err.Error())
+
+		// For each backend:
+		for _, backend := range securityBackends {
+			if backend.Name() == "" {
+				continue // Test backends have no name, skip them to simplify testing.
 			}
-			shouldWriteSystemKey = false
+			if errors := interfaces.SetupMany(m.repo, backend, appSets, precomputedConfinementOpts, tm); len(errors) > 0 {
+				logger.Noticef("cannot regenerate %s profiles", backend.Name())
+				for _, err := range errors {
+					logger.Notice(err.Error())
+				}
+				shouldWriteSystemKey = false
+			}
 		}
-	}
+	}()
 
 	if shouldWriteSystemKey {
 		extraData := interfaces.SystemKeyExtraData{
