@@ -56,10 +56,6 @@ func (f *failingSchema) Ephemeral() bool {
 	return false
 }
 
-func (f *failingSchema) PruneEphemeral(b []byte) ([]byte, error) {
-	return b, nil
-}
-
 func (*viewSuite) TestNewConfdb(c *C) {
 	type testcase struct {
 		confdb map[string]interface{}
