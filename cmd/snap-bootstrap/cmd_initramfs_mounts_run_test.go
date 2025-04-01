@@ -1585,7 +1585,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeWithComponentsHappy(c *
 	_, err = main.Parser().ParseArgs([]string{"initramfs-mounts"})
 	c.Assert(err, IsNil)
 
-	checkKernelMounts(c, "/run/mnt/data/system-data", "/writable/system-data",
+	checkKernelMounts(c, "/run/mnt/data/system-data", "/sysroot/writable/system-data",
 		[]string{"comp1", "comp2", "comp3"}, []string{"11", "22", "33"}, nil, nil)
 }
 
@@ -1664,7 +1664,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeWithComponentsBadComps(
 	_, err = main.Parser().ParseArgs([]string{"initramfs-mounts"})
 	c.Assert(err, IsNil)
 
-	checkKernelMounts(c, "/run/mnt/data/system-data", "/writable/system-data",
+	checkKernelMounts(c, "/run/mnt/data/system-data", "/sysroot/writable/system-data",
 		nil, nil, []string{"comp1", "comp2", "comp3", "comp4"}, []string{"11", "22", "33", "44"})
 }
 
@@ -1734,5 +1734,5 @@ func (s *initramfsMountsSuite) testInitramfsMountsRunModeWithDriversTreeHappy(c 
 	_, err = main.Parser().ParseArgs([]string{"initramfs-mounts"})
 	c.Assert(err, IsNil)
 
-	checkKernelMounts(c, "/run/mnt/data/system-data", "/writable/system-data", nil, nil, nil, nil)
+	checkKernelMounts(c, "/run/mnt/data/system-data", "/sysroot/writable/system-data", nil, nil, nil, nil)
 }
