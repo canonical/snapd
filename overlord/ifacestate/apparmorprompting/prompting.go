@@ -177,6 +177,18 @@ func (m *InterfacesRequestsManager) run() error {
 		return listenerRun(m.listener)
 	})
 
+	defer func() {
+		// Ensure that m.ready ends up closed, since we'll never have the
+		// opportunity to close it again after this function returns, and we
+		// don't want to leave method calls blocked forever.
+		select {
+		case <-m.ready:
+			// is already closed
+		default:
+			close(m.ready)
+		}
+	}()
+
 run_loop:
 	for {
 		logger.Debugf("waiting prompt loop")
