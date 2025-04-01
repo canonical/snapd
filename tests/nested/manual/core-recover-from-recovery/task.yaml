@@ -1,0 +1,36 @@
+summary: Verify that we can boot with recovery keys after tpm was reset
+
+details: |
+    This test get recovery keys, powers off the machine, then clears
+    the TPM. Then booting with the recovery keys, it should be
+    possible to get the machine to work again.
+
+
+# TODO: This test is intended to grow testing that the machine indeed
+# used recovery keys, and that we can reprovision and reseal then
+# reboot without recovery keys.
+
+systems: [ubuntu-24.04-64]
+
+environment:
+    NESTED_ENABLE_TPM: "true"
+    NESTED_ENABLE_SECURE_BOOT: "true"
+    NESTED_KEEP_FIRMWARE_STATE: "true"
+
+prepare: |
+    tests.nested build-image core
+    tests.nested create-vm core
+
+execute: |
+    # We will manually clear things
+    export NESTED_KEEP_FIRMWARE_STATE=1
+
+    remote.exec "sudo snap wait system seed.loaded"
+    remote.wait-for device-initialized
+
+    remote.exec "sudo snap recovery --show-keys" >recovery.out
+    tests.nested vm set-recovery-key "$(sed '/recovery: */{;s///;q;};d' recovery.out)"
+
+    tests.nested vm stop
+    tests.nested vm clear-tpm
+    tests.nested vm start
