@@ -21,7 +21,7 @@ systems:
   - -ubuntu-25.04-*      # currently failing due to old apparmor parser not recognizing kernel features
 
 environment:
-    CHANNEL/edge: 1.32-strict/edge
+    CHANNEL/edge: 1.26-strict/edge
     # apparmor profile of microk8s can make snapd exceed its spread memory limit
     SNAPD_NO_MEMORY_LIMIT: 1
 
