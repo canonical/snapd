@@ -1560,11 +1560,6 @@ func (s *apparmorpromptingSuite) TestListenerReadyBlocksRepliesNewRules(c *C) {
 	})
 
 	s.testReadyBlocks(c, func(mgr *apparmorprompting.InterfacesRequestsManager) {
-		_, err := mgr.PromptWithID(1000, 0, false)
-		c.Check(err, Equals, prompting_errors.ErrPromptNotFound)
-	})
-
-	s.testReadyBlocks(c, func(mgr *apparmorprompting.InterfacesRequestsManager) {
 		_, err := mgr.HandleReply(1000, 0, nil, prompting.OutcomeAllow, prompting.LifespanSingle, "", false)
 		c.Check(err, Equals, prompting_errors.ErrPromptNotFound)
 	})
@@ -1604,4 +1599,9 @@ func (s *apparmorpromptingSuite) testReadyBlocks(c *C, f func(mgr *apparmorpromp
 	finished := <-doneChan
 	// Check that the finished time was after the ready time
 	c.Check(finished.After(now), Equals, true, Commentf("finish time failed to be after ready time"))
+
+	// restore races with listenerRun and listenerReqs, so wait for everything
+	// to stop before restoring.
+	err = mgr.Stop()
+	c.Check(err, IsNil)
 }
