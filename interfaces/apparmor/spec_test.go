@@ -156,7 +156,7 @@ tags=(bar) {
 			snippet: snippetShort,
 			tags:    []apparmor.MetadataTag{tagBar, tagBaz},
 			expected: `
-tags=(bar,baz) {
+tags=(bar baz) {
 /foo r,
 }
 `,
@@ -181,7 +181,7 @@ tags=(bar) {
 			snippet: snippetLong,
 			tags:    []apparmor.MetadataTag{tagBar, tagBaz},
 			expected: `
-tags=(bar,baz) {
+tags=(bar baz) {
 /path/to/dir/1 r,
 /path/to/dir/2 rw,
 /path/to/dir/3 rwkl,
@@ -199,10 +199,10 @@ tags=(bar,baz) {
 	snippet := fmt.Sprintf("/abc r,\n%s\n/xyz w,", inner)
 	result := apparmor.MetadataTagSnippet(snippet, []apparmor.MetadataTag{tagBaz, tagQux})
 	c.Check(result, Equals, `
-tags=(baz,qux) {
+tags=(baz qux) {
 /abc r,
 
-tags=(foo,bar) {
+tags=(foo bar) {
 /ijk rwkl,
 }
 
@@ -826,7 +826,7 @@ func (s *specSuite) TestRegisterMetadataTagWithInterfaceEmpty(c *C) {
 }
 
 func (s *specSuite) TestRegisterMetadataTagInvalid(c *C) {
-	for _, badTag := range []string{"a,b", "a(b", "a)b", "a[b", "a]b", "a{b", "a}b", "a?b", "a*b", "a^b", `a"b`} {
+	for _, badTag := range []string{"a,b", "a(b", "a)b", "a[b", "a]b", "a{b", "a}b", "a?b", "a*b", "a^b", `a"b`, `1ab`, `aBc`, `Ab`, `a/b`} {
 		c.Check(func() { apparmor.RegisterMetadataTagWithInterface(badTag, "something") }, PanicMatches, `cannot register invalid metadata tag: .*`)
 	}
 }

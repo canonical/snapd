@@ -93,8 +93,8 @@ func RegisteredSnippetKeys() []string {
 // MetadataTag is an opaque string used to tag a snippet.
 //
 // Metadata tags can be added to AppArmor rules or snippets to encode additional
-// information which the kernel can then send back to snapd when it sends a
-// message notification.
+// information which the kernel can then send back to snapd when the kernel
+// sends a message notification.
 //
 // When each metadata tag is registered, it associated with a particular
 // interface. Once registered in association with an interface, any attempt to
@@ -105,11 +105,11 @@ type MetadataTag struct {
 	tag string
 }
 
-func (mt *MetadataTag) String() string {
+func (mt MetadataTag) String() string {
 	return mt.tag
 }
 
-var validMetadataTagRegexp = regexp.MustCompile("^[a-zA-Z0-9/_-]+$")
+var validMetadataTagRegexp = regexp.MustCompile("^[a-z][a-z0-9_-]*$")
 
 func newMetadataTag(tag string) MetadataTag {
 	if !validMetadataTagRegexp.MatchString(tag) {
@@ -266,10 +266,10 @@ func MetadataTagSnippet(snippet string, tags []MetadataTag) string {
 	// Put a blank line before the tagged block and open the tags set
 	b.WriteString("\ntags=(")
 
-	// Write the tags, separated by commas
+	// Write the tags, separated by spaces
 	for i, tag := range tags {
 		if i > 0 {
-			b.WriteString(",")
+			b.WriteString(" ")
 		}
 		b.WriteString(tag.String())
 	}
