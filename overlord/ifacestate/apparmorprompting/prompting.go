@@ -81,6 +81,17 @@ type InterfacesRequestsManager struct {
 	prompts  *requestprompts.PromptDB
 	rules    *requestrules.RuleDB
 
+	// ready should block method calls which depend on the manager having re-
+	// received all pending requests which were previously sent before snapd
+	// restarted (or timed out attempting to do so). It is closed to broadcast
+	// that method calls may proceed.
+	//
+	// We can't block on listenerReady directly in the method calls, as that
+	// would mean that after the manager receives the final request, there
+	// would be a race between the method calls unblocking and the manager
+	// actually getting the chance to handle the request.
+	ready chan struct{}
+
 	notifyPrompt func(userID uint32, promptID prompting.IDType, data map[string]string) error
 	notifyRule   func(userID uint32, ruleID prompting.IDType, data map[string]string) error
 }
@@ -143,6 +154,7 @@ func New(s *state.State) (m *InterfacesRequestsManager, retErr error) {
 		listener:     listenerBackend,
 		prompts:      promptsBackend,
 		rules:        rulesBackend,
+		ready:        make(chan struct{}),
 		notifyPrompt: notifyPrompt,
 		notifyRule:   notifyRule,
 	}
@@ -169,6 +181,12 @@ run_loop:
 	for {
 		logger.Debugf("waiting prompt loop")
 		select {
+		case <-m.listenerReadyForTheFirstTime():
+			// The previous request we processed was the final pending one
+			// waiting to be resent, or the listener timed out waiting for one.
+			// In either case, let method calls proceed.
+			logger.Debugf("received ready signal from the listener")
+			close(m.ready)
 		case req, ok := <-listenerReqs(m.listener):
 			if !ok {
 				// Reqs() closed, so an error occurred in the listener. In
@@ -198,6 +216,18 @@ run_loop:
 		}
 	}
 	return m.disconnect()
+}
+
+func (m *InterfacesRequestsManager) listenerReadyForTheFirstTime() <-chan struct{} {
+	select {
+	case <-m.ready:
+		// We already closed m.ready, so the listener previously readied and we
+		// we handled it. So return something which will never signal.
+		return make(chan struct{})
+	default:
+		// We haven't handled a ready signal yet, so return the real thing.
+		return listenerReady(m.listener)
+	}
 }
 
 func (m *InterfacesRequestsManager) handleListenerReq(req *listener.Request) error {
@@ -324,7 +354,7 @@ func (m *InterfacesRequestsManager) Stop() error {
 func (m *InterfacesRequestsManager) Prompts(userID uint32, clientActivity bool) ([]*requestprompts.Prompt, error) {
 	// Wait until the listener has re-sent pending requests and prompts have
 	// been re-created.
-	<-listenerReady(m.listener)
+	<-m.ready
 
 	m.lock.RLock()
 	defer m.lock.RUnlock()
@@ -338,7 +368,7 @@ func (m *InterfacesRequestsManager) Prompts(userID uint32, clientActivity bool) 
 func (m *InterfacesRequestsManager) PromptWithID(userID uint32, promptID prompting.IDType, clientActivity bool) (*requestprompts.Prompt, error) {
 	// Wait until the listener has re-sent pending requests and prompts have
 	// been re-created.
-	<-listenerReady(m.listener)
+	<-m.ready
 
 	m.lock.RLock()
 	defer m.lock.RUnlock()
@@ -356,7 +386,7 @@ func (m *InterfacesRequestsManager) PromptWithID(userID uint32, promptID prompti
 func (m *InterfacesRequestsManager) HandleReply(userID uint32, promptID prompting.IDType, replyConstraints *prompting.ReplyConstraints, outcome prompting.OutcomeType, lifespan prompting.LifespanType, duration string, clientActivity bool) (satisfiedPromptIDs []prompting.IDType, retErr error) {
 	// Wait until the listener has re-sent pending requests and prompts have
 	// been re-created.
-	<-listenerReady(m.listener)
+	<-m.ready
 
 	m.lock.Lock()
 	defer m.lock.Unlock()
@@ -483,7 +513,7 @@ func (m *InterfacesRequestsManager) Rules(userID uint32, snap string, iface stri
 func (m *InterfacesRequestsManager) AddRule(userID uint32, snap string, iface string, constraints *prompting.Constraints) (*requestrules.Rule, error) {
 	// Wait until the listener has re-sent pending requests and prompts have
 	// been re-created.
-	<-listenerReady(m.listener)
+	<-m.ready
 
 	m.lock.Lock()
 	defer m.lock.Unlock()
@@ -534,7 +564,7 @@ func (m *InterfacesRequestsManager) RuleWithID(userID uint32, ruleID prompting.I
 func (m *InterfacesRequestsManager) PatchRule(userID uint32, ruleID prompting.IDType, constraintsPatch *prompting.RuleConstraintsPatch) (*requestrules.Rule, error) {
 	// Wait until the listener has re-sent pending requests and prompts have
 	// been re-created.
-	<-listenerReady(m.listener)
+	<-m.ready
 
 	m.lock.Lock()
 	defer m.lock.Unlock()
