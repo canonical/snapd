@@ -2494,11 +2494,31 @@ func generateMountsModeRun(mst *initramfsMountsState) error {
 		if typ == snap.TypeKernel && hasDriversTree {
 			continue
 		}
-		if sn, ok := mounts[typ]; ok {
-			dir := snapTypeToMountDir[typ]
-			snapPath := filepath.Join(dirs.SnapBlobDirUnder(rootfsDir), sn.Filename())
-			if err := doSystemdMount(snapPath, filepath.Join(boot.InitramfsRunMntDir, dir), mountReadOnlyOptions); err != nil {
-				return err
+		sn, ok := mounts[typ]
+		if !ok {
+			continue
+		}
+		dir := snapTypeToMountDir[typ]
+		snapPath := filepath.Join(dirs.SnapBlobDirUnder(rootfsDir), sn.Filename())
+		snapMntPt := filepath.Join(boot.InitramfsRunMntDir, dir)
+		if err := doSystemdMount(snapPath, snapMntPt, mountReadOnlyOptions); err != nil {
+			return err
+		}
+		// On 24+ kernels, create /lib/{firmware,modules} mounts if
+		// there was no drivers tree. This is a fallback for not really
+		// supported but supported cases like having a 24+ kernel with
+		// a <24 model. For older initramfs this is done by a
+		// generator. Note also that for UC this is done by the
+		// extra-paths script, so we need this only for classic.
+		if typ == snap.TypeKernel && isClassic && createSysrootMount() {
+			logger.Noticef("warning: expected drivers tree not found, mounting /lib/{firmware,modules} directly from kernel snap")
+			for _, subDir := range []string{"modules", "firmware"} {
+				what := filepath.Join(snapMntPt, subDir)
+				where := filepath.Join(dirs.GlobalRootDir, "sysroot", "usr", "lib", subDir)
+				if err := writeInitramfsMountUnit(what, where, bindUnit); err != nil {
+					return fmt.Errorf("while creating mount for %s in %s: %v",
+						what, where, err)
+				}
 			}
 		}
 	}
