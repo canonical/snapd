@@ -27,6 +27,7 @@ import (
 	"fmt"
 	"os"
 	"sync"
+	"time"
 
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil/epoll"
@@ -43,6 +44,12 @@ var (
 
 	// ErrNotSupported indicates that the kernel does not support apparmor prompting.
 	ErrNotSupported = errors.New("kernel does not support apparmor notifications")
+
+	// readyTimeout is the time to wait to re-receive and process previously-
+	// pending requests from the kernel before we tell the manager we're ready.
+	// We should be able to re-receive messages very quickly, but there must be
+	// someone listening over l.reqs to quickly receive and process them too.
+	readyTimeout = time.Duration(5 * time.Second)
 
 	osOpen                       = os.Open
 	notifyRegisterFileDescriptor = notify.RegisterFileDescriptor
@@ -161,6 +168,9 @@ type Listener struct {
 	// the same contents. By ensuring all pending requests are re-received
 	// before any new ones are sent, situations like these can be avoided.
 	readyQueue []*Request
+	// readyTimer is a timer which will close the ready channel if not enough
+	// pending requests are re-received before a timeout expires.
+	readyTimer *time.Timer
 
 	// protocolVersion is the notification protocol version associated with the
 	// listener's notify socket. Once registered with a particular version,
@@ -222,6 +232,7 @@ func Register() (listener *Listener, err error) {
 
 		pendingCount: pendingCount,
 		ready:        make(chan struct{}),
+		readyTimer:   time.NewTimer(0), // initialize placeholder non-nil timer
 
 		protocolVersion: protoVersion,
 
@@ -231,6 +242,9 @@ func Register() (listener *Listener, err error) {
 	}
 	if pendingCount == 0 {
 		close(listener.ready)
+	} else {
+		// Set a real timer
+		listener.readyTimer = time.AfterFunc(readyTimeout, listener.signalReadyAndFlushQueue)
 	}
 	return listener, nil
 }
@@ -290,6 +304,9 @@ func (l *Listener) Reqs() <-chan *Request {
 // from the kernel and sent over the reqs channel. No non-resent requests will
 // be sent until all originally-pending requests have been resent.
 //
+// The channel will close automatically after a timeout even if not all pending
+// requests have been re-received.
+//
 // The caller may wish to block new prompt replies or rules until after the
 // ready channel has been closed.
 func (l *Listener) Ready() <-chan struct{} {
@@ -311,15 +328,25 @@ func (l *Listener) Run() error {
 		// Run should only be called once, so this once.Do is really only an
 		// extra precaution to ensure that l.reqs is only closed once.
 		defer func() {
+			if !l.readyTimer.Stop() {
+				// Already fired or stopped (which in both cases should result
+				// in signalReadyAndFlushQueue() being called), so ensure it
+				// won't try to write to l.reqs by waiting for l.readyQueue to
+				// be nil. This also handles closing the ready channel.
+				for l.readyQueue != nil {
+					time.Sleep(time.Millisecond)
+				}
+			}
+			// Don't want to close l.ready as an else here, since that could
+			// tell the manager to let some method calls begin, whereas what we
+			// really want is to indicate that we're stopping by closing l.reqs.
+
 			// When listener run loop ends, close the requests channel.
 			close(l.reqs)
 
-			// If the ready channel has still not been closed, close it.
-			// This will unblock new replies and rules, but those attempts
-			// will find the backends closing, so they should not succeed.
-			if l.pendingCount > 0 {
-				close(l.ready)
-			}
+			// Don't bother closing the ready channel, since it may already be
+			// closed, and the manager closes its own ready channel once it has
+			// been stopped and doesn't check the listener ready channel again.
 		}()
 		for {
 			err = l.handleRequests()
@@ -466,33 +493,18 @@ func (l *Listener) decodeAndDispatchRequest(buf []byte) error {
 			return ErrClosed
 		}
 
-		// Now that the request was sent, check if was the last NOTIF_RESENT
-		// message we were waiting for, and if so, close the ready channel and
-		// send all the messages from the ready queue.
 		if l.pendingCount > 0 && msg.Resent() {
-			// Message was previously-sent, so let's decrease the pendingCount
+			// Message was previously-sent, so decrease the pendingCount
 			l.pendingCount--
 			if l.pendingCount > 0 {
-				// This wasn't the last pending message
 				continue
 			}
-			// That was the last pending message, so now close the ready chan
-			// send all messages from the ready queue, and clear the queue.
-			// The queue won't be needed again.
-			close(l.ready)
-			for _, req := range l.readyQueue {
-				// Try to send request to manager, or wait for listener to be closed
-				select {
-				case l.reqs <- req:
-					// request received
-				case <-l.closeChan:
-					return ErrClosed
-				}
+			// This was the final pending request we were waiting for.
+			if l.readyTimer.Stop() {
+				// We stopped the timer before it fired, so we can signal
+				// ready. Otherwise, the timer already signalled for us.
+				l.signalReadyAndFlushQueue()
 			}
-			// Clear the ready queue. Since every pending request has been
-			// re-received, we'll never need the queue again and all future
-			// requests can be sent directly.
-			l.readyQueue = nil
 		}
 	}
 	return nil
@@ -526,6 +538,29 @@ func (l *Listener) newRequest(msg notify.MsgNotificationGeneric) (*Request, erro
 
 		listener: l,
 	}, nil
+}
+
+// The caller(s) must ensure that this method is only called once per listener,
+// and that l.Close() is not called between when this function is called and
+// when it returns.
+func (l *Listener) signalReadyAndFlushQueue() {
+	close(l.ready)
+	for _, req := range l.readyQueue {
+		// Try to send request to manager, or wait for listener to be closed
+		select {
+		case l.reqs <- req:
+			// request received
+		case <-l.closeChan:
+			// listener closing, so don't try to send over l.reqs again.
+			// Break rather than return so we're sure to set readyQueue to nil.
+			break
+		}
+	}
+	// Clear the ready queue. Since every pending request has been re-received,
+	// we'll never need the queue again and all future requests can be sent
+	// directly. Setting readyQueue to nil also indicates that this function is
+	// done attempting to write to l.reqs.
+	l.readyQueue = nil
 }
 
 var encodeAndSendResponse = func(l *Listener, resp *notify.MsgNotificationResponse) error {

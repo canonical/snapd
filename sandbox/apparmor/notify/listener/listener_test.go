@@ -1059,8 +1059,8 @@ func (*listenerSuite) TestRunNoReceiverWithPending(c *C) {
 
 	c.Check(l.Close(), IsNil)
 
-	// Close() should call listener to become ready
-	checkListenerReadyWithTimeout(c, l, true, 10*time.Millisecond)
+	// Close() doesn't cause the listener to signal that it's ready
+	checkListenerReadyWithTimeout(c, l, false, 10*time.Millisecond)
 
 	c.Check(t.Wait(), IsNil)
 }
