@@ -240,7 +240,8 @@ func (m *InterfaceManager) StartUp() error {
 		}()
 	}
 	if m.profilesNeedRegeneration() {
-		if err := m.regenerateAllSecurityProfiles(perfTimings); err != nil {
+		const unlockState = false
+		if err := m.regenerateAllSecurityProfiles(perfTimings, unlockState); err != nil {
 			return err
 		}
 	}
