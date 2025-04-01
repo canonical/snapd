@@ -85,12 +85,20 @@ func NewOpteeKeyProtector() *opteeKeyProtector {
 }
 
 func (o *opteeKeyProtector) ProtectKey(rand io.Reader, cleartext, aad []byte) (ciphertext []byte, handle []byte, err error) {
-	handle, sealed, err := optee.EncryptKey(cleartext)
+	rawHandle, sealed, err := optee.EncryptKey(cleartext)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	return sealed, handle, nil
+	// this seems wrong, but the KeyProtector API expects handle to be valid
+	// JSON, see [sb_hooks.NewProtectedKey]. thus, we're returning a JSON string
+	// here, which will be our handle, base64 encoded and wrapped in quotes.
+	handleJSON, err := json.Marshal(rawHandle)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return sealed, handleJSON, nil
 }
 
 func SealKeysWithProtector(newProtector func(name string) sb_hooks.KeyProtector, keys []SealKeyRequest, params *SealKeysWithFDESetupHookParams) error {
@@ -286,5 +294,12 @@ func (kr *keyRevealerV3) RevealKey(data, ciphertext, aad []byte) (plaintext []by
 type opteeKeyRevealer struct{}
 
 func (o *opteeKeyRevealer) RevealKey(data, ciphertext, aad []byte) (plaintext []byte, err error) {
-	return optee.DecryptKey(ciphertext, data)
+	// same deal as the opteeKeyProtector, but the inverse. data is a JSON
+	// encoded, base64 encoded byte array
+	var handle []byte
+	if err := json.Unmarshal(data, &handle); err != nil {
+		return nil, err
+	}
+
+	return optee.DecryptKey(ciphertext, handle)
 }

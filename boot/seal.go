@@ -85,16 +85,14 @@ func MockSealKeyToModeenv(f func(key, saveKey secboot.BootstrappedContainer, pri
 }
 
 type sealKeyToModeenvFlags struct {
-	// TODO: this flag maybe needs a rename, since we might want to use it for
-	// both the hook and OPTEE style. either that, or we need a new flag. the
-	// only real result of this flag being set is that we pick
-	// [device.SealingMethodFDESetupHook] as the [device.SealingMethod]. i think
-	// that a theoretical [device.SealingMethodOPTEE] might result in the same
-	// behavior as [device.SealingMethodFDESetupHook]. looking for feedback
-	// here.
+	// TOOD: maybe don't pass in these two flags, and just use the
+	// [device.SealingMethod].
 	//
 	// HasFDESetupHook is true if the kernel has a fde-setup hook to use
 	HasFDESetupHook bool
+	// HasTA is true if the system has the well-known FDE TA with a specific
+	// UUID. Should never be true if HasFDESetupHook is true.
+	HasTA bool
 	// FactoryReset indicates that the sealing is happening during factory
 	// reset.
 	FactoryReset bool
@@ -140,10 +138,14 @@ func sealKeyToModeenvImpl(
 		}
 	}
 
-	method := device.SealingMethodTPM
-	if flags.HasFDESetupHook {
+	var method device.SealingMethod
+	switch {
+	case flags.HasFDESetupHook:
 		method = device.SealingMethodFDESetupHook
-	} else {
+	case flags.HasTA:
+		method = device.SealingMethodOPTEE
+	default:
+		method = device.SealingMethodTPM
 		if flags.StateUnlocker != nil {
 			relock := flags.StateUnlocker()
 			defer relock()
@@ -205,7 +207,7 @@ func sealKeyToModeenvForMethod(
 
 	var tbl bootloader.TrustedAssetsBootloader
 	var bl bootloader.Bootloader
-	if method != device.SealingMethodFDESetupHook {
+	if method != device.SealingMethodFDESetupHook && method != device.SealingMethodOPTEE {
 		// build the recovery mode boot chain
 		rbl, err := bootloader.Find(InitramfsUbuntuSeedDir, &bootloader.Options{
 			Role: bootloader.RoleRecovery,
@@ -328,7 +330,7 @@ func WithBootChains(f func(bc *ResealKeyForBootChainsParams) error, method devic
 func bootChains(modeenv *Modeenv, method device.SealingMethod) (*ResealKeyForBootChainsParams, error) {
 	requiresBootLoaders := true
 	switch method {
-	case device.SealingMethodFDESetupHook:
+	case device.SealingMethodFDESetupHook, device.SealingMethodOPTEE:
 		requiresBootLoaders = false
 	}
 
