@@ -967,13 +967,14 @@ EOF
 
     # remove the kernel module from the kernel snap
     rm "$module_path"
-    # depmod wants a lib subdir, fake it and remove after invocation
-    mkdir pc-kernel/lib
+    # depmod wants a lib subdir
+    mkdir -p pc-kernel/lib
     ln -s ../modules pc-kernel/lib/modules
     depmod -b pc-kernel/ "$kern_ver"
-    rm -rf pc-kernel/lib
     # append component meta-information
-    printf 'components:\n  %s:\n    type: kernel-modules\n' "$comp_name" >> pc-kernel/meta/snap.yaml
+    #shellcheck disable=SC2016
+    gojq --arg COMP_NAME "${comp_name}" '.components = {$COMP_NAME:{"type":"kernel-modules"}}' --yaml-input pc-kernel/meta/snap.yaml --yaml-output >pc-kernel/meta/snap.yaml.new
+    mv pc-kernel/meta/snap.yaml.new pc-kernel/meta/snap.yaml
 }
 
 uc24_build_initramfs_kernel_snap() {
@@ -1024,6 +1025,14 @@ uc24_build_initramfs_kernel_snap() {
     # copy any extra files that tests may need for the kernel
     if [ -d ./extra-kernel-snap/ ]; then
         cp -a ./extra-kernel-snap/* ./pc-kernel
+    fi
+
+    if [ -n "${NESTED_KERNEL_REMOVE_COMPONENTS-}" ]; then
+        #shellcheck disable=SC2016
+        gojq 'del(.components)' --yaml-input pc-kernel/meta/snap.yaml --yaml-output >pc-kernel/meta/snap.yaml.new
+        mv pc-kernel/meta/snap.yaml.new pc-kernel/meta/snap.yaml
+        gojq 'del(.slots)' --yaml-input pc-kernel/meta/snap.yaml --yaml-output >pc-kernel/meta/snap.yaml.new
+        mv pc-kernel/meta/snap.yaml.new pc-kernel/meta/snap.yaml
     fi
 
     if [ -n "$NESTED_KERNEL_MODULES_COMP" ] && is_test_target_core_ge 24; then

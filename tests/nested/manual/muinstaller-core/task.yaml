@@ -61,7 +61,7 @@ execute: |
   version="$(nested_get_version)"
 
   # Retrieve the gadget
-  snap download --basename=pc --channel="$version/edge" pc
+  snap download --basename=pc --channel="$version/${KERNEL_CHANNEL}" pc
 
   # Modify gadget, making sure we can access the device (we are not building
   # the image in the usual way in snapd spread tests).
@@ -89,7 +89,7 @@ execute: |
   snap pack --filename=pc.snap pc-gadget/
 
   # Retrieve kernel
-  snap download --basename=pc-kernel --channel="$version/edge" pc-kernel
+  snap download --basename=pc-kernel --channel="$version/${KERNEL_CHANNEL}" pc-kernel
   # Build kernel with initramfs with the compiled snap-bootstrap
   if os.query is-ubuntu-ge 24.04; then
     uc24_build_initramfs_kernel_snap "$PWD/pc-kernel.snap" "$NESTED_ASSETS_DIR"
