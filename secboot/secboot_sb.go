@@ -74,7 +74,9 @@ func LockSealedKeys() error {
 		return fde.LockSealedKeys()
 	}
 
-	if fde.HasOPTEETrustedApplication() {
+	// TODO: this should come after we attempt to use the TPM
+	if optee.TAPresent() {
+		logger.Noticef("using FDE TA to lock sealed keys")
 		return optee.LockTA()
 	}
 
@@ -147,7 +149,7 @@ func UnlockVolumeUsingSealedKeyIfEncrypted(disk disks.Disk, name string, sealedE
 	// TODO: better name for this, since this isn't just a hook now. really, we
 	// need a name that is representative of an abstraction over both the hooks
 	// and the integrated optee implementation, since they are both so similar.
-	hintExpectFDEHook := fdeHasRevealKey() || fde.HasOPTEETrustedApplication()
+	hintExpectFDEHook := fdeHasRevealKey() || optee.TAPresent()
 
 	loadedKey := &defaultKeyLoader{}
 	if err := readKeyFile(sealedEncryptionKeyFile, loadedKey, hintExpectFDEHook); err != nil {
@@ -174,11 +176,13 @@ func UnlockVolumeUsingSealedKeyIfEncrypted(disk disks.Disk, name string, sealedE
 	sbSetBootMode(opts.BootMode)
 	defer sbSetBootMode("")
 
-	if fde.HasOPTEETrustedApplication() {
-		sbSetKeyRevealer(&opteeKeyRevealer{})
-	} else {
+	if hintExpectFDEHook {
 		// why doesn't this already happen conditionally, based on hintExpectFDEHook?
 		sbSetKeyRevealer(&keyRevealerV3{})
+	} else {
+		// if we don't have the hook, then we assume the optee implementation
+		// will work
+		sbSetKeyRevealer(&opteeKeyRevealer{})
 	}
 	defer sbSetKeyRevealer(nil)
 

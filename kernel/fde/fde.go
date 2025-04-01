@@ -43,20 +43,6 @@ func HasRevealKey() bool {
 	return err == nil
 }
 
-// HasOPTEETrustedApplication returns true if the current system has the
-// OP-TEE trusted application that implements the necessary FDE functionality.
-// Probably shouldn't return true if HasRevealKey is true.
-//
-// TODO: figure out how to check if we have the FDE TA
-func HasOPTEETrustedApplication() bool {
-	if HasRevealKey() {
-		return false
-	}
-
-	// TODO: implement this
-	return false
-}
-
 func isV1Hook(hookOutput []byte) bool {
 	// This is the prefix of a tpm secboot v1 key as used in the
 	// "denver" project. So if we see this prefix we know it's

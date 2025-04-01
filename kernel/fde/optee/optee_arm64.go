@@ -1,5 +1,3 @@
-//go:build arm || arm64
-
 package optee
 
 // hacky for now, long term we want to use the optee-client deb, but that isn't
@@ -15,14 +13,80 @@ package optee
 #include <stdint.h>
 
 TEEC_UUID fde_ta_uuid = FDE_KEY_HANDLER_UUID_ID;
+
+TEEC_UUID pta_device_uuid = { 0x7011a688, 0xddde, 0x4053, \
+	{ \
+		0xa5, 0xa9, 0x7b, 0x3c, 0x4d, 0xdf, 0x13, 0xb8 \
+	} \
+};
 */
 import "C"
 
 import (
+	"encoding/binary"
 	"fmt"
 	"runtime"
 	"unsafe"
 )
+
+func TAPresent() bool {
+	pinner := &runtime.Pinner{}
+	defer pinner.Unpin()
+
+	op := &C.TEEC_Operation{
+		started:    1,
+		paramTypes: teecParamTypes(C.TEEC_MEMREF_TEMP_OUTPUT, C.TEEC_NONE, C.TEEC_NONE, C.TEEC_NONE),
+	}
+	pinner.Pin(&op)
+
+	// this size is arbitrary, unsure what we should use here
+	output := make([]byte, 1024)
+	pinner.Pin(&output[0])
+
+	outputMemRef := unionAsType[C.TEEC_TempMemoryReference](&op.params[0])
+	outputMemRef.size = C.size_t(len(output))
+	outputMemRef.buffer = unsafe.Pointer(&output[0])
+
+	// this PTA (psuedo trusted application) command returns a list of PTA and
+	// early TA UUIDs. we know that our TA will always be an early TA.
+	err := invoke(pinner, C.pta_device_uuid, 0x0 /* PTA_CMD_GET_DEVICES */, op)
+	if err != nil {
+		return false
+	}
+
+	// output here is a slice of bytes, each 16 byte segment is a UUID
+	output = output[:outputMemRef.size]
+
+	for i := 0; i+16 < len(output)+1; i += 16 {
+		uuid, err := uuidFromOctets(output[i : i+16])
+		if err != nil {
+			return false
+		}
+
+		if uuid == C.fde_ta_uuid {
+			return true
+		}
+	}
+
+	return false
+}
+
+func uuidFromOctets(s []byte) (C.TEEC_UUID, error) {
+	if len(s) != 16 {
+		return C.TEEC_UUID{}, fmt.Errorf("cannot parse slice as uuid: length is %d, expected 16", len(s))
+	}
+
+	d := C.TEEC_UUID{
+		timeLow:          C.uint32_t(binary.BigEndian.Uint32(s[0:4])),
+		timeMid:          C.uint16_t(binary.BigEndian.Uint16(s[4:6])),
+		timeHiAndVersion: C.uint16_t(binary.BigEndian.Uint16(s[6:8])),
+	}
+	for i, b := range s[8:] {
+		d.clockSeqAndNode[i] = C.uint8_t(b)
+	}
+
+	return d, nil
+}
 
 func DecryptKey(input []byte, handle []byte) ([]byte, error) {
 	pinner := &runtime.Pinner{}
@@ -53,7 +117,7 @@ func DecryptKey(input []byte, handle []byte) ([]byte, error) {
 	unsealedMemRef.size = C.size_t(len(unsealed))
 	unsealedMemRef.buffer = unsafe.Pointer(&unsealed[0])
 
-	err := invoke(pinner, C.TA_CMD_KEY_DECRYPT, op)
+	err := invoke(pinner, C.fde_ta_uuid, C.TA_CMD_KEY_DECRYPT, op)
 	if err != nil {
 		return nil, err
 	}
@@ -93,7 +157,7 @@ func EncryptKey(input []byte) (handle []byte, sealed []byte, err error) {
 	sealedMemRef.size = C.size_t(len(sealed))
 	sealedMemRef.buffer = unsafe.Pointer(&sealed[0])
 
-	err = invoke(pinner, C.TA_CMD_KEY_ENCRYPT, op)
+	err = invoke(pinner, C.fde_ta_uuid, C.TA_CMD_KEY_ENCRYPT, op)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -114,7 +178,7 @@ func LockTA() error {
 	}
 	pinner.Pin(op)
 
-	return invoke(pinner, C.TA_CMD_LOCK, op)
+	return invoke(pinner, C.fde_ta_uuid, C.TA_CMD_LOCK, op)
 }
 
 // unionAsType interprets the memory that union points to as a T. This is useful
@@ -130,7 +194,7 @@ func teecParamTypes(p0, p1, p2, p3 C.uint32_t) C.uint32_t {
 	return ((p0) | ((p1) << 4) | ((p2) << 8) | ((p3) << 12))
 }
 
-func invoke(pinner *runtime.Pinner, cmd uint32, op *C.TEEC_Operation) error {
+func invoke(pinner *runtime.Pinner, uuid C.TEEC_UUID, cmd uint32, op *C.TEEC_Operation) error {
 	var ctx C.TEEC_Context
 	pinner.Pin(&ctx)
 
@@ -144,8 +208,9 @@ func invoke(pinner *runtime.Pinner, cmd uint32, op *C.TEEC_Operation) error {
 	var sess C.TEEC_Session
 	pinner.Pin(&code)
 	pinner.Pin(&sess)
+	pinner.Pin(&uuid)
 
-	res = C.TEEC_OpenSession(&ctx, &sess, &C.fde_ta_uuid, C.TEEC_LOGIN_PUBLIC, nil, nil, &code)
+	res = C.TEEC_OpenSession(&ctx, &sess, &uuid, C.TEEC_LOGIN_PUBLIC, nil, nil, &code)
 	if res != 0 {
 		return fmt.Errorf("cannot open op-tee session: 0x%x", uint32(res))
 	}

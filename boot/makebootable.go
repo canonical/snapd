@@ -31,6 +31,7 @@ import (
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget"
+	"github.com/snapcore/snapd/kernel/fde/optee"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/kcmdline"
@@ -634,10 +635,14 @@ func makeRunnableSystem(model *asserts.Model, bootWith *BootableSet, observer Tr
 	}
 
 	if observer != nil && observerImpl.useEncryption {
-		// TODO: consider using the optee integration here
 		hasHook, err := HasFDESetupHook(bootWith.Kernel)
 		if err != nil {
 			return fmt.Errorf("cannot check for fde-setup hook: %v", err)
+		}
+
+		var hasTA bool
+		if !hasHook {
+			hasTA = optee.TAPresent()
 		}
 
 		tokens := UseTokens(model)
@@ -649,6 +654,7 @@ func makeRunnableSystem(model *asserts.Model, bootWith *BootableSet, observer Tr
 
 		flags := sealKeyToModeenvFlags{
 			HasFDESetupHook: hasHook,
+			HasTA:           hasTA,
 			FactoryReset:    makeOpts.AfterDataReset,
 			SeedDir:         makeOpts.SeedDir,
 			StateUnlocker:   makeOpts.StateUnlocker,

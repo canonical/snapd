@@ -40,6 +40,7 @@ import (
 	"github.com/snapcore/snapd/gadget/device"
 	gadgetInstall "github.com/snapcore/snapd/gadget/install"
 	"github.com/snapcore/snapd/kernel/fde"
+	"github.com/snapcore/snapd/kernel/fde/optee"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/randutil"
@@ -229,13 +230,9 @@ func GetEncryptionSupportInfo(model *asserts.Model, tpmMode secboot.TPMProvision
 	// secboot based encryption
 	checkSecbootEncryption := !checkFDESetupHookEncryption
 
-	// TODO: this check will probably be fallible (unlike looking at the hook),
-	// do we need some other indicator that we're going to use the optee
-	// integration? maybe something from the gadget snap? unsure
-	//
-	// also, go's style guide says use all caps for acronyms, but this looks
+	// TODO: go's style guide says use all caps for acronyms, but this looks
 	// crazy
-	checkOPTEEEncryption := !checkFDESetupHookEncryption && fde.HasOPTEETrustedApplication()
+	checkOPTEEEncryption := !checkFDESetupHookEncryption && optee.TAPresent()
 	var checkEncryptionErr error
 	switch {
 	case checkFDESetupHookEncryption:
