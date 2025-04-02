@@ -46,7 +46,7 @@ type Context struct {
 	id      string
 	handler Handler
 
-	cache  map[interface{}]interface{}
+	cache  map[interface{}]interface{} // TODO: replace with sync.Map ?
 	onDone []func() error
 
 	mutex        sync.Mutex
