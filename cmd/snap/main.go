@@ -545,7 +545,7 @@ func loggerWithJournalMaybe() error {
 		if !osutil.GetenvBool("SNAP_LOG_TO_JOURNAL") {
 			return fmt.Errorf("no need to log to journal")
 		}
-		journalWriter, err := systemd.NewJournalStreamFile("snapd", syslog.LOG_DEBUG, false)
+		journalWriter, err := systemd.NewJournalStreamFile("snap", syslog.LOG_DEBUG, false)
 		if err != nil {
 			return err
 		}
