@@ -52,6 +52,7 @@ type backendSuite struct {
 func (s *backendSuite) SetUpTest(c *C) {
 	// Isolate this test to a temporary directory
 	s.RootDir = c.MkDir()
+	os.Mkdir(filepath.Join(s.RootDir, "/snap"), 0755)
 	dirs.SetRootDir(s.RootDir)
 
 	// Create a fresh repository for each test
@@ -195,8 +196,8 @@ func (s *backendSuite) TestConnectDisconnect(c *C) {
 		slotInfo1.Snap.InstanceName(), slotInfo1.Name), IsNil)
 	s.Backend.Setup(appSet, interfaces.ConfinementOptions{}, s.Repo, nil)
 
-	// Only files for the connected slots are around
-	c.Check(filepath.Join(dirs.GlobalRootDir, "/usr/lib/foo/bar.so"), testutil.FileAbsent)
+	// Only symlinks for the connected slots are around
+	c.Check(filepath.Join(dirs.GlobalRootDir, "/usr/lib/foo/bar.so"), testutil.FileLabsent)
 	checkSymlink(c, "/snap/somesnap2/1/target2.so", "/usr/lib/foo/bar2.so")
 }
 
@@ -258,8 +259,8 @@ func (s *backendSuite) TestTwoPlugs(c *C) {
 		slotInfo1.Snap.InstanceName(), slotInfo1.Name), IsNil)
 	s.Backend.Setup(appSet, interfaces.ConfinementOptions{}, s.Repo, nil)
 
-	// Only files for the connected slots are around
-	c.Check(filepath.Join(dirs.GlobalRootDir, "/usr/lib/foo/bar.so"), testutil.FileAbsent)
+	// Only symlinks for the connected slots are around
+	c.Check(filepath.Join(dirs.GlobalRootDir, "/usr/lib/foo/bar.so"), testutil.FileLabsent)
 	checkSymlink(c, "/snap/somesnap2/1/target2.so", "/usr/lib/foo2/bar2.so")
 }
 
@@ -293,5 +294,5 @@ func (s *backendSuite) TestUnregisteredDirectory(c *C) {
 	c.Assert(s.Backend.Setup(appSet, interfaces.ConfinementOptions{}, s.Repo, nil), ErrorMatches,
 		`internal error: .*/usr/lib/foo2 not in any registered symlinks directory`)
 
-	c.Check(filepath.Join(dirs.GlobalRootDir, "/etc/conf1.d/a.txt"), testutil.FileAbsent)
+	c.Check(filepath.Join(dirs.GlobalRootDir, "/usr/lib/foo2/bar2.so"), testutil.FileLabsent)
 }

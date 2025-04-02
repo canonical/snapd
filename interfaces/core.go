@@ -222,9 +222,9 @@ type SymlinksUser interface {
 	// under control of snapd. They are understood to be under control if
 	// they point to inside snap content or data. These directories apply
 	// to either the rootfs or to the mount namespace of a snap (TODO).
-	// AddSymlink from the backend is called to add a symlink that must be
-	// created. Symlinks that point to a snap that are not in the table are
-	// removed.
+	// AddSymlink from the backend is called to register symlinks that must
+	// be created in these directories. Non-registered symlinks found in
+	// these directories that point to a snap are removed.
 	//
 	// TODO it is possible that we might want to use different paths in the
 	// classic rootfs and in the mount namespace of a snap so the string

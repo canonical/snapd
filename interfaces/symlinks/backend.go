@@ -23,6 +23,7 @@
 package symlinks
 
 import (
+	"errors"
 	"fmt"
 	"io/fs"
 	"os"
@@ -116,7 +117,8 @@ func (b *Backend) ensureSymlinks(spec *Specification, symlinkDirs map[string]boo
 		entries, err := os.ReadDir(dir)
 		dirExists := true
 		if err != nil {
-			if _, ok := err.(*os.PathError); ok {
+			var pathErr *os.PathError
+			if errors.As(err, &pathErr) {
 				dirExists = false
 			} else {
 				return err
@@ -128,21 +130,12 @@ func (b *Backend) ensureSymlinks(spec *Specification, symlinkDirs map[string]boo
 			if node.Type() != fs.ModeSymlink {
 				continue
 			}
-			// these symlinks are absolute
 			path := filepath.Join(dir, node.Name())
-			dest, err := os.Readlink(path)
+			controlled, err := linkIsSnapdControlled(path)
 			if err != nil {
 				return err
 			}
-			// path is under $SNAP or part of snaps data, otherwise
-			// it is not under snapd control.
-			//
-			// TODO an alternative would be to add trusted extended
-			// attributes to these symlinks (xattr(7)) - adding
-			// with the equivalent of
-			// "sudo setfattr -h -n trusted.<snap> -v <val> <symlink>".
-			if !strings.HasPrefix(dest, dirs.SnapMountDir+"/") &&
-				!strings.HasPrefix(dest, dirs.SnapDataDir+"/") {
+			if !controlled {
 				continue
 			}
 			// link is active
@@ -172,4 +165,20 @@ func (b *Backend) ensureSymlinks(spec *Specification, symlinkDirs map[string]boo
 	}
 
 	return nil
+}
+
+func linkIsSnapdControlled(symlinkPath string) (bool, error) {
+	dest, err := os.Readlink(symlinkPath)
+	if err != nil {
+		return false, err
+	}
+	// If dest is under $SNAP or points to snaps data snapd owns the
+	// symlink, otherwise it is not under snapd control (these symlinks are
+	// absolute).
+	//
+	// TODO an alternative would be to add trusted extended attributes to
+	// these symlinks (xattr(7)) - adding with the equivalent of "sudo
+	// setfattr -h -n trusted.<snap> -v <val> <symlink>".
+	return strings.HasPrefix(dest, dirs.SnapMountDir+"/") ||
+		strings.HasPrefix(dest, dirs.SnapDataDir+"/"), nil
 }
