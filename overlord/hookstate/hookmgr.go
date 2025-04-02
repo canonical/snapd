@@ -334,6 +334,9 @@ func (m *HookManager) runHookForTask(task *state.Task, tomb *tomb.Tomb, snapst *
 func (m *HookManager) runHookGuardForRestarting(context *Context) error {
 	context.Lock()
 	defer context.Unlock()
+	// XXX: restart.Pending() no longer requires state lock, but is this
+	// context lock required to ensure nothing changes between pending check
+	// and incrementing running hooks?
 	if ok, _ := restart.Pending(m.state); ok {
 		return &state.Retry{}
 	}
