@@ -101,8 +101,11 @@ const (
 	polkitActionManageConfiguration = "io.snapcraft.snapd.manage-configuration"
 )
 
-// userFromRequest extracts user information from request and return the respective user in state, if valid
-// It requires the state to be locked
+// userFromRequest extracts user information from request and return the
+// respective user in state, if valid.
+//
+// Locks state to check authentication, if headers are valid, so the caller
+// must not hold the state lock.
 func userFromRequest(st *state.State, req *http.Request) (*auth.UserState, error) {
 	// extract macaroons data from request
 	header := req.Header.Get("Authorization")
@@ -130,6 +133,8 @@ func userFromRequest(st *state.State, req *http.Request) (*auth.UserState, error
 		return nil, fmt.Errorf("invalid authorization header")
 	}
 
+	st.Lock()
+	defer st.Unlock()
 	user, err := auth.CheckMacaroon(st, macaroon, discharges)
 	return user, err
 }
