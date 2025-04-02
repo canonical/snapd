@@ -7315,8 +7315,15 @@ func (s *snapmgrTestSuite) TestGadgetUpdateTaskAddedOnUCKernelRefreshHybrid(c *C
 }
 
 func (s *snapmgrTestSuite) TestGadgetUpdateTaskAddedOnUCKernelRefreshHybridOldBase(c *C) {
+	defer release.MockReleaseInfo(&release.OS{ID: "ubuntu", VersionID: "22.04"})()
 	s.testGadgetUpdateTaskAddedOnUCKernelRefreshHybrid(c, "core22",
 		doesReRefresh|isHybrid)
+}
+
+func (s *snapmgrTestSuite) TestGadgetUpdateTaskAddedOnUCKernelRefreshHybridWrongBase(c *C) {
+	defer release.MockReleaseInfo(&release.OS{ID: "ubuntu", VersionID: "24.04"})()
+	s.testGadgetUpdateTaskAddedOnUCKernelRefreshHybrid(c, "core22",
+		doesReRefresh|needsKernelSetup|isHybrid)
 }
 
 func (s *snapmgrTestSuite) testGadgetUpdateTaskAddedOnUCKernelRefreshHybrid(c *C, base string, opts int) {
