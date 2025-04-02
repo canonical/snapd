@@ -14,6 +14,10 @@ SpreadTaskNames = namedtuple(
     'SpreadTaskNames', ['original', 'suite', 'task', 'variant'])
 
 
+def _remove_json_extension(file_name: str) -> str:
+    return os.path.splitext(file_name)[0] if file_name.endswith('.json') else file_name
+
+
 def _parse_file_name(file_name: str) -> SpreadTaskNames:
     '''
     Given a file name in the format with double slashes <backend>:<system>:suite--path--task:variant
@@ -27,8 +31,7 @@ def _parse_file_name(file_name: str) -> SpreadTaskNames:
     :param file_name: The file name to parse
     :returns: A namedtuple with the original name, the suite name, the task name and the variant name. If variant is not present, it returns None.
     '''
-    if file_name.endswith('.json'):
-        file_name = os.path.splitext(file_name)[0]
+    file_name = _remove_json_extension(file_name)
     original_name = file_name.replace('--', '/')
     task = ':'.join(original_name.split(':')[2:])
     suite_name = '/'.join(task.split('/')[:-1])
@@ -159,12 +162,11 @@ def _get_original_and_rerun_list(filenames: list[str]) -> tuple[list[str], list[
     :param filenames: a list of filenames
     :returns: the list of first runs and the list of all reruns
     '''
-    def wo_ext(x): return os.path.splitext(x)[0]
-    reruns = [file for file in filenames if not wo_ext(file).endswith('_1')]
+    reruns = [file for file in filenames if not _remove_json_extension(file).endswith('_1')]
     originals = [file for file in filenames
-                 if wo_ext(file).endswith('_1') and
-                 any(rerun for rerun in reruns if rerun.startswith(wo_ext(file)[:-2]))]
-    reruns.sort(key=lambda x: int(wo_ext(x).split('_')[-1]))
+                 if _remove_json_extension(file).endswith('_1') and
+                 any(rerun for rerun in reruns if rerun.startswith(_remove_json_extension(file)[:-2]))]
+    reruns.sort(key=lambda x: int(_remove_json_extension(x).split('_')[-1]))
     return originals, reruns
 
 
@@ -174,7 +176,7 @@ def _get_name_without_run_number(test: str) -> str:
     returns <some-name>. If the name doesn't end with _<some-number>, then 
     it will return the original name.
     '''
-    test_split = os.path.splitext(test)[0].split('_')
+    test_split = _remove_json_extension(test).split('_')
     if test_split[-1].isdigit():
         return '_'.join(test_split[:-1])
     return test

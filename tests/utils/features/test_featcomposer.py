@@ -47,17 +47,17 @@ class TestCompose(unittest.TestCase):
     def test_compose(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             task1variant1 = os.path.join(
-                tmpdir, 'backend:system:path--to--task1:variant1.json')
-            task2 = os.path.join(tmpdir, 'backend:system:path--to--task2')
+                tmpdir, 'backend:system.version:path--to--task1:variant1.json')
+            task2 = os.path.join(tmpdir, 'backend:system.version:path--to--task2')
             TestCompose.write_task(task1variant1, 'task1variant1')
             TestCompose.write_task(task2, 'task2')
             systems = featcomposer.get_system_list(tmpdir)
             self.assertEqual(1, len(systems))
             composed = featcomposer.compose_system(tmpdir, systems.pop(),
-                                                       'backend:system:path/to/task1:variant1 backend:system:another/task2',
+                                                       'backend:system.version:path/to/task1:variant1 backend:system.version:another/task2',
                                                        ['e = 1 ', 'f = 2 '], ['1 ', ' 2', ' 3'])
             expected = SystemFeatures(schema_version='0.0.0',
-                                      system='backend:system',
+                                      system='backend:system.version',
                                       scenarios=['1', '2', '3'],
                                       env_variables=[{'name': 'e', 'value': '1'},
                                                      {'name': 'f', 'value': '2'}],
@@ -70,14 +70,14 @@ class TestReplace(unittest.TestCase):
 
     def test_replace(self):
         with tempfile.TemporaryDirectory() as tmpdir:
-            original = os.path.join(tmpdir, 'my:system_1')
-            rerun = os.path.join(tmpdir, 'my:system_2.json')
-            run_once = os.path.join(tmpdir, 'my:other-system_1.json')
-            original_json = {'system': 'my:system', 'tests': [{'task_name': 'task1', 'suite': 'my/suite', 'variant': '', 'success': False, 'cmds': [{'cmd': 'original run'}]},
+            original = os.path.join(tmpdir, 'my:system.version_1')
+            rerun = os.path.join(tmpdir, 'my:system.version_2.json')
+            run_once = os.path.join(tmpdir, 'my:other-system.version_1.json')
+            original_json = {'system.version': 'my:system.version', 'tests': [{'task_name': 'task1', 'suite': 'my/suite', 'variant': '', 'success': False, 'cmds': [{'cmd': 'original run'}]},
                                                               {'task_name': 'task2', 'suite': 'my/suite', 'variant': '', 'success': True, 'cmds': [{'cmd': 'original run'}]}]}
-            rerun_json = {'system': 'my:system', 'tests': [
+            rerun_json = {'system.version': 'my:system.version', 'tests': [
                 {'task_name': 'task1', 'suite': 'my/suite', 'variant': '', 'success': True, 'cmds': [{'cmd': 'rerun 1'}, {'cmd': 'another'}]}]}
-            run_once_json = {'system': 'my:other-system', 'tests': [
+            run_once_json = {'system.version': 'my:other-system.version', 'tests': [
                 {'task_name': 'task', 'suite': 'my/suite', 'variant': 'v1', 'success': True}]}
             with open(original, 'w') as f:
                 json.dump(original_json, f)
@@ -90,12 +90,12 @@ class TestReplace(unittest.TestCase):
                 tmpdir, os.path.join(tmpdir, output_dir))
             self.assertEqual(
                 2, len(os.listdir(os.path.join(tmpdir, output_dir))))
-            with open(os.path.join(tmpdir, output_dir, 'my:system.json'), 'r') as f:
+            with open(os.path.join(tmpdir, output_dir, 'my:system.version.json'), 'r') as f:
                 actual = json.load(f)
-                expected = {'system': 'my:system', 'tests': [{'task_name': 'task1', 'suite': 'my/suite', 'variant': '', 'success': True, 'cmds': [{'cmd': 'rerun 1'}, {'cmd': 'another'}]},
+                expected = {'system.version': 'my:system.version', 'tests': [{'task_name': 'task1', 'suite': 'my/suite', 'variant': '', 'success': True, 'cmds': [{'cmd': 'rerun 1'}, {'cmd': 'another'}]},
                                                              {'task_name': 'task2', 'suite': 'my/suite', 'variant': '', 'success': True, 'cmds': [{'cmd': 'original run'}]}]}
                 self.assertDictEqual(expected, actual)
-            with open(os.path.join(tmpdir, output_dir, 'my:other-system.json'), 'r') as f:
+            with open(os.path.join(tmpdir, output_dir, 'my:other-system.version.json'), 'r') as f:
                 actual = json.load(f)
                 self.assertDictEqual(run_once_json, actual)
 
