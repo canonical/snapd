@@ -162,7 +162,8 @@ def _get_original_and_rerun_list(filenames: list[str]) -> tuple[list[str], list[
     :param filenames: a list of filenames
     :returns: the list of first runs and the list of all reruns
     '''
-    reruns = [file for file in filenames if not _remove_json_extension(file).endswith('_1')]
+    reruns = [file for file in filenames if not _remove_json_extension(
+        file).endswith('_1')]
     originals = [file for file in filenames
                  if _remove_json_extension(file).endswith('_1') and
                  any(rerun for rerun in reruns if rerun.startswith(_remove_json_extension(file)[:-2]))]
@@ -273,6 +274,6 @@ if __name__ == '__main__':
     systems = get_system_list(args.dir)
     for system in systems:
         composed = compose_system(dir=args.dir, system=system,
-                                  failed_tests=args.failed_tests, env_variables=args.env_variables)
+                                  failed_tests=args.failed_tests, env_variables=args.env_variables, scenarios=args.scenarios)
         with open(os.path.join(args.output, system + attempt + '.json'), 'w', encoding='utf-8') as f:
             json.dump(composed, f)
