@@ -9,12 +9,13 @@ import featcomposer
 from features import *
 import json
 import tempfile
+from typing import Any
 import unittest
 
 
 class TestCompose(unittest.TestCase):
     @staticmethod
-    def get_features(msg):
+    def get_features(msg: str) -> dict[str, Any]:
         features = {}
         features['cmds'] = [Cmd(cmd=msg), Cmd(cmd=f'msg msg')]
         features['endpoints'] = [Endpoint(method='POST', path=msg)]
@@ -25,7 +26,7 @@ class TestCompose(unittest.TestCase):
         return features
 
     @staticmethod
-    def get_json(suite, task, variant, success, msg):
+    def get_json(suite: str, task: str, variant: str, success: str, msg: str) -> TaskFeatures:
         features = TestCompose.get_features(msg)
         return TaskFeatures(
             suite=suite,
@@ -40,7 +41,7 @@ class TestCompose(unittest.TestCase):
         )
 
     @staticmethod
-    def write_task(filepath, msg):
+    def write_task(filepath: str, msg: str) -> None:
         with open(filepath, 'w') as f:
             json.dump(TestCompose.get_features(msg), f)
 
