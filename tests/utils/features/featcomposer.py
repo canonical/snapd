@@ -6,10 +6,12 @@ import json
 import os
 import shutil
 from typing import Any
+
 import features
 
 
-SpreadTaskNames = namedtuple('SpreadTaskNames', ['original', 'suite', 'task', 'variant'])
+SpreadTaskNames = namedtuple(
+    'SpreadTaskNames', ['original', 'suite', 'task', 'variant'])
 
 
 def _parse_file_name(file_name: str) -> SpreadTaskNames:
@@ -45,7 +47,7 @@ def _compose_test(dir: str, file: str, failed_tests: str) -> features.TaskFeatur
 
     :param dir: The directory where the file is located
     :param file: The file name
-    :param failed_tests: String containing the names of failing tests in any format
+    :param failed_tests: String containing the names of failing tests
     :returns: A dictionary with test information and features
     '''
     with open(os.path.join(dir, file), 'r', encoding='utf-8') as f:
@@ -66,7 +68,7 @@ def _compose_env_variables(env_variables: list[str]) -> list[features.EnvVariabl
     Given environment variables in the form of a comma-separated list of key=value,
     it creates a list of dictionaries of [{"name": <env1-name>, "value": <env1-value>}...]
 
-    :param env_variables: a comma-seprated list of key=value environment variables
+    :param env_variables: a list of strings with key=value environment variables
     :returns: A list of dictionaries
     '''
     composed = []
@@ -79,7 +81,7 @@ def _compose_env_variables(env_variables: list[str]) -> list[features.EnvVariabl
     return composed
 
 
-def compose_system(dir: str, system: str, failed_tests: str = '', env_variables: list[str] = [], scenarios: list[str] = []) -> features.SystemFeatures:
+def compose_system(dir: str, system: str, failed_tests: str, env_variables: list[str], scenarios: list[str]) -> features.SystemFeatures:
     '''
     Given a containing directory, a system-identifying string, and other information
     about failed tests, environment variables, and scenarios, it creates a dictionary 
@@ -88,9 +90,9 @@ def compose_system(dir: str, system: str, failed_tests: str = '', env_variables:
 
     :param dir: Directory that contains feature-tagging files
     :param system: Identifying string to select only files with that string
-    :param failed_tests: String containing the names of failing tests in any format
-    :param env_variables: Comma-separated string of key=value environment variables
-    :param scenarios: Comma-separated string of scenario names
+    :param failed_tests: String containing the names of failing tests
+    :param env_variables: List of strings with key=value environment variables
+    :param scenarios: List of strings with scenario names
     :returns: Dictionary containing all tests and tests information for the system
     '''
     files = [file for file in os.listdir(
@@ -248,8 +250,8 @@ if __name__ == '__main__':
     parser.add_argument('-e', '--env-variables', type=str, nargs='*',
                         help='List of environment variables as key=value', default='')
     parser.add_argument('-f', '--failed-tests', type=str,
-                        help='List of failed tests', default='')
-    parser.add_argument('--run-attempt', type=int, choices=range(1,10), help='''
+                        help='String containing the names of failed tests', default='')
+    parser.add_argument('--run-attempt', type=int, choices=range(1, 10), help='''
                         Run attempt number of the json files contained in the folder [1,10). 
                         Only needed when rerunning spread for failed tests. When specified, will append the run attempt 
                         number on the filename, which will then be used when running this script with the --replace-old-runs
