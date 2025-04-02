@@ -1441,10 +1441,10 @@ func (s *snapsSuite) TestSnapInfoReturnsRefreshInhibitProceedTime(c *check.C) {
 	snapstate.Set(st, "foo", &snapst)
 	// Get expected proceed time while we have the lock.
 	expectedProceedTime := snapst.RefreshInhibitProceedTime(st)
+	st.Unlock()
 
 	monitored := map[string]context.CancelFunc{"foo": func() {}}
 	st.Cache("monitored-snaps", monitored)
-	st.Unlock()
 
 	req, err := http.NewRequest("GET", "/v2/snaps/foo", nil)
 	c.Assert(err, check.IsNil)
@@ -1465,11 +1465,9 @@ func (s *snapsSuite) TestSnapInfoRefreshInhibitProceedTimeLP2089195(c *check.C) 
 	s.mkInstalledInState(c, d, "foo", "bar", "v0", snap.R(5), true, "")
 
 	st := d.Overlord().State()
-	st.Lock()
 	// Mark monitored while RefreshInhibitedTime is nil
 	monitored := map[string]context.CancelFunc{"foo": func() {}}
 	st.Cache("monitored-snaps", monitored)
-	st.Unlock()
 
 	req, err := http.NewRequest("GET", "/v2/snaps/foo", nil)
 	c.Assert(err, check.IsNil)
@@ -1508,6 +1506,8 @@ func (s *snapsSuite) TestSnapManyInfosReturnsRefreshInhibitProceedTime(c *check.
 	// Get expected proceed time for snap-b while we have the lock.
 	expectedProceedTimeB := snapst.RefreshInhibitProceedTime(st)
 
+	st.Unlock()
+
 	monitored := map[string]context.CancelFunc{
 		"snap-a": func() {},
 		// Simulate a scenario where a refresh is continued (i.e. snap is
@@ -1515,8 +1515,6 @@ func (s *snapsSuite) TestSnapManyInfosReturnsRefreshInhibitProceedTime(c *check.
 		"snap-b": nil,
 	}
 	st.Cache("monitored-snaps", monitored)
-
-	st.Unlock()
 
 	req, err := http.NewRequest("GET", "/v2/snaps", nil)
 	c.Assert(err, check.IsNil)
@@ -1573,14 +1571,14 @@ func (s *snapsSuite) TestSnapManyInfosSelectRefreshInhibited(c *check.C) {
 	// Get expected proceed time for snap-a while we have the lock.
 	expectedProceedTimeB := snapst.RefreshInhibitProceedTime(st)
 
+	st.Unlock()
+
 	monitored := map[string]context.CancelFunc{
 		"snap-a": func() {},
 		// Snap monitored should show as inhibited even when proceed-time is in the past
 		"snap-b": func() {},
 	}
 	st.Cache("monitored-snaps", monitored)
-
-	st.Unlock()
 
 	req, err := http.NewRequest("GET", "/v2/snaps?select=refresh-inhibited", nil)
 	c.Assert(err, check.IsNil)

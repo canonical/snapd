@@ -1470,10 +1470,7 @@ func (s *systemsSuite) TestSystemActionCheckPassphraseError(c *check.C) {
 		})
 		defer restore()
 
-		st := d.Overlord().State()
-		st.Lock()
 		daemon.ClearCachedEncryptionSupportInfoForLabel(d.Overlord().State(), "20250122")
-		st.Unlock()
 
 		b, err := json.Marshal(body)
 		c.Assert(err, check.IsNil)
@@ -1564,9 +1561,7 @@ func (s *systemsSuite) TestSystemActionCheckPINError(c *check.C) {
 		})
 		defer restore()
 
-		st.Lock()
 		daemon.ClearCachedEncryptionSupportInfoForLabel(d.Overlord().State(), "20250122")
-		st.Unlock()
 
 		b, err := json.Marshal(body)
 		c.Assert(err, check.IsNil)
