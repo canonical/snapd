@@ -33,6 +33,7 @@ import (
 	"github.com/snapcore/snapd/osutil/epoll"
 	"github.com/snapcore/snapd/sandbox/apparmor"
 	"github.com/snapcore/snapd/sandbox/apparmor/notify"
+	"github.com/snapcore/snapd/timeutil"
 )
 
 var (
@@ -144,7 +145,7 @@ type Listener struct {
 	doneReadying chan struct{}
 	// readyTimer is a timer which will call signalReadyAndFlushQueue if the
 	// listener times out waiting for pending requests to be received.
-	readyTimer *time.Timer
+	readyTimer timeutil.Timer
 	// pendingMu is a mutex which protects pendingCount and readyQueue.
 	pendingMu sync.Mutex
 	// pendingCount is the number of "pending" (NOTIF_RESENT) messages still
@@ -230,7 +231,7 @@ func Register() (listener *Listener, err error) {
 
 		ready:        make(chan struct{}),
 		doneReadying: make(chan struct{}),
-		readyTimer:   time.NewTimer(0), // initialize placeholder non-nil timer
+		readyTimer:   timeutil.NewTimer(0), // initialize placeholder non-nil timer
 		pendingCount: pendingCount,
 
 		protocolVersion: protoVersion,
@@ -243,9 +244,13 @@ func Register() (listener *Listener, err error) {
 		listener.signalReadyAndFlushQueue()
 	} else {
 		// Set a real timer
-		listener.readyTimer = time.AfterFunc(readyTimeout, listener.signalReadyAndFlushQueue)
+		listener.readyTimer = timeAfterFunc(readyTimeout, listener.signalReadyAndFlushQueue)
 	}
 	return listener, nil
+}
+
+var timeAfterFunc = func(d time.Duration, f func()) timeutil.Timer {
+	return timeutil.AfterFunc(d, f)
 }
 
 // isClosed returns true if the listener has been closed.
