@@ -29,7 +29,7 @@ def _parse_file_name(file_name: str) -> SpreadTaskNames:
     - variant_name = variant
 
     :param file_name: The file name to parse
-    :returns: A namedtuple with the original name, the suite name, the task name and the variant name. If variant is not present, it returns None.
+    :returns: A namedtuple with the original name, the suite name, the task name and the variant name. If variant is not present, it's value is an empty string.
     '''
     file_name = _remove_json_extension(file_name)
     original_name = file_name.replace('--', '/')
