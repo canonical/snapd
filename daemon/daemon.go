@@ -166,9 +166,7 @@ func (c *Command) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if srsp, ok := rsp.(StructuredResponse); ok {
 		rjson := srsp.JSON()
 
-		st.Lock()
 		_, rst := restart.Pending(st)
-		st.Unlock()
 		rjson.addMaintenanceFromRestartType(rst)
 
 		if rjson.Type != ResponseTypeError {
@@ -541,9 +539,7 @@ func (d *Daemon) Stop(sigCh chan<- os.Signal) error {
 		// stop running hooks first
 		// and do it more gracefully if we are restarting
 		hookMgr := d.overlord.HookManager()
-		d.state.Lock()
 		ok, _ := restart.Pending(d.state)
-		d.state.Unlock()
 		if ok {
 			logger.Noticef("gracefully waiting for running hooks")
 			hookMgr.GracefullyWaitRunningHooks()

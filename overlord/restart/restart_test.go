@@ -82,15 +82,15 @@ func (s *restartSuite) TestManager(c *C) {
 func (s *restartSuite) TestRequestRestartDaemon(c *C) {
 	st := state.New(nil)
 
-	st.Lock()
-	defer st.Unlock()
-
 	// uninitialized
 	ok, t := restart.Pending(st)
 	c.Check(ok, Equals, false)
 	c.Check(t, Equals, restart.RestartUnset)
 
 	h := &testHandler{}
+
+	st.Lock()
+	defer st.Unlock()
 
 	_, err := restart.Manager(st, "boot-id-1", h)
 	c.Assert(err, IsNil)
@@ -113,12 +113,13 @@ func (s *restartSuite) TestRequestRestartDaemonNoHandler(c *C) {
 	st := state.New(nil)
 
 	st.Lock()
-	defer st.Unlock()
 
 	_, err := restart.Manager(st, "boot-id-1", nil)
 	c.Assert(err, IsNil)
 
 	restart.Request(st, restart.RestartDaemon, nil)
+
+	st.Unlock()
 
 	ok, t := restart.Pending(st)
 	c.Check(ok, Equals, true)
