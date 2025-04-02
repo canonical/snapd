@@ -28,18 +28,35 @@ import (
 
 type filePresenceChecker struct {
 	*check.CheckerInfo
-	present bool
+	statFunc func(name string) (os.FileInfo, error)
+	present  bool
 }
 
-// FilePresent verifies that the given file exists.
+// FilePresent verifies that the given file exists, following symlinks.
 var FilePresent check.Checker = &filePresenceChecker{
 	CheckerInfo: &check.CheckerInfo{Name: "FilePresent", Params: []string{"filename"}},
+	statFunc:    os.Stat,
 	present:     true,
 }
 
-// FileAbsent verifies that the given file does not exist.
+// FilePresent verifies that the given file/symlink exists.
+var FileLpresent check.Checker = &filePresenceChecker{
+	CheckerInfo: &check.CheckerInfo{Name: "FileLpresent", Params: []string{"filename"}},
+	statFunc:    os.Lstat,
+	present:     true,
+}
+
+// FileAbsent verifies that the given file does not exist, following symlinks.
 var FileAbsent check.Checker = &filePresenceChecker{
 	CheckerInfo: &check.CheckerInfo{Name: "FileAbsent", Params: []string{"filename"}},
+	statFunc:    os.Stat,
+	present:     false,
+}
+
+// FileLAbsent verifies that the given file/symlink does not exist.
+var FileLabsent check.Checker = &filePresenceChecker{
+	CheckerInfo: &check.CheckerInfo{Name: "FileLabsent", Params: []string{"filename"}},
+	statFunc:    os.Lstat,
 	present:     false,
 }
 
@@ -48,7 +65,7 @@ func (c *filePresenceChecker) Check(params []interface{}, names []string) (resul
 	if !ok {
 		return false, "filename must be a string"
 	}
-	_, err := os.Stat(filename)
+	_, err := c.statFunc(filename)
 	if os.IsNotExist(err) && c.present {
 		return false, fmt.Sprintf("file %q is absent but should exist", filename)
 	}
