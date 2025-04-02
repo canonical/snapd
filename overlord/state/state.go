@@ -104,7 +104,7 @@ type State struct {
 
 	modified bool
 
-	cache map[interface{}]interface{}
+	cache sync.Map
 
 	pendingChangeByAttr map[string]func(*Change) bool
 
@@ -126,7 +126,6 @@ func New(backend Backend) *State {
 		warnings:            make(map[string]*Warning),
 		notices:             make(map[noticeKey]*Notice),
 		modified:            true,
-		cache:               make(map[interface{}]interface{}),
 		pendingChangeByAttr: make(map[string]func(*Change) bool),
 		taskHandlers:        make(map[int]func(t *Task, old Status, new Status) bool),
 		changeHandlers:      make(map[int]func(chg *Change, old Status, new Status)),
@@ -336,19 +335,24 @@ func (s *State) Set(key string, value interface{}) {
 
 // Cached returns the cached value associated with the provided key.
 // It returns nil if there is no entry for key.
-func (s *State) Cached(key interface{}) interface{} {
-	s.reading()
-	return s.cache[key]
+//
+// The cache uses an atomic map, so there is no need to hold state lock just
+// to safely access the cache, though callers may hold the lock if they choose.
+func (s *State) Cached(key any) any {
+	val, _ := s.cache.Load(key)
+	return val
 }
 
 // Cache associates value with key for future consulting by managers.
 // The cached value is not persisted.
-func (s *State) Cache(key, value interface{}) {
-	s.reading() // Doesn't touch persisted data.
+//
+// The cache uses an atomic map, so there is no need to hold state lock just
+// to safely access the cache, though callers may hold the lock if they choose.
+func (s *State) Cache(key, value any) {
 	if value == nil {
-		delete(s.cache, key)
+		s.cache.Delete(key)
 	} else {
-		s.cache[key] = value
+		s.cache.Store(key, value)
 	}
 }
 
@@ -616,7 +620,6 @@ func ReadState(backend Backend, r io.Reader) (*State, error) {
 	s.backend = backend
 	s.noticeCond = sync.NewCond(s)
 	s.modified = false
-	s.cache = make(map[interface{}]interface{})
 	s.pendingChangeByAttr = make(map[string]func(*Change) bool)
 	s.changeHandlers = make(map[int]func(chg *Change, old Status, new Status))
 	s.taskHandlers = make(map[int]func(t *Task, old Status, new Status) bool)

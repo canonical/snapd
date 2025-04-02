@@ -191,8 +191,6 @@ func (ss *stateSuite) TestGetUnmarshalProblem(c *C) {
 
 func (ss *stateSuite) TestCache(c *C) {
 	st := state.New(nil)
-	st.Lock()
-	defer st.Unlock()
 
 	type key1 struct{}
 	type key2 struct{}
@@ -577,7 +575,6 @@ func (ss *stateSuite) TestEmptyStateDataAndCheckpointReadAndSet(c *C) {
 		"tasks",
 		"warnings",
 		"notices",
-		"cache",
 		"pendingChangeByAttr",
 		"taskHandlers",
 		"changeHandlers",
@@ -763,8 +760,6 @@ func (ss *stateSuite) TestMethodEntrance(c *C) {
 
 	reads := []func(){
 		func() { st.Get("foo", nil) },
-		func() { st.Cached("foo") },
-		func() { st.Cache("foo", 1) },
 		func() { st.Changes() },
 		func() { st.Change("foo") },
 		func() { st.Tasks() },
@@ -1081,11 +1076,11 @@ func (ss *stateSuite) TestPruneHonorsStartOperationTime(c *C) {
 func (ss *stateSuite) TestReadStateInitsTransientMapFields(c *C) {
 	st, err := state.ReadState(nil, bytes.NewBufferString("{}"))
 	c.Assert(err, IsNil)
-	st.Lock()
-	defer st.Unlock()
 
 	st.Cache("key", "value")
 	c.Assert(st.Cached("key"), Equals, "value")
+	st.Lock()
+	defer st.Unlock()
 	st.RegisterPendingChangeByAttr("attr", func(*state.Change) bool { return false })
 }
 
