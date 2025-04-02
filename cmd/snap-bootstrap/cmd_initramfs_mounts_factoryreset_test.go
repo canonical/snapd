@@ -117,11 +117,13 @@ func (s *initramfsMountsSuite) TestInitramfsMountsFactoryResetModeHappyEncrypted
 			boot.InitramfsDataDir,
 			tmpfsMountOpts,
 			nil,
+			nil,
 		},
 		{
 			"/dev/mapper/ubuntu-save-random",
 			boot.InitramfsUbuntuSaveDir,
 			needsNoSuidNoDevNoExecMountOpts,
+			nil,
 			nil,
 		},
 	}, nil)
@@ -226,11 +228,13 @@ func (s *initramfsMountsSuite) TestInitramfsMountsFactoryResetModeHappyUnencrypt
 			boot.InitramfsDataDir,
 			tmpfsMountOpts,
 			nil,
+			nil,
 		},
 		{
 			"/dev/disk/by-partuuid/ubuntu-save-partuuid",
 			boot.InitramfsUbuntuSaveDir,
 			needsNoSuidNoDevNoExecMountOpts,
+			nil,
 			nil,
 		},
 	}, nil)
@@ -311,6 +315,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsFactoryResetModeHappyUnencrypt
 			"tmpfs",
 			boot.InitramfsDataDir,
 			tmpfsMountOpts,
+			nil,
 			nil,
 		},
 	}, nil)
@@ -412,6 +417,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsFactoryResetModeUnhappyUnlockE
 			"tmpfs",
 			boot.InitramfsDataDir,
 			tmpfsMountOpts,
+			nil,
 			nil,
 		},
 	}, nil)
@@ -518,12 +524,14 @@ func (s *initramfsMountsSuite) TestInitramfsMountsFactoryResetModeUnhappyMountEn
 			boot.InitramfsDataDir,
 			tmpfsMountOpts,
 			nil,
+			nil,
 		},
 		{
 			"/dev/mapper/ubuntu-save-random",
 			boot.InitramfsUbuntuSaveDir,
 			needsNoSuidNoDevNoExecMountOpts,
 			fmt.Errorf("mount failed"),
+			nil,
 		},
 	}, nil)
 	defer restore()
