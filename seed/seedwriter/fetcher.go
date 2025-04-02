@@ -61,8 +61,9 @@ func (af *assertionFetcher) FetchSequence(seq *asserts.AtSequence) error {
 }
 
 func (af *assertionFetcher) Save(a asserts.Assertion) error {
-
 	// Check prerequisites against extraAssertions only if there are any
+	// If a prerequisite is not found within the extra assertions, it will be searched through
+	// the usual means. If is not found, the error will be returned later rather than by this block
 	if len(af.extraAssertions) != 0 {
 		for _, prerequisite := range a.Prerequisites() {
 			for _, extraAssertion := range af.extraAssertions {
