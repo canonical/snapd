@@ -410,14 +410,14 @@ jobs:
         mkdir -p "$featdir"
         for dir in "${ARTIFACTS_FOLDER}/feature-tags"/*/; do
           if [ -f "${dir}/journal.txt" ] && [ -f "${dir}/state.json" ]; then
-            ./tests/lib/tools/feature_extractor.py \
+            ./tests/utils/features/featextractor.py \
               $featarg \
               --journal "${dir}/journal.txt" \
               --state "${dir}/state.json" \
               --output "$featdir/$(basename ${dir})"
           fi
         done
-        ./tests/lib/compose-features.py \
+        ./tests/utils/features/featcomposer.py \
             --dir "$featdir" \
             --output "feature-tags" \
             --failed-tests "$(cat $FAILED_TESTS_FILE)" \
