@@ -244,7 +244,7 @@ if __name__ == '__main__':
     parser.add_argument('-o', '--output', type=str,
                         help='Output directory', required=True)
     parser.add_argument('-s', '--scenarios', type=str, nargs='*',
-                        help='List of scenarios', default='')
+                        help='List of useful metadata tags to describe the testing scenario', default='')
     parser.add_argument('-e', '--env-variables', type=str, nargs='*',
                         help='List of environment variables as key=value', default='')
     parser.add_argument('-f', '--failed-tests', type=str,
