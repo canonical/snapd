@@ -45,8 +45,6 @@ execute: |
     # The expiry date is <expiration year>/<expiration month>      
     
     declare -A exclusion_map
-    # confdb are still in the experimental phase so its page is not exposed yet
-    exclusion_map["confdb"]="2025/06"
     # gpio-chardev is still in the experimental phase so its page is not exposed yet
     exclusion_map["gpio-chardev"]="2025/06"
     # need to add https://snapcraft.io/docs/checkbox-support-interface
