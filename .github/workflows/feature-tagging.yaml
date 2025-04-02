@@ -12,8 +12,8 @@ on:
         default: 'all'
       maximum-reruns:
         type: number
-        description: 'Maximum number of times to rerun failed spread tasks upon failure'
-        default: 3
+        description: 'Maximum number of times to rerun failed spread tasks'
+        default: 2
       run-all:
         type: boolean
         description: 'If true, will run all spread tests. If false, will only run tagging on changed spread tests in the last commit'
@@ -30,7 +30,7 @@ jobs:
       - name: Set inputs
         run: |
           echo "features=${{ inputs.features || 'all' }}" >> $GITHUB_OUTPUT
-          echo "maximum-reruns=${{ inputs.maximum-reruns || 3 }}" >> $GITHUB_OUTPUT
+          echo "maximum-reruns=${{ inputs.maximum-reruns || 2 }}" >> $GITHUB_OUTPUT
           echo "run-all=${{ inputs.run-all || false }}" >> $GITHUB_OUTPUT
 
   read-systems:
@@ -110,8 +110,8 @@ jobs:
     permissions:
       actions: write
     needs: [set-inputs, tag-features-fundamental, tag-features-non-fundamental, tag-features-nested]
-    # If the spread tests ended in failure, rerun the workflow up to maximum-reruns-1 times
-    if: failure() && fromJSON(github.run_attempt) < fromJSON(needs.set-inputs.outputs.maximum-reruns)
+    # If the spread tests ended in failure, rerun the workflow up to maximum-reruns times
+    if: failure() && fromJSON(github.run_attempt) <= fromJSON(needs.set-inputs.outputs.maximum-reruns)
     runs-on: ubuntu-latest
     steps:
       - env:
@@ -122,7 +122,7 @@ jobs:
   create-reports:
     needs: [set-inputs, tag-features-fundamental, tag-features-non-fundamental, tag-features-nested]
     runs-on: ubuntu-latest
-    if: success() || fromJSON(github.run_attempt) >= fromJSON(needs.set-inputs.outputs.maximum-reruns)
+    if: success() || fromJSON(github.run_attempt) > fromJSON(needs.set-inputs.outputs.maximum-reruns)
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
