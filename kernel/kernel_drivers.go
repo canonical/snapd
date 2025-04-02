@@ -33,6 +33,7 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -422,9 +423,23 @@ func NeedsKernelDriversTree(mod *asserts.Model) bool {
 	// TODO this won't work for a UC2{0,2} -> UC24+ remodel as we need the
 	// new model here. Get to this ASAP after snapd 2.62 release.
 	switch mod.Base() {
-	case "core20", "core22", "core22-desktop":
+	case "core22":
+		if mod.Classic() {
+			// This is a workaround for LP#2104933. The base should
+			// never have been core22 in 24.04/24.10.
+			return classic24ModelWithWrongBase()
+		}
+		return false
+	case "core20", "core22-desktop":
 		return false
 	default:
 		return true
 	}
+}
+
+// This is a workaround for LP#2104933. The base should never have been core22
+// in classic 24.04/24.10.
+func classic24ModelWithWrongBase() bool {
+	return release.ReleaseInfo.ID == "ubuntu" &&
+		(release.ReleaseInfo.VersionID == "24.04" || release.ReleaseInfo.VersionID == "24.10")
 }
