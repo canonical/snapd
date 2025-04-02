@@ -6,7 +6,7 @@
 
 set -xeu
 
-if [ -z "$SPREAD_TAG_FEATURES" ]; then
+if [ -z "${SPREAD_TAG_FEATURES:-}" ]; then
 	echo "since SPREAD_TAG_FEATURES was not set, tagging all features by default"
 	export SPREAD_TAG_FEATURES="all"
 fi
