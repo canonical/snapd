@@ -21,6 +21,7 @@ package listener
 
 import (
 	"os"
+	"time"
 
 	"golang.org/x/sys/unix"
 
@@ -28,6 +29,11 @@ import (
 	"github.com/snapcore/snapd/sandbox/apparmor"
 	"github.com/snapcore/snapd/sandbox/apparmor/notify"
 	"github.com/snapcore/snapd/testutil"
+	"github.com/snapcore/snapd/timeutil"
+)
+
+var (
+	ReadyTimeout = readyTimeout
 )
 
 func ExitOnError() (restore func()) {
@@ -175,4 +181,8 @@ func MockEncodeAndSendResponse(f func(l *Listener, resp *notify.MsgNotificationR
 
 func (l *Listener) EpollIsClosed() bool {
 	return l.poll.IsClosed()
+}
+
+func MockTimeAfterFunc(f func(d time.Duration, callback func()) timeutil.Timer) (restore func()) {
+	return testutil.Mock(&timeAfterFunc, f)
 }

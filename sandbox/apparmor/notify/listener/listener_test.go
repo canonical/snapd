@@ -41,7 +41,9 @@ import (
 	"github.com/snapcore/snapd/sandbox/apparmor"
 	"github.com/snapcore/snapd/sandbox/apparmor/notify"
 	"github.com/snapcore/snapd/sandbox/apparmor/notify/listener"
+	"github.com/snapcore/snapd/testtime"
 	"github.com/snapcore/snapd/testutil"
+	"github.com/snapcore/snapd/timeutil"
 )
 
 func Test(t *testing.T) { TestingT(t) }
@@ -312,6 +314,58 @@ func (*listenerSuite) TestRegisterClose(c *C) {
 		err = l.Close()
 		c.Assert(err, IsNil)
 	}()
+}
+
+func (*listenerSuite) TestRegisterCloseTimeoutRace(c *C) {
+	restoreOpen := listener.MockOsOpenWithSocket()
+	defer restoreOpen()
+
+	restoreRegisterFileDescriptor := listener.MockNotifyRegisterFileDescriptor(func(fd uintptr) (notify.ProtocolVersion, int, error) {
+		pendingCount := 5
+		return notify.ProtocolVersion(12345), pendingCount, nil
+	})
+	defer restoreRegisterFileDescriptor()
+
+	restoreIoctl := listener.MockNotifyIoctl(func(fd uintptr, req notify.IoctlRequest, buf notify.IoctlRequestBuffer) ([]byte, error) {
+		c.Fatalf("unexpectedly called notifyIoctl directly: req: %v, buf: %v", req, buf)
+		return make([]byte, 0), nil
+	})
+	defer restoreIoctl()
+
+	var timer *testtime.TestTimer
+	startCallback := make(chan struct{})
+	callbackDone := make(chan struct{})
+	restoreTimer := listener.MockTimeAfterFunc(func(d time.Duration, f func()) timeutil.Timer {
+		if timer != nil {
+			c.Fatalf("created more than one timer")
+		}
+		timer = testtime.AfterFunc(d, func() {
+			// timer fired, but don't run callback until we get the signal
+			<-startCallback
+			f()
+			close(callbackDone)
+		})
+		return timer
+	})
+	defer restoreTimer()
+
+	l, err := listener.Register()
+	c.Assert(err, IsNil)
+
+	c.Check(timer.Active(), Equals, true)
+	// Cause the timer to fire
+	timer.Elapse(listener.ReadyTimeout)
+	c.Check(timer.Active(), Equals, false)
+	// Callback is now running, but waiting
+	checkListenerReady(c, l, false)
+
+	// Close the listener, which should not block since Run was never called
+	err = l.Close()
+	c.Assert(err, IsNil)
+
+	// Check that if the callback completes now, it doesn't panic
+	close(startCallback)
+	<-callbackDone
 }
 
 func (*listenerSuite) TestRegisterOverridePath(c *C) {
@@ -724,6 +778,157 @@ func (*listenerSuite) TestRunWithPendingReady(c *C) {
 	}
 }
 
+func (*listenerSuite) TestRunWithPendingReadyTimeout(c *C) {
+	restoreOpen := listener.MockOsOpenWithSocket()
+	defer restoreOpen()
+
+	protoVersion := notify.ProtocolVersion(12345)
+	pendingCount := 3
+
+	recvChan, _, restoreEpollIoctl := listener.MockEpollWaitNotifyIoctl(protoVersion, pendingCount)
+	defer restoreEpollIoctl()
+
+	var timer *testtime.TestTimer
+	callbackDone := make(chan struct{})
+	restoreTimer := listener.MockTimeAfterFunc(func(d time.Duration, f func()) timeutil.Timer {
+		if timer != nil {
+			c.Fatalf("created more than one timer")
+		}
+		timer = testtime.AfterFunc(d, func() {
+			f()
+			close(callbackDone)
+		})
+		return timer
+	})
+	defer restoreTimer()
+
+	var t tomb.Tomb
+	l, err := listener.Register()
+	c.Assert(err, IsNil)
+	defer func() {
+		c.Check(l.Close(), IsNil)
+		c.Check(t.Wait(), IsNil)
+	}()
+
+	checkListenerReady(c, l, false) // not ready
+
+	t.Go(l.Run)
+
+	label := "snap.foo.bar"
+	path := "/home/Documents/foo"
+	aBits := uint32(0b1010)
+	dBits := uint32(0b0101)
+
+	msg := newMsgNotificationFile(protoVersion, 0, label, path, aBits, dBits)
+
+	// Send first message, no flags
+	msg.KernelNotificationID = 0xf00
+	msg.Flags = 0
+	buf, err := msg.MarshalBinary()
+	c.Assert(err, IsNil)
+	recvChan <- buf
+	checkListenerReady(c, l, false) // still not ready
+	// Since we're not ready yet, it's not sent until all the pending requests are sent
+	select {
+	case req := <-l.Reqs():
+		c.Fatalf("unexpectedly received non-resent request while listener was still pending: %+v", req)
+	case <-time.NewTimer(10 * time.Millisecond).C:
+		// all good
+	}
+
+	// Send second message, this time with NOTIF_RESENT flag
+	msg.KernelNotificationID = 0xba4
+	msg.Flags = notify.NOTIF_RESENT
+	buf, err = msg.MarshalBinary()
+	c.Assert(err, IsNil)
+	recvChan <- buf
+	checkListenerReady(c, l, false) // still not ready
+	// We're still not ready, but since it's resent, it'll be sent over reqs
+	select {
+	case req := <-l.Reqs():
+		c.Assert(req.ID, Equals, msg.KernelNotificationID)
+	case <-time.NewTimer(10 * time.Millisecond).C:
+		c.Fatalf("failed to receive request with NOTIF_RESENT")
+	}
+
+	// Send third message, no flags
+	msg.KernelNotificationID = 0xabc
+	msg.Flags = 0
+	buf, err = msg.MarshalBinary()
+	c.Assert(err, IsNil)
+	recvChan <- buf
+	checkListenerReady(c, l, false) // still not ready
+	// Since we're not ready yet, it's not sent until all the pending requests are sent
+	select {
+	case req := <-l.Reqs():
+		c.Fatalf("unexpectedly received non-resent request while listener was still pending: %+v", req)
+	case <-time.NewTimer(10 * time.Millisecond).C:
+		// all good
+	}
+
+	// Send fourth message, this time with NOTIF_RESENT flag again
+	msg.KernelNotificationID = 0xdef
+	msg.Flags = notify.NOTIF_RESENT
+	buf, err = msg.MarshalBinary()
+	c.Assert(err, IsNil)
+	recvChan <- buf
+	checkListenerReady(c, l, false) // still not ready
+	// We're still not ready, but since it's resent, it'll be sent over reqs
+	select {
+	case req := <-l.Reqs():
+		c.Assert(req.ID, Equals, msg.KernelNotificationID)
+	case <-time.NewTimer(10 * time.Millisecond).C:
+		c.Fatalf("failed to receive request with NOTIF_RESENT")
+	}
+
+	c.Assert(timer.Active(), Equals, true)
+	// Time out the ready timer
+	timer.Elapse(listener.ReadyTimeout)
+	c.Assert(timer.Active(), Equals, false)
+	c.Assert(timer.FireCount(), Equals, 1)
+	// Expect the callback to first mark the listener as ready, and then send
+	// the previous non-NOTIF_RESENT requests which were queued.
+	checkListenerReadyWithTimeout(c, l, true, 10*time.Millisecond)
+	for _, id := range []uint64{0xf00, 0xabc} {
+		select {
+		case req := <-l.Reqs():
+			c.Assert(req.ID, Equals, id)
+		case <-time.NewTimer(10 * time.Millisecond).C:
+			c.Fatalf("failed to receive request with ID 0x%x after listener ready", id)
+		}
+	}
+	<-callbackDone // wait for callback to finish
+
+	// Send fifth message, without flags, but now that listener is ready, it should go through immediately
+	msg.KernelNotificationID = 0x123
+	msg.Flags = 0
+	buf, err = msg.MarshalBinary()
+	c.Assert(err, IsNil)
+	recvChan <- buf
+	// Expect this request
+	select {
+	case req := <-l.Reqs():
+		c.Assert(req.ID, Equals, msg.KernelNotificationID)
+	case <-time.NewTimer(10 * time.Millisecond).C:
+		c.Fatalf("failed to receive request with IX 0x%x after listener ready", msg.ID())
+	}
+
+	// Send sixth message, this time with NOTIF_RESENT flag again, the last one
+	// the listener would be waiting for if it weren't already ready
+	msg.KernelNotificationID = 0x456
+	msg.Flags = notify.NOTIF_RESENT
+	buf, err = msg.MarshalBinary()
+	c.Assert(err, IsNil)
+	recvChan <- buf
+	checkListenerReady(c, l, true)
+	select {
+	case req := <-l.Reqs():
+		c.Assert(req.ID, Equals, msg.KernelNotificationID)
+	case <-time.NewTimer(10 * time.Millisecond).C:
+		c.Fatalf("failed to receive request with ID 0x%x after listener ready", msg.ID())
+	}
+}
+
 // Check that if a request is written between when the listener is registered
 // and when Run() is called, that request will still be handled correctly.
 func (*listenerSuite) TestRegisterWriteRun(c *C) {
@@ -1026,6 +1231,16 @@ func (*listenerSuite) TestRunNoReceiverWithPending(c *C) {
 	ioctlDone, restoreIoctl := listener.SynchronizeNotifyIoctl()
 	defer restoreIoctl()
 
+	var timer *testtime.TestTimer
+	restoreTimer := listener.MockTimeAfterFunc(func(d time.Duration, f func()) timeutil.Timer {
+		if timer != nil {
+			c.Fatalf("created more than one timer")
+		}
+		timer = testtime.AfterFunc(d, f)
+		return timer
+	})
+	defer restoreTimer()
+
 	var t tomb.Tomb
 	l, err := listener.Register()
 	c.Assert(err, IsNil)
@@ -1057,11 +1272,113 @@ func (*listenerSuite) TestRunNoReceiverWithPending(c *C) {
 
 	checkListenerReadyWithTimeout(c, l, false, 10*time.Millisecond)
 
+	c.Check(timer.Active(), Equals, true)
+
 	c.Check(l.Close(), IsNil)
 
 	// Close() doesn't cause the listener to signal that it's ready
 	checkListenerReadyWithTimeout(c, l, false, 10*time.Millisecond)
 
+	c.Check(t.Wait(), IsNil)
+
+	// Closing the listener should have stopped the timer without firing it
+	c.Check(timer.Active(), Equals, false)
+	c.Check(timer.FireCount(), Equals, 0)
+}
+
+// Test that if there is no read from Reqs(), listener closing does not cause
+// a panic if it races with the ready timeout expiring.
+func (*listenerSuite) TestRunNoReceiverWithPendingTimeout(c *C) {
+	restoreOpen := listener.MockOsOpenWithSocket()
+	defer restoreOpen()
+
+	protoVersion := notify.ProtocolVersion(5)
+	pendingCount := 1
+
+	recvChan, _, restoreEpollIoctl := listener.MockEpollWaitNotifyIoctl(protoVersion, pendingCount)
+	defer restoreEpollIoctl()
+
+	ioctlDone, restoreIoctl := listener.SynchronizeNotifyIoctl()
+	defer restoreIoctl()
+
+	var timer *testtime.TestTimer
+	startCallback := make(chan struct{})
+	callbackDone := make(chan struct{})
+	restoreTimer := listener.MockTimeAfterFunc(func(d time.Duration, f func()) timeutil.Timer {
+		if timer != nil {
+			c.Fatalf("created more than one timer")
+		}
+		timer = testtime.AfterFunc(d, func() {
+			// timer fired, but don't run callback until we get the signal
+			<-startCallback
+			f()
+			close(callbackDone)
+		})
+		return timer
+	})
+	defer restoreTimer()
+
+	var t tomb.Tomb
+	l, err := listener.Register()
+	c.Assert(err, IsNil)
+
+	t.Go(l.Run)
+
+	checkListenerReady(c, l, false)
+
+	id := uint64(0x1234)
+	label := "snap.foo.bar"
+	path := "/home/Documents/foo"
+	aBits := uint32(0b1010)
+	dBits := uint32(0b0101)
+
+	msg := newMsgNotificationFile(protoVersion, id, label, path, aBits, dBits)
+	// no flags set
+	buf, err := msg.MarshalBinary()
+	c.Check(err, IsNil)
+	recvChan <- buf
+
+	// wait for the ioctl to finish before closing, so that the listener will
+	// be waiting, trying to send the request, when the close occurs
+	select {
+	case req := <-ioctlDone:
+		c.Check(req, Equals, notify.APPARMOR_NOTIF_RECV)
+	case <-time.NewTimer(100 * time.Millisecond).C:
+		c.Errorf("failed to synchronize on ioctl call")
+	}
+
+	checkListenerReadyWithTimeout(c, l, false, 10*time.Millisecond)
+
+	c.Check(timer.Active(), Equals, true)
+	// Time out the ready timer
+	timer.Elapse(listener.ReadyTimeout)
+	c.Check(timer.Active(), Equals, false)
+	c.Check(timer.FireCount(), Equals, 1)
+	// Callback is now running, but waiting
+	checkListenerReady(c, l, false)
+
+	c.Check(l.Close(), IsNil)
+
+	// Close() doesn't cause the listener to signal that it's ready
+	checkListenerReadyWithTimeout(c, l, false, 10*time.Millisecond)
+
+	// Run loop should be waiting, should not have closed reqs yet
+	select {
+	case <-l.Reqs():
+		c.Fatalf("reqs closed prematurely")
+	case <-time.NewTimer(10 * time.Millisecond).C:
+		// all good
+	}
+
+	// Let the callback run and wait for it to finish
+	close(startCallback)
+	<-callbackDone
+	// The callback would cause the queued request to be sent, but since
+	// closeChan has been closed, the callback will abort trying to send the
+	// queued request. It will mark the listener as ready though.
+	checkListenerReady(c, l, true)
+
+	// Once callback is done, run loop should be able to finish closing
 	c.Check(t.Wait(), IsNil)
 }
 
