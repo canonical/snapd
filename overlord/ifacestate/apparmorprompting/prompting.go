@@ -234,8 +234,8 @@ func (m *InterfacesRequestsManager) listenerReadyForTheFirstTime() <-chan struct
 	select {
 	case <-m.ready:
 		// We already closed m.ready, so the listener previously readied and we
-		// we handled it. So return something which will never signal.
-		return make(chan struct{})
+		// handled it. So return something which will never signal.
+		return nil
 	default:
 		// We haven't handled a ready signal yet, so return the real thing.
 		return listenerReady(m.listener)
