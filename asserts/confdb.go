@@ -187,9 +187,6 @@ func assembleConfdbControl(assert assertionBase) (Assertion, error) {
 	if err != nil {
 		return nil, err
 	}
-	if groups == nil {
-		return nil, errors.New(`"groups" stanza is mandatory`)
-	}
 
 	cc, err := parseConfdbControlGroups(groups)
 	if err != nil {

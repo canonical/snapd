@@ -78,6 +78,22 @@ var (
 // during managers' startup.
 var EarlyConfig func(st *state.State, preloadGadget func() (sysconfig.Device, *gadget.Info, error)) error
 
+// ErrNoDeviceIdentityYet is returned when the device doesn't have a serial assertion.
+// It's a special case of ErrNoState.
+var ErrNoDeviceIdentityYet = &noDeviceIdentityYetError{}
+
+// noDeviceIdentityYetError is returned when the device doesn't have a serial assertion.
+type noDeviceIdentityYetError struct{}
+
+func (e *noDeviceIdentityYetError) Error() string {
+	return "device has no identity yet"
+}
+
+func (e *noDeviceIdentityYetError) Is(err error) bool {
+	_, ok := err.(*noDeviceIdentityYetError)
+	return ok || errors.Is(err, state.ErrNoState)
+}
+
 // DeviceManager is responsible for managing the device identity and device
 // policies.
 type DeviceManager struct {
@@ -2053,6 +2069,35 @@ func (m *DeviceManager) Model() (*asserts.Model, error) {
 // Serial returns the device serial assertion.
 func (m *DeviceManager) Serial() (*asserts.Serial, error) {
 	return findSerial(m.state, nil)
+}
+
+// ConfdbControl returns the device's confdb-control assertion.
+func (m *DeviceManager) ConfdbControl() (*asserts.ConfdbControl, error) {
+	serial, err := m.Serial()
+	if err != nil {
+		return nil, ErrNoDeviceIdentityYet
+	}
+
+	db := assertstate.DB(m.state)
+	a, err := db.Find(asserts.ConfdbControlType, map[string]string{
+		"brand-id": serial.BrandID(),
+		"model":    serial.Model(),
+		"serial":   serial.Serial(),
+	})
+	if errors.Is(err, &asserts.NotFoundError{}) {
+		return nil, state.ErrNoState
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	cc := a.(*asserts.ConfdbControl)
+	key := serial.DeviceKey()
+	if key.ID() != cc.SignKeyID() {
+		return nil, errors.New("confdb-control's signing key doesn't match the device key")
+	}
+
+	return cc, nil
 }
 
 type SystemModeInfo struct {

@@ -31,6 +31,7 @@ import (
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/confdbstate"
 	"github.com/snapcore/snapd/overlord/configstate"
+	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/strutil"
@@ -83,6 +84,7 @@ var api = []*Command{
 	quotaGroupsCmd,
 	quotaGroupInfoCmd,
 	confdbCmd,
+	confdbControlCmd,
 	noticesCmd,
 	noticeCmd,
 	requestsPromptsCmd,
@@ -177,6 +179,8 @@ var (
 	confdbstateGetTransactionToSet = confdbstate.GetTransactionToSet
 	confdbstateSetViaView          = confdbstate.SetViaView
 	confdbstateLoadConfdbAsync     = confdbstate.LoadConfdbAsync
+
+	devicestateSignConfdbControl = (*devicestate.DeviceManager).SignConfdbControl
 )
 
 func ensureStateSoonImpl(st *state.State) {
