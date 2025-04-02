@@ -293,35 +293,19 @@ func (*listenerSuite) TestReplyPermissions(c *C) {
 }
 
 func (*listenerSuite) TestRegisterClose(c *C) {
-	restoreOpen := listener.MockOsOpenWithSocket()
-	defer restoreOpen()
-
-	restoreRegisterFileDescriptor := listener.MockNotifyRegisterFileDescriptor(func(fd uintptr) (notify.ProtocolVersion, int, error) {
-		pendingCount := 5
-		return notify.ProtocolVersion(12345), pendingCount, nil
-	})
-	defer restoreRegisterFileDescriptor()
-
-	restoreIoctl := listener.MockNotifyIoctl(func(fd uintptr, req notify.IoctlRequest, buf notify.IoctlRequestBuffer) ([]byte, error) {
-		c.Fatalf("unexpectedly called notifyIoctl directly: req: %v, buf: %v", req, buf)
-		return make([]byte, 0), nil
-	})
-	defer restoreIoctl()
-
-	l, err := listener.Register()
-	c.Assert(err, IsNil)
-	defer func() {
-		err = l.Close()
-		c.Assert(err, IsNil)
-	}()
+	testRegisterCloseWithPendingCountExpectReady(c, 0, true)
 }
 
-func (*listenerSuite) TestRegisterCloseTimeoutRace(c *C) {
+func (*listenerSuite) TestRegisterClosePending(c *C) {
+	testRegisterCloseWithPendingCountExpectReady(c, 1, false)
+	testRegisterCloseWithPendingCountExpectReady(c, 5, false)
+}
+
+func testRegisterCloseWithPendingCountExpectReady(c *C, pendingCount int, expectReady bool) {
 	restoreOpen := listener.MockOsOpenWithSocket()
 	defer restoreOpen()
 
 	restoreRegisterFileDescriptor := listener.MockNotifyRegisterFileDescriptor(func(fd uintptr) (notify.ProtocolVersion, int, error) {
-		pendingCount := 5
 		return notify.ProtocolVersion(12345), pendingCount, nil
 	})
 	defer restoreRegisterFileDescriptor()
@@ -332,40 +316,19 @@ func (*listenerSuite) TestRegisterCloseTimeoutRace(c *C) {
 	})
 	defer restoreIoctl()
 
-	var timer *testtime.TestTimer
-	startCallback := make(chan struct{})
-	callbackDone := make(chan struct{})
 	restoreTimer := listener.MockTimeAfterFunc(func(d time.Duration, f func()) timeutil.Timer {
-		if timer != nil {
-			c.Fatalf("created more than one timer")
-		}
-		timer = testtime.AfterFunc(d, func() {
-			// timer fired, but don't run callback until we get the signal
-			<-startCallback
-			f()
-			close(callbackDone)
-		})
-		return timer
+		c.Fatalf("unexpectedly called timeutil.AfterFunc without calling Run")
+		return nil
 	})
 	defer restoreTimer()
 
 	l, err := listener.Register()
 	c.Assert(err, IsNil)
 
-	c.Check(timer.Active(), Equals, true)
-	// Cause the timer to fire
-	timer.Elapse(listener.ReadyTimeout)
-	c.Check(timer.Active(), Equals, false)
-	// Callback is now running, but waiting
-	checkListenerReady(c, l, false)
+	checkListenerReady(c, l, expectReady)
 
-	// Close the listener, which should not block since Run was never called
 	err = l.Close()
 	c.Assert(err, IsNil)
-
-	// Check that if the callback completes now, it doesn't panic
-	close(startCallback)
-	<-callbackDone
 }
 
 func (*listenerSuite) TestRegisterOverridePath(c *C) {
@@ -810,6 +773,8 @@ func (*listenerSuite) TestRunWithPendingReadyTimeout(c *C) {
 		c.Check(t.Wait(), IsNil)
 	}()
 
+	// Timer hasn't been created yet
+	c.Check(timer, IsNil)
 	checkListenerReady(c, l, false) // not ready
 
 	t.Go(l.Run)
@@ -1245,6 +1210,9 @@ func (*listenerSuite) TestRunNoReceiverWithPending(c *C) {
 	l, err := listener.Register()
 	c.Assert(err, IsNil)
 
+	// Timer hasn't been created yet
+	c.Check(timer, IsNil)
+
 	t.Go(l.Run)
 
 	checkListenerReady(c, l, false)
@@ -1321,6 +1289,9 @@ func (*listenerSuite) TestRunNoReceiverWithPendingTimeout(c *C) {
 	var t tomb.Tomb
 	l, err := listener.Register()
 	c.Assert(err, IsNil)
+
+	// Timer hasn't been created yet
+	c.Check(timer, IsNil)
 
 	t.Go(l.Run)
 

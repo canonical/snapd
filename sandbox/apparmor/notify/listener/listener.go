@@ -244,11 +244,10 @@ func Register() (listener *Listener, err error) {
 		poll:       poll,
 		closeChan:  make(chan struct{}),
 	}
-	if pendingCount == 0 {
+	// If there are no pending requests waiting to be re-sent, ready
+	// immediately, otherwise start the ready timer when Run is called.
+	if listener.pendingCount == 0 {
 		listener.signalReadyAndFlushQueue()
-	} else {
-		// Set a real timer
-		listener.readyTimer = timeAfterFunc(readyTimeout, listener.signalReadyAndFlushQueue)
 	}
 	return listener, nil
 }
@@ -335,6 +334,12 @@ func (l *Listener) Run() error {
 	l.once.Do(func() {
 		// Run should only be called once, so this once.Do is really only an
 		// extra precaution to ensure that l.reqs is only closed once.
+
+		// If there were pending requests at time of registration, then Register
+		// didn't set a real ready timer with callback, so do so now.
+		if l.pendingCount != 0 {
+			l.readyTimer = timeAfterFunc(readyTimeout, l.signalReadyAndFlushQueue)
+		}
 		defer func() {
 			if !l.readyTimer.Stop() {
 				// Already fired or stopped (which in both cases should result
