@@ -775,9 +775,7 @@ func (s *confdbSuite) TestConfdbGetAndSetAssertionNotFound(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(db.Add(storeSigning.StoreAccountKey("")), IsNil)
 
-	s.state.Lock()
 	assertstate.ReplaceDB(s.state, db)
-	s.state.Unlock()
 
 	stdout, stderr, err := ctlcmd.Run(s.mockContext, []string{"get", "--view", ":read-wifi"}, 0)
 	c.Assert(err, ErrorMatches, fmt.Sprintf("cannot find confdb schema %s/network: assertion not found", s.devAccID))

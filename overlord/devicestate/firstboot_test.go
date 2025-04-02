@@ -690,9 +690,7 @@ func (s *firstBoot16Suite) TestPopulateFromSeedHappy(c *C) {
 func (s *firstBoot16Suite) TestPopulateFromSeedMissingBootloader(c *C) {
 	s.startOverlord(c)
 	st0 := s.overlord.State()
-	st0.Lock()
 	db := assertstate.DB(st0)
-	st0.Unlock()
 
 	// we run only with the relevant managers to produce the error
 	// situation
@@ -713,9 +711,7 @@ func (s *firstBoot16Suite) TestPopulateFromSeedMissingBootloader(c *C) {
 	c.Assert(err, IsNil)
 	o.AddManager(deviceMgr)
 
-	st.Lock()
 	assertstate.ReplaceDB(st, db.(*asserts.Database))
-	st.Unlock()
 
 	o.AddManager(o.TaskRunner())
 

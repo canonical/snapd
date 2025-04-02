@@ -131,8 +131,8 @@ func (s *kernelSuite) SetUpTest(c *C) {
 	c.Assert(err, IsNil)
 	s.state.Lock()
 	s.state.Set("seeded", true)
-	assertstate.ReplaceDB(s.state, db)
 	s.state.Unlock()
+	assertstate.ReplaceDB(s.state, db)
 
 	s.mockEarlyConfig()
 

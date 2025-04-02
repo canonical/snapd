@@ -92,9 +92,7 @@ func (am *AssertsMock) SetupAsserts(c *C, st *state.State, cleaner cleaner) {
 	err = db.Add(am.storeSigning.StoreAccountKey(""))
 	c.Assert(err, IsNil)
 
-	st.Lock()
 	assertstate.ReplaceDB(st, am.Db)
-	st.Unlock()
 }
 
 func (am *AssertsMock) mockModel(extraHeaders map[string]interface{}) *asserts.Model {

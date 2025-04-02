@@ -500,8 +500,8 @@ func (s *usersSuite) TestGetUserDetailsFromAssertionHappy(c *check.C) {
 
 	s.state.Lock()
 	model, err := s.mgr.Model()
-	db := assertstate.DB(s.state)
 	s.state.Unlock()
+	db := assertstate.DB(s.state)
 	c.Assert(err, check.IsNil)
 
 	// ensure that if we query the details from the assert DB we get

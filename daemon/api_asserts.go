@@ -135,9 +135,7 @@ func assertsFindOneRemote(c *Command, at *asserts.AssertionType, headers map[str
 
 func assertsFindManyInState(c *Command, at *asserts.AssertionType, headers map[string]string, opts *daemonAssertOptions) ([]asserts.Assertion, error) {
 	state := c.d.overlord.State()
-	state.Lock()
 	db := assertstate.DB(state)
-	state.Unlock()
 
 	return db.FindMany(at, opts.headers)
 }

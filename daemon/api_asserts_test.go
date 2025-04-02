@@ -86,8 +86,6 @@ func (s *assertsSuite) TestAssertOK(c *check.C) {
 	// Verify (external)
 	c.Check(rsp.Status, check.Equals, 200)
 	// Verify (internal)
-	st.Lock()
-	defer st.Unlock()
 	_, err = assertstate.DB(st).Find(asserts.AccountType, map[string]string{
 		"account-id": acct.AccountID(),
 	})
@@ -112,8 +110,6 @@ func (s *assertsSuite) TestAssertStreamOK(c *check.C) {
 	// Verify (external)
 	c.Check(rsp.Status, check.Equals, 200)
 	// Verify (internal)
-	st.Lock()
-	defer st.Unlock()
 	_, err = assertstate.DB(st).Find(asserts.AccountType, map[string]string{
 		"account-id": acct.AccountID(),
 	})

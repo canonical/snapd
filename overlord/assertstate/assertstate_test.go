@@ -307,16 +307,14 @@ func (s *assertMgrSuite) SetUpTest(c *C) {
 }
 
 func (s *assertMgrSuite) TestDB(c *C) {
-	s.state.Lock()
-	defer s.state.Unlock()
+	// Accessing the DB is atomic, doesn't require state lock
 
 	db := assertstate.DB(s.state)
 	c.Check(db, FitsTypeOf, (*asserts.Database)(nil))
 }
 
 func (s *assertMgrSuite) TestAdd(c *C) {
-	s.state.Lock()
-	defer s.state.Unlock()
+	// Accessing the DB is atomic, doesn't require state lock
 
 	// prereq store key
 	err := assertstate.Add(s.state, s.storeSigning.StoreAccountKey(""))
@@ -3700,8 +3698,8 @@ func (s *assertMgrSuite) TestValidationSetAssertionForEnforceNotPinnedAfterMonit
 func (s *assertMgrSuite) TestTemporaryDB(c *C) {
 	st := s.state
 
-	st.Lock()
-	defer st.Unlock()
+	// assertstate database functions use the state's atomic cache, so state
+	// lock is not required
 
 	err := assertstate.Add(st, s.storeSigning.StoreAccountKey(""))
 	c.Assert(err, IsNil)
@@ -5599,11 +5597,11 @@ func (s *assertMgrSuite) testValidateComponentNoDownload(c *C, invalid bool) {
 	pair, err := signer.Sign(asserts.SnapResourcePairType, headers, nil, "")
 	c.Assert(err, IsNil)
 
-	s.state.Lock()
-	defer s.state.Unlock()
-
 	assertstate.ReplaceDB(s.state, db)
 	assertstest.AddMany(db, pair)
+
+	s.state.Lock()
+	defer s.state.Unlock()
 
 	t := s.state.NewTask("validate-component", "Fetch and check snap assertions")
 

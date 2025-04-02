@@ -50,9 +50,7 @@ func Manager(s *state.State, runner *state.TaskRunner) (*AssertManager, error) {
 		return nil, err
 	}
 
-	s.Lock()
 	ReplaceDB(s, db)
-	s.Unlock()
 
 	return &AssertManager{}, nil
 }

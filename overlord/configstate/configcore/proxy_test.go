@@ -64,9 +64,7 @@ func (s *proxySuite) SetUpTest(c *C) {
 	})
 	c.Assert(err, IsNil)
 
-	s.state.Lock()
 	assertstate.ReplaceDB(s.state, db)
-	s.state.Unlock()
 
 	err = db.Add(s.storeSigning.StoreAccountKey(""))
 	c.Assert(err, IsNil)

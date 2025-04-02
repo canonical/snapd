@@ -694,9 +694,6 @@ func (s *firstBoot20Suite) TestLoadDeviceSeedCore20(c *C) {
 	c.Assert(err, IsNil)
 	st := o.State()
 
-	st.Lock()
-	defer st.Unlock()
-
 	deviceSeed, err := devicestate.LoadDeviceSeed(st, m.RecoverySystem)
 	c.Assert(err, IsNil)
 

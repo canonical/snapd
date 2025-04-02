@@ -623,7 +623,6 @@ func (s *confdbControlSuite) TestConfdbControlActionOK(c *C) {
 	c.Assert(rsp.Status, Equals, 200)
 	c.Check(rsp.Result, DeepEquals, nil)
 
-	s.st.Lock()
 	a, err := assertstate.DB(s.st).Find(
 		asserts.ConfdbControlType,
 		map[string]string{"brand-id": "can0nical", "model": "generic-classic", "serial": "serial-serial"},
@@ -632,7 +631,6 @@ func (s *confdbControlSuite) TestConfdbControlActionOK(c *C) {
 	cc := a.(*asserts.ConfdbControl)
 	ctrl := cc.Control()
 	c.Check(ctrl.Groups(), DeepEquals, []interface{}{jane})
-	s.st.Unlock()
 }
 
 func (s *confdbControlSuite) TestConfdbControlActionSigningErr(c *C) {

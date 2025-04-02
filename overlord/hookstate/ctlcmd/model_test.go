@@ -118,13 +118,9 @@ func (s *modelSuite) SetUpTest(c *C) {
 	})
 	c.Assert(err, IsNil)
 
-	s.state.Lock()
 	assertstate.ReplaceDB(s.state, db)
-	s.state.Unlock()
 	s.AddCleanup(func() {
-		s.state.Lock()
 		assertstate.ReplaceDB(s.state, nil)
-		s.state.Unlock()
 	})
 
 	err = db.Add(s.storeSigning.StoreAccountKey(""))
