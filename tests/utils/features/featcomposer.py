@@ -198,7 +198,6 @@ def replace_old_runs(dir: str, output_dir: str) -> None:
     attempt numbers
     :param output_dir: directory where to write the consolidated composed features
     '''
-    os.makedirs(output_dir)
     filenames = [f for f in os.listdir(
         dir) if os.path.isfile(os.path.join(dir, f))]
     originals, reruns = _get_original_and_rerun_list(filenames)
@@ -263,6 +262,8 @@ if __name__ == '__main__':
                         help='When set, will process pre-composed runs and consolidate them into the output dir')
     args = parser.parse_args()
 
+    os.makedirs(args.output, exist_ok=True)
+
     if args.replace_old_runs:
         replace_old_runs(args.dir, args.output)
         exit(0)
@@ -270,7 +271,6 @@ if __name__ == '__main__':
     attempt = ''
     if args.run_attempt:
         attempt = '_%s' % args.run_attempt
-    os.makedirs(args.output, exist_ok=True)
     systems = get_system_list(args.dir)
     for system in systems:
         composed = compose_system(dir=args.dir, system=system,
