@@ -475,9 +475,6 @@ func (s *snapmgrTestSuite) TestCleanSnapStateGet(c *C) {
 }
 
 func (s *snapmgrTestSuite) TestStore(c *C) {
-	s.state.Lock()
-	defer s.state.Unlock()
-
 	sto := &store.Store{}
 	snapstate.ReplaceStore(s.state, sto)
 	store1 := snapstate.Store(s.state, nil)
@@ -489,9 +486,6 @@ func (s *snapmgrTestSuite) TestStore(c *C) {
 }
 
 func (s *snapmgrTestSuite) TestStoreWithDeviceContext(c *C) {
-	s.state.Lock()
-	defer s.state.Unlock()
-
 	stoA := &store.Store{}
 	snapstate.ReplaceStore(s.state, stoA)
 	store1 := snapstate.Store(s.state, nil)

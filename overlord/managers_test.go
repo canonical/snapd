@@ -1313,10 +1313,7 @@ func (s *baseMgrsSuite) mockStore(c *C) *httptest.Server {
 	}
 
 	mStore := store.New(&storeCfg, nil)
-	st := s.o.State()
-	st.Lock()
 	snapstate.ReplaceStore(s.o.State(), mStore)
-	st.Unlock()
 
 	// this will be used by remodeling cases
 	storeNew := func(cfg *store.Config, dac store.DeviceAndAuthContext) *store.Store {

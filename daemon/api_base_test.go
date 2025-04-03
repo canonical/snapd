@@ -344,8 +344,6 @@ func (s *apiBaseSuite) daemonWithStore(c *check.C, sto snapstate.StoreService) *
 	st.Unlock()
 	c.Assert(d.Overlord().StartUp(), check.IsNil)
 
-	st.Lock()
-	defer st.Unlock()
 	snapstate.ReplaceStore(st, sto)
 
 	// don't actually try to talk to the store on snapstate.Ensure
@@ -389,8 +387,6 @@ func (s *apiBaseSuite) daemonWithOverlordMockAndStore() *daemon.Daemon {
 	st := d.Overlord().State()
 	// adds an assertion db
 	assertstate.Manager(st, o.TaskRunner())
-	st.Lock()
-	defer st.Unlock()
 	snapstate.ReplaceStore(st, s)
 
 	s.d = d

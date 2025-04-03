@@ -59,13 +59,13 @@ func (s *prereqSuite) SetUpTest(c *C) {
 		state:       s.state,
 		fakeBackend: s.fakeBackend,
 	}
-	s.state.Lock()
-	defer s.state.Unlock()
 	snapstate.ReplaceStore(s.state, s.fakeStore)
 
 	repo := interfaces.NewRepository()
 	ifacerepo.Replace(s.state, repo)
 
+	s.state.Lock()
+	defer s.state.Unlock()
 	s.state.Set("seeded", true)
 	s.state.Set("refresh-privacy-key", "privacy-key")
 	s.AddCleanup(snapstatetest.MockDeviceModel(DefaultModel()))

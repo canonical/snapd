@@ -144,12 +144,10 @@ func (s *modelSuite) SetUpTest(c *C) {
 	s.o.AddManager(s.mgr)
 	s.o.AddManager(s.o.TaskRunner())
 
-	s.state.Lock()
 	snapstate.ReplaceStore(s.state, &fakeSnapStore{
 		state: s.state,
 		db:    s.storeSigning,
 	})
-	s.state.Unlock()
 
 	s.AddCleanup(func() { s.newFakeStore = nil })
 }

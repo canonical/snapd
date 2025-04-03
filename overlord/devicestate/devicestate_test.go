@@ -263,12 +263,10 @@ func (s *deviceMgrBaseSuite) setupBaseTest(c *C, classic bool) {
 
 	c.Assert(s.o.StartUp(), IsNil)
 
-	s.state.Lock()
 	snapstate.ReplaceStore(s.state, &fakeStore{
 		state: s.state,
 		db:    s.storeSigning,
 	})
-	s.state.Unlock()
 
 	s.restoreCloudInitStatusRestore = devicestate.MockCloudInitStatus(func() (sysconfig.CloudInitState, error) {
 		return sysconfig.CloudInitRestrictedBySnapd, nil

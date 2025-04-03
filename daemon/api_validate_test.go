@@ -77,10 +77,8 @@ func (s *apiValidationSetsSuite) SetUpTest(c *check.C) {
 	s.storeSigning = assertstest.NewStoreStack("can0nical", nil)
 
 	st := d.Overlord().State()
-	st.Lock()
 	snapstate.ReplaceStore(st, s)
 	assertstatetest.AddMany(st, s.storeSigning.StoreAccountKey(""))
-	st.Unlock()
 
 	s.dev1acct = assertstest.NewAccount(s.storeSigning, "developer1", nil, "")
 	c.Assert(s.storeSigning.Add(s.dev1acct), check.IsNil)

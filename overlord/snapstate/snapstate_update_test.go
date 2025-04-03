@@ -1784,9 +1784,6 @@ func (s *snapmgrTestSuite) TestUpdateWithAlreadyInstalledBase(c *C) {
 }
 
 func (s *snapmgrTestSuite) TestUpdateWithNewDefaultProvider(c *C) {
-	s.state.Lock()
-	defer s.state.Unlock()
-
 	snapstate.ReplaceStore(s.state, contentStore{fakeStore: s.fakeStore, state: s.state})
 	repo := interfaces.NewRepository()
 	ifacerepo.Replace(s.state, repo)
@@ -1797,6 +1794,10 @@ func (s *snapmgrTestSuite) TestUpdateWithNewDefaultProvider(c *C) {
 		Revision: snap.R(7),
 	}
 	snaptest.MockSnap(c, `name: snap-content-plug`, si)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
 	snapstate.Set(s.state, "snap-content-plug", &snapstate.SnapState{
 		Active:          true,
 		TrackingChannel: "latest/edge",
@@ -1819,9 +1820,6 @@ func (s *snapmgrTestSuite) TestUpdateWithNewDefaultProvider(c *C) {
 }
 
 func (s *snapmgrTestSuite) TestUpdateWithInstalledDefaultProvider(c *C) {
-	s.state.Lock()
-	defer s.state.Unlock()
-
 	snapstate.ReplaceStore(s.state, contentStore{fakeStore: s.fakeStore, state: s.state})
 	repo := interfaces.NewRepository()
 	ifacerepo.Replace(s.state, repo)
@@ -1832,6 +1830,10 @@ func (s *snapmgrTestSuite) TestUpdateWithInstalledDefaultProvider(c *C) {
 		Revision: snap.R(7),
 	}
 	snaptest.MockSnap(c, `name: snap-content-plug`, si)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
 	snapstate.Set(s.state, "snap-content-plug", &snapstate.SnapState{
 		Active:          true,
 		TrackingChannel: "latest/edge",
@@ -3045,9 +3047,6 @@ func (n noResultsStore) SnapAction(ctx context.Context, currentSnaps []*store.Cu
 }
 
 func (s *snapmgrTestSuite) TestUpdateNoStoreResults(c *C) {
-	s.state.Lock()
-	defer s.state.Unlock()
-
 	snapstate.ReplaceStore(s.state, noResultsStore{fakeStore: s.fakeStore})
 
 	// this is an atypical case in which the store didn't return
@@ -3058,6 +3057,9 @@ func (s *snapmgrTestSuite) TestUpdateNoStoreResults(c *C) {
 		SnapID:   "some-snap-id",
 		Revision: snap.R(7),
 	}
+
+	s.state.Lock()
+	defer s.state.Unlock()
 
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
 		Active:          true,
@@ -3071,9 +3073,6 @@ func (s *snapmgrTestSuite) TestUpdateNoStoreResults(c *C) {
 }
 
 func (s *snapmgrTestSuite) TestUpdateNoStoreResultsWithChannelChange(c *C) {
-	s.state.Lock()
-	defer s.state.Unlock()
-
 	snapstate.ReplaceStore(s.state, noResultsStore{fakeStore: s.fakeStore})
 
 	// this is an atypical case in which the store didn't return
@@ -3084,6 +3083,9 @@ func (s *snapmgrTestSuite) TestUpdateNoStoreResultsWithChannelChange(c *C) {
 		SnapID:   "some-snap-id",
 		Revision: snap.R(7),
 	}
+
+	s.state.Lock()
+	defer s.state.Unlock()
 
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
 		Active:          true,
@@ -4631,9 +4633,6 @@ func (s *snapmgrTestSuite) TestUpdateWithDeviceContextSameRevisionSwitchesChanne
 }
 
 func (s *snapmgrTestSuite) TestUpdateWithDeviceContext(c *C) {
-	s.state.Lock()
-	defer s.state.Unlock()
-
 	// unset the global store, it will need to come via the device context
 	snapstate.ReplaceStore(s.state, nil)
 
@@ -4641,6 +4640,9 @@ func (s *snapmgrTestSuite) TestUpdateWithDeviceContext(c *C) {
 		DeviceModel: DefaultModel(),
 		CtxStore:    s.fakeStore,
 	}
+
+	s.state.Lock()
+	defer s.state.Unlock()
 
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
 		Active:          true,
@@ -4688,9 +4690,6 @@ func (prqt *testPrereqTracker) MissingProviderContentTags(*snap.Info, snap.Inter
 }
 
 func (s *snapmgrTestSuite) TestUpdatePathWithDeviceContext(c *C) {
-	s.state.Lock()
-	defer s.state.Unlock()
-
 	// unset the global store, it will need to come via the device context
 	snapstate.ReplaceStore(s.state, nil)
 
@@ -4698,6 +4697,9 @@ func (s *snapmgrTestSuite) TestUpdatePathWithDeviceContext(c *C) {
 		DeviceModel: DefaultModel(),
 		CtxStore:    s.fakeStore,
 	}
+
+	s.state.Lock()
+	defer s.state.Unlock()
 
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
 		Active:          true,
@@ -4724,9 +4726,6 @@ epoch: 1*
 }
 
 func (s *snapmgrTestSuite) TestUpdatePathWithDeviceContextSwitchChannel(c *C) {
-	s.state.Lock()
-	defer s.state.Unlock()
-
 	// unset the global store, it will need to come via the device context
 	snapstate.ReplaceStore(s.state, nil)
 
@@ -4734,6 +4733,9 @@ func (s *snapmgrTestSuite) TestUpdatePathWithDeviceContextSwitchChannel(c *C) {
 		DeviceModel: DefaultModel(),
 		CtxStore:    s.fakeStore,
 	}
+
+	s.state.Lock()
+	defer s.state.Unlock()
 
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
 		Active:          true,
@@ -4756,9 +4758,6 @@ epoch: 1*
 }
 
 func (s *snapmgrTestSuite) TestUpdatePathWithDeviceContextBadFile(c *C) {
-	s.state.Lock()
-	defer s.state.Unlock()
-
 	// unset the global store, it will need to come via the device context
 	snapstate.ReplaceStore(s.state, nil)
 
@@ -4766,6 +4765,9 @@ func (s *snapmgrTestSuite) TestUpdatePathWithDeviceContextBadFile(c *C) {
 		DeviceModel: DefaultModel(),
 		CtxStore:    s.fakeStore,
 	}
+
+	s.state.Lock()
+	defer s.state.Unlock()
 
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
 		Active:          true,
@@ -4806,9 +4808,6 @@ func (s *snapmgrTestSuite) TestUpdateWithDeviceContextDefaultsToTracked(c *C) {
 }
 
 func (s *snapmgrTestSuite) testUpdateWithDeviceContext(c *C, revision snap.Revision, channel string) {
-	s.state.Lock()
-	defer s.state.Unlock()
-
 	// unset the global store, it will need to come via the device context
 	snapstate.ReplaceStore(s.state, nil)
 
@@ -4816,6 +4815,9 @@ func (s *snapmgrTestSuite) testUpdateWithDeviceContext(c *C, revision snap.Revis
 		DeviceModel: DefaultModel(),
 		CtxStore:    s.fakeStore,
 	}
+
+	s.state.Lock()
+	defer s.state.Unlock()
 
 	const trackedChannel = "tracked-channel/stable"
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
@@ -14153,9 +14155,6 @@ func (s hybridContentStore) SnapAction(ctx context.Context, currentSnaps []*stor
 }
 
 func (s *snapmgrTestSuite) TestSplitRefreshWithDefaultProviderDependingOnModelBase(c *C) {
-	s.state.Lock()
-	defer s.state.Unlock()
-
 	snapstate.ReplaceStore(s.state, hybridContentStore{fakeStore: s.fakeStore, state: s.state})
 	repo := interfaces.NewRepository()
 	ifacerepo.Replace(s.state, repo)
@@ -14182,6 +14181,9 @@ func (s *snapmgrTestSuite) TestSplitRefreshWithDefaultProviderDependingOnModelBa
 		"kernel":            "kernel-id",
 		"snap-content-plug": "snap-content-plug-id",
 	}
+
+	s.state.Lock()
+	defer s.state.Unlock()
 
 	for _, sn := range snaps {
 		yaml := fmt.Sprintf("name: %s\nversion: 1.0\nepoch: 1\ntype: %s", sn, types[sn])

@@ -121,13 +121,13 @@ func (s *autoRefreshTestSuite) SetUpTest(c *C) {
 
 	s.AddCleanup(func() { s.store.snapActionOpsFunc = nil })
 
-	s.state.Lock()
-	defer s.state.Unlock()
 	snapstate.ReplaceStore(s.state, s.store)
 
 	repo := interfaces.NewRepository()
 	ifacerepo.Replace(s.state, repo)
 
+	s.state.Lock()
+	defer s.state.Unlock()
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
 		Active: true,
 		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{

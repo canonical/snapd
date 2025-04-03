@@ -89,9 +89,7 @@ func (s *usersSuite) SetUpTest(c *check.C) {
 	s.trivialUserLookup = mkUserLookup(s.mockUserHome)
 	s.AddCleanup(devicestate.MockUserLookup(s.trivialUserLookup))
 
-	s.state.Lock()
 	snapstate.ReplaceStore(s.state, s)
-	s.state.Unlock()
 
 	// make sure we don't call these by accident
 	s.AddCleanup(devicestate.MockOsutilAddUser(func(name string, opts *osutil.AddUserOptions) error {

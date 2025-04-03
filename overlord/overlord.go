@@ -199,8 +199,6 @@ func New(restartHandler restart.Handler) (*Overlord, error) {
 	// the shared task runner should be added last!
 	o.stateEng.AddManager(o.runner)
 
-	s.Lock()
-	defer s.Unlock()
 	// setting up the store
 	o.proxyConf = proxyconf.New(s).Conf
 	storeCtx := storecontext.New(s, o.deviceMgr.StoreContextBackend())

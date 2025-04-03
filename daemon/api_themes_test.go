@@ -386,8 +386,6 @@ func (s *themesSuite) daemonWithIfaceMgr(c *C) *daemon.Daemon {
 	overlord.AddManager(runner)
 	c.Assert(overlord.StartUp(), IsNil)
 
-	st.Lock()
-	defer st.Unlock()
 	snapstate.ReplaceStore(st, s)
 	return d
 }
