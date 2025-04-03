@@ -498,6 +498,97 @@ func (s *makeBootable20Suite) TestMakeSystemRunnable16Fails(c *C) {
 	c.Assert(err, ErrorMatches, `internal error: cannot make pre-UC20 system runnable`)
 }
 
+func (s *makeBootable20Suite) TestMakeSystemRunnableSealWithFDEHookOrOPTEE(c *C) {
+	model := boottest.MakeMockUC20Model()
+
+	basePath, baseInfo := snaptest.MakeTestSnapInfoWithFiles(c, "name: core24\ntype: base\nversion: 1", nil, nil)
+	kernelPath, kernelInfo := snaptest.MakeTestSnapInfoWithFiles(c, "name: pc-kernel\ntype: kernel\nversion: 1", nil, nil)
+	gadgetPath, gadgetInfo := snaptest.MakeTestSnapInfoWithFiles(c, "name: pc\ntype: gadget\nversion: 1", nil, nil)
+
+	bootWith := &boot.BootableSet{
+		Recovery:            true,
+		Base:                baseInfo,
+		BasePath:            basePath,
+		Kernel:              kernelInfo,
+		KernelPath:          kernelPath,
+		Gadget:              gadgetInfo,
+		GadgetPath:          gadgetPath,
+		RecoverySystemLabel: "label",
+	}
+	observer := boot.TrustedAssetsInstallObserverWithEncryption()
+
+	restore := boot.MockHasFDESetupHook(func(*snap.Info) (bool, error) {
+		return true, nil
+	})
+	defer restore()
+
+	var gotFlags boot.MockSealKeyToModeenvFlags
+	restore = boot.MockSealKeyToModeenv(func(
+		key, saveKey secboot.BootstrappedContainer,
+		primaryKey []byte,
+		volumesAuth *device.VolumesAuthOptions,
+		model *asserts.Model,
+		modeenv *boot.Modeenv,
+		flags boot.MockSealKeyToModeenvFlags,
+	) error {
+		gotFlags = flags
+		return nil
+	})
+	defer restore()
+
+	var checkedForOPTEE bool
+	restore = boot.MockOPTEETAPresent(func() bool {
+		checkedForOPTEE = true
+		return true
+	})
+	defer restore()
+
+	err := boot.MakeRunnableSystem(model, bootWith, &observer)
+	c.Assert(err, IsNil)
+
+	c.Assert(gotFlags.HasFDESetupHook, Equals, true)
+
+	// despite us reporting that optee is present, we should not use it because
+	// the hooks are there. additionally, we shouldn't even query optee because
+	// the hooks are there
+	c.Assert(gotFlags.HasTA, Equals, false)
+	c.Assert(checkedForOPTEE, Equals, false)
+
+	restore = boot.MockHasFDESetupHook(func(*snap.Info) (bool, error) {
+		return false, nil
+	})
+	defer restore()
+
+	restore = boot.MockOPTEETAPresent(func() bool {
+		checkedForOPTEE = true
+		return false
+	})
+	defer restore()
+
+	err = boot.MakeRunnableSystem(model, bootWith, &observer)
+	c.Assert(err, IsNil)
+
+	// now, we don't have the hooks. we should check for optee, but we should
+	// see that we don't have the TA
+	c.Assert(gotFlags.HasFDESetupHook, Equals, false)
+	c.Assert(gotFlags.HasTA, Equals, false)
+	c.Assert(checkedForOPTEE, Equals, true)
+
+	restore = boot.MockOPTEETAPresent(func() bool {
+		checkedForOPTEE = true
+		return true
+	})
+	defer restore()
+
+	err = boot.MakeRunnableSystem(model, bootWith, &observer)
+	c.Assert(err, IsNil)
+
+	// now we have optee
+	c.Assert(gotFlags.HasFDESetupHook, Equals, false)
+	c.Assert(gotFlags.HasTA, Equals, true)
+	c.Assert(checkedForOPTEE, Equals, true)
+}
+
 type testMakeSystemRunnable20Opts struct {
 	standalone    bool
 	factoryReset  bool

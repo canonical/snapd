@@ -92,6 +92,12 @@ func (t *TrackedAsset) GetHash() string {
 
 type TrustedAssetsInstallObserverImpl = trustedAssetsInstallObserverImpl
 
+func TrustedAssetsInstallObserverWithEncryption() TrustedAssetsInstallObserverImpl {
+	return TrustedAssetsInstallObserverImpl{
+		useEncryption: true,
+	}
+}
+
 func (o *trustedAssetsInstallObserverImpl) CurrentTrustedBootAssetsMap() BootAssetsMap {
 	return o.currentTrustedBootAssetsMap()
 }
@@ -247,4 +253,8 @@ func MockCryptsetupSupportsTokenReplace(support bool) (restore func()) {
 	return testutil.Mock(&cryptsetupSupportsTokenReplace, func() bool {
 		return support
 	})
+}
+
+func MockOPTEETAPresent(f func() bool) (restore func()) {
+	return testutil.Mock(&opteeTAPresent, f)
 }

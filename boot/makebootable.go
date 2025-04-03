@@ -40,7 +40,10 @@ import (
 	"github.com/snapcore/snapd/strutil"
 )
 
-var sealKeyToModeenv = sealKeyToModeenvImpl
+var (
+	sealKeyToModeenv = sealKeyToModeenvImpl
+	opteeTAPresent   = optee.TAPresent
+)
 
 // BootableSet represents the boot snaps of a system to be made bootable.
 type BootableSet struct {
@@ -642,7 +645,7 @@ func makeRunnableSystem(model *asserts.Model, bootWith *BootableSet, observer Tr
 
 		var hasTA bool
 		if !hasHook {
-			hasTA = optee.TAPresent()
+			hasTA = opteeTAPresent()
 		}
 
 		tokens := UseTokens(model)
