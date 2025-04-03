@@ -115,6 +115,7 @@ type Command struct {
 
 func (c *Command) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	st := c.d.state
+	// userFromRequest locks the state internally when checking authentication.
 	// TODO Look at the error and fail if there's an attempt to authenticate with invalid data.
 	user, _ := userFromRequest(st, r)
 
