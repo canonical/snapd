@@ -29,9 +29,9 @@ for i in $(seq 1 "$NUM_ATTEMPTS"); do
 	fi
 
 	IFS=',' read -ra features <<< "${SPREAD_TAG_FEATURES}"
-	featarg=""
+	featarg="-f "
 	for feature in "${features[@]}"; do
-		featarg+="-f $feature "
+		featarg+="$feature "
 	done
 	featdir="${WRITE_DIR}/extracted-tags"
 	mkdir -p "$featdir"

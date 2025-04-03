@@ -402,9 +402,9 @@ jobs:
       if: always() && env.SPREAD_TAG_FEATURES != ''
       run: |
         IFS=',' read -ra features <<< "$SPREAD_TAG_FEATURES"
-        featarg=""
+        featarg="-f "
         for feature in "${features[@]}"; do
-          featarg+="-f $feature "
+          featarg+="$feature "
         done
         featdir="${ARTIFACTS_FOLDER}/extracted-tags"
         mkdir -p "$featdir"
