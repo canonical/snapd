@@ -39,9 +39,9 @@ var FilePresent check.Checker = &filePresenceChecker{
 	present:     true,
 }
 
-// FilePresent verifies that the given file/symlink exists.
-var FileLpresent check.Checker = &filePresenceChecker{
-	CheckerInfo: &check.CheckerInfo{Name: "FileLpresent", Params: []string{"filename"}},
+// LFilePresent verifies that the given file/symlink exists.
+var LFilePresent check.Checker = &filePresenceChecker{
+	CheckerInfo: &check.CheckerInfo{Name: "LFilePresent", Params: []string{"filename"}},
 	statFunc:    os.Lstat,
 	present:     true,
 }
@@ -53,9 +53,9 @@ var FileAbsent check.Checker = &filePresenceChecker{
 	present:     false,
 }
 
-// FileLAbsent verifies that the given file/symlink does not exist.
-var FileLabsent check.Checker = &filePresenceChecker{
-	CheckerInfo: &check.CheckerInfo{Name: "FileLabsent", Params: []string{"filename"}},
+// LFileAbsent verifies that the given file/symlink does not exist.
+var LFileAbsent check.Checker = &filePresenceChecker{
+	CheckerInfo: &check.CheckerInfo{Name: "LFileAbsent", Params: []string{"filename"}},
 	statFunc:    os.Lstat,
 	present:     false,
 }
