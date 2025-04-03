@@ -41,8 +41,6 @@ var _ = Suite(&discardSnapSuite{})
 func (s *discardSnapSuite) SetUpTest(c *C) {
 	s.baseHandlerSuite.SetUpTest(c)
 
-	s.state.Lock()
-	defer s.state.Unlock()
 	repo := interfaces.NewRepository()
 	ifacerepo.Replace(s.state, repo)
 	oldSnapStateEnsureSnapAbsentFromQuotaGroup := snapstate.EnsureSnapAbsentFromQuotaGroup

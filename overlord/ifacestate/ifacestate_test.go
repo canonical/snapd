@@ -468,8 +468,6 @@ func (s *interfaceManagerSuite) TestSmokeAppArmorPromptingDisabled(c *C) {
 
 func (s *interfaceManagerSuite) TestRepoAvailable(c *C) {
 	_ = s.manager(c)
-	s.state.Lock()
-	defer s.state.Unlock()
 	repo := ifacerepo.Get(s.state)
 	c.Check(repo, FitsTypeOf, &interfaces.Repository{})
 }

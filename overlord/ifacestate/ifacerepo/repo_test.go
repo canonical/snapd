@@ -45,8 +45,6 @@ func (s *ifaceRepoSuite) SetUpTest(c *C) {
 
 func (s *ifaceRepoSuite) TestHappy(c *C) {
 	st := s.o.State()
-	st.Lock()
-	defer st.Unlock()
 
 	ifacerepo.Replace(st, s.repo)
 
@@ -56,8 +54,6 @@ func (s *ifaceRepoSuite) TestHappy(c *C) {
 
 func (s *ifaceRepoSuite) TestGetPanics(c *C) {
 	st := s.o.State()
-	st.Lock()
-	defer st.Unlock()
 
 	c.Check(func() { ifacerepo.Get(st) }, PanicMatches, `internal error: cannot find cached interfaces repository, interface manager not initialized\?`)
 }

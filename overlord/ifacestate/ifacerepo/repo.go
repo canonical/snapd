@@ -27,11 +27,15 @@ import (
 type interfacesRepoKey struct{}
 
 // Replace replaces the interface repository used by the managers.
+//
+// Since state cache is thread safe, it is not necessary to hold the state lock.
 func Replace(st *state.State, repo *interfaces.Repository) {
 	st.Cache(interfacesRepoKey{}, repo)
 }
 
 // Get returns the interface repository used by the managers.
+//
+// Since state cache is thread safe, it is not necessary to hold the state lock.
 func Get(st *state.State) *interfaces.Repository {
 	repo := st.Cached(interfacesRepoKey{})
 	if repo == nil {

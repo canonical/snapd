@@ -70,8 +70,6 @@ func (s *refreshSuite) SetUpTest(c *C) {
 	// snapstate.AffectedByRefreshCandidates needs a cached iface repo
 	repo := interfaces.NewRepository()
 	// no interfaces needed for this test suite
-	s.st.Lock()
-	defer s.st.Unlock()
 	ifacerepo.Replace(s.st, repo)
 }
 

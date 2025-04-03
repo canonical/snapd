@@ -104,10 +104,8 @@ func (bs *bootedSuite) SetUpTest(c *C) {
 	}
 	bs.restore = snapstatetest.MockDeviceModel(DefaultModel())
 
-	bs.state.Lock()
 	repo := interfaces.NewRepository()
 	ifacerepo.Replace(bs.state, repo)
-	bs.state.Unlock()
 
 	oldSnapServiceOptions := snapstate.SnapServiceOptions
 	snapstate.SnapServiceOptions = servicestate.SnapServiceOptions

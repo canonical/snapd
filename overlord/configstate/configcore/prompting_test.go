@@ -98,8 +98,6 @@ func (s *promptingSuite) SetUpTest(c *C) {
 		c.Assert(s.repo.AddInterface(iface), IsNil)
 	}
 
-	s.state.Lock()
-	defer s.state.Unlock()
 	ifacerepo.Replace(s.state, s.repo)
 }
 

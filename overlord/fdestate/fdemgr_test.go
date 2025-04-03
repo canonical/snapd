@@ -82,10 +82,8 @@ func (s *fdeMgrSuite) SetUpTest(c *C) {
 	s.st = s.o.State()
 	s.runner = s.o.TaskRunner()
 
-	s.st.Lock()
 	repo := interfaces.NewRepository()
 	ifacerepo.Replace(s.st, repo)
-	s.st.Unlock()
 
 	buf, restore := logger.MockLogger()
 	s.AddCleanup(restore)
