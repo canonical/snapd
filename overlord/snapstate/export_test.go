@@ -116,7 +116,6 @@ var (
 	CheckSnap              = checkSnap
 	CanRemove              = canRemove
 	CanDisable             = canDisable
-	CachedStore            = cachedStore
 	DefaultRefreshSchedule = defaultRefreshScheduleStr
 	DoInstall              = doInstall
 	UserFromUserID         = userFromUserID
