@@ -12414,9 +12414,9 @@ func (s *snapmgrTestSuite) TestDeletedMonitoredMapIsCorrectlyDeleted(c *C) {
 	monitorSignal <- "foo"
 	waitForMonitoringEnd(s.state, c)
 
-	s.state.Lock()
 	c.Assert(s.state.Cached("monitored-snaps"), IsNil)
 
+	s.state.Lock()
 	// start a 2nd task that checks the state for the map of monitored snap
 	preDlChg = s.state.NewChange("pre-download", "pre-download change")
 	preDlTask = s.state.NewTask("pre-download-snap", "pre-download task")
@@ -12505,11 +12505,9 @@ func (s *snapmgrTestSuite) TestDeletedMonitoredMapIsCorrectlyDeletedAfterRefresh
 		return s.state.Cached("monitored-snaps") == nil
 	})
 
-	s.state.Lock()
 	// monitoring removal is robust and doesn't fail when corresponding
 	// refresh candidate is not available.
 	c.Assert(s.state.Cached("monitored-snaps"), IsNil)
-	s.state.Unlock()
 }
 
 func waitFor(st *state.State, c *C, cond func() bool) {
@@ -12768,10 +12766,8 @@ func (s *snapmgrTestSuite) TestMonitoringIsPersistedAndRestored(c *C) {
 	c.Assert(stopMonitor, NotNil)
 	c.Assert(notified, Equals, false)
 
-	s.state.Lock()
 	aborts := s.state.Cached("monitored-snaps").(map[string]context.CancelFunc)
 	abort := aborts["some-snap"]
-	s.state.Unlock()
 	c.Assert(abort, NotNil)
 
 	stopMonitor <- "some-snap"
