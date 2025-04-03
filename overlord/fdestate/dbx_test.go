@@ -1111,14 +1111,10 @@ func (s *fdeMgrSuite) TestEFIDBXOperationAddWait(c *C) {
 
 	go func() {
 		<-syncC
-		st.Lock()
 		fdestate.NotifyDBXUpdatePrepareDoneOK(st, op1.ChangeID)
-		st.Unlock()
 
 		<-syncC
-		st.Lock()
 		fdestate.NotifyDBXUpdatePrepareDoneOK(st, op2.ChangeID)
-		st.Unlock()
 
 		close(doneC)
 	}()
