@@ -847,6 +847,41 @@ func (s *snapSeccompSuite) TestRestrictionsWorkingArgsTermios(c *C) {
 	}
 }
 
+func (s *snapSeccompSuite) TestRestrictionsWorkingArgsSyslog(c *C) {
+	for _, t := range []struct {
+		seccompAllowlist string
+		bpfInput         string
+		expected         int
+	}{
+		// good input
+		{"syslog SYSLOG_ACTION_CLOSE", "syslog;native;SYSLOG_ACTION_CLOSE", Allow},
+		{"syslog SYSLOG_ACTION_OPEN", "syslog;native;SYSLOG_ACTION_OPEN", Allow},
+		{"syslog SYSLOG_ACTION_READ", "syslog;native;SYSLOG_ACTION_READ", Allow},
+		{"syslog SYSLOG_ACTION_READ_ALL", "syslog;native;SYSLOG_ACTION_READ_ALL", Allow},
+		{"syslog SYSLOG_ACTION_READ_CLEAR", "syslog;native;SYSLOG_ACTION_READ_CLEAR", Allow},
+		{"syslog SYSLOG_ACTION_CLEAR", "syslog;native;SYSLOG_ACTION_CLEAR", Allow},
+		{"syslog SYSLOG_ACTION_CONSOLE_OFF", "syslog;native;SYSLOG_ACTION_CONSOLE_OFF", Allow},
+		{"syslog SYSLOG_ACTION_CONSOLE_ON", "syslog;native;SYSLOG_ACTION_CONSOLE_ON", Allow},
+		{"syslog SYSLOG_ACTION_CONSOLE_LEVEL", "syslog;native;SYSLOG_ACTION_CONSOLE_LEVEL", Allow},
+		{"syslog SYSLOG_ACTION_SIZE_UNREAD", "syslog;native;SYSLOG_ACTION_SIZE_UNREAD", Allow},
+		{"syslog SYSLOG_ACTION_SIZE_BUFFER", "syslog;native;SYSLOG_ACTION_SIZE_BUFFER", Allow},
+		// bad input
+		{"syslog SYSLOG_ACTION_CLOSE", "syslog;native;99", Deny},
+		{"syslog SYSLOG_ACTION_OPEN", "syslog;native;99", Deny},
+		{"syslog SYSLOG_ACTION_READ", "syslog;native;99", Deny},
+		{"syslog SYSLOG_ACTION_READ_ALL", "syslog;native;99", Deny},
+		{"syslog SYSLOG_ACTION_READ_CLEAR", "syslog;native;99", Deny},
+		{"syslog SYSLOG_ACTION_CLEAR", "syslog;native;99", Deny},
+		{"syslog SYSLOG_ACTION_CONSOLE_OFF", "syslog;native;99", Deny},
+		{"syslog SYSLOG_ACTION_CONSOLE_ON", "syslog;native;99", Deny},
+		{"syslog SYSLOG_ACTION_CONSOLE_LEVEL", "syslog;native;99", Deny},
+		{"syslog SYSLOG_ACTION_SIZE_UNREAD", "syslog;native;99", Deny},
+		{"syslog SYSLOG_ACTION_SIZE_BUFFER", "syslog;native;99", Deny},
+	} {
+		s.runBpf(c, t.seccompAllowlist, t.bpfInput, t.expected)
+	}
+}
+
 func (s *snapSeccompSuite) TestRestrictionsWorkingArgsUidGid(c *C) {
 	// while 'root' user usually has uid 0, 'daemon' user uid may vary
 	// across distributions, best lookup the uid directly
