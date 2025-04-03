@@ -107,7 +107,7 @@ func Wait(timeout time.Duration, deviceTimeout time.Duration) error {
 
 	logger.Noticef("waiting for trigger key: %v", triggerFilter.Key)
 
-	detectKeyCh := make(chan keyEvent, len(devices))
+	detectKeyCh := make(chan keyEvent, len(devices) + 1)
 	for _, dev := range devices {
 		go dev.WaitForTrigger(detectKeyCh)
 		defer dev.Close()
