@@ -9,13 +9,15 @@ details: |
     plug. The other is for checking that custom polkit rules are properly installed.
 
 # amazon-linux-2023: polkit not installed by default
-# ubuntu-core < uc24: polkit rules path is not writable 
+# ubuntu-core < uc24: polkit rules path is not writable
+# ubuntu-*-arm*: snap is not available for arm
 systems:
     - -ubuntu-core-16-*
     - -ubuntu-core-18-*
     - -ubuntu-core-20-*
     - -ubuntu-core-22-*
     - -amazon-linux-2023-64
+    - -ubuntu-*-arm*
 
 prepare: |
     if ! tests.session has-session-systemd-and-dbus; then
