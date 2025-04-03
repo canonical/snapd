@@ -138,8 +138,6 @@ var muxVars = mux.Vars
 
 func storeFrom(d *Daemon) snapstate.StoreService {
 	st := d.overlord.State()
-	st.Lock()
-	defer st.Unlock()
 
 	return snapstate.Store(st, nil)
 }

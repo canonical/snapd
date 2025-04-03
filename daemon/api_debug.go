@@ -74,8 +74,6 @@ func getBaseDeclaration(st *state.State) Response {
 
 func checkConnectivity(st *state.State) Response {
 	theStore := snapstate.Store(st, nil)
-	st.Unlock()
-	defer st.Lock()
 	checkResult, err := theStore.ConnectivityCheck()
 	if err != nil {
 		return InternalError("cannot run connectivity check: %v", err)
@@ -342,14 +340,14 @@ func getDebug(c *Command, r *http.Request, user *auth.UserState) Response {
 	query := r.URL.Query()
 	aspect := query.Get("aspect")
 	st := c.d.overlord.State()
-	st.Lock()
-	defer st.Unlock()
 	switch aspect {
 	case "base-declaration":
 		return getBaseDeclaration(st)
 	case "connectivity":
 		return checkConnectivity(st)
 	case "model":
+		st.Lock()
+		defer st.Unlock()
 		model, err := c.d.overlord.DeviceManager().Model()
 		if err != nil {
 			return InternalError("cannot get model: %v", err)
@@ -363,10 +361,16 @@ func getDebug(c *Command, r *http.Request, user *auth.UserState) Response {
 		ensureTag := query.Get("ensure")
 		startupTag := query.Get("startup")
 		all := query.Get("all")
+		st.Lock()
+		defer st.Unlock()
 		return getChangeTimings(st, chgID, ensureTag, startupTag, all == "true")
 	case "seeding":
+		st.Lock()
+		defer st.Unlock()
 		return getSeedingInfo(st)
 	case "gadget-disk-mapping":
+		st.Lock()
+		defer st.Unlock()
 		return getGadgetDiskMapping(st)
 	case "disks":
 		return getDisks(st)

@@ -64,9 +64,7 @@ var snapstateStore = func(st *state.State, deviceCtx snapstate.DeviceContext) co
 }
 
 func storeReachable(st *state.State) error {
-	st.Lock()
 	sto := snapstateStore(st, nil)
-	st.Unlock()
 	status, err := sto.ConnectivityCheck()
 	if err != nil {
 		return err
