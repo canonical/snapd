@@ -33,6 +33,7 @@ jobs:
         distroname="$(echo "${{ inputs.distro }}" | tr : - | tr / -)"
         case "${{ inputs.distro }}" in
         fedora:*)
+            dnf upgrade -y
             dnf install -y rpmdevtools
             dnf install -y $(rpmspec -q --buildrequires "./packaging/$distroname/snapd.spec")
             # TODO these are needed only by cmd/snap-seccomp unit tests, and
@@ -46,6 +47,7 @@ jobs:
             dnf install -y python3-flake8 # required by release-tools
             ;;
         opensuse/*)
+            zypper --non-interactive dup -y
             zypper --non-interactive install -y rpmdevtools rpm-build git
             zypper --non-interactive install -y $(rpmspec -q --buildrequires "./packaging/$distroname/snapd.spec")
             zypper --non-interactive install -y llvm-clang # required by run-checks
