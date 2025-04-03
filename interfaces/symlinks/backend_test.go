@@ -148,6 +148,7 @@ func (s *backendSuite) TestSandboxFeatures(c *C) {
 }
 
 func (s *backendSuite) TestConnectDisconnect(c *C) {
+	controlledDir := filepath.Join(dirs.GlobalRootDir, "/usr/lib/foo")
 	// Add callback and register the interface
 	iface := &ifacetest.TestSymlinksInterface{
 		TestInterface: ifacetest.TestInterface{
@@ -158,20 +159,27 @@ func (s *backendSuite) TestConnectDisconnect(c *C) {
 				case "some1":
 					return spec.AddSymlink(
 						filepath.Join(dirs.GlobalRootDir, "/snap/somesnap1/1/target.so"),
-						filepath.Join(dirs.GlobalRootDir, "/usr/lib/foo/bar.so"))
+						filepath.Join(controlledDir, "bar.so"))
 				case "some2":
 					return spec.AddSymlink(
 						filepath.Join(dirs.GlobalRootDir, "/snap/somesnap2/1/target2.so"),
-						filepath.Join(dirs.GlobalRootDir, "/usr/lib/foo/bar2.so"))
+						filepath.Join(controlledDir, "bar2.so"))
 				}
 				return errors.New("unexpected snap")
 			},
 		},
 		DirectoriesCallback: func() []string {
-			return []string{filepath.Join(dirs.GlobalRootDir, "/usr/lib/foo")}
+			return []string{controlledDir}
 		},
 	}
 	c.Assert(s.Repo.AddInterface(iface), IsNil)
+
+	// Create some un-controlled files
+	c.Assert(os.MkdirAll(controlledDir, 0755), IsNil)
+	noSnapdLinkPath := filepath.Join(controlledDir, "nosnapd-link")
+	noSnapdFilePath := filepath.Join(controlledDir, "nosnapd-file")
+	c.Assert(os.Symlink("/var/lib/target", noSnapdLinkPath), IsNil)
+	c.Assert(os.WriteFile(noSnapdFilePath, []byte{}, 0644), IsNil)
 
 	// Mock plug/slots
 	appSet, plugInfos := s.mockPlugs(c, someConsumer, []string{"some-driver-libs"})
@@ -197,8 +205,12 @@ func (s *backendSuite) TestConnectDisconnect(c *C) {
 	s.Backend.Setup(appSet, interfaces.ConfinementOptions{}, s.Repo, nil)
 
 	// Only symlinks for the connected slots are around
-	c.Check(filepath.Join(dirs.GlobalRootDir, "/usr/lib/foo/bar.so"), testutil.FileLabsent)
+	c.Check(filepath.Join(controlledDir, "bar.so"), testutil.LFileAbsent)
 	checkSymlink(c, "/snap/somesnap2/1/target2.so", "/usr/lib/foo/bar2.so")
+
+	// Uncontrolled files are around
+	c.Check(noSnapdLinkPath, testutil.LFilePresent)
+	c.Check(noSnapdFilePath, testutil.LFilePresent)
 }
 
 func (s *backendSuite) TestTwoPlugs(c *C) {
@@ -260,7 +272,7 @@ func (s *backendSuite) TestTwoPlugs(c *C) {
 	s.Backend.Setup(appSet, interfaces.ConfinementOptions{}, s.Repo, nil)
 
 	// Only symlinks for the connected slots are around
-	c.Check(filepath.Join(dirs.GlobalRootDir, "/usr/lib/foo/bar.so"), testutil.FileLabsent)
+	c.Check(filepath.Join(dirs.GlobalRootDir, "/usr/lib/foo/bar.so"), testutil.LFileAbsent)
 	checkSymlink(c, "/snap/somesnap2/1/target2.so", "/usr/lib/foo2/bar2.so")
 }
 
@@ -294,5 +306,5 @@ func (s *backendSuite) TestUnregisteredDirectory(c *C) {
 	c.Assert(s.Backend.Setup(appSet, interfaces.ConfinementOptions{}, s.Repo, nil), ErrorMatches,
 		`internal error: .*/usr/lib/foo2 not in any registered symlinks directory`)
 
-	c.Check(filepath.Join(dirs.GlobalRootDir, "/usr/lib/foo2/bar2.so"), testutil.FileLabsent)
+	c.Check(filepath.Join(dirs.GlobalRootDir, "/usr/lib/foo2/bar2.so"), testutil.LFileAbsent)
 }
