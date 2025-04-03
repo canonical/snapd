@@ -31,6 +31,10 @@ import (
 	"github.com/snapcore/snapd/osutil/udev/netlink"
 )
 
+var (
+	timeAfter = time.After
+)
+
 type triggerProvider interface {
 	Open(filter triggerEventFilter, node string) (triggerDevice, error)
 	FindMatchingDevices(filter triggerEventFilter) ([]triggerDevice, error)
@@ -114,11 +118,9 @@ func Wait(timeout time.Duration, deviceTimeout time.Duration) error {
 	}
 	foundDevice := len(devices) != 0
 
-	start := time.Now()
+	timeoutEvent := timeAfter(timeout)
+	deviceTimeoutEvent := timeAfter(deviceTimeout)
 	for {
-		timePassed := time.Now().Sub(start)
-		relTimeout := timeout - timePassed
-		relDeviceTimeout := deviceTimeout - timePassed
 		select {
 		case kev := <-detectKeyCh:
 			if kev.Err != nil {
@@ -127,9 +129,9 @@ func Wait(timeout time.Duration, deviceTimeout time.Duration) error {
 			// channel got closed without an error
 			logger.Noticef("%s: + got trigger key %v", kev.Dev, triggerFilter.Key)
 			return nil
-		case <-time.After(relTimeout):
+		case <-timeoutEvent:
 			return ErrTriggerNotDetected
-		case <-time.After(relDeviceTimeout):
+		case <-deviceTimeoutEvent:
 			if !foundDevice {
 				return ErrNoMatchingInputDevices
 			}
