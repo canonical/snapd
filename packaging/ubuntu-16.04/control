@@ -40,7 +40,7 @@ Build-Depends: autoconf,
                python3-pytest,
                squashfs-tools,
                tzdata,
-               systemd-dev | systemd (< 255),
+               systemd-dev | systemd (<< 255),
                xfslibs-dev
 Standards-Version: 3.9.7
 Homepage: https://github.com/snapcore/snapd

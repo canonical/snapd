@@ -260,7 +260,7 @@ func WriteSystemKey(extraData SystemKeyExtraData) error {
 // snap run only has to obtain the mtime of apparmor_parser and
 // doesn't have to invoke it)
 //
-// Returns the current system key when a mismatch is detected.
+// Returns the current system key whenever it was possible to generate one.
 func SystemKeyMismatch(extraData SystemKeyExtraData) (mismatch bool, myKey any, err error) {
 	mySystemKey, err := generateSystemKey()
 	if err != nil {
@@ -269,7 +269,7 @@ func SystemKeyMismatch(extraData SystemKeyExtraData) (mismatch bool, myKey any, 
 
 	diskSystemKey, err := readSystemKey()
 	if err != nil {
-		return false, nil, err
+		return false, mySystemKey, err
 	}
 
 	// deal with the race that "snap run" may start, then snapd
@@ -278,7 +278,7 @@ func SystemKeyMismatch(extraData SystemKeyExtraData) (mismatch bool, myKey any, 
 	// should be fine because new security profiles will also
 	// have been written to disk.
 	if mySystemKey.Version != diskSystemKey.Version {
-		return false, nil, ErrSystemKeyVersion
+		return false, mySystemKey, ErrSystemKeyVersion
 	}
 
 	// special case to detect local runs
@@ -287,7 +287,7 @@ func SystemKeyMismatch(extraData SystemKeyExtraData) (mismatch bool, myKey any, 
 			// detect running local local builds
 			if !strings.HasPrefix(exe, "/usr") && !strings.HasPrefix(exe, dirs.SnapMountDir) {
 				logger.Noticef("running from non-installed location %s: ignoring system-key", exe)
-				return false, nil, ErrSystemKeyVersion
+				return false, mySystemKey, ErrSystemKeyVersion
 			}
 		}
 	}
@@ -322,7 +322,7 @@ func SystemKeyMismatch(extraData SystemKeyExtraData) (mismatch bool, myKey any, 
 		return true, mySystemKey, err
 	}
 
-	return false, nil, nil
+	return false, mySystemKey, nil
 }
 
 func readSystemKey() (*systemKey, error) {

@@ -200,6 +200,12 @@ func (s *systemKeySuite) TestInterfaceSystemKeyMismatchHappy(c *C) {
 }
 `))
 
+	myKeyString := `{"version":0,"build-id":"7a94e9736c091b3984bd63f5aebfc883c4d859e0",` +
+		`"apparmor-features":["caps","dbus"],"apparmor-parser-mtime":0,` +
+		`"apparmor-parser-features":null,"apparmor-prompting":false,"nfs-home":false,` +
+		`"overlay-root":"","seccomp-features":null,"seccomp-compiler-version":"",` +
+		`"cgroup-version":""}`
+
 	extraData := interfaces.SystemKeyExtraData{
 		AppArmorPrompting: true,
 	}
@@ -208,7 +214,8 @@ func (s *systemKeySuite) TestInterfaceSystemKeyMismatchHappy(c *C) {
 	c.Assert(osutil.FileExists(dirs.SnapSystemKeyFile), Equals, false)
 	_, my, err := interfaces.SystemKeyMismatch(extraData)
 	c.Assert(err, Equals, interfaces.ErrSystemKeyMissing)
-	c.Check(my, IsNil)
+	c.Assert(my, NotNil)
+	c.Check(stringifySystemKey(c, my), Equals, myKeyString)
 
 	// create a system-key -> no mismatch anymore
 	err = interfaces.WriteSystemKey(extraData)
@@ -216,7 +223,8 @@ func (s *systemKeySuite) TestInterfaceSystemKeyMismatchHappy(c *C) {
 	mismatch, my, err := interfaces.SystemKeyMismatch(extraData)
 	c.Assert(err, IsNil)
 	c.Check(mismatch, Equals, false)
-	c.Check(my, IsNil)
+	c.Assert(my, NotNil)
+	c.Check(stringifySystemKey(c, my), Equals, myKeyString)
 
 	// change our system-key to have more apparmor features
 	s.AddCleanup(interfaces.MockSystemKey(`
@@ -225,16 +233,18 @@ func (s *systemKeySuite) TestInterfaceSystemKeyMismatchHappy(c *C) {
 "apparmor-features": ["caps", "dbus", "more", "and", "more"]
 }
 `))
+
+	myKeyModString := `{"version":0,"build-id":"7a94e9736c091b3984bd63f5aebfc883c4d859e0",` +
+		`"apparmor-features":["caps","dbus","more","and","more"],"apparmor-parser-mtime":0,` +
+		`"apparmor-parser-features":null,"apparmor-prompting":false,"nfs-home":false,` +
+		`"overlay-root":"","seccomp-features":null,"seccomp-compiler-version":"",` +
+		`"cgroup-version":""}`
+
 	mismatch, my, err = interfaces.SystemKeyMismatch(extraData)
 	c.Assert(err, IsNil)
 	c.Check(mismatch, Equals, true)
 	c.Assert(my, NotNil)
-	c.Check(stringifySystemKey(c, my), Equals,
-		`{"version":0,"build-id":"7a94e9736c091b3984bd63f5aebfc883c4d859e0",`+
-			`"apparmor-features":["caps","dbus","more","and","more"],"apparmor-parser-mtime":0,`+
-			`"apparmor-parser-features":null,"apparmor-prompting":false,"nfs-home":false,`+
-			`"overlay-root":"","seccomp-features":null,"seccomp-compiler-version":"",`+
-			`"cgroup-version":""}`)
+	c.Check(stringifySystemKey(c, my), Equals, myKeyModString)
 }
 
 func (s *systemKeySuite) TestInterfaceSystemKeyMismatchParserMtimeHappy(c *C) {
@@ -255,8 +265,9 @@ func (s *systemKeySuite) TestInterfaceSystemKeyMismatchParserMtimeHappy(c *C) {
 	// create a system-key -> no mismatch anymore
 	err = interfaces.WriteSystemKey(extraData)
 	c.Assert(err, IsNil)
-	mismatch, _, err := interfaces.SystemKeyMismatch(extraData)
+	mismatch, my, err := interfaces.SystemKeyMismatch(extraData)
 	c.Assert(err, IsNil)
+	c.Assert(my, NotNil)
 	c.Check(mismatch, Equals, false)
 
 	// change our system-key to have a different parser mtime
@@ -266,7 +277,7 @@ func (s *systemKeySuite) TestInterfaceSystemKeyMismatchParserMtimeHappy(c *C) {
 "apparmor-parser-mtime": 5678
 }
 `))
-	mismatch, my, err := interfaces.SystemKeyMismatch(extraData)
+	mismatch, my, err = interfaces.SystemKeyMismatch(extraData)
 	c.Assert(err, IsNil)
 	c.Check(mismatch, Equals, true)
 	c.Assert(my, NotNil)
@@ -393,8 +404,14 @@ func (s *systemKeySuite) TestInterfaceSystemKeyMismatchVersions(c *C) {
 	extraData := interfaces.SystemKeyExtraData{}
 
 	// when we encounter different versions we get the right error
-	_, _, err = interfaces.SystemKeyMismatch(extraData)
+	_, my, err := interfaces.SystemKeyMismatch(extraData)
 	c.Assert(err, Equals, interfaces.ErrSystemKeyVersion)
+	c.Assert(my, NotNil)
+	c.Check(stringifySystemKey(c, my), Equals, `{"version":1,`+
+		`"build-id":"7a94e9736c091b3984bd63f5aebfc883c4d859e0","apparmor-features":null,`+
+		`"apparmor-parser-mtime":0,"apparmor-parser-features":null,"apparmor-prompting":false,`+
+		`"nfs-home":false,"overlay-root":"","seccomp-features":null,"seccomp-compiler-version":"",`+
+		`"cgroup-version":""}`)
 }
 
 func (s *systemKeySuite) TestStaticVersion(c *C) {
