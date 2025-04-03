@@ -38,7 +38,7 @@ type TriggerCapabilityFilter = triggerEventFilter
 type KeyEvent = keyEvent
 
 type mockUEventConnection struct {
-	events []netlink.UEvent
+	events chan netlink.UEvent
 }
 
 func (m *mockUEventConnection) Connect(mode netlink.Mode) error {
@@ -51,8 +51,11 @@ func (m *mockUEventConnection) Close() error {
 
 func (m *mockUEventConnection) Monitor(queue chan netlink.UEvent, errors chan error, matcher netlink.Matcher) func(time.Duration) bool {
 	go func() {
-		for _, event := range m.events {
-			queue <- event
+		for {
+			select {
+			case event := <-m.events:
+				queue <- event
+			}
 		}
 	}()
 	return func(time.Duration) bool {
@@ -60,7 +63,7 @@ func (m *mockUEventConnection) Monitor(queue chan netlink.UEvent, errors chan er
 	}
 }
 
-func MockUEvent(events []netlink.UEvent) (restore func()) {
+func MockUEventChannel(events chan netlink.UEvent) (restore func()) {
 	oldGetUEventConn := getUEventConn
 	getUEventConn = func() ueventConnection {
 		return &mockUEventConnection{events}
@@ -68,5 +71,30 @@ func MockUEvent(events []netlink.UEvent) (restore func()) {
 
 	return func() {
 		getUEventConn = oldGetUEventConn
+	}
+}
+
+func MockUEvent(events []netlink.UEvent) (restore func()) {
+	oldGetUEventConn := getUEventConn
+	e := make(chan netlink.UEvent)
+	go func() {
+		for _, event := range events {
+			e <- event
+		}
+	}()
+	getUEventConn = func() ueventConnection {
+		return &mockUEventConnection{e}
+	}
+
+	return func() {
+		getUEventConn = oldGetUEventConn
+	}
+}
+
+func MockTimeAfter(f func(d time.Duration) <-chan time.Time) (restore func()) {
+	old := timeAfter
+	timeAfter = f
+	return func() {
+		f = old
 	}
 }
