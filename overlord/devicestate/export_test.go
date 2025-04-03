@@ -573,8 +573,7 @@ func MockCreateAllKnownSystemUsers(createAllUsers func(state *state.State, asser
 }
 
 func MockEncryptionSetupDataInCache(st *state.State, label string, volumesAuth *device.VolumesAuthOptions) (restore func()) {
-	st.Lock()
-	defer st.Unlock()
+	// state cache is thread safe without holding state lock
 	var esd *install.EncryptionSetupData
 	labelToEncData := map[string]*install.MockEncryptedDeviceAndRole{
 		"ubuntu-save": {
@@ -603,8 +602,7 @@ func CheckEncryptionSetupDataFromCache(st *state.State, label string) error {
 }
 
 func CleanUpEncryptionSetupDataInCache(st *state.State, label string) {
-	st.Lock()
-	defer st.Unlock()
+	// state cache is thread safe without holding state lock
 	key := encryptionSetupDataKey{label}
 	st.Cache(key, nil)
 }

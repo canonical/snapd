@@ -185,9 +185,7 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.T
 		}
 	}
 
-	s.Lock()
 	s.Cache(deviceMgrKey{}, m)
-	s.Unlock()
 
 	if err := m.confirmRegistered(); err != nil {
 		return nil, err
