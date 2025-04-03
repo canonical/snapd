@@ -7,20 +7,17 @@ details: |
 systems: [ubuntu-22.04-64, ubuntu-24.04-64]
 
 environment:
-  NESTED_CUSTOM_MODEL: $TESTSLIB/assertions/test-snapd-recovery-system-reboot-pc-{VERSION}.model
-  # TODO:FDEM:FIX: we should use NESTED_BUILD_SNAPD_FROM_CURRENT=true with
-  # NESTED_REPACK_KERNEL_SNAP=false and enable encryption. For now we
-  # disable it until since snap-bootstrap will not be new enough in
-  # the store. A more robust approach is to use the fakestore to
-  # provide/sign a repacked kernel.
-  # NESTED_ENABLE_TPM: true
-  # NESTED_ENABLE_SECURE_BOOT: true
-  NESTED_ENABLE_TPM: false
-  NESTED_ENABLE_SECURE_BOOT: false
+  NESTED_CUSTOM_MODEL: $TESTSLIB/assertions/developer1-{VERSION}-dangerous.model
+  NESTED_ENABLE_TPM: true
+  NESTED_ENABLE_SECURE_BOOT: true
   NESTED_BUILD_SNAPD_FROM_CURRENT: true
-  NESTED_REPACK_GADGET_SNAP: false
-  NESTED_REPACK_KERNEL_SNAP: false
-  NESTED_REPACK_BASE_SNAP: false
+  NESTED_REPACK_GADGET_SNAP: true
+  NESTED_REPACK_KERNEL_SNAP: true
+  NESTED_REPACK_BASE_SNAP: true
+  NESTED_REPACK_FOR_FAKESTORE: true
+  NESTED_FAKESTORE_BLOB_DIR: $(pwd)/fake-store-blobdir
+  NESTED_SIGN_SNAPS_FAKESTORE: true
+  NESTED_UBUNTU_IMAGE_SNAPPY_FORCE_SAS_URL: http://localhost:11028
 
   MODE/recover: "recover"
   MODE/factory_reset: "factory-reset"
@@ -32,8 +29,77 @@ environment:
   NESTED_ENABLE_TPM/install: false
 
 prepare: |
+    if [ "${TRUST_TEST_KEYS}" = "false" ]; then
+        echo "This test needs test keys to be trusted"
+        exit
+    fi
+
+    # although nested_start_core_vm_unit usually installs this, the fake store
+    # will already have been set up, so we need to install it here
+    snap install test-snapd-swtpm --edge
+
+    "${TESTSTOOLS}/store-state" setup-fake-store "${NESTED_FAKESTORE_BLOB_DIR}"
+
+    cp "${TESTSLIB}/assertions/testrootorg-store.account-key" "${NESTED_FAKESTORE_BLOB_DIR}/asserts"
+    cp "${TESTSLIB}/assertions/developer1.account" "${NESTED_FAKESTORE_BLOB_DIR}/asserts"
+    cp "${TESTSLIB}/assertions/developer1.account-key" "${NESTED_FAKESTORE_BLOB_DIR}/asserts"
+
+    snap ack "$NESTED_FAKESTORE_BLOB_DIR/asserts/testrootorg-store.account-key"
+    snap ack "$NESTED_FAKESTORE_BLOB_DIR/asserts/developer1.account"
+    snap ack "$NESTED_FAKESTORE_BLOB_DIR/asserts/developer1.account-key"
+
+    version="$(tests.nested show version)"
+    gendeveloper1 sign-model < "./vset-${version}.json" > validation-set.assert
+    cp validation-set.assert "${NESTED_FAKESTORE_BLOB_DIR}/asserts"
+
+    # run the fake device service too, so that the device can be initialised
+    systemd-run --collect --unit fakedevicesvc fakedevicesvc localhost:11029
+
     tests.nested build-image core
     tests.nested create-vm core
+
+    #shellcheck source=tests/lib/core-config.sh
+    . "$TESTSLIB"/core-config.sh
+    wait_for_first_boot_change
+
+    # do we have a better way to do this?
+    remote.exec 'sudo systemctl stop snapd.service snapd.socket'
+    remote.exec 'sudo cat /var/lib/snapd/state.json' | gojq '.data.auth.device."session-macaroon"="fake-session"' > state.json
+    remote.push state.json
+    remote.exec 'sudo mv state.json /var/lib/snapd/state.json'
+    remote.exec 'sudo systemctl start snapd.service snapd.socket'
+
+    # before adding our new snaps to the fake store, disable auto-refreshes
+    remote.refresh disable-refreshes
+
+    declare -A snap_ids=(
+      ["core22"]="amcUKQILKXHHTlmSa7NMdnXSx02dNeeT"
+      ["core24"]="dwTAh7MZZ01zyriOZErqd1JynQLiOGvM"
+      ["pc-kernel"]="pYVQrBcKmBa0mZ4CCN7ExT6jH8rY1hza"
+      ["pc"]="UqFziVZDHLSyO3TqSWgNBoAdHbLI4dAH"
+    )
+
+    # make some new snaps available in the fakestore, we'll use these to test
+    # creating the recovery system
+    for snap in "core${version}" pc-kernel pc; do
+      unsquashfs "${NESTED_FAKESTORE_BLOB_DIR}/${snap}.snap"
+      gojq --yaml-input --yaml-output '.version = "v2"' squashfs-root/meta/snap.yaml > snap.yaml.new
+      mv snap.yaml.new squashfs-root/meta/snap.yaml
+      snap pack --filename="./${snap}.snap" ./squashfs-root
+      rm -rf squashfs-root
+
+      "${TESTSTOOLS}"/store-state make-snap-installable \
+        --revision 2 \
+        "${NESTED_FAKESTORE_BLOB_DIR}" \
+        "./${snap}.snap" \
+        "${snap_ids[${snap}]}"
+
+      rm "./${snap}.snap"
+    done
+
+restore: |
+    "$TESTSTOOLS"/store-state teardown-fake-store "$NESTED_FAKESTORE_BLOB_DIR"
+    systemctl stop fakedevicesvc.service || true
 
 execute: |
   function post_json_data() {
@@ -49,29 +115,13 @@ execute: |
     fi
   }
 
-  #shellcheck source=tests/lib/core-config.sh
-  . "$TESTSLIB"/core-config.sh
-
-  wait_for_first_boot_change
-
   boot_id="$(tests.nested boot-id)"
-
   prev_system=$(remote.exec 'sudo snap recovery' | awk 'NR != 1 { print $1 }')
+  version="$(tests.nested show version)"
 
   # create the system
-  # Note: each time we have to pin different revisions of snaps on
-  # validation set test-snapd-pinned-essential-snaps, we have to use a
-  # new sequence number not to break other branches. The value of the
-  # sequence number just corresponds to the generation of this test.
+  change_id=$(post_json_data /v2/systems '{"action": "create", "label": "new-system", "validation-sets": ["developer1/pinned-essential-snaps-%s"], "mark-default": true, "test-system": true}' "${version}")
 
-  if tests.nested is-nested uc22; then
-    change_id=$(post_json_data /v2/systems '{"action": "create", "label": "new-system", "validation-sets": ["test-snapd/test-snapd-pinned-essential-snaps-22=2"], "mark-default": true, "test-system": true}')
-  elif tests.nested is-nested uc24; then
-    change_id=$(post_json_data /v2/systems '{"action": "create", "label": "new-system", "validation-sets": ["test-snapd/test-snapd-pinned-essential-snaps-24=2"], "mark-default": true, "test-system": true}')
-  else
-    echo "System not supported"
-    exit 1
-  fi
   # wait for reboot since we tested the system
   remote.wait-for reboot "${boot_id}"
   boot_id="$(tests.nested boot-id)"
@@ -91,7 +141,6 @@ execute: |
   remote.wait-for reboot "${boot_id}"
 
   remote.wait-for snap-command
-  wait_for_first_boot_change
 
   # wait for the system to finish being seeded
   remote.exec "sudo snap wait system seed.loaded"
@@ -104,6 +153,10 @@ execute: |
     MATCH 'mode=recover' < modeenv
     MATCH 'recovery_system=new-system' < modeenv
   elif [ "${MODE}" = 'factory-reset' ] || [ "${MODE}" = "install" ]; then
+    if [ "${MODE}" = 'install' ]; then
+      remote.wait-for device-initialized
+    fi
+
     # should be back into run mode since we reset the device
     remote.exec cat /proc/cmdline | MATCH 'snapd_recovery_mode=run'
 
@@ -112,48 +165,17 @@ execute: |
 
     # since out new system is now the default and the current recovery system,
     # we should be able to remove the old one
-
-    # removing a recovery system conflicts with auto-refresh, wait for the
-    # auto-refresh to start and finish before attempting the removal.
-    if retry -n 60 --wait 1 remote.exec 'snap watch --last=auto-refresh'; then
-      # if an auto-refresh happened, we know we need to wait for the system to
-      # finish rebooting, since the kernel, gadget, and base snaps will be
-      # updated
-      remote.wait-for reboot "${boot_id}"
-
-      # one more watch to wait for the change to finish once the reboot is
-      # completed
-      remote.exec 'snap watch --last=auto-refresh'
-    fi
-
     post_json_data "/v2/systems/${prev_system}" '{"action": "remove"}'
 
     remote.exec "snap watch --last=remove-recovery-system"
     remote.exec "sudo snap recovery" | NOMATCH "${prev_system}"
   fi
 
-  # since hello-world has ['run', 'ephemeral'] as its modes in the model, it
-  # should be here in all tested modes.
-  remote.exec 'snap list hello-world'
-
-  # make sure that all our other snaps are there too. we can't check their
-  # revisions here, since auto-refresh might have updated them.
-  VERSION="$(tests.nested show version)"
-  remote.exec "snap list core${VERSION}"
+  # make sure that all our other snaps are there too
+  remote.exec "snap list core${version}"
   remote.exec 'snap list pc'
   remote.exec 'snap list pc-kernel'
 
-  # however, we can check that the seed contains the correct revisions
-  if tests.nested is-nested uc22; then
-    remote.exec "test -f /var/lib/snapd/seed/snaps/core22_1380.snap"
-    remote.exec "test -f /var/lib/snapd/seed/snaps/pc-kernel_1606.snap"
-    remote.exec "test -f /var/lib/snapd/seed/snaps/pc_145.snap"
-  elif tests.nested is-nested uc24; then
-    # however, we can check that the seed contains the correct revisions
-    remote.exec "test -f /var/lib/snapd/seed/snaps/core24_423.snap"
-    remote.exec "test -f /var/lib/snapd/seed/snaps/pc-kernel_1869.snap"
-    remote.exec "test -f /var/lib/snapd/seed/snaps/pc_178.snap"
-  else
-    echo "System not supported"    
-    exit 1
-  fi
+  remote.exec "test -f /var/lib/snapd/seed/snaps/core${version}_2.snap"
+  remote.exec "test -f /var/lib/snapd/seed/snaps/pc-kernel_2.snap"
+  remote.exec "test -f /var/lib/snapd/seed/snaps/pc_2.snap"
