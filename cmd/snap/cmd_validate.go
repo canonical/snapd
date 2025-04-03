@@ -106,6 +106,10 @@ func (cmd *cmdValidate) Execute(args []string) error {
 		}
 	}
 
+	if cmd.Refresh && !cmd.Enforce {
+		return fmt.Errorf("--refresh can only be used together with --enforce")
+	}
+
 	if cmd.Positional.ValidationSet == "" && action != "" {
 		return fmt.Errorf("missing validation set argument")
 	}
@@ -121,10 +125,6 @@ func (cmd *cmdValidate) Execute(args []string) error {
 	}
 
 	if action != "" {
-		if cmd.Refresh && action != "enforce" {
-			return fmt.Errorf("--refresh can only be used together with --enforce")
-		}
-
 		if cmd.Refresh {
 			changeID, err := cmd.client.RefreshMany(nil, nil, &client.SnapOptions{
 				ValidationSets: []string{cmd.Positional.ValidationSet},
