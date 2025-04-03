@@ -41,6 +41,8 @@ type Logger interface {
 	// NoGuardDebug is for messages that we always want to print (e.g., configurations
 	// were checked by the caller, etc)
 	NoGuardDebug(msg string)
+	// Trace is for messages useful for tracing execution
+	Trace(msg string, attrs ...any)
 }
 
 const (
@@ -50,9 +52,10 @@ const (
 
 type nullLogger struct{}
 
-func (nullLogger) Notice(string)       {}
-func (nullLogger) Debug(string)        {}
-func (nullLogger) NoGuardDebug(string) {}
+func (nullLogger) Notice(string)        {}
+func (nullLogger) Debug(string)         {}
+func (nullLogger) NoGuardDebug(string)  {}
+func (nullLogger) Trace(string, ...any) {}
 
 // NullLogger is a logger that does nothing
 var NullLogger = nullLogger{}
@@ -105,6 +108,13 @@ func Debug(msg string) {
 	defer lock.Unlock()
 
 	logger.Debug(msg)
+}
+
+func Trace(msg string, attrs ...any) {
+	lock.Lock()
+	defer lock.Unlock()
+
+	logger.Trace(msg, attrs...)
 }
 
 // NoGuardDebugf records something in the debug log
@@ -164,6 +174,7 @@ type Log struct {
 
 	debug bool
 	quiet bool
+	flags int
 }
 
 func (l *Log) debugEnabled() bool {
@@ -188,6 +199,8 @@ func (l *Log) Notice(msg string) {
 	}
 }
 
+func (l *Log) Trace(string, ...any) {}
+
 // NoGuardDebug always prints the message, w/o gating it based on environment
 // variables or other configurations.
 func (l *Log) NoGuardDebug(msg string) {
@@ -196,23 +209,19 @@ func (l *Log) NoGuardDebug(msg string) {
 	l.log.Output(calldepth, "DEBUG: "+msg)
 }
 
+func newLog(w io.Writer, flag int, opts *LoggerOptions) (Logger, error) {
+	logger := &Log{
+		log:   log.New(w, "", flag),
+		debug: opts.ForceDebug || debugEnabledOnKernelCmdline(),
+		flags: flag,
+	}
+	return logger, nil
+}
+
 type LoggerOptions struct {
 	// ForceDebug can be set if we want debug traces even if not directly
 	// enabled by environment or kernel command line.
 	ForceDebug bool
-}
-
-// New creates a log.Logger using the given io.Writer and flag, using the
-// options from opts.
-func New(w io.Writer, flag int, opts *LoggerOptions) (Logger, error) {
-	if opts == nil {
-		opts = &LoggerOptions{}
-	}
-	logger := &Log{
-		log:   log.New(w, "", flag),
-		debug: opts.ForceDebug || debugEnabledOnKernelCmdline(),
-	}
-	return logger, nil
 }
 
 func buildFlags() int {
@@ -244,6 +253,7 @@ func BootSetup() error {
 		log:   log.New(os.Stderr, "", flags),
 		debug: debugEnabledOnKernelCmdline(),
 		quiet: quiet,
+		flags: flags,
 	}
 	SetLogger(logger)
 
