@@ -23,23 +23,18 @@ for i in $(seq 1 "$NUM_ATTEMPTS"); do
 
 	if [ -f "$WRITE_DIR"/spread-logs.txt ]; then
 		./tests/lib/external/snapd-testing-tools/utils/log-parser "${WRITE_DIR}"/spread-logs.txt --output "${WRITE_DIR}"/spread-results.json
-		./tests/lib/external/snapd-testing-tools/utils/log-analyzer list-reexecute-tasks "${RUN_TESTS[@]}" "${WRITE_DIR}"/spread-results.json >"${WRITE_DIR}"/failed-tests.txt
+		./tests/lib/external/snapd-testing-tools/utils/log-analyzer list-reexecute-tasks "${RUN_TESTS[*]}" "${WRITE_DIR}"/spread-results.json >"${WRITE_DIR}"/failed-tests.txt
 	else
 		touch "${WRITE_DIR}/failed-tests.txt"
 	fi
 
 	IFS=',' read -ra features <<< "${SPREAD_TAG_FEATURES}"
-	featarg="-f "
-	for feature in "${features[@]}"; do
-		featarg+="$feature "
-	done
 	featdir="${WRITE_DIR}/extracted-tags"
 	mkdir -p "$featdir"
 	for dir in "${WRITE_DIR}"/features-artifacts/feature-tags/*/; do
 		if [ -f "${dir}/journal.txt" ] && [ -f "${dir}/state.json" ]; then
-			#shellcheck disable=SC2086
 			./tests/utils/features/featextractor.py \
-				$featarg \
+				-f "${features[@]}" \
 				--journal "${dir}/journal.txt" \
 				--state "${dir}/state.json" \
 				--output "$featdir/$(basename "${dir}")"
