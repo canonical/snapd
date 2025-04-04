@@ -145,6 +145,12 @@ func (s *microStackSupportInterfaceSuite) TestUDevConnectedPlug(c *C) {
 	c.Assert(spec.Snippets(), HasLen, 0)
 }
 
+func (s *microStackSupportInterfaceSuite) TestServicePermanentPlugSnippets(c *C) {
+	snips, err := interfaces.PermanentPlugServiceSnippets(s.iface, s.plugInfo)
+	c.Assert(err, IsNil)
+	c.Check(snips, DeepEquals, []interfaces.PlugServicesSnippet{interfaces.PlugServicesServiceSectionSnippet("Delegate=true")})
+}
+
 func (s *microStackSupportInterfaceSuite) TestInterfaces(c *C) {
 	c.Check(builtin.Interfaces(), testutil.DeepContains, s.iface)
 }

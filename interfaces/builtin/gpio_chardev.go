@@ -63,6 +63,11 @@ var gpioChardevConnectedSlotKmod = []string{
 	"gpio-aggregator",
 }
 
+var gpioChardevPlugServiceSnippets = []interfaces.PlugServicesSnippet{
+	interfaces.PlugServicesUnitSectionSnippet(`After=snapd.gpio-chardev-setup.target`),
+	interfaces.PlugServicesUnitSectionSnippet(`Wants=snapd.gpio-chardev-setup.target`),
+}
+
 type gpioChardevInterface struct {
 	commonInterface
 }
@@ -207,6 +212,7 @@ func init() {
 			summary:                  gpioChardevSummary,
 			baseDeclarationSlots:     gpioChardevBaseDeclarationSlots,
 			connectedSlotKModModules: gpioChardevConnectedSlotKmod,
+			serviceSnippets:          gpioChardevPlugServiceSnippets,
 		},
 	})
 }

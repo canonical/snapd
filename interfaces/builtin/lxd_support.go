@@ -68,7 +68,7 @@ const lxdSupportConnectedPlugSecComp = `
 @unrestricted
 `
 
-const lxdSupportServiceSnippet = `Delegate=true`
+const lxdSupportServiceSnippet = interfaces.PlugServicesServiceSectionSnippet(`Delegate=true`)
 
 type lxdSupportInterface struct {
 	commonInterface
@@ -129,6 +129,6 @@ func init() {
 		controlsDeviceCgroup:    true,
 		baseDeclarationSlots:    lxdSupportBaseDeclarationSlots,
 		baseDeclarationPlugs:    lxdSupportBaseDeclarationPlugs,
-		serviceSnippets:         []string{lxdSupportServiceSnippet}},
+		serviceSnippets:         []interfaces.PlugServicesSnippet{lxdSupportServiceSnippet}},
 	})
 }
