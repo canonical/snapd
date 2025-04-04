@@ -22,6 +22,7 @@ package interfaces_test
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -582,6 +583,35 @@ func (s *systemKeySuite) TestSystemKeysUnmarshalSame(c *C) {
 	c.Check(ok, Equals, true, Commentf("key1:%#v key2:%#v", key1, key2))
 }
 
+func (s *systemKeySuite) TestSystemKeyFromString(c *C) {
+	mockedSk := `
+{
+"build-id": "7a94e9736c091b3984bd63f5aebfc883c4d859e0",
+"apparmor-features": ["caps", "dbus", "more", "and", "more"]
+}
+`
+	s.AddCleanup(interfaces.MockSystemKey(mockedSk))
+	// full cycle of marshal <-> unmarshal
+	sk, err := interfaces.CurrentSystemKey()
+	c.Assert(err, IsNil)
+	c.Assert(sk, NotNil)
+	sks := stringifySystemKey(c, sk)
+	c.Check(sks, Equals,
+		`{"version":0,"build-id":"7a94e9736c091b3984bd63f5aebfc883c4d859e0",`+
+			`"apparmor-features":["caps","dbus","more","and","more"],"apparmor-parser-mtime":0,`+
+			`"apparmor-parser-features":null,"apparmor-prompting":false,"nfs-home":false,`+
+			`"overlay-root":"","seccomp-features":null,"seccomp-compiler-version":"",`+
+			`"cgroup-version":""}`)
+	recoveredSk, err := interfaces.SystemKeyFromString(sks)
+	c.Assert(err, IsNil)
+	c.Check(recoveredSk, DeepEquals, sk)
+
+	// also works with mocked data
+	recoveredMockedSk, err := interfaces.SystemKeyFromString(mockedSk)
+	c.Assert(err, IsNil)
+	c.Check(recoveredMockedSk, DeepEquals, sk)
+}
+
 func (s *systemKeySuite) TestRemoveSystemKey(c *C) {
 	extraData := interfaces.SystemKeyExtraData{}
 	systemKeyJSON := `{}`
@@ -604,4 +634,147 @@ func (s *systemKeySuite) TestRemoveSystemKey(c *C) {
 	// when it does not exist in the first place
 	err = interfaces.RemoveSystemKey()
 	c.Assert(err, IsNil)
+}
+
+func (s *systemKeySuite) TestSystemKeyMismatchAdviceTrivial(c *C) {
+	mockedSkS := `
+{
+"build-id": "7a94e9736c091b3984bd63f5aebfc883c4d859e0",
+"apparmor-features": ["caps", "dbus", "more", "and", "more"]
+}
+`
+	s.AddCleanup(interfaces.MockSystemKey(mockedSkS))
+
+	c.Assert(interfaces.WriteSystemKey(interfaces.SystemKeyExtraData{}), IsNil)
+
+	mockedSk, err := interfaces.SystemKeyFromString(mockedSkS)
+	c.Assert(err, IsNil)
+
+	// comparing with self, so nothing to regenerate
+	act, err := interfaces.SystemKeyMismatchAdvice(mockedSk)
+	c.Assert(err, IsNil)
+	c.Check(act, Equals, interfaces.SystemKeyMismatchActionNone)
+}
+
+func (s *systemKeySuite) TestSystemKeyMismatchAdviceNFSHome(c *C) {
+	mockedSkS := `{
+"build-id": "7a94e9736c091b3984bd63f5aebfc883c4d859e0",
+"apparmor-features": ["caps", "dbus", "more", "and", "more"],
+"nfs-home": false
+}`
+	s.AddCleanup(interfaces.MockSystemKey(mockedSkS))
+
+	c.Assert(interfaces.WriteSystemKey(interfaces.SystemKeyExtraData{}), IsNil)
+
+	mockedSk, err := interfaces.SystemKeyFromString(`{
+"build-id": "7a94e9736c091b3984bd63f5aebfc883c4d859e0",
+"apparmor-features": ["caps", "dbus", "more", "and", "more"],
+"nfs-home": true
+}`)
+	c.Assert(err, IsNil)
+
+	// nfs-home differs, need to regenerate
+	act, err := interfaces.SystemKeyMismatchAdvice(mockedSk)
+	c.Assert(err, IsNil)
+	c.Check(act, Equals, interfaces.SystemKeyMismatchActionRegenerateProfiles)
+}
+
+func (s *systemKeySuite) TestSystemKeyMismatchAdviceTypeCheck(c *C) {
+	_, err := interfaces.SystemKeyMismatchAdvice("not-a-system-key")
+	c.Assert(err, ErrorMatches, "internal error: string is not a system key")
+}
+
+func (s *systemKeySuite) TestSystemKeyMismatchAdviceNoDiskSystemKey(c *C) {
+	sk, err := interfaces.SystemKeyFromString(`{
+"build-id": "7a94e9736c091b3984bd63f5aebfc883c4d859e0",
+"apparmor-features": ["caps", "dbus", "more", "and", "more"],
+"nfs-home": true
+}`)
+	c.Assert(err, IsNil)
+
+	_, err = interfaces.SystemKeyMismatchAdvice(sk)
+	c.Assert(err, ErrorMatches, "system-key missing on disk")
+}
+
+func (s *systemKeySuite) TestSystemKeyMismatchAdviceVersion10NFSHome(c *C) {
+	// first NFS home is false in snapd's system-key
+	mockedSkS := `{
+"build-id": "7a94e9736c091b3984bd63f5aebfc883c4d859e0",
+"apparmor-features": ["caps", "dbus", "more", "and", "more"],
+"nfs-home": false
+}`
+	s.AddCleanup(interfaces.MockSystemKey(mockedSkS))
+	c.Assert(interfaces.WriteSystemKey(interfaces.SystemKeyExtraData{}), IsNil)
+
+	// client observed home on NFS like fs
+	skWithNFSHome, err := interfaces.SystemKeyFromString(fmt.Sprintf(`{
+"version": %d,
+"build-id": "7a94e9736c091b3984bd63f5aebfc883c4d859e0",
+"apparmor-features": ["caps", "dbus", "more", "and", "more"],
+"nfs-home": true
+}`, interfaces.SystemKeyVersion-1))
+	c.Assert(err, IsNil)
+
+	act, err := interfaces.SystemKeyMismatchAdvice(skWithNFSHome)
+	c.Assert(err, IsNil)
+	c.Check(act, Equals, interfaces.SystemKeyMismatchActionRegenerateProfiles)
+
+	// client home not on NFS like system, which matches what snapd has observed
+	skNoNFSHome, err := interfaces.SystemKeyFromString(fmt.Sprintf(`{
+"version": %d,
+"build-id": "7a94e9736c091b3984bd63f5aebfc883c4d859e0",
+"apparmor-features": ["caps", "dbus", "more", "and", "more"],
+"nfs-home": false
+}`, interfaces.SystemKeyVersion-1))
+	c.Assert(err, IsNil)
+
+	act, err = interfaces.SystemKeyMismatchAdvice(skNoNFSHome)
+	c.Assert(err, IsNil)
+	// client can proceed
+	c.Check(act, Equals, interfaces.SystemKeyMismatchActionNone)
+
+	// snapd observes the same value of nfs home as the client
+	mockedSkS = `{
+"build-id": "7a94e9736c091b3984bd63f5aebfc883c4d859e0",
+"apparmor-features": ["caps", "dbus", "more", "and", "more"],
+"nfs-home": true
+}`
+	s.AddCleanup(interfaces.MockSystemKey(mockedSkS))
+	c.Assert(interfaces.WriteSystemKey(interfaces.SystemKeyExtraData{}), IsNil)
+
+	act, err = interfaces.SystemKeyMismatchAdvice(skNoNFSHome)
+	c.Assert(err, IsNil)
+	c.Check(act, Equals, interfaces.SystemKeyMismatchActionRegenerateProfiles)
+}
+
+func (s *systemKeySuite) TestSystemKeyMismatchAdviceVersionNewer(c *C) {
+	// first NFS home is false in snapd's system-key
+	mockedSkS := `{
+"build-id": "7a94e9736c091b3984bd63f5aebfc883c4d859e0",
+"apparmor-features": ["caps", "dbus", "more", "and", "more"],
+"nfs-home": false
+}`
+	s.AddCleanup(interfaces.MockSystemKey(mockedSkS))
+	c.Assert(interfaces.WriteSystemKey(interfaces.SystemKeyExtraData{}), IsNil)
+
+	// client observed home on NFS like fs
+	skNewer, err := interfaces.SystemKeyFromString(fmt.Sprintf(`{
+"version": %d,
+"build-id": "7a94e9736c091b3984bd63f5aebfc883c4d859e0",
+"apparmor-features": ["caps", "dbus", "more", "and", "more"],
+"nfs-home": true
+}`, interfaces.SystemKeyVersion+1))
+	c.Assert(err, IsNil)
+
+	act, err := interfaces.SystemKeyMismatchAdvice(skNewer)
+	c.Assert(errors.Is(err, interfaces.ErrSystemKeyMismatchVersionTooHigh), Equals, true)
+	c.Check(act, Equals, interfaces.SystemKeyMismatchActionUndefined)
+}
+
+func (s *systemKeySuite) TestSystemKeyMismatchActionStringer(c *C) {
+	c.Check(interfaces.SystemKeyMismatchActionNone.String(), Equals, "none")
+	c.Check(interfaces.SystemKeyMismatchActionRegenerateProfiles.String(),
+		Equals, "regenerate-profiles")
+	c.Check(interfaces.SystemKeyMismatchActionUndefined.String(), Equals, "SystemKeyMismatchAction(0)")
+	c.Check(interfaces.SystemKeyMismatchAction(99).String(), Equals, "SystemKeyMismatchAction(99)")
 }
