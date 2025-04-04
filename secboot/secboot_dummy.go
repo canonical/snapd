@@ -91,7 +91,7 @@ func VerifyPrimaryKeyDigest(devicePath string, alg crypto.Hash, salt []byte, dig
 	return false, errBuildWithoutSecboot
 }
 
-func ResealKeysWithFDESetupHook(keys []KeyDataLocation, primaryKeyFile string, models []ModelForSealing, bootModes []string) error {
+func ResealKeysWithFDESetupHook(keys []KeyDataLocation, primaryKey []byte, models []ModelForSealing, bootModes []string) error {
 	return errBuildWithoutSecboot
 }
 
@@ -123,4 +123,8 @@ func TemporaryNameOldKeys(devicePath string) error {
 
 func DeleteOldKeys(devicePath string) error {
 	return errBuildWithoutSecboot
+}
+
+func GetPrimaryKey(devices []string, fallbackKeyFile string) ([]byte, error) {
+	return nil, errBuildWithoutSecboot
 }
