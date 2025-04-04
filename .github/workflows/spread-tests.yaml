@@ -5,11 +5,6 @@ on:
         description: 'A json list of tags to indicate which runner to use'
         required: true
         type: string
-      force-use-ruleset:
-        description: 'If true, will force the use of the rulesset specified in the rules input'
-        required: false
-        default: false
-        type: boolean
       group:
         description: 'The name of the group of backends, systems, tests, and rules'
         required: true
@@ -52,17 +47,21 @@ on:
         description: 'Comma-separated list of experimental snapd features to enable with: snap set system "experimental.<feature-name>=true"'
         required: false
         type: string
-      spread-tag-features:
-        description: 'If specified, will tag the spread results with the specified features (comma-separated)'
+      spread-env:
+        description: 'Extra environment variables to set before calling spread (format ENV1=VALUE1 ENV2=VALUE2) that are not covered by the other inputs'
         required: false
         type: string
+      upload-artifacts:
+        description: 'If true, will upload any artifacts that spread produces'
+        type: boolean
+        required: false
+        default: false
 
 
 jobs:
   run-spread:
     env:
       SPREAD_EXPERIMENTAL_FEATURES: ${{ inputs.spread-experimental-features }}
-      SPREAD_TAG_FEATURES: ${{ inputs.spread-tag-features }}
       
     runs-on: ${{ fromJSON(inputs.runs-on) }}
     steps:
@@ -89,6 +88,13 @@ jobs:
       with:
         # spread uses tags as delta reference
         fetch-depth: 0
+
+    - name: Set extra spread environment variables
+      if: ${{ inputs.spread-env != '' }}
+      run: |
+          for env in ${{ inputs.spread-env }}; do
+            echo "$env" >> $GITHUB_ENV
+          done
 
     - name: set SPREAD_SNAPD_DEB_FROM_REPO=1
       if: ${{ inputs.spread-snapd-deb-from-repo == 'true' }}
@@ -321,7 +327,7 @@ jobs:
           fi
 
           SPREAD_FLAGS='-no-debug-output -logs spread-logs'
-          if [ -n "$SPREAD_TAG_FEATURES" ]; then
+          if [ "${{ inputs.upload-artifacts }}" = true ]; then
             SPREAD_FLAGS="$SPREAD_FLAGS -artifacts spread-artifacts"
             echo "ARTIFACTS_FOLDER=spread-artifacts" >> $GITHUB_ENV
           fi
@@ -398,38 +404,21 @@ jobs:
             echo "TEST_FAILED=true" >> $GITHUB_ENV
           fi
 
-    - name: Analyze feature tags
-      if: always() && env.SPREAD_TAG_FEATURES != ''
+    - name: Prepare artifact upload
+      if: always() && fromJSON(inputs.upload-artifacts)
       run: |
-        IFS=',' read -ra features <<< "$SPREAD_TAG_FEATURES"
-        featarg="-f "
-        for feature in "${features[@]}"; do
-          featarg+="$feature "
-        done
-        featdir="${ARTIFACTS_FOLDER}/extracted-tags"
-        mkdir -p "$featdir"
-        for dir in "${ARTIFACTS_FOLDER}/feature-tags"/*/; do
-          if [ -f "${dir}/journal.txt" ] && [ -f "${dir}/state.json" ]; then
-            ./tests/utils/features/featextractor.py \
-              $featarg \
-              --journal "${dir}/journal.txt" \
-              --state "${dir}/state.json" \
-              --output "$featdir/$(basename ${dir})"
-          fi
-        done
-        ./tests/utils/features/featcomposer.py \
-            --dir "$featdir" \
-            --output "feature-tags" \
-            --failed-tests "$(cat $FAILED_TESTS_FILE)" \
-            --run-attempt ${{ github.run_attempt }} \
-            --env-variables SPREAD_EXPERIMENTAL_FEATURES=${SPREAD_EXPERIMENTAL_FEATURES} SPREAD_SNAPD_DEB_FROM_REPO=${SPREAD_SNAPD_DEB_FROM_REPO}
+        echo "${{ github.run_attempt }}" > "${ARTIFACTS_FOLDER}/run-attempt.txt"
+        cp "$FAILED_TESTS_FILE" "${ARTIFACTS_FOLDER}/failed-tests.txt"
+        echo "SPREAD_EXPERIMENTAL_FEATURES=${SPREAD_EXPERIMENTAL_FEATURES}" > "${ARTIFACTS_FOLDER}/env-variables.txt"
+        echo "SPREAD_SNAPD_DEB_FROM_REPO=${SPREAD_SNAPD_DEB_FROM_REPO}" >> "${ARTIFACTS_FOLDER}/env-variables.txt"
+        tar -czf "spread-artifacts-${{ inputs.group }}-${{ inputs.systems }}_${{ github.run_attempt }}.tar.gz" "$ARTIFACTS_FOLDER"
 
-    - name: Upload feature tags
-      if: always() && env.SPREAD_TAG_FEATURES != ''
+    - name: Upload artifacts
+      if: always() && fromJSON(inputs.upload-artifacts)
       uses: actions/upload-artifact@v4
       with:
-        name: "feature-tags-${{ inputs.group }}-${{ inputs.systems }}_${{ github.run_attempt }}"
-        path: "feature-tags"
+        name: "spread-artifacts-${{ inputs.group }}-${{ inputs.systems }}_${{ github.run_attempt }}"
+        path: "spread-artifacts-${{ inputs.group }}-${{ inputs.systems }}_${{ github.run_attempt }}.tar.gz"
 
     - name: Save spread test results to cache
       if: always()
