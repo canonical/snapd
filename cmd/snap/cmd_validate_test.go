@@ -186,7 +186,7 @@ func (s *validateSuite) TestValidateQueryOne(c *check.C) {
 	c.Assert(err, check.IsNil)
 	c.Check(rest, check.HasLen, 0)
 	c.Check(s.Stderr(), check.Equals, "")
-	c.Check(s.Stdout(), check.Equals, "valid")
+	c.Check(s.Stdout(), check.Equals, "valid\n")
 }
 
 func (s *validateSuite) TestValidateQueryOneInvalid(c *check.C) {
@@ -199,7 +199,7 @@ func (s *validateSuite) TestValidateQueryOneInvalid(c *check.C) {
 	c.Assert(err, check.IsNil)
 	c.Check(rest, check.HasLen, 0)
 	c.Check(s.Stderr(), check.Equals, "")
-	c.Check(s.Stdout(), check.Equals, "invalid")
+	c.Check(s.Stdout(), check.Equals, "invalid\n")
 }
 
 func (s *validateSuite) TestValidationSetsList(c *check.C) {
