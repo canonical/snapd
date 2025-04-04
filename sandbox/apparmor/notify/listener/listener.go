@@ -27,11 +27,13 @@ import (
 	"fmt"
 	"os"
 	"sync"
+	"time"
 
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil/epoll"
 	"github.com/snapcore/snapd/sandbox/apparmor"
 	"github.com/snapcore/snapd/sandbox/apparmor/notify"
+	"github.com/snapcore/snapd/timeutil"
 )
 
 var (
@@ -43,6 +45,12 @@ var (
 
 	// ErrNotSupported indicates that the kernel does not support apparmor prompting.
 	ErrNotSupported = errors.New("kernel does not support apparmor notifications")
+
+	// readyTimeout is the time to wait to re-receive and process previously-
+	// pending requests from the kernel before we tell the manager we're ready.
+	// We should be able to re-receive messages very quickly, but there must be
+	// someone listening over l.reqs to quickly receive and process them too.
+	readyTimeout = time.Duration(5 * time.Second)
 
 	osOpen                       = os.Open
 	notifyRegisterFileDescriptor = notify.RegisterFileDescriptor
@@ -121,6 +129,48 @@ type Listener struct {
 	// Only the main run loop may close this channel.
 	reqs chan *Request
 
+	// ready is a channel which is closed once all requests which were pending
+	// at time of registration have been re-received from the kernel and sent
+	// over the reqs channel. This occurs once pendingCount reaches 0 or the
+	// ready timer times out. This channel must only be closed by the
+	// signalReadyAndFlushQueue method.
+	//
+	// Until this occurs, other new (not NOTF_RESENT) requests will be queued
+	// up by the listener, and only sent once all NOTIF_RESENT requests have
+	// been sent over the reqs channel.
+	ready chan struct{}
+	// doneReadying is a channel which is closed once signalReadyAndFlushQueue
+	// has finished writing queued requests to l.reqs. This channel is used so
+	// that the run loop can safely close l.reqs.
+	doneReadying chan struct{}
+	// readyTimer is a timer which will call signalReadyAndFlushQueue if the
+	// listener times out waiting for pending requests to be received.
+	readyTimer timeutil.Timer
+	// pendingMu is a mutex which protects pendingCount and readyQueue.
+	pendingMu sync.Mutex
+	// pendingCount is the number of "pending" (NOTIF_RESENT) messages still
+	// expected to be re-received from the kernel. When the listener becomes
+	// ready, this count must be sent to 0, as it's used as the internal check
+	// for whether a non-RESENT message should be queued.
+	//
+	// XXX: In order for this count to be accurate, it is important that the
+	// pending messages at time of registration are only re-sent by the kernel
+	// once, and that no messages which were first sent this listener was
+	// registered are resent. If, however, we are able to reset this count
+	// based on the result of the resend command, and the ready channel has not
+	// yet been closed, this is okay.
+	pendingCount int
+	// readyQueue is the queue of "ready" (not NOTIF_RESENT) requests from the
+	// kernel which were received before either all remaining pending requests
+	// were re-received or the ready timer timed out. Once one of these occurs,
+	// all requests in this queue should be sent by signalReadyAndFlushQueue in
+	// the order in which they were received, and the queue should be discarded.
+	//
+	// The motivation for queueing non-resent requests until the listener is
+	// ready is so that consumers of the listener requests can re-create their
+	// state (i.e. prompts) fully before any new requests are received.
+	readyQueue []*Request
+
 	// protocolVersion is the notification protocol version associated with the
 	// listener's notify socket. Once registered with a particular version,
 	// that version will be used for all messages sent or received over that
@@ -158,11 +208,6 @@ func Register() (listener *Listener, err error) {
 		}
 	}()
 
-	protoVersion, err := notifyRegisterFileDescriptor(notifyFile.Fd())
-	if err != nil {
-		return nil, err
-	}
-
 	poll, err := epoll.Open()
 	if err != nil {
 		return nil, fmt.Errorf("cannot open epoll file descriptor: %v", err)
@@ -176,8 +221,18 @@ func Register() (listener *Listener, err error) {
 		return nil, fmt.Errorf("cannot register epoll on %q: %v", path, err)
 	}
 
+	protoVersion, pendingCount, err := notifyRegisterFileDescriptor(notifyFile.Fd())
+	if err != nil {
+		return nil, err
+	}
+
 	listener = &Listener{
 		reqs: make(chan *Request),
+
+		ready:        make(chan struct{}),
+		doneReadying: make(chan struct{}),
+		readyTimer:   timeutil.NewTimer(0), // initialize placeholder non-nil timer
+		pendingCount: pendingCount,
 
 		protocolVersion: protoVersion,
 
@@ -185,7 +240,16 @@ func Register() (listener *Listener, err error) {
 		poll:       poll,
 		closeChan:  make(chan struct{}),
 	}
+	// If there are no pending requests waiting to be re-sent, ready
+	// immediately, otherwise start the ready timer when Run is called.
+	if listener.pendingCount == 0 {
+		listener.signalReadyAndFlushQueue()
+	}
 	return listener, nil
+}
+
+var timeAfterFunc = func(d time.Duration, f func()) timeutil.Timer {
+	return timeutil.AfterFunc(d, f)
 }
 
 // isClosed returns true if the listener has been closed.
@@ -238,6 +302,20 @@ func (l *Listener) Reqs() <-chan *Request {
 	return l.reqs
 }
 
+// Ready returns a read-only channel which will be closed once all requests
+// which were pending when the listener was registered have been re-received
+// from the kernel and sent over the reqs channel. No non-resent requests will
+// be sent until all originally-pending requests have been resent.
+//
+// The channel will close automatically after a timeout even if not all pending
+// requests have been re-received.
+//
+// The caller may wish to block new prompt replies or rules until after the
+// ready channel has been closed.
+func (l *Listener) Ready() <-chan struct{} {
+	return l.ready
+}
+
 // Allow tests to kill the listener instead of logging errors so that tests
 // don't have race condition failures.
 var exitOnError = false
@@ -252,7 +330,23 @@ func (l *Listener) Run() error {
 	l.once.Do(func() {
 		// Run should only be called once, so this once.Do is really only an
 		// extra precaution to ensure that l.reqs is only closed once.
+
+		// If there were pending requests at time of registration, then Register
+		// didn't set a real ready timer with callback, so do so now.
+		if l.pendingCount != 0 {
+			l.readyTimer = timeAfterFunc(readyTimeout, l.signalReadyAndFlushQueue)
+		}
 		defer func() {
+			if !l.readyTimer.Stop() {
+				// Already fired or stopped (which in both cases should result
+				// in signalReadyAndFlushQueue() being called), so ensure it
+				// won't try to write to l.reqs by waiting for l.doneReadying.
+				<-l.doneReadying
+			}
+			// The manager is closing the listener, so if the listener isn't
+			// ready by now, it doesn't matter, the manager has stopped
+			// receiving requests by now anyway.
+
 			// When listener run loop ends, close the requests channel.
 			close(l.reqs)
 		}()
@@ -334,11 +428,13 @@ func (l *Listener) doIoctl(sendOrRecv notify.IoctlRequest, buf notify.IoctlReque
 // creates a Request from that message, and attempts to send it to the manager
 // via the request channel.
 func (l *Listener) decodeAndDispatchRequest(buf []byte) error {
-	for {
+	for len(buf) > 0 {
 		first, rest, err := notify.ExtractFirstMsg(buf)
 		if err != nil {
 			return err
 		}
+		buf = rest
+
 		var nmsg notify.MsgNotification
 		if err := nmsg.UnmarshalBinary(first); err != nil {
 			return err
@@ -373,6 +469,20 @@ func (l *Listener) decodeAndDispatchRequest(buf []byte) error {
 			return err
 		}
 
+		// Before sending the request, check if it should instead be queued.
+		if !msg.Resent() {
+			// This is a new message, not one we're re-receiving, so if the
+			// listener is not yet ready, queue it up for later instead.
+			l.pendingMu.Lock()
+			if l.pendingCount > 0 {
+				l.readyQueue = append(l.readyQueue, req)
+				l.pendingMu.Unlock()
+				continue
+			}
+			l.pendingMu.Unlock()
+			// The listener is ready, so carry on sending this request
+		}
+
 		// Try to send request to manager, or wait for listener to be closed
 		select {
 		case l.reqs <- req:
@@ -387,11 +497,27 @@ func (l *Listener) decodeAndDispatchRequest(buf []byte) error {
 			return ErrClosed
 		}
 
-		if len(rest) == 0 {
-			return nil
+		if !msg.Resent() {
+			continue
 		}
-		buf = rest
+		// Message was previously sent, see if it was the last one we're waiting for
+		l.pendingMu.Lock()
+		if l.pendingCount > 0 {
+			l.pendingCount--
+		}
+		stillWaiting := l.pendingCount > 0
+		l.pendingMu.Unlock()
+		if stillWaiting {
+			continue
+		}
+		// This is the final pending request we were waiting for.
+		if l.readyTimer.Stop() {
+			// We stopped the timer before it fired, so we can signal
+			// ready. Otherwise, the timer already signalled for us.
+			l.signalReadyAndFlushQueue()
+		}
 	}
+	return nil
 }
 
 func parseMsgNotificationFile(buf []byte) (*notify.MsgNotificationFile, error) {
@@ -421,6 +547,32 @@ func (l *Listener) newRequest(msg notify.MsgNotificationGeneric) (*Request, erro
 
 		listener: l,
 	}, nil
+}
+
+// signalReadyAndFlushQueue is responsible for closing the ready channel,
+// setting pendingCount to 0, and sending any requests which were queued in the
+// ready queue. When it's done, it closes doneReadying so that waiters know
+// it's safe to close l.reqs.
+//
+// Potential callers must ensure that this method is only called once per
+// listener.
+func (l *Listener) signalReadyAndFlushQueue() {
+	l.pendingMu.Lock()
+	defer l.pendingMu.Unlock()
+	defer close(l.doneReadying)
+	l.pendingCount = 0 // if timed out, tell the run loop we're ready, stop queueing
+	close(l.ready)
+	for _, req := range l.readyQueue {
+		// Try to send request to manager, or wait for listener to be closed
+		select {
+		case l.reqs <- req:
+			// request received
+		case <-l.closeChan:
+			// Break rather than return so we're sure to close l.doneReadying
+			break
+		}
+	}
+	l.readyQueue = nil
 }
 
 var encodeAndSendResponse = func(l *Listener, resp *notify.MsgNotificationResponse) error {
