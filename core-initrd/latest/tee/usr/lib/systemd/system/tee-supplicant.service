@@ -1,0 +1,20 @@
+# SPDX-License-Identifier: BSD-2-Clause
+# Adapted from https://github.com/OP-TEE/optee_client/blob/6486773583b5983af8250a47cf07eca938e0e422/tee-supplicant/tee-supplicant%40.service.in
+[Unit]
+Description=TEE Supplicant
+DefaultDependencies=no
+ConditionKernelCommandLine=snapd_recovery_mode=run
+After=dev-teepriv0.device run-mnt-tee\x2ddata.mount
+Wants=dev-teepriv0.device run-mnt-tee\x2ddata.mount
+Before=sysinit.target
+Before=snap-initramfs-mounts.service
+
+[Service]
+# tee-supplicant v4.3+ (Oracular and newer) has sd_notify support
+Type=notify
+ExecStartPre=-/bin/sh modprobe -v -r tpm_ftpm_tee
+ExecStart=/usr/sbin/tee-supplicant --fs-parent-path /run/mnt/tee-data
+ExecStartPost=/bin/sh modprobe -v tpm_ftpm_tee
+
+# Workaround for fTPM TA: stop kernel module before tee-supplicant
+ExecStop=-/bin/sh -c "/sbin/modprobe -v -r tpm_ftpm_tee ; /bin/kill $MAINPID"
