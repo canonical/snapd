@@ -239,10 +239,10 @@ func activateVolOpts(allowRecoveryKey bool, allowPassphrase bool, legacyPaths ..
 	return &options
 }
 
-func newAuthRequestor() (sb.AuthRequestor, error) {
+func newAuthRequestor() sb.AuthRequestor {
 	return sb.NewSystemdAuthRequestor(
-		"Please enter the passphrase for volume {{.VolumeName}} for device {{.SourceDevicePath}}",
-		"Please enter the recovery key for volume {{.VolumeName}} for device {{.SourceDevicePath}}",
+		"Please enter the passphrase for volume %[1]s for device %[2]s",
+		"Please enter the recovery key for volume %[1]s for device %[2]s",
 	)
 }
 
