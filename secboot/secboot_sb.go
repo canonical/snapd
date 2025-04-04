@@ -35,6 +35,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/snapcore/snapd/kernel/fde"
+	"github.com/snapcore/snapd/kernel/fde/optee"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil/disks"
 	"github.com/snapcore/snapd/secboot/keys"
@@ -72,6 +73,13 @@ func LockSealedKeys() error {
 	if fdeHasRevealKey() {
 		return fde.LockSealedKeys()
 	}
+
+	// TODO: this should come after we attempt to use the TPM
+	if optee.TAPresent() {
+		logger.Noticef("using FDE TA to lock sealed keys")
+		return optee.LockTA()
+	}
+
 	return lockTPMSealedKeys()
 }
 
@@ -138,7 +146,10 @@ func UnlockVolumeUsingSealedKeyIfEncrypted(disk disks.Disk, name string, sealedE
 
 	res.PartDevice = partDevice
 
-	hintExpectFDEHook := fdeHasRevealKey()
+	// TODO: better name for this, since this isn't just a hook now. really, we
+	// need a name that is representative of an abstraction over both the hooks
+	// and the integrated optee implementation, since they are both so similar.
+	hintExpectFDEHook := fdeHasRevealKey() || optee.TAPresent()
 
 	loadedKey := &defaultKeyLoader{}
 	if err := readKeyFile(sealedEncryptionKeyFile, loadedKey, hintExpectFDEHook); err != nil {
@@ -164,7 +175,15 @@ func UnlockVolumeUsingSealedKeyIfEncrypted(disk disks.Disk, name string, sealedE
 
 	sbSetBootMode(opts.BootMode)
 	defer sbSetBootMode("")
-	sbSetKeyRevealer(&keyRevealerV3{})
+
+	if hintExpectFDEHook {
+		// why doesn't this already happen conditionally, based on hintExpectFDEHook?
+		sbSetKeyRevealer(&keyRevealerV3{})
+	} else {
+		// if we don't have the hook, then we assume the optee implementation
+		// will work
+		sbSetKeyRevealer(&opteeKeyRevealer{})
+	}
 	defer sbSetKeyRevealer(nil)
 
 	const allowPassphrase = true

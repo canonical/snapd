@@ -113,6 +113,7 @@ const (
 	SealingMethodLegacyTPM    = SealingMethod("")
 	SealingMethodTPM          = SealingMethod("tpm")
 	SealingMethodFDESetupHook = SealingMethod("fde-setup-hook")
+	SealingMethodOPTEE        = SealingMethod("optee")
 )
 
 // StampSealedKeys writes what sealing method was used for key sealing

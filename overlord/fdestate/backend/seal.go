@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"path/filepath"
 
+	"github.com/snapcore/secboot/hooks"
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/gadget/device"
@@ -32,10 +33,10 @@ import (
 )
 
 var (
-	secbootProvisionTPM             = secboot.ProvisionTPM
-	secbootSealKeys                 = secboot.SealKeys
-	secbootSealKeysWithFDESetupHook = secboot.SealKeysWithFDESetupHook
-	secbootFindFreeHandle           = secboot.FindFreeHandle
+	secbootProvisionTPM          = secboot.ProvisionTPM
+	secbootSealKeys              = secboot.SealKeys
+	secbootSealKeysWithProtector = secboot.SealKeysWithProtector
+	secbootFindFreeHandle        = secboot.FindFreeHandle
 )
 
 // Hook functions setup by devicestate to support device-specific full
@@ -148,7 +149,14 @@ func sealFallbackObjectKeys(key, saveKey secboot.BootstrappedContainer, pbc boot
 	return nil
 }
 
-func sealKeyForBootChainsHook(key, saveKey secboot.BootstrappedContainer, params *boot.SealKeyForBootChainsParams) error {
+// TODO: rename me
+func sealKeyForBootChainsHook(method device.SealingMethod, key, saveKey secboot.BootstrappedContainer, params *boot.SealKeyForBootChainsParams) error {
+	switch method {
+	case device.SealingMethodFDESetupHook, device.SealingMethodOPTEE:
+	default:
+		return fmt.Errorf("internal error: sealKeyForBootChainsHook called with unsupported method %q", method)
+	}
+
 	sealingParams := secboot.SealKeysWithFDESetupHookParams{
 		AuxKeyFile: filepath.Join(boot.InstallHostFDESaveDir, "aux-key"),
 		PrimaryKey: params.PrimaryKey,
@@ -160,11 +168,19 @@ func sealKeyForBootChainsHook(key, saveKey secboot.BootstrappedContainer, params
 	}
 
 	skrs := append(runKeySealRequests(key, params.UseTokens), fallbackKeySealRequests(key, saveKey, params.FactoryReset, params.UseTokens)...)
-	if err := secbootSealKeysWithFDESetupHook(RunFDESetupHook, skrs, &sealingParams); err != nil {
+
+	newProtector := func(name string) hooks.KeyProtector {
+		if method == device.SealingMethodFDESetupHook {
+			return secboot.NewHookKeyProtector(RunFDESetupHook, name)
+		}
+		return secboot.NewOpteeKeyProtector()
+	}
+
+	if err := secbootSealKeysWithProtector(newProtector, skrs, &sealingParams); err != nil {
 		return err
 	}
 
-	if err := device.StampSealedKeys(params.InstallHostWritableDir, device.SealingMethodFDESetupHook); err != nil {
+	if err := device.StampSealedKeys(params.InstallHostWritableDir, method); err != nil {
 		return err
 	}
 
@@ -184,9 +200,12 @@ func sealKeyForBootChainsHook(key, saveKey secboot.BootstrappedContainer, params
 }
 
 func sealKeyForBootChainsBackend(method device.SealingMethod, key, saveKey secboot.BootstrappedContainer, primaryKey []byte, volumesAuth *device.VolumesAuthOptions, params *boot.SealKeyForBootChainsParams) error {
-	if method == device.SealingMethodFDESetupHook {
+	if method == device.SealingMethodFDESetupHook || method == device.SealingMethodOPTEE {
+		// TODO: unsure what this means, but should it be supported for the
+		// OPTEE integration?
+		//
 		// volumes authentication is not supported for FDE hooks
-		return sealKeyForBootChainsHook(key, saveKey, params)
+		return sealKeyForBootChainsHook(method, key, saveKey, params)
 	}
 
 	pbc := boot.ToPredictableBootChains(append(params.RunModeBootChains, params.RecoveryBootChains...))
@@ -271,11 +290,11 @@ func MockSecbootSealKeys(f func(keys []secboot.SealKeyRequest, params *secboot.S
 	}
 }
 
-func MockSecbootSealKeysWithFDESetupHook(f func(runHook fde.RunSetupHookFunc, keys []secboot.SealKeyRequest, params *secboot.SealKeysWithFDESetupHookParams) error) (restore func()) {
-	old := secbootSealKeysWithFDESetupHook
-	secbootSealKeysWithFDESetupHook = f
+func MockSecbootSealKeysWithFDESetupHook(f func(newProtector func(name string) hooks.KeyProtector, keys []secboot.SealKeyRequest, params *secboot.SealKeysWithFDESetupHookParams) error) (restore func()) {
+	old := secbootSealKeysWithProtector
+	secbootSealKeysWithProtector = f
 	return func() {
-		secbootSealKeysWithFDESetupHook = old
+		secbootSealKeysWithProtector = old
 	}
 }
 

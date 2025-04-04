@@ -1840,7 +1840,12 @@ func (s *secbootSuite) testSealKeysWithFDESetupHookHappy(c *C, useKeyFiles bool)
 		myKeys[0].KeyFile = filepath.Join(tmpDir, "key-file-1")
 		myKeys[1].KeyFile = filepath.Join(tmpDir, "key-file-2")
 	}
-	err := secboot.SealKeysWithFDESetupHook(runFDESetupHook, myKeys, &params)
+
+	newProtector := func(name string) sb_hooks.KeyProtector {
+		return secboot.NewHookKeyProtector(runFDESetupHook, name)
+	}
+
+	err := secboot.SealKeysWithProtector(newProtector, myKeys, &params)
 	c.Assert(err, IsNil)
 	// check that runFDESetupHook was called the expected way
 	c.Check(runFDESetupHookReqs, HasLen, 2)
