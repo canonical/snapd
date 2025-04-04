@@ -9,7 +9,6 @@ import (
 )
 
 // states for partition state
-// TODO: transform those into enums
 const (
 	// states for LocateState
 	PartitionFound      = "found"
