@@ -1,0 +1,117 @@
+summary: Check for hybrid models using core22 with 24 kernel
+
+details: Check for hybrid models using core22 with 24 kernel
+
+systems: [ubuntu-24*]
+
+environment:
+  NESTED_ENABLE_TPM: true
+  NESTED_ENABLE_SECURE_BOOT: true
+
+  # ensure we use our latest code
+  NESTED_BUILD_SNAPD_FROM_CURRENT: true
+  NESTED_REPACK_KERNEL_SNAP: true
+  NESTED_ENABLE_OVMF: true
+  # store related setup
+  STORE_ADDR: localhost:11028
+  STORE_DIR: $(pwd)/fake-store-blobdir
+  # image
+  IMAGE_MOUNTPOINT: /mnt/cloudimg
+
+prepare: |
+  if [ "$TRUST_TEST_KEYS" = "false" ]; then
+      echo "This test needs test keys to be trusted"
+      exit
+  fi
+  "$TESTSTOOLS"/store-state setup-fake-store "$STORE_DIR"
+
+restore: |
+  "$TESTSTOOLS"/store-state teardown-fake-store "$STORE_DIR"
+  rm -rf pc-kernel.* pc.* initrd* linux* kernel* tmp* pc-gadget
+
+execute: |
+  # shellcheck source=tests/lib/prepare.sh
+  . "$TESTSLIB/prepare.sh"
+  #shellcheck source=tests/lib/nested.sh
+  . "$TESTSLIB"/nested.sh
+
+  echo "Expose the needed assertions through the fakestore"
+  cp "$TESTSLIB"/assertions/developer1.account "$STORE_DIR/asserts"
+  cp "$TESTSLIB"/assertions/developer1.account-key "$STORE_DIR/asserts"
+  cp "$TESTSLIB"/assertions/testrootorg-store.account-key "$STORE_DIR/asserts"
+  export SNAPPY_FORCE_SAS_URL=http://$STORE_ADDR
+
+  core_version=22
+  kernel_version="$(nested_get_version)"
+
+  # Retrieve the gadget
+  snap download --basename=pc --channel="$core_version/edge" pc
+  # the fakestore needs the assertion
+  snap ack pc.assert
+  # keep original blob just so we can find the assertion later
+  cp pc.snap pc.snap.orig
+
+  # New modified gadget
+  unsquashfs -d pc-gadget pc.snap
+  echo 'console=ttyS0 systemd.journald.forward_to_console=1' > pc-gadget/cmdline.extra
+  echo "Sign the shim binary"
+  KEY_NAME=$(tests.nested download snakeoil-key)
+  SNAKEOIL_KEY="$PWD/$KEY_NAME.key"
+  SNAKEOIL_CERT="$PWD/$KEY_NAME.pem"
+  tests.nested secboot-sign gadget pc-gadget "$SNAKEOIL_KEY" "$SNAKEOIL_CERT"
+  snap pack --filename=pc.snap pc-gadget/
+
+  # Retrieve kernel
+  snap download --basename=pc-kernel-from-store --channel="$kernel_version/edge" pc-kernel
+  # the fakestore needs this assertion
+  snap ack pc-kernel-from-store.assert
+  # Build kernel with initramfs with the compiled snap-bootstrap
+  uc24_build_initramfs_kernel_snap "$PWD/pc-kernel-from-store.snap" "$NESTED_ASSETS_DIR"
+  mv "${NESTED_ASSETS_DIR}"/pc-kernel_*.snap pc-kernel-repacked.snap
+
+  gendeveloper1 sign-model < "$TESTSLIB"/assertions/developer1-22-kernel-24-classic-dangerous.json > classic.model
+
+  # create new disk for the installer to work on and attach to VM
+  truncate --size=6G disk.img
+
+  # setup_nested_hybrid_system.sh runs the muinstaller to install a hybrid
+  # system
+  # shellcheck disable=SC2086
+  "${TESTSTOOLS}"/setup_nested_hybrid_system.sh \
+     --model classic.model \
+     --store-dir "${STORE_DIR}" \
+     --gadget pc.snap \
+     --gadget-assertion pc.assert \
+     --kernel pc-kernel-repacked.snap \
+     --kernel-assertion pc-kernel-from-store.assert \
+     --disk disk.img
+
+  # basic things look fine
+  remote.exec "cat /etc/os-release" | MATCH 'NAME="Ubuntu"'
+  remote.exec "snap changes" | MATCH "Done.* Initialize system state"
+  remote.exec "snap list" | MATCH pc-kernel
+
+  # Check the model is as expected
+  remote.exec snap known model | MATCH '^base: core22'
+
+  # Check that a drivers tree was created
+  krel=$(remote.exec uname -r)
+  drivers_tree=/var/lib/snapd/kernel/pc-kernel/x1/lib/modules/"$krel"/
+  remote.exec stat "$drivers_tree"
+  # Must be a symlink
+  remote.exec readlink /lib/modules/"$krel"/kernel | MATCH /snap/pc-kernel/x1/modules/"$krel"/kernel
+  remote.exec lsmod | MATCH efi_pstore
+
+  # Now forcibly remove the drivers tree
+  remote.exec sudo rm -rf /var/lib/snapd/kernel/
+
+  # Reboot
+  boot_id=$(tests.nested boot-id)
+  remote.exec sudo reboot || true
+  tests.nested wait-for reboot "$boot_id"
+
+  # We still get modules, but mounted directly from the kernel snap
+  remote.exec mountpoint /run/mnt/kernel
+  remote.exec mount | MATCH 'pc-kernel_.*.snap on /usr/lib/modules'
+  remote.exec mount | MATCH 'pc-kernel_.*.snap on /usr/lib/firmware'
+  remote.exec lsmod | MATCH efi_pstore

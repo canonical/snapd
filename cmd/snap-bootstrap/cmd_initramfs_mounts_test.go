@@ -362,6 +362,11 @@ What=%s
 Where=%s
 Options=bind,shared
 `, what, where))
+
+		symlinkPath := filepath.Join(unitsPath, "initrd-fs.target.wants", unit)
+		target, err := os.Readlink(symlinkPath)
+		c.Assert(err, IsNil)
+		c.Assert(target, Equals, "../"+unit)
 	}
 }
 
