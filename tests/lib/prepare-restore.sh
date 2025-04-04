@@ -744,7 +744,8 @@ prepare_suite_each() {
 
 restore_suite_each() {
     if not tests.nested is-nested; then
-        "$TESTSLIB"/collect-features.sh --after-non-nested-task
+        "$TESTSLIB"/collect-artifacts.sh features --after-non-nested-task
+        "$TESTSLIB"/collect-artifacts.sh locks
     fi
     local variant="$1"
 

@@ -595,6 +595,8 @@ path: /home/gopath/src/github.com/snapcore/snapd
 artifacts:
     # Populated with feature tag information when SPREAD_TAG_FEATURES is set.
     - feature-tags
+    # Populated with feature tag information when SPREAD_SNAPD_STATE_LOCK_TRACE_THRESHOLD_MS is set.
+    - state-locks
 
 exclude:
     - .git

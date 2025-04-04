@@ -1,34 +1,10 @@
 import unittest
 from io import StringIO
 
-from state_locks_filter import (
-    LockOpTrace,
-    LockOp,
-    LocksGroup,
-    GroupTimes,
-    LockTraceManager,
-    LocksFileReader,
-    get_next_match
-)
+from common import LockOpTrace, get_next_match
 
-class TestLockOpTrace(unittest.TestCase):
-    def setUp(self):
-        self.lines = ["line 1\n", "line 2\n", "line 3\n"]
-        self.trace = LockOpTrace(self.lines)
+from filter import LockOp, LocksGroup, GroupTimes, LockTraceManager, LocksFileReader
 
-    def test_get_trace_lines(self):
-        self.assertEqual(self.trace.get_trace_lines(), self.lines)
-
-    def test_match(self):
-        self.assertTrue(self.trace.match("line 2"))
-        self.assertFalse(self.trace.match("line 4"))
-
-    def test_str(self):
-        self.assertEqual(str(self.trace), "line 1\nline 2\nline 3\n")
-
-    def test_eq(self):
-        other_trace = LockOpTrace(self.lines)
-        self.assertEqual(self.trace, other_trace)
 
 class TestLockOp(unittest.TestCase):
     def setUp(self):
@@ -44,6 +20,7 @@ class TestLockOp(unittest.TestCase):
     def test_get_trace(self):
         expected_trace = LockOpTrace(["line 1\n", "line 2\n"])
         self.assertEqual(self.lock_op.get_trace(), expected_trace)
+
 
 class TestLocksGroup(unittest.TestCase):
     def setUp(self):
@@ -74,6 +51,7 @@ class TestLocksGroup(unittest.TestCase):
         trace = self.group.get_traces()[0]
         self.assertEqual(self.group.get_lock_wait_time(trace), 5)
 
+
 class TestGroupTimes(unittest.TestCase):
     def setUp(self):
         self.group_time = GroupTimes("Test Group", 10, 5)
@@ -86,6 +64,7 @@ class TestGroupTimes(unittest.TestCase):
 
     def test_get_wait_time(self):
         self.assertEqual(self.group_time.get_wait_time(), 5)
+
 
 class TestLockTraceManager(unittest.TestCase):
     def setUp(self):
@@ -104,6 +83,7 @@ class TestLockTraceManager(unittest.TestCase):
         self.assertEqual(len(self.manager.traces), 1)
         self.manager.match(["line 3"])
         self.assertEqual(len(self.manager.traces), 0)
+
 
 class TestLocksFileReader(unittest.TestCase):
     def setUp(self):
@@ -130,6 +110,7 @@ class TestLocksFileReader(unittest.TestCase):
         traces_times = self.reader.get_traces_times()
         self.assertEqual(len(traces_times), 3)
 
+
 class TestGetNextMatch(unittest.TestCase):
     def test_get_next_match(self):
         lines = ["line 1\n", "line 2\n", "###START: Test\n", "line 3\n"]
@@ -137,6 +118,7 @@ class TestGetNextMatch(unittest.TestCase):
         self.assertEqual(result, 2)
         result = get_next_match(lines, 2, "###START:")
         self.assertEqual(result, -1)
+
 
 if __name__ == "__main__":
     unittest.main()
