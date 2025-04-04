@@ -640,9 +640,9 @@ func (*listenerSuite) TestRunWithPendingReady(c *C) {
 		// all good
 	}
 
-	// Send second message, this time with NOTIF_RESENT flag
+	// Send second message, this time with UNOTIF_RESENT flag
 	msg.KernelNotificationID = 0xba4
-	msg.Flags = notify.NOTIF_RESENT
+	msg.Flags = notify.UNOTIF_RESENT
 	buf, err = msg.MarshalBinary()
 	c.Assert(err, IsNil)
 	recvChan <- buf
@@ -652,7 +652,7 @@ func (*listenerSuite) TestRunWithPendingReady(c *C) {
 	case req := <-l.Reqs():
 		c.Assert(req.ID, Equals, msg.KernelNotificationID)
 	case <-time.NewTimer(10 * time.Millisecond).C:
-		c.Fatalf("failed to receive request with NOTIF_RESENT")
+		c.Fatalf("failed to receive request with UNOTIF_RESENT")
 	}
 
 	// Send third message, no flags
@@ -670,9 +670,9 @@ func (*listenerSuite) TestRunWithPendingReady(c *C) {
 		// all good
 	}
 
-	// Send fourth message, this time with NOTIF_RESENT flag again
+	// Send fourth message, this time with UNOTIF_RESENT flag again
 	msg.KernelNotificationID = 0xdef
-	msg.Flags = notify.NOTIF_RESENT
+	msg.Flags = notify.UNOTIF_RESENT
 	buf, err = msg.MarshalBinary()
 	c.Assert(err, IsNil)
 	recvChan <- buf
@@ -682,13 +682,13 @@ func (*listenerSuite) TestRunWithPendingReady(c *C) {
 	case req := <-l.Reqs():
 		c.Assert(req.ID, Equals, msg.KernelNotificationID)
 	case <-time.NewTimer(10 * time.Millisecond).C:
-		c.Fatalf("failed to receive request with NOTIF_RESENT")
+		c.Fatalf("failed to receive request with UNOTIF_RESENT")
 	}
 
-	// Send fifth message, this time with NOTIF_RESENT flag again, the last
+	// Send fifth message, this time with UNOTIF_RESENT flag again, the last
 	// one the listener is waiting for
 	msg.KernelNotificationID = 0x123
-	msg.Flags = notify.NOTIF_RESENT
+	msg.Flags = notify.UNOTIF_RESENT
 	buf, err = msg.MarshalBinary()
 	c.Assert(err, IsNil)
 	recvChan <- buf
@@ -697,10 +697,10 @@ func (*listenerSuite) TestRunWithPendingReady(c *C) {
 	case req := <-l.Reqs():
 		c.Assert(req.ID, Equals, msg.KernelNotificationID)
 	case <-time.NewTimer(10 * time.Millisecond).C:
-		c.Fatalf("failed to receive request with NOTIF_RESENT")
+		c.Fatalf("failed to receive request with UNOTIF_RESENT")
 	}
 	checkListenerReadyWithTimeout(c, l, true, 10*time.Millisecond) // ready now that all pending requests have been received
-	// Then expect the previous non-NOTIF_RESENT requests which were queued
+	// Then expect the previous non-UNOTIF_RESENT requests which were queued
 	for _, id := range []uint64{0xf00, 0xabc} {
 		select {
 		case req := <-l.Reqs():
@@ -785,9 +785,9 @@ func (*listenerSuite) TestRunWithPendingReadyTimeout(c *C) {
 		// all good
 	}
 
-	// Send second message, this time with NOTIF_RESENT flag
+	// Send second message, this time with UNOTIF_RESENT flag
 	msg.KernelNotificationID = 0xba4
-	msg.Flags = notify.NOTIF_RESENT
+	msg.Flags = notify.UNOTIF_RESENT
 	buf, err = msg.MarshalBinary()
 	c.Assert(err, IsNil)
 	recvChan <- buf
@@ -797,7 +797,7 @@ func (*listenerSuite) TestRunWithPendingReadyTimeout(c *C) {
 	case req := <-l.Reqs():
 		c.Assert(req.ID, Equals, msg.KernelNotificationID)
 	case <-time.NewTimer(10 * time.Millisecond).C:
-		c.Fatalf("failed to receive request with NOTIF_RESENT")
+		c.Fatalf("failed to receive request with UNOTIF_RESENT")
 	}
 
 	// Send third message, no flags
@@ -815,9 +815,9 @@ func (*listenerSuite) TestRunWithPendingReadyTimeout(c *C) {
 		// all good
 	}
 
-	// Send fourth message, this time with NOTIF_RESENT flag again
+	// Send fourth message, this time with UNOTIF_RESENT flag again
 	msg.KernelNotificationID = 0xdef
-	msg.Flags = notify.NOTIF_RESENT
+	msg.Flags = notify.UNOTIF_RESENT
 	buf, err = msg.MarshalBinary()
 	c.Assert(err, IsNil)
 	recvChan <- buf
@@ -827,7 +827,7 @@ func (*listenerSuite) TestRunWithPendingReadyTimeout(c *C) {
 	case req := <-l.Reqs():
 		c.Assert(req.ID, Equals, msg.KernelNotificationID)
 	case <-time.NewTimer(10 * time.Millisecond).C:
-		c.Fatalf("failed to receive request with NOTIF_RESENT")
+		c.Fatalf("failed to receive request with UNOTIF_RESENT")
 	}
 
 	c.Assert(timer.Active(), Equals, true)
@@ -836,7 +836,7 @@ func (*listenerSuite) TestRunWithPendingReadyTimeout(c *C) {
 	c.Assert(timer.Active(), Equals, false)
 	c.Assert(timer.FireCount(), Equals, 1)
 	// Expect the callback to first mark the listener as ready, and then send
-	// the previous non-NOTIF_RESENT requests which were queued.
+	// the previous non-UNOTIF_RESENT requests which were queued.
 	checkListenerReadyWithTimeout(c, l, true, 10*time.Millisecond)
 	for _, id := range []uint64{0xf00, 0xabc} {
 		select {
@@ -862,10 +862,10 @@ func (*listenerSuite) TestRunWithPendingReadyTimeout(c *C) {
 		c.Fatalf("failed to receive request with IX 0x%x after listener ready", msg.ID())
 	}
 
-	// Send sixth message, this time with NOTIF_RESENT flag again, the last one
+	// Send sixth message, this time with UNOTIF_RESENT flag again, the last one
 	// the listener would be waiting for if it weren't already ready
 	msg.KernelNotificationID = 0x456
-	msg.Flags = notify.NOTIF_RESENT
+	msg.Flags = notify.UNOTIF_RESENT
 	buf, err = msg.MarshalBinary()
 	c.Assert(err, IsNil)
 	recvChan <- buf
@@ -1016,7 +1016,7 @@ func (*listenerSuite) TestRunEpoll(c *C) {
 	protoVersion := notify.ProtocolVersion(12345)
 
 	restoreRegisterFileDescriptor := listener.MockNotifyRegisterFileDescriptor(func(fd uintptr) (notify.ProtocolVersion, int, error) {
-		pendingCount := 0 // TODO: set to 1, send 2 messages, with second one NOTIF_RESENT, and check that the second is received first
+		pendingCount := 0 // TODO: set to 1, send 2 messages, with second one UNOTIF_RESENT, and check that the second is received first
 		return protoVersion, pendingCount, nil
 	})
 	defer restoreRegisterFileDescriptor()
