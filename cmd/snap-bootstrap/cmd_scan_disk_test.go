@@ -38,10 +38,9 @@ import (
 type scanDiskSuite struct {
 	testutil.BaseTest
 
-	probeMap     map[string]*blkid.FakeBlkidProbe
-	efiVariables map[string]string
-	cmdlineFile  string
-	env          map[string]string
+	probeMap    map[string]*blkid.FakeBlkidProbe
+	cmdlineFile string
+	env         map[string]string
 }
 
 var _ = Suite(&scanDiskSuite{})
@@ -54,10 +53,6 @@ func (s *scanDiskSuite) SetUpTest(c *C) {
 	s.probeMap = make(map[string]*blkid.FakeBlkidProbe)
 	cleanupBlkid := blkid.MockBlkidMap(s.probeMap)
 	s.AddCleanup(cleanupBlkid)
-
-	s.efiVariables = make(map[string]string)
-	cleanupEfiVars := main.MockEfiVars(s.efiVariables)
-	s.AddCleanup(cleanupEfiVars)
 
 	disk_values := make(map[string]string)
 	disk_values["PTTYPE"] = "gpt"
@@ -86,7 +81,7 @@ func (s *scanDiskSuite) SetUpTest(c *C) {
 	s.AddCleanup(cmdlineCleanup)
 
 	s.env = make(map[string]string)
-	cleanupEnv := main.MockOsGetenv(func (envVar string) string {
+	cleanupEnv := main.MockOsGetenv(func(envVar string) string {
 		return s.env[envVar]
 	})
 	s.AddCleanup(cleanupEnv)
@@ -119,7 +114,7 @@ func (o *outputScanner) GetLines() map[string]struct{} {
 }
 
 func (s *scanDiskSuite) TestDetectBootDisk(c *C) {
-	s.efiVariables["LoaderDevicePartUUID-4a67b082-0a4c-41cf-b6c7-440b29bb8c4f"] = "29261148-B8BA-4335-B934-417ED71E9E91"
+	main.MockPartitionUUIDForBootedKernelDisk("29261148-b8ba-4335-b934-417ed71e9e91")
 
 	s.env["DEVNAME"] = "/dev/foo"
 	s.env["DEVTYPE"] = "disk"
@@ -135,7 +130,7 @@ func (s *scanDiskSuite) TestDetectBootDisk(c *C) {
 }
 
 func (s *scanDiskSuite) TestDetectBootDiskNotUEFIBoot(c *C) {
-	s.efiVariables["LoaderDevicePartUUID-4a67b082-0a4c-41cf-b6c7-440b29bb8c4f"] = "FFFFFFFF-FFFF-FFFF-FFFF-FFFFFFFFFFFF"
+	main.MockPartitionUUIDForBootedKernelDisk("ffffffff-ffff-ffff-ffff-ffffffffffff")
 
 	s.env["DEVNAME"] = "/dev/foo"
 	s.env["DEVTYPE"] = "disk"
@@ -149,6 +144,8 @@ func (s *scanDiskSuite) TestDetectBootDiskNotUEFIBoot(c *C) {
 }
 
 func (s *scanDiskSuite) TestDetectBootDiskFallback(c *C) {
+	main.MockPartitionUUIDForBootedKernelDisk("")
+
 	s.env["DEVNAME"] = "/dev/foo"
 	s.env["DEVTYPE"] = "disk"
 
