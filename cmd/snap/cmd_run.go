@@ -72,7 +72,7 @@ var (
 )
 
 type cmdRun struct {
-	clientMixin
+	mustWaitMixin
 	Command  string `long:"command" hidden:"yes"`
 	HookName string `long:"hook" hidden:"yes"`
 	Revision string `short:"r" default:"unset" hidden:"yes"`
@@ -103,7 +103,12 @@ The run command executes the given snap command with the right confinement
 and environment.
 `),
 		func() flags.Commander {
-			return &cmdRun{}
+			return &cmdRun{
+				mustWaitMixin: mustWaitMixin{
+					noProgress: true,
+					skipAbort:  true,
+				},
+			}
 		}, map[string]string{
 			// TRANSLATORS: This should not start with a lowercase letter.
 			"command": i18n.G("Alternative command to run"),
@@ -150,15 +155,18 @@ func isStopping() (bool, error) {
 	return false, err
 }
 
-func maybeWaitForSecurityProfileRegeneration(cli *client.Client) error {
+func maybeWaitForSecurityProfileRegeneration(cli *client.Client) (changeID string, err error) {
 	extraData := interfaces.SystemKeyExtraData{
 		AppArmorPrompting: features.AppArmorPrompting.IsEnabled(),
 	}
+
+	// TODO:nfshome: observe error no system key on disk and wait for it to show up
+
 	// check if the security profiles key has changed, if so, we need
 	// to wait for snapd to re-generate all profiles
-	mismatch, _, err := interfaces.SystemKeyMismatch(extraData)
+	mismatch, my, err := interfaces.SystemKeyMismatch(extraData)
 	if err == nil && !mismatch {
-		return nil
+		return "", nil
 	}
 	// something went wrong with the system-key compare, try to
 	// reach snapd before continuing
@@ -175,7 +183,7 @@ func maybeWaitForSecurityProfileRegeneration(cli *client.Client) error {
 	}
 	if stopping {
 		logger.Debugf("ignoring system key mismatch during system shutdown/reboot")
-		return nil
+		return "", nil
 	}
 
 	// We have a mismatch, try to connect to snapd, once we can
@@ -199,21 +207,44 @@ func maybeWaitForSecurityProfileRegeneration(cli *client.Client) error {
 	}
 
 	logger.Debugf("system key mismatch detected, waiting for snapd to start responding...")
+	logger.Debugf("my system key: %v", my)
+
+	var rspError *client.Error
 
 	for i := 0; i < timeout; i++ {
 		// TODO: we could also check cli.Maintenance() here too in case snapd is
 		// down semi-permanently for a refresh, but what message do we show to
 		// the user or what do we do if we know snapd is down for maintenance?
-		if _, err := cli.SysInfo(); err == nil {
-			return nil
-		} else {
-			logger.Debugf("cannot obtain system info: %v", err)
+		act, err := cli.SystemKeyMismatchAdvice(my)
+		if err == nil {
+			switch act.SuggestedAction {
+			case client.MismatchActionProceed:
+				// we're good to go
+				logger.Debugf("continue execution")
+				return "", nil
+			case client.MismatchActionWaitForChange:
+				// snapd sent us an ID of a change to wait for
+				logger.Debugf("snapd started a regenerate profiles change with ID: %v", act.ChangeID)
+				// TODO wait for actual change
+				return act.ChangeID, nil
+			default:
+				return "", fmt.Errorf("internal error: unexpected advice: %q", act.SuggestedAction)
+			}
+		} else if errors.Is(err, client.ErrMismatchAdviceUnsupported) {
+			logger.Debugf("system-key mismatch advice not supported by snapd")
+			return "", nil
+		} else if errors.As(err, &rspError) {
+			// actual response error
+			logger.Debugf("ignoring system-key mismatch error: %v", err)
+			return "", nil
 		}
+
+		logger.Debugf("cannot obtain system-key mismatch action: %v", err)
 		// sleep a little bit for good measure
 		time.Sleep(1 * time.Second)
 	}
 
-	return fmt.Errorf("timeout waiting for snap system profiles to get updated")
+	return "", fmt.Errorf("timeout waiting for snap system profiles to get updated")
 }
 
 func (x *cmdRun) Usage() string {
@@ -248,8 +279,16 @@ func (x *cmdRun) Execute(args []string) error {
 
 	logger.StartupStageTimestamp("start")
 
-	if err := maybeWaitForSecurityProfileRegeneration(x.client); err != nil {
+	regenProfilesChangeID, err := maybeWaitForSecurityProfileRegeneration(x.client)
+	if err != nil {
 		return err
+	}
+
+	if regenProfilesChangeID != "" {
+		logger.Debugf("waiting for security profiles regeneration change: %v", regenProfilesChangeID)
+		if _, err := x.wait(regenProfilesChangeID); err != nil {
+			logger.Debugf("profile regeneration change failed: %v", err)
+		}
 	}
 
 	// Now actually handle the dispatching

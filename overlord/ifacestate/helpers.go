@@ -181,8 +181,11 @@ func snapdAppArmorServiceIsDisabledImpl() bool {
 	return err == nil && !isEnabled
 }
 
-// regenerateAllSecurityProfiles will regenerate all security profiles.
-func (m *InterfaceManager) regenerateAllSecurityProfiles(tm timings.Measurer) error {
+// regenerateAllSecurityProfiles will regenerate all security profiles. This
+// function is expected to be called with the state locked, though in some
+// scenarios one may want to temporarily unlock the state for the duration of
+// security backends executing their setup.
+func (m *InterfaceManager) regenerateAllSecurityProfiles(tm timings.Measurer, unlockState bool) error {
 	// Get all the security backends
 	securityBackends := m.repo.Backends()
 
@@ -240,6 +243,11 @@ func (m *InterfaceManager) regenerateAllSecurityProfiles(tm timings.Measurer) er
 		return precompOpts[instanceName]
 	}
 
+	if unlockState {
+		m.state.Unlock()
+		defer m.state.Lock()
+	}
+
 	// For each backend:
 	for _, backend := range securityBackends {
 		if backend.Name() == "" {
@@ -252,6 +260,11 @@ func (m *InterfaceManager) regenerateAllSecurityProfiles(tm timings.Measurer) er
 			}
 			shouldWriteSystemKey = false
 		}
+	}
+
+	if unlockState {
+		m.state.Lock()
+		defer m.state.Unlock()
 	}
 
 	if shouldWriteSystemKey {
