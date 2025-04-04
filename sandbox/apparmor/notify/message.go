@@ -241,7 +241,7 @@ func (msg *MsgNotificationFilter) Validate() error {
 // Flags for MsgNotification.
 const (
 	// URESPONSE_NO_CACHE tells the kernel not to cache the response.
-	URESPONSE_NO_CACHE = iota
+	URESPONSE_NO_CACHE = 1 << iota
 	// Other flags which are not currently needed by snapd:
 	// URESPONSE_LOOKUP
 	// URESPONSE_PROFILE
