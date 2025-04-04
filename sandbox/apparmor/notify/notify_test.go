@@ -76,13 +76,14 @@ func (s *notifySuite) TestRegisterFileDescriptor(c *C) {
 		case 1:
 			// v7 APPARMOR_NOTIF_REGISTER
 			c.Check(req, Equals, notify.APPARMOR_NOTIF_REGISTER)
-			// Expect listener ID 0, set some arbitrary values
-			respBuf := checkIoctlBufferRegister(c, buf, notify.ProtocolVersion(7), 0, 123, 456, 789)
+			// Expect listener ID 0, set ID 123
+			respBuf := checkIoctlBufferRegister(c, buf, notify.ProtocolVersion(7), 0, 123)
 			return respBuf, nil
 		case 2:
 			// v7 APPARMOR_NOTIF_RESEND
 			c.Check(req, Equals, notify.APPARMOR_NOTIF_RESEND)
-			respBuf := checkIoctlBufferResend(c, buf, notify.ProtocolVersion(7))
+			// Expect listener ID 123, set some arbitrary ready and pending
+			respBuf := checkIoctlBufferResend(c, buf, notify.ProtocolVersion(7), 123, 456, 789)
 			return respBuf, nil
 		case 3:
 			// v7 APPARMOR_NOTIF_SET_FILTER
@@ -122,8 +123,8 @@ func (s *notifySuite) TestRegisterFileDescriptor(c *C) {
 	}
 }
 
-func checkIoctlBufferRegister(c *C, receivedBuf notify.IoctlRequestBuffer, expectedVersion notify.ProtocolVersion, expectedListenerID, setListenerID uint64, ready uint32, pending uint32) []byte {
-	expectedMsg := notify.MsgNotificationReclaim{
+func checkIoctlBufferRegister(c *C, receivedBuf notify.IoctlRequestBuffer, expectedVersion notify.ProtocolVersion, expectedListenerID, setListenerID uint64) []byte {
+	expectedMsg := notify.MsgNotificationRegister{
 		MsgHeader: notify.MsgHeader{
 			Version: expectedVersion,
 		},
@@ -135,25 +136,41 @@ func checkIoctlBufferRegister(c *C, receivedBuf notify.IoctlRequestBuffer, expec
 
 	c.Check(receivedBuf, DeepEquals, ioctlBuf, Commentf("received incorrect buffer on Ioctl call; expected: %+v", expectedMsg))
 
-	responseMsg := notify.MsgNotificationReclaim{
+	responseMsg := notify.MsgNotificationRegister{
 		MsgHeader: notify.MsgHeader{
 			Version: expectedVersion,
 		},
 		KernelListenerID: setListenerID,
-		Ready:            ready,
-		Pending:          pending,
 	}
 	responseBuf, err := responseMsg.MarshalBinary()
 	c.Assert(err, IsNil)
 	return responseBuf
 }
 
-func checkIoctlBufferResend(c *C, receivedBuf notify.IoctlRequestBuffer, expectedVersion notify.ProtocolVersion) []byte {
-	ioctlBuf := notify.NewIoctlRequestBuffer(expectedVersion)
+func checkIoctlBufferResend(c *C, receivedBuf notify.IoctlRequestBuffer, expectedVersion notify.ProtocolVersion, expectedListenerID uint64, ready uint32, pending uint32) []byte {
+	expectedMsg := notify.MsgNotificationResend{
+		MsgHeader: notify.MsgHeader{
+			Version: expectedVersion,
+		},
+		KernelListenerID: expectedListenerID,
+	}
+	expectedBuf, err := expectedMsg.MarshalBinary()
+	c.Assert(err, IsNil)
+	ioctlBuf := notify.IoctlRequestBuffer(expectedBuf)
 
-	c.Check(receivedBuf, DeepEquals, ioctlBuf, Commentf("received incorrect buffer on Ioctl call; expected empty buffer with header version %d", expectedVersion))
+	c.Check(receivedBuf, DeepEquals, ioctlBuf, Commentf("received incorrect buffer on Ioctl call; expected: %+x", expectedMsg))
 
-	return receivedBuf
+	responseMsg := notify.MsgNotificationResend{
+		MsgHeader: notify.MsgHeader{
+			Version: expectedVersion,
+		},
+		KernelListenerID: expectedListenerID,
+		Ready:            ready,
+		Pending:          pending,
+	}
+	responseBuf, err := responseMsg.MarshalBinary()
+	c.Assert(err, IsNil)
+	return responseBuf
 }
 
 func checkIoctlBufferSetFilter(c *C, receivedBuf notify.IoctlRequestBuffer, expectedVersion notify.ProtocolVersion) []byte {
@@ -202,22 +219,34 @@ func (s *notifySuite) TestRegisterFileDescriptorLoadsListenerID(c *C) {
 		case 1:
 			// v7 APPARMOR_NOTIF_REGISTER first time
 			c.Check(req, Equals, notify.APPARMOR_NOTIF_REGISTER)
-			// Expect listener ID 0, set listener ID, and 0 for ready and pending
-			respBuf := checkIoctlBufferRegister(c, buf, expectedVersion, 0, listenerID, 0, 0)
+			// Expect listener ID 0, set listener ID
+			respBuf := checkIoctlBufferRegister(c, buf, expectedVersion, 0, listenerID)
+			return respBuf, nil
+		case 2:
+			// v7 APPARMOR_NOTIF_RESEND
+			c.Check(req, Equals, notify.APPARMOR_NOTIF_RESEND)
+			// Expect the saved listener ID, set 0 for ready/pending
+			respBuf := checkIoctlBufferResend(c, buf, expectedVersion, listenerID, 0, 0)
+			return respBuf, nil
+		case 3:
+			// v7 APPARMOR_NOTIF_SET_FILTER
+			c.Check(req, Equals, notify.APPARMOR_NOTIF_SET_FILTER)
+			respBuf := checkIoctlBufferSetFilter(c, buf, expectedVersion)
 			return respBuf, nil
 		case 4:
 			// v7 APPARMOR_NOTIF_REGISTER second time
 			c.Check(req, Equals, notify.APPARMOR_NOTIF_REGISTER)
-			// Expect the saved listener ID, resend it, and some arbitrary
-			// values for ready and pending
-			respBuf := checkIoctlBufferRegister(c, buf, expectedVersion, listenerID, listenerID, fakeReady, fakePending)
+			// Expect the saved listener ID, resend it
+			respBuf := checkIoctlBufferRegister(c, buf, expectedVersion, listenerID, listenerID)
 			return respBuf, nil
-		case 2, 5:
+		case 5:
 			// v7 APPARMOR_NOTIF_RESEND
 			c.Check(req, Equals, notify.APPARMOR_NOTIF_RESEND)
-			respBuf := checkIoctlBufferResend(c, buf, expectedVersion)
+			// Expect the saved listener ID, set some arbitrary values for
+			// ready and pending
+			respBuf := checkIoctlBufferResend(c, buf, expectedVersion, listenerID, fakeReady, fakePending)
 			return respBuf, nil
-		case 3, 6:
+		case 6:
 			// v7 APPARMOR_NOTIF_SET_FILTER
 			c.Check(req, Equals, notify.APPARMOR_NOTIF_SET_FILTER)
 			respBuf := checkIoctlBufferSetFilter(c, buf, expectedVersion)
@@ -266,7 +295,7 @@ func (s *notifySuite) TestRegisterFileDescriptorErrors(c *C) {
 		case 1:
 			c.Check(req, Equals, notify.APPARMOR_NOTIF_REGISTER)
 			// Expect listener ID 0, set arbitrary ID/ready/pending
-			respBuf := checkIoctlBufferRegister(c, buf, notify.ProtocolVersion(7), 0, 123, 456, 789)
+			respBuf := checkIoctlBufferRegister(c, buf, notify.ProtocolVersion(7), 0, 123)
 			// On v7, return an error on the APPARMOR_NOTIF_REGISTER
 			return respBuf, fmt.Errorf("cannot perform IOCTL request %v: %w (%s)", req, unix.EINVAL, unix.ErrnoName(unix.EINVAL))
 		case 2:
@@ -295,7 +324,7 @@ func (s *notifySuite) TestRegisterFileDescriptorErrors(c *C) {
 
 		c.Assert(req, Equals, notify.APPARMOR_NOTIF_REGISTER)
 		// Expect listener ID 0, reply with arbitrary values
-		respBuf := checkIoctlBufferRegister(c, buf, notify.ProtocolVersion(7), 0, 123, 456, 789)
+		respBuf := checkIoctlBufferRegister(c, buf, notify.ProtocolVersion(7), 0, 123)
 		return respBuf, fmt.Errorf("cannot perform IOCTL request %v: %w (%s)", req, unix.EPERM, unix.ErrnoName(unix.EPERM))
 	})
 	defer restoreSyscallError()
@@ -315,13 +344,13 @@ func (s *notifySuite) TestRegisterFileDescriptorErrors(c *C) {
 		switch ioctlCount {
 		case 1:
 			c.Assert(req, Equals, notify.APPARMOR_NOTIF_REGISTER)
-			respBuf := checkIoctlBufferRegister(c, buf, notify.ProtocolVersion(7), 0, 123, 456, 789)
+			respBuf := checkIoctlBufferRegister(c, buf, notify.ProtocolVersion(7), 0, 123)
 			// Since REGISTER succeeds, we actually save listener ID 123 to disk, so expect it next time
 			return respBuf, nil
 		case 2:
 			// Throw an error on RESEND
 			c.Assert(req, Equals, notify.APPARMOR_NOTIF_RESEND)
-			respBuf := checkIoctlBufferResend(c, buf, notify.ProtocolVersion(7))
+			respBuf := checkIoctlBufferResend(c, buf, notify.ProtocolVersion(7), 123, 456, 789)
 			return respBuf, fmt.Errorf("cannot perform IOCTL request %v: %w (%s)", req, unix.EINVAL, unix.ErrnoName(unix.EINVAL))
 		default:
 			c.Fatalf("called Ioctl more than expected: %d (most recent: %v, %v)", ioctlCalls, req, buf)
@@ -347,11 +376,11 @@ func (s *notifySuite) TestRegisterFileDescriptorErrors(c *C) {
 			c.Assert(req, Equals, notify.APPARMOR_NOTIF_REGISTER)
 			// The previous test successfully finished REGISTER, so listener ID
 			// 123 was stored to disk. Expect it, and reply with the same ID.
-			respBuf := checkIoctlBufferRegister(c, buf, notify.ProtocolVersion(7), 123, 123, 456, 789)
+			respBuf := checkIoctlBufferRegister(c, buf, notify.ProtocolVersion(7), 123, 123)
 			return respBuf, nil
 		case 2:
 			c.Assert(req, Equals, notify.APPARMOR_NOTIF_RESEND)
-			respBuf := checkIoctlBufferResend(c, buf, notify.ProtocolVersion(7))
+			respBuf := checkIoctlBufferResend(c, buf, notify.ProtocolVersion(7), 123, 456, 789)
 			return respBuf, nil
 		case 3:
 			// Throw an error on SET_FILTER

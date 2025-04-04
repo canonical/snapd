@@ -238,8 +238,18 @@ func (*messageSuite) TestMessageMarshalErrors(c *C) {
 	// Try to marshal message structs without setting Version, check that
 	// ErrVersionUnset is returned
 
+	register := notify.MsgNotificationRegister{}
+	bytes, err := register.MarshalBinary()
+	c.Check(err, Equals, notify.ErrVersionUnset)
+	c.Check(bytes, IsNil)
+
+	resend := notify.MsgNotificationResend{}
+	bytes, err = resend.MarshalBinary()
+	c.Check(err, Equals, notify.ErrVersionUnset)
+	c.Check(bytes, IsNil)
+
 	filter := notify.MsgNotificationFilter{}
-	bytes, err := filter.MarshalBinary()
+	bytes, err = filter.MarshalBinary()
 	c.Check(err, Equals, notify.ErrVersionUnset)
 	c.Check(bytes, IsNil)
 
@@ -257,6 +267,110 @@ func (*messageSuite) TestMessageMarshalErrors(c *C) {
 	bytes, err = file.MarshalBinary()
 	c.Check(err, Equals, notify.ErrVersionUnset)
 	c.Check(bytes, IsNil)
+}
+
+func (*messageSuite) TestMsgNotificationRegisterMarshalUnmarshal(c *C) {
+	if arch.Endian() != binary.LittleEndian {
+		c.Skip("test only written for little-endian architectures")
+	}
+	for _, t := range []struct {
+		bytes []byte
+		msg   notify.MsgNotificationRegister
+	}{
+		{
+			bytes: []byte{
+				0xc, 0x0, // Length
+				0x5, 0x0, // Protocol
+				0x88, 0x77, 0x66, 0x55, 0x44, 0x33, 0x22, 0x11, // Listener ID
+			},
+			msg: notify.MsgNotificationRegister{
+				MsgHeader: notify.MsgHeader{
+					Length:  0xc,
+					Version: 0x5,
+				},
+				KernelListenerID: 0x1122334455667788,
+			},
+		},
+		{
+			bytes: []byte{
+				0xc, 0x0, // Length
+				0x5, 0x0, // Protocol
+				0xb, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, // Listener ID
+			},
+			msg: notify.MsgNotificationRegister{
+				MsgHeader: notify.MsgHeader{
+					Length:  0xc,
+					Version: 0x5,
+				},
+				KernelListenerID: 0xb,
+			},
+		},
+	} {
+		bytes, err := t.msg.MarshalBinary()
+		c.Check(err, IsNil)
+		c.Check(bytes, DeepEquals, t.bytes)
+
+		var msg notify.MsgNotificationRegister
+		err = msg.UnmarshalBinary(t.bytes)
+		c.Check(err, IsNil)
+		c.Check(msg, DeepEquals, t.msg)
+	}
+}
+
+func (*messageSuite) TestMsgNotificationResendMarshalUnmarshal(c *C) {
+	if arch.Endian() != binary.LittleEndian {
+		c.Skip("test only written for little-endian architectures")
+	}
+	for _, t := range []struct {
+		bytes []byte
+		msg   notify.MsgNotificationResend
+	}{
+		{
+			bytes: []byte{
+				0x14, 0x0, // Length
+				0x5, 0x0, // Protocol
+				0x88, 0x77, 0x66, 0x55, 0x44, 0x33, 0x22, 0x11, // Listener ID
+				0x0, 0x0, 0x0, 0x0, // Ready
+				0x0, 0x0, 0x0, 0x0, // Pending
+			},
+			msg: notify.MsgNotificationResend{
+				MsgHeader: notify.MsgHeader{
+					Length:  0x14,
+					Version: 0x5,
+				},
+				KernelListenerID: 0x1122334455667788,
+				Ready:            0,
+				Pending:          0,
+			},
+		},
+		{
+			bytes: []byte{
+				0x14, 0x0, // Length
+				0x5, 0x0, // Protocol
+				0xb, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, // Listener ID
+				0x44, 0x33, 0x22, 0x11, // Ready
+				0xaa, 0xbb, 0xcc, 0xdd, // Pending
+			},
+			msg: notify.MsgNotificationResend{
+				MsgHeader: notify.MsgHeader{
+					Length:  0x14,
+					Version: 0x5,
+				},
+				KernelListenerID: 0xb,
+				Ready:            0x11223344,
+				Pending:          0xddccbbaa,
+			},
+		},
+	} {
+		bytes, err := t.msg.MarshalBinary()
+		c.Check(err, IsNil)
+		c.Check(bytes, DeepEquals, t.bytes)
+
+		var msg notify.MsgNotificationResend
+		err = msg.UnmarshalBinary(t.bytes)
+		c.Check(err, IsNil)
+		c.Check(msg, DeepEquals, t.msg)
+	}
 }
 
 func (*messageSuite) TestMsgNotificationFilterMarshalUnmarshal(c *C) {
@@ -407,34 +521,12 @@ func (*messageSuite) TestMsgNotificationFilterValidate(c *C) {
 	c.Check(msg.Validate(), ErrorMatches, "unsupported modeset: 10000")
 }
 
-func (*messageSuite) TestMsgNotificationReclaimMarshalUnmarshal(c *C) {
-	if arch.Endian() == binary.BigEndian {
-		c.Skip("test only written for little-endian architectures")
-	}
-
-	msg := notify.MsgNotificationReclaim{
-		KernelListenerID: 0x0123456789abcdef,
-		Ready:            0x11235813,
-		Pending:          0xabcdef,
-	}
-	msg.Version = notify.ProtocolVersion(0x3)
-
-	expectedBytes := []byte{
-		0x14, 0x0, // Length
-		0x3, 0x0, // Protocol
-		0xef, 0xcd, 0xab, 0x89, 0x67, 0x45, 0x23, 0x01, // KernelListenerID
-		0x13, 0x58, 0x23, 0x11, // Ready
-		0xef, 0xcd, 0xab, 0x00, // Pending
-	}
-
-	result, err := msg.MarshalBinary()
-	c.Check(err, IsNil)
-	c.Check(result, DeepEquals, expectedBytes)
-
-	var unmarshalled notify.MsgNotificationReclaim
-	err = unmarshalled.UnmarshalBinary(result)
-	c.Assert(err, IsNil)
-	c.Assert(unmarshalled, DeepEquals, msg)
+func (*messageSuite) TestFlags(c *C) {
+	c.Check(notify.URESPONSE_NO_CACHE, Equals, 0x1)
+	c.Check(notify.URESPONSE_LOOKUP, Equals, 0x2)
+	c.Check(notify.URESPONSE_PROFILE, Equals, 0x4)
+	c.Check(notify.URESPONSE_TAILGLOB, Equals, 0x8)
+	c.Check(notify.UNOTIF_RESENT, Equals, 0x10)
 }
 
 func (*messageSuite) TestMsgNotificationMarshalBinary(c *C) {
@@ -1047,7 +1139,7 @@ func (*messageSuite) TestMsgNotificationFileAsGeneric(c *C) {
 
 	testMsgNotificationGeneric(c, &msg, msg.KernelNotificationID, false, msg.Pid, msg.Label, msg.Class, msg.Allow, msg.Deny, msg.SUID, msg.Filename)
 
-	msg.Flags = notify.NOTIF_RESENT
+	msg.Flags = notify.UNOTIF_RESENT
 	testMsgNotificationGeneric(c, &msg, msg.KernelNotificationID, true, msg.Pid, msg.Label, msg.Class, msg.Allow, msg.Deny, msg.SUID, msg.Filename)
 }
 

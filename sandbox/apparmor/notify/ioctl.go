@@ -116,8 +116,8 @@ const (
 	APPARMOR_NOTIF_IS_ID_VALID IoctlRequest = 0x8008F803
 	APPARMOR_NOTIF_RECV        IoctlRequest = 0xC008F804
 	APPARMOR_NOTIF_SEND        IoctlRequest = 0xC008F805
-	APPARMOR_NOTIF_REGISTER    IoctlRequest = 0x00000000 // TODO: FIXME: get real value from JJ
-	APPARMOR_NOTIF_RESEND      IoctlRequest = 0xFFFFFFFF // TODO: FIXME: get real value from JJ
+	APPARMOR_NOTIF_REGISTER    IoctlRequest = 0xC008F806
+	APPARMOR_NOTIF_RESEND      IoctlRequest = 0xC008F807
 )
 
 // String returns the string representation of an IoctlRequest.

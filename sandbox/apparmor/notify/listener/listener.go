@@ -382,6 +382,13 @@ func (l *Listener) handleRequests() error {
 		}
 		return err
 	}
+	// XXX: Since queued notifications should be sent immediately by the kernel,
+	// if we think there are pending requests, we could use a non-blocking read
+	// to poll for new requests, and if we don't immediately see one, we could
+	// use a (not yet implemented) ioctl command to check the listener's status
+	// regarding ready/pending requests and update the listener's pending count.
+	// This would require some work on the kernel side, so it could be a future
+	// enhancement, but not one we can pursue at time of writing.
 
 	// Get the socket FD with the lock held, so we don't break our contract
 	l.socketMu.Lock()
