@@ -27,25 +27,25 @@
  * ENV{DEVTYPE}=="partition", IMPORT{parent}="UBUNTU_DISK"
  * ENV{UBUNTU_DISK}!="1", GOTO="ubuntu_core_partitions_end"
  *
- * ENV{DEVTYPE}=="disk", SYMLINK+="disk/ubuntu/disk"
- * ENV{DEVTYPE}=="partition", ENV{ID_PART_ENTRY_NAME}="ubuntu-seed", SYMLINK+="disk/ubuntu/seed"
- * ENV{DEVTYPE}=="partition", ENV{ID_PART_ENTRY_NAME}="ubuntu-boot", SYMLINK+="disk/ubuntu/boot"
- * ENV{DEVTYPE}=="partition", ENV{ID_PART_ENTRY_NAME}="ubuntu-data", ENV{ID_FS_TYPE}=="crypto_LUKS", SYMLINK+="disk/ubuntu/data-luks"
- * ENV{DEVTYPE}=="partition", ENV{ID_PART_ENTRY_NAME}="ubuntu-data", ENV{ID_FS_TYPE}!="crypto_LUKS", SYMLINK+="disk/ubuntu/data"
- * ENV{DEVTYPE}=="partition", ENV{ID_PART_ENTRY_NAME}="ubuntu-save", ENV{ID_FS_TYPE}=="crypto_LUKS", SYMLINK+="disk/ubuntu/save-luks"
- * ENV{DEVTYPE}=="partition", ENV{ID_PART_ENTRY_NAME}="ubuntu-save", ENV{ID_FS_TYPE}!="crypto_LUKS", SYMLINK+="disk/ubuntu/save"
+ * ENV{DEVTYPE}=="disk", SYMLINK+="disk/snapd/disk"
+ * ENV{DEVTYPE}=="partition", ENV{ID_PART_ENTRY_NAME}="ubuntu-seed", SYMLINK+="disk/snapd/ubuntu-seed"
+ * ENV{DEVTYPE}=="partition", ENV{ID_PART_ENTRY_NAME}="ubuntu-boot", SYMLINK+="disk/snapd/ubuntu-boot"
+ * ENV{DEVTYPE}=="partition", ENV{ID_PART_ENTRY_NAME}="ubuntu-data", ENV{ID_FS_TYPE}=="crypto_LUKS", SYMLINK+="disk/snapd/ubuntu-data-luks"
+ * ENV{DEVTYPE}=="partition", ENV{ID_PART_ENTRY_NAME}="ubuntu-data", ENV{ID_FS_TYPE}!="crypto_LUKS", SYMLINK+="disk/snapd/ubuntu-data"
+ * ENV{DEVTYPE}=="partition", ENV{ID_PART_ENTRY_NAME}="ubuntu-save", ENV{ID_FS_TYPE}=="crypto_LUKS", SYMLINK+="disk/snapd/ubuntu-save-luks"
+ * ENV{DEVTYPE}=="partition", ENV{ID_PART_ENTRY_NAME}="ubuntu-save", ENV{ID_FS_TYPE}!="crypto_LUKS", SYMLINK+="disk/snapd/ubuntu-save"
  *
  * LABEL="ubuntu_core_partitions_end"
  *
- * ENV{DM_UUID}=="CRYPT-*", ENV{DM_NAME}=="ubuntu-data-*", SYMLINK+="disk/ubuntu/data"
- * ENV{DM_UUID}=="CRYPT-*", ENV{DM_NAME}=="ubuntu-save-*", SYMLINK+="disk/ubuntu/save"
+ * ENV{DM_UUID}=="CRYPT-*", ENV{DM_NAME}=="ubuntu-data-*", SYMLINK+="disk/snapd/ubuntu-data"
+ * ENV{DM_UUID}=="CRYPT-*", ENV{DM_NAME}=="ubuntu-save-*", SYMLINK+="disk/snapd/ubuntu-save"
  * ```
  *
  * See
  * core-initrd/latest/factory/usr/lib/udev/rules.d/90-ubuntu-core-partitions.rules
  * for implementation.
  *
- * Note that symlink /dev/disk/ubuntu/disk can be expected by
+ * Note that symlink /dev/disk/snapd/disk can be expected by
  * snap-bootstrap. In that case, snap-initramfs-mounts.service should
  * have:
  *
