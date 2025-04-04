@@ -1812,8 +1812,8 @@ func getNonUEFISystemDisk(fallbacklabel string) (string, error) {
 func mountNonDataPartitionMatchingKernelDisk(dir, fallbacklabel string, opts *systemdMountOptions) error {
 	var partSrc string
 
-	if osutil.FileExists(filepath.Join(dirs.GlobalRootDir, "/dev/disk/ubuntu/disk")) {
-		disk, err := disks.DiskFromDeviceName("/dev/disk/ubuntu/disk")
+	if osutil.FileExists(filepath.Join(dirs.GlobalRootDir, "/dev/disk/snapd/disk")) {
+		disk, err := disks.DiskFromDeviceName("/dev/disk/snapd/disk")
 		if err != nil {
 			return err
 		}
