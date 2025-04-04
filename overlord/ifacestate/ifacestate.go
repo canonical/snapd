@@ -31,6 +31,7 @@ import (
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/policy"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/snapstate"
@@ -627,4 +628,35 @@ func InterfacesRequestsControlHandlerServices(st *state.State) ([]*snap.AppInfo,
 	}
 
 	return handlers, nil
+}
+
+// AdviseReportedSystemKeyMismatch inspects the system key, which is reportedly
+// in a mismatch with the recoded one, and decides to either create a state
+// change for regenerating security profiles, thus returning a change, or do
+// nothing, in which case no change is returned.
+func AdviseReportedSystemKeyMismatch(st *state.State, systemKey any) (*state.Change, error) {
+	action, err := interfaces.SystemKeyMismatchAdvice(systemKey)
+	if err != nil {
+		return nil, err
+	}
+
+	logger.Debugf("reported system key mismatch action: %v", action)
+
+	if action == interfaces.SystemKeyMismatchActionNone {
+		// nothing to do
+		return nil, nil
+	}
+
+	for _, chg := range st.Changes() {
+		// if we have a change that isn't ready, return it instead
+		if chg.Kind() == "regenerate-security-profiles" && !chg.IsReady() {
+			return chg, nil
+		}
+	}
+
+	chg := st.NewChange("regenerate-security-profiles", "Regenerate security profiles")
+	t := st.NewTask("regenerate-security-profiles", "Regenerate security profiles")
+	chg.AddTask(t)
+
+	return chg, nil
 }
