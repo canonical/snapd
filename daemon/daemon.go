@@ -90,8 +90,7 @@ type Daemon struct {
 
 	expectedRebootDidNotHappen bool
 
-	mu     sync.Mutex
-	cancel func()
+	mu sync.Mutex
 }
 
 // A ResponseFunc handles one of the individual verbs for a method
@@ -333,15 +332,6 @@ func (d *Daemon) Start(ctx context.Context) (err error) {
 		panic("internal error: no Overlord")
 	}
 
-	ctx, cancel := context.WithCancel(ctx)
-	d.cancel = cancel
-	defer func() {
-		// cancel the context on any errors
-		if err != nil {
-			cancel()
-		}
-	}()
-
 	to, reasoning, err := d.overlord.StartupTimeout()
 	if err != nil {
 		return err
@@ -365,13 +355,6 @@ func (d *Daemon) Start(ctx context.Context) (err error) {
 	d.serve = &http.Server{
 		Handler:   logit(d.router),
 		ConnState: d.connTracker.trackConn,
-		BaseContext: func(net.Listener) context.Context {
-			// requests will use the context provided to Start, as
-			// the caller will likely cancel it when appropriate
-			// thus canceling any outstanding requests to the snapd
-			// API
-			return ctx
-		},
 	}
 
 	// enable standby handling
@@ -497,10 +480,6 @@ func (d *Daemon) Stop(sigCh chan<- os.Signal) error {
 	}
 	if d.overlord == nil {
 		return fmt.Errorf("internal error: no Overlord")
-	}
-
-	if d.cancel != nil {
-		d.cancel()
 	}
 
 	d.tomb.Kill(nil)
