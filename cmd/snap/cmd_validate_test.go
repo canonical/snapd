@@ -240,6 +240,12 @@ func (s *validateSuite) TestValidateRefreshOnlyUsedWithEnforce(c *check.C) {
 	c.Check(rest, check.HasLen, 1)
 	c.Check(s.Stderr(), check.Equals, "")
 	c.Check(s.Stdout(), check.Equals, "")
+
+	rest, err = main.Parser(main.Client()).ParseArgs([]string{"validate", "--refresh", "foo/bar"})
+	c.Assert(err, check.ErrorMatches, "--refresh can only be used together with --enforce")
+	c.Check(rest, check.HasLen, 1)
+	c.Check(s.Stderr(), check.Equals, "")
+	c.Check(s.Stdout(), check.Equals, "")
 }
 
 func (s *validateSuite) TestValidationSetsRefreshEnforce(c *check.C) {
