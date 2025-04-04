@@ -68,8 +68,8 @@ def _compose_test(dir: str, file: str, failed_tests: str) -> features.TaskFeatur
 
 def _compose_env_variables(env_variables: list[str]) -> list[features.EnvVariables]:
     '''
-    Given environment variables in the form of a comma-separated list of key=value,
-    it creates a list of dictionaries of [{"name": <env1-name>, "value": <env1-value>}...]
+    Given environment variables as a list of strings key=value, it creates
+    a list of dictionaries of [{"name": <env1-name>, "value": <env1-value>}...]
 
     :param env_variables: a list of strings with key=value environment variables
     :returns: A list of dictionaries
@@ -175,12 +175,12 @@ def _get_name_without_run_number(test: str) -> str:
     '''
     Given a name like <some-name>_<some-number> (optionally with extension), 
     returns <some-name>. If the name doesn't end with _<some-number>, then 
-    it will return the original name.
+    it will return the original name without extension.
     '''
     test_split = _remove_json_extension(test).split('_')
     if test_split[-1].isdigit():
         return '_'.join(test_split[:-1])
-    return test
+    return _remove_json_extension(test)
 
 
 def replace_old_runs(dir: str, output_dir: str) -> None:
