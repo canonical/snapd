@@ -19,33 +19,18 @@
 package main
 
 import (
-	"time"
-
-	"github.com/snapcore/snapd/gadget/device"
+	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/testutil"
-	"golang.org/x/sys/unix"
 )
 
 var (
 	Run = run
 )
 
-func MockDeviceGetGpioChardevChipInfo(f func(path string) (*device.GPIOChardev, error)) (restore func()) {
-	return testutil.Mock(&deviceGetGpioChardevChipInfo, f)
+func MockGpioExportGadgetChardevChip(f func(chipLabels []string, lines strutil.Range, gadgetName string, slotName string) error) (restore func()) {
+	return testutil.Mock(&gpioExportGadgetChardevChip, f)
 }
 
-func MockUnixStat(f func(path string, stat *unix.Stat_t) (err error)) (restore func()) {
-	return testutil.Mock(&unixStat, f)
-}
-
-func MockUnixMknod(f func(path string, mode uint32, dev int) (err error)) (restore func()) {
-	return testutil.Mock(&unixMknod, f)
-}
-
-func MockAggregatorCreationTimeout(t time.Duration) (restore func()) {
-	return testutil.Mock(&aggregatorCreationTimeout, t)
-}
-
-func MockLockAggregator(f func() (unlocker func(), err error)) (restore func()) {
-	return testutil.Mock(&lockAggregator, f)
+func MockGpioUnxportGadgetChardevChip(f func(gadgetName string, slotName string) error) (restore func()) {
+	return testutil.Mock(&gpioUnexportGadgetChardevChip, f)
 }

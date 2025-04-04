@@ -20,11 +20,10 @@
 package main
 
 import (
-	"errors"
 	"fmt"
 	"strings"
 
-	"github.com/snapcore/snapd/gadget/device"
+	"github.com/snapcore/snapd/sandbox/gpio"
 	"github.com/snapcore/snapd/strutil"
 )
 
@@ -37,39 +36,14 @@ type cmdExportChardev struct {
 	} `positional-args:"yes" required:"true"`
 }
 
+var gpioExportGadgetChardevChip = gpio.ExportGadgetChardevChip
+
 func (c *cmdExportChardev) Execute(args []string) error {
 	chipLabels := strings.Split(c.Args.ChipLabels, ",")
-	filter := func(chip *device.GPIOChardev) bool {
-		return strutil.ListContains(chipLabels, chip.Label)
-	}
-	chips, err := findChips(filter)
+	lines, err := strutil.ParseRange(c.Args.Lines)
 	if err != nil {
-		return err
-	}
-	if len(chips) == 0 {
-		return errors.New("no matching gpio chips found matching passed labels")
-	}
-	if len(chips) > 1 {
-		return errors.New("more than one gpio chips were found matching passed labels")
-	}
-
-	chip := chips[0]
-	if err := validateLines(chip, c.Args.Lines); err != nil {
 		return fmt.Errorf("invalid lines argument: %w", err)
 	}
 
-	aggregatedChip, err := addAggregatedChip(chip, c.Args.Lines)
-	if err != nil {
-		return fmt.Errorf("cannot add aggregator device: %w", err)
-	}
-
-	if err := addEphermalUdevTaggingRule(aggregatedChip, c.Args.Gadget, c.Args.Slot); err != nil {
-		return fmt.Errorf("cannot add udev tagging rule: %w", err)
-	}
-
-	if err := addGadgetSlotDevice(aggregatedChip, c.Args.Gadget, c.Args.Slot); err != nil {
-		return fmt.Errorf("cannot add gadget slot device: %w", err)
-	}
-
-	return nil
+	return gpioExportGadgetChardevChip(chipLabels, lines, c.Args.Gadget, c.Args.Slot)
 }

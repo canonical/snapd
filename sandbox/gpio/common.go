@@ -17,9 +17,10 @@
  *
  */
 
-package main
+package gpio
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"os"
@@ -27,15 +28,68 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+	"unsafe"
 
 	"golang.org/x/sys/unix"
 
 	"github.com/snapcore/snapd/dirs"
-	"github.com/snapcore/snapd/gadget/device"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/inotify"
 	"github.com/snapcore/snapd/strutil"
 )
+
+type ChardevChip struct {
+	Path     string
+	Name     string
+	Label    string
+	NumLines uint
+}
+
+func (c *ChardevChip) String() string {
+	return fmt.Sprintf("(name: %s, label: %s, lines: %d)", c.Name, c.Label, c.NumLines)
+}
+
+// This has to match the memory layout of `struct gpiochip_info` found
+// in /include/uapi/linux/gpio.h in the kernel.
+type kernelChipInfo struct {
+	name, label [32]byte
+	lines       uint32
+}
+
+const _GPIO_GET_CHIPINFO_IOCTL uintptr = 0x8044b401
+
+var unixSyscall = unix.Syscall
+
+var ioctlGetChipInfo = func(path string) (*kernelChipInfo, error) {
+	f, err := os.OpenFile(path, os.O_RDONLY, 0)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+
+	var kci kernelChipInfo
+	_, _, errno := unixSyscall(unix.SYS_IOCTL, f.Fd(), _GPIO_GET_CHIPINFO_IOCTL, uintptr(unsafe.Pointer(&kci)))
+	if errno != 0 {
+		return nil, errno
+	}
+
+	return &kci, nil
+}
+
+var chardevChipInfo = func(path string) (*ChardevChip, error) {
+	kci, err := ioctlGetChipInfo(path)
+	if err != nil {
+		return nil, err
+	}
+
+	chip := &ChardevChip{
+		Path:     path,
+		Name:     string(bytes.TrimRight(kci.name[:], "\x00")),
+		Label:    string(bytes.TrimRight(kci.label[:], "\x00")),
+		NumLines: uint(kci.lines),
+	}
+	return chip, nil
+}
 
 const (
 	aggregatorLockPath         = "/sys/bus/platform/drivers/gpio-aggregator"
@@ -58,9 +112,8 @@ var lockAggregator = func() (unlocker func(), err error) {
 }
 
 var aggregatorCreationTimeout = 120 * time.Second
-var deviceGetGpioChardevChipInfo = device.GetGpioChardevChipInfo
 
-func addAggregatedChip(sourceChip *device.GPIOChardev, commaSeparatedLines string) (chip *device.GPIOChardev, err error) {
+func addAggregatedChip(sourceChip *ChardevChip, lines strutil.Range) (chip *ChardevChip, err error) {
 	// synchronize gpio helpers' access to the aggregator interface
 	unlocker, err := lockAggregator()
 	if err != nil {
@@ -84,7 +137,7 @@ func addAggregatedChip(sourceChip *device.GPIOChardev, commaSeparatedLines strin
 	}
 
 	// <label> <lines>
-	_, err = fmt.Fprintf(f, "%s %s", sourceChip.Label, commaSeparatedLines)
+	_, err = fmt.Fprintf(f, "%s %s", sourceChip.Label, lines.String())
 	if err != nil {
 		return nil, err
 	}
@@ -97,7 +150,7 @@ func addAggregatedChip(sourceChip *device.GPIOChardev, commaSeparatedLines strin
 			path := event.Name
 			// check prefix /dev/gpiochipX
 			if strings.HasPrefix(path, filepath.Join(dirs.DevDir, "gpiochip")) {
-				return deviceGetGpioChardevChipInfo(path)
+				return chardevChipInfo(path)
 			}
 		case <-ctxWithTimeout.Done():
 			return nil, fmt.Errorf("max timeout exceeded")
@@ -110,7 +163,7 @@ func aggregatedChipUdevRulePath(instanceName, slotName string) string {
 	return filepath.Join(filepath.Join(dirs.GlobalRootDir, ephermalUdevRulesDir), fname)
 }
 
-func addEphermalUdevTaggingRule(chip *device.GPIOChardev, instanceName, slotName string) error {
+func addEphermalUdevTaggingRule(chip *ChardevChip, instanceName, slotName string) error {
 	if err := os.MkdirAll(filepath.Join(dirs.GlobalRootDir, ephermalUdevRulesDir), 0755); err != nil {
 		return err
 	}
@@ -141,13 +194,13 @@ func addEphermalUdevTaggingRule(chip *device.GPIOChardev, instanceName, slotName
 var unixStat = unix.Stat
 var unixMknod = unix.Mknod
 
-func addGadgetSlotDevice(chip *device.GPIOChardev, instanceName, slotName string) error {
+func addGadgetSlotDevice(chip *ChardevChip, instanceName, slotName string) error {
 	var stat unix.Stat_t
 	if err := unixStat(chip.Path, &stat); err != nil {
 		return err
 	}
 
-	devPath := device.SnapGpioChardevPath(instanceName, slotName)
+	devPath := SnapChardevPath(instanceName, slotName)
 	if err := os.MkdirAll(filepath.Dir(devPath), 0755); err != nil {
 		return err
 	}
@@ -158,9 +211,9 @@ func addGadgetSlotDevice(chip *device.GPIOChardev, instanceName, slotName string
 	return nil
 }
 
-func removeGadgetSlotDevice(instanceName, slotName string) (aggregatedChip *device.GPIOChardev, err error) {
-	devPath := device.SnapGpioChardevPath(instanceName, slotName)
-	aggregatedChip, err = deviceGetGpioChardevChipInfo(devPath)
+func removeGadgetSlotDevice(instanceName, slotName string) (aggregatedChip *ChardevChip, err error) {
+	devPath := SnapChardevPath(instanceName, slotName)
+	aggregatedChip, err = chardevChipInfo(devPath)
 	if err != nil {
 		return nil, err
 	}
@@ -178,7 +231,7 @@ func removeEphermalUdevTaggingRule(gadget, slot string) error {
 	return os.RemoveAll(path)
 }
 
-func removeAggregatedChip(aggregatedChip *device.GPIOChardev) error {
+func removeAggregatedChip(aggregatedChip *ChardevChip) error {
 	// synchronize gpio helpers' access to the aggregator interface
 	unlocker, err := lockAggregator()
 	if err != nil {
@@ -199,13 +252,8 @@ func removeAggregatedChip(aggregatedChip *device.GPIOChardev) error {
 	return nil
 }
 
-func validateLines(chip *device.GPIOChardev, linesArg string) error {
-	r, err := strutil.ParseRange(linesArg)
-	if err != nil {
-		return err
-	}
-
-	for _, span := range r {
+func validateLines(chip *ChardevChip, lines strutil.Range) error {
+	for _, span := range lines {
 		if uint(span.End) >= chip.NumLines {
 			return fmt.Errorf("invalid line offset %d: line does not exist in %q", span.End, chip.Name)
 		}
@@ -214,15 +262,15 @@ func validateLines(chip *device.GPIOChardev, linesArg string) error {
 	return nil
 }
 
-func findChips(filter func(chip *device.GPIOChardev) bool) ([]*device.GPIOChardev, error) {
+func findChips(filter func(chip *ChardevChip) bool) ([]*ChardevChip, error) {
 	allPaths, err := filepath.Glob(filepath.Join(dirs.DevDir, "/gpiochip*"))
 	if err != nil {
 		return nil, err
 	}
 
-	var matched []*device.GPIOChardev
+	var matched []*ChardevChip
 	for _, path := range allPaths {
-		chip, err := deviceGetGpioChardevChipInfo(path)
+		chip, err := chardevChipInfo(path)
 		if err != nil {
 			return nil, err
 		}

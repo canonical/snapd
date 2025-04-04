@@ -16,15 +16,18 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
  */
-package device
+package gpio
 
 import (
 	"syscall"
+	"time"
 
 	"github.com/snapcore/snapd/testutil"
+	"golang.org/x/sys/unix"
 )
 
 var IoctlGetChipInfo = ioctlGetChipInfo
+var ChardevChipInfo = chardevChipInfo
 
 func MockUnixSyscall(f func(trap uintptr, a1 uintptr, a2 uintptr, a3 uintptr) (r1 uintptr, r2 uintptr, err syscall.Errno)) (restore func()) {
 	return testutil.Mock(&unixSyscall, f)
@@ -35,4 +38,24 @@ func MockIoctlGetChipInfo(f func(path string) (name, label [32]byte, lines uint3
 		name, label, lines, err := f(path)
 		return &kernelChipInfo{name, label, lines}, err
 	})
+}
+
+func MockChardevChipInfo(f func(path string) (*ChardevChip, error)) (restore func()) {
+	return testutil.Mock(&chardevChipInfo, f)
+}
+
+func MockUnixStat(f func(path string, stat *unix.Stat_t) (err error)) (restore func()) {
+	return testutil.Mock(&unixStat, f)
+}
+
+func MockUnixMknod(f func(path string, mode uint32, dev int) (err error)) (restore func()) {
+	return testutil.Mock(&unixMknod, f)
+}
+
+func MockAggregatorCreationTimeout(t time.Duration) (restore func()) {
+	return testutil.Mock(&aggregatorCreationTimeout, t)
+}
+
+func MockLockAggregator(f func() (unlocker func(), err error)) (restore func()) {
+	return testutil.Mock(&lockAggregator, f)
 }
