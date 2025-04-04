@@ -87,6 +87,7 @@ class TestReplace(unittest.TestCase):
             with open(run_once, 'w') as f:
                 json.dump(run_once_json, f)
             output_dir = 'replaced'
+            os.makedirs(os.path.join(tmpdir, output_dir), exist_ok=True)
             featcomposer.replace_old_runs(
                 tmpdir, os.path.join(tmpdir, output_dir))
             self.assertEqual(
