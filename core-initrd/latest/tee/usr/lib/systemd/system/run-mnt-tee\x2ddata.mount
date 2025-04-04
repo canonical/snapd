@@ -1,0 +1,6 @@
+[Unit]
+Before=tee-supplicant.service
+
+[Mount]
+What=/dev/disk/by-partlabel/tee-data
+Where=/run/mnt/tee-data
