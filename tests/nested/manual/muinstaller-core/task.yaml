@@ -57,7 +57,7 @@ prepare: |
   fi
 
 restore: |
-  rm -rf ./classic-root
+  rm -rf pc-kernel.* pc.* initrd* linux* kernel* tmp* pc-gadget
 
 execute: |
   # shellcheck source=tests/lib/prepare.sh

@@ -39,7 +39,7 @@ restore: |
       mv /var/lib/snapd/seed.orig /var/lib/snapd/seed
   fi
   "$TESTSTOOLS"/store-state teardown-fake-store "$STORE_DIR"
-  rm -rf ./classic-root
+  rm -rf pc-kernel.* pc.* initrd* linux* kernel* tmp* pc-gadget
 
 debug: |
   if remote.exec true; then

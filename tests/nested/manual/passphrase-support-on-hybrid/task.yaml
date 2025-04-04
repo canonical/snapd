@@ -40,7 +40,7 @@ prepare: |
 
 restore: |
   "$TESTSTOOLS"/store-state teardown-fake-store "$STORE_DIR"
-  rm -rf ./classic-root
+  rm -rf pc-kernel.* pc.* initrd* linux* kernel* tmp* pc-gadget
 
 execute: |
   # shellcheck source=tests/lib/prepare.sh
