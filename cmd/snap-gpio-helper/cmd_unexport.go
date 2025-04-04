@@ -19,6 +19,8 @@
 
 package main
 
+import "github.com/snapcore/snapd/sandbox/gpio"
+
 type cmdUnexportChardev struct {
 	Args struct {
 		ChipLabels string `positional-arg-name:"<gpio-labels>" description:"comma-separated list of source chip label(s) to match"`
@@ -28,19 +30,8 @@ type cmdUnexportChardev struct {
 	} `positional-args:"yes" required:"true"`
 }
 
+var gpioUnexportGadgetChardevChip = gpio.UnexportGadgetChardevChip
+
 func (c *cmdUnexportChardev) Execute(args []string) error {
-	aggregatedChip, err := removeGadgetSlotDevice(c.Args.Gadget, c.Args.Slot)
-	if err != nil {
-		return err
-	}
-
-	if err := removeEphermalUdevTaggingRule(c.Args.Gadget, c.Args.Slot); err != nil {
-		return err
-	}
-
-	if err := removeAggregatedChip(aggregatedChip); err != nil {
-		return err
-	}
-
-	return nil
+	return gpioUnexportGadgetChardevChip(c.Args.Gadget, c.Args.Slot)
 }
