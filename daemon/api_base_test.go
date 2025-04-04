@@ -336,8 +336,10 @@ func (s *apiBaseSuite) daemonWithStore(c *check.C, sto snapstate.StoreService) *
 	c.Assert(err, check.IsNil)
 
 	st := d.Overlord().State()
-	// mark as already seeded
 	st.Lock()
+	// set a fake fde state
+	st.Set("fde", &struct{}{})
+	// mark as already seeded
 	st.Set("seeded", true)
 	// and registered
 	s.mockModel(st, nil)
