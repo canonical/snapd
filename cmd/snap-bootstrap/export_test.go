@@ -25,7 +25,6 @@ import (
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/boot"
-	"github.com/snapcore/snapd/bootloader/efi"
 	"github.com/snapcore/snapd/gadget"
 	gadgetInstall "github.com/snapcore/snapd/gadget/install"
 	"github.com/snapcore/snapd/osutil/disks"
@@ -240,22 +239,6 @@ func MockEnsureNextBootToRunMode(f func(systemLabel string) error) (restore func
 	bootEnsureNextBootToRunMode = f
 	return func() {
 		bootEnsureNextBootToRunMode = old
-	}
-}
-
-func MockEfiVars(efiVariables map[string]string) func() {
-	newReadVarString := func(name string) (string, efi.VariableAttr, error) {
-		value, ok := efiVariables[name]
-		if !ok {
-			return "", 0, fmt.Errorf("Variable not found")
-		}
-		return value, 0, nil
-	}
-	oldEfiReadVarString := efiReadVarString
-	efiReadVarString = newReadVarString
-
-	return func() {
-		efiReadVarString = oldEfiReadVarString
 	}
 }
 

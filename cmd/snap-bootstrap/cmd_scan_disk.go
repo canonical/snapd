@@ -68,14 +68,9 @@ import (
 	"github.com/jessevdk/go-flags"
 
 	"github.com/snapcore/snapd/boot"
-	"github.com/snapcore/snapd/bootloader/efi"
 	"github.com/snapcore/snapd/cmd/snap-bootstrap/blkid"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil/kcmdline"
-)
-
-var (
-	efiReadVarString = efi.ReadVarString
 )
 
 func init() {
@@ -166,12 +161,11 @@ func scanDiskNode(output io.Writer, node string) error {
 	fmt.Fprintf(os.Stderr, "Scanning disk %s\n", node)
 	fallback := false
 	var fallbackPartition string
-	bootUUID, _, err := efiReadVarString("LoaderDevicePartUUID-4a67b082-0a4c-41cf-b6c7-440b29bb8c4f")
+
+	bootUUID, err := bootFindPartitionUUIDForBootedKernelDisk()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "No efi var, falling back: %s\n", err)
 		fallback = true
-	} else {
-		bootUUID = strings.ToLower(bootUUID)
 	}
 
 	partitions, err := probePartitions(node)
