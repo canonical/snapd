@@ -1013,6 +1013,7 @@ func (s *secbootSuite) TestSealKey(c *C) {
 			TPMPolicyAuthKeyFile:   filepath.Join(tmpDir, "policy-auth-key-file"),
 			PCRPolicyCounterHandle: 42,
 			VolumesAuth:            tc.volumesAuth,
+			KeyRole:                "somerole",
 		}
 
 		containerA := secboot.CreateMockBootstrappedContainer()
@@ -1147,6 +1148,7 @@ func (s *secbootSuite) TestSealKey(c *C) {
 			sealCalls++
 			c.Assert(t, Equals, tpm)
 			c.Assert(params.PCRPolicyCounterHandle, Equals, tpm2.Handle(42))
+			c.Check(params.Role, Equals, "somerole")
 			return &sb.KeyData{}, sb.PrimaryKey{}, sb.DiskUnlockKey{}, tc.sealErr
 		})
 		defer restore()
@@ -1155,6 +1157,7 @@ func (s *secbootSuite) TestSealKey(c *C) {
 			passphraseSealCalls++
 			c.Assert(t, Equals, tpm)
 			c.Assert(params.PCRPolicyCounterHandle, Equals, tpm2.Handle(42))
+			c.Check(params.Role, Equals, "somerole")
 			var expectedKDFOptions sb.KDFOptions
 			switch tc.volumesAuth.KDFType {
 			case "argon2id":
