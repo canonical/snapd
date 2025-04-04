@@ -20,6 +20,7 @@
 package gpio_test
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"os"
@@ -108,6 +109,23 @@ func (s *chardevTestSuite) TestChardevChipInfo(c *C) {
 	c.Assert(called, Equals, 1)
 }
 
+func (s *chardevTestSuite) TestChardevChipInfoNoChipError(c *C) {
+	mockPath := "/path/to/chip"
+
+	called := 0
+	restore := gpio.MockIoctlGetChipInfo(func(path string) (name [32]byte, label [32]byte, lines uint32, err error) {
+		called++
+		c.Assert(path, Equals, mockPath)
+		err = errors.New("boom!")
+		return
+	})
+	defer restore()
+
+	_, err := gpio.ChardevChipInfo(mockPath)
+	c.Assert(err, ErrorMatches, `failed to read gpio chip info from "/path/to/chip": boom!`)
+	c.Assert(called, Equals, 1)
+}
+
 type exportUnexportTestSuite struct {
 	testutil.BaseTest
 
@@ -176,8 +194,8 @@ func (s *exportUnexportTestSuite) SetUpTest(c *C) {
 	s.AddCleanup(func() { close(watcherDone) })
 	watcher, err := inotify.NewWatcher()
 	c.Assert(err, IsNil)
-	c.Assert(watcher.AddWatch(filepath.Join(s.rootdir, "/sys/bus/platform/drivers/gpio-aggregator/new_device"), inotify.InModify), IsNil)
-	c.Assert(watcher.AddWatch(filepath.Join(s.rootdir, "/sys/bus/platform/drivers/gpio-aggregator/delete_device"), inotify.InModify), IsNil)
+	c.Assert(watcher.AddWatch(filepath.Join(s.rootdir, "/sys/bus/platform/drivers/gpio-aggregator/new_device"), inotify.InCloseWrite), IsNil)
+	c.Assert(watcher.AddWatch(filepath.Join(s.rootdir, "/sys/bus/platform/drivers/gpio-aggregator/delete_device"), inotify.InCloseWrite), IsNil)
 	go func() {
 		for {
 			select {
@@ -292,7 +310,7 @@ func (s *exportUnexportTestSuite) TestExportGadgetChardevChip(c *C) {
 	})
 	defer restore()
 
-	err = gpio.ExportGadgetChardevChip([]string{"label-2"}, strutil.Range{{Start: 0, End: 6}}, "gadget-name", "slot-name")
+	err = gpio.ExportGadgetChardevChip(context.TODO(), []string{"label-2"}, strutil.Range{{Start: 0, End: 6}}, "gadget-name", "slot-name")
 	c.Assert(err, IsNil)
 
 	// Aggregator lock is unlocked
@@ -315,12 +333,12 @@ func (s *exportUnexportTestSuite) TestExportGadgetChardevChip(c *C) {
 func (s *exportUnexportTestSuite) TestExportGadgetChardevChipMissingLine(c *C) {
 	s.mockChip(c, "gpiochip0", filepath.Join(s.rootdir, "/dev/gpiochip0"), "label-0", 3, nil)
 
-	err := gpio.ExportGadgetChardevChip([]string{"label-0"}, strutil.Range{{Start: 0, End: 3}}, "gadget-name", "slot-name")
+	err := gpio.ExportGadgetChardevChip(context.TODO(), []string{"label-0"}, strutil.Range{{Start: 0, End: 3}}, "gadget-name", "slot-name")
 	c.Check(err, ErrorMatches, `invalid lines argument: invalid line offset 3: line does not exist in "gpiochip0"`)
 }
 
 func (s *exportUnexportTestSuite) TestExportGadgetChardevChipMissingChip(c *C) {
-	err := gpio.ExportGadgetChardevChip([]string{"label-0"}, strutil.Range{{Start: 0, End: 0}}, "gadget-name", "slot-name")
+	err := gpio.ExportGadgetChardevChip(context.TODO(), []string{"label-0"}, strutil.Range{{Start: 0, End: 0}}, "gadget-name", "slot-name")
 	c.Check(err, ErrorMatches, "no matching gpio chips found matching chip labels")
 }
 
@@ -328,21 +346,33 @@ func (s *exportUnexportTestSuite) TestExportGadgetChardevChipMultipleMatchingChi
 	s.mockChip(c, "gpiochip0", filepath.Join(s.rootdir, "/dev/gpiochip0"), "label-0", 3, nil)
 	s.mockChip(c, "gpiochip1", filepath.Join(s.rootdir, "/dev/gpiochip1"), "label-1", 6, nil)
 
-	err := gpio.ExportGadgetChardevChip([]string{"label-0", "label-1"}, strutil.Range{{Start: 0, End: 0}}, "gadget-name", "slot-name")
+	err := gpio.ExportGadgetChardevChip(context.TODO(), []string{"label-0", "label-1"}, strutil.Range{{Start: 0, End: 0}}, "gadget-name", "slot-name")
 	c.Check(err, ErrorMatches, "more than one gpio chips were found matching chip labels")
 }
 
 func (s *exportUnexportTestSuite) TestExportGadgetChardevChipTimeout(c *C) {
 	s.mockChip(c, "gpiochip0", filepath.Join(s.rootdir, "/dev/gpiochip0"), "label-0", 3, nil)
 
-	// // Do nothing to force waiting
+	// Do nothing to force waiting
 	s.mockNewDeviceCallback(func(cmd string) {})
 
 	restore := gpio.MockAggregatorCreationTimeout(100 * time.Millisecond)
 	defer restore()
 
-	err := gpio.ExportGadgetChardevChip([]string{"label-0"}, strutil.Range{{Start: 0, End: 0}}, "gadget-name", "slot-name")
-	c.Check(err, ErrorMatches, "max timeout exceeded")
+	err := gpio.ExportGadgetChardevChip(context.TODO(), []string{"label-0"}, strutil.Range{{Start: 0, End: 0}}, "gadget-name", "slot-name")
+	c.Check(err, ErrorMatches, "context deadline exceeded")
+}
+
+func (s *exportUnexportTestSuite) TestExportGadgetChardevChipContextCanellation(c *C) {
+	s.mockChip(c, "gpiochip0", filepath.Join(s.rootdir, "/dev/gpiochip0"), "label-0", 3, nil)
+
+	ctx, cancel := context.WithCancel(context.TODO())
+	s.mockNewDeviceCallback(func(cmd string) {
+		cancel()
+	})
+
+	err := gpio.ExportGadgetChardevChip(ctx, []string{"label-0"}, strutil.Range{{Start: 0, End: 0}}, "gadget-name", "slot-name")
+	c.Check(err, ErrorMatches, "context canceled")
 }
 
 func (s *exportUnexportTestSuite) TestExportGadgetChardevChipUdevReloadError(c *C) {
@@ -351,7 +381,7 @@ func (s *exportUnexportTestSuite) TestExportGadgetChardevChipUdevReloadError(c *
 	cmd := testutil.MockCommand(c, "udevadm", "echo boom! && exit 1")
 	defer cmd.Restore()
 
-	err := gpio.ExportGadgetChardevChip([]string{"label-0"}, strutil.Range{{Start: 0, End: 0}}, "gadget-name", "slot-name")
+	err := gpio.ExportGadgetChardevChip(context.TODO(), []string{"label-0"}, strutil.Range{{Start: 0, End: 0}}, "gadget-name", "slot-name")
 	c.Check(err, ErrorMatches, "cannot reload udev rules: exit status 1\nudev output:\nboom!\n")
 }
 
@@ -363,7 +393,7 @@ func (s *exportUnexportTestSuite) TestExportGadgetChardevChipAddGadgetDeviceErro
 	})
 	defer restore()
 
-	err := gpio.ExportGadgetChardevChip([]string{"label-0"}, strutil.Range{{Start: 0, End: 0}}, "gadget-name", "slot-name")
+	err := gpio.ExportGadgetChardevChip(context.TODO(), []string{"label-0"}, strutil.Range{{Start: 0, End: 0}}, "gadget-name", "slot-name")
 	c.Check(err, ErrorMatches, "boom!")
 }
 
@@ -444,7 +474,7 @@ func (s *exportUnexportTestSuite) TestExportUnexportGpioChardevRunthrough(c *C) 
 	})
 
 	// 1. Export
-	err := gpio.ExportGadgetChardevChip([]string{"label-0"}, strutil.Range{{Start: 0, End: 2}}, "gadget-name", "slot-name")
+	err := gpio.ExportGadgetChardevChip(context.TODO(), []string{"label-0"}, strutil.Range{{Start: 0, End: 2}}, "gadget-name", "slot-name")
 	c.Assert(err, IsNil)
 
 	// Ephermal udev rule is dropped under /run/udev/rules.d

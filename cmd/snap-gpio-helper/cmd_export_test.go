@@ -20,6 +20,7 @@
 package main_test
 
 import (
+	"context"
 	"os"
 
 	main "github.com/snapcore/snapd/cmd/snap-gpio-helper"
@@ -35,7 +36,7 @@ func (s *snapGpioHelperSuite) TestExportGpioChardevBadLine(c *C) {
 	c.Assert(os.WriteFile(features.GPIOChardevInterface.ControlFile(), []byte(nil), 0644), IsNil)
 
 	called := 0
-	restore := main.MockGpioExportGadgetChardevChip(func(chipLabels []string, lines strutil.Range, gadgetName, slotName string) error {
+	restore := main.MockGpioExportGadgetChardevChip(func(ctx context.Context, chipLabels []string, lines strutil.Range, gadgetName, slotName string) error {
 		called++
 		return nil
 	})
@@ -62,7 +63,7 @@ func (s *snapGpioHelperSuite) TestExportGpioChardev(c *C) {
 	c.Assert(os.WriteFile(features.GPIOChardevInterface.ControlFile(), []byte(nil), 0644), IsNil)
 
 	called := 0
-	restore := main.MockGpioExportGadgetChardevChip(func(chipLabels []string, lines strutil.Range, gadgetName, slotName string) error {
+	restore := main.MockGpioExportGadgetChardevChip(func(ctx context.Context, chipLabels []string, lines strutil.Range, gadgetName, slotName string) error {
 		called++
 		c.Check(chipLabels, DeepEquals, []string{"label-0", "label-1"})
 		c.Check(lines, DeepEquals, strutil.Range{
