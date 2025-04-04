@@ -20,6 +20,7 @@
 package gpio
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"path/filepath"
@@ -28,6 +29,8 @@ import (
 	"github.com/snapcore/snapd/strutil"
 )
 
+// SnapChardevPath returns the path for the exported snap-specific gpio
+// chardev chip device node based on the plug/slot name.
 func SnapChardevPath(instanceName, plugOrSlot string) string {
 	return filepath.Join(dirs.SnapGpioChardevDir, instanceName, plugOrSlot)
 }
@@ -36,7 +39,9 @@ func SnapChardevPath(instanceName, plugOrSlot string) string {
 // gpio aggregator for a given gadget gpio-chardev interface slot.
 //
 // Note: chipLabels must match exactly one chip.
-func ExportGadgetChardevChip(chipLabels []string, lines strutil.Range, gadgetName, slotName string) error {
+func ExportGadgetChardevChip(ctx context.Context, chipLabels []string, lines strutil.Range, gadgetName, slotName string) error {
+	// The filtering is quadratic, but we only expect a few chip
+	// labels, so it is fine.
 	filter := func(chip *ChardevChip) bool {
 		return strutil.ListContains(chipLabels, chip.Label)
 	}
@@ -56,11 +61,11 @@ func ExportGadgetChardevChip(chipLabels []string, lines strutil.Range, gadgetNam
 		return fmt.Errorf("invalid lines argument: %w", err)
 	}
 
-	aggregatedChip, err := addAggregatedChip(chip, lines)
+	aggregatedChip, err := addAggregatedChip(ctx, chip, lines)
 	if err != nil {
 		return err
 	}
-	if err := addEphermalUdevTaggingRule(aggregatedChip, gadgetName, slotName); err != nil {
+	if err := addEphermalUdevTaggingRule(ctx, aggregatedChip, gadgetName, slotName); err != nil {
 		return err
 	}
 	return addGadgetSlotDevice(aggregatedChip, gadgetName, slotName)

@@ -19,6 +19,8 @@
 package main
 
 import (
+	"context"
+
 	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -27,7 +29,7 @@ var (
 	Run = run
 )
 
-func MockGpioExportGadgetChardevChip(f func(chipLabels []string, lines strutil.Range, gadgetName string, slotName string) error) (restore func()) {
+func MockGpioExportGadgetChardevChip(f func(ctx context.Context, chipLabels []string, lines strutil.Range, gadgetName string, slotName string) error) (restore func()) {
 	return testutil.Mock(&gpioExportGadgetChardevChip, f)
 }
 

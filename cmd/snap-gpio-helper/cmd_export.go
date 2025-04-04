@@ -20,7 +20,10 @@
 package main
 
 import (
+	"context"
 	"fmt"
+	"os"
+	"os/signal"
 	"strings"
 
 	"github.com/snapcore/snapd/sandbox/gpio"
@@ -45,5 +48,8 @@ func (c *cmdExportChardev) Execute(args []string) error {
 		return fmt.Errorf("invalid lines argument: %w", err)
 	}
 
-	return gpioExportGadgetChardevChip(chipLabels, lines, c.Args.Gadget, c.Args.Slot)
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
+	defer stop()
+
+	return gpioExportGadgetChardevChip(ctx, chipLabels, lines, c.Args.Gadget, c.Args.Slot)
 }

@@ -27,6 +27,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"time"
 	"unsafe"
 
@@ -38,6 +39,7 @@ import (
 	"github.com/snapcore/snapd/strutil"
 )
 
+// ChardevChip describes a gpio chardev device.
 type ChardevChip struct {
 	Path     string
 	Name     string
@@ -67,19 +69,26 @@ var ioctlGetChipInfo = func(path string) (*kernelChipInfo, error) {
 	}
 	defer f.Close()
 
-	var kci kernelChipInfo
-	_, _, errno := unixSyscall(unix.SYS_IOCTL, f.Fd(), _GPIO_GET_CHIPINFO_IOCTL, uintptr(unsafe.Pointer(&kci)))
+	conn, err := f.SyscallConn()
+	if err != nil {
+		return nil, err
+	}
+
+	kci := new(kernelChipInfo)
+	var errno syscall.Errno
+	err = conn.Control(func(fd uintptr) {
+		_, _, errno = unixSyscall(unix.SYS_IOCTL, f.Fd(), _GPIO_GET_CHIPINFO_IOCTL, uintptr(unsafe.Pointer(kci)))
+	})
 	if errno != 0 {
 		return nil, errno
 	}
-
-	return &kci, nil
+	return kci, err
 }
 
 var chardevChipInfo = func(path string) (*ChardevChip, error) {
 	kci, err := ioctlGetChipInfo(path)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to read gpio chip info from %q: %w", path, err)
 	}
 
 	chip := &ChardevChip{
@@ -107,13 +116,14 @@ var lockAggregator = func() (unlocker func(), err error) {
 		return nil, err
 	}
 	return func() {
-		flock.Close()
+		// we don't care about the error, this is best-effort.
+		_ = flock.Close()
 	}, nil
 }
 
 var aggregatorCreationTimeout = 120 * time.Second
 
-func addAggregatedChip(sourceChip *ChardevChip, lines strutil.Range) (chip *ChardevChip, err error) {
+func addAggregatedChip(ctx context.Context, sourceChip *ChardevChip, lines strutil.Range) (chip *ChardevChip, err error) {
 	// synchronize gpio helpers' access to the aggregator interface
 	unlocker, err := lockAggregator()
 	if err != nil {
@@ -121,28 +131,24 @@ func addAggregatedChip(sourceChip *ChardevChip, lines strutil.Range) (chip *Char
 	}
 	defer unlocker()
 
-	f, err := os.OpenFile(filepath.Join(dirs.GlobalRootDir, aggregatorNewDevicePath), os.O_WRONLY, 0)
-	if err != nil {
-		return nil, err
-	}
-	defer f.Close()
-
 	watcher, err := inotify.NewWatcher()
 	if err != nil {
 		return nil, err
 	}
+	defer watcher.Close()
+
 	err = watcher.AddWatch(dirs.DevDir, inotify.InCreate)
 	if err != nil {
 		return nil, err
 	}
 
 	// <label> <lines>
-	_, err = fmt.Fprintf(f, "%s %s", sourceChip.Label, lines.String())
-	if err != nil {
+	cmd := fmt.Sprintf("%s %s", sourceChip.Label, lines.String())
+	if err := os.WriteFile(filepath.Join(dirs.GlobalRootDir, aggregatorNewDevicePath), []byte(cmd), 0644); err != nil {
 		return nil, err
 	}
 
-	ctxWithTimeout, cancel := context.WithTimeout(context.Background(), aggregatorCreationTimeout)
+	ctxWithTimeout, cancel := context.WithTimeout(ctx, aggregatorCreationTimeout)
 	defer cancel()
 	for {
 		select {
@@ -153,7 +159,7 @@ func addAggregatedChip(sourceChip *ChardevChip, lines strutil.Range) (chip *Char
 				return chardevChipInfo(path)
 			}
 		case <-ctxWithTimeout.Done():
-			return nil, fmt.Errorf("max timeout exceeded")
+			return nil, ctxWithTimeout.Err()
 		}
 	}
 }
@@ -163,7 +169,7 @@ func aggregatedChipUdevRulePath(instanceName, slotName string) string {
 	return filepath.Join(filepath.Join(dirs.GlobalRootDir, ephermalUdevRulesDir), fname)
 }
 
-func addEphermalUdevTaggingRule(chip *ChardevChip, instanceName, slotName string) error {
+func addEphermalUdevTaggingRule(ctx context.Context, chip *ChardevChip, instanceName, slotName string) error {
 	if err := os.MkdirAll(filepath.Join(dirs.GlobalRootDir, ephermalUdevRulesDir), 0755); err != nil {
 		return err
 	}
@@ -178,14 +184,14 @@ func addEphermalUdevTaggingRule(chip *ChardevChip, instanceName, slotName string
 
 	// make sure the rule we just dropped is loaded as sometimes it doesn't get
 	// picked up right away
-	output, err := exec.Command("udevadm", "control", "--reload-rules").CombinedOutput()
+	output, err := exec.CommandContext(ctx, "udevadm", "control", "--reload-rules").CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("cannot reload udev rules: %s\nudev output:\n%s", err, string(output))
 	}
 	// trigger the tagging rule
-	output, err = exec.Command("udevadm", "trigger", "--name-match", chip.Name).CombinedOutput()
+	output, err = exec.CommandContext(ctx, "udevadm", "trigger", "--name-match", chip.Name).CombinedOutput()
 	if err != nil {
-		return fmt.Errorf("%s\nudev output:\n%s", err, string(output))
+		return fmt.Errorf("cannot trigger udev rules: %s\nudev output:\n%s", err, string(output))
 	}
 
 	return nil
@@ -217,12 +223,7 @@ func removeGadgetSlotDevice(instanceName, slotName string) (aggregatedChip *Char
 	if err != nil {
 		return nil, err
 	}
-
-	if err := os.Remove(devPath); err != nil {
-		return nil, err
-	}
-
-	return aggregatedChip, nil
+	return aggregatedChip, os.Remove(devPath)
 }
 
 func removeEphermalUdevTaggingRule(gadget, slot string) error {
@@ -239,17 +240,7 @@ func removeAggregatedChip(aggregatedChip *ChardevChip) error {
 	}
 	defer unlocker()
 
-	f, err := os.OpenFile(filepath.Join(dirs.GlobalRootDir, aggregatorDeleteDevicePath), os.O_WRONLY, 0)
-	if err != nil {
-		return err
-	}
-	defer f.Close()
-
-	if _, err = f.WriteString(aggregatedChip.Label); err != nil {
-		return err
-	}
-
-	return nil
+	return os.WriteFile(filepath.Join(dirs.GlobalRootDir, aggregatorDeleteDevicePath), []byte(aggregatedChip.Label), 0644)
 }
 
 func validateLines(chip *ChardevChip, lines strutil.Range) error {
