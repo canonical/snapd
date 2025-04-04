@@ -48,7 +48,7 @@ func RegisterFileDescriptor(fd uintptr) (version ProtocolVersion, pendingCount i
 
 		if protocolVersion >= 5 {
 			// Attempt to register the listener ID before setting the filter
-			pendingCount, err = registerListenerID(fd, protocolVersion)
+			listenerID, err := registerListenerID(fd, protocolVersion)
 			if err != nil {
 				if errors.Is(err, unix.EINVAL) {
 					unsupported[protocolVersion] = true
@@ -58,14 +58,17 @@ func RegisterFileDescriptor(fd uintptr) (version ProtocolVersion, pendingCount i
 			}
 
 			// Attempt to resend previously-sent requests
-			if err := resendRequests(fd, protocolVersion); err != nil {
+			if pendingCount, err = resendRequests(fd, protocolVersion, listenerID); err != nil {
 				// If REGISTER succeeded but RESEND failed, a real error
 				// occurred, and it's not a problem with protocol version
 				return 0, 0, err
 			}
 		}
 
-		// Set filter on the listener
+		// XXX: SET_FILTER doesn't create listener, opening the FD does.
+		// If a filter is set on a listener before reregistering with a known
+		// listener ID, the "new" listener (and filter we just sent) are
+		// discarded, and the old listener and its filters are used.
 		if err := setFilterForListener(fd, protocolVersion); err != nil {
 			if errors.Is(err, unix.EPROTONOSUPPORT) {
 				unsupported[protocolVersion] = true
@@ -88,16 +91,15 @@ func RegisterFileDescriptor(fd uintptr) (version ProtocolVersion, pendingCount i
 // registerListenerID checks whether there's a saved listener ID, and if so,
 // attempts to register the given file descriptor with it. If not, or if a
 // listener with the saved ID is not found, requests the new listener ID and
-// saves it to disk. Returns the number of pending requests which were
-// previously sent before the listener was re-registered.
-func registerListenerID(fd uintptr, version ProtocolVersion) (pendingCount int, err error) {
+// saves it to disk. Returns the ID of the listener.
+func registerListenerID(fd uintptr, version ProtocolVersion) (listenerID uint64, err error) {
 	listenerID, ok := retrieveSavedListenerID()
 	if !ok {
 		// Listener ID not found, so request the new ID by setting the ID to 0.
 		listenerID = 0
 	}
 
-	msg := MsgNotificationResend{
+	msg := MsgNotificationRegister{
 		MsgHeader: MsgHeader{
 			Version: version,
 		},
@@ -135,9 +137,7 @@ func registerListenerID(fd uintptr, version ProtocolVersion) (pendingCount int, 
 		return 0, err
 	}
 
-	// Return the number of pending previously-sent requests. This should be 0
-	// if there was no saved listener ID, since this is a new listener.
-	return int(msg.Pending), nil
+	return msg.KernelListenerID, nil
 }
 
 // retrieveSavedListenerID returns the listener ID which is saved on disk, if
@@ -174,26 +174,39 @@ func saveListenerID(id uint64) error {
 // resendRequests tells the kernel to resend all pending requests previously
 // sent by the listener associated with the given notify file descriptor.
 //
-// XXX: Is there a race if a new request is sent between when the listener is
-// re-registered and when the resend command is issued? That new request could
-// not have been read yet, but would it be sent twice, once without the
-// NOTIF_RESENT flag and once with?
-func resendRequests(fd uintptr, version ProtocolVersion) error {
-	// TODO: at the moment, the spec does not specify any input or output
-	// messages for the APPARMOR_NOTIF_RESEND command, though it does suggest
-	// that apparmor_notif_reclaim may be sent as output in the future.
-	ioctlBuf := NewIoctlRequestBuffer(version)
-	if _, err := doIoctl(fd, APPARMOR_NOTIF_RESEND, ioctlBuf); err != nil {
-		return err
+// Returns the number of previously-sent messages which were pending a response
+// and have now been queued to be re-sent.
+func resendRequests(fd uintptr, version ProtocolVersion, listenerID uint64) (pendingCount int, err error) {
+	msg := MsgNotificationResend{
+		MsgHeader: MsgHeader{
+			Version: version,
+		},
+		KernelListenerID: listenerID,
+		// Ready and Pending will be set by the kernel
 	}
-	return nil
+	data, err := msg.MarshalBinary()
+	if err != nil {
+		return 0, err
+	}
+	ioctlBuf := IoctlRequestBuffer(data)
+	buf, err := doIoctl(fd, APPARMOR_NOTIF_RESEND, ioctlBuf)
+	if err != nil {
+		return 0, err
+	}
+	// Success, now extract the pending request count.
+	if err = msg.UnmarshalBinary(buf); err != nil {
+		return 0, err
+	}
+	return int(msg.Pending), nil
 }
 
 // setFilterForListener sets a filter on the listener corresponding to the
 // given file descriptor, using the given protocol version.
 //
-// TODO: do we want to avoid re-setting an identical filter with an identical
-// protocol version on a reclaimed listener which already had that filter?
+// Setting a filter on a re-registered listener which already had a filter set
+// should have no ill effects. The kernel supports multiple filters on a
+// listener, and requests which maych more than one filter on a listener will
+// still only be queued once for that listener.
 func setFilterForListener(fd uintptr, version ProtocolVersion) error {
 	msg := MsgNotificationFilter{
 		MsgHeader: MsgHeader{

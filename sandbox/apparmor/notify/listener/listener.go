@@ -140,7 +140,7 @@ type Listener struct {
 	// signalReadyAndFlushQueue method.
 	//
 	// Until this occurs, other new (not NOTF_RESENT) requests will be queued
-	// up by the listener, and only sent once all NOTIF_RESENT requests have
+	// up by the listener, and only sent once all UNOTIF_RESENT requests have
 	// been sent over the reqs channel.
 	ready chan struct{}
 	// doneReadying is a channel which is closed once signalReadyAndFlushQueue
@@ -152,7 +152,7 @@ type Listener struct {
 	readyTimer timeutil.Timer
 	// pendingMu is a mutex which protects pendingCount and readyQueue.
 	pendingMu sync.Mutex
-	// pendingCount is the number of "pending" (NOTIF_RESENT) messages still
+	// pendingCount is the number of "pending" (UNOTIF_RESENT) messages still
 	// expected to be re-received from the kernel. When the listener becomes
 	// ready, this count must be sent to 0, as it's used as the internal check
 	// for whether a non-RESENT message should be queued.
@@ -164,7 +164,7 @@ type Listener struct {
 	// based on the result of the resend command, and the ready channel has not
 	// yet been closed, this is okay.
 	pendingCount int
-	// readyQueue is the queue of "ready" (not NOTIF_RESENT) requests from the
+	// readyQueue is the queue of "ready" (not UNOTIF_RESENT) requests from the
 	// kernel which were received before either all remaining pending requests
 	// were re-received or the ready timer timed out. Once one of these occurs,
 	// all requests in this queue should be sent by signalReadyAndFlushQueue in
@@ -394,6 +394,13 @@ func (l *Listener) handleRequests() error {
 		}
 		return err
 	}
+	// XXX: Since queued notifications should be sent immediately by the kernel,
+	// if we think there are pending requests, we could use a non-blocking read
+	// to poll for new requests, and if we don't immediately see one, we could
+	// use a (not yet implemented) ioctl command to check the listener's status
+	// regarding ready/pending requests and update the listener's pending count.
+	// This would require some work on the kernel side, so it could be a future
+	// enhancement, but not one we can pursue at time of writing.
 
 	for _, event := range events {
 		if event.Fd != socketFd {
