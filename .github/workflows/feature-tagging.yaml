@@ -1,8 +1,6 @@
 name: Feature Tagging
 
 on:
-  push:
-    branches: ["master"]
 
   workflow_dispatch:
     inputs:
@@ -14,10 +12,6 @@ on:
         type: number
         description: 'Maximum number of times to rerun failed spread tasks'
         default: 2
-      run-all:
-        type: boolean
-        description: 'If true, will run all spread tests. If false, will only run tagging on changed spread tests in the last commit'
-        default: false
 
 jobs:
   set-inputs:
@@ -62,10 +56,9 @@ jobs:
       backend: ${{ matrix.backend }}
       systems: ${{ matrix.systems }}  
       tasks: ${{ matrix.tasks }}
-      rules: ${{ fromJSON(needs.set-inputs.outputs.run-all) && matrix.rules || 'feature-tagging.yaml' }}
+      rules: ${{ matrix.rules }}
       is-fundamental: true
       use-snapd-snap-from-master: true
-      force-use-ruleset: ${{ ! fromJSON(needs.set-inputs.outputs.run-all) }}
       spread-env: "SPREAD_TAG_FEATURES=\"${{ needs.set-inputs.outputs.features }}\""
       upload-artifacts: true
     strategy:
@@ -82,10 +75,9 @@ jobs:
       backend: ${{ matrix.backend }}
       systems: ${{ matrix.systems }}  
       tasks: ${{ matrix.tasks }}
-      rules: ${{ fromJSON(needs.set-inputs.outputs.run-all) && matrix.rules || 'feature-tagging.yaml' }}
+      rules: ${{ matrix.rules }}
       use-snapd-snap-from-master: true
       spread-env: "SPREAD_TAG_FEATURES=\"${{ needs.set-inputs.outputs.features }}\""
-      force-use-ruleset: ${{ ! fromJSON(needs.set-inputs.outputs.run-all) }}
       upload-artifacts: true
     strategy:
       fail-fast: false
@@ -101,10 +93,9 @@ jobs:
       backend: ${{ matrix.backend }}
       systems: ${{ matrix.systems }}  
       tasks: ${{ matrix.tasks }}
-      rules: ${{ fromJSON(needs.set-inputs.outputs.run-all) && matrix.rules || 'feature-tagging.yaml' }}
+      rules: ${{ matrix.rules }}
       use-snapd-snap-from-master: true
       spread-env: "SPREAD_TAG_FEATURES=\"${{ needs.set-inputs.outputs.features }}\""
-      force-use-ruleset: ${{ ! fromJSON(needs.set-inputs.outputs.run-all) }}
       upload-artifacts: true
     strategy:
       fail-fast: false
@@ -166,12 +157,12 @@ jobs:
               fs.writeFileSync(`${process.env.GITHUB_WORKSPACE}/${artifact.name}.zip`, Buffer.from(download.data));
               console.log(`Downloaded artifact: ${artifact.name}.zip`);
             }
+
       - name: Unzip artifacts
         run: |
           mkdir -p feature-tags-artifacts
           find . -name "spread-artifacts*.zip" -exec unzip -d feature-tags-artifacts {} ';'
           echo "ARTIFACTS=feature-tags-artifacts" >> $GITHUB_ENV
-
 
       - name: Create feature tags
         run: |
