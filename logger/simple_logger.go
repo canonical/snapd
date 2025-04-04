@@ -1,7 +1,8 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
+//go:build !structuredlogging
 
 /*
- * Copyright (C) 2014-2022 Canonical Ltd
+ * Copyright (C) 2025 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -20,42 +21,20 @@
 package logger
 
 import (
-	"time"
-
-	"github.com/snapcore/snapd/testutil"
+	"io"
+	"log"
 )
 
-func GetLogger() Logger {
-	lock.Lock()
-	defer lock.Unlock()
-
-	return logger
-}
-
-func GetLoggerFlags() int {
-	log, ok := GetLogger().(*Log)
-	if !ok {
-		return -1
+// New creates a log.Logger using the given io.Writer and flag, using the
+// options from opts.
+func New(w io.Writer, flag int, opts *LoggerOptions) (Logger, error) {
+	if opts == nil {
+		opts = &LoggerOptions{}
 	}
-	return log.flags
-}
-
-func GetQuiet() bool {
-	log := GetLogger().(*Log)
-
-	return log.quiet
-}
-
-func ProcCmdlineMustMock(new bool) (restore func()) {
-	old := procCmdlineUseDefaultMockInTests
-	procCmdlineUseDefaultMockInTests = new
-	return func() {
-		procCmdlineUseDefaultMockInTests = old
+	logger := &Log{
+		log:   log.New(w, "", flag),
+		debug: opts.ForceDebug || debugEnabledOnKernelCmdline(),
+		flags: flag,
 	}
-}
-
-func MockTimeNow(f func() time.Time) (restore func()) {
-	restore = testutil.Backup(&timeNow)
-	timeNow = f
-	return restore
+	return logger, nil
 }

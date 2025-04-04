@@ -162,6 +162,7 @@ func (a byReadyTime) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
 func (a byReadyTime) Less(i, j int) bool { return a[i].readyTime.Before(a[j].readyTime) }
 
 func newChange(state *State, id, kind, summary string) *Change {
+	logger.Trace("new-change", "kind", kind, "id", id)
 	return &Change{
 		state:   state,
 		id:      id,
