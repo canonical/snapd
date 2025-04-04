@@ -309,7 +309,7 @@ func HostUbuntuDataForMode(mode string, mod gadget.Model) ([]string, error) {
 		// for recover mode, the source of truth to determine if we have the
 		// host mount is snap-bootstrap's /run/snapd/snap-bootstrap/degraded.json, so
 		// we have to go parse that
-		degradedJSON, err := LoadUnlockState("degraded.json")
+		degradedJSON, err := LoadDiskUnlockState("degraded.json")
 
 		if err != nil {
 			return nil, err

@@ -9,6 +9,7 @@ import (
 )
 
 // states for partition state
+// TODO: transform those into enums
 const (
 	// states for LocateState
 	PartitionFound      = "found"
@@ -28,7 +29,7 @@ const (
 	KeyRecovery = "recovery"
 )
 
-// partitionState is the state of a partition after recover mode has completed
+// PartitionState is the state of a partition after recover mode has completed
 // for degraded mode.
 type PartitionState struct {
 	// MountState is whether the partition was mounted successfully or not.
@@ -43,14 +44,16 @@ type PartitionState struct {
 	Device string `json:"device,omitempty"`
 	// FindState indicates whether the partition was found on the disk or not.
 	FindState string `json:"find-state,omitempty"`
-	// UnlockState was whether the partition was unlocked successfully or not.
+	// UnlockState is whether the partition was unlocked successfully or not.
 	UnlockState string `json:"unlock-state,omitempty"`
-	// UnlockKey was what key the partition was unlocked with, either "run",
+	// UnlockKey is what key the partition was unlocked with, either "run",
 	// "fallback" or "recovery".
 	UnlockKey string `json:"unlock-key,omitempty"`
 }
 
-type UnlockState struct {
+// DiskUnlockState represents the unlocking state of all encrypted
+// containers
+type DiskUnlockState struct {
 	// UbuntuData is the state of the ubuntu-data (or ubuntu-data-enc)
 	// partition.
 	UbuntuData PartitionState `json:"ubuntu-data,omitempty"`
@@ -64,7 +67,9 @@ type UnlockState struct {
 	ErrorLog []string `json:"error-log"`
 }
 
-func (r *UnlockState) SerializeTo(name string) error {
+// WriteTo writes the DiskUnlockState into a json file for given name
+// in the snap-bootstrap /run dir.
+func (r *DiskUnlockState) WriteTo(name string) error {
 	b, err := json.Marshal(r)
 	if err != nil {
 		return err
@@ -78,14 +83,16 @@ func (r *UnlockState) SerializeTo(name string) error {
 	return os.WriteFile(filepath.Join(dirs.SnapBootstrapRunDir, name), b, 0644)
 }
 
-func LoadUnlockState(name string) (*UnlockState, error) {
+// LoadDiskUnlockState reads the DiskUnlockState from a json file for
+// given name in the snap-bootstrap /run dir.
+func LoadDiskUnlockState(name string) (*DiskUnlockState, error) {
 	jsonFile := filepath.Join(dirs.SnapBootstrapRunDir, name)
 	b, err := os.ReadFile(jsonFile)
 	if err != nil {
 		return nil, err
 	}
 
-	ret := &UnlockState{}
+	ret := &DiskUnlockState{}
 	err = json.Unmarshal(b, &ret)
 	if err != nil {
 		return nil, err

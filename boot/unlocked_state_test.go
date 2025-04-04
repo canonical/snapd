@@ -46,13 +46,13 @@ func (s *unlockStateSuite) SetUpTest(c *C) {
 }
 
 func (s *unlockStateSuite) TestUnlockedStateSerialize(c *C) {
-	state := boot.UnlockState{
+	state := boot.DiskUnlockState{
 		UbuntuData: boot.PartitionState{
 			MountState: boot.PartitionMounted,
 		},
 	}
 
-	state.SerializeTo("test.json")
+	state.WriteTo("test.json")
 
 	jsonData, err := os.ReadFile(filepath.Join(s.rootDir, "run/snapd/snap-bootstrap/test.json"))
 	c.Assert(err, IsNil)
@@ -83,9 +83,9 @@ func (s *unlockStateSuite) TestUnlockedStateLoad(c *C) {
 	err = os.WriteFile(filepath.Join(s.rootDir, "run/snapd/snap-bootstrap/test.json"), jsonData, 0644)
 	c.Assert(err, IsNil)
 
-	us, err := boot.LoadUnlockState("test.json")
+	us, err := boot.LoadDiskUnlockState("test.json")
 	c.Assert(err, IsNil)
-	c.Check(*us, DeepEquals, boot.UnlockState{
+	c.Check(*us, DeepEquals, boot.DiskUnlockState{
 		UbuntuData: boot.PartitionState{
 			MountState: boot.PartitionMounted,
 		},

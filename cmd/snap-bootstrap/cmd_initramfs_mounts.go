@@ -808,14 +808,14 @@ type recoverDegradedState struct {
 }
 
 func (r *recoverDegradedState) serializeTo(name string) error {
-	exportState := &boot.UnlockState{
+	exportState := &boot.DiskUnlockState{
 		UbuntuData: r.UbuntuData.PartitionState,
 		UbuntuBoot: r.UbuntuBoot.PartitionState,
 		UbuntuSave: r.UbuntuSave.PartitionState,
 		ErrorLog:   r.ErrorLog,
 	}
 
-	return exportState.SerializeTo(name)
+	return exportState.WriteTo(name)
 }
 
 func (r *recoverDegradedState) LogErrorf(format string, v ...interface{}) {
