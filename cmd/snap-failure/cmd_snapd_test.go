@@ -80,19 +80,21 @@ set -eu
 
 [ -L '%[1]s/snapd/current' ]
 [ "$(readlink '%[1]s/snapd/current')" = 100 ]
-[ "${SNAPD_REVERT_TO_REV}" = 100 ]
 `
 	// mock snapd command from 'previous' revision
-	snapdCmd := testutil.MockCommand(c, filepath.Join(dirs.SnapMountDir, "snapd", "100", "/usr/lib/snapd/snapd"), fmt.Sprintf(mockScript, dirs.SnapMountDir))
-	defer snapdCmd.Restore()
+	systemdRunCmd := testutil.MockCommand(c, "systemd-run", fmt.Sprintf(mockScript, dirs.SnapMountDir))
+	defer systemdRunCmd.Restore()
+
+	err := os.MkdirAll(filepath.Join(dirs.SnapMountDir, "snapd"), 0755)
+	c.Assert(err, IsNil)
 
 	os.Args = []string{"snap-failure", "snapd"}
-	err := failure.Run()
+	err = failure.Run()
 	c.Check(err, IsNil)
 	c.Check(r.Stderr(), HasLen, 0)
 
-	c.Check(snapdCmd.Calls(), DeepEquals, [][]string{
-		{"snapd"},
+	c.Check(systemdRunCmd.Calls(), DeepEquals, [][]string{
+		{"systemd-run", "--collect", "--wait", "--property=KeyringMode=shared", "--setenv=SNAPD_REVERT_TO_REV=100", "--setenv=SNAPD_DEBUG=1", "--", filepath.Join(dirs.SnapMountDir, "snapd", "100", "/usr/lib/snapd/snapd")},
 	})
 	c.Check(r.systemctlCmd.Calls(), DeepEquals, [][]string{
 		{"systemctl", "stop", "snapd.socket"},
@@ -115,9 +117,11 @@ func (r *failureSuite) TestCallPrevSnapdFromSnapRestartSnapdFallback(c *C) {
 	})
 
 	// mock snapd command from 'previous' revision
-	snapdCmd := testutil.MockCommand(c, filepath.Join(dirs.SnapMountDir, "snapd", "100", "/usr/lib/snapd/snapd"),
-		`test "$SNAPD_REVERT_TO_REV" = "100"`)
-	defer snapdCmd.Restore()
+	systemdRunCmd := testutil.MockCommand(c, "systemd-run", `true`)
+	defer systemdRunCmd.Restore()
+
+	err := os.MkdirAll(filepath.Join(dirs.SnapMountDir, "snapd"), 0755)
+	c.Assert(err, IsNil)
 
 	mockCmdStateDir := c.MkDir()
 
@@ -131,12 +135,12 @@ fi
 	defer systemctlCmd.Restore()
 
 	os.Args = []string{"snap-failure", "snapd"}
-	err := failure.Run()
+	err = failure.Run()
 	c.Check(err, IsNil)
 	c.Check(r.Stderr(), HasLen, 0)
 
-	c.Check(snapdCmd.Calls(), DeepEquals, [][]string{
-		{"snapd"},
+	c.Check(systemdRunCmd.Calls(), DeepEquals, [][]string{
+		{"systemd-run", "--collect", "--wait", "--property=KeyringMode=shared", "--setenv=SNAPD_REVERT_TO_REV=100", "--setenv=SNAPD_DEBUG=1", "--", filepath.Join(dirs.SnapMountDir, "snapd", "100", "/usr/lib/snapd/snapd")},
 	})
 	c.Check(systemctlCmd.Calls(), DeepEquals, [][]string{
 		{"systemctl", "stop", "snapd.socket"},
@@ -160,9 +164,11 @@ func (r *failureSuite) TestCallPrevSnapdFromSnapBackToFullyActive(c *C) {
 	})
 
 	// mock snapd command from 'previous' revision
-	snapdCmd := testutil.MockCommand(c, filepath.Join(dirs.SnapMountDir, "snapd", "100", "/usr/lib/snapd/snapd"),
-		`test "$SNAPD_REVERT_TO_REV" = "100"`)
-	defer snapdCmd.Restore()
+	systemdRunCmd := testutil.MockCommand(c, "systemd-run", `true`)
+	defer systemdRunCmd.Restore()
+
+	err := os.MkdirAll(filepath.Join(dirs.SnapMountDir, "snapd"), 0755)
+	c.Assert(err, IsNil)
 
 	systemctlCmd := testutil.MockCommand(c, "systemctl", `
 if [ "$1" = is-failed ] ; then
@@ -172,7 +178,7 @@ fi
 	defer systemctlCmd.Restore()
 
 	// mock the sockets re-appearing
-	err := os.MkdirAll(filepath.Dir(dirs.SnapdSocket), 0755)
+	err = os.MkdirAll(filepath.Dir(dirs.SnapdSocket), 0755)
 	c.Assert(err, IsNil)
 	err = os.WriteFile(dirs.SnapdSocket, nil, 0755)
 	c.Assert(err, IsNil)
@@ -184,8 +190,8 @@ fi
 	c.Check(err, IsNil)
 	c.Check(r.Stderr(), HasLen, 0)
 
-	c.Check(snapdCmd.Calls(), DeepEquals, [][]string{
-		{"snapd"},
+	c.Check(systemdRunCmd.Calls(), DeepEquals, [][]string{
+		{"systemd-run", "--collect", "--wait", "--property=KeyringMode=shared", "--setenv=SNAPD_REVERT_TO_REV=100", "--setenv=SNAPD_DEBUG=1", "--", filepath.Join(dirs.SnapMountDir, "snapd", "100", "/usr/lib/snapd/snapd")},
 	})
 	c.Check(systemctlCmd.Calls(), DeepEquals, [][]string{
 		{"systemctl", "stop", "snapd.socket"},
@@ -207,9 +213,11 @@ func (r *failureSuite) TestCallPrevSnapdFromSnapBackActiveNoSockets(c *C) {
 	})
 
 	// mock snapd command from 'previous' revision
-	snapdCmd := testutil.MockCommand(c, filepath.Join(dirs.SnapMountDir, "snapd", "100", "/usr/lib/snapd/snapd"),
-		`test "$SNAPD_REVERT_TO_REV" = "100"`)
-	defer snapdCmd.Restore()
+	systemdRunCmd := testutil.MockCommand(c, "systemd-run", `true`)
+	defer systemdRunCmd.Restore()
+
+	err := os.MkdirAll(filepath.Join(dirs.SnapMountDir, "snapd"), 0755)
+	c.Assert(err, IsNil)
 
 	systemctlCmd := testutil.MockCommand(c, "systemctl", `
 if [ "$1" = is-failed ] ; then
@@ -221,12 +229,12 @@ fi
 	// no sockets
 
 	os.Args = []string{"snap-failure", "snapd"}
-	err := failure.Run()
+	err = failure.Run()
 	c.Check(err, IsNil)
 	c.Check(r.Stderr(), HasLen, 0)
 
-	c.Check(snapdCmd.Calls(), DeepEquals, [][]string{
-		{"snapd"},
+	c.Check(systemdRunCmd.Calls(), DeepEquals, [][]string{
+		{"systemd-run", "--collect", "--wait", "--property=KeyringMode=shared", "--setenv=SNAPD_REVERT_TO_REV=100", "--setenv=SNAPD_DEBUG=1", "--", filepath.Join(dirs.SnapMountDir, "snapd", "100", "/usr/lib/snapd/snapd")},
 	})
 	c.Check(systemctlCmd.Calls(), DeepEquals, [][]string{
 		{"systemctl", "stop", "snapd.socket"},
@@ -250,18 +258,21 @@ func (r *failureSuite) TestCallPrevSnapdFromCore(c *C) {
 		{Revision: snap.R(123)},
 	})
 
-	// mock snapd in the core snap
-	snapdCmd := testutil.MockCommand(c, filepath.Join(dirs.SnapMountDir, "core", "current", "/usr/lib/snapd/snapd"),
-		`test "$SNAPD_REVERT_TO_REV" = "0"`)
-	defer snapdCmd.Restore()
+	systemdRunCmd := testutil.MockCommand(c, "systemd-run", `true`)
+	defer systemdRunCmd.Restore()
+
+	err := os.MkdirAll(filepath.Join(dirs.SnapMountDir, "core", "current", "/usr/lib/snapd"), 0755)
+	c.Assert(err, IsNil)
+	err = os.WriteFile(filepath.Join(dirs.SnapMountDir, "core", "current", "/usr/lib/snapd/snapd"), []byte{}, 0755)
+	c.Assert(err, IsNil)
 
 	os.Args = []string{"snap-failure", "snapd"}
-	err := failure.Run()
+	err = failure.Run()
 	c.Check(err, IsNil)
 	c.Check(r.Stderr(), HasLen, 0)
 
-	c.Check(snapdCmd.Calls(), DeepEquals, [][]string{
-		{"snapd"},
+	c.Check(systemdRunCmd.Calls(), DeepEquals, [][]string{
+		{"systemd-run", "--collect", "--wait", "--property=KeyringMode=shared", "--setenv=SNAPD_REVERT_TO_REV=0", "--setenv=SNAPD_DEBUG=1", "--", filepath.Join(dirs.SnapMountDir, "core", "current", "/usr/lib/snapd/snapd")},
 	})
 	c.Check(r.systemctlCmd.Calls(), DeepEquals, [][]string{
 		{"systemctl", "stop", "snapd.socket"},
@@ -281,19 +292,22 @@ func (r *failureSuite) TestCallPrevSnapdFromSnapdWhenNoCore(c *C) {
 	})
 
 	// validity
-	c.Assert(filepath.Join(dirs.SnapMountDir, "core", "current", "/usr/lib/snapd/snapd"), testutil.FileAbsent)
 	// mock snapd in the core snap
-	snapdCmd := testutil.MockCommand(c, filepath.Join(dirs.SnapMountDir, "snapd", "current", "/usr/lib/snapd/snapd"),
-		`test "$SNAPD_REVERT_TO_REV" = "0"`)
-	defer snapdCmd.Restore()
+	systemdRunCmd := testutil.MockCommand(c, "systemd-run", `true`)
+	defer systemdRunCmd.Restore()
+
+	err := os.MkdirAll(filepath.Join(dirs.SnapMountDir, "core", "current", "/usr/lib/snapd"), 0755)
+	c.Assert(err, IsNil)
+	err = os.WriteFile(filepath.Join(dirs.SnapMountDir, "core", "current", "/usr/lib/snapd/snapd"), []byte{}, 0755)
+	c.Assert(err, IsNil)
 
 	os.Args = []string{"snap-failure", "snapd"}
-	err := failure.Run()
+	err = failure.Run()
 	c.Check(err, IsNil)
 	c.Check(r.Stderr(), HasLen, 0)
 
-	c.Check(snapdCmd.Calls(), DeepEquals, [][]string{
-		{"snapd"},
+	c.Check(systemdRunCmd.Calls(), DeepEquals, [][]string{
+		{"systemd-run", "--collect", "--wait", "--property=KeyringMode=shared", "--setenv=SNAPD_REVERT_TO_REV=0", "--setenv=SNAPD_DEBUG=1", "--", filepath.Join(dirs.SnapMountDir, "core", "current", "/usr/lib/snapd/snapd")},
 	})
 	c.Check(r.systemctlCmd.Calls(), DeepEquals, [][]string{
 		{"systemctl", "stop", "snapd.socket"},
@@ -323,43 +337,56 @@ func (r *failureSuite) testCallPrevSnapdWhenDistroInfoDriven(c *C, tc distroVers
 		{Revision: snap.R(123)},
 	})
 
+	if tc.hasCore {
+		err := os.MkdirAll(filepath.Join(dirs.SnapMountDir, "core", "current", "/usr/lib/snapd"), 0755)
+		c.Assert(err, IsNil)
+		err = os.WriteFile(filepath.Join(dirs.SnapMountDir, "core", "current", "/usr/lib/snapd/snapd"), []byte{}, 0755)
+		c.Assert(err, IsNil)
+	}
+	err := os.MkdirAll(filepath.Join(dirs.SnapMountDir, "snapd", "current", "/usr/lib/snapd"), 0755)
+	c.Assert(err, IsNil)
+	err = os.WriteFile(filepath.Join(dirs.SnapMountDir, "snapd", "current", "/usr/lib/snapd/snapd"), []byte{}, 0755)
+	c.Assert(err, IsNil)
+
 	var snippetSnapdSnapd, snippetCoreSnapd string
 	if tc.callsFromSnapd {
-		snippetSnapdSnapd, snippetCoreSnapd = `test "$SNAPD_REVERT_TO_REV" = "0"`, `exit 1`
+		snippetSnapdSnapd, snippetCoreSnapd = `true`, `exit 1`
 	} else {
-		snippetSnapdSnapd, snippetCoreSnapd = `exit 1`, `test "$SNAPD_REVERT_TO_REV" = "0"`
+		snippetSnapdSnapd, snippetCoreSnapd = `exit 1`, `true`
 	}
 
-	var snapdInCore, snapdInSnapd *testutil.MockCmd
-	// mock snapd in the core snap
-	if tc.hasCore {
-		snapdInCore = testutil.MockCommand(c, filepath.Join(dirs.SnapMountDir, "core", "current", "/usr/lib/snapd/snapd"),
-			snippetCoreSnapd)
-		defer snapdInCore.Restore()
-	}
+	snippet := fmt.Sprintf(`
+case "$7" in
+*/snapd/current/usr/lib/snapd/snapd)
+  %[1]s
+;;
+*/core/current/usr/lib/snapd/snapd)
+  %[2]s
+;;
+*)
+  exit 1
+;;
+esac
+`, snippetSnapdSnapd, snippetCoreSnapd)
 
-	snapdInSnapd = testutil.MockCommand(c, filepath.Join(dirs.SnapMountDir, "snapd", "current", "/usr/lib/snapd/snapd"),
-		snippetSnapdSnapd)
-	defer snapdInSnapd.Restore()
+	systemdRun := testutil.MockCommand(c, "systemd-run", snippet)
 
 	os.Args = []string{"snap-failure", "snapd"}
-	err := failure.Run()
+	err = failure.Run()
 	c.Check(err, IsNil)
 	c.Check(r.Stderr(), HasLen, 0)
 
 	if tc.callsFromSnapd {
-		c.Check(snapdInSnapd.Calls(), DeepEquals, [][]string{
-			{"snapd"},
+		c.Check(systemdRun.Calls(), DeepEquals, [][]string{
+			{"systemd-run", "--collect", "--wait", "--property=KeyringMode=shared", "--setenv=SNAPD_REVERT_TO_REV=0", "--setenv=SNAPD_DEBUG=1", "--", filepath.Join(dirs.SnapMountDir, "snapd", "current", "/usr/lib/snapd/snapd")},
 		})
-		if tc.hasCore {
-			c.Check(snapdInCore.Calls(), HasLen, 0)
-		}
 	} else {
-		c.Check(snapdInSnapd.Calls(), HasLen, 0)
 		if tc.hasCore {
-			c.Check(snapdInCore.Calls(), DeepEquals, [][]string{
-				{"snapd"},
+			c.Check(systemdRun.Calls(), DeepEquals, [][]string{
+				{"systemd-run", "--collect", "--wait", "--property=KeyringMode=shared", "--setenv=SNAPD_REVERT_TO_REV=0", "--setenv=SNAPD_DEBUG=1", "--", filepath.Join(dirs.SnapMountDir, "core", "current", "/usr/lib/snapd/snapd")},
 			})
+		} else {
+			c.Check(systemdRun.Calls(), DeepEquals, [][]string{})
 		}
 	}
 
@@ -426,17 +453,19 @@ func (r *failureSuite) TestCallPrevSnapdFail(c *C) {
 	})
 
 	// mock snapd in the core snap
-	snapdCmd := testutil.MockCommand(c, filepath.Join(dirs.SnapMountDir, "snapd", "100", "/usr/lib/snapd/snapd"),
-		`exit 2`)
-	defer snapdCmd.Restore()
+	systemdRunCmd := testutil.MockCommand(c, "systemd-run", `exit 2`)
+	defer systemdRunCmd.Restore()
+
+	err := os.MkdirAll(filepath.Join(dirs.SnapMountDir, "snapd"), 0755)
+	c.Assert(err, IsNil)
 
 	os.Args = []string{"snap-failure", "snapd"}
-	err := failure.Run()
+	err = failure.Run()
 	c.Check(err, ErrorMatches, "snapd failed: exit status 2")
 	c.Check(r.Stderr(), HasLen, 0)
 
-	c.Check(snapdCmd.Calls(), DeepEquals, [][]string{
-		{"snapd"},
+	c.Check(systemdRunCmd.Calls(), DeepEquals, [][]string{
+		{"systemd-run", "--collect", "--wait", "--property=KeyringMode=shared", "--setenv=SNAPD_REVERT_TO_REV=100", "--setenv=SNAPD_DEBUG=1", "--", filepath.Join(dirs.SnapMountDir, "snapd", "100", "/usr/lib/snapd/snapd")},
 	})
 	c.Check(r.systemctlCmd.Calls(), DeepEquals, [][]string{
 		{"systemctl", "stop", "snapd.socket"},
@@ -454,9 +483,8 @@ func (r *failureSuite) TestGarbageSeq(c *C) {
 	err = os.WriteFile(seqPath, []byte("this is garbage"), 0644)
 	c.Assert(err, IsNil)
 
-	snapdCmd := testutil.MockCommand(c, filepath.Join(dirs.SnapMountDir, "snapd", "100", "/usr/lib/snapd/snapd"),
-		`exit 99`)
-	defer snapdCmd.Restore()
+	systemdRunCmd := testutil.MockCommand(c, "systemd-run", `exit 99`)
+	defer systemdRunCmd.Restore()
 
 	systemctlCmd := testutil.MockCommand(c, "systemctl", "exit 98")
 	defer systemctlCmd.Restore()
@@ -466,7 +494,7 @@ func (r *failureSuite) TestGarbageSeq(c *C) {
 	c.Check(err, ErrorMatches, `cannot parse "snapd.json" sequence file: invalid .*`)
 	c.Check(r.Stderr(), HasLen, 0)
 
-	c.Check(snapdCmd.Calls(), HasLen, 0)
+	c.Check(systemdRunCmd.Calls(), HasLen, 0)
 	c.Check(systemctlCmd.Calls(), HasLen, 0)
 }
 
@@ -479,44 +507,16 @@ func (r *failureSuite) TestBadSeq(c *C) {
 		// current not in sequence
 	})
 
-	snapdCmd := testutil.MockCommand(c, filepath.Join(dirs.SnapMountDir, "snapd", "100", "/usr/lib/snapd/snapd"), "")
-	defer snapdCmd.Restore()
+	systemdRunCmd := testutil.MockCommand(c, "systemd-run", `true`)
+	defer systemdRunCmd.Restore()
 
 	os.Args = []string{"snap-failure", "snapd"}
 	err := failure.Run()
 	c.Check(err, ErrorMatches, "internal error: current 123 not found in sequence: .*Revision:100.*")
 	c.Check(r.Stderr(), HasLen, 0)
 
-	c.Check(snapdCmd.Calls(), HasLen, 0)
+	c.Check(systemdRunCmd.Calls(), HasLen, 0)
 	c.Check(r.systemctlCmd.Calls(), HasLen, 0)
-}
-
-func (r *failureSuite) TestSnapdOutputPassthrough(c *C) {
-	origArgs := os.Args
-	defer func() { os.Args = origArgs }()
-
-	writeSeqFile(c, "snapd", snap.R(123), []*snap.SideInfo{
-		{Revision: snap.R(100)},
-		{Revision: snap.R(123)},
-	})
-
-	snapdCmd := testutil.MockCommand(c, filepath.Join(dirs.SnapMountDir, "snapd", "100", "/usr/lib/snapd/snapd"), `
-echo 'stderr: hello from snapd' >&2
-echo 'stdout: hello from snapd'
-exit 123
-`)
-	defer snapdCmd.Restore()
-
-	os.Args = []string{"snap-failure", "snapd"}
-	err := failure.Run()
-	c.Check(err, ErrorMatches, "snapd failed: exit status 123")
-	c.Check(r.Stderr(), Equals, "stderr: hello from snapd\n")
-	c.Check(r.Stdout(), Equals, "stdout: hello from snapd\n")
-
-	c.Check(snapdCmd.Calls(), HasLen, 1)
-	c.Check(r.systemctlCmd.Calls(), DeepEquals, [][]string{
-		{"systemctl", "stop", "snapd.socket"},
-	})
 }
 
 func (r *failureSuite) TestStickySnapdSocket(c *C) {
@@ -534,17 +534,19 @@ func (r *failureSuite) TestStickySnapdSocket(c *C) {
 	c.Assert(err, IsNil)
 
 	// mock snapd in the core snap
-	snapdCmd := testutil.MockCommand(c, filepath.Join(dirs.SnapMountDir, "snapd", "100", "/usr/lib/snapd/snapd"),
-		`test "$SNAPD_REVERT_TO_REV" = "100"`)
-	defer snapdCmd.Restore()
+	systemdRunCmd := testutil.MockCommand(c, "systemd-run", `true`)
+	defer systemdRunCmd.Restore()
+
+	err = os.MkdirAll(filepath.Join(dirs.SnapMountDir, "snapd"), 0755)
+	c.Assert(err, IsNil)
 
 	os.Args = []string{"snap-failure", "snapd"}
 	err = failure.Run()
 	c.Check(err, IsNil)
 	c.Check(r.Stderr(), HasLen, 0)
 
-	c.Check(snapdCmd.Calls(), DeepEquals, [][]string{
-		{"snapd"},
+	c.Check(systemdRunCmd.Calls(), DeepEquals, [][]string{
+		{"systemd-run", "--collect", "--wait", "--property=KeyringMode=shared", "--setenv=SNAPD_REVERT_TO_REV=100", "--setenv=SNAPD_DEBUG=1", "--", filepath.Join(dirs.SnapMountDir, "snapd", "100", "/usr/lib/snapd/snapd")},
 	})
 	c.Check(r.systemctlCmd.Calls(), DeepEquals, [][]string{
 		{"systemctl", "stop", "snapd.socket"},
@@ -567,14 +569,14 @@ func (r *failureSuite) testNoReexec(c *C) {
 	})
 
 	// mock snapd command from 'previous' revision
-	snapdCmd := testutil.MockCommand(c, filepath.Join(dirs.SnapMountDir, "snapd", "99", "/usr/lib/snapd/snapd"), "exit 1")
-	defer snapdCmd.Restore()
+	systemdRunCmd := testutil.MockCommand(c, "systemd-run", "exit 1")
+	defer systemdRunCmd.Restore()
 
 	os.Args = []string{"snap-failure", "snapd"}
 	err := failure.Run()
 	c.Check(err, IsNil)
 
-	c.Check(snapdCmd.Calls(), HasLen, 0)
+	c.Check(systemdRunCmd.Calls(), HasLen, 0)
 	c.Check(r.systemctlCmd.Calls(), HasLen, 0)
 	c.Check(r.log.String(), testutil.Contains, "re-exec unsupported or disabled")
 }

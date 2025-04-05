@@ -210,7 +210,7 @@ func (s *hookHandlerSuite) TestSaveViewHookErrorRollsBackSaves(c *C) {
 	secondTask.WaitFor(firstTask)
 	secondTask.SetStatus(state.DoingStatus)
 	secondTask.Set("hook-setup", hooksup)
-	secondTask.Set("commit-task", commitTask.ID())
+	secondTask.Set("tx-task", commitTask.ID())
 
 	ctx, err := hookstate.NewContext(secondTask, s.state, hooksup, nil, "")
 	c.Assert(err, IsNil)
@@ -230,7 +230,7 @@ func (s *hookHandlerSuite) TestSaveViewHookErrorRollsBackSaves(c *C) {
 
 	s.state.Lock()
 	// the transaction has been cleared
-	tx, _, err = confdbstate.GetStoredTransaction(secondTask)
+	tx, _, _, err = confdbstate.GetStoredTransaction(secondTask)
 	c.Assert(err, IsNil)
 	_, err = tx.Get("foo")
 	c.Assert(err, ErrorMatches, "no value was found under path \"foo\"")
@@ -298,7 +298,7 @@ func (s *hookHandlerSuite) TestSaveViewHookErrorHoldsTasks(c *C) {
 	chg.AddTask(firstTask)
 	firstTask.SetStatus(state.DoingStatus)
 	firstTask.Set("hook-setup", hooksup)
-	firstTask.Set("commit-task", commitTask.ID())
+	firstTask.Set("tx-task", commitTask.ID())
 
 	// Error looks for a non run-hook task in order to stop
 	prereq := s.state.NewTask("other", "")
@@ -359,43 +359,69 @@ func (s *confdbTestSuite) TestSetAndUnsetOngoingTransactionHelpers(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	var commitTasks map[string]string
-	err := s.state.Get("confdb-commit-tasks", &commitTasks)
+	var ongoingTxs map[string]*confdbstate.ConfdbTransactions
+	err := s.state.Get("confdb-ongoing-txs", &ongoingTxs)
 	c.Assert(err, testutil.ErrorIs, &state.NoStateError{})
 
-	err = confdbstate.SetOngoingTransaction(s.state, "my-acc", "my-confdb", "1")
+	err = confdbstate.SetWriteTransaction(s.state, "my-acc", "my-confdb", "1")
 	c.Assert(err, IsNil)
 
-	// can't overwrite an ongoing commit task, since that could hide errors
-	err = confdbstate.SetOngoingTransaction(s.state, "my-acc", "my-confdb", "3")
-	c.Assert(err, ErrorMatches, `internal error: cannot set task "3" as ongoing commit task for confdb my-acc/my-confdb: already have "1"`)
-
-	err = confdbstate.SetOngoingTransaction(s.state, "other-acc", "other-confdb", "2")
+	err = confdbstate.SetWriteTransaction(s.state, "other-acc", "other-confdb", "2")
 	c.Assert(err, IsNil)
 
-	err = s.state.Get("confdb-commit-tasks", &commitTasks)
+	err = s.state.Get("confdb-ongoing-txs", &ongoingTxs)
 	c.Assert(err, IsNil)
-	c.Assert(commitTasks["my-acc/my-confdb"], Equals, "1")
+	c.Assert(ongoingTxs["my-acc/my-confdb"].WriteTxID, Equals, "1")
 
-	err = confdbstate.UnsetOngoingTransaction(s.state, "my-acc", "my-confdb")
+	err = confdbstate.UnsetOngoingTransaction(s.state, "my-acc", "my-confdb", "1")
 	c.Assert(err, IsNil)
 
 	// unsetting non-existing key is fine
-	err = confdbstate.UnsetOngoingTransaction(s.state, "my-acc", "my-confdb")
+	err = confdbstate.UnsetOngoingTransaction(s.state, "my-acc", "my-confdb", "1")
 	c.Assert(err, IsNil)
 
-	err = s.state.Get("confdb-commit-tasks", &commitTasks)
+	err = s.state.Get("confdb-ongoing-txs", &ongoingTxs)
 	c.Assert(err, IsNil)
-	c.Assert(commitTasks["other-acc/other-confdb"], Equals, "2")
+	c.Assert(ongoingTxs["other-acc/other-confdb"].WriteTxID, Equals, "2")
 
-	err = confdbstate.UnsetOngoingTransaction(s.state, "other-acc", "other-confdb")
+	err = confdbstate.UnsetOngoingTransaction(s.state, "other-acc", "other-confdb", "2")
 	c.Assert(err, IsNil)
 
-	err = s.state.Get("confdb-commit-tasks", &commitTasks)
+	err = s.state.Get("confdb-ongoing-txs", &ongoingTxs)
 	c.Assert(err, testutil.ErrorIs, &state.NoStateError{})
 
 	// unsetting non-existing key is still fine when there's no map at all
-	err = confdbstate.UnsetOngoingTransaction(s.state, "my-acc", "my-confdb")
+	err = confdbstate.UnsetOngoingTransaction(s.state, "my-acc", "my-confdb", "1")
+	c.Assert(err, IsNil)
+}
+
+func (s *confdbTestSuite) TestConflictingOngoingTransactions(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	err := confdbstate.SetWriteTransaction(s.state, "my-acc", "my-confdb", "1")
+	c.Assert(err, IsNil)
+
+	// can't set write due to ongoing write
+	err = confdbstate.SetWriteTransaction(s.state, "my-acc", "my-confdb", "2")
+	c.Assert(err, ErrorMatches, `cannot write confdb \(my-acc/my-confdb\): a write transaction is ongoing`)
+
+	// can't add read due to ongoing write
+	err = confdbstate.AddReadTransaction(s.state, "my-acc", "my-confdb", "2")
+	c.Assert(err, ErrorMatches, `cannot read confdb \(my-acc/my-confdb\): a write transaction is ongoing`)
+
+	err = confdbstate.UnsetOngoingTransaction(s.state, "my-acc", "my-confdb", "1")
+	c.Assert(err, IsNil)
+
+	err = confdbstate.AddReadTransaction(s.state, "my-acc", "my-confdb", "1")
+	c.Assert(err, IsNil)
+
+	// can't set write due to ongoing read
+	err = confdbstate.SetWriteTransaction(s.state, "my-acc", "my-confdb", "2")
+	c.Assert(err, ErrorMatches, `cannot write confdb \(my-acc/my-confdb\): a read transaction is ongoing`)
+
+	// many reads are fine
+	err = confdbstate.AddReadTransaction(s.state, "my-acc", "my-confdb", "2")
 	c.Assert(err, IsNil)
 }
 
@@ -423,7 +449,7 @@ func (s *confdbTestSuite) TestCommitTransaction(c *C) {
 
 	c.Assert(t.Status(), Equals, state.DoneStatus, Commentf(strings.Join(t.Log(), "\n")))
 
-	tx, _, err = confdbstate.GetStoredTransaction(t)
+	tx, _, _, err = confdbstate.GetStoredTransaction(t)
 	c.Assert(err, IsNil)
 
 	// clearing would remove non-committed changes, so if we read the set value
@@ -451,12 +477,13 @@ func (s *confdbTestSuite) TestClearOngoingTransaction(c *C) {
 
 	t := s.state.NewTask("clear-confdb-tx", "")
 	chg.AddTask(t)
-	t.Set("commit-task", commitTask.ID())
+	t.Set("tx-task", commitTask.ID())
 
-	confdbstate.SetOngoingTransaction(s.state, s.devAccID, "network", commitTask.ID())
+	confdbstate.SetWriteTransaction(s.state, s.devAccID, "network", commitTask.ID())
+	c.Assert(err, IsNil)
 
-	var commitTasks map[string]string
-	err = s.state.Get("confdb-commit-tasks", &commitTasks)
+	var confdbTxs map[string]*confdbstate.ConfdbTransactions
+	err = s.state.Get("confdb-ongoing-txs", &confdbTxs)
 	c.Assert(err, IsNil)
 
 	s.state.Unlock()
@@ -465,8 +492,8 @@ func (s *confdbTestSuite) TestClearOngoingTransaction(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(t.Status(), Equals, state.DoneStatus, Commentf(strings.Join(t.Log(), "\n")))
 
-	commitTasks = nil
-	err = s.state.Get("confdb-commit-tasks", &commitTasks)
+	confdbTxs = nil
+	err = s.state.Get("confdb-ongoing-txs", &confdbTxs)
 	c.Assert(err, testutil.ErrorIs, &state.NoStateError{})
 }
 
@@ -481,7 +508,7 @@ func (s *confdbTestSuite) TestClearTransactionOnError(c *C) {
 	commitTask := s.state.NewTask("commit-confdb-tx", "")
 	chg.AddTask(commitTask)
 	commitTask.WaitFor(clearTask)
-	clearTask.Set("commit-task", commitTask.ID())
+	clearTask.Set("tx-task", commitTask.ID())
 
 	tx, err := confdbstate.NewTransaction(s.state, s.devAccID, "network")
 	c.Assert(err, IsNil)
@@ -492,7 +519,8 @@ func (s *confdbTestSuite) TestClearTransactionOnError(c *C) {
 	setTransaction(commitTask, tx)
 
 	// add this transaction to the state
-	confdbstate.SetOngoingTransaction(s.state, s.devAccID, "network", commitTask.ID())
+	err = confdbstate.SetWriteTransaction(s.state, s.devAccID, "network", commitTask.ID())
+	c.Assert(err, IsNil)
 
 	s.state.Unlock()
 	err = s.o.Settle(testutil.HostScaledTimeout(5 * time.Second))
@@ -505,7 +533,7 @@ func (s *confdbTestSuite) TestClearTransactionOnError(c *C) {
 	c.Assert(strings.Join(commitTask.Log(), "\n"), Matches, ".*ERROR cannot accept top level element: map contains unexpected key \"foo\"")
 
 	// no ongoing confdb transaction
-	var commitTasks map[string]string
-	err = s.state.Get("confdb-commit-tasks", &commitTasks)
+	var ongoingTxs map[string]*confdbstate.ConfdbTransactions
+	err = s.state.Get("confdb-ongoing-txs", &ongoingTxs)
 	c.Assert(err, testutil.ErrorIs, &state.NoStateError{})
 }

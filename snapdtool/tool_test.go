@@ -28,6 +28,7 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/dirs/dirstest"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snapdtool"
@@ -115,14 +116,14 @@ func (s *toolSuite) mockReExecingEnv() func() {
 	}
 }
 
-func (s *toolSuite) mockReExecFor(c *C, coreDir, toolName string) func() {
+func (s *toolSuite) mockReExecFor(c *C, coreDir, toolName, libexecDir string) func() {
 	selfExe := filepath.Join(s.fakeroot, "proc/self/exe")
 	restore := []func(){
 		s.mockReExecingEnv(),
 		snapdtool.MockSelfExe(selfExe),
 	}
 	s.fakeInternalTool(c, coreDir, toolName)
-	c.Assert(os.Symlink(filepath.Join(s.fakeroot, "/usr/lib/snapd", toolName), selfExe), IsNil)
+	c.Assert(os.Symlink(filepath.Join(s.fakeroot, libexecDir, toolName), selfExe), IsNil)
 
 	return func() {
 		for i := len(restore) - 1; i >= 0; i-- {
@@ -361,24 +362,21 @@ func (s *toolSuite) TestInternalToolPathSnapdSnapNotExecutable(c *C) {
 }
 
 func (s *toolSuite) TestInternalToolPathWithLibexecdirLocation(c *C) {
-	defer dirs.SetRootDir(s.fakeroot)
-	restore := release.MockReleaseInfo(&release.OS{ID: "fedora"})
-	defer restore()
-	// reload directory paths
-	dirs.SetRootDir("/")
+	dirstest.MustMockAltLibExecDir(s.fakeroot)
+	dirs.SetRootDir(s.fakeroot)
 
-	restore = snapdtool.MockOsReadlink(func(string) (string, error) {
+	restore := snapdtool.MockOsReadlink(func(string) (string, error) {
 		return filepath.Join("/usr/bin/snap"), nil
 	})
 	defer restore()
 
 	path, err := snapdtool.InternalToolPath("potato")
 	c.Check(err, IsNil)
-	c.Check(path, Equals, filepath.Join("/usr/libexec/snapd/potato"))
+	c.Check(dirs.StripRootDir(path), Equals, filepath.Join("/usr/libexec/snapd/potato"))
 }
 
 func (s *toolSuite) TestExecInSnapdOrCoreSnap(c *C) {
-	defer s.mockReExecFor(c, s.snapdPath, "potato")()
+	defer s.mockReExecFor(c, s.snapdPath, "potato", dirs.DefaultDistroLibexecDir)()
 
 	c.Check(snapdtool.ExecInSnapdOrCoreSnap, PanicMatches, `>exec of "[^"]+/potato" in tests<`)
 	c.Check(s.execCalled, Equals, 1)
@@ -386,8 +384,18 @@ func (s *toolSuite) TestExecInSnapdOrCoreSnap(c *C) {
 	c.Check(s.lastExecArgv, DeepEquals, os.Args)
 }
 
+func (s *toolSuite) TestExecInSnapdOrCoreSnapFixArg0(c *C) {
+	defer s.mockReExecFor(c, s.snapdPath, "snapdtool.test", dirs.DefaultDistroLibexecDir)()
+
+	c.Check(snapdtool.ExecInSnapdOrCoreSnap, PanicMatches, `>exec of "[^"]+/snapdtool.test" in tests<`)
+	c.Check(s.execCalled, Equals, 1)
+	c.Check(s.lastExecArgv0, Equals, filepath.Join(s.snapdPath, "/usr/lib/snapd/snapdtool.test"))
+	c.Check(s.lastExecArgv[0], Equals, filepath.Join(s.snapdPath, "/usr/lib/snapd/snapdtool.test"))
+	c.Check(s.lastExecArgv[1:], DeepEquals, os.Args[1:])
+}
+
 func (s *toolSuite) TestExecInOldCoreSnap(c *C) {
-	defer s.mockReExecFor(c, s.corePath, "potato")()
+	defer s.mockReExecFor(c, s.corePath, "potato", dirs.DefaultDistroLibexecDir)()
 
 	c.Check(snapdtool.ExecInSnapdOrCoreSnap, PanicMatches, `>exec of "[^"]+/potato" in tests<`)
 	c.Check(s.execCalled, Equals, 1)
@@ -396,7 +404,7 @@ func (s *toolSuite) TestExecInOldCoreSnap(c *C) {
 }
 
 func (s *toolSuite) TestExecInSnapdOrCoreSnapBailsNoCoreSupport(c *C) {
-	defer s.mockReExecFor(c, s.snapdPath, "potato")()
+	defer s.mockReExecFor(c, s.snapdPath, "potato", dirs.DefaultDistroLibexecDir)()
 
 	// no "info" -> no core support:
 	c.Assert(os.Remove(filepath.Join(s.snapdPath, "/usr/lib/snapd/info")), IsNil)
@@ -406,7 +414,7 @@ func (s *toolSuite) TestExecInSnapdOrCoreSnapBailsNoCoreSupport(c *C) {
 }
 
 func (s *toolSuite) TestExecInSnapdOrCoreSnapMissingExe(c *C) {
-	defer s.mockReExecFor(c, s.snapdPath, "potato")()
+	defer s.mockReExecFor(c, s.snapdPath, "potato", dirs.DefaultDistroLibexecDir)()
 
 	// missing exe:
 	c.Assert(os.Remove(filepath.Join(s.snapdPath, "/usr/lib/snapd/potato")), IsNil)
@@ -416,7 +424,7 @@ func (s *toolSuite) TestExecInSnapdOrCoreSnapMissingExe(c *C) {
 }
 
 func (s *toolSuite) TestExecInSnapdOrCoreSnapBadSelfExe(c *C) {
-	defer s.mockReExecFor(c, s.snapdPath, "potato")()
+	defer s.mockReExecFor(c, s.snapdPath, "potato", dirs.DefaultDistroLibexecDir)()
 
 	// missing self/exe:
 	c.Assert(os.Remove(filepath.Join(s.fakeroot, "proc/self/exe")), IsNil)
@@ -431,7 +439,7 @@ func (s *toolSuite) TestExecInSnapdOrCoreSnapBailsNoDistroSupport(c *C) {
 	err := os.Unsetenv("SNAP_REEXEC")
 	c.Assert(err, IsNil)
 
-	defer s.mockReExecFor(c, s.snapdPath, "potato")()
+	defer s.mockReExecFor(c, s.snapdPath, "potato", dirs.DefaultDistroLibexecDir)()
 
 	// no distro support:
 	defer release.MockOnClassic(false)()
@@ -451,7 +459,7 @@ func (s *toolSuite) TestExecInSnapdOrCoreSnapNoDouble(c *C) {
 }
 
 func (s *toolSuite) TestExecInSnapdOrCoreSnapDisabled(c *C) {
-	defer s.mockReExecFor(c, s.snapdPath, "potato")()
+	defer s.mockReExecFor(c, s.snapdPath, "potato", dirs.DefaultDistroLibexecDir)()
 
 	os.Setenv("SNAP_REEXEC", "0")
 	defer os.Unsetenv("SNAP_REEXEC")
@@ -460,10 +468,7 @@ func (s *toolSuite) TestExecInSnapdOrCoreSnapDisabled(c *C) {
 	c.Check(s.execCalled, Equals, 0)
 }
 
-func (s *toolSuite) TestExecInSnapdOrCoreSnapOnUnsupportedDistro(c *C) {
-	// TODO pay attention to libexecdir when enabling reexec on non-Ubuntu
-	// with /usr/libexec/
-
+func (s *toolSuite) testExecInSnapdOrCoreSnapOnUnsupportedDistro(c *C, libexecDir string) {
 	// distro which does not support reexec
 	defer release.MockReleaseInfo(&release.OS{ID: "arch"})()
 
@@ -472,7 +477,8 @@ func (s *toolSuite) TestExecInSnapdOrCoreSnapOnUnsupportedDistro(c *C) {
 	s.corePath = filepath.Join(dirs.SnapMountDir, "/core/21")
 	defer snapdtool.MockCoreSnapdPaths(s.corePath, s.snapdPath)()
 
-	defer s.mockReExecFor(c, s.snapdPath, "potato")()
+	// set up desired libexecdir
+	defer s.mockReExecFor(c, s.snapdPath, "potato", libexecDir)()
 
 	// reexec does not happen
 	snapdtool.ExecInSnapdOrCoreSnap()
@@ -488,6 +494,14 @@ func (s *toolSuite) TestExecInSnapdOrCoreSnapOnUnsupportedDistro(c *C) {
 	// and reexec uses the correct mount path
 	c.Check(s.lastExecArgv0, Equals, filepath.Join(s.fakeroot, "/var/lib/snapd/snap/snapd/42/usr/lib/snapd/potato"))
 	c.Check(s.lastExecArgv, DeepEquals, os.Args)
+}
+
+func (s *toolSuite) TestExecInSnapdOrCoreSnapOnUnsupportedDistro(c *C) {
+	s.testExecInSnapdOrCoreSnapOnUnsupportedDistro(c, dirs.DefaultDistroLibexecDir)
+}
+
+func (s *toolSuite) TestExecInSnapdOrCoreSnapOnUnsupportedDistroAltLibexecdir(c *C) {
+	s.testExecInSnapdOrCoreSnapOnUnsupportedDistro(c, dirs.AltDistroLibexecDir)
 }
 
 func (s *toolSuite) TestIsReexecd(c *C) {

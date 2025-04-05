@@ -160,6 +160,21 @@ func mustUnsetenv(key string) {
 	}
 }
 
+// pathInSnapdSnap transforms the original path to one which would be
+// appropriate for lookup within the snapd snap.
+func pathInSnapdSnap(relativeExePath string) string {
+	// the only discrepancy comes from using /usr/libexec/snapd instead of
+	// /usr/lib/snapd, all other paths are left unchanged
+	altLibexecDirRelative := dirs.AltDistroLibexecDir[1:]
+	if !strings.HasPrefix(relativeExePath, altLibexecDirRelative) {
+		// we're using alternative libexecdir, which needs to be replaced
+		return relativeExePath
+	}
+
+	rest := relativeExePath[len(altLibexecDirRelative):]
+	return filepath.Join(dirs.DefaultDistroLibexecDir, rest)
+}
+
 // ExecInSnapdOrCoreSnap makes sure you're executing the binary that ships in
 // the snapd/core snap.
 func ExecInSnapdOrCoreSnap() {
@@ -199,15 +214,16 @@ func ExecInSnapdOrCoreSnap() {
 		}
 	}
 
-	// TODO pay attention to libexecdir when enabling reexec on non-Ubuntu
-	// with /usr/libexec/
+	// find out what the executable path would be if it was within the snapd
+	// snap
+	exeInSnapd := pathInSnapdSnap(exe)
 
 	// Is this executable in the core snap too?
 	coreOrSnapdPath := snapdSnap
-	full := filepath.Join(snapdSnap, exe)
+	full := filepath.Join(snapdSnap, exeInSnapd)
 	if !osutil.FileExists(full) {
 		coreOrSnapdPath = coreSnap
-		full = filepath.Join(coreSnap, exe)
+		full = filepath.Join(coreSnap, exeInSnapd)
 		if !osutil.FileExists(full) {
 			return
 		}
@@ -219,6 +235,31 @@ func ExecInSnapdOrCoreSnap() {
 	}
 
 	logger.Debugf("restarting into %q", full)
+
+	// We want to make "ps", "top" and other tools show a
+	// command-line that is not misleading.
+	originalDir, originalBase := filepath.Split(os.Args[0])
+	// In the case of symlink, typically /snap/bin/myapp ->
+	// /usr/bin/snap, we want to keep the original path as the
+	// user will want to know what they originally intended to
+	// execute. More importantly, we will read os.Args[0] to
+	// decide what application to effectively run. So we must do
+	// nothing in that case.
+	if originalBase == filepath.Base(full) {
+		// Otherwise...
+		// If we did not have any / in the path, it was
+		// executed from PATH. So we do not have to change it.
+		// For instance "snap list" should stay "snap list".
+		if originalDir != "" {
+			// In the other case, we probably executed
+			// from a fork or from a service.  For example
+			// /usr/lib/snapd/snapd from snapd.service.
+			// In this case keeping the original path
+			// would be misleading. So let's change it.
+			os.Args[0] = full
+		}
+	}
+
 	panic(syscallExec(full, os.Args, os.Environ()))
 }
 

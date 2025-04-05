@@ -185,10 +185,14 @@ func (c *cmdSnapd) Execute(args []string) error {
 		}
 	}
 	// start previous snapd
-	// TODO:FDEM:FIX: we should either run through systemd with
-	// KeyringMode=shared or make the re-seeding not initialize
-	// fdestate
-	cmd := runCmd(snapdPath, nil, []string{"SNAPD_REVERT_TO_REV=" + prevRev, "SNAPD_DEBUG=1"})
+	cmd := runCmd("systemd-run",
+		[]string{
+			"--collect", "--wait",
+			"--property=KeyringMode=shared",
+			fmt.Sprintf("--setenv=SNAPD_REVERT_TO_REV=%s", prevRev),
+			"--setenv=SNAPD_DEBUG=1",
+			"--", snapdPath,
+		}, []string{})
 	if err = cmd.Run(); err != nil {
 		return fmt.Errorf("snapd failed: %v", err)
 	}

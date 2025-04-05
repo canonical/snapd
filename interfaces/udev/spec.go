@@ -119,7 +119,7 @@ func (spec *Specification) TagDevice(snippet string) {
 		// When loaded, they send an ADD event
 		// snap-device-helper expects devices only, not modules nor subsystems
 		spec.addEntry(fmt.Sprintf("TAG==\"%s\", SUBSYSTEM!=\"module\", SUBSYSTEM!=\"subsystem\", RUN+=\"%s/snap-device-helper $env{ACTION} %s $devpath $major:$minor\"",
-			tag, dirs.DistroLibExecDir, tag), tag)
+			tag, dirs.StripRootDir(dirs.DistroLibExecDir), tag), tag)
 	}
 }
 

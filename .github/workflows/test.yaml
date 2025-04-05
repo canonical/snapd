@@ -24,8 +24,8 @@ jobs:
         with:
           include-snapd-build-go-channel: true
           include-snapd-build-fips-go-channel: true
-          include-latest-go-channel: true
- 
+          include-latest-go-channel: false
+
   snap-builds:
     uses: ./.github/workflows/snap-builds.yaml
     with:
@@ -56,7 +56,7 @@ jobs:
             variant: pristine
 
   cache-build-deps:
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-latest
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
@@ -93,6 +93,14 @@ jobs:
       fail-fast: false      
       matrix:
         gochannel: ${{ fromJson(needs.go-channels.outputs.go-channels) }}
+    
+  static-checks-not-required:
+    uses: ./.github/workflows/static-checks.yaml
+    needs:
+      - cache-build-deps
+    with:
+      runs-on: ubuntu-latest
+      gochannel: 'latest/stable'
 
   branch-static-checks:
     runs-on: ubuntu-latest
@@ -166,15 +174,26 @@ jobs:
       - static-checks 
     name: "unit-tests (Go default ${{ matrix.gochannel }})"
     with:
-      runs-on: ubuntu-22.04
+      runs-on: ubuntu-latest
       gochannel: ${{ matrix.gochannel }}
-      skip-coverage: ${{ matrix.gochannel == 'latest/stable' }}
+      skip-coverage: false
       code: 'go'
     strategy:
       # we cache successful runs so it's fine to keep going
       fail-fast: false      
       matrix:
         gochannel: ${{ fromJson(needs.go-channels.outputs.go-channels) }}
+
+  unit-tests-not-required:
+    uses: ./.github/workflows/unit-tests.yaml
+    needs:
+      - static-checks-not-required
+    name: "unit-tests (Go default latest/stable})"
+    with:
+      runs-on: ubuntu-latest
+      gochannel: 'latest/stable'
+      skip-coverage: true
+      code: 'go'
 
   unit-tests-c:
     uses: ./.github/workflows/unit-tests.yaml
@@ -202,7 +221,7 @@ jobs:
           ${{ matrix.test-case.go-test-race && ' test-race' || ''}}
           ${{ matrix.test-case.snapd-debug && ' snapd-debug' || ''}})"
     with:
-      runs-on: ubuntu-22.04
+      runs-on: ubuntu-latest
       gochannel: ${{ matrix.gochannel }}
       skip-coverage: ${{ matrix.gochannel == 'latest/stable' || matrix.test-case.skip-coverage }}
       go-build-tags: ${{ matrix.test-case.go-build-tags }}
@@ -222,6 +241,34 @@ jobs:
           - { go-build-tags: statelocktrace,        skip-coverage: true,  snapd-debug: false, go-test-race: false}
           - { go-build-tags: snapdusergo,           skip-coverage: false, snapd-debug: false, go-test-race: false}
           - { go-build-tags: "",                    skip-coverage: true,  snapd-debug: false, go-test-race: true }
+
+  unit-tests-special-not-required:
+    uses: ./.github/workflows/unit-tests.yaml
+    needs:
+      - static-checks-not-required
+    name: "unit-tests (Go latest/stable ${{ matrix.test-case.go-build-tags }}
+          ${{ matrix.test-case.go-test-race && ' test-race' || ''}}
+          ${{ matrix.test-case.snapd-debug && ' snapd-debug' || ''}})"
+    with:
+      runs-on: ubuntu-latest
+      gochannel: 'latest/stable'
+      skip-coverage: true
+      go-build-tags: ${{ matrix.test-case.go-build-tags }}
+      go-test-race: ${{ matrix.test-case.go-test-race }}
+      snapd-debug: ${{ matrix.test-case.snapd-debug }}
+      code: 'go'
+    strategy:
+      # we cache successful runs so it's fine to keep going
+      fail-fast: false
+      matrix:
+        test-case:
+          - { go-build-tags: snapd_debug,           snapd-debug: true,  go-test-race: false}
+          - { go-build-tags: withbootassetstesting, snapd-debug: false, go-test-race: false}
+          - { go-build-tags: nosecboot,             snapd-debug: false, go-test-race: false}
+          - { go-build-tags: faultinject,           snapd-debug: false, go-test-race: false}
+          - { go-build-tags: statelocktrace,        snapd-debug: false, go-test-race: false}
+          - { go-build-tags: snapdusergo,           snapd-debug: false, go-test-race: false}
+          - { go-build-tags: "",                    snapd-debug: false, go-test-race: true }
 
   unit-tests-cross-distro:
     uses: ./.github/workflows/unit-tests-cross-distro.yaml
@@ -337,7 +384,7 @@ jobs:
 
   spread-not-fundamental-pr:
     uses: ./.github/workflows/spread-tests.yaml
-    if: github.event_name == 'pull_request' && !contains(github.base_ref, 'release')
+    if: github.event_name == 'pull_request' && !contains(github.base_ref, 'release') && !contains(github.event.pull_request.labels.*.name, 'cross-distro')
     # For workflow runs that are PRs, run this non-fundamental systems job
     # only after the fundamental systems job succeeds.
     needs: [unit-tests, unit-tests-c, snap-builds, read-systems, spread-fundamental]
@@ -365,7 +412,7 @@ jobs:
 
   spread-not-fundamental-not-pr:
     uses: ./.github/workflows/spread-tests.yaml
-    if: github.event_name != 'pull_request' || contains(github.base_ref, 'release')
+    if: github.event_name != 'pull_request' || contains(github.base_ref, 'release') || contains(github.event.pull_request.labels.*.name, 'cross-distro')
     # For workflow runs that are not for PRs, no need to impose a dependency
     # on the fundamental systems job's success before running this job.
     needs: [unit-tests, unit-tests-c, snap-builds, read-systems]

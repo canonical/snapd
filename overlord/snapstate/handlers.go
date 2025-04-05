@@ -726,6 +726,8 @@ func (m *SnapManager) doDownloadSnap(t *state.Task, tomb *tomb.Tomb) error {
 
 	meter := NewTaskProgressAdapterUnlocked(t)
 	targetFn := snapsup.BlobPath()
+	targetIconFn := backend.IconDownloadFilename(snapsup.SideInfo.SnapID)
+	iconURL := snapsup.Media.IconURL()
 
 	dlOpts := &store.DownloadOptions{
 		Scheduled: snapsup.IsAutoRefresh,
@@ -753,17 +755,32 @@ func (m *SnapManager) doDownloadSnap(t *state.Task, tomb *tomb.Tomb) error {
 		if err != nil {
 			return err
 		}
+
 		timings.Run(perfTimings, "download", fmt.Sprintf("download snap %q", snapsup.SnapName()), func(timings.Measurer) {
 			err = theStore.Download(tomb.Context(nil), snapsup.SnapName(), targetFn, &result.DownloadInfo, meter, user, dlOpts)
 		})
 		snapsup.SideInfo = &result.SideInfo
+		if err != nil {
+			return err
+		}
 	} else {
+		ctx := tomb.Context(nil) // XXX: should this be a real context?
 		timings.Run(perfTimings, "download", fmt.Sprintf("download snap %q", snapsup.SnapName()), func(timings.Measurer) {
-			err = theStore.Download(tomb.Context(nil), snapsup.SnapName(), targetFn, snapsup.DownloadInfo, meter, user, dlOpts)
+			err = theStore.Download(ctx, snapsup.SnapName(), targetFn, snapsup.DownloadInfo, meter, user, dlOpts)
 		})
-	}
-	if err != nil {
-		return err
+		if err != nil {
+			return err
+		}
+		// Snap download succeeded, now try to download the snap icon
+		if iconURL == "" {
+			logger.Debugf("cannot download snap icon for %q: no icon URL", snapsup.SnapName())
+		} else {
+			timings.Run(perfTimings, "download-icon", fmt.Sprintf("download snap icon for %q", snapsup.SnapName()), func(timings.Measurer) {
+				if iconErr := theStore.DownloadIcon(ctx, snapsup.SnapName(), targetIconFn, iconURL); iconErr != nil {
+					logger.Debugf("cannot download snap icon for %q: %v", snapsup.SnapName(), iconErr)
+				}
+			})
+		}
 	}
 
 	snapsup.SnapPath = targetFn
@@ -2389,27 +2406,25 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (err error) {
 		snapst.LastRefreshTime = &now
 	}
 
-	if cand.Snap.SnapID != "" {
-		// write the auxiliary store info
-		aux := &auxStoreInfo{
-			Media:    snapsup.Media,
-			StoreURL: snapsup.StoreURL,
-			// XXX we store this for the benefit of old snapd
-			Website: snapsup.Website,
-		}
-		if err := keepAuxStoreInfo(cand.Snap.SnapID, aux); err != nil {
-			return err
-		}
-		if len(snapst.Sequence.Revisions) == 1 {
-			defer func() {
-				if IsErrAndNotWait(err) {
-					// the install is getting undone, and there are no more of this snap
-					// try to remove the aux info we just created
-					discardAuxStoreInfo(cand.Snap.SnapID)
-				}
-			}()
-		}
+	// Assemble the auxiliary store info
+	aux := backend.AuxStoreInfo{
+		Media:    snapsup.Media,
+		StoreURL: snapsup.StoreURL,
+		// XXX we store this for the benefit of old snapd
+		Website: snapsup.Website,
 	}
+	// Write the revision-agnostic store metadata for this snap. If snap ID is
+	// empty (such as because we're sideloading a local snap file), then
+	// InstallStoreMetadata is a no-op, so no need to check beforehand.
+	undo, err := backend.InstallStoreMetadata(snapsup.SideInfo.SnapID, aux, linkCtx)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		if IsErrAndNotWait(err) {
+			undo()
+		}
+	}()
 
 	// Compatibility with old snapd: check if we have auto-connect task and
 	// if not, inject it after self (link-snap) for snaps that are not core
@@ -2805,7 +2820,13 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
+	otherInstances, err := hasOtherInstances(st, snapsup.InstanceName())
+	if err != nil {
+		return err
+	}
+
 	firstInstall := oldCurrent.Unset()
+
 	if firstInstall {
 		// XXX: shouldn't these two just log and carry on? this is an undo handler...
 		timings.Run(perfTimings, "discard-snap-namespace", fmt.Sprintf("discard the namespace of snap %q", snapsup.InstanceName()), func(tm timings.Measurer) {
@@ -2818,10 +2839,19 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 		if err := m.removeSnapCookie(st, snapsup.InstanceName()); err != nil {
 			return fmt.Errorf("cannot remove snap cookie: %v", err)
 		}
-		// try to remove the auxiliary store info
-		if err := discardAuxStoreInfo(snapsup.SideInfo.SnapID); err != nil {
-			return fmt.Errorf("cannot remove auxiliary store info: %v", err)
-		}
+	}
+
+	linkCtx := backend.LinkContext{
+		FirstInstall:      firstInstall,
+		HasOtherInstances: otherInstances,
+		StateUnlocker:     st.Unlocker(), // needed later for backend.LinkSnap
+	}
+
+	// try to remove the revision-agnostic store metadata. Do this outside of
+	// the firstInstall check so that any metadata which should be removed
+	// regardless of whether it's a first install or not is removed correctly.
+	if err := backend.UninstallStoreMetadata(snapsup.SideInfo.SnapID, linkCtx); err != nil {
+		return err
 	}
 
 	isRevert := snapsup.Revert
@@ -2887,17 +2917,7 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 		}
 	}
 
-	otherInstances, err := hasOtherInstances(st, newInfo.InstanceName())
-	if err != nil {
-		return err
-	}
-
 	pb := NewTaskProgressAdapterLocked(t)
-	linkCtx := backend.LinkContext{
-		FirstInstall:      firstInstall,
-		HasOtherInstances: otherInstances,
-		StateUnlocker:     st.Unlocker(),
-	}
 
 	var backendErr error
 	if newInfo.Type() == snap.TypeSnapd && !firstInstall {
@@ -3804,9 +3824,9 @@ func (m *SnapManager) doDiscardSnap(t *state.Task, _ *tomb.Tomb) error {
 			return fmt.Errorf("cannot remove snap directory: %v", err)
 		}
 
-		// try to remove the auxiliary store info
-		if err := discardAuxStoreInfo(snapsup.SideInfo.SnapID); err != nil {
-			logger.Noticef("Cannot remove auxiliary store info for %q: %v", snapsup.InstanceName(), err)
+		// try to remove the revision-agnostic store metadata
+		if err := backend.DiscardStoreMetadata(snapsup.SideInfo.SnapID, otherInstances); err != nil {
+			logger.Noticef("cannot remove store metadata for %q: %v", snapsup.InstanceName(), err)
 		}
 
 		// XXX: also remove sequence files?

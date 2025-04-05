@@ -21,6 +21,7 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <glob.h>
+#include <inttypes.h>
 #include <sched.h>
 #include <signal.h>
 #include <stdbool.h>
@@ -254,11 +255,8 @@ the_void:
      * created on demand. */
     void_dir_fd = open(sc_void_dir, O_DIRECTORY | O_PATH | O_NOFOLLOW | O_CLOEXEC);
     if (void_dir_fd < 0 && errno == ENOENT) {
-        if (mkdir(sc_void_dir, 0111) < 0) {
+        if (sc_ensure_mkdir(sc_void_dir, 0111, 0, 0) != 0) {
             die("cannot create void directory: %s", sc_void_dir);
-        }
-        if (lchown(sc_void_dir, 0, 0) < 0) {
-            die("cannot change ownership of void directory %s", sc_void_dir);
         }
         void_dir_fd = open(sc_void_dir, O_DIRECTORY | O_PATH | O_NOFOLLOW | O_CLOEXEC);
     }
@@ -277,8 +275,8 @@ static void log_startup_stage(const char *stage) {
     }
     struct timeval tv;
     gettimeofday(&tv, NULL);
-    debug("-- snap startup {\"stage\":\"%s\", \"time\":\"%lld.%06lld\"}", stage, (long long int)tv.tv_sec,
-          (long long int)tv.tv_usec);
+    debug("-- snap startup {\"stage\":\"%s\", \"time\":\"%" PRId64 ".%06" PRId64 "\"}", stage, (int64_t)tv.tv_sec,
+          (int64_t)tv.tv_usec);
 }
 
 /**
@@ -428,8 +426,8 @@ int main(int argc, char **argv) {
     sc_identity real_user_identity = {
         .uid = real_uid,
         .gid = real_gid,
-        .change_uid = 1,
-        .change_gid = 1,
+        .change_uid = true,
+        .change_gid = true,
     };
     sc_set_effective_identity(real_user_identity);
     // Ensure that the user data path exists. When creating it use the identity

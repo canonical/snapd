@@ -21,12 +21,14 @@ package gadget_test
 
 import (
 	"errors"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
 
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/osutil"
@@ -462,6 +464,169 @@ func (r *rawTestSuite) TestRawUpdaterBackupUpdateRestoreDifferent(c *C) {
 	c.Check(osutil.FilesAreEqual(diskPath, pristinePath), Equals, true)
 }
 
+func (r *rawTestSuite) testRawUpdaterBackupUpdateRestoreDifferentEMMC(c *C, updateErr string) {
+	diskPath := filepath.Join(r.dir, "mmcblk1boot0.img")
+	mutateFile(c, diskPath, 4096, []mutateWrite{
+		{[]byte("foo foo foo"), 0},
+	})
+
+	pristinePath := filepath.Join(r.dir, "pristine.img")
+	err := osutil.CopyFile(diskPath, pristinePath, 0)
+	c.Assert(err, IsNil)
+
+	expectedPath := filepath.Join(r.dir, "expected.img")
+	mutateFile(c, expectedPath, 4096, []mutateWrite{
+		{[]byte("zzz zzz zzz zzz"), 0},
+	})
+
+	makeSizedFile(c, filepath.Join(r.dir, "foo.img"), 4096, []byte("zzz zzz zzz zzz"))
+	ps := &gadget.LaidOutStructure{
+		OnDiskStructure: gadget.OnDiskStructure{},
+		VolumeStructure: &gadget.VolumeStructure{
+			Name:   "boot0",
+			Device: "/dev/mmcblk0boot0",
+			Size:   4096,
+			EnclosingVolume: &gadget.Volume{
+				Schema: "emmc",
+			},
+		},
+		LaidOutContent: []gadget.LaidOutContent{
+			{
+				VolumeContent: &gadget.VolumeContent{
+					Image: "foo.img",
+				},
+				Size: 4096,
+			},
+		},
+	}
+	ru, err := gadget.NewRawStructureUpdater(r.dir, ps, r.backup, func(to *gadget.LaidOutStructure) (string, quantity.Offset, error) {
+		c.Check(to, DeepEquals, ps)
+		// Structure has a partition, thus it starts at 0 offset.
+		return diskPath, 0, nil
+	})
+	c.Assert(err, IsNil)
+	c.Assert(ru, NotNil)
+
+	err = ru.Backup()
+	c.Assert(err, IsNil)
+
+	for _, e := range []struct {
+		path   string
+		size   int64
+		exists bool
+	}{
+		{gadget.RawContentBackupPath(r.backup, ps, &ps.LaidOutContent[0]) + ".backup", 4096, true},
+		{gadget.RawContentBackupPath(r.backup, ps, &ps.LaidOutContent[0]) + ".same", 0, false},
+	} {
+		if e.exists {
+			c.Check(e.path, testutil.FilePresent)
+			c.Check(getFileSize(c, e.path), Equals, e.size)
+		} else {
+			c.Check(e.path, testutil.FileAbsent)
+		}
+	}
+
+	err = ru.Update()
+	if updateErr != "" {
+		c.Assert(err, ErrorMatches, updateErr)
+
+		// the file should not have updated
+		c.Check(osutil.FilesAreEqual(diskPath, expectedPath), Equals, false)
+		c.Check(osutil.FilesAreEqual(diskPath, pristinePath), Equals, true)
+	} else {
+		c.Assert(err, IsNil)
+
+		// after update, files should be identical
+		c.Check(osutil.FilesAreEqual(diskPath, expectedPath), Equals, true)
+
+		// rollback restores the original contents
+		err = ru.Rollback()
+		c.Assert(err, IsNil)
+
+		// which should match the pristine copy now
+		c.Check(osutil.FilesAreEqual(diskPath, pristinePath), Equals, true)
+	}
+}
+
+func (r *rawTestSuite) TestRawUpdaterUpdateEMMCWrongDevice(c *C) {
+	ps := &gadget.LaidOutStructure{
+		OnDiskStructure: gadget.OnDiskStructure{},
+		VolumeStructure: &gadget.VolumeStructure{
+			Name:   "boot0",
+			Device: "/dev/sda",
+			Size:   4096,
+			EnclosingVolume: &gadget.Volume{
+				Schema: "emmc",
+			},
+		},
+		LaidOutContent: []gadget.LaidOutContent{
+			{
+				VolumeContent: &gadget.VolumeContent{
+					Image: "foo.img",
+				},
+				Size: 4096,
+			},
+		},
+	}
+	ru, err := gadget.NewRawStructureUpdater(r.dir, ps, r.backup, func(to *gadget.LaidOutStructure) (string, quantity.Offset, error) {
+		c.Check(to, DeepEquals, ps)
+		return "/dev/sda", 0, nil
+	})
+	c.Assert(err, IsNil)
+	c.Assert(ru, NotNil)
+
+	err = ru.Update()
+	c.Assert(err, ErrorMatches, `cannot open device for writing: /dev/sda is not a valid emmc block device`)
+}
+
+func (r *rawTestSuite) TestRawUpdaterBackupUpdateRestoreDifferentEMMCWithPaths(c *C) {
+	dirs.SetRootDir(r.dir)
+
+	// create the force_ro path that should be available for emmc block devices
+	c.Assert(os.MkdirAll(filepath.Join(r.dir, "sys", "block", "mmcblk1boot0"), 0755), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(r.dir, "sys", "block", "mmcblk1boot0", "force_ro"), []byte(`1`), 0644), IsNil)
+
+	// test with paths in place
+	r.testRawUpdaterBackupUpdateRestoreDifferentEMMC(c, "")
+}
+
+func (r *rawTestSuite) TestRawUpdaterBackupUpdateRestoreDifferentEMMCCorrectCalls(c *C) {
+	var calls []string
+	restore := gadget.MockSetEMMCPartitionReadWrite(func(device string, rw bool) error {
+		calls = append(calls, fmt.Sprintf("%s %t", device, rw))
+		return nil
+	})
+	defer restore()
+
+	// test with mock in place to detect correct calls
+	r.testRawUpdaterBackupUpdateRestoreDifferentEMMC(c, "")
+
+	// one set for update, one set for rollback
+	c.Check(calls, DeepEquals, []string{
+		"mmcblk1boot0 true",
+		"mmcblk1boot0 false",
+		"mmcblk1boot0 true",
+		"mmcblk1boot0 false",
+	})
+}
+
+func (r *rawTestSuite) TestRawUpdaterBackupUpdateRestoreDifferentEMMCCorrectCallsFails(c *C) {
+	var calls []string
+	restore := gadget.MockSetEMMCPartitionReadWrite(func(device string, rw bool) error {
+		calls = append(calls, fmt.Sprintf("%s %t", device, rw))
+		return fmt.Errorf("failed to mark rw")
+	})
+	defer restore()
+
+	// test with mock in place to detect correct calls
+	r.testRawUpdaterBackupUpdateRestoreDifferentEMMC(c, "cannot open device for writing: failed to mark rw")
+
+	// one enable for update, which fails
+	c.Check(calls, DeepEquals, []string{
+		"mmcblk1boot0 true",
+	})
+}
+
 func (r *rawTestSuite) TestRawUpdaterBackupUpdateRestoreNoPartition(c *C) {
 	diskPath := filepath.Join(r.dir, "disk.img")
 
@@ -488,8 +653,9 @@ func (r *rawTestSuite) TestRawUpdaterBackupUpdateRestoreNoPartition(c *C) {
 		},
 		VolumeStructure: &gadget.VolumeStructure{
 			// No partition table entry, would trigger fallback lookup path.
-			Type: "bare",
-			Size: 2048,
+			Type:            "bare",
+			Size:            2048,
+			EnclosingVolume: &gadget.Volume{},
 		},
 		LaidOutContent: []gadget.LaidOutContent{
 			{

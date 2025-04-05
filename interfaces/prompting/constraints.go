@@ -412,7 +412,7 @@ func (e *PermissionEntry) toRulePermissionEntry(currTime time.Time) (*RulePermis
 type RulePermissionEntry struct {
 	Outcome    OutcomeType  `json:"outcome"`
 	Lifespan   LifespanType `json:"lifespan"`
-	Expiration time.Time    `json:"expiration,omitempty"`
+	Expiration time.Time    `json:"expiration,omitzero"`
 }
 
 // Expired returns true if the receiving permission entry has expired and
@@ -498,7 +498,7 @@ func AvailablePermissions(iface string) ([]string, error) {
 
 // AbstractPermissionsFromAppArmorPermissions returns the list of permissions
 // corresponding to the given AppArmor permissions for the given interface.
-func AbstractPermissionsFromAppArmorPermissions(iface string, permissions any) ([]string, error) {
+func AbstractPermissionsFromAppArmorPermissions(iface string, permissions notify.AppArmorPermission) ([]string, error) {
 	filePerms, ok := permissions.(notify.FilePermission)
 	if !ok {
 		return nil, fmt.Errorf("cannot parse the given permissions as file permissions: %v", permissions)
@@ -543,7 +543,7 @@ func AbstractPermissionsFromAppArmorPermissions(iface string, permissions any) (
 
 // AbstractPermissionsToAppArmorPermissions returns AppArmor permissions
 // corresponding to the given permissions for the given interface.
-func AbstractPermissionsToAppArmorPermissions(iface string, permissions []string) (any, error) {
+func AbstractPermissionsToAppArmorPermissions(iface string, permissions []string) (notify.AppArmorPermission, error) {
 	// permissions may be empty, e.g. if we're constructing allowed permissions
 	// and denying all of them.
 	filePermsMap, exists := interfaceFilePermissionsMaps[iface]

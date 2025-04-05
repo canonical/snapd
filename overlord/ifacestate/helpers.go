@@ -135,7 +135,7 @@ func (m *InterfaceManager) addBackends(extra []interfaces.SecurityBackend) error
 
 func (m *InterfaceManager) addAppSets(appSets []*interfaces.SnapAppSet) error {
 	for _, set := range appSets {
-		if err := addImplicitSlots(m.state, set.Info()); err != nil {
+		if err := addImplicitInterfaces(m.state, set.Info()); err != nil {
 			return err
 		}
 
@@ -154,7 +154,7 @@ var profilesNeedRegenerationImpl = func(m *InterfaceManager) bool {
 	extraData := interfaces.SystemKeyExtraData{
 		AppArmorPrompting: m.useAppArmorPrompting,
 	}
-	mismatch, err := interfaces.SystemKeyMismatch(extraData)
+	mismatch, _, err := interfaces.SystemKeyMismatch(extraData)
 	if err != nil {
 		logger.Noticef("error trying to compare the snap system key: %v", err)
 		return true
@@ -192,10 +192,37 @@ func (m *InterfaceManager) regenerateAllSecurityProfiles(tm timings.Measurer) er
 		return err
 	}
 
+	precompOpts := make(map[string]interfaces.ConfinementOptions, len(appSets))
+
+	computeConfinementOpts := func(instanceName string) (interfaces.ConfinementOptions, error) {
+		var snapst snapstate.SnapState
+		if err := snapstate.Get(m.state, instanceName, &snapst); err != nil {
+			return interfaces.ConfinementOptions{}, err
+		}
+		snapInfo, err := snapst.CurrentInfo()
+		if err != nil {
+			return interfaces.ConfinementOptions{}, err
+		}
+		opts, err := m.buildConfinementOptions(m.state, nil, snapInfo, snapst.Flags)
+		if err != nil {
+			return interfaces.ConfinementOptions{}, err
+		}
+		return opts, nil
+	}
+
 	for _, set := range appSets {
-		if err := addImplicitSlots(m.state, set.Info()); err != nil {
+		if err := addImplicitInterfaces(m.state, set.Info()); err != nil {
 			return err
 		}
+
+		instanceName := set.InstanceName()
+		optsForAppSet, err := computeConfinementOpts(instanceName)
+		if err != nil {
+			logger.Noticef("cannot get confinement options for snap %q: %v", instanceName, err)
+			continue
+		}
+
+		precompOpts[instanceName] = optsForAppSet
 	}
 
 	// The reason the system key is unlinked is to prevent snapd from believing
@@ -208,22 +235,9 @@ func (m *InterfaceManager) regenerateAllSecurityProfiles(tm timings.Measurer) er
 	shouldWriteSystemKey := true
 	os.Remove(dirs.SnapSystemKeyFile)
 
-	confinementOpts := func(snapName string) interfaces.ConfinementOptions {
-		var snapst snapstate.SnapState
-		if err := snapstate.Get(m.state, snapName, &snapst); err != nil {
-			logger.Noticef("cannot get state of snap %q: %s", snapName, err)
-			return interfaces.ConfinementOptions{}
-		}
-		snapInfo, err := snapst.CurrentInfo()
-		if err != nil {
-			logger.Noticef("cannot get current info for snap %q: %s", snapName, err)
-			return interfaces.ConfinementOptions{}
-		}
-		opts, err := m.buildConfinementOptions(m.state, nil, snapInfo, snapst.Flags)
-		if err != nil {
-			logger.Noticef("cannot get confinement options for snap %q: %s", snapName, err)
-		}
-		return opts
+	precomputedConfinementOpts := func(instanceName string) interfaces.ConfinementOptions {
+		// options or default zero value
+		return precompOpts[instanceName]
 	}
 
 	// For each backend:
@@ -231,7 +245,7 @@ func (m *InterfaceManager) regenerateAllSecurityProfiles(tm timings.Measurer) er
 		if backend.Name() == "" {
 			continue // Test backends have no name, skip them to simplify testing.
 		}
-		if errors := interfaces.SetupMany(m.repo, backend, appSets, confinementOpts, tm); len(errors) > 0 {
+		if errors := interfaces.SetupMany(m.repo, backend, appSets, precomputedConfinementOpts, tm); len(errors) > 0 {
 			logger.Noticef("cannot regenerate %s profiles", backend.Name())
 			for _, err := range errors {
 				logger.Notice(err.Error())

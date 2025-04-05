@@ -24,6 +24,8 @@
 : "${NESTED_DISK_PHYSICAL_BLOCK_SIZE:=512}"
 : "${NESTED_DISK_LOGICAL_BLOCK_SIZE:=512}"
 
+: "${NESTED_PASSPHRASE:=}"
+
 nested_wait_for_ssh() {
     local retry=${1:-800}
     local wait=${2:-1}
@@ -982,7 +984,7 @@ nested_create_core_vm() {
             BOOTVOLUME=pc
             if [ -e pc-gadget/meta/gadget.yaml ]; then
                 # shellcheck disable=SC2016
-                BOOTVOLUME="$(gojq --yaml-input '.volumes | to_entries[] | .key as $p | .value.structure[] | select(.name == "ubuntu-boot") | $p' pc-gadget/meta/gadget.yaml | tr -d '"')"
+                BOOTVOLUME="$(gojq --yaml-input --raw-output '.volumes | to_entries[] | .key as $p | .value.structure[] | select(.name == "ubuntu-boot") | $p' pc-gadget/meta/gadget.yaml)"
                 if [ -z "$BOOTVOLUME" ]; then
                     echo "was not able to deduce the ubuntu-boot partition from gadget.yaml in pc-gadget/meta/gadget.yaml"
                     echo "please inspect it and make sure it looks as expected"
@@ -1219,6 +1221,9 @@ nested_start_core_vm_unit() {
     PARAM_RTC="${NESTED_PARAM_RTC:-}"
     PARAM_EXTRA="${NESTED_PARAM_EXTRA:-}"
 
+    local PASSPHRASE
+    PASSPHRASE=${NESTED_PASSPHRASE}
+
     # Open port 7777 on the host so that failures in the nested VM (e.g. to
     # create users) can be debugged interactively via
     # "telnet localhost 7777". Also keeps the logs
@@ -1226,6 +1231,10 @@ nested_start_core_vm_unit() {
     # XXX: should serial just be logged to stdout so that we just need
     #      to "journalctl -u $NESTED_VM" to see what is going on ?
     if "$QEMU" -version | grep '2\.5'; then
+        if [ -z "$PASSPHRASE" ]; then
+            echo "internal error: NESTED_PASSPHRASE is set and qemu doesn't support chardev over socket"
+            exit 1
+        fi
         # XXX: remove once we no longer support xenial hosts
         PARAM_SERIAL="-serial file:${NESTED_LOGS_DIR}/serial.log"
     else
@@ -1366,6 +1375,13 @@ nested_start_core_vm_unit() {
         ${PARAM_USB} \
         ${PARAM_CD}  \
         ${PARAM_EXTRA} " "${PARAM_REEXEC_ON_FAILURE}"
+
+    if [ -n "$PASSPHRASE" ]; then
+        # Wait for passphrase prompt from serial log file.
+        retry -n 120 --wait 1 sh -c "MATCH \"Please enter the passphrase\" < ${NESTED_LOGS_DIR}/serial.log"
+        # Enter passphrase to continue boot.
+        echo "$PASSPHRASE" | netcat -N localhost 7777
+    fi
 
     local EXPECT_SHUTDOWN
     EXPECT_SHUTDOWN=${NESTED_EXPECT_SHUTDOWN:-}
@@ -1703,6 +1719,21 @@ nested_prepare_tools() {
         # shellcheck disable=SC2016
         REMOTE_PATH="$(remote.exec 'echo $PATH')"
         remote.exec "echo PATH=$TOOLS_PATH:$REMOTE_PATH | sudo tee -a /etc/environment"
+    fi
+
+    if [ -n "$TAG_FEATURES" ]; then
+        # If feature tagging is enabled, then we need to enable debug logging
+        remote.exec "sudo mkdir -p /etc/systemd/system/snapd.service.d"
+        remote.exec "printf '[Service]\nEnvironment=SNAPD_DEBUG_HTTP=7 SNAPD_DEBUG=1 SNAPPY_TESTING=1\n' | sudo tee /etc/systemd/system/snapd.service.d/99-feature-tags.conf"
+        # Persist journal logs
+        remote.exec "sudo snap set system journal.persistent=true"
+        # We changed the service configuration so we need to reload and restart
+        # the units to get them applied
+        remote.exec "sudo systemctl daemon-reload"
+        # stop the socket (it pulls down the service)
+        remote.exec "sudo systemctl stop snapd.socket"
+        # start the service (it pulls up the socket)
+        remote.exec "sudo systemctl start snapd.service"
     fi
 }
 

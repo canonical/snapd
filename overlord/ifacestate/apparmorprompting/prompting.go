@@ -31,6 +31,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/prompting/requestrules"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/sandbox/apparmor/notify"
 	"github.com/snapcore/snapd/sandbox/apparmor/notify/listener"
 	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/strutil"
@@ -43,7 +44,9 @@ var (
 	listenerRun      = func(l *listener.Listener) error { return l.Run() }
 	listenerReqs     = func(l *listener.Listener) <-chan *listener.Request { return l.Reqs() }
 
-	requestReply = func(req *listener.Request, allowedPermission any) error { return req.Reply(allowedPermission) }
+	requestReply = func(req *listener.Request, allowedPermission notify.AppArmorPermission) error {
+		return req.Reply(allowedPermission)
+	}
 )
 
 // A Manager holds outstanding prompts and mediates their replies, further it
@@ -148,17 +151,21 @@ func New(s *state.State) (m *InterfacesRequestsManager, retErr error) {
 // Run is the main run loop for the manager, and must be called using tomb.Go.
 func (m *InterfacesRequestsManager) run() error {
 	m.lock.Lock()
-	// disconnect replaces the listener so keep track of the one we have
-	// right now
+	// disconnect replaces the listener, so keep track of the one we have
+	// right now, even though currently disconnect is only called when this
+	// function returns, so this isn't really necessary.
 	currentListener := m.listener
 	m.lock.Unlock()
 
 	m.tomb.Go(func() error {
 		logger.Debugf("starting prompting listener")
-		if err := listenerRun(currentListener); err != listener.ErrClosed {
-			return err
-		}
-		return nil
+		// listener.Run will return an error if and only if there's a real
+		// error, not if Close() is called. But Close() is called only by
+		// disconnect(), which is itself only called when this run() function
+		// returns, which only occurs when the manager tomb is dying. So we
+		// don't need to worry about the listener returning nil when we don't
+		// already expect to be exiting.
+		return listenerRun(currentListener)
 	})
 
 run_loop:
@@ -167,20 +174,29 @@ run_loop:
 		select {
 		case req, ok := <-listenerReqs(currentListener):
 			if !ok {
-				// Reqs() closed, so either errored or Stop() was called.
-				// In either case, the listener Close() method has already
-				// been called, and the tomb error will be set to the return
+				// Reqs() closed, so an error occurred in the listener. In
+				// production, the listener does not close itself on error, so
+				// this should never actually occur.
+				//
+				// If Stop() were called, it would set the tomb to dying and
+				// the other select case would have occurred, since the
+				// disconnect() method is the only place in the manager where
+				// the listener Close() method is called, and disconnect() is
+				// only called when this function returns.
+				//
+				// The listener Close() method has already been called by the
+				// listener itself, and the tomb error will be set to the error
 				// value of the Run() call from the previous tracked goroutine.
 				logger.Debugf("prompting listener closed requests channel")
 				break run_loop
 			}
 
-			logger.Debugf("received from kernel requests channel: %v", req)
+			logger.Debugf("received from kernel requests channel: %+v", req)
 			if err := m.handleListenerReq(req); err != nil {
 				logger.Noticef("error while handling request: %+v", err)
 			}
 		case <-m.tomb.Dying():
-			logger.Noticef("InterfacesRequestsManager tomb is dying, disconnecting")
+			logger.Debugf("InterfacesRequestsManager tomb is dying with error %v, disconnecting", m.tomb.Err())
 			break run_loop
 		}
 	}
@@ -196,7 +212,7 @@ func (m *InterfacesRequestsManager) handleListenerReq(req *listener.Request) err
 	snap := req.Label // Default to apparmor label, in case process is not a snap
 	tag, err := naming.ParseSecurityTag(req.Label)
 	if err == nil {
-		// the triggering process is not a snap, so treat apparmor label as snap field
+		// the triggering process is a snap, so use instance name as snap field
 		snap = tag.InstanceName()
 	}
 

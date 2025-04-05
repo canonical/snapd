@@ -758,18 +758,13 @@ func (r *remodeler) installGoal(sn remodelSnapTarget, components []string) (snap
 
 // installedRevisionUpdateGoal returns an update goal which will install a snap
 // revision that was previously installed on the system and still in the
-// sequence. Note that this is using a [snapstate.StoreUpdateGoal], but it does
-// not actually reach out to the store.
+// sequence. We use a [snapstate.PathUpdateGoal] to enable this.
 func (r *remodeler) installedRevisionUpdateGoal(
 	st *state.State,
 	sn remodelSnapTarget,
 	components []string,
 	constraints snapasserts.SnapPresenceConstraints,
 ) (snapstate.UpdateGoal, error) {
-	if len(components) > 0 {
-		return nil, errors.New("internal error: falling back to previous snap with components not supported during remodel")
-	}
-
 	if constraints.Revision.Unset() {
 		return nil, errors.New("internal error: falling back to a previous revision requires that we have a specific revision to pick")
 	}
@@ -784,15 +779,45 @@ func (r *remodeler) installedRevisionUpdateGoal(
 		return nil, fmt.Errorf("installed snap %q does not have the required revision in its sequence to be used for offline remodel: %s", sn.name, constraints.Revision)
 	}
 
-	// TODO:COMPS: snapstate currently reaches out to the store during a refresh
-	// if the snap has components already installed, regardless if the snap is
-	// already installed or not
-	if snapst.Sequence.HasComponents(index) {
-		return nil, errors.New("internal error: falling back to previous snap revision that has components installed is not supported during remodel")
+	ss := snapst.Sequence.Revisions[index]
+	comps := make([]snapstate.PathComponent, 0, len(ss.Components))
+	for _, c := range components {
+		cref := naming.NewComponentRef(snap.InstanceSnap(sn.name), c)
+		cs := ss.FindComponent(cref)
+		if cs == nil {
+			return nil, fmt.Errorf("cannot find required component in set of already installed components: %s", cref)
+		}
+
+		compConstraints := constraints.Component(cs.SideInfo.Component.ComponentName)
+		if !compConstraints.Revision.Unset() && compConstraints.Revision != cs.SideInfo.Revision {
+			return nil, fmt.Errorf("cannot fall back to component %q with revision %s, required revision is %s", cs.SideInfo.Component, cs.SideInfo.Revision, compConstraints.Revision)
+		}
+
+		cpi := snap.MinimalComponentContainerPlaceInfo(
+			cs.SideInfo.Component.ComponentName,
+			cs.SideInfo.Revision,
+			snapst.InstanceName(),
+		)
+
+		comps = append(comps, snapstate.PathComponent{
+			SideInfo: cs.SideInfo,
+			Path:     cpi.MountFile(),
+		})
 	}
 
-	return snapstateStoreUpdateGoal(snapstate.StoreUpdate{
+	sideInfo := *ss.Snap
+
+	// despite swapping back to an old revision in the sequence, we still might
+	// need to swap to a new channel to track.
+	if sn.channel != "" {
+		sideInfo.Channel = sn.channel
+	}
+
+	return snapstatePathUpdateGoal(snapstate.PathSnap{
 		InstanceName: sn.name,
+		Path:         snap.MountFile(sn.name, constraints.Revision),
+		SideInfo:     &sideInfo,
+		Components:   comps,
 		RevOpts: snapstate.RevisionOptions{
 			Channel:        sn.channel,
 			ValidationSets: r.vsets,

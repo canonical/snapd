@@ -674,14 +674,14 @@ func (cs *integrationSuite) TestClientTimeoutLP1837804(c *C) {
 	testServer := httptest.NewServer(http.HandlerFunc(func(res http.ResponseWriter, req *http.Request) {
 		time.Sleep(25 * time.Millisecond)
 	}))
-	defer func() { testServer.Close() }()
+	defer testServer.Close()
 
 	cli := client.New(&client.Config{BaseURL: testServer.URL})
 	_, err := cli.Do("GET", "/", nil, nil, nil, nil)
-	c.Assert(err, ErrorMatches, `.* timeout exceeded while waiting for response`)
+	c.Assert(err, ErrorMatches, `.*timeout.*`)
 
 	_, err = cli.Do("POST", "/", nil, nil, nil, nil)
-	c.Assert(err, ErrorMatches, `.* timeout exceeded while waiting for response`)
+	c.Assert(err, ErrorMatches, `.*timeout.*`)
 }
 
 func (cs *clientSuite) TestClientSystemRecoveryKeys(c *C) {

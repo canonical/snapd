@@ -139,7 +139,7 @@ func validateConfdbViewID(id string) error {
 	parts := strings.Split(id, "/")
 	for _, part := range parts {
 		if part == "" {
-			return errors.New(i18n.G("confdb identifier must conform to format: <account-id>/<confdb>/<view>"))
+			return errors.New(i18n.G("confdb-schema view id must conform to format: <account-id>/<confdb-schema>/<view>"))
 		}
 	}
 

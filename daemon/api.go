@@ -31,6 +31,7 @@ import (
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/confdbstate"
 	"github.com/snapcore/snapd/overlord/configstate"
+	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/strutil"
@@ -41,7 +42,7 @@ var api = []*Command{
 	sysInfoCmd,
 	loginCmd,
 	logoutCmd,
-	appIconCmd,
+	snapIconCmd,
 	findCmd,
 	snapsCmd,
 	snapCmd,
@@ -83,6 +84,7 @@ var api = []*Command{
 	quotaGroupsCmd,
 	quotaGroupInfoCmd,
 	confdbCmd,
+	confdbControlCmd,
 	noticesCmd,
 	noticeCmd,
 	requestsPromptsCmd,
@@ -173,10 +175,12 @@ var (
 	assertstateRestoreValidationSetsTracking = assertstate.RestoreValidationSetsTracking
 	assertstateFetchAllValidationSets        = assertstate.FetchAllValidationSets
 
-	confdbstateGetView        = confdbstate.GetView
-	confdbstateGetTransaction = confdbstate.GetTransactionToModify
-	confdbstateGet            = confdbstate.Get
-	confdbstateSetViaView     = confdbstate.SetViaView
+	confdbstateGetView             = confdbstate.GetView
+	confdbstateGetTransactionToSet = confdbstate.GetTransactionToSet
+	confdbstateSetViaView          = confdbstate.SetViaView
+	confdbstateLoadConfdbAsync     = confdbstate.LoadConfdbAsync
+
+	devicestateSignConfdbControl = (*devicestate.DeviceManager).SignConfdbControl
 )
 
 func ensureStateSoonImpl(st *state.State) {

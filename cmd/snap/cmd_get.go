@@ -21,12 +21,14 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"sort"
 	"strings"
 
 	"github.com/jessevdk/go-flags"
 
+	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/i18n"
 )
@@ -59,7 +61,7 @@ view paths.
 `)
 
 type cmdGet struct {
-	clientMixin
+	mustWaitMixin
 	Positional struct {
 		Snap installedSnapName `required:"yes"`
 		Keys []string
@@ -75,7 +77,11 @@ func init() {
 		longGetHelp += longConfdbGetHelp
 	}
 
-	addCommand("get", shortGetHelp, longGetHelp, func() flags.Commander { return &cmdGet{} },
+	addCommand("get", shortGetHelp, longGetHelp, func() flags.Commander {
+		// a confdb transaction shouldn't be cancelled mid-way since we need to be
+		// consistent when running hooks (i.e., not run for some but not others)
+		return &cmdGet{mustWaitMixin: mustWaitMixin{skipAbort: true}}
+	},
 		map[string]string{
 			// TRANSLATORS: This should not start with a lowercase letter.
 			"d": i18n.G("Always return document, even with single key"),
@@ -257,17 +263,8 @@ func (x *cmdGet) Execute(args []string) error {
 	var conf map[string]interface{}
 	var err error
 	if isConfdbViewID(snapName) {
-		if err := validateConfdbFeatureFlag(); err != nil {
-			return err
-		}
-
 		// first argument is a confdbViewID, use the confdb API
-		confdbViewID := snapName
-		if err := validateConfdbViewID(confdbViewID); err != nil {
-			return err
-		}
-
-		conf, err = x.client.ConfdbGetViaView(confdbViewID, confKeys)
+		conf, err = x.getConfdb(snapName, confKeys)
 	} else {
 		conf, err = x.client.Conf(snapName, confKeys)
 	}
@@ -286,10 +283,47 @@ func (x *cmdGet) Execute(args []string) error {
 	}
 }
 
+func (x *cmdGet) getConfdb(confdbViewID string, confKeys []string) (map[string]interface{}, error) {
+	if err := validateConfdbFeatureFlag(); err != nil {
+		return nil, err
+	}
+
+	if err := validateConfdbViewID(confdbViewID); err != nil {
+		return nil, err
+	}
+
+	chgID, err := x.client.ConfdbGetViaView(confdbViewID, confKeys)
+	if err != nil {
+		return nil, err
+	}
+
+	chg, err := x.wait(chgID)
+	if err != nil {
+		// no noWait check, doesn't make sense with confdb read
+		return nil, err
+	}
+
+	var conf map[string]interface{}
+	err = chg.Get("confdb-data", &conf)
+	if err != nil {
+		if errors.Is(err, client.ErrNoData) {
+			var errMsg string
+			if err := chg.Get("confdb-error", &errMsg); err != nil {
+				return nil, fmt.Errorf(`cannot read "confdb-error" in change %s`, chg.ID)
+			}
+
+			return nil, errors.New(errMsg)
+		}
+		return nil, err
+	}
+
+	return conf, nil
+}
+
 func validateConfdbFeatureFlag() error {
-	if !features.Confdbs.IsEnabled() {
-		_, confName := features.Confdbs.ConfigOption()
-		return fmt.Errorf(`the "confdbs" feature is disabled: set '%s' to true`, confName)
+	if !features.Confdb.IsEnabled() {
+		_, confName := features.Confdb.ConfigOption()
+		return fmt.Errorf(`the "confdb" feature is disabled: set '%s' to true`, confName)
 	}
 	return nil
 }

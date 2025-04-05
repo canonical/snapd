@@ -117,6 +117,13 @@ environment:
     USE_PREBUILT_SNAPD_SNAP: '$(HOST: echo "${SPREAD_USE_PREBUILT_SNAPD_SNAP:-false}")'
     USE_SNAPD_SNAP_URL: '$(HOST: echo "${SPREAD_USE_SNAPD_SNAP_URL:-}")'
 
+    # When populated with a comma-separated list of feature key names,
+    # each spread task will be analyzed for the specified features and 
+    # output a json file with the results. NOTE: this should only be 
+    # used coupled with the -artifact spread tag otherwise the feature 
+    # analyses will not be downloaded from the VMs.
+    TAG_FEATURES: '$(HOST: echo "${SPREAD_TAG_FEATURES:-}")'
+
 backends:
     google:
         key: '$(HOST: echo "$SPREAD_GOOGLE_KEY")'
@@ -275,6 +282,12 @@ backends:
         key: '$(HOST: echo "$SPREAD_GOOGLE_KEY")'
         location: snapd-spread/us-central1-a
         halt-timeout: 2h
+        environment:
+            SRU_VALIDATION: 1
+            SNAP_REEXEC: 0
+            MODIFY_CORE_SNAP_FOR_REEXEC: 0
+            TRUST_TEST_KEYS: false
+            CORE_CHANNEL: stable
         systems:
             - ubuntu-20.04-64:
                   storage: 12G
@@ -400,6 +413,12 @@ backends:
                   username: ubuntu
                   password: ubuntu
             - ubuntu-24.04-64:
+                  username: ubuntu
+                  password: ubuntu
+            - ubuntu-24.10-64:
+                  username: ubuntu
+                  password: ubuntu
+            - ubuntu-25.04-64:
                   username: ubuntu
                   password: ubuntu
             - debian-11-64:
@@ -572,6 +591,10 @@ backends:
                   password: ubuntu123
 
 path: /home/gopath/src/github.com/snapcore/snapd
+
+artifacts:
+    # Populated with feature tag information when SPREAD_TAG_FEATURES is set.
+    - feature-tags
 
 exclude:
     - .git
@@ -791,9 +814,6 @@ prepare: |
         else
             exit 1
         fi
-        # workaround for https://warthogs.atlassian.net/browse/SNAPDENG-34591
-        awk '/\[community\]/ {print "#" $0; getline; print "#" $0; next} {print}' < /etc/pacman.conf > /etc/pacman.conf.spread
-        mv /etc/pacman.conf.spread /etc/pacman.conf
     fi
 
     if [[ "$SPREAD_SYSTEM" == debian-* ]]; then
@@ -1247,6 +1267,7 @@ suites:
                 snap install ubuntu-image --channel="$OLD_UBUNTU_IMAGE_SNAP_CHANNEL" --classic
             fi
         restore-each: |
+            "$TESTSLIB"/collect-features.sh --after-nested-task
             tests.nested vm remove
             tests.nested restore
             "$TESTSLIB"/prepare-restore.sh --restore-suite-each
@@ -1307,6 +1328,7 @@ suites:
             "$TESTSLIB"/prepare-restore.sh --prepare-suite-each
             tests.nested create-vm classic
         restore-each: |
+            "$TESTSLIB"/collect-features.sh --after-nested-task
             tests.nested vm remove
             "$TESTSLIB"/prepare-restore.sh --restore-suite-each
         restore: |
@@ -1373,6 +1395,7 @@ suites:
             "$TESTSLIB"/prepare-restore.sh --prepare-suite-each
             tests.nested create-vm core
         restore-each: |
+            "$TESTSLIB"/collect-features.sh --after-nested-task
             tests.nested vm remove
             "$TESTSLIB"/prepare-restore.sh --restore-suite-each
         restore: |
@@ -1468,6 +1491,50 @@ suites:
             if [ "$SNAP_REEXEC" = "0" ] && tests.info is-snapd-from-archive; then
                 tests.exec skip-test "When snapd.deb is from the repo, we just need to test when re-exec is enabled" && exit 0
             fi
+        restore-each: |
+            "$TESTSLIB"/prepare-restore.sh --restore-suite-each
+        restore: |
+            "$TESTSLIB"/prepare-restore.sh --restore-suite
+        debug: |
+            if [ "$SPREAD_DEBUG_EACH" = 1 ]; then
+                systemctl status snapd.socket || true
+            fi
+
+    # a subset of the main test suite but for cross distro and with reexec enabled
+    tests/cross-distro-reexec/:
+        summary: Cross-distro reeexec
+        systems:
+          - arch-linux-*
+          # will only for work for AppArmor setups
+          - opensuse-*
+          # TODO: enable the following:
+          # - fedora-*
+          # - amazon-linux-*
+        environment:
+          # enable snap rexec
+          SNAP_REEXEC: "1"
+        prepare: |
+            "$TESTSLIB"/prepare-restore.sh --prepare-suite
+        prepare-each: |
+            "$TESTSLIB"/prepare-restore.sh --prepare-suite-each
+            SNAP_MOUNT_DIR="$(os.paths snap-mount-dir)"
+            case "$SNAP_MOUNT_DIR" in
+                /var/lib/snapd/snap)
+                    ln -sf "$SNAP_MOUNT_DIR" /snap
+                    tests.cleanup defer rm -f /snap
+                    ;;
+            esac
+
+            systemctl restart snapd.service
+
+            # assert state of reexec
+            pmap -p "$(pidof snapd)" | MATCH "$SNAP_MOUNT_DIR/snapd/.*/usr/lib/snapd/snapd"
+            snap debug execution snap | MATCH 'is-reexecd: true'
+            # assert internal apparmor?
+            if command -v aa-enabled 2>/dev/null && aa-enabled ; then
+                snap debug execution apparmor | MATCH 'internal: true'
+            fi
+
         restore-each: |
             "$TESTSLIB"/prepare-restore.sh --restore-suite-each
         restore: |

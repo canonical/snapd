@@ -100,6 +100,12 @@ func (b *Backend) setupLdconfigCache(spec *Specification) error {
 	// the specification is recreated with all the information even if we
 	// are refreshing only one of the snaps providing slots.
 
+	// Setup ldconfig only if the snap has plugs that require it. For the
+	// moment this is only the system snap.
+	if len(spec.plugs) == 0 {
+		return nil
+	}
+
 	ldConfigDir := dirs.SnapLdconfigDir
 	ldconfigPath := filepath.Join(ldConfigDir, "snap.system.conf")
 	runLdconfig := false

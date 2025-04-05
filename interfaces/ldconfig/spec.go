@@ -33,6 +33,8 @@ import (
 // holds internal state that is used by the ldconfig backend during the
 // interface setup process.
 type Specification struct {
+	// plugs is the list of plugs using ldconfig for the snap
+	plugs []string
 	// libDirs is the list of directories with libraries coming from
 	// different slots.
 	libDirs map[SnapSlot][]string
@@ -65,22 +67,40 @@ func (spec *Specification) LibDirs() map[SnapSlot][]string {
 	return spec.libDirs
 }
 
+func (spec *Specification) Plugs() []string {
+	return spec.plugs
+}
+
 // Implementation of methods required by interfaces.Specification
+
+// ConnectedPlugCallback must be implemented as a minimum by users of this backend.
+type ConnectedPlugCallback interface {
+	LdconfigConnectedPlug(spec *Specification, plug *interfaces.ConnectedPlug,
+		slot *interfaces.ConnectedSlot) error
+}
+
+func getConnectedPlugCallback(iface interfaces.Interface, instanceName string) (
+	ConnectedPlugCallback, error) {
+	if iface, ok := iface.(ConnectedPlugCallback); ok {
+		if !interfaces.IsTheSystemSnap(instanceName) {
+			return nil, errors.New("internal error: ldconfig plugs can be defined only by the system snap")
+		}
+		return iface, nil
+	}
+	return nil, nil
+}
 
 // AddConnectedPlug records ldconfig-specific side-effects of having a connected plug.
 func (spec *Specification) AddConnectedPlug(iface interfaces.Interface, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
-	type definer interface {
-		LdconfigConnectedPlug(spec *Specification, plug *interfaces.ConnectedPlug,
-			slot *interfaces.ConnectedSlot) error
+	connectedPlugCallback, err := getConnectedPlugCallback(iface, plug.Snap().InstanceName())
+	if err != nil {
+		return err
 	}
-	if iface, ok := iface.(definer); ok {
-		if !interfaces.IsTheSystemSnap(plug.Snap().InstanceName()) {
-			return errors.New("internal error: ldconfig plugs can be defined only by the system snap")
-		}
+	if connectedPlugCallback != nil {
 		// Set the contextual information
 		spec.slotSnapName = slot.Snap().SnapName()
 		spec.slotName = slot.Name()
-		return iface.LdconfigConnectedPlug(spec, plug, slot)
+		return connectedPlugCallback.LdconfigConnectedPlug(spec, plug, slot)
 	}
 	return nil
 }
@@ -102,6 +122,17 @@ func (spec *Specification) AddConnectedSlot(iface interfaces.Interface, plug *in
 
 // AddPermanentPlug records ldconfig-specific side-effects of having a plug.
 func (spec *Specification) AddPermanentPlug(iface interfaces.Interface, plug *snap.PlugInfo) error {
+	// Note that ConnectedPlugCallback must be implemented, so we
+	// check for it instead of using LdconfigPermanentPlug.
+	connectedPlugCallback, err := getConnectedPlugCallback(iface, plug.Snap.InstanceName())
+	if err != nil {
+		return err
+	}
+	if connectedPlugCallback != nil {
+		// Keep track of interfaces using this backend on the consumer side
+		spec.plugs = append(spec.plugs, plug.Name)
+	}
+
 	type definer interface {
 		LdconfigPermanentPlug(spec *Specification, plug *snap.PlugInfo) error
 	}

@@ -22,6 +22,7 @@ package apparmorprompting
 import (
 	"github.com/snapcore/snapd/interfaces/prompting/requestprompts"
 	"github.com/snapcore/snapd/interfaces/prompting/requestrules"
+	"github.com/snapcore/snapd/sandbox/apparmor/notify"
 	"github.com/snapcore/snapd/sandbox/apparmor/notify/listener"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -44,7 +45,7 @@ func MockListenerClose(f func(l *listener.Listener) error) (restore func()) {
 
 type RequestResponse struct {
 	Request           *listener.Request
-	AllowedPermission any
+	AllowedPermission notify.AppArmorPermission
 }
 
 func MockListener() (reqChan chan *listener.Request, replyChan chan RequestResponse, restore func()) {
@@ -61,7 +62,10 @@ func MockListener() (reqChan chan *listener.Request, replyChan chan RequestRespo
 	})
 	restoreRun := MockListenerRun(func(l *listener.Listener) error {
 		<-closeChan
-		return listener.ErrClosed
+		// In production, listener.Run() does not return on error, and when
+		// the listener is closed, it returns nil. So it should always return
+		// nil in practice.
+		return nil
 	})
 	restoreReqs := MockListenerReqs(func(l *listener.Listener) <-chan *listener.Request {
 		return reqChan
@@ -77,7 +81,7 @@ func MockListener() (reqChan chan *listener.Request, replyChan chan RequestRespo
 		}
 		return nil
 	})
-	restoreReply := MockRequestReply(func(req *listener.Request, allowedPermission any) error {
+	restoreReply := MockRequestReply(func(req *listener.Request, allowedPermission notify.AppArmorPermission) error {
 		reqResp := RequestResponse{
 			Request:           req,
 			AllowedPermission: allowedPermission,
@@ -95,7 +99,7 @@ func MockListener() (reqChan chan *listener.Request, replyChan chan RequestRespo
 	return reqChan, replyChan, restore
 }
 
-func MockRequestReply(f func(req *listener.Request, allowedPermission any) error) (restore func()) {
+func MockRequestReply(f func(req *listener.Request, allowedPermission notify.AppArmorPermission) error) (restore func()) {
 	restoreRequestReply := testutil.Backup(&requestReply)
 	requestReply = f
 	restoreRequestpromptsSendReply := requestprompts.MockSendReply(f)

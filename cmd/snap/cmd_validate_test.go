@@ -186,7 +186,7 @@ func (s *validateSuite) TestValidateQueryOne(c *check.C) {
 	c.Assert(err, check.IsNil)
 	c.Check(rest, check.HasLen, 0)
 	c.Check(s.Stderr(), check.Equals, "")
-	c.Check(s.Stdout(), check.Equals, "valid")
+	c.Check(s.Stdout(), check.Equals, "valid\n")
 }
 
 func (s *validateSuite) TestValidateQueryOneInvalid(c *check.C) {
@@ -199,7 +199,7 @@ func (s *validateSuite) TestValidateQueryOneInvalid(c *check.C) {
 	c.Assert(err, check.IsNil)
 	c.Check(rest, check.HasLen, 0)
 	c.Check(s.Stderr(), check.Equals, "")
-	c.Check(s.Stdout(), check.Equals, "invalid")
+	c.Check(s.Stdout(), check.Equals, "invalid\n")
 }
 
 func (s *validateSuite) TestValidationSetsList(c *check.C) {
@@ -236,6 +236,12 @@ func (s *validateSuite) TestValidationSetsListEmpty(c *check.C) {
 
 func (s *validateSuite) TestValidateRefreshOnlyUsedWithEnforce(c *check.C) {
 	rest, err := main.Parser(main.Client()).ParseArgs([]string{"validate", "--refresh", "--monitor", "foo/bar"})
+	c.Assert(err, check.ErrorMatches, "--refresh can only be used together with --enforce")
+	c.Check(rest, check.HasLen, 1)
+	c.Check(s.Stderr(), check.Equals, "")
+	c.Check(s.Stdout(), check.Equals, "")
+
+	rest, err = main.Parser(main.Client()).ParseArgs([]string{"validate", "--refresh", "foo/bar"})
 	c.Assert(err, check.ErrorMatches, "--refresh can only be used together with --enforce")
 	c.Check(rest, check.HasLen, 1)
 	c.Check(s.Stderr(), check.Equals, "")

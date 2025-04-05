@@ -186,7 +186,6 @@ func ResealKeysWithFDESetupHook(keys []KeyDataLocation, primaryKeyFile string, m
 				return err
 			}
 		} else {
-			// TODO:FDEM:FIX: also set the run modes
 			hooksKeyData, err := sb_hooks.NewKeyData(keyData)
 			if err != nil {
 				return err

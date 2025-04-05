@@ -7,11 +7,19 @@ details: |
 systems: [-ubuntu-core-*]
 
 execute: |
-    echo "Ensure we have no core"
-    systemctl stop snapd
-    snapd.tool exec snap-mgmt --purge
-    systemctl start snapd
-    snap wait system seed.loaded
+    if snap list core ; then
+        echo "Ensure we have no core"
+        systemctl stop snapd
+        snapd.tool exec snap-mgmt --purge
+        # purge removes the snap mount directory, but we must restore it since it's
+        # part of packaging
+        SNAP_MOUNT_DIR="$(os.paths snap-mount-dir)"
+        mkdir -p "$SNAP_MOUNT_DIR"
+
+        systemctl start snapd
+        snap wait system seed.loaded
+    fi
+
     test "$(snap list | grep -v -c ^Name)" = 0
 
     echo "Ensure we have snapd + snap + core18 installed"

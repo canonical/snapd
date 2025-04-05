@@ -117,7 +117,7 @@ jobs:
 
     - name: Get changed files
       id: changed-files
-      uses: tj-actions/changed-files@v45.0.6
+      uses: tj-actions/changed-files@2f7c5bfce28377bc069a65ba478de0a74aa0ca32 # v46.0.1
 
     - name: Save changes files
       run: |
@@ -221,7 +221,7 @@ jobs:
 
     - name: Download built snap (amd64)
       uses: actions/download-artifact@v4
-      if: "${{ !inputs.use-snapd-snap-from-master && !contains(inputs.group, '-arm64') && !endsWith(inputs.group, '-fips') }}"
+      if: "${{ !contains(github.event.pull_request.labels.*.name, 'Skip spread') && !inputs.use-snapd-snap-from-master && !contains(inputs.group, '-arm64') && !endsWith(inputs.group, '-fips') }}"
       with:
         name: snap-files-amd64-default-test
         # eg. snapd_1337.2.65.1+g97.d35b459_amd64.snap
@@ -229,7 +229,7 @@ jobs:
         path: "${{ github.workspace }}/built-snap"
 
     - name: Download built snap (arm64)
-      if: "contains(inputs.group, '-arm64') && !endsWith(inputs.group, '-fips')"
+      if: "${{ !contains(github.event.pull_request.labels.*.name, 'Skip spread') && !inputs.use-snapd-snap-from-master && contains(inputs.group, '-arm64') && !endsWith(inputs.group, '-fips') }}"
       uses: actions/download-artifact@v4
       with:
         name: snap-files-arm64-default-test
@@ -240,7 +240,7 @@ jobs:
     - name: Download built FIPS snap (amd64)
       uses: actions/download-artifact@v4
       # eg. ubuntu-fips
-      if: "${{ !inputs.use-snapd-snap-from-master && !contains(inputs.group, '-arm64') && endsWith(inputs.group, '-fips') }}"
+      if: "${{ !contains(github.event.pull_request.labels.*.name, 'Skip spread') && !inputs.use-snapd-snap-from-master && !contains(inputs.group, '-arm64') && endsWith(inputs.group, '-fips') }}"
       with:
         name: snap-files-amd64-FIPS-test
         # eg. snapd_1337.2.65.1+g97.d35b459-fips_amd64.snap
@@ -248,7 +248,7 @@ jobs:
         path: "${{ github.workspace }}/built-snap"
 
     - name: Rename imported snap
-      if: "${{ !inputs.use-snapd-snap-from-master }}"
+      if: "${{ !contains(github.event.pull_request.labels.*.name, 'Skip spread') && !inputs.use-snapd-snap-from-master }}"
       run: |
         for snap in built-snap/snapd_1337.*.snap; do
           mv -v "${snap}" "${snap}.keep"

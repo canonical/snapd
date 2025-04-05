@@ -9,13 +9,6 @@
         "rules": "main"
       },
       {
-        "group": "fedora (fundamental)",
-        "backend": "openstack",
-        "systems": "fedora-41-64", 
-        "tasks": "tests/...",
-        "rules": "main"
-      },
-      {
         "group": "ubuntu-focal (fundamental)",
         "backend": "google",
         "alternative-backend": "openstack",

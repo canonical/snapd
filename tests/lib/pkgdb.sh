@@ -805,8 +805,10 @@ pkg_dependencies_opensuse(){
         nss-mdns
         osc
         PackageKit
+        procps
         python3-yaml
         strace
+        sysvinit-tools
         netcat-openbsd
         rpm-build
         udisks2

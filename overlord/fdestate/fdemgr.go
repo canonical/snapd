@@ -22,12 +22,16 @@
 package fdestate
 
 import (
+	"errors"
 	"fmt"
+	"os"
 
 	"github.com/snapcore/snapd/boot"
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget/device"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/osutil/disks"
 	"github.com/snapcore/snapd/overlord/fdestate/backend"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
@@ -36,7 +40,9 @@ import (
 )
 
 var (
-	backendResealKeyForBootChains = backend.ResealKeyForBootChains
+	backendResealKeyForBootChains  = backend.ResealKeyForBootChains
+	disksDMCryptUUIDFromMountPoint = disks.DMCryptUUIDFromMountPoint
+	bootHostUbuntuDataForMode      = boot.HostUbuntuDataForMode
 )
 
 // FDEManager is responsible for managing full disk encryption keys.
@@ -132,6 +138,7 @@ func (m *FDEManager) StartUp() error {
 		return nil
 	}()
 	if err != nil {
+		fmt.Fprintf(os.Stderr, "cannot complete FDE state manager startup: %v\n", err)
 		logger.Noticef("cannot complete FDE state manager startup: %v", err)
 		// keep track of the error
 		m.initErr = err
@@ -181,6 +188,86 @@ func (m *unlockedStateManager) Unlock() (relock func()) {
 	return func() {}
 }
 
+type encryptedContainer struct {
+	uuid          string
+	containerRole string
+	legacyKeys    map[string]string
+}
+
+func (disk *encryptedContainer) ContainerRole() string {
+	return disk.containerRole
+}
+
+func (disk *encryptedContainer) LegacyKeys() map[string]string {
+	return disk.legacyKeys
+}
+
+func (disk *encryptedContainer) DevPath() string {
+	return fmt.Sprintf("/dev/disk/by-uuid/%s", disk.uuid)
+}
+
+// GetEncryptedContainers returns the encrypted disks with their keys for
+// the current device.
+// The list of encrypted disks has no specific order.
+func (m *FDEManager) GetEncryptedContainers() ([]backend.EncryptedContainer, error) {
+	return getEncryptedContainers(m.state)
+}
+
+func getEncryptedContainers(state *state.State) ([]backend.EncryptedContainer, error) {
+	var foundDisks []backend.EncryptedContainer
+
+	deviceCtx, err := snapstate.DeviceCtx(state, nil, nil)
+	if err != nil {
+		return nil, err
+	}
+	model := deviceCtx.Model()
+
+	dataMountPoints, err := bootHostUbuntuDataForMode(deviceCtx.SystemMode(), model)
+	if err != nil {
+		logger.Noticef("cannot determine the data mount in this mode: %v", err)
+	}
+	if err == nil && len(dataMountPoints) != 0 {
+		uuid, err := disksDMCryptUUIDFromMountPoint(dataMountPoints[0])
+		if err != nil {
+			if !errors.Is(err, disks.ErrNoDmUUID) {
+				return nil, fmt.Errorf("cannot find UUID for mount %s: %v", dataMountPoints[0], err)
+			}
+		} else {
+			legacyKeys := make(map[string]string)
+			defaultPath := device.DataSealedKeyUnder(boot.InitramfsBootEncryptionKeyDir)
+			if osutil.FileExists(defaultPath) {
+				legacyKeys["default"] = defaultPath
+			}
+			defaultFallbackPath := device.FallbackDataSealedKeyUnder(boot.InitramfsSeedEncryptionKeyDir)
+			if osutil.FileExists(defaultFallbackPath) {
+				legacyKeys["default-fallback"] = defaultFallbackPath
+			}
+
+			foundDisks = append(foundDisks, &encryptedContainer{uuid: uuid, containerRole: "system-data", legacyKeys: legacyKeys})
+		}
+	}
+
+	uuid, err := disksDMCryptUUIDFromMountPoint(dirs.SnapSaveDir)
+
+	if err != nil {
+		if !errors.Is(err, disks.ErrNoDmUUID) {
+			return nil, fmt.Errorf("cannot find UUID for mount %s: %v", dirs.SnapSaveDir, err)
+		}
+	} else {
+		legacyKeys := make(map[string]string)
+		defaultFactoryResetFallbackPath := device.FactoryResetFallbackSaveSealedKeyUnder(boot.InitramfsSeedEncryptionKeyDir)
+		defaultFallbackPath := device.FallbackSaveSealedKeyUnder(boot.InitramfsSeedEncryptionKeyDir)
+		if osutil.FileExists(defaultFactoryResetFallbackPath) {
+			legacyKeys["default-fallback"] = defaultFactoryResetFallbackPath
+		} else if osutil.FileExists(defaultFallbackPath) {
+			legacyKeys["default-fallback"] = defaultFallbackPath
+		}
+		foundDisks = append(foundDisks, &encryptedContainer{uuid: uuid, containerRole: "system-save", legacyKeys: legacyKeys})
+	}
+
+	return foundDisks, nil
+}
+
 var _ backend.FDEStateManager = (*unlockedStateManager)(nil)
 
 func (m *FDEManager) resealKeyForBootChains(unlocker boot.Unlocker, method device.SealingMethod, rootdir string, params *boot.ResealKeyForBootChainsParams, expectReseal bool) error {
@@ -211,4 +298,14 @@ func (m *FDEManager) GetParameters(role string, containerRole string) (hasParame
 	}
 
 	return s.getParameters(role, containerRole)
+}
+
+func MockDisksDMCryptUUIDFromMountPoint(f func(mountpoint string) (string, error)) (restore func()) {
+	osutil.MustBeTestBinary("mocking disks.DMCryptUUIDFromMountPoint can be done only from tests")
+
+	old := disksDMCryptUUIDFromMountPoint
+	disksDMCryptUUIDFromMountPoint = f
+	return func() {
+		disksDMCryptUUIDFromMountPoint = old
+	}
 }

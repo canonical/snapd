@@ -34,7 +34,7 @@ type Warning struct {
 	Message     string        `json:"message"`
 	FirstAdded  time.Time     `json:"first-added"`
 	LastAdded   time.Time     `json:"last-added"`
-	LastShown   time.Time     `json:"last-shown,omitempty"`
+	LastShown   time.Time     `json:"last-shown,omitzero"`
 	ExpireAfter time.Duration `json:"expire-after,omitempty"`
 	RepeatAfter time.Duration `json:"repeat-after,omitempty"`
 }
