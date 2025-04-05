@@ -19,7 +19,7 @@
 
 package main
 
-import "errors"
+import "github.com/snapcore/snapd/sandbox/gpio"
 
 type cmdUnexportChardev struct {
 	Args struct {
@@ -30,6 +30,8 @@ type cmdUnexportChardev struct {
 	} `positional-args:"yes" required:"true"`
 }
 
+var gpioUnexportGadgetChardevChip = gpio.UnexportGadgetChardevChip
+
 func (c *cmdUnexportChardev) Execute(args []string) error {
-	return errors.New("not implemented")
+	return gpioUnexportGadgetChardevChip(c.Args.Gadget, c.Args.Slot)
 }
