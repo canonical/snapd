@@ -2,16 +2,12 @@
 
 from __future__ import annotations
 
-import argparse
-import re
-import sys
-from typing import IO
-
 
 class LockOpTrace:
     """
     LockOpTrace: Represents a Lock Operation trace in the log file.
-    It holds the lines for the trace and allows matching against a part of the trace.
+    It holds the lines for the trace and allows matching against a part of
+    the trace.
     """
 
     def __init__(self, lines: list[str]):

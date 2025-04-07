@@ -1,5 +1,4 @@
 import unittest
-from io import StringIO
 
 from common import (
     LockOpTrace,

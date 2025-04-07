@@ -3,8 +3,6 @@
 from __future__ import annotations
 
 import argparse
-import re
-import sys
 from typing import IO
 
 from common import LockOpTrace, get_next_match
@@ -12,14 +10,14 @@ from common import LockOpTrace, get_next_match
 
 class LockOpTraceFileReader:
     """
-    LocksFileReader: Reads the traces file and retrieves differences with a second traces file
+    LocksFileReader: Reads the traces file and retrieves differences
+    with a second traces file
     """
 
-    groups: list[LockOpTrace]
-    lines: list[str]
+    lines: dict[LockOpTrace, LockOpTrace]
 
     def __init__(self, traces_file: IO[str]):
-        self.traces = []
+        self.traces = {}
         self.lines = []
 
         self._read(traces_file)
@@ -34,26 +32,43 @@ class LockOpTraceFileReader:
             if len(trace_lines) == 0:
                 raise RuntimeError("Error parsing traces file")
 
-            # remove empty lines and title
+            # Remove empty lines and title
             cleaned_lines = [
-                line for line in trace_lines if line.strip() and "TRACE" not in line
+                line for line in trace_lines if line.strip() and
+                "TRACE" not in line
             ]
 
-            self.traces.append(LockOpTrace(cleaned_lines))
+            # Remove the file and line numbers
+            # Line numbers could easily change over time
+            # File paths could include snap versions which used to change
+            function_lines = [line.split(":", 2)[-1].split(" ", 1)[1] for line
+                              in cleaned_lines]
+
+            # Save the traces in a dict to be able to print the version of the trace
+            # with the file and line number which is not used to compare
+            self.traces[LockOpTrace(function_lines)] = LockOpTrace(cleaned_lines)
             current_line = current_line + len(trace_lines)
 
     # This function works to detect the current trace
     def _current_trace(self, start_line: int) -> list[str]:
         next_match = get_next_match(self.lines, start_line, "---")
         if next_match == -1:
-            return self.lines[start_line : len(self.lines)]
+            return self.lines[start_line:len(self.lines)]
         return self.lines[start_line:next_match]
 
+    # Retieve the traces which are in other and are not in self
+    def get_diff(self, other: LockOpTraceFileReader) -> list[LockOpTrace]:
+        diff_traces = []
+        my_traces = self.traces.keys()
+        for key_trace, val_trace in other.traces.items():
+            if key_trace not in my_traces:
+                diff_traces.append(val_trace)
+        return diff_traces
+
     # Print the traces which are in other and are not in self
-    def print_diff(self, other: LockOpTraceFileReader) -> list[LockOpTrace]:
-        for trace in other.traces:
-            if trace not in self.traces:
-                trace.print()
+    def print_diff(self, other: LockOpTraceFileReader):
+        for trace in self.get_diff(other):
+            trace.print()
 
 
 """

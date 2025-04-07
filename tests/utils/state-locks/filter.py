@@ -12,8 +12,8 @@ from common import LockOpTrace, get_next_match
 
 class LockOp:
     """
-    LockOp: Represents a lock operation in the log file, including its header and times (held and wait times).
-    It is tied to the LockOpTrace class.
+    LockOp: Represents a lock operation in the log file, including its header
+    and times (held and wait times). It is tied to the LockOpTrace class.
     """
 
     def __init__(self, lines: list[str]):
@@ -50,8 +50,9 @@ class LockOp:
 
 class LocksGroup:
     """
-    LocksGroup: Represents a group of locks, which could correspond to a test case or a project setup.
-    It holds a header (name) and a list of Lock objects.
+    LocksGroup: Represents a group of locks, which could correspond to a test
+    case or a project setup. It holds a header (name) and a list of Lock
+    objects.
     """
 
     LOCK_PREFIX = "### "
@@ -78,11 +79,11 @@ class LocksGroup:
     def __str__(self) -> str:
         return "".join(self.lines)
 
-    # This function works to detect the current test but also for the current project
+    # This function works to detect the current test or project
     def _current_lock(self, start_line: int) -> list[str]:
         next_match = get_next_match(self.lines, start_line, self.LOCK_PREFIX)
         if next_match == -1:
-            return self.lines[start_line : len(self.lines)]
+            return self.lines[start_line:len(self.lines)]
         return self.lines[start_line:next_match]
 
     def get_name(self) -> str:
@@ -114,7 +115,8 @@ class LocksGroup:
 
 class GroupTimes:
     """
-    GroupTimes: A tuple-like class that associates the group name with the held and wait times for each lock trace.
+    GroupTimes: A tuple-like class that associates the group name with the
+    held and wait times for each lock trace.
     """
 
     def __init__(self, group_name: str, held_time: int, wait_time: int):
@@ -134,8 +136,9 @@ class GroupTimes:
 
 class LockTraceManager:
     """
-    LockTraceManager: Handles filtering and managing the lock traces and associated group times.
-    It provides methods to filter the traces by time and to print the results in a sorted manner.
+    LockTraceManager: Handles filtering and managing the lock traces
+    and associated group times. It provides methods to filter the traces
+    by time and to print the results in a sorted manner.
     """
 
     traces: dict[LockOpTrace, list[GroupTimes]]
@@ -200,9 +203,10 @@ class LockTraceManager:
 
 class LocksFileReader:
     """
-    LocksFileReader: Reads the lock file and parses the different test cases and groups.
-    It extracts the relevant trace data and stores it in LocksGroup instances.
-    It can also return a dictionary of traces and associated group times.
+    LocksFileReader: Reads the lock file and parses the different test cases
+    and groups. It extracts the relevant trace data and stores it in
+    LocksGroup instances. It can also return a dictionary of traces and
+    associated group times.
     """
 
     PROJECT_PREFIX = "###START: SNAPD PROJECT"
@@ -238,11 +242,11 @@ class LocksFileReader:
     def _is_project(self, line: str) -> bool:
         return line.startswith(self.PROJECT_PREFIX)
 
-    # This function works to detect the current test but also for the current project
+    # This function works to detect the current test or project
     def _current_group(self, start_line: int) -> list[str]:
         next_match = get_next_match(self.lines, start_line, self.TEST_PREFIX)
         if next_match == -1:
-            return self.lines[start_line : len(self.lines)]
+            return self.lines[start_line:len(self.lines)]
         return self.lines[start_line:next_match]
 
     # Retrieve the test lines
@@ -254,7 +258,8 @@ class LocksFileReader:
         return ""
 
     # Retrieve the times for each trace in the file
-    # For each trace, there is a list with the times for each test where the trace appears
+    # For each trace, there is a list with the times for each test where
+    # the trace appears
     def get_traces_times(self) -> dict[LockOpTrace, list[GroupTimes]]:
         traces = dict[LockOpTrace, list[GroupTimes]]()
         for group in self.groups:
@@ -265,7 +270,7 @@ class LocksFileReader:
                     group.get_lock_held_time(trace),
                     group.get_lock_wait_time(trace),
                 )
-                if not trace in traces.keys():
+                if trace not in traces.keys():
                     traces[trace] = list[GroupTimes]()
                 try:
                     traces[trace].append(group_time)
@@ -282,10 +287,13 @@ A locks file must:
 
 It parses the lock information by:
 - grouping its contents based on consecutive lines that begin with "###START"
-- creating subgroups for each group by searching for the key string "###" and creating a subgroup for each instance found of consecutive lines between instances of that key string
+- creating subgroups for each group by searching for the key string "###" and
+  creating a subgroup for each instance found of consecutive lines between
+  instances of that key string
 
 One may filter data based on:
-- matching string found in a sequence of sub-group lock information. If a match is found, then only sub-groups that contain that match will be shown
+- matching string found in a sequence of sub-group lock information. 
+  If a match is found, then only sub-groups that contain that match will be shown
 - only showing held or wait times above a certain threshold
 - a singular test
 """
@@ -306,7 +314,8 @@ def _make_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--test",
         default="",
-        help="Show results for this test, when test is selected no other filters are applied.",
+        help="Show results for this test, when test is "
+             "selected no other filters are applied.",
     )
     parser.add_argument(
         "--match",
@@ -315,10 +324,12 @@ def _make_parser() -> argparse.ArgumentParser:
         help="Show traces that match this specific word",
     )
     parser.add_argument(
-        "--held-time", type=int, default=0, help="Include locks with longer held time"
+        "--held-time", type=int, default=0,
+        help="Include locks with longer held time"
     )
     parser.add_argument(
-        "--wait-time", type=int, default=0, help="Include locks with longer wait time"
+        "--wait-time", type=int, default=0,
+        help="Include locks with longer wait time"
     )
     parser.add_argument(
         "--sort-held-time",
@@ -344,7 +355,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     if args.sort_held_time and args.sort_wait_time:
-        print("state-lock-filter: define just 1 sorting (by held or wait times)")
+        print("state-lock-filter: define just 1 sorting (by held/wait times)")
         sys.exit(1)
 
     locks_reader = LocksFileReader(args.locks_file)
@@ -363,4 +374,6 @@ if __name__ == "__main__":
         trace_manager.filter(args.held_time, args.wait_time)
 
     # And finally print the sorted results (if required)
-    trace_manager.print(args.sort_held_time, args.sort_wait_time, args.list_traces)
+    trace_manager.print(args.sort_held_time,
+                        args.sort_wait_time,
+                        args.list_traces)

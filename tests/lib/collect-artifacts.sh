@@ -42,14 +42,25 @@ artifact=$1
 shift
 case "$artifact" in
     features)
-        if [ -n "$TAG_FEATURES" ]; then
-            if [ "$#" == 0 ]; then
-                echo "collect-artifacts: features parameter missing"
-                exit 1
-            fi         
-            param=$2   
-            "features_$param"
+        if [ -z "$TAG_FEATURES" ]; then
+            exit
         fi
+        if [ "$#" == 0 ]; then
+            echo "collect-artifacts: features parameter missing"
+            exit 1
+        fi
+        case "$1" in
+            --after_non_nested_task)
+                features_after_non_nested_task
+                ;;
+            --after-nested-task)
+                features_after_nested_task
+                ;;
+            *)
+                echo "collect-artifacts: unsupported action $1" >&2
+                exit 1
+                ;;
+        esac
         ;;
     locks)
         if [ -n "$SNAPD_STATE_LOCK_TRACE_THRESHOLD_MS" ]; then
@@ -57,7 +68,7 @@ case "$artifact" in
         fi
         ;;
     *)
-        echo "unsupported argument: $1"
+        echo "collect-artifacts: unsupported argument: $1"
         exit 1
         ;;
 esac
