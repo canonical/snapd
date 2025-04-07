@@ -63,9 +63,10 @@ case "$artifact" in
         esac
         ;;
     locks)
-        if [ -n "$SNAPD_STATE_LOCK_TRACE_THRESHOLD_MS" ]; then
-            locks
+        if [ "$SNAPD_STATE_LOCK_TRACE_THRESHOLD_MS" -le 0 ]; then
+            exit
         fi
+        locks
         ;;
     *)
         echo "collect-artifacts: unsupported argument: $1"
