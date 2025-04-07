@@ -5,8 +5,6 @@ import (
 	"encoding/binary"
 	"fmt"
 	"sort"
-
-	"github.com/snapcore/snapd/arch"
 )
 
 // stringPacker assists in packing apparmor data structures with
@@ -110,8 +108,7 @@ func (sp *stringPacker) packTagsets(ts map[AppArmorPermission][]string) uint32 {
 	headerOffset := uint32(sp.buffer.Len())
 
 	// Now write the headers themselves
-	order := arch.Endian()
-	binary.Write(&sp.buffer, order, headers)
+	binary.Write(&sp.buffer, nativeByteOrder, headers)
 
 	return headerOffset + uint32(sp.baseOffset)
 }

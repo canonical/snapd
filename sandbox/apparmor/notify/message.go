@@ -5,8 +5,6 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
-
-	"github.com/snapcore/snapd/arch"
 )
 
 var ErrVersionUnset = errors.New("cannot marshal message without protocol version")
@@ -14,12 +12,14 @@ var ErrVersionUnset = errors.New("cannot marshal message without protocol versio
 // MsgNotificationGeneric defines the methods which the message types for each
 // mediation class must provide.
 //
-// Many of these methods, including ID, PID, ProcessLabel, and MediationClass,
-// are implemented on MsgNotificationOp, so any struct which embeds a
-// MsgNotificationOp needs only to implement the remaining methods.
+// Many of these methods, including ID, Flags, PID, ProcessLabel, and
+// MediationClass, are implemented on MsgNotificationOp, so any struct which
+// embeds a MsgNotificationOp needs only to implement the remaining methods.
 type MsgNotificationGeneric interface {
 	// ID returns the unique ID of the notification message.
 	ID() uint64
+	// Resent returns true if the message was previously sent by the kernel.
+	Resent() bool
 	// PID returns the PID of the process triggering the notification.
 	PID() int32
 	// ProcessLabel returns the AppArmor label of the process triggering the notification.
@@ -87,7 +87,7 @@ func (msg *MsgHeader) UnmarshalBinary(data []byte) error {
 
 func (msg *MsgHeader) unmarshalBinaryImpl(data []byte) error {
 	// Unpack fixed-size elements.
-	order := arch.Endian() // ioctl messages are native byte order, verify endianness if using for other messages
+	order := nativeByteOrder // ioctl messages are native byte order, verify endianness if using for other messages
 	buf := bytes.NewReader(data)
 	if err := binary.Read(buf, order, msg); err != nil {
 		return err
@@ -125,6 +125,120 @@ func ExtractFirstMsg(data []byte) (first []byte, rest []byte, err error) {
 			prefix, length, len(data))
 	}
 	return data[:length], data[length:], nil
+}
+
+// MsgNotificationRegister describes a request to retrieve the ID of a new
+// listener or re-register an existing listener with a known ID.
+//
+// This structure corresponds to the kernel type struct apparmor_notif_register_v5
+// described below.
+//
+//	struct apparmor_notif_register_v5 {
+//		struct apparmor_notif_common base;
+//		__u64 listener_id;		/* unique id for listener */
+//	} __attribute__((packed));
+type MsgNotificationRegister struct {
+	MsgHeader
+	// KernelListenerID is the unique ID of the listener, assigned by the kernel.
+	//
+	// When initially registering a new listener via APPARMOR_NOTIF_REGISTER,
+	// this field should be left as 0, and the kernel will populate it with the
+	// listener's ID.
+	//
+	// When re-registering a listener which was previously registered prior to
+	// snapd restarting, this field should be set to the previous listener ID
+	// and used in the the APPARMOR_NOTIF_REGISTER command to the kernel.
+	KernelListenerID uint64
+}
+
+// UnmarshalBinary unmarshals the message from binary form.
+func (msg *MsgNotificationRegister) UnmarshalBinary(data []byte) error {
+	const prefix = "cannot unmarshal apparmor notification register message"
+
+	// Unpack the base structure to validate header.
+	if err := msg.MsgHeader.UnmarshalBinary(data); err != nil {
+		return err
+	}
+
+	// Unpack fixed-size elements.
+	buf := bytes.NewReader(data)
+	order := nativeByteOrder // ioctl messages are native byte order, verify endianness if using for other messages
+	if err := binary.Read(buf, order, msg); err != nil {
+		return fmt.Errorf("%s: cannot unpack: %s", prefix, err)
+	}
+
+	return nil
+}
+
+// MarshalBinary marshals the message into binary form.
+func (msg *MsgNotificationRegister) MarshalBinary() ([]byte, error) {
+	if msg.Version == 0 {
+		return nil, ErrVersionUnset
+	}
+	msg.Length = uint16(binary.Size(msg))
+	buf := bytes.NewBuffer(make([]byte, 0, msg.Length))
+	order := nativeByteOrder // ioctl messages are native byte order, verify endianness if using for other messages
+	if err := binary.Write(buf, order, msg); err != nil {
+		return nil, err
+	}
+	return buf.Bytes(), nil
+}
+
+// MsgNotificationResend describes a request to resend previously-sent messages
+// associated with the given listener ID.
+//
+// This structure corresponds to the kernel type struct apparmor_notif_resend_v5
+// described below.
+//
+//	struct apparmor_notif_resend_v5 {
+//		struct apparmor_notif_common base;
+//		__u64 listener_id;		/* unique id for listener */
+//		__u32 ready;			/* notifications that are ready */
+//		__u32 pending;			/* notifs that are pending reply */
+//	} __attribute__((packed));
+type MsgNotificationResend struct {
+	MsgHeader
+	// KernelListenerID is the unique ID of the listener.
+	KernelListenerID uint64
+	// Ready is the number of notifications which are ready and have never been
+	// sent. This field will be populated by the kernel.
+	Ready uint32
+	// Pending is the number of notifications which were previously sent and
+	// are pending a reply. This field will be populated by the kernel.
+	Pending uint32
+}
+
+// UnmarshalBinary unmarshals the message from binary form.
+func (msg *MsgNotificationResend) UnmarshalBinary(data []byte) error {
+	const prefix = "cannot unmarshal apparmor notification resend message"
+
+	// Unpack the base structure to validate header.
+	if err := msg.MsgHeader.UnmarshalBinary(data); err != nil {
+		return err
+	}
+
+	// Unpack fixed-size elements.
+	buf := bytes.NewReader(data)
+	order := nativeByteOrder // ioctl messages are native byte order, verify endianness if using for other messages
+	if err := binary.Read(buf, order, msg); err != nil {
+		return fmt.Errorf("%s: cannot unpack: %s", prefix, err)
+	}
+
+	return nil
+}
+
+// MarshalBinary marshals the message into binary form.
+func (msg *MsgNotificationResend) MarshalBinary() ([]byte, error) {
+	if msg.Version == 0 {
+		return nil, ErrVersionUnset
+	}
+	msg.Length = uint16(binary.Size(msg))
+	buf := bytes.NewBuffer(make([]byte, 0, msg.Length))
+	order := nativeByteOrder // ioctl messages are native byte order, verify endianness if using for other messages
+	if err := binary.Write(buf, order, msg); err != nil {
+		return nil, err
+	}
+	return buf.Bytes(), nil
 }
 
 // msgNotificationFilterKernel describes the configuration of kernel-side message filtering.
@@ -175,7 +289,7 @@ func (msg *MsgNotificationFilter) UnmarshalBinary(data []byte) error {
 	// Unpack fixed-size elements.
 	buf := bytes.NewReader(data)
 	var raw msgNotificationFilterKernel
-	order := arch.Endian() // ioctl messages are native byte order, verify endianness if using for other messages
+	order := nativeByteOrder // ioctl messages are native byte order, verify endianness if using for other messages
 	if err := binary.Read(buf, order, &raw); err != nil {
 		return fmt.Errorf("%s: cannot unpack: %s", prefix, err)
 	}
@@ -215,7 +329,7 @@ func (msg *MsgNotificationFilter) MarshalBinary() (data []byte, err error) {
 	}
 	raw.Length = packer.totalLen() + uint16(len(filter))
 	msgBuf := bytes.NewBuffer(make([]byte, 0, raw.Length))
-	order := arch.Endian() // ioctl messages are native byte order, verify endianness if using for other messages
+	order := nativeByteOrder // ioctl messages are native byte order, verify endianness if using for other messages
 	if err := binary.Write(msgBuf, order, raw); err != nil {
 		return nil, err
 	}
@@ -242,10 +356,13 @@ func (msg *MsgNotificationFilter) Validate() error {
 const (
 	// URESPONSE_NO_CACHE tells the kernel not to cache the response.
 	URESPONSE_NO_CACHE = 1 << iota
-	// Other flags which are not currently needed by snapd:
-	// URESPONSE_LOOKUP
-	// URESPONSE_PROFILE
-	// URESPONSE_TAILGLOB
+
+	URESPONSE_LOOKUP   // unused by snapd
+	URESPONSE_PROFILE  // unused by snapd
+	URESPONSE_TAILGLOB // unused by snapd
+
+	// UNOTIF_RESENT indicates that the notification was previously sent.
+	UNOTIF_RESENT
 )
 
 // MsgNotification describes a kernel notification message.
@@ -269,8 +386,9 @@ type MsgNotification struct {
 	NotificationType NotificationType
 	// Signaled is unused, but previously used for interrupt information.
 	Signalled uint8
-	// Set NoCache to URESPONSE_NO_CACHE to NOT cache.
-	NoCache uint8
+	// Set Flags to URESPONSE_NO_CACHE to NOT cache. Messages from the kernel
+	// with UNOTIF_RESENT indicate that the message was previously sent.
+	Flags uint8
 	// KernelNotificationID is an opaque kernel identifier of the notification
 	// message. It must be repeated in the MsgNotificationResponse if one is
 	// sent back.
@@ -291,7 +409,7 @@ func (msg *MsgNotification) UnmarshalBinary(data []byte) error {
 
 	// Unpack fixed-size elements.
 	buf := bytes.NewReader(data)
-	order := arch.Endian() // ioctl messages are native byte order, verify endianness if using for other messages
+	order := nativeByteOrder // ioctl messages are native byte order, verify endianness if using for other messages
 	if err := binary.Read(buf, order, msg); err != nil {
 		return fmt.Errorf("%s: cannot unpack: %s", prefix, err)
 	}
@@ -304,9 +422,9 @@ func (msg *MsgNotification) MarshalBinary() ([]byte, error) {
 	if msg.Version == 0 {
 		return nil, ErrVersionUnset
 	}
-	msg.Length = uint16(binary.Size(*msg))
+	msg.Length = uint16(binary.Size(msg))
 	buf := bytes.NewBuffer(make([]byte, 0, msg.Length))
-	order := arch.Endian() // ioctl messages are native byte order, verify endianness if using for other messages
+	order := nativeByteOrder // ioctl messages are native byte order, verify endianness if using for other messages
 	if err := binary.Write(buf, order, msg); err != nil {
 		return nil, err
 	}
@@ -374,7 +492,7 @@ func BuildResponse(version ProtocolVersion, id uint64, initiallyAllowed, request
 				Version: version,
 			},
 			NotificationType:     APPARMOR_NOTIF_RESP,
-			NoCache:              1,
+			Flags:                URESPONSE_NO_CACHE,
 			KernelNotificationID: id,
 			Error:                0, // ignored in response ?
 		},
@@ -389,9 +507,9 @@ func (msg *MsgNotificationResponse) MarshalBinary() ([]byte, error) {
 	if msg.Version == 0 {
 		return nil, ErrVersionUnset
 	}
-	msg.Length = uint16(binary.Size(*msg))
+	msg.Length = uint16(binary.Size(msg))
 	buf := bytes.NewBuffer(make([]byte, 0, msg.Length))
-	order := arch.Endian() // ioctl messages are native byte order, verify endianness if using for other messages
+	order := nativeByteOrder // ioctl messages are native byte order, verify endianness if using for other messages
 	if err := binary.Write(buf, order, msg); err != nil {
 		return nil, err
 	}
@@ -468,7 +586,7 @@ func (msg *MsgNotificationOp) UnmarshalBinary(data []byte) error {
 	// Unpack fixed-size elements.
 	buf := bytes.NewReader(data)
 	var raw msgNotificationOpKernel
-	order := arch.Endian() // ioctl messages are native byte order, verify endianness if using for other messages
+	order := nativeByteOrder // ioctl messages are native byte order, verify endianness if using for other messages
 	if err := binary.Read(buf, order, &raw); err != nil {
 		return fmt.Errorf("%s: cannot unpack: %s", prefix, err)
 	}
@@ -508,6 +626,10 @@ func (msg *MsgNotificationOp) ID() uint64 {
 	return msg.KernelNotificationID
 }
 
+func (msg *MsgNotificationOp) Resent() bool {
+	return msg.Flags&UNOTIF_RESENT != 0
+}
+
 func (msg *MsgNotificationOp) PID() int32 {
 	return msg.Pid
 }
@@ -520,7 +642,7 @@ func (msg *MsgNotificationOp) MediationClass() MediationClass {
 	return msg.Class
 }
 
-// msgNotificationFileKernelBase (protocol version <5)
+// msgNotificationFileKernelBase (protocol version 3)
 //
 //	struct apparmor_notif_file {
 //		struct apparmor_notif_op base;
@@ -597,7 +719,7 @@ func (msg *MsgNotificationFile) unmarshalBase(data []byte) error {
 	// Unpack fixed-size elements.
 	buf := bytes.NewReader(data)
 	var raw msgNotificationFileKernelBase
-	order := arch.Endian() // ioctl messages are native byte order, verify endianness if using for other messages
+	order := nativeByteOrder // ioctl messages are native byte order, verify endianness if using for other messages
 	if err := binary.Read(buf, order, &raw); err != nil {
 		return fmt.Errorf("cannot unpack: %v", err)
 	}
@@ -621,7 +743,7 @@ func (msg *MsgNotificationFile) unmarshalTags(data []byte) error {
 	// Unpack fixed-size elements to get tag metadata.
 	buf := bytes.NewReader(data)
 	var raw msgNotificationFileKernelWithTags
-	order := arch.Endian() // ioctl messages are native byte order, verify endianness if using for other messages
+	order := nativeByteOrder // ioctl messages are native byte order, verify endianness if using for other messages
 	if err := binary.Read(buf, order, &raw); err != nil {
 		return fmt.Errorf("cannot unpack tagset metadata: %v", err)
 	}
@@ -669,7 +791,7 @@ func (msg *MsgNotificationFile) MarshalBinary() ([]byte, error) {
 	raw.Version = msg.Version
 	raw.NotificationType = msg.NotificationType
 	raw.Signalled = msg.Signalled
-	raw.NoCache = msg.NoCache
+	raw.Flags = msg.Flags
 	raw.KernelNotificationID = msg.KernelNotificationID
 	raw.Error = msg.Error
 	raw.Allow = msg.Allow
@@ -689,7 +811,7 @@ func (msg *MsgNotificationFile) MarshalBinary() ([]byte, error) {
 
 	raw.Length = packer.totalLen()
 	msgBuf := bytes.NewBuffer(make([]byte, 0, raw.Length))
-	order := arch.Endian() // ioctl messages are native byte order, verify endianness if using for other messages
+	order := nativeByteOrder // ioctl messages are native byte order, verify endianness if using for other messages
 	if err := binary.Write(msgBuf, order, ptr); err != nil {
 		return nil, err
 	}
