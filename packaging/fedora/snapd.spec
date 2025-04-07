@@ -104,7 +104,7 @@
 %endif
 
 Name:           snapd
-Version:        2.68.3
+Version:        2.68.4
 Release:        0%{?dist}
 Summary:        A transactional software package manager
 License:        GPL-3.0-only
@@ -1005,6 +1005,12 @@ fi
 
 
 %changelog
+* Wed Apr 02 2025 Ernest Lotter <ernest.lotter@canonical.com>
+- New upstream release 2.68.4
+ - Snap components: LP: #2104933 workaround for classic 24.04/24.10
+   models that incorrectly specify core22 instead of core24
+ - Update build dependencies
+
 * Mon Mar 10 2025 Ernest Lotter <ernest.lotter@canonical.com>
 - New upstream release 2.68.3
  - FDE: LP: #2101834 snapd 2.68+ and snap-bootstrap <2.68 fallback to
