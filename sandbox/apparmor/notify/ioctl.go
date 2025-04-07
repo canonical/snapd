@@ -10,7 +10,6 @@ import (
 
 	"golang.org/x/sys/unix"
 
-	"github.com/snapcore/snapd/arch"
 	"github.com/snapcore/snapd/osutil"
 )
 
@@ -48,8 +47,7 @@ func NewIoctlRequestBuffer(version ProtocolVersion) IoctlRequestBuffer {
 	bufSize := 0xFFFF
 	buf := bytes.NewBuffer(make([]byte, 0, bufSize))
 	header := MsgHeader{Version: version, Length: uint16(bufSize)}
-	order := arch.Endian()
-	binary.Write(buf, order, &header)
+	binary.Write(buf, nativeByteOrder, &header)
 	buf.Write(make([]byte, bufSize-buf.Len()))
 	return IoctlRequestBuffer(buf.Bytes())
 }
