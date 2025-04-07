@@ -129,3 +129,25 @@ func (b *TestSecurityBackendDiscardingLate) RemoveLate(snapName string, rev snap
 	}
 	return b.RemoveLateCallback(snapName, rev, typ)
 }
+
+// TestSecurityBackendReinitializable implements Reinitialize on top of
+// TestSecurityBackend.
+type TestSecurityBackendReinitializable struct {
+	TestSecurityBackend
+
+	ReinitializeCalls int
+
+	ReinitializeCallback func() error
+}
+
+var (
+	_ interfaces.ReinitializableSecurityBackend = (*TestSecurityBackendReinitializable)(nil)
+)
+
+func (b *TestSecurityBackendReinitializable) Reinitialize() error {
+	b.ReinitializeCalls++
+	if b.ReinitializeCallback == nil {
+		return nil
+	}
+	return b.ReinitializeCallback()
+}
