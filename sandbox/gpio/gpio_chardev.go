@@ -65,7 +65,7 @@ func ExportGadgetChardevChip(ctx context.Context, chipLabels []string, lines str
 	if err != nil {
 		return err
 	}
-	if err := addEphermalUdevTaggingRule(ctx, aggregatedChip, gadgetName, slotName); err != nil {
+	if err := addEphemeralUdevTaggingRule(ctx, aggregatedChip, gadgetName, slotName); err != nil {
 		return err
 	}
 	return addGadgetSlotDevice(aggregatedChip, gadgetName, slotName)
@@ -78,7 +78,7 @@ func UnexportGadgetChardevChip(gadgetName, slotName string) error {
 	if err != nil {
 		return err
 	}
-	if err := removeEphermalUdevTaggingRule(gadgetName, slotName); err != nil {
+	if err := removeEphemeralUdevTaggingRule(gadgetName, slotName); err != nil {
 		return err
 	}
 	return removeAggregatedChip(aggregatedChip)
