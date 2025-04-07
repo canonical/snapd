@@ -31,6 +31,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces/prompting"
 	prompting_errors "github.com/snapcore/snapd/interfaces/prompting/errors"
 	"github.com/snapcore/snapd/interfaces/prompting/internal/maxidmmap"
@@ -140,10 +141,10 @@ type RuleDB struct {
 // is called with the prompt DB lock held, so it should not block for a
 // substantial amount of time (such as to lock and modify snapd state).
 func New(notifyRule func(userID uint32, ruleID prompting.IDType, data map[string]string) error) (*RuleDB, error) {
-	maxIDFilepath := filepath.Join(prompting.StateDir(), "request-rule-max-id")
+	maxIDFilepath := filepath.Join(dirs.SnapInterfacesRequestsStateDir, "request-rule-max-id")
 
-	if err := prompting.EnsureStateDir(); err != nil {
-		return nil, err
+	if err := os.MkdirAll(dirs.SnapInterfacesRequestsStateDir, 0o700); err != nil {
+		return nil, fmt.Errorf("cannot create interfaces requests state directory '%s': %w", dirs.SnapInterfacesRequestsStateDir, err)
 	}
 
 	maxIDMmap, err := maxidmmap.OpenMaxIDMmap(maxIDFilepath)
@@ -154,7 +155,7 @@ func New(notifyRule func(userID uint32, ruleID prompting.IDType, data map[string
 	rdb := &RuleDB{
 		maxIDMmap:  maxIDMmap,
 		notifyRule: notifyRule,
-		dbPath:     filepath.Join(prompting.StateDir(), "request-rules.json"),
+		dbPath:     filepath.Join(dirs.SnapInterfacesRequestsStateDir, "request-rules.json"),
 	}
 	if err = rdb.load(); err != nil {
 		logger.Noticef("cannot load rule database: %v; using new empty rule database", err)
