@@ -110,6 +110,7 @@ func Debug(msg string) {
 	logger.Debug(msg)
 }
 
+// Trace records something in the trace log
 func Trace(msg string, attrs ...any) {
 	lock.Lock()
 	defer lock.Unlock()
@@ -196,6 +197,7 @@ func (l *Log) Notice(msg string) {
 	}
 }
 
+// Trace only prints if SNAPD_TRACE is set and the structured logger is used
 func (l *Log) Trace(string, ...any) {}
 
 // NoGuardDebug always prints the message, w/o gating it based on environment

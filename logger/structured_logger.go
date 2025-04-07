@@ -18,6 +18,11 @@
  *
  */
 
+// The logger package, when built with the structuredlogging build tag,
+// offers the ability to use structured JSON for log entries and to turn
+// on trace logging. To activate JSON logging, the SNAPD_JSON_LOGGING
+// environment variable should be set at the time of logger creation.
+// Trace logging can be activated by setting the SNAPD_TRACE env variable.
 package logger
 
 import (
@@ -94,6 +99,7 @@ func (l *StructuredLog) traceEnabled() bool {
 	return false
 }
 
+// Trace only prints if SNAPD_TRACE is set and structured logging is active
 func (l *StructuredLog) Trace(msg string, attrs ...any) {
 	if l.traceEnabled() {
 		var pcs [1]uintptr
