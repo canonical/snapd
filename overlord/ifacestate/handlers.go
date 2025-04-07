@@ -2084,6 +2084,13 @@ func (m *InterfaceManager) doRegenerateAllSecurityProfiles(task *state.Task, _ *
 
 	perfTimings := state.TimingsForTask(task)
 	defer perfTimings.Save(task.State())
+
+	// the reported system key change may have an effect on the security
+	// backends, give them a chance to update their view of the system
+	if err := m.reinitializeBackends(perfTimings); err != nil {
+		return err
+	}
+
 	// regenerating and reloading profiles is time consuming, so allow unlocking
 	// of state for the duration of security backend operations
 	const unlockState = true
