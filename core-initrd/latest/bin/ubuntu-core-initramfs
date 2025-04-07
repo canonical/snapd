@@ -45,6 +45,7 @@ class ModuleDb:
     ModuleInfo = namedtuple('ModuleInfo', ('builtin', 'aliases', 'symbols'))
     alias_line = re.compile(r"^alias +(?P<alias>[^ ]+) +(?P<target>[^ ]+)$")
     modinfo_line = re.compile("^(?P<name>[^.]+)[.](?P<arg>[^.]+)=(?P<value>.+)$")
+
     class Installed(Enum):
         EXPLICIT = auto()
         IMPLICIT = auto()
@@ -77,8 +78,8 @@ class ModuleDb:
                     if m['arg'] == 'alias':
                         original = self._modules.get(m['name'], ModuleDb.ModuleInfo(True, [], []))
                         self._modules[m['name']] = ModuleDb.ModuleInfo(original.builtin,
-                                                                    original.aliases + [m['value']],
-                                                                    original.symbols)
+                                                                       original.aliases + [m['value']],
+                                                                       original.symbols)
                     self._alias[m['value']] = m['name']
 
         for root, dirs, files in os.walk(module_path):
@@ -214,6 +215,7 @@ known_automatic_modules = list(map(re.compile, [
     r'md-.*',
 ]))
 
+
 # Include kernel modules specified in conf_file
 def add_modules_from_file(dest_d, kernel_root, modules_d, fw_d, conf_file, db,
                           warn_discoverable=False):
@@ -248,11 +250,11 @@ def add_modules_from_file(dest_d, kernel_root, modules_d, fw_d, conf_file, db,
                         print(f"NOTE: {conf_file}: Module {module} is builtin", file=sys.stderr)
                     if warn_discoverable:
                         if len(mod.aliases) > 0:
-                              print(f"WARNING: {conf_file}: Module {module} has aliases:", file=sys.stderr)
-                              for alias in mod.aliases:
-                                  print(f" * {alias}", file=sys.stderr)
+                            print(f"WARNING: {conf_file}: Module {module} has aliases:", file=sys.stderr)
+                            for alias in mod.aliases:
+                                print(f" * {alias}", file=sys.stderr)
                         elif warn_discoverable and any(r.fullmatch(module.replace('_', '-')) for r in known_automatic_modules):
-                              print(f"WARNING: {conf_file}: Module {module} is probably automatically loaded", file=sys.stderr)
+                            print(f"WARNING: {conf_file}: Module {module} is probably automatically loaded", file=sys.stderr)
 
                     # A module that has symbols but no alias is likely to be loaded through aliases
                     if len(mod.aliases) == 0 and len(mod.symbols) > 0:
@@ -378,9 +380,8 @@ def install_systemd_files(dest_dir, sysroot, ubuntu_release):
     # This hack should be removed with PR#113
     check_call([r"sed -i '/^After=/"
                 r"{;s, *plymouth-start[.]service *, ,;/"
-                r"^After= *$/d;}' "
-                + os.path.join(dest_dir,
-                               "usr/lib/systemd/system/systemd-ask-password-*")],
+                r"^After= *$/d;}' " + os.path.join(dest_dir,
+                                                   "usr/lib/systemd/system/systemd-ask-password-*")],
                shell=True)
     # Generate hw database (/usr/lib/udev/hwdb.bin) for udev and
     # remove redundant definitions after that.
@@ -513,9 +514,9 @@ def find_apt_repos(sysroot):
     sources_d = os.path.join(sysroot, "etc/apt/sources.list.d")
     state_d = os.path.join(sysroot, "var/lib/apt/lists")
     repo_lines = check_output(["apt-cache", "policy",
-                               "-o", "Dir::Etc::SourceList="+sources,
-                               "-o", "Dir::Etc::SourceParts="+sources_d,
-                               "-o", "Dir::State::Lists="+state_d]).decode("utf-8").splitlines()
+                               "-o", "Dir::Etc::SourceList=" + sources,
+                               "-o", "Dir::Etc::SourceParts=" + sources_d,
+                               "-o", "Dir::State::Lists=" + state_d]).decode("utf-8").splitlines()
     uri_line = re.compile(r"^ *-?[0-9]+ (http|mirror|file|cdrom|ftp|copy|rsh|ssh)")
     repo_lines = [r for r in repo_lines if uri_line.match(r)]
     uri_start = re.compile(r"^ *-?[0-9]+ ")
@@ -544,7 +545,7 @@ def find_apt_repos(sysroot):
     for i, repo in enumerate(repo_ls):
         if i in merged:
             continue
-        for j in range(i+1, len(repo_ls)):
+        for j in range(i + 1, len(repo_ls)):
             if sorted(repo.components) == sorted(repo_ls[j].components):
                 repo.suites += repo_ls[j].suites
                 merged.add(j)
@@ -554,7 +555,7 @@ def find_apt_repos(sysroot):
 
 
 def pkgs_used_in_initrd(dest_dir, sysroot):
-    MD5_HEX_CHARS = 2*hashlib.md5().digest_size
+    MD5_HEX_CHARS = 2 * hashlib.md5().digest_size
 
     # Get list of files we have in the initramfs and calculate their md5sum
     initrd_digests = []
@@ -621,8 +622,7 @@ def create_initrd_pkg_list(dest_dir, sysroot):
         # Now write package information
         out += "packages:\n"
         out += check_output(["dpkg-query", "--admindir=" + sysroot + "/var/lib/dpkg/",
-                             "--show", "--showformat=- ${binary:Package}=${Version}\\n"] +
-                            pkgs).decode("utf-8")
+                             "--show", "--showformat=- ${binary:Package}=${Version}\\n"] + pkgs).decode("utf-8")
         pkg_list.write(out)
 
     return manifest_path
@@ -673,13 +673,13 @@ def verify_missing_dlopen(destdir, libdir):
 
     fatal = False
     if missing:
-        print(f"WARNING: These sonames are missing:", file=sys.stderr)
+        print("WARNING: These sonames are missing:", file=sys.stderr)
         for m, priority in missing.items():
             print(f" * {m} ({priority})", file=sys.stderr)
             if priority in ["required", "recommended"]:
                 fatal = True
         if fatal:
-            print(f"WARNING: Some missing sonames are required or recommended. Failing.", file=sys.stderr)
+            print("WARNING: Some missing sonames are required or recommended. Failing.", file=sys.stderr)
 
     return not fatal
 
@@ -805,8 +805,8 @@ def create_initrd(parser, args):
         # make ubuntu-core-initramfs-fips a reality.
         if "fips" in args.features:
             install_files([
-                    "/usr/bin/kcapi-hasher",
-                    "/usr/bin/.kcapi-hasher.hmac",
+                "/usr/bin/kcapi-hasher",
+                "/usr/bin/.kcapi-hasher.hmac",
             ] + glob.glob("/usr/lib/*/.libkcapi.so.*.hmac"), main, rootfs)
 
         # Update epoch
