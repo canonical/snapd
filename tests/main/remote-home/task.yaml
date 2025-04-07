@@ -44,12 +44,9 @@ prepare: |
     tests.cleanup defer rm -rf /var/home/test-remote
 
     # Install a package with additional kernel modules, so that we can mount cifs/nfs.
-    if ! tests.pkgs install "linux-modules-extra-$(uname -r)"; then
-      echo "SKIP: Kernel version and extras module mismatch"
-      # TODO: figure out something better. This sort of skew can happen at any time,
-      # and we have no good way of solving the problem apart from a real SKIP command
-      # in spread.
-      exit 0
+    if ! tests.pkgs install "linux-modules-$(uname -r)"; then
+      echo "Kernel version and modules mismatch"
+      exit 1
     fi
 
     case "$FS" in
