@@ -15,6 +15,7 @@ details: |
 # unit tests and is relatively useless in the field, where way more elaborate
 # logic is used in practice (e.g. PAM modules), that snapd has no support for.
 systems:
+  - ubuntu-20.04-*
   - ubuntu-22.04-*
   - ubuntu-24.04-*
 
