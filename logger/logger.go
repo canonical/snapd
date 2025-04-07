@@ -142,10 +142,7 @@ func MockDebugLogger() (buf *bytes.Buffer, restore func()) {
 func mockLogger(opts *LoggerOptions) (buf *bytes.Buffer, restore func()) {
 	buf = &bytes.Buffer{}
 	oldLogger := logger
-	l, err := New(buf, DefaultFlags, opts)
-	if err != nil {
-		panic(err)
-	}
+	l := New(buf, DefaultFlags, opts)
 	SetLogger(l)
 	return buf, func() {
 		SetLogger(oldLogger)
@@ -209,13 +206,13 @@ func (l *Log) NoGuardDebug(msg string) {
 	l.log.Output(calldepth, "DEBUG: "+msg)
 }
 
-func newLog(w io.Writer, flag int, opts *LoggerOptions) (Logger, error) {
+func newLog(w io.Writer, flag int, opts *LoggerOptions) Logger {
 	logger := &Log{
 		log:   log.New(w, "", flag),
 		debug: opts.ForceDebug || debugEnabledOnKernelCmdline(),
 		flags: flag,
 	}
-	return logger, nil
+	return logger
 }
 
 type LoggerOptions struct {
@@ -234,13 +231,10 @@ func buildFlags() int {
 }
 
 // SimpleSetup creates the default (console) logger
-func SimpleSetup(opts *LoggerOptions) error {
+func SimpleSetup(opts *LoggerOptions) {
 	flags := buildFlags()
-	l, err := New(os.Stderr, flags, opts)
-	if err == nil {
-		SetLogger(l)
-	}
-	return err
+	l := New(os.Stderr, flags, opts)
+	SetLogger(l)
 }
 
 // BootSetup creates a logger meant to be used when running from

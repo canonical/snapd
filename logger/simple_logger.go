@@ -26,7 +26,7 @@ import (
 
 // New creates a log.Logger using the given io.Writer and flag, using the
 // options from opts.
-func New(w io.Writer, flag int, opts *LoggerOptions) (Logger, error) {
+func New(w io.Writer, flag int, opts *LoggerOptions) Logger {
 	if opts == nil {
 		opts = &LoggerOptions{}
 	}

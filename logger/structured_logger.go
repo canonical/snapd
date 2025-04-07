@@ -106,7 +106,7 @@ func (l *StructuredLog) Trace(msg string, attrs ...any) {
 
 // // New creates a log.Logger using the given io.Writer and flag, using the
 // // options from opts.
-func New(w io.Writer, flag int, opts *LoggerOptions) (Logger, error) {
+func New(w io.Writer, flag int, opts *LoggerOptions) Logger {
 	if opts == nil {
 		opts = &LoggerOptions{}
 	}
@@ -151,5 +151,5 @@ func New(w io.Writer, flag int, opts *LoggerOptions) (Logger, error) {
 		flags: flag,
 		trace: false,
 	}
-	return logger, nil
+	return logger
 }

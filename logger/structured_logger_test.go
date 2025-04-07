@@ -78,8 +78,7 @@ func (s *LogStructuredSuite) TestNewStructured(c *C) {
 	os.Setenv("SNAPD_JSON_LOGGING", "1")
 	defer os.Unsetenv("SNAPD_JSON_LOGGING")
 	var buf bytes.Buffer
-	l, err := logger.New(&buf, logger.DefaultFlags, nil)
-	c.Assert(err, IsNil)
+	l := logger.New(&buf, logger.DefaultFlags, nil)
 	c.Assert(l, NotNil)
 }
 
@@ -137,12 +136,11 @@ func (s *LogStructuredSuite) TestNoTimestamp(c *C) {
 	defer os.Unsetenv("SNAPD_JSON_LOGGING")
 
 	var buf bytes.Buffer
-	l, err := logger.New(&buf, log.Lshortfile, nil)
-	c.Check(err, IsNil)
+	l := logger.New(&buf, log.Lshortfile, nil)
 	l.Notice("xyzzy")
 
 	var data map[string]any
-	err = json.Unmarshal(buf.Bytes(), &data)
+	err := json.Unmarshal(buf.Bytes(), &data)
 	c.Check(err, IsNil)
 	_, ok := data["time"]
 	c.Check(ok, Equals, false)
@@ -182,7 +180,6 @@ func (s *LogStructuredSuite) TestWithLoggerLockStructured(c *C) {
 }
 
 func (s *LogStructuredSuite) TestNoGuardDebugStructured(c *C) {
-
 	debugValue, ok := os.LookupEnv("SNAPD_DEBUG")
 	if ok {
 		defer func() {
@@ -218,8 +215,7 @@ func (s *LogStructuredSuite) TestIntegrationDebugFromKernelCmdlineStructured(c *
 	defer restore()
 
 	var buf bytes.Buffer
-	l, err := logger.New(&buf, logger.DefaultFlags, nil)
-	c.Assert(err, IsNil)
+	l := logger.New(&buf, logger.DefaultFlags, nil)
 	l.Debug("xyzzy")
 	data := TestLogEntry{}
 	err = json.Unmarshal(buf.Bytes(), &data)
@@ -266,11 +262,10 @@ func (s *LogStructuredSuite) TestForceDebugStructured(c *C) {
 	defer os.Unsetenv("SNAPD_JSON_LOGGING")
 
 	var buf bytes.Buffer
-	l, err := logger.New(&buf, logger.DefaultFlags, &logger.LoggerOptions{ForceDebug: true})
-	c.Assert(err, IsNil)
+	l := logger.New(&buf, logger.DefaultFlags, &logger.LoggerOptions{ForceDebug: true})
 	l.Debug("xyzzy")
 	data := TestLogEntry{}
-	err = json.Unmarshal(buf.Bytes(), &data)
+	err := json.Unmarshal(buf.Bytes(), &data)
 	c.Check(err, IsNil)
 	c.Check(data.Level, Equals, "DEBUG")
 	c.Check(data.Msg, Equals, "xyzzy")
