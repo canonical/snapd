@@ -254,7 +254,3 @@ func MockCryptsetupSupportsTokenReplace(support bool) (restore func()) {
 		return support
 	})
 }
-
-func MockOPTEETAPresent(f func() bool) (restore func()) {
-	return testutil.Mock(&opteeTAPresent, f)
-}

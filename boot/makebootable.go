@@ -42,7 +42,6 @@ import (
 
 var (
 	sealKeyToModeenv = sealKeyToModeenvImpl
-	opteeTAPresent   = optee.TAPresent
 )
 
 // BootableSet represents the boot snaps of a system to be made bootable.
@@ -645,7 +644,7 @@ func makeRunnableSystem(model *asserts.Model, bootWith *BootableSet, observer Tr
 
 		var hasTA bool
 		if !hasHook {
-			hasTA = opteeTAPresent()
+			hasTA = optee.TAPresent()
 		}
 
 		tokens := UseTokens(model)

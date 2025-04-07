@@ -484,19 +484,3 @@ func MockSbNewOutOfProcessArgon2KDF(f func(newHandlerCmd func() (*exec.Cmd, erro
 func MockSbSetArgon2KDF(f func(kdf sb.Argon2KDF) sb.Argon2KDF) (restore func()) {
 	return testutil.Mock(&sbSetArgon2KDF, f)
 }
-
-func MockOPTEELockTA(f func() error) (restore func()) {
-	return testutil.Mock(&opteeLockTA, f)
-}
-
-func MockOPTEETAPresent(f func() bool) (restore func()) {
-	return testutil.Mock(&opteeTAPresent, f)
-}
-
-func MockOPTEEEncryptKey(f func(input []byte) (handle []byte, sealed []byte, err error)) (restore func()) {
-	return testutil.Mock(&opteeEncryptKey, f)
-}
-
-func MockOPTEEDecryptKey(f func(input []byte, handle []byte) ([]byte, error)) (restore func()) {
-	return testutil.Mock(&opteeDecryptKey, f)
-}

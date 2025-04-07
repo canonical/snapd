@@ -53,6 +53,7 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget/device"
 	"github.com/snapcore/snapd/kernel/fde"
+	"github.com/snapcore/snapd/kernel/fde/optee"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/disks"
@@ -1851,7 +1852,7 @@ func (s *secbootSuite) TestLockSealedKeysUsesTPM(c *C) {
 	})
 	defer restore()
 
-	restore = secboot.MockOPTEETAPresent(func() bool {
+	restore = optee.MockTAPresent(func() bool {
 		return false
 	})
 	defer restore()
@@ -1903,13 +1904,13 @@ func (s *secbootSuite) TestLockSealedKeysUsesOPTEE(c *C) {
 	})
 	defer restore()
 
-	restore = secboot.MockOPTEETAPresent(func() bool {
+	restore = optee.MockTAPresent(func() bool {
 		return true
 	})
 	defer restore()
 
 	var called bool
-	restore = secboot.MockOPTEELockTA(func() error {
+	restore = optee.MockLockTA(func() error {
 		called = true
 		return nil
 	})
@@ -1932,13 +1933,13 @@ func (s *secbootSuite) TestLockSealedKeysUsesNothing(c *C) {
 	})
 	defer restore()
 
-	restore = secboot.MockOPTEETAPresent(func() bool {
+	restore = optee.MockTAPresent(func() bool {
 		return false
 	})
 	defer restore()
 
 	var called bool
-	restore = secboot.MockOPTEELockTA(func() error {
+	restore = optee.MockLockTA(func() error {
 		called = true
 		return nil
 	})
@@ -2098,7 +2099,7 @@ var fakeModel = assertstest.FakeAssertion(map[string]interface{}{
 
 func (s *secbootSuite) sealKeysWithOPTEE(c *C) (key []byte, keyPath string) {
 	prefix := []byte("SEALED:")
-	restore := secboot.MockOPTEEEncryptKey(func(input []byte) (handle []byte, sealed []byte, err error) {
+	restore := optee.MockEncryptKey(func(input []byte) (handle []byte, sealed []byte, err error) {
 		key = make([]byte, len(input))
 		copy(key, input)
 		return nil, append(prefix, input...), nil
@@ -2138,7 +2139,7 @@ func (s *secbootSuite) sealKeysWithOPTEE(c *C) (key []byte, keyPath string) {
 func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyWithOPTEE(c *C) {
 	expectedKey, keyPath := s.sealKeysWithOPTEE(c)
 
-	restore := secboot.MockOPTEEDecryptKey(func(input []byte, handle []byte) ([]byte, error) {
+	restore := optee.MockDecryptKey(func(input []byte, handle []byte) ([]byte, error) {
 		unsealed := bytes.TrimPrefix(input, []byte("SEALED:"))
 		c.Check(unsealed, DeepEquals, expectedKey)
 		return unsealed, nil
@@ -2150,7 +2151,7 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyWithOPTEE(c *C) {
 	})
 	defer restore()
 
-	restore = secboot.MockOPTEETAPresent(func() bool {
+	restore = optee.MockTAPresent(func() bool {
 		return true
 	})
 	defer restore()

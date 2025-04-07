@@ -1,3 +1,5 @@
+//go:build arm || arm64
+
 package optee
 
 // hacky for now, long term we want to use the optee-client deb, but that isn't
@@ -29,7 +31,7 @@ import (
 	"unsafe"
 )
 
-func TAPresent() bool {
+func taPresentImpl() bool {
 	pinner := &runtime.Pinner{}
 	defer pinner.Unpin()
 
@@ -88,7 +90,7 @@ func uuidFromOctets(s []byte) (C.TEEC_UUID, error) {
 	return d, nil
 }
 
-func DecryptKey(input []byte, handle []byte) ([]byte, error) {
+func decryptKeyImpl(input []byte, handle []byte) ([]byte, error) {
 	pinner := &runtime.Pinner{}
 	defer pinner.Unpin()
 
@@ -127,7 +129,7 @@ func DecryptKey(input []byte, handle []byte) ([]byte, error) {
 	return unsealed, nil
 }
 
-func EncryptKey(input []byte) (handle []byte, sealed []byte, err error) {
+func encryptKeyImpl(input []byte) (handle []byte, sealed []byte, err error) {
 	pinner := &runtime.Pinner{}
 	defer pinner.Unpin()
 
@@ -168,7 +170,7 @@ func EncryptKey(input []byte) (handle []byte, sealed []byte, err error) {
 	return handle, sealed, nil
 }
 
-func LockTA() error {
+func lockTAImpl() error {
 	pinner := &runtime.Pinner{}
 	defer pinner.Unpin()
 

@@ -1,23 +1,49 @@
-//go:build !arm && !arm64
-
 package optee
 
 import (
-	"errors"
+	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/testutil"
+)
+
+var (
+	taPresent  = taPresentImpl
+	decryptKey = decryptKeyImpl
+	encryptKey = encryptKeyImpl
+	lockTA     = lockTAImpl
 )
 
 func TAPresent() bool {
-	return false
+	return taPresent()
 }
 
 func DecryptKey(input []byte, handle []byte) ([]byte, error) {
-	return nil, errors.New("unsupported platform")
+	return decryptKey(input, handle)
 }
 
 func EncryptKey(input []byte) (handle []byte, sealed []byte, err error) {
-	return nil, nil, errors.New("unsupported platform")
+	return encryptKey(input)
 }
 
 func LockTA() error {
-	return errors.New("unsupported platform")
+	return lockTA()
+}
+
+func MockTAPresent(f func() bool) (restore func()) {
+	osutil.MustBeTestBinary("can only mock optee functions in tests")
+	return testutil.Mock(&taPresent, f)
+}
+
+func MockDecryptKey(f func(input []byte, handle []byte) ([]byte, error)) (restore func()) {
+	osutil.MustBeTestBinary("can only mock optee functions in tests")
+	return testutil.Mock(&decryptKey, f)
+}
+
+func MockEncryptKey(f func(input []byte) (handle []byte, sealed []byte, err error)) (restore func()) {
+	osutil.MustBeTestBinary("can only mock optee functions in tests")
+	return testutil.Mock(&encryptKey, f)
+}
+
+func MockLockTA(f func() error) (restore func()) {
+	osutil.MustBeTestBinary("can only mock optee functions in tests")
+	return testutil.Mock(&lockTA, f)
 }

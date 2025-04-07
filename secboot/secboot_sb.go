@@ -56,11 +56,6 @@ var (
 	sbSetProtectorKeys              = sb_plainkey.SetProtectorKeys
 	sbGetPrimaryKeyFromKernel       = sb.GetPrimaryKeyFromKernel
 	disksDevlinks                   = disks.Devlinks
-
-	opteeTAPresent  = optee.TAPresent
-	opteeLockTA     = optee.LockTA
-	opteeEncryptKey = optee.EncryptKey
-	opteeDecryptKey = optee.DecryptKey
 )
 
 func init() {
@@ -79,8 +74,8 @@ func LockSealedKeys() error {
 		return fde.LockSealedKeys()
 	}
 
-	if opteeTAPresent() {
-		return opteeLockTA()
+	if optee.TAPresent() {
+		return optee.LockTA()
 	}
 
 	return lockTPMSealedKeys()
@@ -150,7 +145,7 @@ func UnlockVolumeUsingSealedKeyIfEncrypted(disk disks.Disk, name string, sealedE
 	res.PartDevice = partDevice
 
 	fdeHookPresent := fdeHasRevealKey()
-	opteePresent := opteeTAPresent()
+	opteePresent := optee.TAPresent()
 
 	// TODO: better name for this, since this isn't just a hook now. really, we
 	// need a name that is representative of an abstraction over both the hooks

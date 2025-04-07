@@ -38,6 +38,7 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/gadget/device"
+	"github.com/snapcore/snapd/kernel/fde/optee"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/kcmdline"
 	"github.com/snapcore/snapd/release"
@@ -537,7 +538,7 @@ func (s *makeBootable20Suite) TestMakeSystemRunnableSealWithFDEHookOrOPTEE(c *C)
 	defer restore()
 
 	var checkedForOPTEE bool
-	restore = boot.MockOPTEETAPresent(func() bool {
+	restore = optee.MockTAPresent(func() bool {
 		checkedForOPTEE = true
 		return true
 	})
@@ -559,7 +560,7 @@ func (s *makeBootable20Suite) TestMakeSystemRunnableSealWithFDEHookOrOPTEE(c *C)
 	})
 	defer restore()
 
-	restore = boot.MockOPTEETAPresent(func() bool {
+	restore = optee.MockTAPresent(func() bool {
 		checkedForOPTEE = true
 		return false
 	})
@@ -574,7 +575,7 @@ func (s *makeBootable20Suite) TestMakeSystemRunnableSealWithFDEHookOrOPTEE(c *C)
 	c.Assert(gotFlags.HasTA, Equals, false)
 	c.Assert(checkedForOPTEE, Equals, true)
 
-	restore = boot.MockOPTEETAPresent(func() bool {
+	restore = optee.MockTAPresent(func() bool {
 		checkedForOPTEE = true
 		return true
 	})

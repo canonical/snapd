@@ -31,6 +31,7 @@ import (
 	sb_hooks "github.com/snapcore/secboot/hooks"
 
 	"github.com/snapcore/snapd/kernel/fde"
+	"github.com/snapcore/snapd/kernel/fde/optee"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 )
@@ -83,7 +84,7 @@ func NewOpteeKeyProtector() *opteeKeyProtector {
 }
 
 func (o *opteeKeyProtector) ProtectKey(rand io.Reader, cleartext, aad []byte) (ciphertext []byte, handle []byte, err error) {
-	rawHandle, sealed, err := opteeEncryptKey(cleartext)
+	rawHandle, sealed, err := optee.EncryptKey(cleartext)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -294,5 +295,5 @@ func (o *opteeKeyRevealer) RevealKey(data, ciphertext, aad []byte) (plaintext []
 		return nil, err
 	}
 
-	return opteeDecryptKey(ciphertext, handle)
+	return optee.DecryptKey(ciphertext, handle)
 }

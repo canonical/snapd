@@ -292,7 +292,7 @@ func MockSecbootSealKeys(f func(keys []secboot.SealKeyRequest, params *secboot.S
 	}
 }
 
-func MockSecbootSealKeysWithFDESetupHook(f func(newProtector func(name string) hooks.KeyProtector, keys []secboot.SealKeyRequest, params *secboot.SealKeysWithFDESetupHookParams) error) (restore func()) {
+func MockSecbootSealKeysWithProtector(f func(newProtector func(name string) hooks.KeyProtector, keys []secboot.SealKeyRequest, params *secboot.SealKeysWithFDESetupHookParams) error) (restore func()) {
 	old := secbootSealKeysWithProtector
 	secbootSealKeysWithProtector = f
 	return func() {
