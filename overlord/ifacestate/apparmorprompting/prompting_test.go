@@ -124,8 +124,8 @@ func (s *apparmorpromptingSuite) TestNewErrorRuleDB(c *C) {
 	defer restore()
 
 	// Prevent rule backend from opening successfully
-	maxIDFilepath := filepath.Join(prompting.StateDir(), "request-rule-max-id")
-	c.Assert(os.MkdirAll(prompting.StateDir(), 0o700), IsNil)
+	maxIDFilepath := filepath.Join(dirs.SnapInterfacesRequestsStateDir, "request-rule-max-id")
+	c.Assert(os.MkdirAll(dirs.SnapInterfacesRequestsStateDir, 0o700), IsNil)
 	f, err := os.Create(maxIDFilepath)
 	c.Assert(err, IsNil)
 	c.Assert(f.Chmod(0o400), IsNil)
