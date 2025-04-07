@@ -19,14 +19,12 @@ jobs:
     outputs:
       features: ${{ steps.set-inputs.outputs.features }}
       maximum-reruns: ${{ steps.set-inputs.outputs.maximum-reruns }}
-      run-all: ${{ steps.set-inputs.outputs.run-all }}
     steps:
       - name: Set inputs
         id: set-inputs
         run: |
           echo "features=${{ inputs.features || 'all' }}" >> $GITHUB_OUTPUT
           echo "maximum-reruns=${{ inputs.maximum-reruns || 2 }}" >> $GITHUB_OUTPUT
-          echo "run-all=${{ inputs.run-all || false }}" >> $GITHUB_OUTPUT
 
   read-systems:
     runs-on: ubuntu-latest
@@ -123,46 +121,11 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Get generated data
-        uses: actions/github-script@v6
+        uses: actions/download-artifact@v4
         with:
-          script: |
-            let page = 1;
-            let per_page = 100;
-            let allArtifacts = [];
-            let response;
-            do {
-              response = await github.rest.actions.listWorkflowRunArtifacts({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                run_id: context.runId,
-                per_page: per_page,
-                page: page
-              });
-              allArtifacts = allArtifacts.concat(response.data.artifacts);
-              page++;
-            } while (response.data.artifacts.length === per_page);
-
-            let matchingArtifacts = allArtifacts.filter((artifact) => {
-              return artifact.name.startsWith(`spread-artifacts`);
-            });
-
-            for (let artifact of matchingArtifacts) {
-              let download = await github.rest.actions.downloadArtifact({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                artifact_id: artifact.id,
-                archive_format: 'zip',
-              });
-              let fs = require('fs');
-              fs.writeFileSync(`${process.env.GITHUB_WORKSPACE}/${artifact.name}.zip`, Buffer.from(download.data));
-              console.log(`Downloaded artifact: ${artifact.name}.zip`);
-            }
-
-      - name: Unzip artifacts
-        run: |
-          mkdir -p feature-tags-artifacts
-          find . -name "spread-artifacts*.zip" -exec unzip -d feature-tags-artifacts {} ';'
-          echo "ARTIFACTS=feature-tags-artifacts" >> $GITHUB_ENV
+          path: feature-tags-artifacts
+          pattern: spread-artifacts-*
+          merge-multiple: true
 
       - name: Create feature tags
         run: |
@@ -171,7 +134,7 @@ jobs:
           composedir="composed-tags"
           mkdir -p "$composedir"
           IFS=',' read -ra features <<< "${{ needs.set-inputs.outputs.features }}"
-          for file in "$ARTIFACTS"/*; do
+          for file in "feature-tags-artifacts"/*; do
             mkdir working
             tar -xzf "$file" -C working
             for dir in "working/spread-artifacts/feature-tags"/*/; do
