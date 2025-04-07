@@ -607,7 +607,8 @@ def create_initrd_pkg_list(dest_dir, sysroot):
     # Write package list in yaml format
     docs_dir = os.path.join(dest_dir, "usr", "share", "doc")
     os.makedirs(docs_dir)
-    with open(os.path.join(docs_dir, "dpkg.yaml"), "w") as pkg_list:
+    manifest_path = os.path.join(docs_dir, "dpkg.yaml")
+    with open(manifest_path, "w") as pkg_list:
         # Write active repositories first so we can have an idea of where
         # things come from
         out = "package-repositories:\n"
@@ -623,6 +624,8 @@ def create_initrd_pkg_list(dest_dir, sysroot):
                              "--show", "--showformat=- ${binary:Package}=${Version}\\n"] +
                             pkgs).decode("utf-8")
         pkg_list.write(out)
+
+    return manifest_path
 
 
 # verify_missing_dlopen looks at the .notes.dlopen section of ELF
@@ -831,7 +834,10 @@ def create_initrd(parser, args):
                 sys.exit(1)
 
         # Create manifest with packages with files included in the initramfs
-        create_initrd_pkg_list(main, rootfs)
+        manifest_path = create_initrd_pkg_list(main, rootfs)
+        out_dir = os.path.dirname(args.output)
+        manifest_out_path = os.path.join(out_dir, "manifest-initramfs.yaml")
+        shutil.copyfile(manifest_path, manifest_out_path)
 
         arch = dpkg_architecture(args.root, "DEB_HOST_ARCH")
 
@@ -957,6 +963,8 @@ def main():
         help="certificate",
         default="/usr/lib/ubuntu-core-initramfs/snakeoil/PkKek-1-snakeoil.pem",
     )
+    # TODO we should have an output-dir instead and maybe another override for
+    # the file name.
     efi_parser.add_argument(
         "--output", help="path to output", default="/boot/kernel.efi"
     )
@@ -980,6 +988,8 @@ def main():
     initrd_parser.add_argument(
         "--firmwaredir", help="path to kernel firmware", default="/lib/firmware"
     )
+    # TODO we should have an output-dir instead and maybe another override for
+    # the file name.
     initrd_parser.add_argument(
         "--output", help="path to output", default="/boot/ubuntu-core-initramfs.img"
     )
