@@ -484,3 +484,11 @@ func MockSbNewOutOfProcessArgon2KDF(f func(newHandlerCmd func() (*exec.Cmd, erro
 func MockSbSetArgon2KDF(f func(kdf sb.Argon2KDF) sb.Argon2KDF) (restore func()) {
 	return testutil.Mock(&sbSetArgon2KDF, f)
 }
+
+func MockOPTEELockTA(f func() error) (restore func()) {
+	return testutil.Mock(&opteeLockTA, f)
+}
+
+func MockOPTEETAPresent(f func() bool) (restore func()) {
+	return testutil.Mock(&opteeTAPresent, f)
+}

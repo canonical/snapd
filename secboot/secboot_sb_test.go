@@ -1820,6 +1820,135 @@ func (s *secbootSuite) TestLockSealedKeysCallsFdeReveal(c *C) {
 	c.Check(ops, DeepEquals, []string{"lock"})
 }
 
+type mockTPMDevice struct{}
+
+func (m *mockTPMDevice) Open() (tpm2.Transport, error) {
+	return &mockTPMTransport{}, nil
+}
+
+func (m *mockTPMDevice) String() string {
+	return "mock TPM"
+}
+
+type mockTPMTransport struct{}
+
+func (*mockTPMTransport) Read(p []byte) (n int, err error) {
+	return 0, nil
+}
+
+func (*mockTPMTransport) Write(p []byte) (n int, err error) {
+	return 0, nil
+}
+
+func (*mockTPMTransport) Close() error {
+	return nil
+}
+
+func (s *secbootSuite) TestLockSealedKeysUsesTPM(c *C) {
+	restore := secboot.MockFDEHasRevealKey(func() bool {
+		return false
+	})
+	defer restore()
+
+	restore = secboot.MockOPTEETAPresent(func() bool {
+		return false
+	})
+	defer restore()
+
+	restore = secboot.MockSbConnectToDefaultTPM(func() (*sb_tpm2.Connection, error) {
+		ctx, err := tpm2.OpenTPMDevice(&mockTPMDevice{})
+		if err != nil {
+			return nil, err
+		}
+
+		return &sb_tpm2.Connection{
+			TPMContext: ctx,
+		}, nil
+	})
+	defer restore()
+
+	var called bool
+	restore = secboot.MockSbBlockPCRProtectionPolicies(func(*sb_tpm2.Connection, []int) error {
+		called = true
+		return nil
+	})
+	defer restore()
+
+	err := secboot.LockSealedKeys()
+	c.Assert(err, IsNil)
+
+	c.Check(called, Equals, true)
+}
+
+func (s *secbootSuite) TestLockSealedReturnsNonMissingTPMError(c *C) {
+	restore := secboot.MockFDEHasRevealKey(func() bool {
+		return false
+	})
+	defer restore()
+
+	expected := errors.New("tpm error, but not sb_tpm2.ErrNoTPM2Device")
+	restore = secboot.MockSbConnectToDefaultTPM(func() (*sb_tpm2.Connection, error) {
+		return nil, expected
+	})
+	defer restore()
+
+	err := secboot.LockSealedKeys()
+	c.Assert(err, ErrorMatches, fmt.Sprintf(".*: %s", expected.Error()))
+}
+
+func (s *secbootSuite) TestLockSealedKeysUsesOPTEE(c *C) {
+	restore := secboot.MockFDEHasRevealKey(func() bool {
+		return false
+	})
+	defer restore()
+
+	restore = secboot.MockOPTEETAPresent(func() bool {
+		return true
+	})
+	defer restore()
+
+	var called bool
+	restore = secboot.MockOPTEELockTA(func() error {
+		called = true
+		return nil
+	})
+	defer restore()
+
+	err := secboot.LockSealedKeys()
+	c.Assert(err, IsNil)
+
+	c.Assert(called, Equals, true)
+}
+
+func (s *secbootSuite) TestLockSealedKeysUsesNothing(c *C) {
+	restore := secboot.MockFDEHasRevealKey(func() bool {
+		return false
+	})
+	defer restore()
+
+	restore = secboot.MockSbConnectToDefaultTPM(func() (*sb_tpm2.Connection, error) {
+		return nil, sb_tpm2.ErrNoTPM2Device
+	})
+	defer restore()
+
+	restore = secboot.MockOPTEETAPresent(func() bool {
+		return false
+	})
+	defer restore()
+
+	var called bool
+	restore = secboot.MockOPTEELockTA(func() error {
+		called = true
+		return nil
+	})
+	defer restore()
+
+	err := secboot.LockSealedKeys()
+	c.Assert(err, IsNil)
+
+	c.Assert(called, Equals, false)
+}
+
 func (s *secbootSuite) testSealKeysWithFDESetupHookHappy(c *C, useKeyFiles bool) {
 	n := 0
 	sealedPrefix := []byte("SEALED:")

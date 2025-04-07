@@ -56,6 +56,9 @@ var (
 	sbSetProtectorKeys              = sb_plainkey.SetProtectorKeys
 	sbGetPrimaryKeyFromKernel       = sb.GetPrimaryKeyFromKernel
 	disksDevlinks                   = disks.Devlinks
+
+	opteeTAPresent = optee.TAPresent
+	opteeLockTA    = optee.LockTA
 )
 
 func init() {
@@ -74,10 +77,8 @@ func LockSealedKeys() error {
 		return fde.LockSealedKeys()
 	}
 
-	// TODO: this should come after we attempt to use the TPM
-	if optee.TAPresent() {
-		logger.Noticef("using FDE TA to lock sealed keys")
-		return optee.LockTA()
+	if opteeTAPresent() {
+		return opteeLockTA()
 	}
 
 	return lockTPMSealedKeys()
