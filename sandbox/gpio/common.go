@@ -210,7 +210,7 @@ func addGadgetSlotDevice(chip *ChardevChip, instanceName, slotName string) error
 	if err := os.MkdirAll(filepath.Dir(devPath), 0755); err != nil {
 		return err
 	}
-	if err := unixMknod(devPath, stat.Mode, int(stat.Rdev)); err != nil {
+	if err := unixMknod(devPath, uint32(stat.Mode), int(stat.Rdev)); err != nil {
 		return err
 	}
 
