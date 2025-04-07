@@ -11300,7 +11300,7 @@ func (s *interfaceManagerSuite) TestDoSetupProfilesForMultiConnectedPlugConsumer
 	c.Check(consideredConns, DeepEquals, []string{"consumer:plug producer2:slot", "consumer:plug producer:slot"})
 }
 
-func (s *interfaceManagerSuite) TestDoRegenerateSecurityProfiles(c *C) {
+func (s *interfaceManagerSuite) TestDoRegenerateSecurityProfilesHappy(c *C) {
 	s.state.Lock()
 	s.state.Set("conns", map[string]interface{}{
 		"consumer:plug producer:slot": map[string]interface{}{
@@ -11338,8 +11338,20 @@ func (s *interfaceManagerSuite) TestDoRegenerateSecurityProfiles(c *C) {
 			return nil
 		},
 	}
+	reinitCalls := 0
+	secBackendRegen := &ifacetest.TestSecurityBackendReinitializable{
+		TestSecurityBackend: ifacetest.TestSecurityBackend{
+			BackendName: "reinit-test",
+		},
+		ReinitializeCallback: func() error {
+			reinitCalls++
+			return nil
+		},
+	}
 
 	s.mockSecBackend(secBackend)
+	s.mockSecBackend(secBackendRegen)
+
 	s.mockIfaces(&ifacetest.TestInterface{
 		InterfaceName: "test",
 	})
@@ -11382,6 +11394,122 @@ func (s *interfaceManagerSuite) TestDoRegenerateSecurityProfiles(c *C) {
 	c.Logf("change failure: %v", change.Err())
 	c.Assert(change.Status(), Equals, state.DoneStatus)
 	c.Check(setupCalls, Equals, 2)
+	c.Check(reinitCalls, Equals, 1)
+}
+
+type regenerateSecurityTestCase struct {
+	reinitError   error
+	setupError    error
+	chgErrorMatch string
+}
+
+func (s *interfaceManagerSuite) testDoRegenerateSecurityProfilesError(c *C, tc regenerateSecurityTestCase) {
+	s.state.Lock()
+	s.state.Set("conns", map[string]interface{}{
+		"consumer:plug producer:slot": map[string]interface{}{
+			"interface": "test",
+		},
+	})
+	s.state.Unlock()
+
+	s.mockSnap(c, producerYaml)
+	s.mockSnap(c, consumerYaml)
+
+	setupCalls := 0
+	secBackend := &ifacetest.TestSecurityBackendSetupMany{
+		TestSecurityBackend: ifacetest.TestSecurityBackend{
+			BackendName: "test",
+		},
+		SetupManyCallback: func(appSets []*interfaces.SnapAppSet, confinement func(snapName string) interfaces.ConfinementOptions, repo *interfaces.Repository, tm timings.Measurer) []error {
+			setupCalls++
+			// first setup call happens during Startup(), which we do not want to disrupt
+			if setupCalls > 1 && tc.setupError != nil {
+				return []error{tc.setupError}
+			}
+			return nil
+		},
+	}
+	reinitCalls := 0
+	secBackendRegen := &ifacetest.TestSecurityBackendReinitializable{
+		TestSecurityBackend: ifacetest.TestSecurityBackend{
+			BackendName: "reinit-test",
+		},
+		ReinitializeCallback: func() error {
+			reinitCalls++
+			return tc.reinitError
+		},
+	}
+
+	s.mockSecBackend(secBackend)
+	s.mockSecBackend(secBackendRegen)
+
+	s.mockIfaces(&ifacetest.TestInterface{
+		InterfaceName: "test",
+	})
+
+	// Create the interface manager. This indirectly adds the snaps to the
+	// repository and reloads the connection.
+	s.manager(c)
+
+	// Alter the state to introduce new revision of refreshed snap
+	s.state.Lock()
+	snapstate.Set(s.state, "producer", &snapstate.SnapState{
+		Active: true,
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
+			{Revision: snap.R(1), RealName: "producer"},
+		}),
+		Current:  snap.R(1),
+		SnapType: string("app"),
+	})
+	snapstate.Set(s.state, "consumer", &snapstate.SnapState{
+		Active: true,
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
+			{Revision: snap.R(1), RealName: "consumer"},
+		}),
+		Current:  snap.R(1),
+		SnapType: string("app"),
+	})
+	s.state.Unlock()
+
+	// Setup profiles for refreshed snap v2
+	s.state.Lock()
+	change := s.state.NewChange("regenerate-security-profiles", "")
+	task := s.state.NewTask("regenerate-security-profiles", "")
+	change.AddTask(task)
+	s.state.Unlock()
+
+	// Spin the wheels to run the tasks we added.
+	s.settle(c)
+	s.state.Lock()
+	defer s.state.Unlock()
+	c.Logf("change failure: %v", change.Err())
+	if tc.reinitError != nil {
+		c.Assert(change.Status(), Equals, state.ErrorStatus)
+		c.Check(change.Err(), ErrorMatches, tc.chgErrorMatch)
+		// one setup call during Startup()
+		c.Check(setupCalls, Equals, 1)
+		c.Check(reinitCalls, Equals, 1)
+	} else if tc.setupError != nil {
+		// erorrs in setup are only logged
+		c.Assert(change.Status(), Equals, state.DoneStatus)
+		c.Check(change.Err(), IsNil)
+		c.Check(setupCalls, Equals, 2)
+		c.Check(reinitCalls, Equals, 1)
+		c.Check(s.log.String(), Matches, "(?s).*cannot regenerate test profiles.*")
+	}
+}
+
+func (s *interfaceManagerSuite) TestDoRegenerateSecurityProfilesErrorsReinit(c *C) {
+	s.testDoRegenerateSecurityProfilesError(c, regenerateSecurityTestCase{
+		reinitError:   fmt.Errorf("mock reinit error"),
+		chgErrorMatch: `(?s).*cannot reinitialize backend "reinit-test": mock reinit error.*`,
+	})
+}
+
+func (s *interfaceManagerSuite) TestDoRegenerateSecurityProfilesErrorsSetup(c *C) {
+	s.testDoRegenerateSecurityProfilesError(c, regenerateSecurityTestCase{
+		setupError: fmt.Errorf("mock setup error"),
+	})
 }
 
 func (s *interfaceManagerSuite) TestSystemKeyMismatchTrivial(c *C) {
