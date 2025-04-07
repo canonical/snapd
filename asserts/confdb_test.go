@@ -312,6 +312,24 @@ func (s *confdbCtrlSuite) TestDecodeOK(c *C) {
 	c.Check(delegated, Equals, true)
 }
 
+func (s *confdbCtrlSuite) TestDecodeEmptyAssertionOK(c *C) {
+	emptyAssertion := `type: confdb-control
+brand-id: generic
+model: generic-classic
+serial: 03961d5d-26e5-443f-838d-6db046126bea
+sign-key-sha3-384: t9yuKGLyiezBq_PXMJZsGdkTukmL7MgrgqXAlxxiZF4TYryOjZcy48nnjDmEHQDp
+
+AXNpZw==`
+
+	a, err := asserts.Decode([]byte(emptyAssertion))
+	c.Assert(err, IsNil)
+	c.Assert(a, NotNil)
+
+	ctrl := a.(*asserts.ConfdbControl).Control()
+	groups := ctrl.Groups()
+	c.Assert(groups, HasLen, 0)
+}
+
 func (s *confdbCtrlSuite) TestDecodeInvalid(c *C) {
 	encoded := confdbControlExample
 	const validationSetErrPrefix = "assertion confdb-control: "
@@ -326,7 +344,6 @@ func (s *confdbCtrlSuite) TestDecodeInvalid(c *C) {
 		{"serial: 03961d5d-26e5-443f-838d-6db046126bea\n", "", `"serial" header is mandatory`},
 		{"serial: 03961d5d-26e5-443f-838d-6db046126bea\n", "serial: \n", `"serial" header should not be empty`},
 		{"groups:", "groups: foo\nviews:", `"groups" header must be a list`},
-		{"groups:", "views:", `"groups" stanza is mandatory`},
 		{"groups:", "groups:\n  - bar", `cannot parse group at position 1: must be a map`},
 		{"    operators:\n      - jane\n", "", `cannot parse group at position 3: "operators" must be provided`},
 		{
@@ -425,7 +442,16 @@ func (s *confdbCtrlSuite) TestAckAssertionOK(c *C) {
 	s.addSerial(c)
 
 	headers := map[string]interface{}{
-		"brand-id": "canonical", "model": "pc", "serial": "42", "groups": []interface{}{},
+		"brand-id": "canonical",
+		"model":    "pc",
+		"serial":   "42",
+		"groups": []interface{}{
+			map[string]interface{}{
+				"operators":       []interface{}{"aa", "cc"},
+				"authentications": []interface{}{"operator-key"},
+				"views":           []interface{}{"pp/qq/rr"},
+			},
+		},
 	}
 	a, err := asserts.AssembleAndSignInTest(asserts.ConfdbControlType, headers, nil, testPrivKey0)
 	c.Assert(err, IsNil)

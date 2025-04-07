@@ -282,6 +282,12 @@ backends:
         key: '$(HOST: echo "$SPREAD_GOOGLE_KEY")'
         location: snapd-spread/us-central1-a
         halt-timeout: 2h
+        environment:
+            SRU_VALIDATION: 1
+            SNAP_REEXEC: 0
+            MODIFY_CORE_SNAP_FOR_REEXEC: 0
+            TRUST_TEST_KEYS: false
+            CORE_CHANNEL: stable
         systems:
             - ubuntu-20.04-64:
                   storage: 12G

@@ -5,10 +5,6 @@ details: |
     to the snaps. Run the test on a live backend which sets instance data
     properly.
 
-# GCE backend sets instance data
-# TODO: extend this to openstack once we have the dev environments ready
-backends: [google]
-
 prepare: |
     cat <<EOF > /etc/systemd/system/snapd.service.d/http-debug.conf
     [Service]
@@ -21,6 +17,10 @@ restore: |
     systemctl restart snapd.service
 
 execute: |
+    if ! [ "$SPREAD_BACKEND" = "google" ] && ! [ "$SPREAD_BACKEND" = "openstack" ]; then
+        tests.exec skip-test "This test is only valid for google and openstack backends that provide cloud info" && exit 0
+    fi
+
     if [[ ! -e /run/cloud-init/instance-data.json ]]; then
         echo "cloud-init instance data is required to execute the test"
 
@@ -44,23 +44,12 @@ execute: |
 
        gojq -r ".[\"v1\"][\"$kname\"]" < /run/cloud-init/instance-data.json
     }
-    # GCE sets the following in Ubuntu images:
-    # {
-    #    ...
-    #    "v1": {
-    #      "availability-zone": "us-east1-b",
-    #      "availability_zone": "us-east1-b",
-    #      "cloud-name": "gce",
-    #      "cloud_name": "gce",
-    #      "region": "us-east1"
-    #      ...
-    #   }
-    # }
 
     # keys can be queried only using underscore names
     cloud_name=$(get_conf cloud_name)
     test -n "$cloud_name"
-    # this shouldn't happen under GCE
+    
+    # this shouldn't happen under GCE or openstack
     if [[ "$cloud_name" == "nocloud" ||  "$cloud_name" == "none" ]]; then
         echo "not a cloud instance, config should be empty"
 
@@ -69,16 +58,13 @@ execute: |
         exit 0
     fi
 
+    # both name and zone must be set in GCE and openstack
     snap_cloud_name=$(snap get core cloud.name)
     test "$cloud_name" = "$snap_cloud_name"
 
     cloud_avzone=$(get_conf availability_zone)
     snap_cloud_avzone=$(snap get core cloud.availability-zone)
     test "$cloud_avzone" = "$snap_cloud_avzone"
-
-    cloud_region=$(get_conf region)
-    snap_cloud_region=$(snap get core cloud.region)
-    test "$cloud_region" = "$snap_cloud_region"
 
     if os.query is-core; then
         # TODO: is there a race here with snapd restricting cloud-init and us
@@ -89,5 +75,40 @@ execute: |
         NOMATCH "manual_cache_clean: true" < /etc/cloud/cloud.cfg.d/zzzz_snapd.cfg
     fi
 
-    # verify that the region and availability zone is set in HTTP requests
-    journalctl -b -u snapd | MATCH -E "Snap-Device-Location: cloud-name=\\\\\"[a-z]+\\\\\" region=\\\\\"${cloud_region}\\\\\" availability-zone=\\\\\"${cloud_avzone}\\\\\""
+    if [ "$SPREAD_BACKEND" = "google" ]; then
+        # GCE sets the following in Ubuntu images:
+        # {
+        #    ...
+        #    "v1": {
+        #      "availability-zone": "us-east1-b",
+        #      "availability_zone": "us-east1-b",
+        #      "cloud-name": "gce",
+        #      "cloud_name": "gce",
+        #      "region": "us-east1"
+        #      ...
+        #   }
+        # }
+
+        cloud_region=$(get_conf region)
+        snap_cloud_region=$(snap get core cloud.region)
+        test "$cloud_region" = "$snap_cloud_region"
+
+        # verify that the region and availability zone is set in HTTP requests
+        journalctl -b -u snapd | MATCH -E "Snap-Device-Location: cloud-name=\\\\\"[a-z]+\\\\\" region=\\\\\"${cloud_region}\\\\\" availability-zone=\\\\\"${cloud_avzone}\\\\\""
+
+    elif [ "$SPREAD_BACKEND" = "openstack" ]; then
+        # Openstack sets the following in Ubuntu images:
+        # {
+        #    ...
+        #    "v1": {
+        #      "availability-zone": "availability-zone-1",
+        #      "availability_zone": "availability-zone-1",
+        #      "cloud-name": "openstack",
+        #      "cloud_name": "openstack",
+        #      "region": null
+        #      ...
+        #   }
+        # }
+        # verify that the availability zone is set in HTTP requests
+        journalctl -b -u snapd | MATCH -E "Snap-Device-Location: cloud-name=\\\\\"[a-z]+\\\\\" availability-zone=\\\\\"${cloud_avzone}\\\\\""
+    fi

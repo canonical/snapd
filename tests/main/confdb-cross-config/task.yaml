@@ -34,6 +34,7 @@ execute: |
     rm -f /var/snap/test-custodian-snap/common/*
     rm -f /var/snap/test-failing-custodian-snap/common/*
     rm -f /var/snap/test-snap/common/*
+    rm -f /var/snap/loading-custodian/common/*
   }
 
   if [ "$TRUST_TEST_KEYS" = "false" ]; then
@@ -99,10 +100,51 @@ execute: |
   test "2" = "$(wc -l /var/snap/test-custodian-snap/common/save-view-manage-wifi-ran | awk '{printf $1}')"
   head -n 1 /var/snap/test-custodian-snap/common/save-view-manage-wifi-ran | MATCH "third-custodian-rollback"
   tail -n 1 /var/snap/test-custodian-snap/common/save-view-manage-wifi-ran | MATCH "second-custodian"
-  # check no other hooks were called (don't call view-change since the change failed)
+  # check no other hooks were called (don't call observe-view since the change failed)
   test "2" = "$(find /var/snap/test-custodian-snap/common/* -maxdepth 1 | wc -l)"
   test "1" = "$(find /var/snap/test-failing-custodian-snap/common/* -maxdepth 1 | wc -l)"
   test "0" = "$(find /var/snap/test-snap/common/* -maxdepth 1 | wc -l)"
   # still the same value
   snap get developer1/network/wifi-setup ssid | MATCH "second-custodian"
   resetTestState
+
+  # install a sole custodian that saves and loads data
+  snap remove --purge test-custodian-snap test-failing-custodian-snap test-snap
+  "$TESTSTOOLS"/snaps-state install-local loading-custodian
+  snap ack "$TESTSLIB/assertions/network-ephemeral.confdb"
+  snap connect loading-custodian:manage-wifi
+
+  # write some ephemeral data (i.e., password)
+  OLD_CHANGE=$(snap changes | tail -n 2 | head -n 1 | awk '{print $1}')
+  loading-custodian.sh -c 'snapctl set --view :manage-wifi ssid=my-ssid password=written-secret'
+  changeAfterID "$OLD_CHANGE"
+  retry -n 5 --wait 1 sh -c 'snap changes | tail -n 2 | grep "Done.*Set confdb through \"developer1/network-ephemeral/wifi-setup\""'
+
+  # the hooks get the expected data
+  MATCH 'written-secret' < /var/snap/loading-custodian/common/change-view-manage-wifi-ran
+  MATCH 'written-secret-changed' < /var/snap/loading-custodian/common/save-view-manage-wifi-ran
+  # snapd caches the written value
+  gojq -c '.data."confdb-databags".developer1."network-ephemeral".wifi.psk' < /var/lib/snapd/state.json | MATCH "written-secret-changed"
+
+  OLD_CHANGE=$(snap changes | tail -n 2 | head -n 1 | awk '{print $1}')
+  # we load the most up to date value from the custodian snap
+  loading-custodian.sh -c 'snapctl get --view :manage-wifi password' | MATCH "loaded-secret-queried"
+  changeAfterID "$OLD_CHANGE"
+  retry -n 5 --wait 1 sh -c 'snap changes | tail -n 2 | grep "Done.*Get confdb through \"developer1/network-ephemeral/wifi-setup\""'
+
+  # check that before loading we read the cached version from snapd and the load-view hook gets this
+  MATCH 'written-secret-changed' < /var/snap/loading-custodian/common/load-view-manage-wifi-ran
+  # but query-view gets the value load-view sets
+  MATCH "loaded-secret" < /var/snap/loading-custodian/common/query-view-manage-wifi-ran
+
+  # check that triggering the change from the API has the same effect
+  resetTestState
+  OLD_CHANGE=$(snap changes | tail -n 2 | head -n 1 | awk '{print $1}')
+  snap get developer1/network-ephemeral/wifi-setup password | MATCH "loaded-secret-queried"
+  changeAfterID "$OLD_CHANGE"
+  retry -n 5 --wait 1 sh -c 'snap changes | tail -n 2 | grep "Done.*Get confdb through \"developer1/network-ephemeral/wifi-setup\""'
+
+  # check we read the cached version before running any hooks (and load-view sees that)
+  MATCH 'written-secret-changed' < /var/snap/loading-custodian/common/load-view-manage-wifi-ran
+  # but query-view gets the value load-view sets
+  MATCH "loaded-secret" < /var/snap/loading-custodian/common/query-view-manage-wifi-ran

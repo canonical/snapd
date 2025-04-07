@@ -382,7 +382,7 @@ func (s *initramfsMountsSuite) testInitramfsMountsInstallModeWithCompsHappy(c *C
 	c.Check(observeExistingTrustedRecoveryAssetsCalled, Equals, expectedCallsObserve)
 
 	if !failMount {
-		checkKernelMounts(c, "/run/mnt/data/system-data", "/writable/system-data",
+		checkKernelMounts(c, "/run/mnt/data/system-data", "/sysroot/writable/system-data",
 			[]string{"kcomp1", "kcomp2"}, []string{"77", "77"}, nil, nil)
 	}
 

@@ -1,0 +1,48 @@
+summary: Check snapd deb is used from proposed when running sru validation
+
+details: |
+    When sru validation is being executed, it is needed to check the correct
+    snapd deb is being used and no-reexec policy is applied. 
+
+backends: [google-sru]
+
+environment: 
+    SRU_VALIDATION_VERSION: '$(HOST: echo "${SPREAD_SRU_VALIDATION_VERSION:-}")'
+
+prepare: |
+    cp /etc/apt/sources.list sources.list.back
+    echo "deb http://archive.ubuntu.com/ubuntu/ $(lsb_release -c -s)-proposed restricted main multiverse universe" | tee /etc/apt/sources.list -a
+    apt update
+
+restore: |
+    if [ -e sources.list.back ]; then
+      mv sources.list.back /etc/apt/sources.list
+      apt update
+    fi
+
+execute: |
+    if [ "$SRU_VALIDATION" != "1" ]; then
+        echo "Variable SRU_VALIDATION not set to 1"
+        exit 1
+    fi
+
+    # Check snapd is from proposed
+    apt list snapd | MATCH "snapd/$(lsb_release -c -s)-proposed"
+
+    # Check the snap version being used matches with the expected one
+    if [ -n "$SRU_VALIDATION_VERSION" ]; then
+        apt policy snapd | MATCH "Installed:.*${SRU_VALIDATION_VERSION}+"
+    fi
+
+    # Check re-execution is not being used
+    not tests.info is-reexec-in-use
+    /usr/bin/env SNAPD_DEBUG=1 snap list 2>&1 | MATCH "DEBUG: re-exec disabled by user"
+
+    # shellcheck disable=SC2034
+    SNAP_MOUNT_DIR="$(os.paths snap-mount-dir)"
+    # shellcheck disable=SC2153
+    /usr/bin/env SNAPD_DEBUG=1 SNAP_REEXEC=1 snap list 2>&1 | MATCH "DEBUG: restarting into \"$SNAPD_MOUNT_DIR/snapd/current/usr/bin/snap\""
+
+    # Check the snap version has the proper value expected when the snapd snap is not being used
+    . /etc/os-release
+    snap version | MATCH "snap .+${SRU_VALIDATION_VERSION}\+${VERSION_ID}$"

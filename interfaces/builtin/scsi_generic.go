@@ -29,14 +29,11 @@ const scsiGenericBaseDeclarationSlots = `
     deny-auto-connection: true
 `
 
-// TODO: uncomment when confirmed that using base declaration won't break
-// existing snaps
-//
-// const scsiGenericBaseDeclarationPlugs = `
-//   scsi-devices:
-//     allow-installation: false
-//     deny-auto-connection: true
-// `
+const scsiGenericBaseDeclarationPlugs = `
+  scsi-generic:
+    allow-installation: false
+    deny-auto-connection: true
+`
 
 const scsiGenericConnectedPlugAppArmor = `
 # allow read,write access to generic scsi devices
@@ -51,14 +48,12 @@ var scsiGenericConnectedPlugUDev = []string{
 
 func init() {
 	registerIface(&commonInterface{
-		name:                 "scsi-generic",
-		summary:              scsiGenericSummary,
-		implicitOnCore:       true,
-		implicitOnClassic:    true,
-		baseDeclarationSlots: scsiGenericBaseDeclarationSlots,
-		// TODO use the plug base declaration, after we confirm we won't break
-		// any snaps which are using the plug
-		//baseDeclarationPlugs:  scsiGenericBaseDeclarationPlugs,
+		name:                  "scsi-generic",
+		summary:               scsiGenericSummary,
+		implicitOnCore:        true,
+		implicitOnClassic:     true,
+		baseDeclarationSlots:  scsiGenericBaseDeclarationSlots,
+		baseDeclarationPlugs:  scsiGenericBaseDeclarationPlugs,
 		connectedPlugAppArmor: scsiGenericConnectedPlugAppArmor,
 		connectedPlugUDev:     scsiGenericConnectedPlugUDev,
 	})

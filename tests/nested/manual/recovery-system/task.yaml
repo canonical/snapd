@@ -45,11 +45,7 @@ execute: |
     fi
   }
 
-  #shellcheck source=tests/lib/core-config.sh
-  . "$TESTSLIB"/core-config.sh
-
-  wait_for_first_boot_change
-
+  remote.wait-for device-initialized
   boot_id="$(tests.nested boot-id)"
 
   # create the system

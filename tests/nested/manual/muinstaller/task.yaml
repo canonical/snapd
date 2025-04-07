@@ -74,7 +74,7 @@ execute: |
   . "$TESTSLIB"/nested.sh
   version="$(nested_get_version)"
   # get an updated kernel
-  snap download --basename=pc-kernel --channel="$version/edge" pc-kernel
+  snap download --basename=pc-kernel --channel="$version/${KERNEL_CHANNEL}" pc-kernel
   if os.query is-ubuntu-ge 24.04; then
     uc24_build_initramfs_kernel_snap "$PWD/pc-kernel.snap" "$NESTED_ASSETS_DIR"
   else

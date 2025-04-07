@@ -130,11 +130,6 @@ type DatabagSchema interface {
 	// Ephemeral returns true if the data corresponding to this type should not be
 	// saved by snapd.
 	Ephemeral() bool
-
-	// PruneEphemeral parses the data and removes paths marked as ephemeral in the
-	// schema. The data should've been validated previously to ensure that the data
-	// matches the schema. Returns nil if the entire data was pruned.
-	PruneEphemeral(data []byte) ([]byte, error)
 }
 
 type SchemaType uint
@@ -1619,5 +1614,3 @@ func (v JSONSchema) Type() SchemaType {
 func (v JSONSchema) Ephemeral() bool {
 	return false
 }
-
-func (v JSONSchema) PruneEphemeral(b []byte) ([]byte, error) { return b, nil }

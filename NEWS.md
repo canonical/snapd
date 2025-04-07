@@ -1,3 +1,7 @@
+# New in snapd 2.68.4
+* Snap components: LP: #2104933 workaround for classic 24.04/24.10 models that incorrectly specify core22 instead of core24
+* Update build dependencies
+
 # New in snapd 2.68.3
 * FDE: LP: #2101834 snapd 2.68+ and snap-bootstrap <2.68 fallback to old keyring path
 * Fix Plucky snapd deb build issue related to /var/lib/snapd/void permissions

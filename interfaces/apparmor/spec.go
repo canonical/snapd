@@ -23,11 +23,13 @@ import (
 	"bytes"
 	"fmt"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
 
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/logger"
+	apparmor_sandbox "github.com/snapcore/snapd/sandbox/apparmor"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/strutil"
 )
@@ -86,6 +88,65 @@ func RegisteredSnippetKeys() []string {
 		keylist = append(keylist, k.key)
 	}
 	return keylist
+}
+
+// MetadataTag is an opaque string used to tag a snippet.
+//
+// Metadata tags can be added to AppArmor rules or snippets to encode additional
+// information which the kernel can then send back to snapd when the kernel
+// sends a message notification.
+//
+// When each metadata tag is registered, it associated with a particular
+// interface. Once registered in association with an interface, any attempt to
+// register it in association with a different interface will result in a panic,
+// though a tag may be repeatedly registered in association with the same
+// interface with which it was originally registered.
+type MetadataTag struct {
+	tag string
+}
+
+func (mt MetadataTag) String() string {
+	return mt.tag
+}
+
+var validMetadataTagRegexp = regexp.MustCompile("^[a-z][a-z0-9_-]*$")
+
+func newMetadataTag(tag string) MetadataTag {
+	if !validMetadataTagRegexp.MatchString(tag) {
+		logger.Panicf("cannot register invalid metadata tag: %q", tag)
+	}
+	return MetadataTag{tag: tag}
+}
+
+// registeredMetadataTags is a mapping from metadata tag to the interface with
+// which it was associated when registered.
+var registeredMetadataTags map[MetadataTag]string = make(map[MetadataTag]string)
+
+// RegisterMetadataTagWithInterface marks the given tag as being associated
+// with the given interface and returns the tag as a MetadataTag. If the tag
+// is already associated with a different interface, this function panics.
+func RegisterMetadataTagWithInterface(tag string, iface string) MetadataTag {
+	if iface == "" {
+		logger.Panicf("cannot register metadata tag with missing interface: %q", tag)
+	}
+	metadataTag := newMetadataTag(tag)
+	if val, ok := registeredMetadataTags[metadataTag]; ok && val != iface {
+		logger.Panicf("cannot register metadata tag %q to two different interfaces: %q and %q", tag, val, iface)
+	}
+	registeredMetadataTags[metadataTag] = iface
+	return metadataTag
+}
+
+// InterfaceForMetadataTag retrieves the interface associated with the given
+// tag, if the tag was registered as associated with an interface. If the tag
+// was not registered, returns false.
+func InterfaceForMetadataTag(tag string) (string, bool) {
+	metadataTag := newMetadataTag(tag)
+	iface, ok := registeredMetadataTags[metadataTag]
+	if !ok {
+		return "", false
+	}
+	return iface, true
 }
 
 // Specification assists in collecting apparmor entries associated with an interface.
@@ -188,6 +249,42 @@ func (spec *Specification) setScope(securityTags []string) (restore func()) {
 	return func() {
 		spec.securityTags = nil
 	}
+}
+
+var metadataTagsSupported = apparmor_sandbox.MetadataTagsSupported
+
+// MetadataTagSnippet wraps the given AppArmor rule snippet in the given
+// metadata tags if tagging is supported, and returns the resulting snippet.
+// If tagging is not supported, returns the snippet unchanged.
+func MetadataTagSnippet(snippet string, tags []MetadataTag) string {
+	if len(tags) == 0 || !metadataTagsSupported() {
+		return snippet
+	}
+
+	var b strings.Builder
+
+	// Put a blank line before the tagged block and open the tags set
+	b.WriteString("\ntags=(")
+
+	// Write the tags, separated by spaces
+	for i, tag := range tags {
+		if i > 0 {
+			b.WriteString(" ")
+		}
+		b.WriteString(tag.String())
+	}
+
+	// Close the tags, open the rules bracket, and prepare to write the snippet
+	// on a new line
+	b.WriteString(") {\n")
+
+	// Write the snippet itself
+	b.WriteString(snippet)
+
+	// Write the closing bracket, and add an extra newline afterwards
+	b.WriteString("\n}\n")
+
+	return b.String()
 }
 
 // AddSnippet adds a new apparmor snippet to all applications and hooks using the interface.

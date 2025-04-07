@@ -47,10 +47,14 @@ execute: |
       remote.exec modinfo -F filename efi_pstore | MATCH updates/"$KMOD_COMP"/kmod/efi-pstore.ko
       # module should have been loaded (pulled by systemd-pstore.service)
       remote.exec lsmod | MATCH efi_pstore
+      # Make sure it was loaded early
+      remote.exec systemctl show -p ExecMainStatus modprobe@efi_pstore.service | MATCH ExecMainStatus=0
   }
 
   # check component from store has been early-installed
   check_efi_pstore
+  # Additionally, check that modules loaded by systemd right after switch root could be loaded
+  lsmod | MATCH ip_tables
 
   # remove kernel component
   remote.exec sudo snap remove pc-kernel+"$KMOD_COMP"

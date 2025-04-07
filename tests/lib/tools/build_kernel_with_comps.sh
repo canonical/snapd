@@ -45,14 +45,15 @@ EOF
 
     # Create kernel without the kernel module
     rm "$module_path"
-    # depmod wants a lib subdir, fake it and remove after invocation
-    mkdir kernel/lib
+    # depmod wants a lib subdir
+    mkdir -p kernel/lib
     ln -s ../modules kernel/lib/modules
     depmod -b kernel/ "$kern_ver"
-    rm -rf kernel/lib
     rm "${kernel_snap_file}"
     # append component meta-information
-    printf 'components:\n  %s:\n    type: kernel-modules\n' "$comp_name" >> kernel/meta/snap.yaml
+    #shellcheck disable=SC2016
+    gojq --arg COMP_NAME "${comp_name}" '.components = {$COMP_NAME:{"type":"kernel-modules"}}' --yaml-input kernel/meta/snap.yaml --yaml-output >kernel/meta/snap.yaml.new
+    mv kernel/meta/snap.yaml.new kernel/meta/snap.yaml
     snap pack --filename="${kernel_snap_file}" kernel
 
     if [ "${use_provided_kernel}" = false ]; then

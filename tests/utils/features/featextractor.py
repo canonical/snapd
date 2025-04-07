@@ -64,7 +64,7 @@ if __name__ == "__main__":
 
     try:
         state_json = json.load(args.state)
-        feature_dictionary = get_feature_dictionary(args.journal, args.features, state_json)
+        feature_dictionary = get_feature_dictionary(args.journal, args.feature, state_json)
         json.dump(feature_dictionary, open(args.output, "w"))
     except json.JSONDecodeError:
         raise RuntimeError("The state.json is not valid json")

@@ -101,15 +101,19 @@ execute: |
       remote.exec modinfo -F filename efi_pstore | MATCH updates/"$NESTED_KERNEL_MODULES_COMP"/kmod/efi-pstore.ko
       # module should have been loaded (pulled by systemd-pstore.service)
       remote.exec lsmod | MATCH efi_pstore
+      # Make sure it was loaded early
+      remote.exec systemctl show -p ExecMainStatus modprobe@efi_pstore.service | MATCH ExecMainStatus=0
 
       # Check that the mount files were created
-      remote.exec stat /run/systemd/system/'writable-system\\x2ddata-snap-pc\\x2dkernel-x1.mount'
-      remote.exec stat /run/systemd/system/'writable-system\\x2ddata-snap-pc\\x2dkernel-components-mnt-efi\\x2dpstore-x1.mount'
+      remote.exec stat /run/systemd/system/'sysroot-writable-system\\x2ddata-snap-pc\\x2dkernel-x1.mount'
+      remote.exec stat /run/systemd/system/'sysroot-writable-system\\x2ddata-snap-pc\\x2dkernel-components-mnt-efi\\x2dpstore-x1.mount'
   }
 
   if [ "$(nested_get_version)" -ge "24" ]; then
       # check component from store has been early-installed
       check_efi_pstore
+      # Additionally, check that modules loaded by systemd right after switch root could be loaded
+      lsmod | MATCH ip_tables
   fi
 
   if [ "${INSTALL_MODE}" != none ]; then

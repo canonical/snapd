@@ -34,6 +34,7 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/kernel"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
@@ -711,6 +712,26 @@ func (s *kernelDriversTestSuite) TestNeedsKernelDriversTree(c *C) {
 	c.Assert(kernel.NeedsKernelDriversTree(uc16model), Equals, false)
 	uc20model := mockModel20plus(nil)
 	c.Assert(kernel.NeedsKernelDriversTree(uc20model), Equals, false)
+	uc22model := mockModel20plus(map[string]interface{}{"base": "core22"})
+	c.Assert(kernel.NeedsKernelDriversTree(uc22model), Equals, false)
 	uc24model := mockModel20plus(map[string]interface{}{"base": "core24"})
 	c.Assert(kernel.NeedsKernelDriversTree(uc24model), Equals, true)
+}
+
+func (s *kernelDriversTestSuite) TestNeedsKernelDriversTreeClassicWithWrongBase(c *C) {
+	for _, tc := range []struct {
+		version string
+		result  bool
+	}{
+		{"23.10", false},
+		{"24.04", true},
+		{"24.10", true},
+		{"25.04", false},
+	} {
+		defer release.MockReleaseInfo(&release.OS{ID: "ubuntu", VersionID: tc.version})()
+
+		uc22model := mockModel20plus(map[string]interface{}{"base": "core22",
+			"classic": "true", "distribution": "ubuntu"})
+		c.Assert(kernel.NeedsKernelDriversTree(uc22model), Equals, tc.result)
+	}
 }
