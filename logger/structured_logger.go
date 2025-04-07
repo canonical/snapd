@@ -51,7 +51,7 @@ var levelNames = map[slog.Level]string{
 }
 
 func (l *StructuredLog) debugEnabled() bool {
-	return l.debug || osutil.GetenvBool("SNAPD_DEBUG") || osutil.GetenvBool("SNAPD_TRACE")
+	return l.debug || osutil.GetenvBool("SNAPD_DEBUG") || l.traceEnabled()
 }
 
 // Debug only prints if SNAPD_DEBUG or SNAPD_TRACE is set
@@ -127,7 +127,10 @@ func New(w io.Writer, flag int, opts *LoggerOptions) Logger {
 			}
 			if a.Key == slog.SourceKey && (flag&log.Lshortfile) == log.Lshortfile {
 				// Remove all but the file name of the source file
-				source, _ := a.Value.Any().(*slog.Source)
+				source, ok := a.Value.Any().(*slog.Source)
+				if !ok {
+					return a
+				}
 				if source != nil {
 					source.File = filepath.Base(source.File)
 				}
@@ -135,7 +138,10 @@ func New(w io.Writer, flag int, opts *LoggerOptions) Logger {
 			}
 			if a.Key == slog.LevelKey {
 				// Add TRACE and NOTICE level names
-				level := a.Value.Any().(slog.Level)
+				level, ok := a.Value.Any().(slog.Level)
+				if !ok {
+					return a
+				}
 				levelLabel, exists := levelNames[level]
 				if !exists {
 					levelLabel = level.String()
