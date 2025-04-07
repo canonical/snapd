@@ -104,7 +104,7 @@ const (
 	aggregatorLockPath         = "/sys/bus/platform/drivers/gpio-aggregator"
 	aggregatorNewDevicePath    = "/sys/bus/platform/drivers/gpio-aggregator/new_device"
 	aggregatorDeleteDevicePath = "/sys/bus/platform/drivers/gpio-aggregator/delete_device"
-	ephermalUdevRulesDir       = "/run/udev/rules.d"
+	ephemeralUdevRulesDir      = "/run/udev/rules.d"
 )
 
 var lockAggregator = func() (unlocker func(), err error) {
@@ -166,11 +166,11 @@ func addAggregatedChip(ctx context.Context, sourceChip *ChardevChip, lines strut
 
 func aggregatedChipUdevRulePath(instanceName, slotName string) string {
 	fname := fmt.Sprintf("69-snap.%s.interface.gpio-chardev-%s.rules", instanceName, slotName)
-	return filepath.Join(filepath.Join(dirs.GlobalRootDir, ephermalUdevRulesDir), fname)
+	return filepath.Join(filepath.Join(dirs.GlobalRootDir, ephemeralUdevRulesDir), fname)
 }
 
-func addEphermalUdevTaggingRule(ctx context.Context, chip *ChardevChip, instanceName, slotName string) error {
-	if err := os.MkdirAll(filepath.Join(dirs.GlobalRootDir, ephermalUdevRulesDir), 0755); err != nil {
+func addEphemeralUdevTaggingRule(ctx context.Context, chip *ChardevChip, instanceName, slotName string) error {
+	if err := os.MkdirAll(filepath.Join(dirs.GlobalRootDir, ephemeralUdevRulesDir), 0755); err != nil {
 		return err
 	}
 
@@ -210,6 +210,8 @@ func addGadgetSlotDevice(chip *ChardevChip, instanceName, slotName string) error
 	if err := os.MkdirAll(filepath.Dir(devPath), 0755); err != nil {
 		return err
 	}
+	// create a character device node for the slot, with major/minor numbers
+	// corresponding to the newly created aggregator device
 	if err := unixMknod(devPath, uint32(stat.Mode), int(stat.Rdev)); err != nil {
 		return err
 	}
@@ -226,8 +228,8 @@ func removeGadgetSlotDevice(instanceName, slotName string) (aggregatedChip *Char
 	return aggregatedChip, os.Remove(devPath)
 }
 
-func removeEphermalUdevTaggingRule(gadget, slot string) error {
-	// XXX: is rule reload/trigger nessacary
+func removeEphemeralUdevTaggingRule(gadget, slot string) error {
+	// XXX: is rule reload/trigger necessary
 	path := aggregatedChipUdevRulePath(gadget, slot)
 	return os.RemoveAll(path)
 }
