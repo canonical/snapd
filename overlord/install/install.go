@@ -238,6 +238,7 @@ func GetEncryptionSupportInfo(model *asserts.Model, tpmMode secboot.TPMProvision
 	case checkFDESetupHookEncryption:
 		res.Type, checkEncryptionErr = checkFDEFeatures(runSetupHook)
 	case checkOPTEEEncryption:
+		// TODO: missing coverage
 		res.Type = device.EncryptionTypeLUKS
 	case checkSecbootEncryption:
 		checkEncryptionErr = secbootCheckTPMKeySealingSupported(tpmMode)

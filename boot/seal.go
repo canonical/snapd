@@ -143,6 +143,7 @@ func sealKeyToModeenvImpl(
 	case flags.HasFDESetupHook:
 		method = device.SealingMethodFDESetupHook
 	case flags.HasTA:
+		// TODO: missing coverage
 		method = device.SealingMethodOPTEE
 	default:
 		method = device.SealingMethodTPM
