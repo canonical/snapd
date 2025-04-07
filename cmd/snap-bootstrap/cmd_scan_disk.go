@@ -50,8 +50,8 @@
  * have:
  *
  * ```
- * BindsTo=dev-disk-ubuntu-disk.device
- * After=dev-disk-ubuntu-disk.device
+ * BindsTo=dev-disk-snapd--disk.device
+ * After=dev-disk-snapd-disk.device
  * ```
  *
  */
