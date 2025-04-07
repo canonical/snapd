@@ -492,3 +492,11 @@ func MockOPTEELockTA(f func() error) (restore func()) {
 func MockOPTEETAPresent(f func() bool) (restore func()) {
 	return testutil.Mock(&opteeTAPresent, f)
 }
+
+func MockOPTEEEncryptKey(f func(input []byte) (handle []byte, sealed []byte, err error)) (restore func()) {
+	return testutil.Mock(&opteeEncryptKey, f)
+}
+
+func MockOPTEEDecryptKey(f func(input []byte, handle []byte) ([]byte, error)) (restore func()) {
+	return testutil.Mock(&opteeDecryptKey, f)
+}

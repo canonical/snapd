@@ -40,6 +40,7 @@ import (
 	"github.com/canonical/go-tpm2/linux"
 	"github.com/canonical/go-tpm2/mu"
 	sb "github.com/snapcore/secboot"
+	sb_scope "github.com/snapcore/secboot/bootscope"
 	sb_efi "github.com/snapcore/secboot/efi"
 	sb_hooks "github.com/snapcore/secboot/hooks"
 	sb_tpm2 "github.com/snapcore/secboot/tpm2"
@@ -2094,6 +2095,111 @@ var fakeModel = assertstest.FakeAssertion(map[string]interface{}{
 			"default-channel": "20",
 		}},
 }).(*asserts.Model)
+
+func (s *secbootSuite) sealKeysWithOPTEE(c *C) (key []byte, keyPath string) {
+	prefix := []byte("SEALED:")
+	restore := secboot.MockOPTEEEncryptKey(func(input []byte) (handle []byte, sealed []byte, err error) {
+		key = make([]byte, len(input))
+		copy(key, input)
+		return nil, append(prefix, input...), nil
+	})
+	defer restore()
+
+	root := c.MkDir()
+	params := secboot.SealKeysWithFDESetupHookParams{
+		Model:      fakeModel,
+		AuxKeyFile: filepath.Join(root, "aux-key"),
+	}
+	container := secboot.CreateMockBootstrappedContainer()
+	keys := []secboot.SealKeyRequest{{
+		BootstrappedContainer: container,
+		KeyName:               "key",
+		SlotName:              "one",
+		KeyFile:               filepath.Join(root, "key-file"),
+	}}
+
+	newProtector := func(string) sb_hooks.KeyProtector {
+		return secboot.NewOpteeKeyProtector()
+	}
+
+	err := secboot.SealKeysWithProtector(newProtector, keys, &params)
+	c.Assert(err, IsNil)
+	_, ok := container.Slots["one"]
+	c.Check(ok, Equals, true)
+
+	c.Check(container.Tokens, HasLen, 0)
+
+	keyFile := filepath.Join(root, "key-file")
+	c.Check(osutil.FileExists(keyFile), Equals, true)
+
+	return key, keyFile
+}
+
+func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyWithOPTEE(c *C) {
+	expectedKey, keyPath := s.sealKeysWithOPTEE(c)
+
+	restore := secboot.MockOPTEEDecryptKey(func(input []byte, handle []byte) ([]byte, error) {
+		unsealed := bytes.TrimPrefix(input, []byte("SEALED:"))
+		c.Check(unsealed, DeepEquals, expectedKey)
+		return unsealed, nil
+	})
+	defer restore()
+
+	restore = secboot.MockRandomKernelUUID(func() (string, error) {
+		return "random-uuid-for-test", nil
+	})
+	defer restore()
+
+	restore = secboot.MockOPTEETAPresent(func() bool {
+		return true
+	})
+	defer restore()
+
+	// we can use the real ones for this test
+	restore = secboot.MockSbSetModel(sb_scope.SetModel)
+	defer restore()
+	restore = secboot.MockSbSetKeyRevealer(sb_hooks.SetKeyRevealer)
+	defer restore()
+
+	mockDiskWithEncDev := &disks.MockDiskMapping{
+		Structure: []disks.Partition{
+			{
+				FilesystemLabel: "device-name-enc",
+				FilesystemUUID:  "enc-dev-uuid",
+				PartitionUUID:   "enc-dev-partuuid",
+			},
+		},
+	}
+
+	activated := 0
+	restore = secboot.MockSbActivateVolumeWithKeyData(func(volumeName, sourceDevicePath string, authRequestor sb.AuthRequestor, options *sb.ActivateVolumeOptions, keys ...*sb.KeyData) error {
+		c.Assert(keys, HasLen, 1)
+		keyData := keys[0]
+
+		activated++
+		c.Check(options.RecoveryKeyTries, Equals, 0)
+
+		// XXX: this is what the real MockSbActivateVolumeWithKeyData will do
+		_, _, err := keyData.RecoverKeys()
+		return err
+	})
+	defer restore()
+
+	opts := &secboot.UnlockVolumeUsingSealedKeyOptions{
+		WhichModel: func() (*asserts.Model, error) {
+			return fakeModel, nil
+		},
+	}
+	res, err := secboot.UnlockVolumeUsingSealedKeyIfEncrypted(mockDiskWithEncDev, "device-name", keyPath, opts)
+	c.Assert(err, IsNil)
+	c.Check(res, DeepEquals, secboot.UnlockResult{
+		UnlockMethod: secboot.UnlockedWithSealedKey,
+		IsEncrypted:  true,
+		PartDevice:   "/dev/disk/by-partuuid/enc-dev-partuuid",
+		FsDevice:     "/dev/mapper/device-name-random-uuid-for-test",
+	})
+	c.Check(activated, Equals, 1)
+}
 
 func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncryptedFdeRevealKeyV2(c *C) {
 	var reqs []*fde.RevealKeyRequest

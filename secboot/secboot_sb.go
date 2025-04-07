@@ -57,8 +57,10 @@ var (
 	sbGetPrimaryKeyFromKernel       = sb.GetPrimaryKeyFromKernel
 	disksDevlinks                   = disks.Devlinks
 
-	opteeTAPresent = optee.TAPresent
-	opteeLockTA    = optee.LockTA
+	opteeTAPresent  = optee.TAPresent
+	opteeLockTA     = optee.LockTA
+	opteeEncryptKey = optee.EncryptKey
+	opteeDecryptKey = optee.DecryptKey
 )
 
 func init() {
@@ -147,10 +149,13 @@ func UnlockVolumeUsingSealedKeyIfEncrypted(disk disks.Disk, name string, sealedE
 
 	res.PartDevice = partDevice
 
+	fdeHookPresent := fdeHasRevealKey()
+	opteePresent := opteeTAPresent()
+
 	// TODO: better name for this, since this isn't just a hook now. really, we
 	// need a name that is representative of an abstraction over both the hooks
 	// and the integrated optee implementation, since they are both so similar.
-	hintExpectFDEHook := fdeHasRevealKey() || optee.TAPresent()
+	hintExpectFDEHook := fdeHookPresent || opteePresent
 
 	loadedKey := &defaultKeyLoader{}
 	if err := readKeyFile(sealedEncryptionKeyFile, loadedKey, hintExpectFDEHook); err != nil {
@@ -177,12 +182,9 @@ func UnlockVolumeUsingSealedKeyIfEncrypted(disk disks.Disk, name string, sealedE
 	sbSetBootMode(opts.BootMode)
 	defer sbSetBootMode("")
 
-	if hintExpectFDEHook {
-		// why doesn't this already happen conditionally, based on hintExpectFDEHook?
+	if fdeHookPresent {
 		sbSetKeyRevealer(&keyRevealerV3{})
 	} else {
-		// if we don't have the hook, then we assume the optee implementation
-		// will work
 		sbSetKeyRevealer(&opteeKeyRevealer{})
 	}
 	defer sbSetKeyRevealer(nil)
