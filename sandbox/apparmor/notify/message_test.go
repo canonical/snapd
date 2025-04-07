@@ -3,7 +3,6 @@ package notify_test
 import (
 	"encoding/binary"
 
-	"github.com/snapcore/snapd/arch"
 	"github.com/snapcore/snapd/sandbox/apparmor/notify"
 
 	. "gopkg.in/check.v1"
@@ -14,7 +13,7 @@ type messageSuite struct{}
 var _ = Suite(&messageSuite{})
 
 func (*messageSuite) TestMsgLength(c *C) {
-	if arch.Endian() == binary.BigEndian {
+	if notify.NativeByteOrder == binary.BigEndian {
 		c.Skip("test only written for little-endian architectures")
 	}
 	for _, t := range []struct {
@@ -64,7 +63,7 @@ func (*messageSuite) TestMsgLength(c *C) {
 }
 
 func (*messageSuite) TestMsgLengthErrors(c *C) {
-	if arch.Endian() == binary.BigEndian {
+	if notify.NativeByteOrder == binary.BigEndian {
 		c.Skip("test only written for little-endian architectures")
 	}
 	for _, t := range []struct {
@@ -97,7 +96,7 @@ func (*messageSuite) TestMsgLengthErrors(c *C) {
 }
 
 func (*messageSuite) TestExtractFirstMsg(c *C) {
-	if arch.Endian() == binary.BigEndian {
+	if notify.NativeByteOrder == binary.BigEndian {
 		c.Skip("test only written for little-endian architectures")
 	}
 
@@ -193,7 +192,7 @@ func (*messageSuite) TestExtractFirstMsg(c *C) {
 }
 
 func (*messageSuite) TestExtractFirstMsgErrors(c *C) {
-	if arch.Endian() == binary.BigEndian {
+	if notify.NativeByteOrder == binary.BigEndian {
 		c.Skip("test only written for little-endian architectures")
 	}
 
@@ -270,7 +269,7 @@ func (*messageSuite) TestMessageMarshalErrors(c *C) {
 }
 
 func (*messageSuite) TestMsgNotificationRegisterMarshalUnmarshal(c *C) {
-	if arch.Endian() != binary.LittleEndian {
+	if notify.NativeByteOrder != binary.LittleEndian {
 		c.Skip("test only written for little-endian architectures")
 	}
 	for _, t := range []struct {
@@ -318,7 +317,7 @@ func (*messageSuite) TestMsgNotificationRegisterMarshalUnmarshal(c *C) {
 }
 
 func (*messageSuite) TestMsgNotificationResendMarshalUnmarshal(c *C) {
-	if arch.Endian() != binary.LittleEndian {
+	if notify.NativeByteOrder != binary.LittleEndian {
 		c.Skip("test only written for little-endian architectures")
 	}
 	for _, t := range []struct {
@@ -374,7 +373,7 @@ func (*messageSuite) TestMsgNotificationResendMarshalUnmarshal(c *C) {
 }
 
 func (*messageSuite) TestMsgNotificationFilterMarshalUnmarshal(c *C) {
-	if arch.Endian() == binary.BigEndian {
+	if notify.NativeByteOrder == binary.BigEndian {
 		c.Skip("test only written for little-endian architectures")
 	}
 	for _, t := range []struct {
@@ -431,7 +430,7 @@ func (*messageSuite) TestMsgNotificationFilterMarshalUnmarshal(c *C) {
 }
 
 func (*messageSuite) TestMsgNotificationFilterUnmarshalErrors(c *C) {
-	if arch.Endian() == binary.BigEndian {
+	if notify.NativeByteOrder == binary.BigEndian {
 		c.Skip("test only written for little-endian architectures")
 	}
 	for _, t := range []struct {
@@ -530,7 +529,7 @@ func (*messageSuite) TestFlags(c *C) {
 }
 
 func (*messageSuite) TestMsgNotificationMarshalBinary(c *C) {
-	if arch.Endian() == binary.BigEndian {
+	if notify.NativeByteOrder == binary.BigEndian {
 		c.Skip("test only written for little-endian architectures")
 	}
 	msg := notify.MsgNotification{
@@ -556,7 +555,7 @@ func (*messageSuite) TestMsgNotificationMarshalBinary(c *C) {
 }
 
 func (s *messageSuite) TestMsgNotificationFileUnmarshalBinaryV3(c *C) {
-	if arch.Endian() == binary.BigEndian {
+	if notify.NativeByteOrder == binary.BigEndian {
 		c.Skip("test only written for little-endian architectures")
 	}
 	// Notification for accessing the /root/.ssh/ directory.
@@ -618,7 +617,7 @@ func (s *messageSuite) TestMsgNotificationFileUnmarshalBinaryV3(c *C) {
 }
 
 func (s *messageSuite) TestMsgNotificationFileUnmarshalBinaryV5WithoutTags(c *C) {
-	if arch.Endian() == binary.BigEndian {
+	if notify.NativeByteOrder == binary.BigEndian {
 		c.Skip("test only written for little-endian architectures")
 	}
 	// Notification for accessing the /root/.ssh/ directory.
@@ -682,7 +681,7 @@ func (s *messageSuite) TestMsgNotificationFileUnmarshalBinaryV5WithoutTags(c *C)
 }
 
 func (s *messageSuite) TestMsgNotificationFileUnmarshalBinaryV5(c *C) {
-	if arch.Endian() == binary.BigEndian {
+	if notify.NativeByteOrder == binary.BigEndian {
 		c.Skip("test only written for little-endian architectures")
 	}
 	// Notification for accessing /file
@@ -776,7 +775,7 @@ func (s *messageSuite) TestMsgNotificationFileUnmarshalBinaryV5(c *C) {
 }
 
 func (s *messageSuite) TestMsgNotificationFileUnmarshalBinaryV5WithOverlappingAndEmptyTagsets(c *C) {
-	if arch.Endian() == binary.BigEndian {
+	if notify.NativeByteOrder == binary.BigEndian {
 		c.Skip("test only written for little-endian architectures")
 	}
 	// Notification for accessing /file
@@ -880,7 +879,7 @@ func (s *messageSuite) TestMsgNotificationFileUnmarshalBinaryV5WithOverlappingAn
 }
 
 func (s *messageSuite) TestMsgNotificationFileUnmarshalBinaryV5Errors(c *C) {
-	if arch.Endian() == binary.BigEndian {
+	if notify.NativeByteOrder == binary.BigEndian {
 		c.Skip("test only written for little-endian architectures")
 	}
 	bytesTemplate := []byte{
@@ -1065,7 +1064,7 @@ func (s *messageSuite) TestBuildResponse(c *C) {
 }
 
 func (s *messageSuite) TestMsgNotificationResponseMarshalBinary(c *C) {
-	if arch.Endian() == binary.BigEndian {
+	if notify.NativeByteOrder == binary.BigEndian {
 		c.Skip("test only written for little-endian architectures")
 	}
 	msg := notify.MsgNotificationResponse{

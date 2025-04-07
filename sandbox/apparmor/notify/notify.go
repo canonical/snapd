@@ -16,7 +16,11 @@ import (
 	"github.com/snapcore/snapd/osutil"
 )
 
-var doIoctl = Ioctl
+var (
+	doIoctl = Ioctl
+
+	nativeByteOrder = arch.Endian()
+)
 
 // RegisterFileDescriptor registers a listener for and sets a filter on the
 // given file descriptor, returning the protocol version which is negotiated
@@ -142,8 +146,7 @@ func retrieveSavedListenerID() (id uint64, ok bool) {
 	if err != nil {
 		return 0, false
 	}
-	order := arch.Endian()
-	if err = binary.Read(f, order, &id); err != nil {
+	if err = binary.Read(f, nativeByteOrder, &id); err != nil {
 		return 0, false
 	}
 	return id, true
@@ -158,8 +161,7 @@ func listenerIDFilepath() string {
 // saveListenerID writes the given listener ID to disk.
 func saveListenerID(id uint64) error {
 	buf := bytes.NewBuffer(make([]byte, 0, binary.Size(id)))
-	order := arch.Endian()
-	if err := binary.Write(buf, order, id); err != nil {
+	if err := binary.Write(buf, nativeByteOrder, id); err != nil {
 		return err
 	}
 	return osutil.AtomicWriteFile(listenerIDFilepath(), buf.Bytes(), 0o600, 0)

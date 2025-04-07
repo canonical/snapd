@@ -11,7 +11,6 @@ import (
 
 	"golang.org/x/sys/unix"
 
-	"github.com/snapcore/snapd/arch"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/sandbox/apparmor/notify"
 	"github.com/snapcore/snapd/testutil"
@@ -116,7 +115,7 @@ func (s *notifySuite) TestRegisterFileDescriptor(c *C) {
 	// which leaks pendingCount.
 	c.Check(pendingCount, Equals, 789)
 	// Check that there's now a listener ID stored as well
-	if arch.Endian() == binary.LittleEndian {
+	if notify.NativeByteOrder == binary.LittleEndian {
 		c.Check(filepath.Join(dirs.SnapRunDir, "listener-id"), testutil.FileEquals, []byte{123, 0, 0, 0, 0, 0, 0, 0})
 	} else {
 		c.Check(filepath.Join(dirs.SnapRunDir, "listener-id"), testutil.FileEquals, []byte{0, 0, 0, 0, 0, 0, 0, 123})
@@ -203,7 +202,7 @@ func (s *notifySuite) TestRegisterFileDescriptorLoadsListenerID(c *C) {
 	)
 
 	listenerIDBytes := []byte{0xa4, 0x0b, 0xf0, 0x0, 0x0, 0x0, 0x0, 0x0}
-	if arch.Endian() == binary.BigEndian {
+	if notify.NativeByteOrder == binary.BigEndian {
 		listenerIDBytes = []byte{0x0, 0x0, 0x0, 0x0, 0x0, 0xf0, 0x0b, 0xa4}
 	}
 
