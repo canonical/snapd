@@ -3,7 +3,6 @@ package notify_test
 import (
 	"encoding/binary"
 	"fmt"
-	"os"
 	"path/filepath"
 	"testing"
 
@@ -29,7 +28,6 @@ func (s *notifySuite) SetUpTest(c *C) {
 
 	dirs.SetRootDir(c.MkDir())
 	s.AddCleanup(func() { dirs.SetRootDir("") })
-	os.MkdirAll(dirs.SnapRunDir, 0o700)
 }
 
 var fakeNotifyVersions = []notify.VersionAndCheck{
@@ -62,7 +60,7 @@ func (s *notifySuite) TestRegisterFileDescriptor(c *C) {
 	var fakeFD uintptr = 1234
 
 	// Check that there's no listener ID currently stored
-	c.Check(filepath.Join(dirs.SnapRunDir, "listener-id"), testutil.FileAbsent)
+	c.Check(filepath.Join(dirs.SnapInterfacesRequestsRunDir, "listener-id"), testutil.FileAbsent)
 
 	ioctlCalls := 0
 	restoreSyscall := notify.MockIoctl(func(fd uintptr, req notify.IoctlRequest, buf notify.IoctlRequestBuffer) ([]byte, error) {
@@ -116,9 +114,9 @@ func (s *notifySuite) TestRegisterFileDescriptor(c *C) {
 	c.Check(pendingCount, Equals, 789)
 	// Check that there's now a listener ID stored as well
 	if notify.NativeByteOrder == binary.LittleEndian {
-		c.Check(filepath.Join(dirs.SnapRunDir, "listener-id"), testutil.FileEquals, []byte{123, 0, 0, 0, 0, 0, 0, 0})
+		c.Check(filepath.Join(dirs.SnapInterfacesRequestsRunDir, "listener-id"), testutil.FileEquals, []byte{123, 0, 0, 0, 0, 0, 0, 0})
 	} else {
-		c.Check(filepath.Join(dirs.SnapRunDir, "listener-id"), testutil.FileEquals, []byte{0, 0, 0, 0, 0, 0, 0, 123})
+		c.Check(filepath.Join(dirs.SnapInterfacesRequestsRunDir, "listener-id"), testutil.FileEquals, []byte{0, 0, 0, 0, 0, 0, 0, 123})
 	}
 }
 
@@ -258,7 +256,7 @@ func (s *notifySuite) TestRegisterFileDescriptorLoadsListenerID(c *C) {
 	defer restoreSyscall()
 
 	// Check that there's no listener ID currently stored
-	c.Check(filepath.Join(dirs.SnapRunDir, "listener-id"), testutil.FileAbsent)
+	c.Check(filepath.Join(dirs.SnapInterfacesRequestsRunDir, "listener-id"), testutil.FileAbsent)
 
 	receivedVersion, pendingCount, err := notify.RegisterFileDescriptor(fakeFD)
 	c.Check(err, IsNil)
@@ -266,7 +264,7 @@ func (s *notifySuite) TestRegisterFileDescriptorLoadsListenerID(c *C) {
 	c.Check(pendingCount, Equals, 0)
 
 	// Check that there's now a listener ID stored
-	c.Check(filepath.Join(dirs.SnapRunDir, "listener-id"), testutil.FileEquals, listenerIDBytes)
+	c.Check(filepath.Join(dirs.SnapInterfacesRequestsRunDir, "listener-id"), testutil.FileEquals, listenerIDBytes)
 
 	receivedVersion, pendingCount, err = notify.RegisterFileDescriptor(fakeFD)
 	c.Check(err, IsNil)
@@ -274,7 +272,7 @@ func (s *notifySuite) TestRegisterFileDescriptorLoadsListenerID(c *C) {
 	c.Check(pendingCount, Equals, int(fakePending))
 
 	// Check that there's still a listener ID stored
-	c.Check(filepath.Join(dirs.SnapRunDir, "listener-id"), testutil.FileEquals, listenerIDBytes)
+	c.Check(filepath.Join(dirs.SnapInterfacesRequestsRunDir, "listener-id"), testutil.FileEquals, listenerIDBytes)
 }
 
 func (s *notifySuite) TestRegisterFileDescriptorErrors(c *C) {

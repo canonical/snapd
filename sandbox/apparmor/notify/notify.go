@@ -155,13 +155,16 @@ func retrieveSavedListenerID() (id uint64, ok bool) {
 // listenerIDFilepath returns the filepath at which the listener ID should be
 // saved.
 func listenerIDFilepath() string {
-	return filepath.Join(dirs.SnapRunDir, "listener-id")
+	return filepath.Join(dirs.SnapInterfacesRequestsRunDir, "listener-id")
 }
 
 // saveListenerID writes the given listener ID to disk.
 func saveListenerID(id uint64) error {
 	buf := bytes.NewBuffer(make([]byte, 0, binary.Size(id)))
 	if err := binary.Write(buf, nativeByteOrder, id); err != nil {
+		return err
+	}
+	if err := os.MkdirAll(dirs.SnapInterfacesRequestsRunDir, 0o700); err != nil {
 		return err
 	}
 	return osutil.AtomicWriteFile(listenerIDFilepath(), buf.Bytes(), 0o600, 0)
