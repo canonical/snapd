@@ -699,29 +699,29 @@ func (s *gadgetYamlTestSuite) TestReadGadgetYamlOnClassicOnylDefaultsIsValid(c *
 	ginfo, err := gadget.ReadInfo(s.dir, &gadgettest.ModelCharacteristics{IsClassic: true})
 	c.Assert(err, IsNil)
 	c.Assert(ginfo, DeepEquals, &gadget.Info{
-		Defaults: map[string]map[string]interface{}{
+		Defaults: map[string]map[string]any{
 			"system": {"something": true},
 			// keep this comment so that gofmt 1.10+ does not
 			// realign this, thus breaking our gofmt 1.9 checks
-			"otheridididididididididididididi": {"foo": map[string]interface{}{"bar": "baz"}},
+			"otheridididididididididididididi": {"foo": map[string]any{"bar": "baz"}},
 		},
 	})
 }
 
 func (s *gadgetYamlTestSuite) TestFlatten(c *C) {
-	cfg := map[string]interface{}{
+	cfg := map[string]any{
 		"foo":         "bar",
 		"some.option": true,
-		"sub": map[string]interface{}{
+		"sub": map[string]any{
 			"option1": true,
-			"option2": map[string]interface{}{
+			"option2": map[string]any{
 				"deep": "2",
 			},
 		},
 	}
-	out := map[string]interface{}{}
+	out := map[string]any{}
 	gadget.Flatten("", cfg, out)
-	c.Check(out, DeepEquals, map[string]interface{}{
+	c.Check(out, DeepEquals, map[string]any{
 		"foo":              "bar",
 		"some.option":      true,
 		"sub.option1":      true,
@@ -736,7 +736,7 @@ func (s *gadgetYamlTestSuite) TestCoreConfigDefaults(c *C) {
 	ginfo, err := gadget.ReadInfo(s.dir, &gadgettest.ModelCharacteristics{IsClassic: true})
 	c.Assert(err, IsNil)
 	defaults := gadget.SystemDefaults(ginfo.Defaults)
-	c.Check(defaults, DeepEquals, map[string]interface{}{
+	c.Check(defaults, DeepEquals, map[string]any{
 		"ssh.disable": true,
 	})
 
@@ -751,7 +751,7 @@ func (s *gadgetYamlTestSuite) TestCoreConfigDefaults(c *C) {
 	c.Assert(err, IsNil)
 
 	defaults = gadget.SystemDefaults(ginfo.Defaults)
-	c.Check(defaults, DeepEquals, map[string]interface{}{
+	c.Check(defaults, DeepEquals, map[string]any{
 		"something": true,
 	})
 }
@@ -776,11 +776,11 @@ func (s *gadgetYamlTestSuite) TestReadGadgetDefaultsMultiline(c *C) {
 	ginfo, err := gadget.ReadInfo(s.dir, &gadgettest.ModelCharacteristics{IsClassic: true})
 	c.Assert(err, IsNil)
 	c.Assert(ginfo, DeepEquals, &gadget.Info{
-		Defaults: map[string]map[string]interface{}{
+		Defaults: map[string]map[string]any{
 			"system": {"something": true},
 			// keep this comment so that gofmt 1.10+ does not
 			// realign this, thus breaking our gofmt 1.9 checks
-			"otheridididididididididididididi": {"foosnap": map[string]interface{}{"multiline": "foo\nbar\n"}},
+			"otheridididididididididididididi": {"foosnap": map[string]any{"multiline": "foo\nbar\n"}},
 		},
 	})
 }
@@ -823,7 +823,7 @@ func (s *gadgetYamlTestSuite) TestReadGadgetYamlValid(c *C) {
 	ginfo, err := gadget.ReadInfo(s.dir, coreMod)
 	c.Assert(err, IsNil)
 	expectedgi := &gadget.Info{
-		Defaults: map[string]map[string]interface{}{
+		Defaults: map[string]map[string]any{
 			"system": {"something": true},
 		},
 		Connections: []gadget.Connection{
@@ -4271,7 +4271,7 @@ func (s *gadgetYamlTestSuite) TestGadgetInfoHasSameYamlAndJsonTags(c *C) {
 		return s.PkgPath == ""
 	}
 
-	tagsValid := func(c *C, i interface{}, noYaml []string) {
+	tagsValid := func(c *C, i any, noYaml []string) {
 		st := reflect.TypeOf(i).Elem()
 		num := st.NumField()
 		for i := 0; i < num; i++ {

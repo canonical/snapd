@@ -75,9 +75,9 @@ func NewForUids(uids ...int) *Client {
 }
 
 type Error struct {
-	Kind    string      `json:"kind"`
-	Value   interface{} `json:"value"`
-	Message string      `json:"message"`
+	Kind    string `json:"kind"`
+	Value   any    `json:"value"`
+	Message string `json:"message"`
 }
 
 func (e *Error) Error() string {
@@ -193,7 +193,7 @@ func (client *Client) doMany(ctx context.Context, method, urlpath string, query 
 	return responses, nil
 }
 
-func decodeInto(reader io.Reader, v interface{}) error {
+func decodeInto(reader io.Reader, v any) error {
 	dec := json.NewDecoder(reader)
 	if err := dec.Decode(v); err != nil {
 		r := dec.Buffered()
@@ -242,11 +242,11 @@ type ServiceFailure struct {
 	Error   string
 }
 
-func decodeServiceErrors(uid int, errorValue map[string]interface{}, kind string) ([]ServiceFailure, error) {
+func decodeServiceErrors(uid int, errorValue map[string]any, kind string) ([]ServiceFailure, error) {
 	if errorValue[kind] == nil {
 		return nil, nil
 	}
-	errors, ok := errorValue[kind].(map[string]interface{})
+	errors, ok := errorValue[kind].(map[string]any)
 	if !ok {
 		return nil, fmt.Errorf("cannot decode %s failures: expected a map, got %T", kind, errorValue[kind])
 	}
@@ -287,7 +287,7 @@ type ServiceInstruction struct {
 func (client *Client) decodeControlResponses(responses []*response) (startFailures, stopFailures []ServiceFailure, err error) {
 	for _, resp := range responses {
 		if agentErr, ok := resp.err.(*Error); ok && agentErr.Kind == "service-control" {
-			if errorValue, ok := agentErr.Value.(map[string]interface{}); ok {
+			if errorValue, ok := agentErr.Value.(map[string]any); ok {
 				if failures, err := decodeServiceErrors(resp.uid, errorValue, "restart-errors"); err == nil && len(failures) > 0 {
 					startFailures = append(startFailures, failures...)
 				} else {
@@ -468,7 +468,7 @@ func (client *Client) ServiceStatus(ctx context.Context, services []string) (map
 	for _, resp := range responses {
 		// Parse status errors which were a result of failure to retrieve status of services
 		if agentErr, ok := resp.err.(*Error); ok && agentErr.Kind == "service-status" {
-			if errorValue, ok := agentErr.Value.(map[string]interface{}); ok {
+			if errorValue, ok := agentErr.Value.(map[string]any); ok {
 				if fs, err := decodeServiceErrors(resp.uid, errorValue, "status-errors"); err == nil && len(fs) > 0 {
 					failures[resp.uid] = append(failures[resp.uid], fs...)
 				}

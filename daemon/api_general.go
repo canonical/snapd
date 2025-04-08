@@ -135,7 +135,7 @@ func sysInfo(c *Command, r *http.Request, user *auth.UserState) Response {
 		refreshInfo.Schedule = refreshScheduleStr
 	}
 
-	m := map[string]interface{}{
+	m := map[string]any{
 		"series":         release.Series,
 		"version":        c.d.Version,
 		"build-id":       buildID,
@@ -143,7 +143,7 @@ func sysInfo(c *Command, r *http.Request, user *auth.UserState) Response {
 		"on-classic":     release.OnClassic,
 		"managed":        len(users) > 0,
 		"kernel-version": osutil.KernelVersion(),
-		"locations": map[string]interface{}{
+		"locations": map[string]any{
 			"snap-mount-dir": dirs.SnapMountDir,
 			"snap-bin-dir":   dirs.SnapBinariesDir,
 		},

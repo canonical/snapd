@@ -51,13 +51,13 @@ func (sdbs *sysDBSuite) SetUpTest(c *C) {
 
 	signingDB := assertstest.NewSigningDB("can0nical", pk)
 
-	trustedAcct := assertstest.NewAccount(signingDB, "can0nical", map[string]interface{}{
+	trustedAcct := assertstest.NewAccount(signingDB, "can0nical", map[string]any{
 		"account-id": "can0nical",
 		"validation": "verified",
 		"timestamp":  "2015-11-20T15:04:00Z",
 	}, "")
 
-	trustedAccKey := assertstest.NewAccountKey(signingDB, trustedAcct, map[string]interface{}{
+	trustedAccKey := assertstest.NewAccountKey(signingDB, trustedAcct, map[string]any{
 		"account-id": "can0nical",
 		"since":      "2015-11-20T15:04:00Z",
 		"until":      "2500-11-20T15:04:00Z",
@@ -65,7 +65,7 @@ func (sdbs *sysDBSuite) SetUpTest(c *C) {
 
 	sdbs.extraTrusted = []asserts.Assertion{trustedAcct, trustedAccKey}
 
-	otherAcct := assertstest.NewAccount(signingDB, "gener1c", map[string]interface{}{
+	otherAcct := assertstest.NewAccount(signingDB, "gener1c", map[string]any{
 		"account-id": "gener1c",
 		"validation": "verified",
 		"timestamp":  "2015-11-20T15:04:00Z",
@@ -73,7 +73,7 @@ func (sdbs *sysDBSuite) SetUpTest(c *C) {
 
 	sdbs.extraGeneric = []asserts.Assertion{otherAcct}
 
-	a, err := signingDB.Sign(asserts.ModelType, map[string]interface{}{
+	a, err := signingDB.Sign(asserts.ModelType, map[string]any{
 		"series":    "16",
 		"brand-id":  "can0nical",
 		"model":     "other-model",

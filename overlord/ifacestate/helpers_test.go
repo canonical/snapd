@@ -65,8 +65,8 @@ func (s *helpersSuite) TearDownTest(c *C) {
 	dirs.SetRootDir("")
 }
 
-func (s *helpersSuite) MockModel(c *C, extraHeaders map[string]interface{}) {
-	model := assertstest.FakeAssertion(map[string]interface{}{
+func (s *helpersSuite) MockModel(c *C, extraHeaders map[string]any) {
+	model := assertstest.FakeAssertion(map[string]any{
 		"type":         "model",
 		"authority-id": "my-brand",
 		"series":       "16",
@@ -167,11 +167,11 @@ func (s *helpersSuite) TestMappingFunctions(c *C) {
 func (s *helpersSuite) TestGetConns(c *C) {
 	s.st.Lock()
 	defer s.st.Unlock()
-	s.st.Set("conns", map[string]interface{}{
-		"app:network core:network": map[string]interface{}{
+	s.st.Set("conns", map[string]any{
+		"app:network core:network": map[string]any{
 			"auto":      true,
 			"interface": "network",
-			"slot-static": map[string]interface{}{
+			"slot-static": map[string]any{
 				"number": int(78),
 			},
 		},
@@ -199,11 +199,11 @@ func (s *helpersSuite) TestSetConns(c *C) {
 
 	// This has upper-case data internally, see export_test.go
 	ifacestate.SetConns(s.st, ifacestate.UpperCaseConnState())
-	var conns map[string]interface{}
+	var conns map[string]any
 	err := s.st.Get("conns", &conns)
 	c.Assert(err, IsNil)
-	c.Assert(conns, DeepEquals, map[string]interface{}{
-		"app:network core:network": map[string]interface{}{
+	c.Assert(conns, DeepEquals, map[string]any{
+		"app:network core:network": map[string]any{
 			"auto":      true,
 			"interface": "network",
 		}})
@@ -249,18 +249,18 @@ func (s *helpersSuite) TestHotplugSlotInfo(c *C) {
 	defs["foo"] = &ifacestate.HotplugSlotInfo{
 		Name:        "foo",
 		Interface:   "iface",
-		StaticAttrs: map[string]interface{}{"attr": "value"},
+		StaticAttrs: map[string]any{"attr": "value"},
 		HotplugKey:  "key",
 	}
 	ifacestate.SetHotplugSlots(s.st, defs)
 
-	var data map[string]interface{}
+	var data map[string]any
 	c.Assert(s.st.Get("hotplug-slots", &data), IsNil)
-	c.Assert(data, DeepEquals, map[string]interface{}{
-		"foo": map[string]interface{}{
+	c.Assert(data, DeepEquals, map[string]any{
+		"foo": map[string]any{
 			"name":         "foo",
 			"interface":    "iface",
-			"static-attrs": map[string]interface{}{"attr": "value"},
+			"static-attrs": map[string]any{"attr": "value"},
 			"hotplug-key":  "key",
 			"hotplug-gone": false,
 		}})
@@ -277,20 +277,20 @@ func (s *helpersSuite) TestFindConnsForHotplugKey(c *C) {
 
 	// Set conns in the state and get them via GetConns to avoid having to
 	// know the internals of connState struct.
-	st.Set("conns", map[string]interface{}{
-		"snap1:plug1 core:slot1": map[string]interface{}{
+	st.Set("conns", map[string]any{
+		"snap1:plug1 core:slot1": map[string]any{
 			"interface":   "iface1",
 			"hotplug-key": "key1",
 		},
-		"snap1:plug2 core:slot2": map[string]interface{}{
+		"snap1:plug2 core:slot2": map[string]any{
 			"interface":   "iface2",
 			"hotplug-key": "key1",
 		},
-		"snap1:plug3 core:slot3": map[string]interface{}{
+		"snap1:plug3 core:slot3": map[string]any{
 			"interface":   "iface2",
 			"hotplug-key": "key2",
 		},
-		"snap2:plug1 core:slot1": map[string]interface{}{
+		"snap2:plug1 core:slot1": map[string]any{
 			"interface":   "iface2",
 			"hotplug-key": "key2",
 		},
@@ -698,7 +698,7 @@ func (s *helpersSuite) TestAddHotplugSlot(c *C) {
 		Label:      "label",
 		Snap:       coreAppSet.Info(),
 		Interface:  "test",
-		Attrs:      map[string]interface{}{"foo": "bar"},
+		Attrs:      map[string]any{"foo": "bar"},
 		HotplugKey: "key",
 	}
 	c.Assert(ifacestate.AddHotplugSlot(s.st, repo, stateSlots, iface, slot), IsNil)
@@ -716,7 +716,7 @@ func (s *helpersSuite) TestAddHotplugSlot(c *C) {
 	c.Check(stateSlot, DeepEquals, &ifacestate.HotplugSlotInfo{
 		Name:        "slot",
 		Interface:   "test",
-		StaticAttrs: map[string]interface{}{"foo": "bar"},
+		StaticAttrs: map[string]any{"foo": "bar"},
 		HotplugKey:  "key",
 		HotplugGone: false})
 }

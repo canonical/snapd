@@ -542,19 +542,19 @@ func (snapshotSuite) TestSaveSomeSnaps(c *check.C) {
 	c.Check(tasks[0].Kind(), check.Equals, "save-snapshot")
 	c.Check(tasks[0].Summary(), check.Equals, `Save data of snap "a-snap" in snapshot set #1`)
 
-	var snapshot [2]map[string]interface{}
+	var snapshot [2]map[string]any
 	c.Assert(tasks[0].Get("snapshot-setup", &snapshot[0]), check.IsNil)
-	c.Check(snapshot[0], check.DeepEquals, map[string]interface{}{
+	c.Check(snapshot[0], check.DeepEquals, map[string]any{
 		"set-id":  1.,
 		"snap":    "a-snap",
-		"options": map[string]interface{}{"exclude": []interface{}{"$SNAP_COMMON/exclude", "$SNAP_DATA/exclude"}},
+		"options": map[string]any{"exclude": []any{"$SNAP_COMMON/exclude", "$SNAP_DATA/exclude"}},
 		"current": "unset",
 	})
 
 	c.Check(tasks[1].Kind(), check.Equals, "save-snapshot")
 	c.Check(tasks[1].Summary(), check.Equals, `Save data of snap "c-snap" in snapshot set #1`)
 	c.Assert(tasks[1].Get("snapshot-setup", &snapshot[1]), check.IsNil)
-	c.Check(snapshot[1], check.DeepEquals, map[string]interface{}{
+	c.Check(snapshot[1], check.DeepEquals, map[string]any{
 		"set-id":  1.,
 		"snap":    "c-snap",
 		"current": "unset",
@@ -587,12 +587,12 @@ func (s snapshotSuite) TestSaveOneSnap(c *check.C) {
 	c.Assert(tasks, check.HasLen, 1)
 	c.Check(tasks[0].Kind(), check.Equals, "save-snapshot")
 	c.Check(tasks[0].Summary(), check.Equals, `Save data of snap "a-snap" in snapshot set #1`)
-	var snapshot map[string]interface{}
+	var snapshot map[string]any
 	c.Check(tasks[0].Get("snapshot-setup", &snapshot), check.IsNil)
-	c.Check(snapshot, check.DeepEquals, map[string]interface{}{
+	c.Check(snapshot, check.DeepEquals, map[string]any{
 		"set-id":  1.,
 		"snap":    "a-snap",
-		"users":   []interface{}{"a-user"},
+		"users":   []any{"a-user"},
 		"current": "unset",
 	})
 }
@@ -1150,9 +1150,9 @@ func (snapshotSuite) TestRestoreWorksWithCompatibleEpoch(c *check.C) {
 	c.Check(tasks[0].Kind(), check.Equals, "restore-snapshot")
 	c.Check(tasks[1].Kind(), check.Equals, "cleanup-after-restore")
 	c.Check(tasks[0].Summary(), check.Equals, `Restore data of snap "a-snap" from snapshot set #42`)
-	var snapshot map[string]interface{}
+	var snapshot map[string]any
 	c.Check(tasks[0].Get("snapshot-setup", &snapshot), check.IsNil)
-	c.Check(snapshot, check.DeepEquals, map[string]interface{}{
+	c.Check(snapshot, check.DeepEquals, map[string]any{
 		"set-id":   42.,
 		"snap":     "a-snap",
 		"filename": shotfile.Name(),
@@ -1187,13 +1187,13 @@ func (snapshotSuite) TestRestore(c *check.C) {
 	c.Check(tasks[0].Kind(), check.Equals, "restore-snapshot")
 	c.Check(tasks[1].Kind(), check.Equals, "cleanup-after-restore")
 	c.Check(tasks[0].Summary(), check.Equals, `Restore data of snap "a-snap" from snapshot set #42`)
-	var snapshot map[string]interface{}
+	var snapshot map[string]any
 	c.Check(tasks[0].Get("snapshot-setup", &snapshot), check.IsNil)
-	c.Check(snapshot, check.DeepEquals, map[string]interface{}{
+	c.Check(snapshot, check.DeepEquals, map[string]any{
 		"set-id":   42.,
 		"snap":     "a-snap",
 		"filename": shotfile.Name(),
-		"users":    []interface{}{"a-user"},
+		"users":    []any{"a-user"},
 		"current":  "unset",
 	})
 }
@@ -1470,13 +1470,13 @@ func (snapshotSuite) TestCheck(c *check.C) {
 	c.Assert(tasks, check.HasLen, 1)
 	c.Check(tasks[0].Kind(), check.Equals, "check-snapshot")
 	c.Check(tasks[0].Summary(), check.Equals, `Check data of snap "a-snap" in snapshot set #42`)
-	var snapshot map[string]interface{}
+	var snapshot map[string]any
 	c.Check(tasks[0].Get("snapshot-setup", &snapshot), check.IsNil)
-	c.Check(snapshot, check.DeepEquals, map[string]interface{}{
+	c.Check(snapshot, check.DeepEquals, map[string]any{
 		"set-id":   42.,
 		"snap":     "a-snap",
 		"filename": shotfile.Name(),
-		"users":    []interface{}{"a-user"},
+		"users":    []any{"a-user"},
 		"current":  "unset",
 	})
 }
@@ -1608,9 +1608,9 @@ func (snapshotSuite) TestForget(c *check.C) {
 	c.Assert(tasks, check.HasLen, 1)
 	c.Check(tasks[0].Kind(), check.Equals, "forget-snapshot")
 	c.Check(tasks[0].Summary(), check.Equals, `Drop data of snap "a-snap" from snapshot set #42`)
-	var snapshot map[string]interface{}
+	var snapshot map[string]any
 	c.Check(tasks[0].Get("snapshot-setup", &snapshot), check.IsNil)
-	c.Check(snapshot, check.DeepEquals, map[string]interface{}{
+	c.Check(snapshot, check.DeepEquals, map[string]any{
 		"set-id":   42.,
 		"snap":     "a-snap",
 		"filename": shotfile.Name(),
@@ -1623,7 +1623,7 @@ func (snapshotSuite) TestSaveExpiration(c *check.C) {
 	st.Lock()
 	defer st.Unlock()
 
-	var expirations map[uint64]interface{}
+	var expirations map[uint64]any
 	tm, err := time.Parse(time.RFC3339, "2019-03-11T11:24:00Z")
 	c.Assert(err, check.IsNil)
 	c.Assert(snapshotstate.SaveExpiration(st, 12, tm), check.IsNil)
@@ -1633,9 +1633,9 @@ func (snapshotSuite) TestSaveExpiration(c *check.C) {
 	c.Assert(snapshotstate.SaveExpiration(st, 13, tm), check.IsNil)
 
 	c.Assert(st.Get("snapshots", &expirations), check.IsNil)
-	c.Check(expirations, check.DeepEquals, map[uint64]interface{}{
-		12: map[string]interface{}{"expiry-time": "2019-03-11T11:24:00Z"},
-		13: map[string]interface{}{"expiry-time": "2019-02-12T12:50:00Z"},
+	c.Check(expirations, check.DeepEquals, map[uint64]any{
+		12: map[string]any{"expiry-time": "2019-03-11T11:24:00Z"},
+		13: map[string]any{"expiry-time": "2019-02-12T12:50:00Z"},
 	})
 }
 
@@ -1644,18 +1644,18 @@ func (snapshotSuite) TestRemoveSnapshotState(c *check.C) {
 	st.Lock()
 	defer st.Unlock()
 
-	st.Set("snapshots", map[uint64]interface{}{
-		12: map[string]interface{}{"expiry-time": "2019-01-11T11:11:00Z"},
-		13: map[string]interface{}{"expiry-time": "2019-02-12T12:11:00Z"},
-		14: map[string]interface{}{"expiry-time": "2019-03-12T13:11:00Z"},
+	st.Set("snapshots", map[uint64]any{
+		12: map[string]any{"expiry-time": "2019-01-11T11:11:00Z"},
+		13: map[string]any{"expiry-time": "2019-02-12T12:11:00Z"},
+		14: map[string]any{"expiry-time": "2019-03-12T13:11:00Z"},
 	})
 
 	snapshotstate.RemoveSnapshotState(st, 12, 14)
 
-	var snapshots map[uint64]interface{}
+	var snapshots map[uint64]any
 	c.Assert(st.Get("snapshots", &snapshots), check.IsNil)
-	c.Check(snapshots, check.DeepEquals, map[uint64]interface{}{
-		13: map[string]interface{}{"expiry-time": "2019-02-12T12:11:00Z"},
+	c.Check(snapshots, check.DeepEquals, map[uint64]any{
+		13: map[string]any{"expiry-time": "2019-02-12T12:11:00Z"},
 	})
 }
 
@@ -1714,9 +1714,9 @@ func (snapshotSuite) TestAutomaticSnapshot(c *check.C) {
 	c.Assert(tasks, check.HasLen, 1)
 	c.Check(tasks[0].Kind(), check.Equals, "save-snapshot")
 	c.Check(tasks[0].Summary(), check.Equals, `Save data of snap "foo" in automatic snapshot set #1`)
-	var snapshot map[string]interface{}
+	var snapshot map[string]any
 	c.Check(tasks[0].Get("snapshot-setup", &snapshot), check.IsNil)
-	c.Check(snapshot, check.DeepEquals, map[string]interface{}{
+	c.Check(snapshot, check.DeepEquals, map[string]any{
 		"set-id":  1.,
 		"snap":    "foo",
 		"current": "unset",
@@ -1767,9 +1767,9 @@ func (snapshotSuite) TestListSetsAutoFlag(c *check.C) {
 	st.Lock()
 	defer st.Unlock()
 
-	st.Set("snapshots", map[uint64]interface{}{
-		1: map[string]interface{}{"expiry-time": "2019-01-11T11:11:00Z"},
-		2: map[string]interface{}{"expiry-time": "2019-02-12T12:11:00Z"},
+	st.Set("snapshots", map[uint64]any{
+		1: map[string]any{"expiry-time": "2019-01-11T11:11:00Z"},
+		2: map[string]any{"expiry-time": "2019-02-12T12:11:00Z"},
 	})
 
 	restore := snapshotstate.MockBackendList(func(ctx context.Context, setID uint64, snapNames []string) ([]client.SnapshotSet, error) {
@@ -1880,9 +1880,9 @@ func (snapshotSuite) TestImportSnapshotDuplicate(c *check.C) {
 	defer restore()
 
 	st.Lock()
-	st.Set("snapshots", map[uint64]interface{}{
-		2: map[string]interface{}{"expiry-time": "2019-01-11T11:11:00Z"},
-		3: map[string]interface{}{"expiry-time": "2019-02-12T12:11:00Z"},
+	st.Set("snapshots", map[uint64]any{
+		2: map[string]any{"expiry-time": "2019-01-11T11:11:00Z"},
+		3: map[string]any{"expiry-time": "2019-02-12T12:11:00Z"},
 	})
 	st.Unlock()
 
@@ -1894,10 +1894,10 @@ func (snapshotSuite) TestImportSnapshotDuplicate(c *check.C) {
 	st.Lock()
 	defer st.Unlock()
 	// expiry-time has been removed for snapshot set 3
-	var snapshots map[uint64]interface{}
+	var snapshots map[uint64]any
 	c.Assert(st.Get("snapshots", &snapshots), check.IsNil)
-	c.Check(snapshots, check.DeepEquals, map[uint64]interface{}{
-		2: map[string]interface{}{"expiry-time": "2019-01-11T11:11:00Z"},
+	c.Check(snapshots, check.DeepEquals, map[uint64]any{
+		2: map[string]any{"expiry-time": "2019-01-11T11:11:00Z"},
 	})
 }
 

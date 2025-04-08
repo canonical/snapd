@@ -51,7 +51,7 @@ type squashfsContainerValidateSuite struct{ validateSuite }
 var _ = Suite(&dirContainerValidateSuite{validateSuite{containerType: "dir"}})
 var _ = Suite(&squashfsContainerValidateSuite{validateSuite{containerType: "squashfs"}})
 
-func discard(string, ...interface{}) {}
+func discard(string, ...any) {}
 
 func (s *validateSuite) container() snap.Container {
 	if s.containerType == "squashfs" {
@@ -460,7 +460,7 @@ version: 1
 	info, err := snap.InfoFromSnapYaml([]byte(yaml))
 	c.Assert(err, IsNil)
 
-	mockLogf := func(format string, v ...interface{}) {
+	mockLogf := func(format string, v ...any) {
 		msg := fmt.Sprintf(format, v...)
 		c.Check(msg, Equals, "external symlink found: meta/gui/icons/snap.empty-snap.png -> /etc/shadow")
 	}
@@ -483,7 +483,7 @@ version: 1
 	info, err := snap.InfoFromSnapYaml([]byte(yaml))
 	c.Assert(err, IsNil)
 
-	mockLogf := func(format string, v ...interface{}) {
+	mockLogf := func(format string, v ...any) {
 		msg := fmt.Sprintf(format, v...)
 		c.Check(msg, Equals, "external symlink found: meta/gui/icons/snap.empty-snap.png -> 1/../../2/../../3/4/../../../../..")
 	}
@@ -525,7 +525,7 @@ version: 1
 	c.Assert(err, IsNil)
 
 	metaDirSymlinkErrFound := false
-	mockLogf := func(format string, v ...interface{}) {
+	mockLogf := func(format string, v ...any) {
 		msg := fmt.Sprintf(format, v...)
 		if msg == "meta directory cannot be a symlink" {
 			metaDirSymlinkErrFound = true
@@ -610,7 +610,7 @@ version: 1
 	c.Assert(err, IsNil)
 
 	loopFound := false
-	mockLogf := func(format string, v ...interface{}) {
+	mockLogf := func(format string, v ...any) {
 		msg := fmt.Sprintf(format, v...)
 		if msg == "too many levels of symbolic links" {
 			loopFound = true

@@ -268,7 +268,7 @@ func (s *fdoSuite) TestProcessNotificationClosedUnknownNotificationNoError(c *C)
 	srv := notification.NewFdoBackend(s.SessionBus, "desktop-id").(*notification.FdoBackend)
 	err := srv.ProcessSignal(&dbus.Signal{
 		Name: "org.freedesktop.Notifications.NotificationClosed",
-		Body: []interface{}{uint32(1), uint32(2)},
+		Body: []any{uint32(1), uint32(2)},
 	}, &testObserver{
 		notificationClosed: func(id notification.ID, reason notification.CloseReason) error {
 			called = true
@@ -285,7 +285,7 @@ func (s *fdoSuite) TestProcessActionInvokedSignalSuccess(c *C) {
 	err := srv.ProcessSignal(&dbus.Signal{
 		// Sender and Path are not used
 		Name: "org.freedesktop.Notifications.ActionInvoked",
-		Body: []interface{}{uint32(42), "action-key"},
+		Body: []any{uint32(42), "action-key"},
 	}, &testObserver{
 		actionInvoked: func(id uint32, actionKey string) error {
 			called = true
@@ -302,7 +302,7 @@ func (s *fdoSuite) TestProcessActionInvokedSignalError(c *C) {
 	srv := notification.NewFdoBackend(s.SessionBus, "desktop-id").(*notification.FdoBackend)
 	err := srv.ProcessSignal(&dbus.Signal{
 		Name: "org.freedesktop.Notifications.ActionInvoked",
-		Body: []interface{}{uint32(42), "action-key"},
+		Body: []any{uint32(42), "action-key"},
 	}, &testObserver{
 		actionInvoked: func(id uint32, actionKey string) error {
 			return fmt.Errorf("boom")
@@ -315,25 +315,25 @@ func (s *fdoSuite) TestProcessActionInvokedSignalBodyParseErrors(c *C) {
 	srv := notification.NewFdoBackend(s.SessionBus, "desktop-id").(*notification.FdoBackend)
 	err := srv.ProcessSignal(&dbus.Signal{
 		Name: "org.freedesktop.Notifications.ActionInvoked",
-		Body: []interface{}{uint32(42), "action-key", "unexpected"},
+		Body: []any{uint32(42), "action-key", "unexpected"},
 	}, &testObserver{})
 	c.Assert(err, ErrorMatches, "cannot process ActionInvoked signal: unexpected number of body elements: 3")
 
 	err = srv.ProcessSignal(&dbus.Signal{
 		Name: "org.freedesktop.Notifications.ActionInvoked",
-		Body: []interface{}{uint32(42)},
+		Body: []any{uint32(42)},
 	}, &testObserver{})
 	c.Assert(err, ErrorMatches, "cannot process ActionInvoked signal: unexpected number of body elements: 1")
 
 	err = srv.ProcessSignal(&dbus.Signal{
 		Name: "org.freedesktop.Notifications.ActionInvoked",
-		Body: []interface{}{uint32(42), true},
+		Body: []any{uint32(42), true},
 	}, &testObserver{})
 	c.Assert(err, ErrorMatches, "cannot process ActionInvoked signal: expected second body element to be string, got bool")
 
 	err = srv.ProcessSignal(&dbus.Signal{
 		Name: "org.freedesktop.Notifications.ActionInvoked",
-		Body: []interface{}{true, "action-key"},
+		Body: []any{true, "action-key"},
 	}, &testObserver{})
 	c.Assert(err, ErrorMatches, "cannot process ActionInvoked signal: expected first body element to be uint32, got bool")
 }
@@ -346,7 +346,7 @@ func (s *fdoSuite) TestProcessNotificationClosedSignalSuccess(c *C) {
 	called := false
 	err = srv.ProcessSignal(&dbus.Signal{
 		Name: "org.freedesktop.Notifications.NotificationClosed",
-		Body: []interface{}{uint32(1), uint32(2)},
+		Body: []any{uint32(1), uint32(2)},
 	}, &testObserver{
 		notificationClosed: func(id notification.ID, reason notification.CloseReason) error {
 			called = true
@@ -366,7 +366,7 @@ func (s *fdoSuite) TestProcessNotificationClosedSignalError(c *C) {
 	c.Assert(err, IsNil)
 	err = srv.ProcessSignal(&dbus.Signal{
 		Name: "org.freedesktop.Notifications.NotificationClosed",
-		Body: []interface{}{uint32(1), uint32(2)},
+		Body: []any{uint32(1), uint32(2)},
 	}, &testObserver{
 		notificationClosed: func(id notification.ID, reason notification.CloseReason) error {
 			return fmt.Errorf("boom")
@@ -379,25 +379,25 @@ func (s *fdoSuite) TestProcessNotificationClosedSignalBodyParseErrors(c *C) {
 	srv := notification.NewFdoBackend(s.SessionBus, "desktop-id").(*notification.FdoBackend)
 	err := srv.ProcessSignal(&dbus.Signal{
 		Name: "org.freedesktop.Notifications.NotificationClosed",
-		Body: []interface{}{uint32(42), uint32(2), "unexpected"},
+		Body: []any{uint32(42), uint32(2), "unexpected"},
 	}, &testObserver{})
 	c.Assert(err, ErrorMatches, "cannot process NotificationClosed signal: unexpected number of body elements: 3")
 
 	err = srv.ProcessSignal(&dbus.Signal{
 		Name: "org.freedesktop.Notifications.NotificationClosed",
-		Body: []interface{}{uint32(42)},
+		Body: []any{uint32(42)},
 	}, &testObserver{})
 	c.Assert(err, ErrorMatches, "cannot process NotificationClosed signal: unexpected number of body elements: 1")
 
 	err = srv.ProcessSignal(&dbus.Signal{
 		Name: "org.freedesktop.Notifications.NotificationClosed",
-		Body: []interface{}{uint32(42), true},
+		Body: []any{uint32(42), true},
 	}, &testObserver{})
 	c.Assert(err, ErrorMatches, "cannot process NotificationClosed signal: expected second body element to be uint32, got bool")
 
 	err = srv.ProcessSignal(&dbus.Signal{
 		Name: "org.freedesktop.Notifications.NotificationClosed",
-		Body: []interface{}{true, uint32(2)},
+		Body: []any{true, uint32(2)},
 	}, &testObserver{})
 	c.Assert(err, ErrorMatches, "cannot process NotificationClosed signal: expected first body element to be uint32, got bool")
 }

@@ -110,7 +110,7 @@ func (s *contextSuite) TestSetAndGetNumber(c *C) {
 
 	s.context.Set("num", 1234567890)
 
-	var output interface{}
+	var output any
 	c.Check(s.context.Get("num", &output), IsNil)
 	c.Assert(output, Equals, json.Number("1234567890"))
 }

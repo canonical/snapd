@@ -1197,7 +1197,7 @@ func (s *autoRefreshTestSuite) TestTooSoonError(c *C) {
 	c.Check(snapstate.TooSoonError{}.Error(), Equals, "cannot auto-refresh so soon")
 }
 
-func setStoreAccess(s *state.State, access interface{}) {
+func setStoreAccess(s *state.State, access any) {
 	s.Lock()
 	defer s.Unlock()
 
@@ -1622,7 +1622,7 @@ func (s *autoRefreshTestSuite) TestAutoRefreshWithConfdbs(c *C) {
 			Snap:      info,
 			Name:      "my-plug",
 			Interface: "confdb",
-			Attrs: map[string]interface{}{
+			Attrs: map[string]any{
 				"account": "my-publisher",
 				"view":    "my-reg/my-view",
 			},

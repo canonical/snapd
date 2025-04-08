@@ -96,7 +96,7 @@ func (store *Store) Prerequisites() []*Ref {
 }
 
 // checkStoreURL validates the "url" header and returns a full URL or nil.
-func checkStoreURL(headers map[string]interface{}) (*url.URL, error) {
+func checkStoreURL(headers map[string]any) (*url.URL, error) {
 	s, err := checkOptionalString(headers, "url")
 	if err != nil {
 		return nil, err

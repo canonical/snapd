@@ -62,11 +62,11 @@ func (*errorIsCheckerSuite) TestErrorIsCheckFails(c *C) {
 }
 
 func (*errorIsCheckerSuite) TestErrorIsWithInvalidArguments(c *C) {
-	res, errMsg := ErrorIs.Check([]interface{}{"", errors.New("")}, []string{"error", "target"})
+	res, errMsg := ErrorIs.Check([]any{"", errors.New("")}, []string{"error", "target"})
 	c.Assert(res, Equals, false)
 	c.Assert(errMsg, Equals, "first argument must be an error")
 
-	res, errMsg = ErrorIs.Check([]interface{}{errors.New(""), ""}, []string{"error", "target"})
+	res, errMsg = ErrorIs.Check([]any{errors.New(""), ""}, []string{"error", "target"})
 	c.Assert(res, Equals, false)
 	c.Assert(errMsg, Equals, "second argument must be an error")
 }
