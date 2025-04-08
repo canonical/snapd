@@ -346,7 +346,7 @@ func readSystemKey() (*systemKey, error) {
 	return &diskSystemKey, nil
 }
 
-// RecordedSystemKey returns the system key read from the disk as opaque interface{}.
+// RecordedSystemKey returns the system key read from the disk as opaque type.
 func RecordedSystemKey() (any, error) {
 	diskSystemKey, err := readSystemKey()
 	if err != nil {
@@ -355,7 +355,7 @@ func RecordedSystemKey() (any, error) {
 	return diskSystemKey, nil
 }
 
-// CurrentSystemKey calculates and returns the current system key as opaque interface{}.
+// CurrentSystemKey calculates and returns the current system key as opaque type.
 func CurrentSystemKey() (any, error) {
 	currentSystemKey, err := generateSystemKey()
 	return currentSystemKey, err

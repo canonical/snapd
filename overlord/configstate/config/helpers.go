@@ -102,9 +102,9 @@ func PatchConfig(snapName string, subkeys []string, pos int, config any, value *
 			return nil, fmt.Errorf("snap %q option %q is not a map", snapName, strings.Join(subkeys[:pos], "."))
 		}
 		// preserve the invariant that if PatchConfig is
-		// passed a map[string]interface{} it is not nil.
+		// passed a map[string]any it is not nil.
 		// If the value was set to null in the same
-		// transaction use (interface{})(nil) which is handled
+		// transaction use (any)(nil) which is handled
 		// by the first case here.
 		// (see LP: #1920773)
 		var cfg any
