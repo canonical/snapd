@@ -17,11 +17,12 @@
  *
  */
 
-// The logger package, when built with the structuredlogging build tag,
-// offers the ability to use structured JSON for log entries and to turn
-// on trace logging. To activate JSON logging, the SNAPD_JSON_LOGGING
-// environment variable should be set at the time of logger creation.
-// Trace logging can be activated by setting the SNAPD_TRACE env variable.
+// The logger package implements logging facilities for snapd.
+// When built with the structuredlogging build tag, it offers the ability
+// to use structured JSON for log entries and to turn on trace logging.
+// To activate JSON logging, the SNAPD_JSON_LOGGING environment variable
+// should be set at the time of logger creation. Trace logging can be
+// activated by setting the SNAPD_TRACE env variable.
 //
 // When built without the structuredlogging build tag, the logger package
 // offers only the simple logger and will not activate trace logging even
