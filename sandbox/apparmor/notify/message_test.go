@@ -624,7 +624,7 @@ func (s *messageSuite) TestMsgNotificationFileUnmarshalBinaryV5(c *C) {
 		SUID:     1000,
 		OUID:     1000,
 		Filename: "/file",
-		Tagsets: map[notify.AppArmorPermission][]string{
+		Tagsets: notify.TagsetMap{
 			notify.FilePermission(0x0103): {
 				"one",
 				"two",
@@ -722,8 +722,8 @@ func (s *messageSuite) TestMsgNotificationFileUnmarshalBinaryV5WithOverlappingAn
 		SUID:     1000,
 		OUID:     1000,
 		Filename: "/file",
-		Tagsets: map[notify.AppArmorPermission][]string{
-			notify.FilePermission(0x01): []string(nil),
+		Tagsets: notify.TagsetMap{
+			notify.FilePermission(0x01): notify.MetadataTags(nil),
 			notify.FilePermission(0x02): {
 				"two",
 				"three",
