@@ -35,7 +35,7 @@ type interfaceNilChecker struct {
 	*check.CheckerInfo
 }
 
-func (*interfaceNilChecker) Check(params []interface{}, names []string) (result bool, errMsg string) {
+func (*interfaceNilChecker) Check(params []any, names []string) (result bool, errMsg string) {
 	if reflect.ValueOf(params[0]).IsValid() {
 		return false, fmt.Sprintf("expected <nil> but got %T type", params[0])
 	}

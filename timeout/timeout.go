@@ -52,7 +52,7 @@ func (t *Timeout) UnmarshalJSON(buf []byte) error {
 	return nil
 }
 
-func (t *Timeout) UnmarshalYAML(unmarshal func(interface{}) error) error {
+func (t *Timeout) UnmarshalYAML(unmarshal func(any) error) error {
 	var str string
 	if err := unmarshal(&str); err != nil {
 		return err

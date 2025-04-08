@@ -64,7 +64,7 @@ var timeDuration = func(start, end time.Time) time.Duration {
 
 // flatten flattens nested measurements into a single list within rootTimingJson.NestedTimings
 // and calculates total duration.
-func (t *Timings) flatten() interface{} {
+func (t *Timings) flatten() any {
 	var hasChangeID, hasTaskID bool
 	if t.tags != nil {
 		_, hasChangeID = t.tags["change-id"]
@@ -119,9 +119,9 @@ func flattenRecursive(data *rootTimingsJSON, timings []*Span, nestLevel int, max
 type GetSaver interface {
 	// GetMaybeTimings gets the saved timings.
 	// It will not return an error if none were saved yet.
-	GetMaybeTimings(timings interface{}) error
+	GetMaybeTimings(timings any) error
 	// SaveTimings saves the given timings.
-	SaveTimings(timings interface{})
+	SaveTimings(timings any)
 }
 
 // Save appends Timings data to a timings list in the GetSaver (usually

@@ -107,7 +107,7 @@ func (s *postDebugSuite) TestGetDebugBaseDeclaration(c *check.C) {
 
 	rsp := s.syncReq(c, req, nil)
 
-	c.Check(rsp.Result.(map[string]interface{})["base-declaration"],
+	c.Check(rsp.Result.(map[string]any)["base-declaration"],
 		testutil.Contains, "type: base-declaration")
 }
 
@@ -120,7 +120,7 @@ func mockDurationThreshold() func() {
 	return restore
 }
 
-func (s *postDebugSuite) getDebugTimings(c *check.C, request string) []interface{} {
+func (s *postDebugSuite) getDebugTimings(c *check.C, request string) []any {
 	defer mockDurationThreshold()()
 
 	s.daemonWithOverlordMock()
@@ -169,7 +169,7 @@ func (s *postDebugSuite) getDebugTimings(c *check.C, request string) []interface
 	rsp := s.syncReq(c, req, nil)
 	data, err := json.Marshal(rsp.Result)
 	c.Assert(err, check.IsNil)
-	var dataJSON []interface{}
+	var dataJSON []any
 	json.Unmarshal(data, &dataJSON)
 
 	return dataJSON
@@ -179,7 +179,7 @@ func (s *postDebugSuite) TestGetDebugTimingsSingleChange(c *check.C) {
 	dataJSON := s.getDebugTimings(c, "/v2/debug?aspect=change-timings&change-id=1")
 
 	c.Check(dataJSON, check.HasLen, 1)
-	tmData := dataJSON[0].(map[string]interface{})
+	tmData := dataJSON[0].(map[string]any)
 	c.Check(tmData["change-id"], check.DeepEquals, "1")
 	c.Check(tmData["change-timings"], check.NotNil)
 }
@@ -188,7 +188,7 @@ func (s *postDebugSuite) TestGetDebugTimingsEnsureLatest(c *check.C) {
 	dataJSON := s.getDebugTimings(c, "/v2/debug?aspect=change-timings&ensure=foo&all=false")
 	c.Assert(dataJSON, check.HasLen, 1)
 
-	tmData := dataJSON[0].(map[string]interface{})
+	tmData := dataJSON[0].(map[string]any)
 	c.Check(tmData["change-id"], check.DeepEquals, "2")
 	c.Check(tmData["change-timings"], check.NotNil)
 	c.Check(tmData["total-duration"], check.NotNil)
@@ -198,12 +198,12 @@ func (s *postDebugSuite) TestGetDebugTimingsEnsureAll(c *check.C) {
 	dataJSON := s.getDebugTimings(c, "/v2/debug?aspect=change-timings&ensure=foo&all=true")
 
 	c.Assert(dataJSON, check.HasLen, 2)
-	tmData := dataJSON[0].(map[string]interface{})
+	tmData := dataJSON[0].(map[string]any)
 	c.Check(tmData["change-id"], check.DeepEquals, "1")
 	c.Check(tmData["change-timings"], check.NotNil)
 	c.Check(tmData["total-duration"], check.NotNil)
 
-	tmData = dataJSON[1].(map[string]interface{})
+	tmData = dataJSON[1].(map[string]any)
 	c.Check(tmData["change-id"], check.DeepEquals, "2")
 	c.Check(tmData["change-timings"], check.NotNil)
 	c.Check(tmData["total-duration"], check.NotNil)

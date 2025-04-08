@@ -56,7 +56,7 @@ func (s *SnapSuite) TestRemodelOffline(c *C) {
 		c.Check(r.URL.Path, Equals, "/v2/model")
 		w.WriteHeader(202)
 
-		var req map[string]interface{}
+		var req map[string]any
 		err := json.NewDecoder(r.Body).Decode(&req)
 		c.Assert(err, IsNil)
 

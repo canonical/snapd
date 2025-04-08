@@ -59,7 +59,7 @@ type mountCommand struct {
 	optionsList []string
 }
 
-func matchMountPathAttribute(path string, attribute interface{}, snapInfo *snap.Info) bool {
+func matchMountPathAttribute(path string, attribute any, snapInfo *snap.Info) bool {
 	pattern, ok := attribute.(string)
 	if !ok {
 		return false
@@ -72,7 +72,7 @@ func matchMountPathAttribute(path string, attribute interface{}, snapInfo *snap.
 	return err == nil && pp.Matches(path)
 }
 
-func matchMountSourceAttribute(path string, attribute interface{}, fsType string, snapInfo *snap.Info) bool {
+func matchMountSourceAttribute(path string, attribute any, fsType string, snapInfo *snap.Info) bool {
 	switch fsType {
 	case "nfs":
 		// NFS mount source AppArmor profiles expects a match for "*:**", so
@@ -113,9 +113,9 @@ func matchMountSourceAttribute(path string, attribute interface{}, fsType string
 
 // matchConnection checks whether the given mount connection attributes give
 // the snap permission to execute the mount command
-func (m *mountCommand) matchConnection(attributes map[string]interface{}) bool {
+func (m *mountCommand) matchConnection(attributes map[string]any) bool {
 	if m.Type != "" {
-		if types, ok := attributes["type"].([]interface{}); ok {
+		if types, ok := attributes["type"].([]any); ok {
 			found := false
 			for _, iface := range types {
 				if typeString, ok := iface.(string); ok && typeString == m.Type {
@@ -150,7 +150,7 @@ func (m *mountCommand) matchConnection(attributes map[string]interface{}) bool {
 	// in -o <option-list>, would need to spell out all authentication options
 	// directly in plug declaration. This may be unacceptable in certain
 	// scenarios, e.g. CIFS with user=foo,password=foo options.
-	if optionsIfaces, ok := attributes["options"].([]interface{}); ok {
+	if optionsIfaces, ok := attributes["options"].([]any); ok {
 		var allowedOptions []string
 		for _, iface := range optionsIfaces {
 			if option, ok := iface.(string); ok {
@@ -210,13 +210,13 @@ func (m *mountCommand) checkConnections(context *hookstate.Context) error {
 			continue
 		}
 
-		mounts, ok := connState.StaticPlugAttrs["mount"].([]interface{})
+		mounts, ok := connState.StaticPlugAttrs["mount"].([]any)
 		if !ok {
 			continue
 		}
 
 		for _, mountAttributes := range mounts {
-			if m.matchConnection(mountAttributes.(map[string]interface{})) {
+			if m.matchConnection(mountAttributes.(map[string]any)) {
 				return nil
 			}
 		}

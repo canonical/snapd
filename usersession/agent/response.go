@@ -50,12 +50,12 @@ type Response interface {
 type resp struct {
 	Status int // HTTP status code
 	Type   ResponseType
-	Result interface{}
+	Result any
 }
 
 type respJSON struct {
 	Type   ResponseType `json:"type"`
-	Result interface{}  `json:"result"`
+	Result any          `json:"result"`
 }
 
 func (r *resp) MarshalJSON() ([]byte, error) {
@@ -76,7 +76,7 @@ func (r *resp) ServeHTTP(w http.ResponseWriter, _ *http.Request) {
 
 	hdr := w.Header()
 	if r.Status == 202 || r.Status == 201 {
-		if m, ok := r.Result.(map[string]interface{}); ok {
+		if m, ok := r.Result.(map[string]any); ok {
 			if location, ok := m["resource"]; ok {
 				if location, ok := location.(string); ok && location != "" {
 					hdr.Set("Location", location)
@@ -98,7 +98,7 @@ const (
 	errorKindServiceStatus  = errorKind("service-status")
 )
 
-type errorValue interface{}
+type errorValue any
 
 type errorResult struct {
 	Message string     `json:"message"` // mandatory in error responses
@@ -107,7 +107,7 @@ type errorResult struct {
 }
 
 // SyncResponse builds a "sync" response from the given result.
-func SyncResponse(result interface{}) Response {
+func SyncResponse(result any) Response {
 	if err, ok := result.(error); ok {
 		return InternalError("internal error: %v", err)
 	}
@@ -124,7 +124,7 @@ func SyncResponse(result interface{}) Response {
 }
 
 // AsyncResponse builds an "async" response from the given *Task
-func AsyncResponse(result map[string]interface{}) Response {
+func AsyncResponse(result map[string]any) Response {
 	return &resp{
 		Type:   ResponseTypeAsync,
 		Status: 202,
@@ -134,7 +134,7 @@ func AsyncResponse(result map[string]interface{}) Response {
 
 // makeErrorResponder builds an errorResponder from the given error status.
 func makeErrorResponder(status int) errorResponder {
-	return func(format string, v ...interface{}) Response {
+	return func(format string, v ...any) Response {
 		res := &errorResult{}
 		if len(v) == 0 {
 			res.Message = format
@@ -154,7 +154,7 @@ func makeErrorResponder(status int) errorResponder {
 
 // errorResponder is a callable that produces an error Response.
 // e.g., InternalError("something broke: %v", err), etc.
-type errorResponder func(string, ...interface{}) Response
+type errorResponder func(string, ...any) Response
 
 // standard error responses
 var (

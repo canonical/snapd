@@ -77,7 +77,7 @@ func isNoOption(err error) bool {
 // needs to becomes a generic "trueish" helper we need to resurrect
 // the code in 306ba60edfba8d6501060c6f773235d8c994a319 (and add nil
 // to it).
-func trueishJSON(vi interface{}) (bool, error) {
+func trueishJSON(vi any) (bool, error) {
 	switch v := vi.(type) {
 	// limited to the types that json unmarhal can produce
 	case nil:

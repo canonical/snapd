@@ -440,7 +440,7 @@ func sideloadManySnaps(ctx context.Context, st *state.State, uploads []*uploaded
 	msg := multiPathInstallMessage(slInfo)
 
 	chg := newChange(st, "install-snap", msg, tss, snapNames)
-	apiData := make(map[string]interface{}, 0)
+	apiData := make(map[string]any, 0)
 
 	if len(snapNames) > 0 {
 		apiData["snap-names"] = snapNames
@@ -588,9 +588,9 @@ func sideloadSnap(_ context.Context, st *state.State, upload *uploadedContainer,
 
 	msg := fmt.Sprintf(i18n.G("Install %s from file %q"), message, upload.filename)
 	chg := newChange(st, "install-"+contType, msg, []*state.TaskSet{tset}, []string{instanceName})
-	apiData := map[string]interface{}{}
+	apiData := map[string]any{}
 	if compInfo == nil {
-		apiData = map[string]interface{}{
+		apiData = map[string]any{
 			"snap-name":  instanceName,
 			"snap-names": []string{instanceName},
 		}
@@ -986,7 +986,7 @@ func trySnap(st *state.State, trydir string, flags snapstate.Flags) Response {
 
 	msg := fmt.Sprintf(i18n.G("Try %q snap from %s"), info.InstanceName(), trydir)
 	chg := newChange(st, "try-snap", msg, []*state.TaskSet{tset}, []string{info.InstanceName()})
-	chg.Set("api-data", map[string]interface{}{
+	chg.Set("api-data", map[string]any{
 		"snap-name":  info.InstanceName(),
 		"snap-names": []string{info.InstanceName()},
 	})

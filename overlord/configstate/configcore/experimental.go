@@ -37,7 +37,7 @@ func init() {
 	}
 }
 
-func earlyExperimentalSettingsFilter(values, early map[string]interface{}) {
+func earlyExperimentalSettingsFilter(values, early map[string]any) {
 	for key, v := range values {
 		if strings.HasPrefix(key, "experimental.") && supportedConfigurations["core."+key] {
 			early[key] = v

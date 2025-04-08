@@ -26,23 +26,23 @@ import (
 )
 
 func ModelWithBase(baseName string) *asserts.Model {
-	return MakeModel(map[string]interface{}{"base": baseName})
+	return MakeModel(map[string]any{"base": baseName})
 }
 
 func ModelWithKernelTrack(kernelTrack string) *asserts.Model {
-	return MakeModel(map[string]interface{}{"kernel": "kernel=" + kernelTrack})
+	return MakeModel(map[string]any{"kernel": "kernel=" + kernelTrack})
 }
 
 func ModelWithGadgetTrack(gadgetTrack string) *asserts.Model {
-	return MakeModel(map[string]interface{}{"gadget": "brand-gadget=" + gadgetTrack})
+	return MakeModel(map[string]any{"gadget": "brand-gadget=" + gadgetTrack})
 }
 
 func DefaultModel() *asserts.Model {
 	return MakeModel(nil)
 }
 
-func MakeModel(override map[string]interface{}) *asserts.Model {
-	model := map[string]interface{}{
+func MakeModel(override map[string]any) *asserts.Model {
+	model := map[string]any{
 		"type":         "model",
 		"authority-id": "brand",
 		"series":       "16",
@@ -56,8 +56,8 @@ func MakeModel(override map[string]interface{}) *asserts.Model {
 	return assertstest.FakeAssertion(model, override).(*asserts.Model)
 }
 
-func MakeModel20(gadgetName string, override map[string]interface{}) *asserts.Model {
-	model := map[string]interface{}{
+func MakeModel20(gadgetName string, override map[string]any) *asserts.Model {
+	model := map[string]any{
 		"type":         "model",
 		"authority-id": "brand",
 		"series":       "16",
@@ -67,14 +67,14 @@ func MakeModel20(gadgetName string, override map[string]interface{}) *asserts.Mo
 		"base":         "core20",
 		"grade":        "dangerous",
 		"timestamp":    "2018-01-01T08:00:00+00:00",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":            "kernel",
 				"id":              "kerneldididididididididididididi",
 				"type":            "kernel",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            gadgetName,
 				"id":              snaptest.AssertedSnapID(gadgetName),
 				"type":            "gadget",
@@ -85,8 +85,8 @@ func MakeModel20(gadgetName string, override map[string]interface{}) *asserts.Mo
 	return assertstest.FakeAssertion(model, override).(*asserts.Model)
 }
 
-func MakeModelClassicWithModes(gadgetName string, override map[string]interface{}) *asserts.Model {
-	model := map[string]interface{}{
+func MakeModelClassicWithModes(gadgetName string, override map[string]any) *asserts.Model {
+	model := map[string]any{
 		"type":         "model",
 		"authority-id": "brand",
 		"series":       "16",
@@ -96,13 +96,13 @@ func MakeModelClassicWithModes(gadgetName string, override map[string]interface{
 		"classic":      "true",
 		"distribution": "ubuntu",
 		"base":         "core22",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name": "kernel",
 				"id":   "pclinuxdidididididididididididid",
 				"type": "kernel",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name": gadgetName,
 				"id":   "pcididididididididididididididid",
 				"type": "gadget",
@@ -113,7 +113,7 @@ func MakeModelClassicWithModes(gadgetName string, override map[string]interface{
 }
 
 func ClassicModel() *asserts.Model {
-	headers := map[string]interface{}{
+	headers := map[string]any{
 		"type":         "model",
 		"authority-id": "brand",
 		"series":       "16",

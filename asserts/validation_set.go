@@ -49,7 +49,7 @@ func presencesAsStrings(presences ...Presence) []string {
 
 var validValidationSetSnapPresences = presencesAsStrings(PresenceRequired, PresenceOptional, PresenceInvalid)
 
-func checkOptionalPresence(headers map[string]interface{}, which string, valid []string) (Presence, error) {
+func checkOptionalPresence(headers map[string]any, which string, valid []string) (Presence, error) {
 	presence, err := checkOptionalStringWhat(headers, "presence", which)
 	if err != nil {
 		return Presence(""), err
@@ -60,7 +60,7 @@ func checkOptionalPresence(headers map[string]interface{}, which string, valid [
 	return Presence(presence), nil
 }
 
-func checkPresence(headers map[string]interface{}, which string, valid []string) (Presence, error) {
+func checkPresence(headers map[string]any, which string, valid []string) (Presence, error) {
 	presence, err := checkExistsStringWhat(headers, "presence", which)
 	if err != nil {
 		return "", err
@@ -97,7 +97,7 @@ func (s *ValidationSetSnap) ID() string {
 	return s.SnapID
 }
 
-func checkValidationSetSnap(snap map[string]interface{}) (*ValidationSetSnap, error) {
+func checkValidationSetSnap(snap map[string]any) (*ValidationSetSnap, error) {
 	snapName, err := checkNotEmptyStringWhat(snap, "name", "of snap")
 	if err != nil {
 		return nil, err
@@ -144,7 +144,7 @@ func checkValidationSetSnap(snap map[string]interface{}) (*ValidationSetSnap, er
 	}, nil
 }
 
-func checkValidationSetComponents(snapName string, snap map[string]interface{}, snapRevision int) (map[string]ValidationSetComponent, error) {
+func checkValidationSetComponents(snapName string, snap map[string]any, snapRevision int) (map[string]ValidationSetComponent, error) {
 	mapping, err := checkMapWhat(snap, "components", fmt.Sprintf("of snap %q", snapName))
 	if err != nil {
 		return nil, errors.New(`"components" field in "snaps" header must be a map`)
@@ -156,12 +156,12 @@ func checkValidationSetComponents(snapName string, snap map[string]interface{}, 
 
 	components := make(map[string]ValidationSetComponent, len(mapping))
 	for name, comp := range mapping {
-		var parsed map[string]interface{}
+		var parsed map[string]any
 		switch c := comp.(type) {
-		case map[string]interface{}:
+		case map[string]any:
 			parsed = c
 		case string:
-			parsed = map[string]interface{}{"presence": c}
+			parsed = map[string]any{"presence": c}
 		default:
 			return nil, errors.New(`each field in "components" map must be either a map or a string`)
 		}
@@ -176,7 +176,7 @@ func checkValidationSetComponents(snapName string, snap map[string]interface{}, 
 	return components, nil
 }
 
-func checkValidationSetComponent(compName string, comp map[string]interface{}, snapName string, snapRevision int) (ValidationSetComponent, error) {
+func checkValidationSetComponent(compName string, comp map[string]any, snapName string, snapRevision int) (ValidationSetComponent, error) {
 	if err := naming.ValidateSnap(compName); err != nil {
 		return ValidationSetComponent{}, fmt.Errorf("invalid component name %q", compName)
 	}
@@ -211,10 +211,10 @@ func checkValidationSetComponent(compName string, comp map[string]interface{}, s
 	}, nil
 }
 
-func checkValidationSetSnaps(snapList interface{}) ([]*ValidationSetSnap, error) {
+func checkValidationSetSnaps(snapList any) ([]*ValidationSetSnap, error) {
 	const wrongHeaderType = `"snaps" header must be a list of maps`
 
-	entries, ok := snapList.([]interface{})
+	entries, ok := snapList.([]any)
 	if !ok {
 		return nil, errors.New(wrongHeaderType)
 	}
@@ -223,7 +223,7 @@ func checkValidationSetSnaps(snapList interface{}) ([]*ValidationSetSnap, error)
 	seenIDs := make(map[string]string, len(entries))
 	snaps := make([]*ValidationSetSnap, 0, len(entries))
 	for _, entry := range entries {
-		snap, ok := entry.(map[string]interface{})
+		snap, ok := entry.(map[string]any)
 		if !ok {
 			return nil, errors.New(wrongHeaderType)
 		}
@@ -307,7 +307,7 @@ func (vs *ValidationSet) Timestamp() time.Time {
 	return vs.timestamp
 }
 
-func checkSequence(headers map[string]interface{}, name string) (int, error) {
+func checkSequence(headers map[string]any, name string) (int, error) {
 	seqnum, err := checkInt(headers, name)
 	if err != nil {
 		return -1, err

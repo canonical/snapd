@@ -319,10 +319,10 @@ func (s *bootchainSuite) TestPredictableBootChainsFullMarshal(c *C) {
 	d, err := json.Marshal(predictableChains)
 	c.Assert(err, IsNil)
 
-	var data []map[string]interface{}
+	var data []map[string]any
 	err = json.Unmarshal(d, &data)
 	c.Assert(err, IsNil)
-	c.Check(data, DeepEquals, []map[string]interface{}{
+	c.Check(data, DeepEquals, []map[string]any{
 		{
 			"model":             "foo",
 			"brand-id":          "mybrand",
@@ -330,13 +330,13 @@ func (s *bootchainSuite) TestPredictableBootChainsFullMarshal(c *C) {
 			"model-sign-key-id": "my-key-id",
 			"kernel":            "pc-kernel-other",
 			"kernel-revision":   "12",
-			"kernel-cmdlines": []interface{}{
+			"kernel-cmdlines": []any{
 				`snapd_recovery_mode=recover snapd_recovery_system=12 foo`,
 				`snapd_recovery_mode=recover snapd_recovery_system=23 foo`,
 			},
-			"asset-chain": []interface{}{
-				map[string]interface{}{"role": "recovery", "name": "shim", "hashes": []interface{}{"y", "x"}},
-				map[string]interface{}{"role": "recovery", "name": "loader", "hashes": []interface{}{"c", "d"}},
+			"asset-chain": []any{
+				map[string]any{"role": "recovery", "name": "shim", "hashes": []any{"y", "x"}},
+				map[string]any{"role": "recovery", "name": "loader", "hashes": []any{"c", "d"}},
 			},
 		}, {
 			"model":             "foo",
@@ -345,11 +345,11 @@ func (s *bootchainSuite) TestPredictableBootChainsFullMarshal(c *C) {
 			"model-sign-key-id": "my-key-id",
 			"kernel":            "pc-kernel-other",
 			"kernel-revision":   "1234",
-			"kernel-cmdlines":   []interface{}{"snapd_recovery_mode=run foo"},
-			"asset-chain": []interface{}{
-				map[string]interface{}{"role": "recovery", "name": "shim", "hashes": []interface{}{"y", "x"}},
-				map[string]interface{}{"role": "recovery", "name": "loader", "hashes": []interface{}{"c", "d"}},
-				map[string]interface{}{"role": "run-mode", "name": "loader", "hashes": []interface{}{"b", "a"}},
+			"kernel-cmdlines":   []any{"snapd_recovery_mode=run foo"},
+			"asset-chain": []any{
+				map[string]any{"role": "recovery", "name": "shim", "hashes": []any{"y", "x"}},
+				map[string]any{"role": "recovery", "name": "loader", "hashes": []any{"c", "d"}},
+				map[string]any{"role": "run-mode", "name": "loader", "hashes": []any{"b", "a"}},
 			},
 		}, {
 			"model":             "foo",
@@ -358,11 +358,11 @@ func (s *bootchainSuite) TestPredictableBootChainsFullMarshal(c *C) {
 			"model-sign-key-id": "my-key-id",
 			"kernel":            "pc-kernel-other",
 			"kernel-revision":   "2345",
-			"kernel-cmdlines":   []interface{}{"snapd_recovery_mode=run foo"},
-			"asset-chain": []interface{}{
-				map[string]interface{}{"role": "recovery", "name": "shim", "hashes": []interface{}{"x", "y"}},
-				map[string]interface{}{"role": "recovery", "name": "loader", "hashes": []interface{}{"c", "d"}},
-				map[string]interface{}{"role": "run-mode", "name": "loader", "hashes": []interface{}{"z", "x"}},
+			"kernel-cmdlines":   []any{"snapd_recovery_mode=run foo"},
+			"asset-chain": []any{
+				map[string]any{"role": "recovery", "name": "shim", "hashes": []any{"x", "y"}},
+				map[string]any{"role": "recovery", "name": "loader", "hashes": []any{"c", "d"}},
+				map[string]any{"role": "run-mode", "name": "loader", "hashes": []any{"z", "x"}},
 			},
 		},
 	})

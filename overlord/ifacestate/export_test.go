@@ -186,7 +186,7 @@ func UpdateConnectionInConnState(conns map[string]*schema.ConnState, conn *inter
 	}
 }
 
-func GetConnStateAttrs(conns map[string]*schema.ConnState, connID string) (plugStatic, plugDynamic, slotStatic, SlotDynamic map[string]interface{}, ok bool) {
+func GetConnStateAttrs(conns map[string]*schema.ConnState, connID string) (plugStatic, plugDynamic, slotStatic, SlotDynamic map[string]any, ok bool) {
 	conn, ok := conns[connID]
 	if !ok {
 		return nil, nil, nil, nil, false

@@ -33,14 +33,14 @@ type usersSuite struct {
 var _ = Suite(&usersSuite{})
 
 func (s *usersSuite) TestUsersCreateAutomaticEarly(c *C) {
-	patch := map[string]interface{}{
+	patch := map[string]any{
 		"users.create.automatic": "false",
 	}
 	tr := &mockConf{state: s.state}
 	err := configcore.Early(classicDev, tr, patch)
 	c.Assert(err, IsNil)
 
-	c.Check(tr.conf, DeepEquals, map[string]interface{}{
+	c.Check(tr.conf, DeepEquals, map[string]any{
 		"users.create.automatic": false,
 	})
 }
@@ -48,14 +48,14 @@ func (s *usersSuite) TestUsersCreateAutomaticEarly(c *C) {
 func (s *usersSuite) TestUsersCreateAutomaticInvalid(c *C) {
 	err := configcore.Run(classicDev, &mockConf{
 		state: s.state,
-		conf:  map[string]interface{}{"users.create.automatic": "foo"},
+		conf:  map[string]any{"users.create.automatic": "foo"},
 	})
 	c.Assert(err, ErrorMatches, `users.create.automatic can only be set to 'true' or 'false'`)
 }
 
 func (s *usersSuite) TestUsersCreateAutomaticConfigure(c *C) {
 	tests := []struct {
-		value    interface{}
+		value    any
 		expected bool
 	}{
 		{"true", true},
@@ -67,7 +67,7 @@ func (s *usersSuite) TestUsersCreateAutomaticConfigure(c *C) {
 	for _, t := range tests {
 		conf := &mockConf{
 			state: s.state,
-			conf:  map[string]interface{}{"users.create.automatic": t.value},
+			conf:  map[string]any{"users.create.automatic": t.value},
 		}
 
 		err := configcore.Run(classicDev, conf)
