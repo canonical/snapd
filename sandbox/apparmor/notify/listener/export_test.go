@@ -30,6 +30,10 @@ import (
 	"github.com/snapcore/snapd/testutil"
 )
 
+var (
+	NewRequest = (*Listener).newRequest
+)
+
 func ExitOnError() (restore func()) {
 	restore = testutil.Backup(&exitOnError)
 	exitOnError = true
