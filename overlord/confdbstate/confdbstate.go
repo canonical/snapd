@@ -165,7 +165,8 @@ type CommitTxFunc func() (changeID string, waitChan <-chan struct{}, err error)
 // CommitTxFunc simply returns that without blocking (changes to it will be
 // saved on ctx.Done()).
 func GetTransactionToSet(ctx *hookstate.Context, st *state.State, view *confdb.View) (*Transaction, CommitTxFunc, error) {
-	account, dbSchemaName := view.Schema().Account, view.Schema().Name
+	account, schemaName := view.Schema().Account, view.Schema().Name
+	viewID := account + "/" + schemaName + "/" + view.Name
 
 	// check if we're already running in the context of a committing transaction
 	if IsConfdbHook(ctx) {
@@ -174,11 +175,11 @@ func GetTransactionToSet(ctx *hookstate.Context, st *state.State, view *confdb.V
 		t, _ := ctx.Task()
 		tx, _, saveTxChanges, err := GetStoredTransaction(t)
 		if err != nil {
-			return nil, nil, fmt.Errorf("cannot access confdb through view %s/%s/%s: cannot get transaction: %v", account, dbSchemaName, view.Name, err)
+			return nil, nil, fmt.Errorf("cannot access confdb through view %s: cannot get transaction: %v", viewID, err)
 		}
 
-		if tx.ConfdbAccount != account || tx.ConfdbName != dbSchemaName {
-			return nil, nil, fmt.Errorf("cannot access confdb through view %s/%s/%s: ongoing transaction for %s/%s", account, dbSchemaName, view.Name, tx.ConfdbAccount, tx.ConfdbName)
+		if tx.ConfdbAccount != account || tx.ConfdbName != schemaName {
+			return nil, nil, fmt.Errorf("cannot access confdb through view %s: ongoing transaction for %s/%s", viewID, tx.ConfdbAccount, tx.ConfdbName)
 		}
 
 		// update the commit task to save transaction changes made by the hook
@@ -189,19 +190,29 @@ func GetTransactionToSet(ctx *hookstate.Context, st *state.State, view *confdb.V
 
 		return tx, nil, nil
 	}
-	// TODO: add early concurrency checks
+
+	txs, _, err := getOngoingTxs(st, account, schemaName)
+	if err != nil {
+		return nil, nil, fmt.Errorf("cannot access confdb view %s: cannot check ongoing transactions: %v", viewID, err)
+	}
+
+	if txs != nil && (txs.WriteTxID != "" || len(txs.ReadTxIDs) > 0) {
+		// TODO: eventually we want to queue this write and block until we serve it.
+		// It might also be necessary to have some form of timeout.
+		return nil, nil, fmt.Errorf("cannot write confdb through view %s: ongoing transaction", viewID)
+	}
 
 	// not running in an existing confdb hook context, so create a transaction
 	// and a change to verify its changes and commit
-	tx, err := NewTransaction(st, account, dbSchemaName)
+	tx, err := NewTransaction(st, account, schemaName)
 	if err != nil {
-		return nil, nil, fmt.Errorf("cannot modify confdb through view %s/%s/%s: cannot create transaction: %v", account, dbSchemaName, view.Name, err)
+		return nil, nil, fmt.Errorf("cannot modify confdb through view %s: cannot create transaction: %v", viewID, err)
 	}
 
 	commitTx := func() (string, <-chan struct{}, error) {
 		var chg *state.Change
 		if ctx == nil || ctx.IsEphemeral() {
-			chg = st.NewChange("set-confdb", fmt.Sprintf("Set confdb through \"%s/%s/%s\"", account, dbSchemaName, view.Name))
+			chg = st.NewChange("set-confdb", fmt.Sprintf("Set confdb through %q", viewID))
 		} else {
 			// we're running in the context of a non-confdb hook, add the tasks to that change
 			task, _ := ctx.Task()
@@ -229,7 +240,7 @@ func GetTransactionToSet(ctx *hookstate.Context, st *state.State, view *confdb.V
 			return "", nil, err
 		}
 
-		err = setWriteTransaction(st, account, dbSchemaName, commitTask.ID())
+		err = setWriteTransaction(st, account, schemaName, commitTask.ID())
 		if err != nil {
 			return "", nil, err
 		}
@@ -507,13 +518,15 @@ func IsModifyConfdbHook(ctx *hookstate.Context) bool {
 func GetTransactionForSnapctlGet(ctx *hookstate.Context, view *confdb.View) (*Transaction, error) {
 	st := ctx.State()
 	account, schemaName := view.Schema().Account, view.Schema().Name
+	viewID := account + "/" + schemaName + "/" + view.Name
+
 	if IsConfdbHook(ctx) {
 		// running in the context of a transaction, so if the referenced confdb
 		// doesn't match that tx, we only allow the caller to read the other confdb
 		t, _ := ctx.Task()
 		tx, _, _, err := GetStoredTransaction(t)
 		if err != nil {
-			return nil, fmt.Errorf("cannot load confdb view %s/%s/%s: cannot get transaction: %v", account, schemaName, view.Name, err)
+			return nil, fmt.Errorf("cannot load confdb view %s: cannot get transaction: %v", viewID, err)
 		}
 
 		if tx.ConfdbAccount != account || tx.ConfdbName != schemaName {
@@ -525,11 +538,22 @@ func GetTransactionForSnapctlGet(ctx *hookstate.Context, view *confdb.View) (*Tr
 		return tx, nil
 	}
 
+	txs, _, err := getOngoingTxs(st, account, schemaName)
+	if err != nil {
+		return nil, fmt.Errorf("cannot access confdb view %s: cannot check ongoing transactions: %v", viewID, err)
+	}
+
+	if txs != nil && txs.WriteTxID != "" {
+		// TODO: eventually we want to queue this load and block until we serve it.
+		// It might also be necessary to have some form of timeout.
+		return nil, fmt.Errorf("cannot access confdb view %s: ongoing write transaction", viewID)
+	}
+
 	// not running in an existing confdb hook context, so create a transaction
 	// and a change to load/modify data
 	tx, err := NewTransaction(st, account, schemaName)
 	if err != nil {
-		return nil, fmt.Errorf("cannot load confdb view %s/%s/%s: cannot create transaction: %v", account, schemaName, view.Name, err)
+		return nil, fmt.Errorf("cannot load confdb view %s: cannot create transaction: %v", viewID, err)
 	}
 
 	ts, err := createLoadConfdbTasks(st, tx, view)
@@ -544,7 +568,7 @@ func GetTransactionForSnapctlGet(ctx *hookstate.Context, view *confdb.View) (*Tr
 
 	var chg *state.Change
 	if ctx.IsEphemeral() {
-		chg = st.NewChange("get-confdb", fmt.Sprintf("Get confdb through \"%s/%s/%s\"", account, schemaName, view.Name))
+		chg = st.NewChange("get-confdb", fmt.Sprintf("Get confdb through %q", viewID))
 	} else {
 		// we're running in the context of a non-confdb hook, add the tasks to that change
 		task, _ := ctx.Task()
@@ -595,9 +619,21 @@ func GetTransactionForSnapctlGet(ctx *hookstate.Context, view *confdb.View) (*Tr
 func LoadConfdbAsync(st *state.State, view *confdb.View, requests []string) (changeID string, err error) {
 	account, schemaName := view.Schema().Account, view.Schema().Name
 
+	viewID := account + "/" + schemaName + "/" + view.Name
+	txs, _, err := getOngoingTxs(st, account, schemaName)
+	if err != nil {
+		return "", fmt.Errorf("cannot access confdb view %s: cannot check ongoing transactions: %v", viewID, err)
+	}
+
+	if txs != nil && txs.WriteTxID != "" {
+		// TODO: eventually we want to queue this load and block until we serve it.
+		// It might also be necessary to have some form of timeout.
+		return "", fmt.Errorf("cannot access confdb view %s: ongoing write transaction", viewID)
+	}
+
 	tx, err := NewTransaction(st, account, schemaName)
 	if err != nil {
-		return "", fmt.Errorf("cannot access confdb view %s/%s/%s: cannot create transaction: %v", account, schemaName, view.Name, err)
+		return "", fmt.Errorf("cannot access confdb view %s: cannot create transaction: %v", viewID, err)
 	}
 
 	ts, err := createLoadConfdbTasks(st, tx, view)
@@ -605,7 +641,7 @@ func LoadConfdbAsync(st *state.State, view *confdb.View, requests []string) (cha
 		return "", err
 	}
 
-	chg := st.NewChange("get-confdb", fmt.Sprintf(`Get confdb through "%s/%s/%s"`, account, schemaName, view.Name))
+	chg := st.NewChange("get-confdb", fmt.Sprintf(`Get confdb through %q`, viewID))
 	if ts != nil {
 		// if there are hooks to run, link the read-confdb task to those tasks
 		clearTxTask, err := ts.Edge(clearTxEdge)
