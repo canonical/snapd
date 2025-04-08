@@ -58,7 +58,7 @@ func init() {
 	c.hidden = true
 }
 
-func printfFunc(msg string, format ...interface{}) func() {
+func printfFunc(msg string, format ...any) func() {
 	return func() {
 		fmt.Fprintf(Stderr, msg, format...)
 	}

@@ -685,15 +685,15 @@ Wants=%[1]s
 		},
 	})
 
-	checkDegradedJSON(c, "unlocked.json", map[string]interface{}{
-		"ubuntu-boot": map[string]interface{}{},
-		"ubuntu-data": map[string]interface{}{
+	checkDegradedJSON(c, "unlocked.json", map[string]any{
+		"ubuntu-boot": map[string]any{},
+		"ubuntu-data": map[string]any{
 			"find-state": "found",
 		},
-		"ubuntu-save": map[string]interface{}{
+		"ubuntu-save": map[string]any{
 			"find-state": "not-found",
 		},
-		"error-log": interface{}(nil),
+		"error-log": any(nil),
 	})
 }
 
@@ -938,19 +938,19 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeEncryptedDataHappy(c *C
 	c.Assert(filepath.Join(dirs.SnapBootstrapRunDir, "secboot-epoch-measured"), testutil.FilePresent)
 	c.Assert(filepath.Join(dirs.SnapBootstrapRunDir, "run-model-measured"), testutil.FilePresent)
 
-	checkDegradedJSON(c, "unlocked.json", map[string]interface{}{
-		"ubuntu-boot": map[string]interface{}{},
-		"ubuntu-data": map[string]interface{}{
+	checkDegradedJSON(c, "unlocked.json", map[string]any{
+		"ubuntu-boot": map[string]any{},
+		"ubuntu-data": map[string]any{
 			"find-state":   "found",
 			"unlock-state": "unlocked",
 			"unlock-key":   "run",
 		},
-		"ubuntu-save": map[string]interface{}{
+		"ubuntu-save": map[string]any{
 			"find-state":   "found",
 			"unlock-state": "unlocked",
 			"unlock-key":   "run",
 		},
-		"error-log": interface{}(nil),
+		"error-log": any(nil),
 	})
 }
 
@@ -1087,19 +1087,19 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeEncryptedDataHappyRecov
 	c.Assert(filepath.Join(dirs.SnapBootstrapRunDir, "secboot-epoch-measured"), testutil.FilePresent)
 	c.Assert(filepath.Join(dirs.SnapBootstrapRunDir, "run-model-measured"), testutil.FilePresent)
 
-	checkDegradedJSON(c, "unlocked.json", map[string]interface{}{
-		"ubuntu-boot": map[string]interface{}{},
-		"ubuntu-data": map[string]interface{}{
+	checkDegradedJSON(c, "unlocked.json", map[string]any{
+		"ubuntu-boot": map[string]any{},
+		"ubuntu-data": map[string]any{
 			"find-state":   "found",
 			"unlock-state": "unlocked",
 			"unlock-key":   "recovery",
 		},
-		"ubuntu-save": map[string]interface{}{
+		"ubuntu-save": map[string]any{
 			"find-state":   "found",
 			"unlock-state": "unlocked",
 			"unlock-key":   "run",
 		},
-		"error-log": interface{}(nil),
+		"error-log": any(nil),
 	})
 }
 

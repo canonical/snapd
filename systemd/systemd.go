@@ -1066,7 +1066,7 @@ func (s *systemd) Stop(serviceNames []string) error {
 	// systemctl mocking in some modules are implemented very simplistically, and
 	// assumes that the 'stop' argument comes before the 'show'.
 	errorRet := make(chan error)
-	quit := make(chan interface{})
+	quit := make(chan any)
 
 	go func(serviceNames []string) {
 		// The polling routine is the 'errorRet' channel sender, so we make

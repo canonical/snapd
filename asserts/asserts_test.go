@@ -864,7 +864,7 @@ func (as *assertsSuite) TestEncoderSingleDecodeOK(c *C) {
 }
 
 func (as *assertsSuite) TestSignFormatValidityEmptyBody(c *C) {
-	headers := map[string]interface{}{
+	headers := map[string]any{
 		"authority-id": "auth-id1",
 		"primary-key":  "0",
 	}
@@ -876,7 +876,7 @@ func (as *assertsSuite) TestSignFormatValidityEmptyBody(c *C) {
 }
 
 func (as *assertsSuite) TestSignFormatValidityNonEmptyBody(c *C) {
-	headers := map[string]interface{}{
+	headers := map[string]any{
 		"authority-id": "auth-id1",
 		"primary-key":  "0",
 	}
@@ -891,7 +891,7 @@ func (as *assertsSuite) TestSignFormatValidityNonEmptyBody(c *C) {
 }
 
 func (as *assertsSuite) TestSignFormatValiditySupportMultilineHeaderValues(c *C) {
-	headers := map[string]interface{}{
+	headers := map[string]any{
 		"authority-id": "auth-id1",
 		"primary-key":  "0",
 	}
@@ -922,7 +922,7 @@ func (as *assertsSuite) TestSignFormatValiditySupportMultilineHeaderValues(c *C)
 }
 
 func (as *assertsSuite) TestSignFormatAndRevision(c *C) {
-	headers := map[string]interface{}{
+	headers := map[string]any{
 		"authority-id": "auth-id1",
 		"primary-key":  "0",
 		"format":       "1",
@@ -948,7 +948,7 @@ func (as *assertsSuite) TestSignFormatOptionalPrimaryKeys(c *C) {
 	r := asserts.MockOptionalPrimaryKey(asserts.TestOnlyType, "opt1", "o1-defl")
 	defer r()
 
-	headers := map[string]interface{}{
+	headers := map[string]any{
 		"authority-id": "auth-id1",
 		"primary-key":  "k1",
 		"header1":      "a",
@@ -967,7 +967,7 @@ header1:`)), Equals, true)
 	c.Check(err, IsNil)
 
 	// defaults are always normalized away
-	headers = map[string]interface{}{
+	headers = map[string]any{
 		"authority-id": "auth-id1",
 		"primary-key":  "k1",
 		"opt1":         "o1-defl",
@@ -986,7 +986,7 @@ header1:`)), Equals, true)
 	_, err = asserts.Decode(b)
 	c.Check(err, IsNil)
 
-	headers = map[string]interface{}{
+	headers = map[string]any{
 		"authority-id": "auth-id1",
 		"primary-key":  "k1",
 		"opt1":         "A",
@@ -1008,7 +1008,7 @@ header1:`)), Equals, true)
 }
 
 func (as *assertsSuite) TestSignBodyIsUTF8Text(c *C) {
-	headers := map[string]interface{}{
+	headers := map[string]any{
 		"authority-id": "auth-id1",
 		"primary-key":  "0",
 	}
@@ -1032,7 +1032,7 @@ func (as *assertsSuite) TestHeaders(c *C) {
 	c.Assert(err, IsNil)
 
 	hs := a.Headers()
-	c.Check(hs, DeepEquals, map[string]interface{}{
+	c.Check(hs, DeepEquals, map[string]any{
 		"type":              "test-only",
 		"authority-id":      "auth-id2",
 		"primary-key":       "abc",
@@ -1093,7 +1093,7 @@ func (as *assertsSuite) TestAssembleRoundtrip(c *C) {
 }
 
 func (as *assertsSuite) TestSignKeyID(c *C) {
-	headers := map[string]interface{}{
+	headers := map[string]any{
 		"authority-id": "auth-id1",
 		"primary-key":  "0",
 	}
@@ -1105,7 +1105,7 @@ func (as *assertsSuite) TestSignKeyID(c *C) {
 }
 
 func (as *assertsSuite) TestSelfRef(c *C) {
-	headers := map[string]interface{}{
+	headers := map[string]any{
 		"authority-id": "auth-id1",
 		"primary-key":  "0",
 	}
@@ -1125,7 +1125,7 @@ func (as *assertsSuite) TestSelfRef(c *C) {
 		Revision: 0,
 	})
 
-	headers = map[string]interface{}{
+	headers = map[string]any{
 		"authority-id": "auth-id1",
 		"pk1":          "a",
 		"pk2":          "b",
@@ -1153,7 +1153,7 @@ func (as *assertsSuite) TestAssembleHeadersCheck(c *C) {
 		"authority-id: auth-id2\n" +
 		"primary-key: abc\n" +
 		"revision: 5")
-	headers := map[string]interface{}{
+	headers := map[string]any{
 		"type":         "test-only",
 		"authority-id": "auth-id2",
 		"primary-key":  "abc",
@@ -1169,7 +1169,7 @@ func (as *assertsSuite) TestSignWithoutAuthorityMisuse(c *C) {
 	c.Check(err, ErrorMatches, `cannot sign assertions needing a definite authority with SignWithoutAuthority`)
 
 	_, err = asserts.SignWithoutAuthority(asserts.TestOnlyNoAuthorityType,
-		map[string]interface{}{
+		map[string]any{
 			"authority-id": "auth-id1",
 			"hdr":          "FOO",
 		}, nil, testPrivKey1)
@@ -1178,7 +1178,7 @@ func (as *assertsSuite) TestSignWithoutAuthorityMisuse(c *C) {
 
 func (ss *serialSuite) TestSignatureCheckError(c *C) {
 	sreq, err := asserts.SignWithoutAuthority(asserts.TestOnlyNoAuthorityType,
-		map[string]interface{}{
+		map[string]any{
 			"hdr": "FOO",
 		}, nil, testPrivKey1)
 	c.Assert(err, IsNil)

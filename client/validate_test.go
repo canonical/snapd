@@ -98,10 +98,10 @@ func (cs *clientSuite) TestApplyValidationSetMonitor(c *check.C) {
 	c.Check(cs.req.URL.Path, check.Equals, "/v2/validation-sets/foo/bar")
 	body, err := io.ReadAll(cs.req.Body)
 	c.Assert(err, check.IsNil)
-	var req map[string]interface{}
+	var req map[string]any
 	err = json.Unmarshal(body, &req)
 	c.Assert(err, check.IsNil)
-	c.Assert(req, check.DeepEquals, map[string]interface{}{
+	c.Assert(req, check.DeepEquals, map[string]any{
 		"action":   "apply",
 		"mode":     "monitor",
 		"sequence": float64(3),
@@ -128,10 +128,10 @@ func (cs *clientSuite) TestApplyValidationSetEnforce(c *check.C) {
 	c.Check(cs.req.URL.Path, check.Equals, "/v2/validation-sets/foo/bar")
 	body, err := io.ReadAll(cs.req.Body)
 	c.Assert(err, check.IsNil)
-	var req map[string]interface{}
+	var req map[string]any
 	err = json.Unmarshal(body, &req)
 	c.Assert(err, check.IsNil)
-	c.Assert(req, check.DeepEquals, map[string]interface{}{
+	c.Assert(req, check.DeepEquals, map[string]any{
 		"action":   "apply",
 		"mode":     "enforce",
 		"sequence": float64(3),
@@ -166,10 +166,10 @@ func (cs *clientSuite) TestForgetValidationSet(c *check.C) {
 	c.Check(cs.req.URL.Path, check.Equals, "/v2/validation-sets/foo/bar")
 	body, err := io.ReadAll(cs.req.Body)
 	c.Assert(err, check.IsNil)
-	var req map[string]interface{}
+	var req map[string]any
 	err = json.Unmarshal(body, &req)
 	c.Assert(err, check.IsNil)
-	c.Assert(req, check.DeepEquals, map[string]interface{}{
+	c.Assert(req, check.DeepEquals, map[string]any{
 		"action":   "forget",
 		"sequence": float64(3),
 	})

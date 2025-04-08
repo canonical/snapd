@@ -93,7 +93,7 @@ func (gkms *gpgKeypairMgrSuite) TestUseInSigning(c *C) {
 	devKey, err := gkms.keypairMgr.Get(assertstest.DevKeyID)
 	c.Assert(err, IsNil)
 
-	devAcct := assertstest.NewAccount(store, "devel1", map[string]interface{}{
+	devAcct := assertstest.NewAccount(store, "devel1", map[string]any{
 		"account-id": "dev1-id",
 	}, "")
 	devAccKey := assertstest.NewAccountKey(store, devAcct, nil, devKey.PublicKey(), "")
@@ -117,7 +117,7 @@ func (gkms *gpgKeypairMgrSuite) TestUseInSigning(c *C) {
 	err = checkDB.Add(devAccKey)
 	c.Assert(err, IsNil)
 
-	headers := map[string]interface{}{
+	headers := map[string]any{
 		"authority-id":  "dev1-id",
 		"snap-sha3-384": blobSHA3_384,
 		"snap-id":       "snap-id-1",
@@ -198,7 +198,7 @@ func (gkms *gpgKeypairMgrSuite) TestUseInSigningBrokenSignature(c *C) {
 	})
 	c.Assert(err, IsNil)
 
-	headers := map[string]interface{}{
+	headers := map[string]any{
 		"authority-id":  "dev1-id",
 		"snap-sha3-384": blobSHA3_384,
 		"snap-id":       "snap-id-1",
@@ -246,7 +246,7 @@ func (gkms *gpgKeypairMgrSuite) TestUseInSigningFailure(c *C) {
 	})
 	c.Assert(err, IsNil)
 
-	headers := map[string]interface{}{
+	headers := map[string]any{
 		"authority-id":  "dev1-id",
 		"snap-sha3-384": blobSHA3_384,
 		"snap-id":       "snap-id-1",
@@ -301,7 +301,7 @@ func (gkms *gpgKeypairMgrSuite) TestUseInSigningKeyTooShort(c *C) {
 	})
 	c.Assert(err, IsNil)
 
-	headers := map[string]interface{}{
+	headers := map[string]any{
 		"authority-id":  "dev1-id",
 		"snap-sha3-384": blobSHA3_384,
 		"snap-id":       "snap-id-1",

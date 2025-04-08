@@ -35,7 +35,7 @@ func (c *Client) ConfdbGetViaView(viewID string, requests []string) (changeID st
 	return c.doAsync("GET", endpoint, query, nil, nil)
 }
 
-func (c *Client) ConfdbSetViaView(viewID string, requestValues map[string]interface{}) (changeID string, err error) {
+func (c *Client) ConfdbSetViaView(viewID string, requestValues map[string]any) (changeID string, err error) {
 	body, err := json.Marshal(requestValues)
 	if err != nil {
 		return "", err

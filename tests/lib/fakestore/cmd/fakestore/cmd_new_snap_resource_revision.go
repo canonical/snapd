@@ -23,7 +23,7 @@ func (x *cmdNewSnapResourceRevision) Execute(args []string) error {
 		return err
 	}
 
-	headers := make(map[string]interface{})
+	headers := make(map[string]any)
 	if err := json.Unmarshal(content, &headers); err != nil {
 		return err
 	}

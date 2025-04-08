@@ -92,20 +92,20 @@ func (s *deviceMgrRecoveryKeysSuite) TestEnsureRecoveryKeysBackwardCompat(c *C) 
 func (s *deviceMgrBaseSuite) setClassicWithModesModelInState(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
-	s.makeModelAssertionInState(c, "canonical", "pc-22", map[string]interface{}{
+	s.makeModelAssertionInState(c, "canonical", "pc-22", map[string]any{
 		"architecture": "amd64",
 		"grade":        "dangerous",
 		"base":         "core22",
 		"classic":      "true",
 		"distribution": "ubuntu",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":            "pc-kernel",
 				"id":              snaptest.AssertedSnapID("pc-kernel"),
 				"type":            "kernel",
 				"default-channel": "22",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "pc",
 				"id":              snaptest.AssertedSnapID("pc"),
 				"type":            "gadget",

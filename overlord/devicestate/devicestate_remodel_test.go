@@ -133,7 +133,7 @@ func (s *deviceMgrRemodelSuite) TestRemodelInvalidPathSnap(c *C) {
 	defer s.state.Unlock()
 	s.state.Set("seeded", true)
 
-	newModel := s.brands.Model("canonical", "pc", map[string]interface{}{
+	newModel := s.brands.Model("canonical", "pc", map[string]any{
 		"architecture": "amd64",
 		"kernel":       "pc-kernel",
 		"gadget":       "pc",
@@ -158,7 +158,7 @@ func (s *deviceMgrRemodelSuite) TestRemodelCannotProvideLocalSnapsWhenNotOffline
 	defer s.state.Unlock()
 	s.state.Set("seeded", true)
 
-	model := s.brands.Model("canonical", "pc", map[string]interface{}{
+	model := s.brands.Model("canonical", "pc", map[string]any{
 		"architecture": "amd64",
 		"kernel":       "pc-kernel",
 		"gadget":       "pc",
@@ -195,7 +195,7 @@ func (s *deviceMgrRemodelSuite) TestRemodelUnhappyNotSeeded(c *C) {
 	defer s.state.Unlock()
 	s.state.Set("seeded", false)
 
-	newModel := s.brands.Model("canonical", "pc", map[string]interface{}{
+	newModel := s.brands.Model("canonical", "pc", map[string]any{
 		"architecture": "amd64",
 		"kernel":       "pc-kernel",
 		"gadget":       "pc",
@@ -210,7 +210,7 @@ func (s *deviceMgrRemodelSuite) TestRemodelSnapdBasedToCoreBased(c *C) {
 	defer st.Unlock()
 	s.state.Set("seeded", true)
 
-	model := s.brands.Model("canonical", "my-model", modelDefaults, map[string]interface{}{
+	model := s.brands.Model("canonical", "my-model", modelDefaults, map[string]any{
 		"base": "core18",
 	})
 
@@ -226,7 +226,7 @@ func (s *deviceMgrRemodelSuite) TestRemodelSnapdBasedToCoreBased(c *C) {
 	s.makeSerialAssertionInState(c, "canonical", "my-model", "serialserialserial")
 
 	// create a new model
-	newModel := s.brands.Model("canonical", "my-model", modelDefaults, map[string]interface{}{
+	newModel := s.brands.Model("canonical", "my-model", modelDefaults, map[string]any{
 		"revision": "1",
 	})
 
@@ -235,7 +235,7 @@ func (s *deviceMgrRemodelSuite) TestRemodelSnapdBasedToCoreBased(c *C) {
 	c.Assert(chg, IsNil)
 }
 
-var mockCore20ModelHeaders = map[string]interface{}{
+var mockCore20ModelHeaders = map[string]any{
 	"brand":        "canonical",
 	"model":        "pc-model-20",
 	"architecture": "amd64",
@@ -244,14 +244,14 @@ var mockCore20ModelHeaders = map[string]interface{}{
 	"snaps":        mockCore20ModelSnaps,
 }
 
-var mockCore20ModelSnaps = []interface{}{
-	map[string]interface{}{
+var mockCore20ModelSnaps = []any{
+	map[string]any{
 		"name":            "pc-kernel",
 		"id":              "pckernelidididididididididididid",
 		"type":            "kernel",
 		"default-channel": "20",
 	},
-	map[string]interface{}{
+	map[string]any{
 		"name":            "pc",
 		"id":              "pcididididididididididididididid",
 		"type":            "gadget",
@@ -261,7 +261,7 @@ var mockCore20ModelSnaps = []interface{}{
 
 // copy current model unless new model test data is different
 // and delete nil keys in new model
-func mergeMockModelHeaders(cur, new map[string]interface{}) {
+func mergeMockModelHeaders(cur, new map[string]any) {
 	for k, v := range cur {
 		if v, ok := new[k]; ok {
 			if v == nil {
@@ -279,14 +279,14 @@ func (s *deviceMgrRemodelSuite) TestRemodelUnhappy(c *C) {
 	s.state.Set("seeded", true)
 
 	// set a model assertion
-	cur := map[string]interface{}{
+	cur := map[string]any{
 		"brand":        "canonical",
 		"model":        "pc-model",
 		"architecture": "amd64",
 		"kernel":       "pc-kernel",
 		"gadget":       "pc",
 	}
-	s.makeModelAssertionInState(c, cur["brand"].(string), cur["model"].(string), map[string]interface{}{
+	s.makeModelAssertionInState(c, cur["brand"].(string), cur["model"].(string), map[string]any{
 		"architecture": cur["architecture"],
 		"kernel":       cur["kernel"],
 		"gadget":       cur["gadget"],
@@ -300,14 +300,14 @@ func (s *deviceMgrRemodelSuite) TestRemodelUnhappy(c *C) {
 
 	// ensure all error cases are checked
 	for _, t := range []struct {
-		new    map[string]interface{}
+		new    map[string]any
 		errStr string
 	}{
-		{map[string]interface{}{"architecture": "pdp-7"}, "cannot remodel to different architectures yet"},
-		{map[string]interface{}{"base": "core18"}, "cannot remodel from core to bases yet"},
+		{map[string]any{"architecture": "pdp-7"}, "cannot remodel to different architectures yet"},
+		{map[string]any{"base": "core18"}, "cannot remodel from core to bases yet"},
 		// pre-UC20 to UC20
-		{map[string]interface{}{"base": "core20", "kernel": nil, "gadget": nil, "snaps": mockCore20ModelSnaps}, `cannot remodel from pre-UC20 to UC20\+ models`},
-		{map[string]interface{}{"base": "core20", "kernel": nil, "gadget": nil, "classic": "true", "distribution": "ubuntu", "snaps": mockCore20ModelSnaps}, `cannot remodel across classic and non-classic models`},
+		{map[string]any{"base": "core20", "kernel": nil, "gadget": nil, "snaps": mockCore20ModelSnaps}, `cannot remodel from pre-UC20 to UC20\+ models`},
+		{map[string]any{"base": "core20", "kernel": nil, "gadget": nil, "classic": "true", "distribution": "ubuntu", "snaps": mockCore20ModelSnaps}, `cannot remodel across classic and non-classic models`},
 	} {
 		mergeMockModelHeaders(cur, t.new)
 		new := s.brands.Model(t.new["brand"].(string), t.new["model"].(string), t.new)
@@ -323,14 +323,14 @@ func (s *deviceMgrRemodelSuite) TestRemodelFromClassicUnhappy(c *C) {
 	s.state.Set("seeded", true)
 
 	// set a model assertion
-	cur := map[string]interface{}{
+	cur := map[string]any{
 		"brand":        "canonical",
 		"model":        "pc-model",
 		"architecture": "amd64",
 		"classic":      "true",
 		"gadget":       "pc",
 	}
-	s.makeModelAssertionInState(c, cur["brand"].(string), cur["model"].(string), map[string]interface{}{
+	s.makeModelAssertionInState(c, cur["brand"].(string), cur["model"].(string), map[string]any{
 		"architecture": cur["architecture"],
 		"gadget":       cur["gadget"],
 		"classic":      cur["classic"],
@@ -342,7 +342,7 @@ func (s *deviceMgrRemodelSuite) TestRemodelFromClassicUnhappy(c *C) {
 		Serial: "orig-serial",
 	})
 
-	new := s.brands.Model(cur["brand"].(string), "new-model", map[string]interface{}{
+	new := s.brands.Model(cur["brand"].(string), "new-model", map[string]any{
 		"architecture": cur["architecture"],
 		"gadget":       cur["gadget"],
 		"classic":      cur["classic"],
@@ -359,7 +359,7 @@ func (s *deviceMgrRemodelSuite) TestRemodelCheckGrade(c *C) {
 
 	// set a model assertion
 	cur := mockCore20ModelHeaders
-	s.makeModelAssertionInState(c, cur["brand"].(string), cur["model"].(string), map[string]interface{}{
+	s.makeModelAssertionInState(c, cur["brand"].(string), cur["model"].(string), map[string]any{
 		"architecture": cur["architecture"],
 		"base":         cur["base"],
 		"grade":        cur["grade"],
@@ -374,14 +374,14 @@ func (s *deviceMgrRemodelSuite) TestRemodelCheckGrade(c *C) {
 
 	// ensure all error cases are checked
 	for idx, t := range []struct {
-		new    map[string]interface{}
+		new    map[string]any
 		errStr string
 	}{
 		// uc20 model
-		{map[string]interface{}{"grade": "signed"}, "cannot remodel from grade dangerous to grade signed"},
-		{map[string]interface{}{"grade": "secured"}, "cannot remodel from grade dangerous to grade secured"},
+		{map[string]any{"grade": "signed"}, "cannot remodel from grade dangerous to grade signed"},
+		{map[string]any{"grade": "secured"}, "cannot remodel from grade dangerous to grade secured"},
 		// non-uc20 model
-		{map[string]interface{}{"snaps": nil, "grade": nil, "base": "core", "gadget": "pc", "kernel": "pc-kernel"}, "cannot remodel from grade dangerous to grade unset"},
+		{map[string]any{"snaps": nil, "grade": nil, "base": "core", "gadget": "pc", "kernel": "pc-kernel"}, "cannot remodel from grade dangerous to grade unset"},
 	} {
 		c.Logf("tc: %v", idx)
 		mergeMockModelHeaders(cur, t.new)
@@ -398,14 +398,14 @@ func (s *deviceMgrRemodelSuite) TestRemodelCannotUseOldModel(c *C) {
 	s.state.Set("seeded", true)
 
 	// set a model assertion
-	cur := map[string]interface{}{
+	cur := map[string]any{
 		"brand":        "canonical",
 		"model":        "pc-model",
 		"architecture": "amd64",
 		"kernel":       "pc-kernel",
 		"gadget":       "pc",
 	}
-	s.makeModelAssertionInState(c, "canonical", "pc-model", map[string]interface{}{
+	s.makeModelAssertionInState(c, "canonical", "pc-model", map[string]any{
 		"architecture": "amd64",
 		"kernel":       "pc-kernel",
 		"gadget":       "pc",
@@ -417,7 +417,7 @@ func (s *deviceMgrRemodelSuite) TestRemodelCannotUseOldModel(c *C) {
 		Model: "pc-model",
 	})
 
-	newModelHdrs := map[string]interface{}{
+	newModelHdrs := map[string]any{
 		"revision": "1",
 	}
 	mergeMockModelHeaders(cur, newModelHdrs)
@@ -433,14 +433,14 @@ func (s *deviceMgrRemodelSuite) TestRemodelRequiresSerial(c *C) {
 	s.state.Set("seeded", true)
 
 	// set a model assertion
-	cur := map[string]interface{}{
+	cur := map[string]any{
 		"brand":        "canonical",
 		"model":        "pc-model",
 		"architecture": "amd64",
 		"kernel":       "pc-kernel",
 		"gadget":       "pc",
 	}
-	s.makeModelAssertionInState(c, "canonical", "pc-model", map[string]interface{}{
+	s.makeModelAssertionInState(c, "canonical", "pc-model", map[string]any{
 		"architecture": "amd64",
 		"kernel":       "pc-kernel",
 		"gadget":       "pc",
@@ -451,7 +451,7 @@ func (s *deviceMgrRemodelSuite) TestRemodelRequiresSerial(c *C) {
 		Model: "pc-model",
 	})
 
-	newModelHdrs := map[string]interface{}{
+	newModelHdrs := map[string]any{
 		"revision": "2",
 	}
 	mergeMockModelHeaders(cur, newModelHdrs)
@@ -462,18 +462,18 @@ func (s *deviceMgrRemodelSuite) TestRemodelRequiresSerial(c *C) {
 }
 
 func (s *deviceMgrRemodelSuite) TestRemodelTasksSwitchGadgetTrack(c *C) {
-	s.testRemodelTasksSwitchTrack(c, "pc", map[string]interface{}{
+	s.testRemodelTasksSwitchTrack(c, "pc", map[string]any{
 		"gadget": "pc=18",
 	})
 }
 
 func (s *deviceMgrRemodelSuite) TestRemodelTasksSwitchKernelTrack(c *C) {
-	s.testRemodelTasksSwitchTrack(c, "pc-kernel", map[string]interface{}{
+	s.testRemodelTasksSwitchTrack(c, "pc-kernel", map[string]any{
 		"kernel": "pc-kernel=18",
 	})
 }
 
-func (s *deviceMgrRemodelSuite) testRemodelTasksSwitchTrack(c *C, whatRefreshes string, newModelOverrides map[string]interface{}) {
+func (s *deviceMgrRemodelSuite) testRemodelTasksSwitchTrack(c *C, whatRefreshes string, newModelOverrides map[string]any) {
 	s.state.Lock()
 	defer s.state.Unlock()
 	s.state.Set("seeded", true)
@@ -539,7 +539,7 @@ func (s *deviceMgrRemodelSuite) testRemodelTasksSwitchTrack(c *C, whatRefreshes 
 	defer restore()
 
 	// set a model assertion
-	current := s.brands.Model("canonical", "pc-model", map[string]interface{}{
+	current := s.brands.Model("canonical", "pc-model", map[string]any{
 		"architecture": "amd64",
 		"kernel":       "pc-kernel",
 		"gadget":       "pc",
@@ -552,12 +552,12 @@ func (s *deviceMgrRemodelSuite) testRemodelTasksSwitchTrack(c *C, whatRefreshes 
 		Model: "pc-model",
 	})
 
-	headers := map[string]interface{}{
+	headers := map[string]any{
 		"architecture":   "amd64",
 		"kernel":         "pc-kernel",
 		"gadget":         "pc",
 		"base":           "core18",
-		"required-snaps": []interface{}{"new-required-snap-1", "new-required-snap-2"},
+		"required-snaps": []any{"new-required-snap-1", "new-required-snap-2"},
 		"revision":       "1",
 	}
 	for k, v := range newModelOverrides {
@@ -600,7 +600,7 @@ epoch: 1
 func (s *deviceMgrRemodelSuite) TestRemodelTasksSwitchGadget(c *C) {
 	newTrack := map[string]string{"other-gadget": "18"}
 	s.testRemodelSwitchTasks(c, newTrack,
-		map[string]interface{}{"gadget": "other-gadget=18"}, nil, "")
+		map[string]any{"gadget": "other-gadget=18"}, nil, "")
 }
 
 func (s *deviceMgrRemodelSuite) TestRemodelTasksSwitchLocalGadget(c *C) {
@@ -608,14 +608,14 @@ func (s *deviceMgrRemodelSuite) TestRemodelTasksSwitchLocalGadget(c *C) {
 	localSnaps := make([]snapstate.PathSnap, 1)
 	localSnaps[0].SideInfo, localSnaps[0].Path = createLocalSnap(c, "other-gadget", "pcididididididididididididididid", 3, "gadget", "", nil)
 	s.testRemodelSwitchTasks(c, newTrack,
-		map[string]interface{}{"gadget": "other-gadget=18"},
+		map[string]any{"gadget": "other-gadget=18"},
 		localSnaps, "")
 }
 
 func (s *deviceMgrRemodelSuite) TestRemodelTasksSwitchKernel(c *C) {
 	newTrack := map[string]string{"other-kernel": "18"}
 	s.testRemodelSwitchTasks(c, newTrack,
-		map[string]interface{}{"kernel": "other-kernel=18"}, nil, "")
+		map[string]any{"kernel": "other-kernel=18"}, nil, "")
 }
 
 func (s *deviceMgrRemodelSuite) TestRemodelTasksSwitchLocalKernel(c *C) {
@@ -623,14 +623,14 @@ func (s *deviceMgrRemodelSuite) TestRemodelTasksSwitchLocalKernel(c *C) {
 	localSnaps := make([]snapstate.PathSnap, 1)
 	localSnaps[0].SideInfo, localSnaps[0].Path = createLocalSnap(c, "other-kernel", "pckernelidididididididididididid", 3, "kernel", "", nil)
 	s.testRemodelSwitchTasks(c, newTrack,
-		map[string]interface{}{"kernel": "other-kernel=18"},
+		map[string]any{"kernel": "other-kernel=18"},
 		localSnaps, "")
 }
 
 func (s *deviceMgrRemodelSuite) TestRemodelTasksSwitchKernelAndGadget(c *C) {
 	newTrack := map[string]string{"other-kernel": "18", "other-gadget": "18"}
 	s.testRemodelSwitchTasks(c, newTrack,
-		map[string]interface{}{
+		map[string]any{
 			"kernel": "other-kernel=18",
 			"gadget": "other-gadget=18"}, nil, "")
 }
@@ -641,7 +641,7 @@ func (s *deviceMgrRemodelSuite) TestRemodelTasksSwitchLocalKernelAndGadget(c *C)
 	localSnaps[0].SideInfo, localSnaps[0].Path = createLocalSnap(c, "other-kernel", "pckernelidididididididididididid", 3, "kernel", "", nil)
 	localSnaps[1].SideInfo, localSnaps[1].Path = createLocalSnap(c, "other-gadget", "pcididididididididididididididid", 3, "gadget", "", nil)
 	s.testRemodelSwitchTasks(c, newTrack,
-		map[string]interface{}{
+		map[string]any{
 			"kernel": "other-kernel=18",
 			"gadget": "other-gadget=18"},
 		localSnaps, "")
@@ -653,14 +653,14 @@ func (s *deviceMgrRemodelSuite) TestRemodelTasksSwitchLocalKernelAndGadgetFails(
 	localSnaps := make([]snapstate.PathSnap, 1)
 	localSnaps[0].SideInfo, localSnaps[0].Path = createLocalSnap(c, "other-kernel", "pckernelidididididididididididid", 3, "kernel", "", nil)
 	s.testRemodelSwitchTasks(c, newTrack,
-		map[string]interface{}{
+		map[string]any{
 			"kernel": "other-kernel=18",
 			"gadget": "other-gadget=18"},
 		localSnaps,
 		`no snap file provided for "other-gadget"`)
 }
 
-func (s *deviceMgrRemodelSuite) testRemodelSwitchTasks(c *C, whatNewTrack map[string]string, newModelOverrides map[string]interface{}, localSnaps []snapstate.PathSnap, expectedErr string) {
+func (s *deviceMgrRemodelSuite) testRemodelSwitchTasks(c *C, whatNewTrack map[string]string, newModelOverrides map[string]any, localSnaps []snapstate.PathSnap, expectedErr string) {
 	s.state.Lock()
 	defer s.state.Unlock()
 	s.state.Set("seeded", true)
@@ -734,7 +734,7 @@ func (s *deviceMgrRemodelSuite) testRemodelSwitchTasks(c *C, whatNewTrack map[st
 	defer restore()
 
 	// set a model assertion
-	current := s.brands.Model("canonical", "pc-model", map[string]interface{}{
+	current := s.brands.Model("canonical", "pc-model", map[string]any{
 		"architecture": "amd64",
 		"kernel":       "pc-kernel",
 		"gadget":       "pc",
@@ -749,7 +749,7 @@ func (s *deviceMgrRemodelSuite) testRemodelSwitchTasks(c *C, whatNewTrack map[st
 		Model: "pc-model",
 	})
 
-	headers := map[string]interface{}{
+	headers := map[string]any{
 		"architecture": "amd64",
 		"kernel":       "pc-kernel",
 		"gadget":       "pc",
@@ -813,7 +813,7 @@ func (s *deviceMgrRemodelSuite) TestRemodelRequiredSnaps(c *C) {
 	defer restore()
 
 	// set a model assertion
-	s.makeModelAssertionInState(c, "canonical", "pc-model", map[string]interface{}{
+	s.makeModelAssertionInState(c, "canonical", "pc-model", map[string]any{
 		"architecture": "amd64",
 		"kernel":       "pc-kernel",
 		"gadget":       "pc",
@@ -826,12 +826,12 @@ func (s *deviceMgrRemodelSuite) TestRemodelRequiredSnaps(c *C) {
 		Serial: "1234",
 	})
 
-	new := s.brands.Model("canonical", "pc-model", map[string]interface{}{
+	new := s.brands.Model("canonical", "pc-model", map[string]any{
 		"architecture":   "amd64",
 		"kernel":         "pc-kernel",
 		"gadget":         "pc",
 		"base":           "core18",
-		"required-snaps": []interface{}{"new-required-snap-1", "new-required-snap-2"},
+		"required-snaps": []any{"new-required-snap-1", "new-required-snap-2"},
 		"revision":       "1",
 	})
 	chg, err := devicestate.Remodel(s.state, new, devicestate.RemodelOptions{})
@@ -956,7 +956,7 @@ func (s *deviceMgrRemodelSuite) TestRemodelSwitchKernelTrack(c *C) {
 	defer restore()
 
 	// set a model assertion
-	s.makeModelAssertionInState(c, "canonical", "pc-model", map[string]interface{}{
+	s.makeModelAssertionInState(c, "canonical", "pc-model", map[string]any{
 		"architecture": "amd64",
 		"kernel":       "pc-kernel",
 		"gadget":       "pc",
@@ -969,12 +969,12 @@ func (s *deviceMgrRemodelSuite) TestRemodelSwitchKernelTrack(c *C) {
 		Serial: "1234",
 	})
 
-	new := s.brands.Model("canonical", "pc-model", map[string]interface{}{
+	new := s.brands.Model("canonical", "pc-model", map[string]any{
 		"architecture":   "amd64",
 		"kernel":         "pc-kernel=18",
 		"gadget":         "pc",
 		"base":           "core18",
-		"required-snaps": []interface{}{"new-required-snap-1"},
+		"required-snaps": []any{"new-required-snap-1"},
 		"revision":       "1",
 	})
 	chg, err := devicestate.Remodel(s.state, new, devicestate.RemodelOptions{})
@@ -1036,12 +1036,12 @@ func (s *deviceMgrRemodelSuite) TestRemodelLessRequiredSnaps(c *C) {
 	snapstatetest.InstallEssentialSnaps(c, s.state, "core18", nil, nil)
 
 	// set a model assertion
-	s.makeModelAssertionInState(c, "canonical", "pc-model", map[string]interface{}{
+	s.makeModelAssertionInState(c, "canonical", "pc-model", map[string]any{
 		"architecture":   "amd64",
 		"kernel":         "pc-kernel",
 		"gadget":         "pc",
 		"base":           "core18",
-		"required-snaps": []interface{}{"some-required-snap"},
+		"required-snaps": []any{"some-required-snap"},
 	})
 	s.makeSerialAssertionInState(c, "canonical", "pc-model", "1234")
 	devicestatetest.SetDevice(s.state, &auth.DeviceState{
@@ -1050,7 +1050,7 @@ func (s *deviceMgrRemodelSuite) TestRemodelLessRequiredSnaps(c *C) {
 		Serial: "1234",
 	})
 
-	new := s.brands.Model("canonical", "pc-model", map[string]interface{}{
+	new := s.brands.Model("canonical", "pc-model", map[string]any{
 		"architecture": "amd64",
 		"kernel":       "pc-kernel",
 		"gadget":       "pc",
@@ -1115,7 +1115,7 @@ func (s *deviceMgrRemodelSuite) TestRemodelStoreSwitch(c *C) {
 	defer restore()
 
 	// set a model assertion
-	s.makeModelAssertionInState(c, "canonical", "pc-model", map[string]interface{}{
+	s.makeModelAssertionInState(c, "canonical", "pc-model", map[string]any{
 		"architecture": "amd64",
 		"kernel":       "pc-kernel",
 		"gadget":       "pc",
@@ -1128,13 +1128,13 @@ func (s *deviceMgrRemodelSuite) TestRemodelStoreSwitch(c *C) {
 		Serial: "1234",
 	})
 
-	new := s.brands.Model("canonical", "pc-model", map[string]interface{}{
+	new := s.brands.Model("canonical", "pc-model", map[string]any{
 		"architecture":   "amd64",
 		"kernel":         "pc-kernel",
 		"gadget":         "pc",
 		"base":           "core18",
 		"store":          "switched-store",
-		"required-snaps": []interface{}{"new-required-snap-1", "new-required-snap-2"},
+		"required-snaps": []any{"new-required-snap-1", "new-required-snap-2"},
 		"revision":       "1",
 	})
 
@@ -1178,7 +1178,7 @@ func (s *deviceMgrRemodelSuite) TestRemodelRereg(c *C) {
 	s.state.Set("seeded", true)
 
 	// set a model assertion
-	s.makeModelAssertionInState(c, "canonical", "pc-model", map[string]interface{}{
+	s.makeModelAssertionInState(c, "canonical", "pc-model", map[string]any{
 		"architecture": "amd64",
 		"kernel":       "pc-kernel",
 		"gadget":       "pc",
@@ -1192,12 +1192,12 @@ func (s *deviceMgrRemodelSuite) TestRemodelRereg(c *C) {
 		SessionMacaroon: "old-session",
 	})
 
-	new := s.brands.Model("canonical", "rereg-model", map[string]interface{}{
+	new := s.brands.Model("canonical", "rereg-model", map[string]any{
 		"architecture":   "amd64",
 		"kernel":         "pc-kernel",
 		"gadget":         "pc",
 		"base":           "core18",
-		"required-snaps": []interface{}{"new-required-snap-1", "new-required-snap-2"},
+		"required-snaps": []any{"new-required-snap-1", "new-required-snap-2"},
 	})
 
 	s.newFakeStore = func(devBE storecontext.DeviceBackend) snapstate.StoreService {
@@ -1237,7 +1237,7 @@ func (s *deviceMgrRemodelSuite) TestRemodelReregLocalFails(c *C) {
 	s.state.Set("seeded", true)
 
 	// set a model assertion
-	s.makeModelAssertionInState(c, "canonical", "pc-model", map[string]interface{}{
+	s.makeModelAssertionInState(c, "canonical", "pc-model", map[string]any{
 		"architecture": "amd64",
 		"kernel":       "pc-kernel",
 		"gadget":       "pc",
@@ -1251,12 +1251,12 @@ func (s *deviceMgrRemodelSuite) TestRemodelReregLocalFails(c *C) {
 		SessionMacaroon: "old-session",
 	})
 
-	new := s.brands.Model("canonical", "rereg-model", map[string]interface{}{
+	new := s.brands.Model("canonical", "rereg-model", map[string]any{
 		"architecture":   "amd64",
 		"kernel":         "pc-kernel",
 		"gadget":         "pc",
 		"base":           "core18",
-		"required-snaps": []interface{}{"new-required-snap-1", "new-required-snap-2"},
+		"required-snaps": []any{"new-required-snap-1", "new-required-snap-2"},
 	})
 
 	s.newFakeStore = func(devBE storecontext.DeviceBackend) snapstate.StoreService {
@@ -1320,7 +1320,7 @@ func (s *deviceMgrRemodelSuite) TestRemodelClash(c *C) {
 	defer restore()
 
 	// set a model assertion
-	s.makeModelAssertionInState(c, "canonical", "pc-model", map[string]interface{}{
+	s.makeModelAssertionInState(c, "canonical", "pc-model", map[string]any{
 		"architecture": "amd64",
 		"kernel":       "pc-kernel",
 		"gadget":       "pc",
@@ -1335,20 +1335,20 @@ func (s *deviceMgrRemodelSuite) TestRemodelClash(c *C) {
 
 	snapstatetest.InstallEssentialSnaps(c, s.state, "core18", nil, nil)
 
-	new := s.brands.Model("canonical", "pc-model", map[string]interface{}{
+	new := s.brands.Model("canonical", "pc-model", map[string]any{
 		"architecture":   "amd64",
 		"kernel":         "pc-kernel",
 		"gadget":         "pc",
 		"base":           "core18",
-		"required-snaps": []interface{}{"new-required-snap-1", "new-required-snap-2"},
+		"required-snaps": []any{"new-required-snap-1", "new-required-snap-2"},
 		"revision":       "1",
 	})
-	other := s.brands.Model("canonical", "pc-model-other", map[string]interface{}{
+	other := s.brands.Model("canonical", "pc-model-other", map[string]any{
 		"architecture":   "amd64",
 		"kernel":         "pc-kernel",
 		"gadget":         "pc",
 		"base":           "core18",
-		"required-snaps": []interface{}{"new-required-snap-1", "new-required-snap-2"},
+		"required-snaps": []any{"new-required-snap-1", "new-required-snap-2"},
 	})
 
 	clashing = other
@@ -1401,7 +1401,7 @@ func (s *deviceMgrRemodelSuite) TestRemodelClashInProgress(c *C) {
 	defer restore()
 
 	// set a model assertion
-	s.makeModelAssertionInState(c, "canonical", "pc-model", map[string]interface{}{
+	s.makeModelAssertionInState(c, "canonical", "pc-model", map[string]any{
 		"architecture": "amd64",
 		"kernel":       "pc-kernel",
 		"gadget":       "pc",
@@ -1416,12 +1416,12 @@ func (s *deviceMgrRemodelSuite) TestRemodelClashInProgress(c *C) {
 
 	snapstatetest.InstallEssentialSnaps(c, s.state, "core18", nil, nil)
 
-	new := s.brands.Model("canonical", "pc-model", map[string]interface{}{
+	new := s.brands.Model("canonical", "pc-model", map[string]any{
 		"architecture":   "amd64",
 		"kernel":         "pc-kernel",
 		"gadget":         "pc",
 		"base":           "core18",
-		"required-snaps": []interface{}{"new-required-snap-1"},
+		"required-snaps": []any{"new-required-snap-1"},
 		"revision":       "1",
 	})
 
@@ -1465,7 +1465,7 @@ func (s *deviceMgrRemodelSuite) TestRemodelClashWithRecoverySystem(c *C) {
 	defer restore()
 
 	// set a model assertion
-	s.makeModelAssertionInState(c, "canonical", "pc-model", map[string]interface{}{
+	s.makeModelAssertionInState(c, "canonical", "pc-model", map[string]any{
 		"architecture": "amd64",
 		"kernel":       "pc-kernel",
 		"gadget":       "pc",
@@ -1480,12 +1480,12 @@ func (s *deviceMgrRemodelSuite) TestRemodelClashWithRecoverySystem(c *C) {
 
 	snapstatetest.InstallEssentialSnaps(c, s.state, "core18", nil, nil)
 
-	new := s.brands.Model("canonical", "pc-model", map[string]interface{}{
+	new := s.brands.Model("canonical", "pc-model", map[string]any{
 		"architecture":   "amd64",
 		"kernel":         "pc-kernel",
 		"gadget":         "pc",
 		"base":           "core18",
-		"required-snaps": []interface{}{"new-required-snap-1"},
+		"required-snaps": []any{"new-required-snap-1"},
 		"revision":       "1",
 	})
 
@@ -1503,7 +1503,7 @@ func (s *deviceMgrRemodelSuite) TestReregRemodelClashAnyChange(c *C) {
 	s.state.Set("seeded", true)
 
 	// set a model assertion
-	s.makeModelAssertionInState(c, "canonical", "pc-model", map[string]interface{}{
+	s.makeModelAssertionInState(c, "canonical", "pc-model", map[string]any{
 		"architecture": "amd64",
 		"kernel":       "pc-kernel",
 		"gadget":       "pc",
@@ -1517,12 +1517,12 @@ func (s *deviceMgrRemodelSuite) TestReregRemodelClashAnyChange(c *C) {
 		SessionMacaroon: "old-session",
 	})
 
-	new := s.brands.Model("canonical", "pc-model-2", map[string]interface{}{
+	new := s.brands.Model("canonical", "pc-model-2", map[string]any{
 		"architecture":   "amd64",
 		"kernel":         "pc-kernel",
 		"gadget":         "pc",
 		"base":           "core18",
-		"required-snaps": []interface{}{"new-required-snap-1", "new-required-snap-2"},
+		"required-snaps": []any{"new-required-snap-1", "new-required-snap-2"},
 		"revision":       "1",
 	})
 	s.newFakeStore = func(devBE storecontext.DeviceBackend) snapstate.StoreService {
@@ -1573,7 +1573,7 @@ func (s *deviceMgrRemodelSuite) TestDeviceCtxNoTask(c *C) {
 	c.Check(err, testutil.ErrorIs, state.ErrNoState)
 
 	// have a model assertion
-	model := s.brands.Model("canonical", "pc", map[string]interface{}{
+	model := s.brands.Model("canonical", "pc", map[string]any{
 		"gadget":       "pc",
 		"kernel":       "kernel",
 		"architecture": "amd64",
@@ -1601,7 +1601,7 @@ func (s *deviceMgrRemodelSuite) TestDeviceCtxGroundContext(c *C) {
 	defer s.state.Unlock()
 
 	// have a model assertion
-	model := s.brands.Model("canonical", "pc", map[string]interface{}{
+	model := s.brands.Model("canonical", "pc", map[string]any{
 		"gadget":       "pc",
 		"kernel":       "kernel",
 		"architecture": "amd64",
@@ -1625,7 +1625,7 @@ func (s *deviceMgrRemodelSuite) TestDeviceCtxProvided(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	model := assertstest.FakeAssertion(map[string]interface{}{
+	model := assertstest.FakeAssertion(map[string]any{
 		"type":         "model",
 		"authority-id": "canonical",
 		"series":       "16",
@@ -1674,7 +1674,7 @@ volumes:
 
 	s.setupBrands()
 
-	oldModel := fakeMyModel(map[string]interface{}{
+	oldModel := fakeMyModel(map[string]any{
 		"architecture": "amd64",
 		"gadget":       "gadget",
 		"kernel":       "kernel",
@@ -1682,7 +1682,7 @@ volumes:
 	deviceCtx := &snapstatetest.TrivialDeviceContext{DeviceModel: oldModel}
 
 	// model assertion in device context
-	newModel := fakeMyModel(map[string]interface{}{
+	newModel := fakeMyModel(map[string]any{
 		"architecture": "amd64",
 		"gadget":       "new-gadget",
 		"kernel":       "kernel",
@@ -1743,7 +1743,7 @@ volumes:
 		Brand: "canonical",
 		Model: "gadget",
 	})
-	s.makeModelAssertionInState(c, "canonical", "gadget", map[string]interface{}{
+	s.makeModelAssertionInState(c, "canonical", "gadget", map[string]any{
 		"architecture": "amd64",
 		"kernel":       "kernel",
 		"gadget":       "gadget",
@@ -1805,12 +1805,12 @@ version: 123
 
 	s.setupBrands()
 	// model assertion in device context
-	oldModel := fakeMyModel(map[string]interface{}{
+	oldModel := fakeMyModel(map[string]any{
 		"architecture": "amd64",
 		"gadget":       "new-gadget",
 		"kernel":       "krnl",
 	})
-	model := fakeMyModel(map[string]interface{}{
+	model := fakeMyModel(map[string]any{
 		"architecture": "amd64",
 		"gadget":       "new-gadget",
 		"kernel":       "krnl",
@@ -1906,7 +1906,7 @@ volumes:
 	s.mockTasksNopHandler("fake-download", "validate-snap", "set-model")
 
 	// set a model assertion we remodel from
-	s.makeModelAssertionInState(c, "canonical", "pc-model", map[string]interface{}{
+	s.makeModelAssertionInState(c, "canonical", "pc-model", map[string]any{
 		"architecture": "amd64",
 		"kernel":       "pc-kernel",
 		"gadget":       "pc",
@@ -1934,7 +1934,7 @@ volumes:
 	devicestate.SetBootRevisionsUpdated(s.mgr, true)
 
 	// the target model
-	new := s.brands.Model("canonical", "pc-model", map[string]interface{}{
+	new := s.brands.Model("canonical", "pc-model", map[string]any{
 		"architecture": "amd64",
 		"kernel":       "pc-kernel",
 		"base":         "core18",
@@ -2104,7 +2104,7 @@ func (s *deviceMgrRemodelSuite) TestRemodelGadgetAssetsParanoidCheck(c *C) {
 	s.mockTasksNopHandler("fake-download", "validate-snap", "set-model")
 
 	// set a model assertion we remodel from
-	s.makeModelAssertionInState(c, "canonical", "pc-model", map[string]interface{}{
+	s.makeModelAssertionInState(c, "canonical", "pc-model", map[string]any{
 		"architecture": "amd64",
 		"kernel":       "pc-kernel",
 		"gadget":       "pc",
@@ -2132,7 +2132,7 @@ func (s *deviceMgrRemodelSuite) TestRemodelGadgetAssetsParanoidCheck(c *C) {
 	devicestate.SetBootRevisionsUpdated(s.mgr, true)
 
 	// the target model
-	new := s.brands.Model("canonical", "pc-model", map[string]interface{}{
+	new := s.brands.Model("canonical", "pc-model", map[string]any{
 		"architecture": "amd64",
 		"kernel":       "pc-kernel",
 		"base":         "core18",
@@ -2228,7 +2228,7 @@ func (s *deviceMgrSuite) TestRemodelSwitchBaseIncompatibleGadget(c *C) {
 	defer restore()
 
 	// set a model assertion
-	current := s.brands.Model("canonical", "pc-model", map[string]interface{}{
+	current := s.brands.Model("canonical", "pc-model", map[string]any{
 		"architecture": "amd64",
 		"kernel":       "pc-kernel",
 		"gadget":       "pc",
@@ -2241,7 +2241,7 @@ func (s *deviceMgrSuite) TestRemodelSwitchBaseIncompatibleGadget(c *C) {
 		Model: "pc-model",
 	})
 
-	new := s.brands.Model("canonical", "pc-model", map[string]interface{}{
+	new := s.brands.Model("canonical", "pc-model", map[string]any{
 		"architecture": "amd64",
 		"kernel":       "pc-kernel",
 		"gadget":       "pc",
@@ -2289,7 +2289,7 @@ func (s *deviceMgrSuite) TestRemodelSwitchBase(c *C) {
 	defer restore()
 
 	// set a model assertion
-	current := s.brands.Model("canonical", "pc-model", map[string]interface{}{
+	current := s.brands.Model("canonical", "pc-model", map[string]any{
 		"architecture": "amd64",
 		"kernel":       "pc-kernel",
 		"gadget":       "pc",
@@ -2302,7 +2302,7 @@ func (s *deviceMgrSuite) TestRemodelSwitchBase(c *C) {
 		Model: "pc-model",
 	})
 
-	new := s.brands.Model("canonical", "pc-model", map[string]interface{}{
+	new := s.brands.Model("canonical", "pc-model", map[string]any{
 		"architecture": "amd64",
 		"kernel":       "pc-kernel",
 		"gadget":       "pc-20",
@@ -2382,24 +2382,24 @@ func (s *deviceMgrRemodelSuite) TestRemodelUC20RequiredSnapsAndRecoverySystem(c 
 	defer restore()
 
 	// set a model assertion
-	s.makeModelAssertionInState(c, "canonical", "pc-model", map[string]interface{}{
+	s.makeModelAssertionInState(c, "canonical", "pc-model", map[string]any{
 		"architecture": "amd64",
 		"base":         "core20",
 		"grade":        "dangerous",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":            "pc-kernel",
 				"id":              snaptest.AssertedSnapID("pc-kernel"),
 				"type":            "kernel",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "pc",
 				"id":              snaptest.AssertedSnapID("pc"),
 				"type":            "gadget",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "snapd",
 				"id":              snaptest.AssertedSnapID("snapd"),
 				"type":            "snapd",
@@ -2467,41 +2467,41 @@ func (s *deviceMgrRemodelSuite) TestRemodelUC20RequiredSnapsAndRecoverySystem(c 
 	})
 
 	// New model, that changes snapd tracking channel and with 2 new required snaps
-	new := s.brands.Model("canonical", "pc-model", map[string]interface{}{
+	new := s.brands.Model("canonical", "pc-model", map[string]any{
 		"architecture": "amd64",
 		"base":         "core20",
 		"grade":        "dangerous",
 		"revision":     "1",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":            "pc-kernel",
 				"id":              snaptest.AssertedSnapID("pc-kernel"),
 				"type":            "kernel",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "pc",
 				"id":              snaptest.AssertedSnapID("pc"),
 				"type":            "gadget",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "snapd",
 				"id":              snaptest.AssertedSnapID("snapd"),
 				"type":            "snapd",
 				"default-channel": "latest/edge",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":     "new-required-snap-1",
 				"id":       snaptest.AssertedSnapID("new-required-snap-1"),
 				"presence": "required",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":     "new-required-snap-2",
 				"id":       snaptest.AssertedSnapID("new-required-snap-2"),
 				"presence": "required",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":     "new-optional-snap-1",
 				"id":       snaptest.AssertedSnapID("new-optional-snap-1"),
 				"presence": "optional",
@@ -2616,13 +2616,13 @@ func (s *deviceMgrRemodelSuite) TestRemodelUC20RequiredSnapsAndRecoverySystem(c 
 	})
 
 	// verify recovery system setup data on appropriate tasks
-	var systemSetupData map[string]interface{}
+	var systemSetupData map[string]any
 	err = tCreateRecovery.Get("recovery-system-setup", &systemSetupData)
 	c.Assert(err, IsNil)
-	c.Assert(systemSetupData, DeepEquals, map[string]interface{}{
+	c.Assert(systemSetupData, DeepEquals, map[string]any{
 		"label":            expectedLabel,
 		"directory":        filepath.Join(boot.InitramfsUbuntuSeedDir, "systems", expectedLabel),
-		"snap-setup-tasks": []interface{}{tDownloadSnap1.ID(), tDownloadSnap2.ID(), tDownloadSnap3.ID()},
+		"snap-setup-tasks": []any{tDownloadSnap1.ID(), tDownloadSnap2.ID(), tDownloadSnap3.ID()},
 		"test-system":      true,
 	})
 	// cross references of to recovery system setup data
@@ -2730,18 +2730,18 @@ func (s *deviceMgrRemodelSuite) testRemodelUC20SwitchKernelGadgetBaseSnaps(c *C,
 	defer restore()
 
 	// set a model assertion
-	s.makeModelAssertionInState(c, "canonical", "pc-model", map[string]interface{}{
+	s.makeModelAssertionInState(c, "canonical", "pc-model", map[string]any{
 		"architecture": "amd64",
 		"base":         "core20",
 		"grade":        "dangerous",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":            "pc-kernel",
 				"id":              snaptest.AssertedSnapID("pc-kernel"),
 				"type":            "kernel",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "pc",
 				"id":              snaptest.AssertedSnapID("pc"),
 				"type":            "gadget",
@@ -2800,25 +2800,25 @@ func (s *deviceMgrRemodelSuite) testRemodelUC20SwitchKernelGadgetBaseSnaps(c *C,
 		newGadget = "pc-new"
 	}
 
-	new := s.brands.Model("canonical", "pc-model", map[string]interface{}{
+	new := s.brands.Model("canonical", "pc-model", map[string]any{
 		"architecture": "amd64",
 		"base":         "core20",
 		"grade":        "dangerous",
 		"revision":     "1",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":            "pc-kernel",
 				"id":              snaptest.AssertedSnapID("pc-kernel"),
 				"type":            "kernel",
 				"default-channel": "21/edge",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            newGadget,
 				"id":              snaptest.AssertedSnapID(newGadget),
 				"type":            "gadget",
 				"default-channel": "21/stable",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "core20",
 				"id":              snaptest.AssertedSnapID("core20"),
 				"type":            "base",
@@ -2953,13 +2953,13 @@ func (s *deviceMgrRemodelSuite) testRemodelUC20SwitchKernelGadgetBaseSnaps(c *C,
 	})
 
 	// verify recovery system setup data on appropriate tasks
-	var systemSetupData map[string]interface{}
+	var systemSetupData map[string]any
 	err = tCreateRecovery.Get("recovery-system-setup", &systemSetupData)
 	c.Assert(err, IsNil)
-	c.Assert(systemSetupData, DeepEquals, map[string]interface{}{
+	c.Assert(systemSetupData, DeepEquals, map[string]any{
 		"label":            expectedLabel,
 		"directory":        filepath.Join(boot.InitramfsUbuntuSeedDir, "systems", expectedLabel),
-		"snap-setup-tasks": []interface{}{tDownloadKernel.ID(), tDownloadBase.ID(), tDownloadGadget.ID()},
+		"snap-setup-tasks": []any{tDownloadKernel.ID(), tDownloadBase.ID(), tDownloadGadget.ID()},
 		"test-system":      true,
 	})
 }
@@ -2997,18 +2997,18 @@ func (s *deviceMgrRemodelSuite) TestRemodelOfflineUseInstalledSnaps(c *C) {
 	defer restore()
 
 	// set a model assertion
-	s.makeModelAssertionInState(c, "canonical", "pc-model", map[string]interface{}{
+	s.makeModelAssertionInState(c, "canonical", "pc-model", map[string]any{
 		"architecture": "amd64",
 		"base":         "core24",
 		"grade":        "dangerous",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":            "pc-kernel",
 				"id":              snaptest.AssertedSnapID("pc-kernel"),
 				"type":            "kernel",
 				"default-channel": "20/stable",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "pc",
 				"id":              snaptest.AssertedSnapID("pc"),
 				"type":            "gadget",
@@ -3057,14 +3057,14 @@ func (s *deviceMgrRemodelSuite) TestRemodelOfflineUseInstalledSnaps(c *C) {
 	}
 	appSnapPath, _ := snaptest.MakeTestSnapInfoWithFiles(c, "name: app-snap\nversion: 1\ntype: app\n", nil, appSnap)
 
-	new := s.brands.Model("canonical", "pc-model", map[string]interface{}{
+	new := s.brands.Model("canonical", "pc-model", map[string]any{
 		"architecture": "amd64",
 		// switch to a new base which is already installed
 		"base":     "core24-new",
 		"grade":    "dangerous",
 		"revision": "1",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				// switch to a new kernel which also is already
 				// installed
 				"name":            "pc-kernel-new",
@@ -3072,13 +3072,13 @@ func (s *deviceMgrRemodelSuite) TestRemodelOfflineUseInstalledSnaps(c *C) {
 				"type":            "kernel",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "pc-new",
 				"id":              snaptest.AssertedSnapID("pc-new"),
 				"type":            "gadget",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "app-snap",
 				"id":              snaptest.AssertedSnapID("app-snap"),
 				"type":            "app",
@@ -3210,13 +3210,13 @@ func (s *deviceMgrRemodelSuite) TestRemodelOfflineUseInstalledSnaps(c *C) {
 		tCreateRecovery, tFinalizeRecovery,
 	})
 
-	snapsups := []interface{}{tPrepareKernel.ID(), tPrepareBase.ID(), tPrepareGadget.ID(), tValidateApp.ID()}
+	snapsups := []any{tPrepareKernel.ID(), tPrepareBase.ID(), tPrepareGadget.ID(), tValidateApp.ID()}
 
 	// verify recovery system setup data on appropriate tasks
-	var systemSetupData map[string]interface{}
+	var systemSetupData map[string]any
 	err = tCreateRecovery.Get("recovery-system-setup", &systemSetupData)
 	c.Assert(err, IsNil)
-	c.Assert(systemSetupData, DeepEquals, map[string]interface{}{
+	c.Assert(systemSetupData, DeepEquals, map[string]any{
 		"label":            expectedLabel,
 		"directory":        filepath.Join(boot.InitramfsUbuntuSeedDir, "systems", expectedLabel),
 		"snap-setup-tasks": snapsups,
@@ -3256,18 +3256,18 @@ func (s *deviceMgrRemodelSuite) TestRemodelOfflineUseInstalledSnapsChannelSwitch
 	defer restore()
 
 	// set a model assertion
-	s.makeModelAssertionInState(c, "canonical", "pc-model", map[string]interface{}{
+	s.makeModelAssertionInState(c, "canonical", "pc-model", map[string]any{
 		"architecture": "amd64",
 		"base":         "core24",
 		"grade":        "dangerous",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":            "pc-kernel",
 				"id":              snaptest.AssertedSnapID("pc-kernel"),
 				"type":            "kernel",
 				"default-channel": "20/stable",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "pc",
 				"id":              snaptest.AssertedSnapID("pc"),
 				"type":            "gadget",
@@ -3316,14 +3316,14 @@ func (s *deviceMgrRemodelSuite) TestRemodelOfflineUseInstalledSnapsChannelSwitch
 	}
 	appSnapPath, _ := snaptest.MakeTestSnapInfoWithFiles(c, "name: app-snap\nversion: 1\ntype: app\n", nil, appSnap)
 
-	new := s.brands.Model("canonical", "pc-model", map[string]interface{}{
+	new := s.brands.Model("canonical", "pc-model", map[string]any{
 		"architecture": "amd64",
 		// switch to a new base which is already installed
 		"base":     "core24-new",
 		"grade":    "dangerous",
 		"revision": "1",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				// switch to a new kernel which also is already
 				// installed
 				"name":            "pc-kernel-new",
@@ -3331,13 +3331,13 @@ func (s *deviceMgrRemodelSuite) TestRemodelOfflineUseInstalledSnapsChannelSwitch
 				"type":            "kernel",
 				"default-channel": "20/edge",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "pc-new",
 				"id":              snaptest.AssertedSnapID("pc-new"),
 				"type":            "gadget",
 				"default-channel": "20/edge",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "app-snap",
 				"id":              snaptest.AssertedSnapID("app-snap"),
 				"type":            "app",
@@ -3473,13 +3473,13 @@ func (s *deviceMgrRemodelSuite) TestRemodelOfflineUseInstalledSnapsChannelSwitch
 		tCreateRecovery, tFinalizeRecovery,
 	})
 
-	snapsups := []interface{}{tSwitchKernel.ID(), tPrepareBase.ID(), tSwitchGadget.ID(), tValidateApp.ID()}
+	snapsups := []any{tSwitchKernel.ID(), tPrepareBase.ID(), tSwitchGadget.ID(), tValidateApp.ID()}
 
 	// verify recovery system setup data on appropriate tasks
-	var systemSetupData map[string]interface{}
+	var systemSetupData map[string]any
 	err = tCreateRecovery.Get("recovery-system-setup", &systemSetupData)
 	c.Assert(err, IsNil)
-	c.Assert(systemSetupData, DeepEquals, map[string]interface{}{
+	c.Assert(systemSetupData, DeepEquals, map[string]any{
 		"label":            expectedLabel,
 		"directory":        filepath.Join(boot.InitramfsUbuntuSeedDir, "systems", expectedLabel),
 		"snap-setup-tasks": snapsups,
@@ -3517,18 +3517,18 @@ func (s *deviceMgrRemodelSuite) TestRemodelUC20SwitchKernelBaseGadgetSnapsInstal
 	defer restore()
 
 	// set a model assertion
-	s.makeModelAssertionInState(c, "canonical", "pc-model", map[string]interface{}{
+	s.makeModelAssertionInState(c, "canonical", "pc-model", map[string]any{
 		"architecture": "amd64",
 		"base":         "core24",
 		"grade":        "dangerous",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":            "pc-kernel",
 				"id":              snaptest.AssertedSnapID("pc-kernel"),
 				"type":            "kernel",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "pc",
 				"id":              snaptest.AssertedSnapID("pc"),
 				"type":            "gadget",
@@ -3595,14 +3595,14 @@ func (s *deviceMgrRemodelSuite) TestRemodelUC20SwitchKernelBaseGadgetSnapsInstal
 		})
 	}
 
-	new := s.brands.Model("canonical", "pc-model", map[string]interface{}{
+	new := s.brands.Model("canonical", "pc-model", map[string]any{
 		"architecture": "amd64",
 		// switch to a new base which is already installed
 		"base":     "core24-new",
 		"grade":    "dangerous",
 		"revision": "1",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				// switch to a new kernel which also is already
 				// installed
 				"name":            "pc-kernel-new",
@@ -3610,7 +3610,7 @@ func (s *deviceMgrRemodelSuite) TestRemodelUC20SwitchKernelBaseGadgetSnapsInstal
 				"type":            "kernel",
 				"default-channel": "20/stable",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "pc-new",
 				"id":              snaptest.AssertedSnapID("pc-new"),
 				"type":            "gadget",
@@ -3725,13 +3725,13 @@ func (s *deviceMgrRemodelSuite) TestRemodelUC20SwitchKernelBaseGadgetSnapsInstal
 		tCreateRecovery, tFinalizeRecovery,
 	})
 	// verify recovery system setup data on appropriate tasks
-	var systemSetupData map[string]interface{}
+	var systemSetupData map[string]any
 	err = tCreateRecovery.Get("recovery-system-setup", &systemSetupData)
 	c.Assert(err, IsNil)
-	c.Assert(systemSetupData, DeepEquals, map[string]interface{}{
+	c.Assert(systemSetupData, DeepEquals, map[string]any{
 		"label":            expectedLabel,
 		"directory":        filepath.Join(boot.InitramfsUbuntuSeedDir, "systems", expectedLabel),
-		"snap-setup-tasks": []interface{}{tPrepareKernel.ID(), tPrepareBase.ID(), tPrepareGadget.ID()},
+		"snap-setup-tasks": []any{tPrepareKernel.ID(), tPrepareBase.ID(), tPrepareGadget.ID()},
 		"test-system":      true,
 	})
 }
@@ -3849,18 +3849,18 @@ func (s *deviceMgrRemodelSuite) testRemodelUC20SwitchKernelBaseGadgetSnapsInstal
 	defer restore()
 
 	// set a model assertion
-	s.makeModelAssertionInState(c, "canonical", "pc-model", map[string]interface{}{
+	s.makeModelAssertionInState(c, "canonical", "pc-model", map[string]any{
 		"architecture": "amd64",
 		"base":         "core24",
 		"grade":        "dangerous",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":            "pc-kernel",
 				"id":              snaptest.AssertedSnapID("pc-kernel"),
 				"type":            "kernel",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "pc",
 				"id":              snaptest.AssertedSnapID("pc"),
 				"type":            "gadget",
@@ -3928,14 +3928,14 @@ func (s *deviceMgrRemodelSuite) testRemodelUC20SwitchKernelBaseGadgetSnapsInstal
 		})
 	}
 
-	new := s.brands.Model("canonical", "pc-model", map[string]interface{}{
+	new := s.brands.Model("canonical", "pc-model", map[string]any{
 		"architecture": "amd64",
 		// switch to a new base which is already installed
 		"base":     "core24-new",
 		"grade":    "dangerous",
 		"revision": "1",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				// switch to a new kernel which also is already
 				// installed, but tracks a different channel
 				// than what we have in snap state
@@ -3944,13 +3944,13 @@ func (s *deviceMgrRemodelSuite) testRemodelUC20SwitchKernelBaseGadgetSnapsInstal
 				"type":            "kernel",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "pc-new",
 				"id":              snaptest.AssertedSnapID("pc-new"),
 				"type":            "gadget",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				// similar case for the base snap
 				"name":            "core24-new",
 				"id":              snaptest.AssertedSnapID("core24-new"),
@@ -4070,14 +4070,14 @@ func (s *deviceMgrRemodelSuite) testRemodelUC20SwitchKernelBaseGadgetSnapsInstal
 		tCreateRecovery, tFinalizeRecovery,
 	})
 	// verify recovery system setup data on appropriate tasks
-	var systemSetupData map[string]interface{}
+	var systemSetupData map[string]any
 	err = tCreateRecovery.Get("recovery-system-setup", &systemSetupData)
 	c.Assert(err, IsNil)
-	c.Assert(systemSetupData, DeepEquals, map[string]interface{}{
+	c.Assert(systemSetupData, DeepEquals, map[string]any{
 		"label":     expectedLabel,
 		"directory": filepath.Join(boot.InitramfsUbuntuSeedDir, "systems", expectedLabel),
 		// tasks carrying snap-setup are tracked
-		"snap-setup-tasks": []interface{}{
+		"snap-setup-tasks": []any{
 			tSwitchChannelKernel.ID(),
 			tSwitchChannelBase.ID(),
 			tSwitchChannelGadget.ID(),
@@ -4133,18 +4133,18 @@ func (s *deviceMgrRemodelSuite) TestRemodelUC20SwitchKernelBaseSnapsInstalledSna
 	defer restore()
 
 	// set a model assertion
-	s.makeModelAssertionInState(c, "canonical", "pc-model", map[string]interface{}{
+	s.makeModelAssertionInState(c, "canonical", "pc-model", map[string]any{
 		"architecture": "amd64",
 		"base":         "core20",
 		"grade":        "dangerous",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":            "pc-kernel",
 				"id":              snaptest.AssertedSnapID("pc-kernel"),
 				"type":            "kernel",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "pc",
 				"id":              snaptest.AssertedSnapID("pc"),
 				"type":            "gadget",
@@ -4209,26 +4209,26 @@ func (s *deviceMgrRemodelSuite) TestRemodelUC20SwitchKernelBaseSnapsInstalledSna
 	}
 
 	// new kernel and base are already installed, but using a different channel
-	new := s.brands.Model("canonical", "pc-model", map[string]interface{}{
+	new := s.brands.Model("canonical", "pc-model", map[string]any{
 		"architecture": "amd64",
 		// switch to a new base which is already installed
 		"base":     "core20-new",
 		"grade":    "dangerous",
 		"revision": "1",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":            "pc-kernel-new",
 				"id":              snaptest.AssertedSnapID("pc-kernel-new"),
 				"type":            "kernel",
 				"default-channel": "kernel/edge",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "pc",
 				"id":              snaptest.AssertedSnapID("pc"),
 				"type":            "gadget",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "core20-new",
 				"id":              snaptest.AssertedSnapID("core20-new"),
 				"type":            "base",
@@ -4322,13 +4322,13 @@ func (s *deviceMgrRemodelSuite) TestRemodelUC20SwitchKernelBaseSnapsInstalledSna
 	})
 
 	// verify recovery system setup data on appropriate tasks
-	var systemSetupData map[string]interface{}
+	var systemSetupData map[string]any
 	err = tCreateRecovery.Get("recovery-system-setup", &systemSetupData)
 	c.Assert(err, IsNil)
-	c.Assert(systemSetupData, DeepEquals, map[string]interface{}{
+	c.Assert(systemSetupData, DeepEquals, map[string]any{
 		"label":            expectedLabel,
 		"directory":        filepath.Join(boot.InitramfsUbuntuSeedDir, "systems", expectedLabel),
-		"snap-setup-tasks": []interface{}{tDownloadKernel.ID(), tDownloadBase.ID()},
+		"snap-setup-tasks": []any{tDownloadKernel.ID(), tDownloadBase.ID()},
 		"test-system":      true,
 	})
 }
@@ -4359,18 +4359,18 @@ func (s *deviceMgrRemodelSuite) TestRemodelUC20EssentialSnapsTrackingDifferentCh
 	defer restore()
 
 	// set a model assertion
-	s.makeModelAssertionInState(c, "canonical", "pc-model", map[string]interface{}{
+	s.makeModelAssertionInState(c, "canonical", "pc-model", map[string]any{
 		"architecture": "amd64",
 		"base":         "core20",
 		"grade":        "dangerous",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":            "pc-kernel",
 				"id":              snaptest.AssertedSnapID("pc-kernel"),
 				"type":            "kernel",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "pc",
 				"id":              snaptest.AssertedSnapID("pc"),
 				"type":            "gadget",
@@ -4429,25 +4429,25 @@ func (s *deviceMgrRemodelSuite) TestRemodelUC20EssentialSnapsTrackingDifferentCh
 	})
 
 	// new kernel and base are already installed, but using a different channel
-	new := s.brands.Model("canonical", "pc-model", map[string]interface{}{
+	new := s.brands.Model("canonical", "pc-model", map[string]any{
 		"architecture": "amd64",
 		"base":         "core20",
 		"grade":        "dangerous",
 		"revision":     "1",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":            "pc-kernel",
 				"id":              snaptest.AssertedSnapID("pc-kernel"),
 				"type":            "kernel",
 				"default-channel": "20/edge",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "pc",
 				"id":              snaptest.AssertedSnapID("pc"),
 				"type":            "gadget",
 				"default-channel": "20/edge",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "core20",
 				"id":              snaptest.AssertedSnapID("core20"),
 				"type":            "base",
@@ -4500,10 +4500,10 @@ func (s *deviceMgrRemodelSuite) TestRemodelUC20EssentialSnapsTrackingDifferentCh
 	})
 
 	// verify recovery system setup data on appropriate tasks
-	var systemSetupData map[string]interface{}
+	var systemSetupData map[string]any
 	err = tCreateRecovery.Get("recovery-system-setup", &systemSetupData)
 	c.Assert(err, IsNil)
-	c.Assert(systemSetupData, DeepEquals, map[string]interface{}{
+	c.Assert(systemSetupData, DeepEquals, map[string]any{
 		"label":       expectedLabel,
 		"directory":   filepath.Join(boot.InitramfsUbuntuSeedDir, "systems", expectedLabel),
 		"test-system": true,
@@ -4535,18 +4535,18 @@ func (s *deviceMgrRemodelSuite) TestRemodelFailWhenUsingUnassertedSnapForSpecifi
 	defer restore()
 
 	// set a model assertion
-	s.makeModelAssertionInState(c, "canonical", "pc-model", map[string]interface{}{
+	s.makeModelAssertionInState(c, "canonical", "pc-model", map[string]any{
 		"architecture": "amd64",
 		"base":         "core20",
 		"grade":        "dangerous",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":            "pc-kernel",
 				"id":              snaptest.AssertedSnapID("pc-kernel"),
 				"type":            "kernel",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "pc",
 				"id":              snaptest.AssertedSnapID("pc"),
 				"type":            "gadget",
@@ -4601,15 +4601,15 @@ func (s *deviceMgrRemodelSuite) TestRemodelFailWhenUsingUnassertedSnapForSpecifi
 		TrackingChannel: "",
 	})
 
-	vset, err := s.brands.Signing("canonical").Sign(asserts.ValidationSetType, map[string]interface{}{
+	vset, err := s.brands.Signing("canonical").Sign(asserts.ValidationSetType, map[string]any{
 		"type":         "validation-set",
 		"authority-id": "canonical",
 		"series":       "16",
 		"account-id":   "canonical",
 		"name":         "vset-1",
 		"sequence":     "1",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":     "pc-kernel",
 				"id":       snaptest.AssertedSnapID("pc-kernel"),
 				"revision": "10",
@@ -4625,32 +4625,32 @@ func (s *deviceMgrRemodelSuite) TestRemodelFailWhenUsingUnassertedSnapForSpecifi
 
 	// new kernel and base are already installed, but kernel needs a new
 	// revision and base is a new channel
-	new := s.brands.Model("canonical", "pc-model", map[string]interface{}{
+	new := s.brands.Model("canonical", "pc-model", map[string]any{
 		"architecture": "amd64",
 		"base":         "core20",
 		"grade":        "dangerous",
 		"revision":     "1",
-		"validation-sets": []interface{}{
-			map[string]interface{}{
+		"validation-sets": []any{
+			map[string]any{
 				"account-id": "canonical",
 				"name":       "vset-1",
 				"mode":       "enforce",
 			},
 		},
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":            "pc-kernel",
 				"id":              snaptest.AssertedSnapID("pc-kernel"),
 				"type":            "kernel",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "pc",
 				"id":              snaptest.AssertedSnapID("pc"),
 				"type":            "gadget",
 				"default-channel": "20/edge",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "core20",
 				"id":              snaptest.AssertedSnapID("core20"),
 				"type":            "base",
@@ -4709,18 +4709,18 @@ func (s *deviceMgrRemodelSuite) TestRemodelUC20BaseNoDownloadSimpleChannelSwitch
 	defer restore()
 
 	// set a model assertion
-	s.makeModelAssertionInState(c, "canonical", "pc-model", map[string]interface{}{
+	s.makeModelAssertionInState(c, "canonical", "pc-model", map[string]any{
 		"architecture": "amd64",
 		"base":         "core20",
 		"grade":        "dangerous",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":            "pc-kernel",
 				"id":              snaptest.AssertedSnapID("pc-kernel"),
 				"type":            "kernel",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "pc",
 				"id":              snaptest.AssertedSnapID("pc"),
 				"type":            "gadget",
@@ -4777,25 +4777,25 @@ func (s *deviceMgrRemodelSuite) TestRemodelUC20BaseNoDownloadSimpleChannelSwitch
 	})
 
 	// base uses a new default channel
-	new := s.brands.Model("canonical", "pc-model", map[string]interface{}{
+	new := s.brands.Model("canonical", "pc-model", map[string]any{
 		"architecture": "amd64",
 		"base":         "core20",
 		"grade":        "dangerous",
 		"revision":     "1",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":            "pc-kernel",
 				"id":              snaptest.AssertedSnapID("pc-kernel"),
 				"type":            "kernel",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "pc",
 				"id":              snaptest.AssertedSnapID("pc"),
 				"type":            "gadget",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "core20",
 				"id":              snaptest.AssertedSnapID("core20"),
 				"type":            "base",
@@ -4852,10 +4852,10 @@ func (s *deviceMgrRemodelSuite) TestRemodelUC20BaseNoDownloadSimpleChannelSwitch
 	})
 
 	// verify recovery system setup data on appropriate tasks
-	var systemSetupData map[string]interface{}
+	var systemSetupData map[string]any
 	err = tCreateRecovery.Get("recovery-system-setup", &systemSetupData)
 	c.Assert(err, IsNil)
-	c.Assert(systemSetupData, DeepEquals, map[string]interface{}{
+	c.Assert(systemSetupData, DeepEquals, map[string]any{
 		"label":       expectedLabel,
 		"directory":   filepath.Join(boot.InitramfsUbuntuSeedDir, "systems", expectedLabel),
 		"test-system": true,
@@ -4904,30 +4904,30 @@ func (s *deviceMgrRemodelSuite) TestRemodelUC20EssentialNoDownloadSimpleChannelS
 	defer restore()
 
 	// set a model assertion
-	s.makeModelAssertionInState(c, "canonical", "pc-model", map[string]interface{}{
+	s.makeModelAssertionInState(c, "canonical", "pc-model", map[string]any{
 		"architecture": "amd64",
 		"base":         "core20",
 		"grade":        "dangerous",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":            "pc-kernel",
 				"id":              snaptest.AssertedSnapID("pc-kernel"),
 				"type":            "kernel",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "pc",
 				"id":              snaptest.AssertedSnapID("pc"),
 				"type":            "gadget",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "snap-1",
 				"id":              snaptest.AssertedSnapID("snap-1"),
 				"type":            "app",
 				"default-channel": "latest/stable",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "snap-1-base",
 				"id":              snaptest.AssertedSnapID("snap-1-base"),
 				"type":            "base",
@@ -5019,31 +5019,31 @@ base: snap-1-base
 	})
 
 	// snap-1 uses a new default channel
-	new := s.brands.Model("canonical", "pc-model", map[string]interface{}{
+	new := s.brands.Model("canonical", "pc-model", map[string]any{
 		"architecture": "amd64",
 		"base":         "core20",
 		"grade":        "dangerous",
 		"revision":     "1",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":            "pc-kernel",
 				"id":              snaptest.AssertedSnapID("pc-kernel"),
 				"type":            "kernel",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "pc",
 				"id":              snaptest.AssertedSnapID("pc"),
 				"type":            "gadget",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "snap-1",
 				"id":              snaptest.AssertedSnapID("snap-1"),
 				"type":            "app",
 				"default-channel": "latest/edge",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "snap-1-base",
 				"id":              snaptest.AssertedSnapID("snap-1-base"),
 				"type":            "app",
@@ -5110,18 +5110,18 @@ func (s *deviceMgrRemodelSuite) testRemodelUC20LabelConflicts(c *C, tc remodelUC
 	defer restore()
 
 	// set a model assertion
-	s.makeModelAssertionInState(c, "canonical", "pc-model", map[string]interface{}{
+	s.makeModelAssertionInState(c, "canonical", "pc-model", map[string]any{
 		"architecture": "amd64",
 		"base":         "core20",
 		"grade":        "dangerous",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":            "pc-kernel",
 				"id":              snaptest.AssertedSnapID("pc-kernel"),
 				"type":            "kernel",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "pc",
 				"id":              snaptest.AssertedSnapID("pc"),
 				"type":            "gadget",
@@ -5175,19 +5175,19 @@ func (s *deviceMgrRemodelSuite) testRemodelUC20LabelConflicts(c *C, tc remodelUC
 		TrackingChannel: "latest/stable",
 	})
 
-	new := s.brands.Model("canonical", "pc-model", map[string]interface{}{
+	new := s.brands.Model("canonical", "pc-model", map[string]any{
 		"architecture": "amd64",
 		"base":         "core20",
 		"grade":        "dangerous",
 		"revision":     "1",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":            "pc-kernel",
 				"id":              snaptest.AssertedSnapID("pc-kernel"),
 				"type":            "kernel",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "pc",
 				"id":              snaptest.AssertedSnapID("pc"),
 				"type":            "gadget",
@@ -5236,7 +5236,7 @@ func (s *deviceMgrRemodelSuite) testRemodelUC20LabelConflicts(c *C, tc remodelUC
 		happyLabel := labelBase + "-991"
 		c.Assert(tCreateRecovery, NotNil)
 		c.Assert(tCreateRecovery.Summary(), Equals, fmt.Sprintf("Create recovery system with label %q", happyLabel))
-		var systemSetupData map[string]interface{}
+		var systemSetupData map[string]any
 		err = tCreateRecovery.Get("recovery-system-setup", &systemSetupData)
 		c.Assert(err, IsNil)
 		c.Assert(systemSetupData["label"], Equals, happyLabel)
@@ -5287,18 +5287,18 @@ func (s *deviceMgrRemodelSuite) testUC20RemodelSetModel(c *C, tc uc20RemodelSetM
 		"create-recovery-system", "finalize-recovery-system")
 
 	// set a model assertion we remodel from
-	model := s.makeModelAssertionInState(c, "canonical", "pc-model", map[string]interface{}{
+	model := s.makeModelAssertionInState(c, "canonical", "pc-model", map[string]any{
 		"architecture": "amd64",
 		"base":         "core20",
 		"grade":        "dangerous",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":            "pc-kernel",
 				"id":              snaptest.AssertedSnapID("pc-kernel"),
 				"type":            "kernel",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "pc",
 				"id":              snaptest.AssertedSnapID("pc"),
 				"type":            "gadget",
@@ -5373,19 +5373,19 @@ func (s *deviceMgrRemodelSuite) testUC20RemodelSetModel(c *C, tc uc20RemodelSetM
 	})
 
 	// the target model
-	new := s.brands.Model("canonical", "pc-model", map[string]interface{}{
+	new := s.brands.Model("canonical", "pc-model", map[string]any{
 		"architecture": "amd64",
 		"base":         "core20",
 		"grade":        "dangerous",
 		"revision":     "1",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":            "pc-kernel",
 				"id":              snaptest.AssertedSnapID("pc-kernel"),
 				"type":            "kernel",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "pc",
 				"id":              snaptest.AssertedSnapID("pc"),
 				"type":            "gadget",
@@ -5604,14 +5604,14 @@ func (s *deviceMgrRemodelSuite) testUC20RemodelLocalNonEssential(c *C, tc *uc20R
 		"create-recovery-system", "finalize-recovery-system")
 
 	// set a model assertion we remodel from
-	essentialSnaps := []interface{}{
-		map[string]interface{}{
+	essentialSnaps := []any{
+		map[string]any{
 			"name":            "pc-kernel",
 			"id":              snaptest.AssertedSnapID("pc-kernel"),
 			"type":            "kernel",
 			"default-channel": "20",
 		},
-		map[string]interface{}{
+		map[string]any{
 			"name":            "pc",
 			"id":              snaptest.AssertedSnapID("pc"),
 			"type":            "gadget",
@@ -5620,14 +5620,14 @@ func (s *deviceMgrRemodelSuite) testUC20RemodelLocalNonEssential(c *C, tc *uc20R
 	}
 	snaps := essentialSnaps
 	if tc.isUpdate {
-		snaps = append(snaps, map[string]interface{}{
+		snaps = append(snaps, map[string]any{
 			"name":            "some-snap",
 			"id":              snaptest.AssertedSnapID("some-snap"),
 			"type":            "app",
 			"default-channel": "latest",
 		})
 	}
-	model := s.makeModelAssertionInState(c, "canonical", "pc-model", map[string]interface{}{
+	model := s.makeModelAssertionInState(c, "canonical", "pc-model", map[string]any{
 		"architecture": "amd64",
 		"base":         "core20",
 		"grade":        "dangerous",
@@ -5711,14 +5711,14 @@ func (s *deviceMgrRemodelSuite) testUC20RemodelLocalNonEssential(c *C, tc *uc20R
 	}
 
 	newModelSnaps := essentialSnaps
-	newModelSnaps = append(newModelSnaps, map[string]interface{}{
+	newModelSnaps = append(newModelSnaps, map[string]any{
 		"name":            "some-snap",
 		"id":              snaptest.AssertedSnapID("some-snap"),
 		"type":            "app",
 		"default-channel": "new-channel",
 	})
 
-	new := s.brands.Model("canonical", "pc-model", map[string]interface{}{
+	new := s.brands.Model("canonical", "pc-model", map[string]any{
 		"architecture": "amd64",
 		"base":         "core20",
 		"grade":        "dangerous",
@@ -5921,18 +5921,18 @@ func (s *deviceMgrRemodelSuite) TestUC20RemodelSetModelWithReboot(c *C) {
 		"create-recovery-system", "finalize-recovery-system")
 
 	// set a model assertion we remodel from
-	model := s.makeModelAssertionInState(c, "canonical", "pc-model", map[string]interface{}{
+	model := s.makeModelAssertionInState(c, "canonical", "pc-model", map[string]any{
 		"architecture": "amd64",
 		"base":         "core20",
 		"grade":        "dangerous",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":            "pc-kernel",
 				"id":              snaptest.AssertedSnapID("pc-kernel"),
 				"type":            "kernel",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "pc",
 				"id":              snaptest.AssertedSnapID("pc"),
 				"type":            "gadget",
@@ -6012,19 +6012,19 @@ func (s *deviceMgrRemodelSuite) TestUC20RemodelSetModelWithReboot(c *C) {
 
 	// the target model, since it's a new model altogether a reregistration
 	// will be triggered
-	new := s.brands.Model("canonical", "pc-new-model", map[string]interface{}{
+	new := s.brands.Model("canonical", "pc-new-model", map[string]any{
 		"architecture": "amd64",
 		"base":         "core20",
 		"grade":        "dangerous",
 		"revision":     "1",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":            "pc-kernel",
 				"id":              snaptest.AssertedSnapID("pc-kernel"),
 				"type":            "kernel",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "pc",
 				"id":              snaptest.AssertedSnapID("pc"),
 				"type":            "gadget",
@@ -6268,18 +6268,18 @@ func (s *deviceMgrRemodelSuite) testRemodelTasksSelfContainedModelMissingDep(c *
 	var testDeviceCtx snapstate.DeviceContext
 
 	// set a model assertion we remodel from
-	current := s.makeModelAssertionInState(c, "canonical", "pc-model", map[string]interface{}{
+	current := s.makeModelAssertionInState(c, "canonical", "pc-model", map[string]any{
 		"architecture": "amd64",
 		"base":         "core20",
 		"grade":        "dangerous",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":            "pc-kernel",
 				"id":              snaptest.AssertedSnapID("pc-kernel"),
 				"type":            "kernel",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "pc",
 				"id":              snaptest.AssertedSnapID("pc"),
 				"type":            "gadget",
@@ -6411,25 +6411,25 @@ plugs:
 	})
 	defer restore()
 
-	new := s.brands.Model("canonical", "pc-new-model", map[string]interface{}{
+	new := s.brands.Model("canonical", "pc-new-model", map[string]any{
 		"architecture": "amd64",
 		"base":         "core20",
 		"grade":        "dangerous",
 		"revision":     "1",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":            "pc-kernel",
 				"id":              snaptest.AssertedSnapID("pc-kernel"),
 				"type":            "kernel",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "pc",
 				"id":              snaptest.AssertedSnapID("pc"),
 				"type":            "gadget",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name": "foo-missing-deps",
 				"id":   snaptest.AssertedSnapID("foo-missing-deps"),
 			},
@@ -6541,18 +6541,18 @@ func (s *deviceMgrRemodelSuite) TestRemodelTasksSelfContainedModelMissingDepsOfM
 	var testDeviceCtx snapstate.DeviceContext
 
 	// set a model assertion we remodel from
-	current := s.makeModelAssertionInState(c, "canonical", "pc-model", map[string]interface{}{
+	current := s.makeModelAssertionInState(c, "canonical", "pc-model", map[string]any{
 		"architecture": "amd64",
 		"base":         "core20",
 		"grade":        "dangerous",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":            "pc-kernel",
 				"id":              snaptest.AssertedSnapID("pc-kernel"),
 				"type":            "kernel",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "pc",
 				"id":              snaptest.AssertedSnapID("pc"),
 				"type":            "gadget",
@@ -6664,29 +6664,29 @@ plugs:
 	})
 	defer restore()
 
-	new := s.brands.Model("canonical", "pc-new-model", map[string]interface{}{
+	new := s.brands.Model("canonical", "pc-new-model", map[string]any{
 		"architecture": "amd64",
 		"base":         "core20",
 		"grade":        "dangerous",
 		"revision":     "1",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":            "pc-kernel",
 				"id":              snaptest.AssertedSnapID("pc-kernel"),
 				"type":            "kernel",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "pc",
 				"id":              snaptest.AssertedSnapID("pc"),
 				"type":            "gadget",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name": "foo-missing-deps",
 				"id":   snaptest.AssertedSnapID("foo-missing-deps"),
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name": "bar-missing-deps",
 				"id":   snaptest.AssertedSnapID("bar-missing-deps"),
 			},
@@ -7391,29 +7391,29 @@ func (s *deviceMgrRemodelSuite) TestRemodelWithComponents(c *C) {
 	restore, installed := mockSnapstateInstallOne(c, expectedInstalls)
 	defer restore()
 
-	currentModel := s.brands.Model("canonical", "pc-model", map[string]interface{}{
+	currentModel := s.brands.Model("canonical", "pc-model", map[string]any{
 		"architecture": "amd64",
 		"base":         "core24",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":            "pc-kernel",
 				"id":              fakeSnapID("pc-kernel"),
 				"type":            "kernel",
 				"default-channel": "latest/stable",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "pc",
 				"id":              fakeSnapID("pc"),
 				"type":            "gadget",
 				"default-channel": "latest/stable",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "core24",
 				"id":              fakeSnapID("core24"),
 				"type":            "base",
 				"default-channel": "latest/stable",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "snapd",
 				"id":              fakeSnapID("snapd"),
 				"type":            "snapd",
@@ -7432,40 +7432,40 @@ func (s *deviceMgrRemodelSuite) TestRemodelWithComponents(c *C) {
 
 	snapstatetest.InstallEssentialSnaps(c, s.state, "core24", nil, nil)
 
-	newModel := s.brands.Model("canonical", "pc-model", map[string]interface{}{
+	newModel := s.brands.Model("canonical", "pc-model", map[string]any{
 		"architecture": "amd64",
 		"base":         "core24",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":            "pc-kernel",
 				"id":              fakeSnapID("pc-kernel"),
 				"type":            "kernel",
 				"default-channel": "latest/stable",
-				"components": map[string]interface{}{
-					"kmod": map[string]interface{}{
+				"components": map[string]any{
+					"kmod": map[string]any{
 						"presence": "required",
 					},
 				},
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "pc",
 				"id":              fakeSnapID("pc"),
 				"type":            "gadget",
 				"default-channel": "latest/stable",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "core24",
 				"id":              fakeSnapID("core24"),
 				"type":            "base",
 				"default-channel": "latest/stable",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "snapd",
 				"id":              fakeSnapID("snapd"),
 				"type":            "snapd",
 				"default-channel": "latest/stable",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "some-snap",
 				"id":              fakeSnapID("some-snap"),
 				"type":            "app",
@@ -7521,9 +7521,9 @@ func (s *deviceMgrRemodelSuite) TestRemodelWithComponents(c *C) {
 	})
 
 	createRecoverySystem := tss[2].Tasks()[0]
-	checkRecoverySystemSetup(createRecoverySystem, c, now, []interface{}{
+	checkRecoverySystemSetup(createRecoverySystem, c, now, []any{
 		updated["pc-kernel"], installed["some-snap"],
-	}, []interface{}{
+	}, []any{
 		updated["pc-kernel+kmod"],
 	})
 }
@@ -7542,26 +7542,26 @@ func (s *deviceMgrRemodelSuite) TestRemodelOfflineSwitchChannelOfInstalledBase(c
 	restore, _ = mockSnapstateUpdateOneFromFile(c, map[string]expectedSnap{})
 	defer restore()
 
-	currentModel := s.brands.Model("canonical", "pc-model", map[string]interface{}{
+	currentModel := s.brands.Model("canonical", "pc-model", map[string]any{
 		"architecture": "amd64",
 		"base":         "core22",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name": "pc-kernel",
 				"id":   fakeSnapID("pc-kernel"),
 				"type": "kernel",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name": "core20",
 				"id":   fakeSnapID("core20"),
 				"type": "base",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name": "pc",
 				"id":   fakeSnapID("pc"),
 				"type": "gadget",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name": "snapd",
 				"id":   fakeSnapID("snapd"),
 				"type": "snapd",
@@ -7595,26 +7595,26 @@ func (s *deviceMgrRemodelSuite) TestRemodelOfflineSwitchChannelOfInstalledBase(c
 		Channel:  "latest/stable",
 	}, snapstatetest.InstallSnapOptions{Required: true})
 
-	newModel := s.brands.Model("canonical", "pc-model", map[string]interface{}{
+	newModel := s.brands.Model("canonical", "pc-model", map[string]any{
 		"architecture": "amd64",
 		"base":         "core24",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name": "pc-kernel",
 				"id":   fakeSnapID("pc-kernel"),
 				"type": "kernel",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name": "core24",
 				"id":   fakeSnapID("core22"),
 				"type": "base",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name": "pc",
 				"id":   fakeSnapID("pc"),
 				"type": "gadget",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name": "snapd",
 				"id":   fakeSnapID("snapd"),
 				"type": "snapd",
@@ -7674,29 +7674,29 @@ func (s *deviceMgrRemodelSuite) TestRemodelWithComponentsNewComponentSwitchSnap(
 	restore, updated := mockSnapstateUpdateOne(c, expectedUpdates)
 	defer restore()
 
-	currentModel := s.brands.Model("canonical", "pc-model", map[string]interface{}{
+	currentModel := s.brands.Model("canonical", "pc-model", map[string]any{
 		"architecture": "amd64",
 		"base":         "core24",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":            "pc-kernel",
 				"id":              fakeSnapID("pc-kernel"),
 				"type":            "kernel",
 				"default-channel": "latest/stable",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "pc",
 				"id":              fakeSnapID("pc"),
 				"type":            "gadget",
 				"default-channel": "latest/stable",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "core24",
 				"id":              fakeSnapID("core24"),
 				"type":            "base",
 				"default-channel": "latest/stable",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "snapd",
 				"id":              fakeSnapID("snapd"),
 				"type":            "snapd",
@@ -7726,34 +7726,34 @@ func (s *deviceMgrRemodelSuite) TestRemodelWithComponentsNewComponentSwitchSnap(
 		Channel:  "latest/stable",
 	}, snapstatetest.InstallSnapOptions{Required: true})
 
-	newModel := s.brands.Model("canonical", "pc-model", map[string]interface{}{
+	newModel := s.brands.Model("canonical", "pc-model", map[string]any{
 		"architecture": "amd64",
 		"base":         "core24",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":            "pc-kernel",
 				"id":              fakeSnapID("pc-kernel"),
 				"type":            "kernel",
 				"default-channel": "latest/edge",
-				"components": map[string]interface{}{
-					"kmod": map[string]interface{}{
+				"components": map[string]any{
+					"kmod": map[string]any{
 						"presence": "required",
 					},
 				},
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "pc",
 				"id":              fakeSnapID("pc"),
 				"type":            "gadget",
 				"default-channel": "latest/stable",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "core24",
 				"id":              fakeSnapID("core24"),
 				"type":            "base",
 				"default-channel": "latest/stable",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "snapd",
 				"id":              fakeSnapID("snapd"),
 				"type":            "snapd",
@@ -7798,9 +7798,9 @@ func (s *deviceMgrRemodelSuite) TestRemodelWithComponentsNewComponentSwitchSnap(
 	})
 
 	createRecoverySystem := tss[1].Tasks()[0]
-	checkRecoverySystemSetup(createRecoverySystem, c, now, []interface{}{
+	checkRecoverySystemSetup(createRecoverySystem, c, now, []any{
 		updated["pc-kernel"],
-	}, []interface{}{
+	}, []any{
 		updated["pc-kernel+kmod"],
 	})
 }
@@ -7820,29 +7820,29 @@ func (s *deviceMgrRemodelSuite) TestRemodelWithComponentsToAlreadyInstalledKerne
 	restore := devicestate.MockTimeNow(func() time.Time { return now })
 	defer restore()
 
-	currentModel := s.brands.Model("canonical", "pc-model", map[string]interface{}{
+	currentModel := s.brands.Model("canonical", "pc-model", map[string]any{
 		"architecture": "amd64",
 		"base":         "core24",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":            "pc-kernel",
 				"id":              fakeSnapID("pc-kernel"),
 				"type":            "kernel",
 				"default-channel": "latest/stable",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "pc",
 				"id":              fakeSnapID("pc"),
 				"type":            "gadget",
 				"default-channel": "latest/stable",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "core24",
 				"id":              fakeSnapID("core24"),
 				"type":            "base",
 				"default-channel": "latest/stable",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "snapd",
 				"id":              fakeSnapID("snapd"),
 				"type":            "snapd",
@@ -7883,34 +7883,34 @@ func (s *deviceMgrRemodelSuite) TestRemodelWithComponentsToAlreadyInstalledKerne
 
 	snapstate.Set(s.state, "iot-kernel", &snapst)
 
-	newModel := s.brands.Model("canonical", "pc-model", map[string]interface{}{
+	newModel := s.brands.Model("canonical", "pc-model", map[string]any{
 		"architecture": "amd64",
 		"base":         "core24",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":            "iot-kernel",
 				"id":              fakeSnapID("iot-kernel"),
 				"type":            "kernel",
 				"default-channel": "latest/stable",
-				"components": map[string]interface{}{
-					"kmod": map[string]interface{}{
+				"components": map[string]any{
+					"kmod": map[string]any{
 						"presence": "required",
 					},
 				},
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "pc",
 				"id":              fakeSnapID("pc"),
 				"type":            "gadget",
 				"default-channel": "latest/stable",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "core24",
 				"id":              fakeSnapID("core24"),
 				"type":            "base",
 				"default-channel": "latest/stable",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "snapd",
 				"id":              fakeSnapID("snapd"),
 				"type":            "snapd",
@@ -7949,16 +7949,16 @@ func (s *deviceMgrRemodelSuite) TestRemodelWithComponentsToAlreadyInstalledKerne
 	})
 
 	createRecoverySystem := tss[1].Tasks()[0]
-	checkRecoverySystemSetup(createRecoverySystem, c, now, []interface{}{"1"}, []interface{}{"4"})
+	checkRecoverySystemSetup(createRecoverySystem, c, now, []any{"1"}, []any{"4"})
 }
 
-func checkRecoverySystemSetup(t *state.Task, c *C, now time.Time, snapsups, compsups []interface{}) {
-	var data map[string]interface{}
+func checkRecoverySystemSetup(t *state.Task, c *C, now time.Time, snapsups, compsups []any) {
+	var data map[string]any
 	err := t.Get("recovery-system-setup", &data)
 	c.Assert(err, IsNil)
 
 	label := now.Format("20060102")
-	expected := map[string]interface{}{
+	expected := map[string]any{
 		"label":       label,
 		"directory":   filepath.Join(boot.InitramfsUbuntuSeedDir, "systems", label),
 		"test-system": true,
@@ -8009,29 +8009,29 @@ func (s *deviceMgrRemodelSuite) TestRemodelWithComponentsNewSnapAndComponent(c *
 	restore, installed := mockSnapstateInstallOne(c, expectedInstalls)
 	defer restore()
 
-	currentModel := s.brands.Model("canonical", "pc-model", map[string]interface{}{
+	currentModel := s.brands.Model("canonical", "pc-model", map[string]any{
 		"architecture": "amd64",
 		"base":         "core24",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":            "pc-kernel",
 				"id":              fakeSnapID("pc-kernel"),
 				"type":            "kernel",
 				"default-channel": "latest/stable",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "pc",
 				"id":              fakeSnapID("pc"),
 				"type":            "gadget",
 				"default-channel": "latest/stable",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "core24",
 				"id":              fakeSnapID("core24"),
 				"type":            "base",
 				"default-channel": "latest/stable",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "snapd",
 				"id":              fakeSnapID("snapd"),
 				"type":            "snapd",
@@ -8050,41 +8050,41 @@ func (s *deviceMgrRemodelSuite) TestRemodelWithComponentsNewSnapAndComponent(c *
 
 	snapstatetest.InstallEssentialSnaps(c, s.state, "core24", nil, nil)
 
-	newModel := s.brands.Model("canonical", "pc-model", map[string]interface{}{
+	newModel := s.brands.Model("canonical", "pc-model", map[string]any{
 		"architecture": "amd64",
 		"base":         "core24",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":            "pc-kernel",
 				"id":              fakeSnapID("pc-kernel"),
 				"type":            "kernel",
 				"default-channel": "latest/stable",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "pc",
 				"id":              fakeSnapID("pc"),
 				"type":            "gadget",
 				"default-channel": "latest/stable",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "core24",
 				"id":              fakeSnapID("core24"),
 				"type":            "base",
 				"default-channel": "latest/stable",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "snapd",
 				"id":              fakeSnapID("snapd"),
 				"type":            "snapd",
 				"default-channel": "latest/stable",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "snap-with-comps",
 				"id":              fakeSnapID("snap-with-comps"),
 				"type":            "app",
 				"default-channel": "latest/stable",
-				"components": map[string]interface{}{
-					"comp-1": map[string]interface{}{
+				"components": map[string]any{
+					"comp-1": map[string]any{
 						"presence": "required",
 					},
 				},
@@ -8128,9 +8128,9 @@ func (s *deviceMgrRemodelSuite) TestRemodelWithComponentsNewSnapAndComponent(c *
 	})
 
 	createRecoverySystem := tss[1].Tasks()[0]
-	checkRecoverySystemSetup(createRecoverySystem, c, now, []interface{}{
+	checkRecoverySystemSetup(createRecoverySystem, c, now, []any{
 		installed["snap-with-comps"],
-	}, []interface{}{
+	}, []any{
 		installed["snap-with-comps+comp-1"],
 	})
 }
@@ -8169,29 +8169,29 @@ func (s *deviceMgrRemodelSuite) TestRemodelWithComponentsAddComponentsToSnap(c *
 	restore, installed := mockSnapstateInstallComponents(c, expectedComponentInstalls)
 	defer restore()
 
-	currentModel := s.brands.Model("canonical", "pc-model", map[string]interface{}{
+	currentModel := s.brands.Model("canonical", "pc-model", map[string]any{
 		"architecture": "amd64",
 		"base":         "core24",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":            "pc-kernel",
 				"id":              fakeSnapID("pc-kernel"),
 				"type":            "kernel",
 				"default-channel": "latest/stable",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "pc",
 				"id":              fakeSnapID("pc"),
 				"type":            "gadget",
 				"default-channel": "latest/stable",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "core24",
 				"id":              fakeSnapID("core24"),
 				"type":            "base",
 				"default-channel": "latest/stable",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "snapd",
 				"id":              fakeSnapID("snapd"),
 				"type":            "snapd",
@@ -8222,37 +8222,37 @@ func (s *deviceMgrRemodelSuite) TestRemodelWithComponentsAddComponentsToSnap(c *
 		Channel:  "latest/stable",
 	}, snapstatetest.InstallSnapOptions{Required: true})
 
-	newModel := s.brands.Model("canonical", "pc-model", map[string]interface{}{
+	newModel := s.brands.Model("canonical", "pc-model", map[string]any{
 		"architecture": "amd64",
 		"base":         "core24",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":            "pc-kernel",
 				"id":              fakeSnapID("pc-kernel"),
 				"type":            "kernel",
 				"default-channel": "latest/stable",
-				"components": map[string]interface{}{
-					"kmod": map[string]interface{}{
+				"components": map[string]any{
+					"kmod": map[string]any{
 						"presence": "required",
 					},
-					"other-kmod": map[string]interface{}{
+					"other-kmod": map[string]any{
 						"presence": "required",
 					},
 				},
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "pc",
 				"id":              fakeSnapID("pc"),
 				"type":            "gadget",
 				"default-channel": "latest/stable",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "core24",
 				"id":              fakeSnapID("core24"),
 				"type":            "base",
 				"default-channel": "latest/stable",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "snapd",
 				"id":              fakeSnapID("snapd"),
 				"type":            "snapd",
@@ -8306,7 +8306,7 @@ func (s *deviceMgrRemodelSuite) TestRemodelWithComponentsAddComponentsToSnap(c *
 	})
 
 	createRecoverySystem := tss[3].Tasks()[0]
-	checkRecoverySystemSetup(createRecoverySystem, c, now, nil, []interface{}{
+	checkRecoverySystemSetup(createRecoverySystem, c, now, nil, []any{
 		installed["pc-kernel+kmod"],
 		installed["pc-kernel+other-kmod"],
 	})
@@ -8323,29 +8323,29 @@ func (s *deviceMgrRemodelSuite) TestRemodelWithComponentsSkipOptionalComponent(c
 	restore := devicestate.MockTimeNow(func() time.Time { return now })
 	defer restore()
 
-	currentModel := s.brands.Model("canonical", "pc-model", map[string]interface{}{
+	currentModel := s.brands.Model("canonical", "pc-model", map[string]any{
 		"architecture": "amd64",
 		"base":         "core24",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":            "pc-kernel",
 				"id":              fakeSnapID("pc-kernel"),
 				"type":            "kernel",
 				"default-channel": "latest/stable",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "pc",
 				"id":              fakeSnapID("pc"),
 				"type":            "gadget",
 				"default-channel": "latest/stable",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "core24",
 				"id":              fakeSnapID("core24"),
 				"type":            "base",
 				"default-channel": "latest/stable",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "snapd",
 				"id":              fakeSnapID("snapd"),
 				"type":            "snapd",
@@ -8375,34 +8375,34 @@ func (s *deviceMgrRemodelSuite) TestRemodelWithComponentsSkipOptionalComponent(c
 		Channel:  "latest/stable",
 	}, snapstatetest.InstallSnapOptions{Required: true})
 
-	newModel := s.brands.Model("canonical", "pc-model", map[string]interface{}{
+	newModel := s.brands.Model("canonical", "pc-model", map[string]any{
 		"architecture": "amd64",
 		"base":         "core24",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":            "pc-kernel",
 				"id":              fakeSnapID("pc-kernel"),
 				"type":            "kernel",
 				"default-channel": "latest/stable",
-				"components": map[string]interface{}{
-					"kmod": map[string]interface{}{
+				"components": map[string]any{
+					"kmod": map[string]any{
 						"presence": "optional",
 					},
 				},
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "pc",
 				"id":              fakeSnapID("pc"),
 				"type":            "gadget",
 				"default-channel": "latest/stable",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "core24",
 				"id":              fakeSnapID("core24"),
 				"type":            "base",
 				"default-channel": "latest/stable",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "snapd",
 				"id":              fakeSnapID("snapd"),
 				"type":            "snapd",
@@ -8471,29 +8471,29 @@ func (s *deviceMgrRemodelSuite) testRemodelWithComponentsChangeBecauseOfValidati
 	restore, installed := mockSnapstateInstallComponents(c, expectedComponentInstalls)
 	defer restore()
 
-	currentModel := s.brands.Model("canonical", "pc-model", map[string]interface{}{
+	currentModel := s.brands.Model("canonical", "pc-model", map[string]any{
 		"architecture": "amd64",
 		"base":         "core24",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":            "pc-kernel",
 				"id":              fakeSnapID("pc-kernel"),
 				"type":            "kernel",
 				"default-channel": "latest/stable",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "pc",
 				"id":              fakeSnapID("pc"),
 				"type":            "gadget",
 				"default-channel": "latest/stable",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "core24",
 				"id":              fakeSnapID("core24"),
 				"type":            "base",
 				"default-channel": "latest/stable",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "snapd",
 				"id":              fakeSnapID("snapd"),
 				"type":            "snapd",
@@ -8535,41 +8535,41 @@ func (s *deviceMgrRemodelSuite) testRemodelWithComponentsChangeBecauseOfValidati
 
 	snapstate.Set(s.state, "pc-kernel", &snapst)
 
-	newModel := s.brands.Model("canonical", "pc-model", map[string]interface{}{
+	newModel := s.brands.Model("canonical", "pc-model", map[string]any{
 		"architecture": "amd64",
 		"base":         "core24",
-		"validation-sets": []interface{}{
-			map[string]interface{}{
+		"validation-sets": []any{
+			map[string]any{
 				"account-id": "canonical",
 				"name":       "vset-1",
 				"mode":       "enforce",
 			},
 		},
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":            "pc-kernel",
 				"id":              fakeSnapID("pc-kernel"),
 				"type":            "kernel",
 				"default-channel": "latest/stable",
-				"components": map[string]interface{}{
-					"kmod": map[string]interface{}{
+				"components": map[string]any{
+					"kmod": map[string]any{
 						"presence": componentPresence,
 					},
 				},
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "pc",
 				"id":              fakeSnapID("pc"),
 				"type":            "gadget",
 				"default-channel": "latest/stable",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "core24",
 				"id":              fakeSnapID("core24"),
 				"type":            "base",
 				"default-channel": "latest/stable",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "snapd",
 				"id":              fakeSnapID("snapd"),
 				"type":            "snapd",
@@ -8578,21 +8578,21 @@ func (s *deviceMgrRemodelSuite) testRemodelWithComponentsChangeBecauseOfValidati
 		},
 	})
 
-	vset, err := s.brands.Signing("canonical").Sign(asserts.ValidationSetType, map[string]interface{}{
+	vset, err := s.brands.Signing("canonical").Sign(asserts.ValidationSetType, map[string]any{
 		"type":         "validation-set",
 		"authority-id": "canonical",
 		"series":       "16",
 		"account-id":   "canonical",
 		"name":         "vset-1",
 		"sequence":     "1",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":     "pc-kernel",
 				"id":       fakeSnapID("pc-kernel"),
 				"revision": "1",
 				"presence": "required",
-				"components": map[string]interface{}{
-					"kmod": map[string]interface{}{
+				"components": map[string]any{
+					"kmod": map[string]any{
 						"revision": "12",
 						"presence": "required",
 					},
@@ -8648,7 +8648,7 @@ func (s *deviceMgrRemodelSuite) testRemodelWithComponentsChangeBecauseOfValidati
 	})
 
 	createRecoverySystem := tss[2].Tasks()[0]
-	checkRecoverySystemSetup(createRecoverySystem, c, now, nil, []interface{}{
+	checkRecoverySystemSetup(createRecoverySystem, c, now, nil, []any{
 		installed["pc-kernel+kmod"],
 	})
 }
@@ -8716,29 +8716,29 @@ func (s *deviceMgrRemodelSuite) TestRemodelWithComponentsOffline(c *C) {
 	restore, installedComps := mockSnapstateInstallComponentPath(c, expectedCompInstalls)
 	defer restore()
 
-	currentModel := s.brands.Model("canonical", "pc-model", map[string]interface{}{
+	currentModel := s.brands.Model("canonical", "pc-model", map[string]any{
 		"architecture": "amd64",
 		"base":         "core24",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":            "pc-kernel",
 				"id":              fakeSnapID("pc-kernel"),
 				"type":            "kernel",
 				"default-channel": "latest/stable",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "pc",
 				"id":              fakeSnapID("pc"),
 				"type":            "gadget",
 				"default-channel": "latest/stable",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "core24",
 				"id":              fakeSnapID("core24"),
 				"type":            "base",
 				"default-channel": "latest/stable",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "snapd",
 				"id":              fakeSnapID("snapd"),
 				"type":            "snapd",
@@ -8769,57 +8769,57 @@ func (s *deviceMgrRemodelSuite) TestRemodelWithComponentsOffline(c *C) {
 		Channel:  "latest/stable",
 	}, snapstatetest.InstallSnapOptions{})
 
-	newModel := s.brands.Model("canonical", "pc-model", map[string]interface{}{
+	newModel := s.brands.Model("canonical", "pc-model", map[string]any{
 		"architecture": "amd64",
 		"base":         "core24",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":            "pc-kernel",
 				"id":              fakeSnapID("pc-kernel"),
 				"type":            "kernel",
 				"default-channel": "latest/stable",
-				"components": map[string]interface{}{
-					"kmod": map[string]interface{}{
+				"components": map[string]any{
+					"kmod": map[string]any{
 						"presence": "required",
 					},
 				},
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "pc",
 				"id":              fakeSnapID("pc"),
 				"type":            "gadget",
 				"default-channel": "latest/stable",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "core24",
 				"id":              fakeSnapID("core24"),
 				"type":            "base",
 				"default-channel": "latest/stable",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "snapd",
 				"id":              fakeSnapID("snapd"),
 				"type":            "snapd",
 				"default-channel": "latest/stable",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "some-snap",
 				"id":              fakeSnapID("some-snap"),
 				"type":            "app",
 				"default-channel": "latest/stable",
-				"components": map[string]interface{}{
-					"comp-1": map[string]interface{}{
+				"components": map[string]any{
+					"comp-1": map[string]any{
 						"presence": "required",
 					},
 				},
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "other-snap",
 				"id":              fakeSnapID("other-snap"),
 				"type":            "app",
 				"default-channel": "latest/stable",
-				"components": map[string]interface{}{
-					"comp-2": map[string]interface{}{
+				"components": map[string]any{
+					"comp-2": map[string]any{
 						"presence": "required",
 					},
 				},
@@ -8943,10 +8943,10 @@ func (s *deviceMgrRemodelSuite) TestRemodelWithComponentsOffline(c *C) {
 	})
 
 	createRecoverySystem := tss[3].Tasks()[0]
-	checkRecoverySystemSetup(createRecoverySystem, c, now, []interface{}{
+	checkRecoverySystemSetup(createRecoverySystem, c, now, []any{
 		updated["pc-kernel"],
 		installed["some-snap"],
-	}, []interface{}{
+	}, []any{
 		updated["pc-kernel+kmod"],
 		installed["some-snap+comp-1"],
 		installedComps["other-snap+comp-2"],
@@ -8960,29 +8960,29 @@ func (s *deviceMgrRemodelSuite) TestRemodelWithComponentsOfflineMissingComponent
 	s.state.Set("seeded", true)
 	s.state.Set("refresh-privacy-key", "some-privacy-key")
 
-	currentModel := s.brands.Model("canonical", "pc-model", map[string]interface{}{
+	currentModel := s.brands.Model("canonical", "pc-model", map[string]any{
 		"architecture": "amd64",
 		"base":         "core24",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":            "pc-kernel",
 				"id":              fakeSnapID("pc-kernel"),
 				"type":            "kernel",
 				"default-channel": "latest/stable",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "pc",
 				"id":              fakeSnapID("pc"),
 				"type":            "gadget",
 				"default-channel": "latest/stable",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "core24",
 				"id":              fakeSnapID("core24"),
 				"type":            "base",
 				"default-channel": "latest/stable",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "snapd",
 				"id":              fakeSnapID("snapd"),
 				"type":            "snapd",
@@ -9001,34 +9001,34 @@ func (s *deviceMgrRemodelSuite) TestRemodelWithComponentsOfflineMissingComponent
 
 	snapstatetest.InstallEssentialSnaps(c, s.state, "core24", nil, nil)
 
-	newModel := s.brands.Model("canonical", "pc-model", map[string]interface{}{
+	newModel := s.brands.Model("canonical", "pc-model", map[string]any{
 		"architecture": "amd64",
 		"base":         "core24",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":            "pc-kernel",
 				"id":              fakeSnapID("pc-kernel"),
 				"type":            "kernel",
 				"default-channel": "latest/stable",
-				"components": map[string]interface{}{
-					"kmod": map[string]interface{}{
+				"components": map[string]any{
+					"kmod": map[string]any{
 						"presence": "required",
 					},
 				},
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "pc",
 				"id":              fakeSnapID("pc"),
 				"type":            "gadget",
 				"default-channel": "latest/stable",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "core24",
 				"id":              fakeSnapID("core24"),
 				"type":            "base",
 				"default-channel": "latest/stable",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "snapd",
 				"id":              fakeSnapID("snapd"),
 				"type":            "snapd",
@@ -9079,29 +9079,29 @@ func (s *deviceMgrRemodelSuite) TestRemodelWithComponentsOfflineMissingComponent
 	s.state.Set("seeded", true)
 	s.state.Set("refresh-privacy-key", "some-privacy-key")
 
-	currentModel := s.brands.Model("canonical", "pc-model", map[string]interface{}{
+	currentModel := s.brands.Model("canonical", "pc-model", map[string]any{
 		"architecture": "amd64",
 		"base":         "core24",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":            "pc-kernel",
 				"id":              fakeSnapID("pc-kernel"),
 				"type":            "kernel",
 				"default-channel": "latest/stable",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "pc",
 				"id":              fakeSnapID("pc"),
 				"type":            "gadget",
 				"default-channel": "latest/stable",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "core24",
 				"id":              fakeSnapID("core24"),
 				"type":            "base",
 				"default-channel": "latest/stable",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "snapd",
 				"id":              fakeSnapID("snapd"),
 				"type":            "snapd",
@@ -9120,41 +9120,41 @@ func (s *deviceMgrRemodelSuite) TestRemodelWithComponentsOfflineMissingComponent
 
 	snapstatetest.InstallEssentialSnaps(c, s.state, "core24", nil, nil)
 
-	newModel := s.brands.Model("canonical", "pc-model", map[string]interface{}{
+	newModel := s.brands.Model("canonical", "pc-model", map[string]any{
 		"architecture": "amd64",
 		"base":         "core24",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":            "pc-kernel",
 				"id":              fakeSnapID("pc-kernel"),
 				"type":            "kernel",
 				"default-channel": "latest/stable",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "pc",
 				"id":              fakeSnapID("pc"),
 				"type":            "gadget",
 				"default-channel": "latest/stable",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "core24",
 				"id":              fakeSnapID("core24"),
 				"type":            "base",
 				"default-channel": "latest/stable",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "snapd",
 				"id":              fakeSnapID("snapd"),
 				"type":            "snapd",
 				"default-channel": "latest/stable",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "some-snap",
 				"id":              fakeSnapID("some-snap"),
 				"type":            "app",
 				"default-channel": "latest/stable",
-				"components": map[string]interface{}{
-					"comp-1": map[string]interface{}{
+				"components": map[string]any{
+					"comp-1": map[string]any{
 						"presence": "required",
 					},
 				},
@@ -9204,29 +9204,29 @@ func (s *deviceMgrRemodelSuite) TestRemodelWithComponentsOfflineMissingComponent
 	s.state.Set("seeded", true)
 	s.state.Set("refresh-privacy-key", "some-privacy-key")
 
-	currentModel := s.brands.Model("canonical", "pc-model", map[string]interface{}{
+	currentModel := s.brands.Model("canonical", "pc-model", map[string]any{
 		"architecture": "amd64",
 		"base":         "core24",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":            "pc-kernel",
 				"id":              fakeSnapID("pc-kernel"),
 				"type":            "kernel",
 				"default-channel": "latest/stable",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "pc",
 				"id":              fakeSnapID("pc"),
 				"type":            "gadget",
 				"default-channel": "latest/stable",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "core24",
 				"id":              fakeSnapID("core24"),
 				"type":            "base",
 				"default-channel": "latest/stable",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "snapd",
 				"id":              fakeSnapID("snapd"),
 				"type":            "snapd",
@@ -9257,41 +9257,41 @@ func (s *deviceMgrRemodelSuite) TestRemodelWithComponentsOfflineMissingComponent
 		Channel:  "latest/stable",
 	}, snapstatetest.InstallSnapOptions{})
 
-	newModel := s.brands.Model("canonical", "pc-model", map[string]interface{}{
+	newModel := s.brands.Model("canonical", "pc-model", map[string]any{
 		"architecture": "amd64",
 		"base":         "core24",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":            "pc-kernel",
 				"id":              fakeSnapID("pc-kernel"),
 				"type":            "kernel",
 				"default-channel": "latest/stable",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "pc",
 				"id":              fakeSnapID("pc"),
 				"type":            "gadget",
 				"default-channel": "latest/stable",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "core24",
 				"id":              fakeSnapID("core24"),
 				"type":            "base",
 				"default-channel": "latest/stable",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "snapd",
 				"id":              fakeSnapID("snapd"),
 				"type":            "snapd",
 				"default-channel": "latest/stable",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "some-snap",
 				"id":              fakeSnapID("some-snap"),
 				"type":            "app",
 				"default-channel": "latest/stable",
-				"components": map[string]interface{}{
-					"comp-1": map[string]interface{}{
+				"components": map[string]any{
+					"comp-1": map[string]any{
 						"presence": "required",
 					},
 				},
@@ -9400,23 +9400,23 @@ func (s *deviceMgrSuite) testRemodelUpdateFromValidationSet(c *C, sequence strin
 	})
 	defer restore()
 
-	currentModel := s.brands.Model("canonical", "pc-model", map[string]interface{}{
+	currentModel := s.brands.Model("canonical", "pc-model", map[string]any{
 		"architecture": "amd64",
 		"base":         "core20",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":            "pc-kernel",
 				"id":              snaptest.AssertedSnapID("pc-kernel"),
 				"type":            "kernel",
 				"default-channel": "latest/stable",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "pc",
 				"id":              snaptest.AssertedSnapID("pc"),
 				"type":            "gadget",
 				"default-channel": "latest/stable",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "snap-1",
 				"id":              snaptest.AssertedSnapID("snap-1"),
 				"type":            "app",
@@ -9481,7 +9481,7 @@ func (s *deviceMgrSuite) testRemodelUpdateFromValidationSet(c *C, sequence strin
 		TrackingChannel: "latest/stable",
 	})
 
-	validationSetInModel := map[string]interface{}{
+	validationSetInModel := map[string]any{
 		"account-id": "canonical",
 		"name":       "vset-1",
 		"mode":       "enforce",
@@ -9491,25 +9491,25 @@ func (s *deviceMgrSuite) testRemodelUpdateFromValidationSet(c *C, sequence strin
 		validationSetInModel["sequence"] = sequence
 	}
 
-	newModel := s.brands.Model("canonical", "pc-model", map[string]interface{}{
+	newModel := s.brands.Model("canonical", "pc-model", map[string]any{
 		"architecture":    "amd64",
 		"base":            "core20",
 		"revision":        "1",
-		"validation-sets": []interface{}{validationSetInModel},
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"validation-sets": []any{validationSetInModel},
+		"snaps": []any{
+			map[string]any{
 				"name":            "pc-kernel",
 				"id":              snaptest.AssertedSnapID("pc-kernel"),
 				"type":            "kernel",
 				"default-channel": "latest/stable",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "pc",
 				"id":              snaptest.AssertedSnapID("pc"),
 				"type":            "gadget",
 				"default-channel": "latest/stable",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "snap-1",
 				"id":              snaptest.AssertedSnapID("snap-1"),
 				"type":            "app",
@@ -9518,21 +9518,21 @@ func (s *deviceMgrSuite) testRemodelUpdateFromValidationSet(c *C, sequence strin
 		},
 	})
 
-	vset, err := s.brands.Signing("canonical").Sign(asserts.ValidationSetType, map[string]interface{}{
+	vset, err := s.brands.Signing("canonical").Sign(asserts.ValidationSetType, map[string]any{
 		"type":         "validation-set",
 		"authority-id": "canonical",
 		"series":       "16",
 		"account-id":   "canonical",
 		"name":         "vset-1",
 		"sequence":     "1",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":     "snap-1",
 				"id":       snaptest.AssertedSnapID("snap-1"),
 				"revision": "2",
 				"presence": "required",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":     "pc",
 				"id":       snaptest.AssertedSnapID("pc"),
 				"revision": "2",
@@ -9588,17 +9588,17 @@ func (s *deviceMgrSuite) testRemodelInvalidFromValidationSet(c *C, invalidSnap s
 
 	var testDeviceCtx snapstate.DeviceContext
 
-	currentModel := s.brands.Model("canonical", "pc-model", map[string]interface{}{
+	currentModel := s.brands.Model("canonical", "pc-model", map[string]any{
 		"architecture": "amd64",
 		"base":         "core20",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":            "pc-kernel",
 				"id":              snaptest.AssertedSnapID("pc-kernel"),
 				"type":            "kernel",
 				"default-channel": "latest/stable",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "pc",
 				"id":              snaptest.AssertedSnapID("pc"),
 				"type":            "gadget",
@@ -9615,31 +9615,31 @@ func (s *deviceMgrSuite) testRemodelInvalidFromValidationSet(c *C, invalidSnap s
 	})
 	c.Assert(err, IsNil)
 
-	newModel := s.brands.Model("canonical", "pc-model", map[string]interface{}{
+	newModel := s.brands.Model("canonical", "pc-model", map[string]any{
 		"architecture": "amd64",
 		"base":         "core20",
 		"revision":     "1",
-		"validation-sets": []interface{}{
-			map[string]interface{}{
+		"validation-sets": []any{
+			map[string]any{
 				"account-id": "canonical",
 				"name":       "vset-1",
 				"mode":       "enforce",
 			},
 		},
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":            "pc-kernel",
 				"id":              snaptest.AssertedSnapID("pc-kernel"),
 				"type":            "kernel",
 				"default-channel": "latest/stable",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "pc",
 				"id":              snaptest.AssertedSnapID("pc"),
 				"type":            "gadget",
 				"default-channel": "latest/stable",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "snap-1",
 				"id":              snaptest.AssertedSnapID("snap-1"),
 				"type":            "app",
@@ -9648,15 +9648,15 @@ func (s *deviceMgrSuite) testRemodelInvalidFromValidationSet(c *C, invalidSnap s
 		},
 	})
 
-	vset, err := s.brands.Signing("canonical").Sign(asserts.ValidationSetType, map[string]interface{}{
+	vset, err := s.brands.Signing("canonical").Sign(asserts.ValidationSetType, map[string]any{
 		"type":         "validation-set",
 		"authority-id": "canonical",
 		"series":       "16",
 		"account-id":   "canonical",
 		"name":         "vset-1",
 		"sequence":     "1",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":     invalidSnap,
 				"id":       snaptest.AssertedSnapID(invalidSnap),
 				"presence": "invalid",
@@ -9702,17 +9702,17 @@ func (s *deviceMgrSuite) testOfflineRemodelValidationSet(c *C, withValSet bool) 
 
 	var testDeviceCtx snapstate.DeviceContext
 
-	currentModel := s.brands.Model("canonical", "pc-model", map[string]interface{}{
+	currentModel := s.brands.Model("canonical", "pc-model", map[string]any{
 		"architecture": "amd64",
 		"base":         "core20",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":            "pc-kernel",
 				"id":              snaptest.AssertedSnapID("pc-kernel"),
 				"type":            "kernel",
 				"default-channel": "latest/stable",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "pc",
 				"id":              snaptest.AssertedSnapID("pc"),
 				"type":            "gadget",
@@ -9729,31 +9729,31 @@ func (s *deviceMgrSuite) testOfflineRemodelValidationSet(c *C, withValSet bool) 
 	})
 	c.Assert(err, IsNil)
 
-	newModel := s.brands.Model("canonical", "pc-model", map[string]interface{}{
+	newModel := s.brands.Model("canonical", "pc-model", map[string]any{
 		"architecture": "amd64",
 		"base":         "core20",
 		"revision":     "1",
-		"validation-sets": []interface{}{
-			map[string]interface{}{
+		"validation-sets": []any{
+			map[string]any{
 				"account-id": "canonical",
 				"name":       "vset-1",
 				"mode":       "enforce",
 			},
 		},
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":            "pc-kernel",
 				"id":              snaptest.AssertedSnapID("pc-kernel"),
 				"type":            "kernel",
 				"default-channel": "latest/stable",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "pc",
 				"id":              snaptest.AssertedSnapID("pc"),
 				"type":            "gadget",
 				"default-channel": "latest/stable",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "snap-1",
 				"id":              snaptest.AssertedSnapID("snap-1"),
 				"type":            "app",
@@ -9763,15 +9763,15 @@ func (s *deviceMgrSuite) testOfflineRemodelValidationSet(c *C, withValSet bool) 
 	})
 
 	if withValSet {
-		vset, err := s.brands.Signing("canonical").Sign(asserts.ValidationSetType, map[string]interface{}{
+		vset, err := s.brands.Signing("canonical").Sign(asserts.ValidationSetType, map[string]any{
 			"type":         "validation-set",
 			"authority-id": "canonical",
 			"series":       "16",
 			"account-id":   "canonical",
 			"name":         "vset-1",
 			"sequence":     "1",
-			"snaps": []interface{}{
-				map[string]interface{}{
+			"snaps": []any{
+				map[string]any{
 					"name":     "snap-1",
 					"id":       snaptest.AssertedSnapID("snap-1"),
 					"presence": "invalid",
@@ -9821,17 +9821,17 @@ func (s *deviceMgrSuite) TestOfflineRemodelMissingSnap(c *C) {
 
 	var testDeviceCtx snapstate.DeviceContext
 
-	currentModel := s.brands.Model("canonical", "pc-model", map[string]interface{}{
+	currentModel := s.brands.Model("canonical", "pc-model", map[string]any{
 		"architecture": "amd64",
 		"base":         "core20",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":            "pc-kernel",
 				"id":              snaptest.AssertedSnapID("pc-kernel"),
 				"type":            "kernel",
 				"default-channel": "latest/stable",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "pc",
 				"id":              snaptest.AssertedSnapID("pc"),
 				"type":            "gadget",
@@ -9848,18 +9848,18 @@ func (s *deviceMgrSuite) TestOfflineRemodelMissingSnap(c *C) {
 	})
 	c.Assert(err, IsNil)
 
-	newModel := s.brands.Model("canonical", "pc-model", map[string]interface{}{
+	newModel := s.brands.Model("canonical", "pc-model", map[string]any{
 		"architecture": "amd64",
 		"base":         "core20",
 		"revision":     "1",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":            "pc-kernel",
 				"id":              snaptest.AssertedSnapID("pc-kernel"),
 				"type":            "kernel",
 				"default-channel": "latest/stable",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "pc-new",
 				"id":              snaptest.AssertedSnapID("pc"),
 				"type":            "gadget",
@@ -9884,17 +9884,17 @@ func (s *deviceMgrSuite) TestOfflineRemodelPreinstalledIncorrectRevision(c *C) {
 
 	var testDeviceCtx snapstate.DeviceContext
 
-	currentModel := s.brands.Model("canonical", "pc-model", map[string]interface{}{
+	currentModel := s.brands.Model("canonical", "pc-model", map[string]any{
 		"architecture": "amd64",
 		"base":         "core20",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":            "pc-kernel",
 				"id":              snaptest.AssertedSnapID("pc-kernel"),
 				"type":            "kernel",
 				"default-channel": "latest/stable",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "pc",
 				"id":              snaptest.AssertedSnapID("pc"),
 				"type":            "gadget",
@@ -9911,25 +9911,25 @@ func (s *deviceMgrSuite) TestOfflineRemodelPreinstalledIncorrectRevision(c *C) {
 	})
 	c.Assert(err, IsNil)
 
-	newModel := s.brands.Model("canonical", "pc-model", map[string]interface{}{
+	newModel := s.brands.Model("canonical", "pc-model", map[string]any{
 		"architecture": "amd64",
 		"base":         "core20",
 		"revision":     "1",
-		"validation-sets": []interface{}{
-			map[string]interface{}{
+		"validation-sets": []any{
+			map[string]any{
 				"account-id": "canonical",
 				"name":       "vset-1",
 				"mode":       "enforce",
 			},
 		},
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":            "pc-kernel",
 				"id":              snaptest.AssertedSnapID("pc-kernel"),
 				"type":            "kernel",
 				"default-channel": "latest/stable",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "pc",
 				"id":              snaptest.AssertedSnapID("pc"),
 				"type":            "gadget",
@@ -9938,15 +9938,15 @@ func (s *deviceMgrSuite) TestOfflineRemodelPreinstalledIncorrectRevision(c *C) {
 		},
 	})
 
-	vset, err := s.brands.Signing("canonical").Sign(asserts.ValidationSetType, map[string]interface{}{
+	vset, err := s.brands.Signing("canonical").Sign(asserts.ValidationSetType, map[string]any{
 		"type":         "validation-set",
 		"authority-id": "canonical",
 		"series":       "16",
 		"account-id":   "canonical",
 		"name":         "vset-1",
 		"sequence":     "1",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":     "pc-kernel",
 				"id":       snaptest.AssertedSnapID("pc-kernel"),
 				"presence": "required",
@@ -10027,17 +10027,17 @@ func (s *deviceMgrRemodelSuite) TestOfflineRemodelPreinstalledUseOldRevision(c *
 	})
 	defer restore()
 
-	currentModel := s.brands.Model("canonical", "pc-model", map[string]interface{}{
+	currentModel := s.brands.Model("canonical", "pc-model", map[string]any{
 		"architecture": "amd64",
 		"base":         "core22",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":            "pc-kernel",
 				"id":              snaptest.AssertedSnapID("pc-kernel"),
 				"type":            "kernel",
 				"default-channel": "latest/stable",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "pc",
 				"id":              snaptest.AssertedSnapID("pc"),
 				"type":            "gadget",
@@ -10054,25 +10054,25 @@ func (s *deviceMgrRemodelSuite) TestOfflineRemodelPreinstalledUseOldRevision(c *
 	})
 	c.Assert(err, IsNil)
 
-	newModel := s.brands.Model("canonical", "pc-model", map[string]interface{}{
+	newModel := s.brands.Model("canonical", "pc-model", map[string]any{
 		"architecture": "amd64",
 		"base":         "core22",
 		"revision":     "1",
-		"validation-sets": []interface{}{
-			map[string]interface{}{
+		"validation-sets": []any{
+			map[string]any{
 				"account-id": "canonical",
 				"name":       "vset-1",
 				"mode":       "enforce",
 			},
 		},
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":            "pc-kernel",
 				"id":              snaptest.AssertedSnapID("pc-kernel"),
 				"type":            "kernel",
 				"default-channel": "latest/stable",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "pc",
 				"id":              snaptest.AssertedSnapID("pc"),
 				"type":            "gadget",
@@ -10081,21 +10081,21 @@ func (s *deviceMgrRemodelSuite) TestOfflineRemodelPreinstalledUseOldRevision(c *
 		},
 	})
 
-	vset, err := s.brands.Signing("canonical").Sign(asserts.ValidationSetType, map[string]interface{}{
+	vset, err := s.brands.Signing("canonical").Sign(asserts.ValidationSetType, map[string]any{
 		"type":         "validation-set",
 		"authority-id": "canonical",
 		"series":       "16",
 		"account-id":   "canonical",
 		"name":         "vset-1",
 		"sequence":     "1",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":     "pc-kernel",
 				"id":       snaptest.AssertedSnapID("pc-kernel"),
 				"presence": "required",
 				"revision": "1",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":     "core22",
 				"id":       snaptest.AssertedSnapID("core22"),
 				"presence": "required",
@@ -10191,17 +10191,17 @@ func (s *deviceMgrRemodelSuite) TestOfflineRemodelPreinstalledUseOldRevisionWith
 	restore, updated := mockSnapstateUpdateOneFromFile(c, expectedUpdates)
 	defer restore()
 
-	currentModel := s.brands.Model("canonical", "pc-model", map[string]interface{}{
+	currentModel := s.brands.Model("canonical", "pc-model", map[string]any{
 		"architecture": "amd64",
 		"base":         "core24",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":            "pc-kernel",
 				"id":              snaptest.AssertedSnapID("pc-kernel"),
 				"type":            "kernel",
 				"default-channel": "latest/stable",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "pc",
 				"id":              snaptest.AssertedSnapID("pc"),
 				"type":            "gadget",
@@ -10218,30 +10218,30 @@ func (s *deviceMgrRemodelSuite) TestOfflineRemodelPreinstalledUseOldRevisionWith
 	})
 	c.Assert(err, IsNil)
 
-	newModel := s.brands.Model("canonical", "pc-model", map[string]interface{}{
+	newModel := s.brands.Model("canonical", "pc-model", map[string]any{
 		"architecture": "amd64",
 		"base":         "core24",
 		"revision":     "1",
-		"validation-sets": []interface{}{
-			map[string]interface{}{
+		"validation-sets": []any{
+			map[string]any{
 				"account-id": "canonical",
 				"name":       "vset-1",
 				"mode":       "enforce",
 			},
 		},
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":            "pc-kernel",
 				"id":              snaptest.AssertedSnapID("pc-kernel"),
 				"type":            "kernel",
 				"default-channel": "latest/stable",
-				"components": map[string]interface{}{
-					"kmod": map[string]interface{}{
+				"components": map[string]any{
+					"kmod": map[string]any{
 						"presence": "required",
 					},
 				},
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "pc",
 				"id":              snaptest.AssertedSnapID("pc"),
 				"type":            "gadget",
@@ -10250,15 +10250,15 @@ func (s *deviceMgrRemodelSuite) TestOfflineRemodelPreinstalledUseOldRevisionWith
 		},
 	})
 
-	vset, err := s.brands.Signing("canonical").Sign(asserts.ValidationSetType, map[string]interface{}{
+	vset, err := s.brands.Signing("canonical").Sign(asserts.ValidationSetType, map[string]any{
 		"type":         "validation-set",
 		"authority-id": "canonical",
 		"series":       "16",
 		"account-id":   "canonical",
 		"name":         "vset-1",
 		"sequence":     "1",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":     "pc-kernel",
 				"id":       snaptest.AssertedSnapID("pc-kernel"),
 				"presence": "required",
@@ -10295,9 +10295,9 @@ func (s *deviceMgrRemodelSuite) TestOfflineRemodelPreinstalledUseOldRevisionWith
 	})
 
 	createRecoverySystem := chg.Tasks()[6]
-	checkRecoverySystemSetup(createRecoverySystem, c, now, []interface{}{
+	checkRecoverySystemSetup(createRecoverySystem, c, now, []any{
 		updated["pc-kernel"],
-	}, []interface{}{
+	}, []any{
 		updated["pc-kernel+kmod"],
 	})
 }
@@ -10373,17 +10373,17 @@ func (s *deviceMgrRemodelSuite) testOfflineRemodelPreinstalledUseOldRevisionMiss
 	restore, _ = mockSnapstateUpdateOneFromFile(c, expectedUpdates)
 	defer restore()
 
-	currentModel := s.brands.Model("canonical", "pc-model", map[string]interface{}{
+	currentModel := s.brands.Model("canonical", "pc-model", map[string]any{
 		"architecture": "amd64",
 		"base":         "core24",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":            "pc-kernel",
 				"id":              snaptest.AssertedSnapID("pc-kernel"),
 				"type":            "kernel",
 				"default-channel": "latest/stable",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "pc",
 				"id":              snaptest.AssertedSnapID("pc"),
 				"type":            "gadget",
@@ -10400,30 +10400,30 @@ func (s *deviceMgrRemodelSuite) testOfflineRemodelPreinstalledUseOldRevisionMiss
 	})
 	c.Assert(err, IsNil)
 
-	newModel := s.brands.Model("canonical", "pc-model", map[string]interface{}{
+	newModel := s.brands.Model("canonical", "pc-model", map[string]any{
 		"architecture": "amd64",
 		"base":         "core24",
 		"revision":     "1",
-		"validation-sets": []interface{}{
-			map[string]interface{}{
+		"validation-sets": []any{
+			map[string]any{
 				"account-id": "canonical",
 				"name":       "vset-1",
 				"mode":       "enforce",
 			},
 		},
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":            "pc-kernel",
 				"id":              snaptest.AssertedSnapID("pc-kernel"),
 				"type":            "kernel",
 				"default-channel": "latest/stable",
-				"components": map[string]interface{}{
-					"kmod": map[string]interface{}{
+				"components": map[string]any{
+					"kmod": map[string]any{
 						"presence": "required",
 					},
 				},
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "pc",
 				"id":              snaptest.AssertedSnapID("pc"),
 				"type":            "gadget",
@@ -10432,7 +10432,7 @@ func (s *deviceMgrRemodelSuite) testOfflineRemodelPreinstalledUseOldRevisionMiss
 		},
 	})
 
-	snaps := map[string]interface{}{
+	snaps := map[string]any{
 		"name":     "pc-kernel",
 		"id":       snaptest.AssertedSnapID("pc-kernel"),
 		"presence": "required",
@@ -10440,22 +10440,22 @@ func (s *deviceMgrRemodelSuite) testOfflineRemodelPreinstalledUseOldRevisionMiss
 	}
 
 	if wrongRevisionInstalled {
-		snaps["components"] = map[string]interface{}{
-			"kmod": map[string]interface{}{
+		snaps["components"] = map[string]any{
+			"kmod": map[string]any{
 				"revision": "12",
 				"presence": "required",
 			},
 		}
 	}
 
-	vset, err := s.brands.Signing("canonical").Sign(asserts.ValidationSetType, map[string]interface{}{
+	vset, err := s.brands.Signing("canonical").Sign(asserts.ValidationSetType, map[string]any{
 		"type":         "validation-set",
 		"authority-id": "canonical",
 		"series":       "16",
 		"account-id":   "canonical",
 		"name":         "vset-1",
 		"sequence":     "1",
-		"snaps": []interface{}{
+		"snaps": []any{
 			snaps,
 		},
 		"timestamp": time.Now().UTC().Format(time.RFC3339),
@@ -10483,17 +10483,17 @@ func (s *deviceMgrSuite) TestRemodelRequiredSnapMissingFromModel(c *C) {
 
 	var testDeviceCtx snapstate.DeviceContext
 
-	currentModel := s.brands.Model("canonical", "pc-model", map[string]interface{}{
+	currentModel := s.brands.Model("canonical", "pc-model", map[string]any{
 		"architecture": "amd64",
 		"base":         "core20",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":            "pc-kernel",
 				"id":              snaptest.AssertedSnapID("pc-kernel"),
 				"type":            "kernel",
 				"default-channel": "latest/stable",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "pc",
 				"id":              snaptest.AssertedSnapID("pc"),
 				"type":            "gadget",
@@ -10510,25 +10510,25 @@ func (s *deviceMgrSuite) TestRemodelRequiredSnapMissingFromModel(c *C) {
 	})
 	c.Assert(err, IsNil)
 
-	newModel := s.brands.Model("canonical", "pc-model", map[string]interface{}{
+	newModel := s.brands.Model("canonical", "pc-model", map[string]any{
 		"architecture": "amd64",
 		"base":         "core20",
 		"revision":     "1",
-		"validation-sets": []interface{}{
-			map[string]interface{}{
+		"validation-sets": []any{
+			map[string]any{
 				"account-id": "canonical",
 				"name":       "vset-1",
 				"mode":       "enforce",
 			},
 		},
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":            "pc-kernel",
 				"id":              snaptest.AssertedSnapID("pc-kernel"),
 				"type":            "kernel",
 				"default-channel": "latest/stable",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "pc",
 				"id":              snaptest.AssertedSnapID("pc"),
 				"type":            "gadget",
@@ -10537,15 +10537,15 @@ func (s *deviceMgrSuite) TestRemodelRequiredSnapMissingFromModel(c *C) {
 		},
 	})
 
-	vset, err := s.brands.Signing("canonical").Sign(asserts.ValidationSetType, map[string]interface{}{
+	vset, err := s.brands.Signing("canonical").Sign(asserts.ValidationSetType, map[string]any{
 		"type":         "validation-set",
 		"authority-id": "canonical",
 		"series":       "16",
 		"account-id":   "canonical",
 		"name":         "vset-1",
 		"sequence":     "1",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":     "snap-1",
 				"id":       snaptest.AssertedSnapID("snap-1"),
 				"presence": "required",
@@ -10582,18 +10582,18 @@ func (s *deviceMgrRemodelSuite) TestRemodelVerifyOrderOfTasks(c *C) {
 	var testDeviceCtx snapstate.DeviceContext
 
 	// set a model assertion we remodel from
-	current := s.makeModelAssertionInState(c, "canonical", "pc-model", map[string]interface{}{
+	current := s.makeModelAssertionInState(c, "canonical", "pc-model", map[string]any{
 		"architecture": "amd64",
 		"base":         "core20",
 		"grade":        "dangerous",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":            "pc-kernel",
 				"id":              snaptest.AssertedSnapID("pc-kernel"),
 				"type":            "kernel",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "pc",
 				"id":              snaptest.AssertedSnapID("pc"),
 				"type":            "gadget",
@@ -10686,38 +10686,38 @@ func (s *deviceMgrRemodelSuite) TestRemodelVerifyOrderOfTasks(c *C) {
 	})
 	defer restore()
 
-	new := s.brands.Model("canonical", "pc-new-model", map[string]interface{}{
+	new := s.brands.Model("canonical", "pc-new-model", map[string]any{
 		"architecture": "amd64",
 		"base":         "core20",
 		"grade":        "dangerous",
 		"revision":     "1",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":            "kernel-new",
 				"id":              snaptest.AssertedSnapID("kernel-new"),
 				"type":            "kernel",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "pc",
 				"id":              snaptest.AssertedSnapID("pc"),
 				"type":            "gadget",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name": "foo-with-base",
 				"id":   snaptest.AssertedSnapID("foo-with-base"),
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name": "bar-with-base",
 				"id":   snaptest.AssertedSnapID("bar-with-base"),
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name": "foo-base",
 				"type": "base",
 				"id":   snaptest.AssertedSnapID("foo-base"),
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name": "bar-base",
 				"type": "base",
 				"id":   snaptest.AssertedSnapID("bar-base"),
@@ -10831,20 +10831,20 @@ func (s *deviceMgrRemodelSuite) TestRemodelHybridSystemSkipSeed(c *C) {
 	defer restore()
 
 	// set a model assertion
-	s.makeModelAssertionInState(c, "canonical", "pc-model", map[string]interface{}{
+	s.makeModelAssertionInState(c, "canonical", "pc-model", map[string]any{
 		"architecture": "amd64",
 		"base":         "core20",
 		"grade":        "dangerous",
 		"classic":      "true",
 		"distribution": "ubuntu",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":            "pc-kernel",
 				"id":              snaptest.AssertedSnapID("pc-kernel"),
 				"type":            "kernel",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "pc",
 				"id":              snaptest.AssertedSnapID("pc"),
 				"type":            "gadget",
@@ -10884,27 +10884,27 @@ volumes:
 
 	snapstatetest.InstallEssentialSnaps(c, s.state, "core20", gadgetFiles, nil)
 
-	newModel := s.brands.Model("canonical", "pc-model", map[string]interface{}{
+	newModel := s.brands.Model("canonical", "pc-model", map[string]any{
 		"architecture": "amd64",
 		"base":         "core20",
 		"grade":        "dangerous",
 		"revision":     "1",
 		"classic":      "true",
 		"distribution": "ubuntu",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":            "pc-kernel",
 				"id":              snaptest.AssertedSnapID("pc-kernel"),
 				"type":            "kernel",
 				"default-channel": "21/edge",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "pc",
 				"id":              snaptest.AssertedSnapID("pc"),
 				"type":            "gadget",
 				"default-channel": "21/stable",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "core20",
 				"id":              snaptest.AssertedSnapID("core20"),
 				"type":            "base",
@@ -10966,20 +10966,20 @@ func (s *deviceMgrRemodelSuite) TestRemodelHybridSystem(c *C) {
 	defer restore()
 
 	// set a model assertion
-	s.makeModelAssertionInState(c, "canonical", "pc-model", map[string]interface{}{
+	s.makeModelAssertionInState(c, "canonical", "pc-model", map[string]any{
 		"architecture": "amd64",
 		"base":         "core20",
 		"grade":        "dangerous",
 		"classic":      "true",
 		"distribution": "ubuntu",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":            "pc-kernel",
 				"id":              snaptest.AssertedSnapID("pc-kernel"),
 				"type":            "kernel",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "pc",
 				"id":              snaptest.AssertedSnapID("pc"),
 				"type":            "gadget",
@@ -11015,27 +11015,27 @@ volumes:
 
 	snapstatetest.InstallEssentialSnaps(c, s.state, "core20", gadgetFiles, nil)
 
-	newModel := s.brands.Model("canonical", "pc-model", map[string]interface{}{
+	newModel := s.brands.Model("canonical", "pc-model", map[string]any{
 		"architecture": "amd64",
 		"base":         "core20",
 		"grade":        "dangerous",
 		"revision":     "1",
 		"classic":      "true",
 		"distribution": "ubuntu",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":            "pc-kernel",
 				"id":              snaptest.AssertedSnapID("pc-kernel"),
 				"type":            "kernel",
 				"default-channel": "21/edge",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "pc",
 				"id":              snaptest.AssertedSnapID("pc"),
 				"type":            "gadget",
 				"default-channel": "21/stable",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "core20",
 				"id":              snaptest.AssertedSnapID("core20"),
 				"type":            "base",

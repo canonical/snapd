@@ -128,7 +128,7 @@ func (cs *clientSuite) TestClientRemodel(c *C) {
 
 	body, err := io.ReadAll(cs.req.Body)
 	c.Assert(err, IsNil)
-	jsonBody := make(map[string]interface{})
+	jsonBody := make(map[string]any)
 	err = json.Unmarshal(body, &jsonBody)
 	c.Assert(err, IsNil)
 	c.Check(jsonBody, HasLen, 1)
@@ -152,7 +152,7 @@ func (cs *clientSuite) TestClientRemodelOffline(c *C) {
 
 	body, err := io.ReadAll(cs.req.Body)
 	c.Assert(err, IsNil)
-	jsonBody := make(map[string]interface{})
+	jsonBody := make(map[string]any)
 	err = json.Unmarshal(body, &jsonBody)
 	c.Assert(err, IsNil)
 	c.Check(jsonBody, HasLen, 2)

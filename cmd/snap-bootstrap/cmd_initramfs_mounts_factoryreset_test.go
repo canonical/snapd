@@ -155,10 +155,10 @@ grade=signed
 `)
 
 	// we should have written a boot state file
-	checkDegradedJSON(c, "factory-reset-bootstrap.json", map[string]interface{}{
-		"ubuntu-boot": map[string]interface{}{},
-		"ubuntu-data": map[string]interface{}{},
-		"ubuntu-save": map[string]interface{}{
+	checkDegradedJSON(c, "factory-reset-bootstrap.json", map[string]any{
+		"ubuntu-boot": map[string]any{},
+		"ubuntu-data": map[string]any{},
+		"ubuntu-save": map[string]any{
 			"device":         "/dev/mapper/ubuntu-save-random",
 			"find-state":     "found",
 			"unlock-state":   "unlocked",
@@ -166,7 +166,7 @@ grade=signed
 			"mount-state":    "mounted",
 			"mount-location": boot.InitramfsUbuntuSaveDir,
 		},
-		"error-log": []interface{}{},
+		"error-log": []any{},
 	})
 
 	c.Check(saveActivated, Equals, true)
@@ -253,16 +253,16 @@ model=my-brand/my-model
 grade=signed
 `)
 	// we should have written a boot state file
-	checkDegradedJSON(c, "factory-reset-bootstrap.json", map[string]interface{}{
-		"ubuntu-boot": map[string]interface{}{},
-		"ubuntu-data": map[string]interface{}{},
-		"ubuntu-save": map[string]interface{}{
+	checkDegradedJSON(c, "factory-reset-bootstrap.json", map[string]any{
+		"ubuntu-boot": map[string]any{},
+		"ubuntu-data": map[string]any{},
+		"ubuntu-save": map[string]any{
 			"device":         "/dev/disk/by-partuuid/ubuntu-save-partuuid",
 			"find-state":     "found",
 			"mount-state":    "mounted",
 			"mount-location": boot.InitramfsUbuntuSaveDir,
 		},
-		"error-log": []interface{}{},
+		"error-log": []any{},
 	})
 
 	checkSnapdMountUnit(c)
@@ -335,14 +335,14 @@ grade=signed
 `)
 	// we should have written a boot state file with save marked as
 	// absent-but-optional
-	checkDegradedJSON(c, "factory-reset-bootstrap.json", map[string]interface{}{
-		"ubuntu-boot": map[string]interface{}{},
-		"ubuntu-data": map[string]interface{}{},
-		"ubuntu-save": map[string]interface{}{
+	checkDegradedJSON(c, "factory-reset-bootstrap.json", map[string]any{
+		"ubuntu-boot": map[string]any{},
+		"ubuntu-data": map[string]any{},
+		"ubuntu-save": map[string]any{
 			"find-state":  "not-found",
 			"mount-state": "absent-but-optional",
 		},
-		"error-log": []interface{}{},
+		"error-log": []any{},
 	})
 
 	checkSnapdMountUnit(c)
@@ -448,15 +448,15 @@ grade=signed
 `)
 
 	// we should have written a boot state file
-	checkDegradedJSON(c, "factory-reset-bootstrap.json", map[string]interface{}{
-		"ubuntu-boot": map[string]interface{}{},
-		"ubuntu-data": map[string]interface{}{},
-		"ubuntu-save": map[string]interface{}{
+	checkDegradedJSON(c, "factory-reset-bootstrap.json", map[string]any{
+		"ubuntu-boot": map[string]any{},
+		"ubuntu-data": map[string]any{},
+		"ubuntu-save": map[string]any{
 			"device":       "/dev/disk/by-partuuid/ubuntu-save-enc-partuuid",
 			"unlock-state": "error-unlocking",
 			"find-state":   "found",
 		},
-		"error-log": []interface{}{
+		"error-log": []any{
 			"cannot unlock encrypted ubuntu-save partition with sealed fallback key: ubuntu-save unlock fail",
 		},
 	})
@@ -560,17 +560,17 @@ grade=signed
 `)
 
 	// we should have written a boot state file
-	checkDegradedJSON(c, "factory-reset-bootstrap.json", map[string]interface{}{
-		"ubuntu-boot": map[string]interface{}{},
-		"ubuntu-data": map[string]interface{}{},
-		"ubuntu-save": map[string]interface{}{
+	checkDegradedJSON(c, "factory-reset-bootstrap.json", map[string]any{
+		"ubuntu-boot": map[string]any{},
+		"ubuntu-data": map[string]any{},
+		"ubuntu-save": map[string]any{
 			"device":       "/dev/mapper/ubuntu-save-random",
 			"unlock-state": "unlocked",
 			"unlock-key":   "fallback",
 			"find-state":   "found",
 			"mount-state":  "error-mounting",
 		},
-		"error-log": []interface{}{
+		"error-log": []any{
 			"cannot mount ubuntu-save: mount failed",
 		},
 	})

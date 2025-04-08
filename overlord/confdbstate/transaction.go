@@ -40,7 +40,7 @@ type Transaction struct {
 	ConfdbName    string
 
 	modified      confdb.JSONDatabag
-	deltas        []map[string]interface{}
+	deltas        []map[string]any
 	appliedDeltas int
 
 	abortingSnap string
@@ -73,9 +73,9 @@ type marshalledTransaction struct {
 	ConfdbAccount string `json:"confdb-account,omitempty"`
 	ConfdbName    string `json:"confdb-name,omitempty"`
 
-	Modified      confdb.JSONDatabag       `json:"modified,omitempty"`
-	Deltas        []map[string]interface{} `json:"deltas,omitempty"`
-	AppliedDeltas int                      `json:"applied-deltas,omitempty"`
+	Modified      confdb.JSONDatabag `json:"modified,omitempty"`
+	Deltas        []map[string]any   `json:"deltas,omitempty"`
+	AppliedDeltas int                `json:"applied-deltas,omitempty"`
 
 	AbortingSnap string `json:"aborting-snap,omitempty"`
 	AbortReason  string `json:"abort-reason,omitempty"`
@@ -116,7 +116,7 @@ func (t *Transaction) UnmarshalJSON(data []byte) error {
 
 // Set sets a value in the transaction's databag. The change isn't persisted
 // until Commit returns without errors.
-func (t *Transaction) Set(path string, value interface{}) error {
+func (t *Transaction) Set(path string, value any) error {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
@@ -124,7 +124,7 @@ func (t *Transaction) Set(path string, value interface{}) error {
 		return errors.New("cannot write to aborted transaction")
 	}
 
-	t.deltas = append(t.deltas, map[string]interface{}{path: value})
+	t.deltas = append(t.deltas, map[string]any{path: value})
 	return nil
 }
 
@@ -138,12 +138,12 @@ func (t *Transaction) Unset(path string) error {
 		return errors.New("cannot write to aborted transaction")
 	}
 
-	t.deltas = append(t.deltas, map[string]interface{}{path: nil})
+	t.deltas = append(t.deltas, map[string]any{path: nil})
 	return nil
 }
 
 // Get reads a value from the transaction's databag including uncommitted changes.
-func (t *Transaction) Get(path string) (interface{}, error) {
+func (t *Transaction) Get(path string) (any, error) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
@@ -254,7 +254,7 @@ func (t *Transaction) applyChanges() error {
 	return nil
 }
 
-func applyDeltas(bag confdb.JSONDatabag, deltas []map[string]interface{}) error {
+func applyDeltas(bag confdb.JSONDatabag, deltas []map[string]any) error {
 	// changes must be applied in the order they were written
 	for _, delta := range deltas {
 		for k, v := range delta {

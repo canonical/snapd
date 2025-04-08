@@ -148,46 +148,46 @@ func (s *systemsSuite) mockSystemSeeds(c *check.C) (restore func()) {
 	seed20.MakeAssertedSnap(c, "name: pc\nversion: 1\ntype: gadget\nbase: core20", gadgetFiles, snap.R(1), "my-brand", s.StoreSigning.Database)
 	seed20.MakeAssertedSnap(c, "name: pc-kernel\nversion: 1\ntype: kernel", nil, snap.R(1), "my-brand", s.StoreSigning.Database)
 	seed20.MakeAssertedSnap(c, "name: core20\nversion: 1\ntype: base", nil, snap.R(1), "my-brand", s.StoreSigning.Database)
-	s.seedModelForLabel20191119 = seed20.MakeSeed(c, "20191119", "my-brand", "my-model", map[string]interface{}{
+	s.seedModelForLabel20191119 = seed20.MakeSeed(c, "20191119", "my-brand", "my-model", map[string]any{
 		"display-name": "my fancy model",
 		"architecture": "amd64",
 		"base":         "core20",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name": "snapd",
 				"id":   seed20.AssertedSnapID("snapd"),
 				"type": "snapd",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "pc-kernel",
 				"id":              seed20.AssertedSnapID("pc-kernel"),
 				"type":            "kernel",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "pc",
 				"id":              seed20.AssertedSnapID("pc"),
 				"type":            "gadget",
 				"default-channel": "20",
 			}},
 	}, nil)
-	seed20.MakeSeed(c, "20200318", "my-brand", "my-model-2", map[string]interface{}{
+	seed20.MakeSeed(c, "20200318", "my-brand", "my-model-2", map[string]any{
 		"display-name": "same brand different model",
 		"architecture": "amd64",
 		"base":         "core20",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name": "snapd",
 				"id":   seed20.AssertedSnapID("snapd"),
 				"type": "snapd",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "pc-kernel",
 				"id":              seed20.AssertedSnapID("pc-kernel"),
 				"type":            "kernel",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "pc",
 				"id":              seed20.AssertedSnapID("pc"),
 				"type":            "gadget",
@@ -214,7 +214,7 @@ func (s *systemsSuite) TestSystemsGetSome(c *check.C) {
 
 	st := d.Overlord().State()
 	st.Lock()
-	st.Set("seeded-systems", []map[string]interface{}{{
+	st.Set("seeded-systems", []map[string]any{{
 		"system": "20200318", "model": "my-model-2", "brand-id": "my-brand",
 		"revision": 2, "timestamp": "2009-11-10T23:00:00Z",
 		"seed-time": "2009-11-10T23:00:00Z",
@@ -423,19 +423,19 @@ func (s *systemsSuite) TestSystemActionRequestWithSeeded(c *check.C) {
 	restore := s.mockSystemSeeds(c)
 	defer restore()
 
-	model := s.Brands.Model("my-brand", "pc", map[string]interface{}{
+	model := s.Brands.Model("my-brand", "pc", map[string]any{
 		"architecture": "amd64",
 		// UC20
 		"grade": "dangerous",
 		"base":  "core20",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":            "pc-kernel",
 				"id":              snaptest.AssertedSnapID("pc-kernel"),
 				"type":            "kernel",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "pc",
 				"id":              snaptest.AssertedSnapID("pc"),
 				"type":            "gadget",
@@ -444,7 +444,7 @@ func (s *systemsSuite) TestSystemActionRequestWithSeeded(c *check.C) {
 		},
 	})
 
-	currentSystem := []map[string]interface{}{{
+	currentSystem := []map[string]any{{
 		"system": "20191119", "model": "my-model", "brand-id": "my-brand",
 		"revision": 2, "timestamp": "2009-11-10T23:00:00Z",
 		"seed-time": "2009-11-10T23:00:00Z",
@@ -586,14 +586,14 @@ func (s *systemsSuite) TestSystemActionRequestWithSeeded(c *check.C) {
 			c.Check(rec.Code, check.Equals, 200, check.Commentf(tc.comment))
 		}
 
-		var rspBody map[string]interface{}
+		var rspBody map[string]any
 		err = json.Unmarshal(rec.Body.Bytes(), &rspBody)
 		c.Assert(err, check.IsNil, check.Commentf(tc.comment))
 
-		var expResp map[string]interface{}
+		var expResp map[string]any
 		if tc.expUnsupported {
-			expResp = map[string]interface{}{
-				"result": map[string]interface{}{
+			expResp = map[string]any{
+				"result": map[string]any{
 					"message": fmt.Sprintf("requested action is not supported by system %q", "20191119"),
 				},
 				"status":      "Bad Request",
@@ -601,17 +601,17 @@ func (s *systemsSuite) TestSystemActionRequestWithSeeded(c *check.C) {
 				"type":        "error",
 			}
 		} else {
-			expResp = map[string]interface{}{
+			expResp = map[string]any{
 				"result":      nil,
 				"status":      "OK",
 				"status-code": 200.0,
 				"type":        "sync",
 			}
 			if tc.expRestart {
-				expResp["maintenance"] = map[string]interface{}{
+				expResp["maintenance"] = map[string]any{
 					"kind":    "system-restart",
 					"message": "system is restarting",
-					"value": map[string]interface{}{
+					"value": map[string]any{
 						"op": "reboot",
 					},
 				}
@@ -687,11 +687,11 @@ func (s *systemsSuite) TestSystemActionNonRoot(c *check.C) {
 	s.serveHTTP(c, rec, req)
 	c.Assert(rec.Code, check.Equals, 403)
 
-	var rspBody map[string]interface{}
+	var rspBody map[string]any
 	err = json.Unmarshal(rec.Body.Bytes(), &rspBody)
 	c.Check(err, check.IsNil)
-	c.Check(rspBody, check.DeepEquals, map[string]interface{}{
-		"result": map[string]interface{}{
+	c.Check(rspBody, check.DeepEquals, map[string]any{
+		"result": map[string]any{
 			"message": "access denied",
 			"kind":    "login-required",
 		},
@@ -793,11 +793,11 @@ func (s *systemsSuite) TestSystemRebootUnhappy(c *check.C) {
 		c.Check(rec.Code, check.Equals, tc.expectedHttpCode)
 		c.Check(called, check.Equals, 1)
 
-		var rspBody map[string]interface{}
+		var rspBody map[string]any
 		err = json.Unmarshal(rec.Body.Bytes(), &rspBody)
 		c.Check(err, check.IsNil)
 		c.Check(rspBody["status-code"], check.Equals, float64(tc.expectedHttpCode))
-		result := rspBody["result"].(map[string]interface{})
+		result := rspBody["result"].(map[string]any)
 		c.Check(result["message"], check.Equals, tc.expectedErr)
 	}
 }
@@ -1172,15 +1172,15 @@ func (s *systemsSuite) testSystemInstallActionFinishCallsDevicestate(c *check.C,
 	})
 	defer r()
 
-	body := map[string]interface{}{
+	body := map[string]any{
 		"action": "install",
 		"step":   "finish",
-		"on-volumes": map[string]interface{}{
-			"pc": map[string]interface{}{
+		"on-volumes": map[string]any{
+			"pc": map[string]any{
 				"bootloader": "grub",
 			},
 		},
-		"optional-install": map[string]interface{}{
+		"optional-install": map[string]any{
 			"snaps":      optionalInstall.Snaps,
 			"components": optionalInstall.Components,
 			"all":        optionalInstall.All,
@@ -1222,15 +1222,15 @@ func (s *systemsSuite) testSystemInstallActionFinishCallsDevicestate(c *check.C,
 func (s *systemsSuite) TestSystemInstallActionFinishCallsDevicestateAllAndSpecificInstallsFails(c *check.C) {
 	s.daemon(c)
 
-	body := map[string]interface{}{
+	body := map[string]any{
 		"action": "install",
 		"step":   "finish",
-		"on-volumes": map[string]interface{}{
-			"pc": map[string]interface{}{
+		"on-volumes": map[string]any{
+			"pc": map[string]any{
 				"bootloader": "grub",
 			},
 		},
-		"optional-install": map[string]interface{}{
+		"optional-install": map[string]any{
 			"snaps":      []string{"snap1", "snap2"},
 			"components": map[string][]string{"snap1": {"comp1"}, "snap2": {"comp2"}},
 			"all":        true,
@@ -1270,15 +1270,15 @@ func (s *systemsSuite) TestSystemInstallActionSetupStorageEncryptionCallsDevices
 	})
 	defer r()
 
-	body := map[string]interface{}{
+	body := map[string]any{
 		"action": "install",
 		"step":   "setup-storage-encryption",
-		"on-volumes": map[string]interface{}{
-			"pc": map[string]interface{}{
+		"on-volumes": map[string]any{
+			"pc": map[string]any{
 				"bootloader": "grub",
 			},
 		},
-		"volumes-auth": map[string]interface{}{
+		"volumes-auth": map[string]any{
 			"mode":       "passphrase",
 			"passphrase": "1234",
 		},
@@ -1323,7 +1323,7 @@ func (s *systemsSuite) TestSystemInstallActionGenerateRecoveryKey(c *check.C) {
 		return keys.RecoveryKey{'r', 'e', 'c', 'o', 'v', 'e', 'r', 'y', '1', '1', '1', '1', '1', '1', '1', '1'}, nil
 	})()
 
-	body := map[string]interface{}{
+	body := map[string]any{
 		"action": "install",
 		"step":   "generate-recovery-key",
 	}
@@ -1350,7 +1350,7 @@ func (s *systemsSuite) TestSystemInstallActionGenerateRecoveryKeyError(c *check.
 		return keys.RecoveryKey{}, errors.New("boom!")
 	})()
 
-	body := map[string]interface{}{
+	body := map[string]any{
 		"action": "install",
 		"step":   "generate-recovery-key",
 	}
@@ -1383,11 +1383,11 @@ func (s *systemsSuite) TestSystemInstallActionGeneratesTasks(c *check.C) {
 		{"setup-storage-encryption", 1},
 	} {
 		soon = 0
-		body := map[string]interface{}{
+		body := map[string]any{
 			"action": "install",
 			"step":   tc.installStep,
-			"on-volumes": map[string]interface{}{
-				"pc": map[string]interface{}{
+			"on-volumes": map[string]any{
+				"pc": map[string]any{
 					"bootloader": "grub",
 				},
 			},
@@ -1421,7 +1421,7 @@ func (s *systemsSuite) TestSystemInstallActionErrorMissingVolumes(c *check.C) {
 		{"finish", `cannot finish install for "20191119": cannot finish install without volumes data (api)`},
 		{"setup-storage-encryption", `cannot setup storage encryption for install from "20191119": cannot setup storage encryption without volumes data (api)`},
 	} {
-		body := map[string]interface{}{
+		body := map[string]any{
 			"action": "install",
 			"step":   tc.installStep,
 			// note that "on-volumes" is missing which will
@@ -1470,7 +1470,7 @@ func (s *systemsSuite) TestSystemActionCheckPassphraseError(c *check.C) {
 		expectedStatus   int
 		expectedErrKind  client.ErrorKind
 		expectedErrMsg   string
-		expectedErrValue interface{}
+		expectedErrValue any
 
 		mockSupportErr error
 	}{
@@ -1493,7 +1493,7 @@ func (s *systemsSuite) TestSystemActionCheckPassphraseError(c *check.C) {
 		{
 			passphrase:     "bad-passphrase",
 			expectedStatus: 400, expectedErrKind: "invalid-passphrase", expectedErrMsg: "passphrase did not pass quality checks",
-			expectedErrValue: map[string]interface{}{
+			expectedErrValue: map[string]any{
 				"reasons":          []device.AuthQualityErrorReason{device.AuthQualityErrorReasonLowEntropy},
 				"entropy-bits":     expectedEntropy,
 				"min-entropy-bits": expectedMinEntropy,
@@ -1559,7 +1559,7 @@ func (s *systemsSuite) TestSystemActionCheckPINError(c *check.C) {
 		expectedStatus   int
 		expectedErrKind  client.ErrorKind
 		expectedErrMsg   string
-		expectedErrValue interface{}
+		expectedErrValue any
 
 		mockSupportErr error
 	}{
@@ -1582,7 +1582,7 @@ func (s *systemsSuite) TestSystemActionCheckPINError(c *check.C) {
 		{
 			pin:            "0",
 			expectedStatus: 400, expectedErrKind: "invalid-pin", expectedErrMsg: "PIN did not pass quality checks",
-			expectedErrValue: map[string]interface{}{
+			expectedErrValue: map[string]any{
 				"reasons":          []device.AuthQualityErrorReason{device.AuthQualityErrorReasonLowEntropy},
 				"entropy-bits":     expectedEntropy,
 				"min-entropy-bits": expectedMinEntropy,
@@ -1700,8 +1700,8 @@ type systemsCreateSuite struct {
 	mockAssertionFn           func(at *asserts.AssertionType, headers []string, user *auth.UserState) (asserts.Assertion, error)
 }
 
-func (s *systemsCreateSuite) mockDevAssertion(c *check.C, t *asserts.AssertionType, extras map[string]interface{}) asserts.Assertion {
-	headers := map[string]interface{}{
+func (s *systemsCreateSuite) mockDevAssertion(c *check.C, t *asserts.AssertionType, extras map[string]any) asserts.Assertion {
+	headers := map[string]any{
 		"type":         t.Name,
 		"authority-id": s.dev1acct.AccountID(),
 		"account-id":   s.dev1acct.AccountID(),
@@ -1719,7 +1719,7 @@ func (s *systemsCreateSuite) mockDevAssertion(c *check.C, t *asserts.AssertionTy
 	return vs
 }
 
-func (s *systemsCreateSuite) mockStoreAssertion(c *check.C, t *asserts.AssertionType, extras map[string]interface{}) asserts.Assertion {
+func (s *systemsCreateSuite) mockStoreAssertion(c *check.C, t *asserts.AssertionType, extras map[string]any) asserts.Assertion {
 	return mockStoreAssertion(c, s.storeSigning, s.storeSigning.AuthorityID, s.dev1acct.AccountID(), t, extras)
 }
 
@@ -1728,9 +1728,9 @@ func mockStoreAssertion(
 	signer assertstest.SignerDB,
 	authorityID, accountID string,
 	t *asserts.AssertionType,
-	extras map[string]interface{},
+	extras map[string]any,
 ) asserts.Assertion {
-	headers := map[string]interface{}{
+	headers := map[string]any{
 		"type":         t.Name,
 		"authority-id": authorityID,
 		"account-id":   accountID,
@@ -1793,28 +1793,28 @@ func (s *systemsCreateSuite) SeqFormingAssertion(assertType *asserts.AssertionTy
 
 func (s *systemsCreateSuite) TestCreateSystemActionBadRequests(c *check.C) {
 	type test struct {
-		body       map[string]interface{}
+		body       map[string]any
 		routeLabel string
 		result     string
 	}
 
 	tests := []test{
 		{
-			body: map[string]interface{}{
+			body: map[string]any{
 				"action": "create",
 			},
 			routeLabel: "label",
 			result:     `label should not be provided in route when creating a system \(api\)`,
 		},
 		{
-			body: map[string]interface{}{
+			body: map[string]any{
 				"action": "create",
 				"label":  "",
 			},
 			result: `label must be provided in request body for action "create" \(api\)`,
 		},
 		{
-			body: map[string]interface{}{
+			body: map[string]any{
 				"action": "create",
 				"label":  "label",
 				"validation-sets": []string{
@@ -1824,7 +1824,7 @@ func (s *systemsCreateSuite) TestCreateSystemActionBadRequests(c *check.C) {
 			result: `cannot parse validation sets: cannot parse validation set "not-a-validation-set": expected a single account/name \(api\)`,
 		},
 		{
-			body: map[string]interface{}{
+			body: map[string]any{
 				"action": "create",
 				"label":  "label",
 				"validation-sets": []string{
@@ -1870,20 +1870,20 @@ func (s *systemsCreateSuite) TestCreateSystemActionSpecificValdationSet(c *check
 }
 
 func (s *systemsCreateSuite) testCreateSystemAction(c *check.C, requestedValSetSequence int) {
-	snaps := []interface{}{
-		map[string]interface{}{
+	snaps := []any{
+		map[string]any{
 			"name":     "pc-kernel",
 			"id":       snaptest.AssertedSnapID("pc-kernel"),
 			"revision": "10",
 			"presence": "required",
 		},
-		map[string]interface{}{
+		map[string]any{
 			"name":     "pc",
 			"id":       snaptest.AssertedSnapID("pc"),
 			"revision": "10",
 			"presence": "required",
 		},
-		map[string]interface{}{
+		map[string]any{
 			"name":     "core20",
 			"id":       snaptest.AssertedSnapID("core20"),
 			"revision": "10",
@@ -1895,7 +1895,7 @@ func (s *systemsCreateSuite) testCreateSystemAction(c *check.C, requestedValSetS
 
 	const validationSet = "validation-set-1"
 
-	vsetAssert := s.mockDevAssertion(c, asserts.ValidationSetType, map[string]interface{}{
+	vsetAssert := s.mockDevAssertion(c, asserts.ValidationSetType, map[string]any{
 		"name":     validationSet,
 		"sequence": "1",
 		"snaps":    snaps,
@@ -1947,7 +1947,7 @@ func (s *systemsCreateSuite) testCreateSystemAction(c *check.C, requestedValSetS
 		valSetString += "=" + strconv.Itoa(requestedValSetSequence)
 	}
 
-	body := map[string]interface{}{
+	body := map[string]any{
 		"action":          "create",
 		"label":           expectedLabel,
 		"validation-sets": []string{valSetString},
@@ -2004,7 +2004,7 @@ func (s *systemsCreateSuite) TestRemoveSystemAction(c *check.C) {
 		return st.NewChange("change", "..."), nil
 	})
 
-	body := map[string]interface{}{
+	body := map[string]any{
 		"action": "remove",
 	}
 
@@ -2031,7 +2031,7 @@ func (s *systemsCreateSuite) TestRemoveSystemActionNotFound(c *check.C) {
 		return nil, devicestate.ErrNoRecoverySystem
 	})
 
-	body := map[string]interface{}{
+	body := map[string]any{
 		"action": "remove",
 	}
 
@@ -2135,20 +2135,20 @@ func (s *systemsCreateSuite) TestCreateSystemActionOfflineBadRequests(c *check.C
 }
 
 func (s *systemsCreateSuite) TestCreateSystemActionOffline(c *check.C) {
-	snaps := []interface{}{
-		map[string]interface{}{
+	snaps := []any{
+		map[string]any{
 			"name":     "pc-kernel",
 			"id":       snaptest.AssertedSnapID("pc-kernel"),
 			"revision": "10",
 			"presence": "required",
 		},
-		map[string]interface{}{
+		map[string]any{
 			"name":     "pc",
 			"id":       snaptest.AssertedSnapID("pc"),
 			"revision": "10",
 			"presence": "required",
 		},
-		map[string]interface{}{
+		map[string]any{
 			"name":     "core20",
 			"id":       snaptest.AssertedSnapID("core20"),
 			"revision": "10",
@@ -2163,7 +2163,7 @@ func (s *systemsCreateSuite) TestCreateSystemActionOffline(c *check.C) {
 		expectedLabel = "1234"
 	)
 
-	vsetAssert := s.mockDevAssertion(c, asserts.ValidationSetType, map[string]interface{}{
+	vsetAssert := s.mockDevAssertion(c, asserts.ValidationSetType, map[string]any{
 		"name":     validationSet,
 		"sequence": "1",
 		"snaps":    snaps,
@@ -2181,7 +2181,7 @@ func (s *systemsCreateSuite) TestCreateSystemActionOffline(c *check.C) {
 		digest, size, err := asserts.SnapFileSHA3_384(f)
 		c.Assert(err, check.IsNil)
 
-		rev := s.mockStoreAssertion(c, asserts.SnapRevisionType, map[string]interface{}{
+		rev := s.mockStoreAssertion(c, asserts.SnapRevisionType, map[string]any{
 			"snap-id":       snaptest.AssertedSnapID(name),
 			"snap-sha3-384": digest,
 			"developer-id":  s.dev1acct.AccountID(),
@@ -2190,7 +2190,7 @@ func (s *systemsCreateSuite) TestCreateSystemActionOffline(c *check.C) {
 		})
 
 		// this is required right now. should it be?
-		decl := s.mockStoreAssertion(c, asserts.SnapDeclarationType, map[string]interface{}{
+		decl := s.mockStoreAssertion(c, asserts.SnapDeclarationType, map[string]any{
 			"series":       "16",
 			"snap-id":      snaptest.AssertedSnapID(name),
 			"snap-name":    name,
@@ -2245,26 +2245,26 @@ func (s *systemsCreateSuite) TestCreateSystemActionOffline(c *check.C) {
 }
 
 func (s *systemsCreateSuite) TestCreateSystemActionWithComponentsOffline(c *check.C) {
-	snaps := []interface{}{
-		map[string]interface{}{
+	snaps := []any{
+		map[string]any{
 			"name":     "pc-kernel",
 			"id":       snaptest.AssertedSnapID("pc-kernel"),
 			"revision": "10",
 			"presence": "required",
-			"components": map[string]interface{}{
-				"kmod": map[string]interface{}{
+			"components": map[string]any{
+				"kmod": map[string]any{
 					"revision": "10",
 					"presence": "required",
 				},
 			},
 		},
-		map[string]interface{}{
+		map[string]any{
 			"name":     "pc",
 			"id":       snaptest.AssertedSnapID("pc"),
 			"revision": "10",
 			"presence": "required",
 		},
-		map[string]interface{}{
+		map[string]any{
 			"name":     "core20",
 			"id":       snaptest.AssertedSnapID("core20"),
 			"revision": "10",
@@ -2279,7 +2279,7 @@ func (s *systemsCreateSuite) TestCreateSystemActionWithComponentsOffline(c *chec
 		expectedLabel = "1234"
 	)
 
-	vsetAssert := s.mockDevAssertion(c, asserts.ValidationSetType, map[string]interface{}{
+	vsetAssert := s.mockDevAssertion(c, asserts.ValidationSetType, map[string]any{
 		"name":     validationSet,
 		"sequence": "1",
 		"snaps":    snaps,
@@ -2306,7 +2306,7 @@ func (s *systemsCreateSuite) TestCreateSystemActionWithComponentsOffline(c *chec
 
 		snapID := snaptest.AssertedSnapID(name)
 
-		rev := s.mockStoreAssertion(c, asserts.SnapRevisionType, map[string]interface{}{
+		rev := s.mockStoreAssertion(c, asserts.SnapRevisionType, map[string]any{
 			"snap-id":       snapID,
 			"snap-sha3-384": digest,
 			"developer-id":  s.dev1acct.AccountID(),
@@ -2314,7 +2314,7 @@ func (s *systemsCreateSuite) TestCreateSystemActionWithComponentsOffline(c *chec
 			"snap-revision": "10",
 		})
 
-		decl := s.mockStoreAssertion(c, asserts.SnapDeclarationType, map[string]interface{}{
+		decl := s.mockStoreAssertion(c, asserts.SnapDeclarationType, map[string]any{
 			"series":       "16",
 			"snap-id":      snapID,
 			"snap-name":    name,
@@ -2414,7 +2414,7 @@ func makeStandardComponent(
 	digest, size, err := asserts.SnapFileSHA3_384(compPath)
 	c.Assert(err, check.IsNil)
 
-	resRev := mockStoreAssertion(c, signer, authorityID, accountID, asserts.SnapResourceRevisionType, map[string]interface{}{
+	resRev := mockStoreAssertion(c, signer, authorityID, accountID, asserts.SnapResourceRevisionType, map[string]any{
 		"snap-id":           snaptest.AssertedSnapID(snapName),
 		"developer-id":      accountID,
 		"resource-name":     compName,
@@ -2424,7 +2424,7 @@ func makeStandardComponent(
 		"timestamp":         time.Now().Format(time.RFC3339),
 	})
 
-	resPair := mockStoreAssertion(c, signer, authorityID, accountID, asserts.SnapResourcePairType, map[string]interface{}{
+	resPair := mockStoreAssertion(c, signer, authorityID, accountID, asserts.SnapResourcePairType, map[string]any{
 		"snap-id":           snaptest.AssertedSnapID(snapName),
 		"developer-id":      accountID,
 		"resource-name":     compName,
@@ -2450,7 +2450,7 @@ func (s *systemsCreateSuite) TestCreateSystemActionOfflinePreinstalledJSON(c *ch
 		return st.NewChange("change", "..."), nil
 	})
 
-	body := map[string]interface{}{
+	body := map[string]any{
 		"action":  "create",
 		"label":   expectedLabel,
 		"offline": true,
@@ -2514,23 +2514,23 @@ func (s *systemsCreateSuite) TestCreateSystemActionOfflineJustValidationSets(c *
 		expectedLabel = "1234"
 	)
 
-	vsetAssert := s.mockDevAssertion(c, asserts.ValidationSetType, map[string]interface{}{
+	vsetAssert := s.mockDevAssertion(c, asserts.ValidationSetType, map[string]any{
 		"name":     validationSet,
 		"sequence": "1",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":     "pc-kernel",
 				"id":       snaptest.AssertedSnapID("pc-kernel"),
 				"revision": "10",
 				"presence": "required",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":     "pc",
 				"id":       snaptest.AssertedSnapID("pc"),
 				"revision": "10",
 				"presence": "required",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":     "core20",
 				"id":       snaptest.AssertedSnapID("core20"),
 				"revision": "10",

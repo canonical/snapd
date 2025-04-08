@@ -829,7 +829,7 @@ func (r *diskUnlockState) serializeTo(name string) error {
 	return exportState.WriteTo(name)
 }
 
-func (r *diskUnlockState) LogErrorf(format string, v ...interface{}) {
+func (r *diskUnlockState) LogErrorf(format string, v ...any) {
 	msg := fmt.Sprintf(format, v...)
 	r.ErrorLog = append(r.ErrorLog, msg)
 	logger.Notice(msg)

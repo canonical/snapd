@@ -2050,8 +2050,8 @@ func (s *RepositorySuite) TestBeforeConnectValidation(c *C) {
 	s2 := ifacetest.MockInfoAndAppSet(c, ifacehooksSnap2, nil, nil)
 	c.Assert(s.emptyRepo.AddAppSet(s2), IsNil)
 
-	plugDynAttrs := map[string]interface{}{"attr1": "val1"}
-	slotDynAttrs := map[string]interface{}{"attr1": "val1"}
+	plugDynAttrs := map[string]any{"attr1": "val1"}
+	slotDynAttrs := map[string]any{"attr1": "val1"}
 
 	policyCheck := func(plug *ConnectedPlug, slot *ConnectedSlot) (bool, error) { return true, nil }
 	conn, err := s.emptyRepo.Connect(&ConnRef{PlugRef: PlugRef{Snap: "s1", Name: "consumer"}, SlotRef: SlotRef{Snap: "s2", Name: "producer"}}, nil, plugDynAttrs, nil, slotDynAttrs, policyCheck)
@@ -2061,10 +2061,10 @@ func (s *RepositorySuite) TestBeforeConnectValidation(c *C) {
 	c.Assert(conn.Plug, NotNil)
 	c.Assert(conn.Slot, NotNil)
 
-	c.Assert(conn.Plug.StaticAttrs(), DeepEquals, map[string]interface{}{"attr0": "val0"})
-	c.Assert(conn.Plug.DynamicAttrs(), DeepEquals, map[string]interface{}{"attr1": "val1-validated"})
-	c.Assert(conn.Slot.StaticAttrs(), DeepEquals, map[string]interface{}{"attr0": "val0"})
-	c.Assert(conn.Slot.DynamicAttrs(), DeepEquals, map[string]interface{}{"attr1": "val1-validated"})
+	c.Assert(conn.Plug.StaticAttrs(), DeepEquals, map[string]any{"attr0": "val0"})
+	c.Assert(conn.Plug.DynamicAttrs(), DeepEquals, map[string]any{"attr1": "val1-validated"})
+	c.Assert(conn.Slot.StaticAttrs(), DeepEquals, map[string]any{"attr0": "val0"})
+	c.Assert(conn.Slot.DynamicAttrs(), DeepEquals, map[string]any{"attr1": "val1-validated"})
 }
 
 func (s *RepositorySuite) TestBeforeConnectValidationFailure(c *C) {
@@ -2084,8 +2084,8 @@ func (s *RepositorySuite) TestBeforeConnectValidationFailure(c *C) {
 	s2 := ifacetest.MockInfoAndAppSet(c, ifacehooksSnap2, nil, nil)
 	c.Assert(s.emptyRepo.AddAppSet(s2), IsNil)
 
-	plugDynAttrs := map[string]interface{}{"attr1": "val1"}
-	slotDynAttrs := map[string]interface{}{"attr1": "val1"}
+	plugDynAttrs := map[string]any{"attr1": "val1"}
+	slotDynAttrs := map[string]any{"attr1": "val1"}
 
 	policyCheck := func(plug *ConnectedPlug, slot *ConnectedSlot) (bool, error) { return true, nil }
 
@@ -2108,8 +2108,8 @@ func (s *RepositorySuite) TestBeforeConnectValidationPolicyCheckFailure(c *C) {
 	s2 := ifacetest.MockInfoAndAppSet(c, ifacehooksSnap2, nil, nil)
 	c.Assert(s.emptyRepo.AddAppSet(s2), IsNil)
 
-	plugDynAttrs := map[string]interface{}{"attr1": "val1"}
-	slotDynAttrs := map[string]interface{}{"attr1": "val1"}
+	plugDynAttrs := map[string]any{"attr1": "val1"}
+	slotDynAttrs := map[string]any{"attr1": "val1"}
 
 	policyCheck := func(plug *ConnectedPlug, slot *ConnectedSlot) (bool, error) {
 		return false, fmt.Errorf("policy check failed")
@@ -2155,8 +2155,8 @@ func (s *RepositorySuite) TestConnectWithStaticAttrs(c *C) {
 
 	connRef := NewConnRef(s.consumerPlug, s.producerSlot)
 
-	plugAttrs := map[string]interface{}{"foo": "bar"}
-	slotAttrs := map[string]interface{}{"boo": "baz"}
+	plugAttrs := map[string]any{"foo": "bar"}
+	slotAttrs := map[string]any{"boo": "baz"}
 	_, err := s.testRepo.Connect(connRef, plugAttrs, nil, slotAttrs, nil, nil)
 	c.Assert(err, IsNil)
 
@@ -2222,7 +2222,7 @@ func (s *RepositorySuite) TestUpdateHotplugSlotAttrs(c *C) {
 		Name:       "test-slot",
 		Interface:  "interface",
 		HotplugKey: "1234",
-		Attrs:      map[string]interface{}{"a": "b"},
+		Attrs:      map[string]any{"a": "b"},
 	}
 	s.coreSnap.Slots["test-slot"] = coreSlot
 	c.Assert(s.testRepo.AddAppSet(s.coreSnapAppSet), IsNil)
@@ -2231,14 +2231,14 @@ func (s *RepositorySuite) TestUpdateHotplugSlotAttrs(c *C) {
 	c.Assert(err, ErrorMatches, `cannot find hotplug slot for interface interface and hotplug key "unknownkey"`)
 	c.Assert(slot, IsNil)
 
-	newAttrs := map[string]interface{}{"c": "d"}
+	newAttrs := map[string]any{"c": "d"}
 	slot, err = s.testRepo.UpdateHotplugSlotAttrs("interface", "1234", newAttrs)
 	// attributes are copied, so this change shouldn't be visible
 	newAttrs["c"] = "tainted"
 	c.Assert(err, IsNil)
 	c.Assert(slot, NotNil)
-	c.Assert(slot.Attrs, DeepEquals, map[string]interface{}{"c": "d"})
-	c.Assert(coreSlot.Attrs, DeepEquals, map[string]interface{}{"c": "d"})
+	c.Assert(slot.Attrs, DeepEquals, map[string]any{"c": "d"})
+	c.Assert(coreSlot.Attrs, DeepEquals, map[string]any{"c": "d"})
 }
 
 func (s *RepositorySuite) TestUpdateHotplugSlotAttrsConnectedError(c *C) {
@@ -2255,7 +2255,7 @@ func (s *RepositorySuite) TestUpdateHotplugSlotAttrsConnectedError(c *C) {
 	_, err := s.testRepo.Connect(NewConnRef(s.consumerPlug, coreSlot), nil, nil, nil, nil, nil)
 	c.Assert(err, IsNil)
 
-	slot, err := s.testRepo.UpdateHotplugSlotAttrs("interface", "1234", map[string]interface{}{"c": "d"})
+	slot, err := s.testRepo.UpdateHotplugSlotAttrs("interface", "1234", map[string]any{"c": "d"})
 	c.Assert(err, ErrorMatches, `internal error: cannot update slot test-slot while connected`)
 	c.Assert(slot, IsNil)
 }

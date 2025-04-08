@@ -197,7 +197,7 @@ func isParallelInstallable(snapsup *SnapSetup) error {
 // refreshRetain returns refresh.retain value if set, or the default value (different for core and classic).
 // It deals with potentially wrong type due to lax validation.
 func refreshRetain(st *state.State) int {
-	var val interface{}
+	var val any
 	// due to lax validation of refresh.retain on set we might end up having a string representing a number here; handle it gracefully
 	// for backwards compatibility.
 	err := config.NewTransaction(st).Get("core", "refresh.retain", &val)
@@ -958,7 +958,7 @@ func ConfigureSnap(st *state.State, snapName string, confFlags int) *state.TaskS
 	return Configure(st, snapName, nil, confFlags)
 }
 
-var Configure = func(st *state.State, snapName string, patch map[string]interface{}, flags int) *state.TaskSet {
+var Configure = func(st *state.State, snapName string, patch map[string]any, flags int) *state.TaskSet {
 	panic("internal error: snapstate.Configure is unset")
 }
 
@@ -4778,7 +4778,7 @@ func coreInfo(st *state.State) (*snap.Info, error) {
 // ConfigDefaults returns the configuration defaults for the snap as
 // specified in the gadget for the given device context.
 // If gadget is absent or the snap has no snap-id it returns ErrNoState.
-func ConfigDefaults(st *state.State, deviceCtx DeviceContext, snapName string) (map[string]interface{}, error) {
+func ConfigDefaults(st *state.State, deviceCtx DeviceContext, snapName string) (map[string]any, error) {
 	info, err := GadgetInfo(st, deviceCtx)
 	if err != nil {
 		return nil, err

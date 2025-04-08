@@ -516,7 +516,7 @@ type PolicyFunc func(*ConnectedPlug, *ConnectedSlot) (bool, error)
 // Connect establishes a connection between a plug and a slot.
 // The plug and the slot must have the same interface.
 // When connections are reloaded policyCheck is null (we don't check policy again).
-func (r *Repository) Connect(ref *ConnRef, plugStaticAttrs, plugDynamicAttrs, slotStaticAttrs, slotDynamicAttrs map[string]interface{}, policyCheck PolicyFunc) (*Connection, error) {
+func (r *Repository) Connect(ref *ConnRef, plugStaticAttrs, plugDynamicAttrs, slotStaticAttrs, slotDynamicAttrs map[string]any, policyCheck PolicyFunc) (*Connection, error) {
 	r.m.Lock()
 	defer r.m.Unlock()
 
@@ -756,7 +756,7 @@ func (r *Repository) SlotForHotplugKey(ifaceName string, hotplugKey snap.Hotplug
 
 // UpdateHotplugSlotAttrs updates static attributes of hotplug slot associated with given hotplugkey, and returns the resulting
 // slot. Slots can only be updated if not connected to any plug.
-func (r *Repository) UpdateHotplugSlotAttrs(ifaceName string, hotplugKey snap.HotplugKey, staticAttrs map[string]interface{}) (*snap.SlotInfo, error) {
+func (r *Repository) UpdateHotplugSlotAttrs(ifaceName string, hotplugKey snap.HotplugKey, staticAttrs map[string]any) (*snap.SlotInfo, error) {
 	r.m.Lock()
 	defer r.m.Unlock()
 

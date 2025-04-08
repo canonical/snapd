@@ -629,7 +629,7 @@ fixed-width fonts, so it can be hard to tell.
 	return nil
 }
 
-func panicOnDebug(msg string, v ...interface{}) {
+func panicOnDebug(msg string, v ...any) {
 	if osutil.GetenvBool("SNAPD_DEBUG") || snapdenv.Testing() {
 		logger.Panicf(msg, v...)
 	}
