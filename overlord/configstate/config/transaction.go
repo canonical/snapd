@@ -181,8 +181,7 @@ func (t *Transaction) Set(instanceName, key string, value any) error {
 	}
 
 	// config here is never nil and PatchConfig always operates
-	// directly on and returns config if it's a
-	// map[string]interface{}
+	// directly on and returns config if it's a map[string]any
 	_, err = PatchConfig(instanceName, subkeys, 0, config, &raw)
 	if err != nil {
 		return err

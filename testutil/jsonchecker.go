@@ -31,9 +31,9 @@ type jsonEqualChecker struct {
 }
 
 // JsonEquals compares the obtained and expected values after having serialized
-// them to JSON and deserialized to a generic interface{} type. This avoids
-// trouble comparing types with unexported fields that otherwise would be
-// problematic to set in external packages.
+// them to JSON and deserialized to a generic any type. This avoids trouble
+// comparing types with unexported fields that otherwise would be problematic to
+// set in external packages.
 var JsonEquals check.Checker = &jsonEqualChecker{
 	&check.CheckerInfo{Name: "JsonEqual", Params: []string{"obtained", "expected"}},
 }

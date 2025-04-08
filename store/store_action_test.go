@@ -120,7 +120,7 @@ func (s *storeActionSuite) testSnapAction(c *C, resources []string) {
 			"revision":         float64(1),
 			"tracking-channel": "beta",
 			"refreshed-date":   helloRefreshedDateStr,
-			"epoch":            iZeroEpoch,
+			"epoch":            anyZeroEpoch,
 		})
 		c.Assert(req.Actions, HasLen, 1)
 		c.Assert(req.Actions[0], DeepEquals, map[string]any{
@@ -268,7 +268,7 @@ func (s *storeActionSuite) TestSnapActionNonZeroEpochAndEpochBump(c *C) {
 			"revision":         float64(1),
 			"tracking-channel": "beta",
 			"refreshed-date":   helloRefreshedDateStr,
-			"epoch":            iFiveStarEpoch,
+			"epoch":            anyFiveStarEpoch,
 		})
 		c.Assert(req.Actions, HasLen, 1)
 		c.Assert(req.Actions[0], DeepEquals, map[string]any{
@@ -364,7 +364,7 @@ func (s *storeActionSuite) TestSnapActionNoResults(c *C) {
 			"revision":         float64(1),
 			"tracking-channel": "beta",
 			"refreshed-date":   helloRefreshedDateStr,
-			"epoch":            iZeroEpoch,
+			"epoch":            anyZeroEpoch,
 		})
 		c.Assert(req.Actions, HasLen, 0)
 		io.WriteString(w, `{
@@ -428,7 +428,7 @@ func (s *storeActionSuite) TestSnapActionRefreshedDateIsOptional(c *C) {
 
 			"revision":         float64(1),
 			"tracking-channel": "beta",
-			"epoch":            iZeroEpoch,
+			"epoch":            anyZeroEpoch,
 		})
 		c.Assert(req.Actions, HasLen, 0)
 		io.WriteString(w, `{
@@ -481,7 +481,7 @@ func (s *storeActionSuite) TestSnapActionSkipBlocked(c *C) {
 			"revision":         float64(1),
 			"tracking-channel": "stable",
 			"refreshed-date":   helloRefreshedDateStr,
-			"epoch":            iZeroEpoch,
+			"epoch":            anyZeroEpoch,
 		})
 		c.Assert(req.Actions, HasLen, 1)
 		c.Assert(req.Actions[0], DeepEquals, map[string]any{
@@ -570,7 +570,7 @@ func (s *storeActionSuite) TestSnapActionNoSkipIfResourceChange(c *C) {
 			"revision":         float64(1),
 			"tracking-channel": "stable",
 			"refreshed-date":   helloRefreshedDateStr,
-			"epoch":            iZeroEpoch,
+			"epoch":            anyZeroEpoch,
 		})
 		c.Assert(req.Actions, HasLen, 1)
 		c.Assert(req.Actions[0], DeepEquals, map[string]any{
@@ -671,7 +671,7 @@ func (s *storeActionSuite) TestSnapActionSkipIfNoResourceChange(c *C) {
 			"revision":         float64(1),
 			"tracking-channel": "stable",
 			"refreshed-date":   helloRefreshedDateStr,
-			"epoch":            iZeroEpoch,
+			"epoch":            anyZeroEpoch,
 		})
 		c.Assert(req.Actions, HasLen, 1)
 		c.Assert(req.Actions[0], DeepEquals, map[string]any{
@@ -775,7 +775,7 @@ func (s *storeActionSuite) TestSnapActionSkipCurrent(c *C) {
 			"revision":         float64(26),
 			"tracking-channel": "stable",
 			"refreshed-date":   helloRefreshedDateStr,
-			"epoch":            iZeroEpoch,
+			"epoch":            anyZeroEpoch,
 		})
 		c.Assert(req.Actions, HasLen, 1)
 		c.Assert(req.Actions[0], DeepEquals, map[string]any{
@@ -937,7 +937,7 @@ func (s *storeActionSuite) TestSnapActionIgnoreValidation(c *C) {
 			"tracking-channel":  "stable",
 			"refreshed-date":    helloRefreshedDateStr,
 			"ignore-validation": true,
-			"epoch":             iZeroEpoch,
+			"epoch":             anyZeroEpoch,
 		})
 		c.Assert(req.Actions, HasLen, 1)
 		c.Assert(req.Actions[0], DeepEquals, map[string]any{
@@ -1092,7 +1092,7 @@ func (s *storeActionSuite) TestInstallFallbackChannelIsStable(c *C) {
 			"revision":         float64(1),
 			"tracking-channel": "stable",
 			"refreshed-date":   helloRefreshedDateStr,
-			"epoch":            iZeroEpoch,
+			"epoch":            anyZeroEpoch,
 		})
 		c.Assert(req.Actions, HasLen, 1)
 		c.Assert(req.Actions[0], DeepEquals, map[string]any{
@@ -1187,7 +1187,7 @@ func (s *storeActionSuite) TestSnapActionNonDefaultsHeaders(c *C) {
 			"revision":         float64(1),
 			"tracking-channel": "beta",
 			"refreshed-date":   helloRefreshedDateStr,
-			"epoch":            iZeroEpoch,
+			"epoch":            anyZeroEpoch,
 		})
 		c.Assert(req.Actions, HasLen, 1)
 		c.Assert(req.Actions[0], DeepEquals, map[string]any{
@@ -1282,7 +1282,7 @@ func (s *storeActionSuite) TestSnapActionWithDeltas(c *C) {
 			"revision":         float64(1),
 			"tracking-channel": "beta",
 			"refreshed-date":   helloRefreshedDateStr,
-			"epoch":            iZeroEpoch,
+			"epoch":            anyZeroEpoch,
 		})
 		c.Assert(req.Actions, HasLen, 1)
 		c.Assert(req.Actions[0], DeepEquals, map[string]any{
@@ -1368,7 +1368,7 @@ func (s *storeActionSuite) TestSnapActionOptions(c *C) {
 			"revision":         float64(1),
 			"tracking-channel": "stable",
 			"refreshed-date":   helloRefreshedDateStr,
-			"epoch":            iZeroEpoch,
+			"epoch":            anyZeroEpoch,
 		})
 		c.Assert(req.Actions, HasLen, 1)
 		c.Assert(req.Actions[0], DeepEquals, map[string]any{
@@ -1493,7 +1493,7 @@ func (s *storeActionSuite) testSnapActionGet(action, cohort, redirectChannel str
 		}
 		if validationSets != nil {
 			// XXX: rewrite as otherwise DeepEquals complains about
-			// []interface {}{[]interface {}{..} vs expected [][]string{[]string{..}.
+			// []any{[]any{..} vs expected [][]string{[]string{..}.
 			var sets []any
 			for _, vs := range validationSets {
 				var vss []any
@@ -1846,7 +1846,7 @@ func (s *storeActionSuite) TestSnapActionRevisionNotAvailable(c *C) {
 			"revision":         float64(26),
 			"tracking-channel": "stable",
 			"refreshed-date":   helloRefreshedDateStr,
-			"epoch":            iZeroEpoch,
+			"epoch":            anyZeroEpoch,
 		})
 		c.Assert(req.Context[1], DeepEquals, map[string]any{
 			"snap-id":          "snap2-id",
@@ -1854,7 +1854,7 @@ func (s *storeActionSuite) TestSnapActionRevisionNotAvailable(c *C) {
 			"revision":         float64(2),
 			"tracking-channel": "edge",
 			"refreshed-date":   helloRefreshedDateStr,
-			"epoch":            iZeroEpoch,
+			"epoch":            anyZeroEpoch,
 		})
 		c.Assert(req.Actions, HasLen, 4)
 		c.Assert(req.Actions[0], DeepEquals, map[string]any{
@@ -2027,7 +2027,7 @@ func (s *storeActionSuite) TestSnapActionSnapNotFound(c *C) {
 			"revision":         float64(26),
 			"tracking-channel": "stable",
 			"refreshed-date":   helloRefreshedDateStr,
-			"epoch":            iZeroEpoch,
+			"epoch":            anyZeroEpoch,
 		})
 		c.Assert(req.Actions, HasLen, 3)
 		c.Assert(req.Actions[0], DeepEquals, map[string]any{
@@ -2565,7 +2565,7 @@ func (s *storeActionSuite) TestSnapActionRefreshParallelInstall(c *C) {
 			"revision":         float64(26),
 			"tracking-channel": "stable",
 			"refreshed-date":   helloRefreshedDateStr,
-			"epoch":            iZeroEpoch,
+			"epoch":            anyZeroEpoch,
 		})
 		c.Assert(req.Context[1], DeepEquals, map[string]any{
 			"snap-id":          helloWorldSnapID,
@@ -2573,7 +2573,7 @@ func (s *storeActionSuite) TestSnapActionRefreshParallelInstall(c *C) {
 			"revision":         float64(2),
 			"tracking-channel": "stable",
 			"refreshed-date":   helloRefreshedDateStr,
-			"epoch":            iZeroEpoch,
+			"epoch":            anyZeroEpoch,
 		})
 		c.Assert(req.Actions, HasLen, 1)
 		c.Assert(req.Actions[0], DeepEquals, map[string]any{
@@ -2668,7 +2668,7 @@ func (s *storeActionSuite) TestSnapActionRefreshStableInstanceKey(c *C) {
 			"revision":         float64(26),
 			"tracking-channel": "stable",
 			"refreshed-date":   helloRefreshedDateStr,
-			"epoch":            iZeroEpoch,
+			"epoch":            anyZeroEpoch,
 			"cohort-key":       "what",
 		})
 		c.Assert(req.Context[1], DeepEquals, map[string]any{
@@ -2677,7 +2677,7 @@ func (s *storeActionSuite) TestSnapActionRefreshStableInstanceKey(c *C) {
 			"revision":         float64(2),
 			"tracking-channel": "stable",
 			"refreshed-date":   helloRefreshedDateStr,
-			"epoch":            iZeroEpoch,
+			"epoch":            anyZeroEpoch,
 		})
 		c.Assert(req.Actions, HasLen, 1)
 		c.Assert(req.Actions[0], DeepEquals, map[string]any{
@@ -2779,7 +2779,7 @@ func (s *storeActionSuite) TestSnapActionRefreshWithHeld(c *C) {
 			"revision":         float64(1),
 			"tracking-channel": "stable",
 			"refreshed-date":   helloRefreshedDateStr,
-			"epoch":            iZeroEpoch,
+			"epoch":            anyZeroEpoch,
 			"held":             map[string]any{"by": []any{"foo", "bar"}},
 		})
 		c.Assert(req.Actions, HasLen, 1)
@@ -2883,7 +2883,7 @@ func (s *storeActionSuite) TestSnapActionRefreshWithHeldUnsupportedProxy(c *C) {
 			"revision":         float64(1),
 			"tracking-channel": "stable",
 			"refreshed-date":   helloRefreshedDateStr,
-			"epoch":            iZeroEpoch,
+			"epoch":            anyZeroEpoch,
 		})
 		c.Assert(req.Actions, HasLen, 1)
 		c.Assert(req.Actions[0], DeepEquals, map[string]any{
@@ -2972,7 +2972,7 @@ func (s *storeActionSuite) TestSnapActionRefreshWithValidationSets(c *C) {
 			"revision":         float64(1),
 			"tracking-channel": "stable",
 			"refreshed-date":   helloRefreshedDateStr,
-			"epoch":            iZeroEpoch,
+			"epoch":            anyZeroEpoch,
 			"validation-sets":  []any{[]any{"foo", "other"}},
 		})
 		c.Assert(req.Actions, HasLen, 1)
@@ -3064,7 +3064,7 @@ func (s *storeActionSuite) TestSnapActionRevisionNotAvailableParallelInstall(c *
 			"revision":         float64(26),
 			"tracking-channel": "stable",
 			"refreshed-date":   helloRefreshedDateStr,
-			"epoch":            iZeroEpoch,
+			"epoch":            anyZeroEpoch,
 		})
 		c.Assert(req.Context[1], DeepEquals, map[string]any{
 			"snap-id":          helloWorldSnapID,
@@ -3072,7 +3072,7 @@ func (s *storeActionSuite) TestSnapActionRevisionNotAvailableParallelInstall(c *
 			"revision":         float64(2),
 			"tracking-channel": "edge",
 			"refreshed-date":   helloRefreshedDateStr,
-			"epoch":            iZeroEpoch,
+			"epoch":            anyZeroEpoch,
 		})
 		c.Assert(req.Actions, HasLen, 3)
 		c.Assert(req.Actions[0], DeepEquals, map[string]any{
@@ -3210,7 +3210,7 @@ func (s *storeActionSuite) TestSnapActionInstallParallelInstall(c *C) {
 			"revision":         float64(26),
 			"tracking-channel": "stable",
 			"refreshed-date":   helloRefreshedDateStr,
-			"epoch":            iZeroEpoch,
+			"epoch":            anyZeroEpoch,
 		})
 		c.Assert(req.Actions, HasLen, 1)
 		c.Assert(req.Actions[0], DeepEquals, map[string]any{
@@ -3324,7 +3324,7 @@ func (s *storeActionSuite) TestSnapActionInstallUnexpectedInstanceKey(c *C) {
 			"revision":         float64(26),
 			"tracking-channel": "stable",
 			"refreshed-date":   helloRefreshedDateStr,
-			"epoch":            iZeroEpoch,
+			"epoch":            anyZeroEpoch,
 		})
 		c.Assert(req.Actions, HasLen, 1)
 		c.Assert(req.Actions[0], DeepEquals, map[string]any{
@@ -3408,7 +3408,7 @@ func (s *storeActionSuite) TestSnapActionRefreshUnexpectedInstanceKey(c *C) {
 			"revision":         float64(26),
 			"tracking-channel": "stable",
 			"refreshed-date":   helloRefreshedDateStr,
-			"epoch":            iZeroEpoch,
+			"epoch":            anyZeroEpoch,
 		})
 		c.Assert(req.Actions, HasLen, 1)
 		c.Assert(req.Actions[0], DeepEquals, map[string]any{
@@ -3492,7 +3492,7 @@ func (s *storeActionSuite) TestSnapActionUnexpectedErrorKey(c *C) {
 			"revision":         float64(26),
 			"tracking-channel": "stable",
 			"refreshed-date":   helloRefreshedDateStr,
-			"epoch":            iZeroEpoch,
+			"epoch":            anyZeroEpoch,
 		})
 		c.Assert(req.Context[1], DeepEquals, map[string]any{
 			"snap-id":          helloWorldSnapID,
@@ -3500,7 +3500,7 @@ func (s *storeActionSuite) TestSnapActionUnexpectedErrorKey(c *C) {
 			"revision":         float64(2),
 			"tracking-channel": "stable",
 			"refreshed-date":   helloRefreshedDateStr,
-			"epoch":            iZeroEpoch,
+			"epoch":            anyZeroEpoch,
 		})
 		c.Assert(req.Actions, HasLen, 1)
 		c.Assert(req.Actions[0], DeepEquals, map[string]any{

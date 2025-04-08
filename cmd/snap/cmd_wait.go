@@ -68,7 +68,7 @@ func isNoOption(err error) bool {
 	return false
 }
 
-// trueishJSON takes an interface{} and returns true if the interface value
+// trueishJSON takes an any and returns true if the interface value
 // looks "true". For strings thats if len(string) > 0 for numbers that
 // they are != 0 and for maps/slices/arrays that they have elements.
 //
