@@ -71,6 +71,9 @@ type Request struct {
 	// AaAllowed is the opaque permission mask which was already allowed by
 	// AppArmor rules.
 	AaAllowed notify.AppArmorPermission
+	// Interface is the interface associated with the request, set according to
+	// the metadata tags in the message.
+	Interface string
 
 	// listener is a pointer to the Listener which will handle the reply.
 	listener *Listener
@@ -411,6 +414,10 @@ func (l *Listener) newRequest(msg notify.MsgNotificationGeneric) (*Request, erro
 	if err != nil {
 		return nil, err
 	}
+	iface, ok := msg.Interface()
+	if !ok {
+		iface = "home"
+	}
 	return &Request{
 		ID:         msg.ID(),
 		PID:        msg.PID(),
@@ -421,6 +428,7 @@ func (l *Listener) newRequest(msg notify.MsgNotificationGeneric) (*Request, erro
 		Class:      msg.MediationClass(),
 		Permission: aaDenied, // Request permissions which were initially denied
 		AaAllowed:  aaAllowed,
+		Interface:  iface,
 
 		listener: l,
 	}, nil
