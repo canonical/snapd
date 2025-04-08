@@ -487,13 +487,9 @@ func (l *Listener) decodeAndDispatchRequest(buf []byte) error {
 		if !msg.Resent() {
 			// This is a new message, not one we're re-receiving, so if the
 			// listener is not yet ready, queue it up for later instead.
-			l.pendingMu.Lock()
-			if l.pendingCount > 0 {
-				l.readyQueue = append(l.readyQueue, req)
-				l.pendingMu.Unlock()
+			if l.queueRequestIfNotReady(req) {
 				continue
 			}
-			l.pendingMu.Unlock()
 			// The listener is ready, so carry on sending this request
 		}
 
@@ -515,13 +511,7 @@ func (l *Listener) decodeAndDispatchRequest(buf []byte) error {
 			continue
 		}
 		// Message was previously sent, see if it was the last one we're waiting for
-		l.pendingMu.Lock()
-		if l.pendingCount > 0 {
-			l.pendingCount--
-		}
-		stillWaiting := l.pendingCount > 0
-		l.pendingMu.Unlock()
-		if stillWaiting {
+		if isFinal := l.decrementPendingCheckFinal(); !isFinal {
 			continue
 		}
 		// This is the final pending request we were waiting for.
@@ -562,6 +552,40 @@ func (l *Listener) newRequest(msg notify.MsgNotificationGeneric) (*Request, erro
 
 		listener: l,
 	}, nil
+}
+
+// queueRequestIfNotReady queues the given request if the listener is not yet
+// ready, which is indicated by there being pending requests which are still
+// expected to be re-received. Returns true if the request is queued.
+//
+// The caller should only call this method if the message associated with the
+// given request was *not* marked by the kernel as having been previously sent.
+func (l *Listener) queueRequestIfNotReady(req *Request) (queued bool) {
+	l.pendingMu.Lock()
+	defer l.pendingMu.Unlock()
+	if l.pendingCount == 0 {
+		return false
+	}
+	l.readyQueue = append(l.readyQueue, req)
+	return true
+}
+
+// decrementPendingCheckFinal decrements the pending count if it's not already
+// 0, and returns whether this was the final pending request.
+//
+// The caller should only call this method if the message associated with the
+// request *was* marked by the kernel as having been previously sent.
+func (l *Listener) decrementPendingCheckFinal() (isFinal bool) {
+	l.pendingMu.Lock()
+	defer l.pendingMu.Unlock()
+	if l.pendingCount == 0 {
+		return false
+	}
+	l.pendingCount--
+	if l.pendingCount == 0 {
+		return true
+	}
+	return false
 }
 
 // signalReadyAndFlushQueue is responsible for closing the ready channel,
