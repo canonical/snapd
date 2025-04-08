@@ -422,7 +422,7 @@ func (w *Writer) checkStep(thisStep writerStep) error {
 }
 
 // warningf adds a warning that can be later retrieved via Warnings.
-func (w *Writer) warningf(format string, a ...interface{}) {
+func (w *Writer) warningf(format string, a ...any) {
 	w.warnings = append(w.warnings, fmt.Sprintf(format, a...))
 }
 

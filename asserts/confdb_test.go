@@ -150,14 +150,14 @@ func (s *confdbSuite) TestDecodeInvalid(c *C) {
 }
 
 func (s *confdbSuite) TestAssembleAndSignChecksSchemaFormatOK(c *C) {
-	headers := map[string]interface{}{
+	headers := map[string]any{
 		"authority-id": "brand-id1",
 		"account-id":   "brand-id1",
 		"name":         "my-network",
-		"views": map[string]interface{}{
-			"foo": map[string]interface{}{
-				"rules": []interface{}{
-					map[string]interface{}{"request": "wifi", "storage": "wifi"},
+		"views": map[string]any{
+			"foo": map[string]any{
+				"rules": []any{
+					map[string]any{"request": "wifi", "storage": "wifi"},
 				},
 			},
 		},
@@ -181,14 +181,14 @@ func (s *confdbSuite) TestAssembleAndSignChecksSchemaFormatOK(c *C) {
 }
 
 func (s *confdbSuite) TestAssembleAndSignChecksSchemaFormatFail(c *C) {
-	headers := map[string]interface{}{
+	headers := map[string]any{
 		"authority-id": "brand-id1",
 		"account-id":   "brand-id1",
 		"name":         "my-network",
-		"views": map[string]interface{}{
-			"foo": map[string]interface{}{
-				"rules": []interface{}{
-					map[string]interface{}{"request": "wifi", "storage": "wifi"},
+		"views": map[string]any{
+			"foo": map[string]any{
+				"rules": []any{
+					map[string]any{"request": "wifi", "storage": "wifi"},
 				},
 			},
 		},
@@ -272,7 +272,7 @@ func (s *confdbCtrlSuite) addSerial(c *C) {
 	encodedPubKey, err := asserts.EncodePublicKey(pubKey)
 	c.Assert(err, IsNil)
 
-	serial, err := asserts.AssembleAndSignInTest(asserts.SerialType, map[string]interface{}{
+	serial, err := asserts.AssembleAndSignInTest(asserts.SerialType, map[string]any{
 		"authority-id":        "canonical",
 		"brand-id":            "canonical",
 		"model":               "pc",
@@ -407,8 +407,8 @@ func (s *confdbCtrlSuite) TestPrerequisites(c *C) {
 }
 
 func (s *confdbCtrlSuite) TestAckAssertionNoSerial(c *C) {
-	headers := map[string]interface{}{
-		"brand-id": "canonical", "model": "pc", "serial": "42", "groups": []interface{}{},
+	headers := map[string]any{
+		"brand-id": "canonical", "model": "pc", "serial": "42", "groups": []any{},
 	}
 	a, err := asserts.AssembleAndSignInTest(asserts.ConfdbControlType, headers, nil, testPrivKey0)
 	c.Assert(err, IsNil)
@@ -424,8 +424,8 @@ func (s *confdbCtrlSuite) TestAckAssertionNoSerial(c *C) {
 func (s *confdbCtrlSuite) TestAckAssertionKeysMismatch(c *C) {
 	s.addSerial(c)
 
-	headers := map[string]interface{}{
-		"brand-id": "canonical", "model": "pc", "serial": "42", "groups": []interface{}{},
+	headers := map[string]any{
+		"brand-id": "canonical", "model": "pc", "serial": "42", "groups": []any{},
 	}
 	a, err := asserts.AssembleAndSignInTest(asserts.ConfdbControlType, headers, nil, testPrivKey2)
 	c.Assert(err, IsNil)
@@ -441,15 +441,15 @@ func (s *confdbCtrlSuite) TestAckAssertionKeysMismatch(c *C) {
 func (s *confdbCtrlSuite) TestAckAssertionOK(c *C) {
 	s.addSerial(c)
 
-	headers := map[string]interface{}{
+	headers := map[string]any{
 		"brand-id": "canonical",
 		"model":    "pc",
 		"serial":   "42",
-		"groups": []interface{}{
-			map[string]interface{}{
-				"operators":       []interface{}{"aa", "cc"},
-				"authentications": []interface{}{"operator-key"},
-				"views":           []interface{}{"pp/qq/rr"},
+		"groups": []any{
+			map[string]any{
+				"operators":       []any{"aa", "cc"},
+				"authentications": []any{"operator-key"},
+				"views":           []any{"pp/qq/rr"},
 			},
 		},
 	}

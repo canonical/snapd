@@ -45,7 +45,7 @@ type DeviceServiceBehavior struct {
 	Head          func(c *C, bhv *DeviceServiceBehavior, w http.ResponseWriter, r *http.Request)
 	PostPreflight func(c *C, bhv *DeviceServiceBehavior, w http.ResponseWriter, r *http.Request)
 
-	SignSerial func(c *C, bhv *DeviceServiceBehavior, headers map[string]interface{}, body []byte) (serial asserts.Assertion, ancillary []asserts.Assertion, err error)
+	SignSerial func(c *C, bhv *DeviceServiceBehavior, headers map[string]any, body []byte) (serial asserts.Assertion, ancillary []asserts.Assertion, err error)
 }
 
 // Request IDs for hard-coded behaviors.
@@ -224,7 +224,7 @@ func MockDeviceService(c *C, bhv *DeviceServiceBehavior) (mockServer *httptest.S
 				c.Check(mod.BrandID(), Equals, brandID)
 				c.Check(mod.Model(), Equals, model)
 			}
-			serial, ancillary, err := bhv.SignSerial(c, bhv, map[string]interface{}{
+			serial, ancillary, err := bhv.SignSerial(c, bhv, map[string]any{
 				"authority-id":        "canonical",
 				"brand-id":            brandID,
 				"model":               model,

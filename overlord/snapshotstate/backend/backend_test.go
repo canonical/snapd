@@ -448,7 +448,7 @@ func (s *snapshotSuite) TestIterSetIDoverride(c *check.C) {
 
 	epoch := snap.E("42*")
 	info := &snap.Info{SideInfo: snap.SideInfo{RealName: "hello-snap", Revision: snap.R(42), SnapID: "hello-id"}, Version: "v1.33", Epoch: epoch}
-	cfg := map[string]interface{}{"some-setting": false}
+	cfg := map[string]any{"some-setting": false}
 
 	shw, err := backend.Save(context.TODO(), 12, info, cfg, []string{"snapuser"}, nil, nil)
 	c.Assert(err, check.IsNil)
@@ -716,7 +716,7 @@ func (s *snapshotSuite) testHappyRoundtrip(c *check.C, marker string) {
 
 	epoch := snap.E("42*")
 	info := &snap.Info{SideInfo: snap.SideInfo{RealName: "hello-snap", Revision: snap.R(42), SnapID: "hello-id"}, Version: "v1.33", Epoch: epoch}
-	cfg := map[string]interface{}{"some-setting": false}
+	cfg := map[string]any{"some-setting": false}
 	shID := uint64(12)
 
 	statExcludes := []string{"$SNAP_USER_DATA/exclude", "$SNAP_USER_COMMON/exclude"}
@@ -808,7 +808,7 @@ func (s *snapshotSuite) TestOpenSetIDoverride(c *check.C) {
 
 	epoch := snap.E("42*")
 	info := &snap.Info{SideInfo: snap.SideInfo{RealName: "hello-snap", Revision: snap.R(42), SnapID: "hello-id"}, Version: "v1.33", Epoch: epoch}
-	cfg := map[string]interface{}{"some-setting": false}
+	cfg := map[string]any{"some-setting": false}
 
 	shw, err := backend.Save(context.TODO(), 12, info, cfg, []string{"snapuser"}, nil, nil)
 	c.Assert(err, check.IsNil)
@@ -1136,7 +1136,7 @@ func (s *snapshotSuite) TestImportExportRoundtrip(c *check.C) {
 
 	epoch := snap.E("42*")
 	info := &snap.Info{SideInfo: snap.SideInfo{RealName: "hello-snap", Revision: snap.R(42), SnapID: "hello-id"}, Version: "v1.33", Epoch: epoch}
-	cfg := map[string]interface{}{"some-setting": false}
+	cfg := map[string]any{"some-setting": false}
 	shID := uint64(12)
 
 	shw, err := backend.Save(ctx, shID, info, cfg, []string{"snapuser"}, nil, nil)

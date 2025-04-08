@@ -168,7 +168,7 @@ func parseAuthBase64JSON(data []byte, what string) (*authData, bool, error) {
 	if err != nil {
 		return nil, false, fmt.Errorf("cannot decode base64-encoded auth %s: %v", what, err)
 	}
-	var m map[string]interface{}
+	var m map[string]any
 	if err := json.Unmarshal(jsonData[:dataLen], &m); err != nil {
 		return nil, true, fmt.Errorf("cannot unmarshal base64-decoded auth %s: %v", what, err)
 	}
@@ -177,7 +177,7 @@ func parseAuthBase64JSON(data []byte, what string) (*authData, bool, error) {
 	t, _ := m["t"].(string)
 	switch {
 	case t == "u1-macaroon":
-		v, _ := m["v"].(map[string]interface{})
+		v, _ := m["v"].(map[string]any)
 		r, _ = v["r"].(string)
 		d, _ = v["d"].(string)
 		if r == "" || d == "" {

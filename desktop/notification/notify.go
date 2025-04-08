@@ -107,7 +107,7 @@ type Action struct {
 // Specification: https://developer.gnome.org/notification-spec/#hints
 type Hint struct {
 	Name  string
-	Value interface{}
+	Value any
 }
 
 // ServerCapability describes a single capability of the notification server.

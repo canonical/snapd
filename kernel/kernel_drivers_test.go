@@ -662,8 +662,8 @@ func (s *kernelDriversTestSuite) TestBuildKernelDriversTreeCompsWithTargetDir(c 
 	doDirChecks(c, fwUpdates, expected)
 }
 
-func mockModel16(override map[string]interface{}) *asserts.Model {
-	model := map[string]interface{}{
+func mockModel16(override map[string]any) *asserts.Model {
+	model := map[string]any{
 		"type":         "model",
 		"authority-id": "my-brand",
 		"series":       "16",
@@ -677,8 +677,8 @@ func mockModel16(override map[string]interface{}) *asserts.Model {
 	return assertstest.FakeAssertion(model, override).(*asserts.Model)
 }
 
-func mockModel20plus(override map[string]interface{}) *asserts.Model {
-	model := map[string]interface{}{
+func mockModel20plus(override map[string]any) *asserts.Model {
+	model := map[string]any{
 		"type":         "model",
 		"authority-id": "my-brand",
 		"series":       "16",
@@ -688,14 +688,14 @@ func mockModel20plus(override map[string]interface{}) *asserts.Model {
 		"architecture": "amd64",
 		"base":         "core20",
 		"grade":        "dangerous",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":            "pc-kernel",
 				"id":              snaptest.AssertedSnapID("pc-kernel"),
 				"type":            "kernel",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "pc",
 				"id":              snaptest.AssertedSnapID("pc"),
 				"type":            "gadget",
@@ -712,9 +712,9 @@ func (s *kernelDriversTestSuite) TestNeedsKernelDriversTree(c *C) {
 	c.Assert(kernel.NeedsKernelDriversTree(uc16model), Equals, false)
 	uc20model := mockModel20plus(nil)
 	c.Assert(kernel.NeedsKernelDriversTree(uc20model), Equals, false)
-	uc22model := mockModel20plus(map[string]interface{}{"base": "core22"})
+	uc22model := mockModel20plus(map[string]any{"base": "core22"})
 	c.Assert(kernel.NeedsKernelDriversTree(uc22model), Equals, false)
-	uc24model := mockModel20plus(map[string]interface{}{"base": "core24"})
+	uc24model := mockModel20plus(map[string]any{"base": "core24"})
 	c.Assert(kernel.NeedsKernelDriversTree(uc24model), Equals, true)
 }
 
@@ -730,7 +730,7 @@ func (s *kernelDriversTestSuite) TestNeedsKernelDriversTreeClassicWithWrongBase(
 	} {
 		defer release.MockReleaseInfo(&release.OS{ID: "ubuntu", VersionID: tc.version})()
 
-		uc22model := mockModel20plus(map[string]interface{}{"base": "core22",
+		uc22model := mockModel20plus(map[string]any{"base": "core22",
 			"classic": "true", "distribution": "ubuntu"})
 		c.Assert(kernel.NeedsKernelDriversTree(uc22model), Equals, tc.result)
 	}

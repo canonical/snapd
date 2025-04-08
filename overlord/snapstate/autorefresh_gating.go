@@ -828,7 +828,7 @@ func AutoRefreshForGatingSnap(st *state.State, gatingSnap string) error {
 		chg.AddAll(ts)
 	}
 	chg.Set("snap-names", updated)
-	chg.Set("api-data", map[string]interface{}{"snap-names": updated})
+	chg.Set("api-data", map[string]any{"snap-names": updated})
 
 	return nil
 }

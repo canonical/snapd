@@ -72,7 +72,7 @@ type respJSON struct {
 	// StatusText is filled by the serving pipeline.
 	StatusText string `json:"status"`
 	// Result is a free-form optional result object.
-	Result interface{} `json:"result"`
+	Result any `json:"result"`
 	// Change is the change ID for an async response.
 	Change string `json:"change,omitempty"`
 	// Sources is used in find responses.
@@ -95,19 +95,19 @@ func maintenanceForRestartType(rst restart.RestartType) *errorResult {
 	case restart.RestartSystem, restart.RestartSystemNow:
 		e.Kind = client.ErrorKindSystemRestart
 		e.Message = systemRestartMsg
-		e.Value = map[string]interface{}{
+		e.Value = map[string]any{
 			"op": "reboot",
 		}
 	case restart.RestartSystemHaltNow:
 		e.Kind = client.ErrorKindSystemRestart
 		e.Message = systemHaltMsg
-		e.Value = map[string]interface{}{
+		e.Value = map[string]any{
 			"op": "halt",
 		}
 	case restart.RestartSystemPoweroffNow:
 		e.Kind = client.ErrorKindSystemRestart
 		e.Message = systemPoweroffMsg
-		e.Value = map[string]interface{}{
+		e.Value = map[string]any{
 			"op": "poweroff",
 		}
 	case restart.RestartDaemon:
@@ -151,7 +151,7 @@ func (r *respJSON) ServeHTTP(w http.ResponseWriter, _ *http.Request) {
 
 	hdr := w.Header()
 	if r.Status == 202 || r.Status == 201 {
-		if m, ok := r.Result.(map[string]interface{}); ok {
+		if m, ok := r.Result.(map[string]any); ok {
 			if location, ok := m["resource"]; ok {
 				if location, ok := location.(string); ok && location != "" {
 					hdr.Set("Location", location)
@@ -166,7 +166,7 @@ func (r *respJSON) ServeHTTP(w http.ResponseWriter, _ *http.Request) {
 }
 
 // SyncResponse builds a "sync" response from the given result.
-func SyncResponse(result interface{}) Response {
+func SyncResponse(result any) Response {
 	if rsp, ok := result.(Response); ok {
 		return rsp
 	}
@@ -183,7 +183,7 @@ func SyncResponse(result interface{}) Response {
 }
 
 // AsyncResponse builds an "async" response for a created change
-func AsyncResponse(result map[string]interface{}, change string) Response {
+func AsyncResponse(result map[string]any, change string) Response {
 	return &respJSON{
 		Type:   ResponseTypeAsync,
 		Status: 202,
