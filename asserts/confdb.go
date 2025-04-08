@@ -199,12 +199,12 @@ func assembleConfdbControl(assert assertionBase) (Assertion, error) {
 	}, nil
 }
 
-func parseConfdbControlGroups(rawGroups []interface{}) (*confdb.Control, error) {
+func parseConfdbControlGroups(rawGroups []any) (*confdb.Control, error) {
 	cc := &confdb.Control{}
 	for i, rawGroup := range rawGroups {
 		errPrefix := fmt.Sprintf("cannot parse group at position %d", i+1)
 
-		group, ok := rawGroup.(map[string]interface{})
+		group, ok := rawGroup.(map[string]any)
 		if !ok {
 			return nil, fmt.Errorf("%s: must be a map", errPrefix)
 		}

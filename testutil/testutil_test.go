@@ -40,7 +40,7 @@ func testInfo(c *check.C, checker check.Checker, name string, paramNames []strin
 	}
 }
 
-func testCheck(c *check.C, checker check.Checker, result bool, error string, params ...interface{}) {
+func testCheck(c *check.C, checker check.Checker, result bool, error string, params ...any) {
 	info := checker.Info()
 	if len(params) != len(info.Params) {
 		c.Fatalf("unexpected param count in test; expected %d got %d", len(info.Params), len(params))

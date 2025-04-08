@@ -41,7 +41,7 @@ func (s *responseSuite) TestRespSetsLocationIfAccepted(c *check.C) {
 
 	rsp := &daemon.RespJSON{
 		Status: 202,
-		Result: map[string]interface{}{
+		Result: map[string]any{
 			"resource": "foo/bar",
 		},
 	}
@@ -56,7 +56,7 @@ func (s *responseSuite) TestRespSetsLocationIfCreated(c *check.C) {
 
 	rsp := &daemon.RespJSON{
 		Status: 201,
-		Result: map[string]interface{}{
+		Result: map[string]any{
 			"resource": "foo/bar",
 		},
 	}
@@ -71,7 +71,7 @@ func (s *responseSuite) TestRespDoesNotSetLocationIfOther(c *check.C) {
 
 	rsp := &daemon.RespJSON{
 		Status: 418, // I'm a teapot
-		Result: map[string]interface{}{
+		Result: map[string]any{
 			"resource": "foo/bar",
 		},
 	}

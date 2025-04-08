@@ -28,14 +28,14 @@ import (
 )
 
 type connStatePatch6_1 struct {
-	Auto             bool                   `json:"auto,omitempty"`
-	ByGadget         bool                   `json:"by-gadget,omitempty"`
-	Interface        string                 `json:"interface,omitempty"`
-	Undesired        bool                   `json:"undesired,omitempty"`
-	StaticPlugAttrs  map[string]interface{} `json:"plug-static,omitempty"`
-	DynamicPlugAttrs map[string]interface{} `json:"plug-dynamic,omitempty"`
-	StaticSlotAttrs  map[string]interface{} `json:"slot-static,omitempty"`
-	DynamicSlotAttrs map[string]interface{} `json:"slot-dynamic,omitempty"`
+	Auto             bool           `json:"auto,omitempty"`
+	ByGadget         bool           `json:"by-gadget,omitempty"`
+	Interface        string         `json:"interface,omitempty"`
+	Undesired        bool           `json:"undesired,omitempty"`
+	StaticPlugAttrs  map[string]any `json:"plug-static,omitempty"`
+	DynamicPlugAttrs map[string]any `json:"plug-dynamic,omitempty"`
+	StaticSlotAttrs  map[string]any `json:"slot-static,omitempty"`
+	DynamicSlotAttrs map[string]any `json:"slot-dynamic,omitempty"`
 }
 
 // processConns updates conns map and augments it with plug-static and slot-static attributes from current snap info.

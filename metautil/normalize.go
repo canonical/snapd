@@ -26,7 +26,7 @@ import (
 
 // NormalizeValue validates values and returns a normalized version of it
 // (map[interface{}]interface{} is turned into map[string]interface{})
-func NormalizeValue(v interface{}) (interface{}, error) {
+func NormalizeValue(v any) (any, error) {
 	switch x := v.(type) {
 	case string:
 		return x, nil
@@ -40,8 +40,8 @@ func NormalizeValue(v interface{}) (interface{}, error) {
 		return x, nil
 	case float32:
 		return float64(x), nil
-	case []interface{}:
-		l := make([]interface{}, len(x))
+	case []any:
+		l := make([]any, len(x))
 		for i, el := range x {
 			el, err := NormalizeValue(el)
 			if err != nil {
@@ -50,8 +50,8 @@ func NormalizeValue(v interface{}) (interface{}, error) {
 			l[i] = el
 		}
 		return l, nil
-	case map[interface{}]interface{}:
-		m := make(map[string]interface{}, len(x))
+	case map[any]any:
+		m := make(map[string]any, len(x))
 		for k, item := range x {
 			kStr, ok := k.(string)
 			if !ok {
@@ -64,8 +64,8 @@ func NormalizeValue(v interface{}) (interface{}, error) {
 			m[kStr] = item
 		}
 		return m, nil
-	case map[string]interface{}:
-		m := make(map[string]interface{}, len(x))
+	case map[string]any:
+		m := make(map[string]any, len(x))
 		for k, item := range x {
 			item, err := NormalizeValue(item)
 			if err != nil {

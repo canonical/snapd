@@ -81,7 +81,7 @@ var ContainsChain Checker = &containsChainChecker{
 	&CheckerInfo{Name: "ContainsChain", Params: []string{"chainscontainer", "chain"}},
 }
 
-func (c *containsChainChecker) Check(params []interface{}, names []string) (result bool, error string) {
+func (c *containsChainChecker) Check(params []any, names []string) (result bool, error string) {
 	allowed, ok := params[0].([]*secboot.LoadChain)
 	if !ok {
 		return false, "Wrong type for chain container"

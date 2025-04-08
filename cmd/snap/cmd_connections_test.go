@@ -41,7 +41,7 @@ func (s *SnapSuite) TestConnectionsNoneConnected(c *C) {
 		body, err := io.ReadAll(r.Body)
 		c.Check(err, IsNil)
 		c.Check(body, DeepEquals, []byte{})
-		EncodeResponseBody(c, w, map[string]interface{}{
+		EncodeResponseBody(c, w, map[string]any{
 			"type":   "sync",
 			"result": result,
 		})
@@ -102,7 +102,7 @@ func (s *SnapSuite) TestConnectionsNoneConnectedPlugs(c *C) {
 		body, err := io.ReadAll(r.Body)
 		c.Check(err, IsNil)
 		c.Check(body, DeepEquals, []byte{})
-		EncodeResponseBody(c, w, map[string]interface{}{
+		EncodeResponseBody(c, w, map[string]any{
 			"type":   "sync",
 			"result": result,
 		})
@@ -144,7 +144,7 @@ func (s *SnapSuite) TestConnectionsNoneConnectedSlots(c *C) {
 		body, err := io.ReadAll(r.Body)
 		c.Check(err, IsNil)
 		c.Check(body, DeepEquals, []byte{})
-		EncodeResponseBody(c, w, map[string]interface{}{
+		EncodeResponseBody(c, w, map[string]any{
 			"type":   "sync",
 			"result": result,
 		})
@@ -260,7 +260,7 @@ func (s *SnapSuite) TestConnectionsSomeConnected(c *C) {
 		body, err := io.ReadAll(r.Body)
 		c.Check(err, IsNil)
 		c.Check(body, DeepEquals, []byte{})
-		EncodeResponseBody(c, w, map[string]interface{}{
+		EncodeResponseBody(c, w, map[string]any{
 			"type":   "sync",
 			"result": result,
 		})
@@ -363,7 +363,7 @@ func (s *SnapSuite) TestConnectionsSomeDisconnected(c *C) {
 		body, err := io.ReadAll(r.Body)
 		c.Check(err, IsNil)
 		c.Check(body, DeepEquals, []byte{})
-		EncodeResponseBody(c, w, map[string]interface{}{
+		EncodeResponseBody(c, w, map[string]any{
 			"type":   "sync",
 			"result": result,
 		})
@@ -415,7 +415,7 @@ func (s *SnapSuite) TestConnectionsOnlyDisconnected(c *C) {
 		body, err := io.ReadAll(r.Body)
 		c.Check(err, IsNil)
 		c.Check(body, DeepEquals, []byte{})
-		EncodeResponseBody(c, w, map[string]interface{}{
+		EncodeResponseBody(c, w, map[string]any{
 			"type":   "sync",
 			"result": result,
 		})
@@ -444,7 +444,7 @@ func (s *SnapSuite) TestConnectionsFiltering(c *C) {
 		body, err := io.ReadAll(r.Body)
 		c.Check(err, IsNil)
 		c.Check(body, DeepEquals, []byte{})
-		EncodeResponseBody(c, w, map[string]interface{}{
+		EncodeResponseBody(c, w, map[string]any{
 			"type":   "sync",
 			"result": result,
 		})
@@ -618,7 +618,7 @@ func (s *SnapSuite) TestConnectionsSorting(c *C) {
 		body, err := io.ReadAll(r.Body)
 		c.Check(err, IsNil)
 		c.Check(body, DeepEquals, []byte{})
-		EncodeResponseBody(c, w, map[string]interface{}{
+		EncodeResponseBody(c, w, map[string]any{
 			"type":   "sync",
 			"result": result,
 		})
@@ -650,13 +650,13 @@ func (s *SnapSuite) TestConnectionsDefiningAttribute(c *C) {
 				Plug:      client.PlugRef{Snap: "foo", Name: "a-plug"},
 				Slot:      client.SlotRef{Snap: "a-content-provider", Name: "data"},
 				Interface: "content",
-				PlugAttrs: map[string]interface{}{
+				PlugAttrs: map[string]any{
 					"content": "plug-some-data",
 					"target":  "$SNAP/foo",
 				},
-				SlotAttrs: map[string]interface{}{
+				SlotAttrs: map[string]any{
 					"content": "slot-some-data",
-					"source": map[string]interface{}{
+					"source": map[string]any{
 						"read": []string{"$SNAP/bar"},
 					},
 				},
@@ -664,13 +664,13 @@ func (s *SnapSuite) TestConnectionsDefiningAttribute(c *C) {
 				Plug:      client.PlugRef{Snap: "foo", Name: "b-plug"},
 				Slot:      client.SlotRef{Snap: "b-content-provider", Name: "data"},
 				Interface: "content",
-				PlugAttrs: map[string]interface{}{
+				PlugAttrs: map[string]any{
 					// no content attribute for plug, falls back to slot
 					"target": "$SNAP/foo",
 				},
-				SlotAttrs: map[string]interface{}{
+				SlotAttrs: map[string]any{
 					"content": "slot-some-data",
-					"source": map[string]interface{}{
+					"source": map[string]any{
 						"read": []string{"$SNAP/bar"},
 					},
 				},
@@ -678,13 +678,13 @@ func (s *SnapSuite) TestConnectionsDefiningAttribute(c *C) {
 				Plug:      client.PlugRef{Snap: "foo", Name: "c-plug"},
 				Slot:      client.SlotRef{Snap: "c-content-provider", Name: "data"},
 				Interface: "content",
-				PlugAttrs: map[string]interface{}{
+				PlugAttrs: map[string]any{
 					// no content attribute for plug
 					"target": "$SNAP/foo",
 				},
-				SlotAttrs: map[string]interface{}{
+				SlotAttrs: map[string]any{
 					// no content attribute for slot either
-					"source": map[string]interface{}{
+					"source": map[string]any{
 						"read": []string{"$SNAP/bar"},
 					},
 				},
@@ -698,10 +698,10 @@ func (s *SnapSuite) TestConnectionsDefiningAttribute(c *C) {
 				Slot: client.SlotRef{Snap: "core", Name: "desktop"},
 				// desktop interface does not have any defining attributes
 				Interface: "desktop",
-				PlugAttrs: map[string]interface{}{
+				PlugAttrs: map[string]any{
 					"this-is-ignored": "foo",
 				},
-				SlotAttrs: map[string]interface{}{
+				SlotAttrs: map[string]any{
 					"this-is-ignored-too": "foo",
 				},
 			},
@@ -715,7 +715,7 @@ func (s *SnapSuite) TestConnectionsDefiningAttribute(c *C) {
 					Snap: "a-content-provider",
 					Name: "data",
 				}},
-				Attrs: map[string]interface{}{
+				Attrs: map[string]any{
 					"content": "plug-some-data",
 					"target":  "$SNAP/foo",
 				},
@@ -727,7 +727,7 @@ func (s *SnapSuite) TestConnectionsDefiningAttribute(c *C) {
 					Snap: "b-content-provider",
 					Name: "data",
 				}},
-				Attrs: map[string]interface{}{
+				Attrs: map[string]any{
 					// no content attribute for plug, falls back to slot
 					"target": "$SNAP/foo",
 				},
@@ -739,7 +739,7 @@ func (s *SnapSuite) TestConnectionsDefiningAttribute(c *C) {
 					Snap: "c-content-provider",
 					Name: "data",
 				}},
-				Attrs: map[string]interface{}{
+				Attrs: map[string]any{
 					// no content attribute for plug
 					"target": "$SNAP/foo",
 				},
@@ -770,9 +770,9 @@ func (s *SnapSuite) TestConnectionsDefiningAttribute(c *C) {
 					Snap: "foo",
 					Name: "a-plug",
 				}},
-				Attrs: map[string]interface{}{
+				Attrs: map[string]any{
 					"content": "slot-some-data",
-					"source": map[string]interface{}{
+					"source": map[string]any{
 						"read": []string{"$SNAP/bar"},
 					},
 				},
@@ -784,9 +784,9 @@ func (s *SnapSuite) TestConnectionsDefiningAttribute(c *C) {
 					Snap: "foo",
 					Name: "a-plug",
 				}},
-				Attrs: map[string]interface{}{
+				Attrs: map[string]any{
 					"content": "slot-some-data",
-					"source": map[string]interface{}{
+					"source": map[string]any{
 						"read": []string{"$SNAP/bar"},
 					},
 				},
@@ -798,8 +798,8 @@ func (s *SnapSuite) TestConnectionsDefiningAttribute(c *C) {
 					Snap: "foo",
 					Name: "a-plug",
 				}},
-				Attrs: map[string]interface{}{
-					"source": map[string]interface{}{
+				Attrs: map[string]any{
+					"source": map[string]any{
 						"read": []string{"$SNAP/bar"},
 					},
 				},
@@ -832,7 +832,7 @@ func (s *SnapSuite) TestConnectionsDefiningAttribute(c *C) {
 		body, err := io.ReadAll(r.Body)
 		c.Check(err, IsNil)
 		c.Check(body, DeepEquals, []byte{})
-		EncodeResponseBody(c, w, map[string]interface{}{
+		EncodeResponseBody(c, w, map[string]any{
 			"type":   "sync",
 			"result": result,
 		})
