@@ -27,9 +27,9 @@ package configcore
 //
 // Move this part of the code to yaml.v3 because without it we run
 // into incompatibilites of maps between json and yaml:
-// "json: unsupported type: map[interface{}]interface{}" because
-// because yaml.v2 unmarshalls by default to "map[interface{}]interface{}"
-// v3 fixes this, see https://github.com/go-yaml/yaml/pull/385#issuecomment-475588596
+// "json: unsupported type: map[any]any" because yaml.v2 unmarshalls by default
+// to "map[any]any" v3 fixes this, see
+// https://github.com/go-yaml/yaml/pull/385#issuecomment-475588596
 import (
 	"encoding/json"
 	"fmt"
