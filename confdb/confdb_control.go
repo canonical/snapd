@@ -130,9 +130,9 @@ func (cc *Control) Groups() []any {
 		for ops, views := range opGroups {
 			sort.Strings(views)
 			groups = append(groups, map[string]any{
-				"operators":       toInterfaceSlice(strings.Split(ops, ",")),
-				"authentications": toInterfaceSlice(authStrs),
-				"views":           toInterfaceSlice(views),
+				"operators":       toAnySlice(strings.Split(ops, ",")),
+				"authentications": toAnySlice(authStrs),
+				"views":           toAnySlice(views),
 			})
 		}
 	}
@@ -344,8 +344,8 @@ func (op operator) clone() *operator {
 	return clone
 }
 
-// toInterfaceSlice converts []string to []interface{}.
-func toInterfaceSlice(strs []string) []any {
+// toAnySlice converts []string to []any.
+func toAnySlice(strs []string) []any {
 	result := make([]any, len(strs))
 	for i, str := range strs {
 		result[i] = str

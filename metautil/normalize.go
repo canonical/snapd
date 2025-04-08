@@ -25,7 +25,7 @@ import (
 )
 
 // NormalizeValue validates values and returns a normalized version of it
-// (map[interface{}]interface{} is turned into map[string]interface{})
+// (map[any]any is turned into map[string]any)
 func NormalizeValue(v any) (any, error) {
 	switch x := v.(type) {
 	case string:

@@ -204,11 +204,11 @@ func refreshRetain(st *state.State) int {
 	var retain int
 	if err == nil {
 		switch v := val.(type) {
-		// this is the expected value; confusingly, since we pass interface{} to Get(), we get json.Number type; if int reference was passed,
+		// this is the expected value; confusingly, since we pass any to Get(), we get json.Number type; if int reference was passed,
 		// we would get an int instead of json.Number.
 		case json.Number:
 			retain, err = strconv.Atoi(string(v))
-		// not really expected when requesting interface{}.
+		// not really expected when requesting any.
 		case int:
 			retain = v
 		// we can get string here due to lax validation of refresh.retain on Set in older releases.

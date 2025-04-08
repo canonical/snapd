@@ -125,10 +125,10 @@ func (x *cmdSeeding) Execute(args []string) error {
 		// properly compare them
 
 		// we use raw json messages here so that the interfaces pkg can do the
-		// real unmarshalling to a real systemKey interface{} that can be
-		// compared with SystemKeysMatch, if we had instead unmarshalled here,
-		// we would have to remarshal the map[string]interface{} we got above
-		// and then pass those bytes back to the interfaces pkg which is awkward
+		// real unmarshalling to a real systemKey any that can be compared with
+		// SystemKeysMatch, if we had instead unmarshalled here, we would have
+		// to remarshal the map[string]any we got above and then pass those
+		// bytes back to the interfaces pkg which is awkward
 		seedSk, err := interfaces.UnmarshalJSONSystemKey(bytes.NewReader(*resp.SeedRestartSystemKey))
 		if err != nil {
 			return err
