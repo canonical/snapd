@@ -62,7 +62,7 @@ func GetView(st *state.State, account, dbSchemaName, viewName string) (*confdb.V
 	if err != nil {
 		if errors.Is(err, &asserts.NotFoundError{}) {
 			// replace the not found error so the output matches the usual confdb ID layout
-			return nil, confdb.NewNotFoundError(i18n.G("cannot find confdb schema %s/%s: assertion not found"), account, dbSchemaName)
+			return nil, confdb.NewNotFoundError(i18n.G("cannot find confdb-schema %s/%s: assertion not found"), account, dbSchemaName)
 		}
 
 		return nil, fmt.Errorf(i18n.G("cannot find confdb-schema assertion %s/%s: %v"), account, dbSchemaName, err)

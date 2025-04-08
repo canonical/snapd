@@ -285,6 +285,20 @@ func (s *confdbTestSuite) TestConfdbstateGetEntireView(c *C) {
 	})
 }
 
+func (s *confdbTestSuite) TestGetViewNoAssertion(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	db, err := asserts.OpenDatabase(&asserts.DatabaseConfig{
+		Backstore: asserts.NewMemoryBackstore(),
+	})
+	c.Assert(err, IsNil)
+	assertstate.ReplaceDB(s.state, db)
+
+	_, err = confdbstate.GetView(s.state, s.devAccID, "network", "setup-wifi")
+	c.Assert(err, ErrorMatches, fmt.Sprintf("cannot find confdb-schema %s/network: assertion not found", s.devAccID))
+}
+
 func mockInstalledSnap(c *C, st *state.State, snapYaml string, hooks []string) *snap.Info {
 	info := snaptest.MockSnapCurrent(c, snapYaml, &snap.SideInfo{Revision: snap.R(1)})
 	snapstate.Set(st, info.InstanceName(), &snapstate.SnapState{
