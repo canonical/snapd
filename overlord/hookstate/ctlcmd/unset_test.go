@@ -70,7 +70,7 @@ func (s *unsetSuite) TestUnsetOne(c *C) {
 	s.mockContext.State().Unlock()
 
 	// Validity check
-	var value interface{}
+	var value any
 	s.mockContext.State().Lock()
 	tr = config.NewTransaction(s.mockContext.State())
 	c.Check(tr.Get("test-snap", "foo", &value), IsNil)
@@ -113,7 +113,7 @@ func (s *unsetSuite) TestUnsetMany(c *C) {
 	c.Check(s.mockContext.Done(), IsNil)
 
 	// Verify that the global config has been updated.
-	var value interface{}
+	var value any
 	tr = config.NewTransaction(s.mockContext.State())
 	c.Check(tr.Get("test-snap", "foo", &value), ErrorMatches, `snap "test-snap" has no "foo" configuration option`)
 	c.Check(tr.Get("test-snap", "bar", &value), ErrorMatches, `snap "test-snap" has no "bar" configuration option`)
@@ -141,7 +141,7 @@ func (s *unsetSuite) TestSetThenUnset(c *C) {
 	c.Check(s.mockContext.Done(), IsNil)
 
 	// Verify that the global config has been updated.
-	var value interface{}
+	var value any
 	tr = config.NewTransaction(s.mockContext.State())
 	c.Check(tr.Get("test-snap", "agent.x.a", &value), ErrorMatches, `snap "test-snap" has no "agent.x.a" configuration option`)
 }

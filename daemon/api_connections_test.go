@@ -36,7 +36,7 @@ import (
 
 // Tests for GET /v2/connections
 
-func (s *interfacesSuite) testConnectionsConnected(c *check.C, d *daemon.Daemon, query string, connsState map[string]interface{}, repoConnected []string, expected map[string]interface{}) {
+func (s *interfacesSuite) testConnectionsConnected(c *check.C, d *daemon.Daemon, query string, connsState map[string]any, repoConnected []string, expected map[string]any) {
 	repo := d.Overlord().InterfaceManager().Repository()
 	for crefStr, cstate := range connsState {
 		// if repoConnected is defined, then given connection must be on
@@ -47,7 +47,7 @@ func (s *interfacesSuite) testConnectionsConnected(c *check.C, d *daemon.Daemon,
 		}
 		cref, err := interfaces.ParseConnRef(crefStr)
 		c.Assert(err, check.IsNil)
-		conn := cstate.(map[string]interface{})
+		conn := cstate.(map[string]any)
 		if undesiredRaw, ok := conn["undesired"]; ok {
 			undesired, ok := undesiredRaw.(bool)
 			c.Assert(ok, check.Equals, true, check.Commentf("unexpected value for key 'undesired': %v", cstate))
@@ -56,10 +56,10 @@ func (s *interfacesSuite) testConnectionsConnected(c *check.C, d *daemon.Daemon,
 				continue
 			}
 		}
-		staticPlugAttrs, _ := conn["plug-static"].(map[string]interface{})
-		dynamicPlugAttrs, _ := conn["plug-dynamic"].(map[string]interface{})
-		staticSlotAttrs, _ := conn["slot-static"].(map[string]interface{})
-		dynamicSlotAttrs, _ := conn["slot-dynamic"].(map[string]interface{})
+		staticPlugAttrs, _ := conn["plug-static"].(map[string]any)
+		dynamicPlugAttrs, _ := conn["plug-dynamic"].(map[string]any)
+		staticSlotAttrs, _ := conn["slot-static"].(map[string]any)
+		dynamicSlotAttrs, _ := conn["slot-dynamic"].(map[string]any)
 		_, err = repo.Connect(cref, staticPlugAttrs, dynamicPlugAttrs, staticSlotAttrs, dynamicSlotAttrs, nil)
 		c.Assert(err, check.IsNil)
 	}
@@ -72,13 +72,13 @@ func (s *interfacesSuite) testConnectionsConnected(c *check.C, d *daemon.Daemon,
 	s.testConnections(c, query, expected)
 }
 
-func (s *interfacesSuite) testConnections(c *check.C, query string, expected map[string]interface{}) {
+func (s *interfacesSuite) testConnections(c *check.C, query string, expected map[string]any) {
 	req, err := http.NewRequest("GET", query, nil)
 	c.Assert(err, check.IsNil)
 	rec := httptest.NewRecorder()
 	s.req(c, req, nil).ServeHTTP(rec, req)
 	c.Check(rec.Code, check.Equals, 200)
-	var body map[string]interface{}
+	var body map[string]any
 	err = json.Unmarshal(rec.Body.Bytes(), &body)
 	c.Check(err, check.IsNil)
 	c.Check(body, check.DeepEquals, expected)
@@ -91,11 +91,11 @@ func (s *interfacesSuite) TestConnectionsUnhappy(c *check.C) {
 	rec := httptest.NewRecorder()
 	s.req(c, req, nil).ServeHTTP(rec, req)
 	c.Check(rec.Code, check.Equals, 400)
-	var body map[string]interface{}
+	var body map[string]any
 	err = json.Unmarshal(rec.Body.Bytes(), &body)
 	c.Check(err, check.IsNil)
-	c.Check(body, check.DeepEquals, map[string]interface{}{
-		"result": map[string]interface{}{
+	c.Check(body, check.DeepEquals, map[string]any{
+		"result": map[string]any{
 			"message": "unsupported select qualifier",
 		},
 		"status":      "Bad Request",
@@ -106,21 +106,21 @@ func (s *interfacesSuite) TestConnectionsUnhappy(c *check.C) {
 
 func (s *interfacesSuite) TestConnectionsEmpty(c *check.C) {
 	s.daemon(c)
-	s.testConnections(c, "/v2/connections", map[string]interface{}{
-		"result": map[string]interface{}{
-			"established": []interface{}{},
-			"plugs":       []interface{}{},
-			"slots":       []interface{}{},
+	s.testConnections(c, "/v2/connections", map[string]any{
+		"result": map[string]any{
+			"established": []any{},
+			"plugs":       []any{},
+			"slots":       []any{},
 		},
 		"status":      "OK",
 		"status-code": 200.0,
 		"type":        "sync",
 	})
-	s.testConnections(c, "/v2/connections?select=all", map[string]interface{}{
-		"result": map[string]interface{}{
-			"established": []interface{}{},
-			"plugs":       []interface{}{},
-			"slots":       []interface{}{},
+	s.testConnections(c, "/v2/connections?select=all", map[string]any{
+		"result": map[string]any{
+			"established": []any{},
+			"plugs":       []any{},
+			"slots":       []any{},
 		},
 		"status":      "OK",
 		"status-code": 200.0,
@@ -135,11 +135,11 @@ func (s *interfacesSuite) TestConnectionsNotFound(c *check.C) {
 	rec := httptest.NewRecorder()
 	s.req(c, req, nil).ServeHTTP(rec, req)
 	c.Check(rec.Code, check.Equals, 404)
-	var body map[string]interface{}
+	var body map[string]any
 	err = json.Unmarshal(rec.Body.Bytes(), &body)
 	c.Check(err, check.IsNil)
-	c.Check(body, check.DeepEquals, map[string]interface{}{
-		"result": map[string]interface{}{
+	c.Check(body, check.DeepEquals, map[string]any{
+		"result": map[string]any{
 			"message": `no state entry for key "snaps"`,
 			"kind":    "snap-not-found",
 			"value":   "not-found",
@@ -159,26 +159,26 @@ func (s *interfacesSuite) TestConnectionsUnconnected(c *check.C) {
 	s.mockSnap(c, consumerYaml)
 	s.mockSnap(c, producerYaml)
 
-	s.testConnections(c, "/v2/connections?select=all", map[string]interface{}{
-		"result": map[string]interface{}{
-			"established": []interface{}{},
-			"plugs": []interface{}{
-				map[string]interface{}{
+	s.testConnections(c, "/v2/connections?select=all", map[string]any{
+		"result": map[string]any{
+			"established": []any{},
+			"plugs": []any{
+				map[string]any{
 					"snap":      "consumer",
 					"plug":      "plug",
 					"interface": "test",
-					"attrs":     map[string]interface{}{"key": "value"},
-					"apps":      []interface{}{"app"},
+					"attrs":     map[string]any{"key": "value"},
+					"apps":      []any{"app"},
 					"label":     "label",
 				},
 			},
-			"slots": []interface{}{
-				map[string]interface{}{
+			"slots": []any{
+				map[string]any{
 					"snap":      "producer",
 					"slot":      "slot",
 					"interface": "test",
-					"attrs":     map[string]interface{}{"key": "value"},
-					"apps":      []interface{}{"app"},
+					"attrs":     map[string]any{"key": "value"},
+					"apps":      []any{"app"},
 					"label":     "label",
 				},
 			},
@@ -198,82 +198,82 @@ func (s *interfacesSuite) TestConnectionsBySnapName(c *check.C) {
 	s.mockSnap(c, consumerYaml)
 	s.mockSnap(c, producerYaml)
 
-	s.testConnections(c, "/v2/connections?select=all&snap=producer", map[string]interface{}{
-		"result": map[string]interface{}{
-			"established": []interface{}{},
-			"slots": []interface{}{
-				map[string]interface{}{
+	s.testConnections(c, "/v2/connections?select=all&snap=producer", map[string]any{
+		"result": map[string]any{
+			"established": []any{},
+			"slots": []any{
+				map[string]any{
 					"snap":      "producer",
 					"slot":      "slot",
 					"interface": "test",
-					"attrs":     map[string]interface{}{"key": "value"},
-					"apps":      []interface{}{"app"},
+					"attrs":     map[string]any{"key": "value"},
+					"apps":      []any{"app"},
 					"label":     "label",
 				},
 			},
-			"plugs": []interface{}{},
+			"plugs": []any{},
 		},
 		"status":      "OK",
 		"status-code": 200.0,
 		"type":        "sync",
 	})
 
-	s.testConnections(c, "/v2/connections?select=all&snap=consumer", map[string]interface{}{
-		"result": map[string]interface{}{
-			"established": []interface{}{},
-			"plugs": []interface{}{
-				map[string]interface{}{
+	s.testConnections(c, "/v2/connections?select=all&snap=consumer", map[string]any{
+		"result": map[string]any{
+			"established": []any{},
+			"plugs": []any{
+				map[string]any{
 					"snap":      "consumer",
 					"plug":      "plug",
 					"interface": "test",
-					"attrs":     map[string]interface{}{"key": "value"},
-					"apps":      []interface{}{"app"},
+					"attrs":     map[string]any{"key": "value"},
+					"apps":      []any{"app"},
 					"label":     "label",
 				},
 			},
-			"slots": []interface{}{},
+			"slots": []any{},
 		},
 		"status":      "OK",
 		"status-code": 200.0,
 		"type":        "sync",
 	})
 
-	s.testConnectionsConnected(c, d, "/v2/connections?snap=producer", map[string]interface{}{
-		"consumer:plug producer:slot": map[string]interface{}{
+	s.testConnectionsConnected(c, d, "/v2/connections?snap=producer", map[string]any{
+		"consumer:plug producer:slot": map[string]any{
 			"interface": "test",
 		},
-	}, nil, map[string]interface{}{
-		"result": map[string]interface{}{
-			"plugs": []interface{}{
-				map[string]interface{}{
+	}, nil, map[string]any{
+		"result": map[string]any{
+			"plugs": []any{
+				map[string]any{
 					"snap":      "consumer",
 					"plug":      "plug",
 					"interface": "test",
-					"attrs":     map[string]interface{}{"key": "value"},
-					"apps":      []interface{}{"app"},
+					"attrs":     map[string]any{"key": "value"},
+					"apps":      []any{"app"},
 					"label":     "label",
-					"connections": []interface{}{
-						map[string]interface{}{"snap": "producer", "slot": "slot"},
+					"connections": []any{
+						map[string]any{"snap": "producer", "slot": "slot"},
 					},
 				},
 			},
-			"slots": []interface{}{
-				map[string]interface{}{
+			"slots": []any{
+				map[string]any{
 					"snap":      "producer",
 					"slot":      "slot",
 					"interface": "test",
-					"attrs":     map[string]interface{}{"key": "value"},
-					"apps":      []interface{}{"app"},
+					"attrs":     map[string]any{"key": "value"},
+					"apps":      []any{"app"},
 					"label":     "label",
-					"connections": []interface{}{
-						map[string]interface{}{"snap": "consumer", "plug": "plug"},
+					"connections": []any{
+						map[string]any{"snap": "consumer", "plug": "plug"},
 					},
 				},
 			},
-			"established": []interface{}{
-				map[string]interface{}{
-					"plug":      map[string]interface{}{"snap": "consumer", "plug": "plug"},
-					"slot":      map[string]interface{}{"snap": "producer", "slot": "slot"},
+			"established": []any{
+				map[string]any{
+					"plug":      map[string]any{"snap": "consumer", "plug": "plug"},
+					"slot":      map[string]any{"snap": "producer", "slot": "slot"},
 					"manual":    true,
 					"interface": "test",
 				},
@@ -295,47 +295,47 @@ func (s *interfacesSuite) TestConnectionsMissingPlugSlotFilteredOut(c *check.C) 
 	s.mockSnap(c, producerYaml)
 
 	for _, missingPlugOrSlot := range []string{"consumer:plug2 producer:slot", "consumer:plug producer:slot2"} {
-		s.testConnectionsConnected(c, d, "/v2/connections?snap=producer", map[string]interface{}{
-			"consumer:plug producer:slot": map[string]interface{}{
+		s.testConnectionsConnected(c, d, "/v2/connections?snap=producer", map[string]any{
+			"consumer:plug producer:slot": map[string]any{
 				"interface": "test",
 			},
-			missingPlugOrSlot: map[string]interface{}{
+			missingPlugOrSlot: map[string]any{
 				"interface": "test",
 			},
 		},
 			[]string{"consumer:plug producer:slot"},
-			map[string]interface{}{
-				"result": map[string]interface{}{
-					"plugs": []interface{}{
-						map[string]interface{}{
+			map[string]any{
+				"result": map[string]any{
+					"plugs": []any{
+						map[string]any{
 							"snap":      "consumer",
 							"plug":      "plug",
 							"interface": "test",
-							"attrs":     map[string]interface{}{"key": "value"},
-							"apps":      []interface{}{"app"},
+							"attrs":     map[string]any{"key": "value"},
+							"apps":      []any{"app"},
 							"label":     "label",
-							"connections": []interface{}{
-								map[string]interface{}{"snap": "producer", "slot": "slot"},
+							"connections": []any{
+								map[string]any{"snap": "producer", "slot": "slot"},
 							},
 						},
 					},
-					"slots": []interface{}{
-						map[string]interface{}{
+					"slots": []any{
+						map[string]any{
 							"snap":      "producer",
 							"slot":      "slot",
 							"interface": "test",
-							"attrs":     map[string]interface{}{"key": "value"},
-							"apps":      []interface{}{"app"},
+							"attrs":     map[string]any{"key": "value"},
+							"apps":      []any{"app"},
 							"label":     "label",
-							"connections": []interface{}{
-								map[string]interface{}{"snap": "consumer", "plug": "plug"},
+							"connections": []any{
+								map[string]any{"snap": "consumer", "plug": "plug"},
 							},
 						},
 					},
-					"established": []interface{}{
-						map[string]interface{}{
-							"plug":      map[string]interface{}{"snap": "consumer", "plug": "plug"},
-							"slot":      map[string]interface{}{"snap": "producer", "slot": "slot"},
+					"established": []any{
+						map[string]any{
+							"plug":      map[string]any{"snap": "consumer", "plug": "plug"},
+							"slot":      map[string]any{"snap": "producer", "slot": "slot"},
 							"manual":    true,
 							"interface": "test",
 						},
@@ -357,81 +357,81 @@ func (s *interfacesSuite) TestConnectionsBySnapAlias(c *check.C) {
 	s.mockSnap(c, consumerYaml)
 	s.mockSnap(c, coreProducerYaml)
 
-	expectedUnconnected := map[string]interface{}{
-		"established": []interface{}{},
-		"slots": []interface{}{
-			map[string]interface{}{
+	expectedUnconnected := map[string]any{
+		"established": []any{},
+		"slots": []any{
+			map[string]any{
 				"snap":      "core",
 				"slot":      "slot",
 				"interface": "test",
-				"attrs":     map[string]interface{}{"key": "value"},
+				"attrs":     map[string]any{"key": "value"},
 				"label":     "label",
 			},
 		},
-		"plugs": []interface{}{},
+		"plugs": []any{},
 	}
-	s.testConnections(c, "/v2/connections?select=all&snap=core", map[string]interface{}{
+	s.testConnections(c, "/v2/connections?select=all&snap=core", map[string]any{
 		"result":      expectedUnconnected,
 		"status":      "OK",
 		"status-code": 200.0,
 		"type":        "sync",
 	})
 	// try using a well know alias
-	s.testConnections(c, "/v2/connections?select=all&snap=system", map[string]interface{}{
+	s.testConnections(c, "/v2/connections?select=all&snap=system", map[string]any{
 		"result":      expectedUnconnected,
 		"status":      "OK",
 		"status-code": 200.0,
 		"type":        "sync",
 	})
 
-	expectedConnmected := map[string]interface{}{
-		"plugs": []interface{}{
-			map[string]interface{}{
+	expectedConnmected := map[string]any{
+		"plugs": []any{
+			map[string]any{
 				"snap":      "consumer",
 				"plug":      "plug",
 				"interface": "test",
-				"attrs":     map[string]interface{}{"key": "value"},
-				"apps":      []interface{}{"app"},
+				"attrs":     map[string]any{"key": "value"},
+				"apps":      []any{"app"},
 				"label":     "label",
-				"connections": []interface{}{
-					map[string]interface{}{"snap": "core", "slot": "slot"},
+				"connections": []any{
+					map[string]any{"snap": "core", "slot": "slot"},
 				},
 			},
 		},
-		"slots": []interface{}{
-			map[string]interface{}{
+		"slots": []any{
+			map[string]any{
 				"snap":      "core",
 				"slot":      "slot",
 				"interface": "test",
-				"attrs":     map[string]interface{}{"key": "value"},
+				"attrs":     map[string]any{"key": "value"},
 				"label":     "label",
-				"connections": []interface{}{
-					map[string]interface{}{"snap": "consumer", "plug": "plug"},
+				"connections": []any{
+					map[string]any{"snap": "consumer", "plug": "plug"},
 				},
 			},
 		},
-		"established": []interface{}{
-			map[string]interface{}{
-				"plug":      map[string]interface{}{"snap": "consumer", "plug": "plug"},
-				"slot":      map[string]interface{}{"snap": "core", "slot": "slot"},
+		"established": []any{
+			map[string]any{
+				"plug":      map[string]any{"snap": "consumer", "plug": "plug"},
+				"slot":      map[string]any{"snap": "core", "slot": "slot"},
 				"manual":    true,
 				"interface": "test",
 			},
 		},
 	}
 
-	s.testConnectionsConnected(c, d, "/v2/connections?snap=core", map[string]interface{}{
-		"consumer:plug core:slot": map[string]interface{}{
+	s.testConnectionsConnected(c, d, "/v2/connections?snap=core", map[string]any{
+		"consumer:plug core:slot": map[string]any{
 			"interface": "test",
 		},
-	}, nil, map[string]interface{}{
+	}, nil, map[string]any{
 		"result":      expectedConnmected,
 		"status":      "OK",
 		"status-code": 200.0,
 		"type":        "sync",
 	})
 	// connection was already established
-	s.testConnections(c, "/v2/connections?snap=system", map[string]interface{}{
+	s.testConnections(c, "/v2/connections?snap=system", map[string]any{
 		"result":      expectedConnmected,
 		"status":      "OK",
 		"status-code": 200.0,
@@ -474,26 +474,26 @@ plugs:
 	s.mockSnap(c, differentProducerYaml)
 	s.mockSnap(c, differentConsumerYaml)
 
-	s.testConnections(c, "/v2/connections?select=all&interface=test", map[string]interface{}{
-		"result": map[string]interface{}{
-			"established": []interface{}{},
-			"plugs": []interface{}{
-				map[string]interface{}{
+	s.testConnections(c, "/v2/connections?select=all&interface=test", map[string]any{
+		"result": map[string]any{
+			"established": []any{},
+			"plugs": []any{
+				map[string]any{
 					"snap":      "consumer",
 					"plug":      "plug",
 					"interface": "test",
-					"attrs":     map[string]interface{}{"key": "value"},
-					"apps":      []interface{}{"app"},
+					"attrs":     map[string]any{"key": "value"},
+					"apps":      []any{"app"},
 					"label":     "label",
 				},
 			},
-			"slots": []interface{}{
-				map[string]interface{}{
+			"slots": []any{
+				map[string]any{
 					"snap":      "producer",
 					"slot":      "slot",
 					"interface": "test",
-					"attrs":     map[string]interface{}{"key": "value"},
-					"apps":      []interface{}{"app"},
+					"attrs":     map[string]any{"key": "value"},
+					"apps":      []any{"app"},
 					"label":     "label",
 				},
 			},
@@ -502,26 +502,26 @@ plugs:
 		"status-code": 200.0,
 		"type":        "sync",
 	})
-	s.testConnections(c, "/v2/connections?select=all&interface=different", map[string]interface{}{
-		"result": map[string]interface{}{
-			"established": []interface{}{},
-			"plugs": []interface{}{
-				map[string]interface{}{
+	s.testConnections(c, "/v2/connections?select=all&interface=different", map[string]any{
+		"result": map[string]any{
+			"established": []any{},
+			"plugs": []any{
+				map[string]any{
 					"snap":      "different-consumer",
 					"plug":      "plug",
 					"interface": "different",
-					"attrs":     map[string]interface{}{"key": "value"},
-					"apps":      []interface{}{"app"},
+					"attrs":     map[string]any{"key": "value"},
+					"apps":      []any{"app"},
 					"label":     "label",
 				},
 			},
-			"slots": []interface{}{
-				map[string]interface{}{
+			"slots": []any{
+				map[string]any{
 					"snap":      "different-producer",
 					"slot":      "slot",
 					"interface": "different",
-					"attrs":     map[string]interface{}{"key": "value"},
-					"apps":      []interface{}{"app"},
+					"attrs":     map[string]any{"key": "value"},
+					"apps":      []any{"app"},
 					"label":     "label",
 				},
 			},
@@ -532,42 +532,42 @@ plugs:
 	})
 
 	// modifies state internally
-	s.testConnectionsConnected(c, d, "/v2/connections?interfaces=test", map[string]interface{}{
-		"consumer:plug producer:slot": map[string]interface{}{
+	s.testConnectionsConnected(c, d, "/v2/connections?interfaces=test", map[string]any{
+		"consumer:plug producer:slot": map[string]any{
 			"interface": "test",
 		},
-	}, nil, map[string]interface{}{
-		"result": map[string]interface{}{
-			"plugs": []interface{}{
-				map[string]interface{}{
+	}, nil, map[string]any{
+		"result": map[string]any{
+			"plugs": []any{
+				map[string]any{
 					"snap":      "consumer",
 					"plug":      "plug",
 					"interface": "test",
-					"attrs":     map[string]interface{}{"key": "value"},
-					"apps":      []interface{}{"app"},
+					"attrs":     map[string]any{"key": "value"},
+					"apps":      []any{"app"},
 					"label":     "label",
-					"connections": []interface{}{
-						map[string]interface{}{"snap": "producer", "slot": "slot"},
+					"connections": []any{
+						map[string]any{"snap": "producer", "slot": "slot"},
 					},
 				},
 			},
-			"slots": []interface{}{
-				map[string]interface{}{
+			"slots": []any{
+				map[string]any{
 					"snap":      "producer",
 					"slot":      "slot",
 					"interface": "test",
-					"attrs":     map[string]interface{}{"key": "value"},
-					"apps":      []interface{}{"app"},
+					"attrs":     map[string]any{"key": "value"},
+					"apps":      []any{"app"},
 					"label":     "label",
-					"connections": []interface{}{
-						map[string]interface{}{"snap": "consumer", "plug": "plug"},
+					"connections": []any{
+						map[string]any{"snap": "consumer", "plug": "plug"},
 					},
 				},
 			},
-			"established": []interface{}{
-				map[string]interface{}{
-					"plug":      map[string]interface{}{"snap": "consumer", "plug": "plug"},
-					"slot":      map[string]interface{}{"snap": "producer", "slot": "slot"},
+			"established": []any{
+				map[string]any{
+					"plug":      map[string]any{"snap": "consumer", "plug": "plug"},
+					"slot":      map[string]any{"snap": "producer", "slot": "slot"},
 					"manual":    true,
 					"interface": "test",
 				},
@@ -578,11 +578,11 @@ plugs:
 		"type":        "sync",
 	})
 	// use state modified by previous cal
-	s.testConnections(c, "/v2/connections?interface=different", map[string]interface{}{
-		"result": map[string]interface{}{
-			"established": []interface{}{},
-			"slots":       []interface{}{},
-			"plugs":       []interface{}{},
+	s.testConnections(c, "/v2/connections?interface=different", map[string]any{
+		"result": map[string]any{
+			"established": []any{},
+			"slots":       []any{},
+			"plugs":       []any{},
 		},
 		"status":      "OK",
 		"status-code": 200.0,
@@ -599,42 +599,42 @@ func (s *interfacesSuite) TestConnectionsDefaultManual(c *check.C) {
 	s.mockSnap(c, consumerYaml)
 	s.mockSnap(c, producerYaml)
 
-	s.testConnectionsConnected(c, d, "/v2/connections", map[string]interface{}{
-		"consumer:plug producer:slot": map[string]interface{}{
+	s.testConnectionsConnected(c, d, "/v2/connections", map[string]any{
+		"consumer:plug producer:slot": map[string]any{
 			"interface": "test",
 		},
-	}, nil, map[string]interface{}{
-		"result": map[string]interface{}{
-			"plugs": []interface{}{
-				map[string]interface{}{
+	}, nil, map[string]any{
+		"result": map[string]any{
+			"plugs": []any{
+				map[string]any{
 					"snap":      "consumer",
 					"plug":      "plug",
 					"interface": "test",
-					"attrs":     map[string]interface{}{"key": "value"},
-					"apps":      []interface{}{"app"},
+					"attrs":     map[string]any{"key": "value"},
+					"apps":      []any{"app"},
 					"label":     "label",
-					"connections": []interface{}{
-						map[string]interface{}{"snap": "producer", "slot": "slot"},
+					"connections": []any{
+						map[string]any{"snap": "producer", "slot": "slot"},
 					},
 				},
 			},
-			"slots": []interface{}{
-				map[string]interface{}{
+			"slots": []any{
+				map[string]any{
 					"snap":      "producer",
 					"slot":      "slot",
 					"interface": "test",
-					"attrs":     map[string]interface{}{"key": "value"},
-					"apps":      []interface{}{"app"},
+					"attrs":     map[string]any{"key": "value"},
+					"apps":      []any{"app"},
 					"label":     "label",
-					"connections": []interface{}{
-						map[string]interface{}{"snap": "consumer", "plug": "plug"},
+					"connections": []any{
+						map[string]any{"snap": "consumer", "plug": "plug"},
 					},
 				},
 			},
-			"established": []interface{}{
-				map[string]interface{}{
-					"plug":      map[string]interface{}{"snap": "consumer", "plug": "plug"},
-					"slot":      map[string]interface{}{"snap": "producer", "slot": "slot"},
+			"established": []any{
+				map[string]any{
+					"plug":      map[string]any{"snap": "consumer", "plug": "plug"},
+					"slot":      map[string]any{"snap": "producer", "slot": "slot"},
 					"manual":    true,
 					"interface": "test",
 				},
@@ -655,61 +655,61 @@ func (s *interfacesSuite) TestConnectionsDefaultAuto(c *check.C) {
 	s.mockSnap(c, consumerYaml)
 	s.mockSnap(c, producerYaml)
 
-	s.testConnectionsConnected(c, d, "/v2/connections", map[string]interface{}{
-		"consumer:plug producer:slot": map[string]interface{}{
+	s.testConnectionsConnected(c, d, "/v2/connections", map[string]any{
+		"consumer:plug producer:slot": map[string]any{
 			"interface": "test",
 			"auto":      true,
-			"plug-static": map[string]interface{}{
+			"plug-static": map[string]any{
 				"key": "value",
 			},
-			"plug-dynamic": map[string]interface{}{
+			"plug-dynamic": map[string]any{
 				"foo-plug-dynamic": "bar-dynamic",
 			},
-			"slot-static": map[string]interface{}{
+			"slot-static": map[string]any{
 				"key": "value",
 			},
-			"slot-dynamic": map[string]interface{}{
+			"slot-dynamic": map[string]any{
 				"foo-slot-dynamic": "bar-dynamic",
 			},
 		},
-	}, nil, map[string]interface{}{
-		"result": map[string]interface{}{
-			"plugs": []interface{}{
-				map[string]interface{}{
+	}, nil, map[string]any{
+		"result": map[string]any{
+			"plugs": []any{
+				map[string]any{
 					"snap":      "consumer",
 					"plug":      "plug",
 					"interface": "test",
-					"attrs":     map[string]interface{}{"key": "value"},
-					"apps":      []interface{}{"app"},
+					"attrs":     map[string]any{"key": "value"},
+					"apps":      []any{"app"},
 					"label":     "label",
-					"connections": []interface{}{
-						map[string]interface{}{"snap": "producer", "slot": "slot"},
+					"connections": []any{
+						map[string]any{"snap": "producer", "slot": "slot"},
 					},
 				},
 			},
-			"slots": []interface{}{
-				map[string]interface{}{
+			"slots": []any{
+				map[string]any{
 					"snap":      "producer",
 					"slot":      "slot",
 					"interface": "test",
-					"attrs":     map[string]interface{}{"key": "value"},
-					"apps":      []interface{}{"app"},
+					"attrs":     map[string]any{"key": "value"},
+					"apps":      []any{"app"},
 					"label":     "label",
-					"connections": []interface{}{
-						map[string]interface{}{"snap": "consumer", "plug": "plug"},
+					"connections": []any{
+						map[string]any{"snap": "consumer", "plug": "plug"},
 					},
 				},
 			},
-			"established": []interface{}{
-				map[string]interface{}{
-					"plug":      map[string]interface{}{"snap": "consumer", "plug": "plug"},
-					"slot":      map[string]interface{}{"snap": "producer", "slot": "slot"},
+			"established": []any{
+				map[string]any{
+					"plug":      map[string]any{"snap": "consumer", "plug": "plug"},
+					"slot":      map[string]any{"snap": "producer", "slot": "slot"},
 					"interface": "test",
-					"plug-attrs": map[string]interface{}{
+					"plug-attrs": map[string]any{
 						"key":              "value",
 						"foo-plug-dynamic": "bar-dynamic",
 					},
-					"slot-attrs": map[string]interface{}{
+					"slot-attrs": map[string]any{
 						"key":              "value",
 						"foo-slot-dynamic": "bar-dynamic",
 					},
@@ -731,44 +731,44 @@ func (s *interfacesSuite) TestConnectionsDefaultGadget(c *check.C) {
 	s.mockSnap(c, consumerYaml)
 	s.mockSnap(c, producerYaml)
 
-	s.testConnectionsConnected(c, d, "/v2/connections", map[string]interface{}{
-		"consumer:plug producer:slot": map[string]interface{}{
+	s.testConnectionsConnected(c, d, "/v2/connections", map[string]any{
+		"consumer:plug producer:slot": map[string]any{
 			"interface": "test",
 			"by-gadget": true,
 			"auto":      true,
 		},
-	}, nil, map[string]interface{}{
-		"result": map[string]interface{}{
-			"plugs": []interface{}{
-				map[string]interface{}{
+	}, nil, map[string]any{
+		"result": map[string]any{
+			"plugs": []any{
+				map[string]any{
 					"snap":      "consumer",
 					"plug":      "plug",
 					"interface": "test",
-					"attrs":     map[string]interface{}{"key": "value"},
-					"apps":      []interface{}{"app"},
+					"attrs":     map[string]any{"key": "value"},
+					"apps":      []any{"app"},
 					"label":     "label",
-					"connections": []interface{}{
-						map[string]interface{}{"snap": "producer", "slot": "slot"},
+					"connections": []any{
+						map[string]any{"snap": "producer", "slot": "slot"},
 					},
 				},
 			},
-			"slots": []interface{}{
-				map[string]interface{}{
+			"slots": []any{
+				map[string]any{
 					"snap":      "producer",
 					"slot":      "slot",
 					"interface": "test",
-					"attrs":     map[string]interface{}{"key": "value"},
-					"apps":      []interface{}{"app"},
+					"attrs":     map[string]any{"key": "value"},
+					"apps":      []any{"app"},
 					"label":     "label",
-					"connections": []interface{}{
-						map[string]interface{}{"snap": "consumer", "plug": "plug"},
+					"connections": []any{
+						map[string]any{"snap": "consumer", "plug": "plug"},
 					},
 				},
 			},
-			"established": []interface{}{
-				map[string]interface{}{
-					"plug":      map[string]interface{}{"snap": "consumer", "plug": "plug"},
-					"slot":      map[string]interface{}{"snap": "producer", "slot": "slot"},
+			"established": []any{
+				map[string]any{
+					"plug":      map[string]any{"snap": "consumer", "plug": "plug"},
+					"slot":      map[string]any{"snap": "producer", "slot": "slot"},
 					"gadget":    true,
 					"interface": "test",
 				},
@@ -789,40 +789,40 @@ func (s *interfacesSuite) TestConnectionsAll(c *check.C) {
 	s.mockSnap(c, consumerYaml)
 	s.mockSnap(c, producerYaml)
 
-	s.testConnectionsConnected(c, d, "/v2/connections?select=all", map[string]interface{}{
-		"consumer:plug producer:slot": map[string]interface{}{
+	s.testConnectionsConnected(c, d, "/v2/connections?select=all", map[string]any{
+		"consumer:plug producer:slot": map[string]any{
 			"interface": "test",
 			"by-gadget": true,
 			"auto":      true,
 			"undesired": true,
 		},
-	}, nil, map[string]interface{}{
-		"result": map[string]interface{}{
-			"established": []interface{}{},
-			"plugs": []interface{}{
-				map[string]interface{}{
+	}, nil, map[string]any{
+		"result": map[string]any{
+			"established": []any{},
+			"plugs": []any{
+				map[string]any{
 					"snap":      "consumer",
 					"plug":      "plug",
 					"interface": "test",
-					"attrs":     map[string]interface{}{"key": "value"},
-					"apps":      []interface{}{"app"},
+					"attrs":     map[string]any{"key": "value"},
+					"apps":      []any{"app"},
 					"label":     "label",
 				},
 			},
-			"slots": []interface{}{
-				map[string]interface{}{
+			"slots": []any{
+				map[string]any{
 					"snap":      "producer",
 					"slot":      "slot",
 					"interface": "test",
-					"attrs":     map[string]interface{}{"key": "value"},
-					"apps":      []interface{}{"app"},
+					"attrs":     map[string]any{"key": "value"},
+					"apps":      []any{"app"},
 					"label":     "label",
 				},
 			},
-			"undesired": []interface{}{
-				map[string]interface{}{
-					"plug":      map[string]interface{}{"snap": "consumer", "plug": "plug"},
-					"slot":      map[string]interface{}{"snap": "producer", "slot": "slot"},
+			"undesired": []any{
+				map[string]any{
+					"plug":      map[string]any{"snap": "consumer", "plug": "plug"},
+					"slot":      map[string]any{"snap": "producer", "slot": "slot"},
 					"gadget":    true,
 					"manual":    true,
 					"interface": "test",
@@ -844,18 +844,18 @@ func (s *interfacesSuite) TestConnectionsOnlyUndesired(c *check.C) {
 	s.mockSnap(c, consumerYaml)
 	s.mockSnap(c, producerYaml)
 
-	s.testConnectionsConnected(c, d, "/v2/connections", map[string]interface{}{
-		"consumer:plug producer:slot": map[string]interface{}{
+	s.testConnectionsConnected(c, d, "/v2/connections", map[string]any{
+		"consumer:plug producer:slot": map[string]any{
 			"interface": "test",
 			"by-gadget": true,
 			"auto":      true,
 			"undesired": true,
 		},
-	}, nil, map[string]interface{}{
-		"result": map[string]interface{}{
-			"established": []interface{}{},
-			"plugs":       []interface{}{},
-			"slots":       []interface{}{},
+	}, nil, map[string]any{
+		"result": map[string]any{
+			"established": []any{},
+			"plugs":       []any{},
+			"slots":       []any{},
 		},
 		"status":      "OK",
 		"status-code": 200.0,
@@ -872,16 +872,16 @@ func (s *interfacesSuite) TestConnectionsHotplugGone(c *check.C) {
 	s.mockSnap(c, consumerYaml)
 	s.mockSnap(c, producerYaml)
 
-	s.testConnectionsConnected(c, d, "/v2/connections", map[string]interface{}{
-		"consumer:plug producer:slot": map[string]interface{}{
+	s.testConnectionsConnected(c, d, "/v2/connections", map[string]any{
+		"consumer:plug producer:slot": map[string]any{
 			"interface":    "test",
 			"hotplug-gone": true,
 		},
-	}, nil, map[string]interface{}{
-		"result": map[string]interface{}{
-			"established": []interface{}{},
-			"plugs":       []interface{}{},
-			"slots":       []interface{}{},
+	}, nil, map[string]any{
+		"result": map[string]any{
+			"established": []any{},
+			"plugs":       []any{},
+			"slots":       []any{},
 		},
 		"status":      "OK",
 		"status-code": 200.0,
@@ -925,113 +925,113 @@ slots:
 	s.mockSnap(c, producerYaml)
 	s.mockSnap(c, anotherProducerYaml)
 
-	s.testConnectionsConnected(c, d, "/v2/connections", map[string]interface{}{
-		"consumer:plug producer:slot": map[string]interface{}{
+	s.testConnectionsConnected(c, d, "/v2/connections", map[string]any{
+		"consumer:plug producer:slot": map[string]any{
 			"interface": "test",
 			"by-gadget": true,
 			"auto":      true,
 		},
-		"another-consumer-def:plug producer:slot": map[string]interface{}{
+		"another-consumer-def:plug producer:slot": map[string]any{
 			"interface": "test",
 			"by-gadget": true,
 			"auto":      true,
 		},
-		"another-consumer-abc:plug producer:slot": map[string]interface{}{
+		"another-consumer-abc:plug producer:slot": map[string]any{
 			"interface": "test",
 			"by-gadget": true,
 			"auto":      true,
 		},
-		"another-consumer-def:plug another-producer:slot": map[string]interface{}{
+		"another-consumer-def:plug another-producer:slot": map[string]any{
 			"interface": "test",
 			"by-gadget": true,
 			"auto":      true,
 		},
-	}, nil, map[string]interface{}{
-		"result": map[string]interface{}{
-			"plugs": []interface{}{
-				map[string]interface{}{
+	}, nil, map[string]any{
+		"result": map[string]any{
+			"plugs": []any{
+				map[string]any{
 					"snap":      "another-consumer-abc",
 					"plug":      "plug",
 					"interface": "test",
-					"attrs":     map[string]interface{}{"key": "value"},
-					"apps":      []interface{}{"app"},
+					"attrs":     map[string]any{"key": "value"},
+					"apps":      []any{"app"},
 					"label":     "label",
-					"connections": []interface{}{
-						map[string]interface{}{"snap": "producer", "slot": "slot"},
+					"connections": []any{
+						map[string]any{"snap": "producer", "slot": "slot"},
 					},
 				},
-				map[string]interface{}{
+				map[string]any{
 					"snap":      "another-consumer-def",
 					"plug":      "plug",
 					"interface": "test",
-					"attrs":     map[string]interface{}{"key": "value"},
-					"apps":      []interface{}{"app"},
+					"attrs":     map[string]any{"key": "value"},
+					"apps":      []any{"app"},
 					"label":     "label",
-					"connections": []interface{}{
-						map[string]interface{}{"snap": "another-producer", "slot": "slot"},
-						map[string]interface{}{"snap": "producer", "slot": "slot"},
+					"connections": []any{
+						map[string]any{"snap": "another-producer", "slot": "slot"},
+						map[string]any{"snap": "producer", "slot": "slot"},
 					},
 				},
-				map[string]interface{}{
+				map[string]any{
 					"snap":      "consumer",
 					"plug":      "plug",
 					"interface": "test",
-					"attrs":     map[string]interface{}{"key": "value"},
-					"apps":      []interface{}{"app"},
+					"attrs":     map[string]any{"key": "value"},
+					"apps":      []any{"app"},
 					"label":     "label",
-					"connections": []interface{}{
-						map[string]interface{}{"snap": "producer", "slot": "slot"},
+					"connections": []any{
+						map[string]any{"snap": "producer", "slot": "slot"},
 					},
 				},
 			},
-			"slots": []interface{}{
-				map[string]interface{}{
+			"slots": []any{
+				map[string]any{
 					"snap":      "another-producer",
 					"slot":      "slot",
 					"interface": "test",
-					"attrs":     map[string]interface{}{"key": "value"},
-					"apps":      []interface{}{"app"},
+					"attrs":     map[string]any{"key": "value"},
+					"apps":      []any{"app"},
 					"label":     "label",
-					"connections": []interface{}{
-						map[string]interface{}{"snap": "another-consumer-def", "plug": "plug"},
+					"connections": []any{
+						map[string]any{"snap": "another-consumer-def", "plug": "plug"},
 					},
 				},
-				map[string]interface{}{
+				map[string]any{
 					"snap":      "producer",
 					"slot":      "slot",
 					"interface": "test",
-					"attrs":     map[string]interface{}{"key": "value"},
-					"apps":      []interface{}{"app"},
+					"attrs":     map[string]any{"key": "value"},
+					"apps":      []any{"app"},
 					"label":     "label",
-					"connections": []interface{}{
-						map[string]interface{}{"snap": "another-consumer-abc", "plug": "plug"},
-						map[string]interface{}{"snap": "another-consumer-def", "plug": "plug"},
-						map[string]interface{}{"snap": "consumer", "plug": "plug"},
+					"connections": []any{
+						map[string]any{"snap": "another-consumer-abc", "plug": "plug"},
+						map[string]any{"snap": "another-consumer-def", "plug": "plug"},
+						map[string]any{"snap": "consumer", "plug": "plug"},
 					},
 				},
 			},
-			"established": []interface{}{
-				map[string]interface{}{
-					"plug":      map[string]interface{}{"snap": "another-consumer-abc", "plug": "plug"},
-					"slot":      map[string]interface{}{"snap": "producer", "slot": "slot"},
+			"established": []any{
+				map[string]any{
+					"plug":      map[string]any{"snap": "another-consumer-abc", "plug": "plug"},
+					"slot":      map[string]any{"snap": "producer", "slot": "slot"},
 					"interface": "test",
 					"gadget":    true,
 				},
-				map[string]interface{}{
-					"plug":      map[string]interface{}{"snap": "another-consumer-def", "plug": "plug"},
-					"slot":      map[string]interface{}{"snap": "another-producer", "slot": "slot"},
+				map[string]any{
+					"plug":      map[string]any{"snap": "another-consumer-def", "plug": "plug"},
+					"slot":      map[string]any{"snap": "another-producer", "slot": "slot"},
 					"interface": "test",
 					"gadget":    true,
 				},
-				map[string]interface{}{
-					"plug":      map[string]interface{}{"snap": "another-consumer-def", "plug": "plug"},
-					"slot":      map[string]interface{}{"snap": "producer", "slot": "slot"},
+				map[string]any{
+					"plug":      map[string]any{"snap": "another-consumer-def", "plug": "plug"},
+					"slot":      map[string]any{"snap": "producer", "slot": "slot"},
 					"interface": "test",
 					"gadget":    true,
 				},
-				map[string]interface{}{
-					"plug":      map[string]interface{}{"snap": "consumer", "plug": "plug"},
-					"slot":      map[string]interface{}{"snap": "producer", "slot": "slot"},
+				map[string]any{
+					"plug":      map[string]any{"snap": "consumer", "plug": "plug"},
+					"slot":      map[string]any{"snap": "producer", "slot": "slot"},
 					"interface": "test",
 					"gadget":    true,
 				},

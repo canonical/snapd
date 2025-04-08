@@ -458,7 +458,7 @@ func (spec *Specification) AddUpdateNS(snippet string) {
 }
 
 // AddUpdateNSf formats and adds a new apparmor snippet for the snap-update-ns program.
-func (spec *Specification) AddUpdateNSf(f string, args ...interface{}) {
+func (spec *Specification) AddUpdateNSf(f string, args ...any) {
 	spec.AddUpdateNS(fmt.Sprintf(f, args...))
 }
 
@@ -609,7 +609,7 @@ func isProbablyPresent(path string) bool {
 }
 
 // GenWritableMimicProfile generates apparmor rules for a writable mimic at the given path.
-func GenWritableMimicProfile(emit func(f string, args ...interface{}), path string, assumedPrefixDepth int) {
+func GenWritableMimicProfile(emit func(f string, args ...any), path string, assumedPrefixDepth int) {
 	emit("  # Writable mimic %s\n", path)
 
 	iter, err := strutil.NewPathIterator(path)
@@ -671,7 +671,7 @@ func GenWritableMimicProfile(emit func(f string, args ...interface{}), path stri
 }
 
 // GenWritableFileProfile writes a profile for snap-update-ns for making given file writable.
-func GenWritableFileProfile(emit func(f string, args ...interface{}), path string, assumedPrefixDepth int) {
+func GenWritableFileProfile(emit func(f string, args ...any), path string, assumedPrefixDepth int) {
 	if path == "/" {
 		return
 	}
@@ -688,7 +688,7 @@ func GenWritableFileProfile(emit func(f string, args ...interface{}), path strin
 }
 
 // GenWritableProfile generates a profile for snap-update-ns for making given directory writable.
-func GenWritableProfile(emit func(f string, args ...interface{}), path string, assumedPrefixDepth int) {
+func GenWritableProfile(emit func(f string, args ...any), path string, assumedPrefixDepth int) {
 	if path == "/" {
 		return
 	}

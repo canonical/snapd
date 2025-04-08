@@ -39,14 +39,14 @@ var (
 
 // ConfGetter is an interface for reading of config values.
 type ConfGetter interface {
-	Get(snapName, key string, result interface{}) error
-	GetMaybe(snapName, key string, result interface{}) error
-	GetPristine(snapName, key string, result interface{}) error
+	Get(snapName, key string, result any) error
+	GetMaybe(snapName, key string, result any) error
+	GetPristine(snapName, key string, result any) error
 }
 
 // coreCfg returns the configuration value for the core snap.
 func coreCfg(tr ConfGetter, key string) (result string, err error) {
-	var v interface{} = ""
+	var v any = ""
 	if err := tr.Get("core", key, &v); err != nil && !config.IsNoOption(err) {
 		return "", err
 	}
@@ -76,10 +76,10 @@ func validateBoolFlag(tr ConfGetter, flag string) error {
 
 // plainCoreConfig carries a read-only copy of core config and implements
 // ConfGetter interface.
-type plainCoreConfig map[string]interface{}
+type plainCoreConfig map[string]any
 
 // Get implements ConfGetter interface.
-func (cfg plainCoreConfig) Get(snapName, key string, result interface{}) error {
+func (cfg plainCoreConfig) Get(snapName, key string, result any) error {
 	if snapName != "core" {
 		return fmt.Errorf("internal error: expected core snap in Get(), %q was requested", snapName)
 	}
@@ -98,12 +98,12 @@ func (cfg plainCoreConfig) Get(snapName, key string, result interface{}) error {
 // for plainCoreConfig, there are no "pristine" values, so just return nothing
 // this has the effect that every setting will be viewed as "dirty" and needing
 // to be applied
-func (cfg plainCoreConfig) GetPristine(snapName, key string, result interface{}) error {
+func (cfg plainCoreConfig) GetPristine(snapName, key string, result any) error {
 	return nil
 }
 
 // GetMaybe implements ConfGetter interface.
-func (cfg plainCoreConfig) GetMaybe(instanceName, key string, result interface{}) error {
+func (cfg plainCoreConfig) GetMaybe(instanceName, key string, result any) error {
 	err := cfg.Get(instanceName, key, result)
 	if err != nil && !config.IsNoOption(err) {
 		return err

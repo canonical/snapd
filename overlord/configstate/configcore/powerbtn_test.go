@@ -56,7 +56,7 @@ func (s *powerbtnSuite) TestConfigurePowerIntegration(c *C) {
 
 		err := configcore.FilesystemOnlyRun(coreDev, &mockConf{
 			state: s.state,
-			conf: map[string]interface{}{
+			conf: map[string]any{
 				"system.power-key-action": action,
 			},
 		})
@@ -70,7 +70,7 @@ func (s *powerbtnSuite) TestConfigurePowerIntegration(c *C) {
 }
 
 func (s *powerbtnSuite) TestFilesystemOnlyApply(c *C) {
-	conf := configcore.PlainCoreConfig(map[string]interface{}{
+	conf := configcore.PlainCoreConfig(map[string]any{
 		"system.power-key-action": "reboot",
 	})
 	tmpDir := c.MkDir()

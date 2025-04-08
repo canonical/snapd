@@ -127,12 +127,12 @@ func (e *Epoch) fromStructured(structured structuredEpoch) error {
 }
 
 func (e *Epoch) UnmarshalJSON(bs []byte) error {
-	return e.UnmarshalYAML(func(v interface{}) error {
+	return e.UnmarshalYAML(func(v any) error {
 		return json.Unmarshal(bs, &v)
 	})
 }
 
-func (e *Epoch) UnmarshalYAML(unmarshal func(interface{}) error) error {
+func (e *Epoch) UnmarshalYAML(unmarshal func(any) error) error {
 	var shortEpoch string
 	if err := unmarshal(&shortEpoch); err == nil {
 		return e.fromString(shortEpoch)
@@ -202,7 +202,7 @@ func (e *Epoch) Validate() error {
 	return &EpochError{Message: noEpochIntersection}
 }
 
-func (e *Epoch) simplify() interface{} {
+func (e *Epoch) simplify() any {
 	if e.IsZero() {
 		return "0"
 	}
@@ -226,7 +226,7 @@ func (e Epoch) MarshalJSON() ([]byte, error) {
 	return json.Marshal(se)
 }
 
-func (Epoch) MarshalYAML() (interface{}, error) {
+func (Epoch) MarshalYAML() (any, error) {
 	panic("unexpected attempt to marshal an Epoch to YAML")
 }
 
@@ -322,7 +322,7 @@ func parseInt(s string) (uint32, error) {
 
 type uint32slice []uint32
 
-func (z *uint32slice) UnmarshalYAML(unmarshal func(interface{}) error) error {
+func (z *uint32slice) UnmarshalYAML(unmarshal func(any) error) error {
 	var ss []string
 	if err := unmarshal(&ss); err != nil {
 		return &EpochError{Message: badEpochList}

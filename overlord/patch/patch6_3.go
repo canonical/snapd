@@ -51,7 +51,7 @@ func patch6_3(st *state.State) error {
 	// Migrate snapstate
 	dirty := false
 	for name, raw := range snaps {
-		var snapst map[string]interface{}
+		var snapst map[string]any
 		if err := json.Unmarshal([]byte(*raw), &snapst); err != nil {
 			return err
 		}
@@ -82,7 +82,7 @@ func patch6_3(st *state.State) error {
 		}
 
 		// check task snap-setup
-		var snapsup map[string]interface{}
+		var snapsup map[string]any
 		err := task.Get("snap-setup", &snapsup)
 		if err != nil && !errors.Is(err, state.ErrNoState) {
 			return fmt.Errorf("internal error: cannot get snap-setup of task %s: %s", task.ID(), err)

@@ -9,7 +9,7 @@ type testingWrapper struct {
 	*testing.T
 }
 
-func (t *testingWrapper) FatalfIf(cond bool, msg string, args ...interface{}) {
+func (t *testingWrapper) FatalfIf(cond bool, msg string, args ...any) {
 	if cond {
 		if len(args) == 0 {
 			t.Fatal(msg)

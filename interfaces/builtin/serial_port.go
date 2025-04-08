@@ -222,7 +222,7 @@ func (iface *serialPortInterface) HotplugDeviceDetected(di *hotplug.HotplugDevic
 	}
 
 	slot := hotplug.ProposedSlot{
-		Attrs: map[string]interface{}{
+		Attrs: map[string]any{
 			"path": di.DeviceName(),
 		},
 	}

@@ -83,7 +83,7 @@ func mockChrootDirs(c *C, rootDir string, apparmorDir bool) func() {
 // Fake implementation of seed.Seed interface
 
 func mockClassicModel() *asserts.Model {
-	headers := map[string]interface{}{
+	headers := map[string]any{
 		"type":         "model",
 		"authority-id": "brand",
 		"series":       "16",
@@ -107,7 +107,7 @@ func (fs *FakeSeed) Model() *asserts.Model {
 }
 
 func (fs *FakeSeed) Brand() (*asserts.Account, error) {
-	headers := map[string]interface{}{
+	headers := map[string]any{
 		"type":         "account",
 		"account-id":   "brand",
 		"display-name": "fake brand",

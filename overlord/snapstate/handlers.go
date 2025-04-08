@@ -1106,7 +1106,7 @@ func continueInhibitedAutoRefresh(st *state.State, snapName string) error {
 			chg.AddAll(ts)
 		}
 		chg.Set("snap-names", snaps)
-		chg.Set("api-data", map[string]interface{}{"snap-names": snaps})
+		chg.Set("api-data", map[string]any{"snap-names": snaps})
 	}
 
 	st.EnsureBefore(0)
@@ -1412,16 +1412,16 @@ func (m *SnapManager) restoreUnlinkOnError(t *state.Task, info *snap.Info, other
 }
 
 var onRefreshInhibitionTimeout = func(chg *state.Change, snapName string) error {
-	var data map[string]interface{}
+	var data map[string]any
 	err := chg.Get("api-data", &data)
 	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
 	}
 	if len(data) == 0 {
-		data = make(map[string]interface{})
+		data = make(map[string]any)
 	}
 
-	cur, _ := data["refresh-forced"].([]interface{})
+	cur, _ := data["refresh-forced"].([]any)
 	cur = append(cur, snapName)
 	data["refresh-forced"] = cur
 
@@ -4392,16 +4392,16 @@ type changedAlias struct {
 
 func aliasesTrace(t *state.Task, added, removed []*backend.Alias) error {
 	chg := t.Change()
-	var data map[string]interface{}
+	var data map[string]any
 	err := chg.Get("api-data", &data)
 	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
 	}
 	if len(data) == 0 {
-		data = make(map[string]interface{})
+		data = make(map[string]any)
 	}
 
-	curAdded, _ := data["aliases-added"].([]interface{})
+	curAdded, _ := data["aliases-added"].([]any)
 	for _, a := range added {
 		snap, app := snap.SplitSnapApp(a.Target)
 		curAdded = append(curAdded, &changedAlias{
@@ -4412,7 +4412,7 @@ func aliasesTrace(t *state.Task, added, removed []*backend.Alias) error {
 	}
 	data["aliases-added"] = curAdded
 
-	curRemoved, _ := data["aliases-removed"].([]interface{})
+	curRemoved, _ := data["aliases-removed"].([]any)
 	for _, a := range removed {
 		snap, app := snap.SplitSnapApp(a.Target)
 		curRemoved = append(curRemoved, &changedAlias{

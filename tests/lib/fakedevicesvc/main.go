@@ -57,11 +57,11 @@ func main() {
 	l.Close()
 }
 
-func internalError(w http.ResponseWriter, msg string, a ...interface{}) {
+func internalError(w http.ResponseWriter, msg string, a ...any) {
 	http.Error(w, fmt.Sprintf(msg, a...), 500)
 }
 
-func badRequestError(w http.ResponseWriter, msg string, a ...interface{}) {
+func badRequestError(w http.ResponseWriter, msg string, a ...any) {
 	http.Error(w, fmt.Sprintf(msg, a...), 400)
 }
 
@@ -129,7 +129,7 @@ func handle(w http.ResponseWriter, r *http.Request) {
 			serialStr = serialReq.Serial()
 		}
 
-		serial, err := db.Sign(asserts.SerialType, map[string]interface{}{
+		serial, err := db.Sign(asserts.SerialType, map[string]any{
 			"authority-id":        "developer1",
 			"brand-id":            "developer1",
 			"model":               serialReq.Model(),

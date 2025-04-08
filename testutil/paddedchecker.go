@@ -92,7 +92,7 @@ var ContainsWrapped = &paddedChecker{
 
 var spaceinator = regexp.MustCompile(`\s+`).ReplaceAllLiteralString
 
-func (c *paddedChecker) Check(params []interface{}, names []string) (result bool, errstr string) {
+func (c *paddedChecker) Check(params []any, names []string) (result bool, errstr string) {
 	var other string
 	switch v := params[0].(type) {
 	case string:

@@ -81,7 +81,7 @@ func (s *snapassertsSuite) SetUpTest(c *C) {
 
 	s.dev1Signing = assertstest.NewSigningDB(s.dev1Acct.AccountID(), privKey)
 
-	headers := map[string]interface{}{
+	headers := map[string]any{
 		"series":       "16",
 		"snap-id":      "snap-id-1",
 		"snap-name":    "foo",
@@ -117,7 +117,7 @@ func makeDigest(rev int) string {
 func (s *snapassertsSuite) TestCrossCheckHappy(c *C) {
 	digest := makeDigest(12)
 	size := uint64(len(fakeSnap(12)))
-	headers := map[string]interface{}{
+	headers := map[string]any{
 		"snap-id":       "snap-id-1",
 		"snap-sha3-384": digest,
 		"snap-size":     fmt.Sprintf("%d", size),
@@ -148,7 +148,7 @@ func (s *snapassertsSuite) TestCrossCheckHappy(c *C) {
 func (s *snapassertsSuite) TestCrossCheckErrors(c *C) {
 	digest := makeDigest(12)
 	size := uint64(len(fakeSnap(12)))
-	headers := map[string]interface{}{
+	headers := map[string]any{
 		"snap-id":       "snap-id-1",
 		"snap-sha3-384": digest,
 		"snap-size":     fmt.Sprintf("%d", size),
@@ -206,7 +206,7 @@ func (s *snapassertsSuite) TestCrossCheckErrors(c *C) {
 
 func (s *snapassertsSuite) TestCrossCheckRevokedSnapDecl(c *C) {
 	// revoked snap declaration (snap-name=="") !
-	headers := map[string]interface{}{
+	headers := map[string]any{
 		"series":       "16",
 		"snap-id":      "snap-id-1",
 		"snap-name":    "",
@@ -221,7 +221,7 @@ func (s *snapassertsSuite) TestCrossCheckRevokedSnapDecl(c *C) {
 
 	digest := makeDigest(12)
 	size := uint64(len(fakeSnap(12)))
-	headers = map[string]interface{}{
+	headers = map[string]any{
 		"snap-id":       "snap-id-1",
 		"snap-sha3-384": digest,
 		"snap-size":     fmt.Sprintf("%d", size),
@@ -251,7 +251,7 @@ version: 1`, nil)
 	digest, size, err := asserts.SnapFileSHA3_384(fooSnap)
 	c.Assert(err, IsNil)
 
-	headers := map[string]interface{}{
+	headers := map[string]any{
 		"snap-id":       "snap-id-1",
 		"snap-sha3-384": digest,
 		"snap-size":     fmt.Sprintf("%d", size),
@@ -288,7 +288,7 @@ func (s *snapassertsSuite) TestDeriveSideInfoNoSignatures(c *C) {
 func (s *snapassertsSuite) TestDeriveSideInfoSizeMismatch(c *C) {
 	digest := makeDigest(42)
 	size := uint64(len(fakeSnap(42)))
-	headers := map[string]interface{}{
+	headers := map[string]any{
 		"snap-id":       "snap-id-1",
 		"snap-sha3-384": digest,
 		"snap-size":     fmt.Sprintf("%d", size+5), // broken
@@ -312,7 +312,7 @@ func (s *snapassertsSuite) TestDeriveSideInfoSizeMismatch(c *C) {
 
 func (s *snapassertsSuite) TestDeriveSideInfoRevokedSnapDecl(c *C) {
 	// revoked snap declaration (snap-name=="") !
-	headers := map[string]interface{}{
+	headers := map[string]any{
 		"series":       "16",
 		"snap-id":      "snap-id-1",
 		"snap-name":    "",
@@ -327,7 +327,7 @@ func (s *snapassertsSuite) TestDeriveSideInfoRevokedSnapDecl(c *C) {
 
 	digest := makeDigest(42)
 	size := uint64(len(fakeSnap(42)))
-	headers = map[string]interface{}{
+	headers = map[string]any{
 		"snap-id":       "snap-id-1",
 		"snap-sha3-384": digest,
 		"snap-size":     fmt.Sprintf("%d", size),
@@ -350,16 +350,16 @@ func (s *snapassertsSuite) TestDeriveSideInfoRevokedSnapDecl(c *C) {
 }
 
 func (s *snapassertsSuite) TestCrossCheckDelegatedSnapHappy(c *C) {
-	snapDecl, err := s.storeSigning.Sign(asserts.SnapDeclarationType, map[string]interface{}{
+	snapDecl, err := s.storeSigning.Sign(asserts.SnapDeclarationType, map[string]any{
 		"series":       "16",
 		"snap-id":      "snap-id-1",
 		"snap-name":    "foo",
 		"publisher-id": s.dev1Acct.AccountID(),
 		"revision":     "1",
-		"revision-authority": []interface{}{
-			map[string]interface{}{
+		"revision-authority": []any{
+			map[string]any{
 				"account-id": s.dev1Acct.AccountID(),
-				"provenance": []interface{}{
+				"provenance": []any{
 					"prov1",
 				},
 			},
@@ -372,7 +372,7 @@ func (s *snapassertsSuite) TestCrossCheckDelegatedSnapHappy(c *C) {
 
 	digest := makeDigest(42)
 	size := uint64(len(fakeSnap(42)))
-	headers := map[string]interface{}{
+	headers := map[string]any{
 		"authority-id":  s.dev1Acct.AccountID(),
 		"snap-id":       "snap-id-1",
 		"snap-sha3-384": digest,
@@ -403,7 +403,7 @@ func (s *snapassertsSuite) TestCrossCheckDelegatedSnapHappy(c *C) {
 }
 
 func (s *snapassertsSuite) TestCrossCheckWithDeviceDelegatedSnapHappy(c *C) {
-	a, err := s.dev1Signing.Sign(asserts.ModelType, map[string]interface{}{
+	a, err := s.dev1Signing.Sign(asserts.ModelType, map[string]any{
 		"brand-id":     s.dev1Acct.AccountID(),
 		"series":       "16",
 		"model":        "dev-model",
@@ -417,29 +417,29 @@ func (s *snapassertsSuite) TestCrossCheckWithDeviceDelegatedSnapHappy(c *C) {
 	c.Assert(err, IsNil)
 	model := a.(*asserts.Model)
 
-	substore, err := s.storeSigning.Sign(asserts.StoreType, map[string]interface{}{
+	substore, err := s.storeSigning.Sign(asserts.StoreType, map[string]any{
 		"store":           "substore",
 		"operator-id":     "can0nical",
-		"friendly-stores": []interface{}{"store1"},
+		"friendly-stores": []any{"store1"},
 		"timestamp":       time.Now().Format(time.RFC3339),
 	}, nil, "")
 	c.Assert(err, IsNil)
 	err = s.localDB.Add(substore)
 	c.Assert(err, IsNil)
 
-	snapDecl, err := s.storeSigning.Sign(asserts.SnapDeclarationType, map[string]interface{}{
+	snapDecl, err := s.storeSigning.Sign(asserts.SnapDeclarationType, map[string]any{
 		"series":       "16",
 		"snap-id":      "snap-id-1",
 		"snap-name":    "foo",
 		"publisher-id": s.dev1Acct.AccountID(),
 		"revision":     "1",
-		"revision-authority": []interface{}{
-			map[string]interface{}{
+		"revision-authority": []any{
+			map[string]any{
 				"account-id": s.dev1Acct.AccountID(),
-				"provenance": []interface{}{
+				"provenance": []any{
 					"prov1",
 				},
-				"on-store": []interface{}{
+				"on-store": []any{
 					"store1",
 				},
 			},
@@ -452,7 +452,7 @@ func (s *snapassertsSuite) TestCrossCheckWithDeviceDelegatedSnapHappy(c *C) {
 
 	digest := makeDigest(42)
 	size := uint64(len(fakeSnap(42)))
-	headers := map[string]interface{}{
+	headers := map[string]any{
 		"authority-id":  s.dev1Acct.AccountID(),
 		"snap-id":       "snap-id-1",
 		"snap-sha3-384": digest,
@@ -483,7 +483,7 @@ func (s *snapassertsSuite) TestCrossCheckWithDeviceDelegatedSnapHappy(c *C) {
 }
 
 func (s *snapassertsSuite) TestCrossCheckWithDeviceDelegatedSnapUnhappy(c *C) {
-	a, err := s.dev1Signing.Sign(asserts.ModelType, map[string]interface{}{
+	a, err := s.dev1Signing.Sign(asserts.ModelType, map[string]any{
 		"brand-id":     s.dev1Acct.AccountID(),
 		"series":       "16",
 		"model":        "dev-model",
@@ -497,29 +497,29 @@ func (s *snapassertsSuite) TestCrossCheckWithDeviceDelegatedSnapUnhappy(c *C) {
 	c.Assert(err, IsNil)
 	model := a.(*asserts.Model)
 
-	substore, err := s.storeSigning.Sign(asserts.StoreType, map[string]interface{}{
+	substore, err := s.storeSigning.Sign(asserts.StoreType, map[string]any{
 		"store":           "substore",
 		"operator-id":     "can0nical",
-		"friendly-stores": []interface{}{"store1"},
+		"friendly-stores": []any{"store1"},
 		"timestamp":       time.Now().Format(time.RFC3339),
 	}, nil, "")
 	c.Assert(err, IsNil)
 	err = s.localDB.Add(substore)
 	c.Assert(err, IsNil)
 
-	snapDecl, err := s.storeSigning.Sign(asserts.SnapDeclarationType, map[string]interface{}{
+	snapDecl, err := s.storeSigning.Sign(asserts.SnapDeclarationType, map[string]any{
 		"series":       "16",
 		"snap-id":      "snap-id-1",
 		"snap-name":    "foo",
 		"publisher-id": s.dev1Acct.AccountID(),
 		"revision":     "1",
-		"revision-authority": []interface{}{
-			map[string]interface{}{
+		"revision-authority": []any{
+			map[string]any{
 				"account-id": s.dev1Acct.AccountID(),
-				"provenance": []interface{}{
+				"provenance": []any{
 					"prov1",
 				},
-				"on-store": []interface{}{
+				"on-store": []any{
 					"store2",
 				},
 			},
@@ -532,7 +532,7 @@ func (s *snapassertsSuite) TestCrossCheckWithDeviceDelegatedSnapUnhappy(c *C) {
 
 	digest := makeDigest(42)
 	size := uint64(len(fakeSnap(42)))
-	headers := map[string]interface{}{
+	headers := map[string]any{
 		"authority-id":  s.dev1Acct.AccountID(),
 		"snap-id":       "snap-id-1",
 		"snap-sha3-384": digest,
@@ -560,7 +560,7 @@ func (s *snapassertsSuite) TestCrossCheckWithDeviceDelegatedSnapUnhappy(c *C) {
 func (s *snapassertsSuite) TestCrossCheckSpuriousProvenanceUnhappy(c *C) {
 	digest := makeDigest(12)
 	size := uint64(len(fakeSnap(12)))
-	headers := map[string]interface{}{
+	headers := map[string]any{
 		"snap-id":       "snap-id-1",
 		"snap-sha3-384": digest,
 		"snap-size":     fmt.Sprintf("%d", size),
@@ -585,7 +585,7 @@ func (s *snapassertsSuite) TestCrossCheckSpuriousProvenanceUnhappy(c *C) {
 func (s *snapassertsSuite) TestCheckProvenanceWithVerifiedRevision(c *C) {
 	digest := makeDigest(12)
 	size := uint64(len(fakeSnap(12)))
-	snapRevGlobalUpload := assertstest.FakeAssertion(map[string]interface{}{
+	snapRevGlobalUpload := assertstest.FakeAssertion(map[string]any{
 		"type":          "snap-revision",
 		"authority-id":  "can0nical",
 		"snap-id":       "snap-id-1",
@@ -595,7 +595,7 @@ func (s *snapassertsSuite) TestCheckProvenanceWithVerifiedRevision(c *C) {
 		"developer-id":  s.dev1Acct.AccountID(),
 		"timestamp":     time.Now().Format(time.RFC3339),
 	}).(*asserts.SnapRevision)
-	snapRevProv := assertstest.FakeAssertion(map[string]interface{}{
+	snapRevProv := assertstest.FakeAssertion(map[string]any{
 		"type":          "snap-revision",
 		"authority-id":  s.dev1Acct.AccountID(),
 		"snap-id":       "snap-id-1",
@@ -606,7 +606,7 @@ func (s *snapassertsSuite) TestCheckProvenanceWithVerifiedRevision(c *C) {
 		"developer-id":  s.dev1Acct.AccountID(),
 		"timestamp":     time.Now().Format(time.RFC3339),
 	}).(*asserts.SnapRevision)
-	snapRevProv2 := assertstest.FakeAssertion(map[string]interface{}{
+	snapRevProv2 := assertstest.FakeAssertion(map[string]any{
 		"type":          "snap-revision",
 		"authority-id":  s.dev1Acct.AccountID(),
 		"snap-id":       "snap-id-1",
@@ -647,7 +647,7 @@ version: 1
 func (s *snapassertsSuite) TestCheckComponentProvenanceWithVerifiedRevision(c *C) {
 	digest := makeDigest(12)
 	size := uint64(len(fakeSnap(12)))
-	snapResRev := assertstest.FakeAssertion(map[string]interface{}{
+	snapResRev := assertstest.FakeAssertion(map[string]any{
 		"type":              "snap-resource-revision",
 		"authority-id":      s.dev1Acct.AccountID(),
 		"snap-id":           "snap-id-1",
@@ -659,7 +659,7 @@ func (s *snapassertsSuite) TestCheckComponentProvenanceWithVerifiedRevision(c *C
 		"resource-size":     fmt.Sprintf("%d", size),
 		"timestamp":         time.Now().Format(time.RFC3339),
 	}).(*asserts.SnapResourceRevision)
-	snapResRev2 := assertstest.FakeAssertion(map[string]interface{}{
+	snapResRev2 := assertstest.FakeAssertion(map[string]any{
 		"type":              "snap-resource-revision",
 		"authority-id":      s.dev1Acct.AccountID(),
 		"snap-id":           "snap-id-1",
@@ -706,7 +706,7 @@ provenance: prov`, nil)
 	digest, size, err := asserts.SnapFileSHA3_384(withProv)
 	c.Assert(err, IsNil)
 
-	a, err := s.dev1Signing.Sign(asserts.ModelType, map[string]interface{}{
+	a, err := s.dev1Signing.Sign(asserts.ModelType, map[string]any{
 		"brand-id":     s.dev1Acct.AccountID(),
 		"series":       "16",
 		"model":        "dev-model",
@@ -720,29 +720,29 @@ provenance: prov`, nil)
 	c.Assert(err, IsNil)
 	model := a.(*asserts.Model)
 
-	substore, err := s.storeSigning.Sign(asserts.StoreType, map[string]interface{}{
+	substore, err := s.storeSigning.Sign(asserts.StoreType, map[string]any{
 		"store":           "substore",
 		"operator-id":     "can0nical",
-		"friendly-stores": []interface{}{"store1"},
+		"friendly-stores": []any{"store1"},
 		"timestamp":       time.Now().Format(time.RFC3339),
 	}, nil, "")
 	c.Assert(err, IsNil)
 	err = s.localDB.Add(substore)
 	c.Assert(err, IsNil)
 
-	snapDecl, err := s.storeSigning.Sign(asserts.SnapDeclarationType, map[string]interface{}{
+	snapDecl, err := s.storeSigning.Sign(asserts.SnapDeclarationType, map[string]any{
 		"series":       "16",
 		"snap-id":      "snap-id-1",
 		"snap-name":    "foo",
 		"publisher-id": s.dev1Acct.AccountID(),
 		"revision":     "1",
-		"revision-authority": []interface{}{
-			map[string]interface{}{
+		"revision-authority": []any{
+			map[string]any{
 				"account-id": s.dev1Acct.AccountID(),
-				"provenance": []interface{}{
+				"provenance": []any{
 					"prov",
 				},
-				"on-store": []interface{}{
+				"on-store": []any{
 					"store1",
 				},
 			},
@@ -753,7 +753,7 @@ provenance: prov`, nil)
 	err = s.localDB.Add(snapDecl)
 	c.Assert(err, IsNil)
 
-	headers := map[string]interface{}{
+	headers := map[string]any{
 		"authority-id":  s.dev1Acct.AccountID(),
 		"snap-id":       "snap-id-1",
 		"snap-sha3-384": digest,
@@ -790,16 +790,16 @@ provenance: prov`, nil)
 	digest, size, err := asserts.SnapFileSHA3_384(withProv)
 	c.Assert(err, IsNil)
 
-	snapDecl, err := s.storeSigning.Sign(asserts.SnapDeclarationType, map[string]interface{}{
+	snapDecl, err := s.storeSigning.Sign(asserts.SnapDeclarationType, map[string]any{
 		"series":       "16",
 		"snap-id":      "snap-id-1",
 		"snap-name":    "foo",
 		"publisher-id": s.dev1Acct.AccountID(),
 		"revision":     "1",
-		"revision-authority": []interface{}{
-			map[string]interface{}{
+		"revision-authority": []any{
+			map[string]any{
 				"account-id": s.dev1Acct.AccountID(),
-				"provenance": []interface{}{
+				"provenance": []any{
 					"prov",
 					"prov2",
 				},
@@ -811,7 +811,7 @@ provenance: prov`, nil)
 	err = s.localDB.Add(snapDecl)
 	c.Assert(err, IsNil)
 
-	headers := map[string]interface{}{
+	headers := map[string]any{
 		"authority-id":  s.dev1Acct.AccountID(),
 		"snap-id":       "snap-id-1",
 		"snap-sha3-384": digest,
@@ -827,7 +827,7 @@ provenance: prov`, nil)
 	err = s.localDB.Add(snapRev)
 	c.Check(err, IsNil)
 
-	headers = map[string]interface{}{
+	headers = map[string]any{
 		"authority-id":  s.dev1Acct.AccountID(),
 		"snap-id":       "snap-id-1",
 		"snap-sha3-384": digest,
@@ -855,12 +855,12 @@ func assertedSnapID(snapName string) string {
 	return snaptest.AssertedSnapID(snapName)
 }
 
-func (s *snapassertsSuite) makeUC20Model(c *C, extraHeaders map[string]interface{}) *asserts.Model {
-	comps := map[string]interface{}{
+func (s *snapassertsSuite) makeUC20Model(c *C, extraHeaders map[string]any) *asserts.Model {
+	comps := map[string]any{
 		"comp1": "required",
 		"comp2": "optional",
 	}
-	headers := map[string]interface{}{
+	headers := map[string]any{
 		"brand-id":     s.dev1Acct.AccountID(),
 		"series":       "16",
 		"model":        "dev-model",
@@ -868,20 +868,20 @@ func (s *snapassertsSuite) makeUC20Model(c *C, extraHeaders map[string]interface
 		"architecture": "amd64",
 		"base":         "core20",
 		"timestamp":    time.Now().Format(time.RFC3339),
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":            "pc-kernel",
 				"id":              assertedSnapID("pc-kernel"),
 				"type":            "kernel",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "pc",
 				"id":              assertedSnapID("pc"),
 				"type":            "gadget",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":       "required20",
 				"id":         assertedSnapID("required20"),
 				"components": comps,
@@ -919,7 +919,7 @@ version: 1.0.2
 	digest, size, err := asserts.SnapFileSHA3_384(compPath)
 	c.Assert(err, IsNil)
 
-	resRev, err := s.storeSigning.Sign(asserts.SnapResourceRevisionType, map[string]interface{}{
+	resRev, err := s.storeSigning.Sign(asserts.SnapResourceRevisionType, map[string]any{
 		"type":              "snap-resource-revision",
 		"authority-id":      "can0nical",
 		"snap-id":           "snap-id-1",
@@ -978,7 +978,7 @@ version: 1.0.2
 	c.Check(err, ErrorMatches, "snap-resource-revision assertion not found")
 	c.Check(csi, IsNil)
 
-	resRev, err := s.storeSigning.Sign(asserts.SnapResourceRevisionType, map[string]interface{}{
+	resRev, err := s.storeSigning.Sign(asserts.SnapResourceRevisionType, map[string]any{
 		"type":              "snap-resource-revision",
 		"authority-id":      "can0nical",
 		"snap-id":           "snap-id-1",
@@ -1012,7 +1012,7 @@ version: 1.0.2
 	digest, size, err := asserts.SnapFileSHA3_384(compPath)
 	c.Assert(err, IsNil)
 
-	resRev, err := s.storeSigning.Sign(asserts.SnapResourceRevisionType, map[string]interface{}{
+	resRev, err := s.storeSigning.Sign(asserts.SnapResourceRevisionType, map[string]any{
 		"type":              "snap-resource-revision",
 		"authority-id":      "can0nical",
 		"snap-id":           "snap-id-1",
@@ -1035,7 +1035,7 @@ version: 1.0.2
 }
 
 func (s *snapassertsSuite) TestDeriveComponentSideInfoFromDigestAndSizeWithProvenance(c *C) {
-	model := s.makeUC20Model(c, map[string]interface{}{"store": "store1"})
+	model := s.makeUC20Model(c, map[string]any{"store": "store1"})
 	compPath := snaptest.MakeTestComponentWithFiles(c, "comp1", `component: snap+comp1
 type: standard
 provenance: prov
@@ -1044,20 +1044,20 @@ version: 1.0.2
 	digest, size, err := asserts.SnapFileSHA3_384(compPath)
 	c.Assert(err, IsNil)
 
-	snapDecl, err := s.storeSigning.Sign(asserts.SnapDeclarationType, map[string]interface{}{
+	snapDecl, err := s.storeSigning.Sign(asserts.SnapDeclarationType, map[string]any{
 		"series":       "16",
 		"snap-id":      "snap-id-1",
 		"snap-name":    "foo",
 		"publisher-id": s.dev1Acct.AccountID(),
 		"revision":     "1",
-		"revision-authority": []interface{}{
-			map[string]interface{}{
+		"revision-authority": []any{
+			map[string]any{
 				"account-id": s.dev1Acct.AccountID(),
-				"provenance": []interface{}{
+				"provenance": []any{
 					"prov",
 					"prov2",
 				},
-				"on-store": []interface{}{
+				"on-store": []any{
 					"store1",
 				},
 			},
@@ -1069,7 +1069,7 @@ version: 1.0.2
 	c.Assert(err, IsNil)
 
 	// Ok result
-	resRev, err := s.dev1Signing.Sign(asserts.SnapResourceRevisionType, map[string]interface{}{
+	resRev, err := s.dev1Signing.Sign(asserts.SnapResourceRevisionType, map[string]any{
 		"type":              "snap-resource-revision",
 		"authority-id":      s.dev1Acct.AccountID(),
 		"snap-id":           "snap-id-1",
@@ -1101,7 +1101,7 @@ version: 1.0.2
 	c.Check(csi, IsNil)
 
 	// Same hash but different provenance
-	resRev2, err := s.dev1Signing.Sign(asserts.SnapResourceRevisionType, map[string]interface{}{
+	resRev2, err := s.dev1Signing.Sign(asserts.SnapResourceRevisionType, map[string]any{
 		"type":              "snap-resource-revision",
 		"authority-id":      s.dev1Acct.AccountID(),
 		"snap-id":           "snap-id-1",
@@ -1130,7 +1130,7 @@ func (s *snapassertsSuite) TestCrossCheckResource(c *C) {
 	const resourceName = "standard-component"
 	const snapID = "snap-id-1"
 
-	revHeaders := map[string]interface{}{
+	revHeaders := map[string]any{
 		"snap-id":           snapID,
 		"resource-name":     resourceName,
 		"resource-sha3-384": digest,
@@ -1145,7 +1145,7 @@ func (s *snapassertsSuite) TestCrossCheckResource(c *C) {
 	err = s.localDB.Add(expectedResourceRev)
 	c.Assert(err, IsNil)
 
-	pairHeaders := map[string]interface{}{
+	pairHeaders := map[string]any{
 		"snap-id":           snapID,
 		"resource-name":     resourceName,
 		"resource-revision": componentRev.String(),
@@ -1214,16 +1214,16 @@ func (s *snapassertsSuite) TestCrossCheckResourceProvenance(c *C) {
 		provenance = "prov"
 	)
 
-	snapDecl, err := s.storeSigning.Sign(asserts.SnapDeclarationType, map[string]interface{}{
+	snapDecl, err := s.storeSigning.Sign(asserts.SnapDeclarationType, map[string]any{
 		"series":       "16",
 		"snap-id":      snapID,
 		"snap-name":    "foo",
 		"publisher-id": s.dev1Acct.AccountID(),
 		"revision":     "1",
-		"revision-authority": []interface{}{
-			map[string]interface{}{
+		"revision-authority": []any{
+			map[string]any{
 				"account-id": s.dev1Acct.AccountID(),
-				"provenance": []interface{}{
+				"provenance": []any{
 					provenance,
 				},
 			},
@@ -1241,7 +1241,7 @@ func (s *snapassertsSuite) TestCrossCheckResourceProvenance(c *C) {
 		resourceName = "standard-component"
 	)
 
-	revHeaders := map[string]interface{}{
+	revHeaders := map[string]any{
 		"authority-id":      s.dev1Acct.AccountID(),
 		"snap-id":           snapID,
 		"resource-name":     resourceName,
@@ -1258,7 +1258,7 @@ func (s *snapassertsSuite) TestCrossCheckResourceProvenance(c *C) {
 	err = s.localDB.Add(expectedResourceRev)
 	c.Assert(err, IsNil)
 
-	pairHeaders := map[string]interface{}{
+	pairHeaders := map[string]any{
 		"authority-id":      s.dev1Acct.AccountID(),
 		"snap-id":           snapID,
 		"resource-name":     resourceName,
@@ -1290,16 +1290,16 @@ func (s *snapassertsSuite) TestCrossCheckResourceProvenance(c *C) {
 
 	// update the snap-decl with a mismatch provenance and check that the cross
 	// check fails
-	snapDecl, err = s.storeSigning.Sign(asserts.SnapDeclarationType, map[string]interface{}{
+	snapDecl, err = s.storeSigning.Sign(asserts.SnapDeclarationType, map[string]any{
 		"series":       "16",
 		"snap-id":      snapID,
 		"snap-name":    "foo",
 		"publisher-id": s.dev1Acct.AccountID(),
 		"revision":     "2",
-		"revision-authority": []interface{}{
-			map[string]interface{}{
+		"revision-authority": []any{
+			map[string]any{
 				"account-id": s.dev1Acct.AccountID(),
-				"provenance": []interface{}{
+				"provenance": []any{
 					"new-prov",
 				},
 			},
@@ -1324,7 +1324,7 @@ func (s *snapassertsSuite) TestCrossCheckResourceErrors(c *C) {
 		snapID       = "snap-id-1"
 	)
 
-	originalRevHeaders := map[string]interface{}{
+	originalRevHeaders := map[string]any{
 		"snap-id":           snapID,
 		"resource-name":     resourceName,
 		"resource-sha3-384": digest,
@@ -1334,7 +1334,7 @@ func (s *snapassertsSuite) TestCrossCheckResourceErrors(c *C) {
 		"timestamp":         time.Now().Format(time.RFC3339),
 	}
 
-	originalPairHeaders := map[string]interface{}{
+	originalPairHeaders := map[string]any{
 		"snap-id":           snapID,
 		"resource-name":     resourceName,
 		"resource-revision": componentRev.String(),
@@ -1343,7 +1343,7 @@ func (s *snapassertsSuite) TestCrossCheckResourceErrors(c *C) {
 		"timestamp":         time.Now().Format(time.RFC3339),
 	}
 
-	headers := map[string]interface{}{
+	headers := map[string]any{
 		"series":       "16",
 		"snap-id":      "snap-id-1",
 		"snap-name":    "foo",
@@ -1354,32 +1354,32 @@ func (s *snapassertsSuite) TestCrossCheckResourceErrors(c *C) {
 	c.Assert(err, IsNil)
 
 	type test struct {
-		revisionOverrides map[string]interface{}
-		pairOverrides     map[string]interface{}
+		revisionOverrides map[string]any
+		pairOverrides     map[string]any
 		err               string
 	}
 
 	tests := []test{
 		{
-			revisionOverrides: map[string]interface{}{
+			revisionOverrides: map[string]any{
 				"resource-size": "1023",
 			},
 			err: `resource \"standard-component\" file does not have expected size according to signatures \(download is broken or tampered\): 1024 != 1023`,
 		},
 		{
-			revisionOverrides: map[string]interface{}{
+			revisionOverrides: map[string]any{
 				"resource-revision": "25",
 			},
 			err: `resource \"standard-component\" does not have expected revision according to assertions \(metadata is broken or tampered\): 24 != 25`,
 		},
 		{
-			pairOverrides: map[string]interface{}{
+			pairOverrides: map[string]any{
 				"resource-revision": "25",
 			},
 			err: `cannot find snap-resource-pair for standard-component: snap-resource-pair assertion not found`,
 		},
 		{
-			revisionOverrides: map[string]interface{}{
+			revisionOverrides: map[string]any{
 				"resource-name": "nope",
 			},
 			err: `internal error: cannot find pre-populated snap-resource-revision assertion for \"standard-component\": .*`,
@@ -1433,8 +1433,8 @@ func (s *snapassertsSuite) TestCrossCheckResourceErrors(c *C) {
 	}
 }
 
-func copyMapWithOverrides(m map[string]interface{}, overrides map[string]interface{}) map[string]interface{} {
-	c := make(map[string]interface{}, len(m))
+func copyMapWithOverrides(m map[string]any, overrides map[string]any) map[string]any {
+	c := make(map[string]any, len(m))
 	for k, v := range m {
 		c[k] = v
 	}

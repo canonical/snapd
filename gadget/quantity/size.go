@@ -74,7 +74,7 @@ func (s Size) IECString() string {
 	return iecSizeString(int64(s))
 }
 
-func (s *Size) UnmarshalYAML(unmarshal func(interface{}) error) error {
+func (s *Size) UnmarshalYAML(unmarshal func(any) error) error {
 	var gs string
 	if err := unmarshal(&gs); err != nil {
 		return errors.New(`cannot unmarshal gadget size`)

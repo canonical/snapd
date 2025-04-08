@@ -140,7 +140,7 @@ func (s *validationSetTrackingSuite) TestUpdate(c *C) {
 }
 
 func (s *validationSetTrackingSuite) mockModel() {
-	a := assertstest.FakeAssertion(map[string]interface{}{
+	a := assertstest.FakeAssertion(map[string]any{
 		"type":         "model",
 		"authority-id": "my-brand",
 		"series":       "16",
@@ -217,12 +217,12 @@ func (s *validationSetTrackingSuite) TestGet(c *C) {
 }
 
 func (s *validationSetTrackingSuite) mockAssert(c *C, name, sequence, presence string) asserts.Assertion {
-	snaps := []interface{}{map[string]interface{}{
+	snaps := []any{map[string]any{
 		"id":       "yOqKhntON3vR7kwEbVPsILm7bUViPDzz",
 		"name":     "snap-b",
 		"presence": presence,
 	}}
-	headers := map[string]interface{}{
+	headers := map[string]any{
 		"authority-id": s.dev1acct.AccountID(),
 		"account-id":   s.dev1acct.AccountID(),
 		"name":         name,
@@ -584,7 +584,7 @@ func (s *validationSetTrackingSuite) TestTrackedEnforcedValidationSets(c *C) {
 	s.st.Lock()
 	defer s.st.Unlock()
 
-	a := assertstest.FakeAssertion(map[string]interface{}{
+	a := assertstest.FakeAssertion(map[string]any{
 		"type":         "model",
 		"authority-id": "my-brand",
 		"series":       "16",
@@ -594,14 +594,14 @@ func (s *validationSetTrackingSuite) TestTrackedEnforcedValidationSets(c *C) {
 		"store":        "my-brand-store",
 		"gadget":       "gadget",
 		"kernel":       "krnl",
-		"validation-sets": []interface{}{
-			map[string]interface{}{
+		"validation-sets": []any{
+			map[string]any{
 				"account-id": s.dev1acct.AccountID(),
 				"name":       "foo",
 				"mode":       "enforce",
 				"sequence":   "9",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"account-id": s.dev1acct.AccountID(),
 				"name":       "bar",
 				"mode":       "prefer-enforce",

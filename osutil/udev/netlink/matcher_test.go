@@ -5,7 +5,7 @@ import "testing"
 type Testcases []Testcase
 
 type Testcase struct {
-	Object interface{}
+	Object any
 	Valid  bool
 }
 

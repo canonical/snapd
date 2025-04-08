@@ -146,7 +146,7 @@ func (s *Launcher) IntrospectionData() string {
 func makeAccessDeniedError(err error) *dbus.Error {
 	return &dbus.Error{
 		Name: "org.freedesktop.DBus.Error.AccessDenied",
-		Body: []interface{}{err.Error()},
+		Body: []any{err.Error()},
 	}
 }
 

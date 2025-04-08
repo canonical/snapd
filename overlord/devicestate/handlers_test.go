@@ -61,12 +61,12 @@ func (s *deviceMgrSuite) TestSetModelHandlerNewRevision(c *C) {
 		Brand: "canonical",
 		Model: "pc-model",
 	})
-	s.makeModelAssertionInState(c, "canonical", "pc-model", map[string]interface{}{
+	s.makeModelAssertionInState(c, "canonical", "pc-model", map[string]any{
 		"architecture":   "amd64",
 		"kernel":         "pc-kernel",
 		"gadget":         "pc",
 		"revision":       "1",
-		"required-snaps": []interface{}{"foo", "bar"},
+		"required-snaps": []any{"foo", "bar"},
 	})
 	// foo and bar
 	fooSI := &snap.SideInfo{
@@ -104,12 +104,12 @@ func (s *deviceMgrSuite) TestSetModelHandlerNewRevision(c *C) {
 	})
 	s.state.Unlock()
 
-	newModel := s.brands.Model("canonical", "pc-model", map[string]interface{}{
+	newModel := s.brands.Model("canonical", "pc-model", map[string]any{
 		"architecture":   "amd64",
 		"kernel":         "other-kernel",
 		"gadget":         "pc",
 		"revision":       "2",
-		"required-snaps": []interface{}{"foo"},
+		"required-snaps": []any{"foo"},
 	})
 
 	s.state.Lock()
@@ -154,18 +154,18 @@ func (s *deviceMgrSuite) TestSetModelHandlerValidationSets(c *C) {
 		Brand: accountID,
 		Model: "pc-model",
 	})
-	s.makeModelAssertionInState(c, accountID, "pc-model", map[string]interface{}{
+	s.makeModelAssertionInState(c, accountID, "pc-model", map[string]any{
 		"architecture": "amd64",
 		"base":         "core20",
 		"grade":        "dangerous",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":            "pc-kernel",
 				"id":              snaptest.AssertedSnapID("pc-kernel"),
 				"type":            "kernel",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "pc",
 				"id":              snaptest.AssertedSnapID("pc"),
 				"type":            "gadget",
@@ -189,15 +189,15 @@ func (s *deviceMgrSuite) TestSetModelHandlerValidationSets(c *C) {
 
 	signer := s.brands.Signing(accountID)
 
-	vsetOne, err := signer.Sign(asserts.ValidationSetType, map[string]interface{}{
+	vsetOne, err := signer.Sign(asserts.ValidationSetType, map[string]any{
 		"type":         "validation-set",
 		"authority-id": accountID,
 		"series":       "16",
 		"account-id":   accountID,
 		"name":         "vset-1",
 		"sequence":     "1",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":     "snap-1",
 				"id":       snaptest.AssertedSnapID("snap-1"),
 				"presence": "optional",
@@ -209,15 +209,15 @@ func (s *deviceMgrSuite) TestSetModelHandlerValidationSets(c *C) {
 
 	assertstate.Add(s.state, vsetOne)
 
-	vsetTwo, err := signer.Sign(asserts.ValidationSetType, map[string]interface{}{
+	vsetTwo, err := signer.Sign(asserts.ValidationSetType, map[string]any{
 		"type":         "validation-set",
 		"authority-id": accountID,
 		"series":       "16",
 		"account-id":   accountID,
 		"name":         "vset-2",
 		"sequence":     "2",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":     "snap-2",
 				"id":       snaptest.AssertedSnapID("snap-2"),
 				"presence": "optional",
@@ -229,32 +229,32 @@ func (s *deviceMgrSuite) TestSetModelHandlerValidationSets(c *C) {
 
 	assertstate.Add(s.state, vsetTwo)
 
-	newModel := s.brands.Model(accountID, "pc-model", map[string]interface{}{
+	newModel := s.brands.Model(accountID, "pc-model", map[string]any{
 		"architecture": "amd64",
 		"base":         "core20",
 		"grade":        "dangerous",
 		"revision":     "2",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":            "pc-kernel",
 				"id":              snaptest.AssertedSnapID("pc-kernel"),
 				"type":            "kernel",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "pc",
 				"id":              snaptest.AssertedSnapID("pc"),
 				"type":            "gadget",
 				"default-channel": "20",
 			},
 		},
-		"validation-sets": []interface{}{
-			map[string]interface{}{
+		"validation-sets": []any{
+			map[string]any{
 				"account-id": accountID,
 				"name":       "vset-1",
 				"mode":       "enforce",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"account-id": accountID,
 				"name":       "vset-2",
 				"sequence":   "2",
@@ -315,7 +315,7 @@ func (s *deviceMgrSuite) TestSetModelHandlerValidationSets(c *C) {
 }
 
 func (s *deviceMgrSuite) TestSetModelHandlerSameRevisionNoError(c *C) {
-	model := s.brands.Model("canonical", "pc-model", map[string]interface{}{
+	model := s.brands.Model("canonical", "pc-model", map[string]any{
 		"architecture": "amd64",
 		"kernel":       "pc-kernel",
 		"gadget":       "pc",
@@ -352,7 +352,7 @@ func (s *deviceMgrSuite) TestSetModelHandlerStoreSwitch(c *C) {
 		Brand: "canonical",
 		Model: "pc-model",
 	})
-	s.makeModelAssertionInState(c, "canonical", "pc-model", map[string]interface{}{
+	s.makeModelAssertionInState(c, "canonical", "pc-model", map[string]any{
 		"architecture": "amd64",
 		"kernel":       "pc-kernel",
 		"gadget":       "pc",
@@ -360,7 +360,7 @@ func (s *deviceMgrSuite) TestSetModelHandlerStoreSwitch(c *C) {
 	})
 	s.state.Unlock()
 
-	newModel := s.brands.Model("canonical", "pc-model", map[string]interface{}{
+	newModel := s.brands.Model("canonical", "pc-model", map[string]any{
 		"architecture": "amd64",
 		"kernel":       "pc-kernel",
 		"gadget":       "pc",
@@ -431,7 +431,7 @@ func (s *deviceMgrSuite) TestSetModelHandlerRereg(c *C) {
 		Model:  "pc-model",
 		Serial: "orig-serial",
 	})
-	s.makeModelAssertionInState(c, "canonical", "pc-model", map[string]interface{}{
+	s.makeModelAssertionInState(c, "canonical", "pc-model", map[string]any{
 		"architecture": "amd64",
 		"kernel":       "pc-kernel",
 		"gadget":       "pc",
@@ -439,7 +439,7 @@ func (s *deviceMgrSuite) TestSetModelHandlerRereg(c *C) {
 	s.makeSerialAssertionInState(c, "canonical", "pc-model", "orig-serial")
 	s.state.Unlock()
 
-	newModel := s.brands.Model("canonical", "rereg-model", map[string]interface{}{
+	newModel := s.brands.Model("canonical", "rereg-model", map[string]any{
 		"architecture": "amd64",
 		"kernel":       "pc-kernel",
 		"gadget":       "pc",
@@ -524,7 +524,7 @@ func (s *deviceMgrSuite) TestDoPrepareRemodeling(c *C) {
 	defer restore()
 
 	// set a model assertion
-	s.makeModelAssertionInState(c, "canonical", "pc-model", map[string]interface{}{
+	s.makeModelAssertionInState(c, "canonical", "pc-model", map[string]any{
 		"architecture": "amd64",
 		"kernel":       "pc-kernel",
 		"gadget":       "pc",
@@ -538,12 +538,12 @@ func (s *deviceMgrSuite) TestDoPrepareRemodeling(c *C) {
 		SessionMacaroon: "old-session",
 	})
 
-	new := s.brands.Model("canonical", "rereg-model", map[string]interface{}{
+	new := s.brands.Model("canonical", "rereg-model", map[string]any{
 		"architecture":   "amd64",
 		"kernel":         "pc-kernel",
 		"gadget":         "pc",
 		"base":           "core18",
-		"required-snaps": []interface{}{"new-required-snap-1", "new-required-snap-2"},
+		"required-snaps": []any{"new-required-snap-1", "new-required-snap-2"},
 	})
 
 	freshStore := &freshSessionStore{}
@@ -725,7 +725,7 @@ func (s *preseedingClassicSuite) TestDoMarkPreseeded(c *C) {
 	c.Assert(st.Get("preseeded", &preseeded), IsNil)
 	c.Check(preseeded, Equals, true)
 
-	var systemKey map[string]interface{}
+	var systemKey map[string]any
 	c.Assert(st.Get("seed-restart-system-key", &systemKey), testutil.ErrorIs, state.ErrNoState)
 	c.Assert(st.Get("preseed-system-key", &systemKey), IsNil)
 	c.Check(systemKey["build-id"], Equals, "abcde")
@@ -807,7 +807,7 @@ func (s *preseedingClassicDoneSuite) TestDoMarkPreseededAfterFirstboot(c *C) {
 	c.Check(s.cmdUmount.Calls(), HasLen, 0)
 	c.Check(s.restartRequests, HasLen, 0)
 
-	var systemKey map[string]interface{}
+	var systemKey map[string]any
 	// in real world preseed-system-key would be present at this point because
 	// mark-preseeded would be run twice (before & after preseeding); this is
 	// not the case in this test.
@@ -864,30 +864,30 @@ volumes:
 	s.MakeAssertedSnap(c, seedtest.SampleSnapYaml["core20"], nil, snap.R(1), "canonical", s.StoreSigning.Database)
 	s.MakeAssertedSnap(c, seedtest.SampleSnapYaml["pc=20"], [][]string{{"meta/gadget.yaml", gadgetYaml}}, snap.R(1), "canonical", s.StoreSigning.Database)
 
-	model := map[string]interface{}{
+	model := map[string]any{
 		"display-name": "my model",
 		"architecture": "amd64",
 		"base":         "core20",
 		"grade":        "dangerous",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":            "pc-kernel",
 				"id":              s.AssertedSnapID("pc-kernel"),
 				"type":            "kernel",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "pc",
 				"id":              s.AssertedSnapID("pc"),
 				"type":            "gadget",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name": "snapd",
 				"id":   s.AssertedSnapID("snapd"),
 				"type": "snapd",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name": "core20",
 				"id":   s.AssertedSnapID("core20"),
 				"type": "base",
@@ -912,7 +912,7 @@ func (s *preseedingUC20Suite) TestEarlyPreloadGadgetPicksSystemOnCore20(c *C) {
 	defer restore()
 
 	s.SetupAssertSigning("canonical")
-	s.Brands.Register("my-brand", brandPrivKey, map[string]interface{}{
+	s.Brands.Register("my-brand", brandPrivKey, map[string]any{
 		"verification": "verified",
 	})
 	_ = s.setupCore20Seed(c, "20220108")
