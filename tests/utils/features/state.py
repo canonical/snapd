@@ -24,8 +24,8 @@ RECOVERY_SYSTEM_SETUP = 'recovery-system-setup'
 SNAPSHOT_SETUP = 'snapshot-setup'
 
 
-# These tasks are not associated with a particular snap
-TASKS_WITHOUT_SNAP = {
+TASKS_IGNORE_SNAP_TYPE = {
+    # These tasks are not associated with a particular snap
     'clear-confdb-tx-on-error',
     'commit-confdb-tx',
     'clear-confdb-tx',
@@ -38,6 +38,11 @@ TASKS_WITHOUT_SNAP = {
     'exec-command',
     'request-serial',
     'enforce-validation-sets',
+
+    # These two are only associated with app/gadget types
+    # of snaps and so their snap types can be ignored
+    'service-control',
+    'quota-control'
 }
 
 
@@ -89,7 +94,7 @@ class State:
 
         return "NOT_FOUND: {}".format(snap_name)
 
-    def get_snap_types_from_task_id(self, id: str) -> set[str]:
+    def get_snap_types_from_task_id(self, id: str) -> list[str]:
         '''
         Retrieves the type of snap associated with the task with the given id.
         If the task kind is present in the exception list or if the task does
@@ -99,49 +104,41 @@ class State:
         '''
 
         task = self.get_task(id)
-        if task['kind'] in TASKS_WITHOUT_SNAP:
-            return {}
-        if 'data' not in task:
-            return {}
-        data = task['data']
+        if task['kind'] in TASKS_IGNORE_SNAP_TYPE:
+            return []
+        if DATA not in task:
+            return []
+        data = task[DATA]
 
         if _keys_in_dict(data, SNAP_TYPE):
-            return {data[SNAP_TYPE]}
+            return [data[SNAP_TYPE]]
 
         elif _keys_in_dict(data, SNAP_SETUP, TYPE):
-            return {data[SNAP_SETUP][TYPE]}
+            return [data[SNAP_SETUP][TYPE]]
 
         elif _keys_in_dict(data, SNAP_SETUP, SIDE_INFO, NAME):
-            return {self.get_snap_type(data[SNAP_SETUP][SIDE_INFO][NAME])}
+            return [self.get_snap_type(data[SNAP_SETUP][SIDE_INFO][NAME])]
 
         elif _keys_in_dict(data, SNAP_SETUP_TASK):
             return self.get_snap_types_from_task_id(data[SNAP_SETUP_TASK])
 
         elif _keys_in_dict(data, HOOK_SETUP, SNAP):
-            return {self.get_snap_type(data[HOOK_SETUP][SNAP])}
+            return [self.get_snap_type(data[HOOK_SETUP][SNAP])]
 
         elif _keys_in_dict(data, PLUG, SNAP) and _keys_in_dict(data, SLOT, SNAP):
-            return {self.get_snap_type(data[PLUG][SNAP]), self.get_snap_type(data[SLOT][SNAP])}
+            return [self.get_snap_type(data[PLUG][SNAP]), self.get_snap_type(data[SLOT][SNAP])]
 
         elif _keys_in_dict(data, SNAPS):  # ex: conditional-auto-refresh
-            return {snap_data[TYPE] for snap_data in data[SNAPS].values()}
-
-        elif _keys_in_dict(data, SERVICE_ACTION, SNAP_NAME):
-            return {self.get_snap_type(data[SERVICE_ACTION][SNAP_NAME])}
-
-        elif _keys_in_dict(data, QUOTA_CONTROL_ACTIONS):
-            if any(action for action in data[QUOTA_CONTROL_ACTIONS] if SNAPS in action):
-                return {self.get_snap_type(snap) for action in data[QUOTA_CONTROL_ACTIONS] if SNAPS in action for snap in action[SNAPS]}
-            return {}
+            return list({snap_data[TYPE] for snap_data in data[SNAPS].values()})
 
         elif _keys_in_dict(data, SNAPSHOT_SETUP, SNAP):
-            return {self.get_snap_type(data[SNAPSHOT_SETUP][SNAP])}
+            return [self.get_snap_type(data[SNAPSHOT_SETUP][SNAP])]
 
         elif _keys_in_dict(data, RECOVERY_SYSTEM_SETUP_TASK):
             return self.get_snap_types_from_task_id(data[RECOVERY_SYSTEM_SETUP_TASK])
 
         elif _keys_in_dict(data, RECOVERY_SYSTEM_SETUP, SNAP_SETUP_TASKS):
-            return {snap_type for setup_task in data[RECOVERY_SYSTEM_SETUP][SNAP_SETUP_TASKS] for snap_type in self.get_snap_types_from_task_id(setup_task)}
+            return list({snap_type for setup_task in data[RECOVERY_SYSTEM_SETUP][SNAP_SETUP_TASKS] for snap_type in self.get_snap_types_from_task_id(setup_task)})
 
         raise KeyError('cannot find snap type for task id {} in task {}'.format(id, task))
 
