@@ -127,7 +127,7 @@ func (s *SnapSuite) TestPortalInfo(c *C) {
 					},
 				},
 			}
-			EncodeResponseBody(c, w, map[string]interface{}{
+			EncodeResponseBody(c, w, map[string]any{
 				"type":   "sync",
 				"result": result,
 			})
@@ -173,7 +173,7 @@ func (s *SnapSuite) TestPortalInfoCommonID(c *C) {
 				"interface": []string{"network-status"},
 			})
 			result := client.Connections{}
-			EncodeResponseBody(c, w, map[string]interface{}{
+			EncodeResponseBody(c, w, map[string]any{
 				"type":   "sync",
 				"result": result,
 			})
@@ -220,7 +220,7 @@ func (s *SnapSuite) TestPortalInfoNoAppInfo(c *C) {
 				"interface": []string{"network-status"},
 			})
 			result := client.Connections{}
-			EncodeResponseBody(c, w, map[string]interface{}{
+			EncodeResponseBody(c, w, map[string]any{
 				"type":   "sync",
 				"result": result,
 			})

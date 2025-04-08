@@ -61,7 +61,7 @@ func (c *baseCommand) setStdout(w io.Writer) {
 	c.stdout = w
 }
 
-func (c *baseCommand) printf(format string, a ...interface{}) {
+func (c *baseCommand) printf(format string, a ...any) {
 	c.print(fmt.Sprintf(format, a...))
 }
 

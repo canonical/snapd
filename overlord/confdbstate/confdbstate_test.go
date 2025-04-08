@@ -107,19 +107,19 @@ func (s *confdbTestSuite) SetUpTest(c *C) {
 	c.Check(signingDB, NotNil)
 	c.Assert(storeSigning.Add(devAccKey), IsNil)
 
-	headers := map[string]interface{}{
+	headers := map[string]any{
 		"authority-id": devAccKey.AccountID(),
 		"account-id":   devAccKey.AccountID(),
 		"name":         "network",
-		"views": map[string]interface{}{
-			"setup-wifi": map[string]interface{}{
-				"rules": []interface{}{
-					map[string]interface{}{"request": "eph", "storage": "wifi.eph"},
-					map[string]interface{}{"request": "ssids", "storage": "wifi.ssids"},
-					map[string]interface{}{"request": "ssid", "storage": "wifi.ssid", "access": "read-write"},
-					map[string]interface{}{"request": "password", "storage": "wifi.psk", "access": "write"},
-					map[string]interface{}{"request": "status", "storage": "wifi.status", "access": "read"},
-					map[string]interface{}{"request": "private.{placeholder}", "storage": "private.{placeholder}"},
+		"views": map[string]any{
+			"setup-wifi": map[string]any{
+				"rules": []any{
+					map[string]any{"request": "eph", "storage": "wifi.eph"},
+					map[string]any{"request": "ssids", "storage": "wifi.ssids"},
+					map[string]any{"request": "ssid", "storage": "wifi.ssid", "access": "read-write"},
+					map[string]any{"request": "password", "storage": "wifi.psk", "access": "write"},
+					map[string]any{"request": "status", "storage": "wifi.status", "access": "read"},
+					map[string]any{"request": "private.{placeholder}", "storage": "private.{placeholder}"},
 				},
 			},
 		},
@@ -178,7 +178,7 @@ func (s *confdbTestSuite) TestGetView(c *C) {
 
 	res, err := confdbstate.GetViaView(bag, view, []string{"ssid"})
 	c.Assert(err, IsNil)
-	c.Assert(res, DeepEquals, map[string]interface{}{"ssid": "foo"})
+	c.Assert(res, DeepEquals, map[string]any{"ssid": "foo"})
 }
 
 func (s *confdbTestSuite) TestGetNotFound(c *C) {
@@ -219,7 +219,7 @@ func (s *confdbTestSuite) TestSetView(c *C) {
 	view, err := confdbstate.GetView(s.state, s.devAccID, "network", "setup-wifi")
 	c.Assert(err, IsNil)
 
-	err = confdbstate.SetViaView(bag, view, map[string]interface{}{"ssid": "foo"})
+	err = confdbstate.SetViaView(bag, view, map[string]any{"ssid": "foo"})
 	c.Assert(err, IsNil)
 
 	val, err := bag.Get("wifi.ssid")
@@ -235,7 +235,7 @@ func (s *confdbTestSuite) TestSetNotFound(c *C) {
 	view, err := confdbstate.GetView(s.state, s.devAccID, "network", "setup-wifi")
 	c.Assert(err, IsNil)
 
-	err = confdbstate.SetViaView(bag, view, map[string]interface{}{"foo": "bar"})
+	err = confdbstate.SetViaView(bag, view, map[string]any{"foo": "bar"})
 	c.Assert(err, FitsTypeOf, &confdb.NotFoundError{})
 	c.Assert(err, ErrorMatches, fmt.Sprintf(`cannot set "foo" through %s/network/setup-wifi: no matching rule`, s.devAccID))
 
@@ -256,7 +256,7 @@ func (s *confdbTestSuite) TestUnsetView(c *C) {
 	view, err := confdbstate.GetView(s.state, s.devAccID, "network", "setup-wifi")
 	c.Assert(err, IsNil)
 
-	err = confdbstate.SetViaView(bag, view, map[string]interface{}{"ssid": nil})
+	err = confdbstate.SetViaView(bag, view, map[string]any{"ssid": nil})
 	c.Assert(err, IsNil)
 
 	val, err := bag.Get("wifi.ssid")
@@ -269,9 +269,9 @@ func (s *confdbTestSuite) TestConfdbstateGetEntireView(c *C) {
 	defer s.state.Unlock()
 
 	bag := confdb.NewJSONDatabag()
-	c.Assert(bag.Set("wifi.ssids", []interface{}{"foo", "bar"}), IsNil)
+	c.Assert(bag.Set("wifi.ssids", []any{"foo", "bar"}), IsNil)
 	c.Assert(bag.Set("wifi.psk", "pass"), IsNil)
-	c.Assert(bag.Set("private", map[string]interface{}{
+	c.Assert(bag.Set("private", map[string]any{
 		"a": 1,
 		"b": 2,
 	}), IsNil)
@@ -281,9 +281,9 @@ func (s *confdbTestSuite) TestConfdbstateGetEntireView(c *C) {
 
 	res, err := confdbstate.GetViaView(bag, view, nil)
 	c.Assert(err, IsNil)
-	c.Assert(res, DeepEquals, map[string]interface{}{
-		"ssids": []interface{}{"foo", "bar"},
-		"private": map[string]interface{}{
+	c.Assert(res, DeepEquals, map[string]any{
+		"ssids": []any{"foo", "bar"},
+		"private": map[string]any{
 			"a": float64(1),
 			"b": float64(2),
 		},
@@ -329,29 +329,29 @@ func mockInstalledSnap(c *C, st *state.State, snapYaml string, hooks []string) *
 }
 
 func (s *confdbTestSuite) TestPlugsAffectedByPaths(c *C) {
-	confdb, err := confdb.NewSchema(s.devAccID, "confdb", map[string]interface{}{
+	confdb, err := confdb.NewSchema(s.devAccID, "confdb", map[string]any{
 		// exact match
-		"view-1": map[string]interface{}{
-			"rules": []interface{}{
-				map[string]interface{}{"request": "foo.bar", "storage": "foo.bar"},
+		"view-1": map[string]any{
+			"rules": []any{
+				map[string]any{"request": "foo.bar", "storage": "foo.bar"},
 			},
 		},
 		// unrelated
-		"view-2": map[string]interface{}{
-			"rules": []interface{}{
-				map[string]interface{}{"request": "bar", "storage": "bar"},
+		"view-2": map[string]any{
+			"rules": []any{
+				map[string]any{"request": "bar", "storage": "bar"},
 			},
 		},
 		// more specific
-		"view-3": map[string]interface{}{
-			"rules": []interface{}{
-				map[string]interface{}{"request": "foo.bar.baz", "storage": "foo.bar.baz"},
+		"view-3": map[string]any{
+			"rules": []any{
+				map[string]any{"request": "foo.bar.baz", "storage": "foo.bar.baz"},
 			},
 		},
 		// more generic but we won't connect a plug for this view
-		"view-4": map[string]interface{}{
-			"rules": []interface{}{
-				map[string]interface{}{"request": "foo", "storage": "foo"},
+		"view-4": map[string]any{
+			"rules": []any{
+				map[string]any{"request": "foo", "storage": "foo"},
 			},
 		},
 	}, confdb.NewJSONSchema())
@@ -1139,10 +1139,10 @@ func (s *confdbTestSuite) TestGetDifferentTransactionThanOngoing(c *C) {
 	refTask.Set("tx-task", commitTask.ID())
 
 	// make some other confdb to access concurrently
-	confdb, err := confdb.NewSchema("foo", "bar", map[string]interface{}{
-		"foo": map[string]interface{}{
-			"rules": []interface{}{
-				map[string]interface{}{"request": "foo", "storage": "foo"},
+	confdb, err := confdb.NewSchema("foo", "bar", map[string]any{
+		"foo": map[string]any{
+			"rules": []any{
+				map[string]any{"request": "foo", "storage": "foo"},
 			}}}, confdb.NewJSONSchema())
 	c.Assert(err, IsNil)
 	s.state.Unlock()
@@ -1639,13 +1639,13 @@ func (s *confdbTestSuite) TestGetTransactionForAPI(c *C) {
 	c.Assert(loadTask.Get("requests", &requests), IsNil)
 	c.Assert(requests, DeepEquals, []string{"ssid", "ssids"})
 
-	var apiData map[string]interface{}
+	var apiData map[string]any
 	err = chg.Get("api-data", &apiData)
 	c.Assert(err, IsNil)
 	val := apiData["confdb-data"]
-	c.Assert(val, DeepEquals, map[string]interface{}{
+	c.Assert(val, DeepEquals, map[string]any{
 		"ssid":  "foo",
-		"ssids": []interface{}{"abc", "xyz"},
+		"ssids": []any{"abc", "xyz"},
 	})
 }
 
@@ -1680,13 +1680,13 @@ func (s *confdbTestSuite) TestGetTransactionForAPINoHooks(c *C) {
 	err = s.state.Get("confdb-tx-commits", &ongoingTxs)
 	c.Assert(err, testutil.ErrorIs, &state.NoStateError{})
 
-	var apiData map[string]interface{}
+	var apiData map[string]any
 	err = chg.Get("api-data", &apiData)
 	c.Assert(err, IsNil)
 	val := apiData["confdb-data"]
-	c.Assert(val, DeepEquals, map[string]interface{}{
+	c.Assert(val, DeepEquals, map[string]any{
 		"ssid":  "foo",
-		"ssids": []interface{}{"abc", "xyz"},
+		"ssids": []any{"abc", "xyz"},
 	})
 }
 
@@ -1712,7 +1712,7 @@ func (s *confdbTestSuite) TestGetTransactionForAPINoHooksError(c *C) {
 	err = s.state.Get("confdb-tx-commits", &ongoingTxs)
 	c.Assert(err, testutil.ErrorIs, &state.NoStateError{})
 
-	var apiData map[string]interface{}
+	var apiData map[string]any
 	err = chg.Get("api-data", &apiData)
 	c.Assert(err, IsNil)
 	errStr := apiData["confdb-error"].(string)
@@ -1741,7 +1741,7 @@ func (s *confdbTestSuite) TestGetTransactionForAPIError(c *C) {
 	chg := s.state.Change(chgID)
 	s.checkGetConfdbTasks(c, chg, nil)
 
-	var apiData map[string]interface{}
+	var apiData map[string]any
 	err = chg.Get("api-data", &apiData)
 	c.Assert(err, IsNil, Commentf("%+v", chg))
 	errStr := apiData["confdb-error"].(string)

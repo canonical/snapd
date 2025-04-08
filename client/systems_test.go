@@ -144,10 +144,10 @@ func (cs *clientSuite) TestRequestSystemActionHappy(c *check.C) {
 
 	body, err := io.ReadAll(cs.req.Body)
 	c.Assert(err, check.IsNil)
-	var req map[string]interface{}
+	var req map[string]any
 	err = json.Unmarshal(body, &req)
 	c.Assert(err, check.IsNil)
-	c.Assert(req, check.DeepEquals, map[string]interface{}{
+	c.Assert(req, check.DeepEquals, map[string]any{
 		"action": "do",
 		"title":  "reinstall",
 		"mode":   "install",
@@ -186,10 +186,10 @@ func (cs *clientSuite) TestRequestSystemRebootHappy(c *check.C) {
 
 	body, err := io.ReadAll(cs.req.Body)
 	c.Assert(err, check.IsNil)
-	var req map[string]interface{}
+	var req map[string]any
 	err = json.Unmarshal(body, &req)
 	c.Assert(err, check.IsNil)
-	c.Assert(req, check.DeepEquals, map[string]interface{}{
+	c.Assert(req, check.DeepEquals, map[string]any{
 		"action": "reboot",
 		"mode":   "install",
 	})
@@ -286,7 +286,7 @@ func (cs *clientSuite) TestSystemDetailsHappy(c *check.C) {
 	c.Check(sys, check.DeepEquals, &client.SystemDetails{
 		Current: true,
 		Label:   "20200101",
-		Model: map[string]interface{}{
+		Model: map[string]any{
 			"model":        "this-is-model-id",
 			"brand-id":     "brand-id-1",
 			"display-name": "wonky model",
@@ -388,19 +388,19 @@ func (cs *clientSuite) TestRequestSystemInstallHappy(c *check.C) {
 
 	body, err := io.ReadAll(cs.req.Body)
 	c.Assert(err, check.IsNil)
-	var req map[string]interface{}
+	var req map[string]any
 	err = json.Unmarshal(body, &req)
 	c.Assert(err, check.IsNil)
-	c.Assert(req, check.DeepEquals, map[string]interface{}{
+	c.Assert(req, check.DeepEquals, map[string]any{
 		"action": "install",
 		"step":   "finish",
-		"on-volumes": map[string]interface{}{
-			"pc": map[string]interface{}{
+		"on-volumes": map[string]any{
+			"pc": map[string]any{
 				"schema":     "dos",
 				"bootloader": "mbr",
 				"id":         "id",
-				"structure": []interface{}{
-					map[string]interface{}{
+				"structure": []any{
+					map[string]any{
 						"device":           "/dev/sda1",
 						"filesystem-label": "label",
 						"name":             "vol-name",
@@ -413,7 +413,7 @@ func (cs *clientSuite) TestRequestSystemInstallHappy(c *check.C) {
 						"offset":           nil,
 						"offset-write":     nil,
 						"content":          nil,
-						"update": map[string]interface{}{
+						"update": map[string]any{
 							"edition":  float64(0),
 							"preserve": nil,
 						},
@@ -421,7 +421,7 @@ func (cs *clientSuite) TestRequestSystemInstallHappy(c *check.C) {
 				},
 			},
 		},
-		"volumes-auth": map[string]interface{}{
+		"volumes-auth": map[string]any{
 			"mode":       "passphrase",
 			"passphrase": "1234",
 			"kdf-type":   "argon2i",
@@ -448,10 +448,10 @@ func (cs *clientSuite) TestRequestGeneratePreInstallRecoveryKey(c *check.C) {
 
 	body, err := io.ReadAll(cs.req.Body)
 	c.Assert(err, check.IsNil)
-	var req map[string]interface{}
+	var req map[string]any
 	err = json.Unmarshal(body, &req)
 	c.Assert(err, check.IsNil)
-	c.Assert(req, check.DeepEquals, map[string]interface{}{
+	c.Assert(req, check.DeepEquals, map[string]any{
 		"action": "install",
 		"step":   "generate-recovery-key",
 	})

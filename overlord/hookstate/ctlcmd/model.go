@@ -105,7 +105,7 @@ func (c *modelCommand) newTabWriter(output io.Writer) *tabwriter.Writer {
 }
 
 // reportError prints the error message to stderr
-func (c *modelCommand) reportError(format string, a ...interface{}) {
+func (c *modelCommand) reportError(format string, a ...any) {
 	w := c.newTabWriter(c.stderr)
 	fmt.Fprintf(w, format, a...)
 	w.Flush()

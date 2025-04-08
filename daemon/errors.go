@@ -74,7 +74,7 @@ func (ae *apiError) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 // check it implements StructuredResponse
 var _ StructuredResponse = (*apiError)(nil)
 
-type errorValue interface{}
+type errorValue any
 
 type errorResult struct {
 	Message string `json:"message"` // note no omitempty
@@ -85,11 +85,11 @@ type errorResult struct {
 
 // errorResponder is a callable that produces an error Response.
 // e.g., InternalError("something broke: %v", err), etc.
-type errorResponder func(string, ...interface{}) *apiError
+type errorResponder func(string, ...any) *apiError
 
 // makeErrorResponder builds an errorResponder from the given error status.
 func makeErrorResponder(status int) errorResponder {
-	return func(format string, v ...interface{}) *apiError {
+	return func(format string, v ...any) *apiError {
 		var msg string
 		if len(v) == 0 {
 			msg = format
@@ -167,24 +167,24 @@ func MissingSnapResourcePair(csi *snap.ComponentSideInfo, snapRev snap.Revision)
 // in the given context (e.g. request an install from a stable
 // channel when this channel is empty).
 func SnapRevisionNotAvailable(snapName string, rnaErr *store.RevisionNotAvailableError) *apiError {
-	var value interface{} = snapName
+	var value any = snapName
 	kind := client.ErrorKindSnapRevisionNotAvailable
 	msg := rnaErr.Error()
 	if len(rnaErr.Releases) != 0 && rnaErr.Channel != "" {
 		thisArch := arch.DpkgArchitecture()
-		values := map[string]interface{}{
+		values := map[string]any{
 			"snap-name":    snapName,
 			"action":       rnaErr.Action,
 			"channel":      rnaErr.Channel,
 			"architecture": thisArch,
 		}
 		archOK := false
-		releases := make([]map[string]interface{}, 0, len(rnaErr.Releases))
+		releases := make([]map[string]any, 0, len(rnaErr.Releases))
 		for _, c := range rnaErr.Releases {
 			if c.Architecture == thisArch {
 				archOK = true
 			}
-			releases = append(releases, map[string]interface{}{
+			releases = append(releases, map[string]any{
 				"architecture": c.Architecture,
 				"channel":      c.Name,
 			})
@@ -214,7 +214,7 @@ func SnapRevisionNotAvailable(snapName string, rnaErr *store.RevisionNotAvailabl
 // SnapChangeConflict is an error responder used when an operation would
 // conflict with another ongoing change.
 func SnapChangeConflict(cce *snapstate.ChangeConflictError) *apiError {
-	value := map[string]interface{}{}
+	value := map[string]any{}
 	if cce.Snap != "" {
 		value["snap-name"] = cce.Snap
 	}
@@ -233,7 +233,7 @@ func SnapChangeConflict(cce *snapstate.ChangeConflictError) *apiError {
 // QuotaChangeConflict is an error responder used when an operation would
 // conflict with another ongoing change.
 func QuotaChangeConflict(qce *servicestate.QuotaChangeConflictError) *apiError {
-	value := map[string]interface{}{}
+	value := map[string]any{}
 	if qce.Quota != "" {
 		value["quota-name"] = qce.Quota
 	}
@@ -252,7 +252,7 @@ func QuotaChangeConflict(qce *servicestate.QuotaChangeConflictError) *apiError {
 // InsufficientSpace is an error responder used when an operation cannot
 // be performed due to low disk space.
 func InsufficientSpace(dserr *snapstate.InsufficientSpaceError) *apiError {
-	value := map[string]interface{}{}
+	value := map[string]any{}
 	if len(dserr.Snaps) > 0 {
 		value["snap-names"] = dserr.Snaps
 	}
@@ -269,7 +269,7 @@ func InsufficientSpace(dserr *snapstate.InsufficientSpaceError) *apiError {
 
 // AppNotFound is an error responder used when an operation is
 // requested on a app that doesn't exist.
-func AppNotFound(format string, v ...interface{}) *apiError {
+func AppNotFound(format string, v ...any) *apiError {
 	return &apiError{
 		Status:  404,
 		Message: fmt.Sprintf(format, v...),
@@ -279,7 +279,7 @@ func AppNotFound(format string, v ...interface{}) *apiError {
 
 // AuthCancelled is an error responder used when a user cancelled
 // the auth process.
-func AuthCancelled(format string, v ...interface{}) *apiError {
+func AuthCancelled(format string, v ...any) *apiError {
 	return &apiError{
 		Status:  403,
 		Message: fmt.Sprintf(format, v...),
@@ -289,7 +289,7 @@ func AuthCancelled(format string, v ...interface{}) *apiError {
 
 // InterfacesUnchanged is an error responder used when an operation
 // that would normally change interfaces finds it has nothing to do
-func InterfacesUnchanged(format string, v ...interface{}) *apiError {
+func InterfacesUnchanged(format string, v ...any) *apiError {
 	return &apiError{
 		Status:  400,
 		Message: fmt.Sprintf(format, v...),
@@ -297,7 +297,7 @@ func InterfacesUnchanged(format string, v ...interface{}) *apiError {
 	}
 }
 
-func errToResponse(err error, snaps []string, fallback errorResponder, format string, v ...interface{}) *apiError {
+func errToResponse(err error, snaps []string, fallback errorResponder, format string, v ...any) *apiError {
 	var kind client.ErrorKind
 	var snapName string
 

@@ -39,7 +39,7 @@ type policy16 struct {
 	model *asserts.Model
 	opts  *Options
 
-	warningf func(format string, a ...interface{})
+	warningf func(format string, a ...any)
 
 	needsCore   []string
 	needsCore16 []string

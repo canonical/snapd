@@ -58,7 +58,7 @@ func (s *tasksetsSuite) SetUpTest(c *C) {
 }
 
 var configureTests = []struct {
-	patch       map[string]interface{}
+	patch       map[string]any
 	optional    bool
 	ignoreError bool
 	useDefaults bool
@@ -67,11 +67,11 @@ var configureTests = []struct {
 	optional:    true,
 	ignoreError: false,
 }, {
-	patch:       map[string]interface{}{},
+	patch:       map[string]any{},
 	optional:    true,
 	ignoreError: false,
 }, {
-	patch:       map[string]interface{}{"foo": "bar"},
+	patch:       map[string]any{"foo": "bar"},
 	optional:    false,
 	ignoreError: false,
 }, {
@@ -140,7 +140,7 @@ func (s *tasksetsSuite) TestConfigureInstalled(c *C) {
 		c.Check(context.SnapRevision(), Equals, snap.Revision{})
 		c.Check(context.HookName(), Equals, "configure")
 
-		var patch map[string]interface{}
+		var patch map[string]any
 		var useDefaults bool
 		context.Lock()
 		context.Get("use-defaults", &useDefaults)
@@ -174,13 +174,13 @@ func (s *tasksetsSuite) TestConfigureInstalledConflict(c *C) {
 	chg := s.state.NewChange("other-change", "...")
 	chg.AddAll(ts)
 
-	patch := map[string]interface{}{"foo": "bar"}
+	patch := map[string]any{"foo": "bar"}
 	_, err = configstate.ConfigureInstalled(s.state, "test-snap", patch, 0)
 	c.Check(err, ErrorMatches, `snap "test-snap" has "other-change" change in progress`)
 }
 
 func (s *tasksetsSuite) TestConfigureNotInstalled(c *C) {
-	patch := map[string]interface{}{"foo": "bar"}
+	patch := map[string]any{"foo": "bar"}
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -193,7 +193,7 @@ func (s *tasksetsSuite) TestConfigureNotInstalled(c *C) {
 }
 
 func (s *tasksetsSuite) TestConfigureInstalledDenyBases(c *C) {
-	patch := map[string]interface{}{"foo": "bar"}
+	patch := map[string]any{"foo": "bar"}
 	s.state.Lock()
 	defer s.state.Unlock()
 	snapstate.Set(s.state, "test-base", &snapstate.SnapState{
@@ -210,7 +210,7 @@ func (s *tasksetsSuite) TestConfigureInstalledDenyBases(c *C) {
 }
 
 func (s *tasksetsSuite) TestConfigureInstalledDenySnapd(c *C) {
-	patch := map[string]interface{}{"foo": "bar"}
+	patch := map[string]any{"foo": "bar"}
 	s.state.Lock()
 	defer s.state.Unlock()
 	snapstate.Set(s.state, "snapd", &snapstate.SnapState{
@@ -268,7 +268,7 @@ func (s *tasksetsSuite) TestDefaultConfigure(c *C) {
 	c.Check(context.SnapRevision(), Equals, snap.Revision{})
 	c.Check(context.HookName(), Equals, "default-configure")
 
-	var patch map[string]interface{}
+	var patch map[string]any
 	var useDefaults bool
 	context.Lock()
 	context.Get("use-defaults", &useDefaults)
@@ -345,7 +345,7 @@ func (s *configcoreHijackSuite) TestHijack(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	ts := configstate.Configure(s.state, "core", map[string]interface{}{
+	ts := configstate.Configure(s.state, "core", map[string]any{
 		"witness": true,
 	}, 0)
 	c.Assert(len(ts.Tasks()), Equals, 1)
@@ -510,14 +510,14 @@ func (s *earlyConfigSuite) TestEarlyConfigFromGadget(c *C) {
 	ok, err = features.Flag(tr, features.UserDaemons)
 	c.Assert(err, IsNil)
 	c.Check(ok, Equals, true)
-	var serviceCfg map[string]interface{}
+	var serviceCfg map[string]any
 	err = tr.Get("core", "services", &serviceCfg)
 	// nothing of this was set
 	c.Assert(config.IsNoOption(err), Equals, true)
 }
 
 func (s *earlyConfigSuite) TestEarlyConfigFromGadgetErr(c *C) {
-	defer configstate.MockConfigcoreEarly(func(sysconfig.Device, configcore.RunTransaction, map[string]interface{}) error {
+	defer configstate.MockConfigcoreEarly(func(sysconfig.Device, configcore.RunTransaction, map[string]any) error {
 		return fmt.Errorf("boom")
 	})()
 
@@ -533,7 +533,7 @@ func (s *earlyConfigSuite) TestEarlyConfigFromGadgetErr(c *C) {
 }
 
 func (s *earlyConfigSuite) TestEarlyConfigNoHookTask(c *C) {
-	defer configstate.MockConfigcoreEarly(func(dev sysconfig.Device, cfg configcore.RunTransaction, vals map[string]interface{}) error {
+	defer configstate.MockConfigcoreEarly(func(dev sysconfig.Device, cfg configcore.RunTransaction, vals map[string]any) error {
 		c.Assert(cfg.Task(), IsNil)
 		return nil
 	})()

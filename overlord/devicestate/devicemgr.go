@@ -1995,7 +1995,7 @@ func (m *DeviceManager) keyPair() (asserts.PrivateKey, error) {
 }
 
 // SignConfdbControl signs a confdb-control assertion using the device's key as it needs to be attested by the device.
-func (m *DeviceManager) SignConfdbControl(groups []interface{}, revision int) (*asserts.ConfdbControl, error) {
+func (m *DeviceManager) SignConfdbControl(groups []any, revision int) (*asserts.ConfdbControl, error) {
 	serial, err := m.Serial()
 	if err != nil {
 		return nil, fmt.Errorf("cannot sign confdb-control without a serial")
@@ -2006,7 +2006,7 @@ func (m *DeviceManager) SignConfdbControl(groups []interface{}, revision int) (*
 		return nil, fmt.Errorf("cannot sign confdb-control without device key")
 	}
 
-	a, err := asserts.SignWithoutAuthority(asserts.ConfdbControlType, map[string]interface{}{
+	a, err := asserts.SignWithoutAuthority(asserts.ConfdbControlType, map[string]any{
 		"brand-id": serial.BrandID(),
 		"model":    serial.Model(),
 		"serial":   serial.Serial(),
@@ -2673,7 +2673,7 @@ func (scb storeContextBackend) SignDeviceSessionRequest(serial *asserts.Serial, 
 		return nil, err
 	}
 
-	a, err := asserts.SignWithoutAuthority(asserts.DeviceSessionRequestType, map[string]interface{}{
+	a, err := asserts.SignWithoutAuthority(asserts.DeviceSessionRequestType, map[string]any{
 		"brand-id":  serial.BrandID(),
 		"model":     serial.Model(),
 		"serial":    serial.Serial(),
@@ -2760,7 +2760,7 @@ func (m *DeviceManager) runFDESetupHook(req *fde.SetupRequest) ([]byte, error) {
 		// XXX: should this be configurable somehow?
 		Timeout: 5 * time.Minute,
 	}
-	contextData := map[string]interface{}{
+	contextData := map[string]any{
 		"fde-setup-request": req,
 	}
 	st.Unlock()

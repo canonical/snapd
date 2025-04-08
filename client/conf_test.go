@@ -26,7 +26,7 @@ import (
 )
 
 func (cs *clientSuite) TestClientSetConfCallsEndpoint(c *check.C) {
-	cs.cli.SetConf("snap-name", map[string]interface{}{"key": "value"})
+	cs.cli.SetConf("snap-name", map[string]any{"key": "value"})
 	c.Check(cs.req.Method, check.Equals, "PUT")
 	c.Check(cs.req.URL.Path, check.Equals, "/v2/snaps/snap-name/conf")
 }
@@ -53,14 +53,14 @@ func (cs *clientSuite) TestClientSetConf(c *check.C) {
 		"result": { },
 		"change": "foo"
 	}`
-	id, err := cs.cli.SetConf("snap-name", map[string]interface{}{"key": "value"})
+	id, err := cs.cli.SetConf("snap-name", map[string]any{"key": "value"})
 	c.Assert(err, check.IsNil)
 	c.Check(id, check.Equals, "foo")
-	var body map[string]interface{}
+	var body map[string]any
 	decoder := json.NewDecoder(cs.req.Body)
 	err = decoder.Decode(&body)
 	c.Check(err, check.IsNil)
-	c.Check(body, check.DeepEquals, map[string]interface{}{
+	c.Check(body, check.DeepEquals, map[string]any{
 		"key": "value",
 	})
 }
@@ -73,7 +73,7 @@ func (cs *clientSuite) TestClientGetConf(c *check.C) {
 	}`
 	value, err := cs.cli.Conf("snap-name", []string{"test-key"})
 	c.Assert(err, check.IsNil)
-	c.Check(value, check.DeepEquals, map[string]interface{}{"test-key": "test-value"})
+	c.Check(value, check.DeepEquals, map[string]any{"test-key": "test-value"})
 }
 
 func (cs *clientSuite) TestClientGetConfBigInt(c *check.C) {
@@ -84,7 +84,7 @@ func (cs *clientSuite) TestClientGetConfBigInt(c *check.C) {
 	}`
 	value, err := cs.cli.Conf("snap-name", []string{"test-key"})
 	c.Assert(err, check.IsNil)
-	c.Check(value, check.DeepEquals, map[string]interface{}{"test-key": json.Number("1234567890")})
+	c.Check(value, check.DeepEquals, map[string]any{"test-key": json.Number("1234567890")})
 }
 
 func (cs *clientSuite) TestClientGetConfMultipleKeys(c *check.C) {
@@ -98,7 +98,7 @@ func (cs *clientSuite) TestClientGetConfMultipleKeys(c *check.C) {
 	}`
 	value, err := cs.cli.Conf("snap-name", []string{"test-key1", "test-key2"})
 	c.Assert(err, check.IsNil)
-	c.Check(value, check.DeepEquals, map[string]interface{}{
+	c.Check(value, check.DeepEquals, map[string]any{
 		"test-key1": "test-value1",
 		"test-key2": "test-value2",
 	})

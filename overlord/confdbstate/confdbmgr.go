@@ -147,14 +147,14 @@ func (m *ConfdbManager) doLoadDataIntoChange(t *state.Task, _ *tomb.Tomb) error 
 }
 
 func readViewIntoChange(chg *state.Change, tx *Transaction, view *confdb.View, requests []string) error {
-	var apiData map[string]interface{}
+	var apiData map[string]any
 	err := chg.Get("api-data", &apiData)
 	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
 	}
 
 	if apiData == nil {
-		apiData = make(map[string]interface{})
+		apiData = make(map[string]any)
 	}
 
 	result, err := GetViaView(tx, view, requests)

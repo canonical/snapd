@@ -92,7 +92,7 @@ func (d *configedDevice) HasModeenv() bool {
 }
 
 // ApplyFilesystemOnlyDefaultsImpl is initialized by init() of configcore.
-var ApplyFilesystemOnlyDefaultsImpl = func(dev Device, rootDir string, defaults map[string]interface{}) error {
+var ApplyFilesystemOnlyDefaultsImpl = func(dev Device, rootDir string, defaults map[string]any) error {
 	panic("ApplyFilesystemOnlyDefaultsImpl is unset, import overlord/configstate/configcore")
 }
 
@@ -101,7 +101,7 @@ var ApplyFilesystemOnlyDefaultsImpl = func(dev Device, rootDir string, defaults 
 // This is a subset of core config options that is important
 // early during boot, before all the configuration is applied as part of
 // normal execution of configure hook.
-func ApplyFilesystemOnlyDefaults(model *asserts.Model, rootDir string, defaults map[string]interface{}) error {
+func ApplyFilesystemOnlyDefaults(model *asserts.Model, rootDir string, defaults map[string]any) error {
 	dev := &configedDevice{model: model}
 	return ApplyFilesystemOnlyDefaultsImpl(dev, rootDir, defaults)
 }

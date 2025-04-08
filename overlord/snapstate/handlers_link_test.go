@@ -90,7 +90,7 @@ func (s *linkSnapSuite) SetUpTest(c *C) {
 }
 
 func checkHasCookieForSnap(c *C, st *state.State, instanceName string) {
-	var contexts map[string]interface{}
+	var contexts map[string]any
 	err := st.Get("snap-cookies", &contexts)
 	c.Assert(err, IsNil)
 	c.Check(contexts, HasLen, 1)
@@ -2619,8 +2619,8 @@ func (s *linkSnapSuite) testDoUnlinkSnapRefreshAwareness(c *C) *state.Change {
 }
 
 func (s *linkSnapSuite) setMockKernelRemodelCtx(c *C, oldKernel, newKernel string) {
-	newModel := MakeModel(map[string]interface{}{"kernel": newKernel})
-	oldModel := MakeModel(map[string]interface{}{"kernel": oldKernel})
+	newModel := MakeModel(map[string]any{"kernel": newKernel})
+	oldModel := MakeModel(map[string]any{"kernel": oldKernel})
 	mockRemodelCtx := &snapstatetest.TrivialDeviceContext{
 		DeviceModel:    newModel,
 		OldDeviceModel: oldModel,

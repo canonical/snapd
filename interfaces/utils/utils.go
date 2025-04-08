@@ -26,21 +26,21 @@ import (
 // NormalizeInterfaceAttributes normalises types of an attribute values.
 // The following transformations are applied: int -> int64, float32 -> float64.
 // The normalisation proceeds recursively through maps and slices.
-func NormalizeInterfaceAttributes(value interface{}) interface{} {
+func NormalizeInterfaceAttributes(value any) any {
 	// Normalize ints/floats using their 64-bit variants.
 	switch v := value.(type) {
 	case int:
 		return int64(v)
 	case float32:
 		return float64(v)
-	case []interface{}:
-		vc := make([]interface{}, len(v))
+	case []any:
+		vc := make([]any, len(v))
 		for i, el := range v {
 			vc[i] = NormalizeInterfaceAttributes(el)
 		}
 		return vc
-	case map[string]interface{}:
-		vc := make(map[string]interface{}, len(v))
+	case map[string]any:
+		vc := make(map[string]any, len(v))
 		for key, item := range v {
 			vc[key] = NormalizeInterfaceAttributes(item)
 		}
@@ -57,22 +57,22 @@ func NormalizeInterfaceAttributes(value interface{}) interface{} {
 }
 
 // CopyAttributes makes a deep copy of the attributes map.
-func CopyAttributes(value map[string]interface{}) map[string]interface{} {
-	return copyRecursive(value).(map[string]interface{})
+func CopyAttributes(value map[string]any) map[string]any {
+	return copyRecursive(value).(map[string]any)
 }
 
-func copyRecursive(value interface{}) interface{} {
+func copyRecursive(value any) any {
 	// note: ensure all the mutable types (or types that need a conversion)
 	// are handled here.
 	switch v := value.(type) {
-	case []interface{}:
-		arr := make([]interface{}, len(v))
+	case []any:
+		arr := make([]any, len(v))
 		for i, el := range v {
 			arr[i] = copyRecursive(el)
 		}
 		return arr
-	case map[string]interface{}:
-		mp := make(map[string]interface{}, len(v))
+	case map[string]any:
+		mp := make(map[string]any, len(v))
 		for key, item := range v {
 			mp[key] = copyRecursive(item)
 		}

@@ -88,7 +88,7 @@ func ValidatePolicy(r io.Reader) (actionIDs []string, err error) {
 		return nil, err
 	}
 	// check for additional data after the root element
-	if err := decoder.Decode(new(interface{})); err != io.EOF {
+	if err := decoder.Decode(new(any)); err != io.EOF {
 		return nil, fmt.Errorf("invalid XML: additional data after root element")
 	}
 

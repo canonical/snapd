@@ -221,58 +221,58 @@ func (s *patch61Suite) TestPatch61(c *C) {
 		st.Get("patch-sublevel", &sublevel)
 		c.Assert(sublevel, Equals, 1)
 
-		var conns map[string]interface{}
+		var conns map[string]any
 		c.Assert(st.Get("conns", &conns), IsNil)
-		c.Assert(conns, DeepEquals, map[string]interface{}{
-			"gnome-calculator:icon-themes gtk-common-themes:icon-themes": map[string]interface{}{
+		c.Assert(conns, DeepEquals, map[string]any{
+			"gnome-calculator:icon-themes gtk-common-themes:icon-themes": map[string]any{
 				"auto":      true,
 				"interface": "content",
-				"plug-static": map[string]interface{}{
+				"plug-static": map[string]any{
 					"content":          "icon-themes",
 					"default-provider": "gtk-common-themes",
 					"target":           "$SNAP/data-dir/icons",
 				},
-				"slot-static": map[string]interface{}{
+				"slot-static": map[string]any{
 					"content": "icon-themes",
-					"source": map[string]interface{}{
-						"read": []interface{}{"$SNAP/share/icons/Adwaita"},
+					"source": map[string]any{
+						"read": []any{"$SNAP/share/icons/Adwaita"},
 					},
 				},
 			},
-			"foobar:fooplug gtk-common-themes:icon-themes": map[string]interface{}{
+			"foobar:fooplug gtk-common-themes:icon-themes": map[string]any{
 				"auto":      true,
 				"interface": "content",
-				"plug-static": map[string]interface{}{
+				"plug-static": map[string]any{
 					"target": "$SNAP/foo-dir/icons",
 				},
-				"slot-static": map[string]interface{}{
+				"slot-static": map[string]any{
 					"bus":  "session",
 					"name": "org.gnome.Calculator",
 				},
 			},
-			"gnome-calculator:network core:network": map[string]interface{}{
+			"gnome-calculator:network core:network": map[string]any{
 				"auto":      true,
 				"interface": "network",
 			},
-			"other-snap:icon-themes gtk-common-themes:icon-themes": map[string]interface{}{
+			"other-snap:icon-themes gtk-common-themes:icon-themes": map[string]any{
 				"undesired": true,
 				"auto":      true,
 				"interface": "content",
 			},
 		})
 
-		var removed map[string]interface{}
+		var removed map[string]any
 		task := st.Task("11")
 		c.Assert(task, NotNil)
 		c.Assert(task.Get("removed", &removed), IsNil)
-		c.Assert(removed, DeepEquals, map[string]interface{}{
-			"foobar:fooplug gtk-common-themes:icon-themes": map[string]interface{}{
+		c.Assert(removed, DeepEquals, map[string]any{
+			"foobar:fooplug gtk-common-themes:icon-themes": map[string]any{
 				"auto":      true,
 				"interface": "content",
-				"plug-static": map[string]interface{}{
+				"plug-static": map[string]any{
 					"target": "$SNAP/foo-dir/icons",
 				},
-				"slot-static": map[string]interface{}{
+				"slot-static": map[string]any{
 					"bus":  "session",
 					"name": "org.gnome.Calculator",
 				},

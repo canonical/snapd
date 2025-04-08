@@ -172,7 +172,7 @@ func (x *cmdInterface) showManyInterfaces(infos []*client.Interface) {
 	}
 }
 
-func (x *cmdInterface) showAttrs(w io.Writer, attrs map[string]interface{}, indent string) {
+func (x *cmdInterface) showAttrs(w io.Writer, attrs map[string]any, indent string) {
 	if len(attrs) == 0 {
 		return
 	}

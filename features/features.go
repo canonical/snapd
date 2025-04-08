@@ -248,12 +248,12 @@ func (f SnapdFeature) IsEnabled() bool {
 }
 
 type confGetter interface {
-	GetMaybe(snapName, key string, result interface{}) error
+	GetMaybe(snapName, key string, result any) error
 }
 
 // Flag returns whether the given feature flag is enabled.
 func Flag(tr confGetter, feature SnapdFeature) (bool, error) {
-	var isEnabled interface{}
+	var isEnabled any
 	snapName, confName := feature.ConfigOption()
 	if err := tr.GetMaybe(snapName, confName, &isEnabled); err != nil {
 		return false, err

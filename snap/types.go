@@ -70,7 +70,7 @@ func (m *Type) UnmarshalJSON(data []byte) error {
 }
 
 // UnmarshalYAML so Type implements yaml's Unmarshaler interface
-func (m *Type) UnmarshalYAML(unmarshal func(interface{}) error) error {
+func (m *Type) UnmarshalYAML(unmarshal func(any) error) error {
 	var str string
 	if err := unmarshal(&str); err != nil {
 		return err
@@ -120,7 +120,7 @@ func (confinementType *ConfinementType) UnmarshalJSON(data []byte) error {
 }
 
 // UnmarshalYAML so ConfinementType implements yaml's Unmarshaler interface
-func (confinementType *ConfinementType) UnmarshalYAML(unmarshal func(interface{}) error) error {
+func (confinementType *ConfinementType) UnmarshalYAML(unmarshal func(any) error) error {
 	var s string
 	if err := unmarshal(&s); err != nil {
 		return err
@@ -177,7 +177,7 @@ func (daemonScope *DaemonScope) UnmarshalJSON(data []byte) error {
 }
 
 // UnmarshalYAML so DaemonScope implements yaml's Unmarshaler interface
-func (daemonScope *DaemonScope) UnmarshalYAML(unmarshal func(interface{}) error) error {
+func (daemonScope *DaemonScope) UnmarshalYAML(unmarshal func(any) error) error {
 	var s string
 	if err := unmarshal(&s); err != nil {
 		return err
@@ -231,7 +231,7 @@ type Component struct {
 	ExplicitHooks map[string]*HookInfo
 }
 
-func (ct *ComponentType) UnmarshalYAML(unmarshall func(interface{}) error) error {
+func (ct *ComponentType) UnmarshalYAML(unmarshall func(any) error) error {
 	typeStr := ""
 	if err := unmarshall(&typeStr); err != nil {
 		return err

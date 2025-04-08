@@ -66,7 +66,7 @@ func (s *validateSuite) SetUpTest(c *C) {
 
 	s.TestingSeed16 = &seedtest.TestingSeed16{}
 	s.SetupAssertSigning("canonical")
-	s.Brands.Register("my-brand", brandPrivKey, map[string]interface{}{
+	s.Brands.Register("my-brand", brandPrivKey, map[string]any{
 		"verification": "verified",
 	})
 
@@ -79,7 +79,7 @@ func (s *validateSuite) SetUpTest(c *C) {
 	err = os.Mkdir(s.AssertsDir(), 0755)
 	c.Assert(err, IsNil)
 
-	modelChain := s.MakeModelAssertionChain("my-brand", "my-model", map[string]interface{}{
+	modelChain := s.MakeModelAssertionChain("my-brand", "my-model", map[string]any{
 		"classic": "true",
 	})
 	s.WriteAssertions("model.asserts", modelChain...)
@@ -219,9 +219,9 @@ snaps:
 }
 
 func (s *validateSuite) TestValidateFromYamlSnapMissingSnapd(c *C) {
-	modelChain := s.MakeModelAssertionChain("my-brand", "my-model", map[string]interface{}{
+	modelChain := s.MakeModelAssertionChain("my-brand", "my-model", map[string]any{
 		"classic":        "true",
-		"required-snaps": []interface{}{"snapd"},
+		"required-snaps": []any{"snapd"},
 	})
 	s.WriteAssertions("model.asserts", modelChain...)
 

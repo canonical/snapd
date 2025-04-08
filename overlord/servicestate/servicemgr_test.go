@@ -102,7 +102,7 @@ func (s *baseServiceMgrTestSuite) SetUpTest(c *C) {
 	s.state.Set("seeded", true)
 	s.state.Unlock()
 
-	s.uc18Model = assertstest.FakeAssertion(map[string]interface{}{
+	s.uc18Model = assertstest.FakeAssertion(map[string]any{
 		"type":         "model",
 		"authority-id": "canonical",
 		"series":       "16",
@@ -114,7 +114,7 @@ func (s *baseServiceMgrTestSuite) SetUpTest(c *C) {
 		"base":         "core18",
 	}).(*asserts.Model)
 
-	s.uc16Model = assertstest.FakeAssertion(map[string]interface{}{
+	s.uc16Model = assertstest.FakeAssertion(map[string]any{
 		"type":         "model",
 		"authority-id": "canonical",
 		"series":       "16",

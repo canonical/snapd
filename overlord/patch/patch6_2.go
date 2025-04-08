@@ -66,13 +66,13 @@ type patch62SnapState struct {
 	Current  snap.Revision      `json:"current"`
 	Channel  string             `json:"channel,omitempty"`
 	patch62Flags
-	Aliases              interface{} `json:"aliases,omitempty"`
-	AutoAliasesDisabled  bool        `json:"auto-aliases-disabled,omitempty"`
-	AliasesPending       bool        `json:"aliases-pending,omitempty"`
-	UserID               int         `json:"user-id,omitempty"`
-	InstanceKey          string      `json:"instance-key,omitempty"`
-	CohortKey            string      `json:"cohort-key,omitempty"`
-	RefreshInhibitedTime *time.Time  `json:"refresh-inhibited-time,omitempty"`
+	Aliases              any        `json:"aliases,omitempty"`
+	AutoAliasesDisabled  bool       `json:"auto-aliases-disabled,omitempty"`
+	AliasesPending       bool       `json:"aliases-pending,omitempty"`
+	UserID               int        `json:"user-id,omitempty"`
+	InstanceKey          string     `json:"instance-key,omitempty"`
+	CohortKey            string     `json:"cohort-key,omitempty"`
+	RefreshInhibitedTime *time.Time `json:"refresh-inhibited-time,omitempty"`
 }
 
 type patch62SnapSetup struct {
@@ -85,14 +85,14 @@ type patch62SnapSetup struct {
 	Prereq    []string  `json:"prereq,omitempty"`
 	patch62Flags
 	SnapPath     string           `json:"snap-path,omitempty"`
-	DownloadInfo interface{}      `json:"download-info,omitempty"`
+	DownloadInfo any              `json:"download-info,omitempty"`
 	SideInfo     *patch62SideInfo `json:"side-info,omitempty"`
 	patch62auxStoreInfo
 	InstanceKey string `json:"instance-key,omitempty"`
 }
 
 type patch62auxStoreInfo struct {
-	Media interface{} `json:"media,omitempty"`
+	Media any `json:"media,omitempty"`
 }
 
 func hasSnapdSnapID(snapst patch62SnapState) bool {

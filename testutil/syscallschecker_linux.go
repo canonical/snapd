@@ -35,7 +35,7 @@ var SyscallsEqual check.Checker = &syscallsEqualChecker{
 	CheckerInfo: &check.CheckerInfo{Name: "SyscallsEqual", Params: []string{"actualList", "expectedList"}},
 }
 
-func (c *syscallsEqualChecker) Check(params []interface{}, names []string) (result bool, error string) {
+func (c *syscallsEqualChecker) Check(params []any, names []string) (result bool, error string) {
 	actualList, ok := params[0].([]CallResultError)
 	if !ok {
 		return false, "left-hand-side argument must be of type []CallResultError"

@@ -295,7 +295,7 @@ func makeNewSnapRevision(orig, new *info, targetDir string, db *asserts.Database
 	}
 	origSnapRev := a.(*asserts.SnapRevision)
 
-	headers := map[string]interface{}{
+	headers := map[string]any{
 		"authority-id":  "testrootorg",
 		"snap-sha3-384": new.digest,
 		"snap-id":       origSnapRev.SnapID(),

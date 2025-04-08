@@ -171,7 +171,7 @@ func (s *storeSuite) TestCheckAuthority(c *C) {
 
 	otherDB := setup3rdPartySigning(c, "other", storeDB, db)
 
-	storeHeaders := map[string]interface{}{
+	storeHeaders := map[string]any{
 		"store":       "store1",
 		"operator-id": operator.HeaderString("account-id"),
 		"timestamp":   time.Now().Format(time.RFC3339),
@@ -206,7 +206,7 @@ func (s *storeSuite) TestFriendlyStores(c *C) {
 func (s *storeSuite) TestCheckOperatorAccount(c *C) {
 	storeDB, db := makeStoreAndCheckDB(c)
 
-	store, err := storeDB.Sign(asserts.StoreType, map[string]interface{}{
+	store, err := storeDB.Sign(asserts.StoreType, map[string]any{
 		"store":       "store1",
 		"operator-id": "op-id1",
 		"timestamp":   time.Now().Format(time.RFC3339),
@@ -218,7 +218,7 @@ func (s *storeSuite) TestCheckOperatorAccount(c *C) {
 	c.Assert(err, ErrorMatches, `store assertion "store1" does not have a matching account assertion for the operator "op-id1"`)
 
 	// Add the op-id1 account.
-	operator := assertstest.NewAccount(storeDB, "op-id1", map[string]interface{}{"account-id": "op-id1"}, "")
+	operator := assertstest.NewAccount(storeDB, "op-id1", map[string]any{"account-id": "op-id1"}, "")
 	err = db.Add(operator)
 	c.Assert(err, IsNil)
 

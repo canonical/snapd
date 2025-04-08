@@ -114,7 +114,7 @@ func (s *deviceMgrBootconfigSuite) setupUC20ModelWithGrade(c *C, grade string) *
 		Model:  "pc-model-20",
 		Serial: "didididi",
 	})
-	headers := make(map[string]interface{})
+	headers := make(map[string]any)
 	for k, v := range mockCore20ModelHeaders {
 		headers[k] = v
 	}
@@ -129,18 +129,18 @@ func (s *deviceMgrBootconfigSuite) setupClassicWithModesModel(c *C) *asserts.Mod
 		Serial: "didididi",
 	})
 	return s.makeModelAssertionInState(c, "canonical", "classic-with-modes",
-		map[string]interface{}{
+		map[string]any{
 			"architecture": "amd64",
 			"classic":      "true",
 			"distribution": "ubuntu",
 			"base":         "core22",
-			"snaps": []interface{}{
-				map[string]interface{}{
+			"snaps": []any{
+				map[string]any{
 					"name": "pc-linux",
 					"id":   "pclinuxdidididididididididididid",
 					"type": "kernel",
 				},
-				map[string]interface{}{
+				map[string]any{
 					"name": "pc",
 					"id":   "pcididididididididididididididid",
 					"type": "gadget",
@@ -548,7 +548,7 @@ func (s *deviceMgrBootconfigSuite) TestBootConfigNoUC20(c *C) {
 		Model:  "pc-model",
 		Serial: "didididi",
 	})
-	s.makeModelAssertionInState(c, "canonical", "pc-model", map[string]interface{}{
+	s.makeModelAssertionInState(c, "canonical", "pc-model", map[string]any{
 		"architecture": "amd64",
 		"kernel":       "pc-kernel",
 		"gadget":       "pc",
@@ -577,7 +577,7 @@ func (s *deviceMgrBootconfigSuite) TestBootConfigRemodelDoNothing(c *C) {
 
 	uc20Model := s.setupUC20Model(c)
 	// save the hassle and try a trivial remodel
-	newModel := s.brands.Model("canonical", "pc-model-20", map[string]interface{}{
+	newModel := s.brands.Model("canonical", "pc-model-20", map[string]any{
 		"brand":        "canonical",
 		"model":        "pc-model-20",
 		"architecture": "amd64",

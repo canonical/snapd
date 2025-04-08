@@ -60,8 +60,8 @@ func (s *snapResourceRevSuite) makeValidEncoded() string {
 		"AXNpZw=="
 }
 
-func makeSnapResourceRevisionHeaders(overrides map[string]interface{}) map[string]interface{} {
-	headers := map[string]interface{}{
+func makeSnapResourceRevisionHeaders(overrides map[string]any) map[string]any {
+	headers := map[string]any{
 		"authority-id":      "canonical",
 		"snap-id":           "snap-id-1",
 		"resource-name":     "comp-name",
@@ -78,7 +78,7 @@ func makeSnapResourceRevisionHeaders(overrides map[string]interface{}) map[strin
 	return headers
 }
 
-func (s *snapResourceRevSuite) makeHeaders(overrides map[string]interface{}) map[string]interface{} {
+func (s *snapResourceRevSuite) makeHeaders(overrides map[string]any) map[string]any {
 	return makeSnapResourceRevisionHeaders(overrides)
 }
 
@@ -228,7 +228,7 @@ func (s *snapResourceRevSuite) TestCheckUntrustedAuthority(c *C) {
 
 	otherDB := setup3rdPartySigning(c, "other", storeDB, db)
 
-	headers := s.makeHeaders(map[string]interface{}{
+	headers := s.makeHeaders(map[string]any{
 		"authority-id": "other",
 	})
 	snapResRev, err := otherDB.Sign(asserts.SnapResourceRevisionType, headers, nil, "")
@@ -242,7 +242,7 @@ func (s *snapResourceRevSuite) TestRevisionAuthorityCheck(c *C) {
 	storeDB, db := makeStoreAndCheckDB(c)
 
 	delegatedDB := setup3rdPartySigning(c, "delegated-id", storeDB, db)
-	headers := s.makeHeaders(map[string]interface{}{
+	headers := s.makeHeaders(map[string]any{
 		"authority-id":      "delegated-id",
 		"developer-id":      "delegated-id",
 		"resource-revision": "200",
@@ -307,7 +307,7 @@ func (s *snapResourceRevSuite) TestSnapResourceRevisionDelegation(c *C) {
 
 	delegatedDB := setup3rdPartySigning(c, "delegated-id", storeDB, db)
 
-	snapDecl, err := storeDB.Sign(asserts.SnapDeclarationType, map[string]interface{}{
+	snapDecl, err := storeDB.Sign(asserts.SnapDeclarationType, map[string]any{
 		"series":       "16",
 		"snap-id":      "snap-id-1",
 		"snap-name":    "foo",
@@ -318,7 +318,7 @@ func (s *snapResourceRevSuite) TestSnapResourceRevisionDelegation(c *C) {
 	err = db.Add(snapDecl)
 	c.Assert(err, IsNil)
 
-	headers := s.makeHeaders(map[string]interface{}{
+	headers := s.makeHeaders(map[string]any{
 		"authority-id": "delegated-id",
 		"developer-id": "delegated-id",
 		"provenance":   "prov1",
@@ -330,20 +330,20 @@ func (s *snapResourceRevSuite) TestSnapResourceRevisionDelegation(c *C) {
 	c.Check(err, ErrorMatches, `snap-resource-revision assertion with provenance "prov1" for snap id "snap-id-1" is not signed by an authorized authority: delegated-id`)
 
 	// establish delegation
-	snapDecl, err = storeDB.Sign(asserts.SnapDeclarationType, map[string]interface{}{
+	snapDecl, err = storeDB.Sign(asserts.SnapDeclarationType, map[string]any{
 		"series":       "16",
 		"snap-id":      "snap-id-1",
 		"snap-name":    "foo",
 		"publisher-id": "delegated-id",
 		"revision":     "1",
-		"revision-authority": []interface{}{
-			map[string]interface{}{
+		"revision-authority": []any{
+			map[string]any{
 				"account-id": "delegated-id",
-				"provenance": []interface{}{
+				"provenance": []any{
 					"prov1",
 				},
 				// present but not checked at this level
-				"on-store": []interface{}{
+				"on-store": []any{
 					"store1",
 				},
 			},
@@ -365,19 +365,19 @@ func (s *snapResourceRevSuite) TestSnapResourceRevisionDelegationRevisionOutOfRa
 	delegatedDB := setup3rdPartySigning(c, "delegated-id", storeDB, db)
 
 	// establish delegation
-	snapDecl, err := storeDB.Sign(asserts.SnapDeclarationType, map[string]interface{}{
+	snapDecl, err := storeDB.Sign(asserts.SnapDeclarationType, map[string]any{
 		"series":       "16",
 		"snap-id":      "snap-id-1",
 		"snap-name":    "foo",
 		"publisher-id": "delegated-id",
-		"revision-authority": []interface{}{
-			map[string]interface{}{
+		"revision-authority": []any{
+			map[string]any{
 				"account-id": "delegated-id",
-				"provenance": []interface{}{
+				"provenance": []any{
 					"prov1",
 				},
 				// present but not checked at this level
-				"on-store": []interface{}{
+				"on-store": []any{
 					"store1",
 				},
 				"max-revision": "200",
@@ -389,7 +389,7 @@ func (s *snapResourceRevSuite) TestSnapResourceRevisionDelegationRevisionOutOfRa
 	err = db.Add(snapDecl)
 	c.Assert(err, IsNil)
 
-	headers := s.makeHeaders(map[string]interface{}{
+	headers := s.makeHeaders(map[string]any{
 		"authority-id":      "delegated-id",
 		"developer-id":      "delegated-id",
 		"provenance":        "prov1",
@@ -428,8 +428,8 @@ func (s *snapResourcePairSuite) makeValidEncoded() string {
 		"AXNpZw=="
 }
 
-func (s *snapResourcePairSuite) makeHeaders(overrides map[string]interface{}) map[string]interface{} {
-	headers := map[string]interface{}{
+func (s *snapResourcePairSuite) makeHeaders(overrides map[string]any) map[string]any {
+	headers := map[string]any{
 		"authority-id":      "canonical",
 		"snap-id":           "snap-id-1",
 		"resource-name":     "comp-name",
@@ -582,7 +582,7 @@ func (s *snapResourcePairSuite) TestCheckUntrustedAuthority(c *C) {
 
 	otherDB := setup3rdPartySigning(c, "other", storeDB, db)
 
-	headers := s.makeHeaders(map[string]interface{}{
+	headers := s.makeHeaders(map[string]any{
 		"authority-id": "other",
 	})
 	snapResPair, err := otherDB.Sign(asserts.SnapResourcePairType, headers, nil, "")
@@ -597,7 +597,7 @@ func (s *snapResourcePairSuite) TestDelegation(c *C) {
 
 	delegatedDB := setup3rdPartySigning(c, "delegated-id", storeDB, db)
 
-	snapDecl, err := storeDB.Sign(asserts.SnapDeclarationType, map[string]interface{}{
+	snapDecl, err := storeDB.Sign(asserts.SnapDeclarationType, map[string]any{
 		"series":       "16",
 		"snap-id":      "snap-id-1",
 		"snap-name":    "foo",
@@ -608,7 +608,7 @@ func (s *snapResourcePairSuite) TestDelegation(c *C) {
 	err = db.Add(snapDecl)
 	c.Assert(err, IsNil)
 
-	headers := s.makeHeaders(map[string]interface{}{
+	headers := s.makeHeaders(map[string]any{
 		"authority-id": "delegated-id",
 		"developer-id": "delegated-id",
 		"provenance":   "prov1",
@@ -620,20 +620,20 @@ func (s *snapResourcePairSuite) TestDelegation(c *C) {
 	c.Check(err, ErrorMatches, `snap-resource-pair assertion with provenance "prov1" for snap id "snap-id-1" is not signed by an authorized authority: delegated-id`)
 
 	// establish delegation
-	snapDecl, err = storeDB.Sign(asserts.SnapDeclarationType, map[string]interface{}{
+	snapDecl, err = storeDB.Sign(asserts.SnapDeclarationType, map[string]any{
 		"series":       "16",
 		"snap-id":      "snap-id-1",
 		"snap-name":    "foo",
 		"publisher-id": "delegated-id",
 		"revision":     "1",
-		"revision-authority": []interface{}{
-			map[string]interface{}{
+		"revision-authority": []any{
+			map[string]any{
 				"account-id": "delegated-id",
-				"provenance": []interface{}{
+				"provenance": []any{
 					"prov1",
 				},
 				// present but not checked at this level
-				"on-store": []interface{}{
+				"on-store": []any{
 					"store1",
 				},
 			},
@@ -655,19 +655,19 @@ func (s *snapResourcePairSuite) TestDelegationRevisionOutOfRange(c *C) {
 	delegatedDB := setup3rdPartySigning(c, "delegated-id", storeDB, db)
 
 	// establish delegation
-	snapDecl, err := storeDB.Sign(asserts.SnapDeclarationType, map[string]interface{}{
+	snapDecl, err := storeDB.Sign(asserts.SnapDeclarationType, map[string]any{
 		"series":       "16",
 		"snap-id":      "snap-id-1",
 		"snap-name":    "foo",
 		"publisher-id": "delegated-id",
-		"revision-authority": []interface{}{
-			map[string]interface{}{
+		"revision-authority": []any{
+			map[string]any{
 				"account-id": "delegated-id",
-				"provenance": []interface{}{
+				"provenance": []any{
 					"prov1",
 				},
 				// present but not checked at this level
-				"on-store": []interface{}{
+				"on-store": []any{
 					"store1",
 				},
 				"max-revision": "200",
@@ -679,7 +679,7 @@ func (s *snapResourcePairSuite) TestDelegationRevisionOutOfRange(c *C) {
 	err = db.Add(snapDecl)
 	c.Assert(err, IsNil)
 
-	headers := s.makeHeaders(map[string]interface{}{
+	headers := s.makeHeaders(map[string]any{
 		"authority-id":  "delegated-id",
 		"developer-id":  "delegated-id",
 		"provenance":    "prov1",

@@ -65,7 +65,7 @@ func (s *fetcherSuite) prereqSnapAssertions(c *C, revisions ...int) {
 	err := s.storeSigning.Add(dev1Acct)
 	c.Assert(err, IsNil)
 
-	headers := map[string]interface{}{
+	headers := map[string]any{
 		"series":       "16",
 		"snap-id":      "snap-id-1",
 		"snap-name":    "foo",
@@ -78,7 +78,7 @@ func (s *fetcherSuite) prereqSnapAssertions(c *C, revisions ...int) {
 	c.Assert(err, IsNil)
 
 	for _, rev := range revisions {
-		headers = map[string]interface{}{
+		headers = map[string]any{
 			"series":        "16",
 			"snap-id":       "snap-id-1",
 			"snap-sha3-384": makeDigest(rev),
@@ -197,15 +197,15 @@ func (s *fetcherSuite) TestSave(c *C) {
 }
 
 func (s *fetcherSuite) prereqValidationSetAssertion(c *C) {
-	vs, err := s.storeSigning.Sign(asserts.ValidationSetType, map[string]interface{}{
+	vs, err := s.storeSigning.Sign(asserts.ValidationSetType, map[string]any{
 		"type":         "validation-set",
 		"authority-id": "can0nical",
 		"series":       "16",
 		"account-id":   "can0nical",
 		"name":         "base-set",
 		"sequence":     "2",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":     "pc-kernel",
 				"id":       "123456ididididididididididididid",
 				"presence": "required",

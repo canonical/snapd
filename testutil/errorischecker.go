@@ -34,7 +34,7 @@ type errorIsChecker struct {
 	*check.CheckerInfo
 }
 
-func (*errorIsChecker) Check(params []interface{}, names []string) (result bool, errMsg string) {
+func (*errorIsChecker) Check(params []any, names []string) (result bool, errMsg string) {
 	if params[0] == nil {
 		return params[1] == nil, ""
 	}

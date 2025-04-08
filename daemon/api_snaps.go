@@ -165,7 +165,7 @@ func postSnap(c *Command, r *http.Request, user *auth.UserState) Response {
 		chg.Set("system-restart-immediate", true)
 	}
 
-	apiData := map[string]interface{}{}
+	apiData := map[string]any{}
 	if len(res.Affected) > 0 {
 		apiData["snap-names"] = res.Affected
 	}
@@ -430,7 +430,7 @@ type snapInstructionResult struct {
 	Affected           []string
 	AffectedComponents map[string][]string
 	Tasksets           []*state.TaskSet
-	Result             map[string]interface{}
+	Result             map[string]any
 }
 
 var errDevJailModeConflict = errors.New("cannot use devmode and jailmode flags together")
@@ -831,7 +831,7 @@ func snapOpMany(c *Command, r *http.Request, user *auth.UserState) Response {
 		chg.Set("system-restart-immediate", true)
 	}
 
-	apiData := map[string]interface{}{}
+	apiData := map[string]any{}
 	if len(res.Affected) > 0 {
 		apiData["snap-names"] = res.Affected
 	}
@@ -1285,7 +1285,7 @@ func snapHoldMany(_ context.Context, inst *snapInstruction, st *state.State) (re
 		if inst.holdLevel() == snapstate.HoldGeneral {
 			return nil, errors.New("holding general refreshes for all snaps is not supported")
 		}
-		patchValues := map[string]interface{}{"refresh.hold": inst.Time}
+		patchValues := map[string]any{"refresh.hold": inst.Time}
 		ts, err := configstateConfigureInstalled(st, "core", patchValues, 0)
 		if err != nil {
 			return nil, err
@@ -1317,7 +1317,7 @@ func snapUnholdMany(_ context.Context, inst *snapInstruction, st *state.State) (
 	var tss []*state.TaskSet
 
 	if len(inst.Snaps) == 0 {
-		patchValues := map[string]interface{}{"refresh.hold": nil}
+		patchValues := map[string]any{"refresh.hold": nil}
 		ts, err := configstateConfigureInstalled(st, "core", patchValues, 0)
 		if err != nil {
 			return nil, err

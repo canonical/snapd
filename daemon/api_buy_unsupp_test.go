@@ -88,7 +88,7 @@ var buyTests = []struct {
 	result               *client.BuyResult
 	err                  error
 	expectedStatus       int
-	expectedResult       interface{}
+	expectedResult       any
 	expectedResponseType daemon.ResponseType
 	expectedBuyOptions   *client.BuyOptions
 }{
@@ -203,8 +203,8 @@ func (s *buySuite) TestBuySnap(c *check.C) {
 var readyToBuyTests = []struct {
 	input    error
 	status   int
-	respType interface{}
-	response interface{}
+	respType any
+	response any
 }{
 	{
 		// Success

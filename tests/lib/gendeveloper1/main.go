@@ -83,7 +83,7 @@ func (c *cmdSignModel) Execute(args []string) error {
 		devSigning = assertstest.NewSigningDB("developer1", devKey)
 	}
 
-	var headers map[string]interface{}
+	var headers map[string]any
 	dec := json.NewDecoder(os.Stdin)
 	if err := dec.Decode(&headers); err != nil {
 		log.Fatalf("failed to decode model headers data: %v", err)

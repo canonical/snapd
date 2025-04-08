@@ -229,7 +229,7 @@ func pruneRefreshCandidates(st *state.State, snaps ...string) error {
 	// refresh-candidates in the correct format expected here.
 	// See https://forum.snapcraft.io/t/cannot-r-emove-snap-json-cannot-unmarshal-array-into-go-value-of-type-map-string-snapstate-refreshcandidate/27276
 	if !gateAutoRefreshHook {
-		var rc interface{}
+		var rc any
 		err = st.Get("refresh-candidates", &rc)
 		if err != nil {
 			if errors.Is(err, state.ErrNoState) {

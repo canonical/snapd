@@ -49,7 +49,7 @@ func (s *SnapSuite) TestAliases(c *C) {
 		body, err := io.ReadAll(r.Body)
 		c.Check(err, IsNil)
 		c.Check(body, DeepEquals, []byte{})
-		EncodeResponseBody(c, w, map[string]interface{}{
+		EncodeResponseBody(c, w, map[string]any{
 			"type": "sync",
 			"result": map[string]map[string]client.AliasStatus{
 				"foo": {
@@ -85,7 +85,7 @@ func (s *SnapSuite) TestAliasesFilterSnap(c *C) {
 		body, err := io.ReadAll(r.Body)
 		c.Check(err, IsNil)
 		c.Check(body, DeepEquals, []byte{})
-		EncodeResponseBody(c, w, map[string]interface{}{
+		EncodeResponseBody(c, w, map[string]any{
 			"type": "sync",
 			"result": map[string]map[string]client.AliasStatus{
 				"foo": {
@@ -117,7 +117,7 @@ func (s *SnapSuite) TestAliasesNone(c *C) {
 		body, err := io.ReadAll(r.Body)
 		c.Check(err, IsNil)
 		c.Check(body, DeepEquals, []byte{})
-		EncodeResponseBody(c, w, map[string]interface{}{
+		EncodeResponseBody(c, w, map[string]any{
 			"type":   "sync",
 			"result": map[string]map[string]client.AliasStatus{},
 		})
@@ -135,7 +135,7 @@ func (s *SnapSuite) TestAliasesNoneFilterSnap(c *C) {
 		body, err := io.ReadAll(r.Body)
 		c.Check(err, IsNil)
 		c.Check(body, DeepEquals, []byte{})
-		EncodeResponseBody(c, w, map[string]interface{}{
+		EncodeResponseBody(c, w, map[string]any{
 			"type": "sync",
 			"result": map[string]map[string]client.AliasStatus{
 				"bar": {

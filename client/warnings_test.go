@@ -108,7 +108,7 @@ func (cs *clientSuite) TestOkay(c *check.C) {
 	c.Assert(err, check.IsNil)
 	c.Check(cs.req.Method, check.Equals, "POST")
 	c.Check(cs.req.URL.Query(), check.HasLen, 0)
-	var body map[string]interface{}
+	var body map[string]any
 	c.Assert(json.NewDecoder(cs.req.Body).Decode(&body), check.IsNil)
 	c.Check(body, check.HasLen, 2)
 	c.Check(body["action"], check.Equals, "okay")

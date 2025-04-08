@@ -55,7 +55,7 @@ func (s *sysctlSuite) TearDownTest(c *C) {
 func (s *sysctlSuite) TestConfigureSysctlIntegration(c *C) {
 	err := configcore.FilesystemOnlyRun(coreDev, &mockConf{
 		state: s.state,
-		conf: map[string]interface{}{
+		conf: map[string]any{
 			"system.kernel.printk.console-loglevel": "2",
 		},
 	})
@@ -69,7 +69,7 @@ func (s *sysctlSuite) TestConfigureSysctlIntegration(c *C) {
 	// Unset console-loglevel and restore default vaule
 	err = configcore.FilesystemOnlyRun(coreDev, &mockConf{
 		state: s.state,
-		conf: map[string]interface{}{
+		conf: map[string]any{
 			"system.kernel.printk.console-loglevel": "",
 		},
 	})
@@ -83,7 +83,7 @@ func (s *sysctlSuite) TestConfigureSysctlIntegration(c *C) {
 func (s *sysctlSuite) TestConfigureLoglevelUnderRange(c *C) {
 	err := configcore.FilesystemOnlyRun(coreDev, &mockConf{
 		state: s.state,
-		conf: map[string]interface{}{
+		conf: map[string]any{
 			"system.kernel.printk.console-loglevel": "-1",
 		},
 	})
@@ -94,7 +94,7 @@ func (s *sysctlSuite) TestConfigureLoglevelUnderRange(c *C) {
 func (s *sysctlSuite) TestConfigureLoglevelOverRange(c *C) {
 	err := configcore.FilesystemOnlyRun(coreDev, &mockConf{
 		state: s.state,
-		conf: map[string]interface{}{
+		conf: map[string]any{
 			"system.kernel.printk.console-loglevel": "8",
 		},
 	})
@@ -105,7 +105,7 @@ func (s *sysctlSuite) TestConfigureLoglevelOverRange(c *C) {
 func (s *sysctlSuite) TestConfigureLevelRejected(c *C) {
 	err := configcore.FilesystemOnlyRun(coreDev, &mockConf{
 		state: s.state,
-		conf: map[string]interface{}{
+		conf: map[string]any{
 			"system.kernel.printk.console-loglevel": "invalid",
 		},
 	})
@@ -116,14 +116,14 @@ func (s *sysctlSuite) TestConfigureLevelRejected(c *C) {
 func (s *sysctlSuite) TestConfigureSysctlIntegrationNoSetting(c *C) {
 	err := configcore.FilesystemOnlyRun(coreDev, &mockConf{
 		state: s.state,
-		conf:  map[string]interface{}{},
+		conf:  map[string]any{},
 	})
 	c.Assert(err, IsNil)
 	c.Check(osutil.FileExists(s.mockSysctlConfPath), Equals, false)
 }
 
 func (s *sysctlSuite) TestFilesystemOnlyApply(c *C) {
-	conf := configcore.PlainCoreConfig(map[string]interface{}{
+	conf := configcore.PlainCoreConfig(map[string]any{
 		"system.kernel.printk.console-loglevel": "4",
 	})
 

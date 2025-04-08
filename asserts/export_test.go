@@ -58,7 +58,7 @@ func NewDecoderStressed(r io.Reader, bufSize, maxHeadersSize, maxBodySize, maxSi
 func BootstrapAccountForTest(authorityID string) *Account {
 	return &Account{
 		assertionBase: assertionBase{
-			headers: map[string]interface{}{
+			headers: map[string]any{
 				"type":         "account",
 				"authority-id": authorityID,
 				"account-id":   authorityID,
@@ -76,7 +76,7 @@ func MakeAccountKeyForTest(authorityID string, openPGPPubKey PublicKey, since ti
 func MakeAccountKeyForTestWithUntil(authorityID string, openPGPPubKey PublicKey, since, until time.Time, validYears int) *AccountKey {
 	return &AccountKey{
 		assertionBase: assertionBase{
-			headers: map[string]interface{}{
+			headers: map[string]any{
 				"type":                "account-key",
 				"authority-id":        authorityID,
 				"account-id":          authorityID,
@@ -248,7 +248,7 @@ func init() {
 	typeRegistry[TestOnly2Type.Name] = TestOnly2Type
 	typeRegistry[TestOnlyNoAuthorityType.Name] = TestOnlyNoAuthorityType
 	typeRegistry[TestOnlyNoAuthorityPKType.Name] = TestOnlyNoAuthorityPKType
-	formatAnalyzer[TestOnlyType] = func(headers map[string]interface{}, _ []byte) (int, error) {
+	formatAnalyzer[TestOnlyType] = func(headers map[string]any, _ []byte) (int, error) {
 		if _, ok := headers["format-1-feature"]; ok {
 			return 1, nil
 		}
@@ -310,7 +310,7 @@ func (gkm *GPGKeypairManager) ParametersForGenerate(passphrase string, name stri
 
 // constraint tests
 
-func CompileAttrMatcher(constraints interface{}, allowedOperations, allowedRefs []string) (func(attrs map[string]interface{}, helper AttrMatchContext) error, error) {
+func CompileAttrMatcher(constraints any, allowedOperations, allowedRefs []string) (func(attrs map[string]any, helper AttrMatchContext) error, error) {
 	// XXX adjust
 	cc := compileContext{
 		opts: &compileAttrMatcherOptions{
@@ -322,7 +322,7 @@ func CompileAttrMatcher(constraints interface{}, allowedOperations, allowedRefs 
 	if err != nil {
 		return nil, err
 	}
-	domatch := func(attrs map[string]interface{}, helper AttrMatchContext) error {
+	domatch := func(attrs map[string]any, helper AttrMatchContext) error {
 		return matcher.match("", attrs, &attrMatchingContext{
 			attrWord: "field",
 			helper:   helper,

@@ -111,7 +111,7 @@ func (k *KModRemoveCmd) Execute([]string) error {
 
 // kmodMatchConnection checks whether the given kmod connection attributes give
 // the snap permission to execute the kmod command
-func kmodMatchConnection(attributes map[string]interface{}, moduleName string, moduleOptions []string) bool {
+func kmodMatchConnection(attributes map[string]any, moduleName string, moduleOptions []string) bool {
 	load, found := attributes["load"]
 	if !found || load.(string) != "dynamic" {
 		return false
@@ -166,13 +166,13 @@ var kmodCheckConnection = func(context *hookstate.Context, moduleName string, mo
 			continue
 		}
 
-		modules, ok := connState.StaticPlugAttrs["modules"].([]interface{})
+		modules, ok := connState.StaticPlugAttrs["modules"].([]any)
 		if !ok {
 			continue
 		}
 
 		for _, moduleAttributes := range modules {
-			attributes := moduleAttributes.(map[string]interface{})
+			attributes := moduleAttributes.(map[string]any)
 			if kmodMatchConnection(attributes, moduleName, moduleOptions) {
 				return nil
 			}

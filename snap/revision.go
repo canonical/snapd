@@ -56,7 +56,7 @@ func (r Revision) MarshalJSON() ([]byte, error) {
 	return []byte(`"` + r.String() + `"`), nil
 }
 
-func (r *Revision) UnmarshalYAML(unmarshal func(interface{}) error) error {
+func (r *Revision) UnmarshalYAML(unmarshal func(any) error) error {
 	var s string
 	if err := unmarshal(&s); err != nil {
 		return err
@@ -64,7 +64,7 @@ func (r *Revision) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	return r.UnmarshalJSON([]byte(`"` + s + `"`))
 }
 
-func (r Revision) MarshalYAML() (interface{}, error) {
+func (r Revision) MarshalYAML() (any, error) {
 	return r.String(), nil
 }
 
@@ -107,7 +107,7 @@ func ParseRevision(s string) (Revision, error) {
 // R returns a Revision given an int or a string.
 // Providing an invalid revision type or value causes a runtime panic.
 // See ParseRevision for a polite function that does not panic.
-func R(r interface{}) Revision {
+func R(r any) Revision {
 	switch r := r.(type) {
 	case string:
 		revision, err := ParseRevision(r)

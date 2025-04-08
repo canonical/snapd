@@ -105,16 +105,16 @@ func (s *storeActionSuite) testSnapAction(c *C, resources []string) {
 		jsonReq, err := io.ReadAll(r.Body)
 		c.Assert(err, IsNil)
 		var req struct {
-			Context []map[string]interface{} `json:"context"`
-			Fields  []string                 `json:"fields"`
-			Actions []map[string]interface{} `json:"actions"`
+			Context []map[string]any `json:"context"`
+			Fields  []string         `json:"fields"`
+			Actions []map[string]any `json:"actions"`
 		}
 
 		err = json.Unmarshal(jsonReq, &req)
 		c.Assert(err, IsNil)
 
 		c.Assert(req.Context, HasLen, 1)
-		c.Assert(req.Context[0], DeepEquals, map[string]interface{}{
+		c.Assert(req.Context[0], DeepEquals, map[string]any{
 			"snap-id":          helloWorldSnapID,
 			"instance-key":     helloWorldSnapID,
 			"revision":         float64(1),
@@ -123,7 +123,7 @@ func (s *storeActionSuite) testSnapAction(c *C, resources []string) {
 			"epoch":            iZeroEpoch,
 		})
 		c.Assert(req.Actions, HasLen, 1)
-		c.Assert(req.Actions[0], DeepEquals, map[string]interface{}{
+		c.Assert(req.Actions[0], DeepEquals, map[string]any{
 			"action":       "refresh",
 			"instance-key": helloWorldSnapID,
 			"snap-id":      helloWorldSnapID,
@@ -138,20 +138,20 @@ func (s *storeActionSuite) testSnapAction(c *C, resources []string) {
 
 		c.Check(req.Fields, DeepEquals, expectedFields)
 
-		res := map[string]interface{}{
-			"results": []map[string]interface{}{
+		res := map[string]any{
+			"results": []map[string]any{
 				{
 					"result":       "refresh",
 					"instance-key": "buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ",
 					"snap-id":      "buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ",
 					"name":         "hello-world",
-					"snap": map[string]interface{}{
+					"snap": map[string]any{
 						"snap-id":  "buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ",
 						"name":     "hello-world",
 						"revision": 26,
 						"version":  "6.1",
-						"epoch":    map[string]interface{}{"read": []int{0}, "write": []int{0}},
-						"publisher": map[string]interface{}{
+						"epoch":    map[string]any{"read": []int{0}, "write": []int{0}},
+						"publisher": map[string]any{
 							"id":           "canonical",
 							"username":     "canonical",
 							"display-name": "Canonical",
@@ -162,9 +162,9 @@ func (s *storeActionSuite) testSnapAction(c *C, resources []string) {
 		}
 
 		if len(resources) > 0 {
-			res["results"].([]map[string]interface{})[0]["snap"].(map[string]interface{})["resources"] = []map[string]interface{}{
+			res["results"].([]map[string]any)[0]["snap"].(map[string]any)["resources"] = []map[string]any{
 				{
-					"download": map[string]interface{}{
+					"download": map[string]any{
 						"sha3-384": "38b060a751ac96384cd9327eb1b1e36a21fdb71114be07434c0cc7bf63f6e1da274edebfe76f65fbd51ad2f14898b95b",
 						"size":     1024,
 						"url":      "https://example.com/comp.comp",
@@ -251,9 +251,9 @@ func (s *storeActionSuite) TestSnapActionNonZeroEpochAndEpochBump(c *C) {
 		jsonReq, err := io.ReadAll(r.Body)
 		c.Assert(err, IsNil)
 		var req struct {
-			Context []map[string]interface{} `json:"context"`
-			Fields  []string                 `json:"fields"`
-			Actions []map[string]interface{} `json:"actions"`
+			Context []map[string]any `json:"context"`
+			Fields  []string         `json:"fields"`
+			Actions []map[string]any `json:"actions"`
 		}
 
 		err = json.Unmarshal(jsonReq, &req)
@@ -262,7 +262,7 @@ func (s *storeActionSuite) TestSnapActionNonZeroEpochAndEpochBump(c *C) {
 		c.Check(req.Fields, DeepEquals, store.SnapActionFields)
 
 		c.Assert(req.Context, HasLen, 1)
-		c.Assert(req.Context[0], DeepEquals, map[string]interface{}{
+		c.Assert(req.Context[0], DeepEquals, map[string]any{
 			"snap-id":          helloWorldSnapID,
 			"instance-key":     helloWorldSnapID,
 			"revision":         float64(1),
@@ -271,7 +271,7 @@ func (s *storeActionSuite) TestSnapActionNonZeroEpochAndEpochBump(c *C) {
 			"epoch":            iFiveStarEpoch,
 		})
 		c.Assert(req.Actions, HasLen, 1)
-		c.Assert(req.Actions[0], DeepEquals, map[string]interface{}{
+		c.Assert(req.Actions[0], DeepEquals, map[string]any{
 			"action":       "refresh",
 			"instance-key": helloWorldSnapID,
 			"snap-id":      helloWorldSnapID,
@@ -350,15 +350,15 @@ func (s *storeActionSuite) TestSnapActionNoResults(c *C) {
 		jsonReq, err := io.ReadAll(r.Body)
 		c.Assert(err, IsNil)
 		var req struct {
-			Context []map[string]interface{} `json:"context"`
-			Actions []map[string]interface{} `json:"actions"`
+			Context []map[string]any `json:"context"`
+			Actions []map[string]any `json:"actions"`
 		}
 
 		err = json.Unmarshal(jsonReq, &req)
 		c.Assert(err, IsNil)
 
 		c.Assert(req.Context, HasLen, 1)
-		c.Assert(req.Context[0], DeepEquals, map[string]interface{}{
+		c.Assert(req.Context[0], DeepEquals, map[string]any{
 			"snap-id":          helloWorldSnapID,
 			"instance-key":     helloWorldSnapID,
 			"revision":         float64(1),
@@ -414,15 +414,15 @@ func (s *storeActionSuite) TestSnapActionRefreshedDateIsOptional(c *C) {
 		jsonReq, err := io.ReadAll(r.Body)
 		c.Assert(err, IsNil)
 		var req struct {
-			Context []map[string]interface{} `json:"context"`
-			Actions []map[string]interface{} `json:"actions"`
+			Context []map[string]any `json:"context"`
+			Actions []map[string]any `json:"actions"`
 		}
 
 		err = json.Unmarshal(jsonReq, &req)
 		c.Assert(err, IsNil)
 
 		c.Assert(req.Context, HasLen, 1)
-		c.Assert(req.Context[0], DeepEquals, map[string]interface{}{
+		c.Assert(req.Context[0], DeepEquals, map[string]any{
 			"snap-id":      helloWorldSnapID,
 			"instance-key": helloWorldSnapID,
 
@@ -467,15 +467,15 @@ func (s *storeActionSuite) TestSnapActionSkipBlocked(c *C) {
 		jsonReq, err := io.ReadAll(r.Body)
 		c.Assert(err, IsNil)
 		var req struct {
-			Context []map[string]interface{} `json:"context"`
-			Actions []map[string]interface{} `json:"actions"`
+			Context []map[string]any `json:"context"`
+			Actions []map[string]any `json:"actions"`
 		}
 
 		err = json.Unmarshal(jsonReq, &req)
 		c.Assert(err, IsNil)
 
 		c.Assert(req.Context, HasLen, 1)
-		c.Assert(req.Context[0], DeepEquals, map[string]interface{}{
+		c.Assert(req.Context[0], DeepEquals, map[string]any{
 			"snap-id":          helloWorldSnapID,
 			"instance-key":     helloWorldSnapID,
 			"revision":         float64(1),
@@ -484,7 +484,7 @@ func (s *storeActionSuite) TestSnapActionSkipBlocked(c *C) {
 			"epoch":            iZeroEpoch,
 		})
 		c.Assert(req.Actions, HasLen, 1)
-		c.Assert(req.Actions[0], DeepEquals, map[string]interface{}{
+		c.Assert(req.Actions[0], DeepEquals, map[string]any{
 			"action":       "refresh",
 			"instance-key": helloWorldSnapID,
 			"snap-id":      helloWorldSnapID,
@@ -556,15 +556,15 @@ func (s *storeActionSuite) TestSnapActionNoSkipIfResourceChange(c *C) {
 		jsonReq, err := io.ReadAll(r.Body)
 		c.Assert(err, IsNil)
 		var req struct {
-			Context []map[string]interface{} `json:"context"`
-			Actions []map[string]interface{} `json:"actions"`
+			Context []map[string]any `json:"context"`
+			Actions []map[string]any `json:"actions"`
 		}
 
 		err = json.Unmarshal(jsonReq, &req)
 		c.Assert(err, IsNil)
 
 		c.Assert(req.Context, HasLen, 1)
-		c.Assert(req.Context[0], DeepEquals, map[string]interface{}{
+		c.Assert(req.Context[0], DeepEquals, map[string]any{
 			"snap-id":          helloWorldSnapID,
 			"instance-key":     helloWorldSnapID,
 			"revision":         float64(1),
@@ -573,7 +573,7 @@ func (s *storeActionSuite) TestSnapActionNoSkipIfResourceChange(c *C) {
 			"epoch":            iZeroEpoch,
 		})
 		c.Assert(req.Actions, HasLen, 1)
-		c.Assert(req.Actions[0], DeepEquals, map[string]interface{}{
+		c.Assert(req.Actions[0], DeepEquals, map[string]any{
 			"action":       "refresh",
 			"instance-key": helloWorldSnapID,
 			"snap-id":      helloWorldSnapID,
@@ -657,15 +657,15 @@ func (s *storeActionSuite) TestSnapActionSkipIfNoResourceChange(c *C) {
 		jsonReq, err := io.ReadAll(r.Body)
 		c.Assert(err, IsNil)
 		var req struct {
-			Context []map[string]interface{} `json:"context"`
-			Actions []map[string]interface{} `json:"actions"`
+			Context []map[string]any `json:"context"`
+			Actions []map[string]any `json:"actions"`
 		}
 
 		err = json.Unmarshal(jsonReq, &req)
 		c.Assert(err, IsNil)
 
 		c.Assert(req.Context, HasLen, 1)
-		c.Assert(req.Context[0], DeepEquals, map[string]interface{}{
+		c.Assert(req.Context[0], DeepEquals, map[string]any{
 			"snap-id":          helloWorldSnapID,
 			"instance-key":     helloWorldSnapID,
 			"revision":         float64(1),
@@ -674,7 +674,7 @@ func (s *storeActionSuite) TestSnapActionSkipIfNoResourceChange(c *C) {
 			"epoch":            iZeroEpoch,
 		})
 		c.Assert(req.Actions, HasLen, 1)
-		c.Assert(req.Actions[0], DeepEquals, map[string]interface{}{
+		c.Assert(req.Actions[0], DeepEquals, map[string]any{
 			"action":       "refresh",
 			"instance-key": helloWorldSnapID,
 			"snap-id":      helloWorldSnapID,
@@ -761,15 +761,15 @@ func (s *storeActionSuite) TestSnapActionSkipCurrent(c *C) {
 		jsonReq, err := io.ReadAll(r.Body)
 		c.Assert(err, IsNil)
 		var req struct {
-			Context []map[string]interface{} `json:"context"`
-			Actions []map[string]interface{} `json:"actions"`
+			Context []map[string]any `json:"context"`
+			Actions []map[string]any `json:"actions"`
 		}
 
 		err = json.Unmarshal(jsonReq, &req)
 		c.Assert(err, IsNil)
 
 		c.Assert(req.Context, HasLen, 1)
-		c.Assert(req.Context[0], DeepEquals, map[string]interface{}{
+		c.Assert(req.Context[0], DeepEquals, map[string]any{
 			"snap-id":          helloWorldSnapID,
 			"instance-key":     helloWorldSnapID,
 			"revision":         float64(26),
@@ -778,7 +778,7 @@ func (s *storeActionSuite) TestSnapActionSkipCurrent(c *C) {
 			"epoch":            iZeroEpoch,
 		})
 		c.Assert(req.Actions, HasLen, 1)
-		c.Assert(req.Actions[0], DeepEquals, map[string]interface{}{
+		c.Assert(req.Actions[0], DeepEquals, map[string]any{
 			"action":       "refresh",
 			"instance-key": helloWorldSnapID,
 			"snap-id":      helloWorldSnapID,
@@ -853,8 +853,8 @@ func (s *storeActionSuite) TestSnapActionRetryOnEOF(c *C) {
 		}
 
 		var req struct {
-			Context []map[string]interface{} `json:"context"`
-			Actions []map[string]interface{} `json:"actions"`
+			Context []map[string]any `json:"context"`
+			Actions []map[string]any `json:"actions"`
 		}
 
 		err := json.NewDecoder(r.Body).Decode(&req)
@@ -922,15 +922,15 @@ func (s *storeActionSuite) TestSnapActionIgnoreValidation(c *C) {
 		jsonReq, err := io.ReadAll(r.Body)
 		c.Assert(err, IsNil)
 		var req struct {
-			Context []map[string]interface{} `json:"context"`
-			Actions []map[string]interface{} `json:"actions"`
+			Context []map[string]any `json:"context"`
+			Actions []map[string]any `json:"actions"`
 		}
 
 		err = json.Unmarshal(jsonReq, &req)
 		c.Assert(err, IsNil)
 
 		c.Assert(req.Context, HasLen, 1)
-		c.Assert(req.Context[0], DeepEquals, map[string]interface{}{
+		c.Assert(req.Context[0], DeepEquals, map[string]any{
 			"snap-id":           helloWorldSnapID,
 			"instance-key":      helloWorldSnapID,
 			"revision":          float64(1),
@@ -940,7 +940,7 @@ func (s *storeActionSuite) TestSnapActionIgnoreValidation(c *C) {
 			"epoch":             iZeroEpoch,
 		})
 		c.Assert(req.Actions, HasLen, 1)
-		c.Assert(req.Actions[0], DeepEquals, map[string]interface{}{
+		c.Assert(req.Actions[0], DeepEquals, map[string]any{
 			"action":            "refresh",
 			"instance-key":      helloWorldSnapID,
 			"snap-id":           helloWorldSnapID,
@@ -1078,15 +1078,15 @@ func (s *storeActionSuite) TestInstallFallbackChannelIsStable(c *C) {
 		jsonReq, err := io.ReadAll(r.Body)
 		c.Assert(err, IsNil)
 		var req struct {
-			Context []map[string]interface{} `json:"context"`
-			Actions []map[string]interface{} `json:"actions"`
+			Context []map[string]any `json:"context"`
+			Actions []map[string]any `json:"actions"`
 		}
 
 		err = json.Unmarshal(jsonReq, &req)
 		c.Assert(err, IsNil)
 
 		c.Assert(req.Context, HasLen, 1)
-		c.Assert(req.Context[0], DeepEquals, map[string]interface{}{
+		c.Assert(req.Context[0], DeepEquals, map[string]any{
 			"snap-id":          helloWorldSnapID,
 			"instance-key":     helloWorldSnapID,
 			"revision":         float64(1),
@@ -1095,7 +1095,7 @@ func (s *storeActionSuite) TestInstallFallbackChannelIsStable(c *C) {
 			"epoch":            iZeroEpoch,
 		})
 		c.Assert(req.Actions, HasLen, 1)
-		c.Assert(req.Actions[0], DeepEquals, map[string]interface{}{
+		c.Assert(req.Actions[0], DeepEquals, map[string]any{
 			"action":       "refresh",
 			"instance-key": helloWorldSnapID,
 			"snap-id":      helloWorldSnapID,
@@ -1173,15 +1173,15 @@ func (s *storeActionSuite) TestSnapActionNonDefaultsHeaders(c *C) {
 		jsonReq, err := io.ReadAll(r.Body)
 		c.Assert(err, IsNil)
 		var req struct {
-			Context []map[string]interface{} `json:"context"`
-			Actions []map[string]interface{} `json:"actions"`
+			Context []map[string]any `json:"context"`
+			Actions []map[string]any `json:"actions"`
 		}
 
 		err = json.Unmarshal(jsonReq, &req)
 		c.Assert(err, IsNil)
 
 		c.Assert(req.Context, HasLen, 1)
-		c.Assert(req.Context[0], DeepEquals, map[string]interface{}{
+		c.Assert(req.Context[0], DeepEquals, map[string]any{
 			"snap-id":          helloWorldSnapID,
 			"instance-key":     helloWorldSnapID,
 			"revision":         float64(1),
@@ -1190,7 +1190,7 @@ func (s *storeActionSuite) TestSnapActionNonDefaultsHeaders(c *C) {
 			"epoch":            iZeroEpoch,
 		})
 		c.Assert(req.Actions, HasLen, 1)
-		c.Assert(req.Actions[0], DeepEquals, map[string]interface{}{
+		c.Assert(req.Actions[0], DeepEquals, map[string]any{
 			"action":       "refresh",
 			"instance-key": helloWorldSnapID,
 			"snap-id":      helloWorldSnapID,
@@ -1268,15 +1268,15 @@ func (s *storeActionSuite) TestSnapActionWithDeltas(c *C) {
 		jsonReq, err := io.ReadAll(r.Body)
 		c.Assert(err, IsNil)
 		var req struct {
-			Context []map[string]interface{} `json:"context"`
-			Actions []map[string]interface{} `json:"actions"`
+			Context []map[string]any `json:"context"`
+			Actions []map[string]any `json:"actions"`
 		}
 
 		err = json.Unmarshal(jsonReq, &req)
 		c.Assert(err, IsNil)
 
 		c.Assert(req.Context, HasLen, 1)
-		c.Assert(req.Context[0], DeepEquals, map[string]interface{}{
+		c.Assert(req.Context[0], DeepEquals, map[string]any{
 			"snap-id":          helloWorldSnapID,
 			"instance-key":     helloWorldSnapID,
 			"revision":         float64(1),
@@ -1285,7 +1285,7 @@ func (s *storeActionSuite) TestSnapActionWithDeltas(c *C) {
 			"epoch":            iZeroEpoch,
 		})
 		c.Assert(req.Actions, HasLen, 1)
-		c.Assert(req.Actions[0], DeepEquals, map[string]interface{}{
+		c.Assert(req.Actions[0], DeepEquals, map[string]any{
 			"action":       "refresh",
 			"instance-key": helloWorldSnapID,
 			"snap-id":      helloWorldSnapID,
@@ -1354,15 +1354,15 @@ func (s *storeActionSuite) TestSnapActionOptions(c *C) {
 		jsonReq, err := io.ReadAll(r.Body)
 		c.Assert(err, IsNil)
 		var req struct {
-			Context []map[string]interface{} `json:"context"`
-			Actions []map[string]interface{} `json:"actions"`
+			Context []map[string]any `json:"context"`
+			Actions []map[string]any `json:"actions"`
 		}
 
 		err = json.Unmarshal(jsonReq, &req)
 		c.Assert(err, IsNil)
 
 		c.Assert(req.Context, HasLen, 1)
-		c.Assert(req.Context[0], DeepEquals, map[string]interface{}{
+		c.Assert(req.Context[0], DeepEquals, map[string]any{
 			"snap-id":          helloWorldSnapID,
 			"instance-key":     helloWorldSnapID,
 			"revision":         float64(1),
@@ -1371,7 +1371,7 @@ func (s *storeActionSuite) TestSnapActionOptions(c *C) {
 			"epoch":            iZeroEpoch,
 		})
 		c.Assert(req.Actions, HasLen, 1)
-		c.Assert(req.Actions[0], DeepEquals, map[string]interface{}{
+		c.Assert(req.Actions[0], DeepEquals, map[string]any{
 			"action":       "refresh",
 			"instance-key": helloWorldSnapID,
 			"snap-id":      helloWorldSnapID,
@@ -1472,8 +1472,8 @@ func (s *storeActionSuite) testSnapActionGet(action, cohort, redirectChannel str
 		jsonReq, err := io.ReadAll(r.Body)
 		c.Assert(err, IsNil)
 		var req struct {
-			Context []map[string]interface{} `json:"context"`
-			Actions []map[string]interface{} `json:"actions"`
+			Context []map[string]any `json:"context"`
+			Actions []map[string]any `json:"actions"`
 		}
 
 		err = json.Unmarshal(jsonReq, &req)
@@ -1481,7 +1481,7 @@ func (s *storeActionSuite) testSnapActionGet(action, cohort, redirectChannel str
 
 		c.Assert(req.Context, HasLen, 0)
 		c.Assert(req.Actions, HasLen, 1)
-		expectedAction := map[string]interface{}{
+		expectedAction := map[string]any{
 			"action":       action,
 			"instance-key": action + "-1",
 			"name":         "hello-world",
@@ -1494,9 +1494,9 @@ func (s *storeActionSuite) testSnapActionGet(action, cohort, redirectChannel str
 		if validationSets != nil {
 			// XXX: rewrite as otherwise DeepEquals complains about
 			// []interface {}{[]interface {}{..} vs expected [][]string{[]string{..}.
-			var sets []interface{}
+			var sets []any
 			for _, vs := range validationSets {
-				var vss []interface{}
+				var vss []any
 				for _, vv := range vs.Components() {
 					vss = append(vss, vv)
 				}
@@ -1585,8 +1585,8 @@ func (s *storeActionSuite) TestSnapActionInstallAmend(c *C) {
 		jsonReq, err := io.ReadAll(r.Body)
 		c.Assert(err, IsNil)
 		var req struct {
-			Context []map[string]interface{} `json:"context"`
-			Actions []map[string]interface{} `json:"actions"`
+			Context []map[string]any `json:"context"`
+			Actions []map[string]any `json:"actions"`
 		}
 
 		err = json.Unmarshal(jsonReq, &req)
@@ -1594,12 +1594,12 @@ func (s *storeActionSuite) TestSnapActionInstallAmend(c *C) {
 
 		c.Assert(req.Context, HasLen, 0)
 		c.Assert(req.Actions, HasLen, 1)
-		c.Assert(req.Actions[0], DeepEquals, map[string]interface{}{
+		c.Assert(req.Actions[0], DeepEquals, map[string]any{
 			"action":       "install",
 			"instance-key": "install-1",
 			"name":         "hello-world",
 			"channel":      "beta",
-			"epoch":        map[string]interface{}{"read": []interface{}{0., 1.}, "write": []interface{}{1.}},
+			"epoch":        map[string]any{"read": []any{0., 1.}, "write": []any{1.}},
 		})
 
 		fmt.Fprint(w, `{
@@ -1755,8 +1755,8 @@ func (s *storeActionSuite) testSnapActionGetWithRevision(action string, c *C) {
 		jsonReq, err := io.ReadAll(r.Body)
 		c.Assert(err, IsNil)
 		var req struct {
-			Context []map[string]interface{} `json:"context"`
-			Actions []map[string]interface{} `json:"actions"`
+			Context []map[string]any `json:"context"`
+			Actions []map[string]any `json:"actions"`
 		}
 
 		err = json.Unmarshal(jsonReq, &req)
@@ -1764,7 +1764,7 @@ func (s *storeActionSuite) testSnapActionGetWithRevision(action string, c *C) {
 
 		c.Assert(req.Context, HasLen, 0)
 		c.Assert(req.Actions, HasLen, 1)
-		c.Assert(req.Actions[0], DeepEquals, map[string]interface{}{
+		c.Assert(req.Actions[0], DeepEquals, map[string]any{
 			"action":       action,
 			"instance-key": action + "-1",
 			"name":         "hello-world",
@@ -1832,15 +1832,15 @@ func (s *storeActionSuite) TestSnapActionRevisionNotAvailable(c *C) {
 		jsonReq, err := io.ReadAll(r.Body)
 		c.Assert(err, IsNil)
 		var req struct {
-			Context []map[string]interface{} `json:"context"`
-			Actions []map[string]interface{} `json:"actions"`
+			Context []map[string]any `json:"context"`
+			Actions []map[string]any `json:"actions"`
 		}
 
 		err = json.Unmarshal(jsonReq, &req)
 		c.Assert(err, IsNil)
 
 		c.Assert(req.Context, HasLen, 2)
-		c.Assert(req.Context[0], DeepEquals, map[string]interface{}{
+		c.Assert(req.Context[0], DeepEquals, map[string]any{
 			"snap-id":          helloWorldSnapID,
 			"instance-key":     helloWorldSnapID,
 			"revision":         float64(26),
@@ -1848,7 +1848,7 @@ func (s *storeActionSuite) TestSnapActionRevisionNotAvailable(c *C) {
 			"refreshed-date":   helloRefreshedDateStr,
 			"epoch":            iZeroEpoch,
 		})
-		c.Assert(req.Context[1], DeepEquals, map[string]interface{}{
+		c.Assert(req.Context[1], DeepEquals, map[string]any{
 			"snap-id":          "snap2-id",
 			"instance-key":     "snap2-id",
 			"revision":         float64(2),
@@ -1857,25 +1857,25 @@ func (s *storeActionSuite) TestSnapActionRevisionNotAvailable(c *C) {
 			"epoch":            iZeroEpoch,
 		})
 		c.Assert(req.Actions, HasLen, 4)
-		c.Assert(req.Actions[0], DeepEquals, map[string]interface{}{
+		c.Assert(req.Actions[0], DeepEquals, map[string]any{
 			"action":       "refresh",
 			"instance-key": helloWorldSnapID,
 			"snap-id":      helloWorldSnapID,
 		})
-		c.Assert(req.Actions[1], DeepEquals, map[string]interface{}{
+		c.Assert(req.Actions[1], DeepEquals, map[string]any{
 			"action":       "refresh",
 			"instance-key": "snap2-id",
 			"snap-id":      "snap2-id",
 			"channel":      "candidate",
 		})
-		c.Assert(req.Actions[2], DeepEquals, map[string]interface{}{
+		c.Assert(req.Actions[2], DeepEquals, map[string]any{
 			"action":       "install",
 			"instance-key": "install-1",
 			"name":         "foo",
 			"channel":      "stable",
 			"epoch":        nil,
 		})
-		c.Assert(req.Actions[3], DeepEquals, map[string]interface{}{
+		c.Assert(req.Actions[3], DeepEquals, map[string]any{
 			"action":       "download",
 			"instance-key": "download-1",
 			"name":         "bar",
@@ -2013,15 +2013,15 @@ func (s *storeActionSuite) TestSnapActionSnapNotFound(c *C) {
 		jsonReq, err := io.ReadAll(r.Body)
 		c.Assert(err, IsNil)
 		var req struct {
-			Context []map[string]interface{} `json:"context"`
-			Actions []map[string]interface{} `json:"actions"`
+			Context []map[string]any `json:"context"`
+			Actions []map[string]any `json:"actions"`
 		}
 
 		err = json.Unmarshal(jsonReq, &req)
 		c.Assert(err, IsNil)
 
 		c.Assert(req.Context, HasLen, 1)
-		c.Assert(req.Context[0], DeepEquals, map[string]interface{}{
+		c.Assert(req.Context[0], DeepEquals, map[string]any{
 			"snap-id":          helloWorldSnapID,
 			"instance-key":     helloWorldSnapID,
 			"revision":         float64(26),
@@ -2030,20 +2030,20 @@ func (s *storeActionSuite) TestSnapActionSnapNotFound(c *C) {
 			"epoch":            iZeroEpoch,
 		})
 		c.Assert(req.Actions, HasLen, 3)
-		c.Assert(req.Actions[0], DeepEquals, map[string]interface{}{
+		c.Assert(req.Actions[0], DeepEquals, map[string]any{
 			"action":       "refresh",
 			"instance-key": helloWorldSnapID,
 			"snap-id":      helloWorldSnapID,
 			"channel":      "stable",
 		})
-		c.Assert(req.Actions[1], DeepEquals, map[string]interface{}{
+		c.Assert(req.Actions[1], DeepEquals, map[string]any{
 			"action":       "install",
 			"instance-key": "install-1",
 			"name":         "foo",
 			"channel":      "stable",
 			"epoch":        nil,
 		})
-		c.Assert(req.Actions[2], DeepEquals, map[string]interface{}{
+		c.Assert(req.Actions[2], DeepEquals, map[string]any{
 			"action":       "download",
 			"instance-key": "download-1",
 			"name":         "bar",
@@ -2137,8 +2137,8 @@ func (s *storeActionSuite) TestSnapActionOtherErrors(c *C) {
 		jsonReq, err := io.ReadAll(r.Body)
 		c.Assert(err, IsNil)
 		var req struct {
-			Context []map[string]interface{} `json:"context"`
-			Actions []map[string]interface{} `json:"actions"`
+			Context []map[string]any `json:"context"`
+			Actions []map[string]any `json:"actions"`
 		}
 
 		err = json.Unmarshal(jsonReq, &req)
@@ -2146,7 +2146,7 @@ func (s *storeActionSuite) TestSnapActionOtherErrors(c *C) {
 
 		c.Assert(req.Context, HasLen, 0)
 		c.Assert(req.Actions, HasLen, 1)
-		c.Assert(req.Actions[0], DeepEquals, map[string]interface{}{
+		c.Assert(req.Actions[0], DeepEquals, map[string]any{
 			"action":       "install",
 			"instance-key": "install-1",
 			"name":         "foo",
@@ -2551,15 +2551,15 @@ func (s *storeActionSuite) TestSnapActionRefreshParallelInstall(c *C) {
 		jsonReq, err := io.ReadAll(r.Body)
 		c.Assert(err, IsNil)
 		var req struct {
-			Context []map[string]interface{} `json:"context"`
-			Actions []map[string]interface{} `json:"actions"`
+			Context []map[string]any `json:"context"`
+			Actions []map[string]any `json:"actions"`
 		}
 
 		err = json.Unmarshal(jsonReq, &req)
 		c.Assert(err, IsNil)
 
 		c.Assert(req.Context, HasLen, 2)
-		c.Assert(req.Context[0], DeepEquals, map[string]interface{}{
+		c.Assert(req.Context[0], DeepEquals, map[string]any{
 			"snap-id":          helloWorldSnapID,
 			"instance-key":     helloWorldSnapID,
 			"revision":         float64(26),
@@ -2567,7 +2567,7 @@ func (s *storeActionSuite) TestSnapActionRefreshParallelInstall(c *C) {
 			"refreshed-date":   helloRefreshedDateStr,
 			"epoch":            iZeroEpoch,
 		})
-		c.Assert(req.Context[1], DeepEquals, map[string]interface{}{
+		c.Assert(req.Context[1], DeepEquals, map[string]any{
 			"snap-id":          helloWorldSnapID,
 			"instance-key":     helloWorldFooInstanceKeyWithSalt,
 			"revision":         float64(2),
@@ -2576,7 +2576,7 @@ func (s *storeActionSuite) TestSnapActionRefreshParallelInstall(c *C) {
 			"epoch":            iZeroEpoch,
 		})
 		c.Assert(req.Actions, HasLen, 1)
-		c.Assert(req.Actions[0], DeepEquals, map[string]interface{}{
+		c.Assert(req.Actions[0], DeepEquals, map[string]any{
 			"action":       "refresh",
 			"instance-key": helloWorldFooInstanceKeyWithSalt,
 			"snap-id":      helloWorldSnapID,
@@ -2654,15 +2654,15 @@ func (s *storeActionSuite) TestSnapActionRefreshStableInstanceKey(c *C) {
 		jsonReq, err := io.ReadAll(r.Body)
 		c.Assert(err, IsNil)
 		var req struct {
-			Context []map[string]interface{} `json:"context"`
-			Actions []map[string]interface{} `json:"actions"`
+			Context []map[string]any `json:"context"`
+			Actions []map[string]any `json:"actions"`
 		}
 
 		err = json.Unmarshal(jsonReq, &req)
 		c.Assert(err, IsNil)
 
 		c.Assert(req.Context, HasLen, 2)
-		c.Assert(req.Context[0], DeepEquals, map[string]interface{}{
+		c.Assert(req.Context[0], DeepEquals, map[string]any{
 			"snap-id":          helloWorldSnapID,
 			"instance-key":     helloWorldSnapID,
 			"revision":         float64(26),
@@ -2671,7 +2671,7 @@ func (s *storeActionSuite) TestSnapActionRefreshStableInstanceKey(c *C) {
 			"epoch":            iZeroEpoch,
 			"cohort-key":       "what",
 		})
-		c.Assert(req.Context[1], DeepEquals, map[string]interface{}{
+		c.Assert(req.Context[1], DeepEquals, map[string]any{
 			"snap-id":          helloWorldSnapID,
 			"instance-key":     helloWorldFooInstanceKeyWithSaltFoo,
 			"revision":         float64(2),
@@ -2680,7 +2680,7 @@ func (s *storeActionSuite) TestSnapActionRefreshStableInstanceKey(c *C) {
 			"epoch":            iZeroEpoch,
 		})
 		c.Assert(req.Actions, HasLen, 1)
-		c.Assert(req.Actions[0], DeepEquals, map[string]interface{}{
+		c.Assert(req.Actions[0], DeepEquals, map[string]any{
 			"action":       "refresh",
 			"instance-key": helloWorldFooInstanceKeyWithSaltFoo,
 			"snap-id":      helloWorldSnapID,
@@ -2765,25 +2765,25 @@ func (s *storeActionSuite) TestSnapActionRefreshWithHeld(c *C) {
 		jsonReq, err := io.ReadAll(r.Body)
 		c.Assert(err, IsNil)
 		var req struct {
-			Context []map[string]interface{} `json:"context"`
-			Actions []map[string]interface{} `json:"actions"`
+			Context []map[string]any `json:"context"`
+			Actions []map[string]any `json:"actions"`
 		}
 
 		err = json.Unmarshal(jsonReq, &req)
 		c.Assert(err, IsNil)
 
 		c.Assert(req.Context, HasLen, 1)
-		c.Assert(req.Context[0], DeepEquals, map[string]interface{}{
+		c.Assert(req.Context[0], DeepEquals, map[string]any{
 			"snap-id":          helloWorldSnapID,
 			"instance-key":     helloWorldSnapID,
 			"revision":         float64(1),
 			"tracking-channel": "stable",
 			"refreshed-date":   helloRefreshedDateStr,
 			"epoch":            iZeroEpoch,
-			"held":             map[string]interface{}{"by": []interface{}{"foo", "bar"}},
+			"held":             map[string]any{"by": []any{"foo", "bar"}},
 		})
 		c.Assert(req.Actions, HasLen, 1)
-		c.Assert(req.Actions[0], DeepEquals, map[string]interface{}{
+		c.Assert(req.Actions[0], DeepEquals, map[string]any{
 			"action":       "refresh",
 			"instance-key": helloWorldSnapID,
 			"snap-id":      helloWorldSnapID,
@@ -2859,8 +2859,8 @@ func (s *storeActionSuite) TestSnapActionRefreshWithHeldUnsupportedProxy(c *C) {
 		jsonReq, err := io.ReadAll(r.Body)
 		c.Assert(err, IsNil)
 		var req struct {
-			Context []map[string]interface{} `json:"context"`
-			Actions []map[string]interface{} `json:"actions"`
+			Context []map[string]any `json:"context"`
+			Actions []map[string]any `json:"actions"`
 		}
 
 		err = json.Unmarshal(jsonReq, &req)
@@ -2877,7 +2877,7 @@ func (s *storeActionSuite) TestSnapActionRefreshWithHeldUnsupportedProxy(c *C) {
 			return
 		}
 		// snap action should retry without the `held` field
-		c.Assert(req.Context[0], DeepEquals, map[string]interface{}{
+		c.Assert(req.Context[0], DeepEquals, map[string]any{
 			"snap-id":          helloWorldSnapID,
 			"instance-key":     helloWorldSnapID,
 			"revision":         float64(1),
@@ -2886,7 +2886,7 @@ func (s *storeActionSuite) TestSnapActionRefreshWithHeldUnsupportedProxy(c *C) {
 			"epoch":            iZeroEpoch,
 		})
 		c.Assert(req.Actions, HasLen, 1)
-		c.Assert(req.Actions[0], DeepEquals, map[string]interface{}{
+		c.Assert(req.Actions[0], DeepEquals, map[string]any{
 			"action":       "refresh",
 			"instance-key": helloWorldSnapID,
 			"snap-id":      helloWorldSnapID,
@@ -2958,30 +2958,30 @@ func (s *storeActionSuite) TestSnapActionRefreshWithValidationSets(c *C) {
 		jsonReq, err := io.ReadAll(r.Body)
 		c.Assert(err, IsNil)
 		var req struct {
-			Context []map[string]interface{} `json:"context"`
-			Actions []map[string]interface{} `json:"actions"`
+			Context []map[string]any `json:"context"`
+			Actions []map[string]any `json:"actions"`
 		}
 
 		err = json.Unmarshal(jsonReq, &req)
 		c.Assert(err, IsNil)
 
 		c.Assert(req.Context, HasLen, 1)
-		c.Assert(req.Context[0], DeepEquals, map[string]interface{}{
+		c.Assert(req.Context[0], DeepEquals, map[string]any{
 			"snap-id":          helloWorldSnapID,
 			"instance-key":     helloWorldSnapID,
 			"revision":         float64(1),
 			"tracking-channel": "stable",
 			"refreshed-date":   helloRefreshedDateStr,
 			"epoch":            iZeroEpoch,
-			"validation-sets":  []interface{}{[]interface{}{"foo", "other"}},
+			"validation-sets":  []any{[]any{"foo", "other"}},
 		})
 		c.Assert(req.Actions, HasLen, 1)
-		c.Assert(req.Actions[0], DeepEquals, map[string]interface{}{
+		c.Assert(req.Actions[0], DeepEquals, map[string]any{
 			"action":          "refresh",
 			"instance-key":    helloWorldSnapID,
 			"snap-id":         helloWorldSnapID,
 			"channel":         "stable",
-			"validation-sets": []interface{}{[]interface{}{"foo", "bar"}, []interface{}{"foo", "baz"}},
+			"validation-sets": []any{[]any{"foo", "bar"}, []any{"foo", "baz"}},
 		})
 
 		io.WriteString(w, `{
@@ -3050,15 +3050,15 @@ func (s *storeActionSuite) TestSnapActionRevisionNotAvailableParallelInstall(c *
 		jsonReq, err := io.ReadAll(r.Body)
 		c.Assert(err, IsNil)
 		var req struct {
-			Context []map[string]interface{} `json:"context"`
-			Actions []map[string]interface{} `json:"actions"`
+			Context []map[string]any `json:"context"`
+			Actions []map[string]any `json:"actions"`
 		}
 
 		err = json.Unmarshal(jsonReq, &req)
 		c.Assert(err, IsNil)
 
 		c.Assert(req.Context, HasLen, 2)
-		c.Assert(req.Context[0], DeepEquals, map[string]interface{}{
+		c.Assert(req.Context[0], DeepEquals, map[string]any{
 			"snap-id":          helloWorldSnapID,
 			"instance-key":     helloWorldSnapID,
 			"revision":         float64(26),
@@ -3066,7 +3066,7 @@ func (s *storeActionSuite) TestSnapActionRevisionNotAvailableParallelInstall(c *
 			"refreshed-date":   helloRefreshedDateStr,
 			"epoch":            iZeroEpoch,
 		})
-		c.Assert(req.Context[1], DeepEquals, map[string]interface{}{
+		c.Assert(req.Context[1], DeepEquals, map[string]any{
 			"snap-id":          helloWorldSnapID,
 			"instance-key":     helloWorldFooInstanceKeyWithSalt,
 			"revision":         float64(2),
@@ -3075,17 +3075,17 @@ func (s *storeActionSuite) TestSnapActionRevisionNotAvailableParallelInstall(c *
 			"epoch":            iZeroEpoch,
 		})
 		c.Assert(req.Actions, HasLen, 3)
-		c.Assert(req.Actions[0], DeepEquals, map[string]interface{}{
+		c.Assert(req.Actions[0], DeepEquals, map[string]any{
 			"action":       "refresh",
 			"instance-key": helloWorldSnapID,
 			"snap-id":      helloWorldSnapID,
 		})
-		c.Assert(req.Actions[1], DeepEquals, map[string]interface{}{
+		c.Assert(req.Actions[1], DeepEquals, map[string]any{
 			"action":       "refresh",
 			"instance-key": helloWorldFooInstanceKeyWithSalt,
 			"snap-id":      helloWorldSnapID,
 		})
-		c.Assert(req.Actions[2], DeepEquals, map[string]interface{}{
+		c.Assert(req.Actions[2], DeepEquals, map[string]any{
 			"action":       "install",
 			"instance-key": "install-1",
 			"name":         "other",
@@ -3196,15 +3196,15 @@ func (s *storeActionSuite) TestSnapActionInstallParallelInstall(c *C) {
 		jsonReq, err := io.ReadAll(r.Body)
 		c.Assert(err, IsNil)
 		var req struct {
-			Context []map[string]interface{} `json:"context"`
-			Actions []map[string]interface{} `json:"actions"`
+			Context []map[string]any `json:"context"`
+			Actions []map[string]any `json:"actions"`
 		}
 
 		err = json.Unmarshal(jsonReq, &req)
 		c.Assert(err, IsNil)
 
 		c.Assert(req.Context, HasLen, 1)
-		c.Assert(req.Context[0], DeepEquals, map[string]interface{}{
+		c.Assert(req.Context[0], DeepEquals, map[string]any{
 			"snap-id":          helloWorldSnapID,
 			"instance-key":     helloWorldSnapID,
 			"revision":         float64(26),
@@ -3213,7 +3213,7 @@ func (s *storeActionSuite) TestSnapActionInstallParallelInstall(c *C) {
 			"epoch":            iZeroEpoch,
 		})
 		c.Assert(req.Actions, HasLen, 1)
-		c.Assert(req.Actions[0], DeepEquals, map[string]interface{}{
+		c.Assert(req.Actions[0], DeepEquals, map[string]any{
 			"action":       "install",
 			"instance-key": "install-1",
 			"name":         "hello-world",
@@ -3310,15 +3310,15 @@ func (s *storeActionSuite) TestSnapActionInstallUnexpectedInstanceKey(c *C) {
 		jsonReq, err := io.ReadAll(r.Body)
 		c.Assert(err, IsNil)
 		var req struct {
-			Context []map[string]interface{} `json:"context"`
-			Actions []map[string]interface{} `json:"actions"`
+			Context []map[string]any `json:"context"`
+			Actions []map[string]any `json:"actions"`
 		}
 
 		err = json.Unmarshal(jsonReq, &req)
 		c.Assert(err, IsNil)
 
 		c.Assert(req.Context, HasLen, 1)
-		c.Assert(req.Context[0], DeepEquals, map[string]interface{}{
+		c.Assert(req.Context[0], DeepEquals, map[string]any{
 			"snap-id":          helloWorldSnapID,
 			"instance-key":     helloWorldSnapID,
 			"revision":         float64(26),
@@ -3327,7 +3327,7 @@ func (s *storeActionSuite) TestSnapActionInstallUnexpectedInstanceKey(c *C) {
 			"epoch":            iZeroEpoch,
 		})
 		c.Assert(req.Actions, HasLen, 1)
-		c.Assert(req.Actions[0], DeepEquals, map[string]interface{}{
+		c.Assert(req.Actions[0], DeepEquals, map[string]any{
 			"action":       "install",
 			"instance-key": "install-1",
 			"name":         "hello-world",
@@ -3394,15 +3394,15 @@ func (s *storeActionSuite) TestSnapActionRefreshUnexpectedInstanceKey(c *C) {
 		jsonReq, err := io.ReadAll(r.Body)
 		c.Assert(err, IsNil)
 		var req struct {
-			Context []map[string]interface{} `json:"context"`
-			Actions []map[string]interface{} `json:"actions"`
+			Context []map[string]any `json:"context"`
+			Actions []map[string]any `json:"actions"`
 		}
 
 		err = json.Unmarshal(jsonReq, &req)
 		c.Assert(err, IsNil)
 
 		c.Assert(req.Context, HasLen, 1)
-		c.Assert(req.Context[0], DeepEquals, map[string]interface{}{
+		c.Assert(req.Context[0], DeepEquals, map[string]any{
 			"snap-id":          helloWorldSnapID,
 			"instance-key":     helloWorldSnapID,
 			"revision":         float64(26),
@@ -3411,7 +3411,7 @@ func (s *storeActionSuite) TestSnapActionRefreshUnexpectedInstanceKey(c *C) {
 			"epoch":            iZeroEpoch,
 		})
 		c.Assert(req.Actions, HasLen, 1)
-		c.Assert(req.Actions[0], DeepEquals, map[string]interface{}{
+		c.Assert(req.Actions[0], DeepEquals, map[string]any{
 			"action":       "refresh",
 			"instance-key": helloWorldSnapID,
 			"snap-id":      helloWorldSnapID,
@@ -3478,15 +3478,15 @@ func (s *storeActionSuite) TestSnapActionUnexpectedErrorKey(c *C) {
 		jsonReq, err := io.ReadAll(r.Body)
 		c.Assert(err, IsNil)
 		var req struct {
-			Context []map[string]interface{} `json:"context"`
-			Actions []map[string]interface{} `json:"actions"`
+			Context []map[string]any `json:"context"`
+			Actions []map[string]any `json:"actions"`
 		}
 
 		err = json.Unmarshal(jsonReq, &req)
 		c.Assert(err, IsNil)
 
 		c.Assert(req.Context, HasLen, 2)
-		c.Assert(req.Context[0], DeepEquals, map[string]interface{}{
+		c.Assert(req.Context[0], DeepEquals, map[string]any{
 			"snap-id":          helloWorldSnapID,
 			"instance-key":     helloWorldSnapID,
 			"revision":         float64(26),
@@ -3494,7 +3494,7 @@ func (s *storeActionSuite) TestSnapActionUnexpectedErrorKey(c *C) {
 			"refreshed-date":   helloRefreshedDateStr,
 			"epoch":            iZeroEpoch,
 		})
-		c.Assert(req.Context[1], DeepEquals, map[string]interface{}{
+		c.Assert(req.Context[1], DeepEquals, map[string]any{
 			"snap-id":          helloWorldSnapID,
 			"instance-key":     helloWorldFooInstanceKeyWithSalt,
 			"revision":         float64(2),
@@ -3503,7 +3503,7 @@ func (s *storeActionSuite) TestSnapActionUnexpectedErrorKey(c *C) {
 			"epoch":            iZeroEpoch,
 		})
 		c.Assert(req.Actions, HasLen, 1)
-		c.Assert(req.Actions[0], DeepEquals, map[string]interface{}{
+		c.Assert(req.Actions[0], DeepEquals, map[string]any{
 			"action":       "install",
 			"instance-key": "install-1",
 			"name":         "foo-2",

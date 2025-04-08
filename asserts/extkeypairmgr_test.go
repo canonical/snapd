@@ -204,7 +204,7 @@ func (s *extKeypairMgrSuite) TestSignFlow(c *C) {
 
 	store := assertstest.NewStoreStack("trusted", nil)
 
-	brandAcct := assertstest.NewAccount(store, "brand", map[string]interface{}{
+	brandAcct := assertstest.NewAccount(store, "brand", map[string]any{
 		"account-id": "brand-id",
 	}, "")
 	brandAccKey := assertstest.NewAccountKey(store, brandAcct, nil, pk.PublicKey(), "")
@@ -228,7 +228,7 @@ func (s *extKeypairMgrSuite) TestSignFlow(c *C) {
 	err = checkDB.Add(brandAccKey)
 	c.Assert(err, IsNil)
 
-	modelHdsrs := map[string]interface{}{
+	modelHdsrs := map[string]any{
 		"authority-id": "brand-id",
 		"brand-id":     "brand-id",
 		"model":        "model",

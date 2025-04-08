@@ -267,7 +267,7 @@ func mapRemote(remoteSnap *snap.Info) *client.Snap {
 }
 
 type findResponse struct {
-	Results           interface{}
+	Results           any
 	Sources           []string
 	SuggestedCurrency string
 }

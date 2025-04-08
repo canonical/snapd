@@ -60,7 +60,7 @@ func NewExternalKeypairManager(keyMgrPath string) (*ExternalKeypairManager, erro
 	return em, nil
 }
 
-func (em *ExternalKeypairManager) keyMgr(op string, args []string, in []byte, out interface{}) error {
+func (em *ExternalKeypairManager) keyMgr(op string, args []string, in []byte, out any) error {
 	args = append([]string{op}, args...)
 	cmd := exec.Command(em.keyMgrPath, args...)
 	var outBuf bytes.Buffer

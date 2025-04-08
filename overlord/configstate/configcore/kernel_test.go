@@ -163,7 +163,7 @@ func (s *kernelSuite) mockClassicBootModelWithoutSnaps() {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	extras := map[string]interface{}{
+	extras := map[string]any{
 		"architecture": "amd64",
 		"classic":      "true",
 	}
@@ -182,18 +182,18 @@ func (s *kernelSuite) mockModelWithModeenv(grade string, isClassic bool) {
 	defer s.state.Unlock()
 
 	// model setup
-	extras := map[string]interface{}{
+	extras := map[string]any{
 		"architecture": "amd64",
 		"base":         "core20",
 		"grade":        grade,
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":            "pc-kernel",
 				"id":              "pYVQrBcKmBa0mZ4CCN7ExT6jH8rY1hza",
 				"type":            "kernel",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "pc",
 				"id":              "UqFziVZDHLSyO3TqSWgNBoAdHbLI4dAH",
 				"type":            "gadget",
@@ -321,7 +321,7 @@ func (s *kernelSuite) testConfigureKernelCmdlineHappy(c *C, option []cmdlineOpti
 	s.state.Unlock()
 
 	hookCtx.Lock()
-	patchVals := make(map[string]interface{})
+	patchVals := make(map[string]any)
 	for _, opt := range option {
 		patchVals[opt.name] = opt.cmdline
 	}

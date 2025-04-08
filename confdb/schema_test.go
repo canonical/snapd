@@ -1861,25 +1861,25 @@ func (*schemaSuite) TestPathManyUserDefinedTypeReferences(c *C) {
 
 func (*schemaSuite) TestValidationError(c *C) {
 	type testcase struct {
-		path     []interface{}
+		path     []any
 		expected string
 	}
 
 	cases := []testcase{
 		{
-			path:     []interface{}{"foo", "bar"},
+			path:     []any{"foo", "bar"},
 			expected: "foo.bar",
 		},
 		{
-			path:     []interface{}{"foo", 1, "bar"},
+			path:     []any{"foo", 1, "bar"},
 			expected: "foo[1].bar",
 		},
 		{
-			path:     []interface{}{"foo", 1, 2, "bar"},
+			path:     []any{"foo", 1, 2, "bar"},
 			expected: "foo[1][2].bar",
 		},
 		{
-			path:     []interface{}{"foo", 2.9, 1},
+			path:     []any{"foo", 2.9, 1},
 			expected: "foo.<n/a>[1]",
 		},
 	}
@@ -1898,7 +1898,7 @@ func (*schemaSuite) TestUnexpectedTypes(c *C) {
 	type testcase struct {
 		schemaType   string
 		expectedType string
-		testValue    interface{}
+		testValue    any
 	}
 
 	tcs := []testcase{
@@ -1959,7 +1959,7 @@ func (*schemaSuite) TestAlternativeTypesHappy(c *C) {
 	schema, err := confdb.ParseStorageSchema(schemaStr)
 	c.Assert(err, IsNil)
 
-	for _, val := range []interface{}{`"one"`, `1`} {
+	for _, val := range []any{`"one"`, `1`} {
 		input := []byte(fmt.Sprintf(`{"foo":%s}`, val))
 		err = schema.Validate(input)
 		c.Assert(err, IsNil)
@@ -1976,7 +1976,7 @@ func (*schemaSuite) TestAlternativeTypesFail(c *C) {
 	schema, err := confdb.ParseStorageSchema(schemaStr)
 	c.Assert(err, IsNil)
 
-	for _, val := range []interface{}{"1.1", "true", `{"bar": 1}`, `[1, 2]`} {
+	for _, val := range []any{"1.1", "true", `{"bar": 1}`, `[1, 2]`} {
 		input := []byte(fmt.Sprintf(`{"foo":%s}`, val))
 		err = schema.Validate(input)
 		c.Assert(err, ErrorMatches, `cannot accept element in "foo": no matching schema:
@@ -2003,7 +2003,7 @@ func (*schemaSuite) TestAlternativeTypesWithConstraintsHappy(c *C) {
 	schema, err := confdb.ParseStorageSchema(schemaStr)
 	c.Assert(err, IsNil)
 
-	for _, val := range []interface{}{"3", "0", `"Bar"`, `"bar"`} {
+	for _, val := range []any{"3", "0", `"Bar"`, `"bar"`} {
 		input := []byte(fmt.Sprintf(`{"foo":%s}`, val))
 		err = schema.Validate(input)
 		c.Assert(err, IsNil)
@@ -2048,7 +2048,7 @@ func (*schemaSuite) TestAlternativeTypesNestedHappy(c *C) {
 	schema, err := confdb.ParseStorageSchema(schemaStr)
 	c.Assert(err, IsNil)
 
-	for _, val := range []interface{}{`"one"`, `1`, `1.3`} {
+	for _, val := range []any{`"one"`, `1`, `1.3`} {
 		input := []byte(fmt.Sprintf(`{"foo":%s}`, val))
 		err = schema.Validate(input)
 		c.Assert(err, IsNil)

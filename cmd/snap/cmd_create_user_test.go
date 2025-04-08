@@ -36,12 +36,12 @@ func makeCreateUserChecker(c *check.C, n *int, email string, sudoer, known bool)
 		case 0:
 			c.Check(r.Method, check.Equals, "POST")
 			c.Check(r.URL.Path, check.Equals, "/v2/users")
-			var gotBody map[string]interface{}
+			var gotBody map[string]any
 			dec := json.NewDecoder(r.Body)
 			err := dec.Decode(&gotBody)
 			c.Assert(err, check.IsNil)
 
-			wantBody := map[string]interface{}{
+			wantBody := map[string]any{
 				"action": "create",
 			}
 			if email != "" {

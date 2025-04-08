@@ -51,11 +51,11 @@ func (s *storeAssertsSuite) SetUpTest(c *C) {
 	s.baseStoreSuite.SetUpTest(c)
 
 	s.storeSigning = assertstest.NewStoreStack("can0nical", nil)
-	s.dev1Acct = assertstest.NewAccount(s.storeSigning, "developer1", map[string]interface{}{
+	s.dev1Acct = assertstest.NewAccount(s.storeSigning, "developer1", map[string]any{
 		"account-id": "developer1",
 	}, "")
 
-	a, err := s.storeSigning.Sign(asserts.SnapDeclarationType, map[string]interface{}{
+	a, err := s.storeSigning.Sign(asserts.SnapDeclarationType, map[string]any{
 		"series":       "16",
 		"snap-id":      "asnapid",
 		"snap-name":    "asnap",

@@ -43,15 +43,15 @@ type validationSetsSuite struct{}
 var _ = Suite(&validationSetsSuite{})
 
 func (s *validationSetsSuite) TestAddFromSameSequence(c *C) {
-	mySnapAt7Valset := assertstest.FakeAssertion(map[string]interface{}{
+	mySnapAt7Valset := assertstest.FakeAssertion(map[string]any{
 		"type":         "validation-set",
 		"authority-id": "account-id",
 		"series":       "16",
 		"account-id":   "account-id",
 		"name":         "my-snap-ctl",
 		"sequence":     "1",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":     "my-snap",
 				"id":       "mysnapididididididididididididid",
 				"presence": "required",
@@ -60,15 +60,15 @@ func (s *validationSetsSuite) TestAddFromSameSequence(c *C) {
 		},
 	}).(*asserts.ValidationSet)
 
-	mySnapAt8Valset := assertstest.FakeAssertion(map[string]interface{}{
+	mySnapAt8Valset := assertstest.FakeAssertion(map[string]any{
 		"type":         "validation-set",
 		"authority-id": "account-id",
 		"series":       "16",
 		"account-id":   "account-id",
 		"name":         "my-snap-ctl",
 		"sequence":     "2",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":     "my-snap",
 				"id":       "mysnapididididididididididididid",
 				"presence": "required",
@@ -85,15 +85,15 @@ func (s *validationSetsSuite) TestAddFromSameSequence(c *C) {
 }
 
 func (s *validationSetsSuite) TestIntersections(c *C) {
-	mySnapAt7Valset := assertstest.FakeAssertion(map[string]interface{}{
+	mySnapAt7Valset := assertstest.FakeAssertion(map[string]any{
 		"type":         "validation-set",
 		"authority-id": "account-id",
 		"series":       "16",
 		"account-id":   "account-id",
 		"name":         "my-snap-ctl",
 		"sequence":     "1",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":     "my-snap",
 				"id":       "mysnapididididididididididididid",
 				"presence": "required",
@@ -102,15 +102,15 @@ func (s *validationSetsSuite) TestIntersections(c *C) {
 		},
 	}).(*asserts.ValidationSet)
 
-	mySnapAt7Valset2 := assertstest.FakeAssertion(map[string]interface{}{
+	mySnapAt7Valset2 := assertstest.FakeAssertion(map[string]any{
 		"type":         "validation-set",
 		"authority-id": "account-id",
 		"series":       "16",
 		"account-id":   "account-id",
 		"name":         "my-snap-ctl2",
 		"sequence":     "2",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":     "my-snap",
 				"id":       "mysnapididididididididididididid",
 				"presence": "required",
@@ -119,15 +119,15 @@ func (s *validationSetsSuite) TestIntersections(c *C) {
 		},
 	}).(*asserts.ValidationSet)
 
-	mySnapAt8Valset := assertstest.FakeAssertion(map[string]interface{}{
+	mySnapAt8Valset := assertstest.FakeAssertion(map[string]any{
 		"type":         "validation-set",
 		"authority-id": "account-id",
 		"series":       "16",
 		"account-id":   "account-id",
 		"name":         "my-snap-ctl-other",
 		"sequence":     "1",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":     "my-snap",
 				"id":       "mysnapididididididididididididid",
 				"presence": "required",
@@ -136,15 +136,15 @@ func (s *validationSetsSuite) TestIntersections(c *C) {
 		},
 	}).(*asserts.ValidationSet)
 
-	mySnapAt8OptValset := assertstest.FakeAssertion(map[string]interface{}{
+	mySnapAt8OptValset := assertstest.FakeAssertion(map[string]any{
 		"type":         "validation-set",
 		"authority-id": "account-id",
 		"series":       "16",
 		"account-id":   "account-id",
 		"name":         "my-snap-ctl-opt",
 		"sequence":     "1",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":     "my-snap",
 				"id":       "mysnapididididididididididididid",
 				"presence": "optional",
@@ -153,15 +153,15 @@ func (s *validationSetsSuite) TestIntersections(c *C) {
 		},
 	}).(*asserts.ValidationSet)
 
-	mySnapInvalidValset := assertstest.FakeAssertion(map[string]interface{}{
+	mySnapInvalidValset := assertstest.FakeAssertion(map[string]any{
 		"type":         "validation-set",
 		"authority-id": "account-id",
 		"series":       "16",
 		"account-id":   "account-id",
 		"name":         "my-snap-ctl-inv",
 		"sequence":     "1",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":     "my-snap",
 				"id":       "mysnapididididididididididididid",
 				"presence": "invalid",
@@ -169,15 +169,15 @@ func (s *validationSetsSuite) TestIntersections(c *C) {
 		},
 	}).(*asserts.ValidationSet)
 
-	mySnapAt7OptValset := assertstest.FakeAssertion(map[string]interface{}{
+	mySnapAt7OptValset := assertstest.FakeAssertion(map[string]any{
 		"type":         "validation-set",
 		"authority-id": "account-id",
 		"series":       "16",
 		"account-id":   "account-id",
 		"name":         "my-snap-ctl-opt2",
 		"sequence":     "1",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":     "my-snap",
 				"id":       "mysnapididididididididididididid",
 				"presence": "optional",
@@ -186,15 +186,15 @@ func (s *validationSetsSuite) TestIntersections(c *C) {
 		},
 	}).(*asserts.ValidationSet)
 
-	mySnapReqValset := assertstest.FakeAssertion(map[string]interface{}{
+	mySnapReqValset := assertstest.FakeAssertion(map[string]any{
 		"type":         "validation-set",
 		"authority-id": "account-id",
 		"series":       "16",
 		"account-id":   "account-id",
 		"name":         "my-snap-ctl-req-only",
 		"sequence":     "1",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":     "my-snap",
 				"id":       "mysnapididididididididididididid",
 				"presence": "required",
@@ -202,15 +202,15 @@ func (s *validationSetsSuite) TestIntersections(c *C) {
 		},
 	}).(*asserts.ValidationSet)
 
-	mySnapOptValset := assertstest.FakeAssertion(map[string]interface{}{
+	mySnapOptValset := assertstest.FakeAssertion(map[string]any{
 		"type":         "validation-set",
 		"authority-id": "account-id",
 		"series":       "16",
 		"account-id":   "account-id",
 		"name":         "my-snap-ctl-opt-only",
 		"sequence":     "1",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":     "my-snap",
 				"id":       "mysnapididididididididididididid",
 				"presence": "optional",
@@ -285,26 +285,26 @@ func (s *validationSetsSuite) TestCheckInstalledSnapsNoValidationSets(c *C) {
 func (s *validationSetsSuite) TestCheckInstalledSnaps(c *C) {
 	// require: snapB rev 3, snapC rev 2.
 	// invalid: snapA
-	vs1 := assertstest.FakeAssertion(map[string]interface{}{
+	vs1 := assertstest.FakeAssertion(map[string]any{
 		"type":         "validation-set",
 		"authority-id": "acme",
 		"series":       "16",
 		"account-id":   "acme",
 		"name":         "fooname",
 		"sequence":     "1",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":     "snap-a",
 				"id":       "mysnapaaaaaaaaaaaaaaaaaaaaaaaaaa",
 				"presence": "invalid",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":     "snap-b",
 				"id":       "mysnapbbbbbbbbbbbbbbbbbbbbbbbbbb",
 				"revision": "3",
 				"presence": "required",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":     "snap-c",
 				"id":       "mysnapcccccccccccccccccccccccccc",
 				"revision": "2",
@@ -315,20 +315,20 @@ func (s *validationSetsSuite) TestCheckInstalledSnaps(c *C) {
 
 	// require: snapD any rev
 	// optional: snapE any rev
-	vs2 := assertstest.FakeAssertion(map[string]interface{}{
+	vs2 := assertstest.FakeAssertion(map[string]any{
 		"type":         "validation-set",
 		"authority-id": "acme",
 		"series":       "16",
 		"account-id":   "acme",
 		"name":         "barname",
 		"sequence":     "3",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":     "snap-d",
 				"id":       "mysnapdddddddddddddddddddddddddd",
 				"presence": "required",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":     "snap-e",
 				"id":       "mysnapeeeeeeeeeeeeeeeeeeeeeeeeee",
 				"presence": "optional",
@@ -339,15 +339,15 @@ func (s *validationSetsSuite) TestCheckInstalledSnaps(c *C) {
 	// optional: snapE any rev
 	// note: since it only has an optional snap, acme/bazname is not expected
 	// not be invalid by any of the checks.
-	vs3 := assertstest.FakeAssertion(map[string]interface{}{
+	vs3 := assertstest.FakeAssertion(map[string]any{
 		"type":         "validation-set",
 		"authority-id": "acme",
 		"series":       "16",
 		"account-id":   "acme",
 		"name":         "bazname",
 		"sequence":     "2",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":     "snap-e",
 				"id":       "mysnapeeeeeeeeeeeeeeeeeeeeeeeeee",
 				"presence": "optional",
@@ -356,15 +356,15 @@ func (s *validationSetsSuite) TestCheckInstalledSnaps(c *C) {
 	}).(*asserts.ValidationSet)
 
 	// invalid: snapA
-	vs4 := assertstest.FakeAssertion(map[string]interface{}{
+	vs4 := assertstest.FakeAssertion(map[string]any{
 		"type":         "validation-set",
 		"authority-id": "acme",
 		"series":       "16",
 		"account-id":   "acme",
 		"name":         "booname",
 		"sequence":     "1",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":     "snap-a",
 				"id":       "mysnapaaaaaaaaaaaaaaaaaaaaaaaaaa",
 				"presence": "invalid",
@@ -372,15 +372,15 @@ func (s *validationSetsSuite) TestCheckInstalledSnaps(c *C) {
 		},
 	}).(*asserts.ValidationSet)
 
-	vs5 := assertstest.FakeAssertion(map[string]interface{}{
+	vs5 := assertstest.FakeAssertion(map[string]any{
 		"type":         "validation-set",
 		"authority-id": "acme",
 		"series":       "16",
 		"account-id":   "acme",
 		"name":         "huhname",
 		"sequence":     "1",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":     "snap-f",
 				"id":       "mysnapffffffffffffffffffffffffff",
 				"revision": "4",
@@ -389,15 +389,15 @@ func (s *validationSetsSuite) TestCheckInstalledSnaps(c *C) {
 		},
 	}).(*asserts.ValidationSet)
 
-	vs6 := assertstest.FakeAssertion(map[string]interface{}{
+	vs6 := assertstest.FakeAssertion(map[string]any{
 		"type":         "validation-set",
 		"authority-id": "acme",
 		"series":       "16",
 		"account-id":   "acme",
 		"name":         "duhname",
 		"sequence":     "1",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":     "snap-f",
 				"id":       "mysnapffffffffffffffffffffffffff",
 				"revision": "4",
@@ -406,15 +406,15 @@ func (s *validationSetsSuite) TestCheckInstalledSnaps(c *C) {
 		},
 	}).(*asserts.ValidationSet)
 
-	vs7 := assertstest.FakeAssertion(map[string]interface{}{
+	vs7 := assertstest.FakeAssertion(map[string]any{
 		"type":         "validation-set",
 		"authority-id": "acme",
 		"series":       "16",
 		"account-id":   "acme",
 		"name":         "bahname",
 		"sequence":     "1",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":     "snap-f",
 				"id":       "mysnapffffffffffffffffffffffffff",
 				"presence": "required",
@@ -695,19 +695,19 @@ func (s *validationSetsSuite) TestCheckInstalledSnaps(c *C) {
 }
 
 func (s *validationSetsSuite) TestCheckInstalledSnapsWithComponents(c *C) {
-	sets := map[string][]interface{}{
+	sets := map[string][]any{
 		"one": {
-			map[string]interface{}{
+			map[string]any{
 				"name":     "snap-a",
 				"id":       snaptest.AssertedSnapID("snap-a"),
 				"presence": "optional",
 				"revision": "11",
-				"components": map[string]interface{}{
-					"comp-1": map[string]interface{}{
+				"components": map[string]any{
+					"comp-1": map[string]any{
 						"presence": "required",
 						"revision": "2",
 					},
-					"comp-2": map[string]interface{}{
+					"comp-2": map[string]any{
 						"presence": "optional",
 						"revision": "3",
 					},
@@ -715,13 +715,13 @@ func (s *validationSetsSuite) TestCheckInstalledSnapsWithComponents(c *C) {
 			},
 		},
 		"two": {
-			map[string]interface{}{
+			map[string]any{
 				"name":     "snap-a",
 				"id":       snaptest.AssertedSnapID("snap-a"),
 				"presence": "optional",
 				"revision": "11",
-				"components": map[string]interface{}{
-					"comp-2": map[string]interface{}{
+				"components": map[string]any{
+					"comp-2": map[string]any{
 						"presence": "required",
 						"revision": "3",
 					},
@@ -729,33 +729,33 @@ func (s *validationSetsSuite) TestCheckInstalledSnapsWithComponents(c *C) {
 			},
 		},
 		"three": {
-			map[string]interface{}{
+			map[string]any{
 				"name":     "snap-a",
 				"id":       snaptest.AssertedSnapID("snap-a"),
 				"presence": "optional",
-				"components": map[string]interface{}{
-					"comp-2": map[string]interface{}{
+				"components": map[string]any{
+					"comp-2": map[string]any{
 						"presence": "required",
 					},
 				},
 			},
 		},
 		"four": {
-			map[string]interface{}{
+			map[string]any{
 				"name":     "snap-a",
 				"id":       snaptest.AssertedSnapID("snap-a"),
 				"presence": "required",
 				"revision": "13",
-				"components": map[string]interface{}{
-					"comp-3": map[string]interface{}{
+				"components": map[string]any{
+					"comp-3": map[string]any{
 						"presence": "required",
 						"revision": "1",
 					},
-					"comp-4": map[string]interface{}{
+					"comp-4": map[string]any{
 						"presence": "required",
 						"revision": "2",
 					},
-					"comp-5": map[string]interface{}{
+					"comp-5": map[string]any{
 						"presence": "optional",
 						"revision": "3",
 					},
@@ -766,7 +766,7 @@ func (s *validationSetsSuite) TestCheckInstalledSnapsWithComponents(c *C) {
 
 	assertions := make(map[string]*asserts.ValidationSet)
 	for name, set := range sets {
-		headers := map[string]interface{}{
+		headers := map[string]any{
 			"type":         "validation-set",
 			"authority-id": "acme",
 			"series":       "16",
@@ -995,26 +995,26 @@ func (s *validationSetsSuite) TestValidationSetsValidationErrorStringWithCompone
 func (s *validationSetsSuite) TestCheckInstalledSnapsIgnoreValidation(c *C) {
 	// require: snapB rev 3, snapC rev 2.
 	// invalid: snapA
-	vs := assertstest.FakeAssertion(map[string]interface{}{
+	vs := assertstest.FakeAssertion(map[string]any{
 		"type":         "validation-set",
 		"authority-id": "acme",
 		"series":       "16",
 		"account-id":   "acme",
 		"name":         "fooname",
 		"sequence":     "1",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":     "snap-a",
 				"id":       "mysnapaaaaaaaaaaaaaaaaaaaaaaaaaa",
 				"presence": "invalid",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":     "snap-b",
 				"id":       "mysnapbbbbbbbbbbbbbbbbbbbbbbbbbb",
 				"revision": "3",
 				"presence": "required",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":     "snap-c",
 				"id":       "mysnapcccccccccccccccccccccccccc",
 				"revision": "2",
@@ -1046,20 +1046,20 @@ func (s *validationSetsSuite) TestCheckInstalledSnapsIgnoreValidation(c *C) {
 }
 
 func (s *validationSetsSuite) TestCheckInstalledSnapsErrorFormat(c *C) {
-	vs1 := assertstest.FakeAssertion(map[string]interface{}{
+	vs1 := assertstest.FakeAssertion(map[string]any{
 		"type":         "validation-set",
 		"authority-id": "acme",
 		"series":       "16",
 		"account-id":   "acme",
 		"name":         "fooname",
 		"sequence":     "1",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":     "snap-a",
 				"id":       "mysnapaaaaaaaaaaaaaaaaaaaaaaaaaa",
 				"presence": "invalid",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":     "snap-b",
 				"id":       "mysnapbbbbbbbbbbbbbbbbbbbbbbbbbb",
 				"revision": "3",
@@ -1067,15 +1067,15 @@ func (s *validationSetsSuite) TestCheckInstalledSnapsErrorFormat(c *C) {
 			},
 		},
 	}).(*asserts.ValidationSet)
-	vs2 := assertstest.FakeAssertion(map[string]interface{}{
+	vs2 := assertstest.FakeAssertion(map[string]any{
 		"type":         "validation-set",
 		"authority-id": "acme",
 		"series":       "16",
 		"account-id":   "acme",
 		"name":         "barname",
 		"sequence":     "2",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":     "snap-b",
 				"id":       "mysnapbbbbbbbbbbbbbbbbbbbbbbbbbb",
 				"presence": "required",
@@ -1134,21 +1134,21 @@ func (s *validationSetsSuite) TestSortByRevision(c *C) {
 }
 
 func (s *validationSetsSuite) TestCheckPresenceRequired(c *C) {
-	valset1 := assertstest.FakeAssertion(map[string]interface{}{
+	valset1 := assertstest.FakeAssertion(map[string]any{
 		"type":         "validation-set",
 		"authority-id": "account-id",
 		"series":       "16",
 		"account-id":   "account-id",
 		"name":         "my-snap-ctl",
 		"sequence":     "1",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":     "my-snap",
 				"id":       "mysnapididididididididididididid",
 				"presence": "required",
 				"revision": "7",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":     "other-snap",
 				"id":       "123456ididididididididididididid",
 				"presence": "optional",
@@ -1156,21 +1156,21 @@ func (s *validationSetsSuite) TestCheckPresenceRequired(c *C) {
 		},
 	}).(*asserts.ValidationSet)
 
-	valset2 := assertstest.FakeAssertion(map[string]interface{}{
+	valset2 := assertstest.FakeAssertion(map[string]any{
 		"type":         "validation-set",
 		"authority-id": "account-id",
 		"series":       "16",
 		"account-id":   "account-id",
 		"name":         "my-snap-ctl2",
 		"sequence":     "2",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":     "my-snap",
 				"id":       "mysnapididididididididididididid",
 				"presence": "required",
 				"revision": "7",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":     "other-snap",
 				"id":       "123456ididididididididididididid",
 				"presence": "invalid",
@@ -1179,15 +1179,15 @@ func (s *validationSetsSuite) TestCheckPresenceRequired(c *C) {
 	}).(*asserts.ValidationSet)
 
 	// my-snap required but no specific revision set.
-	valset3 := assertstest.FakeAssertion(map[string]interface{}{
+	valset3 := assertstest.FakeAssertion(map[string]any{
 		"type":         "validation-set",
 		"authority-id": "account-id",
 		"series":       "16",
 		"account-id":   "account-id",
 		"name":         "my-snap-ctl3",
 		"sequence":     "1",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":     "my-snap",
 				"id":       "mysnapididididididididididididid",
 				"presence": "required",
@@ -1237,20 +1237,20 @@ func (s *validationSetsSuite) TestCheckPresenceRequired(c *C) {
 }
 
 func (s *validationSetsSuite) TestIsPresenceInvalid(c *C) {
-	valset1 := assertstest.FakeAssertion(map[string]interface{}{
+	valset1 := assertstest.FakeAssertion(map[string]any{
 		"type":         "validation-set",
 		"authority-id": "account-id",
 		"series":       "16",
 		"account-id":   "account-id",
 		"name":         "my-snap-ctl",
 		"sequence":     "1",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":     "my-snap",
 				"id":       "mysnapididididididididididididid",
 				"presence": "invalid",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":     "other-snap",
 				"id":       "123456ididididididididididididid",
 				"presence": "optional",
@@ -1258,15 +1258,15 @@ func (s *validationSetsSuite) TestIsPresenceInvalid(c *C) {
 		},
 	}).(*asserts.ValidationSet)
 
-	valset2 := assertstest.FakeAssertion(map[string]interface{}{
+	valset2 := assertstest.FakeAssertion(map[string]any{
 		"type":         "validation-set",
 		"authority-id": "account-id",
 		"series":       "16",
 		"account-id":   "account-id",
 		"name":         "my-snap-ctl2",
 		"sequence":     "2",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":     "my-snap",
 				"id":       "mysnapididididididididididididid",
 				"presence": "invalid",
@@ -1370,15 +1370,15 @@ func (s *validationSetsSuite) TestValidationSetKeyFormat(c *C) {
 	series, acc, name := "a", "b", "c"
 	sequence := 1
 
-	valSet := assertstest.FakeAssertion(map[string]interface{}{
+	valSet := assertstest.FakeAssertion(map[string]any{
 		"type":         "validation-set",
 		"authority-id": acc,
 		"series":       series,
 		"account-id":   acc,
 		"name":         name,
 		"sequence":     strconv.Itoa(sequence),
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":     "my-snap",
 				"id":       "mysnapididididididididididididid",
 				"presence": "required",
@@ -1406,15 +1406,15 @@ func (s *validationSetsSuite) TestValidationSetKeySliceCommaSeparated(c *C) {
 }
 
 func (s *validationSetsSuite) TestValidationSetKeyComponents(c *C) {
-	valsetKey := snapasserts.NewValidationSetKey(assertstest.FakeAssertion(map[string]interface{}{
+	valsetKey := snapasserts.NewValidationSetKey(assertstest.FakeAssertion(map[string]any{
 		"type":         "validation-set",
 		"series":       "a",
 		"authority-id": "b",
 		"account-id":   "b",
 		"name":         "c",
 		"sequence":     "13",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":     "my-snap",
 				"id":       "mysnapididididididididididididid",
 				"presence": "required",
@@ -1425,27 +1425,27 @@ func (s *validationSetsSuite) TestValidationSetKeyComponents(c *C) {
 }
 
 func (s *validationSetsSuite) TestRevisions(c *C) {
-	valset1 := assertstest.FakeAssertion(map[string]interface{}{
+	valset1 := assertstest.FakeAssertion(map[string]any{
 		"type":         "validation-set",
 		"authority-id": "account-id",
 		"series":       "16",
 		"account-id":   "account-id",
 		"name":         "my-snap-ctl",
 		"sequence":     "1",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":     "my-snap",
 				"id":       snaptest.AssertedSnapID("my-snap"),
 				"presence": "optional",
 				"revision": "10",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":     "other-snap",
 				"id":       snaptest.AssertedSnapID("other-snap"),
 				"presence": "required",
 			},
 			// invalid snap should not be present in the result of (*ValidationSets).Revisions()
-			map[string]interface{}{
+			map[string]any{
 				"name":     "invalid-snap",
 				"id":       snaptest.AssertedSnapID("invalid-snap"),
 				"presence": "invalid",
@@ -1453,21 +1453,21 @@ func (s *validationSetsSuite) TestRevisions(c *C) {
 		},
 	}).(*asserts.ValidationSet)
 
-	valset2 := assertstest.FakeAssertion(map[string]interface{}{
+	valset2 := assertstest.FakeAssertion(map[string]any{
 		"type":         "validation-set",
 		"authority-id": "account-id",
 		"series":       "16",
 		"account-id":   "account-id",
 		"name":         "my-snap-ctl2",
 		"sequence":     "2",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":     "other-snap",
 				"id":       snaptest.AssertedSnapID("other-snap"),
 				"presence": "optional",
 				"revision": "11",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":     "another-snap",
 				"id":       snaptest.AssertedSnapID("another-snap"),
 				"presence": "required",
@@ -1502,20 +1502,20 @@ func (s *validationSetsSuite) TestRevisions(c *C) {
 
 func (s *validationSetsSuite) TestCanBePresent(c *C) {
 	var snaps []*asserts.ValidationSetSnap
-	valset1 := assertstest.FakeAssertion(map[string]interface{}{
+	valset1 := assertstest.FakeAssertion(map[string]any{
 		"type":         "validation-set",
 		"authority-id": "account-id",
 		"series":       "16",
 		"account-id":   "account-id",
 		"name":         "my-snap-ctl",
 		"sequence":     "1",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":     "my-snap",
 				"id":       snaptest.AssertedSnapID("my-snap"),
 				"presence": "invalid",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":     "other-snap",
 				"id":       snaptest.AssertedSnapID("other-snap"),
 				"presence": "required",
@@ -1525,20 +1525,20 @@ func (s *validationSetsSuite) TestCanBePresent(c *C) {
 
 	snaps = append(snaps, valset1.Snaps()...)
 
-	valset2 := assertstest.FakeAssertion(map[string]interface{}{
+	valset2 := assertstest.FakeAssertion(map[string]any{
 		"type":         "validation-set",
 		"authority-id": "account-id",
 		"series":       "16",
 		"account-id":   "account-id",
 		"name":         "my-snap-ctl2",
 		"sequence":     "2",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":     "other-snap",
 				"id":       snaptest.AssertedSnapID("other-snap"),
 				"presence": "optional",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":     "another-snap",
 				"id":       snaptest.AssertedSnapID("another-snap"),
 				"presence": "invalid",
@@ -1562,24 +1562,24 @@ func (s *validationSetsSuite) TestCanBePresent(c *C) {
 }
 
 func (s *validationSetsSuite) TestKeys(c *C) {
-	valset1 := assertstest.FakeAssertion(map[string]interface{}{
+	valset1 := assertstest.FakeAssertion(map[string]any{
 		"type":         "validation-set",
 		"authority-id": "account-id",
 		"series":       "16",
 		"account-id":   "account-id",
 		"name":         "my-snap-ctl",
 		"sequence":     "1",
-		"snaps":        []interface{}{},
+		"snaps":        []any{},
 	}).(*asserts.ValidationSet)
 
-	valset2 := assertstest.FakeAssertion(map[string]interface{}{
+	valset2 := assertstest.FakeAssertion(map[string]any{
 		"type":         "validation-set",
 		"authority-id": "account-id",
 		"series":       "16",
 		"account-id":   "account-id",
 		"name":         "my-snap-ctl2",
 		"sequence":     "2",
-		"snaps":        []interface{}{},
+		"snaps":        []any{},
 	}).(*asserts.ValidationSet)
 
 	valsets := snapasserts.NewValidationSets()
@@ -1594,14 +1594,14 @@ func (s *validationSetsSuite) TestKeys(c *C) {
 }
 
 func (s *validationSetsSuite) TestEmpty(c *C) {
-	a := assertstest.FakeAssertion(map[string]interface{}{
+	a := assertstest.FakeAssertion(map[string]any{
 		"type":         "validation-set",
 		"authority-id": "account-id",
 		"series":       "16",
 		"account-id":   "account-id",
 		"name":         "my-snap-ctl",
 		"sequence":     "1",
-		"snaps":        []interface{}{},
+		"snaps":        []any{},
 	}).(*asserts.ValidationSet)
 
 	vsets := snapasserts.NewValidationSets()
@@ -1611,20 +1611,20 @@ func (s *validationSetsSuite) TestEmpty(c *C) {
 }
 
 func (s *validationSetsSuite) TestRequiredSnapNames(c *C) {
-	valset1 := assertstest.FakeAssertion(map[string]interface{}{
+	valset1 := assertstest.FakeAssertion(map[string]any{
 		"type":         "validation-set",
 		"authority-id": "account-id",
 		"series":       "16",
 		"account-id":   "account-id",
 		"name":         "my-snap-ctl",
 		"sequence":     "1",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":     "my-snap",
 				"id":       snaptest.AssertedSnapID("my-snap"),
 				"presence": "invalid",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":     "other-snap",
 				"id":       snaptest.AssertedSnapID("other-snap"),
 				"presence": "required",
@@ -1632,20 +1632,20 @@ func (s *validationSetsSuite) TestRequiredSnapNames(c *C) {
 		},
 	}).(*asserts.ValidationSet)
 
-	valset2 := assertstest.FakeAssertion(map[string]interface{}{
+	valset2 := assertstest.FakeAssertion(map[string]any{
 		"type":         "validation-set",
 		"authority-id": "account-id",
 		"series":       "16",
 		"account-id":   "account-id",
 		"name":         "my-snap-ctl2",
 		"sequence":     "2",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":     "other-snap",
 				"id":       snaptest.AssertedSnapID("other-snap"),
 				"presence": "optional",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":     "another-snap",
 				"id":       snaptest.AssertedSnapID("another-snap"),
 				"presence": "required",
@@ -1665,15 +1665,15 @@ func (s *validationSetsSuite) TestRequiredSnapNames(c *C) {
 }
 
 func (s *validationSetsSuite) TestRevisionsConflict(c *C) {
-	valset1 := assertstest.FakeAssertion(map[string]interface{}{
+	valset1 := assertstest.FakeAssertion(map[string]any{
 		"type":         "validation-set",
 		"authority-id": "account-id",
 		"series":       "16",
 		"account-id":   "account-id",
 		"name":         "my-snap-ctl",
 		"sequence":     "1",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":     "my-snap",
 				"id":       snaptest.AssertedSnapID("my-snap"),
 				"presence": "required",
@@ -1682,15 +1682,15 @@ func (s *validationSetsSuite) TestRevisionsConflict(c *C) {
 		},
 	}).(*asserts.ValidationSet)
 
-	valset2 := assertstest.FakeAssertion(map[string]interface{}{
+	valset2 := assertstest.FakeAssertion(map[string]any{
 		"type":         "validation-set",
 		"authority-id": "account-id",
 		"series":       "16",
 		"account-id":   "account-id",
 		"name":         "my-snap-ctl2",
 		"sequence":     "2",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":     "my-snap",
 				"id":       snaptest.AssertedSnapID("my-snap"),
 				"presence": "required",
@@ -1717,21 +1717,21 @@ func (s *validationSetsSuite) TestComponentConflicts(c *C) {
 	cases := []test{{
 		summary: "component revision conflict",
 		sets: []*asserts.ValidationSet{assertstest.FakeAssertion(
-			map[string]interface{}{
+			map[string]any{
 				"type":         "validation-set",
 				"authority-id": "account-id",
 				"series":       "16",
 				"account-id":   "account-id",
 				"name":         "one",
 				"sequence":     "1",
-				"snaps": []interface{}{
-					map[string]interface{}{
+				"snaps": []any{
+					map[string]any{
 						"name":     "snap-a",
 						"id":       snaptest.AssertedSnapID("snap-a"),
 						"presence": "required",
 						"revision": "10",
-						"components": map[string]interface{}{
-							"comp-2": map[string]interface{}{
+						"components": map[string]any{
+							"comp-2": map[string]any{
 								"presence": "optional",
 								"revision": "3",
 							},
@@ -1739,21 +1739,21 @@ func (s *validationSetsSuite) TestComponentConflicts(c *C) {
 					},
 				},
 			}).(*asserts.ValidationSet), assertstest.FakeAssertion(
-			map[string]interface{}{
+			map[string]any{
 				"type":         "validation-set",
 				"authority-id": "account-id",
 				"series":       "16",
 				"account-id":   "account-id",
 				"name":         "two",
 				"sequence":     "1",
-				"snaps": []interface{}{
-					map[string]interface{}{
+				"snaps": []any{
+					map[string]any{
 						"name":     "snap-a",
 						"id":       snaptest.AssertedSnapID("snap-a"),
 						"presence": "required",
 						"revision": "10",
-						"components": map[string]interface{}{
-							"comp-2": map[string]interface{}{
+						"components": map[string]any{
+							"comp-2": map[string]any{
 								"presence": "required",
 								"revision": "2",
 							},
@@ -1766,40 +1766,40 @@ func (s *validationSetsSuite) TestComponentConflicts(c *C) {
 	}, {
 		summary: "component presence conflict",
 		sets: []*asserts.ValidationSet{assertstest.FakeAssertion(
-			map[string]interface{}{
+			map[string]any{
 				"type":         "validation-set",
 				"authority-id": "account-id",
 				"series":       "16",
 				"account-id":   "account-id",
 				"name":         "one",
 				"sequence":     "1",
-				"snaps": []interface{}{
-					map[string]interface{}{
+				"snaps": []any{
+					map[string]any{
 						"name":     "snap-a",
 						"id":       snaptest.AssertedSnapID("snap-a"),
 						"presence": "optional",
-						"components": map[string]interface{}{
-							"comp-2": map[string]interface{}{
+						"components": map[string]any{
+							"comp-2": map[string]any{
 								"presence": "invalid",
 							},
 						},
 					},
 				},
 			}).(*asserts.ValidationSet), assertstest.FakeAssertion(
-			map[string]interface{}{
+			map[string]any{
 				"type":         "validation-set",
 				"authority-id": "account-id",
 				"series":       "16",
 				"account-id":   "account-id",
 				"name":         "two",
 				"sequence":     "1",
-				"snaps": []interface{}{
-					map[string]interface{}{
+				"snaps": []any{
+					map[string]any{
 						"name":     "snap-a",
 						"id":       snaptest.AssertedSnapID("snap-a"),
 						"presence": "optional",
-						"components": map[string]interface{}{
-							"comp-2": map[string]interface{}{
+						"components": map[string]any{
+							"comp-2": map[string]any{
 								"presence": "required",
 							},
 						},
@@ -1811,55 +1811,55 @@ func (s *validationSetsSuite) TestComponentConflicts(c *C) {
 	}, {
 		summary: "component presence conflict and snap presence conflict",
 		sets: []*asserts.ValidationSet{assertstest.FakeAssertion(
-			map[string]interface{}{
+			map[string]any{
 				"type":         "validation-set",
 				"authority-id": "account-id",
 				"series":       "16",
 				"account-id":   "account-id",
 				"name":         "one",
 				"sequence":     "1",
-				"snaps": []interface{}{
-					map[string]interface{}{
+				"snaps": []any{
+					map[string]any{
 						"name":     "snap-a",
 						"id":       snaptest.AssertedSnapID("snap-a"),
 						"presence": "required",
-						"components": map[string]interface{}{
-							"comp-2": map[string]interface{}{
+						"components": map[string]any{
+							"comp-2": map[string]any{
 								"presence": "invalid",
 							},
 						},
 					},
 				},
 			}).(*asserts.ValidationSet), assertstest.FakeAssertion(
-			map[string]interface{}{
+			map[string]any{
 				"type":         "validation-set",
 				"authority-id": "account-id",
 				"series":       "16",
 				"account-id":   "account-id",
 				"name":         "two",
 				"sequence":     "1",
-				"snaps": []interface{}{
-					map[string]interface{}{
+				"snaps": []any{
+					map[string]any{
 						"name":     "snap-a",
 						"id":       snaptest.AssertedSnapID("snap-a"),
 						"presence": "optional",
-						"components": map[string]interface{}{
-							"comp-2": map[string]interface{}{
+						"components": map[string]any{
+							"comp-2": map[string]any{
 								"presence": "required",
 							},
 						},
 					},
 				},
 			}).(*asserts.ValidationSet), assertstest.FakeAssertion(
-			map[string]interface{}{
+			map[string]any{
 				"type":         "validation-set",
 				"authority-id": "account-id",
 				"series":       "16",
 				"account-id":   "account-id",
 				"name":         "three",
 				"sequence":     "1",
-				"snaps": []interface{}{
-					map[string]interface{}{
+				"snaps": []any{
+					map[string]any{
 						"name":     "snap-a",
 						"id":       snaptest.AssertedSnapID("snap-a"),
 						"presence": "invalid",
@@ -1894,24 +1894,24 @@ func (s *validationSetsSuite) TestValidationSetsConflictErrorIs(c *C) {
 }
 
 func (s *validationSetsSuite) TestSets(c *C) {
-	valset1 := assertstest.FakeAssertion(map[string]interface{}{
+	valset1 := assertstest.FakeAssertion(map[string]any{
 		"type":         "validation-set",
 		"authority-id": "account-id",
 		"series":       "16",
 		"account-id":   "account-id",
 		"name":         "my-snap-ctl",
 		"sequence":     "1",
-		"snaps":        []interface{}{},
+		"snaps":        []any{},
 	}).(*asserts.ValidationSet)
 
-	valset2 := assertstest.FakeAssertion(map[string]interface{}{
+	valset2 := assertstest.FakeAssertion(map[string]any{
 		"type":         "validation-set",
 		"authority-id": "account-id",
 		"series":       "16",
 		"account-id":   "account-id",
 		"name":         "my-snap-ctl2",
 		"sequence":     "2",
-		"snaps":        []interface{}{},
+		"snaps":        []any{},
 	}).(*asserts.ValidationSet)
 
 	valsets := snapasserts.NewValidationSets()
@@ -1924,20 +1924,20 @@ func (s *validationSetsSuite) TestSets(c *C) {
 }
 
 func (s *validationSetsSuite) TestSnapConstrained(c *C) {
-	valset1 := assertstest.FakeAssertion(map[string]interface{}{
+	valset1 := assertstest.FakeAssertion(map[string]any{
 		"type":         "validation-set",
 		"authority-id": "account-id",
 		"series":       "16",
 		"account-id":   "account-id",
 		"name":         "my-snap-ctl",
 		"sequence":     "1",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":     "my-snap",
 				"id":       snaptest.AssertedSnapID("my-snap"),
 				"presence": "invalid",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":     "other-snap",
 				"id":       snaptest.AssertedSnapID("other-snap"),
 				"presence": "required",
@@ -1945,20 +1945,20 @@ func (s *validationSetsSuite) TestSnapConstrained(c *C) {
 		},
 	}).(*asserts.ValidationSet)
 
-	valset2 := assertstest.FakeAssertion(map[string]interface{}{
+	valset2 := assertstest.FakeAssertion(map[string]any{
 		"type":         "validation-set",
 		"authority-id": "account-id",
 		"series":       "16",
 		"account-id":   "account-id",
 		"name":         "my-snap-ctl2",
 		"sequence":     "2",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":     "other-snap",
 				"id":       snaptest.AssertedSnapID("other-snap"),
 				"presence": "optional",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":     "another-snap",
 				"id":       snaptest.AssertedSnapID("another-snap"),
 				"presence": "required",
@@ -1983,30 +1983,30 @@ func (s *validationSetsSuite) TestSnapConstrained(c *C) {
 }
 
 func (s *validationSetsSuite) TestSnapPresence(c *C) {
-	one := assertstest.FakeAssertion(map[string]interface{}{
+	one := assertstest.FakeAssertion(map[string]any{
 		"type":         "validation-set",
 		"authority-id": "account-id",
 		"series":       "16",
 		"account-id":   "account-id",
 		"name":         "one",
 		"sequence":     "1",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":     "snap-1",
 				"id":       snaptest.AssertedSnapID("snap-1"),
 				"presence": "invalid",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":     "snap-2",
 				"id":       snaptest.AssertedSnapID("snap-2"),
 				"presence": "required",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":     "snap-3",
 				"id":       snaptest.AssertedSnapID("snap-3"),
 				"presence": "optional",
-				"components": map[string]interface{}{
-					"comp-4": map[string]interface{}{
+				"components": map[string]any{
+					"comp-4": map[string]any{
 						"presence": "required",
 					},
 				},
@@ -2014,25 +2014,25 @@ func (s *validationSetsSuite) TestSnapPresence(c *C) {
 		},
 	}).(*asserts.ValidationSet)
 
-	two := assertstest.FakeAssertion(map[string]interface{}{
+	two := assertstest.FakeAssertion(map[string]any{
 		"type":         "validation-set",
 		"authority-id": "account-id",
 		"series":       "16",
 		"account-id":   "account-id",
 		"name":         "two",
 		"sequence":     "1",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":     "snap-2",
 				"id":       snaptest.AssertedSnapID("snap-2"),
 				"presence": "optional",
 				"revision": "2",
-				"components": map[string]interface{}{
-					"comp-2": map[string]interface{}{
+				"components": map[string]any{
+					"comp-2": map[string]any{
 						"presence": "required",
 						"revision": "22",
 					},
-					"comp-3": map[string]interface{}{
+					"comp-3": map[string]any{
 						"presence": "invalid",
 					},
 				},

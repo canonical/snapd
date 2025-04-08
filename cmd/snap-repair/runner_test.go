@@ -93,13 +93,13 @@ func (s *baseRunnerSuite) SetUpSuite(c *C) {
 
 	brandPrivKey, _ := assertstest.GenerateKey(752)
 
-	s.brandAcct = assertstest.NewAccount(s.storeSigning, "my-brand", map[string]interface{}{
+	s.brandAcct = assertstest.NewAccount(s.storeSigning, "my-brand", map[string]any{
 		"account-id": "my-brand",
 	}, "")
 	s.brandAcctKey = assertstest.NewAccountKey(s.storeSigning, s.brandAcct, nil, brandPrivKey.PublicKey(), "")
 	s.brandSigning = assertstest.NewSigningDB("my-brand", brandPrivKey)
 
-	modelAs, err := s.brandSigning.Sign(asserts.ModelType, map[string]interface{}{
+	modelAs, err := s.brandSigning.Sign(asserts.ModelType, map[string]any{
 		"series":       "16",
 		"brand-id":     "my-brand",
 		"model":        "my-model-2",
@@ -151,8 +151,8 @@ func (s *baseRunnerSuite) signSeqRepairs(c *C, repairs []string) []string {
 	return seq
 }
 
-func checkStateJSON(c *C, file string, exp map[string]interface{}) {
-	stateFile := map[string]interface{}{}
+func checkStateJSON(c *C, file string, exp map[string]any) {
+	stateFile := map[string]any{}
 	b, err := os.ReadFile(file)
 	c.Assert(err, IsNil)
 	err = json.Unmarshal(b, &stateFile)
@@ -168,7 +168,7 @@ func (s *baseRunnerSuite) freshState(c *C) {
 func (s *baseRunnerSuite) freshStateWithBaseAndMode(c *C, base, mode string) {
 	err := os.MkdirAll(dirs.SnapRepairDir, 0775)
 	c.Assert(err, IsNil)
-	stateJSON := map[string]interface{}{
+	stateJSON := map[string]any{
 		"device": map[string]string{
 			"brand": "my-brand",
 			"model": "my-model",
@@ -532,9 +532,9 @@ func (s *runnerSuite) TestPeek(c *C) {
 
 	h, err := runner.Peek("canonical", 2)
 	c.Assert(err, IsNil)
-	c.Check(h["series"], DeepEquals, []interface{}{"16"})
-	c.Check(h["architectures"], DeepEquals, []interface{}{"amd64", "arm64"})
-	c.Check(h["models"], DeepEquals, []interface{}{"xyz/frobinator"})
+	c.Check(h["series"], DeepEquals, []any{"16"})
+	c.Check(h["architectures"], DeepEquals, []any{"amd64", "arm64"})
+	c.Check(h["models"], DeepEquals, []any{"xyz/frobinator"})
 
 	s.checkBrokenTimeNowMitigated(c, runner)
 }
@@ -681,16 +681,16 @@ func (s *runnerSuite) TestSaveState(c *C) {
 	err = runner.SaveState()
 	c.Assert(err, IsNil)
 
-	exp := map[string]interface{}{
-		"device": map[string]interface{}{
+	exp := map[string]any{
+		"device": map[string]any{
 			"brand": "my-brand",
 			"model": "my-model",
 			"base":  "core18",
 			"mode":  "",
 		},
-		"sequences": map[string]interface{}{
-			"canonical": []interface{}{
-				map[string]interface{}{
+		"sequences": map[string]any{
+			"canonical": []any{
+				map[string]any{
 					// all json numbers are floats
 					"sequence": 1.0,
 					"revision": 3.0,
@@ -713,57 +713,57 @@ func (s *runnerSuite) TestApplicable(c *C) {
 
 	scenarios := []struct {
 		device     *dev
-		headers    map[string]interface{}
+		headers    map[string]any
 		applicable bool
 	}{
 		{nil, nil, true},
-		{nil, map[string]interface{}{"series": []interface{}{"18"}}, false},
-		{nil, map[string]interface{}{"series": []interface{}{"18", "16"}}, true},
-		{nil, map[string]interface{}{"series": "18"}, false},
-		{nil, map[string]interface{}{"series": []interface{}{18}}, false},
-		{nil, map[string]interface{}{"architectures": []interface{}{arch.DpkgArchitecture()}}, true},
-		{nil, map[string]interface{}{"architectures": []interface{}{"other-arch"}}, false},
-		{nil, map[string]interface{}{"architectures": []interface{}{"other-arch", arch.DpkgArchitecture()}}, true},
-		{nil, map[string]interface{}{"architectures": arch.DpkgArchitecture()}, false},
-		{nil, map[string]interface{}{"models": []interface{}{"my-brand/my-model"}}, true},
-		{nil, map[string]interface{}{"models": []interface{}{"other-brand/other-model"}}, false},
-		{nil, map[string]interface{}{"models": []interface{}{"other-brand/other-model", "my-brand/my-model"}}, true},
-		{nil, map[string]interface{}{"models": "my-brand/my-model"}, false},
+		{nil, map[string]any{"series": []any{"18"}}, false},
+		{nil, map[string]any{"series": []any{"18", "16"}}, true},
+		{nil, map[string]any{"series": "18"}, false},
+		{nil, map[string]any{"series": []any{18}}, false},
+		{nil, map[string]any{"architectures": []any{arch.DpkgArchitecture()}}, true},
+		{nil, map[string]any{"architectures": []any{"other-arch"}}, false},
+		{nil, map[string]any{"architectures": []any{"other-arch", arch.DpkgArchitecture()}}, true},
+		{nil, map[string]any{"architectures": arch.DpkgArchitecture()}, false},
+		{nil, map[string]any{"models": []any{"my-brand/my-model"}}, true},
+		{nil, map[string]any{"models": []any{"other-brand/other-model"}}, false},
+		{nil, map[string]any{"models": []any{"other-brand/other-model", "my-brand/my-model"}}, true},
+		{nil, map[string]any{"models": "my-brand/my-model"}, false},
 		// modes for uc16 / uc18 devices
-		{nil, map[string]interface{}{"modes": []interface{}{}}, true},
-		{nil, map[string]interface{}{"modes": []interface{}{"run"}}, false},
-		{nil, map[string]interface{}{"modes": []interface{}{"recover"}}, false},
-		{nil, map[string]interface{}{"modes": []interface{}{"run", "recover"}}, false},
+		{nil, map[string]any{"modes": []any{}}, true},
+		{nil, map[string]any{"modes": []any{"run"}}, false},
+		{nil, map[string]any{"modes": []any{"recover"}}, false},
+		{nil, map[string]any{"modes": []any{"run", "recover"}}, false},
 		// run mode for uc20 devices
-		{&dev{mode: "run"}, map[string]interface{}{"modes": []interface{}{}}, true},
-		{&dev{mode: "run"}, map[string]interface{}{"modes": []interface{}{"run"}}, true},
-		{&dev{mode: "run"}, map[string]interface{}{"modes": []interface{}{"recover"}}, false},
-		{&dev{mode: "run"}, map[string]interface{}{"modes": []interface{}{"run", "recover"}}, true},
+		{&dev{mode: "run"}, map[string]any{"modes": []any{}}, true},
+		{&dev{mode: "run"}, map[string]any{"modes": []any{"run"}}, true},
+		{&dev{mode: "run"}, map[string]any{"modes": []any{"recover"}}, false},
+		{&dev{mode: "run"}, map[string]any{"modes": []any{"run", "recover"}}, true},
 		// recover mode for uc20 devices
-		{&dev{mode: "recover"}, map[string]interface{}{"modes": []interface{}{}}, false},
-		{&dev{mode: "recover"}, map[string]interface{}{"modes": []interface{}{"run"}}, false},
-		{&dev{mode: "recover"}, map[string]interface{}{"modes": []interface{}{"recover"}}, true},
-		{&dev{mode: "recover"}, map[string]interface{}{"modes": []interface{}{"run", "recover"}}, true},
+		{&dev{mode: "recover"}, map[string]any{"modes": []any{}}, false},
+		{&dev{mode: "recover"}, map[string]any{"modes": []any{"run"}}, false},
+		{&dev{mode: "recover"}, map[string]any{"modes": []any{"recover"}}, true},
+		{&dev{mode: "recover"}, map[string]any{"modes": []any{"run", "recover"}}, true},
 		// bases for uc16 devices
-		{&dev{base: "core"}, map[string]interface{}{"bases": []interface{}{"core"}}, true},
-		{&dev{base: "core"}, map[string]interface{}{"bases": []interface{}{"core18"}}, false},
-		{&dev{base: "core"}, map[string]interface{}{"bases": []interface{}{"core", "core18"}}, true},
+		{&dev{base: "core"}, map[string]any{"bases": []any{"core"}}, true},
+		{&dev{base: "core"}, map[string]any{"bases": []any{"core18"}}, false},
+		{&dev{base: "core"}, map[string]any{"bases": []any{"core", "core18"}}, true},
 		// bases for uc18 devices
-		{&dev{base: "core18"}, map[string]interface{}{"bases": []interface{}{"core18"}}, true},
-		{&dev{base: "core18"}, map[string]interface{}{"bases": []interface{}{"core"}}, false},
-		{&dev{base: "core18"}, map[string]interface{}{"bases": []interface{}{"core", "core18"}}, true},
+		{&dev{base: "core18"}, map[string]any{"bases": []any{"core18"}}, true},
+		{&dev{base: "core18"}, map[string]any{"bases": []any{"core"}}, false},
+		{&dev{base: "core18"}, map[string]any{"bases": []any{"core", "core18"}}, true},
 		// bases for uc20 devices
-		{&dev{base: "core20"}, map[string]interface{}{"bases": []interface{}{"core20"}}, true},
-		{&dev{base: "core20"}, map[string]interface{}{"bases": []interface{}{"core"}}, false},
-		{&dev{base: "core20"}, map[string]interface{}{"bases": []interface{}{"core", "core20"}}, true},
+		{&dev{base: "core20"}, map[string]any{"bases": []any{"core20"}}, true},
+		{&dev{base: "core20"}, map[string]any{"bases": []any{"core"}}, false},
+		{&dev{base: "core20"}, map[string]any{"bases": []any{"core", "core20"}}, true},
 		// model prefix matches
-		{nil, map[string]interface{}{"models": []interface{}{"my-brand/*"}}, true},
-		{nil, map[string]interface{}{"models": []interface{}{"my-brand/my-mod*"}}, true},
-		{nil, map[string]interface{}{"models": []interface{}{"my-brand/xxx*"}}, false},
-		{nil, map[string]interface{}{"models": []interface{}{"my-brand/my-mod*", "my-brand/xxx*"}}, true},
-		{nil, map[string]interface{}{"models": []interface{}{"my*"}}, false},
-		{nil, map[string]interface{}{"disabled": "true"}, false},
-		{nil, map[string]interface{}{"disabled": "false"}, true},
+		{nil, map[string]any{"models": []any{"my-brand/*"}}, true},
+		{nil, map[string]any{"models": []any{"my-brand/my-mod*"}}, true},
+		{nil, map[string]any{"models": []any{"my-brand/xxx*"}}, false},
+		{nil, map[string]any{"models": []any{"my-brand/my-mod*", "my-brand/xxx*"}}, true},
+		{nil, map[string]any{"models": []any{"my*"}}, false},
+		{nil, map[string]any{"disabled": "true"}, false},
+		{nil, map[string]any{"disabled": "false"}, true},
 	}
 
 	for _, scen := range scenarios {
@@ -898,7 +898,7 @@ func makeMockServer(c *C, seqRepairs *[]string, redirectFirst bool) *httptest.Se
 
 		switch r.Header.Get("Accept") {
 		case "application/json":
-			b, err := json.Marshal(map[string]interface{}{
+			b, err := json.Marshal(map[string]any{
 				"headers": repair.Headers(),
 			})
 			c.Assert(err, IsNil)
@@ -933,7 +933,7 @@ func (s *runnerSuite) TestVerify(c *C) {
 
 	runner := repair.NewRunner()
 
-	a, err := s.repairsSigning.Sign(asserts.RepairType, map[string]interface{}{
+	a, err := s.repairsSigning.Sign(asserts.RepairType, map[string]any{
 		"brand-id":  "canonical",
 		"repair-id": "2",
 		"summary":   "repair two",
@@ -1200,8 +1200,8 @@ func (s *runnerSuite) TestNextNotFound(c *C) {
 	c.Assert(err, Equals, repair.ErrRepairNotFound)
 
 	// we saved new time lower bound
-	stateFileExp := map[string]interface{}{
-		"device": map[string]interface{}{
+	stateFileExp := map[string]any{
+		"device": map[string]any{
 			"brand": "my-brand",
 			"model": "my-model",
 			"base":  "core18",
@@ -1279,7 +1279,7 @@ func (s *runnerSuite) TestNextVerifySelfSigned(c *C) {
 	randomSigning := assertstest.NewSigningDB("canonical", randoKey)
 	randoKeyEncoded, err := asserts.EncodePublicKey(randoKey.PublicKey())
 	c.Assert(err, IsNil)
-	acctKey, err := randomSigning.Sign(asserts.AccountKeyType, map[string]interface{}{
+	acctKey, err := randomSigning.Sign(asserts.AccountKeyType, map[string]any{
 		"authority-id":        "canonical",
 		"account-id":          "canonical",
 		"public-key-sha3-384": randoKey.PublicKey().ID(),
@@ -1288,7 +1288,7 @@ func (s *runnerSuite) TestNextVerifySelfSigned(c *C) {
 	}, randoKeyEncoded, "")
 	c.Assert(err, IsNil)
 
-	rpr, err := randomSigning.Sign(asserts.RepairType, map[string]interface{}{
+	rpr, err := randomSigning.Sign(asserts.RepairType, map[string]any{
 		"brand-id":  "canonical",
 		"repair-id": "1",
 		"summary":   "repair one",

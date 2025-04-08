@@ -72,10 +72,10 @@ func (s *confdbSuite) SetUpTest(c *C) {
 	s.st.Set("confdb-databags", databags)
 	s.st.Unlock()
 
-	views := map[string]interface{}{
-		"wifi-setup": map[string]interface{}{
-			"rules": []interface{}{
-				map[string]interface{}{"request": "ssid", "storage": "wifi.ssid"},
+	views := map[string]any{
+		"wifi-setup": map[string]any{
+			"rules": []any{
+				map[string]any{"request": "ssid", "storage": "wifi.ssid"},
 			},
 		},
 	}
@@ -102,7 +102,7 @@ func (s *confdbSuite) TestGetView(c *C) {
 
 	type test struct {
 		name  string
-		value interface{}
+		value any
 	}
 
 	for _, t := range []test{
@@ -185,9 +185,9 @@ func (s *confdbSuite) TestViewSetMany(c *C) {
 	})
 	defer restore()
 
-	restore = daemon.MockConfdbstateSetViaView(func(_ confdb.Databag, view *confdb.View, values map[string]interface{}) error {
+	restore = daemon.MockConfdbstateSetViaView(func(_ confdb.Databag, view *confdb.View, values map[string]any) error {
 		c.Assert(view.Name, Equals, "wifi-setup")
-		c.Assert(values, DeepEquals, map[string]interface{}{"ssid": "foo", "password": "bar"})
+		c.Assert(values, DeepEquals, map[string]any{"ssid": "foo", "password": "bar"})
 		return nil
 	})
 	defer restore()
@@ -264,14 +264,14 @@ func (s *confdbSuite) TestSetView(c *C) {
 
 	type test struct {
 		name  string
-		value interface{}
+		value any
 	}
 
 	for _, t := range []test{
 		{name: "string", value: "foo"},
 		{name: "integer", value: float64(123)},
-		{name: "list", value: []interface{}{"foo", "bar"}},
-		{name: "map", value: map[string]interface{}{"foo": "bar"}},
+		{name: "list", value: []any{"foo", "bar"}},
+		{name: "map", value: map[string]any{"foo": "bar"}},
 	} {
 		cmt := Commentf("%s test", t.name)
 		s.st.Lock()
@@ -291,10 +291,10 @@ func (s *confdbSuite) TestSetView(c *C) {
 		})
 
 		var called bool
-		restoreSet := daemon.MockConfdbstateSetViaView(func(bag confdb.Databag, view *confdb.View, values map[string]interface{}) error {
+		restoreSet := daemon.MockConfdbstateSetViaView(func(bag confdb.Databag, view *confdb.View, values map[string]any) error {
 			called = true
 			c.Assert(view.Name, Equals, "wifi-setup")
-			c.Assert(values, DeepEquals, map[string]interface{}{"ssid": t.value})
+			c.Assert(values, DeepEquals, map[string]any{"ssid": t.value})
 			return nil
 		})
 
@@ -345,10 +345,10 @@ func (s *confdbSuite) TestUnsetView(c *C) {
 	defer restore()
 
 	var called bool
-	restore = daemon.MockConfdbstateSetViaView(func(bag confdb.Databag, view *confdb.View, values map[string]interface{}) error {
+	restore = daemon.MockConfdbstateSetViaView(func(bag confdb.Databag, view *confdb.View, values map[string]any) error {
 		called = true
 		c.Assert(view.Name, Equals, "wifi-setup")
-		c.Assert(values, DeepEquals, map[string]interface{}{"ssid": nil})
+		c.Assert(values, DeepEquals, map[string]any{"ssid": nil})
 		return nil
 	})
 	defer restore()
@@ -541,7 +541,7 @@ func (s *confdbControlSuite) prereqs(c *C) {
 
 	s.st.Lock()
 	encDevKey, _ := asserts.EncodePublicKey(deviceKey.PublicKey())
-	a, err := s.brands.Signing("can0nical").Sign(asserts.SerialType, map[string]interface{}{
+	a, err := s.brands.Signing("can0nical").Sign(asserts.SerialType, map[string]any{
 		"brand-id":            "can0nical",
 		"model":               "generic-classic",
 		"serial":              "serial-serial",
@@ -597,17 +597,17 @@ func (s *confdbControlSuite) TestConfdbControlActionNoSerial(c *C) {
 
 func (s *confdbControlSuite) TestConfdbControlActionOK(c *C) {
 	s.prereqs(c)
-	jane := map[string]interface{}{
-		"operators":       []interface{}{"jane"},
-		"authentications": []interface{}{"store"},
-		"views":           []interface{}{"account/confdb/view"},
+	jane := map[string]any{
+		"operators":       []any{"jane"},
+		"authentications": []any{"store"},
+		"views":           []any{"account/confdb/view"},
 	}
-	restore := daemon.MockDeviceStateSignConfdbControl(func(m *devicestate.DeviceManager, groups []interface{}, revision int) (*asserts.ConfdbControl, error) {
-		a, err := asserts.SignWithoutAuthority(asserts.ConfdbControlType, map[string]interface{}{
+	restore := daemon.MockDeviceStateSignConfdbControl(func(m *devicestate.DeviceManager, groups []any, revision int) (*asserts.ConfdbControl, error) {
+		a, err := asserts.SignWithoutAuthority(asserts.ConfdbControlType, map[string]any{
 			"brand-id": "can0nical",
 			"model":    "generic-classic",
 			"serial":   "serial-serial",
-			"groups":   []interface{}{jane},
+			"groups":   []any{jane},
 		}, nil, deviceKey)
 		c.Assert(err, IsNil)
 		return a.(*asserts.ConfdbControl), nil
@@ -631,7 +631,7 @@ func (s *confdbControlSuite) TestConfdbControlActionOK(c *C) {
 	c.Assert(err, IsNil)
 	cc := a.(*asserts.ConfdbControl)
 	ctrl := cc.Control()
-	c.Check(ctrl.Groups(), DeepEquals, []interface{}{jane})
+	c.Check(ctrl.Groups(), DeepEquals, []any{jane})
 	s.st.Unlock()
 }
 
@@ -650,14 +650,14 @@ func (s *confdbControlSuite) TestConfdbControlActionSigningErr(c *C) {
 
 func (s *confdbControlSuite) TestConfdbControlActionAckErr(c *C) {
 	s.prereqs(c)
-	restore := daemon.MockDeviceStateSignConfdbControl(func(m *devicestate.DeviceManager, groups []interface{}, revision int) (*asserts.ConfdbControl, error) {
+	restore := daemon.MockDeviceStateSignConfdbControl(func(m *devicestate.DeviceManager, groups []any, revision int) (*asserts.ConfdbControl, error) {
 		a := assertstest.FakeAssertion(
-			map[string]interface{}{
+			map[string]any{
 				"type":     "confdb-control",
 				"brand-id": "can0nical",
 				"model":    "generic-classic",
 				"serial":   "serial-serial",
-				"groups":   []interface{}{},
+				"groups":   []any{},
 			},
 		)
 		return a.(*asserts.ConfdbControl), nil
@@ -665,16 +665,16 @@ func (s *confdbControlSuite) TestConfdbControlActionAckErr(c *C) {
 	defer restore()
 
 	s.st.Lock()
-	jane := map[string]interface{}{
-		"operators":       []interface{}{"jane"},
-		"authentications": []interface{}{"store"},
-		"views":           []interface{}{"account/confdb/view"},
+	jane := map[string]any{
+		"operators":       []any{"jane"},
+		"authentications": []any{"store"},
+		"views":           []any{"account/confdb/view"},
 	}
-	a, err := asserts.SignWithoutAuthority(asserts.ConfdbControlType, map[string]interface{}{
+	a, err := asserts.SignWithoutAuthority(asserts.ConfdbControlType, map[string]any{
 		"brand-id": "can0nical",
 		"model":    "generic-classic",
 		"serial":   "serial-serial",
-		"groups":   []interface{}{jane},
+		"groups":   []any{jane},
 	}, nil, deviceKey)
 	c.Assert(err, IsNil)
 	assertstate.Add(s.st, a)

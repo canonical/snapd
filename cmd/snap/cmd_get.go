@@ -106,7 +106,7 @@ func init() {
 
 type ConfigValue struct {
 	Path  string
-	Value interface{}
+	Value any
 }
 
 type byConfigPath []ConfigValue
@@ -137,16 +137,16 @@ func sortByPath(config []ConfigValue) {
 	sort.Sort(byConfigPath(config))
 }
 
-func flattenConfig(cfg map[string]interface{}, root bool) (values []ConfigValue) {
+func flattenConfig(cfg map[string]any, root bool) (values []ConfigValue) {
 	const docstr = "{...}"
 	for k, v := range cfg {
-		if input, ok := v.(map[string]interface{}); ok {
+		if input, ok := v.(map[string]any); ok {
 			if root {
 				values = append(values, ConfigValue{k, docstr})
 			} else {
 				for kk, vv := range input {
 					p := k + "." + kk
-					if _, ok := vv.(map[string]interface{}); ok {
+					if _, ok := vv.(map[string]any); ok {
 						values = append(values, ConfigValue{p, docstr})
 					} else {
 						values = append(values, ConfigValue{p, vv})
@@ -167,7 +167,7 @@ func rootRequested(confKeys []string) bool {
 
 // outputJson will be used when the user requested "document" output via
 // the "-d" commandline switch.
-func (c *cmdGet) outputJson(conf interface{}) error {
+func (c *cmdGet) outputJson(conf any) error {
 	bytes, err := json.MarshalIndent(conf, "", "\t")
 	if err != nil {
 		return err
@@ -179,7 +179,7 @@ func (c *cmdGet) outputJson(conf interface{}) error {
 
 // outputList will be used when the user requested list output via the
 // "-l" commandline switch.
-func (x *cmdGet) outputList(conf map[string]interface{}) error {
+func (x *cmdGet) outputList(conf map[string]any) error {
 	if rootRequested(x.Positional.Keys) && len(conf) == 0 {
 		return fmt.Errorf("snap %q has no configuration", x.Positional.Snap)
 	}
@@ -201,24 +201,24 @@ func (x *cmdGet) outputList(conf map[string]interface{}) error {
 //   - multiple keys are printed as a list to the terminal (if there is one)
 //     or as json if there is no terminal
 //   - the option "typed" is honored
-func (x *cmdGet) outputDefault(conf map[string]interface{}, snapName string, confKeys []string) error {
+func (x *cmdGet) outputDefault(conf map[string]any, snapName string, confKeys []string) error {
 	if rootRequested(confKeys) && len(conf) == 0 {
 		return fmt.Errorf("snap %q has no configuration", snapName)
 	}
 
-	var confToPrint interface{} = conf
+	var confToPrint any = conf
 
 	if len(confKeys) == 1 {
 		// if single key was requested, then just output the
 		// value unless it's a map, in which case it will be
 		// printed as a list below.
-		if _, ok := conf[confKeys[0]].(map[string]interface{}); !ok {
+		if _, ok := conf[confKeys[0]].(map[string]any); !ok {
 			confToPrint = conf[confKeys[0]]
 		}
 	}
 
 	// conf looks like a map
-	if cfg, ok := confToPrint.(map[string]interface{}); ok {
+	if cfg, ok := confToPrint.(map[string]any); ok {
 		if isStdoutTTY {
 			return x.outputList(cfg)
 		}
@@ -260,7 +260,7 @@ func (x *cmdGet) Execute(args []string) error {
 	snapName := string(x.Positional.Snap)
 	confKeys := x.Positional.Keys
 
-	var conf map[string]interface{}
+	var conf map[string]any
 	var err error
 	if isConfdbViewID(snapName) {
 		// first argument is a confdbViewID, use the confdb API
@@ -283,7 +283,7 @@ func (x *cmdGet) Execute(args []string) error {
 	}
 }
 
-func (x *cmdGet) getConfdb(confdbViewID string, confKeys []string) (map[string]interface{}, error) {
+func (x *cmdGet) getConfdb(confdbViewID string, confKeys []string) (map[string]any, error) {
 	if err := validateConfdbFeatureFlag(); err != nil {
 		return nil, err
 	}
@@ -303,7 +303,7 @@ func (x *cmdGet) getConfdb(confdbViewID string, confKeys []string) (map[string]i
 		return nil, err
 	}
 
-	var conf map[string]interface{}
+	var conf map[string]any
 	err = chg.Get("confdb-data", &conf)
 	if err != nil {
 		if errors.Is(err, client.ErrNoData) {

@@ -121,7 +121,7 @@ func (iface *customDeviceInterface) validatePaths(attrName string, paths []strin
 	return nil
 }
 
-func (iface *customDeviceInterface) validateUDevValue(value interface{}) error {
+func (iface *customDeviceInterface) validateUDevValue(value any) error {
 	stringValue, ok := value.(string)
 	if !ok {
 		return fmt.Errorf(`value "%v" is not a string`, value)
@@ -134,8 +134,8 @@ func (iface *customDeviceInterface) validateUDevValue(value interface{}) error {
 	return nil
 }
 
-func (iface *customDeviceInterface) validateUDevValueMap(value interface{}) error {
-	valueMap, ok := value.(map[string]interface{})
+func (iface *customDeviceInterface) validateUDevValueMap(value any) error {
+	valueMap, ok := value.(map[string]any)
 	if !ok {
 		return fmt.Errorf(`value "%v" is not a map`, value)
 	}
@@ -170,7 +170,7 @@ func (iface *customDeviceInterface) validateKernelMatchesOneDeviceBasename(kerne
 	}
 }
 
-func (iface *customDeviceInterface) validateUDevTaggingRule(rule map[string]interface{}, devices []string) error {
+func (iface *customDeviceInterface) validateUDevTaggingRule(rule map[string]any, devices []string) error {
 	hasKernelTag := false
 	kernelVal := ""
 	deviceOverrideVal := ""
@@ -242,7 +242,7 @@ func (iface *customDeviceInterface) StaticInfo() interfaces.StaticInfo {
 
 func (iface *customDeviceInterface) BeforePrepareSlot(slot *snap.SlotInfo) error {
 	if slot.Attrs == nil {
-		slot.Attrs = make(map[string]interface{})
+		slot.Attrs = make(map[string]any)
 	}
 	customDeviceAttr, isSet := slot.Attrs["custom-device"]
 	customDevice, ok := customDeviceAttr.(string)
@@ -308,7 +308,7 @@ func (iface *customDeviceInterface) BeforePrepareSlot(slot *snap.SlotInfo) error
 		return fmt.Errorf("cannot use custom-device slot without any files or devices")
 	}
 
-	var udevTaggingRules []map[string]interface{}
+	var udevTaggingRules []map[string]any
 	err = slot.Attr("udev-tagging", &udevTaggingRules)
 	if err != nil && !errors.Is(err, snap.AttributeNotFoundError{}) {
 		return err
@@ -331,7 +331,7 @@ func (iface *customDeviceInterface) BeforePreparePlug(plug *snap.PlugInfo) error
 	}
 	if customDevice == "" {
 		if plug.Attrs == nil {
-			plug.Attrs = make(map[string]interface{})
+			plug.Attrs = make(map[string]any)
 		}
 		// custom-device defaults to "plug" name if unspecified
 		plug.Attrs["custom-device"] = plug.Name
@@ -386,8 +386,8 @@ func (iface *customDeviceInterface) AppArmorConnectedPlug(spec *apparmor.Specifi
 // returns its value as a map[string]string.
 // No validation is performed, since it already occurred before connecting the
 // interface.
-func (iface *customDeviceInterface) extractStringMapAttribute(container map[string]interface{}, key string) map[string]string {
-	valueMap, ok := container[key].(map[string]interface{})
+func (iface *customDeviceInterface) extractStringMapAttribute(container map[string]any, key string) map[string]string {
+	valueMap, ok := container[key].(map[string]any)
 	if !ok {
 		return nil
 	}
@@ -429,7 +429,7 @@ func (iface *customDeviceInterface) UDevConnectedPlug(spec *udev.Specification, 
 	// Generate udev rules from the "udev-tagging" attribute; note that these
 	// rules might override the simpler KERNEL=="<device>" rules we computed
 	// above -- that's fine.
-	var udevTaggingRules []map[string]interface{}
+	var udevTaggingRules []map[string]any
 	_ = slot.Attr("udev-tagging", &udevTaggingRules)
 	for _, udevTaggingRule := range udevTaggingRules {
 		rule := &bytes.Buffer{}

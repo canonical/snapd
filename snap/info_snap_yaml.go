@@ -48,12 +48,12 @@ type snapYaml struct {
 	Base            string                   `yaml:"base,omitempty"`
 	Confinement     ConfinementType          `yaml:"confinement,omitempty"`
 	Environment     strutil.OrderedMap       `yaml:"environment,omitempty"`
-	Plugs           map[string]interface{}   `yaml:"plugs,omitempty"`
-	Slots           map[string]interface{}   `yaml:"slots,omitempty"`
+	Plugs           map[string]any           `yaml:"plugs,omitempty"`
+	Slots           map[string]any           `yaml:"slots,omitempty"`
 	Apps            map[string]appYaml       `yaml:"apps,omitempty"`
 	Hooks           map[string]hookYaml      `yaml:"hooks,omitempty"`
 	Layout          map[string]layoutYaml    `yaml:"layout,omitempty"`
-	SystemUsernames map[string]interface{}   `yaml:"system-usernames,omitempty"`
+	SystemUsernames map[string]any           `yaml:"system-usernames,omitempty"`
 	Links           map[string][]string      `yaml:"links,omitempty"`
 	Components      map[string]componentYaml `yaml:"components,omitempty"`
 
@@ -65,7 +65,7 @@ type typoDetector struct {
 	Hint string
 }
 
-func (td *typoDetector) UnmarshalYAML(func(interface{}) error) error {
+func (td *typoDetector) UnmarshalYAML(func(any) error) error {
 	return fmt.Errorf("typo detected: %s", td.Hint)
 }
 
@@ -723,15 +723,15 @@ func bindImplicitHooks(snap *Info, strk *scopedTracker) {
 	}
 }
 
-func convertToSlotOrPlugData(plugOrSlot, name string, data interface{}) (iface, label string, attrs map[string]interface{}, err error) {
+func convertToSlotOrPlugData(plugOrSlot, name string, data any) (iface, label string, attrs map[string]any, err error) {
 	iface = name
 	switch data.(type) {
 	case string:
 		return data.(string), "", nil, nil
 	case nil:
 		return name, "", nil, nil
-	case map[interface{}]interface{}:
-		for keyData, valueData := range data.(map[interface{}]interface{}) {
+	case map[any]any:
+		for keyData, valueData := range data.(map[any]any) {
 			key, ok := keyData.(string)
 			if !ok {
 				err := fmt.Errorf("%s %q has attribute key that is not a string (found %T)",
@@ -763,7 +763,7 @@ func convertToSlotOrPlugData(plugOrSlot, name string, data interface{}) (iface, 
 				label = value
 			default:
 				if attrs == nil {
-					attrs = make(map[string]interface{})
+					attrs = make(map[string]any)
 				}
 				value, err := metautil.NormalizeValue(valueData)
 				if err != nil {
@@ -793,14 +793,14 @@ func convertToSlotOrPlugData(plugOrSlot, name string, data interface{}) (iface, 
 //	    scope: shared
 //	    attrib1: ...
 //	    attrib2: ...
-func convertToUsernamesData(user string, data interface{}) (scope string, attrs map[string]interface{}, err error) {
+func convertToUsernamesData(user string, data any) (scope string, attrs map[string]any, err error) {
 	switch data.(type) {
 	case string:
 		return data.(string), nil, nil
 	case nil:
 		return "", nil, nil
-	case map[interface{}]interface{}:
-		for keyData, valueData := range data.(map[interface{}]interface{}) {
+	case map[any]any:
+		for keyData, valueData := range data.(map[any]any) {
 			key, ok := keyData.(string)
 			if !ok {
 				err := fmt.Errorf("system username %q has attribute key that is not a string (found %T)", user, keyData)
@@ -818,7 +818,7 @@ func convertToUsernamesData(user string, data interface{}) (scope string, attrs 
 				return "", nil, fmt.Errorf("system username %q has an empty attribute key", user)
 			default:
 				if attrs == nil {
-					attrs = make(map[string]interface{})
+					attrs = make(map[string]any)
 				}
 				value, err := metautil.NormalizeValue(valueData)
 				if err != nil {

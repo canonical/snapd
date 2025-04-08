@@ -56,22 +56,22 @@ func (s *diskUnlockStateSuite) TestUnlockedStateWriteTo(c *C) {
 
 	jsonData, err := os.ReadFile(filepath.Join(s.rootDir, "run/snapd/snap-bootstrap/test.json"))
 	c.Assert(err, IsNil)
-	var data map[string]interface{}
+	var data map[string]any
 	err = json.Unmarshal(jsonData, &data)
 	c.Assert(err, IsNil)
-	c.Check(data, DeepEquals, map[string]interface{}{
-		"ubuntu-boot": map[string]interface{}{},
-		"ubuntu-data": map[string]interface{}{
+	c.Check(data, DeepEquals, map[string]any{
+		"ubuntu-boot": map[string]any{},
+		"ubuntu-data": map[string]any{
 			"mount-state": "mounted",
 		},
-		"ubuntu-save": map[string]interface{}{},
-		"error-log":   interface{}(nil),
+		"ubuntu-save": map[string]any{},
+		"error-log":   any(nil),
 	})
 }
 
 func (s *diskUnlockStateSuite) TestUnlockedStateLoad(c *C) {
-	data := map[string]interface{}{
-		"ubuntu-data": map[string]interface{}{
+	data := map[string]any{
+		"ubuntu-data": map[string]any{
 			"mount-state": "mounted",
 		},
 	}

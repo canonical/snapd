@@ -145,11 +145,11 @@ func (s *storeTestSuite) TestDetailsEndpointWithAssertions(c *C) {
 
 	c.Assert(resp.StatusCode, Equals, 200)
 
-	var body map[string]interface{}
+	var body map[string]any
 	c.Assert(json.NewDecoder(resp.Body).Decode(&body), IsNil)
 	sha3_384, _ := getSha(snapFn)
-	c.Check(body, DeepEquals, map[string]interface{}{
-		"architecture":      []interface{}{"all"},
+	c.Check(body, DeepEquals, map[string]any{
+		"architecture":      []any{"all"},
 		"snap_id":           "xidididididididididididididididid",
 		"package_name":      "foo",
 		"origin":            "foo-devel",
@@ -172,11 +172,11 @@ func (s *storeTestSuite) TestDetailsEndpoint(c *C) {
 
 	c.Assert(resp.StatusCode, Equals, 200)
 
-	var body map[string]interface{}
+	var body map[string]any
 	c.Assert(json.NewDecoder(resp.Body).Decode(&body), IsNil)
 	sha3_384, _ := getSha(snapFn)
-	c.Check(body, DeepEquals, map[string]interface{}{
-		"architecture":      []interface{}{"all"},
+	c.Check(body, DeepEquals, map[string]any{
+		"architecture":      []any{"all"},
 		"snap_id":           "",
 		"package_name":      "foo",
 		"origin":            "canonical",
@@ -198,8 +198,8 @@ func (s *storeTestSuite) TestDetailsEndpoint(c *C) {
 	c.Assert(resp.StatusCode, Equals, 200)
 	c.Assert(json.NewDecoder(resp.Body).Decode(&body), IsNil)
 	sha3_384, _ = getSha(snapFn)
-	c.Check(body, DeepEquals, map[string]interface{}{
-		"architecture":      []interface{}{"all"},
+	c.Check(body, DeepEquals, map[string]any{
+		"architecture":      []any{"all"},
 		"snap_id":           "",
 		"package_name":      "foo-classic",
 		"origin":            "canonical",
@@ -221,8 +221,8 @@ func (s *storeTestSuite) TestDetailsEndpoint(c *C) {
 	c.Assert(resp.StatusCode, Equals, 200)
 	c.Assert(json.NewDecoder(resp.Body).Decode(&body), IsNil)
 	sha3_384, _ = getSha(snapFn)
-	c.Check(body, DeepEquals, map[string]interface{}{
-		"architecture":      []interface{}{"all"},
+	c.Check(body, DeepEquals, map[string]any{
+		"architecture":      []any{"all"},
 		"snap_id":           "",
 		"package_name":      "foo-base",
 		"origin":            "canonical",
@@ -244,8 +244,8 @@ func (s *storeTestSuite) TestDetailsEndpoint(c *C) {
 	c.Assert(resp.StatusCode, Equals, 200)
 	c.Assert(json.NewDecoder(resp.Body).Decode(&body), IsNil)
 	sha3_384, _ = getSha(snapFn)
-	c.Check(body, DeepEquals, map[string]interface{}{
-		"architecture":      []interface{}{"all"},
+	c.Check(body, DeepEquals, map[string]any{
+		"architecture":      []any{"all"},
 		"snap_id":           "",
 		"package_name":      "foo-core20",
 		"origin":            "canonical",
@@ -275,13 +275,13 @@ func (s *storeTestSuite) TestBulkEndpoint(c *C) {
 
 	var body struct {
 		Top struct {
-			Cat []map[string]interface{} `json:"clickindex:package"`
+			Cat []map[string]any `json:"clickindex:package"`
 		} `json:"_embedded"`
 	}
 	c.Assert(json.NewDecoder(resp.Body).Decode(&body), IsNil)
 	sha3_384, _ := getSha(snapFn)
-	c.Check(body.Top.Cat, DeepEquals, []map[string]interface{}{{
-		"architecture":      []interface{}{"all"},
+	c.Check(body.Top.Cat, DeepEquals, []map[string]any{{
+		"architecture":      []any{"all"},
 		"snap_id":           "eFe8BTR5L5V9F7yHeMAPxkEr2NdUXMtw",
 		"package_name":      "test-snapd-tools",
 		"origin":            "canonical",
@@ -314,14 +314,14 @@ func (s *storeTestSuite) TestBulkEndpointWithAssertions(c *C) {
 	c.Assert(resp.StatusCode, Equals, 200)
 	var body struct {
 		Top struct {
-			Cat []map[string]interface{} `json:"clickindex:package"`
+			Cat []map[string]any `json:"clickindex:package"`
 		} `json:"_embedded"`
 	}
 	c.Assert(json.NewDecoder(resp.Body).Decode(&body), IsNil)
 	sha3_384_1, _ := getSha(snapFn1)
 	sha3_384_2, _ := getSha(snapFn2)
-	c.Check(body.Top.Cat, DeepEquals, []map[string]interface{}{{
-		"architecture":      []interface{}{"all"},
+	c.Check(body.Top.Cat, DeepEquals, []map[string]any{{
+		"architecture":      []any{"all"},
 		"snap_id":           "xidididididididididididididididid",
 		"package_name":      "foo",
 		"origin":            "foo-devel",
@@ -334,7 +334,7 @@ func (s *storeTestSuite) TestBulkEndpointWithAssertions(c *C) {
 		"confinement":       "strict",
 		"type":              "app",
 	}, {
-		"architecture":      []interface{}{"all"},
+		"architecture":      []any{"all"},
 		"snap_id":           "xidididididididididididididcore20",
 		"package_name":      "foo-core20",
 		"origin":            "foo-core20-devel",
@@ -704,10 +704,10 @@ func (s *storeTestSuite) TestAssertionsEndpointNotFound(c *C) {
 	c.Assert(resp.StatusCode, Equals, 404)
 
 	dec := json.NewDecoder(resp.Body)
-	var respObj map[string]interface{}
+	var respObj map[string]any
 	err = dec.Decode(&respObj)
 	c.Assert(err, IsNil)
-	c.Check(respObj["error-list"], DeepEquals, []interface{}{map[string]interface{}{"code": "not-found", "message": "not found"}})
+	c.Check(respObj["error-list"], DeepEquals, []any{map[string]any{"code": "not-found", "message": "not found"}})
 }
 
 func (s *storeTestSuite) TestSnapActionEndpoint(c *C) {
@@ -722,25 +722,25 @@ func (s *storeTestSuite) TestSnapActionEndpoint(c *C) {
 
 	c.Assert(resp.StatusCode, Equals, 200)
 	var body struct {
-		Results []map[string]interface{}
+		Results []map[string]any
 	}
 	c.Assert(json.NewDecoder(resp.Body).Decode(&body), IsNil)
 	c.Check(body.Results, HasLen, 1)
 	sha3_384, size := getSha(snapFn)
-	c.Check(body.Results[0], DeepEquals, map[string]interface{}{
+	c.Check(body.Results[0], DeepEquals, map[string]any{
 		"result":       "refresh",
 		"instance-key": "eFe8BTR5L5V9F7yHeMAPxkEr2NdUXMtw",
 		"snap-id":      "eFe8BTR5L5V9F7yHeMAPxkEr2NdUXMtw",
 		"name":         "test-snapd-tools",
-		"snap": map[string]interface{}{
-			"architectures": []interface{}{"all"},
+		"snap": map[string]any{
+			"architectures": []any{"all"},
 			"snap-id":       "eFe8BTR5L5V9F7yHeMAPxkEr2NdUXMtw",
 			"name":          "test-snapd-tools",
-			"publisher": map[string]interface{}{
+			"publisher": map[string]any{
 				"username": "canonical",
 				"id":       "canonical",
 			},
-			"download": map[string]interface{}{
+			"download": map[string]any{
 				"url":      s.store.URL() + "/download/test-snapd-tools_1_all.snap",
 				"sha3-384": sha3_384,
 				"size":     float64(size),
@@ -769,25 +769,25 @@ func (s *storeTestSuite) TestSnapActionEndpointUsesLatest(c *C) {
 
 	c.Assert(resp.StatusCode, Equals, 200)
 	var body struct {
-		Results []map[string]interface{}
+		Results []map[string]any
 	}
 	c.Assert(json.NewDecoder(resp.Body).Decode(&body), IsNil)
 	c.Check(body.Results, HasLen, 1)
 	sha3_384, size := getSha(snapFn)
-	c.Check(body.Results[0], DeepEquals, map[string]interface{}{
+	c.Check(body.Results[0], DeepEquals, map[string]any{
 		"result":       "refresh",
 		"instance-key": "eFe8BTR5L5V9F7yHeMAPxkEr2NdUXMtw",
 		"snap-id":      "eFe8BTR5L5V9F7yHeMAPxkEr2NdUXMtw",
 		"name":         "test-snapd-tools",
-		"snap": map[string]interface{}{
-			"architectures": []interface{}{"all"},
+		"snap": map[string]any{
+			"architectures": []any{"all"},
 			"snap-id":       "eFe8BTR5L5V9F7yHeMAPxkEr2NdUXMtw",
 			"name":          "test-snapd-tools",
-			"publisher": map[string]interface{}{
+			"publisher": map[string]any{
 				"username": "canonical",
 				"id":       "canonical",
 			},
-			"download": map[string]interface{}{
+			"download": map[string]any{
 				"url":      s.store.URL() + "/download/test-snapd-tools_2_all.snap",
 				"sha3-384": sha3_384,
 				"size":     float64(size),
@@ -818,25 +818,25 @@ func (s *storeTestSuite) TestSnapActionEndpointChannel(c *C) {
 
 	c.Assert(resp.StatusCode, Equals, 200)
 	var body struct {
-		Results []map[string]interface{}
+		Results []map[string]any
 	}
 	c.Assert(json.NewDecoder(resp.Body).Decode(&body), IsNil)
 	c.Check(body.Results, HasLen, 1)
 	sha3_384, size := getSha(snapFn)
-	c.Check(body.Results[0], DeepEquals, map[string]interface{}{
+	c.Check(body.Results[0], DeepEquals, map[string]any{
 		"result":       "refresh",
 		"instance-key": "eFe8BTR5L5V9F7yHeMAPxkEr2NdUXMtw",
 		"snap-id":      "eFe8BTR5L5V9F7yHeMAPxkEr2NdUXMtw",
 		"name":         "test-snapd-tools",
-		"snap": map[string]interface{}{
-			"architectures": []interface{}{"all"},
+		"snap": map[string]any{
+			"architectures": []any{"all"},
 			"snap-id":       "eFe8BTR5L5V9F7yHeMAPxkEr2NdUXMtw",
 			"name":          "test-snapd-tools",
-			"publisher": map[string]interface{}{
+			"publisher": map[string]any{
 				"username": "canonical",
 				"id":       "canonical",
 			},
-			"download": map[string]interface{}{
+			"download": map[string]any{
 				"url":      s.store.URL() + "/download/test-snapd-tools_1_all.snap",
 				"sha3-384": sha3_384,
 				"size":     float64(size),
@@ -867,25 +867,25 @@ func (s *storeTestSuite) TestSnapActionEndpointChannelRefreshAll(c *C) {
 
 	c.Assert(resp.StatusCode, Equals, 200)
 	var body struct {
-		Results []map[string]interface{}
+		Results []map[string]any
 	}
 	c.Assert(json.NewDecoder(resp.Body).Decode(&body), IsNil)
 	c.Check(body.Results, HasLen, 1)
 	sha3_384, size := getSha(snapFn)
-	c.Check(body.Results[0], DeepEquals, map[string]interface{}{
+	c.Check(body.Results[0], DeepEquals, map[string]any{
 		"result":       "refresh",
 		"instance-key": "eFe8BTR5L5V9F7yHeMAPxkEr2NdUXMtw",
 		"snap-id":      "eFe8BTR5L5V9F7yHeMAPxkEr2NdUXMtw",
 		"name":         "test-snapd-tools",
-		"snap": map[string]interface{}{
-			"architectures": []interface{}{"all"},
+		"snap": map[string]any{
+			"architectures": []any{"all"},
 			"snap-id":       "eFe8BTR5L5V9F7yHeMAPxkEr2NdUXMtw",
 			"name":          "test-snapd-tools",
-			"publisher": map[string]interface{}{
+			"publisher": map[string]any{
 				"username": "canonical",
 				"id":       "canonical",
 			},
-			"download": map[string]interface{}{
+			"download": map[string]any{
 				"url":      s.store.URL() + "/download/test-snapd-tools_1_all.snap",
 				"sha3-384": sha3_384,
 				"size":     float64(size),
@@ -917,25 +917,25 @@ func (s *storeTestSuite) TestSnapActionEndpointAssertedWithRevision(c *C) {
 
 		c.Assert(resp.StatusCode, Equals, 200)
 		var body struct {
-			Results []map[string]interface{}
+			Results []map[string]any
 		}
 		c.Assert(json.NewDecoder(resp.Body).Decode(&body), IsNil)
 		c.Check(body.Results, HasLen, 1)
 		sha3_384, size := getSha(path)
-		c.Check(body.Results[0], DeepEquals, map[string]interface{}{
+		c.Check(body.Results[0], DeepEquals, map[string]any{
 			"result":       "refresh",
 			"instance-key": "eFe8BTR5L5V9F7yHeMAPxkEr2NdUXMtw",
 			"snap-id":      "eFe8BTR5L5V9F7yHeMAPxkEr2NdUXMtw",
 			"name":         "test-snapd-tools",
-			"snap": map[string]interface{}{
-				"architectures": []interface{}{"all"},
+			"snap": map[string]any{
+				"architectures": []any{"all"},
 				"snap-id":       "eFe8BTR5L5V9F7yHeMAPxkEr2NdUXMtw",
 				"name":          "test-snapd-tools",
-				"publisher": map[string]interface{}{
+				"publisher": map[string]any{
 					"username": "canonical",
 					"id":       "canonical",
 				},
-				"download": map[string]interface{}{
+				"download": map[string]any{
 					"url":      s.store.URL() + "/download/" + filepath.Base(path),
 					"sha3-384": sha3_384,
 					"size":     float64(size),
@@ -985,26 +985,26 @@ func (s *storeTestSuite) TestSnapActionEndpointAssertedWithComponents(c *C) {
 
 		c.Assert(resp.StatusCode, Equals, 200)
 		var body struct {
-			Results []map[string]interface{}
+			Results []map[string]any
 		}
 		c.Assert(json.NewDecoder(resp.Body).Decode(&body), IsNil)
 		c.Check(body.Results, HasLen, 1)
 		sha3_384, size := getSha(path)
 
-		payload := map[string]interface{}{
+		payload := map[string]any{
 			"result":       "refresh",
 			"instance-key": "eFe8BTR5L5V9F7yHeMAPxkEr2NdUXMtw",
 			"snap-id":      "eFe8BTR5L5V9F7yHeMAPxkEr2NdUXMtw",
 			"name":         "test-snapd-tools",
-			"snap": map[string]interface{}{
-				"architectures": []interface{}{"all"},
+			"snap": map[string]any{
+				"architectures": []any{"all"},
 				"snap-id":       "eFe8BTR5L5V9F7yHeMAPxkEr2NdUXMtw",
 				"name":          "test-snapd-tools",
-				"publisher": map[string]interface{}{
+				"publisher": map[string]any{
 					"username": "canonical",
 					"id":       "canonical",
 				},
-				"download": map[string]interface{}{
+				"download": map[string]any{
 					"url":      s.store.URL() + "/download/" + filepath.Base(path),
 					"sha3-384": sha3_384,
 					"size":     float64(size),
@@ -1016,10 +1016,10 @@ func (s *storeTestSuite) TestSnapActionEndpointAssertedWithComponents(c *C) {
 			},
 		}
 
-		var resources []interface{}
+		var resources []any
 		for name, comp := range comps {
-			resources = append(resources, map[string]interface{}{
-				"download": map[string]interface{}{
+			resources = append(resources, map[string]any{
+				"download": map[string]any{
 					"url":      s.store.URL() + "/download/" + filepath.Base(comp.path),
 					"sha3-384": comp.digest,
 					"size":     float64(comp.size),
@@ -1032,7 +1032,7 @@ func (s *storeTestSuite) TestSnapActionEndpointAssertedWithComponents(c *C) {
 		}
 
 		if len(resources) > 0 {
-			payload["snap"].(map[string]interface{})["resources"] = resources
+			payload["snap"].(map[string]any)["resources"] = resources
 		}
 
 		c.Check(body.Results[0], DeepEquals, payload)
@@ -1063,25 +1063,25 @@ func (s *storeTestSuite) TestSnapActionEndpointWithAssertions(c *C) {
 
 	c.Assert(resp.StatusCode, Equals, 200)
 	var body struct {
-		Results []map[string]interface{}
+		Results []map[string]any
 	}
 	c.Assert(json.NewDecoder(resp.Body).Decode(&body), IsNil)
 	c.Check(body.Results, HasLen, 1)
 	sha3_384, size := getSha(snapFn)
-	c.Check(body.Results[0], DeepEquals, map[string]interface{}{
+	c.Check(body.Results[0], DeepEquals, map[string]any{
 		"result":       "refresh",
 		"instance-key": "eFe8BTR5L5V9F7yHeMAPxkEr2NdUXMtw",
 		"snap-id":      "xidididididididididididididididid",
 		"name":         "foo",
-		"snap": map[string]interface{}{
-			"architectures": []interface{}{"all"},
+		"snap": map[string]any{
+			"architectures": []any{"all"},
 			"snap-id":       "xidididididididididididididididid",
 			"name":          "foo",
-			"publisher": map[string]interface{}{
+			"publisher": map[string]any{
 				"username": "foo-devel",
 				"id":       "foo-devel-id",
 			},
-			"download": map[string]interface{}{
+			"download": map[string]any{
 				"url":      s.store.URL() + "/download/foo_10_all.snap",
 				"sha3-384": sha3_384,
 				"size":     float64(size),
@@ -1106,25 +1106,25 @@ func (s *storeTestSuite) TestSnapActionEndpointRefreshAll(c *C) {
 
 	c.Assert(resp.StatusCode, Equals, 200)
 	var body struct {
-		Results []map[string]interface{}
+		Results []map[string]any
 	}
 	c.Assert(json.NewDecoder(resp.Body).Decode(&body), IsNil)
 	c.Check(body.Results, HasLen, 1)
 	sha3_384, size := getSha(snapFn)
-	c.Check(body.Results[0], DeepEquals, map[string]interface{}{
+	c.Check(body.Results[0], DeepEquals, map[string]any{
 		"result":       "refresh",
 		"instance-key": "eFe8BTR5L5V9F7yHeMAPxkEr2NdUXMtw",
 		"snap-id":      "eFe8BTR5L5V9F7yHeMAPxkEr2NdUXMtw",
 		"name":         "test-snapd-tools",
-		"snap": map[string]interface{}{
-			"architectures": []interface{}{"all"},
+		"snap": map[string]any{
+			"architectures": []any{"all"},
 			"snap-id":       "eFe8BTR5L5V9F7yHeMAPxkEr2NdUXMtw",
 			"name":          "test-snapd-tools",
-			"publisher": map[string]interface{}{
+			"publisher": map[string]any{
 				"username": "canonical",
 				"id":       "canonical",
 			},
-			"download": map[string]interface{}{
+			"download": map[string]any{
 				"url":      s.store.URL() + "/download/test-snapd-tools_1_all.snap",
 				"sha3-384": sha3_384,
 				"size":     float64(size),
@@ -1150,25 +1150,25 @@ func (s *storeTestSuite) TestSnapActionEndpointWithAssertionsInstall(c *C) {
 
 	c.Assert(resp.StatusCode, Equals, 200)
 	var body struct {
-		Results []map[string]interface{}
+		Results []map[string]any
 	}
 	c.Assert(json.NewDecoder(resp.Body).Decode(&body), IsNil)
 	c.Check(body.Results, HasLen, 1)
 	sha3_384, size := getSha(snapFn)
-	c.Check(body.Results[0], DeepEquals, map[string]interface{}{
+	c.Check(body.Results[0], DeepEquals, map[string]any{
 		"result":       "install",
 		"instance-key": "foo",
 		"snap-id":      "xidididididididididididididididid",
 		"name":         "foo",
-		"snap": map[string]interface{}{
-			"architectures": []interface{}{"all"},
+		"snap": map[string]any{
+			"architectures": []any{"all"},
 			"snap-id":       "xidididididididididididididididid",
 			"name":          "foo",
-			"publisher": map[string]interface{}{
+			"publisher": map[string]any{
 				"username": "foo-devel",
 				"id":       "foo-devel-id",
 			},
-			"download": map[string]interface{}{
+			"download": map[string]any{
 				"url":      s.store.URL() + "/download/foo_10_all.snap",
 				"sha3-384": sha3_384,
 				"size":     float64(size),
@@ -1193,25 +1193,25 @@ func (s *storeTestSuite) TestSnapActionEndpointSnapWithBase(c *C) {
 
 	c.Assert(resp.StatusCode, Equals, 200)
 	var body struct {
-		Results []map[string]interface{}
+		Results []map[string]any
 	}
 	c.Assert(json.NewDecoder(resp.Body).Decode(&body), IsNil)
 	c.Check(body.Results, HasLen, 1)
 	sha3_384, size := getSha(snapFn)
-	c.Check(body.Results[0], DeepEquals, map[string]interface{}{
+	c.Check(body.Results[0], DeepEquals, map[string]any{
 		"result":       "refresh",
 		"instance-key": "eFe8BTR5L5V9F7yHeMAPxkEr2NdUXMtw",
 		"snap-id":      "eFe8BTR5L5V9F7yHeMAPxkEr2NdUXMtw",
 		"name":         "test-snapd-tools",
-		"snap": map[string]interface{}{
-			"architectures": []interface{}{"all"},
+		"snap": map[string]any{
+			"architectures": []any{"all"},
 			"snap-id":       "eFe8BTR5L5V9F7yHeMAPxkEr2NdUXMtw",
 			"name":          "test-snapd-tools",
-			"publisher": map[string]interface{}{
+			"publisher": map[string]any{
 				"username": "canonical",
 				"id":       "canonical",
 			},
-			"download": map[string]interface{}{
+			"download": map[string]any{
 				"url":      s.store.URL() + "/download/test-snapd-tools_1_all.snap",
 				"sha3-384": sha3_384,
 				"size":     float64(size),
@@ -1260,26 +1260,26 @@ func (s *storeTestSuite) TestSnapActionEndpointUnknownSnapAutoRefresh(c *C) {
 
 	c.Assert(resp.StatusCode, Equals, 200)
 	var body struct {
-		Results []map[string]interface{}
+		Results []map[string]any
 	}
 	c.Assert(json.NewDecoder(resp.Body).Decode(&body), IsNil)
 	c.Check(body.Results, HasLen, 1)
 	sha3_384, size := getSha(snapFn)
 	// Ignore unknown snaps during auto-refresh
-	c.Check(body.Results[0], DeepEquals, map[string]interface{}{
+	c.Check(body.Results[0], DeepEquals, map[string]any{
 		"result":       "refresh",
 		"instance-key": "eFe8BTR5L5V9F7yHeMAPxkEr2NdUXMtw",
 		"snap-id":      "eFe8BTR5L5V9F7yHeMAPxkEr2NdUXMtw",
 		"name":         "test-snapd-tools",
-		"snap": map[string]interface{}{
-			"architectures": []interface{}{"all"},
+		"snap": map[string]any{
+			"architectures": []any{"all"},
 			"snap-id":       "eFe8BTR5L5V9F7yHeMAPxkEr2NdUXMtw",
 			"name":          "test-snapd-tools",
-			"publisher": map[string]interface{}{
+			"publisher": map[string]any{
 				"username": "canonical",
 				"id":       "canonical",
 			},
-			"download": map[string]interface{}{
+			"download": map[string]any{
 				"url":      s.store.URL() + "/download/test-snapd-tools_1_all.snap",
 				"sha3-384": sha3_384,
 				"size":     float64(size),

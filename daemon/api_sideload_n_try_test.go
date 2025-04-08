@@ -78,7 +78,7 @@ func (s *sideloadSuite) markSeeded(d *daemon.Daemon) {
 	st.Lock()
 	defer st.Unlock()
 	st.Set("seeded", true)
-	model := s.Brands.Model("can0nical", "pc", map[string]interface{}{
+	model := s.Brands.Model("can0nical", "pc", map[string]any{
 		"architecture": "amd64",
 		"gadget":       "gadget",
 		"kernel":       "kernel",
@@ -266,12 +266,12 @@ func (s *sideloadSuite) sideloadCheck(c *check.C, content string, head map[strin
 	err = chg.Get("snap-names", &names)
 	c.Assert(err, check.IsNil)
 	c.Check(names, check.DeepEquals, []string{expectedInstanceName})
-	var apiData map[string]interface{}
+	var apiData map[string]any
 	err = chg.Get("api-data", &apiData)
 	c.Assert(err, check.IsNil)
-	c.Check(apiData, check.DeepEquals, map[string]interface{}{
+	c.Check(apiData, check.DeepEquals, map[string]any{
 		"snap-name":  expectedInstanceName,
-		"snap-names": []interface{}{expectedInstanceName},
+		"snap-names": []any{expectedInstanceName},
 	})
 
 	summary = chg.Summary()
@@ -435,7 +435,7 @@ func (s *sideloadSuite) makeComponentAssertions(c *check.C, snapName, compName, 
 	digest, size, err := asserts.SnapFileSHA3_384(compPath)
 	c.Assert(err, check.IsNil)
 
-	resRev, err := s.StoreSigning.Sign(asserts.SnapResourceRevisionType, map[string]interface{}{
+	resRev, err := s.StoreSigning.Sign(asserts.SnapResourceRevisionType, map[string]any{
 		"type":              "snap-resource-revision",
 		"snap-id":           snapID,
 		"resource-name":     compName,
@@ -448,7 +448,7 @@ func (s *sideloadSuite) makeComponentAssertions(c *check.C, snapName, compName, 
 	}, nil, "")
 	c.Assert(err, check.IsNil)
 
-	resPair, err := s.StoreSigning.Sign(asserts.SnapResourcePairType, map[string]interface{}{
+	resPair, err := s.StoreSigning.Sign(asserts.SnapResourcePairType, map[string]any{
 		"snap-id":           snapID,
 		"resource-name":     compName,
 		"resource-revision": "22",
@@ -466,7 +466,7 @@ func (s *sideloadSuite) makeSnapAssertions(c *check.C, snapName, snapPath string
 
 	snapID := snaptest.AssertedSnapID(snapName)
 
-	snapDecl, err := s.StoreSigning.Sign(asserts.SnapDeclarationType, map[string]interface{}{
+	snapDecl, err := s.StoreSigning.Sign(asserts.SnapDeclarationType, map[string]any{
 		"series":       "16",
 		"snap-id":      snapID,
 		"snap-name":    snapName,
@@ -475,7 +475,7 @@ func (s *sideloadSuite) makeSnapAssertions(c *check.C, snapName, snapPath string
 	}, nil, "")
 	c.Assert(err, check.IsNil)
 
-	snapRev, err := s.StoreSigning.Sign(asserts.SnapRevisionType, map[string]interface{}{
+	snapRev, err := s.StoreSigning.Sign(asserts.SnapRevisionType, map[string]any{
 		"snap-sha3-384": digest,
 		"snap-size":     fmt.Sprintf("%d", size),
 		"snap-id":       snapID,
@@ -945,12 +945,12 @@ func (s *sideloadSuite) sideloadComponentCheck(
 
 	c.Assert(err, check.IsNil)
 	c.Check(names, check.DeepEquals, []string{expectedInstanceName})
-	var apiData map[string]interface{}
+	var apiData map[string]any
 	err = chg.Get("api-data", &apiData)
 	c.Assert(err, check.IsNil)
-	c.Check(apiData, check.DeepEquals, map[string]interface{}{
-		"components": map[string]interface{}{
-			expectedInstanceName: []interface{}{expectedCompSideInfo.Component.ComponentName}},
+	c.Check(apiData, check.DeepEquals, map[string]any{
+		"components": map[string]any{
+			expectedInstanceName: []any{expectedCompSideInfo.Component.ComponentName}},
 	})
 
 	summary = chg.Summary()
@@ -1025,7 +1025,7 @@ version: 1`, nil)
 
 	dev1Acct := assertstest.NewAccount(s.StoreSigning, "devel1", nil, "")
 
-	snapDecl, err := s.StoreSigning.Sign(asserts.SnapDeclarationType, map[string]interface{}{
+	snapDecl, err := s.StoreSigning.Sign(asserts.SnapDeclarationType, map[string]any{
 		"series":       "16",
 		"snap-id":      "foo-id",
 		"snap-name":    "foo",
@@ -1034,7 +1034,7 @@ version: 1`, nil)
 	}, nil, "")
 	c.Assert(err, check.IsNil)
 
-	snapRev, err := s.StoreSigning.Sign(asserts.SnapRevisionType, map[string]interface{}{
+	snapRev, err := s.StoreSigning.Sign(asserts.SnapRevisionType, map[string]any{
 		"snap-sha3-384": digest,
 		"snap-size":     fmt.Sprintf("%d", size),
 		"snap-id":       "foo-id",
@@ -1081,12 +1081,12 @@ version: 1`, nil)
 	err = chg.Get("snap-names", &names)
 	c.Assert(err, check.IsNil)
 	c.Check(names, check.DeepEquals, []string{"foo"})
-	var apiData map[string]interface{}
+	var apiData map[string]any
 	err = chg.Get("api-data", &apiData)
 	c.Assert(err, check.IsNil)
-	c.Check(apiData, check.DeepEquals, map[string]interface{}{
+	c.Check(apiData, check.DeepEquals, map[string]any{
 		"snap-name":  "foo",
-		"snap-names": []interface{}{"foo"},
+		"snap-names": []any{"foo"},
 	})
 }
 
@@ -1658,14 +1658,14 @@ func (s *sideloadSuite) testSideloadManySnapsAndComponents(c *check.C, opts side
 	c.Assert(chg, check.NotNil)
 	c.Check(chg.Summary(), check.Equals, fmt.Sprintf(`Install snaps "one" (with component "comp-one"), "two" (with components "comp-two", "comp-three") and component "three+comp-four" from files %s`, strutil.Quoted(expectedFileNames)))
 
-	var data map[string]interface{}
+	var data map[string]any
 	c.Assert(chg.Get("api-data", &data), check.IsNil)
-	c.Check(data, check.DeepEquals, map[string]interface{}{
-		"snap-names": []interface{}{"one", "two"},
-		"components": map[string]interface{}{
-			"one":   []interface{}{"comp-one"},
-			"two":   []interface{}{"comp-two", "comp-three"},
-			"three": []interface{}{"comp-four"},
+	c.Check(data, check.DeepEquals, map[string]any{
+		"snap-names": []any{"one", "two"},
+		"components": map[string]any{
+			"one":   []any{"comp-one"},
+			"two":   []any{"comp-two", "comp-three"},
+			"three": []any{"comp-four"},
 		},
 	})
 }
@@ -1819,14 +1819,14 @@ func (s *sideloadSuite) TestSideloadManyAssertedSnapsAndComponents(c *check.C) {
 	c.Assert(chg, check.NotNil)
 	c.Check(chg.Summary(), check.Equals, fmt.Sprintf(`Install snaps "one" (with component "comp-one"), "two" (with components "comp-two", "comp-three") and component "three+comp-four" from files %s`, strutil.Quoted(expectedFileNames)))
 
-	var data map[string]interface{}
+	var data map[string]any
 	c.Assert(chg.Get("api-data", &data), check.IsNil)
-	c.Check(data, check.DeepEquals, map[string]interface{}{
-		"snap-names": []interface{}{"one", "two"},
-		"components": map[string]interface{}{
-			"one":   []interface{}{"comp-one"},
-			"two":   []interface{}{"comp-two", "comp-three"},
-			"three": []interface{}{"comp-four"},
+	c.Check(data, check.DeepEquals, map[string]any{
+		"snap-names": []any{"one", "two"},
+		"components": map[string]any{
+			"one":   []any{"comp-one"},
+			"two":   []any{"comp-two", "comp-three"},
+			"three": []any{"comp-four"},
 		},
 	})
 }
@@ -2037,11 +2037,11 @@ func (s *sideloadSuite) TestSideloadManyOnlyComponents(c *check.C) {
 	c.Assert(chg, check.NotNil)
 	c.Check(chg.Summary(), check.Equals, fmt.Sprintf(`Install components %s from files %s`, strutil.Quoted(fullComponentNames), strutil.Quoted(expectedFileNames)))
 
-	var data map[string]interface{}
+	var data map[string]any
 	c.Assert(chg.Get("api-data", &data), check.IsNil)
-	c.Check(data, check.DeepEquals, map[string]interface{}{
-		"components": map[string]interface{}{
-			"one": []interface{}{"comp-one", "comp-two", "comp-three", "comp-four"},
+	c.Check(data, check.DeepEquals, map[string]any{
+		"components": map[string]any{
+			"one": []any{"comp-one", "comp-two", "comp-three", "comp-four"},
 		},
 	})
 }
@@ -2244,7 +2244,7 @@ version: 1`, snap), nil)
 		snapData = append(snapData, thisSnapData)
 
 		dev1Acct := assertstest.NewAccount(s.StoreSigning, "devel1", nil, "")
-		snapDecl, err := s.StoreSigning.Sign(asserts.SnapDeclarationType, map[string]interface{}{
+		snapDecl, err := s.StoreSigning.Sign(asserts.SnapDeclarationType, map[string]any{
 			"series":       "16",
 			"snap-id":      snap + "-id",
 			"snap-name":    snap,
@@ -2252,7 +2252,7 @@ version: 1`, snap), nil)
 			"timestamp":    time.Now().Format(time.RFC3339),
 		}, nil, "")
 		c.Assert(err, check.IsNil)
-		snapRev, err := s.StoreSigning.Sign(asserts.SnapRevisionType, map[string]interface{}{
+		snapRev, err := s.StoreSigning.Sign(asserts.SnapRevisionType, map[string]any{
 			"snap-sha3-384": digest,
 			"snap-size":     fmt.Sprintf("%d", size),
 			"snap-id":       snap + "-id",
@@ -2394,12 +2394,12 @@ func (s *trySuite) TestTrySnap(c *check.C) {
 		err = chg.Get("snap-names", &names)
 		c.Assert(err, check.IsNil, check.Commentf(t.desc))
 		c.Check(names, check.DeepEquals, []string{"foo"}, check.Commentf(t.desc))
-		var apiData map[string]interface{}
+		var apiData map[string]any
 		err = chg.Get("api-data", &apiData)
 		c.Assert(err, check.IsNil, check.Commentf(t.desc))
-		c.Check(apiData, check.DeepEquals, map[string]interface{}{
+		c.Check(apiData, check.DeepEquals, map[string]any{
 			"snap-name":  "foo",
-			"snap-names": []interface{}{"foo"},
+			"snap-names": []any{"foo"},
 		}, check.Commentf(t.desc))
 
 		c.Check(soon, check.Equals, 1, check.Commentf(t.desc))

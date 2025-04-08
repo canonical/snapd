@@ -60,13 +60,13 @@ func (cs *clientSuite) TestClientRunSnapctl(c *check.C) {
 	c.Check(string(stdout), check.Equals, "test stdout")
 	c.Check(string(stderr), check.Equals, "test stderr")
 
-	var body map[string]interface{}
+	var body map[string]any
 	decoder := json.NewDecoder(cs.req.Body)
 	err = decoder.Decode(&body)
 	c.Check(err, check.IsNil)
-	c.Check(body, check.DeepEquals, map[string]interface{}{
+	c.Check(body, check.DeepEquals, map[string]any{
 		"context-id": "1234ABCD",
-		"args":       []interface{}{"foo", "bar"},
+		"args":       []any{"foo", "bar"},
 
 		// json byte-stream is b64 encoded
 		"stdin": base64.StdEncoding.EncodeToString([]byte("some-input")),

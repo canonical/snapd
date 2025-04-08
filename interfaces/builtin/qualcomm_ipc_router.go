@@ -293,7 +293,7 @@ func (iface *qualcomIPCRouterInterface) verifySupport(what string) error {
 
 func (iface *qualcomIPCRouterInterface) BeforePrepareSlot(slot *snap.SlotInfo) error {
 	if slot.Attrs == nil {
-		slot.Attrs = make(map[string]interface{})
+		slot.Attrs = make(map[string]any)
 	}
 	if isSlotInfoSystem(slot) {
 		return nil

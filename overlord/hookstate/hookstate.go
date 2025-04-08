@@ -27,7 +27,7 @@ import (
 
 // HookTaskWithUndo returns a task that will run the specified hook. On error the undo hook will be executed.
 // Note that the initial context must properly marshal and unmarshal with encoding/json.
-func HookTaskWithUndo(st *state.State, summary string, setup *HookSetup, undo *HookSetup, contextData map[string]interface{}) *state.Task {
+func HookTaskWithUndo(st *state.State, summary string, setup *HookSetup, undo *HookSetup, contextData map[string]any) *state.Task {
 	task := st.NewTask("run-hook", summary)
 	task.Set("hook-setup", setup)
 	if undo != nil {
@@ -43,6 +43,6 @@ func HookTaskWithUndo(st *state.State, summary string, setup *HookSetup, undo *H
 
 // HookTask returns a task that will run the specified hook. Note that the
 // initial context must properly marshal and unmarshal with encoding/json.
-func HookTask(st *state.State, summary string, setup *HookSetup, contextData map[string]interface{}) *state.Task {
+func HookTask(st *state.State, summary string, setup *HookSetup, contextData map[string]any) *state.Task {
 	return HookTaskWithUndo(st, summary, setup, nil, contextData)
 }

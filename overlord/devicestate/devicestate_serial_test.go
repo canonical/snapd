@@ -73,7 +73,7 @@ func (s *deviceMgrSerialSuite) SetUpTest(c *C) {
 	s.setupBaseTest(c, classic)
 }
 
-func (s *deviceMgrSerialSuite) signSerial(c *C, bhv *devicestatetest.DeviceServiceBehavior, headers map[string]interface{}, body []byte) (serial asserts.Assertion, ancillary []asserts.Assertion, err error) {
+func (s *deviceMgrSerialSuite) signSerial(c *C, bhv *devicestatetest.DeviceServiceBehavior, headers map[string]any, body []byte) (serial asserts.Assertion, ancillary []asserts.Assertion, err error) {
 	brandID := headers["brand-id"].(string)
 	model := headers["model"].(string)
 	keyID := ""
@@ -144,7 +144,7 @@ func (s *deviceMgrSerialSuite) TestFullDeviceRegistrationHappy(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	s.makeModelAssertionInState(c, "canonical", "pc", map[string]interface{}{
+	s.makeModelAssertionInState(c, "canonical", "pc", map[string]any{
 		"architecture": "amd64",
 		"kernel":       "pc-kernel",
 		"gadget":       "pc",
@@ -238,7 +238,7 @@ func (s *deviceMgrSerialSuite) TestFullDeviceRegistrationHappyWithProxy(c *C) {
 	operatorAcct := assertstest.NewAccount(s.storeSigning, "foo-operator", nil, "")
 
 	// have a store assertion.
-	stoAs, err := s.storeSigning.Sign(asserts.StoreType, map[string]interface{}{
+	stoAs, err := s.storeSigning.Sign(asserts.StoreType, map[string]any{
 		"store":       "foo",
 		"url":         mockServer.URL,
 		"operator-id": operatorAcct.AccountID(),
@@ -248,7 +248,7 @@ func (s *deviceMgrSerialSuite) TestFullDeviceRegistrationHappyWithProxy(c *C) {
 
 	assertstatetest.AddMany(s.state, operatorAcct, stoAs)
 
-	s.makeModelAssertionInState(c, "canonical", "pc", map[string]interface{}{
+	s.makeModelAssertionInState(c, "canonical", "pc", map[string]any{
 		"architecture": "amd64",
 		"kernel":       "pc-kernel",
 		"gadget":       "pc",
@@ -321,7 +321,7 @@ func (s *deviceMgrSerialSuite) TestFullDeviceRegistrationHappyClassicNoGadget(c 
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	s.makeModelAssertionInState(c, "canonical", "classic-alt-store", map[string]interface{}{
+	s.makeModelAssertionInState(c, "canonical", "classic-alt-store", map[string]any{
 		"classic": "true",
 		"store":   "alt-store",
 	})
@@ -459,11 +459,11 @@ func (s *deviceMgrSerialSuite) TestFullDeviceRegistrationMyBrandAcceptGenericHap
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	s.makeModelAssertionInState(c, "my-brand", "my-model-accept-generic", map[string]interface{}{
+	s.makeModelAssertionInState(c, "my-brand", "my-model-accept-generic", map[string]any{
 		"classic": "true",
 		"store":   "alt-store",
 		// accept generic as well to sign serials for this
-		"serial-authority": []interface{}{"generic"},
+		"serial-authority": []any{"generic"},
 	})
 
 	devicestatetest.MockGadget(c, s.state, "gadget", snap.R(2), nil)
@@ -523,7 +523,7 @@ func (s *deviceMgrSerialSuite) TestFullDeviceRegistrationMyBrandMismatchedAuthor
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	s.makeModelAssertionInState(c, "my-brand", "my-model-accept-generic", map[string]interface{}{
+	s.makeModelAssertionInState(c, "my-brand", "my-model-accept-generic", map[string]any{
 		"classic": "true",
 		"store":   "alt-store",
 		// no serial-authority set
@@ -567,7 +567,7 @@ func (s *deviceMgrSerialSuite) TestDoRequestSerialIdempotentAfterAddSerial(c *C)
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	s.makeModelAssertionInState(c, "canonical", "pc", map[string]interface{}{
+	s.makeModelAssertionInState(c, "canonical", "pc", map[string]any{
 		"architecture": "amd64",
 		"kernel":       "pc-kernel",
 		"gadget":       "pc",
@@ -650,7 +650,7 @@ func (s *deviceMgrSerialSuite) TestDoRequestSerialIdempotentAfterGotSerial(c *C)
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	s.makeModelAssertionInState(c, "canonical", "pc", map[string]interface{}{
+	s.makeModelAssertionInState(c, "canonical", "pc", map[string]any{
 		"architecture": "amd64",
 		"kernel":       "pc-kernel",
 		"gadget":       "pc",
@@ -724,7 +724,7 @@ func (s *deviceMgrSerialSuite) TestDoRequestSerialErrorsOnNoHost(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	s.makeModelAssertionInState(c, "canonical", "pc", map[string]interface{}{
+	s.makeModelAssertionInState(c, "canonical", "pc", map[string]any{
 		"architecture": "amd64",
 		"kernel":       "pc-kernel",
 		"gadget":       "pc",
@@ -778,7 +778,7 @@ func (s *deviceMgrSerialSuite) TestDoRequestSerialMaxTentatives(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	s.makeModelAssertionInState(c, "canonical", "pc", map[string]interface{}{
+	s.makeModelAssertionInState(c, "canonical", "pc", map[string]any{
 		"architecture": "amd64",
 		"kernel":       "pc-kernel",
 		"gadget":       "pc",
@@ -937,7 +937,7 @@ func (s *deviceMgrSerialSuite) makeRequestChangeWithTransport(c *C, rt http.Roun
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	s.makeModelAssertionInState(c, "canonical", "pc", map[string]interface{}{
+	s.makeModelAssertionInState(c, "canonical", "pc", map[string]any{
 		"architecture": "amd64",
 		"kernel":       "pc-kernel",
 		"gadget":       "pc",
@@ -1017,7 +1017,7 @@ func (s *deviceMgrSerialSuite) TestFullDeviceRegistrationPollHappy(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	s.makeModelAssertionInState(c, "canonical", "pc", map[string]interface{}{
+	s.makeModelAssertionInState(c, "canonical", "pc", map[string]any{
 		"architecture": "amd64",
 		"kernel":       "pc-kernel",
 		"gadget":       "pc",
@@ -1109,7 +1109,7 @@ func (s *deviceMgrSerialSuite) TestFullDeviceRegistrationHappyPrepareDeviceHook(
 	r3 := devicestate.MockBaseStoreURL(mockServer.URL + "/direct/baad/")
 	defer r3()
 
-	s.makeModelAssertionInState(c, "canonical", "pc2", map[string]interface{}{
+	s.makeModelAssertionInState(c, "canonical", "pc2", map[string]any{
 		"architecture": "amd64",
 		"kernel":       "pc-kernel",
 		"gadget":       "gadget",
@@ -1160,11 +1160,11 @@ func (s *deviceMgrSerialSuite) TestFullDeviceRegistrationHappyPrepareDeviceHook(
 	c.Assert(err, IsNil)
 	serial := a.(*asserts.Serial)
 
-	var details map[string]interface{}
+	var details map[string]any
 	err = yaml.Unmarshal(serial.Body(), &details)
 	c.Assert(err, IsNil)
 
-	c.Check(details, DeepEquals, map[string]interface{}{
+	c.Check(details, DeepEquals, map[string]any{
 		"mac": "00:00:00:00:ff:00",
 	})
 
@@ -1253,7 +1253,7 @@ func (s *deviceMgrSerialSuite) testFullDeviceRegistrationHappyWithHookAndProxy(c
 	operatorAcct := assertstest.NewAccount(s.storeSigning, "foo-operator", nil, "")
 
 	// have a store assertion.
-	stoAs, err := s.storeSigning.Sign(asserts.StoreType, map[string]interface{}{
+	stoAs, err := s.storeSigning.Sign(asserts.StoreType, map[string]any{
 		"store":       "foo",
 		"url":         mockServer.URL,
 		"operator-id": operatorAcct.AccountID(),
@@ -1263,7 +1263,7 @@ func (s *deviceMgrSerialSuite) testFullDeviceRegistrationHappyWithHookAndProxy(c
 
 	assertstatetest.AddMany(s.state, operatorAcct, stoAs)
 
-	s.makeModelAssertionInState(c, "canonical", "pc2", map[string]interface{}{
+	s.makeModelAssertionInState(c, "canonical", "pc2", map[string]any{
 		"architecture": "amd64",
 		"kernel":       "pc-kernel",
 		"gadget":       "gadget",
@@ -1327,7 +1327,7 @@ func (s *deviceMgrSerialSuite) TestFullDeviceRegistrationErrorBackoff(c *C) {
 	// validity
 	c.Check(devicestate.EnsureOperationalAttempts(s.state), Equals, 0)
 
-	s.makeModelAssertionInState(c, "canonical", "pc", map[string]interface{}{
+	s.makeModelAssertionInState(c, "canonical", "pc", map[string]any{
 		"architecture": "amd64",
 		"kernel":       "pc-kernel",
 		"gadget":       "pc",
@@ -1423,7 +1423,7 @@ func (s *deviceMgrSerialSuite) TestFullDeviceRegistrationMismatchedSerial(c *C) 
 
 	devicestatetest.MockGadget(c, s.state, "gadget", snap.R(2), nil)
 
-	s.makeModelAssertionInState(c, "canonical", "pc", map[string]interface{}{
+	s.makeModelAssertionInState(c, "canonical", "pc", map[string]any{
 		"architecture": "amd64",
 		"kernel":       "pc-kernel",
 		"gadget":       "gadget",
@@ -1469,7 +1469,7 @@ func (s *deviceMgrSerialSuite) TestModelAndSerial(c *C) {
 	c.Check(err, testutil.ErrorIs, state.ErrNoState)
 
 	// have a model assertion
-	model := s.brands.Model("canonical", "pc", map[string]interface{}{
+	model := s.brands.Model("canonical", "pc", map[string]any{
 		"gadget":       "pc",
 		"kernel":       "kernel",
 		"architecture": "amd64",
@@ -1544,7 +1544,7 @@ func (s *deviceMgrSerialSuite) TestStoreContextBackendModelAndSerial(c *C) {
 	c.Check(err, testutil.ErrorIs, state.ErrNoState)
 
 	// have a model assertion
-	model := s.brands.Model("canonical", "pc", map[string]interface{}{
+	model := s.brands.Model("canonical", "pc", map[string]any{
 		"gadget":       "pc",
 		"kernel":       "kernel",
 		"architecture": "amd64",
@@ -1588,7 +1588,7 @@ func (s *deviceMgrSerialSuite) TestStoreContextBackendDeviceSessionRequestParams
 	defer s.state.Unlock()
 
 	// set model as seeding would
-	s.makeModelAssertionInState(c, "canonical", "pc", map[string]interface{}{
+	s.makeModelAssertionInState(c, "canonical", "pc", map[string]any{
 		"architecture": "amd64",
 		"kernel":       "pc-kernel",
 		"gadget":       "pc",
@@ -1607,7 +1607,7 @@ func (s *deviceMgrSerialSuite) TestStoreContextBackendDeviceSessionRequestParams
 	// setup state as done by device initialisation
 	encDevKey, err := asserts.EncodePublicKey(devKey.PublicKey())
 	c.Check(err, IsNil)
-	seriala, err := s.storeSigning.Sign(asserts.SerialType, map[string]interface{}{
+	seriala, err := s.storeSigning.Sign(asserts.SerialType, map[string]any{
 		"brand-id":            "canonical",
 		"model":               "pc",
 		"serial":              "8989",
@@ -1669,7 +1669,7 @@ func (s *deviceMgrSerialSuite) TestStoreContextBackendProxyStore(c *C) {
 	operatorAcct := assertstest.NewAccount(s.storeSigning, "foo-operator", nil, "")
 
 	// have a store assertion.
-	stoAs, err := s.storeSigning.Sign(asserts.StoreType, map[string]interface{}{
+	stoAs, err := s.storeSigning.Sign(asserts.StoreType, map[string]any{
 		"store":       "foo",
 		"operator-id": operatorAcct.AccountID(),
 		"url":         mockServer.URL,
@@ -1711,7 +1711,7 @@ func (s *deviceMgrSerialSuite) TestInitialRegistrationContext(c *C) {
 	defer s.state.Unlock()
 
 	// have a model assertion
-	model, err := s.storeSigning.Sign(asserts.ModelType, map[string]interface{}{
+	model, err := s.storeSigning.Sign(asserts.ModelType, map[string]any{
 		"series":       "16",
 		"brand-id":     "canonical",
 		"model":        "pc",
@@ -1841,7 +1841,7 @@ func (s *deviceMgrSerialSuite) testDoRequestSerialReregistration(c *C, setAncill
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	s.makeModelAssertionInState(c, "my-brand", "my-model", map[string]interface{}{
+	s.makeModelAssertionInState(c, "my-brand", "my-model", map[string]any{
 		"architecture": "amd64",
 		"kernel":       "pc-kernel",
 		"gadget":       "pc",
@@ -1865,7 +1865,7 @@ func (s *deviceMgrSerialSuite) testDoRequestSerialReregistration(c *C, setAncill
 		setAncillary(serial0)
 	}
 
-	new := s.brands.Model("rereg-brand", "rereg-model", map[string]interface{}{
+	new := s.brands.Model("rereg-brand", "rereg-model", map[string]any{
 		"architecture": "amd64",
 		"kernel":       "pc-kernel",
 		"gadget":       "pc",
@@ -1994,7 +1994,7 @@ func (s *deviceMgrSerialSuite) TestDeviceRegistrationNotInInstallMode(c *C) {
 	st := s.state
 	// setup state as will be done by first-boot
 	st.Lock()
-	s.makeModelAssertionInState(c, "canonical", "pc", map[string]interface{}{
+	s.makeModelAssertionInState(c, "canonical", "pc", map[string]any{
 		"architecture": "amd64",
 		"kernel":       "pc-kernel",
 		"gadget":       "pc",
@@ -2041,18 +2041,18 @@ func (s *deviceMgrSerialSuite) TestFullDeviceRegistrationUC20Happy(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	s.makeModelAssertionInState(c, "canonical", "pc-20", map[string]interface{}{
+	s.makeModelAssertionInState(c, "canonical", "pc-20", map[string]any{
 		"architecture": "amd64",
 		// UC20
 		"base": "core20",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":            "pc-kernel",
 				"id":              snaptest.AssertedSnapID("pc-kernel"),
 				"type":            "kernel",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "pc",
 				"id":              snaptest.AssertedSnapID("pc"),
 				"type":            "gadget",
@@ -2365,18 +2365,18 @@ func (s *deviceMgrSerialSuite) TestDeviceSerialRestoreHappy(c *C) {
 	err = db.Add(s.storeSigning.StoreAccountKey(""))
 	c.Assert(err, IsNil)
 
-	model := s.makeModelAssertionInState(c, "my-brand", "pc-20", map[string]interface{}{
+	model := s.makeModelAssertionInState(c, "my-brand", "pc-20", map[string]any{
 		"architecture": "amd64",
 		// UC20
 		"base": "core20",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":            "pc-kernel",
 				"id":              snaptest.AssertedSnapID("pc-kernel"),
 				"type":            "kernel",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "pc",
 				"id":              snaptest.AssertedSnapID("pc"),
 				"type":            "gadget",
@@ -2529,7 +2529,7 @@ func (s *deviceMgrSerialSuite) TestDeviceManagerFullAccess(c *C) {
 		Model: "pc",
 	})
 
-	s.makeModelAssertionInState(c, "canonical", "pc", map[string]interface{}{
+	s.makeModelAssertionInState(c, "canonical", "pc", map[string]any{
 		"architecture": "amd64",
 		"kernel":       "pc-kernel",
 		"gadget":       "pc",
@@ -2565,7 +2565,7 @@ func (s *deviceMgrSerialSuite) TestDeviceManagerNoAccessHasKeyID(c *C) {
 		KeyID: "key-id",
 	})
 
-	s.makeModelAssertionInState(c, "canonical", "pc", map[string]interface{}{
+	s.makeModelAssertionInState(c, "canonical", "pc", map[string]any{
 		"architecture": "amd64",
 		"kernel":       "pc-kernel",
 		"gadget":       "pc",
@@ -2600,7 +2600,7 @@ func (s *deviceMgrSerialSuite) TestDeviceManagerNoAccessNoKeyID(c *C) {
 		Model: "pc",
 	})
 
-	s.makeModelAssertionInState(c, "canonical", "pc", map[string]interface{}{
+	s.makeModelAssertionInState(c, "canonical", "pc", map[string]any{
 		"architecture": "amd64",
 		"kernel":       "pc-kernel",
 		"gadget":       "pc",

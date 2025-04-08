@@ -45,7 +45,7 @@ func (s *experimentalSuite) TestConfigureExperimentalSettingsInvalid(c *C) {
 	for _, feature := range features.KnownFeatures() {
 		conf := &mockConf{
 			state:   s.state,
-			changes: map[string]interface{}{featureConf(feature): "foo"},
+			changes: map[string]any{featureConf(feature): "foo"},
 		}
 		err := configcore.FilesystemOnlyRun(classicDev, conf)
 		c.Check(err, ErrorMatches, fmt.Sprintf(`%s can only be set to 'true' or 'false'`, featureConf(feature)))
@@ -57,7 +57,7 @@ func (s *experimentalSuite) TestConfigureExperimentalSettingsHappy(c *C) {
 		for _, t := range []string{"true", "false"} {
 			conf := &mockConf{
 				state: s.state,
-				conf:  map[string]interface{}{featureConf(feature): t},
+				conf:  map[string]any{featureConf(feature): t},
 			}
 			err := configcore.FilesystemOnlyRun(classicDev, conf)
 			c.Check(err, IsNil)
@@ -68,7 +68,7 @@ func (s *experimentalSuite) TestConfigureExperimentalSettingsHappy(c *C) {
 func (s *experimentalSuite) TestExportedFeatures(c *C) {
 	conf := &mockConf{
 		state: s.state,
-		conf:  map[string]interface{}{featureConf(features.PerUserMountNamespace): true},
+		conf:  map[string]any{featureConf(features.PerUserMountNamespace): true},
 	}
 	err := configcore.FilesystemOnlyRun(classicDev, conf)
 	c.Assert(err, IsNil)
@@ -81,7 +81,7 @@ func (s *experimentalSuite) TestExportedFeatures(c *C) {
 }
 
 func (s *experimentalSuite) TestFilesystemOnlyApply(c *C) {
-	conf := configcore.PlainCoreConfig(map[string]interface{}{
+	conf := configcore.PlainCoreConfig(map[string]any{
 		"experimental.refresh-app-awareness": "true",
 	})
 	tmpDir := c.MkDir()
@@ -90,7 +90,7 @@ func (s *experimentalSuite) TestFilesystemOnlyApply(c *C) {
 }
 
 func (s *experimentalSuite) TestFilesystemOnlyApplyValidationFails(c *C) {
-	conf := configcore.PlainCoreConfig(map[string]interface{}{
+	conf := configcore.PlainCoreConfig(map[string]any{
 		"experimental.refresh-app-awareness": 1,
 	})
 	tmpDir := c.MkDir()

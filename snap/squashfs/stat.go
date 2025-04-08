@@ -47,7 +47,7 @@ func (s stat) Size() int64        { return s.size }
 func (s stat) Mode() os.FileMode  { return s.mode }
 func (s stat) ModTime() time.Time { return s.mtime }
 func (s stat) IsDir() bool        { return s.mode.IsDir() }
-func (s stat) Sys() interface{}   { return nil }
+func (s stat) Sys() any           { return nil }
 func (s stat) Path() string       { return s.path } // not path of os.FileInfo
 
 const minLen = len("drwxrwxr-x u/g             53595 2017-12-08 11:19 .")

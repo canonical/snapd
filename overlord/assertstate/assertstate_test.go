@@ -388,7 +388,7 @@ func (s *assertMgrSuite) TestAddBatchPartial(c *C) {
 
 	// too old
 	rev := 1
-	headers := map[string]interface{}{
+	headers := map[string]any{
 		"snap-id":       "foo-id",
 		"snap-sha3-384": makeDigest(rev),
 		"snap-size":     fmt.Sprintf("%d", len(fakeSnap(rev))),
@@ -432,7 +432,7 @@ func (s *assertMgrSuite) TestAddBatchPrecheckPartial(c *C) {
 
 	// too old
 	rev := 1
-	headers := map[string]interface{}{
+	headers := map[string]any{
 		"snap-id":       "foo-id",
 		"snap-sha3-384": makeDigest(rev),
 		"snap-size":     fmt.Sprintf("%d", len(fakeSnap(rev))),
@@ -478,7 +478,7 @@ func (s *assertMgrSuite) TestAddBatchPrecheckHappy(c *C) {
 
 	rev := 1
 	revDigest := makeDigest(rev)
-	headers := map[string]interface{}{
+	headers := map[string]any{
 		"snap-id":       "foo-id",
 		"snap-sha3-384": revDigest,
 		"snap-size":     fmt.Sprintf("%d", len(fakeSnap(rev))),
@@ -535,7 +535,7 @@ func (s *assertMgrSuite) prereqSnapAssertions(c *C, db *asserts.Database, proven
 		db = s.storeSigning.Database
 	}
 
-	headers := map[string]interface{}{
+	headers := map[string]any{
 		"series":       "16",
 		"snap-id":      "snap-id-1",
 		"snap-name":    "foo",
@@ -543,10 +543,10 @@ func (s *assertMgrSuite) prereqSnapAssertions(c *C, db *asserts.Database, proven
 		"timestamp":    time.Now().Format(time.RFC3339),
 	}
 	if provenance != "" {
-		headers["revision-authority"] = []interface{}{
-			map[string]interface{}{
+		headers["revision-authority"] = []any{
+			map[string]any{
 				"account-id": s.dev1Acct.AccountID(),
-				"provenance": []interface{}{
+				"provenance": []any{
 					provenance,
 				},
 			},
@@ -568,7 +568,7 @@ func (s *assertMgrSuite) prereqSnapAssertions(c *C, db *asserts.Database, proven
 		paths[rev] = snapPath
 		digests[rev] = digest
 
-		headers = map[string]interface{}{
+		headers = map[string]any{
 			"snap-id":       "snap-id-1",
 			"snap-sha3-384": digest,
 			"snap-size":     fmt.Sprintf("%d", sz),
@@ -623,7 +623,7 @@ version: 1.0.2
 		resourceRevivion.N += 1
 	}
 
-	revHeaders := map[string]interface{}{
+	revHeaders := map[string]any{
 		"snap-id":           snapID,
 		"resource-name":     resourceName,
 		"resource-sha3-384": digest,
@@ -644,7 +644,7 @@ version: 1.0.2
 	err = s.storeSigning.Add(resourceRev)
 	c.Assert(err, IsNil)
 
-	pairHeaders := map[string]interface{}{
+	pairHeaders := map[string]any{
 		"snap-id":           snapID,
 		"resource-name":     resourceName,
 		"resource-revision": opts.compRev.String(),
@@ -746,7 +746,7 @@ func (s *assertMgrSuite) TestFetchUnsupportedUpdateIgnored(c *C) {
 	(func() {
 		restore := asserts.MockMaxSupportedFormat(asserts.SnapDeclarationType, 999)
 		defer restore()
-		snapDeclFoo1 = s.snapDecl(c, "foo", map[string]interface{}{
+		snapDeclFoo1 = s.snapDecl(c, "foo", map[string]any{
 			"format":   "999",
 			"revision": "1",
 		})
@@ -787,7 +787,7 @@ func (s *assertMgrSuite) TestFetchUnsupportedError(c *C) {
 	(func() {
 		restore := asserts.MockMaxSupportedFormat(asserts.SnapDeclarationType, 999)
 		defer restore()
-		snapDeclFoo1 = s.snapDecl(c, "foo", map[string]interface{}{
+		snapDeclFoo1 = s.snapDecl(c, "foo", map[string]any{
 			"format":   "999",
 			"revision": "1",
 		})
@@ -818,7 +818,7 @@ func (s *assertMgrSuite) setModel(model *asserts.Model) {
 
 func (s *assertMgrSuite) setupModelAndStore(c *C) *asserts.Store {
 	// setup a model and store assertion
-	a := assertstest.FakeAssertion(map[string]interface{}{
+	a := assertstest.FakeAssertion(map[string]any{
 		"type":         "model",
 		"authority-id": "my-brand",
 		"series":       "16",
@@ -831,7 +831,7 @@ func (s *assertMgrSuite) setupModelAndStore(c *C) *asserts.Store {
 	})
 	s.setModel(a.(*asserts.Model))
 
-	a, err := s.storeSigning.Sign(asserts.StoreType, map[string]interface{}{
+	a, err := s.storeSigning.Sign(asserts.StoreType, map[string]any{
 		"authority-id": s.storeSigning.AuthorityID,
 		"operator-id":  s.storeSigning.AuthorityID,
 		"store":        "my-brand-store",
@@ -1017,17 +1017,17 @@ func (s *assertMgrSuite) TestValidateDelegatedSnap(c *C) {
 	digest, sz, err := asserts.SnapFileSHA3_384(snapPath)
 	c.Assert(err, IsNil)
 
-	headers := map[string]interface{}{
+	headers := map[string]any{
 		"series":       "16",
 		"snap-id":      "snap-id-1",
 		"snap-name":    "foo",
 		"publisher-id": s.dev1Acct.AccountID(),
-		"revision-authority": []interface{}{
-			map[string]interface{}{
+		"revision-authority": []any{
+			map[string]any{
 				"account-id": s.dev1Acct.AccountID(),
-				"provenance": []interface{}{"delegated-prov"},
-				"on-store":   []interface{}{"my-brand-store"},
-				"on-model":   []interface{}{"my-brand/my-model"},
+				"provenance": []any{"delegated-prov"},
+				"on-store":   []any{"my-brand-store"},
+				"on-model":   []any{"my-brand/my-model"},
 			},
 		},
 		"timestamp": time.Now().Format(time.RFC3339),
@@ -1037,7 +1037,7 @@ func (s *assertMgrSuite) TestValidateDelegatedSnap(c *C) {
 	err = s.storeSigning.Add(snapDecl)
 	c.Assert(err, IsNil)
 
-	headers = map[string]interface{}{
+	headers = map[string]any{
 		"authority-id":  s.dev1Acct.AccountID(),
 		"series":        "16",
 		"snap-id":       "snap-id-1",
@@ -1099,9 +1099,9 @@ func (s *assertMgrSuite) TestValidateDelegatedSnap(c *C) {
 }
 
 func (s *assertMgrSuite) TestValidateDelegatedSnapProvenanceMismatch(c *C) {
-	err := s.testValidateDelegatedSnapMismatch(c, `provenance: delegated-prov-other`, "delegated-prov-other", "delegated-prov", map[string]interface{}{
+	err := s.testValidateDelegatedSnapMismatch(c, `provenance: delegated-prov-other`, "delegated-prov-other", "delegated-prov", map[string]any{
 		"account-id": s.dev1Acct.AccountID(),
-		"provenance": []interface{}{"delegated-prov"},
+		"provenance": []any{"delegated-prov"},
 	})
 	c.Check(err, ErrorMatches, `(?s).*cannot verify snap "foo", no matching signatures found.*`)
 }
@@ -1109,24 +1109,24 @@ func (s *assertMgrSuite) TestValidateDelegatedSnapProvenanceMismatch(c *C) {
 func (s *assertMgrSuite) TestValidateDelegatedSnapStoreProvenanceMismatch(c *C) {
 	// this is a scenario where a store is serving information matching
 	// the assertions which themselves don't match the snap
-	err := s.testValidateDelegatedSnapMismatch(c, `provenance: delegated-prov-other`, "delegated-prov", "delegated-prov", map[string]interface{}{
+	err := s.testValidateDelegatedSnapMismatch(c, `provenance: delegated-prov-other`, "delegated-prov", "delegated-prov", map[string]any{
 		"account-id": s.dev1Acct.AccountID(),
-		"provenance": []interface{}{"delegated-prov"},
+		"provenance": []any{"delegated-prov"},
 	})
 	c.Check(err, ErrorMatches, `(?s).*snap ".*foo.*\.snap" has been signed under provenance "delegated-prov" different from the metadata one: "delegated-prov-other".*`)
 }
 
-func (s *assertMgrSuite) testValidateDelegatedSnapMismatch(c *C, provenanceFrag, expectedProv, revProvenance string, revisionAuthority map[string]interface{}) error {
+func (s *assertMgrSuite) testValidateDelegatedSnapMismatch(c *C, provenanceFrag, expectedProv, revProvenance string, revisionAuthority map[string]any) error {
 	snapPath := s.makeTestSnap(c, 10, provenanceFrag)
 	digest, sz, err := asserts.SnapFileSHA3_384(snapPath)
 	c.Assert(err, IsNil)
 
-	headers := map[string]interface{}{
+	headers := map[string]any{
 		"series":       "16",
 		"snap-id":      "snap-id-1",
 		"snap-name":    "foo",
 		"publisher-id": s.dev1Acct.AccountID(),
-		"revision-authority": []interface{}{
+		"revision-authority": []any{
 			revisionAuthority,
 		},
 		"timestamp": time.Now().Format(time.RFC3339),
@@ -1136,7 +1136,7 @@ func (s *assertMgrSuite) testValidateDelegatedSnapMismatch(c *C, provenanceFrag,
 	err = s.storeSigning.Add(snapDecl)
 	c.Assert(err, IsNil)
 
-	headers = map[string]interface{}{
+	headers = map[string]any{
 		"authority-id":  s.dev1Acct.AccountID(),
 		"series":        "16",
 		"snap-id":       "snap-id-1",
@@ -1186,37 +1186,37 @@ func (s *assertMgrSuite) testValidateDelegatedSnapMismatch(c *C, provenanceFrag,
 }
 
 func (s *assertMgrSuite) TestValidateDelegatedSnapDeviceMismatch(c *C) {
-	err := s.testValidateDelegatedSnapMismatch(c, `provenance: delegated-prov`, "delegated-prov", "delegated-prov", map[string]interface{}{
+	err := s.testValidateDelegatedSnapMismatch(c, `provenance: delegated-prov`, "delegated-prov", "delegated-prov", map[string]any{
 		"account-id": s.dev1Acct.AccountID(),
-		"provenance": []interface{}{"delegated-prov"},
-		"on-store":   []interface{}{"other-store"},
+		"provenance": []any{"delegated-prov"},
+		"on-store":   []any{"other-store"},
 	})
 	c.Check(err, ErrorMatches, `(?s).*snap "foo" revision assertion with provenance "delegated-prov" is not signed by an authority authorized on this device: .*`)
 }
 
 func (s *assertMgrSuite) TestValidateDelegatedSnapDefaultProvenanceMismatch(c *C) {
-	err := s.testValidateDelegatedSnapMismatch(c, "", "", "delegated-prov", map[string]interface{}{
+	err := s.testValidateDelegatedSnapMismatch(c, "", "", "delegated-prov", map[string]any{
 		"account-id": s.dev1Acct.AccountID(),
-		"provenance": []interface{}{"delegated-prov"},
-		"on-store":   []interface{}{"my-brand-store"},
+		"provenance": []any{"delegated-prov"},
+		"on-store":   []any{"my-brand-store"},
 	})
 	c.Check(err, ErrorMatches, `(?s).*cannot verify snap "foo", no matching signatures found.*`)
 }
 
 func (s *assertMgrSuite) validationSetAssert(c *C, name, sequence, revision string, snapPresence, requiredRevision string) *asserts.ValidationSet {
-	snaps := []interface{}{map[string]interface{}{
+	snaps := []any{map[string]any{
 		"id":       "qOqKhntON3vR7kwEbVPsILm7bUViPDzz",
 		"name":     "foo",
 		"presence": snapPresence,
 	}}
 	if requiredRevision != "" {
-		snaps[0].(map[string]interface{})["revision"] = requiredRevision
+		snaps[0].(map[string]any)["revision"] = requiredRevision
 	}
 	return s.validationSetAssertForSnaps(c, name, sequence, revision, snaps)
 }
 
-func (s *assertMgrSuite) validationSetAssertForSnaps(c *C, name, sequence, revision string, snaps []interface{}) *asserts.ValidationSet {
-	headers := map[string]interface{}{
+func (s *assertMgrSuite) validationSetAssertForSnaps(c *C, name, sequence, revision string, snaps []any) *asserts.ValidationSet {
+	headers := map[string]any{
 		"series":       "16",
 		"account-id":   s.dev1Acct.AccountID(),
 		"authority-id": s.dev1Acct.AccountID(),
@@ -1232,8 +1232,8 @@ func (s *assertMgrSuite) validationSetAssertForSnaps(c *C, name, sequence, revis
 	return a.(*asserts.ValidationSet)
 }
 
-func (s *assertMgrSuite) snapDecl(c *C, name string, extraHeaders map[string]interface{}) *asserts.SnapDeclaration {
-	headers := map[string]interface{}{
+func (s *assertMgrSuite) snapDecl(c *C, name string, extraHeaders map[string]any) *asserts.SnapDeclaration {
+	headers := map[string]any{
 		"series":       "16",
 		"snap-id":      name + "-id",
 		"snap-name":    name,
@@ -1297,7 +1297,7 @@ func (s *assertMgrSuite) TestRefreshAssertionsRefreshSnapDeclarationsAndValidati
 	assertstate.UpdateValidationSet(s.state, &tr)
 
 	// changed snap decl assertion
-	headers := map[string]interface{}{
+	headers := map[string]any{
 		"series":       "16",
 		"snap-id":      "foo-id",
 		"snap-name":    "fo-o",
@@ -1406,7 +1406,7 @@ func (s *assertMgrSuite) TestRefreshSnapDeclarationsNoStore(c *C) {
 	c.Assert(err, IsNil)
 
 	// one changed assertion
-	headers := map[string]interface{}{
+	headers := map[string]any{
 		"series":       "16",
 		"snap-id":      "foo-id",
 		"snap-name":    "fo-o",
@@ -1454,7 +1454,7 @@ func (s *assertMgrSuite) TestRefreshSnapDeclarationsNoStore(c *C) {
 		restore := asserts.MockMaxSupportedFormat(asserts.SnapDeclarationType, 999)
 		defer restore()
 
-		headers := map[string]interface{}{
+		headers := map[string]any{
 			"format":       "999",
 			"series":       "16",
 			"snap-id":      "foo-id",
@@ -1504,14 +1504,14 @@ func (s *assertMgrSuite) TestRefreshSnapDeclarationsChangingKey(c *C) {
 	storePrivKey2, _ := assertstest.GenerateKey(752)
 	err = s.storeSigning.ImportKey(storePrivKey2)
 	c.Assert(err, IsNil)
-	storeKey2 := assertstest.NewAccountKey(s.storeSigning.RootSigning, s.storeSigning.TrustedAccount, map[string]interface{}{
+	storeKey2 := assertstest.NewAccountKey(s.storeSigning.RootSigning, s.storeSigning.TrustedAccount, map[string]any{
 		"name": "store2",
 	}, storePrivKey2.PublicKey(), "")
 	err = s.storeSigning.Add(storeKey2)
 	c.Assert(err, IsNil)
 
 	// one changed assertion signed with different key
-	headers := map[string]interface{}{
+	headers := map[string]any{
 		"series":       "16",
 		"snap-id":      "foo-id",
 		"snap-name":    "foo",
@@ -1564,7 +1564,7 @@ func (s *assertMgrSuite) TestRefreshSnapDeclarationsWithStore(c *C) {
 	c.Assert(err, IsNil)
 
 	// one changed assertion
-	headers := map[string]interface{}{
+	headers := map[string]any{
 		"series":       "16",
 		"snap-id":      "foo-id",
 		"snap-name":    "fo-o",
@@ -1589,7 +1589,7 @@ func (s *assertMgrSuite) TestRefreshSnapDeclarationsWithStore(c *C) {
 	c.Check(a.(*asserts.SnapDeclaration).SnapName(), Equals, "fo-o")
 
 	// changed again
-	headers = map[string]interface{}{
+	headers = map[string]any{
 		"series":       "16",
 		"snap-id":      "foo-id",
 		"snap-name":    "f-oo",
@@ -1622,7 +1622,7 @@ func (s *assertMgrSuite) TestRefreshSnapDeclarationsWithStore(c *C) {
 	c.Assert(err, IsNil)
 
 	// store assertion has changed
-	a, err = s.storeSigning.Sign(asserts.StoreType, map[string]interface{}{
+	a, err = s.storeSigning.Sign(asserts.StoreType, map[string]any{
 		"authority-id": s.storeSigning.AuthorityID,
 		"operator-id":  s.storeSigning.AuthorityID,
 		"store":        "my-brand-store",
@@ -1663,7 +1663,7 @@ func (s *assertMgrSuite) TestRefreshSnapDeclarationsDownloadError(c *C) {
 	c.Assert(err, IsNil)
 
 	// one changed assertion
-	headers := map[string]interface{}{
+	headers := map[string]any{
 		"series":       "16",
 		"snap-id":      "foo-id",
 		"snap-name":    "fo-o",
@@ -1702,7 +1702,7 @@ func (s *assertMgrSuite) TestRefreshSnapDeclarationsPersistentNetworkError(c *C)
 	c.Assert(err, IsNil)
 
 	// one changed assertion
-	headers := map[string]interface{}{
+	headers := map[string]any{
 		"series":       "16",
 		"snap-id":      "foo-id",
 		"snap-name":    "fo-o",
@@ -1790,7 +1790,7 @@ func (s *assertMgrSuite) testRefreshSnapDeclarationsMany(c *C, n int) error {
 		c.Assert(err, IsNil)
 
 		// make an update on top
-		headers := map[string]interface{}{
+		headers := map[string]any{
 			"series":       "16",
 			"snap-id":      name + "-id",
 			"snap-name":    fmt.Sprintf("fo-o-%d", i),
@@ -2005,8 +2005,8 @@ func (s *assertMgrSuite) TestValidateRefreshesMissingValidation(c *C) {
 	defer s.state.Unlock()
 
 	snapDeclFoo := s.snapDecl(c, "foo", nil)
-	snapDeclBar := s.snapDecl(c, "bar", map[string]interface{}{
-		"refresh-control": []interface{}{"foo-id"},
+	snapDeclBar := s.snapDecl(c, "bar", map[string]any{
+		"refresh-control": []any{"foo-id"},
 	})
 	s.stateFromDecl(c, snapDeclFoo, "", snap.R(7))
 	s.stateFromDecl(c, snapDeclBar, "", snap.R(3))
@@ -2034,8 +2034,8 @@ func (s *assertMgrSuite) TestParallelInstanceValidateRefreshesMissingValidation(
 	defer s.state.Unlock()
 
 	snapDeclFoo := s.snapDecl(c, "foo", nil)
-	snapDeclBar := s.snapDecl(c, "bar", map[string]interface{}{
-		"refresh-control": []interface{}{"foo-id"},
+	snapDeclBar := s.snapDecl(c, "bar", map[string]any{
+		"refresh-control": []any{"foo-id"},
 	})
 	s.stateFromDecl(c, snapDeclFoo, "", snap.R(7))
 	s.stateFromDecl(c, snapDeclFoo, "foo_instance", snap.R(7))
@@ -2065,8 +2065,8 @@ func (s *assertMgrSuite) TestValidateRefreshesMissingValidationButIgnore(c *C) {
 	defer s.state.Unlock()
 
 	snapDeclFoo := s.snapDecl(c, "foo", nil)
-	snapDeclBar := s.snapDecl(c, "bar", map[string]interface{}{
-		"refresh-control": []interface{}{"foo-id"},
+	snapDeclBar := s.snapDecl(c, "bar", map[string]any{
+		"refresh-control": []any{"foo-id"},
 	})
 	s.stateFromDecl(c, snapDeclFoo, "", snap.R(7))
 	s.stateFromDecl(c, snapDeclBar, "", snap.R(3))
@@ -2094,8 +2094,8 @@ func (s *assertMgrSuite) TestParallelInstanceValidateRefreshesMissingValidationB
 	defer s.state.Unlock()
 
 	snapDeclFoo := s.snapDecl(c, "foo", nil)
-	snapDeclBar := s.snapDecl(c, "bar", map[string]interface{}{
-		"refresh-control": []interface{}{"foo-id"},
+	snapDeclBar := s.snapDecl(c, "bar", map[string]any{
+		"refresh-control": []any{"foo-id"},
 	})
 	s.stateFromDecl(c, snapDeclFoo, "", snap.R(7))
 	s.stateFromDecl(c, snapDeclFoo, "foo_instance", snap.R(7))
@@ -2129,8 +2129,8 @@ func (s *assertMgrSuite) TestParallelInstanceValidateRefreshesMissingValidationB
 	defer s.state.Unlock()
 
 	snapDeclFoo := s.snapDecl(c, "foo", nil)
-	snapDeclBar := s.snapDecl(c, "bar", map[string]interface{}{
-		"refresh-control": []interface{}{"foo-id"},
+	snapDeclBar := s.snapDecl(c, "bar", map[string]any{
+		"refresh-control": []any{"foo-id"},
 	})
 	s.stateFromDecl(c, snapDeclFoo, "foo_instance", snap.R(7))
 	s.stateFromDecl(c, snapDeclBar, "", snap.R(3))
@@ -2159,8 +2159,8 @@ func (s *assertMgrSuite) TestParallelInstanceValidateRefreshesMissingValidationB
 	defer s.state.Unlock()
 
 	snapDeclFoo := s.snapDecl(c, "foo", nil)
-	snapDeclBar := s.snapDecl(c, "bar", map[string]interface{}{
-		"refresh-control": []interface{}{"foo-id"},
+	snapDeclBar := s.snapDecl(c, "bar", map[string]any{
+		"refresh-control": []any{"foo-id"},
 	})
 	s.stateFromDecl(c, snapDeclFoo, "", snap.R(7))
 	s.stateFromDecl(c, snapDeclFoo, "foo_instance", snap.R(7))
@@ -2193,11 +2193,11 @@ func (s *assertMgrSuite) TestValidateRefreshesValidationOK(c *C) {
 	defer s.state.Unlock()
 
 	snapDeclFoo := s.snapDecl(c, "foo", nil)
-	snapDeclBar := s.snapDecl(c, "bar", map[string]interface{}{
-		"refresh-control": []interface{}{"foo-id"},
+	snapDeclBar := s.snapDecl(c, "bar", map[string]any{
+		"refresh-control": []any{"foo-id"},
 	})
-	snapDeclBaz := s.snapDecl(c, "baz", map[string]interface{}{
-		"refresh-control": []interface{}{"foo-id"},
+	snapDeclBaz := s.snapDecl(c, "baz", map[string]any{
+		"refresh-control": []any{"foo-id"},
 	})
 	s.stateFromDecl(c, snapDeclFoo, "", snap.R(7))
 	s.stateFromDecl(c, snapDeclFoo, "foo_instance", snap.R(7))
@@ -2212,7 +2212,7 @@ func (s *assertMgrSuite) TestValidateRefreshesValidationOK(c *C) {
 	})
 
 	// validation by bar
-	headers := map[string]interface{}{
+	headers := map[string]any{
 		"series":                 "16",
 		"snap-id":                "bar-id",
 		"approved-snap-id":       "foo-id",
@@ -2225,7 +2225,7 @@ func (s *assertMgrSuite) TestValidateRefreshesValidationOK(c *C) {
 	c.Assert(err, IsNil)
 
 	// validation by baz
-	headers = map[string]interface{}{
+	headers = map[string]any{
 		"series":                 "16",
 		"snap-id":                "baz-id",
 		"approved-snap-id":       "foo-id",
@@ -2266,11 +2266,11 @@ func (s *assertMgrSuite) TestValidateRefreshesRevokedValidation(c *C) {
 	defer s.state.Unlock()
 
 	snapDeclFoo := s.snapDecl(c, "foo", nil)
-	snapDeclBar := s.snapDecl(c, "bar", map[string]interface{}{
-		"refresh-control": []interface{}{"foo-id"},
+	snapDeclBar := s.snapDecl(c, "bar", map[string]any{
+		"refresh-control": []any{"foo-id"},
 	})
-	snapDeclBaz := s.snapDecl(c, "baz", map[string]interface{}{
-		"refresh-control": []interface{}{"foo-id"},
+	snapDeclBaz := s.snapDecl(c, "baz", map[string]any{
+		"refresh-control": []any{"foo-id"},
 	})
 	s.stateFromDecl(c, snapDeclFoo, "", snap.R(7))
 	s.stateFromDecl(c, snapDeclBar, "", snap.R(3))
@@ -2284,7 +2284,7 @@ func (s *assertMgrSuite) TestValidateRefreshesRevokedValidation(c *C) {
 	})
 
 	// validation by bar
-	headers := map[string]interface{}{
+	headers := map[string]any{
 		"series":                 "16",
 		"snap-id":                "bar-id",
 		"approved-snap-id":       "foo-id",
@@ -2297,7 +2297,7 @@ func (s *assertMgrSuite) TestValidateRefreshesRevokedValidation(c *C) {
 	c.Assert(err, IsNil)
 
 	// revoked validation by baz
-	headers = map[string]interface{}{
+	headers = map[string]any{
 		"series":                 "16",
 		"snap-id":                "baz-id",
 		"approved-snap-id":       "foo-id",
@@ -2424,8 +2424,8 @@ apps:
 	c.Check(aliases, HasLen, 0)
 
 	// some aliases
-	snapDeclFoo = s.snapDecl(c, "foo", map[string]interface{}{
-		"auto-aliases": []interface{}{"alias1", "alias2", "alias3"},
+	snapDeclFoo = s.snapDecl(c, "foo", map[string]any{
+		"auto-aliases": []any{"alias1", "alias2", "alias3"},
 		"revision":     "1",
 	})
 	err = assertstate.Add(s.state, snapDeclFoo)
@@ -2477,17 +2477,17 @@ func (s *assertMgrSuite) TestAutoAliasesExplicit(c *C) {
 	c.Check(aliases, HasLen, 0)
 
 	// some aliases
-	snapDeclFoo = s.snapDecl(c, "foo", map[string]interface{}{
-		"aliases": []interface{}{
-			map[string]interface{}{
+	snapDeclFoo = s.snapDecl(c, "foo", map[string]any{
+		"aliases": []any{
+			map[string]any{
 				"name":   "alias1",
 				"target": "cmd1",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":   "alias2",
 				"target": "cmd2",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":   "alias-missing",
 				"target": "cmd-missing",
 			},
@@ -2568,7 +2568,7 @@ func (s *assertMgrSuite) TestStore(c *C) {
 	c.Assert(err, IsNil)
 	err = assertstate.Add(s.state, s.dev1Acct)
 	c.Assert(err, IsNil)
-	storeHeaders := map[string]interface{}{
+	storeHeaders := map[string]any{
 		"store":       "foo",
 		"operator-id": s.dev1Acct.AccountID(),
 		"timestamp":   time.Now().Format(time.RFC3339),
@@ -3706,7 +3706,7 @@ func (s *assertMgrSuite) TestTemporaryDB(c *C) {
 	err := assertstate.Add(st, s.storeSigning.StoreAccountKey(""))
 	c.Assert(err, IsNil)
 
-	a, err := s.storeSigning.Sign(asserts.ModelType, map[string]interface{}{
+	a, err := s.storeSigning.Sign(asserts.ModelType, map[string]any{
 		"type":         "model",
 		"series":       "16",
 		"authority-id": s.storeSigning.AuthorityID,
@@ -3720,7 +3720,7 @@ func (s *assertMgrSuite) TestTemporaryDB(c *C) {
 	c.Assert(err, IsNil)
 	model := a.(*asserts.Model)
 
-	aRev2, err := s.storeSigning.Sign(asserts.ModelType, map[string]interface{}{
+	aRev2, err := s.storeSigning.Sign(asserts.ModelType, map[string]any{
 		"type":         "model",
 		"series":       "16",
 		"authority-id": s.storeSigning.AuthorityID,
@@ -4104,8 +4104,8 @@ func (s *assertMgrSuite) TestTryEnforceValidationSetsAssertionsValidationError(c
 	c.Assert(assertstate.Add(st, s.dev1AcctKey), IsNil)
 
 	// pretend we are already enforcing a validation set foo
-	snaps3 := []interface{}{
-		map[string]interface{}{
+	snaps3 := []any{
+		map[string]any{
 			"id":       "qOqKhntON3vR7kwEbVPsILm7bUViPDzz",
 			"name":     "some-snap",
 			"presence": "required",
@@ -4120,22 +4120,22 @@ func (s *assertMgrSuite) TestTryEnforceValidationSetsAssertionsValidationError(c
 	})
 
 	// add validation set assertions to the store
-	snaps1 := []interface{}{
-		map[string]interface{}{
+	snaps1 := []any{
+		map[string]any{
 			"id":       "qOqKhntON3vR7kwEbVPsILm7bUViPDzz",
 			"name":     "some-snap",
 			"presence": "required",
 			"revision": "3",
 		},
-		map[string]interface{}{
+		map[string]any{
 			"id":       "aAqKhntON3vR7kwEbVPsILm7bUViPDaa",
 			"name":     "other-snap",
 			"presence": "required",
 		}}
 	vsetAs := s.validationSetAssertForSnaps(c, "bar", "2", "2", snaps1)
 	c.Assert(s.storeSigning.Add(vsetAs), IsNil)
-	snaps2 := []interface{}{
-		map[string]interface{}{
+	snaps2 := []any{
+		map[string]any{
 			"id":       "cccchntON3vR7kwEbVPsILm7bUViPDcc",
 			"name":     "invalid-snap",
 			"presence": "invalid",
@@ -4195,8 +4195,8 @@ func (s *assertMgrSuite) TestTryEnforceValidationSetsAssertionsOK(c *C) {
 	c.Assert(assertstate.Add(st, s.dev1AcctKey), IsNil)
 
 	// pretend we are already enforcing a validation set foo
-	snaps3 := []interface{}{
-		map[string]interface{}{
+	snaps3 := []any{
+		map[string]any{
 			"id":       "qOqKhntON3vR7kwEbVPsILm7bUViPDzz",
 			"name":     "some-snap",
 			"presence": "required",
@@ -4211,8 +4211,8 @@ func (s *assertMgrSuite) TestTryEnforceValidationSetsAssertionsOK(c *C) {
 	})
 
 	// add validation set assertions to the store
-	snaps1 := []interface{}{
-		map[string]interface{}{
+	snaps1 := []any{
+		map[string]any{
 			"id":       "qOqKhntON3vR7kwEbVPsILm7bUViPDzz",
 			"name":     "some-snap",
 			"presence": "required",
@@ -4220,8 +4220,8 @@ func (s *assertMgrSuite) TestTryEnforceValidationSetsAssertionsOK(c *C) {
 		}}
 	vsetAs := s.validationSetAssertForSnaps(c, "bar", "2", "2", snaps1)
 	c.Assert(s.storeSigning.Add(vsetAs), IsNil)
-	snaps2 := []interface{}{
-		map[string]interface{}{
+	snaps2 := []any{
+		map[string]any{
 			"id":       "aAqKhntON3vR7kwEbVPsILm7bUViPDaa",
 			"name":     "other-snap",
 			"presence": "optional",
@@ -4312,8 +4312,8 @@ func (s *assertMgrSuite) TestTryEnforceValidationSetsAssertionsAlreadyTrackedUpd
 	c.Assert(assertstate.Add(st, s.dev1AcctKey), IsNil)
 
 	// pretend we are already enforcing a validation set foo
-	snaps3 := []interface{}{
-		map[string]interface{}{
+	snaps3 := []any{
+		map[string]any{
 			"id":       "qOqKhntON3vR7kwEbVPsILm7bUViPDzz",
 			"name":     "some-snap",
 			"presence": "required",
@@ -4328,8 +4328,8 @@ func (s *assertMgrSuite) TestTryEnforceValidationSetsAssertionsAlreadyTrackedUpd
 	})
 
 	// add validation set assertions to the store
-	snaps1 := []interface{}{
-		map[string]interface{}{
+	snaps1 := []any{
+		map[string]any{
 			"id":       "qOqKhntON3vR7kwEbVPsILm7bUViPDzz",
 			"name":     "some-snap",
 			"presence": "required",
@@ -4392,8 +4392,8 @@ func (s *assertMgrSuite) TestTryEnforceValidationSetsAssertionsConflictError(c *
 	c.Assert(assertstate.Add(st, s.dev1AcctKey), IsNil)
 
 	// pretend we are already enforcing a validation set foo
-	snaps3 := []interface{}{
-		map[string]interface{}{
+	snaps3 := []any{
+		map[string]any{
 			"id":       "qOqKhntON3vR7kwEbVPsILm7bUViPDzz",
 			"name":     "some-snap",
 			"presence": "required",
@@ -4408,8 +4408,8 @@ func (s *assertMgrSuite) TestTryEnforceValidationSetsAssertionsConflictError(c *
 	})
 
 	// add a validation set assertion to the store
-	snaps1 := []interface{}{
-		map[string]interface{}{
+	snaps1 := []any{
+		map[string]any{
 			"id":       "qOqKhntON3vR7kwEbVPsILm7bUViPDzz",
 			"name":     "some-snap",
 			"presence": "invalid",
@@ -4602,8 +4602,8 @@ func (s *assertMgrSuite) testEnforceValidationSets(c *C, pinnedSeq int) {
 	c.Assert(assertstate.Add(st, s.dev1AcctKey), IsNil)
 
 	// validation set that we refreshed to enforce
-	snaps := []interface{}{
-		map[string]interface{}{
+	snaps := []any{
+		map[string]any{
 			"id":       "qOqKhntON3vR7kwEbVPsILm7bUViPDzz",
 			"name":     "some-snap",
 			"presence": "required",
@@ -4612,8 +4612,8 @@ func (s *assertMgrSuite) testEnforceValidationSets(c *C, pinnedSeq int) {
 	c.Assert(assertstate.Add(st, localVs), IsNil)
 
 	// add a more recent conflicting version to the store
-	snaps = []interface{}{
-		map[string]interface{}{
+	snaps = []any{
+		map[string]any{
 			"id":       "qOqKhntON3vR7kwEbVPsILm7bUViPDzz",
 			"name":     "some-snap",
 			"presence": "invalid",
@@ -4669,8 +4669,8 @@ func (s *assertMgrSuite) TestEnforceValidationSetsWithNoLocalAssertions(c *C) {
 	c.Assert(s.storeSigning.Add(storeAs), IsNil)
 
 	// validation set that we refreshed to enforce
-	snaps := []interface{}{
-		map[string]interface{}{
+	snaps := []any{
+		map[string]any{
 			"id":       "qOqKhntON3vR7kwEbVPsILm7bUViPDzz",
 			"name":     "some-snap",
 			"presence": "required",
@@ -4680,8 +4680,8 @@ func (s *assertMgrSuite) TestEnforceValidationSetsWithNoLocalAssertions(c *C) {
 	c.Assert(s.storeSigning.Add(oldVs), IsNil)
 
 	// add a more recent conflicting version to the store which shouldn't be pulled
-	snaps = []interface{}{
-		map[string]interface{}{
+	snaps = []any{
+		map[string]any{
 			"id":       "qOqKhntON3vR7kwEbVPsILm7bUViPDzz",
 			"name":     "some-snap",
 			"presence": "invalid",
@@ -4738,8 +4738,8 @@ func (s *assertMgrSuite) TestEnforceValidationSetsWithMismatchedPinnedSeq(c *C) 
 	snapstate.ReplaceStore(st, s.fakeStore)
 	s.setupModelAndStore(c)
 
-	vs := s.validationSetAssertForSnaps(c, "foo", "1", "1", []interface{}{
-		map[string]interface{}{
+	vs := s.validationSetAssertForSnaps(c, "foo", "1", "1", []any{
+		map[string]any{
 			"id":       "qOqKhntON3vR7kwEbVPsILm7bUViPDzz",
 			"name":     "some-snap",
 			"presence": "required",
@@ -4765,8 +4765,8 @@ func (s *assertMgrSuite) TestEnforceValidationSetsWithUnmetConstraints(c *C) {
 	storeAs := s.setupModelAndStore(c)
 	c.Assert(s.storeSigning.Add(storeAs), IsNil)
 
-	snaps := []interface{}{
-		map[string]interface{}{
+	snaps := []any{
+		map[string]any{
 			"id":       "qOqKhntON3vR7kwEbVPsILm7bUViPDzz",
 			"name":     "some-snap",
 			"presence": "required",
@@ -4809,8 +4809,8 @@ func (s *assertMgrSuite) testApplyLocalEnforcedValidationSets(c *C, pinnedSeq in
 	defer st.Unlock()
 
 	// validation set that we refreshed to enforce
-	snaps := []interface{}{
-		map[string]interface{}{
+	snaps := []any{
+		map[string]any{
 			"id":       "qOqKhntON3vR7kwEbVPsILm7bUViPDzz",
 			"name":     "some-snap",
 			"presence": "required",
@@ -4861,8 +4861,8 @@ func (s *assertMgrSuite) TestApplyLocalEnforcedValidationSetsWithMismatchedPinne
 	st.Lock()
 	defer st.Unlock()
 
-	localVs := s.validationSetAssertForSnaps(c, "foo", "1", "1", []interface{}{
-		map[string]interface{}{
+	localVs := s.validationSetAssertForSnaps(c, "foo", "1", "1", []any{
+		map[string]any{
 			"id":       "qOqKhntON3vR7kwEbVPsILm7bUViPDzz",
 			"name":     "some-snap",
 			"presence": "required",
@@ -4889,8 +4889,8 @@ func (s *assertMgrSuite) TestApplyLocalEnforcedValidationSetsWithUnmetConstraint
 	st.Lock()
 	defer st.Unlock()
 
-	snaps := []interface{}{
-		map[string]interface{}{
+	snaps := []any{
+		map[string]any{
 			"id":       "qOqKhntON3vR7kwEbVPsILm7bUViPDzz",
 			"name":     "some-snap",
 			"presence": "required",
@@ -4919,9 +4919,9 @@ func (s *assertMgrSuite) TestApplyLocalEnforcedValidationSetsWithUnmetConstraint
 	c.Assert(err, testutil.ErrorIs, &state.NoStateError{})
 }
 
-func (s *assertMgrSuite) mockDeviceWithValidationSets(c *C, validationSets []interface{}) {
+func (s *assertMgrSuite) mockDeviceWithValidationSets(c *C, validationSets []any) {
 	st := s.state
-	a := assertstest.FakeAssertion(map[string]interface{}{
+	a := assertstest.FakeAssertion(map[string]any{
 		"type":            "model",
 		"authority-id":    "my-brand",
 		"series":          "16",
@@ -4935,7 +4935,7 @@ func (s *assertMgrSuite) mockDeviceWithValidationSets(c *C, validationSets []int
 	})
 	s.setModel(a.(*asserts.Model))
 
-	a, err := s.storeSigning.Sign(asserts.StoreType, map[string]interface{}{
+	a, err := s.storeSigning.Sign(asserts.StoreType, map[string]any{
 		"authority-id": s.storeSigning.AuthorityID,
 		"operator-id":  s.storeSigning.AuthorityID,
 		"store":        "my-brand-store",
@@ -4953,8 +4953,8 @@ func (s *assertMgrSuite) mockDeviceWithValidationSets(c *C, validationSets []int
 func (s *assertMgrSuite) TestFetchAndApplyEnforcedValidationSetEnforceModeSequenceMismatch(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
-	s.mockDeviceWithValidationSets(c, []interface{}{
-		map[string]interface{}{
+	s.mockDeviceWithValidationSets(c, []any{
+		map[string]any{
 			"account-id": s.dev1Acct.AccountID(),
 			"name":       "bar",
 			"mode":       "enforce",
@@ -4970,8 +4970,8 @@ func (s *assertMgrSuite) TestFetchAndApplyEnforcedValidationSetEnforceModeSequen
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	s.mockDeviceWithValidationSets(c, []interface{}{
-		map[string]interface{}{
+	s.mockDeviceWithValidationSets(c, []any{
+		map[string]any{
 			"account-id": s.dev1Acct.AccountID(),
 			"name":       "bar",
 			"mode":       "enforce",
@@ -4997,8 +4997,8 @@ func (s *assertMgrSuite) TestFetchAndApplyEnforcedValidationSetEnforceModeSequen
 func (s *assertMgrSuite) TestMonitorValidationSetEnforceModeSequenceMismatch(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
-	s.mockDeviceWithValidationSets(c, []interface{}{
-		map[string]interface{}{
+	s.mockDeviceWithValidationSets(c, []any{
+		map[string]any{
 			"account-id": s.dev1Acct.AccountID(),
 			"name":       "bar",
 			"mode":       "enforce",
@@ -5014,8 +5014,8 @@ func (s *assertMgrSuite) TestMonitorValidationSetEnforceModeSequenceFromModel(c 
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	s.mockDeviceWithValidationSets(c, []interface{}{
-		map[string]interface{}{
+	s.mockDeviceWithValidationSets(c, []any{
+		map[string]any{
 			"account-id": s.dev1Acct.AccountID(),
 			"name":       "bar",
 			"mode":       "enforce",
@@ -5041,8 +5041,8 @@ func (s *assertMgrSuite) TestMonitorValidationSetEnforceModeSequenceFromModel(c 
 func (s *assertMgrSuite) TestForgetValidationSetEnforcedByModel(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
-	s.mockDeviceWithValidationSets(c, []interface{}{
-		map[string]interface{}{
+	s.mockDeviceWithValidationSets(c, []any{
+		map[string]any{
 			"account-id": s.dev1Acct.AccountID(),
 			"name":       "foo",
 			"mode":       "enforce",
@@ -5074,8 +5074,8 @@ func (s *assertMgrSuite) TestForgetValidationSetEnforcedByModel(c *C) {
 func (s *assertMgrSuite) TestForgetValidationSetPreferEnforcedByModelHappy(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
-	s.mockDeviceWithValidationSets(c, []interface{}{
-		map[string]interface{}{
+	s.mockDeviceWithValidationSets(c, []any{
+		map[string]any{
 			"account-id": s.dev1Acct.AccountID(),
 			"name":       "foo",
 			"mode":       "prefer-enforce",
@@ -5142,8 +5142,8 @@ func (s *assertMgrSuite) testFetchValidationSets(c *C, opts testFetchValidationS
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	snapsInFoo := []interface{}{
-		map[string]interface{}{
+	snapsInFoo := []any{
+		map[string]any{
 			"id":       snaptest.AssertedSnapID("some-snap"),
 			"name":     "some-snap",
 			"presence": "required",
@@ -5152,8 +5152,8 @@ func (s *assertMgrSuite) testFetchValidationSets(c *C, opts testFetchValidationS
 
 	fooVset := s.validationSetAssertForSnaps(c, "foo", "1", "1", snapsInFoo)
 
-	snapsInBar := []interface{}{
-		map[string]interface{}{
+	snapsInBar := []any{
+		map[string]any{
 			"id":       snaptest.AssertedSnapID("some-other-snap"),
 			"name":     "some-other-snap",
 			"presence": "required",
@@ -5213,7 +5213,7 @@ func (s *assertMgrSuite) testFetchValidationSets(c *C, opts testFetchValidationS
 	var sets *snapasserts.ValidationSets
 
 	if opts.FromModel {
-		model := assertstest.FakeAssertion(map[string]interface{}{
+		model := assertstest.FakeAssertion(map[string]any{
 			"type":         "model",
 			"authority-id": "my-brand",
 			"series":       "16",
@@ -5222,13 +5222,13 @@ func (s *assertMgrSuite) testFetchValidationSets(c *C, opts testFetchValidationS
 			"architecture": "amd64",
 			"gadget":       "gadget",
 			"kernel":       "krnl",
-			"validation-sets": []interface{}{
-				map[string]interface{}{
+			"validation-sets": []any{
+				map[string]any{
 					"account-id": s.dev1Acct.AccountID(),
 					"name":       "foo",
 					"mode":       "enforce",
 				},
-				map[string]interface{}{
+				map[string]any{
 					"account-id": s.dev1Acct.AccountID(),
 					"name":       "bar",
 					"sequence":   "2",
@@ -5280,7 +5280,7 @@ func (s *assertMgrSuite) TestValidationSetsFromModelConflict(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	model := assertstest.FakeAssertion(map[string]interface{}{
+	model := assertstest.FakeAssertion(map[string]any{
 		"type":         "model",
 		"authority-id": "my-brand",
 		"series":       "16",
@@ -5289,13 +5289,13 @@ func (s *assertMgrSuite) TestValidationSetsFromModelConflict(c *C) {
 		"architecture": "amd64",
 		"gadget":       "gadget",
 		"kernel":       "krnl",
-		"validation-sets": []interface{}{
-			map[string]interface{}{
+		"validation-sets": []any{
+			map[string]any{
 				"account-id": s.dev1Acct.AccountID(),
 				"name":       "foo",
 				"mode":       "enforce",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"account-id": s.dev1Acct.AccountID(),
 				"name":       "bar",
 				"sequence":   "2",
@@ -5306,8 +5306,8 @@ func (s *assertMgrSuite) TestValidationSetsFromModelConflict(c *C) {
 
 	s.setModel(model)
 
-	snapsInFoo := []interface{}{
-		map[string]interface{}{
+	snapsInFoo := []any{
+		map[string]any{
 			"id":       snaptest.AssertedSnapID("some-snap"),
 			"name":     "some-snap",
 			"presence": "required",
@@ -5316,8 +5316,8 @@ func (s *assertMgrSuite) TestValidationSetsFromModelConflict(c *C) {
 
 	fooVset := s.validationSetAssertForSnaps(c, "foo", "1", "1", snapsInFoo)
 
-	snapsInBar := []interface{}{
-		map[string]interface{}{
+	snapsInBar := []any{
+		map[string]any{
 			"id":       snaptest.AssertedSnapID("some-snap"),
 			"name":     "some-snap",
 			"presence": "invalid",
@@ -5338,8 +5338,8 @@ func (s *assertMgrSuite) TestValidationSetsFromModelConflict(c *C) {
 	c.Check(err, testutil.ErrorIs, &snapasserts.ValidationSetsConflictError{})
 }
 
-func (s *assertMgrSuite) confdb(c *C, name string, extraHeaders map[string]interface{}, body string) *asserts.ConfdbSchema {
-	headers := map[string]interface{}{
+func (s *assertMgrSuite) confdb(c *C, name string, extraHeaders map[string]any, body string) *asserts.ConfdbSchema {
+	headers := map[string]any{
 		"series":       "16",
 		"account-id":   s.dev1AcctKey.AccountID(),
 		"authority-id": s.dev1AcctKey.AccountID(),
@@ -5367,12 +5367,12 @@ func (s *assertMgrSuite) TestConfdb(c *C) {
 	err = assertstate.Add(s.state, s.dev1AcctKey)
 	c.Assert(err, IsNil)
 
-	confdbFoo := s.confdb(c, "foo", map[string]interface{}{
-		"views": map[string]interface{}{
-			"a-view": map[string]interface{}{
-				"rules": []interface{}{
-					map[string]interface{}{"request": "a", "storage": "a"},
-					map[string]interface{}{"request": "b", "storage": "b"},
+	confdbFoo := s.confdb(c, "foo", map[string]any{
+		"views": map[string]any{
+			"a-view": map[string]any{
+				"rules": []any{
+					map[string]any{"request": "a", "storage": "a"},
+					map[string]any{"request": "b", "storage": "b"},
 				},
 			},
 		},
@@ -5586,7 +5586,7 @@ func (s *assertMgrSuite) testValidateComponentNoDownload(c *C, invalid bool) {
 	paths, _ := s.prereqSnapAssertions(c, db, "", 10)
 	snapPath := paths[10]
 
-	headers := map[string]interface{}{
+	headers := map[string]any{
 		"snap-id":           "snap-id-1",
 		"resource-name":     "comp",
 		"resource-revision": compRev.String(),
@@ -5647,12 +5647,12 @@ func (s *assertMgrSuite) testValidateComponentNoDownload(c *C, invalid bool) {
 }
 
 func (s *assertMgrSuite) setupConfdb(c *C) *snap.SideInfo {
-	extraHeaders := map[string]interface{}{
+	extraHeaders := map[string]any{
 		"revision": "1",
-		"views": map[string]interface{}{
-			"my-view": map[string]interface{}{
-				"rules": []interface{}{
-					map[string]interface{}{"request": "foo", "storage": "foo"},
+		"views": map[string]any{
+			"my-view": map[string]any{
+				"rules": []any{
+					map[string]any{"request": "foo", "storage": "foo"},
 				},
 			},
 		},
@@ -5758,12 +5758,12 @@ func (s *assertMgrSuite) testConfdbAssertionsAutoRefresh(c *C) {
 	err := s.storeSigning.Add(storeAs)
 	c.Assert(err, IsNil)
 
-	extraHeaders := map[string]interface{}{
+	extraHeaders := map[string]any{
 		"revision": "1",
-		"views": map[string]interface{}{
-			"my-view": map[string]interface{}{
-				"rules": []interface{}{
-					map[string]interface{}{"request": "foo", "storage": "foo"},
+		"views": map[string]any{
+			"my-view": map[string]any{
+				"rules": []any{
+					map[string]any{"request": "foo", "storage": "foo"},
 				},
 			},
 		},
@@ -5816,7 +5816,7 @@ func (s *assertMgrSuite) TestSnapResourcePair(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	headers := map[string]interface{}{
+	headers := map[string]any{
 		"series":       "16",
 		"snap-id":      snaptest.AssertedSnapID("snap-1"),
 		"snap-name":    "snap-1",
@@ -5827,7 +5827,7 @@ func (s *assertMgrSuite) TestSnapResourcePair(c *C) {
 	decl, err := s.storeSigning.Sign(asserts.SnapDeclarationType, headers, nil, "")
 	c.Assert(err, IsNil)
 
-	headers = map[string]interface{}{
+	headers = map[string]any{
 		"snap-id":           snaptest.AssertedSnapID("snap-1"),
 		"resource-name":     "comp",
 		"resource-revision": "11",

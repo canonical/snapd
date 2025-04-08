@@ -348,7 +348,7 @@ func (s *patchSuite) testMaybeResetPatchLevel6(c *C, snapdVersion, lastVersion s
 	defer st.Unlock()
 	var level, sublevel int
 	var ver string
-	var lastRefresh interface{}
+	var lastRefresh any
 	c.Assert(st.Get("patch-level", &level), IsNil)
 	c.Assert(st.Get("patch-sublevel", &sublevel), IsNil)
 	c.Assert(st.Get("patch-sublevel-last-version", &ver), IsNil)

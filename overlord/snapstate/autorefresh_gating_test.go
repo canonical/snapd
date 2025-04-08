@@ -2017,7 +2017,7 @@ func (s *snapmgrTestSuite) testAutoRefreshPhase2(c *C, beforePhase1 func(), gate
 	c.Assert(err, IsNil)
 	c.Check(names, DeepEquals, []string{"base-snap-b", "snap-a"})
 
-	var snaps map[string]interface{}
+	var snaps map[string]any
 	c.Assert(tss[0].Tasks()[0].Kind(), Equals, "conditional-auto-refresh")
 	c.Assert(tss[0].Tasks()[0].Get("snaps", &snaps), IsNil)
 	c.Assert(snaps, HasLen, 2)
@@ -2102,7 +2102,7 @@ func (s *snapmgrTestSuite) TestAutoRefreshPhase2(c *C) {
 	tasks := chg.Tasks()
 	c.Check(tasks[len(tasks)-1].Summary(), Equals, `Monitoring snaps "base-snap-b", "snap-a" to determine whether extra refresh steps are required`)
 
-	var snaps map[string]interface{}
+	var snaps map[string]any
 	c.Assert(chg.Tasks()[0].Kind(), Equals, "conditional-auto-refresh")
 	chg.Tasks()[0].Get("snaps", &snaps)
 	c.Assert(snaps, HasLen, 2)
@@ -2159,7 +2159,7 @@ func (s *snapmgrTestSuite) TestAutoRefreshPhase2Held(c *C) {
 	c.Assert(logbuf.String(), testutil.Contains, `skipping refresh of held snaps: base-snap-b`)
 	tasks := chg.Tasks()
 
-	var snaps map[string]interface{}
+	var snaps map[string]any
 	c.Assert(chg.Tasks()[0].Kind(), Equals, "conditional-auto-refresh")
 	chg.Tasks()[0].Get("snaps", &snaps)
 	c.Assert(snaps, HasLen, 1)
@@ -2677,12 +2677,12 @@ func (s *autorefreshGatingSuite) TestAutoRefreshForGatingSnap(c *C) {
 	c.Assert(chg.Kind(), Equals, "auto-refresh")
 	c.Check(chg.Summary(), Equals, `Auto-refresh snaps "base-snap-b", "snap-b"`)
 	var snapNames []string
-	var apiData map[string]interface{}
+	var apiData map[string]any
 	c.Assert(chg.Get("snap-names", &snapNames), IsNil)
 	c.Check(snapNames, DeepEquals, []string{"base-snap-b", "snap-b"})
 	c.Assert(chg.Get("api-data", &apiData), IsNil)
-	c.Check(apiData, DeepEquals, map[string]interface{}{
-		"snap-names": []interface{}{"base-snap-b", "snap-b"},
+	c.Check(apiData, DeepEquals, map[string]any{
+		"snap-names": []any{"base-snap-b", "snap-b"},
 	})
 
 	tasks := chg.Tasks()
@@ -2784,12 +2784,12 @@ func (s *autorefreshGatingSuite) TestAutoRefreshForGatingSnapMoreAffectedSnaps(c
 	c.Assert(chg.Kind(), Equals, "auto-refresh")
 	c.Check(chg.Summary(), Equals, `Auto-refresh snaps "base-snap-b", "snap-b"`)
 	var snapNames []string
-	var apiData map[string]interface{}
+	var apiData map[string]any
 	c.Assert(chg.Get("snap-names", &snapNames), IsNil)
 	c.Check(snapNames, DeepEquals, []string{"base-snap-b", "snap-b"})
 	c.Assert(chg.Get("api-data", &apiData), IsNil)
-	c.Check(apiData, DeepEquals, map[string]interface{}{
-		"snap-names": []interface{}{"base-snap-b", "snap-b"},
+	c.Check(apiData, DeepEquals, map[string]any{
+		"snap-names": []any{"base-snap-b", "snap-b"},
 	})
 
 	tasks := chg.Tasks()
@@ -3127,13 +3127,13 @@ func (s *validationSetsSuite) TestAutoRefreshPhase1WithValidationSets(c *C) {
 	var requiredRevision string
 	restoreEnforcedValidationSets := snapstate.MockEnforcedValidationSets(func(st *state.State, extraVss ...*asserts.ValidationSet) (*snapasserts.ValidationSets, error) {
 		vs := snapasserts.NewValidationSets()
-		someSnap := map[string]interface{}{
+		someSnap := map[string]any{
 			"id":       "yOqKhntON3vR7kwEbVPsILm7bUViPDzx",
 			"name":     "some-snap",
 			"presence": "required",
 			"revision": requiredRevision,
 		}
-		snapC := map[string]interface{}{
+		snapC := map[string]any{
 			"id":       "aOqKhntON3vR7kwEbVPsILm7bUViPDzz",
 			"name":     "snap-c",
 			"presence": "required",

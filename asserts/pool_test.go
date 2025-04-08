@@ -59,21 +59,21 @@ func (s *poolSuite) SetUpTest(c *C) {
 	s.BaseTest.SetUpTest(c)
 
 	s.hub = assertstest.NewStoreStack("hub", nil)
-	s.dev1Acct = assertstest.NewAccount(s.hub, "developer1", map[string]interface{}{
+	s.dev1Acct = assertstest.NewAccount(s.hub, "developer1", map[string]any{
 		"account-id": "developer1",
 	}, "")
-	s.dev2Acct = assertstest.NewAccount(s.hub, "developer2", map[string]interface{}{
+	s.dev2Acct = assertstest.NewAccount(s.hub, "developer2", map[string]any{
 		"account-id": "developer2",
 	}, "")
 
-	a, err := s.hub.Sign(asserts.TestOnlyDeclType, map[string]interface{}{
+	a, err := s.hub.Sign(asserts.TestOnlyDeclType, map[string]any{
 		"id":     "one",
 		"dev-id": "developer1",
 	}, nil, "")
 	c.Assert(err, IsNil)
 	s.decl1 = a.(*asserts.TestOnlyDecl)
 
-	a, err = s.hub.Sign(asserts.TestOnlyDeclType, map[string]interface{}{
+	a, err = s.hub.Sign(asserts.TestOnlyDeclType, map[string]any{
 		"id":       "one",
 		"dev-id":   "developer1",
 		"revision": "1",
@@ -81,14 +81,14 @@ func (s *poolSuite) SetUpTest(c *C) {
 	c.Assert(err, IsNil)
 	s.decl1_1 = a.(*asserts.TestOnlyDecl)
 
-	a, err = s.hub.Sign(asserts.TestOnlyDeclType, map[string]interface{}{
+	a, err = s.hub.Sign(asserts.TestOnlyDeclType, map[string]any{
 		"id":     "two",
 		"dev-id": "developer2",
 	}, nil, "")
 	c.Assert(err, IsNil)
 	s.decl2 = a.(*asserts.TestOnlyDecl)
 
-	a, err = s.hub.Sign(asserts.TestOnlyRevType, map[string]interface{}{
+	a, err = s.hub.Sign(asserts.TestOnlyRevType, map[string]any{
 		"h":      "1111",
 		"id":     "one",
 		"dev-id": "developer1",
@@ -96,7 +96,7 @@ func (s *poolSuite) SetUpTest(c *C) {
 	c.Assert(err, IsNil)
 	s.rev1_1111 = a.(*asserts.TestOnlyRev)
 
-	a, err = s.hub.Sign(asserts.TestOnlyRevType, map[string]interface{}{
+	a, err = s.hub.Sign(asserts.TestOnlyRevType, map[string]any{
 		"h":      "3333",
 		"id":     "one",
 		"dev-id": "developer1",
@@ -104,7 +104,7 @@ func (s *poolSuite) SetUpTest(c *C) {
 	c.Assert(err, IsNil)
 	s.rev1_3333 = a.(*asserts.TestOnlyRev)
 
-	a, err = s.hub.Sign(asserts.TestOnlyRevType, map[string]interface{}{
+	a, err = s.hub.Sign(asserts.TestOnlyRevType, map[string]any{
 		"h":      "2222",
 		"id":     "two",
 		"dev-id": "developer2",
@@ -114,7 +114,7 @@ func (s *poolSuite) SetUpTest(c *C) {
 
 	// sequence-forming
 
-	a, err = s.hub.Sign(asserts.TestOnlySeqType, map[string]interface{}{
+	a, err = s.hub.Sign(asserts.TestOnlySeqType, map[string]any{
 		"n":        "1111",
 		"sequence": "1",
 		"id":       "one",
@@ -124,7 +124,7 @@ func (s *poolSuite) SetUpTest(c *C) {
 	c.Assert(err, IsNil)
 	s.seq1_1111r5 = a.(*asserts.TestOnlySeq)
 
-	a, err = s.hub.Sign(asserts.TestOnlySeqType, map[string]interface{}{
+	a, err = s.hub.Sign(asserts.TestOnlySeqType, map[string]any{
 		"n":        "1111",
 		"sequence": "1",
 		"id":       "one",
@@ -134,7 +134,7 @@ func (s *poolSuite) SetUpTest(c *C) {
 	c.Assert(err, IsNil)
 	s.seq1_1111r6 = a.(*asserts.TestOnlySeq)
 
-	a, err = s.hub.Sign(asserts.TestOnlySeqType, map[string]interface{}{
+	a, err = s.hub.Sign(asserts.TestOnlySeqType, map[string]any{
 		"n":        "1111",
 		"sequence": "2",
 		"id":       "one",
@@ -144,7 +144,7 @@ func (s *poolSuite) SetUpTest(c *C) {
 	c.Assert(err, IsNil)
 	s.seq2_1111r7 = a.(*asserts.TestOnlySeq)
 
-	a, err = s.hub.Sign(asserts.TestOnlySeqType, map[string]interface{}{
+	a, err = s.hub.Sign(asserts.TestOnlySeqType, map[string]any{
 		"n":        "1111",
 		"sequence": "3",
 		"id":       "one",
@@ -672,7 +672,7 @@ func (s *poolSuite) TestAddFormatTooNew(c *C) {
 		restore := asserts.MockMaxSupportedFormat(asserts.TestOnlyDeclType, 2)
 		defer restore()
 
-		a, err = s.hub.Sign(asserts.TestOnlyDeclType, map[string]interface{}{
+		a, err = s.hub.Sign(asserts.TestOnlyDeclType, map[string]any{
 			"id":     "three",
 			"dev-id": "developer1",
 			"format": "2",

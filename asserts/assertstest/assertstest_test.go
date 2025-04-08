@@ -168,7 +168,7 @@ func (s *helperSuite) TestSigningAccounts(c *C) {
 	store := assertstest.NewStoreStack("super", nil)
 
 	sa := assertstest.NewSigningAccounts(store)
-	sa.Register("my-brand", brandKey, map[string]interface{}{
+	sa.Register("my-brand", brandKey, map[string]any{
 		"validation": "verified",
 	})
 
@@ -180,7 +180,7 @@ func (s *helperSuite) TestSigningAccounts(c *C) {
 
 	c.Check(sa.PublicKey("my-brand").ID(), Equals, brandKey.PublicKey().ID())
 
-	model := sa.Model("my-brand", "my-model", map[string]interface{}{
+	model := sa.Model("my-brand", "my-model", map[string]any{
 		"classic": "true",
 	})
 	c.Check(model.BrandID(), Equals, "my-brand")
@@ -188,7 +188,7 @@ func (s *helperSuite) TestSigningAccounts(c *C) {
 	c.Check(model.Classic(), Equals, true)
 
 	// can also sign models for store account-id
-	model = sa.Model("super", "pc", map[string]interface{}{
+	model = sa.Model("super", "pc", map[string]any{
 		"classic": "true",
 	})
 	c.Check(model.BrandID(), Equals, "super")
@@ -201,7 +201,7 @@ func (s *helperSuite) TestSigningAccountsAccountsAndKeysPlusAddMany(c *C) {
 	store := assertstest.NewStoreStack("super", nil)
 
 	sa := assertstest.NewSigningAccounts(store)
-	sa.Register("my-brand", brandKey, map[string]interface{}{
+	sa.Register("my-brand", brandKey, map[string]any{
 		"validation": "verified",
 	})
 

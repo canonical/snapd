@@ -81,26 +81,26 @@ func (cs *clientSuite) TestEnsureQuotaGroup(c *check.C) {
 	c.Check(cs.req.URL.Path, check.Equals, "/v2/quotas")
 	body, err := io.ReadAll(cs.req.Body)
 	c.Assert(err, check.IsNil)
-	var req map[string]interface{}
+	var req map[string]any
 	err = jsonutil.DecodeWithNumber(bytes.NewReader(body), &req)
 	c.Assert(err, check.IsNil)
-	c.Assert(req, check.DeepEquals, map[string]interface{}{
+	c.Assert(req, check.DeepEquals, map[string]any{
 		"action":     "ensure",
 		"group-name": "foo",
 		"parent":     "bar",
-		"snaps":      []interface{}{"snap-a", "snap-b"},
-		"services":   []interface{}{"snap-a.svc1", "snap-b.svc1"},
-		"constraints": map[string]interface{}{
+		"snaps":      []any{"snap-a", "snap-b"},
+		"services":   []any{"snap-a.svc1", "snap-b.svc1"},
+		"constraints": map[string]any{
 			"memory": json.Number("1001"),
-			"cpu": map[string]interface{}{
+			"cpu": map[string]any{
 				"count":      json.Number("1"),
 				"percentage": json.Number("50"),
 			},
-			"cpu-set": map[string]interface{}{
-				"cpus": []interface{}{json.Number("0")},
+			"cpu-set": map[string]any{
+				"cpus": []any{json.Number("0")},
 			},
 			"threads": json.Number("32"),
-			"journal": map[string]interface{}{
+			"journal": map[string]any{
 				"size":        json.Number("1048576"),
 				"rate-count":  json.Number("150"),
 				"rate-period": json.Number("60000000000"),
@@ -177,10 +177,10 @@ func (cs *clientSuite) TestRemoveQuotaGroup(c *check.C) {
 	c.Check(cs.req.URL.Path, check.Equals, "/v2/quotas")
 	body, err := io.ReadAll(cs.req.Body)
 	c.Assert(err, check.IsNil)
-	var req map[string]interface{}
+	var req map[string]any
 	err = json.Unmarshal(body, &req)
 	c.Assert(err, check.IsNil)
-	c.Assert(req, check.DeepEquals, map[string]interface{}{
+	c.Assert(req, check.DeepEquals, map[string]any{
 		"action":     "remove",
 		"group-name": "foo",
 	})

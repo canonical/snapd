@@ -97,8 +97,8 @@ func (s *apiValidationSetsSuite) SetUpTest(c *check.C) {
 }
 
 func (s *apiValidationSetsSuite) mockValidationSetsTracking(st *state.State) {
-	st.Set("validation-sets", map[string]interface{}{
-		fmt.Sprintf("%s/foo", s.dev1acct.AccountID()): map[string]interface{}{
+	st.Set("validation-sets", map[string]any{
+		fmt.Sprintf("%s/foo", s.dev1acct.AccountID()): map[string]any{
 			"account-id": s.dev1acct.AccountID(),
 			"name":       "foo",
 			"mode":       assertstate.Enforce,
@@ -106,7 +106,7 @@ func (s *apiValidationSetsSuite) mockValidationSetsTracking(st *state.State) {
 			// Current should equal pinned-at if pinned-at != 0 but let's check api_validate is robust
 			"current": 99,
 		},
-		fmt.Sprintf("%s/baz", s.dev1acct.AccountID()): map[string]interface{}{
+		fmt.Sprintf("%s/baz", s.dev1acct.AccountID()): map[string]any{
 			"account-id": s.dev1acct.AccountID(),
 			"name":       "baz",
 			"mode":       assertstate.Monitor,
@@ -117,13 +117,13 @@ func (s *apiValidationSetsSuite) mockValidationSetsTracking(st *state.State) {
 }
 
 func (s *apiValidationSetsSuite) mockAssert(c *check.C, name, sequence string) asserts.Assertion {
-	snaps := []interface{}{map[string]interface{}{
+	snaps := []any{map[string]any{
 		"id":       "yOqKhntON3vR7kwEbVPsILm7bUViPDzz",
 		"name":     "snap-b",
 		"presence": "required",
 		"revision": "1",
 	}}
-	headers := map[string]interface{}{
+	headers := map[string]any{
 		"authority-id": s.dev1acct.AccountID(),
 		"account-id":   s.dev1acct.AccountID(),
 		"name":         name,
@@ -329,7 +329,7 @@ func (s *apiValidationSetsSuite) TestGetValidationSetNotFound(c *check.C) {
 	rspe := s.errorReq(c, req, nil)
 	c.Assert(rspe.Status, check.Equals, 404)
 	c.Check(string(rspe.Kind), check.Equals, "validation-set-not-found")
-	c.Check(rspe.Value, check.DeepEquals, map[string]interface{}{
+	c.Check(rspe.Value, check.DeepEquals, map[string]any{
 		"account-id": "foo",
 		"name":       "other",
 	})
@@ -593,7 +593,7 @@ func (s *apiValidationSetsSuite) TestGetValidationSetPinnedNotFound(c *check.C) 
 	rspe := s.errorReq(c, req, nil)
 	c.Assert(rspe.Status, check.Equals, 404)
 	c.Check(string(rspe.Kind), check.Equals, "validation-set-not-found")
-	c.Check(rspe.Value, check.DeepEquals, map[string]interface{}{
+	c.Check(rspe.Value, check.DeepEquals, map[string]any{
 		"account-id": "foo",
 		"name":       "bar",
 		"sequence":   333,

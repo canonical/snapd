@@ -239,7 +239,7 @@ NeedDaemonReload=no
 				Snap:      snp,
 				Name:      "dbus-slot",
 				Interface: "dbus",
-				Attrs: map[string]interface{}{
+				Attrs: map[string]any{
 					"bus":  "system",
 					"name": "org.example.Svc",
 				},
@@ -283,7 +283,7 @@ NeedDaemonReload=no
 				Snap:      snp,
 				Name:      "dbus-slot",
 				Interface: "dbus",
-				Attrs: map[string]interface{}{
+				Attrs: map[string]any{
 					"bus":  "session",
 					"name": "org.example.Svc",
 				},
@@ -391,7 +391,7 @@ NeedDaemonReload=no
 				Snap:      snp,
 				Name:      "dbus-slot",
 				Interface: "dbus",
-				Attrs: map[string]interface{}{
+				Attrs: map[string]any{
 					"bus":  "session",
 					"name": "org.example.Svc",
 				},

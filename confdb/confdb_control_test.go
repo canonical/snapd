@@ -305,36 +305,36 @@ func (s *ctrlSuite) TestGroups(c *C) {
 
 	groups := cc.Groups()
 	c.Assert(groups, HasLen, 6)
-	expectedGroups := []interface{}{
-		map[string]interface{}{
-			"operators":       []interface{}{"aa", "cc"},
-			"authentications": []interface{}{"operator-key"},
-			"views":           []interface{}{"pp/qq/rr"},
+	expectedGroups := []any{
+		map[string]any{
+			"operators":       []any{"aa", "cc"},
+			"authentications": []any{"operator-key"},
+			"views":           []any{"pp/qq/rr"},
 		},
-		map[string]interface{}{
-			"operators":       []interface{}{"bb"},
-			"authentications": []interface{}{"operator-key"},
-			"views":           []interface{}{"aa/bb/cc"},
+		map[string]any{
+			"operators":       []any{"bb"},
+			"authentications": []any{"operator-key"},
+			"views":           []any{"aa/bb/cc"},
 		},
-		map[string]interface{}{
-			"operators":       []interface{}{"aa", "bb"},
-			"authentications": []interface{}{"store"},
-			"views":           []interface{}{"mm/nn/oo"},
+		map[string]any{
+			"operators":       []any{"aa", "bb"},
+			"authentications": []any{"store"},
+			"views":           []any{"mm/nn/oo"},
 		},
-		map[string]interface{}{
-			"operators":       []interface{}{"bb", "cc"},
-			"authentications": []interface{}{"operator-key", "store"},
-			"views":           []interface{}{"xx/yy/zz"},
+		map[string]any{
+			"operators":       []any{"bb", "cc"},
+			"authentications": []any{"operator-key", "store"},
+			"views":           []any{"xx/yy/zz"},
 		},
-		map[string]interface{}{
-			"operators":       []interface{}{"aa", "bb", "cc"},
-			"authentications": []interface{}{"operator-key", "store"},
-			"views":           []interface{}{"dd/ee/ff", "gg/hh/ii", "jj/kk/ll"},
+		map[string]any{
+			"operators":       []any{"aa", "bb", "cc"},
+			"authentications": []any{"operator-key", "store"},
+			"views":           []any{"dd/ee/ff", "gg/hh/ii", "jj/kk/ll"},
 		},
-		map[string]interface{}{
-			"operators":       []interface{}{"aa"},
-			"authentications": []interface{}{"operator-key", "store"},
-			"views":           []interface{}{"ss/tt/vv"},
+		map[string]any{
+			"operators":       []any{"aa"},
+			"authentications": []any{"operator-key", "store"},
+			"views":           []any{"ss/tt/vv"},
 		},
 	}
 	for _, expected := range expectedGroups {

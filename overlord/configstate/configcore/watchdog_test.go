@@ -52,7 +52,7 @@ func (s *watchdogSuite) TestConfigureWatchdog(c *C) {
 
 		err := configcore.FilesystemOnlyRun(coreDev, &mockConf{
 			state: s.state,
-			conf: map[string]interface{}{
+			conf: map[string]any{
 				fmt.Sprintf("watchdog.%s", option): val + "s",
 			},
 		})
@@ -85,7 +85,7 @@ func (s *watchdogSuite) TestConfigureWatchdogUnits(c *C) {
 	for _, tunit := range []timeUnit{{"s", 1}, {"m", 60}, {"h", 3600}} {
 		err := configcore.FilesystemOnlyRun(coreDev, &mockConf{
 			state: s.state,
-			conf: map[string]interface{}{
+			conf: map[string]any{
 				"watchdog.runtime-timeout":  fmt.Sprintf("%d", times[0]) + tunit.unit,
 				"watchdog.shutdown-timeout": fmt.Sprintf("%d", times[1]) + tunit.unit,
 			},
@@ -101,7 +101,7 @@ func (s *watchdogSuite) TestConfigureWatchdogAll(c *C) {
 	times := []int{10, 100}
 	err := configcore.FilesystemOnlyRun(coreDev, &mockConf{
 		state: s.state,
-		conf: map[string]interface{}{
+		conf: map[string]any{
 			"watchdog.runtime-timeout":  fmt.Sprintf("%ds", times[0]),
 			"watchdog.shutdown-timeout": fmt.Sprintf("%ds", times[1]),
 		},
@@ -124,7 +124,7 @@ func (s *watchdogSuite) TestConfigureWatchdogAllConfDirExistsAlready(c *C) {
 	times := []int{10, 100}
 	err = configcore.FilesystemOnlyRun(coreDev, &mockConf{
 		state: s.state,
-		conf: map[string]interface{}{
+		conf: map[string]any{
 			"watchdog.runtime-timeout":  fmt.Sprintf("%ds", times[0]),
 			"watchdog.shutdown-timeout": fmt.Sprintf("%ds", times[1]),
 		},
@@ -149,7 +149,7 @@ func (s *watchdogSuite) TestConfigureWatchdogBadFormat(c *C) {
 		{"34k", ".*unknown unit.*"}} {
 		err := configcore.FilesystemOnlyRun(coreDev, &mockConf{
 			state: s.state,
-			conf: map[string]interface{}{
+			conf: map[string]any{
 				"watchdog.runtime-timeout": badVal.val,
 			},
 		})
@@ -179,7 +179,7 @@ func (s *watchdogSuite) TestConfigureWatchdogNoFileUpdate(c *C) {
 
 	err = configcore.FilesystemOnlyRun(coreDev, &mockConf{
 		state: s.state,
-		conf: map[string]interface{}{
+		conf: map[string]any{
 			"watchdog.runtime-timeout":  fmt.Sprintf("%ds", times[0]),
 			"watchdog.shutdown-timeout": fmt.Sprintf("%ds", times[1]),
 		},
@@ -211,7 +211,7 @@ ShutdownWatchdogSec=20
 
 	err = configcore.FilesystemOnlyRun(coreDev, &mockConf{
 		state: s.state,
-		conf: map[string]interface{}{
+		conf: map[string]any{
 			"watchdog.runtime-timeout":  0,
 			"watchdog.shutdown-timeout": 0,
 		},
@@ -230,7 +230,7 @@ ShutdownWatchdogSec=20
 }
 
 func (s *watchdogSuite) TestFilesystemOnlyApply(c *C) {
-	conf := configcore.PlainCoreConfig(map[string]interface{}{
+	conf := configcore.PlainCoreConfig(map[string]any{
 		"watchdog.runtime-timeout": "4s",
 	})
 
@@ -242,7 +242,7 @@ func (s *watchdogSuite) TestFilesystemOnlyApply(c *C) {
 }
 
 func (s *watchdogSuite) TestFilesystemOnlyApplyValidationFails(c *C) {
-	conf := configcore.PlainCoreConfig(map[string]interface{}{
+	conf := configcore.PlainCoreConfig(map[string]any{
 		"watchdog.runtime-timeout": "foo",
 	})
 

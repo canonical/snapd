@@ -36,8 +36,8 @@ func TestMain(t *testing.T) { TestingT(t) }
 
 func (s *normalizeTestSuite) TestNormalize(c *C) {
 	for _, tc := range []struct {
-		v   interface{}
-		exp interface{}
+		v   any
+		exp any
 		err string
 	}{
 		{v: "foo", exp: "foo"},
@@ -47,18 +47,18 @@ func (s *normalizeTestSuite) TestNormalize(c *C) {
 		{v: 0.5, exp: float64(0.5)},
 		{v: float32(0.5), exp: float64(0.5)},
 		{v: float64(0.5), exp: float64(0.5)},
-		{v: []interface{}{1, 0.5, "foo"}, exp: []interface{}{int64(1), float64(0.5), "foo"}},
-		{v: map[string]interface{}{"foo": 1}, exp: map[string]interface{}{"foo": int64(1)}},
-		{v: map[interface{}]interface{}{"foo": 1}, exp: map[string]interface{}{"foo": int64(1)}},
+		{v: []any{1, 0.5, "foo"}, exp: []any{int64(1), float64(0.5), "foo"}},
+		{v: map[string]any{"foo": 1}, exp: map[string]any{"foo": int64(1)}},
+		{v: map[any]any{"foo": 1}, exp: map[string]any{"foo": int64(1)}},
 		{
-			v:   map[interface{}]interface{}{"foo": map[interface{}]interface{}{"bar": 0.5}},
-			exp: map[string]interface{}{"foo": map[string]interface{}{"bar": float64(0.5)}},
+			v:   map[any]any{"foo": map[any]any{"bar": 0.5}},
+			exp: map[string]any{"foo": map[string]any{"bar": float64(0.5)}},
 		},
 		{v: uint(1), err: "invalid scalar: 1"},
-		{v: map[interface{}]interface{}{2: 1}, err: "non-string key: 2"},
-		{v: []interface{}{uint(1)}, err: "invalid scalar: 1"},
-		{v: map[string]interface{}{"foo": uint(1)}, err: "invalid scalar: 1"},
-		{v: map[interface{}]interface{}{"foo": uint(1)}, err: "invalid scalar: 1"},
+		{v: map[any]any{2: 1}, err: "non-string key: 2"},
+		{v: []any{uint(1)}, err: "invalid scalar: 1"},
+		{v: map[string]any{"foo": uint(1)}, err: "invalid scalar: 1"},
+		{v: map[any]any{"foo": uint(1)}, err: "invalid scalar: 1"},
 	} {
 		res, err := metautil.NormalizeValue(tc.v)
 		if tc.err == "" {

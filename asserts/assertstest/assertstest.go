@@ -158,14 +158,14 @@ func GPGImportKey(homedir, armoredKey string) {
 
 // A SignerDB can sign assertions using its key pairs.
 type SignerDB interface {
-	Sign(assertType *asserts.AssertionType, headers map[string]interface{}, body []byte, keyID string) (asserts.Assertion, error)
+	Sign(assertType *asserts.AssertionType, headers map[string]any, body []byte, keyID string) (asserts.Assertion, error)
 }
 
 // NewAccount creates an account assertion for username, it fills in values for
 // other missing headers as needed. It panics on error.
-func NewAccount(db SignerDB, username string, otherHeaders map[string]interface{}, keyID string) *asserts.Account {
+func NewAccount(db SignerDB, username string, otherHeaders map[string]any, keyID string) *asserts.Account {
 	if otherHeaders == nil {
-		otherHeaders = make(map[string]interface{})
+		otherHeaders = make(map[string]any)
 	}
 	otherHeaders["username"] = username
 	if otherHeaders["account-id"] == nil {
@@ -189,9 +189,9 @@ func NewAccount(db SignerDB, username string, otherHeaders map[string]interface{
 
 // NewAccountKey creates an account-key assertion for the account, it fills in
 // values for missing headers as needed. In panics on error.
-func NewAccountKey(db SignerDB, acct *asserts.Account, otherHeaders map[string]interface{}, pubKey asserts.PublicKey, keyID string) *asserts.AccountKey {
+func NewAccountKey(db SignerDB, acct *asserts.Account, otherHeaders map[string]any, pubKey asserts.PublicKey, keyID string) *asserts.AccountKey {
 	if otherHeaders == nil {
-		otherHeaders = make(map[string]interface{})
+		otherHeaders = make(map[string]any)
 	}
 	otherHeaders["account-id"] = acct.AccountID()
 	otherHeaders["public-key-sha3-384"] = pubKey.ID()
@@ -239,10 +239,10 @@ func NewSigningDB(authorityID string, privKey asserts.PrivateKey) *SigningDB {
 	}
 }
 
-func (db *SigningDB) Sign(assertType *asserts.AssertionType, headers map[string]interface{}, body []byte, keyID string) (asserts.Assertion, error) {
+func (db *SigningDB) Sign(assertType *asserts.AssertionType, headers map[string]any, body []byte, keyID string) (asserts.Assertion, error) {
 	if _, ok := headers["authority-id"]; !ok {
 		// copy before modifying
-		headers2 := make(map[string]interface{}, len(headers)+1)
+		headers2 := make(map[string]any, len(headers)+1)
 		for h, v := range headers {
 			headers2[h] = v
 		}
@@ -314,18 +314,18 @@ func NewStoreStack(authorityID string, keys *StoreKeys) *StoreStack {
 
 	rootSigning := NewSigningDB(authorityID, keys.Root)
 	ts := time.Now().Format(time.RFC3339)
-	trustedAcct := NewAccount(rootSigning, authorityID, map[string]interface{}{
+	trustedAcct := NewAccount(rootSigning, authorityID, map[string]any{
 		"account-id": authorityID,
 		"validation": "verified",
 		"timestamp":  ts,
 	}, "")
-	trustedKey := NewAccountKey(rootSigning, trustedAcct, map[string]interface{}{
+	trustedKey := NewAccountKey(rootSigning, trustedAcct, map[string]any{
 		"name":  "root",
 		"since": ts,
 	}, keys.Root.PublicKey(), "")
 	trusted := []asserts.Assertion{trustedAcct, trustedKey}
 
-	genericAcct := NewAccount(rootSigning, "generic", map[string]interface{}{
+	genericAcct := NewAccount(rootSigning, "generic", map[string]any{
 		"account-id": "generic",
 		"validation": "verified",
 		"timestamp":  ts,
@@ -335,7 +335,7 @@ func NewStoreStack(authorityID string, keys *StoreKeys) *StoreStack {
 	if err != nil {
 		panic(err)
 	}
-	genericModelsKey := NewAccountKey(rootSigning, genericAcct, map[string]interface{}{
+	genericModelsKey := NewAccountKey(rootSigning, genericAcct, map[string]any{
 		"name":  "models",
 		"since": ts,
 	}, keys.GenericModels.PublicKey(), "")
@@ -353,7 +353,7 @@ func NewStoreStack(authorityID string, keys *StoreKeys) *StoreStack {
 	if err != nil {
 		panic(err)
 	}
-	storeKey := NewAccountKey(rootSigning, trustedAcct, map[string]interface{}{
+	storeKey := NewAccountKey(rootSigning, trustedAcct, map[string]any{
 		"name": "store",
 	}, keys.Store.PublicKey(), "")
 	err = db.Add(storeKey)
@@ -365,7 +365,7 @@ func NewStoreStack(authorityID string, keys *StoreKeys) *StoreStack {
 	if err != nil {
 		panic(err)
 	}
-	genericKey := NewAccountKey(rootSigning, genericAcct, map[string]interface{}{
+	genericKey := NewAccountKey(rootSigning, genericAcct, map[string]any{
 		"name":  "serials",
 		"since": ts,
 	}, keys.Generic.PublicKey(), "")
@@ -374,7 +374,7 @@ func NewStoreStack(authorityID string, keys *StoreKeys) *StoreStack {
 		panic(err)
 	}
 
-	a, err := rootSigning.Sign(asserts.ModelType, map[string]interface{}{
+	a, err := rootSigning.Sign(asserts.ModelType, map[string]any{
 		"authority-id": "generic",
 		"series":       "16",
 		"brand-id":     "generic",
@@ -452,8 +452,8 @@ func MockBuiltinBaseDeclaration(headers []byte) (restore func()) {
 // and layered headers. A fake assertion cannot be verified or added
 // to a database or properly encoded. It can still be useful for unit
 // tests but shouldn't be used in integration tests.
-func FakeAssertionWithBody(body []byte, headerLayers ...map[string]interface{}) asserts.Assertion {
-	headers := map[string]interface{}{
+func FakeAssertionWithBody(body []byte, headerLayers ...map[string]any) asserts.Assertion {
+	headers := map[string]any{
 		"sign-key-sha3-384": "Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij",
 	}
 	for _, h := range headerLayers {
@@ -479,7 +479,7 @@ func FakeAssertionWithBody(body []byte, headerLayers ...map[string]interface{}) 
 // and an empty body. A fake assertion cannot be verified or added to
 // a database or properly encoded. It can still be useful for unit
 // tests but shouldn't be used in integration tests.
-func FakeAssertion(headerLayers ...map[string]interface{}) asserts.Assertion {
+func FakeAssertion(headerLayers ...map[string]any) asserts.Assertion {
 	return FakeAssertionWithBody(nil, headerLayers...)
 }
 
@@ -521,11 +521,11 @@ func NewSigningAccounts(store *StoreStack) *SigningAccounts {
 	}
 }
 
-func (sa *SigningAccounts) Register(accountID string, brandPrivKey asserts.PrivateKey, extra map[string]interface{}) *SigningDB {
+func (sa *SigningAccounts) Register(accountID string, brandPrivKey asserts.PrivateKey, extra map[string]any) *SigningDB {
 	brandSigning := NewSigningDB(accountID, brandPrivKey)
 	sa.signing[accountID] = brandSigning
 
-	acctHeaders := map[string]interface{}{
+	acctHeaders := map[string]any{
 		"account-id": accountID,
 	}
 	for k, v := range extra {
@@ -579,8 +579,8 @@ func (sa *SigningAccounts) Signing(accountID string) *SigningDB {
 }
 
 // Model creates a new model for accountID. accountID can also be the account-id of the underlying store stack.
-func (sa *SigningAccounts) Model(accountID, model string, extras ...map[string]interface{}) *asserts.Model {
-	headers := map[string]interface{}{
+func (sa *SigningAccounts) Model(accountID, model string, extras ...map[string]any) *asserts.Model {
+	headers := map[string]any{
 		"series":    "16",
 		"brand-id":  accountID,
 		"model":     model,

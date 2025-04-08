@@ -111,15 +111,15 @@ func (s *boottestSuite) testMockDeviceWithModes(c *C, isUC bool) {
 	dev = makeMockDevice("recover", nil)
 	c.Check(dev.RunMode(), Equals, false)
 
-	model := makeMockModel(map[string]interface{}{
+	model := makeMockModel(map[string]any{
 		"model": "other-model-uc20",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name": "pc-linux",
 				"id":   "pclinuxdidididididididididididid",
 				"type": "kernel",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name": "pc",
 				"id":   "pcididididididididididididididid",
 				"type": "gadget",

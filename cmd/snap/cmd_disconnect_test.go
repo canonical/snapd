@@ -64,16 +64,16 @@ func (s *SnapSuite) TestDisconnectExplicitEverything(c *C) {
 		switch r.URL.Path {
 		case "/v2/interfaces":
 			c.Check(r.Method, Equals, "POST")
-			c.Check(DecodedRequestBody(c, r), DeepEquals, map[string]interface{}{
+			c.Check(DecodedRequestBody(c, r), DeepEquals, map[string]any{
 				"action": "disconnect",
-				"plugs": []interface{}{
-					map[string]interface{}{
+				"plugs": []any{
+					map[string]any{
 						"snap": "producer",
 						"plug": "plug",
 					},
 				},
-				"slots": []interface{}{
-					map[string]interface{}{
+				"slots": []any{
+					map[string]any{
 						"snap": "consumer",
 						"slot": "slot",
 					},
@@ -100,17 +100,17 @@ func (s *SnapSuite) TestDisconnectWithForgetFlag(c *C) {
 		switch r.URL.Path {
 		case "/v2/interfaces":
 			c.Check(r.Method, Equals, "POST")
-			c.Check(DecodedRequestBody(c, r), DeepEquals, map[string]interface{}{
+			c.Check(DecodedRequestBody(c, r), DeepEquals, map[string]any{
 				"action": "disconnect",
 				"forget": true,
-				"plugs": []interface{}{
-					map[string]interface{}{
+				"plugs": []any{
+					map[string]any{
 						"snap": "consumer",
 						"plug": "plug",
 					},
 				},
-				"slots": []interface{}{
-					map[string]interface{}{
+				"slots": []any{
+					map[string]any{
 						"snap": "producer",
 						"slot": "slot",
 					},
@@ -137,16 +137,16 @@ func (s *SnapSuite) TestDisconnectEverythingFromSpecificSlot(c *C) {
 		switch r.URL.Path {
 		case "/v2/interfaces":
 			c.Check(r.Method, Equals, "POST")
-			c.Check(DecodedRequestBody(c, r), DeepEquals, map[string]interface{}{
+			c.Check(DecodedRequestBody(c, r), DeepEquals, map[string]any{
 				"action": "disconnect",
-				"plugs": []interface{}{
-					map[string]interface{}{
+				"plugs": []any{
+					map[string]any{
 						"snap": "",
 						"plug": "",
 					},
 				},
-				"slots": []interface{}{
-					map[string]interface{}{
+				"slots": []any{
+					map[string]any{
 						"snap": "consumer",
 						"slot": "slot",
 					},
@@ -173,16 +173,16 @@ func (s *SnapSuite) TestDisconnectEverythingFromSpecificSnapPlugOrSlot(c *C) {
 		switch r.URL.Path {
 		case "/v2/interfaces":
 			c.Check(r.Method, Equals, "POST")
-			c.Check(DecodedRequestBody(c, r), DeepEquals, map[string]interface{}{
+			c.Check(DecodedRequestBody(c, r), DeepEquals, map[string]any{
 				"action": "disconnect",
-				"plugs": []interface{}{
-					map[string]interface{}{
+				"plugs": []any{
+					map[string]any{
 						"snap": "",
 						"plug": "",
 					},
 				},
-				"slots": []interface{}{
-					map[string]interface{}{
+				"slots": []any{
+					map[string]any{
 						"snap": "consumer",
 						"slot": "plug-or-slot",
 					},
@@ -220,7 +220,7 @@ func (s *SnapSuite) TestDisconnectCompletion(c *C) {
 		switch r.URL.Path {
 		case "/v2/connections":
 			c.Assert(r.Method, Equals, "GET")
-			EncodeResponseBody(c, w, map[string]interface{}{
+			EncodeResponseBody(c, w, map[string]any{
 				"type":   "sync",
 				"result": fortestingConnectionList,
 			})

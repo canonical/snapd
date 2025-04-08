@@ -110,8 +110,8 @@ func badRequestErrorFrom(v *View, operation, request, msg string) *BadRequestErr
 
 // Databag controls access to the confdb data storage.
 type Databag interface {
-	Get(path string) (interface{}, error)
-	Set(path string, value interface{}) error
+	Get(path string) (any, error)
+	Set(path string, value any) error
 	Unset(path string) error
 	Data() ([]byte, error)
 }
@@ -223,7 +223,7 @@ func pathChangeAffects(modified, affected string) bool {
 
 // NewSchema returns a new confdb schema with the specified views (and their
 // rules) and storage schema.
-func NewSchema(account string, dbSchemaName string, views map[string]interface{}, schema DatabagSchema) (*Schema, error) {
+func NewSchema(account string, dbSchemaName string, views map[string]any, schema DatabagSchema) (*Schema, error) {
 	if len(views) == 0 {
 		return nil, errors.New(`cannot define confdb schema: no views`)
 	}
@@ -240,7 +240,7 @@ func NewSchema(account string, dbSchemaName string, views map[string]interface{}
 			return nil, fmt.Errorf("cannot define view %q: name must conform to %s", name, subkeyRegex)
 		}
 
-		viewMap, ok := v.(map[string]interface{})
+		viewMap, ok := v.(map[string]any)
 		if !ok || len(viewMap) == 0 {
 			return nil, fmt.Errorf("cannot define view %q: view must be non-empty map", name)
 		}
@@ -251,7 +251,7 @@ func NewSchema(account string, dbSchemaName string, views map[string]interface{}
 			}
 		}
 
-		rules, ok := viewMap["rules"].([]interface{})
+		rules, ok := viewMap["rules"].([]any)
 		if !ok || len(rules) == 0 {
 			return nil, fmt.Errorf("cannot define view %q: view rules must be non-empty list", name)
 		}
@@ -267,7 +267,7 @@ func NewSchema(account string, dbSchemaName string, views map[string]interface{}
 	return dbSchema, nil
 }
 
-func newView(dbSchema *Schema, name string, viewRules []interface{}) (*View, error) {
+func newView(dbSchema *Schema, name string, viewRules []any) (*View, error) {
 	view := &View{
 		Name:   name,
 		rules:  make([]*viewRule, 0, len(viewRules)),
@@ -314,8 +314,8 @@ func newView(dbSchema *Schema, name string, viewRules []interface{}) (*View, err
 	return view, nil
 }
 
-func parseRule(parent *viewRule, ruleRaw interface{}) ([]*viewRule, error) {
-	ruleMap, ok := ruleRaw.(map[string]interface{})
+func parseRule(parent *viewRule, ruleRaw any) ([]*viewRule, error) {
+	ruleMap, ok := ruleRaw.(map[string]any)
 	if !ok {
 		return nil, errors.New("each view rule should be a map")
 	}
@@ -368,7 +368,7 @@ func parseRule(parent *viewRule, ruleRaw interface{}) ([]*viewRule, error) {
 
 	rules := []*viewRule{rule}
 	if contentRaw, ok := ruleMap["content"]; ok {
-		contentRulesRaw, ok := contentRaw.([]interface{})
+		contentRulesRaw, ok := contentRaw.([]any)
 		if !ok || len(contentRulesRaw) == 0 {
 			return nil, fmt.Errorf(`"content" must be a non-empty list`)
 		}
@@ -488,7 +488,7 @@ type expandedMatch struct {
 
 	// value is the nested value obtained after removing the original values' outer
 	// layers that correspond to the unmatched suffix.
-	value interface{}
+	value any
 }
 
 // maxValueDepth is the limit on a value's nestedness. Creating a highly nested
@@ -498,14 +498,14 @@ type expandedMatch struct {
 var maxValueDepth = 64
 
 // validateSetValue checks that map keys conform to the same format as path sub-keys.
-func validateSetValue(v interface{}, depth int) error {
+func validateSetValue(v any, depth int) error {
 	if depth > maxValueDepth {
 		return fmt.Errorf("value cannot have more than %d nested levels", maxValueDepth)
 	}
 
-	var nestedVals []interface{}
+	var nestedVals []any
 	switch typedVal := v.(type) {
-	case map[string]interface{}:
+	case map[string]any:
 		for k, v := range typedVal {
 			if !validSubkey.Match([]byte(k)) {
 				return fmt.Errorf(`key %q doesn't conform to required format: %s`, k, validSubkey.String())
@@ -514,7 +514,7 @@ func validateSetValue(v interface{}, depth int) error {
 			nestedVals = append(nestedVals, v)
 		}
 
-	case []interface{}:
+	case []any:
 		nestedVals = typedVal
 	}
 
@@ -533,7 +533,7 @@ func validateSetValue(v interface{}, depth int) error {
 }
 
 // Set sets the named view to a specified non-nil value.
-func (v *View) Set(databag Databag, request string, value interface{}) error {
+func (v *View) Set(databag Databag, request string, value any) error {
 	if err := validateViewDottedPath(request, nil); err != nil {
 		return badRequestErrorFrom(v, "set", request, err.Error())
 	}
@@ -762,7 +762,7 @@ func schemaTypesStr(types []SchemaType) string {
 // will be used to complete the storage path.
 var getValuesThroughPaths = getValuesThroughPathsImpl
 
-func getValuesThroughPathsImpl(storagePath string, reqSuffixParts []string, val interface{}) (map[string]interface{}, error) {
+func getValuesThroughPathsImpl(storagePath string, reqSuffixParts []string, val any) (map[string]any, error) {
 	// use the non-placeholder parts of the suffix to find the value to write
 	var placeIndex int
 	for _, part := range reqSuffixParts {
@@ -771,7 +771,7 @@ func getValuesThroughPathsImpl(storagePath string, reqSuffixParts []string, val 
 			break
 		}
 
-		mapVal, ok := val.(map[string]interface{})
+		mapVal, ok := val.(map[string]any)
 		if !ok {
 			return nil, fmt.Errorf(`expected map for unmatched request parts but got %T`, val)
 		}
@@ -787,15 +787,15 @@ func getValuesThroughPathsImpl(storagePath string, reqSuffixParts []string, val 
 	// we reached the end of the suffix (there are no unmatched placeholders) so
 	// we have the full storage path and final value
 	if placeIndex == len(reqSuffixParts) {
-		return map[string]interface{}{storagePath: val}, nil
+		return map[string]any{storagePath: val}, nil
 	}
 
-	mapVal, ok := val.(map[string]interface{})
+	mapVal, ok := val.(map[string]any)
 	if !ok {
 		return nil, fmt.Errorf(`expected map for unmatched request parts but got %T`, val)
 	}
 
-	storagePathsToValues := make(map[string]interface{})
+	storagePathsToValues := make(map[string]any)
 	// suffix has an unmatched placeholder, try all possible values to fill it and
 	// find the corresponding nested value.
 	for cand, candVal := range mapVal {
@@ -825,7 +825,7 @@ func replaceIn(path, key, value string) string {
 }
 
 // checkForUnusedBranches checks that the value is entirely covered by the paths.
-func checkForUnusedBranches(value interface{}, paths map[string]struct{}) error {
+func checkForUnusedBranches(value any, paths map[string]struct{}) error {
 	// prune each path from the value. If anything is left at the end, the paths
 	// don't collectively cover the entire value
 	copyValue := deepCopy(value)
@@ -849,7 +849,7 @@ func checkForUnusedBranches(value interface{}, paths map[string]struct{}) error 
 
 	var parts []string
 	for copyValue != nil {
-		mapVal, ok := copyValue.(map[string]interface{})
+		mapVal, ok := copyValue.(map[string]any)
 		if !ok {
 			break
 		}
@@ -866,17 +866,17 @@ func checkForUnusedBranches(value interface{}, paths map[string]struct{}) error 
 
 // deepCopy returns a deep copy of the value. Only supports the types that the
 // API can take (so maps, slices and primitive types).
-func deepCopy(value interface{}) interface{} {
+func deepCopy(value any) any {
 	switch typeVal := value.(type) {
-	case map[string]interface{}:
-		mapCopy := make(map[string]interface{}, len(typeVal))
+	case map[string]any:
+		mapCopy := make(map[string]any, len(typeVal))
 		for k, v := range typeVal {
 			mapCopy[k] = deepCopy(v)
 		}
 		return mapCopy
 
-	case []interface{}:
-		sliceCopy := make([]interface{}, 0, len(typeVal))
+	case []any:
+		sliceCopy := make([]any, 0, len(typeVal))
 		for _, v := range typeVal {
 			sliceCopy = append(sliceCopy, deepCopy(v))
 		}
@@ -887,21 +887,21 @@ func deepCopy(value interface{}) interface{} {
 	}
 }
 
-func prunePathInValue(parts []string, val interface{}) (interface{}, error) {
+func prunePathInValue(parts []string, val any) (any, error) {
 	if len(parts) == 0 {
 		return nil, nil
 	} else if val == nil {
 		return nil, nil
 	}
 
-	mapVal, ok := val.(map[string]interface{})
+	mapVal, ok := val.(map[string]any)
 	if !ok {
 		// shouldn't happen since we already checked this
 		return nil, fmt.Errorf(`expected map but got %T`, val)
 	}
 
 	if isPlaceholder(parts[0]) {
-		nested := make(map[string]interface{})
+		nested := make(map[string]any)
 		for k, v := range mapVal {
 			newVal, err := prunePathInValue(parts[1:], v)
 			if err != nil {
@@ -947,7 +947,7 @@ func prunePathInValue(parts []string, val interface{}) (interface{}, error) {
 // namespaceResult creates a nested namespace around the result that corresponds
 // to the unmatched entry parts. Unmatched placeholders are filled in using maps
 // of all the matching values in the databag.
-func namespaceResult(res interface{}, suffixParts []string) (interface{}, error) {
+func namespaceResult(res any, suffixParts []string) (any, error) {
 	if len(suffixParts) == 0 {
 		return res, nil
 	}
@@ -956,12 +956,12 @@ func namespaceResult(res interface{}, suffixParts []string) (interface{}, error)
 	// by the databag with all possible values
 	part := suffixParts[0]
 	if isPlaceholder(part) {
-		values, ok := res.(map[string]interface{})
+		values, ok := res.(map[string]any)
 		if !ok {
 			return nil, fmt.Errorf("internal error: expected storage to return map for unmatched placeholder")
 		}
 
-		level := make(map[string]interface{}, len(values))
+		level := make(map[string]any, len(values))
 		for k, v := range values {
 			nested, err := namespaceResult(v, suffixParts[1:])
 			if err != nil {
@@ -979,12 +979,12 @@ func namespaceResult(res interface{}, suffixParts []string) (interface{}, error)
 		return nil, err
 	}
 
-	return map[string]interface{}{part: nested}, nil
+	return map[string]any{part: nested}, nil
 }
 
 // Get returns the view value identified by the request. If either the named
 // view or the corresponding value can't be found, a NotFoundError is returned.
-func (v *View) Get(databag Databag, request string) (interface{}, error) {
+func (v *View) Get(databag Databag, request string) (any, error) {
 	if request != "" {
 		if err := validateViewDottedPath(request, nil); err != nil {
 			return nil, badRequestErrorFrom(v, "get", request, err.Error())
@@ -996,7 +996,7 @@ func (v *View) Get(databag Databag, request string) (interface{}, error) {
 		return nil, err
 	}
 
-	var merged interface{}
+	var merged any
 	for _, match := range matches {
 		val, err := databag.Get(match.storagePath)
 		if err != nil {
@@ -1031,7 +1031,7 @@ func (v *View) Get(databag Databag, request string) (interface{}, error) {
 	return merged, nil
 }
 
-func mergeNamespaces(old, new interface{}) (interface{}, error) {
+func mergeNamespaces(old, new any) (any, error) {
 	if old == nil {
 		return new, nil
 	}
@@ -1047,7 +1047,7 @@ func mergeNamespaces(old, new interface{}) (interface{}, error) {
 	}
 
 	// if the values are maps, merge them recursively
-	oldMap, newMap := old.(map[string]interface{}), new.(map[string]interface{})
+	oldMap, newMap := old.(map[string]any), new.(map[string]any)
 	for k, v := range newMap {
 		if storeVal, ok := oldMap[k]; ok {
 			merged, err := mergeNamespaces(storeVal, v)
@@ -1409,7 +1409,7 @@ func (e PathError) Is(err error) bool {
 	return ok
 }
 
-func pathErrorf(str string, v ...interface{}) PathError {
+func pathErrorf(str string, v ...any) PathError {
 	return PathError(fmt.Sprintf(str, v...))
 }
 
@@ -1425,9 +1425,9 @@ func NewJSONDatabag() JSONDatabag {
 // Get takes a path and a pointer to a variable into which the value referenced
 // by the path is written. The path can be dotted. For each dot a JSON object
 // is expected to exist (e.g., "a.b" is mapped to {"a": {"b": <value>}}).
-func (s JSONDatabag) Get(path string) (interface{}, error) {
+func (s JSONDatabag) Get(path string) (any, error) {
 	// TODO: create this in the return below as well?
-	var value interface{}
+	var value any
 	subKeys := strings.Split(path, ".")
 	if err := get(subKeys, 0, s, &value); err != nil {
 		return nil, err
@@ -1441,7 +1441,7 @@ func (s JSONDatabag) Get(path string) (interface{}, error) {
 // traverse the tree, or a bracketed placeholder (e.g., "{foo}"). For placeholders,
 // we take all sub-paths and try to match the remaining path. The results for
 // any sub-path that matched the request path are then merged in a map and returned.
-func get(subKeys []string, index int, node map[string]json.RawMessage, result *interface{}) error {
+func get(subKeys []string, index int, node map[string]json.RawMessage, result *any) error {
 	key := subKeys[index]
 	matchAll := isPlaceholder(key)
 
@@ -1455,9 +1455,9 @@ func get(subKeys []string, index int, node map[string]json.RawMessage, result *i
 	if index == len(subKeys)-1 {
 		if matchAll {
 			// request ends in placeholder so return map to all values (but unmarshal the rest first)
-			level := make(map[string]interface{}, len(node))
+			level := make(map[string]any, len(node))
 			for k, v := range node {
-				var deser interface{}
+				var deser any
 				if err := json.Unmarshal(v, &deser); err != nil {
 					return fmt.Errorf(`internal error: %w`, err)
 				}
@@ -1476,7 +1476,7 @@ func get(subKeys []string, index int, node map[string]json.RawMessage, result *i
 	}
 
 	if matchAll {
-		results := make(map[string]interface{})
+		results := make(map[string]any)
 
 		for k, v := range node {
 			var level map[string]json.RawMessage
@@ -1491,7 +1491,7 @@ func get(subKeys []string, index int, node map[string]json.RawMessage, result *i
 
 			// walk the path under all possible values, only return an error if no value
 			// is found under any path
-			var res interface{}
+			var res any
 			if err := get(subKeys, index+1, level, &res); err != nil {
 				if errors.Is(err, PathError("")) {
 					continue
@@ -1528,7 +1528,7 @@ func get(subKeys []string, index int, node map[string]json.RawMessage, result *i
 // Set takes a path to which the value will be written. The path can be dotted,
 // in which case, a nested JSON object is created for each sub-key found after a dot.
 // If the value is nil, the entry is deleted.
-func (s JSONDatabag) Set(path string, value interface{}) error {
+func (s JSONDatabag) Set(path string, value any) error {
 	subKeys := strings.Split(path, ".")
 
 	var err error
@@ -1541,8 +1541,8 @@ func (s JSONDatabag) Set(path string, value interface{}) error {
 	return err
 }
 
-func removeNilValues(value interface{}) interface{} {
-	level, ok := value.(map[string]interface{})
+func removeNilValues(value any) any {
+	level, ok := value.(map[string]any)
 	if !ok {
 		return value
 	}
@@ -1559,7 +1559,7 @@ func removeNilValues(value interface{}) interface{} {
 	return level
 }
 
-func set(subKeys []string, index int, node map[string]json.RawMessage, value interface{}) (json.RawMessage, error) {
+func set(subKeys []string, index int, node map[string]json.RawMessage, value any) (json.RawMessage, error) {
 	key := subKeys[index]
 	if index == len(subKeys)-1 {
 		// remove nil values that may be nested in the value

@@ -661,7 +661,7 @@ func (m *autoRefresh) launchAutoRefresh() error {
 		chg.AddAll(ts)
 	}
 	chg.Set("snap-names", updated)
-	chg.Set("api-data", map[string]interface{}{"snap-names": updated})
+	chg.Set("api-data", map[string]any{"snap-names": updated})
 	state.TagTimingsWithChange(perfTimings, chg)
 
 	return nil
@@ -975,7 +975,7 @@ func removeRefreshInhibitWarning(st *state.State) error {
 }
 
 // for testing outside of snapstate
-func MockRefreshCandidate(snapSetup *SnapSetup) interface{} {
+func MockRefreshCandidate(snapSetup *SnapSetup) any {
 	return &refreshCandidate{
 		SnapSetup: *snapSetup,
 	}
@@ -1080,14 +1080,14 @@ func processFailedAutoRefresh(chg *state.Change, _ state.Status, new state.Statu
 
 	// Attach failed snaps to change api data. This intended to guide
 	// agents on devices that manage their own refresh cycle.
-	var data map[string]interface{}
+	var data map[string]any
 	err := chg.Get("api-data", &data)
 	if err != nil && !errors.Is(err, state.ErrNoState) {
 		logger.Debugf("internal error: failed to get api-data for change %s: %v", chg.ID(), err)
 		return
 	}
 	if len(data) == 0 {
-		data = make(map[string]interface{})
+		data = make(map[string]any)
 	}
 	sort.Strings(failedSnapNames)
 	data["refresh-failed"] = failedSnapNames

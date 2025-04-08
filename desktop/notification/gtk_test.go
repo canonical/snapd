@@ -75,7 +75,7 @@ func (s *gtkSuite) TestSendNotificationSuccess(c *C) {
 		Info: map[string]dbus.Variant{
 			"title":    dbus.MakeVariant("some title"),
 			"body":     dbus.MakeVariant("a body"),
-			"icon":     dbus.MakeVariant([]interface{}{"file", dbus.MakeVariant("an icon")}),
+			"icon":     dbus.MakeVariant([]any{"file", dbus.MakeVariant("an icon")}),
 			"priority": dbus.MakeVariant("urgent"),
 		},
 	})

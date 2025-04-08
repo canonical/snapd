@@ -95,7 +95,7 @@ func (s *unsetCommand) Execute(args []string) error {
 		return errors.New(i18n.G("cannot unset confdb: no paths provided to unset"))
 	}
 
-	confs := make(map[string]interface{}, len(s.Positional.ConfKeys)-1)
+	confs := make(map[string]any, len(s.Positional.ConfKeys)-1)
 	for _, key := range s.Positional.ConfKeys[1:] {
 		confs[key] = nil
 	}

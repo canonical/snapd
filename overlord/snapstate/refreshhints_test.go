@@ -292,7 +292,7 @@ func (s *refreshHintsTestSuite) TestRefreshHintsStoresRefreshCandidates(c *C) {
 			Snap:      info2,
 			Name:      "plug",
 			Interface: "content",
-			Attrs: map[string]interface{}{
+			Attrs: map[string]any{
 				"default-provider": "foo-snap:",
 				"content":          "some-content",
 			},
@@ -537,7 +537,7 @@ func (s *refreshHintsTestSuite) TestPruneRefreshCandidatesIncorrectFormat(c *C) 
 
 	// it doesn't fail as long as experimental.gate-auto-refresh-hook is not enabled
 	c.Assert(snapstate.PruneRefreshCandidates(st, "snap-a"), IsNil)
-	var data interface{}
+	var data any
 	// and refresh-candidates has been removed from the state
 	c.Check(st.Get("refresh-candidates", data), testutil.ErrorIs, state.ErrNoState)
 }

@@ -361,10 +361,10 @@ type ConnectionState struct {
 	// Undesired indicates whether the connection, otherwise established
 	// automatically, was explicitly disconnected
 	Undesired        bool
-	StaticPlugAttrs  map[string]interface{}
-	DynamicPlugAttrs map[string]interface{}
-	StaticSlotAttrs  map[string]interface{}
-	DynamicSlotAttrs map[string]interface{}
+	StaticPlugAttrs  map[string]any
+	DynamicPlugAttrs map[string]any
+	StaticSlotAttrs  map[string]any
+	DynamicSlotAttrs map[string]any
 	HotplugGone      bool
 }
 

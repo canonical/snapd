@@ -32,7 +32,7 @@ func (sre trySnapError) Error() string {
 	return string(sre)
 }
 
-func newTrySnapErrorf(format string, args ...interface{}) error {
+func newTrySnapErrorf(format string, args ...any) error {
 	return trySnapError(fmt.Sprintf(format, args...))
 }
 

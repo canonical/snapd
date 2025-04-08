@@ -31,7 +31,7 @@ import (
 
 // DecodeWithNumber decodes input data using json.Decoder, ensuring numbers are preserved
 // via json.Number data type. It errors out on invalid json or any excess input.
-func DecodeWithNumber(r io.Reader, value interface{}) error {
+func DecodeWithNumber(r io.Reader, value any) error {
 	dec := json.NewDecoder(r)
 	dec.UseNumber()
 	if err := dec.Decode(&value); err != nil {
@@ -47,7 +47,7 @@ func DecodeWithNumber(r io.Reader, value interface{}) error {
 // and returns a list of the fields in the struct that are JSON-tagged
 // and whose tag is not in the list of exceptions.
 // The struct can be nil.
-func StructFields(s interface{}, exceptions ...string) []string {
+func StructFields(s any, exceptions ...string) []string {
 	st := reflect.TypeOf(s).Elem()
 	num := st.NumField()
 	fields := make([]string, 0, num)

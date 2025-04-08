@@ -30,7 +30,7 @@ type intChecker struct {
 	rel string
 }
 
-func (checker *intChecker) Check(params []interface{}, names []string) (result bool, error string) {
+func (checker *intChecker) Check(params []any, names []string) (result bool, error string) {
 	a, ok := params[0].(int)
 	if !ok {
 		return false, "left-hand-side argument must be an int"

@@ -429,7 +429,7 @@ func hotplugSlotName(hotplugKey snap.HotplugKey, systemSnapInstanceName, slotSpe
 }
 
 // updateDevice creates tasks to disconnect slots of given device and update the slot in the repository.
-func updateDevice(st *state.State, ifaceName string, hotplugKey snap.HotplugKey, newAttrs map[string]interface{}) *state.TaskSet {
+func updateDevice(st *state.State, ifaceName string, hotplugKey snap.HotplugKey, newAttrs map[string]any) *state.TaskSet {
 	hotplugDisconnect := st.NewTask("hotplug-disconnect", fmt.Sprintf("Disable connections of interface %q, hotplug key %q", ifaceName, hotplugKey.ShortString()))
 	setHotplugAttrs(hotplugDisconnect, ifaceName, hotplugKey)
 

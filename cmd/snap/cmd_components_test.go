@@ -203,7 +203,7 @@ func (s *SnapSuite) testComponents(c *check.C, opts testComponentOpts) {
 			c.Check(r.URL.RawQuery, check.Equals, fmt.Sprintf("snaps=%s", strings.Join(opts.provided, ",")))
 		}
 
-		response := map[string]interface{}{
+		response := map[string]any{
 			"type":   "sync",
 			"result": opts.installed,
 		}

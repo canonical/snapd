@@ -44,11 +44,11 @@ func (cs *clientSuite) TestClientAlias(c *check.C) {
 	id, err := cs.cli.Alias("alias-snap", "cmd1", "alias1")
 	c.Assert(err, check.IsNil)
 	c.Check(id, check.Equals, "chgid")
-	var body map[string]interface{}
+	var body map[string]any
 	decoder := json.NewDecoder(cs.req.Body)
 	err = decoder.Decode(&body)
 	c.Check(err, check.IsNil)
-	c.Check(body, check.DeepEquals, map[string]interface{}{
+	c.Check(body, check.DeepEquals, map[string]any{
 		"action": "alias",
 		"snap":   "alias-snap",
 		"app":    "cmd1",
@@ -73,11 +73,11 @@ func (cs *clientSuite) TestClientUnalias(c *check.C) {
 	id, err := cs.cli.Unalias("alias1")
 	c.Assert(err, check.IsNil)
 	c.Check(id, check.Equals, "chgid")
-	var body map[string]interface{}
+	var body map[string]any
 	decoder := json.NewDecoder(cs.req.Body)
 	err = decoder.Decode(&body)
 	c.Check(err, check.IsNil)
-	c.Check(body, check.DeepEquals, map[string]interface{}{
+	c.Check(body, check.DeepEquals, map[string]any{
 		"action": "unalias",
 		"snap":   "alias1",
 		"alias":  "alias1",
@@ -101,11 +101,11 @@ func (cs *clientSuite) TestClientDisableAllAliases(c *check.C) {
 	id, err := cs.cli.DisableAllAliases("some-snap")
 	c.Assert(err, check.IsNil)
 	c.Check(id, check.Equals, "chgid")
-	var body map[string]interface{}
+	var body map[string]any
 	decoder := json.NewDecoder(cs.req.Body)
 	err = decoder.Decode(&body)
 	c.Check(err, check.IsNil)
-	c.Check(body, check.DeepEquals, map[string]interface{}{
+	c.Check(body, check.DeepEquals, map[string]any{
 		"action": "unalias",
 		"snap":   "some-snap",
 	})
@@ -128,11 +128,11 @@ func (cs *clientSuite) TestClientRemoveManualAlias(c *check.C) {
 	id, err := cs.cli.RemoveManualAlias("alias1")
 	c.Assert(err, check.IsNil)
 	c.Check(id, check.Equals, "chgid")
-	var body map[string]interface{}
+	var body map[string]any
 	decoder := json.NewDecoder(cs.req.Body)
 	err = decoder.Decode(&body)
 	c.Check(err, check.IsNil)
-	c.Check(body, check.DeepEquals, map[string]interface{}{
+	c.Check(body, check.DeepEquals, map[string]any{
 		"action": "unalias",
 		"alias":  "alias1",
 	})
@@ -155,11 +155,11 @@ func (cs *clientSuite) TestClientPrefer(c *check.C) {
 	id, err := cs.cli.Prefer("some-snap")
 	c.Assert(err, check.IsNil)
 	c.Check(id, check.Equals, "chgid")
-	var body map[string]interface{}
+	var body map[string]any
 	decoder := json.NewDecoder(cs.req.Body)
 	err = decoder.Decode(&body)
 	c.Check(err, check.IsNil)
-	c.Check(body, check.DeepEquals, map[string]interface{}{
+	c.Check(body, check.DeepEquals, map[string]any{
 		"action": "prefer",
 		"snap":   "some-snap",
 	})

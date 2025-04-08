@@ -96,7 +96,7 @@ func (s *installSuite) SetUpTest(c *C) {
 
 	s.TestingSeed20 = &seedtest.TestingSeed20{}
 	s.SetupAssertSigning("canonical")
-	s.Brands.Register("my-brand", brandPrivKey, map[string]interface{}{
+	s.Brands.Register("my-brand", brandPrivKey, map[string]any{
 		"verification": "verified",
 	})
 	// needed by TestingSeed20.MakeSeed (to work with makeSnap)
@@ -179,20 +179,20 @@ func (s *installSuite) mountedGadget(c *C) (gadgetInfo *gadget.Info, gadgetDir s
 	return gadgetInfo, gadgetDir
 }
 
-func (s *installSuite) mockModel(override map[string]interface{}) *asserts.Model {
-	m := map[string]interface{}{
+func (s *installSuite) mockModel(override map[string]any) *asserts.Model {
+	m := map[string]any{
 		"display-name": "my model",
 		"architecture": "amd64",
 		"base":         "core20",
 		"grade":        "dangerous",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":            "pc-kernel",
 				"id":              s.AssertedSnapID("pc-kernel"),
 				"type":            "kernel",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "pc",
 				"id":              s.AssertedSnapID("pc"),
 				"type":            "gadget",
@@ -366,7 +366,7 @@ func (s *installSuite) TestEncryptionSupportInfoWithTPM(c *C) {
 		restore := install.MockSecbootCheckTPMKeySealingSupported(func(secboot.TPMProvisionMode) error { return tc.tpmErr })
 		defer restore()
 
-		mockModel := s.mockModel(map[string]interface{}{
+		mockModel := s.mockModel(map[string]any{
 			"grade":          tc.grade,
 			"storage-safety": tc.storageSafety,
 		})
@@ -479,7 +479,7 @@ func (s *installSuite) TestEncryptionSupportInfoForceUnencrypted(c *C) {
 		restore := install.MockSecbootCheckTPMKeySealingSupported(func(secboot.TPMProvisionMode) error { return tc.tpmErr })
 		defer restore()
 
-		mockModel := s.mockModel(map[string]interface{}{
+		mockModel := s.mockModel(map[string]any{
 			"grade":          tc.grade,
 			"storage-safety": tc.storageSafety,
 		})
@@ -604,7 +604,7 @@ func (s *installSuite) TestEncryptionSupportInfoGadgetIncompatibleWithEncryption
 		},
 	}
 	for _, tc := range testCases {
-		mockModel := s.mockModel(map[string]interface{}{
+		mockModel := s.mockModel(map[string]any{
 			"grade":          tc.grade,
 			"storage-safety": tc.storageSafety,
 		})
@@ -759,7 +759,7 @@ func (s *installSuite) TestInstallCheckEncryptionSupportStorageSafety(c *C) {
 		{"secured", "encrypted", true},
 	}
 	for _, tc := range testCases {
-		mockModel := s.mockModel(map[string]interface{}{
+		mockModel := s.mockModel(map[string]any{
 			"grade":          tc.grade,
 			"storage-safety": tc.storageSafety,
 		})
@@ -801,7 +801,7 @@ func (s *installSuite) TestInstallCheckEncryptionSupportErrors(c *C) {
 		},
 	}
 	for _, tc := range testCases {
-		mockModel := s.mockModel(map[string]interface{}{
+		mockModel := s.mockModel(map[string]any{
 			"grade":          tc.grade,
 			"storage-safety": tc.storageSafety,
 		})
@@ -1103,7 +1103,7 @@ func (s *installSuite) TestPrepareRunSystemDataSupportsCloudInitGadgetAndSeedCon
 	}
 
 	_, gadgetDir := s.mountedGadget(c)
-	mockModel := s.mockModel(map[string]interface{}{
+	mockModel := s.mockModel(map[string]any{
 		"grade": "signed",
 	})
 
@@ -1159,7 +1159,7 @@ func (s *installSuite) TestPrepareRunSystemDataSupportsCloudInitBothGadgetAndUbu
 func (s *installSuite) TestPrepareRunSystemDataSignedNoUbuntuSeedCloudInit(c *C) {
 	// pretend we have no cloud-init config anywhere
 	_, gadgetDir := s.mountedGadget(c)
-	mockModel := s.mockModel(map[string]interface{}{
+	mockModel := s.mockModel(map[string]any{
 		"grade": "signed",
 	})
 
@@ -1179,7 +1179,7 @@ func (s *installSuite) TestPrepareRunSystemDataSignedNoUbuntuSeedCloudInit(c *C)
 
 func (s *installSuite) TestPrepareRunSystemDataSecuredGadgetCloudConfCloudInit(c *C) {
 	_, gadgetDir := s.mountedGadget(c)
-	mockModel := s.mockModel(map[string]interface{}{
+	mockModel := s.mockModel(map[string]any{
 		"grade": "secured",
 	})
 
@@ -1210,7 +1210,7 @@ func (s *installSuite) TestPrepareRunSystemDataSecuredNoUbuntuSeedCloudInit(c *C
 	}
 
 	_, gadgetDir := s.mountedGadget(c)
-	mockModel := s.mockModel(map[string]interface{}{
+	mockModel := s.mockModel(map[string]any{
 		"grade": "secured",
 	})
 
@@ -1295,38 +1295,38 @@ func (s *installSuite) setupCore20Seed(c *C) *asserts.Model {
 		snap.R(1), compRevs, "canonical", s.StoreSigning.Database,
 	)
 
-	model := map[string]interface{}{
+	model := map[string]any{
 		"display-name": "my model",
 		"architecture": "amd64",
 		"base":         "core20",
 		"grade":        "dangerous",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":            "pc-kernel",
 				"id":              s.AssertedSnapID("pc-kernel"),
 				"type":            "kernel",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "pc",
 				"id":              s.AssertedSnapID("pc"),
 				"type":            "gadget",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name": "snapd",
 				"id":   s.AssertedSnapID("snapd"),
 				"type": "snapd",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name": "core20",
 				"id":   s.AssertedSnapID("core20"),
 				"type": "base",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name": "required20",
 				"id":   s.AssertedSnapID("required20"),
-				"components": map[string]interface{}{
+				"components": map[string]any{
 					"comp1": "required",
 				},
 			},
@@ -1336,8 +1336,8 @@ func (s *installSuite) setupCore20Seed(c *C) *asserts.Model {
 	return s.MakeSeed(c, "20220401", "my-brand", "my-model", model, []*seedwriter.OptionsSnap{{Path: optSnapPath}})
 }
 
-func (s *installSuite) mockPreseedAssertion(c *C, brandID, modelName, series, preseedAsPath, sysLabel string, digest string, snaps []interface{}) {
-	headers := map[string]interface{}{
+func (s *installSuite) mockPreseedAssertion(c *C, brandID, modelName, series, preseedAsPath, sysLabel string, digest string, snaps []any) {
+	headers := map[string]any{
 		"type":              "preseed",
 		"authority-id":      brandID,
 		"series":            series,
@@ -1381,23 +1381,23 @@ func (s *installSuite) TestApplyPreseededData(c *C) {
 	c.Assert(os.MkdirAll(filepath.Join(dirs.SnapSeedDir, "snaps"), 0755), IsNil)
 	c.Assert(os.MkdirAll(dirs.SnapBlobDir, 0755), IsNil)
 
-	snaps := []interface{}{
-		map[string]interface{}{"name": "snapd", "id": s.AssertedSnapID("snapd"), "revision": "1"},
-		map[string]interface{}{"name": "core20", "id": s.AssertedSnapID("core20"), "revision": "1"},
-		map[string]interface{}{"name": "pc-kernel", "id": s.AssertedSnapID("pc-kernel"), "revision": "1"},
-		map[string]interface{}{"name": "pc", "id": s.AssertedSnapID("pc"), "revision": "1"},
-		map[string]interface{}{
+	snaps := []any{
+		map[string]any{"name": "snapd", "id": s.AssertedSnapID("snapd"), "revision": "1"},
+		map[string]any{"name": "core20", "id": s.AssertedSnapID("core20"), "revision": "1"},
+		map[string]any{"name": "pc-kernel", "id": s.AssertedSnapID("pc-kernel"), "revision": "1"},
+		map[string]any{"name": "pc", "id": s.AssertedSnapID("pc"), "revision": "1"},
+		map[string]any{
 			"name":     "required20",
 			"id":       s.AssertedSnapID("required20"),
 			"revision": "1",
-			"components": []interface{}{
-				map[string]interface{}{
+			"components": []any{
+				map[string]any{
 					"name":     "comp1",
 					"revision": "2",
 				},
 			},
 		},
-		map[string]interface{}{"name": "optional20-a"},
+		map[string]any{"name": "optional20-a"},
 	}
 	sha3_384, _, err := osutil.FileDigest(preseedArtifact, crypto.SHA3_384)
 	c.Assert(err, IsNil)
@@ -1517,7 +1517,7 @@ func (s *installSuite) TestApplyPreseededDataSnapMismatch(c *C) {
 	c.Assert(os.MkdirAll(writableDir, 0755), IsNil)
 	c.Assert(os.WriteFile(preseedArtifact, nil, 0644), IsNil)
 
-	model := s.mockModel(map[string]interface{}{
+	model := s.mockModel(map[string]any{
 		"grade": "dangerous",
 	})
 
@@ -1551,22 +1551,22 @@ func (s *installSuite) TestApplyPreseededDataSnapMismatch(c *C) {
 		{"extra-snap", "1", "id000000000000000000000000000000", `seed has 3 snaps but 4 snaps are required by preseed assertion`},
 	} {
 
-		preseedAsSnaps := []interface{}{
-			map[string]interface{}{"name": "essential-snap", "id": "id111111111111111111111111111111", "revision": "1"},
-			map[string]interface{}{"name": "mode-snap", "id": "id222222222222222222222222222222", "revision": "3"},
-			map[string]interface{}{"name": "mode-snap2"},
+		preseedAsSnaps := []any{
+			map[string]any{"name": "essential-snap", "id": "id111111111111111111111111111111", "revision": "1"},
+			map[string]any{"name": "mode-snap", "id": "id222222222222222222222222222222", "revision": "3"},
+			map[string]any{"name": "mode-snap2"},
 		}
 
 		var found bool
 		for i, ps := range preseedAsSnaps {
-			if ps.(map[string]interface{})["name"] == tc.snapName {
-				preseedAsSnaps[i] = map[string]interface{}{"name": tc.snapName, "id": tc.snapID, "revision": tc.rev}
+			if ps.(map[string]any)["name"] == tc.snapName {
+				preseedAsSnaps[i] = map[string]any{"name": tc.snapName, "id": tc.snapID, "revision": tc.rev}
 				found = true
 				break
 			}
 		}
 		if !found {
-			preseedAsSnaps = append(preseedAsSnaps, map[string]interface{}{"name": tc.snapName, "id": tc.snapID, "revision": tc.rev})
+			preseedAsSnaps = append(preseedAsSnaps, map[string]any{"name": tc.snapName, "id": tc.snapID, "revision": tc.rev})
 		}
 
 		s.mockPreseedAssertion(c, model.BrandID(), model.Model(), "16", preseedAsPath, sysLabel, digest, preseedAsSnaps)
@@ -1577,10 +1577,10 @@ func (s *installSuite) TestApplyPreseededDataSnapMismatch(c *C) {
 	// mode-snap is preseeded in the seed but missing in the preseed assertion;
 	// add other-snap to preseed assertion to satisfy the check for number of
 	// snaps.
-	preseedAsSnaps := []interface{}{
-		map[string]interface{}{"name": "essential-snap", "id": "id111111111111111111111111111111", "revision": "1"},
-		map[string]interface{}{"name": "other-snap", "id": "id333222222222222222222222222222", "revision": "2"},
-		map[string]interface{}{"name": "mode-snap2"},
+	preseedAsSnaps := []any{
+		map[string]any{"name": "essential-snap", "id": "id111111111111111111111111111111", "revision": "1"},
+		map[string]any{"name": "other-snap", "id": "id333222222222222222222222222222", "revision": "2"},
+		map[string]any{"name": "mode-snap2"},
 	}
 	s.mockPreseedAssertion(c, model.BrandID(), model.Model(), "16", preseedAsPath, sysLabel, digest, preseedAsSnaps)
 	err = install.ApplyPreseededData(sysSeed, writableDir)
@@ -1588,24 +1588,24 @@ func (s *installSuite) TestApplyPreseededDataSnapMismatch(c *C) {
 }
 
 func (s *installSuite) TestApplyPreseededDataComponentMismatchWrongRevision(c *C) {
-	preseed := []interface{}{
-		map[string]interface{}{
+	preseed := []any{
+		map[string]any{
 			"name":     "essential-snap",
 			"id":       snaptest.AssertedSnapID("essential-snap"),
 			"revision": "1",
-			"components": []interface{}{
-				map[string]interface{}{
+			"components": []any{
+				map[string]any{
 					"name":     "comp1",
 					"revision": "5",
 				},
 			},
 		},
-		map[string]interface{}{
+		map[string]any{
 			"name":     "mode-snap",
 			"id":       snaptest.AssertedSnapID("mode-snap"),
 			"revision": "3",
-			"components": []interface{}{
-				map[string]interface{}{
+			"components": []any{
+				map[string]any{
 					"name":     "comp2",
 					"revision": "4",
 				},
@@ -1620,28 +1620,28 @@ func (s *installSuite) TestApplyPreseededDataComponentMismatchWrongRevision(c *C
 }
 
 func (s *installSuite) TestApplyPreseededDataComponentMismatchMissingComponent(c *C) {
-	preseed := []interface{}{
-		map[string]interface{}{
+	preseed := []any{
+		map[string]any{
 			"name":     "essential-snap",
 			"id":       snaptest.AssertedSnapID("essential-snap"),
 			"revision": "1",
-			"components": []interface{}{
-				map[string]interface{}{
+			"components": []any{
+				map[string]any{
 					"name":     "comp1",
 					"revision": "2",
 				},
-				map[string]interface{}{
+				map[string]any{
 					"name":     "comp3",
 					"revision": "5",
 				},
 			},
 		},
-		map[string]interface{}{
+		map[string]any{
 			"name":     "mode-snap",
 			"id":       snaptest.AssertedSnapID("mode-snap"),
 			"revision": "3",
-			"components": []interface{}{
-				map[string]interface{}{
+			"components": []any{
+				map[string]any{
 					"name":     "comp2",
 					"revision": "4",
 				},
@@ -1656,24 +1656,24 @@ func (s *installSuite) TestApplyPreseededDataComponentMismatchMissingComponent(c
 }
 
 func (s *installSuite) TestApplyPreseededDataComponentMismatchExtraComponent(c *C) {
-	preseed := []interface{}{
-		map[string]interface{}{
+	preseed := []any{
+		map[string]any{
 			"name":     "essential-snap",
 			"id":       snaptest.AssertedSnapID("essential-snap"),
 			"revision": "1",
-			"components": []interface{}{
-				map[string]interface{}{
+			"components": []any{
+				map[string]any{
 					"name":     "comp1",
 					"revision": "2",
 				},
 			},
 		},
-		map[string]interface{}{
+		map[string]any{
 			"name":     "mode-snap",
 			"id":       snaptest.AssertedSnapID("mode-snap"),
 			"revision": "3",
-			"components": []interface{}{
-				map[string]interface{}{
+			"components": []any{
+				map[string]any{
 					"name":     "comp2",
 					"revision": "4",
 				},
@@ -1694,7 +1694,7 @@ func (s *installSuite) TestApplyPreseededDataComponentMismatchExtraComponent(c *
 }
 
 type preseededDataComponentMismatchOpts struct {
-	preseed             []interface{}
+	preseed             []any
 	errMsg              string
 	extraSeedComponents []seed.Component
 }
@@ -1716,7 +1716,7 @@ func (s *installSuite) testApplyPreseededDataComponentMismatch(c *C, opts presee
 	c.Assert(os.MkdirAll(writableDir, 0755), IsNil)
 	c.Assert(os.WriteFile(preseedArtifact, nil, 0644), IsNil)
 
-	model := s.mockModel(map[string]interface{}{
+	model := s.mockModel(map[string]any{
 		"grade": "dangerous",
 	})
 
@@ -1779,7 +1779,7 @@ func (s *installSuite) TestApplyPreseededDataWrongDigest(c *C) {
 	c.Assert(os.MkdirAll(writableDir, 0755), IsNil)
 	c.Assert(os.WriteFile(preseedArtifact, nil, 0644), IsNil)
 
-	model := s.mockModel(map[string]interface{}{
+	model := s.mockModel(map[string]any{
 		"grade": "dangerous",
 	})
 
@@ -1790,8 +1790,8 @@ func (s *installSuite) TestApplyPreseededDataWrongDigest(c *C) {
 		essentialSnaps:  []*seed.Snap{{Path: snapPath1, SideInfo: &snap.SideInfo{RealName: "essential-snap", Revision: snap.R(1)}}},
 	}
 
-	snaps := []interface{}{
-		map[string]interface{}{"name": "essential-snap", "id": "id111111111111111111111111111111", "revision": "1"},
+	snaps := []any{
+		map[string]any{"name": "essential-snap", "id": "id111111111111111111111111111111", "revision": "1"},
 	}
 
 	wrongDigest := "DGOnW4ReT30BEH2FLkwkhcUaUKqqlPxhmV5xu-6YOirDcTgxJkrbR_traaaY1fAE"

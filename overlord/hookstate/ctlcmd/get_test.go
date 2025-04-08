@@ -165,7 +165,7 @@ func (s *getSuite) TestGetTests(c *C) {
 
 var getTests2 = []struct {
 	setPath      string
-	setValue     interface{}
+	setValue     any
 	args, stdout string
 }{{
 	setPath:  "root.key1",
@@ -184,7 +184,7 @@ var getTests2 = []struct {
 	stdout:   "{\n\t\"sub1\": \"z\",\n\t\"sub2\": \"y\"\n}\n",
 }, {
 	setPath:  "root.key3",
-	setValue: map[string]interface{}{"sub3": "z"},
+	setValue: map[string]any{"sub3": "z"},
 	args:     "get root",
 	stdout:   "{\n\t\"key1\": \"a\",\n\t\"key2\": \"b\",\n\t\"key3\": {\n\t\t\"sub3\": \"z\"\n\t}\n}\n",
 }}
@@ -207,7 +207,7 @@ func (s *getSuite) TestGetPartialNestedStruct(c *C) {
 
 		// Initialize configuration
 		tr := config.NewTransaction(state)
-		tr.Set("test-snap", "root", map[string]interface{}{"key1": "a", "key2": "b", "key3": map[string]interface{}{"sub1": "x", "sub2": "y"}})
+		tr.Set("test-snap", "root", map[string]any{"key1": "a", "key2": "b", "key3": map[string]any{"sub1": "x", "sub2": "y"}})
 		tr.Commit()
 
 		state.Unlock()
@@ -229,9 +229,9 @@ func (s *getSuite) TestGetPartialNestedStruct(c *C) {
 		state.Lock()
 		defer state.Unlock()
 		tr3 := config.NewTransaction(state)
-		var config map[string]interface{}
+		var config map[string]any
 		c.Assert(tr3.Get("test-snap", "root", &config), IsNil)
-		c.Assert(config, DeepEquals, map[string]interface{}{"key1": "a", "key2": "b", "key3": map[string]interface{}{"sub1": "x", "sub2": "y"}})
+		c.Assert(config, DeepEquals, map[string]any{"key1": "a", "key2": "b", "key3": map[string]any{"sub1": "x", "sub2": "y"}})
 	}
 }
 
@@ -276,11 +276,11 @@ func (s *setSuite) TestNull(c *C) {
 	c.Check(s.mockContext.Done(), IsNil)
 
 	// Verify config value
-	var value interface{}
+	var value any
 	tr := config.NewTransaction(s.mockContext.State())
 	c.Assert(config.IsNoOption(tr.Get("test-snap", "foo", &value)), Equals, true)
 	c.Assert(tr.Get("test-snap", "bar", &value), IsNil)
-	c.Assert(value, DeepEquals, []interface{}{nil})
+	c.Assert(value, DeepEquals, []any{nil})
 }
 
 func (s *getAttrSuite) SetUpTest(c *C) {
@@ -293,20 +293,20 @@ func (s *getAttrSuite) SetUpTest(c *C) {
 	attrsTask := state.NewTask("connect-task", "my connect task")
 	attrsTask.Set("plug", &interfaces.PlugRef{Snap: "a", Name: "aplug"})
 	attrsTask.Set("slot", &interfaces.SlotRef{Snap: "b", Name: "bslot"})
-	staticPlugAttrs := map[string]interface{}{
+	staticPlugAttrs := map[string]any{
 		"aattr":   "foo",
 		"baz":     []string{"a", "b"},
-		"mapattr": map[string]interface{}{"mapattr1": "mapval1", "mapattr2": "mapval2"},
+		"mapattr": map[string]any{"mapattr1": "mapval1", "mapattr2": "mapval2"},
 	}
-	dynamicPlugAttrs := map[string]interface{}{
+	dynamicPlugAttrs := map[string]any{
 		"dyn-plug-attr": "c",
 		"nilattr":       nil,
 	}
-	dynamicSlotAttrs := map[string]interface{}{
+	dynamicSlotAttrs := map[string]any{
 		"dyn-slot-attr": "d",
 	}
 
-	staticSlotAttrs := map[string]interface{}{
+	staticSlotAttrs := map[string]any{
 		"battr": "bar",
 	}
 	attrsTask.Set("plug-static", staticPlugAttrs)
@@ -507,21 +507,21 @@ func (s *confdbSuite) SetUpTest(c *C) {
 	c.Check(s.signingDB, NotNil)
 	c.Assert(storeSigning.Add(devAccKey), IsNil)
 
-	headers := map[string]interface{}{
+	headers := map[string]any{
 		"authority-id": s.devAccID,
 		"account-id":   s.devAccID,
 		"name":         "network",
-		"views": map[string]interface{}{
-			"read-wifi": map[string]interface{}{
-				"rules": []interface{}{
-					map[string]interface{}{"request": "ssid", "storage": "wifi.ssid", "access": "read"},
-					map[string]interface{}{"request": "password", "storage": "wifi.psk", "access": "read"},
+		"views": map[string]any{
+			"read-wifi": map[string]any{
+				"rules": []any{
+					map[string]any{"request": "ssid", "storage": "wifi.ssid", "access": "read"},
+					map[string]any{"request": "password", "storage": "wifi.psk", "access": "read"},
 				},
 			},
-			"write-wifi": map[string]interface{}{
-				"rules": []interface{}{
-					map[string]interface{}{"request": "ssid", "storage": "wifi.ssid", "access": "write"},
-					map[string]interface{}{"request": "password", "storage": "wifi.psk", "access": "write"},
+			"write-wifi": map[string]any{
+				"rules": []any{
+					map[string]any{"request": "ssid", "storage": "wifi.ssid", "access": "write"},
+					map[string]any{"request": "password", "storage": "wifi.psk", "access": "write"},
 				},
 			},
 		},
@@ -770,15 +770,15 @@ slots:
 }
 
 func (s *confdbSuite) TestConfdbGetAndSetViewNotFound(c *C) {
-	headers := map[string]interface{}{
+	headers := map[string]any{
 		"authority-id": s.devAccID,
 		"account-id":   s.devAccID,
 		"revision":     "1",
 		"name":         "network",
-		"views": map[string]interface{}{
-			"other": map[string]interface{}{
-				"rules": []interface{}{
-					map[string]interface{}{"request": "a", "storage": "a"},
+		"views": map[string]any{
+			"other": map[string]any{
+				"rules": []any{
+					map[string]any{"request": "a", "storage": "a"},
 				},
 			},
 		},
@@ -880,10 +880,10 @@ func (s *confdbSuite) TestConfdbGetDifferentViewThanOngoingTx(c *C) {
 	defer s.state.Lock()
 
 	restore := ctlcmd.MockConfdbstateGetView(func(st *state.State, account, confdbName, viewName string) (*confdb.View, error) {
-		reg, err := confdb.NewSchema(s.devAccID, "other", map[string]interface{}{
-			"other": map[string]interface{}{
-				"rules": []interface{}{
-					map[string]interface{}{"request": "ssid", "storage": "ssid"},
+		reg, err := confdb.NewSchema(s.devAccID, "other", map[string]any{
+			"other": map[string]any{
+				"rules": []any{
+					map[string]any{"request": "ssid", "storage": "ssid"},
 				},
 			},
 		}, confdb.NewJSONSchema())

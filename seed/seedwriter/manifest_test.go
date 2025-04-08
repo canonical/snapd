@@ -264,21 +264,21 @@ func (s *manifestSuite) TestManifestSetAllowedValidationSetInvalidSequence(c *C)
 }
 
 func (s *manifestSuite) setupValidationSet(c *C) *asserts.ValidationSet {
-	vs, err := s.storeSigning.Sign(asserts.ValidationSetType, map[string]interface{}{
+	vs, err := s.storeSigning.Sign(asserts.ValidationSetType, map[string]any{
 		"type":         "validation-set",
 		"authority-id": "canonical",
 		"series":       "16",
 		"account-id":   "canonical",
 		"name":         "base-set",
 		"sequence":     "1",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":     "pc-kernel",
 				"id":       "123456ididididididididididididid",
 				"presence": "required",
 				"revision": "1",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":     "pc",
 				"id":       "mysnapididididididididididididid",
 				"presence": "required",
@@ -334,20 +334,20 @@ func (s *manifestSuite) TestManifestMarkValidationSetSeededUsedHappy(c *C) {
 }
 
 func (s *manifestSuite) setupValidationSetWithNothingToTrack(c *C) *asserts.ValidationSet {
-	vs, err := s.storeSigning.Sign(asserts.ValidationSetType, map[string]interface{}{
+	vs, err := s.storeSigning.Sign(asserts.ValidationSetType, map[string]any{
 		"type":         "validation-set",
 		"authority-id": "canonical",
 		"series":       "16",
 		"account-id":   "canonical",
 		"name":         "weird-set",
 		"sequence":     "1",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":     "pc-kernel",
 				"id":       "123456ididididididididididididid",
 				"presence": "required",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":     "pc",
 				"id":       "mysnapididididididididididididid",
 				"presence": "invalid",

@@ -37,7 +37,7 @@ type cmdNewRepair struct {
 }
 
 func (x *cmdNewRepair) Execute(args []string) error {
-	headers := map[string]interface{}{}
+	headers := map[string]any{}
 	if x.RepairJSON != "" {
 		content, err := os.ReadFile(x.RepairJSON)
 		if err != nil {

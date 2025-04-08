@@ -72,7 +72,7 @@ func Backup[T any](mockable *T) (restore func()) {
 }
 
 // Backup the specified list of elements before further mocking.
-func BackupMany(mockablesByPtr ...interface{}) (restore func()) {
+func BackupMany(mockablesByPtr ...any) (restore func()) {
 	// TODO find a type safe way of doing this when individual elements are
 	// of different type
 	backup := backupMockables(mockablesByPtr)
@@ -85,7 +85,7 @@ func BackupMany(mockablesByPtr ...interface{}) (restore func()) {
 	}
 }
 
-func backupMockables(mockablesByPtr []interface{}) (backup []*reflect.Value) {
+func backupMockables(mockablesByPtr []any) (backup []*reflect.Value) {
 	backup = make([]*reflect.Value, len(mockablesByPtr))
 
 	for i, ptr := range mockablesByPtr {

@@ -42,7 +42,7 @@ plugs:
  plug:
   interface: interface
 `
-	plug, _ := ifacetest.MockConnectedPlugWithAttrs(c, consumerYaml, nil, "plug", nil, map[string]interface{}{
+	plug, _ := ifacetest.MockConnectedPlugWithAttrs(c, consumerYaml, nil, "plug", nil, map[string]any{
 		"a": "123",
 	})
 
@@ -54,7 +54,7 @@ slots:
  slot:
   interface: interface
 `
-	slot, slotInfo := ifacetest.MockConnectedSlotWithAttrs(c, producerYaml, nil, "slot", nil, map[string]interface{}{
+	slot, slotInfo := ifacetest.MockConnectedSlotWithAttrs(c, producerYaml, nil, "slot", nil, map[string]any{
 		"a": "123",
 	})
 
@@ -68,15 +68,15 @@ slots:
 	c.Check(err, IsNil)
 	c.Check(v, Equals, "123")
 
-	slot = interfaces.NewConnectedSlot(slotInfo, slot.AppSet(), nil, map[string]interface{}{
-		"a": map[string]interface{}{
-			"b": []interface{}{"1", "2", "3"},
+	slot = interfaces.NewConnectedSlot(slotInfo, slot.AppSet(), nil, map[string]any{
+		"a": map[string]any{
+			"b": []any{"1", "2", "3"},
 		},
 	})
 
 	v, err = policy.NestedGet("slot", slot, "a.b")
 	c.Check(err, IsNil)
-	c.Check(v, DeepEquals, []interface{}{"1", "2", "3"})
+	c.Check(v, DeepEquals, []any{"1", "2", "3"})
 }
 
 func (s *helpersSuite) TestSnapdTypeCheck(c *C) {

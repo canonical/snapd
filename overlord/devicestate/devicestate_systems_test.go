@@ -91,7 +91,7 @@ func (s *deviceMgrSystemsBaseSuite) SetUpTest(c *C) {
 	classic := false
 	s.deviceMgrBaseSuite.setupBaseTest(c, classic)
 
-	s.brands.Register("other-brand", brandPrivKey3, map[string]interface{}{
+	s.brands.Register("other-brand", brandPrivKey3, map[string]any{
 		"display-name": "other publisher",
 	})
 	s.state.Lock()
@@ -101,30 +101,30 @@ func (s *deviceMgrSystemsBaseSuite) SetUpTest(c *C) {
 		Brands:       s.brands,
 	}
 
-	s.model = s.makeModelAssertionInState(c, "canonical", "pc-20", map[string]interface{}{
+	s.model = s.makeModelAssertionInState(c, "canonical", "pc-20", map[string]any{
 		"architecture": "amd64",
 		// UC20
 		"grade": "dangerous",
 		"base":  "core20",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":            "pc-kernel",
 				"id":              s.ss.AssertedSnapID("pc-kernel"),
 				"type":            "kernel",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "pc",
 				"id":              s.ss.AssertedSnapID("pc"),
 				"type":            "gadget",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name": "core20",
 				"id":   s.ss.AssertedSnapID("core20"),
 				"type": "base",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name": "snapd",
 				"id":   s.ss.AssertedSnapID("snapd"),
 				"type": "snapd",
@@ -188,54 +188,54 @@ func (s *deviceMgrSystemsSuite) SetUpTest(c *C) {
 	seed20.MakeAssertedSnap(c, "name: pc-kernel\nversion: 1\ntype: kernel", nil, snap.R(1), "canonical", seed20.StoreSigning.Database)
 	seed20.MakeAssertedSnap(c, "name: core20\nversion: 1\ntype: base", nil, snap.R(1), "canonical", seed20.StoreSigning.Database)
 
-	model1 := seed20.MakeSeed(c, "20191119", "my-brand", "my-model", map[string]interface{}{
+	model1 := seed20.MakeSeed(c, "20191119", "my-brand", "my-model", map[string]any{
 		"display-name": "my fancy model",
 		"architecture": "amd64",
 		"base":         "core20",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":            "pc-kernel",
 				"id":              seed20.AssertedSnapID("pc-kernel"),
 				"type":            "kernel",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "pc",
 				"id":              seed20.AssertedSnapID("pc"),
 				"type":            "gadget",
 				"default-channel": "20",
 			}},
 	}, nil)
-	model2 := seed20.MakeSeed(c, "20200318", "my-brand", "my-model-2", map[string]interface{}{
+	model2 := seed20.MakeSeed(c, "20200318", "my-brand", "my-model-2", map[string]any{
 		"display-name": "same brand different model",
 		"architecture": "amd64",
 		"base":         "core20",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":            "pc-kernel",
 				"id":              seed20.AssertedSnapID("pc-kernel"),
 				"type":            "kernel",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "pc",
 				"id":              seed20.AssertedSnapID("pc"),
 				"type":            "gadget",
 				"default-channel": "20",
 			}},
 	}, nil)
-	model3 := seed20.MakeSeed(c, "other-20200318", "other-brand", "other-model", map[string]interface{}{
+	model3 := seed20.MakeSeed(c, "other-20200318", "other-brand", "other-model", map[string]any{
 		"display-name": "different brand different model",
 		"architecture": "amd64",
 		"base":         "core20",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":            "pc-kernel",
 				"id":              seed20.AssertedSnapID("pc-kernel"),
 				"type":            "kernel",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "pc",
 				"id":              seed20.AssertedSnapID("pc"),
 				"type":            "gadget",
@@ -1260,7 +1260,7 @@ func (s *deviceMgrSystemsSuite) TestRecordSeededSystem(c *C) {
 	err := devicestate.RecordSeededSystem(s.mgr, s.state, &sys)
 	c.Assert(err, IsNil)
 
-	expectedSeededOneSys := []map[string]interface{}{
+	expectedSeededOneSys := []map[string]any{
 		{
 			"system":    "1234",
 			"model":     "my-model",
@@ -1270,7 +1270,7 @@ func (s *deviceMgrSystemsSuite) TestRecordSeededSystem(c *C) {
 			"seed-time": now.Format(time.RFC3339Nano),
 		},
 	}
-	var seededSystemsFromState []map[string]interface{}
+	var seededSystemsFromState []map[string]any
 	err = s.state.Get("seeded-systems", &seededSystemsFromState)
 	c.Assert(err, IsNil)
 	c.Assert(seededSystemsFromState, DeepEquals, expectedSeededOneSys)
@@ -1299,7 +1299,7 @@ func (s *deviceMgrSystemsSuite) TestRecordSeededSystem(c *C) {
 	c.Assert(err, IsNil)
 	err = s.state.Get("seeded-systems", &seededSystemsFromState)
 	c.Assert(err, IsNil)
-	expectedWithNewRev := []map[string]interface{}{
+	expectedWithNewRev := []map[string]any{
 		{
 			// new entry is added at the beginning
 			"system":    "1234",
@@ -1341,7 +1341,7 @@ func (s *deviceMgrSystemsSuite) TestRecordSeededSystem(c *C) {
 	c.Assert(err, IsNil)
 	err = s.state.Get("seeded-systems", &seededSystemsFromState)
 	c.Assert(err, IsNil)
-	expectedWithNewModel := []map[string]interface{}{
+	expectedWithNewModel := []map[string]any{
 		{
 			// and another one got added at the beginning
 			"system":    "9999",
@@ -1431,10 +1431,10 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemTasks
 	tskFinalize := tsks[1]
 	c.Check(tskCreate.Summary(), Matches, `Create recovery system with label "1234"`)
 	c.Check(tskFinalize.Summary(), Matches, `Finalize recovery system with label "1234"`)
-	var systemSetupData map[string]interface{}
+	var systemSetupData map[string]any
 	err = tskCreate.Get("recovery-system-setup", &systemSetupData)
 	c.Assert(err, IsNil)
-	c.Assert(systemSetupData, DeepEquals, map[string]interface{}{
+	c.Assert(systemSetupData, DeepEquals, map[string]any{
 		"label":       "1234",
 		"directory":   filepath.Join(boot.InitramfsUbuntuSeedDir, "systems/1234"),
 		"test-system": true,
@@ -1476,18 +1476,18 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoveryRequiredInV
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	s.model = s.brands.Model("canonical", "pc-20", map[string]interface{}{
+	s.model = s.brands.Model("canonical", "pc-20", map[string]any{
 		"architecture": "amd64",
 		"grade":        "dangerous",
 		"base":         "core20",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":            "pc-kernel",
 				"id":              s.ss.AssertedSnapID("pc-kernel"),
 				"type":            "kernel",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "pc",
 				"id":              s.ss.AssertedSnapID("pc"),
 				"type":            "gadget",
@@ -1497,15 +1497,15 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoveryRequiredInV
 		"revision": "2",
 	})
 
-	vset, err := s.brands.Signing("canonical").Sign(asserts.ValidationSetType, map[string]interface{}{
+	vset, err := s.brands.Signing("canonical").Sign(asserts.ValidationSetType, map[string]any{
 		"type":         "validation-set",
 		"authority-id": "canonical",
 		"series":       "16",
 		"account-id":   "canonical",
 		"name":         "vset-1",
 		"sequence":     "1",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":     "required-snap",
 				"id":       s.ss.AssertedSnapID("other"),
 				"presence": "required",
@@ -1776,13 +1776,13 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemRemod
 	tskFinalize := tsks[1]
 	c.Assert(tskCreate.Summary(), Matches, `Create recovery system with label "1234"`)
 	c.Check(tskFinalize.Summary(), Matches, `Finalize recovery system with label "1234"`)
-	var systemSetupData map[string]interface{}
+	var systemSetupData map[string]any
 	err = tskCreate.Get("recovery-system-setup", &systemSetupData)
 	c.Assert(err, IsNil)
-	c.Assert(systemSetupData, DeepEquals, map[string]interface{}{
+	c.Assert(systemSetupData, DeepEquals, map[string]any{
 		"label":            "1234",
 		"directory":        filepath.Join(boot.InitramfsUbuntuSeedDir, "systems/1234"),
-		"snap-setup-tasks": []interface{}{tSnapsup1.ID(), tSnapsup2.ID()},
+		"snap-setup-tasks": []any{tSnapsup1.ID(), tSnapsup2.ID()},
 		"test-system":      true,
 	})
 	tss.WaitFor(tSnapsup1)
@@ -1795,30 +1795,30 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemRemod
 
 	// downloads are only accepted if the tasks are executed as part of
 	// remodel, so procure a new model
-	newModel := s.brands.Model("canonical", "pc-20", map[string]interface{}{
+	newModel := s.brands.Model("canonical", "pc-20", map[string]any{
 		"architecture": "amd64",
 		// UC20
 		"grade": "dangerous",
 		"base":  "core20",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":            "pc-kernel",
 				"id":              s.ss.AssertedSnapID("pc-kernel"),
 				"type":            "kernel",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "pc",
 				"id":              s.ss.AssertedSnapID("pc"),
 				"type":            "gadget",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":     "foo",
 				"id":       s.ss.AssertedSnapID("foo"),
 				"presence": "required",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":     "bar",
 				"presence": "required",
 			},
@@ -1942,10 +1942,10 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemRemod
 	c.Assert(tskCreate.Summary(), Matches, `Create recovery system with label "1234"`)
 	c.Check(tskFinalize.Summary(), Matches, `Finalize recovery system with label "1234"`)
 
-	var systemSetupData map[string]interface{}
+	var systemSetupData map[string]any
 	err = tskCreate.Get("recovery-system-setup", &systemSetupData)
 	c.Assert(err, IsNil)
-	c.Assert(systemSetupData, DeepEquals, map[string]interface{}{
+	c.Assert(systemSetupData, DeepEquals, map[string]any{
 		"label":       "1234",
 		"directory":   filepath.Join(boot.InitramfsUbuntuSeedDir, "systems/1234"),
 		"test-system": true,
@@ -1956,32 +1956,32 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemRemod
 
 	// downloads are only accepted if the tasks are executed as part of
 	// remodel, so procure a new model
-	newModel := s.brands.Model("canonical", "pc-20", map[string]interface{}{
+	newModel := s.brands.Model("canonical", "pc-20", map[string]any{
 		"architecture": "amd64",
 		// UC20
 		"grade": "dangerous",
 		"base":  "core20",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":            "pc-kernel",
 				"id":              s.ss.AssertedSnapID("pc-kernel"),
 				"type":            "kernel",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "pc",
 				"id":              s.ss.AssertedSnapID("pc"),
 				"type":            "gadget",
 				"default-channel": "20",
 			},
 		},
-		"validation-sets": []interface{}{
-			map[string]interface{}{
+		"validation-sets": []any{
+			map[string]any{
 				"account-id": "canonical",
 				"name":       "vset-1",
 				"mode":       "enforce",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"account-id": "canonical",
 				"name":       "vset-2",
 				"sequence":   "2",
@@ -1993,15 +1993,15 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemRemod
 
 	chg.Set("new-model", string(asserts.Encode(newModel)))
 
-	setSnaps := []interface{}{
-		map[string]interface{}{
+	setSnaps := []any{
+		map[string]any{
 			"id":       snaptest.AssertedSnapID("some-snap"),
 			"name":     "some-snap",
 			"presence": "invalid",
 		},
 	}
 
-	setOne := map[string]interface{}{
+	setOne := map[string]any{
 		"series":       "16",
 		"account-id":   "canonical",
 		"authority-id": "canonical",
@@ -2013,7 +2013,7 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemRemod
 		"revision":     "1",
 	}
 
-	setTwo := map[string]interface{}{
+	setTwo := map[string]any{
 		"series":       "16",
 		"account-id":   "canonical",
 		"authority-id": "canonical",
@@ -2155,13 +2155,13 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemRemod
 	tskFinalize := tsks[1]
 	c.Assert(tskCreate.Summary(), Matches, `Create recovery system with label "1234missingdownload"`)
 	c.Check(tskFinalize.Summary(), Matches, `Finalize recovery system with label "1234missingdownload"`)
-	var systemSetupData map[string]interface{}
+	var systemSetupData map[string]any
 	err = tskCreate.Get("recovery-system-setup", &systemSetupData)
 	c.Assert(err, IsNil)
-	c.Assert(systemSetupData, DeepEquals, map[string]interface{}{
+	c.Assert(systemSetupData, DeepEquals, map[string]any{
 		"label":            "1234missingdownload",
 		"directory":        filepath.Join(boot.InitramfsUbuntuSeedDir, "systems/1234missingdownload"),
-		"snap-setup-tasks": []interface{}{tSnapsup1.ID()},
+		"snap-setup-tasks": []any{tSnapsup1.ID()},
 		"test-system":      true,
 	})
 	tss.WaitFor(tSnapsup1)
@@ -2172,26 +2172,26 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemRemod
 
 	// downloads are only accepted if the tasks are executed as part of
 	// remodel, so procure a new model
-	newModel := s.brands.Model("canonical", "pc-20", map[string]interface{}{
+	newModel := s.brands.Model("canonical", "pc-20", map[string]any{
 		"architecture": "amd64",
 		// UC20
 		"grade": "dangerous",
 		"base":  "core20",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":            "pc-kernel",
 				"id":              s.ss.AssertedSnapID("pc-kernel"),
 				"type":            "kernel",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "pc",
 				"id":              s.ss.AssertedSnapID("pc"),
 				"type":            "gadget",
 				"default-channel": "20",
 			},
 			// we have a download task for snap foo, but not for bar
-			map[string]interface{}{
+			map[string]any{
 				"name":     "bar",
 				"presence": "required",
 			},
@@ -2902,29 +2902,29 @@ func (s *modelAndGadgetInfoSuite) makeMockUC20SeedWithGadgetYaml(c *C, label, ga
 	}
 	seed20.MakeAssertedSnap(c, "name: pc\nversion: 1\ntype: gadget\nbase: core20", gadgetFiles, snap.R(1), "my-brand", s.storeSigning.Database)
 
-	headers := map[string]interface{}{
+	headers := map[string]any{
 		"display-name": "my fancy model",
 		"architecture": "amd64",
 		"base":         "core20",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name": "snapd",
 				"id":   seed20.AssertedSnapID("snapd"),
 				"type": "snapd",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "pc-kernel",
 				"id":              seed20.AssertedSnapID("pc-kernel"),
 				"type":            "kernel",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "pc",
 				"id":              seed20.AssertedSnapID("pc"),
 				"type":            "gadget",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "optional-snap",
 				"presence":        "optional",
 				"id":              seed20.AssertedSnapID("optional-snap"),
@@ -3098,33 +3098,33 @@ func fakeSnapID(name string) string {
 func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemValidationSetsSnapInvalid(c *C) {
 	devicestate.SetBootOkRan(s.mgr, true)
 
-	vset1, err := s.brands.Signing("canonical").Sign(asserts.ValidationSetType, map[string]interface{}{
+	vset1, err := s.brands.Signing("canonical").Sign(asserts.ValidationSetType, map[string]any{
 		"type":         "validation-set",
 		"authority-id": "canonical",
 		"series":       "16",
 		"account-id":   "canonical",
 		"name":         "vset-1",
 		"sequence":     "1",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":     "snapd",
 				"id":       fakeSnapID("snapd"),
 				"revision": "12",
 				"presence": "required",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":     "core22",
 				"id":       fakeSnapID("core20"),
 				"revision": "12",
 				"presence": "required",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":     "pc",
 				"id":       fakeSnapID("pc"),
 				"revision": "12",
 				"presence": "required",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":     "pc-kernel",
 				"id":       fakeSnapID("pc-kernel"),
 				"presence": "invalid",
@@ -3146,15 +3146,15 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemValid
 func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemValidationSetsConflict(c *C) {
 	devicestate.SetBootOkRan(s.mgr, true)
 
-	vset1, err := s.brands.Signing("canonical").Sign(asserts.ValidationSetType, map[string]interface{}{
+	vset1, err := s.brands.Signing("canonical").Sign(asserts.ValidationSetType, map[string]any{
 		"type":         "validation-set",
 		"authority-id": "canonical",
 		"series":       "16",
 		"account-id":   "canonical",
 		"name":         "vset-1",
 		"sequence":     "1",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":     "pc",
 				"id":       fakeSnapID("pc"),
 				"revision": "12",
@@ -3165,15 +3165,15 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemValid
 	}, nil, "")
 	c.Assert(err, IsNil)
 
-	vset2, err := s.brands.Signing("canonical").Sign(asserts.ValidationSetType, map[string]interface{}{
+	vset2, err := s.brands.Signing("canonical").Sign(asserts.ValidationSetType, map[string]any{
 		"type":         "validation-set",
 		"authority-id": "canonical",
 		"series":       "16",
 		"account-id":   "canonical",
 		"name":         "vset-2",
 		"sequence":     "1",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":     "pc",
 				"id":       fakeSnapID("pc"),
 				"revision": "13",
@@ -3203,37 +3203,37 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemValid
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	s.model = s.makeModelAssertionInState(c, "canonical", "pc-20", map[string]interface{}{
+	s.model = s.makeModelAssertionInState(c, "canonical", "pc-20", map[string]any{
 		"architecture": "amd64",
 		"grade":        "dangerous",
 		"base":         "core20",
 		"revision":     "2",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":            "pc-kernel",
 				"id":              s.ss.AssertedSnapID("pc-kernel"),
 				"type":            "kernel",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "pc",
 				"id":              s.ss.AssertedSnapID("pc"),
 				"type":            "gadget",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name": "core20",
 				"id":   s.ss.AssertedSnapID("core20"),
 				"type": "base",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name": "snapd",
 				"id":   s.ss.AssertedSnapID("snapd"),
 				"type": "snapd",
 			},
 		},
-		"validation-sets": []interface{}{
-			map[string]interface{}{
+		"validation-sets": []any{
+			map[string]any{
 				"account-id": "canonical",
 				"name":       "vset-model",
 				"mode":       "enforce",
@@ -3241,15 +3241,15 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemValid
 		},
 	})
 
-	vsetModel, err := s.brands.Signing("canonical").Sign(asserts.ValidationSetType, map[string]interface{}{
+	vsetModel, err := s.brands.Signing("canonical").Sign(asserts.ValidationSetType, map[string]any{
 		"type":         "validation-set",
 		"authority-id": "canonical",
 		"series":       "16",
 		"account-id":   "canonical",
 		"name":         "vset-model",
 		"sequence":     "1",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":     "pc",
 				"id":       fakeSnapID("pc"),
 				"revision": "12",
@@ -3268,15 +3268,15 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemValid
 		Current:   1,
 	})
 
-	vset1, err := s.brands.Signing("canonical").Sign(asserts.ValidationSetType, map[string]interface{}{
+	vset1, err := s.brands.Signing("canonical").Sign(asserts.ValidationSetType, map[string]any{
 		"type":         "validation-set",
 		"authority-id": "canonical",
 		"series":       "16",
 		"account-id":   "canonical",
 		"name":         "vset-1",
 		"sequence":     "1",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":     "pc",
 				"id":       fakeSnapID("pc"),
 				"revision": "13",
@@ -3430,43 +3430,43 @@ func (s *deviceMgrSystemsCreateSuite) testDeviceManagerCreateRecoverySystemValid
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	s.model = s.makeModelAssertionInState(c, "canonical", "pc-20", map[string]interface{}{
+	s.model = s.makeModelAssertionInState(c, "canonical", "pc-20", map[string]any{
 		"architecture": "amd64",
 		"grade":        "dangerous",
 		"base":         "core20",
 		"revision":     "2",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":            "pc-kernel",
 				"id":              s.ss.AssertedSnapID("pc-kernel"),
 				"type":            "kernel",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "pc",
 				"id":              s.ss.AssertedSnapID("pc"),
 				"type":            "gadget",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name": "core20",
 				"id":   s.ss.AssertedSnapID("core20"),
 				"type": "base",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name": "snapd",
 				"id":   s.ss.AssertedSnapID("snapd"),
 				"type": "snapd",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":     "other-required",
 				"id":       s.ss.AssertedSnapID("other-required"),
 				"type":     "app",
 				"presence": "optional",
 			},
 		},
-		"validation-sets": []interface{}{
-			map[string]interface{}{
+		"validation-sets": []any{
+			map[string]any{
 				"account-id": "canonical",
 				"name":       "vset-model",
 				"mode":       "enforce",
@@ -3474,15 +3474,15 @@ func (s *deviceMgrSystemsCreateSuite) testDeviceManagerCreateRecoverySystemValid
 		},
 	})
 
-	vsetModel, err := s.brands.Signing("canonical").Sign(asserts.ValidationSetType, map[string]interface{}{
+	vsetModel, err := s.brands.Signing("canonical").Sign(asserts.ValidationSetType, map[string]any{
 		"type":         "validation-set",
 		"authority-id": "canonical",
 		"series":       "16",
 		"account-id":   "canonical",
 		"name":         "vset-model",
 		"sequence":     "1",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":     "pc",
 				"id":       fakeSnapID("pc"),
 				"presence": "required",
@@ -3518,33 +3518,33 @@ func (s *deviceMgrSystemsCreateSuite) testDeviceManagerCreateRecoverySystemValid
 
 	var validationSets []*asserts.ValidationSet
 
-	vsetAssert, err := s.brands.Signing("canonical").Sign(asserts.ValidationSetType, map[string]interface{}{
+	vsetAssert, err := s.brands.Signing("canonical").Sign(asserts.ValidationSetType, map[string]any{
 		"type":         "validation-set",
 		"authority-id": "canonical",
 		"series":       "16",
 		"account-id":   "canonical",
 		"name":         "vset-1",
 		"sequence":     "1",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":     "pc",
 				"id":       fakeSnapID("pc"),
 				"revision": snapRevisions["pc"].String(),
 				"presence": "required",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":     "pc-kernel",
 				"id":       fakeSnapID("pc-kernel"),
 				"revision": snapRevisions["pc-kernel"].String(),
 				"presence": "required",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":     "core20",
 				"id":       fakeSnapID("core20"),
 				"revision": snapRevisions["core20"].String(),
 				"presence": "required",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":     "snapd",
 				"id":       fakeSnapID("snapd"),
 				"revision": snapRevisions["snapd"].String(),
@@ -3562,15 +3562,15 @@ func (s *deviceMgrSystemsCreateSuite) testDeviceManagerCreateRecoverySystemValid
 	}
 
 	if opts.RequireOptionalSnapInValidationSet {
-		vsetAssert, err := s.brands.Signing("canonical").Sign(asserts.ValidationSetType, map[string]interface{}{
+		vsetAssert, err := s.brands.Signing("canonical").Sign(asserts.ValidationSetType, map[string]any{
 			"type":         "validation-set",
 			"authority-id": "canonical",
 			"series":       "16",
 			"account-id":   "canonical",
 			"name":         "vset-2",
 			"sequence":     "1",
-			"snaps": []interface{}{
-				map[string]interface{}{
+			"snaps": []any{
+				map[string]any{
 					"name":     "other-required",
 					"id":       fakeSnapID("other-required"),
 					"revision": snapRevisions["other-required"].String(),
@@ -3930,45 +3930,45 @@ func (s *deviceMgrSystemsCreateSuite) testDeviceManagerCreateRecoverySystemValid
 		"pc-kernel-with-kmods": {"kmod"},
 	}
 
-	s.model = s.makeModelAssertionInState(c, "canonical", "pc-20", map[string]interface{}{
+	s.model = s.makeModelAssertionInState(c, "canonical", "pc-20", map[string]any{
 		"architecture": "amd64",
 		"grade":        "dangerous",
 		"base":         "core20",
 		"revision":     "2",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":            "pc-kernel-with-kmods",
 				"id":              s.ss.AssertedSnapID("pc-kernel-with-kmods"),
 				"type":            "kernel",
 				"default-channel": "20",
-				"components": map[string]interface{}{
-					"kmod": map[string]interface{}{
+				"components": map[string]any{
+					"kmod": map[string]any{
 						"presence": opts.kmodModelPresence,
 					},
-					"other-kmod": map[string]interface{}{
+					"other-kmod": map[string]any{
 						"presence": "optional",
 					},
 				},
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "pc",
 				"id":              s.ss.AssertedSnapID("pc"),
 				"type":            "gadget",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name": "core20",
 				"id":   s.ss.AssertedSnapID("core20"),
 				"type": "base",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name": "snapd",
 				"id":   s.ss.AssertedSnapID("snapd"),
 				"type": "snapd",
 			},
 		},
-		"validation-sets": []interface{}{
-			map[string]interface{}{
+		"validation-sets": []any{
+			map[string]any{
 				"account-id": "canonical",
 				"name":       "vset-model",
 				"mode":       "enforce",
@@ -3976,21 +3976,21 @@ func (s *deviceMgrSystemsCreateSuite) testDeviceManagerCreateRecoverySystemValid
 		},
 	})
 
-	vsetModel, err := s.brands.Signing("canonical").Sign(asserts.ValidationSetType, map[string]interface{}{
+	vsetModel, err := s.brands.Signing("canonical").Sign(asserts.ValidationSetType, map[string]any{
 		"type":         "validation-set",
 		"authority-id": "canonical",
 		"series":       "16",
 		"account-id":   "canonical",
 		"name":         "vset-model",
 		"sequence":     "1",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":     "pc-kernel-with-kmods",
 				"id":       fakeSnapID("pc-kernel-with-kmods"),
 				"presence": "required",
 				"revision": "11",
-				"components": map[string]interface{}{
-					"kmod": map[string]interface{}{
+				"components": map[string]any{
+					"kmod": map[string]any{
 						"revision": "20",
 						"presence": opts.kmodVsetPresence,
 					},
@@ -4043,33 +4043,33 @@ func (s *deviceMgrSystemsCreateSuite) testDeviceManagerCreateRecoverySystemValid
 
 	var validationSets []*asserts.ValidationSet
 
-	vsetAssert, err := s.brands.Signing("canonical").Sign(asserts.ValidationSetType, map[string]interface{}{
+	vsetAssert, err := s.brands.Signing("canonical").Sign(asserts.ValidationSetType, map[string]any{
 		"type":         "validation-set",
 		"authority-id": "canonical",
 		"series":       "16",
 		"account-id":   "canonical",
 		"name":         "vset-1",
 		"sequence":     "1",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":     "pc",
 				"id":       fakeSnapID("pc"),
 				"revision": snapRevisions["pc"].String(),
 				"presence": "required",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":     "pc-kernel-with-kmods",
 				"id":       fakeSnapID("pc-kernel-with-kmods"),
 				"revision": snapRevisions["pc-kernel-with-kmods"].String(),
 				"presence": "required",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":     "core20",
 				"id":       fakeSnapID("core20"),
 				"revision": snapRevisions["core20"].String(),
 				"presence": "required",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":     "snapd",
 				"id":       fakeSnapID("snapd"),
 				"revision": snapRevisions["snapd"].String(),
@@ -4460,42 +4460,42 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemValid
 
 	devicestate.SetBootOkRan(s.mgr, true)
 
-	s.model = s.makeModelAssertionInState(c, "canonical", "pc-20", map[string]interface{}{
+	s.model = s.makeModelAssertionInState(c, "canonical", "pc-20", map[string]any{
 		"architecture": "amd64",
 		"grade":        "dangerous",
 		"base":         "core20",
 		"revision":     "2",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":            "pc-kernel-with-kmods",
 				"id":              s.ss.AssertedSnapID("pc-kernel-with-kmods"),
 				"type":            "kernel",
 				"default-channel": "20",
-				"components": map[string]interface{}{
-					"kmod": map[string]interface{}{
+				"components": map[string]any{
+					"kmod": map[string]any{
 						"presence": "required",
 					},
 				},
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "pc",
 				"id":              s.ss.AssertedSnapID("pc"),
 				"type":            "gadget",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name": "core20",
 				"id":   s.ss.AssertedSnapID("core20"),
 				"type": "base",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name": "snapd",
 				"id":   s.ss.AssertedSnapID("snapd"),
 				"type": "snapd",
 			},
 		},
-		"validation-sets": []interface{}{
-			map[string]interface{}{
+		"validation-sets": []any{
+			map[string]any{
 				"account-id": "canonical",
 				"name":       "vset-model",
 				"mode":       "enforce",
@@ -4503,21 +4503,21 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemValid
 		},
 	})
 
-	vset, err := s.brands.Signing("canonical").Sign(asserts.ValidationSetType, map[string]interface{}{
+	vset, err := s.brands.Signing("canonical").Sign(asserts.ValidationSetType, map[string]any{
 		"type":         "validation-set",
 		"authority-id": "canonical",
 		"series":       "16",
 		"account-id":   "canonical",
 		"name":         "vset-model",
 		"sequence":     "1",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":     "pc-kernel-with-kmods",
 				"id":       fakeSnapID("pc-kernel-with-kmods"),
 				"presence": "required",
 				"revision": "11",
-				"components": map[string]interface{}{
-					"kmod": map[string]interface{}{
+				"components": map[string]any{
+					"kmod": map[string]any{
 						"revision": "22",
 						"presence": "required",
 					},
@@ -4806,33 +4806,33 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemValid
 		"snapd":     snap.TypeSnapd,
 	}
 
-	vsetAssert, err := s.brands.Signing("canonical").Sign(asserts.ValidationSetType, map[string]interface{}{
+	vsetAssert, err := s.brands.Signing("canonical").Sign(asserts.ValidationSetType, map[string]any{
 		"type":         "validation-set",
 		"authority-id": "canonical",
 		"series":       "16",
 		"account-id":   "canonical",
 		"name":         "vset-1",
 		"sequence":     "1",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":     "pc",
 				"id":       fakeSnapID("pc"),
 				"revision": snapRevisions["pc"].String(),
 				"presence": "required",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":     "pc-kernel",
 				"id":       fakeSnapID("pc-kernel"),
 				"revision": snapRevisions["pc-kernel"].String(),
 				"presence": "required",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":     "core20",
 				"id":       fakeSnapID("core20"),
 				"revision": snapRevisions["core20"].String(),
 				"presence": "required",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":     "snapd",
 				"id":       fakeSnapID("snapd"),
 				"revision": snapRevisions["snapd"].String(),
@@ -5138,49 +5138,49 @@ func (s *deviceMgrSystemsCreateSuite) testDeviceManagerCreateRecoverySystemValid
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	s.model = s.makeModelAssertionInState(c, "canonical", "pc-20", map[string]interface{}{
+	s.model = s.makeModelAssertionInState(c, "canonical", "pc-20", map[string]any{
 		"architecture": "amd64",
 		"grade":        "dangerous",
 		"base":         "core20",
 		"revision":     "2",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":            "pc-kernel-with-kmods",
 				"id":              s.ss.AssertedSnapID("pc-kernel-with-kmods"),
 				"type":            "kernel",
 				"default-channel": "20",
-				"components": map[string]interface{}{
-					"kmod": map[string]interface{}{
+				"components": map[string]any{
+					"kmod": map[string]any{
 						"presence": opts.kmodModelPresence,
 					},
-					"other-kmod": map[string]interface{}{
+					"other-kmod": map[string]any{
 						"presence": "optional",
 					},
 				},
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "pc",
 				"id":              s.ss.AssertedSnapID("pc"),
 				"type":            "gadget",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name": "core20",
 				"id":   s.ss.AssertedSnapID("core20"),
 				"type": "base",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name": "snapd",
 				"id":   s.ss.AssertedSnapID("snapd"),
 				"type": "snapd",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":     "snap-with-components",
 				"id":       s.ss.AssertedSnapID("snap-with-components"),
 				"type":     "app",
 				"presence": "optional",
-				"components": map[string]interface{}{
-					"comp-1": map[string]interface{}{
+				"components": map[string]any{
+					"comp-1": map[string]any{
 						"presence": "optional",
 					},
 				},
@@ -5188,32 +5188,32 @@ func (s *deviceMgrSystemsCreateSuite) testDeviceManagerCreateRecoverySystemValid
 		},
 	})
 
-	vset, err := s.brands.Signing("canonical").Sign(asserts.ValidationSetType, map[string]interface{}{
+	vset, err := s.brands.Signing("canonical").Sign(asserts.ValidationSetType, map[string]any{
 		"type":         "validation-set",
 		"authority-id": "canonical",
 		"series":       "16",
 		"account-id":   "canonical",
 		"name":         "vset-1",
 		"sequence":     "1",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":     "pc-kernel-with-kmods",
 				"id":       fakeSnapID("pc-kernel-with-kmods"),
 				"revision": snapRevisions["pc-kernel-with-kmods"].String(),
 				"presence": "required",
-				"components": map[string]interface{}{
-					"kmod": map[string]interface{}{
+				"components": map[string]any{
+					"kmod": map[string]any{
 						"presence": opts.kmodVsetPresence,
 						"revision": componentRevisions[naming.NewComponentRef("pc-kernel-with-kmods", "kmod")].String(),
 					},
 				},
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":     "snap-with-components",
 				"id":       fakeSnapID("snap-with-components"),
 				"presence": "optional",
-				"components": map[string]interface{}{
-					"comp-1": map[string]interface{}{
+				"components": map[string]any{
+					"comp-1": map[string]any{
 						"presence": "optional",
 					},
 				},
@@ -5331,33 +5331,33 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemValid
 		"snapd":     snap.TypeSnapd,
 	}
 
-	vsetAssert, err := s.brands.Signing("canonical").Sign(asserts.ValidationSetType, map[string]interface{}{
+	vsetAssert, err := s.brands.Signing("canonical").Sign(asserts.ValidationSetType, map[string]any{
 		"type":         "validation-set",
 		"authority-id": "canonical",
 		"series":       "16",
 		"account-id":   "canonical",
 		"name":         "vset-1",
 		"sequence":     "1",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":     "pc",
 				"id":       fakeSnapID("pc"),
 				"revision": expectedRevisions["pc"].String(),
 				"presence": "required",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":     "pc-kernel",
 				"id":       fakeSnapID("pc-kernel"),
 				"revision": expectedRevisions["pc-kernel"].String(),
 				"presence": "required",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":     "core20",
 				"id":       fakeSnapID("core20"),
 				"revision": expectedRevisions["core20"].String(),
 				"presence": "required",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":     "snapd",
 				"id":       fakeSnapID("snapd"),
 				"revision": expectedRevisions["snapd"].String(),
@@ -5399,35 +5399,35 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemOffli
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	s.model = s.makeModelAssertionInState(c, "canonical", "pc-20", map[string]interface{}{
+	s.model = s.makeModelAssertionInState(c, "canonical", "pc-20", map[string]any{
 		"architecture": "amd64",
 		"grade":        "dangerous",
 		"base":         "core24",
 		"revision":     "2",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":            "pc-kernel-with-kmods",
 				"id":              s.ss.AssertedSnapID("pc-kernel-with-kmods"),
 				"type":            "kernel",
 				"default-channel": "20",
-				"components": map[string]interface{}{
-					"kmod": map[string]interface{}{
+				"components": map[string]any{
+					"kmod": map[string]any{
 						"presence": "required",
 					},
 				},
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "pc",
 				"id":              s.ss.AssertedSnapID("pc"),
 				"type":            "gadget",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name": "core24",
 				"id":   s.ss.AssertedSnapID("core24"),
 				"type": "base",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name": "snapd",
 				"id":   s.ss.AssertedSnapID("snapd"),
 				"type": "snapd",
@@ -5478,35 +5478,35 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemOffli
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	s.model = s.makeModelAssertionInState(c, "canonical", "pc-20", map[string]interface{}{
+	s.model = s.makeModelAssertionInState(c, "canonical", "pc-20", map[string]any{
 		"architecture": "amd64",
 		"grade":        "dangerous",
 		"base":         "core24",
 		"revision":     "2",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":            "pc-kernel-with-kmods",
 				"id":              s.ss.AssertedSnapID("pc-kernel-with-kmods"),
 				"type":            "kernel",
 				"default-channel": "20",
-				"components": map[string]interface{}{
-					"kmod": map[string]interface{}{
+				"components": map[string]any{
+					"kmod": map[string]any{
 						"presence": "required",
 					},
 				},
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "pc",
 				"id":              s.ss.AssertedSnapID("pc"),
 				"type":            "gadget",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name": "core24",
 				"id":   s.ss.AssertedSnapID("core24"),
 				"type": "base",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name": "snapd",
 				"id":   s.ss.AssertedSnapID("snapd"),
 				"type": "snapd",
@@ -5514,21 +5514,21 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemOffli
 		},
 	})
 
-	vsetAssert, err := s.brands.Signing("canonical").Sign(asserts.ValidationSetType, map[string]interface{}{
+	vsetAssert, err := s.brands.Signing("canonical").Sign(asserts.ValidationSetType, map[string]any{
 		"type":         "validation-set",
 		"authority-id": "canonical",
 		"series":       "16",
 		"account-id":   "canonical",
 		"name":         "vset-1",
 		"sequence":     "1",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":     "pc-kernel-with-kmods",
 				"id":       fakeSnapID("pc-kernel-with-kmods"),
 				"presence": "required",
 				"revision": "11",
-				"components": map[string]interface{}{
-					"kmod": map[string]interface{}{
+				"components": map[string]any{
+					"kmod": map[string]any{
 						"revision": "33",
 						"presence": "required",
 					},
@@ -5597,29 +5597,29 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemMissi
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	s.model = s.makeModelAssertionInState(c, "canonical", "pc-20", map[string]interface{}{
+	s.model = s.makeModelAssertionInState(c, "canonical", "pc-20", map[string]any{
 		"architecture": "amd64",
 		"grade":        "dangerous",
 		"base":         "core20",
 		"revision":     "10",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":            "pc-kernel",
 				"id":              s.ss.AssertedSnapID("pc-kernel"),
 				"type":            "kernel",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "pc",
 				"type":            "gadget",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name": "core20",
 				"id":   s.ss.AssertedSnapID("core20"),
 				"type": "base",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name": "snapd",
 				"id":   s.ss.AssertedSnapID("snapd"),
 				"type": "snapd",
@@ -5731,33 +5731,33 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemValid
 		"snapd":     snap.TypeSnapd,
 	}
 
-	vsetAssert, err := s.brands.Signing("canonical").Sign(asserts.ValidationSetType, map[string]interface{}{
+	vsetAssert, err := s.brands.Signing("canonical").Sign(asserts.ValidationSetType, map[string]any{
 		"type":         "validation-set",
 		"authority-id": "canonical",
 		"series":       "16",
 		"account-id":   "canonical",
 		"name":         "vset-1",
 		"sequence":     "1",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":     "pc",
 				"id":       fakeSnapID("pc"),
 				"revision": expectedRevisions["pc"].String(),
 				"presence": "required",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":     "pc-kernel",
 				"id":       fakeSnapID("pc-kernel"),
 				"revision": expectedRevisions["pc-kernel"].String(),
 				"presence": "required",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":     "core20",
 				"id":       fakeSnapID("core20"),
 				"revision": expectedRevisions["core20"].String(),
 				"presence": "required",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":     "snapd",
 				"id":       fakeSnapID("snapd"),
 				"revision": expectedRevisions["snapd"].String(),
@@ -5810,33 +5810,33 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemValid
 		"snapd":     snap.TypeSnapd,
 	}
 
-	vsetAssert, err := s.brands.Signing("canonical").Sign(asserts.ValidationSetType, map[string]interface{}{
+	vsetAssert, err := s.brands.Signing("canonical").Sign(asserts.ValidationSetType, map[string]any{
 		"type":         "validation-set",
 		"authority-id": "canonical",
 		"series":       "16",
 		"account-id":   "canonical",
 		"name":         "vset-1",
 		"sequence":     "1",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":     "pc",
 				"id":       fakeSnapID("pc"),
 				"revision": snapRevisions["pc"].String(),
 				"presence": "required",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":     "pc-kernel",
 				"id":       fakeSnapID("pc-kernel"),
 				"revision": snapRevisions["pc-kernel"].String(),
 				"presence": "required",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":     "core20",
 				"id":       fakeSnapID("core20"),
 				"revision": snapRevisions["core20"].String(),
 				"presence": "required",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":     "snapd",
 				"id":       fakeSnapID("snapd"),
 				"revision": snapRevisions["snapd"].String(),
@@ -5938,33 +5938,33 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemValid
 		"snapd":     snap.R(13),
 	}
 
-	vsetAssert, err := s.brands.Signing("canonical").Sign(asserts.ValidationSetType, map[string]interface{}{
+	vsetAssert, err := s.brands.Signing("canonical").Sign(asserts.ValidationSetType, map[string]any{
 		"type":         "validation-set",
 		"authority-id": "canonical",
 		"series":       "16",
 		"account-id":   "canonical",
 		"name":         "vset-1",
 		"sequence":     "1",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":     "pc",
 				"id":       fakeSnapID("pc"),
 				"revision": snapRevisions["pc"].String(),
 				"presence": "required",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":     "pc-kernel",
 				"id":       fakeSnapID("pc-kernel"),
 				"revision": snapRevisions["pc-kernel"].String(),
 				"presence": "required",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":     "core20",
 				"id":       fakeSnapID("core20"),
 				"revision": snapRevisions["core20"].String(),
 				"presence": "required",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":     "snapd",
 				"id":       fakeSnapID("snapd"),
 				"revision": snapRevisions["snapd"].String(),
@@ -6228,33 +6228,33 @@ func (s *deviceMgrSystemsCreateSuite) testRemoveRecoverySystem(c *C, mockRetry b
 		s.makeSnapInState(c, name, rev, [][]string{{"random-file", "random-content"}}, nil)
 	}
 
-	vsetAssert, err := s.brands.Signing("canonical").Sign(asserts.ValidationSetType, map[string]interface{}{
+	vsetAssert, err := s.brands.Signing("canonical").Sign(asserts.ValidationSetType, map[string]any{
 		"type":         "validation-set",
 		"authority-id": "canonical",
 		"series":       "16",
 		"account-id":   "canonical",
 		"name":         "vset-1",
 		"sequence":     "1",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":     "pc",
 				"id":       fakeSnapID("pc"),
 				"revision": snapRevisions["pc"].String(),
 				"presence": "required",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":     "pc-kernel",
 				"id":       fakeSnapID("pc-kernel"),
 				"revision": snapRevisions["pc-kernel"].String(),
 				"presence": "required",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":     "core20",
 				"id":       fakeSnapID("core20"),
 				"revision": snapRevisions["core20"].String(),
 				"presence": "required",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":     "snapd",
 				"id":       fakeSnapID("snapd"),
 				"revision": snapRevisions["snapd"].String(),

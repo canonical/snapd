@@ -102,7 +102,7 @@ func handleTimezoneConfiguration(_ sysconfig.Device, tr ConfGetter, opts *fsOnly
 	return nil
 }
 
-func getTimezoneFromSystemVC(key string) (interface{}, error) {
+func getTimezoneFromSystemVC(key string) (any, error) {
 	return getTimezoneFromSystem()
 }
 

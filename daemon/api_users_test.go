@@ -498,7 +498,7 @@ func (s *userSuite) testCreateUser(c *check.C, oldWay bool) {
 	})()
 
 	var req *http.Request
-	var expected interface{}
+	var expected any
 	expectedItem := daemon.UserResponseData{
 		Username: expectedUsername,
 		SSHKeys: []string{
@@ -687,7 +687,7 @@ func (s *userSuite) TestPostUserActionRemove(c *check.C) {
 	expected := []daemon.UserResponseData{
 		{ID: expectedID, Username: expectedUsername, Email: expectedEmail},
 	}
-	c.Check(rsp.Result, check.DeepEquals, map[string]interface{}{
+	c.Check(rsp.Result, check.DeepEquals, map[string]any{
 		"removed": expected,
 	})
 	c.Check(called, check.Equals, 1)
@@ -696,7 +696,7 @@ func (s *userSuite) TestPostUserActionRemove(c *check.C) {
 func (s *userSuite) setupSigner(accountID string, signerPrivKey asserts.PrivateKey) *assertstest.SigningDB {
 	st := s.d.Overlord().State()
 
-	signerSigning := s.Brands.Register(accountID, signerPrivKey, map[string]interface{}{
+	signerSigning := s.Brands.Register(accountID, signerPrivKey, map[string]any{
 		"account-id":   accountID,
 		"verification": "verified",
 	})
@@ -713,7 +713,7 @@ var (
 	unknownPrivKey, _ = assertstest.GenerateKey(752)
 )
 
-func (s *userSuite) makeSystemUsers(c *check.C, systemUsers []map[string]interface{}) {
+func (s *userSuite) makeSystemUsers(c *check.C, systemUsers []map[string]any) {
 	st := s.d.Overlord().State()
 	st.Lock()
 	defer st.Unlock()
@@ -724,12 +724,12 @@ func (s *userSuite) makeSystemUsers(c *check.C, systemUsers []map[string]interfa
 	s.setupSigner("partner", partnerPrivKey)
 	s.setupSigner("unknown", unknownPrivKey)
 
-	model := s.Brands.Model("my-brand", "my-model", map[string]interface{}{
+	model := s.Brands.Model("my-brand", "my-model", map[string]any{
 		"architecture":          "amd64",
 		"gadget":                "pc",
 		"kernel":                "pc-kernel",
-		"required-snaps":        []interface{}{"required-snap1"},
-		"system-user-authority": []interface{}{"my-brand", "partner"},
+		"required-snaps":        []any{"required-snap1"},
+		"system-user-authority": []any{"my-brand", "partner"},
 	})
 	// now add model related stuff to the system
 	assertstatetest.AddMany(st, model)
@@ -737,7 +737,7 @@ func (s *userSuite) makeSystemUsers(c *check.C, systemUsers []map[string]interfa
 	deviceKey, _ := assertstest.GenerateKey(752)
 	encDevKey, err := asserts.EncodePublicKey(deviceKey.PublicKey())
 	c.Assert(err, check.IsNil)
-	serial, err := s.Brands.Signing("my-brand").Sign(asserts.SerialType, map[string]interface{}{
+	serial, err := s.Brands.Signing("my-brand").Sign(asserts.SerialType, map[string]any{
 		"authority-id":        "my-brand",
 		"brand-id":            "my-brand",
 		"model":               "my-model",
@@ -765,12 +765,12 @@ func (s *userSuite) makeSystemUsers(c *check.C, systemUsers []map[string]interfa
 	c.Assert(err, check.IsNil)
 }
 
-var goodUser = map[string]interface{}{
+var goodUser = map[string]any{
 	"authority-id": "my-brand",
 	"brand-id":     "my-brand",
 	"email":        "foo@bar.com",
-	"series":       []interface{}{"16", "18"},
-	"models":       []interface{}{"my-model", "other-model"},
+	"series":       []any{"16", "18"},
+	"models":       []any{"my-model", "other-model"},
 	"name":         "Boring Guy",
 	"username":     "guy",
 	"password":     "$6$salt$hash",
@@ -778,12 +778,12 @@ var goodUser = map[string]interface{}{
 	"until":        time.Now().Add(24 * 30 * time.Hour).Format(time.RFC3339),
 }
 
-var partnerUser = map[string]interface{}{
+var partnerUser = map[string]any{
 	"authority-id": "partner",
 	"brand-id":     "my-brand",
 	"email":        "p@partner.com",
-	"series":       []interface{}{"16", "18"},
-	"models":       []interface{}{"my-model"},
+	"series":       []any{"16", "18"},
+	"models":       []any{"my-model"},
 	"name":         "Partner Guy",
 	"username":     "partnerguy",
 	"password":     "$6$salt$hash",
@@ -791,14 +791,14 @@ var partnerUser = map[string]interface{}{
 	"until":        time.Now().Add(24 * 30 * time.Hour).Format(time.RFC3339),
 }
 
-var serialUser = map[string]interface{}{
+var serialUser = map[string]any{
 	"format":       "1",
 	"authority-id": "my-brand",
 	"brand-id":     "my-brand",
 	"email":        "serial@bar.com",
-	"series":       []interface{}{"16", "18"},
-	"models":       []interface{}{"my-model"},
-	"serials":      []interface{}{"serialserial"},
+	"series":       []any{"16", "18"},
+	"models":       []any{"my-model"},
+	"serials":      []any{"serialserial"},
 	"name":         "Serial Guy",
 	"username":     "goodserialguy",
 	"password":     "$6$salt$hash",
@@ -806,13 +806,13 @@ var serialUser = map[string]interface{}{
 	"until":        time.Now().Add(24 * 30 * time.Hour).Format(time.RFC3339),
 }
 
-var badUser = map[string]interface{}{
+var badUser = map[string]any{
 	// bad user (not valid for this model)
 	"authority-id": "my-brand",
 	"brand-id":     "my-brand",
 	"email":        "foobar@bar.com",
-	"series":       []interface{}{"16", "18"},
-	"models":       []interface{}{"non-of-the-models-i-have"},
+	"series":       []any{"16", "18"},
+	"models":       []any{"non-of-the-models-i-have"},
 	"name":         "Random Gal",
 	"username":     "gal",
 	"password":     "$6$salt$hash",
@@ -820,14 +820,14 @@ var badUser = map[string]interface{}{
 	"until":        time.Now().Add(24 * 30 * time.Hour).Format(time.RFC3339),
 }
 
-var badUserNoMatchingSerial = map[string]interface{}{
+var badUserNoMatchingSerial = map[string]any{
 	"format":       "1",
 	"authority-id": "my-brand",
 	"brand-id":     "my-brand",
 	"email":        "noserial@bar.com",
-	"series":       []interface{}{"16", "18"},
-	"models":       []interface{}{"my-model"},
-	"serials":      []interface{}{"different-serialserial"},
+	"series":       []any{"16", "18"},
+	"models":       []any{"my-model"},
+	"serials":      []any{"different-serialserial"},
 	"name":         "No Serial Guy",
 	"username":     "noserial",
 	"password":     "$6$salt$hash",
@@ -835,12 +835,12 @@ var badUserNoMatchingSerial = map[string]interface{}{
 	"until":        time.Now().Add(24 * 30 * time.Hour).Format(time.RFC3339),
 }
 
-var unknownUser = map[string]interface{}{
+var unknownUser = map[string]any{
 	"authority-id": "unknown",
 	"brand-id":     "my-brand",
 	"email":        "x@partner.com",
-	"series":       []interface{}{"16", "18"},
-	"models":       []interface{}{"my-model"},
+	"series":       []any{"16", "18"},
+	"models":       []any{"my-model"},
 	"name":         "XGuy",
 	"username":     "xguy",
 	"password":     "$6$salt$hash",
@@ -852,7 +852,7 @@ func (s *userSuite) TestPostCreateUserFromAssertionAllKnownClassicErrors(c *chec
 	restore := release.MockOnClassic(true)
 	defer restore()
 
-	s.makeSystemUsers(c, []map[string]interface{}{goodUser})
+	s.makeSystemUsers(c, []map[string]any{goodUser})
 
 	// do it!
 	buf := bytes.NewBufferString(`{"known":true}`)
@@ -864,7 +864,7 @@ func (s *userSuite) TestPostCreateUserFromAssertionAllKnownClassicErrors(c *chec
 }
 
 func (s *userSuite) TestPostCreateUserFromAssertionAllKnownButOwnedErrors(c *check.C) {
-	s.makeSystemUsers(c, []map[string]interface{}{goodUser})
+	s.makeSystemUsers(c, []map[string]any{goodUser})
 
 	st := s.d.Overlord().State()
 	st.Lock()
@@ -887,7 +887,7 @@ func (s *userSuite) TestPostCreateUserFromAssertionAllKnownButOwnedErrors(c *che
 }
 
 func (s *userSuite) TestPostCreateUserAutomaticManagedDoesNotActOrError(c *check.C) {
-	s.makeSystemUsers(c, []map[string]interface{}{goodUser})
+	s.makeSystemUsers(c, []map[string]any{goodUser})
 
 	st := s.d.Overlord().State()
 	st.Lock()
@@ -914,7 +914,7 @@ func (s *userSuite) TestPostCreateUserAutomaticManagedDoesNotActOrError(c *check
 }
 
 func (s *userSuite) TestPostCreateUserAutomaticDisabled(c *check.C) {
-	s.makeSystemUsers(c, []map[string]interface{}{goodUser})
+	s.makeSystemUsers(c, []map[string]any{goodUser})
 
 	// disable automatic user creation
 	st := s.d.Overlord().State()
@@ -1053,7 +1053,7 @@ func (s *userSuite) TestUsersHasUser(c *check.C) {
 }
 
 func (s *userSuite) testPostCreateUserFromAssertion(c *check.C, postData string, expectSudoer bool) {
-	s.makeSystemUsers(c, []map[string]interface{}{goodUser, partnerUser, serialUser, badUser, badUserNoMatchingSerial, unknownUser})
+	s.makeSystemUsers(c, []map[string]any{goodUser, partnerUser, serialUser, badUser, badUserNoMatchingSerial, unknownUser})
 
 	// mock the calls that create the user
 	var deviceStateCreateUserCalled bool

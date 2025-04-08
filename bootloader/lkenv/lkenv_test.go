@@ -312,7 +312,7 @@ func (l *lkenvTestSuite) TestLoadValidatesCRC32(c *C) {
 
 		// make an out of band lkenv object and set the wrong signature to be
 		// able to export it to a file
-		var rawStruct interface{}
+		var rawStruct any
 		switch version {
 		case lkenv.V1:
 			rawStruct = lkenv.SnapBootSelect_v1{
@@ -474,7 +474,7 @@ func (l *lkenvTestSuite) TestLoadValidatesVersionSignatureConsistency(c *C) {
 
 		// make an out of band lkenv object and set the wrong signature to be
 		// able to export it to a file
-		var rawStruct interface{}
+		var rawStruct any
 		switch t.version {
 		case lkenv.V1:
 			rawStruct = lkenv.SnapBootSelect_v1{

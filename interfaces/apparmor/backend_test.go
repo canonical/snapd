@@ -445,7 +445,7 @@ func (s *backendSuite) TestTimings(c *C) {
 		defer st.Unlock()
 		perf.Save(st)
 
-		var allTimings []map[string]interface{}
+		var allTimings []map[string]any
 		c.Assert(st.Get("timings", &allTimings), IsNil)
 		c.Assert(allTimings, HasLen, 1)
 
@@ -453,9 +453,9 @@ func (s *backendSuite) TestTimings(c *C) {
 		c.Assert(ok, Equals, true)
 
 		c.Assert(timings, HasLen, 2)
-		timingsList, ok := timings.([]interface{})
+		timingsList, ok := timings.([]any)
 		c.Assert(ok, Equals, true)
-		tm := timingsList[0].(map[string]interface{})
+		tm := timingsList[0].(map[string]any)
 		c.Check(tm["label"], Equals, "load-profiles[changed]")
 
 		s.RemoveSnap(c, snapInfo)
