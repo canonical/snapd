@@ -41,8 +41,7 @@ class LockOpTraceFileReader:
             # Remove the file and line numbers
             # Line numbers could easily change over time
             # File paths could include snap versions which used to change
-            function_lines = [line.split(":", 2)[-1].split(" ", 1)[1] for line
-                              in cleaned_lines]
+            function_lines = [line.split(" ", 1)[1] for line in cleaned_lines]
 
             # Save the traces in a dict to be able to print the version of the trace
             # with the file and line number which is not used to compare
