@@ -2732,3 +2732,45 @@ components:
 	err = Validate(info)
 	c.Check(err, ErrorMatches, `hook command-chain contains illegal.*`)
 }
+
+func (s *ValidateSuite) TestValidateGpioChardev(c *C) {
+	info, err := InfoFromSnapYaml([]byte(`name: foo
+version: 0
+type: gadget
+slots:
+  gpio-chardev-0:
+    interface: gpio-chardev
+    source-chip: [chip0]
+    lines: 4,1-3,5
+  gpio-chardev-1:
+    interface: gpio-chardev
+    source-chip: [chip1]
+    lines: 4,1-3,5
+  # unrelated slot
+  dbus-slot:
+`))
+	c.Assert(err, IsNil)
+
+	err = Validate(info)
+	c.Check(err, IsNil)
+}
+
+func (s *ValidateSuite) TestValidateGpioChardevOverlappingLines(c *C) {
+	info, err := InfoFromSnapYaml([]byte(`name: foo
+version: 0
+type: gadget
+slots:
+  gpio-chardev-0:
+    interface: gpio-chardev
+    source-chip: [chip0]
+    lines: 4,1-3,5
+  gpio-chardev-1:
+    interface: gpio-chardev
+    source-chip: [chip0]
+    lines: "2"
+`))
+	c.Assert(err, IsNil)
+
+	err = Validate(info)
+	c.Check(err, ErrorMatches, `invalid "lines" attribute for chip "chip0": overlapping range span found "(2|1-3)"`)
+}

@@ -351,6 +351,44 @@ func validateProvenance(prov string) error {
 	return naming.ValidateProvenance(prov)
 }
 
+func validateGpioChardevSlots(info *Info) error {
+	// XXX: should this be relaxed to validate all types in case
+	// gpio-chardev slots are allowed for snap apps later?
+	if info.Type() != TypeGadget {
+		// not a gadget, nothing to do
+		return nil
+	}
+
+	chipLines := make(map[string][]string)
+	for _, slot := range info.Slots {
+		if slot.Interface != "gpio-chardev" {
+			continue
+		}
+		var sourceChip []string
+		if err := slot.Attr("source-chip", &sourceChip); err != nil {
+			return err
+		}
+		var lines string
+		if err := slot.Attr("lines", &lines); err != nil {
+			return err
+		}
+		for _, chip := range sourceChip {
+			chipLines[chip] = append(chipLines[chip], lines)
+		}
+	}
+
+	// validate lines for a chip across all gpio-chardev slots.
+	for chip, lines := range chipLines {
+		concat := strings.Join(lines, ",")
+		// ParseRange checks lines are valid and non-overlapping.
+		if _, err := strutil.ParseRange(concat); err != nil {
+			return fmt.Errorf(`invalid "lines" attribute for chip %q: %w`, chip, err)
+		}
+	}
+
+	return nil
+}
+
 // Validate verifies the content in the info.
 func Validate(info *Info) error {
 	name := info.InstanceName()
@@ -444,6 +482,11 @@ func Validate(info *Info) error {
 
 	// Ensure that plug and slot have unique names.
 	if err := plugsSlotsUniqueNames(info); err != nil {
+		return err
+	}
+
+	// Ensure that any given gpio line is only be exported by one slot.
+	if err := validateGpioChardevSlots(info); err != nil {
 		return err
 	}
 
