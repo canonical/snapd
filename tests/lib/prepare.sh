@@ -463,6 +463,7 @@ prepare_classic() {
 
         prepare_reexec_override
         prepare_state_lock "SNAPD PROJECT"
+        prepare_tag_features
         prepare_memory_limit_override
         disable_refreshes
 
@@ -1624,6 +1625,34 @@ EOF
     fi
 }
 
+prepare_tag_features(){
+    CONF_FILE="/etc/systemd/system/snapd.service.d/99-feature-tags.conf"
+    RESTART=false
+
+    if [ -n "$TAG_FEATURES" ]; then
+        # Generate the config file when it does not exist and when the threshold has changed different
+        if ! [ -f "$CONF_FILE" ]; then
+            cat <<EOF > "$CONF_FILE"
+[Service]
+Environment=SNAPPY_TESTING=1
+Environment=SNAPD_TRACE=1
+Environment=SNAPD_JSON_LOGGING=1
+EOF
+            RESTART=true
+        fi
+    elif [ -f "$CONF_FILE" ]; then
+        rm -f "$CONF_FILE"
+        RESTART=true
+    fi
+
+    if [ "$RESTART" = "true" ]; then
+        # the service setting may have changed in the service so we need
+        # to ensure snapd is reloaded
+        systemctl daemon-reload
+        systemctl restart snapd
+    fi
+}
+
 # prepare_ubuntu_core will prepare ubuntu-core 16+
 prepare_ubuntu_core() {
     # we are still a "classic" image, prepare the surgery
@@ -1738,6 +1767,7 @@ prepare_ubuntu_core() {
         remove_disabled_snaps
         prepare_memory_limit_override
         prepare_state_lock "SNAPD PROJECT"
+        prepare_tag_features
         setup_experimental_features
         systemctl stop snapd.service snapd.socket
         save_snapd_state
