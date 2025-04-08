@@ -56,7 +56,7 @@ func (s *swapCfgSuite) TestConfigureSwapSizeOnlyWhenChanged(c *C) {
 	// set it to 1M initially
 	err := configcore.FilesystemOnlyRun(coreDev, &mockConf{
 		state: s.state,
-		changes: map[string]interface{}{
+		changes: map[string]any{
 			"swap.size": "1048576",
 		},
 	})
@@ -77,10 +77,10 @@ SIZE=1
 	// running it with the same changes as conf results in no calls to systemd
 	err = configcore.FilesystemOnlyRun(coreDev, &mockConf{
 		state: s.state,
-		conf: map[string]interface{}{
+		conf: map[string]any{
 			"swap.size": "1048576",
 		},
-		changes: map[string]interface{}{
+		changes: map[string]any{
 			"swap.size": "1048576",
 		},
 	})
@@ -97,7 +97,7 @@ func (s *swapCfgSuite) TestConfigureSwapSize(c *C) {
 	// set it to 1M initially
 	err := configcore.FilesystemOnlyRun(coreDev, &mockConf{
 		state: s.state,
-		changes: map[string]interface{}{
+		changes: map[string]any{
 			"swap.size": "1048576",
 		},
 	})
@@ -118,10 +118,10 @@ SIZE=1
 	// now change it to empty
 	err = configcore.FilesystemOnlyRun(coreDev, &mockConf{
 		state: s.state,
-		conf: map[string]interface{}{
+		conf: map[string]any{
 			"swap.size": "1048576",
 		},
-		changes: map[string]interface{}{
+		changes: map[string]any{
 			"swap.size": "",
 		},
 	})
@@ -178,7 +178,7 @@ func (s *swapCfgSuite) TestSwapSizeNumberFormats(c *C) {
 	c.Assert(err, IsNil)
 
 	for _, t := range tt {
-		conf := configcore.PlainCoreConfig(map[string]interface{}{
+		conf := configcore.PlainCoreConfig(map[string]any{
 			"swap.size": t.sizeStr,
 		})
 
@@ -195,7 +195,7 @@ SIZE=%s
 }
 
 func (s *swapCfgSuite) TestSwapSizeFilesystemOnlyApply(c *C) {
-	conf := configcore.PlainCoreConfig(map[string]interface{}{
+	conf := configcore.PlainCoreConfig(map[string]any{
 		"swap.size": "1024M",
 	})
 
@@ -211,7 +211,7 @@ SIZE=1024
 }
 
 func (s *swapCfgSuite) TestSwapSizeFilesystemOnlyApplyExistingConfig(c *C) {
-	conf := configcore.PlainCoreConfig(map[string]interface{}{
+	conf := configcore.PlainCoreConfig(map[string]any{
 		"swap.size": "1024M",
 	})
 

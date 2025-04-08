@@ -346,11 +346,11 @@ func (s *snapshotSuite) TestChangeSnapshot(c *check.C) {
 		c.Assert(chg.Tasks(), check.HasLen, 0)
 
 		c.Check(chg.Kind(), check.Equals, action+"-snapshot")
-		var apiData map[string]interface{}
+		var apiData map[string]any
 		err = chg.Get("api-data", &apiData)
 		c.Assert(err, check.IsNil)
-		c.Check(apiData, check.DeepEquals, map[string]interface{}{
-			"snap-names": []interface{}{"foo"},
+		c.Check(apiData, check.DeepEquals, map[string]any{
+			"snap-names": []any{"foo"},
 		})
 	}
 }
@@ -414,7 +414,7 @@ func (s *snapshotSuite) TestImportSnapshot(c *check.C) {
 
 	rsp := s.syncReq(c, req, nil)
 	c.Check(rsp.Status, check.Equals, 200)
-	c.Check(rsp.Result, check.DeepEquals, map[string]interface{}{"set-id": setID, "snaps": snapNames})
+	c.Check(rsp.Result, check.DeepEquals, map[string]any{"set-id": setID, "snaps": snapNames})
 }
 
 func (s *snapshotSuite) TestImportSnapshotError(c *check.C) {

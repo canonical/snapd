@@ -282,7 +282,7 @@ func startTransientScope(conn *dbus.Conn, unitName string, pid int) (job dbus.Ob
 	// } // auxUnits describe any additional units to define.
 	type property struct {
 		Name  string
-		Value interface{}
+		Value any
 	}
 	type auxUnit struct {
 		Name  string

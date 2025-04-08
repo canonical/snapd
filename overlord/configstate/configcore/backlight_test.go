@@ -46,7 +46,7 @@ func (s *backlightSuite) TestConfigureBacklightServiceMaskIntegration(c *C) {
 	s.systemctlArgs = nil
 	err := configcore.FilesystemOnlyRun(coreDev, &mockConf{
 		state: s.state,
-		conf: map[string]interface{}{
+		conf: map[string]any{
 			"system.disable-backlight-service": true,
 		},
 	})
@@ -60,7 +60,7 @@ func (s *backlightSuite) TestConfigureBacklightServiceUnmaskIntegration(c *C) {
 	s.systemctlArgs = nil
 	err := configcore.FilesystemOnlyRun(coreDev, &mockConf{
 		state: s.state,
-		conf: map[string]interface{}{
+		conf: map[string]any{
 			"system.disable-backlight-service": false,
 		},
 	})
@@ -71,7 +71,7 @@ func (s *backlightSuite) TestConfigureBacklightServiceUnmaskIntegration(c *C) {
 }
 
 func (s *backlightSuite) TestFilesystemOnlyApply(c *C) {
-	conf := configcore.PlainCoreConfig(map[string]interface{}{
+	conf := configcore.PlainCoreConfig(map[string]any{
 		"system.disable-backlight-service": "true",
 	})
 	tmpDir := c.MkDir()

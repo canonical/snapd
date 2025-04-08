@@ -37,7 +37,7 @@ var Contains check.Checker = &containsChecker{
 	&check.CheckerInfo{Name: "Contains", Params: []string{"container", "elem"}},
 }
 
-func commonEquals(container, elem interface{}, result *bool, error *string) bool {
+func commonEquals(container, elem any, result *bool, error *string) bool {
 	containerV := reflect.ValueOf(container)
 	elemV := reflect.ValueOf(elem)
 	switch containerV.Kind() {
@@ -76,15 +76,15 @@ func commonEquals(container, elem interface{}, result *bool, error *string) bool
 	return false
 }
 
-func (c *containsChecker) Check(params []interface{}, names []string) (result bool, error string) {
+func (c *containsChecker) Check(params []any, names []string) (result bool, error string) {
 	defer func() {
 		if v := recover(); v != nil {
 			result = false
 			error = fmt.Sprint(v)
 		}
 	}()
-	var container interface{} = params[0]
-	var elem interface{} = params[1]
+	var container any = params[0]
+	var elem any = params[1]
 	if commonEquals(container, elem, &result, &error) {
 		return result, error
 	}
@@ -122,9 +122,9 @@ var DeepContains check.Checker = &deepContainsChecker{
 	&check.CheckerInfo{Name: "DeepContains", Params: []string{"container", "elem"}},
 }
 
-func (c *deepContainsChecker) Check(params []interface{}, names []string) (result bool, error string) {
-	var container interface{} = params[0]
-	var elem interface{} = params[1]
+func (c *deepContainsChecker) Check(params []any, names []string) (result bool, error string) {
+	var container any = params[0]
+	var elem any = params[1]
 	if commonEquals(container, elem, &result, &error) {
 		return result, error
 	}
@@ -162,7 +162,7 @@ var DeepUnsortedMatches check.Checker = &deepUnsortedMatchChecker{
 	&check.CheckerInfo{Name: "DeepUnsortedMatches", Params: []string{"container1", "container2"}},
 }
 
-func (c *deepUnsortedMatchChecker) Check(params []interface{}, _ []string) (bool, string) {
+func (c *deepUnsortedMatchChecker) Check(params []any, _ []string) (bool, string) {
 	container1 := reflect.ValueOf(params[0])
 	container2 := reflect.ValueOf(params[1])
 

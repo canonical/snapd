@@ -4370,7 +4370,7 @@ func (s *snapmgrTestSuite) TestGadgetDefaultsInstalled(c *C) {
 	ts, _, err := snapstate.InstallPath(s.state, &snap.SideInfo{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(2)}, snapPath, "", "edge", snapstate.Flags{}, nil)
 	c.Assert(err, IsNil)
 
-	var m map[string]interface{}
+	var m map[string]any
 	runHooks := tasksWithKind(ts, "run-hook")
 
 	c.Assert(runHooks[0].Kind(), Equals, "run-hook")
@@ -4408,7 +4408,7 @@ func (s *snapmgrTestSuite) TestGadgetDefaults(c *C) {
 	ts, _, err := snapstate.InstallPath(s.state, &snap.SideInfo{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(1)}, snapPath, "", "edge", snapstate.Flags{}, nil)
 	c.Assert(err, IsNil)
 
-	var m map[string]interface{}
+	var m map[string]any
 	runHooks := tasksWithKind(ts, "run-hook")
 
 	c.Assert(taskKinds(runHooks), DeepEquals, []string{
@@ -4423,7 +4423,7 @@ func (s *snapmgrTestSuite) TestGadgetDefaults(c *C) {
 
 	err = runHooks[2].Get("hook-context", &m)
 	c.Assert(err, IsNil)
-	c.Assert(m, DeepEquals, map[string]interface{}{"use-defaults": true})
+	c.Assert(m, DeepEquals, map[string]any{"use-defaults": true})
 }
 
 func (s *snapmgrTestSuite) TestGadgetDefaultsNotForOS(c *C) {
@@ -4450,7 +4450,7 @@ version: 1.0
 	ts, _, err := snapstate.InstallPath(s.state, &snap.SideInfo{RealName: "core", SnapID: "core-id", Revision: snap.R(1)}, snapPath, "", "edge", snapstate.Flags{}, nil)
 	c.Assert(err, IsNil)
 
-	var m map[string]interface{}
+	var m map[string]any
 	runHooks := tasksWithKind(ts, "run-hook")
 
 	c.Assert(taskKinds(runHooks), DeepEquals, []string{
@@ -4496,7 +4496,7 @@ volumes:
 		IgnoreError: false,
 	}
 
-	contextData := map[string]interface{}{"patch": gi.Defaults}
+	contextData := map[string]any{"patch": gi.Defaults}
 
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -4557,8 +4557,8 @@ func (s *validationSetsSuite) SetUpTest(c *C) {
 	c.Assert(s.storeSigning.Add(s.acct1Key), IsNil)
 }
 
-func (s *validationSetsSuite) mockValidationSetAssert(c *C, name, sequence string, snaps ...interface{}) asserts.Assertion {
-	headers := map[string]interface{}{
+func (s *validationSetsSuite) mockValidationSetAssert(c *C, name, sequence string, snaps ...any) asserts.Assertion {
+	headers := map[string]any{
 		"authority-id": "foo",
 		"account-id":   "foo",
 		"name":         name,
@@ -4580,7 +4580,7 @@ func (s *validationSetsSuite) installSnapReferencedByValidationSet(c *C, presenc
 
 	restore := snapstate.MockEnforcedValidationSets(func(st *state.State, extraVss ...*asserts.ValidationSet) (*snapasserts.ValidationSets, error) {
 		vs := snapasserts.NewValidationSets()
-		someSnap := map[string]interface{}{
+		someSnap := map[string]any{
 			"id":       "yOqKhntON3vR7kwEbVPsILm7bUViPDzx",
 			"name":     "some-snap",
 			"presence": presence,
@@ -4685,7 +4685,7 @@ func (s *validationSetsSuite) TestInstallSnapReferencedByValidationSetWrongRevis
 func (s *validationSetsSuite) installManySnapReferencedByValidationSet(c *C, snapOnePresence, snapOneRequiredRev, snapTwoPresence, snapTwoRequiredRev string) error {
 	restore := snapstate.MockEnforcedValidationSets(func(st *state.State, extraVss ...*asserts.ValidationSet) (*snapasserts.ValidationSets, error) {
 		vs := snapasserts.NewValidationSets()
-		snapOne := map[string]interface{}{
+		snapOne := map[string]any{
 			"id":       "yOqKhntON3vR7kwEbVPsILm7bUViPDzx",
 			"name":     "one",
 			"presence": snapOnePresence,
@@ -4693,7 +4693,7 @@ func (s *validationSetsSuite) installManySnapReferencedByValidationSet(c *C, sna
 		if snapOneRequiredRev != "" {
 			snapOne["revision"] = snapOneRequiredRev
 		}
-		snapTwo := map[string]interface{}{
+		snapTwo := map[string]any{
 			"id":       "xxxahntON3vR7kwEbVPsILm7bUViPDzx",
 			"name":     "two",
 			"presence": snapTwoPresence,
@@ -4724,7 +4724,7 @@ func (s *validationSetsSuite) installManySnapReferencedByValidationSet(c *C, sna
 
 func (s *validationSetsSuite) TestInstallManyWithRevisionOpts(c *C) {
 	enforced := snapasserts.NewValidationSets()
-	err := enforced.Add(s.mockValidationSetAssert(c, "bar", "1", map[string]interface{}{
+	err := enforced.Add(s.mockValidationSetAssert(c, "bar", "1", map[string]any{
 		"id":       "yOqKhntON3vR7kwEbVPsILm7bUViPDzx",
 		"name":     "some-snap",
 		"presence": "invalid",
@@ -4748,7 +4748,7 @@ func (s *validationSetsSuite) TestInstallManyWithRevisionOpts(c *C) {
 	assertstate.UpdateValidationSet(s.state, &tr)
 
 	provided := snapasserts.NewValidationSets()
-	err = provided.Add(s.mockValidationSetAssert(c, "bar", "1", map[string]interface{}{
+	err = provided.Add(s.mockValidationSetAssert(c, "bar", "1", map[string]any{
 		"id":       "yOqKhntON3vR7kwEbVPsILm7bUViPDzx",
 		"name":     "some-snap",
 		"presence": "optional",
@@ -4861,13 +4861,13 @@ func (s *validationSetsSuite) TestInstallManyRequiredRevisionForValidationSetOK(
 func (s *validationSetsSuite) testInstallSnapRequiredByValidationSetWithBase(c *C, presenceForBase string) error {
 	restore := snapstate.MockEnforcedValidationSets(func(st *state.State, extraVss ...*asserts.ValidationSet) (*snapasserts.ValidationSets, error) {
 		vs := snapasserts.NewValidationSets()
-		someSnap := map[string]interface{}{
+		someSnap := map[string]any{
 			"id":       "yOqKhntON3vR7kwEbVPsILm7bUViPDzx",
 			"name":     "some-snap-with-base",
 			"presence": "required",
 		}
 		// base snap is invalid
-		someBase := map[string]interface{}{
+		someBase := map[string]any{
 			"id":       "aOqKhntON3vR7kwEbVPsILm7bUViPDzx",
 			"name":     "some-base",
 			"presence": presenceForBase,
@@ -4967,19 +4967,19 @@ func (s *snapmgrTestSuite) TestHasAllContentAttributes(c *C) {
 			Name:      "some-content-slot",
 			Snap:      mySnap,
 			Interface: "content",
-			Attrs:     map[string]interface{}{"content": "some"},
+			Attrs:     map[string]any{"content": "some"},
 		},
 		{
 			Name:      "wrong-tag-slot",
 			Snap:      mySnap,
 			Interface: "content",
-			Attrs:     map[string]interface{}{"stuff": "wrong-tag"},
+			Attrs:     map[string]any{"stuff": "wrong-tag"},
 		},
 		{
 			Name:      "wrong-iface-slot",
 			Snap:      mySnap,
 			Interface: "diff",
-			Attrs:     map[string]interface{}{"content": "wrong-iface"},
+			Attrs:     map[string]any{"content": "wrong-iface"},
 		},
 	}
 
@@ -5023,7 +5023,7 @@ func (s *snapmgrTestSuite) TestHasAllContentAttributes(c *C) {
 		Name:      "bad-content-slot",
 		Snap:      mySnap,
 		Interface: "content",
-		Attrs:     map[string]interface{}{"content": 123},
+		Attrs:     map[string]any{"content": 123},
 	})
 	c.Assert(err, IsNil)
 
@@ -5119,7 +5119,7 @@ func (s *validationSetsSuite) TestInstallSnapWithValidationSets(c *C) {
 	defer s.state.Unlock()
 
 	vsets := snapasserts.NewValidationSets()
-	bar := s.mockValidationSetAssert(c, "bar", "1", map[string]interface{}{
+	bar := s.mockValidationSetAssert(c, "bar", "1", map[string]any{
 		"id":       "yOqKhntON3vR7kwEbVPsILm7bUViPDzx",
 		"name":     "some-snap",
 		"presence": "optional",
@@ -5127,7 +5127,7 @@ func (s *validationSetsSuite) TestInstallSnapWithValidationSets(c *C) {
 	})
 	err := vsets.Add(bar.(*asserts.ValidationSet))
 	c.Assert(err, IsNil)
-	baz := s.mockValidationSetAssert(c, "baz", "1", map[string]interface{}{
+	baz := s.mockValidationSetAssert(c, "baz", "1", map[string]any{
 		"id":       "yOqKhntON3vR7kwEbVPsILm7bUViPDzx",
 		"name":     "some-snap",
 		"presence": "required",
@@ -6696,7 +6696,7 @@ func (s *snapmgrTestSuite) testInstallComponentsRunThrough(c *C, opts testInstal
 		defer mockCmd.Restore()
 	}
 
-	r := snapstatetest.MockDeviceModel(MakeModel20("pc", map[string]interface{}{"base": "core24"}))
+	r := snapstatetest.MockDeviceModel(MakeModel20("pc", map[string]any{"base": "core24"}))
 	defer r()
 
 	// sort these so that we can predict the order of the ops
@@ -7127,7 +7127,7 @@ func (s *snapmgrTestSuite) testInstallComponentsFromPathRunThrough(c *C, opts te
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	r := snapstatetest.MockDeviceModel(MakeModel20("pc", map[string]interface{}{"base": "core24"}))
+	r := snapstatetest.MockDeviceModel(MakeModel20("pc", map[string]any{"base": "core24"}))
 	defer r()
 
 	// make sure that the store is never hit
@@ -7576,15 +7576,15 @@ func (s *snapmgrTestSuite) TestInstallWithConfdb(c *C) {
 type testInstallComponentsValidationSetsOpts struct {
 	comps   []string
 	err     string
-	headers map[string]interface{}
+	headers map[string]any
 }
 
 func (s *validationSetsSuite) TestInstallComponentsValidationSetsInvalid(c *C) {
 	s.testInstallComponentsValidationSets(c, testInstallComponentsValidationSetsOpts{
 		comps: []string{"test-component"},
 		err:   `cannot install component "test-snap\+test-component" due to enforcing rules of validation set 16/foo/bar/1`,
-		headers: map[string]interface{}{
-			"components": map[string]interface{}{
+		headers: map[string]any{
+			"components": map[string]any{
 				"test-component": "invalid",
 			},
 		},
@@ -7595,8 +7595,8 @@ func (s *validationSetsSuite) TestInstallComponentsValidationSetsMissingRequired
 	s.testInstallComponentsValidationSets(c, testInstallComponentsValidationSetsOpts{
 		comps: nil,
 		err:   `cannot install snap "test-snap" without component "test-component" required by validation sets 16/foo/bar/1`,
-		headers: map[string]interface{}{
-			"components": map[string]interface{}{
+		headers: map[string]any{
+			"components": map[string]any{
 				"test-component": "required",
 			},
 		},
@@ -7607,10 +7607,10 @@ func (s *validationSetsSuite) TestInstallComponentsValidationSetsWrongRevision(c
 	s.testInstallComponentsValidationSets(c, testInstallComponentsValidationSetsOpts{
 		comps: []string{"test-component"},
 		err:   `cannot install component "test-snap\+test-component" at revision 1 without --ignore-validation, revision 10 is required by validation sets: 16/foo/bar/1`,
-		headers: map[string]interface{}{
+		headers: map[string]any{
 			"revision": "7",
-			"components": map[string]interface{}{
-				"test-component": map[string]interface{}{
+			"components": map[string]any{
+				"test-component": map[string]any{
 					"presence": "optional",
 					"revision": "10",
 				},
@@ -7622,10 +7622,10 @@ func (s *validationSetsSuite) TestInstallComponentsValidationSetsWrongRevision(c
 func (s *validationSetsSuite) TestInstallComponentsValidationSetsCorrectRevision(c *C) {
 	s.testInstallComponentsValidationSets(c, testInstallComponentsValidationSetsOpts{
 		comps: []string{"test-component"},
-		headers: map[string]interface{}{
+		headers: map[string]any{
 			"revision": "7",
-			"components": map[string]interface{}{
-				"test-component": map[string]interface{}{
+			"components": map[string]any{
+				"test-component": map[string]any{
 					"presence": "optional",
 					"revision": "1",
 				},
@@ -7637,9 +7637,9 @@ func (s *validationSetsSuite) TestInstallComponentsValidationSetsCorrectRevision
 func (s *validationSetsSuite) TestInstallComponentsValidationSetsRequired(c *C) {
 	s.testInstallComponentsValidationSets(c, testInstallComponentsValidationSetsOpts{
 		comps: []string{"test-component"},
-		headers: map[string]interface{}{
-			"components": map[string]interface{}{
-				"test-component": map[string]interface{}{
+		headers: map[string]any{
+			"components": map[string]any{
+				"test-component": map[string]any{
 					"presence": "required",
 				},
 			},
@@ -7673,7 +7673,7 @@ func (s *validationSetsSuite) testInstallComponentsValidationSets(c *C, opts tes
 
 	restore := snapstate.MockEnforcedValidationSets(func(st *state.State, extraVss ...*asserts.ValidationSet) (*snapasserts.ValidationSets, error) {
 		vs := snapasserts.NewValidationSets()
-		headers := map[string]interface{}{
+		headers := map[string]any{
 			"id":       snapID,
 			"name":     snapName,
 			"presence": "optional",
@@ -7734,17 +7734,17 @@ func (s *validationSetsSuite) testInstallComponentsValidationSets(c *C, opts tes
 type testUpdateComponentsValidationSetsOpts struct {
 	comps   []string
 	err     string
-	headers map[string]interface{}
+	headers map[string]any
 }
 
 func (s *validationSetsSuite) TestUpdateComponentsValidationSetsToWrongRevision(c *C) {
 	s.testUpdateComponentsValidationSets(c, testUpdateComponentsValidationSetsOpts{
 		comps: []string{"test-component"},
 		err:   `cannot update component "test-snap\+test-component" to revision 2 without --ignore-validation, revision 1 is required by validation sets: 16/foo/bar/1`,
-		headers: map[string]interface{}{
+		headers: map[string]any{
 			"revision": "11",
-			"components": map[string]interface{}{
-				"test-component": map[string]interface{}{
+			"components": map[string]any{
+				"test-component": map[string]any{
 					"presence": "optional",
 					"revision": "1",
 				},
@@ -7756,10 +7756,10 @@ func (s *validationSetsSuite) TestUpdateComponentsValidationSetsToWrongRevision(
 func (s *validationSetsSuite) TestUpdateComponentsValidationSetsToCorrectRevision(c *C) {
 	s.testUpdateComponentsValidationSets(c, testUpdateComponentsValidationSetsOpts{
 		comps: []string{"test-component"},
-		headers: map[string]interface{}{
+		headers: map[string]any{
 			"revision": "11",
-			"components": map[string]interface{}{
-				"test-component": map[string]interface{}{
+			"components": map[string]any{
+				"test-component": map[string]any{
 					"presence": "optional",
 					"revision": "2",
 				},
@@ -7772,9 +7772,9 @@ func (s *validationSetsSuite) TestUpdateComponentsValidationSetsMissingRequired(
 	s.testUpdateComponentsValidationSets(c, testUpdateComponentsValidationSetsOpts{
 		comps: nil,
 		err:   `cannot update snap "test-snap" without component "test-component" required by validation sets 16/foo/bar/1`,
-		headers: map[string]interface{}{
-			"components": map[string]interface{}{
-				"test-component": map[string]interface{}{
+		headers: map[string]any{
+			"components": map[string]any{
+				"test-component": map[string]any{
 					"presence": "required",
 				},
 			},
@@ -7785,9 +7785,9 @@ func (s *validationSetsSuite) TestUpdateComponentsValidationSetsMissingRequired(
 func (s *validationSetsSuite) TestUpdateComponentsValidationSetsWithRequired(c *C) {
 	s.testUpdateComponentsValidationSets(c, testUpdateComponentsValidationSetsOpts{
 		comps: []string{"test-component"},
-		headers: map[string]interface{}{
-			"components": map[string]interface{}{
-				"test-component": map[string]interface{}{
+		headers: map[string]any{
+			"components": map[string]any{
+				"test-component": map[string]any{
 					"presence": "required",
 				},
 			},
@@ -7858,7 +7858,7 @@ func (s *validationSetsSuite) testUpdateComponentsValidationSets(c *C, opts test
 
 	restore = snapstate.MockEnforcedValidationSets(func(st *state.State, extraVss ...*asserts.ValidationSet) (*snapasserts.ValidationSets, error) {
 		vs := snapasserts.NewValidationSets()
-		headers := map[string]interface{}{
+		headers := map[string]any{
 			"id":       snapID,
 			"name":     snapName,
 			"presence": "optional",

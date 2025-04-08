@@ -804,7 +804,7 @@ func (s *snapmgrTestSuite) testUpdateAmendRunThrough(c *C, tryMode bool, compone
 	}
 	snaptest.MockSnap(c, `name: some-kernel`, &si)
 
-	r := snapstatetest.MockDeviceModel(MakeModel20("pc", map[string]interface{}{"base": "core24"}))
+	r := snapstatetest.MockDeviceModel(MakeModel20("pc", map[string]any{"base": "core24"}))
 	defer r()
 
 	s.state.Lock()
@@ -1859,7 +1859,7 @@ func (s *snapmgrTestSuite) TestUpdateWithInstalledDefaultProvider(c *C) {
 		Snap:      sn,
 		Name:      "snap-content-slot",
 		Interface: "content",
-		Attrs: map[string]interface{}{
+		Attrs: map[string]any{
 			"content": "shared-content",
 		},
 	}
@@ -2697,7 +2697,7 @@ func (s *snapmgrTestSuite) TestUpdateMakesConfigSnapshot(c *C) {
 	tr.Set("some-snap", "foo", "bar")
 	tr.Commit()
 
-	var cfgs map[string]interface{}
+	var cfgs map[string]any
 	// we don't have config snapshots yet
 	c.Assert(s.state.Get("revision-config", &cfgs), testutil.ErrorIs, state.ErrNoState)
 
@@ -2715,8 +2715,8 @@ func (s *snapmgrTestSuite) TestUpdateMakesConfigSnapshot(c *C) {
 	cfgs = nil
 	// config copy of rev. 1 has been made
 	c.Assert(s.state.Get("revision-config", &cfgs), IsNil)
-	c.Assert(cfgs["some-snap"], DeepEquals, map[string]interface{}{
-		"1": map[string]interface{}{
+	c.Assert(cfgs["some-snap"], DeepEquals, map[string]any{
+		"1": map[string]any{
 			"foo": "bar",
 		},
 	})
@@ -4884,7 +4884,7 @@ func (s *snapmgrTestSuite) TestUpdateTasksCoreSetsIgnoreOnConfigure(c *C) {
 	defer func() { snapstate.Configure = oldConfigure }()
 
 	var configureFlags int
-	snapstate.Configure = func(st *state.State, snapName string, patch map[string]interface{}, flags int) *state.TaskSet {
+	snapstate.Configure = func(st *state.State, snapName string, patch map[string]any, flags int) *state.TaskSet {
 		configureFlags = flags
 		return state.NewTaskSet()
 	}
@@ -5923,7 +5923,7 @@ func (s *snapmgrTestSuite) TestUpdateManyWaitForBasesUC18(c *C) {
 func (s *validationSetsSuite) TestUpdateManyWithRevisionOpts(c *C) {
 	// current validation set forbids "some-snap"
 	vsets := snapasserts.NewValidationSets()
-	someSnapConstraint := map[string]interface{}{
+	someSnapConstraint := map[string]any{
 		"id":       "yOqKhntON3vR7kwEbVPsILm7bUViPDzx",
 		"name":     "some-snap",
 		"presence": "required",
@@ -6671,9 +6671,9 @@ func (s *snapmgrTestSuite) TestRefreshDoesntRestoreRevisionConfig(c *C) {
 
 	// set per-revision config for the upcoming rev. 2, we don't expect it restored though
 	// since only revert restores revision configs.
-	s.state.Set("revision-config", map[string]interface{}{
-		"some-snap": map[string]interface{}{
-			"2": map[string]interface{}{"foo": "200"},
+	s.state.Set("revision-config", map[string]any{
+		"some-snap": map[string]any{
+			"2": map[string]any{"foo": "200"},
 		},
 	})
 
@@ -6686,11 +6686,11 @@ func (s *snapmgrTestSuite) TestRefreshDoesntRestoreRevisionConfig(c *C) {
 	s.settle(c)
 
 	// config of rev. 1 has been stored in per-revision map
-	var cfgs map[string]interface{}
+	var cfgs map[string]any
 	c.Assert(s.state.Get("revision-config", &cfgs), IsNil)
-	c.Assert(cfgs["some-snap"], DeepEquals, map[string]interface{}{
-		"1": map[string]interface{}{"foo": "100"},
-		"2": map[string]interface{}{"foo": "200"},
+	c.Assert(cfgs["some-snap"], DeepEquals, map[string]any{
+		"1": map[string]any{"foo": "100"},
+		"2": map[string]any{"foo": "200"},
 	})
 
 	// config of rev. 2 hasn't been restored by refresh, old value returned
@@ -7188,7 +7188,7 @@ func findStrictlyOnePrereqTask(c *C, chg *state.Change) *state.Task {
 func (s *validationSetsSuite) TestUpdateSnapRequiredByValidationSetAlreadyAtRequiredRevision(c *C) {
 	restore := snapstate.MockEnforcedValidationSets(func(st *state.State, extraVss ...*asserts.ValidationSet) (*snapasserts.ValidationSets, error) {
 		vs := snapasserts.NewValidationSets()
-		someSnap := map[string]interface{}{
+		someSnap := map[string]any{
 			"id":       "yOqKhntON3vR7kwEbVPsILm7bUViPDzx",
 			"name":     "some-snap",
 			"presence": "required",
@@ -7227,7 +7227,7 @@ func (s *validationSetsSuite) TestUpdateSnapRequiredByValidationSetAlreadyAtRequ
 func (s *validationSetsSuite) TestUpdateSnapRequiredByValidationRefreshToRequiredRevision(c *C) {
 	restore := snapstate.MockEnforcedValidationSets(func(st *state.State, extraVss ...*asserts.ValidationSet) (*snapasserts.ValidationSets, error) {
 		vs := snapasserts.NewValidationSets()
-		someSnap := map[string]interface{}{
+		someSnap := map[string]any{
 			"id":       "yOqKhntON3vR7kwEbVPsILm7bUViPDzx",
 			"name":     "some-snap",
 			"presence": "required",
@@ -7299,7 +7299,7 @@ func (s *validationSetsSuite) TestUpdateSnapRequiredByValidationSetAnyRevision(c
 	restore := snapstate.MockEnforcedValidationSets(func(st *state.State, extraVss ...*asserts.ValidationSet) (*snapasserts.ValidationSets, error) {
 		vs := snapasserts.NewValidationSets()
 		// no revision specified
-		someSnap := map[string]interface{}{
+		someSnap := map[string]any{
 			"id":       "yOqKhntON3vR7kwEbVPsILm7bUViPDzx",
 			"name":     "some-snap",
 			"presence": "required",
@@ -7369,7 +7369,7 @@ func (s *validationSetsSuite) TestUpdateToRevisionSnapRequiredByValidationSetAny
 	restore := snapstate.MockEnforcedValidationSets(func(st *state.State, extraVss ...*asserts.ValidationSet) (*snapasserts.ValidationSets, error) {
 		vs := snapasserts.NewValidationSets()
 		// no revision specified
-		someSnap := map[string]interface{}{
+		someSnap := map[string]any{
 			"id":       "yOqKhntON3vR7kwEbVPsILm7bUViPDzx",
 			"name":     "some-snap",
 			"presence": "required",
@@ -7439,7 +7439,7 @@ func (s *validationSetsSuite) TestUpdateToRevisionSnapRequiredByValidationSetAny
 func (s *validationSetsSuite) TestUpdateToRevisionSnapRequiredByValidationWithMatchingRevision(c *C) {
 	restore := snapstate.MockEnforcedValidationSets(func(st *state.State, extraVss ...*asserts.ValidationSet) (*snapasserts.ValidationSets, error) {
 		vs := snapasserts.NewValidationSets()
-		someSnap := map[string]interface{}{
+		someSnap := map[string]any{
 			"id":       "yOqKhntON3vR7kwEbVPsILm7bUViPDzx",
 			"name":     "some-snap",
 			"presence": "required",
@@ -7508,7 +7508,7 @@ func (s *validationSetsSuite) TestUpdateToRevisionSnapRequiredByValidationWithMa
 func (s *validationSetsSuite) TestUpdateToRevisionSnapRequiredByValidationAlreadyAtRevisionNoop(c *C) {
 	restore := snapstate.MockEnforcedValidationSets(func(st *state.State, extraVss ...*asserts.ValidationSet) (*snapasserts.ValidationSets, error) {
 		vs := snapasserts.NewValidationSets()
-		someSnap := map[string]interface{}{
+		someSnap := map[string]any{
 			"id":       "yOqKhntON3vR7kwEbVPsILm7bUViPDzx",
 			"name":     "some-snap",
 			"presence": "required",
@@ -7564,7 +7564,7 @@ func (s *validationSetsSuite) TestUpdateToRevisionSnapRequiredByValidationWrongR
 func (s *validationSetsSuite) testUpdateToRevisionSnapRequiredByValidationWrongRevisionError(c *C, instanceKey string) {
 	restore := snapstate.MockEnforcedValidationSets(func(st *state.State, extraVss ...*asserts.ValidationSet) (*snapasserts.ValidationSets, error) {
 		vs := snapasserts.NewValidationSets()
-		someSnap := map[string]interface{}{
+		someSnap := map[string]any{
 			"id":       "yOqKhntON3vR7kwEbVPsILm7bUViPDzx",
 			"name":     "some-snap",
 			"presence": "required",
@@ -7620,7 +7620,7 @@ func (s *validationSetsSuite) testUpdateToRevisionSnapRequiredByValidationWrongR
 func (s *validationSetsSuite) TestUpdateToWrongRevisionIgnoreValidation(c *C) {
 	restore := snapstate.MockEnforcedValidationSets(func(st *state.State, extraVss ...*asserts.ValidationSet) (*snapasserts.ValidationSets, error) {
 		vs := snapasserts.NewValidationSets()
-		someSnap := map[string]interface{}{
+		someSnap := map[string]any{
 			"id":       "yOqKhntON3vR7kwEbVPsILm7bUViPDzx",
 			"name":     "some-snap",
 			"presence": "required",
@@ -7696,7 +7696,7 @@ func (s *validationSetsSuite) TestUpdateToWrongRevisionIgnoreValidation(c *C) {
 func (s *validationSetsSuite) TestUpdateManyRequiredByValidationSetAlreadyAtCorrectRevisionNoop(c *C) {
 	restore := snapstate.MockEnforcedValidationSets(func(st *state.State, extraVss ...*asserts.ValidationSet) (*snapasserts.ValidationSets, error) {
 		vs := snapasserts.NewValidationSets()
-		someSnap := map[string]interface{}{
+		someSnap := map[string]any{
 			"id":       "yOqKhntON3vR7kwEbVPsILm7bUViPDzx",
 			"name":     "some-snap",
 			"presence": "required",
@@ -7736,7 +7736,7 @@ func (s *validationSetsSuite) TestUpdateManyRequiredByValidationSetAlreadyAtCorr
 func (s *validationSetsSuite) TestUpdateManyRequiredByValidationSetsCohortIgnored(c *C) {
 	restore := snapstate.MockEnforcedValidationSets(func(st *state.State, extraVs ...*asserts.ValidationSet) (*snapasserts.ValidationSets, error) {
 		vs := snapasserts.NewValidationSets()
-		someSnap := map[string]interface{}{
+		someSnap := map[string]any{
 			"id":       "yOqKhntON3vR7kwEbVPsILm7bUViPDzx",
 			"name":     "some-snap",
 			"presence": "required",
@@ -7803,7 +7803,7 @@ func (s *validationSetsSuite) TestUpdateManyRequiredByValidationSetsCohortIgnore
 func (s *validationSetsSuite) TestUpdateManyRequiredByValidationSetIgnoreValidation(c *C) {
 	restore := snapstate.MockEnforcedValidationSets(func(st *state.State, extraVss ...*asserts.ValidationSet) (*snapasserts.ValidationSets, error) {
 		vs := snapasserts.NewValidationSets()
-		someSnap := map[string]interface{}{
+		someSnap := map[string]any{
 			"id":       "yOqKhntON3vR7kwEbVPsILm7bUViPDzx",
 			"name":     "some-snap",
 			"presence": "required",
@@ -7871,7 +7871,7 @@ func (s *validationSetsSuite) TestUpdateManyRequiredByValidationSetIgnoreValidat
 func (s *validationSetsSuite) TestUpdateSnapRequiredByValidationSetAlreadyAtRequiredRevisionIgnoreValidationOK(c *C) {
 	restore := snapstate.MockEnforcedValidationSets(func(st *state.State, extraVss ...*asserts.ValidationSet) (*snapasserts.ValidationSets, error) {
 		vs := snapasserts.NewValidationSets()
-		someSnap := map[string]interface{}{
+		someSnap := map[string]any{
 			"id":       "yOqKhntON3vR7kwEbVPsILm7bUViPDzx",
 			"name":     "some-snap",
 			"presence": "required",
@@ -7942,12 +7942,12 @@ func (s *validationSetsSuite) TestUpdateToRevisionWithValidationSets(c *C) {
 	refreshedDate := fakeRevDateEpoch.AddDate(0, 0, 1)
 
 	vsets := snapasserts.NewValidationSets()
-	vsets.Add(s.mockValidationSetAssert(c, "bar", "1", map[string]interface{}{
+	vsets.Add(s.mockValidationSetAssert(c, "bar", "1", map[string]any{
 		"id":       "yOqKhntON3vR7kwEbVPsILm7bUViPDzx",
 		"name":     "some-snap",
 		"presence": "required",
 	}).(*asserts.ValidationSet))
-	vsets.Add(s.mockValidationSetAssert(c, "baz", "2", map[string]interface{}{
+	vsets.Add(s.mockValidationSetAssert(c, "baz", "2", map[string]any{
 		"id":       "yOqKhntON3vR7kwEbVPsILm7bUViPDzx",
 		"name":     "some-snap",
 		"presence": "required",
@@ -8007,7 +8007,7 @@ func (s *validationSetsSuite) TestUpdateWithValidationSetsInvalidSnap(c *C) {
 	snaptest.MockSnap(c, `name: some-snap`, si)
 
 	vsets := snapasserts.NewValidationSets()
-	vsets.Add(s.mockValidationSetAssert(c, "bar", "1", map[string]interface{}{
+	vsets.Add(s.mockValidationSetAssert(c, "bar", "1", map[string]any{
 		"id":       "yOqKhntON3vR7kwEbVPsILm7bUViPDzx",
 		"name":     "some-snap",
 		"presence": "invalid",
@@ -8079,12 +8079,12 @@ func (s *validationSetsSuite) testUpdateManyValidationSetsPartialFailure(c *C) *
 	var enforcedValidationSetsCalls int
 	restore := snapstate.MockEnforcedValidationSets(func(st *state.State, extraVss ...*asserts.ValidationSet) (*snapasserts.ValidationSets, error) {
 		vs := snapasserts.NewValidationSets()
-		snap1 := map[string]interface{}{
+		snap1 := map[string]any{
 			"id":       "aaqKhntON3vR7kwEbVPsILm7bUViPDzx",
 			"name":     "some-snap",
 			"presence": "required",
 		}
-		snap2 := map[string]interface{}{
+		snap2 := map[string]any{
 			"id":       "bgtKhntON3vR7kwEbVPsILm7bUViPDzx",
 			"name":     "some-other-snap",
 			"presence": "required",
@@ -9016,7 +9016,7 @@ func (s *snapmgrTestSuite) TestUpdateBaseKernelSingleRebootHappy(c *C) {
 	}))
 	c.Assert(err, IsNil)
 
-	restore = snapstatetest.MockDeviceModel(MakeModel(map[string]interface{}{
+	restore = snapstatetest.MockDeviceModel(MakeModel(map[string]any{
 		"kernel": "kernel",
 		"base":   "core18",
 	}))
@@ -9572,7 +9572,7 @@ func (s *snapmgrTestSuite) TestUpdateBaseKernelSingleRebootWithCannotRebootSetHa
 	}))
 	c.Assert(err, IsNil)
 
-	restore = snapstatetest.MockDeviceModel(MakeModel(map[string]interface{}{
+	restore = snapstatetest.MockDeviceModel(MakeModel(map[string]any{
 		"kernel": "kernel",
 		"base":   "core18",
 	}))
@@ -9800,7 +9800,7 @@ func (s *snapmgrTestSuite) TestUpdateBaseGadgetKernelSingleReboot(c *C) {
 	}))
 	c.Assert(err, IsNil)
 
-	restore = snapstatetest.MockDeviceModel(MakeModel(map[string]interface{}{
+	restore = snapstatetest.MockDeviceModel(MakeModel(map[string]any{
 		"kernel": "kernel",
 		"base":   "core18",
 	}))
@@ -11007,13 +11007,13 @@ func (s *snapmgrTestSuite) testAutoRefreshRecordsFailures(c *C, afterReboot bool
 		c.Assert(snapstate.Get(s.state, name, &snapst), IsNil)
 		return snapst.RefreshFailures
 	}
-	getRefreshFailed := func(chg *state.Change) []interface{} {
-		var apiData map[string]interface{}
+	getRefreshFailed := func(chg *state.Change) []any {
+		var apiData map[string]any
 		c.Assert(chg.Get("api-data", &apiData), IsNil)
 		if apiData["refresh-failed"] == nil {
 			return nil
 		}
-		refreshFailed := apiData["refresh-failed"].([]interface{})
+		refreshFailed := apiData["refresh-failed"].([]any)
 		return refreshFailed
 	}
 	getRevision := func(name string) snap.Revision {
@@ -11086,7 +11086,7 @@ func (s *snapmgrTestSuite) testAutoRefreshRecordsFailures(c *C, afterReboot bool
 	c.Check(chgs[1].Err(), ErrorMatches, expectedAutoConnectErrPattern)
 	c.Check(chgs[1].Status(), Equals, state.ErrorStatus)
 	c.Check(buf.String(), testutil.Contains, fmt.Sprintf("snap %q auto-refresh to revision 12 has failed, next auto-refresh attempt will be delayed by %d hours", badSnap, expectedMinDelay))
-	c.Check(getRefreshFailed(chgs[1]), DeepEquals, []interface{}{badSnap})
+	c.Check(getRefreshFailed(chgs[1]), DeepEquals, []any{badSnap})
 	c.Check(getRefreshFailures(badSnap).Revision, Equals, badSnapRevision)
 	c.Check(getRefreshFailures(badSnap).FailureCount, Equals, 1)
 	c.Check(getRefreshFailures(badSnap).LastFailureSeverity, Equals, expectedFailureSeverity)
@@ -11136,7 +11136,7 @@ func (s *snapmgrTestSuite) testAutoRefreshRecordsFailures(c *C, afterReboot bool
 	c.Check(chgs[3].Err(), ErrorMatches, expectedAutoConnectErrPattern)
 	c.Check(chgs[3].Status(), Equals, state.ErrorStatus)
 	c.Check(buf.String(), testutil.Contains, fmt.Sprintf("snap %q auto-refresh to revision 12 has failed, next auto-refresh attempt will be delayed by %d hours", badSnap, expectedMaxDelay))
-	c.Check(getRefreshFailed(chgs[3]), DeepEquals, []interface{}{badSnap})
+	c.Check(getRefreshFailed(chgs[3]), DeepEquals, []any{badSnap})
 	c.Check(getRefreshFailures(badSnap).Revision, Equals, badSnapRevision)
 	c.Check(getRefreshFailures(badSnap).FailureCount, Equals, 101) // Backoff delay passed, increment for new failure
 	c.Check(getRefreshFailures(badSnap).LastFailureSeverity, Equals, expectedFailureSeverity)
@@ -12262,13 +12262,13 @@ func (s *snapmgrTestSuite) TestRefreshForcedOnRefreshInhibitionTimeout(c *C) {
 	s.settle(c)
 	c.Assert(chg.Status(), Equals, state.DoneStatus)
 
-	var apiData map[string]interface{}
+	var apiData map[string]any
 	c.Assert(chg.Get("api-data", &apiData), IsNil)
-	refreshForced := apiData["refresh-forced"].([]interface{})
+	refreshForced := apiData["refresh-forced"].([]any)
 	sort.Slice(refreshForced, func(i, j int) bool {
 		return refreshForced[i].(string) < refreshForced[j].(string)
 	})
-	c.Check(refreshForced, DeepEquals, []interface{}{"some-other-snap", "some-snap"})
+	c.Check(refreshForced, DeepEquals, []any{"some-other-snap", "some-snap"})
 
 	notices := s.state.Notices(&state.NoticeFilter{Types: []state.NoticeType{state.ChangeUpdateNotice}})
 	c.Assert(notices, HasLen, 1)
@@ -12662,7 +12662,7 @@ func (s *snapmgrTestSuite) TestPreDownloadCleansSnapDownloads(c *C) {
 	defer restore()
 
 	// mock that snap is monitored (i.e. non-nil abort channel)
-	mockAbortChans := map[string]interface{}{"some-snap": func() {}}
+	mockAbortChans := map[string]any{"some-snap": func() {}}
 	s.state.Cache("monitored-snaps", mockAbortChans)
 
 	preDlChg := s.state.NewChange("pre-download", "pre-download change")
@@ -13167,7 +13167,7 @@ func (s *snapmgrTestSuite) testUpdateManyRevOptsOrder(c *C, isThrottled map[stri
 
 	signer := assertstest.NewStoreStack("can0nical", nil)
 	valSetForSnap := func(snapName string) *snapasserts.ValidationSets {
-		headers := map[string]interface{}{
+		headers := map[string]any{
 			"authority-id": "foo",
 			"account-id":   "foo",
 			"name":         snapName,
@@ -13175,8 +13175,8 @@ func (s *snapmgrTestSuite) testUpdateManyRevOptsOrder(c *C, isThrottled map[stri
 			"revision":     "5",
 			"sequence":     "1",
 			"timestamp":    "2030-11-06T09:16:26Z",
-			"snaps": []interface{}{
-				map[string]interface{}{
+			"snaps": []any{
+				map[string]any{
 					"id":       snaptest.AssertedSnapID(snapName),
 					"name":     snapName,
 					"presence": "required",
@@ -14127,7 +14127,7 @@ func (s hybridContentStore) SnapAction(ctx context.Context, currentSnaps []*stor
 					Snap:      info,
 					Name:      "shared-content",
 					Interface: "content",
-					Attrs: map[string]interface{}{
+					Attrs: map[string]any{
 						"default-provider": "snap-content-slot",
 						"content":          "shared-content",
 					},
@@ -14139,7 +14139,7 @@ func (s hybridContentStore) SnapAction(ctx context.Context, currentSnaps []*stor
 					Snap:      info,
 					Name:      "shared-content",
 					Interface: "content",
-					Attrs: map[string]interface{}{
+					Attrs: map[string]any{
 						"content": "shared-content",
 					},
 				},
@@ -14939,7 +14939,7 @@ func (s *snapmgrTestSuite) TestUpdateWithComponentsBackToPrevRevision(c *C) {
 		channel     = "channel-for-components-only-component-refresh"
 	)
 
-	r := snapstatetest.MockDeviceModel(MakeModel20("pc", map[string]interface{}{"base": "core24"}))
+	r := snapstatetest.MockDeviceModel(MakeModel20("pc", map[string]any{"base": "core24"}))
 	defer r()
 
 	components := []string{"standard-component", "kernel-modules-component"}
@@ -15382,7 +15382,7 @@ func (s *snapmgrTestSuite) TestUpdateWithComponentsBackToPrevRevisionAddComponen
 		channel     = "channel-for-components-only-component-refresh"
 	)
 
-	r := snapstatetest.MockDeviceModel(MakeModel20("pc", map[string]interface{}{"base": "core24"}))
+	r := snapstatetest.MockDeviceModel(MakeModel20("pc", map[string]any{"base": "core24"}))
 	defer r()
 
 	currentSnapRev := snap.R(11)
@@ -15868,7 +15868,7 @@ func (s *snapmgrTestSuite) testUpdateWithComponentsRunThrough(c *C, opts updateW
 		c.Error("boo")
 	}
 
-	r := snapstatetest.MockDeviceModel(MakeModel20("pc", map[string]interface{}{"base": "core24"}))
+	r := snapstatetest.MockDeviceModel(MakeModel20("pc", map[string]any{"base": "core24"}))
 	defer r()
 
 	channel := "channel-for-components"
@@ -16525,7 +16525,7 @@ func (s *snapmgrTestSuite) testUpdateWithComponentsRunThroughShareComponents(c *
 		snapID   = "kernel-id"
 	)
 
-	restore := snapstatetest.MockDeviceModel(MakeModel20("pc", map[string]interface{}{"base": "core24"}))
+	restore := snapstatetest.MockDeviceModel(MakeModel20("pc", map[string]any{"base": "core24"}))
 	defer restore()
 
 	channel := "channel-for-components"
@@ -17211,7 +17211,7 @@ func (s *snapmgrTestSuite) testUpdateWithComponentsFromPathRunThrough(c *C, inst
 		snapID = "some-snap-id"
 	}
 
-	r := snapstatetest.MockDeviceModel(MakeModel20("pc", map[string]interface{}{"base": "core24"}))
+	r := snapstatetest.MockDeviceModel(MakeModel20("pc", map[string]any{"base": "core24"}))
 	defer r()
 
 	if refreshAppAwarenessUX {
@@ -17708,7 +17708,7 @@ func (s *snapmgrTestSuite) TestUpdateWithComponentsFromPathBackToInstalledRevisi
 		snapID       = "kernel-id"
 	)
 
-	r := snapstatetest.MockDeviceModel(MakeModel20("pc", map[string]interface{}{"base": "core24"}))
+	r := snapstatetest.MockDeviceModel(MakeModel20("pc", map[string]any{"base": "core24"}))
 	defer r()
 
 	s.enableRefreshAppAwarenessUX()
@@ -18080,7 +18080,7 @@ func (s *snapmgrTestSuite) TestUpdateInstanceWithComponentsRunThroughOnlyCompone
 }
 
 func (s *snapmgrTestSuite) testUpdateWithComponentsRunThroughOnlyComponentUpdate(c *C, opts updateWithComponentsOpts) {
-	model := MakeModel20("pc", map[string]interface{}{"base": "core24"})
+	model := MakeModel20("pc", map[string]any{"base": "core24"})
 	r := snapstatetest.MockDeviceModel(model)
 	defer r()
 

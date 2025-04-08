@@ -38,13 +38,13 @@ var JsonEquals check.Checker = &jsonEqualChecker{
 	&check.CheckerInfo{Name: "JsonEqual", Params: []string{"obtained", "expected"}},
 }
 
-func (c *jsonEqualChecker) Check(params []interface{}, names []string) (result bool, error string) {
-	toComparableMap := func(what interface{}) interface{} {
+func (c *jsonEqualChecker) Check(params []any, names []string) (result bool, error string) {
+	toComparableMap := func(what any) any {
 		b, err := json.Marshal(what)
 		if err != nil {
 			panic("cannot marshal")
 		}
-		var back interface{}
+		var back any
 		if err := json.Unmarshal(b, &back); err != nil {
 			panic(fmt.Sprintf("cannot unmarshal from: %s", string(b)))
 		}
@@ -54,5 +54,5 @@ func (c *jsonEqualChecker) Check(params []interface{}, names []string) (result b
 	obtained := toComparableMap(params[0])
 	ref := toComparableMap(params[1])
 
-	return check.DeepEquals.Check([]interface{}{obtained, ref}, names)
+	return check.DeepEquals.Check([]any{obtained, ref}, names)
 }

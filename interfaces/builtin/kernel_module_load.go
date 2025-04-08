@@ -72,7 +72,7 @@ var kernelModuleNameRegexp = regexp.MustCompile(`^[-a-zA-Z0-9_]+$`)
 var kernelModuleOptionsRegexp = regexp.MustCompile(`^([a-zA-Z][a-zA-Z0-9_]*(=[[:graph:]]+)? *)+$`)
 
 func enumerateModules(plug interfaces.Attrer, handleModule func(moduleInfo *ModuleInfo) error) error {
-	var modules []map[string]interface{}
+	var modules []map[string]any
 	err := plug.Attr("modules", &modules)
 	if err != nil && !errors.Is(err, snap.AttributeNotFoundError{}) {
 		return modulesAttrTypeError

@@ -124,46 +124,46 @@ func (s *deviceMgrInstallSuite) setupSystemSeed(c *C, sysLabel, gadgetYaml strin
 
 	s.MakeAssertedSnapWithComps(c, seedtest.SampleSnapYaml["optional24"], nil, snap.R(1), nil, "my-brand", s.StoreSigning.Database)
 
-	var kmods map[string]interface{}
+	var kmods map[string]any
 	if len(kModsRevs) > 0 {
-		kmods = map[string]interface{}{
+		kmods = map[string]any{
 			"kcomp1": "required",
 			"kcomp2": "required",
 		}
 	}
-	model := map[string]interface{}{
+	model := map[string]any{
 		"display-name": "my model",
 		"architecture": "amd64",
 		"base":         "core24",
 		"grade":        "dangerous",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":            "pc-kernel",
 				"id":              s.AssertedSnapID("pc-kernel"),
 				"type":            "kernel",
 				"default-channel": "24",
 				"components":      kmods,
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "pc",
 				"id":              s.AssertedSnapID("pc"),
 				"type":            "gadget",
 				"default-channel": "24",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name": "snapd",
 				"id":   s.AssertedSnapID("snapd"),
 				"type": "snapd",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name": "core24",
 				"id":   s.AssertedSnapID("core24"),
 				"type": "base",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name": "optional24",
 				"id":   s.AssertedSnapID("optional24"),
-				"components": map[string]interface{}{
+				"components": map[string]any{
 					"comp1": "optional",
 				},
 			},
@@ -529,19 +529,19 @@ func (s *deviceMgrInstallModeSuite) makeMockInstalledPcGadget(c *C, installDevic
 }
 
 func (s *deviceMgrInstallModeSuite) makeMockInstallModel(c *C, grade string) *asserts.Model {
-	return s.makeMockInstallModelExtras(c, grade, map[string]interface{}{
+	return s.makeMockInstallModelExtras(c, grade, map[string]any{
 		"display-name": "my model",
 		"architecture": "amd64",
 		"base":         "core20",
 		"grade":        grade,
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":            "pc-kernel",
 				"id":              pcKernelSnapID,
 				"type":            "kernel",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "pc",
 				"id":              pcSnapID,
 				"type":            "gadget",
@@ -561,7 +561,7 @@ func (s *deviceMgrInstallModeSuite) addModelToState(modelAs *asserts.Model) {
 	})
 }
 
-func (s *deviceMgrInstallModeSuite) makeMockInstallModelExtras(c *C, grade string, extras map[string]interface{}) *asserts.Model {
+func (s *deviceMgrInstallModeSuite) makeMockInstallModelExtras(c *C, grade string, extras map[string]any) *asserts.Model {
 	mockModel := s.makeModelAssertionInState(c, "my-brand", "my-model", extras)
 	devicestatetest.SetDevice(s.state, &auth.DeviceState{
 		Brand: "my-brand",
@@ -573,23 +573,23 @@ func (s *deviceMgrInstallModeSuite) makeMockInstallModelExtras(c *C, grade strin
 }
 
 func (s *deviceMgrInstallModeSuite) makeMockInstallModelWithKMods(c *C, grade string) *asserts.Model {
-	mockModel := s.makeModelAssertionInState(c, "my-brand", "my-model", map[string]interface{}{
+	mockModel := s.makeModelAssertionInState(c, "my-brand", "my-model", map[string]any{
 		"display-name": "my model",
 		"architecture": "amd64",
 		"base":         "core24",
 		"grade":        grade,
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":            "pc-kernel",
 				"id":              pcKernelSnapID,
 				"type":            "kernel",
 				"default-channel": "24",
-				"components": map[string]interface{}{
+				"components": map[string]any{
 					"kcomp1": "required",
 					"kcomp2": "required",
 				},
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "pc",
 				"id":              pcSnapID,
 				"type":            "gadget",
@@ -2090,19 +2090,19 @@ func (s *deviceMgrInstallModeSuite) TestInstallCheckEncrypted(c *C) {
 
 	s.makeMockInstalledPcGadget(c, "", "")
 
-	mockModel := s.makeModelAssertionInState(c, "canonical", "pc", map[string]interface{}{
+	mockModel := s.makeModelAssertionInState(c, "canonical", "pc", map[string]any{
 		"display-name": "my model",
 		"architecture": "amd64",
 		"base":         "core20",
 		"grade":        "dangerous",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":            "pc-kernel",
 				"id":              pcKernelSnapID,
 				"type":            "kernel",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "pc",
 				"id":              pcSnapID,
 				"type":            "gadget",
@@ -2544,7 +2544,7 @@ func (s *deviceMgrInstallModeSuite) doRunFactoryResetChange(c *C, model *asserts
 func makeDeviceSerialAssertionInDir(c *C, where string, storeStack *assertstest.StoreStack, brands *assertstest.SigningAccounts, model *asserts.Model, key asserts.PrivateKey, serialN string) *asserts.Serial {
 	encDevKey, err := asserts.EncodePublicKey(key.PublicKey())
 	c.Assert(err, IsNil)
-	serial, err := brands.Signing(model.BrandID()).Sign(asserts.SerialType, map[string]interface{}{
+	serial, err := brands.Signing(model.BrandID()).Sign(asserts.SerialType, map[string]any{
 		"brand-id":            model.BrandID(),
 		"model":               model.Model(),
 		"serial":              serialN,

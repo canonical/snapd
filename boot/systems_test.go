@@ -232,7 +232,7 @@ func (s *systemsSuite) TestSetTryRecoverySystemRemodelEncrypted(c *C) {
 	s.stampSealedKeys(c, s.rootdir)
 
 	model := s.uc20dev.Model()
-	newModel := boottest.MakeMockUC20Model(map[string]interface{}{
+	newModel := boottest.MakeMockUC20Model(map[string]any{
 		"model": "my-new-model",
 	})
 
@@ -1131,7 +1131,7 @@ func (s *systemsSuite) TestClearRecoverySystemRemodelHappy(c *C) {
 
 	s.testClearRecoverySystem(c, mtbl, clearRecoverySystemTestCase{
 		systemLabel: "1234",
-		tryModel: boottest.MakeMockUC20Model(map[string]interface{}{
+		tryModel: boottest.MakeMockUC20Model(map[string]any{
 			"tryModelodel": "my-new-model",
 		}),
 	})

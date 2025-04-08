@@ -291,11 +291,11 @@ func (mi *MountInfo) hasType() bool {
 	return len(mi.types) > 0
 }
 
-func parseStringList(mountEntry map[string]interface{}, fieldName string) ([]string, error) {
+func parseStringList(mountEntry map[string]any, fieldName string) ([]string, error) {
 	var list []string
 	value, ok := mountEntry[fieldName]
 	if ok {
-		interfaceList, ok := value.([]interface{})
+		interfaceList, ok := value.([]any)
 		if !ok {
 			return nil, fmt.Errorf(`mount-control "%s" must be an array of strings (got %q)`, fieldName, value)
 		}
@@ -311,7 +311,7 @@ func parseStringList(mountEntry map[string]interface{}, fieldName string) ([]str
 }
 
 func enumerateMounts(plug interfaces.Attrer, fn func(mountInfo *MountInfo) error) error {
-	var mounts []map[string]interface{}
+	var mounts []map[string]any
 	err := plug.Attr("mount", &mounts)
 	if err != nil && !errors.Is(err, snap.AttributeNotFoundError{}) {
 		return mountAttrTypeError
@@ -601,7 +601,7 @@ func (iface *mountControlInterface) BeforeConnectPlug(plug *interfaces.Connected
 
 func (iface *mountControlInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	mountControlSnippet := bytes.NewBuffer(nil)
-	emit := func(f string, args ...interface{}) {
+	emit := func(f string, args ...any) {
 		fmt.Fprintf(mountControlSnippet, f, args...)
 	}
 	snapInfo := plug.Snap()

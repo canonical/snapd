@@ -216,7 +216,7 @@ func (s *deviceMgrBaseSuite) setupBaseTest(c *C, classic bool) {
 	s.AddCleanup(sysdb.MockGenericClassicModel(s.storeSigning.GenericClassicModel))
 
 	s.brands = assertstest.NewSigningAccounts(s.storeSigning)
-	s.brands.Register("my-brand", brandPrivKey, map[string]interface{}{
+	s.brands.Register("my-brand", brandPrivKey, map[string]any{
 		"display-name": "fancy model publisher",
 		"validation":   "certified",
 	})
@@ -311,7 +311,7 @@ func (s *deviceMgrBaseSuite) seeding() {
 	s.state.Set("seeded", false)
 }
 
-func (s *deviceMgrBaseSuite) makeModelAssertionInState(c *C, brandID, model string, extras map[string]interface{}) *asserts.Model {
+func (s *deviceMgrBaseSuite) makeModelAssertionInState(c *C, brandID, model string, extras map[string]any) *asserts.Model {
 	modelAs := s.brands.Model(brandID, model, extras)
 
 	s.setupBrands()
@@ -322,7 +322,7 @@ func (s *deviceMgrBaseSuite) makeModelAssertionInState(c *C, brandID, model stri
 func (s *deviceMgrBaseSuite) setPCModelInState(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
-	s.makeModelAssertionInState(c, "canonical", "pc", map[string]interface{}{
+	s.makeModelAssertionInState(c, "canonical", "pc", map[string]any{
 		"architecture": "amd64",
 		"kernel":       "pc-kernel",
 		"gadget":       "pc",
@@ -338,19 +338,19 @@ func (s *deviceMgrBaseSuite) setPCModelInState(c *C) {
 func (s *deviceMgrBaseSuite) setUC20PCModelInState(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
-	s.makeModelAssertionInState(c, "canonical", "pc-20", map[string]interface{}{
+	s.makeModelAssertionInState(c, "canonical", "pc-20", map[string]any{
 		"architecture": "amd64",
 		// UC20
 		"grade": "dangerous",
 		"base":  "core20",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":            "pc-kernel",
 				"id":              snaptest.AssertedSnapID("pc-kernel"),
 				"type":            "kernel",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "pc",
 				"id":              snaptest.AssertedSnapID("pc"),
 				"type":            "gadget",
@@ -368,14 +368,14 @@ func (s *deviceMgrBaseSuite) setUC20PCModelInState(c *C) {
 
 func (s *deviceMgrBaseSuite) setupBrands() {
 	assertstatetest.AddMany(s.state, s.brands.AccountsAndKeys("my-brand")...)
-	otherAcct := assertstest.NewAccount(s.storeSigning, "other-brand", map[string]interface{}{
+	otherAcct := assertstest.NewAccount(s.storeSigning, "other-brand", map[string]any{
 		"account-id": "other-brand",
 	}, "")
 	assertstatetest.AddMany(s.state, otherAcct)
 }
 
 func (s *deviceMgrBaseSuite) setupSnapDeclForNameAndID(c *C, name, snapID, publisherID string) {
-	snapDecl, err := s.storeSigning.Sign(asserts.SnapDeclarationType, map[string]interface{}{
+	snapDecl, err := s.storeSigning.Sign(asserts.SnapDeclarationType, map[string]any{
 		"series":       "16",
 		"snap-name":    name,
 		"snap-id":      snapID,
@@ -387,7 +387,7 @@ func (s *deviceMgrBaseSuite) setupSnapDeclForNameAndID(c *C, name, snapID, publi
 }
 
 func (s *deviceMgrBaseSuite) setupSnapResourcePair(c *C, comp, snapID, publisherID string, resRev, snapRev snap.Revision) {
-	assertion, err := s.storeSigning.Sign(asserts.SnapResourcePairType, map[string]interface{}{
+	assertion, err := s.storeSigning.Sign(asserts.SnapResourcePairType, map[string]any{
 		"snap-id":           snapID,
 		"resource-name":     comp,
 		"resource-revision": strconv.Itoa(resRev.N),
@@ -403,7 +403,7 @@ func (s *deviceMgrBaseSuite) setupSnapResourceRevision(c *C, file string, comp, 
 	sha, size, err := asserts.SnapFileSHA3_384(file)
 	c.Assert(err, IsNil)
 
-	assertion, err := s.storeSigning.Sign(asserts.SnapResourceRevisionType, map[string]interface{}{
+	assertion, err := s.storeSigning.Sign(asserts.SnapResourceRevisionType, map[string]any{
 		"snap-id":           snapID,
 		"resource-name":     comp,
 		"resource-sha3-384": sha,
@@ -424,7 +424,7 @@ func (s *deviceMgrBaseSuite) setupSnapRevisionForFileAndID(c *C, file, snapID, p
 	sha3_384, size, err := asserts.SnapFileSHA3_384(file)
 	c.Assert(err, IsNil)
 
-	snapRev, err := s.storeSigning.Sign(asserts.SnapRevisionType, map[string]interface{}{
+	snapRev, err := s.storeSigning.Sign(asserts.SnapRevisionType, map[string]any{
 		"snap-sha3-384": sha3_384,
 		"snap-size":     fmt.Sprintf("%d", size),
 		"snap-id":       snapID,
@@ -443,7 +443,7 @@ func (s *deviceMgrBaseSuite) setupSnapRevision(c *C, info *snap.Info, publisherI
 func makeSerialAssertionInState(c *C, brands *assertstest.SigningAccounts, st *state.State, brandID, model, serialN string) *asserts.Serial {
 	encDevKey, err := asserts.EncodePublicKey(devKey.PublicKey())
 	c.Assert(err, IsNil)
-	serial, err := brands.Signing(brandID).Sign(asserts.SerialType, map[string]interface{}{
+	serial, err := brands.Signing(brandID).Sign(asserts.SerialType, map[string]any{
 		"brand-id":            brandID,
 		"model":               model,
 		"serial":              serialN,
@@ -772,8 +772,8 @@ func (s *deviceMgrSuite) TestDeviceManagerEnsureBootOkError(c *C) {
 	c.Assert(err, ErrorMatches, "devicemgr: cannot mark boot successful: bootloader err")
 }
 
-func fakeMyModel(extra map[string]interface{}) *asserts.Model {
-	model := map[string]interface{}{
+func fakeMyModel(extra map[string]any) *asserts.Model {
+	model := map[string]any{
 		"type":         "model",
 		"authority-id": "my-brand",
 		"series":       "16",
@@ -791,7 +791,7 @@ func (s *deviceMgrSuite) TestCheckGadget(c *C) {
 
 	s.setupBrands()
 	// model assertion in device context
-	model := fakeMyModel(map[string]interface{}{
+	model := fakeMyModel(map[string]any{
 		"architecture": "amd64",
 		"gadget":       "gadget",
 		"kernel":       "krnl",
@@ -849,7 +849,7 @@ func (s *deviceMgrSuite) TestCheckGadgetOnClassic(c *C) {
 
 	s.setupBrands()
 	// model assertion in device context
-	model := fakeMyModel(map[string]interface{}{
+	model := fakeMyModel(map[string]any{
 		"classic": "true",
 		"gadget":  "gadget",
 	})
@@ -901,7 +901,7 @@ func (s *deviceMgrSuite) TestCheckGadgetOnClassicGadgetNotSpecified(c *C) {
 
 	s.setupBrands()
 	// model assertion in device context
-	model := fakeMyModel(map[string]interface{}{
+	model := fakeMyModel(map[string]any{
 		"classic": "true",
 	})
 	deviceCtx := &snapstatetest.TrivialDeviceContext{DeviceModel: model}
@@ -915,7 +915,7 @@ func (s *deviceMgrSuite) TestCheckGadgetValid(c *C) {
 	defer s.state.Unlock()
 
 	// model assertion in device context
-	model := fakeMyModel(map[string]interface{}{
+	model := fakeMyModel(map[string]any{
 		"architecture": "amd64",
 		"gadget":       "gadget",
 		"kernel":       "krnl",
@@ -948,7 +948,7 @@ func (s *deviceMgrSuite) TestCheckKernel(c *C) {
 	// not on classic without modes
 	release.OnClassic = true
 	// model assertion in device context
-	model := fakeMyModel(map[string]interface{}{
+	model := fakeMyModel(map[string]any{
 		"classic": "true",
 	})
 	deviceCtx := &snapstatetest.TrivialDeviceContext{DeviceModel: model}
@@ -958,7 +958,7 @@ func (s *deviceMgrSuite) TestCheckKernel(c *C) {
 
 	s.setupBrands()
 	// model assertion in device context
-	model = fakeMyModel(map[string]interface{}{
+	model = fakeMyModel(map[string]any{
 		"architecture": "amd64",
 		"gadget":       "gadget",
 		"kernel":       "krnl",
@@ -1014,20 +1014,20 @@ func (s *deviceMgrSuite) TestCheckKernelOnClassicWithModes(c *C) {
 	kernelInfo := snaptest.MockInfo(c, "{type: kernel, name: pc-kernel, version: 0}", nil)
 
 	// model assertion in device context
-	model := fakeMyModel(map[string]interface{}{
+	model := fakeMyModel(map[string]any{
 		"architecture": "amd64",
 		"classic":      "true",
 		"grade":        "dangerous",
 		"distribution": "ubuntu",
 		"base":         "core22",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":            "pc-kernel",
 				"id":              snaptest.AssertedSnapID("pc-kernel"),
 				"type":            "kernel",
 				"default-channel": "22",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "pc",
 				"id":              snaptest.AssertedSnapID("pc"),
 				"type":            "gadget",
@@ -1060,7 +1060,7 @@ func (s *deviceMgrSuite) TestCanAutoRefreshOnCore(c *C) {
 		Brand: "canonical",
 		Model: "pc",
 	})
-	s.makeModelAssertionInState(c, "canonical", "pc", map[string]interface{}{
+	s.makeModelAssertionInState(c, "canonical", "pc", map[string]any{
 		"architecture": "amd64",
 		"kernel":       "pc-kernel",
 		"gadget":       "pc",
@@ -1100,7 +1100,7 @@ func (s *deviceMgrSuite) TestCanAutoRefreshNoSerialFallback(c *C) {
 		Brand: "canonical",
 		Model: "pc",
 	})
-	s.makeModelAssertionInState(c, "canonical", "pc", map[string]interface{}{
+	s.makeModelAssertionInState(c, "canonical", "pc", map[string]any{
 		"architecture": "amd64",
 		"kernel":       "pc-kernel",
 		"gadget":       "pc",
@@ -1140,7 +1140,7 @@ func (s *deviceMgrSuite) TestCanAutoRefreshOnClassic(c *C) {
 		Brand: "canonical",
 		Model: "pc",
 	})
-	s.makeModelAssertionInState(c, "canonical", "pc", map[string]interface{}{
+	s.makeModelAssertionInState(c, "canonical", "pc", map[string]any{
 		"classic": "true",
 	})
 	c.Check(canAutoRefresh(), Equals, false)
@@ -1460,7 +1460,7 @@ func (s *deviceMgrSuite) TestDeviceManagerSystemModeInfoUC18(c *C) {
 	defer s.state.Unlock()
 
 	// have a model
-	s.makeModelAssertionInState(c, "canonical", "pc", map[string]interface{}{
+	s.makeModelAssertionInState(c, "canonical", "pc", map[string]any{
 		"architecture": "amd64",
 		"kernel":       "pc-kernel",
 		"gadget":       "pc",
@@ -1809,7 +1809,7 @@ func (s *deviceMgrSuite) TestHasFdeSetupHook(c *C) {
 	st.Lock()
 	defer st.Unlock()
 
-	s.makeModelAssertionInState(c, "canonical", "pc", map[string]interface{}{
+	s.makeModelAssertionInState(c, "canonical", "pc", map[string]any{
 		"architecture": "amd64",
 		"kernel":       "pc-kernel",
 		"gadget":       "pc",
@@ -1839,7 +1839,7 @@ func (s *deviceMgrSuite) TestHasFdeSetupHookOtherKernel(c *C) {
 	st.Lock()
 	defer st.Unlock()
 
-	s.makeModelAssertionInState(c, "canonical", "pc", map[string]interface{}{
+	s.makeModelAssertionInState(c, "canonical", "pc", map[string]any{
 		"architecture": "amd64",
 		"kernel":       "pc-kernel",
 		"gadget":       "pc",
@@ -1867,7 +1867,7 @@ func (s *deviceMgrSuite) TestRunFDESetupHookHappy(c *C) {
 
 	st.Lock()
 	makeInstalledMockKernelSnap(c, st, kernelYamlWithFdeSetup)
-	s.makeModelAssertionInState(c, "canonical", "pc", map[string]interface{}{
+	s.makeModelAssertionInState(c, "canonical", "pc", map[string]any{
 		"architecture": "amd64",
 		"kernel":       "pc-kernel",
 		"gadget":       "pc",
@@ -1923,7 +1923,7 @@ func (s *deviceMgrSuite) TestRunFDESetupHookErrors(c *C) {
 
 	st.Lock()
 	makeInstalledMockKernelSnap(c, st, kernelYamlWithFdeSetup)
-	s.makeModelAssertionInState(c, "canonical", "pc", map[string]interface{}{
+	s.makeModelAssertionInState(c, "canonical", "pc", map[string]any{
 		"architecture": "amd64",
 		"kernel":       "pc-kernel",
 		"gadget":       "pc",
@@ -1958,7 +1958,7 @@ func (s *deviceMgrSuite) TestRunFDESetupHookErrorResult(c *C) {
 
 	st.Lock()
 	makeInstalledMockKernelSnap(c, st, kernelYamlWithFdeSetup)
-	s.makeModelAssertionInState(c, "canonical", "pc", map[string]interface{}{
+	s.makeModelAssertionInState(c, "canonical", "pc", map[string]any{
 		"architecture": "amd64",
 		"kernel":       "pc-kernel",
 		"gadget":       "pc",
@@ -2104,7 +2104,7 @@ func (s *deviceMgrSuite) TestCanAutoRefreshNTP(c *C) {
 
 	// CanAutoRefresh is ready
 	s.state.Set("seeded", true)
-	s.makeModelAssertionInState(c, "canonical", "pc", map[string]interface{}{
+	s.makeModelAssertionInState(c, "canonical", "pc", map[string]any{
 		"architecture": "amd64",
 		"kernel":       "pc-kernel",
 		"gadget":       "pc",
@@ -2571,30 +2571,30 @@ volumes:
 	makeSnap("pc=20")
 	optSnapPath := snaptest.MakeTestSnapWithFiles(c, seedtest.SampleSnapYaml["optional20-a"], nil)
 
-	model := map[string]interface{}{
+	model := map[string]any{
 		"display-name": "my model",
 		"architecture": "amd64",
 		"base":         "core20",
 		"grade":        "dangerous",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":            "pc-kernel",
 				"id":              seed20.AssertedSnapID("pc-kernel"),
 				"type":            "kernel",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "pc",
 				"id":              seed20.AssertedSnapID("pc"),
 				"type":            "gadget",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name": "snapd",
 				"id":   seed20.AssertedSnapID("snapd"),
 				"type": "snapd",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name": "core20",
 				"id":   seed20.AssertedSnapID("core20"),
 				"type": "base",
@@ -2827,7 +2827,7 @@ func (s *deviceMgrSuite) TestSignConfdbControlNoSerial(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	_, err := s.mgr.SignConfdbControl([]interface{}{}, 2)
+	_, err := s.mgr.SignConfdbControl([]any{}, 2)
 	c.Assert(err, ErrorMatches, "cannot sign confdb-control without a serial")
 }
 
@@ -2838,7 +2838,7 @@ func (s *deviceMgrSuite) TestSignConfdbControlNoKey(c *C) {
 
 	s.makeSerialAssertionInState(c, "canonical", "pc", "serialserialserial")
 
-	_, err := s.mgr.SignConfdbControl([]interface{}{}, 3)
+	_, err := s.mgr.SignConfdbControl([]any{}, 3)
 	c.Assert(err, ErrorMatches, "cannot sign confdb-control without device key")
 }
 
@@ -2850,7 +2850,7 @@ func (s *deviceMgrSuite) TestSignConfdbControlInvalid(c *C) {
 	s.makeSerialAssertionInState(c, "canonical", "pc", "serialserialserial")
 	s.addKeyToManagerInState(c)
 
-	groups := []interface{}{map[string]interface{}{"operators": []interface{}{"jane"}}}
+	groups := []any{map[string]any{"operators": []any{"jane"}}}
 	_, err := s.mgr.SignConfdbControl(groups, 4)
 	c.Assert(
 		err,
@@ -2867,15 +2867,15 @@ func (s *deviceMgrSuite) TestSignConfdbControlOK(c *C) {
 	s.makeSerialAssertionInState(c, "canonical", "pc", "serialserialserial")
 	s.addKeyToManagerInState(c)
 
-	jane := map[string]interface{}{
-		"operators":       []interface{}{"jane"},
-		"authentications": []interface{}{"operator-key"},
-		"views": []interface{}{
+	jane := map[string]any{
+		"operators":       []any{"jane"},
+		"authentications": []any{"operator-key"},
+		"views": []any{
 			"canonical/network/observe-interfaces",
 			"canonical/network/control-interfaces",
 		},
 	}
-	groups := []interface{}{jane}
+	groups := []any{jane}
 
 	cc, err := s.mgr.SignConfdbControl(groups, 5)
 	c.Assert(err, IsNil)
@@ -2914,7 +2914,7 @@ func (s *deviceMgrSuite) TestConfbControlUnknownSigningKey(c *C) {
 	s.makeSerialAssertionInState(c, "canonical", "pc", "serialserialserial")
 	s.addKeyToManagerInState(c)
 
-	cc, err := s.mgr.SignConfdbControl([]interface{}{}, 10)
+	cc, err := s.mgr.SignConfdbControl([]any{}, 10)
 	c.Assert(err, IsNil)
 	assertstatetest.AddMany(s.state, cc)
 
@@ -2923,7 +2923,7 @@ func (s *deviceMgrSuite) TestConfbControlUnknownSigningKey(c *C) {
 	encDevKey, err := asserts.EncodePublicKey(anotherKey.PublicKey())
 	c.Assert(err, IsNil)
 
-	serial, err := s.brands.Signing("canonical").Sign(asserts.SerialType, map[string]interface{}{
+	serial, err := s.brands.Signing("canonical").Sign(asserts.SerialType, map[string]any{
 		"brand-id":            "canonical",
 		"model":               "pc",
 		"serial":              "serialserialserial",
@@ -2951,7 +2951,7 @@ func (s *deviceMgrSuite) TestConfdbControlFindExisting(c *C) {
 	s.addKeyToManagerInState(c)
 
 	// add assertion
-	cc, err := s.mgr.SignConfdbControl([]interface{}{}, 10)
+	cc, err := s.mgr.SignConfdbControl([]any{}, 10)
 	c.Assert(err, IsNil)
 	assertstatetest.AddMany(s.state, cc)
 

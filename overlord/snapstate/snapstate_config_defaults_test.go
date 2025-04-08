@@ -57,7 +57,7 @@ func (s *snapmgrTestSuite) TestConfigDefaults(c *C) {
 
 	defls, err := snapstate.ConfigDefaults(s.state, deviceCtx, "some-snap")
 	c.Assert(err, IsNil)
-	c.Assert(defls, DeepEquals, map[string]interface{}{"key": "value"})
+	c.Assert(defls, DeepEquals, map[string]any{"key": "value"})
 
 	snapstate.Set(s.state, "local-snap", &snapstate.SnapState{
 		Active: true,
@@ -117,7 +117,7 @@ func (s *snapmgrTestSuite) TestConfigDefaultsSmokeUC20(c *C) {
 
 	defls, err := snapstate.ConfigDefaults(s.state, deviceCtx, "some-snap")
 	c.Assert(err, IsNil)
-	c.Assert(defls, DeepEquals, map[string]interface{}{"key": "value"})
+	c.Assert(defls, DeepEquals, map[string]any{"key": "value"})
 }
 
 func (s *snapmgrTestSuite) TestConfigDefaultsNoGadget(c *C) {
@@ -177,7 +177,7 @@ defaults:
 
 	defls, err := snapstate.ConfigDefaults(s.state, deviceCtx, "core")
 	c.Assert(err, IsNil)
-	c.Assert(defls, DeepEquals, map[string]interface{}{"foo": "bar"})
+	c.Assert(defls, DeepEquals, map[string]any{"foo": "bar"})
 }
 
 var snapdSnapYaml = `name: snapd
@@ -202,7 +202,7 @@ defaults:
 `)
 
 	deviceCtx := &snapstatetest.TrivialDeviceContext{
-		DeviceModel: MakeModel(map[string]interface{}{
+		DeviceModel: MakeModel(map[string]any{
 			"gadget": "the-gadget",
 			"base":   "the-base",
 		}),
@@ -225,7 +225,7 @@ defaults:
 
 	defls, err := snapstate.ConfigDefaults(s.state, deviceCtx, "core")
 	c.Assert(err, IsNil)
-	c.Assert(defls, DeepEquals, map[string]interface{}{"foo": "bar"})
+	c.Assert(defls, DeepEquals, map[string]any{"foo": "bar"})
 }
 
 func (s *snapmgrTestSuite) TestConfigDefaultsSystemConflictsCoreSnapId(c *C) {
@@ -263,7 +263,7 @@ defaults:
 	// 'system' key defaults take precedence over snap-id ones
 	defls, err := snapstate.ConfigDefaults(s.state, deviceCtx, "core")
 	c.Assert(err, IsNil)
-	c.Assert(defls, DeepEquals, map[string]interface{}{"foo": "bar"})
+	c.Assert(defls, DeepEquals, map[string]any{"foo": "bar"})
 }
 
 func (s *snapmgrTestSuite) TestTransitionCoreTasksNoUbuntuCore(c *C) {
