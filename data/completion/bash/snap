@@ -43,6 +43,9 @@ _complete_snap() {
     # Only split on newlines
     local IFS=$'\n'
 
+    # checks if $cur begins with "-"
+    isparam=($(echo "$cur" | grep -v "^-"))
+
     # now we pass _just the bit that's being completed_ of the command
     # to snap for it to figure it out. go-flags isn't smart enough to
     # look at COMP_WORDS etc. itself.
@@ -52,6 +55,11 @@ _complete_snap() {
     elif [ "$command" = "routine" ]; then
         command="${words[2]}"
         COMPREPLY=($(GO_FLAGS_COMPLETION=1 snap routine "$command" "$cur"))
+    elif [ "$command" = "run" ] && ( [ "$cur" = "" ] || [ "$isparam" != "" ] ); then
+        # run isn't fully implemented, so, for now, just use the folder
+        # list in /snap when asking for something that is not a parameter.
+        snaplist=$(ls -1 -d /snap/${cur}* |cut -d / - -f 3-)
+        COMPREPLY=($snaplist)
     else
         COMPREPLY=($(GO_FLAGS_COMPLETION=1 snap "$command" "$cur"))
     fi
