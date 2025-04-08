@@ -410,12 +410,8 @@ func (s *interfaceManagerSuite) TestSmokeAppArmorPromptingEnabled(c *C) {
 	c.Check(mgr.AppArmorPromptingRunning(), Equals, true)
 	c.Check(mgr.InterfacesRequestsManager(), Equals, fakeManager)
 
-	func() {
-		s.state.Lock()
-		defer s.state.Unlock()
-		warns := s.state.AllWarnings()
-		c.Check(warns, HasLen, 0)
-	}()
+	warns := s.state.AllWarnings()
+	c.Check(warns, HasLen, 0)
 
 	c.Check(stopCount, Equals, 0)
 	mgr.Stop()
@@ -457,12 +453,8 @@ func (s *interfaceManagerSuite) TestSmokeAppArmorPromptingDisabled(c *C) {
 	c.Check(mgr.AppArmorPromptingRunning(), Equals, false)
 	c.Check(mgr.InterfacesRequestsManager(), testutil.IsInterfaceNil)
 
-	func() {
-		s.state.Lock()
-		defer s.state.Unlock()
-		warns := s.state.AllWarnings()
-		c.Check(warns, HasLen, 0)
-	}()
+	warns := s.state.AllWarnings()
+	c.Check(warns, HasLen, 0)
 
 	mgr.Stop()
 	c.Check(stopCount, Equals, 0)
@@ -7064,8 +7056,6 @@ func (s *interfaceManagerSuite) TestInterfacesRequestsManagerNoHandlerService(c 
 		c.Check(logStr, Not(testutil.Contains), "failed to start interfaces requests manager")
 	})
 
-	s.state.Lock()
-	defer s.state.Unlock()
 	warns := s.state.AllWarnings()
 	c.Check(warns, HasLen, 1)
 	c.Check(warns[0].String(), Matches, `"apparmor-prompting" feature flag enabled but no prompting client is present; requests will be auto-denied until a prompting client is installed`)
@@ -7110,8 +7100,6 @@ func (s *interfaceManagerSuite) TestInterfacesRequestsManagerHandlerServicePrese
 		c.Check(logbuf.String(), testutil.Contains, "failed to check the presence of a interfaces-requests-control handler service")
 	})
 
-	s.state.Lock()
-	defer s.state.Unlock()
 	warns := s.state.AllWarnings()
 	c.Check(warns, HasLen, 0)
 }
@@ -7150,8 +7138,6 @@ func (s *interfaceManagerSuite) TestInitInterfacesRequestsManagerError(c *C) {
 		c.Check(logbuf.String(), testutil.Contains, fmt.Sprintf("%v", createError))
 	})
 
-	s.state.Lock()
-	defer s.state.Unlock()
 	warns := s.state.AllWarnings()
 	c.Check(warns, HasLen, 1)
 	c.Check(warns[0].String(), Matches, fmt.Sprintf(`cannot start prompting backend: %v; prompting will be inactive until snapd is restarted`, createError))
@@ -7264,8 +7250,6 @@ func (s *interfaceManagerSuite) TestStartupWarningForDisabledAppArmor(c *C) {
 
 	c.Check(invocationCount, Equals, 1)
 
-	s.state.Lock()
-	defer s.state.Unlock()
 	warns := s.state.AllWarnings()
 	c.Assert(warns, HasLen, 1)
 	c.Check(warns[0].String(), Matches, `the snapd\.apparmor service is disabled.*\nRun .* to correct this\.`)
