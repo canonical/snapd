@@ -760,68 +760,75 @@ func (iface *dockerSupportInterface) AppArmorConnectedPlug(spec *apparmor.Specif
 	// snaps.
 	spec.SetSuppressPycacheDeny()
 
-	defaultSnippet, err := apparmor_sandbox.InsertAAREExclusionPatterns(
-		dockerSupportConnectedPlugAppArmor,
-		[]string{
-			"/snap/snapd/*/usr/lib/snapd/snap-confine",
-			"/snap/core/*/usr/lib/snapd/snap-confine",
-		},
-		&apparmor_sandbox.AAREExclusionPatternsOptions{
-			Prefix: "change_profile unsafe ",
-			Suffix: " -> docker-default,",
-		},
-	)
-	if err != nil {
-		return err
-	}
+	defaultSnippet := dockerSupportConnectedPlugAppArmor
 
-	defaultSnippet, err = apparmor_sandbox.InsertAAREExclusionPatterns(
-		defaultSnippet,
-		[]string{
-			"/snap/snapd/*/usr/lib/snapd/snap-confine",
-			"/snap/core/*/usr/lib/snapd/snap-confine",
-		},
-		&apparmor_sandbox.AAREExclusionPatternsOptions{
-			Prefix: "change_profile unsafe ",
-			Suffix: " -> cri-containerd.apparmor.d,",
-		},
-	)
-	if err != nil {
-		return err
-	}
-
-	spec.AddSnippet(defaultSnippet)
-	if privileged {
-		privilegedSnippet, err := apparmor_sandbox.InsertAAREExclusionPatterns(
-			dockerSupportPrivilegedAppArmor,
+        if !release.OnTouch {
+		defaultSnippet, err := apparmor_sandbox.InsertAAREExclusionPatterns(
+			dockerSupportConnectedPlugAppArmor,
 			[]string{
 				"/snap/snapd/*/usr/lib/snapd/snap-confine",
 				"/snap/core/*/usr/lib/snapd/snap-confine",
 			},
 			&apparmor_sandbox.AAREExclusionPatternsOptions{
 				Prefix: "change_profile unsafe ",
-				Suffix: ",",
+				Suffix: " -> docker-default,",
 			},
 		)
 		if err != nil {
 			return err
 		}
 
-		privilegedSnippet, err = apparmor_sandbox.InsertAAREExclusionPatterns(
-			privilegedSnippet,
+		defaultSnippet, err = apparmor_sandbox.InsertAAREExclusionPatterns(
+			defaultSnippet,
 			[]string{
 				"/snap/snapd/*/usr/lib/snapd/snap-confine",
 				"/snap/core/*/usr/lib/snapd/snap-confine",
 			},
 			&apparmor_sandbox.AAREExclusionPatternsOptions{
-				Prefix: "",
-				Suffix: " rwlix,",
+				Prefix: "change_profile unsafe ",
+				Suffix: " -> cri-containerd.apparmor.d,",
 			},
 		)
 		if err != nil {
 			return err
 		}
+	}
 
+	spec.AddSnippet(defaultSnippet)
+
+	if privileged {
+		privilegedSnippet := dockerSupportPrivilegedAppArmor
+		if !release.OnTouch {
+			privilegedSnippet, err := apparmor_sandbox.InsertAAREExclusionPatterns(
+				dockerSupportPrivilegedAppArmor,
+				[]string{
+					"/snap/snapd/*/usr/lib/snapd/snap-confine",
+					"/snap/core/*/usr/lib/snapd/snap-confine",
+				},
+				&apparmor_sandbox.AAREExclusionPatternsOptions{
+					Prefix: "change_profile unsafe ",
+					Suffix: ",",
+				},
+			)
+			if err != nil {
+				return err
+			}
+
+			privilegedSnippet, err = apparmor_sandbox.InsertAAREExclusionPatterns(
+				privilegedSnippet,
+				[]string{
+					"/snap/snapd/*/usr/lib/snapd/snap-confine",
+					"/snap/core/*/usr/lib/snapd/snap-confine",
+				},
+				&apparmor_sandbox.AAREExclusionPatternsOptions{
+					Prefix: "",
+					Suffix: " rwlix,",
+				},
+			)
+			if err != nil {
+				return err
+			}
+		}
 		spec.AddSnippet(privilegedSnippet)
 	}
 	if !release.OnClassic {
