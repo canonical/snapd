@@ -33,6 +33,9 @@ type MsgNotificationGeneric interface {
 	// Name is the identifier of the resource to which access is requested.
 	// For mediation class file, Name is the filepath of the requested file.
 	Name() string
+	// Interface returns the interface associated with the message, if tags are
+	// present and registered in association with an interface.
+	Interface() (iface string, ok bool)
 }
 
 // Message fields are defined as raw sized integer types as the same type may be
@@ -557,7 +560,7 @@ type MsgNotificationFile struct {
 	Filename string
 	// Tagsets maps from permission mask to the ordered list of tags associated
 	// with those permissions. Tagsets requires protocol version 5 or greater.
-	Tagsets map[AppArmorPermission][]string
+	Tagsets TagsetMap
 }
 
 // UnmarshalBinary unmarshals the message from binary form.
@@ -620,7 +623,7 @@ func (msg *MsgNotificationFile) unmarshalTags(data []byte) error {
 	}
 
 	// Unpack each tagset header and its associated tags.
-	tagsets := make(map[AppArmorPermission][]string, raw.TagsetsCount)
+	tagsets := make(TagsetMap, raw.TagsetsCount)
 	hdrBuf := bytes.NewReader(data[raw.Tags:])
 	unpacker := newStringUnpacker(data)
 	for i := uint16(0); i < raw.TagsetsCount; i++ {
@@ -633,7 +636,7 @@ func (msg *MsgNotificationFile) unmarshalTags(data []byte) error {
 			return fmt.Errorf("cannot unpack tags for header %+v: %v", header, err)
 		}
 		perm := FilePermission(header.PermissionMask)
-		tagsets[perm] = tags
+		tagsets[perm] = MetadataTags(tags)
 	}
 
 	msg.Tagsets = tagsets
@@ -697,4 +700,8 @@ func (msg *MsgNotificationFile) SubjectUID() uint32 {
 
 func (msg *MsgNotificationFile) Name() string {
 	return msg.Filename
+}
+
+func (msg *MsgNotificationFile) Interface() (iface string, ok bool) {
+	return msg.Tagsets.InterfaceForPermission(FilePermission(msg.Deny))
 }
