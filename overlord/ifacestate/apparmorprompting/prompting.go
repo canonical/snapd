@@ -318,6 +318,9 @@ func (m *InterfacesRequestsManager) Stop() error {
 func (m *InterfacesRequestsManager) Prompts(userID uint32, clientActivity bool) ([]*requestprompts.Prompt, error) {
 	m.lock.RLock()
 	defer m.lock.RUnlock()
+	if m.prompts == nil {
+		return nil, prompting_errors.ErrPromptsClosed
+	}
 	return m.prompts.Prompts(userID, clientActivity)
 }
 
@@ -328,6 +331,9 @@ func (m *InterfacesRequestsManager) Prompts(userID uint32, clientActivity bool) 
 func (m *InterfacesRequestsManager) PromptWithID(userID uint32, promptID prompting.IDType, clientActivity bool) (*requestprompts.Prompt, error) {
 	m.lock.RLock()
 	defer m.lock.RUnlock()
+	if m.prompts == nil {
+		return nil, prompting_errors.ErrPromptsClosed
+	}
 	return m.prompts.PromptWithID(userID, promptID, clientActivity)
 }
 
@@ -342,6 +348,10 @@ func (m *InterfacesRequestsManager) PromptWithID(userID uint32, promptID prompti
 func (m *InterfacesRequestsManager) HandleReply(userID uint32, promptID prompting.IDType, replyConstraints *prompting.ReplyConstraints, outcome prompting.OutcomeType, lifespan prompting.LifespanType, duration string, clientActivity bool) (satisfiedPromptIDs []prompting.IDType, retErr error) {
 	m.lock.Lock()
 	defer m.lock.Unlock()
+
+	if m.prompts == nil {
+		return nil, prompting_errors.ErrPromptsClosed
+	}
 
 	prompt, err := m.prompts.PromptWithID(userID, promptID, clientActivity)
 	if err != nil {
@@ -444,6 +454,10 @@ func (m *InterfacesRequestsManager) Rules(userID uint32, snap string, iface stri
 	m.lock.RLock()
 	defer m.lock.RUnlock()
 
+	if m.rules == nil {
+		return nil, prompting_errors.ErrRulesClosed
+	}
+
 	if snap != "" {
 		if iface != "" {
 			rules := m.rules.RulesForSnapInterface(userID, snap, iface)
@@ -466,6 +480,10 @@ func (m *InterfacesRequestsManager) AddRule(userID uint32, snap string, iface st
 	m.lock.Lock()
 	defer m.lock.Unlock()
 
+	if m.rules == nil {
+		return nil, prompting_errors.ErrRulesClosed
+	}
+
 	newRule, err := m.rules.AddRule(userID, snap, iface, constraints)
 	if err != nil {
 		return nil, err
@@ -483,6 +501,10 @@ func (m *InterfacesRequestsManager) RemoveRules(userID uint32, snap string, ifac
 	// has an internal mutex.
 	m.lock.RLock()
 	defer m.lock.RUnlock()
+
+	if m.rules == nil {
+		return nil, prompting_errors.ErrRulesClosed
+	}
 
 	if snap == "" && iface == "" {
 		// The caller should ensure that this is not the case.
@@ -503,6 +525,10 @@ func (m *InterfacesRequestsManager) RuleWithID(userID uint32, ruleID prompting.I
 	m.lock.RLock()
 	defer m.lock.RUnlock()
 
+	if m.rules == nil {
+		return nil, prompting_errors.ErrRulesClosed
+	}
+
 	rule, err := m.rules.RuleWithID(userID, ruleID)
 	return rule, err
 }
@@ -512,6 +538,10 @@ func (m *InterfacesRequestsManager) RuleWithID(userID uint32, ruleID prompting.I
 func (m *InterfacesRequestsManager) PatchRule(userID uint32, ruleID prompting.IDType, constraintsPatch *prompting.RuleConstraintsPatch) (*requestrules.Rule, error) {
 	m.lock.Lock()
 	defer m.lock.Unlock()
+
+	if m.rules == nil {
+		return nil, prompting_errors.ErrRulesClosed
+	}
 
 	patchedRule, err := m.rules.PatchRule(userID, ruleID, constraintsPatch)
 	if err != nil {
@@ -528,6 +558,10 @@ func (m *InterfacesRequestsManager) RemoveRule(userID uint32, ruleID prompting.I
 	// has an internal mutex.
 	m.lock.RLock()
 	defer m.lock.RUnlock()
+
+	if m.rules == nil {
+		return nil, prompting_errors.ErrRulesClosed
+	}
 
 	rule, err := m.rules.RemoveRule(userID, ruleID)
 	return rule, err
