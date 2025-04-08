@@ -47,6 +47,15 @@ on:
         description: 'Comma-separated list of experimental snapd features to enable with: snap set system "experimental.<feature-name>=true"'
         required: false
         type: string
+      spread-env:
+        description: 'Extra environment variables to set before calling spread (format ENV1=VALUE1 ENV2=VALUE2) that are not covered by the other inputs'
+        required: false
+        type: string
+      upload-artifacts:
+        description: 'If true, will upload any artifacts that spread produces'
+        type: boolean
+        required: false
+        default: false
 
 
 jobs:
@@ -79,6 +88,13 @@ jobs:
       with:
         # spread uses tags as delta reference
         fetch-depth: 0
+
+    - name: Set extra spread environment variables
+      if: ${{ inputs.spread-env != '' }}
+      run: |
+          for env in ${{ inputs.spread-env }}; do
+            echo "$env" >> $GITHUB_ENV
+          done
 
     - name: set SPREAD_SNAPD_DEB_FROM_REPO=1
       if: ${{ inputs.spread-snapd-deb-from-repo == 'true' }}
@@ -306,6 +322,12 @@ jobs:
             exit 0
           fi
 
+          SPREAD_FLAGS='-no-debug-output -logs spread-logs'
+          if [ "${{ inputs.upload-artifacts }}" = true ]; then
+            SPREAD_FLAGS="$SPREAD_FLAGS -artifacts spread-artifacts"
+            echo "ARTIFACTS_FOLDER=spread-artifacts" >> $GITHUB_ENV
+          fi
+
           # Run spread tests
           # "pipefail" ensures that a non-zero status from the spread is
           # propagated; and we use a subshell as this option could trigger
@@ -313,7 +335,7 @@ jobs:
           echo "Running command: $SPREAD $RUN_TESTS"
           (
             set -o pipefail 
-            $SPREAD -no-debug-output -logs spread-logs $RUN_TESTS | \
+            $SPREAD $SPREAD_FLAGS $RUN_TESTS | \
               ./tests/lib/external/snapd-testing-tools/utils/log-filter $FILTER_PARAMS | \
               tee spread.log
           )
@@ -377,6 +399,22 @@ jobs:
           if [ -n "$(cat $FAILED_TESTS_FILE)" ]; then
             echo "TEST_FAILED=true" >> $GITHUB_ENV
           fi
+
+    - name: Prepare artifact upload
+      if: always() && fromJSON(inputs.upload-artifacts)
+      run: |
+        echo "${{ github.run_attempt }}" > "${ARTIFACTS_FOLDER}/run-attempt.txt"
+        cp "$FAILED_TESTS_FILE" "${ARTIFACTS_FOLDER}/failed-tests.txt"
+        echo "SPREAD_EXPERIMENTAL_FEATURES=${SPREAD_EXPERIMENTAL_FEATURES}" > "${ARTIFACTS_FOLDER}/env-variables.txt"
+        echo "SPREAD_SNAPD_DEB_FROM_REPO=${SPREAD_SNAPD_DEB_FROM_REPO}" >> "${ARTIFACTS_FOLDER}/env-variables.txt"
+        tar -czf "spread-artifacts-${{ inputs.group }}-${{ inputs.systems }}_${{ github.run_id }}_${{ github.run_attempt }}.tar.gz" "$ARTIFACTS_FOLDER"
+
+    - name: Upload artifacts
+      if: always() && fromJSON(inputs.upload-artifacts)
+      uses: actions/upload-artifact@v4
+      with:
+        name: "spread-artifacts-${{ inputs.group }}-${{ inputs.systems }}_${{ github.run_id }}_${{ github.run_attempt }}"
+        path: "spread-artifacts-${{ inputs.group }}-${{ inputs.systems }}_${{ github.run_id }}_${{ github.run_attempt }}.tar.gz"
 
     - name: Save spread test results to cache
       if: always()
