@@ -402,6 +402,8 @@ func Pending(st *state.State) (bool, RestartType) {
 // NOTE: the state does not need to be locked to fetch this information.
 func (rm *RestartManager) Pending() (bool, RestartType) {
 	if rm == nil {
+		// This check is here because some tests don't set a RestartManager.
+		// This should generally not occur in production.
 		return false, RestartUnset
 	}
 	restarting := RestartType(atomic.LoadInt32(&rm.restarting))
