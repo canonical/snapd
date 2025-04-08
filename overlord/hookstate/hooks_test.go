@@ -107,7 +107,7 @@ func (s *gateAutoRefreshHookSuite) TearDownTest(c *C) {
 	s.commonTearDownTest(c)
 }
 
-func mockRefreshCandidate(snapName, instanceKey, channel, version string, revision snap.Revision) interface{} {
+func mockRefreshCandidate(snapName, instanceKey, channel, version string, revision snap.Revision) any {
 	sup := &snapstate.SnapSetup{
 		Channel:     channel,
 		InstanceKey: instanceKey,
@@ -126,13 +126,13 @@ func (s *gateAutoRefreshHookSuite) settle(c *C) {
 }
 
 func checkIsHeld(c *C, st *state.State, heldSnap, gatingSnap string) {
-	var held map[string]map[string]interface{}
+	var held map[string]map[string]any
 	c.Assert(st.Get("snaps-hold", &held), IsNil)
 	c.Check(held[heldSnap][gatingSnap], NotNil)
 }
 
 func checkIsNotHeld(c *C, st *state.State, heldSnap string) {
-	var held map[string]map[string]interface{}
+	var held map[string]map[string]any
 	c.Assert(st.Get("snaps-hold", &held), IsNil)
 	c.Check(held[heldSnap], IsNil)
 }
@@ -355,7 +355,7 @@ func (s *gateAutoRefreshHookSuite) TestGateAutorefreshHookError(c *C) {
 	st.Lock()
 	defer st.Unlock()
 
-	candidates := map[string]interface{}{"snap-a": mockRefreshCandidate("snap-a", "", "edge", "v1", snap.Revision{N: 3})}
+	candidates := map[string]any{"snap-a": mockRefreshCandidate("snap-a", "", "edge", "v1", snap.Revision{N: 3})}
 	st.Set("refresh-candidates", candidates)
 
 	task := hookstate.SetupGateAutoRefreshHook(st, "snap-a")
@@ -407,7 +407,7 @@ func (s *gateAutoRefreshHookSuite) TestGateAutorefreshHookErrorAfterProceed(c *C
 	st.Lock()
 	defer st.Unlock()
 
-	candidates := map[string]interface{}{"snap-a": mockRefreshCandidate("snap-a", "", "edge", "v1", snap.Revision{N: 3})}
+	candidates := map[string]any{"snap-a": mockRefreshCandidate("snap-a", "", "edge", "v1", snap.Revision{N: 3})}
 	st.Set("refresh-candidates", candidates)
 
 	task := hookstate.SetupGateAutoRefreshHook(st, "snap-a")
@@ -458,7 +458,7 @@ func (s *gateAutoRefreshHookSuite) TestGateAutorefreshHookErrorRuninhibitUnlock(
 	tr.Set("core", "experimental.refresh-app-awareness", true)
 	tr.Commit()
 
-	candidates := map[string]interface{}{"snap-a": mockRefreshCandidate("snap-a", "", "edge", "v1", snap.Revision{N: 3})}
+	candidates := map[string]any{"snap-a": mockRefreshCandidate("snap-a", "", "edge", "v1", snap.Revision{N: 3})}
 	st.Set("refresh-candidates", candidates)
 
 	task := hookstate.SetupGateAutoRefreshHook(st, "snap-a")
@@ -504,7 +504,7 @@ func (s *gateAutoRefreshHookSuite) TestGateAutorefreshHookErrorHoldErrorLogged(c
 	st.Lock()
 	defer st.Unlock()
 
-	candidates := map[string]interface{}{"snap-a": mockRefreshCandidate("snap-a", "", "edge", "v1", snap.Revision{N: 3})}
+	candidates := map[string]any{"snap-a": mockRefreshCandidate("snap-a", "", "edge", "v1", snap.Revision{N: 3})}
 	st.Set("refresh-candidates", candidates)
 
 	task := hookstate.SetupGateAutoRefreshHook(st, "snap-a")
@@ -527,7 +527,7 @@ func (s *gateAutoRefreshHookSuite) TestGateAutorefreshHookErrorHoldErrorLogged(c
 	c.Assert(change.Status(), Equals, state.DoneStatus)
 
 	// and snap-b is not held (due to hold error).
-	var held map[string]map[string]interface{}
+	var held map[string]map[string]any
 	c.Assert(st.Get("snaps-hold", &held), IsNil)
 	c.Check(held, HasLen, 0)
 

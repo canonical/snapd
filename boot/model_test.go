@@ -60,20 +60,20 @@ var (
 	brandPrivKey, _ = assertstest.GenerateKey(752)
 )
 
-func makeEncodableModel(signingAccounts *assertstest.SigningAccounts, overrides map[string]interface{}) *asserts.Model {
-	headers := map[string]interface{}{
+func makeEncodableModel(signingAccounts *assertstest.SigningAccounts, overrides map[string]any) *asserts.Model {
+	headers := map[string]any{
 		"model":        "my-model-uc20",
 		"display-name": "My Model",
 		"architecture": "amd64",
 		"base":         "core20",
 		"grade":        "dangerous",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name": "pc-kernel",
 				"id":   "pckernelidididididididididididid",
 				"type": "kernel",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name": "pc",
 				"id":   "pcididididididididididididididid",
 				"type": "gadget",
@@ -101,7 +101,7 @@ func (s *modelSuite) SetUpTest(c *C) {
 
 	s.AddCleanup(restore)
 	s.oldUc20dev = boottest.MockUC20Device("", makeEncodableModel(brands, nil))
-	s.newUc20dev = boottest.MockUC20Device("", makeEncodableModel(brands, map[string]interface{}{
+	s.newUc20dev = boottest.MockUC20Device("", makeEncodableModel(brands, map[string]any{
 		"model": "my-new-model-uc20",
 		"grade": "secured",
 	}))
@@ -1044,14 +1044,14 @@ func (s *modelSuite) TestDeviceChangeRebootRestoreModelKeyChangeMockedWriteModel
 	newKeyID := "ZZZ_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij"
 	// model can be mocked freely as we will not encode it as we mocked a
 	// function that writes out the model too
-	s.oldUc20dev = boottest.MockUC20Device("", boottest.MakeMockUC20Model(map[string]interface{}{
+	s.oldUc20dev = boottest.MockUC20Device("", boottest.MakeMockUC20Model(map[string]any{
 		"model":             "my-model-uc20",
 		"brand-id":          "my-brand",
 		"grade":             "dangerous",
 		"sign-key-sha3-384": oldKeyID,
 	}))
 
-	s.newUc20dev = boottest.MockUC20Device("", boottest.MakeMockUC20Model(map[string]interface{}{
+	s.newUc20dev = boottest.MockUC20Device("", boottest.MakeMockUC20Model(map[string]any{
 		"model":             "my-model-uc20",
 		"brand-id":          "my-brand",
 		"grade":             "dangerous",

@@ -102,7 +102,7 @@ func handleHostnameConfiguration(_ sysconfig.Device, tr ConfGetter, opts *fsOnly
 	return nil
 }
 
-func getHostnameFromSystemHelper(key string) (interface{}, error) {
+func getHostnameFromSystemHelper(key string) (any, error) {
 	// XXX: should we error for subkeys here?
 	return getHostnameFromSystem()
 }

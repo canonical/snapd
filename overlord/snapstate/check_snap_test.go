@@ -55,7 +55,7 @@ func (s *checkSnapSuite) SetUpTest(c *C) {
 	dirs.SetRootDir(c.MkDir())
 	s.st = state.New(nil)
 	s.BaseTest.AddCleanup(snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {}))
-	s.deviceCtx = &snapstatetest.TrivialDeviceContext{DeviceModel: MakeModel(map[string]interface{}{
+	s.deviceCtx = &snapstatetest.TrivialDeviceContext{DeviceModel: MakeModel(map[string]any{
 		"kernel": "kernel",
 		"gadget": "gadget",
 	})}
@@ -477,21 +477,21 @@ func (s *checkSnapSuite) TestCheckUnassertedOrAssertedGadgetKernelSnapVsModelGra
 	defer reset()
 
 	gradeUnsetDeviceCtx := &snapstatetest.TrivialDeviceContext{
-		DeviceModel: MakeModel(map[string]interface{}{
+		DeviceModel: MakeModel(map[string]any{
 			"kernel": "kernel",
 			"gadget": "gadget",
 		}),
 	}
 	c.Check(gradeUnsetDeviceCtx.DeviceModel.Grade(), Equals, asserts.ModelGradeUnset)
 	gradeSignedDeviceCtx := &snapstatetest.TrivialDeviceContext{
-		DeviceModel: MakeModel20("gadget", map[string]interface{}{
+		DeviceModel: MakeModel20("gadget", map[string]any{
 			"base":  "core20",
 			"grade": "signed",
 		}),
 	}
 	c.Check(gradeSignedDeviceCtx.DeviceModel.Grade(), Equals, asserts.ModelSigned)
 	gradeDangerousDeviceCtx := &snapstatetest.TrivialDeviceContext{
-		DeviceModel: MakeModel20("gadget", map[string]interface{}{
+		DeviceModel: MakeModel20("gadget", map[string]any{
 			"base":  "core20",
 			"grade": "dangerous",
 		}),
@@ -1433,7 +1433,7 @@ version: 2
 	// happy case, the new-kernel matches the model
 	deviceCtx := &snapstatetest.TrivialDeviceContext{
 		Remodeling: true,
-		DeviceModel: MakeModel(map[string]interface{}{
+		DeviceModel: MakeModel(map[string]any{
 			"kernel": "new-kernel",
 			"gadget": "gadget",
 		}),
@@ -1485,7 +1485,7 @@ version: 2
 	// support this yet
 	deviceCtx := &snapstatetest.TrivialDeviceContext{
 		Remodeling: true,
-		DeviceModel: MakeModel(map[string]interface{}{
+		DeviceModel: MakeModel(map[string]any{
 			"kernel": "kernel",
 			"gadget": "new-gadget",
 		}),

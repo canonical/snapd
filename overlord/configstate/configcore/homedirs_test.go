@@ -97,7 +97,7 @@ func (s *homedirsSuite) TestValidationUnhappy(c *C) {
 	} {
 		err := configcore.FilesystemOnlyRun(classicDev, &mockConf{
 			state: s.state,
-			changes: map[string]interface{}{
+			changes: map[string]any{
 				"homedirs": testData.homedirs,
 			},
 		})
@@ -115,10 +115,10 @@ func (s *homedirsSuite) TestConfigureUnchangedConfig(c *C) {
 
 	err := configcore.FilesystemOnlyRun(classicDev, &mockConf{
 		state: s.state,
-		conf: map[string]interface{}{
+		conf: map[string]any{
 			"homedirs": "/home/existingDir",
 		},
-		changes: map[string]interface{}{
+		changes: map[string]any{
 			"homedirs": "/home/existingDir",
 		},
 	})
@@ -136,7 +136,7 @@ func (s *homedirsSuite) TestConfigureApparmorTunableFailure(c *C) {
 
 	err := configcore.FilesystemOnlyRun(classicDev, &mockConf{
 		state: s.state,
-		changes: map[string]interface{}{
+		changes: map[string]any{
 			"homedirs": "/home/existingDir/one,/home/existingDir/two",
 		},
 	})
@@ -152,7 +152,7 @@ func (s *homedirsSuite) TestConfigureApparmorReloadFailure(c *C) {
 	defer restore()
 	err := configcore.FilesystemOnlyRun(classicDev, &mockConf{
 		state: s.state,
-		changes: map[string]interface{}{
+		changes: map[string]any{
 			"homedirs": "/home/existingDir",
 		},
 	})
@@ -196,7 +196,7 @@ func (s *homedirsSuite) TestConfigureApparmorUnsupported(c *C) {
 
 		err := configcore.FilesystemOnlyRun(classicDev, &mockConf{
 			state: s.state,
-			changes: map[string]interface{}{
+			changes: map[string]any{
 				"homedirs": "/home/existingDir",
 			},
 		})
@@ -230,7 +230,7 @@ func (s *homedirsSuite) TestConfigureHomedirsHappy(c *C) {
 
 	err := configcore.FilesystemOnlyRun(classicDev, &mockConf{
 		state: s.state,
-		changes: map[string]interface{}{
+		changes: map[string]any{
 			"homedirs": "/home/existingDir",
 		},
 	})
@@ -264,7 +264,7 @@ func (s *homedirsSuite) TestConfigureHomedirsEmptyHappy(c *C) {
 	defer restore()
 	err := configcore.FilesystemOnlyRun(classicDev, &mockConf{
 		state: s.state,
-		conf: map[string]interface{}{
+		conf: map[string]any{
 			"homedirs": "",
 		},
 	})
@@ -296,7 +296,7 @@ func (s *homedirsSuite) TestConfigureHomedirsNotOnCore(c *C) {
 
 	err := configcore.FilesystemOnlyRun(coreDev, &mockConf{
 		state: s.state,
-		changes: map[string]interface{}{
+		changes: map[string]any{
 			"homedirs": "/home/existingDir",
 		},
 	})

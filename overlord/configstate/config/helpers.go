@@ -48,7 +48,7 @@ func ParseKey(key string) (subkeys []string, err error) {
 	return subkeys, nil
 }
 
-func purgeNulls(config interface{}) interface{} {
+func purgeNulls(config any) any {
 	switch config := config.(type) {
 	// map of json raw messages is the starting point for purgeNulls, this is the configuration we receive
 	case map[string]*json.RawMessage:
@@ -59,7 +59,7 @@ func purgeNulls(config interface{}) interface{} {
 				delete(config, k)
 			}
 		}
-	case map[string]interface{}:
+	case map[string]any:
 		for k, v := range config {
 			if cfg := purgeNulls(v); cfg != nil {
 				config[k] = cfg
@@ -71,7 +71,7 @@ func purgeNulls(config interface{}) interface{} {
 		if config == nil {
 			return nil
 		}
-		var configm interface{}
+		var configm any
 		if err := jsonutil.DecodeWithNumber(bytes.NewReader(*config), &configm); err != nil {
 			panic(fmt.Errorf("internal error: cannot unmarshal configuration: %v", err))
 		}
@@ -83,11 +83,11 @@ func purgeNulls(config interface{}) interface{} {
 	return config
 }
 
-func PatchConfig(snapName string, subkeys []string, pos int, config interface{}, value *json.RawMessage) (interface{}, error) {
+func PatchConfig(snapName string, subkeys []string, pos int, config any, value *json.RawMessage) (any, error) {
 	switch config := config.(type) {
 	case nil:
 		// Missing update map. Create and nest final value under it.
-		configm := make(map[string]interface{})
+		configm := make(map[string]any)
 		_, err := PatchConfig(snapName, subkeys, pos, configm, value)
 		if err != nil {
 			return nil, err
@@ -96,7 +96,7 @@ func PatchConfig(snapName string, subkeys []string, pos int, config interface{},
 
 	case *json.RawMessage:
 		// Raw replaces pristine on commit. Unpack, update, and repack.
-		var configm map[string]interface{}
+		var configm map[string]any
 
 		if err := jsonutil.DecodeWithNumber(bytes.NewReader(*config), &configm); err != nil {
 			return nil, fmt.Errorf("snap %q option %q is not a map", snapName, strings.Join(subkeys[:pos], "."))
@@ -107,7 +107,7 @@ func PatchConfig(snapName string, subkeys []string, pos int, config interface{},
 		// transaction use (interface{})(nil) which is handled
 		// by the first case here.
 		// (see LP: #1920773)
-		var cfg interface{}
+		var cfg any
 		if configm != nil {
 			cfg = configm
 		}
@@ -121,7 +121,7 @@ func PatchConfig(snapName string, subkeys []string, pos int, config interface{},
 		// support cases where a previously unset path is set back.
 		return jsonRaw(result), nil
 
-	case map[string]interface{}:
+	case map[string]any:
 		// Update map to apply against pristine on commit.
 		if pos+1 == len(subkeys) {
 			config[subkeys[pos]] = value
@@ -288,7 +288,7 @@ func DeleteSnapConfig(st *state.State, snapName string) error {
 
 // ConfSetter is an interface for setting of config values.
 type ConfSetter interface {
-	Set(snapName, key string, value interface{}) error
+	Set(snapName, key string, value any) error
 }
 
 // Patch sets values in cfg for the provided snap's configuration
@@ -296,7 +296,7 @@ type ConfSetter interface {
 // patch keys can be dotted as the key argument to Set.
 // The patch is applied according to the order of its keys sorted by depth,
 // with top keys sorted first.
-func Patch(cfg ConfSetter, snapName string, patch map[string]interface{}) error {
+func Patch(cfg ConfSetter, snapName string, patch map[string]any) error {
 	patchKeys := sortPatchKeysByDepth(patch)
 	for _, key := range patchKeys {
 		if err := cfg.Set(snapName, key, patch[key]); err != nil {
@@ -306,7 +306,7 @@ func Patch(cfg ConfSetter, snapName string, patch map[string]interface{}) error 
 	return nil
 }
 
-func sortPatchKeysByDepth(patch map[string]interface{}) []string {
+func sortPatchKeysByDepth(patch map[string]any) []string {
 	if len(patch) == 0 {
 		return nil
 	}

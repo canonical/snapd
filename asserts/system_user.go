@@ -182,7 +182,7 @@ func parseShadowLine(line string) (*shadow, error) {
 // see crypt(3) for the legal chars
 var isValidSaltAndHash = regexp.MustCompile(`^[a-zA-Z0-9./]+$`).MatchString
 
-func checkHashedPassword(headers map[string]interface{}, name string) (string, error) {
+func checkHashedPassword(headers map[string]any, name string) (string, error) {
 	pw, err := checkOptionalString(headers, name)
 	if err != nil {
 		return "", err
@@ -333,7 +333,7 @@ func assembleSystemUser(assert assertionBase) (Assertion, error) {
 	}, nil
 }
 
-func systemUserFormatAnalyze(headers map[string]interface{}, body []byte) (formatnum int, err error) {
+func systemUserFormatAnalyze(headers map[string]any, body []byte) (formatnum int, err error) {
 	formatnum = 0
 
 	serials, err := checkStringList(headers, "serials")

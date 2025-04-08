@@ -71,7 +71,7 @@ func (s *journalSuite) SetUpTest(c *C) {
 func (s *journalSuite) TestConfigurePersistentJournalInvalid(c *C) {
 	err := configcore.FilesystemOnlyRun(coreDev, &mockConf{
 		state: s.state,
-		conf:  map[string]interface{}{"journal.persistent": "foo"},
+		conf:  map[string]any{"journal.persistent": "foo"},
 	})
 	c.Assert(err, ErrorMatches, `journal.persistent can only be set to 'true' or 'false'`)
 }
@@ -79,7 +79,7 @@ func (s *journalSuite) TestConfigurePersistentJournalInvalid(c *C) {
 func (s *journalSuite) TestConfigurePersistentJournalOnCore(c *C) {
 	err := configcore.FilesystemOnlyRun(coreDev, &mockConf{
 		state: s.state,
-		conf:  map[string]interface{}{"journal.persistent": "true"},
+		conf:  map[string]any{"journal.persistent": "true"},
 	})
 	c.Assert(err, IsNil)
 
@@ -99,7 +99,7 @@ func (s *journalSuite) TestConfigurePersistentJournalOldSystemd(c *C) {
 
 	err := configcore.FilesystemOnlyRun(coreDev, &mockConf{
 		state: s.state,
-		conf:  map[string]interface{}{"journal.persistent": "true"},
+		conf:  map[string]any{"journal.persistent": "true"},
 	})
 	c.Assert(err, IsNil)
 
@@ -119,7 +119,7 @@ func (s *journalSuite) TestConfigurePersistentJournalOnCoreNoopIfExists(c *C) {
 
 	err := configcore.FilesystemOnlyRun(coreDev, &mockConf{
 		state: s.state,
-		conf:  map[string]interface{}{"journal.persistent": "true"},
+		conf:  map[string]any{"journal.persistent": "true"},
 	})
 	c.Assert(err, IsNil)
 
@@ -140,7 +140,7 @@ func (s *journalSuite) TestDisablePersistentJournalNotManagedBySnapdError(c *C) 
 
 	err := configcore.FilesystemOnlyRun(coreDev, &mockConf{
 		state: s.state,
-		conf:  map[string]interface{}{"journal.persistent": "false"},
+		conf:  map[string]any{"journal.persistent": "false"},
 	})
 	c.Assert(err, ErrorMatches, `.*/var/log/journal directory was not created by snapd.*`)
 	exists, _, _ := osutil.DirExists(filepath.Join(dirs.GlobalRootDir, "/var/log/journal"))
@@ -153,7 +153,7 @@ func (s *journalSuite) TestDisablePersistentJournalOnCore(c *C) {
 
 	err := configcore.FilesystemOnlyRun(coreDev, &mockConf{
 		state: s.state,
-		conf:  map[string]interface{}{"journal.persistent": "false"},
+		conf:  map[string]any{"journal.persistent": "false"},
 	})
 	c.Assert(err, IsNil)
 
@@ -168,7 +168,7 @@ func (s *journalSuite) TestDisablePersistentJournalOnCore(c *C) {
 }
 
 func (s *journalSuite) TestFilesystemOnlyApply(c *C) {
-	conf := configcore.PlainCoreConfig(map[string]interface{}{
+	conf := configcore.PlainCoreConfig(map[string]any{
 		"journal.persistent": "true",
 	})
 	tmpDir := c.MkDir()

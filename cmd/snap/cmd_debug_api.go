@@ -129,7 +129,7 @@ func (x *cmdDebugAPI) Execute(args []string) error {
 	if rsp.Header.Get("Content-Type") == "application/json" {
 		// pretty print JSON response by default
 
-		var temp map[string]interface{}
+		var temp map[string]any
 		if err := json.NewDecoder(rsp.Body).Decode(&temp); err != nil {
 			return err
 		}

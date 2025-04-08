@@ -58,7 +58,7 @@ func (s *tmpfsSuite) TestConfigureTmpfsGoodVals(c *C) {
 	for _, size := range []string{"104857600", "16M", "7G", "0"} {
 		err := configcore.FilesystemOnlyRun(coreDev, &mockConf{
 			state: s.state,
-			conf: map[string]interface{}{
+			conf: map[string]any{
 				"tmp.size": size,
 			},
 		})
@@ -81,7 +81,7 @@ func (s *tmpfsSuite) TestConfigureTmpfsBadVals(c *C) {
 
 		err := configcore.FilesystemOnlyRun(coreDev, &mockConf{
 			state: s.state,
-			conf: map[string]interface{}{
+			conf: map[string]any{
 				"tmp.size": size,
 			},
 		})
@@ -99,7 +99,7 @@ func (s *tmpfsSuite) TestConfigureTmpfsTooSmall(c *C) {
 
 		err := configcore.FilesystemOnlyRun(coreDev, &mockConf{
 			state: s.state,
-			conf: map[string]interface{}{
+			conf: map[string]any{
 				"tmp.size": size,
 			},
 		})
@@ -124,7 +124,7 @@ func (s *tmpfsSuite) TestConfigureTmpfsAllConfDirExistsAlready(c *C) {
 	size := "100M"
 	err = configcore.FilesystemOnlyRun(coreDev, &mockConf{
 		state: s.state,
-		conf: map[string]interface{}{
+		conf: map[string]any{
 			"tmp.size": size,
 		},
 	})
@@ -156,7 +156,7 @@ func (s *tmpfsSuite) TestConfigureTmpfsNoFileUpdate(c *C) {
 
 	err = configcore.FilesystemOnlyRun(coreDev, &mockConf{
 		state: s.state,
-		conf: map[string]interface{}{
+		conf: map[string]any{
 			"tmp.size": size,
 		},
 	})
@@ -189,7 +189,7 @@ func (s *tmpfsSuite) TestConfigureTmpfsRemovesIfUnset(c *C) {
 
 	err = configcore.FilesystemOnlyRun(coreDev, &mockConf{
 		state: s.state,
-		conf: map[string]interface{}{
+		conf: map[string]any{
 			"tmp.size": "",
 		},
 	})
@@ -208,7 +208,7 @@ func (s *tmpfsSuite) TestConfigureTmpfsRemovesIfUnset(c *C) {
 
 // Test applying on image preparation
 func (s *tmpfsSuite) TestFilesystemOnlyApply(c *C) {
-	conf := configcore.PlainCoreConfig(map[string]interface{}{
+	conf := configcore.PlainCoreConfig(map[string]any{
 		"tmp.size": "16777216",
 	})
 

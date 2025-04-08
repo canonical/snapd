@@ -65,16 +65,16 @@ func (s *SnapSuite) TestConnectExplicitEverything(c *C) {
 		switch r.URL.Path {
 		case "/v2/interfaces":
 			c.Check(r.Method, Equals, "POST")
-			c.Check(DecodedRequestBody(c, r), DeepEquals, map[string]interface{}{
+			c.Check(DecodedRequestBody(c, r), DeepEquals, map[string]any{
 				"action": "connect",
-				"plugs": []interface{}{
-					map[string]interface{}{
+				"plugs": []any{
+					map[string]any{
 						"snap": "producer",
 						"plug": "plug",
 					},
 				},
-				"slots": []interface{}{
-					map[string]interface{}{
+				"slots": []any{
+					map[string]any{
 						"snap": "consumer",
 						"slot": "slot",
 					},
@@ -99,16 +99,16 @@ func (s *SnapSuite) TestConnectExplicitPlugImplicitSlot(c *C) {
 		switch r.URL.Path {
 		case "/v2/interfaces":
 			c.Check(r.Method, Equals, "POST")
-			c.Check(DecodedRequestBody(c, r), DeepEquals, map[string]interface{}{
+			c.Check(DecodedRequestBody(c, r), DeepEquals, map[string]any{
 				"action": "connect",
-				"plugs": []interface{}{
-					map[string]interface{}{
+				"plugs": []any{
+					map[string]any{
 						"snap": "producer",
 						"plug": "plug",
 					},
 				},
-				"slots": []interface{}{
-					map[string]interface{}{
+				"slots": []any{
+					map[string]any{
 						"snap": "consumer",
 						"slot": "",
 					},
@@ -133,16 +133,16 @@ func (s *SnapSuite) TestConnectImplicitPlugExplicitSlot(c *C) {
 		switch r.URL.Path {
 		case "/v2/interfaces":
 			c.Check(r.Method, Equals, "POST")
-			c.Check(DecodedRequestBody(c, r), DeepEquals, map[string]interface{}{
+			c.Check(DecodedRequestBody(c, r), DeepEquals, map[string]any{
 				"action": "connect",
-				"plugs": []interface{}{
-					map[string]interface{}{
+				"plugs": []any{
+					map[string]any{
 						"snap": "",
 						"plug": "plug",
 					},
 				},
-				"slots": []interface{}{
-					map[string]interface{}{
+				"slots": []any{
+					map[string]any{
 						"snap": "consumer",
 						"slot": "slot",
 					},
@@ -167,16 +167,16 @@ func (s *SnapSuite) TestConnectImplicitPlugImplicitSlot(c *C) {
 		switch r.URL.Path {
 		case "/v2/interfaces":
 			c.Check(r.Method, Equals, "POST")
-			c.Check(DecodedRequestBody(c, r), DeepEquals, map[string]interface{}{
+			c.Check(DecodedRequestBody(c, r), DeepEquals, map[string]any{
 				"action": "connect",
-				"plugs": []interface{}{
-					map[string]interface{}{
+				"plugs": []any{
+					map[string]any{
 						"snap": "",
 						"plug": "plug",
 					},
 				},
-				"slots": []interface{}{
-					map[string]interface{}{
+				"slots": []any{
+					map[string]any{
 						"snap": "consumer",
 						"slot": "",
 					},
@@ -282,7 +282,7 @@ func (s *SnapSuite) TestConnectCompletion(c *C) {
 		switch r.URL.Path {
 		case "/v2/connections":
 			c.Assert(r.Method, Equals, "GET")
-			EncodeResponseBody(c, w, map[string]interface{}{
+			EncodeResponseBody(c, w, map[string]any{
 				"type":   "sync",
 				"result": fortestingConnectionList,
 			})

@@ -37,7 +37,7 @@ type cmdNewSnapRevision struct {
 }
 
 func (x *cmdNewSnapRevision) Execute(args []string) error {
-	headers := map[string]interface{}{}
+	headers := map[string]any{}
 	if x.SnapRevJsonPath != "" {
 		content, err := os.ReadFile(x.SnapRevJsonPath)
 		if err != nil {

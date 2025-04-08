@@ -280,8 +280,8 @@ plugs:
 	// Now connect the marker interface
 	st := d.Overlord().State()
 	st.Lock()
-	st.Set("conns", map[string]interface{}{
-		"some-snap:snap-themes-control core:snap-themes-control": map[string]interface{}{
+	st.Set("conns", map[string]any{
+		"some-snap:snap-themes-control core:snap-themes-control": map[string]any{
 			"interface": "snap-themes-control",
 		},
 	})
@@ -295,11 +295,11 @@ plugs:
 
 	// Now connect both interfaces
 	st.Lock()
-	st.Set("conns", map[string]interface{}{
-		"some-snap:snap-themes-control core:snap-themes-control": map[string]interface{}{
+	st.Set("conns", map[string]any{
+		"some-snap:snap-themes-control core:snap-themes-control": map[string]any{
 			"interface": "snap-themes-control",
 		},
-		"some-snap:snap-refresh-control core:snap-refresh-control": map[string]interface{}{
+		"some-snap:snap-refresh-control core:snap-refresh-control": map[string]any{
 			"interface": "snap-refresh-control",
 		},
 	})
@@ -312,8 +312,8 @@ plugs:
 
 	// A left over "undesired" connection does not grant access
 	st.Lock()
-	st.Set("conns", map[string]interface{}{
-		"some-snap:snap-themes-control core:snap-themes-control": map[string]interface{}{
+	st.Set("conns", map[string]any{
+		"some-snap:snap-themes-control core:snap-themes-control": map[string]any{
 			"interface": "snap-themes-control",
 			"undesired": true,
 		},
@@ -545,11 +545,11 @@ plugs:
 	// Now connect both interfaces
 	st := d.Overlord().State()
 	st.Lock()
-	st.Set("conns", map[string]interface{}{
-		"fwupd-app:fwupd-consumer fwupd-app:fwupd-provider": map[string]interface{}{
+	st.Set("conns", map[string]any{
+		"fwupd-app:fwupd-consumer fwupd-app:fwupd-provider": map[string]any{
 			"interface": "fwupd",
 		},
-		"connected-fwupd-caller:fwupd fwupd-app:fwupd-provider": map[string]interface{}{
+		"connected-fwupd-caller:fwupd fwupd-app:fwupd-provider": map[string]any{
 			"interface": "fwupd",
 		},
 	})

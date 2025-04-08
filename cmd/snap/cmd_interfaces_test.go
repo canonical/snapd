@@ -39,7 +39,7 @@ func (s *SnapSuite) TestInterfacesZeroSlotsOnePlug(c *C) {
 		body, err := io.ReadAll(r.Body)
 		c.Check(err, IsNil)
 		c.Check(body, DeepEquals, []byte{})
-		EncodeResponseBody(c, w, map[string]interface{}{
+		EncodeResponseBody(c, w, map[string]any{
 			"type": "sync",
 			"result": client.Connections{
 				Plugs: []client.Plug{
@@ -68,7 +68,7 @@ func (s *SnapSuite) TestInterfacesZeroPlugsOneSlot(c *C) {
 		body, err := io.ReadAll(r.Body)
 		c.Check(err, IsNil)
 		c.Check(body, DeepEquals, []byte{})
-		EncodeResponseBody(c, w, map[string]interface{}{
+		EncodeResponseBody(c, w, map[string]any{
 			"type": "sync",
 			"result": client.Connections{
 				Slots: []client.Slot{
@@ -99,7 +99,7 @@ func (s *SnapSuite) TestInterfacesOneSlotOnePlug(c *C) {
 		body, err := io.ReadAll(r.Body)
 		c.Check(err, IsNil)
 		c.Check(body, DeepEquals, []byte{})
-		EncodeResponseBody(c, w, map[string]interface{}{
+		EncodeResponseBody(c, w, map[string]any{
 			"type": "sync",
 			"result": client.Connections{
 				Slots: []client.Slot{
@@ -165,7 +165,7 @@ func (s *SnapSuite) TestInterfacesTwoPlugs(c *C) {
 		body, err := io.ReadAll(r.Body)
 		c.Check(err, IsNil)
 		c.Check(body, DeepEquals, []byte{})
-		EncodeResponseBody(c, w, map[string]interface{}{
+		EncodeResponseBody(c, w, map[string]any{
 			"type": "sync",
 			"result": client.Connections{
 				Slots: []client.Slot{
@@ -206,7 +206,7 @@ func (s *SnapSuite) TestInterfacesPlugsWithCommonName(c *C) {
 		body, err := io.ReadAll(r.Body)
 		c.Check(err, IsNil)
 		c.Check(body, DeepEquals, []byte{})
-		EncodeResponseBody(c, w, map[string]interface{}{
+		EncodeResponseBody(c, w, map[string]any{
 			"type": "sync",
 			"result": client.Connections{
 				Slots: []client.Slot{
@@ -273,7 +273,7 @@ func (s *SnapSuite) TestInterfacesOsSnapSlots(c *C) {
 		body, err := io.ReadAll(r.Body)
 		c.Check(err, IsNil)
 		c.Check(body, DeepEquals, []byte{})
-		EncodeResponseBody(c, w, map[string]interface{}{
+		EncodeResponseBody(c, w, map[string]any{
 			"type": "sync",
 			"result": client.Connections{
 				Slots: []client.Slot{
@@ -340,7 +340,7 @@ func (s *SnapSuite) TestInterfacesTwoSlotsAndFiltering(c *C) {
 		body, err := io.ReadAll(r.Body)
 		c.Check(err, IsNil)
 		c.Check(body, DeepEquals, []byte{})
-		EncodeResponseBody(c, w, map[string]interface{}{
+		EncodeResponseBody(c, w, map[string]any{
 			"type": "sync",
 			"result": client.Connections{
 				Slots: []client.Slot{
@@ -389,7 +389,7 @@ func (s *SnapSuite) TestInterfacesOfSpecificSnap(c *C) {
 		body, err := io.ReadAll(r.Body)
 		c.Check(err, IsNil)
 		c.Check(body, DeepEquals, []byte{})
-		EncodeResponseBody(c, w, map[string]interface{}{
+		EncodeResponseBody(c, w, map[string]any{
 			"type": "sync",
 			"result": client.Connections{
 				Slots: []client.Slot{
@@ -433,7 +433,7 @@ func (s *SnapSuite) TestInterfacesOfSystemNicknameSnap(c *C) {
 		body, err := io.ReadAll(r.Body)
 		c.Check(err, IsNil)
 		c.Check(body, DeepEquals, []byte{})
-		EncodeResponseBody(c, w, map[string]interface{}{
+		EncodeResponseBody(c, w, map[string]any{
 			"type": "sync",
 			"result": client.Connections{
 				Slots: []client.Slot{
@@ -488,7 +488,7 @@ func (s *SnapSuite) TestInterfacesOfSpecificSnapAndSlot(c *C) {
 		body, err := io.ReadAll(r.Body)
 		c.Check(err, IsNil)
 		c.Check(body, DeepEquals, []byte{})
-		EncodeResponseBody(c, w, map[string]interface{}{
+		EncodeResponseBody(c, w, map[string]any{
 			"type": "sync",
 			"result": client.Connections{
 				Slots: []client.Slot{
@@ -531,7 +531,7 @@ func (s *SnapSuite) TestInterfacesNothingAtAll(c *C) {
 		body, err := io.ReadAll(r.Body)
 		c.Check(err, IsNil)
 		c.Check(body, DeepEquals, []byte{})
-		EncodeResponseBody(c, w, map[string]interface{}{
+		EncodeResponseBody(c, w, map[string]any{
 			"type":   "sync",
 			"result": client.Connections{},
 		})
@@ -552,7 +552,7 @@ func (s *SnapSuite) TestInterfacesOfSpecificType(c *C) {
 		body, err := io.ReadAll(r.Body)
 		c.Check(err, IsNil)
 		c.Check(body, DeepEquals, []byte{})
-		EncodeResponseBody(c, w, map[string]interface{}{
+		EncodeResponseBody(c, w, map[string]any{
 			"type": "sync",
 			"result": client.Connections{
 				Slots: []client.Slot{
@@ -595,7 +595,7 @@ func (s *SnapSuite) TestInterfacesCompletion(c *C) {
 		switch r.URL.Path {
 		case "/v2/connections":
 			c.Assert(r.Method, Equals, "GET")
-			EncodeResponseBody(c, w, map[string]interface{}{
+			EncodeResponseBody(c, w, map[string]any{
 				"type":   "sync",
 				"result": fortestingConnectionList,
 			})
@@ -651,7 +651,7 @@ func (s *SnapSuite) checkConnectionsSystemCoreRemapping(c *C, apiSnapName, cliSn
 		body, err := io.ReadAll(r.Body)
 		c.Check(err, IsNil)
 		c.Check(body, DeepEquals, []byte{})
-		EncodeResponseBody(c, w, map[string]interface{}{
+		EncodeResponseBody(c, w, map[string]any{
 			"type": "sync",
 			"result": client.Connections{
 				Slots: []client.Slot{

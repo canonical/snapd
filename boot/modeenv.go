@@ -430,7 +430,7 @@ type modeenvValueUnmarshaller interface {
 
 // marshalModeenvEntryTo marshals to out what as value for an entry
 // with the given key. If what is empty this is a no-op.
-func marshalModeenvEntryTo(out io.Writer, key string, what interface{}) error {
+func marshalModeenvEntryTo(out io.Writer, key string, what any) error {
 	var asString string
 	switch v := what.(type) {
 	case string:
@@ -473,7 +473,7 @@ func marshalModeenvEntryTo(out io.Writer, key string, what interface{}) error {
 // unmarshalModeenvValueFromCfg unmarshals the value of the entry with
 // the given key to dest. If there's no such entry dest might be left
 // empty.
-func unmarshalModeenvValueFromCfg(cfg *goconfigparser.ConfigParser, key string, dest interface{}) error {
+func unmarshalModeenvValueFromCfg(cfg *goconfigparser.ConfigParser, key string, dest any) error {
 	if dest == nil {
 		return fmt.Errorf("internal error: cannot unmarshal to nil")
 	}

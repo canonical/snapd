@@ -35,12 +35,12 @@ func (cs *clientSuite) TestClientCreateCohortsEndpoint(c *check.C) {
 
 	body, err := io.ReadAll(cs.req.Body)
 	c.Assert(err, check.IsNil)
-	var jsonBody map[string]interface{}
+	var jsonBody map[string]any
 	err = json.Unmarshal(body, &jsonBody)
 	c.Assert(err, check.IsNil)
-	c.Check(jsonBody, check.DeepEquals, map[string]interface{}{
+	c.Check(jsonBody, check.DeepEquals, map[string]any{
 		"action": "create",
-		"snaps":  []interface{}{"foo", "bar"},
+		"snaps":  []any{"foo", "bar"},
 	})
 }
 
@@ -59,12 +59,12 @@ func (cs *clientSuite) TestClientCreateCohorts(c *check.C) {
 
 	body, err := io.ReadAll(cs.req.Body)
 	c.Assert(err, check.IsNil)
-	var jsonBody map[string]interface{}
+	var jsonBody map[string]any
 	err = json.Unmarshal(body, &jsonBody)
 	c.Assert(err, check.IsNil)
-	c.Check(jsonBody, check.DeepEquals, map[string]interface{}{
+	c.Check(jsonBody, check.DeepEquals, map[string]any{
 		"action": "create",
-		"snaps":  []interface{}{"foo", "bar"},
+		"snaps":  []any{"foo", "bar"},
 	})
 }
 

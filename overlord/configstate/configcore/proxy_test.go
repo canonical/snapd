@@ -85,7 +85,7 @@ func (s *proxySuite) TestConfigureProxyUnhappy(c *C) {
 	defer r()
 	err := configcore.Run(coreDev, &mockConf{
 		state: s.state,
-		conf: map[string]interface{}{
+		conf: map[string]any{
 			"proxy.http": "http://example.com",
 		},
 	})
@@ -99,7 +99,7 @@ func (s *proxySuite) TestConfigureProxy(c *C) {
 
 		err := configcore.Run(coreDev, &mockConf{
 			state: s.state,
-			conf: map[string]interface{}{
+			conf: map[string]any{
 				fmt.Sprintf("proxy.%s", proto): fmt.Sprintf("%s://example.com", proto),
 			},
 		})
@@ -117,7 +117,7 @@ func (s *proxySuite) TestConfigureNoProxy(c *C) {
 	s.makeMockEtcEnvironment(c)
 	err := configcore.Run(coreDev, &mockConf{
 		state: s.state,
-		conf: map[string]interface{}{
+		conf: map[string]any{
 			"proxy.no-proxy": "example.com,bar.com",
 		},
 	})
@@ -147,7 +147,7 @@ func (s *proxySuite) TestConfigureProxyStore(c *C) {
 	// no related change
 	err = configcore.Run(classicDev, &mockConf{
 		state: s.state,
-		changes: map[string]interface{}{
+		changes: map[string]any{
 			"refresh.rate-limit": "1MB",
 		},
 	})
@@ -156,7 +156,7 @@ func (s *proxySuite) TestConfigureProxyStore(c *C) {
 	// set to ""
 	err = configcore.Run(classicDev, &mockConf{
 		state: s.state,
-		conf: map[string]interface{}{
+		conf: map[string]any{
 			"proxy.store": "",
 		},
 	})
@@ -165,7 +165,7 @@ func (s *proxySuite) TestConfigureProxyStore(c *C) {
 	// no assertion
 	conf := &mockConf{
 		state: s.state,
-		changes: map[string]interface{}{
+		changes: map[string]any{
 			"proxy.store": "foo",
 		},
 	}
@@ -177,7 +177,7 @@ func (s *proxySuite) TestConfigureProxyStore(c *C) {
 
 	operatorAcct := assertstest.NewAccount(s.storeSigning, "foo-operator", nil, "")
 	// have a store assertion
-	stoAs, err := s.storeSigning.Sign(asserts.StoreType, map[string]interface{}{
+	stoAs, err := s.storeSigning.Sign(asserts.StoreType, map[string]any{
 		"store":       "foo",
 		"operator-id": operatorAcct.AccountID(),
 		"url":         "http://store.interal:9943",
@@ -198,10 +198,10 @@ func (s *proxySuite) TestConfigureProxyStore(c *C) {
 	// no value change
 	conf = &mockConf{
 		state: s.state,
-		conf: map[string]interface{}{
+		conf: map[string]any{
 			"proxy.store": "foo",
 		},
-		changes: map[string]interface{}{
+		changes: map[string]any{
 			"proxy.store": "foo",
 		},
 	}
@@ -215,14 +215,14 @@ func (s *proxySuite) TestConfigureProxyStore(c *C) {
 func (s *proxySuite) TestConfigureProxyStoreNoURL(c *C) {
 	conf := &mockConf{
 		state: s.state,
-		conf: map[string]interface{}{
+		conf: map[string]any{
 			"proxy.store": "foo",
 		},
 	}
 
 	operatorAcct := assertstest.NewAccount(s.storeSigning, "foo-operator", nil, "")
 	// have a store assertion but no url
-	stoAs, err := s.storeSigning.Sign(asserts.StoreType, map[string]interface{}{
+	stoAs, err := s.storeSigning.Sign(asserts.StoreType, map[string]any{
 		"store":       "foo",
 		"operator-id": operatorAcct.AccountID(),
 		"timestamp":   time.Now().Format(time.RFC3339),

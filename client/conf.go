@@ -27,7 +27,7 @@ import (
 )
 
 // SetConf requests a snap to apply the provided patch to the configuration.
-func (client *Client) SetConf(snapName string, patch map[string]interface{}) (changeID string, err error) {
+func (client *Client) SetConf(snapName string, patch map[string]any) (changeID string, err error) {
 	b, err := json.Marshal(patch)
 	if err != nil {
 		return "", err
@@ -38,7 +38,7 @@ func (client *Client) SetConf(snapName string, patch map[string]interface{}) (ch
 // Conf asks for a snap's current configuration.
 //
 // Note that the configuration may include json.Numbers.
-func (client *Client) Conf(snapName string, keys []string) (configuration map[string]interface{}, err error) {
+func (client *Client) Conf(snapName string, keys []string) (configuration map[string]any, err error) {
 	// Prepare query
 	query := url.Values{}
 	query.Set("keys", strings.Join(keys, ","))

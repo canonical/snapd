@@ -107,47 +107,47 @@ func (s *timingsSuite) TestSave(c *C) {
 		timing.Save(s.st)
 	}
 
-	var stateTimings []interface{}
+	var stateTimings []any
 	c.Assert(s.st.Get("timings", &stateTimings), IsNil)
 
-	c.Assert(stateTimings, DeepEquals, []interface{}{
-		map[string]interface{}{
-			"tags":       map[string]interface{}{"change": "12", "task": "3"},
+	c.Assert(stateTimings, DeepEquals, []any{
+		map[string]any{
+			"tags":       map[string]any{"change": "12", "task": "3"},
 			"start-time": "2019-03-11T09:01:00.001Z",
 			"stop-time":  "2019-03-11T09:01:00.006Z",
-			"timings": []interface{}{
-				map[string]interface{}{
+			"timings": []any{
+				map[string]any{
 					"label":    "doing something-0",
 					"summary":  "...",
 					"duration": float64(1000000),
 				},
-				map[string]interface{}{
+				map[string]any{
 					"level":    float64(1),
 					"label":    "nested measurement",
 					"summary":  "...",
 					"duration": float64(2000000)},
-				map[string]interface{}{
+				map[string]any{
 					"level":    float64(2),
 					"label":    "nested more",
 					"summary":  "...",
 					"duration": float64(3000000)},
 			}},
-		map[string]interface{}{
-			"tags":       map[string]interface{}{"change": "12", "task": "3"},
+		map[string]any{
+			"tags":       map[string]any{"change": "12", "task": "3"},
 			"start-time": "2019-03-11T09:01:00.007Z",
 			"stop-time":  "2019-03-11T09:01:00.012Z",
-			"timings": []interface{}{
-				map[string]interface{}{
+			"timings": []any{
+				map[string]any{
 					"label":    "doing something-1",
 					"summary":  "...",
 					"duration": float64(4000000),
 				},
-				map[string]interface{}{
+				map[string]any{
 					"level":    float64(1),
 					"label":    "nested measurement",
 					"summary":  "...",
 					"duration": float64(5000000)},
-				map[string]interface{}{
+				map[string]any{
 					"level":    float64(2),
 					"label":    "nested more",
 					"summary":  "...",
@@ -164,7 +164,7 @@ func (s *timingsSuite) TestSaveNoTimings(c *C) {
 	timing := timings.New(nil)
 	timing.Save(s.st)
 
-	var stateTimings []interface{}
+	var stateTimings []any
 	c.Assert(s.st.Get("timings", &stateTimings), testutil.ErrorIs, state.ErrNoState)
 }
 
@@ -181,26 +181,26 @@ func (s *timingsSuite) TestDuration(c *C) {
 	meas.Stop()
 	timing.Save(s.st)
 
-	var stateTimings []interface{}
+	var stateTimings []any
 	c.Assert(s.st.Get("timings", &stateTimings), IsNil)
 
-	c.Assert(stateTimings, DeepEquals, []interface{}{
-		map[string]interface{}{
+	c.Assert(stateTimings, DeepEquals, []any{
+		map[string]any{
 			"start-time": "2019-03-11T09:01:00.001Z",
 			"stop-time":  "2019-03-11T09:01:00.006Z",
-			"timings": []interface{}{
-				map[string]interface{}{
+			"timings": []any{
+				map[string]any{
 					"label":    "foo",
 					"summary":  "...",
 					"duration": float64(5000000),
 				},
-				map[string]interface{}{
+				map[string]any{
 					"level":    float64(1),
 					"label":    "nested",
 					"summary":  "...",
 					"duration": float64(1000000),
 				},
-				map[string]interface{}{
+				map[string]any{
 					"level":    float64(1),
 					"label":    "nested sibling",
 					"summary":  "...",
@@ -209,7 +209,7 @@ func (s *timingsSuite) TestDuration(c *C) {
 			}}})
 }
 
-func (s *timingsSuite) testDurationThreshold(c *C, threshold time.Duration, expected interface{}) {
+func (s *timingsSuite) testDurationThreshold(c *C, threshold time.Duration, expected any) {
 	s.mockDurationThreshold(threshold)
 
 	s.st.Lock()
@@ -225,7 +225,7 @@ func (s *timingsSuite) testDurationThreshold(c *C, threshold time.Duration, expe
 	meas.Stop()
 	timing.Save(s.st)
 
-	var stateTimings []interface{}
+	var stateTimings []any
 	if expected == nil {
 		c.Assert(s.st.Get("timings", &stateTimings), testutil.ErrorIs, state.ErrNoState)
 		c.Assert(stateTimings, IsNil)
@@ -236,23 +236,23 @@ func (s *timingsSuite) testDurationThreshold(c *C, threshold time.Duration, expe
 }
 
 func (s *timingsSuite) TestDurationThresholdAll(c *C) {
-	s.testDurationThreshold(c, 0, []interface{}{
-		map[string]interface{}{
+	s.testDurationThreshold(c, 0, []any{
+		map[string]any{
 			"start-time": "2019-03-11T09:01:00.001Z",
 			"stop-time":  "2019-03-11T09:01:00.006Z",
-			"timings": []interface{}{
-				map[string]interface{}{
+			"timings": []any{
+				map[string]any{
 					"label":    "main",
 					"summary":  "...",
 					"duration": float64(5000000),
 				},
-				map[string]interface{}{
+				map[string]any{
 					"level":    float64(1),
 					"label":    "nested",
 					"summary":  "...",
 					"duration": float64(3000000),
 				},
-				map[string]interface{}{
+				map[string]any{
 					"level":    float64(2),
 					"label":    "nested more",
 					"summary":  "...",
@@ -262,17 +262,17 @@ func (s *timingsSuite) TestDurationThresholdAll(c *C) {
 }
 
 func (s *timingsSuite) TestDurationThreshold(c *C) {
-	s.testDurationThreshold(c, 3000000, []interface{}{
-		map[string]interface{}{
+	s.testDurationThreshold(c, 3000000, []any{
+		map[string]any{
 			"start-time": "2019-03-11T09:01:00.001Z",
 			"stop-time":  "2019-03-11T09:01:00.006Z",
-			"timings": []interface{}{
-				map[string]interface{}{
+			"timings": []any{
+				map[string]any{
 					"label":    "main",
 					"summary":  "...",
 					"duration": float64(5000000),
 				},
-				map[string]interface{}{
+				map[string]any{
 					"level":    float64(1),
 					"label":    "nested",
 					"summary":  "...",
@@ -282,12 +282,12 @@ func (s *timingsSuite) TestDurationThreshold(c *C) {
 }
 
 func (s *timingsSuite) TestDurationThresholdRootOnly(c *C) {
-	s.testDurationThreshold(c, 4000000, []interface{}{
-		map[string]interface{}{
+	s.testDurationThreshold(c, 4000000, []any{
+		map[string]any{
 			"start-time": "2019-03-11T09:01:00.001Z",
 			"stop-time":  "2019-03-11T09:01:00.006Z",
-			"timings": []interface{}{
-				map[string]interface{}{
+			"timings": []any{
+				map[string]any{
 					"label":    "main",
 					"summary":  "...",
 					"duration": float64(5000000),
@@ -317,14 +317,14 @@ func (s *timingsSuite) TestPurgeOnSave(c *C) {
 		t.Save(s.st)
 	}
 
-	var stateTimings []interface{}
+	var stateTimings []any
 	c.Assert(s.st.Get("timings", &stateTimings), IsNil)
 
 	// excess timings got dropped
 	c.Assert(stateTimings, HasLen, 3)
-	c.Check(stateTimings[0].(map[string]interface{})["tags"], DeepEquals, map[string]interface{}{"number": "7"})
-	c.Check(stateTimings[1].(map[string]interface{})["tags"], DeepEquals, map[string]interface{}{"number": "8"})
-	c.Check(stateTimings[2].(map[string]interface{})["tags"], DeepEquals, map[string]interface{}{"number": "9"})
+	c.Check(stateTimings[0].(map[string]any)["tags"], DeepEquals, map[string]any{"number": "7"})
+	c.Check(stateTimings[1].(map[string]any)["tags"], DeepEquals, map[string]any{"number": "8"})
+	c.Check(stateTimings[2].(map[string]any)["tags"], DeepEquals, map[string]any{"number": "9"})
 }
 
 func (s *timingsSuite) TestGet(c *C) {

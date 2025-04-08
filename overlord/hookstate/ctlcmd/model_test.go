@@ -106,7 +106,7 @@ func (s *modelSuite) SetUpTest(c *C) {
 	s.AddCleanup(sysdb.MockGenericClassicModel(s.storeSigning.GenericClassicModel))
 
 	s.brands = assertstest.NewSigningAccounts(s.storeSigning)
-	s.brands.Register("my-brand", brandPrivKey, map[string]interface{}{
+	s.brands.Register("my-brand", brandPrivKey, map[string]any{
 		"display-name": "fancy model publisher",
 		"validation":   "certified",
 	})
@@ -163,14 +163,14 @@ func (s *modelSuite) setupBrands() {
 	defer s.state.Unlock()
 
 	assertstatetest.AddMany(s.state, s.brands.AccountsAndKeys("my-brand")...)
-	otherAcct := assertstest.NewAccount(s.storeSigning, "other-brand", map[string]interface{}{
+	otherAcct := assertstest.NewAccount(s.storeSigning, "other-brand", map[string]any{
 		"account-id": "other-brand",
 	}, "")
 	assertstatetest.AddMany(s.state, otherAcct)
 }
 
 func (s *modelSuite) addSnapDeclaration(c *C, snapID, developerID, snapName string) {
-	declA, err := s.storeSigning.Sign(asserts.SnapDeclarationType, map[string]interface{}{
+	declA, err := s.storeSigning.Sign(asserts.SnapDeclarationType, map[string]any{
 		"series":       "16",
 		"snap-id":      snapID,
 		"publisher-id": developerID,
@@ -219,7 +219,7 @@ func (s *modelSuite) TestUnhappyModelCommandInsufficientPermissions(c *C) {
 
 	// set a model assertion
 	s.state.Lock()
-	current := s.brands.Model("canonical", "pc-model", map[string]interface{}{
+	current := s.brands.Model("canonical", "pc-model", map[string]any{
 		"architecture": "amd64",
 		"kernel":       "pc-kernel",
 		"gadget":       "pc",
@@ -255,7 +255,7 @@ func (s *modelSuite) TestHappyModelCommandIdenticalPublisher(c *C) {
 
 	// set a model assertion
 	s.state.Lock()
-	current := s.brands.Model("canonical", "pc-model", map[string]interface{}{
+	current := s.brands.Model("canonical", "pc-model", map[string]any{
 		"architecture": "amd64",
 		"kernel":       "pc-kernel",
 		"gadget":       "pc",
@@ -296,7 +296,7 @@ func (s *modelSuite) TestHappyModelCommandSnapdControlPlug(c *C) {
 
 	// set a model assertion
 	s.state.Lock()
-	current := s.brands.Model("canonical", "pc-model", map[string]interface{}{
+	current := s.brands.Model("canonical", "pc-model", map[string]any{
 		"architecture": "amd64",
 		"kernel":       "pc-kernel",
 		"gadget":       "pc",
@@ -316,8 +316,8 @@ func (s *modelSuite) TestHappyModelCommandSnapdControlPlug(c *C) {
 	c.Assert(err, IsNil)
 	mockInstalledSnap(c, s.state, snapWithSnapdControlOnlyYaml, "")
 
-	s.state.Set("conns", map[string]interface{}{
-		"snap1-control:plug core:slot": map[string]interface{}{"interface": "snapd-control"},
+	s.state.Set("conns", map[string]any{
+		"snap1-control:plug core:slot": map[string]any{"interface": "snapd-control"},
 	})
 	s.state.Unlock()
 
@@ -335,7 +335,7 @@ func (s *modelSuite) TestHappyModelCommandPublisherYaml(c *C) {
 
 	// set a model assertion
 	s.state.Lock()
-	current := s.brands.Model("canonical", "pc-model", map[string]interface{}{
+	current := s.brands.Model("canonical", "pc-model", map[string]any{
 		"architecture": "amd64",
 		"kernel":       "pc-kernel",
 		"gadget":       "pc",
@@ -386,7 +386,7 @@ func (s *modelSuite) testHappyModelCommandForSnap(c *C, snapName, snapYaml strin
 
 	// set a model assertion
 	s.state.Lock()
-	current := s.brands.Model("my-brand", "pc-model", map[string]interface{}{
+	current := s.brands.Model("my-brand", "pc-model", map[string]any{
 		"architecture": "amd64",
 		"kernel":       "pc-kernel",
 		"gadget":       "pc",
@@ -427,7 +427,7 @@ func (s *modelSuite) TestHappyModelCommandGadgetJson(c *C) {
 
 	// set a model assertion
 	s.state.Lock()
-	current := s.brands.Model("canonical", "pc-model", map[string]interface{}{
+	current := s.brands.Model("canonical", "pc-model", map[string]any{
 		"architecture": "amd64",
 		"kernel":       "pc-kernel",
 		"gadget":       "pc",
@@ -469,7 +469,7 @@ func (s *modelSuite) TestHappyModelCommandAssertionGadgetYaml(c *C) {
 
 	// set a model assertion
 	s.state.Lock()
-	current := s.brands.Model("canonical", "pc-model", map[string]interface{}{
+	current := s.brands.Model("canonical", "pc-model", map[string]any{
 		"architecture": "amd64",
 		"kernel":       "pc-kernel",
 		"gadget":       "pc",
@@ -502,7 +502,7 @@ func (s *modelSuite) TestHappyModelCommandAssertionGadgetJson(c *C) {
 
 	// set a model assertion
 	s.state.Lock()
-	current := s.brands.Model("canonical", "pc-model", map[string]interface{}{
+	current := s.brands.Model("canonical", "pc-model", map[string]any{
 		"architecture": "amd64",
 		"kernel":       "pc-kernel",
 		"gadget":       "pc",
@@ -549,7 +549,7 @@ func (s *modelSuite) TestRunWithoutHook(c *C) {
 
 	// set a model assertion
 	s.state.Lock()
-	current := s.brands.Model("canonical", "pc-model", map[string]interface{}{
+	current := s.brands.Model("canonical", "pc-model", map[string]any{
 		"architecture": "amd64",
 		"kernel":       "pc-kernel",
 		"gadget":       "pc",
@@ -620,9 +620,9 @@ func (s *modelSuite) TestLongPublisherVerified(c *C) {
 	c.Assert(ctlcmd.FormatLongPublisher(snapInfo, ""), Equals, "Canonical**")
 }
 
-func (s *modelSuite) signSerial(accountID, model, serial string, timestamp time.Time, extras ...map[string]interface{}) *asserts.Serial {
+func (s *modelSuite) signSerial(accountID, model, serial string, timestamp time.Time, extras ...map[string]any) *asserts.Serial {
 	encodedPubKey, _ := asserts.EncodePublicKey(brandPrivKey2.PublicKey())
-	headers := map[string]interface{}{
+	headers := map[string]any{
 		"series":              "16",
 		"serial":              serial,
 		"brand-id":            accountID,
@@ -648,7 +648,7 @@ func (s *modelSuite) signSerial(accountID, model, serial string, timestamp time.
 
 func (s *modelSuite) TestFindSerialAssertionNone(c *C) {
 	s.setupBrands()
-	model := s.brands.Model("canonical", "pc-model", map[string]interface{}{
+	model := s.brands.Model("canonical", "pc-model", map[string]any{
 		"architecture": "amd64",
 		"kernel":       "pc-kernel",
 		"gadget":       "pc",
@@ -666,13 +666,13 @@ func (s *modelSuite) TestFindSerialAssertionNone(c *C) {
 
 func (s *modelSuite) TestFindSerialAssertionMatch(c *C) {
 	s.setupBrands()
-	model := s.brands.Model("canonical", "pc-model", map[string]interface{}{
+	model := s.brands.Model("canonical", "pc-model", map[string]any{
 		"architecture": "amd64",
 		"kernel":       "pc-kernel",
 		"gadget":       "pc",
 		"base":         "core18",
 	})
-	serial := s.signSerial("canonical", "pc-model", "1", time.Now(), map[string]interface{}{
+	serial := s.signSerial("canonical", "pc-model", "1", time.Now(), map[string]any{
 		"architecture": "amd64",
 		"kernel":       "pc-kernel",
 		"gadget":       "pc",
@@ -696,19 +696,19 @@ func (s *modelSuite) TestFindSerialAssertionMultiple(c *C) {
 	now := time.Now()
 	tomorrow := now.AddDate(0, 0, 1)
 
-	model := s.brands.Model("canonical", "pc-model", map[string]interface{}{
+	model := s.brands.Model("canonical", "pc-model", map[string]any{
 		"architecture": "amd64",
 		"kernel":       "pc-kernel",
 		"gadget":       "pc",
 		"base":         "core18",
 	})
-	serial := s.signSerial("canonical", "pc-model", "1", now, map[string]interface{}{
+	serial := s.signSerial("canonical", "pc-model", "1", now, map[string]any{
 		"architecture": "amd64",
 		"kernel":       "pc-kernel",
 		"gadget":       "pc",
 		"base":         "core18",
 	})
-	serialnext := s.signSerial("canonical", "pc-model", "2", tomorrow, map[string]interface{}{
+	serialnext := s.signSerial("canonical", "pc-model", "2", tomorrow, map[string]any{
 		"architecture": "amd64",
 		"kernel":       "pc-kernel",
 		"gadget":       "pc",

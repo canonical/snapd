@@ -67,7 +67,7 @@ func (s *SnapSuite) TestCmdWaitMissingConfKey(c *C) {
 
 func (s *SnapSuite) TestTrueishJSON(c *C) {
 	tests := []struct {
-		v      interface{}
+		v      any
 		b      bool
 		errStr string
 	}{
@@ -87,20 +87,20 @@ func (s *SnapSuite) TestTrueishJSON(c *C) {
 		{json.Number("-1.0"), true, ""},
 		{json.Number("0.0"), false, ""},
 		// slices
-		{[]interface{}{"a"}, true, ""},
-		{[]interface{}{}, false, ""},
+		{[]any{"a"}, true, ""},
+		{[]any{}, false, ""},
 		{[]string{"a"}, true, ""},
 		{[]string{}, false, ""},
 		// arrays
-		{[2]interface{}{"a", "b"}, true, ""},
-		{[0]interface{}{}, false, ""},
+		{[2]any{"a", "b"}, true, ""},
+		{[0]any{}, false, ""},
 		{[2]string{"a", "b"}, true, ""},
 		{[0]string{}, false, ""},
 		// maps
-		{map[string]interface{}{"a": "a"}, true, ""},
-		{map[string]interface{}{}, false, ""},
-		{map[interface{}]interface{}{"a": "a"}, true, ""},
-		{map[interface{}]interface{}{}, false, ""},
+		{map[string]any{"a": "a"}, true, ""},
+		{map[string]any{}, false, ""},
+		{map[any]any{"a": "a"}, true, ""},
+		{map[any]any{}, false, ""},
 		// invalid
 		{int(1), false, "cannot test type int for truth"},
 	}

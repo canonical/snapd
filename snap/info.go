@@ -969,7 +969,7 @@ func (s *Info) DesktopPlugFileIDs() ([]string, error) {
 	// error reporting.
 
 	// desktop-file-ids must be a list of strings
-	attrList, ok := attrVal.([]interface{})
+	attrList, ok := attrVal.([]any)
 	if !ok {
 		return nil, errors.New(`internal error: "desktop-file-ids" must be a list of strings`)
 	}
@@ -1111,7 +1111,7 @@ type PlugInfo struct {
 
 	Name      string
 	Interface string
-	Attrs     map[string]interface{}
+	Attrs     map[string]any
 	Label     string
 	Apps      map[string]*AppInfo
 
@@ -1121,15 +1121,15 @@ type PlugInfo struct {
 	Unscoped bool
 }
 
-func lookupAttr(attrs map[string]interface{}, path string) (interface{}, bool) {
-	var v interface{}
+func lookupAttr(attrs map[string]any, path string) (any, bool) {
+	var v any
 	comps := strings.FieldsFunc(path, func(r rune) bool { return r == '.' })
 	if len(comps) == 0 {
 		return nil, false
 	}
 	v = attrs
 	for _, comp := range comps {
-		m, ok := v.(map[string]interface{})
+		m, ok := v.(map[string]any)
 		if !ok {
 			return nil, false
 		}
@@ -1142,7 +1142,7 @@ func lookupAttr(attrs map[string]interface{}, path string) (interface{}, bool) {
 	return v, true
 }
 
-func getAttribute(snapName string, ifaceName string, attrs map[string]interface{}, key string, val interface{}) error {
+func getAttribute(snapName string, ifaceName string, attrs map[string]any, key string, val any) error {
 	v, ok := lookupAttr(attrs, key)
 	if !ok {
 		return AttributeNotFoundError{fmt.Errorf("snap %q does not have attribute %q for interface %q", snapName, key, ifaceName)}
@@ -1151,11 +1151,11 @@ func getAttribute(snapName string, ifaceName string, attrs map[string]interface{
 	return metautil.SetValueFromAttribute(snapName, ifaceName, key, v, val)
 }
 
-func (plug *PlugInfo) Attr(key string, val interface{}) error {
+func (plug *PlugInfo) Attr(key string, val any) error {
 	return getAttribute(plug.Snap.InstanceName(), plug.Interface, plug.Attrs, key, val)
 }
 
-func (plug *PlugInfo) Lookup(key string) (interface{}, bool) {
+func (plug *PlugInfo) Lookup(key string) (any, bool) {
 	return lookupAttr(plug.Attrs, key)
 }
 
@@ -1164,11 +1164,11 @@ func (plug *PlugInfo) String() string {
 	return fmt.Sprintf("%s:%s", plug.Snap.InstanceName(), plug.Name)
 }
 
-func (slot *SlotInfo) Attr(key string, val interface{}) error {
+func (slot *SlotInfo) Attr(key string, val any) error {
 	return getAttribute(slot.Snap.InstanceName(), slot.Interface, slot.Attrs, key, val)
 }
 
-func (slot *SlotInfo) Lookup(key string) (interface{}, bool) {
+func (slot *SlotInfo) Lookup(key string) (any, bool) {
 	return lookupAttr(slot.Attrs, key)
 }
 
@@ -1219,7 +1219,7 @@ type SlotInfo struct {
 
 	Name      string
 	Interface string
-	Attrs     map[string]interface{}
+	Attrs     map[string]any
 	Label     string
 	Apps      map[string]*AppInfo
 
@@ -1417,7 +1417,7 @@ func (hook *HookInfo) Runnable() Runnable {
 type SystemUsernameInfo struct {
 	Name  string
 	Scope string
-	Attrs map[string]interface{}
+	Attrs map[string]any
 }
 
 type CategoryInfo struct {

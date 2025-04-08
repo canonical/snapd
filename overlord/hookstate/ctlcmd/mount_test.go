@@ -60,13 +60,13 @@ func (s *FakeSystemdForMount) EnsureMountUnitFileWithOptions(options *systemd.Mo
 	return s.EnsureMountUnitFileWithOptionsResult.path, s.EnsureMountUnitFileWithOptionsResult.err
 }
 
-func CopyMap(m map[string]interface{}) map[string]interface{} {
-	cp := make(map[string]interface{})
+func CopyMap(m map[string]any) map[string]any {
+	cp := make(map[string]any)
 	for k, v := range m {
 		switch value := v.(type) {
-		case map[string]interface{}:
+		case map[string]any:
 			cp[k] = CopyMap(value)
-		case []interface{}:
+		case []any:
 			cp[k] = CopySlice(value)
 		default:
 			cp[k] = v
@@ -75,13 +75,13 @@ func CopyMap(m map[string]interface{}) map[string]interface{} {
 	return cp
 }
 
-func CopySlice(s []interface{}) []interface{} {
-	cp := make([]interface{}, len(s))
+func CopySlice(s []any) []any {
+	cp := make([]any, len(s))
 	for i, v := range s {
 		switch value := v.(type) {
-		case map[string]interface{}:
+		case map[string]any:
 			cp[i] = CopyMap(value)
-		case []interface{}:
+		case []any:
 			cp[i] = CopySlice(value)
 		default:
 			cp[i] = v
@@ -99,7 +99,7 @@ type mountSuite struct {
 	sysd        *FakeSystemdForMount
 	// A connection state for a snap using the mount interface with the plug
 	// properly configured, which we'll be reusing in different test cases
-	regularConnState map[string]interface{}
+	regularConnState map[string]any
 }
 
 var _ = Suite(&mountSuite{})
@@ -120,35 +120,35 @@ func (s *mountSuite) SetUpTest(c *C) {
 	c.Assert(err, IsNil)
 	s.mockContext = ctx
 
-	s.regularConnState = map[string]interface{}{
+	s.regularConnState = map[string]any{
 		"interface": "mount-control",
-		"plug-static": map[string]interface{}{
-			"mount": []interface{}{
-				map[string]interface{}{
+		"plug-static": map[string]any{
+			"mount": []any{
+				map[string]any{
 					"what":       "/src",
 					"where":      "/dest",
 					"type":       []string{"ext4"},
 					"options":    []string{"bind", "rw", "sync"},
 					"persistent": true,
 				},
-				map[string]interface{}{
+				map[string]any{
 					"what":       "/media/me/data",
 					"where":      "$SNAP_DATA/dest",
 					"options":    []string{"bind", "ro"},
 					"persistent": false,
 				},
-				map[string]interface{}{
+				map[string]any{
 					"what":       "/dev/dma_heap/qcom,qseecom",
 					"where":      "/dest,with,commas",
 					"options":    []string{"ro"},
 					"persistent": false,
 				},
-				map[string]interface{}{
+				map[string]any{
 					"where":   "/nfs-dest",
 					"options": []string{"rw"},
 					"type":    []string{"nfs"},
 				},
-				map[string]interface{}{
+				map[string]any{
 					"where":   "/cifs-dest",
 					"options": []string{"rw", "guest"},
 					"type":    []string{"cifs"},
@@ -167,7 +167,7 @@ func (s *mountSuite) SetUpTest(c *C) {
 func (s *mountSuite) injectSnapWithProperPlug(c *C) {
 	s.state.Lock()
 	mockInstalledSnap(c, s.state, `name: snap1`, "")
-	s.state.Set("conns", map[string]interface{}{
+	s.state.Set("conns", map[string]any{
 		"snap1:plug1 snap2:slot2": s.regularConnState,
 	})
 	s.state.Unlock()
@@ -213,7 +213,7 @@ func (s *mountSuite) TestMissingProperPlug(c *C) {
 	mockInstalledSnap(c, s.state, `name: snap1`, "")
 	// Inject a lot of connections in the state, but all of them defective for
 	// one or another reason
-	connections := make(map[string]interface{})
+	connections := make(map[string]any)
 	// wrong interface
 	conn := CopyMap(s.regularConnState)
 	conn["interface"] = "unrelated"
@@ -235,8 +235,8 @@ func (s *mountSuite) TestMissingProperPlug(c *C) {
 	connections["snap1:plug4 snap2:slot1"] = conn
 	// incompatible "what" field
 	conn = CopyMap(s.regularConnState)
-	plugInfo := func(conn map[string]interface{}) map[string]interface{} {
-		return conn["plug-static"].(map[string]interface{})["mount"].([]interface{})[0].(map[string]interface{})
+	plugInfo := func(conn map[string]any) map[string]any {
+		return conn["plug-static"].(map[string]any)["mount"].([]any)[0].(map[string]any)
 	}
 	plugInfo(conn)["what"] = "/some/other/path"
 	connections["snap1:plug5 snap2:slot1"] = conn

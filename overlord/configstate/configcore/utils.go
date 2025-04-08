@@ -96,11 +96,11 @@ func updateKeyValueStream(r io.Reader, supportedConfigKeys map[string]bool, newC
 	return nil, nil
 }
 
-type filterFunc func(values, filtered map[string]interface{})
+type filterFunc func(values, filtered map[string]any)
 
-func applyFilters(flagFilter func(f flags) filterFunc, values map[string]interface{}) (map[string]interface{}, []configHandler) {
+func applyFilters(flagFilter func(f flags) filterFunc, values map[string]any) (map[string]any, []configHandler) {
 	// filter the values to only keep values that use the preinstall flag
-	filteredValues := make(map[string]interface{})
+	filteredValues := make(map[string]any)
 
 	// find the handlers which have the specified flag set
 	var filteredHandlers []configHandler

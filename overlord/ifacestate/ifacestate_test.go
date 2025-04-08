@@ -97,8 +97,8 @@ func (am *AssertsMock) SetupAsserts(c *C, st *state.State, cleaner cleaner) {
 	st.Unlock()
 }
 
-func (am *AssertsMock) mockModel(extraHeaders map[string]interface{}) *asserts.Model {
-	model := map[string]interface{}{
+func (am *AssertsMock) mockModel(extraHeaders map[string]any) *asserts.Model {
+	model := map[string]any{
 		"type":         "model",
 		"authority-id": "my-brand",
 		"series":       "16",
@@ -112,29 +112,29 @@ func (am *AssertsMock) mockModel(extraHeaders map[string]interface{}) *asserts.M
 	return assertstest.FakeAssertion(model, extraHeaders).(*asserts.Model)
 }
 
-func (am *AssertsMock) MockModel(c *C, extraHeaders map[string]interface{}) {
+func (am *AssertsMock) MockModel(c *C, extraHeaders map[string]any) {
 	model := am.mockModel(extraHeaders)
 	am.cleaner.AddCleanup(snapstatetest.MockDeviceModel(model))
 }
 
-func (am *AssertsMock) TrivialDeviceContext(c *C, extraHeaders map[string]interface{}) *snapstatetest.TrivialDeviceContext {
+func (am *AssertsMock) TrivialDeviceContext(c *C, extraHeaders map[string]any) *snapstatetest.TrivialDeviceContext {
 	model := am.mockModel(extraHeaders)
 	return &snapstatetest.TrivialDeviceContext{DeviceModel: model}
 }
 
-func (am *AssertsMock) MockSnapDecl(c *C, name, publisher string, extraHeaders map[string]interface{}) {
+func (am *AssertsMock) MockSnapDecl(c *C, name, publisher string, extraHeaders map[string]any) {
 	_, err := am.Db.Find(asserts.AccountType, map[string]string{
 		"account-id": publisher,
 	})
 	if errors.Is(err, &asserts.NotFoundError{}) {
-		acct := assertstest.NewAccount(am.storeSigning, publisher, map[string]interface{}{
+		acct := assertstest.NewAccount(am.storeSigning, publisher, map[string]any{
 			"account-id": publisher,
 		}, "")
 		err = am.Db.Add(acct)
 	}
 	c.Assert(err, IsNil)
 
-	headers := map[string]interface{}{
+	headers := map[string]any{
 		"series":       "16",
 		"snap-name":    name,
 		"publisher-id": publisher,
@@ -152,8 +152,8 @@ func (am *AssertsMock) MockSnapDecl(c *C, name, publisher string, extraHeaders m
 	c.Assert(err, IsNil)
 }
 
-func (am *AssertsMock) MockStore(c *C, st *state.State, storeID string, extraHeaders map[string]interface{}) {
-	headers := map[string]interface{}{
+func (am *AssertsMock) MockStore(c *C, st *state.State, storeID string, extraHeaders map[string]any) {
+	headers := map[string]any{
 		"store":       storeID,
 		"operator-id": am.storeSigning.AuthorityID,
 		"timestamp":   time.Now().Format(time.RFC3339),
@@ -522,19 +522,19 @@ func (s *interfaceManagerSuite) TestConnectTask(c *C) {
 	c.Assert(autoconnect, Equals, false)
 
 	// verify initial attributes are present in connect task
-	var plugStaticAttrs map[string]interface{}
-	var plugDynamicAttrs map[string]interface{}
+	var plugStaticAttrs map[string]any
+	var plugDynamicAttrs map[string]any
 	c.Assert(task.Get("plug-static", &plugStaticAttrs), IsNil)
-	c.Assert(plugStaticAttrs, DeepEquals, map[string]interface{}{"attr1": "value1"})
+	c.Assert(plugStaticAttrs, DeepEquals, map[string]any{"attr1": "value1"})
 	c.Assert(task.Get("plug-dynamic", &plugDynamicAttrs), IsNil)
-	c.Assert(plugDynamicAttrs, DeepEquals, map[string]interface{}{})
+	c.Assert(plugDynamicAttrs, DeepEquals, map[string]any{})
 
-	var slotStaticAttrs map[string]interface{}
-	var slotDynamicAttrs map[string]interface{}
+	var slotStaticAttrs map[string]any
+	var slotDynamicAttrs map[string]any
 	c.Assert(task.Get("slot-static", &slotStaticAttrs), IsNil)
-	c.Assert(slotStaticAttrs, DeepEquals, map[string]interface{}{"attr2": "value2"})
+	c.Assert(slotStaticAttrs, DeepEquals, map[string]any{"attr2": "value2"})
 	c.Assert(task.Get("slot-dynamic", &slotDynamicAttrs), IsNil)
-	c.Assert(slotDynamicAttrs, DeepEquals, map[string]interface{}{})
+	c.Assert(slotDynamicAttrs, DeepEquals, map[string]any{})
 
 	i++
 	task = ts.Tasks()[i]
@@ -938,23 +938,23 @@ func (s *interfaceManagerSuite) TestParallelInstallConnectTask(c *C) {
 	c.Assert(autoconnect, Equals, false)
 
 	// verify initial attributes are present in connect task
-	var plugStaticAttrs map[string]interface{}
-	var plugDynamicAttrs map[string]interface{}
+	var plugStaticAttrs map[string]any
+	var plugDynamicAttrs map[string]any
 	err = task.Get("plug-static", &plugStaticAttrs)
 	c.Assert(err, IsNil)
-	c.Assert(plugStaticAttrs, DeepEquals, map[string]interface{}{"attr1": "value1"})
+	c.Assert(plugStaticAttrs, DeepEquals, map[string]any{"attr1": "value1"})
 	err = task.Get("plug-dynamic", &plugDynamicAttrs)
 	c.Assert(err, IsNil)
-	c.Assert(plugDynamicAttrs, DeepEquals, map[string]interface{}{})
+	c.Assert(plugDynamicAttrs, DeepEquals, map[string]any{})
 
-	var slotStaticAttrs map[string]interface{}
-	var slotDynamicAttrs map[string]interface{}
+	var slotStaticAttrs map[string]any
+	var slotDynamicAttrs map[string]any
 	err = task.Get("slot-static", &slotStaticAttrs)
 	c.Assert(err, IsNil)
-	c.Assert(slotStaticAttrs, DeepEquals, map[string]interface{}{"attr2": "value2"})
+	c.Assert(slotStaticAttrs, DeepEquals, map[string]any{"attr2": "value2"})
 	err = task.Get("slot-dynamic", &slotDynamicAttrs)
 	c.Assert(err, IsNil)
-	c.Assert(slotDynamicAttrs, DeepEquals, map[string]interface{}{})
+	c.Assert(slotDynamicAttrs, DeepEquals, map[string]any{})
 
 	i++
 	task = ts.Tasks()[i]
@@ -979,8 +979,8 @@ func (s *interfaceManagerSuite) TestConnectAlreadyConnected(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	conns := map[string]interface{}{
-		"consumer:plug producer:slot": map[string]interface{}{
+	conns := map[string]any{
+		"consumer:plug producer:slot": map[string]any{
 			"auto": false,
 		},
 	}
@@ -994,8 +994,8 @@ func (s *interfaceManagerSuite) TestConnectAlreadyConnected(c *C) {
 	c.Assert(alreadyConnected.Connection, DeepEquals, interfaces.ConnRef{PlugRef: interfaces.PlugRef{Snap: "consumer", Name: "plug"}, SlotRef: interfaces.SlotRef{Snap: "producer", Name: "slot"}})
 	c.Assert(err, ErrorMatches, `already connected: "consumer:plug producer:slot"`)
 
-	conns = map[string]interface{}{
-		"consumer:plug producer:slot": map[string]interface{}{
+	conns = map[string]any{
+		"consumer:plug producer:slot": map[string]any{
 			"auto":      true,
 			"undesired": true,
 		},
@@ -1007,7 +1007,7 @@ func (s *interfaceManagerSuite) TestConnectAlreadyConnected(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(ts, NotNil)
 
-	conns = map[string]interface{}{"consumer:plug producer:slot": map[string]interface{}{"hotplug-gone": true}}
+	conns = map[string]any{"consumer:plug producer:slot": map[string]any{"hotplug-gone": true}}
 	s.state.Set("conns", conns)
 
 	// ErrAlreadyConnected is not reported if connection was removed by hotplug
@@ -1560,7 +1560,7 @@ func (s *interfaceManagerSuite) TestConnectTaskCheckDeviceScopeNoStore(c *C) {
 }
 
 func (s *interfaceManagerSuite) TestConnectTaskCheckDeviceScopeWrongStore(c *C) {
-	s.MockModel(c, map[string]interface{}{
+	s.MockModel(c, map[string]any{
 		"store": "other-store",
 	})
 
@@ -1575,7 +1575,7 @@ func (s *interfaceManagerSuite) TestConnectTaskCheckDeviceScopeWrongStore(c *C) 
 }
 
 func (s *interfaceManagerSuite) TestConnectTaskCheckDeviceScopeRightStore(c *C) {
-	s.MockModel(c, map[string]interface{}{
+	s.MockModel(c, map[string]any{
 		"store": "my-store",
 	})
 
@@ -1593,12 +1593,12 @@ func (s *interfaceManagerSuite) TestConnectTaskCheckDeviceScopeRightStore(c *C) 
 }
 
 func (s *interfaceManagerSuite) TestConnectTaskCheckDeviceScopeWrongFriendlyStore(c *C) {
-	s.MockModel(c, map[string]interface{}{
+	s.MockModel(c, map[string]any{
 		"store": "my-substore",
 	})
 
-	s.MockStore(c, s.state, "my-substore", map[string]interface{}{
-		"friendly-stores": []interface{}{"other-store"},
+	s.MockStore(c, s.state, "my-substore", map[string]any{
+		"friendly-stores": []any{"other-store"},
 	})
 
 	s.testConnectTaskCheckDeviceScope(c, func(change *state.Change) {
@@ -1612,12 +1612,12 @@ func (s *interfaceManagerSuite) TestConnectTaskCheckDeviceScopeWrongFriendlyStor
 }
 
 func (s *interfaceManagerSuite) TestConnectTaskCheckDeviceScopeRightFriendlyStore(c *C) {
-	s.MockModel(c, map[string]interface{}{
+	s.MockModel(c, map[string]any{
 		"store": "my-substore",
 	})
 
-	s.MockStore(c, s.state, "my-substore", map[string]interface{}{
-		"friendly-stores": []interface{}{"my-store"},
+	s.MockStore(c, s.state, "my-substore", map[string]any{
+		"friendly-stores": []any{"my-store"},
 	})
 
 	s.testConnectTaskCheckDeviceScope(c, func(change *state.Change) {
@@ -1647,12 +1647,12 @@ slots:
 
 	s.MockSnapDecl(c, "producer", "one-publisher", nil)
 	s.mockSnap(c, producerYaml)
-	s.MockSnapDecl(c, "consumer", "one-publisher", map[string]interface{}{
+	s.MockSnapDecl(c, "consumer", "one-publisher", map[string]any{
 		"format": "3",
-		"plugs": map[string]interface{}{
-			"test": map[string]interface{}{
-				"allow-connection": map[string]interface{}{
-					"on-store": []interface{}{"my-store"},
+		"plugs": map[string]any{
+			"test": map[string]any{
+				"allow-connection": map[string]any{
+					"on-store": []any{"my-store"},
 				},
 			},
 		},
@@ -1684,8 +1684,8 @@ func (s *interfaceManagerSuite) TestDisconnectTask(c *C) {
 	slotAppSet := s.mockAppSet(c, producerYaml)
 
 	conn := &interfaces.Connection{
-		Plug: interfaces.NewConnectedPlug(plugAppSet.Info().Plugs["plug"], plugAppSet, nil, map[string]interface{}{"attr3": "value3"}),
-		Slot: interfaces.NewConnectedSlot(slotAppSet.Info().Slots["slot"], slotAppSet, nil, map[string]interface{}{"attr4": "value4"}),
+		Plug: interfaces.NewConnectedPlug(plugAppSet.Info().Plugs["plug"], plugAppSet, nil, map[string]any{"attr3": "value3"}),
+		Slot: interfaces.NewConnectedSlot(slotAppSet.Info().Slots["slot"], slotAppSet, nil, map[string]any{"attr4": "value4"}),
 	}
 
 	s.state.Lock()
@@ -1729,17 +1729,17 @@ func (s *interfaceManagerSuite) TestDisconnectTask(c *C) {
 	c.Assert(slot.Name, Equals, "slot")
 
 	// verify connection attributes are present in the disconnect task
-	var plugStaticAttrs1, plugDynamicAttrs1, slotStaticAttrs1, slotDynamicAttrs1 map[string]interface{}
+	var plugStaticAttrs1, plugDynamicAttrs1, slotStaticAttrs1, slotDynamicAttrs1 map[string]any
 
 	c.Assert(task.Get("plug-static", &plugStaticAttrs1), IsNil)
-	c.Assert(plugStaticAttrs1, DeepEquals, map[string]interface{}{"attr1": "value1"})
+	c.Assert(plugStaticAttrs1, DeepEquals, map[string]any{"attr1": "value1"})
 	c.Assert(task.Get("plug-dynamic", &plugDynamicAttrs1), IsNil)
-	c.Assert(plugDynamicAttrs1, DeepEquals, map[string]interface{}{"attr3": "value3"})
+	c.Assert(plugDynamicAttrs1, DeepEquals, map[string]any{"attr3": "value3"})
 
 	c.Assert(task.Get("slot-static", &slotStaticAttrs1), IsNil)
-	c.Assert(slotStaticAttrs1, DeepEquals, map[string]interface{}{"attr2": "value2"})
+	c.Assert(slotStaticAttrs1, DeepEquals, map[string]any{"attr2": "value2"})
 	c.Assert(task.Get("slot-dynamic", &slotDynamicAttrs1), IsNil)
-	c.Assert(slotDynamicAttrs1, DeepEquals, map[string]interface{}{"attr4": "value4"})
+	c.Assert(slotDynamicAttrs1, DeepEquals, map[string]any{"attr4": "value4"})
 }
 
 // Disconnect works when both plug and slot are specified
@@ -1770,8 +1770,8 @@ func (s *interfaceManagerSuite) testDisconnect(c *C, plugSnap, plugName, slotSna
 	// Put a connection in the state so that it automatically gets set up when
 	// we create the manager.
 	s.state.Lock()
-	s.state.Set("conns", map[string]interface{}{
-		"consumer:plug producer:slot": map[string]interface{}{"interface": "test"},
+	s.state.Set("conns", map[string]any{
+		"consumer:plug producer:slot": map[string]any{"interface": "test"},
 	})
 	s.state.Unlock()
 
@@ -1809,7 +1809,7 @@ func (s *interfaceManagerSuite) testDisconnect(c *C, plugSnap, plugName, slotSna
 	c.Check(change.Status(), Equals, state.DoneStatus)
 
 	// Ensure that the connection has been removed from the state
-	var conns map[string]interface{}
+	var conns map[string]any
 	err = s.state.Get("conns", &conns)
 	c.Assert(err, IsNil)
 	c.Check(conns, HasLen, 0)
@@ -1878,13 +1878,13 @@ components:
 	s.mockComponentForSnap(c, "comp", "component: consumer+comp\ntype: standard", consumer)
 	s.mockComponentForSnap(c, "comp", "component: producer+comp\ntype: standard", producer)
 
-	connState := map[string]interface{}{
-		"consumer:plug producer:slot": map[string]interface{}{
+	connState := map[string]any{
+		"consumer:plug producer:slot": map[string]any{
 			"interface":    "test",
-			"slot-static":  map[string]interface{}{"static": "slot-static-value"},
-			"slot-dynamic": map[string]interface{}{"dynamic": "slot-dynamic-value"},
-			"plug-static":  map[string]interface{}{"static": "plug-static-value"},
-			"plug-dynamic": map[string]interface{}{"dynamic": "plug-dynamic-value"},
+			"slot-static":  map[string]any{"static": "slot-static-value"},
+			"slot-dynamic": map[string]any{"dynamic": "slot-dynamic-value"},
+			"plug-static":  map[string]any{"static": "plug-static-value"},
+			"plug-dynamic": map[string]any{"dynamic": "plug-dynamic-value"},
 		},
 	}
 
@@ -1920,7 +1920,7 @@ components:
 		c.Assert(t.Status(), Equals, state.UndoneStatus)
 	}
 
-	var conns map[string]interface{}
+	var conns map[string]any
 	c.Assert(s.state.Get("conns", &conns), IsNil)
 	c.Assert(conns, DeepEquals, connState)
 
@@ -1954,13 +1954,13 @@ func (s *interfaceManagerSuite) TestForgetUndo(c *C) {
 	s.mockSnap(c, producerYaml)
 
 	// plug3 and slot3 do not exist, so the connection is not in the repository.
-	connState := map[string]interface{}{
-		"consumer:plug producer:slot": map[string]interface{}{
+	connState := map[string]any{
+		"consumer:plug producer:slot": map[string]any{
 			"interface":   "test",
-			"plug-static": map[string]interface{}{"attr1": "value1"},
-			"slot-static": map[string]interface{}{"attr2": "value2"},
+			"plug-static": map[string]any{"attr1": "value1"},
+			"slot-static": map[string]any{"attr2": "value2"},
 		},
-		"consumer:plug3 producer:slot3": map[string]interface{}{"interface": "test2"},
+		"consumer:plug3 producer:slot3": map[string]any{"interface": "test2"},
 	}
 
 	s.state.Lock()
@@ -2001,7 +2001,7 @@ func (s *interfaceManagerSuite) TestForgetUndo(c *C) {
 	// Ensure that disconnect task was undone
 	c.Assert(task.Status(), Equals, state.UndoneStatus)
 
-	var conns map[string]interface{}
+	var conns map[string]any
 	c.Assert(s.state.Get("conns", &conns), IsNil)
 	c.Assert(conns, DeepEquals, connState)
 
@@ -2014,8 +2014,8 @@ func (s *interfaceManagerSuite) TestStaleConnectionsIgnoredInReloadConnections(c
 	// Put a stray connection in the state so that it automatically gets set up
 	// when we create the manager.
 	s.state.Lock()
-	s.state.Set("conns", map[string]interface{}{
-		"consumer:plug producer:slot": map[string]interface{}{"interface": "test"},
+	s.state.Set("conns", map[string]any{
+		"consumer:plug producer:slot": map[string]any{"interface": "test"},
 	})
 	s.state.Unlock()
 
@@ -2052,9 +2052,9 @@ func (s *interfaceManagerSuite) testStaleAutoConnectionsNotRemovedIfSnapBroken(c
 	restore := ifacestate.MockRemoveStaleConnections(func(s *state.State) error { return nil })
 	defer restore()
 
-	s.state.Set("conns", map[string]interface{}{
-		"consumer:plug producer:slot":             map[string]interface{}{"interface": "test", "auto": true},
-		"other-consumer:plug other-producer:slot": map[string]interface{}{"interface": "test", "auto": true},
+	s.state.Set("conns", map[string]any{
+		"consumer:plug producer:slot":             map[string]any{"interface": "test", "auto": true},
+		"other-consumer:plug other-producer:slot": map[string]any{"interface": "test", "auto": true},
 	})
 	sideInfo := &snap.SideInfo{
 		RealName: brokenSnapName,
@@ -2090,10 +2090,10 @@ func (s *interfaceManagerSuite) testStaleAutoConnectionsNotRemovedIfSnapBroken(c
 
 	// but the consumer:plug producer:slot connection is kept in the state and only the other one
 	// got dropped.
-	var conns map[string]interface{}
+	var conns map[string]any
 	c.Assert(s.state.Get("conns", &conns), IsNil)
-	c.Check(conns, DeepEquals, map[string]interface{}{
-		"consumer:plug producer:slot": map[string]interface{}{"interface": "test", "auto": true},
+	c.Check(conns, DeepEquals, map[string]any{
+		"consumer:plug producer:slot": map[string]any{"interface": "test", "auto": true},
 	})
 
 	c.Check(s.log.String(), testutil.Contains, fmt.Sprintf("Snap %q is broken, ignored by reloadConnections", brokenSnapName))
@@ -2112,8 +2112,8 @@ func (s *interfaceManagerSuite) TestStaleConnectionsRemoved(c *C) {
 
 	s.state.Lock()
 	// Add stale connection to the state
-	s.state.Set("conns", map[string]interface{}{
-		"consumer:plug producer:slot": map[string]interface{}{"interface": "test"},
+	s.state.Set("conns", map[string]any{
+		"consumer:plug producer:slot": map[string]any{"interface": "test"},
 	})
 	s.state.Unlock()
 
@@ -2124,7 +2124,7 @@ func (s *interfaceManagerSuite) TestStaleConnectionsRemoved(c *C) {
 	defer s.state.Unlock()
 
 	// Ensure that nothing got connected and connection was removed
-	var conns map[string]interface{}
+	var conns map[string]any
 	err := s.state.Get("conns", &conns)
 	c.Assert(err, IsNil)
 	c.Check(conns, HasLen, 0)
@@ -2142,9 +2142,9 @@ func (s *interfaceManagerSuite) testForget(c *C, plugSnap, plugName, slotSnap, s
 	s.mockSnap(c, producerYaml)
 
 	s.state.Lock()
-	s.state.Set("conns", map[string]interface{}{
-		"consumer:plug producer:slot":   map[string]interface{}{"interface": "test"},
-		"consumer:plug2 producer:slot2": map[string]interface{}{"interface": "test2"},
+	s.state.Set("conns", map[string]any{
+		"consumer:plug producer:slot":   map[string]any{"interface": "test"},
+		"consumer:plug2 producer:slot2": map[string]any{"interface": "test2"},
 	})
 	s.state.Unlock()
 
@@ -2208,13 +2208,13 @@ func (s *interfaceManagerSuite) TestForgetInactiveConnection(c *C) {
 	defer s.state.Unlock()
 
 	// Ensure that the connection has been removed from the state
-	var conns map[string]interface{}
+	var conns map[string]any
 	c.Assert(s.state.Get("conns", &conns), IsNil)
-	c.Check(conns, DeepEquals, map[string]interface{}{
-		"consumer:plug producer:slot": map[string]interface{}{
+	c.Check(conns, DeepEquals, map[string]any{
+		"consumer:plug producer:slot": map[string]any{
 			"interface":   "test",
-			"plug-static": map[string]interface{}{"attr1": "value1"},
-			"slot-static": map[string]interface{}{"attr2": "value2"},
+			"plug-static": map[string]any{"attr1": "value1"},
+			"slot-static": map[string]any{"attr2": "value2"},
 		},
 	})
 
@@ -2245,10 +2245,10 @@ func (s *interfaceManagerSuite) TestForgetActiveConnection(c *C) {
 	defer s.state.Unlock()
 
 	// Ensure that the connection has been removed from the state
-	var conns map[string]interface{}
+	var conns map[string]any
 	c.Assert(s.state.Get("conns", &conns), IsNil)
-	c.Check(conns, DeepEquals, map[string]interface{}{
-		"consumer:plug2 producer:slot2": map[string]interface{}{"interface": "test2"},
+	c.Check(conns, DeepEquals, map[string]any{
+		"consumer:plug2 producer:slot2": map[string]any{"interface": "test2"},
 	})
 }
 
@@ -2899,8 +2899,8 @@ func (s *interfaceManagerSuite) TestDoSetupSnapSecurityHonorsUndesiredFlag(c *C)
 	s.MockModel(c, nil)
 
 	s.state.Lock()
-	s.state.Set("conns", map[string]interface{}{
-		"snap:network ubuntu-core:network": map[string]interface{}{
+	s.state.Set("conns", map[string]any{
+		"snap:network ubuntu-core:network": map[string]any{
 			"undesired": true,
 		},
 	})
@@ -2930,11 +2930,11 @@ func (s *interfaceManagerSuite) TestDoSetupSnapSecurityHonorsUndesiredFlag(c *C)
 	// Ensure that the task succeeded
 	c.Assert(change.Status(), Equals, state.DoneStatus)
 
-	var conns map[string]interface{}
+	var conns map[string]any
 	err := s.state.Get("conns", &conns)
 	c.Assert(err, IsNil)
-	c.Check(conns, DeepEquals, map[string]interface{}{
-		"snap:network ubuntu-core:network": map[string]interface{}{
+	c.Check(conns, DeepEquals, map[string]any{
+		"snap:network ubuntu-core:network": map[string]any{
 			"undesired": true,
 		},
 	})
@@ -3014,11 +3014,11 @@ func (s *interfaceManagerSuite) TestDoSetupSnapSecurityAutoConnectsPlugs(c *C) {
 	c.Assert(change.Status(), Equals, state.DoneStatus)
 
 	// Ensure that "network" is now saved in the state as auto-connected.
-	var conns map[string]interface{}
+	var conns map[string]any
 	err := s.state.Get("conns", &conns)
 	c.Assert(err, IsNil)
-	c.Check(conns, DeepEquals, map[string]interface{}{
-		"snap:network ubuntu-core:network": map[string]interface{}{
+	c.Check(conns, DeepEquals, map[string]any{
+		"snap:network ubuntu-core:network": map[string]any{
 			"interface": "network", "auto": true,
 		},
 	})
@@ -3064,14 +3064,14 @@ func (s *interfaceManagerSuite) TestDoSetupSnapSecurityAutoConnectsSlots(c *C) {
 	c.Assert(change.Status(), Equals, state.DoneStatus)
 
 	// Ensure that "slot" is now saved in the state as auto-connected.
-	var conns map[string]interface{}
+	var conns map[string]any
 	err := s.state.Get("conns", &conns)
 	c.Assert(err, IsNil)
-	c.Check(conns, DeepEquals, map[string]interface{}{
-		"consumer:plug producer:slot": map[string]interface{}{
+	c.Check(conns, DeepEquals, map[string]any{
+		"consumer:plug producer:slot": map[string]any{
 			"interface": "test", "auto": true,
-			"plug-static": map[string]interface{}{"attr1": "value1"},
-			"slot-static": map[string]interface{}{"attr2": "value2"},
+			"plug-static": map[string]any{"attr1": "value1"},
+			"slot-static": map[string]any{"attr2": "value2"},
 		},
 	})
 
@@ -3122,19 +3122,19 @@ func (s *interfaceManagerSuite) TestDoSetupSnapSecurityAutoConnectsSlotsMultiple
 	c.Assert(change.Status(), Equals, state.DoneStatus)
 
 	// Ensure that "slot" is now saved in the state as auto-connected.
-	var conns map[string]interface{}
+	var conns map[string]any
 	err := s.state.Get("conns", &conns)
 	c.Assert(err, IsNil)
-	c.Check(conns, DeepEquals, map[string]interface{}{
-		"consumer:plug producer:slot": map[string]interface{}{
+	c.Check(conns, DeepEquals, map[string]any{
+		"consumer:plug producer:slot": map[string]any{
 			"interface": "test", "auto": true,
-			"plug-static": map[string]interface{}{"attr1": "value1"},
-			"slot-static": map[string]interface{}{"attr2": "value2"},
+			"plug-static": map[string]any{"attr1": "value1"},
+			"slot-static": map[string]any{"attr2": "value2"},
 		},
-		"consumer2:plug producer:slot": map[string]interface{}{
+		"consumer2:plug producer:slot": map[string]any{
 			"interface": "test", "auto": true,
-			"plug-static": map[string]interface{}{"attr1": "value1"},
-			"slot-static": map[string]interface{}{"attr2": "value2"},
+			"plug-static": map[string]any{"attr1": "value1"},
+			"slot-static": map[string]any{"attr2": "value2"},
 		},
 	})
 
@@ -3186,7 +3186,7 @@ func (s *interfaceManagerSuite) TestDoSetupSnapSecurityNoAutoConnectSlotsIfAlter
 	c.Assert(change.Status(), Equals, state.DoneStatus)
 
 	// Ensure that no connections were made
-	var conns map[string]interface{}
+	var conns map[string]any
 	err := s.state.Get("conns", &conns)
 	c.Assert(err, testutil.ErrorIs, state.ErrNoState)
 	c.Check(conns, HasLen, 0)
@@ -3194,12 +3194,12 @@ func (s *interfaceManagerSuite) TestDoSetupSnapSecurityNoAutoConnectSlotsIfAlter
 
 // The auto-connect task will auto-connect plugs with viable candidates also condidering snap declarations.
 func (s *interfaceManagerSuite) TestDoSetupSnapSecurityAutoConnectsDeclBased(c *C) {
-	s.testDoSetupSnapSecurityAutoConnectsDeclBased(c, true, func(conns map[string]interface{}, repoConns []*interfaces.ConnRef) {
+	s.testDoSetupSnapSecurityAutoConnectsDeclBased(c, true, func(conns map[string]any, repoConns []*interfaces.ConnRef) {
 		// Ensure that "test" plug is now saved in the state as auto-connected.
-		c.Check(conns, DeepEquals, map[string]interface{}{
-			"consumer:plug producer:slot": map[string]interface{}{"auto": true, "interface": "test",
-				"plug-static": map[string]interface{}{"attr1": "value1"},
-				"slot-static": map[string]interface{}{"attr2": "value2"},
+		c.Check(conns, DeepEquals, map[string]any{
+			"consumer:plug producer:slot": map[string]any{"auto": true, "interface": "test",
+				"plug-static": map[string]any{"attr1": "value1"},
+				"slot-static": map[string]any{"attr2": "value2"},
 			}})
 		// Ensure that "test" is really connected.
 		c.Check(repoConns, HasLen, 1)
@@ -3208,14 +3208,14 @@ func (s *interfaceManagerSuite) TestDoSetupSnapSecurityAutoConnectsDeclBased(c *
 
 // The auto-connect task will *not* auto-connect plugs with viable candidates when snap declarations are missing.
 func (s *interfaceManagerSuite) TestDoSetupSnapSecurityAutoConnectsDeclBasedWhenMissingDecl(c *C) {
-	s.testDoSetupSnapSecurityAutoConnectsDeclBased(c, false, func(conns map[string]interface{}, repoConns []*interfaces.ConnRef) {
+	s.testDoSetupSnapSecurityAutoConnectsDeclBased(c, false, func(conns map[string]any, repoConns []*interfaces.ConnRef) {
 		// Ensure nothing is connected.
 		c.Check(conns, HasLen, 0)
 		c.Check(repoConns, HasLen, 0)
 	})
 }
 
-func (s *interfaceManagerSuite) testDoSetupSnapSecurityAutoConnectsDeclBased(c *C, withDecl bool, check func(map[string]interface{}, []*interfaces.ConnRef)) {
+func (s *interfaceManagerSuite) testDoSetupSnapSecurityAutoConnectsDeclBased(c *C, withDecl bool, check func(map[string]any, []*interfaces.ConnRef)) {
 	s.MockModel(c, nil)
 
 	restore := assertstest.MockBuiltinBaseDeclaration([]byte(`
@@ -3259,7 +3259,7 @@ slots:
 	// Ensure that the task succeeded.
 	c.Assert(change.Status(), Equals, state.DoneStatus)
 
-	var conns map[string]interface{}
+	var conns map[string]any
 	_ = s.state.Get("conns", &conns)
 
 	repo := mgr.Repository()
@@ -3276,7 +3276,7 @@ func (s *interfaceManagerSuite) TestDoSetupSnapSecurityAutoConnectsDeclBasedDevi
 
 	s.MockModel(c, nil)
 
-	s.testDoSetupSnapSecurityAutoConnectsDeclBasedDeviceScope(c, func(conns map[string]interface{}, repoConns []*interfaces.ConnRef) {
+	s.testDoSetupSnapSecurityAutoConnectsDeclBasedDeviceScope(c, func(conns map[string]any, repoConns []*interfaces.ConnRef) {
 		// Ensure nothing is connected.
 		c.Check(conns, HasLen, 0)
 		c.Check(repoConns, HasLen, 0)
@@ -3288,11 +3288,11 @@ func (s *interfaceManagerSuite) TestDoSetupSnapSecurityAutoConnectsDeclBasedDevi
 // store in the model assertion fails an on-store constraint.
 func (s *interfaceManagerSuite) TestDoSetupSnapSecurityAutoConnectsDeclBasedDeviceScopeWrongStore(c *C) {
 
-	s.MockModel(c, map[string]interface{}{
+	s.MockModel(c, map[string]any{
 		"store": "other-store",
 	})
 
-	s.testDoSetupSnapSecurityAutoConnectsDeclBasedDeviceScope(c, func(conns map[string]interface{}, repoConns []*interfaces.ConnRef) {
+	s.testDoSetupSnapSecurityAutoConnectsDeclBasedDeviceScope(c, func(conns map[string]any, repoConns []*interfaces.ConnRef) {
 		// Ensure nothing is connected.
 		c.Check(conns, HasLen, 0)
 		c.Check(repoConns, HasLen, 0)
@@ -3304,16 +3304,16 @@ func (s *interfaceManagerSuite) TestDoSetupSnapSecurityAutoConnectsDeclBasedDevi
 // store in the model assertion passes an on-store constraint.
 func (s *interfaceManagerSuite) TestDoSetupSnapSecurityAutoConnectsDeclBasedDeviceScopeRightStore(c *C) {
 
-	s.MockModel(c, map[string]interface{}{
+	s.MockModel(c, map[string]any{
 		"store": "my-store",
 	})
 
-	s.testDoSetupSnapSecurityAutoConnectsDeclBasedDeviceScope(c, func(conns map[string]interface{}, repoConns []*interfaces.ConnRef) {
+	s.testDoSetupSnapSecurityAutoConnectsDeclBasedDeviceScope(c, func(conns map[string]any, repoConns []*interfaces.ConnRef) {
 		// Ensure that "test" plug is now saved in the state as auto-connected.
-		c.Check(conns, DeepEquals, map[string]interface{}{
-			"consumer:plug producer:slot": map[string]interface{}{"auto": true, "interface": "test",
-				"plug-static": map[string]interface{}{"attr1": "value1"},
-				"slot-static": map[string]interface{}{"attr2": "value2"},
+		c.Check(conns, DeepEquals, map[string]any{
+			"consumer:plug producer:slot": map[string]any{"auto": true, "interface": "test",
+				"plug-static": map[string]any{"attr1": "value1"},
+				"slot-static": map[string]any{"attr2": "value2"},
 			}})
 		// Ensure that "test" is really connected.
 		c.Check(repoConns, HasLen, 1)
@@ -3326,15 +3326,15 @@ func (s *interfaceManagerSuite) TestDoSetupSnapSecurityAutoConnectsDeclBasedDevi
 // on-store constraint.
 func (s *interfaceManagerSuite) TestDoSetupSnapSecurityAutoConnectsDeclBasedDeviceScopeWrongFriendlyStore(c *C) {
 
-	s.MockModel(c, map[string]interface{}{
+	s.MockModel(c, map[string]any{
 		"store": "my-substore",
 	})
 
-	s.MockStore(c, s.state, "my-substore", map[string]interface{}{
-		"friendly-stores": []interface{}{"other-store"},
+	s.MockStore(c, s.state, "my-substore", map[string]any{
+		"friendly-stores": []any{"other-store"},
 	})
 
-	s.testDoSetupSnapSecurityAutoConnectsDeclBasedDeviceScope(c, func(conns map[string]interface{}, repoConns []*interfaces.ConnRef) {
+	s.testDoSetupSnapSecurityAutoConnectsDeclBasedDeviceScope(c, func(conns map[string]any, repoConns []*interfaces.ConnRef) {
 		// Ensure nothing is connected.
 		c.Check(conns, HasLen, 0)
 		c.Check(repoConns, HasLen, 0)
@@ -3347,27 +3347,27 @@ func (s *interfaceManagerSuite) TestDoSetupSnapSecurityAutoConnectsDeclBasedDevi
 // on-store constraint.
 func (s *interfaceManagerSuite) TestDoSetupSnapSecurityAutoConnectsDeclBasedDeviceScopeFriendlyStore(c *C) {
 
-	s.MockModel(c, map[string]interface{}{
+	s.MockModel(c, map[string]any{
 		"store": "my-substore",
 	})
 
-	s.MockStore(c, s.state, "my-substore", map[string]interface{}{
-		"friendly-stores": []interface{}{"my-store"},
+	s.MockStore(c, s.state, "my-substore", map[string]any{
+		"friendly-stores": []any{"my-store"},
 	})
 
-	s.testDoSetupSnapSecurityAutoConnectsDeclBasedDeviceScope(c, func(conns map[string]interface{}, repoConns []*interfaces.ConnRef) {
+	s.testDoSetupSnapSecurityAutoConnectsDeclBasedDeviceScope(c, func(conns map[string]any, repoConns []*interfaces.ConnRef) {
 		// Ensure that "test" plug is now saved in the state as auto-connected.
-		c.Check(conns, DeepEquals, map[string]interface{}{
-			"consumer:plug producer:slot": map[string]interface{}{"auto": true, "interface": "test",
-				"plug-static": map[string]interface{}{"attr1": "value1"},
-				"slot-static": map[string]interface{}{"attr2": "value2"},
+		c.Check(conns, DeepEquals, map[string]any{
+			"consumer:plug producer:slot": map[string]any{"auto": true, "interface": "test",
+				"plug-static": map[string]any{"attr1": "value1"},
+				"slot-static": map[string]any{"attr2": "value2"},
 			}})
 		// Ensure that "test" is really connected.
 		c.Check(repoConns, HasLen, 1)
 	})
 }
 
-func (s *interfaceManagerSuite) testDoSetupSnapSecurityAutoConnectsDeclBasedDeviceScope(c *C, check func(map[string]interface{}, []*interfaces.ConnRef)) {
+func (s *interfaceManagerSuite) testDoSetupSnapSecurityAutoConnectsDeclBasedDeviceScope(c *C, check func(map[string]any, []*interfaces.ConnRef)) {
 	restore := assertstest.MockBuiltinBaseDeclaration([]byte(`
 type: base-declaration
 authority-id: canonical
@@ -3385,12 +3385,12 @@ slots:
 	// Initialize the manager. This registers the producer snap.
 	mgr := s.manager(c)
 
-	s.MockSnapDecl(c, "consumer", "one-publisher", map[string]interface{}{
+	s.MockSnapDecl(c, "consumer", "one-publisher", map[string]any{
 		"format": "3",
-		"plugs": map[string]interface{}{
-			"test": map[string]interface{}{
-				"allow-auto-connection": map[string]interface{}{
-					"on-store": []interface{}{"my-store"},
+		"plugs": map[string]any{
+			"test": map[string]any{
+				"allow-auto-connection": map[string]any{
+					"on-store": []any{"my-store"},
 				},
 			},
 		},
@@ -3413,7 +3413,7 @@ slots:
 	// Ensure that the task succeeded.
 	c.Assert(change.Status(), Equals, state.DoneStatus)
 
-	var conns map[string]interface{}
+	var conns map[string]any
 	_ = s.state.Get("conns", &conns)
 
 	repo := mgr.Repository()
@@ -3439,8 +3439,8 @@ func (s *interfaceManagerSuite) TestDoSetupSnapSecurityKeepsExistingConnectionSt
 
 	// Put fake information about connections for another snap into the state.
 	s.state.Lock()
-	s.state.Set("conns", map[string]interface{}{
-		"other-snap:network ubuntu-core:network": map[string]interface{}{
+	s.state.Set("conns", map[string]any{
+		"other-snap:network ubuntu-core:network": map[string]any{
 			"interface": "network",
 		},
 	})
@@ -3461,17 +3461,17 @@ func (s *interfaceManagerSuite) TestDoSetupSnapSecurityKeepsExistingConnectionSt
 	// Ensure that the task succeeded.
 	c.Assert(change.Status(), Equals, state.DoneStatus)
 
-	var conns map[string]interface{}
+	var conns map[string]any
 	err := s.state.Get("conns", &conns)
 	c.Assert(err, IsNil)
-	c.Check(conns, DeepEquals, map[string]interface{}{
+	c.Check(conns, DeepEquals, map[string]any{
 		// The sample snap was auto-connected, as expected.
-		"snap:network ubuntu-core:network": map[string]interface{}{
+		"snap:network ubuntu-core:network": map[string]any{
 			"interface": "network", "auto": true,
 		},
 		// Connection state for the fake snap is preserved.
 		// The task didn't alter state of other snaps.
-		"other-snap:network ubuntu-core:network": map[string]interface{}{
+		"other-snap:network ubuntu-core:network": map[string]any{
 			"interface": "network",
 		},
 	})
@@ -3482,12 +3482,12 @@ func (s *interfaceManagerSuite) TestReloadingConnectionsOnStartupUpdatesStaticAt
 	// adding below. The connection contains a copy of the static attributes
 	// but refers to the "old" values, in contrast to what the snaps define.
 	s.state.Lock()
-	s.state.Set("conns", map[string]interface{}{
-		"consumer:plug producer:slot": map[string]interface{}{
+	s.state.Set("conns", map[string]any{
+		"consumer:plug producer:slot": map[string]any{
 			"interface":   "content",
 			"auto":        true,
-			"plug-static": map[string]interface{}{"content": "foo", "attr": "old-plug-attr"},
-			"slot-static": map[string]interface{}{"content": "foo", "attr": "old-slot-attr"},
+			"plug-static": map[string]any{"content": "foo", "attr": "old-plug-attr"},
+			"slot-static": map[string]any{"content": "foo", "attr": "old-slot-attr"},
 		},
 	})
 	s.state.Unlock()
@@ -3537,8 +3537,8 @@ slots:
 			// see the old attribute values.
 			conn, err := repo.Connection(connRef)
 			c.Assert(err, IsNil)
-			c.Check(conn.Plug.StaticAttrs(), DeepEquals, map[string]interface{}{"content": "foo", "attr": "new-plug-attr"})
-			c.Check(conn.Slot.StaticAttrs(), DeepEquals, map[string]interface{}{"content": "foo", "attr": "new-slot-attr"})
+			c.Check(conn.Plug.StaticAttrs(), DeepEquals, map[string]any{"content": "foo", "attr": "new-plug-attr"})
+			c.Check(conn.Slot.StaticAttrs(), DeepEquals, map[string]any{"content": "foo", "attr": "new-slot-attr"})
 			return nil
 		},
 	}
@@ -3555,8 +3555,8 @@ slots:
 	repo := mgr.Repository()
 	conn, err := repo.Connection(connRef)
 	c.Assert(err, IsNil)
-	c.Check(conn.Plug.StaticAttrs(), DeepEquals, map[string]interface{}{"content": "foo", "attr": "new-plug-attr"})
-	c.Check(conn.Slot.StaticAttrs(), DeepEquals, map[string]interface{}{"content": "foo", "attr": "new-slot-attr"})
+	c.Check(conn.Plug.StaticAttrs(), DeepEquals, map[string]any{"content": "foo", "attr": "new-plug-attr"})
+	c.Check(conn.Slot.StaticAttrs(), DeepEquals, map[string]any{"content": "foo", "attr": "new-slot-attr"})
 
 	// Because of the fact that during testing the system key always
 	// mismatches, the security setup is performed.
@@ -3569,20 +3569,20 @@ func (s *interfaceManagerSuite) testDoSetupProfilesUpdatesStaticAttributes(c *C,
 	// adding below. The connection reflects the snaps as they are now, and
 	// carries no attribute data.
 	s.state.Lock()
-	s.state.Set("conns", map[string]interface{}{
-		"consumer:plug producer:slot": map[string]interface{}{
+	s.state.Set("conns", map[string]any{
+		"consumer:plug producer:slot": map[string]any{
 			"interface": "content",
 		},
-		"consumer:plug3 producer:slot2": map[string]interface{}{
+		"consumer:plug3 producer:slot2": map[string]any{
 			"interface": "system-files",
 		},
-		"consumer:plug4 producer:slot3": map[string]interface{}{
+		"consumer:plug4 producer:slot3": map[string]any{
 			"interface": "shared-memory",
 		},
-		"unrelated-a:plug unrelated-b:slot": map[string]interface{}{
+		"unrelated-a:plug unrelated-b:slot": map[string]any{
 			"interface":   "unrelated",
-			"plug-static": map[string]interface{}{"attr": "unrelated-stale"},
-			"slot-static": map[string]interface{}{"attr": "unrelated-stale"},
+			"plug-static": map[string]any{"attr": "unrelated-stale"},
+			"slot-static": map[string]any{"attr": "unrelated-stale"},
 		},
 	})
 	s.state.Unlock()
@@ -3719,26 +3719,26 @@ slots:
 			c.Assert(err3, IsNil)
 			switch appSet.Info().Version {
 			case "1":
-				c.Check(conn.Plug.StaticAttrs(), DeepEquals, map[string]interface{}{"content": "foo"})
-				c.Check(conn.Slot.StaticAttrs(), DeepEquals, map[string]interface{}{"content": "foo"})
-				c.Check(sysFilesConn.Plug.StaticAttrs(), DeepEquals, map[string]interface{}{})
-				c.Check(shmConn.Plug.StaticAttrs(), DeepEquals, map[string]interface{}{"shared-memory": "baz"})
-				c.Check(shmConn.Slot.StaticAttrs(), DeepEquals, map[string]interface{}{"shared-memory": "baz", "read": []interface{}{"baz"}})
+				c.Check(conn.Plug.StaticAttrs(), DeepEquals, map[string]any{"content": "foo"})
+				c.Check(conn.Slot.StaticAttrs(), DeepEquals, map[string]any{"content": "foo"})
+				c.Check(sysFilesConn.Plug.StaticAttrs(), DeepEquals, map[string]any{})
+				c.Check(shmConn.Plug.StaticAttrs(), DeepEquals, map[string]any{"shared-memory": "baz"})
+				c.Check(shmConn.Slot.StaticAttrs(), DeepEquals, map[string]any{"shared-memory": "baz", "read": []any{"baz"}})
 			case "2":
 				switch snapNameToSetup {
 				case "consumer":
 					// When the consumer has security setup the consumer's plug attribute is updated.
-					c.Check(conn.Plug.StaticAttrs(), DeepEquals, map[string]interface{}{"content": "foo", "attr": "plug-value"})
-					c.Check(conn.Slot.StaticAttrs(), DeepEquals, map[string]interface{}{"content": "foo"})
-					c.Check(sysFilesConn.Plug.StaticAttrs(), DeepEquals, map[string]interface{}{"read": []interface{}{"/etc/foo"}})
-					c.Check(shmConn.Plug.StaticAttrs(), DeepEquals, map[string]interface{}{"shared-memory": "baz"})
-					c.Check(shmConn.Slot.StaticAttrs(), DeepEquals, map[string]interface{}{"shared-memory": "baz", "read": []interface{}{"baz"}})
+					c.Check(conn.Plug.StaticAttrs(), DeepEquals, map[string]any{"content": "foo", "attr": "plug-value"})
+					c.Check(conn.Slot.StaticAttrs(), DeepEquals, map[string]any{"content": "foo"})
+					c.Check(sysFilesConn.Plug.StaticAttrs(), DeepEquals, map[string]any{"read": []any{"/etc/foo"}})
+					c.Check(shmConn.Plug.StaticAttrs(), DeepEquals, map[string]any{"shared-memory": "baz"})
+					c.Check(shmConn.Slot.StaticAttrs(), DeepEquals, map[string]any{"shared-memory": "baz", "read": []any{"baz"}})
 				case "producer":
 					// When the producer has security setup the producer's slot attribute is updated.
-					c.Check(conn.Plug.StaticAttrs(), DeepEquals, map[string]interface{}{"content": "foo"})
-					c.Check(conn.Slot.StaticAttrs(), DeepEquals, map[string]interface{}{"content": "foo", "attr": "slot-value"})
-					c.Check(shmConn.Plug.StaticAttrs(), DeepEquals, map[string]interface{}{"shared-memory": "baz"})
-					c.Check(shmConn.Slot.StaticAttrs(), DeepEquals, map[string]interface{}{"shared-memory": "baz", "read": []interface{}{"baz", "qux"}})
+					c.Check(conn.Plug.StaticAttrs(), DeepEquals, map[string]any{"content": "foo"})
+					c.Check(conn.Slot.StaticAttrs(), DeepEquals, map[string]any{"content": "foo", "attr": "slot-value"})
+					c.Check(shmConn.Plug.StaticAttrs(), DeepEquals, map[string]any{"shared-memory": "baz"})
+					c.Check(shmConn.Slot.StaticAttrs(), DeepEquals, map[string]any{"shared-memory": "baz", "read": []any{"baz", "qux"}})
 				}
 			}
 			return nil
@@ -3802,8 +3802,8 @@ func (s *interfaceManagerSuite) TestDoSetupProfilesUpdatesStaticAttributesSlotSn
 
 func (s *interfaceManagerSuite) TestUpdateStaticAttributesIgnoresContentMismatch(c *C) {
 	s.state.Lock()
-	s.state.Set("conns", map[string]interface{}{
-		"consumer:plug producer:slot": map[string]interface{}{
+	s.state.Set("conns", map[string]any{
+		"consumer:plug producer:slot": map[string]any{
 			"interface": "content",
 			"auto":      true,
 			"content":   "foo",
@@ -3895,14 +3895,14 @@ slots:
 	defer s.state.Unlock()
 	c.Assert(change.Status(), Equals, state.DoneStatus)
 
-	var conns map[string]interface{}
+	var conns map[string]any
 	s.state.Get("conns", &conns)
-	c.Check(conns, DeepEquals, map[string]interface{}{
-		"consumer:plug producer:slot": map[string]interface{}{
+	c.Check(conns, DeepEquals, map[string]any{
+		"consumer:plug producer:slot": map[string]any{
 			"interface":   "content",
 			"auto":        true,
-			"plug-static": map[string]interface{}{"content": "foo"},
-			"slot-static": map[string]interface{}{"content": "foo"},
+			"plug-static": map[string]any{"content": "foo"},
+			"slot-static": map[string]any{"content": "foo"},
 		},
 	})
 }
@@ -3924,17 +3924,17 @@ slots:
 	restore = builtin.MockInterface(&ifacetest.TestInterface{InterfaceName: "test"})
 	defer restore()
 
-	initialConns := map[string]interface{}{
-		"test-consumer:test test-producer:test": map[string]interface{}{
+	initialConns := map[string]any{
+		"test-consumer:test test-producer:test": map[string]any{
 			"interface":   "test",
 			"test-update": "foo",
 		},
 	}
 	if auto {
-		initialConns["test-consumer:test test-producer:test"].(map[string]interface{})["auto"] = true
+		initialConns["test-consumer:test test-producer:test"].(map[string]any)["auto"] = true
 	}
 	if byGadget {
-		initialConns["test-consumer:test test-producer:test"].(map[string]interface{})["by-gadget"] = true
+		initialConns["test-consumer:test test-producer:test"].(map[string]any)["by-gadget"] = true
 	}
 
 	s.state.Lock()
@@ -3966,21 +3966,21 @@ slots:
   interface: test
 `
 
-	s.MockSnapDecl(c, "test-consumer", "publisher-foo", map[string]interface{}{
+	s.MockSnapDecl(c, "test-consumer", "publisher-foo", map[string]any{
 		"format": "5",
-		"plugs": map[string]interface{}{
-			"test": map[string]interface{}{
-				"allow-auto-connection": map[string]interface{}{
-					"plug-attributes": map[string]interface{}{
-						"test-update": []interface{}{
+		"plugs": map[string]any{
+			"test": map[string]any{
+				"allow-auto-connection": map[string]any{
+					"plug-attributes": map[string]any{
+						"test-update": []any{
 							"auto",
 							"foo",
 						},
 					},
 				},
-				"allow-connection": map[string]interface{}{
-					"plug-attributes": map[string]interface{}{
-						"test-update": []interface{}{
+				"allow-connection": map[string]any{
+					"plug-attributes": map[string]any{
+						"test-update": []any{
 							"auto",
 							"manual",
 							"foo",
@@ -3992,10 +3992,10 @@ slots:
 		},
 	})
 
-	s.MockSnapDecl(c, "test-producer", "publisher-foo", map[string]interface{}{
+	s.MockSnapDecl(c, "test-producer", "publisher-foo", map[string]any{
 		"format": "5",
-		"slots": map[string]interface{}{
-			"test": map[string]interface{}{
+		"slots": map[string]any{
+			"test": map[string]any{
 				"allow-installation": "true",
 			},
 		},
@@ -4038,23 +4038,23 @@ slots:
 	defer s.state.Unlock()
 	c.Assert(change.Status(), Equals, state.DoneStatus)
 
-	var conns map[string]interface{}
+	var conns map[string]any
 	s.state.Get("conns", &conns)
 
-	expectedConns := map[string]interface{}{
-		"test-consumer:test test-producer:test": map[string]interface{}{
+	expectedConns := map[string]any{
+		"test-consumer:test test-producer:test": map[string]any{
 			"interface":   "test",
-			"plug-static": map[string]interface{}{"test-update": "foo"},
+			"plug-static": map[string]any{"test-update": "foo"},
 		},
 	}
 	if auto {
-		expectedConns["test-consumer:test test-producer:test"].(map[string]interface{})["auto"] = true
+		expectedConns["test-consumer:test test-producer:test"].(map[string]any)["auto"] = true
 	}
 	if byGadget {
-		expectedConns["test-consumer:test test-producer:test"].(map[string]interface{})["by-gadget"] = true
+		expectedConns["test-consumer:test test-producer:test"].(map[string]any)["by-gadget"] = true
 	}
 	if shouldUpdate {
-		expectedConns["test-consumer:test test-producer:test"].(map[string]interface{})["plug-static"].(map[string]interface{})["test-update"] = testUpdateVal
+		expectedConns["test-consumer:test test-producer:test"].(map[string]any)["plug-static"].(map[string]any)["test-update"] = testUpdateVal
 	}
 	c.Check(conns, DeepEquals, expectedConns)
 }
@@ -4125,8 +4125,8 @@ func (s *interfaceManagerSuite) TestDoSetupSnapSecurityIgnoresStrayConnection(c 
 
 	// Put fake information about connections for another snap into the state.
 	s.state.Lock()
-	s.state.Set("conns", map[string]interface{}{
-		"removed-snap:network ubuntu-core:network": map[string]interface{}{
+	s.state.Set("conns", map[string]any{
+		"removed-snap:network ubuntu-core:network": map[string]any{
 			"interface": "network",
 		},
 	})
@@ -4225,8 +4225,8 @@ func (s *interfaceManagerSuite) TestDoSetupSnapSecurityReloadsConnectionsWhenInv
 
 func (s *interfaceManagerSuite) testDoSetupSnapSecurityReloadsConnectionsWhenInvokedOn(c *C, snapName string, revision snap.Revision) {
 	s.state.Lock()
-	s.state.Set("conns", map[string]interface{}{
-		"consumer:plug producer:slot": map[string]interface{}{"interface": "test"},
+	s.state.Set("conns", map[string]any{
+		"consumer:plug producer:slot": map[string]any{"interface": "test"},
 	})
 	s.state.Unlock()
 
@@ -4349,8 +4349,8 @@ func (s *interfaceManagerSuite) TestSetupProfilesUsesFreshSnapInfo(c *C) {
 	// This is done so that DisconnectSnap returns both snaps as "affected"
 	// and so that the previously broken code path is exercised.
 	s.state.Lock()
-	s.state.Set("conns", map[string]interface{}{
-		"snap:network ubuntu-core:network": map[string]interface{}{"interface": "network"},
+	s.state.Set("conns", map[string]any{
+		"snap:network ubuntu-core:network": map[string]any{"interface": "network"},
 	})
 	s.state.Unlock()
 
@@ -4871,28 +4871,28 @@ func (s *interfaceManagerSuite) TestSetupProfilesOfAffectedSnapWithComponents(c 
 func (s *interfaceManagerSuite) TestSetupProfilesKeepsUndesiredConnection(c *C) {
 	undesired := true
 	byGadget := false
-	s.testAutoconnectionsRemovedForMissingPlugs(c, undesired, byGadget, map[string]interface{}{
-		"snap:test1 ubuntu-core:test1": map[string]interface{}{"interface": "test1", "auto": true, "undesired": true},
-		"snap:test2 ubuntu-core:test2": map[string]interface{}{"interface": "test2", "auto": true},
+	s.testAutoconnectionsRemovedForMissingPlugs(c, undesired, byGadget, map[string]any{
+		"snap:test1 ubuntu-core:test1": map[string]any{"interface": "test1", "auto": true, "undesired": true},
+		"snap:test2 ubuntu-core:test2": map[string]any{"interface": "test2", "auto": true},
 	})
 }
 
 func (s *interfaceManagerSuite) TestSetupProfilesRemovesMissingAutoconnectedPlugs(c *C) {
-	s.testAutoconnectionsRemovedForMissingPlugs(c, false, false, map[string]interface{}{
-		"snap:test2 ubuntu-core:test2": map[string]interface{}{"interface": "test2", "auto": true},
+	s.testAutoconnectionsRemovedForMissingPlugs(c, false, false, map[string]any{
+		"snap:test2 ubuntu-core:test2": map[string]any{"interface": "test2", "auto": true},
 	})
 }
 
 func (s *interfaceManagerSuite) TestSetupProfilesKeepsMissingGadgetAutoconnectedPlugs(c *C) {
 	undesired := false
 	byGadget := true
-	s.testAutoconnectionsRemovedForMissingPlugs(c, undesired, byGadget, map[string]interface{}{
-		"snap:test1 ubuntu-core:test1": map[string]interface{}{"interface": "test1", "auto": true, "by-gadget": true},
-		"snap:test2 ubuntu-core:test2": map[string]interface{}{"interface": "test2", "auto": true},
+	s.testAutoconnectionsRemovedForMissingPlugs(c, undesired, byGadget, map[string]any{
+		"snap:test1 ubuntu-core:test1": map[string]any{"interface": "test1", "auto": true, "by-gadget": true},
+		"snap:test2 ubuntu-core:test2": map[string]any{"interface": "test2", "auto": true},
 	})
 }
 
-func (s *interfaceManagerSuite) testAutoconnectionsRemovedForMissingPlugs(c *C, undesired, byGadget bool, expectedConns map[string]interface{}) {
+func (s *interfaceManagerSuite) testAutoconnectionsRemovedForMissingPlugs(c *C, undesired, byGadget bool, expectedConns map[string]any) {
 	s.MockModel(c, nil)
 
 	// Mock the interface that will be used by the test
@@ -4903,8 +4903,8 @@ func (s *interfaceManagerSuite) testAutoconnectionsRemovedForMissingPlugs(c *C, 
 	newSnapInfo := s.mockSnap(c, refreshedSnapYaml)
 
 	s.state.Lock()
-	s.state.Set("conns", map[string]interface{}{
-		"snap:test1 ubuntu-core:test1": map[string]interface{}{"interface": "test1", "auto": true, "undesired": undesired, "by-gadget": byGadget},
+	s.state.Set("conns", map[string]any{
+		"snap:test1 ubuntu-core:test1": map[string]any{"interface": "test1", "auto": true, "undesired": undesired, "by-gadget": byGadget},
 	})
 	s.state.Unlock()
 
@@ -4927,18 +4927,18 @@ func (s *interfaceManagerSuite) testAutoconnectionsRemovedForMissingPlugs(c *C, 
 	c.Check(change.Status(), Equals, state.DoneStatus)
 
 	// Verify that old connection is gone and new one got connected
-	var conns map[string]interface{}
+	var conns map[string]any
 	c.Assert(s.state.Get("conns", &conns), IsNil)
 	c.Check(conns, DeepEquals, expectedConns)
 }
 
 func (s *interfaceManagerSuite) TestSetupProfilesRemovesMissingAutoconnectedSlots(c *C) {
-	s.testAutoconnectionsRemovedForMissingSlots(c, map[string]interface{}{
-		"snap:test2 snap2:test2": map[string]interface{}{"interface": "test2", "auto": true},
+	s.testAutoconnectionsRemovedForMissingSlots(c, map[string]any{
+		"snap:test2 snap2:test2": map[string]any{"interface": "test2", "auto": true},
 	})
 }
 
-func (s *interfaceManagerSuite) testAutoconnectionsRemovedForMissingSlots(c *C, expectedConns map[string]interface{}) {
+func (s *interfaceManagerSuite) testAutoconnectionsRemovedForMissingSlots(c *C, expectedConns map[string]any) {
 	s.MockModel(c, nil)
 
 	// Mock the interface that will be used by the test
@@ -4949,8 +4949,8 @@ func (s *interfaceManagerSuite) testAutoconnectionsRemovedForMissingSlots(c *C, 
 	_ = s.mockSnap(c, slotSnapYaml)
 
 	s.state.Lock()
-	s.state.Set("conns", map[string]interface{}{
-		"snap:test1 snap2:test1": map[string]interface{}{"interface": "test1", "auto": true},
+	s.state.Set("conns", map[string]any{
+		"snap:test1 snap2:test1": map[string]any{"interface": "test1", "auto": true},
 	})
 	s.state.Unlock()
 
@@ -4973,7 +4973,7 @@ func (s *interfaceManagerSuite) testAutoconnectionsRemovedForMissingSlots(c *C, 
 	c.Check(change.Status(), Equals, state.DoneStatus)
 
 	// Verify that old connection is gone and new one got connected
-	var conns map[string]interface{}
+	var conns map[string]any
 	c.Assert(s.state.Get("conns", &conns), IsNil)
 	c.Check(conns, DeepEquals, expectedConns)
 }
@@ -5091,8 +5091,8 @@ func (s *interfaceManagerSuite) TestUndoDiscardConnsSlot(c *C) {
 func (s *interfaceManagerSuite) testDoDiscardConns(c *C, snapName string) {
 	s.state.Lock()
 	// Store information about a connection in the state.
-	s.state.Set("conns", map[string]interface{}{
-		"consumer:plug producer:slot": map[string]interface{}{
+	s.state.Set("conns", map[string]any{
+		"consumer:plug producer:slot": map[string]any{
 			"interface": "test",
 		},
 	})
@@ -5123,17 +5123,17 @@ func (s *interfaceManagerSuite) testDoDiscardConns(c *C, snapName string) {
 	c.Check(change.Status(), Equals, state.DoneStatus)
 
 	// Information about the connection was removed
-	var conns map[string]interface{}
+	var conns map[string]any
 	err := s.state.Get("conns", &conns)
 	c.Assert(err, IsNil)
-	c.Check(conns, DeepEquals, map[string]interface{}{})
+	c.Check(conns, DeepEquals, map[string]any{})
 
 	// But removed connections are preserved in the task for undo.
-	var removed map[string]interface{}
+	var removed map[string]any
 	err = change.Tasks()[0].Get("removed", &removed)
 	c.Assert(err, IsNil)
-	c.Check(removed, DeepEquals, map[string]interface{}{
-		"consumer:plug producer:slot": map[string]interface{}{"interface": "test"},
+	c.Check(removed, DeepEquals, map[string]any{
+		"consumer:plug producer:slot": map[string]any{"interface": "test"},
 	})
 }
 
@@ -5142,8 +5142,8 @@ func (s *interfaceManagerSuite) testUndoDiscardConns(c *C, snapName string) {
 
 	s.state.Lock()
 	// Store information about a connection in the state.
-	s.state.Set("conns", map[string]interface{}{
-		"consumer:plug producer:slot": map[string]interface{}{"interface": "test"},
+	s.state.Set("conns", map[string]any{
+		"consumer:plug producer:slot": map[string]any{"interface": "test"},
 	})
 
 	// Store empty snap state. This snap has an empty sequence now.
@@ -5166,14 +5166,14 @@ func (s *interfaceManagerSuite) testUndoDiscardConns(c *C, snapName string) {
 	c.Assert(t.Status(), Equals, state.UndoneStatus)
 
 	// Information about the connection is intact
-	var conns map[string]interface{}
+	var conns map[string]any
 	err := s.state.Get("conns", &conns)
 	c.Assert(err, IsNil)
-	c.Check(conns, DeepEquals, map[string]interface{}{
-		"consumer:plug producer:slot": map[string]interface{}{"interface": "test"},
+	c.Check(conns, DeepEquals, map[string]any{
+		"consumer:plug producer:slot": map[string]any{"interface": "test"},
 	})
 
-	var removed map[string]interface{}
+	var removed map[string]any
 	err = change.Tasks()[0].Get("removed", &removed)
 	c.Check(err, testutil.ErrorIs, state.ErrNoState)
 }
@@ -5198,8 +5198,8 @@ slots:
 	s.mockSnap(c, producerYaml)
 
 	s.state.Lock()
-	s.state.Set("conns", map[string]interface{}{
-		"consumer:plug producer:slot": map[string]interface{}{"interface": "test"},
+	s.state.Set("conns", map[string]any{
+		"consumer:plug producer:slot": map[string]any{"interface": "test"},
 	})
 	s.state.Unlock()
 
@@ -5240,11 +5240,11 @@ slots:
 	c.Check(s.secBackend.SetupCalls[0].AppSet.InstanceName(), Equals, "producer")
 
 	// Connection state was left intact
-	var conns map[string]interface{}
+	var conns map[string]any
 	err := s.state.Get("conns", &conns)
 	c.Assert(err, IsNil)
-	c.Check(conns, DeepEquals, map[string]interface{}{
-		"consumer:plug producer:slot": map[string]interface{}{"interface": "test"},
+	c.Check(conns, DeepEquals, map[string]any{
+		"consumer:plug producer:slot": map[string]any{"interface": "test"},
 	})
 
 	// no pending SideInfo
@@ -5285,14 +5285,14 @@ func (s *interfaceManagerSuite) TestConnectTracksConnectionsInState(c *C) {
 
 	c.Assert(change.Err(), IsNil)
 	c.Check(change.Status(), Equals, state.DoneStatus)
-	var conns map[string]interface{}
+	var conns map[string]any
 	err = s.state.Get("conns", &conns)
 	c.Assert(err, IsNil)
-	c.Check(conns, DeepEquals, map[string]interface{}{
-		"consumer:plug producer:slot": map[string]interface{}{
+	c.Check(conns, DeepEquals, map[string]any{
+		"consumer:plug producer:slot": map[string]any{
 			"interface":   "test",
-			"plug-static": map[string]interface{}{"attr1": "value1"},
-			"slot-static": map[string]interface{}{"attr2": "value2"},
+			"plug-static": map[string]any{"attr1": "value1"},
+			"slot-static": map[string]any{"attr2": "value2"},
 		},
 	})
 }
@@ -5393,12 +5393,12 @@ func (s *interfaceManagerSuite) TestConnectSetsHotplugKeyFromTheSlot(c *C) {
 	s.mockSnap(c, coreSnapYaml)
 
 	s.state.Lock()
-	s.state.Set("hotplug-slots", map[string]interface{}{
-		"slot": map[string]interface{}{
+	s.state.Set("hotplug-slots", map[string]any{
+		"slot": map[string]any{
 			"name":         "slot",
 			"interface":    "test",
 			"hotplug-key":  "1234",
-			"static-attrs": map[string]interface{}{"attr2": "value2"}}})
+			"static-attrs": map[string]any{"attr2": "value2"}}})
 	s.state.Unlock()
 
 	_ = s.manager(c)
@@ -5419,14 +5419,14 @@ func (s *interfaceManagerSuite) TestConnectSetsHotplugKeyFromTheSlot(c *C) {
 	c.Assert(change.Err(), IsNil)
 	c.Check(change.Status(), Equals, state.DoneStatus)
 
-	var conns map[string]interface{}
+	var conns map[string]any
 	c.Assert(s.state.Get("conns", &conns), IsNil)
-	c.Check(conns, DeepEquals, map[string]interface{}{
-		"consumer2:plug core:slot": map[string]interface{}{
+	c.Check(conns, DeepEquals, map[string]any{
+		"consumer2:plug core:slot": map[string]any{
 			"interface":   "test",
 			"hotplug-key": "1234",
-			"plug-static": map[string]interface{}{"attr1": "value1"},
-			"slot-static": map[string]interface{}{"attr2": "value2"},
+			"plug-static": map[string]any{"attr1": "value1"},
+			"slot-static": map[string]any{"attr2": "value2"},
 		},
 	})
 }
@@ -5437,8 +5437,8 @@ func (s *interfaceManagerSuite) TestDisconnectSetsUpSecurity(c *C) {
 	s.mockSnap(c, producerYaml)
 
 	s.state.Lock()
-	s.state.Set("conns", map[string]interface{}{
-		"consumer:plug producer:slot": map[string]interface{}{"interface": "test"},
+	s.state.Set("conns", map[string]any{
+		"consumer:plug producer:slot": map[string]any{"interface": "test"},
 	})
 	s.state.Unlock()
 
@@ -5480,8 +5480,8 @@ func (s *interfaceManagerSuite) TestDisconnectTracksConnectionsInState(c *C) {
 	s.mockSnap(c, consumerYaml)
 	s.mockSnap(c, producerYaml)
 	s.state.Lock()
-	s.state.Set("conns", map[string]interface{}{
-		"consumer:plug producer:slot": map[string]interface{}{"interface": "test"},
+	s.state.Set("conns", map[string]any{
+		"consumer:plug producer:slot": map[string]any{"interface": "test"},
 	})
 	s.state.Unlock()
 
@@ -5508,10 +5508,10 @@ func (s *interfaceManagerSuite) TestDisconnectTracksConnectionsInState(c *C) {
 
 	c.Assert(change.Err(), IsNil)
 	c.Check(change.Status(), Equals, state.DoneStatus)
-	var conns map[string]interface{}
+	var conns map[string]any
 	err = s.state.Get("conns", &conns)
 	c.Assert(err, IsNil)
-	c.Check(conns, DeepEquals, map[string]interface{}{})
+	c.Check(conns, DeepEquals, map[string]any{})
 }
 
 func (s *interfaceManagerSuite) TestDisconnectDisablesAutoConnect(c *C) {
@@ -5519,8 +5519,8 @@ func (s *interfaceManagerSuite) TestDisconnectDisablesAutoConnect(c *C) {
 	plugAppSet := s.mockAppSet(c, consumerYaml)
 	slotAppSet := s.mockAppSet(c, producerYaml)
 	s.state.Lock()
-	s.state.Set("conns", map[string]interface{}{
-		"consumer:plug producer:slot": map[string]interface{}{"interface": "test", "auto": true},
+	s.state.Set("conns", map[string]any{
+		"consumer:plug producer:slot": map[string]any{"interface": "test", "auto": true},
 	})
 	s.state.Unlock()
 
@@ -5552,11 +5552,11 @@ func (s *interfaceManagerSuite) TestDisconnectDisablesAutoConnect(c *C) {
 
 	c.Assert(change.Err(), IsNil)
 	c.Check(change.Status(), Equals, state.DoneStatus)
-	var conns map[string]interface{}
+	var conns map[string]any
 	err = s.state.Get("conns", &conns)
 	c.Assert(err, IsNil)
-	c.Check(conns, DeepEquals, map[string]interface{}{
-		"consumer:plug producer:slot": map[string]interface{}{"interface": "test", "auto": true, "undesired": true},
+	c.Check(conns, DeepEquals, map[string]any{
+		"consumer:plug producer:slot": map[string]any{"interface": "test", "auto": true, "undesired": true},
 	})
 }
 
@@ -5579,12 +5579,12 @@ plugs:
 	}
 
 	s.state.Lock()
-	s.state.Set("conns", map[string]interface{}{
-		"consumer:plug core:hotplug-slot": map[string]interface{}{"interface": "test"},
-		"consumer:plug core:slot2":        map[string]interface{}{"interface": "test"},
+	s.state.Set("conns", map[string]any{
+		"consumer:plug core:hotplug-slot": map[string]any{"interface": "test"},
+		"consumer:plug core:slot2":        map[string]any{"interface": "test"},
 	})
-	s.state.Set("hotplug-slots", map[string]interface{}{
-		"hotplug-slot": map[string]interface{}{
+	s.state.Set("hotplug-slots", map[string]any{
+		"hotplug-slot": map[string]any{
 			"name":        "hotplug-slot",
 			"interface":   "test",
 			"hotplug-key": "1234",
@@ -5615,16 +5615,16 @@ plugs:
 	c.Assert(change.Err(), IsNil)
 	c.Check(change.Status(), Equals, state.DoneStatus)
 
-	var conns map[string]interface{}
+	var conns map[string]any
 	err = s.state.Get("conns", &conns)
 	c.Assert(err, IsNil)
-	c.Check(conns, DeepEquals, map[string]interface{}{
-		"consumer:plug core:hotplug-slot": map[string]interface{}{
+	c.Check(conns, DeepEquals, map[string]any{
+		"consumer:plug core:hotplug-slot": map[string]any{
 			"interface":    "test",
 			"hotplug-gone": true,
-			"plug-static":  map[string]interface{}{"attr": "plug-attr"},
+			"plug-static":  map[string]any{"attr": "plug-attr"},
 		},
-		"consumer:plug core:slot2": map[string]interface{}{
+		"consumer:plug core:slot2": map[string]any{
 			"interface": "test",
 		},
 	})
@@ -5662,8 +5662,8 @@ hooks:
 	producerAppSet := s.mockAppSet(c, producerYaml)
 
 	s.state.Lock()
-	s.state.Set("conns", map[string]interface{}{
-		"consumer:plug producer:slot": map[string]interface{}{"interface": "test"},
+	s.state.Set("conns", map[string]any{
+		"consumer:plug producer:slot": map[string]any{"interface": "test"},
 	})
 
 	s.state.Unlock()
@@ -5740,16 +5740,16 @@ slots:
 	s.mockSnap(c, producerYaml)
 
 	s.state.Lock()
-	s.state.Set("conns", map[string]interface{}{
-		"consumer:plug producer:slot": map[string]interface{}{
+	s.state.Set("conns", map[string]any{
+		"consumer:plug producer:slot": map[string]any{
 			"interface": "content",
 			"auto":      true,
-			"plug-static": map[string]interface{}{
+			"plug-static": map[string]any{
 				"content":    "foo",
 				"attr":       "stored-plug-value",
 				"other-attr": "irrelevant-value",
 			},
-			"slot-static": map[string]interface{}{
+			"slot-static": map[string]any{
 				"interface":  "content",
 				"content":    "foo",
 				"attr":       "stored-slot-value",
@@ -5770,12 +5770,12 @@ slots:
 	conn, err := repo.Connection(cref)
 	c.Assert(err, IsNil)
 	c.Assert(conn.Plug.Name(), Equals, "plug")
-	c.Assert(conn.Plug.StaticAttrs(), DeepEquals, map[string]interface{}{
+	c.Assert(conn.Plug.StaticAttrs(), DeepEquals, map[string]any{
 		"content": "foo",
 		"attr":    "plug-value",
 	})
 	c.Assert(conn.Slot.Name(), Equals, "slot")
-	c.Assert(conn.Slot.StaticAttrs(), DeepEquals, map[string]interface{}{
+	c.Assert(conn.Slot.StaticAttrs(), DeepEquals, map[string]any{
 		"content": "foo",
 		"attr":    "slot-value",
 	})
@@ -5787,8 +5787,8 @@ func (s *interfaceManagerSuite) TestManagerDoesntReloadUndesiredAutoconnections(
 	s.mockSnap(c, producerYaml)
 
 	s.state.Lock()
-	s.state.Set("conns", map[string]interface{}{
-		"consumer:plug producer:slot": map[string]interface{}{
+	s.state.Set("conns", map[string]any{
+		"consumer:plug producer:slot": map[string]any{
 			"interface": "test",
 			"auto":      true,
 			"undesired": true,
@@ -5808,8 +5808,8 @@ func (s *interfaceManagerSuite) setupHotplugSlot(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	s.state.Set("hotplug-slots", map[string]interface{}{
-		"slot": map[string]interface{}{
+	s.state.Set("hotplug-slots", map[string]any{
+		"slot": map[string]any{
 			"name":        "slot",
 			"interface":   "test",
 			"hotplug-key": "abcd",
@@ -5820,8 +5820,8 @@ func (s *interfaceManagerSuite) TestManagerDoesntReloadHotplugGoneConnection(c *
 	s.setupHotplugSlot(c)
 
 	s.state.Lock()
-	s.state.Set("conns", map[string]interface{}{
-		"consumer:plug core:slot": map[string]interface{}{
+	s.state.Set("conns", map[string]any{
+		"consumer:plug core:slot": map[string]any{
 			"interface":    "test",
 			"hotplug-gone": true,
 		}})
@@ -5835,8 +5835,8 @@ func (s *interfaceManagerSuite) TestManagerReloadsHotplugConnection(c *C) {
 	s.setupHotplugSlot(c)
 
 	s.state.Lock()
-	s.state.Set("conns", map[string]interface{}{
-		"consumer:plug core:slot": map[string]interface{}{
+	s.state.Set("conns", map[string]any{
+		"consumer:plug core:slot": map[string]any{
 			"interface":    "test",
 			"hotplug-gone": false,
 		}})
@@ -6016,9 +6016,9 @@ slots:
 	defer restore()
 	s.mockIface(&ifacetest.TestInterface{InterfaceName: "test"})
 
-	s.MockSnapDecl(c, "producer", "producer-publisher", map[string]interface{}{
+	s.MockSnapDecl(c, "producer", "producer-publisher", map[string]any{
 		"format": "1",
-		"slots": map[string]interface{}{
+		"slots": map[string]any{
 			"test": "true",
 		},
 	})
@@ -6030,7 +6030,7 @@ slots:
 }
 
 func (s *interfaceManagerSuite) TestCheckInterfacesDeviceScopeRightStore(c *C) {
-	deviceCtx := s.TrivialDeviceContext(c, map[string]interface{}{
+	deviceCtx := s.TrivialDeviceContext(c, map[string]any{
 		"store": "my-store",
 	})
 
@@ -6045,12 +6045,12 @@ slots:
 	defer restore()
 	s.mockIface(&ifacetest.TestInterface{InterfaceName: "test"})
 
-	s.MockSnapDecl(c, "producer", "producer-publisher", map[string]interface{}{
+	s.MockSnapDecl(c, "producer", "producer-publisher", map[string]any{
 		"format": "3",
-		"slots": map[string]interface{}{
-			"test": map[string]interface{}{
-				"allow-installation": map[string]interface{}{
-					"on-store": []interface{}{"my-store"},
+		"slots": map[string]any{
+			"test": map[string]any{
+				"allow-installation": map[string]any{
+					"on-store": []any{"my-store"},
 				},
 			},
 		},
@@ -6076,12 +6076,12 @@ slots:
 	defer restore()
 	s.mockIface(&ifacetest.TestInterface{InterfaceName: "test"})
 
-	s.MockSnapDecl(c, "producer", "producer-publisher", map[string]interface{}{
+	s.MockSnapDecl(c, "producer", "producer-publisher", map[string]any{
 		"format": "3",
-		"slots": map[string]interface{}{
-			"test": map[string]interface{}{
-				"allow-installation": map[string]interface{}{
-					"on-store": []interface{}{"my-store"},
+		"slots": map[string]any{
+			"test": map[string]any{
+				"allow-installation": map[string]any{
+					"on-store": []any{"my-store"},
 				},
 			},
 		},
@@ -6094,7 +6094,7 @@ slots:
 }
 
 func (s *interfaceManagerSuite) TestCheckInterfacesDeviceScopeWrongStore(c *C) {
-	deviceCtx := s.TrivialDeviceContext(c, map[string]interface{}{
+	deviceCtx := s.TrivialDeviceContext(c, map[string]any{
 		"store": "other-store",
 	})
 
@@ -6109,12 +6109,12 @@ slots:
 	defer restore()
 	s.mockIface(&ifacetest.TestInterface{InterfaceName: "test"})
 
-	s.MockSnapDecl(c, "producer", "producer-publisher", map[string]interface{}{
+	s.MockSnapDecl(c, "producer", "producer-publisher", map[string]any{
 		"format": "3",
-		"slots": map[string]interface{}{
-			"test": map[string]interface{}{
-				"allow-installation": map[string]interface{}{
-					"on-store": []interface{}{"my-store"},
+		"slots": map[string]any{
+			"test": map[string]any{
+				"allow-installation": map[string]any{
+					"on-store": []any{"my-store"},
 				},
 			},
 		},
@@ -6127,12 +6127,12 @@ slots:
 }
 
 func (s *interfaceManagerSuite) TestCheckInterfacesDeviceScopeRightFriendlyStore(c *C) {
-	deviceCtx := s.TrivialDeviceContext(c, map[string]interface{}{
+	deviceCtx := s.TrivialDeviceContext(c, map[string]any{
 		"store": "my-substore",
 	})
 
-	s.MockStore(c, s.state, "my-substore", map[string]interface{}{
-		"friendly-stores": []interface{}{"my-store"},
+	s.MockStore(c, s.state, "my-substore", map[string]any{
+		"friendly-stores": []any{"my-store"},
 	})
 
 	restore := assertstest.MockBuiltinBaseDeclaration([]byte(`
@@ -6146,12 +6146,12 @@ slots:
 	defer restore()
 	s.mockIface(&ifacetest.TestInterface{InterfaceName: "test"})
 
-	s.MockSnapDecl(c, "producer", "producer-publisher", map[string]interface{}{
+	s.MockSnapDecl(c, "producer", "producer-publisher", map[string]any{
 		"format": "3",
-		"slots": map[string]interface{}{
-			"test": map[string]interface{}{
-				"allow-installation": map[string]interface{}{
-					"on-store": []interface{}{"my-store"},
+		"slots": map[string]any{
+			"test": map[string]any{
+				"allow-installation": map[string]any{
+					"on-store": []any{"my-store"},
 				},
 			},
 		},
@@ -6164,12 +6164,12 @@ slots:
 }
 
 func (s *interfaceManagerSuite) TestCheckInterfacesDeviceScopeWrongFriendlyStore(c *C) {
-	deviceCtx := s.TrivialDeviceContext(c, map[string]interface{}{
+	deviceCtx := s.TrivialDeviceContext(c, map[string]any{
 		"store": "my-substore",
 	})
 
-	s.MockStore(c, s.state, "my-substore", map[string]interface{}{
-		"friendly-stores": []interface{}{"other-store"},
+	s.MockStore(c, s.state, "my-substore", map[string]any{
+		"friendly-stores": []any{"other-store"},
 	})
 
 	restore := assertstest.MockBuiltinBaseDeclaration([]byte(`
@@ -6183,12 +6183,12 @@ slots:
 	defer restore()
 	s.mockIface(&ifacetest.TestInterface{InterfaceName: "test"})
 
-	s.MockSnapDecl(c, "producer", "producer-publisher", map[string]interface{}{
+	s.MockSnapDecl(c, "producer", "producer-publisher", map[string]any{
 		"format": "3",
-		"slots": map[string]interface{}{
-			"test": map[string]interface{}{
-				"allow-installation": map[string]interface{}{
-					"on-store": []interface{}{"my-store"},
+		"slots": map[string]any{
+			"test": map[string]any{
+				"allow-installation": map[string]any{
+					"on-store": []any{"my-store"},
 				},
 			},
 		},
@@ -6379,8 +6379,8 @@ func (s *interfaceManagerSuite) TestManagerTransitionConnectionsCore(c *C) {
 
 	s.state.Lock()
 	defer s.state.Unlock()
-	s.state.Set("conns", map[string]interface{}{
-		"httpd:network ubuntu-core:network": map[string]interface{}{
+	s.state.Set("conns", map[string]any{
+		"httpd:network ubuntu-core:network": map[string]any{
 			"interface": "network", "auto": true,
 		},
 	})
@@ -6398,12 +6398,12 @@ func (s *interfaceManagerSuite) TestManagerTransitionConnectionsCore(c *C) {
 	s.state.Lock()
 
 	c.Assert(change.Status(), Equals, state.DoneStatus)
-	var conns map[string]interface{}
+	var conns map[string]any
 	err := s.state.Get("conns", &conns)
 	c.Assert(err, IsNil)
 	// ensure the connection went from "ubuntu-core" to "core"
-	c.Check(conns, DeepEquals, map[string]interface{}{
-		"httpd:network core:network": map[string]interface{}{
+	c.Check(conns, DeepEquals, map[string]any{
+		"httpd:network core:network": map[string]any{
 			"interface": "network", "auto": true,
 		},
 	})
@@ -6418,8 +6418,8 @@ func (s *interfaceManagerSuite) TestManagerTransitionConnectionsCoreUndo(c *C) {
 
 	s.state.Lock()
 	defer s.state.Unlock()
-	s.state.Set("conns", map[string]interface{}{
-		"httpd:network ubuntu-core:network": map[string]interface{}{
+	s.state.Set("conns", map[string]any{
+		"httpd:network ubuntu-core:network": map[string]any{
 			"interface": "network", "auto": true,
 		},
 	})
@@ -6444,12 +6444,12 @@ func (s *interfaceManagerSuite) TestManagerTransitionConnectionsCoreUndo(c *C) {
 	c.Assert(change.Status(), Equals, state.ErrorStatus)
 	c.Check(t.Status(), Equals, state.UndoneStatus)
 
-	var conns map[string]interface{}
+	var conns map[string]any
 	err := s.state.Get("conns", &conns)
 	c.Assert(err, IsNil)
 	// ensure the connection have not changed (still ubuntu-core)
-	c.Check(conns, DeepEquals, map[string]interface{}{
-		"httpd:network ubuntu-core:network": map[string]interface{}{
+	c.Check(conns, DeepEquals, map[string]any{
+		"httpd:network ubuntu-core:network": map[string]any{
 			"interface": "network", "auto": true,
 		},
 	})
@@ -6462,11 +6462,11 @@ func (s *interfaceManagerSuite) TestCoreConnectionsRenamed(c *C) {
 
 	// Put state with old connection data.
 	s.state.Lock()
-	s.state.Set("conns", map[string]interface{}{
-		"core:core-support core:core-support": map[string]interface{}{
+	s.state.Set("conns", map[string]any{
+		"core:core-support core:core-support": map[string]any{
 			"interface": "core-support", "auto": true,
 		},
-		"snap:unrelated core:unrelated": map[string]interface{}{
+		"snap:unrelated core:unrelated": map[string]any{
 			"interface": "unrelated", "auto": true,
 		},
 	})
@@ -6481,15 +6481,15 @@ func (s *interfaceManagerSuite) TestCoreConnectionsRenamed(c *C) {
 
 	// Check that "core-support" connection got renamed.
 	s.state.Lock()
-	var conns map[string]interface{}
+	var conns map[string]any
 	err := s.state.Get("conns", &conns)
 	s.state.Unlock()
 	c.Assert(err, IsNil)
-	c.Assert(conns, DeepEquals, map[string]interface{}{
-		"core:core-support-plug core:core-support": map[string]interface{}{
+	c.Assert(conns, DeepEquals, map[string]any{
+		"core:core-support-plug core:core-support": map[string]any{
 			"interface": "core-support", "auto": true,
 		},
-		"snap:unrelated core:unrelated": map[string]interface{}{
+		"snap:unrelated core:unrelated": map[string]any{
 			"interface": "unrelated", "auto": true,
 		},
 	})
@@ -6552,11 +6552,11 @@ func (s *interfaceManagerSuite) TestAutoConnectDuringCoreTransition(c *C) {
 	// Ensure that "network" is now saved in the state as auto-connected and
 	// that it is connected to the new core snap rather than the old
 	// ubuntu-core snap.
-	var conns map[string]interface{}
+	var conns map[string]any
 	err := s.state.Get("conns", &conns)
 	c.Assert(err, IsNil)
-	c.Check(conns, DeepEquals, map[string]interface{}{
-		"snap:network core:network": map[string]interface{}{
+	c.Check(conns, DeepEquals, map[string]any{
+		"snap:network core:network": map[string]any{
 			"interface": "network", "auto": true,
 		},
 	})
@@ -6615,11 +6615,11 @@ type: snapd
 
 	// make sure that network is connected, note that it is still recorded as
 	// connected to core, even though the is is actually connected to snapd
-	var conns map[string]interface{}
+	var conns map[string]any
 	err := s.state.Get("conns", &conns)
 	c.Assert(err, IsNil)
-	c.Check(conns, DeepEquals, map[string]interface{}{
-		"snap:network core:network": map[string]interface{}{
+	c.Check(conns, DeepEquals, map[string]any{
+		"snap:network core:network": map[string]any{
 			"interface": "network", "auto": true,
 		},
 	})
@@ -6643,7 +6643,7 @@ func makeAutoConnectChange(st *state.State, plugSnap, plug, slotSnap, slot strin
 	t := st.NewTask("connect", "other connect task")
 	t.Set("slot", interfaces.SlotRef{Snap: slotSnap, Name: slot})
 	t.Set("plug", interfaces.PlugRef{Snap: plugSnap, Name: plug})
-	var plugAttrs, slotAttrs map[string]interface{}
+	var plugAttrs, slotAttrs map[string]any
 	t.Set("plug-dynamic", plugAttrs)
 	t.Set("slot-dynamic", slotAttrs)
 	t.Set("auto", true)
@@ -6672,7 +6672,7 @@ func makeAutoConnectChange(st *state.State, plugSnap, plug, slotSnap, slot strin
 	return chg
 }
 
-func (s *interfaceManagerSuite) mockConnectForUndo(c *C, conns map[string]interface{}, delayedSetupProfiles bool) *state.Change {
+func (s *interfaceManagerSuite) mockConnectForUndo(c *C, conns map[string]any, delayedSetupProfiles bool) *state.Change {
 	s.MockModel(c, nil)
 
 	s.mockIfaces(&ifacetest.TestInterface{InterfaceName: "test"})
@@ -6712,9 +6712,9 @@ func (s *interfaceManagerSuite) mockConnectForUndo(c *C, conns map[string]interf
 func (s *interfaceManagerSuite) TestUndoConnect(c *C) {
 	// "consumer:plug producer:slot" wouldn't normally be present in conns when connecting because
 	// ifacestate.Connect() checks for existing connection; it's used here to test removal on undo.
-	conns := map[string]interface{}{
-		"snap1:plug snap2:slot":       map[string]interface{}{},
-		"consumer:plug producer:slot": map[string]interface{}{},
+	conns := map[string]any{
+		"snap1:plug snap2:slot":       map[string]any{},
+		"consumer:plug producer:slot": map[string]any{},
 	}
 	chg := s.mockConnectForUndo(c, conns, false)
 
@@ -6727,16 +6727,16 @@ func (s *interfaceManagerSuite) TestUndoConnect(c *C) {
 	for _, t := range chg.Tasks() {
 		if t.Kind() != "error-trigger" {
 			c.Assert(t.Status(), Equals, state.UndoneStatus)
-			var old interface{}
+			var old any
 			c.Assert(t.Get("old-conn", &old), NotNil)
 		}
 	}
 
 	// connection is removed from conns, other connection is left intact
-	var realConns map[string]interface{}
+	var realConns map[string]any
 	c.Assert(s.state.Get("conns", &realConns), IsNil)
-	c.Check(realConns, DeepEquals, map[string]interface{}{
-		"snap1:plug snap2:slot": map[string]interface{}{},
+	c.Check(realConns, DeepEquals, map[string]any{
+		"snap1:plug snap2:slot": map[string]any{},
 	})
 
 	cref := &interfaces.ConnRef{
@@ -6768,9 +6768,9 @@ func (s *interfaceManagerSuite) TestUndoConnect(c *C) {
 func (s *interfaceManagerSuite) TestUndoConnectUndesired(c *C) {
 	// "consumer:plug producer:slot" wouldn't normally be present in conns when connecting because
 	// ifacestate.Connect() checks for existing connection; it's used here to test removal on undo.
-	conns := map[string]interface{}{
-		"snap1:plug snap2:slot":       map[string]interface{}{},
-		"consumer:plug producer:slot": map[string]interface{}{"undesired": true},
+	conns := map[string]any{
+		"snap1:plug snap2:slot":       map[string]any{},
+		"consumer:plug producer:slot": map[string]any{"undesired": true},
 	}
 	chg := s.mockConnectForUndo(c, conns, false)
 
@@ -6784,19 +6784,19 @@ func (s *interfaceManagerSuite) TestUndoConnectUndesired(c *C) {
 		if t.Kind() != "error-trigger" {
 			c.Assert(t.Status(), Equals, state.UndoneStatus)
 			if t.Kind() == "connect" {
-				var old interface{}
+				var old any
 				c.Assert(t.Get("old-conn", &old), IsNil)
-				c.Check(old, DeepEquals, map[string]interface{}{"undesired": true})
+				c.Check(old, DeepEquals, map[string]any{"undesired": true})
 			}
 		}
 	}
 
 	// connection is left in conns because of undesired flag
-	var realConns map[string]interface{}
+	var realConns map[string]any
 	c.Assert(s.state.Get("conns", &realConns), IsNil)
-	c.Check(realConns, DeepEquals, map[string]interface{}{
-		"snap1:plug snap2:slot":       map[string]interface{}{},
-		"consumer:plug producer:slot": map[string]interface{}{"undesired": true},
+	c.Check(realConns, DeepEquals, map[string]any{
+		"snap1:plug snap2:slot":       map[string]any{},
+		"consumer:plug producer:slot": map[string]any{"undesired": true},
 	})
 
 	// but it's not in the repo
@@ -6820,7 +6820,7 @@ func (s *interfaceManagerSuite) TestUndoConnectUndesired(c *C) {
 }
 
 func (s *interfaceManagerSuite) TestUndoConnectNoSetupProfilesWithDelayedSetupProfiles(c *C) {
-	conns := map[string]interface{}{"consumer:plug producer:slot": map[string]interface{}{}}
+	conns := map[string]any{"consumer:plug producer:slot": map[string]any{}}
 
 	delayedSetupProfiles := true
 	chg := s.mockConnectForUndo(c, conns, delayedSetupProfiles)
@@ -6833,7 +6833,7 @@ func (s *interfaceManagerSuite) TestUndoConnectNoSetupProfilesWithDelayedSetupPr
 	c.Assert(chg.Status().Ready(), Equals, true)
 
 	// connection is removed from conns
-	var realConns map[string]interface{}
+	var realConns map[string]any
 	c.Assert(s.state.Get("conns", &realConns), IsNil)
 	c.Check(realConns, HasLen, 0)
 
@@ -6873,7 +6873,7 @@ func (s *interfaceManagerSuite) TestConnectErrorMissingSlotSnapOnAutoConnect(c *
 	c.Check(chg.Status(), Equals, state.ErrorStatus)
 	c.Assert(chg.Err(), ErrorMatches, `cannot perform the following tasks:\n.*snap "producer" is no longer available for auto-connecting.*`)
 
-	var conns map[string]interface{}
+	var conns map[string]any
 	c.Assert(s.state.Get("conns", &conns), testutil.ErrorIs, state.ErrNoState)
 }
 
@@ -6899,7 +6899,7 @@ func (s *interfaceManagerSuite) TestConnectErrorMissingPlugSnapOnAutoConnect(c *
 	c.Assert(chg.Status(), Equals, state.ErrorStatus)
 	c.Assert(chg.Err(), ErrorMatches, `cannot perform the following tasks:\n.*snap "consumer" is no longer available for auto-connecting.*`)
 
-	var conns map[string]interface{}
+	var conns map[string]any
 	c.Assert(s.state.Get("conns", &conns), testutil.ErrorIs, state.ErrNoState)
 }
 
@@ -6929,7 +6929,7 @@ func (s *interfaceManagerSuite) TestConnectErrorMissingPlugOnAutoConnect(c *C) {
 	c.Assert(chg.Status(), Equals, state.ErrorStatus)
 	c.Assert(chg.Err(), ErrorMatches, `cannot perform the following tasks:\n.*snap "consumer" has no "plug" plug.*`)
 
-	var conns map[string]interface{}
+	var conns map[string]any
 	err = s.state.Get("conns", &conns)
 	c.Assert(err, testutil.ErrorIs, state.ErrNoState)
 }
@@ -6961,7 +6961,7 @@ func (s *interfaceManagerSuite) TestConnectErrorMissingSlotOnAutoConnect(c *C) {
 	c.Assert(chg.Status(), Equals, state.ErrorStatus)
 	c.Assert(chg.Err(), ErrorMatches, `cannot perform the following tasks:\n.*snap "producer" has no "slot" slot.*`)
 
-	var conns map[string]interface{}
+	var conns map[string]any
 	err = s.state.Get("conns", &conns)
 	c.Assert(err, testutil.ErrorIs, state.ErrNoState)
 }
@@ -6996,17 +6996,17 @@ func (s *interfaceManagerSuite) TestConnectHandlesAutoconnect(c *C) {
 	c.Assert(task.Status(), Equals, state.DoneStatus)
 
 	// Ensure that "slot" is now auto-connected.
-	var conns map[string]interface{}
+	var conns map[string]any
 	err = s.state.Get("conns", &conns)
 	c.Assert(err, IsNil)
-	c.Check(conns, DeepEquals, map[string]interface{}{
-		"consumer:plug producer:slot": map[string]interface{}{
+	c.Check(conns, DeepEquals, map[string]any{
+		"consumer:plug producer:slot": map[string]any{
 			"interface": "test",
 			"auto":      true,
-			"plug-static": map[string]interface{}{
+			"plug-static": map[string]any{
 				"attr1": "value1",
 			},
-			"slot-static": map[string]interface{}{
+			"slot-static": map[string]any{
 				"attr2": "value2",
 			},
 		},
@@ -7219,7 +7219,7 @@ func (s *interfaceManagerSuite) TestStartupTimings(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	var allTimings []map[string]interface{}
+	var allTimings []map[string]any
 	c.Assert(s.state.Get("timings", &allTimings), IsNil)
 	c.Check(allTimings, HasLen, 1)
 
@@ -7228,15 +7228,15 @@ func (s *interfaceManagerSuite) TestStartupTimings(c *C) {
 
 	// one backed expected; the other fake backend from test setup doesn't have a name and is ignored by regenerateAllSecurityProfiles
 	c.Assert(timings, HasLen, 1)
-	timingsList, ok := timings.([]interface{})
+	timingsList, ok := timings.([]any)
 	c.Assert(ok, Equals, true)
-	tm := timingsList[0].(map[string]interface{})
+	tm := timingsList[0].(map[string]any)
 	c.Check(tm["label"], Equals, "setup-security-backend")
 	c.Check(tm["summary"], Matches, `setup security backend "fake" for snap "consumer"`)
 
 	tags, ok := allTimings[0]["tags"]
 	c.Assert(ok, Equals, true)
-	c.Check(tags, DeepEquals, map[string]interface{}{"startup": "ifacemgr"})
+	c.Check(tags, DeepEquals, map[string]any{"startup": "ifacemgr"})
 }
 
 func (s *interfaceManagerSuite) TestStartupWarningForDisabledAppArmorWithAppArmor(c *C) {
@@ -7732,10 +7732,10 @@ func (s *interfaceManagerSuite) TestDisconnectInterfaces(c *C) {
 	c.Assert(repo.AddAppSet(consumerAppSet), IsNil)
 	c.Assert(repo.AddAppSet(producerAppSet), IsNil)
 
-	plugDynAttrs := map[string]interface{}{
+	plugDynAttrs := map[string]any{
 		"attr3": "value3",
 	}
-	slotDynAttrs := map[string]interface{}{
+	slotDynAttrs := map[string]any{
 		"attr4": "value4",
 	}
 	repo.Connect(&interfaces.ConnRef{
@@ -7763,16 +7763,16 @@ func (s *interfaceManagerSuite) TestDisconnectInterfaces(c *C) {
 	var autoDisconnect bool
 	c.Assert(ht[2].Get("auto-disconnect", &autoDisconnect), IsNil)
 	c.Assert(autoDisconnect, Equals, true)
-	var plugDynamic, slotDynamic, plugStatic, slotStatic map[string]interface{}
+	var plugDynamic, slotDynamic, plugStatic, slotStatic map[string]any
 	c.Assert(ht[2].Get("plug-static", &plugStatic), IsNil)
 	c.Assert(ht[2].Get("plug-dynamic", &plugDynamic), IsNil)
 	c.Assert(ht[2].Get("slot-static", &slotStatic), IsNil)
 	c.Assert(ht[2].Get("slot-dynamic", &slotDynamic), IsNil)
 
-	c.Assert(plugStatic, DeepEquals, map[string]interface{}{"attr1": "value1"})
-	c.Assert(slotStatic, DeepEquals, map[string]interface{}{"attr2": "value2"})
-	c.Assert(plugDynamic, DeepEquals, map[string]interface{}{"attr3": "value3"})
-	c.Assert(slotDynamic, DeepEquals, map[string]interface{}{"attr4": "value4"})
+	c.Assert(plugStatic, DeepEquals, map[string]any{"attr1": "value1"})
+	c.Assert(slotStatic, DeepEquals, map[string]any{"attr2": "value2"})
+	c.Assert(plugDynamic, DeepEquals, map[string]any{"attr3": "value3"})
+	c.Assert(slotDynamic, DeepEquals, map[string]any{"attr4": "value4"})
 
 	var expectedHooks = []struct{ snap, hook string }{
 		{snap: "producer", hook: "disconnect-slot-slot"},
@@ -8070,8 +8070,8 @@ func (s *interfaceManagerSuite) TestAutoConnectGadgetAlreadyConnected(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	s.state.Set("conns", map[string]interface{}{
-		"consumer:plug producer:slot": map[string]interface{}{
+	s.state.Set("conns", map[string]any{
+		"consumer:plug producer:slot": map[string]any{
 			"interface": "test", "auto": true,
 		},
 	})
@@ -8271,12 +8271,12 @@ volumes:
 	c.Assert(chg.Status().Ready(), Equals, true)
 
 	// check connection
-	var conns map[string]interface{}
+	var conns map[string]any
 	err = s.state.Get("conns", &conns)
 	c.Assert(err, IsNil)
 	c.Check(conns, HasLen, 1)
-	c.Check(conns, DeepEquals, map[string]interface{}{
-		"foo:network-control core:network-control": map[string]interface{}{
+	c.Check(conns, DeepEquals, map[string]any{
+		"foo:network-control core:network-control": map[string]any{
 			"interface": "network-control", "auto": true, "by-gadget": true,
 		},
 	})
@@ -8488,7 +8488,7 @@ func (s *interfaceManagerSuite) TestAttributesRestoredFromConns(c *C) {
 	c.Assert(err, IsNil)
 
 	// create connection in conns state
-	dynamicAttrs := map[string]interface{}{"dynamic-number": 7}
+	dynamicAttrs := map[string]any{"dynamic-number": 7}
 	conn := &interfaces.Connection{
 		Plug: interfaces.NewConnectedPlug(plug, plugAppSet, nil, nil),
 		Slot: interfaces.NewConnectedSlot(slot, slotAppSet, nil, dynamicAttrs),
@@ -8537,8 +8537,8 @@ func (s *interfaceManagerSuite) setupHotplugConnectTestData(c *C) *state.Change 
 	c.Assert(repo.AddAppSet(testSnap), IsNil)
 
 	s.state.Lock()
-	s.state.Set("hotplug-slots", map[string]interface{}{
-		"hotplugslot": map[string]interface{}{
+	s.state.Set("hotplug-slots", map[string]any{
+		"hotplugslot": map[string]any{
 			"name":        "hotplugslot",
 			"interface":   "test",
 			"hotplug-key": "1234",
@@ -8561,8 +8561,8 @@ func (s *interfaceManagerSuite) TestHotplugConnect(c *C) {
 	chg := s.setupHotplugConnectTestData(c)
 
 	// simulate a device that was known and connected before
-	s.state.Set("conns", map[string]interface{}{
-		"consumer:plug core:hotplugslot": map[string]interface{}{
+	s.state.Set("conns", map[string]any{
+		"consumer:plug core:hotplugslot": map[string]any{
 			"interface":    "test",
 			"hotplug-key":  "1234",
 			"hotplug-gone": true,
@@ -8574,13 +8574,13 @@ func (s *interfaceManagerSuite) TestHotplugConnect(c *C) {
 
 	c.Assert(chg.Err(), IsNil)
 
-	var conns map[string]interface{}
+	var conns map[string]any
 	c.Assert(s.state.Get("conns", &conns), IsNil)
-	c.Assert(conns, DeepEquals, map[string]interface{}{
-		"consumer:plug core:hotplugslot": map[string]interface{}{
+	c.Assert(conns, DeepEquals, map[string]any{
+		"consumer:plug core:hotplugslot": map[string]any{
 			"interface":   "test",
 			"hotplug-key": "1234",
-			"plug-static": map[string]interface{}{"attr1": "value1"},
+			"plug-static": map[string]any{"attr1": "value1"},
 		}})
 }
 
@@ -8592,8 +8592,8 @@ func (s *interfaceManagerSuite) TestHotplugConnectIgnoresUndesired(c *C) {
 	chg := s.setupHotplugConnectTestData(c)
 
 	// simulate a device that was known and connected before
-	s.state.Set("conns", map[string]interface{}{
-		"consumer:plug core:hotplugslot": map[string]interface{}{
+	s.state.Set("conns", map[string]any{
+		"consumer:plug core:hotplugslot": map[string]any{
 			"interface":   "test",
 			"hotplug-key": "1234",
 			"undesired":   true,
@@ -8607,10 +8607,10 @@ func (s *interfaceManagerSuite) TestHotplugConnectIgnoresUndesired(c *C) {
 	c.Check(chg.Tasks(), HasLen, 1)
 	c.Assert(chg.Err(), IsNil)
 
-	var conns map[string]interface{}
+	var conns map[string]any
 	c.Assert(s.state.Get("conns", &conns), IsNil)
-	c.Assert(conns, DeepEquals, map[string]interface{}{
-		"consumer:plug core:hotplugslot": map[string]interface{}{
+	c.Assert(conns, DeepEquals, map[string]any{
+		"consumer:plug core:hotplugslot": map[string]any{
 			"interface":   "test",
 			"hotplug-key": "1234",
 			"undesired":   true,
@@ -8665,8 +8665,8 @@ func (s *interfaceManagerSuite) TestHotplugConnectNothingTodo(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	s.state.Set("hotplug-slots", map[string]interface{}{
-		"hotplugslot": map[string]interface{}{
+	s.state.Set("hotplug-slots", map[string]any{
+		"hotplugslot": map[string]any{
 			"name":        "hotplugslot",
 			"interface":   "test",
 			"hotplug-key": "1",
@@ -8694,8 +8694,8 @@ func (s *interfaceManagerSuite) TestHotplugConnectConflictRetry(c *C) {
 	chg := s.setupHotplugConnectTestData(c)
 
 	// simulate a device that was known and connected before
-	s.state.Set("conns", map[string]interface{}{
-		"consumer:plug core:hotplugslot": map[string]interface{}{
+	s.state.Set("conns", map[string]any{
+		"consumer:plug core:hotplugslot": map[string]any{
 			"interface":    "test",
 			"hotplug-key":  "1234",
 			"hotplug-gone": true,
@@ -8734,14 +8734,14 @@ func (s *interfaceManagerSuite) TestHotplugAutoconnect(c *C) {
 
 	c.Assert(chg.Err(), IsNil)
 
-	var conns map[string]interface{}
+	var conns map[string]any
 	c.Assert(s.state.Get("conns", &conns), IsNil)
-	c.Assert(conns, DeepEquals, map[string]interface{}{
-		"consumer:plug core:hotplugslot": map[string]interface{}{
+	c.Assert(conns, DeepEquals, map[string]any{
+		"consumer:plug core:hotplugslot": map[string]any{
 			"interface":   "test",
 			"hotplug-key": "1234",
 			"auto":        true,
-			"plug-static": map[string]interface{}{"attr1": "value1"},
+			"plug-static": map[string]any{"attr1": "value1"},
 		}})
 }
 
@@ -8802,8 +8802,8 @@ func (s *interfaceManagerSuite) TestHotplugConnectAndAutoconnect(c *C) {
 	}), IsNil)
 
 	s.state.Lock()
-	s.state.Set("hotplug-slots", map[string]interface{}{
-		"hotplugslot": map[string]interface{}{"name": "hotplugslot", "interface": "test", "hotplug-key": "1234"},
+	s.state.Set("hotplug-slots", map[string]any{
+		"hotplugslot": map[string]any{"name": "hotplugslot", "interface": "test", "hotplug-key": "1234"},
 	})
 
 	mockConsumer(c, s.state, repo, consumerYaml, "consumer", "plug")
@@ -8815,8 +8815,8 @@ func (s *interfaceManagerSuite) TestHotplugConnectAndAutoconnect(c *C) {
 	chg.AddTask(t)
 
 	// simulate a device that was known and connected before to only one consumer, this connection will be restored
-	s.state.Set("conns", map[string]interface{}{
-		"consumer:plug core:hotplugslot": map[string]interface{}{
+	s.state.Set("conns", map[string]any{
+		"consumer:plug core:hotplugslot": map[string]any{
 			"interface":    "test",
 			"hotplug-key":  "1234",
 			"hotplug-gone": true,
@@ -8829,19 +8829,19 @@ func (s *interfaceManagerSuite) TestHotplugConnectAndAutoconnect(c *C) {
 	c.Assert(chg.Err(), IsNil)
 
 	// two connections now present (restored one for consumer, and new one for consumer2)
-	var conns map[string]interface{}
+	var conns map[string]any
 	c.Assert(s.state.Get("conns", &conns), IsNil)
-	c.Assert(conns, DeepEquals, map[string]interface{}{
-		"consumer:plug core:hotplugslot": map[string]interface{}{
+	c.Assert(conns, DeepEquals, map[string]any{
+		"consumer:plug core:hotplugslot": map[string]any{
 			"interface":   "test",
 			"hotplug-key": "1234",
-			"plug-static": map[string]interface{}{"attr1": "value1"},
+			"plug-static": map[string]any{"attr1": "value1"},
 		},
-		"consumer2:plug core:hotplugslot": map[string]interface{}{
+		"consumer2:plug core:hotplugslot": map[string]any{
 			"interface":   "test",
 			"hotplug-key": "1234",
 			"auto":        true,
-			"plug-static": map[string]interface{}{"attr1": "value1"},
+			"plug-static": map[string]any{"attr1": "value1"},
 		}})
 }
 
@@ -8868,14 +8868,14 @@ func (s *interfaceManagerSuite) TestHotplugDisconnect(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	s.state.Set("hotplug-slots", map[string]interface{}{
-		"hotplugslot": map[string]interface{}{
+	s.state.Set("hotplug-slots", map[string]any{
+		"hotplugslot": map[string]any{
 			"name":        "hotplugslot",
 			"interface":   "test",
 			"hotplug-key": "1234",
 		}})
-	s.state.Set("conns", map[string]interface{}{
-		"consumer:plug core:hotplugslot": map[string]interface{}{
+	s.state.Set("conns", map[string]any{
+		"consumer:plug core:hotplugslot": map[string]any{
 			"interface":   "test",
 			"hotplug-key": "1234",
 		}})
@@ -8908,10 +8908,10 @@ func (s *interfaceManagerSuite) TestHotplugDisconnect(c *C) {
 	c.Assert(byHotplug, Equals, true)
 
 	// hotplug-gone flag on the connection is set
-	var conns map[string]interface{}
+	var conns map[string]any
 	c.Assert(s.state.Get("conns", &conns), IsNil)
-	c.Assert(conns, DeepEquals, map[string]interface{}{
-		"consumer:plug core:hotplugslot": map[string]interface{}{
+	c.Assert(conns, DeepEquals, map[string]any{
+		"consumer:plug core:hotplugslot": map[string]any{
 			"interface":    "test",
 			"hotplug-key":  "1234",
 			"hotplug-gone": true,
@@ -8941,14 +8941,14 @@ func (s *interfaceManagerSuite) testHotplugDisconnectWaitsForCoreRefresh(c *C, t
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	s.state.Set("hotplug-slots", map[string]interface{}{
-		"hotplugslot": map[string]interface{}{
+	s.state.Set("hotplug-slots", map[string]any{
+		"hotplugslot": map[string]any{
 			"name":        "hotplugslot",
 			"interface":   "test",
 			"hotplug-key": "1234",
 		}})
-	s.state.Set("conns", map[string]interface{}{
-		"consumer:plug core:hotplugslot": map[string]interface{}{
+	s.state.Set("conns", map[string]any{
+		"consumer:plug core:hotplugslot": map[string]any{
 			"interface":   "test",
 			"hotplug-key": "1234",
 		}})
@@ -9030,14 +9030,14 @@ func (s *interfaceManagerSuite) TestHotplugDisconnectWaitsForDisconnectPlug(c *C
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	s.state.Set("hotplug-slots", map[string]interface{}{
-		"hotplugslot": map[string]interface{}{
+	s.state.Set("hotplug-slots", map[string]any{
+		"hotplugslot": map[string]any{
 			"name":        "hotplugslot",
 			"interface":   "test",
 			"hotplug-key": "1234",
 		}})
-	s.state.Set("conns", map[string]interface{}{
-		"consumer:plug core:hotplugslot": map[string]interface{}{
+	s.state.Set("conns", map[string]any{
+		"consumer:plug core:hotplugslot": map[string]any{
 			"interface":   "test",
 			"hotplug-key": "1234",
 		}})
@@ -9101,7 +9101,7 @@ func (s *interfaceManagerSuite) testHotplugAddNewSlot(c *C, devData map[string]s
 	t := s.state.NewTask("hotplug-add-slot", "")
 	t.Set("hotplug-key", "1234")
 	t.Set("interface", "test")
-	proposedSlot := hotplug.ProposedSlot{Name: specName, Attrs: map[string]interface{}{"foo": "bar"}}
+	proposedSlot := hotplug.ProposedSlot{Name: specName, Attrs: map[string]any{"foo": "bar"}}
 	t.Set("proposed-slot", proposedSlot)
 	devinfo, _ := hotplug.NewHotplugDeviceInfo(devData)
 	t.Set("device-info", devinfo)
@@ -9117,17 +9117,17 @@ func (s *interfaceManagerSuite) testHotplugAddNewSlot(c *C, devData map[string]s
 	// hotplugslot is created in the repository
 	slot := repo.Slot("core", expectedName)
 	c.Assert(slot, NotNil)
-	c.Check(slot.Attrs, DeepEquals, map[string]interface{}{"foo": "bar"})
+	c.Check(slot.Attrs, DeepEquals, map[string]any{"foo": "bar"})
 	c.Check(slot.HotplugKey, Equals, snap.HotplugKey("1234"))
 
-	var hotplugSlots map[string]interface{}
+	var hotplugSlots map[string]any
 	c.Assert(s.state.Get("hotplug-slots", &hotplugSlots), IsNil)
 	c.Assert(hotplugSlots, HasLen, 1)
-	c.Check(hotplugSlots[expectedName], DeepEquals, map[string]interface{}{
+	c.Check(hotplugSlots[expectedName], DeepEquals, map[string]any{
 		"name":         expectedName,
 		"interface":    "test",
 		"hotplug-key":  "1234",
-		"static-attrs": map[string]interface{}{"foo": "bar"},
+		"static-attrs": map[string]any{"foo": "bar"},
 		"hotplug-gone": false,
 	})
 }
@@ -9153,11 +9153,11 @@ func (s *interfaceManagerSuite) TestHotplugAddGoneSlot(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	s.state.Set("hotplug-slots", map[string]interface{}{
-		"hotplugslot-old-name": map[string]interface{}{
+	s.state.Set("hotplug-slots", map[string]any{
+		"hotplugslot-old-name": map[string]any{
 			"name":         "hotplugslot-old-name",
 			"interface":    "test",
-			"static-attrs": map[string]interface{}{"foo": "old"},
+			"static-attrs": map[string]any{"foo": "old"},
 			"hotplug-key":  "1234",
 			"hotplug-gone": true,
 		}})
@@ -9166,7 +9166,7 @@ func (s *interfaceManagerSuite) TestHotplugAddGoneSlot(c *C) {
 	t := s.state.NewTask("hotplug-add-slot", "")
 	t.Set("hotplug-key", "1234")
 	t.Set("interface", "test")
-	proposedSlot := hotplug.ProposedSlot{Name: "hotplugslot", Label: "", Attrs: map[string]interface{}{"foo": "bar"}}
+	proposedSlot := hotplug.ProposedSlot{Name: "hotplugslot", Label: "", Attrs: map[string]any{"foo": "bar"}}
 	t.Set("proposed-slot", proposedSlot)
 	t.Set("device-info", map[string]string{"DEVPATH": "/a", "NAME": "hdcamera"})
 	chg.AddTask(t)
@@ -9181,17 +9181,17 @@ func (s *interfaceManagerSuite) TestHotplugAddGoneSlot(c *C) {
 	// hotplugslot is re-created in the repository, reuses old name and has new attributes
 	slot := repo.Slot("core", "hotplugslot-old-name")
 	c.Assert(slot, NotNil)
-	c.Check(slot.Attrs, DeepEquals, map[string]interface{}{"foo": "bar"})
+	c.Check(slot.Attrs, DeepEquals, map[string]any{"foo": "bar"})
 	c.Check(slot.HotplugKey, DeepEquals, snap.HotplugKey("1234"))
 
-	var hotplugSlots map[string]interface{}
+	var hotplugSlots map[string]any
 	c.Assert(s.state.Get("hotplug-slots", &hotplugSlots), IsNil)
-	c.Check(hotplugSlots, DeepEquals, map[string]interface{}{
-		"hotplugslot-old-name": map[string]interface{}{
+	c.Check(hotplugSlots, DeepEquals, map[string]any{
+		"hotplugslot-old-name": map[string]any{
 			"name":         "hotplugslot-old-name",
 			"interface":    "test",
 			"hotplug-key":  "1234",
-			"static-attrs": map[string]interface{}{"foo": "bar"},
+			"static-attrs": map[string]any{"foo": "bar"},
 			"hotplug-gone": false,
 		}})
 }
@@ -9207,17 +9207,17 @@ func (s *interfaceManagerSuite) TestHotplugAddSlotWithChangedAttrs(c *C) {
 		Name:       "hotplugslot",
 		Interface:  "test",
 		HotplugKey: "1234",
-		Attrs:      map[string]interface{}{"foo": "oldfoo"},
+		Attrs:      map[string]any{"foo": "oldfoo"},
 	}), IsNil)
 
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	s.state.Set("hotplug-slots", map[string]interface{}{
-		"hotplugslot": map[string]interface{}{
+	s.state.Set("hotplug-slots", map[string]any{
+		"hotplugslot": map[string]any{
 			"name":         "hotplugslot",
 			"interface":    "test",
-			"static-attrs": map[string]interface{}{"foo": "old"},
+			"static-attrs": map[string]any{"foo": "old"},
 			"hotplug-key":  "1234",
 		},
 	})
@@ -9226,7 +9226,7 @@ func (s *interfaceManagerSuite) TestHotplugAddSlotWithChangedAttrs(c *C) {
 	t := s.state.NewTask("hotplug-add-slot", "")
 	t.Set("hotplug-key", "1234")
 	t.Set("interface", "test")
-	proposedSlot := hotplug.ProposedSlot{Name: "hotplugslot", Label: "", Attrs: map[string]interface{}{"foo": "newfoo"}}
+	proposedSlot := hotplug.ProposedSlot{Name: "hotplugslot", Label: "", Attrs: map[string]any{"foo": "newfoo"}}
 	t.Set("proposed-slot", proposedSlot)
 	devinfo, _ := hotplug.NewHotplugDeviceInfo(map[string]string{"DEVPATH": "/a"})
 	t.Set("device-info", devinfo)
@@ -9244,17 +9244,17 @@ func (s *interfaceManagerSuite) TestHotplugAddSlotWithChangedAttrs(c *C) {
 	// hotplugslot is re-created in the repository
 	slot := repo.Slot("core", "hotplugslot")
 	c.Assert(slot, NotNil)
-	c.Check(slot.Attrs, DeepEquals, map[string]interface{}{"foo": "newfoo"})
+	c.Check(slot.Attrs, DeepEquals, map[string]any{"foo": "newfoo"})
 	c.Check(slot.HotplugKey, DeepEquals, snap.HotplugKey("1234"))
 
-	var hotplugSlots map[string]interface{}
+	var hotplugSlots map[string]any
 	c.Assert(s.state.Get("hotplug-slots", &hotplugSlots), IsNil)
-	c.Check(hotplugSlots, DeepEquals, map[string]interface{}{
-		"hotplugslot": map[string]interface{}{
+	c.Check(hotplugSlots, DeepEquals, map[string]any{
+		"hotplugslot": map[string]any{
 			"name":         "hotplugslot",
 			"interface":    "test",
 			"hotplug-key":  "1234",
-			"static-attrs": map[string]interface{}{"foo": "newfoo"},
+			"static-attrs": map[string]any{"foo": "newfoo"},
 			"hotplug-gone": false,
 		}})
 }
@@ -9280,8 +9280,8 @@ func (s *interfaceManagerSuite) TestHotplugUpdateSlot(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	s.state.Set("hotplug-slots", map[string]interface{}{
-		"hotplugslot": map[string]interface{}{
+	s.state.Set("hotplug-slots", map[string]any{
+		"hotplugslot": map[string]any{
 			"name":        "hotplugslot",
 			"interface":   "test",
 			"hotplug-key": "1234",
@@ -9291,7 +9291,7 @@ func (s *interfaceManagerSuite) TestHotplugUpdateSlot(c *C) {
 	t := s.state.NewTask("hotplug-update-slot", "")
 	t.Set("hotplug-key", "1234")
 	t.Set("interface", "test")
-	t.Set("slot-attrs", map[string]interface{}{"foo": "bar"})
+	t.Set("slot-attrs", map[string]any{"foo": "bar"})
 	chg.AddTask(t)
 
 	s.state.Unlock()
@@ -9304,16 +9304,16 @@ func (s *interfaceManagerSuite) TestHotplugUpdateSlot(c *C) {
 	// hotplugslot is updated in the repository
 	slot := repo.Slot("core", "hotplugslot")
 	c.Assert(slot, NotNil)
-	c.Assert(slot.Attrs, DeepEquals, map[string]interface{}{"foo": "bar"})
+	c.Assert(slot.Attrs, DeepEquals, map[string]any{"foo": "bar"})
 
-	var hotplugSlots map[string]interface{}
+	var hotplugSlots map[string]any
 	c.Assert(s.state.Get("hotplug-slots", &hotplugSlots), IsNil)
-	c.Assert(hotplugSlots, DeepEquals, map[string]interface{}{
-		"hotplugslot": map[string]interface{}{
+	c.Assert(hotplugSlots, DeepEquals, map[string]any{
+		"hotplugslot": map[string]any{
 			"name":         "hotplugslot",
 			"interface":    "test",
 			"hotplug-key":  "1234",
-			"static-attrs": map[string]interface{}{"foo": "bar"},
+			"static-attrs": map[string]any{"foo": "bar"},
 			"hotplug-gone": false,
 		}})
 }
@@ -9343,14 +9343,14 @@ func (s *interfaceManagerSuite) TestHotplugUpdateSlotWhenConnected(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	s.state.Set("hotplug-slots", map[string]interface{}{
-		"hotplugslot": map[string]interface{}{
+	s.state.Set("hotplug-slots", map[string]any{
+		"hotplugslot": map[string]any{
 			"name":        "hotplugslot",
 			"interface":   "test",
 			"hotplug-key": "1234",
 		}})
-	s.state.Set("conns", map[string]interface{}{
-		"consumer:plug core:hotplugslot": map[string]interface{}{
+	s.state.Set("conns", map[string]any{
+		"consumer:plug core:hotplugslot": map[string]any{
 			"interface":    "test",
 			"hotplug-key":  "1234",
 			"hotplug-gone": true,
@@ -9364,7 +9364,7 @@ func (s *interfaceManagerSuite) TestHotplugUpdateSlotWhenConnected(c *C) {
 	t := s.state.NewTask("hotplug-update-slot", "")
 	t.Set("hotplug-key", "1234")
 	t.Set("interface", "test")
-	t.Set("slot-attrs", map[string]interface{}{})
+	t.Set("slot-attrs", map[string]any{})
 	chg.AddTask(t)
 
 	s.state.Unlock()
@@ -9377,10 +9377,10 @@ func (s *interfaceManagerSuite) TestHotplugUpdateSlotWhenConnected(c *C) {
 	// hotplugslot is not removed because of existing connection
 	c.Assert(repo.Slot("core", "hotplugslot"), NotNil)
 
-	var hotplugSlots map[string]interface{}
+	var hotplugSlots map[string]any
 	c.Assert(s.state.Get("hotplug-slots", &hotplugSlots), IsNil)
-	c.Assert(hotplugSlots, DeepEquals, map[string]interface{}{
-		"hotplugslot": map[string]interface{}{
+	c.Assert(hotplugSlots, DeepEquals, map[string]any{
+		"hotplugslot": map[string]any{
 			"name":        "hotplugslot",
 			"interface":   "test",
 			"hotplug-key": "1234",
@@ -9408,13 +9408,13 @@ func (s *interfaceManagerSuite) TestHotplugRemoveSlot(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	s.state.Set("hotplug-slots", map[string]interface{}{
-		"hotplugslot": map[string]interface{}{
+	s.state.Set("hotplug-slots", map[string]any{
+		"hotplugslot": map[string]any{
 			"name":        "hotplugslot",
 			"interface":   "test",
 			"hotplug-key": "1234",
 		},
-		"otherslot": map[string]interface{}{
+		"otherslot": map[string]any{
 			"name":        "otherslot",
 			"interface":   "test",
 			"hotplug-key": "5678",
@@ -9439,10 +9439,10 @@ func (s *interfaceManagerSuite) TestHotplugRemoveSlot(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(slot, IsNil)
 
-	var hotplugSlots map[string]interface{}
+	var hotplugSlots map[string]any
 	c.Assert(s.state.Get("hotplug-slots", &hotplugSlots), IsNil)
-	c.Assert(hotplugSlots, DeepEquals, map[string]interface{}{
-		"otherslot": map[string]interface{}{
+	c.Assert(hotplugSlots, DeepEquals, map[string]any{
+		"otherslot": map[string]any{
 			"name":         "otherslot",
 			"interface":    "test",
 			"hotplug-key":  "5678",
@@ -9471,14 +9471,14 @@ func (s *interfaceManagerSuite) TestHotplugRemoveSlotWhenConnected(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	s.state.Set("hotplug-slots", map[string]interface{}{
-		"hotplugslot": map[string]interface{}{
+	s.state.Set("hotplug-slots", map[string]any{
+		"hotplugslot": map[string]any{
 			"name":        "hotplugslot",
 			"interface":   "test",
 			"hotplug-key": "1234",
 		}})
-	s.state.Set("conns", map[string]interface{}{
-		"consumer:plug core:hotplugslot": map[string]interface{}{
+	s.state.Set("conns", map[string]any{
+		"consumer:plug core:hotplugslot": map[string]any{
 			"interface":    "test",
 			"hotplug-key":  "1234",
 			"hotplug-gone": true,
@@ -9503,10 +9503,10 @@ func (s *interfaceManagerSuite) TestHotplugRemoveSlotWhenConnected(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(slot, IsNil)
 
-	var hotplugSlots map[string]interface{}
+	var hotplugSlots map[string]any
 	c.Assert(s.state.Get("hotplug-slots", &hotplugSlots), IsNil)
-	c.Assert(hotplugSlots, DeepEquals, map[string]interface{}{
-		"hotplugslot": map[string]interface{}{
+	c.Assert(hotplugSlots, DeepEquals, map[string]any{
+		"hotplugslot": map[string]any{
 			"name":         "hotplugslot",
 			"interface":    "test",
 			"hotplug-key":  "1234",
@@ -9579,8 +9579,8 @@ func (s *interfaceManagerSuite) testConnectionStates(c *C, auto, byGadget, undes
 	c.Assert(slot, NotNil)
 	plug := plugSnap.Plugs["plug"]
 	c.Assert(plug, NotNil)
-	dynamicPlugAttrs := map[string]interface{}{"dynamic-number": 7}
-	dynamicSlotAttrs := map[string]interface{}{"other-number": 9}
+	dynamicPlugAttrs := map[string]any{"dynamic-number": 7}
+	dynamicSlotAttrs := map[string]any{"other-number": 9}
 	// create connection in conns state
 	conn := &interfaces.Connection{
 		Plug: interfaces.NewConnectedPlug(plug, plugAppSet, nil, dynamicPlugAttrs),
@@ -9602,16 +9602,16 @@ func (s *interfaceManagerSuite) TestConnectionStatesAutoManual(c *C) {
 		"consumer:plug producer:slot": {
 			Interface: "test",
 			Auto:      true,
-			StaticPlugAttrs: map[string]interface{}{
+			StaticPlugAttrs: map[string]any{
 				"attr1": "value1",
 			},
-			DynamicPlugAttrs: map[string]interface{}{
+			DynamicPlugAttrs: map[string]any{
 				"dynamic-number": int64(7),
 			},
-			StaticSlotAttrs: map[string]interface{}{
+			StaticSlotAttrs: map[string]any{
 				"attr2": "value2",
 			},
-			DynamicSlotAttrs: map[string]interface{}{
+			DynamicSlotAttrs: map[string]any{
 				"other-number": int64(9),
 			},
 		}})
@@ -9624,16 +9624,16 @@ func (s *interfaceManagerSuite) TestConnectionStatesGadget(c *C) {
 			Interface: "test",
 			Auto:      true,
 			ByGadget:  true,
-			StaticPlugAttrs: map[string]interface{}{
+			StaticPlugAttrs: map[string]any{
 				"attr1": "value1",
 			},
-			DynamicPlugAttrs: map[string]interface{}{
+			DynamicPlugAttrs: map[string]any{
 				"dynamic-number": int64(7),
 			},
-			StaticSlotAttrs: map[string]interface{}{
+			StaticSlotAttrs: map[string]any{
 				"attr2": "value2",
 			},
-			DynamicSlotAttrs: map[string]interface{}{
+			DynamicSlotAttrs: map[string]any{
 				"other-number": int64(9),
 			},
 		}})
@@ -9646,16 +9646,16 @@ func (s *interfaceManagerSuite) TestConnectionStatesUndesired(c *C) {
 			Interface: "test",
 			Auto:      true,
 			Undesired: true,
-			StaticPlugAttrs: map[string]interface{}{
+			StaticPlugAttrs: map[string]any{
 				"attr1": "value1",
 			},
-			DynamicPlugAttrs: map[string]interface{}{
+			DynamicPlugAttrs: map[string]any{
 				"dynamic-number": int64(7),
 			},
-			StaticSlotAttrs: map[string]interface{}{
+			StaticSlotAttrs: map[string]any{
 				"attr2": "value2",
 			},
-			DynamicSlotAttrs: map[string]interface{}{
+			DynamicSlotAttrs: map[string]any{
 				"other-number": int64(9),
 			},
 		}})
@@ -9667,16 +9667,16 @@ func (s *interfaceManagerSuite) TestConnectionStatesHotplugGone(c *C) {
 		"consumer:plug producer:slot": {
 			Interface:   "test",
 			HotplugGone: true,
-			StaticPlugAttrs: map[string]interface{}{
+			StaticPlugAttrs: map[string]any{
 				"attr1": "value1",
 			},
-			DynamicPlugAttrs: map[string]interface{}{
+			DynamicPlugAttrs: map[string]any{
 				"dynamic-number": int64(7),
 			},
-			StaticSlotAttrs: map[string]interface{}{
+			StaticSlotAttrs: map[string]any{
 				"attr2": "value2",
 			},
-			DynamicSlotAttrs: map[string]interface{}{
+			DynamicSlotAttrs: map[string]any{
 				"other-number": int64(9),
 			},
 		}})
@@ -9689,7 +9689,7 @@ func (s *interfaceManagerSuite) TestResolveDisconnectFromConns(c *C) {
 	st.Lock()
 	defer st.Unlock()
 
-	st.Set("conns", map[string]interface{}{"some-snap:plug core:slot": map[string]interface{}{"interface": "foo"}})
+	st.Set("conns", map[string]any{"some-snap:plug core:slot": map[string]any{"interface": "foo"}})
 
 	forget := true
 	ref, err := mgr.ResolveDisconnect("some-snap", "plug", "core", "slot", forget)
@@ -9835,14 +9835,14 @@ func (s *interfaceManagerSuite) TestTransitionConnectionsCoreMigration(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(repoConns, HasLen, 1)
 
-	st.Set("conns", map[string]interface{}{"some-snap:network ubuntu-core:network": map[string]interface{}{"interface": "network", "auto": true}})
+	st.Set("conns", map[string]any{"some-snap:network ubuntu-core:network": map[string]any{"interface": "network", "auto": true}})
 
 	c.Assert(mgr.TransitionConnectionsCoreMigration(st, "ubuntu-core", "core"), IsNil)
 
 	// check connections
-	var conns map[string]interface{}
+	var conns map[string]any
 	st.Get("conns", &conns)
-	c.Assert(conns, DeepEquals, map[string]interface{}{"some-snap:network core:network": map[string]interface{}{"interface": "network", "auto": true}})
+	c.Assert(conns, DeepEquals, map[string]any{"some-snap:network core:network": map[string]any{"interface": "network", "auto": true}})
 
 	repoConns, err = repo.Connections("ubuntu-core")
 	c.Assert(err, IsNil)
@@ -9857,7 +9857,7 @@ func (s *interfaceManagerSuite) TestTransitionConnectionsCoreMigration(c *C) {
 	// check connections
 	conns = nil
 	st.Get("conns", &conns)
-	c.Assert(conns, DeepEquals, map[string]interface{}{"some-snap:network ubuntu-core:network": map[string]interface{}{"interface": "network", "auto": true}})
+	c.Assert(conns, DeepEquals, map[string]any{"some-snap:network ubuntu-core:network": map[string]any{"interface": "network", "auto": true}})
 	repoConns, err = repo.Connections("ubuntu-core")
 	c.Assert(err, IsNil)
 	c.Assert(repoConns, HasLen, 1)
@@ -9876,32 +9876,32 @@ func (s *interfaceManagerSuite) TestDoSetupSnapSecurityAutoConnectsDeclBasedAnyS
 	s.MockSnapDecl(c, "theme2", "one-publisher", nil)
 
 	// the consumer
-	s.MockSnapDecl(c, "theme-consumer", "one-publisher", map[string]interface{}{
+	s.MockSnapDecl(c, "theme-consumer", "one-publisher", map[string]any{
 		"format": "1",
-		"plugs": map[string]interface{}{
-			"content": map[string]interface{}{
-				"allow-auto-connection": map[string]interface{}{
+		"plugs": map[string]any{
+			"content": map[string]any{
+				"allow-auto-connection": map[string]any{
 					"slots-per-plug": "*",
 				},
 			},
 		},
 	})
 
-	check := func(conns map[string]interface{}, repoConns []*interfaces.ConnRef) {
+	check := func(conns map[string]any, repoConns []*interfaces.ConnRef) {
 		c.Check(repoConns, HasLen, 2)
 
-		c.Check(conns, DeepEquals, map[string]interface{}{
-			"theme-consumer:plug theme1:slot": map[string]interface{}{
+		c.Check(conns, DeepEquals, map[string]any{
+			"theme-consumer:plug theme1:slot": map[string]any{
 				"auto":        true,
 				"interface":   "content",
-				"plug-static": map[string]interface{}{"content": "themes"},
-				"slot-static": map[string]interface{}{"content": "themes"},
+				"plug-static": map[string]any{"content": "themes"},
+				"slot-static": map[string]any{"content": "themes"},
 			},
-			"theme-consumer:plug theme2:slot": map[string]interface{}{
+			"theme-consumer:plug theme2:slot": map[string]any{
 				"auto":        true,
 				"interface":   "content",
-				"plug-static": map[string]interface{}{"content": "themes"},
-				"slot-static": map[string]interface{}{"content": "themes"},
+				"plug-static": map[string]any{"content": "themes"},
+				"slot-static": map[string]any{"content": "themes"},
 			},
 		})
 	}
@@ -9909,7 +9909,7 @@ func (s *interfaceManagerSuite) TestDoSetupSnapSecurityAutoConnectsDeclBasedAnyS
 	s.testDoSetupSnapSecurityAutoConnectsDeclBasedAnySlotsPerPlug(c, check)
 }
 
-func (s *interfaceManagerSuite) testDoSetupSnapSecurityAutoConnectsDeclBasedAnySlotsPerPlug(c *C, check func(map[string]interface{}, []*interfaces.ConnRef)) {
+func (s *interfaceManagerSuite) testDoSetupSnapSecurityAutoConnectsDeclBasedAnySlotsPerPlug(c *C, check func(map[string]any, []*interfaces.ConnRef)) {
 	const theme1Yaml = `
 name: theme1
 version: 1
@@ -9957,7 +9957,7 @@ plugs:
 	// Ensure that the task succeeded.
 	c.Assert(change.Status(), Equals, state.DoneStatus)
 
-	var conns map[string]interface{}
+	var conns map[string]any
 	_ = s.state.Get("conns", &conns)
 
 	repo := mgr.Repository()
@@ -9971,11 +9971,11 @@ func (s *interfaceManagerSuite) TestDoSetupSnapSecurityAutoConnectsDeclBasedAnyS
 	s.MockModel(c, nil)
 
 	// the producer snap
-	s.MockSnapDecl(c, "theme1", "one-publisher", map[string]interface{}{
+	s.MockSnapDecl(c, "theme1", "one-publisher", map[string]any{
 		"format": "1",
-		"slots": map[string]interface{}{
-			"content": map[string]interface{}{
-				"allow-auto-connection": map[string]interface{}{
+		"slots": map[string]any{
+			"content": map[string]any{
+				"allow-auto-connection": map[string]any{
 					"slots-per-plug": "*",
 				},
 			},
@@ -9983,11 +9983,11 @@ func (s *interfaceManagerSuite) TestDoSetupSnapSecurityAutoConnectsDeclBasedAnyS
 	})
 
 	// 2nd producer snap
-	s.MockSnapDecl(c, "theme2", "one-publisher", map[string]interface{}{
+	s.MockSnapDecl(c, "theme2", "one-publisher", map[string]any{
 		"format": "1",
-		"slots": map[string]interface{}{
-			"content": map[string]interface{}{
-				"allow-auto-connection": map[string]interface{}{
+		"slots": map[string]any{
+			"content": map[string]any{
+				"allow-auto-connection": map[string]any{
 					"slots-per-plug": "*",
 				},
 			},
@@ -9997,21 +9997,21 @@ func (s *interfaceManagerSuite) TestDoSetupSnapSecurityAutoConnectsDeclBasedAnyS
 	// the consumer
 	s.MockSnapDecl(c, "theme-consumer", "one-publisher", nil)
 
-	check := func(conns map[string]interface{}, repoConns []*interfaces.ConnRef) {
+	check := func(conns map[string]any, repoConns []*interfaces.ConnRef) {
 		c.Check(repoConns, HasLen, 2)
 
-		c.Check(conns, DeepEquals, map[string]interface{}{
-			"theme-consumer:plug theme1:slot": map[string]interface{}{
+		c.Check(conns, DeepEquals, map[string]any{
+			"theme-consumer:plug theme1:slot": map[string]any{
 				"auto":        true,
 				"interface":   "content",
-				"plug-static": map[string]interface{}{"content": "themes"},
-				"slot-static": map[string]interface{}{"content": "themes"},
+				"plug-static": map[string]any{"content": "themes"},
+				"slot-static": map[string]any{"content": "themes"},
 			},
-			"theme-consumer:plug theme2:slot": map[string]interface{}{
+			"theme-consumer:plug theme2:slot": map[string]any{
 				"auto":        true,
 				"interface":   "content",
-				"plug-static": map[string]interface{}{"content": "themes"},
-				"slot-static": map[string]interface{}{"content": "themes"},
+				"plug-static": map[string]any{"content": "themes"},
+				"slot-static": map[string]any{"content": "themes"},
 			},
 		})
 	}
@@ -10023,11 +10023,11 @@ func (s *interfaceManagerSuite) TestDoSetupSnapSecurityAutoConnectsDeclBasedAnyS
 	s.MockModel(c, nil)
 
 	// the producer snap
-	s.MockSnapDecl(c, "theme1", "one-publisher", map[string]interface{}{
+	s.MockSnapDecl(c, "theme1", "one-publisher", map[string]any{
 		"format": "1",
-		"slots": map[string]interface{}{
-			"content": map[string]interface{}{
-				"allow-auto-connection": map[string]interface{}{
+		"slots": map[string]any{
+			"content": map[string]any{
+				"allow-auto-connection": map[string]any{
 					"slots-per-plug": "*",
 				},
 			},
@@ -10035,11 +10035,11 @@ func (s *interfaceManagerSuite) TestDoSetupSnapSecurityAutoConnectsDeclBasedAnyS
 	})
 
 	// 2nd producer snap
-	s.MockSnapDecl(c, "theme2", "one-publisher", map[string]interface{}{
+	s.MockSnapDecl(c, "theme2", "one-publisher", map[string]any{
 		"format": "1",
-		"slots": map[string]interface{}{
-			"content": map[string]interface{}{
-				"allow-auto-connection": map[string]interface{}{
+		"slots": map[string]any{
+			"content": map[string]any{
+				"allow-auto-connection": map[string]any{
 					"slots-per-plug": "1",
 				},
 			},
@@ -10049,7 +10049,7 @@ func (s *interfaceManagerSuite) TestDoSetupSnapSecurityAutoConnectsDeclBasedAnyS
 	// the consumer
 	s.MockSnapDecl(c, "theme-consumer", "one-publisher", nil)
 
-	check := func(conns map[string]interface{}, repoConns []*interfaces.ConnRef) {
+	check := func(conns map[string]any, repoConns []*interfaces.ConnRef) {
 		// slots-per-plug were ambigous, nothing was connected
 		c.Check(repoConns, HasLen, 0)
 		c.Check(conns, HasLen, 0)
@@ -10088,12 +10088,12 @@ slots:
 
 	mgr := s.manager(c)
 
-	s.MockSnapDecl(c, "consumer", "one-publisher", map[string]interface{}{
+	s.MockSnapDecl(c, "consumer", "one-publisher", map[string]any{
 		"format": "4",
-		"plugs": map[string]interface{}{
-			"test": map[string]interface{}{
-				"allow-auto-connection": map[string]interface{}{
-					"slot-names": []interface{}{
+		"plugs": map[string]any{
+			"test": map[string]any{
+				"allow-auto-connection": map[string]any{
+					"slot-names": []any{
 						"test1",
 					},
 				},
@@ -10124,15 +10124,15 @@ plugs:
 	// Ensure that the task succeeded.
 	c.Assert(change.Status(), Equals, state.DoneStatus)
 
-	var conns map[string]interface{}
+	var conns map[string]any
 	_ = s.state.Get("conns", &conns)
 
 	repo := mgr.Repository()
 	plug := repo.Plug("consumer", "test")
 	c.Assert(plug, Not(IsNil))
 
-	c.Check(conns, DeepEquals, map[string]interface{}{
-		"consumer:test gadget:test1": map[string]interface{}{"auto": true, "interface": "test"},
+	c.Check(conns, DeepEquals, map[string]any{
+		"consumer:test gadget:test1": map[string]any{"auto": true, "interface": "test"},
 	})
 	c.Check(repo.Interfaces().Connections, HasLen, 1)
 }
@@ -10902,7 +10902,7 @@ version: 1.0
 	_, err = repo.Connect(connRef, nil, nil, nil, nil, nil)
 	c.Assert(err, IsNil)
 
-	s.state.Set("conns", map[string]interface{}{"consumer2:plug producer2:slot": map[string]interface{}{"interface": "test"}})
+	s.state.Set("conns", map[string]any{"consumer2:plug producer2:slot": map[string]any{"interface": "test"}})
 
 	// mock new snaps for the refresh
 	snaptest.MockSnap(c, consumer2Yaml, &snap.SideInfo{Revision: snap.R(2)})
@@ -11034,10 +11034,10 @@ func (s *interfaceManagerSuite) TestInterfacesRequestsControlHandlerServicesDisc
 
 	s.state.Lock()
 	defer s.state.Unlock()
-	s.state.Set("conns", map[string]interface{}{
-		"test-snap:snap-interfaces-requests-control core:snap-interfaces-requests-control": map[string]interface{}{
+	s.state.Set("conns", map[string]any{
+		"test-snap:snap-interfaces-requests-control core:snap-interfaces-requests-control": map[string]any{
 			"interface": "snap-interfaces-requests-control",
-			"plug-static": map[string]interface{}{
+			"plug-static": map[string]any{
 				"handler-service": "prompts-handler",
 			},
 			// manually disconnected
@@ -11125,22 +11125,22 @@ plugs:
 		SnapType: "app",
 	})
 
-	plugStatic := map[string]interface{}{}
+	plugStatic := map[string]any{}
 	if opts.hasHandler {
 		plugStatic["handler-service"] = "prompts-handler"
 	}
 
-	var conns map[string]interface{}
+	var conns map[string]any
 	err := s.state.Get("conns", &conns)
 	if err != nil {
 		if errors.Is(err, state.ErrNoState) {
-			conns = map[string]interface{}{}
+			conns = map[string]any{}
 		} else {
 			c.Fatalf("unexpected error: %v", err)
 		}
 	}
 
-	conns[fmt.Sprintf("%s:snap-interfaces-requests-control core:snap-interfaces-requests-control", name)] = map[string]interface{}{
+	conns[fmt.Sprintf("%s:snap-interfaces-requests-control core:snap-interfaces-requests-control", name)] = map[string]any{
 		"interface":   "snap-interfaces-requests-control",
 		"plug-static": plugStatic,
 	}
@@ -11151,14 +11151,14 @@ plugs:
 func (s *interfaceManagerSuite) testDoSetupProfilesForMultiConnectedPlugOnRefresh(c *C, refreshedSnap string) (consideredConns []string) {
 	// Have a plug connected to two slots. And second witness plug on a different snap.
 	s.state.Lock()
-	s.state.Set("conns", map[string]interface{}{
-		"consumer:plug producer:slot": map[string]interface{}{
+	s.state.Set("conns", map[string]any{
+		"consumer:plug producer:slot": map[string]any{
 			"interface": "test",
 		},
-		"consumer:plug producer2:slot": map[string]interface{}{
+		"consumer:plug producer2:slot": map[string]any{
 			"interface": "test",
 		},
-		"consumer2:plug producer3:slot": map[string]interface{}{
+		"consumer2:plug producer3:slot": map[string]any{
 			"interface": "test",
 		},
 	})
@@ -11302,8 +11302,8 @@ func (s *interfaceManagerSuite) TestDoSetupProfilesForMultiConnectedPlugConsumer
 
 func (s *interfaceManagerSuite) TestDoRegenerateSecurityProfilesHappy(c *C) {
 	s.state.Lock()
-	s.state.Set("conns", map[string]interface{}{
-		"consumer:plug producer:slot": map[string]interface{}{
+	s.state.Set("conns", map[string]any{
+		"consumer:plug producer:slot": map[string]any{
 			"interface": "test",
 		},
 	})
@@ -11405,8 +11405,8 @@ type regenerateSecurityTestCase struct {
 
 func (s *interfaceManagerSuite) testDoRegenerateSecurityProfilesError(c *C, tc regenerateSecurityTestCase) {
 	s.state.Lock()
-	s.state.Set("conns", map[string]interface{}{
-		"consumer:plug producer:slot": map[string]interface{}{
+	s.state.Set("conns", map[string]any{
+		"consumer:plug producer:slot": map[string]any{
 			"interface": "test",
 		},
 	})

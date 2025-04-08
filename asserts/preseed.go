@@ -111,7 +111,7 @@ func (p *Preseed) Snaps() []*PreseedSnap {
 	return p.snaps
 }
 
-func checkPreseedSnap(snap map[string]interface{}) (*PreseedSnap, error) {
+func checkPreseedSnap(snap map[string]any) (*PreseedSnap, error) {
 	name, err := checkNotEmptyStringWhat(snap, "name", "of snap")
 	if err != nil {
 		return nil, err
@@ -164,10 +164,10 @@ func checkPreseedSnap(snap map[string]interface{}) (*PreseedSnap, error) {
 	}, nil
 }
 
-func checkPreseedComponents(comps interface{}, snapRevision int) ([]PreseedComponent, error) {
+func checkPreseedComponents(comps any, snapRevision int) ([]PreseedComponent, error) {
 	const wrongHeaderType = `"components" header must be a list of maps`
 
-	entries, ok := comps.([]interface{})
+	entries, ok := comps.([]any)
 	if !ok {
 		return nil, errors.New(wrongHeaderType)
 	}
@@ -175,7 +175,7 @@ func checkPreseedComponents(comps interface{}, snapRevision int) ([]PreseedCompo
 	seen := make(map[string]bool)
 	components := make([]PreseedComponent, 0, len(entries))
 	for _, entry := range entries {
-		comp, ok := entry.(map[string]interface{})
+		comp, ok := entry.(map[string]any)
 		if !ok {
 			return nil, errors.New(wrongHeaderType)
 		}
@@ -196,7 +196,7 @@ func checkPreseedComponents(comps interface{}, snapRevision int) ([]PreseedCompo
 	return components, nil
 }
 
-func checkPreseedComponent(comp map[string]interface{}, snapRevision int) (PreseedComponent, error) {
+func checkPreseedComponent(comp map[string]any, snapRevision int) (PreseedComponent, error) {
 	name, err := checkNotEmptyStringWhat(comp, "name", "of component")
 	if err != nil {
 		return PreseedComponent{}, err
@@ -230,10 +230,10 @@ func checkPreseedComponent(comp map[string]interface{}, snapRevision int) (Prese
 	}, nil
 }
 
-func checkPreseedSnaps(snapList interface{}) ([]*PreseedSnap, error) {
+func checkPreseedSnaps(snapList any) ([]*PreseedSnap, error) {
 	const wrongHeaderType = `"snaps" header must be a list of maps`
 
-	entries, ok := snapList.([]interface{})
+	entries, ok := snapList.([]any)
 	if !ok {
 		return nil, fmt.Errorf(wrongHeaderType)
 	}
@@ -242,7 +242,7 @@ func checkPreseedSnaps(snapList interface{}) ([]*PreseedSnap, error) {
 	seenIDs := make(map[string]string, len(entries))
 	snaps := make([]*PreseedSnap, 0, len(entries))
 	for _, entry := range entries {
-		snap, ok := entry.(map[string]interface{})
+		snap, ok := entry.(map[string]any)
 		if !ok {
 			return nil, fmt.Errorf(wrongHeaderType)
 		}

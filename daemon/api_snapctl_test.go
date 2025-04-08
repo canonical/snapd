@@ -108,7 +108,7 @@ func (s *snapctlSuite) TestSnapctlUnsuccesfulError(c *check.C) {
 	rspe := s.errorReq(c, req, nil)
 	c.Check(rspe.Status, check.Equals, 200)
 	c.Check(rspe.Kind, check.Equals, client.ErrorKindUnsuccessful)
-	c.Check(rspe.Value, check.DeepEquals, map[string]interface{}{
+	c.Check(rspe.Value, check.DeepEquals, map[string]any{
 		"stdout":    "",
 		"stderr":    "",
 		"exit-code": 123,

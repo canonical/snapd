@@ -80,7 +80,7 @@ func MockConnectedPlugWithComponents(c *check.C, yaml string, si *snap.SideInfo,
 	return interfaces.NewConnectedPlug(plugInfo, set, nil, nil), plugInfo
 }
 
-func MockConnectedSlotWithAttrs(c *check.C, yaml string, si *snap.SideInfo, slotName string, staticAttrs, dynamicAttrs map[string]interface{}) (*interfaces.ConnectedSlot, *snap.SlotInfo) {
+func MockConnectedSlotWithAttrs(c *check.C, yaml string, si *snap.SideInfo, slotName string, staticAttrs, dynamicAttrs map[string]any) (*interfaces.ConnectedSlot, *snap.SlotInfo) {
 	info := snaptest.MockInfo(c, yaml, si)
 
 	set, err := interfaces.NewSnapAppSet(info, nil)
@@ -94,7 +94,7 @@ func MockConnectedSlotWithAttrs(c *check.C, yaml string, si *snap.SideInfo, slot
 	return interfaces.NewConnectedSlot(slotInfo, set, staticAttrs, dynamicAttrs), slotInfo
 }
 
-func MockConnectedPlugWithAttrs(c *check.C, yaml string, si *snap.SideInfo, plugName string, staticAttrs, dynamicAttrs map[string]interface{}) (*interfaces.ConnectedPlug, *snap.PlugInfo) {
+func MockConnectedPlugWithAttrs(c *check.C, yaml string, si *snap.SideInfo, plugName string, staticAttrs, dynamicAttrs map[string]any) (*interfaces.ConnectedPlug, *snap.PlugInfo) {
 	info := snaptest.MockInfo(c, yaml, si)
 
 	set, err := interfaces.NewSnapAppSet(info, nil)

@@ -123,13 +123,13 @@ func (s *seed20Suite) SetUpTest(c *C) {
 
 	s.TestingSeed20 = &seedtest.TestingSeed20{}
 	s.SetupAssertSigning("canonical")
-	s.Brands.Register("my-brand", brandPrivKey, map[string]interface{}{
+	s.Brands.Register("my-brand", brandPrivKey, map[string]any{
 		"verification": "verified",
 	})
 	s.Brands.Register("other-brand", otherbrandPrivKey, nil)
 	// needed by TestingSeed20.MakeSeed (to work with makeSnap)
 
-	s.devAcct = assertstest.NewAccount(s.StoreSigning, "developer", map[string]interface{}{
+	s.devAcct = assertstest.NewAccount(s.StoreSigning, "developer", map[string]any{
 		"account-id": "developerid",
 	}, "")
 	assertstest.AddMany(s.StoreSigning, s.devAcct)
@@ -168,18 +168,18 @@ func (s *seed20Suite) TestLoadMetaCore20Minimal(c *C) {
 	s.makeSnap(c, "pc=20", "")
 
 	sysLabel := "20191018"
-	s.MakeSeed(c, sysLabel, "my-brand", "my-model", map[string]interface{}{
+	s.MakeSeed(c, sysLabel, "my-brand", "my-model", map[string]any{
 		"display-name": "my model",
 		"architecture": "amd64",
 		"base":         "core20",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":            "pc-kernel",
 				"id":              s.AssertedSnapID("pc-kernel"),
 				"type":            "kernel",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "pc",
 				"id":              s.AssertedSnapID("pc"),
 				"type":            "gadget",
@@ -256,18 +256,18 @@ func (s *seed20Suite) makeCore20MinimalSeed(c *C, sysLabel string) string {
 	s.makeSnap(c, "pc-kernel=20", "")
 	s.makeSnap(c, "pc=20", "")
 
-	s.MakeSeed(c, sysLabel, "my-brand", "my-model", map[string]interface{}{
+	s.MakeSeed(c, sysLabel, "my-brand", "my-model", map[string]any{
 		"display-name": "my model",
 		"architecture": "amd64",
 		"base":         "core20",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":            "pc-kernel",
 				"id":              s.AssertedSnapID("pc-kernel"),
 				"type":            "kernel",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "pc",
 				"id":              s.AssertedSnapID("pc"),
 				"type":            "gadget",
@@ -372,7 +372,7 @@ func (s *seed20Suite) TestLoadAssertionsMultiSnapRev(c *C) {
 	sysLabel := "20191031"
 	sysDir := s.makeCore20MinimalSeed(c, sysLabel)
 
-	spuriousRev, err := s.StoreSigning.Sign(asserts.SnapRevisionType, map[string]interface{}{
+	spuriousRev, err := s.StoreSigning.Sign(asserts.SnapRevisionType, map[string]any{
 		"snap-sha3-384": strings.Repeat("B", 64),
 		"snap-size":     "1000",
 		"snap-id":       s.AssertedSnapID("core20"),
@@ -399,7 +399,7 @@ func (s *seed20Suite) TestLoadAssertionsMultiSnapDecl(c *C) {
 	sysLabel := "20191031"
 	sysDir := s.makeCore20MinimalSeed(c, sysLabel)
 
-	spuriousDecl, err := s.StoreSigning.Sign(asserts.SnapDeclarationType, map[string]interface{}{
+	spuriousDecl, err := s.StoreSigning.Sign(asserts.SnapDeclarationType, map[string]any{
 		"series":       "16",
 		"snap-id":      "idididididididididididididididid",
 		"publisher-id": "canonical",
@@ -408,7 +408,7 @@ func (s *seed20Suite) TestLoadAssertionsMultiSnapDecl(c *C) {
 	}, nil, "")
 	c.Assert(err, IsNil)
 
-	spuriousRev, err := s.StoreSigning.Sign(asserts.SnapRevisionType, map[string]interface{}{
+	spuriousRev, err := s.StoreSigning.Sign(asserts.SnapRevisionType, map[string]any{
 		"snap-sha3-384": strings.Repeat("B", 64),
 		"snap-size":     "1000",
 		"snap-id":       s.AssertedSnapID("core20"),
@@ -442,25 +442,25 @@ func (s *seed20Suite) TestLoadMetaMissingSnapDeclByName(c *C) {
 	s.makeSnap(c, "pc-kernel=20", "")
 	s.makeSnap(c, "pc=20", "")
 
-	s.MakeSeed(c, sysLabel, "my-brand", "my-model", map[string]interface{}{
+	s.MakeSeed(c, sysLabel, "my-brand", "my-model", map[string]any{
 		"display-name": "my model",
 		"architecture": "amd64",
 		"base":         "core20",
 		"grade":        "dangerous",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":            "pc-kernel",
 				"id":              s.AssertedSnapID("pc-kernel"),
 				"type":            "kernel",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "pc",
 				"id":              s.AssertedSnapID("pc"),
 				"type":            "gadget",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name": "core20",
 				// no id
 				"type": "base",
@@ -469,7 +469,7 @@ func (s *seed20Suite) TestLoadMetaMissingSnapDeclByName(c *C) {
 
 	sysDir := filepath.Join(s.SeedDir, "systems", sysLabel)
 
-	wrongDecl, err := s.StoreSigning.Sign(asserts.SnapDeclarationType, map[string]interface{}{
+	wrongDecl, err := s.StoreSigning.Sign(asserts.SnapDeclarationType, map[string]any{
 		"series":       "16",
 		"snap-id":      "idididididididididididididididid",
 		"publisher-id": "canonical",
@@ -478,7 +478,7 @@ func (s *seed20Suite) TestLoadMetaMissingSnapDeclByName(c *C) {
 	}, nil, "")
 	c.Assert(err, IsNil)
 
-	wrongRev, err := s.StoreSigning.Sign(asserts.SnapRevisionType, map[string]interface{}{
+	wrongRev, err := s.StoreSigning.Sign(asserts.SnapRevisionType, map[string]any{
 		"snap-sha3-384": strings.Repeat("B", 64),
 		"snap-size":     "1000",
 		"snap-id":       "idididididididididididididididid",
@@ -512,7 +512,7 @@ func (s *seed20Suite) TestLoadMetaMissingSnapDeclByID(c *C) {
 	sysLabel := "20191031"
 	sysDir := s.makeCore20MinimalSeed(c, sysLabel)
 
-	wrongDecl, err := s.StoreSigning.Sign(asserts.SnapDeclarationType, map[string]interface{}{
+	wrongDecl, err := s.StoreSigning.Sign(asserts.SnapDeclarationType, map[string]any{
 		"series":       "16",
 		"snap-id":      "idididididididididididididididid",
 		"publisher-id": "canonical",
@@ -521,7 +521,7 @@ func (s *seed20Suite) TestLoadMetaMissingSnapDeclByID(c *C) {
 	}, nil, "")
 	c.Assert(err, IsNil)
 
-	wrongRev, err := s.StoreSigning.Sign(asserts.SnapRevisionType, map[string]interface{}{
+	wrongRev, err := s.StoreSigning.Sign(asserts.SnapRevisionType, map[string]any{
 		"snap-sha3-384": strings.Repeat("B", 64),
 		"snap-size":     "1000",
 		"snap-id":       "idididididididididididididididid",
@@ -590,7 +590,7 @@ func (s *seed20Suite) TestLoadMetaWrongHashSnap(c *C) {
 	sysDir := s.makeCore20MinimalSeed(c, sysLabel)
 
 	pcRev := s.AssertedSnapRevision("pc")
-	wrongRev, err := s.StoreSigning.Sign(asserts.SnapRevisionType, map[string]interface{}{
+	wrongRev, err := s.StoreSigning.Sign(asserts.SnapRevisionType, map[string]any{
 		"snap-sha3-384": strings.Repeat("B", 64),
 		"snap-size":     pcRev.HeaderString("snap-size"),
 		"snap-id":       s.AssertedSnapID("pc"),
@@ -663,24 +663,24 @@ func (s *seed20Suite) TestLoadMetaCore20(c *C) {
 	s.setSnapContact("required20", "mailto:author@example.com")
 
 	sysLabel := "20191018"
-	s.MakeSeed(c, sysLabel, "my-brand", "my-model", map[string]interface{}{
+	s.MakeSeed(c, sysLabel, "my-brand", "my-model", map[string]any{
 		"display-name": "my model",
 		"architecture": "amd64",
 		"base":         "core20",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":            "pc-kernel",
 				"id":              s.AssertedSnapID("pc-kernel"),
 				"type":            "kernel",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "pc",
 				"id":              s.AssertedSnapID("pc"),
 				"type":            "gadget",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name": "required20",
 				"id":   s.AssertedSnapID("required20"),
 			}},
@@ -759,35 +759,35 @@ func (s *seed20Suite) TestLoadMetaCore20DelegatedSnap(c *C) {
 	s.makeSnap(c, "pc=20", "")
 
 	assertstest.AddMany(s.StoreSigning, s.Brands.AccountsAndKeys("my-brand")...)
-	ra := map[string]interface{}{
+	ra := map[string]any{
 		"account-id": "my-brand",
-		"provenance": []interface{}{"delegated-prov"},
-		"on-store":   []interface{}{"my-brand-store"},
+		"provenance": []any{"delegated-prov"},
+		"on-store":   []any{"my-brand-store"},
 	}
 	s.MakeAssertedDelegatedSnap(c, snapYaml["required20"]+"\nprovenance: delegated-prov\n", nil, snap.R(1), "developerid", "my-brand", "delegated-prov", "delegated-prov", ra, s.StoreSigning.Database)
 
 	s.setSnapContact("required20", "mailto:author@example.com")
 
 	sysLabel := "20220705"
-	s.MakeSeed(c, sysLabel, "my-brand", "my-model", map[string]interface{}{
+	s.MakeSeed(c, sysLabel, "my-brand", "my-model", map[string]any{
 		"display-name": "my model",
 		"architecture": "amd64",
 		"store":        "my-brand-store",
 		"base":         "core20",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":            "pc-kernel",
 				"id":              s.AssertedSnapID("pc-kernel"),
 				"type":            "kernel",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "pc",
 				"id":              s.AssertedSnapID("pc"),
 				"type":            "gadget",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name": "required20",
 				"id":   s.AssertedSnapID("required20"),
 			}},
@@ -864,33 +864,33 @@ func (s *seed20Suite) TestLoadMetaCore20DelegatedSnapProvenanceMismatch(c *C) {
 	s.makeSnap(c, "pc=20", "")
 
 	assertstest.AddMany(s.StoreSigning, s.Brands.AccountsAndKeys("my-brand")...)
-	ra := map[string]interface{}{
+	ra := map[string]any{
 		"account-id": "my-brand",
-		"provenance": []interface{}{"delegated-prov"},
-		"on-store":   []interface{}{"my-brand-store"},
+		"provenance": []any{"delegated-prov"},
+		"on-store":   []any{"my-brand-store"},
 	}
 	s.MakeAssertedDelegatedSnap(c, snapYaml["required20"]+"\nprovenance: delegated-prov-other\n", nil, snap.R(1), "developerid", "my-brand", "delegated-prov", "delegated-prov", ra, s.StoreSigning.Database)
 
 	sysLabel := "20220705"
-	s.MakeSeed(c, sysLabel, "my-brand", "my-model", map[string]interface{}{
+	s.MakeSeed(c, sysLabel, "my-brand", "my-model", map[string]any{
 		"display-name": "my model",
 		"architecture": "amd64",
 		"store":        "my-brand-store",
 		"base":         "core20",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":            "pc-kernel",
 				"id":              s.AssertedSnapID("pc-kernel"),
 				"type":            "kernel",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "pc",
 				"id":              s.AssertedSnapID("pc"),
 				"type":            "gadget",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name": "required20",
 				"id":   s.AssertedSnapID("required20"),
 			}},
@@ -913,33 +913,33 @@ func (s *seed20Suite) TestLoadMetaCore20DelegatedSnapDeviceMismatch(c *C) {
 	s.makeSnap(c, "pc=20", "")
 
 	assertstest.AddMany(s.StoreSigning, s.Brands.AccountsAndKeys("my-brand")...)
-	ra := map[string]interface{}{
+	ra := map[string]any{
 		"account-id": "my-brand",
-		"provenance": []interface{}{"delegated-prov"},
-		"on-model":   []interface{}{"my-brand/my-other-model"},
+		"provenance": []any{"delegated-prov"},
+		"on-model":   []any{"my-brand/my-other-model"},
 	}
 	s.MakeAssertedDelegatedSnap(c, snapYaml["required20"]+"\nprovenance: delegated-prov\n", nil, snap.R(1), "developerid", "my-brand", "delegated-prov", "delegated-prov", ra, s.StoreSigning.Database)
 
 	sysLabel := "20220705"
-	s.MakeSeed(c, sysLabel, "my-brand", "my-model", map[string]interface{}{
+	s.MakeSeed(c, sysLabel, "my-brand", "my-model", map[string]any{
 		"display-name": "my model",
 		"architecture": "amd64",
 		"store":        "my-brand-store",
 		"base":         "core20",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":            "pc-kernel",
 				"id":              s.AssertedSnapID("pc-kernel"),
 				"type":            "kernel",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "pc",
 				"id":              s.AssertedSnapID("pc"),
 				"type":            "gadget",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name": "required20",
 				"id":   s.AssertedSnapID("required20"),
 			}},
@@ -990,29 +990,29 @@ func (s *seed20Suite) TestLoadEssentialMetaCore20(c *C) {
 	s.makeSnap(c, "required18", "developerid")
 
 	sysLabel := "20191018"
-	s.MakeSeed(c, sysLabel, "my-brand", "my-model", map[string]interface{}{
+	s.MakeSeed(c, sysLabel, "my-brand", "my-model", map[string]any{
 		"display-name": "my model",
 		"architecture": "amd64",
 		"base":         "core20",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":            "pc-kernel",
 				"id":              s.AssertedSnapID("pc-kernel"),
 				"type":            "kernel",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "pc",
 				"id":              s.AssertedSnapID("pc"),
 				"type":            "gadget",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name": "core18",
 				"id":   s.AssertedSnapID("core18"),
 				"type": "base",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name": "required18",
 				"id":   s.AssertedSnapID("required18"),
 			}},
@@ -1130,29 +1130,29 @@ func (s *seed20Suite) TestLoadEssentialMetaWithSnapHandlerCore20(c *C) {
 	s.makeSnap(c, "required18", "developerid")
 
 	sysLabel := "20191018"
-	s.MakeSeed(c, sysLabel, "my-brand", "my-model", map[string]interface{}{
+	s.MakeSeed(c, sysLabel, "my-brand", "my-model", map[string]any{
 		"display-name": "my model",
 		"architecture": "amd64",
 		"base":         "core20",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":            "pc-kernel",
 				"id":              s.AssertedSnapID("pc-kernel"),
 				"type":            "kernel",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "pc",
 				"id":              s.AssertedSnapID("pc"),
 				"type":            "gadget",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name": "core18",
 				"id":   s.AssertedSnapID("core18"),
 				"type": "base",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name": "required18",
 				"id":   s.AssertedSnapID("required18"),
 			}},
@@ -1234,30 +1234,30 @@ func (s *seed20Suite) TestReadSystemEssentialAndBetterEarliestTime(c *C) {
 	baseLabel := "20210315"
 
 	testReadSystemEssentialAndBetterEarliestTime := func(sysLabel string, earliestTime, modelTime, improvedTime time.Time) {
-		s.MakeSeed(c, sysLabel, "my-brand", "my-model", map[string]interface{}{
+		s.MakeSeed(c, sysLabel, "my-brand", "my-model", map[string]any{
 			"display-name": "my model",
 			"timestamp":    modelTime.Format(time.RFC3339),
 			"architecture": "amd64",
 			"base":         "core20",
-			"snaps": []interface{}{
-				map[string]interface{}{
+			"snaps": []any{
+				map[string]any{
 					"name":            "pc-kernel",
 					"id":              s.AssertedSnapID("pc-kernel"),
 					"type":            "kernel",
 					"default-channel": "20",
 				},
-				map[string]interface{}{
+				map[string]any{
 					"name":            "pc",
 					"id":              s.AssertedSnapID("pc"),
 					"type":            "gadget",
 					"default-channel": "20",
 				},
-				map[string]interface{}{
+				map[string]any{
 					"name": "core18",
 					"id":   s.AssertedSnapID("core18"),
 					"type": "base",
 				},
-				map[string]interface{}{
+				map[string]any{
 					"name": "required18",
 					"id":   s.AssertedSnapID("required18"),
 				}},
@@ -1308,19 +1308,19 @@ func (s *seed20Suite) TestReadSystemEssentialAndBetterEarliestTimeParallelism(c 
 	s.makeSnap(c, "pc=20", "")
 
 	sysLabel := "20191018"
-	s.MakeSeed(c, sysLabel, "my-brand", "my-model", map[string]interface{}{
+	s.MakeSeed(c, sysLabel, "my-brand", "my-model", map[string]any{
 		"display-name": "my model",
 		"timestamp":    time.Now().Format(time.RFC3339),
 		"architecture": "amd64",
 		"base":         "core20",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":            "pc-kernel",
 				"id":              s.AssertedSnapID("pc-kernel"),
 				"type":            "kernel",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "pc",
 				"id":              s.AssertedSnapID("pc"),
 				"type":            "gadget",
@@ -1346,29 +1346,29 @@ func (s *seed20Suite) TestLoadEssentialAndMetaCore20(c *C) {
 	s.makeSnap(c, "required18", "developerid")
 
 	sysLabel := "20191018"
-	s.MakeSeed(c, sysLabel, "my-brand", "my-model", map[string]interface{}{
+	s.MakeSeed(c, sysLabel, "my-brand", "my-model", map[string]any{
 		"display-name": "my model",
 		"architecture": "amd64",
 		"base":         "core20",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":            "pc-kernel",
 				"id":              s.AssertedSnapID("pc-kernel"),
 				"type":            "kernel",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "pc",
 				"id":              s.AssertedSnapID("pc"),
 				"type":            "gadget",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name": "core18",
 				"id":   s.AssertedSnapID("core18"),
 				"type": "base",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name": "required18",
 				"id":   s.AssertedSnapID("required18"),
 			}},
@@ -1472,25 +1472,25 @@ func (s *seed20Suite) TestLoadMetaCore20LocalSnaps(c *C) {
 	requiredFn := s.makeLocalSnap(c, "required20")
 
 	sysLabel := "20191030"
-	s.MakeSeed(c, sysLabel, "my-brand", "my-model", map[string]interface{}{
+	s.MakeSeed(c, sysLabel, "my-brand", "my-model", map[string]any{
 		"display-name": "my model",
 		"architecture": "amd64",
 		"base":         "core20",
 		"grade":        "dangerous",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":            "pc-kernel",
 				"id":              s.AssertedSnapID("pc-kernel"),
 				"type":            "kernel",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "pc",
 				"id":              s.AssertedSnapID("pc"),
 				"type":            "gadget",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name": "required20",
 				"id":   s.AssertedSnapID("required20"),
 			}},
@@ -1565,25 +1565,25 @@ func (s *seed20Suite) TestLoadMetaCore20SnapHandler(c *C) {
 	requiredFn := s.makeLocalSnap(c, "required20")
 
 	sysLabel := "20191030"
-	s.MakeSeed(c, sysLabel, "my-brand", "my-model", map[string]interface{}{
+	s.MakeSeed(c, sysLabel, "my-brand", "my-model", map[string]any{
 		"display-name": "my model",
 		"architecture": "amd64",
 		"base":         "core20",
 		"grade":        "dangerous",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":            "pc-kernel",
 				"id":              s.AssertedSnapID("pc-kernel"),
 				"type":            "kernel",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "pc",
 				"id":              s.AssertedSnapID("pc"),
 				"type":            "gadget",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name": "required20",
 				"id":   s.AssertedSnapID("required20"),
 			}},
@@ -1670,25 +1670,25 @@ func (s *seed20Suite) TestLoadMetaCore20SnapHandlerChangePath(c *C) {
 	requiredFn := s.makeLocalSnap(c, "required20")
 
 	sysLabel := "20191030"
-	s.MakeSeed(c, sysLabel, "my-brand", "my-model", map[string]interface{}{
+	s.MakeSeed(c, sysLabel, "my-brand", "my-model", map[string]any{
 		"display-name": "my model",
 		"architecture": "amd64",
 		"base":         "core20",
 		"grade":        "dangerous",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":            "pc-kernel",
 				"id":              s.AssertedSnapID("pc-kernel"),
 				"type":            "kernel",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "pc",
 				"id":              s.AssertedSnapID("pc"),
 				"type":            "gadget",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name": "required20",
 				"id":   s.AssertedSnapID("required20"),
 			}},
@@ -1778,25 +1778,25 @@ func (s *seed20Suite) TestLoadMetaCore20ChannelOverride(c *C) {
 	s.setSnapContact("required20", "mailto:author@example.com")
 
 	sysLabel := "20191018"
-	s.MakeSeed(c, sysLabel, "my-brand", "my-model", map[string]interface{}{
+	s.MakeSeed(c, sysLabel, "my-brand", "my-model", map[string]any{
 		"display-name": "my model",
 		"architecture": "amd64",
 		"base":         "core20",
 		"grade":        "dangerous",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":            "pc-kernel",
 				"id":              s.AssertedSnapID("pc-kernel"),
 				"type":            "kernel",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "pc",
 				"id":              s.AssertedSnapID("pc"),
 				"type":            "gadget",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name": "required20",
 				"id":   s.AssertedSnapID("required20"),
 			}},
@@ -1873,25 +1873,25 @@ func (s *seed20Suite) TestLoadMetaCore20ChannelOverrideSnapd(c *C) {
 	s.setSnapContact("required20", "mailto:author@example.com")
 
 	sysLabel := "20191121"
-	s.MakeSeed(c, sysLabel, "my-brand", "my-model", map[string]interface{}{
+	s.MakeSeed(c, sysLabel, "my-brand", "my-model", map[string]any{
 		"display-name": "my model",
 		"architecture": "amd64",
 		"base":         "core20",
 		"grade":        "dangerous",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":            "pc-kernel",
 				"id":              s.AssertedSnapID("pc-kernel"),
 				"type":            "kernel",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "pc",
 				"id":              s.AssertedSnapID("pc"),
 				"type":            "gadget",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name": "required20",
 				"id":   s.AssertedSnapID("required20"),
 			}},
@@ -1965,19 +1965,19 @@ func (s *seed20Suite) TestLoadMetaCore20LocalSnapd(c *C) {
 	s.makeSnap(c, "pc=20", "")
 
 	sysLabel := "20191121"
-	s.MakeSeed(c, sysLabel, "my-brand", "my-model", map[string]interface{}{
+	s.MakeSeed(c, sysLabel, "my-brand", "my-model", map[string]any{
 		"display-name": "my model",
 		"architecture": "amd64",
 		"base":         "core20",
 		"grade":        "dangerous",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":            "pc-kernel",
 				"id":              s.AssertedSnapID("pc-kernel"),
 				"type":            "kernel",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "pc",
 				"id":              s.AssertedSnapID("pc"),
 				"type":            "gadget",
@@ -2044,24 +2044,24 @@ func (s *seed20Suite) TestLoadMetaCore20ModelOverrideSnapd(c *C) {
 	s.makeSnap(c, "pc=20", "")
 
 	sysLabel := "20191121"
-	s.MakeSeed(c, sysLabel, "my-brand", "my-model", map[string]interface{}{
+	s.MakeSeed(c, sysLabel, "my-brand", "my-model", map[string]any{
 		"display-name": "my model",
 		"architecture": "amd64",
 		"base":         "core20",
 		"grade":        "dangerous",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":            "snapd",
 				"type":            "snapd",
 				"default-channel": "latest/edge",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "pc-kernel",
 				"id":              s.AssertedSnapID("pc-kernel"),
 				"type":            "kernel",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "pc",
 				"id":              s.AssertedSnapID("pc"),
 				"type":            "gadget",
@@ -2129,30 +2129,30 @@ func (s *seed20Suite) TestLoadMetaCore20OptionalSnaps(c *C) {
 	s.makeSnap(c, "optional20-b", "developerid")
 
 	sysLabel := "20191122"
-	s.MakeSeed(c, sysLabel, "my-brand", "my-model", map[string]interface{}{
+	s.MakeSeed(c, sysLabel, "my-brand", "my-model", map[string]any{
 		"display-name": "my model",
 		"architecture": "amd64",
 		"base":         "core20",
 		"grade":        "signed",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":            "pc-kernel",
 				"id":              s.AssertedSnapID("pc-kernel"),
 				"type":            "kernel",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "pc",
 				"id":              s.AssertedSnapID("pc"),
 				"type":            "gadget",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":     "optional20-a",
 				"id":       s.AssertedSnapID("optional20-a"),
 				"presence": "optional",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":     "optional20-b",
 				"id":       s.AssertedSnapID("optional20-b"),
 				"presence": "optional",
@@ -2229,30 +2229,30 @@ func (s *seed20Suite) TestLoadMetaCore20OptionalSnapsLocal(c *C) {
 	optional20bFn := s.makeLocalSnap(c, "optional20-b")
 
 	sysLabel := "20191122"
-	s.MakeSeed(c, sysLabel, "my-brand", "my-model", map[string]interface{}{
+	s.MakeSeed(c, sysLabel, "my-brand", "my-model", map[string]any{
 		"display-name": "my model",
 		"architecture": "amd64",
 		"base":         "core20",
 		"grade":        "dangerous",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":            "pc-kernel",
 				"id":              s.AssertedSnapID("pc-kernel"),
 				"type":            "kernel",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "pc",
 				"id":              s.AssertedSnapID("pc"),
 				"type":            "gadget",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":     "optional20-a",
 				"id":       s.AssertedSnapID("optional20-a"),
 				"presence": "optional",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":     "optional20-b",
 				"id":       s.AssertedSnapID("optional20-b"),
 				"presence": "optional",
@@ -2330,19 +2330,19 @@ func (s *seed20Suite) TestLoadMetaCore20ExtraSnaps(c *C) {
 	contConsumerFn := s.makeLocalSnap(c, "cont-consumer")
 
 	sysLabel := "20191122"
-	s.MakeSeed(c, sysLabel, "my-brand", "my-model", map[string]interface{}{
+	s.MakeSeed(c, sysLabel, "my-brand", "my-model", map[string]any{
 		"display-name": "my model",
 		"architecture": "amd64",
 		"base":         "core20",
 		"grade":        "dangerous",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":            "pc-kernel",
 				"id":              s.AssertedSnapID("pc-kernel"),
 				"type":            "kernel",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "pc",
 				"id":              s.AssertedSnapID("pc"),
 				"type":            "gadget",
@@ -2437,40 +2437,40 @@ func (s *seed20Suite) TestLoadMetaCore20NotRunSnaps(c *C) {
 	s.makeSnap(c, "optional20-b", "developerid")
 
 	sysLabel := "20191122"
-	s.MakeSeed(c, sysLabel, "my-brand", "my-model", map[string]interface{}{
+	s.MakeSeed(c, sysLabel, "my-brand", "my-model", map[string]any{
 		"display-name": "my model",
 		"architecture": "amd64",
 		"base":         "core20",
 		"grade":        "signed",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":            "pc-kernel",
 				"id":              s.AssertedSnapID("pc-kernel"),
 				"type":            "kernel",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "pc",
 				"id":              s.AssertedSnapID("pc"),
 				"type":            "gadget",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":  "required20",
 				"id":    s.AssertedSnapID("required20"),
-				"modes": []interface{}{"run", "ephemeral"},
+				"modes": []any{"run", "ephemeral"},
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":     "optional20-a",
 				"id":       s.AssertedSnapID("optional20-a"),
 				"presence": "optional",
-				"modes":    []interface{}{"ephemeral"},
+				"modes":    []any{"ephemeral"},
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":     "optional20-b",
 				"id":       s.AssertedSnapID("optional20-b"),
 				"presence": "optional",
-				"modes":    []interface{}{"install"},
+				"modes":    []any{"install"},
 			}},
 	}, []*seedwriter.OptionsSnap{
 		{Name: "optional20-a"},
@@ -2632,40 +2632,40 @@ func (s *seed20Suite) testLoadMetaCore20PreciseNotRunSnapsWithParallelism(c *C, 
 	s.makeSnap(c, "optional20-b", "developerid")
 
 	sysLabel := "20191122"
-	s.MakeSeed(c, sysLabel, "my-brand", "my-model", map[string]interface{}{
+	s.MakeSeed(c, sysLabel, "my-brand", "my-model", map[string]any{
 		"display-name": "my model",
 		"architecture": "amd64",
 		"base":         "core20",
 		"grade":        "signed",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":            "pc-kernel",
 				"id":              s.AssertedSnapID("pc-kernel"),
 				"type":            "kernel",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "pc",
 				"id":              s.AssertedSnapID("pc"),
 				"type":            "gadget",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":  "required20",
 				"id":    s.AssertedSnapID("required20"),
-				"modes": []interface{}{"run", "ephemeral"},
+				"modes": []any{"run", "ephemeral"},
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":     "optional20-a",
 				"id":       s.AssertedSnapID("optional20-a"),
 				"presence": "optional",
-				"modes":    []interface{}{"ephemeral"},
+				"modes":    []any{"ephemeral"},
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":     "optional20-b",
 				"id":       s.AssertedSnapID("optional20-b"),
 				"presence": "optional",
-				"modes":    []interface{}{"install"},
+				"modes":    []any{"install"},
 			}},
 	}, []*seedwriter.OptionsSnap{
 		{Name: "optional20-a"},
@@ -2841,19 +2841,19 @@ func (s *seed20Suite) TestLoadMetaCore20LocalAssertedSnaps(c *C) {
 	s.makeSnap(c, "required20", "developerid")
 
 	sysLabel := "20191209"
-	s.MakeSeed(c, sysLabel, "my-brand", "my-model", map[string]interface{}{
+	s.MakeSeed(c, sysLabel, "my-brand", "my-model", map[string]any{
 		"display-name": "my model",
 		"architecture": "amd64",
 		"base":         "core20",
 		"grade":        "dangerous",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":            "pc-kernel",
 				"id":              s.AssertedSnapID("pc-kernel"),
 				"type":            "kernel",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "pc",
 				"id":              s.AssertedSnapID("pc"),
 				"type":            "gadget",
@@ -2947,25 +2947,25 @@ func (s *seed20Suite) TestLoadMetaCore20Iter(c *C) {
 	s.makeSnap(c, "required20", "developerid")
 
 	sysLabel := "20191209"
-	s.MakeSeed(c, sysLabel, "my-brand", "my-model", map[string]interface{}{
+	s.MakeSeed(c, sysLabel, "my-brand", "my-model", map[string]any{
 		"display-name": "my model",
 		"architecture": "amd64",
 		"base":         "core20",
 		"grade":        "dangerous",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":            "pc-kernel",
 				"id":              s.AssertedSnapID("pc-kernel"),
 				"type":            "kernel",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "pc",
 				"id":              s.AssertedSnapID("pc"),
 				"type":            "gadget",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name": "required20",
 				"id":   s.AssertedSnapID("required20"),
 			},
@@ -3013,7 +3013,7 @@ func (s *seed20Suite) TestLoadMetaWrongHashSnapParallelism2(c *C) {
 	sysDir := s.makeCore20MinimalSeed(c, sysLabel)
 
 	pcKernelRev := s.AssertedSnapRevision("pc-kernel")
-	wrongRev, err := s.StoreSigning.Sign(asserts.SnapRevisionType, map[string]interface{}{
+	wrongRev, err := s.StoreSigning.Sign(asserts.SnapRevisionType, map[string]any{
 		"snap-sha3-384": strings.Repeat("B", 64),
 		"snap-size":     pcKernelRev.HeaderString("snap-size"),
 		"snap-id":       s.AssertedSnapID("pc-kernel"),
@@ -3141,20 +3141,20 @@ func (s *seed20Suite) createMinimalSeed(c *C, grade string, sysLabel string) see
 	s.makeSnap(c, "pc-kernel=20", "")
 	s.makeSnap(c, "pc=20", "")
 
-	s.MakeSeed(c, sysLabel, "my-brand", "my-model", map[string]interface{}{
+	s.MakeSeed(c, sysLabel, "my-brand", "my-model", map[string]any{
 		"display-name":          "my model",
 		"architecture":          "amd64",
 		"base":                  "core20",
 		"grade":                 grade,
-		"system-user-authority": []interface{}{"my-brand", "other-brand"},
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"system-user-authority": []any{"my-brand", "other-brand"},
+		"snaps": []any{
+			map[string]any{
 				"name":            "pc-kernel",
 				"id":              s.AssertedSnapID("pc-kernel"),
 				"type":            "kernel",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "pc",
 				"id":              s.AssertedSnapID("pc"),
 				"type":            "gadget",
@@ -3197,18 +3197,18 @@ func (s *seed20Suite) TestPreseedCapableSeed(c *C) {
 	s.makeSnap(c, "pc=20", "")
 
 	sysLabel := "20230406"
-	s.MakeSeed(c, sysLabel, "my-brand", "my-model", map[string]interface{}{
+	s.MakeSeed(c, sysLabel, "my-brand", "my-model", map[string]any{
 		"display-name": "my model",
 		"architecture": "amd64",
 		"base":         "core20",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":            "pc-kernel",
 				"id":              s.AssertedSnapID("pc-kernel"),
 				"type":            "kernel",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "pc",
 				"id":              s.AssertedSnapID("pc"),
 				"type":            "gadget",
@@ -3223,13 +3223,13 @@ func (s *seed20Suite) TestPreseedCapableSeed(c *C) {
 	digest, err := asserts.EncodeDigest(crypto.SHA3_384, sha3_384)
 	c.Assert(err, IsNil)
 
-	snaps := []interface{}{
-		map[string]interface{}{"name": "snapd", "id": s.AssertedSnapID("snapd"), "revision": "1"},
-		map[string]interface{}{"name": "core20", "id": s.AssertedSnapID("core20"), "revision": "1"},
-		map[string]interface{}{"name": "pc-kernel", "id": s.AssertedSnapID("pc-kernel"), "revision": "1"},
-		map[string]interface{}{"name": "pc", "id": s.AssertedSnapID("pc"), "revision": "1"},
+	snaps := []any{
+		map[string]any{"name": "snapd", "id": s.AssertedSnapID("snapd"), "revision": "1"},
+		map[string]any{"name": "core20", "id": s.AssertedSnapID("core20"), "revision": "1"},
+		map[string]any{"name": "pc-kernel", "id": s.AssertedSnapID("pc-kernel"), "revision": "1"},
+		map[string]any{"name": "pc", "id": s.AssertedSnapID("pc"), "revision": "1"},
 	}
-	headers := map[string]interface{}{
+	headers := map[string]any{
 		"type":              "preseed",
 		"series":            "16",
 		"brand-id":          "my-brand",
@@ -3274,18 +3274,18 @@ func (s *seed20Suite) TestPreseedCapableSeedErrors(c *C) {
 	s.makeSnap(c, "pc=20", "")
 
 	sysLabel := "20230406"
-	s.MakeSeed(c, sysLabel, "my-brand", "my-model", map[string]interface{}{
+	s.MakeSeed(c, sysLabel, "my-brand", "my-model", map[string]any{
 		"display-name": "my model",
 		"architecture": "amd64",
 		"base":         "core20",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":            "pc-kernel",
 				"id":              s.AssertedSnapID("pc-kernel"),
 				"type":            "kernel",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "pc",
 				"id":              s.AssertedSnapID("pc"),
 				"type":            "gadget",
@@ -3300,18 +3300,18 @@ func (s *seed20Suite) TestPreseedCapableSeedErrors(c *C) {
 	digest, err := asserts.EncodeDigest(crypto.SHA3_384, sha3_384)
 	c.Assert(err, IsNil)
 
-	snaps := []interface{}{
-		map[string]interface{}{"name": "snapd", "id": s.AssertedSnapID("snapd"), "revision": "1"},
-		map[string]interface{}{"name": "core20", "id": s.AssertedSnapID("core20"), "revision": "1"},
-		map[string]interface{}{"name": "pc-kernel", "id": s.AssertedSnapID("pc-kernel"), "revision": "1"},
-		map[string]interface{}{"name": "pc", "id": s.AssertedSnapID("pc"), "revision": "1"},
+	snaps := []any{
+		map[string]any{"name": "snapd", "id": s.AssertedSnapID("snapd"), "revision": "1"},
+		map[string]any{"name": "core20", "id": s.AssertedSnapID("core20"), "revision": "1"},
+		map[string]any{"name": "pc-kernel", "id": s.AssertedSnapID("pc-kernel"), "revision": "1"},
+		map[string]any{"name": "pc", "id": s.AssertedSnapID("pc"), "revision": "1"},
 	}
 
 	tests := []struct {
 		omitPreseedAssert bool
 		dupPreseedAssert  bool
 
-		overrides map[string]interface{}
+		overrides map[string]any
 		asserts   []asserts.Assertion
 		err       string
 	}{
@@ -3319,15 +3319,15 @@ func (s *seed20Suite) TestPreseedCapableSeedErrors(c *C) {
 		// this works for contrast
 		{asserts: s.Brands.AccountsAndKeys("my-brand"), err: ""},
 		{dupPreseedAssert: true, err: `system preseed assertion file cannot contain multiple preseed assertions`},
-		{overrides: map[string]interface{}{"system-label": "other-label"}, err: `preseed assertion system label "other-label" doesn't match system label "20230406"`},
-		{overrides: map[string]interface{}{"model": "other-model"}, err: `preseed assertion model "other-model" doesn't match the model "my-model"`},
-		{overrides: map[string]interface{}{"series": "other-series"}, err: `preseed assertion series "other-series" doesn't match model series "16"`},
-		{overrides: map[string]interface{}{"authority-id": "other-brand"}, asserts: s.Brands.AccountsAndKeys("other-brand"), err: `preseed authority-id "other-brand" is not allowed by the model`},
-		{overrides: map[string]interface{}{"brand-id": "other-brand", "authority-id": "other-brand"}, err: `cannot resolve prerequisite assertion:.*`},
+		{overrides: map[string]any{"system-label": "other-label"}, err: `preseed assertion system label "other-label" doesn't match system label "20230406"`},
+		{overrides: map[string]any{"model": "other-model"}, err: `preseed assertion model "other-model" doesn't match the model "my-model"`},
+		{overrides: map[string]any{"series": "other-series"}, err: `preseed assertion series "other-series" doesn't match model series "16"`},
+		{overrides: map[string]any{"authority-id": "other-brand"}, asserts: s.Brands.AccountsAndKeys("other-brand"), err: `preseed authority-id "other-brand" is not allowed by the model`},
+		{overrides: map[string]any{"brand-id": "other-brand", "authority-id": "other-brand"}, err: `cannot resolve prerequisite assertion:.*`},
 	}
 
 	for _, tc := range tests {
-		headers := map[string]interface{}{
+		headers := map[string]any{
 			"type":              "preseed",
 			"series":            "16",
 			"brand-id":          "my-brand",
@@ -3382,18 +3382,18 @@ func (s *seed20Suite) TestPreseedCapableSeedNoPreseedAssertion(c *C) {
 	s.makeSnap(c, "pc=20", "")
 
 	sysLabel := "20230406"
-	s.MakeSeed(c, sysLabel, "my-brand", "my-model", map[string]interface{}{
+	s.MakeSeed(c, sysLabel, "my-brand", "my-model", map[string]any{
 		"display-name": "my model",
 		"architecture": "amd64",
 		"base":         "core20",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":            "pc-kernel",
 				"id":              s.AssertedSnapID("pc-kernel"),
 				"type":            "kernel",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "pc",
 				"id":              s.AssertedSnapID("pc"),
 				"type":            "gadget",
@@ -3429,22 +3429,22 @@ func (s *seed20Suite) TestPreseedCapableSeedAlternateAuthority(c *C) {
 	s.makeSnap(c, "pc=20", "")
 
 	sysLabel := "20230406"
-	s.MakeSeed(c, sysLabel, "my-brand", "my-model", map[string]interface{}{
+	s.MakeSeed(c, sysLabel, "my-brand", "my-model", map[string]any{
 		"display-name": "my model",
 		"architecture": "amd64",
 		"base":         "core20",
-		"preseed-authority": []interface{}{
+		"preseed-authority": []any{
 			"my-brand",
 			"my-signer",
 		},
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":            "pc-kernel",
 				"id":              s.AssertedSnapID("pc-kernel"),
 				"type":            "kernel",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "pc",
 				"id":              s.AssertedSnapID("pc"),
 				"type":            "gadget",
@@ -3459,17 +3459,17 @@ func (s *seed20Suite) TestPreseedCapableSeedAlternateAuthority(c *C) {
 	digest, err := asserts.EncodeDigest(crypto.SHA3_384, sha3_384)
 	c.Assert(err, IsNil)
 
-	snaps := []interface{}{
-		map[string]interface{}{"name": "snapd", "id": s.AssertedSnapID("snapd"), "revision": "1"},
-		map[string]interface{}{"name": "core20", "id": s.AssertedSnapID("core20"), "revision": "1"},
-		map[string]interface{}{"name": "pc-kernel", "id": s.AssertedSnapID("pc-kernel"), "revision": "1"},
-		map[string]interface{}{"name": "pc", "id": s.AssertedSnapID("pc"), "revision": "1"},
+	snaps := []any{
+		map[string]any{"name": "snapd", "id": s.AssertedSnapID("snapd"), "revision": "1"},
+		map[string]any{"name": "core20", "id": s.AssertedSnapID("core20"), "revision": "1"},
+		map[string]any{"name": "pc-kernel", "id": s.AssertedSnapID("pc-kernel"), "revision": "1"},
+		map[string]any{"name": "pc", "id": s.AssertedSnapID("pc"), "revision": "1"},
 	}
 
 	signerKey, _ := assertstest.GenerateKey(752)
 	s.Brands.Register("my-signer", signerKey, nil)
 
-	headers := map[string]interface{}{
+	headers := map[string]any{
 		"type":              "preseed",
 		"series":            "16",
 		"brand-id":          "my-brand",
@@ -3725,44 +3725,44 @@ func (s *seed20Suite) testCopy(c *C, opts testCopyOpts) {
 	)
 
 	const srcLabel = "20191030"
-	s.MakeSeedWithLocalComponents(c, srcLabel, "my-brand", "my-model", map[string]interface{}{
+	s.MakeSeedWithLocalComponents(c, srcLabel, "my-brand", "my-model", map[string]any{
 		"display-name": "my model",
 		"architecture": "amd64",
 		"base":         "core20",
 		"grade":        "dangerous",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":            "pc-kernel",
 				"id":              s.AssertedSnapID("pc-kernel"),
 				"type":            "kernel",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "pc",
 				"id":              s.AssertedSnapID("pc"),
 				"type":            "gadget",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":     "optional20-a",
 				"id":       s.AssertedSnapID("optional20-a"),
 				"presence": "optional",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":     "required20",
 				"id":       s.AssertedSnapID("required20"),
 				"presence": "required",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":     "aux-info-test",
 				"id":       s.AssertedSnapID("aux-info-test"),
 				"presence": "optional",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":     "component-test",
 				"id":       s.AssertedSnapID("component-test"),
 				"presence": "optional",
-				"components": map[string]interface{}{
+				"components": map[string]any{
 					"comp1": "required",
 					"comp2": "optional",
 				},
@@ -3986,39 +3986,39 @@ func (s *seed20Suite) TestOptionalContainers(c *C) {
 	)
 
 	const srcLabel = "20191030"
-	s.MakeSeedWithLocalComponents(c, srcLabel, "my-brand", "my-model", map[string]interface{}{
+	s.MakeSeedWithLocalComponents(c, srcLabel, "my-brand", "my-model", map[string]any{
 		"display-name": "my model",
 		"architecture": "amd64",
 		"base":         "core20",
 		"grade":        "dangerous",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":            "pc-kernel",
 				"id":              s.AssertedSnapID("pc-kernel"),
 				"type":            "kernel",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "pc",
 				"id":              s.AssertedSnapID("pc"),
 				"type":            "gadget",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":     "optional20-a",
 				"id":       s.AssertedSnapID("optional20-a"),
 				"presence": "optional",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":     "optional20-b",
 				"id":       s.AssertedSnapID("optional20-b"),
 				"presence": "optional",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":     "component-test",
 				"id":       s.AssertedSnapID("component-test"),
 				"presence": "optional",
-				"components": map[string]interface{}{
+				"components": map[string]any{
 					"comp1": "required",
 					"comp2": "optional",
 					"comp3": "optional",
@@ -4084,34 +4084,34 @@ func (s *seed20Suite) TestOptionalContainersAllRequired(c *C) {
 	)
 
 	const srcLabel = "20191030"
-	s.MakeSeedWithLocalComponents(c, srcLabel, "my-brand", "my-model", map[string]interface{}{
+	s.MakeSeedWithLocalComponents(c, srcLabel, "my-brand", "my-model", map[string]any{
 		"display-name": "my model",
 		"architecture": "amd64",
 		"base":         "core20",
 		"grade":        "dangerous",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":            "pc-kernel",
 				"id":              s.AssertedSnapID("pc-kernel"),
 				"type":            "kernel",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "pc",
 				"id":              s.AssertedSnapID("pc"),
 				"type":            "gadget",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":     "required20",
 				"id":       s.AssertedSnapID("required20"),
 				"presence": "required",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":     "component-test",
 				"id":       s.AssertedSnapID("component-test"),
 				"presence": "required",
-				"components": map[string]interface{}{
+				"components": map[string]any{
 					"comp1": "required",
 					"comp2": "required",
 					"comp3": "required",
@@ -4143,25 +4143,25 @@ func (s *seed20Suite) TestCopyCleanup(c *C) {
 	requiredFn := s.makeLocalSnap(c, "required20")
 
 	const label = "20191030"
-	s.MakeSeed(c, label, "my-brand", "my-model", map[string]interface{}{
+	s.MakeSeed(c, label, "my-brand", "my-model", map[string]any{
 		"display-name": "my model",
 		"architecture": "amd64",
 		"base":         "core20",
 		"grade":        "dangerous",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":            "pc-kernel",
 				"id":              s.AssertedSnapID("pc-kernel"),
 				"type":            "kernel",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "pc",
 				"id":              s.AssertedSnapID("pc"),
 				"type":            "gadget",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name": "required20",
 				"id":   s.AssertedSnapID("required20"),
 			}},
@@ -4227,48 +4227,48 @@ func (s *seed20Suite) TestModeSnaps(c *C) {
 	)
 
 	const srcLabel = "20191030"
-	s.MakeSeedWithLocalComponents(c, srcLabel, "my-brand", "my-model", map[string]interface{}{
+	s.MakeSeedWithLocalComponents(c, srcLabel, "my-brand", "my-model", map[string]any{
 		"display-name": "my model",
 		"architecture": "amd64",
 		"base":         "core20",
 		"grade":        "dangerous",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":            "pc-kernel",
 				"id":              s.AssertedSnapID("pc-kernel"),
 				"type":            "kernel",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "pc",
 				"id":              s.AssertedSnapID("pc"),
 				"type":            "gadget",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":     "optional20-a",
 				"id":       s.AssertedSnapID("optional20-a"),
 				"presence": "required",
-				"modes":    []interface{}{"ephemeral"},
+				"modes":    []any{"ephemeral"},
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":     "required20",
 				"id":       s.AssertedSnapID("required20"),
 				"presence": "required",
-				"modes":    []interface{}{"run"},
+				"modes":    []any{"run"},
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":     "component-test",
 				"id":       s.AssertedSnapID("component-test"),
 				"presence": "required",
-				"modes":    []interface{}{"run", "ephemeral"},
-				"components": map[string]interface{}{
-					"comp1": map[string]interface{}{
-						"modes":    []interface{}{"run"},
+				"modes":    []any{"run", "ephemeral"},
+				"components": map[string]any{
+					"comp1": map[string]any{
+						"modes":    []any{"run"},
 						"presence": "required",
 					},
-					"comp2": map[string]interface{}{
-						"modes":    []interface{}{"run", "ephemeral"},
+					"comp2": map[string]any{
+						"modes":    []any{"run", "ephemeral"},
 						"presence": "required",
 					},
 				},
@@ -4423,9 +4423,9 @@ func (s *seed20Suite) makeCore20SeedWithComps(c *C, sysLabel string, opts seedOp
 		"comp2": snap.R(33),
 	}
 	if opts.delegated {
-		ra := map[string]interface{}{
+		ra := map[string]any{
 			"account-id": "my-brand",
-			"provenance": []interface{}{"delegated-prov", "other-prov"},
+			"provenance": []any{"delegated-prov", "other-prov"},
 		}
 
 		resourceProv := "delegated-prov"
@@ -4442,28 +4442,28 @@ func (s *seed20Suite) makeCore20SeedWithComps(c *C, sysLabel string, opts seedOp
 			snap.R(11), compRevs, "canonical", s.StoreSigning.Database)
 	}
 
-	s.MakeSeed(c, sysLabel, "my-brand", "my-model", map[string]interface{}{
+	s.MakeSeed(c, sysLabel, "my-brand", "my-model", map[string]any{
 		"display-name": "my model",
 		"architecture": "amd64",
 		"base":         "core20",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":            "pc-kernel",
 				"id":              s.AssertedSnapID("pc-kernel"),
 				"type":            "kernel",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "pc",
 				"id":              s.AssertedSnapID("pc"),
 				"type":            "gadget",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name": "required20",
 				"id":   s.AssertedSnapID("required20"),
 				"type": "app",
-				"components": map[string]interface{}{
+				"components": map[string]any{
 					"comp1": "required",
 					"comp2": "required",
 				},
@@ -4634,7 +4634,7 @@ func (s *seed20Suite) TestLoadMetaWithComponentsBadSize(c *C) {
 
 	finfo, err := os.Stat(filepath.Join(s.SeedDir, "snaps", "required20+comp1_22.comp"))
 	c.Assert(err, IsNil)
-	spuriousRev, err := s.StoreSigning.Sign(asserts.SnapResourceRevisionType, map[string]interface{}{
+	spuriousRev, err := s.StoreSigning.Sign(asserts.SnapResourceRevisionType, map[string]any{
 		"authority-id":      "canonical",
 		"snap-id":           s.AssertedSnapID("required20"),
 		"resource-name":     "comp1",
@@ -4673,7 +4673,7 @@ func (s *seed20Suite) TestLoadMetaWithComponentsBadHash(c *C) {
 
 	finfo, err := os.Stat(filepath.Join(s.SeedDir, "snaps", "required20+comp1_22.comp"))
 	c.Assert(err, IsNil)
-	spuriousRev, err := s.StoreSigning.Sign(asserts.SnapResourceRevisionType, map[string]interface{}{
+	spuriousRev, err := s.StoreSigning.Sign(asserts.SnapResourceRevisionType, map[string]any{
 		"authority-id":      "canonical",
 		"snap-id":           s.AssertedSnapID("required20"),
 		"resource-name":     "comp1",
@@ -4717,7 +4717,7 @@ func (s *seed20Suite) TestLoadMetaWithComponentsUnmatchedProvenanceInResRev(c *C
 	snapSHA3_384_1, size1, err := asserts.SnapFileSHA3_384(
 		filepath.Join(s.SeedDir, "snaps", "required20+comp1_22.comp"))
 	c.Assert(err, IsNil)
-	resRev1, err := myBrandSigner.Sign(asserts.SnapResourceRevisionType, map[string]interface{}{
+	resRev1, err := myBrandSigner.Sign(asserts.SnapResourceRevisionType, map[string]any{
 		"authority-id":      "my-brand",
 		"snap-id":           s.AssertedSnapID("required20"),
 		"resource-name":     "comp1",
@@ -4733,7 +4733,7 @@ func (s *seed20Suite) TestLoadMetaWithComponentsUnmatchedProvenanceInResRev(c *C
 	snapSHA3_384_2, size2, err := asserts.SnapFileSHA3_384(
 		filepath.Join(s.SeedDir, "snaps", "required20+comp2_33.comp"))
 	c.Assert(err, IsNil)
-	resRev2, err := myBrandSigner.Sign(asserts.SnapResourceRevisionType, map[string]interface{}{
+	resRev2, err := myBrandSigner.Sign(asserts.SnapResourceRevisionType, map[string]any{
 		"authority-id":      "my-brand",
 		"snap-id":           s.AssertedSnapID("required20"),
 		"resource-name":     "comp2",
@@ -4777,7 +4777,7 @@ func (s *seed20Suite) TestLoadMetaWithComponentsUnmatchedProvenanceInResPair(c *
 	sysDir := s.makeCore20SeedWithComps(c, sysLabel, seedOpts{delegated: true})
 
 	myBrandSigner := s.Brands.Signing("my-brand")
-	pairRev1, err := myBrandSigner.Sign(asserts.SnapResourcePairType, map[string]interface{}{
+	pairRev1, err := myBrandSigner.Sign(asserts.SnapResourcePairType, map[string]any{
 		"authority-id":      "my-brand",
 		"snap-id":           s.AssertedSnapID("required20"),
 		"resource-name":     "comp1",
@@ -4788,7 +4788,7 @@ func (s *seed20Suite) TestLoadMetaWithComponentsUnmatchedProvenanceInResPair(c *
 		"timestamp":         time.Now().UTC().Format(time.RFC3339),
 	}, nil, "")
 	c.Assert(err, IsNil)
-	pairRev2, err := myBrandSigner.Sign(asserts.SnapResourcePairType, map[string]interface{}{
+	pairRev2, err := myBrandSigner.Sign(asserts.SnapResourcePairType, map[string]any{
 		"authority-id":      "my-brand",
 		"snap-id":           s.AssertedSnapID("required20"),
 		"resource-name":     "comp2",
@@ -4865,7 +4865,7 @@ func (s *seed20Suite) TestLoadAssertionsNoMatchingPair(c *C) {
 	sysLabel := "20241031"
 	sysDir := s.makeCore20SeedWithComps(c, sysLabel, seedOpts{delegated: false})
 
-	pairRev, err := s.StoreSigning.Sign(asserts.SnapResourcePairType, map[string]interface{}{
+	pairRev, err := s.StoreSigning.Sign(asserts.SnapResourcePairType, map[string]any{
 		"authority-id":      "canonical",
 		"snap-id":           s.AssertedSnapID("required20"),
 		"resource-name":     "comp1",
@@ -4896,7 +4896,7 @@ func (s *seed20Suite) TestLoadAssertionsMultipleResRevForComp(c *C) {
 	sysLabel := "20241031"
 	sysDir := s.makeCore20SeedWithComps(c, sysLabel, seedOpts{delegated: false})
 
-	resRev, err := s.StoreSigning.Sign(asserts.SnapResourceRevisionType, map[string]interface{}{
+	resRev, err := s.StoreSigning.Sign(asserts.SnapResourceRevisionType, map[string]any{
 		"authority-id":      "canonical",
 		"snap-id":           s.AssertedSnapID("required20"),
 		"resource-name":     "comp1",
@@ -4908,7 +4908,7 @@ func (s *seed20Suite) TestLoadAssertionsMultipleResRevForComp(c *C) {
 		"timestamp":         time.Now().UTC().Format(time.RFC3339),
 	}, nil, "")
 	c.Assert(err, IsNil)
-	pairRev, err := s.StoreSigning.Sign(asserts.SnapResourcePairType, map[string]interface{}{
+	pairRev, err := s.StoreSigning.Sign(asserts.SnapResourcePairType, map[string]any{
 		"authority-id":      "canonical",
 		"snap-id":           s.AssertedSnapID("required20"),
 		"resource-name":     "comp1",
@@ -4939,7 +4939,7 @@ func (s *seed20Suite) TestLoadAssertionsNoMatchingResRevForResPair(c *C) {
 	sysLabel := "20241031"
 	sysDir := s.makeCore20SeedWithComps(c, sysLabel, seedOpts{delegated: false})
 
-	spuriousRev, err := s.StoreSigning.Sign(asserts.SnapResourceRevisionType, map[string]interface{}{
+	spuriousRev, err := s.StoreSigning.Sign(asserts.SnapResourceRevisionType, map[string]any{
 		"authority-id":      "canonical",
 		"snap-id":           s.AssertedSnapID("core20"),
 		"resource-name":     "comp1",
@@ -4978,29 +4978,29 @@ func (s *seed20Suite) TestLoadMetaWithLocalComponents(c *C) {
 	localComp2Path := snaptest.MakeTestComponent(c, seedtest.SampleSnapYaml["required20+comp2"])
 
 	sysLabel := "20240805"
-	model := s.Brands.Model("my-brand", "my-model", map[string]interface{}{
+	model := s.Brands.Model("my-brand", "my-model", map[string]any{
 		"display-name": "my model",
 		"architecture": "amd64",
 		"base":         "core20",
 		"grade":        "dangerous",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":            "pc-kernel",
 				"id":              s.AssertedSnapID("pc-kernel"),
 				"type":            "kernel",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "pc",
 				"id":              s.AssertedSnapID("pc"),
 				"type":            "gadget",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name": "required20",
 				"id":   s.AssertedSnapID("required20"),
 				"type": "app",
-				"components": map[string]interface{}{
+				"components": map[string]any{
 					"comp1": "required",
 					"comp2": "required",
 				},
@@ -5117,19 +5117,19 @@ func (s *seed20Suite) TestLoadMetaCore20ExtraSnapsWithComps(c *C) {
 		snap.R(11), comRevs, "canonical", s.StoreSigning.Database)
 
 	sysLabel := "20251122"
-	s.MakeSeed(c, sysLabel, "my-brand", "my-model", map[string]interface{}{
+	s.MakeSeed(c, sysLabel, "my-brand", "my-model", map[string]any{
 		"display-name": "my model",
 		"architecture": "amd64",
 		"base":         "core20",
 		"grade":        "dangerous",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":            "pc-kernel",
 				"id":              s.AssertedSnapID("pc-kernel"),
 				"type":            "kernel",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "pc",
 				"id":              s.AssertedSnapID("pc"),
 				"type":            "gadget",
@@ -5233,29 +5233,29 @@ func (s *seed20Suite) TestSeedWithComponentsInModelAndOptions(c *C) {
 	)
 
 	const srcLabel = "20191030"
-	s.MakeSeedWithLocalComponents(c, srcLabel, "my-brand", "my-model", map[string]interface{}{
+	s.MakeSeedWithLocalComponents(c, srcLabel, "my-brand", "my-model", map[string]any{
 		"display-name": "my model",
 		"architecture": "amd64",
 		"base":         "core20",
 		"grade":        "dangerous",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":            "pc-kernel",
 				"id":              s.AssertedSnapID("pc-kernel"),
 				"type":            "kernel",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "pc",
 				"id":              s.AssertedSnapID("pc"),
 				"type":            "gadget",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":     "component-test",
 				"id":       s.AssertedSnapID("component-test"),
 				"presence": "required",
-				"components": map[string]interface{}{
+				"components": map[string]any{
 					"comp1": "required",
 					"comp2": "required",
 				},

@@ -126,7 +126,7 @@ func (s *netplanSuite) TestNetplanGetFromDBusNoSuchService(c *C) {
 	// Note that we do not export any netplan dbus api here
 
 	tr := config.NewTransaction(s.state)
-	netplanCfg := make(map[string]interface{})
+	netplanCfg := make(map[string]any)
 	err := tr.Get("core", "system.network.netplan", &netplanCfg)
 	c.Assert(err, ErrorMatches, `snap "core" has no "system.network.netplan" configuration option`)
 }
@@ -157,7 +157,7 @@ func (s *netplanSuite) TestNetplanGetNoSupportOnClassic(c *C) {
 	s.backend.ExportApiV2()
 
 	tr := config.NewTransaction(s.state)
-	netplanCfg := make(map[string]interface{})
+	netplanCfg := make(map[string]any)
 	err := tr.Get("core", "system.network.netplan", &netplanCfg)
 	c.Assert(err, ErrorMatches, `snap "core" has no "system.network.netplan" configuration option`)
 }
@@ -172,11 +172,11 @@ func (s *netplanSuite) TestNetplanGetFromDBusHappy(c *C) {
 	tr := config.NewTransaction(s.state)
 
 	// full doc
-	netplanCfg := make(map[string]interface{})
+	netplanCfg := make(map[string]any)
 	err := tr.Get("core", "system.network.netplan", &netplanCfg)
 	c.Assert(err, IsNil)
-	c.Check(netplanCfg, DeepEquals, map[string]interface{}{
-		"network": map[string]interface{}{
+	c.Check(netplanCfg, DeepEquals, map[string]any{
+		"network": map[string]any{
 			"renderer": "NetworkManager",
 			"version":  json.Number("2"),
 		},
@@ -187,10 +187,10 @@ func (s *netplanSuite) TestNetplanGetFromDBusHappy(c *C) {
 	})
 
 	// only the "network" subset
-	netplanCfg = make(map[string]interface{})
+	netplanCfg = make(map[string]any)
 	err = tr.Get("core", "system.network.netplan.network", &netplanCfg)
 	c.Assert(err, IsNil)
-	c.Check(netplanCfg, DeepEquals, map[string]interface{}{
+	c.Check(netplanCfg, DeepEquals, map[string]any{
 		"renderer": "NetworkManager",
 		"version":  json.Number("2"),
 	})
@@ -226,11 +226,11 @@ func (s *netplanSuite) TestNetplanGetFromDBusCancelFails(c *C) {
 	s.backend.ExportApiV2()
 
 	tr := config.NewTransaction(s.state)
-	netplanCfg := make(map[string]interface{})
+	netplanCfg := make(map[string]any)
 	err := tr.Get("core", "system.network.netplan", &netplanCfg)
 	c.Assert(err, IsNil)
-	c.Check(netplanCfg, DeepEquals, map[string]interface{}{
-		"network": map[string]interface{}{
+	c.Check(netplanCfg, DeepEquals, map[string]any{
+		"network": map[string]any{
 			"renderer": "NetworkManager",
 			"version":  json.Number("2"),
 		},
@@ -250,11 +250,11 @@ func (s *netplanSuite) TestNetplanGetFromDBusCancelErr(c *C) {
 	s.backend.ExportApiV2()
 
 	tr := config.NewTransaction(s.state)
-	netplanCfg := make(map[string]interface{})
+	netplanCfg := make(map[string]any)
 	err := tr.Get("core", "system.network.netplan", &netplanCfg)
 	c.Assert(err, IsNil)
-	c.Check(netplanCfg, DeepEquals, map[string]interface{}{
-		"network": map[string]interface{}{
+	c.Check(netplanCfg, DeepEquals, map[string]any{
+		"network": map[string]any{
 			"renderer": "NetworkManager",
 			"version":  json.Number("2"),
 		},
@@ -580,7 +580,7 @@ func (s *netplanSuite) TestNetplanNoApplyOnClassic(c *C) {
 
 	err := configcore.Run(coreDev, &mockConf{
 		state: s.state,
-		changes: map[string]interface{}{
+		changes: map[string]any{
 			"system.network.netplan.network.renderer": "networkd",
 		},
 	})
@@ -588,9 +588,9 @@ func (s *netplanSuite) TestNetplanNoApplyOnClassic(c *C) {
 
 	err = configcore.Run(coreDev, &mockConf{
 		state: s.state,
-		changes: map[string]interface{}{
-			"system.network.netplan": map[string]interface{}{
-				"network": map[string]interface{}{
+		changes: map[string]any{
+			"system.network.netplan": map[string]any{
+				"network": map[string]any{
 					"version": 2,
 				},
 			},

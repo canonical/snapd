@@ -39,7 +39,7 @@ import (
 // verified with a known public key and the assertion consistent with
 // and its prerequisite in the database.
 func (client *Client) Ack(b []byte) error {
-	var rsp interface{}
+	var rsp any
 	if _, err := client.doSync("POST", "/v2/assertions", nil, nil, bytes.NewReader(b), &rsp); err != nil {
 		return err
 	}

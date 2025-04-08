@@ -71,7 +71,7 @@ func DisableCloudInit(rootDir string) error {
 // cloud-init configuration file.
 type supportedFilteredCloudConfig struct {
 	Datasource map[string]supportedFilteredDatasource `yaml:"datasource,omitempty"`
-	Network    map[string]interface{}                 `yaml:"network,omitempty"`
+	Network    map[string]any                         `yaml:"network,omitempty"`
 	// DatasourceList is a pointer so we can distinguish between:
 	// datasource_list: []
 	// and not setting the datasource at all

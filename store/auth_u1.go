@@ -176,7 +176,7 @@ func loginCaveatID(m *macaroon.Macaroon) (string, error) {
 func requestStoreMacaroon(httpClient *http.Client) (string, error) {
 	const errorPrefix = "cannot get snap access permission from store: "
 
-	data := map[string]interface{}{
+	data := map[string]any{
 		"permissions": []string{"package_access", "package_purchase"},
 	}
 

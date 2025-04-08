@@ -243,7 +243,7 @@ func removeUser(c *Command, username string, opts postUserDeleteData) Response {
 		return InternalError(err.Error())
 	}
 
-	result := map[string]interface{}{
+	result := map[string]any{
 		"removed": []userResponseData{
 			{ID: u.ID, Username: u.Username, Email: u.Email},
 		},

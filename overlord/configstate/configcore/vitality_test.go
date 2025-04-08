@@ -53,7 +53,7 @@ var _ = Suite(&vitalitySuite{})
 func (s *vitalitySuite) SetUpTest(c *C) {
 	s.configcoreSuite.SetUpTest(c)
 
-	uc18model := assertstest.FakeAssertion(map[string]interface{}{
+	uc18model := assertstest.FakeAssertion(map[string]any{
 		"type":         "model",
 		"authority-id": "canonical",
 		"series":       "16",
@@ -71,7 +71,7 @@ func (s *vitalitySuite) SetUpTest(c *C) {
 func (s *vitalitySuite) TestConfigureVitalityUnhappyName(c *C) {
 	err := configcore.Run(classicDev, &mockConf{
 		state: s.state,
-		changes: map[string]interface{}{
+		changes: map[string]any{
 			"resilience.vitality-hint": "-invalid-snap-name!yf",
 		},
 	})
@@ -81,7 +81,7 @@ func (s *vitalitySuite) TestConfigureVitalityUnhappyName(c *C) {
 func (s *vitalitySuite) TestConfigureVitalityNoSnapd(c *C) {
 	err := configcore.Run(classicDev, &mockConf{
 		state: s.state,
-		changes: map[string]interface{}{
+		changes: map[string]any{
 			"resilience.vitality-hint": "snapd",
 		},
 	})
@@ -91,7 +91,7 @@ func (s *vitalitySuite) TestConfigureVitalityNoSnapd(c *C) {
 func (s *vitalitySuite) TestConfigureVitalityhappyName(c *C) {
 	err := configcore.Run(classicDev, &mockConf{
 		state: s.state,
-		changes: map[string]interface{}{
+		changes: map[string]any{
 			"resilience.vitality-hint": "valid-snapname",
 		},
 	})
@@ -108,7 +108,7 @@ apps:
 `
 
 func (s *vitalitySuite) TestConfigureVitalityWithValidSnapUC16(c *C) {
-	uc16model := assertstest.FakeAssertion(map[string]interface{}{
+	uc16model := assertstest.FakeAssertion(map[string]any{
 		"type":         "model",
 		"authority-id": "canonical",
 		"series":       "16",
@@ -142,7 +142,7 @@ func (s *vitalitySuite) testConfigureVitalityWithValidSnap(c *C, uc18 bool) {
 
 	err := configcore.Run(classicDev, &mockConf{
 		state: s.state,
-		changes: map[string]interface{}{
+		changes: map[string]any{
 			"resilience.vitality-hint": "unrelated,test-snap",
 		},
 	})
@@ -202,7 +202,7 @@ func (s *vitalitySuite) TestConfigureVitalityWithQuotaGroup(c *C) {
 
 	err = configcore.Run(classicDev, &mockConf{
 		state: s.state,
-		changes: map[string]interface{}{
+		changes: map[string]any{
 			"resilience.vitality-hint": "unrelated,test-snap",
 		},
 	})
@@ -228,7 +228,7 @@ func (s *vitalitySuite) TestConfigureVitalityHintTooMany(c *C) {
 	manyStr := strings.Join(l, ",")
 	err := configcore.Run(classicDev, &mockConf{
 		state: s.state,
-		changes: map[string]interface{}{
+		changes: map[string]any{
 			"resilience.vitality-hint": manyStr,
 		},
 	})
@@ -252,7 +252,7 @@ func (s *vitalitySuite) TestConfigureVitalityManySnaps(c *C) {
 	// snap1,snap2,snap3
 	err := configcore.Run(classicDev, &mockConf{
 		state: s.state,
-		changes: map[string]interface{}{
+		changes: map[string]any{
 			"resilience.vitality-hint": "snap1,snap2,snap3",
 		},
 	})
@@ -283,10 +283,10 @@ func (s *vitalitySuite) TestConfigureVitalityManySnapsDelta(c *C) {
 	// snap1,snap2,snap3 switch to snap3,snap1
 	err := configcore.Run(classicDev, &mockConf{
 		state: s.state,
-		conf: map[string]interface{}{
+		conf: map[string]any{
 			"resilience.vitality-hint": "snap1,snap2,snap3",
 		},
-		changes: map[string]interface{}{
+		changes: map[string]any{
 			"resilience.vitality-hint": "snap3,snap1",
 		},
 	})
@@ -318,7 +318,7 @@ func (s *vitalitySuite) TestConfigureVitalityManySnapsOneRemovedOneUnchanged(c *
 	// first run generates the snap1,snap2 configs
 	err := configcore.Run(classicDev, &mockConf{
 		state: s.state,
-		changes: map[string]interface{}{
+		changes: map[string]any{
 			"resilience.vitality-hint": "snap1,snap2",
 		},
 	})
@@ -334,10 +334,10 @@ func (s *vitalitySuite) TestConfigureVitalityManySnapsOneRemovedOneUnchanged(c *
 	// now we change the configuration and set snap1,snap3
 	err = configcore.Run(classicDev, &mockConf{
 		state: s.state,
-		conf: map[string]interface{}{
+		conf: map[string]any{
 			"resilience.vitality-hint": "snap1,snap2",
 		},
-		changes: map[string]interface{}{
+		changes: map[string]any{
 			"resilience.vitality-hint": "snap1,snap3",
 		},
 	})
@@ -374,7 +374,7 @@ func (s *vitalitySuite) TestConfigureVitalityNotActiveSnap(c *C) {
 
 	err := configcore.Run(classicDev, &mockConf{
 		state: s.state,
-		changes: map[string]interface{}{
+		changes: map[string]any{
 			"resilience.vitality-hint": "unrelated,test-snap",
 		},
 	})

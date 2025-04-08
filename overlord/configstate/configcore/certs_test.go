@@ -39,7 +39,7 @@ var _ = Suite(&certsSuite{})
 func (s *certsSuite) TestConfigureCertsUnhappyName(c *C) {
 	err := configcore.Run(classicDev, &mockConf{
 		state: s.state,
-		changes: map[string]interface{}{
+		changes: map[string]any{
 			"store-certs.cert-illegal-!": "xxx",
 		},
 	})
@@ -76,7 +76,7 @@ jVaMaA==
 func (s *certsSuite) TestConfigureCertsHappy(c *C) {
 	err := configcore.Run(classicDev, &mockConf{
 		state: s.state,
-		changes: map[string]interface{}{
+		changes: map[string]any{
 			"store-certs.cert1": mockCert,
 		},
 	})
@@ -88,7 +88,7 @@ func (s *certsSuite) TestConfigureCertsSimulteRevert(c *C) {
 	// do a normal "snap set"
 	err := configcore.Run(classicDev, &mockConf{
 		state: s.state,
-		changes: map[string]interface{}{
+		changes: map[string]any{
 			"store-certs.cert1": mockCert,
 		},
 	})
@@ -97,10 +97,10 @@ func (s *certsSuite) TestConfigureCertsSimulteRevert(c *C) {
 	// and one more with a new cert that will be reverted
 	err = configcore.Run(classicDev, &mockConf{
 		state: s.state,
-		conf: map[string]interface{}{
+		conf: map[string]any{
 			"store-certs.cert1": mockCert,
 		},
-		changes: map[string]interface{}{
+		changes: map[string]any{
 			"store-certs.certthatwillbereverted": mockCert,
 		},
 	})
@@ -113,7 +113,7 @@ func (s *certsSuite) TestConfigureCertsSimulteRevert(c *C) {
 	// of the reverted core
 	err = configcore.Run(classicDev, &mockConf{
 		state: s.state,
-		conf: map[string]interface{}{
+		conf: map[string]any{
 			"store-certs.cert1": mockCert,
 		},
 	})
@@ -130,7 +130,7 @@ jVaMaA==
 func (s *certsSuite) TestConfigureCertsFailsToParse(c *C) {
 	err := configcore.Run(classicDev, &mockConf{
 		state: s.state,
-		changes: map[string]interface{}{
+		changes: map[string]any{
 			"store-certs.cert1": certThatFailsToParse,
 		},
 	})
@@ -140,7 +140,7 @@ func (s *certsSuite) TestConfigureCertsFailsToParse(c *C) {
 func (s *certsSuite) TestConfigureCertsUnhappyContent(c *C) {
 	err := configcore.Run(classicDev, &mockConf{
 		state: s.state,
-		changes: map[string]interface{}{
+		changes: map[string]any{
 			"store-certs.cert-bad": "xxx",
 		},
 	})

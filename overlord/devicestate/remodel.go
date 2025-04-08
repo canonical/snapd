@@ -523,8 +523,8 @@ func (rc *reregRemodelContext) GadgetForSerialRequestConfig() string {
 	return rc.origModel.Gadget()
 }
 
-func (rc *reregRemodelContext) SerialRequestExtraHeaders() map[string]interface{} {
-	return map[string]interface{}{
+func (rc *reregRemodelContext) SerialRequestExtraHeaders() map[string]any {
+	return map[string]any{
 		"original-brand-id": rc.origSerial.BrandID(),
 		"original-model":    rc.origSerial.Model(),
 		"original-serial":   rc.origSerial.Serial(),

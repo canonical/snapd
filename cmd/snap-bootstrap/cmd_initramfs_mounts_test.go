@@ -278,10 +278,10 @@ volumes:
 	c.Assert(err, IsNil)
 }
 
-func checkDegradedJSON(c *C, name string, exp map[string]interface{}) {
+func checkDegradedJSON(c *C, name string, exp map[string]any) {
 	b, err := os.ReadFile(filepath.Join(dirs.SnapBootstrapRunDir, name))
 	c.Assert(err, IsNil)
-	degradedJSONObj := make(map[string]interface{})
+	degradedJSONObj := make(map[string]any)
 	err = json.Unmarshal(b, &degradedJSONObj)
 	c.Assert(err, IsNil)
 
@@ -530,7 +530,7 @@ func (s *baseInitramfsMountsSuite) setupSeed(c *C, modelAssertTime time.Time, ga
 	s.AddCleanup(restore)
 
 	// XXX: we don't really use this but seedtest always expects my-brand
-	testSeed.Brands.Register("my-brand", brandPrivKey, map[string]interface{}{
+	testSeed.Brands.Register("my-brand", brandPrivKey, map[string]any{
 		"verification": "verified",
 	})
 
@@ -559,44 +559,44 @@ func (s *baseInitramfsMountsSuite) setupSeed(c *C, modelAssertTime time.Time, ga
 	}
 
 	s.sysLabel = "20191118"
-	var kernel map[string]interface{}
+	var kernel map[string]any
 	if opts.hasKModsComps {
-		kernel = map[string]interface{}{
+		kernel = map[string]any{
 			"name":            "pc-kernel",
 			"id":              testSeed.AssertedSnapID("pc-kernel"),
 			"type":            "kernel",
 			"default-channel": channel,
-			"components": map[string]interface{}{
+			"components": map[string]any{
 				"kcomp1": "required",
 				"kcomp2": "required",
-				"kcomp3": map[string]interface{}{
+				"kcomp3": map[string]any{
 					"presence": "optional",
-					"modes":    []interface{}{"ephemeral"},
+					"modes":    []any{"ephemeral"},
 				},
 			},
 		}
 	} else {
-		kernel = map[string]interface{}{
+		kernel = map[string]any{
 			"name":            "pc-kernel",
 			"id":              testSeed.AssertedSnapID("pc-kernel"),
 			"type":            "kernel",
 			"default-channel": channel,
 		}
 	}
-	model := map[string]interface{}{
+	model := map[string]any{
 		"display-name": "my model",
 		"architecture": "amd64",
 		"base":         base,
 		"timestamp":    modelAssertTime.Format(time.RFC3339),
-		"snaps": []interface{}{
+		"snaps": []any{
 			kernel,
-			map[string]interface{}{
+			map[string]any{
 				"name":            "pc",
 				"id":              testSeed.AssertedSnapID("pc"),
 				"type":            "gadget",
 				"default-channel": channel,
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            base,
 				"id":              testSeed.AssertedSnapID(base),
 				"type":            "base",

@@ -48,7 +48,7 @@ func (s *SnapSuite) TestUnalias(c *C) {
 		switch r.URL.Path {
 		case "/v2/aliases":
 			c.Check(r.Method, Equals, "POST")
-			c.Check(DecodedRequestBody(c, r), DeepEquals, map[string]interface{}{
+			c.Check(DecodedRequestBody(c, r), DeepEquals, map[string]any{
 				"action": "unalias",
 				"snap":   "alias1",
 				"alias":  "alias1",

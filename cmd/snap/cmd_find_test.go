@@ -523,7 +523,7 @@ func (s *SnapSuite) TestSectionCompletion(c *check.C) {
 		case 0, 1:
 			c.Check(r.Method, check.Equals, "GET")
 			c.Check(r.URL.Path, check.Equals, "/v2/sections")
-			EncodeResponseBody(c, w, map[string]interface{}{
+			EncodeResponseBody(c, w, map[string]any{
 				"type":   "sync",
 				"result": []string{"foo", "bar", "baz"},
 			})
@@ -581,7 +581,7 @@ func (s *SnapSuite) TestFindSnapSectionOverview(c *check.C) {
 		case 0, 1:
 			c.Check(r.Method, check.Equals, "GET")
 			c.Check(r.URL.Path, check.Equals, "/v2/sections")
-			EncodeResponseBody(c, w, map[string]interface{}{
+			EncodeResponseBody(c, w, map[string]any{
 				"type":   "sync",
 				"result": []string{"sec2", "sec1"},
 			})
@@ -613,7 +613,7 @@ func (s *SnapSuite) TestFindSnapInvalidSection(c *check.C) {
 		case 0:
 			c.Check(r.Method, check.Equals, "GET")
 			c.Check(r.URL.Path, check.Equals, "/v2/sections")
-			EncodeResponseBody(c, w, map[string]interface{}{
+			EncodeResponseBody(c, w, map[string]any{
 				"type":   "sync",
 				"result": []string{"sec1"},
 			})
@@ -634,7 +634,7 @@ func (s *SnapSuite) TestFindSnapNotFoundInSection(c *check.C) {
 		case 0:
 			c.Check(r.Method, check.Equals, "GET")
 			c.Check(r.URL.Path, check.Equals, "/v2/sections")
-			EncodeResponseBody(c, w, map[string]interface{}{
+			EncodeResponseBody(c, w, map[string]any{
 				"type":   "sync",
 				"result": []string{"foobar"},
 			})
@@ -644,7 +644,7 @@ func (s *SnapSuite) TestFindSnapNotFoundInSection(c *check.C) {
 			v, ok := r.URL.Query()["section"]
 			c.Check(ok, check.Equals, true)
 			c.Check(v, check.DeepEquals, []string{"foobar"})
-			EncodeResponseBody(c, w, map[string]interface{}{
+			EncodeResponseBody(c, w, map[string]any{
 				"type":   "sync",
 				"result": []string{},
 			})
@@ -668,7 +668,7 @@ func (s *SnapSuite) TestFindSnapCachedSection(c *check.C) {
 		numHits++
 		c.Check(numHits, check.Equals, 1)
 		c.Check(r.URL.Path, check.Equals, "/v2/sections")
-		EncodeResponseBody(c, w, map[string]interface{}{
+		EncodeResponseBody(c, w, map[string]any{
 			"type":   "sync",
 			"result": []string{"sec1", "sec2", "sec3"},
 		})

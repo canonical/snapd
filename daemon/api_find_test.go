@@ -297,7 +297,7 @@ func (s *findSuite) TestFindCommonID(c *check.C) {
 
 	snaps := snapList(rsp.Result)
 	c.Assert(snaps, check.HasLen, 1)
-	c.Check(snaps[0]["common-ids"], check.DeepEquals, []interface{}{"org.foo"})
+	c.Check(snaps[0]["common-ids"], check.DeepEquals, []any{"org.foo"})
 }
 
 func (s *findSuite) TestFindByCommonID(c *check.C) {
@@ -360,13 +360,13 @@ func (s *findSuite) TestFindOne(c *check.C) {
 	c.Assert(snaps, check.HasLen, 1)
 	c.Check(snaps[0]["name"], check.Equals, "store")
 	c.Check(snaps[0]["base"], check.Equals, "base0")
-	c.Check(snaps[0]["publisher"], check.DeepEquals, map[string]interface{}{
+	c.Check(snaps[0]["publisher"], check.DeepEquals, map[string]any{
 		"id":           "foo-id",
 		"username":     "foo",
 		"display-name": "Foo",
 		"validation":   "verified",
 	})
-	m := snaps[0]["channels"].(map[string]interface{})["stable"].(map[string]interface{})
+	m := snaps[0]["channels"].(map[string]any)["stable"].(map[string]any)
 
 	c.Check(m["revision"], check.Equals, "42")
 }
@@ -531,7 +531,7 @@ func (s *findSuite) TestFindPriced(c *check.C) {
 
 	snap := snaps[0]
 	c.Check(snap["name"], check.Equals, "banana")
-	c.Check(snap["prices"], check.DeepEquals, map[string]interface{}{
+	c.Check(snap["prices"], check.DeepEquals, map[string]any{
 		"EUR": 2.34,
 		"GBP": 1.23,
 	})
@@ -578,14 +578,14 @@ func (s *findSuite) TestFindScreenshotted(c *check.C) {
 	c.Assert(snaps, check.HasLen, 1)
 
 	c.Check(snaps[0]["name"], check.Equals, "test-screenshot")
-	c.Check(snaps[0]["media"], check.DeepEquals, []interface{}{
-		map[string]interface{}{
+	c.Check(snaps[0]["media"], check.DeepEquals, []any{
+		map[string]any{
 			"type":   "screenshot",
 			"url":    "http://example.com/screenshot.png",
 			"width":  float64(800),
 			"height": float64(1280),
 		},
-		map[string]interface{}{
+		map[string]any{
 			"type": "screenshot",
 			"url":  "http://example.com/screenshot2.png",
 		},

@@ -98,7 +98,7 @@ func (s *preseedSuite) testRunPreseedUC20Happy(c *C, customAppArmorFeaturesDir, 
 
 	ts := &toolingStore{&seedtest.SeedSnaps{}}
 	ts.SeedSnaps.SetupAssertSigning("canonical")
-	ts.Brands.Register("my-brand", testKey, map[string]interface{}{
+	ts.Brands.Register("my-brand", testKey, map[string]any{
 		"verification": "verified",
 	})
 
@@ -113,19 +113,19 @@ func (s *preseedSuite) testRunPreseedUC20Happy(c *C, customAppArmorFeaturesDir, 
 	restoreTrusted := preseed.MockTrusted(ts.StoreSigning.Trusted)
 	defer restoreTrusted()
 
-	model := ts.Brands.Model("my-brand", "my-model-uc20", map[string]interface{}{
+	model := ts.Brands.Model("my-brand", "my-model-uc20", map[string]any{
 		"display-name": "My Model",
 		"architecture": "amd64",
 		"base":         "core20",
 		"grade":        "dangerous",
 		"timestamp":    "2019-11-01T08:00:00+00:00",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name": "pc-kernel",
 				"id":   "pckernelidididididididididididid",
 				"type": "kernel",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name": "pc",
 				"id":   "pcididididididididididididididid",
 				"type": "gadget",

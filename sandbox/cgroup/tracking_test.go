@@ -577,7 +577,7 @@ func checkAndRespondToStartTransientUnit(c *C, msg *dbus.Message, scopeName stri
 	// XXX: Those types might live in a package somewhere
 	type Property struct {
 		Name  string
-		Value interface{}
+		Value any
 	}
 	type Unit struct {
 		Name  string
@@ -595,13 +595,13 @@ func checkAndRespondToStartTransientUnit(c *C, msg *dbus.Message, scopeName stri
 		dbus.FieldMember:      dbus.MakeVariant("StartTransientUnit"),
 		dbus.FieldSignature:   dbus.MakeVariant(requestSig),
 	})
-	c.Check(msg.Body, DeepEquals, []interface{}{
+	c.Check(msg.Body, DeepEquals, []any{
 		scopeName,
 		"fail",
-		[][]interface{}{
+		[][]any{
 			{"PIDs", dbus.MakeVariant([]uint32{uint32(pid)})},
 		},
-		[][]interface{}{},
+		[][]any{},
 	})
 
 	responseSig := dbus.SignatureOf(dbus.ObjectPath(""))
@@ -614,7 +614,7 @@ func checkAndRespondToStartTransientUnit(c *C, msg *dbus.Message, scopeName stri
 			dbus.FieldSignature: dbus.MakeVariant(responseSig),
 		},
 		// The object path returned in the body is not used by snap run yet.
-		Body: []interface{}{dbus.ObjectPath("/org/freedesktop/systemd1/job/1462")},
+		Body: []any{dbus.ObjectPath("/org/freedesktop/systemd1/job/1462")},
 	}
 }
 
@@ -643,7 +643,7 @@ func mockJobRemovedSignal(unit, result string) *dbus.Message {
 			dbus.FieldSignature: dbus.MakeVariant(
 				dbus.SignatureOf(uint32(0), dbus.ObjectPath(""), "", "")),
 		},
-		Body: []interface{}{
+		Body: []any{
 			uint32(1),
 			dbus.ObjectPath("/org/freedesktop/systemd1/job/1462"),
 			unit,

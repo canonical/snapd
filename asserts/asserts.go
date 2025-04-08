@@ -254,7 +254,7 @@ func MockOptionalPrimaryKey(assertType *AssertionType, key, defaultValue string)
 	}
 }
 
-var formatAnalyzer = map[*AssertionType]func(headers map[string]interface{}, body []byte) (formatnum int, err error){
+var formatAnalyzer = map[*AssertionType]func(headers map[string]any, body []byte) (formatnum int, err error){
 	AccountKeyType:      accountKeyFormatAnalyze,
 	SnapDeclarationType: snapDeclarationFormatAnalyze,
 	SystemUserType:      systemUserFormatAnalyze,
@@ -279,7 +279,7 @@ func MaxSupportedFormats(min int) (maxFormats map[string]int) {
 }
 
 // SuggestFormat returns a minimum format that supports the features that would be used by an assertion with the given components.
-func SuggestFormat(assertType *AssertionType, headers map[string]interface{}, body []byte) (formatnum int, err error) {
+func SuggestFormat(assertType *AssertionType, headers map[string]any, body []byte) (formatnum int, err error) {
 	analyzer := formatAnalyzer[assertType]
 	if analyzer == nil {
 		// no analyzer, format 0 is all there is
@@ -536,10 +536,10 @@ type Assertion interface {
 	AuthorityID() string
 
 	// Header retrieves the header with name
-	Header(name string) interface{}
+	Header(name string) any
 
 	// Headers returns the complete headers
-	Headers() map[string]interface{}
+	Headers() map[string]any
 
 	// HeaderString retrieves the string value of header with name or ""
 	HeaderString(name string) string
@@ -582,7 +582,7 @@ const MediaType = "application/x.ubuntu.assertion"
 
 // assertionBase is the concrete base to hold representation data for actual assertions.
 type assertionBase struct {
-	headers map[string]interface{}
+	headers map[string]any
 	body    []byte
 	// parsed format iteration
 	format int
@@ -628,7 +628,7 @@ func (ab *assertionBase) AuthorityID() string {
 }
 
 // Header returns the value of an header by name.
-func (ab *assertionBase) Header(name string) interface{} {
+func (ab *assertionBase) Header(name string) any {
 	v := ab.headers[name]
 	if v == nil {
 		return nil
@@ -637,7 +637,7 @@ func (ab *assertionBase) Header(name string) interface{} {
 }
 
 // Headers returns the complete headers.
-func (ab *assertionBase) Headers() map[string]interface{} {
+func (ab *assertionBase) Headers() map[string]any {
 	return copyHeaders(ab.headers)
 }
 
@@ -963,7 +963,7 @@ func (d *Decoder) Decode() (Assertion, error) {
 	return assemble(headers, finalBody, finalContent, finalSig)
 }
 
-func checkIteration(headers map[string]interface{}, name string) (int, error) {
+func checkIteration(headers map[string]any, name string) (int, error) {
 	iternum, err := checkIntWithDefault(headers, name, 0)
 	if err != nil {
 		return -1, err
@@ -974,16 +974,16 @@ func checkIteration(headers map[string]interface{}, name string) (int, error) {
 	return iternum, nil
 }
 
-func checkFormat(headers map[string]interface{}) (int, error) {
+func checkFormat(headers map[string]any) (int, error) {
 	return checkIteration(headers, "format")
 }
 
-func checkRevision(headers map[string]interface{}) (int, error) {
+func checkRevision(headers map[string]any) (int, error) {
 	return checkIteration(headers, "revision")
 }
 
 // Assemble assembles an assertion from its components.
-func Assemble(headers map[string]interface{}, body, content, signature []byte) (Assertion, error) {
+func Assemble(headers map[string]any, body, content, signature []byte) (Assertion, error) {
 	err := checkHeaders(headers)
 	if err != nil {
 		return nil, err
@@ -991,14 +991,14 @@ func Assemble(headers map[string]interface{}, body, content, signature []byte) (
 	return assemble(headers, body, content, signature)
 }
 
-func checkAuthority(_ *AssertionType, headers map[string]interface{}) error {
+func checkAuthority(_ *AssertionType, headers map[string]any) error {
 	if _, err := checkNotEmptyString(headers, "authority-id"); err != nil {
 		return err
 	}
 	return nil
 }
 
-func checkNoAuthority(assertType *AssertionType, headers map[string]interface{}) error {
+func checkNoAuthority(assertType *AssertionType, headers map[string]any) error {
 	if _, ok := headers["authority-id"]; ok {
 		return fmt.Errorf("%q assertion cannot have authority-id set", assertType.Name)
 	}
@@ -1016,7 +1016,7 @@ func checkJSON(assertType *AssertionType, body []byte) (err error) {
 		return fmt.Errorf(`body must contain JSON`)
 	}
 
-	var val interface{}
+	var val any
 	if err := json.Unmarshal(body, &val); err != nil {
 		return fmt.Errorf("invalid JSON in body: %v", err)
 	}
@@ -1036,7 +1036,7 @@ func checkJSON(assertType *AssertionType, body []byte) (err error) {
 }
 
 // assemble is the internal variant of Assemble, assumes headers are already checked for supported types
-func assemble(headers map[string]interface{}, body, content, signature []byte) (Assertion, error) {
+func assemble(headers map[string]any, body, content, signature []byte) (Assertion, error) {
 	length, err := checkIntWithDefault(headers, "body-length", 0)
 	if err != nil {
 		return nil, fmt.Errorf("assertion: %v", err)
@@ -1117,11 +1117,11 @@ func assemble(headers map[string]interface{}, body, content, signature []byte) (
 	return assert, nil
 }
 
-func writeHeader(buf *bytes.Buffer, headers map[string]interface{}, name string) {
+func writeHeader(buf *bytes.Buffer, headers map[string]any, name string) {
 	appendEntry(buf, fmt.Sprintf("%s:", name), headers[name], 0)
 }
 
-func assembleAndSign(assertType *AssertionType, headers map[string]interface{}, body []byte, privKey PrivateKey) (Assertion, error) {
+func assembleAndSign(assertType *AssertionType, headers map[string]any, body []byte, privKey PrivateKey) (Assertion, error) {
 	err := checkAssertType(assertType)
 	if err != nil {
 		return nil, err
@@ -1286,7 +1286,7 @@ func assembleAndSign(assertType *AssertionType, headers map[string]interface{}, 
 }
 
 // SignWithoutAuthority assembles an assertion without a set authority with the provided information and signs it with the given private key.
-func SignWithoutAuthority(assertType *AssertionType, headers map[string]interface{}, body []byte, privKey PrivateKey) (Assertion, error) {
+func SignWithoutAuthority(assertType *AssertionType, headers map[string]any, body []byte, privKey PrivateKey) (Assertion, error) {
 	if assertType.flags&noAuthority == 0 {
 		return nil, fmt.Errorf("cannot sign assertions needing a definite authority with SignWithoutAuthority")
 	}

@@ -118,7 +118,7 @@ var (
 
 type automaticSnapshotCall struct {
 	InstanceName string
-	SnapConfig   map[string]interface{}
+	SnapConfig   map[string]any
 	Usernames    []string
 	Options      *snap.SnapshotOptions
 }
@@ -218,7 +218,7 @@ func (s *baseMgrsSuite) SetUpTest(c *C) {
 	})
 
 	s.automaticSnapshots = nil
-	r := snapshotstate.MockBackendSave(func(_ context.Context, id uint64, si *snap.Info, cfg map[string]interface{}, usernames []string,
+	r := snapshotstate.MockBackendSave(func(_ context.Context, id uint64, si *snap.Info, cfg map[string]any, usernames []string,
 		options *snap.SnapshotOptions, _ *dirs.SnapDirOptions) (*client.Snapshot, error) {
 		s.automaticSnapshots = append(s.automaticSnapshots, automaticSnapshotCall{InstanceName: si.InstanceName(), SnapConfig: cfg, Usernames: usernames, Options: options})
 		return nil, nil
@@ -246,12 +246,12 @@ func (s *baseMgrsSuite) SetUpTest(c *C) {
 
 	s.storeSigning = assertstest.NewStoreStack("can0nical", nil)
 	s.brands = assertstest.NewSigningAccounts(s.storeSigning)
-	s.brands.Register("my-brand", brandPrivKey, map[string]interface{}{
+	s.brands.Register("my-brand", brandPrivKey, map[string]any{
 		"validation": "verified",
 	})
 	s.AddCleanup(sysdb.InjectTrusted(s.storeSigning.Trusted))
 
-	s.devAcct = assertstest.NewAccount(s.storeSigning, "devdevdev", map[string]interface{}{
+	s.devAcct = assertstest.NewAccount(s.storeSigning, "devdevdev", map[string]any{
 		"account-id": "devdevdev",
 	}, "")
 	err = s.storeSigning.Add(s.devAcct)
@@ -296,7 +296,7 @@ func (s *baseMgrsSuite) SetUpTest(c *C) {
 	defer st.Unlock()
 
 	// add "core" snap declaration
-	headers := map[string]interface{}{
+	headers := map[string]any{
 		"series":       "16",
 		"snap-name":    "core",
 		"publisher-id": "can0nical",
@@ -315,7 +315,7 @@ func (s *baseMgrsSuite) SetUpTest(c *C) {
 	c.Assert(err, IsNil)
 
 	// add "snap1" snap declaration
-	headers = map[string]interface{}{
+	headers = map[string]any{
 		"series":       "16",
 		"snap-name":    "snap1",
 		"publisher-id": "can0nical",
@@ -328,7 +328,7 @@ func (s *baseMgrsSuite) SetUpTest(c *C) {
 	c.Assert(s.storeSigning.Add(a2), IsNil)
 
 	// add "snap2" snap declaration
-	headers = map[string]interface{}{
+	headers = map[string]any{
 		"series":       "16",
 		"snap-name":    "snap2",
 		"publisher-id": "can0nical",
@@ -341,7 +341,7 @@ func (s *baseMgrsSuite) SetUpTest(c *C) {
 	c.Assert(s.storeSigning.Add(a3), IsNil)
 
 	// add "some-snap" snap declaration
-	headers = map[string]interface{}{
+	headers = map[string]any{
 		"series":       "16",
 		"snap-name":    "some-snap",
 		"publisher-id": "can0nical",
@@ -354,7 +354,7 @@ func (s *baseMgrsSuite) SetUpTest(c *C) {
 	c.Assert(s.storeSigning.Add(a4), IsNil)
 
 	// add "other-snap" snap declaration
-	headers = map[string]interface{}{
+	headers = map[string]any{
 		"series":       "16",
 		"snap-name":    "other-snap",
 		"publisher-id": "can0nical",
@@ -367,7 +367,7 @@ func (s *baseMgrsSuite) SetUpTest(c *C) {
 	c.Assert(s.storeSigning.Add(a5), IsNil)
 
 	// add pc-kernel snap declaration
-	headers = map[string]interface{}{
+	headers = map[string]any{
 		"series":       "16",
 		"snap-name":    "pc-kernel",
 		"publisher-id": "can0nical",
@@ -380,7 +380,7 @@ func (s *baseMgrsSuite) SetUpTest(c *C) {
 	c.Assert(s.storeSigning.Add(a6), IsNil)
 
 	// add pc snap declaration
-	headers = map[string]interface{}{
+	headers = map[string]any{
 		"series":       "16",
 		"snap-name":    "pc",
 		"publisher-id": "can0nical",
@@ -393,7 +393,7 @@ func (s *baseMgrsSuite) SetUpTest(c *C) {
 	c.Assert(s.storeSigning.Add(a7), IsNil)
 
 	// add pi snap declaration
-	headers = map[string]interface{}{
+	headers = map[string]any{
 		"series":       "16",
 		"snap-name":    "pi",
 		"publisher-id": "can0nical",
@@ -406,7 +406,7 @@ func (s *baseMgrsSuite) SetUpTest(c *C) {
 	c.Assert(s.storeSigning.Add(a8), IsNil)
 
 	// add pi-kernel snap declaration
-	headers = map[string]interface{}{
+	headers = map[string]any{
 		"series":       "16",
 		"snap-name":    "pi-kernel",
 		"publisher-id": "can0nical",
@@ -419,7 +419,7 @@ func (s *baseMgrsSuite) SetUpTest(c *C) {
 	c.Assert(s.storeSigning.Add(a9), IsNil)
 
 	// add core18 snap declaration
-	headers = map[string]interface{}{
+	headers = map[string]any{
 		"series":       "16",
 		"snap-name":    "core18",
 		"publisher-id": "can0nical",
@@ -432,7 +432,7 @@ func (s *baseMgrsSuite) SetUpTest(c *C) {
 	c.Assert(s.storeSigning.Add(a10), IsNil)
 
 	// add core20 snap declaration
-	headers = map[string]interface{}{
+	headers = map[string]any{
 		"series":       "16",
 		"snap-name":    "core20",
 		"publisher-id": "can0nical",
@@ -445,7 +445,7 @@ func (s *baseMgrsSuite) SetUpTest(c *C) {
 	c.Assert(s.storeSigning.Add(a11), IsNil)
 
 	// add snapd snap declaration
-	headers = map[string]interface{}{
+	headers = map[string]any{
 		"series":       "16",
 		"snap-name":    "snapd",
 		"publisher-id": "can0nical",
@@ -526,7 +526,7 @@ SNAPD_APPARMOR_REEXEC=1
 func (s *baseMgrsSuite) makeSerialAssertionInState(c *C, st *state.State, brandID, model, serialN string) *asserts.Serial {
 	encDevKey, err := asserts.EncodePublicKey(deviceKey.PublicKey())
 	c.Assert(err, IsNil)
-	serial, err := s.brands.Signing(brandID).Sign(asserts.SerialType, map[string]interface{}{
+	serial, err := s.brands.Signing(brandID).Sign(asserts.SerialType, map[string]any{
 		"brand-id":            brandID,
 		"model":               model,
 		"serial":              serialN,
@@ -813,7 +813,7 @@ apps:
 	c.Assert(osutil.FileExists(mup), Equals, false)
 
 	// automatic snapshot was created
-	c.Assert(s.automaticSnapshots, DeepEquals, []automaticSnapshotCall{{"foo", map[string]interface{}{"key": "value"}, nil, nil}})
+	c.Assert(s.automaticSnapshots, DeepEquals, []automaticSnapshotCall{{"foo", map[string]any{"key": "value"}, nil, nil}})
 }
 
 func (s *mgrsSuite) TestHappyRemoveWithQuotas(c *C) {
@@ -957,13 +957,13 @@ const (
 
 var fooSnapID = fakeSnapID("foo")
 
-func (s *baseMgrsSuite) prereqSnapAssertions(c *C, extraHeaders ...map[string]interface{}) *asserts.SnapDeclaration {
+func (s *baseMgrsSuite) prereqSnapAssertions(c *C, extraHeaders ...map[string]any) *asserts.SnapDeclaration {
 	if len(extraHeaders) == 0 {
-		extraHeaders = []map[string]interface{}{{}}
+		extraHeaders = []map[string]any{{}}
 	}
 	var snapDecl *asserts.SnapDeclaration
 	for _, extraHeaders := range extraHeaders {
-		headers := map[string]interface{}{
+		headers := map[string]any{
 			"series":       "16",
 			"snap-name":    "foo",
 			"publisher-id": "devdevdev",
@@ -1001,7 +1001,7 @@ func (s *baseMgrsSuite) makeStoreTestSnap(c *C, snapYaml string, revno string) (
 }
 
 func (s *baseMgrsSuite) makeStoreSnapRevision(c *C, name, revno, digest string, size uint64) asserts.Assertion {
-	headers := map[string]interface{}{
+	headers := map[string]any{
 		"snap-id":       fakeSnapID(name),
 		"snap-sha3-384": digest,
 		"snap-size":     fmt.Sprintf("%d", size),
@@ -1293,7 +1293,7 @@ func (s *baseMgrsSuite) mockStore(c *C) *httptest.Server {
 				})
 			}
 			w.WriteHeader(200)
-			output, err := json.Marshal(map[string]interface{}{
+			output, err := json.Marshal(map[string]any{
 				"results": results,
 			})
 			if err != nil {
@@ -1638,7 +1638,7 @@ func (s *mgrsSuite) TestHappyRemoteInstallAndUpdateManyWithEpochBump(c *C) {
 
 	snapNames := []string{"aaaa", "bbbb", "cccc"}
 	for _, name := range snapNames {
-		s.prereqSnapAssertions(c, map[string]interface{}{"snap-name": name})
+		s.prereqSnapAssertions(c, map[string]any{"snap-name": name})
 		snapPath, _ := s.makeStoreTestSnap(c, fmt.Sprintf("{name: %s, version: 0}", name), "1")
 		s.serveSnap(snapPath, "1")
 	}
@@ -1718,7 +1718,7 @@ func (s *mgrsSuite) TestTransactionalInstallManyFails(c *C) {
 
 	snapNames := []string{"aaaa", "bbbb", "cccc"}
 	for _, name := range snapNames {
-		s.prereqSnapAssertions(c, map[string]interface{}{"snap-name": name})
+		s.prereqSnapAssertions(c, map[string]any{"snap-name": name})
 		snapPath, _ := s.makeStoreTestSnap(c, fmt.Sprintf("{name: %s, version: 0}", name), "1")
 		s.serveSnap(snapPath, "1")
 	}
@@ -1764,7 +1764,7 @@ func (s *mgrsSuite) TestTransactionalInstallManyOkUpdateManyFails(c *C) {
 
 	snapNames := []string{"aaaa", "bbbb", "cccc"}
 	for _, name := range snapNames {
-		s.prereqSnapAssertions(c, map[string]interface{}{"snap-name": name})
+		s.prereqSnapAssertions(c, map[string]any{"snap-name": name})
 		snapPath, _ := s.makeStoreTestSnap(c, fmt.Sprintf("{name: %s, version: 0}", name), "1")
 		s.serveSnap(snapPath, "1")
 	}
@@ -1850,7 +1850,7 @@ func (s *mgrsSuite) TestTransactionalInstallManyOkUpdateManyOk(c *C) {
 
 	snapNames := []string{"aaaa", "bbbb", "cccc"}
 	for _, name := range snapNames {
-		s.prereqSnapAssertions(c, map[string]interface{}{"snap-name": name})
+		s.prereqSnapAssertions(c, map[string]any{"snap-name": name})
 		snapPath, _ := s.makeStoreTestSnap(c, fmt.Sprintf("{name: %s, version: 0}", name), "1")
 		s.serveSnap(snapPath, "1")
 	}
@@ -1928,7 +1928,7 @@ func (s *mgrsSuite) TestHappyRemoteInstallAndUpdateManyWithEpochBumpAndOneFailin
 
 	snapNames := []string{"aaaa", "bbbb", "cccc"}
 	for _, name := range snapNames {
-		s.prereqSnapAssertions(c, map[string]interface{}{"snap-name": name})
+		s.prereqSnapAssertions(c, map[string]any{"snap-name": name})
 		snapPath, _ := s.makeStoreTestSnap(c, fmt.Sprintf("{name: %s, version: 0}", name), "1")
 		s.serveSnap(snapPath, "1")
 	}
@@ -2229,12 +2229,12 @@ version: @VERSION@
 
 	// Setup refresh control
 
-	headers := map[string]interface{}{
+	headers := map[string]any{
 		"series":          "16",
 		"snap-id":         "bar-id",
 		"snap-name":       "bar",
 		"publisher-id":    "devdevdev",
-		"refresh-control": []interface{}{fooSnapID},
+		"refresh-control": []any{fooSnapID},
 		"timestamp":       time.Now().Format(time.RFC3339),
 	}
 	snapDeclBar, err := s.storeSigning.Sign(asserts.SnapDeclarationType, headers, nil, "")
@@ -2271,7 +2271,7 @@ version: @VERSION@
 	c.Check(err, ErrorMatches, `cannot refresh "foo" to revision 50: no validation by "bar"`)
 
 	// setup validation
-	headers = map[string]interface{}{
+	headers = map[string]any{
 		"series":                 "16",
 		"snap-id":                "bar-id",
 		"approved-snap-id":       fooSnapID,
@@ -2308,7 +2308,7 @@ version: @VERSION@
 
 // core & kernel
 
-var modelDefaults = map[string]interface{}{
+var modelDefaults = map[string]any{
 	"architecture": "amd64",
 	"store":        "my-brand-store-id",
 	"gadget":       "pc",
@@ -2772,18 +2772,18 @@ func (s *mgrsSuiteCore) TestInstallKernelSnap20UpdatesBootloaderEnv(c *C) {
 	restore = release.MockOnClassic(false)
 	defer restore()
 
-	uc20ModelDefaults := map[string]interface{}{
+	uc20ModelDefaults := map[string]any{
 		"architecture": "amd64",
 		"base":         "core20",
 		"store":        "my-brand-store-id",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":            "pc-kernel",
 				"id":              snaptest.AssertedSnapID("pc-kernel"),
 				"type":            "kernel",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "pc",
 				"id":              snaptest.AssertedSnapID("pc"),
 				"type":            "gadget",
@@ -2942,18 +2942,18 @@ func (s *mgrsSuiteCore) TestInstallKernelSnap20UndoUpdatesBootloaderEnv(c *C) {
 	restore = release.MockOnClassic(false)
 	defer restore()
 
-	uc20ModelDefaults := map[string]interface{}{
+	uc20ModelDefaults := map[string]any{
 		"architecture": "amd64",
 		"base":         "core20",
 		"store":        "my-brand-store-id",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":            "pc-kernel",
 				"id":              snaptest.AssertedSnapID("pc-kernel"),
 				"type":            "kernel",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "pc",
 				"id":              snaptest.AssertedSnapID("pc"),
 				"type":            "gadget",
@@ -3320,11 +3320,11 @@ apps:
 }
 
 func (s *mgrsSuite) TestHappyRemoteInstallAutoAliases(c *C) {
-	s.prereqSnapAssertions(c, map[string]interface{}{
+	s.prereqSnapAssertions(c, map[string]any{
 		"snap-name": "foo",
-		"aliases": []interface{}{
-			map[string]interface{}{"name": "app1", "target": "app1"},
-			map[string]interface{}{"name": "app2", "target": "app2"},
+		"aliases": []any{
+			map[string]any{"name": "app1", "target": "app1"},
+			map[string]any{"name": "app2", "target": "app2"},
 		},
 	})
 
@@ -3383,10 +3383,10 @@ apps:
 }
 
 func (s *mgrsSuite) TestHappyRemoteInstallAndUpdateAutoAliases(c *C) {
-	s.prereqSnapAssertions(c, map[string]interface{}{
+	s.prereqSnapAssertions(c, map[string]any{
 		"snap-name": "foo",
-		"aliases": []interface{}{
-			map[string]interface{}{"name": "app1", "target": "app1"},
+		"aliases": []any{
+			map[string]any{"name": "app1", "target": "app1"},
 		},
 	})
 
@@ -3439,10 +3439,10 @@ apps:
 	c.Assert(err, IsNil)
 	c.Check(dest, Equals, "foo.app1")
 
-	s.prereqSnapAssertions(c, map[string]interface{}{
+	s.prereqSnapAssertions(c, map[string]any{
 		"snap-name": "foo",
-		"aliases": []interface{}{
-			map[string]interface{}{"name": "app2", "target": "app2"},
+		"aliases": []any{
+			map[string]any{"name": "app2", "target": "app2"},
 		},
 		"revision": "1",
 	})
@@ -3489,10 +3489,10 @@ apps:
 }
 
 func (s *mgrsSuite) TestHappyRemoteInstallAndUpdateAutoAliasesUnaliased(c *C) {
-	s.prereqSnapAssertions(c, map[string]interface{}{
+	s.prereqSnapAssertions(c, map[string]any{
 		"snap-name": "foo",
-		"aliases": []interface{}{
-			map[string]interface{}{"name": "app1", "target": "app1"},
+		"aliases": []any{
+			map[string]any{"name": "app1", "target": "app1"},
 		},
 	})
 
@@ -3543,10 +3543,10 @@ apps:
 	app1Alias := filepath.Join(dirs.SnapBinariesDir, "app1")
 	c.Check(osutil.IsSymlink(app1Alias), Equals, false)
 
-	s.prereqSnapAssertions(c, map[string]interface{}{
+	s.prereqSnapAssertions(c, map[string]any{
 		"snap-name": "foo",
-		"aliases": []interface{}{
-			map[string]interface{}{"name": "app2", "target": "app2"},
+		"aliases": []any{
+			map[string]any{"name": "app2", "target": "app2"},
 		},
 		"revision": "1",
 	})
@@ -3588,12 +3588,12 @@ apps:
 }
 
 func (s *mgrsSuite) TestHappyOrthogonalRefreshAutoAliases(c *C) {
-	s.prereqSnapAssertions(c, map[string]interface{}{
+	s.prereqSnapAssertions(c, map[string]any{
 		"snap-name": "foo",
-		"aliases": []interface{}{
-			map[string]interface{}{"name": "app1", "target": "app1"},
+		"aliases": []any{
+			map[string]any{"name": "app1", "target": "app1"},
 		},
-	}, map[string]interface{}{
+	}, map[string]any{
 		"snap-name": "bar",
 	})
 
@@ -3676,17 +3676,17 @@ apps:
 	// bar gets only the latter
 	// app1 is transferred from foo to bar
 	// UpdateMany after a snap-declaration refresh handles all of this
-	s.prereqSnapAssertions(c, map[string]interface{}{
+	s.prereqSnapAssertions(c, map[string]any{
 		"snap-name": "foo",
-		"aliases": []interface{}{
-			map[string]interface{}{"name": "app2", "target": "app2"},
+		"aliases": []any{
+			map[string]any{"name": "app2", "target": "app2"},
 		},
 		"revision": "1",
-	}, map[string]interface{}{
+	}, map[string]any{
 		"snap-name": "bar",
-		"aliases": []interface{}{
-			map[string]interface{}{"name": "app1", "target": "app1"},
-			map[string]interface{}{"name": "app3", "target": "app3"},
+		"aliases": []any{
+			map[string]any{"name": "app1", "target": "app1"},
+			map[string]any{"name": "app3", "target": "app3"},
 		},
 		"revision": "1",
 	})
@@ -3757,11 +3757,11 @@ func (s *mgrsSuite) TestHappyRemoteInstallAndUpdateWithAndWithoutAppsForAutoAlia
 	// there is a single snap declaration that covers all tracks/channels,
 	// because of this it can list auto aliases for apps that do not exist
 	// in a particular channel the the snap is installed from and track
-	s.prereqSnapAssertions(c, map[string]interface{}{
+	s.prereqSnapAssertions(c, map[string]any{
 		"snap-name": "foo",
-		"aliases": []interface{}{
-			map[string]interface{}{"name": "app1", "target": "app1"},
-			map[string]interface{}{"name": "app2", "target": "app2"},
+		"aliases": []any{
+			map[string]any{"name": "app1", "target": "app1"},
+			map[string]any{"name": "app2", "target": "app2"},
 		},
 	})
 
@@ -4091,7 +4091,7 @@ func (s *storeCtxSetupSuite) SetUpTest(c *C) {
 	s.restoreTrusted = sysdb.InjectTrusted(s.storeSigning.Trusted)
 
 	s.brands = assertstest.NewSigningAccounts(s.storeSigning)
-	s.brands.Register("my-brand", brandPrivKey, map[string]interface{}{
+	s.brands.Register("my-brand", brandPrivKey, map[string]any{
 		"verification": "verified",
 	})
 	assertstest.AddMany(s.storeSigning, s.brands.AccountsAndKeys("my-brand")...)
@@ -4100,7 +4100,7 @@ func (s *storeCtxSetupSuite) SetUpTest(c *C) {
 
 	encDevKey, err := asserts.EncodePublicKey(deviceKey.PublicKey())
 	c.Assert(err, IsNil)
-	serial, err := s.brands.Signing("my-brand").Sign(asserts.SerialType, map[string]interface{}{
+	serial, err := s.brands.Signing("my-brand").Sign(asserts.SerialType, map[string]any{
 		"authority-id":        "my-brand",
 		"brand-id":            "my-brand",
 		"model":               "my-model",
@@ -4215,7 +4215,7 @@ func (s *storeCtxSetupSuite) TestProxyStoreParams(c *C) {
 	operatorAcct := assertstest.NewAccount(s.storeSigning, "foo-operator", nil, "")
 	err = assertstate.Add(st, operatorAcct)
 	c.Assert(err, IsNil)
-	stoAs, err := s.storeSigning.Sign(asserts.StoreType, map[string]interface{}{
+	stoAs, err := s.storeSigning.Sign(asserts.StoreType, map[string]any{
 		"store":       "foo",
 		"operator-id": operatorAcct.AccountID(),
 		"url":         "http://foo.internal",
@@ -4306,7 +4306,7 @@ func (s *mgrsSuite) testTwoInstalls(c *C, snapName1, snapYaml1, snapName2, snapY
 	c.Assert(slotRef.Name, Equals, "shared-data-slot")
 
 	// verify that connection was made
-	var conns map[string]interface{}
+	var conns map[string]any
 	c.Assert(st.Get("conns", &conns), IsNil)
 	c.Assert(conns, HasLen, 1)
 
@@ -4393,7 +4393,7 @@ version: @VERSION@`
 	st.Lock()
 	defer st.Unlock()
 
-	st.Set("conns", map[string]interface{}{})
+	st.Set("conns", map[string]any{})
 
 	si := &snap.SideInfo{RealName: "some-snap", SnapID: fakeSnapID("some-snap"), Revision: snap.R(1)}
 	snapInfo := snaptest.MockSnap(c, someSnapYaml, si)
@@ -4482,12 +4482,12 @@ version: @VERSION@`
 	c.Assert(chg.Status(), Equals, state.DoneStatus)
 
 	// check connections
-	var conns map[string]interface{}
+	var conns map[string]any
 	st.Get("conns", &conns)
-	c.Assert(conns, DeepEquals, map[string]interface{}{
-		"some-snap:home core:home":                 map[string]interface{}{"interface": "home", "auto": true},
-		"some-snap:network core:network":           map[string]interface{}{"interface": "network", "auto": true},
-		"other-snap:media-hub some-snap:media-hub": map[string]interface{}{"interface": "media-hub", "auto": true},
+	c.Assert(conns, DeepEquals, map[string]any{
+		"some-snap:home core:home":                 map[string]any{"interface": "home", "auto": true},
+		"some-snap:network core:network":           map[string]any{"interface": "network", "auto": true},
+		"other-snap:media-hub some-snap:media-hub": map[string]any{"interface": "media-hub", "auto": true},
 	})
 
 	connections, err := repo.Connections("some-snap")
@@ -4574,10 +4574,10 @@ version: 1`
 	c.Assert(chg.Status(), Equals, state.DoneStatus)
 
 	// check connections
-	var conns map[string]interface{}
+	var conns map[string]any
 	st.Get("conns", &conns)
-	c.Assert(conns, DeepEquals, map[string]interface{}{
-		"some-snap:network core:network": map[string]interface{}{"interface": "network", "auto": true},
+	c.Assert(conns, DeepEquals, map[string]any{
+		"some-snap:network core:network": map[string]any{"interface": "network", "auto": true},
 	})
 }
 
@@ -4696,7 +4696,7 @@ func (s *mgrsSuite) testUpdateWithAutoconnectRetry(c *C, updateSnapName, removeS
 	st.Lock()
 	defer st.Unlock()
 
-	st.Set("conns", map[string]interface{}{})
+	st.Set("conns", map[string]any{})
 
 	si := &snap.SideInfo{RealName: "some-snap", SnapID: fakeSnapID("some-snap"), Revision: snap.R(1)}
 	snapInfo := snaptest.MockSnap(c, someSnapYaml, si)
@@ -4786,7 +4786,7 @@ func (s *mgrsSuite) testUpdateWithAutoconnectRetry(c *C, updateSnapName, removeS
 	c.Assert(chg.Status(), Equals, state.DoneStatus)
 
 	// check connections
-	var conns map[string]interface{}
+	var conns map[string]any
 	st.Get("conns", &conns)
 	c.Assert(conns, HasLen, 0)
 }
@@ -4822,8 +4822,8 @@ hooks:
 	st.Lock()
 	defer st.Unlock()
 
-	st.Set("conns", map[string]interface{}{
-		"other-snap:media-hub some-snap:media-hub": map[string]interface{}{"interface": "media-hub", "auto": false},
+	st.Set("conns", map[string]any{
+		"other-snap:media-hub some-snap:media-hub": map[string]any{"interface": "media-hub", "auto": false},
 	})
 
 	si := &snap.SideInfo{RealName: "some-snap", SnapID: fakeSnapID("some-snap"), Revision: snap.R(1)}
@@ -4882,7 +4882,7 @@ hooks:
 	c.Assert(chg.Status(), Equals, state.DoneStatus)
 
 	// check connections
-	var conns map[string]interface{}
+	var conns map[string]any
 	st.Get("conns", &conns)
 	c.Assert(conns, HasLen, 0)
 
@@ -4918,8 +4918,8 @@ func (s *mgrsSuite) TestDisconnectOnUninstallRemovesAutoconnection(c *C) {
 	st.Lock()
 	defer st.Unlock()
 
-	st.Set("conns", map[string]interface{}{
-		"other-snap:media-hub some-snap:media-hub": map[string]interface{}{"interface": "media-hub", "auto": true},
+	st.Set("conns", map[string]any{
+		"other-snap:media-hub some-snap:media-hub": map[string]any{"interface": "media-hub", "auto": true},
 	})
 
 	si := &snap.SideInfo{RealName: "some-snap", SnapID: fakeSnapID("some-snap"), Revision: snap.R(1)}
@@ -4969,7 +4969,7 @@ func (s *mgrsSuite) TestDisconnectOnUninstallRemovesAutoconnection(c *C) {
 	c.Assert(chg.Status(), Equals, state.DoneStatus)
 
 	// check connections; auto-connection should be removed completely from conns on uninstall.
-	var conns map[string]interface{}
+	var conns map[string]any
 	st.Get("conns", &conns)
 	c.Assert(conns, HasLen, 0)
 }
@@ -5136,7 +5136,7 @@ func (s *mgrsSuiteCore) TestRemodelRequiredSnapsAdded(c *C) {
 	defer bootloader.Force(nil)
 
 	for _, name := range []string{"foo", "bar", "baz"} {
-		s.prereqSnapAssertions(c, map[string]interface{}{
+		s.prereqSnapAssertions(c, map[string]any{
 			"snap-name": name,
 		})
 		snapPath, _ := s.makeStoreTestSnap(c, fmt.Sprintf("{name: %s, version: 1.0}", name), "1")
@@ -5178,8 +5178,8 @@ func (s *mgrsSuiteCore) TestRemodelRequiredSnapsAdded(c *C) {
 	s.makeSerialAssertionInState(c, st, "my-brand", "my-model", "serialserialserial")
 
 	// create a new model
-	newModel := s.brands.Model("my-brand", "my-model", modelDefaults, map[string]interface{}{
-		"required-snaps": []interface{}{"foo", "bar", "baz"},
+	newModel := s.brands.Model("my-brand", "my-model", modelDefaults, map[string]any{
+		"required-snaps": []any{"foo", "bar", "baz"},
 		"revision":       "1",
 	})
 
@@ -5243,7 +5243,7 @@ func (s *mgrsSuiteCore) TestRemodelRequiredSnapsAddedUndo(c *C) {
 	defer bootloader.Force(nil)
 
 	for _, name := range []string{"foo", "bar", "baz"} {
-		s.prereqSnapAssertions(c, map[string]interface{}{
+		s.prereqSnapAssertions(c, map[string]any{
 			"snap-name": name,
 		})
 		snapPath, _ := s.makeStoreTestSnap(c, fmt.Sprintf("{name: %s, version: 1.0}", name), "1")
@@ -5284,8 +5284,8 @@ func (s *mgrsSuiteCore) TestRemodelRequiredSnapsAddedUndo(c *C) {
 	s.makeSerialAssertionInState(c, st, "my-brand", "my-model", "serialserialserial")
 
 	// create a new model
-	newModel := s.brands.Model("my-brand", "my-model", modelDefaults, map[string]interface{}{
-		"required-snaps": []interface{}{"foo", "bar", "baz"},
+	newModel := s.brands.Model("my-brand", "my-model", modelDefaults, map[string]any{
+		"required-snaps": []any{"foo", "bar", "baz"},
 		"revision":       "1",
 	})
 
@@ -5354,7 +5354,7 @@ type: base`
 	s.makeSerialAssertionInState(c, st, "can0nical", "my-model", "serialserialserial")
 
 	// create a new model
-	newModel := s.brands.Model("can0nical", "my-model", modelDefaults, map[string]interface{}{
+	newModel := s.brands.Model("can0nical", "my-model", modelDefaults, map[string]any{
 		"base":     "core18",
 		"revision": "1",
 	})
@@ -5415,7 +5415,7 @@ volumes:
 	})
 
 	// add "pc-20" snap to fake store
-	ms.prereqSnapAssertions(c, map[string]interface{}{
+	ms.prereqSnapAssertions(c, map[string]any{
 		"snap-name":    "pc-20",
 		"publisher-id": "can0nical",
 	})
@@ -5437,14 +5437,14 @@ version: 20.04`
 	ms.serveSnap(snapPath, "2")
 
 	// add "foo" snap to fake store
-	ms.prereqSnapAssertions(c, map[string]interface{}{
+	ms.prereqSnapAssertions(c, map[string]any{
 		"snap-name": "foo",
 	})
 	snapPath, _ = ms.makeStoreTestSnap(c, `{name: "foo", version: 1.0, base: "core20"}`, "1")
 	ms.serveSnap(snapPath, "1")
 
 	// create/set custom model assertion
-	model := ms.brands.Model("can0nical", "my-model", modelDefaults, map[string]interface{}{
+	model := ms.brands.Model("can0nical", "my-model", modelDefaults, map[string]any{
 		"base": "core18",
 	})
 
@@ -5459,11 +5459,11 @@ version: 20.04`
 	ms.makeSerialAssertionInState(c, st, "can0nical", "my-model", "serialserialserial")
 
 	// create a new model
-	newModel := ms.brands.Model("can0nical", "my-model", modelDefaults, map[string]interface{}{
+	newModel := ms.brands.Model("can0nical", "my-model", modelDefaults, map[string]any{
 		"base":           "core20",
 		"gadget":         "pc-20",
 		"revision":       "1",
-		"required-snaps": []interface{}{"foo"},
+		"required-snaps": []any{"foo"},
 	})
 
 	chg, err := devicestate.Remodel(st, newModel, devicestate.RemodelOptions{})
@@ -5584,7 +5584,7 @@ volumes:
 	})
 
 	// add "pc-20" snap to fake store
-	ms.prereqSnapAssertions(c, map[string]interface{}{
+	ms.prereqSnapAssertions(c, map[string]any{
 		"snap-name":    "pc-20",
 		"publisher-id": "can0nical",
 	})
@@ -5606,14 +5606,14 @@ version: 20.04`
 	ms.serveSnap(snapPath, "2")
 
 	// add "foo" snap to fake store
-	ms.prereqSnapAssertions(c, map[string]interface{}{
+	ms.prereqSnapAssertions(c, map[string]any{
 		"snap-name": "foo",
 	})
 	snapPath, _ = ms.makeStoreTestSnap(c, `{name: "foo", version: 1.0, base: "core20"}`, "1")
 	ms.serveSnap(snapPath, "1")
 
 	// create/set custom model assertion
-	model := ms.brands.Model("can0nical", "my-model", modelDefaults, map[string]interface{}{
+	model := ms.brands.Model("can0nical", "my-model", modelDefaults, map[string]any{
 		"base": "core18",
 	})
 
@@ -5628,11 +5628,11 @@ version: 20.04`
 	ms.makeSerialAssertionInState(c, st, "can0nical", "my-model", "serialserialserial")
 
 	// create a new model
-	newModel := ms.brands.Model("can0nical", "my-model", modelDefaults, map[string]interface{}{
+	newModel := ms.brands.Model("can0nical", "my-model", modelDefaults, map[string]any{
 		"base":           "core20",
 		"gadget":         "pc-20",
 		"revision":       "1",
-		"required-snaps": []interface{}{"foo"},
+		"required-snaps": []any{"foo"},
 	})
 
 	devicestate.InjectSetModelError(fmt.Errorf("boom"))
@@ -5748,7 +5748,7 @@ volumes:
 	})
 
 	// add "pc-20" snap to fake store
-	ms.prereqSnapAssertions(c, map[string]interface{}{
+	ms.prereqSnapAssertions(c, map[string]any{
 		"snap-name":    "pc-20",
 		"publisher-id": "can0nical",
 	})
@@ -5770,14 +5770,14 @@ version: 20.04`
 	ms.serveSnap(snapPath, "2")
 
 	// add "foo" snap to fake store
-	ms.prereqSnapAssertions(c, map[string]interface{}{
+	ms.prereqSnapAssertions(c, map[string]any{
 		"snap-name": "foo",
 	})
 	snapPath, _ = ms.makeStoreTestSnap(c, `{name: "foo", version: 1.0, base: "core20"}`, "1")
 	ms.serveSnap(snapPath, "1")
 
 	// create/set custom model assertion
-	model := ms.brands.Model("can0nical", "my-model", modelDefaults, map[string]interface{}{
+	model := ms.brands.Model("can0nical", "my-model", modelDefaults, map[string]any{
 		"base": "core18",
 	})
 
@@ -5792,11 +5792,11 @@ version: 20.04`
 	ms.makeSerialAssertionInState(c, st, "can0nical", "my-model", "serialserialserial")
 
 	// create a new model
-	newModel := ms.brands.Model("can0nical", "my-model", modelDefaults, map[string]interface{}{
+	newModel := ms.brands.Model("can0nical", "my-model", modelDefaults, map[string]any{
 		"base":           "core20",
 		"gadget":         "pc-20",
 		"revision":       "1",
-		"required-snaps": []interface{}{"foo"},
+		"required-snaps": []any{"foo"},
 	})
 
 	chg, err := devicestate.Remodel(st, newModel, devicestate.RemodelOptions{})
@@ -6148,14 +6148,14 @@ version: 2.0`
 	const brandKernelYaml = `name: brand-kernel
 type: kernel
 version: 1.0`
-	s.prereqSnapAssertions(c, map[string]interface{}{
+	s.prereqSnapAssertions(c, map[string]any{
 		"snap-name":    "brand-kernel",
 		"publisher-id": "can0nical",
 	})
 	snapPath, _ = s.makeStoreTestSnap(c, brandKernelYaml, "2")
 	s.serveSnap(snapPath, "2")
 
-	s.prereqSnapAssertions(c, map[string]interface{}{
+	s.prereqSnapAssertions(c, map[string]any{
 		"snap-name": "foo",
 	})
 	snapPath, _ = s.makeStoreTestSnap(c, `{name: "foo", version: 1.0}`, "1")
@@ -6168,10 +6168,10 @@ func (s *kernelSuite) TestRemodelSwitchKernelTrack(c *C) {
 	defer st.Unlock()
 
 	// create a new model
-	newModel := s.brands.Model("can0nical", "my-model", modelDefaults, map[string]interface{}{
+	newModel := s.brands.Model("can0nical", "my-model", modelDefaults, map[string]any{
 		"kernel":         "pc-kernel=18",
 		"revision":       "1",
-		"required-snaps": []interface{}{"foo"},
+		"required-snaps": []any{"foo"},
 	})
 
 	chg, err := devicestate.Remodel(st, newModel, devicestate.RemodelOptions{})
@@ -6222,10 +6222,10 @@ func (ms *kernelSuite) TestRemodelSwitchToDifferentKernel(c *C) {
 	defer st.Unlock()
 
 	// create a new model
-	newModel := ms.brands.Model("can0nical", "my-model", modelDefaults, map[string]interface{}{
+	newModel := ms.brands.Model("can0nical", "my-model", modelDefaults, map[string]any{
 		"kernel":         "brand-kernel",
 		"revision":       "1",
-		"required-snaps": []interface{}{"foo"},
+		"required-snaps": []any{"foo"},
 	})
 
 	chg, err := devicestate.Remodel(st, newModel, devicestate.RemodelOptions{})
@@ -6311,10 +6311,10 @@ func (ms *kernelSuite) TestRemodelSwitchToDifferentKernelUndo(c *C) {
 	defer st.Unlock()
 
 	// create a new model
-	newModel := ms.brands.Model("can0nical", "my-model", modelDefaults, map[string]interface{}{
+	newModel := ms.brands.Model("can0nical", "my-model", modelDefaults, map[string]any{
 		"kernel":         "brand-kernel",
 		"revision":       "1",
-		"required-snaps": []interface{}{"foo"},
+		"required-snaps": []any{"foo"},
 	})
 
 	devicestate.InjectSetModelError(fmt.Errorf("boom"))
@@ -6369,10 +6369,10 @@ func (ms *kernelSuite) TestRemodelSwitchToDifferentKernelUndoOnRollback(c *C) {
 	defer st.Unlock()
 
 	// create a new model
-	newModel := ms.brands.Model("can0nical", "my-model", modelDefaults, map[string]interface{}{
+	newModel := ms.brands.Model("can0nical", "my-model", modelDefaults, map[string]any{
 		"kernel":         "brand-kernel",
 		"revision":       "1",
-		"required-snaps": []interface{}{"foo"},
+		"required-snaps": []any{"foo"},
 	})
 
 	devicestate.InjectSetModelError(fmt.Errorf("boom"))
@@ -6423,7 +6423,7 @@ func (s *mgrsSuiteCore) TestRemodelStoreSwitch(c *C) {
 	bootloader.Force(bloader)
 	defer bootloader.Force(nil)
 
-	s.prereqSnapAssertions(c, map[string]interface{}{
+	s.prereqSnapAssertions(c, map[string]any{
 		"snap-name": "foo",
 	})
 	snapPath, _ := s.makeStoreTestSnap(c, fmt.Sprintf("{name: %s, version: 1.0}", "foo"), "1")
@@ -6469,7 +6469,7 @@ func (s *mgrsSuiteCore) TestRemodelStoreSwitch(c *C) {
 
 	encDevKey, err := asserts.EncodePublicKey(deviceKey.PublicKey())
 	c.Assert(err, IsNil)
-	serial, err := s.brands.Signing("my-brand").Sign(asserts.SerialType, map[string]interface{}{
+	serial, err := s.brands.Signing("my-brand").Sign(asserts.SerialType, map[string]any{
 		"authority-id":        "my-brand",
 		"brand-id":            "my-brand",
 		"model":               "my-model",
@@ -6490,9 +6490,9 @@ func (s *mgrsSuiteCore) TestRemodelStoreSwitch(c *C) {
 	})
 
 	// create a new model
-	newModel := s.brands.Model("my-brand", "my-model", modelDefaults, map[string]interface{}{
+	newModel := s.brands.Model("my-brand", "my-model", modelDefaults, map[string]any{
 		"store":          "switched-store",
-		"required-snaps": []interface{}{"foo"},
+		"required-snaps": []any{"foo"},
 		"revision":       "1",
 	})
 
@@ -6601,7 +6601,7 @@ volumes:
 	s.makeSerialAssertionInState(c, st, "can0nical", "my-model", "serialserialserial")
 
 	// create a new model
-	newModel := s.brands.Model("can0nical", "my-model", modelDefaults, map[string]interface{}{
+	newModel := s.brands.Model("can0nical", "my-model", modelDefaults, map[string]any{
 		"gadget":   "pc=18",
 		"revision": "1",
 	})
@@ -6715,7 +6715,7 @@ volumes:
 	const otherPcYaml = `name: other-pc
 type: gadget
 version: 2`
-	s.prereqSnapAssertions(c, map[string]interface{}{
+	s.prereqSnapAssertions(c, map[string]any{
 		"snap-name":    "other-pc",
 		"publisher-id": "can0nical",
 	})
@@ -6762,7 +6762,7 @@ volumes:
 	defer restore()
 
 	// create/set custom model assertion
-	model := s.brands.Model("can0nical", "my-model", modelDefaults, map[string]interface{}{
+	model := s.brands.Model("can0nical", "my-model", modelDefaults, map[string]any{
 		"gadget": "pc",
 	})
 
@@ -6777,7 +6777,7 @@ volumes:
 	s.makeSerialAssertionInState(c, st, "can0nical", "my-model", "serialserialserial")
 
 	// create a new model
-	newModel := s.brands.Model("can0nical", "my-model", modelDefaults, map[string]interface{}{
+	newModel := s.brands.Model("can0nical", "my-model", modelDefaults, map[string]any{
 		"gadget":   "other-pc=18",
 		"revision": "1",
 	})
@@ -6887,7 +6887,7 @@ volumes:
             type: 00000000-0000-0000-0000-0000deadcafe
             size: 20M
 `
-	s.prereqSnapAssertions(c, map[string]interface{}{
+	s.prereqSnapAssertions(c, map[string]any{
 		"snap-name":    "other-pc",
 		"publisher-id": "can0nical",
 	})
@@ -6897,7 +6897,7 @@ volumes:
 	s.serveSnap(snapPath, "2")
 
 	// create/set custom model assertion
-	model := s.brands.Model("can0nical", "my-model", modelDefaults, map[string]interface{}{
+	model := s.brands.Model("can0nical", "my-model", modelDefaults, map[string]any{
 		"gadget": "pc",
 	})
 
@@ -6912,7 +6912,7 @@ volumes:
 	s.makeSerialAssertionInState(c, st, "can0nical", "my-model", "serialserialserial")
 
 	// create a new model
-	newModel := s.brands.Model("can0nical", "my-model", modelDefaults, map[string]interface{}{
+	newModel := s.brands.Model("can0nical", "my-model", modelDefaults, map[string]any{
 		"gadget":   "other-pc=18",
 		"revision": "1",
 	})
@@ -6936,7 +6936,7 @@ func (s *mgrsSuiteCore) TestHappyDeviceRegistrationWithPrepareDeviceHook(c *C) {
 	mockStoreServer := s.mockStore(c)
 	defer mockStoreServer.Close()
 
-	model := s.brands.Model("my-brand", "my-model", modelDefaults, map[string]interface{}{
+	model := s.brands.Model("my-brand", "my-model", modelDefaults, map[string]any{
 		"gadget": "gadget",
 	})
 
@@ -6960,7 +6960,7 @@ func (s *mgrsSuiteCore) TestHappyDeviceRegistrationWithPrepareDeviceHook(c *C) {
 	err = assertstate.Add(st, model)
 	c.Assert(err, IsNil)
 
-	signSerial := func(c *C, bhv *devicestatetest.DeviceServiceBehavior, headers map[string]interface{}, body []byte) (serial asserts.Assertion, ancillary []asserts.Assertion, err error) {
+	signSerial := func(c *C, bhv *devicestatetest.DeviceServiceBehavior, headers map[string]any, body []byte) (serial asserts.Assertion, ancillary []asserts.Assertion, err error) {
 		brandID := headers["brand-id"].(string)
 		model := headers["model"].(string)
 		c.Check(brandID, Equals, "my-brand")
@@ -7031,11 +7031,11 @@ func (s *mgrsSuiteCore) TestHappyDeviceRegistrationWithPrepareDeviceHook(c *C) {
 	c.Assert(err, IsNil)
 	serial := a.(*asserts.Serial)
 
-	var details map[string]interface{}
+	var details map[string]any
 	err = yaml.Unmarshal(serial.Body(), &details)
 	c.Assert(err, IsNil)
 
-	c.Check(details, DeepEquals, map[string]interface{}{
+	c.Check(details, DeepEquals, map[string]any{
 		"mac": "00:00:00:00:ff:00",
 	})
 
@@ -7047,7 +7047,7 @@ func (s *mgrsSuiteCore) TestRemodelReregistration(c *C) {
 	bootloader.Force(bloader)
 	defer bootloader.Force(nil)
 
-	s.prereqSnapAssertions(c, map[string]interface{}{
+	s.prereqSnapAssertions(c, map[string]any{
 		"snap-name": "foo",
 	})
 	snapPath, _ := s.makeStoreTestSnap(c, fmt.Sprintf("{name: %s, version: 1.0}", "foo"), "1")
@@ -7076,7 +7076,7 @@ func (s *mgrsSuiteCore) TestRemodelReregistration(c *C) {
 		newDAC = true
 	}
 
-	model := s.brands.Model("my-brand", "my-model", modelDefaults, map[string]interface{}{
+	model := s.brands.Model("my-brand", "my-model", modelDefaults, map[string]any{
 		"gadget": "gadget",
 	})
 
@@ -7098,7 +7098,7 @@ func (s *mgrsSuiteCore) TestRemodelReregistration(c *C) {
 
 	encDevKey, err := asserts.EncodePublicKey(deviceKey.PublicKey())
 	c.Assert(err, IsNil)
-	serialHeaders := map[string]interface{}{
+	serialHeaders := map[string]any{
 		"brand-id":            "my-brand",
 		"model":               "my-model",
 		"serial":              "orig-serial",
@@ -7112,7 +7112,7 @@ func (s *mgrsSuiteCore) TestRemodelReregistration(c *C) {
 	err = assertstate.Add(st, serial)
 	c.Assert(err, IsNil)
 
-	signSerial := func(c *C, bhv *devicestatetest.DeviceServiceBehavior, headers map[string]interface{}, body []byte) (serial asserts.Assertion, ancillary []asserts.Assertion, err error) {
+	signSerial := func(c *C, bhv *devicestatetest.DeviceServiceBehavior, headers map[string]any, body []byte) (serial asserts.Assertion, ancillary []asserts.Assertion, err error) {
 		brandID := headers["brand-id"].(string)
 		model := headers["model"].(string)
 		c.Check(brandID, Equals, "my-brand")
@@ -7148,10 +7148,10 @@ func (s *mgrsSuiteCore) TestRemodelReregistration(c *C) {
 
 	// run the remodel
 	// create a new model
-	newModel := s.brands.Model("my-brand", "other-model", modelDefaults, map[string]interface{}{
+	newModel := s.brands.Model("my-brand", "other-model", modelDefaults, map[string]any{
 		"store":          "my-brand-substore",
 		"gadget":         "gadget",
-		"required-snaps": []interface{}{"foo"},
+		"required-snaps": []any{"foo"},
 	})
 
 	s.expectedSerial = "orig-serial"
@@ -7342,18 +7342,18 @@ var (
 	}
 
 	// headers of a regular UC20 model assertion
-	uc20ModelDefaults = map[string]interface{}{
+	uc20ModelDefaults = map[string]any{
 		"architecture": "amd64",
 		"base":         "core20",
 		"grade":        "dangerous",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":            "pc-kernel",
 				"id":              fakeSnapID("pc-kernel"),
 				"type":            "kernel",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "pc",
 				"id":              fakeSnapID("pc"),
 				"type":            "gadget",
@@ -7454,7 +7454,7 @@ func (s *mgrsSuiteCore) testRemodelUC20WithRecoverySystem(c *C, encrypted bool) 
 
 	// new snaps from the store
 	for _, name := range []string{"foo", "bar"} {
-		s.prereqSnapAssertions(c, map[string]interface{}{
+		s.prereqSnapAssertions(c, map[string]any{
 			"snap-name": name,
 		})
 		snapPath, _ := s.makeStoreTestSnap(c, fmt.Sprintf("{name: %s, version: 1.0, base: core20}", name), "1")
@@ -7504,7 +7504,7 @@ func (s *mgrsSuiteCore) testRemodelUC20WithRecoverySystem(c *C, encrypted bool) 
 	// already installed snaps that do not have their snap delarations added
 	// in set up and need a new revision in the store
 	for _, name := range []string{"baz"} {
-		decl := s.prereqSnapAssertions(c, map[string]interface{}{
+		decl := s.prereqSnapAssertions(c, map[string]any{
 			"snap-name":    name,
 			"publisher-id": "can0nical",
 		})
@@ -7557,29 +7557,29 @@ func (s *mgrsSuiteCore) testRemodelUC20WithRecoverySystem(c *C, encrypted bool) 
 	}, nil)
 
 	// create a new model
-	newModel := s.brands.Model("can0nical", "my-model", uc20ModelDefaults, map[string]interface{}{
-		"snaps": []interface{}{
-			map[string]interface{}{
+	newModel := s.brands.Model("can0nical", "my-model", uc20ModelDefaults, map[string]any{
+		"snaps": []any{
+			map[string]any{
 				"name":            "pc-kernel",
 				"id":              fakeSnapID("pc-kernel"),
 				"type":            "kernel",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "pc",
 				"id":              fakeSnapID("pc"),
 				"type":            "gadget",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":     "foo",
 				"presence": "required",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":     "bar",
 				"presence": "required",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":     "baz",
 				"presence": "required",
 				// use a different default channel
@@ -7850,7 +7850,7 @@ func (s *mgrsSuiteCore) testRemodelUC20WithRecoverySystem(c *C, encrypted bool) 
 		c.Assert(secbootResealCalls, Equals, 0)
 	}
 
-	var seededSystems []map[string]interface{}
+	var seededSystems []map[string]any
 	err = st.Get("seeded-systems", &seededSystems)
 	c.Assert(err, IsNil)
 	c.Assert(seededSystems, HasLen, 1)
@@ -7862,7 +7862,7 @@ func (s *mgrsSuiteCore) testRemodelUC20WithRecoverySystem(c *C, encrypted bool) 
 	// should be more than enough for the test to finish
 	c.Check(ts.Before(now.Add(10*time.Minute)), Equals, true, Commentf("seed-time is too late: %v", ts))
 	seededSystems[0]["seed-time"] = ""
-	c.Check(seededSystems, DeepEquals, []map[string]interface{}{
+	c.Check(seededSystems, DeepEquals, []map[string]any{
 		{
 			"system":    expectedLabel,
 			"model":     newModel.Model(),
@@ -7888,7 +7888,7 @@ func (s *mgrsSuiteCore) TestRemodelUC20WithRecoverySystemUnencrypted(c *C) {
 	s.testRemodelUC20WithRecoverySystem(c, encrypted)
 }
 
-func (s *mgrsSuiteCore) testRemodelUC20WithRecoverySystemSimpleSetUp(c *C, modelExtras ...map[string]interface{}) {
+func (s *mgrsSuiteCore) testRemodelUC20WithRecoverySystemSimpleSetUp(c *C, modelExtras ...map[string]any) {
 	restore := release.MockOnClassic(false)
 	s.AddCleanup(restore)
 
@@ -7945,7 +7945,7 @@ func (s *mgrsSuiteCore) testRemodelUC20WithRecoverySystemSimpleSetUp(c *C, model
 	// state of the current model
 	c.Assert(os.MkdirAll(filepath.Join(boot.InitramfsUbuntuBootDir, "device"), 0755), IsNil)
 
-	modelArgs := []map[string]interface{}{uc20ModelDefaults}
+	modelArgs := []map[string]any{uc20ModelDefaults}
 	modelArgs = append(modelArgs, modelExtras...)
 
 	model := s.brands.Model("can0nical", "my-model", modelArgs...)
@@ -8017,15 +8017,15 @@ func (s *mgrsSuiteCore) TestRemodelUC20DifferentKernelChannel(c *C) {
 	// use a different set of files, such that the snap digest must also be different
 	snapPath, _ := s.makeStoreTestSnapWithFiles(c, snapYamlsForRemodel["pc-kernel"], "33", snapFilesForRemodel["pc-kernel-rev-33"])
 	s.serveSnap(snapPath, "33")
-	newModel := s.brands.Model("can0nical", "my-model", uc20ModelDefaults, map[string]interface{}{
-		"snaps": []interface{}{
-			map[string]interface{}{
+	newModel := s.brands.Model("can0nical", "my-model", uc20ModelDefaults, map[string]any{
+		"snaps": []any{
+			map[string]any{
 				"name":            "pc-kernel",
 				"id":              fakeSnapID("pc-kernel"),
 				"type":            "kernel",
 				"default-channel": "21/stable",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "pc",
 				"id":              fakeSnapID("pc"),
 				"type":            "gadget",
@@ -8161,15 +8161,15 @@ func (s *mgrsSuiteCore) TestRemodelUC20DifferentGadgetChannel(c *C) {
 	// use a different set of files, such that the snap digest must also be different
 	snapPath, _ := s.makeStoreTestSnapWithFiles(c, snapYamlsForRemodel["pc"], "33", snapFilesForRemodel["pc-rev-33"])
 	s.serveSnap(snapPath, "33")
-	newModel := s.brands.Model("can0nical", "my-model", uc20ModelDefaults, map[string]interface{}{
-		"snaps": []interface{}{
-			map[string]interface{}{
+	newModel := s.brands.Model("can0nical", "my-model", uc20ModelDefaults, map[string]any{
+		"snaps": []any{
+			map[string]any{
 				"name":            "pc-kernel",
 				"id":              fakeSnapID("pc-kernel"),
 				"type":            "kernel",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "pc",
 				"id":              fakeSnapID("pc"),
 				"type":            "gadget",
@@ -8307,21 +8307,21 @@ func (s *mgrsSuiteCore) TestRemodelUC20DifferentBaseChannel(c *C) {
 	// use a different set of files, such that the snap digest must also be different
 	snapPath, _ := s.makeStoreTestSnapWithFiles(c, snapYamlsForRemodel["core20"], "33", snapFilesForRemodel["core20-rev-33"])
 	s.serveSnap(snapPath, "33")
-	newModel := s.brands.Model("can0nical", "my-model", uc20ModelDefaults, map[string]interface{}{
-		"snaps": []interface{}{
-			map[string]interface{}{
+	newModel := s.brands.Model("can0nical", "my-model", uc20ModelDefaults, map[string]any{
+		"snaps": []any{
+			map[string]any{
 				"name":            "pc-kernel",
 				"id":              fakeSnapID("pc-kernel"),
 				"type":            "kernel",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "pc",
 				"id":              fakeSnapID("pc"),
 				"type":            "gadget",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "core20",
 				"id":              fakeSnapID("core20"),
 				"type":            "base",
@@ -8441,15 +8441,15 @@ func (s *mgrsSuiteCore) TestRemodelUC20BackToPreviousGadget(c *C) {
 	c.Assert(os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "proc"), 0755), IsNil)
 	restore := kcmdline.MockProcCmdline(filepath.Join(dirs.GlobalRootDir, "proc/cmdline"))
 	defer restore()
-	newModel := s.brands.Model("can0nical", "my-model", uc20ModelDefaults, map[string]interface{}{
-		"snaps": []interface{}{
-			map[string]interface{}{
+	newModel := s.brands.Model("can0nical", "my-model", uc20ModelDefaults, map[string]any{
+		"snaps": []any{
+			map[string]any{
 				"name":            "pc-kernel",
 				"id":              fakeSnapID("pc-kernel"),
 				"type":            "kernel",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "old-pc",
 				"id":              fakeSnapID("old-pc"),
 				"type":            "gadget",
@@ -8465,7 +8465,7 @@ func (s *mgrsSuiteCore) TestRemodelUC20BackToPreviousGadget(c *C) {
 	st.Lock()
 	defer st.Unlock()
 
-	a11, err := s.storeSigning.Sign(asserts.SnapDeclarationType, map[string]interface{}{
+	a11, err := s.storeSigning.Sign(asserts.SnapDeclarationType, map[string]any{
 		"series":       "16",
 		"snap-name":    "old-pc",
 		"snap-id":      fakeSnapID("old-pc"),
@@ -8626,15 +8626,15 @@ func (s *mgrsSuiteCore) TestRemodelUC20ExistingGadgetSnapDifferentChannel(c *C) 
 	c.Assert(os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "proc"), 0755), IsNil)
 	restore := kcmdline.MockProcCmdline(filepath.Join(dirs.GlobalRootDir, "proc/cmdline"))
 	defer restore()
-	newModel := s.brands.Model("can0nical", "my-model", uc20ModelDefaults, map[string]interface{}{
-		"snaps": []interface{}{
-			map[string]interface{}{
+	newModel := s.brands.Model("can0nical", "my-model", uc20ModelDefaults, map[string]any{
+		"snaps": []any{
+			map[string]any{
 				"name":            "pc-kernel",
 				"id":              fakeSnapID("pc-kernel"),
 				"type":            "kernel",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "old-pc",
 				"id":              fakeSnapID("old-pc"),
 				"type":            "gadget",
@@ -8650,7 +8650,7 @@ func (s *mgrsSuiteCore) TestRemodelUC20ExistingGadgetSnapDifferentChannel(c *C) 
 	st.Lock()
 	defer st.Unlock()
 
-	a11, err := s.storeSigning.Sign(asserts.SnapDeclarationType, map[string]interface{}{
+	a11, err := s.storeSigning.Sign(asserts.SnapDeclarationType, map[string]any{
 		"series":       "16",
 		"snap-name":    "old-pc",
 		"snap-id":      fakeSnapID("old-pc"),
@@ -8823,21 +8823,21 @@ func (s *mgrsSuiteCore) TestRemodelUC20SnapWithPrereqsMissingDeps(c *C) {
 	c.Assert(os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "proc"), 0755), IsNil)
 	restore := kcmdline.MockProcCmdline(filepath.Join(dirs.GlobalRootDir, "proc/cmdline"))
 	defer restore()
-	newModel := s.brands.Model("can0nical", "my-model", uc20ModelDefaults, map[string]interface{}{
-		"snaps": []interface{}{
-			map[string]interface{}{
+	newModel := s.brands.Model("can0nical", "my-model", uc20ModelDefaults, map[string]any{
+		"snaps": []any{
+			map[string]any{
 				"name":            "pc-kernel",
 				"id":              fakeSnapID("pc-kernel"),
 				"type":            "kernel",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "pc",
 				"id":              fakeSnapID("pc"),
 				"type":            "gadget",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name": "prereq",
 				"id":   fakeSnapID("prereq"),
 			},
@@ -8850,7 +8850,7 @@ func (s *mgrsSuiteCore) TestRemodelUC20SnapWithPrereqsMissingDeps(c *C) {
 	st.Lock()
 	defer st.Unlock()
 
-	s.prereqSnapAssertions(c, map[string]interface{}{
+	s.prereqSnapAssertions(c, map[string]any{
 		"snap-name": "prereq",
 	})
 
@@ -8902,8 +8902,8 @@ func (s *mgrsSuite) TestCheckRefreshFailureWithConcurrentRemoveOfConnectedSnap(c
 	st.Lock()
 	defer st.Unlock()
 
-	st.Set("conns", map[string]interface{}{
-		"other-snap:media-hub some-snap:media-hub": map[string]interface{}{"interface": "media-hub", "auto": false},
+	st.Set("conns", map[string]any{
+		"other-snap:media-hub some-snap:media-hub": map[string]any{"interface": "media-hub", "auto": false},
 	})
 
 	si := &snap.SideInfo{RealName: "some-snap", SnapID: fakeSnapID("some-snap"), Revision: snap.R(1)}
@@ -8998,15 +8998,15 @@ func (s *mgrsSuiteCore) TestRemodelRollbackValidationSets(c *C) {
 	st := s.o.State()
 
 	st.Lock()
-	vsetAssert1, err := s.brands.Signing("can0nical").Sign(asserts.ValidationSetType, map[string]interface{}{
+	vsetAssert1, err := s.brands.Signing("can0nical").Sign(asserts.ValidationSetType, map[string]any{
 		"type":         "validation-set",
 		"authority-id": "can0nical",
 		"series":       "16",
 		"account-id":   "can0nical",
 		"name":         "vset-1",
 		"sequence":     "1",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":     "pc-kernel",
 				"id":       fakeSnapID("pc-kernel"),
 				"revision": "2",
@@ -9019,15 +9019,15 @@ func (s *mgrsSuiteCore) TestRemodelRollbackValidationSets(c *C) {
 	c.Assert(assertstate.Add(st, vsetAssert1), IsNil)
 	c.Assert(s.storeSigning.Add(vsetAssert1), IsNil)
 
-	vsetAssert2, err := s.brands.Signing("can0nical").Sign(asserts.ValidationSetType, map[string]interface{}{
+	vsetAssert2, err := s.brands.Signing("can0nical").Sign(asserts.ValidationSetType, map[string]any{
 		"type":         "validation-set",
 		"authority-id": "can0nical",
 		"series":       "16",
 		"account-id":   "can0nical",
 		"name":         "vset-2",
 		"sequence":     "1",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":     "pc-kernel",
 				"id":       fakeSnapID("pc-kernel"),
 				"revision": "33",
@@ -9040,15 +9040,15 @@ func (s *mgrsSuiteCore) TestRemodelRollbackValidationSets(c *C) {
 	c.Assert(assertstate.Add(st, vsetAssert2), IsNil)
 	c.Assert(s.storeSigning.Add(vsetAssert2), IsNil)
 
-	vsetAssert3, err := s.brands.Signing("can0nical").Sign(asserts.ValidationSetType, map[string]interface{}{
+	vsetAssert3, err := s.brands.Signing("can0nical").Sign(asserts.ValidationSetType, map[string]any{
 		"type":         "validation-set",
 		"authority-id": "can0nical",
 		"series":       "16",
 		"account-id":   "can0nical",
 		"name":         "vset-3",
 		"sequence":     "1",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":     "snapd",
 				"id":       fakeSnapID("snapd"),
 				"revision": "4",
@@ -9062,9 +9062,9 @@ func (s *mgrsSuiteCore) TestRemodelRollbackValidationSets(c *C) {
 	c.Assert(s.storeSigning.Add(vsetAssert3), IsNil)
 	st.Unlock()
 
-	modelValSets := map[string]interface{}{
-		"validation-sets": []interface{}{
-			map[string]interface{}{
+	modelValSets := map[string]any{
+		"validation-sets": []any{
+			map[string]any{
 				"account-id": "can0nical",
 				"name":       "vset-1",
 				"mode":       "enforce",
@@ -9102,7 +9102,7 @@ func (s *mgrsSuiteCore) TestRemodelRollbackValidationSets(c *C) {
 	c.Assert(err, IsNil)
 
 	// make core22 a thing
-	a11, err := s.storeSigning.Sign(asserts.SnapDeclarationType, map[string]interface{}{
+	a11, err := s.storeSigning.Sign(asserts.SnapDeclarationType, map[string]any{
 		"series":       "16",
 		"snap-name":    "core22",
 		"snap-id":      fakeSnapID("core22"),
@@ -9120,24 +9120,24 @@ func (s *mgrsSuiteCore) TestRemodelRollbackValidationSets(c *C) {
 	snapPath, _ = s.makeStoreTestSnapWithFiles(c, pcGadget22SnapYaml, "34", snapFilesForRemodel["pc-track-22"])
 	s.serveSnap(snapPath, "34")
 
-	newModel := s.brands.Model("can0nical", "my-model", uc20ModelDefaults, map[string]interface{}{
+	newModel := s.brands.Model("can0nical", "my-model", uc20ModelDefaults, map[string]any{
 		// replace the base
 		"base": "core22",
-		"validation-sets": []interface{}{
-			map[string]interface{}{
+		"validation-sets": []any{
+			map[string]any{
 				"account-id": "can0nical",
 				"name":       "vset-2",
 				"mode":       "enforce",
 			},
 		},
-		"snaps": []interface{}{
+		"snaps": []any{
 			// kernel and gadget snaps with new tracks
-			map[string]interface{}{
+			map[string]any{
 				"name": "pc-kernel",
 				"id":   fakeSnapID("pc-kernel"),
 				"type": "kernel",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "pc",
 				"id":              fakeSnapID("pc"),
 				"type":            "gadget",
@@ -9421,15 +9421,15 @@ func (s *mgrsSuiteCore) TestRemodelReplaceValidationSets(c *C) {
 
 	st.Lock()
 	// this validation set only appears in the first model
-	vsetAssert1, err := s.brands.Signing("can0nical").Sign(asserts.ValidationSetType, map[string]interface{}{
+	vsetAssert1, err := s.brands.Signing("can0nical").Sign(asserts.ValidationSetType, map[string]any{
 		"type":         "validation-set",
 		"authority-id": "can0nical",
 		"series":       "16",
 		"account-id":   "can0nical",
 		"name":         "vset-1",
 		"sequence":     "1",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":     "pc-kernel",
 				"id":       fakeSnapID("pc-kernel"),
 				"revision": "2",
@@ -9443,15 +9443,15 @@ func (s *mgrsSuiteCore) TestRemodelReplaceValidationSets(c *C) {
 	c.Assert(s.storeSigning.Add(vsetAssert1), IsNil)
 
 	// this validation set only appears in the second model
-	vsetAssert2, err := s.brands.Signing("can0nical").Sign(asserts.ValidationSetType, map[string]interface{}{
+	vsetAssert2, err := s.brands.Signing("can0nical").Sign(asserts.ValidationSetType, map[string]any{
 		"type":         "validation-set",
 		"authority-id": "can0nical",
 		"series":       "16",
 		"account-id":   "can0nical",
 		"name":         "vset-2",
 		"sequence":     "1",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":     "pc-kernel",
 				"id":       fakeSnapID("pc-kernel"),
 				"revision": "33",
@@ -9466,15 +9466,15 @@ func (s *mgrsSuiteCore) TestRemodelReplaceValidationSets(c *C) {
 
 	// this validation set appears in neither model, bus is still tracked by the
 	// system
-	vsetAssert3, err := s.brands.Signing("can0nical").Sign(asserts.ValidationSetType, map[string]interface{}{
+	vsetAssert3, err := s.brands.Signing("can0nical").Sign(asserts.ValidationSetType, map[string]any{
 		"type":         "validation-set",
 		"authority-id": "can0nical",
 		"series":       "16",
 		"account-id":   "can0nical",
 		"name":         "vset-3",
 		"sequence":     "1",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":     "snapd",
 				"id":       fakeSnapID("snapd"),
 				"revision": "4",
@@ -9488,15 +9488,15 @@ func (s *mgrsSuiteCore) TestRemodelReplaceValidationSets(c *C) {
 	c.Assert(s.storeSigning.Add(vsetAssert3), IsNil)
 
 	// this validation set appears in both models
-	vsetAssert4, err := s.brands.Signing("can0nical").Sign(asserts.ValidationSetType, map[string]interface{}{
+	vsetAssert4, err := s.brands.Signing("can0nical").Sign(asserts.ValidationSetType, map[string]any{
 		"type":         "validation-set",
 		"authority-id": "can0nical",
 		"series":       "16",
 		"account-id":   "can0nical",
 		"name":         "vset-4",
 		"sequence":     "1",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":     "pc",
 				"id":       fakeSnapID("pc"),
 				"presence": "required",
@@ -9510,14 +9510,14 @@ func (s *mgrsSuiteCore) TestRemodelReplaceValidationSets(c *C) {
 
 	st.Unlock()
 
-	modelValSets := map[string]interface{}{
-		"validation-sets": []interface{}{
-			map[string]interface{}{
+	modelValSets := map[string]any{
+		"validation-sets": []any{
+			map[string]any{
 				"account-id": "can0nical",
 				"name":       "vset-1",
 				"mode":       "enforce",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"account-id": "can0nical",
 				"name":       "vset-4",
 				"mode":       "enforce",
@@ -9557,7 +9557,7 @@ func (s *mgrsSuiteCore) TestRemodelReplaceValidationSets(c *C) {
 	c.Assert(err, IsNil)
 
 	// make core22 a thing
-	a11, err := s.storeSigning.Sign(asserts.SnapDeclarationType, map[string]interface{}{
+	a11, err := s.storeSigning.Sign(asserts.SnapDeclarationType, map[string]any{
 		"series":       "16",
 		"snap-name":    "core22",
 		"snap-id":      fakeSnapID("core22"),
@@ -9575,29 +9575,29 @@ func (s *mgrsSuiteCore) TestRemodelReplaceValidationSets(c *C) {
 	snapPath, _ = s.makeStoreTestSnapWithFiles(c, pcGadget22SnapYaml, "34", snapFilesForRemodel["pc-track-22"])
 	s.serveSnap(snapPath, "34")
 
-	newModel := s.brands.Model("can0nical", "my-model", uc20ModelDefaults, map[string]interface{}{
+	newModel := s.brands.Model("can0nical", "my-model", uc20ModelDefaults, map[string]any{
 		// replace the base
 		"base": "core22",
-		"validation-sets": []interface{}{
-			map[string]interface{}{
+		"validation-sets": []any{
+			map[string]any{
 				"account-id": "can0nical",
 				"name":       "vset-2",
 				"mode":       "enforce",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"account-id": "can0nical",
 				"name":       "vset-4",
 				"mode":       "enforce",
 			},
 		},
-		"snaps": []interface{}{
+		"snaps": []any{
 			// kernel and gadget snaps with new tracks
-			map[string]interface{}{
+			map[string]any{
 				"name": "pc-kernel",
 				"id":   fakeSnapID("pc-kernel"),
 				"type": "kernel",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "pc",
 				"id":              fakeSnapID("pc"),
 				"type":            "gadget",
@@ -9876,7 +9876,7 @@ func (s *mgrsSuiteCore) testRemodelUC20ToUC22(c *C, mockSnapdRefresh bool) {
 	defer st.Unlock()
 
 	// make core22 a thing
-	a11, err := s.storeSigning.Sign(asserts.SnapDeclarationType, map[string]interface{}{
+	a11, err := s.storeSigning.Sign(asserts.SnapDeclarationType, map[string]any{
 		"series":       "16",
 		"snap-name":    "core22",
 		"snap-id":      fakeSnapID("core22"),
@@ -9894,18 +9894,18 @@ func (s *mgrsSuiteCore) testRemodelUC20ToUC22(c *C, mockSnapdRefresh bool) {
 	snapPath, _ = s.makeStoreTestSnapWithFiles(c, pcGadget22SnapYaml, "34", snapFilesForRemodel["pc-track-22"])
 	s.serveSnap(snapPath, "34")
 
-	newModel := s.brands.Model("can0nical", "my-model", uc20ModelDefaults, map[string]interface{}{
+	newModel := s.brands.Model("can0nical", "my-model", uc20ModelDefaults, map[string]any{
 		// replace the base
 		"base": "core22",
-		"snaps": []interface{}{
+		"snaps": []any{
 			// kernel and gadget snaps with new tracks
-			map[string]interface{}{
+			map[string]any{
 				"name":            "pc-kernel",
 				"id":              fakeSnapID("pc-kernel"),
 				"type":            "kernel",
 				"default-channel": "22",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "pc",
 				"id":              fakeSnapID("pc"),
 				"type":            "gadget",
@@ -10154,7 +10154,7 @@ func mockTestSystemDefaultToFalse(chg *state.Change) error {
 			continue
 		}
 
-		var setup map[string]interface{}
+		var setup map[string]any
 		if err := t.Get("recovery-system-setup", &setup); err != nil {
 			return err
 		}
@@ -10450,7 +10450,7 @@ NeedDaemonReload=no
 		Serial: "serialserialserial",
 	})
 	// model := s.brands.Model("my-brand", "my-model", modelDefaults)
-	model := s.brands.Model("my-brand", "my-model", map[string]interface{}{
+	model := s.brands.Model("my-brand", "my-model", map[string]any{
 		"type":         "model",
 		"authority-id": "my-brand",
 		"series":       "16",
@@ -10696,7 +10696,7 @@ NeedDaemonReload=no
 		Serial: "serialserialserial",
 	})
 	// model := s.brands.Model("my-brand", "my-model", modelDefaults)
-	model := s.brands.Model("my-brand", "my-model", map[string]interface{}{
+	model := s.brands.Model("my-brand", "my-model", map[string]any{
 		"type":         "model",
 		"authority-id": "my-brand",
 		"series":       "16",
@@ -10793,18 +10793,18 @@ func (s *mgrsSuite) testUC20RunUpdateManagedBootConfig(c *C, snapPath string, si
 	// pretend we booted with the right kernel
 	bl.SetBootVars(map[string]string{"snap_kernel": "pc-kernel_1.snap"})
 
-	uc20ModelDefaults := map[string]interface{}{
+	uc20ModelDefaults := map[string]any{
 		"architecture": "amd64",
 		"base":         "core20",
 		"store":        "my-brand-store-id",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":            "pc-kernel",
 				"id":              snaptest.AssertedSnapID("pc-kernel"),
 				"type":            "kernel",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "pc",
 				"id":              snaptest.AssertedSnapID("pc"),
 				"type":            "gadget",
@@ -11186,18 +11186,18 @@ func (s *mgrsSuiteCore) testGadgetKernelCommandLine(c *C, gadgetPath string, gad
 	// pretend we booted with the right kernel
 	bl.SetBootVars(map[string]string{"snap_kernel": "pc-kernel_1.snap"})
 
-	uc20ModelDefaults := map[string]interface{}{
+	uc20ModelDefaults := map[string]any{
 		"architecture": "amd64",
 		"base":         "core20",
 		"store":        "my-brand-store-id",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":            "pc-kernel",
 				"id":              snaptest.AssertedSnapID("pc-kernel"),
 				"type":            "kernel",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "pc",
 				"id":              snaptest.AssertedSnapID("pc"),
 				"type":            "gadget",
@@ -12535,7 +12535,7 @@ func (ms *gadgetUpdatesSuite) SetUpTest(c *C) {
 	defer st.Unlock()
 
 	// setup model assertion
-	model := ms.brands.Model("can0nical", "my-model", modelDefaults, map[string]interface{}{
+	model := ms.brands.Model("can0nical", "my-model", modelDefaults, map[string]any{
 		"gadget": "pi",
 		"kernel": "pi-kernel",
 	})
@@ -13881,7 +13881,7 @@ func (s *mgrsSuite) TestAutoRefreshOneWithMonitoring(c *C) {
 	c.Assert(err, IsNil)
 
 	rev := snap.R(1)
-	snapDecl := s.prereqSnapAssertions(c, map[string]interface{}{"snap-name": "held-with-app-running"})
+	snapDecl := s.prereqSnapAssertions(c, map[string]any{"snap-name": "held-with-app-running"})
 	err = assertstate.Add(st, snapDecl)
 	c.Assert(err, IsNil)
 
@@ -13922,7 +13922,7 @@ func (s *mgrsSuite) TestAutoRefreshOneWithMonitoring(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(si.Revision, Equals, snap.R(1))
 
-	var candidates map[string]interface{}
+	var candidates map[string]any
 	st.Get("refresh-candidates", &candidates)
 	c.Logf("candidates: %v", candidates)
 
@@ -13973,7 +13973,7 @@ func (s *mgrsSuite) TestAutoRefreshWithMonitoring(c *C) {
 	snapNames := []string{"aaaa", "held-with-app-running"}
 	for _, name := range snapNames {
 		rev := snap.R(1)
-		snapDecl := s.prereqSnapAssertions(c, map[string]interface{}{"snap-name": name})
+		snapDecl := s.prereqSnapAssertions(c, map[string]any{"snap-name": name})
 		err = assertstate.Add(st, snapDecl)
 		c.Assert(err, IsNil)
 
@@ -14024,7 +14024,7 @@ func (s *mgrsSuite) TestAutoRefreshWithMonitoring(c *C) {
 	c.Check(si.Revision, Equals, snap.R(1))
 
 	// state information about snap being monitored is supposed to be preserved
-	var candidates map[string]interface{}
+	var candidates map[string]any
 	st.Get("refresh-candidates", &candidates)
 	c.Logf("candidates: %v", candidates)
 
@@ -14076,7 +14076,7 @@ func (s *mgrsSuite) TestAutoRefreshStoreUpdateWhileWaitingWithMonitoring(c *C) {
 	snapNames := []string{"aaaa", "held-with-app-running"}
 	for _, name := range snapNames {
 		rev := snap.R(1)
-		snapDecl := s.prereqSnapAssertions(c, map[string]interface{}{"snap-name": name})
+		snapDecl := s.prereqSnapAssertions(c, map[string]any{"snap-name": name})
 		err = assertstate.Add(st, snapDecl)
 		c.Assert(err, IsNil)
 
@@ -14126,7 +14126,7 @@ func (s *mgrsSuite) TestAutoRefreshStoreUpdateWhileWaitingWithMonitoring(c *C) {
 	c.Check(si.Revision, Equals, snap.R(1))
 
 	// state information about snap being monitored is supposed to be preserved
-	var candidates map[string]interface{}
+	var candidates map[string]any
 	st.Get("refresh-candidates", &candidates)
 	c.Logf("candidates: %v", candidates)
 
@@ -14211,7 +14211,7 @@ func (s *mgrsSuite) TestAutoRefreshStorePreDownloadWhileWaitingWithMonitoring(c 
 	snapNames := []string{"aaaa", "held-with-app-running"}
 	for _, name := range snapNames {
 		rev := snap.R(1)
-		snapDecl := s.prereqSnapAssertions(c, map[string]interface{}{"snap-name": name})
+		snapDecl := s.prereqSnapAssertions(c, map[string]any{"snap-name": name})
 		err = assertstate.Add(st, snapDecl)
 		c.Assert(err, IsNil)
 
@@ -14272,7 +14272,7 @@ func (s *mgrsSuite) TestAutoRefreshStorePreDownloadWhileWaitingWithMonitoring(c 
 	c.Check(si.Revision, Equals, snap.R(1))
 
 	// the pre-download handler must have created a state entry for the held snap
-	var candidates map[string]interface{}
+	var candidates map[string]any
 	st.Get("refresh-candidates", &candidates)
 	c.Logf("candidates: %v", candidates)
 
@@ -14564,11 +14564,11 @@ func (s *mgrsSuite) testConnectionDurabilityDuringRefreshesAndAutoRefresh(c *C, 
 	for name, yaml := range snapNames {
 		rev := snap.R(1)
 		if name != "core" {
-			snapDecl := s.prereqSnapAssertions(c, map[string]interface{}{
+			snapDecl := s.prereqSnapAssertions(c, map[string]any{
 				"snap-name": name,
 				"format":    "1",
-				"plugs": map[string]interface{}{
-					"snapd-control": map[string]interface{}{
+				"plugs": map[string]any{
+					"snapd-control": map[string]any{
 						"allow-installation": "true",
 						"auto-connect":       "true",
 						"refresh-schedule":   "managed",
@@ -14590,8 +14590,8 @@ func (s *mgrsSuite) testConnectionDurabilityDuringRefreshesAndAutoRefresh(c *C, 
 
 	// setup connection in state to emulate that we have a snap installed with an active
 	// connection.
-	st.Set("conns", map[string]interface{}{
-		"snap-with-snapd-control:snapd-control core:snapd-control": map[string]interface{}{
+	st.Set("conns", map[string]any{
+		"snap-with-snapd-control:snapd-control core:snapd-control": map[string]any{
 			"interface": "snapd-control",
 			"auto":      true,
 		},
@@ -14636,14 +14636,14 @@ func (s *mgrsSuite) testConnectionDurabilityDuringRefreshesAndAutoRefresh(c *C, 
 	c.Assert(canAutoRefreshCalls > 0, Equals, true)
 
 	// check connections are fine after running the expected task-set.
-	var conns map[string]interface{}
+	var conns map[string]any
 	st.Get("conns", &conns)
 	c.Logf("connections: %v", conns)
-	c.Assert(conns, DeepEquals, map[string]interface{}{
-		"snap-with-snapd-control:snapd-control core:snapd-control": map[string]interface{}{
+	c.Assert(conns, DeepEquals, map[string]any{
+		"snap-with-snapd-control:snapd-control core:snapd-control": map[string]any{
 			"interface": "snapd-control",
 			"auto":      true,
-			"plug-static": map[string]interface{}{
+			"plug-static": map[string]any{
 				"refresh-schedule": "managed",
 			},
 		},
@@ -14677,11 +14677,11 @@ func (s *mgrsSuite) testConnectionDurabilityDuringRefreshesAndAutoRefresh(c *C, 
 
 	// The connection state should not change
 	st.Get("conns", &conns)
-	c.Assert(conns, DeepEquals, map[string]interface{}{
-		"snap-with-snapd-control:snapd-control core:snapd-control": map[string]interface{}{
+	c.Assert(conns, DeepEquals, map[string]any{
+		"snap-with-snapd-control:snapd-control core:snapd-control": map[string]any{
 			"interface": "snapd-control",
 			"auto":      true,
-			"plug-static": map[string]interface{}{
+			"plug-static": map[string]any{
 				"refresh-schedule": "managed",
 			},
 		},

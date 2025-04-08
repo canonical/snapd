@@ -136,7 +136,7 @@ func portalCall(bus *dbus.Conn, call func() (dbus.ObjectPath, error)) error {
 			}
 
 			var response uint32
-			var results map[string]interface{} // don't care
+			var results map[string]any // don't care
 			if err := dbus.Store(signal.Body, &response, &results); err != nil {
 				return &ResponseError{msg: fmt.Sprintf("cannot unpack response: %v", err)}
 			}

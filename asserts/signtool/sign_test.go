@@ -52,16 +52,16 @@ func (s *signSuite) SetUpSuite(c *C) {
 	encPubKey, err := asserts.EncodePublicKey(testKey.PublicKey())
 	c.Assert(err, IsNil)
 	s.testAccKey = assertstest.FakeAssertionWithBody(encPubKey,
-		map[string]interface{}{
+		map[string]any{
 			"type":                "account-key",
 			"authority-id":        "canonical",
 			"public-key-sha3-384": s.testKeyID,
 			"account-id":          "user-id1",
 			"since":               "2015-11-01T20:00:00Z",
 			"body-length":         strconv.Itoa(len(encPubKey)),
-			"constraints": []interface{}{
-				map[string]interface{}{
-					"headers": map[string]interface{}{
+			"constraints": []any{
+				map[string]any{
+					"headers": map[string]any{
 						"type":  "model",
 						"model": `baz-.*`,
 					},
@@ -71,8 +71,8 @@ func (s *signSuite) SetUpSuite(c *C) {
 	).(*asserts.AccountKey)
 }
 
-func expectedModelHeaders(a asserts.Assertion) map[string]interface{} {
-	m := map[string]interface{}{
+func expectedModelHeaders(a asserts.Assertion) map[string]any {
+	m := map[string]any{
 		"type":           "model",
 		"authority-id":   "user-id1",
 		"series":         "16",
@@ -82,7 +82,7 @@ func expectedModelHeaders(a asserts.Assertion) map[string]interface{} {
 		"gadget":         "brand-gadget",
 		"kernel":         "baz-linux",
 		"store":          "brand-store",
-		"required-snaps": []interface{}{"foo", "bar"},
+		"required-snaps": []any{"foo", "bar"},
 		"timestamp":      "2015-11-25T20:00:00Z",
 	}
 	if a != nil {
@@ -91,7 +91,7 @@ func expectedModelHeaders(a asserts.Assertion) map[string]interface{} {
 	return m
 }
 
-func exampleJSON(overrides map[string]interface{}) []byte {
+func exampleJSON(overrides map[string]any) []byte {
 	m := expectedModelHeaders(nil)
 	for k, v := range overrides {
 		if v == nil {
@@ -159,7 +159,7 @@ func (s *signSuite) TestSignJSONWithAccountKeyCrossCheck(c *C) {
 }
 
 func (s *signSuite) TestSignJSONWithBodyAndRevision(c *C) {
-	statement := exampleJSON(map[string]interface{}{
+	statement := exampleJSON(map[string]any{
 		"body":     "BODY",
 		"revision": "11",
 	})
@@ -188,14 +188,14 @@ func (s *signSuite) TestSignJSONWithBodyAndRevision(c *C) {
 }
 
 func (s *signSuite) TestSignJSONWithBodyAndComplementRevision(c *C) {
-	statement := exampleJSON(map[string]interface{}{
+	statement := exampleJSON(map[string]any{
 		"body": "BODY",
 	})
 	opts := signtool.Options{
 		KeyID: s.testKeyID,
 
 		Statement: statement,
-		Complement: map[string]interface{}{
+		Complement: map[string]any{
 			"revision": "11",
 		},
 	}
@@ -219,14 +219,14 @@ func (s *signSuite) TestSignJSONWithBodyAndComplementRevision(c *C) {
 }
 
 func (s *signSuite) TestSignJSONWithRevisionAndComplementBodyAndRepeatedType(c *C) {
-	statement := exampleJSON(map[string]interface{}{
+	statement := exampleJSON(map[string]any{
 		"revision": "11",
 	})
 	opts := signtool.Options{
 		KeyID: s.testKeyID,
 
 		Statement: statement,
-		Complement: map[string]interface{}{
+		Complement: map[string]any{
 			"type": "model",
 			"body": "BODY",
 		},
@@ -255,12 +255,12 @@ func (s *signSuite) TestSignErrors(c *C) {
 		KeyID: s.testKeyID,
 	}
 
-	emptyList := []interface{}{}
+	emptyList := []any{}
 
 	tests := []struct {
 		expError        string
 		brokenStatement []byte
-		complement      map[string]interface{}
+		complement      map[string]any
 		accKey          *asserts.AccountKey
 	}{
 		{`cannot parse the assertion input as JSON:.*`,
@@ -268,43 +268,43 @@ func (s *signSuite) TestSignErrors(c *C) {
 			nil, nil,
 		},
 		{`invalid assertion type: what`,
-			exampleJSON(map[string]interface{}{"type": "what"}),
+			exampleJSON(map[string]any{"type": "what"}),
 			nil, nil,
 		},
 		{`assertion type must be a string, not: \[\]`,
-			exampleJSON(map[string]interface{}{"type": emptyList}),
+			exampleJSON(map[string]any{"type": emptyList}),
 			nil, nil,
 		},
 		{`missing assertion type header`,
-			exampleJSON(map[string]interface{}{"type": nil}),
+			exampleJSON(map[string]any{"type": nil}),
 			nil, nil,
 		},
 		{"revision should be positive: -10",
-			exampleJSON(map[string]interface{}{"revision": "-10"}),
+			exampleJSON(map[string]any{"revision": "-10"}),
 			nil, nil,
 		},
 		{`"authority-id" header is mandatory`,
-			exampleJSON(map[string]interface{}{"authority-id": nil}),
+			exampleJSON(map[string]any{"authority-id": nil}),
 			nil, nil,
 		},
 		{`body if specified must be a string`,
-			exampleJSON(map[string]interface{}{"body": emptyList}),
+			exampleJSON(map[string]any{"body": emptyList}),
 			nil, nil,
 		},
 		{`repeated assertion type does not match`,
 			exampleJSON(nil),
-			map[string]interface{}{"type": "foo"}, nil,
+			map[string]any{"type": "foo"}, nil,
 		},
 		{`complementary header "kernel" clashes with assertion input`,
 			exampleJSON(nil),
-			map[string]interface{}{"kernel": "foo"}, nil,
+			map[string]any{"kernel": "foo"}, nil,
 		},
 		{`authority-id does not match the account-id of the signing account-key`,
-			exampleJSON(map[string]interface{}{"authority-id": "user-id2", "brand-id": "user-id2"}),
+			exampleJSON(map[string]any{"authority-id": "user-id2", "brand-id": "user-id2"}),
 			nil, s.testAccKey,
 		},
 		{`the assertion headers do not match the constraints of the signing account-key`,
-			exampleJSON(map[string]interface{}{"model": "bar"}),
+			exampleJSON(map[string]any{"model": "bar"}),
 			nil, s.testAccKey,
 		},
 	}
@@ -322,17 +322,17 @@ func (s *signSuite) TestSignErrors(c *C) {
 }
 
 func (s *signSuite) TestSignFormatsAssertionsWithJSONBody(c *C) {
-	statement, err := json.Marshal(map[string]interface{}{
+	statement, err := json.Marshal(map[string]any{
 		"type":         "confdb-schema",
 		"account-id":   "user-id1",
 		"authority-id": "user-id1",
 		"revision":     "1",
 		"timestamp":    "2025-05-09T16:00:00Z",
 		"name":         "foo",
-		"views": map[string]interface{}{
-			"foo": map[string]interface{}{
-				"rules": []interface{}{
-					map[string]interface{}{"storage": "a"},
+		"views": map[string]any{
+			"foo": map[string]any{
+				"rules": []any{
+					map[string]any{"storage": "a"},
 				},
 			},
 		},

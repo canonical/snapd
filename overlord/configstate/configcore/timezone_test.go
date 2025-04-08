@@ -54,7 +54,7 @@ func (s *timezoneSuite) TestConfigureTimezoneInvalid(c *C) {
 	for _, tz := range invalidTimezones {
 		err := configcore.FilesystemOnlyRun(coreDev, &mockConf{
 			state: s.state,
-			conf: map[string]interface{}{
+			conf: map[string]any{
 				"system.timezone": tz,
 			},
 		})
@@ -75,7 +75,7 @@ func (s *timezoneSuite) TestConfigureTimezoneIntegration(c *C) {
 	for _, tz := range validTimezones {
 		err := configcore.FilesystemOnlyRun(coreDev, &mockConf{
 			state: s.state,
-			conf: map[string]interface{}{
+			conf: map[string]any{
 				"system.timezone": tz,
 			},
 		})
@@ -88,7 +88,7 @@ func (s *timezoneSuite) TestConfigureTimezoneIntegration(c *C) {
 }
 
 func (s *timezoneSuite) TestFilesystemOnlyApply(c *C) {
-	conf := configcore.PlainCoreConfig(map[string]interface{}{
+	conf := configcore.PlainCoreConfig(map[string]any{
 		"system.timezone": "Europe/Berlin",
 	})
 	tmpDir := c.MkDir()

@@ -139,7 +139,7 @@ func (resrev *SnapResourceRevision) Prerequisites() []*Ref {
 	}
 }
 
-func checkResourceName(headers map[string]interface{}) error {
+func checkResourceName(headers map[string]any) error {
 	resName, err := checkNotEmptyString(headers, "resource-name")
 	if err != nil {
 		return err

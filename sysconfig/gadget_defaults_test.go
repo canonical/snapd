@@ -44,7 +44,7 @@ volumes:
     bootloader: grub
 `
 
-var fakeModel = assertstest.FakeAssertion(map[string]interface{}{
+var fakeModel = assertstest.FakeAssertion(map[string]any{
 	"type":         "model",
 	"authority-id": "my-brand",
 	"series":       "16",
@@ -57,7 +57,7 @@ var fakeModel = assertstest.FakeAssertion(map[string]interface{}{
 }).(*asserts.Model)
 
 func fake20Model(grade string) *asserts.Model {
-	return assertstest.FakeAssertion(map[string]interface{}{
+	return assertstest.FakeAssertion(map[string]any{
 		"type":         "model",
 		"authority-id": "my-brand",
 		"series":       "16",
@@ -66,14 +66,14 @@ func fake20Model(grade string) *asserts.Model {
 		"architecture": "amd64",
 		"base":         "core20",
 		"grade":        grade,
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":            "kernel",
 				"id":              "kerneldididididididididididididi",
 				"type":            "kernel",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "pc",
 				"id":              "gadgetididididididididididididid",
 				"type":            "gadget",

@@ -165,8 +165,8 @@ func assertsFindMany(c *Command, r *http.Request, user *auth.UserState) Response
 
 	if opts.jsonResult {
 		assertsJSON := make([]struct {
-			Headers map[string]interface{} `json:"headers,omitempty"`
-			Body    string                 `json:"body,omitempty"`
+			Headers map[string]any `json:"headers,omitempty"`
+			Body    string         `json:"body,omitempty"`
 		}, len(assertions))
 		for i := range assertions {
 			assertsJSON[i].Headers = assertions[i].Headers()

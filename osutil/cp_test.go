@@ -185,7 +185,7 @@ func (mockstat) Size() int64        { return 42 }
 func (mockstat) Mode() os.FileMode  { return 0644 }
 func (mockstat) ModTime() time.Time { return time.Now() }
 func (mockstat) IsDir() bool        { return false }
-func (mockstat) Sys() interface{}   { return nil }
+func (mockstat) Sys() any           { return nil }
 
 func (s *cpSuite) TestCopySpecialFileSimple(c *C) {
 	sync := testutil.MockCommand(c, "sync", "")

@@ -330,7 +330,7 @@ func validateServiceConfiguration(tr ConfGetter) error {
 
 func handleServiceConfigSSHListen(dev sysconfig.Device, tr ConfGetter, opts *fsOnlyContext) error {
 	// see if anything needs to happen
-	var pristineSSHListen, newSSHListen interface{}
+	var pristineSSHListen, newSSHListen any
 
 	if err := tr.GetPristine("core", sshListenOpt, &pristineSSHListen); err != nil && !config.IsNoOption(err) {
 		return err

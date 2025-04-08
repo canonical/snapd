@@ -54,7 +54,7 @@ func (s *networkSuite) TestConfigureNetworkIntegrationIPv6(c *C) {
 	// disable ipv6
 	err := configcore.FilesystemOnlyRun(coreDev, &mockConf{
 		state: s.state,
-		conf: map[string]interface{}{
+		conf: map[string]any{
 			"network.disable-ipv6": true,
 		},
 	})
@@ -69,7 +69,7 @@ func (s *networkSuite) TestConfigureNetworkIntegrationIPv6(c *C) {
 	// enable it again
 	err = configcore.FilesystemOnlyRun(coreDev, &mockConf{
 		state: s.state,
-		conf: map[string]interface{}{
+		conf: map[string]any{
 			"network.disable-ipv6": false,
 		},
 	})
@@ -84,7 +84,7 @@ func (s *networkSuite) TestConfigureNetworkIntegrationIPv6(c *C) {
 	// enable it yet again, this does not trigger another syscall
 	err = configcore.FilesystemOnlyRun(coreDev, &mockConf{
 		state: s.state,
-		conf: map[string]interface{}{
+		conf: map[string]any{
 			"network.disable-ipv6": false,
 		},
 	})
@@ -95,7 +95,7 @@ func (s *networkSuite) TestConfigureNetworkIntegrationIPv6(c *C) {
 func (s *networkSuite) TestConfigureNetworkIntegrationNoSetting(c *C) {
 	err := configcore.FilesystemOnlyRun(coreDev, &mockConf{
 		state: s.state,
-		conf:  map[string]interface{}{},
+		conf:  map[string]any{},
 	})
 	c.Assert(err, IsNil)
 
@@ -106,7 +106,7 @@ func (s *networkSuite) TestConfigureNetworkIntegrationNoSetting(c *C) {
 }
 
 func (s *networkSuite) TestFilesystemOnlyApply(c *C) {
-	conf := configcore.PlainCoreConfig(map[string]interface{}{
+	conf := configcore.PlainCoreConfig(map[string]any{
 		"network.disable-ipv6": true,
 	})
 
@@ -122,7 +122,7 @@ func (s *networkSuite) TestFilesystemOnlyApply(c *C) {
 }
 
 func (s *networkSuite) TestFilesystemOnlyApplyValidationFails(c *C) {
-	conf := configcore.PlainCoreConfig(map[string]interface{}{
+	conf := configcore.PlainCoreConfig(map[string]any{
 		"network.disable-ipv6": "0",
 	})
 

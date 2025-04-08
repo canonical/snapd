@@ -36,11 +36,11 @@ var (
 	headerNameValidity = regexp.MustCompile("^[a-z](?:-?[a-z0-9])*$")
 )
 
-func parseHeaders(head []byte) (map[string]interface{}, error) {
+func parseHeaders(head []byte) (map[string]any, error) {
 	if !utf8.Valid(head) {
 		return nil, fmt.Errorf("header is not utf8")
 	}
-	headers := make(map[string]interface{})
+	headers := make(map[string]any)
 	lines := strings.Split(string(head), "\n")
 	for i := 0; i < len(lines); {
 		entry := lines[i]
@@ -54,7 +54,7 @@ func parseHeaders(head []byte) (map[string]interface{}, error) {
 		}
 
 		consumed := nameValueSplit + 1
-		var value interface{}
+		var value any
 		var err error
 		value, i, err = parseEntry(consumed, i, lines, 0)
 		if err != nil {
@@ -81,7 +81,7 @@ func nestingPrefix(baseIndent int, prefix string) string {
 	return strings.Repeat(" ", baseIndent) + prefix
 }
 
-func parseEntry(consumedByIntro int, first int, lines []string, baseIndent int) (value interface{}, firstAfter int, err error) {
+func parseEntry(consumedByIntro int, first int, lines []string, baseIndent int) (value any, firstAfter int, err error) {
 	entry := lines[first]
 	i := first + 1
 	if consumedByIntro == len(entry) {
@@ -110,7 +110,7 @@ func parseEntry(consumedByIntro int, first int, lines []string, baseIndent int) 
 	return entry[consumedByIntro+1:], i, nil
 }
 
-func parseMultilineText(first int, lines []string, baseIndent int) (value interface{}, firstAfter int, err error) {
+func parseMultilineText(first int, lines []string, baseIndent int) (value any, firstAfter int, err error) {
 	size := 0
 	i := first
 	j := i
@@ -145,15 +145,15 @@ func parseMultilineText(first int, lines []string, baseIndent int) (value interf
 	return valueBuf.String(), i, nil
 }
 
-func parseList(first int, lines []string, baseIndent int) (value interface{}, firstAfter int, err error) {
-	lst := []interface{}(nil)
+func parseList(first int, lines []string, baseIndent int) (value any, firstAfter int, err error) {
+	lst := []any(nil)
 	j := first
 	prefix := nestingPrefix(baseIndent, listPrefix)
 	for j < len(lines) {
 		if !strings.HasPrefix(lines[j], prefix) {
 			return lst, j, nil
 		}
-		var v interface{}
+		var v any
 		var err error
 		v, j, err = parseEntry(len(prefix), j, lines, baseIndent+len(listPrefix)-1)
 		if err != nil {
@@ -164,8 +164,8 @@ func parseList(first int, lines []string, baseIndent int) (value interface{}, fi
 	return lst, j, nil
 }
 
-func parseMap(first int, lines []string, baseIndent int) (value interface{}, firstAfter int, err error) {
-	m := make(map[string]interface{})
+func parseMap(first int, lines []string, baseIndent int) (value any, firstAfter int, err error) {
+	m := make(map[string]any)
 	j := first
 	prefix := nestingPrefix(baseIndent, commonPrefix)
 	for j < len(lines) {
@@ -184,7 +184,7 @@ func parseMap(first int, lines []string, baseIndent int) (value interface{}, fir
 		}
 
 		consumed := keyValueSplit + 1
-		var value interface{}
+		var value any
 		var err error
 		value, j, err = parseEntry(len(prefix)+consumed, j, lines, len(prefix))
 		if err != nil {
@@ -201,11 +201,11 @@ func parseMap(first int, lines []string, baseIndent int) (value interface{}, fir
 }
 
 // checkHeader checks that the header values are strings, or nested lists or maps with strings as the only scalars
-func checkHeader(v interface{}) error {
+func checkHeader(v any) error {
 	switch x := v.(type) {
 	case string:
 		return nil
-	case []interface{}:
+	case []any:
 		for _, elem := range x {
 			err := checkHeader(elem)
 			if err != nil {
@@ -213,7 +213,7 @@ func checkHeader(v interface{}) error {
 			}
 		}
 		return nil
-	case map[string]interface{}:
+	case map[string]any:
 		for _, elem := range x {
 			err := checkHeader(elem)
 			if err != nil {
@@ -227,7 +227,7 @@ func checkHeader(v interface{}) error {
 }
 
 // checkHeaders checks that headers are of expected types
-func checkHeaders(headers map[string]interface{}) error {
+func checkHeaders(headers map[string]any) error {
 	for name, value := range headers {
 		err := checkHeader(value)
 		if err != nil {
@@ -238,18 +238,18 @@ func checkHeaders(headers map[string]interface{}) error {
 }
 
 // copyHeader helps deep copying header values to defend against external mutations
-func copyHeader(v interface{}) interface{} {
+func copyHeader(v any) any {
 	switch x := v.(type) {
 	case string:
 		return x
-	case []interface{}:
-		res := make([]interface{}, len(x))
+	case []any:
+		res := make([]any, len(x))
 		for i, elem := range x {
 			res[i] = copyHeader(elem)
 		}
 		return res
-	case map[string]interface{}:
-		res := make(map[string]interface{}, len(x))
+	case map[string]any:
+		res := make(map[string]any, len(x))
 		for name, value := range x {
 			if value == nil {
 				continue // normalize nils out
@@ -263,11 +263,11 @@ func copyHeader(v interface{}) interface{} {
 }
 
 // copyHeader helps deep copying headers to defend against external mutations
-func copyHeaders(headers map[string]interface{}) map[string]interface{} {
-	return copyHeader(headers).(map[string]interface{})
+func copyHeaders(headers map[string]any) map[string]any {
+	return copyHeader(headers).(map[string]any)
 }
 
-func appendEntry(buf *bytes.Buffer, intro string, v interface{}, baseIndent int) {
+func appendEntry(buf *bytes.Buffer, intro string, v any, baseIndent int) {
 	switch x := v.(type) {
 	case nil:
 		return // omit
@@ -284,7 +284,7 @@ func appendEntry(buf *bytes.Buffer, intro string, v interface{}, baseIndent int)
 			buf.WriteByte(' ')
 		}
 		buf.WriteString(x)
-	case []interface{}:
+	case []any:
 		if len(x) == 0 {
 			return // simply omit
 		}
@@ -294,7 +294,7 @@ func appendEntry(buf *bytes.Buffer, intro string, v interface{}, baseIndent int)
 		for _, elem := range x {
 			appendEntry(buf, pfx, elem, baseIndent+len(listPrefix)-1)
 		}
-	case map[string]interface{}:
+	case map[string]any:
 		if len(x) == 0 {
 			return // simply omit
 		}

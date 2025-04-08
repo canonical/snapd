@@ -45,7 +45,7 @@ func (o *Offset) IECString() string {
 	return iecSizeString(int64(*o))
 }
 
-func (o *Offset) UnmarshalYAML(unmarshal func(interface{}) error) error {
+func (o *Offset) UnmarshalYAML(unmarshal func(any) error) error {
 	var gs string
 	if err := unmarshal(&gs); err != nil {
 		return errors.New(`cannot unmarshal gadget offset`)

@@ -42,22 +42,22 @@ type attrConstraintsSuite struct {
 	testutil.BaseTest
 }
 
-type attrerObject map[string]interface{}
+type attrerObject map[string]any
 
-func (o attrerObject) Lookup(path string) (interface{}, bool) {
+func (o attrerObject) Lookup(path string) (any, bool) {
 	v, ok := o[path]
 	return v, ok
 }
 
 func attrs(yml string) *attrerObject {
-	var attrs map[string]interface{}
+	var attrs map[string]any
 	err := yaml.Unmarshal([]byte(yml), &attrs)
 	if err != nil {
 		panic(err)
 	}
-	snapYaml, err := yaml.Marshal(map[string]interface{}{
+	snapYaml, err := yaml.Marshal(map[string]any{
 		"name": "sample",
-		"plugs": map[string]interface{}{
+		"plugs": map[string]any{
 			"plug": attrs,
 		},
 	})
@@ -91,10 +91,10 @@ func (s *attrConstraintsSuite) TestSimple(c *C) {
   bar: BAR`))
 	c.Assert(err, IsNil)
 
-	cstrs, err := asserts.CompileAttributeConstraints(m["attrs"].(map[string]interface{}))
+	cstrs, err := asserts.CompileAttributeConstraints(m["attrs"].(map[string]any))
 	c.Assert(err, IsNil)
 
-	plug := attrerObject(map[string]interface{}{
+	plug := attrerObject(map[string]any{
 		"foo": "FOO",
 		"bar": "BAR",
 		"baz": "BAZ",
@@ -102,7 +102,7 @@ func (s *attrConstraintsSuite) TestSimple(c *C) {
 	err = cstrs.Check(plug, nil)
 	c.Check(err, IsNil)
 
-	plug = attrerObject(map[string]interface{}{
+	plug = attrerObject(map[string]any{
 		"foo": "FOO",
 		"bar": "BAZ",
 		"baz": "BAZ",
@@ -110,7 +110,7 @@ func (s *attrConstraintsSuite) TestSimple(c *C) {
 	err = cstrs.Check(plug, nil)
 	c.Check(err, ErrorMatches, `attribute "bar" value "BAZ" does not match \^\(BAR\)\$`)
 
-	plug = attrerObject(map[string]interface{}{
+	plug = attrerObject(map[string]any{
 		"foo": "FOO",
 		"baz": "BAZ",
 	})
@@ -123,7 +123,7 @@ func (s *attrConstraintsSuite) TestMissingCheck(c *C) {
   foo: $MISSING`))
 	c.Assert(err, IsNil)
 
-	cstrs, err := asserts.CompileAttributeConstraints(m["attrs"].(map[string]interface{}))
+	cstrs, err := asserts.CompileAttributeConstraints(m["attrs"].(map[string]any))
 	c.Assert(err, IsNil)
 	c.Check(asserts.RuleFeature(cstrs, "dollar-attr-constraints"), Equals, true)
 }
@@ -136,7 +136,7 @@ func (s *attrConstraintsSuite) TestNested(c *C) {
     bar2: BAR2`))
 	c.Assert(err, IsNil)
 
-	cstrs, err := asserts.CompileAttributeConstraints(m["attrs"].(map[string]interface{}))
+	cstrs, err := asserts.CompileAttributeConstraints(m["attrs"].(map[string]any))
 	c.Assert(err, IsNil)
 
 	err = cstrs.Check(attrs(`
@@ -191,7 +191,7 @@ mnt: [{what: "/dev/x*", where: "/foo/*", options: ["rw", "nodev"]}, {what: "/bar
       options: rw|bind|nodev`))
 	c.Assert(err, IsNil)
 
-	cstrs, err := asserts.CompileAttributeConstraints(m["attrs"].(map[string]interface{}))
+	cstrs, err := asserts.CompileAttributeConstraints(m["attrs"].(map[string]any))
 	c.Assert(err, IsNil)
 
 	err = cstrs.Check(toMatch, nil)
@@ -213,7 +213,7 @@ mnt: [{what: "/dev/x*", where: "/foo/*", options: ["rw", "nodev"]}, {what: "/bar
         - bind`))
 	c.Assert(err, IsNil)
 
-	cstrsExtensive, err := asserts.CompileAttributeConstraints(m["attrs"].(map[string]interface{}))
+	cstrsExtensive, err := asserts.CompileAttributeConstraints(m["attrs"].(map[string]any))
 	c.Assert(err, IsNil)
 
 	err = cstrsExtensive.Check(toMatch, nil)
@@ -235,7 +235,7 @@ mnt: [{what: "/dev/x*", where: "/foo/*", options: ["rw", "nodev"]}, {what: "/bar
         - bind`))
 	c.Assert(err, IsNil)
 
-	cstrsExtensiveNoMatch, err := asserts.CompileAttributeConstraints(m["attrs"].(map[string]interface{}))
+	cstrsExtensiveNoMatch, err := asserts.CompileAttributeConstraints(m["attrs"].(map[string]any))
 	c.Assert(err, IsNil)
 
 	err = cstrsExtensiveNoMatch.Check(toMatch, nil)
@@ -248,7 +248,7 @@ func (s *attrConstraintsSuite) TestOtherScalars(c *C) {
   bar: true`))
 	c.Assert(err, IsNil)
 
-	cstrs, err := asserts.CompileAttributeConstraints(m["attrs"].(map[string]interface{}))
+	cstrs, err := asserts.CompileAttributeConstraints(m["attrs"].(map[string]any))
 	c.Assert(err, IsNil)
 
 	err = cstrs.Check(attrs(`
@@ -259,7 +259,7 @@ bar: true
 }
 
 func (s *attrConstraintsSuite) TestCompileErrors(c *C) {
-	_, err := asserts.CompileAttributeConstraints(map[string]interface{}{
+	_, err := asserts.CompileAttributeConstraints(map[string]any{
 		"foo": "[",
 	})
 	c.Check(err, ErrorMatches, `cannot compile "foo" constraint "\[": error parsing regexp:.*`)
@@ -267,7 +267,7 @@ func (s *attrConstraintsSuite) TestCompileErrors(c *C) {
 	_, err = asserts.CompileAttributeConstraints("FOO")
 	c.Check(err, ErrorMatches, `first level of non alternative constraints must be a set of key-value constraints`)
 
-	_, err = asserts.CompileAttributeConstraints([]interface{}{"FOO"})
+	_, err = asserts.CompileAttributeConstraints([]any{"FOO"})
 	c.Check(err, ErrorMatches, `first level of non alternative constraints must be a set of key-value constraints`)
 
 	wrongDollarConstraints := []string{
@@ -278,7 +278,7 @@ func (s *attrConstraintsSuite) TestCompileErrors(c *C) {
 	}
 
 	for _, wrong := range wrongDollarConstraints {
-		_, err := asserts.CompileAttributeConstraints(map[string]interface{}{
+		_, err := asserts.CompileAttributeConstraints(map[string]any{
 			"foo": wrong,
 		})
 		c.Check(err, ErrorMatches, fmt.Sprintf(`cannot compile "foo" constraint "%s": not a valid \$SLOT\(\)/\$PLUG\(\)/\$PLUG_PUBLISHER_ID/\$SLOT_PUBLISHER_ID constraint`, regexp.QuoteMeta(wrong)))
@@ -287,16 +287,16 @@ func (s *attrConstraintsSuite) TestCompileErrors(c *C) {
 }
 
 type testEvalAttr struct {
-	comp            func(side string, arg string) (interface{}, error)
+	comp            func(side string, arg string) (any, error)
 	plugPublisherID string
 	slotPublisherID string
 }
 
-func (ca testEvalAttr) SlotAttr(arg string) (interface{}, error) {
+func (ca testEvalAttr) SlotAttr(arg string) (any, error) {
 	return ca.comp("slot", arg)
 }
 
-func (ca testEvalAttr) PlugAttr(arg string) (interface{}, error) {
+func (ca testEvalAttr) PlugAttr(arg string) (any, error) {
 	return ca.comp("plug", arg)
 }
 
@@ -314,7 +314,7 @@ func (s *attrConstraintsSuite) TestEvalCheck(c *C) {
   bar: $PLUG(bar.baz)`))
 	c.Assert(err, IsNil)
 
-	cstrs, err := asserts.CompileAttributeConstraints(m["attrs"].(map[string]interface{}))
+	cstrs, err := asserts.CompileAttributeConstraints(m["attrs"].(map[string]any))
 	c.Assert(err, IsNil)
 	c.Check(asserts.RuleFeature(cstrs, "dollar-attr-constraints"), Equals, true)
 
@@ -325,7 +325,7 @@ bar: bar
 	c.Check(err, ErrorMatches, `attribute "(foo|bar)" cannot be matched without context`)
 
 	calls := make(map[[2]string]bool)
-	comp1 := func(op string, arg string) (interface{}, error) {
+	comp1 := func(op string, arg string) (any, error) {
 		calls[[2]string{op, arg}] = true
 		return arg, nil
 	}
@@ -341,7 +341,7 @@ bar: bar.baz
 		{"plug", "bar.baz"}: true,
 	})
 
-	comp2 := func(op string, arg string) (interface{}, error) {
+	comp2 := func(op string, arg string) (any, error) {
 		if op == "plug" {
 			return nil, fmt.Errorf("boom")
 		}
@@ -354,7 +354,7 @@ bar: bar.baz
 `), testEvalAttr{comp: comp2})
 	c.Check(err, ErrorMatches, `attribute "bar" constraint \$PLUG\(bar\.baz\) cannot be evaluated: boom`)
 
-	comp3 := func(op string, arg string) (interface{}, error) {
+	comp3 := func(op string, arg string) (any, error) {
 		if op == "slot" {
 			return "other-value", nil
 		}
@@ -373,7 +373,7 @@ func (s *attrConstraintsSuite) TestCheckWithAttrPlugPublisherID(c *C) {
   my-attr: $PLUG_PUBLISHER_ID`))
 	c.Assert(err, IsNil)
 
-	cstrs, err := asserts.CompileAttributeConstraints(m["attrs"].(map[string]interface{}))
+	cstrs, err := asserts.CompileAttributeConstraints(m["attrs"].(map[string]any))
 	c.Assert(err, IsNil)
 	c.Check(asserts.RuleFeature(cstrs, "publisher-id-constraints"), Equals, true)
 
@@ -405,7 +405,7 @@ func (s *attrConstraintsSuite) TestCheckWithAttrSlotPublisherID(c *C) {
   my-attr: $SLOT_PUBLISHER_ID`))
 	c.Assert(err, IsNil)
 
-	cstrs, err := asserts.CompileAttributeConstraints(m["attrs"].(map[string]interface{}))
+	cstrs, err := asserts.CompileAttributeConstraints(m["attrs"].(map[string]any))
 	c.Assert(err, IsNil)
 	c.Check(asserts.RuleFeature(cstrs, "publisher-id-constraints"), Equals, true)
 
@@ -442,24 +442,24 @@ func (s *nameConstraintsSuite) TestCompileErrors(c *C) {
 	_, err := asserts.CompileNameConstraints("slot-names", "true")
 	c.Check(err, ErrorMatches, `slot-names constraints must be a list of regexps and special \$ values`)
 
-	_, err = asserts.CompileNameConstraints("slot-names", []interface{}{map[string]interface{}{"foo": "bar"}})
+	_, err = asserts.CompileNameConstraints("slot-names", []any{map[string]any{"foo": "bar"}})
 	c.Check(err, ErrorMatches, `slot-names constraint entry must be a regexp or special \$ value`)
 
-	_, err = asserts.CompileNameConstraints("plug-names", []interface{}{"["})
+	_, err = asserts.CompileNameConstraints("plug-names", []any{"["})
 	c.Check(err, ErrorMatches, `cannot compile plug-names constraint entry "\[":.*`)
 
-	_, err = asserts.CompileNameConstraints("plug-names", []interface{}{"$"})
+	_, err = asserts.CompileNameConstraints("plug-names", []any{"$"})
 	c.Check(err, ErrorMatches, `plug-names constraint entry special value "\$" is invalid`)
 
-	_, err = asserts.CompileNameConstraints("slot-names", []interface{}{"$12"})
+	_, err = asserts.CompileNameConstraints("slot-names", []any{"$12"})
 	c.Check(err, ErrorMatches, `slot-names constraint entry special value "\$12" is invalid`)
 
-	_, err = asserts.CompileNameConstraints("plug-names", []interface{}{"a b"})
+	_, err = asserts.CompileNameConstraints("plug-names", []any{"a b"})
 	c.Check(err, ErrorMatches, `plug-names constraint entry regexp contains unexpected spaces`)
 }
 
 func (s *nameConstraintsSuite) TestCheck(c *C) {
-	nc, err := asserts.CompileNameConstraints("slot-names", []interface{}{"foo[0-9]", "bar"})
+	nc, err := asserts.CompileNameConstraints("slot-names", []any{"foo[0-9]", "bar"})
 	c.Assert(err, IsNil)
 
 	for _, matching := range []string{"foo0", "foo1", "bar"} {
@@ -473,7 +473,7 @@ func (s *nameConstraintsSuite) TestCheck(c *C) {
 }
 
 func (s *nameConstraintsSuite) TestCheckSpecial(c *C) {
-	nc, err := asserts.CompileNameConstraints("slot-names", []interface{}{"$INTERFACE"})
+	nc, err := asserts.CompileNameConstraints("slot-names", []any{"$INTERFACE"})
 	c.Assert(err, IsNil)
 
 	c.Check(nc.Check("slot name", "foo", nil), ErrorMatches, `slot name "foo" does not match constraints`)
@@ -484,11 +484,11 @@ func (s *nameConstraintsSuite) TestCheckSpecial(c *C) {
 type plugSlotRulesSuite struct{}
 
 func checkAttrs(c *C, attrs *asserts.AttributeConstraints, witness, expected string) {
-	plug := attrerObject(map[string]interface{}{
+	plug := attrerObject(map[string]any{
 		witness: "XYZ",
 	})
 	c.Check(attrs.Check(plug, nil), ErrorMatches, fmt.Sprintf(`attribute "%s".*does not match.*`, witness))
-	plug = attrerObject(map[string]interface{}{
+	plug = attrerObject(map[string]any{
 		witness: expected,
 	})
 	c.Check(attrs.Check(plug, nil), IsNil)
@@ -581,7 +581,7 @@ func (s *plugSlotRulesSuite) TestCompilePlugRuleAllAllowDenyStanzas(c *C) {
       sa6: SA6`))
 	c.Assert(err, IsNil)
 
-	rule, err := asserts.CompilePlugRule("iface", m["iface"].(map[string]interface{}))
+	rule, err := asserts.CompilePlugRule("iface", m["iface"].(map[string]any))
 	c.Assert(err, IsNil)
 
 	c.Check(rule.Interface, Equals, "iface")
@@ -660,7 +660,7 @@ func (s *plugSlotRulesSuite) TestCompilePlugRuleAllAllowDenyOrStanzas(c *C) {
         pa6: PA6alt`))
 	c.Assert(err, IsNil)
 
-	rule, err := asserts.CompilePlugRule("iface", m["iface"].(map[string]interface{}))
+	rule, err := asserts.CompilePlugRule("iface", m["iface"].(map[string]any))
 	c.Assert(err, IsNil)
 
 	c.Check(rule.Interface, Equals, "iface")
@@ -727,7 +727,7 @@ func (s *plugSlotRulesSuite) TestCompilePlugRuleShortcutFalse(c *C) {
 }
 
 func (s *plugSlotRulesSuite) TestCompilePlugRuleDefaults(c *C) {
-	rule, err := asserts.CompilePlugRule("iface", map[string]interface{}{
+	rule, err := asserts.CompilePlugRule("iface", map[string]any{
 		"deny-auto-connection": "true",
 	})
 	c.Assert(err, IsNil)
@@ -749,10 +749,10 @@ func (s *plugSlotRulesSuite) TestCompilePlugRuleDefaults(c *C) {
 }
 
 func (s *plugSlotRulesSuite) TestCompilePlugRuleInstalationConstraintsIDConstraints(c *C) {
-	rule, err := asserts.CompilePlugRule("iface", map[string]interface{}{
-		"allow-installation": map[string]interface{}{
-			"plug-snap-type": []interface{}{"core", "kernel", "gadget", "app"},
-			"plug-snap-id":   []interface{}{"snapidsnapidsnapidsnapidsnapid01", "snapidsnapidsnapidsnapidsnapid02"},
+	rule, err := asserts.CompilePlugRule("iface", map[string]any{
+		"allow-installation": map[string]any{
+			"plug-snap-type": []any{"core", "kernel", "gadget", "app"},
+			"plug-snap-id":   []any{"snapidsnapidsnapidsnapidsnapid01", "snapidsnapidsnapidsnapidsnapid02"},
 		},
 	})
 	c.Assert(err, IsNil)
@@ -768,7 +768,7 @@ func (s *plugSlotRulesSuite) TestCompilePlugRuleInstallationConstraintsOnClassic
   allow-installation: true`))
 	c.Assert(err, IsNil)
 
-	rule, err := asserts.CompilePlugRule("iface", m["iface"].(map[string]interface{}))
+	rule, err := asserts.CompilePlugRule("iface", m["iface"].(map[string]any))
 	c.Assert(err, IsNil)
 
 	c.Check(rule.AllowInstallation[0].OnClassic, IsNil)
@@ -778,7 +778,7 @@ func (s *plugSlotRulesSuite) TestCompilePlugRuleInstallationConstraintsOnClassic
     on-classic: false`))
 	c.Assert(err, IsNil)
 
-	rule, err = asserts.CompilePlugRule("iface", m["iface"].(map[string]interface{}))
+	rule, err = asserts.CompilePlugRule("iface", m["iface"].(map[string]any))
 	c.Assert(err, IsNil)
 
 	c.Check(rule.AllowInstallation[0].OnClassic, DeepEquals, &asserts.OnClassicConstraint{})
@@ -788,7 +788,7 @@ func (s *plugSlotRulesSuite) TestCompilePlugRuleInstallationConstraintsOnClassic
     on-classic: true`))
 	c.Assert(err, IsNil)
 
-	rule, err = asserts.CompilePlugRule("iface", m["iface"].(map[string]interface{}))
+	rule, err = asserts.CompilePlugRule("iface", m["iface"].(map[string]any))
 	c.Assert(err, IsNil)
 
 	c.Check(rule.AllowInstallation[0].OnClassic, DeepEquals, &asserts.OnClassicConstraint{Classic: true})
@@ -800,7 +800,7 @@ func (s *plugSlotRulesSuite) TestCompilePlugRuleInstallationConstraintsOnClassic
       - debian`))
 	c.Assert(err, IsNil)
 
-	rule, err = asserts.CompilePlugRule("iface", m["iface"].(map[string]interface{}))
+	rule, err = asserts.CompilePlugRule("iface", m["iface"].(map[string]any))
 	c.Assert(err, IsNil)
 
 	c.Check(rule.AllowInstallation[0].OnClassic, DeepEquals, &asserts.OnClassicConstraint{Classic: true, SystemIDs: []string{"ubuntu", "debian"}})
@@ -811,7 +811,7 @@ func (s *plugSlotRulesSuite) TestCompilePlugRuleInstallationConstraintsDeviceSco
   allow-installation: true`))
 	c.Assert(err, IsNil)
 
-	rule, err := asserts.CompilePlugRule("iface", m["iface"].(map[string]interface{}))
+	rule, err := asserts.CompilePlugRule("iface", m["iface"].(map[string]any))
 	c.Assert(err, IsNil)
 
 	c.Check(rule.AllowInstallation[0].DeviceScope, IsNil)
@@ -858,7 +858,7 @@ func (s *plugSlotRulesSuite) TestCompilePlugRuleInstallationConstraintsDeviceSco
 		m, err = asserts.ParseHeaders([]byte(t.rule))
 		c.Assert(err, IsNil)
 
-		rule, err = asserts.CompilePlugRule("iface", m["iface"].(map[string]interface{}))
+		rule, err = asserts.CompilePlugRule("iface", m["iface"].(map[string]any))
 		c.Assert(err, IsNil)
 
 		c.Check(rule.AllowInstallation[0].DeviceScope, DeepEquals, &t.expected)
@@ -870,7 +870,7 @@ func (s *plugSlotRulesSuite) TestCompilePlugRuleInstallationConstraintsPlugNames
   allow-installation: true`))
 	c.Assert(err, IsNil)
 
-	rule, err := asserts.CompilePlugRule("iface", m["iface"].(map[string]interface{}))
+	rule, err := asserts.CompilePlugRule("iface", m["iface"].(map[string]any))
 	c.Assert(err, IsNil)
 
 	c.Check(rule.AllowInstallation[0].PlugNames, IsNil)
@@ -899,7 +899,7 @@ func (s *plugSlotRulesSuite) TestCompilePlugRuleInstallationConstraintsPlugNames
 		m, err = asserts.ParseHeaders([]byte(t.rule))
 		c.Assert(err, IsNil)
 
-		rule, err = asserts.CompilePlugRule("iface", m["iface"].(map[string]interface{}))
+		rule, err = asserts.CompilePlugRule("iface", m["iface"].(map[string]any))
 		c.Assert(err, IsNil)
 
 		for _, matching := range t.matching {
@@ -912,11 +912,11 @@ func (s *plugSlotRulesSuite) TestCompilePlugRuleInstallationConstraintsPlugNames
 }
 
 func (s *plugSlotRulesSuite) TestCompilePlugRuleConnectionConstraintsIDConstraints(c *C) {
-	rule, err := asserts.CompilePlugRule("iface", map[string]interface{}{
-		"allow-connection": map[string]interface{}{
-			"slot-snap-type":    []interface{}{"core", "kernel", "gadget", "app"},
-			"slot-snap-id":      []interface{}{"snapidsnapidsnapidsnapidsnapid01", "snapidsnapidsnapidsnapidsnapid02"},
-			"slot-publisher-id": []interface{}{"pubidpubidpubidpubidpubidpubid09", "canonical", "$SAME"},
+	rule, err := asserts.CompilePlugRule("iface", map[string]any{
+		"allow-connection": map[string]any{
+			"slot-snap-type":    []any{"core", "kernel", "gadget", "app"},
+			"slot-snap-id":      []any{"snapidsnapidsnapidsnapidsnapid01", "snapidsnapidsnapidsnapidsnapid02"},
+			"slot-publisher-id": []any{"pubidpubidpubidpubidpubidpubid09", "canonical", "$SAME"},
 		},
 	})
 	c.Assert(err, IsNil)
@@ -934,7 +934,7 @@ func (s *plugSlotRulesSuite) TestCompilePlugRuleConnectionConstraintsOnClassic(c
   allow-connection: true`))
 	c.Assert(err, IsNil)
 
-	rule, err := asserts.CompilePlugRule("iface", m["iface"].(map[string]interface{}))
+	rule, err := asserts.CompilePlugRule("iface", m["iface"].(map[string]any))
 	c.Assert(err, IsNil)
 
 	c.Check(rule.AllowConnection[0].OnClassic, IsNil)
@@ -944,7 +944,7 @@ func (s *plugSlotRulesSuite) TestCompilePlugRuleConnectionConstraintsOnClassic(c
     on-classic: false`))
 	c.Assert(err, IsNil)
 
-	rule, err = asserts.CompilePlugRule("iface", m["iface"].(map[string]interface{}))
+	rule, err = asserts.CompilePlugRule("iface", m["iface"].(map[string]any))
 	c.Assert(err, IsNil)
 
 	c.Check(rule.AllowConnection[0].OnClassic, DeepEquals, &asserts.OnClassicConstraint{})
@@ -954,7 +954,7 @@ func (s *plugSlotRulesSuite) TestCompilePlugRuleConnectionConstraintsOnClassic(c
     on-classic: true`))
 	c.Assert(err, IsNil)
 
-	rule, err = asserts.CompilePlugRule("iface", m["iface"].(map[string]interface{}))
+	rule, err = asserts.CompilePlugRule("iface", m["iface"].(map[string]any))
 	c.Assert(err, IsNil)
 
 	c.Check(rule.AllowConnection[0].OnClassic, DeepEquals, &asserts.OnClassicConstraint{Classic: true})
@@ -966,7 +966,7 @@ func (s *plugSlotRulesSuite) TestCompilePlugRuleConnectionConstraintsOnClassic(c
       - debian`))
 	c.Assert(err, IsNil)
 
-	rule, err = asserts.CompilePlugRule("iface", m["iface"].(map[string]interface{}))
+	rule, err = asserts.CompilePlugRule("iface", m["iface"].(map[string]any))
 	c.Assert(err, IsNil)
 
 	c.Check(rule.AllowConnection[0].OnClassic, DeepEquals, &asserts.OnClassicConstraint{Classic: true, SystemIDs: []string{"ubuntu", "debian"}})
@@ -977,7 +977,7 @@ func (s *plugSlotRulesSuite) TestCompilePlugRuleConnectionConstraintsDeviceScope
   allow-connection: true`))
 	c.Assert(err, IsNil)
 
-	rule, err := asserts.CompilePlugRule("iface", m["iface"].(map[string]interface{}))
+	rule, err := asserts.CompilePlugRule("iface", m["iface"].(map[string]any))
 	c.Assert(err, IsNil)
 
 	c.Check(rule.AllowInstallation[0].DeviceScope, IsNil)
@@ -1024,7 +1024,7 @@ func (s *plugSlotRulesSuite) TestCompilePlugRuleConnectionConstraintsDeviceScope
 		m, err = asserts.ParseHeaders([]byte(t.rule))
 		c.Assert(err, IsNil)
 
-		rule, err = asserts.CompilePlugRule("iface", m["iface"].(map[string]interface{}))
+		rule, err = asserts.CompilePlugRule("iface", m["iface"].(map[string]any))
 		c.Assert(err, IsNil)
 
 		c.Check(rule.AllowConnection[0].DeviceScope, DeepEquals, &t.expected)
@@ -1036,7 +1036,7 @@ func (s *plugSlotRulesSuite) TestCompilePlugRuleConnectionConstraintsPlugNamesSl
   allow-connection: true`))
 	c.Assert(err, IsNil)
 
-	rule, err := asserts.CompilePlugRule("iface", m["iface"].(map[string]interface{}))
+	rule, err := asserts.CompilePlugRule("iface", m["iface"].(map[string]any))
 	c.Assert(err, IsNil)
 
 	c.Check(rule.AllowConnection[0].PlugNames, IsNil)
@@ -1074,7 +1074,7 @@ func (s *plugSlotRulesSuite) TestCompilePlugRuleConnectionConstraintsPlugNamesSl
 		m, err = asserts.ParseHeaders([]byte(t.rule))
 		c.Assert(err, IsNil)
 
-		rule, err = asserts.CompilePlugRule("iface", m["iface"].(map[string]interface{}))
+		rule, err = asserts.CompilePlugRule("iface", m["iface"].(map[string]any))
 		c.Assert(err, IsNil)
 
 		for _, matching := range t.matching {
@@ -1096,7 +1096,7 @@ func (s *plugSlotRulesSuite) TestCompilePlugRuleConnectionConstraintsSideArityCo
   allow-auto-connection: true`))
 	c.Assert(err, IsNil)
 
-	rule, err := asserts.CompilePlugRule("iface", m["iface"].(map[string]interface{}))
+	rule, err := asserts.CompilePlugRule("iface", m["iface"].(map[string]any))
 	c.Assert(err, IsNil)
 
 	// defaults
@@ -1128,7 +1128,7 @@ func (s *plugSlotRulesSuite) TestCompilePlugRuleConnectionConstraintsSideArityCo
 		m, err = asserts.ParseHeaders([]byte(t))
 		c.Assert(err, IsNil)
 
-		rule, err = asserts.CompilePlugRule("iface", m["iface"].(map[string]interface{}))
+		rule, err = asserts.CompilePlugRule("iface", m["iface"].(map[string]any))
 		c.Assert(err, IsNil)
 
 		c.Check(rule.AllowConnection[0].SlotsPerPlug.Any(), Equals, true)
@@ -1161,7 +1161,7 @@ func (s *plugSlotRulesSuite) TestCompilePlugRuleConnectionConstraintsSideArityCo
 		m, err = asserts.ParseHeaders([]byte(t.rule))
 		c.Assert(err, IsNil)
 
-		rule, err = asserts.CompilePlugRule("iface", m["iface"].(map[string]interface{}))
+		rule, err = asserts.CompilePlugRule("iface", m["iface"].(map[string]any))
 		c.Assert(err, IsNil)
 
 		c.Check(rule.AllowAutoConnection[0].SlotsPerPlug, Equals, t.slotsPerPlug)
@@ -1170,9 +1170,9 @@ func (s *plugSlotRulesSuite) TestCompilePlugRuleConnectionConstraintsSideArityCo
 }
 
 func (s *plugSlotRulesSuite) TestCompilePlugRuleConnectionConstraintsAttributesDefault(c *C) {
-	rule, err := asserts.CompilePlugRule("iface", map[string]interface{}{
-		"allow-connection": map[string]interface{}{
-			"slot-snap-id": []interface{}{"snapidsnapidsnapidsnapidsnapid01"},
+	rule, err := asserts.CompilePlugRule("iface", map[string]any{
+		"allow-connection": map[string]any{
+			"slot-snap-id": []any{"snapidsnapidsnapidsnapidsnapid01"},
 		},
 	})
 	c.Assert(err, IsNil)
@@ -1316,7 +1316,7 @@ func (s *plugSlotRulesSuite) TestCompilePlugRuleErrors(c *C) {
 }
 
 var (
-	deviceScopeConstrs = map[string][]interface{}{
+	deviceScopeConstrs = map[string][]any{
 		"on-store": {"store"},
 		"on-brand": {"brand"},
 		"on-model": {"brand/model"},
@@ -1338,12 +1338,12 @@ func (s *plugSlotRulesSuite) TestPlugRuleFeatures(c *C) {
 
 	for _, combo := range combos {
 		for _, attrConstrPrefix := range combo.constraintsPrefixes {
-			attrConstraintMap := map[string]interface{}{
+			attrConstraintMap := map[string]any{
 				"a":     "ATTR",
-				"other": []interface{}{"x", "y"},
+				"other": []any{"x", "y"},
 			}
-			ruleMap := map[string]interface{}{
-				combo.subrule: map[string]interface{}{
+			ruleMap := map[string]any{
+				combo.subrule: map[string]any{
 					attrConstrPrefix + "attributes": attrConstraintMap,
 				},
 			}
@@ -1361,7 +1361,7 @@ func (s *plugSlotRulesSuite) TestPlugRuleFeatures(c *C) {
 			c.Check(asserts.RuleFeature(rule, "dollar-attr-constraints"), Equals, true, Commentf("%v", ruleMap))
 
 			// covers also alternation
-			attrConstraintMap["a"] = []interface{}{"$SLOT(a)"}
+			attrConstraintMap["a"] = []any{"$SLOT(a)"}
 			rule, err = asserts.CompilePlugRule("iface", ruleMap)
 			c.Assert(err, IsNil)
 			c.Check(asserts.RuleFeature(rule, "dollar-attr-constraints"), Equals, true, Commentf("%v", ruleMap))
@@ -1372,8 +1372,8 @@ func (s *plugSlotRulesSuite) TestPlugRuleFeatures(c *C) {
 		}
 
 		for deviceScopeConstr, value := range deviceScopeConstrs {
-			ruleMap := map[string]interface{}{
-				combo.subrule: map[string]interface{}{
+			ruleMap := map[string]any{
+				combo.subrule: map[string]any{
 					deviceScopeConstr: value,
 				},
 			}
@@ -1384,9 +1384,9 @@ func (s *plugSlotRulesSuite) TestPlugRuleFeatures(c *C) {
 		}
 
 		for _, nameConstrPrefix := range combo.constraintsPrefixes {
-			ruleMap := map[string]interface{}{
-				combo.subrule: map[string]interface{}{
-					nameConstrPrefix + "names": []interface{}{"foo"},
+			ruleMap := map[string]any{
+				combo.subrule: map[string]any{
+					nameConstrPrefix + "names": []any{"foo"},
 				},
 			}
 
@@ -1427,7 +1427,7 @@ func (s *plugSlotRulesSuite) TestCompileSlotRuleAllAllowDenyStanzas(c *C) {
       sa6: SA6`))
 	c.Assert(err, IsNil)
 
-	rule, err := asserts.CompileSlotRule("iface", m["iface"].(map[string]interface{}))
+	rule, err := asserts.CompileSlotRule("iface", m["iface"].(map[string]any))
 	c.Assert(err, IsNil)
 
 	c.Check(rule.Interface, Equals, "iface")
@@ -1506,7 +1506,7 @@ func (s *plugSlotRulesSuite) TestCompileSlotRuleAllAllowDenyOrStanzas(c *C) {
         sa6: SA6alt`))
 	c.Assert(err, IsNil)
 
-	rule, err := asserts.CompileSlotRule("iface", m["iface"].(map[string]interface{}))
+	rule, err := asserts.CompileSlotRule("iface", m["iface"].(map[string]any))
 	c.Assert(err, IsNil)
 
 	c.Check(rule.Interface, Equals, "iface")
@@ -1573,7 +1573,7 @@ func (s *plugSlotRulesSuite) TestCompileSlotRuleShortcutFalse(c *C) {
 }
 
 func (s *plugSlotRulesSuite) TestCompileSlotRuleDefaults(c *C) {
-	rule, err := asserts.CompileSlotRule("iface", map[string]interface{}{
+	rule, err := asserts.CompileSlotRule("iface", map[string]any{
 		"deny-auto-connection": "true",
 	})
 	c.Assert(err, IsNil)
@@ -1595,10 +1595,10 @@ func (s *plugSlotRulesSuite) TestCompileSlotRuleDefaults(c *C) {
 }
 
 func (s *plugSlotRulesSuite) TestCompileSlotRuleInstallationConstraintsIDConstraints(c *C) {
-	rule, err := asserts.CompileSlotRule("iface", map[string]interface{}{
-		"allow-installation": map[string]interface{}{
-			"slot-snap-type": []interface{}{"core", "kernel", "gadget", "app"},
-			"slot-snap-id":   []interface{}{"snapidsnapidsnapidsnapidsnapid01", "snapidsnapidsnapidsnapidsnapid02"},
+	rule, err := asserts.CompileSlotRule("iface", map[string]any{
+		"allow-installation": map[string]any{
+			"slot-snap-type": []any{"core", "kernel", "gadget", "app"},
+			"slot-snap-id":   []any{"snapidsnapidsnapidsnapidsnapid01", "snapidsnapidsnapidsnapidsnapid02"},
 		},
 	})
 	c.Assert(err, IsNil)
@@ -1614,7 +1614,7 @@ func (s *plugSlotRulesSuite) TestCompileSlotRuleInstallationConstraintsOnClassic
   allow-installation: true`))
 	c.Assert(err, IsNil)
 
-	rule, err := asserts.CompileSlotRule("iface", m["iface"].(map[string]interface{}))
+	rule, err := asserts.CompileSlotRule("iface", m["iface"].(map[string]any))
 	c.Assert(err, IsNil)
 
 	c.Check(rule.AllowInstallation[0].OnClassic, IsNil)
@@ -1624,7 +1624,7 @@ func (s *plugSlotRulesSuite) TestCompileSlotRuleInstallationConstraintsOnClassic
     on-classic: false`))
 	c.Assert(err, IsNil)
 
-	rule, err = asserts.CompileSlotRule("iface", m["iface"].(map[string]interface{}))
+	rule, err = asserts.CompileSlotRule("iface", m["iface"].(map[string]any))
 	c.Assert(err, IsNil)
 
 	c.Check(rule.AllowInstallation[0].OnClassic, DeepEquals, &asserts.OnClassicConstraint{})
@@ -1634,7 +1634,7 @@ func (s *plugSlotRulesSuite) TestCompileSlotRuleInstallationConstraintsOnClassic
     on-classic: true`))
 	c.Assert(err, IsNil)
 
-	rule, err = asserts.CompileSlotRule("iface", m["iface"].(map[string]interface{}))
+	rule, err = asserts.CompileSlotRule("iface", m["iface"].(map[string]any))
 	c.Assert(err, IsNil)
 
 	c.Check(rule.AllowInstallation[0].OnClassic, DeepEquals, &asserts.OnClassicConstraint{Classic: true})
@@ -1646,7 +1646,7 @@ func (s *plugSlotRulesSuite) TestCompileSlotRuleInstallationConstraintsOnClassic
       - debian`))
 	c.Assert(err, IsNil)
 
-	rule, err = asserts.CompileSlotRule("iface", m["iface"].(map[string]interface{}))
+	rule, err = asserts.CompileSlotRule("iface", m["iface"].(map[string]any))
 	c.Assert(err, IsNil)
 
 	c.Check(rule.AllowInstallation[0].OnClassic, DeepEquals, &asserts.OnClassicConstraint{Classic: true, SystemIDs: []string{"ubuntu", "debian"}})
@@ -1657,7 +1657,7 @@ func (s *plugSlotRulesSuite) TestCompileSlotRuleInstallationConstraintsDeviceSco
   allow-installation: true`))
 	c.Assert(err, IsNil)
 
-	rule, err := asserts.CompileSlotRule("iface", m["iface"].(map[string]interface{}))
+	rule, err := asserts.CompileSlotRule("iface", m["iface"].(map[string]any))
 	c.Assert(err, IsNil)
 
 	c.Check(rule.AllowInstallation[0].DeviceScope, IsNil)
@@ -1704,7 +1704,7 @@ func (s *plugSlotRulesSuite) TestCompileSlotRuleInstallationConstraintsDeviceSco
 		m, err = asserts.ParseHeaders([]byte(t.rule))
 		c.Assert(err, IsNil)
 
-		rule, err = asserts.CompileSlotRule("iface", m["iface"].(map[string]interface{}))
+		rule, err = asserts.CompileSlotRule("iface", m["iface"].(map[string]any))
 		c.Assert(err, IsNil)
 
 		c.Check(rule.AllowInstallation[0].DeviceScope, DeepEquals, &t.expected)
@@ -1716,7 +1716,7 @@ func (s *plugSlotRulesSuite) TestCompileSlotRuleInstallationConstraintsSlotNames
   allow-installation: true`))
 	c.Assert(err, IsNil)
 
-	rule, err := asserts.CompileSlotRule("iface", m["iface"].(map[string]interface{}))
+	rule, err := asserts.CompileSlotRule("iface", m["iface"].(map[string]any))
 	c.Assert(err, IsNil)
 
 	c.Check(rule.AllowInstallation[0].SlotNames, IsNil)
@@ -1745,7 +1745,7 @@ func (s *plugSlotRulesSuite) TestCompileSlotRuleInstallationConstraintsSlotNames
 		m, err = asserts.ParseHeaders([]byte(t.rule))
 		c.Assert(err, IsNil)
 
-		rule, err = asserts.CompileSlotRule("iface", m["iface"].(map[string]interface{}))
+		rule, err = asserts.CompileSlotRule("iface", m["iface"].(map[string]any))
 		c.Assert(err, IsNil)
 
 		for _, matching := range t.matching {
@@ -1758,12 +1758,12 @@ func (s *plugSlotRulesSuite) TestCompileSlotRuleInstallationConstraintsSlotNames
 }
 
 func (s *plugSlotRulesSuite) TestCompileSlotRuleConnectionConstraintsIDConstraints(c *C) {
-	rule, err := asserts.CompileSlotRule("iface", map[string]interface{}{
-		"allow-connection": map[string]interface{}{
-			"slot-snap-type":    []interface{}{"core"},
-			"plug-snap-type":    []interface{}{"core", "kernel", "gadget", "app"},
-			"plug-snap-id":      []interface{}{"snapidsnapidsnapidsnapidsnapid01", "snapidsnapidsnapidsnapidsnapid02"},
-			"plug-publisher-id": []interface{}{"pubidpubidpubidpubidpubidpubid09", "canonical", "$SAME"},
+	rule, err := asserts.CompileSlotRule("iface", map[string]any{
+		"allow-connection": map[string]any{
+			"slot-snap-type":    []any{"core"},
+			"plug-snap-type":    []any{"core", "kernel", "gadget", "app"},
+			"plug-snap-id":      []any{"snapidsnapidsnapidsnapidsnapid01", "snapidsnapidsnapidsnapidsnapid02"},
+			"plug-publisher-id": []any{"pubidpubidpubidpubidpubidpubid09", "canonical", "$SAME"},
 		},
 	})
 	c.Assert(err, IsNil)
@@ -1781,7 +1781,7 @@ func (s *plugSlotRulesSuite) TestCompileSlotRuleConnectionConstraintsOnClassic(c
   allow-connection: true`))
 	c.Assert(err, IsNil)
 
-	rule, err := asserts.CompileSlotRule("iface", m["iface"].(map[string]interface{}))
+	rule, err := asserts.CompileSlotRule("iface", m["iface"].(map[string]any))
 	c.Assert(err, IsNil)
 
 	c.Check(rule.AllowConnection[0].OnClassic, IsNil)
@@ -1791,7 +1791,7 @@ func (s *plugSlotRulesSuite) TestCompileSlotRuleConnectionConstraintsOnClassic(c
     on-classic: false`))
 	c.Assert(err, IsNil)
 
-	rule, err = asserts.CompileSlotRule("iface", m["iface"].(map[string]interface{}))
+	rule, err = asserts.CompileSlotRule("iface", m["iface"].(map[string]any))
 	c.Assert(err, IsNil)
 
 	c.Check(rule.AllowConnection[0].OnClassic, DeepEquals, &asserts.OnClassicConstraint{})
@@ -1801,7 +1801,7 @@ func (s *plugSlotRulesSuite) TestCompileSlotRuleConnectionConstraintsOnClassic(c
     on-classic: true`))
 	c.Assert(err, IsNil)
 
-	rule, err = asserts.CompileSlotRule("iface", m["iface"].(map[string]interface{}))
+	rule, err = asserts.CompileSlotRule("iface", m["iface"].(map[string]any))
 	c.Assert(err, IsNil)
 
 	c.Check(rule.AllowConnection[0].OnClassic, DeepEquals, &asserts.OnClassicConstraint{Classic: true})
@@ -1813,7 +1813,7 @@ func (s *plugSlotRulesSuite) TestCompileSlotRuleConnectionConstraintsOnClassic(c
       - debian`))
 	c.Assert(err, IsNil)
 
-	rule, err = asserts.CompileSlotRule("iface", m["iface"].(map[string]interface{}))
+	rule, err = asserts.CompileSlotRule("iface", m["iface"].(map[string]any))
 	c.Assert(err, IsNil)
 
 	c.Check(rule.AllowConnection[0].OnClassic, DeepEquals, &asserts.OnClassicConstraint{Classic: true, SystemIDs: []string{"ubuntu", "debian"}})
@@ -1824,7 +1824,7 @@ func (s *plugSlotRulesSuite) TestCompileSlotRuleConnectionConstraintsDeviceScope
   allow-connection: true`))
 	c.Assert(err, IsNil)
 
-	rule, err := asserts.CompileSlotRule("iface", m["iface"].(map[string]interface{}))
+	rule, err := asserts.CompileSlotRule("iface", m["iface"].(map[string]any))
 	c.Assert(err, IsNil)
 
 	c.Check(rule.AllowConnection[0].DeviceScope, IsNil)
@@ -1871,7 +1871,7 @@ func (s *plugSlotRulesSuite) TestCompileSlotRuleConnectionConstraintsDeviceScope
 		m, err = asserts.ParseHeaders([]byte(t.rule))
 		c.Assert(err, IsNil)
 
-		rule, err = asserts.CompileSlotRule("iface", m["iface"].(map[string]interface{}))
+		rule, err = asserts.CompileSlotRule("iface", m["iface"].(map[string]any))
 		c.Assert(err, IsNil)
 
 		c.Check(rule.AllowConnection[0].DeviceScope, DeepEquals, &t.expected)
@@ -1883,7 +1883,7 @@ func (s *plugSlotRulesSuite) TestCompileSlotRuleConnectionConstraintsPlugNamesSl
   allow-connection: true`))
 	c.Assert(err, IsNil)
 
-	rule, err := asserts.CompileSlotRule("iface", m["iface"].(map[string]interface{}))
+	rule, err := asserts.CompileSlotRule("iface", m["iface"].(map[string]any))
 	c.Assert(err, IsNil)
 
 	c.Check(rule.AllowConnection[0].PlugNames, IsNil)
@@ -1921,7 +1921,7 @@ func (s *plugSlotRulesSuite) TestCompileSlotRuleConnectionConstraintsPlugNamesSl
 		m, err = asserts.ParseHeaders([]byte(t.rule))
 		c.Assert(err, IsNil)
 
-		rule, err = asserts.CompileSlotRule("iface", m["iface"].(map[string]interface{}))
+		rule, err = asserts.CompileSlotRule("iface", m["iface"].(map[string]any))
 		c.Assert(err, IsNil)
 
 		for _, matching := range t.matching {
@@ -1943,7 +1943,7 @@ func (s *plugSlotRulesSuite) TestCompileSlotRuleConnectionConstraintsSideArityCo
   allow-auto-connection: true`))
 	c.Assert(err, IsNil)
 
-	rule, err := asserts.CompileSlotRule("iface", m["iface"].(map[string]interface{}))
+	rule, err := asserts.CompileSlotRule("iface", m["iface"].(map[string]any))
 	c.Assert(err, IsNil)
 
 	// defaults
@@ -1975,7 +1975,7 @@ func (s *plugSlotRulesSuite) TestCompileSlotRuleConnectionConstraintsSideArityCo
 		m, err = asserts.ParseHeaders([]byte(t))
 		c.Assert(err, IsNil)
 
-		rule, err = asserts.CompileSlotRule("iface", m["iface"].(map[string]interface{}))
+		rule, err = asserts.CompileSlotRule("iface", m["iface"].(map[string]any))
 		c.Assert(err, IsNil)
 
 		c.Check(rule.AllowConnection[0].SlotsPerPlug.Any(), Equals, true)
@@ -2008,7 +2008,7 @@ func (s *plugSlotRulesSuite) TestCompileSlotRuleConnectionConstraintsSideArityCo
 		m, err = asserts.ParseHeaders([]byte(t.rule))
 		c.Assert(err, IsNil)
 
-		rule, err = asserts.CompileSlotRule("iface", m["iface"].(map[string]interface{}))
+		rule, err = asserts.CompileSlotRule("iface", m["iface"].(map[string]any))
 		c.Assert(err, IsNil)
 
 		c.Check(rule.AllowAutoConnection[0].SlotsPerPlug, Equals, t.slotsPerPlug)
@@ -2174,11 +2174,11 @@ func (s *plugSlotRulesSuite) TestSlotRuleFeatures(c *C) {
 
 	for _, combo := range combos {
 		for _, attrConstrPrefix := range combo.constraintsPrefixes {
-			attrConstraintMap := map[string]interface{}{
+			attrConstraintMap := map[string]any{
 				"a": "ATTR",
 			}
-			ruleMap := map[string]interface{}{
-				combo.subrule: map[string]interface{}{
+			ruleMap := map[string]any{
+				combo.subrule: map[string]any{
 					attrConstrPrefix + "attributes": attrConstraintMap,
 				},
 			}
@@ -2198,8 +2198,8 @@ func (s *plugSlotRulesSuite) TestSlotRuleFeatures(c *C) {
 		}
 
 		for deviceScopeConstr, value := range deviceScopeConstrs {
-			ruleMap := map[string]interface{}{
-				combo.subrule: map[string]interface{}{
+			ruleMap := map[string]any{
+				combo.subrule: map[string]any{
 					deviceScopeConstr: value,
 				},
 			}
@@ -2210,9 +2210,9 @@ func (s *plugSlotRulesSuite) TestSlotRuleFeatures(c *C) {
 		}
 
 		for _, nameConstrPrefix := range combo.constraintsPrefixes {
-			ruleMap := map[string]interface{}{
-				combo.subrule: map[string]interface{}{
-					nameConstrPrefix + "names": []interface{}{"foo"},
+			ruleMap := map[string]any{
+				combo.subrule: map[string]any{
+					nameConstrPrefix + "names": []any{"foo"},
 				},
 			}
 
@@ -2252,9 +2252,9 @@ func (s *plugSlotRulesSuite) TestValidOnStoreBrandModel(c *C) {
 	}
 
 	check := func(constr, value string, valid bool) {
-		ruleMap := map[string]interface{}{
-			"allow-auto-connection": map[string]interface{}{
-				constr: []interface{}{value},
+		ruleMap := map[string]any{
+			"allow-auto-connection": map[string]any{
+				constr: []any{value},
 			},
 		}
 

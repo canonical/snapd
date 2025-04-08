@@ -60,7 +60,7 @@ var LFileAbsent check.Checker = &filePresenceChecker{
 	present:     false,
 }
 
-func (c *filePresenceChecker) Check(params []interface{}, names []string) (result bool, error string) {
+func (c *filePresenceChecker) Check(params []any, names []string) (result bool, error string) {
 	filename, ok := params[0].(string)
 	if !ok {
 		return false, "filename must be a string"

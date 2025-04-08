@@ -142,7 +142,7 @@ func (s *errorsSuite) TestErrToResponse(c *C) {
 	// this one can't happen (but fun to test):
 	saXe := &store.SnapActionError{Refresh: map[string]error{"foo": sa1e}}
 
-	makeErrorRsp := func(kind client.ErrorKind, err error, value interface{}) *daemon.APIError {
+	makeErrorRsp := func(kind client.ErrorKind, err error, value any) *daemon.APIError {
 		return &daemon.APIError{
 			Status:  400,
 			Message: err.Error(),
@@ -235,7 +235,7 @@ func (s *errorsSuite) TestErrToResponseInsufficentSpace(c *C) {
 		Status:  507,
 		Message: "specific error msg",
 		Kind:    client.ErrorKindInsufficientDiskSpace,
-		Value: map[string]interface{}{
+		Value: map[string]any{
 			"snap-names":  []string{"foo", "bar"},
 			"change-kind": "some-change",
 		},

@@ -91,7 +91,7 @@ func (o *OrderedMap) Copy() *OrderedMap {
 }
 
 // UnmarshalYAML unmarshals a yaml string map and preserves the order
-func (o *OrderedMap) UnmarshalYAML(u func(interface{}) error) error {
+func (o *OrderedMap) UnmarshalYAML(u func(any) error) error {
 	var vals map[string]string
 	if err := u(&vals); err != nil {
 		return err

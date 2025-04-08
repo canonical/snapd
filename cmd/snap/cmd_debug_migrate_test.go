@@ -50,9 +50,9 @@ func serverWithChange(chgRsp string, c *C) func(w http.ResponseWriter, r *http.R
 		case 0:
 			c.Check(r.Method, check.Equals, "POST")
 			c.Check(r.URL.Path, check.Equals, "/v2/debug")
-			c.Check(DecodedRequestBody(c, r), check.DeepEquals, map[string]interface{}{
+			c.Check(DecodedRequestBody(c, r), check.DeepEquals, map[string]any{
 				"action": "migrate-home",
-				"snaps":  []interface{}{"foo"},
+				"snaps":  []any{"foo"},
 			})
 			w.WriteHeader(202)
 			fmt.Fprintln(w, `{"type": "async", "status-code": 202, "result": {}, "change": "12"}`)
@@ -88,9 +88,9 @@ func (s *MigrateHomeSuite) TestMigrateHomeManySnaps(c *C) {
 		case 0:
 			c.Check(r.Method, check.Equals, "POST")
 			c.Check(r.URL.Path, check.Equals, "/v2/debug")
-			c.Check(DecodedRequestBody(c, r), check.DeepEquals, map[string]interface{}{
+			c.Check(DecodedRequestBody(c, r), check.DeepEquals, map[string]any{
 				"action": "migrate-home",
-				"snaps":  []interface{}{"foo", "bar"},
+				"snaps":  []any{"foo", "bar"},
 			})
 			w.WriteHeader(202)
 			fmt.Fprintln(w, `{"type": "async", "status-code": 202, "result": {}, "change": "12"}`)

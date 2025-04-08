@@ -55,18 +55,18 @@ func getSnapConf(c *Command, r *http.Request, user *auth.UserState) Response {
 	tr := config.NewTransaction(s)
 	s.Unlock()
 
-	currentConfValues := make(map[string]interface{})
+	currentConfValues := make(map[string]any)
 	// Special case - return root document
 	if len(keys) == 0 {
 		keys = []string{""}
 	}
 	for _, key := range keys {
-		var value interface{}
+		var value any
 		if err := tr.Get(snapName, key, &value); err != nil {
 			if config.IsNoOption(err) {
 				if key == "" {
 					// no configuration - return empty document
-					currentConfValues = make(map[string]interface{})
+					currentConfValues = make(map[string]any)
 					break
 				}
 				return &apiError{
@@ -106,7 +106,7 @@ func getSnapConf(c *Command, r *http.Request, user *auth.UserState) Response {
 //
 // This helper should only be called for core configurations. Any errors when parsing
 // core config are ignored and val is returned without modification.
-func pruneExperimentalFlags(key string, val interface{}) interface{} {
+func pruneExperimentalFlags(key string, val any) any {
 	if val == nil {
 		return val
 	}
@@ -118,13 +118,13 @@ func pruneExperimentalFlags(key string, val interface{}) interface{} {
 		return val
 	}
 
-	experimentalFlags, ok := val.(map[string]interface{})
+	experimentalFlags, ok := val.(map[string]any)
 	if !ok {
 		// XXX: This should never happen, skip cleaning
 		return val
 	}
 	if key == "" {
-		experimentalFlags, ok = experimentalFlags["experimental"].(map[string]interface{})
+		experimentalFlags, ok = experimentalFlags["experimental"].(map[string]any)
 		if !ok {
 			// No experimental key, do nothing
 			return val
@@ -146,7 +146,7 @@ func setSnapConf(c *Command, r *http.Request, user *auth.UserState) Response {
 	vars := muxVars(r)
 	snapName := configstate.RemapSnapFromRequest(vars["name"])
 
-	var patchValues map[string]interface{}
+	var patchValues map[string]any
 	if err := jsonutil.DecodeWithNumber(r.Body, &patchValues); err != nil {
 		return BadRequest("cannot decode request body into patch values: %v", err)
 	}

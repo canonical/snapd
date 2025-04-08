@@ -2324,19 +2324,19 @@ func (s *ValidateSuite) TestSimplePrereqTracker(c *C) {
 		Snap:      info,
 		Name:      "sound-themes",
 		Interface: "content",
-		Attrs:     map[string]interface{}{"default-provider": "common-themes", "content": "foo"},
+		Attrs:     map[string]any{"default-provider": "common-themes", "content": "foo"},
 	}
 	info.Plugs["bar"] = &PlugInfo{
 		Snap:      info,
 		Name:      "visual-themes",
 		Interface: "content",
-		Attrs:     map[string]interface{}{"default-provider": "common-themes", "content": "bar"},
+		Attrs:     map[string]any{"default-provider": "common-themes", "content": "bar"},
 	}
 	info.Plugs["baz"] = &PlugInfo{
 		Snap:      info,
 		Name:      "not-themes",
 		Interface: "content",
-		Attrs:     map[string]interface{}{"default-provider": "some-snap", "content": "baz"},
+		Attrs:     map[string]any{"default-provider": "some-snap", "content": "baz"},
 	}
 	info.Plugs["qux"] = &PlugInfo{Snap: info, Interface: "not-content"}
 
@@ -2358,7 +2358,7 @@ func (s *ValidateSuite) TestSimplePrereqTracker(c *C) {
 		Snap:      slotSnap,
 		Name:      "visual-themes",
 		Interface: "content",
-		Attrs:     map[string]interface{}{"content": "bar"},
+		Attrs:     map[string]any{"content": "bar"},
 	}
 	slotSnap.Slots["visual-themes"] = barSlot
 
@@ -2377,7 +2377,7 @@ func (s *ValidateSuite) TestSimplePrereqTracker(c *C) {
 		Snap:      slotSnap,
 		Name:      "sound-themes",
 		Interface: "content",
-		Attrs:     map[string]interface{}{"content": "foo"},
+		Attrs:     map[string]any{"content": "foo"},
 	}
 	err = repo.AddSlot(fooSlot)
 	c.Assert(err, IsNil)

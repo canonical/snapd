@@ -771,7 +771,7 @@ func (s *bootenvSuite) TestKernelWithModel(c *C) {
 }
 
 func (s *bootenvSuite) TestParticipantClassicWithModesWithModel(c *C) {
-	modelHdrs := map[string]interface{}{
+	modelHdrs := map[string]any{
 		"type":         "model",
 		"authority-id": "brand",
 		"series":       "16",
@@ -781,13 +781,13 @@ func (s *bootenvSuite) TestParticipantClassicWithModesWithModel(c *C) {
 		"classic":      "true",
 		"distribution": "ubuntu",
 		"base":         "core22",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name": "kernel",
 				"id":   "pclinuxdidididididididididididid",
 				"type": "kernel",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name": "gadget",
 				"id":   "pcididididididididididididididid",
 				"type": "gadget",

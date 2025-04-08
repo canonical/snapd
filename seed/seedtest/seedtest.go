@@ -61,7 +61,7 @@ type SeedSnaps struct {
 	// TamperWithResourceRevisions can be set to modify resource revision
 	// assertions before they get committed to the database. Mostly useful for
 	// forcing some consistency check errors.
-	TamperWithResourceRevisions func(headers map[string]interface{})
+	TamperWithResourceRevisions func(headers map[string]any)
 }
 
 // SetupAssertSigning initializes StoreSigning for storeBrandID and Brands.
@@ -104,7 +104,7 @@ func (ss *SeedSnaps) MakeAssertedDelegatedSnapWithComps(
 	revision snap.Revision,
 	compRevisions map[string]snap.Revision,
 	developerID, delegateID, revProvenance, resourceRevProvenance string,
-	revisionAuthority map[string]interface{},
+	revisionAuthority map[string]any,
 	dbs ...*asserts.Database,
 ) (*asserts.SnapDeclaration, *asserts.SnapRevision) {
 	return ss.makeAssertedSnap(c, snapYaml, files, revision, compRevisions, developerID, ss.Brands.Signing(delegateID), revProvenance, resourceRevProvenance, revisionAuthority, dbs...)
@@ -120,7 +120,7 @@ func (ss *SeedSnaps) makeAssertedSnap(
 	revSigning *assertstest.SigningDB,
 	revProvenance string,
 	componentProvenance string,
-	revisionAuthority map[string]interface{},
+	revisionAuthority map[string]any,
 	dbs ...*asserts.Database,
 ) (*asserts.SnapDeclaration, *asserts.SnapRevision) {
 	info, err := snap.InfoFromSnapYaml([]byte(snapYaml))
@@ -130,7 +130,7 @@ func (ss *SeedSnaps) makeAssertedSnap(
 	snapFile := snaptest.MakeTestSnapWithFiles(c, snapYaml, files)
 
 	snapID := ss.AssertedSnapID(snapName)
-	headers := map[string]interface{}{
+	headers := map[string]any{
 		"series":       "16",
 		"snap-id":      snapID,
 		"publisher-id": developerID,
@@ -138,7 +138,7 @@ func (ss *SeedSnaps) makeAssertedSnap(
 		"timestamp":    ss.snapAssertionNow().UTC().Format(time.RFC3339),
 	}
 	if revisionAuthority != nil {
-		headers["revision-authority"] = []interface{}{revisionAuthority}
+		headers["revision-authority"] = []any{revisionAuthority}
 	}
 	declA, err := ss.StoreSigning.Sign(asserts.SnapDeclarationType, headers, nil, "")
 	c.Assert(err, IsNil)
@@ -146,7 +146,7 @@ func (ss *SeedSnaps) makeAssertedSnap(
 	sha3_384, size, err := asserts.SnapFileSHA3_384(snapFile)
 	c.Assert(err, IsNil)
 
-	revHeaders := map[string]interface{}{
+	revHeaders := map[string]any{
 		"authority-id":  revSigning.AuthorityID,
 		"snap-sha3-384": sha3_384,
 		"snap-size":     fmt.Sprintf("%d", size),
@@ -219,7 +219,7 @@ func (ss *SeedSnaps) makeAssertedSnap(
 
 		// Now add the resource revision assertion
 		compRev := compRevisions[comp.Name]
-		resRevHeads := map[string]interface{}{
+		resRevHeads := map[string]any{
 			"authority-id":      revSigning.AuthorityID,
 			"snap-id":           snapID,
 			"resource-name":     comp.Name,
@@ -242,7 +242,7 @@ func (ss *SeedSnaps) makeAssertedSnap(
 		resRevs = append(resRevs, resRev.(*asserts.SnapResourceRevision))
 
 		// and the resource pair revision
-		resPairHeads := map[string]interface{}{
+		resPairHeads := map[string]any{
 			"authority-id":      revSigning.AuthorityID,
 			"snap-id":           snapID,
 			"resource-name":     comp.Name,
@@ -294,7 +294,7 @@ func (ss *SeedSnaps) MakeAssertedDelegatedSnap(
 	files [][]string,
 	revision snap.Revision,
 	developerID, delegateID, revProvenance, resourceProvenance string,
-	revisionAuthority map[string]interface{},
+	revisionAuthority map[string]any,
 	dbs ...*asserts.Database,
 ) (*asserts.SnapDeclaration, *asserts.SnapRevision) {
 	return ss.makeAssertedSnap(c, snapYaml, files, revision, nil, developerID, ss.Brands.Signing(delegateID), revProvenance, resourceProvenance, revisionAuthority, dbs...)
@@ -356,7 +356,7 @@ func (s *TestingSeed16) MakeAssertedSnap(c *C, snapYaml string, files [][]string
 	return snapFname, decl, rev
 }
 
-func (s *TestingSeed16) MakeModelAssertionChain(brandID, model string, extras ...map[string]interface{}) []asserts.Assertion {
+func (s *TestingSeed16) MakeModelAssertionChain(brandID, model string, extras ...map[string]any) []asserts.Assertion {
 	assertChain := []asserts.Assertion{}
 	modelA := s.Brands.Model(brandID, model, extras...)
 
@@ -415,7 +415,7 @@ type TestingSeed20 struct {
 }
 
 // MakeSeed creates the seed with given label and generates model assertions
-func (s *TestingSeed20) MakeSeed(c *C, label, brandID, modelID string, modelHeaders map[string]interface{}, optSnaps []*seedwriter.OptionsSnap) *asserts.Model {
+func (s *TestingSeed20) MakeSeed(c *C, label, brandID, modelID string, modelHeaders map[string]any, optSnaps []*seedwriter.OptionsSnap) *asserts.Model {
 	model := s.Brands.Model(brandID, modelID, modelHeaders)
 
 	assertstest.AddMany(s.StoreSigning, s.Brands.AccountsAndKeys(brandID)...)
@@ -424,7 +424,7 @@ func (s *TestingSeed20) MakeSeed(c *C, label, brandID, modelID string, modelHead
 	return model
 }
 
-func (s *TestingSeed20) MakeSeedWithLocalComponents(c *C, label, brandID, modelID string, modelHeaders map[string]interface{}, optSnaps []*seedwriter.OptionsSnap, compPathsBySnap map[string][]string) *asserts.Model {
+func (s *TestingSeed20) MakeSeedWithLocalComponents(c *C, label, brandID, modelID string, modelHeaders map[string]any, optSnaps []*seedwriter.OptionsSnap, compPathsBySnap map[string][]string) *asserts.Model {
 	model := s.Brands.Model(brandID, modelID, modelHeaders)
 
 	assertstest.AddMany(s.StoreSigning, s.Brands.AccountsAndKeys(brandID)...)
@@ -661,12 +661,12 @@ func ValidateSeed(c *C, root, label string, usesSnapd bool, trusted []asserts.As
 	return sd
 }
 
-var goodUser = map[string]interface{}{
+var goodUser = map[string]any{
 	"authority-id": "my-brand",
 	"brand-id":     "my-brand",
 	"email":        "foo@bar.com",
-	"series":       []interface{}{"16", "18"},
-	"models":       []interface{}{"my-model", "other-model"},
+	"series":       []any{"16", "18"},
+	"models":       []any{"my-model", "other-model"},
 	"name":         "Boring Guy",
 	"username":     "guy",
 	"password":     "$6$salt$hash",
@@ -675,7 +675,7 @@ var goodUser = map[string]interface{}{
 }
 
 func WriteValidAutoImportAssertion(c *C, brands *assertstest.SigningAccounts, seedDir, sysLabel string, perm os.FileMode) {
-	systemUsers := []map[string]interface{}{goodUser}
+	systemUsers := []map[string]any{goodUser}
 	// write system user assertion to the system seed root
 	autoImportAssert := filepath.Join(seedDir, "systems", sysLabel, "auto-import.assert")
 	f, err := os.OpenFile(autoImportAssert, os.O_CREATE|os.O_WRONLY, perm)

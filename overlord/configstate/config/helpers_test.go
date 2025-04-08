@@ -54,9 +54,9 @@ func (s *configHelpersSuite) TestConfigSnapshot(c *C) {
 	c.Assert(config.SaveRevisionConfig(s.state, "snap1", snap.R(1)), IsNil)
 	c.Assert(config.SaveRevisionConfig(s.state, "snap2", snap.R(7)), IsNil)
 
-	var cfgsnapshot map[string]map[string]map[string]interface{}
+	var cfgsnapshot map[string]map[string]map[string]any
 	c.Assert(s.state.Get("revision-config", &cfgsnapshot), IsNil)
-	c.Assert(cfgsnapshot, DeepEquals, map[string]map[string]map[string]interface{}{
+	c.Assert(cfgsnapshot, DeepEquals, map[string]map[string]map[string]any{
 		"snap1": {"1": {"foo": "a"}},
 		"snap2": {"7": {"bar": "q"}},
 	})
@@ -72,7 +72,7 @@ func (s *configHelpersSuite) TestConfigSnapshot(c *C) {
 	c.Assert(config.SaveRevisionConfig(s.state, "snap1", snap.R(2)), IsNil)
 
 	c.Assert(s.state.Get("revision-config", &cfgsnapshot), IsNil)
-	c.Assert(cfgsnapshot, DeepEquals, map[string]map[string]map[string]interface{}{
+	c.Assert(cfgsnapshot, DeepEquals, map[string]map[string]map[string]any{
 		"snap1": {"1": {"foo": "a"}, "2": {"foo": "b"}},
 		"snap2": {"7": {"bar": "q"}},
 	})
@@ -104,7 +104,7 @@ func (s *configHelpersSuite) TestDiscardRevisionConfig(c *C) {
 		c.Assert(config.SaveRevisionConfig(s.state, "snap3", snap.R(i)), IsNil)
 	}
 
-	var cfgsnapshot map[string]map[string]interface{}
+	var cfgsnapshot map[string]map[string]any
 	c.Assert(s.state.Get("revision-config", &cfgsnapshot), IsNil)
 	c.Assert(cfgsnapshot["snap3"], NotNil)
 	c.Assert(cfgsnapshot["snap3"], HasLen, 3)
@@ -179,7 +179,7 @@ func (s *configHelpersSuite) TestSnapConfig(c *C) {
 		c.Check(rawCfg, IsNil)
 
 		// and there is no entry for the snap in state
-		var config map[string]interface{}
+		var config map[string]any
 		c.Assert(s.state.Get("config", &config), IsNil)
 		_, ok := config["snap1"]
 		c.Check(ok, Equals, false)
@@ -197,35 +197,35 @@ func (s *configHelpersSuite) TestPatchInvalidConfig(c *C) {
 }
 
 func (s *configHelpersSuite) TestPurgeNulls(c *C) {
-	cfg1 := map[string]interface{}{
+	cfg1 := map[string]any{
 		"foo": nil,
-		"bar": map[string]interface{}{
+		"bar": map[string]any{
 			"one": 1,
 			"two": nil,
 		},
-		"baz": map[string]interface{}{
+		"baz": map[string]any{
 			"three": nil,
 		},
 	}
 	config.PurgeNulls(cfg1)
-	c.Check(cfg1, DeepEquals, map[string]interface{}{
-		"bar": map[string]interface{}{
+	c.Check(cfg1, DeepEquals, map[string]any{
+		"bar": map[string]any{
 			"one": 1,
 		},
-		"baz": map[string]interface{}{},
+		"baz": map[string]any{},
 	})
 
-	cfg2 := map[string]interface{}{"foo": nil}
-	c.Check(config.PurgeNulls(cfg2), DeepEquals, map[string]interface{}{})
-	c.Check(cfg2, DeepEquals, map[string]interface{}{})
+	cfg2 := map[string]any{"foo": nil}
+	c.Check(config.PurgeNulls(cfg2), DeepEquals, map[string]any{})
+	c.Check(cfg2, DeepEquals, map[string]any{})
 
-	jsonData, err := json.Marshal(map[string]interface{}{
+	jsonData, err := json.Marshal(map[string]any{
 		"foo": nil,
-		"bar": map[string]interface{}{
+		"bar": map[string]any{
 			"one": 2,
 			"two": nil,
 		},
-		"baz": map[string]interface{}{
+		"baz": map[string]any{
 			"three": nil,
 		},
 	})
@@ -239,24 +239,24 @@ func (s *configHelpersSuite) TestPurgeNulls(c *C) {
 	val, ok := cfg4["root"]
 	c.Assert(ok, Equals, true)
 
-	var out interface{}
+	var out any
 	jsonutil.DecodeWithNumber(bytes.NewReader(*val), &out)
-	c.Check(out, DeepEquals, map[string]interface{}{
-		"bar": map[string]interface{}{
+	c.Check(out, DeepEquals, map[string]any{
+		"bar": map[string]any{
 			"one": json.Number("2"),
 		},
-		"baz": map[string]interface{}{},
+		"baz": map[string]any{},
 	})
 
 	sub := json.RawMessage(`{"foo":"bar"}`)
-	cfg5 := map[string]interface{}{
+	cfg5 := map[string]any{
 		"core": map[string]*json.RawMessage{
 			"proxy": nil,
 			"sub":   &sub,
 		},
 	}
 	config.PurgeNulls(cfg5)
-	c.Check(cfg5, DeepEquals, map[string]interface{}{
+	c.Check(cfg5, DeepEquals, map[string]any{
 		"core": map[string]*json.RawMessage{
 			"sub": &sub,
 		},
@@ -283,14 +283,14 @@ func (s *configHelpersSuite) TestPurgeNullsTopLevelNull(c *C) {
 	cfgJSON2, err := json.Marshal(cfg)
 	c.Assert(err, IsNil)
 
-	var out interface{}
+	var out any
 	jsonutil.DecodeWithNumber(bytes.NewReader(cfgJSON2), &out)
-	c.Check(out, DeepEquals, map[string]interface{}{
-		"experimental": map[string]interface{}{
+	c.Check(out, DeepEquals, map[string]any{
+		"experimental": map[string]any{
 			"parallel-instances": true,
 			"snapd-snap":         true,
 		},
-		"seed": map[string]interface{}{
+		"seed": map[string]any{
 			"loaded": true,
 		},
 	})
@@ -298,10 +298,10 @@ func (s *configHelpersSuite) TestPurgeNullsTopLevelNull(c *C) {
 
 func (s *configHelpersSuite) TestSortPatchKeys(c *C) {
 	// empty case
-	keys := config.SortPatchKeysByDepth(map[string]interface{}{})
+	keys := config.SortPatchKeysByDepth(map[string]any{})
 	c.Assert(keys, IsNil)
 
-	patch := map[string]interface{}{
+	patch := map[string]any{
 		"a.b.c":         0,
 		"a":             0,
 		"a.b.c.d":       0,
@@ -317,26 +317,26 @@ func (s *configHelpersSuite) TestPatch(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	s.state.Set("config", map[string]map[string]interface{}{
-		"some-snap": {"a": map[string]interface{}{"b": 1}},
+	s.state.Set("config", map[string]map[string]any{
+		"some-snap": {"a": map[string]any{"b": 1}},
 	})
 
-	patch := map[string]interface{}{
+	patch := map[string]any{
 		"a.b1": 1,
-		"a":    map[string]interface{}{},
-		"a.b2": map[string]interface{}{"c": "C"},
+		"a":    map[string]any{},
+		"a.b2": map[string]any{"c": "C"},
 	}
 
 	tr := config.NewTransaction(s.state)
 	err := config.Patch(tr, "some-snap", patch)
 	c.Assert(err, IsNil)
 
-	var a map[string]interface{}
+	var a map[string]any
 	err = tr.Get("some-snap", "a", &a)
 	c.Check(err, IsNil)
 
-	c.Check(a, DeepEquals, map[string]interface{}{
+	c.Check(a, DeepEquals, map[string]any{
 		"b1": json.Number("1"),
-		"b2": map[string]interface{}{"c": "C"},
+		"b2": map[string]any{"c": "C"},
 	})
 }

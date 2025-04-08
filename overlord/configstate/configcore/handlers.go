@@ -166,7 +166,7 @@ func (h *fsOnlyHandler) handle(dev sysconfig.Device, cfg ConfGetter, opts *fsOnl
 // early during boot, before all the configuration is applied as part of
 // normal execution of configure hook.
 // Exposed for use via sysconfig.ApplyFilesystemOnlyDefaults.
-func filesystemOnlyApply(dev sysconfig.Device, rootDir string, values map[string]interface{}) error {
+func filesystemOnlyApply(dev sysconfig.Device, rootDir string, values map[string]any) error {
 	if rootDir == "" {
 		return fmt.Errorf("internal error: root directory for configcore.FilesystemOnlyApply() not set")
 	}

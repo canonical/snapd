@@ -300,7 +300,7 @@ func (m *HookManager) undoRunHook(task *state.Task, tomb *tomb.Tomb) error {
 	return m.runHookForTask(task, tomb, snapst, hooksup)
 }
 
-func (m *HookManager) EphemeralRunHook(ctx context.Context, hooksup *HookSetup, contextData map[string]interface{}) (*Context, error) {
+func (m *HookManager) EphemeralRunHook(ctx context.Context, hooksup *HookSetup, contextData map[string]any) (*Context, error) {
 	var snapst snapstate.SnapState
 	m.state.Lock()
 	err := snapstate.Get(m.state, hooksup.Snap, &snapst)

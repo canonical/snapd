@@ -295,7 +295,7 @@ func (s *StorageSchema) parse(raw json.RawMessage) (DatabagSchema, error) {
 
 // parseTypeDefinition tries to parse the raw JSON as a list, a map or a string
 // (the accepted ways to express types).
-func parseTypeDefinition(raw json.RawMessage) (interface{}, error) {
+func parseTypeDefinition(raw json.RawMessage) (any, error) {
 	var typeErr *json.UnmarshalTypeError
 
 	var l []json.RawMessage
@@ -565,7 +565,7 @@ func (v *mapSchema) Validate(raw []byte) error {
 				if err := validator.Validate(val); err != nil {
 					var valErr *ValidationError
 					if errors.As(err, &valErr) {
-						valErr.Path = append([]interface{}{key}, valErr.Path...)
+						valErr.Path = append([]any{key}, valErr.Path...)
 					}
 					return err
 				}
@@ -586,7 +586,7 @@ func (v *mapSchema) Validate(raw []byte) error {
 			if err := v.keySchema.Validate(rawKey); err != nil {
 				var valErr *ValidationError
 				if errors.As(err, &valErr) {
-					valErr.Path = append([]interface{}{k}, valErr.Path...)
+					valErr.Path = append([]any{k}, valErr.Path...)
 				}
 				return err
 			}
@@ -598,7 +598,7 @@ func (v *mapSchema) Validate(raw []byte) error {
 			if err := v.valueSchema.Validate(val); err != nil {
 				var valErr *ValidationError
 				if errors.As(err, &valErr) {
-					valErr.Path = append([]interface{}{k}, valErr.Path...)
+					valErr.Path = append([]any{k}, valErr.Path...)
 				}
 				return err
 			}
@@ -1032,7 +1032,7 @@ func (v *anySchema) Validate(raw []byte) (err error) {
 		}
 	}()
 
-	var val interface{}
+	var val any
 	if err := json.Unmarshal(raw, &val); err != nil {
 		return err
 	}
@@ -1266,7 +1266,7 @@ func (v *arraySchema) Validate(raw []byte) error {
 		if err := v.elementType.Validate([]byte(val)); err != nil {
 			var vErr *ValidationError
 			if errors.As(err, &vErr) {
-				vErr.Path = append([]interface{}{e}, vErr.Path...)
+				vErr.Path = append([]any{e}, vErr.Path...)
 			}
 			return err
 		}
@@ -1354,7 +1354,7 @@ func (v *arraySchema) expectsConstraints() bool { return true }
 // to have more concise errors when there are many possible types
 // https://github.com/snapcore/snapd/pull/13502#discussion_r1463658230
 type ValidationError struct {
-	Path []interface{}
+	Path []any
 	Err  error
 }
 
@@ -1390,7 +1390,7 @@ func validationErrorFrom(err error) error {
 	return &ValidationError{Err: err}
 }
 
-func validationErrorf(format string, v ...interface{}) error {
+func validationErrorf(format string, v ...any) error {
 	return &ValidationError{Err: fmt.Errorf(format, v...)}
 }
 
@@ -1403,7 +1403,7 @@ func (e *schemaAtError) Error() string {
 	return e.err.Error()
 }
 
-func schemaAtErrorf(path []string, format string, v ...interface{}) error {
+func schemaAtErrorf(path []string, format string, v ...any) error {
 	return &schemaAtError{
 		left: len(path),
 		err:  fmt.Errorf(format, v...),

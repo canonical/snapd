@@ -59,7 +59,7 @@ type firstBoot20Suite struct {
 	firstBootBaseTest
 
 	extraSnapYaml         map[string]string
-	extraSnapModelDetails map[string]map[string]interface{}
+	extraSnapModelDetails map[string]map[string]any
 
 	// TestingSeed20 helps populating seeds (it provides
 	// MakeAssertedSnap, MakeSeed) for tests.
@@ -76,7 +76,7 @@ var _ = Suite(&firstBoot20Suite{})
 
 func (s *firstBoot20Suite) SetUpTest(c *C) {
 	s.extraSnapYaml = make(map[string]string)
-	s.extraSnapModelDetails = make(map[string]map[string]interface{})
+	s.extraSnapModelDetails = make(map[string]map[string]any)
 
 	s.TestingSeed20 = &seedtest.TestingSeed20{}
 
@@ -164,30 +164,30 @@ volumes:
 			snap.R(21), comRevs, "canonical", s.StoreSigning.Database)
 	}
 
-	model := map[string]interface{}{
+	model := map[string]any{
 		"display-name": "my model",
 		"architecture": "amd64",
 		"base":         "core20",
 		"grade":        string(opts.modelGrade),
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":            "pc-kernel",
 				"id":              s.AssertedSnapID("pc-kernel"),
 				"type":            "kernel",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "pc",
 				"id":              s.AssertedSnapID("pc"),
 				"type":            "gadget",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name": "snapd",
 				"id":   s.AssertedSnapID("snapd"),
 				"type": "snapd",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name": "core20",
 				"id":   s.AssertedSnapID("core20"),
 				"type": "base",
@@ -199,10 +199,10 @@ volumes:
 		model["classic"] = "true"
 		model["distribution"] = "ubuntu"
 		if !opts.kernelAndGadget {
-			snaps := model["snaps"].([]interface{})
-			reducedSnaps := []interface{}{}
+			snaps := model["snaps"].([]any)
+			reducedSnaps := []any{}
 			for _, s := range snaps {
-				ms := s.(map[string]interface{})
+				ms := s.(map[string]any)
 				if ms["type"] == "kernel" || ms["type"] == "gadget" {
 					continue
 				}
@@ -216,7 +216,7 @@ volumes:
 
 	for _, sn := range extraSnaps {
 		name, channel := splitSnapNameWithChannel(sn)
-		snapEntry := map[string]interface{}{
+		snapEntry := map[string]any{
 			"name":            name,
 			"type":            "app",
 			"id":              s.AssertedSnapID(name),
@@ -225,35 +225,35 @@ volumes:
 		for h, v := range s.extraSnapModelDetails[name] {
 			snapEntry[h] = v
 		}
-		model["snaps"] = append(model["snaps"].([]interface{}), snapEntry)
+		model["snaps"] = append(model["snaps"].([]any), snapEntry)
 	}
 	if opts.withComps {
 		snapWithComps := "required20"
-		snapEntry := map[string]interface{}{
+		snapEntry := map[string]any{
 			"name":            snapWithComps,
 			"type":            "app",
 			"id":              s.AssertedSnapID(snapWithComps),
 			"default-channel": "latest/stable",
-			"components": map[string]interface{}{
+			"components": map[string]any{
 				"comp1": "required",
 				"comp2": "required",
 			},
 		}
-		model["snaps"] = append(model["snaps"].([]interface{}), snapEntry)
+		model["snaps"] = append(model["snaps"].([]any), snapEntry)
 	}
 
 	for _, vs := range opts.valsets {
 		keys := strings.Split(vs, "/")
-		vsEntry := map[string]interface{}{
+		vsEntry := map[string]any{
 			"account-id": keys[0],
 			"name":       keys[1],
 			"sequence":   keys[2],
 			"mode":       "enforce",
 		}
 		if _, ok := model["validation-sets"]; !ok {
-			model["validation-sets"] = []interface{}{vsEntry}
+			model["validation-sets"] = []any{vsEntry}
 		} else {
-			model["validation-sets"] = append(model["validation-sets"].([]interface{}), vsEntry)
+			model["validation-sets"] = append(model["validation-sets"].([]any), vsEntry)
 		}
 	}
 
@@ -279,7 +279,7 @@ func stripSnapNamesWithChannels(snaps []string) []string {
 	return names
 }
 
-func (s *firstBoot20Suite) updateModel(c *C, sysLabel string, model *asserts.Model, modelUpdater func(c *C, headers map[string]interface{})) *asserts.Model {
+func (s *firstBoot20Suite) updateModel(c *C, sysLabel string, model *asserts.Model, modelUpdater func(c *C, headers map[string]any)) *asserts.Model {
 	if modelUpdater != nil {
 		hdrs := model.Headers()
 		modelUpdater(c, hdrs)
@@ -1064,7 +1064,7 @@ func (s *firstBoot20Suite) TestPopulateFromSeedClassicWithModesRunModeNoKernelAn
 	}})
 }
 
-func (s *firstBoot20Suite) testPopulateFromSeedClassicWithModesRunModeNoKernelAndGadgetClassicSnap(c *C, modelGrade asserts.ModelGrade, modelUpdater func(*C, map[string]interface{}), expectedErr string) {
+func (s *firstBoot20Suite) testPopulateFromSeedClassicWithModesRunModeNoKernelAndGadgetClassicSnap(c *C, modelGrade asserts.ModelGrade, modelUpdater func(*C, map[string]any), expectedErr string) {
 	defer release.MockReleaseInfo(&release.OS{ID: "ubuntu", VersionID: "20.04"})()
 	// re-init rootdirs required after MockReleaseInfo to ensure
 	// dirs.SnapMountDir is set to /snap on e.g. fedora
@@ -1243,8 +1243,8 @@ apps:
 func (s *firstBoot20Suite) TestPopulateFromSeedClassicWithModesDangerousRunModeNoKernelAndGadgetClassicSnap(c *C) {
 	// classic snaps are implicitly allowed and seeded for dangerous
 	// classic models
-	s.extraSnapModelDetails["classic-installer"] = map[string]interface{}{
-		"modes": []interface{}{"run"},
+	s.extraSnapModelDetails["classic-installer"] = map[string]any{
+		"modes": []any{"run"},
 	}
 
 	s.testPopulateFromSeedClassicWithModesRunModeNoKernelAndGadgetClassicSnap(c, asserts.ModelDangerous, nil, "")
@@ -1252,9 +1252,9 @@ func (s *firstBoot20Suite) TestPopulateFromSeedClassicWithModesDangerousRunModeN
 
 func (s *firstBoot20Suite) TestPopulateFromSeedClassicWithModesSignedRunModeNoKernelAndGadgetClassicSnap(c *C) {
 	// classic snaps must be declared explicitly for non-dangerous models
-	s.extraSnapModelDetails["classic-installer"] = map[string]interface{}{
+	s.extraSnapModelDetails["classic-installer"] = map[string]any{
 		"classic": "true",
-		"modes":   []interface{}{"run"},
+		"modes":   []any{"run"},
 	}
 
 	s.testPopulateFromSeedClassicWithModesRunModeNoKernelAndGadgetClassicSnap(c, asserts.ModelSigned, nil, "")
@@ -1267,11 +1267,11 @@ func (s *firstBoot20Suite) TestPopulateFromSeedClassicWithModesSignedRunModeNoKe
 	// to evade the seedwriter checks to test the firstboot ones
 	// create the system with model grade dangerous and then
 	// switch/rewrite the model to be grade signed
-	s.extraSnapModelDetails["classic-installer"] = map[string]interface{}{
-		"modes": []interface{}{"run"},
+	s.extraSnapModelDetails["classic-installer"] = map[string]any{
+		"modes": []any{"run"},
 	}
 
-	switchToSigned := func(_ *C, modHeaders map[string]interface{}) {
+	switchToSigned := func(_ *C, modHeaders map[string]any) {
 		modHeaders["grade"] = string(asserts.ModelSigned)
 	}
 
@@ -1387,27 +1387,27 @@ base: core20
 }
 
 func (s *firstBoot20Suite) TestPopulateFromSeedCore20ValidationSetTrackingHappy(c *C) {
-	vsa, err := s.StoreSigning.Sign(asserts.ValidationSetType, map[string]interface{}{
+	vsa, err := s.StoreSigning.Sign(asserts.ValidationSetType, map[string]any{
 		"type":         "validation-set",
 		"authority-id": "canonical",
 		"series":       "16",
 		"account-id":   "canonical",
 		"name":         "base-set",
 		"sequence":     "1",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":     "pc-kernel",
 				"id":       s.AssertedSnapID("pc-kernel"),
 				"presence": "required",
 				"revision": "1",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":     "pc",
 				"id":       s.AssertedSnapID("pc"),
 				"presence": "required",
 				"revision": "1",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":     "some-snap",
 				"id":       s.AssertedSnapID("some-snap"),
 				"presence": "required",
@@ -1440,27 +1440,27 @@ func (s *firstBoot20Suite) TestPopulateFromSeedCore20ValidationSetTrackingHappy(
 }
 
 func (s *firstBoot20Suite) TestPopulateFromSeedCore20ValidationSetTrackingNotAddedInInstallMode(c *C) {
-	vsa, err := s.StoreSigning.Sign(asserts.ValidationSetType, map[string]interface{}{
+	vsa, err := s.StoreSigning.Sign(asserts.ValidationSetType, map[string]any{
 		"type":         "validation-set",
 		"authority-id": "canonical",
 		"series":       "16",
 		"account-id":   "canonical",
 		"name":         "base-set",
 		"sequence":     "1",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":     "pc-kernel",
 				"id":       s.AssertedSnapID("pc-kernel"),
 				"presence": "required",
 				"revision": "1",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":     "pc",
 				"id":       s.AssertedSnapID("pc"),
 				"presence": "required",
 				"revision": "1",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":     "some-snap",
 				"id":       s.AssertedSnapID("some-snap"),
 				"presence": "required",
@@ -1486,15 +1486,15 @@ func (s *firstBoot20Suite) TestPopulateFromSeedCore20ValidationSetTrackingNotAdd
 }
 
 func (s *firstBoot20Suite) TestPopulateFromSeedCore20ValidationSetTrackingFailsUnmetCriterias(c *C) {
-	vsb, err := s.StoreSigning.Sign(asserts.ValidationSetType, map[string]interface{}{
+	vsb, err := s.StoreSigning.Sign(asserts.ValidationSetType, map[string]any{
 		"type":         "validation-set",
 		"authority-id": "canonical",
 		"series":       "16",
 		"account-id":   "canonical",
 		"name":         "base-set",
 		"sequence":     "2",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":     "my-snap",
 				"id":       s.AssertedSnapID("my-snap"),
 				"presence": "required",

@@ -42,12 +42,12 @@ type ParseConfigOptions struct {
 // By default, values are parsed if valid JSON and stored as-is if not.
 // Returns a map of config keys to values to set and a slice of keys in the order
 // they were passed in.
-func ParseConfigValues(confValues []string, opts *ParseConfigOptions) (map[string]interface{}, []string, error) {
+func ParseConfigValues(confValues []string, opts *ParseConfigOptions) (map[string]any, []string, error) {
 	if opts == nil {
 		opts = &ParseConfigOptions{}
 	}
 
-	patchValues := make(map[string]interface{}, len(confValues))
+	patchValues := make(map[string]any, len(confValues))
 	keys := make([]string, 0, len(confValues))
 	for _, patchValue := range confValues {
 		parts := strings.SplitN(patchValue, "=", 2)
@@ -73,7 +73,7 @@ func ParseConfigValues(confValues []string, opts *ParseConfigOptions) (map[strin
 		if opts.String {
 			patchValues[parts[0]] = parts[1]
 		} else {
-			var value interface{}
+			var value any
 			if err := jsonutil.DecodeWithNumber(strings.NewReader(parts[1]), &value); err != nil {
 				if opts.Typed {
 					return nil, nil, fmt.Errorf(i18n.G("failed to parse JSON: %w"), err)

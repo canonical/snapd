@@ -43,7 +43,7 @@ func (s *fetcherSuite) SetUpTest(c *C) {
 }
 
 func (s *fetcherSuite) setupTestAssertion(c *C) asserts.Assertion {
-	modelAs, err := s.storeSigning.Sign(asserts.ModelType, map[string]interface{}{
+	modelAs, err := s.storeSigning.Sign(asserts.ModelType, map[string]any{
 		"series":       "16",
 		"brand-id":     "can0nical",
 		"model":        "my-model-2",
@@ -178,7 +178,7 @@ func (s *fetcherSuite) TestAssertFetcherSaveExtraAssertions(c *C) {
 		return asserts.NewFetcher(db, retrieve, save)
 	}
 
-	proxyStoreAssertion, err := s.storeSigning.Sign(asserts.StoreType, map[string]interface{}{
+	proxyStoreAssertion, err := s.storeSigning.Sign(asserts.StoreType, map[string]any{
 		"store":        "my-proxy-store",
 		"operator-id":  "other-brand",
 		"authority-id": "canonical",
@@ -187,7 +187,7 @@ func (s *fetcherSuite) TestAssertFetcherSaveExtraAssertions(c *C) {
 	}, nil, "")
 	c.Assert(err, IsNil)
 
-	accountAssertion, err := s.storeSigning.Sign(asserts.AccountType, map[string]interface{}{
+	accountAssertion, err := s.storeSigning.Sign(asserts.AccountType, map[string]any{
 		"type":         "account",
 		"authority-id": "canonical",
 		"account-id":   "other-brand",

@@ -43,33 +43,33 @@ func (s *proposedSlotSuite) TearDownTest(c *C) {
 }
 
 func (s *proposedSlotSuite) TestCleanHappy(c *C) {
-	slot := &ProposedSlot{Name: "slot1", Label: "A slot", Attrs: map[string]interface{}{"foo": "bar"}}
+	slot := &ProposedSlot{Name: "slot1", Label: "A slot", Attrs: map[string]any{"foo": "bar"}}
 	slot, err := slot.Clean()
 	c.Assert(err, IsNil)
-	c.Assert(slot, DeepEquals, &ProposedSlot{Name: "slot1", Label: "A slot", Attrs: map[string]interface{}{"foo": "bar"}})
+	c.Assert(slot, DeepEquals, &ProposedSlot{Name: "slot1", Label: "A slot", Attrs: map[string]any{"foo": "bar"}})
 }
 
 func (s *proposedSlotSuite) TestNilAttrs(c *C) {
 	slot := &ProposedSlot{Name: "slot"}
 	slot, err := slot.Clean()
 	c.Assert(err, IsNil)
-	c.Assert(slot, DeepEquals, &ProposedSlot{Name: "slot", Attrs: map[string]interface{}{}})
+	c.Assert(slot, DeepEquals, &ProposedSlot{Name: "slot", Attrs: map[string]any{}})
 }
 
 func (s *proposedSlotSuite) TestDeepCopy(c *C) {
-	attrs := map[string]interface{}{"foo": "bar"}
+	attrs := map[string]any{"foo": "bar"}
 	slot := &ProposedSlot{Name: "slot1", Attrs: attrs}
 	slot, err := slot.Clean()
 	c.Assert(err, IsNil)
 	attrs["foo"] = "modified"
-	c.Assert(slot, DeepEquals, &ProposedSlot{Name: "slot1", Label: "", Attrs: map[string]interface{}{"foo": "bar"}})
+	c.Assert(slot, DeepEquals, &ProposedSlot{Name: "slot1", Label: "", Attrs: map[string]any{"foo": "bar"}})
 }
 
 func (s *proposedSlotSuite) TestEmptyName(c *C) {
-	slot := &ProposedSlot{Label: "A slot", Attrs: map[string]interface{}{"foo": "bar"}}
+	slot := &ProposedSlot{Label: "A slot", Attrs: map[string]any{"foo": "bar"}}
 	slot, err := slot.Clean()
 	c.Assert(err, IsNil)
-	c.Assert(slot, DeepEquals, &ProposedSlot{Name: "", Label: "A slot", Attrs: map[string]interface{}{"foo": "bar"}})
+	c.Assert(slot, DeepEquals, &ProposedSlot{Name: "", Label: "A slot", Attrs: map[string]any{"foo": "bar"}})
 }
 
 func (s *proposedSlotSuite) TestInvalidName(c *C) {

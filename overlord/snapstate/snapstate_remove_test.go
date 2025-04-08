@@ -1825,7 +1825,7 @@ func (s *snapmgrTestSuite) TestRemoveKeepsGatingDataIfNotLastRevision(c *C) {
 func (s *validationSetsSuite) removeSnapReferencedByValidationSet(c *C, presence string) error {
 	restore := snapstate.MockEnforcedValidationSets(func(st *state.State, extraVss ...*asserts.ValidationSet) (*snapasserts.ValidationSets, error) {
 		vs := snapasserts.NewValidationSets()
-		someSnap := map[string]interface{}{
+		someSnap := map[string]any{
 			"id":       "yOqKhntON3vR7kwEbVPsILm7bUViPDzx",
 			"name":     "some-snap",
 			"presence": presence,
@@ -1882,7 +1882,7 @@ func (s *validationSetsSuite) TestRemoveInvalidSnapOK(c *C) {
 func (s *validationSetsSuite) TestRemoveSnapRequiredByValidationSetAtSpecificRevisionRefused(c *C) {
 	restore := snapstate.MockEnforcedValidationSets(func(st *state.State, extraVss ...*asserts.ValidationSet) (*snapasserts.ValidationSets, error) {
 		vs := snapasserts.NewValidationSets()
-		someSnap := map[string]interface{}{
+		someSnap := map[string]any{
 			"id":       "yOqKhntON3vR7kwEbVPsILm7bUViPDzx",
 			"name":     "some-snap",
 			"presence": "required",
@@ -1935,7 +1935,7 @@ func (s *validationSetsSuite) TestRemoveSnapRequiredByValidationSetAtSpecificRev
 func (s *validationSetsSuite) TestRemoveSnapRequiredByValidationSetAtSpecificRevisionNotActive(c *C) {
 	restore := snapstate.MockEnforcedValidationSets(func(st *state.State, extraVss ...*asserts.ValidationSet) (*snapasserts.ValidationSets, error) {
 		vs := snapasserts.NewValidationSets()
-		someSnap := map[string]interface{}{
+		someSnap := map[string]any{
 			"id":       "yOqKhntON3vR7kwEbVPsILm7bUViPDzx",
 			"name":     "some-snap",
 			"presence": "required",

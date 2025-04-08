@@ -329,7 +329,7 @@ func (s *usersSuite) TestUserActionRemoveNoUsername(c *check.C) {
 
 func (s *usersSuite) setupSigner(accountID string, signerPrivKey asserts.PrivateKey) *assertstest.SigningDB {
 
-	signerSigning := s.brands.Register(accountID, signerPrivKey, map[string]interface{}{
+	signerSigning := s.brands.Register(accountID, signerPrivKey, map[string]any{
 		"account-id":   accountID,
 		"verification": "verified",
 	})
@@ -346,7 +346,7 @@ var (
 	unknownPrivKey, _ = assertstest.GenerateKey(752)
 )
 
-func (s *usersSuite) makeSystemUsers(c *check.C, systemUsers []map[string]interface{}) {
+func (s *usersSuite) makeSystemUsers(c *check.C, systemUsers []map[string]any) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -356,12 +356,12 @@ func (s *usersSuite) makeSystemUsers(c *check.C, systemUsers []map[string]interf
 	s.setupSigner("partner", partnerPrivKey)
 	s.setupSigner("unknown", unknownPrivKey)
 
-	model := s.brands.Model("my-brand", "my-model", map[string]interface{}{
+	model := s.brands.Model("my-brand", "my-model", map[string]any{
 		"architecture":          "amd64",
 		"gadget":                "pc",
 		"kernel":                "pc-kernel",
-		"required-snaps":        []interface{}{"required-snap1"},
-		"system-user-authority": []interface{}{"my-brand", "partner"},
+		"required-snaps":        []any{"required-snap1"},
+		"system-user-authority": []any{"my-brand", "partner"},
 	})
 	// now add model related stuff to the system
 	assertstatetest.AddMany(s.state, model)
@@ -369,7 +369,7 @@ func (s *usersSuite) makeSystemUsers(c *check.C, systemUsers []map[string]interf
 	deviceKey, _ := assertstest.GenerateKey(752)
 	encDevKey, err := asserts.EncodePublicKey(deviceKey.PublicKey())
 	c.Assert(err, check.IsNil)
-	serial, err := s.brands.Signing("my-brand").Sign(asserts.SerialType, map[string]interface{}{
+	serial, err := s.brands.Signing("my-brand").Sign(asserts.SerialType, map[string]any{
 		"authority-id":        "my-brand",
 		"brand-id":            "my-brand",
 		"model":               "my-model",
@@ -397,12 +397,12 @@ func (s *usersSuite) makeSystemUsers(c *check.C, systemUsers []map[string]interf
 	c.Assert(err, check.IsNil)
 }
 
-var goodUser = map[string]interface{}{
+var goodUser = map[string]any{
 	"authority-id": "my-brand",
 	"brand-id":     "my-brand",
 	"email":        "foo@bar.com",
-	"series":       []interface{}{"16", "18"},
-	"models":       []interface{}{"my-model", "other-model"},
+	"series":       []any{"16", "18"},
+	"models":       []any{"my-model", "other-model"},
 	"name":         "Boring Guy",
 	"username":     "guy",
 	"password":     "$6$salt$hash",
@@ -410,12 +410,12 @@ var goodUser = map[string]interface{}{
 	"until":        time.Now().Add(24 * 30 * time.Hour).Format(time.RFC3339),
 }
 
-var partnerUser = map[string]interface{}{
+var partnerUser = map[string]any{
 	"authority-id": "partner",
 	"brand-id":     "my-brand",
 	"email":        "p@partner.com",
-	"series":       []interface{}{"16", "18"},
-	"models":       []interface{}{"my-model"},
+	"series":       []any{"16", "18"},
+	"models":       []any{"my-model"},
 	"name":         "Partner Guy",
 	"username":     "partnerguy",
 	"password":     "$6$salt$hash",
@@ -423,14 +423,14 @@ var partnerUser = map[string]interface{}{
 	"until":        time.Now().Add(24 * 30 * time.Hour).Format(time.RFC3339),
 }
 
-var serialUser = map[string]interface{}{
+var serialUser = map[string]any{
 	"format":       "1",
 	"authority-id": "my-brand",
 	"brand-id":     "my-brand",
 	"email":        "serial@bar.com",
-	"series":       []interface{}{"16", "18"},
-	"models":       []interface{}{"my-model"},
-	"serials":      []interface{}{"serialserial"},
+	"series":       []any{"16", "18"},
+	"models":       []any{"my-model"},
+	"serials":      []any{"serialserial"},
 	"name":         "Serial Guy",
 	"username":     "goodserialguy",
 	"password":     "$6$salt$hash",
@@ -438,13 +438,13 @@ var serialUser = map[string]interface{}{
 	"until":        time.Now().Add(24 * 30 * time.Hour).Format(time.RFC3339),
 }
 
-var badUser = map[string]interface{}{
+var badUser = map[string]any{
 	// bad user (not valid for this model)
 	"authority-id": "my-brand",
 	"brand-id":     "my-brand",
 	"email":        "foobar@bar.com",
-	"series":       []interface{}{"16", "18"},
-	"models":       []interface{}{"non-of-the-models-i-have"},
+	"series":       []any{"16", "18"},
+	"models":       []any{"non-of-the-models-i-have"},
 	"name":         "Random Gal",
 	"username":     "gal",
 	"password":     "$6$salt$hash",
@@ -452,14 +452,14 @@ var badUser = map[string]interface{}{
 	"until":        time.Now().Add(24 * 30 * time.Hour).Format(time.RFC3339),
 }
 
-var badUserNoMatchingSerial = map[string]interface{}{
+var badUserNoMatchingSerial = map[string]any{
 	"format":       "1",
 	"authority-id": "my-brand",
 	"brand-id":     "my-brand",
 	"email":        "noserial@bar.com",
-	"series":       []interface{}{"16", "18"},
-	"models":       []interface{}{"my-model"},
-	"serials":      []interface{}{"different-serialserial"},
+	"series":       []any{"16", "18"},
+	"models":       []any{"my-model"},
+	"serials":      []any{"different-serialserial"},
 	"name":         "No Serial Guy",
 	"username":     "noserial",
 	"password":     "$6$salt$hash",
@@ -467,12 +467,12 @@ var badUserNoMatchingSerial = map[string]interface{}{
 	"until":        time.Now().Add(24 * 30 * time.Hour).Format(time.RFC3339),
 }
 
-var unknownUser = map[string]interface{}{
+var unknownUser = map[string]any{
 	"authority-id": "unknown",
 	"brand-id":     "my-brand",
 	"email":        "x@partner.com",
-	"series":       []interface{}{"16", "18"},
-	"models":       []interface{}{"my-model"},
+	"series":       []any{"16", "18"},
+	"models":       []any{"my-model"},
 	"name":         "XGuy",
 	"username":     "xguy",
 	"password":     "$6$salt$hash",
@@ -480,13 +480,13 @@ var unknownUser = map[string]interface{}{
 	"until":        time.Now().Add(24 * 30 * time.Hour).Format(time.RFC3339),
 }
 
-var expireUser = map[string]interface{}{
+var expireUser = map[string]any{
 	"format":        "2",
 	"authority-id":  "my-brand",
 	"brand-id":      "my-brand",
 	"email":         "foo@bar.com",
-	"series":        []interface{}{"16", "18"},
-	"models":        []interface{}{"my-model", "other-model"},
+	"series":        []any{"16", "18"},
+	"models":        []any{"my-model", "other-model"},
 	"name":          "Boring Guy",
 	"username":      "guy",
 	"password":      "$6$salt$hash",
@@ -496,7 +496,7 @@ var expireUser = map[string]interface{}{
 }
 
 func (s *usersSuite) TestGetUserDetailsFromAssertionHappy(c *check.C) {
-	s.makeSystemUsers(c, []map[string]interface{}{goodUser})
+	s.makeSystemUsers(c, []map[string]any{goodUser})
 
 	s.state.Lock()
 	model, err := s.mgr.Model()
@@ -517,12 +517,12 @@ func (s *usersSuite) TestGetUserDetailsFromAssertionHappy(c *check.C) {
 }
 
 func (s *usersSuite) TestCreateUserFromAssertion(c *check.C) {
-	s.makeSystemUsers(c, []map[string]interface{}{goodUser})
+	s.makeSystemUsers(c, []map[string]any{goodUser})
 	s.createUserFromAssertion(c, false)
 }
 
 func (s *usersSuite) TestCreateUserExpireFromAssertion(c *check.C) {
-	s.makeSystemUsers(c, []map[string]interface{}{expireUser})
+	s.makeSystemUsers(c, []map[string]any{expireUser})
 	users := s.createUserFromAssertion(c, false)
 	c.Assert(len(users), check.Equals, 1)
 	until, err := time.Parse(time.RFC3339, expireUser["until"].(string))
@@ -531,12 +531,12 @@ func (s *usersSuite) TestCreateUserExpireFromAssertion(c *check.C) {
 }
 
 func (s *usersSuite) TestCreateUserFromAssertionWithForcePasswordChange(c *check.C) {
-	user := make(map[string]interface{})
+	user := make(map[string]any)
 	for k, v := range goodUser {
 		user[k] = v
 	}
 	user["force-password-change"] = "true"
-	lusers := []map[string]interface{}{user}
+	lusers := []map[string]any{user}
 	s.makeSystemUsers(c, lusers)
 	s.createUserFromAssertion(c, true)
 }
@@ -594,7 +594,7 @@ func (s *usersSuite) TestCreateUserFromAssertionAllAutomatic(c *check.C) {
 }
 
 func (s *usersSuite) testCreateUserFromAssertion(c *check.C, createKnown bool, expectSudoer bool) {
-	s.makeSystemUsers(c, []map[string]interface{}{goodUser, partnerUser, serialUser, badUser, badUserNoMatchingSerial, unknownUser})
+	s.makeSystemUsers(c, []map[string]any{goodUser, partnerUser, serialUser, badUser, badUserNoMatchingSerial, unknownUser})
 	created := map[string]bool{}
 
 	// mock the calls that create the user
@@ -677,7 +677,7 @@ func (s *usersSuite) testCreateUserFromAssertion(c *check.C, createKnown bool, e
 }
 
 func (s *usersSuite) TestCreateAllKnownUsersWithExpiration(c *check.C) {
-	s.makeSystemUsers(c, []map[string]interface{}{expireUser})
+	s.makeSystemUsers(c, []map[string]any{expireUser})
 	created := map[string]bool{}
 
 	// mock the calls that create the user
@@ -749,7 +749,7 @@ func (s *usersSuite) TestCreateUserFromAssertionNoSerial(c *check.C) {
 	restore := release.MockOnClassic(false)
 	defer restore()
 
-	s.makeSystemUsers(c, []map[string]interface{}{serialUser})
+	s.makeSystemUsers(c, []map[string]any{serialUser})
 
 	s.state.Lock()
 	err := devicestatetest.SetDevice(s.state, &auth.DeviceState{
@@ -775,7 +775,7 @@ func (s *usersSuite) TestCreateUserFromAssertionDelayedAfterSerialAcquisition(c 
 	defer restore()
 
 	// initialize device, and add system-user assertion for serialUser
-	s.makeSystemUsers(c, []map[string]interface{}{serialUser})
+	s.makeSystemUsers(c, []map[string]any{serialUser})
 
 	created := map[string]bool{}
 
@@ -868,7 +868,7 @@ func (s *usersSuite) TestCreateAllKnownUsersFromAssertionNoSerial(c *check.C) {
 	logbuf, restore := logger.MockLogger()
 	defer restore()
 
-	s.makeSystemUsers(c, []map[string]interface{}{serialUser})
+	s.makeSystemUsers(c, []map[string]any{serialUser})
 
 	s.state.Lock()
 	err := devicestatetest.SetDevice(s.state, &auth.DeviceState{
@@ -890,7 +890,7 @@ func (s *usersSuite) TestCreateAllKnownUsersFromAssertionNoSerial(c *check.C) {
 }
 
 func (s *usersSuite) TestCreateUserFromAssertionAllKnownButOwned(c *check.C) {
-	s.makeSystemUsers(c, []map[string]interface{}{goodUser})
+	s.makeSystemUsers(c, []map[string]any{goodUser})
 
 	s.state.Lock()
 	_, err := auth.NewUser(s.state, auth.NewUserParams{
@@ -939,7 +939,7 @@ func (s *usersSuite) TestCreateUserFromAssertionAllKnownButOwned(c *check.C) {
 }
 
 func (s *usersSuite) TestCreateUserFromAssertionAllKnownButSkipExists(c *check.C) {
-	s.makeSystemUsers(c, []map[string]interface{}{goodUser})
+	s.makeSystemUsers(c, []map[string]any{goodUser})
 
 	s.state.Lock()
 	_, err := auth.NewUser(s.state, auth.NewUserParams{

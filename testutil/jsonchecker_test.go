@@ -46,13 +46,13 @@ func (*jsonCheckerSuite) TestFilePresent(c *check.C) {
 	}
 
 	testCheck(c, JsonEquals, true, "",
-		map[string]interface{}{
+		map[string]any{
 			"number": 42,
 			"string": "foo",
 			"list":   []string{"123", "456"},
-			"map": map[string]interface{}{
+			"map": map[string]any{
 				"foo": "bar",
-				"baz": []interface{}{0.2, 0.3},
+				"baz": []any{0.2, 0.3},
 			},
 		}, ref{
 			Number: 42,
@@ -68,18 +68,18 @@ func (*jsonCheckerSuite) TestFilePresent(c *check.C) {
 			hidden: true,
 		})
 	testCheck(c, JsonEquals, true, "",
-		map[string]interface{}{
+		map[string]any{
 			"number": 42,
 			"string": "foo",
-			"list":   []interface{}(nil),
+			"list":   []any(nil),
 		}, ref{
 			Number: 42,
 			String: "foo",
 		})
 	testCheck(c, JsonEquals, true, "",
-		map[string]interface{}{
+		map[string]any{
 			"number": 42,
-			"list":   []interface{}(nil),
+			"list":   []any(nil),
 		}, ref{
 			Number: 42,
 		})

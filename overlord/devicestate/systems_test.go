@@ -279,53 +279,53 @@ func (s *createSystemSuite) TestCreateSystemFromAssertedSnaps(c *C) {
 	infos["other-core18"] = s.makeSnap(c, "other-core18", snap.R(7))
 	infos["core18"] = s.makeSnap(c, "core18", snap.R(8))
 
-	model := s.makeModelAssertionInState(c, "my-brand", "pc", map[string]interface{}{
+	model := s.makeModelAssertionInState(c, "my-brand", "pc", map[string]any{
 		"architecture": "amd64",
 		"grade":        "dangerous",
 		"base":         "core20",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":            "pc-kernel",
 				"id":              s.ss.AssertedSnapID("pc-kernel"),
 				"type":            "kernel",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "pc",
 				"id":              s.ss.AssertedSnapID("pc"),
 				"type":            "gadget",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name": "snapd",
 				"id":   s.ss.AssertedSnapID("snapd"),
 				"type": "snapd",
 			},
 			// optional but not present
-			map[string]interface{}{
+			map[string]any{
 				"name":     "other-not-present",
 				"id":       s.ss.AssertedSnapID("other-not-present"),
 				"presence": "optional",
 			},
 			// optional and present
-			map[string]interface{}{
+			map[string]any{
 				"name":     "other-present",
 				"id":       s.ss.AssertedSnapID("other-present"),
 				"presence": "optional",
 			},
 			// required
-			map[string]interface{}{
+			map[string]any{
 				"name":     "other-required",
 				"id":       s.ss.AssertedSnapID("other-required"),
 				"presence": "required",
 			},
 			// different base
-			map[string]interface{}{
+			map[string]any{
 				"name": "other-core18",
 				"id":   s.ss.AssertedSnapID("other-core18"),
 			},
 			// and the actual base for that snap
-			map[string]interface{}{
+			map[string]any{
 				"name": "core18",
 				"id":   s.ss.AssertedSnapID("core18"),
 				"type": "base",
@@ -416,71 +416,71 @@ func (s *createSystemSuite) TestCreateSystemFromAssertedSnapsComponents(c *C) {
 	}
 	infos["snap-with-components"] = info
 
-	model := s.makeModelAssertionInState(c, "my-brand", "pc", map[string]interface{}{
+	model := s.makeModelAssertionInState(c, "my-brand", "pc", map[string]any{
 		"architecture": "amd64",
 		"grade":        "dangerous",
 		"base":         "core20",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":            "pc-kernel-with-kmods",
 				"id":              s.ss.AssertedSnapID("pc-kernel-with-kmods"),
 				"type":            "kernel",
 				"default-channel": "20",
-				"components": map[string]interface{}{
-					"kmod": map[string]interface{}{
+				"components": map[string]any{
+					"kmod": map[string]any{
 						"presence": "required",
 					},
 				},
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "pc",
 				"id":              s.ss.AssertedSnapID("pc"),
 				"type":            "gadget",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name": "snapd",
 				"id":   s.ss.AssertedSnapID("snapd"),
 				"type": "snapd",
 			},
 			// optional but not present
-			map[string]interface{}{
+			map[string]any{
 				"name":     "other-not-present",
 				"id":       s.ss.AssertedSnapID("other-not-present"),
 				"presence": "optional",
 			},
 			// optional and present
-			map[string]interface{}{
+			map[string]any{
 				"name":     "other-present",
 				"id":       s.ss.AssertedSnapID("other-present"),
 				"presence": "optional",
 			},
 			// required
-			map[string]interface{}{
+			map[string]any{
 				"name":     "other-required",
 				"id":       s.ss.AssertedSnapID("other-required"),
 				"presence": "required",
 			},
 			// different base
-			map[string]interface{}{
+			map[string]any{
 				"name": "other-core18",
 				"id":   s.ss.AssertedSnapID("other-core18"),
 			},
 			// and the actual base for that snap
-			map[string]interface{}{
+			map[string]any{
 				"name": "core18",
 				"id":   s.ss.AssertedSnapID("core18"),
 				"type": "base",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name": "snap-with-components",
 				"id":   s.ss.AssertedSnapID("snap-with-components"),
 				"type": "app",
-				"components": map[string]interface{}{
-					"comp-1": map[string]interface{}{
+				"components": map[string]any{
+					"comp-1": map[string]any{
 						"presence": "required",
 					},
-					"comp-2": map[string]interface{}{
+					"comp-2": map[string]any{
 						"presence": "optional",
 					},
 				},
@@ -561,30 +561,30 @@ func (s *createSystemSuite) TestCreateSystemFromUnassertedSnaps(c *C) {
 	// unasserted with local revision
 	infos["other-unasserted"] = s.makeSnap(c, "other-unasserted", snap.R(-1))
 
-	model := s.makeModelAssertionInState(c, "my-brand", "pc", map[string]interface{}{
+	model := s.makeModelAssertionInState(c, "my-brand", "pc", map[string]any{
 		"architecture": "amd64",
 		"grade":        "dangerous",
 		"base":         "core20",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":            "pc-kernel",
 				"id":              s.ss.AssertedSnapID("pc-kernel"),
 				"type":            "kernel",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "pc",
 				"id":              s.ss.AssertedSnapID("pc"),
 				"type":            "gadget",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name": "snapd",
 				"id":   s.ss.AssertedSnapID("snapd"),
 				"type": "snapd",
 			},
 			// required
-			map[string]interface{}{
+			map[string]any{
 				"name":     "other-unasserted",
 				"presence": "required",
 			},
@@ -650,34 +650,34 @@ func (s *createSystemSuite) TestCreateSystemFromUnassertedSnapsComponents(c *C) 
 	})
 	infos["other-unasserted"] = unassertedInfo
 
-	model := s.makeModelAssertionInState(c, "my-brand", "pc", map[string]interface{}{
+	model := s.makeModelAssertionInState(c, "my-brand", "pc", map[string]any{
 		"architecture": "amd64",
 		"grade":        "dangerous",
 		"base":         "core20",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":            "pc-kernel",
 				"id":              s.ss.AssertedSnapID("pc-kernel"),
 				"type":            "kernel",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "pc",
 				"id":              s.ss.AssertedSnapID("pc"),
 				"type":            "gadget",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name": "snapd",
 				"id":   s.ss.AssertedSnapID("snapd"),
 				"type": "snapd",
 			},
 			// required
-			map[string]interface{}{
+			map[string]any{
 				"name":     "other-unasserted",
 				"presence": "required",
-				"components": map[string]interface{}{
-					"comp": map[string]interface{}{
+				"components": map[string]any{
+					"comp": map[string]any{
 						"presence": "required",
 					},
 				},
@@ -754,24 +754,24 @@ func (s *createSystemSuite) TestCreateSystemWithSomeSnapsAlreadyExisting(c *C) {
 	defer s.state.Unlock()
 	s.setupBrands()
 	infos := s.makeEssentialSnapInfos(c)
-	model := s.makeModelAssertionInState(c, "my-brand", "pc", map[string]interface{}{
+	model := s.makeModelAssertionInState(c, "my-brand", "pc", map[string]any{
 		"architecture": "amd64",
 		"grade":        "dangerous",
 		"base":         "core20",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":            "pc-kernel",
 				"id":              s.ss.AssertedSnapID("pc-kernel"),
 				"type":            "kernel",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "pc",
 				"id":              s.ss.AssertedSnapID("pc"),
 				"type":            "gadget",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name": "snapd",
 				"id":   s.ss.AssertedSnapID("snapd"),
 				"type": "snapd",
@@ -825,30 +825,30 @@ func (s *createSystemSuite) TestCreateSystemWithSomeSnapsAlreadyExisting(c *C) {
 
 	// add an unasserted snap
 	infos["other-unasserted"] = s.makeSnap(c, "other-unasserted", snap.R(-1))
-	modelWithUnasserted := s.makeModelAssertionInState(c, "my-brand", "pc-with-unasserted", map[string]interface{}{
+	modelWithUnasserted := s.makeModelAssertionInState(c, "my-brand", "pc-with-unasserted", map[string]any{
 		"architecture": "amd64",
 		"grade":        "dangerous",
 		"base":         "core20",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":            "pc-kernel",
 				"id":              s.ss.AssertedSnapID("pc-kernel"),
 				"type":            "kernel",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "pc",
 				"id":              s.ss.AssertedSnapID("pc"),
 				"type":            "gadget",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name": "snapd",
 				"id":   s.ss.AssertedSnapID("snapd"),
 				"type": "snapd",
 			},
 			// required
-			map[string]interface{}{
+			map[string]any{
 				"name":     "other-unasserted",
 				"presence": "required",
 			},
@@ -887,40 +887,40 @@ func (s *createSystemSuite) TestCreateSystemInfoAndAssertsChecks(c *C) {
 	infos["core20"] = s.makeSnap(c, "core20", snap.R(3))
 	infos["snapd"] = s.makeSnap(c, "snapd", snap.R(4))
 	infos["snap-with-components"] = s.makeSnap(c, "snap-with-components", snap.R(2))
-	model := s.makeModelAssertionInState(c, "my-brand", "pc", map[string]interface{}{
+	model := s.makeModelAssertionInState(c, "my-brand", "pc", map[string]any{
 		"architecture": "amd64",
 		"grade":        "dangerous",
 		"base":         "core20",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":            "pc-kernel",
 				"id":              s.ss.AssertedSnapID("pc-kernel"),
 				"type":            "kernel",
 				"default-channel": "20",
 			},
 			// pc snap is the gadget, but we have no info for it
-			map[string]interface{}{
+			map[string]any{
 				"name":            "pc",
 				"id":              s.ss.AssertedSnapID("pc"),
 				"type":            "gadget",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name": "snapd",
 				"id":   s.ss.AssertedSnapID("snapd"),
 				"type": "snapd",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":     "other-required",
 				"id":       s.ss.AssertedSnapID("other-required"),
 				"presence": "required",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":     "snap-with-components",
 				"id":       s.ss.AssertedSnapID("snap-with-components"),
 				"presence": "optional",
-				"components": map[string]interface{}{
-					"comp-1": map[string]interface{}{
+				"components": map[string]any{
+					"comp-1": map[string]any{
 						"presence": "required",
 					},
 				},
@@ -998,30 +998,30 @@ func (s *createSystemSuite) TestCreateSystemGetInfoErr(c *C) {
 	// missing info for the pc snap
 	infos := s.makeEssentialSnapInfos(c)
 	infos["other-required"] = s.makeSnap(c, "other-required", snap.R(5))
-	model := s.makeModelAssertionInState(c, "my-brand", "pc", map[string]interface{}{
+	model := s.makeModelAssertionInState(c, "my-brand", "pc", map[string]any{
 		"architecture": "amd64",
 		"grade":        "dangerous",
 		"base":         "core20",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":            "pc-kernel",
 				"id":              s.ss.AssertedSnapID("pc-kernel"),
 				"type":            "kernel",
 				"default-channel": "20",
 			},
 			// pc snap is the gadget, but we have no info for it
-			map[string]interface{}{
+			map[string]any{
 				"name":            "pc",
 				"id":              s.ss.AssertedSnapID("pc"),
 				"type":            "gadget",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name": "snapd",
 				"id":   s.ss.AssertedSnapID("snapd"),
 				"type": "snapd",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":     "other-required",
 				"id":       s.ss.AssertedSnapID("other-required"),
 				"presence": "required",
@@ -1079,7 +1079,7 @@ func (s *createSystemSuite) TestCreateSystemNonUC20(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 	s.setupBrands()
-	model := s.makeModelAssertionInState(c, "my-brand", "pc", map[string]interface{}{
+	model := s.makeModelAssertionInState(c, "my-brand", "pc", map[string]any{
 		"architecture": "amd64",
 		"base":         "core18",
 		"kernel":       "pc-kernel",
@@ -1111,19 +1111,19 @@ func (s *createSystemSuite) TestCreateSystemImplicitSnaps(c *C) {
 	infos := s.makeEssentialSnapInfos(c)
 
 	// snapd snap is implicitly required
-	model := s.makeModelAssertionInState(c, "my-brand", "pc", map[string]interface{}{
+	model := s.makeModelAssertionInState(c, "my-brand", "pc", map[string]any{
 		"architecture": "amd64",
 		"grade":        "dangerous",
 		// base does not need to be listed among snaps
 		"base": "core20",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":            "pc-kernel",
 				"id":              s.ss.AssertedSnapID("pc-kernel"),
 				"type":            "kernel",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "pc",
 				"id":              s.ss.AssertedSnapID("pc"),
 				"type":            "gadget",
@@ -1165,19 +1165,19 @@ func (s *createSystemSuite) TestCreateSystemObserverErr(c *C) {
 	infos := s.makeEssentialSnapInfos(c)
 
 	// snapd snap is implicitly required
-	model := s.makeModelAssertionInState(c, "my-brand", "pc", map[string]interface{}{
+	model := s.makeModelAssertionInState(c, "my-brand", "pc", map[string]any{
 		"architecture": "amd64",
 		"grade":        "dangerous",
 		// base does not need to be listed among snaps
 		"base": "core20",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":            "pc-kernel",
 				"id":              s.ss.AssertedSnapID("pc-kernel"),
 				"type":            "kernel",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "pc",
 				"id":              s.ss.AssertedSnapID("pc"),
 				"type":            "gadget",

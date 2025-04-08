@@ -85,7 +85,7 @@ func (s *snapSetSuite) TestSnapSetIntegrationBigInt(c *check.C) {
 
 func (s *snapSetSuite) TestSnapSetIntegrationJson(c *check.C) {
 	// and mock the server
-	s.mockSetConfigServer(c, map[string]interface{}{"subkey": "value"})
+	s.mockSetConfigServer(c, map[string]any{"subkey": "value"})
 
 	// Set a config value for the active snap
 	_, err := snapset.Parser(snapset.Client()).ParseArgs([]string{"set", "snapname", `key={"subkey":"value"}`})
@@ -115,7 +115,7 @@ func (s *snapSetSuite) TestSnapSetIntegrationStringWithExclamationMark(c *check.
 
 func (s *snapSetSuite) TestSnapSetParseStrictJSON(c *check.C) {
 	// mock server
-	s.mockSetConfigServer(c, map[string]interface{}{"a": "b", "c": json.Number("1"), "d": map[string]interface{}{"e": "f"}})
+	s.mockSetConfigServer(c, map[string]any{"a": "b", "c": json.Number("1"), "d": map[string]any{"e": "f"}})
 
 	_, err := snapset.Parser(snapset.Client()).ParseArgs([]string{"set", "snapname", "-t", `key={"a":"b", "c":1, "d": {"e": "f"}}`})
 	c.Assert(err, check.IsNil)
@@ -142,12 +142,12 @@ func (s *snapSetSuite) TestSnapSetAsString(c *check.C) {
 	c.Check(s.setConfApiCalls, check.Equals, 1)
 }
 
-func (s *snapSetSuite) mockSetConfigServer(c *check.C, expectedValue interface{}) {
+func (s *snapSetSuite) mockSetConfigServer(c *check.C, expectedValue any) {
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/v2/snaps/snapname/conf":
 			c.Check(r.Method, check.Equals, "PUT")
-			c.Check(DecodedRequestBody(c, r), check.DeepEquals, map[string]interface{}{
+			c.Check(DecodedRequestBody(c, r), check.DeepEquals, map[string]any{
 				"key": expectedValue,
 			})
 			w.WriteHeader(202)

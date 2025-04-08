@@ -54,15 +54,15 @@ func (s *appOpSuite) TearDownTest(c *check.C) {
 	s.BaseSnapSuite.TearDownTest(c)
 }
 
-func (s *appOpSuite) expectedBody(op string, names, extra []string) map[string]interface{} {
-	inames := make([]interface{}, len(names))
+func (s *appOpSuite) expectedBody(op string, names, extra []string) map[string]any {
+	inames := make([]any, len(names))
 	for i, name := range names {
 		inames[i] = name
 	}
-	expectedBody := map[string]interface{}{
+	expectedBody := map[string]any{
 		"action": op,
 		"names":  inames,
-		"users":  []interface{}{},
+		"users":  []any{},
 	}
 	for _, x := range extra {
 		expectedBody[x] = true
@@ -173,7 +173,7 @@ func (s *appOpSuite) TestAppOps(c *check.C) {
 
 func (s *appOpSuite) TestAppOpsScopeSwitches(c *check.C) {
 	var n int
-	var body map[string]interface{}
+	var body map[string]any
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
 		switch n {
 		case 0:
@@ -197,7 +197,7 @@ func (s *appOpSuite) TestAppOpsScopeSwitches(c *check.C) {
 		n++
 	})
 
-	checkInvocation := func(op, summary string, names, args []string) map[string]interface{} {
+	checkInvocation := func(op, summary string, names, args []string) map[string]any {
 		n = 0
 		body = nil
 		s.stdout.Reset()
@@ -218,33 +218,33 @@ func (s *appOpSuite) TestAppOpsScopeSwitches(c *check.C) {
 
 		// Check without any scope options, that should default to empty
 		// 'users' and no scope. This is the same as '--system --users'
-		c.Check(checkInvocation(op, summaries[i], []string{"foo", "bar"}, nil), check.DeepEquals, map[string]interface{}{
+		c.Check(checkInvocation(op, summaries[i], []string{"foo", "bar"}, nil), check.DeepEquals, map[string]any{
 			"action": op,
-			"names":  []interface{}{"foo", "bar"},
-			"users":  []interface{}{},
+			"names":  []any{"foo", "bar"},
+			"users":  []any{},
 		})
-		c.Check(checkInvocation(op, summaries[i], []string{"foo", "bar"}, []string{"user"}), check.DeepEquals, map[string]interface{}{
+		c.Check(checkInvocation(op, summaries[i], []string{"foo", "bar"}, []string{"user"}), check.DeepEquals, map[string]any{
 			"action": op,
-			"names":  []interface{}{"foo", "bar"},
-			"scope":  []interface{}{"user"},
+			"names":  []any{"foo", "bar"},
+			"scope":  []any{"user"},
 			"users":  "self",
 		})
-		c.Check(checkInvocation(op, summaries[i], []string{"foo", "bar"}, []string{"users=all"}), check.DeepEquals, map[string]interface{}{
+		c.Check(checkInvocation(op, summaries[i], []string{"foo", "bar"}, []string{"users=all"}), check.DeepEquals, map[string]any{
 			"action": op,
-			"names":  []interface{}{"foo", "bar"},
-			"scope":  []interface{}{"user"},
+			"names":  []any{"foo", "bar"},
+			"scope":  []any{"user"},
 			"users":  "all",
 		})
-		c.Check(checkInvocation(op, summaries[i], []string{"foo", "bar"}, []string{"users=all", "system"}), check.DeepEquals, map[string]interface{}{
+		c.Check(checkInvocation(op, summaries[i], []string{"foo", "bar"}, []string{"users=all", "system"}), check.DeepEquals, map[string]any{
 			"action": op,
-			"names":  []interface{}{"foo", "bar"},
+			"names":  []any{"foo", "bar"},
 			"users":  "all",
 		})
-		c.Check(checkInvocation(op, summaries[i], []string{"foo", "bar"}, []string{"system"}), check.DeepEquals, map[string]interface{}{
+		c.Check(checkInvocation(op, summaries[i], []string{"foo", "bar"}, []string{"system"}), check.DeepEquals, map[string]any{
 			"action": op,
-			"names":  []interface{}{"foo", "bar"},
-			"scope":  []interface{}{"system"},
-			"users":  []interface{}{},
+			"names":  []any{"foo", "bar"},
+			"scope":  []any{"system"},
+			"users":  []any{},
 		})
 	}
 }
@@ -279,9 +279,9 @@ func (s *appOpSuite) TestAppStatus(c *check.C) {
 			c.Check(r.Method, check.Equals, "GET")
 			w.WriteHeader(200)
 			enc := json.NewEncoder(w)
-			enc.Encode(map[string]interface{}{
+			enc.Encode(map[string]any{
 				"type": "sync",
-				"result": []map[string]interface{}{
+				"result": []map[string]any{
 					{
 						"snap":         "foo",
 						"name":         "bar",
@@ -289,7 +289,7 @@ func (s *appOpSuite) TestAppStatus(c *check.C) {
 						"daemon-scope": "system",
 						"active":       false,
 						"enabled":      true,
-						"activators": []map[string]interface{}{
+						"activators": []map[string]any{
 							{"name": "bar", "type": "timer", "active": true, "enabled": true},
 						},
 					}, {
@@ -299,7 +299,7 @@ func (s *appOpSuite) TestAppStatus(c *check.C) {
 						"daemon-scope": "system",
 						"active":       false,
 						"enabled":      true,
-						"activators": []map[string]interface{}{
+						"activators": []map[string]any{
 							{"name": "baz-sock1", "type": "socket", "active": true, "enabled": true},
 							{"name": "baz-sock2", "type": "socket", "active": false, "enabled": true},
 						},
@@ -378,9 +378,9 @@ func (s *appOpSuite) TestAppStatusGlobal(c *check.C) {
 			c.Check(r.Method, check.Equals, "GET")
 			w.WriteHeader(200)
 			enc := json.NewEncoder(w)
-			enc.Encode(map[string]interface{}{
+			enc.Encode(map[string]any{
 				"type": "sync",
-				"result": []map[string]interface{}{
+				"result": []map[string]any{
 					{
 						"snap":         "foo",
 						"name":         "bar",
@@ -388,7 +388,7 @@ func (s *appOpSuite) TestAppStatusGlobal(c *check.C) {
 						"daemon-scope": "system",
 						"active":       false,
 						"enabled":      true,
-						"activators": []map[string]interface{}{
+						"activators": []map[string]any{
 							{"name": "bar", "type": "timer", "active": true, "enabled": true},
 						},
 					}, {
@@ -398,7 +398,7 @@ func (s *appOpSuite) TestAppStatusGlobal(c *check.C) {
 						"daemon-scope": "system",
 						"active":       false,
 						"enabled":      true,
-						"activators": []map[string]interface{}{
+						"activators": []map[string]any{
 							{"name": "baz-sock1", "type": "socket", "active": true, "enabled": true},
 							{"name": "baz-sock2", "type": "socket", "active": false, "enabled": true},
 						},
@@ -448,9 +448,9 @@ func (s *appOpSuite) TestServiceCompletion(c *check.C) {
 		c.Check(r.Method, check.Equals, "GET")
 		w.WriteHeader(200)
 		enc := json.NewEncoder(w)
-		enc.Encode(map[string]interface{}{
+		enc.Encode(map[string]any{
 			"type": "sync",
-			"result": []map[string]interface{}{
+			"result": []map[string]any{
 				{"snap": "a-snap", "name": "foo", "daemon": "simple"},
 				{"snap": "a-snap", "name": "bar", "daemon": "simple"},
 				{"snap": "b-snap", "name": "baz", "daemon": "simple"},
@@ -515,9 +515,9 @@ func (s *appOpSuite) TestAppStatusNoServices(c *check.C) {
 			c.Check(r.Method, check.Equals, "GET")
 			w.WriteHeader(200)
 			enc := json.NewEncoder(w)
-			enc.Encode(map[string]interface{}{
+			enc.Encode(map[string]any{
 				"type":        "sync",
-				"result":      []map[string]interface{}{},
+				"result":      []map[string]any{},
 				"status":      "OK",
 				"status-code": 200,
 			})
@@ -552,7 +552,7 @@ func (s *appOpSuite) TestLogsCommand(c *check.C) {
 			c.Assert(err, check.IsNil)
 
 			enc := json.NewEncoder(w)
-			err = enc.Encode(map[string]interface{}{
+			err = enc.Encode(map[string]any{
 				"timestamp": timestamp,
 				"message":   message,
 				"sid":       sid,
@@ -597,7 +597,7 @@ func (s *appOpSuite) TestLogsCommandWithAbsTimeFlag(c *check.C) {
 			c.Assert(err, check.IsNil)
 
 			enc := json.NewEncoder(w)
-			err = enc.Encode(map[string]interface{}{
+			err = enc.Encode(map[string]any{
 				"timestamp": timestamp,
 				"message":   message,
 				"sid":       sid,

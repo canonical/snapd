@@ -48,7 +48,7 @@ func (h *configureHandler) Before() error {
 	// Initialize the transaction if there's a patch provided in the
 	// context or useDefaults is set in which case gadget defaults are used.
 
-	var patch map[string]interface{}
+	var patch map[string]any
 	var useDefaults bool
 	if err := h.context.Get("use-defaults", &useDefaults); err != nil && !errors.Is(err, state.ErrNoState) {
 		return err

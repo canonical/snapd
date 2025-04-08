@@ -260,11 +260,11 @@ func (s *promptingSuite) TestPromptingNotRunningError(c *C) {
 	jsonResp := apiResp.JSON()
 	rec := httptest.NewRecorder()
 	jsonResp.ServeHTTP(rec, nil)
-	var body map[string]interface{}
+	var body map[string]any
 	err := json.Unmarshal(rec.Body.Bytes(), &body)
 	c.Check(err, IsNil)
-	c.Check(body, DeepEquals, map[string]interface{}{
-		"result": map[string]interface{}{
+	c.Check(body, DeepEquals, map[string]any{
+		"result": map[string]any{
 			"message": "AppArmor Prompting is not running",
 			"kind":    string(client.ErrorKindAppArmorPromptingNotRunning),
 		},
@@ -277,12 +277,12 @@ func (s *promptingSuite) TestPromptingNotRunningError(c *C) {
 func (s *promptingSuite) TestPromptingError(c *C) {
 	for _, testCase := range []struct {
 		err  error
-		body map[string]interface{}
+		body map[string]any
 	}{
 		{
 			err: prompting_errors.ErrPromptNotFound,
-			body: map[string]interface{}{
-				"result": map[string]interface{}{
+			body: map[string]any{
+				"result": map[string]any{
 					"message": prompting_errors.ErrPromptNotFound.Error(),
 					"kind":    string(client.ErrorKindInterfacesRequestsPromptNotFound),
 				},
@@ -293,8 +293,8 @@ func (s *promptingSuite) TestPromptingError(c *C) {
 		},
 		{
 			err: prompting_errors.ErrRuleNotFound,
-			body: map[string]interface{}{
-				"result": map[string]interface{}{
+			body: map[string]any{
+				"result": map[string]any{
 					"message": prompting_errors.ErrRuleNotFound.Error(),
 					"kind":    string(client.ErrorKindInterfacesRequestsRuleNotFound),
 				},
@@ -305,8 +305,8 @@ func (s *promptingSuite) TestPromptingError(c *C) {
 		},
 		{
 			err: prompting_errors.ErrRuleNotAllowed,
-			body: map[string]interface{}{
-				"result": map[string]interface{}{
+			body: map[string]any{
+				"result": map[string]any{
 					"message": prompting_errors.ErrRuleNotAllowed.Error(),
 					"kind":    string(client.ErrorKindInterfacesRequestsRuleNotFound),
 				},
@@ -317,8 +317,8 @@ func (s *promptingSuite) TestPromptingError(c *C) {
 		},
 		{
 			err: prompting_errors.ErrPromptsClosed,
-			body: map[string]interface{}{
-				"result": map[string]interface{}{
+			body: map[string]any{
+				"result": map[string]any{
 					"message": prompting_errors.ErrPromptsClosed.Error(),
 				},
 				"status":      "Internal Server Error",
@@ -328,8 +328,8 @@ func (s *promptingSuite) TestPromptingError(c *C) {
 		},
 		{
 			err: prompting_errors.ErrRulesClosed,
-			body: map[string]interface{}{
-				"result": map[string]interface{}{
+			body: map[string]any{
+				"result": map[string]any{
 					"message": prompting_errors.ErrRulesClosed.Error(),
 				},
 				"status":      "Internal Server Error",
@@ -339,8 +339,8 @@ func (s *promptingSuite) TestPromptingError(c *C) {
 		},
 		{
 			err: prompting_errors.ErrTooManyPrompts,
-			body: map[string]interface{}{
-				"result": map[string]interface{}{
+			body: map[string]any{
+				"result": map[string]any{
 					"message": prompting_errors.ErrTooManyPrompts.Error(),
 				},
 				"status":      "Internal Server Error",
@@ -350,8 +350,8 @@ func (s *promptingSuite) TestPromptingError(c *C) {
 		},
 		{
 			err: prompting_errors.ErrRuleIDConflict,
-			body: map[string]interface{}{
-				"result": map[string]interface{}{
+			body: map[string]any{
+				"result": map[string]any{
 					"message": prompting_errors.ErrRuleIDConflict.Error(),
 				},
 				"status":      "Internal Server Error",
@@ -361,8 +361,8 @@ func (s *promptingSuite) TestPromptingError(c *C) {
 		},
 		{
 			err: prompting_errors.ErrRuleDBInconsistent,
-			body: map[string]interface{}{
-				"result": map[string]interface{}{
+			body: map[string]any{
+				"result": map[string]any{
 					"message": prompting_errors.ErrRuleDBInconsistent.Error(),
 				},
 				"status":      "Internal Server Error",
@@ -372,15 +372,15 @@ func (s *promptingSuite) TestPromptingError(c *C) {
 		},
 		{
 			err: prompting_errors.NewInvalidOutcomeError("foo", []string{"bar", "baz"}),
-			body: map[string]interface{}{
-				"result": map[string]interface{}{
+			body: map[string]any{
+				"result": map[string]any{
 					"message": `invalid outcome: "foo"`,
 					"kind":    "interfaces-requests-invalid-fields",
-					"value": map[string]interface{}{
-						"outcome": map[string]interface{}{
+					"value": map[string]any{
+						"outcome": map[string]any{
 							"reason":    "unsupported-value",
-							"supported": []interface{}{"bar", "baz"},
-							"value":     []interface{}{"foo"},
+							"supported": []any{"bar", "baz"},
+							"value":     []any{"foo"},
 						},
 					},
 				},
@@ -391,15 +391,15 @@ func (s *promptingSuite) TestPromptingError(c *C) {
 		},
 		{
 			err: prompting_errors.NewInvalidLifespanError("foo", []string{"bar", "baz"}),
-			body: map[string]interface{}{
-				"result": map[string]interface{}{
+			body: map[string]any{
+				"result": map[string]any{
 					"message": `invalid lifespan: "foo"`,
 					"kind":    "interfaces-requests-invalid-fields",
-					"value": map[string]interface{}{
-						"lifespan": map[string]interface{}{
+					"value": map[string]any{
+						"lifespan": map[string]any{
 							"reason":    "unsupported-value",
-							"supported": []interface{}{"bar", "baz"},
-							"value":     []interface{}{"foo"},
+							"supported": []any{"bar", "baz"},
+							"value":     []any{"foo"},
 						},
 					},
 				},
@@ -410,15 +410,15 @@ func (s *promptingSuite) TestPromptingError(c *C) {
 		},
 		{
 			err: prompting_errors.NewRuleLifespanSingleError([]string{"bar", "baz"}),
-			body: map[string]interface{}{
-				"result": map[string]interface{}{
+			body: map[string]any{
+				"result": map[string]any{
 					"message": `cannot create rule with lifespan "single"`,
 					"kind":    "interfaces-requests-invalid-fields",
-					"value": map[string]interface{}{
-						"lifespan": map[string]interface{}{
+					"value": map[string]any{
+						"lifespan": map[string]any{
 							"reason":    "unsupported-value",
-							"supported": []interface{}{"bar", "baz"},
-							"value":     []interface{}{"single"},
+							"supported": []any{"bar", "baz"},
+							"value":     []any{"single"},
 						},
 					},
 				},
@@ -429,15 +429,15 @@ func (s *promptingSuite) TestPromptingError(c *C) {
 		},
 		{
 			err: prompting_errors.NewInvalidInterfaceError("foo", []string{"bar", "baz"}),
-			body: map[string]interface{}{
-				"result": map[string]interface{}{
+			body: map[string]any{
+				"result": map[string]any{
 					"message": `invalid interface: "foo"`,
 					"kind":    "interfaces-requests-invalid-fields",
-					"value": map[string]interface{}{
-						"interface": map[string]interface{}{
+					"value": map[string]any{
+						"interface": map[string]any{
 							"reason":    "unsupported-value",
-							"supported": []interface{}{"bar", "baz"},
-							"value":     []interface{}{"foo"},
+							"supported": []any{"bar", "baz"},
+							"value":     []any{"foo"},
 						},
 					},
 				},
@@ -448,15 +448,15 @@ func (s *promptingSuite) TestPromptingError(c *C) {
 		},
 		{
 			err: prompting_errors.NewInvalidPermissionsError("foo", []string{"bar", "baz"}, []string{"fizz", "buzz"}),
-			body: map[string]interface{}{
-				"result": map[string]interface{}{
+			body: map[string]any{
+				"result": map[string]any{
 					"message": `invalid permissions for foo interface: "bar", "baz"`,
 					"kind":    "interfaces-requests-invalid-fields",
-					"value": map[string]interface{}{
-						"permissions": map[string]interface{}{
+					"value": map[string]any{
+						"permissions": map[string]any{
 							"reason":    "unsupported-value",
-							"supported": []interface{}{"fizz", "buzz"},
-							"value":     []interface{}{"bar", "baz"},
+							"supported": []any{"fizz", "buzz"},
+							"value":     []any{"bar", "baz"},
 						},
 					},
 				},
@@ -467,15 +467,15 @@ func (s *promptingSuite) TestPromptingError(c *C) {
 		},
 		{
 			err: prompting_errors.NewPermissionsEmptyError("foo", []string{"bar", "baz"}),
-			body: map[string]interface{}{
-				"result": map[string]interface{}{
+			body: map[string]any{
+				"result": map[string]any{
 					"message": `invalid permissions for foo interface: permissions empty`,
 					"kind":    "interfaces-requests-invalid-fields",
-					"value": map[string]interface{}{
-						"permissions": map[string]interface{}{
+					"value": map[string]any{
+						"permissions": map[string]any{
 							"reason":    "unsupported-value",
-							"supported": []interface{}{"bar", "baz"},
-							"value":     []interface{}{},
+							"supported": []any{"bar", "baz"},
+							"value":     []any{},
 						},
 					},
 				},
@@ -486,12 +486,12 @@ func (s *promptingSuite) TestPromptingError(c *C) {
 		},
 		{
 			err: prompting_errors.NewInvalidDurationError("foo", "really terrible"),
-			body: map[string]interface{}{
-				"result": map[string]interface{}{
+			body: map[string]any{
+				"result": map[string]any{
 					"message": `invalid duration: really terrible: "foo"`,
 					"kind":    "interfaces-requests-invalid-fields",
-					"value": map[string]interface{}{
-						"duration": map[string]interface{}{
+					"value": map[string]any{
+						"duration": map[string]any{
 							"reason": "parse-error",
 							"value":  "foo",
 						},
@@ -504,12 +504,12 @@ func (s *promptingSuite) TestPromptingError(c *C) {
 		},
 		{
 			err: prompting_errors.NewInvalidExpirationError(time.Date(1, time.February, 3, 4, 5, 6, 7, time.UTC), "really terrible"),
-			body: map[string]interface{}{
-				"result": map[string]interface{}{
+			body: map[string]any{
+				"result": map[string]any{
 					"message": `invalid expiration: really terrible: "0001-02-03T04:05:06.000000007Z"`,
 					"kind":    "interfaces-requests-invalid-fields",
-					"value": map[string]interface{}{
-						"expiration": map[string]interface{}{
+					"value": map[string]any{
+						"expiration": map[string]any{
 							"reason": "parse-error",
 							"value":  "0001-02-03T04:05:06.000000007Z",
 						},
@@ -522,12 +522,12 @@ func (s *promptingSuite) TestPromptingError(c *C) {
 		},
 		{
 			err: prompting_errors.NewInvalidPathPatternError(`invalid/pattern`, "must start with '/'"),
-			body: map[string]interface{}{
-				"result": map[string]interface{}{
+			body: map[string]any{
+				"result": map[string]any{
 					"message": `invalid path pattern: must start with '/': "invalid/pattern"`,
 					"kind":    "interfaces-requests-invalid-fields",
-					"value": map[string]interface{}{
-						"path-pattern": map[string]interface{}{
+					"value": map[string]any{
+						"path-pattern": map[string]any{
 							"reason": "parse-error",
 							"value":  "invalid/pattern",
 						},
@@ -540,8 +540,8 @@ func (s *promptingSuite) TestPromptingError(c *C) {
 		},
 		{
 			err: prompting_errors.ErrPatchedRuleHasNoPerms,
-			body: map[string]interface{}{
-				"result": map[string]interface{}{
+			body: map[string]any{
+				"result": map[string]any{
 					"message": "cannot patch rule to have no permissions",
 					"kind":    "interfaces-requests-patched-rule-has-no-permissions",
 				},
@@ -555,12 +555,12 @@ func (s *promptingSuite) TestPromptingError(c *C) {
 				Requested: "foo",
 				Replied:   "bar",
 			},
-			body: map[string]interface{}{
-				"result": map[string]interface{}{
+			body: map[string]any{
+				"result": map[string]any{
 					"message": fmt.Sprintf(`%v "foo": "bar"`, prompting_errors.ErrReplyNotMatchRequestedPath),
 					"kind":    "interfaces-requests-reply-not-match-request",
-					"value": map[string]interface{}{
-						"path-pattern": map[string]interface{}{
+					"value": map[string]any{
+						"path-pattern": map[string]any{
 							"requested-path":  "foo",
 							"replied-pattern": "bar",
 						},
@@ -576,14 +576,14 @@ func (s *promptingSuite) TestPromptingError(c *C) {
 				Requested: []string{"foo", "bar", "baz"},
 				Replied:   []string{"fizz", "buzz"},
 			},
-			body: map[string]interface{}{
-				"result": map[string]interface{}{
+			body: map[string]any{
+				"result": map[string]any{
 					"message": fmt.Sprintf(`%v [foo bar baz]: [fizz buzz]`, prompting_errors.ErrReplyNotMatchRequestedPermissions),
 					"kind":    "interfaces-requests-reply-not-match-request",
-					"value": map[string]interface{}{
-						"permissions": map[string]interface{}{
-							"requested-permissions": []interface{}{"foo", "bar", "baz"},
-							"replied-permissions":   []interface{}{"fizz", "buzz"},
+					"value": map[string]any{
+						"permissions": map[string]any{
+							"requested-permissions": []any{"foo", "bar", "baz"},
+							"replied-permissions":   []any{"fizz", "buzz"},
 						},
 					},
 				},
@@ -607,18 +607,18 @@ func (s *promptingSuite) TestPromptingError(c *C) {
 					},
 				},
 			},
-			body: map[string]interface{}{
-				"result": map[string]interface{}{
+			body: map[string]any{
+				"result": map[string]any{
 					"message": prompting_errors.ErrRuleConflict.Error(),
 					"kind":    "interfaces-requests-rule-conflict",
-					"value": map[string]interface{}{
-						"conflicts": []interface{}{
-							map[string]interface{}{
+					"value": map[string]any{
+						"conflicts": []any{
+							map[string]any{
 								"permission":     "foo",
 								"variant":        "variant 1",
 								"conflicting-id": "conflicting rule 1",
 							},
-							map[string]interface{}{
+							map[string]any{
 								"permission":     "bar",
 								"variant":        "variant 2",
 								"conflicting-id": "conflicting rule 2",
@@ -633,8 +633,8 @@ func (s *promptingSuite) TestPromptingError(c *C) {
 		},
 		{
 			err: fmt.Errorf("some arbitrary error"),
-			body: map[string]interface{}{
-				"result": map[string]interface{}{
+			body: map[string]any{
+				"result": map[string]any{
 					"message": "some arbitrary error",
 				},
 				"status":      "Internal Server Error",
@@ -647,7 +647,7 @@ func (s *promptingSuite) TestPromptingError(c *C) {
 		jsonResp := apiResp.JSON()
 		rec := httptest.NewRecorder()
 		jsonResp.ServeHTTP(rec, nil)
-		var body map[string]interface{}
+		var body map[string]any
 		err := json.Unmarshal(rec.Body.Bytes(), &body)
 		c.Check(err, IsNil)
 		c.Check(body, DeepEquals, testCase.body)

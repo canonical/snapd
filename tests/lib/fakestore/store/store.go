@@ -416,7 +416,7 @@ func (s *Store) repairsEndpoint(w http.ResponseWriter, req *http.Request) {
 		headers := a.Headers()
 		// we have to wrap the headers in a JSON object under the key
 		// "headers"
-		resp := map[string]interface{}{
+		resp := map[string]any{
 			"headers": headers,
 		}
 		b, err := json.Marshal(resp)

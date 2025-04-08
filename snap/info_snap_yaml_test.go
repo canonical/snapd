@@ -201,7 +201,7 @@ plugs:
 		Snap:      info,
 		Name:      "net",
 		Interface: "network-client",
-		Attrs:     map[string]interface{}{"ipv6-aware": true},
+		Attrs:     map[string]any{"ipv6-aware": true},
 		Unscoped:  true,
 	})
 }
@@ -227,10 +227,10 @@ plugs:
 		Snap:      info,
 		Name:      "iface",
 		Interface: "complex",
-		Attrs: map[string]interface{}{
+		Attrs: map[string]any{
 			"i": int64(3),
-			"l": []interface{}{int64(1), int64(2), int64(3)},
-			"m": map[string]interface{}{"a": "A", "b": "B"},
+			"l": []any{int64(1), int64(2), int64(3)},
+			"m": map[string]any{"a": "A", "b": "B"},
 		},
 		Unscoped: true,
 	})
@@ -256,7 +256,7 @@ plugs:
 		Snap:      info,
 		Name:      "net",
 		Interface: "network-client",
-		Attrs:     map[string]interface{}{"attr": int64(2)},
+		Attrs:     map[string]any{"attr": int64(2)},
 		Unscoped:  true,
 	})
 }
@@ -405,7 +405,7 @@ plugs:
 		Snap:      info,
 		Name:      "network-client",
 		Interface: "network-client",
-		Attrs:     map[string]interface{}{"ipv6-aware": true},
+		Attrs:     map[string]any{"ipv6-aware": true},
 		Unscoped:  true,
 	})
 }
@@ -602,7 +602,7 @@ slots:
 		Snap:      info,
 		Name:      "net",
 		Interface: "network-client",
-		Attrs:     map[string]interface{}{"ipv6-aware": true},
+		Attrs:     map[string]any{"ipv6-aware": true},
 		Unscoped:  true,
 	})
 }
@@ -627,10 +627,10 @@ slots:
 		Snap:      info,
 		Name:      "iface",
 		Interface: "complex",
-		Attrs: map[string]interface{}{
+		Attrs: map[string]any{
 			"i": int64(3),
-			"l": []interface{}{int64(1), int64(2)},
-			"m": map[string]interface{}{"a": "A"},
+			"l": []any{int64(1), int64(2)},
+			"m": map[string]any{"a": "A"},
 		},
 		Unscoped: true,
 	})
@@ -656,7 +656,7 @@ slots:
 		Snap:      info,
 		Name:      "net",
 		Interface: "network-client",
-		Attrs:     map[string]interface{}{"attr": int64(2)},
+		Attrs:     map[string]any{"attr": int64(2)},
 		Unscoped:  true,
 	})
 }
@@ -766,7 +766,7 @@ slots:
 		Snap:      info,
 		Name:      "network-client",
 		Interface: "network-client",
-		Attrs:     map[string]interface{}{"ipv6-aware": true},
+		Attrs:     map[string]any{"ipv6-aware": true},
 		Unscoped:  true,
 	})
 }
@@ -1359,7 +1359,7 @@ slots:
 	c.Check(slot1.Snap, Equals, info)
 	c.Check(slot1.Name, Equals, "foo-socket-slot")
 	c.Check(slot1.Interface, Equals, "socket")
-	c.Check(slot1.Attrs, DeepEquals, map[string]interface{}{
+	c.Check(slot1.Attrs, DeepEquals, map[string]any{
 		"protocol": "foo", "path": "$SNAP_DATA/socket"})
 	c.Check(slot1.Label, Equals, "")
 	c.Check(slot1.Apps, DeepEquals, map[string]*snap.AppInfo{app1.Name: app1})
@@ -1996,7 +1996,7 @@ system-usernames:
 	c.Assert(info.SystemUsernames["baz"], DeepEquals, &snap.SystemUsernameInfo{
 		Name:  "baz",
 		Scope: "private",
-		Attrs: map[string]interface{}{
+		Attrs: map[string]any{
 			"attr1": "norf",
 			"attr2": "corge",
 			"attr3": "",

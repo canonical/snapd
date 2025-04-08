@@ -2500,7 +2500,7 @@ func (s *policySuite) TestDollarMissingConnection(c *C) {
 func (s *policySuite) TestSlotDollarPlugDynamicAttrConnection(c *C) {
 	// "c" attribute of the plug missing
 	cand := policy.ConnectCandidate{
-		Plug:            interfaces.NewConnectedPlug(s.plugSnap.Plugs["slot-plug-attr-dynamic"], s.plugAppSet, nil, map[string]interface{}{}),
+		Plug:            interfaces.NewConnectedPlug(s.plugSnap.Plugs["slot-plug-attr-dynamic"], s.plugAppSet, nil, map[string]any{}),
 		Slot:            interfaces.NewConnectedSlot(s.slotSnap.Slots["slot-plug-attr"], s.slotAppSet, nil, nil),
 		BaseDeclaration: s.baseDecl,
 	}
@@ -2508,7 +2508,7 @@ func (s *policySuite) TestSlotDollarPlugDynamicAttrConnection(c *C) {
 
 	// plug attr == slot attr, "c" attribute of the plug provided by dynamic attribute
 	cand = policy.ConnectCandidate{
-		Plug: interfaces.NewConnectedPlug(s.plugSnap.Plugs["slot-plug-attr-dynamic"], s.plugAppSet, nil, map[string]interface{}{
+		Plug: interfaces.NewConnectedPlug(s.plugSnap.Plugs["slot-plug-attr-dynamic"], s.plugAppSet, nil, map[string]any{
 			"c": "C",
 		}),
 
@@ -2522,7 +2522,7 @@ func (s *policySuite) TestPlugDollarSlotDynamicAttrConnection(c *C) {
 	// "c" attribute of the slot missing
 	cand := policy.ConnectCandidate{
 		Plug:            interfaces.NewConnectedPlug(s.plugSnap.Plugs["plug-plug-attr"], s.plugAppSet, nil, nil),
-		Slot:            interfaces.NewConnectedSlot(s.slotSnap.Slots["plug-plug-attr-dynamic"], s.slotAppSet, nil, map[string]interface{}{}),
+		Slot:            interfaces.NewConnectedSlot(s.slotSnap.Slots["plug-plug-attr-dynamic"], s.slotAppSet, nil, map[string]any{}),
 		BaseDeclaration: s.baseDecl,
 	}
 	c.Check(cand.Check(), ErrorMatches, "connection not allowed.*")
@@ -2530,7 +2530,7 @@ func (s *policySuite) TestPlugDollarSlotDynamicAttrConnection(c *C) {
 	// plug attr == slot attr, "c" attribute of the slot provided by dynamic attribute
 	cand = policy.ConnectCandidate{
 		Plug: interfaces.NewConnectedPlug(s.plugSnap.Plugs["plug-plug-attr"], s.plugAppSet, nil, nil),
-		Slot: interfaces.NewConnectedSlot(s.slotSnap.Slots["plug-plug-attr-dynamic"], s.slotAppSet, nil, map[string]interface{}{
+		Slot: interfaces.NewConnectedSlot(s.slotSnap.Slots["plug-plug-attr-dynamic"], s.slotAppSet, nil, map[string]any{
 			"c": "C",
 		}),
 

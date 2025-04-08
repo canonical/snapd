@@ -375,7 +375,7 @@ var doNoTimeoutAndRetry = &doOptions{
 // do performs a request and decodes the resulting json into the given
 // value. It's low-level, for testing/experimenting only; you should
 // usually use a higher level interface that builds on this.
-func (client *Client) do(method, path string, query url.Values, headers map[string]string, body io.Reader, v interface{}, opts *doOptions) (statusCode int, err error) {
+func (client *Client) do(method, path string, query url.Values, headers map[string]string, body io.Reader, v any, opts *doOptions) (statusCode int, err error) {
 	opts = ensureDoOpts(opts)
 
 	client.checkMaintenanceJSON()
@@ -433,7 +433,7 @@ func shouldNotRetryError(err error) bool {
 		errors.Is(err, InternalClientError{})
 }
 
-func decodeInto(reader io.Reader, v interface{}) error {
+func decodeInto(reader io.Reader, v any) error {
 	dec := json.NewDecoder(reader)
 	if err := dec.Decode(v); err != nil {
 		r := dec.Buffered()
@@ -450,7 +450,7 @@ func decodeInto(reader io.Reader, v interface{}) error {
 // It expects a "sync" response from the API and on success decodes the JSON
 // response payload into the given value using the "UseNumber" json decoding
 // which produces json.Numbers instead of float64 types for numbers.
-func (client *Client) doSync(method, path string, query url.Values, headers map[string]string, body io.Reader, v interface{}) (*ResultInfo, error) {
+func (client *Client) doSync(method, path string, query url.Values, headers map[string]string, body io.Reader, v any) (*ResultInfo, error) {
 	return client.doSyncWithOpts(method, path, query, headers, body, v, nil)
 }
 
@@ -494,7 +494,7 @@ func (client *Client) checkMaintenanceJSON() {
 	}
 }
 
-func (client *Client) doSyncWithOpts(method, path string, query url.Values, headers map[string]string, body io.Reader, v interface{}, opts *doOptions) (*ResultInfo, error) {
+func (client *Client) doSyncWithOpts(method, path string, query url.Values, headers map[string]string, body io.Reader, v any, opts *doOptions) (*ResultInfo, error) {
 	// first check maintenance.json to see if snapd is down for a restart, and
 	// set cli.maintenance as appropriate, then perform the request
 	// TODO: it would be a nice thing to skip the request if we know that snapd
@@ -602,9 +602,9 @@ type response struct {
 
 // Error is the real value of response.Result when an error occurs.
 type Error struct {
-	Kind    ErrorKind   `json:"kind"`
-	Value   interface{} `json:"value"`
-	Message string      `json:"message"`
+	Kind    ErrorKind `json:"kind"`
+	Value   any       `json:"value"`
+	Message string    `json:"message"`
 
 	StatusCode int
 }
@@ -749,13 +749,13 @@ func (client *Client) SysInfo() (*SysInfo, error) {
 }
 
 type debugAction struct {
-	Action string      `json:"action"`
-	Params interface{} `json:"params,omitempty"`
+	Action string `json:"action"`
+	Params any    `json:"params,omitempty"`
 }
 
 // Debug is only useful when writing test code, it will trigger
 // an internal action with the given parameters.
-func (client *Client) Debug(action string, params interface{}, result interface{}) error {
+func (client *Client) Debug(action string, params any, result any) error {
 	body, err := json.Marshal(debugAction{
 		Action: action,
 		Params: params,
@@ -768,7 +768,7 @@ func (client *Client) Debug(action string, params interface{}, result interface{
 	return err
 }
 
-func (client *Client) DebugGet(aspect string, result interface{}, params map[string]string) error {
+func (client *Client) DebugGet(aspect string, result any, params map[string]string) error {
 	urlParams := url.Values{"aspect": []string{aspect}}
 	for k, v := range params {
 		urlParams.Set(k, v)
@@ -782,7 +782,7 @@ type SystemRecoveryKeysResponse struct {
 	ReinstallKey string `json:"reinstall-key,omitempty"`
 }
 
-func (client *Client) SystemRecoveryKeys(result interface{}) error {
+func (client *Client) SystemRecoveryKeys(result any) error {
 	_, err := client.doSync("GET", "/v2/system-recovery-keys", nil, nil, nil, &result)
 	return err
 }

@@ -302,7 +302,7 @@ func EstimateSnapshotSize(si *snap.Info, usernames []string, dirOpts *dirs.SnapD
 }
 
 // Save a snapshot
-func Save(ctx context.Context, id uint64, si *snap.Info, cfg map[string]interface{}, usernames []string, dynSnapshotOpts *snap.SnapshotOptions, dirOpts *dirs.SnapDirOptions) (*client.Snapshot, error) {
+func Save(ctx context.Context, id uint64, si *snap.Info, cfg map[string]any, usernames []string, dynSnapshotOpts *snap.SnapshotOptions, dirOpts *dirs.SnapDirOptions) (*client.Snapshot, error) {
 	if err := os.MkdirAll(dirs.SnapshotsDir, 0700); err != nil {
 		return nil, err
 	}

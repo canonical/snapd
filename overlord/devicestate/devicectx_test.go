@@ -51,7 +51,7 @@ func (s *deviceCtxSuite) testGroundDeviceContext(c *C, mode string) {
 	var devCtx snapstate.DeviceContext
 
 	// Classic with classic initramfs
-	classicModel := assertstest.FakeAssertion(map[string]interface{}{
+	classicModel := assertstest.FakeAssertion(map[string]any{
 		"type":         "model",
 		"classic":      "true",
 		"authority-id": "my-brand",

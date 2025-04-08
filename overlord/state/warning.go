@@ -181,7 +181,7 @@ func (s *State) unflattenWarnings(flat []*Warning) {
 // message it'll be added (with its firstAdded and lastAdded set to the
 // current time), otherwise the existing one will have its lastAdded
 // updated.
-func (s *State) Warnf(template string, args ...interface{}) {
+func (s *State) Warnf(template string, args ...any) {
 	var message string
 	if len(args) > 0 {
 		message = fmt.Sprintf(template, args...)

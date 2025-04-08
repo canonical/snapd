@@ -42,7 +42,7 @@ type sinceUntil struct {
 	until time.Time
 }
 
-func checkSinceUntilWhat(m map[string]interface{}, what string) (*sinceUntil, error) {
+func checkSinceUntilWhat(m map[string]any, what string) (*sinceUntil, error) {
 	since, err := checkRFC3339DateWhat(m, "since", what)
 	if err != nil {
 		return nil, err
@@ -130,7 +130,7 @@ func (ak *AccountKey) publicKey() PublicKey {
 }
 
 // ConstraintsPrecheck checks whether the given type and headers match the signing constraints of the account key.
-func (ak *AccountKey) ConstraintsPrecheck(assertType *AssertionType, headers map[string]interface{}) error {
+func (ak *AccountKey) ConstraintsPrecheck(assertType *AssertionType, headers map[string]any) error {
 	headersWithType := copyHeaders(headers)
 	headersWithType["type"] = assertType.Name
 	if !ak.matchAgainstConstraints(headersWithType) {
@@ -139,7 +139,7 @@ func (ak *AccountKey) ConstraintsPrecheck(assertType *AssertionType, headers map
 	return nil
 }
 
-func (ak *AccountKey) matchAgainstConstraints(headers map[string]interface{}) bool {
+func (ak *AccountKey) matchAgainstConstraints(headers map[string]any) bool {
 	matchers := ak.constraintMatchers
 	// no constraints, everything is allowed
 	if len(matchers) == 0 {
@@ -265,8 +265,8 @@ func assembleAccountKey(assert assertionBase) (Assertion, error) {
 	}, nil
 }
 
-func checkAKConstraints(cs interface{}) ([]attrMatcher, error) {
-	csmaps, ok := cs.([]interface{})
+func checkAKConstraints(cs any) ([]attrMatcher, error) {
+	csmaps, ok := cs.([]any)
 	if !ok {
 		return nil, fmt.Errorf("assertions constraints must be a list of maps")
 	}
@@ -276,7 +276,7 @@ func checkAKConstraints(cs interface{}) ([]attrMatcher, error) {
 	}
 	matchers := make([]attrMatcher, 0, len(csmaps))
 	for _, csmap := range csmaps {
-		m, ok := csmap.(map[string]interface{})
+		m, ok := csmap.(map[string]any)
 		if !ok {
 			return nil, fmt.Errorf("assertions constraints must be a list of maps")
 		}
@@ -310,7 +310,7 @@ func checkAKConstraints(cs interface{}) ([]attrMatcher, error) {
 	return matchers, nil
 }
 
-func accountKeyFormatAnalyze(headers map[string]interface{}, body []byte) (formatnum int, err error) {
+func accountKeyFormatAnalyze(headers map[string]any, body []byte) (formatnum int, err error) {
 	formatnum = 0
 	if _, ok := headers["constraints"]; ok {
 		formatnum = 1

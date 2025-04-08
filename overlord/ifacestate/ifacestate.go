@@ -147,7 +147,7 @@ func connect(st *state.State, plugSnap, plugName, slotSnap, slotName string, fla
 	}
 
 	connectInterface := st.NewTask("connect", fmt.Sprintf(i18n.G("Connect %s:%s to %s:%s"), plugSnap, plugName, slotSnap, slotName))
-	initialContext := make(map[string]interface{})
+	initialContext := make(map[string]any)
 	initialContext["attrs-task"] = connectInterface.ID()
 
 	tasks := state.NewTaskSet()
@@ -212,7 +212,7 @@ func connect(st *state.State, plugSnap, plugName, slotSnap, slotName string, fla
 
 	// Expose a copy of all plug and slot attributes coming from yaml to interface hooks. The hooks will be able
 	// to modify them but all attributes will be checked against assertions after the hooks are run.
-	emptyDynamicAttrs := map[string]interface{}{}
+	emptyDynamicAttrs := map[string]any{}
 	connectInterface.Set("plug-static", plugStatic)
 	connectInterface.Set("slot-static", slotStatic)
 	connectInterface.Set("plug-dynamic", emptyDynamicAttrs)
@@ -281,7 +281,7 @@ func connect(st *state.State, plugSnap, plugName, slotSnap, slotName string, fla
 	return tasks, nil
 }
 
-func initialConnectAttributes(st *state.State, plugSnapInfo *snap.Info, plugSnap string, plugName string, slotSnapInfo *snap.Info, slotSnap string, slotName string) (plugStatic, slotStatic map[string]interface{}, err error) {
+func initialConnectAttributes(st *state.State, plugSnapInfo *snap.Info, plugSnap string, plugName string, slotSnapInfo *snap.Info, slotSnap string, slotName string) (plugStatic, slotStatic map[string]any, err error) {
 	var plugSnapst snapstate.SnapState
 
 	if err = snapstate.Get(st, plugSnap, &plugSnapst); err != nil {
@@ -413,7 +413,7 @@ func disconnectTasks(st *state.State, conn *interfaces.Connection, flags disconn
 		prev = t
 	}
 
-	initialContext := make(map[string]interface{})
+	initialContext := make(map[string]any)
 	initialContext["attrs-task"] = disconnectTask.ID()
 
 	plugSnapInfo, err := plugSnapst.CurrentInfo()

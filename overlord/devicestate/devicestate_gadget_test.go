@@ -168,7 +168,7 @@ func (s *deviceMgrGadgetSuite) mockModeenvForMode(c *C, mode string) {
 }
 
 func (s *deviceMgrGadgetSuite) setupModelWithGadget(c *C, gadget string) {
-	s.makeModelAssertionInState(c, "canonical", "pc-model", map[string]interface{}{
+	s.makeModelAssertionInState(c, "canonical", "pc-model", map[string]any{
 		"architecture": "amd64",
 		"kernel":       "pc-kernel",
 		"gadget":       gadget,
@@ -182,19 +182,19 @@ func (s *deviceMgrGadgetSuite) setupModelWithGadget(c *C, gadget string) {
 }
 
 func (s *deviceMgrGadgetSuite) setupUC20ModelWithGadget(c *C, gadget, grade string) {
-	s.makeModelAssertionInState(c, "canonical", "pc20-model", map[string]interface{}{
+	s.makeModelAssertionInState(c, "canonical", "pc20-model", map[string]any{
 		"display-name": "UC20 pc model",
 		"architecture": "amd64",
 		"base":         "core20",
 		"grade":        grade,
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":            "pc-kernel",
 				"id":              "pckernelidididididididididididid",
 				"type":            "kernel",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            gadget,
 				"id":              "pcididididididididididididididid",
 				"type":            "gadget",
@@ -215,18 +215,18 @@ func (s *deviceMgrGadgetSuite) setupClassicWithModesModel(c *C, gadget string) *
 		Serial: "didididi",
 	})
 	return s.makeModelAssertionInState(c, "canonical", "classic-with-modes",
-		map[string]interface{}{
+		map[string]any{
 			"architecture": "amd64",
 			"classic":      "true",
 			"distribution": "ubuntu",
 			"base":         "core22",
-			"snaps": []interface{}{
-				map[string]interface{}{
+			"snaps": []any{
+				map[string]any{
 					"name": "pc-linux",
 					"id":   "pclinuxdidididididididididididid",
 					"type": "kernel",
 				},
-				map[string]interface{}{
+				map[string]any{
 					"name": gadget,
 					"id":   "pcididididididididididididididid",
 					"type": "gadget",
@@ -826,7 +826,7 @@ func (s *deviceMgrGadgetSuite) TestCurrentAndUpdateInfo(c *C) {
 		Type:     snap.TypeGadget,
 	}
 
-	model := s.brands.Model("canonical", "pc-model", map[string]interface{}{
+	model := s.brands.Model("canonical", "pc-model", map[string]any{
 		"architecture": "amd64",
 		"kernel":       "pc-kernel",
 		"gadget":       "foo-gadget",
@@ -1147,7 +1147,7 @@ func (s *deviceMgrGadgetSuite) TestUpdateGadgetOnCoreFromKernelRemodel(c *C) {
 	chg, t := s.makeMinimalKernelAssetsUpdateChange(c)
 	devicestate.SetBootOkRan(s.mgr, true)
 
-	newModel := s.brands.Model("canonical", "pc-model", map[string]interface{}{
+	newModel := s.brands.Model("canonical", "pc-model", map[string]any{
 		"architecture": "amd64",
 		"kernel":       "pc-kernel",
 		"gadget":       "foo-gadget",

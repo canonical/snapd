@@ -481,7 +481,7 @@ func (s *SnapSuite) TestAutoImportUC20CandidatesIgnoresSystemPartitions(c *C) {
 	dirs.SetRootDir(rootDir)
 	defer func() { dirs.SetRootDir("") }()
 
-	args := make([]interface{}, 0, len(mountDirs)+1)
+	args := make([]any, 0, len(mountDirs)+1)
 	args = append(args, dirs.GlobalRootDir)
 	// pretend there are auto-import.asserts on all of them
 	for _, dir := range mountDirs {

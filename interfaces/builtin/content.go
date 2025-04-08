@@ -86,7 +86,7 @@ func (iface *contentInterface) BeforePrepareSlot(slot *snap.SlotInfo) error {
 	content, ok := slot.Attrs["content"].(string)
 	if !ok || len(content) == 0 {
 		if slot.Attrs == nil {
-			slot.Attrs = make(map[string]interface{})
+			slot.Attrs = make(map[string]any)
 		}
 		// content defaults to "slot" name if unspecified
 		slot.Attrs["content"] = slot.Name
@@ -124,7 +124,7 @@ func (iface *contentInterface) BeforePreparePlug(plug *snap.PlugInfo) error {
 	content, ok := plug.Attrs["content"].(string)
 	if !ok || len(content) == 0 {
 		if plug.Attrs == nil {
-			plug.Attrs = make(map[string]interface{})
+			plug.Attrs = make(map[string]any)
 		}
 		// content defaults to "plug" name if unspecified
 		plug.Attrs["content"] = plug.Name
@@ -147,13 +147,13 @@ func (iface *contentInterface) path(attrs interfaces.Attrer, name string) []stri
 		panic("internal error, path can only be used with read/write")
 	}
 
-	var paths []interface{}
-	var source map[string]interface{}
+	var paths []any
+	var source map[string]any
 
 	if err := attrs.Attr("source", &source); err == nil {
 		// Access either "source.read" or "source.write" attribute.
 		var ok bool
-		if paths, ok = source[name].([]interface{}); !ok {
+		if paths, ok = source[name].([]any); !ok {
 			return nil
 		}
 	} else {
@@ -202,7 +202,7 @@ func sourceTarget(plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot
 	target = resolveSpecialVariable(target, plug.Snap())
 
 	// Check if the "source" section is present.
-	var unused map[string]interface{}
+	var unused map[string]any
 	if err := slot.Attr("source", &unused); err == nil {
 		_, sourceName := filepath.Split(source)
 		target = filepath.Join(target, sourceName)

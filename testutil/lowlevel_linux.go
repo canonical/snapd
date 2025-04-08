@@ -49,7 +49,7 @@ func (*fakeFileInfo) Size() int64          { panic("unexpected call") }
 func (fi *fakeFileInfo) Mode() os.FileMode { return fi.mode }
 func (*fakeFileInfo) ModTime() time.Time   { panic("unexpected call") }
 func (fi *fakeFileInfo) IsDir() bool       { return fi.Mode().IsDir() }
-func (*fakeFileInfo) Sys() interface{}     { panic("unexpected call") }
+func (*fakeFileInfo) Sys() any             { panic("unexpected call") }
 
 // FakeFileInfo returns a fake object implementing os.FileInfo
 func FakeFileInfo(name string, mode os.FileMode) os.FileInfo {
@@ -163,7 +163,7 @@ func formatUnmountFlags(flags int) string {
 // abbreviated due to the nature of their use (in large quantity).
 type CallResultError struct {
 	C string
-	R interface{}
+	R any
 	E error
 }
 
@@ -244,7 +244,7 @@ func (sys *SyscallRecorder) RCalls() []CallResultError {
 }
 
 // rcall remembers that a given call has occurred and returns a pre-arranged error or value, if any
-func (sys *SyscallRecorder) rcall(call string, resultFn func(call string) (interface{}, error)) (val interface{}, err error) {
+func (sys *SyscallRecorder) rcall(call string, resultFn func(call string) (any, error)) (val any, err error) {
 	if errorFn := sys.errors[call]; errorFn != nil {
 		err = errorFn()
 	}
@@ -300,7 +300,7 @@ func (sys *SyscallRecorder) CheckForStrayDescriptors(c *check.C) {
 // Open is a fake implementation of syscall.Open
 func (sys *SyscallRecorder) Open(path string, flags int, mode uint32) (int, error) {
 	call := fmt.Sprintf("open %q %s %#o", path, formatOpenFlags(flags), mode)
-	fd, err := sys.rcall(call, func(call string) (interface{}, error) {
+	fd, err := sys.rcall(call, func(call string) (any, error) {
 		return sys.allocFd(call), nil
 	})
 	if err != nil {
@@ -312,7 +312,7 @@ func (sys *SyscallRecorder) Open(path string, flags int, mode uint32) (int, erro
 // Openat is a fake implementation of syscall.Openat
 func (sys *SyscallRecorder) Openat(dirfd int, path string, flags int, mode uint32) (int, error) {
 	call := fmt.Sprintf("openat %d %q %s %#o", dirfd, path, formatOpenFlags(flags), mode)
-	fd, err := sys.rcall(call, func(call string) (interface{}, error) {
+	fd, err := sys.rcall(call, func(call string) (any, error) {
 		if _, ok := sys.fds[dirfd]; !ok {
 			return -1, fmt.Errorf("attempting to openat with an invalid file descriptor %d", dirfd)
 		}
@@ -327,7 +327,7 @@ func (sys *SyscallRecorder) Openat(dirfd int, path string, flags int, mode uint3
 // Close is a fake implementation of syscall.Close
 func (sys *SyscallRecorder) Close(fd int) error {
 	call := fmt.Sprintf("close %d", fd)
-	_, err := sys.rcall(call, func(call string) (interface{}, error) {
+	_, err := sys.rcall(call, func(call string) (any, error) {
 		return nil, sys.freeFd(fd)
 	})
 	return err
@@ -336,7 +336,7 @@ func (sys *SyscallRecorder) Close(fd int) error {
 // Fchown is a fake implementation of syscall.Fchown
 func (sys *SyscallRecorder) Fchown(fd int, uid sys.UserID, gid sys.GroupID) error {
 	call := fmt.Sprintf("fchown %d %d %d", fd, uid, gid)
-	_, err := sys.rcall(call, func(call string) (interface{}, error) {
+	_, err := sys.rcall(call, func(call string) (any, error) {
 		if _, ok := sys.fds[fd]; !ok {
 			return nil, fmt.Errorf("attempting to fchown an invalid file descriptor %d", fd)
 		}
@@ -348,7 +348,7 @@ func (sys *SyscallRecorder) Fchown(fd int, uid sys.UserID, gid sys.GroupID) erro
 // Mkdirat is a fake implementation of syscall.Mkdirat
 func (sys *SyscallRecorder) Mkdirat(dirfd int, path string, mode uint32) error {
 	call := fmt.Sprintf("mkdirat %d %q %#o", dirfd, path, mode)
-	_, err := sys.rcall(call, func(call string) (interface{}, error) {
+	_, err := sys.rcall(call, func(call string) (any, error) {
 		if _, ok := sys.fds[dirfd]; !ok {
 			return nil, fmt.Errorf("attempting to mkdirat with an invalid file descriptor %d", dirfd)
 		}
@@ -391,7 +391,7 @@ func (sys *SyscallRecorder) InsertSysLstatResult(call string, sb syscall.Stat_t)
 func (sys *SyscallRecorder) OsLstat(name string) (os.FileInfo, error) {
 	// NOTE the syscall.Lstat uses a different signature `lstat %q <ptr>`.
 	call := fmt.Sprintf("lstat %q", name)
-	val, err := sys.rcall(call, func(call string) (interface{}, error) {
+	val, err := sys.rcall(call, func(call string) (any, error) {
 		if fi, ok := sys.osLstats[call]; ok {
 			return fi, nil
 		}
@@ -407,7 +407,7 @@ func (sys *SyscallRecorder) OsLstat(name string) (os.FileInfo, error) {
 func (sys *SyscallRecorder) SysLstat(name string, sb *syscall.Stat_t) error {
 	// NOTE the os.Lstat uses a different signature `lstat %q`.
 	call := fmt.Sprintf("lstat %q <ptr>", name)
-	val, err := sys.rcall(call, func(call string) (interface{}, error) {
+	val, err := sys.rcall(call, func(call string) (any, error) {
 		if buf, ok := sys.sysLstats[call]; ok {
 			return buf, nil
 		}
@@ -430,7 +430,7 @@ func (sys *SyscallRecorder) InsertFstatResult(call string, buf syscall.Stat_t) {
 // Fstat is a fake implementation of syscall.Fstat
 func (sys *SyscallRecorder) Fstat(fd int, buf *syscall.Stat_t) error {
 	call := fmt.Sprintf("fstat %d <ptr>", fd)
-	val, err := sys.rcall(call, func(call string) (interface{}, error) {
+	val, err := sys.rcall(call, func(call string) (any, error) {
 		if _, ok := sys.fds[fd]; !ok {
 			return nil, fmt.Errorf("attempting to fstat with an invalid file descriptor %d", fd)
 		}
@@ -473,7 +473,7 @@ func (sys *SyscallRecorder) InsertFstatfsResult(call string, bufs ...syscall.Sta
 // Fstatfs is a fake implementation of syscall.Fstatfs
 func (sys *SyscallRecorder) Fstatfs(fd int, buf *syscall.Statfs_t) error {
 	call := fmt.Sprintf("fstatfs %d <ptr>", fd)
-	val, err := sys.rcall(call, func(call string) (interface{}, error) {
+	val, err := sys.rcall(call, func(call string) (any, error) {
 		if _, ok := sys.fds[fd]; !ok {
 			return nil, fmt.Errorf("attempting to fstatfs with an invalid file descriptor %d", fd)
 		}
@@ -499,7 +499,7 @@ func (sys *SyscallRecorder) InsertReadDirResult(call string, infos []fs.DirEntry
 // ReadDir is a fake implementation of os.ReadDir
 func (sys *SyscallRecorder) ReadDir(dirname string) ([]fs.DirEntry, error) {
 	call := fmt.Sprintf("readdir %q", dirname)
-	val, err := sys.rcall(call, func(call string) (interface{}, error) {
+	val, err := sys.rcall(call, func(call string) (any, error) {
 		if fi, ok := sys.readdirs[call]; ok {
 			return fi, nil
 		}
@@ -521,7 +521,7 @@ func (sys *SyscallRecorder) Symlink(oldname, newname string) error {
 // Symlinkat is a fake implementation of osutil.Symlinkat (syscall.Symlinkat is not exposed)
 func (sys *SyscallRecorder) Symlinkat(oldname string, dirfd int, newname string) error {
 	call := fmt.Sprintf("symlinkat %q %d %q", oldname, dirfd, newname)
-	_, err := sys.rcall(call, func(call string) (interface{}, error) {
+	_, err := sys.rcall(call, func(call string) (any, error) {
 		if _, ok := sys.fds[dirfd]; !ok {
 			return nil, fmt.Errorf("attempting to symlinkat with an invalid file descriptor %d", dirfd)
 		}
@@ -541,7 +541,7 @@ func (sys *SyscallRecorder) InsertReadlinkatResult(call, oldname string) {
 // Readlinkat is a fake implementation of osutil.Readlinkat (syscall.Readlinkat is not exposed)
 func (sys *SyscallRecorder) Readlinkat(dirfd int, path string, buf []byte) (int, error) {
 	call := fmt.Sprintf("readlinkat %d %q <ptr>", dirfd, path)
-	val, err := sys.rcall(call, func(call string) (interface{}, error) {
+	val, err := sys.rcall(call, func(call string) (any, error) {
 		if _, ok := sys.fds[dirfd]; !ok {
 			return nil, fmt.Errorf("attempting to readlinkat with an invalid file descriptor %d", dirfd)
 		}
@@ -567,7 +567,7 @@ func (sys *SyscallRecorder) Remove(name string) error {
 // Fchdir is a fake implementation of syscall.Fchdir
 func (sys *SyscallRecorder) Fchdir(fd int) error {
 	call := fmt.Sprintf("fchdir %d", fd)
-	_, err := sys.rcall(call, func(call string) (interface{}, error) {
+	_, err := sys.rcall(call, func(call string) (any, error) {
 		if _, ok := sys.fds[fd]; !ok {
 			return nil, fmt.Errorf("attempting to fchdir with an invalid file descriptor %d", fd)
 		}

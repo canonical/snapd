@@ -70,7 +70,7 @@ func (s *hostnameSuite) TestConfigureHostnameFsOnlyInvalid(c *C) {
 	}
 
 	for _, name := range invalidHostnames {
-		conf := configcore.PlainCoreConfig(map[string]interface{}{
+		conf := configcore.PlainCoreConfig(map[string]any{
 			"system.hostname": name,
 		})
 		err := configcore.FilesystemOnlyApply(coreDev, tmpdir, conf)
@@ -107,7 +107,7 @@ func (s *hostnameSuite) TestConfigureHostnameFsOnlyHappy(c *C) {
 	}
 
 	for _, name := range validHostnames {
-		conf := configcore.PlainCoreConfig(map[string]interface{}{
+		conf := configcore.PlainCoreConfig(map[string]any{
 			"system.hostname": name,
 		})
 		err := configcore.FilesystemOnlyApply(coreDev, tmpdir, conf)
@@ -126,7 +126,7 @@ func (s *hostnameSuite) TestConfigureHostnameWithStateOnlyHostnamectlValidates(c
 	for _, hostname := range hostnames {
 		err := configcore.FilesystemOnlyRun(coreDev, &mockConf{
 			state: s.state,
-			conf: map[string]interface{}{
+			conf: map[string]any{
 				"system.hostname": hostname,
 			},
 		})
@@ -153,7 +153,7 @@ fi`
 	hostname := "simulated-invalid-hostname"
 	err := configcore.FilesystemOnlyRun(coreDev, &mockConf{
 		state: s.state,
-		conf: map[string]interface{}{
+		conf: map[string]any{
 			"system.hostname": hostname,
 		},
 	})
@@ -169,7 +169,7 @@ func (s *hostnameSuite) TestConfigureHostnameIntegrationSameHostname(c *C) {
 	// already returning "bar"
 	err := configcore.FilesystemOnlyRun(coreDev, &mockConf{
 		state: s.state,
-		conf: map[string]interface{}{
+		conf: map[string]any{
 			// hostname is already "bar"
 			"system.hostname": "bar",
 		},
@@ -194,7 +194,7 @@ fi`
 	// and set new hostname to "bar"
 	err := configcore.FilesystemOnlyRun(coreDev, &mockConf{
 		state: s.state,
-		conf: map[string]interface{}{
+		conf: map[string]any{
 			// hostname is already "bar"
 			"system.hostname": "bar",
 		},
@@ -207,7 +207,7 @@ fi`
 }
 
 func (s *hostnameSuite) TestFilesystemOnlyApplyHappy(c *C) {
-	conf := configcore.PlainCoreConfig(map[string]interface{}{
+	conf := configcore.PlainCoreConfig(map[string]any{
 		"system.hostname": "bar",
 	})
 	tmpDir := c.MkDir()

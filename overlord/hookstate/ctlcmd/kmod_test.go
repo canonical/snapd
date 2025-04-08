@@ -41,7 +41,7 @@ type kmodSuite struct {
 	hookTask    *state.Task
 	// A connection state for a snap using the kmod interface with the plug
 	// properly configured, which we'll be reusing in different test cases
-	regularConnState map[string]interface{}
+	regularConnState map[string]any
 }
 
 var _ = Suite(&kmodSuite{})
@@ -62,15 +62,15 @@ func (s *kmodSuite) SetUpTest(c *C) {
 	c.Assert(err, IsNil)
 	s.mockContext = ctx
 
-	s.regularConnState = map[string]interface{}{
+	s.regularConnState = map[string]any{
 		"interface": "kernel-module-load",
-		"plug-static": map[string]interface{}{
-			"modules": []interface{}{
-				map[string]interface{}{
+		"plug-static": map[string]any{
+			"modules": []any{
+				map[string]any{
 					"name": "module1",
 					"load": "dynamic",
 				},
-				map[string]interface{}{
+				map[string]any{
 					"name":    "module2",
 					"load":    "dynamic",
 					"options": "*",
@@ -84,7 +84,7 @@ func (s *kmodSuite) SetUpTest(c *C) {
 func (s *kmodSuite) injectSnapWithProperPlug(c *C) {
 	s.state.Lock()
 	mockInstalledSnap(c, s.state, `name: snap1`, "")
-	s.state.Set("conns", map[string]interface{}{
+	s.state.Set("conns", map[string]any{
 		"snap1:plug1 snap2:slot2": s.regularConnState,
 	})
 	s.state.Unlock()
@@ -99,27 +99,27 @@ func (s *kmodSuite) TestMissingContext(c *C) {
 
 func (s *kmodSuite) TestMatchConnection(c *C) {
 	for _, td := range []struct {
-		attributes    map[string]interface{}
+		attributes    map[string]any
 		moduleName    string
 		moduleOptions []string
 		expectedMatch bool
 	}{
 		// missing "load" attribute
-		{map[string]interface{}{}, "", []string{}, false},
+		{map[string]any{}, "", []string{}, false},
 		// empty "load" attribute
-		{map[string]interface{}{"load": ""}, "", []string{}, false},
+		{map[string]any{"load": ""}, "", []string{}, false},
 		// "load" attribute must be set to "dynamic"
-		{map[string]interface{}{"load": "on-boot"}, "", []string{}, false},
+		{map[string]any{"load": "on-boot"}, "", []string{}, false},
 		// different module name
-		{map[string]interface{}{"load": "dynamic", "name": "mod1"}, "mod2", []string{}, false},
+		{map[string]any{"load": "dynamic", "name": "mod1"}, "mod2", []string{}, false},
 		// options given but plug does not have "options" attribute
-		{map[string]interface{}{"load": "dynamic", "name": "mod1"}, "mod1", []string{"opt1"}, false},
+		{map[string]any{"load": "dynamic", "name": "mod1"}, "mod1", []string{"opt1"}, false},
 		// options given but plug does not have "options" set to "*"
-		{map[string]interface{}{"load": "dynamic", "name": "mod1", "options": "opt1"}, "mod1", []string{"opt1"}, false},
+		{map[string]any{"load": "dynamic", "name": "mod1", "options": "opt1"}, "mod1", []string{"opt1"}, false},
 		// happy with no options
-		{map[string]interface{}{"load": "dynamic", "name": "mod1"}, "mod1", []string{}, true},
+		{map[string]any{"load": "dynamic", "name": "mod1"}, "mod1", []string{}, true},
 		// happy with options and "*" on plug
-		{map[string]interface{}{"load": "dynamic", "name": "mod1", "options": "*"}, "mod1", []string{"opt1"}, true},
+		{map[string]any{"load": "dynamic", "name": "mod1", "options": "*"}, "mod1", []string{"opt1"}, true},
 	} {
 		testLabel := Commentf("Attrs: %v, name: %q, opts: %q", td.attributes, td.moduleName, td.moduleOptions)
 		matches := ctlcmd.KmodMatchConnection(td.attributes, td.moduleName, td.moduleOptions)
@@ -149,7 +149,7 @@ func (s *kmodSuite) TestFindConnectionMissingProperPlug(c *C) {
 	mockInstalledSnap(c, s.state, `name: snap1`, "")
 	// Inject a lot of connections in the state, but all of them defective for
 	// one or another reason
-	connections := make(map[string]interface{})
+	connections := make(map[string]any)
 	// wrong interface
 	conn := CopyMap(s.regularConnState)
 	conn["interface"] = "unrelated"

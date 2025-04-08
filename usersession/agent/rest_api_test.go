@@ -90,7 +90,7 @@ func (s *restSuite) TearDownTest(c *C) {
 
 type resp struct {
 	Type   agent.ResponseType `json:"type"`
-	Result interface{}        `json:"result"`
+	Result any                `json:"result"`
 }
 
 func (s *restSuite) TestSessionInfo(c *C) {
@@ -111,7 +111,7 @@ func (s *restSuite) TestSessionInfo(c *C) {
 	var rsp resp
 	c.Assert(json.Unmarshal(rec.Body.Bytes(), &rsp), IsNil)
 	c.Check(rsp.Type, Equals, agent.ResponseTypeSync)
-	c.Check(rsp.Result, DeepEquals, map[string]interface{}{
+	c.Check(rsp.Result, DeepEquals, map[string]any{
 		"version": "42b1",
 	})
 }
@@ -223,11 +223,11 @@ func (s *restSuite) TestServiceControlStartEnableFailsAndDisables(c *C) {
 	var rsp resp
 	c.Assert(json.Unmarshal(rec.Body.Bytes(), &rsp), IsNil)
 	c.Check(rsp.Type, Equals, agent.ResponseTypeError)
-	c.Check(rsp.Result, DeepEquals, map[string]interface{}{
+	c.Check(rsp.Result, DeepEquals, map[string]any{
 		"kind": "service-control", "message": "some user services failed to start",
-		"value": map[string]interface{}{
-			"start-errors": map[string]interface{}{"snap.bar.service": "mock systemctl error"},
-			"stop-errors":  map[string]interface{}{},
+		"value": map[string]any{
+			"start-errors": map[string]any{"snap.bar.service": "mock systemctl error"},
+			"stop-errors":  map[string]any{},
 		},
 	})
 
@@ -260,7 +260,7 @@ func (s *restSuite) TestServicesStartNonSnap(c *C) {
 	var rsp resp
 	c.Assert(json.Unmarshal(rec.Body.Bytes(), &rsp), IsNil)
 	c.Check(rsp.Type, Equals, agent.ResponseTypeError)
-	c.Check(rsp.Result, DeepEquals, map[string]interface{}{
+	c.Check(rsp.Result, DeepEquals, map[string]any{
 		"message": "cannot start non-snap service not-snap.bar.service",
 	})
 
@@ -289,14 +289,14 @@ func (s *restSuite) TestServicesStartFailureStopsServices(c *C) {
 	var rsp resp
 	c.Assert(json.Unmarshal(rec.Body.Bytes(), &rsp), IsNil)
 	c.Check(rsp.Type, Equals, agent.ResponseTypeError)
-	c.Check(rsp.Result, DeepEquals, map[string]interface{}{
+	c.Check(rsp.Result, DeepEquals, map[string]any{
 		"message": "some user services failed to start",
 		"kind":    "service-control",
-		"value": map[string]interface{}{
-			"start-errors": map[string]interface{}{
+		"value": map[string]any{
+			"start-errors": map[string]any{
 				"snap.bar.service": "start failure",
 			},
-			"stop-errors": map[string]interface{}{},
+			"stop-errors": map[string]any{},
 		},
 	})
 
@@ -332,14 +332,14 @@ func (s *restSuite) TestServicesStartFailureReportsStopFailures(c *C) {
 	var rsp resp
 	c.Assert(json.Unmarshal(rec.Body.Bytes(), &rsp), IsNil)
 	c.Check(rsp.Type, Equals, agent.ResponseTypeError)
-	c.Check(rsp.Result, DeepEquals, map[string]interface{}{
+	c.Check(rsp.Result, DeepEquals, map[string]any{
 		"message": "some user services failed to start",
 		"kind":    "service-control",
-		"value": map[string]interface{}{
-			"start-errors": map[string]interface{}{
+		"value": map[string]any{
+			"start-errors": map[string]any{
 				"snap.bar.service": "start failure",
 			},
-			"stop-errors": map[string]interface{}{
+			"stop-errors": map[string]any{
 				"snap.foo.service": "stop failure",
 			},
 		},
@@ -418,7 +418,7 @@ func (s *restSuite) TestServicesStopDisableFailsOnDisable(c *C) {
 	var rsp resp
 	c.Assert(json.Unmarshal(rec.Body.Bytes(), &rsp), IsNil)
 	c.Check(rsp.Type, Equals, agent.ResponseTypeError)
-	c.Check(rsp.Result, DeepEquals, map[string]interface{}{
+	c.Check(rsp.Result, DeepEquals, map[string]any{
 		"message": "cannot disable services [\"snap.foo.service\"]: mock systemctl error",
 	})
 
@@ -450,7 +450,7 @@ func (s *restSuite) TestServicesStopDisableFailsOnReload(c *C) {
 	var rsp resp
 	c.Assert(json.Unmarshal(rec.Body.Bytes(), &rsp), IsNil)
 	c.Check(rsp.Type, Equals, agent.ResponseTypeError)
-	c.Check(rsp.Result, DeepEquals, map[string]interface{}{
+	c.Check(rsp.Result, DeepEquals, map[string]any{
 		"message": "cannot reload systemd: mock systemctl error",
 	})
 
@@ -473,7 +473,7 @@ func (s *restSuite) TestServicesStopNonSnap(c *C) {
 	var rsp resp
 	c.Assert(json.Unmarshal(rec.Body.Bytes(), &rsp), IsNil)
 	c.Check(rsp.Type, Equals, agent.ResponseTypeError)
-	c.Check(rsp.Result, DeepEquals, map[string]interface{}{
+	c.Check(rsp.Result, DeepEquals, map[string]any{
 		"message": "cannot stop non-snap service not-snap.bar.service",
 	})
 
@@ -505,11 +505,11 @@ func (s *restSuite) TestServicesStopReportsError(c *C) {
 	var rsp resp
 	c.Assert(json.Unmarshal(rec.Body.Bytes(), &rsp), IsNil)
 	c.Check(rsp.Type, Equals, agent.ResponseTypeError)
-	c.Check(rsp.Result, DeepEquals, map[string]interface{}{
+	c.Check(rsp.Result, DeepEquals, map[string]any{
 		"message": "some user services failed to stop",
 		"kind":    "service-control",
-		"value": map[string]interface{}{
-			"stop-errors": map[string]interface{}{
+		"value": map[string]any{
+			"stop-errors": map[string]any{
 				"snap.bar.service": "mock systemctl error",
 			},
 		},
@@ -555,7 +555,7 @@ func (s *restSuite) TestServicesRestartNonSnap(c *C) {
 	var rsp resp
 	c.Assert(json.Unmarshal(rec.Body.Bytes(), &rsp), IsNil)
 	c.Check(rsp.Type, Equals, agent.ResponseTypeError)
-	c.Check(rsp.Result, DeepEquals, map[string]interface{}{
+	c.Check(rsp.Result, DeepEquals, map[string]any{
 		"message": "cannot restart non-snap service not-snap.bar.service",
 	})
 
@@ -587,11 +587,11 @@ func (s *restSuite) TestServicesRestartReportsError(c *C) {
 	var rsp resp
 	c.Assert(json.Unmarshal(rec.Body.Bytes(), &rsp), IsNil)
 	c.Check(rsp.Type, Equals, agent.ResponseTypeError)
-	c.Check(rsp.Result, DeepEquals, map[string]interface{}{
+	c.Check(rsp.Result, DeepEquals, map[string]any{
 		"kind":    "service-control",
 		"message": "some user services failed to restart",
-		"value": map[string]interface{}{
-			"restart-errors": map[string]interface{}{
+		"value": map[string]any{
+			"restart-errors": map[string]any{
 				"snap.bar.service": "mock systemctl error",
 			},
 		},
@@ -634,7 +634,7 @@ func (s *restSuite) TestServicesRestartOrReloadNonSnap(c *C) {
 	var rsp resp
 	c.Assert(json.Unmarshal(rec.Body.Bytes(), &rsp), IsNil)
 	c.Check(rsp.Type, Equals, agent.ResponseTypeError)
-	c.Check(rsp.Result, DeepEquals, map[string]interface{}{
+	c.Check(rsp.Result, DeepEquals, map[string]any{
 		"message": "cannot restart non-snap service not-snap.bar.service",
 	})
 
@@ -666,11 +666,11 @@ func (s *restSuite) TestServicesRestartOrReloadReportsError(c *C) {
 	var rsp resp
 	c.Assert(json.Unmarshal(rec.Body.Bytes(), &rsp), IsNil)
 	c.Check(rsp.Type, Equals, agent.ResponseTypeError)
-	c.Check(rsp.Result, DeepEquals, map[string]interface{}{
+	c.Check(rsp.Result, DeepEquals, map[string]any{
 		"kind":    "service-control",
 		"message": "some user services failed to restart",
-		"value": map[string]interface{}{
-			"restart-errors": map[string]interface{}{
+		"value": map[string]any{
+			"restart-errors": map[string]any{
 				"snap.bar.service": "mock systemctl error",
 			},
 		},
@@ -707,27 +707,27 @@ NeedDaemonReload=no
 	var rsp resp
 	c.Assert(json.Unmarshal(rec.Body.Bytes(), &rsp), IsNil)
 	c.Check(rsp.Type, Equals, agent.ResponseTypeSync)
-	c.Check(rsp.Result, DeepEquals, []interface{}{
-		map[string]interface{}{
+	c.Check(rsp.Result, DeepEquals, []any{
+		map[string]any{
 			"active":    false,
 			"daemon":    "notify",
 			"enabled":   true,
 			"id":        "snap.foo.service",
 			"installed": true,
 			"name":      "snap.foo.service",
-			"names": []interface{}{
+			"names": []any{
 				"snap.foo.service",
 			},
 			"needs-reload": false,
 		},
-		map[string]interface{}{
+		map[string]any{
 			"active":    false,
 			"daemon":    "notify",
 			"enabled":   true,
 			"id":        "snap.bar.service",
 			"installed": true,
 			"name":      "snap.bar.service",
-			"names": []interface{}{
+			"names": []any{
 				"snap.bar.service",
 			},
 			"needs-reload": false,
@@ -751,7 +751,7 @@ func (s *restSuite) TestServiceStatusNonSnap(c *C) {
 	var rsp resp
 	c.Assert(json.Unmarshal(rec.Body.Bytes(), &rsp), IsNil)
 	c.Check(rsp.Type, Equals, agent.ResponseTypeError)
-	c.Check(rsp.Result, DeepEquals, map[string]interface{}{
+	c.Check(rsp.Result, DeepEquals, map[string]any{
 		"message": "cannot query non-snap service not-snap.bar.service",
 	})
 
@@ -777,11 +777,11 @@ func (s *restSuite) TestServicesStatusReportsError(c *C) {
 	var rsp resp
 	c.Assert(json.Unmarshal(rec.Body.Bytes(), &rsp), IsNil)
 	c.Check(rsp.Type, Equals, agent.ResponseTypeError)
-	c.Check(rsp.Result, DeepEquals, map[string]interface{}{
+	c.Check(rsp.Result, DeepEquals, map[string]any{
 		"kind":    "service-status",
 		"message": "some user services failed to respond to status query",
-		"value": map[string]interface{}{
-			"status-errors": map[string]interface{}{
+		"value": map[string]any{
+			"status-errors": map[string]any{
 				"snap.foo.service": "mock systemctl error",
 				"snap.bar.service": "mock systemctl error",
 			},
@@ -805,7 +805,7 @@ func (s *restSuite) TestPostPendingRefreshNotificationMalformedContentType(c *C)
 	var rsp resp
 	c.Assert(json.Unmarshal(rec.Body.Bytes(), &rsp), IsNil)
 	c.Check(rsp.Type, Equals, agent.ResponseTypeError)
-	c.Check(rsp.Result, DeepEquals, map[string]interface{}{"message": "cannot parse content type: mime: unexpected content after media subtype"})
+	c.Check(rsp.Result, DeepEquals, map[string]any{"message": "cannot parse content type: mime: unexpected content after media subtype"})
 }
 
 func (s *restSuite) TestPostPendingRefreshNotificationUnsupportedContentType(c *C) {
@@ -819,7 +819,7 @@ func (s *restSuite) TestPostPendingRefreshNotificationUnsupportedContentType(c *
 	var rsp resp
 	c.Assert(json.Unmarshal(rec.Body.Bytes(), &rsp), IsNil)
 	c.Check(rsp.Type, Equals, agent.ResponseTypeError)
-	c.Check(rsp.Result, DeepEquals, map[string]interface{}{"message": "unknown content type: text/plain"})
+	c.Check(rsp.Result, DeepEquals, map[string]any{"message": "unknown content type: text/plain"})
 }
 
 func (s *restSuite) TestPostPendingRefreshNotificationUnsupportedContentEncoding(c *C) {
@@ -833,7 +833,7 @@ func (s *restSuite) TestPostPendingRefreshNotificationUnsupportedContentEncoding
 	var rsp resp
 	c.Assert(json.Unmarshal(rec.Body.Bytes(), &rsp), IsNil)
 	c.Check(rsp.Type, Equals, agent.ResponseTypeError)
-	c.Check(rsp.Result, DeepEquals, map[string]interface{}{"message": "unknown charset in content type: application/json; charset=EBCDIC"})
+	c.Check(rsp.Result, DeepEquals, map[string]any{"message": "unknown charset in content type: application/json; charset=EBCDIC"})
 }
 
 func (s *restSuite) TestPostPendingRefreshNotificationMalformedRequestBody(c *C) {
@@ -848,7 +848,7 @@ func (s *restSuite) TestPostPendingRefreshNotificationMalformedRequestBody(c *C)
 	var rsp resp
 	c.Assert(json.Unmarshal(rec.Body.Bytes(), &rsp), IsNil)
 	c.Check(rsp.Type, Equals, agent.ResponseTypeError)
-	c.Check(rsp.Result, DeepEquals, map[string]interface{}{"message": "cannot decode request body into pending snap refresh info: invalid character 's' looking for beginning of value"})
+	c.Check(rsp.Result, DeepEquals, map[string]any{"message": "cannot decode request body into pending snap refresh info: invalid character 's' looking for beginning of value"})
 }
 
 func (s *restSuite) TestPostPendingRefreshNotificationNoSessionBus(c *C) {
@@ -866,7 +866,7 @@ func (s *restSuite) TestPostPendingRefreshNotificationNoSessionBus(c *C) {
 	var rsp resp
 	c.Assert(json.Unmarshal(rec.Body.Bytes(), &rsp), IsNil)
 	c.Check(rsp.Type, Equals, agent.ResponseTypeError)
-	c.Check(rsp.Result, DeepEquals, map[string]interface{}{"message": "cannot connect to the session bus"})
+	c.Check(rsp.Result, DeepEquals, map[string]any{"message": "cannot connect to the session bus"})
 }
 
 func (s *restSuite) testPostPendingRefreshNotificationBody(c *C, refreshInfo *client.PendingSnapRefreshInfo) {
@@ -1026,7 +1026,7 @@ func (s *restSuite) TestPostPendingRefreshNotificationNotificationServerFailure(
 	var rsp resp
 	c.Assert(json.Unmarshal(rec.Body.Bytes(), &rsp), IsNil)
 	c.Check(rsp.Type, Equals, agent.ResponseTypeError)
-	c.Check(rsp.Result, DeepEquals, map[string]interface{}{"message": "cannot send notification message: org.freedesktop.DBus.Error.Failed"})
+	c.Check(rsp.Result, DeepEquals, map[string]any{"message": "cannot send notification message: org.freedesktop.DBus.Error.Failed"})
 }
 
 func (s *restSuite) testPostFinishRefreshNotificationBody(c *C, refreshInfo *client.FinishedSnapRefreshInfo) {

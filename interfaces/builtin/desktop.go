@@ -825,7 +825,7 @@ func (iface *desktopInterface) validateDesktopFileIDs(attribs interfaces.Attrer)
 	}
 
 	// desktop-file-ids must be a list of strings.
-	desktopFileIDs, ok := attrVal.([]interface{})
+	desktopFileIDs, ok := attrVal.([]any)
 	if !ok {
 		return fmt.Errorf(`cannot add %s plug: "desktop-file-ids" must be a list of strings`, iface.name)
 	}

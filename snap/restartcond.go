@@ -59,7 +59,7 @@ func (rc RestartCondition) String() string {
 }
 
 // UnmarshalYAML so RestartCondition implements yaml's Unmarshaler interface
-func (rc *RestartCondition) UnmarshalYAML(unmarshal func(interface{}) error) error {
+func (rc *RestartCondition) UnmarshalYAML(unmarshal func(any) error) error {
 	var v string
 
 	if err := unmarshal(&v); err != nil {

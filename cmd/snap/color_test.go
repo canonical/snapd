@@ -97,7 +97,7 @@ func (s *SnapSuite) TestColorTable(c *check.C) {
 	type T struct {
 		isTTY         bool
 		noColor, term string
-		expected      interface{}
+		expected      any
 		desc          string
 	}
 

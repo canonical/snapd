@@ -55,8 +55,8 @@ func (s *batchSuite) SetUpTest(c *C) {
 	s.db = db
 }
 
-func (s *batchSuite) snapDecl(c *C, name string, extraHeaders map[string]interface{}) *asserts.SnapDeclaration {
-	headers := map[string]interface{}{
+func (s *batchSuite) snapDecl(c *C, name string, extraHeaders map[string]any) *asserts.SnapDeclaration {
+	headers := map[string]any{
 		"series":       "16",
 		"snap-id":      name + "-id",
 		"snap-name":    name,
@@ -212,7 +212,7 @@ func (s *batchSuite) TestCommitRefusesSelfSignedKey(c *C) {
 	aKeyEncoded, err := asserts.EncodePublicKey(aKey.PublicKey())
 	c.Assert(err, IsNil)
 
-	headers := map[string]interface{}{
+	headers := map[string]any{
 		"authority-id":        "can0nical",
 		"account-id":          "can0nical",
 		"public-key-sha3-384": aKey.PublicKey().ID(),
@@ -222,7 +222,7 @@ func (s *batchSuite) TestCommitRefusesSelfSignedKey(c *C) {
 	acctKey, err := aSignDB.Sign(asserts.AccountKeyType, headers, aKeyEncoded, "")
 	c.Assert(err, IsNil)
 
-	headers = map[string]interface{}{
+	headers = map[string]any{
 		"authority-id": "can0nical",
 		"brand-id":     "can0nical",
 		"repair-id":    "2",
@@ -255,7 +255,7 @@ func (s *batchSuite) TestAddUnsupported(c *C) {
 	(func() {
 		restore := asserts.MockMaxSupportedFormat(asserts.SnapDeclarationType, 999)
 		defer restore()
-		headers := map[string]interface{}{
+		headers := map[string]any{
 			"format":       "999",
 			"revision":     "1",
 			"series":       "16",
@@ -289,7 +289,7 @@ func (s *batchSuite) TestAddUnsupportedIgnore(c *C) {
 	(func() {
 		restore := asserts.MockMaxSupportedFormat(asserts.SnapDeclarationType, 999)
 		defer restore()
-		headers := map[string]interface{}{
+		headers := map[string]any{
 			"format":       "999",
 			"revision":     "1",
 			"series":       "16",
@@ -329,7 +329,7 @@ func (s *batchSuite) TestCommitPartial(c *C) {
 
 	// too old
 	rev := 1
-	headers := map[string]interface{}{
+	headers := map[string]any{
 		"snap-id":       "foo-id",
 		"snap-sha3-384": makeDigest(rev),
 		"snap-size":     fmt.Sprintf("%d", len(fakeSnap(rev))),
@@ -386,7 +386,7 @@ func (s *batchSuite) TestPrecheckPartial(c *C) {
 
 	// too old
 	rev := 1
-	headers := map[string]interface{}{
+	headers := map[string]any{
 		"snap-id":       "foo-id",
 		"snap-sha3-384": makeDigest(rev),
 		"snap-size":     fmt.Sprintf("%d", len(fakeSnap(rev))),
@@ -427,7 +427,7 @@ func (s *batchSuite) TestPrecheckHappy(c *C) {
 
 	rev := 1
 	revDigest := makeDigest(rev)
-	headers := map[string]interface{}{
+	headers := map[string]any{
 		"snap-id":       "foo-id",
 		"snap-sha3-384": revDigest,
 		"snap-size":     fmt.Sprintf("%d", len(fakeSnap(rev))),
@@ -470,7 +470,7 @@ func (s *batchSuite) TestFetch(c *C) {
 
 	rev := 10
 	revDigest := makeDigest(rev)
-	headers := map[string]interface{}{
+	headers := map[string]any{
 		"snap-id":       "foo-id",
 		"snap-sha3-384": revDigest,
 		"snap-size":     fmt.Sprintf("%d", len(fakeSnap(rev))),

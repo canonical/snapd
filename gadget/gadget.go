@@ -130,7 +130,7 @@ type Info struct {
 	VolumeAssignments []*VolumeAssignment `yaml:"volume-assignments,omitempty"`
 
 	// Default configuration for snaps (snap-id => key => value).
-	Defaults map[string]map[string]interface{} `yaml:"defaults,omitempty"`
+	Defaults map[string]map[string]any `yaml:"defaults,omitempty"`
 
 	Connections []Connection `yaml:"connections"`
 
@@ -967,7 +967,7 @@ func (gcplug *ConnectionPlug) Empty() bool {
 	return gcplug.SnapID == "" && gcplug.Plug == ""
 }
 
-func (gcplug *ConnectionPlug) UnmarshalYAML(unmarshal func(interface{}) error) error {
+func (gcplug *ConnectionPlug) UnmarshalYAML(unmarshal func(any) error) error {
 	var s string
 	if err := unmarshal(&s); err != nil {
 		return err
@@ -990,7 +990,7 @@ func (gcslot *ConnectionSlot) Empty() bool {
 	return gcslot.SnapID == "" && gcslot.Slot == ""
 }
 
-func (gcslot *ConnectionSlot) UnmarshalYAML(unmarshal func(interface{}) error) error {
+func (gcslot *ConnectionSlot) UnmarshalYAML(unmarshal func(any) error) error {
 	var s string
 	if err := unmarshal(&s); err != nil {
 		return err
@@ -1185,7 +1185,7 @@ func InfoFromGadgetYaml(gadgetYaml []byte, model Model) (*Info, error) {
 		if err != nil {
 			return nil, fmt.Errorf("default value %q of %q: %v", v, k, err)
 		}
-		gi.Defaults[k] = dflt.(map[string]interface{})
+		gi.Defaults[k] = dflt.(map[string]any)
 	}
 
 	for i, gconn := range gi.Connections {
@@ -1924,7 +1924,7 @@ func parseRelativeOffset(grs string) (*RelativeOffset, error) {
 	}, nil
 }
 
-func (s *RelativeOffset) UnmarshalYAML(unmarshal func(interface{}) error) error {
+func (s *RelativeOffset) UnmarshalYAML(unmarshal func(any) error) error {
 	var grs string
 	if err := unmarshal(&grs); err != nil {
 		return errors.New(`cannot unmarshal gadget relative offset`)
@@ -2023,8 +2023,8 @@ func FindBootVolume(vols map[string]*Volume) (*Volume, error) {
 	return nil, fmt.Errorf("no volume has system-boot role")
 }
 
-func flatten(path string, cfg interface{}, out map[string]interface{}) {
-	if cfgMap, ok := cfg.(map[string]interface{}); ok {
+func flatten(path string, cfg any, out map[string]any) {
+	if cfgMap, ok := cfg.(map[string]any); ok {
 		for k, v := range cfgMap {
 			p := k
 			if path != "" {
@@ -2038,10 +2038,10 @@ func flatten(path string, cfg interface{}, out map[string]interface{}) {
 }
 
 // SystemDefaults returns default system configuration from gadget defaults.
-func SystemDefaults(gadgetDefaults map[string]map[string]interface{}) map[string]interface{} {
+func SystemDefaults(gadgetDefaults map[string]map[string]any) map[string]any {
 	for _, systemSnap := range []string{"system", naming.WellKnownSnapID("core")} {
 		if defaults, ok := gadgetDefaults[systemSnap]; ok {
-			coreDefaults := map[string]interface{}{}
+			coreDefaults := map[string]any{}
 			flatten("", defaults, coreDefaults)
 			return coreDefaults
 		}

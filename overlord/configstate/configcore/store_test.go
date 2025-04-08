@@ -51,7 +51,7 @@ func (s *storeSuite) SetUpTest(c *C) {
 func (s *storeSuite) TestStoreAccessHappy(c *C) {
 	err := configcore.Run(coreDev, &mockConf{
 		state: s.state,
-		changes: map[string]interface{}{
+		changes: map[string]any{
 			"store.access": "offline",
 		},
 	})
@@ -71,7 +71,7 @@ func (s *storeSuite) TestStoreAccessHappy(c *C) {
 func (s *storeSuite) TestStoreAccessUnhappy(c *C) {
 	err := configcore.Run(coreDev, &mockConf{
 		state: s.state,
-		changes: map[string]interface{}{
+		changes: map[string]any{
 			"store.access": "invalid",
 		},
 	})
@@ -79,7 +79,7 @@ func (s *storeSuite) TestStoreAccessUnhappy(c *C) {
 }
 
 func (s *storeSuite) TestFilesystemOnlyApply(c *C) {
-	conf := configcore.PlainCoreConfig(map[string]interface{}{
+	conf := configcore.PlainCoreConfig(map[string]any{
 		"store.access": "offline",
 	})
 

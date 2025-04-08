@@ -79,7 +79,7 @@ func (s *generalSuite) TestRoot(c *check.C) {
 	c.Check(rec.Code, check.Equals, 200)
 	c.Check(rec.Header().Get("Content-Type"), check.Equals, "application/json")
 
-	expected := []interface{}{"TBD"}
+	expected := []any{"TBD"}
 	var rsp daemon.RespJSON
 	c.Assert(json.Unmarshal(rec.Body.Bytes(), &rsp), check.IsNil)
 	c.Check(rsp.Status, check.Equals, 200)
@@ -136,26 +136,26 @@ func (s *generalSuite) TestSysInfo(c *check.C) {
 	c.Check(rec.Code, check.Equals, 200)
 	c.Check(rec.Header().Get("Content-Type"), check.Equals, "application/json")
 
-	expected := map[string]interface{}{
+	expected := map[string]any{
 		"series":  "16",
 		"version": "42b1",
-		"os-release": map[string]interface{}{
+		"os-release": map[string]any{
 			"id":         "distro-id",
 			"version-id": "1.2",
 		},
 		"build-id":   buildID,
 		"on-classic": true,
 		"managed":    false,
-		"locations": map[string]interface{}{
+		"locations": map[string]any{
 			"snap-mount-dir": dirs.SnapMountDir,
 			"snap-bin-dir":   dirs.SnapBinariesDir,
 		},
-		"refresh": map[string]interface{}{
+		"refresh": map[string]any{
 			// only the "timer" field
 			"timer": "8:00~9:00/2",
 		},
 		"confinement":      "partial",
-		"sandbox-features": map[string]interface{}{"confinement-options": []interface{}{"classic", "devmode"}},
+		"sandbox-features": map[string]any{"confinement-options": []any{"classic", "devmode"}},
 		"architecture":     arch.DpkgArchitecture(),
 		"virtualization":   "magic",
 		"system-mode":      "run",
@@ -166,23 +166,23 @@ func (s *generalSuite) TestSysInfo(c *check.C) {
 	c.Check(rsp.Type, check.Equals, daemon.ResponseTypeSync)
 	// Ensure that we had a kernel-verrsion but don't check the actual value.
 	const kernelVersionKey = "kernel-version"
-	c.Check(rsp.Result.(map[string]interface{})[kernelVersionKey], check.Not(check.Equals), "")
-	delete(rsp.Result.(map[string]interface{}), kernelVersionKey)
+	c.Check(rsp.Result.(map[string]any)[kernelVersionKey], check.Not(check.Equals), "")
+	delete(rsp.Result.(map[string]any), kernelVersionKey)
 	// Extract "features" field and remove it from result; check it later.
 	const featuresKey = "features"
-	resultFeatures := rsp.Result.(map[string]interface{})[featuresKey]
+	resultFeatures := rsp.Result.(map[string]any)[featuresKey]
 	c.Check(resultFeatures, check.Not(check.Equals), "")
-	delete(rsp.Result.(map[string]interface{}), featuresKey)
+	delete(rsp.Result.(map[string]any), featuresKey)
 
 	c.Check(rsp.Result, check.DeepEquals, expected)
 
 	// Check that "features" is map
-	featuresAll, ok := resultFeatures.(map[string]interface{})
+	featuresAll, ok := resultFeatures.(map[string]any)
 	c.Assert(ok, check.Equals, true)
 	// Ensure that Layouts exists and is feature.FeatureInfo
 	layoutsInfoRaw, exists := featuresAll[features.Layouts.String()]
 	c.Assert(exists, check.Equals, true)
-	layoutsInfo, ok := layoutsInfoRaw.(map[string]interface{})
+	layoutsInfo, ok := layoutsInfoRaw.(map[string]any)
 	c.Assert(ok, check.Equals, true, check.Commentf("%+v", layoutsInfoRaw))
 	// Ensure that Layouts is supported and enabled
 	c.Check(layoutsInfo["supported"], check.Equals, true)
@@ -192,7 +192,7 @@ func (s *generalSuite) TestSysInfo(c *check.C) {
 	// Ensure that ParallelInstances exists and is a feature.FeatureInfo
 	parallelInstancesInfoRaw, exists := featuresAll[features.ParallelInstances.String()]
 	c.Assert(exists, check.Equals, true)
-	parallelInstancesInfo, ok := parallelInstancesInfoRaw.(map[string]interface{})
+	parallelInstancesInfo, ok := parallelInstancesInfoRaw.(map[string]any)
 	c.Assert(ok, check.Equals, true)
 	// Ensure that ParallelInstances is supported and not enabled
 	c.Check(parallelInstancesInfo["supported"], check.Equals, true)
@@ -202,7 +202,7 @@ func (s *generalSuite) TestSysInfo(c *check.C) {
 	// Ensure that QuotaGroups exists and is a feature.FeatureInfo
 	quotaGroupsInfoRaw, exists := featuresAll[features.QuotaGroups.String()]
 	c.Assert(exists, check.Equals, true)
-	quotaGroupsInfo, ok := quotaGroupsInfoRaw.(map[string]interface{})
+	quotaGroupsInfo, ok := quotaGroupsInfoRaw.(map[string]any)
 	c.Assert(ok, check.Equals, true)
 	// Ensure that QuotaGroups is unsupported but enabled
 	c.Check(quotaGroupsInfo["supported"], check.Equals, false)
@@ -263,28 +263,28 @@ func (s *generalSuite) TestSysInfoLegacyRefresh(c *check.C) {
 	c.Check(rec.Code, check.Equals, 200)
 	c.Check(rec.Header().Get("Content-Type"), check.Equals, "application/json")
 
-	expected := map[string]interface{}{
+	expected := map[string]any{
 		"series":  "16",
 		"version": "42b1",
-		"os-release": map[string]interface{}{
+		"os-release": map[string]any{
 			"id":         "distro-id",
 			"version-id": "1.2",
 		},
 		"build-id":   buildID,
 		"on-classic": true,
 		"managed":    false,
-		"locations": map[string]interface{}{
+		"locations": map[string]any{
 			"snap-mount-dir": dirs.SnapMountDir,
 			"snap-bin-dir":   dirs.SnapBinariesDir,
 		},
-		"refresh": map[string]interface{}{
+		"refresh": map[string]any{
 			// only the "schedule" field
 			"schedule": "00:00-9:00/12:00-13:00",
 		},
 		"confinement": "partial",
-		"sandbox-features": map[string]interface{}{
-			"apparmor":            []interface{}{"feature-1", "feature-2"},
-			"confinement-options": []interface{}{"classic", "devmode"}, // we know it's this because of the release.Mock... calls above
+		"sandbox-features": map[string]any{
+			"apparmor":            []any{"feature-1", "feature-2"},
+			"confinement-options": []any{"classic", "devmode"}, // we know it's this because of the release.Mock... calls above
 		},
 		"architecture":   arch.DpkgArchitecture(),
 		"virtualization": "kvm",
@@ -295,9 +295,9 @@ func (s *generalSuite) TestSysInfoLegacyRefresh(c *check.C) {
 	c.Check(rsp.Status, check.Equals, 200)
 	c.Check(rsp.Type, check.Equals, daemon.ResponseTypeSync)
 	const kernelVersionKey = "kernel-version"
-	delete(rsp.Result.(map[string]interface{}), kernelVersionKey)
+	delete(rsp.Result.(map[string]any), kernelVersionKey)
 	const featuresKey = "features"
-	delete(rsp.Result.(map[string]interface{}), featuresKey)
+	delete(rsp.Result.(map[string]any), featuresKey)
 	c.Check(rsp.Result, check.DeepEquals, expected)
 }
 
@@ -346,27 +346,27 @@ func (s *generalSuite) testSysInfoSystemMode(c *check.C, mode string) {
 	c.Check(rec.Code, check.Equals, 200)
 	c.Check(rec.Header().Get("Content-Type"), check.Equals, "application/json")
 
-	expected := map[string]interface{}{
+	expected := map[string]any{
 		"series":  "16",
 		"version": "42b1",
-		"os-release": map[string]interface{}{
+		"os-release": map[string]any{
 			"id":         "distro-id",
 			"version-id": "1.2",
 		},
 		"build-id":   buildID,
 		"on-classic": false,
 		"managed":    false,
-		"locations": map[string]interface{}{
+		"locations": map[string]any{
 			"snap-mount-dir": dirs.SnapMountDir,
 			"snap-bin-dir":   dirs.SnapBinariesDir,
 		},
-		"refresh": map[string]interface{}{
+		"refresh": map[string]any{
 			"timer": "00:00~24:00/4",
 		},
 		"confinement": "strict",
-		"sandbox-features": map[string]interface{}{
-			"apparmor":            []interface{}{"feature-1", "feature-2"},
-			"confinement-options": []interface{}{"devmode", "strict"}, // we know it's this because of the release.Mock... calls above
+		"sandbox-features": map[string]any{
+			"apparmor":            []any{"feature-1", "feature-2"},
+			"confinement-options": []any{"devmode", "strict"}, // we know it's this because of the release.Mock... calls above
 		},
 		"architecture": arch.DpkgArchitecture(),
 		"system-mode":  mode,
@@ -376,9 +376,9 @@ func (s *generalSuite) testSysInfoSystemMode(c *check.C, mode string) {
 	c.Check(rsp.Status, check.Equals, 200)
 	c.Check(rsp.Type, check.Equals, daemon.ResponseTypeSync)
 	const kernelVersionKey = "kernel-version"
-	delete(rsp.Result.(map[string]interface{}), kernelVersionKey)
+	delete(rsp.Result.(map[string]any), kernelVersionKey)
 	const featuresKey = "features"
-	delete(rsp.Result.(map[string]interface{}), featuresKey)
+	delete(rsp.Result.(map[string]any), featuresKey)
 	c.Check(rsp.Result, check.DeepEquals, expected)
 }
 
@@ -412,7 +412,7 @@ func (s *generalSuite) TestSysInfoIsManaged(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	rsp := s.syncReq(c, req, nil)
-	c.Check(rsp.Result.(map[string]interface{})["managed"], check.Equals, true)
+	c.Check(rsp.Result.(map[string]any)["managed"], check.Equals, true)
 }
 
 func (s *generalSuite) TestSysInfoWorksDegraded(c *check.C) {
@@ -946,37 +946,37 @@ func (s *generalSuite) TestStateChange(c *check.C) {
 	c.Check(rsp.Status, check.Equals, 200)
 	c.Check(rsp.Result, check.NotNil)
 
-	var body map[string]interface{}
+	var body map[string]any
 	err = json.Unmarshal(rec.Body.Bytes(), &body)
 	c.Check(err, check.IsNil)
-	c.Check(body["result"], check.DeepEquals, map[string]interface{}{
+	c.Check(body["result"], check.DeepEquals, map[string]any{
 		"id":         ids[0],
 		"kind":       "install",
 		"summary":    "install...",
 		"status":     "Do",
 		"ready":      false,
 		"spawn-time": "2016-04-21T01:02:03Z",
-		"tasks": []interface{}{
-			map[string]interface{}{
+		"tasks": []any{
+			map[string]any{
 				"id":         ids[2],
 				"kind":       "download",
 				"summary":    "1...",
 				"status":     "Do",
-				"log":        []interface{}{"2016-04-21T01:02:03Z INFO l11", "2016-04-21T01:02:03Z INFO l12"},
-				"progress":   map[string]interface{}{"label": "", "done": 0., "total": 1.},
+				"log":        []any{"2016-04-21T01:02:03Z INFO l11", "2016-04-21T01:02:03Z INFO l12"},
+				"progress":   map[string]any{"label": "", "done": 0., "total": 1.},
 				"spawn-time": "2016-04-21T01:02:03Z",
-				"data":       map[string]interface{}{"affected-snaps": []interface{}{"some-snap"}},
+				"data":       map[string]any{"affected-snaps": []any{"some-snap"}},
 			},
-			map[string]interface{}{
+			map[string]any{
 				"id":         ids[3],
 				"kind":       "activate",
 				"summary":    "2...",
 				"status":     "Do",
-				"progress":   map[string]interface{}{"label": "", "done": 0., "total": 1.},
+				"progress":   map[string]any{"label": "", "done": 0., "total": 1.},
 				"spawn-time": "2016-04-21T01:02:03Z",
 			},
 		},
-		"data": map[string]interface{}{
+		"data": map[string]any{
 			"n": float64(42),
 		},
 	})
@@ -1023,10 +1023,10 @@ func (s *generalSuite) TestStateChangeAbort(c *check.C) {
 	c.Check(rsp.Status, check.Equals, 200)
 	c.Check(rsp.Result, check.NotNil)
 
-	var body map[string]interface{}
+	var body map[string]any
 	err = json.Unmarshal(rec.Body.Bytes(), &body)
 	c.Check(err, check.IsNil)
-	c.Check(body["result"], check.DeepEquals, map[string]interface{}{
+	c.Check(body["result"], check.DeepEquals, map[string]any{
 		"id":         ids[0],
 		"kind":       "install",
 		"summary":    "install...",
@@ -1034,23 +1034,23 @@ func (s *generalSuite) TestStateChangeAbort(c *check.C) {
 		"ready":      true,
 		"spawn-time": "2016-04-21T01:02:03Z",
 		"ready-time": "2016-04-21T01:02:03Z",
-		"tasks": []interface{}{
-			map[string]interface{}{
+		"tasks": []any{
+			map[string]any{
 				"id":         ids[2],
 				"kind":       "download",
 				"summary":    "1...",
 				"status":     "Hold",
-				"log":        []interface{}{"2016-04-21T01:02:03Z INFO l11", "2016-04-21T01:02:03Z INFO l12"},
-				"progress":   map[string]interface{}{"label": "", "done": 1., "total": 1.},
+				"log":        []any{"2016-04-21T01:02:03Z INFO l11", "2016-04-21T01:02:03Z INFO l12"},
+				"progress":   map[string]any{"label": "", "done": 1., "total": 1.},
 				"spawn-time": "2016-04-21T01:02:03Z",
 				"ready-time": "2016-04-21T01:02:03Z",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"id":         ids[3],
 				"kind":       "activate",
 				"summary":    "2...",
 				"status":     "Hold",
-				"progress":   map[string]interface{}{"label": "", "done": 1., "total": 1.},
+				"progress":   map[string]any{"label": "", "done": 1., "total": 1.},
 				"spawn-time": "2016-04-21T01:02:03Z",
 				"ready-time": "2016-04-21T01:02:03Z",
 			},
@@ -1086,15 +1086,15 @@ func (s *generalSuite) TestStateChangeAbortIsReady(c *check.C) {
 	c.Check(rec.Code, check.Equals, 400)
 	c.Check(rspe.Status, check.Equals, 400)
 
-	var body map[string]interface{}
+	var body map[string]any
 	err = json.Unmarshal(rec.Body.Bytes(), &body)
 	c.Check(err, check.IsNil)
-	c.Check(body["result"], check.DeepEquals, map[string]interface{}{
+	c.Check(body["result"], check.DeepEquals, map[string]any{
 		"message": fmt.Sprintf("cannot abort change %s with nothing pending", ids[0]),
 	})
 }
 
-func (s *generalSuite) testWarnings(c *check.C, all bool, body io.Reader) (calls string, result interface{}) {
+func (s *generalSuite) testWarnings(c *check.C, all bool, body io.Reader) (calls string, result any) {
 	s.daemon(c)
 
 	s.expectManageAccess()

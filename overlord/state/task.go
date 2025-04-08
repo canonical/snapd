@@ -421,7 +421,7 @@ func MockTime(now time.Time) (restore func()) {
 	return func() { timeNow = time.Now }
 }
 
-func (t *Task) addLog(kind, format string, args []interface{}) {
+func (t *Task) addLog(kind, format string, args []any) {
 	if len(t.log) > 9 {
 		copy(t.log, t.log[len(t.log)-9:])
 		t.log = t.log[:9]
@@ -450,27 +450,27 @@ func (t *Task) Log() []string {
 }
 
 // Logf logs information about the progress of the task.
-func (t *Task) Logf(format string, args ...interface{}) {
+func (t *Task) Logf(format string, args ...any) {
 	t.state.writing()
 	t.addLog(LogInfo, format, args)
 }
 
 // Errorf logs error information about the progress of the task.
-func (t *Task) Errorf(format string, args ...interface{}) {
+func (t *Task) Errorf(format string, args ...any) {
 	t.state.writing()
 	t.addLog(LogError, format, args)
 }
 
 // Set associates value with key for future consulting by managers.
 // The provided value must properly marshal and unmarshal with encoding/json.
-func (t *Task) Set(key string, value interface{}) {
+func (t *Task) Set(key string, value any) {
 	t.state.writing()
 	t.data.set(key, value)
 }
 
 // Get unmarshals the stored value associated with the provided key
 // into the value parameter.
-func (t *Task) Get(key string, value interface{}) error {
+func (t *Task) Get(key string, value any) error {
 	t.state.reading()
 	return t.data.get(key, value)
 }

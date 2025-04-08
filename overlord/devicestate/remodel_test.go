@@ -109,16 +109,16 @@ type remodelLogicSuite struct {
 
 var _ = Suite(&remodelLogicSuite{})
 
-var modelDefaults = map[string]interface{}{
+var modelDefaults = map[string]any{
 	"architecture":   "amd64",
 	"kernel":         "my-brand-kernel",
 	"gadget":         "my-brand-gadget",
 	"store":          "my-brand-store",
-	"required-snaps": []interface{}{"required1"},
+	"required-snaps": []any{"required1"},
 }
 
-func fakeRemodelingModel(extra map[string]interface{}) *asserts.Model {
-	primary := map[string]interface{}{
+func fakeRemodelingModel(extra map[string]any) *asserts.Model {
+	primary := map[string]any{
 		"type":         "model",
 		"authority-id": "my-brand",
 		"series":       "16",
@@ -132,34 +132,34 @@ func (s *remodelLogicSuite) TestClassifyRemodel(c *C) {
 	oldModel := fakeRemodelingModel(nil)
 
 	cases := []struct {
-		newHeaders map[string]interface{}
+		newHeaders map[string]any
 		kind       devicestate.RemodelKind
 	}{
-		{map[string]interface{}{}, devicestate.UpdateRemodel},
-		{map[string]interface{}{
-			"required-snaps": []interface{}{"required1", "required2"},
+		{map[string]any{}, devicestate.UpdateRemodel},
+		{map[string]any{
+			"required-snaps": []any{"required1", "required2"},
 			"revision":       "1",
 		}, devicestate.UpdateRemodel},
-		{map[string]interface{}{
+		{map[string]any{
 			"store":    "my-other-store",
 			"revision": "1",
 		}, devicestate.StoreSwitchRemodel},
-		{map[string]interface{}{
+		{map[string]any{
 			"model": "my-other-model",
 			"store": "my-other-store",
 		}, devicestate.ReregRemodel},
-		{map[string]interface{}{
+		{map[string]any{
 			"authority-id": "other-brand",
 			"brand-id":     "other-brand",
 			"model":        "other-model",
 		}, devicestate.ReregRemodel},
-		{map[string]interface{}{
+		{map[string]any{
 			"authority-id":   "other-brand",
 			"brand-id":       "other-brand",
 			"model":          "other-model",
-			"required-snaps": []interface{}{"other-required1"},
+			"required-snaps": []any{"other-required1"},
 		}, devicestate.ReregRemodel},
-		{map[string]interface{}{
+		{map[string]any{
 			"authority-id": "other-brand",
 			"brand-id":     "other-brand",
 			"model":        "other-model",
@@ -175,8 +175,8 @@ func (s *remodelLogicSuite) TestClassifyRemodel(c *C) {
 
 func (s *remodelLogicSuite) TestUpdateRemodelContext(c *C) {
 	oldModel := fakeRemodelingModel(nil)
-	newModel := fakeRemodelingModel(map[string]interface{}{
-		"required-snaps": []interface{}{"required1", "required2"},
+	newModel := fakeRemodelingModel(map[string]any{
+		"required-snaps": []any{"required1", "required2"},
 		"revision":       "1",
 	})
 
@@ -209,7 +209,7 @@ func (s *remodelLogicSuite) TestUpdateRemodelContext(c *C) {
 
 func (s *remodelLogicSuite) TestNewStoreRemodelContextInit(c *C) {
 	oldModel := fakeRemodelingModel(nil)
-	newModel := fakeRemodelingModel(map[string]interface{}{
+	newModel := fakeRemodelingModel(map[string]any{
 		"store":    "my-other-store",
 		"revision": "1",
 	})
@@ -257,7 +257,7 @@ func (s *remodelLogicSuite) TestNewStoreRemodelContextInit(c *C) {
 
 func (s *remodelLogicSuite) TestRemodelDeviceBackendNoChangeYet(c *C) {
 	oldModel := fakeRemodelingModel(nil)
-	newModel := fakeRemodelingModel(map[string]interface{}{
+	newModel := fakeRemodelingModel(map[string]any{
 		"store":    "my-other-store",
 		"revision": "1",
 	})
@@ -318,7 +318,7 @@ func (s *remodelLogicSuite) TestRemodelDeviceBackendNoChangeYet(c *C) {
 
 func (s *remodelLogicSuite) TestRemodelDeviceBackend(c *C) {
 	oldModel := fakeRemodelingModel(nil)
-	newModel := fakeRemodelingModel(map[string]interface{}{
+	newModel := fakeRemodelingModel(map[string]any{
 		"store":    "my-other-store",
 		"revision": "1",
 	})
@@ -377,7 +377,7 @@ func (s *remodelLogicSuite) TestRemodelDeviceBackend(c *C) {
 
 func (s *remodelLogicSuite) TestRemodelDeviceBackendIsolation(c *C) {
 	oldModel := fakeRemodelingModel(nil)
-	newModel := fakeRemodelingModel(map[string]interface{}{
+	newModel := fakeRemodelingModel(map[string]any{
 		"store":    "my-other-store",
 		"revision": "1",
 	})
@@ -422,7 +422,7 @@ func (s *remodelLogicSuite) TestRemodelDeviceBackendIsolation(c *C) {
 }
 func (s *remodelLogicSuite) TestNewStoreRemodelContextStore(c *C) {
 	oldModel := fakeRemodelingModel(nil)
-	newModel := fakeRemodelingModel(map[string]interface{}{
+	newModel := fakeRemodelingModel(map[string]any{
 		"store":    "my-other-store",
 		"revision": "1",
 	})
@@ -465,7 +465,7 @@ func (s *remodelLogicSuite) TestNewStoreRemodelContextStore(c *C) {
 
 func (s *remodelLogicSuite) TestNewStoreRemodelContextFinish(c *C) {
 	oldModel := fakeRemodelingModel(nil)
-	newModel := fakeRemodelingModel(map[string]interface{}{
+	newModel := fakeRemodelingModel(map[string]any{
 		"store":    "my-other-store",
 		"revision": "1",
 	})
@@ -516,7 +516,7 @@ func (s *remodelLogicSuite) TestNewStoreRemodelContextFinish(c *C) {
 
 func (s *remodelLogicSuite) TestNewStoreRemodelContextFinishVsGlobalUpdateDeviceAuth(c *C) {
 	oldModel := fakeRemodelingModel(nil)
-	newModel := fakeRemodelingModel(map[string]interface{}{
+	newModel := fakeRemodelingModel(map[string]any{
 		"store":    "my-other-store",
 		"revision": "1",
 	})
@@ -588,7 +588,7 @@ func (s *remodelLogicSuite) TestNewStoreRemodelContextFinishVsGlobalUpdateDevice
 
 func (s *remodelLogicSuite) TestRemodelDeviceBackendKeptSerial(c *C) {
 	oldModel := fakeRemodelingModel(nil)
-	newModel := fakeRemodelingModel(map[string]interface{}{
+	newModel := fakeRemodelingModel(map[string]any{
 		"store":    "my-other-store",
 		"revision": "1",
 	})
@@ -629,7 +629,7 @@ func (s *remodelLogicSuite) TestRemodelDeviceBackendKeptSerial(c *C) {
 
 func (s *remodelLogicSuite) TestRemodelContextSystemModeDefaultRun(c *C) {
 	oldModel := s.brands.Model("my-brand", "my-model", modelDefaults)
-	newModel := s.brands.Model("my-brand", "my-model", modelDefaults, map[string]interface{}{"revision": "2"})
+	newModel := s.brands.Model("my-brand", "my-model", modelDefaults, map[string]any{"revision": "2"})
 
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -648,7 +648,7 @@ func (s *remodelLogicSuite) TestRemodelContextSystemModeDefaultRun(c *C) {
 
 func (s *remodelLogicSuite) TestRemodelContextSystemModeWorks(c *C) {
 	oldModel := s.brands.Model("my-brand", "my-model", modelDefaults)
-	newModel := s.brands.Model("my-brand", "my-model", modelDefaults, map[string]interface{}{"revision": "2"})
+	newModel := s.brands.Model("my-brand", "my-model", modelDefaults, map[string]any{"revision": "2"})
 
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -668,7 +668,7 @@ func (s *remodelLogicSuite) TestRemodelContextSystemModeWorks(c *C) {
 
 func (s *remodelLogicSuite) TestRemodelContextForTaskAndCaching(c *C) {
 	oldModel := s.brands.Model("my-brand", "my-model", modelDefaults)
-	newModel := s.brands.Model("my-brand", "my-model", modelDefaults, map[string]interface{}{
+	newModel := s.brands.Model("my-brand", "my-model", modelDefaults, map[string]any{
 		"store":    "my-other-store",
 		"revision": "1",
 	})
@@ -736,7 +736,7 @@ func (s *remodelLogicSuite) TestRemodelContextForTaskNo(c *C) {
 
 func (s *remodelLogicSuite) setupForRereg(c *C) (oldModel, newModel *asserts.Model) {
 	oldModel = s.brands.Model("my-brand", "my-model", modelDefaults)
-	newModel = s.brands.Model("my-brand", "my-model", modelDefaults, map[string]interface{}{
+	newModel = s.brands.Model("my-brand", "my-model", modelDefaults, map[string]any{
 		"authority-id": "other-brand",
 		"brand-id":     "other-brand",
 		"model":        "other-model",
@@ -748,7 +748,7 @@ func (s *remodelLogicSuite) setupForRereg(c *C) (oldModel, newModel *asserts.Mod
 
 	encDevKey, err := asserts.EncodePublicKey(devKey.PublicKey())
 	c.Assert(err, IsNil)
-	serial, err := s.brands.Signing("my-brand").Sign(asserts.SerialType, map[string]interface{}{
+	serial, err := s.brands.Signing("my-brand").Sign(asserts.SerialType, map[string]any{
 		"authority-id":        "my-brand",
 		"brand-id":            "my-brand",
 		"model":               "my-model",
@@ -852,7 +852,7 @@ func (s *remodelLogicSuite) TestReregRemodelContextAsRegistrationContext(c *C) {
 		KeyID: "device-key-id",
 	})
 	c.Check(regCtx.GadgetForSerialRequestConfig(), Equals, "my-brand-gadget")
-	c.Check(regCtx.SerialRequestExtraHeaders(), DeepEquals, map[string]interface{}{
+	c.Check(regCtx.SerialRequestExtraHeaders(), DeepEquals, map[string]any{
 		"original-brand-id": "my-brand",
 		"original-model":    "my-model",
 		"original-serial":   "orig-serial",
@@ -866,7 +866,7 @@ func (s *remodelLogicSuite) TestReregRemodelContextAsRegistrationContext(c *C) {
 func (s *remodelLogicSuite) TestReregRemodelContextNewSerial(c *C) {
 	// re-registration case
 	oldModel := s.brands.Model("my-brand", "my-model", modelDefaults)
-	newModel := fakeRemodelingModel(map[string]interface{}{
+	newModel := fakeRemodelingModel(map[string]any{
 		"model": "other-model",
 	})
 
@@ -1014,18 +1014,18 @@ func (s *uc20RemodelLogicSuite) SetUpTest(c *C) {
 	c.Assert(err, IsNil)
 }
 
-var uc20ModelDefaults = map[string]interface{}{
+var uc20ModelDefaults = map[string]any{
 	"architecture": "amd64",
 	"base":         "core20",
 	"grade":        "dangerous",
-	"snaps": []interface{}{
-		map[string]interface{}{
+	"snaps": []any{
+		map[string]any{
 			"name":            "pc-kernel",
 			"id":              snaptest.AssertedSnapID("pc-kernel"),
 			"type":            "kernel",
 			"default-channel": "20",
 		},
-		map[string]interface{}{
+		map[string]any{
 			"name":            "pc",
 			"id":              snaptest.AssertedSnapID("pc"),
 			"type":            "gadget",
@@ -1129,11 +1129,11 @@ func (s *uc20RemodelLogicSuite) TestReregRemodelContextUC20(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(resealKeysCalls, Equals, 2)
 
-	var seededSystemsFromState []map[string]interface{}
+	var seededSystemsFromState []map[string]any
 	err = s.state.Get("seeded-systems", &seededSystemsFromState)
 	c.Assert(err, IsNil)
 	c.Assert(seededSystemsFromState, HasLen, 2)
-	c.Assert(seededSystemsFromState[1], DeepEquals, map[string]interface{}{
+	c.Assert(seededSystemsFromState[1], DeepEquals, map[string]any{
 		"system":    "0000",
 		"model":     "my-model",
 		"brand-id":  "my-brand",
@@ -1146,7 +1146,7 @@ func (s *uc20RemodelLogicSuite) TestReregRemodelContextUC20(c *C) {
 	newSeedTs, err := time.Parse(time.RFC3339Nano, seededSystemsFromState[0]["seed-time"].(string))
 	c.Assert(err, IsNil)
 	seededSystemsFromState[0]["seed-time"] = ""
-	c.Assert(seededSystemsFromState[0], DeepEquals, map[string]interface{}{
+	c.Assert(seededSystemsFromState[0], DeepEquals, map[string]any{
 		"system":    "1234",
 		"model":     "other-model",
 		"brand-id":  "my-brand",
@@ -1163,7 +1163,7 @@ func (s *uc20RemodelLogicSuite) TestReregRemodelContextUC20(c *C) {
 }
 
 func (s *uc20RemodelLogicSuite) TestUpdateRemodelContext(c *C) {
-	modelDefaults := make(map[string]interface{}, len(uc20ModelDefaults))
+	modelDefaults := make(map[string]any, len(uc20ModelDefaults))
 	for k, v := range uc20ModelDefaults {
 		modelDefaults[k] = v
 	}
@@ -1235,11 +1235,11 @@ func (s *uc20RemodelLogicSuite) TestUpdateRemodelContext(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(resealKeysCalls, Equals, 2)
 
-	var seededSystemsFromState []map[string]interface{}
+	var seededSystemsFromState []map[string]any
 	err = s.state.Get("seeded-systems", &seededSystemsFromState)
 	c.Assert(err, IsNil)
 	c.Assert(seededSystemsFromState, HasLen, 2)
-	c.Assert(seededSystemsFromState[1], DeepEquals, map[string]interface{}{
+	c.Assert(seededSystemsFromState[1], DeepEquals, map[string]any{
 		"system":    "0000",
 		"model":     "my-model",
 		"brand-id":  "my-brand",
@@ -1252,7 +1252,7 @@ func (s *uc20RemodelLogicSuite) TestUpdateRemodelContext(c *C) {
 	newSeedTs, err := time.Parse(time.RFC3339Nano, seededSystemsFromState[0]["seed-time"].(string))
 	c.Assert(err, IsNil)
 	seededSystemsFromState[0]["seed-time"] = ""
-	c.Assert(seededSystemsFromState[0], DeepEquals, map[string]interface{}{
+	c.Assert(seededSystemsFromState[0], DeepEquals, map[string]any{
 		"system":    "1234",
 		"model":     "my-model",
 		"brand-id":  "my-brand",
@@ -1269,7 +1269,7 @@ func (s *uc20RemodelLogicSuite) TestUpdateRemodelContext(c *C) {
 }
 
 func (s *uc20RemodelLogicSuite) TestSimpleRemodelErr(c *C) {
-	modelDefaults := make(map[string]interface{}, len(uc20ModelDefaults))
+	modelDefaults := make(map[string]any, len(uc20ModelDefaults))
 	for k, v := range uc20ModelDefaults {
 		modelDefaults[k] = v
 	}
@@ -1327,10 +1327,10 @@ func (s *uc20RemodelLogicSuite) TestSimpleRemodelErr(c *C) {
 	c.Check(resealKeysCalls, Equals, 1)
 
 	// the error occurred before seeded systems was updated
-	var seededSystemsFromState []map[string]interface{}
+	var seededSystemsFromState []map[string]any
 	err = s.state.Get("seeded-systems", &seededSystemsFromState)
 	c.Assert(err, IsNil)
-	c.Assert(seededSystemsFromState, DeepEquals, []map[string]interface{}{{
+	c.Assert(seededSystemsFromState, DeepEquals, []map[string]any{{
 		"system":    "0000",
 		"model":     "my-model",
 		"brand-id":  "my-brand",

@@ -909,7 +909,7 @@ func (s *deviceMgrInstallAPISuite) testInstallSetupStorageEncryption(c *C, hasTP
 	})
 	c.Check(encrytpPartCalls, Equals, 1)
 	// Check that some data has been stored in the change
-	apiData := make(map[string]interface{})
+	apiData := make(map[string]any)
 	c.Check(chg.Get("api-data", &apiData), IsNil)
 	_, ok := apiData["encrypted-devices"]
 	c.Check(ok, Equals, true)

@@ -1661,7 +1661,7 @@ func (s *infoSuite) TestPlugInfoAttr(c *C) {
 	var val string
 	var intVal int
 
-	plug := &snap.PlugInfo{Snap: &snap.Info{SuggestedName: "snap"}, Name: "plug", Interface: "interface", Attrs: map[string]interface{}{"key": "value", "number": int(123)}}
+	plug := &snap.PlugInfo{Snap: &snap.Info{SuggestedName: "snap"}, Name: "plug", Interface: "interface", Attrs: map[string]any{"key": "value", "number": int(123)}}
 	c.Assert(plug.Attr("key", &val), IsNil)
 	c.Check(val, Equals, "value")
 
@@ -1677,7 +1677,7 @@ func (s *infoSuite) TestSlotInfoAttr(c *C) {
 	var val string
 	var intVal int
 
-	slot := &snap.SlotInfo{Snap: &snap.Info{SuggestedName: "snap"}, Name: "plug", Interface: "interface", Attrs: map[string]interface{}{"key": "value", "number": int(123)}}
+	slot := &snap.SlotInfo{Snap: &snap.Info{SuggestedName: "snap"}, Name: "plug", Interface: "interface", Attrs: map[string]any{"key": "value", "number": int(123)}}
 
 	c.Assert(slot.Attr("key", &val), IsNil)
 	c.Check(val, Equals, "value")
@@ -1691,8 +1691,8 @@ func (s *infoSuite) TestSlotInfoAttr(c *C) {
 }
 
 func (s *infoSuite) TestDottedPathSlot(c *C) {
-	attrs := map[string]interface{}{
-		"nested": map[string]interface{}{
+	attrs := map[string]any{
+		"nested": map[string]any{
 			"foo": "bar",
 		},
 	}
@@ -1706,7 +1706,7 @@ func (s *infoSuite) TestDottedPathSlot(c *C) {
 
 	v, ok = slot.Lookup("nested")
 	c.Assert(ok, Equals, true)
-	c.Assert(v, DeepEquals, map[string]interface{}{
+	c.Assert(v, DeepEquals, map[string]any{
 		"foo": "bar",
 	})
 
@@ -1724,8 +1724,8 @@ func (s *infoSuite) TestDottedPathSlot(c *C) {
 }
 
 func (s *infoSuite) TestDottedPathPlug(c *C) {
-	attrs := map[string]interface{}{
-		"nested": map[string]interface{}{
+	attrs := map[string]any{
+		"nested": map[string]any{
 			"foo": "bar",
 		},
 	}
@@ -1735,7 +1735,7 @@ func (s *infoSuite) TestDottedPathPlug(c *C) {
 
 	v, ok := plug.Lookup("nested")
 	c.Assert(ok, Equals, true)
-	c.Assert(v, DeepEquals, map[string]interface{}{
+	c.Assert(v, DeepEquals, map[string]any{
 		"foo": "bar",
 	})
 
@@ -2165,7 +2165,7 @@ func (s *infoSuite) TestHelpersWithHiddenSnapFolder(c *C) {
 }
 
 func (s *infoSuite) TestGetAttributeUnhappy(c *C) {
-	attrs := map[string]interface{}{}
+	attrs := map[string]any{}
 	var stringVal string
 	err := snap.GetAttribute("snap0", "iface0", attrs, "non-existent", &stringVal)
 	c.Check(stringVal, Equals, "")
@@ -2174,7 +2174,7 @@ func (s *infoSuite) TestGetAttributeUnhappy(c *C) {
 }
 
 func (s *infoSuite) TestGetAttributeHappy(c *C) {
-	attrs := map[string]interface{}{
+	attrs := map[string]any{
 		"attr0": "a string",
 		"attr1": 12,
 	}
@@ -2515,7 +2515,7 @@ func (s *infoSuite) TestConfdbPlugAttrs(c *C) {
 		Snap:      &snap.Info{SuggestedName: "test-snap"},
 		Name:      "test-plug",
 		Interface: "confdb",
-		Attrs: map[string]interface{}{
+		Attrs: map[string]any{
 			"account": "foo",
 			"view":    "bar/baz",
 			"role":    "custodian",
@@ -2556,7 +2556,7 @@ func (s *infoSuite) TestConfdbPlugAttrsInvalid(c *C) {
 			Snap:      &snap.Info{SuggestedName: "test-snap"},
 			Name:      "test-plug",
 			Interface: tc.iface,
-			Attrs: map[string]interface{}{
+			Attrs: map[string]any{
 				"account": tc.account,
 				"view":    tc.view,
 			},

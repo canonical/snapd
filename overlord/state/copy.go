@@ -53,7 +53,7 @@ func (b *checkpointOnlyBackend) EnsureBefore(d time.Duration) {
 // The subkeys is constructed from a dotted path like "user.auth". This copy
 // helper is recursive and the pos parameter tells the function the current
 // position of the copy.
-func copyData(subkeys []string, pos int, srcData map[string]*json.RawMessage, dstData map[string]interface{}) error {
+func copyData(subkeys []string, pos int, srcData map[string]*json.RawMessage, dstData map[string]any) error {
 	if pos < 0 || pos > len(subkeys) {
 		return fmt.Errorf("internal error: copyData used with an out-of-bounds position: %v not in [0:%v]", pos, len(subkeys))
 	}
@@ -74,15 +74,15 @@ func copyData(subkeys []string, pos int, srcData map[string]*json.RawMessage, ds
 
 	// no subkey entry -> create one
 	if _, ok := dstData[subkeys[pos]]; !ok {
-		dstData[subkeys[pos]] = make(map[string]interface{})
+		dstData[subkeys[pos]] = make(map[string]any)
 	}
 	// and use existing data
-	var dstDatam map[string]interface{}
+	var dstDatam map[string]any
 	switch dstDataEntry := dstData[subkeys[pos]].(type) {
-	case map[string]interface{}:
+	case map[string]any:
 		dstDatam = dstDataEntry
 	case *json.RawMessage:
-		dstDatam = make(map[string]interface{})
+		dstDatam = make(map[string]any)
 		if err := jsonutil.DecodeWithNumber(bytes.NewReader(*dstDataEntry), &dstDatam); err != nil {
 			return fmt.Errorf("internal error: cannot decode subkey %s (%q) for %v (%T)", subkeys[pos], strings.Join(subkeys, "."), dstData, dstDataEntry)
 		}
@@ -121,7 +121,7 @@ func CopyState(srcStatePath, dstStatePath string, dataEntries []string) error {
 	}
 
 	// copy relevant data
-	dstData := make(map[string]interface{})
+	dstData := make(map[string]any)
 	for _, dataEntry := range dataEntries {
 		subkeys := strings.Split(dataEntry, ".")
 		if err := copyData(subkeys, 0, srcState.data, dstData); err != nil && !errors.Is(err, ErrNoState) {

@@ -56,8 +56,8 @@ var (
 
 // ModelAssertJSON is used to represent a model assertion as-is in JSON.
 type ModelAssertJSON struct {
-	Headers map[string]interface{} `json:"headers,omitempty"`
-	Body    string                 `json:"body,omitempty"`
+	Headers map[string]any `json:"headers,omitempty"`
+	Body    string         `json:"body,omitempty"`
 }
 
 // ModelFormatter is a helper interface to format special model elements
@@ -100,14 +100,14 @@ func formatInvalidTypeErr(headers ...string) error {
 	return fmt.Errorf("invalid type for %q header", strings.Join(headers, "/"))
 }
 
-func printVerboseSnapsList(w *tabwriter.Writer, snaps []interface{}) error {
-	printModes := func(snapName string, members map[string]interface{}) error {
+func printVerboseSnapsList(w *tabwriter.Writer, snaps []any) error {
+	printModes := func(snapName string, members map[string]any) error {
 		modes, ok := members["modes"]
 		if !ok {
 			return nil
 		}
 
-		modesSlice, ok := modes.([]interface{})
+		modesSlice, ok := modes.([]any)
 		if !ok {
 			return formatInvalidTypeErr("snaps", snapName, "modes")
 		}
@@ -130,7 +130,7 @@ func printVerboseSnapsList(w *tabwriter.Writer, snaps []interface{}) error {
 	}
 
 	for _, sn := range snaps {
-		snMap, ok := sn.(map[string]interface{})
+		snMap, ok := sn.(map[string]any)
 		if !ok {
 			return formatInvalidTypeErr("snaps")
 		}
@@ -179,7 +179,7 @@ func printVerboseModelAssertionHeaders(w *tabwriter.Writer, assertion asserts.As
 		switch headerName {
 		// list of scalars
 		case "required-snaps", "system-user-authority":
-			headerIfaceList, ok := headerValue.([]interface{})
+			headerIfaceList, ok := headerValue.([]any)
 			if !ok {
 				// system-user-authority can also appear as string
 				headerString, ok := headerValue.(string)
@@ -243,7 +243,7 @@ func printVerboseModelAssertionHeaders(w *tabwriter.Writer, assertion asserts.As
 			// also flush the writer before continuing so the previous keys
 			// don't try to align with this key
 			w.Flush()
-			snapsHeader, ok := headerValue.([]interface{})
+			snapsHeader, ok := headerValue.([]any)
 			if !ok {
 				return formatInvalidTypeErr(headerName)
 			}
@@ -394,7 +394,7 @@ func PrintSerialAssertionYAML(w *tabwriter.Writer, serialAssertion asserts.Seria
 // PrintModelAssertionJSON will format the provided serial or model assertion based on the parameters given in
 // JSON format. The output will be written to the provided io.Writer.
 func PrintModelAssertionJSON(w *tabwriter.Writer, modelAssertion asserts.Model, serialAssertion *asserts.Serial, opts PrintModelAssertionOptions) error {
-	serializeJSON := func(v interface{}) error {
+	serializeJSON := func(v any) error {
 		marshalled, err := json.MarshalIndent(v, "", "  ")
 		if err != nil {
 			return err
@@ -414,7 +414,7 @@ func PrintModelAssertionJSON(w *tabwriter.Writer, modelAssertion asserts.Model, 
 		return serializeJSON(modelJSON)
 	}
 
-	modelData := make(map[string]interface{})
+	modelData := make(map[string]any)
 	modelData["brand-id"] = modelAssertion.HeaderString("brand-id")
 	modelData["model"] = modelAssertion.HeaderString("model")
 

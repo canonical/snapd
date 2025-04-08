@@ -76,7 +76,7 @@ var (
 )
 
 // Panicf notifies the user and then panics
-func Panicf(format string, v ...interface{}) {
+func Panicf(format string, v ...any) {
 	msg := fmt.Sprintf(format, v...)
 
 	lock.Lock()
@@ -87,7 +87,7 @@ func Panicf(format string, v ...interface{}) {
 }
 
 // Noticef notifies the user of something
-func Noticef(format string, v ...interface{}) {
+func Noticef(format string, v ...any) {
 	msg := fmt.Sprintf(format, v...)
 	lock.Lock()
 	defer lock.Unlock()
@@ -104,7 +104,7 @@ func Notice(msg string) {
 }
 
 // Debugf records something in the debug log
-func Debugf(format string, v ...interface{}) {
+func Debugf(format string, v ...any) {
 	msg := fmt.Sprintf(format, v...)
 	lock.Lock()
 	defer lock.Unlock()
@@ -129,7 +129,7 @@ func Trace(msg string, attrs ...any) {
 }
 
 // NoGuardDebugf records something in the debug log
-func NoGuardDebugf(format string, v ...interface{}) {
+func NoGuardDebugf(format string, v ...any) {
 	msg := fmt.Sprintf(format, v...)
 
 	lock.Lock()

@@ -40,7 +40,7 @@ func (s *SnapSuite) TestAbortLast(c *check.C) {
 		case 2:
 			c.Check(r.Method, check.Equals, "POST")
 			c.Check(r.URL.Path, check.Equals, "/v2/changes/two")
-			c.Check(DecodedRequestBody(c, r), check.DeepEquals, map[string]interface{}{"action": "abort"})
+			c.Check(DecodedRequestBody(c, r), check.DeepEquals, map[string]any{"action": "abort"})
 			fmt.Fprintln(w, mockChangeJSON)
 		default:
 			c.Errorf("expected 2 queries, currently on %d", n)
