@@ -154,9 +154,10 @@ func samePath(a, b string) (bool, error) {
 
 func scanDiskNode(output io.Writer, node string) error {
 	/*
-	 * We need to find out if the give contains the ESP that was booted.
-	 * The boot loader will set LoaderDevicePartUUID. We will need to scan all
-	 * the partitions for that UUID.
+	 * We need to find out if the given node contains the ESP that
+	 * was booted.  The boot loader will set
+	 * LoaderDevicePartUUID. We will need to scan all the
+	 * partitions for that UUID.
 	 */
 	fmt.Fprintf(os.Stderr, "Scanning disk %s\n", node)
 	fallback := false
