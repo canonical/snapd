@@ -18,7 +18,7 @@
  */
 
 /*
- * This tool expects to be called for a udev rules file such as:
+ * This tool expects to be called from a udev rules file such as:
  *
  * ```
  * SUBSYSTEM!="block", GOTO="ubuntu_core_partitions_end"
