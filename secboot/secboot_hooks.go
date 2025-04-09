@@ -100,7 +100,12 @@ func (o *opteeKeyProtector) ProtectKey(rand io.Reader, cleartext, aad []byte) (c
 	return sealed, handleJSON, nil
 }
 
-func SealKeysWithProtector(newProtector func(name string) sb_hooks.KeyProtector, keys []SealKeyRequest, params *SealKeysWithFDESetupHookParams) error {
+// KeyProtector is a type alias for a type in sb_hooks, which we cannot export
+// directly because it cannot be imported by packages with the "nosecboot" build
+// tag.
+type KeyProtector sb_hooks.KeyProtector
+
+func SealKeysWithProtector(newProtector func(name string) KeyProtector, keys []SealKeyRequest, params *SealKeysWithFDESetupHookParams) error {
 	var primaryKey sb.PrimaryKey
 	if params.PrimaryKey != nil {
 		// TODO:FDEM:FIX: add unit test taking that primary key

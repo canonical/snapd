@@ -28,7 +28,6 @@ import (
 
 	. "gopkg.in/check.v1"
 
-	"github.com/snapcore/secboot/hooks"
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/boot/boottest"
 	"github.com/snapcore/snapd/bootloader"
@@ -458,7 +457,7 @@ func (s *sealSuite) testSealToModeenvWithFdeHookHappy(c *C, useTokens bool) {
 	saveContainer := secboot.CreateMockBootstrappedContainer()
 	savedKeyFiles := make(map[string][]byte)
 	savedTokens := make(map[string][]byte)
-	restore = fdeBackend.MockSecbootSealKeysWithProtector(func(newProtector func(name string) hooks.KeyProtector, keys []secboot.SealKeyRequest, params *secboot.SealKeysWithFDESetupHookParams) error {
+	restore = fdeBackend.MockSecbootSealKeysWithProtector(func(newProtector func(name string) secboot.KeyProtector, keys []secboot.SealKeyRequest, params *secboot.SealKeysWithFDESetupHookParams) error {
 		c.Check(params.Model.Model(), Equals, model.Model())
 		c.Check(params.Model.Model(), Equals, model.Model())
 		c.Check(params.AuxKeyFile, Equals, filepath.Join(boot.InstallHostFDESaveDir, "aux-key"))
@@ -581,7 +580,7 @@ func (s *sealSuite) TestSealToModeenvWithOPTEE(c *C) {
 	saveContainer := secboot.CreateMockBootstrappedContainer()
 	savedKeyFiles := make(map[string][]byte)
 	savedTokens := make(map[string][]byte)
-	restore = fdeBackend.MockSecbootSealKeysWithProtector(func(newProtector func(name string) hooks.KeyProtector, keys []secboot.SealKeyRequest, params *secboot.SealKeysWithFDESetupHookParams) error {
+	restore = fdeBackend.MockSecbootSealKeysWithProtector(func(newProtector func(name string) secboot.KeyProtector, keys []secboot.SealKeyRequest, params *secboot.SealKeysWithFDESetupHookParams) error {
 		c.Check(params.Model.Model(), Equals, model.Model())
 		c.Check(params.Model.Model(), Equals, model.Model())
 		c.Check(params.AuxKeyFile, Equals, filepath.Join(boot.InstallHostFDESaveDir, "aux-key"))
@@ -672,7 +671,7 @@ func (s *sealSuite) TestSealToModeenvWithOPTEE(c *C) {
 func (s *sealSuite) TestSealToModeenvWithFdeHookSad(c *C) {
 	model := boottest.MakeMockUC20Model()
 
-	restore := fdeBackend.MockSecbootSealKeysWithProtector(func(func(name string) hooks.KeyProtector, []secboot.SealKeyRequest, *secboot.SealKeysWithFDESetupHookParams) error {
+	restore := fdeBackend.MockSecbootSealKeysWithProtector(func(func(name string) secboot.KeyProtector, []secboot.SealKeyRequest, *secboot.SealKeysWithFDESetupHookParams) error {
 		return fmt.Errorf("hook failed")
 	})
 	defer restore()

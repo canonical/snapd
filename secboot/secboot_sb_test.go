@@ -1988,7 +1988,7 @@ func (s *secbootSuite) testSealKeysWithFDESetupHookHappy(c *C, useKeyFiles bool)
 		myKeys[1].KeyFile = filepath.Join(tmpDir, "key-file-2")
 	}
 
-	newProtector := func(name string) sb_hooks.KeyProtector {
+	newProtector := func(name string) secboot.KeyProtector {
 		return secboot.NewHookKeyProtector(runFDESetupHook, name)
 	}
 
@@ -2119,7 +2119,7 @@ func (s *secbootSuite) sealKeysWithOPTEE(c *C) (key []byte, keyPath string) {
 		KeyFile:               filepath.Join(root, "key-file"),
 	}}
 
-	newProtector := func(string) sb_hooks.KeyProtector {
+	newProtector := func(string) secboot.KeyProtector {
 		return secboot.NewOpteeKeyProtector()
 	}
 

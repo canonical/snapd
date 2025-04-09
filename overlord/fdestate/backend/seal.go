@@ -23,7 +23,6 @@ import (
 	"fmt"
 	"path/filepath"
 
-	"github.com/snapcore/secboot/hooks"
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/gadget/device"
@@ -171,7 +170,7 @@ func sealKeyForBootChainsHook(method device.SealingMethod, key, saveKey secboot.
 
 	skrs := append(runKeySealRequests(key, params.UseTokens), fallbackKeySealRequests(key, saveKey, params.FactoryReset, params.UseTokens)...)
 
-	newProtector := func(name string) hooks.KeyProtector {
+	newProtector := func(name string) secboot.KeyProtector {
 		if method == device.SealingMethodFDESetupHook {
 			return secboot.NewHookKeyProtector(RunFDESetupHook, name)
 		}
@@ -292,7 +291,7 @@ func MockSecbootSealKeys(f func(keys []secboot.SealKeyRequest, params *secboot.S
 	}
 }
 
-func MockSecbootSealKeysWithProtector(f func(newProtector func(name string) hooks.KeyProtector, keys []secboot.SealKeyRequest, params *secboot.SealKeysWithFDESetupHookParams) error) (restore func()) {
+func MockSecbootSealKeysWithProtector(f func(newProtector func(name string) secboot.KeyProtector, keys []secboot.SealKeyRequest, params *secboot.SealKeysWithFDESetupHookParams) error) (restore func()) {
 	old := secbootSealKeysWithProtector
 	secbootSealKeysWithProtector = f
 	return func() {
