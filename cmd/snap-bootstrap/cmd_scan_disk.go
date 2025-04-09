@@ -235,11 +235,9 @@ func scanDiskNode(output io.Writer, node string) error {
 	}
 
 	/*
-	 * Now we scan the partitions. For each partition we need to find out:
-	 *  - If its label matches a known partition type. In this
-	 *    case we save the UUID of that partition.
-	 *  - If the paritition is the booted ESP. In that case, we can confirm
-	 *    we are looking at the booted disk.
+	 * Now we scan the partitions. We need to find the partition
+	 * grub booted from. If we are not in UEFI, we check if the
+	 * disk has either a seed or boot partition.
 	 */
 	found := false
 	hasFallbackPartition := false
