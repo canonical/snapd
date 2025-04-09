@@ -19,6 +19,9 @@
 
 package osutil
 
+// #include <sys/sysmacros.h>
+import "C"
+
 import (
 	"os"
 	"os/exec"
@@ -147,4 +150,19 @@ func ComparePathsByDeviceInode(a, b string) (match bool, err error) {
 	}
 
 	return os.SameFile(fi1, fi2), nil
+}
+
+// Major obtains the major device number.
+func Major(dev uint64) uint64 {
+	return uint64(C.gnu_dev_major((C.ulong)(dev)))
+}
+
+// Minor obtains the minor device number.
+func Minor(dev uint64) uint64 {
+	return uint64(C.gnu_dev_minor((C.ulong)(dev)))
+}
+
+// Makedev constructs device number from major/minor numbers.
+func Makedev(maj, min uint64) uint64 {
+	return uint64(C.gnu_dev_makedev((C.uint)(maj), (C.uint)(min)))
 }
