@@ -43,9 +43,6 @@ _complete_snap() {
     # Only split on newlines
     local IFS=$'\n'
 
-    # checks if $cur begins with "-"
-    isparam=($(echo "$cur" | grep -v "^-"))
-
     # now we pass _just the bit that's being completed_ of the command
     # to snap for it to figure it out. go-flags isn't smart enough to
     # look at COMP_WORDS etc. itself.
