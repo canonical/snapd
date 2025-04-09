@@ -2161,6 +2161,65 @@ WantedBy=multi-user.target
 `, mockSnapPath))
 }
 
+func (s *SystemdTestSuite) TestAddMountUnitWithOptionsEnsureStart(c *C) {
+	rootDir := dirs.GlobalRootDir
+
+	restore := squashfs.MockNeedsFuse(false)
+	defer restore()
+
+	what := "/dev/sda1"
+	where := "/var/snaps/mysnap/common/mnt"
+	unitContent := fmt.Sprintf(`
+[Unit]
+Description=Mount unit
+After=snapd.mounts-pre.target
+Before=snapd.mounts.target
+
+[Mount]
+What=%s
+Where=%s
+Type=ext4
+Options=remount,ro
+LazyUnmount=yes
+
+[Install]
+WantedBy=snapd.mounts.target
+WantedBy=multi-user.target
+X-SnapdOrigin=mount-control
+`[1:], what, where)
+
+	addMountUnitOptions := &MountUnitOptions{
+		Lifetime:               Transient,
+		Description:            "Mount unit",
+		What:                   what,
+		Where:                  where,
+		Fstype:                 "ext4",
+		Options:                []string{"remount,ro"},
+		Origin:                 "mount-control",
+		EnsureStartIfUnchanged: true,
+	}
+	sysd := NewUnderRoot(rootDir, SystemMode, nil)
+	mountUnitName, err := sysd.EnsureMountUnitFileWithOptions(addMountUnitOptions)
+	c.Assert(err, IsNil)
+
+	mountUnit := "var-snaps-mysnap-common-mnt.mount"
+	c.Assert(filepath.Join(dirs.SnapRuntimeServicesDir, mountUnitName),
+		testutil.FileEquals, unitContent)
+	c.Assert(s.argses, DeepEquals, [][]string{
+		{"daemon-reload"},
+		{"--root", rootDir, "enable", mountUnit},
+		{"restart", mountUnit},
+	})
+	s.argses = nil
+
+	// The unit is ensured to have started even if unchanged
+	mountUnitName, err = sysd.EnsureMountUnitFileWithOptions(addMountUnitOptions)
+	c.Assert(err, IsNil)
+	c.Assert(filepath.Join(dirs.SnapRuntimeServicesDir, mountUnitName),
+		testutil.FileEquals, unitContent)
+	c.Assert(s.argses, DeepEquals, [][]string{{"start", "--no-block", mountUnit}})
+}
+
 func (s *SystemdTestSuite) TestPreseedModeMountError(c *C) {
 	sysd := NewEmulationMode(dirs.GlobalRootDir)
 
