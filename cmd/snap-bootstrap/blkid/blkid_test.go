@@ -52,7 +52,7 @@ func (s *blkidSuite) SetUpTest(c *C) {
 	tmp := c.MkDir()
 	image := filepath.Join(tmp, "image")
 
-	cmd := exec.Command(systemdRepart, "--offline=yes", "--size=64M", "--empty=create", "--definitions=repart.d", image)
+	cmd := exec.Command(systemdRepart, "--offline=yes", "--size=64M", "--empty=create", "--definitions=test-data/repart.d", image)
 	err = cmd.Run()
 	if err != nil {
 		c.Skip("systemd-repart is not working")
