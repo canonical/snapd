@@ -334,6 +334,9 @@ type MountUnitOptions struct {
 	// PreventRestartIfModified is set if we do not want to restart the
 	// mount unit if modified
 	PreventRestartIfModified bool
+	// EnsureStartIfUnchanged is set if we want to make sure that the unit
+	// is started even if it was not modified.
+	EnsureStartIfUnchanged bool
 }
 
 // Backend identifies the implementation backend in use by a Systemd instance.
@@ -1534,6 +1537,7 @@ func (s *systemd) EnsureMountUnitFileWithOptions(unitOptions *MountUnitOptions) 
 	if err != nil {
 		return "", err
 	}
+	units := []string{mountUnitName}
 	if modified != MountUnchanged {
 		// we need to do a daemon-reload here to ensure that systemd really
 		// knows about this new mount unit file
@@ -1541,7 +1545,6 @@ func (s *systemd) EnsureMountUnitFileWithOptions(unitOptions *MountUnitOptions) 
 			return "", err
 		}
 
-		units := []string{mountUnitName}
 		if err := s.EnableNoReload(units); err != nil {
 			return "", err
 		}
@@ -1552,6 +1555,15 @@ func (s *systemd) EnsureMountUnitFileWithOptions(unitOptions *MountUnitOptions) 
 			if err := s.RestartNoWaitForStop(units); err != nil {
 				return "", err
 			}
+		}
+	} else if unitOptions.EnsureStartIfUnchanged {
+		// Make sure the unit is actually started. This is useful for
+		// removable units, in case the device was unplugged and then
+		// replugged and "snapctl mount" is called again. Note that we
+		// avoid calling restart as we do not want to stop the unit in
+		// case it was already active.
+		if err := s.StartNoBlock(units); err != nil {
+			return "", err
 		}
 	}
 
