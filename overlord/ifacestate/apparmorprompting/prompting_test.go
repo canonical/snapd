@@ -236,6 +236,22 @@ func (s *apparmorpromptingSuite) TestHandleListenerRequestErrors(c *C) {
 			` error while parsing AppArmor permissions: cannot get abstract permissions from empty AppArmor permissions: "none"`)
 	})
 
+	// Send request with invalid interface
+	req = &listener.Request{
+		// Most fields don't matter here
+		SubjectUID: s.defaultUser,
+		Permission: notify.AA_MAY_CHMOD,
+		Interface:  "foo",
+	}
+	reqChan <- req
+	resp, err = waitForReply(replyChan)
+	c.Assert(err, IsNil)
+	c.Check(resp.Request, Equals, req)
+	logger.WithLoggerLock(func() {
+		c.Check(logbuf.String(), testutil.Contains,
+			` error while parsing AppArmor permissions: cannot map the given interface to list of available permissions: foo`)
+	})
+
 	// Fill the requestprompts backend until we hit its outstanding prompt
 	// count limit
 	maxOutstandingPromptsPerUser := 1000 // from requestprompts package
@@ -247,6 +263,7 @@ func (s *apparmorpromptingSuite) TestHandleListenerRequestErrors(c *C) {
 			Path:       fmt.Sprintf("/home/test/%d", i),
 			Class:      notify.AA_CLASS_FILE,
 			Permission: notify.AA_MAY_APPEND,
+			Interface:  "home",
 		}
 		reqChan <- req
 	}
@@ -267,6 +284,7 @@ func (s *apparmorpromptingSuite) TestHandleListenerRequestErrors(c *C) {
 		Path:       fmt.Sprintf("/home/test/%d", maxOutstandingPromptsPerUser),
 		Class:      notify.AA_CLASS_FILE,
 		Permission: notify.AA_MAY_APPEND,
+		Interface:  "home",
 	}
 	reqChan <- req
 	time.Sleep(10 * time.Millisecond)
@@ -403,6 +421,9 @@ func (s *apparmorpromptingSuite) fillInPartialRequest(req *listener.Request) {
 	if req.Permission == nil {
 		req.Permission = notify.AA_MAY_READ
 	}
+	if req.Interface == "" {
+		req.Interface = "home"
+	}
 }
 
 func mustParsePathPattern(c *C, pattern string) *patterns.PathPattern {
@@ -537,6 +558,7 @@ func (s *apparmorpromptingSuite) TestExistingRuleAllowsNewPrompt(c *C) {
 	// Create request for read and write
 	req := &listener.Request{
 		Permission: notify.AA_MAY_READ | notify.AA_MAY_WRITE,
+		Interface:  "home",
 	}
 	s.fillInPartialRequest(req)
 	whenSent := time.Now()
@@ -608,6 +630,7 @@ func (s *apparmorpromptingSuite) TestExistingRulePartiallyAllowsNewPrompt(c *C) 
 	// Create request for read and write
 	partialReq := &listener.Request{
 		Permission: notify.AA_MAY_READ | notify.AA_MAY_WRITE,
+		Interface:  "home",
 	}
 	_, prompt := s.simulateRequest(c, reqChan, mgr, partialReq, false)
 
@@ -642,6 +665,7 @@ func (s *apparmorpromptingSuite) TestExistingRulePartiallyDeniesNewPrompt(c *C) 
 	// Create request for read and write
 	req := &listener.Request{
 		Permission: notify.AA_MAY_READ | notify.AA_MAY_WRITE,
+		Interface:  "home",
 	}
 	s.fillInPartialRequest(req)
 	whenSent := time.Now()
@@ -702,6 +726,7 @@ func (s *apparmorpromptingSuite) TestExistingRulesMixedMatchNewPromptDenies(c *C
 	// Create request for read and write
 	req := &listener.Request{
 		Permission: notify.AA_MAY_READ | notify.AA_MAY_WRITE,
+		Interface:  "home",
 	}
 	s.fillInPartialRequest(req)
 	whenSent := time.Now()
@@ -1308,6 +1333,7 @@ func (s *apparmorpromptingSuite) TestAddRuleWithIDPatchRemove(c *C) {
 	// Add read request
 	req := &listener.Request{
 		Permission: notify.AA_MAY_READ,
+		Interface:  "home",
 	}
 	_, prompt := s.simulateRequest(c, reqChan, mgr, req, false)
 

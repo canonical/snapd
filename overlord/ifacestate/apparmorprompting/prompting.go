@@ -208,8 +208,7 @@ func (m *InterfacesRequestsManager) handleListenerReq(req *listener.Request) err
 		snap = tag.InstanceName()
 	}
 
-	// TODO: when we support interfaces beyond "home", do a proper selection here
-	iface := "home"
+	iface := req.Interface
 
 	path := req.Path
 
