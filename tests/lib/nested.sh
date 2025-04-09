@@ -1806,6 +1806,16 @@ nested_add_usb_serial_device() {
     echo "device added"
 }
 
+nested_add_usb_drive() {
+    local DEVICE_ID=$1
+    local DRIVE_FILE=$2
+
+    # A device_del of $DEVICE_ID also will remove the drive
+    echo "drive_add 0 if=none,file=$DRIVE_FILE,format=raw,id=rawdisk" | nc -q 0 127.0.0.1 "$NESTED_MON_PORT"
+    echo "device_add usb-storage,drive=rawdisk,id=$DEVICE_ID" | nc -q 0 127.0.0.1 "$NESTED_MON_PORT"
+    echo "USB drive device added"
+}
+
 nested_del_device() {
     local DEVICE_ID=$1
     echo "device_del $DEVICE_ID" | nc -q 0 127.0.0.1 "$NESTED_MON_PORT"
