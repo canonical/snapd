@@ -22,6 +22,7 @@ package gpio
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -88,7 +89,7 @@ var ioctlGetChipInfo = func(path string) (*kernelChipInfo, error) {
 var chardevChipInfo = func(path string) (*ChardevChip, error) {
 	kci, err := ioctlGetChipInfo(path)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read gpio chip info from %q: %w", path, err)
+		return nil, fmt.Errorf("cannot read gpio chip info from %q: %w", path, err)
 	}
 
 	chip := &ChardevChip{
@@ -101,14 +102,14 @@ var chardevChipInfo = func(path string) (*ChardevChip, error) {
 }
 
 const (
-	aggregatorLockPath         = "/sys/bus/platform/drivers/gpio-aggregator"
+	aggregatorDriverDir        = "/sys/bus/platform/drivers/gpio-aggregator"
 	aggregatorNewDevicePath    = "/sys/bus/platform/drivers/gpio-aggregator/new_device"
 	aggregatorDeleteDevicePath = "/sys/bus/platform/drivers/gpio-aggregator/delete_device"
 	ephemeralUdevRulesDir      = "/run/udev/rules.d"
 )
 
 var lockAggregator = func() (unlocker func(), err error) {
-	flock, err := osutil.OpenExistingLockForReading(filepath.Join(dirs.GlobalRootDir, aggregatorLockPath))
+	flock, err := osutil.OpenExistingLockForReading(filepath.Join(dirs.GlobalRootDir, aggregatorDriverDir))
 	if err != nil {
 		return nil, err
 	}
@@ -148,8 +149,7 @@ func addAggregatedChip(ctx context.Context, sourceChip *ChardevChip, lines strut
 		return nil, err
 	}
 
-	ctxWithTimeout, cancel := context.WithTimeout(ctx, aggregatorCreationTimeout)
-	defer cancel()
+	timeoutC := time.After(aggregatorCreationTimeout)
 	for {
 		select {
 		case event := <-watcher.Event:
@@ -158,8 +158,10 @@ func addAggregatedChip(ctx context.Context, sourceChip *ChardevChip, lines strut
 			if strings.HasPrefix(path, filepath.Join(dirs.DevDir, "gpiochip")) {
 				return chardevChipInfo(path)
 			}
-		case <-ctxWithTimeout.Done():
-			return nil, ctxWithTimeout.Err()
+		case <-timeoutC:
+			return nil, errors.New("timeout waiting for aggregator device to appear")
+		case <-ctx.Done():
+			return nil, ctx.Err()
 		}
 	}
 }
@@ -197,26 +199,43 @@ func addEphemeralUdevTaggingRule(ctx context.Context, chip *ChardevChip, instanc
 	return nil
 }
 
-var unixStat = unix.Stat
-var unixMknod = unix.Mknod
+var osStat = os.Stat
+var osChmod = os.Chmod
+var osChown = os.Chown
+var syscallMknod = syscall.Mknod
 
 func addGadgetSlotDevice(chip *ChardevChip, instanceName, slotName string) error {
-	var stat unix.Stat_t
-	if err := unixStat(chip.Path, &stat); err != nil {
+	finfo, err := osStat(chip.Path)
+	if err != nil {
 		return err
+	}
+
+	var rdev, uid, gid int
+	if stat, ok := finfo.Sys().(*syscall.Stat_t); ok {
+		rdev = int(stat.Rdev)
+		uid = int(stat.Uid)
+		gid = int(stat.Gid)
+	} else {
+		return errors.New("internal error")
 	}
 
 	devPath := SnapChardevPath(instanceName, slotName)
 	if err := os.MkdirAll(filepath.Dir(devPath), 0755); err != nil {
 		return err
 	}
+
 	// create a character device node for the slot, with major/minor numbers
 	// corresponding to the newly created aggregator device
-	if err := unixMknod(devPath, uint32(stat.Mode), int(stat.Rdev)); err != nil {
+	if err := syscallMknod(devPath, uint32(finfo.Mode()), rdev); err != nil {
 		return err
 	}
 
-	return nil
+	// replicate original permission bits
+	if err := osChmod(devPath, finfo.Mode()); err != nil {
+		return err
+	}
+	// and ownership
+	return osChown(devPath, uid, gid)
 }
 
 func removeGadgetSlotDevice(instanceName, slotName string) (aggregatedChip *ChardevChip, err error) {
@@ -255,6 +274,24 @@ func validateLines(chip *ChardevChip, lines strutil.Range) error {
 	return nil
 }
 
+func isAggregatedChip(path string) (bool, error) {
+	finfo, err := osStat(path)
+	if err != nil {
+		return false, err
+	}
+	stat, ok := finfo.Sys().(*syscall.Stat_t)
+	if !ok {
+		return false, errors.New("internal error")
+	}
+
+	maj, min := osutil.Major(stat.Rdev), osutil.Minor(stat.Rdev)
+
+	// filepath.Join is not used to prevent cleaning the ".." as it is crucial
+	// to follow the MAJ:MIN subdirectory symlink
+	driverDir, err := filepath.EvalSymlinks(dirs.SysfsDir + fmt.Sprintf("/dev/char/%d:%d/../driver", maj, min))
+	return driverDir == filepath.Join(dirs.GlobalRootDir, aggregatorDriverDir), err
+}
+
 func findChips(filter func(chip *ChardevChip) bool) ([]*ChardevChip, error) {
 	allPaths, err := filepath.Glob(filepath.Join(dirs.DevDir, "/gpiochip*"))
 	if err != nil {
@@ -263,6 +300,13 @@ func findChips(filter func(chip *ChardevChip) bool) ([]*ChardevChip, error) {
 
 	var matched []*ChardevChip
 	for _, path := range allPaths {
+		isAggregated, err := isAggregatedChip(path)
+		if err != nil {
+			return nil, err
+		}
+		if isAggregated {
+			continue
+		}
 		chip, err := chardevChipInfo(path)
 		if err != nil {
 			return nil, err
