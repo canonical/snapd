@@ -549,17 +549,14 @@ func loggerWithJournalMaybe() error {
 		if err != nil {
 			return err
 		}
-		l, err := logger.New(journalWriter, logger.DefaultFlags, nil)
-		if err != nil {
-			return err
-		}
+		l := logger.New(journalWriter, logger.DefaultFlags, nil)
 		logger.SetLogger(l)
 		return nil
 	}
 
 	if err := maybeJournal(); err != nil {
 		// try simple setup
-		return logger.SimpleSetup(nil)
+		logger.SimpleSetup(nil)
 	}
 	return nil
 }
