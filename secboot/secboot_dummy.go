@@ -23,7 +23,9 @@ package secboot
 import (
 	"crypto"
 	"errors"
+	"io"
 
+	sb_hooks "github.com/snapcore/secboot/hooks"
 	"github.com/snapcore/snapd/kernel/fde"
 	"github.com/snapcore/snapd/secboot/keys"
 )
@@ -40,8 +42,22 @@ func SealKeys(keys []SealKeyRequest, params *SealKeysParams) ([]byte, error) {
 	return nil, errBuildWithoutSecboot
 }
 
-func SealKeysWithFDESetupHook(runHook fde.RunSetupHookFunc, keys []SealKeyRequest, params *SealKeysWithFDESetupHookParams) error {
+func SealKeysWithProtector(newProtector func(name string) sb_hooks.KeyProtector, keys []SealKeyRequest, params *SealKeysWithFDESetupHookParams) error {
 	return errBuildWithoutSecboot
+}
+
+type placeholderKeyProtector struct{}
+
+func (d *placeholderKeyProtector) ProtectKey(rand io.Reader, cleartext, aad []byte) (ciphertext []byte, handle []byte, err error) {
+	return nil, nil, errBuildWithoutSecboot
+}
+
+func NewHookKeyProtector(runHook fde.RunSetupHookFunc, keyName string) sb_hooks.KeyProtector {
+	return &placeholderKeyProtector{}
+}
+
+func NewOpteeKeyProtector() sb_hooks.KeyProtector {
+	return &placeholderKeyProtector{}
 }
 
 func ResealKeys(params *ResealKeysParams) error {

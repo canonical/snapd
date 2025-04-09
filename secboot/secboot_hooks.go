@@ -54,7 +54,7 @@ type hookKeyProtector struct {
 	keyName string
 }
 
-func NewHookKeyProtector(runHook fde.RunSetupHookFunc, keyName string) *hookKeyProtector {
+func NewHookKeyProtector(runHook fde.RunSetupHookFunc, keyName string) sb_hooks.KeyProtector {
 	return &hookKeyProtector{
 		runHook: runHook,
 		keyName: keyName,
@@ -79,7 +79,7 @@ func (h *hookKeyProtector) ProtectKey(rand io.Reader, cleartext, aad []byte) (ci
 
 type opteeKeyProtector struct{}
 
-func NewOpteeKeyProtector() *opteeKeyProtector {
+func NewOpteeKeyProtector() sb_hooks.KeyProtector {
 	return &opteeKeyProtector{}
 }
 
