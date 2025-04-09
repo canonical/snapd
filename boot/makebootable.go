@@ -348,6 +348,7 @@ func MakeRecoverySystemBootable(model *asserts.Model, rootdir string, relativeRe
 
 type makeRunnableOptions struct {
 	Standalone     bool
+	FromInitrd     bool
 	AfterDataReset bool
 	SeedDir        string
 	StateUnlocker  Unlocker
@@ -642,8 +643,10 @@ func makeRunnableSystem(model *asserts.Model, bootWith *BootableSet, observer Tr
 			return fmt.Errorf("cannot check for fde-setup hook: %v", err)
 		}
 
+		// we don't consider optee if we are installing a standalone system
+		// (i.e. from the installer API)
 		var hasTA bool
-		if !hasHook {
+		if !hasHook && !makeOpts.Standalone {
 			hasTA = optee.TAPresent()
 		}
 
@@ -662,7 +665,7 @@ func makeRunnableSystem(model *asserts.Model, bootWith *BootableSet, observer Tr
 			StateUnlocker:   makeOpts.StateUnlocker,
 			UseTokens:       tokens,
 		}
-		if makeOpts.Standalone {
+		if makeOpts.Standalone || makeOpts.FromInitrd {
 			flags.SnapsDir = snapBlobDir
 		}
 		// seal the encryption key to the parameters specified in modeenv
@@ -756,13 +759,13 @@ func MakeRunnableStandaloneSystem(model *asserts.Model, bootWith *BootableSet, o
 	})
 }
 
-// MakeRunnableStandaloneSystemFromInitrd is the same as MakeRunnableStandaloneSystem
+// MakeRunnableSystemFromInitrd is the same as MakeRunnableStandaloneSystem
 // but uses seed dir path expected in initrd.
-func MakeRunnableStandaloneSystemFromInitrd(model *asserts.Model, bootWith *BootableSet, observer TrustedAssetsInstallObserver) error {
+func MakeRunnableSystemFromInitrd(model *asserts.Model, bootWith *BootableSet, observer TrustedAssetsInstallObserver) error {
 	// TODO consider merging this back into MakeRunnableSystem but need
 	// to consider the properties of the different input used for sealing
 	return makeRunnableSystem(model, bootWith, observer, makeRunnableOptions{
-		Standalone: true,
+		FromInitrd: true,
 		SeedDir:    filepath.Join(InitramfsRunMntDir, "ubuntu-seed"),
 	})
 }

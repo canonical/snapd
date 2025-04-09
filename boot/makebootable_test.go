@@ -575,6 +575,7 @@ func (s *makeBootable20Suite) TestMakeSystemRunnableSealWithFDEHookOrOPTEE(c *C)
 	c.Assert(gotFlags.HasTA, Equals, false)
 	c.Assert(checkedForOPTEE, Equals, true)
 
+	checkedForOPTEE = false
 	restore = optee.MockTAPresent(func() bool {
 		checkedForOPTEE = true
 		return true
@@ -585,6 +586,24 @@ func (s *makeBootable20Suite) TestMakeSystemRunnableSealWithFDEHookOrOPTEE(c *C)
 	c.Assert(err, IsNil)
 
 	// now we have optee
+	c.Assert(gotFlags.HasFDESetupHook, Equals, false)
+	c.Assert(gotFlags.HasTA, Equals, true)
+	c.Assert(checkedForOPTEE, Equals, true)
+
+	// we shouldn't consider optee when installing a standalone system
+	checkedForOPTEE = false
+	err = boot.MakeRunnableStandaloneSystem(model, bootWith, &observer, nil)
+	c.Assert(err, IsNil)
+
+	c.Assert(gotFlags.HasFDESetupHook, Equals, false)
+	c.Assert(gotFlags.HasTA, Equals, false)
+	c.Assert(checkedForOPTEE, Equals, false)
+
+	// we should consider optee when installing from initrd
+	checkedForOPTEE = false
+	err = boot.MakeRunnableSystemFromInitrd(model, bootWith, &observer)
+	c.Assert(err, IsNil)
+
 	c.Assert(gotFlags.HasFDESetupHook, Equals, false)
 	c.Assert(gotFlags.HasTA, Equals, true)
 	c.Assert(checkedForOPTEE, Equals, true)
@@ -853,7 +872,7 @@ version: 5.0
 
 	switch {
 	case opts.standalone && opts.fromInitrd:
-		err = boot.MakeRunnableStandaloneSystemFromInitrd(model, bootWith, obs)
+		err = boot.MakeRunnableSystemFromInitrd(model, bootWith, obs)
 	case opts.standalone && !opts.fromInitrd:
 		u := mockUnlocker{}
 		err = boot.MakeRunnableStandaloneSystem(model, bootWith, obs, u.unlocker)

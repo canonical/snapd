@@ -85,7 +85,7 @@ func MockSealKeyToModeenv(f func(key, saveKey secboot.BootstrappedContainer, pri
 }
 
 type sealKeyToModeenvFlags struct {
-	// TOOD: maybe don't pass in these two flags, and just use the
+	// TODO: maybe don't pass in these two flags, and just use the
 	// [device.SealingMethod].
 	//
 	// HasFDESetupHook is true if the kernel has a fde-setup hook to use
