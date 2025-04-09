@@ -314,12 +314,13 @@ func (s *mountSuite) TestUnitCreationFailure(c *C) {
 	c.Check(err, ErrorMatches, `cannot ensure mount unit: creation error`)
 	c.Check(s.sysd.EnsureMountUnitFileWithOptionsCalls, DeepEquals, []*systemd.MountUnitOptions{
 		{
-			Lifetime:    systemd.Transient,
-			Description: "Mount unit for snap1, revision 1 via mount-control",
-			What:        "/src",
-			Where:       "/dest",
-			Fstype:      "ext4",
-			Origin:      "mount-control",
+			Lifetime:               systemd.Transient,
+			Description:            "Mount unit for snap1, revision 1 via mount-control",
+			What:                   "/src",
+			Where:                  "/dest",
+			Fstype:                 "ext4",
+			Origin:                 "mount-control",
+			EnsureStartIfUnchanged: true,
 		},
 	})
 }
@@ -333,13 +334,14 @@ func (s *mountSuite) TestHappy(c *C) {
 	c.Check(err, IsNil)
 	c.Check(s.sysd.EnsureMountUnitFileWithOptionsCalls, DeepEquals, []*systemd.MountUnitOptions{
 		{
-			Lifetime:    systemd.Persistent,
-			Description: "Mount unit for snap1, revision 1 via mount-control",
-			What:        "/src",
-			Where:       "/dest",
-			Fstype:      "ext4",
-			Options:     []string{"sync", "rw"},
-			Origin:      "mount-control",
+			Lifetime:               systemd.Persistent,
+			Description:            "Mount unit for snap1, revision 1 via mount-control",
+			What:                   "/src",
+			Where:                  "/dest",
+			Fstype:                 "ext4",
+			Options:                []string{"sync", "rw"},
+			Origin:                 "mount-control",
+			EnsureStartIfUnchanged: true,
 		},
 	})
 }
@@ -356,12 +358,13 @@ func (s *mountSuite) TestHappyWithVariableExpansion(c *C) {
 	c.Check(err, IsNil)
 	c.Check(s.sysd.EnsureMountUnitFileWithOptionsCalls, DeepEquals, []*systemd.MountUnitOptions{
 		{
-			Lifetime:    systemd.Transient,
-			Description: "Mount unit for snap1, revision 1 via mount-control",
-			What:        "/media/me/data",
-			Where:       where,
-			Options:     []string{"bind", "ro"},
-			Origin:      "mount-control",
+			Lifetime:               systemd.Transient,
+			Description:            "Mount unit for snap1, revision 1 via mount-control",
+			What:                   "/media/me/data",
+			Where:                  where,
+			Options:                []string{"bind", "ro"},
+			Origin:                 "mount-control",
+			EnsureStartIfUnchanged: true,
 		},
 	})
 }
@@ -376,12 +379,13 @@ func (s *mountSuite) TestHappyWithCommasInPath(c *C) {
 	c.Check(err, IsNil)
 	c.Check(s.sysd.EnsureMountUnitFileWithOptionsCalls, DeepEquals, []*systemd.MountUnitOptions{
 		{
-			Lifetime:    systemd.Transient,
-			Description: "Mount unit for snap1, revision 1 via mount-control",
-			What:        "/dev/dma_heap/qcom,qseecom",
-			Where:       "/dest,with,commas",
-			Options:     []string{"ro"},
-			Origin:      "mount-control",
+			Lifetime:               systemd.Transient,
+			Description:            "Mount unit for snap1, revision 1 via mount-control",
+			What:                   "/dev/dma_heap/qcom,qseecom",
+			Where:                  "/dest,with,commas",
+			Options:                []string{"ro"},
+			Origin:                 "mount-control",
+			EnsureStartIfUnchanged: true,
 		},
 	})
 }
@@ -396,13 +400,14 @@ func (s *mountSuite) TestHappyNFS(c *C) {
 	c.Check(err, IsNil)
 	c.Check(s.sysd.EnsureMountUnitFileWithOptionsCalls, DeepEquals, []*systemd.MountUnitOptions{
 		{
-			Lifetime:    systemd.Transient,
-			Description: "Mount unit for snap1, revision 1 via mount-control",
-			What:        "localhost:/var/share",
-			Where:       "/nfs-dest",
-			Fstype:      "nfs",
-			Options:     []string{"rw"},
-			Origin:      "mount-control",
+			Lifetime:               systemd.Transient,
+			Description:            "Mount unit for snap1, revision 1 via mount-control",
+			What:                   "localhost:/var/share",
+			Where:                  "/nfs-dest",
+			Fstype:                 "nfs",
+			Options:                []string{"rw"},
+			Origin:                 "mount-control",
+			EnsureStartIfUnchanged: true,
 		},
 	})
 }
@@ -417,13 +422,14 @@ func (s *mountSuite) TestHappyCIFS(c *C) {
 	c.Check(err, IsNil)
 	c.Check(s.sysd.EnsureMountUnitFileWithOptionsCalls, DeepEquals, []*systemd.MountUnitOptions{
 		{
-			Lifetime:    systemd.Transient,
-			Description: "Mount unit for snap1, revision 1 via mount-control",
-			What:        "//10.0.0.1/share/path",
-			Where:       "/cifs-dest",
-			Fstype:      "cifs",
-			Options:     []string{"rw", "guest"},
-			Origin:      "mount-control",
+			Lifetime:               systemd.Transient,
+			Description:            "Mount unit for snap1, revision 1 via mount-control",
+			What:                   "//10.0.0.1/share/path",
+			Where:                  "/cifs-dest",
+			Fstype:                 "cifs",
+			Options:                []string{"rw", "guest"},
+			Origin:                 "mount-control",
+			EnsureStartIfUnchanged: true,
 		},
 	})
 }
@@ -437,13 +443,14 @@ func (s *mountSuite) TestEnsureMountUnitFailed(c *C) {
 	c.Check(err, ErrorMatches, `cannot ensure mount unit: some error`)
 	c.Check(s.sysd.EnsureMountUnitFileWithOptionsCalls, DeepEquals, []*systemd.MountUnitOptions{
 		{
-			Lifetime:    systemd.Persistent,
-			Description: "Mount unit for snap1, revision 1 via mount-control",
-			What:        "/src",
-			Where:       "/dest",
-			Fstype:      "ext4",
-			Options:     []string{"sync", "rw"},
-			Origin:      "mount-control",
+			Lifetime:               systemd.Persistent,
+			Description:            "Mount unit for snap1, revision 1 via mount-control",
+			What:                   "/src",
+			Where:                  "/dest",
+			Fstype:                 "ext4",
+			Options:                []string{"sync", "rw"},
+			Origin:                 "mount-control",
+			EnsureStartIfUnchanged: true,
 		},
 	})
 
@@ -460,13 +467,14 @@ func (s *mountSuite) TestEnsureMountUnitFailedRemoveFailed(c *C) {
 	c.Check(err, ErrorMatches, `cannot ensure mount unit: some error`)
 	c.Check(s.sysd.EnsureMountUnitFileWithOptionsCalls, DeepEquals, []*systemd.MountUnitOptions{
 		{
-			Lifetime:    systemd.Persistent,
-			Description: "Mount unit for snap1, revision 1 via mount-control",
-			What:        "/src",
-			Where:       "/dest",
-			Fstype:      "ext4",
-			Options:     []string{"sync", "rw"},
-			Origin:      "mount-control",
+			Lifetime:               systemd.Persistent,
+			Description:            "Mount unit for snap1, revision 1 via mount-control",
+			What:                   "/src",
+			Where:                  "/dest",
+			Fstype:                 "ext4",
+			Options:                []string{"sync", "rw"},
+			Origin:                 "mount-control",
+			EnsureStartIfUnchanged: true,
 		},
 	})
 
