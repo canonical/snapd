@@ -226,7 +226,11 @@ func (x *cmdRun) Usage() string {
 func (x *cmdRun) Execute(args []string) error {
 	snapApp := x.Positionals.SnapName.FullName()
 	if len(snapApp) == 0 {
-		return errors.New(i18n.G("need the application to run as argument"))
+		if len(args) == 0 {
+			return errors.New(i18n.G("need the application to run as argument 1"))
+		}
+		snapApp = args[0]
+		args = args[1:]
 	}
 
 	// Catch some invalid parameter combinations, provide helpful errors
