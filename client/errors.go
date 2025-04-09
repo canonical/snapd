@@ -175,6 +175,10 @@ const (
 
 	// ErrorKindUnsupported: target system does not support corresponding feature (e.g. client.StorageEncryptionFeaturePassphraseAuth)
 	ErrorKindUnsupportedByTargetSystem ErrorKind = "unsupported"
+
+	// ErrorKindSystemKeyVersionUnsupported: snapd does not support the system
+	// key version sent by the client
+	ErrorKindSystemKeyVersionUnsupported ErrorKind = "unsupported-system-key-version"
 )
 
 // Maintenance error kinds.
