@@ -73,11 +73,14 @@ var (
 
 type cmdRun struct {
 	clientMixin
-	Command  string `long:"command" hidden:"yes"`
-	HookName string `long:"hook" hidden:"yes"`
-	Revision string `short:"r" default:"unset" hidden:"yes"`
-	Shell    bool   `long:"shell" `
-	DebugLog bool   `long:"debug-log"`
+	Command     string `long:"command" hidden:"yes"`
+	HookName    string `long:"hook" hidden:"yes"`
+	Revision    string `short:"r" default:"unset" hidden:"yes"`
+	Shell       bool   `long:"shell" `
+	DebugLog    bool   `long:"debug-log"`
+	Positionals struct {
+		SnapName SnapAndApp
+	} `positional-args:"yes" required:"yes"`
 
 	// This options is both a selector (use or don't use strace) and it
 	// can also carry extra options for strace. This is why there is
@@ -221,11 +224,10 @@ func (x *cmdRun) Usage() string {
 }
 
 func (x *cmdRun) Execute(args []string) error {
-	if len(args) == 0 {
+	snapApp := x.Positionals.SnapName.FullName()
+	if len(snapApp) == 0 {
 		return errors.New(i18n.G("need the application to run as argument"))
 	}
-	snapApp := args[0]
-	args = args[1:]
 
 	// Catch some invalid parameter combinations, provide helpful errors
 	optionsSet := 0
