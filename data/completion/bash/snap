@@ -28,6 +28,19 @@ _get_runable_snaps() {
     done
 }
 
+_get_apps_in_snap() {
+    snap=$(echo ${cur} | cut -d . - -f 1)
+    app=$(echo ${cur} | cut -d . - -f 2)
+    snappath=/snap/${snap}/current/meta/snap.yaml
+    if ! [ -f ${snappath} ]; then
+        return
+    fi
+    applist=$(cat ${snappath} | yq -p yaml .apps | grep -E "^${app}[^ ]+:$")
+    for app in ${applist}; do
+        echo kicad.${app} | cut -d : - -f 1
+    done
+}
+
 _complete_snap() {
     # TODO: add support for sourcing this function from the core snap.
     local cur prev words cword
@@ -70,11 +83,13 @@ _complete_snap() {
         command="${words[2]}"
         COMPREPLY=($(GO_FLAGS_COMPLETION=1 snap routine "$command" "$cur"))
     elif [ "$command" = "run" ] && ( [ "$cur" = "" ] || [ "$isparam" != "" ] ); then
-        # run isn't fully implemented, so, for now, just use the folder
-        # list in /snap when asking for something that is not a parameter,
-        # but checking if the meta/snap.yaml file contains ^apps:$ string
-        # to remove those snaps without apps (like the coreXX base snaps).
-        snaplist=$(_get_runable_snaps)
+        if echo ${cur} | grep -q \\. ; then
+            # if the snap name contains a dot, we want to see the apps inside
+            snaplist=$(_get_apps_in_snap)
+        else
+            # if there is no dot, just list the snaps with runable apps
+            snaplist=$(_get_runable_snaps)
+        fi
         COMPREPLY=($snaplist)
     else
         COMPREPLY=($(GO_FLAGS_COMPLETION=1 snap "$command" "$cur"))
