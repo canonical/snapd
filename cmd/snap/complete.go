@@ -24,6 +24,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 
@@ -35,6 +36,95 @@ import (
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/snap"
 )
+
+// SnapAndApp holds a snap name and an application name
+type SnapAndApp struct {
+	Snap    string
+	App     string
+	has_dot bool
+}
+
+func (sa *SnapAndApp) FullName() string {
+	if sa.has_dot {
+		return fmt.Sprint(sa.Snap, ".", sa.App)
+	} else {
+		return sa.Snap
+	}
+}
+
+// UnmarshalFlag unmarshals the snap and application name. The following
+// combinations are allowed:
+// * <snap>.<app>
+// * <snap>
+// Every other combination results in an error.
+func (sa *SnapAndApp) UnmarshalFlag(value string) error {
+	parts := strings.Split(value, ".")
+	sa.Snap = ""
+	sa.App = ""
+	sa.has_dot = false
+	switch len(parts) {
+	case 1:
+		sa.Snap = parts[0]
+	case 2:
+		sa.Snap = parts[0]
+		sa.App = parts[1]
+		sa.has_dot = true // allows to know if it is "snap." or "snap.XXXX"
+	}
+	if sa.Snap == "" && sa.App != "" {
+		return fmt.Errorf(i18n.G("invalid value: %q (want snap.name or snap)"), value)
+	}
+	return nil
+}
+
+func (s SnapAndApp) Complete(match string) []flags.Completion {
+	var matchSnap SnapAndApp
+	matchSnap.UnmarshalFlag(match)
+	snaps, err := mkClient().List(nil, nil)
+	if err != nil {
+		return nil
+	}
+	if !matchSnap.has_dot {
+		// No dot in match, so complete with snap names
+		ret := make([]flags.Completion, 0, len(snaps))
+		for _, snap_t := range snaps {
+			if !strings.HasPrefix(snap_t.Name, matchSnap.Snap) {
+				continue
+			}
+			snapYamlFn := filepath.Join(snap.BaseDir(snap_t.Name), "current", "meta", "snap.yaml")
+			meta, err := os.ReadFile(snapYamlFn)
+			if err != nil {
+				continue
+			}
+			info, err := snap.InfoFromSnapYaml(meta)
+			if err != nil {
+				continue
+			}
+			if len(info.Apps) == 0 {
+				continue
+			}
+			ret = append(ret, flags.Completion{Item: snap_t.Name})
+		}
+		return ret
+	}
+	// A dot in match, so complete with the apps inside the specified snap
+
+	snapYamlFn := filepath.Join(snap.BaseDir(matchSnap.Snap), "current", "meta", "snap.yaml")
+	meta, err := os.ReadFile(snapYamlFn)
+	if err != nil {
+		return nil
+	}
+	info, err := snap.InfoFromSnapYaml(meta)
+	if err != nil {
+		return nil
+	}
+	ret := make([]flags.Completion, 0, len(info.Apps))
+	for _, app := range info.Apps {
+		if strings.HasPrefix(app.Name, matchSnap.App) {
+			ret = append(ret, flags.Completion{Item: fmt.Sprintf("%s.%s", matchSnap.Snap, app.Name)})
+		}
+	}
+	return ret
+}
 
 type installedSnapName string
 
