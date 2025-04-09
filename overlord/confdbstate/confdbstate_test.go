@@ -1752,5 +1752,4 @@ func (s *confdbTestSuite) TestConcurrentAccessWithOngoingRead(c *C) {
 
 	_, err = confdbstate.GetTransactionForSnapctlGet(ctx, view)
 	c.Assert(err, IsNil)
-
 }

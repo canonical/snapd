@@ -177,6 +177,11 @@ type confdbTransactions struct {
 	WriteTxID string   `json:"write-tx-id,omitempty"`
 }
 
+func (txs *confdbTransactions) CanStartReadTx() bool { return txs.WriteTxID == "" }
+func (txs *confdbTransactions) CanStartWriteTx() bool {
+	return txs.WriteTxID == "" && len(txs.ReadTxIDs) == 0
+}
+
 // addReadTransaction adds a read transaction for the specified confdb, if no
 // write transactions is ongoing. The state must be locked by the caller.
 func addReadTransaction(st *state.State, account, confdbName, id string) error {

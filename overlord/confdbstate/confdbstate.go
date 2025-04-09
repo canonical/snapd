@@ -195,7 +195,7 @@ func GetTransactionToSet(ctx *hookstate.Context, st *state.State, view *confdb.V
 		return nil, nil, fmt.Errorf("cannot access confdb view %s: cannot check ongoing transactions: %v", view.ID(), err)
 	}
 
-	if txs != nil && (txs.WriteTxID != "" || len(txs.ReadTxIDs) > 0) {
+	if txs != nil && !txs.CanStartWriteTx() {
 		// TODO: eventually we want to queue this write and block until we serve it.
 		// It might also be necessary to have some form of timeout.
 		return nil, nil, fmt.Errorf("cannot write confdb through view %s: ongoing transaction", view.ID())
@@ -541,7 +541,7 @@ func GetTransactionForSnapctlGet(ctx *hookstate.Context, view *confdb.View) (*Tr
 		return nil, fmt.Errorf("cannot access confdb view %s: cannot check ongoing transactions: %v", view.ID(), err)
 	}
 
-	if txs != nil && txs.WriteTxID != "" {
+	if txs != nil && !txs.CanStartReadTx() {
 		// TODO: eventually we want to queue this load and block until we serve it.
 		// It might also be necessary to have some form of timeout.
 		return nil, fmt.Errorf("cannot access confdb view %s: ongoing write transaction", view.ID())
@@ -622,7 +622,7 @@ func LoadConfdbAsync(st *state.State, view *confdb.View, requests []string) (cha
 		return "", fmt.Errorf("cannot access confdb view %s: cannot check ongoing transactions: %v", view.ID(), err)
 	}
 
-	if txs != nil && txs.WriteTxID != "" {
+	if txs != nil && !txs.CanStartReadTx() {
 		// TODO: eventually we want to queue this load and block until we serve it.
 		// It might also be necessary to have some form of timeout.
 		return "", fmt.Errorf("cannot access confdb view %s: ongoing write transaction", view.ID())
