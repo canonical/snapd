@@ -79,8 +79,8 @@ type cmdRun struct {
 	Shell       bool   `long:"shell" `
 	DebugLog    bool   `long:"debug-log"`
 	Positionals struct {
-		SnapName SnapAndApp
-	} `positional-args:"yes" required:"yes"`
+		SnapName SnapAndApp `hidden:"yes" required:"yes" positional-arg-name:"<snapname>"`
+	} `positional-args:"yes" required:"yes" hidden:"yes"`
 
 	// This options is both a selector (use or don't use strace) and it
 	// can also carry extra options for strace. This is why there is
