@@ -98,6 +98,7 @@ func (s *endianTestSuite) TestEndian(c *C) {
 		{"amd64", binary.LittleEndian},
 		{"arm", binary.LittleEndian},
 		{"arm64", binary.LittleEndian},
+		{"loong64", binary.LittleEndian},
 		{"ppc64le", binary.LittleEndian},
 		{"riscv64", binary.LittleEndian},
 	} {
