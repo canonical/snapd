@@ -1,4 +1,4 @@
-//go:build arm || arm64
+//go:build linux && (arm || arm64)
 
 package optee
 
@@ -8,8 +8,8 @@ package optee
 //go:generate ./build_client.sh
 
 /*
-#cgo CFLAGS: -I./optee_client/install/export/usr/include -I./ta
-#cgo LDFLAGS: -L./optee_client/install/libteec/ -Wl,-Bstatic -lteec -Wl,-Bdynamic
+#cgo CFLAGS: -I./ta
+#cgo LDFLAGS: -lteec
 #include <tee_client_api.h>
 #include <fde_key_handler_ta_type.h>
 #include <stdint.h>

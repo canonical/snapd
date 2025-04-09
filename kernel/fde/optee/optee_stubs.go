@@ -1,4 +1,4 @@
-//go:build !arm && !arm64
+//go:build !linux || (!arm && !arm64)
 
 package optee
 
