@@ -120,7 +120,7 @@ func (s SnapAndApp) Complete(match string) []flags.Completion {
 	ret := make([]flags.Completion, 0, len(info.Apps))
 	for _, app := range info.Apps {
 		if strings.HasPrefix(app.Name, matchSnap.App) {
-			ret = append(ret, flags.Completion{Item: fmt.Sprintf("%s.%s", matchSnap.Snap, app.Name)})
+			ret = append(ret, flags.Completion{Item: fmt.Sprint(matchSnap.Snap, ".", app.Name)})
 		}
 	}
 	return ret
