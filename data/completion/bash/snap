@@ -15,7 +15,7 @@
 #  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 _get_runable_snaps() {
-    snaplist=$(ls -1 -d /snap/${cur}* |cut -d / - -f 3-)
+    snaplist=$(ls -1 -d /snap/${cur}* 2>/dev/null |cut -d / - -f 3-)
     runable_snaps=""
     for snap in ${snaplist}; do
         snappath=/snap/${snap}/current/meta/snap.yaml
