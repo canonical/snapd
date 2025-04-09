@@ -19,11 +19,11 @@
 package gpio
 
 import (
+	"io/fs"
 	"syscall"
 	"time"
 
 	"github.com/snapcore/snapd/testutil"
-	"golang.org/x/sys/unix"
 )
 
 var IoctlGetChipInfo = ioctlGetChipInfo
@@ -44,12 +44,20 @@ func MockChardevChipInfo(f func(path string) (*ChardevChip, error)) (restore fun
 	return testutil.Mock(&chardevChipInfo, f)
 }
 
-func MockUnixStat(f func(path string, stat *unix.Stat_t) (err error)) (restore func()) {
-	return testutil.Mock(&unixStat, f)
+func MockOsStat(f func(path string) (fs.FileInfo, error)) (restore func()) {
+	return testutil.Mock(&osStat, f)
 }
 
-func MockUnixMknod(f func(path string, mode uint32, dev int) (err error)) (restore func()) {
-	return testutil.Mock(&unixMknod, f)
+func MockOsChmod(f func(path string, mode fs.FileMode) error) (restore func()) {
+	return testutil.Mock(&osChmod, f)
+}
+
+func MockOsChown(f func(path string, uid int, gid int) error) (restore func()) {
+	return testutil.Mock(&osChown, f)
+}
+
+func MockSyscallMknod(f func(path string, mode uint32, dev int) (err error)) (restore func()) {
+	return testutil.Mock(&syscallMknod, f)
 }
 
 func MockAggregatorCreationTimeout(t time.Duration) (restore func()) {

@@ -53,7 +53,11 @@ func ExportGadgetChardevChip(ctx context.Context, chipLabels []string, lines str
 		return errors.New("no matching gpio chips found matching chip labels")
 	}
 	if len(chips) > 1 {
-		return errors.New("more than one gpio chips were found matching chip labels")
+		concat := chips[0].Label
+		for _, chip := range chips[1:] {
+			concat += " " + chip.Label
+		}
+		return fmt.Errorf("more than one gpio chips were found matching chip labels (%s)", concat)
 	}
 
 	chip := chips[0]

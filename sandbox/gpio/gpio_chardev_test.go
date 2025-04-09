@@ -23,6 +23,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -122,7 +123,7 @@ func (s *chardevTestSuite) TestChardevChipInfoNoChipError(c *C) {
 	defer restore()
 
 	_, err := gpio.ChardevChipInfo(mockPath)
-	c.Assert(err, ErrorMatches, `failed to read gpio chip info from "/path/to/chip": boom!`)
+	c.Assert(err, ErrorMatches, `cannot read gpio chip info from "/path/to/chip": boom!`)
 	c.Assert(called, Equals, 1)
 }
 
@@ -133,7 +134,7 @@ type exportUnexportTestSuite struct {
 	newDeviceCallback    func(cmd string)
 	deleteDeviceCallback func(cmd string)
 	mockChipInfos        map[string]*gpio.ChardevChip
-	mockStats            map[string]*unix.Stat_t
+	mockStats            map[string]fs.FileInfo
 	udevadmCmd           *testutil.MockCmd
 	// This is needed because calls to c.Error in the inotify goroutine are not registered
 	callbackErrors []error
@@ -143,13 +144,15 @@ type exportUnexportTestSuite struct {
 
 var _ = Suite(&exportUnexportTestSuite{})
 
+const mockMajor, mockMinor = 254, 10
+
 func (s *exportUnexportTestSuite) SetUpTest(c *C) {
 	s.rootdir = c.MkDir()
 	dirs.SetRootDir(s.rootdir)
 	s.AddCleanup(func() { dirs.SetRootDir("") })
 
 	s.mockChipInfos = make(map[string]*gpio.ChardevChip)
-	s.mockStats = make(map[string]*unix.Stat_t)
+	s.mockStats = make(map[string]fs.FileInfo)
 
 	// Allow mocking gpio chardev devices
 	restore := gpio.MockChardevChipInfo(func(path string) (*gpio.ChardevChip, error) {
@@ -163,15 +166,23 @@ func (s *exportUnexportTestSuite) SetUpTest(c *C) {
 	})
 	s.AddCleanup(restore)
 	// and their stat
-	restore = gpio.MockUnixStat(func(path string, stat *unix.Stat_t) (err error) {
+	restore = gpio.MockOsStat(func(path string) (fs.FileInfo, error) {
 		target, ok := s.mockStats[path]
 		if !ok {
-			return fmt.Errorf("unexpected path %s", path)
+			return nil, fmt.Errorf("unexpected path %s", path)
 		}
-		*stat = *target
-		return nil
+		return target, nil
 	})
 	s.AddCleanup(restore)
+
+	// Mock default gpio chardev device (254:10) driver symlinks
+	// The driver is used for detecting if the matched device is an
+	// already aggregated device
+	c.Assert(os.MkdirAll(filepath.Join(s.rootdir, "/sys/dev/char"), 0755), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(s.rootdir, "/sys/devices/platform/mock-device/gpiochip10"), 0755), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(s.rootdir, "/sys/bus/platform/drivers/mock-driver"), 0755), IsNil)
+	c.Assert(os.Symlink("../../devices/platform/mock-device/gpiochip10", filepath.Join(s.rootdir, "/sys/dev/char/254:10")), IsNil)
+	c.Assert(os.Symlink("../../../bus/platform/drivers/mock-driver", filepath.Join(s.rootdir, "/sys/devices/platform/mock-device/driver")), IsNil)
 
 	// Mock gpio-aggregator sysfs structure
 	c.Assert(os.MkdirAll(filepath.Join(s.rootdir, "/sys/bus/platform/drivers/gpio-aggregator"), 0755), IsNil)
@@ -179,8 +190,8 @@ func (s *exportUnexportTestSuite) SetUpTest(c *C) {
 	c.Assert(os.WriteFile(filepath.Join(s.rootdir, "/sys/bus/platform/drivers/gpio-aggregator/delete_device"), nil, 0644), IsNil)
 	// Mock gpio-aggregator new_device/delete_device sysfs calls
 	s.newDeviceCallback = func(cmd string) {
-		mockStat := &unix.Stat_t{
-			Rdev: 0x100,
+		mockStat := &syscall.Stat_t{
+			Rdev: osutil.Makedev(mockMajor, mockMinor),
 			Mode: unix.S_IFCHR | 0644,
 		}
 		s.mockChip(c, "gpiochip10", filepath.Join(s.rootdir, "/dev/gpiochip10"), "gpio-aggregator.10", 7, mockStat)
@@ -223,7 +234,9 @@ func (s *exportUnexportTestSuite) SetUpTest(c *C) {
 	s.udevadmCmd = testutil.MockCommand(c, "udevadm", "")
 	s.AddCleanup(s.udevadmCmd.Restore)
 
-	s.AddCleanup(gpio.MockUnixMknod(func(path string, mode uint32, dev int) (err error) { return nil }))
+	s.AddCleanup(gpio.MockSyscallMknod(func(path string, mode uint32, dev int) (err error) { return nil }))
+	s.AddCleanup(gpio.MockOsChmod(func(name string, mode fs.FileMode) error { return nil }))
+	s.AddCleanup(gpio.MockOsChown(func(name string, uid, gid int) error { return nil }))
 }
 
 func (s *exportUnexportTestSuite) TearDownTest(c *C) {
@@ -249,7 +262,17 @@ func (s *exportUnexportTestSuite) mockDeleteDeviceCallback(f func(cmd string)) {
 	s.deleteDeviceCallback = f
 }
 
-func (s *exportUnexportTestSuite) mockChip(c *C, name, path, label string, lines uint, stat *unix.Stat_t) *gpio.ChardevChip {
+type fakeFileInfo struct {
+	os.FileInfo
+
+	stat *syscall.Stat_t
+}
+
+func (info *fakeFileInfo) Sys() any {
+	return info.stat
+}
+
+func (s *exportUnexportTestSuite) mockChip(c *C, name, path, label string, lines uint, stat *syscall.Stat_t) *gpio.ChardevChip {
 	chip := &gpio.ChardevChip{
 		Path:     path,
 		Name:     name,
@@ -257,8 +280,17 @@ func (s *exportUnexportTestSuite) mockChip(c *C, name, path, label string, lines
 		NumLines: lines,
 	}
 	s.mockChipInfos[path] = chip
-	if stat != nil {
-		s.mockStats[path] = stat
+	if stat == nil {
+		stat = &syscall.Stat_t{
+			Rdev: osutil.Makedev(mockMajor, mockMinor),
+			Mode: unix.S_IFCHR | 0600,
+			Uid:  1003,
+			Gid:  1004,
+		}
+	}
+	s.mockStats[path] = &fakeFileInfo{
+		testutil.FakeFileInfo(path, fs.FileMode(stat.Mode)),
+		stat,
 	}
 	c.Assert(os.MkdirAll(filepath.Dir(path), 0755), IsNil)
 	c.Assert(os.WriteFile(path, nil, 0644), IsNil)
@@ -281,6 +313,12 @@ func (s *exportUnexportTestSuite) TestExportGadgetChardevChip(c *C) {
 	aggregatorLock, err := osutil.OpenExistingLockForReading(filepath.Join(s.rootdir, "/sys/bus/platform/drivers/gpio-aggregator"))
 	c.Assert(err, IsNil)
 
+	mockStat := &syscall.Stat_t{
+		Rdev: osutil.Makedev(254, 3),
+		Mode: unix.S_IFCHR | 0600,
+		Uid:  1001,
+		Gid:  1002,
+	}
 	s.mockNewDeviceCallback(func(cmd string) {
 		// Creating a new aggregator device is synchronized with a lock.
 		c.Check(aggregatorLock.TryLock(), Equals, osutil.ErrAlreadyLocked)
@@ -288,24 +326,36 @@ func (s *exportUnexportTestSuite) TestExportGadgetChardevChip(c *C) {
 		c.Check(cmd, Equals, "label-2 0-6")
 		// Mock aggregated chip creation
 		chipPath := filepath.Join(s.rootdir, "/dev/gpiochip3")
-		mockStat := &unix.Stat_t{
-			Rdev: 0x101,
-			Mode: unix.S_IFCHR | 0600,
-		}
 		s.mockChip(c, "gpiochip3", chipPath, "gpio-aggregator.0", 7, mockStat)
 	})
 
 	mknodCalled := 0
-	restore := gpio.MockUnixMknod(func(path string, mode uint32, dev int) (err error) {
+	restore := gpio.MockSyscallMknod(func(path string, mode uint32, dev int) (err error) {
 		mknodCalled++
 		c.Check(path, Equals, filepath.Join(s.rootdir, "/dev/snap/gpio-chardev/gadget-name/slot-name"))
 		c.Check(mode, Equals, uint32(unix.S_IFCHR|0600))
-		c.Check(dev, Equals, 0x101)
-		mockStat := &unix.Stat_t{
-			Rdev: 0x101,
-			Mode: unix.S_IFCHR | 0600,
-		}
+		c.Check(osutil.Major(uint64(dev)), Equals, uint64(254))
+		c.Check(osutil.Minor(uint64(dev)), Equals, uint64(3))
 		s.mockChip(c, "gpiochip3", path, "gpio-aggregator.0", 7, mockStat)
+		return nil
+	})
+	defer restore()
+
+	chmodCalled := 0
+	restore = gpio.MockOsChmod(func(path string, mode fs.FileMode) error {
+		chmodCalled++
+		c.Check(path, Equals, filepath.Join(s.rootdir, "/dev/snap/gpio-chardev/gadget-name/slot-name"))
+		c.Check(mode, Equals, fs.FileMode(unix.S_IFCHR|0600))
+		return nil
+	})
+	defer restore()
+
+	chownCalled := 0
+	restore = gpio.MockOsChown(func(path string, uid, gid int) error {
+		chownCalled++
+		c.Check(path, Equals, filepath.Join(s.rootdir, "/dev/snap/gpio-chardev/gadget-name/slot-name"))
+		c.Check(uid, Equals, 1001)
+		c.Check(gid, Equals, 1002)
 		return nil
 	})
 	defer restore()
@@ -328,6 +378,9 @@ func (s *exportUnexportTestSuite) TestExportGadgetChardevChip(c *C) {
 	})
 	// And virtual slot device is created
 	c.Check(mknodCalled, Equals, 1)
+	// And original permission bits and ownership are replicated
+	c.Check(chmodCalled, Equals, 1)
+	c.Check(chownCalled, Equals, 1)
 }
 
 func (s *exportUnexportTestSuite) TestExportGadgetChardevChipMissingLine(c *C) {
@@ -347,7 +400,7 @@ func (s *exportUnexportTestSuite) TestExportGadgetChardevChipMultipleMatchingChi
 	s.mockChip(c, "gpiochip1", filepath.Join(s.rootdir, "/dev/gpiochip1"), "label-1", 6, nil)
 
 	err := gpio.ExportGadgetChardevChip(context.TODO(), []string{"label-0", "label-1"}, strutil.Range{{Start: 0, End: 0}}, "gadget-name", "slot-name")
-	c.Check(err, ErrorMatches, "more than one gpio chips were found matching chip labels")
+	c.Check(err, ErrorMatches, `more than one gpio chips were found matching chip labels \(label-0 label-1\)`)
 }
 
 func (s *exportUnexportTestSuite) TestExportGadgetChardevChipTimeout(c *C) {
@@ -360,7 +413,7 @@ func (s *exportUnexportTestSuite) TestExportGadgetChardevChipTimeout(c *C) {
 	defer restore()
 
 	err := gpio.ExportGadgetChardevChip(context.TODO(), []string{"label-0"}, strutil.Range{{Start: 0, End: 0}}, "gadget-name", "slot-name")
-	c.Check(err, ErrorMatches, "context deadline exceeded")
+	c.Check(err, ErrorMatches, "timeout waiting for aggregator device to appear")
 }
 
 func (s *exportUnexportTestSuite) TestExportGadgetChardevChipContextCanellation(c *C) {
@@ -388,13 +441,33 @@ func (s *exportUnexportTestSuite) TestExportGadgetChardevChipUdevReloadError(c *
 func (s *exportUnexportTestSuite) TestExportGadgetChardevChipAddGadgetDeviceError(c *C) {
 	s.mockChip(c, "gpiochip0", filepath.Join(s.rootdir, "/dev/gpiochip0"), "label-0", 3, nil)
 
-	restore := gpio.MockUnixMknod(func(path string, mode uint32, dev int) (err error) {
+	restore := gpio.MockSyscallMknod(func(path string, mode uint32, dev int) (err error) {
 		return errors.New("boom!")
 	})
 	defer restore()
 
 	err := gpio.ExportGadgetChardevChip(context.TODO(), []string{"label-0"}, strutil.Range{{Start: 0, End: 0}}, "gadget-name", "slot-name")
 	c.Check(err, ErrorMatches, "boom!")
+}
+
+func (s *exportUnexportTestSuite) TestExportGadgetChardevChipAggregatedChipsSkipped(c *C) {
+	mockStat := &syscall.Stat_t{
+		Rdev: osutil.Makedev(254, 1),
+		Mode: unix.S_IFCHR | 0600,
+		Uid:  1001,
+		Gid:  1002,
+	}
+	s.mockChip(c, "gpiochip1", filepath.Join(s.rootdir, "/dev/gpiochip1"), "label-1", 3, mockStat)
+
+	// Mock gpio chardev device (254:1) with gpio-aggregator driver symlinks
+	c.Assert(os.MkdirAll(filepath.Join(s.rootdir, "/sys/dev/char"), 0755), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(s.rootdir, "/sys/devices/platform/mock-aggregator-device/gpiochip1"), 0755), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(s.rootdir, "/sys/bus/platform/drivers/gpio-aggregator"), 0755), IsNil)
+	c.Assert(os.Symlink("../../devices/platform/mock-aggregator-device/gpiochip1", filepath.Join(s.rootdir, "/sys/dev/char/254:1")), IsNil)
+	c.Assert(os.Symlink("../../../bus/platform/drivers/gpio-aggregator", filepath.Join(s.rootdir, "/sys/devices/platform/mock-aggregator-device/driver")), IsNil)
+
+	err := gpio.ExportGadgetChardevChip(context.TODO(), []string{"label-1"}, strutil.Range{{Start: 0, End: 0}}, "gadget-name", "slot-name")
+	c.Check(err, ErrorMatches, "no matching gpio chips found matching chip labels")
 }
 
 func (s *exportUnexportTestSuite) TestUnexportGpioChardev(c *C) {
@@ -454,7 +527,7 @@ func (s *exportUnexportTestSuite) TestExportUnexportGpioChardevRunthrough(c *C) 
 	slotDevicePath := filepath.Join(s.rootdir, "/dev/snap/gpio-chardev/gadget-name/slot-name")
 
 	mknodCalled := 0
-	restore := gpio.MockUnixMknod(func(path string, mode uint32, dev int) (err error) {
+	restore := gpio.MockSyscallMknod(func(path string, mode uint32, dev int) (err error) {
 		mknodCalled++
 		c.Check(path, Equals, slotDevicePath)
 		s.mockChip(c, "gpiochip10", path, "gpio-aggregator.10", 7, nil)
