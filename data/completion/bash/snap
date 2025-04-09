@@ -14,6 +14,20 @@
 #  You should have received a copy of the GNU General Public License
 #  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+_get_runable_snaps() {
+    snaplist=$(ls -1 -d /snap/${cur}* |cut -d / - -f 3-)
+    runable_snaps=""
+    for snap in ${snaplist}; do
+        snappath=/snap/${snap}/current/meta/snap.yaml
+        if ! [ -f $snappath ]; then
+            continue
+        fi
+        if grep -q "^apps:$" /snap/${snap}/current/meta/snap.yaml ; then
+            echo $snap
+        fi
+    done
+}
+
 _complete_snap() {
     # TODO: add support for sourcing this function from the core snap.
     local cur prev words cword
@@ -57,8 +71,10 @@ _complete_snap() {
         COMPREPLY=($(GO_FLAGS_COMPLETION=1 snap routine "$command" "$cur"))
     elif [ "$command" = "run" ] && ( [ "$cur" = "" ] || [ "$isparam" != "" ] ); then
         # run isn't fully implemented, so, for now, just use the folder
-        # list in /snap when asking for something that is not a parameter.
-        snaplist=$(ls -1 -d /snap/${cur}* |cut -d / - -f 3-)
+        # list in /snap when asking for something that is not a parameter,
+        # but checking if the meta/snap.yaml file contains ^apps:$ string
+        # to remove those snaps without apps (like the coreXX base snaps).
+        snaplist=$(_get_runable_snaps)
         COMPREPLY=($snaplist)
     else
         COMPREPLY=($(GO_FLAGS_COMPLETION=1 snap "$command" "$cur"))
