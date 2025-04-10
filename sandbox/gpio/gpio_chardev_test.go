@@ -435,7 +435,7 @@ func (s *exportUnexportTestSuite) TestExportGadgetChardevChipUdevReloadError(c *
 	defer cmd.Restore()
 
 	err := gpio.ExportGadgetChardevChip(context.TODO(), []string{"label-0"}, strutil.Range{{Start: 0, End: 0}}, "gadget-name", "slot-name")
-	c.Check(err, ErrorMatches, "cannot reload udev rules: exit status 1\nudev output:\nboom!\n")
+	c.Check(err, ErrorMatches, "cannot reload udev rules: boom!")
 }
 
 func (s *exportUnexportTestSuite) TestExportGadgetChardevChipAddGadgetDeviceError(c *C) {

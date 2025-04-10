@@ -188,12 +188,12 @@ func addEphemeralUdevTaggingRule(ctx context.Context, chip *ChardevChip, instanc
 	// picked up right away
 	output, err := exec.CommandContext(ctx, "udevadm", "control", "--reload-rules").CombinedOutput()
 	if err != nil {
-		return fmt.Errorf("cannot reload udev rules: %s\nudev output:\n%s", err, string(output))
+		return fmt.Errorf("cannot reload udev rules: %w", osutil.OutputErr(output, err))
 	}
 	// trigger the tagging rule
 	output, err = exec.CommandContext(ctx, "udevadm", "trigger", "--name-match", chip.Name).CombinedOutput()
 	if err != nil {
-		return fmt.Errorf("cannot trigger udev rules: %s\nudev output:\n%s", err, string(output))
+		return fmt.Errorf("cannot trigger udev rules: %w", osutil.OutputErr(output, err))
 	}
 
 	return nil
@@ -248,7 +248,6 @@ func removeGadgetSlotDevice(instanceName, slotName string) (aggregatedChip *Char
 }
 
 func removeEphemeralUdevTaggingRule(gadget, slot string) error {
-	// XXX: is rule reload/trigger necessary
 	path := aggregatedChipUdevRulePath(gadget, slot)
 	return os.RemoveAll(path)
 }

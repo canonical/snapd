@@ -646,7 +646,8 @@ func SetRootDir(rootdir string) {
 	SnapKModModulesDir = filepath.Join(rootdir, "/etc/modules-load.d/")
 	SnapKModModprobeDir = filepath.Join(rootdir, "/etc/modprobe.d/")
 
-	SnapGpioChardevDir = filepath.Join(rootdir, "/dev/snap/gpio-chardev")
+	DevDir = filepath.Join(rootdir, "/dev")
+	SnapGpioChardevDir = filepath.Join(DevDir, "/snap/gpio-chardev")
 
 	LocaleDir = filepath.Join(rootdir, "/usr/share/locale")
 	ClassicDir = filepath.Join(rootdir, "/writable/classic")
@@ -692,8 +693,6 @@ func SetRootDir(rootdir string) {
 	SnapshotsDir = filepath.Join(rootdir, snappyDir, "snapshots")
 
 	SysfsDir = filepath.Join(rootdir, "/sys")
-
-	DevDir = filepath.Join(rootdir, "/dev")
 
 	FeaturesDir = FeaturesDirUnder(rootdir)
 
