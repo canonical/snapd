@@ -2095,5 +2095,5 @@ func (s *diskSuite) TestFindMatchingPartitionWithPartUUID(c *C) {
 	c.Check(p.PartitionUUID, Equals, "ade3ba65-7831-fd40-bbe2-e01c9774ed5b")
 
 	_, err = d.FindMatchingPartitionWithPartUUID("fe1ec853-15b1-4c72-a207-6a9b185dcbbb")
-	c.Assert(err, ErrorMatches, "filesystem uuid \"fe1ec853-15b1-4c72-a207-6a9b185dcbbb\" not found")
+	c.Assert(err, ErrorMatches, "partition uuid \"fe1ec853-15b1-4c72-a207-6a9b185dcbbb\" not found")
 }

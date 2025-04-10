@@ -213,7 +213,7 @@ func (e PartitionNotFoundError) Error() string {
 	case "filesystem-label":
 		t = "filesystem label"
 	case "partition-uuid":
-		t = "filesystem uuid"
+		t = "partition uuid"
 	default:
 		return fmt.Sprintf("searching with unknown search type %q and search query %q did not return a partition", e.SearchType, e.SearchQuery)
 	}
