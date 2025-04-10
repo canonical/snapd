@@ -515,7 +515,11 @@ func (d *Daemon) Stop(sigCh chan<- os.Signal) error {
 		// stop running hooks first
 		// and do it more gracefully if we are restarting
 		hookMgr := d.overlord.HookManager()
+		// Don't proceed before the state lock has been released by the code
+		// path which may request a restart.
+		d.state.Lock()
 		ok, _ := d.overlord.RestartManager().Pending()
+		d.state.Unlock()
 		if ok {
 			logger.Noticef("gracefully waiting for running hooks")
 			hookMgr.GracefullyWaitRunningHooks()
