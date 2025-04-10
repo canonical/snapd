@@ -283,7 +283,7 @@ func isAggregatedChip(path string) (bool, error) {
 		return false, errors.New("internal error")
 	}
 
-	maj, min := osutil.Major(stat.Rdev), osutil.Minor(stat.Rdev)
+	maj, min := osutil.Major(uint64(stat.Rdev)), osutil.Minor(uint64(stat.Rdev))
 
 	// filepath.Join is not used to prevent cleaning the ".." as it is crucial
 	// to follow the MAJ:MIN subdirectory symlink
