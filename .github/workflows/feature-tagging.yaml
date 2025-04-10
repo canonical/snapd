@@ -163,9 +163,9 @@ jobs:
 
       - name: Upload results to mongo
         env: 
-          MONGO_USER: ${{ secrets.MONGO_USE }}
+          MONGO_USER: ${{ secrets.MONGO_USER }}
           MONGO_PASSWORD: ${{ secrets.MONGO_PASS }}
-          MONGO_HOST: ${{ secrets.MONGO_HOS }}
+          MONGO_HOST: ${{ secrets.MONGO_HOST }}
           MONGO_PORT: ${{ secrets.MONGO_PORT }}
         run: ./tests/utils/features/mongo_upload.py --dir "final-feature-tags" --verbose
       
