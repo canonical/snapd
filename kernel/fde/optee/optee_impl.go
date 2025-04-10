@@ -188,7 +188,7 @@ func unionAsType[T any, U any](union *U) *T {
 // teecParamTypes is a Go version of TEEC_PARAM_TYPES, since that is a macro and
 // cannot be used from Go.
 func teecParamTypes(p0, p1, p2, p3 C.uint32_t) C.uint32_t {
-	return ((p0) | ((p1) << 4) | ((p2) << 8) | ((p3) << 12))
+	return p0 | (p1 << 4) | (p2 << 8) | (p3 << 12)
 }
 
 func invoke(pinner *runtime.Pinner, uuid C.TEEC_UUID, cmd uint32, op *C.TEEC_Operation) error {
