@@ -112,6 +112,8 @@ parts:
       - squashfs-tools
       - xdelta3
       - zlib1g
+      - on arm64:
+        - optee-client-dev
     stage:
       - -usr/lib/$CRAFT_ARCH_TRIPLET_BUILD_FOR/ld*.so*
       - -lib32
@@ -123,6 +125,12 @@ parts:
       - -usr/share/lintian
       - -usr/share/lintian/**
       - -usr/lib/$CRAFT_ARCH_TRIPLET_BUILD_FOR/libnss_*.so.2
+      - -usr/include/*
+      - -usr/share/doc/optee-client-dev/README.Debian
+      - -usr/share/doc/optee-client-dev/README.md
+      - -usr/lib/$CRAFT_ARCH_TRIPLET_BUILD_FOR/libckteec.so*
+      - -usr/lib/$CRAFT_ARCH_TRIPLET_BUILD_FOR/libseteec.so*
+      - -usr/lib/$CRAFT_ARCH_TRIPLET_BUILD_FOR/libteeacl.so*
     override-build: |
       craftctl default
       cp -avT "${CRAFT_PART_INSTALL}/lib/${CRAFT_ARCH_TRIPLET_BUILD_FOR}" "${CRAFT_PART_INSTALL}/usr/lib/${CRAFT_ARCH_TRIPLET_BUILD_FOR}"
@@ -469,10 +477,6 @@ parts:
       fi
       if [ -f fips-build-lp ]; then
         touch "${CRAFT_PART_INSTALL}/fips-build-lp"
-      fi
-
-      if [ "${CRAFT_ARCH_BUILD_FOR}" = "arm64" ]; then
-        cp -a --parents /usr/lib/${CRAFT_ARCH_TRIPLET_BUILD_FOR}/libteec.so* "${CRAFT_PART_INSTALL}/"
       fi
     <<:
       - *dynamic-linker
