@@ -248,8 +248,7 @@ func scanDiskNode(output io.Writer, node string) error {
 				 */
 				found = true
 			}
-		}
-		if fallback && part.Name == fallbackPartition {
+		} else if part.Name == fallbackPartition {
 			/*
 			 * We are not in UEFI boot, and we have found
 			 * a partition that looks like the boot
@@ -257,6 +256,7 @@ func scanDiskNode(output io.Writer, node string) error {
 			 */
 			hasFallbackPartition = true
 		}
+
 		if part.Name == "ubuntu-seed" {
 			hasSeed = true
 		} else if part.Name == "ubuntu-boot" {
