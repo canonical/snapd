@@ -6,13 +6,6 @@ on:
     - cron: '30 4 * * 0'
 
 jobs:
-  build-snapd:
-    uses: ./.github/workflows/snap-builds.yaml
-    with:
-        runs-on: ubuntu-latest
-        toolchain: default
-        variant: test
-
   run-spread-tests:
     uses: ./.github/workflows/spread-tests.yaml
     name: "spread ${{ matrix.group }}"
@@ -23,8 +16,7 @@ jobs:
       systems: ${{ matrix.systems }}
       tasks: ${{ matrix.tasks }}
       rules: ${{ matrix.rules }}
-      use-snapd-snap-from-master: false
-      spread-snapd-deb-from-repo: false
+      use-snapd-snap-from-master: true
       spread-env: "SPREAD_SNAPD_STATE_LOCK_TRACE_THRESHOLD_MS=1000"
       upload-artifacts: true
     strategy:
