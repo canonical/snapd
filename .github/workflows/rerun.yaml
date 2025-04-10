@@ -1,3 +1,5 @@
+name: Rerun Job
+
 on:
   workflow_dispatch:
     inputs:
