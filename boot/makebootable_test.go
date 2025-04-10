@@ -538,7 +538,7 @@ func (s *makeBootable20Suite) TestMakeSystemRunnableSealWithFDEHookOrOPTEE(c *C)
 	defer restore()
 
 	var checkedForOPTEE bool
-	restore = optee.MockTAPresent(func() bool {
+	restore = optee.MockFDETAPresent(func() bool {
 		checkedForOPTEE = true
 		return true
 	})
@@ -560,7 +560,7 @@ func (s *makeBootable20Suite) TestMakeSystemRunnableSealWithFDEHookOrOPTEE(c *C)
 	})
 	defer restore()
 
-	restore = optee.MockTAPresent(func() bool {
+	restore = optee.MockFDETAPresent(func() bool {
 		checkedForOPTEE = true
 		return false
 	})
@@ -576,7 +576,7 @@ func (s *makeBootable20Suite) TestMakeSystemRunnableSealWithFDEHookOrOPTEE(c *C)
 	c.Assert(checkedForOPTEE, Equals, true)
 
 	checkedForOPTEE = false
-	restore = optee.MockTAPresent(func() bool {
+	restore = optee.MockFDETAPresent(func() bool {
 		checkedForOPTEE = true
 		return true
 	})

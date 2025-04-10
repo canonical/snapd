@@ -74,7 +74,7 @@ func LockSealedKeys() error {
 		return fde.LockSealedKeys()
 	}
 
-	if optee.TAPresent() {
+	if optee.FDETAPresent() {
 		return optee.LockTA()
 	}
 
@@ -145,7 +145,7 @@ func UnlockVolumeUsingSealedKeyIfEncrypted(disk disks.Disk, name string, sealedE
 	res.PartDevice = partDevice
 
 	fdeHookPresent := fdeHasRevealKey()
-	opteePresent := optee.TAPresent()
+	opteePresent := optee.FDETAPresent()
 
 	// TODO: better name for this, since this isn't just a hook now. really, we
 	// need a name that is representative of an abstraction over both the hooks

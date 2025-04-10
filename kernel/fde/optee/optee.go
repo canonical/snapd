@@ -6,14 +6,14 @@ import (
 )
 
 var (
-	taPresent  = taPresentImpl
-	decryptKey = decryptKeyImpl
-	encryptKey = encryptKeyImpl
-	lockTA     = lockTAImpl
+	fdeTAPresent = fdeTAPresentImpl
+	decryptKey   = decryptKeyImpl
+	encryptKey   = encryptKeyImpl
+	lockTA       = lockTAImpl
 )
 
-func TAPresent() bool {
-	return taPresent()
+func FDETAPresent() bool {
+	return fdeTAPresent()
 }
 
 func DecryptKey(input []byte, handle []byte) ([]byte, error) {
@@ -28,9 +28,9 @@ func LockTA() error {
 	return lockTA()
 }
 
-func MockTAPresent(f func() bool) (restore func()) {
+func MockFDETAPresent(f func() bool) (restore func()) {
 	osutil.MustBeTestBinary("can only mock optee functions in tests")
-	return testutil.Mock(&taPresent, f)
+	return testutil.Mock(&fdeTAPresent, f)
 }
 
 func MockDecryptKey(f func(input []byte, handle []byte) ([]byte, error)) (restore func()) {

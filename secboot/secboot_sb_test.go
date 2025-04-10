@@ -1852,7 +1852,7 @@ func (s *secbootSuite) TestLockSealedKeysUsesTPM(c *C) {
 	})
 	defer restore()
 
-	restore = optee.MockTAPresent(func() bool {
+	restore = optee.MockFDETAPresent(func() bool {
 		return false
 	})
 	defer restore()
@@ -1904,7 +1904,7 @@ func (s *secbootSuite) TestLockSealedKeysUsesOPTEE(c *C) {
 	})
 	defer restore()
 
-	restore = optee.MockTAPresent(func() bool {
+	restore = optee.MockFDETAPresent(func() bool {
 		return true
 	})
 	defer restore()
@@ -1933,7 +1933,7 @@ func (s *secbootSuite) TestLockSealedKeysUsesNothing(c *C) {
 	})
 	defer restore()
 
-	restore = optee.MockTAPresent(func() bool {
+	restore = optee.MockFDETAPresent(func() bool {
 		return false
 	})
 	defer restore()
@@ -2151,7 +2151,7 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyWithOPTEE(c *C) {
 	})
 	defer restore()
 
-	restore = optee.MockTAPresent(func() bool {
+	restore = optee.MockFDETAPresent(func() bool {
 		return true
 	})
 	defer restore()

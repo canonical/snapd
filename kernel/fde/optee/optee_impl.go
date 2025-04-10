@@ -26,7 +26,7 @@ import (
 	"unsafe"
 )
 
-func taPresentImpl() bool {
+func fdeTAPresentImpl() bool {
 	pinner := &runtime.Pinner{}
 	defer pinner.Unpin()
 

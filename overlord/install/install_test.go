@@ -496,7 +496,7 @@ func (s *installSuite) TestEncryptionSupportInfoFallbacks(c *C) {
 		}
 
 		opteeChecked := false
-		restore := optee.MockTAPresent(func() bool {
+		restore := optee.MockFDETAPresent(func() bool {
 			opteeChecked = true
 			return tc.optee
 		})

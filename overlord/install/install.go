@@ -242,7 +242,7 @@ func GetEncryptionSupportInfo(constraints EncryptionConstraints, runSetupHook fd
 	// we should use optee. thus, we check for its presence and fall back to the
 	// tpm if we can't see optee. this means that this function won't return any
 	// optee-specific errors/warnings. change this?
-	checkOPTEEEncryption := !checkFDESetupHookEncryption && !constraints.StandaloneInstall && optee.TAPresent()
+	checkOPTEEEncryption := !checkFDESetupHookEncryption && !constraints.StandaloneInstall && optee.FDETAPresent()
 	checkSecbootEncryption := !checkOPTEEEncryption
 
 	var checkEncryptionErr error
