@@ -80,18 +80,18 @@ func (m *InterfaceManager) addInterfaces(extra []interfaces.Interface) error {
 	return nil
 }
 
-func (m *InterfaceManager) addBackends(extra []interfaces.SecurityBackend) error {
+func (m *InterfaceManager) securityBackendOpts() (*interfaces.SecurityBackendOptions, error) {
 	// get the snapd snap info if it is installed
 	var snapdSnap snapstate.SnapState
 	var snapdSnapInfo *snap.Info
 	err := snapstate.Get(m.state, "snapd", &snapdSnap)
 	if err != nil && !errors.Is(err, state.ErrNoState) {
-		return fmt.Errorf("cannot access snapd snap state: %v", err)
+		return nil, fmt.Errorf("cannot access snapd snap state: %w", err)
 	}
 	if err == nil {
 		snapdSnapInfo, err = snapdSnap.CurrentInfo()
 		if err != nil && err != snapstate.ErrNoCurrent {
-			return fmt.Errorf("cannot access snapd snap info: %v", err)
+			return nil, fmt.Errorf("cannot access snapd snap info: %w", err)
 		}
 	}
 
@@ -100,12 +100,12 @@ func (m *InterfaceManager) addBackends(extra []interfaces.SecurityBackend) error
 	var coreSnapInfo *snap.Info
 	err = snapstate.Get(m.state, "core", &coreSnap)
 	if err != nil && !errors.Is(err, state.ErrNoState) {
-		return fmt.Errorf("cannot access core snap state: %v", err)
+		return nil, fmt.Errorf("cannot access core snap state: %w", err)
 	}
 	if err == nil {
 		coreSnapInfo, err = coreSnap.CurrentInfo()
 		if err != nil && err != snapstate.ErrNoCurrent {
-			return fmt.Errorf("cannot access core snap info: %v", err)
+			return nil, fmt.Errorf("cannot access core snap info: %w", err)
 		}
 	}
 
@@ -114,8 +114,18 @@ func (m *InterfaceManager) addBackends(extra []interfaces.SecurityBackend) error
 		CoreSnapInfo:  coreSnapInfo,
 		SnapdSnapInfo: snapdSnapInfo,
 	}
+
+	return &opts, nil
+}
+
+func (m *InterfaceManager) addBackends(extra []interfaces.SecurityBackend) error {
+	opts, err := m.securityBackendOpts()
+	if err != nil {
+		return err
+	}
+
 	for _, backend := range allSecurityBackends() {
-		if err := backend.Initialize(&opts); err != nil {
+		if err := backend.Initialize(opts); err != nil {
 			return err
 		}
 		if err := m.repo.AddBackend(backend); err != nil {
@@ -123,7 +133,7 @@ func (m *InterfaceManager) addBackends(extra []interfaces.SecurityBackend) error
 		}
 	}
 	for _, backend := range extra {
-		if err := backend.Initialize(&opts); err != nil {
+		if err := backend.Initialize(opts); err != nil {
 			return err
 		}
 		if err := m.repo.AddBackend(backend); err != nil {
@@ -181,8 +191,11 @@ func snapdAppArmorServiceIsDisabledImpl() bool {
 	return err == nil && !isEnabled
 }
 
-// regenerateAllSecurityProfiles will regenerate all security profiles.
-func (m *InterfaceManager) regenerateAllSecurityProfiles(tm timings.Measurer) error {
+// regenerateAllSecurityProfiles will regenerate all security profiles. This
+// function is expected to be called with the state locked, though in some
+// scenarios one may want to temporarily unlock the state for the duration of
+// security backends executing their setup.
+func (m *InterfaceManager) regenerateAllSecurityProfiles(tm timings.Measurer, unlockState bool) error {
 	// Get all the security backends
 	securityBackends := m.repo.Backends()
 
@@ -240,6 +253,11 @@ func (m *InterfaceManager) regenerateAllSecurityProfiles(tm timings.Measurer) er
 		return precompOpts[instanceName]
 	}
 
+	if unlockState {
+		m.state.Unlock()
+		defer m.state.Lock()
+	}
+
 	// For each backend:
 	for _, backend := range securityBackends {
 		if backend.Name() == "" {
@@ -252,6 +270,11 @@ func (m *InterfaceManager) regenerateAllSecurityProfiles(tm timings.Measurer) er
 			}
 			shouldWriteSystemKey = false
 		}
+	}
+
+	if unlockState {
+		m.state.Lock()
+		defer m.state.Unlock()
 	}
 
 	if shouldWriteSystemKey {

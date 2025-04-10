@@ -22,7 +22,9 @@ package daemon_test
 import (
 	"context"
 	"crypto"
+	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -212,6 +214,7 @@ func (s *apiBaseSuite) SetUpTest(c *check.C) {
 	c.Assert(err, check.IsNil)
 	c.Assert(os.MkdirAll(dirs.SnapMountDir, 0755), check.IsNil)
 	c.Assert(os.MkdirAll(dirs.SnapBlobDir, 0755), check.IsNil)
+	c.Assert(os.MkdirAll(filepath.Dir(dirs.SnapSystemKeyFile), 0755), check.IsNil)
 
 	s.rsnaps = nil
 	s.suggestedCurrency = ""
@@ -744,4 +747,13 @@ func (s *apiBaseSuite) simulateConflict(name string) {
 	t.Set("snap-setup", snapsup)
 	chg := st.NewChange("manip", "...")
 	chg.AddTask(t)
+}
+
+func assertResponseBody(c *check.C, b io.Reader, expected map[string]any) {
+	var body map[string]interface{}
+	dec := json.NewDecoder(b)
+	err := dec.Decode(&body)
+	c.Check(err, check.IsNil)
+	c.Check(body, check.DeepEquals, expected)
+	c.Check(dec.More(), check.Equals, false)
 }

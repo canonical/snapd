@@ -2075,3 +2075,38 @@ func (m *InterfaceManager) doHotplugSeqWait(task *state.Task, _ *tomb.Tomb) erro
 	// no conflicting change for same hotplug key found
 	return nil
 }
+
+func (m *InterfaceManager) doRegenerateAllSecurityProfiles(task *state.Task, _ *tomb.Tomb) error {
+	st := task.State()
+
+	st.Lock()
+	defer st.Unlock()
+
+	perfTimings := state.TimingsForTask(task)
+	defer perfTimings.Save(task.State())
+
+	// the reported system key change may have an effect on the security
+	// backends, give them a chance to update their view of the system
+	backends := m.repo.Backends()
+	for _, b := range backends {
+		rb, ok := b.(interfaces.ReinitializableSecurityBackend)
+		if !ok {
+			continue
+		}
+
+		task.Logf("reinitializing %q security backend", b.Name())
+		var err error
+		timings.Run(perfTimings, "reinitialize-security-backend", fmt.Sprintf("reinitialize %q security backend", b.Name()),
+			func(nesttm timings.Measurer) {
+				err = rb.Reinitialize()
+			})
+		if err != nil {
+			return fmt.Errorf("cannot reinitialize backend %q: %w", b.Name(), err)
+		}
+	}
+
+	// regenerating and reloading profiles is time consuming, so allow unlocking
+	// of state for the duration of security backend operations
+	const unlockState = true
+	return m.regenerateAllSecurityProfiles(perfTimings, unlockState)
+}

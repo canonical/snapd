@@ -69,7 +69,8 @@ var (
 
 	// make sure that apparmor profile fulfills the late discarding backend
 	// interface
-	_ interfaces.SecurityBackendDiscardingLate = (*Backend)(nil)
+	_ interfaces.SecurityBackendDiscardingLate  = (*Backend)(nil)
+	_ interfaces.ReinitializableSecurityBackend = (*Backend)(nil)
 )
 
 // Backend is responsible for maintaining apparmor profiles for snaps and parts of snapd.
@@ -95,6 +96,15 @@ func (b *Backend) Initialize(opts *interfaces.SecurityBackendOptions) error {
 		b.coreSnap = opts.CoreSnapInfo
 		b.snapdSnap = opts.SnapdSnapInfo
 	}
+
+	const reinitializing = false
+	if err := b.initializeSnapConfineProfiles(b.preseed, reinitializing); err != nil {
+		return fmt.Errorf("cannot initialize snap-confine profiles: %w", err)
+	}
+	return nil
+}
+
+func (b *Backend) initializeSnapConfineProfiles(preseed, reinitializing bool) error {
 	// NOTE: It would be nice if we could also generate the profile for
 	// snap-confine executing from the core snap, right here, and not have to
 	// do this in the Setup function below. I sadly don't think this is
@@ -105,11 +115,21 @@ func (b *Backend) Initialize(opts *interfaces.SecurityBackendOptions) error {
 	// fail early if this fails for whatever reason.
 	exe, err := os.Readlink(procSelfExe)
 	if err != nil {
-		return fmt.Errorf("cannot read %s: %s", procSelfExe, err)
+		return fmt.Errorf("cannot read %s: %w", procSelfExe, err)
 	}
 
-	if _, err := apparmor_sandbox.SetupSnapConfineSnippets(); err != nil {
+	// TODO:mismatch: regenerate a subset of snippets if needed?
+
+	// snippets are shared between all snap-confine profiles, those from
+	// snapd/core snap and the distro one
+	changed, err := apparmor_sandbox.SetupSnapConfineSnippets()
+	if err != nil {
 		return err
+	}
+
+	if reinitializing && !changed {
+		logger.Noticef("snap-confine snippets not chnaged during reinit, not reloading profiles")
+		return nil
 	}
 
 	// If snapd is executing from the core snap the it means it has
@@ -118,9 +138,11 @@ func (b *Backend) Initialize(opts *interfaces.SecurityBackendOptions) error {
 	// to re-compile and load the updated profile as that is performed by
 	// setupSnapConfineReexec below.
 	if strings.HasPrefix(exe, dirs.SnapMountDir) {
+		logger.Notice("not reloading profiles for snap-confine with reexec")
 		return nil
 	}
 
+	logger.Notice("reloading profiles for snap-confine")
 	// Reload the apparmor profile of snap-confine. This points to the main
 	// file in /etc/apparmor.d/ as that file contains include statements that
 	// load any of the files placed in /var/lib/snapd/apparmor/snap-confine/.
@@ -137,7 +159,7 @@ func (b *Backend) Initialize(opts *interfaces.SecurityBackendOptions) error {
 	}
 
 	aaFlags := apparmor_sandbox.SkipReadCache
-	if b.preseed {
+	if preseed {
 		aaFlags |= apparmor_sandbox.SkipKernelLoad
 	}
 
@@ -146,7 +168,15 @@ func (b *Backend) Initialize(opts *interfaces.SecurityBackendOptions) error {
 		// policy. Maybe we have caused the problem so it's better to let other
 		// things work.
 		apparmor_sandbox.RemoveSnapConfineSnippets()
-		return fmt.Errorf("cannot reload snap-confine apparmor profile: %v", err)
+		return fmt.Errorf("cannot reload snap-confine apparmor profile: %w", err)
+	}
+	return nil
+}
+
+func (b *Backend) Reinitialize() error {
+	const reinitializing = true
+	if err := b.initializeSnapConfineProfiles(b.preseed, reinitializing); err != nil {
+		return fmt.Errorf("cannot initialize snap-confine profiles: %w", err)
 	}
 	return nil
 }
@@ -250,6 +280,7 @@ func snapConfineProfileName(snapName string, rev snap.Revision) string {
 //
 // Additionally it will cleanup stale apparmor profiles it created.
 func (b *Backend) setupSnapConfineReexec(info *snap.Info) error {
+	logger.Noticef("setup snap confine reexec")
 	if err := os.MkdirAll(apparmor_sandbox.SnapConfineAppArmorDir, 0755); err != nil {
 		return fmt.Errorf("cannot create snap-confine policy directory: %s", err)
 	}
