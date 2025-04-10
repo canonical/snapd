@@ -537,11 +537,15 @@ func (s *makeBootable20Suite) TestMakeSystemRunnableSealWithFDEHookOrOPTEE(c *C)
 	})
 	defer restore()
 
-	var checkedForOPTEE bool
-	restore = optee.MockFDETAPresent(func() bool {
-		checkedForOPTEE = true
-		return true
-	})
+	checkedForOPTEE := false
+	mockedTAPresent := true
+	client := optee.MockClient{
+		FDETAPresentFn: func() bool {
+			checkedForOPTEE = true
+			return mockedTAPresent
+		},
+	}
+	restore = optee.MockNewClient(&client)
 	defer restore()
 
 	err := boot.MakeRunnableSystem(model, bootWith, &observer)
@@ -560,11 +564,9 @@ func (s *makeBootable20Suite) TestMakeSystemRunnableSealWithFDEHookOrOPTEE(c *C)
 	})
 	defer restore()
 
-	restore = optee.MockFDETAPresent(func() bool {
-		checkedForOPTEE = true
-		return false
-	})
-	defer restore()
+	// now we make it appear as if the TA is not present
+	mockedTAPresent = false
+	checkedForOPTEE = false
 
 	err = boot.MakeRunnableSystem(model, bootWith, &observer)
 	c.Assert(err, IsNil)
@@ -575,12 +577,9 @@ func (s *makeBootable20Suite) TestMakeSystemRunnableSealWithFDEHookOrOPTEE(c *C)
 	c.Assert(gotFlags.HasTA, Equals, false)
 	c.Assert(checkedForOPTEE, Equals, true)
 
+	// now we make it appear as if the TA not present
+	mockedTAPresent = true
 	checkedForOPTEE = false
-	restore = optee.MockFDETAPresent(func() bool {
-		checkedForOPTEE = true
-		return true
-	})
-	defer restore()
 
 	err = boot.MakeRunnableSystem(model, bootWith, &observer)
 	c.Assert(err, IsNil)

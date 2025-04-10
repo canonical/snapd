@@ -647,7 +647,7 @@ func makeRunnableSystem(model *asserts.Model, bootWith *BootableSet, observer Tr
 		// (i.e. from the installer API)
 		var hasTA bool
 		if !hasHook && !makeOpts.Standalone {
-			hasTA = optee.FDETAPresent()
+			hasTA = optee.NewClient().FDETAPresent()
 		}
 
 		tokens := UseTokens(model)

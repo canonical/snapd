@@ -6,18 +6,30 @@ import (
 	"errors"
 )
 
-func fdeTAPresentImpl() bool {
+type unsupportedClient struct{}
+
+var ErrUnsupportedPlatform = errors.New("unsupported platform")
+
+func (c *unsupportedClient) FDETAPresent() bool {
 	return false
 }
 
-func decryptKeyImpl(input []byte, handle []byte) ([]byte, error) {
-	return nil, errors.New("unsupported platform")
+func (c *unsupportedClient) DecryptKey(input []byte, handle []byte) ([]byte, error) {
+	return nil, ErrUnsupportedPlatform
 }
 
-func encryptKeyImpl(input []byte) (handle []byte, sealed []byte, err error) {
-	return nil, nil, errors.New("unsupported platform")
+func (c *unsupportedClient) EncryptKey(input []byte) (handle []byte, sealed []byte, err error) {
+	return nil, nil, ErrUnsupportedPlatform
 }
 
-func lockTAImpl() error {
-	return errors.New("unsupported platform")
+func (c *unsupportedClient) LockTA() error {
+	return ErrUnsupportedPlatform
+}
+
+func (c *unsupportedClient) Version() (string, error) {
+	return "", ErrUnsupportedPlatform
+}
+
+func newOPTEEClient() Client {
+	return &unsupportedClient{}
 }

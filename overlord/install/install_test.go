@@ -496,10 +496,13 @@ func (s *installSuite) TestEncryptionSupportInfoFallbacks(c *C) {
 		}
 
 		opteeChecked := false
-		restore := optee.MockFDETAPresent(func() bool {
-			opteeChecked = true
-			return tc.optee
-		})
+		client := optee.MockClient{
+			FDETAPresentFn: func() bool {
+				opteeChecked = true
+				return tc.optee
+			},
+		}
+		restore := optee.MockNewClient(&client)
 		defer restore()
 
 		tpmChecked := false

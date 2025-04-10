@@ -570,14 +570,16 @@ func (s *sealSuite) TestSealToModeenvWithFdeHookHappyTokens(c *C) {
 func (s *sealSuite) TestSealToModeenvWithOPTEE(c *C) {
 	model := boottest.MakeMockUC20Model()
 
-	n := 0
 	sealedKeys := make([][]byte, 0)
-	restore := optee.MockEncryptKey(func(input []byte) (handle, sealed []byte, err error) {
-		n++
-		sealedKeys = append(sealedKeys, input)
-		return nil, []byte(fmt.Sprintf("key-%v", strconv.Itoa(n))), nil
-	})
+	client := optee.MockClient{
+		EncryptKeyFn: func(input []byte) (handle, sealed []byte, err error) {
+			sealedKeys = append(sealedKeys, input)
+			return nil, []byte(fmt.Sprintf("key-%v", strconv.Itoa(len(sealedKeys)))), nil
+		},
+	}
+	restore := optee.MockNewClient(&client)
 	defer restore()
+
 	dataContainer := secboot.CreateMockBootstrappedContainer()
 	saveContainer := secboot.CreateMockBootstrappedContainer()
 	savedKeyFiles := make(map[string][]byte)

@@ -21,12 +21,15 @@ import "C"
 
 import (
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"runtime"
 	"unsafe"
 )
 
-func fdeTAPresentImpl() bool {
+type opteeClient struct{}
+
+func (c *opteeClient) FDETAPresent() bool {
 	pinner := &runtime.Pinner{}
 	defer pinner.Unpin()
 
@@ -68,24 +71,7 @@ func fdeTAPresentImpl() bool {
 	return false
 }
 
-func uuidFromOctets(s []byte) (C.TEEC_UUID, error) {
-	if len(s) != 16 {
-		return C.TEEC_UUID{}, fmt.Errorf("cannot parse slice as uuid: length is %d, expected 16", len(s))
-	}
-
-	d := C.TEEC_UUID{
-		timeLow:          C.uint32_t(binary.BigEndian.Uint32(s[0:4])),
-		timeMid:          C.uint16_t(binary.BigEndian.Uint16(s[4:6])),
-		timeHiAndVersion: C.uint16_t(binary.BigEndian.Uint16(s[6:8])),
-	}
-	for i, b := range s[8:] {
-		d.clockSeqAndNode[i] = C.uint8_t(b)
-	}
-
-	return d, nil
-}
-
-func decryptKeyImpl(input []byte, handle []byte) ([]byte, error) {
+func (c *opteeClient) DecryptKey(input []byte, handle []byte) ([]byte, error) {
 	pinner := &runtime.Pinner{}
 	defer pinner.Unpin()
 
@@ -124,7 +110,7 @@ func decryptKeyImpl(input []byte, handle []byte) ([]byte, error) {
 	return unsealed, nil
 }
 
-func encryptKeyImpl(input []byte) (handle []byte, sealed []byte, err error) {
+func (c *opteeClient) EncryptKey(input []byte) (handle []byte, sealed []byte, err error) {
 	pinner := &runtime.Pinner{}
 	defer pinner.Unpin()
 
@@ -165,7 +151,7 @@ func encryptKeyImpl(input []byte) (handle []byte, sealed []byte, err error) {
 	return handle, sealed, nil
 }
 
-func lockTAImpl() error {
+func (c *opteeClient) LockTA() error {
 	pinner := &runtime.Pinner{}
 	defer pinner.Unpin()
 
@@ -176,6 +162,31 @@ func lockTAImpl() error {
 	pinner.Pin(op)
 
 	return invoke(pinner, C.fde_ta_uuid, C.TA_CMD_LOCK, op)
+}
+
+func (c *opteeClient) Version() (string, error) {
+	return "", errors.New("TODO")
+}
+
+func newOPTEEClient() Client {
+	return &opteeClient{}
+}
+
+func uuidFromOctets(s []byte) (C.TEEC_UUID, error) {
+	if len(s) != 16 {
+		return C.TEEC_UUID{}, fmt.Errorf("cannot parse slice as uuid: length is %d, expected 16", len(s))
+	}
+
+	d := C.TEEC_UUID{
+		timeLow:          C.uint32_t(binary.BigEndian.Uint32(s[0:4])),
+		timeMid:          C.uint16_t(binary.BigEndian.Uint16(s[4:6])),
+		timeHiAndVersion: C.uint16_t(binary.BigEndian.Uint16(s[6:8])),
+	}
+	for i, b := range s[8:] {
+		d.clockSeqAndNode[i] = C.uint8_t(b)
+	}
+
+	return d, nil
 }
 
 // unionAsType interprets the memory that union points to as a T. This is useful

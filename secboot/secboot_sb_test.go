@@ -1852,9 +1852,13 @@ func (s *secbootSuite) TestLockSealedKeysUsesTPM(c *C) {
 	})
 	defer restore()
 
-	restore = optee.MockFDETAPresent(func() bool {
-		return false
-	})
+	client := optee.MockClient{
+		FDETAPresentFn: func() bool {
+			return false
+		},
+	}
+
+	restore = optee.MockNewClient(&client)
 	defer restore()
 
 	restore = secboot.MockSbConnectToDefaultTPM(func() (*sb_tpm2.Connection, error) {
@@ -1904,16 +1908,18 @@ func (s *secbootSuite) TestLockSealedKeysUsesOPTEE(c *C) {
 	})
 	defer restore()
 
-	restore = optee.MockFDETAPresent(func() bool {
-		return true
-	})
-	defer restore()
-
 	var called bool
-	restore = optee.MockLockTA(func() error {
-		called = true
-		return nil
-	})
+	client := optee.MockClient{
+		FDETAPresentFn: func() bool {
+			return true
+		},
+		LockTAFn: func() error {
+			called = true
+			return nil
+		},
+	}
+
+	restore = optee.MockNewClient(&client)
 	defer restore()
 
 	err := secboot.LockSealedKeys()
@@ -1933,16 +1939,18 @@ func (s *secbootSuite) TestLockSealedKeysUsesNothing(c *C) {
 	})
 	defer restore()
 
-	restore = optee.MockFDETAPresent(func() bool {
-		return false
-	})
-	defer restore()
-
 	var called bool
-	restore = optee.MockLockTA(func() error {
-		called = true
-		return nil
-	})
+	client := optee.MockClient{
+		FDETAPresentFn: func() bool {
+			return false
+		},
+		LockTAFn: func() error {
+			called = true
+			return nil
+		},
+	}
+
+	restore = optee.MockNewClient(&client)
 	defer restore()
 
 	err := secboot.LockSealedKeys()
@@ -2099,11 +2107,15 @@ var fakeModel = assertstest.FakeAssertion(map[string]interface{}{
 
 func (s *secbootSuite) sealKeysWithOPTEE(c *C) (key []byte, keyPath string) {
 	prefix := []byte("SEALED:")
-	restore := optee.MockEncryptKey(func(input []byte) (handle []byte, sealed []byte, err error) {
-		key = make([]byte, len(input))
-		copy(key, input)
-		return nil, append(prefix, input...), nil
-	})
+
+	client := optee.MockClient{
+		EncryptKeyFn: func(input []byte) (handle []byte, sealed []byte, err error) {
+			key = make([]byte, len(input))
+			copy(key, input)
+			return nil, append(prefix, input...), nil
+		},
+	}
+	restore := optee.MockNewClient(&client)
 	defer restore()
 
 	root := c.MkDir()
@@ -2139,20 +2151,21 @@ func (s *secbootSuite) sealKeysWithOPTEE(c *C) (key []byte, keyPath string) {
 func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyWithOPTEE(c *C) {
 	expectedKey, keyPath := s.sealKeysWithOPTEE(c)
 
-	restore := optee.MockDecryptKey(func(input []byte, handle []byte) ([]byte, error) {
-		unsealed := bytes.TrimPrefix(input, []byte("SEALED:"))
-		c.Check(unsealed, DeepEquals, expectedKey)
-		return unsealed, nil
-	})
+	client := optee.MockClient{
+		DecryptKeyFn: func(input []byte, handle []byte) ([]byte, error) {
+			unsealed := bytes.TrimPrefix(input, []byte("SEALED:"))
+			c.Check(unsealed, DeepEquals, expectedKey)
+			return unsealed, nil
+		},
+		FDETAPresentFn: func() bool {
+			return true
+		},
+	}
+	restore := optee.MockNewClient(&client)
 	defer restore()
 
 	restore = secboot.MockRandomKernelUUID(func() (string, error) {
 		return "random-uuid-for-test", nil
-	})
-	defer restore()
-
-	restore = optee.MockFDETAPresent(func() bool {
-		return true
 	})
 	defer restore()
 

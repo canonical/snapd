@@ -84,7 +84,8 @@ func NewOpteeKeyProtector() sb_hooks.KeyProtector {
 }
 
 func (o *opteeKeyProtector) ProtectKey(rand io.Reader, cleartext, aad []byte) (ciphertext []byte, handle []byte, err error) {
-	rawHandle, sealed, err := optee.EncryptKey(cleartext)
+	client := optee.NewClient()
+	rawHandle, sealed, err := client.EncryptKey(cleartext)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -300,5 +301,6 @@ func (o *opteeKeyRevealer) RevealKey(data, ciphertext, aad []byte) (plaintext []
 		return nil, err
 	}
 
-	return optee.DecryptKey(ciphertext, handle)
+	client := optee.NewClient()
+	return client.DecryptKey(ciphertext, handle)
 }
