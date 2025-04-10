@@ -25,6 +25,7 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
+	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -64,6 +65,14 @@ func (s *TimeserverControlInterfaceSuite) TestName(c *C) {
 	c.Assert(s.iface.Name(), Equals, "timeserver-control")
 }
 
+func (s *TimeserverControlInterfaceSuite) TestStaticInfo(c *C) {
+	si := interfaces.StaticInfoOf(s.iface)
+	c.Assert(si.Summary, Equals, "allows setting system time synchronization servers")
+	c.Assert(si.BaseDeclarationSlots, testutil.Contains, "timeserver-control")
+	c.Assert(si.ImplicitOnCore, Equals, true)
+	c.Assert(si.ImplicitOnClassic, Equals, true)
+}
+
 func (s *TimeserverControlInterfaceSuite) TestSanitizeSlot(c *C) {
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.slotInfo), IsNil)
 }
@@ -72,13 +81,23 @@ func (s *TimeserverControlInterfaceSuite) TestSanitizePlug(c *C) {
 	c.Assert(interfaces.BeforePreparePlug(s.iface, s.plugInfo), IsNil)
 }
 
-func (s *TimeserverControlInterfaceSuite) TestUsedSecuritySystems(c *C) {
+func (s *TimeserverControlInterfaceSuite) TestAppArmorSpec(c *C) {
 	// connected plugs have a non-nil security snippet for apparmor
 	apparmorSpec := apparmor.NewSpecification(s.plug.AppSet())
 	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other.app"})
 	c.Assert(apparmorSpec.SnippetForTag("snap.other.app"), testutil.Contains, "path=/org/freedesktop/timedate1")
+	c.Assert(apparmorSpec.SnippetForTag("snap.other.app"), testutil.Contains, "path=/org/freedesktop/timesync1")
+}
+
+func (s *TimeserverControlInterfaceSuite) TestSecCompSpec(c *C) {
+	// connected plugs have a non-nil security snippet for seccomp
+	seccompSpec := seccomp.NewSpecification(s.plug.AppSet())
+	err := seccompSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
+	c.Assert(err, IsNil)
+	c.Assert(seccompSpec.SecurityTags(), DeepEquals, []string{"snap.other.app"})
+	c.Assert(seccompSpec.SnippetForTag("snap.other.app"), testutil.Contains, "bind")
 }
 
 func (s *TimeserverControlInterfaceSuite) TestInterfaces(c *C) {
