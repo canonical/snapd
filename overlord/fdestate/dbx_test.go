@@ -21,6 +21,7 @@
 package fdestate_test
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -48,30 +49,30 @@ import (
 
 func (s *fdeMgrSuite) TestEFIDBXNoSealedKeys(c *C) {
 	// no sealed keys in the system, all operations are NOP
-
-	st := s.st
-	onClassic := true
-	s.startedManager(c, onClassic)
+	_, err := device.SealedKeysMethod(dirs.GlobalRootDir)
+	// make sure the state is true
+	c.Assert(err, Equals, device.ErrNoSealedKeys)
 
 	defer fdestate.MockBackendResealKeysForSignaturesDBUpdate(func(mgr backend.FDEStateManager, method device.SealingMethod, rootdir string, params *boot.ResealKeyForBootChainsParams, update []byte) error {
 		panic("unexpected call")
 	})()
 
-	err := fdestate.EFISecureBootDBManagerStartup(st)
-	c.Assert(err, IsNil)
-
-	err = fdestate.EFISecureBootDBUpdatePrepare(st, fdestate.EFISecurebootDBX, []byte("payload"))
-	c.Assert(err, IsNil)
-
+	st := s.st
+	// make sure there is no fde state
 	func() {
 		st.Lock()
 		defer st.Unlock()
 		// make sure nothing was added to the state
 		var fdeSt fdestate.FdeState
 		err = st.Get("fde", &fdeSt)
-		c.Assert(err, IsNil)
-		c.Check(fdeSt.PendingExternalOperations, HasLen, 0)
+		c.Assert(errors.Is(err, state.ErrNoState), Equals, true)
 	}()
+
+	err = fdestate.EFISecureBootDBManagerStartup(st)
+	c.Assert(err, IsNil)
+
+	err = fdestate.EFISecureBootDBUpdatePrepare(st, fdestate.EFISecurebootDBX, []byte("payload"))
+	c.Assert(err, IsNil)
 
 	err = fdestate.EFISecureBootDBUpdateCleanup(st)
 	c.Assert(err, IsNil)
