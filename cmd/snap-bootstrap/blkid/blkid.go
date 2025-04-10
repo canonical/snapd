@@ -88,7 +88,14 @@ func newProbeFromFilenameImpl(node string) (AbstractBlkidProbe, error) {
 
 var NewProbeFromFilename = newProbeFromFilenameImpl
 
+func (p *blkidProbe) checkProbe() {
+	if p.probeHandle == nil {
+		panic("Used probe after Close")
+	}
+}
+
 func (p *blkidProbe) LookupValue(entryName string) (string, error) {
+	p.checkProbe()
 	var value *C.char
 	var value_len C.size_t
 	cname := C.CString(entryName)
@@ -105,11 +112,13 @@ func (p *blkidProbe) LookupValue(entryName string) (string, error) {
 }
 
 func (p *blkidProbe) Close() {
+	p.checkProbe()
 	C.blkid_free_probe(p.probeHandle)
 	p.probeHandle = C.blkid_probe(nil)
 }
 
 func (p *blkidProbe) EnablePartitions(value bool) {
+	p.checkProbe()
 	v := 0
 	if value {
 		v = 1
@@ -118,6 +127,7 @@ func (p *blkidProbe) EnablePartitions(value bool) {
 }
 
 func (p *blkidProbe) EnableSuperblocks(value bool) {
+	p.checkProbe()
 	v := 0
 	if value {
 		v = 1
@@ -126,10 +136,12 @@ func (p *blkidProbe) EnableSuperblocks(value bool) {
 }
 
 func (p *blkidProbe) SetPartitionsFlags(flags int) {
+	p.checkProbe()
 	C.blkid_probe_set_partitions_flags(p.probeHandle, C.int(flags))
 }
 
 func (p *blkidProbe) DoSafeprobe() error {
+	p.checkProbe()
 	res, err := C.blkid_do_safeprobe(p.probeHandle)
 	if res < 0 {
 		return err
@@ -142,6 +154,7 @@ type blkidPartlist struct {
 }
 
 func (p *blkidProbe) GetPartitions() (AbstractBlkidPartlist, error) {
+	p.checkProbe()
 	partitions, err := C.blkid_probe_get_partitions(p.probeHandle)
 	if partitions == nil {
 		return nil, err
