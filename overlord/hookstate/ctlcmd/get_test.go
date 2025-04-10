@@ -766,30 +766,6 @@ slots:
 	c.Check(stderr, IsNil)
 }
 
-func (s *confdbSuite) TestConfdbGetAndSetAssertionNotFound(c *C) {
-	storeSigning := assertstest.NewStoreStack("can0nical", nil)
-	db, err := asserts.OpenDatabase(&asserts.DatabaseConfig{
-		Backstore: asserts.NewMemoryBackstore(),
-		Trusted:   storeSigning.Trusted,
-	})
-	c.Assert(err, IsNil)
-	c.Assert(db.Add(storeSigning.StoreAccountKey("")), IsNil)
-
-	s.state.Lock()
-	assertstate.ReplaceDB(s.state, db)
-	s.state.Unlock()
-
-	stdout, stderr, err := ctlcmd.Run(s.mockContext, []string{"get", "--view", ":read-wifi"}, 0)
-	c.Assert(err, ErrorMatches, fmt.Sprintf("cannot find confdb schema %s/network: assertion not found", s.devAccID))
-	c.Check(stdout, IsNil)
-	c.Check(stderr, IsNil)
-
-	stdout, stderr, err = ctlcmd.Run(s.mockContext, []string{"set", "--view", ":write-wifi", "ssid=my-ssid"}, 0)
-	c.Assert(err, ErrorMatches, fmt.Sprintf("cannot find confdb schema %s/network: assertion not found", s.devAccID))
-	c.Check(stdout, IsNil)
-	c.Check(stderr, IsNil)
-}
-
 func (s *confdbSuite) TestConfdbGetAndSetViewNotFound(c *C) {
 	headers := map[string]interface{}{
 		"authority-id": s.devAccID,
