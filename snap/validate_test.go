@@ -2755,6 +2755,21 @@ slots:
 	c.Check(err, IsNil)
 }
 
+func (s *ValidateSuite) TestValidateGpioChardevInvalidLines(c *C) {
+	info, err := InfoFromSnapYaml([]byte(`name: foo
+version: 0
+type: gadget
+slots:
+  gpio-chardev:
+    source-chip: [chip0]
+    lines: 2-1
+`))
+	c.Assert(err, IsNil)
+
+	err = Validate(info)
+	c.Check(err, ErrorMatches, `invalid "lines" attribute found in slot "gpio-chardev": invalid range span "2-1": ends before it starts`)
+}
+
 func (s *ValidateSuite) TestValidateGpioChardevOverlappingLines(c *C) {
 	info, err := InfoFromSnapYaml([]byte(`name: foo
 version: 0
@@ -2768,9 +2783,23 @@ slots:
     interface: gpio-chardev
     source-chip: [chip0]
     lines: "2"
+  gpio-chardev-2:
+    interface: gpio-chardev
+    source-chip: [chip1]
+    lines: 1,2
+  gpio-chardev-3:
+    interface: gpio-chardev
+    source-chip: [chip1]
+    lines: 1,2
 `))
 	c.Assert(err, IsNil)
 
+	expectedErrs := []string{
+		`invalid "lines" attribute: chip "chip0" has overlapping line spans: "2" in slot "gpio-chardev-1" overlaps with "1-3" in slot "gpio-chardev-0"`,
+		`invalid "lines" attribute: chip "chip1" has overlapping line spans: "1" in slot "gpio-chardev-3" overlaps with "1" in slot "gpio-chardev-2"`,
+		`invalid "lines" attribute: chip "chip1" has overlapping line spans: "2" in slot "gpio-chardev-3" overlaps with "2" in slot "gpio-chardev-2"`,
+	}
+
 	err = Validate(info)
-	c.Check(err, ErrorMatches, `invalid "lines" attribute for chip "chip0": overlapping range span found "(2|1-3)"`)
+	c.Check(err, ErrorMatches, strings.Join(expectedErrs, "\n"))
 }

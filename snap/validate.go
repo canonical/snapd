@@ -351,6 +351,17 @@ func validateProvenance(prov string) error {
 	return naming.ValidateProvenance(prov)
 }
 
+type gpioChipLinesOverlapError struct {
+	chip, slotA, slotB string
+	spanA, spanB       strutil.RangeSpan
+}
+
+func (e *gpioChipLinesOverlapError) Error() string {
+	return fmt.Sprintf(`invalid "lines" attribute: chip %q has overlapping line spans: %q in slot %q overlaps with %q in slot %q`,
+		e.chip, e.spanB.String(), e.slotB, e.spanA.String(), e.slotA,
+	)
+}
+
 func validateGpioChardevSlots(info *Info) error {
 	// XXX: should this be relaxed to validate all types in case
 	// gpio-chardev slots are allowed for snap apps later?
@@ -359,7 +370,13 @@ func validateGpioChardevSlots(info *Info) error {
 		return nil
 	}
 
-	chipLines := make(map[string][]string)
+	type chipSlotInfo struct {
+		slot  string
+		lines strutil.Range
+	}
+
+	// collect all exported lines for every chip label over all slots
+	chipSlots := make(map[string][]chipSlotInfo)
 	for _, slot := range info.Slots {
 		if slot.Interface != "gpio-chardev" {
 			continue
@@ -372,21 +389,48 @@ func validateGpioChardevSlots(info *Info) error {
 		if err := slot.Attr("lines", &lines); err != nil {
 			return err
 		}
+		r, err := strutil.ParseRange(lines)
+		if err != nil {
+			return fmt.Errorf(`invalid "lines" attribute found in slot %q: %w`, slot.Name, err)
+		}
 		for _, chip := range sourceChip {
-			chipLines[chip] = append(chipLines[chip], lines)
+			chipSlots[chip] = append(chipSlots[chip], chipSlotInfo{
+				slot:  slot.Name,
+				lines: r,
+			})
 		}
 	}
+	chipLabels := make([]string, 0, len(chipSlots))
+	// sort for testing
+	for chip, slotInfos := range chipSlots {
+		sort.Slice(slotInfos, func(i, j int) bool {
+			return slotInfos[i].slot < slotInfos[j].slot
+		})
+		chipLabels = append(chipLabels, chip)
+	}
+	sort.Strings(chipLabels)
 
-	// validate lines for a chip across all gpio-chardev slots.
-	for chip, lines := range chipLines {
-		concat := strings.Join(lines, ",")
-		// ParseRange checks lines are valid and non-overlapping.
-		if _, err := strutil.ParseRange(concat); err != nil {
-			return fmt.Errorf(`invalid "lines" attribute for chip %q: %w`, chip, err)
+	// detect line overlaps for every chip label across all gpio-chardev slots
+	var errs []error
+	for _, chip := range chipLabels {
+		slotInfos := chipSlots[chip]
+		for a := 0; a < len(slotInfos); a++ {
+			for b := a + 1; b < len(slotInfos); b++ {
+				for _, spanA := range slotInfos[a].lines {
+					for _, spanB := range slotInfos[b].lines {
+						if spanA.Intersects(spanB) {
+							errs = append(errs, &gpioChipLinesOverlapError{
+								chip:  chip,
+								slotA: slotInfos[a].slot, spanA: spanA,
+								slotB: slotInfos[b].slot, spanB: spanB,
+							})
+						}
+					}
+				}
+			}
 		}
 	}
-
-	return nil
+	return strutil.JoinErrors(errs...)
 }
 
 // Validate verifies the content in the info.
