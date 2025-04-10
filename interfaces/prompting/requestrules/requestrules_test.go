@@ -77,7 +77,7 @@ func (s *requestrulesSuite) SetUpTest(c *C) {
 	s.ruleNotices = make([]*noticeInfo, 0)
 	dirs.SetRootDir(c.MkDir())
 	s.AddCleanup(func() { dirs.SetRootDir("") })
-	c.Assert(os.MkdirAll(dirs.SnapdStateDir(dirs.GlobalRootDir), 0o700), IsNil)
+	c.Assert(os.MkdirAll(dirs.SnapdStateDir(dirs.GlobalRootDir), 0o755), IsNil)
 }
 
 func mustParsePathPattern(c *C, patternStr string) *patterns.PathPattern {
@@ -123,7 +123,7 @@ func (s *requestrulesSuite) TestNewErrors(c *C) {
 func (s *requestrulesSuite) prepDBPath(c *C) string {
 	dbPath := filepath.Join(dirs.SnapInterfacesRequestsStateDir, "request-rules.json")
 	parent := filepath.Dir(dbPath)
-	c.Assert(os.MkdirAll(parent, 0o700), IsNil)
+	c.Assert(os.MkdirAll(parent, 0o755), IsNil)
 	return dbPath
 }
 
@@ -719,7 +719,7 @@ func (s *requestrulesSuite) TestCloseErrors(c *C) {
 
 	// Mark state dir as non-writeable so save fails
 	c.Assert(os.Chmod(dirs.SnapInterfacesRequestsStateDir, 0o500), IsNil)
-	defer os.Chmod(dirs.SnapInterfacesRequestsStateDir, 0o700)
+	defer os.Chmod(dirs.SnapInterfacesRequestsStateDir, 0o755)
 
 	c.Check(rdb.Close(), NotNil)
 }
@@ -973,7 +973,7 @@ func (s *requestrulesSuite) TestAddRuleErrors(c *C) {
 	// Set DB parent directory as read-only.
 	c.Assert(os.Chmod(dirs.SnapInterfacesRequestsStateDir, 0o500), IsNil)
 	result, err := addRuleFromTemplate(c, rdb, template, &addRuleContents{PathPattern: "/other", Permissions: []string{"execute"}})
-	c.Assert(os.Chmod(dirs.SnapInterfacesRequestsStateDir, 0o700), IsNil)
+	c.Assert(os.Chmod(dirs.SnapInterfacesRequestsStateDir, 0o755), IsNil)
 	c.Check(err, NotNil)
 	c.Check(result, IsNil)
 	// Failure should result in no changes to rules, written or in-memory, and no notices
@@ -987,7 +987,7 @@ func (s *requestrulesSuite) TestAddRuleErrors(c *C) {
 	// Set DB parent directory as read-only.
 	c.Assert(os.Chmod(dirs.SnapInterfacesRequestsStateDir, 0o500), IsNil)
 	result, err = addRuleFromTemplate(c, rdb, template, &addRuleContents{Permissions: []string{"execute"}})
-	c.Assert(os.Chmod(dirs.SnapInterfacesRequestsStateDir, 0o700), IsNil)
+	c.Assert(os.Chmod(dirs.SnapInterfacesRequestsStateDir, 0o755), IsNil)
 	c.Check(err, NotNil)
 	c.Check(result, IsNil)
 	// Failure should result in no changes to rules, written or in-memory, and no notices
@@ -1302,7 +1302,7 @@ func (s *requestrulesSuite) TestAddRuleMerges(c *C) {
 		// Set root so rule creation does not interfere between test cases
 		dirs.SetRootDir(c.MkDir())
 		s.AddCleanup(func() { dirs.SetRootDir("") })
-		c.Assert(os.MkdirAll(dirs.SnapdStateDir(dirs.GlobalRootDir), 0o700), IsNil)
+		c.Assert(os.MkdirAll(dirs.SnapdStateDir(dirs.GlobalRootDir), 0o755), IsNil)
 
 		rdb, err := requestrules.New(s.defaultNotifyRule)
 		c.Assert(err, IsNil)
@@ -2124,7 +2124,7 @@ func (s *requestrulesSuite) TestRemoveRuleErrors(c *C) {
 	result, err = rdb.RemoveRule(rule.User, rule.ID)
 	c.Check(err, NotNil)
 	c.Check(result, IsNil)
-	c.Assert(os.Chmod(dirs.SnapInterfacesRequestsStateDir, 0o700), IsNil)
+	c.Assert(os.Chmod(dirs.SnapInterfacesRequestsStateDir, 0o755), IsNil)
 
 	// Check that rule remains and no notices have been recorded
 	accessed, err := rdb.RuleWithID(rule.User, rule.ID)
@@ -2264,7 +2264,7 @@ func (s *requestrulesSuite) TestRemoveRulesForSnapInterfaceErrors(c *C) {
 	// DB unchanged. Set DB parent directory as read-only.
 	func() {
 		c.Assert(os.Chmod(dirs.SnapInterfacesRequestsStateDir, 0o500), IsNil)
-		defer os.Chmod(dirs.SnapInterfacesRequestsStateDir, 0o700)
+		defer os.Chmod(dirs.SnapInterfacesRequestsStateDir, 0o755)
 
 		removed, err := rdb.RemoveRulesForSnap(s.defaultUser, "amberol")
 		c.Check(err, ErrorMatches, ".*permission denied")
@@ -2605,7 +2605,7 @@ func (s *requestrulesSuite) TestPatchRuleErrors(c *C) {
 	// Save fails
 	func() {
 		c.Assert(os.Chmod(dirs.SnapInterfacesRequestsStateDir, 0o500), IsNil)
-		defer os.Chmod(dirs.SnapInterfacesRequestsStateDir, 0o700)
+		defer os.Chmod(dirs.SnapInterfacesRequestsStateDir, 0o755)
 		result, err = rdb.PatchRule(rule.User, rule.ID, nil)
 		c.Check(err, NotNil)
 		c.Check(result, IsNil)

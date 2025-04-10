@@ -143,7 +143,7 @@ type RuleDB struct {
 func New(notifyRule func(userID uint32, ruleID prompting.IDType, data map[string]string) error) (*RuleDB, error) {
 	maxIDFilepath := filepath.Join(dirs.SnapInterfacesRequestsStateDir, "request-rule-max-id")
 
-	if err := os.MkdirAll(dirs.SnapInterfacesRequestsStateDir, 0o700); err != nil {
+	if err := os.MkdirAll(dirs.SnapInterfacesRequestsStateDir, 0o755); err != nil {
 		return nil, fmt.Errorf("cannot create interfaces requests state directory '%s': %w", dirs.SnapInterfacesRequestsStateDir, err)
 	}
 

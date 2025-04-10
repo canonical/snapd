@@ -96,7 +96,7 @@ func (s *apparmorpromptingSuite) TestNewErrorPromptDB(c *C) {
 
 	// Prevent prompt backend from opening successfully
 	maxIDFilepath := filepath.Join(dirs.SnapInterfacesRequestsRunDir, "request-prompt-max-id")
-	c.Assert(os.MkdirAll(dirs.SnapInterfacesRequestsRunDir, 0o700), IsNil)
+	c.Assert(os.MkdirAll(dirs.SnapInterfacesRequestsRunDir, 0o755), IsNil)
 	f, err := os.Create(maxIDFilepath)
 	c.Assert(err, IsNil)
 	c.Assert(f.Chmod(0o400), IsNil)
@@ -125,7 +125,7 @@ func (s *apparmorpromptingSuite) TestNewErrorRuleDB(c *C) {
 
 	// Prevent rule backend from opening successfully
 	maxIDFilepath := filepath.Join(dirs.SnapInterfacesRequestsStateDir, "request-rule-max-id")
-	c.Assert(os.MkdirAll(dirs.SnapInterfacesRequestsStateDir, 0o700), IsNil)
+	c.Assert(os.MkdirAll(dirs.SnapInterfacesRequestsStateDir, 0o755), IsNil)
 	f, err := os.Create(maxIDFilepath)
 	c.Assert(err, IsNil)
 	c.Assert(f.Chmod(0o400), IsNil)
