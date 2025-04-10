@@ -90,7 +90,7 @@ var NewProbeFromFilename = newProbeFromFilenameImpl
 
 func (p *blkidProbe) checkProbe() {
 	if p.probeHandle == nil {
-		panic("Used probe after Close")
+		panic("used probe after Close")
 	}
 }
 
