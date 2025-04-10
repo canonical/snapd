@@ -168,7 +168,7 @@ func scanDiskNode(output io.Writer, node string) error {
 
 	partitions, err := probePartitions(node)
 	if err != nil {
-		return fmt.Errorf("Cannot get partitions: %s\n", err)
+		return fmt.Errorf("cannot get partitions: %s\n", err)
 	}
 
 	/*
