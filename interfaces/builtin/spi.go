@@ -84,9 +84,10 @@ func (iface *spiInterface) AppArmorConnectedPlug(spec *apparmor.Specification, p
 		return nil
 	}
 	spec.AddSnippet(fmt.Sprintf("%s rw,", path))
+
 	// Use parametric snippets to avoid parser slowdown.
 	spec.AddParametricSnippet([]string{
-		"/sys/devices/platform/**/**.spi/**/spidev" /* ###PARAM### */, "/** rw,  # Add any condensed parametric rules",
+		"/sys/devices/platform/**/**.spi/**/{spidev,spi}" /* ###PARAM### */, "/** rw,  # Add any condensed parametric rules",
 	}, strings.TrimPrefix(path, "/dev/spidev"))
 	return nil
 }
