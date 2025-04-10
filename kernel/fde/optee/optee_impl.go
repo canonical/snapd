@@ -2,11 +2,6 @@
 
 package optee
 
-// hacky for now, long term we want to use the optee-client deb, but that isn't
-// conducive to working on this from an x86 machine.
-//
-//go:generate ./build_client.sh
-
 /*
 #cgo CFLAGS: -I./ta
 #cgo LDFLAGS: -lteec
