@@ -1,3 +1,5 @@
+name: Run unit tests cross-distro
+
 on:
   workflow_call:
     inputs:
