@@ -13,6 +13,7 @@ import (
 var (
 	doIoctl = Ioctl
 
+	// TODO: replace with binary.NativeEndian once we're at go 1.21+
 	nativeByteOrder = arch.Endian() // ioctl messages are native byte order
 )
 
