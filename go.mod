@@ -35,6 +35,8 @@ require (
 	gopkg.in/yaml.v3 v3.0.1
 )
 
+replace github.com/snapcore/secboot => ../secboot
+
 require go.etcd.io/bbolt v1.3.9
 
 require (
