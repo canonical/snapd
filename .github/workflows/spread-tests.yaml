@@ -39,10 +39,6 @@ on:
         required: false
         type: boolean
         default: false
-      spread-snapd-deb-from-repo:
-        description: 'If true, will use the snapd package from the repository when possible'
-        required: false
-        type: string
       spread-experimental-features:
         description: 'Comma-separated list of experimental snapd features to enable with: snap set system "experimental.<feature-name>=true"'
         required: false
@@ -95,10 +91,6 @@ jobs:
           for env in ${{ inputs.spread-env }}; do
             echo "$env" >> $GITHUB_ENV
           done
-
-    - name: set SPREAD_SNAPD_DEB_FROM_REPO=1
-      if: ${{ inputs.spread-snapd-deb-from-repo == 'true' }}
-      run: echo "SPREAD_SNAPD_DEB_FROM_REPO=1" >> $GITHUB_ENV
 
     - name: Get previous attempt
       id: get-previous-attempt
