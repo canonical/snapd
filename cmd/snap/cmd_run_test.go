@@ -1475,7 +1475,7 @@ func (s *RunSuite) TestSnapRunErorsForUnknownRunArg(c *check.C) {
 
 func (s *RunSuite) TestSnapRunErorsForMissingApp(c *check.C) {
 	_, err := snaprun.Parser(snaprun.Client()).ParseArgs([]string{"run", "--command=shell"})
-	c.Assert(err, check.ErrorMatches, "the required argument `<snapname>` was not provided")
+	c.Assert(err, check.ErrorMatches, "the required argument `<NAME-OF-SNAP>\\.<NAME-OF-APP> \\[<SNAP-APP-ARG>\\.\\.\\.\\]` was not provided")
 }
 
 func (s *RunSuite) TestSnapRunErrorForUnavailableApp(c *check.C) {
