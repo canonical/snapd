@@ -23,15 +23,15 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - group: "ubuntu-24.04",
-            backend: "google",
-            systems: "ubuntu-24.04-64",
-            tasks: "tests/main/",
+          - group: "ubuntu-24.04"
+            backend: "google"
+            systems: "ubuntu-24.04-64"
+            tasks: "tests/main/"
             rules: "main"
-          - group: "ubuntu-core-24",
-            backend: "google-core",
-            systems: "ubuntu-core-24-64",
-            tasks: "tests/core/",
+          - group: "ubuntu-core-24"
+            backend: "google-core"
+            systems: "ubuntu-core-24-64"
+            tasks: "tests/core/"
             rules: "main"
 
   create-reports:
