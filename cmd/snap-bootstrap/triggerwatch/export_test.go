@@ -22,6 +22,7 @@ import (
 	"time"
 
 	"github.com/snapcore/snapd/osutil/udev/netlink"
+	"github.com/snapcore/snapd/testutil"
 )
 
 func MockInput(newInput TriggerProvider) (restore func()) {
@@ -92,9 +93,5 @@ func MockUEvent(events []netlink.UEvent) (restore func()) {
 }
 
 func MockTimeAfter(f func(d time.Duration) <-chan time.Time) (restore func()) {
-	old := timeAfter
-	timeAfter = f
-	return func() {
-		f = old
-	}
+	return testutil.Mock(&timeAfter, f)
 }
