@@ -79,7 +79,7 @@ type cmdRun struct {
 	Shell       bool   `long:"shell" `
 	DebugLog    bool   `long:"debug-log"`
 	Positionals struct {
-		SnapName SnapAndApp `hidden:"yes" required:"yes" positional-arg-name:"<snapname>"`
+		SnapName SnapAndApp `hidden:"yes" required:"yes" positional-arg-name:"<NAME-OF-SNAP>.<NAME-OF-APP> [<SNAP-APP-ARG>...]"`
 	} `positional-args:"yes" required:"yes" hidden:"yes"`
 
 	// This options is both a selector (use or don't use strace) and it
@@ -220,7 +220,7 @@ func maybeWaitForSecurityProfileRegeneration(cli *client.Client) error {
 }
 
 func (x *cmdRun) Usage() string {
-	return "[run-OPTIONS] <NAME-OF-SNAP>.<NAME-OF-APP> [<SNAP-APP-ARG>...]"
+	return "[run-OPTIONS]"
 }
 
 func (x *cmdRun) Execute(args []string) error {
