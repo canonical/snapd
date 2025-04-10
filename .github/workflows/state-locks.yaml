@@ -57,7 +57,7 @@ jobs:
 
       - name: Get the baseline traces file
         run: |
-          curl -s https://storage.googleapis.com/snapd-spread-tests/snapd-tests/ci/state_locks_baseline.traces
+          curl -s https://storage.googleapis.com/snapd-spread-tests/snapd-tests/ci/state_locks_baseline.traces > state_locks_baseline.traces
 
       - name: Generate report
         run: |
