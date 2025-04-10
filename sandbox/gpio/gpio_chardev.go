@@ -65,6 +65,10 @@ func ExportGadgetChardevChip(ctx context.Context, chipLabels []string, lines str
 		return fmt.Errorf("invalid lines argument: %w", err)
 	}
 
+	// Order of operations below is important because the exported gpio
+	// aggregator device doesn't have enough metadata for udev to match in
+	// advance. Instead, We use the dynamically generated chip name is used
+	// for matching e.g. `SUBSYSTEM=="gpio", KERNEL=="gpiochip3"`.
 	aggregatedChip, err := addAggregatedChip(ctx, chip, lines)
 	if err != nil {
 		return err

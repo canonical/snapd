@@ -105,7 +105,7 @@ func (r Range) String() string {
 	for i, span := range r {
 		commaSeparated.WriteString(span.String())
 		if i != size-1 {
-			commaSeparated.WriteString(",")
+			commaSeparated.WriteRune(',')
 		}
 	}
 	return commaSeparated.String()
