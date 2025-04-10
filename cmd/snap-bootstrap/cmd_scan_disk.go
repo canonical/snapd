@@ -133,7 +133,6 @@ func probePartitions(node string) ([]Partition, error) {
 	for _, partition := range partitions.GetPartitions() {
 		label := partition.GetName()
 		uuid := partition.GetUUID()
-		fmt.Fprintf(os.Stderr, "Found partition %s %s\n", label, uuid)
 		ret = append(ret, Partition{label, uuid})
 	}
 
@@ -159,13 +158,11 @@ func scanDiskNode(output io.Writer, node string) error {
 	 * LoaderDevicePartUUID. We will need to scan all the
 	 * partitions for that UUID.
 	 */
-	fmt.Fprintf(os.Stderr, "Scanning disk %s\n", node)
 	fallback := false
 	var fallbackPartition string
 
 	bootUUID, err := bootFindPartitionUUIDForBootedKernelDisk()
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "No efi var, falling back: %s\n", err)
 		fallback = true
 	}
 
