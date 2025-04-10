@@ -390,25 +390,31 @@ parts:
         case "${cmd}" in
           bin/snap)
             TAGS+=(nomanagers)
-            case "${VERSION}" in
-              1337.*)
-                TAGS+=(withtestkeys faultinject statelocktrace)
-                ;;
-            esac
             ;;
           lib/snapd/snap-bootstrap)
             TAGS+=(nomanagers)
-            ;& # fallthrough
+            case "${CRAFT_ARCH_BUILD_FOR}" in
+              arm64)
+                TAGS+=(withoptee)
+                ;;
+            esac
+            ;;
           lib/snapd/snapd)
             case "${CRAFT_ARCH_BUILD_FOR}" in
               arm64)
                 TAGS+=(withoptee)
                 ;;
             esac
-            ;& # fallthrough
-          *)
-            case "${VERSION}" in
-              1337.*)
+            ;;
+        esac
+
+        case "${VERSION}" in
+          1337.*)
+            case "${cmd}" in
+              bin/snap)
+                TAGS+=(withtestkeys faultinject statelocktrace)
+                ;;
+              *)
                 TAGS+=(withtestkeys withbootassetstesting faultinject statelocktrace)
                 ;;
             esac
