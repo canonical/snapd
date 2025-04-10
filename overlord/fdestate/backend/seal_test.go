@@ -1,3 +1,5 @@
+//go:build !nosecboot
+
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
