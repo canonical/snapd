@@ -222,7 +222,7 @@ func addGadgetSlotDevice(chip *ChardevChip, instanceName, slotName string) error
 
 	// create a character device node for the slot, with major/minor numbers
 	// corresponding to the newly created aggregator device
-	if err := syscallMknod(devPath, stat.Mode, int(stat.Rdev)); err != nil {
+	if err := syscallMknod(devPath, uint32(stat.Mode), int(stat.Rdev)); err != nil {
 		return err
 	}
 
