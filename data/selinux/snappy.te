@@ -651,7 +651,7 @@ userdom_admin_home_dir_filetrans(snappy_confine_t, snappy_home_t, dir, "snap")
 
 allow snappy_confine_t snappy_snap_t:process transition;
 
-allow snappy_confine_t self:process { setexec };
+allow snappy_confine_t self:process { setexec setcap };
 allow snappy_confine_t self:capability { setgid setuid sys_admin sys_chroot dac_read_search dac_override };
 # when managing cgroup v2 snap-confine creates a BPF map and attaches a BPF
 # device cgroup program, however those bits can only be built on a sufficiently
@@ -740,8 +740,8 @@ allow snappy_confine_t snappy_var_run_t:file mounton;
 allow snappy_confine_t snappy_var_t:dir { getattr mounton search };
 allow snappy_confine_t tmp_t:dir { add_name create mounton remove_name rmdir setattr write read };
 allow snappy_confine_t tmpfs_t:dir { add_name create mounton read setattr write };
-allow snappy_confine_t tmpfs_t:file { create mounton open read };
-allow snappy_confine_t tmpfs_t:lnk_file create;
+allow snappy_confine_t tmpfs_t:file { create mounton open read setattr };
+allow snappy_confine_t tmpfs_t:lnk_file { create setattr };
 allow snappy_confine_t usr_t:dir mounton;
 allow snappy_confine_t var_log_t:dir mounton;
 allow snappy_confine_t var_run_t:dir mounton;
