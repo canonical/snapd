@@ -362,3 +362,11 @@ func (ts *StatTestSuite) TestComparePathsByDeviceInodeErrorPathNotExist(c *C) {
 	c.Assert(err, ErrorMatches, "*: no such file or directory")
 	c.Assert(match, Equals, false)
 }
+
+func (ts *StatTestSuite) TestDeviceMajorMinor(c *C) {
+	dev := osutil.Makedev(254, 1)
+	c.Check(dev, Equals, uint64(65025))
+	c.Check(osutil.Major(dev), Equals, uint64(254))
+	c.Check(osutil.Minor(dev), Equals, uint64(1))
+	c.Check(osutil.Makedev(osutil.Major(dev), osutil.Minor(dev)), Equals, dev)
+}
