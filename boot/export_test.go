@@ -92,6 +92,12 @@ func (t *TrackedAsset) GetHash() string {
 
 type TrustedAssetsInstallObserverImpl = trustedAssetsInstallObserverImpl
 
+func TrustedAssetsInstallObserverWithEncryption() TrustedAssetsInstallObserverImpl {
+	return TrustedAssetsInstallObserverImpl{
+		useEncryption: true,
+	}
+}
+
 func (o *trustedAssetsInstallObserverImpl) CurrentTrustedBootAssetsMap() BootAssetsMap {
 	return o.currentTrustedBootAssetsMap()
 }
