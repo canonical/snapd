@@ -36,6 +36,7 @@ import (
 
 	"github.com/snapcore/snapd/gadget/device"
 	"github.com/snapcore/snapd/kernel/fde"
+	"github.com/snapcore/snapd/kernel/fde/optee"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil/disks"
 	"github.com/snapcore/snapd/secboot/keys"
@@ -79,6 +80,12 @@ func LockSealedKeys() error {
 	if fdeHasRevealKey() {
 		return fde.LockSealedKeys()
 	}
+
+	client := optee.NewFDETAClient()
+	if client.Present() {
+		return client.Lock()
+	}
+
 	return lockTPMSealedKeys()
 }
 
@@ -145,10 +152,18 @@ func UnlockVolumeUsingSealedKeyIfEncrypted(disk disks.Disk, name string, sealedE
 
 	res.PartDevice = partDevice
 
-	hintExpectFDEHook := fdeHasRevealKey()
+	fdeHookPresent := fdeHasRevealKey()
+
+	client := optee.NewFDETAClient()
+	opteePresent := client.Present()
+
+	// TODO: better name for this, since this isn't just a hook now. really, we
+	// need a name that is representative of an abstraction over both the hooks
+	// and the integrated optee implementation, since they are both so similar.
+	hintExpectFDEHookOrTEE := fdeHookPresent || opteePresent
 
 	loadedKey := &defaultKeyLoader{}
-	if err := readKeyFile(sealedEncryptionKeyFile, loadedKey, hintExpectFDEHook); err != nil {
+	if err := readKeyFile(sealedEncryptionKeyFile, loadedKey, hintExpectFDEHookOrTEE); err != nil {
 		if !os.IsNotExist(err) {
 			logger.Noticef("WARNING: there was an error loading key %s: %v", sealedEncryptionKeyFile, err)
 		}
@@ -171,7 +186,12 @@ func UnlockVolumeUsingSealedKeyIfEncrypted(disk disks.Disk, name string, sealedE
 
 	sbSetBootMode(opts.BootMode)
 	defer sbSetBootMode("")
-	sbSetKeyRevealer(&keyRevealerV3{})
+
+	if fdeHookPresent {
+		sbSetKeyRevealer(&keyRevealerV3{})
+	} else {
+		sbSetKeyRevealer(&opteeKeyRevealer{})
+	}
 	defer sbSetKeyRevealer(nil)
 
 	const allowPassphrase = true

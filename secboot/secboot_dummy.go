@@ -45,6 +45,14 @@ func FDESetupHookKeyProtectorFactory(runHook fde.RunSetupHookFunc) KeyProtectorF
 	return nil
 }
 
+func OPTEEKeyProtectorFactory() KeyProtectorFactory {
+	return nil
+}
+
+func FDEOpteeTAPresent() bool {
+	return false
+}
+
 type DiskUnlockKey []byte
 
 func CheckTPMKeySealingSupported(mode TPMProvisionMode) error {
@@ -66,6 +74,20 @@ type UpdatedKeys []MaybeSealedKeyData
 
 func (uk *UpdatedKeys) RevokeOldKeys(primaryKey []byte) error {
 	return errBuildWithoutSecboot
+}
+
+type placeholderKeyProtector struct{}
+
+func (d *placeholderKeyProtector) ProtectKey(rand io.Reader, cleartext, aad []byte) (ciphertext []byte, handle []byte, err error) {
+	return nil, nil, errBuildWithoutSecboot
+}
+
+func NewHookKeyProtector(runHook fde.RunSetupHookFunc, keyName string) KeyProtector {
+	return &placeholderKeyProtector{}
+}
+
+func NewOpteeKeyProtector() KeyProtector {
+	return &placeholderKeyProtector{}
 }
 
 func ResealKeys(params *ResealKeysParams, newPCRPolicyVersion bool) (UpdatedKeys, error) {
