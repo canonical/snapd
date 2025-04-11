@@ -112,6 +112,8 @@ parts:
       - squashfs-tools
       - xdelta3
       - zlib1g
+      - on arm64:
+        - libteec1
     stage:
       - -usr/lib/$CRAFT_ARCH_TRIPLET_BUILD_FOR/ld*.so*
       - -lib32
@@ -234,6 +236,8 @@ parts:
       - libseccomp-dev
       - libselinux1-dev
       - pkg-config
+      - on arm64:
+        - optee-client-dev
     override-pull: |
       craftctl default
       # set version, this needs dpkg-parsechangelog (from dpkg-dev) and git
@@ -360,21 +364,23 @@ parts:
              ;;
            *)
              export CGO_ENABLED=1
+             GO_LD_FLAGS=()
              case "${CRAFT_ARCH_BUILD_FOR}" in
                armhf)
                  # https://bugs.launchpad.net/ubuntu/+source/snapd/+bug/1822738
-                 BUILDMODE=()
                  ;;
                *)
-                 BUILDMODE=(-buildmode=pie)
+                 if [ "${CRAFT_ARCH_BUILD_FOR}" = "arm64" ]; then
+                   GO_LD_FLAGS+=(-ldflags "-extldflags \"-L/usr/lib/${CRAFT_ARCH_TRIPLET_BUILD_FOR}"\")
+                 fi
+                 GO_LD_FLAGS+=(-buildmode=pie)
                  ;;
              esac
-             GO_LD_FLAGS=("${BUILDMODE[@]}")
              unset CHECK_STATIC
              ;;
         esac
 
-        TAGS=()
+        TAGS=(snapdusergo osusergo)
 
         # general build tags, note that version 1337 is used only in CI and
         # triggers testing specific build tags which produce binaries that are
@@ -382,29 +388,36 @@ parts:
         case "${cmd}" in
           bin/snap)
             TAGS+=(nomanagers)
-            case "${VERSION}" in
-              1337.*)
-                TAGS+=(withtestkeys faultinject statelocktrace structuredlogging)
-                ;;
-            esac
             ;;
           lib/snapd/snap-bootstrap)
             TAGS+=(nomanagers)
-            case "${VERSION}" in
-              1337.*)
-                TAGS+=(withtestkeys withbootassetstesting faultinject statelocktrace)
+            case "${CRAFT_ARCH_BUILD_FOR}" in
+              arm64)
+                TAGS+=(withoptee)
                 ;;
             esac
             ;;
-          *)
-            case "${VERSION}" in
-              1337.*)
+          lib/snapd/snapd)
+            case "${CRAFT_ARCH_BUILD_FOR}" in
+              arm64)
+                TAGS+=(withoptee)
+                ;;
+            esac
+            ;;
+        esac
+
+        case "${VERSION}" in
+          1337.*)
+            case "${cmd}" in
+              bin/snap)
+                TAGS+=(withtestkeys faultinject statelocktrace structuredlogging)
+                ;;
+              *)
                 TAGS+=(withtestkeys withbootassetstesting faultinject statelocktrace structuredlogging)
                 ;;
             esac
             ;;
         esac
-        TAGS+=(snapdusergo osusergo)
 
         # FIPS specific build tags
         if [ -f fips-build ]; then
