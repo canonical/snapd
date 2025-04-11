@@ -38,7 +38,8 @@ var (
 
 type mustWaitMixin struct {
 	clientMixin
-	skipAbort bool
+	skipAbort  bool
+	noProgress bool
 
 	// Wait also for tasks in the "wait" state.
 	waitForTasksInWaitStatus bool
@@ -61,7 +62,12 @@ func (wmx mustWaitMixin) wait(id string) (*client.Change, error) {
 		}
 	}()
 
-	pb := progress.MakeProgressBar(Stdout)
+	var pb progress.Meter
+	if wmx.noProgress {
+		pb = &progress.Null
+	} else {
+		pb = progress.MakeProgressBar(Stdout)
+	}
 	defer func() {
 		pb.Finished()
 		// next two not strictly needed for CLI, but without
