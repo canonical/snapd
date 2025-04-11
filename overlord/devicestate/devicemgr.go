@@ -2768,7 +2768,9 @@ func (m *DeviceManager) hookKeyProtectorFactory(kernelInfo *snap.Info) (secboot.
 		return secboot.FDESetupHookKeyProtectorFactory(m.runFDESetupHook), nil
 	}
 
-	// TODO: add OPTEE support here when available
+	if secboot.FDEOpteeTAPresent() {
+		return secboot.OPTEEKeyProtectorFactory(), nil
+	}
 
 	return nil, secboot.ErrNoKeyProtector
 }
