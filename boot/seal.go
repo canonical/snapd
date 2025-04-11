@@ -87,6 +87,9 @@ func MockSealKeyToModeenv(f func(key, saveKey secboot.BootstrappedContainer, pri
 type sealKeyToModeenvFlags struct {
 	// HasFDESetupHook is true if the kernel has a fde-setup hook to use
 	HasFDESetupHook bool
+	// HasFDETA is true if the system has the well-known FDE TA with a specific
+	// UUID. Should never be true if HasFDESetupHook is true.
+	HasFDETA bool
 	// FactoryReset indicates that the sealing is happening during factory
 	// reset.
 	FactoryReset bool
@@ -132,10 +135,14 @@ func sealKeyToModeenvImpl(
 		}
 	}
 
-	method := device.SealingMethodTPM
-	if flags.HasFDESetupHook {
+	var method device.SealingMethod
+	switch {
+	case flags.HasFDESetupHook:
 		method = device.SealingMethodFDESetupHook
-	} else {
+	case flags.HasFDETA:
+		method = device.SealingMethodOPTEE
+	default:
+		method = device.SealingMethodTPM
 		if flags.StateUnlocker != nil {
 			relock := flags.StateUnlocker()
 			defer relock()
@@ -197,7 +204,7 @@ func sealKeyToModeenvForMethod(
 
 	var tbl bootloader.TrustedAssetsBootloader
 	var bl bootloader.Bootloader
-	if method != device.SealingMethodFDESetupHook {
+	if method != device.SealingMethodFDESetupHook && method != device.SealingMethodOPTEE {
 		// build the recovery mode boot chain
 		rbl, err := bootloader.Find(InitramfsUbuntuSeedDir, &bootloader.Options{
 			Role: bootloader.RoleRecovery,
@@ -320,7 +327,7 @@ func WithBootChains(f func(bc *ResealKeyForBootChainsParams) error, method devic
 func bootChains(modeenv *Modeenv, method device.SealingMethod) (*ResealKeyForBootChainsParams, error) {
 	requiresBootLoaders := true
 	switch method {
-	case device.SealingMethodFDESetupHook:
+	case device.SealingMethodFDESetupHook, device.SealingMethodOPTEE:
 		requiresBootLoaders = false
 	}
 
