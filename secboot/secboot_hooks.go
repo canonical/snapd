@@ -54,6 +54,13 @@ type hookKeyProtector struct {
 	keyName string
 }
 
+func NewHookKeyProtector(runHook fde.RunSetupHookFunc, keyName string) sb_hooks.KeyProtector {
+	return &hookKeyProtector{
+		runHook: runHook,
+		keyName: keyName,
+	}
+}
+
 func (h *hookKeyProtector) ProtectKey(rand io.Reader, cleartext, aad []byte) (ciphertext []byte, handle []byte, err error) {
 	keyParams := &fde.InitialSetupParams{
 		Key:     cleartext,
@@ -70,7 +77,36 @@ func (h *hookKeyProtector) ProtectKey(rand io.Reader, cleartext, aad []byte) (ci
 	}
 }
 
-func SealKeysWithFDESetupHook(runHook fde.RunSetupHookFunc, keys []SealKeyRequest, params *SealKeysWithFDESetupHookParams) error {
+type opteeKeyProtector struct{}
+
+func NewOpteeKeyProtector() sb_hooks.KeyProtector {
+	return &opteeKeyProtector{}
+}
+
+func (o *opteeKeyProtector) ProtectKey(rand io.Reader, cleartext, aad []byte) (ciphertext []byte, handle []byte, err error) {
+	client := optee.NewFDETAClient()
+	rawHandle, sealed, err := client.EncryptKey(cleartext)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// this seems wrong, but the KeyProtector API expects handle to be valid
+	// JSON, see [sb_hooks.NewProtectedKey]. thus, we're returning a JSON string
+	// here, which will be our handle, base64 encoded and wrapped in quotes.
+	handleJSON, err := json.Marshal(rawHandle)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return sealed, handleJSON, nil
+}
+
+// KeyProtector is a type alias for a type in sb_hooks, which we cannot export
+// directly because it cannot be imported by packages with the "nosecboot" build
+// tag.
+type KeyProtector sb_hooks.KeyProtector
+
+func SealKeysWithProtector(newProtector func(name string) KeyProtector, keys []SealKeyRequest, params *SealKeysWithFDESetupHookParams) error {
 	var primaryKey sb.PrimaryKey
 	if params.PrimaryKey != nil {
 		// TODO:FDEM:FIX: add unit test taking that primary key
@@ -78,13 +114,14 @@ func SealKeysWithFDESetupHook(runHook fde.RunSetupHookFunc, keys []SealKeyReques
 	}
 
 	for _, skr := range keys {
-		protector := &hookKeyProtector{
-			runHook: runHook,
-			keyName: skr.KeyName,
-		}
+		protector := newProtector(skr.KeyName)
+
 		// TODO:FDEM: add support for AEAD (consider OP-TEE work)
 		flags := sb_hooks.KeyProtectorNoAEAD
 		sb_hooks.SetKeyProtector(protector, flags)
+
+		// TODO: this is only running at the end of the function, seems we
+		// should probably just defer this once at the top of the loop
 		defer sb_hooks.SetKeyProtector(nil, 0)
 
 		params := &sb_hooks.KeyParams{
@@ -96,6 +133,8 @@ func SealKeysWithFDESetupHook(runHook fde.RunSetupHookFunc, keys []SealKeyReques
 			AuthorizedBootModes: skr.BootModes,
 		}
 
+		// TODO: this is maybe odd since we're reusing the same implementation
+		// as the hooks
 		protectedKey, primaryKeyOut, unlockKey, err := sb_hooks.NewProtectedKey(rand.Reader, params)
 		if err != nil {
 			return err
@@ -235,8 +274,7 @@ func (fh *fdeHookV2DataHandler) RecoverKeysWithAuthKey(data *sb.PlatformKeyData,
 	return nil, fmt.Errorf("cannot recover keys with auth keys yet")
 }
 
-type keyRevealerV3 struct {
-}
+type keyRevealerV3 struct{}
 
 func (kr *keyRevealerV3) RevealKey(data, ciphertext, aad []byte) (plaintext []byte, err error) {
 	logger.Noticef("Called reveal key")
@@ -251,6 +289,20 @@ func (kr *keyRevealerV3) RevealKey(data, ciphertext, aad []byte) (plaintext []by
 		V2Payload: true,
 	}
 	return fde.Reveal(&p)
+}
+
+type opteeKeyRevealer struct{}
+
+func (o *opteeKeyRevealer) RevealKey(data, ciphertext, aad []byte) (plaintext []byte, err error) {
+	// same deal as the opteeKeyProtector, but the inverse. data is a JSON
+	// encoded, base64 encoded byte array
+	var handle []byte
+	if err := json.Unmarshal(data, &handle); err != nil {
+		return nil, err
+	}
+
+	client := optee.NewFDETAClient()
+	return client.DecryptKey(ciphertext, handle)
 }
 
 // FDEOpteeTAPresent returns true if we detect that the expected OPTEE TA that
