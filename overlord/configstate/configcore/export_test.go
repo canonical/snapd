@@ -86,7 +86,7 @@ func MockApparmorReloadAllSnapProfiles(f func() error) func() {
 	return testutil.Mock(&apparmorReloadAllSnapProfiles, f)
 }
 
-func MockLoggerSimpleSetup(f func(opts *logger.LoggerOptions) error) func() {
+func MockLoggerSimpleSetup(f func(opts *logger.LoggerOptions)) func() {
 	return testutil.Mock(&loggerSimpleSetup, f)
 }
 

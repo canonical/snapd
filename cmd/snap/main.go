@@ -402,10 +402,7 @@ This command has been left available for documentation purposes only.
 }
 
 func init() {
-	err := logger.SimpleSetup(nil)
-	if err != nil {
-		fmt.Fprintf(Stderr, i18n.G("WARNING: failed to activate logging: %v\n"), err)
-	}
+	logger.SimpleSetup(nil)
 }
 
 func resolveApp(snapApp string) (string, error) {
