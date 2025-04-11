@@ -93,13 +93,17 @@ type State struct {
 	lastHandlerId       int
 	lastNoticeTimestamp time.Time
 
-	backend  Backend
-	data     customData
-	changes  map[string]*Change
-	tasks    map[string]*Task
-	warnings map[string]*Warning
-	notices  map[noticeKey]*Notice
+	backend Backend
+	data    customData
+	changes map[string]*Change
+	tasks   map[string]*Task
 
+	// warningsMu allows warnings to be read without requiring the state lock
+	// to be held. Any modification to warnings requires the state lock as well.
+	warningsMu sync.RWMutex
+	warnings   map[string]*Warning
+
+	notices    map[noticeKey]*Notice
 	noticeCond *sync.Cond
 
 	modified bool
@@ -479,11 +483,13 @@ func (s *State) Prune(startOfOperation time.Time, pruneWait, abortWait time.Dura
 		readyChangesCount++
 	}
 
+	s.warningsMu.Lock()
 	for k, w := range s.warnings {
 		if w.ExpiredBefore(now) {
 			delete(s.warnings, k)
 		}
 	}
+	s.warningsMu.Unlock()
 
 	for k, n := range s.notices {
 		if n.expired(now) {
