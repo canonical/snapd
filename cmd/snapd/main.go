@@ -44,10 +44,7 @@ var (
 )
 
 func init() {
-	err := logger.SimpleSetup(nil)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "WARNING: failed to activate logging: %s\n", err)
-	}
+	logger.SimpleSetup(nil)
 }
 
 func main() {

@@ -616,7 +616,7 @@ func handlerCommand(c *check.C, d *daemon.Daemon, req *http.Request) (cmd *daemo
 	if !d.RouterMatch(req, m) {
 		c.Fatalf("no command for URL %q", req.URL)
 	}
-	cmd, ok := m.Handler.(*daemon.Command)
+	cmd, ok := m.Route.GetHandler().(*daemon.Command)
 	if !ok {
 		c.Fatalf("no command for URL %q", req.URL)
 	}

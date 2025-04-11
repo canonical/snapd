@@ -59,9 +59,8 @@ func (s *debugSuite) SetUpTest(c *C) {
 
 func (s *debugSuite) testConfigureDebugSnapdLogGoodVals(c *C, valChanges bool) {
 	var loggerOpts *logger.LoggerOptions
-	r := configcore.MockLoggerSimpleSetup(func(opts *logger.LoggerOptions) error {
+	r := configcore.MockLoggerSimpleSetup(func(opts *logger.LoggerOptions) {
 		loggerOpts = opts
-		return nil
 	})
 	defer r()
 
@@ -104,9 +103,8 @@ func (s *debugSuite) TestConfigureDebugSnapdLogGoodValsNoChange(c *C) {
 }
 
 func (s *debugSuite) TestConfigureDebugSnapdLogBadVals(c *C) {
-	r := configcore.MockLoggerSimpleSetup(func(opts *logger.LoggerOptions) error {
+	r := configcore.MockLoggerSimpleSetup(func(opts *logger.LoggerOptions) {
 		c.Error("loggerSimpleSetup should not have been called")
-		return nil
 	})
 	defer r()
 
