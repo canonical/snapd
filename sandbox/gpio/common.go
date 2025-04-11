@@ -210,12 +210,8 @@ func addGadgetSlotDevice(chip *ChardevChip, instanceName, slotName string) error
 		return err
 	}
 
-	var rdev, uid, gid int
-	if stat, ok := finfo.Sys().(*syscall.Stat_t); ok {
-		rdev = int(stat.Rdev)
-		uid = int(stat.Uid)
-		gid = int(stat.Gid)
-	} else {
+	stat, ok := finfo.Sys().(*syscall.Stat_t)
+	if !ok {
 		return errors.New("internal error")
 	}
 
@@ -226,7 +222,7 @@ func addGadgetSlotDevice(chip *ChardevChip, instanceName, slotName string) error
 
 	// create a character device node for the slot, with major/minor numbers
 	// corresponding to the newly created aggregator device
-	if err := syscallMknod(devPath, uint32(finfo.Mode()), rdev); err != nil {
+	if err := syscallMknod(devPath, stat.Mode, int(stat.Rdev)); err != nil {
 		return err
 	}
 
@@ -235,7 +231,7 @@ func addGadgetSlotDevice(chip *ChardevChip, instanceName, slotName string) error
 		return err
 	}
 	// and ownership
-	return osChown(devPath, uid, gid)
+	return osChown(devPath, int(stat.Uid), int(stat.Gid))
 }
 
 func removeGadgetSlotDevice(instanceName, slotName string) (aggregatedChip *ChardevChip, err error) {
