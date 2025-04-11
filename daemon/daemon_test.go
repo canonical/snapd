@@ -301,7 +301,7 @@ func (s *daemonSuite) TestCommandRestartingState(c *check.C) {
 		c.Assert(err, check.IsNil)
 		var val errorValue
 		if t.op != "" {
-			val = map[string]interface{}{
+			val = map[string]any{
 				"op": t.op,
 			}
 		}
@@ -1054,7 +1054,7 @@ func (s *daemonSuite) testRestartSystemWiring(c *check.C, prep func(d *Daemon), 
 	maintErr := &errorResult{}
 	c.Assert(json.Unmarshal(b, maintErr), check.IsNil)
 	c.Check(maintErr.Kind, check.Equals, client.ErrorKindSystemRestart)
-	c.Check(maintErr.Value, check.DeepEquals, map[string]interface{}{
+	c.Check(maintErr.Value, check.DeepEquals, map[string]any{
 		"op": expectedOp,
 	})
 
@@ -1314,7 +1314,7 @@ func (s *daemonSuite) TestRestartExpectedRebootOK(c *check.C) {
 	st := d.overlord.State()
 	st.Lock()
 	defer st.Unlock()
-	var v interface{}
+	var v any
 	// these were cleared
 	c.Check(st.Get("daemon-system-restart-at", &v), testutil.ErrorIs, state.ErrNoState)
 	c.Check(st.Get("system-restart-from-boot-id", &v), testutil.ErrorIs, state.ErrNoState)
@@ -1338,7 +1338,7 @@ func (s *daemonSuite) TestRestartExpectedRebootGiveUp(c *check.C) {
 	st := d.overlord.State()
 	st.Lock()
 	defer st.Unlock()
-	var v interface{}
+	var v any
 	// these were cleared
 	c.Check(st.Get("daemon-system-restart-at", &v), testutil.ErrorIs, state.ErrNoState)
 	c.Check(st.Get("system-restart-from-boot-id", &v), testutil.ErrorIs, state.ErrNoState)

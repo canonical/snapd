@@ -76,8 +76,8 @@ func (s *debugSuite) testConfigureDebugSnapdLogGoodVals(c *C, valChanges bool) {
 		}
 		err := configcore.Run(coreDev, &mockConf{
 			state:   s.state,
-			conf:    map[string]interface{}{"debug.snapd.log": prevVal},
-			changes: map[string]interface{}{"debug.snapd.log": val},
+			conf:    map[string]any{"debug.snapd.log": prevVal},
+			changes: map[string]any{"debug.snapd.log": val},
 		})
 
 		c.Assert(err, IsNil)
@@ -113,8 +113,8 @@ func (s *debugSuite) TestConfigureDebugSnapdLogBadVals(c *C) {
 	for _, val := range []string{"1", "foo"} {
 		err := configcore.Run(coreDev, &mockConf{
 			state:   s.state,
-			conf:    map[string]interface{}{"debug.snapd.log": ""},
-			changes: map[string]interface{}{"debug.snapd.log": val},
+			conf:    map[string]any{"debug.snapd.log": ""},
+			changes: map[string]any{"debug.snapd.log": val},
 		})
 		c.Assert(err, ErrorMatches,
 			"debug.snapd.log can only be set to 'true' or 'false'")
@@ -138,8 +138,8 @@ func (s *debugSuite) TestConfigureSystemdLogLevelGoodVals(c *C) {
 	for _, val := range validVals {
 		conf := &mockConf{
 			state:   s.state,
-			conf:    map[string]interface{}{"debug.systemd.log-level": ""},
-			changes: map[string]interface{}{"debug.systemd.log-level": val},
+			conf:    map[string]any{"debug.systemd.log-level": ""},
+			changes: map[string]any{"debug.systemd.log-level": val},
 		}
 		err := configcore.Run(coreDev, conf)
 
@@ -170,8 +170,8 @@ func (s *debugSuite) TestConfigureSystemdLogLevelBadVals(c *C) {
 	for _, val := range []string{"foo", "8", "-1"} {
 		conf := &mockConf{
 			state:   s.state,
-			conf:    map[string]interface{}{"debug.systemd.log-level": "info"},
-			changes: map[string]interface{}{"debug.systemd.log-level": val},
+			conf:    map[string]any{"debug.systemd.log-level": "info"},
+			changes: map[string]any{"debug.systemd.log-level": val},
 		}
 		err := configcore.Run(coreDev, conf)
 
@@ -195,8 +195,8 @@ func (s *debugSuite) TestConfigureSystemdLogLevelOldSystemd(c *C) {
 	val := "debug"
 	err := configcore.Run(coreDev, &mockConf{
 		state:   s.state,
-		conf:    map[string]interface{}{"debug.systemd.log-level": ""},
-		changes: map[string]interface{}{"debug.systemd.log-level": val},
+		conf:    map[string]any{"debug.systemd.log-level": ""},
+		changes: map[string]any{"debug.systemd.log-level": val},
 	})
 	c.Assert(err, IsNil)
 

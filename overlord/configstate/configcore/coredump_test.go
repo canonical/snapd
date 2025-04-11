@@ -48,7 +48,7 @@ func (s *coredumpSuite) SetUpTest(c *C) {
 func (s *coredumpSuite) TestConfigureCoredumpDefault(c *C) {
 	err := configcore.FilesystemOnlyRun(core20Dev, &mockConf{
 		state: s.state,
-		conf:  map[string]interface{}{},
+		conf:  map[string]any{},
 	})
 	c.Assert(err, IsNil)
 
@@ -59,7 +59,7 @@ func (s *coredumpSuite) TestConfigureCoredumpDefault(c *C) {
 func (s *coredumpSuite) TestConfigureCoredumpDisable(c *C) {
 	err := configcore.FilesystemOnlyRun(core20Dev, &mockConf{
 		state: s.state,
-		conf: map[string]interface{}{
+		conf: map[string]any{
 			"system.coredump.enable": false,
 			"system.coredump.maxuse": "100M",
 		},
@@ -73,7 +73,7 @@ func (s *coredumpSuite) TestConfigureCoredumpDisable(c *C) {
 func (s *coredumpSuite) TestConfigureCoredumpDefaultMaxUse(c *C) {
 	err := configcore.FilesystemOnlyRun(core20Dev, &mockConf{
 		state: s.state,
-		conf: map[string]interface{}{
+		conf: map[string]any{
 			"system.coredump.enable": true,
 		},
 	})
@@ -88,7 +88,7 @@ func (s *coredumpSuite) TestConfigureCoredumpWithMaxUse(c *C) {
 	for _, size := range []string{"104857600", "16M", "2G", "0"} {
 		err := configcore.FilesystemOnlyRun(core20Dev, &mockConf{
 			state: s.state,
-			conf: map[string]interface{}{
+			conf: map[string]any{
 				"system.coredump.enable": true,
 				"system.coredump.maxuse": size,
 			},
@@ -107,7 +107,7 @@ func (s *coredumpSuite) TestConfigureCoredumpInvalidMaxUse(c *C) {
 
 		err := configcore.FilesystemOnlyRun(core20Dev, &mockConf{
 			state: s.state,
-			conf: map[string]interface{}{
+			conf: map[string]any{
 				"system.coredump.enable": true,
 				"system.coredump.maxuse": size,
 			},
@@ -121,7 +121,7 @@ func (s *coredumpSuite) TestConfigureCoredumpInvalidMaxUse(c *C) {
 func (s *coredumpSuite) TestConfigureCoredumpNoModeEnv(c *C) {
 	err := configcore.FilesystemOnlyRun(coreDev, &mockConf{
 		state: s.state,
-		conf: map[string]interface{}{
+		conf: map[string]any{
 			"system.coredump.enable": true,
 		},
 	})

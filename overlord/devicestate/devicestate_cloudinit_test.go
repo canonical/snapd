@@ -73,19 +73,19 @@ func (s *cloudInitUC20Suite) SetUpTest(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	s.makeModelAssertionInState(c, "canonical", "pc20-model", map[string]interface{}{
+	s.makeModelAssertionInState(c, "canonical", "pc20-model", map[string]any{
 		"display-name": "UC20 pc model",
 		"architecture": "amd64",
 		"base":         "core20",
 		"grade":        "signed",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":            "pc-kernel",
 				"id":              "pckernelidididididididididididid",
 				"type":            "kernel",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "pc",
 				"id":              "pcididididididididididididididid",
 				"type":            "gadget",
@@ -220,7 +220,7 @@ func (s *cloudInitSuite) SetUpTest(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	s.makeModelAssertionInState(c, "canonical", "pc-model", map[string]interface{}{
+	s.makeModelAssertionInState(c, "canonical", "pc-model", map[string]any{
 		"architecture": "amd64",
 		"kernel":       "pc-kernel",
 		"gadget":       "pc",

@@ -148,14 +148,14 @@ type snapActionJSON struct {
 	// NOTE the store needs an epoch (even if null) for the "install" and "download"
 	// actions, to know the client handles epochs at all.  "refresh" actions should
 	// send nothing, not even null -- the snap in the context should have the epoch
-	// already.  We achieve this by making Epoch be an `interface{}` with omitempty,
-	// and then setting it to a (possibly nil) epoch for install and download. As a
-	// nil epoch is not an empty interface{}, you'll get the null in the json.
-	Epoch interface{} `json:"epoch,omitempty"`
+	// already.  We achieve this by making Epoch be an `any` with omitempty, and
+	// then setting it to a (possibly nil) epoch for install and download. As a
+	// nil epoch is not an empty any, you'll get the null in the json.
+	Epoch any `json:"epoch,omitempty"`
 	// For assertions
-	Key            string        `json:"key,omitempty"`
-	Assertions     []interface{} `json:"assertions,omitempty"`
-	ValidationSets [][]string    `json:"validation-sets,omitempty"`
+	Key            string     `json:"key,omitempty"`
+	Assertions     []any      `json:"assertions,omitempty"`
+	ValidationSets [][]string `json:"validation-sets,omitempty"`
 }
 
 type assertAtJSON struct {
@@ -467,7 +467,7 @@ func (s *Store) snapAction(ctx context.Context, currentSnaps []*CurrentSnap, act
 			aJSON.Name = snap.InstanceSnap(a.InstanceName)
 			if a.Epoch.IsZero() {
 				// Let the store know we can handle epochs, by sending the `epoch`
-				// field in the request.  A nil epoch is not an empty interface{},
+				// field in the request.  A nil epoch is not an empty any,
 				// you'll get the null in the json. See comment in snapActionJSON.
 				aJSON.Epoch = (*snap.Epoch)(nil)
 			} else {
@@ -492,7 +492,7 @@ func (s *Store) snapAction(ctx context.Context, currentSnaps []*CurrentSnap, act
 				Action: "fetch-assertions",
 				Key:    string(grp),
 			}
-			aJSON.Assertions = make([]interface{}, len(ats))
+			aJSON.Assertions = make([]any, len(ats))
 			groupingsAssertions[aJSON.Key] = aJSON
 
 			for j, at := range ats {
@@ -522,7 +522,7 @@ func (s *Store) snapAction(ctx context.Context, currentSnaps []*CurrentSnap, act
 					Action: "fetch-assertions",
 					Key:    key,
 				}
-				aJSON.Assertions = make([]interface{}, 0, len(ats))
+				aJSON.Assertions = make([]any, 0, len(ats))
 				actionJSONs = append(actionJSONs, aJSON)
 			}
 			for _, at := range ats {

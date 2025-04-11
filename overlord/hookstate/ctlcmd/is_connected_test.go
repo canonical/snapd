@@ -201,13 +201,13 @@ plugs:
 	})
 	defer restore()
 
-	s.st.Set("conns", map[string]interface{}{
-		"snap1:plug1 snap2:slot2": map[string]interface{}{},
-		"snap1:plug2 snap3:slot3": map[string]interface{}{"undesired": true},
-		"snap1:plug3 snap4:slot4": map[string]interface{}{"hotplug-gone": true},
-		"snap3:plug4 snap1:slot1": map[string]interface{}{},
-		"snap3:cc snap1:cc":       map[string]interface{}{},
-		"snap5:cc snap1:cc":       map[string]interface{}{},
+	s.st.Set("conns", map[string]any{
+		"snap1:plug1 snap2:slot2": map[string]any{},
+		"snap1:plug2 snap3:slot3": map[string]any{"undesired": true},
+		"snap1:plug3 snap4:slot4": map[string]any{"hotplug-gone": true},
+		"snap3:plug4 snap1:slot1": map[string]any{},
+		"snap3:cc snap1:cc":       map[string]any{},
+		"snap5:cc snap1:cc":       map[string]any{},
 	})
 
 	s.st.Unlock()
@@ -274,8 +274,8 @@ plugs:
   plug1:
     interface: x11`, "")
 
-	s.st.Set("conns", map[string]interface{}{
-		"snap1:plug1 snap2:slot2": map[string]interface{}{},
+	s.st.Set("conns", map[string]any{
+		"snap1:plug1 snap2:slot2": map[string]any{},
 	})
 
 	setup := &hookstate.HookSetup{Snap: "snap1", Revision: snap.R(1)}
@@ -335,12 +335,12 @@ slots:
     interface: x11
   slot3b:
     interface: x11`, "")
-	s.st.Set("conns", map[string]interface{}{
-		"snap1:plug1a snap2:slot2a": map[string]interface{}{},
-		"snap2:plug2a snap1:slot1a": map[string]interface{}{},
-		"snap3:plug3a snap1:slot1a": map[string]interface{}{},
-		"snap1:plug1c snap3:slot3a": map[string]interface{}{"undesired": true},
-		"snap1:plug1d snap3:slot3b": map[string]interface{}{"hotplug-gone": true},
+	s.st.Set("conns", map[string]any{
+		"snap1:plug1a snap2:slot2a": map[string]any{},
+		"snap2:plug2a snap1:slot1a": map[string]any{},
+		"snap3:plug3a snap1:slot1a": map[string]any{},
+		"snap1:plug1c snap3:slot3a": map[string]any{"undesired": true},
+		"snap1:plug1d snap3:slot3b": map[string]any{"hotplug-gone": true},
 	})
 
 	s.st.Unlock()

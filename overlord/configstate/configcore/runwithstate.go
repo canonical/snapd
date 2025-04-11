@@ -80,11 +80,11 @@ func init() {
 // RunTransaction is an interface describing how to access
 // the system configuration state and transaction.
 type RunTransaction interface {
-	Get(snapName, key string, result interface{}) error
-	GetMaybe(snapName, key string, result interface{}) error
-	GetPristine(snapName, key string, result interface{}) error
+	Get(snapName, key string, result any) error
+	GetMaybe(snapName, key string, result any) error
+	GetPristine(snapName, key string, result any) error
 	Task() *state.Task
-	Set(snapName, key string, value interface{}) error
+	Set(snapName, key string, value any) error
 	Changes() []string
 	State() *state.State
 	Commit()
@@ -194,7 +194,7 @@ func applyHandlers(dev sysconfig.Device, cfg RunTransaction, handlers []configHa
 	return nil
 }
 
-func Early(dev sysconfig.Device, cfg RunTransaction, values map[string]interface{}) error {
+func Early(dev sysconfig.Device, cfg RunTransaction, values map[string]any) error {
 	early, relevant := applyFilters(func(f flags) filterFunc {
 		return f.earlyConfigFilter
 	}, values)

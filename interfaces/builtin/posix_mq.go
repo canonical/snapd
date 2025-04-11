@@ -215,7 +215,7 @@ func (iface *posixMQInterface) validatePath(name, path string) error {
 	return nil
 }
 
-func (iface *posixMQInterface) checkPosixMQAttr(name string, attrs *map[string]interface{}) error {
+func (iface *posixMQInterface) checkPosixMQAttr(name string, attrs *map[string]any) error {
 	posixMQAttr, isSet := (*attrs)["posix-mq"]
 	posixMQ, ok := posixMQAttr.(string)
 	if isSet && !ok {
@@ -223,7 +223,7 @@ func (iface *posixMQInterface) checkPosixMQAttr(name string, attrs *map[string]i
 	}
 	if posixMQ == "" {
 		if *attrs == nil {
-			*attrs = make(map[string]interface{})
+			*attrs = make(map[string]any)
 		}
 		// posix-mq attribute defaults to name if unspecified
 		(*attrs)["posix-mq"] = name

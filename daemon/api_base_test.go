@@ -310,7 +310,7 @@ func newStoreUpdateGoalRecorder(snaps ...snapstate.StoreUpdate) snapstate.Update
 func (s *apiBaseSuite) mockModel(st *state.State, model *asserts.Model) {
 	// realistic model setup
 	if model == nil {
-		model = s.Brands.Model("can0nical", "pc", map[string]interface{}{
+		model = s.Brands.Model("can0nical", "pc", map[string]any{
 			"architecture": "amd64",
 			"gadget":       "gadget",
 			"kernel":       "kernel",
@@ -571,7 +571,7 @@ version: %s
 		return snapInfo
 	}
 
-	devAcct := assertstest.NewAccount(s.StoreSigning, developer, map[string]interface{}{
+	devAcct := assertstest.NewAccount(s.StoreSigning, developer, map[string]any{
 		"account-id": developer + "-id",
 	}, "")
 
@@ -582,7 +582,7 @@ version: %s
 		Validation:  devAcct.Validation(),
 	}
 
-	snapDecl, err := s.StoreSigning.Sign(asserts.SnapDeclarationType, map[string]interface{}{
+	snapDecl, err := s.StoreSigning.Sign(asserts.SnapDeclarationType, map[string]any{
 		"series":       "16",
 		"snap-id":      snapID,
 		"snap-name":    snapName,
@@ -596,7 +596,7 @@ version: %s
 	h := sha3.Sum384(content)
 	dgst, err := asserts.EncodeDigest(crypto.SHA3_384, h[:])
 	c.Assert(err, check.IsNil)
-	snapRev, err := s.StoreSigning.Sign(asserts.SnapRevisionType, map[string]interface{}{
+	snapRev, err := s.StoreSigning.Sign(asserts.SnapRevisionType, map[string]any{
 		"snap-sha3-384": string(dgst),
 		"snap-size":     "999",
 		"snap-id":       snapID,

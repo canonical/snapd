@@ -43,7 +43,7 @@ func (s *fetcherSuite) SetUpTest(c *C) {
 }
 
 func (s *fetcherSuite) setupTestAssertion(c *C) asserts.Assertion {
-	modelAs, err := s.storeSigning.Sign(asserts.ModelType, map[string]interface{}{
+	modelAs, err := s.storeSigning.Sign(asserts.ModelType, map[string]any{
 		"series":       "16",
 		"brand-id":     "can0nical",
 		"model":        "my-model-2",

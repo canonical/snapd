@@ -95,7 +95,7 @@ func (e AttributeNotCompatibleError) Is(target error) bool {
 // error messages, but are not otherwise significant. This function only
 // operates converting the attrVal parameter into a value which can fit into
 // the val parameter, which therefore must be a pointer.
-func SetValueFromAttribute(snapName string, ifaceName string, attrName string, attrVal interface{}, val interface{}) error {
+func SetValueFromAttribute(snapName string, ifaceName string, attrName string, attrVal any, val any) error {
 	rt := reflect.TypeOf(val)
 	if rt.Kind() != reflect.Ptr || val == nil {
 		return fmt.Errorf("internal error: cannot get %q attribute of interface %q with non-pointer value", attrName, ifaceName)

@@ -69,7 +69,7 @@ type Snapshot struct {
 	Version  string        `json:"version"`
 
 	// the snap's configuration at snapshot time
-	Conf map[string]interface{} `json:"conf,omitempty"`
+	Conf map[string]any `json:"conf,omitempty"`
 
 	// the hash of the archives' data, keyed by archive path
 	// (either 'archive.tgz' for the system archive, or

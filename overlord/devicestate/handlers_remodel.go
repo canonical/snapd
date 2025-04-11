@@ -169,7 +169,7 @@ func (m *DeviceManager) doSetModel(t *state.Task, _ *tomb.Tomb) (err error) {
 		remodCtx.setRecoverySystemLabel(recoverySetup.Label)
 	}
 
-	logEverywhere := func(format string, args ...interface{}) {
+	logEverywhere := func(format string, args ...any) {
 		t.Logf(format, args)
 		logger.Noticef(format, args)
 	}

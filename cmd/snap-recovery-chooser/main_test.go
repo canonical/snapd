@@ -169,7 +169,7 @@ type mockSystemRequestResponse struct {
 	label  string
 	code   int
 	reboot bool
-	expect map[string]interface{}
+	expect map[string]any
 }
 
 func (s *mockedClientCmdSuite) mockSuccessfulResponse(c *C, rspSystems *main.ChooserSystems, rspPostSystem *mockSystemRequestResponse) {
@@ -191,7 +191,7 @@ func (s *mockedClientCmdSuite) mockSuccessfulResponse(c *C, rspSystems *main.Cho
 			c.Check(r.URL.Path, Equals, "/v2/systems/"+rspPostSystem.label)
 			c.Check(r.Method, Equals, "POST")
 
-			var data map[string]interface{}
+			var data map[string]any
 			err := json.NewDecoder(r.Body).Decode(&data)
 			c.Assert(err, IsNil)
 			c.Check(data, DeepEquals, rspPostSystem.expect)
@@ -202,9 +202,9 @@ func (s *mockedClientCmdSuite) mockSuccessfulResponse(c *C, rspSystems *main.Cho
 				rspType = "error"
 				rspData = map[string]string{"message": "failed in mock"}
 			}
-			var maintenance map[string]interface{}
+			var maintenance map[string]any
 			if rspPostSystem.reboot {
-				maintenance = map[string]interface{}{
+				maintenance = map[string]any{
 					"kind":    client.ErrorKindSystemRestart,
 					"message": "system is restartring",
 				}
@@ -224,10 +224,10 @@ func (s *mockedClientCmdSuite) mockSuccessfulResponse(c *C, rspSystems *main.Cho
 }
 
 type apiResponse struct {
-	Type        string      `json:"type"`
-	Result      interface{} `json:"result"`
-	StatusCode  int         `json:"status-code"`
-	Maintenance interface{} `json:"maintenance"`
+	Type        string `json:"type"`
+	Result      any    `json:"result"`
+	StatusCode  int    `json:"status-code"`
+	Maintenance any    `json:"maintenance"`
 }
 
 func (s *mockedClientCmdSuite) TestMainChooserWithTool(c *C) {
@@ -250,7 +250,7 @@ echo '{"label":"label","action":{"mode":"install","title":"reinstall"}}'
 	s.mockSuccessfulResponse(c, mockSystems, &mockSystemRequestResponse{
 		code:  200,
 		label: "label",
-		expect: map[string]interface{}{
+		expect: map[string]any{
 			"action": "do",
 			"mode":   "install",
 			"title":  "reinstall",
@@ -337,7 +337,7 @@ func (s *mockedClientCmdSuite) testMainChooserConsoleConfAlternatives(c *C, setu
 	s.mockSuccessfulResponse(c, mockSystems, &mockSystemRequestResponse{
 		code:  200,
 		label: "label",
-		expect: map[string]interface{}{
+		expect: map[string]any{
 			"action": "do",
 			"mode":   "install",
 			"title":  "reinstall",
@@ -475,7 +475,7 @@ echo '{"label":"label","action":{"mode":"install","title":"reinstall"}}'
 	s.mockSuccessfulResponse(c, mockSystems, &mockSystemRequestResponse{
 		code:  400,
 		label: "label",
-		expect: map[string]interface{}{
+		expect: map[string]any{
 			"action": "do",
 			"mode":   "install",
 			"title":  "reinstall",
