@@ -10,7 +10,6 @@ import (
 
 	"golang.org/x/sys/unix"
 
-	"github.com/snapcore/snapd/arch"
 	"github.com/snapcore/snapd/sandbox/apparmor/notify"
 )
 
@@ -141,7 +140,7 @@ func (*ioctlSuite) TestIoctlDump(c *C) {
 
 	sendHeader := fmt.Sprintf(">>> ioctl %v (%d bytes) ...\n", req, len(ioctlBuf))
 	sendDataStr := "0xff, 0xff, 0x42, 0x00, "
-	if arch.Endian() == binary.BigEndian {
+	if notify.NativeByteOrder == binary.BigEndian {
 		sendDataStr = "0xff, 0xff, 0x00, 0x42, "
 	}
 

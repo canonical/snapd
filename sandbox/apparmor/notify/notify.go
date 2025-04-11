@@ -6,9 +6,16 @@ import (
 	"fmt"
 
 	"golang.org/x/sys/unix"
+
+	"github.com/snapcore/snapd/arch"
 )
 
-var doIoctl = Ioctl
+var (
+	doIoctl = Ioctl
+
+	// TODO: replace with binary.NativeEndian once we're at go 1.21+
+	nativeByteOrder = arch.Endian() // ioctl messages are native byte order
+)
 
 // RegisterFileDescriptor registers a notification socket using the given file
 // descriptor. Attempts to use the latest notification protocol version which
