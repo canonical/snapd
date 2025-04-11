@@ -98,6 +98,7 @@ func (c byOriginAndMountPoint) Less(i, j int) bool {
 		}
 	}
 
+	// FIXME: this doesn't know about file bind mounts
 	iDir := c[i].Dir
 	jDir := c[j].Dir
 	if !strings.HasSuffix(iDir, "/") {
