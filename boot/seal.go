@@ -342,16 +342,10 @@ func WithBootChains(f func(bc BootChains) error, method device.SealingMethod) er
 // device such that they can be used as an input for resealing of encryption
 // keys.
 func bootChains(modeenv *Modeenv, method device.SealingMethod) (BootChains, error) {
-	requiresBootLoaders := true
-	switch method {
-	case device.SealingMethodFDESetupHook:
-		requiresBootLoaders = false
-	}
-
 	var bc BootChains
-
 	var tbl bootloader.TrustedAssetsBootloader
 
+	requiresBootLoaders := method != device.SealingMethodFDESetupHook
 	if requiresBootLoaders {
 		// build the recovery mode boot chain
 		rbl, err := bootloader.Find(InitramfsUbuntuSeedDir, &bootloader.Options{
