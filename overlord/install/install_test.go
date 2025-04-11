@@ -24,6 +24,7 @@ import (
 	"context"
 	"crypto"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -44,6 +45,8 @@ import (
 	"github.com/snapcore/snapd/gadget/device"
 	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/kernel/fde"
+	"github.com/snapcore/snapd/kernel/fde/optee"
+	"github.com/snapcore/snapd/kernel/fde/optee/opteetest"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/install"
@@ -894,14 +897,169 @@ func (s *installSuite) TestEncryptionSupportInfoWithTPM(c *C) {
 			"storage-safety": tc.storageSafety,
 		})
 
-		mockSystemSnapdVersions := &install.SystemSnapdVersions{
+		mockSystemSnapdVersions := install.SystemSnapdVersions{
 			SnapdVersion:          tc.snapdVersion,
 			SnapdInitramfsVersion: tc.kernelSnapdVersion,
 		}
 
-		res, err := install.GetEncryptionSupportInfo(mockModel, secboot.TPMProvisionFull, kernelInfo, gadgetInfo, mockSystemSnapdVersions, nil)
+		constraints := install.EncryptionConstraints{
+			Model:         mockModel,
+			Kernel:        kernelInfo,
+			Gadget:        gadgetInfo,
+			TPMMode:       secboot.TPMProvisionFull,
+			SnapdVersions: mockSystemSnapdVersions,
+		}
+
+		res, err := install.GetEncryptionSupportInfo(constraints, nil)
 		c.Assert(err, IsNil)
 		c.Check(res, DeepEquals, tc.expected, Commentf("test index: %d | %v", i, tc))
+	}
+}
+
+func (s *installSuite) TestEncryptionSupportInfoFallbacks(c *C) {
+	type expected struct {
+		hookRan      bool
+		opteeChecked bool
+		tpmChecked   bool
+		available    bool
+	}
+
+	type testcase struct {
+		hooks      bool
+		optee      bool
+		tpm        bool
+		standalone bool
+		expected   expected
+	}
+
+	kernelInfo := s.kernelSnap(c, "pc-kernel=20")
+	gadgetInfo, _ := s.mountedGadget(c)
+
+	// this test checks to make sure that we properly decide which device
+	// sealing method to use.
+	for i, tc := range []testcase{
+		// uses the hooks, checks for nothing else
+		{
+			hooks: true, optee: true, tpm: true, standalone: false,
+			expected: expected{
+				hookRan:   true,
+				available: true,
+			},
+		},
+
+		// uses optee, checks for nothing else. technically we check for the
+		// hooks, but that check is just looking at the kernel snap.
+		{
+			hooks: false, optee: true, tpm: true, standalone: false,
+			expected: expected{
+				opteeChecked: true,
+				available:    true,
+			},
+		},
+
+		// standalone install, optee is reported as present (weird, but
+		// possible). should use tpm without checking for optee.
+		{
+			hooks: false, optee: true, tpm: true, standalone: true,
+			expected: expected{
+				tpmChecked: true,
+				available:  true,
+			},
+		},
+
+		// only the tpm is available, should use that. checks optee first,
+		// though.
+		{
+			hooks: false, optee: false, tpm: true, standalone: false,
+			expected: expected{
+				opteeChecked: true,
+				tpmChecked:   true,
+				available:    true,
+			},
+		},
+
+		// only the tpm is available, should use that. does not check for optee
+		// since this is a standalone install
+		{
+			hooks: false, optee: false, tpm: true, standalone: true,
+			expected: expected{
+				tpmChecked: true,
+				available:  true,
+			},
+		},
+
+		// nothing is around, should check for both optee and tpm
+		{
+			hooks: false, optee: false, tpm: false, standalone: false,
+			expected: expected{
+				opteeChecked: true,
+				tpmChecked:   true,
+				available:    false,
+			},
+		},
+
+		// nothing is around, should check for just the tpm since this is a
+		// standalone install
+		{
+			hooks: false, optee: false, tpm: false, standalone: true,
+			expected: expected{
+				tpmChecked: true,
+				available:  false,
+			},
+		},
+	} {
+		hookRan := false
+		runHook := func(req *fde.SetupRequest) ([]byte, error) {
+			hookRan = true
+			return []byte(`{"features": []}`), nil
+		}
+
+		if tc.hooks {
+			kernelInfo.Hooks["fde-setup"] = &snap.HookInfo{}
+		} else {
+			delete(kernelInfo.Hooks, "fde-setup")
+		}
+
+		opteeChecked := false
+		client := opteetest.MockClient{
+			PresentFn: func() bool {
+				opteeChecked = true
+				return tc.optee
+			},
+		}
+		restore := optee.MockNewFDETAClient(&client)
+		defer restore()
+
+		tpmChecked := false
+		restore = install.MockSecbootCheckTPMKeySealingSupported(func(secboot.TPMProvisionMode) error {
+			tpmChecked = true
+			if tc.tpm {
+				return nil
+			}
+			return errors.New("no tpm")
+		})
+		defer restore()
+
+		model := s.mockModel(map[string]any{
+			"grade": "signed",
+		})
+
+		constraints := install.EncryptionConstraints{
+			Model:             model,
+			Kernel:            kernelInfo,
+			Gadget:            gadgetInfo,
+			TPMMode:           secboot.TPMProvisionFull,
+			StandaloneInstall: tc.standalone,
+		}
+
+		res, err := install.GetEncryptionSupportInfo(constraints, runHook)
+		c.Assert(err, IsNil)
+
+		comment := Commentf("test case: %d", i)
+		c.Check(res.Available, Equals, tc.expected.available, comment)
+		c.Check(opteeChecked, Equals, tc.expected.opteeChecked, comment)
+		c.Check(tpmChecked, Equals, tc.expected.tpmChecked, comment)
+		c.Check(hookRan, Equals, tc.expected.hookRan, comment)
 	}
 }
 
@@ -1036,7 +1194,14 @@ func (s *installSuite) TestEncryptionSupportInfoForceUnencrypted(c *C) {
 			c.Assert(err, IsNil)
 		}
 
-		res, err := install.GetEncryptionSupportInfo(mockModel, secboot.TPMProvisionFull, kernelInfo, gadgetInfo, nil, nil)
+		constraints := install.EncryptionConstraints{
+			Model:   mockModel,
+			Kernel:  kernelInfo,
+			Gadget:  gadgetInfo,
+			TPMMode: secboot.TPMProvisionFull,
+		}
+
+		res, err := install.GetEncryptionSupportInfo(constraints, nil)
 		c.Assert(err, IsNil)
 		c.Check(res, DeepEquals, tc.expected, Commentf("test index: %d | %v", i, tc))
 	}
@@ -1160,7 +1325,15 @@ func (s *installSuite) TestEncryptionSupportInfoGadgetIncompatibleWithEncryption
 		})
 
 		gadget.SetEnclosingVolumeInStructs(tc.gadgetInfo.Volumes)
-		res, err := install.GetEncryptionSupportInfo(mockModel, secboot.TPMProvisionFull, kernelInfo, tc.gadgetInfo, nil, nil)
+
+		constraints := install.EncryptionConstraints{
+			Model:   mockModel,
+			Kernel:  kernelInfo,
+			Gadget:  tc.gadgetInfo,
+			TPMMode: secboot.TPMProvisionFull,
+		}
+
+		res, err := install.GetEncryptionSupportInfo(constraints, nil)
 		c.Assert(err, IsNil)
 		c.Check(res, DeepEquals, tc.expected, Commentf("%v", tc))
 	}
@@ -1231,7 +1404,14 @@ func (s *installSuite) TestInstallCheckEncryptionSupportTPM(c *C) {
 	} {
 		mockModel := s.mockHelperForEncryptionAvailabilityCheck(c, tc.isSupportedUbuntuHybrid, tc.detectedErrors, ErrorNone, nil)
 
-		encryptionType, err := install.CheckEncryptionSupport(mockModel, secboot.TPMProvisionFull, kernelInfo, gadgetInfo, nil)
+		constraints := install.EncryptionConstraints{
+			Model:   mockModel,
+			Kernel:  kernelInfo,
+			Gadget:  gadgetInfo,
+			TPMMode: secboot.TPMProvisionFull,
+		}
+
+		encryptionType, err := install.CheckEncryptionSupport(constraints, nil)
 		c.Assert(err, IsNil)
 		c.Check(encryptionType, Equals, tc.encryptionType, Commentf("%v", tc))
 		if tc.detectedErrors != ErrorNone {
@@ -1270,7 +1450,22 @@ func (s *installSuite) TestInstallCheckEncryptionSupportHook(c *C) {
 			return []byte(fmt.Sprintf(`{"features":%s}`, tc.fdeSetupHookFeatures)), nil
 		}
 
-		encryptionType, err := install.CheckEncryptionSupport(mockModel, secboot.TPMProvisionFull, kernelInfo, gadgetInfo, runFDESetup)
+		restore := install.MockSecbootCheckTPMKeySealingSupported(func(secboot.TPMProvisionMode) error {
+			if tc.hasTPM {
+				return nil
+			}
+			return fmt.Errorf("tpm says no")
+		})
+		defer restore()
+
+		constraints := install.EncryptionConstraints{
+			Model:   mockModel,
+			Kernel:  kernelInfo,
+			Gadget:  gadgetInfo,
+			TPMMode: secboot.TPMProvisionFull,
+		}
+
+		encryptionType, err := install.CheckEncryptionSupport(constraints, runFDESetup)
 		c.Assert(err, IsNil)
 		c.Check(encryptionType, Equals, tc.encryptionType, Commentf("%v", tc))
 		if !tc.hasTPM {
@@ -1317,7 +1512,14 @@ func (s *installSuite) TestInstallCheckEncryptionSupportStorageSafety(c *C) {
 			"storage-safety": tc.storageSafety,
 		})
 
-		encryptionType, err := install.CheckEncryptionSupport(mockModel, secboot.TPMProvisionFull, kernelInfo, gadgetInfo, nil)
+		constraints := install.EncryptionConstraints{
+			Model:   mockModel,
+			Kernel:  kernelInfo,
+			Gadget:  gadgetInfo,
+			TPMMode: secboot.TPMProvisionFull,
+		}
+
+		encryptionType, err := install.CheckEncryptionSupport(constraints, nil)
 		c.Assert(err, IsNil)
 		encrypt := (encryptionType != device.EncryptionTypeNone)
 		c.Check(encrypt, Equals, tc.expectedEncryption, Commentf("%v", tc))
@@ -1360,7 +1562,14 @@ func (s *installSuite) TestInstallCheckEncryptionSupportErrors(c *C) {
 			"storage-safety": tc.storageSafety,
 		})
 
-		_, err := install.CheckEncryptionSupport(mockModel, secboot.TPMProvisionFull, kernelInfo, gadgetInfo, nil)
+		constraints := install.EncryptionConstraints{
+			Model:   mockModel,
+			Kernel:  kernelInfo,
+			Gadget:  gadgetInfo,
+			TPMMode: secboot.TPMProvisionFull,
+		}
+
+		_, err := install.CheckEncryptionSupport(constraints, nil)
 		c.Check(err, ErrorMatches, tc.expectedErr, Commentf("%s %s", tc.grade, tc.storageSafety))
 	}
 }
@@ -1375,8 +1584,7 @@ func (s *installSuite) TestInstallCheckEncryptionSupportErrorsLogsTPM(c *C) {
 	for _, tc := range []struct {
 		isSupportedUbuntuHybrid bool
 		detectedErrors          ErrorsDetected
-
-		encryptionType device.EncryptionType
+		encryptionType          device.EncryptionType
 	}{
 		// unhappy: no hook, encryption unvailable as determined by secboot.CheckTPMKeySealingSupported
 		{false, ErrorsDetectedSingle, device.EncryptionTypeNone},
@@ -1386,8 +1594,14 @@ func (s *installSuite) TestInstallCheckEncryptionSupportErrorsLogsTPM(c *C) {
 		{true, ErrorsDetectedCompound, device.EncryptionTypeNone},
 	} {
 		mockModel := s.mockHelperForEncryptionAvailabilityCheck(c, tc.isSupportedUbuntuHybrid, tc.detectedErrors, ErrorNone, nil)
+		constraints := install.EncryptionConstraints{
+			Model:   mockModel,
+			Kernel:  kernelInfo,
+			Gadget:  gadgetInfo,
+			TPMMode: secboot.TPMProvisionFull,
+		}
 
-		_, err := install.CheckEncryptionSupport(mockModel, secboot.TPMProvisionFull, kernelInfo, gadgetInfo, nil)
+		_, err := install.CheckEncryptionSupport(constraints, nil)
 		c.Check(err, IsNil)
 		c.Check(logbuf.String(), Matches, "(?s).*: not encrypting device storage as checking TPM gave: .+\n")
 	}
@@ -1406,7 +1620,14 @@ func (s *installSuite) TestInstallCheckEncryptionSupportErrorsLogsHook(c *C) {
 
 	mockModel := s.mockModel(nil)
 
-	_, err := install.CheckEncryptionSupport(mockModel, secboot.TPMProvisionFull, kernelInfo, gadgetInfo, runFDESetup)
+	constraints := install.EncryptionConstraints{
+		Model:   mockModel,
+		Kernel:  kernelInfo,
+		Gadget:  gadgetInfo,
+		TPMMode: secboot.TPMProvisionFull,
+	}
+
+	_, err := install.CheckEncryptionSupport(constraints, runFDESetup)
 	c.Check(err, IsNil)
 	c.Check(logbuf.String(), Matches, "(?s).*: not encrypting device storage as querying kernel fde-setup hook did not succeed:.*\n")
 }

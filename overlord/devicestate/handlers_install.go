@@ -1322,7 +1322,16 @@ func (m *DeviceManager) doInstallSetupStorageEncryption(t *state.Task, _ *tomb.T
 		return fmt.Errorf("reading gadget information: %v", err)
 	}
 
-	encryptInfo, err := m.encryptionSupportInfo(systemAndSeeds.Model, secboot.TPMProvisionFull, systemAndSeeds.InfosByType[snap.TypeKernel], gadgetInfo, &systemAndSeeds.SystemSnapdVersions)
+	constraints := installLogic.EncryptionConstraints{
+		Model:             systemAndSeeds.Model,
+		Kernel:            systemAndSeeds.InfosByType[snap.TypeKernel],
+		Gadget:            gadgetInfo,
+		TPMMode:           secboot.TPMProvisionFull,
+		SnapdVersions:     systemAndSeeds.SystemSnapdVersions,
+		StandaloneInstall: true,
+	}
+
+	encryptInfo, err := m.encryptionSupportInfo(constraints)
 	if err != nil {
 		return err
 	}

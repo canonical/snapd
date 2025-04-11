@@ -2311,7 +2311,13 @@ func (m *DeviceManager) SystemAndGadgetAndEncryptionInfo(wantedSystemLabel strin
 	}
 
 	// Encryption details
-	encInfo, err := m.encryptionSupportInfo(systemAndSnaps.Model, secboot.TPMProvisionFull, systemAndSnaps.InfosByType[snap.TypeKernel], gadgetInfo, &systemAndSnaps.SystemSnapdVersions)
+	encInfo, err := m.encryptionSupportInfo(install.EncryptionConstraints{
+		Model:         systemAndSnaps.Model,
+		Kernel:        systemAndSnaps.InfosByType[snap.TypeKernel],
+		Gadget:        gadgetInfo,
+		TPMMode:       secboot.TPMProvisionFull,
+		SnapdVersions: systemAndSnaps.SystemSnapdVersions,
+	})
 	if err != nil {
 		return nil, nil, nil, err
 	}
@@ -2948,9 +2954,9 @@ func (m *DeviceManager) RemoveRecoveryKeys() error {
 	return secbootRemoveRecoveryKeys(recoveryKeyDevices)
 }
 
-// checkEncryption verifies whether encryption should be used based on the
-// model grade and the availability of a TPM device or a fde-setup hook
-// in the kernel.
+// checkEncryption verifies whether encryption should be used based on the model
+// grade and the availability of a TPM device, fde-setup hook in the kernel, or
+// the OPTEE trusted application.
 func (m *DeviceManager) checkEncryption(st *state.State, deviceCtx snapstate.DeviceContext, tpmMode secboot.TPMProvisionMode) (device.EncryptionType, error) {
 	model := deviceCtx.Model()
 
@@ -2967,9 +2973,14 @@ func (m *DeviceManager) checkEncryption(st *state.State, deviceCtx snapstate.Dev
 		return "", err
 	}
 
-	return install.CheckEncryptionSupport(model, tpmMode, kernelInfo, gadgetInfo, m.runFDESetupHook)
+	return install.CheckEncryptionSupport(install.EncryptionConstraints{
+		Model:   model,
+		TPMMode: tpmMode,
+		Kernel:  kernelInfo,
+		Gadget:  gadgetInfo,
+	}, m.runFDESetupHook)
 }
 
-func (m *DeviceManager) encryptionSupportInfo(model *asserts.Model, tpmMode secboot.TPMProvisionMode, kernelInfo *snap.Info, gadgetInfo *gadget.Info, systemSnapdVersions *install.SystemSnapdVersions) (install.EncryptionSupportInfo, error) {
-	return install.GetEncryptionSupportInfo(model, tpmMode, kernelInfo, gadgetInfo, systemSnapdVersions, m.runFDESetupHook)
+func (m *DeviceManager) encryptionSupportInfo(constraints install.EncryptionConstraints) (install.EncryptionSupportInfo, error) {
+	return install.GetEncryptionSupportInfo(constraints, m.runFDESetupHook)
 }
