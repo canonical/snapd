@@ -1269,7 +1269,7 @@ suites:
                 snap install ubuntu-image --channel="$OLD_UBUNTU_IMAGE_SNAP_CHANNEL" --classic
             fi
         restore-each: |
-            "$TESTSLIB"/collect-artifacts.sh --after-nested-task
+            "$TESTSLIB"/collect-artifacts.sh features --after-nested-task
             tests.nested vm remove
             tests.nested restore
             "$TESTSLIB"/prepare-restore.sh --restore-suite-each
@@ -1330,7 +1330,7 @@ suites:
             "$TESTSLIB"/prepare-restore.sh --prepare-suite-each
             tests.nested create-vm classic
         restore-each: |
-            "$TESTSLIB"/collect-artifacts.sh --after-nested-task
+            "$TESTSLIB"/collect-artifacts.sh features --after-nested-task
             tests.nested vm remove
             "$TESTSLIB"/prepare-restore.sh --restore-suite-each
         restore: |
@@ -1397,7 +1397,7 @@ suites:
             "$TESTSLIB"/prepare-restore.sh --prepare-suite-each
             tests.nested create-vm core
         restore-each: |
-            "$TESTSLIB"/collect-artifacts.sh --after-nested-task
+            "$TESTSLIB"/collect-artifacts.sh features --after-nested-task
             tests.nested vm remove
             "$TESTSLIB"/prepare-restore.sh --restore-suite-each
         restore: |
