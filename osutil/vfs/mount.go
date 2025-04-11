@@ -20,6 +20,7 @@
 package vfs
 
 import (
+	"errors"
 	"io/fs"
 )
 
@@ -132,6 +133,10 @@ func (v *VFS) BindMount(sourcePoint, mountPoint string) error {
 	v.nextMountID++
 
 	return nil
+}
+
+func (v *VFS) RecursiveBindMount(sourcePoint, mountPoint string) error {
+	return errors.New("not implemented")
 }
 
 // Unmount removes a mount attached to a node otherwise named by mountPoint.
