@@ -362,7 +362,13 @@ func doInstall(mst *initramfsMountsState, model *asserts.Model, sysSnaps map[sna
 	if err != nil {
 		return err
 	}
-	encryptionSupport, err := install.CheckEncryptionSupport(model, secboot.TPMProvisionFull, kernelSnap, gadgetInfo, runFDESetupHook)
+
+	encryptionSupport, err := install.CheckEncryptionSupport(install.EncryptionConstraints{
+		Model:   model,
+		Kernel:  kernelSnap,
+		Gadget:  gadgetInfo,
+		TPMMode: secboot.TPMProvisionFull,
+	}, runFDESetupHook)
 	if err != nil {
 		return err
 	}
