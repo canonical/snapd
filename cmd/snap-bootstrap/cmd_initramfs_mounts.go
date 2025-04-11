@@ -118,7 +118,7 @@ var (
 	}
 
 	gadgetInstallRun                 = gadgetInstall.Run
-	bootMakeRunnableStandaloneSystem = boot.MakeRunnableStandaloneSystemFromInitrd
+	bootMakeRunnableSystemFromInitrd = boot.MakeRunnableSystemFromInitrd
 	installApplyPreseededData        = install.ApplyPreseededData
 	bootEnsureNextBootToRunMode      = boot.EnsureNextBootToRunMode
 	installBuildInstallObserver      = install.BuildInstallObserver
@@ -484,7 +484,7 @@ func doInstall(mst *initramfsMountsState, model *asserts.Model, sysSnaps map[sna
 		KernelMods:          kernelBootInfo.BootableKMods,
 	}
 
-	if err := bootMakeRunnableStandaloneSystem(model, bootWith, trustedInstallObserver); err != nil {
+	if err := bootMakeRunnableSystemFromInitrd(model, bootWith, trustedInstallObserver); err != nil {
 		return err
 	}
 
