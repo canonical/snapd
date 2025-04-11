@@ -219,10 +219,10 @@ func MockGadgetInstallRun(f func(model gadget.Model, gadgetRoot string, kernelSn
 }
 
 func MockMakeRunnableStandaloneSystem(f func(model *asserts.Model, bootWith *boot.BootableSet, obs boot.TrustedAssetsInstallObserver) error) (restore func()) {
-	old := bootMakeRunnableStandaloneSystem
-	bootMakeRunnableStandaloneSystem = f
+	old := bootMakeRunnableSystemFromInitrd
+	bootMakeRunnableSystemFromInitrd = f
 	return func() {
-		bootMakeRunnableStandaloneSystem = old
+		bootMakeRunnableSystemFromInitrd = old
 	}
 }
 
