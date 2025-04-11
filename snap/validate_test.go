@@ -2795,9 +2795,9 @@ slots:
 	c.Assert(err, IsNil)
 
 	expectedErrs := []string{
-		`invalid "lines" attribute: chip "chip0" has overlapping line spans: "2" in slot "gpio-chardev-1" overlaps with "1-3" in slot "gpio-chardev-0"`,
-		`invalid "lines" attribute: chip "chip1" has overlapping line spans: "1" in slot "gpio-chardev-3" overlaps with "1" in slot "gpio-chardev-2"`,
-		`invalid "lines" attribute: chip "chip1" has overlapping line spans: "2" in slot "gpio-chardev-3" overlaps with "2" in slot "gpio-chardev-2"`,
+		`invalid "lines" attribute: chip "chip0" has reused conflicting line spans: "2" in slot "gpio-chardev-1" conflicts with "1-3" in slot "gpio-chardev-0"`,
+		`invalid "lines" attribute: chip "chip1" has reused conflicting line spans: "1" in slot "gpio-chardev-3" conflicts with "1" in slot "gpio-chardev-2"`,
+		`invalid "lines" attribute: chip "chip1" has reused conflicting line spans: "2" in slot "gpio-chardev-3" conflicts with "2" in slot "gpio-chardev-2"`,
 	}
 
 	err = Validate(info)

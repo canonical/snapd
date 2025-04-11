@@ -357,14 +357,12 @@ type gpioChipLinesOverlapError struct {
 }
 
 func (e *gpioChipLinesOverlapError) Error() string {
-	return fmt.Sprintf(`invalid "lines" attribute: chip %q has overlapping line spans: %q in slot %q overlaps with %q in slot %q`,
+	return fmt.Sprintf(`invalid "lines" attribute: chip %q has reused conflicting line spans: %q in slot %q conflicts with %q in slot %q`,
 		e.chip, e.spanB.String(), e.slotB, e.spanA.String(), e.slotA,
 	)
 }
 
 func validateGpioChardevSlots(info *Info) error {
-	// XXX: should this be relaxed to validate all types in case
-	// gpio-chardev slots are allowed for snap apps later?
 	if info.Type() != TypeGadget {
 		// not a gadget, nothing to do
 		return nil
