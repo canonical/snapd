@@ -1678,6 +1678,63 @@ func (s *sealSuite) TestSealToModeenvWithFdeHookSad(c *C) {
 	c.Check(sealKeyForBootChainsCalled, Equals, 1)
 }
 
+func (s *sealSuite) TestSealToModeenvWithOPTEEHookHappy(c *C) {
+	rootdir := c.MkDir()
+	dirs.SetRootDir(rootdir)
+	defer dirs.SetRootDir("")
+	model := boottest.MakeMockUC20Model()
+
+	restore := boot.MockSeedReadSystemEssential(func(seedDir, label string, essentialTypes []snap.Type, tm timings.Measurer) (*asserts.Model, []*seed.Snap, error) {
+		return model, []*seed.Snap{mockKernelSeedSnap(snap.R(1)), mockGadgetSeedSnap(c, nil)}, nil
+	})
+	defer restore()
+
+	modeenv := &boot.Modeenv{
+		RecoverySystem: "20200825",
+		Model:          model.Model(),
+		BrandID:        model.BrandID(),
+		Grade:          string(model.Grade()),
+		ModelSignKeyID: model.SignKeyID(),
+	}
+
+	myKey := secboot.CreateMockBootstrappedContainer()
+	myKey2 := secboot.CreateMockBootstrappedContainer()
+
+	sealKeyForBootChainsCalled := 0
+	restore = boot.MockSealKeyForBootChains(func(method device.SealingMethod, key, saveKey secboot.BootstrappedContainer, primaryKey []byte, volumesAuth *device.VolumesAuthOptions, params *boot.SealKeyForBootChainsParams) error {
+		sealKeyForBootChainsCalled++
+		c.Check(method, Equals, device.SealingMethodOPTEE)
+		c.Check(key, DeepEquals, myKey)
+		c.Check(saveKey, DeepEquals, myKey2)
+
+		c.Assert(params.RunModeBootChains, HasLen, 1)
+		runBootChain := params.RunModeBootChains[0]
+		c.Check(runBootChain.Model, Equals, model.Model())
+
+		c.Check(runBootChain.AssetChain, HasLen, 0)
+
+		c.Check(params.RecoveryBootChainsForRunKey, HasLen, 0)
+
+		c.Assert(params.RecoveryBootChains, HasLen, 1)
+		recoveryBootChain := params.RecoveryBootChains[0]
+		c.Check(recoveryBootChain.Model, Equals, model.Model())
+		c.Check(recoveryBootChain.AssetChain, HasLen, 0)
+
+		c.Check(params.FactoryReset, Equals, false)
+		c.Check(params.InstallHostWritableDir, Equals, filepath.Join(boot.InitramfsRunMntDir, "ubuntu-data", "system-data"))
+		c.Check(params.UseTokens, Equals, true)
+
+		return nil
+	})
+	defer restore()
+
+	defer boot.MockSealModeenvLocked()()
+
+	err := boot.SealKeyToModeenv(myKey, myKey2, nil, nil, model, modeenv, boot.MockSealKeyToModeenvFlags{HasFDETA: true, UseTokens: true})
+	c.Assert(err, IsNil)
+	c.Check(sealKeyForBootChainsCalled, Equals, 1)
+}
+
 func (s *sealSuite) TestResealKeyToModeenvWithFdeHookCalled(c *C) {
 	rootdir := c.MkDir()
 	dirs.SetRootDir(rootdir)
@@ -2077,4 +2134,87 @@ func (s *sealSuite) TestWithBootChains(c *C) {
 			bootloader.RoleRecovery: "grub",
 		},
 	})
+}
+
+func (s *sealSuite) TestWithBootChainsFDEHookAndOPTEE(c *C) {
+	rootdir := c.MkDir()
+	dirs.SetRootDir(rootdir)
+	defer dirs.SetRootDir("")
+
+	model := boottest.MakeMockUC20Model()
+
+	modeenv := &boot.Modeenv{
+		Mode: "run",
+
+		// no recovery systems to keep things relatively short
+		CurrentTrustedRecoveryBootAssets: boot.BootAssetsMap{
+			"grubx64.efi": []string{"grub-hash"},
+			"bootx64.efi": []string{"shim-hash"},
+		},
+
+		CurrentTrustedBootAssets: boot.BootAssetsMap{
+			"grubx64.efi": []string{"run-grub-hash"},
+		},
+
+		CurrentKernels: []string{"pc-kernel_500.snap"},
+
+		CurrentKernelCommandLines: boot.BootCommandLines{
+			"snapd_recovery_mode=run console=ttyS0 console=tty1 panic=-1",
+		},
+		Model:          model.Model(),
+		BrandID:        model.BrandID(),
+		Grade:          string(model.Grade()),
+		ModelSignKeyID: model.SignKeyID(),
+	}
+
+	c.Assert(modeenv.WriteTo(dirs.GlobalRootDir), IsNil)
+
+	err := createMockGrubCfg(filepath.Join(rootdir, "run/mnt/ubuntu-seed"))
+	c.Assert(err, IsNil)
+
+	err = createMockGrubCfg(filepath.Join(rootdir, "run/mnt/ubuntu-boot"))
+	c.Assert(err, IsNil)
+
+	// mock asset cache
+	boottest.MockAssetsCache(c, rootdir, "grub", []string{
+		"run-grub-hash",
+		"grub-hash",
+		"shim-hash",
+	})
+
+	restore := boot.MockSeedReadSystemEssential(func(seedDir, label string, essentialTypes []snap.Type, tm timings.Measurer) (*asserts.Model, []*seed.Snap, error) {
+		return model, []*seed.Snap{mockKernelSeedSnap(snap.R(1)), mockGadgetSeedSnap(c, nil)}, nil
+	})
+	defer restore()
+
+	var chains *boot.ResealKeyForBootChainsParams
+	err = boot.WithBootChains(func(ch *boot.ResealKeyForBootChainsParams) error {
+		chains = ch
+		return nil
+	}, device.SealingMethodOPTEE)
+	c.Assert(err, IsNil)
+
+	expected := &boot.ResealKeyForBootChainsParams{
+		RunModeBootChains: []boot.BootChain{
+			{
+				BrandID:        "my-brand",
+				Model:          "my-model-uc20",
+				Grade:          "dangerous",
+				ModelSignKeyID: "Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij",
+				KernelCmdlines: []string{
+					"snapd_recovery_mode=run",
+				},
+			},
+		},
+	}
+
+	c.Check(chains, DeepEquals, expected)
+
+	err = boot.WithBootChains(func(ch *boot.ResealKeyForBootChainsParams) error {
+		chains = ch
+		return nil
+	}, device.SealingMethodFDESetupHook)
+	c.Assert(err, IsNil)
+
+	c.Check(chains, DeepEquals, expected)
 }
