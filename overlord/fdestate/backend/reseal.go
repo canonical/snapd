@@ -285,7 +285,7 @@ func doReseal(manager FDEStateManager, method device.SealingMethod, rootdir stri
 	}
 }
 
-func recalculateParamatersFDEHook(manager FDEStateManager, method device.SealingMethod, rootdir string, inputs resealInputs, opts resealOptions) error {
+func recalculateParamatersFDEHook(manager FDEStateManager, inputs resealInputs) error {
 	params := inputs.bootChains
 	runModels := getUniqueModels(append(params.RunModeBootChains, params.RecoveryBootChainsForRunKey...))
 	recoveryModels := getUniqueModels(params.RecoveryBootChains)
@@ -317,7 +317,7 @@ func recalculateParamatersFDEHook(manager FDEStateManager, method device.Sealing
 	return nil
 }
 
-func recalculateParamatersTPM(manager FDEStateManager, method device.SealingMethod, rootdir string, inputs resealInputs, opts resealOptions) error {
+func recalculateParamatersTPM(manager FDEStateManager, rootdir string, inputs resealInputs, opts resealOptions) error {
 	params := inputs.bootChains
 	// reseal the run object
 	pbc := boot.ToPredictableBootChains(append(params.RunModeBootChains, params.RecoveryBootChainsForRunKey...))
@@ -614,7 +614,7 @@ func resealKeys(
 			return nil
 		}
 
-		if err := recalculateParamatersFDEHook(manager, method, rootdir, inputs, opts); err != nil {
+		if err := recalculateParamatersFDEHook(manager, inputs); err != nil {
 			return err
 		}
 	case device.SealingMethodTPM, device.SealingMethodLegacyTPM:
@@ -625,7 +625,7 @@ func resealKeys(
 			}
 		}
 
-		if err := recalculateParamatersTPM(manager, method, rootdir, inputs, opts); err != nil {
+		if err := recalculateParamatersTPM(manager, rootdir, inputs, opts); err != nil {
 			// TODO:FDEM:FIX: remove the save boot chains.
 			return err
 		}
