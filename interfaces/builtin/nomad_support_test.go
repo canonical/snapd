@@ -98,6 +98,12 @@ func (s *nomadSupportInterfaceSuite) TestUdevSpec(c *C) {
 	c.Assert(spec.ControlsDeviceCgroup(), Equals, true)
 }
 
+func (s *nomadSupportInterfaceSuite) TestServicePermanentPlugSnippets(c *C) {
+	snips, err := interfaces.PermanentPlugServiceSnippets(s.iface, s.plugInfo)
+	c.Assert(err, IsNil)
+	c.Check(snips, DeepEquals, []interfaces.PlugServicesSnippet{interfaces.PlugServicesServiceSectionSnippet("Delegate=true")})
+}
+
 func (s *nomadSupportInterfaceSuite) TestStaticInfo(c *C) {
 	si := interfaces.StaticInfoOf(s.iface)
 	c.Assert(si.ImplicitOnCore, Equals, true)

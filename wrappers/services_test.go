@@ -2537,7 +2537,7 @@ func (s *servicesTestSuite) TestEnsureSnapServicesSubunits(c *C) {
 	})
 }
 
-func (s *servicesTestSuite) TestAddSnapServicesWithInterfaceSnippets(c *C) {
+func (s *servicesTestSuite) TestAddSnapServicesWithInterfaceServiceSnippets(c *C) {
 	tt := []struct {
 		comment     string
 		plugSnippet string
@@ -2679,6 +2679,72 @@ WantedBy=multi-user.target
 
 		s.sysdLog = nil
 	}
+}
+
+func (s *servicesTestSuite) TestAddSnapServicesWithGpioChardevInterfaceUnitSnippets(c *C) {
+	const snapYaml = packageHelloNoSrv + `
+ svc1:
+  daemon: simple
+  plugs:
+   - gpio-chardev
+plugs:
+ gpio-chardev:
+  source-chip: [chip0]
+  lines: 0-3
+`
+	info := snaptest.MockSnap(c, snapYaml, &snap.SideInfo{Revision: snap.R(12)})
+	svcFile := filepath.Join(dirs.GlobalRootDir, "/etc/systemd/system/snap.hello-snap.svc1.service")
+
+	err := s.addSnapServices(info, false)
+	c.Assert(err, IsNil)
+	c.Check(s.sysdLog, DeepEquals, [][]string{{"daemon-reload"}})
+
+	dir := dirs.StripRootDir(filepath.Join(dirs.SnapMountDir, "hello-snap", "12.mount"))
+	c.Assert(svcFile, testutil.FileEquals, fmt.Sprintf(`[Unit]
+# Auto-generated, DO NOT EDIT
+Description=Service for snap application hello-snap.svc1
+Requires=%[1]s
+Wants=network.target
+After=%[1]s network.target snapd.apparmor.service
+After=snapd.gpio-chardev-setup.target
+Wants=snapd.gpio-chardev-setup.target
+X-Snappy=yes
+
+[Service]
+EnvironmentFile=-/etc/environment
+ExecStart=/usr/bin/snap run hello-snap.svc1
+SyslogIdentifier=hello-snap.svc1
+Restart=on-failure
+WorkingDirectory=/var/snap/hello-snap/12
+TimeoutStopSec=30
+Type=simple
+
+[Install]
+WantedBy=multi-user.target
+`,
+		systemd.EscapeUnitNamePath(dir),
+	))
+
+	s.sysdLog = nil
+	err = wrappers.StopServices(info.Services(), nil, "", progress.Null, s.perfTimings)
+	c.Assert(err, IsNil)
+	c.Assert(s.sysdLog, HasLen, 2)
+	c.Check(s.sysdLog, DeepEquals, [][]string{
+		{"stop", filepath.Base(svcFile)},
+		{"show", "--property=ActiveState", "snap.hello-snap.svc1.service"},
+	})
+
+	s.sysdLog = nil
+	err = wrappers.RemoveSnapServices(info, progress.Null)
+	c.Assert(err, IsNil)
+	c.Check(osutil.FileExists(svcFile), Equals, false)
+	c.Assert(s.sysdLog, HasLen, 2)
+	c.Check(s.sysdLog, DeepEquals, [][]string{
+		{"--no-reload", "disable", filepath.Base(svcFile)},
+		{"daemon-reload"},
+	})
+
+	s.sysdLog = nil
 }
 
 func (s *servicesTestSuite) TestAddSnapServicesAndRemoveUserDaemons(c *C) {
