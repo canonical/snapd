@@ -55,6 +55,13 @@ type hookKeyProtector struct {
 	keyName string
 }
 
+func NewHookKeyProtector(runHook fde.RunSetupHookFunc, keyName string) sb_hooks.KeyProtector {
+	return &hookKeyProtector{
+		runHook: runHook,
+		keyName: keyName,
+	}
+}
+
 func (h *hookKeyProtector) ProtectKey(rand io.Reader, cleartext, aad []byte) (ciphertext []byte, handle []byte, err error) {
 	keyParams := &fde.InitialSetupParams{
 		Key:     cleartext,
@@ -100,7 +107,37 @@ func FDESetupHookKeyProtectorFactory(runHook fde.RunSetupHookFunc) KeyProtectorF
 	return &fdeKeyProtectorFactory{runHook: runHook}
 }
 
-// TODO: add an OPTEE key protector and factory
+// OPTEEKeyProtectorFactory returns a [KeyProtectorFactory] that will use
+// the system's OPTEE trusted application to protect the key.
+func OPTEEKeyProtectorFactory() KeyProtectorFactory {
+	return &opteeKeyProtectorFactory{}
+}
+
+type opteeKeyProtectorFactory struct{}
+
+func (o *opteeKeyProtectorFactory) ForKeyName(name string) KeyProtector {
+	return &opteeKeyProtector{}
+}
+
+type opteeKeyProtector struct{}
+
+func (o *opteeKeyProtector) ProtectKey(rand io.Reader, cleartext, aad []byte) (ciphertext []byte, handle []byte, err error) {
+	client := optee.NewFDETAClient()
+	rawHandle, sealed, err := client.EncryptKey(cleartext)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// this seems wrong, but the KeyProtector API expects handle to be valid
+	// JSON, see [sb_hooks.NewProtectedKey]. thus, we're returning a JSON string
+	// here, which will be our handle, base64 encoded and wrapped in quotes.
+	handleJSON, err := json.Marshal(rawHandle)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return sealed, handleJSON, nil
+}
 
 func SealKeysWithProtector(kpf KeyProtectorFactory, keys []SealKeyRequest, params *SealKeysWithFDESetupHookParams) error {
 	var primaryKey sb.PrimaryKey
@@ -111,9 +148,13 @@ func SealKeysWithProtector(kpf KeyProtectorFactory, keys []SealKeyRequest, param
 
 	for _, skr := range keys {
 		protector := kpf.ForKeyName(skr.KeyName)
+
 		// TODO:FDEM: add support for AEAD (consider OP-TEE work)
 		flags := sb_hooks.KeyProtectorNoAEAD
 		sb_hooks.SetKeyProtector(protector, flags)
+
+		// TODO: this is only running at the end of the function, seems we
+		// should probably just defer this once at the top of the loop
 		defer sb_hooks.SetKeyProtector(nil, 0)
 
 		protectedKey, primaryKeyOut, unlockKey, err := sb_hooks.NewProtectedKey(rand.Reader, &sb_hooks.KeyParams{
@@ -277,8 +318,7 @@ func (fh *fdeHookV2DataHandler) RecoverKeysWithAuthKey(data *sb.PlatformKeyData,
 	return nil, fmt.Errorf("cannot recover keys with auth keys yet")
 }
 
-type keyRevealerV3 struct {
-}
+type keyRevealerV3 struct{}
 
 func (kr *keyRevealerV3) RevealKey(data, ciphertext, aad []byte) (plaintext []byte, err error) {
 	logger.Noticef("Called reveal key")
@@ -293,6 +333,20 @@ func (kr *keyRevealerV3) RevealKey(data, ciphertext, aad []byte) (plaintext []by
 		V2Payload: true,
 	}
 	return fde.Reveal(&p)
+}
+
+type opteeKeyRevealer struct{}
+
+func (o *opteeKeyRevealer) RevealKey(data, ciphertext, aad []byte) (plaintext []byte, err error) {
+	// same deal as the opteeKeyProtector, but the inverse. data is a JSON
+	// encoded, base64 encoded byte array
+	var handle []byte
+	if err := json.Unmarshal(data, &handle); err != nil {
+		return nil, err
+	}
+
+	client := optee.NewFDETAClient()
+	return client.DecryptKey(ciphertext, handle)
 }
 
 // FDEOpteeTAPresent returns true if we detect that the expected OPTEE TA that
