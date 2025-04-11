@@ -192,7 +192,7 @@ func (s *exportUnexportTestSuite) SetUpTest(c *C) {
 	s.newDeviceCallback = func(cmd string) {
 		mockStat := &syscall.Stat_t{
 			Rdev: osutil.Makedev(mockMajor, mockMinor),
-			Mode: unix.S_IFCHR | 0644,
+			Mode: syscall.S_IFCHR | 0644,
 		}
 		s.mockChip(c, "gpiochip10", filepath.Join(s.rootdir, "/dev/gpiochip10"), "gpio-aggregator.10", 7, mockStat)
 	}
@@ -283,13 +283,17 @@ func (s *exportUnexportTestSuite) mockChip(c *C, name, path, label string, lines
 	if stat == nil {
 		stat = &syscall.Stat_t{
 			Rdev: osutil.Makedev(mockMajor, mockMinor),
-			Mode: unix.S_IFCHR | 0600,
+			Mode: syscall.S_IFCHR | 0600,
 			Uid:  1003,
 			Gid:  1004,
 		}
 	}
+	fmode := fs.FileMode(stat.Mode & 0777)
+	if stat.Mode&syscall.S_IFMT == syscall.S_IFCHR {
+		fmode = fmode | fs.ModeDevice | fs.ModeCharDevice
+	}
 	s.mockStats[path] = &fakeFileInfo{
-		testutil.FakeFileInfo(path, fs.FileMode(stat.Mode)),
+		testutil.FakeFileInfo(path, fmode),
 		stat,
 	}
 	c.Assert(os.MkdirAll(filepath.Dir(path), 0755), IsNil)
@@ -315,7 +319,7 @@ func (s *exportUnexportTestSuite) TestExportGadgetChardevChip(c *C) {
 
 	mockStat := &syscall.Stat_t{
 		Rdev: osutil.Makedev(254, 3),
-		Mode: unix.S_IFCHR | 0600,
+		Mode: syscall.S_IFCHR | 0600,
 		Uid:  1001,
 		Gid:  1002,
 	}
@@ -345,7 +349,7 @@ func (s *exportUnexportTestSuite) TestExportGadgetChardevChip(c *C) {
 	restore = gpio.MockOsChmod(func(path string, mode fs.FileMode) error {
 		chmodCalled++
 		c.Check(path, Equals, filepath.Join(s.rootdir, "/dev/snap/gpio-chardev/gadget-name/slot-name"))
-		c.Check(mode, Equals, fs.FileMode(unix.S_IFCHR|0600))
+		c.Check(mode, Equals, fs.FileMode(0600)|fs.ModeDevice|fs.ModeCharDevice)
 		return nil
 	})
 	defer restore()
@@ -453,7 +457,7 @@ func (s *exportUnexportTestSuite) TestExportGadgetChardevChipAddGadgetDeviceErro
 func (s *exportUnexportTestSuite) TestExportGadgetChardevChipAggregatedChipsSkipped(c *C) {
 	mockStat := &syscall.Stat_t{
 		Rdev: osutil.Makedev(254, 1),
-		Mode: unix.S_IFCHR | 0600,
+		Mode: syscall.S_IFCHR | 0600,
 		Uid:  1001,
 		Gid:  1002,
 	}
