@@ -212,6 +212,12 @@ func scanDiskNodeFallback(output io.Writer, node string) error {
 			return fmt.Errorf("cannot check snapd_system_disk kernel parameter: %s\n", err)
 		}
 		if !same {
+			/*
+			 * This block device is not the device
+			 * requested from the command line.  But this
+			 * is not an error. There are lots of block
+			 * devices.
+			 */
 			return nil
 		}
 	}
