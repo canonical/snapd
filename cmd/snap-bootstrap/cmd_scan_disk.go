@@ -151,50 +151,37 @@ func samePath(a, b string) (bool, error) {
 	return os.SameFile(aSt, bSt), nil
 }
 
-func scanDiskNode(output io.Writer, node string) error {
-	/*
-	 * We need to find out if the given node contains the ESP that
-	 * was booted.  The boot loader will set
-	 * LoaderDevicePartUUID. We will need to scan all the
-	 * partitions for that UUID.
-	 */
-	fallback := false
-	var fallbackPartition string
 
-	bootUUID, err := bootFindPartitionUUIDForBootedKernelDisk()
-	if err != nil {
-		fallback = true
-	}
+func scanDiskNodeFallback(output io.Writer, node string) error {
+	var fallbackPartition string
 
 	partitions, err := probePartitions(node)
 	if err != nil {
 		return fmt.Errorf("cannot get partitions: %s\n", err)
 	}
-
 	/*
 	 * If LoaderDevicePartUUID was not set, it is probably because
 	 * we did not boot with UEFI. In that case we try to detect
 	 * disk with partition labels.
 	 */
-	if fallback {
-		mode, _, err := boot.ModeAndRecoverySystemFromKernelCommandLine()
-		if err != nil {
-			return err
-		}
-		switch mode {
-		case "recover":
-			fallbackPartition = "ubuntu-seed"
-		case "install":
-			fallbackPartition = "ubuntu-seed"
-		case "factory-reset":
-			fallbackPartition = "ubuntu-seed"
-		case "run":
-			fallbackPartition = "ubuntu-boot"
-		case "cloudimg-rootfs":
-			fallbackPartition = "ubuntu-boot"
-		default:
-			return fmt.Errorf("internal error: mode not handled")
-		}
+
+	mode, _, err := boot.ModeAndRecoverySystemFromKernelCommandLine()
+	if err != nil {
+		return err
+	}
+	switch mode {
+	case "recover":
+		fallbackPartition = "ubuntu-seed"
+	case "install":
+		fallbackPartition = "ubuntu-seed"
+	case "factory-reset":
+		fallbackPartition = "ubuntu-seed"
+	case "run":
+		fallbackPartition = "ubuntu-boot"
+	case "cloudimg-rootfs":
+		fallbackPartition = "ubuntu-boot"
+	default:
+		return fmt.Errorf("internal error: mode not handled")
 	}
 
 	/*
@@ -202,59 +189,82 @@ func scanDiskNode(output io.Writer, node string) error {
 	 * defined, we need to verify the disk also matches that. If
 	 * not, we just return, ignoring this disk.
 	 */
-	if fallback {
-		values, err := kcmdline.KeyValues("snapd_system_disk")
-		if err != nil {
-			return fmt.Errorf("cannot read kernel command line: %s\n", err)
+	values, err := kcmdline.KeyValues("snapd_system_disk")
+	if err != nil {
+		return fmt.Errorf("cannot read kernel command line: %s\n", err)
+	}
+
+	if value, ok := values["snapd_system_disk"]; ok {
+		var currentPath string
+		var expectedPath string
+		if strings.HasPrefix(value, "/dev/") || !strings.HasPrefix(value, "/") {
+			name := strings.TrimPrefix(value, "/dev/")
+			expectedPath = fmt.Sprintf("/dev/%s", name)
+			currentPath = node
+		} else {
+			expectedPath = value
+			currentPath = osGetenv("DEVPATH")
 		}
 
-		if value, ok := values["snapd_system_disk"]; ok {
-			var currentPath string
-			var expectedPath string
-			if strings.HasPrefix(value, "/dev/") || !strings.HasPrefix(value, "/") {
-				name := strings.TrimPrefix(value, "/dev/")
-				expectedPath = fmt.Sprintf("/dev/%s", name)
-				currentPath = node
-			} else {
-				expectedPath = value
-				currentPath = osGetenv("DEVPATH")
-			}
+		same, err := samePath(filepath.Join(dirs.GlobalRootDir, expectedPath),
+			filepath.Join(dirs.GlobalRootDir, currentPath))
+		if err != nil {
+			return fmt.Errorf("cannot check snapd_system_disk kernel parameter: %s\n", err)
+		}
+		if !same {
+			return nil
+		}
+	}
 
-			same, err := samePath(filepath.Join(dirs.GlobalRootDir, expectedPath),
-				filepath.Join(dirs.GlobalRootDir, currentPath))
-			if err != nil {
-				return fmt.Errorf("cannot check snapd_system_disk kernel parameter: %s\n", err)
-			}
-			if !same {
-				return nil
-			}
+	for _, part := range partitions {
+		if part.Name == fallbackPartition {
+			fmt.Fprintf(output, "UBUNTU_DISK=1\n")
+
+			return nil;
 		}
 	}
 
 	/*
+	 * We have found the block device is not a boot device. But
+	 * this is not an error. There are plenty of block devices
+	 * that are not the boot device.
+	 */
+	return nil;
+}
+
+func scanDiskNode(output io.Writer, node string) error {
+	/*
+	 * We need to find out if the given node contains the ESP that
+	 * was booted.  The boot loader will set
+	 * LoaderDevicePartUUID. We will need to scan all the
+	 * partitions for that UUID.
+	 */
+
+	bootUUID, err := bootFindPartitionUUIDForBootedKernelDisk()
+	if err != nil {
+		return scanDiskNodeFallback(output, node)
+	}
+
+	// TODO: split the rest of this function in 2, fallback and non fallback.
+
+	partitions, err := probePartitions(node)
+	if err != nil {
+		return fmt.Errorf("cannot get partitions: %s\n", err)
+	}
+
+	/*
 	 * Now we scan the partitions. We need to find the partition
-	 * grub booted from. If we are not in UEFI, we check if the
-	 * disk has either a seed or boot partition.
+	 * grub booted from.
 	 */
 	found := false
-	hasFallbackPartition := false
 	hasSeed := false
 	hasBoot := false
 	for _, part := range partitions {
-		if !fallback {
-			if part.UUID == bootUUID {
-				/*
-				 * We have just found the ESP boot partition!
-				 */
-				found = true
-			}
-		} else if part.Name == fallbackPartition {
+		if part.UUID == bootUUID {
 			/*
-			 * We are not in UEFI boot, and we have found
-			 * a partition that looks like the boot
-			 * partition.
+			 * We have just found the ESP boot partition!
 			 */
-			hasFallbackPartition = true
+			found = true
 		}
 
 		if part.Name == "ubuntu-seed" {
@@ -265,14 +275,17 @@ func scanDiskNode(output io.Writer, node string) error {
 	}
 
 	/*
-	 * We now print the result if either:
-	 *  - We are in UEFI mode and we confirmed we found the boot ESP.
-	 *  - We are not in UEFI mode and the disks look like the boot disk.
+	 * We now print the result if we confirmed we found the boot ESP.
 	 */
-	if (!fallback && found && (hasSeed || hasBoot)) || (fallback && hasFallbackPartition) {
+	if (found && (hasSeed || hasBoot)) {
 		fmt.Fprintf(output, "UBUNTU_DISK=1\n")
 	}
 
+	/*
+	 * We have found the block device is not a boot device. But
+	 * this is not an error. There are plenty of block devices
+	 * that are not the boot device.
+	 */
 	return nil
 }
 
