@@ -41,6 +41,14 @@ func (s *timerSuite) TestAfterFuncExpiredC(c *C) {
 	c.Assert(active, Equals, true)
 }
 
+func (s *timerSuite) TestAfter(c *C) {
+	c.Assert(timeutil.After(time.Second), NotNil)
+	before := time.Now()
+	fired := <-timeutil.After(time.Nanosecond)
+	c.Check(fired.After(before), Equals, true)
+	c.Check(time.Now().After(fired), Equals, true)
+}
+
 func (s *timerSuite) TestNewTimerExpiredC(c *C) {
 	before := time.Now()
 	var timer timeutil.Timer = timeutil.NewTimer(time.Nanosecond)

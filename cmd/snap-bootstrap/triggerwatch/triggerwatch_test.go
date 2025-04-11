@@ -30,6 +30,7 @@ import (
 
 	"github.com/snapcore/snapd/cmd/snap-bootstrap/triggerwatch"
 	"github.com/snapcore/snapd/osutil/udev/netlink"
+	"github.com/snapcore/snapd/testtime"
 )
 
 // Hook up check.v1 into the "go test" runner
@@ -45,10 +46,23 @@ type mockTriggerDevice struct {
 	waitForTriggerCalls int
 	closeCalls          int
 	ev                  *triggerwatch.KeyEvent
+	// closes when the device has been waited for
+	waitedC chan struct{}
+	// closes when the device has been closed
+	closedC chan struct{}
 }
 
+func newMockTriggerDevice(ev *triggerwatch.KeyEvent) *mockTriggerDevice {
+	return &mockTriggerDevice{
+		ev:      ev,
+		waitedC: make(chan struct{}),
+		closedC: make(chan struct{}),
+	}
+
+}
 func (m *mockTriggerDevice) WaitForTrigger(n chan triggerwatch.KeyEvent) {
 	m.withLocked(func() {
+		defer close(m.waitedC)
 		m.waitForTriggerCalls++
 		if m.ev != nil {
 			ev := *m.ev
@@ -59,7 +73,10 @@ func (m *mockTriggerDevice) WaitForTrigger(n chan triggerwatch.KeyEvent) {
 }
 
 func (m *mockTriggerDevice) String() string { return "mock-device" }
-func (m *mockTriggerDevice) Close()         { m.closeCalls++ }
+func (m *mockTriggerDevice) Close() {
+	defer close(m.closedC)
+	m.closeCalls++
+}
 
 func (m *mockTriggerDevice) withLocked(f func()) {
 	m.Lock()
@@ -105,7 +122,7 @@ const testTriggerTimeout = 5 * time.Millisecond
 const testDeviceTimeout = 2 * time.Millisecond
 
 func (s *triggerwatchSuite) TestNoDevsWaitKey(c *C) {
-	md := &mockTriggerDevice{ev: &triggerwatch.KeyEvent{}}
+	md := newMockTriggerDevice(&triggerwatch.KeyEvent{})
 	mi := &mockTrigger{d: md}
 	restore := triggerwatch.MockInput(mi)
 	defer restore()
@@ -113,12 +130,13 @@ func (s *triggerwatchSuite) TestNoDevsWaitKey(c *C) {
 	err := triggerwatch.Wait(testTriggerTimeout, testDeviceTimeout)
 	c.Assert(err, IsNil)
 	c.Assert(mi.findMatchingCalls, Equals, 1)
+	<-md.closedC
 	c.Assert(md.waitForTriggerCalls, Equals, 1)
 	c.Assert(md.closeCalls, Equals, 1)
 }
 
 func (s *triggerwatchSuite) TestNoDevsWaitKeyTimeout(c *C) {
-	md := &mockTriggerDevice{}
+	md := newMockTriggerDevice(nil)
 	mi := &mockTrigger{d: md}
 	restore := triggerwatch.MockInput(mi)
 	defer restore()
@@ -126,6 +144,7 @@ func (s *triggerwatchSuite) TestNoDevsWaitKeyTimeout(c *C) {
 	err := triggerwatch.Wait(testTriggerTimeout, testDeviceTimeout)
 	c.Assert(err, Equals, triggerwatch.ErrTriggerNotDetected)
 	c.Assert(mi.findMatchingCalls, Equals, 1)
+	<-md.closedC
 	md.withLocked(func() {
 		c.Assert(md.waitForTriggerCalls, Equals, 1)
 		c.Assert(md.closeCalls, Equals, 1)
@@ -162,7 +181,7 @@ func (s *triggerwatchSuite) TestUdevEvent(c *C) {
 	nodepath := "/dev/input/event0"
 	devpath := "/devices/SOMEBUS/input/input0/event0"
 
-	md := &mockTriggerDevice{ev: &triggerwatch.KeyEvent{}}
+	md := newMockTriggerDevice(&triggerwatch.KeyEvent{})
 	mi := &mockTrigger{
 		unlistedDevices: map[string]*mockTriggerDevice{
 			"/dev/input/event0": md,
@@ -189,6 +208,7 @@ func (s *triggerwatchSuite) TestUdevEvent(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(mi.findMatchingCalls, Equals, 1)
 
+	<-md.closedC
 	c.Assert(mi.openCalls, Equals, 1)
 	md.withLocked(func() {
 		c.Assert(md.waitForTriggerCalls, Equals, 1)
@@ -200,7 +220,7 @@ func (s *triggerwatchSuite) TestUdevEventNoKeyEvent(c *C) {
 	nodepath := "/dev/input/event0"
 	devpath := "/devices/SOMEBUS/input/input0/event0"
 
-	md := &mockTriggerDevice{}
+	md := newMockTriggerDevice(nil)
 	mi := &mockTrigger{
 		unlistedDevices: map[string]*mockTriggerDevice{
 			"/dev/input/event0": md,
@@ -227,6 +247,7 @@ func (s *triggerwatchSuite) TestUdevEventNoKeyEvent(c *C) {
 	c.Assert(err, Equals, triggerwatch.ErrTriggerNotDetected)
 	c.Assert(mi.findMatchingCalls, Equals, 1)
 
+	<-md.closedC
 	c.Assert(mi.openCalls, Equals, 1)
 	md.withLocked(func() {
 		c.Assert(md.waitForTriggerCalls, Equals, 1)
@@ -238,8 +259,8 @@ func (s *triggerwatchSuite) TestWaitMoreKeyboards(c *C) {
 	nodepath := "/dev/input/event0"
 	devpath := "/devices/SOMEBUS/input/input0/event0"
 
-	md := &mockTriggerDevice{}
-	md2 := &mockTriggerDevice{ev: &triggerwatch.KeyEvent{}}
+	md := newMockTriggerDevice(nil)
+	md2 := newMockTriggerDevice(&triggerwatch.KeyEvent{})
 	mi := &mockTrigger{
 		d: md,
 		unlistedDevices: map[string]*mockTriggerDevice{
@@ -253,69 +274,50 @@ func (s *triggerwatchSuite) TestWaitMoreKeyboards(c *C) {
 	restore = triggerwatch.MockUEventChannel(uevents)
 	defer restore()
 
-	type activeTimer struct {
-		duration time.Duration
-		time     chan time.Time
-	}
+	timersReadyC := make(chan struct{})
 
-	start := time.Now()
-	currentNow := start
-	currentMutex := &sync.Mutex{}
-
-	var timers []*activeTimer
+	var timers []*testtime.TestTimer
 	restore = triggerwatch.MockTimeAfter(func(d time.Duration) <-chan time.Time {
 		if d < 0 {
-			c.Errorf("Timer with negative duration")
-			ret := make(chan time.Time, 1)
-			currentMutex.Lock()
-			defer currentMutex.Unlock()
-			ret <- currentNow
-			return ret
-		} else {
-			currentMutex.Lock()
-			defer currentMutex.Unlock()
-			durationFromStart := currentNow.Add(d).Sub(start)
-			timer := &activeTimer{
-				duration: durationFromStart,
-				time:     make(chan time.Time, 1),
-			}
-			timers = append(timers, timer)
-			return timer.time
+			panic("Timer with negative duration")
 		}
+
+		if len(timers) > 2 {
+			panic("unexpected timer, already mocked 2 timers")
+		}
+
+		tm := testtime.NewTimer(d)
+		timers = append(timers, tm)
+		// we are expecting 2 times, one for trigger timeout, and one for device
+		// timeout
+		if len(timers) == 2 {
+			close(timersReadyC)
+		}
+		return tm.ExpiredC()
 	})
 	defer restore()
 
-	advanceTo := func(d time.Duration) {
-		currentMutex.Lock()
-		defer currentMutex.Unlock()
-		currentNow = start.Add(d)
-		var remaining []*activeTimer
+	advanceTime := func(d time.Duration) {
 		for _, timer := range timers {
-			if timer.duration > d {
-				remaining = append(remaining, timer)
-			} else {
-				timer.time <- currentNow
-			}
+			timer.Elapse(d)
 		}
-		timers = remaining
 	}
 
 	waitResult := make(chan error)
+	triggerTimeout := 10 * time.Second
+	devWaitTimeout := 2 * time.Second
 	go func() {
-		err := triggerwatch.Wait(10*time.Second, 2*time.Second)
+		err := triggerwatch.Wait(triggerTimeout, devWaitTimeout)
 		waitResult <- err
 	}()
 
-	// Flush go routines to block
-	<-time.After(time.Second)
+	// timers have been created, code goes into for{ select {} } loop
+	<-timersReadyC
 
-	// 3 seconds is after 2 seconds, but before 10. So it will
-	// trigger the device timeout.
-	advanceTo(3 * time.Second)
+	// advance the test timers, must be inside (dev wait, trigger) timeouts
+	advanceTime(devWaitTimeout + time.Second)
 
-	// Flush go routines to block
-	<-time.After(time.Second)
-
+	// send a mock event
 	uevents <- netlink.UEvent{
 		Action: netlink.ADD,
 		KObj:   devpath,
@@ -326,9 +328,14 @@ func (s *triggerwatchSuite) TestWaitMoreKeyboards(c *C) {
 		},
 	}
 
+	<-md.waitedC
+	<-md2.waitedC
+
 	select {
 	case err := <-waitResult:
 		c.Assert(err, IsNil)
+		<-md.closedC
+		<-md2.closedC
 		c.Check(mi.findMatchingCalls, Equals, 1)
 		md.withLocked(func() {
 			c.Check(md.waitForTriggerCalls, Equals, 1)
