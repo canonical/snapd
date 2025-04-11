@@ -114,7 +114,7 @@ jobs:
 
   create-reports:
     needs: [set-inputs, tag-features-fundamental, tag-features-non-fundamental, tag-features-nested]
-    runs-on: ubuntu-latest
+    runs-on: ["self-hosted", "spread-enabled"]
     if: success() || fromJSON(github.run_attempt) > fromJSON(needs.set-inputs.outputs.maximum-reruns)
     steps:
       - name: Checkout code
@@ -160,6 +160,14 @@ jobs:
             --replace-old-runs
           
           tar -czf "final-feature-tags.tar.gz" "final-feature-tags"
+
+      - name: Upload results to mongo
+        env: 
+          MONGO_USER: ${{ secrets.MONGO_USER }}
+          MONGO_PASSWORD: ${{ secrets.MONGO_PASS }}
+          MONGO_HOST: ${{ secrets.MONGO_HOST }}
+          MONGO_PORT: ${{ secrets.MONGO_PORT }}
+        run: ./tests/utils/features/mongo_upload.py --dir "final-feature-tags" --verbose
       
       - name: Upload feature data
         uses: actions/upload-artifact@v4
