@@ -1,3 +1,5 @@
+//go:build !nosecboot
+
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
@@ -536,6 +538,7 @@ func (s *sealSuite) testSealToModeenvWithFdeHookHappy(c *C, useTokens bool) {
 			p := kf.ForKeyName(skr.KeyName)
 			out, _, err := p.ProtectKey(nil, []byte{1, 2, 3, 4}, nil)
 			c.Assert(err, IsNil)
+
 			if len(skr.KeyFile) != 0 {
 				savedKeyFiles[skr.KeyFile] = out
 			} else {
