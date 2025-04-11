@@ -25,6 +25,7 @@ package vfs
 
 import (
 	"errors"
+	"fmt"
 	"io/fs"
 	"path/filepath"
 	"strings"
@@ -60,6 +61,23 @@ func NewVFS(rootFS fs.StatFS) *VFS {
 	}}}
 }
 
+// String returns a mountinfo-like representation of mount table.
+func (v *VFS) String() string {
+	v.mu.RLock()
+	defer v.mu.RUnlock()
+
+	var sb strings.Builder
+
+	_ = sb.WriteByte('\n') // This reads better when the VFS is printed with leading text.
+
+	for _, m := range v.mounts {
+		_, _ = sb.WriteString(m.String())
+		_ = sb.WriteByte('\n')
+	}
+
+	return sb.String()
+}
+
 // dom returns the mount that dominates a given path.
 //
 // Out of all the mounts in the VFS, the last one that dominates a given path, wins.
@@ -86,6 +104,16 @@ type mount struct {
 	rootDir    string // Path of fsFS that is actually mounted.
 	isDir      bool   // Mount is attached to a directory.
 	fsFS       fs.StatFS
+}
+
+// String returns a mountinfo-like representation of the mount.
+//
+// Elements absent in the VFS implementation are represented as a single underscore.
+// Those include: major and minor device numbers and mount options.
+// The "optional fields" listed before the single '-' byte (see shared_subtrees.txt in Linux kernel)
+// are technically present although at this point they are always empty.
+func (m *mount) String() string {
+	return fmt.Sprintf("%d %d _:_  /%s /%s _ - %T %p _", m.mountID, m.parentID, m.rootDir, m.mountPoint, m.fsFS, m.fsFS)
 }
 
 // isDom returns the dominated suffix and file system path if the mount dominates the given path.
