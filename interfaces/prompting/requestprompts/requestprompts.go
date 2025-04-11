@@ -34,6 +34,7 @@ import (
 	prompting_errors "github.com/snapcore/snapd/interfaces/prompting/errors"
 	"github.com/snapcore/snapd/interfaces/prompting/internal/maxidmmap"
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/sandbox/apparmor/notify"
 	"github.com/snapcore/snapd/sandbox/apparmor/notify/listener"
 	"github.com/snapcore/snapd/strutil"
@@ -404,9 +405,19 @@ type PromptDB struct {
 // notifyPrompt is called with the prompt DB lock held, so it should not block
 // for a substantial amount of time (such as to lock and modify snapd state).
 func New(notifyPrompt func(userID uint32, promptID prompting.IDType, data map[string]string) error) (*PromptDB, error) {
-	maxIDFilepath := filepath.Join(dirs.SnapRunDir, "request-prompt-max-id")
-	if err := os.MkdirAll(dirs.SnapRunDir, 0o755); err != nil {
-		return nil, err
+	legacyMaxIDFilepath := filepath.Join(dirs.SnapRunDir, "request-prompt-max-id")
+	maxIDFilepath := filepath.Join(dirs.SnapInterfacesRequestsRunDir, "request-prompt-max-id")
+	if err := os.MkdirAll(dirs.SnapInterfacesRequestsRunDir, 0o755); err != nil {
+		return nil, fmt.Errorf("cannot create interfaces requests run directory: %w", err)
+	}
+	if !osutil.FileExists(maxIDFilepath) && osutil.FileExists(legacyMaxIDFilepath) {
+		// Previous snapd stored max ID file in the snapd run dir, so link it
+		// to the new location, so snapd doesn't reuse prompt IDs. Link instead
+		// of moving in case snapd reverts and wants to use the old location
+		// again.
+		if err := osutil.AtomicLink(legacyMaxIDFilepath, maxIDFilepath); err != nil {
+			return nil, err
+		}
 	}
 	maxIDMmap, err := maxidmmap.OpenMaxIDMmap(maxIDFilepath)
 	if err != nil {
