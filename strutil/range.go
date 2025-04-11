@@ -42,6 +42,14 @@ func (s RangeSpan) Size() int {
 	return int(s.End) - int(s.Start) + 1
 }
 
+// Returns the string representation of the span.
+func (s RangeSpan) String() string {
+	if s.Size() == 1 {
+		return strconv.FormatUint(uint64(s.Start), 10)
+	}
+	return strconv.FormatUint(uint64(s.Start), 10) + "-" + strconv.FormatUint(uint64(s.End), 10)
+}
+
 func parseRangeSpan(in string) (RangeSpan, error) {
 	if !strings.Contains(in, "-") {
 		val, err := strconv.ParseUint(in, 10, 32)
@@ -88,6 +96,19 @@ func (r Range) Size() (size int) {
 		size += s.Size()
 	}
 	return size
+}
+
+// Returns the comma-separated string representation of the underlying range, e.g.: n,m,x-y.
+func (r Range) String() string {
+	var commaSeparated strings.Builder
+	size := len(r)
+	for i, span := range r {
+		commaSeparated.WriteString(span.String())
+		if i != size-1 {
+			commaSeparated.WriteRune(',')
+		}
+	}
+	return commaSeparated.String()
 }
 
 // ParseRange parses a range represented as a string. The entries are joining

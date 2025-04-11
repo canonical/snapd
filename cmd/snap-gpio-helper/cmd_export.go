@@ -20,7 +20,14 @@
 package main
 
 import (
-	"errors"
+	"context"
+	"fmt"
+	"os"
+	"os/signal"
+	"strings"
+
+	"github.com/snapcore/snapd/sandbox/gpio"
+	"github.com/snapcore/snapd/strutil"
 )
 
 type cmdExportChardev struct {
@@ -32,6 +39,17 @@ type cmdExportChardev struct {
 	} `positional-args:"yes" required:"true"`
 }
 
+var gpioExportGadgetChardevChip = gpio.ExportGadgetChardevChip
+
 func (c *cmdExportChardev) Execute(args []string) error {
-	return errors.New("not implemented")
+	chipLabels := strings.Split(c.Args.ChipLabels, ",")
+	lines, err := strutil.ParseRange(c.Args.Lines)
+	if err != nil {
+		return fmt.Errorf("invalid lines argument: %w", err)
+	}
+
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
+	defer stop()
+
+	return gpioExportGadgetChardevChip(ctx, chipLabels, lines, c.Args.Gadget, c.Args.Slot)
 }

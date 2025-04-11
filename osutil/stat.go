@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2015 Canonical Ltd
+ * Copyright (C) 2014-2025 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -147,4 +147,21 @@ func ComparePathsByDeviceInode(a, b string) (match bool, err error) {
 	}
 
 	return os.SameFile(fi1, fi2), nil
+}
+
+// Major obtains the major device number.
+func Major(dev uint64) uint64 {
+	return ((dev >> 8) & 0xfff) | ((dev >> 32) & ^uint64(0xfff))
+}
+
+// Minor obtains the minor device number.
+func Minor(dev uint64) uint64 {
+	return (dev & 0xff) | ((dev >> 12) & ^uint64(0xff))
+}
+
+// Makedev constructs device number from major/minor numbers.
+func Makedev(major uint64, minor uint64) uint64 {
+	return (minor & 0xff) | ((major & 0xfff) << 8) |
+		((minor & ^uint64(0xff)) << 12) |
+		((major & ^uint64(0xfff)) << 32)
 }
