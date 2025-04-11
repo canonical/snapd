@@ -142,9 +142,10 @@ type RuleDB struct {
 // substantial amount of time (such as to lock and modify snapd state).
 func New(notifyRule func(userID uint32, ruleID prompting.IDType, data map[string]string) error) (*RuleDB, error) {
 	maxIDFilepath := filepath.Join(dirs.SnapInterfacesRequestsStateDir, "request-rule-max-id")
+	rulesFilepath := filepath.Join(dirs.SnapInterfacesRequestsStateDir, "request-rules.json")
 
 	if err := os.MkdirAll(dirs.SnapInterfacesRequestsStateDir, 0o755); err != nil {
-		return nil, fmt.Errorf("cannot create interfaces requests state directory '%s': %w", dirs.SnapInterfacesRequestsStateDir, err)
+		return nil, fmt.Errorf("cannot create interfaces requests state directory: %w", err)
 	}
 
 	maxIDMmap, err := maxidmmap.OpenMaxIDMmap(maxIDFilepath)
@@ -155,7 +156,7 @@ func New(notifyRule func(userID uint32, ruleID prompting.IDType, data map[string
 	rdb := &RuleDB{
 		maxIDMmap:  maxIDMmap,
 		notifyRule: notifyRule,
-		dbPath:     filepath.Join(dirs.SnapInterfacesRequestsStateDir, "request-rules.json"),
+		dbPath:     rulesFilepath,
 	}
 	if err = rdb.load(); err != nil {
 		logger.Noticef("cannot load rule database: %v; using new empty rule database", err)
