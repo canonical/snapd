@@ -2079,3 +2079,21 @@ func (s *diskSuite) TestDevlinks(c *C) {
 	_, err = disks.Devlinks("/dev/some/error")
 	c.Check(err, ErrorMatches, `cannot process udev properties: some error`)
 }
+
+func (s *diskSuite) TestFindMatchingPartitionWithPartUUID(c *C) {
+	restore := disks.MockDeviceNameToDiskMapping(map[string]*disks.MockDiskMapping{
+		"/dev/vda": gadgettest.VMSystemVolumeDiskMappingSeedFsLabelCaps,
+	})
+	defer restore()
+
+	d, err := disks.DiskFromDeviceName("/dev/vda")
+	c.Assert(err, IsNil)
+
+	p, err := d.FindMatchingPartitionWithPartUUID("ade3ba65-7831-fd40-bbe2-e01c9774ed5b")
+	c.Assert(err, IsNil)
+	c.Check(p.KernelDeviceNode, Equals, "/dev/vda2")
+	c.Check(p.PartitionUUID, Equals, "ade3ba65-7831-fd40-bbe2-e01c9774ed5b")
+
+	_, err = d.FindMatchingPartitionWithPartUUID("fe1ec853-15b1-4c72-a207-6a9b185dcbbb")
+	c.Assert(err, ErrorMatches, "partition uuid \"fe1ec853-15b1-4c72-a207-6a9b185dcbbb\" not found")
+}
