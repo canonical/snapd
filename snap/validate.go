@@ -351,6 +351,86 @@ func validateProvenance(prov string) error {
 	return naming.ValidateProvenance(prov)
 }
 
+type gpioChipLinesOverlapError struct {
+	chip, slotA, slotB string
+	spanA, spanB       strutil.RangeSpan
+}
+
+func (e *gpioChipLinesOverlapError) Error() string {
+	return fmt.Sprintf(`invalid "lines" attribute: chip %q has reused conflicting line spans: %q in slot %q conflicts with %q in slot %q`,
+		e.chip, e.spanB.String(), e.slotB, e.spanA.String(), e.slotA,
+	)
+}
+
+func validateGpioChardevSlots(info *Info) error {
+	if info.Type() != TypeGadget {
+		// not a gadget, nothing to do
+		return nil
+	}
+
+	type chipSlotInfo struct {
+		slot  string
+		lines strutil.Range
+	}
+
+	// collect all exported lines for every chip label over all slots
+	chipSlots := make(map[string][]chipSlotInfo)
+	for _, slot := range info.Slots {
+		if slot.Interface != "gpio-chardev" {
+			continue
+		}
+		var sourceChip []string
+		if err := slot.Attr("source-chip", &sourceChip); err != nil {
+			return err
+		}
+		var lines string
+		if err := slot.Attr("lines", &lines); err != nil {
+			return err
+		}
+		r, err := strutil.ParseRange(lines)
+		if err != nil {
+			return fmt.Errorf(`invalid "lines" attribute found in slot %q: %w`, slot.Name, err)
+		}
+		for _, chip := range sourceChip {
+			chipSlots[chip] = append(chipSlots[chip], chipSlotInfo{
+				slot:  slot.Name,
+				lines: r,
+			})
+		}
+	}
+	chipLabels := make([]string, 0, len(chipSlots))
+	// sort for testing
+	for chip, slotInfos := range chipSlots {
+		sort.Slice(slotInfos, func(i, j int) bool {
+			return slotInfos[i].slot < slotInfos[j].slot
+		})
+		chipLabels = append(chipLabels, chip)
+	}
+	sort.Strings(chipLabels)
+
+	// detect line overlaps for every chip label across all gpio-chardev slots
+	var errs []error
+	for _, chip := range chipLabels {
+		slotInfos := chipSlots[chip]
+		for a := 0; a < len(slotInfos); a++ {
+			for b := a + 1; b < len(slotInfos); b++ {
+				for _, spanA := range slotInfos[a].lines {
+					for _, spanB := range slotInfos[b].lines {
+						if spanA.Intersects(spanB) {
+							errs = append(errs, &gpioChipLinesOverlapError{
+								chip:  chip,
+								slotA: slotInfos[a].slot, spanA: spanA,
+								slotB: slotInfos[b].slot, spanB: spanB,
+							})
+						}
+					}
+				}
+			}
+		}
+	}
+	return strutil.JoinErrors(errs...)
+}
+
 // Validate verifies the content in the info.
 func Validate(info *Info) error {
 	name := info.InstanceName()
@@ -444,6 +524,11 @@ func Validate(info *Info) error {
 
 	// Ensure that plug and slot have unique names.
 	if err := plugsSlotsUniqueNames(info); err != nil {
+		return err
+	}
+
+	// Ensure that any given gpio line is only be exported by one slot.
+	if err := validateGpioChardevSlots(info); err != nil {
 		return err
 	}
 
