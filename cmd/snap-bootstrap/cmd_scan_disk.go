@@ -205,7 +205,7 @@ func scanDiskNode(output io.Writer, node string) error {
 	if fallback {
 		values, err := kcmdline.KeyValues("snapd_system_disk")
 		if err != nil {
-			return fmt.Errorf("Cannot read kernel command line: %s\n", err)
+			return fmt.Errorf("cannot read kernel command line: %s\n", err)
 		}
 
 		if value, ok := values["snapd_system_disk"]; ok {
@@ -223,7 +223,7 @@ func scanDiskNode(output io.Writer, node string) error {
 			same, err := samePath(filepath.Join(dirs.GlobalRootDir, expectedPath),
 				filepath.Join(dirs.GlobalRootDir, currentPath))
 			if err != nil {
-				return fmt.Errorf("Cannot check snapd_system_disk kernel parameter: %s\n", err)
+				return fmt.Errorf("cannot check snapd_system_disk kernel parameter: %s\n", err)
 			}
 			if !same {
 				return nil
@@ -281,6 +281,6 @@ func ScanDisk(output io.Writer) error {
 	if osGetenv("DEVTYPE") == "disk" {
 		return scanDiskNode(output, devname)
 	} else {
-		return fmt.Errorf("Unknown type for block device %s\n", devname)
+		return fmt.Errorf("unknown type for block device %s\n", devname)
 	}
 }

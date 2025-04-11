@@ -90,7 +90,7 @@ var NewProbeFromFilename = newProbeFromFilenameImpl
 
 func (p *blkidProbe) checkProbe() {
 	if p.probeHandle == nil {
-		panic("used probe after Close")
+		panic("used blkid probe after Close")
 	}
 }
 
@@ -102,12 +102,12 @@ func (p *blkidProbe) LookupValue(entryName string) (string, error) {
 	defer C.free(unsafe.Pointer(cname))
 	res := C.blkid_probe_lookup_value(p.probeHandle, cname, &value, &value_len)
 	if res < 0 {
-		return "", fmt.Errorf("Probe value was not found: %s", entryName)
+		return "", fmt.Errorf("probe value was not found: %s", entryName)
 	}
 	if value_len > 0 {
 		return C.GoStringN(value, C.int(value_len-1)), nil
 	} else {
-		return "", fmt.Errorf("Probe value has unexpected size")
+		return "", fmt.Errorf("probe value has unexpected size")
 	}
 }
 
