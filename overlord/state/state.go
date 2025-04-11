@@ -483,13 +483,7 @@ func (s *State) Prune(startOfOperation time.Time, pruneWait, abortWait time.Dura
 		readyChangesCount++
 	}
 
-	s.warningsMu.Lock()
-	for k, w := range s.warnings {
-		if w.ExpiredBefore(now) {
-			delete(s.warnings, k)
-		}
-	}
-	s.warningsMu.Unlock()
+	s.pruneWarnings(now)
 
 	for k, n := range s.notices {
 		if n.expired(now) {
@@ -534,6 +528,16 @@ NextChange:
 		if t.Change() == nil && t.SpawnTime().Before(pruneLimit) {
 			s.writing()
 			delete(s.tasks, tid)
+		}
+	}
+}
+
+func (s *State) pruneWarnings(now time.Time) {
+	s.warningsMu.Lock()
+	defer s.warningsMu.Unlock()
+	for k, w := range s.warnings {
+		if w.ExpiredBefore(now) {
+			delete(s.warnings, k)
 		}
 	}
 }
