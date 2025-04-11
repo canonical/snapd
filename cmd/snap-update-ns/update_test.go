@@ -362,6 +362,11 @@ func (s *updateSuite) TestKeepSyntheticMountsLP2043993(c *C) {
 	c.Check(saved.Entries[1], DeepEquals, desiredMountEntry)
 
 	c.Assert(update.ExecuteMountProfileUpdate(upCtx), IsNil)
+	c.Log("saved.Entries has length ", len(saved.Entries))
+	c.Log("saved.Entries ")
+	for _, e := range saved.Entries {
+		c.Log("- ", e)
+	}
 	c.Assert(saved.Entries, HasLen, 2)
 	c.Check(saved.Entries[0].Type, Equals, "tmpfs")
 	c.Check(saved.Entries[0].Name, Equals, "tmpfs")

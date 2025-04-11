@@ -22,16 +22,19 @@ package main
 import (
 	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"sort"
 	"strings"
 	"syscall"
+	"time"
 
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/mount"
 	"github.com/snapcore/snapd/osutil/sys"
+	"github.com/snapcore/snapd/osutil/vfs"
 )
 
 // Action represents a mount action (mount, remount, unmount, etc).
@@ -543,8 +546,105 @@ func (c *Change) lowLevelPerform(as *Assumptions) error {
 // clean-up repeated mountpoints. In any case using this is still
 // needed to handle mount namespaces created by older snapd versions.
 type mountEntryId struct {
-	dir    string
-	fsType string
+	dir       string
+	fsType    string
+	synthetic bool
+}
+
+type stubFileInfo struct {
+	name   string
+	cookie string
+}
+
+func (fi *stubFileInfo) Name() string       { return filepath.Base(fi.name) }
+func (fi *stubFileInfo) Size() int64        { return 0 }
+func (fi *stubFileInfo) Mode() fs.FileMode  { return fs.ModeDir }
+func (fi *stubFileInfo) ModTime() time.Time { return time.Time{} }
+func (fi *stubFileInfo) IsDir() bool        { return true }
+func (fi *stubFileInfo) Sys() any           { return fmt.Sprintf("%s@%s", fi.cookie, fi.name) }
+
+type stubFS string
+
+func (fs stubFS) Open(name string) (fs.File, error) { panic("stubFS.Open is a stub") }
+func (fs stubFS) Stat(name string) (fs.FileInfo, error) {
+	return &stubFileInfo{name: name, cookie: string(fs)}, nil
+}
+
+func replayProfile(p *osutil.MountProfile) (*vfs.VFS, error) {
+	v := vfs.NewVFS(stubFS("(rootfs)"))
+
+	tmpfsCount := 0
+
+	absorelative := func(s string) string {
+		if len(s) == 0 {
+			return s
+		}
+		return s[1:]
+	}
+
+	for _, e := range p.Entries {
+		fmt.Printf("replaying mount entry: %v\n", e)
+		// Skip fake entry for rootfs.
+		if e.Dir == "/" {
+			continue
+		}
+
+		if e.XSnapdSynthetic() {
+			continue
+		}
+
+		// Handle tmpfs mounts.
+		if e.Type == "tmpfs" {
+			// XXX: This makes a tmpfs mounted at a given path identical to all others. This "skews" results.
+			// The alternative is to either treach each tmpfs as separate or perhaps just count them.
+			// This should be decided when we have data from propagation-aware VFS.
+			if err := v.Mount(stubFS(fmt.Sprintf("(tmpfs-%s)", e.XSnapdEntryID())), absorelative(e.Dir)); err != nil {
+				return nil, err
+			}
+			tmpfsCount++
+
+			continue
+		}
+
+		// Skip symlinks and ensure-dir.
+		switch e.XSnapdKind() {
+		case "symlink":
+			// ignore, add rationale
+			continue
+		case "ensure-dir":
+			// ignore, maybe record presence in rootfs
+			continue
+		}
+
+		// Handle bind and recursive bind mounts
+		var bindFunc func(string, string) error
+		switch {
+		case e.OptBool("bind"):
+			bindFunc = v.BindMount
+		case e.OptBool("rbind"):
+			bindFunc = v.RecursiveBindMount
+		default:
+			panic(fmt.Sprintf("Unhandled operation for replay logic: %s", e))
+		}
+
+		switch e.XSnapdKind() {
+		case "":
+			//dir
+			if err := bindFunc(absorelative(e.Name), absorelative(e.Dir)); err != nil {
+				return nil, err
+			}
+		case "file":
+			// bind mount file
+			// XXX: the FS doesn't know it's a file.
+			if err := bindFunc(absorelative(e.Name), absorelative(e.Dir)); err != nil {
+				return nil, err
+			}
+		}
+	}
+
+	fmt.Printf("Resulting VFS:%s\n", v)
+
+	return v, nil
 }
 
 // neededChanges is the real implementation of NeededChanges
@@ -563,6 +663,17 @@ func neededChanges(currentProfile, desiredProfile *osutil.MountProfile) []*Chang
 	}
 	for i := range desired {
 		desired[i].Dir = filepath.Clean(desired[i].Dir)
+	}
+
+	fmt.Printf("Replaying current mount profile\n")
+	currentVFS, err := replayProfile(currentProfile)
+	if err != nil {
+		panic(err)
+	}
+	fmt.Printf("Replaying desired mount profile\n")
+	desiredVFS, err := replayProfile(desiredProfile)
+	if err != nil {
+		panic(err)
 	}
 
 	// Make yet another copy of the current entries, to retain their original
@@ -616,7 +727,11 @@ func neededChanges(currentProfile, desiredProfile *osutil.MountProfile) []*Chang
 		}
 		skipDir = "" // reset skip prefix as it no longer applies
 
-		mountId := mountEntryId{dir, current[i].Type}
+		mountId := mountEntryId{
+			dir:       dir,
+			fsType:    current[i].Type,
+			synthetic: current[i].XSnapdSynthetic(),
+		}
 		if current[i].XSnapdOrigin() == "rootfs" {
 			// This is the rootfs setup by snap-confine, we should not touch it
 			logger.Debugf("reusing rootfs")
@@ -649,11 +764,35 @@ func neededChanges(currentProfile, desiredProfile *osutil.MountProfile) []*Chang
 		// Reuse entries that are desired and identical in the current profile.
 		if entry, ok := desiredMap[dir]; ok && current[i].Equal(entry) {
 			logger.Debugf("reusing unchanged entry %q", current[i])
-			reuse[mountId] = true
+			reuse[mountId] = true // FIXME: this is wrong
 			continue
 		}
 
 		skipDir = strings.TrimSuffix(dir, "/") + "/"
+	}
+
+	for id, _ := range reuse {
+		if id.synthetic {
+			continue
+		}
+		currentFi, err := currentVFS.Stat(id.dir[1:])
+		if err != nil {
+			fmt.Printf("vfs cannot stat current %s: dropped from reuse set", id.dir)
+			delete(reuse, id)
+			continue
+		}
+		desiredFi, err := desiredVFS.Stat(id.dir[1:])
+		if err != nil {
+			fmt.Printf("vfs cannot stat desired %s: dropped from reuse set", id.dir)
+			delete(reuse, id)
+			continue
+		}
+
+		if currentFi.Sys().(string) != desiredFi.Sys().(string) {
+			fmt.Printf("vfs stat disagreement %s, desired %v vs current %s, dropped from reuse set",
+				id.dir, currentFi.Sys(), desiredFi.Sys())
+			delete(reuse, id)
+		}
 	}
 
 	logger.Debugf("desiredIDs: %v", desiredIDs)
@@ -665,7 +804,12 @@ func neededChanges(currentProfile, desiredProfile *osutil.MountProfile) []*Chang
 	// Unmount entries not reused in reverse to handle children before their parent.
 	unmountOrder := unsortedCurrent
 	for i := len(unmountOrder) - 1; i >= 0; i-- {
-		if reuse[mountEntryId{unmountOrder[i].Dir, unmountOrder[i].Type}] {
+		k := mountEntryId{
+			dir:       unmountOrder[i].Dir,
+			fsType:    unmountOrder[i].Type,
+			synthetic: unmountOrder[i].XSnapdSynthetic(),
+		}
+		if reuse[k] {
 			changes = append(changes, &Change{Action: Keep, Entry: unmountOrder[i]})
 		} else {
 			var entry osutil.MountEntry = unmountOrder[i]
@@ -682,7 +826,12 @@ func neededChanges(currentProfile, desiredProfile *osutil.MountProfile) []*Chang
 
 	var desiredNotReused []osutil.MountEntry
 	for _, entry := range desired {
-		if !reuse[mountEntryId{entry.Dir, entry.Type}] {
+		k := mountEntryId{
+			dir:       entry.Dir,
+			fsType:    entry.Type,
+			synthetic: entry.XSnapdSynthetic(),
+		}
+		if !reuse[k] {
 			desiredNotReused = append(desiredNotReused, entry)
 		}
 	}
