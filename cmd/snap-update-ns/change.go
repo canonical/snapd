@@ -22,16 +22,19 @@ package main
 import (
 	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"sort"
 	"strings"
 	"syscall"
+	"time"
 
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/mount"
 	"github.com/snapcore/snapd/osutil/sys"
+	"github.com/snapcore/snapd/osutil/vfs"
 )
 
 // Action represents a mount action (mount, remount, unmount, etc).
@@ -547,8 +550,79 @@ type mountEntryId struct {
 	fsType string
 }
 
+type stubFileInfo struct {
+	name   string
+	cookie string
+}
+
+func (fi *stubFileInfo) Name() string       { return filepath.Base(fi.name) }
+func (fi *stubFileInfo) Size() int64        { return 0 }
+func (fi *stubFileInfo) Mode() fs.FileMode  { return fs.ModeDir }
+func (fi *stubFileInfo) ModTime() time.Time { return time.Time{} }
+func (fi *stubFileInfo) IsDir() bool        { return true }
+func (fi *stubFileInfo) Sys() any           { return fmt.Sprintf("%s//%s", fi.cookie, fi.name) }
+
+type stubFS string
+
+func (fs stubFS) Open(name string) (fs.File, error) { panic("stubFS.Open is a stub") }
+func (fs stubFS) Stat(name string) (fs.FileInfo, error) {
+	return &stubFileInfo{name: name, cookie: string(fs)}, nil
+}
+
+func replayProfile(p *osutil.MountProfile) (*vfs.VFS, error) {
+	v := vfs.NewVFS(stubFS("rootfs"))
+
+	for _, e := range p.Entries {
+		fmt.Printf("replaying mount entry: %v\n", e)
+		if e.Type == "tmpfs" {
+			if err := v.Mount(stubFS(e.Dir), e.Dir); err != nil {
+				return nil, err
+			}
+
+			continue
+		}
+
+		var bindFunc func(string, string) error
+		switch {
+		case e.OptBool("bind"):
+			bindFunc = v.BindMount
+		case e.OptBool("rbind"):
+			bindFunc = v.RecursiveBindMount
+		}
+
+		switch e.XSnapdKind() {
+		case "":
+			//dir
+			if err := bindFunc(e.Name, e.Dir); err != nil {
+				return nil, err
+			}
+		case "file":
+			// bind mount file
+			// XXX: the FS doesn't know it's a file.
+			if err := bindFunc(e.Name, e.Dir); err != nil {
+				return nil, err
+			}
+		case "symlink":
+			// ignore, add rationale
+		case "ensure-dir":
+			// ignore, maybe record presence in rootfs
+		}
+	}
+
+	return v, nil
+}
+
 // neededChanges is the real implementation of NeededChanges
 func neededChanges(currentProfile, desiredProfile *osutil.MountProfile) []*Change {
+	currentVFS, err := replayProfile(currentProfile)
+	if err != nil {
+		panic(err)
+	}
+	desiredVFS, err := replayProfile(desiredProfile)
+	if err != nil {
+		panic(err)
+	}
+
 	// Copy both profiles as we will want to mutate them.
 	current := make([]osutil.MountEntry, len(currentProfile.Entries))
 	copy(current, currentProfile.Entries)
@@ -649,11 +723,28 @@ func neededChanges(currentProfile, desiredProfile *osutil.MountProfile) []*Chang
 		// Reuse entries that are desired and identical in the current profile.
 		if entry, ok := desiredMap[dir]; ok && current[i].Equal(entry) {
 			logger.Debugf("reusing unchanged entry %q", current[i])
-			reuse[mountId] = true
+			reuse[mountId] = true // FIXME: this is wrong
 			continue
 		}
 
 		skipDir = strings.TrimSuffix(dir, "/") + "/"
+	}
+
+	for id, _ := range reuse {
+		currentFi, err := currentVFS.Stat(id.dir[1:])
+		if err != nil {
+			delete(reuse, id)
+			continue
+		}
+		desiredFi, err := desiredVFS.Stat(id.dir[1:])
+		if err != nil {
+			delete(reuse, id)
+			continue
+		}
+
+		if currentFi.Sys().(string) != desiredFi.Sys().(string) {
+			delete(reuse, id)
+		}
 	}
 
 	logger.Debugf("desiredIDs: %v", desiredIDs)
