@@ -56,6 +56,16 @@ execute: |
         retry --wait 5 sh -c 'test "$(busctl get-property org.freedesktop.timedate1 /org/freedesktop/timedate1 org.freedesktop.timedate1 NTP)" = "b '"$value"'"'
     done
 
+    # Only test timesync related functonality when available (systemd >= 239).
+    if busctl tree org.freedesktop.timesync1 | MATCH "/org/freedesktop/timesync1"; then
+        echo "Check dbus access to org.freedesktop.timesync1 properties"
+        serverName=$(busctl get-property --system org.freedesktop.timesync1 /org/freedesktop/timesync1 org.freedesktop.timesync1.Manager ServerName | awk -F'"' '{print $2}')
+
+        echo "Check that timedatectl timesync commands can be used"
+        test-snapd-timedate-control-consumer.timedatectl-timeserver show-timesync --property=ServerName | cut -d= -f2 | MATCH "$serverName"
+        test-snapd-timedate-control-consumer.timedatectl-timeserver timesync-status | grep 'Server:' | cut -d'(' -f2 | cut -d')' -f1 | MATCH "$serverName"
+    fi
+
     if [ "$(snap debug confinement)" = partial ] ; then
         exit 0
     fi
