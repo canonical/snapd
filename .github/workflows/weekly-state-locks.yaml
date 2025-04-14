@@ -7,7 +7,7 @@ on:
 
 jobs:
   run-spread-tests:
-    uses: ./.github/workflows/reuse-spread-tests.yaml
+    uses: ./.github/workflows/spread-tests.yaml
     name: "spread ${{ matrix.group }}"
     with:
       runs-on: '["self-hosted", "spread-enabled"]'

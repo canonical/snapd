@@ -27,7 +27,7 @@ jobs:
           include-latest-go-channel: false
 
   snap-builds:
-    uses: ./.github/workflows/reuse-snap-builds.yaml
+    uses: ./.github/workflows/snap-builds.yaml
     with:
       runs-on: ${{ matrix.runs-on }}
       toolchain: ${{ matrix.toolchain }}
@@ -80,7 +80,7 @@ jobs:
         path: ./cached-apt.tar
 
   static-checks:
-    uses: ./.github/workflows/reuse-static-checks.yaml
+    uses: ./.github/workflows/static-checks.yaml
     needs:
       - go-channels
       - cache-build-deps
@@ -95,7 +95,7 @@ jobs:
         gochannel: ${{ fromJson(needs.go-channels.outputs.go-channels) }}
     
   static-checks-not-required:
-    uses: ./.github/workflows/reuse-static-checks.yaml
+    uses: ./.github/workflows/static-checks.yaml
     needs:
       - cache-build-deps
     with:
@@ -168,7 +168,7 @@ jobs:
           needs-json: ${{ env.NEEDS_FILTERED }}
 
   unit-tests:
-    uses: ./.github/workflows/reuse-unit-tests.yaml
+    uses: ./.github/workflows/unit-tests.yaml
     needs:
       - go-channels
       - static-checks 
@@ -185,7 +185,7 @@ jobs:
         gochannel: ${{ fromJson(needs.go-channels.outputs.go-channels) }}
 
   unit-tests-not-required:
-    uses: ./.github/workflows/reuse-unit-tests.yaml
+    uses: ./.github/workflows/unit-tests.yaml
     needs:
       - static-checks-not-required
     name: "unit-tests (Go default latest/stable})"
@@ -196,7 +196,7 @@ jobs:
       code: 'go'
 
   unit-tests-c:
-    uses: ./.github/workflows/reuse-unit-tests.yaml
+    uses: ./.github/workflows/unit-tests.yaml
     needs:
       - cache-build-deps
     name: "unit-tests (C ${{ matrix.test-case.c-compiler }})"
@@ -213,7 +213,7 @@ jobs:
           - { c-compiler: clang }
 
   unit-tests-special:
-    uses: ./.github/workflows/reuse-unit-tests.yaml
+    uses: ./.github/workflows/unit-tests.yaml
     needs:
       - go-channels
       - static-checks
@@ -244,7 +244,7 @@ jobs:
           - { go-build-tags: "",                    skip-coverage: true,  snapd-debug: false, go-test-race: true }
 
   unit-tests-special-not-required:
-    uses: ./.github/workflows/reuse-unit-tests.yaml
+    uses: ./.github/workflows/unit-tests.yaml
     needs:
       - static-checks-not-required
     name: "unit-tests (Go latest/stable ${{ matrix.test-case.go-build-tags }}
@@ -272,7 +272,7 @@ jobs:
           - { go-build-tags: "",                    snapd-debug: false, go-test-race: true }
 
   unit-tests-cross-distro:
-    uses: ./.github/workflows/reuse-unit-tests-cross-distro.yaml
+    uses: ./.github/workflows/unit-tests-cross-distro.yaml
     needs: [static-checks]
     with:
       runs-on: ubuntu-latest
@@ -358,7 +358,7 @@ jobs:
           echo "nested-systems=$(jq -c . ./.github/workflows/data-nested-systems.json)" >> $GITHUB_OUTPUT
 
   spread-fundamental:
-    uses: ./.github/workflows/reuse-spread-tests.yaml
+    uses: ./.github/workflows/spread-tests.yaml
     needs: [unit-tests, unit-tests-c, snap-builds, read-systems]
     name: "spread ${{ matrix.group }}"
     with:
@@ -384,7 +384,7 @@ jobs:
       matrix: ${{ fromJson(needs.read-systems.outputs.fundamental-systems) }}
 
   spread-not-fundamental-pr:
-    uses: ./.github/workflows/reuse-spread-tests.yaml
+    uses: ./.github/workflows/spread-tests.yaml
     if: github.event_name == 'pull_request' && !contains(github.base_ref, 'release') && !contains(github.event.pull_request.labels.*.name, 'cross-distro')
     # For workflow runs that are PRs, run this non-fundamental systems job
     # only after the fundamental systems job succeeds.
@@ -412,7 +412,7 @@ jobs:
       matrix: ${{ fromJson(needs.read-systems.outputs.non-fundamental-systems) }}
 
   spread-not-fundamental-not-pr:
-    uses: ./.github/workflows/reuse-spread-tests.yaml
+    uses: ./.github/workflows/spread-tests.yaml
     if: github.event_name != 'pull_request' || contains(github.base_ref, 'release') || contains(github.event.pull_request.labels.*.name, 'cross-distro')
     # For workflow runs that are not for PRs, no need to impose a dependency
     # on the fundamental systems job's success before running this job.
@@ -440,7 +440,7 @@ jobs:
       matrix: ${{ fromJson(needs.read-systems.outputs.non-fundamental-systems) }}
 
   spread-nested:
-    uses: ./.github/workflows/reuse-spread-tests.yaml
+    uses: ./.github/workflows/spread-tests.yaml
     needs: [unit-tests, unit-tests-c, snap-builds, read-systems]
     name: "spread ${{ matrix.group }}"
     with:
