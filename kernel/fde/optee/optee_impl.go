@@ -34,14 +34,20 @@ func (c *opteeClient) FDETAPresent() bool {
 	pinner := &runtime.Pinner{}
 	defer pinner.Unpin()
 
+	// the first time we invoke the PTA without sending a buffer to fill. the
+	// PTA handles this by just returning the size of the buffer it will need.
+	bufferSize, err := devicesBufferSize(pinner)
+	if err != nil {
+		return false
+	}
+
 	op := &C.TEEC_Operation{
 		started:    1,
 		paramTypes: teecParamTypes(C.TEEC_MEMREF_TEMP_OUTPUT, C.TEEC_NONE, C.TEEC_NONE, C.TEEC_NONE),
 	}
-	pinner.Pin(&op)
+	pinner.Pin(op)
 
-	// this size is arbitrary, unsure what we should use here
-	output := make([]byte, 1024)
+	output := make([]byte, bufferSize)
 	pinner.Pin(&output[0])
 
 	outputMemRef := unionAsType[C.TEEC_TempMemoryReference](&op.params[0])
@@ -50,8 +56,7 @@ func (c *opteeClient) FDETAPresent() bool {
 
 	// this PTA (psuedo trusted application) command returns a list of PTA and
 	// early TA UUIDs. we know that our TA will always be an early TA.
-	err := invoke(pinner, C.pta_device_uuid, 0x0 /* PTA_CMD_GET_DEVICES */, op)
-	if err != nil {
+	if err := invoke(pinner, C.pta_device_uuid, 0x0 /* PTA_CMD_GET_DEVICES */, op); err != nil {
 		return false
 	}
 
@@ -77,6 +82,31 @@ func (c *opteeClient) FDETAPresent() bool {
 	}
 
 	return false
+}
+
+func devicesBufferSize(pinner *runtime.Pinner) (int, error) {
+	op := &C.TEEC_Operation{
+		started:    1,
+		paramTypes: teecParamTypes(C.TEEC_MEMREF_TEMP_OUTPUT, C.TEEC_NONE, C.TEEC_NONE, C.TEEC_NONE),
+	}
+	pinner.Pin(op)
+
+	sizeMemRef := unionAsType[C.TEEC_TempMemoryReference](&op.params[0])
+	sizeMemRef.size = 0
+	sizeMemRef.buffer = nil
+
+	// the first time we invoke the PTA without sending a buffer to fill. the
+	// PTA handles this by just returning the size of the buffer it will need.
+	res, err := invokeUnchecked(pinner, C.pta_device_uuid, 0x0 /* PTA_CMD_GET_DEVICES */, op)
+	if err != nil {
+		return 0, err
+	}
+
+	if res != C.TEEC_ERROR_SHORT_BUFFER {
+		return 0, fmt.Errorf("expected short buffer error from PTA: %v", res)
+	}
+
+	return int(sizeMemRef.size), nil
 }
 
 func (c *opteeClient) DecryptKey(input []byte, handle []byte) ([]byte, error) {
@@ -233,12 +263,24 @@ func teecParamTypes(p0, p1, p2, p3 C.uint32_t) C.uint32_t {
 }
 
 func invoke(pinner *runtime.Pinner, uuid C.TEEC_UUID, cmd uint32, op *C.TEEC_Operation) error {
+	res, err := invokeUnchecked(pinner, uuid, cmd, op)
+	if err != nil {
+		return err
+	}
+
+	if res != C.TEEC_SUCCESS {
+		return fmt.Errorf("cannot invoke op-tee command: 0x%x", uint32(res))
+	}
+	return nil
+}
+
+func invokeUnchecked(pinner *runtime.Pinner, uuid C.TEEC_UUID, cmd uint32, op *C.TEEC_Operation) (C.TEEC_Result, error) {
 	var ctx C.TEEC_Context
 	pinner.Pin(&ctx)
 
 	res := C.TEEC_InitializeContext(nil, &ctx)
 	if res != 0 {
-		return fmt.Errorf("cannot initalize op-tee context: 0x%x", uint32(res))
+		return 0, fmt.Errorf("cannot initalize op-tee context: 0x%x", uint32(res))
 	}
 	defer C.TEEC_FinalizeContext(&ctx)
 
@@ -250,16 +292,11 @@ func invoke(pinner *runtime.Pinner, uuid C.TEEC_UUID, cmd uint32, op *C.TEEC_Ope
 
 	res = C.TEEC_OpenSession(&ctx, &sess, &uuid, C.TEEC_LOGIN_PUBLIC, nil, nil, &code)
 	if res != 0 {
-		return fmt.Errorf("cannot open op-tee session: 0x%x", uint32(res))
+		return 0, fmt.Errorf("cannot open op-tee session: 0x%x", uint32(res))
 	}
 	defer C.TEEC_CloseSession(&sess)
 
 	code = 0
 
-	res = C.TEEC_InvokeCommand(&sess, C.uint32_t(cmd), op, &code)
-	if res != C.TEEC_SUCCESS {
-		return fmt.Errorf("cannot invoke op-tee command: 0x%x", uint32(res))
-	}
-
-	return nil
+	return C.TEEC_InvokeCommand(&sess, C.uint32_t(cmd), op, &code), nil
 }
