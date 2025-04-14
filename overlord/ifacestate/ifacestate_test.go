@@ -11299,3 +11299,304 @@ func (s *interfaceManagerSuite) TestDoSetupProfilesForMultiConnectedPlugConsumer
 	// all slots are considered
 	c.Check(consideredConns, DeepEquals, []string{"consumer:plug producer2:slot", "consumer:plug producer:slot"})
 }
+
+func (s *interfaceManagerSuite) TestDoRegenerateSecurityProfilesHappy(c *C) {
+	s.state.Lock()
+	s.state.Set("conns", map[string]interface{}{
+		"consumer:plug producer:slot": map[string]interface{}{
+			"interface": "test",
+		},
+	})
+	s.state.Unlock()
+
+	s.mockSnap(c, producerYaml)
+	s.mockSnap(c, consumerYaml)
+
+	setupCalls := 0
+	secBackend := &ifacetest.TestSecurityBackendSetupMany{
+		TestSecurityBackend: ifacetest.TestSecurityBackend{
+			BackendName: "test",
+		},
+		SetupManyCallback: func(appSets []*interfaces.SnapAppSet, confinement func(snapName string) interfaces.ConfinementOptions, repo *interfaces.Repository, tm timings.Measurer) []error {
+			setupCalls++
+
+			// expecting 2 calls, first from manager startup, 2nd from handler
+			c.Check(appSets, HasLen, 2)
+			for _, appSet := range appSets {
+				_, err := repo.SnapSpecification("test", appSet, confinement(appSet.InstanceName()))
+				c.Assert(err, IsNil)
+			}
+
+			if setupCalls == 2 {
+				// the handler requests the setup to be called with unlocked
+				// state, so it is possible to lock it
+				c.Logf("-- attempting to lock the state")
+				s.state.Lock()
+				c.Logf("--- state locked\n")
+				defer s.state.Unlock()
+			}
+			return nil
+		},
+	}
+	reinitCalls := 0
+	secBackendRegen := &ifacetest.TestSecurityBackendReinitializable{
+		TestSecurityBackend: ifacetest.TestSecurityBackend{
+			BackendName: "reinit-test",
+		},
+		ReinitializeCallback: func() error {
+			reinitCalls++
+			return nil
+		},
+	}
+
+	s.mockSecBackend(secBackend)
+	s.mockSecBackend(secBackendRegen)
+
+	s.mockIfaces(&ifacetest.TestInterface{
+		InterfaceName: "test",
+	})
+
+	// Create the interface manager. This indirectly adds the snaps to the
+	// repository and reloads the connection.
+	s.manager(c)
+
+	// Alter the state to introduce new revision of refreshed snap
+	s.state.Lock()
+	snapstate.Set(s.state, "producer", &snapstate.SnapState{
+		Active: true,
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
+			{Revision: snap.R(1), RealName: "producer"},
+		}),
+		Current:  snap.R(1),
+		SnapType: string("app"),
+	})
+	snapstate.Set(s.state, "consumer", &snapstate.SnapState{
+		Active: true,
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
+			{Revision: snap.R(1), RealName: "consumer"},
+		}),
+		Current:  snap.R(1),
+		SnapType: string("app"),
+	})
+	s.state.Unlock()
+
+	// Setup profiles for refreshed snap v2
+	s.state.Lock()
+	change := s.state.NewChange("regenerate-security-profiles", "")
+	task := s.state.NewTask("regenerate-security-profiles", "")
+	change.AddTask(task)
+	s.state.Unlock()
+
+	// Spin the wheels to run the tasks we added.
+	s.settle(c)
+	s.state.Lock()
+	defer s.state.Unlock()
+	c.Logf("change failure: %v", change.Err())
+	c.Assert(change.Status(), Equals, state.DoneStatus)
+	c.Check(setupCalls, Equals, 2)
+	c.Check(reinitCalls, Equals, 1)
+}
+
+type regenerateSecurityTestCase struct {
+	reinitError   error
+	setupError    error
+	chgErrorMatch string
+}
+
+func (s *interfaceManagerSuite) testDoRegenerateSecurityProfilesError(c *C, tc regenerateSecurityTestCase) {
+	s.state.Lock()
+	s.state.Set("conns", map[string]interface{}{
+		"consumer:plug producer:slot": map[string]interface{}{
+			"interface": "test",
+		},
+	})
+	s.state.Unlock()
+
+	s.mockSnap(c, producerYaml)
+	s.mockSnap(c, consumerYaml)
+
+	setupCalls := 0
+	secBackend := &ifacetest.TestSecurityBackendSetupMany{
+		TestSecurityBackend: ifacetest.TestSecurityBackend{
+			BackendName: "test",
+		},
+		SetupManyCallback: func(appSets []*interfaces.SnapAppSet, confinement func(snapName string) interfaces.ConfinementOptions, repo *interfaces.Repository, tm timings.Measurer) []error {
+			setupCalls++
+			// first setup call happens during Startup(), which we do not want to disrupt
+			if setupCalls > 1 && tc.setupError != nil {
+				return []error{tc.setupError}
+			}
+			return nil
+		},
+	}
+	reinitCalls := 0
+	secBackendRegen := &ifacetest.TestSecurityBackendReinitializable{
+		TestSecurityBackend: ifacetest.TestSecurityBackend{
+			BackendName: "reinit-test",
+		},
+		ReinitializeCallback: func() error {
+			reinitCalls++
+			return tc.reinitError
+		},
+	}
+
+	s.mockSecBackend(secBackend)
+	s.mockSecBackend(secBackendRegen)
+
+	s.mockIfaces(&ifacetest.TestInterface{
+		InterfaceName: "test",
+	})
+
+	// Create the interface manager. This indirectly adds the snaps to the
+	// repository and reloads the connection.
+	s.manager(c)
+
+	// Alter the state to introduce new revision of refreshed snap
+	s.state.Lock()
+	snapstate.Set(s.state, "producer", &snapstate.SnapState{
+		Active: true,
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
+			{Revision: snap.R(1), RealName: "producer"},
+		}),
+		Current:  snap.R(1),
+		SnapType: string("app"),
+	})
+	snapstate.Set(s.state, "consumer", &snapstate.SnapState{
+		Active: true,
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
+			{Revision: snap.R(1), RealName: "consumer"},
+		}),
+		Current:  snap.R(1),
+		SnapType: string("app"),
+	})
+	s.state.Unlock()
+
+	// Setup profiles for refreshed snap v2
+	s.state.Lock()
+	change := s.state.NewChange("regenerate-security-profiles", "")
+	task := s.state.NewTask("regenerate-security-profiles", "")
+	change.AddTask(task)
+	s.state.Unlock()
+
+	// Spin the wheels to run the tasks we added.
+	s.settle(c)
+	s.state.Lock()
+	defer s.state.Unlock()
+	c.Logf("change failure: %v", change.Err())
+	if tc.reinitError != nil {
+		c.Assert(change.Status(), Equals, state.ErrorStatus)
+		c.Check(change.Err(), ErrorMatches, tc.chgErrorMatch)
+		// one setup call during Startup()
+		c.Check(setupCalls, Equals, 1)
+		c.Check(reinitCalls, Equals, 1)
+	} else if tc.setupError != nil {
+		// erorrs in setup are only logged
+		c.Assert(change.Status(), Equals, state.DoneStatus)
+		c.Check(change.Err(), IsNil)
+		c.Check(setupCalls, Equals, 2)
+		c.Check(reinitCalls, Equals, 1)
+		c.Check(s.log.String(), Matches, "(?s).*cannot regenerate test profiles.*")
+	}
+}
+
+func (s *interfaceManagerSuite) TestDoRegenerateSecurityProfilesErrorsReinit(c *C) {
+	s.testDoRegenerateSecurityProfilesError(c, regenerateSecurityTestCase{
+		reinitError:   fmt.Errorf("mock reinit error"),
+		chgErrorMatch: `(?s).*cannot reinitialize backend "reinit-test": mock reinit error.*`,
+	})
+}
+
+func (s *interfaceManagerSuite) TestDoRegenerateSecurityProfilesErrorsSetup(c *C) {
+	s.testDoRegenerateSecurityProfilesError(c, regenerateSecurityTestCase{
+		setupError: fmt.Errorf("mock setup error"),
+	})
+}
+
+func (s *interfaceManagerSuite) TestSystemKeyMismatchTrivial(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+	chg, err := ifacestate.AdviseReportedSystemKeyMismatch(s.state, "")
+	c.Assert(err, ErrorMatches, "internal error: string is not a system key")
+	c.Check(chg, IsNil)
+
+	c.Assert(interfaces.WriteSystemKey(interfaces.SystemKeyExtraData{}), IsNil)
+	sk, err := interfaces.RecordedSystemKey()
+	c.Assert(err, IsNil)
+
+	// matching system key, no action, no change
+	chg, err = ifacestate.AdviseReportedSystemKeyMismatch(s.state, sk)
+	c.Assert(err, IsNil)
+	c.Check(chg, IsNil)
+
+	// remove system key, we should be able to identify the error
+	c.Assert(interfaces.RemoveSystemKey(), IsNil)
+	chg, err = ifacestate.AdviseReportedSystemKeyMismatch(s.state, sk)
+	c.Assert(err, ErrorMatches, "system-key missing on disk")
+	c.Check(chg, IsNil)
+}
+
+func (s *interfaceManagerSuite) TestSystemKeyMismatch(c *C) {
+	mockedSkS := `{
+"build-id": "7a94e9736c091b3984bd63f5aebfc883c4d859e0",
+"apparmor-features": ["caps", "dbus", "more-features"]
+}`
+	s.AddCleanup(interfaces.MockSystemKey(mockedSkS))
+
+	sk, err := interfaces.CurrentSystemKey()
+	c.Assert(err, IsNil)
+
+	mockedSkS = `{
+"build-id": "7a94e9736c091b3984bd63f5aebfc883c4d859e0",
+"apparmor-features": ["caps", "dbus"]
+}`
+	s.AddCleanup(interfaces.MockSystemKey(mockedSkS))
+	c.Assert(interfaces.WriteSystemKey(interfaces.SystemKeyExtraData{}), IsNil)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	chg, err := ifacestate.AdviseReportedSystemKeyMismatch(s.state, sk)
+	c.Assert(err, IsNil)
+	c.Assert(chg, NotNil)
+
+	c.Check(chg.Kind(), Equals, "regenerate-security-profiles")
+	c.Check(chg.Summary(), Equals, "Regenerate security profiles")
+	tsks := chg.Tasks()
+	c.Assert(tsks, HasLen, 1)
+	c.Check(tsks[0].Kind(), Equals, "regenerate-security-profiles")
+
+	// try again, we should get the exact same change
+	chg2, err := ifacestate.AdviseReportedSystemKeyMismatch(s.state, sk)
+	c.Assert(err, IsNil)
+	c.Assert(chg2, NotNil)
+
+	c.Check(chg.ID(), Equals, chg2.ID())
+}
+
+func (s *interfaceManagerSuite) TestSystemKeyMismatchCompat(c *C) {
+	mockedSkS := `{
+"version": 9999,
+"build-id": "7a94e9736c091b3984bd63f5aebfc883c4d859e0",
+"apparmor-features": ["caps", "dbus", "more-features"]
+}`
+	s.AddCleanup(interfaces.MockSystemKey(mockedSkS))
+
+	sk, err := interfaces.CurrentSystemKey()
+	c.Assert(err, IsNil)
+
+	mockedSkS = `{
+"build-id": "7a94e9736c091b3984bd63f5aebfc883c4d859e0",
+"apparmor-features": ["caps", "dbus"]
+}`
+	s.AddCleanup(interfaces.MockSystemKey(mockedSkS))
+	c.Assert(interfaces.WriteSystemKey(interfaces.SystemKeyExtraData{}), IsNil)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	chg, err := ifacestate.AdviseReportedSystemKeyMismatch(s.state, sk)
+	c.Assert(err, ErrorMatches, "system-key version higher than supported")
+	c.Assert(chg, IsNil)
+	// error can be precisely identified
+	c.Check(errors.Is(err, interfaces.ErrSystemKeyMismatchVersionTooHigh), Equals, true)
+}
