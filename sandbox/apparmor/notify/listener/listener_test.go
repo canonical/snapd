@@ -37,9 +37,8 @@ import (
 
 	"github.com/snapcore/snapd/arch"
 	"github.com/snapcore/snapd/dirs"
-	interfaces_apparmor "github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/osutil/epoll"
-	sandbox_apparmor "github.com/snapcore/snapd/sandbox/apparmor"
+	"github.com/snapcore/snapd/sandbox/apparmor"
 	"github.com/snapcore/snapd/sandbox/apparmor/notify"
 	"github.com/snapcore/snapd/sandbox/apparmor/notify/listener"
 	"github.com/snapcore/snapd/testutil"
@@ -64,10 +63,6 @@ func (s *listenerSuite) SetUpTest(c *C) {
 		return v != 0
 	})
 	s.AddCleanup(restore)
-
-	// Register some metadata tags with interfaces
-	interfaces_apparmor.RegisterMetadataTagWithInterface("tag1", "iface1")
-	interfaces_apparmor.RegisterMetadataTagWithInterface("tag2", "iface2")
 }
 
 func (*listenerSuite) TestReply(c *C) {
@@ -125,6 +120,10 @@ type fakeAaPerm string
 func (p fakeAaPerm) AsAppArmorOpMask() uint32 {
 	// return something gratuitously meaningless
 	return uint32(len(p))
+}
+
+func (p fakeAaPerm) String() string {
+	return string(p)
 }
 
 func (*listenerSuite) TestReplyBad(c *C) {
@@ -339,7 +338,7 @@ func (*listenerSuite) TestRegisterOverridePath(c *C) {
 	l, err := listener.Register()
 	c.Assert(err, IsNil)
 
-	c.Assert(outputOverridePath, Equals, sandbox_apparmor.NotifySocketPath)
+	c.Assert(outputOverridePath, Equals, apparmor.NotifySocketPath)
 
 	err = l.Close()
 	c.Assert(err, IsNil)
@@ -380,7 +379,7 @@ func (*listenerSuite) TestRegisterErrors(c *C) {
 
 	l, err = listener.Register()
 	c.Assert(l, IsNil)
-	c.Assert(err, ErrorMatches, fmt.Sprintf("cannot open %q: %v", sandbox_apparmor.NotifySocketPath, customError))
+	c.Assert(err, ErrorMatches, fmt.Sprintf("cannot open %q: %v", apparmor.NotifySocketPath, customError))
 
 	restoreOpen = listener.MockOsOpen(func(name string) (*os.File, error) {
 		placeholderSocket, err := unix.Socket(unix.AF_UNIX, unix.SOCK_STREAM, 0)
@@ -419,7 +418,7 @@ func (*listenerSuite) TestRegisterErrors(c *C) {
 
 	l, err = listener.Register()
 	c.Assert(l, IsNil)
-	c.Assert(err, ErrorMatches, fmt.Sprintf("cannot register epoll on %q: bad file descriptor", sandbox_apparmor.NotifySocketPath))
+	c.Assert(err, ErrorMatches, fmt.Sprintf("cannot register epoll on %q: bad file descriptor", apparmor.NotifySocketPath))
 }
 
 // An expedient abstraction over notify.MsgNotificationFile to allow defining
@@ -495,7 +494,13 @@ func (*listenerSuite) TestRunSimple(c *C) {
 	dBits := uint32(0b0101)
 	tagsets := notify.TagsetMap{
 		notify.FilePermission(0b1100): notify.MetadataTags{"tag1", "tag2"},
-		notify.FilePermission(0b0011): notify.MetadataTags{"tag3", "tag4"},
+		notify.FilePermission(0b0010): notify.MetadataTags{"tag3"},
+		notify.FilePermission(0b0001): notify.MetadataTags{"tag4"},
+	}
+	// only expect the tagsets associated with denied permissions
+	expectedTagsets := notify.TagsetMap{
+		notify.FilePermission(0b0100): notify.MetadataTags{"tag1", "tag2"},
+		notify.FilePermission(0b0001): notify.MetadataTags{"tag4"},
 	}
 
 	// simulate user only explicitly giving permission for final two bits
@@ -517,7 +522,7 @@ func (*listenerSuite) TestRunSimple(c *C) {
 			perm, ok := req.Permission.(notify.FilePermission)
 			c.Check(ok, Equals, true)
 			c.Check(perm, Equals, notify.FilePermission(dBits))
-			c.Check(req.Interface, Equals, "iface1")
+			c.Check(req.Tagsets, DeepEquals, expectedTagsets)
 			requests = append(requests, req)
 		case <-t.Dying():
 			c.Fatalf("listener encountered unexpected error: %v", t.Err())
@@ -570,10 +575,7 @@ func (*listenerSuite) TestRegisterWriteRun(c *C) {
 	path := "/home/Documents/foo"
 	aBits := uint32(0b1010)
 	dBits := uint32(0b0101)
-	tagsets := notify.TagsetMap{
-		notify.FilePermission(0b1100): notify.MetadataTags{"tag1", "tag3"},
-		notify.FilePermission(0b0011): notify.MetadataTags{"tag2", "tag4"},
-	}
+	tagsets := notify.TagsetMap{}
 
 	msg := newMsgNotificationFile(protoVersion, id, label, path, aBits, dBits, tagsets)
 	buf, err := msg.MarshalBinary()
@@ -605,7 +607,6 @@ func (*listenerSuite) TestRegisterWriteRun(c *C) {
 	case req, ok := <-l.Reqs():
 		c.Assert(ok, Equals, true)
 		c.Assert(req.Path, Equals, path)
-		c.Check(req.Interface, Equals, "iface2")
 	case <-t.Dying():
 		c.Fatalf("listener encountered unexpected error: %v", t.Err())
 	case <-timer.C:
@@ -639,10 +640,7 @@ func (*listenerSuite) TestRunMultipleRequestsInBuffer(c *C) {
 
 	aBits := uint32(0b1010)
 	dBits := uint32(0b0101)
-	tagsets := notify.TagsetMap{
-		notify.FilePermission(0b1010): notify.MetadataTags{"tag1", "tag2"}, // no permission match
-		notify.FilePermission(0b0001): notify.MetadataTags{"tag3", "tag4"},
-	}
+	tagsets := notify.TagsetMap{}
 
 	var megaBuf []byte
 	for i, path := range paths {
@@ -659,7 +657,6 @@ func (*listenerSuite) TestRunMultipleRequestsInBuffer(c *C) {
 		select {
 		case req := <-l.Reqs():
 			c.Assert(req.Path, DeepEquals, path)
-			c.Check(req.Interface, Equals, "home") // default since no registered tags found
 		case <-t.Dying():
 			c.Fatalf("listener encountered unexpected error during request %d: %v", i, t.Err())
 		case <-timer.C:
@@ -674,11 +671,11 @@ func (*listenerSuite) TestRunEpoll(c *C) {
 
 	sockets, err := unix.Socketpair(unix.AF_UNIX, unix.SOCK_STREAM, 0)
 	c.Assert(err, IsNil)
-	notifyFile := os.NewFile(uintptr(sockets[0]), sandbox_apparmor.NotifySocketPath)
+	notifyFile := os.NewFile(uintptr(sockets[0]), apparmor.NotifySocketPath)
 	kernelSocket := sockets[1]
 
 	restoreOpen := listener.MockOsOpen(func(name string) (*os.File, error) {
-		c.Assert(name, Equals, sandbox_apparmor.NotifySocketPath)
+		c.Assert(name, Equals, apparmor.NotifySocketPath)
 		return notifyFile, nil
 	})
 	defer restoreOpen()
@@ -712,12 +709,8 @@ func (*listenerSuite) TestRunEpoll(c *C) {
 	path := "/home/Documents/foo/bar"
 	aBits := uint32(0b1010)
 	dBits := uint32(0b0101)
-	tagsets := notify.TagsetMap{
-		notify.FilePermission(0b0100): notify.MetadataTags{"tag1", "tag3"},
-		notify.FilePermission(0b0001): notify.MetadataTags{"tag4", "tag2"},
-	}
 
-	msg := newMsgNotificationFile(protoVersion, id, label, path, aBits, dBits, tagsets)
+	msg := newMsgNotificationFile(protoVersion, id, label, path, aBits, dBits, nil)
 	recvBuf, err := msg.MarshalBinary()
 	c.Assert(err, IsNil)
 
@@ -738,7 +731,6 @@ func (*listenerSuite) TestRunEpoll(c *C) {
 	select {
 	case req := <-l.Reqs():
 		c.Check(req.Path, Equals, path)
-		c.Check(req.Interface, Equals, "iface2")
 	case <-t.Dying():
 		c.Errorf("listener encountered unexpected error: %v", t.Err())
 	case <-requestTimer.C:
@@ -1118,12 +1110,8 @@ func (*listenerSuite) TestRunConcurrency(c *C) {
 	path := "/home/Documents/foo"
 	reqAllow := uint32(0b1010)
 	reqDeny := uint32(0b0101)
-	tagsets := notify.TagsetMap{
-		notify.FilePermission(0b0001): notify.MetadataTags{"tag1", "tag3"},
-		notify.FilePermission(0b0100): notify.MetadataTags{"tag4", "tag2"},
-	}
 
-	msg := newMsgNotificationFile(protoVersion, 0, label, path, reqAllow, reqDeny, tagsets)
+	msg := newMsgNotificationFile(protoVersion, 0, label, path, reqAllow, reqDeny, nil)
 
 	respAllow := uint32(0b1111)
 	respDeny := uint32(0b0000)
@@ -1164,7 +1152,6 @@ func (*listenerSuite) TestRunConcurrency(c *C) {
 		response := notify.FilePermission(1234)
 		for req := range l.Reqs() {
 			err := req.Reply(response)
-			c.Check(req.Interface, Equals, "iface1")
 			if err == listener.ErrClosed {
 				break
 			}
@@ -1236,94 +1223,4 @@ func (*listenerSuite) TestRunConcurrency(c *C) {
 	c.Check(requestsSent > 1, Equals, true, Commentf("should have sent more than one request"))
 	c.Check(replyCount > 1, Equals, true, Commentf("should have replied to more than one request"))
 	c.Check(responseCount > 1, Equals, true, Commentf("should have received more than one response"))
-}
-
-func (*listenerSuite) TestNewRequestInterfaceSelection(c *C) {
-	// the suite registered "tag1" to "iface1", "tag2" to "iface2"
-
-	aaAllow := uint32(0b1010)
-	aaDeny := uint32(0b0101)
-
-	for _, testCase := range []struct {
-		tagsets  notify.TagsetMap
-		expected string
-	}{
-		{
-			tagsets:  nil,
-			expected: "home",
-		},
-		{
-			tagsets:  notify.TagsetMap{},
-			expected: "home",
-		},
-		{
-			tagsets: notify.TagsetMap{
-				// tags for allowed permissions are ignored when computing interface
-				notify.FilePermission(0b1010): notify.MetadataTags{"tag1", "tag2", "tag3"},
-			},
-			expected: "home",
-		},
-		{
-			tagsets: notify.TagsetMap{
-				// tags for allowed permissions are ignored when computing interface
-				notify.FilePermission(0b1010): notify.MetadataTags{"tag1", "tag2", "tag3"},
-				// unregistered tags are ignored when computing interface
-				notify.FilePermission(0b0101): notify.MetadataTags{"foo", "bar", "baz"},
-			},
-			expected: "home",
-		},
-		{
-			tagsets: notify.TagsetMap{
-				notify.FilePermission(0b0101): notify.MetadataTags{"tag1", "tag2", "tag3"},
-			},
-			expected: "iface1",
-		},
-		{
-			tagsets: notify.TagsetMap{
-				notify.FilePermission(0b0101): notify.MetadataTags{"tag3", "tag2", "tag1"},
-			},
-			expected: "iface2",
-		},
-		{
-			tagsets: notify.TagsetMap{
-				notify.FilePermission(0b1100): notify.MetadataTags{"tag1", "foo"},
-				notify.FilePermission(0b0011): notify.MetadataTags{"bar", "tag2"},
-			},
-			expected: "iface2",
-		},
-		{
-			tagsets: notify.TagsetMap{
-				notify.FilePermission(0b0100): notify.MetadataTags{"tag1", "foo"},
-				notify.FilePermission(0b1011): notify.MetadataTags{"bar", "tag2"},
-			},
-			expected: "iface2",
-		},
-		{
-			tagsets: notify.TagsetMap{
-				notify.FilePermission(0b0011): notify.MetadataTags{"tag1", "foo"},
-				notify.FilePermission(0b1100): notify.MetadataTags{"bar", "tag2"},
-			},
-			expected: "iface1",
-		},
-		{
-			tagsets: notify.TagsetMap{
-				notify.FilePermission(0b1011): notify.MetadataTags{"tag1", "foo"},
-				notify.FilePermission(0b0100): notify.MetadataTags{"bar", "tag2"},
-			},
-			expected: "iface1",
-		},
-	} {
-		msg := &notify.MsgNotificationFile{
-			MsgNotificationOp: notify.MsgNotificationOp{
-				Allow: aaAllow,
-				Deny:  aaDeny,
-				Class: notify.AA_CLASS_FILE,
-			},
-			Tagsets: testCase.tagsets,
-		}
-		req, err := listener.NewRequest(nil, msg)
-
-		c.Check(err, IsNil)
-		c.Check(req.Interface, Equals, testCase.expected)
-	}
 }

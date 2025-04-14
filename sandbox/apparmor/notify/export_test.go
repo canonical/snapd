@@ -14,8 +14,6 @@ var (
 
 	LikelySupported                = ProtocolVersion.likelySupported
 	LikelySupportedProtocolVersion = likelySupportedProtocolVersion
-
-	MetadataTagsForPermission = TagsetMap.metadataTagsForPermission
 )
 
 func MockSyscall(syscall func(trap, a1, a2, a3 uintptr) (r1, r2 uintptr, err unix.Errno)) (restore func()) {
@@ -24,10 +22,6 @@ func MockSyscall(syscall func(trap, a1, a2, a3 uintptr) (r1, r2 uintptr, err uni
 
 func MockApparmorKernelFeatures(f func() ([]string, error)) (restore func()) {
 	return testutil.Mock(&apparmorKernelFeatures, f)
-}
-
-func MockApparmorInterfaceForMetadataTag(f func(tag string) (string, bool)) (restore func()) {
-	return testutil.Mock(&apparmorInterfaceForMetadataTag, f)
 }
 
 // VersionAndCheck couples protocol version with a support check function which

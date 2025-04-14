@@ -54,8 +54,9 @@ var (
 	ErrRuleDBInconsistent = errors.New("internal error: interfaces requests rule database left inconsistent")
 
 	// Errors which are used internally and should never be returned over the API
-	ErrNoMatchingRule = errors.New("no rule matches the given path")
-	ErrInvalidID      = errors.New("invalid ID: format must be parsable as uint64")
+	ErrNoMatchingRule  = errors.New("no rule matches the given path")
+	ErrInvalidID       = errors.New("invalid ID: format must be parsable as uint64")
+	ErrNoInterfaceTags = errors.New("no tags associated with a snapd interface")
 )
 
 // Marker for UnsupportedValueError, should never be returned as an actual

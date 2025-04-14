@@ -20,6 +20,7 @@
 package apparmorprompting
 
 import (
+	"errors"
 	"fmt"
 	"sync"
 
@@ -47,6 +48,8 @@ var (
 	requestReply = func(req *listener.Request, allowedPermission notify.AppArmorPermission) error {
 		return req.Reply(allowedPermission)
 	}
+
+	promptingInterfaceFromTagsets = prompting.InterfaceFromTagsets
 )
 
 // A Manager holds outstanding prompts and mediates their replies, further it
@@ -208,7 +211,19 @@ func (m *InterfacesRequestsManager) handleListenerReq(req *listener.Request) err
 		snap = tag.InstanceName()
 	}
 
-	iface := req.Interface
+	iface, err := promptingInterfaceFromTagsets(req.Tagsets)
+	if err != nil {
+		if errors.Is(err, prompting_errors.ErrNoInterfaceTags) {
+			// There were no tags registered with a snapd interface, so we
+			// default to the "home" interface.
+			iface = "home"
+		} else {
+			// There were some tags registered with a snapd interface, but none
+			// which applied to all requested permissions.
+			logger.Noticef("error while selecting interface from metadata tags: %v", err)
+			return requestReply(req, nil)
+		}
+	}
 
 	path := req.Path
 

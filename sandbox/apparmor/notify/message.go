@@ -33,9 +33,12 @@ type MsgNotificationGeneric interface {
 	// Name is the identifier of the resource to which access is requested.
 	// For mediation class file, Name is the filepath of the requested file.
 	Name() string
-	// Interface returns the interface associated with the message, if tags are
-	// present and registered in association with an interface.
-	Interface() (iface string, ok bool)
+	// MetadataTagsets returns a TagsetMap, which is a map from AppArmor
+	// permission mask to the MetadataTags associated with that permission mask.
+	// Only tagsets associated with denied permissions are included in the
+	// output, as it is only those permissions which the profile marked to
+	// prompt (and did not have cached responses).
+	MetadataTagsets() TagsetMap
 }
 
 // Message fields are defined as raw sized integer types as the same type may be
@@ -702,6 +705,14 @@ func (msg *MsgNotificationFile) Name() string {
 	return msg.Filename
 }
 
-func (msg *MsgNotificationFile) Interface() (iface string, ok bool) {
-	return msg.Tagsets.InterfaceForPermission(FilePermission(msg.Deny))
+func (msg *MsgNotificationFile) MetadataTagsets() TagsetMap {
+	promptTagsets := make(TagsetMap)
+	for perm, tags := range msg.Tagsets {
+		overlap := perm.AsAppArmorOpMask() & msg.Deny
+		if overlap == 0 {
+			continue
+		}
+		promptTagsets[FilePermission(overlap)] = tags
+	}
+	return promptTagsets
 }
