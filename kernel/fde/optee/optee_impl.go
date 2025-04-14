@@ -21,10 +21,11 @@ import "C"
 
 import (
 	"encoding/binary"
-	"errors"
 	"fmt"
 	"runtime"
 	"unsafe"
+
+	"github.com/snapcore/snapd/logger"
 )
 
 type opteeClient struct{}
@@ -64,6 +65,13 @@ func (c *opteeClient) FDETAPresent() bool {
 		}
 
 		if uuid == C.fde_ta_uuid {
+			version, err := c.Version()
+			if err != nil {
+				logger.Noticef("cannot get OPTEE version: %v", err)
+				return false
+			}
+
+			logger.Noticef("found the OPTEE TA (%v) with version %q", output[i:i+16], version)
 			return true
 		}
 	}
@@ -165,7 +173,29 @@ func (c *opteeClient) LockTA() error {
 }
 
 func (c *opteeClient) Version() (string, error) {
-	return "", errors.New("TODO")
+	pinner := &runtime.Pinner{}
+	defer pinner.Unpin()
+
+	op := &C.TEEC_Operation{
+		started:    1,
+		paramTypes: teecParamTypes(C.TEEC_MEMREF_TEMP_OUTPUT, C.TEEC_NONE, C.TEEC_NONE, C.TEEC_NONE),
+	}
+	pinner.Pin(op)
+
+	version := make([]byte, 256)
+	pinner.Pin(&version[0])
+
+	versionMemRef := unionAsType[C.TEEC_TempMemoryReference](&op.params[0])
+	versionMemRef.size = C.size_t(len(version))
+	versionMemRef.buffer = unsafe.Pointer(&version[0])
+
+	if err := invoke(pinner, C.fde_ta_uuid, C.TA_CMD_VERSION, op); err != nil {
+		return "", err
+	}
+
+	version = version[:versionMemRef.size]
+
+	return string(version), nil
 }
 
 func newOPTEEClient() Client {
