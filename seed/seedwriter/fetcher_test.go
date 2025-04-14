@@ -159,3 +159,65 @@ func (s *fetcherSuite) TestAssertFetcherInvalidSequenceFormingFetcher(c *C) {
 	err := af.FetchSequence(nil)
 	c.Check(err, ErrorMatches, `cannot fetch assertion sequence point, fetcher must be a SequenceFormingFetcher`)
 }
+
+func (s *fetcherSuite) TestAssertFetcherSaveExtraAssertions(c *C) {
+	as := s.setupTestAssertion(c)
+
+	db, err := asserts.OpenDatabase(&asserts.DatabaseConfig{
+		Backstore: asserts.NewMemoryBackstore(),
+		Trusted:   s.storeSigning.Trusted,
+	})
+	c.Assert(err, IsNil)
+
+	retrieve := func(ref *asserts.Ref) (asserts.Assertion, error) {
+		return ref.Resolve(s.storeSigning.Find)
+	}
+	var newFetcherCalled int
+	newFetcher := func(save func(asserts.Assertion) error) asserts.Fetcher {
+		newFetcherCalled++
+		return asserts.NewFetcher(db, retrieve, save)
+	}
+
+	proxyStoreAssertion, err := s.storeSigning.Sign(asserts.StoreType, map[string]interface{}{
+		"store":        "my-proxy-store",
+		"operator-id":  "other-brand",
+		"authority-id": "canonical",
+		"url":          "https://my-proxy-store.com",
+		"timestamp":    time.Now().UTC().Format(time.RFC3339),
+	}, nil, "")
+	c.Assert(err, IsNil)
+
+	accountAssertion, err := s.storeSigning.Sign(asserts.AccountType, map[string]interface{}{
+		"type":         "account",
+		"authority-id": "canonical",
+		"account-id":   "other-brand",
+		"validation":   "verified",
+		"display-name": "Predef",
+		"timestamp":    time.Now().Format(time.RFC3339),
+	}, nil, "")
+	c.Assert(err, IsNil)
+
+	af := seedwriter.MakeSeedAssertionFetcher(newFetcher)
+	c.Assert(af, NotNil)
+	c.Check(newFetcherCalled, Equals, 1)
+
+	af.AddExtraAssertions([]asserts.Assertion{proxyStoreAssertion, accountAssertion})
+
+	// Fetch the model assertion, then let's verify the refs was added.
+	err = af.Save(as)
+	c.Check(err, IsNil)
+	c.Assert(af.Refs(), HasLen, 2)
+	c.Check(af.Refs()[0].Type, Equals, asserts.AccountKeyType)
+	c.Check(af.Refs()[1].String(), Equals, "model (my-model-2; series:16 brand-id:can0nical)")
+
+	// This order checks that prerequisites are correctly saved before the actual assertion
+	err = af.Save(proxyStoreAssertion)
+	c.Check(err, IsNil)
+
+	err = af.Save(accountAssertion)
+	c.Check(err, IsNil)
+
+	c.Assert(af.Refs(), HasLen, 4)
+	c.Check(af.Refs()[2].String(), Equals, "account (other-brand)")
+	c.Check(af.Refs()[3].String(), Equals, "store (my-proxy-store)")
+}
