@@ -164,9 +164,25 @@ func (s *apparmorpromptingSuite) TestStop(c *C) {
 	c.Check(promptDB.Close(), Equals, prompting_errors.ErrPromptsClosed)
 	c.Check(ruleDB.Close(), Equals, prompting_errors.ErrRulesClosed)
 
-	// Check that current backends are nil
-	c.Check(mgr.PromptDB(), IsNil)
-	c.Check(mgr.RuleDB(), IsNil)
+	// Check that calls to API methods don't panic after backends have been closed
+	_, err = mgr.Prompts(1000, false)
+	c.Check(err, Equals, prompting_errors.ErrPromptsClosed)
+	_, err = mgr.PromptWithID(1000, 1, false)
+	c.Check(err, Equals, prompting_errors.ErrPromptsClosed)
+	_, err = mgr.HandleReply(1000, 1, nil, prompting.OutcomeAllow, prompting.LifespanSingle, "", true)
+	c.Check(err, Equals, prompting_errors.ErrPromptsClosed)
+	_, err = mgr.Rules(1000, "foo", "bar")
+	c.Check(err, IsNil) // rule backend supports getting rules even after closed
+	_, err = mgr.AddRule(1000, "foo", "bar", nil)
+	c.Check(err, Equals, prompting_errors.ErrRulesClosed)
+	_, err = mgr.RemoveRules(1000, "foo", "bar")
+	c.Check(err, Equals, prompting_errors.ErrRulesClosed)
+	_, err = mgr.RuleWithID(1000, 1)
+	c.Check(err, Equals, prompting_errors.ErrRuleNotFound) // rule backend supports getting rules even after closed
+	_, err = mgr.PatchRule(1000, 1, nil)
+	c.Check(err, Equals, prompting_errors.ErrRulesClosed)
+	_, err = mgr.RemoveRule(1000, 1)
+	c.Check(err, Equals, prompting_errors.ErrRulesClosed)
 }
 
 func (s *apparmorpromptingSuite) TestHandleListenerRequestDenyRoot(c *C) {
