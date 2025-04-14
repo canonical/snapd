@@ -211,8 +211,13 @@ nested_is_tpm_enabled() {
                 return 1
                 ;;
             ubuntu-2*)
-                # TPM enabled by default on 20.04 and later
-                return 0
+                if os.query is-arm; then
+                    # TPM disabled by default on arm
+                    return 1
+                else 
+                    # TPM enabled by default on 20.04 and later
+                    return 0
+                fi
                 ;;
             *)
                 echo "unsupported system"
@@ -231,8 +236,13 @@ nested_is_secure_boot_enabled() {
                 return 1
                 ;;
             ubuntu-2*)
-                # secure boot enabled by default on 20.04 and later
-                return 0
+                if os.query is-arm; then
+                    # secure boot disabled by default on arm
+                    return 1
+                else 
+                    # secure boot enabled by default on 20.04 and later
+                    return 0
+                fi
                 ;;
             *)
                 echo "unsupported system"
@@ -1260,7 +1270,7 @@ nested_start_core_vm_unit() {
     nested_save_serial_log
 
     # Set kvm attribute
-    local ATTR_KVM PARAM_CPU
+    local ATTR_KVM PARAM_CPU PARAM_MACHINE
     ATTR_KVM=""
     if nested_is_kvm_enabled && nested_is_kvm_supported; then
         ATTR_KVM=",accel=kvm"
@@ -1268,34 +1278,8 @@ nested_start_core_vm_unit() {
         PARAM_CPU="-cpu host"
     fi
 
-    local PARAM_MACHINE
-    if [[ "$SPREAD_BACKEND" = google-nested* ]]; then
-        if os.query is-arm; then
-            PARAM_MACHINE="-machine virt"
-            PARAM_CPU="-cpu cortex-a57"
-        else
-            PARAM_MACHINE="-machine ubuntu${ATTR_KVM}"
-        fi
-    elif [ "$SPREAD_BACKEND" = "qemu-nested" ]; then
-        # check if we have nested kvm
-        if [ "$(cat /sys/module/kvm_*/parameters/nested)" = "1" ]; then
-            PARAM_MACHINE="-machine ubuntu${ATTR_KVM}"
-        else
-            # and if not reset kvm related parameters
-            PARAM_MACHINE=""
-            PARAM_CPU=""
-            ATTR_KVM=""
-        fi
-    else
-        echo "unknown spread backend $SPREAD_BACKEND"
-        exit 1
-    fi
-    
-    local PARAM_ASSERTIONS PARAM_BIOS PARAM_TPM PARAM_IMAGE
+    local PARAM_ASSERTIONS
     PARAM_ASSERTIONS=""
-    PARAM_BIOS=""
-    PARAM_TPM=""
-    PARAM_REEXEC_ON_FAILURE=""
     if [ "$NESTED_USE_CLOUD_INIT" != "true" ]; then
         # TODO: fix using the old way of an ext4 formatted drive w/o partitions
         #       as this used to work but has since regressed
@@ -1307,6 +1291,31 @@ nested_start_core_vm_unit() {
         # storage to
         PARAM_ASSERTIONS="-drive if=none,id=stick,format=raw,file=$NESTED_ASSETS_DIR/assertions.disk,cache=none,format=raw -device nec-usb-xhci,id=xhci -device usb-storage,bus=xhci.0,removable=true,drive=stick"
     fi
+
+    local PARAM_BIOS PARAM_TPM PARAM_IMAGE
+    PARAM_BIOS=""
+    PARAM_TPM=""
+    PARAM_REEXEC_ON_FAILURE=""
+
+    if nested_is_core_lt 20; then
+        if [[ "$SPREAD_BACKEND" = google-nested* ]]; then
+            PARAM_MACHINE="-machine ubuntu${ATTR_KVM}"
+        elif [ "$SPREAD_BACKEND" = "qemu-nested" ]; then
+            # check if we have nested kvm
+            if [ "$(cat /sys/module/kvm_*/parameters/nested)" = "1" ]; then
+                PARAM_MACHINE="-machine ubuntu${ATTR_KVM}"
+            else
+                # and if not reset kvm related parameters
+                PARAM_MACHINE=""
+                PARAM_CPU=""
+                ATTR_KVM=""
+            fi
+        else
+            echo "unknown spread backend $SPREAD_BACKEND"
+            exit 1
+        fi
+    fi
+
     if nested_is_core_ge 20; then
         nested_ensure_ovmf
         local OVMF_CODE OVMF_VARS OVMF_VARS_SECBOOT OVMF_VARS_CURRENT OVMF
@@ -1328,6 +1337,9 @@ nested_start_core_vm_unit() {
                 cp -fv "${OVMF_VARS}" "${OVMF_VARS_CURRENT}"
             fi
         fi
+
+        local SECURE_PARAM
+        SECURE_PARAM=""
         if [ -z "$NESTED_BIOS_FILE" ]; then
             if nested_is_secure_boot_enabled; then
                 PARAM_BIOS="-drive file=${OVMF_CODE},if=pflash,format=raw,readonly=on -drive file=${OVMF_VARS_CURRENT},if=pflash,format=raw"
@@ -1335,10 +1347,13 @@ nested_start_core_vm_unit() {
                 PARAM_BIOS="-drive file=${OVMF_CODE},if=pflash,format=raw,readonly=on"
             fi
         else
-            PARAM_BIOS="-bios $NESTED_BIOS_FILE"
+            PARAM_BIOS="-bios ${NESTED_BIOS_FILE},if=none,format=raw,id=hd0"
+            if [ "$NESTED_SECURE_ARM_MACHINE" = true ]; then
+                SECURE_PARAM=",secure=on"
+            fi
         fi
         if os.query is-arm; then
-            PARAM_MACHINE="-machine virt,secure=on -accel tcg,thread=multi"
+            PARAM_MACHINE="-machine virt${SECURE_PARAM} -accel tcg,thread=multi"
         else
             PARAM_MACHINE="-machine q35${ATTR_KVM}"
         fi
