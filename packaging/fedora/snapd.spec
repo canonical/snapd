@@ -740,7 +740,13 @@ rm -f %{buildroot}%{_libexecdir}/snapd/snapd-apparmor
 rm -f %{buildroot}%{_unitdir}/snapd.gpio-chardev-setup.target
 
 # Disable re-exec by default
-echo 'SNAP_REEXEC=0' > %{buildroot}%{_sysconfdir}/sysconfig/snapd
+mkdir -p %{buildroot}%{_sysconfdir}/sysconfig
+cat <<'EOF' > %{buildroot}%{_sysconfdir}/sysconfig/snapd
+# Snapd daemon can reexec into the binary from the snapd snap, if
+# it is newer than the version installed through distro packaging.
+# Set to 1 to enable reexec. The default is 0.
+#SNAP_REEXEC=0
+EOF
 
 # Create state.json and the README file to be ghosted
 touch %{buildroot}%{_sharedstatedir}/snapd/state.json
