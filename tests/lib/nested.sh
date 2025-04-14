@@ -1271,7 +1271,7 @@ nested_start_core_vm_unit() {
     local PARAM_MACHINE
     if [[ "$SPREAD_BACKEND" = google-nested* ]]; then
         if os.query is-arm; then
-            PARAM_MACHINE="-machine virt${ATTR_KVM}"
+            PARAM_MACHINE="-machine virt"
             PARAM_CPU="-cpu cortex-a57"
         else
             PARAM_MACHINE="-machine ubuntu${ATTR_KVM}"
@@ -1328,9 +1328,17 @@ nested_start_core_vm_unit() {
                 cp -fv "${OVMF_VARS}" "${OVMF_VARS_CURRENT}"
             fi
         fi
-        PARAM_BIOS="-drive file=${OVMF_CODE},if=pflash,format=raw,readonly=on -drive file=${OVMF_VARS_CURRENT},if=pflash,format=raw"
+        if [ -z "$NESTED_BIOS_FILE" ]; then
+            if nested_is_secure_boot_enabled; then
+                PARAM_BIOS="-drive file=${OVMF_CODE},if=pflash,format=raw,readonly=on -drive file=${OVMF_VARS_CURRENT},if=pflash,format=raw"
+            else 
+                PARAM_BIOS="-drive file=${OVMF_CODE},if=pflash,format=raw,readonly=on"
+            fi
+        else
+            PARAM_BIOS="-bios $NESTED_BIOS_FILE"
+        fi
         if os.query is-arm; then
-            PARAM_MACHINE="-machine virt${ATTR_KVM}"
+            PARAM_MACHINE="-machine virt,secure=on -accel tcg,thread=multi"
         else
             PARAM_MACHINE="-machine q35${ATTR_KVM}"
         fi

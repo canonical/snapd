@@ -1404,7 +1404,7 @@ suites:
 
     tests/perf/nested/:
         summary: Performance and Load tests preparation suite
-        backends: [google-nested, google-nested-dev, qemu-nested, openstack]
+        backends: [google-nested, google-nested-dev, qemu-nested]
         environment:
             NESTED_TYPE: "core"
             # Enable kvm in the qemu command line
