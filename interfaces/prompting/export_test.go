@@ -19,7 +19,15 @@
 
 package prompting
 
+import (
+	"github.com/snapcore/snapd/testutil"
+)
+
 var (
 	InterfacePermissionsAvailable = interfacePermissionsAvailable
 	InterfaceFilePermissionsMaps  = interfaceFilePermissionsMaps
 )
+
+func MockApparmorInterfaceForMetadataTag(f func(tag string) (string, bool)) (restore func()) {
+	return testutil.Mock(&apparmorInterfaceForMetadataTag, f)
+}
