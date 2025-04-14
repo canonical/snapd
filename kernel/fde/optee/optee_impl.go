@@ -20,13 +20,18 @@ TEEC_UUID pta_device_uuid = { 0x7011a688, 0xddde, 0x4053, \
 import "C"
 
 import (
-	"encoding/binary"
+	"bytes"
 	"fmt"
 	"runtime"
 	"unsafe"
 
 	"github.com/snapcore/snapd/logger"
 )
+
+// fdeUUID is the byte encoding of the FDE TA UUID (C.fde_ta_uuid). Having this
+// pre-calculated eliminates some code that would be required to do the
+// conversion.
+var fdeUUID = [...]byte{0xfd, 0x1b, 0x2a, 0x86, 0x36, 0x68, 0x11, 0xeb, 0xad, 0xc1, 0x2, 0x42, 0xac, 0x12, 0x0, 0x2}
 
 type opteeClient struct{}
 
@@ -64,21 +69,18 @@ func (c *opteeClient) FDETAPresent() bool {
 	output = output[:outputMemRef.size]
 
 	for i := 0; i+16 < len(output)+1; i += 16 {
-		uuid, err := uuidFromOctets(output[i : i+16])
+		if !bytes.Equal(fdeUUID[:], output[i:i+16]) {
+			continue
+		}
+
+		version, err := c.Version()
 		if err != nil {
-			return false
+			logger.Debugf("found the FDE TA: cannot get version: %v", err)
+		} else {
+			logger.Debugf("found the FDE TA: version %q", version)
 		}
 
-		if uuid == C.fde_ta_uuid {
-			version, err := c.Version()
-			if err != nil {
-				logger.Noticef("cannot get OPTEE version: %v", err)
-				return false
-			}
-
-			logger.Noticef("found the OPTEE TA (%v) with version %q", output[i:i+16], version)
-			return true
-		}
+		return true
 	}
 
 	return false
@@ -230,23 +232,6 @@ func (c *opteeClient) Version() (string, error) {
 
 func newOPTEEClient() Client {
 	return &opteeClient{}
-}
-
-func uuidFromOctets(s []byte) (C.TEEC_UUID, error) {
-	if len(s) != 16 {
-		return C.TEEC_UUID{}, fmt.Errorf("cannot parse slice as uuid: length is %d, expected 16", len(s))
-	}
-
-	d := C.TEEC_UUID{
-		timeLow:          C.uint32_t(binary.BigEndian.Uint32(s[0:4])),
-		timeMid:          C.uint16_t(binary.BigEndian.Uint16(s[4:6])),
-		timeHiAndVersion: C.uint16_t(binary.BigEndian.Uint16(s[6:8])),
-	}
-	for i, b := range s[8:] {
-		d.clockSeqAndNode[i] = C.uint8_t(b)
-	}
-
-	return d, nil
 }
 
 // unionAsType interprets the memory that union points to as a T. This is useful
