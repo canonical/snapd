@@ -893,7 +893,7 @@ pkg_dependencies(){
             pkg_dependencies_ubuntu_core
             ;;
         ubuntu-*|debian-*)
-            if tests.nested is-nested; then
+            if tests.nested is-nested &>/dev/null; then
                 pkg_dependencies_ubuntu_generic
                 pkg_dependencies_ubuntu_nested
             else
