@@ -573,7 +573,7 @@ func (m *DeviceManager) ensureOperational() error {
 		return nil
 	}
 
-	logger.Trace("ensure", "manager", "devicemgr", "func", "ensureOperational")
+	logger.Trace("ensure", "manager", "DeviceManager", "func", "ensureOperational")
 
 	perfTimings := timings.New(map[string]string{"ensure": "become-operational"})
 
@@ -1013,7 +1013,7 @@ func (m *DeviceManager) ensureSeeded() error {
 		return nil
 	}
 
-	logger.Trace("ensure", "manager", "devicemgr", "func", "ensureSeeded")
+	logger.Trace("ensure", "manager", "DeviceManager", "func", "ensureSeeded")
 
 	chg := m.state.NewChange("seed", "Initialize system state")
 	for _, ts := range tsAll {
@@ -1068,7 +1068,7 @@ func (m *DeviceManager) ensureAutoImportAssertions() error {
 		return nil
 	}
 
-	logger.Trace("ensure", "manager", "devicemgr", "func", "ensureAutoImportAssertions")
+	logger.Trace("ensure", "manager", "DeviceManager", "func", "ensureAutoImportAssertions")
 
 	commitTo := func(batch *asserts.Batch) error {
 		return assertstate.AddBatch(m.state, batch, nil)
