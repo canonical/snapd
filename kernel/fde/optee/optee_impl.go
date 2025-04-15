@@ -3,7 +3,7 @@
 package optee
 
 /*
-#cgo CFLAGS: -I./ta
+#cgo CFLAGS: -I./
 #cgo LDFLAGS: -lteec
 #include <tee_client_api.h>
 #include <fde_key_handler_ta_type.h>
