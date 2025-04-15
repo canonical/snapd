@@ -36,6 +36,8 @@
 //	    "kernel": "pc-kernel=18",
 //	    "timestamp": "2018-09-11T22:00:00+00:00"
 //	}
+//
+// --root-key can be used with any of the commands to use the testrootorg key instead.
 package main
 
 import (
@@ -46,24 +48,38 @@ import (
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/assertstest"
+	"github.com/snapcore/snapd/asserts/systestkeys"
 )
 
 func main() {
-	if len(os.Args) != 2 {
+	if len(os.Args) < 2 {
 		fmt.Fprintf(os.Stderr, "command argument missing\n")
 		os.Exit(1)
 	}
 	if os.Args[1] == "show-key" {
-		fmt.Printf("%s", assertstest.DevKey)
+		key := assertstest.DevKey
+
+		if len(os.Args) == 3 && os.Args[2] == "--root-key" {
+			key = systestkeys.TestRootPrivKey
+		}
+
+		fmt.Printf("%s", key)
 		return
 	}
 	if os.Args[1] != "sign-model" {
-		fmt.Fprintf(os.Stderr, "unknown command %q, use show-key or sign-model\n", os.Args[1])
+		fmt.Fprintf(os.Stderr, "unknown command %q, use show-key or sign-model (optional extra argument: --root-key)\n", os.Args[1])
 		os.Exit(1)
 	}
 
-	devKey, _ := assertstest.ReadPrivKey(assertstest.DevKey)
-	devSigning := assertstest.NewSigningDB("developer1", devKey)
+	var devKey asserts.PrivateKey
+	var devSigning *assertstest.SigningDB
+	if len(os.Args) == 3 && os.Args[2] == "--root-key" {
+		devKey, _ = assertstest.ReadPrivKey(systestkeys.TestRootPrivKey)
+		devSigning = assertstest.NewSigningDB("testrootorg", devKey)
+	} else {
+		devKey, _ = assertstest.ReadPrivKey(assertstest.DevKey)
+		devSigning = assertstest.NewSigningDB("developer1", devKey)
+	}
 
 	var headers map[string]interface{}
 	dec := json.NewDecoder(os.Stdin)
