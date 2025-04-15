@@ -56,7 +56,7 @@ func (c *ChardevChip) String() string {
 }
 
 // This has to match the memory layout of `struct gpiochip_info` found
-// in /include/uapi/linux/gpio.h in the kernel.
+// in /usr/include/uapi/linux/gpio.h in the kernel.
 type kernelChipInfo struct {
 	name, label [32]byte
 	lines       uint32
@@ -215,7 +215,7 @@ func addGadgetSlotDevice(chip *ChardevChip, instanceName, slotName string) (err 
 	}
 
 	stat, ok := fi.Sys().(*syscall.Stat_t)
-	if !ok {
+	if !ok || stat == nil {
 		return errors.New("internal error, expected os.File.FileInfo.Sys to return *syscall.Stat_t")
 	}
 

@@ -457,6 +457,7 @@ func (s *exportUnexportTestSuite) TestExportGadgetChardevChipAddGadgetDeviceErro
 	restore = gpio.MockOsChown(func(path string, uid, gid int) error {
 		return errors.New("boom!")
 	})
+	defer restore()
 
 	err := gpio.ExportGadgetChardevChip(context.TODO(), []string{"label-0"}, strutil.Range{{Start: 0, End: 0}}, "gadget-name", "slot-name")
 	c.Check(err, ErrorMatches, "boom!")
