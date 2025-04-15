@@ -20,8 +20,13 @@
 package logger_test
 
 import (
+	"bufio"
 	"bytes"
 	"encoding/json"
+	"fmt"
+	"go/ast"
+	"go/parser"
+	"go/token"
 	"log"
 	"os"
 	"path/filepath"
@@ -34,6 +39,7 @@ import (
 
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil/kcmdline"
+	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -245,4 +251,136 @@ func (s *LogSuite) TestMockDebugLogger(c *C) {
 	defer restore()
 	logger.Debugf("xyzzy")
 	c.Check(logbuf.String(), testutil.Contains, "DEBUG: xyzzy")
+}
+
+func getReceiver(funcDecl *ast.FuncDecl) (string, bool) {
+	if funcDecl.Recv != nil && len(funcDecl.Recv.List) > 0 {
+		if starExpr, ok := funcDecl.Recv.List[0].Type.(*ast.StarExpr); ok {
+			if ident, ok := starExpr.X.(*ast.Ident); ok {
+				return ident.Name, true
+			}
+		} else if ident, ok := funcDecl.Recv.List[0].Type.(*ast.Ident); ok {
+			return ident.Name, true
+		}
+	}
+	return "", false
+}
+
+func getChildEnsureList(fset *token.FileSet, fileContent string, file *ast.File) []string {
+	for _, decl := range file.Decls {
+		if funcDecl, ok := decl.(*ast.FuncDecl); ok {
+			if funcDecl.Name.Name == "Ensure" {
+				ensures := []string{}
+				ast.Inspect(funcDecl.Body, func(n ast.Node) bool {
+					callExpr, ok := n.(*ast.CallExpr)
+					if ok {
+						start := fset.Position(callExpr.Fun.Pos()).Offset
+						end := fset.Position(callExpr.Fun.End()).Offset
+						if strings.Contains(fileContent[start:end], "ensure") {
+							parts := strings.Split(fileContent[start:end], ".")
+							if len(parts) > 1 {
+								ensures = append(ensures, parts[1])
+							} else {
+								ensures = append(ensures, fileContent[start:end])
+							}
+						}
+					}
+					return true
+				})
+				return ensures
+			}
+		}
+	}
+	return []string{}
+}
+
+func checkBodyForString(fset *token.FileSet, fileContent string, block *ast.BlockStmt, expected string) bool {
+	for _, stmt := range block.List {
+		if ifStmt, ok := stmt.(*ast.IfStmt); ok {
+			if checkBodyForString(fset, fileContent, ifStmt.Body, expected) {
+				return true
+			}
+			if elseStmt, ok := ifStmt.Else.(*ast.BlockStmt); ok {
+				if checkBodyForString(fset, fileContent, elseStmt, expected) {
+					return true
+				}
+			}
+		} else if exprStmt, ok := stmt.(*ast.ExprStmt); ok {
+			start := fset.Position(exprStmt.X.Pos()).Offset
+			end := fset.Position(exprStmt.X.End()).Offset
+			stringed := fileContent[start:end]
+			if expected == stringed {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func getListOfEnsureManagers() ([]string, error) {
+	root := "../"
+	pattern := ") Ensure()"
+
+	filepaths := []string{}
+	err := filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return nil
+		}
+		if info.IsDir() {
+			return nil
+		}
+		if !strings.HasSuffix(path, ".go") {
+			return nil
+		}
+		if strings.Contains(path, "_test.go") {
+			return nil
+		}
+
+		file, err := os.Open(path)
+		if err != nil {
+			return nil
+		}
+		defer file.Close()
+
+		scanner := bufio.NewScanner(file)
+		for scanner.Scan() {
+			if strings.Contains(scanner.Text(), pattern) {
+				filepaths = append(filepaths, path)
+				break
+			}
+		}
+
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return filepaths, nil
+}
+
+func (s *LogSuite) TestEnsureLoopLogging(c *C) {
+	filesToCheck, err := getListOfEnsureManagers()
+	c.Assert(err, IsNil)
+	for _, fileToCheck := range filesToCheck {
+		fset := token.NewFileSet()
+		content, err := os.ReadFile(fileToCheck)
+		c.Assert(err, IsNil)
+		fileContent := string(content)
+		file, err := parser.ParseFile(fset, fileToCheck, fileContent, parser.AllErrors)
+		c.Assert(err, IsNil)
+		childEnsures := getChildEnsureList(fset, fileContent, file)
+		for _, decl := range file.Decls {
+			if funcDecl, ok := decl.(*ast.FuncDecl); ok {
+				mgr, ok := getReceiver(funcDecl)
+				if !ok {
+					continue
+				}
+				if strutil.ListContains(childEnsures, funcDecl.Name.Name) {
+					expected := fmt.Sprintf("logger.Trace(\"ensure\", \"manager\", \"%s\", \"func\", \"%s\")", mgr, funcDecl.Name.Name)
+					foundTraceLog := checkBodyForString(fset, fileContent, funcDecl.Body, expected)
+					c.Assert(foundTraceLog, Equals, true, Commentf("In file %s in function %s, the following trace log was not found: %s", fileToCheck, funcDecl.Name.Name, expected))
+				}
+			}
+		}
+	}
 }
