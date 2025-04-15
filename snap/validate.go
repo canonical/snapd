@@ -369,12 +369,12 @@ func validateGpioChardevSlots(info *Info) error {
 	}
 
 	type chipSlotInfo struct {
+		chip  string
 		slot  string
 		lines strutil.Range
 	}
 
-	// collect all exported lines for every chip label over all slots
-	chipSlots := make(map[string][]chipSlotInfo)
+	chipSlots := make([]chipSlotInfo, 0)
 	for _, slot := range info.Slots {
 		if slot.Interface != "gpio-chardev" {
 			continue
@@ -392,42 +392,40 @@ func validateGpioChardevSlots(info *Info) error {
 			return fmt.Errorf(`invalid "lines" attribute found in slot %q: %w`, slot.Name, err)
 		}
 		for _, chip := range sourceChip {
-			chipSlots[chip] = append(chipSlots[chip], chipSlotInfo{
+			chipSlots = append(chipSlots, chipSlotInfo{
+				chip:  chip,
 				slot:  slot.Name,
 				lines: r,
 			})
 		}
 	}
-	chipLabels := make([]string, 0, len(chipSlots))
-	// sort for testing
-	for chip, slotInfos := range chipSlots {
-		sort.Slice(slotInfos, func(i, j int) bool {
-			return slotInfos[i].slot < slotInfos[j].slot
-		})
-		chipLabels = append(chipLabels, chip)
-	}
-	sort.Strings(chipLabels)
+
+	sort.SliceStable(chipSlots, func(i, j int) bool {
+		return chipSlots[i].slot < chipSlots[j].slot
+	})
 
 	// detect line overlaps for every chip label across all gpio-chardev slots
 	var errs []error
-	for _, chip := range chipLabels {
-		slotInfos := chipSlots[chip]
-		for a := 0; a < len(slotInfos); a++ {
-			for b := a + 1; b < len(slotInfos); b++ {
-				for _, spanA := range slotInfos[a].lines {
-					for _, spanB := range slotInfos[b].lines {
-						if spanA.Intersects(spanB) {
-							errs = append(errs, &gpioChipLinesOverlapError{
-								chip:  chip,
-								slotA: slotInfos[a].slot, spanA: spanA,
-								slotB: slotInfos[b].slot, spanB: spanB,
-							})
-						}
+	for i, a := range chipSlots {
+		for _, b := range chipSlots[i+1:] {
+			if a.chip != b.chip {
+				continue
+			}
+
+			for _, spanA := range a.lines {
+				for _, spanB := range b.lines {
+					if spanA.Intersects(spanB) {
+						errs = append(errs, &gpioChipLinesOverlapError{
+							chip:  a.chip,
+							slotA: a.slot, spanA: spanA,
+							slotB: b.slot, spanB: spanB,
+						})
 					}
 				}
 			}
 		}
 	}
+
 	return strutil.JoinErrors(errs...)
 }
 
