@@ -1347,13 +1347,14 @@ nested_start_core_vm_unit() {
                 PARAM_BIOS="-drive file=${OVMF_CODE},if=pflash,format=raw,readonly=on"
             fi
         else
-            PARAM_BIOS="-bios ${NESTED_BIOS_FILE},if=none,format=raw,id=hd0"
+            PARAM_BIOS="-drive file=${NESTED_BIOS_FILE},if=pflash,format=raw,readonly=on"
             if [ "$NESTED_SECURE_ARM_MACHINE" = true ]; then
                 SECURE_PARAM=",secure=on"
             fi
         fi
         if os.query is-arm; then
             PARAM_MACHINE="-machine virt${SECURE_PARAM} -accel tcg,thread=multi"
+            PARAM_CPU="-cpu cortex-a57"
         else
             PARAM_MACHINE="-machine q35${ATTR_KVM}"
         fi
