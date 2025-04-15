@@ -199,7 +199,7 @@ nested_is_kvm_enabled() {
 }
 
 nested_is_kvm_supported() {
-    test -f /dev/kvm
+    test -e /dev/kvm
 }
 
 nested_is_tpm_enabled() {
