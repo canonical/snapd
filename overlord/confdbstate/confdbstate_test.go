@@ -285,6 +285,20 @@ func (s *confdbTestSuite) TestConfdbstateGetEntireView(c *C) {
 	})
 }
 
+func (s *confdbTestSuite) TestGetViewNoAssertion(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	db, err := asserts.OpenDatabase(&asserts.DatabaseConfig{
+		Backstore: asserts.NewMemoryBackstore(),
+	})
+	c.Assert(err, IsNil)
+	assertstate.ReplaceDB(s.state, db)
+
+	_, err = confdbstate.GetView(s.state, s.devAccID, "network", "setup-wifi")
+	c.Assert(err, ErrorMatches, fmt.Sprintf("cannot find confdb-schema %s/network: assertion not found", s.devAccID))
+}
+
 func mockInstalledSnap(c *C, st *state.State, snapYaml string, hooks []string) *snap.Info {
 	info := snaptest.MockSnapCurrent(c, snapYaml, &snap.SideInfo{Revision: snap.R(1)})
 	snapstate.Set(st, info.InstanceName(), &snapstate.SnapState{
@@ -1683,4 +1697,59 @@ func (s *confdbTestSuite) TestGetTransactionForAPIError(c *C) {
 	c.Assert(err, IsNil, Commentf("%+v", chg))
 	errStr := apiData["confdb-error"].(string)
 	c.Assert(errStr, Equals, fmt.Sprintf(`cannot get "ssid" through %s/network/setup-wifi: no data`, s.devAccID))
+}
+
+func (s *confdbTestSuite) TestConcurrentAccessWithOngoingWrite(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	const noHooks = true
+	s.setupConfdbScenario(c, noHooks, nil, nil)
+
+	err := confdbstate.SetWriteTransaction(s.state, s.devAccID, "network", "1")
+	c.Assert(err, IsNil)
+
+	view := s.dbSchema.View("setup-wifi")
+	// reading from API
+	_, err = confdbstate.LoadConfdbAsync(s.state, view, []string{"ssid"})
+	c.Assert(err, ErrorMatches, fmt.Sprintf("cannot access confdb view %s/network/setup-wifi: ongoing write transaction", s.devAccID))
+
+	// reading from the snap
+	mockHandler := hooktest.NewMockHandler()
+	ctx, err := hookstate.NewContext(nil, s.state, nil, mockHandler, "")
+	c.Assert(err, IsNil)
+
+	_, err = confdbstate.GetTransactionForSnapctlGet(ctx, view)
+	c.Assert(err, ErrorMatches, fmt.Sprintf("cannot access confdb view %s/network/setup-wifi: ongoing write transaction", s.devAccID))
+
+	// writing (used both from snap or API)
+	_, _, err = confdbstate.GetTransactionToSet(nil, s.state, view)
+	c.Assert(err, ErrorMatches, fmt.Sprintf("cannot write confdb through view %s/network/setup-wifi: ongoing transaction", s.devAccID))
+}
+
+func (s *confdbTestSuite) TestConcurrentAccessWithOngoingRead(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	const noHooks = true
+	s.setupConfdbScenario(c, noHooks, []string{"custodian-snap"}, nil)
+
+	err := confdbstate.AddReadTransaction(s.state, s.devAccID, "network", "1")
+	c.Assert(err, IsNil)
+
+	view := s.dbSchema.View("setup-wifi")
+	// writing (used both from snap or API) conflicts
+	_, _, err = confdbstate.GetTransactionToSet(nil, s.state, view)
+	c.Assert(err, ErrorMatches, fmt.Sprintf("cannot write confdb through view %s/network/setup-wifi: ongoing transaction", s.devAccID))
+
+	// we can read from the API and the snap concurrently with other reads
+	_, err = confdbstate.LoadConfdbAsync(s.state, view, []string{"ssid"})
+	c.Assert(err, IsNil)
+
+	mockHandler := hooktest.NewMockHandler()
+	ctx, err := hookstate.NewContext(nil, s.state, nil, mockHandler, "")
+	c.Assert(err, IsNil)
+
+	_, err = confdbstate.GetTransactionForSnapctlGet(ctx, view)
+	c.Assert(err, IsNil)
 }

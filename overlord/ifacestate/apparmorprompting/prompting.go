@@ -150,13 +150,6 @@ func New(s *state.State) (m *InterfacesRequestsManager, retErr error) {
 
 // Run is the main run loop for the manager, and must be called using tomb.Go.
 func (m *InterfacesRequestsManager) run() error {
-	m.lock.Lock()
-	// disconnect replaces the listener, so keep track of the one we have
-	// right now, even though currently disconnect is only called when this
-	// function returns, so this isn't really necessary.
-	currentListener := m.listener
-	m.lock.Unlock()
-
 	m.tomb.Go(func() error {
 		logger.Debugf("starting prompting listener")
 		// listener.Run will return an error if and only if there's a real
@@ -165,14 +158,14 @@ func (m *InterfacesRequestsManager) run() error {
 		// returns, which only occurs when the manager tomb is dying. So we
 		// don't need to worry about the listener returning nil when we don't
 		// already expect to be exiting.
-		return listenerRun(currentListener)
+		return listenerRun(m.listener)
 	})
 
 run_loop:
 	for {
 		logger.Debugf("waiting prompt loop")
 		select {
-		case req, ok := <-listenerReqs(currentListener):
+		case req, ok := <-listenerReqs(m.listener):
 			if !ok {
 				// Reqs() closed, so an error occurred in the listener. In
 				// production, the listener does not close itself on error, so
@@ -210,8 +203,7 @@ func (m *InterfacesRequestsManager) handleListenerReq(req *listener.Request) err
 		return requestReply(req, nil)
 	}
 	snap := req.Label // Default to apparmor label, in case process is not a snap
-	tag, err := naming.ParseSecurityTag(req.Label)
-	if err == nil {
+	if tag, err := naming.ParseSecurityTag(req.Label); err == nil {
 		// the triggering process is a snap, so use instance name as snap field
 		snap = tag.InstanceName()
 	}
@@ -289,15 +281,12 @@ func (m *InterfacesRequestsManager) disconnect() error {
 	var errs []error
 	if m.listener != nil {
 		errs = append(errs, listenerClose(m.listener))
-		m.listener = nil
 	}
 	if m.prompts != nil {
 		errs = append(errs, m.prompts.Close())
-		m.prompts = nil
 	}
 	if m.rules != nil {
 		errs = append(errs, m.rules.Close())
-		m.rules = nil
 	}
 
 	return strutil.JoinErrors(errs...)

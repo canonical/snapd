@@ -77,7 +77,7 @@ func (s *requestrulesSuite) SetUpTest(c *C) {
 	s.ruleNotices = make([]*noticeInfo, 0)
 	dirs.SetRootDir(c.MkDir())
 	s.AddCleanup(func() { dirs.SetRootDir("") })
-	c.Assert(os.MkdirAll(dirs.SnapdStateDir(dirs.GlobalRootDir), 0o700), IsNil)
+	c.Assert(os.MkdirAll(dirs.SnapdStateDir(dirs.GlobalRootDir), 0o755), IsNil)
 }
 
 func mustParsePathPattern(c *C, patternStr string) *patterns.PathPattern {
@@ -93,8 +93,8 @@ func (s *requestrulesSuite) TestNew(c *C) {
 }
 
 func (s *requestrulesSuite) TestNewErrors(c *C) {
-	// Create file at prompting.StateDir so that EnsureStateDir fails
-	stateDir := prompting.StateDir()
+	// Create file at dirs.SnapInterfacesRequestsStateDir so that dir creation fails
+	stateDir := dirs.SnapInterfacesRequestsStateDir
 	f, err := os.Create(stateDir)
 	c.Assert(err, IsNil)
 	f.Close() // No need to keep the file open
@@ -107,7 +107,7 @@ func (s *requestrulesSuite) TestNewErrors(c *C) {
 	c.Assert(os.Remove(stateDir), IsNil)
 
 	// Create directory to conflict with max ID mmap
-	maxIDFilepath := filepath.Join(prompting.StateDir(), "request-rule-max-id")
+	maxIDFilepath := filepath.Join(dirs.SnapInterfacesRequestsStateDir, "request-rule-max-id")
 	c.Assert(os.MkdirAll(maxIDFilepath, 0o700), IsNil)
 
 	rdb, err = requestrules.New(s.defaultNotifyRule)
@@ -121,9 +121,9 @@ func (s *requestrulesSuite) TestNewErrors(c *C) {
 // prepDBPath creates the the prompting state dir and returns the path of the
 // rule DB.
 func (s *requestrulesSuite) prepDBPath(c *C) string {
-	dbPath := filepath.Join(prompting.StateDir(), "request-rules.json")
+	dbPath := filepath.Join(dirs.SnapInterfacesRequestsStateDir, "request-rules.json")
 	parent := filepath.Dir(dbPath)
-	c.Assert(os.MkdirAll(parent, 0o700), IsNil)
+	c.Assert(os.MkdirAll(parent, 0o755), IsNil)
 	return dbPath
 }
 
@@ -142,7 +142,7 @@ func (s *requestrulesSuite) testLoadError(c *C, expectedErr string, rules []*req
 }
 
 func (s *requestrulesSuite) checkWrittenRuleDB(c *C, expectedRules []*requestrules.Rule) {
-	dbPath := filepath.Join(prompting.StateDir(), "request-rules.json")
+	dbPath := filepath.Join(dirs.SnapInterfacesRequestsStateDir, "request-rules.json")
 
 	if expectedRules == nil {
 		expectedRules = []*requestrules.Rule{}
@@ -718,8 +718,8 @@ func (s *requestrulesSuite) TestCloseErrors(c *C) {
 	c.Assert(err, IsNil)
 
 	// Mark state dir as non-writeable so save fails
-	c.Assert(os.Chmod(prompting.StateDir(), 0o500), IsNil)
-	defer os.Chmod(prompting.StateDir(), 0o700)
+	c.Assert(os.Chmod(dirs.SnapInterfacesRequestsStateDir, 0o500), IsNil)
+	defer os.Chmod(dirs.SnapInterfacesRequestsStateDir, 0o755)
 
 	c.Check(rdb.Close(), NotNil)
 }
@@ -971,9 +971,9 @@ func (s *requestrulesSuite) TestAddRuleErrors(c *C) {
 	// Failure to save rule DB should roll-back adding the rule when it does not
 	// merge with an existing rule, and leave the DB unchanged.
 	// Set DB parent directory as read-only.
-	c.Assert(os.Chmod(prompting.StateDir(), 0o500), IsNil)
+	c.Assert(os.Chmod(dirs.SnapInterfacesRequestsStateDir, 0o500), IsNil)
 	result, err := addRuleFromTemplate(c, rdb, template, &addRuleContents{PathPattern: "/other", Permissions: []string{"execute"}})
-	c.Assert(os.Chmod(prompting.StateDir(), 0o700), IsNil)
+	c.Assert(os.Chmod(dirs.SnapInterfacesRequestsStateDir, 0o755), IsNil)
 	c.Check(err, NotNil)
 	c.Check(result, IsNil)
 	// Failure should result in no changes to rules, written or in-memory, and no notices
@@ -985,9 +985,9 @@ func (s *requestrulesSuite) TestAddRuleErrors(c *C) {
 	// with an existing rule, re-add the original rule, and leave the DB
 	// unchanged.
 	// Set DB parent directory as read-only.
-	c.Assert(os.Chmod(prompting.StateDir(), 0o500), IsNil)
+	c.Assert(os.Chmod(dirs.SnapInterfacesRequestsStateDir, 0o500), IsNil)
 	result, err = addRuleFromTemplate(c, rdb, template, &addRuleContents{Permissions: []string{"execute"}})
-	c.Assert(os.Chmod(prompting.StateDir(), 0o700), IsNil)
+	c.Assert(os.Chmod(dirs.SnapInterfacesRequestsStateDir, 0o755), IsNil)
 	c.Check(err, NotNil)
 	c.Check(result, IsNil)
 	// Failure should result in no changes to rules, written or in-memory, and no notices
@@ -1302,7 +1302,7 @@ func (s *requestrulesSuite) TestAddRuleMerges(c *C) {
 		// Set root so rule creation does not interfere between test cases
 		dirs.SetRootDir(c.MkDir())
 		s.AddCleanup(func() { dirs.SetRootDir("") })
-		c.Assert(os.MkdirAll(dirs.SnapdStateDir(dirs.GlobalRootDir), 0o700), IsNil)
+		c.Assert(os.MkdirAll(dirs.SnapdStateDir(dirs.GlobalRootDir), 0o755), IsNil)
 
 		rdb, err := requestrules.New(s.defaultNotifyRule)
 		c.Assert(err, IsNil)
@@ -1754,7 +1754,7 @@ func (s *requestrulesSuite) TestIsPathPermAllowedSimple(c *C) {
 
 		if testCase.ruleContents != nil {
 			// Clean up the rules DB so the next rdb has a clean slate
-			dbPath := filepath.Join(prompting.StateDir(), "request-rules.json")
+			dbPath := filepath.Join(dirs.SnapInterfacesRequestsStateDir, "request-rules.json")
 			c.Assert(os.Remove(dbPath), IsNil)
 		}
 	}
@@ -2120,11 +2120,11 @@ func (s *requestrulesSuite) TestRemoveRuleErrors(c *C) {
 
 	// Failure to save rule DB should roll-back removal and leave DB unchanged.
 	// Set DB parent directory as read-only.
-	c.Assert(os.Chmod(prompting.StateDir(), 0o500), IsNil)
+	c.Assert(os.Chmod(dirs.SnapInterfacesRequestsStateDir, 0o500), IsNil)
 	result, err = rdb.RemoveRule(rule.User, rule.ID)
 	c.Check(err, NotNil)
 	c.Check(result, IsNil)
-	c.Assert(os.Chmod(prompting.StateDir(), 0o700), IsNil)
+	c.Assert(os.Chmod(dirs.SnapInterfacesRequestsStateDir, 0o755), IsNil)
 
 	// Check that rule remains and no notices have been recorded
 	accessed, err := rdb.RuleWithID(rule.User, rule.ID)
@@ -2219,7 +2219,7 @@ func (s *requestrulesSuite) TestRemoveRulesForSnapInterface(c *C) {
 }
 
 func (s *requestrulesSuite) TestRemoveRulesForSnapInterfaceErrors(c *C) {
-	dbPath := filepath.Join(prompting.StateDir(), "request-rules.json")
+	dbPath := filepath.Join(dirs.SnapInterfacesRequestsStateDir, "request-rules.json")
 
 	rdb, err := requestrules.New(s.defaultNotifyRule)
 	c.Assert(err, IsNil)
@@ -2263,8 +2263,8 @@ func (s *requestrulesSuite) TestRemoveRulesForSnapInterfaceErrors(c *C) {
 	// Failure to save rule DB should roll-back removing the rules and leave the
 	// DB unchanged. Set DB parent directory as read-only.
 	func() {
-		c.Assert(os.Chmod(prompting.StateDir(), 0o500), IsNil)
-		defer os.Chmod(prompting.StateDir(), 0o700)
+		c.Assert(os.Chmod(dirs.SnapInterfacesRequestsStateDir, 0o500), IsNil)
+		defer os.Chmod(dirs.SnapInterfacesRequestsStateDir, 0o755)
 
 		removed, err := rdb.RemoveRulesForSnap(s.defaultUser, "amberol")
 		c.Check(err, ErrorMatches, ".*permission denied")
@@ -2604,8 +2604,8 @@ func (s *requestrulesSuite) TestPatchRuleErrors(c *C) {
 
 	// Save fails
 	func() {
-		c.Assert(os.Chmod(prompting.StateDir(), 0o500), IsNil)
-		defer os.Chmod(prompting.StateDir(), 0o700)
+		c.Assert(os.Chmod(dirs.SnapInterfacesRequestsStateDir, 0o500), IsNil)
+		defer os.Chmod(dirs.SnapInterfacesRequestsStateDir, 0o755)
 		result, err = rdb.PatchRule(rule.User, rule.ID, nil)
 		c.Check(err, NotNil)
 		c.Check(result, IsNil)

@@ -2,6 +2,7 @@
 import argparse
 import os
 from subprocess import run, check_call, check_output
+import subprocess
 import tempfile
 import pathlib
 import platform
@@ -313,6 +314,13 @@ def install_file_to_path(file, dest_dir, dest_path, sysroot):
 def package_files(pkgs, sysroot):
     out = check_output(["dpkg", "--admindir=" + sysroot + "/var/lib/dpkg/", "-L"] + pkgs)
     return out.decode("utf-8").splitlines()
+
+
+def dpkg_architecture(sysroot, variable):
+    proc_env = os.environ.copy()
+    proc_env["DPKG_DATADIR"] = sysroot + "/usr/share/dpkg"
+    out = check_output(["dpkg-architecture", "-q", variable], env=proc_env).decode("utf-8")
+    return out.splitlines()[0]
 
 
 def install_systemd_files(dest_dir, sysroot, ubuntu_release):
@@ -673,12 +681,55 @@ def verify_missing_dlopen(destdir, libdir):
     return not fatal
 
 
-def get_deb_arch(sysroot):
-    proc_env = os.environ.copy()
-    proc_env["DPKG_DATADIR"] = sysroot + "/usr/share/dpkg"
-    out = check_output(["dpkg-architecture", "-q",
-                        "DEB_HOST_MULTIARCH"], env=proc_env).decode("utf-8")
-    return out.splitlines()[0]
+def mkcpio(path, output, *, compress=True):
+    cpio_cmd = subprocess.Popen(['cpio', '--null', '--reproducible', '--create', '--quiet', '--format=newc', '--owner=0:0'],
+                                stdin=subprocess.PIPE, stdout=subprocess.PIPE if compress else output,
+                                cwd=path)
+
+    if compress:
+        zstd_cmd = subprocess.Popen(['zstd', '-1', '-T0'],
+                                    stdin=cpio_cmd.stdout, stdout=output)
+    else:
+        zstd_cmd = None
+
+    file_list = []
+    for root, dirs, files in os.walk(path):
+        for d in dirs:
+            file_list.append(os.path.join(os.path.relpath(root, path), d))
+        for f in files:
+            file_list.append(os.path.join(os.path.relpath(root, path), f))
+    file_list = sorted(file_list)
+    for path in file_list:
+        cpio_cmd.stdin.write(path.encode('ascii'))
+        cpio_cmd.stdin.write(b'\0')
+
+    cpio_cmd.stdin.close()
+    if zstd_cmd is not None:
+        zstd_cmd.wait()
+    cpio_cmd.wait()
+    if cpio_cmd.returncode != 0:
+        raise RuntimeError("cpio failed")
+    if zstd_cmd is not None:
+        if zstd_cmd.returncode != 0:
+            raise RuntimeError("zstd failed")
+
+
+def mk_amd_ucode(root, output):
+    for path in glob.glob(f'{root}/lib/firmware/amd-ucode/*.bin'):
+        with open(path, 'rb') as f:
+            shutil.copyfileobj(f, output)
+
+
+def mk_intel_ucode(root, output_path):
+    check_call(['iucode_tool', f'--write-to={output_path}', f'{root}/lib/firmware/intel-ucode/'])
+
+
+def reset_time(path):
+    for root, dirs, files in os.walk(path):
+        for d in dirs:
+            os.utime(os.path.join(root, d), (0, 0))
+        for f in files:
+            os.utime(os.path.join(root, f), (0, 0))
 
 
 def get_ubuntu_release(sysroot):
@@ -699,7 +750,6 @@ def release_higher_or_equal(release1, release2):
 
 
 def create_initrd(parser, args):
-    # TODO generate microcode instead of shipping in debian package
     rootfs = "/"
     if not args.kerneldir:
         args.kerneldir = "/lib/modules/%s" % args.kernelver
@@ -712,7 +762,7 @@ def create_initrd(parser, args):
     if args.kernelver:
         args.output = "-".join([args.output, args.kernelver])
     with tempfile.TemporaryDirectory(suffix=".ubuntu-core-initramfs") as d:
-        deb_arch = get_deb_arch(rootfs)
+        deb_arch = dpkg_architecture(rootfs, "DEB_HOST_MULTIARCH")
         ubuntu_release = get_ubuntu_release(rootfs)
 
         kernel_root = os.path.join(d, "kernel")
@@ -783,20 +833,23 @@ def create_initrd(parser, args):
         # Create manifest with packages with files included in the initramfs
         create_initrd_pkg_list(main, rootfs)
 
+        arch = dpkg_architecture(args.root, "DEB_HOST_ARCH")
+
         # Finally, write it
         with open(args.output, "wb") as output:
-            for early in glob.iglob("%s/early/*.cpio" % args.skeleton):
-                with open(early, "rb") as f:
-                    shutil.copyfileobj(f, output)
-            output.write(
-                run(
-                    "find . | cpio --create --quiet --format='newc' --owner=0:0 | zstd -1 -T0",
-                    cwd=main,
-                    capture_output=True,
-                    shell=True,
-                    check=True,
-                ).stdout)
+            if arch == "amd64":
+                with tempfile.TemporaryDirectory(suffix='ubuntu-core-initramfs') as d:
+                    microcode_dir = os.path.join(d, 'kernel/x86/microcode')
+                    os.makedirs(microcode_dir)
+                    with open(os.path.join(microcode_dir, 'AuthenticAMD.bin'), 'wb') as f:
+                        mk_amd_ucode(args.root, f)
+                    mk_intel_ucode(args.root, os.path.join(microcode_dir, 'GenuineIntel.bin'))
+                    # Time is irrelevant. And we should make it reproducible.
+                    # It is also what update-microcode-initrd from package does.
+                    reset_time(d)
+                    mkcpio(d, output, compress=False)
 
+            mkcpio(main, output)
 
 def create_efi(parser, args):
     if args.root:

@@ -42,6 +42,7 @@ import (
 	"github.com/snapcore/snapd/sandbox/apparmor/notify"
 	"github.com/snapcore/snapd/sandbox/apparmor/notify/listener"
 	"github.com/snapcore/snapd/testtime"
+	"github.com/snapcore/snapd/testutil"
 	"github.com/snapcore/snapd/timeutil"
 )
 
@@ -57,8 +58,9 @@ type requestpromptsSuite struct {
 	defaultUser         uint32
 	promptNotices       []*noticeInfo
 
-	tmpdir    string
-	maxIDPath string
+	tmpdir          string
+	legacyMaxIDPath string
+	maxIDPath       string
 }
 
 var _ = Suite(&requestpromptsSuite{})
@@ -77,7 +79,8 @@ func (s *requestpromptsSuite) SetUpTest(c *C) {
 	s.promptNotices = make([]*noticeInfo, 0)
 	s.tmpdir = c.MkDir()
 	dirs.SetRootDir(s.tmpdir)
-	s.maxIDPath = filepath.Join(dirs.SnapRunDir, "request-prompt-max-id")
+	s.legacyMaxIDPath = filepath.Join(dirs.SnapRunDir, "request-prompt-max-id")
+	s.maxIDPath = filepath.Join(dirs.SnapInterfacesRequestsRunDir, "request-prompt-max-id")
 }
 
 func (s *requestpromptsSuite) TestNew(c *C) {
@@ -199,7 +202,7 @@ func (s *requestpromptsSuite) TestNewNextIDUniqueIDs(c *C) {
 	})
 	defer restore()
 
-	c.Assert(os.MkdirAll(dirs.SnapRunDir, 0o755), IsNil)
+	c.Assert(os.MkdirAll(dirs.SnapInterfacesRequestsRunDir, 0o755), IsNil)
 
 	var initialMaxID uint64 = 42
 	var initialData [8]byte
@@ -252,6 +255,37 @@ func (s *requestpromptsSuite) checkWrittenMaxID(c *C, id uint64) {
 	c.Assert(data, HasLen, 8)
 	writtenID := *(*uint64)(unsafe.Pointer(&data[0]))
 	c.Assert(writtenID, Equals, id)
+}
+
+func (s *requestpromptsSuite) TestNewNextIDCompatibility(c *C) {
+	restore := requestprompts.MockSendReply(func(listenerReq *listener.Request, allowedPermission notify.AppArmorPermission) error {
+		c.Fatalf("should not have called sendReply")
+		return nil
+	})
+	defer restore()
+
+	c.Assert(os.MkdirAll(dirs.SnapRunDir, 0o755), IsNil)
+
+	var initialMaxID uint64 = 42
+	var initialData [8]byte
+	*(*uint64)(unsafe.Pointer(&initialData[0])) = initialMaxID
+	osutil.AtomicWriteFile(s.legacyMaxIDPath, initialData[:], 0600, 0)
+
+	pdb1, err := requestprompts.New(s.defaultNotifyPrompt)
+	c.Assert(err, IsNil)
+	defer pdb1.Close()
+	expectedID := initialMaxID + 1
+	nextID, err := pdb1.NextID()
+	c.Check(err, IsNil)
+	c.Check(nextID, Equals, prompting.IDType(expectedID))
+	s.checkWrittenMaxID(c, expectedID)
+
+	// Set maxIDPath to legacyMaxIDPath so checkWrittenID checks legacy path.
+	// Since the legacy path existed, it should have been hard linked to the
+	// new path, and it should have been updated as the max ID updated.
+	restore = testutil.Mock(&s.maxIDPath, s.legacyMaxIDPath)
+	defer restore()
+	s.checkWrittenMaxID(c, expectedID)
 }
 
 func (s *requestpromptsSuite) TestAddOrMerge(c *C) {

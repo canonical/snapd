@@ -22,14 +22,11 @@ import (
 	"time"
 
 	"github.com/snapcore/snapd/osutil/udev/netlink"
+	"github.com/snapcore/snapd/testutil"
 )
 
 func MockInput(newInput TriggerProvider) (restore func()) {
-	oldInput := trigger
-	trigger = newInput
-	return func() {
-		trigger = oldInput
-	}
+	return testutil.Mock(&trigger, newInput)
 }
 
 type TriggerProvider = triggerProvider
@@ -64,37 +61,24 @@ func (m *mockUEventConnection) Monitor(queue chan netlink.UEvent, errors chan er
 }
 
 func MockUEventChannel(events chan netlink.UEvent) (restore func()) {
-	oldGetUEventConn := getUEventConn
-	getUEventConn = func() ueventConnection {
+	return testutil.Mock(&getUEventConn, func() ueventConnection {
 		return &mockUEventConnection{events}
-	}
-
-	return func() {
-		getUEventConn = oldGetUEventConn
-	}
+	})
 }
 
 func MockUEvent(events []netlink.UEvent) (restore func()) {
-	oldGetUEventConn := getUEventConn
 	e := make(chan netlink.UEvent)
 	go func() {
 		for _, event := range events {
 			e <- event
 		}
 	}()
-	getUEventConn = func() ueventConnection {
-		return &mockUEventConnection{e}
-	}
 
-	return func() {
-		getUEventConn = oldGetUEventConn
-	}
+	return testutil.Mock(&getUEventConn, func() ueventConnection {
+		return &mockUEventConnection{e}
+	})
 }
 
 func MockTimeAfter(f func(d time.Duration) <-chan time.Time) (restore func()) {
-	old := timeAfter
-	timeAfter = f
-	return func() {
-		f = old
-	}
+	return testutil.Mock(&timeAfter, f)
 }

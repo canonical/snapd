@@ -48,7 +48,7 @@ jobs:
       tasks: 'tests/...'
       rules: ''
       use-snapd-snap-from-master: true
-      spread-snapd-deb-from-repo: false
+      spread-env: "SPREAD_SNAPD_DEB_FROM_REPO=false SPREAD_MODIFY_CORE_SNAP_FOR_REEXEC=0 SPREAD_SNAP_REEXEC=0"
     strategy:
       fail-fast: false
       matrix:

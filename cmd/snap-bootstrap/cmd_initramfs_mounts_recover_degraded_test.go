@@ -23,6 +23,8 @@ import (
 	. "gopkg.in/check.v1"
 
 	main "github.com/snapcore/snapd/cmd/snap-bootstrap"
+
+	"github.com/snapcore/snapd/boot"
 )
 
 func (s *initramfsMountsSuite) TestInitramfsDegradedState(c *C) {
@@ -36,13 +38,19 @@ func (s *initramfsMountsSuite) TestInitramfsDegradedState(c *C) {
 		{
 			r: main.RecoverDegradedState{
 				UbuntuBoot: main.PartitionState{
-					MountState: "mounted",
+					PartitionState: boot.PartitionState{
+						MountState: "mounted",
+					},
 				},
 				UbuntuData: main.PartitionState{
-					MountState: "mounted",
+					PartitionState: boot.PartitionState{
+						MountState: "mounted",
+					},
 				},
 				UbuntuSave: main.PartitionState{
-					MountState: "absent-but-optional",
+					PartitionState: boot.PartitionState{
+						MountState: "absent-but-optional",
+					},
 				},
 			},
 			degraded: false,
@@ -51,13 +59,19 @@ func (s *initramfsMountsSuite) TestInitramfsDegradedState(c *C) {
 		{
 			r: main.RecoverDegradedState{
 				UbuntuBoot: main.PartitionState{
-					MountState: "mounted",
+					PartitionState: boot.PartitionState{
+						MountState: "mounted",
+					},
 				},
 				UbuntuData: main.PartitionState{
-					MountState: "mounted",
+					PartitionState: boot.PartitionState{
+						MountState: "mounted",
+					},
 				},
 				UbuntuSave: main.PartitionState{
-					MountState: "mounted",
+					PartitionState: boot.PartitionState{
+						MountState: "mounted",
+					},
 				},
 			},
 			degraded: false,
@@ -67,13 +81,19 @@ func (s *initramfsMountsSuite) TestInitramfsDegradedState(c *C) {
 		{
 			r: main.RecoverDegradedState{
 				UbuntuBoot: main.PartitionState{
-					MountState: "error-mounting",
+					PartitionState: boot.PartitionState{
+						MountState: "error-mounting",
+					},
 				},
 				UbuntuData: main.PartitionState{
-					MountState: "mounted",
+					PartitionState: boot.PartitionState{
+						MountState: "mounted",
+					},
 				},
 				UbuntuSave: main.PartitionState{
-					MountState: "absent-but-optional",
+					PartitionState: boot.PartitionState{
+						MountState: "absent-but-optional",
+					},
 				},
 				ErrorLog: []string{
 					"cannot find ubuntu-boot partition on disk 259:0",
@@ -85,13 +105,19 @@ func (s *initramfsMountsSuite) TestInitramfsDegradedState(c *C) {
 		{
 			r: main.RecoverDegradedState{
 				UbuntuBoot: main.PartitionState{
-					MountState: "mounted",
+					PartitionState: boot.PartitionState{
+						MountState: "mounted",
+					},
 				},
 				UbuntuData: main.PartitionState{
-					MountState: "error-mounting",
+					PartitionState: boot.PartitionState{
+						MountState: "error-mounting",
+					},
 				},
 				UbuntuSave: main.PartitionState{
-					MountState: "absent-but-optional",
+					PartitionState: boot.PartitionState{
+						MountState: "absent-but-optional",
+					},
 				},
 				ErrorLog: []string{
 					"cannot find ubuntu-data partition on disk 259:0",
@@ -103,13 +129,19 @@ func (s *initramfsMountsSuite) TestInitramfsDegradedState(c *C) {
 		{
 			r: main.RecoverDegradedState{
 				UbuntuBoot: main.PartitionState{
-					MountState: "mounted",
+					PartitionState: boot.PartitionState{
+						MountState: "mounted",
+					},
 				},
 				UbuntuData: main.PartitionState{
-					MountState: "mounted",
+					PartitionState: boot.PartitionState{
+						MountState: "mounted",
+					},
 				},
 				UbuntuSave: main.PartitionState{
-					MountState: "error-mounting",
+					PartitionState: boot.PartitionState{
+						MountState: "error-mounting",
+					},
 				},
 				ErrorLog: []string{
 					"cannot find ubuntu-save partition on disk 259:0",
@@ -123,17 +155,23 @@ func (s *initramfsMountsSuite) TestInitramfsDegradedState(c *C) {
 		{
 			r: main.RecoverDegradedState{
 				UbuntuBoot: main.PartitionState{
-					MountState: "mounted",
+					PartitionState: boot.PartitionState{
+						MountState: "mounted",
+					},
 				},
 				UbuntuData: main.PartitionState{
-					MountState:  "mounted",
-					UnlockState: "unlocked",
-					UnlockKey:   "run",
+					PartitionState: boot.PartitionState{
+						MountState:  "mounted",
+						UnlockState: "unlocked",
+						UnlockKey:   "run",
+					},
 				},
 				UbuntuSave: main.PartitionState{
-					MountState:  "mounted",
-					UnlockState: "unlocked",
-					UnlockKey:   "run",
+					PartitionState: boot.PartitionState{
+						MountState:  "mounted",
+						UnlockState: "unlocked",
+						UnlockKey:   "run",
+					},
 				},
 			},
 			encrypted: true,
@@ -144,17 +182,23 @@ func (s *initramfsMountsSuite) TestInitramfsDegradedState(c *C) {
 		{
 			r: main.RecoverDegradedState{
 				UbuntuBoot: main.PartitionState{
-					MountState: "error-mounting",
+					PartitionState: boot.PartitionState{
+						MountState: "error-mounting",
+					},
 				},
 				UbuntuData: main.PartitionState{
-					MountState:  "mounted",
-					UnlockState: "unlocked",
-					UnlockKey:   "fallback",
+					PartitionState: boot.PartitionState{
+						MountState:  "mounted",
+						UnlockState: "unlocked",
+						UnlockKey:   "fallback",
+					},
 				},
 				UbuntuSave: main.PartitionState{
-					MountState:  "mounted",
-					UnlockState: "unlocked",
-					UnlockKey:   "run",
+					PartitionState: boot.PartitionState{
+						MountState:  "mounted",
+						UnlockState: "unlocked",
+						UnlockKey:   "run",
+					},
 				},
 				ErrorLog: []string{
 					"cannot find ubuntu-boot partition on disk 259:0",
@@ -167,17 +211,23 @@ func (s *initramfsMountsSuite) TestInitramfsDegradedState(c *C) {
 		{
 			r: main.RecoverDegradedState{
 				UbuntuBoot: main.PartitionState{
-					MountState: "mounted",
+					PartitionState: boot.PartitionState{
+						MountState: "mounted",
+					},
 				},
 				UbuntuData: main.PartitionState{
-					MountState:  "mounted",
-					UnlockState: "unlocked",
-					UnlockKey:   "fallback",
+					PartitionState: boot.PartitionState{
+						MountState:  "mounted",
+						UnlockState: "unlocked",
+						UnlockKey:   "fallback",
+					},
 				},
 				UbuntuSave: main.PartitionState{
-					MountState:  "mounted",
-					UnlockState: "unlocked",
-					UnlockKey:   "run",
+					PartitionState: boot.PartitionState{
+						MountState:  "mounted",
+						UnlockState: "unlocked",
+						UnlockKey:   "run",
+					},
 				},
 				ErrorLog: []string{
 					"cannot unlock encrypted ubuntu-data with sealed run key: failed to unlock ubuntu-data",
@@ -190,17 +240,23 @@ func (s *initramfsMountsSuite) TestInitramfsDegradedState(c *C) {
 		{
 			r: main.RecoverDegradedState{
 				UbuntuBoot: main.PartitionState{
-					MountState: "mounted",
+					PartitionState: boot.PartitionState{
+						MountState: "mounted",
+					},
 				},
 				UbuntuData: main.PartitionState{
-					MountState:  "mounted",
-					UnlockState: "unlocked",
-					UnlockKey:   "run",
+					PartitionState: boot.PartitionState{
+						MountState:  "mounted",
+						UnlockState: "unlocked",
+						UnlockKey:   "run",
+					},
 				},
 				UbuntuSave: main.PartitionState{
-					MountState:  "mounted",
-					UnlockState: "unlocked",
-					UnlockKey:   "fallback",
+					PartitionState: boot.PartitionState{
+						MountState:  "mounted",
+						UnlockState: "unlocked",
+						UnlockKey:   "fallback",
+					},
 				},
 				ErrorLog: []string{
 					"cannot unlock encrypted ubuntu-save with sealed run key: failed to unlock ubuntu-save",
@@ -213,17 +269,23 @@ func (s *initramfsMountsSuite) TestInitramfsDegradedState(c *C) {
 		{
 			r: main.RecoverDegradedState{
 				UbuntuBoot: main.PartitionState{
-					MountState: "mounted",
+					PartitionState: boot.PartitionState{
+						MountState: "mounted",
+					},
 				},
 				UbuntuData: main.PartitionState{
-					MountState:  "mounted",
-					UnlockState: "unlocked",
-					UnlockKey:   "run",
+					PartitionState: boot.PartitionState{
+						MountState:  "mounted",
+						UnlockState: "unlocked",
+						UnlockKey:   "run",
+					},
 				},
 				UbuntuSave: main.PartitionState{
-					MountState:  "mounted",
-					UnlockState: "unlocked",
-					UnlockKey:   "recovery",
+					PartitionState: boot.PartitionState{
+						MountState:  "mounted",
+						UnlockState: "unlocked",
+						UnlockKey:   "recovery",
+					},
 				},
 				ErrorLog: []string{
 					"cannot unlock encrypted ubuntu-save with sealed run key: failed to unlock ubuntu-save",
@@ -236,17 +298,23 @@ func (s *initramfsMountsSuite) TestInitramfsDegradedState(c *C) {
 		{
 			r: main.RecoverDegradedState{
 				UbuntuBoot: main.PartitionState{
-					MountState: "mounted",
+					PartitionState: boot.PartitionState{
+						MountState: "mounted",
+					},
 				},
 				UbuntuData: main.PartitionState{
-					MountState:  "mounted",
-					UnlockState: "unlocked",
-					UnlockKey:   "fallback",
+					PartitionState: boot.PartitionState{
+						MountState:  "mounted",
+						UnlockState: "unlocked",
+						UnlockKey:   "fallback",
+					},
 				},
 				UbuntuSave: main.PartitionState{
-					MountState:  "mounted",
-					UnlockState: "unlocked",
-					UnlockKey:   "fallback",
+					PartitionState: boot.PartitionState{
+						MountState:  "mounted",
+						UnlockState: "unlocked",
+						UnlockKey:   "fallback",
+					},
 				},
 				ErrorLog: []string{
 					"cannot unlock encrypted ubuntu-data with sealed run key: failed to unlock ubuntu-data",
@@ -259,16 +327,22 @@ func (s *initramfsMountsSuite) TestInitramfsDegradedState(c *C) {
 		{
 			r: main.RecoverDegradedState{
 				UbuntuBoot: main.PartitionState{
-					MountState: "mounted",
+					PartitionState: boot.PartitionState{
+						MountState: "mounted",
+					},
 				},
 				UbuntuData: main.PartitionState{
-					MountState:  "mounted",
-					UnlockState: "unlocked",
-					UnlockKey:   "fallback",
+					PartitionState: boot.PartitionState{
+						MountState:  "mounted",
+						UnlockState: "unlocked",
+						UnlockKey:   "fallback",
+					},
 				},
 				UbuntuSave: main.PartitionState{
-					MountState:  "not-mounted",
-					UnlockState: "not-unlocked",
+					PartitionState: boot.PartitionState{
+						MountState:  "not-mounted",
+						UnlockState: "not-unlocked",
+					},
 				},
 				ErrorLog: []string{
 					"cannot unlock encrypted ubuntu-save with sealed run key: failed to unlock ubuntu-save",

@@ -829,6 +829,13 @@ defaults:
 	// this overlord will use the proper EarlyConfig implementation
 	o, err := overlord.New(nil)
 	c.Assert(err, IsNil)
+	func() {
+		st := o.State()
+		st.Lock()
+		defer st.Unlock()
+		// set a fake fde state to avoid failure in initialization
+		st.Set("fde", &struct{}{})
+	}()
 	o.InterfaceManager().DisableUDevMonitor()
 	c.Assert(o.StartUp(), IsNil)
 
@@ -865,6 +872,13 @@ defaults:
 	// this overlord will use the proper EarlyConfig implementation
 	o, err := overlord.New(nil)
 	c.Assert(err, IsNil)
+	func() {
+		st := o.State()
+		st.Lock()
+		defer st.Unlock()
+		// set a fake fde state to avoid failure in initialization
+		st.Set("fde", &struct{}{})
+	}()
 	o.InterfaceManager().DisableUDevMonitor()
 	c.Assert(o.StartUp(), IsNil)
 

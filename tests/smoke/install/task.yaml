@@ -16,6 +16,9 @@ restore: |
     rm -f /home/test/stdout.log
     # required! in autopkgtest no suite restore is run at all
     snap remove --purge test-snapd-sh
+    for base in core18 core20 core22 core24; do
+        snap remove --purge test-snapd-sh-${base} || true
+    done
 
 debug: |
     tests.exec is-skipped && exit 0

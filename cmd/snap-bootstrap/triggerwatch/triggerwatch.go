@@ -29,11 +29,12 @@ import (
 
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil/udev/netlink"
+	"github.com/snapcore/snapd/timeutil"
 )
 
-var (
-	timeAfter = time.After
-)
+var timeAfter = func(d time.Duration) <-chan time.Time {
+	return timeutil.After(d)
+}
 
 type triggerProvider interface {
 	Open(filter triggerEventFilter, node string) (triggerDevice, error)

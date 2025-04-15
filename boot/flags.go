@@ -20,7 +20,6 @@
 package boot
 
 import (
-	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -307,25 +306,11 @@ func HostUbuntuDataForMode(mode string, mod gadget.Model) ([]string, error) {
 		// in run mode we have both /run/mnt/data and "/"
 		runDataRootfsMountLocations = []string{InitramfsDataDir, dirs.GlobalRootDir}
 	case ModeRecover:
-		// TODO: should this be it's own dedicated helper to read degraded.json?
-
 		// for recover mode, the source of truth to determine if we have the
 		// host mount is snap-bootstrap's /run/snapd/snap-bootstrap/degraded.json, so
 		// we have to go parse that
-		degradedJSONFile := filepath.Join(dirs.SnapBootstrapRunDir, "degraded.json")
-		b, err := os.ReadFile(degradedJSONFile)
-		if err != nil {
-			return nil, err
-		}
+		degradedJSON, err := LoadDiskUnlockState("degraded.json")
 
-		degradedJSON := struct {
-			UbuntuData struct {
-				MountState    string `json:"mount-state"`
-				MountLocation string `json:"mount-location"`
-			} `json:"ubuntu-data"`
-		}{}
-
-		err = json.Unmarshal(b, &degradedJSON)
 		if err != nil {
 			return nil, err
 		}

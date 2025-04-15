@@ -5428,3 +5428,218 @@ func (s *imageSuite) TestSetupSeedLocalComponentBadType(c *C) {
 	err := image.SetupSeed(s.tsto, model, opts)
 	c.Assert(err, ErrorMatches, "component comp1 has type kernel-modules while snap required20 defines type standard for it")
 }
+
+func (s *imageSuite) TestPrepareExtraAssertions(c *C) {
+	restore := image.MockTrusted(s.StoreSigning.Trusted)
+	defer restore()
+
+	restore = image.MockNewToolingStoreFromModel(func(model *asserts.Model, fallbackArchitecture string) (*tooling.ToolingStore, error) {
+		return s.tsto, nil
+	})
+	defer restore()
+
+	s.setupSnaps(c, map[string]string{
+		"pc-kernel": "canonical",
+		"pc":        "canonical",
+	}, "")
+
+	preparedir := c.MkDir()
+
+	model := s.Brands.Model("my-brand", "my-model", map[string]interface{}{
+		"display-name": "my display name",
+		"architecture": "amd64",
+		"gadget":       "pc",
+		"kernel":       "pc-kernel",
+	})
+
+	modelFn := filepath.Join(preparedir, "model.assertion")
+	err := os.WriteFile(modelFn, asserts.Encode(model), 0644)
+	c.Assert(err, IsNil)
+
+	// Create assertion for proxy store and write to file
+	proxyStoreAssertion, err := s.StoreSigning.Sign(asserts.StoreType, map[string]interface{}{
+		"store":        "my-proxy-store",
+		"operator-id":  "other-brand",
+		"authority-id": "canonical",
+		"url":          "https://my-proxy-store.com",
+		"timestamp":    time.Now().UTC().Format(time.RFC3339),
+	}, nil, "")
+	c.Assert(err, IsNil)
+	proxyFn := "proxy.assertion"
+	proxyFilePath := filepath.Join(preparedir, proxyFn)
+	err = os.WriteFile(proxyFilePath, asserts.Encode(proxyStoreAssertion), 0644)
+	c.Assert(err, IsNil)
+
+	accountAssertion, err := s.StoreSigning.Sign(asserts.AccountType, map[string]interface{}{
+		"type":         "account",
+		"authority-id": "canonical",
+		"account-id":   "other-brand",
+		"validation":   "verified",
+		"display-name": "Predef",
+		"timestamp":    time.Now().Format(time.RFC3339),
+	}, nil, "")
+	c.Assert(err, IsNil)
+	accountFn := "account.assertion"
+	accountFilePath := filepath.Join(preparedir, accountFn)
+	err = os.WriteFile(accountFilePath, asserts.Encode(accountAssertion), 0644)
+	c.Assert(err, IsNil)
+
+	// Prepare image with the two additional filepaths
+	err = image.Prepare(&image.Options{
+		ModelFile:            modelFn,
+		PrepareDir:           preparedir,
+		ExtraAssertionsFiles: []string{proxyFilePath, accountFilePath},
+	})
+	c.Assert(err, IsNil)
+
+	// check assertions
+	seedAssertsDir := filepath.Join(preparedir, "image/var/lib/snapd/seed/assertions")
+
+	c.Assert(filepath.Join(seedAssertsDir, "my-proxy-store.store"), testutil.FilePresent)
+	c.Assert(filepath.Join(seedAssertsDir, "other-brand.account"), testutil.FilePresent)
+}
+
+func (s *imageSuite) TestPrepareExtraAssertionsFileNotFound(c *C) {
+	restore := image.MockTrusted(s.StoreSigning.Trusted)
+	defer restore()
+
+	restore = image.MockNewToolingStoreFromModel(func(model *asserts.Model, fallbackArchitecture string) (*tooling.ToolingStore, error) {
+		return s.tsto, nil
+	})
+	defer restore()
+
+	s.setupSnaps(c, map[string]string{
+		"pc-kernel": "canonical",
+		"pc":        "canonical",
+	}, "")
+
+	preparedir := c.MkDir()
+
+	model := s.Brands.Model("my-brand", "my-model", map[string]interface{}{
+		"display-name": "my display name",
+		"architecture": "amd64",
+		"gadget":       "pc",
+		"kernel":       "pc-kernel",
+	})
+
+	modelFn := filepath.Join(preparedir, "model.assertion")
+	err := os.WriteFile(modelFn, asserts.Encode(model), 0644)
+	c.Assert(err, IsNil)
+
+	proxyFn := "proxy.assertion"
+	proxyFilePath := filepath.Join(preparedir, proxyFn)
+
+	accountFn := "account.assertion"
+	accountFilePath := filepath.Join(preparedir, accountFn)
+
+	// Prepare image with non-existent files
+	err = image.Prepare(&image.Options{
+		ModelFile:            modelFn,
+		PrepareDir:           preparedir,
+		ExtraAssertionsFiles: []string{proxyFilePath, accountFilePath},
+	})
+	c.Assert(err.Error(), testutil.Contains, "cannot read extra assertion: open "+proxyFilePath+": no such file or directory")
+}
+
+func (s *imageSuite) TestPrepareExtraAssertionsInvalidAssertion(c *C) {
+	restore := image.MockTrusted(s.StoreSigning.Trusted)
+	defer restore()
+
+	restore = image.MockNewToolingStoreFromModel(func(model *asserts.Model, fallbackArchitecture string) (*tooling.ToolingStore, error) {
+		return s.tsto, nil
+	})
+	defer restore()
+
+	s.setupSnaps(c, map[string]string{
+		"pc-kernel": "canonical",
+		"pc":        "canonical",
+	}, "")
+
+	preparedir := c.MkDir()
+
+	model := s.Brands.Model("my-brand", "my-model", map[string]interface{}{
+		"display-name": "my display name",
+		"architecture": "amd64",
+		"gadget":       "pc",
+		"kernel":       "pc-kernel",
+	})
+
+	modelFn := filepath.Join(preparedir, "model.assertion")
+	err := os.WriteFile(modelFn, asserts.Encode(model), 0644)
+	c.Assert(err, IsNil)
+
+	// Create assertions and write them to file
+	proxyStoreAssertion, err := s.StoreSigning.Sign(asserts.StoreType, map[string]interface{}{
+		"store":        "my-proxy-store",
+		"operator-id":  "other-brand",
+		"authority-id": "canonical",
+		"url":          "https://my-proxy-store.com",
+		"timestamp":    time.Now().Format(time.RFC3339),
+	}, nil, "")
+	c.Assert(err, IsNil)
+	proxyFn := "proxy.assertion"
+	proxyFilePath := filepath.Join(preparedir, proxyFn)
+	// The store assertion is not valid, only the first 10 bytes are written
+	// Simulate when e.g. the yaml syntax is wrong or a field is missing
+	err = os.WriteFile(proxyFilePath, asserts.Encode(proxyStoreAssertion)[:10], 0644)
+	c.Assert(err, IsNil)
+
+	accountAssertion, err := s.StoreSigning.Sign(asserts.AccountType, map[string]interface{}{
+		"type":         "account",
+		"authority-id": "canonical",
+		"account-id":   "other-brand",
+		"validation":   "verified",
+		"display-name": "Predef",
+		"timestamp":    time.Now().Format(time.RFC3339),
+	}, nil, "")
+	c.Assert(err, IsNil)
+	accountFn := "account.assertion"
+	accountFilePath := filepath.Join(preparedir, accountFn)
+	err = os.WriteFile(accountFilePath, asserts.Encode(accountAssertion), 0644)
+	c.Assert(err, IsNil)
+
+	// Prepare image with the two additional filepaths
+	err = image.Prepare(&image.Options{
+		ModelFile:            modelFn,
+		PrepareDir:           preparedir,
+		ExtraAssertionsFiles: []string{proxyFilePath, accountFilePath},
+	})
+	c.Assert(err.Error(), testutil.Contains, "failed to decode extra assertion: unexpected EOF")
+}
+
+func (s *imageSuite) TestPrepareExtraAssertionsForbiddenType(c *C) {
+	restore := image.MockTrusted(s.StoreSigning.Trusted)
+	defer restore()
+
+	restore = image.MockNewToolingStoreFromModel(func(model *asserts.Model, fallbackArchitecture string) (*tooling.ToolingStore, error) {
+		return s.tsto, nil
+	})
+	defer restore()
+
+	s.setupSnaps(c, map[string]string{
+		"pc-kernel": "canonical",
+		"pc":        "canonical",
+	}, "")
+
+	preparedir := c.MkDir()
+
+	model := s.Brands.Model("my-brand", "my-model", map[string]interface{}{
+		"display-name": "my display name",
+		"architecture": "amd64",
+		"gadget":       "pc",
+		"kernel":       "pc-kernel",
+	})
+
+	modelFn := filepath.Join(preparedir, "model.assertion")
+	err := os.WriteFile(modelFn, asserts.Encode(model), 0644)
+	c.Assert(err, IsNil)
+
+	err = image.Prepare(&image.Options{
+		ModelFile:  modelFn,
+		PrepareDir: preparedir,
+		// Pass model assertion as extra assertion
+		ExtraAssertionsFiles: []string{modelFn},
+	})
+	c.Assert(err.Error(), testutil.Contains, "assertion type model is not allowed for extra assertions")
+
+}

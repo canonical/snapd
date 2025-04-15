@@ -5290,3 +5290,306 @@ func (s *writerSuite) TestVerifySnapBootstrapCompatibility(c *C) {
 	err = w.VerifySnapBootstrapCompatibility()
 	c.Check(err, ErrorMatches, `snapd 2.68[+] is not compatible with a kernel containing snapd prior to 2.68`)
 }
+
+func (s *writerSuite) testSeedWriterExtraAssertionsCore18(c *C, reverseOrder bool) {
+	model := s.Brands.Model("my-brand", "my-model", map[string]interface{}{
+		"display-name": "my model",
+		"architecture": "amd64",
+		"gadget":       "pc=18",
+		"kernel":       "pc-kernel=18",
+		"base":         "core18",
+	})
+
+	s.makeSnap(c, "snapd", "")
+	s.makeSnap(c, "core18", "")
+	s.makeSnap(c, "pc-kernel=18", "")
+	s.makeSnap(c, "pc=18", "")
+
+	proxyStoreAssertion, err := s.StoreSigning.Sign(asserts.StoreType, map[string]interface{}{
+		"store":        "my-proxy-store",
+		"operator-id":  "other-brand",
+		"authority-id": "canonical",
+		"url":          "https://my-proxy-store.com",
+		"timestamp":    time.Now().UTC().Format(time.RFC3339),
+	}, nil, "")
+	c.Assert(err, IsNil)
+
+	accountAssertion, err := s.StoreSigning.Sign(asserts.AccountType, map[string]interface{}{
+		"type":         "account",
+		"authority-id": "canonical",
+		"account-id":   "other-brand",
+		"validation":   "verified",
+		"display-name": "Predef",
+		"timestamp":    time.Now().Format(time.RFC3339),
+	}, nil, "")
+	c.Assert(err, IsNil)
+
+	if reverseOrder {
+		s.opts.ExtraAssertions = []asserts.Assertion{proxyStoreAssertion, accountAssertion}
+	} else {
+		s.opts.ExtraAssertions = []asserts.Assertion{accountAssertion, proxyStoreAssertion}
+	}
+
+	w, err := seedwriter.New(model, s.opts)
+	c.Assert(err, IsNil)
+
+	err = w.Start(s.db, s.rf)
+	c.Assert(err, IsNil)
+
+	snaps, err := w.SnapsToDownload()
+	c.Assert(err, IsNil)
+	c.Check(snaps, HasLen, 4)
+
+	c.Check(naming.SameSnap(snaps[0], naming.Snap("snapd")), Equals, true)
+	c.Check(naming.SameSnap(snaps[1], naming.Snap("pc-kernel")), Equals, true)
+	c.Check(naming.SameSnap(snaps[2], naming.Snap("core18")), Equals, true)
+	c.Check(naming.SameSnap(snaps[3], naming.Snap("pc")), Equals, true)
+
+	for _, sn := range snaps {
+		s.fillDownloadedSnap(c, w, sn)
+	}
+
+	complete, err := w.Downloaded(s.fetchAsserts(c))
+	c.Assert(err, IsNil)
+	c.Check(complete, Equals, true)
+
+	essSnaps, err := w.BootSnaps()
+	c.Assert(err, IsNil)
+	c.Check(essSnaps, DeepEquals, snaps[:4])
+
+	c.Check(w.Warnings(), HasLen, 0)
+
+	err = w.SeedSnaps(nil)
+	c.Assert(err, IsNil)
+
+	err = w.WriteMeta()
+	c.Assert(err, IsNil)
+
+	// check assertions
+	seedAssertsDir := filepath.Join(s.opts.SeedDir, "assertions")
+
+	c.Assert(filepath.Join(seedAssertsDir, "my-proxy-store.store"), testutil.FilePresent)
+	c.Assert(filepath.Join(seedAssertsDir, "other-brand.account"), testutil.FilePresent)
+}
+
+func (s *writerSuite) TestSeedWriterExtraAssertionsCore18(c *C) {
+	const reverseOrder = false
+	s.testSeedWriterExtraAssertionsCore18(c, reverseOrder)
+}
+
+func (s *writerSuite) TestSeedWriterExtraAssertionsCore18ReverseOrder(c *C) {
+	const reverseOrder = true
+	s.testSeedWriterExtraAssertionsCore18(c, reverseOrder)
+}
+
+func (s *writerSuite) testSeedWriterExtraAssertionsCore20(c *C, reverseOrder bool) {
+	model := s.Brands.Model("my-brand", "my-model", map[string]interface{}{
+		"display-name": "my model",
+		"architecture": "amd64",
+		"base":         "core20",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":            "pc-kernel",
+				"id":              s.AssertedSnapID("pc-kernel"),
+				"type":            "kernel",
+				"default-channel": "20",
+			},
+			map[string]interface{}{
+				"name":            "pc",
+				"id":              s.AssertedSnapID("pc"),
+				"type":            "gadget",
+				"default-channel": "20",
+			},
+			map[string]interface{}{
+				"name":            "snapd",
+				"id":              s.AssertedSnapID("snapd"),
+				"type":            "snapd",
+				"default-channel": "20",
+			},
+		},
+	})
+
+	s.makeSnap(c, "snapd", "")
+	s.makeSnap(c, "core20", "")
+	s.makeSnap(c, "pc-kernel=20", "")
+	s.makeSnap(c, "pc=20", "")
+
+	proxyStoreAssertion, err := s.StoreSigning.Sign(asserts.StoreType, map[string]interface{}{
+		"store":        "my-proxy-store",
+		"operator-id":  "other-brand",
+		"authority-id": "canonical",
+		"url":          "https://my-proxy-store.com",
+		"timestamp":    time.Now().UTC().Format(time.RFC3339),
+	}, nil, "")
+	c.Assert(err, IsNil)
+
+	accountAssertion, err := s.StoreSigning.Sign(asserts.AccountType, map[string]interface{}{
+		"type":         "account",
+		"authority-id": "canonical",
+		"account-id":   "other-brand",
+		"validation":   "verified",
+		"display-name": "Predef",
+		"timestamp":    time.Now().Format(time.RFC3339),
+	}, nil, "")
+	c.Assert(err, IsNil)
+
+	if reverseOrder {
+		s.opts.ExtraAssertions = []asserts.Assertion{proxyStoreAssertion, accountAssertion}
+	} else {
+		s.opts.ExtraAssertions = []asserts.Assertion{accountAssertion, proxyStoreAssertion}
+	}
+
+	s.opts.Label = "20250326"
+	w, err := seedwriter.New(model, s.opts)
+	c.Assert(err, IsNil)
+
+	err = w.Start(s.db, s.rf)
+	c.Assert(err, IsNil)
+
+	snaps, err := w.SnapsToDownload()
+	c.Assert(err, IsNil)
+	c.Check(snaps, HasLen, 4)
+
+	for _, sn := range snaps {
+		s.fillDownloadedSnap(c, w, sn)
+	}
+
+	complete, err := w.Downloaded(s.fetchAsserts(c))
+	c.Assert(err, IsNil)
+	c.Check(complete, Equals, true)
+
+	err = w.SeedSnaps(nil)
+	c.Assert(err, IsNil)
+
+	err = w.WriteMeta()
+	c.Assert(err, IsNil)
+
+	// check seed
+	systemDir := filepath.Join(s.opts.SeedDir, "systems", s.opts.Label)
+
+	// check assertions
+	c.Check(filepath.Join(systemDir, "model"), testutil.FileEquals, asserts.Encode(model))
+
+	assertsDir := filepath.Join(systemDir, "assertions")
+	modelEtc := seedtest.ReadAssertions(c, filepath.Join(assertsDir, "model-etc"))
+	c.Check(modelEtc, HasLen, 3)
+
+	keyPKs := make(map[string]bool)
+	for _, a := range modelEtc {
+		switch a.Type() {
+		case asserts.AccountType:
+			c.Check(a.HeaderString("account-id"), Equals, "my-brand")
+		case asserts.StoreType:
+			c.Check(a.HeaderString("store"), Equals, "my-store")
+		case asserts.AccountKeyType:
+			keyPKs[a.HeaderString("public-key-sha3-384")] = true
+		default:
+			c.Fatalf("unexpected assertion %s", a.Type().Name)
+		}
+	}
+	c.Check(keyPKs, DeepEquals, map[string]bool{
+		s.StoreSigning.StoreAccountKey("").PublicKeyID(): true,
+		s.Brands.AccountKey("my-brand").PublicKeyID():    true,
+	})
+
+	// check extra assertions
+	extraAssertions := seedtest.ReadAssertions(c, filepath.Join(assertsDir, "extra-assertions"))
+	c.Check(extraAssertions, HasLen, 2)
+
+	for _, a := range extraAssertions {
+		switch a.Type() {
+		case asserts.AccountType:
+			c.Check(a.HeaderString("account-id"), Equals, "other-brand")
+		case asserts.StoreType:
+			c.Check(a.HeaderString("store"), Equals, "my-proxy-store")
+		default:
+			c.Fatalf("unexpected assertion %s", a.Type().Name)
+		}
+	}
+}
+
+func (s *writerSuite) TestSeedWriterExtraAssertionsCore20(c *C) {
+	const reverseOrder = false
+	s.testSeedWriterExtraAssertionsCore20(c, reverseOrder)
+}
+
+func (s *writerSuite) TestSeedWriterExtraAssertionsCore20ReverseOrder(c *C) {
+	const reverseOrder = true
+	s.testSeedWriterExtraAssertionsCore20(c, reverseOrder)
+}
+
+func (s *writerSuite) TestSeedWriterExtraAssertionsErrorPrerequisites(c *C) {
+	model := s.Brands.Model("my-brand", "my-model", map[string]interface{}{
+		"display-name": "my model",
+		"architecture": "amd64",
+		"gadget":       "pc=20",
+		"kernel":       "pc-kernel=20",
+		"base":         "core20",
+	})
+
+	s.makeSnap(c, "snapd", "")
+	s.makeSnap(c, "core20", "")
+	s.makeSnap(c, "pc-kernel=20", "")
+	s.makeSnap(c, "pc=20", "")
+
+	proxyStoreAssertion, err := s.StoreSigning.Sign(asserts.StoreType, map[string]interface{}{
+		"store":        "my-proxy-store",
+		"operator-id":  "other-brand",
+		"authority-id": "canonical",
+		"url":          "https://my-proxy-store.com",
+		"timestamp":    time.Now().UTC().Format(time.RFC3339),
+	}, nil, "")
+	c.Assert(err, IsNil)
+
+	s.opts.ExtraAssertions = []asserts.Assertion{proxyStoreAssertion}
+
+	w, err := seedwriter.New(model, s.opts)
+	c.Assert(err, IsNil)
+
+	err = w.Start(s.db, s.rf)
+	c.Assert(err.Error(), testutil.Contains, "cannot fetch and check prerequisites for an injected assertion: account (other-brand) not found")
+}
+
+func (s *writerSuite) TestSeedWriterExtraAssertionsPrerequisitesError(c *C) {
+	model := s.Brands.Model("my-brand", "my-model", map[string]interface{}{
+		"display-name": "my model",
+		"architecture": "amd64",
+		"gadget":       "pc=20",
+		"kernel":       "pc-kernel=20",
+		"base":         "core20",
+	})
+
+	s.makeSnap(c, "snapd", "")
+	s.makeSnap(c, "core20", "")
+	s.makeSnap(c, "pc-kernel=20", "")
+	s.makeSnap(c, "pc=20", "")
+
+	proxyStoreAssertion, err := s.StoreSigning.Sign(asserts.StoreType, map[string]interface{}{
+		"store":        "my-proxy-store",
+		"operator-id":  "other-brand",
+		"authority-id": "canonical",
+		"url":          "https://my-proxy-store.com",
+		"timestamp":    time.Now().UTC().Format(time.RFC3339),
+	}, nil, "")
+	c.Assert(err, IsNil)
+
+	accountAssertion, err := s.StoreSigning.Sign(asserts.AccountType, map[string]interface{}{
+		"type":         "account",
+		"authority-id": "not-canonical",
+		"account-id":   "other-brand",
+		"validation":   "verified",
+		"display-name": "Predef",
+		"timestamp":    time.Now().Format(time.RFC3339),
+	}, nil, "")
+	c.Assert(err, IsNil)
+
+	s.opts.ExtraAssertions = []asserts.Assertion{proxyStoreAssertion, accountAssertion}
+
+	w, err := seedwriter.New(model, s.opts)
+	c.Assert(err, IsNil)
+
+	err = w.Start(s.db, s.rf)
+	c.Assert(err.Error(), testutil.Contains, "cannot fetch and check prerequisites for an injected assertion: "+
+		"prerequisite injected assertion: error finding matching public key for signature: found public key \""+
+		s.StoreSigning.KeyID+"\" from \"canonical\" but expected it from: not-canonical")
+}

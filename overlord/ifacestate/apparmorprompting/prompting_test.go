@@ -62,7 +62,6 @@ func (s *apparmorpromptingSuite) SetUpTest(c *C) {
 
 	dirs.SetRootDir(c.MkDir())
 	s.AddCleanup(func() { dirs.SetRootDir("") })
-	os.MkdirAll(dirs.SnapRunDir, 0o755)
 
 	s.st = state.New(nil)
 	s.defaultUser = 1000
@@ -96,8 +95,8 @@ func (s *apparmorpromptingSuite) TestNewErrorPromptDB(c *C) {
 	defer restore()
 
 	// Prevent prompt backend from opening successfully
-	maxIDFilepath := filepath.Join(dirs.SnapRunDir, "request-prompt-max-id")
-	c.Assert(os.MkdirAll(dirs.SnapRunDir, 0o700), IsNil)
+	maxIDFilepath := filepath.Join(dirs.SnapInterfacesRequestsRunDir, "request-prompt-max-id")
+	c.Assert(os.MkdirAll(dirs.SnapInterfacesRequestsRunDir, 0o755), IsNil)
 	f, err := os.Create(maxIDFilepath)
 	c.Assert(err, IsNil)
 	c.Assert(f.Chmod(0o400), IsNil)
@@ -125,8 +124,8 @@ func (s *apparmorpromptingSuite) TestNewErrorRuleDB(c *C) {
 	defer restore()
 
 	// Prevent rule backend from opening successfully
-	maxIDFilepath := filepath.Join(prompting.StateDir(), "request-rule-max-id")
-	c.Assert(os.MkdirAll(prompting.StateDir(), 0o700), IsNil)
+	maxIDFilepath := filepath.Join(dirs.SnapInterfacesRequestsStateDir, "request-rule-max-id")
+	c.Assert(os.MkdirAll(dirs.SnapInterfacesRequestsStateDir, 0o755), IsNil)
 	f, err := os.Create(maxIDFilepath)
 	c.Assert(err, IsNil)
 	c.Assert(f.Chmod(0o400), IsNil)
@@ -164,9 +163,25 @@ func (s *apparmorpromptingSuite) TestStop(c *C) {
 	c.Check(promptDB.Close(), Equals, prompting_errors.ErrPromptsClosed)
 	c.Check(ruleDB.Close(), Equals, prompting_errors.ErrRulesClosed)
 
-	// Check that current backends are nil
-	c.Check(mgr.PromptDB(), IsNil)
-	c.Check(mgr.RuleDB(), IsNil)
+	// Check that calls to API methods don't panic after backends have been closed
+	_, err = mgr.Prompts(1000, false)
+	c.Check(err, Equals, prompting_errors.ErrPromptsClosed)
+	_, err = mgr.PromptWithID(1000, 1, false)
+	c.Check(err, Equals, prompting_errors.ErrPromptsClosed)
+	_, err = mgr.HandleReply(1000, 1, nil, prompting.OutcomeAllow, prompting.LifespanSingle, "", true)
+	c.Check(err, Equals, prompting_errors.ErrPromptsClosed)
+	_, err = mgr.Rules(1000, "foo", "bar")
+	c.Check(err, IsNil) // rule backend supports getting rules even after closed
+	_, err = mgr.AddRule(1000, "foo", "bar", nil)
+	c.Check(err, Equals, prompting_errors.ErrRulesClosed)
+	_, err = mgr.RemoveRules(1000, "foo", "bar")
+	c.Check(err, Equals, prompting_errors.ErrRulesClosed)
+	_, err = mgr.RuleWithID(1000, 1)
+	c.Check(err, Equals, prompting_errors.ErrRuleNotFound) // rule backend supports getting rules even after closed
+	_, err = mgr.PatchRule(1000, 1, nil)
+	c.Check(err, Equals, prompting_errors.ErrRulesClosed)
+	_, err = mgr.RemoveRule(1000, 1)
+	c.Check(err, Equals, prompting_errors.ErrRulesClosed)
 }
 
 func (s *apparmorpromptingSuite) TestHandleListenerRequestDenyRoot(c *C) {

@@ -254,7 +254,7 @@ execute: |
 
     echo "Corrupt the max prompt ID file (by making it a dir) so it will fail to start up next time"
     # This simulates what would happen on system restart, if e.g. /run/snapd did not yet exist during StartUp
-    MAX_ID_FILEPATH="/run/snapd/request-prompt-max-id"
+    MAX_ID_FILEPATH="/run/snapd/interfaces-requests/request-prompt-max-id"
     rm -f "$MAX_ID_FILEPATH"
     mkdir -p "$MAX_ID_FILEPATH"
 

@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2022-2024 Canonical Ltd
+ * Copyright (C) 2022-2025 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -78,16 +78,14 @@ func NewNotFoundError(msg string, v ...any) *NotFoundError {
 }
 
 type BadRequestError struct {
-	Account    string
-	SchemaName string
-	View       string
-	Operation  string
-	Request    string
-	Cause      string
+	viewID    string
+	operation string
+	request   string
+	cause     string
 }
 
 func (e *BadRequestError) Error() string {
-	return fmt.Sprintf("cannot %s %q in confdb view %s/%s/%s: %s", e.Operation, e.Request, e.Account, e.SchemaName, e.View, e.Cause)
+	return fmt.Sprintf("cannot %s %q in confdb view %s: %s", e.operation, e.request, e.viewID, e.cause)
 }
 
 func (e *BadRequestError) Is(err error) bool {
@@ -97,12 +95,10 @@ func (e *BadRequestError) Is(err error) bool {
 
 func badRequestErrorFrom(v *View, operation, request, msg string) *BadRequestError {
 	return &BadRequestError{
-		Account:    v.schema.Account,
-		SchemaName: v.schema.Name,
-		View:       v.Name,
-		Operation:  operation,
-		Request:    request,
-		Cause:      msg,
+		viewID:    v.ID(),
+		operation: operation,
+		request:   request,
+		cause:     msg,
 	}
 }
 
@@ -547,7 +543,7 @@ func (v *View) Set(databag Databag, request string, value interface{}) error {
 	}
 
 	if len(matches) == 0 {
-		return NewNotFoundError(i18n.G("cannot set %q through %s/%s/%s: no matching rule"), request, v.schema.Account, v.schema.Name, v.Name)
+		return NewNotFoundError(i18n.G("cannot set %q through %s: no matching rule"), request, v.ID())
 	}
 
 	// sort less nested paths before more nested ones so that writes aren't overwritten
@@ -614,7 +610,7 @@ func (v *View) Unset(databag Databag, request string) error {
 	}
 
 	if len(matches) == 0 {
-		return NewNotFoundError(i18n.G("cannot unset %q through %s/%s/%s: no matching rule"), request, v.schema.Account, v.schema.Name, v.Name)
+		return NewNotFoundError(i18n.G("cannot unset %q through %s: no matching rule"), request, v.ID())
 	}
 
 	for _, match := range matches {
@@ -1019,7 +1015,7 @@ func (v *View) Get(databag Databag, request string) (interface{}, error) {
 			reqStr = fmt.Sprintf(" %q through", request)
 		}
 
-		return nil, NewNotFoundError(i18n.G("cannot get%s %s/%s/%s: no data"), reqStr, v.schema.Account, v.schema.Name, v.Name)
+		return nil, NewNotFoundError(i18n.G("cannot get%s %s: no data"), reqStr, v.ID())
 	}
 
 	return merged, nil
@@ -1103,7 +1099,7 @@ func (v *View) matchGetRequest(request string) (matches []requestMatch, err erro
 	}
 
 	if len(matches) == 0 {
-		return nil, NewNotFoundError(i18n.G("cannot get %q through %s/%s/%s: no matching rule"), request, v.schema.Account, v.schema.Name, v.Name)
+		return nil, NewNotFoundError(i18n.G("cannot get %q through %s: no matching rule"), request, v.ID())
 	}
 
 	// sort matches by namespace (unmatched suffix) to ensure that nested matches
@@ -1124,6 +1120,8 @@ func (v *View) matchGetRequest(request string) (matches []requestMatch, err erro
 
 	return matches, nil
 }
+
+func (v *View) ID() string { return v.schema.Account + "/" + v.schema.Name + "/" + v.Name }
 
 func newViewRule(request, storage, accesstype string) (*viewRule, error) {
 	accType, err := newAccessType(accesstype)
