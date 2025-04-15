@@ -20,19 +20,11 @@
 package main_test
 
 import (
-	"os"
-
 	main "github.com/snapcore/snapd/cmd/snap-gpio-helper"
-	"github.com/snapcore/snapd/dirs"
-	"github.com/snapcore/snapd/features"
 	. "gopkg.in/check.v1"
 )
 
 func (s *snapGpioHelperSuite) TestUnexportGpioChardev(c *C) {
-	// Mock experimental.gpio-chardev-interface
-	c.Assert(os.MkdirAll(dirs.FeaturesDir, 0755), IsNil)
-	c.Assert(os.WriteFile(features.GPIOChardevInterface.ControlFile(), []byte(nil), 0644), IsNil)
-
 	called := 0
 	restore := main.MockGpioUnxportGadgetChardevChip(func(gadgetName, slotName string) error {
 		called++

@@ -42,9 +42,12 @@ import (
 
 // ChardevChip describes a gpio chardev device.
 type ChardevChip struct {
-	Path     string
-	Name     string
-	Label    string
+	Path string
+	// Name is an identifier for the chip in the kernel (e.g. gpiochip3).
+	Name string
+	// Label is the name given to the chip through its driver used for matching (e.g. pinctrl-bcm2711).
+	Label string
+	// NumLines is the number of lines available on the gpio chip
 	NumLines uint
 }
 
@@ -149,7 +152,8 @@ func addAggregatedChip(ctx context.Context, sourceChip *ChardevChip, lines strut
 		return nil, err
 	}
 
-	timeoutC := time.After(aggregatorCreationTimeout)
+	timeoutTimer := time.NewTimer(aggregatorCreationTimeout)
+	defer timeoutTimer.Stop()
 	for {
 		select {
 		case event := <-watcher.Event:
@@ -158,7 +162,7 @@ func addAggregatedChip(ctx context.Context, sourceChip *ChardevChip, lines strut
 			if strings.HasPrefix(path, filepath.Join(dirs.DevDir, "gpiochip")) {
 				return chardevChipInfo(path)
 			}
-		case <-timeoutC:
+		case <-timeoutTimer.C:
 			return nil, errors.New("timeout waiting for aggregator device to appear")
 		case <-ctx.Done():
 			return nil, ctx.Err()
@@ -177,7 +181,7 @@ func addEphemeralUdevTaggingRule(ctx context.Context, chip *ChardevChip, instanc
 	}
 
 	tag := fmt.Sprintf("snap_%s_interface_gpio_chardev_%s", instanceName, slotName)
-	rule := fmt.Sprintf("SUBSYSTEM==\"gpio\", KERNEL==\"%s\", TAG+=\"%s\"\n", chip.Name, tag)
+	rule := fmt.Sprintf(`SUBSYSTEM=="gpio", KERNEL=="%s", TAG+="%s"`+"\n", chip.Name, tag)
 
 	path := aggregatedChipUdevRulePath(instanceName, slotName)
 	if err := os.WriteFile(path, []byte(rule), 0644); err != nil {
@@ -204,15 +208,15 @@ var osChmod = os.Chmod
 var osChown = os.Chown
 var syscallMknod = syscall.Mknod
 
-func addGadgetSlotDevice(chip *ChardevChip, instanceName, slotName string) error {
-	finfo, err := osStat(chip.Path)
+func addGadgetSlotDevice(chip *ChardevChip, instanceName, slotName string) (err error) {
+	fi, err := osStat(chip.Path)
 	if err != nil {
 		return err
 	}
 
-	stat, ok := finfo.Sys().(*syscall.Stat_t)
+	stat, ok := fi.Sys().(*syscall.Stat_t)
 	if !ok {
-		return errors.New("internal error")
+		return errors.New("internal error, expected os.File.FileInfo.Sys to return *syscall.Stat_t")
 	}
 
 	devPath := SnapChardevPath(instanceName, slotName)
@@ -222,16 +226,24 @@ func addGadgetSlotDevice(chip *ChardevChip, instanceName, slotName string) error
 
 	// create a character device node for the slot, with major/minor numbers
 	// corresponding to the newly created aggregator device
-	if err := syscallMknod(devPath, uint32(stat.Mode), int(stat.Rdev)); err != nil {
+	mode := uint32(stat.Mode) & (^uint32(0777))
+	if err := syscallMknod(devPath, mode, int(stat.Rdev)); err != nil {
 		return err
 	}
 
-	// replicate original permission bits
-	if err := osChmod(devPath, finfo.Mode()); err != nil {
+	defer func() {
+		if err != nil {
+			// cleanup created device node
+			os.RemoveAll(devPath)
+		}
+	}()
+
+	// restore ownership
+	if err := osChown(devPath, int(stat.Uid), int(stat.Gid)); err != nil {
 		return err
 	}
-	// and ownership
-	return osChown(devPath, int(stat.Uid), int(stat.Gid))
+	// and original permission bits
+	return osChmod(devPath, fi.Mode())
 }
 
 func removeGadgetSlotDevice(instanceName, slotName string) (aggregatedChip *ChardevChip, err error) {
@@ -240,7 +252,7 @@ func removeGadgetSlotDevice(instanceName, slotName string) (aggregatedChip *Char
 	if err != nil {
 		return nil, err
 	}
-	return aggregatedChip, os.Remove(devPath)
+	return aggregatedChip, os.RemoveAll(devPath)
 }
 
 func removeEphemeralUdevTaggingRule(gadget, slot string) error {
@@ -279,7 +291,7 @@ func isAggregatedChip(path string) (bool, error) {
 		return false, errors.New("internal error")
 	}
 
-	maj, min := osutil.Major(uint64(stat.Rdev)), osutil.Minor(uint64(stat.Rdev))
+	maj, min := unix.Major(uint64(stat.Rdev)), unix.Minor(uint64(stat.Rdev))
 
 	// filepath.Join is not used to prevent cleaning the ".." as it is crucial
 	// to follow the MAJ:MIN subdirectory symlink
