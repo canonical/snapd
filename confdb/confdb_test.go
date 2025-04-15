@@ -2669,3 +2669,177 @@ func (*viewSuite) TestGetAffectedViews(c *C) {
 		c.Assert(viewNames, testutil.DeepUnsortedMatches, tc.affected, cmt)
 	}
 }
+
+func (*viewSuite) TestCheckReadEphemeralAccess(c *C) {
+	schemaStr := []byte(`{
+	"schema": {
+		"foo": {
+			"schema": {
+				"bar": {
+					"schema": {
+						"baz": "string",
+						"eph": {
+							"type": "string",
+							"ephemeral": true
+						}
+					}
+				}
+			}
+		}
+	}
+}`)
+	storageSchema, err := confdb.ParseStorageSchema(schemaStr)
+	c.Assert(err, IsNil)
+
+	schema, err := confdb.NewSchema("acc", "foo", map[string]interface{}{
+		"my-view": map[string]interface{}{
+			"rules": []interface{}{
+				map[string]interface{}{
+					"storage": "foo.bar",
+					"content": []interface{}{
+						map[string]interface{}{"storage": "baz"},
+						map[string]interface{}{"storage": "eph"},
+					},
+				},
+				map[string]interface{}{
+					"request": "a.b",
+					"storage": "foo.bar",
+				},
+			},
+		},
+	}, storageSchema)
+	c.Assert(err, IsNil)
+
+	type testcase struct {
+		requests  []string
+		ephemeral bool
+		err       string
+	}
+
+	tcs := []testcase{
+		{
+			requests:  []string{"foo.bar.eph"},
+			ephemeral: true,
+		},
+		{
+			requests:  []string{"foo.bar"},
+			ephemeral: true,
+		},
+		{
+			requests:  []string{"foo.bar.baz"},
+			ephemeral: false,
+		},
+		{
+			requests:  []string{"a.b"},
+			ephemeral: true,
+		},
+		{
+			// matches all
+			ephemeral: true,
+		},
+		{
+			// partial matches are ok
+			requests:  []string{"non.existent", "foo"},
+			ephemeral: true,
+		},
+		{
+			requests: []string{"non.existent"},
+			err:      `cannot get "non.existent" through acc/foo/my-view: no matching rule`,
+		},
+		{
+			requests: []string{"12", "mk"},
+			err:      `cannot get "12", "mk" through acc/foo/my-view: no matching rule`,
+		},
+	}
+
+	v := schema.View("my-view")
+	for i, tc := range tcs {
+		cmt := Commentf("failed test number %d", i+1)
+		if tc.err != "" {
+			_, err := v.ReadAffectsEphemeral(tc.requests)
+			c.Assert(err, ErrorMatches, tc.err, cmt)
+		} else {
+			eph, err := v.ReadAffectsEphemeral(tc.requests)
+			c.Assert(err, IsNil, cmt)
+			c.Assert(eph, Equals, tc.ephemeral, cmt)
+		}
+	}
+}
+
+func (*viewSuite) TestCheckWriteEphemeralAccess(c *C) {
+	schemaStr := []byte(`{
+	"schema": {
+		"foo": {
+			"schema": {
+				"bar": {
+					"schema": {
+						"baz": "string",
+						"eph": {
+							"type": "string",
+							"ephemeral": true
+						}
+					}
+				}
+			}
+		}
+	}
+}`)
+	storageSchema, err := confdb.ParseStorageSchema(schemaStr)
+	c.Assert(err, IsNil)
+
+	schema, err := confdb.NewSchema("acc", "foo", map[string]interface{}{
+		"my-view": map[string]interface{}{
+			"rules": []interface{}{
+				map[string]interface{}{
+					"storage": "foo.bar",
+					"content": []interface{}{
+						map[string]interface{}{"storage": "baz"},
+						map[string]interface{}{"storage": "eph"},
+					},
+				},
+				map[string]interface{}{
+					"request": "a.b",
+					"storage": "foo.bar",
+				},
+			},
+		},
+	}, storageSchema)
+	c.Assert(err, IsNil)
+
+	type testcase struct {
+		requests  []string
+		ephemeral bool
+		err       string
+	}
+
+	tcs := []testcase{
+		{
+			requests:  []string{"foo.bar.eph"},
+			ephemeral: true,
+		},
+		{
+			requests:  []string{"foo.bar"},
+			ephemeral: true,
+		},
+		{
+			requests:  []string{"foo.bar.baz"},
+			ephemeral: false,
+		},
+		{
+			// WriteAffects already takes a storage path
+			requests: []string{"a.b"},
+			err:      `cannot check if write affects ephemeral data: cannot use "a" as key in map`,
+		},
+	}
+
+	v := schema.View("my-view")
+	for i, tc := range tcs {
+		cmt := Commentf("failed test number %d", i+1)
+		eph, err := v.WriteAffectsEphemeral(tc.requests)
+		if tc.err != "" {
+			c.Check(err, ErrorMatches, tc.err, cmt)
+		} else {
+			c.Check(eph, Equals, tc.ephemeral, cmt)
+		}
+	}
+}
