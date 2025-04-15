@@ -1,7 +1,8 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
+//go:build !structuredlogging
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2025 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -17,32 +18,17 @@
  *
  */
 
-package main
+package logger
 
 import (
-	"fmt"
-	"os"
-
-	"github.com/jessevdk/go-flags"
-
-	"github.com/snapcore/snapd/logger"
+	"io"
 )
 
-type Options struct{}
-
-var parser = flags.NewParser(&Options{}, flags.HelpFlag|flags.PassDoubleDash)
-
-func main() {
-	logger.SimpleSetup(nil)
-	logger.Debugf("fakestore starting")
-
-	if err := run(); err != nil {
-		fmt.Fprintf(os.Stderr, "error: %v\n", err)
-		os.Exit(1)
+// New creates a log.Logger using the given io.Writer and flag, using the
+// options from opts.
+func New(w io.Writer, flag int, opts *LoggerOptions) Logger {
+	if opts == nil {
+		opts = &LoggerOptions{}
 	}
-}
-
-func run() error {
-	_, err := parser.Parse()
-	return err
+	return newLog(w, flag, opts)
 }

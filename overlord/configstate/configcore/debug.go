@@ -95,9 +95,7 @@ func handleDebugSnapdLogConfiguration(tr RunTransaction, opts *fsOnlyContext) er
 	}
 
 	// Enable/disable debug logging for current snapd instance
-	if err := loggerSimpleSetup(&logger.LoggerOptions{ForceDebug: enableDebug}); err != nil {
-		return err
-	}
+	loggerSimpleSetup(&logger.LoggerOptions{ForceDebug: enableDebug})
 
 	return nil
 }
