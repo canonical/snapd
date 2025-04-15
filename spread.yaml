@@ -372,7 +372,7 @@ backends:
                   username: ubuntu
                   password: ubuntu
 
-    qemu:
+    qemu: &qemu
         memory: 4G
         systems:
             - ubuntu-14.04-64:
@@ -436,6 +436,19 @@ backends:
             - opensuse-tumbleweed-64:
                   username: opensuse
                   password: opensuse
+    garden:
+        <<: *qemu
+        type: adhoc
+        allocate: |
+          # Spread does not expose any settings to ad-hoc backends.
+          export QEMU_MEM_OPTION="-m 4096"
+          export QEMU_SMP_OPTION="-smp $(nproc)"
+          # Convert snapd convention of system names to image-garden convention:
+          # - ubuntu-24.04-64 becomes ubuntu-cloud-24.04.$(uname -m)
+          # - ubuntu-core-24-64 becomes ubuntu-cloud-24.04.$(uname -m)
+          # - debian-sid-64 becomes debian-cloud-sid.$(uname -m)
+          exec image-garden allocate "$(echo "$SPREAD_SYSTEM" | sed -e 's/\(\w\+\)/\1-cloud/' -e 's/\(\w\+\)-core-\(\w\+\)/\1-\2.04/'  -e 's/-64$/.'"$(uname -m)"'/g')"
+        discard: exec image-garden discard "$SPREAD_SYSTEM_ADDRESS"
     autopkgtest:
         type: adhoc
         allocate: |
@@ -610,6 +623,10 @@ exclude:
     - "*.pyc"
     - ./vendor
     - "*.snap"
+    - "*.qcow2"
+    - "*.log"
+    - "*.iso"
+    - "*.img"
 
 debug-each: |
     if [ "$SPREAD_DEBUG_EACH" != 1 ]; then
