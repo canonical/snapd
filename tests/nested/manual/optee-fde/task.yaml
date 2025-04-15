@@ -1,0 +1,79 @@
+summary: Test snapd OPTEE integration
+
+details: |
+    Test that snapd will use a well known OPTEE TA (trusted application) as the
+    sealing method for FDE. The snaps test-qemu-optee-kernel and
+    test-qemu-optee-gadget are custom snaps that help exercise this
+    functionality.
+
+systems: [ubuntu-24.04-arm-64]
+
+environment:
+    NESTED_CUSTOM_MODEL: $TESTSLIB/assertions/nested-24-arm64-optee.model
+    NESTED_BUILD_SNAPD_FROM_CURRENT: true
+    NESTED_REPACK_KERNEL_SNAP: false
+    NESTED_REPACK_GADGET_SNAP: false
+    NESTED_REPACK_BASE_SNAP: false
+    NESTED_ENABLE_ARM_TRUSTZONE: true
+    NESTED_CPUS: 4
+    NESTED_MEM: 4096
+
+prepare: |
+    tests.pkgs install u-boot-tools
+
+    # these snaps are originally built from snaps that live in the
+    # github.com/canonical/optee-uc-fde repo. building the snaps here in CI
+    # would be more ideal, but that would take a really long time.
+    #
+    # specific revisions are used to help allow development on the snaps without
+    # breaking current/old tests.
+    snap download --revision=2 --basename test-qemu-optee-kernel test-qemu-optee-kernel
+    snap download --revision=4 --basename test-qemu-optee-gadget test-qemu-optee-gadget
+
+    unsquashfs -d ./test-qemu-optee-kernel test-qemu-optee-kernel.snap
+
+    # repack the FIT image in the kernel snap so that we can use the
+    # snap-bootstrap from this branch
+    mkdir ./repack
+    pushd ./repack
+    dumpimage -T flat_dt -p0 -o Image ../test-qemu-optee-kernel/kernel.img
+    dumpimage -T flat_dt -p1 -o initrd.img ../test-qemu-optee-kernel/kernel.img
+
+    mkdir ./initrd
+    pushd ./initrd
+
+    unzstd < ../initrd.img | cpio -idmv
+    cp -a /usr/lib/snapd/snap-bootstrap ./lib/snapd/snap-bootstrap
+    find . -print0 | cpio --null --create --quiet --format=newc --owner=0:0 | zstd > ../initrd.img
+
+    popd # ./initrd
+    rm -rf ./initrd
+
+    # TODO: what keys should we actually be using here? firmware that lives in
+    # the gadget currently expects these keys
+    git clone https://git.launchpad.net/~ondrak/+git/dev-keys
+
+    cp ../test-qemu-optee-kernel/qemu.its ./qemu.its
+    mkimage --fit ./qemu.its -k ./dev-keys ./kernel.img
+
+    popd # ./repack
+
+    mv ./repack/kernel.img ./test-qemu-optee-kernel/kernel.img
+    rm -rf ./repack
+
+    snap pack --filename ./test-qemu-optee-kernel.snap ./test-qemu-optee-kernel
+
+    cp test-qemu-optee-gadget.snap test-qemu-optee-kernel.snap "$(tests.nested get extra-snaps-path)"
+
+    tests.nested build-image core
+
+    unsquashfs -d . ./test-qemu-optee-gadget.snap qemu_fw.bios
+    truncate -s 64M qemu_fw.bios
+    NESTED_BIOS_FILE="$(realpath ./qemu_fw.bios)"
+    export NESTED_BIOS_FILE
+
+    tests.nested create-vm core
+
+execute: |
+    remote.exec 'cat /var/lib/snapd/device/fde/sealed-keys' | MATCH 'optee'
+    remote.exec 'sudo blkid /dev/disk/by-label/ubuntu-data-enc' | MATCH 'TYPE="crypto_LUKS"'
