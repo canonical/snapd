@@ -274,10 +274,11 @@ func (s *State) AllWarnings() []*Warning {
 
 // OkayWarnings marks warnings that were showable at the given time as shown.
 func (s *State) OkayWarnings(t time.Time) int {
+	t = t.UTC()
+
 	s.writing()
 	s.warningsMu.Lock()
 	defer s.warningsMu.Unlock()
-	t = t.UTC()
 
 	n := 0
 	for _, w := range s.warnings {
