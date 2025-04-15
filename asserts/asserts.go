@@ -1022,6 +1022,8 @@ func checkJSON(assertType *AssertionType, body []byte) (err error) {
 	}
 
 	if !reflect.DeepEqual(body, formatted) {
+		// TODO: replace this with a manual comparison so we can give more context
+		// in the error message
 		return fmt.Errorf(`JSON in body must be indented with 2 spaces and sort object entries by key`)
 	}
 

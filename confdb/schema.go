@@ -42,9 +42,9 @@ type parser interface {
 	parseConstraints(map[string]json.RawMessage) error
 }
 
-// ParseSchema parses a JSON confdb schema and returns a Schema that can be
+// ParseStorageSchema parses a JSON confdb schema and returns a Schema that can be
 // used to validate storage.
-func ParseSchema(raw []byte) (*StorageSchema, error) {
+func ParseStorageSchema(raw []byte) (*StorageSchema, error) {
 	var schemaDef map[string]json.RawMessage
 	err := json.Unmarshal(raw, &schemaDef)
 	if err != nil {
@@ -175,6 +175,10 @@ func (v *aliasReference) Ephemeral() bool {
 	return v.ephemeral
 }
 
+func (s *aliasReference) NestedEphemeral() bool {
+	return s.Ephemeral() || s.alias.NestedEphemeral()
+}
+
 // scalarSchema holds the data and behaviours common to all types.
 type scalarSchema struct {
 	ephemeral bool
@@ -182,6 +186,10 @@ type scalarSchema struct {
 
 func (s scalarSchema) Ephemeral() bool {
 	return s.ephemeral
+}
+
+func (s scalarSchema) NestedEphemeral() bool {
+	return s.Ephemeral()
 }
 
 func (b *scalarSchema) parseConstraints(constraints map[string]json.RawMessage) (err error) {
@@ -228,6 +236,10 @@ func (s *StorageSchema) Type() SchemaType {
 
 func (s *StorageSchema) Ephemeral() bool {
 	return s.topLevel.Ephemeral()
+}
+
+func (s *StorageSchema) NestedEphemeral() bool {
+	return s.topLevel.NestedEphemeral()
 }
 
 func (s *StorageSchema) parse(raw json.RawMessage) (DatabagSchema, error) {
@@ -469,6 +481,16 @@ func (v *alternativesSchema) Type() SchemaType {
 
 func (v *alternativesSchema) Ephemeral() bool { return false }
 
+func (v *alternativesSchema) NestedEphemeral() bool {
+	for _, schema := range v.schemas {
+		if schema.NestedEphemeral() {
+			return true
+		}
+	}
+
+	return false
+}
+
 type mapSchema struct {
 	// topSchema is the schema for the top-level schema which contains the aliases.
 	topSchema *StorageSchema
@@ -624,6 +646,28 @@ func (v *mapSchema) Type() SchemaType {
 
 func (v *mapSchema) Ephemeral() bool {
 	return v.ephemeral
+}
+
+func (v *mapSchema) NestedEphemeral() bool {
+	if v.Ephemeral() {
+		return true
+	}
+
+	if v.entrySchemas != nil {
+		for _, schema := range v.entrySchemas {
+			if schema.NestedEphemeral() {
+				return true
+			}
+		}
+	}
+
+	if v.keySchema != nil {
+		if v.keySchema.NestedEphemeral() {
+			return true
+		}
+	}
+
+	return v.valueSchema != nil && v.valueSchema.NestedEphemeral()
 }
 
 func (v *mapSchema) parseConstraints(constraints map[string]json.RawMessage) error {
@@ -1269,6 +1313,10 @@ func (v *arraySchema) Type() SchemaType {
 
 func (v *arraySchema) Ephemeral() bool {
 	return v.ephemeral
+}
+
+func (v *arraySchema) NestedEphemeral() bool {
+	return v.Ephemeral() || v.elementType.NestedEphemeral()
 }
 
 func (v *arraySchema) parseConstraints(constraints map[string]json.RawMessage) error {
