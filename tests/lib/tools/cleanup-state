@@ -82,6 +82,11 @@ main() {
 				find /sys/fs/cgroup/devices/ -type d -name 'snap.*' -prune -ls -exec rmdir \{\} \;
 			fi
 
+			# Remove any cgroup pinned map files might be left behind
+			if [ -d /sys/fs/bpf/snap ]; then
+				find /sys/fs/bpf/snap -type f -name "snap_*" -ls -exec rm \{\} \;
+			fi
+
 			# If the root user has a systemd --user instance then ask it to reload.
 			# This prevents tests from leaking user-session services that stay in
 			# memory but are not present on disk, or have been modified on disk, as is
