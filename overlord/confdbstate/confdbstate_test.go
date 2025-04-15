@@ -114,6 +114,7 @@ func (s *confdbTestSuite) SetUpTest(c *C) {
 		"views": map[string]interface{}{
 			"setup-wifi": map[string]interface{}{
 				"rules": []interface{}{
+					map[string]interface{}{"request": "eph", "storage": "wifi.eph"},
 					map[string]interface{}{"request": "ssids", "storage": "wifi.ssids"},
 					map[string]interface{}{"request": "ssid", "storage": "wifi.ssid", "access": "read-write"},
 					map[string]interface{}{"request": "password", "storage": "wifi.psk", "access": "write"},
@@ -132,6 +133,10 @@ func (s *confdbTestSuite) SetUpTest(c *C) {
       },
       "wifi": {
         "schema": {
+          "eph": {
+            "ephemeral": true,
+            "type": "string"
+          },
           "psk": "string",
           "ssid": "string",
           "ssids": {
@@ -429,8 +434,8 @@ func (s *confdbTestSuite) TestConfdbTasksUserSetWithCustodianInstalled(c *C) {
 	defer s.state.Unlock()
 
 	// only one custodian snap is installed
-	const noHooks = false
-	s.setupConfdbScenario(c, noHooks, []string{"custodian-snap"}, nil)
+	custodians := map[string]confdbHooks{"custodian-snap": allHooks}
+	s.setupConfdbScenario(c, custodians, nil)
 
 	tx, err := confdbstate.NewTransaction(s.state, s.devAccID, "network")
 	c.Assert(err, IsNil)
@@ -486,8 +491,8 @@ func (s *confdbTestSuite) TestConfdbTasksCustodianSnapSet(c *C) {
 	defer s.state.Unlock()
 
 	// only one custodian snap is installed
-	const noHooks = false
-	s.setupConfdbScenario(c, noHooks, []string{"custodian-snap"}, nil)
+	custodians := map[string]confdbHooks{"custodian-snap": allHooks}
+	s.setupConfdbScenario(c, custodians, nil)
 
 	tx, err := confdbstate.NewTransaction(s.state, s.devAccID, "network")
 	c.Assert(err, IsNil)
@@ -528,8 +533,9 @@ func (s *confdbTestSuite) TestConfdbTasksObserverSnapSetWithCustodianInstalled(c
 	defer s.state.Unlock()
 
 	// one custodian and several non-custodians are installed
-	const noHooks = false
-	s.setupConfdbScenario(c, noHooks, []string{"custodian-snap"}, []string{"test-snap-1", "test-snap-2"})
+	custodians := map[string]confdbHooks{"custodian-snap": allHooks}
+	nonCustodians := []string{"test-snap-1", "test-snap-2"}
+	s.setupConfdbScenario(c, custodians, nonCustodians)
 
 	tx, err := confdbstate.NewTransaction(s.state, s.devAccID, "network")
 	c.Assert(err, IsNil)
@@ -583,8 +589,10 @@ func (s *confdbTestSuite) TestConfdbTasksDisconnectedCustodianSnap(c *C) {
 	defer s.state.Unlock()
 
 	// mock and installed custodian-snap but disconnect it
-	const noHooks bool = false
-	s.setupConfdbScenario(c, noHooks, []string{"test-custodian-snap"}, []string{"test-snap"})
+	custodians := map[string]confdbHooks{"test-custodian-snap": allHooks}
+	nonCustodians := []string{"test-snap"}
+	s.setupConfdbScenario(c, custodians, nonCustodians)
+
 	s.repo.Disconnect("test-custodian-snap", "setup", "core", "confdb-slot")
 	s.testConfdbTasksNoCustodian(c)
 }
@@ -594,8 +602,8 @@ func (s *confdbTestSuite) TestConfdbTasksNoCustodianSnapInstalled(c *C) {
 	defer s.state.Unlock()
 
 	// no custodian snap is installed
-	const noHooks bool = false
-	s.setupConfdbScenario(c, noHooks, nil, []string{"test-snap"})
+	nonCustodians := []string{"test-snap"}
+	s.setupConfdbScenario(c, nil, nonCustodians)
 	s.testConfdbTasksNoCustodian(c)
 }
 
@@ -613,7 +621,38 @@ func (s *confdbTestSuite) testConfdbTasksNoCustodian(c *C) {
 	c.Assert(err, ErrorMatches, fmt.Sprintf("cannot commit changes to confdb made through view %s/network/%s: no custodian snap installed", s.devAccID, view.Name))
 }
 
-func (s *confdbTestSuite) setupConfdbScenario(c *C, noHooks bool, custodians, nonCustodians []string) {
+type confdbHooks uint8
+
+const (
+	changeView confdbHooks = 1 << iota
+	saveView
+	queryView
+	loadView
+	observeView
+
+	end
+)
+
+func (c confdbHooks) toString() []string {
+	allHooks := []string{"change-view-setup", "save-view-setup", "query-view-setup",
+		"load-view-setup", "observe-view-setup"}
+	if end != 1<<len(allHooks) {
+		panic("confdb hook name lsit doesn't match confdbHooks values")
+	}
+
+	hooks := make([]string, 0, len(allHooks))
+	for i := 0; i != int(end); i++ {
+		if c&(1<<i) != 0 {
+			hooks = append(hooks, allHooks[i])
+		}
+	}
+	return hooks
+}
+
+const allHooks = observeView | queryView | loadView | saveView | changeView
+const noHooks = confdbHooks(0)
+
+func (s *confdbTestSuite) setupConfdbScenario(c *C, custodians map[string]confdbHooks, nonCustodians []string) {
 	s.repo = interfaces.NewRepository()
 	ifacerepo.Replace(s.state, s.repo)
 
@@ -654,12 +693,10 @@ plugs:
 		}
 
 		info := mockInstalledSnap(c, s.state, snapYaml, hooks)
-		if !noHooks {
-			for _, hook := range hooks {
-				info.Hooks[hook] = &snap.HookInfo{
-					Name: hook,
-					Snap: info,
-				}
+		for _, hook := range hooks {
+			info.Hooks[hook] = &snap.HookInfo{
+				Name: hook,
+				Snap: info,
 			}
 		}
 
@@ -677,16 +714,15 @@ plugs:
 	}
 
 	// mock custodians
-	hooks := []string{"change-view-setup", "save-view-setup", "query-view-setup", "load-view-setup", "observe-view-setup"}
-	for _, snap := range custodians {
-		isCustodian := true
-		mockSnap(snap, isCustodian, hooks)
+	for snap, hooks := range custodians {
+		const isCustodian = true
+		mockSnap(snap, isCustodian, hooks.toString())
 	}
 
 	// mock non-custodians
-	hooks = []string{"observe-view-setup", "install"}
+	hooks := []string{"observe-view-setup", "install"}
 	for _, snap := range nonCustodians {
-		isCustodian := false
+		const isCustodian = false
 		mockSnap(snap, isCustodian, hooks)
 	}
 }
@@ -817,8 +853,8 @@ func (s *confdbTestSuite) TestGetTransactionFromUserCreatesNewChange(c *C) {
 	defer s.state.Unlock()
 
 	// only one custodian snap is installed
-	const noHooks bool = false
-	s.setupConfdbScenario(c, noHooks, []string{"custodian-snap"}, nil)
+	custodians := map[string]confdbHooks{"custodian-snap": allHooks}
+	s.setupConfdbScenario(c, custodians, nil)
 
 	view := s.dbSchema.View("setup-wifi")
 
@@ -866,8 +902,9 @@ func (s *confdbTestSuite) TestGetTransactionFromSnapCreatesNewChange(c *C) {
 	defer s.state.Unlock()
 
 	// only one custodian snap is installed
-	const noHooks bool = false
-	s.setupConfdbScenario(c, noHooks, []string{"custodian-snap"}, []string{"test-snap"})
+	custodians := map[string]confdbHooks{"custodian-snap": allHooks}
+	nonCustodians := []string{"test-snap"}
+	s.setupConfdbScenario(c, custodians, nonCustodians)
 
 	ctx, err := hookstate.NewContext(nil, s.state, &hookstate.HookSetup{Snap: "test-snap"}, nil, "")
 	c.Assert(err, IsNil)
@@ -925,9 +962,10 @@ func (s *confdbTestSuite) TestGetTransactionFromNonConfdbHookAddsConfdbTx(c *C) 
 
 	s.state.Lock()
 	defer s.state.Unlock()
-	// only one custodian snap is installed
-	const noHooks bool = false
-	s.setupConfdbScenario(c, noHooks, []string{"custodian-snap"}, []string{"test-snap"})
+
+	custodians := map[string]confdbHooks{"custodian-snap": allHooks}
+	nonCustodians := []string{"test-snap"}
+	s.setupConfdbScenario(c, custodians, nonCustodians)
 
 	hookTask := s.state.NewTask("run-hook", "")
 	chg := s.state.NewChange("install", "")
@@ -1051,8 +1089,8 @@ func (s *confdbTestSuite) testGetReadableOngoingTransaction(c *C, hook string) *
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	const noHooks bool = false
-	s.setupConfdbScenario(c, noHooks, []string{"custodian-snap"}, []string{"test-snap"})
+	custodians := map[string]confdbHooks{"custodian-snap": allHooks}
+	s.setupConfdbScenario(c, custodians, []string{"test-snap"})
 
 	originalTx, err := confdbstate.NewTransaction(s.state, s.devAccID, "network")
 	c.Assert(err, IsNil)
@@ -1127,8 +1165,9 @@ func (s *confdbTestSuite) TestConfdbLoadDisconnectedCustodianSnap(c *C) {
 	defer s.state.Unlock()
 
 	// no connected custodian
-	const noHooks bool = false
-	s.setupConfdbScenario(c, noHooks, []string{"test-custodian-snap"}, []string{"test-snap"})
+	custodians := map[string]confdbHooks{"test-custodian-snap": allHooks}
+	s.setupConfdbScenario(c, custodians, []string{"test-snap"})
+
 	s.repo.Disconnect("test-custodian-snap", "setup", "core", "confdb-slot")
 	s.testConfdbLoadNoCustodian(c)
 }
@@ -1138,8 +1177,7 @@ func (s *confdbTestSuite) TestConfdbLoadNoCustodianInstalled(c *C) {
 	defer s.state.Unlock()
 
 	// no custodian snap is installed
-	const noHooks bool = false
-	s.setupConfdbScenario(c, noHooks, nil, []string{"test-snap"})
+	s.setupConfdbScenario(c, nil, []string{"test-snap"})
 	s.testConfdbLoadNoCustodian(c)
 }
 
@@ -1153,7 +1191,7 @@ func (s *confdbTestSuite) testConfdbLoadNoCustodian(c *C) {
 	view := s.dbSchema.View("setup-wifi")
 
 	// a non-custodian snap modifies a confdb
-	_, err = confdbstate.CreateLoadConfdbTasks(s.state, tx, view)
+	_, err = confdbstate.CreateLoadConfdbTasks(s.state, tx, view, []string{"ssid"})
 	c.Assert(err, ErrorMatches, fmt.Sprintf("cannot load confdb through view %s/network/setup-wifi: no custodian snap connected", s.devAccID))
 }
 
@@ -1201,8 +1239,8 @@ func (s *confdbTestSuite) TestConfdbLoadCustodianInstalled(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	const noHooks bool = false
-	s.setupConfdbScenario(c, noHooks, []string{"custodian-snap"}, nil)
+	custodians := map[string]confdbHooks{"custodian-snap": allHooks}
+	s.setupConfdbScenario(c, custodians, nil)
 
 	tx, err := confdbstate.NewTransaction(s.state, s.devAccID, "network")
 	c.Assert(err, IsNil)
@@ -1213,7 +1251,7 @@ func (s *confdbTestSuite) TestConfdbLoadCustodianInstalled(c *C) {
 	view := s.dbSchema.View("setup-wifi")
 	chg := s.state.NewChange("load-confdb", "")
 
-	ts, err := confdbstate.CreateLoadConfdbTasks(s.state, tx, view)
+	ts, err := confdbstate.CreateLoadConfdbTasks(s.state, tx, view, []string{"ssid"})
 	c.Assert(err, IsNil)
 	chg.AddAll(ts)
 
@@ -1246,8 +1284,8 @@ func (s *confdbTestSuite) TestConfdbLoadCustodianWithNoHooks(c *C) {
 	defer s.state.Unlock()
 
 	// only one custodian snap is installed
-	const noHooks bool = true
-	s.setupConfdbScenario(c, noHooks, []string{"custodian-snap"}, nil)
+	custodians := map[string]confdbHooks{"custodian-snap": noHooks}
+	s.setupConfdbScenario(c, custodians, nil)
 
 	tx, err := confdbstate.NewTransaction(s.state, s.devAccID, "network")
 	c.Assert(err, IsNil)
@@ -1256,7 +1294,7 @@ func (s *confdbTestSuite) TestConfdbLoadCustodianWithNoHooks(c *C) {
 	c.Assert(err, IsNil)
 
 	view := s.dbSchema.View("setup-wifi")
-	ts, err := confdbstate.CreateLoadConfdbTasks(s.state, tx, view)
+	ts, err := confdbstate.CreateLoadConfdbTasks(s.state, tx, view, []string{"ssid"})
 	c.Assert(err, IsNil)
 	// no hooks, nothing to run
 	c.Assert(ts, IsNil)
@@ -1267,8 +1305,8 @@ func (s *confdbTestSuite) TestConfdbLoadTasks(c *C) {
 	defer s.state.Unlock()
 
 	// only one custodian snap is installed
-	const noHooks bool = false
-	s.setupConfdbScenario(c, noHooks, []string{"custodian-snap"}, nil)
+	custodians := map[string]confdbHooks{"custodian-snap": allHooks}
+	s.setupConfdbScenario(c, custodians, nil)
 
 	tx, err := confdbstate.NewTransaction(s.state, s.devAccID, "network")
 	c.Assert(err, IsNil)
@@ -1277,7 +1315,7 @@ func (s *confdbTestSuite) TestConfdbLoadTasks(c *C) {
 	c.Assert(err, IsNil)
 
 	view := s.dbSchema.View("setup-wifi")
-	ts, err := confdbstate.CreateLoadConfdbTasks(s.state, tx, view)
+	ts, err := confdbstate.CreateLoadConfdbTasks(s.state, tx, view, []string{"ssid"})
 	c.Assert(err, IsNil)
 	chg := s.state.NewChange("get-confdb", "")
 	chg.AddAll(ts)
@@ -1303,8 +1341,8 @@ func (s *confdbTestSuite) TestConfdbLoadTasks(c *C) {
 func (s *confdbTestSuite) TestGetTransactionForSnapctlNoHook(c *C) {
 	s.state.Lock()
 	// only one custodian snap is installed
-	const noHooks bool = false
-	s.setupConfdbScenario(c, noHooks, []string{"custodian-snap"}, nil)
+	custodians := map[string]confdbHooks{"custodian-snap": allHooks}
+	s.setupConfdbScenario(c, custodians, nil)
 
 	mockHandler := hooktest.NewMockHandler()
 	ctx, err := hookstate.NewContext(nil, s.state, nil, mockHandler, "")
@@ -1323,10 +1361,10 @@ func (s *confdbTestSuite) TestGetTransactionForSnapctlNoHook(c *C) {
 func (s *confdbTestSuite) TestGetTransactionForSnapctlNonConfdbHook(c *C) {
 	s.state.Lock()
 	// only one custodian snap is installed
-	const noHooks bool = false
+	custodians := map[string]confdbHooks{"custodian-snap": allHooks}
 	// the non-custodian snap doesn't matter in the loading case but we can reuse
 	// the helper to set it up with an install hook
-	s.setupConfdbScenario(c, noHooks, []string{"custodian-snap"}, []string{"test-snap"})
+	s.setupConfdbScenario(c, custodians, []string{"test-snap"})
 
 	hookTask := s.state.NewTask("run-hook", "")
 	chg := s.state.NewChange("install", "")
@@ -1368,7 +1406,7 @@ func (s *confdbTestSuite) testGetTransactionForSnapctl(c *C, ctx *hookstate.Cont
 	s.state.Set("confdb-databags", map[string]map[string]confdb.JSONDatabag{s.devAccID: {"network": bag}})
 
 	view := s.dbSchema.View("setup-wifi")
-	tx, err := confdbstate.GetTransactionForSnapctlGet(ctx, view)
+	tx, err := confdbstate.GetTransactionForSnapctlGet(ctx, view, []string{"ssid"})
 	c.Assert(err, IsNil)
 	c.Assert(s.state.Changes(), HasLen, 1)
 
@@ -1409,7 +1447,7 @@ func (s *confdbTestSuite) TestGetTransactionInConfdbHook(c *C) {
 	c.Assert(err, IsNil)
 
 	view := s.dbSchema.View("setup-wifi")
-	tx, err := confdbstate.GetTransactionForSnapctlGet(ctx, view)
+	tx, err := confdbstate.GetTransactionForSnapctlGet(ctx, view, []string{"ssid"})
 	c.Assert(err, IsNil)
 	// reads synchronously without creating new change or tasks
 	c.Assert(s.state.Changes(), HasLen, 1)
@@ -1425,8 +1463,8 @@ func (s *confdbTestSuite) TestGetTransactionNoConfdbHooks(c *C) {
 	defer s.state.Unlock()
 
 	// the custodian snap has no snaps, no tasks should be scheduled
-	const noHooks bool = true
-	s.setupConfdbScenario(c, noHooks, []string{"custodian-snap"}, nil)
+	custodians := map[string]confdbHooks{"custodian-snap": noHooks}
+	s.setupConfdbScenario(c, custodians, nil)
 
 	hookTask := s.state.NewTask("run-hook", "")
 
@@ -1447,7 +1485,7 @@ func (s *confdbTestSuite) TestGetTransactionNoConfdbHooks(c *C) {
 	s.state.Set("confdb-databags", map[string]map[string]confdb.JSONDatabag{s.devAccID: {"network": bag}})
 
 	view := s.dbSchema.View("setup-wifi")
-	tx, err := confdbstate.GetTransactionForSnapctlGet(ctx, view)
+	tx, err := confdbstate.GetTransactionForSnapctlGet(ctx, view, []string{"ssid"})
 	c.Assert(err, IsNil)
 	c.Assert(tx, NotNil)
 
@@ -1469,8 +1507,8 @@ func (s *confdbTestSuite) TestGetTransactionTimesOut(c *C) {
 	defer restore()
 
 	s.state.Lock()
-	const noHooks bool = false
-	s.setupConfdbScenario(c, noHooks, []string{"custodian-snap"}, nil)
+	custodians := map[string]confdbHooks{"custodian-snap": allHooks}
+	s.setupConfdbScenario(c, custodians, nil)
 
 	mockHandler := hooktest.NewMockHandler()
 	ctx, err := hookstate.NewContext(nil, s.state, nil, mockHandler, "")
@@ -1488,7 +1526,7 @@ func (s *confdbTestSuite) TestGetTransactionTimesOut(c *C) {
 	ctx.Lock()
 	defer ctx.Unlock()
 
-	tx, err := confdbstate.GetTransactionForSnapctlGet(ctx, view)
+	tx, err := confdbstate.GetTransactionForSnapctlGet(ctx, view, nil)
 	c.Assert(err, ErrorMatches, fmt.Sprintf("cannot load confdb %s/network in change 1: timed out after 0s", s.devAccID))
 	c.Assert(tx, IsNil)
 }
@@ -1557,8 +1595,9 @@ func (s *confdbTestSuite) checkOngoingReadConfdbTx(c *C, account, confdbName str
 
 func (s *confdbTestSuite) TestGetTransactionForAPI(c *C) {
 	s.state.Lock()
-	const noHooks = false
-	s.setupConfdbScenario(c, noHooks, []string{"custodian-snap"}, []string{"test-snap"})
+	custodians := map[string]confdbHooks{"custodian-snap": allHooks}
+	nonCustodians := []string{"test-snap"}
+	s.setupConfdbScenario(c, custodians, nonCustodians)
 
 	hooks, restore := s.mockConfdbHooks(c)
 	defer restore()
@@ -1608,8 +1647,9 @@ func (s *confdbTestSuite) TestGetTransactionForAPINoHooks(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	const noHooks = true
-	s.setupConfdbScenario(c, noHooks, []string{"custodian-snap"}, []string{"test-snap"})
+	custodians := map[string]confdbHooks{"custodian-snap": noHooks}
+	nonCustodians := []string{"test-snap"}
+	s.setupConfdbScenario(c, custodians, nonCustodians)
 
 	// write some value for the get to read
 	bag := confdb.NewJSONDatabag()
@@ -1647,8 +1687,10 @@ func (s *confdbTestSuite) TestGetTransactionForAPINoHooks(c *C) {
 func (s *confdbTestSuite) TestGetTransactionForAPINoHooksError(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
-	const noHooks = true
-	s.setupConfdbScenario(c, noHooks, []string{"custodian-snap"}, []string{"test-snap"})
+
+	custodians := map[string]confdbHooks{"custodian-snap": noHooks}
+	nonCustodians := []string{"test-snap"}
+	s.setupConfdbScenario(c, custodians, nonCustodians)
 
 	view := s.dbSchema.View("setup-wifi")
 	chgID, err := confdbstate.LoadConfdbAsync(s.state, view, []string{"ssid"})
@@ -1673,8 +1715,9 @@ func (s *confdbTestSuite) TestGetTransactionForAPINoHooksError(c *C) {
 
 func (s *confdbTestSuite) TestGetTransactionForAPIError(c *C) {
 	s.state.Lock()
-	const noHooks = false
-	s.setupConfdbScenario(c, noHooks, []string{"custodian-snap"}, []string{"test-snap"})
+	custodians := map[string]confdbHooks{"custodian-snap": allHooks}
+	nonCustodians := []string{"test-snap"}
+	s.setupConfdbScenario(c, custodians, nonCustodians)
 
 	_, restore := s.mockConfdbHooks(c)
 	defer restore()
@@ -1703,8 +1746,7 @@ func (s *confdbTestSuite) TestConcurrentAccessWithOngoingWrite(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	const noHooks = true
-	s.setupConfdbScenario(c, noHooks, nil, nil)
+	s.setupConfdbScenario(c, nil, nil)
 
 	err := confdbstate.SetWriteTransaction(s.state, s.devAccID, "network", "1")
 	c.Assert(err, IsNil)
@@ -1719,7 +1761,7 @@ func (s *confdbTestSuite) TestConcurrentAccessWithOngoingWrite(c *C) {
 	ctx, err := hookstate.NewContext(nil, s.state, nil, mockHandler, "")
 	c.Assert(err, IsNil)
 
-	_, err = confdbstate.GetTransactionForSnapctlGet(ctx, view)
+	_, err = confdbstate.GetTransactionForSnapctlGet(ctx, view, nil)
 	c.Assert(err, ErrorMatches, fmt.Sprintf("cannot access confdb view %s/network/setup-wifi: ongoing write transaction", s.devAccID))
 
 	// writing (used both from snap or API)
@@ -1729,27 +1771,118 @@ func (s *confdbTestSuite) TestConcurrentAccessWithOngoingWrite(c *C) {
 
 func (s *confdbTestSuite) TestConcurrentAccessWithOngoingRead(c *C) {
 	s.state.Lock()
-	defer s.state.Unlock()
-
-	const noHooks = true
-	s.setupConfdbScenario(c, noHooks, []string{"custodian-snap"}, nil)
+	s.setupConfdbScenario(c, map[string]confdbHooks{"custodian-snap": noHooks}, nil)
 
 	err := confdbstate.AddReadTransaction(s.state, s.devAccID, "network", "1")
 	c.Assert(err, IsNil)
+	s.state.Unlock()
+
+	mockHandler := hooktest.NewMockHandler()
+	ctx, err := hookstate.NewContext(nil, s.state, nil, mockHandler, "")
+	c.Assert(err, IsNil)
+
+	ctx.Lock()
+	defer ctx.Unlock()
 
 	view := s.dbSchema.View("setup-wifi")
 	// writing (used both from snap or API) conflicts
-	_, _, err = confdbstate.GetTransactionToSet(nil, s.state, view)
+	_, _, err = confdbstate.GetTransactionToSet(ctx, s.state, view)
 	c.Assert(err, ErrorMatches, fmt.Sprintf("cannot write confdb through view %s/network/setup-wifi: ongoing transaction", s.devAccID))
 
 	// we can read from the API and the snap concurrently with other reads
 	_, err = confdbstate.LoadConfdbAsync(s.state, view, []string{"ssid"})
 	c.Assert(err, IsNil)
 
+	_, err = confdbstate.GetTransactionForSnapctlGet(ctx, view, []string{"ssid"})
+	c.Assert(err, IsNil)
+}
+
+func (s *confdbTestSuite) TestWriteAffectingEphemeralMustDefineSaveViewHook(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	hooks := observeView | queryView | loadView | changeView
+	s.setupConfdbScenario(c, map[string]confdbHooks{"custodian-snap": hooks}, nil)
+
+	view := s.dbSchema.View("setup-wifi")
+	tx, commitTx, err := confdbstate.GetTransactionToSet(nil, s.state, view)
+	c.Assert(err, IsNil)
+	err = tx.Set("wifi.eph", "foo")
+	c.Assert(err, IsNil)
+
+	// can't write an ephemeral path w/o a save-view hook
+	_, _, err = commitTx()
+	c.Assert(err, ErrorMatches, fmt.Sprintf("cannot access %s/network/setup-wifi: write might change ephemeral data but no custodians has a save-view hook", s.devAccID))
+
+	err = tx.Clear(s.state)
+	c.Assert(err, IsNil)
+	err = tx.Set("wifi.ssid", "foo")
+	c.Assert(err, IsNil)
+
+	// but we can if the path can't touch any ephemeral data
+	_, _, err = commitTx()
+	c.Assert(err, IsNil)
+}
+
+func (s *confdbTestSuite) TestReadCoveringEphemeralMustDefineLoadViewHook(c *C) {
+	s.state.Lock()
+	hooks := observeView | queryView | saveView | changeView
+	s.setupConfdbScenario(c, map[string]confdbHooks{"custodian-snap": hooks}, nil)
+
 	mockHandler := hooktest.NewMockHandler()
 	ctx, err := hookstate.NewContext(nil, s.state, nil, mockHandler, "")
 	c.Assert(err, IsNil)
+	s.state.Unlock()
 
-	_, err = confdbstate.GetTransactionForSnapctlGet(ctx, view)
+	ctx.Lock()
+	view := s.dbSchema.View("setup-wifi")
+	// can't write an ephemeral path w/o a save-view hook
+	_, err = confdbstate.GetTransactionForSnapctlGet(ctx, view, []string{"eph"})
+	c.Assert(err, ErrorMatches, fmt.Sprintf("cannot schedule tasks to access %s/network/setup-wifi: read might cover ephemeral data but no custodian has a save-view hook", s.devAccID))
+
+	// so we don't block on the read
+	restore := confdbstate.MockTransactionTimeout(0)
+	defer restore()
+
+	// but if the path isn't ephemeral it's fine
+	_, err = confdbstate.GetTransactionForSnapctlGet(ctx, view, []string{"ssid"})
+	c.Assert(err, ErrorMatches, fmt.Sprintf("cannot load confdb %s/network in change 1: timed out after 0s", s.devAccID))
+	ctx.Unlock()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+	// can't write an ephemeral path w/o a save-view hook
+	_, err = confdbstate.LoadConfdbAsync(s.state, view, []string{"eph"})
+	c.Assert(err, ErrorMatches, fmt.Sprintf("cannot schedule tasks to access %s/network/setup-wifi: read might cover ephemeral data but no custodian has a save-view hook", s.devAccID))
+
+	// but reading a non-ephemeral path succeeds
+	_, err = confdbstate.LoadConfdbAsync(s.state, view, []string{"ssid"})
 	c.Assert(err, IsNil)
+}
+
+func (s *confdbTestSuite) TestBadPathHookChecks(c *C) {
+	s.state.Lock()
+	s.setupConfdbScenario(c, map[string]confdbHooks{"custodian-snap": allHooks}, nil)
+
+	mockHandler := hooktest.NewMockHandler()
+	ctx, err := hookstate.NewContext(nil, s.state, nil, mockHandler, "")
+	c.Assert(err, IsNil)
+	s.state.Unlock()
+
+	ctx.Lock()
+	defer ctx.Unlock()
+	view := s.dbSchema.View("setup-wifi")
+
+	_, err = confdbstate.GetTransactionForSnapctlGet(ctx, view, []string{"foo"})
+	c.Assert(err, ErrorMatches, fmt.Sprintf(`cannot get "foo" through %s/network/setup-wifi: no matching rule`, s.devAccID))
+
+	_, err = confdbstate.LoadConfdbAsync(s.state, view, []string{"foo"})
+	c.Assert(err, ErrorMatches, fmt.Sprintf(`cannot get "foo" through %s/network/setup-wifi: no matching rule`, s.devAccID))
+
+	tx, commitTxFunc, err := confdbstate.GetTransactionToSet(nil, s.state, view)
+	c.Assert(err, IsNil)
+	// this shouldn't happen unless there's a mismatch between views and schemas but check we're robust
+	c.Assert(tx.Set("foo", "bar"), IsNil)
+	_, _, err = commitTxFunc()
+	c.Assert(err, ErrorMatches, `cannot check if write affects ephemeral data: cannot use "foo" as key in map`)
 }

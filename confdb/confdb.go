@@ -1063,6 +1063,103 @@ func mergeNamespaces(old, new interface{}) (interface{}, error) {
 	return oldMap, nil
 }
 
+// ReadAffectsEphemeral returns true if any of the requests might be used to
+// set ephemeral data. The requests are mapped to storage paths as in GetViaView.
+func (v *View) ReadAffectsEphemeral(requests []string) (bool, error) {
+	if len(requests) == 0 {
+		// try to match all like we'd to read
+		requests = []string{""}
+	}
+
+	var matches []requestMatch
+	for _, request := range requests {
+		reqMatches, err := v.matchGetRequest(request)
+		if err != nil {
+			if errors.Is(err, &NotFoundError{}) {
+				// we serve partial reads so check other paths
+				continue
+			}
+			// no match
+			return false, err
+		}
+
+		if len(reqMatches) != 0 {
+			matches = append(matches, reqMatches...)
+		}
+	}
+
+	if len(matches) == 0 {
+		return false, NewNotFoundError(i18n.G("cannot get %s through %s: no matching rule"), strutil.Quoted(requests), v.ID())
+	}
+
+	schema := []DatabagSchema{v.schema.DatabagSchema}
+	for _, match := range matches {
+		pathParts := strings.Split(match.storagePath, ".")
+		ephemeral, err := anyEphemeralSchema(schema, pathParts)
+		if err != nil {
+			// shouldn't be possible unless there's a view/schema mismatch
+			return false, fmt.Errorf("cannot check if read affects ephemeral data: %v", err)
+		}
+
+		if ephemeral {
+			return true, nil
+		}
+	}
+
+	return false, nil
+}
+
+// WriteAffectsEphemeral returns true if the storage paths can affect ephemeral
+// data.
+func (v *View) WriteAffectsEphemeral(paths []string) (bool, error) {
+	schema := []DatabagSchema{v.schema.DatabagSchema}
+	for _, path := range paths {
+		pathParts := strings.Split(path, ".")
+		ephemeral, err := anyEphemeralSchema(schema, pathParts)
+		if err != nil {
+			// shouldn't be possible unless the paths don't match the schema somehow
+			return false, fmt.Errorf("cannot check if write affects ephemeral data: %v", err)
+		}
+
+		if ephemeral {
+			return true, nil
+		}
+	}
+
+	return false, nil
+}
+
+func anyEphemeralSchema(schemas []DatabagSchema, pathParts []string) (bool, error) {
+	for _, schema := range schemas {
+		if schema.Ephemeral() {
+			return true, nil
+		}
+
+		if len(pathParts) == 0 {
+			if schema.NestedEphemeral() {
+				return true, nil
+			}
+			continue
+		}
+
+		nestedSchemas, err := schema.SchemaAt([]string{pathParts[0]})
+		if err != nil {
+			return false, err
+		}
+
+		eph, err := anyEphemeralSchema(nestedSchemas, pathParts[1:])
+		if err != nil {
+			return false, err
+		}
+
+		if eph {
+			return true, nil
+		}
+	}
+
+	return false, nil
+}
+
 type requestMatch struct {
 	// storagePath contains the storage path specified in the matching entry with
 	// any placeholders provided by the request filled in.
