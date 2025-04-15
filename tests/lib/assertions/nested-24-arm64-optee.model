@@ -1,0 +1,38 @@
+type: model
+authority-id: test-snapd
+series: 16
+brand-id: test-snapd
+model: optee-model
+architecture: arm64
+base: core24
+grade: dangerous
+serial-authority:
+  - generic
+snaps:
+  -
+    name: test-qemu-optee-gadget
+    type: gadget
+  -
+    name: test-qemu-optee-kernel
+    type: kernel
+  -
+    default-channel: latest/stable
+    name: core24
+    type: base
+  -
+    default-channel: latest/edge
+    name: snapd
+    type: snapd
+timestamp: 2024-05-14T10:05:00+00:00
+sign-key-sha3-384: 7qWG-Uwck6Dji43a3Z8ZZrm7rAziZAch3xf76iFvqe4GaD0LI7U9lYPWMSJAsEgu
+
+AcLBcwQAAQoAHRYhBGESvKlz1RXG1IBOC0MdJKf2hr9ABQJn/sgpAAoJEEMdJKf2hr9Ap5MP/0Kf
+YcSOna17W2xCzz6YCPhrEJauRvL97tNjND4DHwG4JN+pWW7ygFRqKJ7mN6NC+BLU5RGdgdGF6ClP
+y8l/EEG1ch6QHcWyTyMNxKGdY1hDLHfMey7FrgAobb75AfM8/2Sq3sgM6K1yAypfziiCZ3hXdiZZ
+MYjp/SEAw3lmOTn5ct5JktMLqw5bwIVAKu+ZSZt5m6QWpAVh7q7fNpH/G6k+WesVOUZbEBcbKOWQ
++tdKw6Qe+P9sHIRANaIYg6yMX5kdTS/zwzZqASm7o/BYOCuIISlBJkmLQ1qUwlh4qaNY5oUC1OGG
+31fH3Zwa8DxOOnr83tGChZ6TjxVOMcTyqJRf9WKteJLqc+0rU80w31XsdfjbK7sb21meE4KqXfQE
+dg/2pwfeNBwM72q2Xu8NoYAYQ+lNOysZZuQA/srgFtdtMPcnv7qR6gIuls2VlFocL+/W1NHNdGTW
+CbHGsVUpza4hT/nsvctZL20S9+PuroiLU/KFTD5ksq+jaCL2hqbGisv9luTz98de/kxcV/KLMfSC
+/YceKAz3VCGNYTyy1qubJDnriJssGQWTCmUcoyeTJZkxrNs4ny8BQ3LorM0ojafUT5Y1jqS9kWVt
+Oki5hEAKljAdlPWYFUPEFmoN9LjyAVJiKuagfd5N+BPyuZSGYfJsUiQ9/zrY1i1RAuiYVMRd
