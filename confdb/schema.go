@@ -86,10 +86,7 @@ func ParseStorageSchema(raw []byte) (*StorageSchema, error) {
 				return nil, fmt.Errorf(`cannot parse alias %q: %w`, alias, err)
 			}
 
-			if aliasSchema.Ephemeral() {
-				// TODO: this isn't properly forbidden because the type may have other nested types
-				// that are marked as ephemeral. It might be as much effort to fully forbid it
-				// than it is to support it so I'll leave its enablement for a follow-up
+			if aliasSchema.NestedEphemeral() {
 				return nil, fmt.Errorf(`cannot use "ephemeral" in user-defined type: %s`, alias)
 			}
 
@@ -176,7 +173,9 @@ func (v *aliasReference) Ephemeral() bool {
 }
 
 func (s *aliasReference) NestedEphemeral() bool {
-	return s.Ephemeral() || s.alias.NestedEphemeral()
+	// TODO: aliases can't be marked as ephemeral for now (only their references)
+	// so there's no point in calling the alias' NestedEphemeral()
+	return s.Ephemeral()
 }
 
 // scalarSchema holds the data and behaviours common to all types.
@@ -653,11 +652,9 @@ func (v *mapSchema) NestedEphemeral() bool {
 		return true
 	}
 
-	if v.entrySchemas != nil {
-		for _, schema := range v.entrySchemas {
-			if schema.NestedEphemeral() {
-				return true
-			}
+	for _, schema := range v.entrySchemas {
+		if schema.NestedEphemeral() {
+			return true
 		}
 	}
 

@@ -2439,6 +2439,24 @@ func (*schemaSuite) TestUserDefinedTypeEphemeralFail(c *C) {
 }`)
 	_, err := confdb.ParseStorageSchema(schemaStr)
 	c.Assert(err, ErrorMatches, `cannot use "ephemeral" in user-defined type: my-type`)
+
+	schemaStr = []byte(`{
+	"aliases": {
+		"my-type": {
+			"schema": {
+				"foo": {
+					"type": "string",
+					"ephemeral": true
+				}
+			}
+		}
+	},
+	"schema": {
+		"foo": "$my-type"
+	}
+}`)
+	_, err = confdb.ParseStorageSchema(schemaStr)
+	c.Assert(err, ErrorMatches, `cannot use "ephemeral" in user-defined type: my-type`)
 }
 
 func (*schemaSuite) TestUserTypeReferenceEphemeral(c *C) {
