@@ -34,6 +34,7 @@ import (
 
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/interfaces/mount"
 	"github.com/snapcore/snapd/jsonutil"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
@@ -371,6 +372,12 @@ func (r *Reader) Restore(ctx context.Context, current snap.Revision, usernames [
 
 		sz.Reset()
 		hasher.Reset()
+	}
+
+	// We need to discard the consumer namespace!!
+	logger.Noticef("discarding namespace for %q", r.Snap)
+	if err := mount.DiscardSnapNamespace("test-cons"); err != nil {
+		return rs, fmt.Errorf("cannot discard namespace: %v", err)
 	}
 
 	return rs, nil
