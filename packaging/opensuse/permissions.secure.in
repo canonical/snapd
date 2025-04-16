@@ -1,1 +1,2 @@
-@LIBEXECDIR@/snapd/snap-confine                             root:root         4755
+@LIBEXECDIR@/snapd/snap-confine root:root 0755
+ +capabilities @CAPS@
