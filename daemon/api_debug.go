@@ -21,13 +21,16 @@ package daemon
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"sort"
+	"strconv"
 	"time"
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/gadget"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil/disks"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/auth"
@@ -53,7 +56,8 @@ type debugAction struct {
 
 		RecoverySystemLabel string `json:"recovery-system-label"`
 	} `json:"params"`
-	Snaps []string `json:"snaps"`
+	Snaps   []string `json:"snaps"`
+	Logging *logging `json:"logging"`
 }
 
 type connectivityStatus struct {
@@ -375,6 +379,46 @@ func getDebug(c *Command, r *http.Request, user *auth.UserState) Response {
 	}
 }
 
+type logging struct {
+	Debug string `json:"debug"`
+}
+
+func setLogging(l *logging) Response {
+	if l == nil || l.Debug == "" {
+		// no chnage
+		return SyncResponse(nil)
+	}
+
+	debug, err := strconv.ParseBool(l.Debug)
+	if err != nil {
+		return BadRequest("cannot parse debug value: %s", err)
+	}
+
+	logger.WithCurrentLogger(func(l logger.Logger) {
+		cl, ok := l.(logger.DynamicallyConfigurableLogger)
+		if !ok || cl == nil {
+			err = errors.New("logger not configurable")
+			return
+		}
+
+		cl.SetDebug(debug)
+	})
+
+	if err != nil {
+		return BadRequest("cannot configure logger: %s", err)
+	}
+
+	if debug {
+		// as debug, so that observing it in the logs proves we enabled the feature
+		logger.Debug("debug logging enabled")
+	} else {
+		// as notice
+		logger.Notice("debug logging disabled")
+	}
+
+	return SyncResponse(nil)
+}
+
 func postDebug(c *Command, r *http.Request, user *auth.UserState) Response {
 	var a debugAction
 	decoder := json.NewDecoder(r.Body)
@@ -411,6 +455,8 @@ func postDebug(c *Command, r *http.Request, user *auth.UserState) Response {
 		return createRecovery(st, a.Params.RecoverySystemLabel)
 	case "migrate-home":
 		return migrateHome(st, a.Snaps)
+	case "set-logging":
+		return setLogging(a.Logging)
 	default:
 		return BadRequest("unknown debug action: %v", a.Action)
 	}
