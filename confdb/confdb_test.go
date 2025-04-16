@@ -1233,7 +1233,7 @@ func (s *viewSuite) TestGetMergeAtDifferentLevels(c *C) {
 
 func (s *viewSuite) TestBadRequestPaths(c *C) {
 	databag := confdb.NewJSONDatabag()
-	confdb, err := confdb.NewSchema("acc", "confdb", map[string]interface{}{
+	schema, err := confdb.NewSchema("acc", "confdb", map[string]interface{}{
 		"foo": map[string]interface{}{
 			"rules": []interface{}{
 				map[string]interface{}{"request": "a.{b}.c", "storage": "a.{b}.c"},
@@ -1242,7 +1242,7 @@ func (s *viewSuite) TestBadRequestPaths(c *C) {
 	}, confdb.NewJSONSchema())
 	c.Assert(err, IsNil)
 
-	view := confdb.View("foo")
+	view := schema.View("foo")
 	c.Assert(view, NotNil)
 
 	err = databag.Set("a", map[string]interface{}{
@@ -1310,6 +1310,12 @@ func (s *viewSuite) TestBadRequestPaths(c *C) {
 		c.Assert(err, NotNil, cmt)
 		c.Assert(err.Error(), Equals, fmt.Sprintf(`cannot unset %q through confdb view acc/confdb/foo: %s`, tc.request, tc.errMsg), cmt)
 	}
+
+	cmt := Commentf("last test case failed")
+	err = view.Set(databag, "", "value")
+	c.Assert(err, NotNil, cmt)
+	c.Assert(err.Error(), Equals, `cannot set empty path through confdb view acc/confdb/foo: cannot have empty subkeys`, cmt)
+	c.Assert(err, testutil.ErrorIs, &confdb.BadRequestError{}, cmt)
 }
 
 func (s *viewSuite) TestSetAllowedOnSameRequestButDifferentPaths(c *C) {

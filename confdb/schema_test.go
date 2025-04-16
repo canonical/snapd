@@ -2422,7 +2422,17 @@ func (*schemaSuite) TestAlternativesAllEphemeralOk(c *C) {
 
 	c.Assert(nestedSchema[0].NestedEphemeral(), Equals, true)
 	c.Assert(nestedSchema[1].NestedEphemeral(), Equals, false)
+}
 
+func (*schemaSuite) TestAlternativesNoEphemeral(c *C) {
+	schemaStr := []byte(`{
+	"schema": {
+		"foo": ["string", "number"]
+	}
+}`)
+	schema, err := confdb.ParseStorageSchema(schemaStr)
+	c.Assert(err, IsNil)
+	c.Assert(schema.NestedEphemeral(), Equals, false)
 }
 
 func (*schemaSuite) TestUserDefinedTypeEphemeralFail(c *C) {
