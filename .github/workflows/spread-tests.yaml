@@ -295,11 +295,6 @@ jobs:
             exit 0
           fi
 
-          # Add openstack backend definition to spread.yaml
-          if [ "$SPREAD_BACKEND" = openstack ]; then
-              ./tests/lib/spread/add-backend tests/lib/spread/backend.openstack.yaml spread.yaml
-          fi
-
           spread_list="$($SPREAD -list $RUN_TESTS 2>&1 || true)"
 
           if [[ "$spread_list" =~ amazon-linux-2023 ]]; then
