@@ -778,7 +778,7 @@ EOF
                 # visibility what happens when a machine fails to boot
                 GADGET_EXTRA_CMDLINE="console=ttyS0 snapd.debug=1 systemd.journald.forward_to_console=1"
             elif os.query is-arm; then
-                GADGET_EXTRA_CMDLINE="console=ttyAMA0"
+                GADGET_EXTRA_CMDLINE="console=ttyAMA0 snapd.debug=1 systemd.journald.forward_to_console=1"
             fi
 
             if [ -n "$NESTED_EXTRA_CMDLINE" ]; then
@@ -1318,7 +1318,7 @@ nested_start_core_vm_unit() {
 
     if nested_is_core_ge 20; then
         nested_ensure_ovmf
-        local OVMF_CODE OVMF_VARS OVMF_VARS_SECBOOT OVMF_VARS_CURRENT OVMF
+        local OVMF_CODE OVMF_VARS OVMF_VARS_SECBOOT OVMF_VARS_CURRENT OVMF 
         if os.query is-arm; then
             OVMF=AAVMF
             OVMF_VARS_SECBOOT="${NESTED_ASSETS_DIR}/ovmf/fw/${OVMF}_VARS.ms.fd"
@@ -1338,8 +1338,6 @@ nested_start_core_vm_unit() {
             fi
         fi
 
-        local SECURE_PARAM
-        SECURE_PARAM=""
         if [ -z "$NESTED_BIOS_FILE" ]; then
             if nested_is_secure_boot_enabled; then
                 PARAM_BIOS="-drive file=${OVMF_CODE},if=pflash,format=raw,readonly=on -drive file=${OVMF_VARS_CURRENT},if=pflash,format=raw"
@@ -1347,13 +1345,17 @@ nested_start_core_vm_unit() {
                 PARAM_BIOS="-drive file=${OVMF_CODE},if=pflash,format=raw,readonly=on"
             fi
         else
-            PARAM_BIOS="-drive file=${NESTED_BIOS_FILE},if=pflash,format=raw,readonly=on"
-            if [ "$NESTED_SECURE_ARM_MACHINE" = true ]; then
-                SECURE_PARAM=",secure=on"
-            fi
+            PARAM_BIOS="-drive file=${NESTED_BIOS_FILE},if=pflash,format=raw,readonly=on"            
         fi
+
+        local ENABLE_ARM_TRUSTZONE
+        ENABLE_ARM_TRUSTZONE=""
+        if [ "$NESTED_ENABLE_ARM_TRUSTZONE" = true ]; then
+            ENABLE_ARM_TRUSTZONE=",secure=on"
+        fi
+    
         if os.query is-arm; then
-            PARAM_MACHINE="-machine virt${SECURE_PARAM} -accel tcg,thread=multi"
+            PARAM_MACHINE="-machine virt${ENABLE_ARM_TRUSTZONE} -accel tcg,thread=multi"
             PARAM_CPU="-cpu cortex-a57"
         else
             PARAM_MACHINE="-machine q35${ATTR_KVM}"
