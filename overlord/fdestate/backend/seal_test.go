@@ -37,6 +37,7 @@ import (
 	"github.com/snapcore/snapd/gadget/device"
 	"github.com/snapcore/snapd/kernel/fde"
 	"github.com/snapcore/snapd/kernel/fde/optee"
+	"github.com/snapcore/snapd/kernel/fde/optee/opteetest"
 	fdeBackend "github.com/snapcore/snapd/overlord/fdestate/backend"
 	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/testutil"
@@ -571,7 +572,7 @@ func (s *sealSuite) TestSealToModeenvWithOPTEE(c *C) {
 	model := boottest.MakeMockUC20Model()
 
 	sealedKeys := make([][]byte, 0)
-	client := optee.MockClient{
+	client := opteetest.MockClient{
 		EncryptKeyFn: func(input []byte) (handle, sealed []byte, err error) {
 			sealedKeys = append(sealedKeys, input)
 			return nil, []byte(fmt.Sprintf("key-%v", strconv.Itoa(len(sealedKeys)))), nil

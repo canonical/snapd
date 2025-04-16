@@ -54,6 +54,7 @@ import (
 	"github.com/snapcore/snapd/gadget/device"
 	"github.com/snapcore/snapd/kernel/fde"
 	"github.com/snapcore/snapd/kernel/fde/optee"
+	"github.com/snapcore/snapd/kernel/fde/optee/opteetest"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/disks"
@@ -1852,7 +1853,7 @@ func (s *secbootSuite) TestLockSealedKeysUsesTPM(c *C) {
 	})
 	defer restore()
 
-	client := optee.MockClient{
+	client := opteetest.MockClient{
 		FDETAPresentFn: func() bool {
 			return false
 		},
@@ -1909,7 +1910,7 @@ func (s *secbootSuite) TestLockSealedKeysUsesOPTEE(c *C) {
 	defer restore()
 
 	var called bool
-	client := optee.MockClient{
+	client := opteetest.MockClient{
 		FDETAPresentFn: func() bool {
 			return true
 		},
@@ -1940,7 +1941,7 @@ func (s *secbootSuite) TestLockSealedKeysUsesNothing(c *C) {
 	defer restore()
 
 	var called bool
-	client := optee.MockClient{
+	client := opteetest.MockClient{
 		FDETAPresentFn: func() bool {
 			return false
 		},
@@ -2108,7 +2109,7 @@ var fakeModel = assertstest.FakeAssertion(map[string]interface{}{
 func (s *secbootSuite) sealKeysWithOPTEE(c *C) (key []byte, keyPath string) {
 	prefix := []byte("SEALED:")
 
-	client := optee.MockClient{
+	client := opteetest.MockClient{
 		EncryptKeyFn: func(input []byte) (handle []byte, sealed []byte, err error) {
 			key = make([]byte, len(input))
 			copy(key, input)
@@ -2151,7 +2152,7 @@ func (s *secbootSuite) sealKeysWithOPTEE(c *C) (key []byte, keyPath string) {
 func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyWithOPTEE(c *C) {
 	expectedKey, keyPath := s.sealKeysWithOPTEE(c)
 
-	client := optee.MockClient{
+	client := opteetest.MockClient{
 		DecryptKeyFn: func(input []byte, handle []byte) ([]byte, error) {
 			unsealed := bytes.TrimPrefix(input, []byte("SEALED:"))
 			c.Check(unsealed, DeepEquals, expectedKey)

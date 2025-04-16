@@ -43,6 +43,7 @@ import (
 	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/kernel/fde"
 	"github.com/snapcore/snapd/kernel/fde/optee"
+	"github.com/snapcore/snapd/kernel/fde/optee/opteetest"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/install"
@@ -496,7 +497,7 @@ func (s *installSuite) TestEncryptionSupportInfoFallbacks(c *C) {
 		}
 
 		opteeChecked := false
-		client := optee.MockClient{
+		client := opteetest.MockClient{
 			FDETAPresentFn: func() bool {
 				opteeChecked = true
 				return tc.optee

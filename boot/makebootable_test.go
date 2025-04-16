@@ -39,6 +39,7 @@ import (
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/gadget/device"
 	"github.com/snapcore/snapd/kernel/fde/optee"
+	"github.com/snapcore/snapd/kernel/fde/optee/opteetest"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/kcmdline"
 	"github.com/snapcore/snapd/release"
@@ -539,7 +540,7 @@ func (s *makeBootable20Suite) TestMakeSystemRunnableSealWithFDEHookOrOPTEE(c *C)
 
 	checkedForOPTEE := false
 	mockedTAPresent := true
-	client := optee.MockClient{
+	client := opteetest.MockClient{
 		FDETAPresentFn: func() bool {
 			checkedForOPTEE = true
 			return mockedTAPresent
