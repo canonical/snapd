@@ -382,10 +382,6 @@ backends:
                 image: snapd-spread/ubuntu-24.04-64
                 workers: 8
 
-            - ubuntu-24.04-arm-64:
-                image: auto-sync/ubuntu-noble-24.04-arm64-server-20250403-disk1.img
-                workers: 8
-
             - fedora-40-64:
                 image: snapd-spread/fedora-40-64
                 workers: 6
