@@ -276,7 +276,7 @@ func logHTTP(h http.Handler) http.Handler {
 				h.ServeHTTP(w, r)
 				return
 			}
-			if r.Method == "POST" {
+			if r.Method == "POST" && r.Header.Get("Content-Type") == "application/json" {
 				bodyBytes, err := io.ReadAll(r.Body)
 				if err != nil {
 					logger.Noticef("unexpected error when attempting to get json body: %s", err)
