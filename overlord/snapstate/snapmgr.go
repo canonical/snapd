@@ -1523,7 +1523,6 @@ func (m *SnapManager) Ensure() error {
 	if m.preseed {
 		return nil
 	}
-	logger.Trace("ensure", "manager", "SnapManager")
 
 	// do not exit right away on error
 	errs := []error{

@@ -22,6 +22,7 @@ package overlord
 import (
 	"errors"
 	"fmt"
+	"strings"
 	"sync"
 
 	"github.com/snapcore/snapd/logger"
@@ -156,6 +157,12 @@ func (se *StateEngine) Ensure() error {
 	}
 	var errs []error
 	for _, m := range se.managers {
+		managerType := fmt.Sprintf("%T", m)
+		managerType = strings.TrimPrefix(managerType, "*")
+		if idx := strings.Index(managerType, "."); idx != -1 {
+			managerType = managerType[idx+1:]
+		}
+		logger.Trace("ensure", "manager", managerType)
 		err := m.Ensure()
 		if err != nil {
 			logger.Noticef("state ensure error: %v", err)

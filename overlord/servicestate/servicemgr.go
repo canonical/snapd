@@ -203,7 +203,6 @@ func (m *ServiceManager) ensureSnapServicesUpdated() (err error) {
 
 // Ensure implements StateManager.Ensure.
 func (m *ServiceManager) Ensure() error {
-	logger.Trace("ensure", "manager", "ServiceManager")
 	if err := m.ensureSnapServicesUpdated(); err != nil {
 		return err
 	}

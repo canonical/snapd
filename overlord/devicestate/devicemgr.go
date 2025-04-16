@@ -1809,7 +1809,6 @@ var seedFailureFmt = `seeding failed with: %v. This indicates an error in your d
 
 // Ensure implements StateManager.Ensure.
 func (m *DeviceManager) Ensure() error {
-	logger.Trace("ensure", "manager", "DeviceManager")
 	var errs []error
 
 	if err := m.ensureSeeded(); err != nil {
