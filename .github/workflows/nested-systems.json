@@ -33,7 +33,7 @@
         "rules": "nested"
       },
       {
-        "group": "nested-ubuntu-24.04-arm",
+        "group": "nested-ubuntu-24.04-arm64",
         "backend": "google-nested-arm",
         "alternative-backend": "google-nested-arm",
         "systems": "ubuntu-24.04-arm-64",
