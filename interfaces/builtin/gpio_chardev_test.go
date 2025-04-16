@@ -67,6 +67,46 @@ slots:
       - chip0
       - chip1
     lines: 3,4,1-2,5
+`
+
+const gpioChardevConsumerYaml = `name: consumer
+version: 0
+apps:
+  app:
+    plugs:
+      - gpio-chardev-good-plug
+plugs:
+  gpio-chardev-good-plug:
+    interface: gpio-chardev
+`
+
+func (s *GpioChardevInterfaceSuite) SetUpTest(c *C) {
+	restore := release.MockReleaseInfo(&release.OS{ID: "ubuntu"})
+	s.AddCleanup(restore)
+
+	s.rootdir = c.MkDir()
+	dirs.SetRootDir(s.rootdir)
+	s.AddCleanup(func() { dirs.SetRootDir("") })
+
+	c.Assert(os.MkdirAll(dirs.FeaturesDir, 0755), check.IsNil)
+	c.Assert(os.WriteFile(features.GPIOChardevInterface.ControlFile(), []byte(nil), 0644), check.IsNil)
+
+	s.slot, s.slotInfo = MockConnectedSlot(c, gpioChardevGadgetYaml, nil, "gpio-chardev-good-slot")
+	s.plug, s.plugInfo = MockConnectedPlug(c, gpioChardevConsumerYaml, nil, "gpio-chardev-good-plug")
+}
+
+func (s *GpioChardevInterfaceSuite) TestName(c *C) {
+	c.Assert(s.iface.Name(), Equals, "gpio-chardev")
+}
+
+func (s *GpioChardevInterfaceSuite) TestSanitizeSlot(c *C) {
+	// Happy case
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.slotInfo), IsNil)
+
+	const badGpioChardevGadgetYaml = `name: my-device
+version: 0
+type: gadget
+slots:
   no-source-chip-attr:
     interface: gpio-chardev
     lines: 3,4,1-2,5
@@ -130,42 +170,7 @@ slots:
     source-chip: [chip11]
     lines: 0,1-512
 `
-
-const gpioChardevConsumerYaml = `name: consumer
-version: 0
-apps:
-  app:
-    plugs:
-      - gpio-chardev-good-plug
-plugs:
-  gpio-chardev-good-plug:
-    interface: gpio-chardev
-`
-
-func (s *GpioChardevInterfaceSuite) SetUpTest(c *C) {
-	restore := release.MockReleaseInfo(&release.OS{ID: "ubuntu"})
-	s.AddCleanup(restore)
-
-	s.rootdir = c.MkDir()
-	dirs.SetRootDir(s.rootdir)
-	s.AddCleanup(func() { dirs.SetRootDir("") })
-
-	c.Assert(os.MkdirAll(dirs.FeaturesDir, 0755), check.IsNil)
-	c.Assert(os.WriteFile(features.GPIOChardevInterface.ControlFile(), []byte(nil), 0644), check.IsNil)
-
-	s.slot, s.slotInfo = MockConnectedSlot(c, gpioChardevGadgetYaml, nil, "gpio-chardev-good-slot")
-	s.plug, s.plugInfo = MockConnectedPlug(c, gpioChardevConsumerYaml, nil, "gpio-chardev-good-plug")
-}
-
-func (s *GpioChardevInterfaceSuite) TestName(c *C) {
-	c.Assert(s.iface.Name(), Equals, "gpio-chardev")
-}
-
-func (s *GpioChardevInterfaceSuite) TestSanitizeSlot(c *C) {
-	// Happy case
-	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.slotInfo), IsNil)
-
-	info := snaptest.MockInfo(c, gpioChardevGadgetYaml, nil)
+	info := snaptest.MockInvalidInfo(c, badGpioChardevGadgetYaml, nil)
 	expectedError := map[string]string{
 		"no-source-chip-attr":   `snap "my-device" does not have attribute "source-chip" for interface "gpio-chardev"`,
 		"no-lines-attr":         `snap "my-device" does not have attribute "lines" for interface "gpio-chardev"`,
@@ -184,11 +189,8 @@ func (s *GpioChardevInterfaceSuite) TestSanitizeSlot(c *C) {
 		"bad-line-1":            `invalid "lines" attribute: invalid range span start "-1":.*: invalid syntax`,
 		"bad-lines-count":       `invalid "lines" attribute: range size cannot exceed 512, found 513`,
 	}
-	for slotName := range info.Slots {
-		if slotName == "gpio-chardev-good-slot" {
-			continue
-		}
-		slotInfo := MockSlot(c, gpioChardevGadgetYaml, nil, slotName)
+	c.Assert(len(info.Slots), Equals, len(expectedError))
+	for slotName, slotInfo := range info.Slots {
 		c.Check(interfaces.BeforePrepareSlot(s.iface, slotInfo), ErrorMatches, expectedError[slotName])
 	}
 }
