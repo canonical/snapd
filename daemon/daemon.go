@@ -170,9 +170,7 @@ func (c *Command) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		rjson.addMaintenanceFromRestartType(rst)
 
 		if rjson.Type != ResponseTypeError {
-			st.Lock()
 			count, stamp := st.WarningsSummary()
-			st.Unlock()
 			rjson.addWarningCount(count, stamp)
 		}
 
