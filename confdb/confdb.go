@@ -1072,10 +1072,10 @@ func (v *View) ReadAffectsEphemeral(requests []string) (bool, error) {
 	}
 
 	var matches []requestMatch
-	for i, request := range requests {
+	for _, request := range requests {
 		reqMatches, err := v.matchGetRequest(request)
 		if err != nil {
-			if errors.Is(err, &NotFoundError{}) && i != len(requests)-1 {
+			if errors.Is(err, &NotFoundError{}) {
 				// we serve partial reads so check other paths
 				continue
 			}
@@ -1086,6 +1086,10 @@ func (v *View) ReadAffectsEphemeral(requests []string) (bool, error) {
 		if len(reqMatches) != 0 {
 			matches = append(matches, reqMatches...)
 		}
+	}
+
+	if len(matches) == 0 {
+		return false, NewNotFoundError(i18n.G("cannot get %s through %s: no matching rule"), strutil.Quoted(requests), v.ID())
 	}
 
 	schema := []DatabagSchema{v.schema.DatabagSchema}
@@ -1132,7 +1136,7 @@ func anyEphemeralSchema(schemas []DatabagSchema, pathParts []string) (bool, erro
 		}
 
 		if len(pathParts) == 0 {
-			if eph := schema.NestedEphemeral(); eph {
+			if schema.NestedEphemeral() {
 				return true, nil
 			}
 			continue

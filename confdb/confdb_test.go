@@ -2740,6 +2740,10 @@ func (*viewSuite) TestCheckReadEphemeralAccess(c *C) {
 			requests: []string{"non.existent"},
 			err:      `cannot get "non.existent" through acc/foo/my-view: no matching rule`,
 		},
+		{
+			requests: []string{"12", "mk"},
+			err:      `cannot get "12", "mk" through acc/foo/my-view: no matching rule`,
+		},
 	}
 
 	v := schema.View("my-view")
