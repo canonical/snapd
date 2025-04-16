@@ -157,12 +157,7 @@ func (se *StateEngine) Ensure() error {
 	}
 	var errs []error
 	for _, m := range se.managers {
-		managerType := fmt.Sprintf("%T", m)
-		managerType = strings.TrimPrefix(managerType, "*")
-		if idx := strings.Index(managerType, "."); idx != -1 {
-			managerType = managerType[idx+1:]
-		}
-		logger.Trace("ensure", "manager", managerType)
+		logger.Trace("ensure", "manager", getObjectType(m))
 		err := m.Ensure()
 		if err != nil {
 			logger.Noticef("state ensure error: %v", err)
@@ -209,4 +204,13 @@ func (se *StateEngine) Stop() {
 		}
 	}
 	se.stopped = true
+}
+
+func getObjectType(obj any) string {
+	objType := fmt.Sprintf("%T", obj)
+	objType = strings.TrimPrefix(objType, "*")
+	if idx := strings.Index(objType, "."); idx != -1 {
+		objType = objType[idx+1:]
+	}
+	return objType
 }
