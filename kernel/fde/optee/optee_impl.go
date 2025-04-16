@@ -28,11 +28,6 @@ import (
 	"github.com/snapcore/snapd/logger"
 )
 
-// fdeUUID is the byte encoding of the FDE TA UUID (C.fde_ta_uuid). Having this
-// pre-calculated eliminates some code that would be required to do the
-// conversion.
-var fdeUUID = [...]byte{0xfd, 0x1b, 0x2a, 0x86, 0x36, 0x68, 0x11, 0xeb, 0xad, 0xc1, 0x2, 0x42, 0xac, 0x12, 0x0, 0x2}
-
 type opteeClient struct{}
 
 func (c *opteeClient) FDETAPresent() bool {
@@ -46,9 +41,15 @@ func (c *opteeClient) FDETAPresent() bool {
 		return false
 	}
 
+	// parameters:
+	// - output parameter containing a slice of bytes, each 16 byte segment is a UUID
+	// - none
+	// - none
+	// - none
+	params := teecParamTypes(C.TEEC_MEMREF_TEMP_OUTPUT, C.TEEC_NONE, C.TEEC_NONE, C.TEEC_NONE)
 	op := &C.TEEC_Operation{
 		started:    1,
-		paramTypes: teecParamTypes(C.TEEC_MEMREF_TEMP_OUTPUT, C.TEEC_NONE, C.TEEC_NONE, C.TEEC_NONE),
+		paramTypes: params,
 	}
 	pinner.Pin(op)
 
@@ -68,6 +69,11 @@ func (c *opteeClient) FDETAPresent() bool {
 	// output here is a slice of bytes, each 16 byte segment is a UUID
 	output = output[:outputMemRef.size]
 
+	// fdeUUID is the byte encoding of the FDE TA UUID (C.fde_ta_uuid). Having this
+	// pre-calculated eliminates some code that would be required to do the
+	// conversion.
+	fdeUUID := [...]byte{0xfd, 0x1b, 0x2a, 0x86, 0x36, 0x68, 0x11, 0xeb, 0xad, 0xc1, 0x2, 0x42, 0xac, 0x12, 0x0, 0x2}
+
 	for i := 0; i+16 < len(output)+1; i += 16 {
 		if !bytes.Equal(fdeUUID[:], output[i:i+16]) {
 			continue
@@ -75,9 +81,9 @@ func (c *opteeClient) FDETAPresent() bool {
 
 		version, err := c.Version()
 		if err != nil {
-			logger.Debugf("found the FDE TA: cannot get version: %v", err)
+			logger.Noticef("found the FDE TA: cannot get version: %v", err)
 		} else {
-			logger.Debugf("found the FDE TA: version %q", version)
+			logger.Noticef("found the FDE TA: version %q", version)
 		}
 
 		return true
@@ -87,9 +93,17 @@ func (c *opteeClient) FDETAPresent() bool {
 }
 
 func devicesBufferSize(pinner *runtime.Pinner) (int, error) {
+	// parameters:
+	// - output parameter containing a slice of bytes, each 16 byte segment is a
+	//   UUID; in this case, we will send in an empty slice to just retrieve the
+	//   required buffer size
+	// - none
+	// - none
+	// - none
+	params := teecParamTypes(C.TEEC_MEMREF_TEMP_OUTPUT, C.TEEC_NONE, C.TEEC_NONE, C.TEEC_NONE)
 	op := &C.TEEC_Operation{
 		started:    1,
-		paramTypes: teecParamTypes(C.TEEC_MEMREF_TEMP_OUTPUT, C.TEEC_NONE, C.TEEC_NONE, C.TEEC_NONE),
+		paramTypes: params,
 	}
 	pinner.Pin(op)
 
@@ -115,9 +129,15 @@ func (c *opteeClient) DecryptKey(input []byte, handle []byte) ([]byte, error) {
 	pinner := &runtime.Pinner{}
 	defer pinner.Unpin()
 
+	// parameters:
+	// - input parameter containing the encrypted key
+	// - input parameter containing the handle
+	// - output parameter containing the decrypted key
+	// - none
+	params := teecParamTypes(C.TEEC_MEMREF_TEMP_INPUT, C.TEEC_MEMREF_TEMP_INPUT, C.TEEC_MEMREF_TEMP_OUTPUT, C.TEEC_NONE)
 	op := &C.TEEC_Operation{
 		started:    1,
-		paramTypes: teecParamTypes(C.TEEC_MEMREF_TEMP_INPUT, C.TEEC_MEMREF_TEMP_INPUT, C.TEEC_MEMREF_TEMP_OUTPUT, C.TEEC_NONE),
+		paramTypes: params,
 	}
 	pinner.Pin(op)
 
@@ -154,9 +174,15 @@ func (c *opteeClient) EncryptKey(input []byte) (handle []byte, sealed []byte, er
 	pinner := &runtime.Pinner{}
 	defer pinner.Unpin()
 
+	// parameters:
+	// - input parameter containing the key to encrypt
+	// - output parameter containing the handle
+	// - output parameter containing the encrypted key
+	// - none
+	params := teecParamTypes(C.TEEC_MEMREF_TEMP_INPUT, C.TEEC_MEMREF_TEMP_OUTPUT, C.TEEC_MEMREF_TEMP_OUTPUT, C.TEEC_NONE)
 	op := &C.TEEC_Operation{
 		started:    1,
-		paramTypes: teecParamTypes(C.TEEC_MEMREF_TEMP_INPUT, C.TEEC_MEMREF_TEMP_OUTPUT, C.TEEC_MEMREF_TEMP_OUTPUT, C.TEEC_NONE),
+		paramTypes: params,
 	}
 	pinner.Pin(op)
 
@@ -208,9 +234,15 @@ func (c *opteeClient) Version() (string, error) {
 	pinner := &runtime.Pinner{}
 	defer pinner.Unpin()
 
+	// parameters:
+	// - output parameter containing the version string
+	// - none
+	// - none
+	// - none
+	params := teecParamTypes(C.TEEC_MEMREF_TEMP_OUTPUT, C.TEEC_NONE, C.TEEC_NONE, C.TEEC_NONE)
 	op := &C.TEEC_Operation{
 		started:    1,
-		paramTypes: teecParamTypes(C.TEEC_MEMREF_TEMP_OUTPUT, C.TEEC_NONE, C.TEEC_NONE, C.TEEC_NONE),
+		paramTypes: params,
 	}
 	pinner.Pin(op)
 
@@ -243,6 +275,11 @@ func unionAsType[T any, U any](union *U) *T {
 
 // teecParamTypes is a Go version of TEEC_PARAM_TYPES, since that is a macro and
 // cannot be used from Go.
+//
+// OPTEE TAs support a few parameter types, we use these:
+//   - TEEC_MEMREF_TEMP_INPUT: input parameter containing a slice of bytes
+//   - TEEC_MEMREF_TEMP_OUTPUT: output parameter containing a slice of bytes
+//   - TEEC_NONE: unused parameter
 func teecParamTypes(p0, p1, p2, p3 C.uint32_t) C.uint32_t {
 	return p0 | (p1 << 4) | (p2 << 8) | (p3 << 12)
 }
