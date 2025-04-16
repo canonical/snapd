@@ -232,6 +232,7 @@ parts:
       - libudev-dev
       - libcap-dev
       - libseccomp-dev
+      - libselinux1-dev
       - pkg-config
     override-pull: |
       craftctl default
@@ -305,7 +306,10 @@ parts:
         --sysconfdir=/etc \
         --localstatedir=/var \
         --without-unit-tests \
+        --enable-apparmor \
         --enable-static-libapparmor \
+        --enable-selinux \
+        --enable-static-libselinux \
         --disable-host-binaries \
         --enable-nvidia-multiarch \
         --with-host-arch-triplet=$(dpkg-architecture -qDEB_HOST_MULTIARCH) \
