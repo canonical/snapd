@@ -55,6 +55,11 @@ type Logger interface {
 	Trace(msg string, attrs ...any)
 }
 
+// A specialized interface of a logger which can be configured at runtime
+type DynamicallyConfigurableLogger interface {
+	SetDebug(val bool)
+}
+
 const (
 	// DefaultFlags are passed to the default console log.Logger
 	DefaultFlags = log.Ldate | log.Ltime | log.Lmicroseconds | log.Lshortfile
@@ -73,6 +78,9 @@ var NullLogger = nullLogger{}
 var (
 	logger Logger = NullLogger
 	lock   sync.Mutex
+
+	_ Logger                        = (*Log)(nil)
+	_ DynamicallyConfigurableLogger = (*Log)(nil)
 )
 
 // Panicf notifies the user and then panics
@@ -169,6 +177,14 @@ func WithLoggerLock(f func()) {
 	f()
 }
 
+// WithCurrentLogger executes a function passing it currently configured logger.
+func WithCurrentLogger(f func(l Logger)) {
+	lock.Lock()
+	defer lock.Unlock()
+
+	f(logger)
+}
+
 // SetLogger sets the global logger to the given one
 func SetLogger(l Logger) {
 	lock.Lock()
@@ -216,6 +232,10 @@ func (l *Log) NoGuardDebug(msg string) {
 	// this frame + single package level API func() + actual caller
 	calldepth := 1 + 1 + 1
 	l.log.Output(calldepth, "DEBUG: "+msg)
+}
+
+func (l *Log) SetDebug(val bool) {
+	l.debug = val
 }
 
 func newLog(w io.Writer, flag int, opts *LoggerOptions) Logger {
