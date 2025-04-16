@@ -20,8 +20,9 @@
 package main_test
 
 import (
-	main "github.com/snapcore/snapd/cmd/snap-gpio-helper"
 	. "gopkg.in/check.v1"
+
+	main "github.com/snapcore/snapd/cmd/snap-gpio-helper"
 )
 
 func (s *snapGpioHelperSuite) TestUnexportGpioChardev(c *C) {

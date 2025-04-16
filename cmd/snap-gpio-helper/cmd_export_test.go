@@ -22,9 +22,10 @@ package main_test
 import (
 	"context"
 
+	. "gopkg.in/check.v1"
+
 	main "github.com/snapcore/snapd/cmd/snap-gpio-helper"
 	"github.com/snapcore/snapd/strutil"
-	. "gopkg.in/check.v1"
 )
 
 func (s *snapGpioHelperSuite) TestExportGpioChardevBadLine(c *C) {

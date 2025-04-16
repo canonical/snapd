@@ -23,11 +23,12 @@ import (
 	"os"
 	"testing"
 
+	. "gopkg.in/check.v1"
+
 	main "github.com/snapcore/snapd/cmd/snap-gpio-helper"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/testutil"
-	. "gopkg.in/check.v1"
 )
 
 // Hook up check.v1 into the "go test" runner

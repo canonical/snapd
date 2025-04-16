@@ -56,7 +56,7 @@ func (c *ChardevChip) String() string {
 }
 
 // This has to match the memory layout of `struct gpiochip_info` found
-// in /usr/include/uapi/linux/gpio.h in the kernel.
+// in include/uapi/linux/gpio.h in the kernel source tree.
 type kernelChipInfo struct {
 	name, label [32]byte
 	lines       uint32
@@ -287,7 +287,7 @@ func isAggregatedChip(path string) (bool, error) {
 		return false, err
 	}
 	stat, ok := finfo.Sys().(*syscall.Stat_t)
-	if !ok {
+	if !ok || stat == nil {
 		return false, errors.New("internal error")
 	}
 
