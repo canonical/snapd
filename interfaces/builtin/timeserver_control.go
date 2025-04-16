@@ -90,7 +90,7 @@ dbus (receive)
 /usr/bin/timedatectl{,.real} ixr,
 
 # timedatectl needs to bind the client side of the socket
-unix (bind) type=stream addr="@*/bus/timedatectl.rea/system",
+unix (bind) type=stream addr="@*/bus/timedatectl*/system",
 
 # Silence this noisy denial. systemd utilities look at /proc/1/environ to see
 # if running in a container, but they will fallback gracefully. No other
