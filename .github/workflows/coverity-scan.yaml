@@ -58,7 +58,7 @@ jobs:
           curl \
             --form project=snap-confine \
             --form token="$TOKEN" \
-            --form email=alex.murray@canonical.com \
+            --form email=jorge.sancho.larraz@canonical.com \
             --form file=@"$tarball" \
             --form version="$version" \
             --form description="snap-confine `git rev-parse --abbrev-ref HEAD` `git rev-parse --short HEAD`" \
