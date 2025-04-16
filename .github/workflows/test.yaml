@@ -308,7 +308,7 @@ jobs:
 
   code-coverage:
     needs: [unit-tests, unit-tests-special, unit-tests-c]
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-latest
     env:
       GOPATH: ${{ github.workspace }}
       # Set PATH to ignore the load of magic binaries from /usr/local/bin And
