@@ -1246,7 +1246,12 @@ setup_reflash_magic() {
         fi
     elif is_test_target_core 24; then
         build_snapd_snap_with_run_mode_firstboot_tweaks "$IMAGE_HOME"
-        cp "$TESTSLIB/assertions/ubuntu-core-24-amd64.model" "$IMAGE_HOME/pc.model"
+        if os.query is-arm; then
+            cp "$TESTSLIB/assertions/ubuntu-core-24-arm64.model" "$IMAGE_HOME/pc.model"
+        else
+            cp "$TESTSLIB/assertions/ubuntu-core-24-amd64.model" "$IMAGE_HOME/pc.model"
+        fi
+        
     else
         # FIXME: install would be better but we don't have dpkg on
         #        the image
@@ -1445,7 +1450,7 @@ EOF
                     $EXTRA_FUNDAMENTAL \
                     --snap "${extra_snap[0]}" \
                     --output-dir "$IMAGE_HOME"
-    rm -f ./pc-kernel_*.{snap,assert} ./pc-kernel.{snap,assert} ./pc_*.{snap,assert} ./snapd_*.{snap,assert} ./core{20,22}.{snap,assert}
+    rm -f ./pc-kernel_*.{snap,assert} ./pc-kernel.{snap,assert} ./pc_*.{snap,assert} ./snapd_*.{snap,assert} ./core{20,22,24}.{snap,assert}
 
     if os.query is-arm; then
         LOOP_PARTITION=1

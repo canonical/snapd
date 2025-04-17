@@ -92,7 +92,7 @@
         "group": "ubuntu-arm64",
         "backend": "google-arm",
         "alternative-backend": "google-arm",
-        "systems": "ubuntu-20.04-arm-64 ubuntu-core-22-arm-64",
+        "systems": "ubuntu-22.04-arm-64 ubuntu-core-24-arm-64",
         "tasks": "tests/...",
         "rules": "main"
       },
