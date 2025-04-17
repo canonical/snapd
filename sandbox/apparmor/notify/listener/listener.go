@@ -156,13 +156,6 @@ type Listener struct {
 	// expected to be re-received from the kernel. When the listener becomes
 	// ready, this count must be sent to 0, as it's used as the internal check
 	// for whether a non-RESENT message should be queued.
-	//
-	// XXX: In order for this count to be accurate, it is important that the
-	// pending messages at time of registration are only re-sent by the kernel
-	// once, and that no messages which were first sent this listener was
-	// registered are resent. If, however, we are able to reset this count
-	// based on the result of the resend command, and the ready channel has not
-	// yet been closed, this is okay.
 	pendingCount int
 	// readyQueue is the queue of "ready" (not UNOTIF_RESENT) requests from the
 	// kernel which were received before either all remaining pending requests
