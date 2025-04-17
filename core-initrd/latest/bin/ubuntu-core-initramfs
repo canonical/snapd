@@ -463,6 +463,11 @@ def install_misc(dest_dir, sysroot, deb_arch):
     files += glob.glob("/usr/lib/" + deb_arch + "/plymouth/renderers/*.so")
     files += glob.glob("/usr/share/plymouth/themes/bgrt/*")
     files += glob.glob("/usr/share/plymouth/themes/spinner/*")
+
+    # the arm64 build of snap-bootstrap requires libteec
+    if deb_arch == "aarch64-linux-gnu":
+        files += glob.glob("/usr/lib/" + deb_arch + "/libteec.so*")
+
     install_files(files, dest_dir, sysroot)
     # Links for fsck
     os.symlink("e2fsck", os.path.join(dest_dir, "usr/sbin", "fsck.ext4"))
