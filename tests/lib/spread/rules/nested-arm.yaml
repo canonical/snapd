@@ -1,0 +1,44 @@
+rules:
+  nested:
+    from:
+      - tests/nested/core/core20-basic/*
+    to: 
+      - tests/nested/core/core20-basic
+
+  nestedlib:
+    from:
+      - tests/lib/nested.sh
+    to: 
+      - tests/nested/core/core20-basic
+
+  assertions:
+    from:
+      - tests/lib/assertions/.*
+    to: 
+      - tests/nested/core/core20-basic
+
+  exclude-tests:
+    from:
+      - .*_test.go
+    to: [$NONE]
+
+  code-changes:
+    from:
+      - secboot/.*
+      - boot/.*
+      - bootloader/.*
+      - overlord/devicestate/.*
+      - overlord/install/.*
+      - overlord/fdestate/.*
+      - overlord/restart/.*
+      - cmd/snap-bootstrap/.*
+      - kernel/.*
+      - gadget/.*
+      - seed/.*
+      - core-initrd/.*
+      - overlord/configstate/configcore/coredump.go
+      - overlord/configstate/configcore/kernel.go
+      - overlord/configstate/configcore/timezone.go
+      - wrappers/core18.go
+    to: 
+      - tests/nested/core/core20-basic
