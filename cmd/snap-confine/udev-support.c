@@ -128,7 +128,7 @@ static void sc_udev_allow_hybris(sc_device_cgroup *cgroup)
     }
 
     const char *paths[] = {"/dev/binderfs/binder", "/dev/binderfs/hwbinder", "/dev/binder", "/dev/hwbinder"};
-    for (int i = 0; i < sizeof(paths)/sizeof(paths[0]); i++) {
+    for (long unsigned int i = 0; i < sizeof(paths)/sizeof(paths[0]); i++) {
         struct stat sbuf;
         if (stat(paths[i], &sbuf) == 0) {
             sc_device_cgroup_allow(cgroup, S_IFCHR, major(sbuf.st_rdev), minor(sbuf.st_rdev));
