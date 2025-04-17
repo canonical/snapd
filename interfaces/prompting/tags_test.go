@@ -49,70 +49,51 @@ func (*tagsSuite) TestInterfaceFromTagsets(c *C) {
 	for _, testCase := range []struct {
 		tagsets notify.TagsetMap
 		iface   string
-		errStr  string
+		err     error
 	}{
 		{
 			tagsets: notify.TagsetMap{},
-			errStr:  prompting_errors.ErrNoInterfaceTags.Error(),
+			err:     prompting_errors.ErrNoInterfaceTags,
 		},
 		{
 			tagsets: notify.TagsetMap{
 				notify.AA_MAY_READ:  notify.MetadataTags{"foo", "bar"},
 				notify.AA_MAY_WRITE: notify.MetadataTags{"baz"},
 			},
-			errStr: prompting_errors.ErrNoInterfaceTags.Error(),
+			err: prompting_errors.ErrNoInterfaceTags,
 		},
 		{
 			tagsets: notify.TagsetMap{
 				notify.AA_MAY_READ:  notify.MetadataTags{"foo", "bar"},
 				notify.AA_MAY_WRITE: notify.MetadataTags{"tag1"},
 			},
-			errStr: "cannot find interface which applies to permission: read",
+			err: prompting_errors.ErrNoCommonInterface,
 		},
 		{
 			tagsets: notify.TagsetMap{
 				notify.AA_MAY_READ:  notify.MetadataTags{"foo", "tag1"},
 				notify.AA_MAY_WRITE: notify.MetadataTags{"tag2", "bar"},
 			},
-			errStr: "cannot find interface which applies to all permissions",
+			err: prompting_errors.ErrMultipleInterfaces,
 		},
 		{
 			tagsets: notify.TagsetMap{
 				notify.AA_MAY_READ:  notify.MetadataTags{"foo", "tag1", "tag2"},
 				notify.AA_MAY_WRITE: notify.MetadataTags{"tag2", "bar", "tag3"},
 			},
-			iface: "iface2",
+			err: prompting_errors.ErrMultipleInterfaces,
 		},
 		{
 			tagsets: notify.TagsetMap{
-				notify.AA_MAY_READ:  notify.MetadataTags{"foo", "tag1", "tag2", "tag3"},
-				notify.AA_MAY_WRITE: notify.MetadataTags{"tag1", "bar", "tag2"},
+				notify.AA_MAY_READ:  notify.MetadataTags{"foo", "tag2"},
+				notify.AA_MAY_WRITE: notify.MetadataTags{"tag2", "bar"},
 			},
 			iface: "iface2",
-		},
-		{
-			tagsets: notify.TagsetMap{
-				notify.AA_MAY_READ:  notify.MetadataTags{"tag1", "tag3", "tag2", "foo"},
-				notify.AA_MAY_WRITE: notify.MetadataTags{"tag1", "tag3", "foo"},
-			},
-			iface: "iface3",
-		},
-		{
-			tagsets: notify.TagsetMap{
-				notify.AA_MAY_READ:  notify.MetadataTags{"tag1", "tag3", "tag2"},
-				notify.AA_MAY_WRITE: notify.MetadataTags{"tag1", "tag2", "tag3"},
-			},
-			iface: "iface2", // it's a tie, but "iface2" < "iface3"
 		},
 	} {
-		result, err := prompting.InterfaceFromTagsets(testCase.tagsets)
+		iface, err := prompting.InterfaceFromTagsets(testCase.tagsets)
 
-		if testCase.errStr == "" {
-			c.Check(err, IsNil)
-			c.Check(result, Equals, testCase.iface)
-		} else {
-			c.Check(err, ErrorMatches, testCase.errStr)
-			c.Check(result, Equals, "")
-		}
+		c.Check(err, Equals, testCase.err)
+		c.Check(iface, Equals, testCase.iface)
 	}
 }

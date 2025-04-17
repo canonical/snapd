@@ -218,8 +218,8 @@ func (m *InterfacesRequestsManager) handleListenerReq(req *listener.Request) err
 			// default to the "home" interface.
 			iface = "home"
 		} else {
-			// There were some tags registered with a snapd interface, but none
-			// which applied to all requested permissions.
+			// There was either more than one interface associated with tags, or
+			// none which applied to all requested permissions.
 			logger.Noticef("error while selecting interface from metadata tags: %v", err)
 			return requestReply(req, nil)
 		}
