@@ -1339,13 +1339,9 @@ nested_start_core_vm_unit() {
         fi
 
         if [ -z "$NESTED_BIOS_FILE" ]; then
-            if nested_is_secure_boot_enabled; then
-                PARAM_BIOS="-drive file=${OVMF_CODE},if=pflash,format=raw,readonly=on -drive file=${OVMF_VARS_CURRENT},if=pflash,format=raw"
-            else 
-                PARAM_BIOS="-drive file=${OVMF_CODE},if=pflash,format=raw,readonly=on"
-            fi
+            PARAM_BIOS="-drive file=${OVMF_CODE},if=pflash,format=raw,readonly=on -drive file=${OVMF_VARS_CURRENT},if=pflash,format=raw"
         else
-            PARAM_BIOS="-drive file=${NESTED_BIOS_FILE},if=pflash,format=raw,readonly=on"            
+            PARAM_BIOS="-drive file=${NESTED_BIOS_FILE},if=pflash,format=raw,readonly=on  -drive file=${OVMF_VARS_CURRENT},if=pflash,format=raw"
         fi
 
         local ENABLE_ARM_TRUSTZONE
