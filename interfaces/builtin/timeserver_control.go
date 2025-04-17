@@ -32,9 +32,13 @@ const timeserverControlBaseDeclarationSlots = `
 // http://bazaar.launchpad.net/~ubuntu-security/ubuntu-core-security/trunk/view/head:/data/apparmor/policygroups/ubuntu-core/16.04/timeserver-control
 const timeserverControlConnectedPlugAppArmor = `
 # Description: Can manage timeservers directly separate from config ubuntu-core.
+# Can use timedatectl,
 # Can enable system clock NTP synchronization via timedated D-Bus interface,
 # Can read all properties of /org/freedesktop/timedate1 D-Bus object; see
-# https://www.freedesktop.org/wiki/Software/systemd/timedated/
+# https://www.freedesktop.org/wiki/Software/systemd/timedated/ (obsoleted),
+# https://www.freedesktop.org/software/systemd/man/latest/org.freedesktop.timedate1.html
+# Can read all properties of /org/freedesktop/timesync1 D-Bus object; see
+# https://www.freedesktop.org/software/systemd/man/latest/org.freedesktop.timesync1.html
 
 #include <abstractions/dbus-strict>
 
@@ -65,6 +69,12 @@ dbus (send)
     interface=org.freedesktop.DBus.Properties
     member=Get{,All},
 
+dbus (send)
+    bus=system
+    path=/org/freedesktop/timesync1
+    interface=org.freedesktop.DBus.Properties
+    member="Get{,All}",
+
 # Receive timedate1 property changed events
 dbus (receive)
     bus=system
@@ -79,12 +89,22 @@ dbus (receive)
 # timedatectl's set-ntp command.
 /usr/bin/timedatectl{,.real} ixr,
 
+# timedatectl needs to bind the client side of the socket
+unix (bind) type=stream addr="@*/bus/timedatectl*/system",
+
 # Silence this noisy denial. systemd utilities look at /proc/1/environ to see
 # if running in a container, but they will fallback gracefully. No other
 # interfaces allow this denial, so no problems with silencing it for now. Note
 # that allowing this triggers a 'ptrace trace peer=unconfined' denial, which we
 # want to avoid.
 deny @{PROC}/1/environ r,
+`
+
+const timeserverControlConnectedPlugSecComp = `
+# Description: Can manage timeservers directly separate from config ubuntu-core.
+
+# timedatectl needs to bind the client side of the socket
+bind
 `
 
 func init() {
@@ -95,5 +115,6 @@ func init() {
 		implicitOnClassic:     true,
 		baseDeclarationSlots:  timeserverControlBaseDeclarationSlots,
 		connectedPlugAppArmor: timeserverControlConnectedPlugAppArmor,
+		connectedPlugSecComp:  timeserverControlConnectedPlugSecComp,
 	})
 }
