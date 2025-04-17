@@ -127,6 +127,8 @@ var (
 	SnapDeviceSaveDir string
 	SnapDataSaveDir   string
 
+	SnapGpioChardevDir string
+
 	CloudMetaDataFile     string
 	CloudInstanceDataFile string
 
@@ -147,6 +149,8 @@ var (
 	SnapshotsDir string
 
 	SysfsDir string
+
+	DevDir string
 
 	FeaturesDir string
 
@@ -641,6 +645,9 @@ func SetRootDir(rootdir string) {
 
 	SnapKModModulesDir = filepath.Join(rootdir, "/etc/modules-load.d/")
 	SnapKModModprobeDir = filepath.Join(rootdir, "/etc/modprobe.d/")
+
+	DevDir = filepath.Join(rootdir, "/dev")
+	SnapGpioChardevDir = filepath.Join(DevDir, "/snap/gpio-chardev")
 
 	LocaleDir = filepath.Join(rootdir, "/usr/share/locale")
 	ClassicDir = filepath.Join(rootdir, "/writable/classic")

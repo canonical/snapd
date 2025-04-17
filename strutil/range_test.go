@@ -20,8 +20,9 @@
 package strutil_test
 
 import (
-	"github.com/snapcore/snapd/strutil"
 	. "gopkg.in/check.v1"
+
+	"github.com/snapcore/snapd/strutil"
 )
 
 type rangeSuite struct{}

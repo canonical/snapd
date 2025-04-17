@@ -228,8 +228,8 @@ func (s *GpioChardevInterfaceSuite) TestSystemdConnectedPlug(c *C) {
 	err := spec.AddConnectedPlug(s.iface, s.plug, s.slot)
 	c.Assert(err, IsNil)
 
-	target := "/dev/snap/gpio-chardev/my-device/gpio-chardev-good-slot"
-	symlink := "/dev/snap/gpio-chardev/consumer/gpio-chardev-good-plug"
+	target := fmt.Sprintf("%s/my-device/gpio-chardev-good-slot", dirs.SnapGpioChardevDir)
+	symlink := fmt.Sprintf("%s/consumer/gpio-chardev-good-plug", dirs.SnapGpioChardevDir)
 
 	expectedExecStart := fmt.Sprintf("/bin/sh -c 'mkdir -p %q && ln -s %q %q'", filepath.Dir(symlink), target, symlink)
 	expectedExecStop := fmt.Sprintf("/bin/rm -f %q", symlink)

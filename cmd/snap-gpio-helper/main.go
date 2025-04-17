@@ -25,6 +25,7 @@ import (
 
 	"github.com/jessevdk/go-flags"
 
+	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/snapdtool"
 )
 
@@ -33,11 +34,16 @@ type options struct {
 	CmdUnexportChardev cmdUnexportChardev `command:"unexport-chardev"`
 }
 
-func run(osArgs1 []string) error {
+func run(args []string) error {
+	if !features.GPIOChardevInterface.IsEnabled() {
+		_, flag := features.GPIOChardevInterface.ConfigOption()
+		return fmt.Errorf("gpio-chardev interface requires the %q flag to be set", flag)
+	}
+
 	var opts options
 	p := flags.NewParser(&opts, flags.HelpFlag|flags.PassDoubleDash)
 
-	if _, err := p.ParseArgs(osArgs1); err != nil {
+	if _, err := p.ParseArgs(args); err != nil {
 		return err
 	}
 	return nil
