@@ -443,12 +443,16 @@ func writeInitramfsMountUnit(what, where string, utype unitType) error {
 	return os.Symlink(filepath.Join("..", unitFileName), linkPath)
 }
 
-func assembleSysrootMountUnitContent(what, mntType string) string {
+func assembleSysrootMountUnitContent(what, mntType string, opts []string) string {
 	var typ string
+	optionStr := ""
 	if mntType == "" {
 		typ = "Type=none\nOptions=bind"
 	} else {
 		typ = fmt.Sprintf("Type=%s", mntType)
+		if len(opts) != 0 {
+			optionStr = "\nOptions=" + strings.Join(opts, ",")
+		}
 	}
 	content := fmt.Sprintf(`[Unit]
 DefaultDependencies=no
@@ -460,23 +464,33 @@ Conflicts=umount.target
 [Mount]
 What=%[1]s
 Where=/sysroot
-%[2]s
-`, what, typ)
+%[2]s%[3]s
+`, what, typ, optionStr)
 	return content
 }
 
-func writeSysrootMountUnit(what, mntType string) error {
+func writeSysrootMountUnit(what, mntType string, opts fsOpts) (err error) {
+
 	// Writing the unit in this folder overrides
 	// /lib/systemd/system/sysroot-writable.mount - we will remove
 	// this unit eventually from the initramfs.
 	unitDir := dirs.SnapRuntimeServicesDirUnder(dirs.GlobalRootDir)
-	if err := os.MkdirAll(unitDir, 0755); err != nil {
+	if err = os.MkdirAll(unitDir, 0755); err != nil {
 		return err
 	}
 	unitFileName := "sysroot.mount"
 	unitPath := filepath.Join(unitDir, unitFileName)
 	what = dirs.StripRootDir(what)
-	unitContent := assembleSysrootMountUnitContent(what, mntType)
+
+	var options []string
+	if o, ok := opts.(*dmVerityOptions); ok && o != nil {
+		options, err = opts.AppendOptions(options)
+		if err != nil {
+			return err
+		}
+	}
+
+	unitContent := assembleSysrootMountUnitContent(what, mntType, options)
 	// This is in the initramfs, no need for atomic writes
 	if err := os.WriteFile(unitPath, []byte(unitContent), 0644); err != nil {
 		return err

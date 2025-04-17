@@ -2036,7 +2036,7 @@ func generateMountsCommonInstallRecoverStart(mst *initramfsMountsState) (model *
 			// unit is not used as it tries to be restarted after the
 			// switch root, and fails.
 			what := essentialSnap.Path
-			if err := writeSysrootMountUnit(what, "squashfs"); err != nil {
+			if err := writeSysrootMountUnit(what, "squashfs", verityOptions); err != nil {
 				return nil, nil, fmt.Errorf(
 					"cannot write sysroot.mount (what: %s): %v", what, err)
 			}
@@ -2582,13 +2582,13 @@ func generateMountsModeRun(mst *initramfsMountsState) error {
 		// fails.
 		typesToMount = []snap.Type{snap.TypeGadget, snap.TypeKernel}
 		if isClassic {
-			if err := writeSysrootMountUnit(rootfsDir, ""); err != nil {
+			if err := writeSysrootMountUnit(rootfsDir, "", nil); err != nil {
 				return fmt.Errorf("cannot write sysroot.mount (what: %s): %v", rootfsDir, err)
 			}
 		} else {
 			basePlaceInfo := mounts[snap.TypeBase]
 			what := filepath.Join(dirs.SnapBlobDirUnder(rootfsDir), basePlaceInfo.Filename())
-			if err := writeSysrootMountUnit(what, "squashfs"); err != nil {
+			if err := writeSysrootMountUnit(what, "squashfs", nil); err != nil {
 				return fmt.Errorf("cannot write sysroot.mount (what: %s): %v", what, err)
 			}
 		}

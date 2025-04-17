@@ -466,7 +466,7 @@ func (s *initramfsMountsSuite) testInitramfsMountsRecoverModeHappy(c *C, opts *t
 	}, nil)
 	defer restore()
 
-	s._testInitramfsMountsRecoverMode(c, opts.base, f)
+	s._testInitramfsMountsRecoverMode(c, opts.base, opts.snaps[snap.TypeBase].integrityData, f)
 }
 
 func (s *initramfsMountsSuite) testInitramfsMountsRecoverModeError(c *C, expErr error) {
@@ -480,10 +480,10 @@ func (s *initramfsMountsSuite) testInitramfsMountsRecoverModeError(c *C, expErr 
 	}, nil)
 	defer restore()
 
-	s._testInitramfsMountsRecoverMode(c, "core24", f)
+	s._testInitramfsMountsRecoverMode(c, "core24", nil, f)
 }
 
-func (s *initramfsMountsSuite) _testInitramfsMountsRecoverMode(c *C, base string, testFunc func() error) {
+func (s *initramfsMountsSuite) _testInitramfsMountsRecoverMode(c *C, base string, baseIntegrityData *asserts.SnapIntegrityData, testFunc func() error) {
 	s.mockProcCmdlineContent(c, "snapd_recovery_mode=recover snapd_recovery_system="+s.sysLabel)
 	var systemctlArgs [][]string
 	systemctlNumCalls := 0
@@ -548,6 +548,12 @@ func (s *initramfsMountsSuite) _testInitramfsMountsRecoverMode(c *C, base string
 	// Check sysroot mount unit bits
 	unitDir := dirs.SnapRuntimeServicesDirUnder(dirs.GlobalRootDir)
 	baseUnitPath := filepath.Join(unitDir, "sysroot.mount")
+
+	options := ""
+	if baseIntegrityData != nil {
+		options = fmt.Sprintf("\nOptions=verity.roothash=%s,verity.hashdevice=%s", baseIntegrityData.Digest, filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-seed/snaps/"+base+"_1.snap.verity"))
+	}
+
 	c.Assert(baseUnitPath, testutil.FileEquals, `[Unit]
 DefaultDependencies=no
 Before=initrd-root-fs.target
@@ -558,7 +564,7 @@ Conflicts=umount.target
 [Mount]
 What=/run/mnt/ubuntu-seed/snaps/`+base+`_1.snap
 Where=/sysroot
-Type=squashfs
+Type=squashfs`+options+`
 `)
 	symlinkPath := filepath.Join(unitDir, "initrd-root-fs.target.wants", "sysroot.mount")
 	target, err := os.Readlink(symlinkPath)
