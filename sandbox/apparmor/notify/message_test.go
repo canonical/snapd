@@ -1004,15 +1004,25 @@ func (*messageSuite) TestMsgNotificationFileAsGeneric(c *C) {
 	msg.Pid = 456
 	msg.Label = "hello there"
 	msg.Class = notify.AA_CLASS_FILE
-	msg.Allow = 0xaaaa
-	msg.Deny = 0xbbbb
+	msg.Allow = 0b0011
+	msg.Deny = 0b0101
 	msg.SUID = 789
 	msg.Filename = "/foo/bar"
+	msg.Tagsets = notify.TagsetMap{
+		notify.FilePermission(0b0001): {"foo"},
+		notify.FilePermission(0b0010): {"bar", "baz"},
+		notify.FilePermission(0b1100): {"qux"},
+	}
 
-	testMsgNotificationGeneric(c, &msg, msg.KernelNotificationID, msg.Pid, msg.Label, msg.Class, msg.Allow, msg.Deny, msg.SUID, msg.Filename)
+	expectedTagsets := notify.TagsetMap{
+		notify.FilePermission(0b0001): {"foo"},
+		notify.FilePermission(0b0100): {"qux"},
+	}
+
+	testMsgNotificationGeneric(c, &msg, msg.KernelNotificationID, msg.Pid, msg.Label, msg.Class, msg.Allow, msg.Deny, msg.SUID, msg.Filename, expectedTagsets)
 }
 
-func testMsgNotificationGeneric(c *C, generic notify.MsgNotificationGeneric, id uint64, pid int32, label string, class notify.MediationClass, allowed, denied, suid uint32, name string) {
+func testMsgNotificationGeneric(c *C, generic notify.MsgNotificationGeneric, id uint64, pid int32, label string, class notify.MediationClass, allowed, denied, suid uint32, name string, tagsets notify.TagsetMap) {
 	c.Check(generic.ID(), Equals, id)
 	c.Check(generic.PID(), Equals, pid)
 	c.Check(generic.ProcessLabel(), Equals, label)
@@ -1023,4 +1033,5 @@ func testMsgNotificationGeneric(c *C, generic notify.MsgNotificationGeneric, id 
 	c.Check(msgDeny.AsAppArmorOpMask(), Equals, denied)
 	c.Check(generic.SubjectUID(), Equals, suid)
 	c.Check(generic.Name(), Equals, name)
+	c.Check(generic.MetadataTagsets(), DeepEquals, tagsets)
 }
