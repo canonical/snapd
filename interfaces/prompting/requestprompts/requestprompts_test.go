@@ -288,7 +288,221 @@ func (s *requestpromptsSuite) TestNewNextIDCompatibility(c *C) {
 	s.checkWrittenMaxID(c, expectedID)
 }
 
-func (s *requestpromptsSuite) TestAddOrMerge(c *C) {
+func (s *requestpromptsSuite) TestAddOrMergeNonMerges(c *C) {
+	restore := requestprompts.MockSendReply(func(listenerReq *listener.Request, allowedPermission notify.AppArmorPermission) error {
+		c.Fatalf("should not have called sendReply")
+		return nil
+	})
+	defer restore()
+
+	pdb, err := requestprompts.New(s.defaultNotifyPrompt)
+	c.Assert(err, IsNil)
+	defer pdb.Close()
+
+	metadataTemplate := prompting.Metadata{
+		User:      s.defaultUser,
+		Snap:      "nextcloud",
+		PID:       1234,
+		Interface: "home",
+	}
+	path := "/home/test/Documents/foo.txt"
+	permissions := []string{"read", "write", "execute"}
+
+	listenerReq1 := &listener.Request{}
+	listenerReq2 := &listener.Request{}
+	listenerReq3 := &listener.Request{}
+	listenerReq4 := &listener.Request{}
+	listenerReq5 := &listener.Request{}
+
+	clientActivity := false // doesn't matter if it's true or false for this test
+	stored, err := pdb.Prompts(metadataTemplate.User, clientActivity)
+	c.Assert(err, IsNil)
+	c.Assert(stored, IsNil)
+
+	metadata := metadataTemplate
+	before := time.Now()
+	prompt1, merged, err := pdb.AddOrMerge(&metadata, path, permissions, permissions, listenerReq1)
+	c.Assert(err, IsNil)
+	after := time.Now()
+	c.Assert(merged, Equals, false)
+
+	c.Check(prompt1.Timestamp.After(before), Equals, true)
+	c.Check(prompt1.Timestamp.Before(after), Equals, true)
+
+	c.Check(prompt1.Snap, Equals, metadata.Snap)
+	c.Check(prompt1.PID, Equals, metadata.PID)
+	c.Check(prompt1.Interface, Equals, metadata.Interface)
+	c.Check(prompt1.Constraints.Path(), Equals, path)
+	c.Check(prompt1.Constraints.OutstandingPermissions(), DeepEquals, permissions)
+
+	expectedID := uint64(1)
+
+	s.checkNewNoticesSimple(c, []prompting.IDType{prompt1.ID}, nil)
+	s.checkWrittenMaxID(c, expectedID)
+
+	storedPrompt, err := pdb.PromptWithID(metadata.User, prompt1.ID, clientActivity)
+	c.Check(err, IsNil)
+	c.Check(storedPrompt, Equals, prompt1)
+
+	stored, err = pdb.Prompts(metadata.User, clientActivity)
+	c.Assert(err, IsNil)
+	c.Assert(stored, HasLen, 1)
+	c.Check(stored[0], Equals, prompt1)
+
+	// Looking up prompt should not record notice
+	s.checkNewNoticesSimple(c, []prompting.IDType{}, nil)
+
+	// Add second prompt, this time with different snap
+
+	metadata = metadataTemplate
+	metadata.Snap = "firefox"
+	prompt2, merged, err := pdb.AddOrMerge(&metadata, path, permissions, permissions, listenerReq2)
+	c.Assert(err, IsNil)
+	c.Assert(merged, Equals, false)
+	c.Assert(prompt2, Not(Equals), prompt1)
+
+	c.Check(prompt2.Snap, Equals, metadata.Snap)
+	c.Check(prompt2.PID, Equals, metadata.PID)
+	c.Check(prompt2.Interface, Equals, metadata.Interface)
+	c.Check(prompt2.Constraints.Path(), Equals, path)
+	c.Check(prompt2.Constraints.OutstandingPermissions(), DeepEquals, permissions)
+
+	// New prompts should record notice
+	s.checkNewNoticesSimple(c, []prompting.IDType{prompt2.ID}, nil)
+	// New prompts should advance the max ID
+	expectedID++
+	s.checkWrittenMaxID(c, expectedID)
+
+	storedPrompt, err = pdb.PromptWithID(metadata.User, prompt2.ID, clientActivity)
+	c.Check(err, IsNil)
+	c.Check(storedPrompt, Equals, prompt2)
+
+	stored, err = pdb.Prompts(metadata.User, clientActivity)
+	c.Assert(err, IsNil)
+	c.Assert(stored, HasLen, 2)
+	c.Check(stored[0], Equals, prompt1)
+	c.Check(stored[1], Equals, prompt2)
+
+	// Looking up prompt should not record notice
+	s.checkNewNoticesSimple(c, []prompting.IDType{}, nil)
+
+	// Add third prompt, this time with different PID
+
+	metadata = metadataTemplate
+	metadata.PID = 1337
+	prompt3, merged, err := pdb.AddOrMerge(&metadata, path, permissions, permissions, listenerReq3)
+	c.Assert(err, IsNil)
+	c.Check(merged, Equals, false)
+	c.Check(prompt3, Not(Equals), prompt1)
+	c.Check(prompt3, Not(Equals), prompt2)
+
+	c.Check(prompt3.Snap, Equals, metadata.Snap)
+	c.Check(prompt3.PID, Equals, metadata.PID)
+	c.Check(prompt3.Interface, Equals, metadata.Interface)
+	c.Check(prompt3.Constraints.Path(), Equals, path)
+	c.Check(prompt3.Constraints.OutstandingPermissions(), DeepEquals, permissions)
+
+	// New prompts should record notice
+	s.checkNewNoticesSimple(c, []prompting.IDType{prompt3.ID}, nil)
+	// New prompts should advance the max ID
+	expectedID++
+	s.checkWrittenMaxID(c, expectedID)
+
+	storedPrompt, err = pdb.PromptWithID(metadata.User, prompt3.ID, clientActivity)
+	c.Check(err, IsNil)
+	c.Check(storedPrompt, Equals, prompt3)
+
+	stored, err = pdb.Prompts(metadata.User, clientActivity)
+	c.Assert(err, IsNil)
+	c.Assert(stored, HasLen, 3)
+	c.Check(stored[0], Equals, prompt1)
+	c.Check(stored[1], Equals, prompt2)
+	c.Check(stored[2], Equals, prompt3)
+
+	// Looking up prompt should not record notice
+	s.checkNewNoticesSimple(c, []prompting.IDType{}, nil)
+
+	// Add fourth prompt, this time with different path
+
+	metadata = metadataTemplate
+	path = "/home/test/Documents/other.txt"
+	prompt4, merged, err := pdb.AddOrMerge(&metadata, path, permissions, permissions, listenerReq4)
+	c.Assert(err, IsNil)
+	c.Check(merged, Equals, false)
+	c.Check(prompt4, Not(Equals), prompt1)
+	c.Check(prompt4, Not(Equals), prompt2)
+	c.Check(prompt4, Not(Equals), prompt3)
+
+	c.Check(prompt4.Snap, Equals, metadata.Snap)
+	c.Check(prompt4.PID, Equals, metadata.PID)
+	c.Check(prompt4.Interface, Equals, metadata.Interface)
+	c.Check(prompt4.Constraints.Path(), Equals, path)
+	c.Check(prompt4.Constraints.OutstandingPermissions(), DeepEquals, permissions)
+
+	// New prompts should record notice
+	s.checkNewNoticesSimple(c, []prompting.IDType{prompt4.ID}, nil)
+	// New prompts should advance the max ID
+	expectedID++
+	s.checkWrittenMaxID(c, expectedID)
+
+	storedPrompt, err = pdb.PromptWithID(metadata.User, prompt4.ID, clientActivity)
+	c.Check(err, IsNil)
+	c.Check(storedPrompt, Equals, prompt4)
+
+	stored, err = pdb.Prompts(metadata.User, clientActivity)
+	c.Assert(err, IsNil)
+	c.Assert(stored, HasLen, 4)
+	c.Check(stored[0], Equals, prompt1)
+	c.Check(stored[1], Equals, prompt2)
+	c.Check(stored[2], Equals, prompt3)
+	c.Check(stored[3], Equals, prompt4)
+
+	// Looking up prompt should not record notice
+	s.checkNewNoticesSimple(c, []prompting.IDType{}, nil)
+
+	// Add fifth prompt, this time with different requested permissions
+
+	metadata = metadataTemplate
+	path = "/home/test/Documents/foo.txt"
+	requestedPermissions := permissions[:2]
+	prompt5, merged, err := pdb.AddOrMerge(&metadata, path, requestedPermissions, permissions, listenerReq5)
+	c.Assert(err, IsNil)
+	c.Check(merged, Equals, false)
+	c.Check(prompt5, Not(Equals), prompt1)
+	c.Check(prompt5, Not(Equals), prompt2)
+	c.Check(prompt5, Not(Equals), prompt3)
+	c.Check(prompt5, Not(Equals), prompt4)
+
+	c.Check(prompt5.Snap, Equals, metadata.Snap)
+	c.Check(prompt5.PID, Equals, metadata.PID)
+	c.Check(prompt5.Interface, Equals, metadata.Interface)
+	c.Check(prompt5.Constraints.Path(), Equals, path)
+	c.Check(prompt5.Constraints.OutstandingPermissions(), DeepEquals, permissions)
+
+	// New prompts should record notice
+	s.checkNewNoticesSimple(c, []prompting.IDType{prompt5.ID}, nil)
+	// New prompts should advance the max ID
+	expectedID++
+	s.checkWrittenMaxID(c, expectedID)
+
+	storedPrompt, err = pdb.PromptWithID(metadata.User, prompt5.ID, clientActivity)
+	c.Check(err, IsNil)
+	c.Check(storedPrompt, Equals, prompt5)
+
+	stored, err = pdb.Prompts(metadata.User, clientActivity)
+	c.Assert(err, IsNil)
+	c.Assert(stored, HasLen, 5)
+	c.Check(stored[0], Equals, prompt1)
+	c.Check(stored[1], Equals, prompt2)
+	c.Check(stored[2], Equals, prompt3)
+	c.Check(stored[3], Equals, prompt4)
+	c.Check(stored[4], Equals, prompt5)
+
+	// Looking up prompt should not record notice
+	s.checkNewNoticesSimple(c, []prompting.IDType{}, nil)
+}
+
+func (s *requestpromptsSuite) TestAddOrMergeMerges(c *C) {
 	restore := requestprompts.MockSendReply(func(listenerReq *listener.Request, allowedPermission notify.AppArmorPermission) error {
 		c.Fatalf("should not have called sendReply")
 		return nil
@@ -302,6 +516,7 @@ func (s *requestpromptsSuite) TestAddOrMerge(c *C) {
 	metadata := &prompting.Metadata{
 		User:      s.defaultUser,
 		Snap:      "nextcloud",
+		PID:       1234,
 		Interface: "home",
 	}
 	path := "/home/test/Documents/foo.txt"
@@ -341,6 +556,7 @@ func (s *requestpromptsSuite) TestAddOrMerge(c *C) {
 	c.Check(prompt1.Timestamp.Before(after), Equals, true)
 
 	c.Check(prompt1.Snap, Equals, metadata.Snap)
+	c.Check(prompt1.PID, Equals, metadata.PID)
 	c.Check(prompt1.Interface, Equals, metadata.Interface)
 	c.Check(prompt1.Constraints.Path(), Equals, path)
 	c.Check(prompt1.Constraints.OutstandingPermissions(), DeepEquals, permissions)
@@ -432,6 +648,7 @@ func (s *requestpromptsSuite) TestAddOrMergeTooMany(c *C) {
 	metadata := &prompting.Metadata{
 		User:      s.defaultUser,
 		Snap:      "nextcloud",
+		PID:       42,
 		Interface: "home",
 	}
 
@@ -443,7 +660,7 @@ func (s *requestpromptsSuite) TestAddOrMergeTooMany(c *C) {
 		listenerReq := &listener.Request{}
 		prompt, merged, err := pdb.AddOrMerge(metadata, path, permissions, permissions, listenerReq)
 		c.Assert(err, IsNil)
-		c.Assert(prompt, Not(IsNil))
+		c.Assert(prompt, NotNil)
 		c.Assert(merged, Equals, false)
 		stored, err := pdb.Prompts(metadata.User, clientActivity)
 		c.Assert(err, IsNil)
@@ -480,7 +697,7 @@ func (s *requestpromptsSuite) TestAddOrMergeTooMany(c *C) {
 		listenerReq := &listener.Request{}
 		prompt, merged, err := pdb.AddOrMerge(metadata, path, permissions, permissions, listenerReq)
 		c.Assert(err, IsNil)
-		c.Assert(prompt, Not(IsNil))
+		c.Assert(prompt, NotNil)
 		c.Assert(merged, Equals, true)
 		stored, err := pdb.Prompts(metadata.User, clientActivity)
 		c.Assert(err, IsNil)
@@ -503,6 +720,7 @@ func (s *requestpromptsSuite) TestPromptWithIDErrors(c *C) {
 	metadata := &prompting.Metadata{
 		User:      s.defaultUser,
 		Snap:      "nextcloud",
+		PID:       1337,
 		Interface: "home",
 	}
 	path := "/home/test/Documents/foo.txt"
@@ -550,6 +768,7 @@ func (s *requestpromptsSuite) TestReply(c *C) {
 	metadata := &prompting.Metadata{
 		User:      s.defaultUser,
 		Snap:      "nextcloud",
+		PID:       123,
 		Interface: "home",
 	}
 	path := "/home/test/Documents/foo.txt"
@@ -631,6 +850,7 @@ func (s *requestpromptsSuite) TestReplyErrors(c *C) {
 	metadata := &prompting.Metadata{
 		User:      s.defaultUser,
 		Snap:      "nextcloud",
+		PID:       123,
 		Interface: "home",
 	}
 	path := "/home/test/Documents/foo.txt"
@@ -677,6 +897,7 @@ func (s *requestpromptsSuite) TestHandleNewRule(c *C) {
 	metadata := &prompting.Metadata{
 		User:      s.defaultUser,
 		Snap:      "nextcloud",
+		PID:       123,
 		Interface: "home",
 	}
 	path := "/home/test/Documents/foo.txt"
@@ -722,6 +943,9 @@ func (s *requestpromptsSuite) TestHandleNewRule(c *C) {
 			"append":  &prompting.RulePermissionEntry{Outcome: prompting.OutcomeAllow},
 		},
 	}
+
+	// For completeness, set metadata.PID to 0 since it would not be populated for rules
+	metadata.PID = 0
 
 	satisfied, err := pdb.HandleNewRule(metadata, constraints)
 	c.Assert(err, IsNil)
@@ -816,6 +1040,7 @@ func (s *requestpromptsSuite) TestHandleNewRuleNonMatches(c *C) {
 	metadata := &prompting.Metadata{
 		User:      user,
 		Snap:      snap,
+		PID:       123,
 		Interface: iface,
 	}
 	path := "/home/test/Documents/foo.txt"
@@ -826,6 +1051,9 @@ func (s *requestpromptsSuite) TestHandleNewRuleNonMatches(c *C) {
 	c.Check(merged, Equals, false)
 
 	s.checkNewNoticesSimple(c, []prompting.IDType{prompt.ID}, nil)
+
+	// For completeness, set metadata.PID to 0 since it would not be populated for rules
+	metadata.PID = 0
 
 	pathPattern, err := patterns.ParsePathPattern("/home/test/Documents/**")
 	c.Assert(err, IsNil)
@@ -948,6 +1176,7 @@ func (s *requestpromptsSuite) TestClose(c *C) {
 	metadata := &prompting.Metadata{
 		User:      s.defaultUser,
 		Snap:      "nextcloud",
+		PID:       1234,
 		Interface: "home",
 	}
 	permissions := []string{"read", "write", "execute"}
@@ -1058,6 +1287,7 @@ func (s *requestpromptsSuite) TestPromptMarshalJSON(c *C) {
 	metadata := &prompting.Metadata{
 		User:      s.defaultUser,
 		Snap:      "firefox",
+		PID:       1234,
 		Interface: "home",
 	}
 	path := "/home/test/foo"
@@ -1073,7 +1303,7 @@ func (s *requestpromptsSuite) TestPromptMarshalJSON(c *C) {
 	prompt.Timestamp, err = time.Parse(time.RFC3339Nano, timeStr)
 	c.Assert(err, IsNil)
 
-	expectedJSON := `{"id":"0000000000000001","timestamp":"2024-08-14T09:47:03.350324989-05:00","snap":"firefox","interface":"home","constraints":{"path":"/home/test/foo","requested-permissions":["write","execute"],"available-permissions":["read","write","execute"]}}`
+	expectedJSON := `{"id":"0000000000000001","timestamp":"2024-08-14T09:47:03.350324989-05:00","snap":"firefox","pid":1234,"interface":"home","constraints":{"path":"/home/test/foo","requested-permissions":["write","execute"],"available-permissions":["read","write","execute"]}}`
 
 	marshalled, err := json.Marshal(prompt)
 	c.Assert(err, IsNil)
@@ -1104,6 +1334,7 @@ func (s *requestpromptsSuite) TestPromptExpiration(c *C) {
 	metadata := &prompting.Metadata{
 		User:      s.defaultUser,
 		Snap:      "firefox",
+		PID:       1234,
 		Interface: "home",
 	}
 	path := "/home/test/foo"
@@ -1250,6 +1481,7 @@ func (s *requestpromptsSuite) TestPromptExpirationRace(c *C) {
 	metadata := &prompting.Metadata{
 		User:      s.defaultUser,
 		Snap:      "firefox",
+		PID:       123,
 		Interface: "home",
 	}
 	path := "/home/test/foo"

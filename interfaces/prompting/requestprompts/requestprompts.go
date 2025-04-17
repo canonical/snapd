@@ -62,6 +62,7 @@ type Prompt struct {
 	ID           prompting.IDType
 	Timestamp    time.Time
 	Snap         string
+	PID          int32
 	Interface    string
 	Constraints  *promptConstraints
 	listenerReqs []*listener.Request
@@ -72,6 +73,7 @@ type jsonPrompt struct {
 	ID          prompting.IDType       `json:"id"`
 	Timestamp   time.Time              `json:"timestamp"`
 	Snap        string                 `json:"snap"`
+	PID         int32                  `json:"pid"`
 	Interface   string                 `json:"interface"`
 	Constraints *jsonPromptConstraints `json:"constraints"`
 }
@@ -95,6 +97,7 @@ func (p *Prompt) MarshalJSON() ([]byte, error) {
 		ID:          p.ID,
 		Timestamp:   p.Timestamp,
 		Snap:        p.Snap,
+		PID:         p.PID,
 		Interface:   p.Interface,
 		Constraints: constraints,
 	}
@@ -484,7 +487,13 @@ func (pdb *PromptDB) AddOrMerge(metadata *prompting.Metadata, path string, reque
 
 	// Search for an identical existing prompt, merge if found
 	for _, prompt := range userEntry.prompts {
-		if prompt.Snap == metadata.Snap && prompt.Interface == metadata.Interface && prompt.Constraints.equals(constraints) {
+		if prompt.Snap == metadata.Snap && prompt.PID == metadata.PID && prompt.Interface == metadata.Interface && prompt.Constraints.equals(constraints) {
+			// PID must be identical in order to merge, in case multiple
+			// requests come in with different PIDs, so that the client can
+			// present the modal dialog on any/all windows associated with the
+			// requests. A reply to any prompt which is identical aside from
+			// the PID should handle all those otherwise-identical prompts, so
+			// long as the lifespan is not "single".
 			prompt.listenerReqs = append(prompt.listenerReqs, listenerReq)
 			// Although the prompt itself has not changed, re-record a notice
 			// to re-notify clients to respond to this request. A client may
@@ -510,6 +519,7 @@ func (pdb *PromptDB) AddOrMerge(metadata *prompting.Metadata, path string, reque
 		ID:           id,
 		Timestamp:    timestamp,
 		Snap:         metadata.Snap,
+		PID:          metadata.PID,
 		Interface:    metadata.Interface,
 		Constraints:  constraints,
 		listenerReqs: []*listener.Request{listenerReq},
