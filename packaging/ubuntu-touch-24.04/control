@@ -109,7 +109,7 @@ Architecture: any
 Section: oldlibs
 Depends: snapd (= ${binary:Version}), ${misc:Depends}
 Description: Transitional package for snapd
- This is a transitional dummy package. It can safely be removed.
+ This is a transitional package. It can safely be removed.
 
 Package: ubuntu-core-launcher
 Architecture: any
@@ -117,4 +117,4 @@ Depends: snapd (= ${binary:Version}), ${misc:Depends}
 Section: oldlibs
 Pre-Depends: dpkg (>= 1.15.7.2)
 Description: Transitional package for snapd
- This is a transitional dummy package. It can safely be removed.
+ This is a transitional package. It can safely be removed.
