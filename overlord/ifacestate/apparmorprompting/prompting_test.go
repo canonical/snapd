@@ -241,6 +241,7 @@ func (s *apparmorpromptingSuite) TestHandleListenerRequestErrors(c *C) {
 	maxOutstandingPromptsPerUser := 1000 // from requestprompts package
 	for i := 0; i < maxOutstandingPromptsPerUser; i++ {
 		req := &listener.Request{
+			PID:        1234,
 			Label:      "snap.firefox.firefox",
 			SubjectUID: s.defaultUser,
 			Path:       fmt.Sprintf("/home/test/%d", i),
@@ -260,6 +261,7 @@ func (s *apparmorpromptingSuite) TestHandleListenerRequestErrors(c *C) {
 	})
 
 	req = &listener.Request{
+		PID:        1234,
 		Label:      "snap.firefox.firefox",
 		SubjectUID: s.defaultUser,
 		Path:       fmt.Sprintf("/home/test/%d", maxOutstandingPromptsPerUser),
@@ -367,6 +369,7 @@ func (s *apparmorpromptingSuite) simulateRequest(c *C, reqChan chan *listener.Re
 	}
 
 	c.Check(prompt.Snap, Equals, expectedSnap)
+	c.Check(prompt.PID, Equals, req.PID)
 	c.Check(prompt.Interface, Equals, "home")
 	c.Check(prompt.Constraints.Path(), Equals, req.Path)
 
@@ -382,6 +385,9 @@ func (s *apparmorpromptingSuite) simulateRequest(c *C, reqChan chan *listener.Re
 // fillInPartialRequest fills in any blank fields from the given request
 // with default non-empty values.
 func (s *apparmorpromptingSuite) fillInPartialRequest(req *listener.Request) {
+	if req.PID == 0 {
+		req.PID = 1234
+	}
 	if req.Label == "" {
 		req.Label = "snap.firefox.firefox"
 	}
