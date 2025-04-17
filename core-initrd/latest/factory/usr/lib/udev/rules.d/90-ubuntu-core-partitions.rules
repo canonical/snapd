@@ -1,7 +1,7 @@
 SUBSYSTEM!="block", GOTO="ubuntu_core_partitions_end"
 
 ENV{DEVTYPE}=="disk", IMPORT{program}="/usr/lib/snapd/snap-bootstrap scan-disk"
-ENV{DEVTYPE}=="partition", IMPORT{parent}="UBUNTU_DISK"
+ENV{DEVTYPE}=="partition", IMPORT{parent}="UBUNTU_DISK", IMPORT{parent}="UBUNTU_DISK_UUIDS"
 ENV{UBUNTU_DISK}!="1", GOTO="ubuntu_core_partitions_end"
 
 ENV{DEVTYPE}=="disk", SYMLINK+="disk/snapd/disk"
@@ -11,6 +11,7 @@ ENV{DEVTYPE}=="partition", ENV{ID_PART_ENTRY_NAME}=="ubuntu-data", ENV{ID_FS_TYP
 ENV{DEVTYPE}=="partition", ENV{ID_PART_ENTRY_NAME}=="ubuntu-data", ENV{ID_FS_TYPE}!="crypto_LUKS", SYMLINK+="disk/snapd/ubuntu-data"
 ENV{DEVTYPE}=="partition", ENV{ID_PART_ENTRY_NAME}=="ubuntu-save", ENV{ID_FS_TYPE}=="crypto_LUKS", SYMLINK+="disk/snapd/ubuntu-save-luks"
 ENV{DEVTYPE}=="partition", ENV{ID_PART_ENTRY_NAME}=="ubuntu-save", ENV{ID_FS_TYPE}!="crypto_LUKS", SYMLINK+="disk/snapd/ubuntu-save"
+ENV{DEVTYPE}=="partition", PROGRAM=="/bin/sh /usr/lib/count-partitions", SYMLINK+="disk/snapd/lastpart"
 
 LABEL="ubuntu_core_partitions_end"
 

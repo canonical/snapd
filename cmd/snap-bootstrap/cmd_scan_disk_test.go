@@ -125,8 +125,10 @@ func (s *scanDiskSuite) TestDetectBootDisk(c *C) {
 	lines := output.GetLines()
 
 	_, hasDisk := lines["UBUNTU_DISK=1"]
+	_, hasCorrectUUIDs := lines["UBUNTU_DISK_UUIDS=6ae5a792-912e-43c9-ac92-e36723bbda12 29261148-b8ba-4335-b934-417ed71e9e91 c01a272d-fc72-40de-92fb-242c2da82533 050ee326-ab58-4eb4-ba7d-13694b2d0c8a "]
 	c.Assert(hasDisk, Equals, true)
-	c.Assert(len(lines), Equals, 1)
+	c.Assert(hasCorrectUUIDs, Equals, true)
+	c.Assert(len(lines), Equals, 2)
 }
 
 func (s *scanDiskSuite) TestDetectBootDiskNotUEFIBoot(c *C) {
@@ -155,8 +157,10 @@ func (s *scanDiskSuite) TestDetectBootDiskFallback(c *C) {
 	lines := output.GetLines()
 
 	_, hasDisk := lines["UBUNTU_DISK=1"]
+	_, hasCorrectUUIDs := lines["UBUNTU_DISK_UUIDS=6ae5a792-912e-43c9-ac92-e36723bbda12 29261148-b8ba-4335-b934-417ed71e9e91 c01a272d-fc72-40de-92fb-242c2da82533 050ee326-ab58-4eb4-ba7d-13694b2d0c8a "]
 	c.Assert(hasDisk, Equals, true)
-	c.Assert(len(lines), Equals, 1)
+	c.Assert(hasCorrectUUIDs, Equals, true)
+	c.Assert(len(lines), Equals, 2)
 }
 
 func (s *scanDiskSuite) TestDetectBootDiskFallbackInstall(c *C) {
@@ -180,7 +184,7 @@ func (s *scanDiskSuite) TestDetectBootDiskFallbackInstall(c *C) {
 
 	_, hasDisk := lines["UBUNTU_DISK=1"]
 	c.Assert(hasDisk, Equals, true)
-	c.Assert(len(lines), Equals, 1)
+	c.Assert(len(lines), Equals, 2)
 }
 
 func (s *scanDiskSuite) TestDetectBootDiskFallbackMissingBoot(c *C) {
@@ -244,8 +248,10 @@ func (s *scanDiskSuite) TestDetectBootDiskFallbackKernelParam(c *C) {
 	lines := output.GetLines()
 
 	_, hasDisk := lines["UBUNTU_DISK=1"]
+	_, hasCorrectUUIDs := lines["UBUNTU_DISK_UUIDS=6ae5a792-912e-43c9-ac92-e36723bbda12 29261148-b8ba-4335-b934-417ed71e9e91 c01a272d-fc72-40de-92fb-242c2da82533 050ee326-ab58-4eb4-ba7d-13694b2d0c8a "]
 	c.Assert(hasDisk, Equals, true)
-	c.Assert(len(lines), Equals, 1)
+	c.Assert(hasCorrectUUIDs, Equals, true)
+	c.Assert(len(lines), Equals, 2)
 }
 
 func (s *scanDiskSuite) TestDetectBootDiskFallbackKernelParamDevPath(c *C) {
@@ -265,6 +271,8 @@ func (s *scanDiskSuite) TestDetectBootDiskFallbackKernelParamDevPath(c *C) {
 	lines := output.GetLines()
 
 	_, hasDisk := lines["UBUNTU_DISK=1"]
+	_, hasCorrectUUIDs := lines["UBUNTU_DISK_UUIDS=6ae5a792-912e-43c9-ac92-e36723bbda12 29261148-b8ba-4335-b934-417ed71e9e91 c01a272d-fc72-40de-92fb-242c2da82533 050ee326-ab58-4eb4-ba7d-13694b2d0c8a "]
 	c.Assert(hasDisk, Equals, true)
-	c.Assert(len(lines), Equals, 1)
+	c.Assert(hasCorrectUUIDs, Equals, true)
+	c.Assert(len(lines), Equals, 2)
 }

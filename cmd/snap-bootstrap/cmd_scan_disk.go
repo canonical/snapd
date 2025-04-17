@@ -50,8 +50,8 @@
  * have:
  *
  * ```
- * BindsTo=dev-disk-snapd--disk.device
- * After=dev-disk-snapd-disk.device
+ * BindsTo=dev-disk-snapd-lastpart.device
+ * After=dev-disk-snapd-lastpart.device
  * ```
  *
  */
@@ -151,7 +151,6 @@ func samePath(a, b string) (bool, error) {
 	return os.SameFile(aSt, bSt), nil
 }
 
-
 func scanDiskNodeFallback(output io.Writer, node string) error {
 	var fallbackPartition string
 
@@ -222,12 +221,19 @@ func scanDiskNodeFallback(output io.Writer, node string) error {
 		}
 	}
 
+	partUUIDs := ""
+	fallbackFound := false
 	for _, part := range partitions {
+		partUUIDs += fmt.Sprintf("%s ", part.UUID)
 		if part.Name == fallbackPartition {
-			fmt.Fprintf(output, "UBUNTU_DISK=1\n")
-
-			return nil;
+			fallbackFound = true
 		}
+	}
+	if fallbackFound {
+		fmt.Fprintf(output, "UBUNTU_DISK=1\n")
+		fmt.Fprintf(output, "UBUNTU_DISK_UUIDS=%s\n", partUUIDs)
+
+		return nil
 	}
 
 	/*
@@ -235,7 +241,7 @@ func scanDiskNodeFallback(output io.Writer, node string) error {
 	 * this is not an error. There are plenty of block devices
 	 * that are not the boot device.
 	 */
-	return nil;
+	return nil
 }
 
 func scanDiskNode(output io.Writer, node string) error {
@@ -251,8 +257,6 @@ func scanDiskNode(output io.Writer, node string) error {
 		return scanDiskNodeFallback(output, node)
 	}
 
-	// TODO: split the rest of this function in 2, fallback and non fallback.
-
 	partitions, err := probePartitions(node)
 	if err != nil {
 		return fmt.Errorf("cannot get partitions: %s\n", err)
@@ -265,7 +269,9 @@ func scanDiskNode(output io.Writer, node string) error {
 	found := false
 	hasSeed := false
 	hasBoot := false
+	partUUIDs := ""
 	for _, part := range partitions {
+		partUUIDs += fmt.Sprintf("%s ", part.UUID)
 		if part.UUID == bootUUID {
 			/*
 			 * We have just found the ESP boot partition!
@@ -283,8 +289,9 @@ func scanDiskNode(output io.Writer, node string) error {
 	/*
 	 * We now print the result if we confirmed we found the boot ESP.
 	 */
-	if (found && (hasSeed || hasBoot)) {
+	if found && (hasSeed || hasBoot) {
 		fmt.Fprintf(output, "UBUNTU_DISK=1\n")
+		fmt.Fprintf(output, "UBUNTU_DISK_UUIDS=%s\n", partUUIDs)
 	}
 
 	/*
