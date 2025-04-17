@@ -196,11 +196,13 @@ func traceSnapdAPI(c *Command, w http.ResponseWriter, r *http.Request) {
 			if err != nil {
 				logger.Trace("endpoint-error", "body-read", err)
 			}
-			var data map[string]any
+			var data struct {
+				Action string `json:"action"`
+			}
 			if err := json.Unmarshal(bodyBytes, &data); err == nil {
-				if action, ok := data["action"]; ok {
+				if data.Action != "" {
 					loggedWithAction = true
-					logger.Trace("endpoint", "method", r.Method, "path", c.Path, "action", action)
+					logger.Trace("endpoint", "method", r.Method, "path", c.Path, "action", data.Action)
 				}
 			}
 			r.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
