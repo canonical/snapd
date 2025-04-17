@@ -45,6 +45,10 @@ var (
 	listenerReqs     = func(l *listener.Listener) <-chan *listener.Request { return l.Reqs() }
 
 	requestReply = func(req *listener.Request, allowedPermission notify.AppArmorPermission) error {
+		// XXX: this function is used when we want to send a reply without
+		// going through the requestprompts system. Be careful to send the
+		// request ID to the requestprompts backend so that the ID can be
+		// cleaned from the map and a notice sent if necessary.
 		return req.Reply(allowedPermission)
 	}
 )
@@ -114,6 +118,16 @@ func New(s *state.State) (m *InterfacesRequestsManager, retErr error) {
 			listenerClose(listenerBackend)
 		}
 	}()
+
+	// XXX: should part of listener registration be collecting all the
+	// outstanding requests and then passing them into the prompts backend, so
+	// that any requests which have expired in the meantime can be pruned from
+	// the map? Is there any harm in leaving old mappings around? No, since
+	// there's no prompt in the system anymore. Worst case, the client had
+	// received the prompt, then snapd restarts (very slowly), during which
+	// time the request expires in the kernel, so that when the listener is
+	// re-registered, the prompt is not re-created. Then the client tries to
+	// reply, but the reply fails because no such prompt exists. Not a big deal.
 
 	promptsBackend, err := requestprompts.New(notifyPrompt)
 	if err != nil {
@@ -242,6 +256,14 @@ func (m *InterfacesRequestsManager) handleListenerReq(req *listener.Request) err
 		// Error should not occur, but if it does, allowedPermission is set to
 		// empty, leaving it to the listener to default deny all permissions.
 		return requestReply(req, allowedPermission)
+
+		// XXX: need to be careful: if request is handled by existing rules,
+		// make sure that its ID is removed from the ID map, and if there was
+		// a prompt ID, a notice is recorded for it, and if there was a prompt,
+		// the prompt itself was removed.
+		//
+		// This handles the edge case where a new rule was added between snapd
+		// restarting and the request being re-received from the kernel.
 	}
 
 	// Request not satisfied by any of existing rules, record a prompt for the user

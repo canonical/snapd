@@ -978,9 +978,9 @@ func (s *requestpromptsSuite) TestClose(c *C) {
 
 	pdb.Close()
 
-	// Once notice for each prompt when cleaned up
-	expectedData := map[string]string{"resolved": "cancelled"}
-	s.checkNewNoticesUnorderedSimple(c, expectedPromptIDs, expectedData)
+	// No notices should be recorded when snapd is restarting, so that we can
+	// pick back up where we left off
+	s.checkNewNoticesUnorderedSimple(c, nil, nil)
 
 	// All prompts have been cleared, and all per-user maps deleted
 	c.Check(pdb.PerUser(), HasLen, 0)
@@ -1064,7 +1064,11 @@ func (s *requestpromptsSuite) TestPromptMarshalJSON(c *C) {
 	requestedPermissions := []string{"read", "write", "execute"}
 	outstandingPermissions := []string{"write", "execute"}
 
-	prompt, merged, err := pdb.AddOrMerge(metadata, path, requestedPermissions, outstandingPermissions, nil)
+	fakeRequest := listener.Request{
+		ID: 0x1234,
+	}
+
+	prompt, merged, err := pdb.AddOrMerge(metadata, path, requestedPermissions, outstandingPermissions, &fakeRequest)
 	c.Assert(err, IsNil)
 	c.Assert(merged, Equals, false)
 

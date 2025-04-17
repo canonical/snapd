@@ -23,7 +23,9 @@ package requestprompts
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"sync"
@@ -366,6 +368,15 @@ func (udb *userPromptDB) timeoutCallback(pdb *PromptDB, user uint32) {
 	// Clear all outstanding prompts for the user
 	udb.prompts = nil
 	udb.ids = make(map[prompting.IDType]int) // TODO: clear() once we're on Go 1.21+
+
+	// Remove the request ID mappings now before unlocking the prompt DB
+	for _, p := range expiredPrompts {
+		for _, listenerReq := range p.listenerReqs {
+			delete(pdb.requestIDToPromptID, listenerReq.ID)
+		}
+	}
+	pdb.saveRequestIDPromptIDMapping()
+
 	// Unlock now so we can record notices without holding the prompt DB lock
 	pdb.mutex.Unlock()
 	data := map[string]string{"resolved": "expired"}
@@ -386,6 +397,7 @@ func (udb *userPromptDB) activityResetExpiration() bool {
 // are created with a unique ID.
 type PromptDB struct {
 	// The prompt DB is protected by a RWMutex.
+	// XXX: this should probably just be a Mutex instead.
 	mutex sync.RWMutex
 	// maxIDMmap is the byte slice which is memory mapped to the max ID file in
 	// order to avoid unnecessary syscalls.
@@ -396,6 +408,135 @@ type PromptDB struct {
 	// notifyPrompt is a closure which will be called to record a notice when a
 	// prompt is added, merged, modified, or resolved.
 	notifyPrompt func(userID uint32, promptID prompting.IDType, data map[string]string) error
+
+	requestIDToPromptIDFilepath string
+
+	// requestToPromptID is the mapping from request ID to prompt ID which is
+	// kept updated on disk and re-read when snapd restarts, so that we can
+	// re-associate each request which is re-received with a prompt with the
+	// same ID after snapd restarts.
+	requestIDToPromptID map[uint64]prompting.IDType
+
+	// When the prompt DB is created, any existing mappings are loaded from
+	// disk. Subsequently, whenever a new request is received, it is checked
+	// against the mappings to see if a prompt already existed for the request
+	// with that ID, and if so, ensures that the prompt associated with the
+	// request has the same ID that it previously had.
+	//
+	// TODO: handle tough edge cases:
+	// - Mapping exists for the request ID to a prompt ID, but the prompt
+	//   doesn't currently exist, and there is another prompt which is
+	//   identical in content to the new request.
+	//   - Simple solution: if a mapping exists for the request ID but a prompt
+	//     with that ID doesn't yet exist, create it, and don't bother checking
+	//     whether there are other prompts which match.
+	//     - Worst case, there are duplicate prompts, not the end of the world.
+	//     - XXX: use this solution for now.
+	//   - Medium solution: since the new prompt already exists and is fresher,
+	//     use it and associate the repeated request with it instead, and clean
+	//     up the old prompt by recording a notice that the old prompt has been
+	//     cancelled or merged into the new one.
+	//   - Complex solution: whichever prompt receives a reply first, apply
+	//     that reply to both the original prompt ID and the new prompt ID.
+	//     - TODO: keep a map from prompt ID to other prompt IDs of prompts
+	//       which are known to be identical, and when a reply is received for
+	//       that prompt ID, treat it as a reply to all prompt IDs it maps to.
+	// - Mapping exists for the request ID to a prompt ID, and prompt with that
+	//   ID exists, but the request content doesn't match the prompt content.
+	//   - This should be impossible, since prompt IDs cannot be reused except
+	//     via an existing mapping, and requests themselves are identical when
+	//     they are re-sent, so the re-created prompt should be the same as the
+	//     original.
+	// - A request is received and a prompt is created, then snapd restarts,
+	//   and before the request is re-received and the prompt re-created, a new
+	//   rule is added which matches the request. Then, when the request is
+	//   re-received, it is matched by the rule and a response is sent
+	//   automatically, without ever reaching the prompt DB to clear up the
+	//   prompt ID mapping or record a notice.
+	//   - Simple solution: since the prompt won't ever exist again, any reply
+	//     will be met with an error, as if e.g. another client replied to it.
+	//     The mapping between request ID and prompt ID will continue to exist
+	//     until the machine reboots, then it's cleaned up. No real harm done.
+	//   - Robust solution: explicitly clean up any mapping for the given
+	//     request ID when the request is sent a reply by the manager before
+	//     reaching the requestprompts backend, via a CleanupRequest method of
+	//     some sort. Keep track of how many mappings exist to every given
+	//     prompt ID, and once all the requests mapping to it have been cleaned
+	//     up, record a notice that the prompt has been resolved.
+	//     - TODO: have map from prompt ID to count of request IDs associated
+	//       with it, and have a CleanupRequest method on the prompt DB which
+	//       the manager calls when it sends a response to the kernel without
+	//       creating a prompt through the prompt DB.
+	// - A prompt exists for a given request, then snapd restarts, then a reply
+	//   is received before snapd has re-received the request from the client,
+	//   so there's no prompt yet for the reply to apply to.
+	//   - Bad solution: return an error to the client, since the request could
+	//     have timed out in the kernel. Worst case, the request is re-received
+	//     later and an identical request gets re-sent.
+	//   - Simple partial solution: via the stored mapping, we know the request
+	//     IDs associated with the prompt for which the reply is intended, and
+	//     as long as the listener is registered, we're able to reply to it,
+	//     even before we re-receive the request again.
+	//     - Problem is we don't have the request, so we don't know which
+	//       permissions were exactly requested, so we can't actually send back
+	//       a response safely. And the current mechanism to send a reply is
+	//       calling a method on the Request, which we don't have.
+	//   - Complicated solution: record the notice that the prompt has been
+	//     replied to and store the reply for later, and as every request which
+	//     maps to the prompt is re-received from the kernel, handle it with
+	//     the same reply, and once every request is either replied or cleaned
+	//     up by the manager, then the reply can be dropped.
+	//     - How do we validate that the reply is actually valid, since we know
+	//       nothing about the content of the original request or prompt?
+	//       - Maybe it's fine, if we re-receive the request and it doesn't
+	//         match, then we can re-record a notice for the prompt again and
+	//         tell the client to try again. This should not happen much
+	//         anyway, outside of custom path patterns not being valid or
+	//         matching the originally-requested path, both of which the client
+	//         should probably be able to check before attempting to reply
+	//         anyway?
+	//     - What about if not every request is re-received before snapd
+	//       restarts again? We don't want to persist the reply to disk as
+	//       well.
+	//       - It is exceedingly difficult to end up in this position, so
+	//         probably not worth designing around it. If a request persists
+	//         across two snapd restarts and a reply is received after the
+	//         first, odds are the request has timed out, else it should have
+	//         been re-received in the time during which the reply had time to
+	//         be received.
+	//     - TODO: store a map from prompt ID to allowed permissions (for every
+	//       prompt ID known to be identical, according to the first edge case),
+	//       and when a request is received which maps to that prompt, send
+	//       back the cached response automatically.
+	//     - TODO maybe later: store the response on disk as well, since it's
+	//       possible that the request will not be re-received until after
+	//       snapd restarts again.
+
+	// TODO later
+
+	// Record a map from prompt ID to the IDs of other prompts which have
+	// identical contents. If a request was received and a prompt created, then
+	// snapd restarted, then another request was received which happened to
+	// have the same content as the other request, and a new prompt is created
+	// for that request, then the original request is re-received, which both
+	// matches the new prompt contents and has a previously-assigned prompt.
+	// So record that the prompts are identical, and if a response is received
+	// for either one, send the response for the other one as well, and record
+	// notices that all have received a reply.
+	//identicalPrompts map[prompting.IDType][]prompting.IDType
+
+	// Record the number of outstanding requests for each prompt ID, so that if
+	// old requests are handled by a new rule before being re-sent to the
+	// prompt DB, the manager can still tell the prompt DB to clean up those
+	// requests, and if the final request mapping to a prompt ID is cleaned up,
+	// then a notice can be recorded
+	//promptRequestCounts map[prompting.IDType]int
+
+	// For each prompt which has at least one outstanding request which has not
+	// yet been re-received from the kernel, if that prompt receives a reply,
+	// record the derived allowed permissions from that reply so that if/when
+	// the request is re-received, the reply is already known and can be sent.
+	//cachedResponses map[prompting.IDType]notify.AppArmorPermission
 }
 
 // New creates and returns a new prompt database.
@@ -423,12 +564,84 @@ func New(notifyPrompt func(userID uint32, promptID prompting.IDType, data map[st
 	if err != nil {
 		return nil, err
 	}
+
 	pdb := PromptDB{
 		perUser:      make(map[uint32]*userPromptDB),
 		notifyPrompt: notifyPrompt,
 		maxIDMmap:    maxIDMmap,
+
+		requestIDToPromptIDFilepath: filepath.Join(dirs.SnapRunDir, "request-id-prompt-id-mapping"),
 	}
+
+	// Load the previous ID mappings from disk
+	if err := pdb.loadRequestIDPromptIDMapping(); err != nil {
+		return nil, err
+	}
+
 	return &pdb, nil
+}
+
+// idMappingJSON is the state which is stored on disk, containing the mapping
+// from request ID to prompt ID.
+type idMappingJSON struct {
+	RequestIDToPromptID map[uint64]prompting.IDType `json:"id-mapping"`
+}
+
+// loadRequestIDPromptIDMapping loads from disk the mapping from request ID to
+// prompt ID, and sets the prompt DB's map to the result.
+//
+// This method should only be called once, when the prompt DB is first created.
+//
+// If the existing mapping does not exist, the map is reset to empty, ready
+// for new requests to be added.
+//
+// If the file exists but cannot be read for some reason, returns an error.
+func (pdb *PromptDB) loadRequestIDPromptIDMapping() error {
+	pdb.mutex.Lock()
+	defer pdb.mutex.Unlock()
+
+	defer func() {
+		if pdb.requestIDToPromptID == nil {
+			pdb.requestIDToPromptID = make(map[uint64]prompting.IDType)
+		}
+	}()
+
+	f, err := os.Open(pdb.requestIDToPromptIDFilepath)
+	if err != nil {
+		if errors.Is(err, fs.ErrNotExist) {
+			return nil
+		}
+		return fmt.Errorf("cannot open mapping from request ID to prompt ID: %w", err)
+	}
+
+	var savedState idMappingJSON
+	err = json.NewDecoder(f).Decode(&savedState)
+	f.Close() // close now since we're done reading
+	if err != nil {
+		return fmt.Errorf("cannot read stored mapping from request ID to prompt ID: %w", err)
+	}
+
+	pdb.requestIDToPromptID = savedState.RequestIDToPromptID
+
+	return nil
+}
+
+// saveRequestIDPromptIDMapping saves to disk the mapping from request ID to
+// prompt ID.
+//
+// This function should be called whenever the mapping between request ID and
+// prompt ID changes, such as when a prompt is created for a new request or
+// when a prompt receives a reply.
+//
+// The caller must ensure that the database lock is held.
+func (pdb *PromptDB) saveRequestIDPromptIDMapping() error {
+	b, err := json.Marshal(idMappingJSON{RequestIDToPromptID: pdb.requestIDToPromptID})
+	if err != nil {
+		// Should not occur, marshalling should always succeed
+		logger.Noticef("cannot marshal mapping from request ID to prompt ID: %v", err)
+		return fmt.Errorf("cannot marshal mapping from request ID to prompt ID: %w", err)
+	}
+	return osutil.AtomicWriteFile(pdb.requestIDToPromptIDFilepath, b, 0o600, 0)
 }
 
 var timeAfterFunc = func(d time.Duration, f func()) timeutil.Timer {
@@ -482,32 +695,97 @@ func (pdb *PromptDB) AddOrMerge(metadata *prompting.Metadata, path string, reque
 		originalPermissions:    requestedPermissions,
 	}
 
-	// Search for an identical existing prompt, merge if found
-	for _, prompt := range userEntry.prompts {
-		if prompt.Snap == metadata.Snap && prompt.Interface == metadata.Interface && prompt.Constraints.equals(constraints) {
-			prompt.listenerReqs = append(prompt.listenerReqs, listenerReq)
-			// Although the prompt itself has not changed, re-record a notice
-			// to re-notify clients to respond to this request. A client may
-			// have replied with a malformed response and not retried after
-			// receiving the error, so this notice encourages it to try again
-			// if the user retries the operation.
-			pdb.notifyPrompt(metadata.User, prompt.ID, nil)
-			return prompt, true, nil
+	getNewPromptID := true
+
+	// Check whether there's a mapping from the request ID to a prompt ID
+	promptID, ok := pdb.requestIDToPromptID[listenerReq.ID]
+	if ok {
+		// A mapping exists, but does the prompt currently exist?
+		if prompt, err := userEntry.get(promptID); err == nil {
+			// The prompt exists. Confirm that the contents match the request.
+			if prompt.Snap == metadata.Snap && prompt.Interface == metadata.Interface && prompt.Constraints.equals(constraints) {
+				// The prompt matches the request, all is well. Re-add the
+				// request to the prompt, re-record a notice, and return.
+				prompt.listenerReqs = append(prompt.listenerReqs, listenerReq)
+				// Although the prompt itself has not changed, re-record a notice
+				// to re-notify clients to respond to this request. A client may
+				// have replied with a malformed response and not retried after
+				// receiving the error, so this notice encourages it to try again
+				// if the user retries the operation.
+				pdb.notifyPrompt(metadata.User, prompt.ID, nil)
+				return prompt, true, nil
+			}
+			// Contents don't match, which should not occur.
+			//
+			// Remove the mapping, since it's no longer valid, and carry on as
+			// if there was no mapping in the first place.
+			delete(pdb.requestIDToPromptID, listenerReq.ID)
+			// We'll save the new mapping state to disk at the end
+			getNewPromptID = true
+		} else {
+			// The prompt doesn't exist, so we'll have to make a new one, but
+			// use the same ID as before
+			getNewPromptID = false
 		}
 	}
 
-	if len(userEntry.prompts) >= maxOutstandingPromptsPerUser {
-		logger.Noticef("WARNING: too many outstanding prompts for user %d; auto-denying new one", metadata.User)
-		// Deny all permissions which are not already allowed by existing rules
-		allowedPermission := constraints.buildResponse(metadata.Interface, constraints.outstandingPermissions)
-		sendReply(listenerReq, allowedPermission)
-		return nil, false, prompting_errors.ErrTooManyPrompts
+	defer pdb.saveRequestIDPromptIDMapping()
+
+	// Only search for prompts which match the request if we don't already know
+	// the prompt ID which should be associated with the request. This means we
+	// might end up with multiple identical prompts.
+	//
+	// TODO: search for a matching prompt always, and if !getNewPromptID and we
+	// find a matching prompt, then re-associate the request with that prompt's
+	// ID, but don't record a notice that the old prompt was cancelled, since
+	// there may be other requests which map to it which we have yet to
+	// re-receive.
+	// TODO: keep a record of how many request IDs map to each prompt ID, so we
+	// know if this request was the final one, and we can safely record a
+	// notice that it was dropped.
+	// TODO: keep a record of identical prompts, so that when a reply is
+	// received, it can be applied to all identical prompts.
+	// TODO: keep a record of the replies themselves, so that if multiple
+	// requests are associated with a given prompt, but a reply is received
+	// before the requests are re-received, the reply can be used to respond to
+	// those requests.
+	if getNewPromptID {
+		// Search for an identical existing prompt, merge if found
+		for _, prompt := range userEntry.prompts {
+			if prompt.Snap == metadata.Snap && prompt.Interface == metadata.Interface && prompt.Constraints.equals(constraints) {
+				prompt.listenerReqs = append(prompt.listenerReqs, listenerReq)
+				// Although the prompt itself has not changed, re-record a notice
+				// to re-notify clients to respond to this request. A client may
+				// have replied with a malformed response and not retried after
+				// receiving the error, so this notice encourages it to try again
+				// if the user retries the operation.
+				pdb.notifyPrompt(metadata.User, prompt.ID, nil)
+				return prompt, true, nil
+			}
+		}
+
+		// No matching prompt exists, so we must create a new one.
+		// Make sure we don't already have too many.
+		if len(userEntry.prompts) >= maxOutstandingPromptsPerUser {
+			logger.Noticef("WARNING: too many outstanding prompts for user %d; auto-denying new one", metadata.User)
+			// Deny all permissions which are not already allowed by existing rules
+			allowedPermission := constraints.buildResponse(metadata.Interface, constraints.outstandingPermissions)
+			sendReply(listenerReq, allowedPermission)
+			return nil, false, prompting_errors.ErrTooManyPrompts
+		}
+
+		// We'll be creating a new prompt and need a new prompt ID, so get it.
+		promptID, _ = pdb.maxIDMmap.NextID() // err must be nil because maxIDMmap is not nil and lock is held
+
+		// Now that we have the new ID, map the request ID to the prompt ID and
+		// save the mapping to disk.
+		pdb.requestIDToPromptID[listenerReq.ID] = promptID
+		pdb.saveRequestIDPromptIDMapping() // TODO: maybe handle error, but it shouldn't occur
 	}
 
-	id, _ := pdb.maxIDMmap.NextID() // err must be nil because maxIDMmap is not nil and lock is held
 	timestamp := time.Now()
 	prompt := &Prompt{
-		ID:           id,
+		ID:           promptID,
 		Timestamp:    timestamp,
 		Snap:         metadata.Snap,
 		Interface:    metadata.Interface,
@@ -515,7 +793,7 @@ func (pdb *PromptDB) AddOrMerge(metadata *prompting.Metadata, path string, reque
 		listenerReqs: []*listener.Request{listenerReq},
 	}
 	userEntry.add(prompt)
-	pdb.notifyPrompt(metadata.User, id, nil)
+	pdb.notifyPrompt(metadata.User, promptID, nil)
 	return prompt, false, nil
 }
 
@@ -596,7 +874,14 @@ func (pdb *PromptDB) Reply(user uint32, id prompting.IDType, outcome prompting.O
 	if err = prompt.sendReply(outcome); err != nil {
 		return nil, err
 	}
+
+	for _, listenerReq := range prompt.listenerReqs {
+		delete(pdb.requestIDToPromptID, listenerReq.ID)
+	}
+	pdb.saveRequestIDPromptIDMapping() // error should not occur
+
 	userEntry.remove(id)
+
 	data := map[string]string{"resolved": "replied"}
 	pdb.notifyPrompt(user, id, data)
 	return prompt, nil
@@ -634,6 +919,14 @@ func (pdb *PromptDB) HandleNewRule(metadata *prompting.Metadata, constraints *pr
 	if !ok {
 		return nil, nil
 	}
+
+	needToSave := false
+	defer func() {
+		if needToSave {
+			pdb.saveRequestIDPromptIDMapping()
+		}
+	}()
+
 	var satisfiedPromptIDs []prompting.IDType
 	for _, prompt := range userEntry.prompts {
 		if !(prompt.Snap == metadata.Snap && prompt.Interface == metadata.Interface) {
@@ -681,6 +974,13 @@ func (pdb *PromptDB) HandleNewRule(metadata *prompting.Metadata, constraints *pr
 		// Now that a response has been sent, remove the rule from the rule DB
 		// and record a notice indicating that it has been satisfied.
 		userEntry.remove(prompt.ID)
+
+		// Remove the ID mappings for the requests associated with the prompt.
+		for _, listenerReq := range prompt.listenerReqs {
+			delete(pdb.requestIDToPromptID, listenerReq.ID)
+		}
+		needToSave = true
+
 		satisfiedPromptIDs = append(satisfiedPromptIDs, prompt.ID)
 		data := map[string]string{"resolved": "satisfied"}
 		pdb.notifyPrompt(metadata.User, prompt.ID, data)
@@ -688,10 +988,14 @@ func (pdb *PromptDB) HandleNewRule(metadata *prompting.Metadata, constraints *pr
 	return satisfiedPromptIDs, nil
 }
 
-// Close removes all outstanding prompts and records a notice for each one.
+// Close removes all outstanding prompts and closes the max ID mmap.
 //
-// This should be called when snapd is shutting down, to notify prompt clients
-// that the given prompts are no longer awaiting a reply.
+// This should be called when snapd is shutting down.
+//
+// When snapd restarts, it should re-open the max ID mmap and load the mappings
+// from request ID to prompt ID from disk, so that prompts can be re-created
+// with the same IDs as were previously associated with the requests when they
+// are re-received from the kernel.
 func (pdb *PromptDB) Close() error {
 	pdb.mutex.Lock()
 	defer pdb.mutex.Unlock()
@@ -704,23 +1008,8 @@ func (pdb *PromptDB) Close() error {
 		return fmt.Errorf("cannot close max ID mmap: %w", err)
 	}
 
-	// TODO: if in the future we persist prompts across snapd restarts, we do
-	// not want to send {"resolved": "cancelled"} in the notice data.
-	data := map[string]string{"resolved": "cancelled"}
-	for user, userEntry := range pdb.perUser {
-		// No need to explicitly stop the timer, since this is racy with the
-		// timer expiring, and since we've already closed the maxIDMmap with
-		// the lock held, the callback will acquire the lock, see that the DB
-		// has been closed, and immediately return.
-		for id := range userEntry.ids {
-			pdb.notifyPrompt(user, id, data)
-		}
-		// There's no need to explicitly send responses back to the kernel
-		// here, as the listener will send deny responses for all outstanding
-		// listener requests when it is closed, and even if it didn't, the
-		// kernel will automatically reclaim unanswered notifications when
-		// the notify socket FD is closed, and either roll them over to a new
-		// FD or auto-deny them after some time.
+	if err := pdb.saveRequestIDPromptIDMapping(); err != nil {
+		return fmt.Errorf("cannot save mapping from request ID to prompt ID: %w", err)
 	}
 
 	// Clear all outstanding prompts
