@@ -616,17 +616,11 @@ func handlerCommand(c *check.C, d *daemon.Daemon, req *http.Request) (cmd *daemo
 	if !d.RouterMatch(req, m) {
 		c.Fatalf("no command for URL %q", req.URL)
 	}
-	var command *daemon.Command
-	var ok bool
-	if osutil.GetenvBool("SNAPD_TRACE") {
-		command, ok = m.Route.GetHandler().(*daemon.Command)
-	} else {
-		command, ok = m.Handler.(*daemon.Command)
-	}
+	cmd, ok := m.Handler.(*daemon.Command)
 	if !ok {
 		c.Fatalf("no command for URL %q", req.URL)
 	}
-	return command, m.Vars
+	return cmd, m.Vars
 }
 
 func (s *apiBaseSuite) checkGetOnly(c *check.C, req *http.Request) {

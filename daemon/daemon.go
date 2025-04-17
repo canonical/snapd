@@ -161,6 +161,8 @@ func (c *Command) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	traceSnapdAPI(c, w, r)
+
 	rsp := rspf(c, r, user)
 
 	if srsp, ok := rsp.(StructuredResponse); ok {
@@ -183,6 +185,30 @@ func (c *Command) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	rsp.ServeHTTP(w, r)
+}
+
+func traceSnapdAPI(c *Command, w http.ResponseWriter, r *http.Request) {
+	if osutil.GetenvBool("SNAPD_TRACE") {
+		loggedWithAction := false
+		if r.Method == "POST" && (r.Header.Get("Content-Type") == "application/json" || r.Header.Get("Content-Type") == "") {
+			r.Body = http.MaxBytesReader(w, r.Body, 3*1024*1024) // 3 MB limit
+			bodyBytes, err := io.ReadAll(r.Body)
+			if err != nil {
+				logger.Trace("endpoint-error", "body-read", err)
+			}
+			var data map[string]any
+			if err := json.Unmarshal(bodyBytes, &data); err == nil {
+				if action, ok := data["action"]; ok {
+					loggedWithAction = true
+					logger.Trace("endpoint", "method", r.Method, "path", c.Path, "action", action)
+				}
+			}
+			r.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
+		}
+		if !loggedWithAction {
+			logger.Trace("endpoint", "method", r.Method, "path", c.Path)
+		}
+	}
 }
 
 type wrappedWriter struct {
@@ -266,44 +292,9 @@ func (d *Daemon) SetDegradedMode(err error) {
 	d.degradedErr = err
 }
 
-func traceSnapdAPI(h http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		loggedWithAction := false
-		command, ok := h.(*Command)
-		if !ok {
-			logger.Trace("endpoint", "method", r.Method, "path", "path not found")
-			h.ServeHTTP(w, r)
-			return
-		}
-		if r.Method == "POST" && (r.Header.Get("Content-Type") == "application/json" || r.Header.Get("Content-Type") == "") {
-			r.Body = http.MaxBytesReader(w, r.Body, 1024*1024) // 1 MB limit
-			bodyBytes, err := io.ReadAll(r.Body)
-			if err != nil {
-				logger.Noticef("unexpected error when attempting to get json body: %s", err)
-				InternalError(err.Error()).ServeHTTP(w, r)
-				return
-			}
-			var data map[string]any
-			if err := json.Unmarshal(bodyBytes, &data); err == nil {
-				if action, ok := data["action"]; ok {
-					loggedWithAction = true
-					logger.Trace("endpoint", "method", r.Method, "path", command.Path, "action", action)
-				}
-			}
-			r.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
-		}
-		if !loggedWithAction {
-			logger.Trace("endpoint", "method", r.Method, "path", command.Path)
-		}
-		h.ServeHTTP(w, r)
-	})
-}
-
 func (d *Daemon) addRoutes() {
 	d.router = mux.NewRouter()
-	if osutil.GetenvBool("SNAPD_TRACE") {
-		d.router.Use(traceSnapdAPI)
-	}
+
 	for _, c := range api {
 		c.d = d
 		if c.PathPrefix == "" {
