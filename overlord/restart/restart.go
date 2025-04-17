@@ -30,6 +30,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/dirs"
@@ -39,7 +40,7 @@ import (
 	"github.com/snapcore/snapd/release"
 )
 
-type RestartType int
+type RestartType int32
 
 const (
 	RestartUnset RestartType = iota
@@ -123,7 +124,7 @@ type restartManagerKey struct{}
 // RestartManager takes care of restart-related state.
 type RestartManager struct {
 	state            *state.State
-	restarting       RestartType
+	restarting       int32 // really of type RestartType -- TODO: use atomic.Int32 once on go 1.19+
 	h                Handler
 	bootID           string
 	changeCallbackID int
@@ -344,7 +345,7 @@ func Request(st *state.State, t RestartType, rebootInfo *boot.RebootInfo) {
 	case RestartSystem, RestartSystemNow, RestartSystemHaltNow, RestartSystemPoweroffNow:
 		st.Set("system-restart-from-boot-id", rm.bootID)
 	}
-	rm.restarting = t
+	atomic.StoreInt32(&rm.restarting, int32(t))
 	rm.handleRestart(t, rebootInfo)
 }
 
@@ -394,13 +395,29 @@ func Pending(st *state.State) (bool, RestartType) {
 		return false, RestartUnset
 	}
 	rm := cached.(*RestartManager)
-	return rm.restarting != RestartUnset, rm.restarting
+	return rm.Pending()
+}
+
+// Pending returns whether a restart was requested with Request and of which type.
+// NOTE: the state does not need to be locked to fetch this information.
+func (rm *RestartManager) Pending() (bool, RestartType) {
+	if rm == nil {
+		// This check is here because some tests don't set a RestartManager.
+		// This should generally not occur in production.
+		return false, RestartUnset
+	}
+	restarting := RestartType(atomic.LoadInt32(&rm.restarting))
+	return restarting != RestartUnset, restarting
 }
 
 func MockPending(st *state.State, restarting RestartType) RestartType {
 	rm := restartManager(st, "internal error: cannot mock a restart request before RestartManager initialization")
-	old := rm.restarting
-	rm.restarting = restarting
+	return rm.MockPending(restarting)
+}
+
+// NOTE: the state does not need to be locked to set this information.
+func (rm *RestartManager) MockPending(restarting RestartType) RestartType {
+	old := RestartType(atomic.SwapInt32(&rm.restarting, int32(restarting)))
 	return old
 }
 

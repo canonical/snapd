@@ -286,10 +286,7 @@ func (s *daemonSuite) TestCommandRestartingState(c *check.C) {
 	}
 
 	for _, t := range tests {
-		st := d.overlord.State()
-		st.Lock()
-		restart.MockPending(st, t.rst)
-		st.Unlock()
+		d.overlord.RestartManager().MockPending(t.rst)
 		rec = httptest.NewRecorder()
 		cmd.ServeHTTP(rec, req)
 		c.Check(rec.Code, check.Equals, 200)
