@@ -279,6 +279,14 @@ var listenerEpollWait = func(l *Listener) ([]epoll.Event, error) {
 }
 
 func (l *Listener) handleRequests() error {
+	// Get the socket FD with the lock held, so we don't break our contract.
+	// Do this before any check whether the epoll instance is closed, so we
+	// are sure to have the pre-close FD in case the instance is closed after
+	// the check.
+	l.socketMu.Lock()
+	socketFd := int(l.notifyFile.Fd())
+	l.socketMu.Unlock() // unlock immediately, we'll lock again later if needed
+
 	events, err := listenerEpollWait(l)
 	if err != nil {
 		// The epoll syscall returned an error, so let's see whether it was
@@ -288,11 +296,6 @@ func (l *Listener) handleRequests() error {
 		}
 		return err
 	}
-
-	// Get the socket FD with the lock held, so we don't break our contract
-	l.socketMu.Lock()
-	socketFd := int(l.notifyFile.Fd())
-	l.socketMu.Unlock() // unlock immediately, we'll lock again later if needed
 
 	for _, event := range events {
 		if event.Fd != socketFd {
