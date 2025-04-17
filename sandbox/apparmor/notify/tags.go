@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2024 Canonical Ltd
+ * Copyright (C) 2025 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -17,17 +17,11 @@
  *
  */
 
-package prompting
+package notify
 
-import (
-	"github.com/snapcore/snapd/testutil"
-)
+// MetadataTags is a list of tags received from AppArmor in the kernel.
+type MetadataTags []string
 
-var (
-	InterfacePermissionsAvailable = interfacePermissionsAvailable
-	InterfaceFilePermissionsMaps  = interfaceFilePermissionsMaps
-)
-
-func MockApparmorInterfaceForMetadataTag(f func(tag string) (string, bool)) (restore func()) {
-	return testutil.Mock(&apparmorInterfaceForMetadataTag, f)
-}
+// TagsetMap maps from permission mask to the ordered list of tags associated
+// with those permissions, as received from AppArmor in the kernel.
+type TagsetMap map[AppArmorPermission]MetadataTags

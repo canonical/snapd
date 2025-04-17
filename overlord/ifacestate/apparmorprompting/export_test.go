@@ -109,6 +109,10 @@ func MockRequestReply(f func(req *listener.Request, allowedPermission notify.App
 	}
 }
 
+func MockPromptingInterfaceFromTagsets(f func(tagsets notify.TagsetMap) (string, error)) (restore func()) {
+	return testutil.Mock(&promptingInterfaceFromTagsets, f)
+}
+
 func (m *InterfacesRequestsManager) PromptDB() *requestprompts.PromptDB {
 	return m.prompts
 }

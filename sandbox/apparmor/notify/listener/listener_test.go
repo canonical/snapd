@@ -122,6 +122,10 @@ func (p fakeAaPerm) AsAppArmorOpMask() uint32 {
 	return uint32(len(p))
 }
 
+func (p fakeAaPerm) String() string {
+	return string(p)
+}
+
 func (*listenerSuite) TestReplyBad(c *C) {
 	var (
 		id      = uint64(0xabcd)
@@ -488,11 +492,22 @@ func (*listenerSuite) TestRunSimple(c *C) {
 	path := "/home/Documents/foo"
 	aBits := uint32(0b1010)
 	dBits := uint32(0b0101)
+	tagsets := notify.TagsetMap{
+		notify.FilePermission(0b1100): notify.MetadataTags{"tag1", "tag2"},
+		notify.FilePermission(0b0010): notify.MetadataTags{"tag3"},
+		notify.FilePermission(0b0001): notify.MetadataTags{"tag4"},
+	}
+	// only expect the tagsets associated with denied permissions
+	expectedTagsets := notify.TagsetMap{
+		notify.FilePermission(0b0100): notify.MetadataTags{"tag1", "tag2"},
+		notify.FilePermission(0b0001): notify.MetadataTags{"tag4"},
+	}
+
 	// simulate user only explicitly giving permission for final two bits
 	respBits := dBits & 0b0011
 
 	for _, id := range ids {
-		msg := newMsgNotificationFile(protoVersion, id, label, path, aBits, dBits)
+		msg := newMsgNotificationFile(protoVersion, id, label, path, aBits, dBits, tagsets)
 		buf, err := msg.MarshalBinary()
 		c.Assert(err, IsNil)
 		recvChan <- buf
@@ -507,6 +522,7 @@ func (*listenerSuite) TestRunSimple(c *C) {
 			perm, ok := req.Permission.(notify.FilePermission)
 			c.Check(ok, Equals, true)
 			c.Check(perm, Equals, notify.FilePermission(dBits))
+			c.Check(req.Tagsets, DeepEquals, expectedTagsets)
 			requests = append(requests, req)
 		case <-t.Dying():
 			c.Fatalf("listener encountered unexpected error: %v", t.Err())
@@ -559,8 +575,9 @@ func (*listenerSuite) TestRegisterWriteRun(c *C) {
 	path := "/home/Documents/foo"
 	aBits := uint32(0b1010)
 	dBits := uint32(0b0101)
+	tagsets := notify.TagsetMap{}
 
-	msg := newMsgNotificationFile(protoVersion, id, label, path, aBits, dBits)
+	msg := newMsgNotificationFile(protoVersion, id, label, path, aBits, dBits, tagsets)
 	buf, err := msg.MarshalBinary()
 	c.Assert(err, IsNil)
 
@@ -623,10 +640,11 @@ func (*listenerSuite) TestRunMultipleRequestsInBuffer(c *C) {
 
 	aBits := uint32(0b1010)
 	dBits := uint32(0b0101)
+	tagsets := notify.TagsetMap{}
 
 	var megaBuf []byte
 	for i, path := range paths {
-		msg := newMsgNotificationFile(protoVersion, uint64(i), label, path, aBits, dBits)
+		msg := newMsgNotificationFile(protoVersion, uint64(i), label, path, aBits, dBits, tagsets)
 		buf, err := msg.MarshalBinary()
 		c.Assert(err, IsNil)
 		megaBuf = append(megaBuf, buf...)
@@ -692,7 +710,7 @@ func (*listenerSuite) TestRunEpoll(c *C) {
 	aBits := uint32(0b1010)
 	dBits := uint32(0b0101)
 
-	msg := newMsgNotificationFile(protoVersion, id, label, path, aBits, dBits)
+	msg := newMsgNotificationFile(protoVersion, id, label, path, aBits, dBits, nil)
 	recvBuf, err := msg.MarshalBinary()
 	c.Assert(err, IsNil)
 
@@ -789,7 +807,7 @@ func (*listenerSuite) TestRunNoReceiver(c *C) {
 	aBits := uint32(0b1010)
 	dBits := uint32(0b0101)
 
-	msg := newMsgNotificationFile(protoVersion, id, label, path, aBits, dBits)
+	msg := newMsgNotificationFile(protoVersion, id, label, path, aBits, dBits, notify.TagsetMap{})
 	buf, err := msg.MarshalBinary()
 	c.Check(err, IsNil)
 	recvChan <- buf
@@ -830,7 +848,7 @@ func (*listenerSuite) TestRunNoReply(c *C) {
 	aBits := uint32(0b1010)
 	dBits := uint32(0b0101)
 
-	msg := newMsgNotificationFile(protoVersion, id, label, path, aBits, dBits)
+	msg := newMsgNotificationFile(protoVersion, id, label, path, aBits, dBits, notify.TagsetMap{})
 	buf, err := msg.MarshalBinary()
 	c.Assert(err, IsNil)
 	recvChan <- buf
@@ -846,7 +864,7 @@ func (*listenerSuite) TestRunNoReply(c *C) {
 	c.Check(t.Wait(), IsNil)
 }
 
-func newMsgNotificationFile(protocolVersion notify.ProtocolVersion, id uint64, label, name string, allow, deny uint32) *notify.MsgNotificationFile {
+func newMsgNotificationFile(protocolVersion notify.ProtocolVersion, id uint64, label, name string, allow, deny uint32, tagsets notify.TagsetMap) *notify.MsgNotificationFile {
 	msg := notify.MsgNotificationFile{}
 	msg.Version = protocolVersion
 	msg.NotificationType = notify.APPARMOR_NOTIF_OP
@@ -859,6 +877,7 @@ func newMsgNotificationFile(protocolVersion notify.ProtocolVersion, id uint64, l
 	msg.Class = notify.AA_CLASS_FILE
 	msg.SUID = 1000
 	msg.Filename = name
+	msg.Tagsets = tagsets
 	return &msg
 }
 
@@ -1092,7 +1111,7 @@ func (*listenerSuite) TestRunConcurrency(c *C) {
 	reqAllow := uint32(0b1010)
 	reqDeny := uint32(0b0101)
 
-	msg := newMsgNotificationFile(protoVersion, 0, label, path, reqAllow, reqDeny)
+	msg := newMsgNotificationFile(protoVersion, 0, label, path, reqAllow, reqDeny, nil)
 
 	respAllow := uint32(0b1111)
 	respDeny := uint32(0b0000)
