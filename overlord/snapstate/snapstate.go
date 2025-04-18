@@ -1914,7 +1914,6 @@ func ResolveValidationSetsEnforcementError(ctx context.Context, st *state.State,
 	}
 
 	affected := make([]string, 0, len(valErr.MissingSnaps)+len(valErr.WrongRevisionSnaps))
-	var tasksets []*state.TaskSet
 	// use the same lane for installing and refreshing so everything is reversed
 	lane := st.NewLane()
 
@@ -1958,6 +1957,7 @@ func ResolveValidationSetsEnforcementError(ctx context.Context, st *state.State,
 		})
 	}
 
+	var updateTss []*state.TaskSet
 	if len(wrongRevs) > 0 {
 		updated, uts, err := UpdateWithGoal(ctx, st, StoreUpdateGoal(wrongRevs...), nil, Options{
 			Flags: Flags{Transaction: client.TransactionAllSnaps, Lane: lane, NoReRefresh: true},
@@ -1966,15 +1966,15 @@ func ResolveValidationSetsEnforcementError(ctx context.Context, st *state.State,
 			return nil, nil, fmt.Errorf("cannot auto-resolve enforcement constraints: %w", err)
 		}
 
-		tasksets = append(tasksets, uts.Refresh...)
+		updateTss = append(updateTss, uts.Refresh...)
 		affected = append(affected, updated...)
 	}
 
 	var installed []*snap.Info
-	var tss []*state.TaskSet
+	var installTss []*state.TaskSet
 	if len(missing) > 0 {
 		var err error
-		installed, tss, err = InstallWithGoal(ctx, st, StoreInstallGoal(missing...), Options{
+		installed, installTss, err = InstallWithGoal(ctx, st, StoreInstallGoal(missing...), Options{
 			Flags: Flags{Transaction: client.TransactionAllSnaps, Lane: lane},
 		})
 		if err != nil {
@@ -2002,19 +2002,35 @@ func ResolveValidationSetsEnforcementError(ctx context.Context, st *state.State,
 		}
 
 		affected = append(affected, snapName)
-		tss = append(tss, compTasks...)
+		installTss = append(installTss, compTasks...)
 	}
 
-	// updates should be done before the installs
-	for _, ts := range tss {
-		for _, prevTs := range tasksets {
-			ts.WaitAll(prevTs) // TODO: make this not a WaitAll
-		}
-	}
-	tasksets = append(tasksets, tss...)
 	for _, i := range installed {
 		affected = append(affected, i.InstanceName())
 	}
+
+	// bases must be installed first, to prevent the prerequisites task of an
+	// updated snap from retrying forever, waiting on its base to be installed.
+
+	// this ordering here is required because of the requirement that snaps are
+	// updated before the others are installed. i'm unsure why that is a
+	// constraint.
+	var baseInstalls, nonBaseInstalls []*state.TaskSet
+
+	// installTss is made up of the install tasks for snaps and components (in
+	// that order). we only care about the snap ones, so we take a subslice.
+	for i, ts := range installTss[:len(installed)] {
+		if installed[i].Type() == snap.TypeBase {
+			baseInstalls = append(baseInstalls, ts)
+		} else {
+			nonBaseInstalls = append(nonBaseInstalls, ts)
+		}
+	}
+
+	nonBaseInstalls = append(nonBaseInstalls, installTss[len(installed):]...)
+
+	// TODO: make use of EndEdges to make this chaining result in cleaner graphs
+	tasksets := flattenAndWaitTaskSets(baseInstalls, updateTss, nonBaseInstalls)
 
 	encodedAsserts := make(map[string][]byte, len(valErr.Sets))
 	for vsStr, vs := range valErr.Sets {
@@ -2034,6 +2050,36 @@ func ResolveValidationSetsEnforcementError(ctx context.Context, st *state.State,
 	tasksets = append(tasksets, ts)
 
 	return tasksets, affected, nil
+}
+
+// flattenAndWaitTaskSets merges a slice of [state.TaskSet] slices into one flat
+// slice. It also enforces ordering so that every [state.Task] in chain[i] waits
+// for each [state.Task] in chain[i-1].
+//
+// TODO: This implementation could be better if we relied on each task set to
+// have an [EndEdge]. This isn't true at the moment.
+func flattenAndWaitTaskSets(chain ...[]*state.TaskSet) []*state.TaskSet {
+	if len(chain) == 0 {
+		return nil
+	}
+
+	prev := chain[0]
+	flattened := make([]*state.TaskSet, len(prev))
+	copy(flattened, prev)
+
+	for _, tss := range chain[1:] {
+		// all of the tasks in tss must go after all of the tasks in prev
+		// thus, all of the tasks in tss must wait on all of the tasks in prev
+		for _, ts := range tss {
+			for _, prevTs := range prev {
+				ts.WaitAll(prevTs) // TODO: make this not a WaitAll
+			}
+		}
+		flattened = append(flattened, tss...)
+		prev = tss
+	}
+
+	return flattened
 }
 
 func keys[K comparable, V any](m map[K]V) []K {
