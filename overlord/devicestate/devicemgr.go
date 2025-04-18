@@ -573,6 +573,8 @@ func (m *DeviceManager) ensureOperational() error {
 		return nil
 	}
 
+	logger.Trace("ensure", "manager", "DeviceManager", "func", "ensureOperational")
+
 	perfTimings := timings.New(map[string]string{"ensure": "become-operational"})
 
 	// conditions to trigger device registration
@@ -1011,6 +1013,8 @@ func (m *DeviceManager) ensureSeeded() error {
 		return nil
 	}
 
+	logger.Trace("ensure", "manager", "DeviceManager", "func", "ensureSeeded")
+
 	chg := m.state.NewChange("seed", "Initialize system state")
 	for _, ts := range tsAll {
 		chg.AddAll(ts)
@@ -1063,6 +1067,8 @@ func (m *DeviceManager) ensureAutoImportAssertions() error {
 	if autoImported {
 		return nil
 	}
+
+	logger.Trace("ensure", "manager", "DeviceManager", "func", "ensureAutoImportAssertions")
 
 	commitTo := func(batch *asserts.Batch) error {
 		return assertstate.AddBatch(m.state, batch, nil)
@@ -1125,6 +1131,7 @@ func (m *DeviceManager) ensureSerialBoundSystemUserAssertionsProcessed() error {
 		}
 		return err
 	}
+	logger.Trace("ensure", "manager", "DeviceManager", "func", "ensureSerialBoundSystemUserAssertionsProcessed")
 
 	db := assertstate.DB(m.state)
 
@@ -1164,6 +1171,7 @@ func (m *DeviceManager) ensureBootOk() error {
 
 		m.bootOkRan = true
 	}
+	logger.Trace("ensure", "manager", "DeviceManager", "func", "ensureBootOk")
 
 	if !m.bootRevisionsUpdated {
 		if err := snapstate.UpdateBootRevisions(m.state); err != nil {
@@ -1218,6 +1226,7 @@ func (m *DeviceManager) ensureCloudInitRestricted() error {
 	if err != nil {
 		return err
 	}
+	logger.Trace("ensure", "manager", "DeviceManager", "func", "ensureCloudInitRestricted")
 	statusMsg := ""
 
 	switch cloudInitStatus {
@@ -1408,6 +1417,8 @@ func (m *DeviceManager) ensureInstalled() error {
 		return fmt.Errorf("internal error: %v", err)
 	}
 
+	logger.Trace("ensure", "manager", "DeviceManager", "func", "ensureInstalled")
+
 	m.ensureInstalledRan = true
 
 	// Create both setup-run-system and restart-system-to-run-mode tasks as they
@@ -1473,6 +1484,7 @@ func (m *DeviceManager) ensureFactoryReset() error {
 	if !seeded {
 		return nil
 	}
+	logger.Trace("ensure", "manager", "DeviceManager", "func", "ensureFactoryReset")
 
 	perfTimings := timings.New(map[string]string{"ensure": "factory-reset"})
 
@@ -1591,6 +1603,7 @@ func (m *DeviceManager) ensureSeedInConfig() error {
 			// doMarkSeeded will run "EnsureBefore(0)"
 			return nil
 		}
+		logger.Trace("ensure", "manager", "DeviceManager", "func", "ensureSeedInConfig")
 
 		// Sync seeding with the configuration state. We need to
 		// do this here to ensure that old systems which did not
@@ -1600,6 +1613,8 @@ func (m *DeviceManager) ensureSeedInConfig() error {
 			return err
 		}
 		m.ensureSeedInConfigRan = true
+	} else {
+		logger.Trace("ensure", "manager", "DeviceManager", "func", "ensureSeedInConfig")
 	}
 
 	return nil
@@ -1633,6 +1648,8 @@ func (m *DeviceManager) ensureTriedRecoverySystem() error {
 	if m.ensureTriedRecoverySystemRan {
 		return nil
 	}
+
+	logger.Trace("ensure", "manager", "DeviceManager", "func", "ensureTriedRecoverySystem")
 
 	m.state.Lock()
 	defer m.state.Unlock()
@@ -1699,6 +1716,8 @@ func (m *DeviceManager) ensurePostFactoryReset() error {
 		return nil
 	}
 
+	logger.Trace("ensure", "manager", "DeviceManager", "func", "ensurePostFactoryReset")
+
 	m.ensurePostFactoryResetRan = true
 
 	factoryResetMarker := filepath.Join(dirs.SnapDeviceDir, "factory-reset")
@@ -1754,6 +1773,8 @@ func (m *DeviceManager) ensureExpiredUsersRemoved() error {
 	if err != nil {
 		return err
 	}
+
+	logger.Trace("ensure", "manager", "DeviceManager", "func", "ensureExpiredUsersRemoved")
 
 	for _, user := range users {
 		if !user.HasExpired() {

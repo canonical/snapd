@@ -27,6 +27,7 @@ import (
 
 	"github.com/snapcore/snapd/interfaces/hotplug"
 	"github.com/snapcore/snapd/interfaces/utils"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
 )
@@ -593,6 +594,7 @@ func (r *Repository) Connect(ref *ConnRef, plugStaticAttrs, plugDynamicAttrs, sl
 	conn := &Connection{Plug: cplug, Slot: cslot}
 	r.slotPlugs[slot][plug] = conn
 	r.plugSlots[plug][slot] = conn
+	logger.Trace("interface-connection", "interface", slot.Interface, "slot", slot.Snap.SnapType, "plug", plug.Snap.SnapType)
 	return conn, nil
 }
 
