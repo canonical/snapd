@@ -58,6 +58,7 @@ go_binaries = $(addprefix $(builddir)/, snap snapctl snap-seccomp snap-update-ns
 GO_TAGS = nosecboot
 ifeq ($(with_testkeys),1)
 GO_TAGS += withtestkeys
+GO_TAGS += structuredlogging
 endif
 
 # NOTE: This *depends* on building out of tree. Some of the built binaries
