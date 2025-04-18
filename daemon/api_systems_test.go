@@ -57,6 +57,7 @@ import (
 	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
+	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/secboot/keys"
 	"github.com/snapcore/snapd/seed"
 	"github.com/snapcore/snapd/seed/seedtest"
@@ -314,7 +315,7 @@ func (s *systemsSuite) TestSystemsGetNone(c *check.C) {
 }
 
 func (s *systemsSuite) TestSystemActionRequestErrors(c *check.C) {
-	// modenev must be mocked before daemon is initialized
+	// modeenv must be mocked before daemon is initialized
 	m := boot.Modeenv{
 		Mode: "run",
 	}
@@ -993,8 +994,27 @@ func (s *systemsSuite) TestSystemsGetSpecificLabelIntegration(c *check.C) {
 		// encryptionInfo needs get overridden here to get reliable tests
 		encInfo.Available = false
 		encInfo.StorageSafety = asserts.StorageSafetyPreferEncrypted
-		encInfo.UnavailableWarning = "not encrypting device storage as checking TPM gave: some reason"
-
+		encInfo.UnavailableWarning = "not encrypting device storage as checking TPM gave: preinstall check identified 2 errors"
+		encInfo.AvailabilityCheckErrors = []secboot.PreinstallErrorInfo{
+			{
+				Kind:    "tpm-hierarchies-owned",
+				Message: "error with TPM2 device: one or more of the TPM hierarchies is already owned",
+				Args: map[string]json.RawMessage{
+					"with-auth-value":  json.RawMessage(`[1073741834]`),
+					"with-auth-policy": json.RawMessage(`[1073741825]`),
+				},
+				Actions: []string{"reboot-to-fw-settings"},
+			},
+			{
+				Kind:    "tpm-device-lockout",
+				Message: "error with TPM2 device: TPM is in DA lockout mode",
+				Args: map[string]json.RawMessage{
+					"interval-duration": json.RawMessage(`7200000000000`),
+					"total-duration":    json.RawMessage(`230400000000000`),
+				},
+				Actions: []string{"reboot-to-fw-settings"},
+			},
+		}
 		return sys, gadgetInfo, encInfo, err
 	})
 	defer r()
@@ -1024,7 +1044,27 @@ func (s *systemsSuite) TestSystemsGetSpecificLabelIntegration(c *check.C) {
 		StorageEncryption: &client.StorageEncryption{
 			Support:           "unavailable",
 			StorageSafety:     "prefer-encrypted",
-			UnavailableReason: "not encrypting device storage as checking TPM gave: some reason",
+			UnavailableReason: "not encrypting device storage as checking TPM gave: preinstall check identified 2 errors",
+			AvailabilityCheckErrors: []secboot.PreinstallErrorInfo{
+				{
+					Kind:    "tpm-hierarchies-owned",
+					Message: "error with TPM2 device: one or more of the TPM hierarchies is already owned",
+					Args: map[string]json.RawMessage{
+						"with-auth-value":  json.RawMessage(`[1073741834]`),
+						"with-auth-policy": json.RawMessage(`[1073741825]`),
+					},
+					Actions: []string{"reboot-to-fw-settings"},
+				},
+				{
+					Kind:    "tpm-device-lockout",
+					Message: "error with TPM2 device: TPM is in DA lockout mode",
+					Args: map[string]json.RawMessage{
+						"interval-duration": json.RawMessage(`7200000000000`),
+						"total-duration":    json.RawMessage(`230400000000000`),
+					},
+					Actions: []string{"reboot-to-fw-settings"},
+				},
+			},
 		},
 		Volumes: map[string]*gadget.Volume{
 			"pc": {

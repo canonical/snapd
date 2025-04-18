@@ -21,9 +21,9 @@
 package secboot
 
 import (
-	"context"
+	"errors"
 )
 
-func PreinstallCheck(ctx context.Context, bootImagePaths []string) ([]PreinstallErrorDetails, error) {
+func PreinstallCheck(bootImagePaths []string) ([]PreinstallErrorInfo, error) {
 	return nil, errBuildWithoutSecboot
 }

@@ -22,10 +22,12 @@ package install_test
 import (
 	"bytes"
 	"crypto"
+	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -204,81 +206,549 @@ func (s *installSuite) mockModel(override map[string]any) *asserts.Model {
 	return s.Brands.Model("my-brand", "my-model", m)
 }
 
+type ErrorsDetected int
+
+const (
+	// all
+	ErrorNone ErrorsDetected = iota // no error(s)
+
+	// secboot.PreinstallCheck errors
+	ErrorsDetectedSingle   // detected single issue
+	ErrorsDetectedCompound // detected multiple issues (Ubuntu hybrid systems)
+
+	// orderedCurrentBootImagesHybrid errors
+	ErrorMissing  // cannot find one of the images
+	ErrorMultiple // finds multiple of the same kind of images
+
+	// encryptionAvailabilityCheck errors
+	ErrorCheckSupported    // preinstallCheckSupported error
+	ErrorBootImages        // orderedCurrentBootImages error
+	ErrorSecbootPreinstall // secboot.PreinstallCheck error
+)
+
+// representative sample of relative paths system boot file paths
+var relBootImagePaths = []string{
+	"cdrom/EFI/boot/bootXXX.efi",
+	"cdrom/EFI/boot/grubXXX.efi",
+	"cdrom/casper/vmlinuz",
+}
+var bootImageDuplicateName = []string{
+	"bootYYY.efi",
+	"grubYYY.efi",
+	"vmlinuz",
+}
+
+// representative sample of a list of information about preinstall check errors identified by secboot
+var preinstallErrorInfos = []secboot.PreinstallErrorInfo{
+	{
+		Kind:    "tpm-hierarchies-owned",
+		Message: "error with TPM2 device: one or more of the TPM hierarchies is already owned",
+		Args: map[string]json.RawMessage{
+			"with-auth-value":  json.RawMessage(`[1073741834]`),
+			"with-auth-policy": json.RawMessage(`[1073741825]`),
+		},
+		Actions: []string{"reboot-to-fw-settings"},
+	},
+	{
+		Kind:    "tpm-device-lockout",
+		Message: "error with TPM2 device: TPM is in DA lockout mode",
+		Args: map[string]json.RawMessage{
+			"interval-duration": json.RawMessage(`7200000000000`),
+			"total-duration":    json.RawMessage(`230400000000000`),
+		},
+		Actions: []string{"reboot-to-fw-settings"},
+	},
+}
+
+// mockHelperForOrderedCurrentBootImagesHybrid simplifies mocking that is required to excercise orderedCurrentBootImagesHybrid.
+//
+// isSupportedUbuntuHybrid: place current boot images to simulate supported Ubuntu hybrid install
+// errorDetected: simulate glob pattern matching errors (not filepath.Glob error itself)
+// errorImage: unique part of filepath base for any path in relBootImagePaths to target that image
+func (s *installSuite) mockHelperForOrderedCurrentBootImagesHybrid(c *C, isSupportedUbuntuHybrid bool, errorDetected ErrorsDetected, errorBootImage string) func() {
+	// mock hybridInstallRootDir and create dummy boot images for supported Ubuntu hybrid system
+	// that is required for orderedCurrentBootImagesHybrid to function
+	if !isSupportedUbuntuHybrid {
+		return func() {}
+	}
+
+	switch errorDetected {
+	case ErrorNone:
+		c.Assert(errorBootImage, Equals, "")
+	case ErrorMissing:
+	case ErrorMultiple:
+	default:
+		c.Assert(false, Equals, true)
+	}
+
+	targetImageIdentified := false
+
+	rootDir := c.MkDir()
+	restore := install.MockHybridInstallRootDir(rootDir)
+	for i, path := range relBootImagePaths {
+		bootImagePath := filepath.Join(rootDir, path)
+		bootImageDir := filepath.Dir(bootImagePath)
+		err := os.MkdirAll(bootImageDir, 0755)
+		c.Assert(err, IsNil)
+
+		isTargetImage := strings.Contains(filepath.Base(path), errorBootImage)
+		if isTargetImage {
+			targetImageIdentified = true
+		}
+
+		if errorDetected == ErrorMissing && isTargetImage {
+			// skip creation for missing image to trigger error
+			continue
+		}
+
+		f, err := os.Create(bootImagePath)
+		c.Assert(err, IsNil)
+		f.Close()
+
+		if errorDetected == ErrorMultiple && isTargetImage {
+			// create more than one match to trigger error
+			f, err := os.Create(filepath.Join(bootImageDir, bootImageDuplicateName[i]))
+			c.Assert(err, IsNil)
+			f.Close()
+		}
+	}
+	c.Assert(targetImageIdentified, Equals, true)
+
+	return restore
+}
+
+func (s *installSuite) TestOrderedCurrentBootImagesHybrid(c *C) {
+	for _, tc := range []struct {
+		errorDetected  ErrorsDetected
+		errorBootImage string
+
+		expectedBootImagePaths []string
+		expectedError          string
+	}{
+		{
+			ErrorNone, "",
+			relBootImagePaths,
+			"",
+		},
+		{
+			ErrorMissing, "bootXXX.efi",
+			nil,
+			`cannot locate installer shim using globbing pattern ".*/cdrom/EFI/boot/boot\*.efi"`,
+		},
+		{
+			ErrorMultiple, "bootXXX.efi",
+			nil,
+			`unexpected multiple matches for installer shim obtained using globbing pattern ".*/cdrom/EFI/boot/boot\*.efi"`,
+		},
+		{
+			ErrorMissing, "grubXXX.efi",
+			nil,
+			`cannot locate installer grub using globbing pattern ".*/cdrom/EFI/boot/grub\*.efi"`,
+		},
+		{
+			ErrorMultiple, "grubXXX.efi",
+			nil,
+			`unexpected multiple matches for installer grub obtained using globbing pattern ".*/cdrom/EFI/boot/grub\*.efi"`,
+		},
+		{
+			ErrorMissing, "vmlinuz",
+			nil,
+			`cannot locate installer kernel using globbing pattern ".*/cdrom/casper/vmlinuz"`,
+		},
+		// kernel pattern does not allow for duplication
+	} {
+		restore := s.mockHelperForOrderedCurrentBootImagesHybrid(c, true, tc.errorDetected, tc.errorBootImage)
+		defer restore()
+
+		bootImagePaths, err := install.OrderedCurrentBootImagesHybrid()
+		if tc.expectedError != "" {
+			c.Assert(err, ErrorMatches, tc.expectedError)
+		} else {
+			c.Assert(err, IsNil)
+
+			for i, path := range bootImagePaths {
+				c.Assert(path, Matches, "*/"+relBootImagePaths[i])
+			}
+		}
+	}
+}
+
+func (s *installSuite) TestOrderedCurrentBootImages(c *C) {
+	for _, tc := range []struct {
+		isSupportedUbuntuHybrid bool
+		errorDetected           ErrorsDetected
+		errorBootImage          string
+
+		expectedBootImagePaths []string
+		expectedError          string
+	}{
+		{
+			true,
+			ErrorNone, "",
+			relBootImagePaths,
+			"",
+		},
+		{
+			true,
+			ErrorMissing, "bootXXX.efi",
+			nil,
+			`cannot locate hybrid system boot images: cannot locate installer shim using globbing pattern ".*/cdrom/EFI/boot/boot\*.efi"`,
+		},
+		{
+			false,
+			ErrorNone, "",
+			nil,
+			"",
+		},
+		{
+			false,
+			ErrorMissing, "bootXXX.efi",
+			nil,
+			"",
+		},
+	} {
+		restore := s.mockHelperForOrderedCurrentBootImagesHybrid(c, true, tc.errorDetected, tc.errorBootImage)
+		defer restore()
+
+		modelMods := map[string]interface{}{}
+		if tc.isSupportedUbuntuHybrid {
+			modelMods["classic"] = "true"
+			modelMods["distribution"] = "ubuntu"
+		}
+		modelMock := s.mockModel(modelMods)
+
+		bootImagePaths, err := install.OrderedCurrentBootImages(modelMock)
+		if tc.expectedError != "" {
+			c.Assert(err, ErrorMatches, tc.expectedError)
+		} else {
+			c.Assert(err, IsNil)
+		}
+
+		for i, path := range bootImagePaths {
+			c.Assert(path, Matches, "*/"+relBootImagePaths[i])
+		}
+	}
+}
+
+func (s *installSuite) TestPreinstallCheckSupported(c *C) {
+	logbuf, restore := logger.MockLogger()
+	defer restore()
+
+	for _, tc := range []struct {
+		isSupportedUbuntuHybrid bool
+		osID                    string
+		osVersionID             string
+
+		expectedSupport bool
+		expectedError   string
+		expectedLog     string
+	}{
+		{
+			true,
+			"ubuntu", "25.10",
+			true,
+			"",
+			"",
+		},
+		{
+			true,
+			"ubuntu", "26.04",
+			true,
+			"",
+			"",
+		},
+		{
+			true,
+			"ubuntu", "24.04",
+			false,
+			"",
+			"",
+		},
+		{
+			true,
+			"ubuntu core", "24.04",
+			false,
+			"",
+			`unexpected OS release ID "ubuntu core"`,
+		},
+		{
+			true,
+			"ubuntu", "24:04",
+			false,
+			`cannot perform version comparison with OS release version ID: invalid version "24:04"`,
+			"",
+		},
+		{
+			false,
+			"ubuntu core", "24:04",
+			false,
+			"",
+			"",
+		},
+	} {
+		modelMods := map[string]interface{}{}
+		if tc.isSupportedUbuntuHybrid {
+			modelMods["classic"] = "true"
+			modelMods["distribution"] = "ubuntu"
+		}
+		modelMock := s.mockModel(modelMods)
+
+		restore := release.MockReleaseInfo(&release.OS{
+			ID:        tc.osID,
+			VersionID: tc.osVersionID,
+		})
+		defer restore()
+
+		supported, err := install.PreinstallCheckSupported(modelMock)
+
+		if tc.expectedError != "" {
+			c.Assert(err, ErrorMatches, tc.expectedError)
+		} else {
+			c.Assert(err, IsNil)
+		}
+
+		c.Assert(supported, Equals, tc.expectedSupport)
+
+		if tc.expectedLog == "" {
+			c.Assert(logbuf.String(), Equals, "")
+		} else {
+			c.Assert(logbuf.String(), testutil.Contains, tc.expectedLog)
+		}
+		logbuf.Reset()
+	}
+}
+
+// mockHelperForEncryptionAvailabilityCheck simplifies mocking that is required to excercise all core parts of encryptionAvailabilityCheck.
+//
+// isSupportedUbuntuHybrid: modify model, system release information and place current boot images to simulate supported Ubuntu hybrid install
+// errorsDetected: simulate realistic encryption availability errors for both secboot.PreinstallCheck and secboot.CheckTPMKeySealingSupported (None, Single, Multiple)
+// modelMods: model modifications to extend a model to be Ubuntu hybrid
+func (s *installSuite) mockHelperForEncryptionAvailabilityCheck(c *C, isSupportedUbuntuHybrid bool, errorsDetected ErrorsDetected, modelMods map[string]interface{}) (*asserts.Model, func()) {
+	// extend model modifications if required to indicate hybrid as required
+	var extendedModelMods map[string]interface{}
+	if modelMods != nil || isSupportedUbuntuHybrid {
+		extendedModelMods = map[string]interface{}{}
+	}
+	if modelMods != nil {
+		for k, v := range modelMods {
+			extendedModelMods[k] = v
+		}
+	}
+	if isSupportedUbuntuHybrid {
+		extendedModelMods["classic"] = "true"
+		extendedModelMods["distribution"] = "ubuntu"
+	}
+
+	// mock release info to simulate support for preinstall check
+	releaseInfo := &release.OS{
+		ID:        "ubuntu*",
+		VersionID: "24.04",
+	}
+	if isSupportedUbuntuHybrid {
+		// preinstall check is supported for Ubuntu hybrid >= 25.10
+		releaseInfo = &release.OS{
+			ID:        "ubuntu",
+			VersionID: "25.10",
+		}
+	}
+	restore1 := release.MockReleaseInfo(releaseInfo)
+
+	// create dummy boot images for supported Ubuntu hybrid system
+	// that is required for orderedCurrentBootImagesHybrid to function
+	restore2 := s.mockHelperForOrderedCurrentBootImagesHybrid(c, isSupportedUbuntuHybrid, ErrorNone, "")
+
+	// mock secboot.PreinstallCheck for Supported Ubuntu hybrid systems
+	restore3 := install.MockSecbootPreinstallCheck(func(bootImagePaths []string) ([]secboot.PreinstallErrorInfo, error) {
+		c.Assert(isSupportedUbuntuHybrid, Equals, true)
+		c.Assert(bootImagePaths, HasLen, len(relBootImagePaths))
+		for i, path := range bootImagePaths {
+			c.Assert(path, Matches, "*/"+relBootImagePaths[i])
+		}
+
+		switch errorsDetected {
+		case ErrorNone:
+			return nil, nil
+		case ErrorsDetectedSingle:
+			return preinstallErrorInfos[:1], nil
+		case ErrorsDetectedCompound:
+			return preinstallErrorInfos, nil
+		default:
+			c.Assert(false, Equals, true)
+			return nil, fmt.Errorf("test error")
+		}
+	})
+
+	// mock Secboot.CheckTPMKeySealingSupported for other systems (Ubuntu Core)
+	restore4 := install.MockSecbootCheckTPMKeySealingSupported(func(tpmMode secboot.TPMProvisionMode) error {
+		c.Assert(tpmMode, Equals, secboot.TPMProvisionFull)
+
+		switch errorsDetected {
+		case ErrorNone:
+			return nil
+		case ErrorsDetectedSingle:
+			fallthrough
+		case ErrorsDetectedCompound:
+			return fmt.Errorf("cannot connect to TPM device")
+		default:
+			c.Assert(false, Equals, true)
+			return fmt.Errorf("test error")
+		}
+	})
+
+	return s.mockModel(extendedModelMods),
+		// cleanup closure
+		func() {
+			restore4()
+			restore3()
+			restore2()
+			restore1()
+		}
+}
+
+func (s *installSuite) TestEncryptionAvailabilityCheck(c *C) {
+	for _, tc := range []struct {
+		isSupportedUbuntuHybrid bool
+		preinstallcheckErrors   ErrorsDetected
+		availabilityCheckErrors ErrorsDetected
+
+		expectedUnavailableReason string
+		expectedErrorInfos        []secboot.PreinstallErrorInfo
+		expectedError             string
+	}{
+		{
+			true,
+			ErrorNone,
+			ErrorNone,
+			"",
+			nil,
+			"",
+		},
+		{
+			true,
+			ErrorsDetectedCompound,
+			ErrorNone,
+			"preinstall check identified 2 errors",
+			preinstallErrorInfos,
+			"",
+		},
+		{
+			false,
+			ErrorNone,
+			ErrorNone,
+			"",
+			nil,
+			"",
+		},
+		{
+			false,
+			ErrorsDetectedSingle,
+			ErrorNone,
+			"general availability check: cannot connect to TPM device",
+			nil,
+			"",
+		},
+		{
+			true,
+			ErrorNone,
+			ErrorCheckSupported,
+			"",
+			nil,
+			`cannot confirm preinstall support: cannot perform version comparison with OS release version ID: invalid version "25:04"`,
+		},
+		{
+			true,
+			ErrorNone,
+			ErrorBootImages,
+			"",
+			nil,
+			`cannot locate ordered current boot images: cannot locate hybrid system boot images: cannot locate installer shim using globbing pattern ".*/boot\*.efi"`,
+		},
+		{
+			true,
+			ErrorNone,
+			ErrorSecbootPreinstall,
+			"",
+			nil,
+			"compound error does not wrap any error",
+		},
+	} {
+		mockModel, restore := s.mockHelperForEncryptionAvailabilityCheck(c, tc.isSupportedUbuntuHybrid, tc.preinstallcheckErrors, nil)
+		defer restore()
+
+		switch tc.availabilityCheckErrors {
+		case ErrorCheckSupported:
+			restore = release.MockReleaseInfo(&release.OS{
+				ID:        "ubuntu",
+				VersionID: "25:04",
+			})
+			defer restore()
+		case ErrorBootImages:
+			rootDir := c.MkDir()
+			restore = install.MockHybridInstallRootDir(rootDir)
+			defer restore()
+		case ErrorSecbootPreinstall:
+			restore = install.MockSecbootPreinstallCheck(func(bootImagePaths []string) ([]secboot.PreinstallErrorInfo, error) {
+				return nil, fmt.Errorf("compound error does not wrap any error")
+			})
+			defer restore()
+		}
+
+		unavailableReason, errorInfos, err := install.EncryptionAvailabilityCheck(mockModel, secboot.TPMProvisionFull)
+		c.Assert(unavailableReason, Equals, tc.expectedUnavailableReason)
+		c.Assert(errorInfos, DeepEquals, tc.expectedErrorInfos)
+
+		if tc.expectedError != "" {
+			c.Assert(err, ErrorMatches, tc.expectedError)
+		} else {
+			c.Assert(err, IsNil)
+		}
+	}
+}
+
 func (s *installSuite) TestEncryptionSupportInfoWithTPM(c *C) {
 	kernelInfo := s.kernelSnap(c, "pc-kernel=20")
-
 	gadgetInfo, _ := s.mountedGadget(c)
 
 	var testCases = []struct {
 		grade, storageSafety, snapdVersion, kernelSnapdVersion string
-		tpmErr                                                 error
+		isSupportedUbuntuHybrid                                bool
+		detectedErrors                                         ErrorsDetected
 
 		expected install.EncryptionSupportInfo
 	}{
 		{
-			"dangerous", "", "", "", nil,
+			"dangerous", "", "", "", false, ErrorNone,
 			install.EncryptionSupportInfo{
 				Available: true, Disabled: false,
 				StorageSafety: asserts.StorageSafetyPreferEncrypted,
 				Type:          device.EncryptionTypeLUKS,
 			},
 		}, {
-			"dangerous", "", "", "", fmt.Errorf("no tpm"),
+			"dangerous", "", "", "", false, ErrorsDetectedSingle,
 			install.EncryptionSupportInfo{
 				Available: false, Disabled: false,
 				StorageSafety:      asserts.StorageSafetyPreferEncrypted,
 				Type:               device.EncryptionTypeNone,
-				UnavailableWarning: "not encrypting device storage as checking TPM gave: no tpm",
+				UnavailableWarning: "not encrypting device storage as checking TPM gave: general availability check: cannot connect to TPM device",
 			},
 		}, {
-			"dangerous", "encrypted", "", "", nil,
+			"dangerous", "encrypted", "", "", true, ErrorNone,
 			install.EncryptionSupportInfo{
 				Available: true, Disabled: false,
 				StorageSafety: asserts.StorageSafetyEncrypted,
 				Type:          device.EncryptionTypeLUKS,
 			},
 		}, {
-			"dangerous", "encrypted", "", "", fmt.Errorf("no tpm"),
+			"dangerous", "encrypted", "", "", true, ErrorsDetectedSingle,
 			install.EncryptionSupportInfo{
 				Available: false, Disabled: false,
-				StorageSafety:  asserts.StorageSafetyEncrypted,
-				Type:           device.EncryptionTypeNone,
-				UnavailableErr: fmt.Errorf("cannot encrypt device storage as mandated by encrypted storage-safety model option: no tpm"),
-			},
-		},
-		{
-			"dangerous", "prefer-unencrypted", "", "", nil,
-			install.EncryptionSupportInfo{
-				Available: true, Disabled: false,
-				StorageSafety: asserts.StorageSafetyPreferUnencrypted,
-				// Note that encryption type is set to what is available
-				Type: device.EncryptionTypeLUKS,
-			},
-		},
-		{
-			"signed", "", "", "", nil,
-			install.EncryptionSupportInfo{
-				Available: true, Disabled: false,
-				StorageSafety: asserts.StorageSafetyPreferEncrypted,
-				Type:          device.EncryptionTypeLUKS,
+				StorageSafety:           asserts.StorageSafetyEncrypted,
+				Type:                    device.EncryptionTypeNone,
+				UnavailableErr:          fmt.Errorf("cannot encrypt device storage as mandated by encrypted storage-safety model option: preinstall check error: error with TPM2 device: one or more of the TPM hierarchies is already owned"),
+				AvailabilityCheckErrors: preinstallErrorInfos[:1],
 			},
 		}, {
-			"signed", "", "", "", fmt.Errorf("no tpm"),
-			install.EncryptionSupportInfo{
-				Available: false, Disabled: false,
-				StorageSafety:      asserts.StorageSafetyPreferEncrypted,
-				Type:               device.EncryptionTypeNone,
-				UnavailableWarning: "not encrypting device storage as checking TPM gave: no tpm",
-			},
-		}, {
-			"signed", "encrypted", "", "", nil,
-			install.EncryptionSupportInfo{
-				Available: true, Disabled: false,
-				StorageSafety: asserts.StorageSafetyEncrypted,
-				Type:          device.EncryptionTypeLUKS,
-			},
-		}, {
-			"signed", "prefer-unencrypted", "", "", nil,
+			"dangerous", "prefer-unencrypted", "", "", false, ErrorNone,
 			install.EncryptionSupportInfo{
 				Available: true, Disabled: false,
 				StorageSafety: asserts.StorageSafetyPreferUnencrypted,
@@ -286,74 +756,103 @@ func (s *installSuite) TestEncryptionSupportInfoWithTPM(c *C) {
 				Type: device.EncryptionTypeLUKS,
 			},
 		}, {
-			"signed", "encrypted", "", "", fmt.Errorf("no tpm"),
+			"signed", "", "", "", true, ErrorNone,
 			install.EncryptionSupportInfo{
-				Available: false, Disabled: false,
-				StorageSafety:  asserts.StorageSafetyEncrypted,
-				Type:           device.EncryptionTypeNone,
-				UnavailableErr: fmt.Errorf("cannot encrypt device storage as mandated by encrypted storage-safety model option: no tpm"),
+				Available: true, Disabled: false,
+				StorageSafety: asserts.StorageSafetyPreferEncrypted,
+				Type:          device.EncryptionTypeLUKS,
 			},
 		}, {
-			"secured", "encrypted", "", "", nil,
+			"signed", "", "", "", true, ErrorsDetectedCompound,
+			install.EncryptionSupportInfo{
+				Available: false, Disabled: false,
+				StorageSafety:           asserts.StorageSafetyPreferEncrypted,
+				Type:                    device.EncryptionTypeNone,
+				UnavailableWarning:      "not encrypting device storage as checking TPM gave: preinstall check identified 2 errors",
+				AvailabilityCheckErrors: preinstallErrorInfos,
+			},
+		}, {
+			"signed", "encrypted", "", "", false, ErrorNone,
 			install.EncryptionSupportInfo{
 				Available: true, Disabled: false,
 				StorageSafety: asserts.StorageSafetyEncrypted,
 				Type:          device.EncryptionTypeLUKS,
 			},
 		}, {
-			"secured", "encrypted", "", "", fmt.Errorf("no tpm"),
+			"signed", "prefer-unencrypted", "", "", true, ErrorNone,
+			install.EncryptionSupportInfo{
+				Available: true, Disabled: false,
+				StorageSafety: asserts.StorageSafetyPreferUnencrypted,
+				// Note that encryption type is set to what is available
+				Type: device.EncryptionTypeLUKS,
+			},
+		}, {
+			"signed", "encrypted", "", "", false, ErrorsDetectedSingle,
 			install.EncryptionSupportInfo{
 				Available: false, Disabled: false,
 				StorageSafety:  asserts.StorageSafetyEncrypted,
 				Type:           device.EncryptionTypeNone,
-				UnavailableErr: fmt.Errorf("cannot encrypt device storage as mandated by model grade secured: no tpm"),
+				UnavailableErr: fmt.Errorf("cannot encrypt device storage as mandated by encrypted storage-safety model option: general availability check: cannot connect to TPM device"),
 			},
 		}, {
-			"secured", "", "", "", nil,
+			"secured", "encrypted", "", "", true, ErrorNone,
 			install.EncryptionSupportInfo{
 				Available: true, Disabled: false,
 				StorageSafety: asserts.StorageSafetyEncrypted,
 				Type:          device.EncryptionTypeLUKS,
 			},
 		}, {
-			"secured", "", "", "", fmt.Errorf("no tpm"),
+			"secured", "encrypted", "", "", true, ErrorsDetectedSingle,
+			install.EncryptionSupportInfo{
+				Available: false, Disabled: false,
+				StorageSafety:           asserts.StorageSafetyEncrypted,
+				Type:                    device.EncryptionTypeNone,
+				UnavailableErr:          fmt.Errorf("cannot encrypt device storage as mandated by model grade secured: preinstall check error: error with TPM2 device: one or more of the TPM hierarchies is already owned"),
+				AvailabilityCheckErrors: preinstallErrorInfos[:1],
+			},
+		}, {
+			"secured", "", "", "", false, ErrorNone,
+			install.EncryptionSupportInfo{
+				Available: true, Disabled: false,
+				StorageSafety: asserts.StorageSafetyEncrypted,
+				Type:          device.EncryptionTypeLUKS,
+			},
+		}, {
+			"secured", "", "", "", false, ErrorsDetectedSingle,
 			install.EncryptionSupportInfo{
 				Available: false, Disabled: false,
 				StorageSafety:  asserts.StorageSafetyEncrypted,
 				Type:           device.EncryptionTypeNone,
-				UnavailableErr: fmt.Errorf("cannot encrypt device storage as mandated by model grade secured: no tpm"),
+				UnavailableErr: fmt.Errorf("cannot encrypt device storage as mandated by model grade secured: general availability check: cannot connect to TPM device"),
 			},
 		},
 		// Passphrase support requires snapd 2.68+
 		{
-			"secured", "encrypted", "2.68", "2.68", nil,
+			"secured", "encrypted", "2.68", "2.68", false, ErrorNone,
 			install.EncryptionSupportInfo{
 				Available: true, Disabled: false,
 				StorageSafety:           asserts.StorageSafetyEncrypted,
 				Type:                    device.EncryptionTypeLUKS,
 				PassphraseAuthAvailable: true,
 			},
-		},
-		{
-			"secured", "encrypted", "2.69", "2.69", nil,
+		}, {
+			"secured", "encrypted", "2.69", "2.69", true, ErrorNone,
 			install.EncryptionSupportInfo{
 				Available: true, Disabled: false,
 				StorageSafety:           asserts.StorageSafetyEncrypted,
 				Type:                    device.EncryptionTypeLUKS,
 				PassphraseAuthAvailable: true,
 			},
-		},
-		{
-			"secured", "encrypted", "2.67", "2.68", nil,
+		}, {
+			"secured", "encrypted", "2.67", "2.68", false, ErrorNone,
 			install.EncryptionSupportInfo{
 				Available: true, Disabled: false,
 				StorageSafety:           asserts.StorageSafetyEncrypted,
 				Type:                    device.EncryptionTypeLUKS,
 				PassphraseAuthAvailable: false,
 			},
-		},
-		{
-			"secured", "encrypted", "2.68", "2.67", nil,
+		}, {
+			"secured", "encrypted", "2.68", "2.67", true, ErrorNone,
 			install.EncryptionSupportInfo{
 				Available: true, Disabled: false,
 				StorageSafety:           asserts.StorageSafetyEncrypted,
@@ -362,14 +861,13 @@ func (s *installSuite) TestEncryptionSupportInfoWithTPM(c *C) {
 			},
 		},
 	}
-	for _, tc := range testCases {
-		restore := install.MockSecbootCheckTPMKeySealingSupported(func(secboot.TPMProvisionMode) error { return tc.tpmErr })
-		defer restore()
-
-		mockModel := s.mockModel(map[string]any{
+	for i, tc := range testCases {
+		mockModel, restore := s.mockHelperForEncryptionAvailabilityCheck(c, tc.isSupportedUbuntuHybrid, tc.detectedErrors, map[string]interface{}{
 			"grade":          tc.grade,
 			"storage-safety": tc.storageSafety,
 		})
+		defer restore()
+
 		mockSystemSnapdVersions := &install.SystemSnapdVersions{
 			SnapdVersion:          tc.snapdVersion,
 			SnapdInitramfsVersion: tc.kernelSnapdVersion,
@@ -377,7 +875,7 @@ func (s *installSuite) TestEncryptionSupportInfoWithTPM(c *C) {
 
 		res, err := install.GetEncryptionSupportInfo(mockModel, secboot.TPMProvisionFull, kernelInfo, gadgetInfo, mockSystemSnapdVersions, nil)
 		c.Assert(err, IsNil)
-		c.Check(res, DeepEquals, tc.expected, Commentf("%v", tc))
+		c.Check(res, DeepEquals, tc.expected, Commentf("test index: %d | %v", i, tc))
 	}
 }
 
@@ -388,20 +886,20 @@ func (s *installSuite) TestEncryptionSupportInfoForceUnencrypted(c *C) {
 
 	var testCases = []struct {
 		grade, storageSafety, forceUnencrypted string
-		tpmErr                                 error
+		isSupportedUbuntuHybrid                bool
+		detectedErrors                         ErrorsDetected
 
 		expected install.EncryptionSupportInfo
 	}{
 		{
-			"dangerous", "", "", nil,
+			"dangerous", "", "", false, ErrorNone,
 			install.EncryptionSupportInfo{
 				Available: true, Disabled: false,
 				StorageSafety: asserts.StorageSafetyPreferEncrypted,
 				Type:          device.EncryptionTypeLUKS,
 			},
-		},
-		{
-			"dangerous", "", "force-unencrypted", nil,
+		}, {
+			"dangerous", "", "force-unencrypted", true, ErrorNone,
 			install.EncryptionSupportInfo{
 				// Encryption is forcefully disabled
 				// here so no further
@@ -411,9 +909,17 @@ func (s *installSuite) TestEncryptionSupportInfoForceUnencrypted(c *C) {
 				StorageSafety: asserts.StorageSafetyPreferEncrypted,
 				Type:          device.EncryptionTypeNone,
 			},
-		},
-		{
-			"dangerous", "", "force-unencrypted", fmt.Errorf("no tpm"),
+		}, {
+			"dangerous", "", "force-unencrypted", false, ErrorsDetectedSingle,
+			install.EncryptionSupportInfo{
+				// Encryption is forcefully disabled
+				// here so the "no tpm" error is never visible
+				Available: false, Disabled: true,
+				StorageSafety: asserts.StorageSafetyPreferEncrypted,
+				Type:          device.EncryptionTypeNone,
+			},
+		}, {
+			"dangerous", "", "force-unencrypted", true, ErrorsDetectedCompound,
 			install.EncryptionSupportInfo{
 				// Encryption is forcefully disabled
 				// here so the "no tpm" error is never visible
@@ -424,65 +930,77 @@ func (s *installSuite) TestEncryptionSupportInfoForceUnencrypted(c *C) {
 		},
 		// not possible to disable encryption on non-dangerous devices
 		{
-			"signed", "", "", nil,
+			"signed", "", "", false, ErrorNone,
 			install.EncryptionSupportInfo{
 				Available: true, Disabled: false,
 				StorageSafety: asserts.StorageSafetyPreferEncrypted,
 				Type:          device.EncryptionTypeLUKS,
 			},
-		},
-		{
-			"signed", "", "force-unencrypted", nil,
+		}, {
+			"signed", "", "force-unencrypted", true, ErrorNone,
 			install.EncryptionSupportInfo{
 				Available: true, Disabled: false,
 				StorageSafety: asserts.StorageSafetyPreferEncrypted,
 				Type:          device.EncryptionTypeLUKS,
 			},
-		},
-		{
-			"signed", "", "force-unencrypted", fmt.Errorf("no tpm"),
+		}, {
+			"signed", "", "force-unencrypted", false, ErrorsDetectedSingle,
 			install.EncryptionSupportInfo{
 				Available: false, Disabled: false,
 				StorageSafety:      asserts.StorageSafetyPreferEncrypted,
 				Type:               device.EncryptionTypeNone,
-				UnavailableWarning: "not encrypting device storage as checking TPM gave: no tpm",
+				UnavailableWarning: "not encrypting device storage as checking TPM gave: general availability check: cannot connect to TPM device",
 			},
-		},
-		{
-			"secured", "", "", nil,
+		}, {
+			"signed", "", "force-unencrypted", true, ErrorsDetectedCompound,
+			install.EncryptionSupportInfo{
+				Available: false, Disabled: false,
+				StorageSafety:           asserts.StorageSafetyPreferEncrypted,
+				Type:                    device.EncryptionTypeNone,
+				UnavailableWarning:      "not encrypting device storage as checking TPM gave: preinstall check identified 2 errors",
+				AvailabilityCheckErrors: preinstallErrorInfos,
+			},
+		}, {
+			"secured", "", "", true, ErrorNone,
 			install.EncryptionSupportInfo{
 				Available: true, Disabled: false,
 				StorageSafety: asserts.StorageSafetyEncrypted,
 				Type:          device.EncryptionTypeLUKS,
 			},
-		},
-		{
-			"secured", "", "force-unencrypted", nil,
+		}, {
+			"secured", "", "force-unencrypted", true, ErrorNone,
 			install.EncryptionSupportInfo{
 				Available: true, Disabled: false,
 				StorageSafety: asserts.StorageSafetyEncrypted,
 				Type:          device.EncryptionTypeLUKS,
 			},
-		},
-		{
-			"secured", "", "force-unencrypted", fmt.Errorf("no tpm"),
+		}, {
+			"secured", "", "force-unencrypted", false, ErrorsDetectedSingle,
 			install.EncryptionSupportInfo{
 				Available: false, Disabled: false,
 				StorageSafety:  asserts.StorageSafetyEncrypted,
 				Type:           device.EncryptionTypeNone,
-				UnavailableErr: fmt.Errorf("cannot encrypt device storage as mandated by model grade secured: no tpm"),
+				UnavailableErr: fmt.Errorf("cannot encrypt device storage as mandated by model grade secured: general availability check: cannot connect to TPM device"),
+			},
+		}, {
+			"secured", "", "force-unencrypted", true, ErrorsDetectedCompound,
+			install.EncryptionSupportInfo{
+				Available: false, Disabled: false,
+				StorageSafety:           asserts.StorageSafetyEncrypted,
+				Type:                    device.EncryptionTypeNone,
+				UnavailableErr:          fmt.Errorf("cannot encrypt device storage as mandated by model grade secured: preinstall check identified 2 errors"),
+				AvailabilityCheckErrors: preinstallErrorInfos,
 			},
 		},
 	}
 
-	for _, tc := range testCases {
-		restore := install.MockSecbootCheckTPMKeySealingSupported(func(secboot.TPMProvisionMode) error { return tc.tpmErr })
-		defer restore()
-
-		mockModel := s.mockModel(map[string]any{
+	for i, tc := range testCases {
+		mockModel, restore := s.mockHelperForEncryptionAvailabilityCheck(c, tc.isSupportedUbuntuHybrid, tc.detectedErrors, map[string]interface{}{
 			"grade":          tc.grade,
 			"storage-safety": tc.storageSafety,
 		})
+		defer restore()
+
 		forceUnencryptedPath := filepath.Join(boot.InitramfsUbuntuSeedDir, ".force-unencrypted")
 		if tc.forceUnencrypted == "" {
 			os.Remove(forceUnencryptedPath)
@@ -495,7 +1013,7 @@ func (s *installSuite) TestEncryptionSupportInfoForceUnencrypted(c *C) {
 
 		res, err := install.GetEncryptionSupportInfo(mockModel, secboot.TPMProvisionFull, kernelInfo, gadgetInfo, nil, nil)
 		c.Assert(err, IsNil)
-		c.Check(res, DeepEquals, tc.expected, Commentf("%v", tc))
+		c.Check(res, DeepEquals, tc.expected, Commentf("test index: %d | %v", i, tc))
 	}
 }
 
@@ -529,7 +1047,14 @@ var gadgetUC20 = &gadget.Info{
 }
 
 func (s *installSuite) TestEncryptionSupportInfoGadgetIncompatibleWithEncryption(c *C) {
-	restore := install.MockSecbootCheckTPMKeySealingSupported(func(secboot.TPMProvisionMode) error { return nil })
+	restore := install.MockSecbootPreinstallCheck(func(bootImagePaths []string) ([]secboot.PreinstallErrorInfo, error) {
+		return nil, nil
+	})
+	defer restore()
+
+	restore = install.MockSecbootCheckTPMKeySealingSupported(func(tpmMode secboot.TPMProvisionMode) error {
+		return nil
+	})
 	defer restore()
 
 	kernelInfo := s.kernelSnap(c, "pc-kernel=20")
@@ -627,7 +1152,7 @@ func (s *installSuite) TestInstallCheckEncryptedFDEHook(c *C) {
 		{"xxx", `cannot parse hook output "xxx": invalid character 'x' looking for beginning of value`, device.EncryptionTypeNone},
 		// no output is invalid
 		{"", `cannot parse hook output "": unexpected end of JSON input`, device.EncryptionTypeNone},
-		// specific error
+		// specific errorTestEncryptionSupportInfoWithTPM
 		{`{"error":"failed"}`, `cannot use hook: it returned error: failed`, device.EncryptionTypeNone},
 		{`{}`, `cannot use hook: neither "features" nor "error" returned`, device.EncryptionTypeNone},
 		// valid
@@ -657,36 +1182,36 @@ func (s *installSuite) TestInstallCheckEncryptedFDEHook(c *C) {
 
 func (s *installSuite) TestInstallCheckEncryptionSupportTPM(c *C) {
 	kernelInfo := s.kernelSnap(c, "pc-kernel=20")
-
 	gadgetInfo, _ := s.mountedGadget(c)
-
-	mockModel := s.mockModel(nil)
 
 	logbuf, restore := logger.MockLogger()
 	defer restore()
 
 	for _, tc := range []struct {
-		hasTPM         bool
+		isSupportedUbuntuHybrid bool
+		detectedErrors          ErrorsDetected
+
 		encryptionType device.EncryptionType
 	}{
-		// unhappy: no tpm, no hook
-		{false, device.EncryptionTypeNone},
-		// happy: tpm
-		{true, device.EncryptionTypeLUKS},
+		// unhappy: no hook, encryption unvailable as determined by secboot.CheckTPMKeySealingSupported
+		{false, ErrorsDetectedSingle, device.EncryptionTypeNone},
+		// unhappy: no hook, encryption unavailable as determined by secboot.PreinstallCheck when detecting single error
+		{true, ErrorsDetectedSingle, device.EncryptionTypeNone},
+		// unhappy: no hook, encryption unavailable as determined by secboot.PreinstallCheck when detecting multiple errors
+		{true, ErrorsDetectedCompound, device.EncryptionTypeNone},
+		// happy: encryption available as determined by secboot.CheckTPMKeySealingSupported
+		{false, ErrorNone, device.EncryptionTypeLUKS},
+		// happy: encryption available as determined by secboot.PreinstallCheck
+		{true, ErrorNone, device.EncryptionTypeLUKS},
 	} {
-		restore := install.MockSecbootCheckTPMKeySealingSupported(func(secboot.TPMProvisionMode) error {
-			if tc.hasTPM {
-				return nil
-			}
-			return fmt.Errorf("tpm says no")
-		})
+		mockModel, restore := s.mockHelperForEncryptionAvailabilityCheck(c, tc.isSupportedUbuntuHybrid, tc.detectedErrors, nil)
 		defer restore()
 
 		encryptionType, err := install.CheckEncryptionSupport(mockModel, secboot.TPMProvisionFull, kernelInfo, gadgetInfo, nil)
 		c.Assert(err, IsNil)
 		c.Check(encryptionType, Equals, tc.encryptionType, Commentf("%v", tc))
-		if !tc.hasTPM {
-			c.Check(logbuf.String(), Matches, ".*: not encrypting device storage as checking TPM gave: tpm says no\n")
+		if tc.detectedErrors != ErrorNone {
+			c.Check(logbuf.String(), Matches, ".*: not encrypting device storage as checking TPM gave: .+\n")
 		}
 		logbuf.Reset()
 	}
@@ -694,34 +1219,33 @@ func (s *installSuite) TestInstallCheckEncryptionSupportTPM(c *C) {
 
 func (s *installSuite) TestInstallCheckEncryptionSupportHook(c *C) {
 	kernelInfo := s.kernelSnap(c, "pc-kernel=20-fde-setup")
-
 	gadgetInfo, _ := s.mountedGadget(c)
-
-	mockModel := s.mockModel(nil)
 
 	logbuf, restore := logger.MockLogger()
 	defer restore()
 
 	for _, tc := range []struct {
-		fdeSetupHookFeatures string
+		fdeSetupHookFeatures    string
+		hasTPM                  bool
+		isSupportedUbuntuHybrid bool
 
-		hasTPM         bool
 		encryptionType device.EncryptionType
 	}{
-		{"[]", false, device.EncryptionTypeLUKS},
-		{"[]", true, device.EncryptionTypeLUKS},
+		{"[]", false, false, device.EncryptionTypeLUKS},
+		{"[]", false, true, device.EncryptionTypeLUKS},
+		{"[]", true, false, device.EncryptionTypeLUKS},
+		{"[]", true, true, device.EncryptionTypeLUKS},
 	} {
+		detectedErrors := ErrorNone
+		if !tc.hasTPM {
+			detectedErrors = ErrorsDetectedSingle
+		}
+		mockModel, restore := s.mockHelperForEncryptionAvailabilityCheck(c, tc.isSupportedUbuntuHybrid, detectedErrors, nil)
+		defer restore()
+
 		runFDESetup := func(_ *fde.SetupRequest) ([]byte, error) {
 			return []byte(fmt.Sprintf(`{"features":%s}`, tc.fdeSetupHookFeatures)), nil
 		}
-
-		restore := install.MockSecbootCheckTPMKeySealingSupported(func(secboot.TPMProvisionMode) error {
-			if tc.hasTPM {
-				return nil
-			}
-			return fmt.Errorf("tpm says no")
-		})
-		defer restore()
 
 		encryptionType, err := install.CheckEncryptionSupport(mockModel, secboot.TPMProvisionFull, kernelInfo, gadgetInfo, runFDESetup)
 		c.Assert(err, IsNil)
@@ -735,10 +1259,16 @@ func (s *installSuite) TestInstallCheckEncryptionSupportHook(c *C) {
 
 func (s *installSuite) TestInstallCheckEncryptionSupportStorageSafety(c *C) {
 	kernelInfo := s.kernelSnap(c, "pc-kernel=20")
-
 	gadgetInfo, _ := s.mountedGadget(c)
 
-	restore := install.MockSecbootCheckTPMKeySealingSupported(func(secboot.TPMProvisionMode) error { return nil })
+	restore := install.MockSecbootPreinstallCheck(func(bootImagePaths []string) ([]secboot.PreinstallErrorInfo, error) {
+		return nil, nil
+	})
+	defer restore()
+
+	restore = install.MockSecbootCheckTPMKeySealingSupported(func(tpmMode secboot.TPMProvisionMode) error {
+		return nil
+	})
 	defer restore()
 
 	var testCases = []struct {
@@ -773,14 +1303,12 @@ func (s *installSuite) TestInstallCheckEncryptionSupportStorageSafety(c *C) {
 
 func (s *installSuite) TestInstallCheckEncryptionSupportErrors(c *C) {
 	kernelInfo := s.kernelSnap(c, "pc-kernel=20")
-
 	gadgetInfo, _ := s.mountedGadget(c)
 
-	restore := install.MockSecbootCheckTPMKeySealingSupported(func(secboot.TPMProvisionMode) error { return fmt.Errorf("tpm says no") })
-	defer restore()
-
-	var testCases = []struct {
-		grade, storageSafety string
+	for _, tc := range []struct {
+		grade, storageSafety    string
+		isSupportedUbuntuHybrid bool
+		detectedErrors          ErrorsDetected
 
 		expectedErr string
 	}{
@@ -788,23 +1316,27 @@ func (s *installSuite) TestInstallCheckEncryptionSupportErrors(c *C) {
 		// will ensure it has a default
 		{
 			"dangerous", "encrypted",
-			"cannot encrypt device storage as mandated by encrypted storage-safety model option: tpm says no",
+			false, ErrorsDetectedSingle,
+			"cannot encrypt device storage as mandated by encrypted storage-safety model option: general availability check: cannot connect to TPM device",
 		}, {
 			"signed", "encrypted",
-			"cannot encrypt device storage as mandated by encrypted storage-safety model option: tpm says no",
+			true, ErrorsDetectedSingle,
+			"cannot encrypt device storage as mandated by encrypted storage-safety model option: preinstall check error: error with TPM2 device: one or more of the TPM hierarchies is already owned",
 		}, {
 			"secured", "",
-			"cannot encrypt device storage as mandated by model grade secured: tpm says no",
+			false, ErrorsDetectedSingle,
+			"cannot encrypt device storage as mandated by model grade secured: general availability check: cannot connect to TPM device",
 		}, {
 			"secured", "encrypted",
-			"cannot encrypt device storage as mandated by model grade secured: tpm says no",
+			true, ErrorsDetectedCompound,
+			"cannot encrypt device storage as mandated by model grade secured: preinstall check identified 2 errors",
 		},
-	}
-	for _, tc := range testCases {
-		mockModel := s.mockModel(map[string]any{
+	} {
+		mockModel, restore := s.mockHelperForEncryptionAvailabilityCheck(c, tc.isSupportedUbuntuHybrid, tc.detectedErrors, map[string]interface{}{
 			"grade":          tc.grade,
 			"storage-safety": tc.storageSafety,
 		})
+		defer restore()
 
 		_, err := install.CheckEncryptionSupport(mockModel, secboot.TPMProvisionFull, kernelInfo, gadgetInfo, nil)
 		c.Check(err, ErrorMatches, tc.expectedErr, Commentf("%s %s", tc.grade, tc.storageSafety))
@@ -813,27 +1345,35 @@ func (s *installSuite) TestInstallCheckEncryptionSupportErrors(c *C) {
 
 func (s *installSuite) TestInstallCheckEncryptionSupportErrorsLogsTPM(c *C) {
 	kernelInfo := s.kernelSnap(c, "pc-kernel=20")
-
 	gadgetInfo, _ := s.mountedGadget(c)
-
-	restore := install.MockSecbootCheckTPMKeySealingSupported(func(secboot.TPMProvisionMode) error {
-		return fmt.Errorf("tpm says no")
-	})
-	defer restore()
 
 	logbuf, restore := logger.MockLogger()
 	defer restore()
 
-	mockModel := s.mockModel(nil)
+	for _, tc := range []struct {
+		isSupportedUbuntuHybrid bool
+		detectedErrors          ErrorsDetected
 
-	_, err := install.CheckEncryptionSupport(mockModel, secboot.TPMProvisionFull, kernelInfo, gadgetInfo, nil)
-	c.Check(err, IsNil)
-	c.Check(logbuf.String(), Matches, "(?s).*: not encrypting device storage as checking TPM gave: tpm says no\n")
+		encryptionType device.EncryptionType
+	}{
+		// unhappy: no hook, encryption unvailable as determined by secboot.CheckTPMKeySealingSupported
+		{false, ErrorsDetectedSingle, device.EncryptionTypeNone},
+		// unhappy: no hook, encryption unavailable as determined by secboot.PreinstallCheck when detecting single error
+		{true, ErrorsDetectedSingle, device.EncryptionTypeNone},
+		// unhappy: no hook, encryption unavailable as determined by secboot.PreinstallCheck when detecting multiple errors
+		{true, ErrorsDetectedCompound, device.EncryptionTypeNone},
+	} {
+		mockModel, restore := s.mockHelperForEncryptionAvailabilityCheck(c, tc.isSupportedUbuntuHybrid, tc.detectedErrors, nil)
+		defer restore()
+
+		_, err := install.CheckEncryptionSupport(mockModel, secboot.TPMProvisionFull, kernelInfo, gadgetInfo, nil)
+		c.Check(err, IsNil)
+		c.Check(logbuf.String(), Matches, "(?s).*: not encrypting device storage as checking TPM gave: .+\n")
+	}
 }
 
 func (s *installSuite) TestInstallCheckEncryptionSupportErrorsLogsHook(c *C) {
 	kernelInfo := s.kernelSnap(c, "pc-kernel=20-fde-setup")
-
 	gadgetInfo, _ := s.mountedGadget(c)
 
 	runFDESetup := func(_ *fde.SetupRequest) ([]byte, error) {

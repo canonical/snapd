@@ -24,52 +24,53 @@ import (
 	"context"
 	"fmt"
 
-	sb_efi "github.com/snapcore/secboot/efi"
-	sb_preinstall "github.com/snapcore/secboot/efi/preinstall"
+	"github.com/snapcore/secboot/efi"
+	"github.com/snapcore/secboot/efi/preinstall"
 
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/snapdenv"
 	"github.com/snapcore/snapd/systemd"
 )
 
 var (
-	sbPreinstallNewRunChecksContext = sb_preinstall.NewRunChecksContext
-	sbPreinstallRunChecks           = (*sb_preinstall.RunChecksContext).Run
+	preinstallNewRunChecksContext = preinstall.NewRunChecksContext
+	preinstallRunChecks           = (*preinstall.RunChecksContext).Run
 )
 
 // PreinstallCheck runs preinstall checks using default check configuration and
 // TCG-compliant PCR profile generation options to evaluate whether the host
-// environment is an EFI system suitable for TPM-based Full Disk Encryption. The
-// caller must supply the current boot images in boot order via bootImagePaths.
-// On success, it returns a list with details on all errors identified by secboot
-// or nil if no errors were found. Any warnings contained in the secboot result
-// are logged. On failure, it returns the error encountered while interpreting
-// the secboot error.
+// environment is an EFI system suitable for TPM-based Full Disk Encryption. On
+// success, it returns a list with information on all errors identified by
+// secboot or nil if no errors were found. Any warnings contained in the secboot
+// result are logged. On failure, it returns the error encountered while
+// interpreting the secboot error.
 //
-// To support testing, when the system is running in a Virtual Machine, the check
-// configuration is modified to permit this to avoid an error.
-func PreinstallCheck(ctx context.Context, bootImagePaths []string) ([]PreinstallErrorDetails, error) {
+// To support testing, when test mode is detected and the system is running in a
+// Virtual Machine, the check configuration is modified to permit this without
+// treating it as an error.
+func PreinstallCheck(bootImagePaths []string) ([]PreinstallErrorInfo, error) {
 	// do not customize check configuration
-	checkFlags := sb_preinstall.CheckFlagsDefault
-	if systemd.IsVirtualMachine() {
-		// with exception of running in a virtual machine
-		checkFlags |= sb_preinstall.PermitVirtualMachine
+	checkFlags := preinstall.CheckFlagsDefault
+	if snapdenv.Testing() && systemd.IsVirtualMachine() {
+		// with exception of testing in virtual machine
+		checkFlags |= preinstall.PermitVirtualMachine
 	}
 
 	// do not customize TCG compliant PCR profile generation
-	profileOptionFlags := sb_preinstall.PCRProfileOptionsDefault
+	profileOptionFlags := preinstall.PCRProfileOptionsDefault
 
 	// create boot file images from provided paths
-	var bootImages []sb_efi.Image
+	var bootImages []efi.Image
 	for _, image := range bootImagePaths {
-		bootImages = append(bootImages, sb_efi.NewFileImage(image))
+		bootImages = append(bootImages, efi.NewFileImage(image))
 	}
 
-	checksContext := sbPreinstallNewRunChecksContext(checkFlags, bootImages, profileOptionFlags)
+	checksContext := preinstallNewRunChecksContext(checkFlags, bootImages, profileOptionFlags)
 
 	// no actions or action args for preinstall checks
-	result, err := sbPreinstallRunChecks(checksContext, ctx, sb_preinstall.ActionNone)
+	result, err := preinstallRunChecks(checksContext, context.Background(), preinstall.ActionNone)
 	if err != nil {
-		return unwrapPreinstallCheckError(err)
+		return unpackPreinstallCheckError(err)
 	}
 
 	if result.Warnings != nil {
@@ -80,42 +81,42 @@ func PreinstallCheck(ctx context.Context, bootImagePaths []string) ([]Preinstall
 	return nil, nil
 }
 
-// unwrapPreinstallCheckError converts a single or compound preinstall check
-// error into a slice of PreinstallErrorDetails. This function returns an error
+// unpackPreinstallCheckError converts a single or compound preinstall check
+// error into a slice of PreinstallErrorInfo. This function returns an error
 // if the provided error or any compounded error is not of type
 // *preinstall.ErrorKindAndActions.
-func unwrapPreinstallCheckError(err error) ([]PreinstallErrorDetails, error) {
+func unpackPreinstallCheckError(err error) ([]PreinstallErrorInfo, error) {
 	// expect either a single or compound error
-	compoundErr, ok := err.(sb_preinstall.CompoundError)
+	compoundErr, ok := err.(preinstall.CompoundError)
 	if !ok {
 		// single error
-		kindAndActions, ok := err.(*sb_preinstall.WithKindAndActionsError)
+		kindAndActions, ok := err.(*preinstall.WithKindAndActionsError)
 		if !ok {
-			return nil, fmt.Errorf("cannot unwrap error of unexpected type %[1]T (%[1]v)", err)
+			return nil, fmt.Errorf("cannot unpack error of unexpected type %[1]T (%[1]v)", err)
 		}
-		return []PreinstallErrorDetails{
+		return []PreinstallErrorInfo{
 			convertPreinstallCheckErrorType(kindAndActions),
 		}, nil
 	}
 
-	// unwrap compound error
+	// unpack compound error
 	errs := compoundErr.Unwrap()
 	if errs == nil {
 		return nil, fmt.Errorf("compound error does not wrap any error")
 	}
-	unwrapped := make([]PreinstallErrorDetails, 0, len(errs))
+	unpacked := make([]PreinstallErrorInfo, 0, len(errs))
 	for _, err := range errs {
-		kindAndActions, ok := err.(*sb_preinstall.WithKindAndActionsError)
+		kindAndActions, ok := err.(*preinstall.WithKindAndActionsError)
 		if !ok {
-			return nil, fmt.Errorf("cannot unwrap error of unexpected type %[1]T (%[1]v)", err)
+			return nil, fmt.Errorf("cannot unpack error of unexpected type %[1]T (%[1]v)", err)
 		}
-		unwrapped = append(unwrapped, convertPreinstallCheckErrorType(kindAndActions))
+		unpacked = append(unpacked, convertPreinstallCheckErrorType(kindAndActions))
 	}
-	return unwrapped, nil
+	return unpacked, nil
 }
 
-func convertPreinstallCheckErrorType(kindAndActionsErr *sb_preinstall.WithKindAndActionsError) PreinstallErrorDetails {
-	return PreinstallErrorDetails{
+func convertPreinstallCheckErrorType(kindAndActionsErr *preinstall.WithKindAndActionsError) PreinstallErrorInfo {
+	return PreinstallErrorInfo{
 		Kind:    string(kindAndActionsErr.Kind),
 		Message: kindAndActionsErr.Error(), // safely handles kindAndActionsErr.Unwrap() == nil
 		Args:    kindAndActionsErr.Args,
@@ -123,7 +124,7 @@ func convertPreinstallCheckErrorType(kindAndActionsErr *sb_preinstall.WithKindAn
 	}
 }
 
-func convertPreinstallCheckErrorActions(actions []sb_preinstall.Action) []string {
+func convertPreinstallCheckErrorActions(actions []preinstall.Action) []string {
 	if actions == nil {
 		return nil
 	}
