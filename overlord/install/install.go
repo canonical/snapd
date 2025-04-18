@@ -229,18 +229,21 @@ func GetEncryptionSupportInfo(model *asserts.Model, tpmMode secboot.TPMProvision
 	// secboot based encryption
 	checkSecbootEncryption := !checkFDESetupHookEncryption
 	var checkEncryptionErr error
+	var preinstallCheckErr error
 	switch {
 	case checkFDESetupHookEncryption:
 		res.Type, checkEncryptionErr = checkFDEFeatures(runSetupHook)
 	case checkSecbootEncryption:
+		preinstallCheckErr = secboot.PreinstallCheck()
 		checkEncryptionErr = secbootCheckTPMKeySealingSupported(tpmMode)
-		if checkEncryptionErr == nil {
+
+		if checkEncryptionErr == nil && preinstallCheckErr == nil {
 			res.Type = device.EncryptionTypeLUKS
 		}
 	default:
 		return res, fmt.Errorf("internal error: no encryption checked in encryptionSupportInfo")
 	}
-	res.Available = (checkEncryptionErr == nil)
+	res.Available = checkEncryptionErr == nil && preinstallCheckErr == nil
 
 	if checkEncryptionErr != nil {
 		switch {
