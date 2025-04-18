@@ -40,6 +40,7 @@ import (
 	"github.com/snapcore/snapd/overlord/install"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/release"
+	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -142,6 +143,11 @@ func storageEncryption(encInfo *install.EncryptionSupportInfo) *client.StorageEn
 		storageEnc.Support = client.StorageEncryptionSupportUnavailable
 		storageEnc.UnavailableReason = encInfo.UnavailableWarning
 	}
+
+	if !encInfo.Available && encInfo.PreinstallCheckErr != nil {
+		storageEnc.PreinstallCheck = secboot.UnpackPreinstallCheckError(encInfo.PreinstallCheckErr)
+	}
+
 	if encInfo.PassphraseAuthAvailable {
 		storageEnc.Features = append(storageEnc.Features, client.StorageEncryptionFeaturePassphraseAuth)
 	}
