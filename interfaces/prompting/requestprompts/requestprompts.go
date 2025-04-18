@@ -459,6 +459,12 @@ func (pdb *PromptDB) AddOrMerge(metadata *prompting.Metadata, path string, reque
 		return nil, false, err
 	}
 
+	if metadata.PID == nil {
+		// Error should be impossible, the caller always sets a non-nil PID
+		return nil, false, fmt.Errorf("internal programmer error: PID should not be nil when creating prompt")
+	}
+	pid := *metadata.PID
+
 	pdb.mutex.Lock()
 	defer pdb.mutex.Unlock()
 
@@ -487,7 +493,7 @@ func (pdb *PromptDB) AddOrMerge(metadata *prompting.Metadata, path string, reque
 
 	// Search for an identical existing prompt, merge if found
 	for _, prompt := range userEntry.prompts {
-		if prompt.Snap == metadata.Snap && prompt.PID == metadata.PID && prompt.Interface == metadata.Interface && prompt.Constraints.equals(constraints) {
+		if prompt.Snap == metadata.Snap && prompt.PID == pid && prompt.Interface == metadata.Interface && prompt.Constraints.equals(constraints) {
 			// PID must be identical in order to merge, in case multiple
 			// requests come in with different PIDs, so that the client can
 			// present the modal dialog on any/all windows associated with the
@@ -519,7 +525,7 @@ func (pdb *PromptDB) AddOrMerge(metadata *prompting.Metadata, path string, reque
 		ID:           id,
 		Timestamp:    timestamp,
 		Snap:         metadata.Snap,
-		PID:          metadata.PID,
+		PID:          pid,
 		Interface:    metadata.Interface,
 		Constraints:  constraints,
 		listenerReqs: []*listener.Request{listenerReq},

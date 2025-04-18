@@ -249,7 +249,7 @@ func (m *InterfacesRequestsManager) handleListenerReq(req *listener.Request) err
 	metadata := &prompting.Metadata{
 		User:      userID,
 		Snap:      snap,
-		PID:       req.PID,
+		PID:       &req.PID,
 		Interface: iface,
 	}
 

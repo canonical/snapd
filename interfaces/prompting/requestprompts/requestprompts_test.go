@@ -299,10 +299,11 @@ func (s *requestpromptsSuite) TestAddOrMergeNonMerges(c *C) {
 	c.Assert(err, IsNil)
 	defer pdb.Close()
 
+	var pid int32 = 1234
 	metadataTemplate := prompting.Metadata{
 		User:      s.defaultUser,
 		Snap:      "nextcloud",
-		PID:       1234,
+		PID:       &pid,
 		Interface: "home",
 	}
 	path := "/home/test/Documents/foo.txt"
@@ -330,7 +331,7 @@ func (s *requestpromptsSuite) TestAddOrMergeNonMerges(c *C) {
 	c.Check(prompt1.Timestamp.Before(after), Equals, true)
 
 	c.Check(prompt1.Snap, Equals, metadata.Snap)
-	c.Check(prompt1.PID, Equals, metadata.PID)
+	c.Check(prompt1.PID, Equals, *metadata.PID)
 	c.Check(prompt1.Interface, Equals, metadata.Interface)
 	c.Check(prompt1.Constraints.Path(), Equals, path)
 	c.Check(prompt1.Constraints.OutstandingPermissions(), DeepEquals, permissions)
@@ -362,7 +363,7 @@ func (s *requestpromptsSuite) TestAddOrMergeNonMerges(c *C) {
 	c.Assert(prompt2, Not(Equals), prompt1)
 
 	c.Check(prompt2.Snap, Equals, metadata.Snap)
-	c.Check(prompt2.PID, Equals, metadata.PID)
+	c.Check(prompt2.PID, Equals, *metadata.PID)
 	c.Check(prompt2.Interface, Equals, metadata.Interface)
 	c.Check(prompt2.Constraints.Path(), Equals, path)
 	c.Check(prompt2.Constraints.OutstandingPermissions(), DeepEquals, permissions)
@@ -389,7 +390,8 @@ func (s *requestpromptsSuite) TestAddOrMergeNonMerges(c *C) {
 	// Add third prompt, this time with different PID
 
 	metadata = metadataTemplate
-	metadata.PID = 1337
+	var newPID int32 = 1337
+	metadata.PID = &newPID
 	prompt3, merged, err := pdb.AddOrMerge(&metadata, path, permissions, permissions, listenerReq3)
 	c.Assert(err, IsNil)
 	c.Check(merged, Equals, false)
@@ -397,7 +399,7 @@ func (s *requestpromptsSuite) TestAddOrMergeNonMerges(c *C) {
 	c.Check(prompt3, Not(Equals), prompt2)
 
 	c.Check(prompt3.Snap, Equals, metadata.Snap)
-	c.Check(prompt3.PID, Equals, metadata.PID)
+	c.Check(prompt3.PID, Equals, *metadata.PID)
 	c.Check(prompt3.Interface, Equals, metadata.Interface)
 	c.Check(prompt3.Constraints.Path(), Equals, path)
 	c.Check(prompt3.Constraints.OutstandingPermissions(), DeepEquals, permissions)
@@ -434,7 +436,7 @@ func (s *requestpromptsSuite) TestAddOrMergeNonMerges(c *C) {
 	c.Check(prompt4, Not(Equals), prompt3)
 
 	c.Check(prompt4.Snap, Equals, metadata.Snap)
-	c.Check(prompt4.PID, Equals, metadata.PID)
+	c.Check(prompt4.PID, Equals, *metadata.PID)
 	c.Check(prompt4.Interface, Equals, metadata.Interface)
 	c.Check(prompt4.Constraints.Path(), Equals, path)
 	c.Check(prompt4.Constraints.OutstandingPermissions(), DeepEquals, permissions)
@@ -474,7 +476,7 @@ func (s *requestpromptsSuite) TestAddOrMergeNonMerges(c *C) {
 	c.Check(prompt5, Not(Equals), prompt4)
 
 	c.Check(prompt5.Snap, Equals, metadata.Snap)
-	c.Check(prompt5.PID, Equals, metadata.PID)
+	c.Check(prompt5.PID, Equals, *metadata.PID)
 	c.Check(prompt5.Interface, Equals, metadata.Interface)
 	c.Check(prompt5.Constraints.Path(), Equals, path)
 	c.Check(prompt5.Constraints.OutstandingPermissions(), DeepEquals, permissions)
@@ -513,10 +515,11 @@ func (s *requestpromptsSuite) TestAddOrMergeMerges(c *C) {
 	c.Assert(err, IsNil)
 	defer pdb.Close()
 
+	var pid int32 = 1234
 	metadata := &prompting.Metadata{
 		User:      s.defaultUser,
 		Snap:      "nextcloud",
-		PID:       1234,
+		PID:       &pid,
 		Interface: "home",
 	}
 	path := "/home/test/Documents/foo.txt"
@@ -556,7 +559,7 @@ func (s *requestpromptsSuite) TestAddOrMergeMerges(c *C) {
 	c.Check(prompt1.Timestamp.Before(after), Equals, true)
 
 	c.Check(prompt1.Snap, Equals, metadata.Snap)
-	c.Check(prompt1.PID, Equals, metadata.PID)
+	c.Check(prompt1.PID, Equals, *metadata.PID)
 	c.Check(prompt1.Interface, Equals, metadata.Interface)
 	c.Check(prompt1.Constraints.Path(), Equals, path)
 	c.Check(prompt1.Constraints.OutstandingPermissions(), DeepEquals, permissions)
@@ -645,10 +648,11 @@ func (s *requestpromptsSuite) TestAddOrMergeTooMany(c *C) {
 	c.Assert(err, IsNil)
 	defer pdb.Close()
 
+	var pid int32 = 42
 	metadata := &prompting.Metadata{
 		User:      s.defaultUser,
 		Snap:      "nextcloud",
-		PID:       42,
+		PID:       &pid,
 		Interface: "home",
 	}
 
@@ -717,10 +721,11 @@ func (s *requestpromptsSuite) TestPromptWithIDErrors(c *C) {
 	c.Assert(err, IsNil)
 	defer pdb.Close()
 
+	var pid int32 = 1337
 	metadata := &prompting.Metadata{
 		User:      s.defaultUser,
 		Snap:      "nextcloud",
-		PID:       1337,
+		PID:       &pid,
 		Interface: "home",
 	}
 	path := "/home/test/Documents/foo.txt"
@@ -765,10 +770,11 @@ func (s *requestpromptsSuite) TestReply(c *C) {
 	c.Assert(err, IsNil)
 	defer pdb.Close()
 
+	var pid int32 = 123
 	metadata := &prompting.Metadata{
 		User:      s.defaultUser,
 		Snap:      "nextcloud",
-		PID:       123,
+		PID:       &pid,
 		Interface: "home",
 	}
 	path := "/home/test/Documents/foo.txt"
@@ -847,10 +853,11 @@ func (s *requestpromptsSuite) TestReplyErrors(c *C) {
 	c.Assert(err, IsNil)
 	defer pdb.Close()
 
+	var pid int32 = 123
 	metadata := &prompting.Metadata{
 		User:      s.defaultUser,
 		Snap:      "nextcloud",
-		PID:       123,
+		PID:       &pid,
 		Interface: "home",
 	}
 	path := "/home/test/Documents/foo.txt"
@@ -894,10 +901,11 @@ func (s *requestpromptsSuite) TestHandleNewRule(c *C) {
 	c.Assert(err, IsNil)
 	defer pdb.Close()
 
+	var pid int32 = 123
 	metadata := &prompting.Metadata{
 		User:      s.defaultUser,
 		Snap:      "nextcloud",
-		PID:       123,
+		PID:       &pid,
 		Interface: "home",
 	}
 	path := "/home/test/Documents/foo.txt"
@@ -944,8 +952,8 @@ func (s *requestpromptsSuite) TestHandleNewRule(c *C) {
 		},
 	}
 
-	// For completeness, set metadata.PID to 0 since it would not be populated for rules
-	metadata.PID = 0
+	// For completeness, set metadata.PID to nil since it would not be populated for rules
+	metadata.PID = nil
 
 	satisfied, err := pdb.HandleNewRule(metadata, constraints)
 	c.Assert(err, IsNil)
@@ -1037,10 +1045,11 @@ func (s *requestpromptsSuite) TestHandleNewRuleNonMatches(c *C) {
 	user := s.defaultUser
 	snap := "nextcloud"
 	iface := "home"
+	var pid int32 = 123
 	metadata := &prompting.Metadata{
 		User:      user,
 		Snap:      snap,
-		PID:       123,
+		PID:       &pid,
 		Interface: iface,
 	}
 	path := "/home/test/Documents/foo.txt"
@@ -1052,8 +1061,8 @@ func (s *requestpromptsSuite) TestHandleNewRuleNonMatches(c *C) {
 
 	s.checkNewNoticesSimple(c, []prompting.IDType{prompt.ID}, nil)
 
-	// For completeness, set metadata.PID to 0 since it would not be populated for rules
-	metadata.PID = 0
+	// For completeness, set metadata.PID to nil since it would not be populated for rules
+	metadata.PID = nil
 
 	pathPattern, err := patterns.ParsePathPattern("/home/test/Documents/**")
 	c.Assert(err, IsNil)
@@ -1173,10 +1182,11 @@ func (s *requestpromptsSuite) TestClose(c *C) {
 	pdb, err := requestprompts.New(s.defaultNotifyPrompt)
 	c.Assert(err, IsNil)
 
+	var pid int32 = 1234
 	metadata := &prompting.Metadata{
 		User:      s.defaultUser,
 		Snap:      "nextcloud",
-		PID:       1234,
+		PID:       &pid,
 		Interface: "home",
 	}
 	permissions := []string{"read", "write", "execute"}
@@ -1246,7 +1256,8 @@ func (s *requestpromptsSuite) TestCloseThenOperate(c *C) {
 	c.Check(err, Equals, maxidmmap.ErrMaxIDMmapClosed)
 	c.Check(nextID, Equals, prompting.IDType(0))
 
-	metadata := prompting.Metadata{Interface: "home"}
+	var pid int32 = 1234
+	metadata := prompting.Metadata{Interface: "home", PID: &pid}
 	result, merged, err := pdb.AddOrMerge(&metadata, "", nil, nil, nil)
 	c.Check(err, Equals, prompting_errors.ErrPromptsClosed)
 	c.Check(result, IsNil)
@@ -1284,10 +1295,11 @@ func (s *requestpromptsSuite) TestPromptMarshalJSON(c *C) {
 	c.Assert(err, IsNil)
 	defer pdb.Close()
 
+	var pid int32 = 1234
 	metadata := &prompting.Metadata{
 		User:      s.defaultUser,
 		Snap:      "firefox",
-		PID:       1234,
+		PID:       &pid,
 		Interface: "home",
 	}
 	path := "/home/test/foo"
@@ -1331,10 +1343,11 @@ func (s *requestpromptsSuite) TestPromptExpiration(c *C) {
 	})
 	defer restore()
 
+	var pid int32 = 1234
 	metadata := &prompting.Metadata{
 		User:      s.defaultUser,
 		Snap:      "firefox",
-		PID:       1234,
+		PID:       &pid,
 		Interface: "home",
 	}
 	path := "/home/test/foo"
@@ -1478,10 +1491,11 @@ func (s *requestpromptsSuite) TestPromptExpirationRace(c *C) {
 	})
 	defer restore()
 
+	var pid int32 = 123
 	metadata := &prompting.Metadata{
 		User:      s.defaultUser,
 		Snap:      "firefox",
-		PID:       123,
+		PID:       &pid,
 		Interface: "home",
 	}
 	path := "/home/test/foo"
