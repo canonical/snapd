@@ -33,3 +33,13 @@ func IsContainer() bool {
 	err := exec.Command("systemd-detect-virt", "--quiet", "--container").Run()
 	return err == nil
 }
+
+// IsVirtualMachine returns true if the system is running in a virtual machine.
+//
+// The implementation calls: systemd-detect-virt --quiet --vm.  It can be mocked
+// with testutil.MockCommand. The zero exit code indicates that system _is_
+// running a vm. Ensuring that --vm is passed is important.
+func IsVirtualMachine() bool {
+	err := exec.Command("systemd-detect-virt", "--quiet", "--vm").Run()
+	return err == nil
+}

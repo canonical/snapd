@@ -27,8 +27,20 @@ import (
 )
 
 var (
-	CheckFDEFeatures = checkFDEFeatures
+	EncryptionAvailabilityCheck    = encryptionAvailabilityCheck
+	PreinstallCheckSupported       = preinstallCheckSupported
+	OrderedCurrentBootImages       = orderedCurrentBootImages
+	OrderedCurrentBootImagesHybrid = orderedCurrentBootImagesHybrid
+	CheckFDEFeatures               = checkFDEFeatures
 )
+
+func MockHybridInstallRootDir(newRoot string) (restore func()) {
+	old := hybridInstallRootDir
+	hybridInstallRootDir = newRoot
+	return func() {
+		hybridInstallRootDir = old
+	}
+}
 
 func MockTimeNow(f func() time.Time) (restore func()) {
 	old := timeNow
