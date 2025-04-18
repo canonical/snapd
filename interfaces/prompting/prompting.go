@@ -37,6 +37,10 @@ type Metadata struct {
 	User uint32
 	// Snap is the instance name of the snap for which the prompt or rule applies.
 	Snap string
+	// PID is the PID of the process which triggered a request.
+	// When using to create prompts, PID must be non-nil.
+	// When using to create rules, PID should be nil and ignored.
+	PID *int32
 	// Interface is the interface for which the prompt or rule applies.
 	Interface string
 }
