@@ -88,7 +88,7 @@ func assembleConfdbSchema(assert assertionBase) (Assertion, error) {
 		return nil, fmt.Errorf(`body must contain a "storage" stanza`)
 	}
 
-	schema, err := confdb.ParseSchema(schemaRaw)
+	schema, err := confdb.ParseStorageSchema(schemaRaw)
 	if err != nil {
 		return nil, fmt.Errorf(`invalid schema: %w`, err)
 	}

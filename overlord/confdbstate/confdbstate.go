@@ -283,6 +283,12 @@ func createChangeConfdbTasks(st *state.State, tx *Transaction, view *confdb.View
 		return nil, fmt.Errorf("cannot commit changes to confdb made through view %s: no custodian snap installed", view.ID())
 	}
 
+	paths := tx.AlteredPaths()
+	mightAffectEph, err := view.WriteAffectsEphemeral(paths)
+	if err != nil {
+		return nil, err
+	}
+
 	ts := state.NewTaskSet()
 	linkTask := func(t *state.Task) {
 		tasks := ts.Tasks()
@@ -296,38 +302,31 @@ func createChangeConfdbTasks(st *state.State, tx *Transaction, view *confdb.View
 	clearTxOnErrTask := st.NewTask("clear-confdb-tx-on-error", "Clears the ongoing confdb transaction from state (on error)")
 	linkTask(clearTxOnErrTask)
 
+	hookPrefixes := []string{"change-view-", "save-view-"}
 	// look for plugs that reference the relevant view and create run-hooks for
-	// them, if the snap has those hooks
-	for _, name := range custodians {
-		plug := custodianPlugs[name]
-		custodian := plug.Snap
-		if _, ok := custodian.Hooks["change-view-"+plug.Name]; !ok {
-			continue
+	// them in a sequential, deterministic order
+	for _, hookPrefix := range hookPrefixes {
+		var saveViewHookPresent bool
+		for _, name := range custodians {
+			plug := custodianPlugs[name]
+			custodian := plug.Snap
+			if _, ok := custodian.Hooks[hookPrefix+plug.Name]; !ok {
+				continue
+			}
+
+			saveViewHookPresent = true
+			const ignoreError = false
+			chgViewTask := setupConfdbHook(st, name, hookPrefix+plug.Name, ignoreError)
+			linkTask(chgViewTask)
 		}
 
-		const ignoreError = false
-		chgViewTask := setupConfdbHook(st, name, "change-view-"+plug.Name, ignoreError)
-		// run change-view-<plug> hooks in a sequential, deterministic order
-		linkTask(chgViewTask)
-	}
-
-	for _, name := range custodians {
-		plug := custodianPlugs[name]
-		custodian := plug.Snap
-		if _, ok := custodian.Hooks["save-view-"+plug.Name]; !ok {
-			continue
+		if hookPrefix == "save-view-" && mightAffectEph && !saveViewHookPresent {
+			return nil, fmt.Errorf("cannot access %s: write might change ephemeral data but no custodians has a save-view hook", view.ID())
 		}
-
-		const ignoreError = false
-		saveViewTask := setupConfdbHook(st, name, "save-view-"+plug.Name, ignoreError)
-		// also run save-view hooks sequentially so, if one fails, we can determine
-		// which tasks need to be rolled back
-		linkTask(saveViewTask)
 	}
 
 	// run observe-view hooks for any plug that references a view that could have
 	// changed with this data modification
-	paths := tx.AlteredPaths()
 	affectedPlugs, err := getPlugsAffectedByPaths(st, view.Schema(), paths)
 	if err != nil {
 		return nil, err
@@ -346,7 +345,6 @@ func createChangeConfdbTasks(st *state.State, tx *Transaction, view *confdb.View
 		}
 
 		for _, plug := range affectedPlugs[snapName] {
-			// TODO: run these concurrently or keep sequential for predictability?
 			const ignoreError = true
 			task := setupConfdbHook(st, snapName, "observe-view-"+plug.Name, ignoreError)
 			linkTask(task)
@@ -514,7 +512,7 @@ func IsModifyConfdbHook(ctx *hookstate.Context) bool {
 // schedules tasks to load the confdb as needed, unless no custodian defined
 // relevant hooks. Blocks until the confdb has been loaded into the Transaction.
 // If no tasks need to run to load the confdb, returns without blocking.
-func GetTransactionForSnapctlGet(ctx *hookstate.Context, view *confdb.View) (*Transaction, error) {
+func GetTransactionForSnapctlGet(ctx *hookstate.Context, view *confdb.View, paths []string) (*Transaction, error) {
 	st := ctx.State()
 	account, schemaName := view.Schema().Account, view.Schema().Name
 
@@ -554,7 +552,7 @@ func GetTransactionForSnapctlGet(ctx *hookstate.Context, view *confdb.View) (*Tr
 		return nil, fmt.Errorf("cannot load confdb view %s: cannot create transaction: %v", view.ID(), err)
 	}
 
-	ts, err := createLoadConfdbTasks(st, tx, view)
+	ts, err := createLoadConfdbTasks(st, tx, view, paths)
 	if err != nil {
 		return nil, err
 	}
@@ -633,7 +631,7 @@ func LoadConfdbAsync(st *state.State, view *confdb.View, requests []string) (cha
 		return "", fmt.Errorf("cannot access confdb view %s: cannot create transaction: %v", view.ID(), err)
 	}
 
-	ts, err := createLoadConfdbTasks(st, tx, view)
+	ts, err := createLoadConfdbTasks(st, tx, view, requests)
 	if err != nil {
 		return "", err
 	}
@@ -678,7 +676,7 @@ func LoadConfdbAsync(st *state.State, view *confdb.View, requests []string) (cha
 // read a transaction through the given view. In case no custodian snap has any
 // load-view or query-view hooks, nil is returned. If there are hooks to run,
 // a clear-confdb-tx task is also scheduled to remove the ongoing transaction at the end.
-func createLoadConfdbTasks(st *state.State, tx *Transaction, view *confdb.View) (*state.TaskSet, error) {
+func createLoadConfdbTasks(st *state.State, tx *Transaction, view *confdb.View, requests []string) (*state.TaskSet, error) {
 	custodians, custodianPlugs, err := getCustodianPlugsForView(st, view)
 	if err != nil {
 		return nil, err
@@ -697,8 +695,15 @@ func createLoadConfdbTasks(st *state.State, tx *Transaction, view *confdb.View) 
 		ts.AddTask(t)
 	}
 
+	mightAffectEph, err := view.ReadAffectsEphemeral(requests)
+	if err != nil {
+		return nil, err
+	}
+
+	hookPrefixes := []string{"load-view-", "query-view-"}
 	// check for load-view and query-view hooks on custodians
-	for _, hookPrefix := range []string{"load-view-", "query-view-"} {
+	for _, hookPrefix := range hookPrefixes {
+		var loadViewHookPresent bool
 		for _, name := range custodians {
 			plug := custodianPlugs[name]
 			custodian := plug.Snap
@@ -706,9 +711,15 @@ func createLoadConfdbTasks(st *state.State, tx *Transaction, view *confdb.View) 
 				continue
 			}
 
+			loadViewHookPresent = true
 			const ignoreError = false
 			task := setupConfdbHook(st, name, hookPrefix+plug.Name, ignoreError)
 			linkTask(task)
+		}
+
+		// there must be least one load-view hook if we're accessing ephemeral data
+		if hookPrefix == "load-view-" && mightAffectEph && !loadViewHookPresent {
+			return nil, fmt.Errorf("cannot schedule tasks to access %s: read might cover ephemeral data but no custodian has a save-view hook", view.ID())
 		}
 	}
 

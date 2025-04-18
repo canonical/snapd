@@ -387,7 +387,7 @@ func (c *getCommand) getConfdbValues(ctx *hookstate.Context, plugName string, re
 		return err
 	}
 
-	tx, err := confdbstateTransactionForGet(ctx, view)
+	tx, err := confdbstateTransactionForGet(ctx, view, requests)
 	if err != nil {
 		return err
 	}
