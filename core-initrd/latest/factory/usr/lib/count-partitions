@@ -1,0 +1,37 @@
+#!/bin/sh
+
+set -eu
+# Uncomment for debug output
+# set -x
+# exec >/run/hook"$ID_PART_ENTRY_NUMBER".log 2>&1
+
+# If the link already exists, succeed only for the partition to which it is
+# already pointing. With this we keep the symlink pointing to the same
+# partition on retriggers.
+lastpart_ln=/dev/disk/snapd/lastpart
+if [ -h "$lastpart_ln" ]; then
+    devln=$(readlink "$lastpart_ln")
+    if [ "${devln##*/}" = "${DEVNAME##*/}" ]; then
+        return 0
+    fi
+    return 1
+fi
+
+mkdir -p /tmp
+: > /tmp/foundpart"$ID_PART_ENTRY_UUID"
+sync
+
+nparts=0
+nfound=0
+for i in $UBUNTU_DISK_UUIDS; do
+    nparts=$((nparts + 1))
+    if [ -f /tmp/foundpart"$i" ]; then
+        nfound=$((nfound + 1))
+    fi
+done
+
+if [ "$nparts" -eq "$nfound" ]; then
+    return 0
+fi
+
+return 1
