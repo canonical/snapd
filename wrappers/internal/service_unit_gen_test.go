@@ -919,7 +919,7 @@ WantedBy=multi-user.target
 
 type mockBadPlugSnippetSection string
 
-func (s mockBadPlugSnippetSection) Section() interfaces.PlugServicesSnippetSection {
+func (s mockBadPlugSnippetSection) SystemdConfSection() interfaces.PlugServicesSnippetSection {
 	return "bad"
 }
 func (s mockBadPlugSnippetSection) String() string { return string(s) }

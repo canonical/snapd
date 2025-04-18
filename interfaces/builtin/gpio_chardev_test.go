@@ -272,9 +272,9 @@ func (s *GpioChardevInterfaceSuite) TestServicePermanentPlugSnippets(c *C) {
 	snips, err := interfaces.PermanentPlugServiceSnippets(s.iface, s.plugInfo)
 	c.Assert(err, IsNil)
 	c.Assert(snips, HasLen, 2)
-	c.Check(string(snips[0].Section()), Equals, "Unit")
+	c.Check(string(snips[0].SystemdConfSection()), Equals, "Unit")
 	c.Check(snips[0].String(), Equals, "After=snapd.gpio-chardev-setup.target")
-	c.Check(string(snips[1].Section()), Equals, "Unit")
+	c.Check(string(snips[1].SystemdConfSection()), Equals, "Unit")
 	c.Check(snips[1].String(), Equals, "Wants=snapd.gpio-chardev-setup.target")
 }
 

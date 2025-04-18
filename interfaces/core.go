@@ -286,19 +286,25 @@ type StaticInfo struct {
 	AppArmorUnconfinedSlots bool
 }
 
+// PlugServicesSnippetSection is the target systemd unit section for
+// a plug service snippet.
 type PlugServicesSnippetSection string
 
 const (
-	PlugServicesSnippetUnitSection    PlugServicesSnippetSection = "Unit"
+	// PlugServicesSnippetUnitSection indicates that the target systemd
+	// unit section for a plug service snippet is [Unit].
+	PlugServicesSnippetUnitSection PlugServicesSnippetSection = "Unit"
+	// PlugServicesSnippetServiceSection indicates that the target systemd
+	// unit section for a plug service snippet is [Service].
 	PlugServicesSnippetServiceSection PlugServicesSnippetSection = "Service"
 )
 
 // PlugServiceSnippet describes a systemd service snippet to be generated
 // for a snap with a plug whose interface implements ServicePermanentPlug.
 type PlugServicesSnippet interface {
-	// Section is the target unit file section for the snippet to be
+	// SystemdConfSection is the target unit file section for the snippet to be
 	// injected in (i.e. [Unit], [Service]).
-	Section() PlugServicesSnippetSection
+	SystemdConfSection() PlugServicesSnippetSection
 	// This is the actual snippet content to be injected.
 	String() string
 }
@@ -308,7 +314,7 @@ type PlugServicesSnippet interface {
 // implements ServicePermanentPlug.
 type PlugServicesUnitSectionSnippet string
 
-func (s PlugServicesUnitSectionSnippet) Section() PlugServicesSnippetSection {
+func (s PlugServicesUnitSectionSnippet) SystemdConfSection() PlugServicesSnippetSection {
 	return PlugServicesSnippetUnitSection
 }
 func (s PlugServicesUnitSectionSnippet) String() string { return string(s) }
@@ -318,7 +324,7 @@ func (s PlugServicesUnitSectionSnippet) String() string { return string(s) }
 // implements ServicePermanentPlug.
 type PlugServicesServiceSectionSnippet string
 
-func (s PlugServicesServiceSectionSnippet) Section() PlugServicesSnippetSection {
+func (s PlugServicesServiceSectionSnippet) SystemdConfSection() PlugServicesSnippetSection {
 	return PlugServicesSnippetServiceSection
 }
 func (s PlugServicesServiceSectionSnippet) String() string { return string(s) }
