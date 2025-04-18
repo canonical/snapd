@@ -29,6 +29,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"time"
 	"unicode"
 	"unicode/utf8"
 
@@ -560,6 +561,8 @@ func loggerWithJournalMaybe() error {
 	}
 	return nil
 }
+
+var timeAfter func(d time.Duration) <-chan time.Time = time.After
 
 func run() error {
 	cli := mkClient()

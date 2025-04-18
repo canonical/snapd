@@ -36,6 +36,7 @@ import (
 	"github.com/snapcore/snapd/cmd/snaplock/runinhibit"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/features"
+	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/strace"
@@ -44,6 +45,7 @@ import (
 	"github.com/snapcore/snapd/sandbox/selinux"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
+	"github.com/snapcore/snapd/testtime"
 	"github.com/snapcore/snapd/testutil"
 	"github.com/snapcore/snapd/x11"
 )
@@ -2727,4 +2729,409 @@ func (s *RunSuite) TestRunDebugLog(c *check.C) {
 	c.Check(os.Getenv("SNAPD_DEBUG"), check.Equals, "1")
 	// and we've let the user know that logging was enabled
 	c.Check(logBuf.String(), testutil.Contains, "DEBUG: enabled debug logging of early snap startup")
+}
+
+func (s *RunSuite) TestSystemKeyMismatchTrivial(c *check.C) {
+	defer mockSnapConfine(dirs.DistroLibExecDir)()
+
+	// system-key on disk
+	s.AddCleanup(interfaces.MockSystemKey(`
+{
+"build-id": "7a94e9736c091b3984bd63f5aebfc883c4d859e0",
+"apparmor-features": ["caps", "dbus"]
+}`))
+	c.Assert(interfaces.WriteSystemKey(interfaces.SystemKeyExtraData{}), check.IsNil)
+
+	// actual snapd system-key we derive is identical
+
+	n := 0
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		c.Fatalf("unexpected request")
+	})
+
+	// mock installed snap
+	snaptest.MockSnapCurrent(c, string(mockYaml), &snap.SideInfo{
+		Revision: snap.R("x2"),
+	})
+
+	// redirect exec
+	execCalls := 0
+	restorer := snaprun.MockSyscallExec(func(arg0 string, args []string, envv []string) error {
+		execCalls++
+		return nil
+	})
+	defer restorer()
+
+	// and run it!
+	_, err := snaprun.Parser(snaprun.Client()).ParseArgs([]string{"run", "--", "snapname.app", "--arg1", "arg2"})
+	c.Assert(err, check.IsNil)
+	c.Check(execCalls, check.Equals, 1)
+	c.Check(n, check.Equals, 0)
+}
+
+func (s *RunSuite) mockSystemKeyMismatch(c *check.C) {
+	// system-key on disk
+	s.AddCleanup(interfaces.MockSystemKey(`
+{
+"build-id": "7a94e9736c091b3984bd63f5aebfc883c4d859e0",
+"apparmor-features": ["caps", "dbus"]
+}`))
+	c.Assert(interfaces.WriteSystemKey(interfaces.SystemKeyExtraData{}), check.IsNil)
+
+	// actual snapd system-key we derive
+	s.AddCleanup(interfaces.MockSystemKey(`
+{
+"build-id": "7a94e9736c091b3984bd63f5aebfc883c4d859e0",
+"apparmor-features": ["caps", "dbus", "more"]
+}`))
+
+}
+
+func (s *RunSuite) TestSystemKeyMismatchProceed(c *check.C) {
+	defer mockSnapConfine(dirs.DistroLibExecDir)()
+
+	s.mockSystemKeyMismatch(c)
+	n := 0
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		switch n {
+		case 0:
+			c.Check(r.Method, check.Equals, "POST")
+			c.Check(r.URL.Path, check.Equals, "/v2/system-info")
+			c.Check(r.URL.RawQuery, check.Equals, "")
+			fmt.Fprintln(w, `{"type": "sync", "result": null}`)
+		default:
+			c.Fatalf("expected to get 1 requests, now on %d", n+1)
+		}
+
+		n++
+	})
+
+	// mock installed snap
+	snaptest.MockSnapCurrent(c, string(mockYaml), &snap.SideInfo{
+		Revision: snap.R("x2"),
+	})
+
+	// redirect exec
+	execCalls := 0
+	restorer := snaprun.MockSyscallExec(func(arg0 string, args []string, envv []string) error {
+		execCalls++
+		return nil
+	})
+	defer restorer()
+
+	// and run it!
+	_, err := snaprun.Parser(snaprun.Client()).ParseArgs([]string{"run", "--", "snapname.app", "--arg1", "arg2"})
+	c.Assert(err, check.IsNil)
+	c.Check(execCalls, check.Equals, 1)
+	c.Check(n, check.Equals, 1)
+	c.Check(s.stdout.String(), check.Equals, "")
+}
+
+func (s *RunSuite) TestSystemKeyMismatchWaitChange(c *check.C) {
+	defer mockSnapConfine(dirs.DistroLibExecDir)()
+
+	defer snaprun.MockTimeAfter(func(d time.Duration) <-chan time.Time {
+		tm := testtime.NewTimer(d)
+		defer tm.Elapse(2 * d)
+		return tm.ExpiredC()
+	})()
+
+	s.mockSystemKeyMismatch(c)
+
+	n := 0
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		switch n {
+		case 0:
+			c.Check(r.Method, check.Equals, "POST")
+			c.Check(r.URL.Path, check.Equals, "/v2/system-info")
+			c.Check(r.URL.RawQuery, check.Equals, "")
+			fmt.Fprintln(w, `{"type": "async", "result": null, "change": "1234"}`)
+		case 1:
+			c.Check(r.URL.Path, check.Equals, "/v2/changes/1234")
+			c.Check(r.Method, check.Equals, "GET")
+			fmt.Fprintln(w, `{"type":"sync", "result":{"ready": true, "status": "Done"}}`)
+		default:
+			c.Fatalf("unexpected request with count %d", n+1)
+		}
+		n++
+	})
+
+	// mock installed snap
+	snaptest.MockSnapCurrent(c, string(mockYaml), &snap.SideInfo{
+		Revision: snap.R("x2"),
+	})
+
+	// redirect exec
+	execCalls := 0
+	restorer := snaprun.MockSyscallExec(func(arg0 string, args []string, envv []string) error {
+		execCalls++
+		return nil
+	})
+	defer restorer()
+
+	// and run it!
+	_, err := snaprun.Parser(snaprun.Client()).ParseArgs([]string{"run", "--", "snapname.app", "--arg1", "arg2"})
+	c.Assert(err, check.IsNil)
+	c.Check(execCalls, check.Equals, 1)
+	c.Check(n, check.Equals, 2)
+	c.Check(s.stdout.String(), check.Equals, "")
+}
+
+func (s *RunSuite) TestSystemKeyMismatchBackwardCompatUnsupportedAPI(c *check.C) {
+	defer mockSnapConfine(dirs.DistroLibExecDir)()
+
+	s.mockSystemKeyMismatch(c)
+
+	n := 0
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		switch n {
+		case 0:
+			c.Check(r.Method, check.Equals, "POST")
+			c.Check(r.URL.Path, check.Equals, "/v2/system-info")
+			c.Check(r.URL.RawQuery, check.Equals, "")
+			// Method Not Allowed
+			w.WriteHeader(405)
+			// as if responded by the mux
+			fmt.Fprintln(w, `Method not allowed`)
+		default:
+			c.Fatalf("unexpected request with count %d", n+1)
+		}
+		n++
+	})
+
+	// mock installed snap
+	snaptest.MockSnapCurrent(c, string(mockYaml), &snap.SideInfo{
+		Revision: snap.R("x2"),
+	})
+
+	// redirect exec
+	execCalls := 0
+	restorer := snaprun.MockSyscallExec(func(arg0 string, args []string, envv []string) error {
+		execCalls++
+		return nil
+	})
+	defer restorer()
+
+	// and run it!
+	_, err := snaprun.Parser(snaprun.Client()).ParseArgs([]string{"run", "--", "snapname.app", "--arg1", "arg2"})
+	c.Assert(err, check.IsNil)
+	c.Check(execCalls, check.Equals, 1)
+	c.Check(n, check.Equals, 1)
+	c.Check(s.stdout.String(), check.Equals, "")
+}
+
+func (s *RunSuite) TestSystemKeyMismatchChangeFails(c *check.C) {
+	defer mockSnapConfine(dirs.DistroLibExecDir)()
+
+	defer snaprun.MockTimeAfter(func(d time.Duration) <-chan time.Time {
+		tm := testtime.NewTimer(d)
+		defer tm.Elapse(2 * d)
+		return tm.ExpiredC()
+	})()
+
+	s.mockSystemKeyMismatch(c)
+
+	n := 0
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		switch n {
+		case 0:
+			c.Check(r.Method, check.Equals, "POST")
+			c.Check(r.URL.Path, check.Equals, "/v2/system-info")
+			c.Check(r.URL.RawQuery, check.Equals, "")
+			fmt.Fprintln(w, `{"type": "async", "result": null, "change": "1234"}`)
+		case 1:
+			c.Check(r.URL.Path, check.Equals, "/v2/changes/1234")
+			c.Check(r.Method, check.Equals, "GET")
+			// change failed but we continue execution
+			fmt.Fprintln(w, `{"type":"sync", "result":{"ready": true, "status": "Error"}}`)
+		default:
+			c.Fatalf("unexpected request with count %d", n+1)
+		}
+		n++
+	})
+
+	// mock installed snap
+	snaptest.MockSnapCurrent(c, string(mockYaml), &snap.SideInfo{
+		Revision: snap.R("x2"),
+	})
+
+	// redirect exec
+	execCalls := 0
+	restorer := snaprun.MockSyscallExec(func(arg0 string, args []string, envv []string) error {
+		execCalls++
+		return nil
+	})
+	defer restorer()
+
+	// and run it!
+	_, err := snaprun.Parser(snaprun.Client()).ParseArgs([]string{"run", "--", "snapname.app", "--arg1", "arg2"})
+	c.Assert(err, check.IsNil)
+	c.Check(execCalls, check.Equals, 1)
+	c.Check(n, check.Equals, 2)
+	c.Check(s.stdout.String(), check.Equals, "")
+}
+
+func (s *RunSuite) TestSystemKeyMismatchVersionTooHighNoRestart(c *check.C) {
+	defer mockSnapConfine(dirs.DistroLibExecDir)()
+
+	s.mockSystemKeyMismatch(c)
+
+	n := 0
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		c.Logf("req %v", n)
+		switch n {
+		case 0:
+			c.Check(r.Method, check.Equals, "POST")
+			c.Check(r.URL.Path, check.Equals, "/v2/system-info")
+			c.Check(r.URL.RawQuery, check.Equals, "")
+			w.WriteHeader(400)
+			fmt.Fprintln(w, `{"type": "error", "status-code": "400", "result": {
+"message": "system-key version higher than supported",
+"kind": "unsupported-system-key-version"
+}}`)
+		default:
+			c.Fatalf("unexpected request with count %d", n+1)
+		}
+		n++
+	})
+
+	// mock installed snap
+	snaptest.MockSnapCurrent(c, string(mockYaml), &snap.SideInfo{
+		Revision: snap.R("x2"),
+	})
+
+	// redirect exec
+	execCalls := 0
+	restorer := snaprun.MockSyscallExec(func(arg0 string, args []string, envv []string) error {
+		execCalls++
+		return nil
+	})
+	defer restorer()
+
+	// and run it!
+	_, err := snaprun.Parser(snaprun.Client()).ParseArgs([]string{"run", "--", "snapname.app", "--arg1", "arg2"})
+	c.Assert(err, check.IsNil)
+	c.Check(execCalls, check.Equals, 1)
+	c.Check(n, check.Equals, 1)
+	c.Check(s.stdout.String(), check.Equals, "")
+}
+
+func (s *RunSuite) TestSystemKeyMismatchVersionTooHighDaemonRestart(c *check.C) {
+	defer mockSnapConfine(dirs.DistroLibExecDir)()
+
+	defer snaprun.MockTimeAfter(func(d time.Duration) <-chan time.Time {
+		tm := testtime.NewTimer(d)
+		defer tm.Elapse(2 * d)
+		return tm.ExpiredC()
+	})()
+
+	s.mockSystemKeyMismatch(c)
+
+	n := 0
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		c.Logf("req %v", n)
+		switch n {
+		case 0:
+			c.Check(r.Method, check.Equals, "POST")
+			c.Check(r.URL.Path, check.Equals, "/v2/system-info")
+			c.Check(r.URL.RawQuery, check.Equals, "")
+			w.WriteHeader(400)
+			fmt.Fprintln(w, `
+{
+  "type": "error", "status-code": "400",
+  "result": {
+    "message": "system-key version higher than supported",
+    "kind": "unsupported-system-key-version"
+  },
+  "maintenance":{
+    "kind": "daemon-restart",
+    "message": "snaod is restarting",
+    "value": null
+  }
+}`[1:])
+		case 1:
+			c.Check(r.Method, check.Equals, "POST")
+			c.Check(r.URL.Path, check.Equals, "/v2/system-info")
+			c.Check(r.URL.RawQuery, check.Equals, "")
+			fmt.Fprintln(w, `{ "type": "sync", "status-code": "200",  "result":  null }`)
+		default:
+			c.Fatalf("unexpected request with count %d", n+1)
+		}
+		n++
+	})
+
+	// mock installed snap
+	snaptest.MockSnapCurrent(c, string(mockYaml), &snap.SideInfo{
+		Revision: snap.R("x2"),
+	})
+
+	// redirect exec
+	execCalls := 0
+	restorer := snaprun.MockSyscallExec(func(arg0 string, args []string, envv []string) error {
+		execCalls++
+		return nil
+	})
+	defer restorer()
+
+	// and run it!
+	_, err := snaprun.Parser(snaprun.Client()).ParseArgs([]string{"run", "--", "snapname.app", "--arg1", "arg2"})
+	c.Assert(err, check.IsNil)
+	c.Check(execCalls, check.Equals, 1)
+	c.Check(n, check.Equals, 2)
+	c.Check(s.stdout.String(), check.Equals, "")
+}
+
+func (s *RunSuite) TestSystemKeyMismatchRetriesExhausted(c *check.C) {
+	defer snaprun.MockGetSystemKeyRetryCount(func() int {
+		return 3
+	})()
+
+	defer mockSnapConfine(dirs.DistroLibExecDir)()
+
+	defer snaprun.MockTimeAfter(func(d time.Duration) <-chan time.Time {
+		tm := testtime.NewTimer(d)
+		defer tm.Elapse(2 * d)
+		return tm.ExpiredC()
+	})()
+
+	s.mockSystemKeyMismatch(c)
+
+	n := 0
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		c.Logf("req %v", n)
+		c.Check(r.Method, check.Equals, "POST")
+		c.Check(r.URL.Path, check.Equals, "/v2/system-info")
+		c.Check(r.URL.RawQuery, check.Equals, "")
+		w.WriteHeader(400)
+		w.Write(nil)
+		n++
+	})
+
+	// mock installed snap
+	snaptest.MockSnapCurrent(c, string(mockYaml), &snap.SideInfo{
+		Revision: snap.R("x2"),
+	})
+
+	// redirect exec
+	restorer := snaprun.MockSyscallExec(func(arg0 string, args []string, envv []string) error {
+		panic("unexpected call")
+	})
+	defer restorer()
+
+	// and run it!
+	_, err := snaprun.Parser(snaprun.Client()).ParseArgs([]string{"run", "--", "snapname.app", "--arg1", "arg2"})
+	c.Assert(err, check.ErrorMatches, "timeout waiting for snap system profiles to get updated")
+	c.Check(n, check.Equals, 3)
+}
+
+func (s *RunSuite) TestDefaultRetryCount(c *check.C) {
+	defer os.Unsetenv("SNAPD_DEBUG_SYSTEM_KEY_RETRY")
+	c.Check(snaprun.GetSystemKeyRetryCount(), check.Equals, 12)
+
+	os.Setenv("SNAPD_DEBUG_SYSTEM_KEY_RETRY", "123")
+	c.Check(snaprun.GetSystemKeyRetryCount(), check.Equals, 123)
+
+	os.Setenv("SNAPD_DEBUG_SYSTEM_KEY_RETRY", "funny")
+	// unparsable as int, returns the default value
+	c.Check(snaprun.GetSystemKeyRetryCount(), check.Equals, 12)
 }
