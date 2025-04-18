@@ -85,7 +85,13 @@ type BadRequestError struct {
 }
 
 func (e *BadRequestError) Error() string {
-	return fmt.Sprintf("cannot %s %q in confdb view %s: %s", e.operation, e.request, e.viewID, e.cause)
+	var reqStr string
+	if e.request != "" {
+		reqStr = "\"" + e.request + "\""
+	} else {
+		reqStr = "empty path"
+	}
+	return fmt.Sprintf("cannot %s %s through confdb view %s: %s", e.operation, reqStr, e.viewID, e.cause)
 }
 
 func (e *BadRequestError) Is(err error) bool {
@@ -126,6 +132,10 @@ type DatabagSchema interface {
 	// Ephemeral returns true if the data corresponding to this type should not be
 	// saved by snapd.
 	Ephemeral() bool
+
+	// NestedEphemeral returns true if the type or any of its nested types are
+	// ephemeral.
+	NestedEphemeral() bool
 }
 
 type SchemaType uint
@@ -1605,10 +1615,6 @@ func (v JSONSchema) SchemaAt(path []string) ([]DatabagSchema, error) {
 	return []DatabagSchema{v}, nil
 }
 
-func (v JSONSchema) Type() SchemaType {
-	return Any
-}
-
-func (v JSONSchema) Ephemeral() bool {
-	return false
-}
+func (v JSONSchema) Type() SchemaType      { return Any }
+func (v JSONSchema) Ephemeral() bool       { return false }
+func (v JSONSchema) NestedEphemeral() bool { return false }
