@@ -33,7 +33,7 @@ func (s *configcoreSuite) TestNilHandleWithStateHandlerPanic(c *C) {
 func (r *configcoreSuite) TestConfigureUnknownOption(c *C) {
 	conf := &mockConf{
 		state: r.state,
-		changes: map[string]interface{}{
+		changes: map[string]any{
 			"unknown.option": "1",
 		},
 	}

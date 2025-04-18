@@ -1937,7 +1937,7 @@ func makeMockSealedKeyFile(c *C, handle json.RawMessage) string {
 	return mockSealedKeyFile
 }
 
-var fakeModel = assertstest.FakeAssertion(map[string]interface{}{
+var fakeModel = assertstest.FakeAssertion(map[string]any{
 	"type":         "model",
 	"authority-id": "my-brand",
 	"series":       "16",
@@ -1946,14 +1946,14 @@ var fakeModel = assertstest.FakeAssertion(map[string]interface{}{
 	"grade":        "signed",
 	"architecture": "amd64",
 	"base":         "core20",
-	"snaps": []interface{}{
-		map[string]interface{}{
+	"snaps": []any{
+		map[string]any{
 			"name":            "pc-kernel",
 			"id":              "pYVQrBcKmBa0mZ4CCN7ExT6jH8rY1hza",
 			"type":            "kernel",
 			"default-channel": "20",
 		},
-		map[string]interface{}{
+		map[string]any{
 			"name":            "pc",
 			"id":              "UqFziVZDHLSyO3TqSWgNBoAdHbLI4dAH",
 			"type":            "gadget",

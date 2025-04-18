@@ -55,7 +55,7 @@ func (s *loggerSuite) SetUpTest(c *check.C) {
 }
 
 func (loggerSuite) TestFlags(c *check.C) {
-	for _, f := range []interface{}{
+	for _, f := range []any{
 		httputil.DebugRequest,
 		httputil.DebugResponse,
 		httputil.DebugBody,

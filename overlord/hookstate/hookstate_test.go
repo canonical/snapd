@@ -117,7 +117,7 @@ func (s *baseHookManagerSuite) setUpSnap(c *C, instanceName string, yaml string)
 		Revision: snap.R(1),
 	}
 
-	initialContext := map[string]interface{}{
+	initialContext := map[string]any{
 		"test-key": "test-value",
 	}
 
@@ -703,7 +703,7 @@ func (s *hookManagerSuite) TestHookUndoRunsOnError(c *C) {
 		Revision: snap.R(1),
 	}
 
-	initialContext := map[string]interface{}{}
+	initialContext := map[string]any{}
 
 	s.state.Lock()
 	task := hookstate.HookTaskWithUndo(s.state, "test summary", hooksup, undohooksup, initialContext)
@@ -1152,7 +1152,7 @@ func (s *hookManagerSuite) TestHookHijackingNoConflict(c *C) {
 }
 
 func (s *hookManagerSuite) TestEphemeralRunHook(c *C) {
-	contextData := map[string]interface{}{
+	contextData := map[string]any{
 		"key":  "value",
 		"key2": "value2",
 	}
@@ -1160,11 +1160,11 @@ func (s *hookManagerSuite) TestEphemeralRunHook(c *C) {
 }
 
 func (s *hookManagerSuite) TestEphemeralRunHookNoContextData(c *C) {
-	var contextData map[string]interface{} = nil
+	var contextData map[string]any = nil
 	s.testEphemeralRunHook(c, contextData)
 }
 
-func (s *hookManagerSuite) testEphemeralRunHook(c *C, contextData map[string]interface{}) {
+func (s *hookManagerSuite) testEphemeralRunHook(c *C, contextData map[string]any) {
 	var hookInvokeCalled []string
 	hookInvoke := func(ctx *hookstate.Context, tomb *tomb.Tomb) ([]byte, error) {
 		c.Check(ctx.HookName(), Equals, "configure")
@@ -1214,7 +1214,7 @@ func (s *hookManagerSuite) TestEphemeralRunHookNoSnap(c *C) {
 		Revision: snap.R(1),
 		Hook:     "configure",
 	}
-	contextData := map[string]interface{}{
+	contextData := map[string]any{
 		"key": "value",
 	}
 	_, err := s.manager.EphemeralRunHook(context.Background(), hooksup, contextData)

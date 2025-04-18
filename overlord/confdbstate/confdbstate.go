@@ -39,7 +39,7 @@ import (
 var assertstateConfdbSchema = assertstate.ConfdbSchema
 
 // SetViaView uses the view to set the requests in the transaction's databag.
-func SetViaView(bag confdb.Databag, view *confdb.View, requests map[string]interface{}) error {
+func SetViaView(bag confdb.Databag, view *confdb.View, requests map[string]any) error {
 	for field, value := range requests {
 		var err error
 		if value == nil {
@@ -79,7 +79,7 @@ func GetView(st *state.State, account, dbSchemaName, viewName string) (*confdb.V
 
 // GetViaView uses the view to get values for the fields from the databag in
 // the transaction.
-func GetViaView(bag confdb.Databag, view *confdb.View, fields []string) (interface{}, error) {
+func GetViaView(bag confdb.Databag, view *confdb.View, fields []string) (any, error) {
 	if len(fields) == 0 {
 		val, err := view.Get(bag, "")
 		if err != nil {
@@ -89,7 +89,7 @@ func GetViaView(bag confdb.Databag, view *confdb.View, fields []string) (interfa
 		return val, nil
 	}
 
-	results := make(map[string]interface{}, len(fields))
+	results := make(map[string]any, len(fields))
 	for _, field := range fields {
 		value, err := view.Get(bag, field)
 		if err != nil {

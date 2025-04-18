@@ -127,7 +127,7 @@ func (s *downloadSnapSuite) TestDoDownloadSnapCompatibility(c *C) {
 func (s *downloadSnapSuite) TestDoDownloadSnapCompatibilityValidationSets(c *C) {
 	s.state.Lock()
 
-	headers := map[string]interface{}{
+	headers := map[string]any{
 		"type":         "validation-set",
 		"timestamp":    time.Now().Format(time.RFC3339),
 		"authority-id": "foo",
@@ -135,8 +135,8 @@ func (s *downloadSnapSuite) TestDoDownloadSnapCompatibilityValidationSets(c *C) 
 		"account-id":   "foo",
 		"name":         "bar",
 		"sequence":     "3",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":     "foo",
 				"id":       snaptest.AssertedSnapID("foo"),
 				"presence": "required",
@@ -221,7 +221,7 @@ func (s *downloadSnapSuite) TestDoDownloadSnapCompatibilityValidationSetsInvalid
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	headers := map[string]interface{}{
+	headers := map[string]any{
 		"type":         "validation-set",
 		"timestamp":    time.Now().Format(time.RFC3339),
 		"authority-id": "foo",
@@ -229,8 +229,8 @@ func (s *downloadSnapSuite) TestDoDownloadSnapCompatibilityValidationSetsInvalid
 		"account-id":   "foo",
 		"name":         "bar",
 		"sequence":     "3",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":     "foo",
 				"id":       snaptest.AssertedSnapID("foo"),
 				"presence": "invalid",
@@ -281,7 +281,7 @@ func (s *downloadSnapSuite) TestDoDownloadSnapCompatibilityValidationSetsWrongRe
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	headers := map[string]interface{}{
+	headers := map[string]any{
 		"type":         "validation-set",
 		"timestamp":    time.Now().Format(time.RFC3339),
 		"authority-id": "foo",
@@ -289,8 +289,8 @@ func (s *downloadSnapSuite) TestDoDownloadSnapCompatibilityValidationSetsWrongRe
 		"account-id":   "foo",
 		"name":         "bar",
 		"sequence":     "3",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":     "foo",
 				"id":       snaptest.AssertedSnapID("foo"),
 				"presence": "required",

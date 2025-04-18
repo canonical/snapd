@@ -209,11 +209,11 @@ func (cs *clientSuite) TestClientMultiOpSnap(c *check.C) {
 
 		body, err := io.ReadAll(cs.req.Body)
 		c.Assert(err, check.IsNil, check.Commentf(s.action))
-		jsonBody := make(map[string]interface{})
+		jsonBody := make(map[string]any)
 		err = json.Unmarshal(body, &jsonBody)
 		c.Assert(err, check.IsNil, check.Commentf(s.action))
 		c.Check(jsonBody["action"], check.Equals, s.action, check.Commentf(s.action))
-		c.Check(jsonBody["snaps"], check.DeepEquals, []interface{}{pkgName}, check.Commentf(s.action))
+		c.Check(jsonBody["snaps"], check.DeepEquals, []any{pkgName}, check.Commentf(s.action))
 		c.Check(jsonBody, check.HasLen, 2, check.Commentf(s.action))
 
 		c.Check(cs.req.URL.Path, check.Equals, "/v2/snaps", check.Commentf(s.action))
@@ -238,11 +238,11 @@ func (cs *clientSuite) TestClientMultiOpSnapTransactional(c *check.C) {
 
 		body, err := io.ReadAll(cs.req.Body)
 		c.Assert(err, check.IsNil, check.Commentf(s.action))
-		jsonBody := make(map[string]interface{})
+		jsonBody := make(map[string]any)
 		err = json.Unmarshal(body, &jsonBody)
 		c.Assert(err, check.IsNil, check.Commentf(s.action))
 		c.Check(jsonBody["action"], check.Equals, s.action, check.Commentf(s.action))
-		c.Check(jsonBody["snaps"], check.DeepEquals, []interface{}{pkgName}, check.Commentf(s.action))
+		c.Check(jsonBody["snaps"], check.DeepEquals, []any{pkgName}, check.Commentf(s.action))
 		c.Check(jsonBody["transaction"], check.Equals, string(client.TransactionAllSnaps),
 			check.Commentf(s.action))
 		c.Check(jsonBody, check.HasLen, 3, check.Commentf(s.action))
@@ -269,11 +269,11 @@ func (cs *clientSuite) TestClientMultiOpSnapIgnoreRunning(c *check.C) {
 
 		body, err := io.ReadAll(cs.req.Body)
 		c.Assert(err, check.IsNil, check.Commentf(s.action))
-		jsonBody := make(map[string]interface{})
+		jsonBody := make(map[string]any)
 		err = json.Unmarshal(body, &jsonBody)
 		c.Assert(err, check.IsNil, check.Commentf(s.action))
 		c.Check(jsonBody["action"], check.Equals, s.action, check.Commentf(s.action))
-		c.Check(jsonBody["snaps"], check.DeepEquals, []interface{}{pkgName}, check.Commentf(s.action))
+		c.Check(jsonBody["snaps"], check.DeepEquals, []any{pkgName}, check.Commentf(s.action))
 		c.Check(jsonBody["ignore-running"], check.Equals, true,
 			check.Commentf(s.action))
 		c.Check(jsonBody, check.HasLen, 3, check.Commentf(s.action))
@@ -298,11 +298,11 @@ func (cs *clientSuite) TestClientMultiSnapshot(c *check.C) {
 
 	body, err := io.ReadAll(cs.req.Body)
 	c.Assert(err, check.IsNil)
-	jsonBody := make(map[string]interface{})
+	jsonBody := make(map[string]any)
 	err = json.Unmarshal(body, &jsonBody)
 	c.Assert(err, check.IsNil)
 	c.Check(jsonBody["action"], check.Equals, "snapshot")
-	c.Check(jsonBody["snaps"], check.DeepEquals, []interface{}{pkgName})
+	c.Check(jsonBody["snaps"], check.DeepEquals, []any{pkgName})
 	c.Check(jsonBody, check.HasLen, 2)
 	c.Check(cs.req.URL.Path, check.Equals, "/v2/snaps")
 	c.Check(setID, check.Equals, uint64(42))
@@ -593,7 +593,7 @@ func (cs *clientSuite) TestClientOpInstallUnaliased(c *check.C) {
 
 	body, err := io.ReadAll(cs.req.Body)
 	c.Assert(err, check.IsNil)
-	jsonBody := make(map[string]interface{})
+	jsonBody := make(map[string]any)
 	err = json.Unmarshal(body, &jsonBody)
 	c.Assert(err, check.IsNil, check.Commentf("body: %v", string(body)))
 	c.Check(jsonBody["unaliased"], check.Equals, true, check.Commentf("body: %v", string(body)))
@@ -629,7 +629,7 @@ func (cs *clientSuite) TestClientOpInstallTransactional(c *check.C) {
 
 	body, err := io.ReadAll(cs.req.Body)
 	c.Assert(err, check.IsNil)
-	jsonBody := make(map[string]interface{})
+	jsonBody := make(map[string]any)
 	err = json.Unmarshal(body, &jsonBody)
 	c.Assert(err, check.IsNil, check.Commentf("body: %v", string(body)))
 	c.Check(jsonBody["transaction"], check.Equals, string(client.TransactionAllSnaps),
@@ -667,7 +667,7 @@ func (cs *clientSuite) TestClientOpInstallPrefer(c *check.C) {
 
 	body, err := io.ReadAll(cs.req.Body)
 	c.Assert(err, check.IsNil)
-	var jsonBody map[string]interface{}
+	var jsonBody map[string]any
 	err = json.Unmarshal(body, &jsonBody)
 	c.Assert(err, check.IsNil, check.Commentf("body: %v", string(body)))
 	c.Check(jsonBody["prefer"], check.Equals, true, check.Commentf("body: %v", string(body)))
@@ -956,11 +956,11 @@ func (cs *clientSuite) testClientOpWithComponents(c *check.C, action func(name s
 	_, err := action("foo", []string{"one", "two"}, nil)
 	c.Assert(err, check.IsNil)
 
-	var body map[string]interface{}
+	var body map[string]any
 	err = json.NewDecoder(cs.req.Body).Decode(&body)
 	c.Assert(err, check.IsNil)
 
-	c.Check(body["components"], check.DeepEquals, []interface{}{"one", "two"})
+	c.Check(body["components"], check.DeepEquals, []any{"one", "two"})
 }
 
 func (cs *clientSuite) TestClientOpInstallWithComponents(c *check.C) {
@@ -991,13 +991,13 @@ func (cs *clientSuite) testClientOpManyWithComponents(c *check.C, action func(na
 	_, err := action([]string{"foo", "bar"}, comps, nil)
 	c.Assert(err, check.IsNil)
 
-	var body map[string]interface{}
+	var body map[string]any
 	err = json.NewDecoder(cs.req.Body).Decode(&body)
 	c.Assert(err, check.IsNil)
 
-	c.Check(body["components"], check.DeepEquals, map[string]interface{}{
-		"foo": []interface{}{"one", "two"},
-		"bar": []interface{}{"three", "four"},
+	c.Check(body["components"], check.DeepEquals, map[string]any{
+		"foo": []any{"one", "two"},
+		"bar": []any{"three", "four"},
 	})
 }
 

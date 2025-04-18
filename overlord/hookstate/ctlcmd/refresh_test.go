@@ -48,7 +48,7 @@ type refreshSuite struct {
 
 var _ = Suite(&refreshSuite{})
 
-func mockRefreshCandidate(snapName, channel, version string, revision snap.Revision) interface{} {
+func mockRefreshCandidate(snapName, channel, version string, revision snap.Revision) any {
 	sup := &snapstate.SnapSetup{
 		Channel: channel,
 		SideInfo: &snap.SideInfo{
@@ -79,7 +79,7 @@ var refreshFromHookTests = []struct {
 	args                []string
 	base, restart       bool
 	inhibited           bool
-	refreshCandidates   map[string]interface{}
+	refreshCandidates   map[string]any
 	stdout, stderr, err string
 	exitCode            int
 }{{
@@ -93,7 +93,7 @@ var refreshFromHookTests = []struct {
 	err:  "cannot use --hold and --show-lock together",
 }, {
 	args: []string{"refresh", "--pending"},
-	refreshCandidates: map[string]interface{}{
+	refreshCandidates: map[string]any{
 		"snap1": mockRefreshCandidate("snap1", "edge", "v1", snap.Revision{N: 3}),
 	},
 	stdout: "pending: ready\nchannel: edge\nversion: v1\nrevision: 3\nbase: false\nrestart: false\n",
@@ -102,13 +102,13 @@ var refreshFromHookTests = []struct {
 	stdout: "pending: none\nchannel: stable\nbase: false\nrestart: false\n",
 }, {
 	args: []string{"refresh", "--pending"},
-	refreshCandidates: map[string]interface{}{
+	refreshCandidates: map[string]any{
 		"snap1-base": mockRefreshCandidate("snap1-base", "edge", "v1", snap.Revision{N: 3}),
 	},
 	stdout: "pending: none\nchannel: stable\nbase: true\nrestart: false\n",
 }, {
 	args: []string{"refresh", "--pending"},
-	refreshCandidates: map[string]interface{}{
+	refreshCandidates: map[string]any{
 		"kernel": mockRefreshCandidate("kernel", "edge", "v1", snap.Revision{N: 3}),
 	},
 	stdout: "pending: none\nchannel: stable\nbase: false\nrestart: true\n",
@@ -189,7 +189,7 @@ type: base
 version: 1
 `, "")
 
-	candidates := map[string]interface{}{
+	candidates := map[string]any{
 		"snap1-base": mockRefreshCandidate("snap1-base", "edge", "v1", snap.Revision{N: 3}),
 	}
 	s.st.Set("refresh-candidates", candidates)
@@ -207,7 +207,7 @@ version: 1
 	c.Assert(action, NotNil)
 	c.Check(action, Equals, snapstate.GateAutoRefreshHold)
 
-	var gating map[string]map[string]interface{}
+	var gating map[string]map[string]any
 	c.Assert(s.st.Get("snaps-hold", &gating), IsNil)
 	c.Check(gating["snap1-base"]["snap1"], NotNil)
 }
@@ -229,7 +229,7 @@ version: 1
 	s.st.Unlock()
 
 	// validity check
-	var gating map[string]map[string]interface{}
+	var gating map[string]map[string]any
 	s.st.Lock()
 	snapsHold := s.st.Get("snaps-hold", &gating)
 	s.st.Unlock()
@@ -304,8 +304,8 @@ func (s *refreshSuite) TestRefreshProceedFromSnap(c *C) {
 version: 1
 `, "")
 
-	s.st.Set("conns", map[string]interface{}{
-		"foo:plug core:slot": map[string]interface{}{"interface": "snap-refresh-control"},
+	s.st.Set("conns", map[string]any{
+		"foo:plug core:slot": map[string]any{"interface": "snap-refresh-control"},
 	})
 
 	// enable gate-auto-refresh-hook feature
@@ -365,8 +365,8 @@ version: 1
 	c.Check(string(stdout), Equals, "pending: none\nchannel: stable\nbase: false\nrestart: false\n")
 
 	s.st.Lock()
-	s.st.Set("conns", map[string]interface{}{
-		"foo:plug core:slot": map[string]interface{}{"interface": "snap-refresh-control"},
+	s.st.Set("conns", map[string]any{
+		"foo:plug core:slot": map[string]any{"interface": "snap-refresh-control"},
 	})
 	s.st.Unlock()
 
@@ -389,8 +389,8 @@ version: 1
 	mockContext, err := hookstate.NewContext(task, s.st, setup, s.mockHandler, "")
 	c.Check(err, IsNil)
 
-	s.st.Set("conns", map[string]interface{}{
-		"foo:plug core:slot": map[string]interface{}{"interface": "snap-refresh-control"},
+	s.st.Set("conns", map[string]any{
+		"foo:plug core:slot": map[string]any{"interface": "snap-refresh-control"},
 	})
 
 	s.st.Unlock()
@@ -415,8 +415,8 @@ func (s *refreshSuite) TestRefreshProceedFromSnapError(c *C) {
 	mockInstalledSnap(c, s.st, `name: foo
 version: 1
 `, "")
-	s.st.Set("conns", map[string]interface{}{
-		"foo:plug core:slot": map[string]interface{}{"interface": "snap-refresh-control"},
+	s.st.Set("conns", map[string]any{
+		"foo:plug core:slot": map[string]any{"interface": "snap-refresh-control"},
 	})
 
 	// enable gate-auto-refresh-hook feature
@@ -449,8 +449,8 @@ func (s *refreshSuite) TestRefreshProceedFromSnapErrorNoSnapRefreshControl(c *C)
 	mockInstalledSnap(c, s.st, `name: foo
 version: 1
 `, "")
-	s.st.Set("conns", map[string]interface{}{
-		"foo:plug core:slot": map[string]interface{}{
+	s.st.Set("conns", map[string]any{
+		"foo:plug core:slot": map[string]any{
 			"interface": "snap-refresh-control",
 			"undesired": true,
 		},
@@ -473,8 +473,8 @@ version: 1
 	c.Assert(called, Equals, false)
 
 	s.st.Lock()
-	s.st.Set("conns", map[string]interface{}{
-		"foo:plug core:slot": map[string]interface{}{
+	s.st.Set("conns", map[string]any{
+		"foo:plug core:slot": map[string]any{
 			"interface": "other",
 		},
 	})

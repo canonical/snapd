@@ -62,15 +62,15 @@ func (op setGetOp) list() []string {
 	return args[1:]
 }
 
-func (op setGetOp) args() map[string]interface{} {
-	m := make(map[string]interface{})
+func (op setGetOp) args() map[string]any {
+	m := make(map[string]any)
 	args := strings.Fields(string(op))
 	for _, pair := range args[1:] {
 		if pair == "=>" {
 			break
 		}
 		kv := strings.SplitN(pair, "=", 2)
-		var v interface{}
+		var v any
 		if err := jsonutil.DecodeWithNumber(strings.NewReader(kv[1]), &v); err != nil {
 			v = kv[1]
 		}
@@ -364,7 +364,7 @@ func (s *transactionSuite) TestSetGet(c *C) {
 
 	for _, test := range setGetTests {
 		c.Logf("-----")
-		s.state.Set("config", map[string]interface{}{})
+		s.state.Set("config", map[string]any{})
 		t := config.NewTransaction(s.state)
 		snap := "core"
 		for _, op := range test {
@@ -382,11 +382,11 @@ func (s *transactionSuite) TestSetGet(c *C) {
 
 			case "get":
 				for k, expected := range op.args() {
-					var obtained interface{}
+					var obtained any
 					err := t.Get(snap, k, &obtained)
 					if op.fails() {
 						c.Assert(err, ErrorMatches, op.error())
-						var nothing interface{}
+						var nothing any
 						c.Assert(t.GetMaybe(snap, k, &nothing), ErrorMatches, op.error())
 						c.Assert(nothing, IsNil)
 						continue
@@ -396,7 +396,7 @@ func (s *transactionSuite) TestSetGet(c *C) {
 							c.Fatalf("Expected %q key to not exist, but it has value %v", k, obtained)
 						}
 						c.Assert(err, ErrorMatches, fmt.Sprintf("snap %q has no %q configuration option", snap, k))
-						var nothing interface{}
+						var nothing any
 						c.Assert(t.GetMaybe(snap, k, &nothing), IsNil)
 						c.Assert(nothing, IsNil)
 						continue
@@ -418,13 +418,13 @@ func (s *transactionSuite) TestSetGet(c *C) {
 				c.Check(obtained, DeepEquals, expected)
 
 			case "setunder":
-				var config map[string]map[string]interface{}
+				var config map[string]map[string]any
 				s.state.Get("config", &config)
 				if config == nil {
-					config = make(map[string]map[string]interface{})
+					config = make(map[string]map[string]any)
 				}
 				if config[snap] == nil {
-					config[snap] = make(map[string]interface{})
+					config[snap] = make(map[string]any)
 				}
 				for k, v := range op.args() {
 					if v == "-" {
@@ -449,12 +449,12 @@ func (s *transactionSuite) TestSetGet(c *C) {
 						}
 						continue
 					}
-					var cfg interface{}
+					var cfg any
 					c.Assert(jsonutil.DecodeWithNumber(bytes.NewReader(*obtained), &cfg), IsNil)
 					c.Assert(cfg, DeepEquals, expected)
 				}
 			case "getroot":
-				var obtained interface{}
+				var obtained any
 				err := t.Get(snap, "", &obtained)
 				if op.fails() {
 					c.Assert(err, ErrorMatches, op.error())
@@ -468,7 +468,7 @@ func (s *transactionSuite) TestSetGet(c *C) {
 				for _, expected := range op.args() {
 					obtained, ok := config[snap]
 					c.Assert(ok, Equals, true)
-					var cfg interface{}
+					var cfg any
 					c.Assert(jsonutil.DecodeWithNumber(bytes.NewReader(*obtained), &cfg), IsNil)
 					c.Assert(cfg, DeepEquals, expected)
 				}
@@ -495,7 +495,7 @@ func (s *transactionSuite) TestCommitOverNilSnapConfig(c *C) {
 	defer s.state.Unlock()
 
 	// simulate invalid nil map created due to LP #1917870 by snap restore
-	s.state.Set("config", map[string]interface{}{"test-snap": nil})
+	s.state.Set("config", map[string]any{"test-snap": nil})
 	t := config.NewTransaction(s.state)
 
 	c.Assert(t.Set("test-snap", "foo", "bar"), IsNil)
@@ -529,7 +529,7 @@ func (s *transactionSuite) TestNoConfiguration(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	var res interface{}
+	var res any
 	tr := config.NewTransaction(s.state)
 	err := tr.Get("some-snap", "", &res)
 	c.Assert(err, NotNil)
@@ -553,17 +553,17 @@ func (s *transactionSuite) TestPristineIsNotTainted(c *C) {
 	c.Check(tr.Set("test-snap", "foo.a.a", "a"), IsNil)
 	tr.Commit()
 
-	var data interface{}
-	var result interface{}
+	var data any
+	var result any
 	tr = config.NewTransaction(s.state)
 	c.Check(tr.Set("test-snap", "foo.b", "b"), IsNil)
 	c.Check(tr.Set("test-snap", "foo.a.a", "b"), IsNil)
 	c.Assert(tr.Get("test-snap", "foo", &result), IsNil)
-	c.Check(result, DeepEquals, map[string]interface{}{"a": map[string]interface{}{"a": "b"}, "b": "b"})
+	c.Check(result, DeepEquals, map[string]any{"a": map[string]any{"a": "b"}, "b": "b"})
 
 	pristine := tr.PristineConfig()
 	c.Assert(json.Unmarshal([]byte(*pristine["test-snap"]["foo"]), &data), IsNil)
-	c.Assert(data, DeepEquals, map[string]interface{}{"a": map[string]interface{}{"a": "a"}})
+	c.Assert(data, DeepEquals, map[string]any{"a": map[string]any{"a": "a"}})
 }
 
 func (s *transactionSuite) TestPristineGet(c *C) {
@@ -571,12 +571,12 @@ func (s *transactionSuite) TestPristineGet(c *C) {
 	defer s.state.Unlock()
 
 	// start with a pristine config
-	s.state.Set("config", map[string]map[string]interface{}{
+	s.state.Set("config", map[string]map[string]any{
 		"some-snap": {"opt1": "pristine-value"},
 	})
 
 	// change the config
-	var res interface{}
+	var res any
 	tr := config.NewTransaction(s.state)
 	err := tr.Set("some-snap", "opt1", "changed-value")
 	c.Assert(err, IsNil)
@@ -592,7 +592,7 @@ func (s *transactionSuite) TestPristineGet(c *C) {
 	c.Assert(res, Equals, "pristine-value")
 
 	// and GetPristine errors for options that don't exist in pristine
-	var res2 interface{}
+	var res2 any
 	err = tr.Set("some-snap", "opt2", "other-value")
 	c.Assert(err, IsNil)
 	err = tr.GetPristine("some-snap", "opt2", &res2)
@@ -615,7 +615,7 @@ func (s *transactionSuite) TestExternalGetError(c *C) {
 	}
 
 	for _, tc := range tests {
-		err := config.RegisterExternalConfig("some-snap", tc, func(key string) (interface{}, error) {
+		err := config.RegisterExternalConfig("some-snap", tc, func(key string) (any, error) {
 			return nil, nil
 		})
 		c.Assert(err, ErrorMatches, "cannot register external config: invalid option name:.*")
@@ -625,14 +625,14 @@ func (s *transactionSuite) TestExternalGetError(c *C) {
 func (s *transactionSuite) TestExternalGetSimple(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
-	s.state.Set("config", map[string]map[string]interface{}{
+	s.state.Set("config", map[string]map[string]any{
 		"some-snap": {
 			"other-key": "other-value",
 		},
 	})
 
 	n := 0
-	err := config.RegisterExternalConfig("some-snap", "key.external", func(key string) (interface{}, error) {
+	err := config.RegisterExternalConfig("some-snap", "key.external", func(key string) (any, error) {
 		n++
 
 		s := fmt.Sprintf("%s=external-value", key)
@@ -663,7 +663,7 @@ func (s *transactionSuite) TestExternalDeepNesting(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	config.RegisterExternalConfig("some-snap", "key.external", func(key string) (interface{}, error) {
+	config.RegisterExternalConfig("some-snap", "key.external", func(key string) (any, error) {
 		c.Check(key, Equals, "key.external.subkey")
 
 		m := make(map[string]string)
@@ -684,7 +684,7 @@ func (s *transactionSuite) TestExternalSetShadowsExternal(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	err := config.RegisterExternalConfig("some-snap", "key.nested.external", func(key string) (interface{}, error) {
+	err := config.RegisterExternalConfig("some-snap", "key.nested.external", func(key string) (any, error) {
 		c.Fatalf("unexpected call to external config function")
 		return nil, nil
 	})
@@ -692,7 +692,7 @@ func (s *transactionSuite) TestExternalSetShadowsExternal(c *C) {
 
 	tests := []struct {
 		snap, key string
-		value     interface{}
+		value     any
 		isOk      bool
 	}{
 		// "key" must be a map because "key.external" must exist
@@ -709,9 +709,9 @@ func (s *transactionSuite) TestExternalSetShadowsExternal(c *C) {
 		{"some-snap", "key.nested.external", "some-value", true},
 
 		// but setting nested to some map value is fine
-		{"some-snap", "key.nested", map[string]interface{}{}, true},
-		{"some-snap", "key.nested", map[string]interface{}{"foo": 1}, true},
-		{"some-snap", "key.nested", map[string]interface{}{"external": 1}, true},
+		{"some-snap", "key.nested", map[string]any{}, true},
+		{"some-snap", "key.nested", map[string]any{"foo": 1}, true},
+		{"some-snap", "key.nested", map[string]any{"external": 1}, true},
 
 		// other snaps without external config are not affected
 		{"other-snap", "key", "non-map-value", true},
@@ -731,7 +731,7 @@ func (s *transactionSuite) TestExternalSetShadowsExternal(c *C) {
 func (s *transactionSuite) TestExternalGetRootDocIsMerged(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
-	s.state.Set("config", map[string]map[string]interface{}{
+	s.state.Set("config", map[string]map[string]any{
 		"some-snap": {
 			"some-key":  "some-value",
 			"other-key": "value",
@@ -739,7 +739,7 @@ func (s *transactionSuite) TestExternalGetRootDocIsMerged(c *C) {
 	})
 
 	n := 0
-	err := config.RegisterExternalConfig("some-snap", "key.external", func(key string) (interface{}, error) {
+	err := config.RegisterExternalConfig("some-snap", "key.external", func(key string) (any, error) {
 		n++
 
 		s := fmt.Sprintf("%s=external-value", key)
@@ -749,14 +749,14 @@ func (s *transactionSuite) TestExternalGetRootDocIsMerged(c *C) {
 
 	tr := config.NewTransaction(s.state)
 
-	var res map[string]interface{}
+	var res map[string]any
 	// the root doc
 	err = tr.Get("some-snap", "", &res)
 	c.Assert(err, IsNil)
-	c.Check(res, DeepEquals, map[string]interface{}{
+	c.Check(res, DeepEquals, map[string]any{
 		"some-key":  "some-value",
 		"other-key": "value",
-		"key": map[string]interface{}{
+		"key": map[string]any{
 			"external": "key.external=external-value",
 		},
 	})
@@ -765,17 +765,17 @@ func (s *transactionSuite) TestExternalGetRootDocIsMerged(c *C) {
 func (s *transactionSuite) TestExternalGetSubtreeMerged(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
-	s.state.Set("config", map[string]map[string]interface{}{
+	s.state.Set("config", map[string]map[string]any{
 		"some-snap": {
 			"other-key": "other-value",
-			"real-and-external": map[string]interface{}{
+			"real-and-external": map[string]any{
 				"real": "real-value",
 			},
 		},
 	})
 
 	n := 0
-	err := config.RegisterExternalConfig("some-snap", "real-and-external.external", func(key string) (interface{}, error) {
+	err := config.RegisterExternalConfig("some-snap", "real-and-external.external", func(key string) (any, error) {
 		n++
 
 		s := fmt.Sprintf("%s=external-value", key)
@@ -794,7 +794,7 @@ func (s *transactionSuite) TestExternalGetSubtreeMerged(c *C) {
 	// part of the external configuration
 	c.Check(n, Equals, 0)
 
-	var res2 map[string]interface{}
+	var res2 map[string]any
 	err = tr.Get("some-snap", "real-and-external", &res2)
 	c.Assert(err, IsNil)
 	c.Check(res2, HasLen, 2)
@@ -810,17 +810,17 @@ func (s *transactionSuite) TestExternalCommitValuesNotStored(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	err := config.RegisterExternalConfig("some-snap", "simple-external", func(key string) (interface{}, error) {
+	err := config.RegisterExternalConfig("some-snap", "simple-external", func(key string) (any, error) {
 		c.Errorf("external func should not get called in this test")
 		return nil, nil
 	})
 	c.Assert(err, IsNil)
-	err = config.RegisterExternalConfig("some-snap", "key.external", func(key string) (interface{}, error) {
+	err = config.RegisterExternalConfig("some-snap", "key.external", func(key string) (any, error) {
 		c.Errorf("external func should not get called in this test")
 		return nil, nil
 	})
 	c.Assert(err, IsNil)
-	err = config.RegisterExternalConfig("some-snap", "key.nested.external", func(key string) (interface{}, error) {
+	err = config.RegisterExternalConfig("some-snap", "key.nested.external", func(key string) (any, error) {
 		c.Errorf("external func should not get called in this test")
 		return nil, nil
 	})
@@ -845,13 +845,13 @@ func (s *transactionSuite) TestExternalCommitValuesNotStored(c *C) {
 	tr.Commit()
 
 	// and check what got stored in the state
-	var config map[string]map[string]interface{}
+	var config map[string]map[string]any
 	s.state.Get("config", &config)
 	c.Check(config["some-snap"], HasLen, 1)
-	c.Check(config["some-snap"], DeepEquals, map[string]interface{}{
-		"key": map[string]interface{}{
+	c.Check(config["some-snap"], DeepEquals, map[string]any{
+		"key": map[string]any{
 			"not-external": "value",
-			"nested": map[string]interface{}{
+			"nested": map[string]any{
 				"not-external": "value",
 			},
 		},
@@ -897,7 +897,7 @@ func (s *transactionSuite) TestEmptyKeyValue(c *C) {
 
 	tr := config.NewTransaction(s.state)
 
-	var res interface{}
+	var res any
 	err := tr.Set("some-snap", "", &res)
 	c.Assert(err, ErrorMatches, "internal error: key cannot be an empty string")
 

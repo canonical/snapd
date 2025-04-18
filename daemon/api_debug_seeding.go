@@ -52,11 +52,11 @@ type seedingInfo struct {
 
 	// PreseedSystemKey is the system-key that was created during preseeding
 	// (when snap-preseed was ran).
-	PreseedSystemKey interface{} `json:"preseed-system-key,omitempty"`
+	PreseedSystemKey any `json:"preseed-system-key,omitempty"`
 
 	// SeedRestartSystemKey is the system-key that was created on first boot of the
 	// preseeded image.
-	SeedRestartSystemKey interface{} `json:"seed-restart-system-key,omitempty"`
+	SeedRestartSystemKey any `json:"seed-restart-system-key,omitempty"`
 
 	// SeedError is set if no seed change succeeded yet and at
 	// least one was in error. It is set to the error of the
@@ -74,7 +74,7 @@ func getSeedingInfo(st *state.State) Response {
 		return InternalError(err.Error())
 	}
 
-	var preseedSysKey, seedRestartSysKey interface{}
+	var preseedSysKey, seedRestartSysKey any
 	if err := st.Get("preseed-system-key", &preseedSysKey); err != nil && !errors.Is(err, state.ErrNoState) {
 		return InternalError(err.Error())
 	}

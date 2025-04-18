@@ -37,7 +37,7 @@ type cmdNewSnapDeclaration struct {
 }
 
 func (x *cmdNewSnapDeclaration) Execute(args []string) error {
-	headers := map[string]interface{}{}
+	headers := map[string]any{}
 	if x.SnapDeclJsonPath != "" {
 		content, err := os.ReadFile(x.SnapDeclJsonPath)
 		if err != nil {

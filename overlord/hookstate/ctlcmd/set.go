@@ -142,7 +142,7 @@ func (s *setCommand) setConfigSetting(context *hookstate.Context) error {
 	return nil
 }
 
-func setInterfaceAttribute(context *hookstate.Context, staticAttrs map[string]interface{}, dynamicAttrs map[string]interface{}, key string, value interface{}) error {
+func setInterfaceAttribute(context *hookstate.Context, staticAttrs map[string]any, dynamicAttrs map[string]any, key string, value any) error {
 	data, err := json.Marshal(value)
 	if err != nil {
 		return fmt.Errorf("cannot marshal snap %q option %q: %s", context.InstanceName(), key, err)
@@ -160,7 +160,7 @@ func setInterfaceAttribute(context *hookstate.Context, staticAttrs map[string]in
 	if len(subkeys) == 0 {
 		return fmt.Errorf("internal error: unexpected empty subkeys for key %q", key)
 	}
-	var existing interface{}
+	var existing any
 	err = getAttribute(context.InstanceName(), subkeys[:1], 0, staticAttrs, &existing)
 	if err == nil {
 		return fmt.Errorf(i18n.G("attribute %q cannot be overwritten"), key)
@@ -201,7 +201,7 @@ func (s *setCommand) setInterfaceSetting(context *hookstate.Context, plugOrSlot 
 	context.Lock()
 	defer context.Unlock()
 
-	var staticAttrs, dynamicAttrs map[string]interface{}
+	var staticAttrs, dynamicAttrs map[string]any
 	if err = attrsTask.Get(which+"-static", &staticAttrs); err != nil {
 		return fmt.Errorf(i18n.G("internal error: cannot get %s from appropriate task, %s"), which, err)
 	}
@@ -217,7 +217,7 @@ func (s *setCommand) setInterfaceSetting(context *hookstate.Context, plugOrSlot 
 			return fmt.Errorf(i18n.G("invalid parameter: %q (want key=value)"), attrValue)
 		}
 
-		var value interface{}
+		var value any
 		if err := jsonutil.DecodeWithNumber(strings.NewReader(parts[1]), &value); err != nil {
 			// Not valid JSON, save the string as-is
 			value = parts[1]
@@ -232,7 +232,7 @@ func (s *setCommand) setInterfaceSetting(context *hookstate.Context, plugOrSlot 
 	return nil
 }
 
-func setConfdbValues(ctx *hookstate.Context, plugName string, requests map[string]interface{}) error {
+func setConfdbValues(ctx *hookstate.Context, plugName string, requests map[string]any) error {
 	ctx.Lock()
 	defer ctx.Unlock()
 

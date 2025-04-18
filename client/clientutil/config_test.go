@@ -34,7 +34,7 @@ func (s *parseSuite) TestParseConfigValues(c *C) {
 	// check basic setting and unsetting behaviour
 	confValues, keys, err := clientutil.ParseConfigValues([]string{"foo=bar", "baz!"}, nil)
 	c.Assert(err, IsNil)
-	c.Assert(confValues, DeepEquals, map[string]interface{}{
+	c.Assert(confValues, DeepEquals, map[string]any{
 		"foo": "bar",
 		"baz": nil,
 	})
@@ -46,8 +46,8 @@ func (s *parseSuite) TestParseConfigValues(c *C) {
 	}
 	confValues, keys, err = clientutil.ParseConfigValues([]string{`foo={"bar": 1}`}, opts)
 	c.Assert(err, IsNil)
-	c.Assert(confValues, DeepEquals, map[string]interface{}{
-		"foo": map[string]interface{}{
+	c.Assert(confValues, DeepEquals, map[string]any{
+		"foo": map[string]any{
 			"bar": json.Number("1"),
 		},
 	})
@@ -57,7 +57,7 @@ func (s *parseSuite) TestParseConfigValues(c *C) {
 	opts.String = true
 	confValues, keys, err = clientutil.ParseConfigValues([]string{`foo={"bar": 1}`}, opts)
 	c.Assert(err, IsNil)
-	c.Assert(confValues, DeepEquals, map[string]interface{}{
+	c.Assert(confValues, DeepEquals, map[string]any{
 		"foo": `{"bar": 1}`,
 	})
 	c.Assert(keys, DeepEquals, []string{"foo"})
@@ -65,8 +65,8 @@ func (s *parseSuite) TestParseConfigValues(c *C) {
 	// default is to parse
 	confValues, keys, err = clientutil.ParseConfigValues([]string{`foo={"bar": 1}`}, nil)
 	c.Assert(err, IsNil)
-	c.Assert(confValues, DeepEquals, map[string]interface{}{
-		"foo": map[string]interface{}{
+	c.Assert(confValues, DeepEquals, map[string]any{
+		"foo": map[string]any{
 			"bar": json.Number("1"),
 		},
 	})
@@ -75,7 +75,7 @@ func (s *parseSuite) TestParseConfigValues(c *C) {
 	// unless it's not valid JSON
 	confValues, keys, err = clientutil.ParseConfigValues([]string{`foo={"bar": 1`}, nil)
 	c.Assert(err, IsNil)
-	c.Assert(confValues, DeepEquals, map[string]interface{}{
+	c.Assert(confValues, DeepEquals, map[string]any{
 		"foo": `{"bar": 1`,
 	})
 	c.Assert(keys, DeepEquals, []string{"foo"})

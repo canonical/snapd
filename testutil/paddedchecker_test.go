@@ -59,8 +59,8 @@ func (*paddedCheckerSuite) TestPaddedChecker(c *check.C) {
 	}
 
 	for i, test := range table {
-		for _, lhs := range []interface{}{test.lhs, []byte(test.lhs), errors.New(test.lhs)} {
-			for _, rhs := range []interface{}{test.rhs, []byte(test.rhs)} {
+		for _, lhs := range []any{test.lhs, []byte(test.lhs), errors.New(test.lhs)} {
+			for _, rhs := range []any{test.rhs, []byte(test.rhs)} {
 				comm := check.Commentf("%d:%s:%T/%T", i, test.checker.Info().Name, lhs, rhs)
 				c.Check(lhs, test.checker, rhs, comm)
 			}
