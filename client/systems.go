@@ -184,9 +184,9 @@ type StorageEncryption struct {
 	// the user as either an error or as information.
 	UnavailableReason string `json:"unavailable-reason,omitempty"`
 
-	// PreinstallFeedback reports any errors detected during preinstall checks,
+	// PreinstallCheck reports any errors detected during preinstall checks,
 	// along with corresponding suggested actions when available.
-	PreinstallFeedback []PreinstallErrorAndActions `json:"preinstall-feedback, omitempty"`
+	PreinstallCheck []PreinstallErrorAndActions `json:"preinstall-check,omitempty"`
 }
 
 type SystemDetails struct {

@@ -142,6 +142,15 @@ func storageEncryption(encInfo *install.EncryptionSupportInfo) *client.StorageEn
 		storageEnc.Support = client.StorageEncryptionSupportUnavailable
 		storageEnc.UnavailableReason = encInfo.UnavailableWarning
 	}
+
+	if !encInfo.Available && encInfo.PreinstallCheckErr != nil {
+		// XXX: This needs to be improved, perhaps all errors should be internal kind.
+		errorAndAction, err := client.UnwrapCompoundPreinstallError(encInfo.PreinstallCheckErr)
+		if err == nil {
+			storageEnc.PreinstallCheck = errorAndAction
+		}
+	}
+
 	if encInfo.PassphraseAuthAvailable {
 		storageEnc.Features = append(storageEnc.Features, client.StorageEncryptionFeaturePassphraseAuth)
 	}

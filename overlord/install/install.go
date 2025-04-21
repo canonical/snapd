@@ -81,6 +81,11 @@ type EncryptionSupportInfo struct {
 	// available in case it is optional.
 	UnavailableWarning string
 
+	// Compound error that combines all preinstall check errors where each preinstall
+	// check error embeds information about the message, error kind and additional error
+	// arguments and actions when available.
+	PreinstallCheckErr error
+
 	// PassphraseAuthAvailable is set if the passphrase authentication
 	// is supported.
 	PassphraseAuthAvailable bool
@@ -235,8 +240,10 @@ func GetEncryptionSupportInfo(model *asserts.Model, tpmMode secboot.TPMProvision
 		res.Type, checkEncryptionErr = checkFDEFeatures(runSetupHook)
 	case checkSecbootEncryption:
 		preinstallCheckErr = secboot.PreinstallCheck()
+		res.PreinstallCheckErr = preinstallCheckErr
 		checkEncryptionErr = secbootCheckTPMKeySealingSupported(tpmMode)
 
+		// XXX: Why do this for secboot if we do not do this for hooks?
 		if checkEncryptionErr == nil && preinstallCheckErr == nil {
 			res.Type = device.EncryptionTypeLUKS
 		}
