@@ -165,15 +165,6 @@ const (
 	StorageEncryptionFeaturePINAuth StorageEncryptionFeature = "pin-auth"
 )
 
-// PreinstallErrorAndActions descripes a single preinstall check error along
-// with corresponding suggested actions when available
-type PreinstallErrorAndActions struct {
-	Kind    string          `json:"kind"`
-	Message string          `json:"message"`
-	Args    json.RawMessage `json:"args, omitempty"`
-	Actions []string        `json:"actions, omitempty"`
-}
-
 type StorageEncryption struct {
 	// Support describes the level of hardware support available.
 	Support StorageEncryptionSupport `json:"support"`

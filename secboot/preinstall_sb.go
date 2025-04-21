@@ -21,70 +21,176 @@ package secboot
 
 import (
 	"context"
-	"encoding/json"
+	"fmt"
+	"reflect"
 
-	"github.com/snapcore/secboot/efi/preinstall"
 	secboot_efi "github.com/snapcore/secboot/efi"
-)
+	"github.com/snapcore/secboot/efi/preinstall"
 
-type ErrorKind preinstall.ErrorKind
-type ErrorArgs json.RawMessage
-type ErrorAction preinstall.Action
+	"github.com/snapcore/snapd/client"
+)
 
 var (
 	preinstallNewRunChecksContext = preinstall.NewRunChecksContext
 	preinstallRun                 = (*preinstall.RunChecksContext).Run
 )
 
-func unwrapCompoundError(err error) []ErrorAndActions {
+func convertCompoundError(err error) error {
 	errs, ok := err.(preinstall.CompoundError)
-        if !ok {
-                return []ErrorAndActions {
-			{
-				Kind: preinstall.ErrorKindInternal,
-				Message:"unexpected non-compound error",
-				Args: {"original error message": errs.Error()},
-				Action: nil,
-			},
+	if !ok {
+		if kindAndActions, ok := err.(*preinstall.ErrorKindAndActions); !ok {
+			return client.NewCompoundPreinstallError("preinstall check detected errors", kindAndActions)
 		}
-        }
-
-	errorsAndActions := []ErrorAndActions{}
-	for _, err := range errs.Unwrap() {
-                if kindAndActions, ok := err.(*preinstall.ErrorKindAndActions); !ok {
-			return []client.PreinstallErrorAndActions {
-				{
-                        		Kind: preinstall.ErrorKindInternal,
-                        		Message:"unexpected error type",
-                        		Args: {"original error message": errs.Error()},
-                        		Action: nil,
-				},
-                	}
-		} else {
-                        conv := client.ErrorAndActions{
-				Kind: kindAndActions.ErrorKind,
-                                Message: kindAndActions.Unwrap().Error(),
-                                Args: kindAndActions.ErrorArgs,
-                                Actions: kindAndActions.Actions,
-                        }
-                        errorsAndActions = append(errorsAndActions, conv)
-                }
+		return client.NewCompoundPreinstallError(fmt.Sprintf("cannot convert error of unexpected type %T (%v) ", reflect.TypeOf(err), err))
 	}
-        
-        return errorsAndActions 
+
+	var convErrors []error
+	for _, err := range errs.Unwrap() {
+		if kindAndActions, ok := err.(*preinstall.ErrorKindAndActions); !ok {
+			return client.NewCompoundPreinstallError(fmt.Sprintf("cannot convert error of unexpected type %T (%v)", reflect.TypeOf(err), err))
+		} else {
+			convKind, convKindErr := convertErrorKind(kindAndActions.ErrorKind)
+			if convKindErr != nil {
+				return client.NewCompoundPreinstallError(fmt.Sprintf("%v (%v)", convKindErr, err))
+			}
+
+			convActions, convActionsErr := convertErrorActions(kindAndActions.Actions)
+			if convActionsErr != nil {
+				return client.NewCompoundPreinstallError(fmt.Sprintf("%v (%v)", convActionsErr, err))
+			}
+
+			convErrors = append(convErrors, &client.PreinstallErrorAndActions{
+				Kind:    convKind,
+				Message: kindAndActions.Unwrap().Error(),
+				Args:    kindAndActions.ErrorArgs,
+				Actions: convActions,
+			})
+		}
+	}
+
+	if len(convErrors) > 0 {
+		return client.NewCompoundPreinstallError("preinstall check detected errors", convErrors...)
+	}
+
+	return nil
 }
 
-func PreinstallCheck() []client.PreinstallErrorAndActions {
+func convertErrorKind(kind preinstall.ErrorKind) (client.ErrorKind, error) {
+	var convKind client.ErrorKind
+
+	switch kind {
+	case preinstall.ErrorKindNone:
+		convKind = client.ErrorKindNone
+	case preinstall.ErrorKindInternal:
+		convKind = client.ErrorKindInternal
+	case preinstall.ErrorKindShutdownRequired:
+		convKind = client.ErrorKindShutdownRequired
+	case preinstall.ErrorKindRebootRequired:
+		convKind = client.ErrorKindRebootRequired
+	case preinstall.ErrorKindUnexpectedAction:
+		convKind = client.ErrorKindUnexpectedAction
+	case preinstall.ErrorKindMissingArgument:
+		convKind = client.ErrorKindMissingArgument
+	case preinstall.ErrorKindInvalidArgument:
+		convKind = client.ErrorKindInvalidArgument
+	case preinstall.ErrorKindRunningInVM:
+		convKind = client.ErrorKindRunningInVM
+	case preinstall.ErrorKindNoSuitableTPM2Device:
+		convKind = client.ErrorKindNoSuitableTPM2Device
+	case preinstall.ErrorKindTPMDeviceFailure:
+		convKind = client.ErrorKindTPMDeviceFailure
+	case preinstall.ErrorKindTPMDeviceDisabled:
+		convKind = client.ErrorKindTPMDeviceDisabled
+	case preinstall.ErrorKindTPMHierarchiesOwned:
+		convKind = client.ErrorKindTPMHierarchiesOwned
+	case preinstall.ErrorKindTPMDeviceLockout:
+		convKind = client.ErrorKindTPMDeviceLockout
+	case preinstall.ErrorKindInsufficientTPMStorage:
+		convKind = client.ErrorKindInsufficientTPMStorage
+	case preinstall.ErrorKindNoSuitablePCRBank:
+		convKind = client.ErrorKindNoSuitablePCRBank
+	case preinstall.ErrorKindMeasuredBoot:
+		convKind = client.ErrorKindMeasuredBoot
+	case preinstall.ErrorKindEmptyPCRBanks:
+		convKind = client.ErrorKindEmptyPCRBanks
+	case preinstall.ErrorKindTPMCommandFailed:
+		convKind = client.ErrorKindTPMCommandFailed
+	case preinstall.ErrorKindInvalidTPMResponse:
+		convKind = client.ErrorKindInvalidTPMResponse
+	case preinstall.ErrorKindTPMCommunication:
+		convKind = client.ErrorKindTPMCommunication
+	case preinstall.ErrorKindUnsupportedPlatform:
+		convKind = client.ErrorKindUnsupportedPlatform
+	case preinstall.ErrorKindUEFIDebuggingEnabled:
+		convKind = client.ErrorKindUEFIDebuggingEnabled
+	case preinstall.ErrorKindInsufficientDMAProtection:
+		convKind = client.ErrorKindInsufficientDMAProtection
+	case preinstall.ErrorKindNoKernelIOMMU:
+		convKind = client.ErrorKindNoKernelIOMMU
+	case preinstall.ErrorKindTPMStartupLocalityNotProtected:
+		convKind = client.ErrorKindTPMStartupLocalityNotProtected
+	case preinstall.ErrorKindHostSecurity:
+		convKind = client.ErrorKindHostSecurity
+	case preinstall.ErrorKindPCRUnusable:
+		convKind = client.ErrorKindPCRUnusable
+	case preinstall.ErrorKindPCRUnsupported:
+		convKind = client.ErrorKindPCRUnsupported
+	case preinstall.ErrorKindVARSuppliedDriversPresent:
+		convKind = client.ErrorKindVARSuppliedDriversPresent
+	case preinstall.ErrorKindSysPrepApplicationsPresent:
+		convKind = client.ErrorKindSysPrepApplicationsPresent
+	case preinstall.ErrorKindAbsolutePresent:
+		convKind = client.ErrorKindAbsolutePresent
+	case preinstall.ErrorKindInvalidSecureBootMode:
+		convKind = client.ErrorKindInvalidSecureBootMode
+	case preinstall.ErrorKindWeakSecureBootAlgorithmsDetected:
+		convKind = client.ErrorKindWeakSecureBootAlgorithmsDetected
+	case preinstall.ErrorKindPreOSDigestVerificationDetected:
+		convKind = client.ErrorKindPreOSDigestVerificationDetected
+	default:
+		return client.ErrorKindNone, fmt.Errorf("unknown preinstall error kind %s", kind)
+	}
+
+	return convKind, nil
+}
+
+func convertErrorActions(actions []preinstall.Action) ([]client.PreinstallAction, error) {
+	convActions := make([]client.PreinstallAction, len(actions))
+
+	for _, action := range actions {
+
+		switch action {
+		case preinstall.ActionNone:
+			convActions = append(convActions, client.ActionNone)
+		case preinstall.ActionReboot:
+			convActions = append(convActions, client.ActionReboot)
+		case preinstall.ActionShutdown:
+			convActions = append(convActions, client.ActionShutdown)
+		case preinstall.ActionRebootToFWSettings:
+			convActions = append(convActions, client.ActionRebootToFWSettings)
+		case preinstall.ActionContactOEM:
+			convActions = append(convActions, client.ActionContactOEM)
+		case preinstall.ActionContactOSVendor:
+			convActions = append(convActions, client.ActionContactOSVendor)
+		default:
+			return []client.PreinstallAction{}, fmt.Errorf("unknown preinstall action %s", action)
+		}
+	}
+
+	return convActions, nil
+}
+
+func PreinstallCheck() error {
 	// do not customize preinstall checks
 	checkCustomizationFlags := preinstall.CheckFlags(0)
 	// do not customize TCG compliant PCR profile generation
 	profileOptionFlags := preinstall.PCRProfileOptionsFlags(0)
-        // no image required because we avoid profile option flags WithBootManagerCodeProfile and WithSecureBootPolicyProfile	
+	// no image required because we avoid profile option flags WithBootManagerCodeProfile and WithSecureBootPolicyProfile
 	loadedImages := []secboot_efi.Image{}
 	checksContext := preinstallNewRunChecksContext(checkCustomizationFlags, loadedImages, profileOptionFlags)
-	
+
 	// no actions args due to no actions for preinstall checks
 	args := []any{}
-        _, compoundError := preinstallRun(checksContext, context.Background(), preinstall.ActionNone, args)
-	return unwrapCompoundError(compoundError)
+	_, compoundError := preinstallRun(checksContext, context.Background(), preinstall.ActionNone, args)
+	return convertCompoundError(compoundError)
 }

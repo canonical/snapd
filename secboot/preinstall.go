@@ -16,18 +16,4 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
  */
-
 package secboot
-
-import (
-	"encoding/json"
-)
-
-// PreinstallErrorAndActions descripes a single preinstall check error along
-// with corresponding suggested actions when available
-type ErrorAndActions struct {
-        Kind    ErrorKind       `json:"kind"`
-        Message string          `json:"message"`
-        Args    json.RawMessage `json:"args, omitempty"`
-        Actions []ErrorAction   `json:"actions, omitempty"`
-}
