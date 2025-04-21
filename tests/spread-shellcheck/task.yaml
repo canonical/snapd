@@ -1,5 +1,11 @@
 summary: smoke test for the spread-shellcheck tool
 
+details: |
+    Check the spread-shellcheck properly runs the shellcheck
+    tool in all the sections of the spread tasks. Also check the
+    tool can run in a directory tree and skips checks when
+    it finds "shellcheck disable".
+
 backends: [google]
 
 systems: [ ubuntu-20.04-64 ]

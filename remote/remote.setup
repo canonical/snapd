@@ -4,7 +4,7 @@ CFG_FILE="${REMOTE_CFG_FILE:-$(pwd)/remote.setup.cfg}"
 
 show_help() {
     echo "usage: remote.setup config --host <host> --port <port> --user <USER> [--pass <PASS>] [--cert <CERT>]"
-    echo "usage: remote.setup get-config-path"
+    echo "       remote.setup get-config-path"
     echo ""
     echo "Available options:"
     echo "  -h --help   show this help message."

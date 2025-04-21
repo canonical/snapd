@@ -1,0 +1,81 @@
+2024-04-26 16:38:41 Error executing google:ubuntu-core-20-64:tests/main/snap-quota-thread (apr261545-458974) :
+-----
++ '[' 1 '!=' 1 ']'
++ . /home/gopath/src/github.com/snapcore/snapd/tests/lib/state.sh
+++ SNAPD_STATE_PATH=/var/tmp/snapd-tools/snapd-state
+++ SNAPD_STATE_FILE=/var/tmp/snapd-tools/snapd-state/snapd-state.tar
+++ SNAPD_ACTIVE_UNITS=/var/tmp/snapd-tools/runtime-state/snapd-active-units
++ . /home/gopath/src/github.com/snapcore/snapd/tests/lib/systems.sh
++ echo '# System information'
+# System information
++ cat /etc/os-release
+NAME="Ubuntu Core"
+VERSION="20"
+ID=ubuntu-core
+PRETTY_NAME="Ubuntu Core 20"
+VERSION_ID="20"
+HOME_URL="https://snapcraft.io/"
+BUG_REPORT_URL="https://bugs.launchpad.net/snappy/"
++ echo '# Kernel information'
+# Kernel information
++ uname -a
+Linux ubuntu 5.4.0-177-generic #197-Ubuntu SMP Thu Mar 28 22:45:47 UTC 2024 x86_64 x86_64 x86_64 GNU/Linux
++ echo '# Apparmor information'
+# Apparmor information
++ apparmor_parser --version
+AppArmor parser version 2.13.3
+Apr 25 16:56:53 ubuntu audit[17276]: SECCOMP auid=1001 uid=0 gid=0 ses=79 pid=17276 comm="curl" exe="/snap/test-snapd-curl/27/usr/bin/curl" sig=0 arch=c000003e syscall=55 compat=0 ip=0x7ff1c6d2e73a code=0x7ffc0000
+Apr 25 16:56:53 ubuntu audit[17276]: SECCOMP auid=1001 uid=0 gid=0 ses=79 pid=17276 comm="curl" exe="/snap/test-snapd-curl/27/usr/bin/curl" sig=0 arch=c000003e syscall=52 compat=0 ip=0x7ff1c6d2e6d7 code=0x7ffc0000
+Apr 25 16:56:53 ubuntu audit[17276]: SECCOMP auid=1001 uid=0 gid=0 ses=79 pid=17276 comm="curl" exe="/snap/test-snapd-curl/27/usr/bin/curl" sig=0 arch=c000003e syscall=51 compat=0 ip=0x7ff1c6d2e707 code=0x7ffc0000
+Apr 25 16:56:53 ubuntu audit[17276]: SECCOMP auid=1001 uid=0 gid=0 ses=79 pid=17276 comm="curl" exe="/snap/test-snapd-curl/27/usr/bin/curl" sig=0 arch=c000003e syscall=44 compat=0 ip=0x7ff1c700ea5a code=0x7ffc0000
+Apr 25 16:56:53 ubuntu audit[17276]: SECCOMP auid=1001 uid=0 gid=0 ses=79 pid=17276 comm="curl" exe="/snap/test-snapd-curl/27/usr/bin/curl" sig=0 arch=c000003e syscall=7 compat=0 ip=0x7ff1c6d20b84 code=0x7ffc0000
+Apr 25 16:56:53 ubuntu audit[17276]: SECCOMP auid=1001 uid=0 gid=0 ses=79 pid=17276 comm="curl" exe="/snap/test-snapd-curl/27/usr/bin/curl" sig=0 arch=c000003e syscall=13 compat=0 ip=0x7ff1c700fa4d code=0x7ffc0000
+Apr 25 16:56:53 ubuntu audit[17276]: SECCOMP auid=1001 uid=0 gid=0 ses=79 pid=17276 comm="curl" exe="/snap/test-snapd-curl/27/usr/bin/curl" sig=0 arch=c000003e syscall=7 compat=0 ip=0x7ff1c6d20b84 code=0x7ffc0000
+Apr 25 16:56:53 ubuntu audit[17276]: SECCOMP auid=1001 uid=0 gid=0 ses=79 pid=17276 comm="curl" exe="/snap/test-snapd-curl/27/usr/bin/curl" sig=0 arch=c000003e syscall=13 compat=0 ip=0x7ff1c700fa4d code=0x7ffc0000
+Apr 25 16:56:53 ubuntu audit[17276]: SECCOMP auid=1001 uid=0 gid=0 ses=79 pid=17276 comm="curl" exe="/snap/test-snapd-curl/27/usr/bin/curl" sig=0 arch=c000003e syscall=13 compat=0 ip=0x7ff1c700fa4d code=0x7ffc0000
+Apr 25 16:56:53 ubuntu audit[17276]: SECCOMP auid=1001 uid=0 gid=0 ses=79 pid=17276 comm="curl" exe="/snap/test-snapd-curl/27/usr/bin/curl" sig=0 arch=c000003e syscall=7 compat=0 ip=0x7ff1c6d20b84 code=0x7ffc0000
+Apr 25 16:56:53 ubuntu audit[17276]: SECCOMP auid=1001 uid=0 gid=0 ses=79 pid=17276 comm="curl" exe="/snap/test-snapd-curl/27/usr/bin/curl" sig=0 arch=c000003e syscall=13 compat=0 ip=0x7ff1c700fa4d code=0x7ffc0000
+Apr 25 16:56:53 ubuntu audit[17276]: SECCOMP auid=1001 uid=0 gid=0 ses=79 pid=17276 comm="curl" exe="/snap/test-snapd-curl/27/usr/bin/curl" sig=0 arch=c000003e syscall=7 compat=0 ip=0x7ff1c6d20b84 code=0x7ffc0000
+Apr 25 16:56:53 ubuntu audit[17276]: SECCOMP auid=1001 uid=0 gid=0 ses=79 pid=17276 comm="curl" exe="/snap/test-snapd-curl/27/usr/bin/curl" sig=0 arch=c000003e syscall=13 compat=0 ip=0x7ff1c700fa4d code=0x7ffc0000
+Apr 25 16:56:53 ubuntu audit[17276]: SECCOMP auid=1001 uid=0 gid=0 ses=79 pid=17276 comm="curl" exe="/snap/test-snapd-curl/27/usr/bin/curl" sig=0 arch=c000003e syscall=13 compat=0 ip=0x7ff1c700fa4d code=0x7ffc0000
+Apr 25 16:56:53 ubuntu audit[17276]: SECCOMP auid=1001 uid=0 gid=0 ses=79 pid=17276 comm="curl" exe="/snap/test-snapd-curl/27/usr/bin/curl" sig=0 arch=c000003e syscall=7 compat=0 ip=0x7ff1c6d20b84 code=0x7ffc0000
+Apr 25 16:56:53 ubuntu audit[17276]: SECCOMP auid=1001 uid=0 gid=0 ses=79 pid=17276 comm="curl" exe="/snap/test-snapd-curl/27/usr/bin/curl" sig=0 arch=c000003e syscall=45 compat=0 ip=0x7ff1c700e8da code=0x7ffc0000
+Apr 25 16:56:53 ubuntu audit[17276]: SECCOMP auid=1001 uid=0 gid=0 ses=79 pid=17276 comm="curl" exe="/snap/test-snapd-curl/27/usr/bin/curl" sig=0 arch=c000003e syscall=5 compat=0 ip=0x7ff1c6d1b773 code=0x7ffc0000
+Apr 25 16:56:53 ubuntu audit[17276]: SECCOMP auid=1001 uid=0 gid=0 ses=79 pid=17276 comm="curl" exe="/snap/test-snapd-curl/27/usr/bin/curl" sig=0 arch=c000003e syscall=1 compat=0 ip=0x7ff1c6d1c104 code=0x7ffc0000
+Apr 25 16:56:53 ubuntu audit[17276]: SECCOMP auid=1001 uid=0 gid=0 ses=79 pid=17276 comm="curl" exe="/snap/test-snapd-curl/27/usr/bin/curl" sig=0 arch=c000003e syscall=1 compat=0 ip=0x7ff1c6d1c104 code=0x7ffc0000
+Apr 25 16:56:53 ubuntu audit[17276]: SECCOMP auid=1001 uid=0 gid=0 ses=79 pid=17276 comm="curl" exe="/snap/test-snapd-curl/27/usr/bin/curl" sig=0 arch=c000003e syscall=1 compat=0 ip=0x7ff1c6d1c104 code=0x7ffc0000
+Apr 25 16:56:53 ubuntu audit[17276]: SECCOMP auid=1001 uid=0 gid=0 ses=79 pid=17276 comm="curl" exe="/snap/test-snapd-curl/27/usr/bin/curl" sig=0 arch=c000003e syscall=1 compat=0 ip=0x7ff1c6d1c104 code=0x7ffc0000
+Apr 25 16:56:53 ubuntu audit[17276]: SECCOMP auid=1001 uid=0 gid=0 ses=79 pid=17276 comm="curl" exe="/snap/test-snapd-curl/27/usr/bin/curl" sig=0 arch=c000003e syscall=1 compat=0 ip=0x7ff1c6d1c104 code=0x7ffc0000
+Apr 25 16:56:53 ubuntu audit[17276]: SECCOMP auid=1001 uid=0 gid=0 ses=79 pid=17276 comm="curl" exe="/snap/test-snapd-curl/27/usr/bin/curl" sig=0 arch=c000003e syscall=13 compat=0 ip=0x7ff1c700fa4d code=0x7ffc0000
+Apr 25 16:56:53 ubuntu audit[17276]: SECCOMP auid=1001 uid=0 gid=0 ses=79 pid=17276 comm="curl" exe="/snap/test-snapd-curl/27/usr/bin/curl" sig=0 arch=c000003e syscall=13 compat=0 ip=0x7ff1c700fa4d code=0x7ffc0000
+Apr 25 16:56:53 ubuntu audit[17276]: SECCOMP auid=1001 uid=0 gid=0 ses=79 pid=17276 comm="curl" exe="/snap/test-snapd-curl/27/usr/bin/curl" sig=0 arch=c000003e syscall=1 compat=0 ip=0x7ff1c6d1c104 code=0x7ffc0000
+Apr 25 16:56:53 ubuntu audit[17276]: SECCOMP auid=1001 uid=0 gid=0 ses=79 pid=17276 comm="curl" exe="/snap/test-snapd-curl/27/usr/bin/curl" sig=0 arch=c000003e syscall=13 compat=0 ip=0x7ff1c700fa4d code=0x7ffc0000
+Apr 25 16:56:53 ubuntu audit[17276]: SECCOMP auid=1001 uid=0 gid=0 ses=79 pid=17276 comm="curl" exe="/snap/test-snapd-curl/27/usr/bin/curl" sig=0 arch=c000003e syscall=13 compat=0 ip=0x7ff1c700fa4d code=0x7ffc0000
+Apr 25 16:56:53 ubuntu audit[17276]: SECCOMP auid=1001 uid=0 gid=0 ses=79 pid=17276 comm="curl" exe="/snap/test-snapd-curl/27/usr/bin/curl" sig=0 arch=c000003e syscall=13 compat=0 ip=0x7ff1c700fa4d code=0x7ffc0000
+Apr 25 16:56:53 ubuntu audit[17276]: SECCOMP auid=1001 uid=0 gid=0 ses=79 pid=17276 comm="curl" exe="/snap/test-snapd-curl/27/usr/bin/curl" sig=0 arch=c000003e syscall=13 compat=0 ip=0x7ff1c700fa4d code=0x7ffc0000
+Apr 25 16:56:53 ubuntu audit[17276]: SECCOMP auid=1001 uid=0 gid=0 ses=79 pid=17276 comm="curl" exe="/snap/test-snapd-curl/27/usr/bin/curl" sig=0 arch=c000003e syscall=3 compat=0 ip=0x7ff1c700e511 code=0x7ffc0000
+Apr 25 16:56:53 ubuntu audit[17276]: SECCOMP auid=1001 uid=0 gid=0 ses=79 pid=17276 comm="curl" exe="/snap/test-snapd-curl/27/usr/bin/curl" sig=0 arch=c000003e syscall=13 compat=0 ip=0x7ff1c700fa4d code=0x7ffc0000
+Apr 25 16:56:53 ubuntu audit[17276]: SECCOMP auid=1001 uid=0 gid=0 ses=79 pid=17276 comm="curl" exe="/snap/test-snapd-curl/27/usr/bin/curl" sig=0 arch=c000003e syscall=13 compat=0 ip=0x7ff1c700fa4d code=0x7ffc0000
+Apr 25 16:56:53 ubuntu audit[17276]: SECCOMP auid=1001 uid=0 gid=0 ses=79 pid=17276 comm="curl" exe="/snap/test-snapd-curl/27/usr/bin/curl" sig=0 arch=c000003e syscall=13 compat=0 ip=0x7ff1c700fa4d code=0x7ffc0000
+Apr 25 16:56:53 ubuntu audit[17276]: SECCOMP auid=1001 uid=0 gid=0 ses=79 pid=17276 comm="curl" exe="/snap/test-snapd-curl/27/usr/bin/curl" sig=0 arch=c000003e syscall=13 compat=0 ip=0x7ff1c700fa4d code=0x7ffc0000
+Apr 25 16:56:53 ubuntu audit[17276]: SECCOMP auid=1001 uid=0 gid=0 ses=79 pid=17276 comm="curl" exe="/snap/test-snapd-curl/27/usr/bin/curl" sig=0 arch=c000003e syscall=13 compat=0 ip=0x7ff1c700fa4d code=0x7ffc0000
+Apr 25 16:56:53 ubuntu audit[17276]: SECCOMP auid=1001 uid=0 gid=0 ses=79 pid=17276 comm="curl" exe="/snap/test-snapd-curl/27/usr/bin/curl" sig=0 arch=c000003e syscall=202 compat=0 ip=0x7ff1c700c92e code=0x7ffc0000
+Apr 25 16:56:53 ubuntu audit[17276]: SECCOMP auid=1001 uid=0 gid=0 ses=79 pid=17276 comm="curl" exe="/snap/test-snapd-curl/27/usr/bin/curl" sig=0 arch=c000003e syscall=5 compat=0 ip=0x7ff1c6d1b773 code=0x7ffc0000
+Apr 25 16:56:53 ubuntu audit[17276]: SECCOMP auid=1001 uid=0 gid=0 ses=79 pid=17276 comm="curl" exe="/snap/test-snapd-curl/27/usr/bin/curl" sig=0 arch=c000003e syscall=5 compat=0 ip=0x7ff1c6d1b773 code=0x7ffc0000
+Apr 25 16:56:53 ubuntu audit[17276]: SECCOMP auid=1001 uid=0 gid=0 ses=79 pid=17276 comm="curl" exe="/snap/test-snapd-curl/27/usr/bin/curl" sig=0 arch=c000003e syscall=5 compat=0 ip=0x7ff1c6d1b773 code=0x7ffc0000
+Apr 25 16:56:53 ubuntu audit[17276]: SECCOMP auid=1001 uid=0 gid=0 ses=79 pid=17276 comm="curl" exe="/snap/test-snapd-curl/27/usr/bin/curl" sig=0 arch=c000003e syscall=231 compat=0 ip=0x7ff1c6cf0ab6 code=0x7ffc0000
+Apr 25 16:56:53 ubuntu snapd[16017]: logger.go:93: DEBUG: pid=17276;uid=0;socket=/run/snapd.socket; GET /v2/changes?select=all 955.32µs 200
+Apr 25 16:56:53 ubuntu systemd[1]: snap.test-snapd-curl.curl-9e260fd8-e6ab-4b2a-82af-1c5db658cd84.scope: Succeeded.
+Apr 25 16:56:53 ubuntu sudo[14547]: pam_unix(sudo:session): session closed for user root
+Apr 25 16:56:53 ubuntu systemd[1]: snap.jq.jq-6dd86506-7d6f-4009-9ea0-77b6c34c607b.scope: Succeeded.
+Apr 25 16:56:53 ubuntu sudo[17324]: external : TTY=unknown ; *** ; USER=root ; COMMAND=/bin/bash -c /bin/bash -
+Apr 25 16:56:53 ubuntu sudo[17324]: pam_unix(sudo:session): session opened for user root by (uid=0)
+Apr 25 16:56:53 ubuntu systemd-journald[13548]: Runtime Journal (/run/log/journal/b40777928f53498d900b3982055b5893) is 45.7M, max 79.2M, 33.5M free.
+Apr 25 16:56:53 ubuntu snapd[16017]: logger.go:93: DEBUG: pid=17362;uid=0;socket=/run/snapd.socket; GET /v2/connections?select=all 521.714µs 200
++ echo '# tasks executed on system'
+# tasks executed on system
++ echo ''
++ cat /var/tmp/snapd-tools/runtime-state/runs -
+EXECUTED_TESTS=google:ubuntu-16.04-64:tests/main/interfaces-many-snap-provided google:ubuntu-16.04-64:tests/main/snap-seccomp google:ubuntu-16.04-64:tests/main/install-hook-misbehaving google:ubuntu-16.04-64:tests/main/security-device-cgroups-helper google:ubuntu-16.04-64:tests/main/interfaces-device-buttons google:ubuntu-16.04-64:tests/main/upgrade-from-2.15 google:ubuntu-16.04-64:tests/main/buildmode google:ubuntu-16.04-64:tests/main/snapshot-basic google:ubuntu-16.04-64:tests/main/system-usernames:_daemon_ google:ubuntu-16.04-64:tests/main/try-snap-goes-away:test_snapd_tools google:ubuntu-16.04-64:tests/main/interfaces-accounts-service google:ubuntu-16.04-64:tests/main/snap-run-userdata-current google:ubuntu-16.04-64:tests/main/snapd-update-services google:ubuntu-16.04-64:tests/main/remove-errors google:ubuntu-16.04-64:tests/main/mounts-persist-refresh-content-snap google:ubuntu-16.04-64:tests/main/parallel-install-auto-aliases google:ubuntu-16.04-64:tests/main/install-errors:withreexec google:ubuntu-16.04-64:tests/main/searching google:ubuntu-16.04-64:tests/main/interfaces-mount-control google:ubuntu-16.04-64:tests/main/services-after-before-install google:ubuntu-16.04-64:tests/main/system-usernames-illegal google:ubuntu-16.04-64:tests/main/interfaces-system-files google:ubuntu-16.04-64:tests/main/interfaces-desktop-launch google:ubuntu-16.04-64:tests/main/snap-env:regular google:ubuntu-16.04-64:tests/main/refresh-devmode:remote google:ubuntu-16.04-64:tests/main/snapd-sigterm google:ubuntu-16.04-64:tests/main/interfaces-browser-support:disallow google:ubuntu-16.04-64:tests/main/install-store:reexec1 google:ubuntu-16.04-64:tests/main/parallel-install-aliases google:ubuntu-16.04-64:tests/main/user-data-handling google:ubuntu-16.04-64:tests/main/interfaces-shutdown-introspection google:ubuntu-16.04-64:tests/main/refresh:classic_remote google:ubuntu-16.04-64:tests/main/system-users-are-created:snap_daemon google:ubuntu-16.04-64:tests/main/snap-update-ns google:ubuntu-16.04-64:tests/main/find-private google:ubuntu-16.04-64:tests/main/interfaces-adb-support google:ubuntu-16.04-64:tests/main/interfaces-system-observe google:ubuntu-16.04-64:tests/main/refresh-devmode:fake google:ubuntu-16.04-64:tests/main/interfaces-content google:ubuntu-16.04-64:tests/main/server-snap:pythonServer google:ubuntu-16.04-64:tests/main/retry-network google:ubuntu-16.04-64:tests/main/snap-run-devmode-classic:core_first google:ubuntu-16.04-64:tests/main/system-core-alias google:ubuntu-16.04-64:tests/main/snap-run-devmode-classic:snapd_first
+echo ''
+------

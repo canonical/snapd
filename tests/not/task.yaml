@@ -1,6 +1,8 @@
 summary: test for the not tool
 
-backends: [google]
+details: |
+    Check the not tool works the same as the logical not (!).
+
 
 execute: |
     not false && echo test | MATCH test

@@ -23,12 +23,13 @@ SUPPORTED_KEYS = [
     "warn-timeout",
     "kill-timeout",
     "environment",
+    "artifacts",
     "prepare",
     "restore",
     "debug",
     "execute",
 ]
-MANDATORY_KEYS = ["summary", "execute"]
+MANDATORY_KEYS = ["summary", "details", "execute"]
 
 
 def check_mandatory_keys(task_keys):
@@ -92,7 +93,6 @@ def check_task_format(filepath):
 
     return True
 
-
 def check_dir(directory):
     if not os.path.isdir(directory):
         print("Format checks failed for directory {}".format(directory))
@@ -106,11 +106,27 @@ def check_dir(directory):
 
     return status
 
+def check_tests(tests):
+    status = True
+    for test in tests:
+        if not os.path.isfile(test):
+            print("Format checks failed for test {}".format(test))
+            print(" - The path is not a file")
+            status = False
+            continue
+
+        if not check_task_format(test):
+            status = False
+
+    return status
 
 def _make_parser():
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        "directory", help="path to the directory to check recursively"
+        "--dir", help="path to the directory to check recursively"
+    )
+    parser.add_argument(
+        "--tests", help="list of tests path to check", nargs='+'
     )
     return parser
 
@@ -119,8 +135,16 @@ def main():
     parser = _make_parser()
     args = parser.parse_args()
 
-    sys.exit(not check_dir(args.directory))
+    status = 0
+    if args.tests:
+        if not check_tests(args.tests):
+            status = 1
 
+    if args.dir:
+        if not check_dir(args.dir):
+            status = 1
+
+    sys.exit(status)
 
 if __name__ == "__main__":
     main()
