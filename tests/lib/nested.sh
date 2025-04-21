@@ -20,6 +20,8 @@
 : "${NESTED_UBUNTU_IMAGE_SNAPPY_FORCE_SAS_URL:=}"
 : "${NESTED_UBUNTU_IMAGE_PRESEED_KEY:=}"
 : "${NESTED_UBUNTU_SEED_SIZE:=}"
+: "${NESTED_KEEP_FIRMWARE_STATE:=}"
+: "${NESTED_BIOS_FILE:=}"
 
 : "${NESTED_DISK_PHYSICAL_BLOCK_SIZE:=512}"
 : "${NESTED_DISK_LOGICAL_BLOCK_SIZE:=512}"
@@ -1330,7 +1332,7 @@ nested_start_core_vm_unit() {
         OVMF_VARS="${NESTED_ASSETS_DIR}/ovmf/fw/${OVMF}_VARS.fd"
         OVMF_VARS_CURRENT="${NESTED_ASSETS_DIR}/ovmf/fw/${OVMF}_VARS.current.fd"
 
-        if [ -z "${NESTED_KEEP_FIRMWARE_STATE-}" ] || ! [ -e "${OVMF_VARS_CURRENT}" ]; then
+        if [ -z "$NESTED_KEEP_FIRMWARE_STATE" ] || ! [ -e "${OVMF_VARS_CURRENT}" ]; then
             if nested_is_secure_boot_enabled; then
                 cp -fv "${OVMF_VARS_SECBOOT}" "${OVMF_VARS_CURRENT}"
             else
