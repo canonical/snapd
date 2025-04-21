@@ -94,9 +94,9 @@ where we use the default pocket although again it might vary.
 
 # Bootchart
 
-It is possible to enable bootcharts by adding `ubuntu_core.bootchart`
-to the kernel command line. The sample collector will run until the
-systemd switches root, and the chart will be saved in `/run/log`. If
-bootcharts are also enabled for the core snap, that file will be
-eventually moved to the `ubuntu-save` partition (see Core snap
+It is possible to enable bootcharts by adding `ubuntu_core.bootchart` to the
+kernel command line. The sample collector will run saving samples in a file
+under `/run/log/` until systemd switches root. This file will be moved then to
+`/var/log/debug/boot<N>/`, `<N>` being the boot number since bootcharts were
+enabled (saved together with the log run after switch root, see base snaps
 documentation).
