@@ -15,6 +15,10 @@ cleanup() {
     kernel_name="$(snaps.name kernel)"
     core_name="$(snaps.name core)"
 
+    # remove first snapcraft to avoid reinstallation of lxd triggered by
+    # snapcraft remove hook.
+    [ -d "$snap_mount_dir"/snapcraft ] && snap remove --purge snapcraft
+
     # remove all app snaps first
     for snap in "$snap_mount_dir"/*; do
         snap="${snap:6}"
