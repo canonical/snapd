@@ -33,6 +33,8 @@ restore: |
     systemctl start snapd.service || systemctl status snapd.service || true
     retry --wait 1 -n 100 sh -x -c 'systemctl is-active snapd.service snapd.socket'
 
+    snap unset system experimental.user-daemons
+
 debug: |
     tests.exec is-skipped && exit 0
 

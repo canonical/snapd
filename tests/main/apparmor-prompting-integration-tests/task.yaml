@@ -52,7 +52,7 @@ prepare: |
 restore: |
     tests.exec is-skipped && exit 0
 
-    snap set system experimental.apparmor-prompting=false
+    snap unset system experimental.apparmor-prompting
     tests.session -u test exec sh -c 'rm -rf "/home/test/integration-tests"'
     tests.session restore -u test
 

@@ -10,6 +10,9 @@ prepare: |
     echo "Ensure feature flags are enabled"
     snap set system experimental.parallel-instances=true
 
+restore: |
+    snap unset system experimental.parallel-instances
+
 execute: |
     echo "Install the regular snap"
     "$TESTSTOOLS"/snaps-state install-local test-snapd-layout

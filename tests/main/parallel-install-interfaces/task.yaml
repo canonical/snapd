@@ -30,7 +30,7 @@ prepare: |
     fi
 
 restore: |
-    snap set system experimental.parallel-instances=null
+    snap unset system experimental.parallel-instances
 
 execute: |
     echo "The plug can be connected to a matching slot of OS snap without snap:slot argument"
