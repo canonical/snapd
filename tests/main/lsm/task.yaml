@@ -1,0 +1,70 @@
+summary: Check status of LSMs
+details: |
+  Confirm status of LSMs on various targets.
+
+systems:
+  # kernels definitely too old
+  - -ubuntu-14.04-*
+  - -ubuntu-16.04-*
+  - -ubuntu-18.04-*
+  - -ubuntu-20.04-*
+  # skip 22.04 as kernel support in inconsistent between -generic, -kvm, -gcp
+  # variants
+  - -ubuntu-22.04-*
+  # XXX skip ubuntu-22.04, kernel does not support required syscalls, but it's
+  # cheap to allocate and we still want to verity the error path
+  # UC releases matching unsupported Ubuntu releases
+  - -ubuntu-core-18-*
+  - -ubuntu-core-20-*
+  - -ubuntu-core-22-*
+
+debug: |
+   grep -n '' lsm.out || true
+
+execute: |
+  no_kernel_support=0
+  case "$SPREAD_SYSTEM" in
+      debian-11-*|debian-12-*)
+          no_kernel_support=1
+          ;;
+      centos-*)
+          no_kernel_support=1
+          ;;
+      amazon-linux-*)
+          no_kernel_support=1
+          ;;
+      opensuse-15*)
+          no_kernel_support=1
+          ;;
+  esac
+
+  if [ "$no_kernel_support" = "1" ]; then
+      # lacking kernel support
+      not snap debug lsm 2> lsm.stderr
+      MATCH 'error: function not implemented' < lsm.stderr
+      exit 0
+  else
+      snap debug lsm > lsm.out
+  fi
+
+  case "$SPREAD_SYSTEM" in
+      fedora-*|centos-*)
+          MATCH "selinux" < lsm.out
+          NOMATCH "apparmor" < lsm.out
+          MATCH 'selinux LSM context: "unconfined_u:unconfined_r:unconfined_t:s0-s0:c0.c1023"' < lsm.out
+          ;;
+      ubuntu-*|debian-*|arch-linux-*)
+          MATCH "apparmor" < lsm.out
+          NOMATCH "selinux" < lsm.out
+          MATCH 'apparmor LSM context: "unconfined"' < lsm.out
+          ;;
+      opensuse-*)
+          MATCH "apparmor" < lsm.out
+          NOMATCH "selinux" < lsm.out
+          MATCH 'apparmor LSM context: "unconfined"' < lsm.out
+          ;;
+      *)
+          echo "unsupported $SPREAD_SYSTEM"
+          exit 1
+          ;;
+  esac
