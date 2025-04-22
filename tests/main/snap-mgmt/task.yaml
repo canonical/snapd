@@ -12,6 +12,9 @@ backends: [-autopkgtest]
 # purging everything on core devices will not work
 systems: [-ubuntu-core-*]
 
+environment:
+    PURGE_SNAPD: true
+
 prepare: |
     # TODO: unify this with tests/main/postrm-purge/task.yaml
 

@@ -17,6 +17,7 @@ environment:
     SNAPD_NO_MEMORY_LIMIT: 1
     SNAPD_SRC/core: "core"
     SNAPD_SRC/snapd: "snapd"
+    PURGE_SNAPD: true
 
 prepare: |
     if [ "${SNAP_REEXEC:-}" = "0" ]; then

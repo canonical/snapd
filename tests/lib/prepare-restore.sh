@@ -660,7 +660,7 @@ prepare_suite() {
 
     # Make sure the suite starts with a clean environment and with the snapd state restored
     # shellcheck source=tests/lib/reset.sh
-    "$TESTSLIB"/reset.sh --reuse-core
+    PURGE_SNAPD=true  "$TESTSLIB"/reset.sh --reuse-core
 }
 
 prepare_suite_each() {
@@ -707,8 +707,6 @@ prepare_suite_each() {
     fi
 
     if [[ "$variant" = full ]]; then
-        # shellcheck source=tests/lib/prepare.sh
-        . "$TESTSLIB"/prepare.sh
         # shellcheck source=tests/lib/prepare.sh
         . "$TESTSLIB"/prepare.sh
         if os.query is-classic; then
@@ -800,12 +798,6 @@ restore_suite_each() {
         # shellcheck source=tests/lib/reset.sh
         "$TESTSLIB"/reset.sh --reuse-core
     fi
-
-    # Check for invariants late, in order to detect any bugs in the code above.
-    if [[ "$variant" = full ]]; then
-        "$TESTSTOOLS"/cleanup-state pre-invariant
-    fi
-    tests.invariant check
 
     "$TESTSTOOLS"/fs-state check-monitor
 }

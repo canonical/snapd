@@ -79,6 +79,8 @@ environment:
     EXPERIMENTAL_FEATURES: '$(HOST: echo "${SPREAD_EXPERIMENTAL_FEATURES:-}")'
     # set to 1 when the snapd memory limit has to be removed
     SNAPD_NO_MEMORY_LIMIT: '$(HOST: echo "${SPREAD_SNAPD_NO_MEMORY_LIMIT:-}")'
+    # set to true when the snapd package has to be purged during reset
+    PURGE_SNAPD: '$(HOST: echo "${SPREAD_PURGE_SNAPD:-false}")'
 
     # Use the snapd package from the repository when possible
     SNAPD_DEB_FROM_REPO: '$(HOST: echo "${SPREAD_SNAPD_DEB_FROM_REPO:-true}")'
@@ -377,7 +379,7 @@ backends:
                 workers: 8
             - ubuntu-24.04-64:
                 image: snapd-spread/ubuntu-24.04-64
-                workers: 8
+                workers: 1
 
             - ubuntu-core-20-64:
                 image: snapd-spread/ubuntu-20.04-64

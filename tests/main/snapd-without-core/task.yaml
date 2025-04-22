@@ -12,6 +12,7 @@ systems: [ubuntu-1*-64, ubuntu-2*-64]
 environment:
     # uploading large snap triggers OOM
     SNAPD_NO_MEMORY_LIMIT: 1
+    PURGE_SNAPD: true
 
 restore: |
     rm -f /tmp/snapd_*.snap

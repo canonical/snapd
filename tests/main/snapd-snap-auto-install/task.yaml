@@ -7,6 +7,9 @@ details: |
 # not testing on ubuntu-core because we have core/snapd installed there
 systems: [-ubuntu-core-*]
 
+environment:
+    PURGE_SNAPD: true
+
 restore: |
     snap remove --purge test-snapd-sh-core18
 

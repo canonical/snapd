@@ -6,6 +6,9 @@ details: |
 
 systems: [-ubuntu-core-*]
 
+environment:
+    PURGE_SNAPD: true
+
 execute: |
     if snap list core ; then
         echo "Ensure we have no core"
