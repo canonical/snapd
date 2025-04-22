@@ -38,7 +38,7 @@
         "alternative-backend": "google-nested-arm",
         "systems": "ubuntu-24.04-arm-64",
         "tasks": "tests/nested/core/core20-basic",
-        "rules": "nested-arm"
+        "rules": ""
       }
    ]
 }
