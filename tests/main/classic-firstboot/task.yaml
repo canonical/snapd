@@ -12,6 +12,7 @@ systems: [-ubuntu-core-*]
 
 environment:
     SEED_DIR: /var/lib/snapd/seed
+    PURGE_SNAPD: true
 
 prepare: |
     # In this scenario, the keys from the snapd pkg are used

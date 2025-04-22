@@ -11,6 +11,7 @@ systems: [-ubuntu-core-*, -ubuntu-14.04-*]
 
 environment:
     SEED_DIR: /var/lib/snapd/seed
+    PURGE_SNAPD: true
 
 prepare: |
     if [ "$TRUST_TEST_KEYS" = "false" ]; then
