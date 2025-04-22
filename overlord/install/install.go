@@ -178,6 +178,15 @@ func MockSecbootCheckTPMKeySealingSupported(f func(tpmMode secboot.TPMProvisionM
 	}
 }
 
+// MockSecbootPreinstallCheck mocks secboot.PreinstallCheck usage by the package for testing.
+func MockSecbootPreinstallCheck(f func() error) (restore func()) {
+	old := secbootPreinstallCheck
+	secbootPreinstallCheck = f
+	return func() {
+		secbootPreinstallCheck = old
+	}
+}
+
 func checkPassphraseSupportedByTargetSystem(sysVer *SystemSnapdVersions) (bool, error) {
 	const minSnapdVersion = "2.68"
 	if sysVer == nil {

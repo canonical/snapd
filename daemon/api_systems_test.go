@@ -57,6 +57,7 @@ import (
 	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
+	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/seed"
 	"github.com/snapcore/snapd/seed/seedtest"
 	"github.com/snapcore/snapd/snap"
@@ -313,7 +314,7 @@ func (s *systemsSuite) TestSystemsGetNone(c *check.C) {
 }
 
 func (s *systemsSuite) TestSystemActionRequestErrors(c *check.C) {
-	// modenev must be mocked before daemon is initialized
+	// modeenv must be mocked before daemon is initialized
 	m := boot.Modeenv{
 		Mode: "run",
 	}
@@ -993,7 +994,9 @@ func (s *systemsSuite) TestSystemsGetSpecificLabelIntegration(c *check.C) {
 		encInfo.Available = false
 		encInfo.StorageSafety = asserts.StorageSafetyPreferEncrypted
 		encInfo.UnavailableWarning = "not encrypting device storage as checking TPM gave: some reason"
-
+		// XXX: Create helper that can populate more comprehensive compound
+		// error to exercise happy path error unpacking including args and actions
+		encInfo.PreinstallCheckErr = fmt.Errorf("trigger internal error")
 		return sys, gadgetInfo, encInfo, err
 	})
 	defer r()
@@ -1024,6 +1027,12 @@ func (s *systemsSuite) TestSystemsGetSpecificLabelIntegration(c *check.C) {
 			Support:           "unavailable",
 			StorageSafety:     "prefer-encrypted",
 			UnavailableReason: "not encrypting device storage as checking TPM gave: some reason",
+			PreinstallCheck: []secboot.PreinstallErrorAndActions{
+				{
+					Kind:    "internal-error",
+					Message: "cannot convert error of unexpected type *errors.errorString (trigger internal error)",
+				},
+			},
 		},
 		Volumes: map[string]*gadget.Volume{
 			"pc": {

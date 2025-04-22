@@ -660,6 +660,14 @@ func (s *deviceMgrInstallModeSuite) doRunChangeTestWithEncryption(c *C, grade st
 		}
 	})
 	defer restore()
+	restore = installLogic.MockSecbootPreinstallCheck(func() error {
+		if tc.tpm {
+			return nil
+		} else {
+			return fmt.Errorf("preinstall check error: TPM not available")
+		}
+	})
+	defer restore()
 
 	if tc.trustedBootloader {
 		tab := bootloadertest.Mock("trusted", bootloaderRootdir).WithTrustedAssets()
@@ -1828,6 +1836,8 @@ func (s *deviceMgrInstallModeSuite) testInstallEncryptionValidityChecks(c *C, er
 
 	restore = installLogic.MockSecbootCheckTPMKeySealingSupported(func(secboot.TPMProvisionMode) error { return nil })
 	defer restore()
+	restore = installLogic.MockSecbootPreinstallCheck(func() error { return nil })
+	defer restore()
 
 	err := os.WriteFile(filepath.Join(dirs.GlobalRootDir, "/var/lib/snapd/modeenv"),
 		[]byte("mode=install\n"), 0644)
@@ -2016,6 +2026,8 @@ func (s *deviceMgrInstallModeSuite) TestInstallWithEncryptionValidatesGadgetErr(
 		return nil
 	})
 	defer restore()
+	restore = installLogic.MockSecbootPreinstallCheck(func() error { return nil })
+	defer restore()
 
 	// must be a model that requires encryption to error
 	s.testInstallGadgetNoSave(c, "secured")
@@ -2044,6 +2056,8 @@ func (s *deviceMgrInstallModeSuite) TestInstallWithEncryptionValidatesGadgetWarn
 
 	// pretend we have a TPM
 	restore = installLogic.MockSecbootCheckTPMKeySealingSupported(func(secboot.TPMProvisionMode) error { return nil })
+	defer restore()
+	restore = installLogic.MockSecbootPreinstallCheck(func() error { return nil })
 	defer restore()
 
 	s.testInstallGadgetNoSave(c, "dangerous")
@@ -2150,12 +2164,19 @@ func (s *deviceMgrInstallModeSuite) TestInstallCheckEncrypted(c *C) {
 			return fmt.Errorf("tpm says no")
 		})
 		defer restore()
+		restore = installLogic.MockSecbootPreinstallCheck(func() error {
+			if tc.hasTPM {
+				return nil
+			}
+			return fmt.Errorf("preinstall check error: tpm says no")
+		})
+		defer restore()
 
 		encryptionType, err := devicestate.DeviceManagerCheckEncryption(s.mgr, st, deviceCtx, secboot.TPMProvisionFull)
 		c.Assert(err, IsNil)
 		c.Check(encryptionType, Equals, tc.encryptionType, Commentf("%v", tc))
 		if !tc.hasTPM && !tc.hasFDESetupHook {
-			c.Check(logbuf.String(), Matches, ".*: not encrypting device storage as checking TPM gave: tpm says no\n")
+			c.Check(logbuf.String(), Matches, ".*: not encrypting device storage as checking TPM gave: preinstall check error: tpm says no\n")
 		}
 		logbuf.Reset()
 	}
@@ -2319,6 +2340,14 @@ func (s *deviceMgrInstallModeSuite) doRunFactoryResetChange(c *C, model *asserts
 			return nil
 		} else {
 			return fmt.Errorf("TPM not available")
+		}
+	})
+	defer restore()
+	restore = installLogic.MockSecbootPreinstallCheck(func() error {
+		if tc.tpm {
+			return nil
+		} else {
+			return fmt.Errorf("preinstall check error: TPM not available")
 		}
 	})
 	defer restore()

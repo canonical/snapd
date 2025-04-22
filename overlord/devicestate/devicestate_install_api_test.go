@@ -796,6 +796,8 @@ func (s *deviceMgrInstallAPISuite) testInstallSetupStorageEncryption(c *C, hasTP
 			return nil
 		})
 		s.AddCleanup(restore)
+		restore = installLogic.MockSecbootPreinstallCheck(func() error { return nil })
+		s.AddCleanup(restore)
 	}
 
 	// Mock encryption of partitions
@@ -1044,6 +1046,8 @@ func (s *deviceMgrInstallAPISuite) testInstallSetupStorageEncryptionPassphraseAu
 		c.Check(tpmMode, Equals, secboot.TPMProvisionFull)
 		return nil
 	})
+	s.AddCleanup(restore)
+	restore = installLogic.MockSecbootPreinstallCheck(func() error { return nil })
 	s.AddCleanup(restore)
 
 	restore = devicestate.MockInstallEncryptPartitions(func(onVolumes map[string]*gadget.Volume, volumesAuth *device.VolumesAuthOptions, encryptionType device.EncryptionType, model *asserts.Model, gadgetRoot, kernelRoot string, perfTimings timings.Measurer) (*install.EncryptionSetupData, error) {
