@@ -12,11 +12,13 @@ backends:
         systems:
             - ubuntu-14.04-64:
             - ubuntu-16.04-64:
-            - ubuntu-18.04-32:
             - ubuntu-18.04-64:
             - ubuntu-20.04-64:
+                image: ubuntu-2004-64
             - ubuntu-22.04-64:
+                image: ubuntu-2204-64
             - ubuntu-24.04-64:
+                image: ubuntu-2404-64
             - debian-11-64:
             - debian-12-64:
             - debian-sid-64:
@@ -29,7 +31,6 @@ backends:
                 storage: preserve-size
             - opensuse-15.5-64:
             - opensuse-15.6-64:
-            - opensuse-tumbleweed-64:
 
     google-nested:
         type: google
@@ -45,7 +46,7 @@ backends:
 
     openstack:
         key: '$(HOST: echo "$SPREAD_OPENSTACK_ENV")'
-        plan: staging-cpu2-ram4-disk50
+        plan: staging-cpu2-ram4-disk20
         halt-timeout: 2h
         groups: [default]
         environment:
@@ -59,12 +60,20 @@ backends:
                 image: snapd-spread/ubuntu-24.04-64
             - fedora-40-64:
                 image: snapd-spread/fedora-40-64
+            - fedora-41-64:
+                image: snapd-spread/fedora-41-64
             - opensuse-15.5-64:
                 image: snapd-spread/opensuse-15.5-64
+            - opensuse-15.6-64:
+                image: snapd-spread/opensuse-15.6-64
+            - opensuse-tumbleweed-64:
+                image: snapd-spread/opensuse-tumbleweed-64
             - centos-9-64:
                 image: snapd-spread/centos-9-64
             - debian-12-64:
                 image: snapd-spread/debian-12-64
+            - debian-sid-64:
+                image: snapd-spread/debian-sid-64
 
 path: /root/snapd-testing-tools
 
