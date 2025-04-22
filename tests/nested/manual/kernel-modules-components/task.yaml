@@ -68,6 +68,7 @@ execute: |
   boot_id=$(tests.nested boot-id)
   remote_chg_id=$(remote.exec sudo snap install --no-wait --dangerous pc-kernel.snap "$comp_file")
   tests.nested wait-for reboot "$boot_id"
+  remote.exec sudo snap watch "$remote_chg_id"
   remote.exec "snap change $remote_chg_id" | NOMATCH Error
   # Check that the module has been loaded by the udev rule
   remote.exec ip link show wlan0
@@ -77,6 +78,8 @@ execute: |
   remote_chg_id=$(remote.exec sudo snap install --no-wait --dangerous pc-kernel.snap "$comp_file")
   remote.retry --wait 1 -n 300 'sudo rm /run/mnt/ubuntu-boot/EFI/ubuntu/try-kernel.efi'
   tests.nested wait-for reboot "$boot_id"
-  remote.retry --wait 5 -n 60 "snap change $remote_chg_id | MATCH Error"
+  # Note that snap watch will end with error
+  not remote.exec sudo snap watch "$remote_chg_id"
+  remote.exec "snap change $remote_chg_id | MATCH Error"
   # Module is still loaded
   remote.exec ip link show wlan0
