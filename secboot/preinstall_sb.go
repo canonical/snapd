@@ -41,22 +41,22 @@ func convertCompoundError(err error) error {
 		if kindAndActions, ok := err.(*preinstall.ErrorKindAndActions); !ok {
 			return client.NewCompoundPreinstallError("preinstall check detected errors", kindAndActions)
 		}
-		return client.NewCompoundPreinstallError(fmt.Sprintf("cannot convert error of unexpected type %T (%v) ", reflect.TypeOf(err), err))
+		return client.NewCompoundPreinstallInternalError("cannot convert error of unexpected type %T (%v)", reflect.TypeOf(err), err)
 	}
 
 	var convErrors []error
 	for _, err := range errs.Unwrap() {
 		if kindAndActions, ok := err.(*preinstall.ErrorKindAndActions); !ok {
-			return client.NewCompoundPreinstallError(fmt.Sprintf("cannot convert error of unexpected type %T (%v)", reflect.TypeOf(err), err))
+			return client.NewCompoundPreinstallInternalError("cannot convert error of unexpected type %T (%v)", reflect.TypeOf(err), err)
 		} else {
 			convKind, convKindErr := convertErrorKind(kindAndActions.ErrorKind)
 			if convKindErr != nil {
-				return client.NewCompoundPreinstallError(fmt.Sprintf("%v (%v)", convKindErr, err))
+				return client.NewCompoundPreinstallInternalError("%v (%v)", convKindErr, err)
 			}
 
 			convActions, convActionsErr := convertErrorActions(kindAndActions.Actions)
 			if convActionsErr != nil {
-				return client.NewCompoundPreinstallError(fmt.Sprintf("%v (%v)", convActionsErr, err))
+				return client.NewCompoundPreinstallInternalError("%v (%v)", convActionsErr, err)
 			}
 
 			convErrors = append(convErrors, &client.PreinstallErrorAndActions{

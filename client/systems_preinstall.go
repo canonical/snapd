@@ -41,6 +41,14 @@ func NewCompoundPreinstallError(message string, errs ...error) error {
 	}
 }
 
+func NewCompoundPreinstallInternalError(format string, args ...any) error {
+	message := fmt.Sprintf(format, args...)
+	return NewCompoundPreinstallError(message, &PreinstallErrorAndActions{
+		Kind:    ErrorKindInternal,
+		Message: message,
+	})
+}
+
 func UnwrapCompoundPreinstallError(err error) ([]PreinstallErrorAndActions, error) {
 	compoundErr, ok := err.(*compoundPreinstallError)
 	if !ok {
