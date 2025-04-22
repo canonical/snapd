@@ -319,7 +319,8 @@ backends:
         location: snapd-spread/us-central1-a
         plan: n2-standard-2
         halt-timeout: 2h
-        cpu-family: "Intel Cascade Lake"
+        environment: 
+            NESTED_ARCHITECTURE: amd64
         systems: &google-nested-systems
             - ubuntu-16.04-64:
                   image: ubuntu-1604-64-virt-enabled
@@ -346,11 +347,20 @@ backends:
         type: google
         key: '$(HOST: echo "$SPREAD_GOOGLE_KEY")'
         location: snapd-spread/us-central1-a
-        plan: t2a-standard-2
+        plan: c4a-highcpu-4
         halt-timeout: 2h
+        environment: 
+            NESTED_ARCHITECTURE: arm64
+            NESTED_ENABLE_KVM: false
+            NESTED_ENABLE_TPM: '$(HOST: echo "${NESTED_ENABLE_TPM:-false}")'
+            NESTED_ENABLE_SECURE_BOOT: '$(HOST: echo "${NESTED_ENABLE_SECURE_BOOT:-false}")'
         systems:
             - ubuntu-22.04-arm-64:
                   image: ubuntu-2204-arm-64-virt-enabled
+                  storage: 25G
+                  workers: 8
+            - ubuntu-24.04-arm-64:
+                  image: ubuntu-2404-arm-64-virt-enabled
                   storage: 25G
                   workers: 8
 
@@ -360,7 +370,8 @@ backends:
         location: snapd-spread/northamerica-northeast1-a
         plan: n2-standard-4
         halt-timeout: 6h
-        cpu-family: "Intel Cascade Lake"
+        environment: 
+            NESTED_ARCHITECTURE: amd64
         systems: *google-nested-systems
 
     qemu-nested:
@@ -1237,12 +1248,8 @@ suites:
         prepare: |
             #shellcheck source=tests/lib/pkgdb.sh
             . "$TESTSLIB"/pkgdb.sh
-            #shellcheck source=tests/lib/image.sh
-            . "$TESTSLIB"/image.sh
-            #shellcheck source=tests/lib/core-initrd.sh
-            . "$TESTSLIB"/core-initrd.sh
-            distro_update_package_db
-            distro_install_package snapd qemu-kvm qemu-utils genisoimage sshpass cloud-image-utils ovmf kpartx xz-utils mtools ca-certificates xdelta3
+            install_pkg_dependencies
+
             if os.query is-xenial; then
                 # the new ubuntu-image expects mkfs to support -d option, which was not
                 # supported yet by the version of mkfs that shipped with Ubuntu 16.04
@@ -1251,14 +1258,10 @@ suites:
             elif os.query is-arm; then
                 snap install ubuntu-image --channel="$UBUNTU_IMAGE_SNAP_CHANNEL" --classic
             else
-               get_ubuntu_image
-            fi
-
-            if os.query is-arm; then
-                export NESTED_ARCHITECTURE=arm64
-            else
-                export NESTED_ARCHITECTURE=amd64
-            fi
+                #shellcheck source=tests/lib/image.sh
+                . "$TESTSLIB"/image.sh
+                get_ubuntu_image
+            fi  
 
             # Install the snapd built
             dpkg -i "$GOHOME"/snapd_*.deb
@@ -1268,6 +1271,8 @@ suites:
 
             # Build and install initramfs package
             if os.query is-ubuntu-ge 24.04; then
+                #shellcheck source=tests/lib/core-initrd.sh
+                . "$TESTSLIB"/core-initrd.sh
                 build_and_install_initramfs_deb
             fi
         prepare-each: |
@@ -1283,9 +1288,7 @@ suites:
             tests.nested restore
             "$TESTSLIB"/prepare-restore.sh --restore-suite-each
         restore: |
-            #shellcheck source=tests/lib/pkgdb.sh
-            . "$TESTSLIB"/pkgdb.sh
-            distro_purge_package qemu genisoimage sshpass qemu-kvm cloud-image-utils xz-utils
+            tests.nested restore
 
     tests/nested/classic/:
         summary: Tests for nested images
@@ -1306,10 +1309,8 @@ suites:
         prepare: |
             #shellcheck source=tests/lib/pkgdb.sh
             . "$TESTSLIB"/pkgdb.sh
-            #shellcheck source=tests/lib/image.sh
-            . "$TESTSLIB"/image.sh
-            distro_update_package_db
-            distro_install_package snapd qemu-kvm qemu-utils genisoimage sshpass cloud-image-utils ovmf kpartx xz-utils mtools ca-certificates xdelta3
+            install_pkg_dependencies
+
             if os.query is-xenial; then
                 # the new ubuntu-image expects mkfs to support -d option, which was not
                 # supported yet by the version of mkfs that shipped with Ubuntu 16.04
@@ -1318,13 +1319,9 @@ suites:
             elif os.query is-arm; then
                 snap install ubuntu-image --channel="$UBUNTU_IMAGE_SNAP_CHANNEL" --classic
             else
+                #shellcheck source=tests/lib/image.sh
+                . "$TESTSLIB"/image.sh
                 get_ubuntu_image
-            fi
-
-            if os.query is-arm; then
-                export NESTED_ARCHITECTURE=arm64
-            else
-                export NESTED_ARCHITECTURE=amd64
             fi
 
             # Install the snapd built
@@ -1344,10 +1341,6 @@ suites:
             "$TESTSLIB"/prepare-restore.sh --restore-suite-each
         restore: |
             tests.nested restore
-
-            #shellcheck source=tests/lib/pkgdb.sh
-            . "$TESTSLIB"/pkgdb.sh
-            distro_purge_package qemu genisoimage sshpass qemu-kvm cloud-image-utils xz-utils
 
     tests/nested/core/:
         summary: Tests for nested images
@@ -1372,12 +1365,8 @@ suites:
         prepare: |
             #shellcheck source=tests/lib/pkgdb.sh
             . "$TESTSLIB"/pkgdb.sh
-            #shellcheck source=tests/lib/image.sh
-            . "$TESTSLIB"/image.sh
-            #shellcheck source=tests/lib/core-initrd.sh
-            . "$TESTSLIB"/core-initrd.sh
-            distro_update_package_db
-            distro_install_package snapd qemu-kvm qemu-utils genisoimage sshpass cloud-image-utils ovmf kpartx xz-utils mtools ca-certificates xdelta3
+            install_pkg_dependencies
+        
             if os.query is-xenial; then
                 # the new ubuntu-image expects mkfs to support -d option, which was not
                 # supported yet by the version of mkfs that shipped with Ubuntu 16.04
@@ -1386,6 +1375,8 @@ suites:
             elif os.query is-arm; then
                 snap install ubuntu-image --channel="$UBUNTU_IMAGE_SNAP_CHANNEL" --classic
             else
+                #shellcheck source=tests/lib/image.sh
+                . "$TESTSLIB"/image.sh
                 get_ubuntu_image
             fi
 
@@ -1397,6 +1388,8 @@ suites:
 
             # Build and install initramfs package
             if os.query is-ubuntu-ge 24.04; then
+                #shellcheck source=tests/lib/core-initrd.sh
+                . "$TESTSLIB"/core-initrd.sh
                 build_and_install_initramfs_deb
             fi
 
@@ -1411,10 +1404,6 @@ suites:
             "$TESTSLIB"/prepare-restore.sh --restore-suite-each
         restore: |
             tests.nested restore
-
-            #shellcheck source=tests/lib/pkgdb.sh
-            . "$TESTSLIB"/pkgdb.sh
-            distro_purge_package qemu genisoimage sshpass qemu-kvm cloud-image-utils xz-utils
 
     tests/perf/nested/:
         summary: Performance and Load tests preparation suite
@@ -1446,10 +1435,8 @@ suites:
         prepare: |
             #shellcheck source=tests/lib/pkgdb.sh
             . "$TESTSLIB"/pkgdb.sh
-            #shellcheck source=tests/lib/image.sh
-            . "$TESTSLIB"/image.sh
-            distro_update_package_db
-            distro_install_package snapd qemu-kvm qemu-utils genisoimage sshpass cloud-image-utils ovmf kpartx xz-utils mtools ca-certificates xdelta3
+            install_pkg_dependencies
+
             if os.query is-xenial; then
                 # the new ubuntu-image expects mkfs to support -d option, which was not
                 # supported yet by the version of mkfs that shipped with Ubuntu 16.04
@@ -1458,6 +1445,8 @@ suites:
             elif os.query is-arm; then
                 snap install ubuntu-image --channel="$UBUNTU_IMAGE_SNAP_CHANNEL" --classic
             else
+                #shellcheck source=tests/lib/image.sh
+                . "$TESTSLIB"/image.sh
                 get_ubuntu_image
             fi
   
@@ -1479,10 +1468,6 @@ suites:
 
         restore: |
             tests.nested restore
-
-            #shellcheck source=tests/lib/pkgdb.sh
-            . "$TESTSLIB"/pkgdb.sh
-            distro_purge_package qemu genisoimage sshpass qemu-kvm cloud-image-utils xz-utils
 
     # FIPS test suite
     tests/fips/:
