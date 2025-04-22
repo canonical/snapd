@@ -40,21 +40,13 @@ type failingSchema struct {
 	err error
 }
 
-func (f *failingSchema) Validate([]byte) error {
-	return f.err
-}
-
+func (f *failingSchema) Validate([]byte) error { return f.err }
 func (f *failingSchema) SchemaAt(path []string) ([]confdb.DatabagSchema, error) {
 	return []confdb.DatabagSchema{f}, nil
 }
-
-func (f *failingSchema) Type() confdb.SchemaType {
-	return confdb.Any
-}
-
-func (f *failingSchema) Ephemeral() bool {
-	return false
-}
+func (f *failingSchema) Type() confdb.SchemaType { return confdb.Any }
+func (f *failingSchema) Ephemeral() bool         { return false }
+func (f *failingSchema) NestedEphemeral() bool   { return false }
 
 func (*viewSuite) TestNewConfdb(c *C) {
 	type testcase struct {
@@ -1241,7 +1233,7 @@ func (s *viewSuite) TestGetMergeAtDifferentLevels(c *C) {
 
 func (s *viewSuite) TestBadRequestPaths(c *C) {
 	databag := confdb.NewJSONDatabag()
-	confdb, err := confdb.NewSchema("acc", "confdb", map[string]interface{}{
+	schema, err := confdb.NewSchema("acc", "confdb", map[string]interface{}{
 		"foo": map[string]interface{}{
 			"rules": []interface{}{
 				map[string]interface{}{"request": "a.{b}.c", "storage": "a.{b}.c"},
@@ -1250,7 +1242,7 @@ func (s *viewSuite) TestBadRequestPaths(c *C) {
 	}, confdb.NewJSONSchema())
 	c.Assert(err, IsNil)
 
-	view := confdb.View("foo")
+	view := schema.View("foo")
 	c.Assert(view, NotNil)
 
 	err = databag.Set("a", map[string]interface{}{
@@ -1308,16 +1300,22 @@ func (s *viewSuite) TestBadRequestPaths(c *C) {
 		cmt := Commentf("test %q failed", tc.request)
 		err = view.Set(databag, tc.request, "value")
 		c.Assert(err, NotNil, cmt)
-		c.Assert(err.Error(), Equals, fmt.Sprintf(`cannot set %q in confdb view acc/confdb/foo: %s`, tc.request, tc.errMsg), cmt)
+		c.Assert(err.Error(), Equals, fmt.Sprintf(`cannot set %q through confdb view acc/confdb/foo: %s`, tc.request, tc.errMsg), cmt)
 
 		_, err = view.Get(databag, tc.request)
 		c.Assert(err, NotNil, cmt)
-		c.Assert(err.Error(), Equals, fmt.Sprintf(`cannot get %q in confdb view acc/confdb/foo: %s`, tc.request, tc.errMsg), cmt)
+		c.Assert(err.Error(), Equals, fmt.Sprintf(`cannot get %q through confdb view acc/confdb/foo: %s`, tc.request, tc.errMsg), cmt)
 
 		err = view.Unset(databag, tc.request)
 		c.Assert(err, NotNil, cmt)
-		c.Assert(err.Error(), Equals, fmt.Sprintf(`cannot unset %q in confdb view acc/confdb/foo: %s`, tc.request, tc.errMsg), cmt)
+		c.Assert(err.Error(), Equals, fmt.Sprintf(`cannot unset %q through confdb view acc/confdb/foo: %s`, tc.request, tc.errMsg), cmt)
 	}
+
+	cmt := Commentf("last test case failed")
+	err = view.Set(databag, "", "value")
+	c.Assert(err, NotNil, cmt)
+	c.Assert(err.Error(), Equals, `cannot set empty path through confdb view acc/confdb/foo: cannot have empty subkeys`, cmt)
+	c.Assert(err, testutil.ErrorIs, &confdb.BadRequestError{}, cmt)
 }
 
 func (s *viewSuite) TestSetAllowedOnSameRequestButDifferentPaths(c *C) {
@@ -1459,10 +1457,10 @@ func (s *viewSuite) TestSetValueMissingNestedLevels(c *C) {
 	c.Assert(view, NotNil)
 
 	err = view.Set(databag, "a", "foo")
-	c.Assert(err, ErrorMatches, `cannot set "a" in confdb view acc/confdb/foo: expected map for unmatched request parts but got string`)
+	c.Assert(err, ErrorMatches, `cannot set "a" through confdb view acc/confdb/foo: expected map for unmatched request parts but got string`)
 
 	err = view.Set(databag, "a", map[string]interface{}{"c": "foo"})
-	c.Assert(err, ErrorMatches, `cannot set "a" in confdb view acc/confdb/foo: cannot use unmatched part "b" as key in map\[c:foo\]`)
+	c.Assert(err, ErrorMatches, `cannot set "a" through confdb view acc/confdb/foo: cannot use unmatched part "b" as key in map\[c:foo\]`)
 }
 
 func (s *viewSuite) TestGetReadsStorageLessNestedNamespaceBefore(c *C) {
@@ -1535,7 +1533,7 @@ func (s *viewSuite) TestSetOverwriteValueWithNewLevel(c *C) {
 }
 
 func (s *viewSuite) TestSetValidatesDataWithSchemaPass(c *C) {
-	schema, err := confdb.ParseSchema([]byte(`{
+	schema, err := confdb.ParseStorageSchema([]byte(`{
 	"aliases": {
 		"int-map": {
 			"type": "map",
@@ -1626,7 +1624,7 @@ func (s *viewSuite) TestSetPreCheckValueFailsIncompatibleTypes(c *C) {
 				continue
 			}
 
-			schema, err := confdb.ParseSchema([]byte(fmt.Sprintf(`{
+			schema, err := confdb.ParseStorageSchema([]byte(fmt.Sprintf(`{
 	"schema": {
 		"foo": %s,
 		"bar": %s
@@ -1648,7 +1646,7 @@ func (s *viewSuite) TestSetPreCheckValueFailsIncompatibleTypes(c *C) {
 }
 
 func (s *viewSuite) TestSetPreCheckValueAllowsIntNumberMismatch(c *C) {
-	schema, err := confdb.ParseSchema([]byte(`{
+	schema, err := confdb.ParseStorageSchema([]byte(`{
 	"schema": {
 		"foo": "int",
 		"bar": "number"
@@ -1685,7 +1683,7 @@ func (*viewSuite) TestSetPreCheckMultipleAlternativeTypesFail(c *C) {
 		"bar": ["string", {"type": "array", "values": "string"}, {"schema": {"baz":"string"}}]
 	}
 }`)
-	schema, err := confdb.ParseSchema(schemaStr)
+	schema, err := confdb.ParseStorageSchema(schemaStr)
 	c.Assert(err, IsNil)
 
 	_, err = confdb.NewSchema("acc", "confdb", map[string]interface{}{
@@ -1710,7 +1708,7 @@ func (*viewSuite) TestAssertionRuleSchemaMismatch(c *C) {
 		}
 	}
 }`)
-	schema, err := confdb.ParseSchema(schemaStr)
+	schema, err := confdb.ParseStorageSchema(schemaStr)
 	c.Assert(err, IsNil)
 
 	confdbSchema, err := confdb.NewSchema("acc", "confdb", map[string]interface{}{
@@ -1739,7 +1737,7 @@ func (*viewSuite) TestSchemaMismatchCheckDifferentLevelPaths(c *C) {
 		}
 	}
 }`)
-	schema, err := confdb.ParseSchema(schemaStr)
+	schema, err := confdb.ParseStorageSchema(schemaStr)
 	c.Assert(err, IsNil)
 
 	_, err = confdb.NewSchema("acc", "confdb", map[string]interface{}{
@@ -1760,7 +1758,7 @@ func (*viewSuite) TestSchemaMismatchCheckMultipleAlternativeTypesHappy(c *C) {
 		"bar": ["string", "bool"]
 	}
 }`)
-	schema, err := confdb.ParseSchema(schemaStr)
+	schema, err := confdb.ParseStorageSchema(schemaStr)
 	c.Assert(err, IsNil)
 
 	databag := confdb.NewJSONDatabag()
@@ -2047,7 +2045,7 @@ func (s *viewSuite) TestViewSetErrorIfValueContainsUnusedParts(c *C) {
 			value: map[string]interface{}{
 				"b": map[string]interface{}{"d": "value", "u": 1},
 			},
-			err: `cannot set "a" in confdb view acc/confdb/foo: value contains unused data under "b.u"`,
+			err: `cannot set "a" through confdb view acc/confdb/foo: value contains unused data under "b.u"`,
 		},
 		{
 			request: "a",
@@ -2055,7 +2053,7 @@ func (s *viewSuite) TestViewSetErrorIfValueContainsUnusedParts(c *C) {
 				"b": map[string]interface{}{"d": "value", "u": 1},
 				"c": map[string]interface{}{"d": "value"},
 			},
-			err: `cannot set "a" in confdb view acc/confdb/foo: value contains unused data under "b.u"`,
+			err: `cannot set "a" through confdb view acc/confdb/foo: value contains unused data under "b.u"`,
 		},
 		{
 			request: "b",
@@ -2063,7 +2061,7 @@ func (s *viewSuite) TestViewSetErrorIfValueContainsUnusedParts(c *C) {
 				"e": []interface{}{"a"},
 				"f": 1,
 			},
-			err: `cannot set "b" in confdb view acc/confdb/foo: value contains unused data under "e"`,
+			err: `cannot set "b" through confdb view acc/confdb/foo: value contains unused data under "e"`,
 		},
 		{
 			request: "c",
@@ -2075,7 +2073,7 @@ func (s *viewSuite) TestViewSetErrorIfValueContainsUnusedParts(c *C) {
 					"f": 1,
 				},
 			},
-			err: `cannot set "c" in confdb view acc/confdb/foo: value contains unused data under "d.f"`,
+			err: `cannot set "c" through confdb view acc/confdb/foo: value contains unused data under "d.f"`,
 		},
 	}
 
@@ -2387,7 +2385,7 @@ func (*viewSuite) TestViewInvalidMapKeys(c *C) {
 	for _, tc := range tcs {
 		cmt := Commentf("expected invalid key err for value: %v", tc.value)
 		err = view.Set(databag, "foo", tc.value)
-		c.Assert(err, ErrorMatches, fmt.Sprintf("cannot set \"foo\" in confdb view acc/foo/bar: key %q doesn't conform to required format: .*", tc.invalidKey), cmt)
+		c.Assert(err, ErrorMatches, fmt.Sprintf("cannot set \"foo\" through confdb view acc/foo/bar: key %q doesn't conform to required format: .*", tc.invalidKey), cmt)
 	}
 }
 
@@ -2527,7 +2525,7 @@ func (*viewSuite) TestSetEnforcesNestednessLimit(c *C) {
 			"baz": "value",
 		},
 	})
-	c.Assert(err, ErrorMatches, `cannot set "foo" in confdb view acc/foo/bar: value cannot have more than 2 nested levels`)
+	c.Assert(err, ErrorMatches, `cannot set "foo" through confdb view acc/foo/bar: value cannot have more than 2 nested levels`)
 }
 
 func (*viewSuite) TestGetAffectedViews(c *C) {
