@@ -772,6 +772,10 @@ func (s *initramfsClassicMountsSuite) TestInitramfsMountsRunMode24KernelClassicN
 		return ""
 	})()
 
+	// setup a run mode system
+	s.mode = "run"
+	s.setupRunDirWithIntegrityData(c, nil)
+
 	restore := disks.MockMountPointDisksToPartitionMapping(
 		map[disks.Mountpoint]*disks.MockDiskMapping{
 			{Mountpoint: boot.InitramfsUbuntuSeedDir}: defaultBootWithSaveDisk,
