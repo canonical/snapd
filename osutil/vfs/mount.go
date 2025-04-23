@@ -144,6 +144,79 @@ func (v *VFS) unlockedBindMount(sourcePoint, mountPoint string) (*mount, error) 
 	return m, nil
 }
 
+// RecursiveBindMount recursively bind-mounts all the mounts reachable from sourcePoint.
+//
+// On Linux, recursion is implemented in depth-first order. This is not documented anywhere but can be
+// seen in the order of new mount entries created by recursive bind mount operation on a running system.
+func (v *VFS) RecursiveBindMount(sourcePoint, mountPoint string) error {
+	const op = "bind"
+
+	// Reject paths with trailing slashes. See package description for rationale.
+	if strings.HasSuffix(sourcePoint, "/") {
+		return &fs.PathError{Op: op, Path: sourcePoint, Err: errTrailingSlash}
+	}
+	if strings.HasSuffix(mountPoint, "/") {
+		return &fs.PathError{Op: op, Path: mountPoint, Err: errTrailingSlash}
+	}
+
+	// Hold lock throughout the function as we need to consistently inspect and then mutate m.mounts.
+	v.mu.Lock()
+	defer v.mu.Unlock()
+
+	return v.unlockedRecursiveBindMount(sourcePoint, mountPoint)
+}
+
+func (v *VFS) unlockedRecursiveBindMount(sourcePoint, mountPoint string) error {
+	pd := v.pathDominator(sourcePoint)
+	// TODO(propagation): fail loudly if source point is unbindable.
+
+	// Create the initial bind mount from source to mount point.
+	if m, err := v.unlockedBindMount(sourcePoint, mountPoint); err != nil || !m.isDir {
+		// A recursive bind mount on a file reduces to just bind mount.
+		return err
+	}
+
+	// Recursive bind mounts are replicated in depth-first order. Consider
+	// only direct descendants, as indirect descendants are handled by the
+	// recursion at the end of this loop. Only mounts rooted at sourcePoint
+	// are replicated (mounts above or to the side are not).
+	for _, m := range v.mounts[pd.index:] {
+		// Not a direct descendant.
+		if m.parentID != pd.mount.mountID {
+			continue
+		}
+
+		// TODO(propagation): silently skip unbindable elements.
+
+		// Consider only those mounts that are scoped to the sourcePoint
+		// suffix within the mount entry that dominates the path. In other
+		// words, when sourcePoint is a directory and we are processing
+		// this loop, skip everything that is NOT in that directory.
+		if !strings.HasPrefix(m.mountPoint, sourcePoint+"/") {
+			continue
+		}
+
+		// Recursively bind-mount the mount to a new location in the desired mount point.
+		// The source of the mount is the mount point of the mount m.
+		// The mount point is a transformation of the existing mount point.
+		//
+		// For example, if m describes a mount at /home/user, the
+		// recursive bind mount was for /home to /var/home, then we
+		// will now bind-mount /home/user to /var/home/user, replacing
+		// /home with /var/home.
+		//
+		// The replacement works beucause m.mountPoint is guaranteed to
+		// start with sourcePoint which we just checked above.
+		newSourcePoint := m.mountPoint
+		newMountPoint := strings.Replace(m.mountPoint, sourcePoint, mountPoint, 1)
+		if err := v.unlockedRecursiveBindMount(newSourcePoint, newMountPoint); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
 // Unmount removes a mount attached to a node otherwise named by mountPoint.
 //
 // Unmount detaches the topmost mount from the node represented by the mount
