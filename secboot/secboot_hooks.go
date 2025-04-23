@@ -31,6 +31,7 @@ import (
 	sb_hooks "github.com/snapcore/secboot/hooks"
 
 	"github.com/snapcore/snapd/kernel/fde"
+	"github.com/snapcore/snapd/kernel/fde/optee"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 )
@@ -250,4 +251,10 @@ func (kr *keyRevealerV3) RevealKey(data, ciphertext, aad []byte) (plaintext []by
 		V2Payload: true,
 	}
 	return fde.Reveal(&p)
+}
+
+// FDEOpteeTAPresent returns true if we detect that the expected OPTEE TA that
+// enables FDE is present.
+func FDEOpteeTAPresent() bool {
+	return optee.NewFDETAClient().Present()
 }
