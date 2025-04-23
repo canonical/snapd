@@ -269,7 +269,7 @@ func (s *updateSuite) TestCannotPerformOvermountChange(c *C) {
 		neededChanges: func(old, new *osutil.MountProfile) []*update.Change {
 			return []*update.Change{
 				{Action: update.Mount, Entry: osutil.MountEntry{Dir: "/dir-1"}},
-				{Action: update.Mount, Entry: osutil.MountEntry{Dir: "/dir-2", Options: []string{"x-snapd.origin=overname"}}},
+				{Action: update.Mount, Entry: osutil.MountEntry{Dir: "/dir-2", Options: []string{"rbind", "x-snapd.origin=overname"}}},
 				{Action: update.Mount, Entry: osutil.MountEntry{Dir: "/dir-3"}},
 			}
 		},
