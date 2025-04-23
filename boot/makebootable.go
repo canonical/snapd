@@ -34,7 +34,6 @@ import (
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/kcmdline"
-	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snapfile"
 	"github.com/snapcore/snapd/strutil"
@@ -641,13 +640,6 @@ func makeRunnableSystem(model *asserts.Model, bootWith *BootableSet, observer Tr
 			return fmt.Errorf("cannot check for fde-setup hook: %v", err)
 		}
 
-		// we don't consider optee if we are installing a standalone system
-		// (i.e. from the installer API)
-		var hasTA bool
-		if !hasHook && !makeOpts.Standalone {
-			hasTA = secboot.FDEOpteeTAPresent()
-		}
-
 		tokens := UseTokens(model)
 		if tokens {
 			logger.Debugf("key data will be stored in tokens")
@@ -656,12 +648,12 @@ func makeRunnableSystem(model *asserts.Model, bootWith *BootableSet, observer Tr
 		}
 
 		flags := sealKeyToModeenvFlags{
-			HasFDESetupHook: hasHook,
-			HasFDETA:        hasTA,
-			FactoryReset:    makeOpts.AfterDataReset,
-			SeedDir:         makeOpts.SeedDir,
-			StateUnlocker:   makeOpts.StateUnlocker,
-			UseTokens:       tokens,
+			HasFDESetupHook:   hasHook,
+			FactoryReset:      makeOpts.AfterDataReset,
+			StandaloneInstall: makeOpts.Standalone,
+			SeedDir:           makeOpts.SeedDir,
+			StateUnlocker:     makeOpts.StateUnlocker,
+			UseTokens:         tokens,
 		}
 		if makeOpts.Standalone || makeOpts.FromInitrd {
 			flags.SnapsDir = snapBlobDir

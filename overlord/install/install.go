@@ -230,33 +230,22 @@ func GetEncryptionSupportInfo(constraints EncryptionConstraints, runSetupHook fd
 		return res, nil
 	}
 
-	// check encryption: this can either be provided by one of three mechanisms,
-	// and they are checked in this order:
-	// - the fde-setup hook
-	// - the optee trusted application
-	// - the built-in secboot based encryption
-
-	checkFDESetupHookEncryption := hasFDESetupHookInKernel(constraints.Kernel)
-	// unlike the fde-setup hook, we don't have a way to statically verify that
-	// we should use optee. thus, we check for its presence and fall back to the
-	// tpm if we can't see optee. this means that this function won't return any
-	// optee-specific errors/warnings. change this?
-	checkOPTEEEncryption := !checkFDESetupHookEncryption && !constraints.StandaloneInstall && secboot.FDEOpteeTAPresent()
-	checkSecbootEncryption := !checkOPTEEEncryption
+	_, hasFDEHook := constraints.Kernel.Hooks["fde-setup"]
+	sealingMethod := secboot.DetermineSealingMethod(hasFDEHook, constraints.StandaloneInstall)
 
 	var checkEncryptionErr error
-	switch {
-	case checkFDESetupHookEncryption:
+	switch sealingMethod {
+	case device.SealingMethodFDESetupHook:
 		res.Type, checkEncryptionErr = checkFDEFeatures(runSetupHook)
-	case checkOPTEEEncryption:
+	case device.SealingMethodOPTEE:
 		res.Type = device.EncryptionTypeLUKS
-	case checkSecbootEncryption:
+	case device.SealingMethodTPM:
 		checkEncryptionErr = secbootCheckTPMKeySealingSupported(constraints.TPMMode)
 		if checkEncryptionErr == nil {
 			res.Type = device.EncryptionTypeLUKS
 		}
 	default:
-		return res, fmt.Errorf("internal error: no encryption checked in encryptionSupportInfo")
+		return res, fmt.Errorf("internal error: unknown sealing method: %v", sealingMethod)
 	}
 	res.Available = (checkEncryptionErr == nil)
 
@@ -266,9 +255,9 @@ func GetEncryptionSupportInfo(constraints EncryptionConstraints, runSetupHook fd
 			res.UnavailableErr = fmt.Errorf("cannot encrypt device storage as mandated by model grade secured: %v", checkEncryptionErr)
 		case encrypted:
 			res.UnavailableErr = fmt.Errorf("cannot encrypt device storage as mandated by encrypted storage-safety model option: %v", checkEncryptionErr)
-		case checkFDESetupHookEncryption:
+		case sealingMethod == device.SealingMethodFDESetupHook:
 			res.UnavailableWarning = fmt.Sprintf("not encrypting device storage as querying kernel fde-setup hook did not succeed: %v", checkEncryptionErr)
-		case checkSecbootEncryption:
+		case sealingMethod == device.SealingMethodTPM:
 			res.UnavailableWarning = fmt.Sprintf("not encrypting device storage as checking TPM gave: %v", checkEncryptionErr)
 		default:
 			return res, fmt.Errorf("internal error: checkEncryptionErr is set but not handled by the code")
@@ -282,7 +271,7 @@ func GetEncryptionSupportInfo(constraints EncryptionConstraints, runSetupHook fd
 		// Hook based setup support does not make sense (at least for now) because
 		// it is usually in the context of embedded systems where passphrase
 		// authentication is not practical.
-		if checkSecbootEncryption {
+		if sealingMethod == device.SealingMethodTPM {
 			passphraseAuthAvailable, err := checkPassphraseSupportedByTargetSystem(constraints.SnapdVersions)
 			if err != nil {
 				return res, fmt.Errorf("cannot check passphrase support: %v", err)
@@ -304,11 +293,6 @@ func GetEncryptionSupportInfo(constraints EncryptionConstraints, runSetupHook fd
 	}
 
 	return res, nil
-}
-
-func hasFDESetupHookInKernel(kernelInfo *snap.Info) bool {
-	_, ok := kernelInfo.Hooks["fde-setup"]
-	return ok
 }
 
 func checkFDEFeatures(runSetupHook fde.RunSetupHookFunc) (et device.EncryptionType, err error) {
