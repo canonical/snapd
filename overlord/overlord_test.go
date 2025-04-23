@@ -28,6 +28,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"syscall"
 	"testing"
 	"time"
@@ -1398,4 +1399,26 @@ func (ovs *overlordSuite) TestLockWithTimeoutFailed(c *C) {
 	c.Check(notifyCalls, DeepEquals, []string{
 		"EXTEND_TIMEOUT_USEC=5000",
 	})
+}
+
+func (ovs *overlordSuite) TestEnsureLoopLogging(c *C) {
+	entries, err := os.ReadDir(".")
+	c.Assert(err, IsNil)
+
+	for _, entry := range entries {
+		if entry.IsDir() && strings.HasSuffix(entry.Name(), "state") {
+			testFilePath := filepath.Join(entry.Name(), entry.Name()+"_test.go")
+
+			if _, err := os.Stat(testFilePath); err == nil {
+				mgrFiles, err := filepath.Glob(filepath.Join(entry.Name(), "*mgr.go"))
+				c.Assert(err, IsNil)
+
+				if len(mgrFiles) > 0 {
+					content, err := os.ReadFile(testFilePath)
+					c.Assert(err, IsNil)
+					c.Assert(strings.Contains(string(content), "TestEnsureLoopLogging"), Equals, true, Commentf("File %s does not contain a TestEnsureLoopLogging test."))
+				}
+			}
+		}
+	}
 }
