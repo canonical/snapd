@@ -1566,9 +1566,10 @@ suites:
           - opensuse-*
           # only AMZN2, since we don't build with SELinux
           - amazon-linux-2-*
-          # TODO: enable the following:
-          # - fedora-*
           # - amazon-linux-2023-*
+          - fedora-*
+          # TODO: enable the following:
+          # - centos-*
         environment:
           # enable snap rexec
           SNAP_REEXEC: "1"
