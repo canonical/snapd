@@ -8,17 +8,17 @@ base: core24
 grade: dangerous
 snaps:
   -
-    default-channel: latest/edge
+    default-channel: 24/edge
     id: hZwlp9iRUQE4nLHRXnavvDygTIpfOOwj
     name: test-snapd-remodel-pc-snakeoil
     type: gadget
   -
-    default-channel: 24/stable
+    default-channel: 24/beta
     id: pYVQrBcKmBa0mZ4CCN7ExT6jH8rY1hza
     name: pc-kernel
     type: kernel
   -
-    default-channel: latest/stable
+    default-channel: latest/edge
     id: dwTAh7MZZ01zyriOZErqd1JynQLiOGvM
     name: core24
     type: base
@@ -29,16 +29,16 @@ snaps:
     type: snapd
 store: CQvkdMjgbapk821Po2cF
 system-user-authority: *
-timestamp: 2024-04-14T10:05:00+00:00
-sign-key-sha3-384: z5UoZNBNRc6KXRIg96L6tZ723_CDbUu45bRC-wcINgigB2S9GGGe6DWJqlzI6p0S
+timestamp: 2025-04-22T10:05:00+00:00
+sign-key-sha3-384: rrP2xy5LOU-OjnYtfHm7h8QSOkySgyrZoJKT_YqlTKJrWMA8j-0SoClorTN6XR9Z
 
-AcLBcwQAAQoAHRYhBJwYfdLgNpH0AbmOCVr7utGyRTi5BQJmdiPIAAoJEFr7utGyRTi5GCcP/0iJ
-5eFjIDbSmAMFuXAiWd2/iZsz4+Wy2C2E2+ld60zQYOJ/7TxYfyDsuk8yvRXyFpSdq7Pfy620/841
-hDXwfERGfTvEbxUH6SDHnVCgxArNQHP9kJNuolmDjhq9gBgISpQOtDLfd+Eknl1wx+GSyGFTTM5B
-PxIQCyurf267v7MLMgfww+CNtWfdv/5Gb6mcnql+7rr6OB8co1YobYVCiRnTbefnmtwkgGapgDk/
-k0sD5SOaVTkw49H/B+77RHoNHAMjekTjZApy842PLI5yuq+R5zZaCOql1l0hPZSnpBMGjJouFNgs
-Ex4FkaVG4eO7C3Ogt5WUOEDBpJ6YQXxksjDDKI8BErO7Dp+J0Wyg65duJbnLNtPt/LNygwi+8MT3
-j1YpPrY5utHgVeVdveysxmaX1mZDQu0wfdJo0ByWn+ibn3PdZCL0PJwnWtBvDFEM8pNJzUKGMNul
-j61W5hpM49pTWM04jSoPOBVvaSfNpNPRg+qrIQa0Zz/WhVXwe6ibzJby9LBWyEgIk6f3yKm96YWx
-vNxfmU2r590XvjZwua38CQUCWcGkNd767ekXuw6fUfD0u3h6EEzh8NqM32sVRZfXZPWkV9o9UPjc
-3cX2VBT2es7p8Y8tZCPVCdBIpJvwDNILBcJC2Qm7w1IkowfCTL3/W7V6HYBSJPiRe8U8785Q
+AcLBcwQAAQoAHRYhBMEAb2Q1SgOrrGcnJ4b6Yn/LKbBXBQJoD8yiAAoJEIb6Yn/LKbBXWv8P/ic+
+n6WYv21z02ZUEqCd7ynVXiUkJc6t8rPhK/uLh85+ymtAMuzSclJWbk55RvcXGtQ+vzIphLnu9atl
+riMrr/S2giihDeWA6yzfPSVean6m/tPLWZmFWPIAEklMpkntONp+hCsR+6sguMJZE8Ym6Wx4V+2x
+OAPjp0lMGihViILV5tsszdm5rL3M25PKV0lpd2ayLYTjk0CnFi41OeAVpWSNK9Eb8sDsrvsrnrM7
+t6dmUIOFFGoaJFeO+M6rTsfFSKFvag7ao98up0juhJ6Yne7hHIpeNLuzXgM9tcwCJmMzqC8LSTsr
+Ka1f2Yp/0cXsPu3Ge1Y0WSR2Czrcp//It1TCLr98Ym+MOnUZmc3uF2wLvV0pyzQ4errO1tVZDGyx
+5ejYO3ANmSxCkuUrVGQOGZM8Nc7PFmyIATpqRvPcIYjPO0yz0hd3idsk9+wi+57WwHNBTsvvSvZJ
+Dh3fIJ82fcBAYZCddx7tM7omUukA7rEQtBvhoAWyQQ5ShSZirg8DEi5tPQO7Kb5MSEWGLN8tkSIe
+GqpyYd+rziDc86Bv/Mr27RVG+lDhIclp7FF6KIyiKlGix9rHz2FBZ46jyq3ATGV3uQZpdb5CHJzA
+ovopgQYSqeUpimcOyqN1jikHVEX4q14jBFBvuY+8EptDxPc50JjLRgL2RBUPLJ4BywaNZZ+L
