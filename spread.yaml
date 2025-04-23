@@ -1562,14 +1562,11 @@ suites:
         summary: Cross-distro reeexec
         systems:
           - arch-linux-*
-          # will only for work for AppArmor setups
           - opensuse-*
-          # only AMZN2, since we don't build with SELinux
           - amazon-linux-2-*
-          # - amazon-linux-2023-*
+          - amazon-linux-2023-*
           - fedora-*
-          # TODO: enable the following:
-          # - centos-*
+          - centos-*
         environment:
           # enable snap rexec
           SNAP_REEXEC: "1"
