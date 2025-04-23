@@ -80,6 +80,19 @@ func (params *IntegrityDataParams) crossCheck(vsb *dmverity.VeritySuperblock) er
 	return nil
 }
 
+func NewIntegrityDataParams(typ string, version uint, hashAlg string, dataBlockSize uint64, hashBlockSize uint64, digest string, salt string, snapSize uint64) *IntegrityDataParams {
+	return &IntegrityDataParams{
+		Type:          typ,
+		Version:       version,
+		HashAlg:       hashAlg,
+		DataBlockSize: dataBlockSize,
+		HashBlockSize: hashBlockSize,
+		Digest:        digest,
+		Salt:          salt,
+		DataBlocks:    snapSize / uint64(dataBlockSize),
+	}
+}
+
 // ErrDmVerityDataNotFound is returned when dm-verity data for a snap are not found next to it.
 var ErrDmVerityDataNotFound = errors.New("dm-verity data not found")
 
