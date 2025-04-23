@@ -731,7 +731,7 @@ const dockerSupportPrivilegedSecComp = `
 @unrestricted
 `
 
-const dockerSupportServiceSnippet = `Delegate=true`
+const dockerSupportServiceSnippet = interfaces.PlugServicesServiceSectionSnippet(`Delegate=true`)
 
 type dockerSupportInterface struct {
 	commonInterface
@@ -879,7 +879,7 @@ func init() {
 		baseDeclarationPlugs: dockerSupportBaseDeclarationPlugs,
 		baseDeclarationSlots: dockerSupportBaseDeclarationSlots,
 		controlsDeviceCgroup: true,
-		serviceSnippets:      []string{dockerSupportServiceSnippet},
+		serviceSnippets:      []interfaces.PlugServicesSnippet{dockerSupportServiceSnippet},
 		// docker-support also uses ptrace(trace), but it already declares this in
 		// the AppArmorConnectedPlug method
 	}})
