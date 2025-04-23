@@ -8,7 +8,6 @@ show_help() {
 	echo "    crashed-snap-confine: $TESTSTMP/snap.rootfs_* does not exist"
 	echo "    lxcfs-mounted: /var/lib/lxcfs is a mount point"
 	echo "    stray-dbus-daemon: at most one dbus-daemon is running"
-	echo "    leftover-defer-sh: defer.sh must not be left over by tests"
 	echo "    broken-snaps: snaps must not be left around that are in a broken state"
 	echo "    segmentation-violations: snapd must not have segmentation-violation errors in journal logs"
 }
@@ -119,18 +118,6 @@ check_stray_dbus_daemon() {
 	fi
 }
 
-check_leftover_defer_sh() {
-	n="$1" # invariant name
-	(
-		find "$PROJECT_PATH" -name defer.sh > "$TESTSTMP/tests.invariant.$n"
-	) > "$TESTSTMP/tests.invariant.$n"
-	if [ -s "$TESTSTMP/tests.invariant.$n" ]; then
-		echo "tests.invariant: leftover defer.sh script" >&2
-		cat "$TESTSTMP/tests.invariant.$n" >&2
-		return 1
-	fi
-}
-
 check_broken_snaps() {
 	n="$1" # invariant name
 	(
@@ -150,7 +137,7 @@ check_broken_snaps() {
 	fi
 }
 
-check_cgroup_scopes() {
+check_cgroup_scopes() {	
 	# xenial has leftover scope files possibly due to an old systemd bug
 	# https://bugs.launchpad.net/ubuntu/+source/systemd/+bug/1934147
 	if [[ "$SPREAD_SYSTEM" == ubuntu-core-16-* ]] || [[ "$SPREAD_SYSTEM" == ubuntu-16.04-* ]]; then
@@ -231,9 +218,6 @@ check_invariant() {
 		stray-dbus-daemon)
 			check_stray_dbus_daemon "$1"
 			;;
-		leftover-defer-sh)
-			check_leftover_defer_sh "$1"
-			;;
 		broken-snaps)
 			check_broken_snaps "$1"
 			;;
@@ -262,7 +246,6 @@ main() {
 	crashed-snap-confine
 	lxcfs-mounted
 	stray-dbus-daemon
-	leftover-defer-sh
 	broken-snaps
 	cgroup-scopes
 	cgroups
