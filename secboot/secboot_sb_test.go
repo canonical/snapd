@@ -3919,3 +3919,64 @@ func (s *secbootSuite) TestGetPrimaryKeyFallbackFile(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(found, DeepEquals, []byte{1, 2, 3, 4})
 }
+
+func (s *secbootSuite) TestDetermineSealingMethod(c *C) {
+	type testcase struct {
+		standaloneInstall bool
+		hasFDEHook        bool
+		hasOPTEE          bool
+
+		checkedOPTEE   bool
+		expectedMethod device.SealingMethod
+	}
+
+	hasOPTEE := false
+	checkedOPTEE := false
+	client := opteetest.MockClient{
+		PresentFn: func() bool {
+			checkedOPTEE = true
+			return hasOPTEE
+		},
+	}
+	restore := optee.MockNewFDETAClient(&client)
+	defer restore()
+
+	cases := []testcase{
+		{
+			hasFDEHook:        true,
+			hasOPTEE:          true,
+			standaloneInstall: false,
+
+			// hooks are present, we shouldn't check for OPTEE
+			checkedOPTEE:   false,
+			expectedMethod: device.SealingMethodFDESetupHook,
+		},
+		{
+			hasFDEHook:        false,
+			hasOPTEE:          true,
+			standaloneInstall: false,
+
+			checkedOPTEE:   true,
+			expectedMethod: device.SealingMethodOPTEE,
+		},
+		{
+			hasFDEHook:        false,
+			hasOPTEE:          true,
+			standaloneInstall: true,
+
+			// standalone installation, we shouldn't consider OPTEE
+			checkedOPTEE:   false,
+			expectedMethod: device.SealingMethodTPM,
+		},
+	}
+
+	for _, tc := range cases {
+		hasOPTEE = tc.hasOPTEE
+		checkedOPTEE = false
+
+		method := secboot.DetermineSealingMethod(tc.hasFDEHook, tc.standaloneInstall)
+
+		c.Assert(method, Equals, tc.expectedMethod)
+		c.Assert(checkedOPTEE, Equals, tc.checkedOPTEE)
+	}
+}

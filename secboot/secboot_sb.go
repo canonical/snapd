@@ -34,6 +34,7 @@ import (
 	sb_plainkey "github.com/snapcore/secboot/plainkey"
 	"golang.org/x/xerrors"
 
+	"github.com/snapcore/snapd/gadget/device"
 	"github.com/snapcore/snapd/kernel/fde"
 	"github.com/snapcore/snapd/kernel/fde/optee"
 	"github.com/snapcore/snapd/logger"
@@ -565,4 +566,16 @@ func GetPrimaryKey(devices []string, fallbackKeyFile string) ([]byte, error) {
 		return nil, fmt.Errorf("could not find primary in keyring and cannot read fallback primary key file %s: %w", fallbackKeyFile, err)
 	}
 	return primaryKey, nil
+}
+
+func DetermineSealingMethod(hasFDEHook bool, standaloneInstall bool) device.SealingMethod {
+	if hasFDEHook {
+		return device.SealingMethodFDESetupHook
+	}
+
+	if !standaloneInstall && FDEOpteeTAPresent() {
+		return device.SealingMethodOPTEE
+	}
+
+	return device.SealingMethodTPM
 }
