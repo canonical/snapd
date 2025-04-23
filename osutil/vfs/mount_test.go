@@ -544,6 +544,97 @@ func TestVFS_BindMount(t *testing.T) {
 	})
 }
 
+func TestVFS_RecursiveBindMount(t *testing.T) {
+	makeVFS := func(t *testing.T) *vfs.VFS {
+		t.Helper()
+		v := vfs.NewVFS(fstest.MapFS{
+			"file.txt": &fstest.MapFile{Sys: "really file.txt"},
+			"a/dir-1":  &fstest.MapFile{Mode: fs.ModeDir},
+			"a/dir-2":  &fstest.MapFile{Mode: fs.ModeDir},
+			"b":        &fstest.MapFile{Mode: fs.ModeDir},
+		})
+		d1 := fstest.MapFS{"sub-1": &fstest.MapFile{Mode: fs.ModeDir}}
+		if err := v.Mount(d1, "a/dir-1"); err != nil {
+			t.Fatal(err)
+		}
+		d2 := fstest.MapFS{"sub-2": &fstest.MapFile{Mode: fs.ModeDir}}
+		if err := v.Mount(d2, "a/dir-2"); err != nil {
+			t.Fatal(err)
+		}
+		s1 := fstest.MapFS{"file.txt": &fstest.MapFile{}}
+		if err := v.Mount(s1, "a/dir-1/sub-1"); err != nil {
+			t.Fatal(err)
+		}
+		if err := v.BindMount("file.txt", "a/dir-1/sub-1/file.txt"); err != nil {
+			t.Fatal(err)
+		}
+		return v
+	}
+
+	t.Run("smoke", func(t *testing.T) {
+		v := makeVFS(t)
+		t.Log("State before recursive bind mount", v)
+		if err := v.RecursiveBindMount("a", "b"); err != nil {
+			t.Fatal(err)
+		}
+		t.Log("State after recursive bind mount", v)
+
+		fiA, err := v.Stat("a/dir-1/sub-1/file.txt")
+		if err != nil {
+			t.Fatal(err)
+		}
+		fiB, err := v.Stat("b/dir-1/sub-1/file.txt")
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if fiA.Sys() != fiB.Sys() {
+			t.Fatal("not the same file")
+		}
+	})
+
+	t.Run("subsmoke", func(t *testing.T) {
+		v := makeVFS(t)
+		t.Log("State before recursive bind mount", v)
+		if err := v.RecursiveBindMount("a/dir-1", "b"); err != nil {
+			t.Fatal(err)
+		}
+		t.Log("State after recursive bind mount", v)
+
+		fiA, err := v.Stat("a/dir-1/sub-1/file.txt")
+		if err != nil {
+			t.Fatal(err)
+		}
+		fiB, err := v.Stat("b/sub-1/file.txt")
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if fiA.Sys() != fiB.Sys() {
+			t.Fatal("not the same file")
+		}
+	})
+
+	t.Run("shadowed", func(t *testing.T) {
+		v := makeVFS(t)
+		if err := v.Mount(fstest.MapFS{}, "a"); err != nil {
+			t.Fatal(err)
+		}
+		t.Log("State before recursive bind mount", v)
+		if err := v.RecursiveBindMount("a", "b"); err != nil {
+			t.Fatal(err)
+		}
+		t.Log("State after recursive bind mount", v)
+
+		if _, err := v.Stat("a/dir-1/sub-1/file.txt"); err == nil {
+			t.Fatal("Unexpected succcess")
+		}
+		if _, err := v.Stat("b/dir-1/sub-1/file.txt"); err == nil {
+			t.Fatal("Unexpected succcess")
+		}
+	})
+}
+
 func TestVFS_Unmount(t *testing.T) {
 	v := vfs.NewVFS(fstest.MapFS{
 		"tmp":        &fstest.MapFile{Mode: fs.ModeDir, Sys: "tmp"},
@@ -665,6 +756,36 @@ func TestVFS_Unmount(t *testing.T) {
 
 	t.Run("bind-mounted-file", func(t *testing.T) {
 		if err := v.BindMount("file.txt", "file.txt.2"); err != nil {
+			t.Fatal(err)
+		}
+
+		t.Log("Confidence check: file.txt.2 is really file.txt")
+		fi, err := v.Stat("file.txt.2")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if sys, ok := fi.Sys().(string); !ok || sys != "file.txt" {
+			t.Fatal("Unexpected sys of file.txt.2", fi.Sys())
+		}
+
+		if err := v.Unmount("file.txt.2"); err != nil {
+			t.Fatal(err)
+		}
+
+		t.Log("Confidence check: file.txt.2 is back to itself")
+		fi, err = v.Stat("file.txt.2")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if sys, ok := fi.Sys().(string); !ok || sys != "file.txt.2" {
+			t.Fatal("Unexpected sys of file.txt.2", fi.Sys())
+		}
+
+		t.Log("Final state", v)
+	})
+
+	t.Run("recursive-bind-mounted-file", func(t *testing.T) {
+		if err := v.RecursiveBindMount("file.txt", "file.txt.2"); err != nil {
 			t.Fatal(err)
 		}
 
