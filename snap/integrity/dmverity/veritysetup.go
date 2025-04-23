@@ -237,7 +237,7 @@ func (sb *VeritySuperblock) validate() error {
 }
 
 func (sb *VeritySuperblock) EncodedSalt() string {
-	return hex.EncodeToString(sb.Salt[:])[:sb.SaltSize]
+	return hex.EncodeToString(sb.Salt[:sb.SaltSize])
 }
 
 // ReadSuperblock reads the dm-verity superblock from a dm-verity hash file.
