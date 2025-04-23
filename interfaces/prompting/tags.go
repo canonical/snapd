@@ -49,7 +49,6 @@ func InterfaceFromTagsets(tagsets notify.TagsetMap) (iface string, err error) {
 	}
 
 	aPermHadNoInterfaces := false
-	sawAnyInterfaceTags := false
 	for _, tagset := range tagsets {
 		thisPermHasNoInterfaces := true
 		for _, tag := range tagset {
@@ -57,12 +56,11 @@ func InterfaceFromTagsets(tagsets notify.TagsetMap) (iface string, err error) {
 			if !ok {
 				continue
 			}
-			if sawAnyInterfaceTags && tagIface != iface {
+			if iface != "" && tagIface != iface {
 				// We already saw a different interface
 				return "", prompting_errors.ErrMultipleInterfaces
 			}
 			iface = tagIface
-			sawAnyInterfaceTags = true
 			thisPermHasNoInterfaces = false
 		}
 		if thisPermHasNoInterfaces {
@@ -70,11 +68,13 @@ func InterfaceFromTagsets(tagsets notify.TagsetMap) (iface string, err error) {
 		}
 	}
 
-	if !sawAnyInterfaceTags {
+	if iface == "" {
+		// No tags matched any interface
 		return "", prompting_errors.ErrNoInterfaceTags
 	}
 
 	if aPermHadNoInterfaces {
+		// At least one tagset matched an interface, but not all of them
 		return "", prompting_errors.ErrNoCommonInterface
 	}
 

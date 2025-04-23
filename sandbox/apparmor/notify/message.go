@@ -41,6 +41,13 @@ type MsgNotificationGeneric interface {
 	MetadataTagsets() TagsetMap
 }
 
+// TagsetMap maps from permission mask to the ordered list of tags associated
+// with those permissions, as received from AppArmor in the kernel.
+type TagsetMap map[AppArmorPermission]MetadataTags
+
+// MetadataTags is a list of tags received from AppArmor in the kernel.
+type MetadataTags []string
+
 // Message fields are defined as raw sized integer types as the same type may be
 // packed as 16 bit or 32 bit integer, to accommodate other fields in the
 // structure.

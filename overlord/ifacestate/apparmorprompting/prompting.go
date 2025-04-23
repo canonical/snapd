@@ -219,7 +219,8 @@ func (m *InterfacesRequestsManager) handleListenerReq(req *listener.Request) err
 			iface = "home"
 		} else {
 			// There was either more than one interface associated with tags, or
-			// none which applied to all requested permissions.
+			// none which applied to all requested permissions. Since we can't
+			// decide which interface to use, automatically deny this request.
 			logger.Noticef("error while selecting interface from metadata tags: %v", err)
 			return requestReply(req, nil)
 		}
