@@ -31,6 +31,12 @@ import (
 // contains other mount entries they are shadowed until the new entry is
 // unmounted.
 func (v *VFS) Mount(fsFS fs.StatFS, mountPoint string) error {
+	// The root directory cannot be mounted.
+	// XXX: or can it?
+	if mountPoint == "" {
+		return &fs.PathError{Op: "mount", Path: mountPoint, Err: fs.ErrInvalid}
+	}
+
 	// Hold lock throughout the function as we need to consistently mutate m.mounts at the end.
 	v.mu.Lock()
 	defer v.mu.Unlock()
@@ -81,6 +87,12 @@ func (v *VFS) BindMount(sourcePoint, mountPoint string) error {
 }
 
 func (v *VFS) unlockedBindMount(sourcePoint, mountPoint string) (*mount, error) {
+	// The root directory cannot be the source or target of a bind-mount.
+	// XXX: or can it?
+	if sourcePoint == "" || mountPoint == "" {
+		return nil, &fs.PathError{Op: "bind-mount", Path: "", Err: fs.ErrInvalid}
+	}
+
 	// Find the mount dominating the source point and the mount point.
 	_, sourceDom, sourceSuffix, sourceFsPath := v.dom(sourcePoint)
 	_, dom, _, fsPath := v.dom(mountPoint)
