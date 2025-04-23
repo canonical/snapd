@@ -107,6 +107,9 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeBootFlagsSet(c *C) {
 		// write modeenv with boot flags
 		modeEnv := boot.Modeenv{
 			Mode:           "run",
+			Model:          s.model.Model(),
+			BrandID:        "canonical",
+			Grade:          "signed",
 			Base:           s.core20.Filename(),
 			Gadget:         s.gadget.Filename(),
 			CurrentKernels: []string{s.kernel.Filename()},
@@ -164,6 +167,9 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeUnencryptedWithSaveHapp
 	// write modeenv
 	modeEnv := boot.Modeenv{
 		Mode:           "run",
+		Model:          s.model.Model(),
+		BrandID:        "canonical",
+		Grade:          "signed",
 		Base:           s.core20.Filename(),
 		Gadget:         s.gadget.Filename(),
 		CurrentKernels: []string{s.kernel.Filename()},
@@ -216,6 +222,9 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeHappyNoGadgetMount(c *C
 	// write modeenv, with no gadget field so the gadget is not mounted
 	modeEnv := boot.Modeenv{
 		Mode:           "run",
+		Model:          s.model.Model(),
+		BrandID:        "canonical",
+		Grade:          "signed",
 		Base:           s.core20.Filename(),
 		CurrentKernels: []string{s.kernel.Filename()},
 	}
@@ -298,6 +307,9 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeTimeMovesForwardHappy(c
 			// write modeenv
 			modeEnv := boot.Modeenv{
 				Mode:           "run",
+				Model:          s.model.Model(),
+				BrandID:        "canonical",
+				Grade:          "signed",
 				Base:           s.core20.Filename(),
 				Gadget:         s.gadget.Filename(),
 				CurrentKernels: []string{s.kernel.Filename()},
@@ -415,7 +427,8 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeWithIntegrityAssertionT
 				// on first boot the snapd snap is read from the seed partition
 				sn := s.makeSeedSnapSystemdMount(snap.TypeSnapd)
 				sn.addIntegrityData(&asid[0])
-				mnts = append(mnts, sn)
+				// TODO: snapd snap is not mounted directly anymore so here we should test for the
+				// creation of the mount unit file instead.
 			}
 
 			restore = s.mockSystemdMountSequence(c, mnts, nil)
@@ -435,6 +448,9 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeWithIntegrityAssertionT
 			// write modeenv
 			modeEnv := boot.Modeenv{
 				Mode:           "run",
+				Model:          s.model.Model(),
+				BrandID:        "canonical",
+				Grade:          "signed",
 				Base:           s.core20.Filename(),
 				Gadget:         s.gadget.Filename(),
 				CurrentKernels: []string{s.kernel.Filename()},
@@ -736,6 +752,9 @@ func (s *initramfsMountsSuite) testInitramfsMountsRunModeNoSaveUnencrypted(c *C)
 	// write modeenv
 	modeEnv := boot.Modeenv{
 		Mode:           "run",
+		Model:          s.model.Model(),
+		BrandID:        "canonical",
+		Grade:          "signed",
 		Base:           s.core20.Filename(),
 		Gadget:         s.gadget.Filename(),
 		CurrentKernels: []string{s.kernel.Filename()},
@@ -846,6 +865,9 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeHappyNoSaveRealSystemdM
 	// write modeenv
 	modeEnv := boot.Modeenv{
 		Mode:           "run",
+		Model:          s.model.Model(),
+		BrandID:        "canonical",
+		Grade:          "signed",
 		Base:           s.core20.Filename(),
 		Gadget:         s.gadget.Filename(),
 		CurrentKernels: []string{s.kernel.Filename()},
@@ -986,6 +1008,9 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeWithSaveHappyRealSystem
 	// write modeenv
 	modeEnv := boot.Modeenv{
 		Mode:           "run",
+		Model:          s.model.Model(),
+		BrandID:        "canonical",
+		Grade:          "signed",
 		Base:           s.core20.Filename(),
 		Gadget:         s.gadget.Filename(),
 		CurrentKernels: []string{s.kernel.Filename()},
@@ -1136,6 +1161,9 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeFirstBootRecoverySystem
 	// write modeenv
 	modeEnv := boot.Modeenv{
 		Mode:           "run",
+		Model:          s.model.Model(),
+		BrandID:        "canonical",
+		Grade:          "signed",
 		RecoverySystem: "20191118",
 		Base:           s.core20.Filename(),
 		Gadget:         s.gadget.Filename(),
@@ -1202,6 +1230,9 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeWithBootedKernelPartUUI
 	// write modeenv
 	modeEnv := boot.Modeenv{
 		Mode:           "run",
+		Model:          s.model.Model(),
+		BrandID:        "canonical",
+		Grade:          "signed",
 		Base:           s.core20.Filename(),
 		Gadget:         s.gadget.Filename(),
 		CurrentKernels: []string{s.kernel.Filename()},
@@ -1332,6 +1363,9 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeEncryptedDataHappy(c *C
 	// write modeenv
 	modeEnv := boot.Modeenv{
 		Mode:           "run",
+		Model:          s.model.Model(),
+		BrandID:        "canonical",
+		Grade:          "signed",
 		Base:           s.core20.Filename(),
 		Gadget:         s.gadget.Filename(),
 		CurrentKernels: []string{s.kernel.Filename()},
@@ -1366,6 +1400,10 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeEncryptedDataHappy(c *C
 
 func (s *initramfsMountsSuite) TestInitramfsMountsRunModeEncryptedDataHappyRecoveryKey(c *C) {
 	s.mockProcCmdlineContent(c, "snapd_recovery_mode=run")
+
+	// setup a run mode system
+	s.mode = "run"
+	s.setupRunDirWithIntegrityData(c, nil)
 
 	// ensure that we check that access to sealed keys were locked
 	sealedKeysLocked := false
@@ -1480,6 +1518,9 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeEncryptedDataHappyRecov
 	// write modeenv
 	modeEnv := boot.Modeenv{
 		Mode:           "run",
+		Model:          s.model.Model(),
+		BrandID:        "canonical",
+		Grade:          "signed",
 		Base:           s.core20.Filename(),
 		Gadget:         s.gadget.Filename(),
 		CurrentKernels: []string{s.kernel.Filename()},
@@ -1589,6 +1630,9 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeEncryptedDataUnhappyNoS
 	// write modeenv
 	modeEnv := boot.Modeenv{
 		Mode:           "run",
+		Model:          s.model.Model(),
+		BrandID:        "canonical",
+		Grade:          "signed",
 		Base:           s.core20.Filename(),
 		CurrentKernels: []string{s.kernel.Filename()},
 	}
@@ -1672,6 +1716,9 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeEncryptedDataUnhappyUnl
 	// write modeenv
 	modeEnv := boot.Modeenv{
 		Mode:           "run",
+		Model:          s.model.Model(),
+		BrandID:        "canonical",
+		Grade:          "signed",
 		Base:           s.core20.Filename(),
 		CurrentKernels: []string{s.kernel.Filename()},
 	}
@@ -1710,6 +1757,9 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeUpgradeScenarios(c *C) 
 		{
 			modeenv: &boot.Modeenv{
 				Mode:           "run",
+				Model:          s.model.Model(),
+				BrandID:        "canonical",
+				Grade:          "signed",
 				Base:           s.core20.Filename(),
 				Gadget:         s.gadget.Filename(),
 				CurrentKernels: []string{s.kernel.Filename()},
@@ -1730,6 +1780,9 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeUpgradeScenarios(c *C) 
 		{
 			modeenv: &boot.Modeenv{
 				Mode:           "run",
+				Model:          s.model.Model(),
+				BrandID:        "canonical",
+				Grade:          "signed",
 				Base:           s.core20.Filename(),
 				Gadget:         s.gadget.Filename(),
 				CurrentKernels: []string{s.kernel.Filename(), s.kernelr2.Filename()},
@@ -1750,6 +1803,9 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeUpgradeScenarios(c *C) 
 		{
 			modeenv: &boot.Modeenv{
 				Mode:           "run",
+				Model:          s.model.Model(),
+				BrandID:        "canonical",
+				Grade:          "signed",
 				Base:           s.core20.Filename(),
 				TryBase:        s.core20r2.Filename(),
 				BaseStatus:     boot.TryStatus,
@@ -1767,6 +1823,9 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeUpgradeScenarios(c *C) 
 			snapFiles:    []snap.PlaceInfo{s.kernel, s.gadget, s.core20, s.core20r2},
 			expModeenv: &boot.Modeenv{
 				Mode:           "run",
+				Model:          s.model.Model(),
+				BrandID:        "canonical",
+				Grade:          "signed",
 				Base:           s.core20.Filename(),
 				TryBase:        s.core20r2.Filename(),
 				BaseStatus:     boot.TryingStatus,
@@ -1778,6 +1837,9 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeUpgradeScenarios(c *C) 
 		{
 			modeenv: &boot.Modeenv{
 				Mode:           "run",
+				Model:          s.model.Model(),
+				BrandID:        "canonical",
+				Grade:          "signed",
 				Base:           s.core20.Filename(),
 				TryBase:        s.core20r2.Filename(),
 				BaseStatus:     boot.TryStatus,
@@ -1797,6 +1859,9 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeUpgradeScenarios(c *C) 
 			kernelStatus:    boot.TryingStatus,
 			expModeenv: &boot.Modeenv{
 				Mode:           "run",
+				Model:          s.model.Model(),
+				BrandID:        "canonical",
+				Grade:          "signed",
 				Base:           s.core20.Filename(),
 				TryBase:        s.core20r2.Filename(),
 				BaseStatus:     boot.TryingStatus,
@@ -1810,6 +1875,9 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeUpgradeScenarios(c *C) 
 		{
 			modeenv: &boot.Modeenv{
 				Mode:           "run",
+				Model:          s.model.Model(),
+				BrandID:        "canonical",
+				Grade:          "signed",
 				Base:           s.core20.Filename(),
 				TryBase:        s.core20r2.Filename(),
 				Gadget:         s.gadget.Filename(),
@@ -1830,6 +1898,9 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeUpgradeScenarios(c *C) 
 		{
 			modeenv: &boot.Modeenv{
 				Mode:           "run",
+				Model:          s.model.Model(),
+				BrandID:        "canonical",
+				Grade:          "signed",
 				Base:           s.core20.Filename(),
 				BaseStatus:     boot.TryStatus,
 				TryBase:        "",
@@ -1850,6 +1921,9 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeUpgradeScenarios(c *C) 
 		{
 			modeenv: &boot.Modeenv{
 				Mode:           "run",
+				Model:          s.model.Model(),
+				BrandID:        "canonical",
+				Grade:          "signed",
 				Base:           s.core20.Filename(),
 				TryBase:        s.core20r2.Filename(),
 				BaseStatus:     boot.TryingStatus,
@@ -1867,6 +1941,9 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeUpgradeScenarios(c *C) 
 			snapFiles:    []snap.PlaceInfo{s.kernel, s.core20, s.core20r2, s.gadget},
 			expModeenv: &boot.Modeenv{
 				Mode:           "run",
+				Model:          s.model.Model(),
+				BrandID:        "canonical",
+				Grade:          "signed",
 				Base:           s.core20.Filename(),
 				TryBase:        s.core20r2.Filename(),
 				BaseStatus:     boot.DefaultStatus,
@@ -1878,6 +1955,9 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeUpgradeScenarios(c *C) 
 		{
 			modeenv: &boot.Modeenv{
 				Mode:           "run",
+				Model:          s.model.Model(),
+				BrandID:        "canonical",
+				Grade:          "signed",
 				Base:           s.core20.Filename(),
 				Gadget:         s.gadget.Filename(),
 				CurrentKernels: []string{s.kernel.Filename()},
@@ -1897,6 +1977,9 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeUpgradeScenarios(c *C) 
 		{
 			modeenv: &boot.Modeenv{
 				Mode:           "run",
+				Model:          s.model.Model(),
+				BrandID:        "canonical",
+				Grade:          "signed",
 				Base:           s.core20.Filename(),
 				Gadget:         s.gadget.Filename(),
 				CurrentKernels: []string{s.kernel.Filename()},
@@ -1919,6 +2002,9 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeUpgradeScenarios(c *C) 
 		{
 			modeenv: &boot.Modeenv{
 				Mode:           "run",
+				Model:          s.model.Model(),
+				BrandID:        "canonical",
+				Grade:          "signed",
 				Base:           s.core20.Filename(),
 				Gadget:         s.gadget.Filename(),
 				CurrentKernels: []string{s.kernel.Filename()},
@@ -2098,6 +2184,9 @@ func (s *initramfsMountsSuite) testInitramfsMountsRunModeUpdateBootloaderVars(
 	// write modeenv
 	modeEnv := boot.Modeenv{
 		Mode:           "run",
+		Model:          s.model.Model(),
+		BrandID:        "canonical",
+		Grade:          "signed",
 		Base:           s.core20.Filename(),
 		Gadget:         s.gadget.Filename(),
 		CurrentKernels: []string{s.kernel.Filename(), s.kernelr2.Filename()},
@@ -2188,6 +2277,9 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeWithComponentsHappy(c *
 	// write modeenv
 	modeEnv := boot.Modeenv{
 		Mode:           "run",
+		Model:          s.model.Model(),
+		BrandID:        "canonical",
+		Grade:          "signed",
 		Base:           s.core20.Filename(),
 		Gadget:         s.gadget.Filename(),
 		CurrentKernels: []string{s.kernel.Filename()},
@@ -2271,6 +2363,9 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeWithComponentsBadComps(
 	// write modeenv
 	modeEnv := boot.Modeenv{
 		Mode:           "run",
+		Model:          s.model.Model(),
+		BrandID:        "canonical",
+		Grade:          "signed",
 		Base:           s.core20.Filename(),
 		Gadget:         s.gadget.Filename(),
 		CurrentKernels: []string{s.kernel.Filename()},
@@ -2345,6 +2440,9 @@ func (s *initramfsMountsSuite) testInitramfsMountsRunModeWithDriversTreeHappy(c 
 	// write modeenv
 	modeEnv := boot.Modeenv{
 		Mode:           "run",
+		Model:          s.model.Model(),
+		BrandID:        "canonical",
+		Grade:          "signed",
 		Base:           s.core20.Filename(),
 		Gadget:         s.gadget.Filename(),
 		CurrentKernels: []string{s.kernel.Filename()},
