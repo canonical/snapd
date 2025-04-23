@@ -99,10 +99,9 @@ reset_classic() {
         # Restore snapd state and start systemd service units
         restore_snapd_state
         escaped_snap_mount_dir="$(systemd-escape --path "$SNAP_MOUNT_DIR")"
-        mounts="$(systemctl list-unit-files --full | grep "^${escaped_snap_mount_dir}[-.].*\\.mount" | cut -f1 -d ' ')"
-        services="$(systemctl list-unit-files --full | grep "^${escaped_snap_mount_dir}[-.].*\\.service" | cut -f1 -d ' ')"
+        units="$(systemctl list-unit-files --full | grep -E "^${escaped_snap_mount_dir}[-.].*\\.(mount|service)" | cut -f1 -d ' ')"
         systemctl daemon-reload # Workaround for http://paste.ubuntu.com/17735820/
-        for unit in $mounts $services; do
+        for unit in $units; do
             systemctl start "$unit"
         done
 
@@ -117,21 +116,7 @@ reset_classic() {
     mkdir -p /etc/systemd/user/sockets.target.wants /etc/systemd/user/timers.target.wants /etc/systemd/user/default.target.wants
 
     if [ "$1" != "--keep-stopped" ]; then
-        systemctl start snapd.socket
-
-        EXTRA_NC_ARGS="-q 1"
-        case "$SPREAD_SYSTEM" in
-            debian-10-*)
-                # Param -q is not available on fedora 34
-                EXTRA_NC_ARGS="-w 1"
-                ;;
-            fedora-*|amazon-*|centos-*)
-                EXTRA_NC_ARGS=""
-                ;;
-        esac
-
-        # wait for snapd listening
-        retry -n 120 --wait 0.5 sh -c "printf 'GET / HTTP/1.0\r\n\r\n' | nc -U $EXTRA_NC_ARGS /run/snapd.socket"
+        systemctl start snapd.service snapd.socket
     fi
 }
 
@@ -170,7 +155,6 @@ reset_all_snap() {
         echo "snap in broken state"
         exit 1
     fi
-
 }
 
 # Before resetting all snapd state, specifically remove all disabled snaps that

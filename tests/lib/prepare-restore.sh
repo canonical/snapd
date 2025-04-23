@@ -641,6 +641,11 @@ prepare_suite() {
     # Make sure the suite starts with a clean environment and with the snapd state restored
     # shellcheck source=tests/lib/reset.sh
     "$TESTSLIB"/reset.sh --reuse-core
+
+    if os.query is-classic; then
+        # Save all the installed packages file system files
+        "$TESTSTOOLS"/fs-state start-monitor
+    fi
 }
 
 prepare_suite_each() {
@@ -655,14 +660,6 @@ prepare_suite_each() {
     # Clean the dmesg log
     dmesg --read-clear
 
-    # Start fs monitor
-    "$TESTSTOOLS"/fs-state start-monitor
-
-    # Save all the installed packages
-    if os.query is-classic; then
-        tests.pkgs list-installed > installed-initial.pkgs
-    fi
-
     # back test directory to be restored during the restore
     tests.backup prepare
 
@@ -670,11 +667,13 @@ prepare_suite_each() {
     echo -n "${SPREAD_JOB:-} " >> "$RUNTIME_STATE_PATH/runs"
 
     # Restart journal log and reset systemd journal cursor.
-    systemctl reset-failed systemd-journald.service
-    if ! systemctl restart systemd-journald.service; then
-        systemctl status systemd-journald.service || true
-        echo "Failed to restart systemd-journald.service, exiting..."
-        exit 1
+    if ! systemctl is-active --quiet systemd-journald.service; then
+        systemctl reset-failed systemd-journald.service
+        if ! systemctl restart systemd-journald.service; then
+            systemctl status systemd-journald.service || true
+            echo "Failed to restart systemd-journald.service, exiting..."
+            exit 1
+        fi
     fi
     "$TESTSTOOLS"/journal-state start-new-log
 
@@ -687,8 +686,6 @@ prepare_suite_each() {
     fi
 
     if [[ "$variant" = full ]]; then
-        # shellcheck source=tests/lib/prepare.sh
-        . "$TESTSLIB"/prepare.sh
         # shellcheck source=tests/lib/prepare.sh
         . "$TESTSLIB"/prepare.sh
         if os.query is-classic; then
@@ -727,30 +724,14 @@ restore_suite_each() {
     # restore test directory saved during prepare
     tests.backup restore
 
-    # Save all the installed packages and remove the new packages installed 
-    if os.query is-classic; then
-        tests.pkgs list-installed > installed-final.pkgs
-        diff -u installed-initial.pkgs installed-final.pkgs | grep -E "^\+" | tail -n+2 | cut -c 2- > installed-in-test.pkgs
-        diff -u installed-initial.pkgs installed-final.pkgs | grep -E "^\-" | tail -n+2 | cut -c 2- > removed-in-test.pkgs
-
-        # shellcheck disable=SC2002
-        packages="$(cat installed-in-test.pkgs | tr "\n" " ")"
-        if [ -n "$packages" ]; then
-            # shellcheck disable=SC2086
-            tests.pkgs remove $packages
-        fi
-        # shellcheck disable=SC2002
-        packages="$(cat removed-in-test.pkgs | tr "\n" " ")"
-        if [ -n "$packages" ]; then
-            # shellcheck disable=SC2086
-            tests.pkgs install $packages
-        fi
-    fi
-
     # In case of nested tests the next checks and changes are not needed
     # Just is needed to cleanup the snaps installed
-    if tests.nested is-nested; then
+    if tests.nested is-nested; then        
         "$TESTSTOOLS"/snaps.cleanup
+
+        # restore the installed packaged
+        restore_installed_pkgs
+
         return 0
     fi
 
@@ -774,20 +755,55 @@ restore_suite_each() {
         if systemctl status snapd.failure.service; then
             systemctl reset-failed snapd.failure.service
         fi
-    fi
 
-    if [[ "$variant" = full ]]; then
         # shellcheck source=tests/lib/reset.sh
         "$TESTSLIB"/reset.sh --reuse-core
     fi
 
-    # Check for invariants late, in order to detect any bugs in the code above.
-    if [[ "$variant" = full ]]; then
-        "$TESTSTOOLS"/cleanup-state pre-invariant
-    fi
-    tests.invariant check
+    # restore the installed packaged
+    restore_installed_pkgs
+}
 
-    "$TESTSTOOLS"/fs-state check-monitor
+restore_installed_pkgs() {
+    # Save all the installed packages and remove the new packages installed 
+    if os.query is-classic; then
+        tests.pkgs list-installed > installed-final.pkgs
+        diff -u "$TESTSTMP"/installed-initial.pkgs installed-final.pkgs | grep -E "^\+" | tail -n+2 | cut -c 2- > installed-in-test.pkgs
+        diff -u "$TESTSTMP"/installed-initial.pkgs installed-final.pkgs | grep -E "^\-" | tail -n+2 | cut -c 2- > removed-in-test.pkgs
+        rm -f installed-final.pkgs
+
+        # shellcheck disable=SC2002
+        packages="$(cat installed-in-test.pkgs | tr "\n" " ")"
+        if [ -n "$packages" ]; then
+            # shellcheck disable=SC2086
+            tests.pkgs remove $packages
+        fi
+        rm -f installed-in-test.pkgs
+
+        # shellcheck disable=SC2002
+        packages="$(cat removed-in-test.pkgs | tr "\n" " ")"
+        if [ -n "$packages" ]; then
+            # shellcheck disable=SC2086
+            tests.pkgs install $packages
+        fi
+        rm -f removed-in-test.pkgs
+    fi
+}
+
+wait_snapd_started() {
+    EXTRA_NC_ARGS="-q 1"
+    case "$SPREAD_SYSTEM" in
+        debian-10-*)
+            # Param -q is not available on fedora 34
+            EXTRA_NC_ARGS="-w 1"
+            ;;
+        fedora-*|amazon-*|centos-*)
+            EXTRA_NC_ARGS=""
+            ;;
+    esac
+
+    # wait for snapd listening
+    retry -n 100 --wait 0.2 sh -c "printf 'GET / HTTP/1.0\r\n\r\n' | nc -U $EXTRA_NC_ARGS /run/snapd.socket"
 }
 
 restore_suite() {
@@ -795,6 +811,9 @@ restore_suite() {
     if [ "$REMOTE_STORE" = staging ]; then
         "$TESTSTOOLS"/store-state teardown-staging-store
     fi
+
+    # Check the tests have not left undesired files
+    "$TESTSTOOLS"/fs-state check-monitor
 
     if os.query is-classic; then
         # shellcheck source=tests/lib/pkgdb.sh
@@ -892,6 +911,8 @@ restore_project_each() {
             find /var/snap -printf '%Z\t%H/%P\n' | grep -c -v snappy_var_t  | MATCH "0"
             ;;
     esac
+
+
 }
 
 restore_project() {
