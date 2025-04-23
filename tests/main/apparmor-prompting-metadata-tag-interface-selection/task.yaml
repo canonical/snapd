@@ -1,0 +1,147 @@
+summary: Check that interface identification via metadata tagging works
+
+details: |
+    Test that snapd can inject metadata tags into apparmor profiles, receive
+    the tag associated with a given prompt as part of the message notification
+    from the kernel, map that tag to the interface associated with it, and
+    include that interface in the prompt which it creates for the prompting
+    client.
+
+systems:
+  - ubuntu-25.* # requires AppArmor support for tags which is only in 25.04+
+
+prepare: |
+    echo "Check that the system AppArmor supports metadata tagging"
+    snap debug api /v2/system-info | jq '.result."sandbox-features".apparmor' | MATCH "kernel:policy:notify:user:tags"
+    snap debug api /v2/system-info | jq '.result."sandbox-features".apparmor' | MATCH "kernel:policy:notify_versions:v5"
+
+    # Before enabling prompting, we must have a snap installed which provides
+    # a prompting `handler-service` attribute with a connection via the
+    # `snap-interfaces-requests-control` interface.
+
+    # Prerequisite for having a prompts handler service
+    snap set system experimental.user-daemons=true
+
+    tests.session prepare -u test
+    tests.session -u test exec sh -c 'mkdir -p /home/test'
+
+    # Install a snap which identifies itself to snapd as a prompting handler-service
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-prompt-handler
+    snap connect test-snapd-prompt-handler:snap-interfaces-requests-control
+
+    # Install a snap which will trigger prompts for different interfaces
+    "$TESTSTOOLS"/snaps-state install-local interface-poker
+    snap connect interface-poker:camera
+    snap connect interface-poker:home
+
+    # Enable prompting
+    snap set system experimental.apparmor-prompting=true
+
+restore: |
+    snap set system experimental.apparmor-prompting=false
+
+    # Clean up /dev/video0 if we created it. cat should fail if it's real.
+    if cat /dev/video0 ; then
+        # It's a file we can cat without error, so we created it
+        rm /dev/video0
+    fi
+
+    tests.session restore -u test
+
+debug: |
+    echo "Check kernel version"
+    uname -a
+
+    echo "Check system info"
+    snap debug api /v2/system-info
+
+execute: |
+    echo "Precondition check that snapd is active"
+    systemctl is-active snapd.service snapd.socket
+
+    echo "Check that there are no prompts initially"
+    RESULT="$(tests.session -u test exec snap debug api /v2/interfaces/requests/prompts)"
+
+    echo "$RESULT" | jq | MATCH '"status-code": 200'
+    echo "$RESULT" | jq '.result | length' | MATCH 0
+
+    sleep 1
+    BEFORE="$(date --rfc-3339 s | tr -s ' ' T | sed 's/[+ ]00:00/Z/')" # Replace UTC 00:00 with Z
+
+    echo "Trigger a prompt for the home interface"
+    tests.session -u test exec interface-poker.ls /home/test &
+
+    echo "Wait for notice for new prompt"
+    RESULT="$(tests.session -u test exec snap debug api '/v2/notices?types=interfaces-requests-prompt&timeout=60s&after='"$BEFORE")"
+    echo "$RESULT" | jq | MATCH '"status-code": 200'
+    echo "$RESULT" | jq '.result | length' | MATCH 1
+
+    echo "Check that there is one prompt, for the home interface"
+    RESULT="$(tests.session -u test exec snap debug api /v2/interfaces/requests/prompts)"
+
+    echo "$RESULT" | jq | MATCH '"status-code": 200'
+    echo "$RESULT" | jq '.result | length' | MATCH 1
+    echo "$RESULT" | jq .result[0].interface | MATCH '"home"'
+    PROMPT_ID="$(echo "$RESULT" | jq .result[0].id | tr -d '"')"
+
+    sleep 1
+    BEFORE="$(date --rfc-3339 s | tr -s ' ' T | sed 's/[+ ]00:00/Z/')" # Replace UTC 00:00 with Z
+
+    echo "Reply to the prompt with an allow"
+    echo '{"action": "allow", "lifespan": "single", "constraints": {"path-pattern": "/**", "permissions": ["read"]}}' | tests.session -u test exec snap debug api -X POST "/v2/interfaces/requests/prompts/$PROMPT_ID" | jq | MATCH '"status-code": 200'
+
+    echo "Wait for notice for replied prompt"
+    RESULT="$(tests.session -u test exec snap debug api '/v2/notices?types=interfaces-requests-prompt&timeout=60s&after='"$BEFORE")"
+    echo "$RESULT" | jq | MATCH '"status-code": 200'
+    echo "$RESULT" | jq '.result | length' | MATCH 1
+    echo "$RESULT" | jq | MATCH '"resolved": "replied"'
+
+    echo "Check that the prompt was resolved"
+    RESULT="$(tests.session -u test exec snap debug api /v2/interfaces/requests/prompts)"
+
+    echo "$RESULT" | jq | MATCH '"status-code": 200'
+    echo "$RESULT" | jq '.result | length' | MATCH 0
+
+    echo "Ensure /dev/video0 exists"
+    if [ ! -f /dev/video0 ] ; then
+        touch /dev/video0
+        chmod 666 /dev/video0
+    fi
+
+    sleep 1
+    BEFORE="$(date --rfc-3339 s | tr -s ' ' T | sed 's/[+ ]00:00/Z/')" # Replace UTC 00:00 with Z
+
+    echo "Trigger a prompt for the camera interface"
+    tests.session -u test exec interface-poker.cat /dev/video0 &
+
+    echo "Wait for notice for new prompt"
+    RESULT="$(tests.session -u test exec snap debug api '/v2/notices?types=interfaces-requests-prompt&timeout=60s&after='"$BEFORE")"
+    echo "$RESULT" | jq | MATCH '"status-code": 200'
+    echo "$RESULT" | jq '.result | length' | MATCH 1
+
+    echo "Check that there is one prompt, for the camera interface"
+    RESULT="$(tests.session -u test exec snap debug api /v2/interfaces/requests/prompts)"
+
+    echo "$RESULT" | jq | MATCH '"status-code": 200'
+    echo "$RESULT" | jq '.result | length' | MATCH 1
+    echo "$RESULT" | jq .result[0].interface | MATCH '"camera"'
+    PROMPT_ID="$(echo "$RESULT" | jq .result[0].id | tr -d '"')"
+
+    sleep 1
+    BEFORE="$(date --rfc-3339 s | tr -s ' ' T | sed 's/[+ ]00:00/Z/')" # Replace UTC 00:00 with Z
+
+    echo "Reply to the prompt with an allow"
+    echo '{"action": "allow", "lifespan": "single", "constraints": {"path-pattern": "/**", "permissions": ["read"]}}' | tests.session -u test exec snap debug api -X POST "/v2/interfaces/requests/prompts/$PROMPT_ID" | jq | MATCH '"status-code": 200'
+
+    echo "Wait for notice for replied prompt"
+    RESULT="$(tests.session -u test exec snap debug api '/v2/notices?types=interfaces-requests-prompt&timeout=60s&after='"$BEFORE")"
+    echo "$RESULT" | jq | MATCH '"status-code": 200'
+    echo "$RESULT" | jq '.result | length' | MATCH 1
+    echo "$RESULT" | jq | MATCH '"resolved": "replied"'
+
+    echo "Check that the prompt was resolved"
+    RESULT="$(tests.session -u test exec snap debug api /v2/interfaces/requests/prompts)"
+
+    echo "$RESULT" | jq | MATCH '"status-code": 200'
+    echo "$RESULT" | jq '.result | length' | MATCH 0
+

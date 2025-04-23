@@ -1,0 +1,10 @@
+name: interface-poker
+version: 1
+base: core18
+apps:
+  ls:
+    command: bin/ls
+    plugs: [camera, home]
+  cat:
+    command: bin/cat
+    plugs: [camera, home]
