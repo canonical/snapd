@@ -304,9 +304,3 @@ func (o *opteeKeyRevealer) RevealKey(data, ciphertext, aad []byte) (plaintext []
 	client := optee.NewFDETAClient()
 	return client.DecryptKey(ciphertext, handle)
 }
-
-// FDEOpteeTAPresent returns true if we detect that the expected OPTEE TA that
-// enables FDE is present.
-func FDEOpteeTAPresent() bool {
-	return optee.NewFDETAClient().Present()
-}
