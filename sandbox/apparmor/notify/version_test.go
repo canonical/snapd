@@ -50,10 +50,6 @@ func (s *versionSuite) TestVersionsAndSupportedChecksAlign(c *C) {
 }
 
 func (s *versionSuite) TestVersionsLikelySupportedChecks(c *C) {
-	// TODO: remove this once v5 is no longer manually disabled
-	restore := notify.OverrideV5ManuallyDisabled()
-	defer restore()
-
 	for _, testCase := range []struct {
 		featuresList    []string
 		featuresErr     error

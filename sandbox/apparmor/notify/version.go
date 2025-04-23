@@ -76,15 +76,9 @@ var (
 				// Don't use v5 if tags are not supported
 				return false
 			}
-			return !v5ManuallyDisabled // TODO: return true once restarts work lands
+			return true
 		},
 	}
-
-	// v5ManuallyDisabled disables support for protocol v5, which is necessary
-	// until support for restarts has landed. The protocol changes for restarts
-	// were originally part of protocol v7, but are now being rolled into v5 in
-	// addition to tagging. Until it's all landed, mark v5 as disabled.
-	v5ManuallyDisabled = true
 
 	// versionKnown returns true if the given protocol version is known by
 	// snapd. Even if true, the version may still be unsupported by snapd or
