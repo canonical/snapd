@@ -87,9 +87,9 @@ func MockSealKeyToModeenv(f func(key, saveKey secboot.BootstrappedContainer, pri
 type sealKeyToModeenvFlags struct {
 	// HasFDESetupHook is true if the kernel has a fde-setup hook to use
 	HasFDESetupHook bool
-	// HasFDETA is true if the system has the well-known FDE TA with a specific
-	// UUID. Should never be true if HasFDESetupHook is true.
-	HasFDETA bool
+	// StandaloneInstall indicates that the sealing is happening when installing
+	// a standalone system.
+	StandaloneInstall bool
 	// FactoryReset indicates that the sealing is happening during factory
 	// reset.
 	FactoryReset bool
@@ -135,18 +135,11 @@ func sealKeyToModeenvImpl(
 		}
 	}
 
-	var method device.SealingMethod
-	switch {
-	case flags.HasFDESetupHook:
-		method = device.SealingMethodFDESetupHook
-	case flags.HasFDETA:
-		method = device.SealingMethodOPTEE
-	default:
-		method = device.SealingMethodTPM
-		if flags.StateUnlocker != nil {
-			relock := flags.StateUnlocker()
-			defer relock()
-		}
+	method := secboot.DetermineSealingMethod(flags.HasFDESetupHook, flags.StandaloneInstall)
+
+	if flags.StateUnlocker != nil {
+		relock := flags.StateUnlocker()
+		defer relock()
 	}
 
 	return sealKeyToModeenvForMethod(method, key, saveKey, primaryKey, volumesAuth, model, modeenv, flags)
