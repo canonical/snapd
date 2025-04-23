@@ -143,18 +143,17 @@ jobs:
                   -f "${features[@]}" \
                   --journal "${dir}/journal.txt" \
                   --state "${dir}/state.json" \
-                  --output "$featdir/$(basename ${dir})" 2>>featextract.error
+                  --output "$featdir/$(basename ${dir})"
               elif [ -f "${dir}/journal.txt" ] && [ ! -f "${dir}/state.json" ]; then
-                echo "No state.json present in $dir" >> featextract.error
-              elif [ ! -f "${dir}/journal.txt" ] && [ -f "${dir}/state.json" ]; then
-                echo "No journal.txt present in $dir" >> featextract.error
-              fi
+                ./tests/utils/features/featextractor.py \
+                  -f "${features[@]}" \
+                  --journal "${dir}/journal.txt" \
+                  --output "$featdir/$(basename ${dir})"
+              elif [ ! -f "${dir}/journal.txt" ]; then
+                echo "No journal.txt present in $dir"
+                exit 1
               fi
             done
-            if [ -s featextract.error ]; then
-              echo "Encountered some errors during feature extraction:"
-              cat featextract.error
-            fi
             ./tests/utils/features/featcomposer.py \
                 --dir "$featdir" \
                 --output "$composedir" \

@@ -6,12 +6,18 @@ import json
 from typing import Any, TextIO
 import sys
 
-from features import *
+from features import Cmd, Endpoint, Interface, Task, Change, Ensure, CmdLogLine, EndpointLogLine, InterfaceLogLine, EnsureLogLine, ChangeLogLine, TaskLogLine
 from state import State
 
 
 def _check_msg(json_entry: dict[str, Any], msg: str) -> bool:
     return 'msg' in json_entry and json_entry['msg'] == msg
+
+
+def _remove_duplicate_features(key: str, dictionary: dict[str, Any]):
+    if key in dictionary:
+        l = dictionary[key]
+        dictionary[key] = [i for n, i in enumerate(l) if i not in l[n + 1:]]
 
 
 class CmdFeature:
@@ -21,18 +27,12 @@ class CmdFeature:
 
     @staticmethod
     def handle_feature(feature_dict: dict[str, list[Any]], json_entry: dict[str, Any], _):
-        try:
-            feature_dict[CmdFeature.parent].append(
-                Cmd(cmd=json_entry[CmdLogLine.cmd]))
-        except KeyError as e:
-            print('cmd entry not found in entry {}: {}'.format(json_entry, e), file=sys.stderr)
-        
+        feature_dict[CmdFeature.parent].append(
+            Cmd(cmd=json_entry[CmdLogLine.cmd]))
 
     @staticmethod
-    def cleanup_dict(feature_dict: dict[str, list[Any]]):
-        if CmdFeature.parent in feature_dict:
-            l = feature_dict[CmdFeature.parent]
-            feature_dict[CmdFeature.parent] = [i for n, i in enumerate(l) if i not in l[n + 1:]]
+    def cleanup_dict(_):
+        pass
 
 
 class EndpointFeature:
@@ -42,24 +42,18 @@ class EndpointFeature:
 
     @staticmethod
     def handle_feature(feature_dict: dict[str, list[Any]], json_entry: dict[str, Any], _):
-        try:
-            if EndpointLogLine.action in json_entry:
-                entry = Endpoint(method=json_entry[EndpointLogLine.method],
-                                 path=json_entry[EndpointLogLine.path], 
-                                 action=json_entry[EndpointLogLine.action])
-            else:
-                entry = Endpoint(
-                    method=json_entry[EndpointLogLine.method], path=json_entry[EndpointLogLine.path])
-            feature_dict[EndpointFeature.parent].append(entry)
-        except KeyError as e:
-            print('endpoint entries not found in entry {}: {}'.format(json_entry, e), file=sys.stderr)
-        
+        if EndpointLogLine.action in json_entry:
+            entry = Endpoint(method=json_entry[EndpointLogLine.method],
+                             path=json_entry[EndpointLogLine.path],
+                             action=json_entry[EndpointLogLine.action])
+        else:
+            entry = Endpoint(
+                method=json_entry[EndpointLogLine.method], path=json_entry[EndpointLogLine.path])
+        feature_dict[EndpointFeature.parent].append(entry)
 
     @staticmethod
-    def cleanup_dict(feature_dict: dict[str, list[Any]]):
-        if EndpointFeature.parent in feature_dict:
-            l = feature_dict[EndpointFeature.parent]
-            feature_dict[EndpointFeature.parent] = [i for n, i in enumerate(l) if i not in l[n + 1:]]
+    def cleanup_dict(_):
+        pass
 
 
 class InterfaceFeature:
@@ -69,20 +63,14 @@ class InterfaceFeature:
 
     @staticmethod
     def handle_feature(feature_dict: dict[str, list[Any]], json_entry: dict[str, Any], _):
-        try:
-            feature_dict[InterfaceFeature.parent].append(Interface(
-                name=json_entry[InterfaceLogLine.interface], 
-                plug_snap_type=json_entry[InterfaceLogLine.plug], 
-                slot_snap_type=json_entry[InterfaceLogLine.slot]))
-        except KeyError as e:
-            print('interface entries not found in entry {}: {}'.format(json_entry, e), file=sys.stderr)
-        
+        feature_dict[InterfaceFeature.parent].append(Interface(
+            name=json_entry[InterfaceLogLine.interface],
+            plug_snap_type=json_entry[InterfaceLogLine.plug],
+            slot_snap_type=json_entry[InterfaceLogLine.slot]))
 
     @staticmethod
-    def cleanup_dict(feature_dict: dict[str, list[Any]]):
-        if InterfaceFeature.parent in feature_dict:
-            l = feature_dict[InterfaceFeature.parent]
-            feature_dict[InterfaceFeature.parent] = [i for n, i in enumerate(l) if i not in l[n + 1:]]
+    def cleanup_dict(_):
+        pass
 
 
 class EnsureFeature:
@@ -92,43 +80,38 @@ class EnsureFeature:
 
     @staticmethod
     def handle_feature(feature_dict: dict[str, list[Any]], json_entry: dict[str, Any], _):
-        try:
-            if EnsureLogLine.func in json_entry:
-                for ensure_list in reversed(feature_dict[EnsureFeature.parent]):
-                    if ensure_list['manager'] == json_entry[EnsureLogLine.manager]:
-                        ensure_list['functions'].append(json_entry[EnsureLogLine.func])
-                        break
-            else:
-                feature_dict[EnsureFeature.parent].append(Ensure(manager=json_entry[EnsureLogLine.manager], functions=[]))
-
-        except KeyError as e:
-            print('ensure entries not found in entry {}: {}'.format(json_entry, e), file=sys.stderr)
-
+        if EnsureLogLine.func in json_entry:
+            for ensure_list in reversed(feature_dict[EnsureFeature.parent]):
+                if ensure_list['manager'] == json_entry[EnsureLogLine.manager]:
+                    ensure_list['functions'].append(
+                        json_entry[EnsureLogLine.func])
+                    break
+        else:
+            feature_dict[EnsureFeature.parent].append(
+                Ensure(manager=json_entry[EnsureLogLine.manager], functions=[]))
 
     @staticmethod
-    def cleanup_dict(feature_dict: dict[str, list[Any]]):
-        l = feature_dict[EnsureFeature.parent]
-        feature_dict[EnsureFeature.parent] = [i for n, i in enumerate(l) if i not in l[n + 1:]]
+    def cleanup_dict(_):
+        pass
 
 
 class ChangeFeature:
     name = 'change'
     parent = 'changes'
     msg = 'new-change'
-    
 
     @staticmethod
     def handle_feature(feature_dict: dict[str, list[Any]], json_entry: dict[str, Any], state: State):
-        try:
-            snap_types = list(state.get_snap_types_from_change_id(json_entry[ChangeLogLine.id]))
-            feature_dict[ChangeFeature.parent].append(Change(kind=json_entry[ChangeLogLine.kind], snap_types=snap_types))
-        except KeyError as e:
-            print("Encountered error during change feature processing for change {}: {}".format(json_entry, e), file=sys.stderr)
-        
+        snap_types = []
+        if state:
+            snap_types = list(state.get_snap_types_from_change_id(
+                json_entry[ChangeLogLine.id]))
+        feature_dict[ChangeFeature.parent].append(
+            Change(kind=json_entry[ChangeLogLine.kind], snap_types=snap_types))
+
     @staticmethod
-    def cleanup_dict(feature_dict: dict[str, list[Any]]):
-        l = feature_dict[ChangeFeature.parent]
-        feature_dict[ChangeFeature.parent] = [i for n, i in enumerate(l) if i not in l[n + 1:]]
+    def cleanup_dict(_):
+        pass
 
 
 class TaskFeature:
@@ -142,23 +125,21 @@ class TaskFeature:
             if json_entry[TaskLogLine.id] == entry["id"]:
                 entry['last_status'] = json_entry[TaskLogLine.status]
                 return
-        try:
-            snap_types = list(state.get_snap_types_from_task_id(json_entry[TaskLogLine.id]))
-            feature_dict[TaskFeature.parent].append(
-                Task(id=json_entry[TaskLogLine.id], 
-                     kind=json_entry[TaskLogLine.task_name], 
-                     last_status=json_entry[TaskLogLine.status], 
-                     snap_types=snap_types))
-        except KeyError as e:
-            print("Encountered error during task feature processing for task {}: {}".format(json_entry, e), file=sys.stderr)
-        
+        snap_types = []
+        if state:
+            snap_types = state.get_snap_types_from_task_id(
+                json_entry[TaskLogLine.id])
+        feature_dict[TaskFeature.parent].append(
+            Task(id=json_entry[TaskLogLine.id],
+                 kind=json_entry[TaskLogLine.task_name],
+                 last_status=json_entry[TaskLogLine.status],
+                 snap_types=snap_types))
+
     @staticmethod
     def cleanup_dict(feature_dict: dict[str, list[Any]]):
         if TaskFeature.parent in feature_dict:
             for entry in feature_dict[TaskFeature.parent]:
                 del entry['id']
-            l = feature_dict[TaskFeature.parent]
-            feature_dict[TaskFeature.parent] = [i for n, i in enumerate(l) if i not in l[n + 1:]]
 
 
 FEATURE_LIST = [CmdFeature, EndpointFeature, InterfaceFeature,
@@ -189,13 +170,18 @@ def get_feature_dictionary(log_file: TextIO, feature_list: list[str], state: Sta
             line_json = json.loads(line)
             for feature_class in feature_classes:
                 if _check_msg(line_json, feature_class.msg):
-                    feature_class.handle_feature(
-                        feature_dict, line_json, state)
+                    try:
+                        feature_class.handle_feature(
+                            feature_dict, line_json, state)
+                    except KeyError as e:
+                        raise RuntimeError("Encountered error during {} feature processing for {}: {}".format(
+                            feature_class.name, line_json, e), file=sys.stderr)
         except json.JSONDecodeError:
             raise RuntimeError("Could not parse line as json: {}".format(line))
-        
+
     for feature_class in feature_classes:
         feature_class.cleanup_dict(feature_dict)
+        _remove_duplicate_features(feature_class.parent, feature_dict)
 
     return feature_dict
 
@@ -212,11 +198,13 @@ def main():
     parser.add_argument(
         '-j', '--journal', help='Text file containing journal entries', required=True, type=argparse.FileType('r'))
     parser.add_argument(
-        '-s', '--state', help='state.json', required=True, type=argparse.FileType('r'))
+        '-s', '--state', help='state.json', required=False, type=argparse.FileType('r'))
     args = parser.parse_args()
 
     try:
-        state = State(json.load(args.state))
+        state = None
+        if args.state:
+            state = State(json.load(args.state))
         feature_dictionary = get_feature_dictionary(
             args.journal, args.feature, state)
         json.dump(feature_dictionary, open(args.output, "w"))
