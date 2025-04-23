@@ -38,8 +38,6 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/gadget/device"
-	"github.com/snapcore/snapd/kernel/fde/optee"
-	"github.com/snapcore/snapd/kernel/fde/optee/opteetest"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/kcmdline"
 	"github.com/snapcore/snapd/release"
@@ -500,7 +498,7 @@ func (s *makeBootable20Suite) TestMakeSystemRunnable16Fails(c *C) {
 	c.Assert(err, ErrorMatches, `internal error: cannot make pre-UC20 system runnable`)
 }
 
-func (s *makeBootable20Suite) TestMakeSystemRunnableSealWithFDEHookOrOPTEE(c *C) {
+func (s *makeBootable20Suite) TestMakeSystemRunnableSealStandaloneSystem(c *C) {
 	model := boottest.MakeMockUC20Model()
 
 	basePath, baseInfo := snaptest.MakeTestSnapInfoWithFiles(c, "name: core24\ntype: base\nversion: 1", nil, nil)
@@ -538,75 +536,11 @@ func (s *makeBootable20Suite) TestMakeSystemRunnableSealWithFDEHookOrOPTEE(c *C)
 	})
 	defer restore()
 
-	checkedForOPTEE := false
-	mockedTAPresent := true
-	client := opteetest.MockClient{
-		PresentFn: func() bool {
-			checkedForOPTEE = true
-			return mockedTAPresent
-		},
-	}
-	restore = optee.MockNewFDETAClient(&client)
-	defer restore()
-
-	err := boot.MakeRunnableSystem(model, bootWith, &observer)
+	err := boot.MakeRunnableStandaloneSystem(model, bootWith, &observer, nil)
 	c.Assert(err, IsNil)
 
 	c.Assert(gotFlags.HasFDESetupHook, Equals, true)
-
-	// despite us reporting that optee is present, we should not use it because
-	// the hooks are there. additionally, we shouldn't even query optee because
-	// the hooks are there
-	c.Assert(gotFlags.HasFDETA, Equals, false)
-	c.Assert(checkedForOPTEE, Equals, false)
-
-	restore = boot.MockHasFDESetupHook(func(*snap.Info) (bool, error) {
-		return false, nil
-	})
-	defer restore()
-
-	// now we make it appear as if the TA is not present
-	mockedTAPresent = false
-	checkedForOPTEE = false
-
-	err = boot.MakeRunnableSystem(model, bootWith, &observer)
-	c.Assert(err, IsNil)
-
-	// now, we don't have the hooks. we should check for optee, but we should
-	// see that we don't have the TA
-	c.Assert(gotFlags.HasFDESetupHook, Equals, false)
-	c.Assert(gotFlags.HasFDETA, Equals, false)
-	c.Assert(checkedForOPTEE, Equals, true)
-
-	// now we make it appear as if the TA not present
-	mockedTAPresent = true
-	checkedForOPTEE = false
-
-	err = boot.MakeRunnableSystem(model, bootWith, &observer)
-	c.Assert(err, IsNil)
-
-	// now we have optee
-	c.Assert(gotFlags.HasFDESetupHook, Equals, false)
-	c.Assert(gotFlags.HasFDETA, Equals, true)
-	c.Assert(checkedForOPTEE, Equals, true)
-
-	// we shouldn't consider optee when installing a standalone system
-	checkedForOPTEE = false
-	err = boot.MakeRunnableStandaloneSystem(model, bootWith, &observer, nil)
-	c.Assert(err, IsNil)
-
-	c.Assert(gotFlags.HasFDESetupHook, Equals, false)
-	c.Assert(gotFlags.HasFDETA, Equals, false)
-	c.Assert(checkedForOPTEE, Equals, false)
-
-	// we should consider optee when installing from initrd
-	checkedForOPTEE = false
-	err = boot.MakeRunnableSystemFromInitrd(model, bootWith, &observer)
-	c.Assert(err, IsNil)
-
-	c.Assert(gotFlags.HasFDESetupHook, Equals, false)
-	c.Assert(gotFlags.HasFDETA, Equals, true)
-	c.Assert(checkedForOPTEE, Equals, true)
+	c.Assert(gotFlags.StandaloneInstall, Equals, true)
 }
 
 type testMakeSystemRunnable20Opts struct {
