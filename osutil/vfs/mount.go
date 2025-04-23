@@ -95,6 +95,13 @@ func (v *VFS) BindMount(sourcePoint, mountPoint string) error {
 	v.mu.Lock()
 	defer v.mu.Unlock()
 
+	_, err := v.unlockedBindMount(sourcePoint, mountPoint)
+	return err
+}
+
+func (v *VFS) unlockedBindMount(sourcePoint, mountPoint string) (*mount, error) {
+	const op = "bind-mount"
+
 	// Find the mount dominating the source point and the mount point.
 	sourcePd := v.pathDominator(sourcePoint)
 	pd := v.pathDominator(mountPoint)
@@ -106,34 +113,35 @@ func (v *VFS) BindMount(sourcePoint, mountPoint string) error {
 		// Unpack PathError this may have returned as that error contains paths
 		// that make sense in the specific [fs.FS] attached to the super-block, but
 		// not necessarily in the VFS.
-		return &fs.PathError{Op: op, Path: sourcePoint, Err: unpackPathError(err)}
+		return nil, &fs.PathError{Op: op, Path: sourcePoint, Err: unpackPathError(err)}
 	}
 
 	// Stat the mount point through the file system.
 	fsFi, err := pd.mount.fsFS.Stat(pd.fsPath)
 	if err != nil {
 		// Same as above.
-		return &fs.PathError{Op: op, Path: mountPoint, Err: unpackPathError(err)}
+		return nil, &fs.PathError{Op: op, Path: mountPoint, Err: unpackPathError(err)}
 	}
 
 	// Bind mount must be between two files or two directories.
 	if sourceFsFi.IsDir() != fsFi.IsDir() {
-		return &fs.PathError{Op: op, Path: mountPoint, Err: fs.ErrInvalid}
+		return nil, &fs.PathError{Op: op, Path: mountPoint, Err: fs.ErrInvalid}
 	}
 
 	// Mount and return.
-	v.mounts = append(v.mounts, &mount{
+	m := &mount{
 		mountID:    v.nextMountID,
 		parentID:   pd.mount.mountID,
 		mountPoint: mountPoint,
 		rootDir:    sourcePd.combinedRootDir(),
 		isDir:      fsFi.IsDir(),
 		fsFS:       sourcePd.mount.fsFS,
-	})
+	}
+	v.mounts = append(v.mounts, m)
 
 	v.nextMountID++
 
-	return nil
+	return m, nil
 }
 
 // Unmount removes a mount attached to a node otherwise named by mountPoint.
