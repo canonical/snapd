@@ -2083,7 +2083,10 @@ func generateMountsCommonInstallRecoverStart(mst *initramfsMountsState) (model *
 			dir := snapTypeToMountDir[essentialSnap.EssentialType]
 			// TODO:UC20: we need to cross-check the kernel path
 			// with snapd_recovery_kernel used by grub
-			mountOptions := *mountReadOnlyOptions
+			mountOptions := systemdMountOptions{
+				ReadOnly: true,
+				Private:  true,
+			}
 			if verityOptions != nil {
 				mountOptions.FsOpts = verityOptions
 			}
