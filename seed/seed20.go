@@ -1079,7 +1079,7 @@ func (s *seed20) deriveSideInfo(snapRef naming.SnapRef, modelSnap *asserts.Model
 func (s *seed20) lookupIntegrityData(snapRev *asserts.SnapRevision) (*integrity.IntegrityDataParams, error) {
 	snapIntegrityData := snapRev.SnapIntegrityData()
 
-	if len(snapIntegrityData) <= 0 {
+	if len(snapIntegrityData) == 0 {
 		// XXX: integrity data are not enforced currently.
 		// Here we should throw an error if integrity data are required by policy.
 		return nil, nil
@@ -1172,10 +1172,11 @@ func (s *seed20) lookupSnap(snapRef naming.SnapRef, modelSnap *asserts.ModelSnap
 			integrityData, err = s.lookupIntegrityData(snapRev)
 		})
 	}
-	// Currently integrity data are not enforced which means that lookupIntegrityData suppresses any errors that might have occurred
-	// during lookup. Moreover as invalid integrity data types are not allowed by the assertion API, the "Unsupported integrity data
-	// type" error should also not be expected. Despite these, we keep the error handling code here to avoid disruptions caused by a
-	// future change.
+	// Currently integrity data are not enforced which means that lookupIntegrityData
+	// suppresses any errors that might have occurred during lookup. Moreover as invalid
+	// integrity data types are not allowed by the assertion API, the "Unsupported integrity
+	// data type" error should also not be expected. Despite these, we keep the error handling
+	// code here to avoid disruptions caused by a future change.
 	if err != nil {
 		return nil, err
 	}
