@@ -1084,7 +1084,7 @@ func (s *seed20) lookupIntegrityData(snapRev *asserts.SnapRevision) (*integrity.
 		return nil, nil
 	}
 
-	var idp integrity.IntegrityDataParams
+	var idp *integrity.IntegrityDataParams
 	for i, sid := range snapIntegrityData {
 		// XXX: The first item in the snap-revision integrity data list is selected.
 		// In future versions, extra logic will be required here to decide which integrity data
@@ -1095,15 +1095,15 @@ func (s *seed20) lookupIntegrityData(snapRev *asserts.SnapRevision) (*integrity.
 
 		switch sid.Type {
 		case "dm-verity":
-			idp.Type = sid.Type
-			idp.Version = sid.Version
-			idp.HashAlg = sid.HashAlg
-			idp.DataBlockSize = uint64(sid.DataBlockSize)
-			idp.HashBlockSize = uint64(sid.HashBlockSize)
-			idp.Digest = sid.Digest
-			idp.Salt = sid.Salt
-
-			idp.DataBlocks = snapRev.SnapSize() / uint64(sid.DataBlockSize)
+			idp = integrity.NewIntegrityDataParams(
+				sid.Type,
+				sid.Version,
+				sid.HashAlg,
+				uint64(sid.DataBlockSize),
+				uint64(sid.HashBlockSize),
+				sid.Digest,
+				sid.Salt,
+				snapRev.SnapSize())
 		default:
 			// The assertion signing code doesn't allow assertions with unsupported
 			// types so this shouldn't be reachable.
@@ -1112,7 +1112,7 @@ func (s *seed20) lookupIntegrityData(snapRev *asserts.SnapRevision) (*integrity.
 
 	}
 
-	return &idp, nil
+	return idp, nil
 }
 
 func (s *seed20) lookupSnap(snapRef naming.SnapRef, modelSnap *asserts.ModelSnap, optSnap *internal.Snap20, channel string, handler ContainerHandler, snapsDir string, tm timings.Measurer) (*Snap, error) {
