@@ -21,6 +21,7 @@ package vfs
 
 import (
 	"io/fs"
+	"strings"
 )
 
 // Mount attaches the given file system to given mount point.
@@ -138,6 +139,67 @@ func (v *VFS) unlockedBindMount(sourcePoint, mountPoint string) (*mount, error) 
 	v.nextMountID++
 
 	return m, nil
+}
+
+// RecursiveBindMount recursively bind-mounts all the mounts reachable from sourcePoint.
+//
+// On Linux, recursion is implemented in depth-first order. This is not documented anywhere but can be
+// seen in the order of new mount entries created by recursive bind mount operation on a running system.
+func (v *VFS) RecursiveBindMount(sourcePoint, mountPoint string) error {
+	// Hold lock throughout the function as we need to consistently inspect and then mutate m.mounts.
+	v.mu.Lock()
+	defer v.mu.Unlock()
+
+	return v.unlockedRecursiveBindMount(sourcePoint, mountPoint)
+}
+
+func (v *VFS) unlockedRecursiveBindMount(sourcePoint, mountPoint string) error {
+	// Create the initial bind mount from source to mount point.
+	if m, err := v.unlockedBindMount(sourcePoint, mountPoint); err != nil || !m.isDir {
+		// A recursive bind mount on a file reduces to just bind mount.
+		return err
+	}
+
+	// Find mounts in the subtree of the source point
+	// and collect them for processing later.
+	_, dom, suffix, _ := v.dom(sourcePoint)
+
+	// XXX: does iteration order matter here?
+	// XXX: do we need ListMount here?
+	for _, m := range v.mounts {
+		// Consider only direct descendants.
+		if m.parentID != dom.mountID {
+			continue
+		}
+
+		// Consider only those mounts that are scoped to the sourcePoint suffix within the dominator.
+		var allowedPrefix string
+		switch {
+		case dom.mountPoint == "":
+			allowedPrefix = suffix
+		default:
+			allowedPrefix = dom.mountPoint + "/" + suffix
+		}
+
+		if m.isDir {
+			if !strings.HasPrefix(m.mountPoint, allowedPrefix) {
+				continue
+			}
+		} else {
+			if m.mountPoint == allowedPrefix {
+				continue
+			}
+		}
+
+		// Recursively bind-mount the mount to a new location in the desired mount point.
+		newSourcePoint := m.mountPoint
+		newMountPoint := strings.Replace(m.mountPoint, sourcePoint, mountPoint, 1)
+		if err := v.unlockedRecursiveBindMount(newSourcePoint, newMountPoint); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 // Unmount removes a mount attached to a node otherwise named by mountPoint.
