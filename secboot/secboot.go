@@ -31,6 +31,7 @@ import (
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget/device"
+	"github.com/snapcore/snapd/kernel/fde/optee"
 )
 
 const (
@@ -271,4 +272,30 @@ func MarkSuccessful() error {
 	}
 
 	return nil
+}
+
+// FDEOpteeTAPresent returns true if we detect that the expected OPTEE TA that
+// enables FDE is present.
+func FDEOpteeTAPresent() bool {
+	return optee.NewFDETAClient().Present()
+}
+
+// DetermineSealingMethod returns the sealing method that should be used, given
+// the parameters.
+//
+// Currently, we consider methods in this order:
+//   - Use the hooks, if present
+//   - Use the OPTEE integration, if present, and we are not performing a
+//     standalone installation
+//   - Use the TPM in all other cases
+func DetermineSealingMethod(hasFDEHook bool, standaloneInstall bool) device.SealingMethod {
+	if hasFDEHook {
+		return device.SealingMethodFDESetupHook
+	}
+
+	if !standaloneInstall && FDEOpteeTAPresent() {
+		return device.SealingMethodOPTEE
+	}
+
+	return device.SealingMethodTPM
 }
