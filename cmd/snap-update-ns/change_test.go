@@ -525,7 +525,7 @@ func (s *changeSuite) TestNeededChangesRepeatedDir(c *C) {
 	}}
 	current := &osutil.MountProfile{Entries: []osutil.MountEntry{
 		{Name: "/foo/bar", Dir: "/foo/bar", Type: "none",
-			Options: []string{osutil.XSnapdSynthetic(), osutil.XSnapdNeededBy("/foo/mytmp")}},
+			Options: []string{"rbind", osutil.XSnapdSynthetic(), osutil.XSnapdNeededBy("/foo/mytmp")}},
 		{Name: "tmpfs", Dir: "/foo/mytmp", Type: "tmpfs", Options: []string{osutil.XSnapdOriginLayout()}},
 		{Name: "tmpfs", Dir: "/foo/bar", Type: "tmpfs",
 			Options: []string{osutil.XSnapdSynthetic(), osutil.XSnapdNeededBy("/foo/bar/two")}},
@@ -541,7 +541,7 @@ func (s *changeSuite) TestNeededChangesRepeatedDir(c *C) {
 		{Entry: osutil.MountEntry{Name: "tmpfs", Dir: "/foo/mytmp", Type: "tmpfs",
 			Options: []string{osutil.XSnapdOriginLayout()}}, Action: update.Keep},
 		{Entry: osutil.MountEntry{Name: "/foo/bar", Dir: "/foo/bar", Type: "none",
-			Options: []string{osutil.XSnapdSynthetic(), osutil.XSnapdNeededBy("/foo/mytmp")}}, Action: update.Keep},
+			Options: []string{"rbind", osutil.XSnapdSynthetic(), osutil.XSnapdNeededBy("/foo/mytmp")}}, Action: update.Keep},
 	})
 }
 
