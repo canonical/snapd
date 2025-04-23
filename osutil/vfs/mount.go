@@ -75,6 +75,11 @@ func (v *VFS) BindMount(sourcePoint, mountPoint string) error {
 	v.mu.Lock()
 	defer v.mu.Unlock()
 
+	_, err := v.unlockedBindMount(sourcePoint, mountPoint)
+	return err
+}
+
+func (v *VFS) unlockedBindMount(sourcePoint, mountPoint string) (*mount, error) {
 	// Find the mount dominating the source point and the mount point.
 	_, sourceDom, sourceSuffix, sourceFsPath := v.dom(sourcePoint)
 	_, dom, _, fsPath := v.dom(mountPoint)
@@ -86,19 +91,19 @@ func (v *VFS) BindMount(sourcePoint, mountPoint string) error {
 		// Unpack PathError this may have returned as that error
 		// contains paths that make sense in the specific [fs.FS] attached
 		// to the super-block, but not necessarily in the VFS.
-		return &fs.PathError{Op: "bind-mount", Path: sourcePoint, Err: unpackPathError(err)}
+		return nil, &fs.PathError{Op: "bind-mount", Path: sourcePoint, Err: unpackPathError(err)}
 	}
 
 	// Stat the mount point through the file system.
 	fsFi, err := dom.fsFS.Stat(fsPath)
 	if err != nil {
 		// Same as above.
-		return &fs.PathError{Op: "bind-mount", Path: mountPoint, Err: unpackPathError(err)}
+		return nil, &fs.PathError{Op: "bind-mount", Path: mountPoint, Err: unpackPathError(err)}
 	}
 
 	// Bind mount must be between two files or two directories.
 	if sourceFsFi.IsDir() != fsFi.IsDir() {
-		return &fs.PathError{Op: "bind-mount", Path: mountPoint, Err: fs.ErrInvalid}
+		return nil, &fs.PathError{Op: "bind-mount", Path: mountPoint, Err: fs.ErrInvalid}
 	}
 
 	// Compute the new root directory for directories.
@@ -120,18 +125,19 @@ func (v *VFS) BindMount(sourcePoint, mountPoint string) error {
 	}
 
 	// Mount and return.
-	v.mounts = append(v.mounts, &mount{
+	m := &mount{
 		mountID:    v.nextMountID,
 		parentID:   dom.mountID,
 		mountPoint: mountPoint,
 		rootDir:    rootDir,
 		isDir:      fsFi.IsDir(),
 		fsFS:       sourceDom.fsFS,
-	})
+	}
+	v.mounts = append(v.mounts, m)
 
 	v.nextMountID++
 
-	return nil
+	return m, nil
 }
 
 // Unmount removes a mount attached to a node otherwise named by mountPoint.
