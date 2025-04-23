@@ -7,24 +7,24 @@
     "model": "test-snapd-remodel-pc-min-size",
     "system-user-authority": "*",
     "architecture": "amd64",
-    "timestamp": "2024-04-14T10:05:00+00:00",
+    "timestamp": "2025-04-22T10:05:00+00:00",
     "grade": "dangerous",
     "base": "core24",
     "snaps": [
         {
-            "default-channel": "latest/edge",
+            "default-channel": "24/edge",
             "id": "hZwlp9iRUQE4nLHRXnavvDygTIpfOOwj",
             "name": "test-snapd-remodel-pc-snakeoil",
             "type": "gadget"
         },
         {
-            "default-channel": "24/stable",
+            "default-channel": "24/beta",
             "id": "pYVQrBcKmBa0mZ4CCN7ExT6jH8rY1hza",
             "name": "pc-kernel",
             "type": "kernel"
         },
         {
-            "default-channel": "latest/stable",
+            "default-channel": "latest/edge",
             "id": "dwTAh7MZZ01zyriOZErqd1JynQLiOGvM",
             "name": "core24",
             "type": "base"
