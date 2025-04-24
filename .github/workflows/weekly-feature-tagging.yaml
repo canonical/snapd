@@ -7,7 +7,7 @@ on:
       features:
         type: string
         description: 'Comma-separated list of features to tag'
-        default: 'all'
+        default: 'cmd,task,change,ensure,endpoint,interface'
       maximum-reruns:
         type: number
         description: 'Maximum number of times to rerun failed spread tasks'
@@ -144,6 +144,14 @@ jobs:
                   --journal "${dir}/journal.txt" \
                   --state "${dir}/state.json" \
                   --output "$featdir/$(basename ${dir})"
+              elif [ -f "${dir}/journal.txt" ] && [ ! -f "${dir}/state.json" ]; then
+                ./tests/utils/features/featextractor.py \
+                  -f "${features[@]}" \
+                  --journal "${dir}/journal.txt" \
+                  --output "$featdir/$(basename ${dir})"
+              elif [ ! -f "${dir}/journal.txt" ]; then
+                echo "No journal.txt present in $dir"
+                exit 1
               fi
             done
             ./tests/utils/features/featcomposer.py \
