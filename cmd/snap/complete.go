@@ -84,7 +84,7 @@ func (s SnapAndApp) Complete(match string) []flags.Completion {
 		if err != nil {
 			return nil
 		}
-		ret := make([]flags.Completion, 0, len(installedSnaps))
+		var ret []flags.Completion
 		for _, installedSnap := range installedSnaps {
 			if !strings.HasPrefix(installedSnap.Name, matchSnap.Snap) {
 				continue
