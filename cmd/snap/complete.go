@@ -24,7 +24,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"path/filepath"
 	"strconv"
 	"strings"
 
@@ -90,12 +89,7 @@ func (s SnapAndApp) Complete(match string) []flags.Completion {
 			if !strings.HasPrefix(snap_t.Name, matchSnap.Snap) {
 				continue
 			}
-			snapYamlFn := filepath.Join(snap.BaseDir(snap_t.Name), "current", "meta", "snap.yaml")
-			meta, err := os.ReadFile(snapYamlFn)
-			if err != nil {
-				continue
-			}
-			info, err := snap.InfoFromSnapYaml(meta)
+			info, err := snap.ReadCurrentInfo(snap_t.Name)
 			if err != nil {
 				continue
 			}
@@ -107,13 +101,7 @@ func (s SnapAndApp) Complete(match string) []flags.Completion {
 		return ret
 	}
 	// A dot in match, so complete with the apps inside the specified snap
-
-	snapYamlFn := filepath.Join(snap.BaseDir(matchSnap.Snap), "current", "meta", "snap.yaml")
-	meta, err := os.ReadFile(snapYamlFn)
-	if err != nil {
-		return nil
-	}
-	info, err := snap.InfoFromSnapYaml(meta)
+	info, err := snap.ReadCurrentInfo(matchSnap.Snap)
 	if err != nil {
 		return nil
 	}
