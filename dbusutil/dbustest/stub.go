@@ -20,7 +20,7 @@
 package dbustest
 
 import (
-	"github.com/godbus/dbus"
+	"github.com/godbus/dbus/v5"
 )
 
 // stubReadWriteCloser implements ReadWriteCloser for dbus.NewConn

@@ -37,9 +37,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/godbus/dbus"
 	"gopkg.in/yaml.v3"
 
+	"github.com/godbus/dbus/v5"
 	"github.com/snapcore/snapd/dbusutil"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/configstate/config"

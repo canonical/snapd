@@ -30,7 +30,7 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/godbus/dbus"
+	"github.com/godbus/dbus/v5"
 	"github.com/mvo5/goconfigparser"
 	. "gopkg.in/check.v1"
 
