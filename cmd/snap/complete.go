@@ -41,7 +41,7 @@ import (
 type SnapAndApp struct {
 	Snap    string
 	App     string
-	has_dot bool
+	hasDot bool
 }
 
 func (sa *SnapAndApp) FullName() string {
