@@ -38,6 +38,7 @@ import (
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/dirs/dirstest"
+	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/devicestate/devicestatetest"
@@ -1392,10 +1393,111 @@ func (ovs *overlordSuite) TestLockWithTimeoutFailed(c *C) {
 	bytesRead, err := io.ReadAtLeast(stdout, buf, len(buf))
 	c.Assert(err, IsNil)
 	c.Assert(bytesRead, Equals, len(buf))
-
 	err = overlord.LockWithTimeout(flock, 5*time.Millisecond)
 	c.Check(err, ErrorMatches, "timeout for state lock file expired")
 	c.Check(notifyCalls, DeepEquals, []string{
 		"EXTEND_TIMEOUT_USEC=5000",
 	})
+}
+
+func (ovs *overlordSuite) TestTaskLabelTaskSnapSetupError(c *C) {
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	task := st.NewTask("task-kind", "task-with-snap-setup")
+	task.Set("snap-setup-task", "0")
+
+	_, err := overlord.TaskLabel(task)
+	c.Assert(err, ErrorMatches, "internal error: tasks are being pruned")
+}
+
+func (ovs *overlordSuite) TestTaskLabelRunHook(c *C) {
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	task := st.NewTask("run-hook", "task-with-run-hook")
+	hsup := &hookstate.HookSetup{
+		Snap: "snap",
+		Hook: "hook",
+	}
+	task.Set("hook-setup", hsup)
+
+	str, err := overlord.TaskLabel(task)
+	c.Assert(err, IsNil)
+	c.Assert(str, Equals, "[1] snap:run-hook{hook}")
+}
+
+func (ovs *overlordSuite) TestTaskLabelRunHookErrorNoHookSetup(c *C) {
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	task := st.NewTask("run-hook", "task-with-run-hook")
+
+	_, err := overlord.TaskLabel(task)
+	c.Assert(err, ErrorMatches, "no state entry for key \"hook-setup\"")
+}
+
+func (ovs *overlordSuite) TestTaskLabelWithSnapSetup(c *C) {
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	task := st.NewTask("task-kind", "task-with-snap-setup")
+	ssup := &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: "snap-name",
+		},
+	}
+	task.Set("snap-setup", ssup)
+
+	str, err := overlord.TaskLabel(task)
+	c.Assert(err, IsNil)
+	c.Assert(str, Equals, "[1] snap-name:task-kind")
+}
+
+func (ovs *overlordSuite) TestTaskLabelConnect(c *C) {
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	task := st.NewTask("connect", "task-connect-like")
+	pref := &interfaces.PlugRef{
+		Snap: "plug-snap",
+		Name: "plug-name",
+	}
+	task.Set("plug", pref)
+	sref := &interfaces.SlotRef{
+		Snap: "slot-snap",
+		Name: "slot-name",
+	}
+	task.Set("slot", sref)
+
+	str, err := overlord.TaskLabel(task)
+	c.Assert(err, IsNil)
+	c.Assert(str, Equals, "[1] connect[plug-snap:plug-name slot-snap:slot-name]")
+}
+
+func (ovs *overlordSuite) TestTaskLabelConnectMissingSnapName(c *C) {
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	task := st.NewTask("connect", "task-connect-like")
+	pref := &interfaces.PlugRef{
+		Snap: "",
+		Name: "plug-name",
+	}
+	task.Set("plug", pref)
+	sref := &interfaces.SlotRef{
+		Snap: "slot-snap",
+		Name: "slot-name",
+	}
+	task.Set("slot", sref)
+
+	str, err := overlord.TaskLabel(task)
+	c.Assert(err, IsNil)
+	c.Assert(str, Equals, "[1] connect")
 }
