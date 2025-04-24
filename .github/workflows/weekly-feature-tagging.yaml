@@ -57,7 +57,7 @@ jobs:
       rules: ${{ matrix.rules }}
       is-fundamental: true
       use-snapd-snap-from-master: true
-      spread-env: "SPREAD_TAG_FEATURES=\"${{ needs.set-inputs.outputs.features }}\""
+      spread-env: "SPREAD_TAG_FEATURES=1"
       upload-artifacts: true
     strategy:
       fail-fast: false
@@ -75,7 +75,7 @@ jobs:
       tasks: ${{ matrix.tasks }}
       rules: ${{ matrix.rules }}
       use-snapd-snap-from-master: true
-      spread-env: "SPREAD_TAG_FEATURES=\"${{ needs.set-inputs.outputs.features }}\""
+      spread-env: "SPREAD_TAG_FEATURES=1"
       upload-artifacts: true
     strategy:
       fail-fast: false
@@ -93,7 +93,7 @@ jobs:
       tasks: ${{ matrix.tasks }}
       rules: ${{ matrix.rules }}
       use-snapd-snap-from-master: true
-      spread-env: "SPREAD_TAG_FEATURES=\"${{ needs.set-inputs.outputs.features }}\""
+      spread-env: "SPREAD_TAG_FEATURES=1"
       upload-artifacts: true
     strategy:
       fail-fast: false

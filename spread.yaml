@@ -117,12 +117,18 @@ environment:
     USE_PREBUILT_SNAPD_SNAP: '$(HOST: echo "${SPREAD_USE_PREBUILT_SNAPD_SNAP:-false}")'
     USE_SNAPD_SNAP_URL: '$(HOST: echo "${SPREAD_USE_SNAPD_SNAP_URL:-}")'
 
-    # When populated with a comma-separated list of feature key names,
-    # each spread task will be analyzed for the specified features and 
-    # output a json file with the results. NOTE: this should only be 
-    # used coupled with the -artifact spread tag otherwise the feature 
-    # analyses will not be downloaded from the VMs.
+    # When SPREAD_TAG_FEATURES is populated with a non-empty value,
+    # each spread task will extract relevant information form its
+    # journal and copy it and the state.json to the artifacts folder. 
+    # NOTE: this should only be used coupled with the -artifact spread 
+    # tag otherwise the data will not be downloaded from the VMs.
     TAG_FEATURES: '$(HOST: echo "${SPREAD_TAG_FEATURES:-}")'
+    # Set the following to SPREAD_TAG_FEATURES by default
+    # since the following are required to log snap commands
+    # to the journal
+    SNAP_LOG_TO_JOURNAL: '$(HOST: echo "${SPREAD_SNAP_LOG_TO_JOURNAL:-$SPREAD_TAG_FEATURES}")'
+    SNAPD_TRACE: '$(HOST: echo "${SPREAD_SNAPD_TRACE:-$SPREAD_TAG_FEATURES}")'
+    SNAPD_JSON_LOGGING: '$(HOST: echo "${SPREAD_SNAPD_JSON_LOGGING:-$SPREAD_TAG_FEATURES}")'
 
 backends:
     google:

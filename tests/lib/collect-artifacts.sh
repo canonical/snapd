@@ -50,7 +50,7 @@ case "$artifact" in
             exit 1
         fi
         case "$1" in
-            --after_non_nested_task)
+            --after-non-nested-task)
                 features_after_non_nested_task
                 ;;
             --after-nested-task)
