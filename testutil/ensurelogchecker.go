@@ -47,30 +47,29 @@ func getReceiver(funcDecl *ast.FuncDecl) (string, bool) {
 
 func getChildEnsureList(fset *token.FileSet, fileContent string, file *ast.File) []string {
 	for _, decl := range file.Decls {
-		if funcDecl, ok := decl.(*ast.FuncDecl); ok {
-			if funcDecl.Name.Name == "Ensure" {
-				ensures := []string{}
-				ast.Inspect(funcDecl.Body, func(n ast.Node) bool {
-					callExpr, ok := n.(*ast.CallExpr)
-					if ok {
-						start := fset.Position(callExpr.Fun.Pos()).Offset
-						end := fset.Position(callExpr.Fun.End()).Offset
-						if strings.Contains(fileContent[start:end], "ensure") {
-							parts := strings.Split(fileContent[start:end], ".")
-							if len(parts) > 1 {
-								ensures = append(ensures, parts[1])
-							} else {
-								ensures = append(ensures, fileContent[start:end])
-							}
-						}
-					}
-					return true
-				})
-				return ensures
-			}
+		funcDecl, ok := decl.(*ast.FuncDecl)
+		if !ok || funcDecl.Name.Name != "Ensure" {
+			continue
 		}
+		ensures := []string{}
+		ast.Inspect(funcDecl.Body, func(n ast.Node) bool {
+			if callExpr, ok := n.(*ast.CallExpr); ok {
+				start := fset.Position(callExpr.Fun.Pos()).Offset
+				end := fset.Position(callExpr.Fun.End()).Offset
+				if strings.Contains(fileContent[start:end], "ensure") {
+					parts := strings.Split(fileContent[start:end], ".")
+					if len(parts) > 1 {
+						ensures = append(ensures, parts[1])
+					} else {
+						ensures = append(ensures, fileContent[start:end])
+					}
+				}
+			}
+			return true
+		})
+		return ensures
 	}
-	return []string{}
+	return nil
 }
 
 func checkBodyForString(fset *token.FileSet, fileContent string, block *ast.BlockStmt, expected string) bool {

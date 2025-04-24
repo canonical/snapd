@@ -1406,19 +1406,17 @@ func (ovs *overlordSuite) TestEnsureLoopLogging(c *C) {
 	c.Assert(err, IsNil)
 
 	for _, entry := range entries {
-		if entry.IsDir() && strings.HasSuffix(entry.Name(), "state") {
-			testFilePath := filepath.Join(entry.Name(), entry.Name()+"_test.go")
-
-			if _, err := os.Stat(testFilePath); err == nil {
-				mgrFiles, err := filepath.Glob(filepath.Join(entry.Name(), "*mgr.go"))
-				c.Assert(err, IsNil)
-
-				if len(mgrFiles) > 0 {
-					content, err := os.ReadFile(testFilePath)
-					c.Assert(err, IsNil)
-					c.Assert(strings.Contains(string(content), "TestEnsureLoopLogging"), Equals, true, Commentf("File %s does not contain a TestEnsureLoopLogging test."))
-				}
-			}
+		if !entry.IsDir() || !strings.HasSuffix(entry.Name(), "state") {
+			continue
 		}
+		testPath := filepath.Join(entry.Name(), entry.Name()+"_test.go")
+		prefix := strings.TrimSuffix(entry.Name(), "state")
+		mgrPath := filepath.Join(entry.Name(), prefix+"mgr.go")
+		if !osutil.FileExists(testPath) || !osutil.FileExists(mgrPath) {
+			continue
+		}
+		content, err := os.ReadFile(testPath)
+		c.Assert(err, IsNil)
+		c.Assert(strings.Contains(string(content), "TestEnsureLoopLogging"), Equals, true, Commentf("File %s does not contain a TestEnsureLoopLogging test.", testPath))
 	}
 }
