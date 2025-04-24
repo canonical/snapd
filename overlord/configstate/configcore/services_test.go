@@ -46,13 +46,29 @@ func (s *servicesSuite) SetUpTest(c *C) {
 		var output []byte
 		var err error
 		if args[0] == "show" {
-			if args[1] == "--property=ActiveState" {
-				output = []byte("ActiveState=inactive")
-			} else {
-				if s.serviceInstalled {
-					output = []byte(fmt.Sprintf("Id=%s\nType=daemon\nActiveState=inactive\nUnitFileState=enabled\nNames=%[1]s\nNeedDaemonReload=no\n", args[2]))
+			if args[2] == "ssh.socket" {
+				if s.socketEnabled {
+					output = []byte(`Id=ssh.socket
+Names=ssh.socket
+ActiveState=active
+UnitFileState=enabled
+`)
 				} else {
-					output = []byte(fmt.Sprintf("Id=%s\nType=\nActiveState=inactive\nUnitFileState=\nNames=%[1]s\nNeedDaemonReload=no\n", args[2]))
+					output = []byte(`Id=ssh.socket
+Names=ssh.socket
+ActiveState=inactive
+UnitFileState=
+`)
+				}
+			} else {
+				if args[1] == "--property=ActiveState" {
+					output = []byte("ActiveState=inactive")
+				} else {
+					if s.serviceInstalled {
+						output = []byte(fmt.Sprintf("Id=%s\nType=daemon\nActiveState=inactive\nUnitFileState=enabled\nNames=%[1]s\nNeedDaemonReload=no\n", args[2]))
+					} else {
+						output = []byte(fmt.Sprintf("Id=%s\nType=\nActiveState=inactive\nUnitFileState=\nNames=%[1]s\nNeedDaemonReload=no\n", args[2]))
+					}
 				}
 			}
 		} else if args[0] == "is-enabled" {
@@ -106,6 +122,16 @@ func (s *servicesSuite) TestConfigureServiceDisabled(c *C) {
 }
 
 func (s *servicesSuite) TestConfigureServiceDisabledIntegration(c *C) {
+	s.testConfigureServiceDisabledIntegration(c, "ssh.service")
+}
+
+func (s *servicesSuite) TestConfigureServiceDisabledIntegrationSshSocket(c *C) {
+	s.socketEnabled = true
+	defer func() { s.socketEnabled = false }()
+	s.testConfigureServiceDisabledIntegration(c, "ssh.socket")
+}
+
+func (s *servicesSuite) testConfigureServiceDisabledIntegration(c *C, sshSvc string) {
 	err := os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/etc/ssh"), 0755)
 	c.Assert(err, IsNil)
 
@@ -137,8 +163,9 @@ func (s *servicesSuite) TestConfigureServiceDisabledIntegration(c *C) {
 			_, err := os.Stat(sshCanary)
 			c.Assert(err, IsNil)
 			c.Check(s.systemctlArgs, DeepEquals, [][]string{
-				{"stop", srv},
-				{"show", "--property=ActiveState", srv},
+				{"is-enabled", "ssh.socket"},
+				{"stop", sshSvc},
+				{"show", "--property=ActiveState", sshSvc},
 			})
 		default:
 			if service.installed {
@@ -286,6 +313,16 @@ recovery_system=20200202
 }
 
 func (s *servicesSuite) TestConfigureServiceEnableIntegration(c *C) {
+	s.testConfigureServiceEnableIntegration(c, "ssh.service")
+}
+
+func (s *servicesSuite) TestConfigureServiceEnableIntegrationSshSocket(c *C) {
+	s.socketEnabled = true
+	defer func() { s.socketEnabled = false }()
+	s.testConfigureServiceEnableIntegration(c, "ssh.socket")
+}
+
+func (s *servicesSuite) testConfigureServiceEnableIntegration(c *C, sshSvc string) {
 	err := os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/etc/ssh"), 0755)
 	c.Assert(err, IsNil)
 
@@ -317,7 +354,8 @@ func (s *servicesSuite) TestConfigureServiceEnableIntegration(c *C) {
 			c.Check(s.systemctlArgs, DeepEquals, [][]string{
 				{"unmask", "sshd.service"},
 				{"unmask", "ssh.service"},
-				{"start", srv},
+				{"is-enabled", "ssh.socket"},
+				{"start", sshSvc},
 			})
 			sshCanary := filepath.Join(dirs.GlobalRootDir, "/etc/ssh/sshd_not_to_be_run")
 			_, err := os.Stat(sshCanary)
