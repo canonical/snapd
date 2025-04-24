@@ -78,12 +78,12 @@ func (sa *SnapAndApp) UnmarshalFlag(value string) error {
 func (s SnapAndApp) Complete(match string) []flags.Completion {
 	var matchSnap SnapAndApp
 	matchSnap.UnmarshalFlag(match)
-	snaps, err := mkClient().List(nil, nil)
-	if err != nil {
-		return nil
-	}
 	if !matchSnap.hasDot {
 		// No dot in match, so complete with snap names
+		snaps, err := mkClient().List(nil, nil)
+		if err != nil {
+			return nil
+		}
 		ret := make([]flags.Completion, 0, len(snaps))
 		for _, snap_t := range snaps {
 			if !strings.HasPrefix(snap_t.Name, matchSnap.Snap) {
