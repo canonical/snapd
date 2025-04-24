@@ -123,11 +123,11 @@ jobs:
             jq '.include.[] | select(.group == "ubuntu-daily") | .systems'
         }
 
-        wget -q -O master_fundsys.json https://raw.githubusercontent.com/snapcore/snapd/master/.github/workflows/fundamental-systems.json
-        wget -q -O master_nonfundsys.json https://raw.githubusercontent.com/snapcore/snapd/master/.github/workflows/non-fundamental-systems.json
+        wget -q -O master_fundsys.json https://raw.githubusercontent.com/snapcore/snapd/master/.github/workflows/data-fundamental-systems.json
+        wget -q -O master_nonfundsys.json https://raw.githubusercontent.com/snapcore/snapd/master/.github/workflows/data-non-fundamental-systems.json
         
         master_daily="$(get_daily_system master_fundsys.json master_nonfundsys.json)"
-        branch_daily="$(get_daily_system .github/workflows/fundamental-systems.json .github/workflows/non-fundamental-systems.json)"
+        branch_daily="$(get_daily_system .github/workflows/data-fundamental-systems.json .github/workflows/data-non-fundamental-systems.json)"
         test "$master_daily" == "$branch_daily"
       shell: bash
 
@@ -352,9 +352,9 @@ jobs:
         id: read-systems
         shell: bash
         run: |
-          echo "fundamental-systems=$(jq -c . ./.github/workflows/fundamental-systems.json)" >> $GITHUB_OUTPUT
-          echo "non-fundamental-systems=$(jq -c . ./.github/workflows/non-fundamental-systems.json)" >> $GITHUB_OUTPUT
-          echo "nested-systems=$(jq -c . ./.github/workflows/nested-systems.json)" >> $GITHUB_OUTPUT
+          echo "fundamental-systems=$(jq -c . ./.github/workflows/data-fundamental-systems.json)" >> $GITHUB_OUTPUT
+          echo "non-fundamental-systems=$(jq -c . ./.github/workflows/data-non-fundamental-systems.json)" >> $GITHUB_OUTPUT
+          echo "nested-systems=$(jq -c . ./.github/workflows/data-nested-systems.json)" >> $GITHUB_OUTPUT
 
   spread-fundamental:
     uses: ./.github/workflows/spread-tests.yaml
