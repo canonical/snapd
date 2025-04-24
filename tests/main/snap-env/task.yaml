@@ -63,14 +63,15 @@ execute: |
     MATCH "^SNAP_REAL_HOME=/root$"                                        < snap-vars.txt
     MATCH "^SNAP_UID=0$"                                                  < snap-vars.txt
     MATCH "^SNAP_EUID=0$"                                                 < snap-vars.txt
+    MATCH "^SNAP_LOG_TO_JOURNAL=$"                                        < snap-vars.txt
     # if on UC20+, then we should see an additional variable (SNAP_SAVE_DATA)
     if [[ "$SPREAD_SYSTEM" == ubuntu-core-2* ]]; then
         MATCH "^SNAP_SAVE_DATA=/var/lib/snapd/save/snap/$NAME$"           < snap-vars.txt
-        # 18 variables are expected on ubuntu-core
-        test "$(wc -l < snap-vars.txt)" -eq 18
+        # 19 variables are expected on ubuntu-core
+        test "$(wc -l < snap-vars.txt)" -eq 19
     else
-        # 17 variables are expected on non ubuntu-core
-        test "$(wc -l < snap-vars.txt)" -eq 17
+        # 18 variables are expected on non ubuntu-core
+        test "$(wc -l < snap-vars.txt)" -eq 18
     fi
 
     echo "Ensure that XDG environment variables are what we expect"
