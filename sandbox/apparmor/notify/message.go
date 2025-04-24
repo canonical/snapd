@@ -37,7 +37,9 @@ type MsgNotificationGeneric interface {
 	// permission mask to the MetadataTags associated with that permission mask.
 	// Only tagsets associated with denied permissions are included in the
 	// output, as it is only those permissions which the profile marked to
-	// prompt (and did not have cached responses).
+	// prompt (and did not have cached responses). Implementers should call the
+	// deniedTagsets method on their embedded MsgNotificationOp, passing in
+	// their mediation class-specific tagsets to get these filtered tagsets.
 	MetadataTagsets() TagsetMap
 }
 
@@ -495,17 +497,19 @@ func (msg *MsgNotificationOp) UnmarshalBinary(data []byte) error {
 	return nil
 }
 
-// tagsetHeader describes the configuration of a kernel-side tagset header.
-//
-//	struct apparmor_tags_header_v5 {
-//		u32 mask;
-//		u32 count;
-//		u32 tagset;		/* offset into data, relative to the start of the message structure */
-//	};
-type tagsetHeader struct {
-	PermissionMask uint32
-	TagCount       uint32
-	TagOffset      uint32
+// deniedTagsets filters the given tagsets, pruning all permissions which are
+// not in msg.Deny and discarding any tagset which have no permissions
+// remaining. Returns the pruned tagsets, leaving the original unchanged.
+func (msg *MsgNotificationOp) deniedTagsets(allTagsets TagsetMap) TagsetMap {
+	promptTagsets := make(TagsetMap)
+	for perm, tags := range allTagsets {
+		overlap := perm.AsAppArmorOpMask() & msg.Deny
+		if overlap == 0 {
+			continue
+		}
+		promptTagsets[FilePermission(overlap)] = tags
+	}
+	return promptTagsets
 }
 
 func (msg *MsgNotificationOp) ID() uint64 {
@@ -522,6 +526,19 @@ func (msg *MsgNotificationOp) ProcessLabel() string {
 
 func (msg *MsgNotificationOp) MediationClass() MediationClass {
 	return msg.Class
+}
+
+// tagsetHeader describes the configuration of a kernel-side tagset header.
+//
+//	struct apparmor_tags_header_v5 {
+//		u32 mask;
+//		u32 count;
+//		u32 tagset;		/* offset into data, relative to the start of the message structure */
+//	};
+type tagsetHeader struct {
+	PermissionMask uint32
+	TagCount       uint32
+	TagOffset      uint32
 }
 
 // msgNotificationFileKernelBase (protocol version <5)
@@ -713,13 +730,5 @@ func (msg *MsgNotificationFile) Name() string {
 }
 
 func (msg *MsgNotificationFile) MetadataTagsets() TagsetMap {
-	promptTagsets := make(TagsetMap)
-	for perm, tags := range msg.Tagsets {
-		overlap := perm.AsAppArmorOpMask() & msg.Deny
-		if overlap == 0 {
-			continue
-		}
-		promptTagsets[FilePermission(overlap)] = tags
-	}
-	return promptTagsets
+	return msg.deniedTagsets(msg.Tagsets)
 }
