@@ -109,14 +109,12 @@ func CheckEnsureLoopLogging(filename string, c *check.C) {
 	for _, decl := range file.Decls {
 		if funcDecl, ok := decl.(*ast.FuncDecl); ok {
 			mgr, ok := getReceiver(funcDecl)
-			if !ok {
+			if !ok || !strutil.ListContains(childEnsures, funcDecl.Name.Name) {
 				continue
 			}
-			if strutil.ListContains(childEnsures, funcDecl.Name.Name) {
-				expected := fmt.Sprintf("logger.Trace(\"ensure\", \"manager\", \"%s\", \"func\", \"%s\")", mgr, funcDecl.Name.Name)
-				foundTraceLog := checkBodyForString(fset, fileContent, funcDecl.Body, expected)
-				c.Assert(foundTraceLog, check.Equals, true, check.Commentf("In file %s in function %s, the following trace log was not found: %s", filename, funcDecl.Name.Name, expected))
-			}
+			expected := fmt.Sprintf("logger.Trace(\"ensure\", \"manager\", \"%s\", \"func\", \"%s\")", mgr, funcDecl.Name.Name)
+			foundTraceLog := checkBodyForString(fset, fileContent, funcDecl.Body, expected)
+			c.Assert(foundTraceLog, check.Equals, true, check.Commentf("In file %s in function %s, the following trace log was not found: %s", filename, funcDecl.Name.Name, expected))
 		}
 	}
 }
