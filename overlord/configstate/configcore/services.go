@@ -59,9 +59,25 @@ func (l *sysdLogger) Notify(status string) {
 	fmt.Fprintf(Stderr, "sysd: %s\n", status)
 }
 
+func actionOnSshControlUnit(sysd systemd.Systemd, action func([]string) error) error {
+	// From 22.10 sshd now uses socket based activation, use the socket
+	// unit in that case. Discussion here:
+	// https://discourse.ubuntu.com/t/sshd-now-uses-socket-based-activation-ubuntu-22-10-and-later/30189/9
+	// Interestingly, the ssh.socket unit has always been in UC, but it was
+	// disabled in UC16-22 and instead ssh.service was enabled by default.
+	// On UC24 the socket unit is enabled, so we check for that to know the
+	// unit we need to act on. Note that as the unit has a condition on the
+	// sshd_not_to_be_run file, the status is always enabled even if the
+	// unit is not active, so we can rely on that for the check.
+	if enabled, err := sysd.IsEnabled("ssh.socket"); err == nil && enabled {
+		return action([]string{"ssh.socket"})
+	}
+	return action([]string{"ssh.service"})
+}
+
 // switchDisableSSHService handles the special case of disabling/enabling ssh
 // service on core devices.
-func switchDisableSSHService(sysd systemd.Systemd, serviceName string, disabled bool, opts *fsOnlyContext) error {
+func switchDisableSSHService(sysd systemd.Systemd, disabled bool, opts *fsOnlyContext) error {
 	rootDir := dirs.GlobalRootDir
 	if opts != nil {
 		rootDir = opts.RootDir
@@ -72,13 +88,12 @@ func switchDisableSSHService(sysd systemd.Systemd, serviceName string, disabled 
 
 	sshCanary := filepath.Join(rootDir, "/etc/ssh/sshd_not_to_be_run")
 
-	units := []string{serviceName}
 	if disabled {
 		if err := os.WriteFile(sshCanary, []byte("SSH has been disabled by snapd system configuration\n"), 0644); err != nil {
 			return err
 		}
 		if opts == nil {
-			return sysd.Stop(units)
+			return actionOnSshControlUnit(sysd, sysd.Stop)
 		}
 	} else {
 		err := os.Remove(sshCanary)
@@ -91,7 +106,7 @@ func switchDisableSSHService(sysd systemd.Systemd, serviceName string, disabled 
 		sysd.Unmask("sshd.service")
 		sysd.Unmask("ssh.service")
 		if opts == nil {
-			return sysd.Start(units)
+			return actionOnSshControlUnit(sysd, sysd.Start)
 		}
 	}
 	return nil
@@ -159,7 +174,7 @@ func switchDisableService(serviceName string, disabled bool, opts *fsOnlyContext
 	// some services are special
 	switch serviceName {
 	case "ssh.service":
-		return switchDisableSSHService(sysd, serviceName, disabled, opts)
+		return switchDisableSSHService(sysd, disabled, opts)
 	case "console-conf@*":
 		return switchDisableConsoleConfService(sysd, serviceName, disabled, opts)
 	}
@@ -374,6 +389,12 @@ func handleServiceConfigSSHListen(dev sysconfig.Device, tr ConfGetter, opts *fsO
 		sysd := systemd.New(systemd.SystemMode, &sysdLogger{})
 		// From 22.10 sshd now uses socket based activation. This changes how to reload ssh configuration
 		// Discussion here: https://discourse.ubuntu.com/t/sshd-now-uses-socket-based-activation-ubuntu-22-10-and-later/30189/9
+		// Interestingly, the ssh.socket unit has always been in UC, but it was
+		// disabled in UC16-22 and instead ssh.service was enabled by default.
+		// On UC24 the socket unit is enabled, so we check for that to know the
+		// unit we need to act on. Note that as the unit has a condition on the
+		// sshd_not_to_be_run file, the status is always enabled even if the
+		// unit is not active, so we can rely on that for the check.
 		if enabled, err := sysd.IsEnabled("ssh.socket"); err == nil && enabled {
 			if err := sysd.DaemonReload(); err != nil {
 				return err
