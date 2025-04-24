@@ -439,7 +439,7 @@ parts:
         fi
 
         output="${CRAFT_PART_INSTALL}/usr/${cmd}"
-        go build -mod=vendor -tags "${TAGS[*]}" "${GO_LD_FLAGS[@]}" ${EXTRA_GO_FLAGS-} -o "${output}" "github.com/snapcore/snapd/cmd/$(basename ${cmd})"
+        GOEXPERIMENT=cgocheck2 go build -mod=vendor -tags "${TAGS[*]}" "${GO_LD_FLAGS[@]}" ${EXTRA_GO_FLAGS-} -o "${output}" "github.com/snapcore/snapd/cmd/$(basename ${cmd})"
         if [ "${CHECK_STATIC-}" = 1 ]; then
           if objdump -p "${output}" | grep INTERP; then
             echo "${output} is not static!" 1>&2
