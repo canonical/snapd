@@ -80,23 +80,23 @@ func (s SnapAndApp) Complete(match string) []flags.Completion {
 	matchSnap.UnmarshalFlag(match)
 	if !matchSnap.hasDot {
 		// No dot in match, so complete with snap names
-		snaps, err := mkClient().List(nil, nil)
+		installedSnaps, err := mkClient().List(nil, nil)
 		if err != nil {
 			return nil
 		}
-		ret := make([]flags.Completion, 0, len(snaps))
-		for _, snap_t := range snaps {
-			if !strings.HasPrefix(snap_t.Name, matchSnap.Snap) {
+		ret := make([]flags.Completion, 0, len(installedSnaps))
+		for _, installedSnap := range installedSnaps {
+			if !strings.HasPrefix(installedSnap.Name, matchSnap.Snap) {
 				continue
 			}
-			info, err := snap.ReadCurrentInfo(snap_t.Name)
+			info, err := snap.ReadCurrentInfo(installedSnap.Name)
 			if err != nil {
 				continue
 			}
 			if len(info.Apps) == 0 {
 				continue
 			}
-			ret = append(ret, flags.Completion{Item: snap_t.Name})
+			ret = append(ret, flags.Completion{Item: installedSnap.Name})
 		}
 		return ret
 	}
