@@ -1498,6 +1498,26 @@ func (m *recoverModeStateMachine) mountSave() (stateFunc, error) {
 	return nil, nil
 }
 
+func (m *recoverModeStateMachine) writeRecoverUnlockState() error {
+	// write out degraded.json if we ended up falling back somewhere
+	if m.degraded() {
+		if err := m.degradedState.serializeTo("degraded.json"); err != nil {
+			return err
+		}
+	}
+
+	// we always output unlocked.json
+	return m.degradedState.serializeTo("unlocked.json")
+}
+
+func (m *recoverModeStateMachine) writeFactoryResetUnlockState() error {
+	if err := m.degradedState.serializeTo("factory-reset-bootstrap.json"); err != nil {
+		return err
+	}
+
+	return m.degradedState.serializeTo("unlocked.json")
+}
+
 func generateMountsModeRecover(mst *initramfsMountsState) error {
 	// steps 1 and 2 are shared with install mode
 	model, snaps, err := generateMountsRecoverOrFactoryReset(mst)
@@ -1581,14 +1601,8 @@ func generateMountsModeRecover(mst *initramfsMountsState) error {
 		return err
 	}
 
-	// 3.1 write out degraded.json if we ended up falling back somewhere
-	if machine.degraded() {
-		if err := machine.degradedState.serializeTo("degraded.json"); err != nil {
-			return err
-		}
-	}
-
-	if err := machine.degradedState.serializeTo("unlocked.json"); err != nil {
+	// 3.1 write out unlock states (unlocked.json, and eventually degraded.json)
+	if err := machine.writeRecoverUnlockState(); err != nil {
 		return err
 	}
 
@@ -1713,11 +1727,7 @@ func generateMountsModeFactoryReset(mst *initramfsMountsState) error {
 		return err
 	}
 
-	if err := machine.degradedState.serializeTo("factory-reset-bootstrap.json"); err != nil {
-		return err
-	}
-
-	if err := machine.degradedState.serializeTo("unlocked.json"); err != nil {
+	if err := machine.writeFactoryResetUnlockState(); err != nil {
 		return err
 	}
 
@@ -2443,6 +2453,8 @@ func generateMountsModeRun(mst *initramfsMountsState) error {
 		}
 	}
 
+	// All the required disks were unlocked. We now write down
+	// their unlock state.
 	diskState.serializeTo("unlocked.json")
 
 	// 4.2. read modeenv
