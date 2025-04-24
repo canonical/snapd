@@ -39,13 +39,13 @@ import (
 
 // SnapAndApp holds a snap name and an application name
 type SnapAndApp struct {
-	Snap    string
-	App     string
+	Snap   string
+	App    string
 	hasDot bool
 }
 
 func (sa *SnapAndApp) FullName() string {
-	if sa.has_dot {
+	if sa.hasDot {
 		return fmt.Sprint(sa.Snap, ".", sa.App)
 	} else {
 		return sa.Snap
@@ -61,14 +61,14 @@ func (sa *SnapAndApp) UnmarshalFlag(value string) error {
 	parts := strings.Split(value, ".")
 	sa.Snap = ""
 	sa.App = ""
-	sa.has_dot = false
+	sa.hasDot = false
 	switch len(parts) {
 	case 1:
 		sa.Snap = parts[0]
 	case 2:
 		sa.Snap = parts[0]
 		sa.App = parts[1]
-		sa.has_dot = true // allows to know if it is "snap." or "snap.XXXX"
+		sa.hasDot = true // allows to know if it is "snap." or "snap.XXXX"
 	}
 	if sa.Snap == "" && sa.App != "" {
 		return fmt.Errorf(i18n.G("invalid value: %q (want snap.name or snap)"), value)
@@ -83,7 +83,7 @@ func (s SnapAndApp) Complete(match string) []flags.Completion {
 	if err != nil {
 		return nil
 	}
-	if !matchSnap.has_dot {
+	if !matchSnap.hasDot {
 		// No dot in match, so complete with snap names
 		ret := make([]flags.Completion, 0, len(snaps))
 		for _, snap_t := range snaps {
