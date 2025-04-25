@@ -3,7 +3,7 @@
     "series": "16",
     "authority-id": "developer1",
     "brand-id": "developer1",
-    "model": "optee-model",
+    "model": "fde-hooks-model",
     "architecture": "arm64",
     "timestamp": "2024-05-14T10:05:00+00:00",
     "grade": "dangerous",
@@ -11,11 +11,11 @@
     "serial-authority": ["generic"],
     "snaps": [
         {
-            "name": "test-qemu-optee-gadget",
+            "name": "test-qemu-fde-hooks-gadget",
             "type": "gadget"
         },
         {
-            "name": "test-qemu-optee-kernel",
+            "name": "test-qemu-fde-hooks-kernel",
             "type": "kernel"
         },
         {

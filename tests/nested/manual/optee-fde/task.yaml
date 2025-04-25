@@ -2,14 +2,13 @@ summary: Test snapd OPTEE integration
 
 details: |
     Test that snapd will use a well known OPTEE TA (trusted application) as the
-    sealing method for FDE. The snaps test-qemu-optee-kernel and
-    test-qemu-optee-gadget are custom snaps that help exercise this
-    functionality.
+    sealing method for FDE. The snaps used here are custom snaps that help
+    exercise this functionality. Their sources can be found in
+    github.com/canonical/optee-uc-fde.
 
 systems: [ubuntu-24.04-arm-64]
 
 environment:
-    NESTED_CUSTOM_MODEL: $TESTSLIB/assertions/nested-24-arm64-optee.model
     NESTED_BUILD_SNAPD_FROM_CURRENT: true
     NESTED_REPACK_KERNEL_SNAP: false
     NESTED_REPACK_GADGET_SNAP: false
@@ -17,8 +16,35 @@ environment:
     NESTED_ENABLE_ARM_TRUSTZONE: true
     NESTED_CPUS: 4
     NESTED_MEM: 4096
+    NESTED_FAKESTORE_BLOB_DIR: $(pwd)/fake-store-blobdir
+    NESTED_SIGN_SNAPS_FAKESTORE: true
+    NESTED_UBUNTU_IMAGE_SNAPPY_FORCE_SAS_URL: http://localhost:11028
+
+    SEALING_METHOD/optee: "optee"
+    SEALING_METHOD/hooks: "fde-setup-hook"
 
 prepare: |
+    if [ "${TRUST_TEST_KEYS}" = "false" ]; then
+        echo "This test needs test keys to be trusted"
+        exit
+    fi
+
+    kernel_name=""
+    kernel_revision=""
+    gadget_name=""
+    gadget_revision=""
+    if [ "${SEALING_METHOD}" = "optee" ]; then
+        kernel_name="test-qemu-optee-kernel"
+        kernel_revision=2
+        gadget_name="test-qemu-optee-gadget"
+        gadget_revision=5
+    else
+        kernel_name="test-qemu-fde-hooks-kernel"
+        kernel_revision=2
+        gadget_name="test-qemu-fde-hooks-gadget"
+        gadget_revision=3
+    fi
+
     tests.pkgs install u-boot-tools
 
     # these snaps are originally built from snaps that live in the
@@ -27,17 +53,19 @@ prepare: |
     #
     # specific revisions are used to help allow development on the snaps without
     # breaking current/old tests.
-    snap download --revision=2 --basename test-qemu-optee-kernel test-qemu-optee-kernel
-    snap download --revision=4 --basename test-qemu-optee-gadget test-qemu-optee-gadget
 
-    unsquashfs -d ./test-qemu-optee-kernel test-qemu-optee-kernel.snap
+    snap download --revision "${kernel_revision}" --basename "${kernel_name}" "${kernel_name}"
+    snap download --revision "${gadget_revision}" --basename "${gadget_name}" "${gadget_name}"
+    snap download --basename core24 core24
+
+    unsquashfs -d "./${kernel_name}" "${kernel_name}.snap"
 
     # repack the FIT image in the kernel snap so that we can use the
     # snap-bootstrap from this branch
     mkdir ./repack
     pushd ./repack
-    dumpimage -T flat_dt -p0 -o Image ../test-qemu-optee-kernel/kernel.img
-    dumpimage -T flat_dt -p1 -o initrd.img ../test-qemu-optee-kernel/kernel.img
+    dumpimage -T flat_dt -p0 -o Image "../${kernel_name}/kernel.img"
+    dumpimage -T flat_dt -p1 -o initrd.img "../${kernel_name}/kernel.img"
 
     mkdir ./initrd
     pushd ./initrd
@@ -53,27 +81,102 @@ prepare: |
     # the gadget currently expects these keys
     git clone https://git.launchpad.net/~ondrak/+git/dev-keys
 
-    cp ../test-qemu-optee-kernel/qemu.its ./qemu.its
+    cp "../${kernel_name}/qemu.its" ./qemu.its
     mkimage --fit ./qemu.its -k ./dev-keys ./kernel.img
 
     popd # ./repack
 
-    mv ./repack/kernel.img ./test-qemu-optee-kernel/kernel.img
+    mv ./repack/kernel.img "./${kernel_name}/kernel.img"
     rm -rf ./repack
 
-    snap pack --filename ./test-qemu-optee-kernel.snap ./test-qemu-optee-kernel
+    snap pack --filename "./${kernel_name}.snap" "./${kernel_name}"
 
-    cp test-qemu-optee-gadget.snap test-qemu-optee-kernel.snap "$(tests.nested get extra-snaps-path)"
+    # although nested_start_core_vm_unit usually does this, the fake store will
+    # already have been set up, so we need to install these snaps here
+    #shellcheck source=tests/lib/nested.sh
+    . "$TESTSLIB/nested.sh"
+    nested_ensure_ovmf
+    snap install test-snapd-swtpm --edge
+
+    "${TESTSTOOLS}/store-state" setup-fake-store "${NESTED_FAKESTORE_BLOB_DIR}"
+
+    cp "${TESTSLIB}/assertions/testrootorg-store.account-key" "${NESTED_FAKESTORE_BLOB_DIR}/asserts"
+    cp "${TESTSLIB}/assertions/developer1.account" "${NESTED_FAKESTORE_BLOB_DIR}/asserts"
+    cp "${TESTSLIB}/assertions/developer1.account-key" "${NESTED_FAKESTORE_BLOB_DIR}/asserts"
+
+    snap ack "$NESTED_FAKESTORE_BLOB_DIR/asserts/testrootorg-store.account-key"
+    snap ack "$NESTED_FAKESTORE_BLOB_DIR/asserts/developer1.account"
+    snap ack "$NESTED_FAKESTORE_BLOB_DIR/asserts/developer1.account-key"
+
+    model="${TESTSLIB}/assertions/nested-24-arm64-${SEALING_METHOD}.json"
+    gendeveloper1 sign-model < "${model}" > model.assert
+    cp model.assert "${NESTED_FAKESTORE_BLOB_DIR}/asserts"
+
+    "${TESTSTOOLS}"/store-state make-snap-installable \
+      --revision 1 \
+      "${NESTED_FAKESTORE_BLOB_DIR}" \
+      ./core24.snap \
+      dwTAh7MZZ01zyriOZErqd1JynQLiOGvM
+
+    # this is only required for the hooks case, but it doens't hurt to have it
+    # for both
+    cat > kernel-decl.json <<EOF
+    {
+        "plugs": {
+            "tee": {
+                "allow-installation": "true",
+                "allow-auto-connection": "true"
+            }
+        },
+        "format": "1"
+    }
+    EOF
+
+    "${TESTSTOOLS}"/store-state make-snap-installable \
+      --revision 1 \
+      --extra-decl-json kernel-decl.json \
+      "${NESTED_FAKESTORE_BLOB_DIR}" \
+      "./${kernel_name}.snap" \
+      IOp3aJmsQcN4ftQf1MNWYHOGHb9x28sK
+
+    "${TESTSTOOLS}"/store-state make-snap-installable \
+      --revision 1 \
+      "${NESTED_FAKESTORE_BLOB_DIR}" \
+      ./${gadget_name}.snap \
+      Yv5vkoLTcqISBT9QIcQZFz1RuOYsmB98
+
+    tests.nested prepare-essential-snaps
+
+    export SNAPPY_FORCE_API_URL="${NESTED_UBUNTU_IMAGE_SNAPPY_FORCE_SAS_URL}"
+    ubuntu-image snap --image-size 10G ./model.assert
+
+    image_dir=$(tests.nested get images-path)
+    image_name=$(tests.nested get image-name core)
+    cp ./pc.img "${image_dir}/${image_name}"
+    tests.nested configure-default-user
+
+    # run the fake device service too, so that the device can be initialised
+    systemd-run --collect --unit fakedevicesvc fakedevicesvc localhost:11029
 
     tests.nested build-image core
 
-    unsquashfs -d . ./test-qemu-optee-gadget.snap qemu_fw.bios
+    unsquashfs -d . ./${gadget_name}.snap qemu_fw.bios
     truncate -s 64M qemu_fw.bios
     NESTED_BIOS_FILE="$(realpath ./qemu_fw.bios)"
     export NESTED_BIOS_FILE
 
     tests.nested create-vm core
 
+    remote.exec 'sudo systemctl stop snapd.service snapd.socket'
+    remote.exec 'sudo cat /var/lib/snapd/state.json' | gojq '.data.auth.device."session-macaroon"="fake-session"' > state.json
+    remote.push state.json
+    remote.exec 'sudo mv state.json /var/lib/snapd/state.json'
+    remote.exec 'sudo systemctl start snapd.service snapd.socket'
+
+restore: |
+    "$TESTSTOOLS"/store-state teardown-fake-store "$NESTED_FAKESTORE_BLOB_DIR"
+    systemctl stop fakedevicesvc.service || true
+
 execute: |
-    remote.exec 'cat /var/lib/snapd/device/fde/sealed-keys' | MATCH 'optee'
+    remote.exec 'cat /var/lib/snapd/device/fde/sealed-keys' | MATCH "${SEALING_METHOD}"
     remote.exec 'sudo blkid /dev/disk/by-label/ubuntu-data-enc' | MATCH 'TYPE="crypto_LUKS"'
