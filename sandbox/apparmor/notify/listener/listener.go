@@ -71,6 +71,10 @@ type Request struct {
 	// AaAllowed is the opaque permission mask which was already allowed by
 	// AppArmor rules.
 	AaAllowed notify.AppArmorPermission
+	// Tagsets is the metadata tagsets associated with the permissions in the
+	// request. The tagsets map from permission mask to the list of tags
+	// associated with those permissions.
+	Tagsets notify.TagsetMap
 
 	// listener is a pointer to the Listener which will handle the reply.
 	listener *Listener
@@ -421,6 +425,7 @@ func (l *Listener) newRequest(msg notify.MsgNotificationGeneric) (*Request, erro
 		Class:      msg.MediationClass(),
 		Permission: aaDenied, // Request permissions which were initially denied
 		AaAllowed:  aaAllowed,
+		Tagsets:    msg.DeniedMetadataTagsets(),
 
 		listener: l,
 	}, nil

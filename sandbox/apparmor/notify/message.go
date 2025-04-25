@@ -33,7 +33,22 @@ type MsgNotificationGeneric interface {
 	// Name is the identifier of the resource to which access is requested.
 	// For mediation class file, Name is the filepath of the requested file.
 	Name() string
+	// DeniedMetadataTagsets returns a TagsetMap, which is a map from AppArmor
+	// permission mask to the MetadataTags associated with that permission mask.
+	// Only tagsets associated with denied permissions are included in the
+	// output, as it is only those permissions which the profile marked to
+	// prompt (and did not have cached responses). Implementers should call the
+	// deniedTagsets method on their embedded MsgNotificationOp, passing in
+	// their mediation class-specific tagsets to get these filtered tagsets.
+	DeniedMetadataTagsets() TagsetMap
 }
+
+// TagsetMap maps from permission mask to the ordered list of tags associated
+// with those permissions, as received from AppArmor in the kernel.
+type TagsetMap map[AppArmorPermission]MetadataTags
+
+// MetadataTags is a list of tags received from AppArmor in the kernel.
+type MetadataTags []string
 
 // Message fields are defined as raw sized integer types as the same type may be
 // packed as 16 bit or 32 bit integer, to accommodate other fields in the
@@ -482,17 +497,19 @@ func (msg *MsgNotificationOp) UnmarshalBinary(data []byte) error {
 	return nil
 }
 
-// tagsetHeader describes the configuration of a kernel-side tagset header.
-//
-//	struct apparmor_tags_header_v5 {
-//		u32 mask;
-//		u32 count;
-//		u32 tagset;		/* offset into data, relative to the start of the message structure */
-//	};
-type tagsetHeader struct {
-	PermissionMask uint32
-	TagCount       uint32
-	TagOffset      uint32
+// deniedTagsets filters the given tagsets, pruning all permissions which are
+// not in msg.Deny and discarding any tagset which have no permissions
+// remaining. Returns the pruned tagsets, leaving the original unchanged.
+func (msg *MsgNotificationOp) deniedTagsets(allTagsets TagsetMap) TagsetMap {
+	promptTagsets := make(TagsetMap)
+	for perm, tags := range allTagsets {
+		overlap := perm.AsAppArmorOpMask() & msg.Deny
+		if overlap == 0 {
+			continue
+		}
+		promptTagsets[FilePermission(overlap)] = tags
+	}
+	return promptTagsets
 }
 
 func (msg *MsgNotificationOp) ID() uint64 {
@@ -509,6 +526,19 @@ func (msg *MsgNotificationOp) ProcessLabel() string {
 
 func (msg *MsgNotificationOp) MediationClass() MediationClass {
 	return msg.Class
+}
+
+// tagsetHeader describes the configuration of a kernel-side tagset header.
+//
+//	struct apparmor_tags_header_v5 {
+//		u32 mask;
+//		u32 count;
+//		u32 tagset;		/* offset into data, relative to the start of the message structure */
+//	};
+type tagsetHeader struct {
+	PermissionMask uint32
+	TagCount       uint32
+	TagOffset      uint32
 }
 
 // msgNotificationFileKernelBase (protocol version <5)
@@ -557,7 +587,7 @@ type MsgNotificationFile struct {
 	Filename string
 	// Tagsets maps from permission mask to the ordered list of tags associated
 	// with those permissions. Tagsets requires protocol version 5 or greater.
-	Tagsets map[AppArmorPermission][]string
+	Tagsets TagsetMap
 }
 
 // UnmarshalBinary unmarshals the message from binary form.
@@ -620,7 +650,7 @@ func (msg *MsgNotificationFile) unmarshalTags(data []byte) error {
 	}
 
 	// Unpack each tagset header and its associated tags.
-	tagsets := make(map[AppArmorPermission][]string, raw.TagsetsCount)
+	tagsets := make(TagsetMap, raw.TagsetsCount)
 	hdrBuf := bytes.NewReader(data[raw.Tags:])
 	unpacker := newStringUnpacker(data)
 	for i := uint16(0); i < raw.TagsetsCount; i++ {
@@ -633,7 +663,7 @@ func (msg *MsgNotificationFile) unmarshalTags(data []byte) error {
 			return fmt.Errorf("cannot unpack tags for header %+v: %v", header, err)
 		}
 		perm := FilePermission(header.PermissionMask)
-		tagsets[perm] = tags
+		tagsets[perm] = MetadataTags(tags)
 	}
 
 	msg.Tagsets = tagsets
@@ -697,4 +727,8 @@ func (msg *MsgNotificationFile) SubjectUID() uint32 {
 
 func (msg *MsgNotificationFile) Name() string {
 	return msg.Filename
+}
+
+func (msg *MsgNotificationFile) DeniedMetadataTagsets() TagsetMap {
+	return msg.deniedTagsets(msg.Tagsets)
 }

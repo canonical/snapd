@@ -184,6 +184,87 @@ func (s *apparmorpromptingSuite) TestStop(c *C) {
 	c.Check(err, Equals, prompting_errors.ErrRulesClosed)
 }
 
+func (s *apparmorpromptingSuite) TestHandleListenerRequestInterfaceSelection(c *C) {
+	reqChan, replyChan, restore := apparmorprompting.MockListener()
+	defer restore()
+
+	logbuf, restore := logger.MockLogger()
+	defer restore()
+
+	mgr, err := apparmorprompting.New(s.st)
+	c.Assert(err, IsNil)
+
+	clientActivity := true
+	prompts, err := mgr.Prompts(s.defaultUser, clientActivity)
+	c.Check(err, IsNil)
+	c.Check(prompts, HasLen, 0)
+
+	// Explicitly set "home" interface based on tags
+	restore = apparmorprompting.MockPromptingInterfaceFromTagsets(func(notify.TagsetMap) (string, error) {
+		return "home", nil
+	})
+	req := &listener.Request{
+		// Most fields don't matter here
+		ID:         1,
+		Label:      "snap1",
+		SubjectUID: s.defaultUser,
+		Permission: notify.AA_MAY_OPEN,
+	}
+	reqChan <- req
+	time.Sleep(10 * time.Millisecond)
+	prompts, err = mgr.Prompts(s.defaultUser, clientActivity)
+	c.Check(err, IsNil)
+	c.Check(prompts, HasLen, 1)
+	c.Check(prompts[0].Interface, Equals, "home")
+	restore()
+
+	// Return ErrNoInterfaceTags and check that the manager defaults to "home"
+	restore = apparmorprompting.MockPromptingInterfaceFromTagsets(func(notify.TagsetMap) (string, error) {
+		return "", prompting_errors.ErrNoInterfaceTags
+	})
+	req = &listener.Request{
+		// Most fields don't matter here
+		ID:         2,
+		Label:      "snap2",
+		SubjectUID: s.defaultUser,
+		Permission: notify.AA_MAY_EXEC,
+	}
+	reqChan <- req
+	time.Sleep(10 * time.Millisecond)
+	prompts, err = mgr.Prompts(s.defaultUser, clientActivity)
+	c.Check(err, IsNil)
+	c.Check(prompts, HasLen, 2, Commentf("%+v", prompts[0]))
+	c.Check(prompts[0].Interface, Equals, "home")
+	c.Check(prompts[1].Interface, Equals, "home")
+	restore()
+
+	// Explicitly set some other interface based on tags.
+	// Currently only "home" is supported, so we expect a later error in order
+	// to see that the given interface was used when mapping permissions.
+	// TODO: when other interfaces are supported, use one here instead.
+	restore = apparmorprompting.MockPromptingInterfaceFromTagsets(func(notify.TagsetMap) (string, error) {
+		return "foo", nil
+	})
+	req = &listener.Request{
+		// Most fields don't matter here
+		ID:         3,
+		Label:      "snap3",
+		SubjectUID: s.defaultUser,
+		Permission: notify.AA_MAY_OPEN,
+	}
+	reqChan <- req
+	resp, err := waitForReply(replyChan)
+	c.Assert(err, IsNil)
+	c.Check(resp.Request, Equals, req)
+	logger.WithLoggerLock(func() {
+		c.Check(logbuf.String(), testutil.Contains,
+			` error while parsing AppArmor permissions: cannot map the given interface to list of available permissions: foo`)
+	})
+	restore()
+
+	c.Assert(mgr.Stop(), IsNil)
+}
+
 func (s *apparmorpromptingSuite) TestHandleListenerRequestDenyRoot(c *C) {
 	reqChan, replyChan, restore := apparmorprompting.MockListener()
 	defer restore()
@@ -221,14 +302,32 @@ func (s *apparmorpromptingSuite) TestHandleListenerRequestErrors(c *C) {
 	c.Check(err, IsNil)
 	c.Check(prompts, HasLen, 0)
 
-	// Send request with invalid permissions
+	restore = apparmorprompting.MockPromptingInterfaceFromTagsets(func(notify.TagsetMap) (string, error) {
+		return "", fmt.Errorf("something went wrong")
+	})
+	// Send request with invalid tags
 	req := &listener.Request{
+		// Most fields don't matter here
+		SubjectUID: s.defaultUser,
+	}
+	reqChan <- req
+	resp, err := waitForReply(replyChan)
+	c.Assert(err, IsNil)
+	c.Check(resp.Request, Equals, req)
+	logger.WithLoggerLock(func() {
+		c.Check(logbuf.String(), testutil.Contains,
+			` error while selecting interface from metadata tags: something went wrong`)
+	})
+	restore()
+
+	// Send request with invalid permissions
+	req = &listener.Request{
 		// Most fields don't matter here
 		SubjectUID: s.defaultUser,
 		Permission: notify.FilePermission(0),
 	}
 	reqChan <- req
-	resp, err := waitForReply(replyChan)
+	resp, err = waitForReply(replyChan)
 	c.Assert(err, IsNil)
 	c.Check(resp.Request, Equals, req)
 	logger.WithLoggerLock(func() {
@@ -370,7 +469,7 @@ func (s *apparmorpromptingSuite) simulateRequest(c *C, reqChan chan *listener.Re
 
 	c.Check(prompt.Snap, Equals, expectedSnap)
 	c.Check(prompt.PID, Equals, req.PID)
-	c.Check(prompt.Interface, Equals, "home")
+	c.Check(prompt.Interface, Equals, "home") // assumes InterfaceFromTagsets returns "home" or ErrNoInterfaceTags
 	c.Check(prompt.Constraints.Path(), Equals, req.Path)
 
 	// Check that we can query that prompt by ID
