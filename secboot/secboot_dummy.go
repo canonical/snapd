@@ -25,7 +25,6 @@ import (
 	"errors"
 	"io"
 
-	"github.com/snapcore/snapd/gadget/device"
 	"github.com/snapcore/snapd/kernel/fde"
 	"github.com/snapcore/snapd/secboot/keys"
 )
@@ -147,8 +146,4 @@ func DeleteOldKeys(devicePath string) error {
 
 func GetPrimaryKey(devices []string, fallbackKeyFile string) ([]byte, error) {
 	return nil, errBuildWithoutSecboot
-}
-
-func DetermineSealingMethod(hasFDEHook bool, considerOPTEE bool) device.SealingMethod {
-	return device.SealingMethod("unknown")
 }
