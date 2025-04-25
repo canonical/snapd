@@ -9,6 +9,7 @@ details: |
 systems: [ubuntu-24.04-arm-64]
 
 environment:
+    NESTED_CUSTOM_MODEL_JSON: $TESTSLIB/assertions/nested-24-arm64-optee.json
     NESTED_CUSTOM_MODEL: $TESTSLIB/assertions/nested-24-arm64-optee.model
     NESTED_BUILD_SNAPD_FROM_CURRENT: true
     NESTED_REPACK_KERNEL_SNAP: false
@@ -17,8 +18,17 @@ environment:
     NESTED_ENABLE_ARM_TRUSTZONE: true
     NESTED_CPUS: 4
     NESTED_MEM: 4096
+    NESTED_FAKESTORE_BLOB_DIR: $(pwd)/fake-store-blobdir
+    NESTED_SIGN_SNAPS_FAKESTORE: true
+    NESTED_UBUNTU_IMAGE_SNAPPY_FORCE_SAS_URL: http://localhost:11028
 
 prepare: |
+    if [ "${TRUST_TEST_KEYS}" = "false" ]; then
+        echo "This test needs test keys to be trusted"
+        exit
+    fi
+
+    ### START ###
     tests.pkgs install u-boot-tools
 
     # these snaps are originally built from snaps that live in the
@@ -28,7 +38,8 @@ prepare: |
     # specific revisions are used to help allow development on the snaps without
     # breaking current/old tests.
     snap download --revision=2 --basename test-qemu-optee-kernel test-qemu-optee-kernel
-    snap download --revision=4 --basename test-qemu-optee-gadget test-qemu-optee-gadget
+    snap download --revision=5 --basename test-qemu-optee-gadget test-qemu-optee-gadget
+    snap download --basename core24 core24
 
     unsquashfs -d ./test-qemu-optee-kernel test-qemu-optee-kernel.snap
 
@@ -62,8 +73,59 @@ prepare: |
     rm -rf ./repack
 
     snap pack --filename ./test-qemu-optee-kernel.snap ./test-qemu-optee-kernel
+    ### END ###
 
-    cp test-qemu-optee-gadget.snap test-qemu-optee-kernel.snap "$(tests.nested get extra-snaps-path)"
+    #shellcheck source=tests/lib/nested.sh
+    . "$TESTSLIB/nested.sh"
+    nested_ensure_ovmf
+
+    # although nested_start_core_vm_unit usually installs this, the fake store
+    # will already have been set up, so we need to install it here
+    snap install test-snapd-swtpm --edge
+
+    "${TESTSTOOLS}/store-state" setup-fake-store "${NESTED_FAKESTORE_BLOB_DIR}"
+
+    cp "${TESTSLIB}/assertions/testrootorg-store.account-key" "${NESTED_FAKESTORE_BLOB_DIR}/asserts"
+    cp "${TESTSLIB}/assertions/developer1.account" "${NESTED_FAKESTORE_BLOB_DIR}/asserts"
+    cp "${TESTSLIB}/assertions/developer1.account-key" "${NESTED_FAKESTORE_BLOB_DIR}/asserts"
+
+    snap ack "$NESTED_FAKESTORE_BLOB_DIR/asserts/testrootorg-store.account-key"
+    snap ack "$NESTED_FAKESTORE_BLOB_DIR/asserts/developer1.account"
+    snap ack "$NESTED_FAKESTORE_BLOB_DIR/asserts/developer1.account-key"
+
+    gendeveloper1 sign-model < "${NESTED_CUSTOM_MODEL_JSON}" > model.assert
+    cp model.assert "${NESTED_FAKESTORE_BLOB_DIR}/asserts"
+
+    "${TESTSTOOLS}"/store-state make-snap-installable \
+      --revision 1 \
+      "${NESTED_FAKESTORE_BLOB_DIR}" \
+      ./core24.snap \
+      dwTAh7MZZ01zyriOZErqd1JynQLiOGvM
+
+    "${TESTSTOOLS}"/store-state make-snap-installable \
+      --revision 1 \
+      "${NESTED_FAKESTORE_BLOB_DIR}" \
+      ./test-qemu-optee-kernel.snap \
+      qkmz4oSV1vkxMu4sIq8wzIJ3gjEnSnT5
+
+    "${TESTSTOOLS}"/store-state make-snap-installable \
+      --revision 1 \
+      "${NESTED_FAKESTORE_BLOB_DIR}" \
+      ./test-qemu-optee-gadget.snap \
+      xx9vj1HP2TexFswIRNviUIu1DZdjCImj
+
+    tests.nested prepare-essential-snaps
+
+    export SNAPPY_FORCE_API_URL="${NESTED_UBUNTU_IMAGE_SNAPPY_FORCE_SAS_URL}"
+    ubuntu-image snap --image-size 10G ./model.assert
+
+    image_dir=$(tests.nested get images-path)
+    image_name=$(tests.nested get image-name core)
+    cp ./pc.img "${image_dir}/${image_name}"
+    tests.nested configure-default-user
+
+    # run the fake device service too, so that the device can be initialised
+    systemd-run --collect --unit fakedevicesvc fakedevicesvc localhost:11029
 
     tests.nested build-image core
 
@@ -73,6 +135,16 @@ prepare: |
     export NESTED_BIOS_FILE
 
     tests.nested create-vm core
+
+    remote.exec 'sudo systemctl stop snapd.service snapd.socket'
+    remote.exec 'sudo cat /var/lib/snapd/state.json' | gojq '.data.auth.device."session-macaroon"="fake-session"' > state.json
+    remote.push state.json
+    remote.exec 'sudo mv state.json /var/lib/snapd/state.json'
+    remote.exec 'sudo systemctl start snapd.service snapd.socket'
+
+restore: |
+    "$TESTSTOOLS"/store-state teardown-fake-store "$NESTED_FAKESTORE_BLOB_DIR"
+    systemctl stop fakedevicesvc.service || true
 
 execute: |
     remote.exec 'cat /var/lib/snapd/device/fde/sealed-keys' | MATCH 'optee'

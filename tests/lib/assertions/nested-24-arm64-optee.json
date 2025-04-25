@@ -1,8 +1,8 @@
 {
     "type": "model",
     "series": "16",
-    "authority-id": "test-snapd",
-    "brand-id": "test-snapd",
+    "authority-id": "developer1",
+    "brand-id": "developer1",
     "model": "optee-model",
     "architecture": "arm64",
     "timestamp": "2024-05-14T10:05:00+00:00",
