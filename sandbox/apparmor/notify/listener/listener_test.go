@@ -613,135 +613,8 @@ func checkListenerReadyWithTimeout(c *C, l *listener.Listener, ready bool, timeo
 }
 
 func (*listenerSuite) TestRunWithPendingReady(c *C) {
-	restoreOpen := listener.MockOsOpenWithSocket()
-	defer restoreOpen()
-
-	protoVersion := notify.ProtocolVersion(12345)
-	pendingCount := 3
-
-	recvChan, _, restoreEpollIoctl := listener.MockEpollWaitNotifyIoctl(protoVersion, pendingCount)
-	defer restoreEpollIoctl()
-
-	var t tomb.Tomb
-	l, err := listener.Register()
-	c.Assert(err, IsNil)
-	defer func() {
-		c.Check(l.Close(), IsNil)
-		c.Check(t.Wait(), IsNil)
-	}()
-
-	checkListenerReady(c, l, false) // not ready
-
-	t.Go(l.Run)
-
-	label := "snap.foo.bar"
-	path := "/home/Documents/foo"
-	aBits := uint32(0b1010)
-	dBits := uint32(0b0101)
-
-	msg := newMsgNotificationFile(protoVersion, 0, label, path, aBits, dBits, nil)
-
-	// Send first message, no flags
-	msg.KernelNotificationID = 0xf00
-	msg.Flags = 0
-	buf, err := msg.MarshalBinary()
-	c.Assert(err, IsNil)
-	recvChan <- buf
-	checkListenerReady(c, l, false) // still not ready
-	// Since we're not ready yet, it's not sent until all the pending requests are sent
-	select {
-	case req := <-l.Reqs():
-		c.Fatalf("unexpectedly received non-resent request while listener was still pending: %+v", req)
-	case <-time.NewTimer(10 * time.Millisecond).C:
-		// all good
-	}
-
-	// Send second message, this time with UNOTIF_RESENT flag
-	msg.KernelNotificationID = 0xba4
-	msg.Flags = notify.UNOTIF_RESENT
-	buf, err = msg.MarshalBinary()
-	c.Assert(err, IsNil)
-	recvChan <- buf
-	checkListenerReady(c, l, false) // still not ready
-	// We're still not ready, but since it's resent, it'll be sent over reqs
-	select {
-	case req := <-l.Reqs():
-		c.Assert(req.ID, Equals, msg.KernelNotificationID)
-	case <-time.NewTimer(10 * time.Millisecond).C:
-		c.Fatalf("failed to receive request with UNOTIF_RESENT")
-	}
-
-	// Send third message, no flags
-	msg.KernelNotificationID = 0xabc
-	msg.Flags = 0
-	buf, err = msg.MarshalBinary()
-	c.Assert(err, IsNil)
-	recvChan <- buf
-	checkListenerReady(c, l, false) // still not ready
-	// Since we're not ready yet, it's not sent until all the pending requests are sent
-	select {
-	case req := <-l.Reqs():
-		c.Fatalf("unexpectedly received non-resent request while listener was still pending: %+v", req)
-	case <-time.NewTimer(10 * time.Millisecond).C:
-		// all good
-	}
-
-	// Send fourth message, this time with UNOTIF_RESENT flag again
-	msg.KernelNotificationID = 0xdef
-	msg.Flags = notify.UNOTIF_RESENT
-	buf, err = msg.MarshalBinary()
-	c.Assert(err, IsNil)
-	recvChan <- buf
-	checkListenerReady(c, l, false) // still not ready
-	// We're still not ready, but since it's resent, it'll be sent over reqs
-	select {
-	case req := <-l.Reqs():
-		c.Assert(req.ID, Equals, msg.KernelNotificationID)
-	case <-time.NewTimer(10 * time.Millisecond).C:
-		c.Fatalf("failed to receive request with UNOTIF_RESENT")
-	}
-
-	// Send fifth message, this time with UNOTIF_RESENT flag again, the last
-	// one the listener is waiting for
-	msg.KernelNotificationID = 0x123
-	msg.Flags = notify.UNOTIF_RESENT
-	buf, err = msg.MarshalBinary()
-	c.Assert(err, IsNil)
-	recvChan <- buf
-	// Expect this request
-	select {
-	case req := <-l.Reqs():
-		c.Assert(req.ID, Equals, msg.KernelNotificationID)
-	case <-time.NewTimer(10 * time.Millisecond).C:
-		c.Fatalf("failed to receive request with UNOTIF_RESENT")
-	}
-	checkListenerReadyWithTimeout(c, l, true, 10*time.Millisecond) // ready now that all pending requests have been received
-	// Then expect the previous non-UNOTIF_RESENT requests which were queued
-	for _, id := range []uint64{0xf00, 0xabc} {
-		select {
-		case req := <-l.Reqs():
-			c.Assert(req.ID, Equals, id)
-		case <-time.NewTimer(10 * time.Millisecond).C:
-			c.Fatalf("failed to receive request with ID 0x%x after listener ready", id)
-		}
-	}
-
-	// Send sixth message, without flags, but now that listener is ready, it should go through immediately
-	msg.KernelNotificationID = 0x456
-	msg.Flags = 0
-	buf, err = msg.MarshalBinary()
-	c.Assert(err, IsNil)
-	recvChan <- buf
-	checkListenerReady(c, l, true)
-	select {
-	case req := <-l.Reqs():
-		c.Assert(req.ID, Equals, msg.KernelNotificationID)
-	case <-time.NewTimer(10 * time.Millisecond).C:
-		c.Fatalf("failed to receive request with ID 0x%x after listener ready", msg.ID())
-	}
-}
-
-func (*listenerSuite) TestRunWithPendingReadyTimeout(c *C) {
+	// Usual case:
+	// Pending count 3, send 3 RESENT messages, then one non-RESENT message.
 	restoreOpen := listener.MockOsOpenWithSocket()
 	defer restoreOpen()
 
@@ -773,7 +646,7 @@ func (*listenerSuite) TestRunWithPendingReadyTimeout(c *C) {
 		c.Check(t.Wait(), IsNil)
 	}()
 
-	// Timer hasn't been created yet
+	// The timer isn't created until Run is called
 	c.Check(timer, IsNil)
 	checkListenerReady(c, l, false) // not ready
 
@@ -784,114 +657,251 @@ func (*listenerSuite) TestRunWithPendingReadyTimeout(c *C) {
 	aBits := uint32(0b1010)
 	dBits := uint32(0b0101)
 
-	msg := newMsgNotificationFile(protoVersion, 0, label, path, aBits, dBits, nil)
+	id := uint64(0xabc0)
 
-	// Send first message, no flags
-	msg.KernelNotificationID = 0xf00
-	msg.Flags = 0
+	for i := 0; i < 3; i++ {
+		id++
+		msg := newMsgNotificationFile(protoVersion, id, label, path, aBits, dBits, nil)
+		msg.Flags = notify.UNOTIF_RESENT
+		buf, err := msg.MarshalBinary()
+		c.Assert(err, IsNil)
+		recvChan <- buf
+
+		// Check that we're not ready yet. Even if this is the last pending
+		// message, the listener doesn't ready until the message has been
+		// received.
+		checkListenerReady(c, l, false)
+		c.Check(timer.Active(), Equals, true)
+
+		select {
+		case req := <-l.Reqs():
+			c.Assert(req.ID, Equals, msg.KernelNotificationID)
+		case <-time.NewTimer(10 * time.Millisecond).C:
+			c.Fatalf("failed to receive request 0x%x", id)
+		}
+	}
+
+	// We received the final RESENT message, so should be ready now.
+	checkListenerReadyWithTimeout(c, l, true, 10*time.Millisecond)
+	c.Check(timer.Active(), Equals, false)
+
+	// Send one more message for good measure, without UNOTIF_RESENT
+	id++
+	msg := newMsgNotificationFile(protoVersion, id, label, path, aBits, dBits, nil)
 	buf, err := msg.MarshalBinary()
 	c.Assert(err, IsNil)
 	recvChan <- buf
-	checkListenerReady(c, l, false) // still not ready
-	// Since we're not ready yet, it's not sent until all the pending requests are sent
-	select {
-	case req := <-l.Reqs():
-		c.Fatalf("unexpectedly received non-resent request while listener was still pending: %+v", req)
-	case <-time.NewTimer(10 * time.Millisecond).C:
-		// all good
-	}
 
-	// Send second message, this time with UNOTIF_RESENT flag
-	msg.KernelNotificationID = 0xba4
-	msg.Flags = notify.UNOTIF_RESENT
-	buf, err = msg.MarshalBinary()
-	c.Assert(err, IsNil)
-	recvChan <- buf
-	checkListenerReady(c, l, false) // still not ready
-	// We're still not ready, but since it's resent, it'll be sent over reqs
 	select {
 	case req := <-l.Reqs():
 		c.Assert(req.ID, Equals, msg.KernelNotificationID)
 	case <-time.NewTimer(10 * time.Millisecond).C:
-		c.Fatalf("failed to receive request with UNOTIF_RESENT")
+		c.Fatalf("failed to receive request 0x%x", id)
 	}
 
-	// Send third message, no flags
-	msg.KernelNotificationID = 0xabc
-	msg.Flags = 0
-	buf, err = msg.MarshalBinary()
+	checkListenerReady(c, l, true)
+	c.Check(timer.Active(), Equals, false)
+}
+
+func (*listenerSuite) TestRunWithPendingReadyDropped(c *C) {
+	// Rare case:
+	// Pending count 3, send 2 RESENT messages, then one non-RESENT message.
+	// This should only occur if the kernel times out/drops a pending message.
+	restoreOpen := listener.MockOsOpenWithSocket()
+	defer restoreOpen()
+
+	protoVersion := notify.ProtocolVersion(12345)
+	pendingCount := 3
+
+	recvChan, _, restoreEpollIoctl := listener.MockEpollWaitNotifyIoctl(protoVersion, pendingCount)
+	defer restoreEpollIoctl()
+
+	var timer *testtime.TestTimer
+	callbackDone := make(chan struct{})
+	restoreTimer := listener.MockTimeAfterFunc(func(d time.Duration, f func()) timeutil.Timer {
+		if timer != nil {
+			c.Fatalf("created more than one timer")
+		}
+		timer = testtime.AfterFunc(d, func() {
+			f()
+			close(callbackDone)
+		})
+		return timer
+	})
+	defer restoreTimer()
+
+	var t tomb.Tomb
+	l, err := listener.Register()
 	c.Assert(err, IsNil)
-	recvChan <- buf
-	checkListenerReady(c, l, false) // still not ready
-	// Since we're not ready yet, it's not sent until all the pending requests are sent
-	select {
-	case req := <-l.Reqs():
-		c.Fatalf("unexpectedly received non-resent request while listener was still pending: %+v", req)
-	case <-time.NewTimer(10 * time.Millisecond).C:
-		// all good
+	defer func() {
+		c.Check(l.Close(), IsNil)
+		c.Check(t.Wait(), IsNil)
+	}()
+
+	// The timer isn't created until Run is called
+	c.Check(timer, IsNil)
+	checkListenerReady(c, l, false) // not ready
+
+	t.Go(l.Run)
+
+	label := "snap.foo.bar"
+	path := "/home/Documents/foo"
+	aBits := uint32(0b1010)
+	dBits := uint32(0b0101)
+
+	id := uint64(0xabc0)
+
+	for i := 0; i < 2; i++ {
+		id++
+		msg := newMsgNotificationFile(protoVersion, id, label, path, aBits, dBits, nil)
+		msg.Flags = notify.UNOTIF_RESENT
+		buf, err := msg.MarshalBinary()
+		c.Assert(err, IsNil)
+		recvChan <- buf
+
+		// Check that we're not ready yet. Even if this is the last pending
+		// message, the listener doesn't ready until the message has been
+		// received.
+		checkListenerReady(c, l, false)
+		c.Check(timer.Active(), Equals, true)
+
+		select {
+		case req := <-l.Reqs():
+			c.Assert(req.ID, Equals, msg.KernelNotificationID)
+		case <-time.NewTimer(10 * time.Millisecond).C:
+			c.Fatalf("failed to receive request 0x%x", id)
+		}
 	}
 
-	// Send fourth message, this time with UNOTIF_RESENT flag again
-	msg.KernelNotificationID = 0xdef
-	msg.Flags = notify.UNOTIF_RESENT
-	buf, err = msg.MarshalBinary()
+	// We have still not received the final RESENT message, so should not be ready.
+	checkListenerReady(c, l, false)
+	c.Check(timer.Active(), Equals, true)
+
+	// Send a message without UNOTIF_RESENT
+	id++
+	msg := newMsgNotificationFile(protoVersion, id, label, path, aBits, dBits, nil)
+	buf, err := msg.MarshalBinary()
 	c.Assert(err, IsNil)
 	recvChan <- buf
-	checkListenerReady(c, l, false) // still not ready
-	// We're still not ready, but since it's resent, it'll be sent over reqs
+
+	// The listener even seeing a message without UNOTIF_RESENT should be enough
+	// for it to ready up, since this indicates the kernel is done resending
+	// previously-sent requests. We don't need to have received it yet.
+	checkListenerReadyWithTimeout(c, l, true, 10*time.Millisecond)
+	// Readiness stops the timer
+	c.Check(timer.Active(), Equals, false)
+
+	// Now receive it
 	select {
 	case req := <-l.Reqs():
 		c.Assert(req.ID, Equals, msg.KernelNotificationID)
 	case <-time.NewTimer(10 * time.Millisecond).C:
-		c.Fatalf("failed to receive request with UNOTIF_RESENT")
+		c.Fatalf("failed to receive request 0x%x", id)
 	}
 
-	c.Assert(timer.Active(), Equals, true)
+	// We're still ready, of course
+	checkListenerReady(c, l, true)
+}
+
+func (*listenerSuite) TestRunWithPendingReadyTimeout(c *C) {
+	// Somewhat rare case:
+	// Pending count 3, send 1 RESENT message, then time out.
+	// This should only occur if snapd or the kernel is exceptionally slow, or
+	// if the kernel times out/drops a pending message but then never sends any
+	// new messages (at least until after the timeout).
+	restoreOpen := listener.MockOsOpenWithSocket()
+	defer restoreOpen()
+
+	protoVersion := notify.ProtocolVersion(12345)
+	pendingCount := 3
+
+	recvChan, _, restoreEpollIoctl := listener.MockEpollWaitNotifyIoctl(protoVersion, pendingCount)
+	defer restoreEpollIoctl()
+
+	var timer *testtime.TestTimer
+	callbackDone := make(chan struct{})
+	restoreTimer := listener.MockTimeAfterFunc(func(d time.Duration, f func()) timeutil.Timer {
+		if timer != nil {
+			c.Fatalf("created more than one timer")
+		}
+		timer = testtime.AfterFunc(d, func() {
+			f()
+			close(callbackDone)
+		})
+		return timer
+	})
+	defer restoreTimer()
+
+	var t tomb.Tomb
+	l, err := listener.Register()
+	c.Assert(err, IsNil)
+	defer func() {
+		c.Check(l.Close(), IsNil)
+		c.Check(t.Wait(), IsNil)
+	}()
+
+	// The timer isn't created until Run is called
+	c.Check(timer, IsNil)
+	checkListenerReady(c, l, false) // not ready
+
+	t.Go(l.Run)
+
+	label := "snap.foo.bar"
+	path := "/home/Documents/foo"
+	aBits := uint32(0b1010)
+	dBits := uint32(0b0101)
+
+	id := uint64(0xabc0)
+
+	id++
+	msg := newMsgNotificationFile(protoVersion, id, label, path, aBits, dBits, nil)
+	msg.Flags = notify.UNOTIF_RESENT
+	buf, err := msg.MarshalBinary()
+	c.Assert(err, IsNil)
+	recvChan <- buf
+
+	checkListenerReady(c, l, false)
+	c.Check(timer.Active(), Equals, true)
+
+	select {
+	case req := <-l.Reqs():
+		c.Assert(req.ID, Equals, msg.KernelNotificationID)
+	case <-time.NewTimer(10 * time.Millisecond).C:
+		c.Fatalf("failed to receive request 0x%x", id)
+	}
+
+	// We have still not received the final RESENT message, so should not be ready.
+	checkListenerReady(c, l, false)
+	c.Check(timer.Active(), Equals, true)
+
 	// Time out the ready timer
 	timer.Elapse(listener.ReadyTimeout)
 	c.Assert(timer.Active(), Equals, false)
 	c.Assert(timer.FireCount(), Equals, 1)
-	// Expect the callback to first mark the listener as ready, and then send
-	// the previous non-UNOTIF_RESENT requests which were queued.
+	// Expect the callback to mark the listener as ready
 	checkListenerReadyWithTimeout(c, l, true, 10*time.Millisecond)
-	for _, id := range []uint64{0xf00, 0xabc} {
-		select {
-		case req := <-l.Reqs():
-			c.Assert(req.ID, Equals, id)
-		case <-time.NewTimer(10 * time.Millisecond).C:
-			c.Fatalf("failed to receive request with ID 0x%x after listener ready", id)
-		}
-	}
-	<-callbackDone // wait for callback to finish
 
-	// Send fifth message, without flags, but now that listener is ready, it should go through immediately
-	msg.KernelNotificationID = 0x123
-	msg.Flags = 0
-	buf, err = msg.MarshalBinary()
-	c.Assert(err, IsNil)
-	recvChan <- buf
-	// Expect this request
-	select {
-	case req := <-l.Reqs():
-		c.Assert(req.ID, Equals, msg.KernelNotificationID)
-	case <-time.NewTimer(10 * time.Millisecond).C:
-		c.Fatalf("failed to receive request with IX 0x%x after listener ready", msg.ID())
-	}
-
-	// Send sixth message, this time with UNOTIF_RESENT flag again, the last one
-	// the listener would be waiting for if it weren't already ready
-	msg.KernelNotificationID = 0x456
+	// Now, for good measure, send a message with UNOTIF_RESENT
+	id++
+	msg = newMsgNotificationFile(protoVersion, id, label, path, aBits, dBits, nil)
 	msg.Flags = notify.UNOTIF_RESENT
 	buf, err = msg.MarshalBinary()
 	c.Assert(err, IsNil)
 	recvChan <- buf
+
+	// We're still ready
 	checkListenerReady(c, l, true)
+
+	// Now receive it
 	select {
 	case req := <-l.Reqs():
 		c.Assert(req.ID, Equals, msg.KernelNotificationID)
 	case <-time.NewTimer(10 * time.Millisecond).C:
-		c.Fatalf("failed to receive request with ID 0x%x after listener ready", msg.ID())
+		c.Fatalf("failed to receive request 0x%x", id)
 	}
+
+	// We're still ready
+	checkListenerReady(c, l, true)
 }
 
 // Check that if a request is written between when the listener is registered
@@ -1224,7 +1234,9 @@ func (*listenerSuite) TestRunNoReceiverWithPending(c *C) {
 	dBits := uint32(0b0101)
 
 	msg := newMsgNotificationFile(protoVersion, id, label, path, aBits, dBits, nil)
-	// no flags set
+	// Set UNOTIF_RESENT so this message doesn't trigger ready as soon as it
+	// is seen by the listener. Since there's no reader, it should not ready.
+	msg.Flags = notify.UNOTIF_RESENT
 	buf, err := msg.MarshalBinary()
 	c.Check(err, IsNil)
 	recvChan <- buf
@@ -1238,6 +1250,7 @@ func (*listenerSuite) TestRunNoReceiverWithPending(c *C) {
 		c.Errorf("failed to synchronize on ioctl call")
 	}
 
+	// No receiver read this request, so we're still not ready
 	checkListenerReadyWithTimeout(c, l, false, 10*time.Millisecond)
 
 	c.Check(timer.Active(), Equals, true)
@@ -1304,7 +1317,9 @@ func (*listenerSuite) TestRunNoReceiverWithPendingTimeout(c *C) {
 	dBits := uint32(0b0101)
 
 	msg := newMsgNotificationFile(protoVersion, id, label, path, aBits, dBits, nil)
-	// no flags set
+	// Set UNOTIF_RESENT so this message doesn't trigger ready as soon as it
+	// is seen by the listener. Since there's no reader, it should not ready.
+	msg.Flags = notify.UNOTIF_RESENT
 	buf, err := msg.MarshalBinary()
 	c.Check(err, IsNil)
 	recvChan <- buf
@@ -1318,6 +1333,7 @@ func (*listenerSuite) TestRunNoReceiverWithPendingTimeout(c *C) {
 		c.Errorf("failed to synchronize on ioctl call")
 	}
 
+	// No receiver read this request, so we're still not ready
 	checkListenerReadyWithTimeout(c, l, false, 10*time.Millisecond)
 
 	c.Check(timer.Active(), Equals, true)
@@ -1326,30 +1342,28 @@ func (*listenerSuite) TestRunNoReceiverWithPendingTimeout(c *C) {
 	c.Check(timer.Active(), Equals, false)
 	c.Check(timer.FireCount(), Equals, 1)
 	// Callback is now running, but waiting
-	checkListenerReady(c, l, false)
+	checkListenerReadyWithTimeout(c, l, false, 10*time.Millisecond)
 
 	c.Check(l.Close(), IsNil)
 
 	// Close() doesn't cause the listener to signal that it's ready
 	checkListenerReadyWithTimeout(c, l, false, 10*time.Millisecond)
 
-	// Run loop should be waiting, should not have closed reqs yet
+	// Run loop stops the timer (which has already fired) and then immediately
+	// closes reqs
 	select {
 	case <-l.Reqs():
-		c.Fatalf("reqs closed prematurely")
-	case <-time.NewTimer(10 * time.Millisecond).C:
 		// all good
+	case <-time.NewTimer(10 * time.Millisecond).C:
+		c.Fatalf("reqs failed to close once listener closed")
 	}
 
 	// Let the callback run and wait for it to finish
 	close(startCallback)
 	<-callbackDone
-	// The callback would cause the queued request to be sent, but since
-	// closeChan has been closed, the callback will abort trying to send the
-	// queued request. It will mark the listener as ready though.
+	// The callback marks the listener as ready
 	checkListenerReady(c, l, true)
 
-	// Once callback is done, run loop should be able to finish closing
 	c.Check(t.Wait(), IsNil)
 }
 

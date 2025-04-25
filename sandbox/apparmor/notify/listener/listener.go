@@ -135,38 +135,20 @@ type Listener struct {
 
 	// ready is a channel which is closed once all requests which were pending
 	// at time of registration have been re-received from the kernel and sent
-	// over the reqs channel. This occurs once pendingCount reaches 0 or the
+	// over the reqs channel. This occurs once pendingCount reaches 0, snapd
+	// receives a message which does not have the UNOTIF_RESENT flag, or the
 	// ready timer times out. This channel must only be closed by the
-	// signalReadyAndFlushQueue method.
-	//
-	// Until this occurs, other new (not NOTF_RESENT) requests will be queued
-	// up by the listener, and only sent once all UNOTIF_RESENT requests have
-	// been sent over the reqs channel.
+	// signalReady method.
 	ready chan struct{}
-	// doneReadying is a channel which is closed once signalReadyAndFlushQueue
-	// has finished writing queued requests to l.reqs. This channel is used so
-	// that the run loop can safely close l.reqs.
-	doneReadying chan struct{}
-	// readyTimer is a timer which will call signalReadyAndFlushQueue if the
-	// listener times out waiting for pending requests to be received.
+	// readyTimer is a timer which will call signalReady if the listener times
+	// out waiting for pending requests to be received.
 	readyTimer timeutil.Timer
-	// pendingMu is a mutex which protects pendingCount and readyQueue.
+	// pendingMu is a mutex which protects pendingCount.
 	pendingMu sync.Mutex
 	// pendingCount is the number of "pending" (UNOTIF_RESENT) messages still
 	// expected to be re-received from the kernel. When the listener becomes
-	// ready, this count must be sent to 0, as it's used as the internal check
-	// for whether a non-RESENT message should be queued.
+	// ready, this count must be sent to 0.
 	pendingCount int
-	// readyQueue is the queue of "ready" (not UNOTIF_RESENT) requests from the
-	// kernel which were received before either all remaining pending requests
-	// were re-received or the ready timer timed out. Once one of these occurs,
-	// all requests in this queue should be sent by signalReadyAndFlushQueue in
-	// the order in which they were received, and the queue should be discarded.
-	//
-	// The motivation for queueing non-resent requests until the listener is
-	// ready is so that consumers of the listener requests can re-create their
-	// state (i.e. prompts) fully before any new requests are received.
-	readyQueue []*Request
 
 	// protocolVersion is the notification protocol version associated with the
 	// listener's notify socket. Once registered with a particular version,
@@ -227,7 +209,6 @@ func Register() (listener *Listener, err error) {
 		reqs: make(chan *Request),
 
 		ready:        make(chan struct{}),
-		doneReadying: make(chan struct{}),
 		readyTimer:   timeutil.NewTimer(0), // initialize placeholder non-nil timer
 		pendingCount: pendingCount,
 
@@ -240,7 +221,7 @@ func Register() (listener *Listener, err error) {
 	// If there are no pending requests waiting to be re-sent, ready
 	// immediately, otherwise start the ready timer when Run is called.
 	if listener.pendingCount == 0 {
-		listener.signalReadyAndFlushQueue()
+		listener.signalReady()
 	}
 	return listener, nil
 }
@@ -331,18 +312,15 @@ func (l *Listener) Run() error {
 		// If there were pending requests at time of registration, then Register
 		// didn't set a real ready timer with callback, so do so now.
 		if l.pendingCount != 0 {
-			l.readyTimer = timeAfterFunc(readyTimeout, l.signalReadyAndFlushQueue)
+			l.readyTimer = timeAfterFunc(readyTimeout, l.signalReady)
 		}
 		defer func() {
-			if !l.readyTimer.Stop() {
-				// Already fired or stopped (which in both cases should result
-				// in signalReadyAndFlushQueue() being called), so ensure it
-				// won't try to write to l.reqs by waiting for l.doneReadying.
-				<-l.doneReadying
+			if l.readyTimer.Stop() {
+				// The timer was still active, so the listener was not ready.
+				// The manager is closing the listener, so if the listener isn't
+				// ready by now, it doesn't matter, the manager has stopped
+				// receiving requests by now anyway.
 			}
-			// The manager is closing the listener, so if the listener isn't
-			// ready by now, it doesn't matter, the manager has stopped
-			// receiving requests by now anyway.
 
 			// When listener run loop ends, close the requests channel.
 			close(l.reqs)
@@ -476,14 +454,17 @@ func (l *Listener) decodeAndDispatchRequest(buf []byte) error {
 			return err
 		}
 
-		// Before sending the request, check if it should instead be queued.
+		// Before sending the request, check if it is resent. The kernel is
+		// guaranteed to resend all previously-pending messages before it sends
+		// any new messages, so if it's NOT resent, then we know the kernel is
+		// done sending pending messages.
 		if !msg.Resent() {
-			// This is a new message, not one we're re-receiving, so if the
-			// listener is not yet ready, queue it up for later instead.
-			if l.queueRequestIfNotReady(req) {
-				continue
+			// It is not resent, so there are no more resent messages, and we
+			// should ensure that we're ready.
+			if l.readyTimer.Stop() {
+				// Timer was active so we weren't yet ready. Ready up now.
+				l.signalReady()
 			}
-			// The listener is ready, so carry on sending this request
 		}
 
 		// Try to send request to manager, or wait for listener to be closed
@@ -494,9 +475,9 @@ func (l *Listener) decodeAndDispatchRequest(buf []byte) error {
 			// The listener is being closed, so stop trying to deliver the
 			// message up to the manager. It will appear to the kernel that we
 			// have received and processed the request, when in reality, we
-			// have not. The higher-level restart handling logic will ensure
-			// that the request will be re-sent to snapd when it restarts and
-			// registers a new listener.
+			// have not. The higher-level restart handling logic ensures that
+			// the request will be re-sent to snapd when it restarts and
+			// re-registers the listener.
 			return ErrClosed
 		}
 
@@ -511,7 +492,7 @@ func (l *Listener) decodeAndDispatchRequest(buf []byte) error {
 		if l.readyTimer.Stop() {
 			// We stopped the timer before it fired, so we can signal
 			// ready. Otherwise, the timer already signalled for us.
-			l.signalReadyAndFlushQueue()
+			l.signalReady()
 		}
 	}
 	return nil
@@ -547,22 +528,6 @@ func (l *Listener) newRequest(msg notify.MsgNotificationGeneric) (*Request, erro
 	}, nil
 }
 
-// queueRequestIfNotReady queues the given request if the listener is not yet
-// ready, which is indicated by there being pending requests which are still
-// expected to be re-received. Returns true if the request is queued.
-//
-// The caller should only call this method if the message associated with the
-// given request was *not* marked by the kernel as having been previously sent.
-func (l *Listener) queueRequestIfNotReady(req *Request) (queued bool) {
-	l.pendingMu.Lock()
-	defer l.pendingMu.Unlock()
-	if l.pendingCount == 0 {
-		return false
-	}
-	l.readyQueue = append(l.readyQueue, req)
-	return true
-}
-
 // decrementPendingCheckFinal decrements the pending count if it's not already
 // 0, and returns whether this was the final pending request.
 //
@@ -581,30 +546,16 @@ func (l *Listener) decrementPendingCheckFinal() (isFinal bool) {
 	return false
 }
 
-// signalReadyAndFlushQueue is responsible for closing the ready channel,
-// setting pendingCount to 0, and sending any requests which were queued in the
-// ready queue. When it's done, it closes doneReadying so that waiters know
-// it's safe to close l.reqs.
+// signalReady is responsible for closing the ready channel and ensuring that
+// pendingCount is set to 0.
 //
 // Potential callers must ensure that this method is only called once per
 // listener.
-func (l *Listener) signalReadyAndFlushQueue() {
+func (l *Listener) signalReady() {
 	l.pendingMu.Lock()
 	defer l.pendingMu.Unlock()
-	defer close(l.doneReadying)
-	l.pendingCount = 0 // if timed out, tell the run loop we're ready, stop queueing
+	l.pendingCount = 0 // if timed out, tell the run loop we're ready
 	close(l.ready)
-	for _, req := range l.readyQueue {
-		// Try to send request to manager, or wait for listener to be closed
-		select {
-		case l.reqs <- req:
-			// request received
-		case <-l.closeChan:
-			// Break rather than return so we're sure to close l.doneReadying
-			break
-		}
-	}
-	l.readyQueue = nil
 }
 
 var encodeAndSendResponse = func(l *Listener, resp *notify.MsgNotificationResponse) error {
