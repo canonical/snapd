@@ -113,7 +113,7 @@ type mount struct {
 // The "optional fields" listed before the single '-' byte (see shared_subtrees.txt in Linux kernel)
 // are technically present although at this point they are always empty.
 func (m *mount) String() string {
-	return fmt.Sprintf("%d %d _:_  /%s /%s _ - %T %p _", m.mountID, m.parentID, m.rootDir, m.mountPoint, m.fsFS, m.fsFS)
+	return fmt.Sprintf("%d %d _:_  /%s /%s _ - %T %p _", m.mountID, m.parentID, m.rootDir, m.mountPoint, m.fsFS, &m.fsFS)
 }
 
 // isDom returns the dominated suffix and file system path if the mount dominates the given path.
