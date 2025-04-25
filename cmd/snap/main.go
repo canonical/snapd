@@ -559,6 +559,8 @@ func loggerWithJournalMaybe() error {
 		// try simple setup
 		logger.SimpleSetup(nil)
 	}
+	// unset so that it doesn't trickle down to the snap application
+	os.Unsetenv("SNAP_LOG_TO_JOURNAL")
 	return nil
 }
 
