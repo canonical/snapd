@@ -868,7 +868,6 @@ func newMsgNotificationFile(protocolVersion notify.ProtocolVersion, id uint64, l
 	msg := notify.MsgNotificationFile{}
 	msg.Version = protocolVersion
 	msg.NotificationType = notify.APPARMOR_NOTIF_OP
-	msg.Flags = 1
 	msg.KernelNotificationID = id
 	msg.Allow = allow
 	msg.Deny = deny
@@ -888,7 +887,7 @@ func newMsgNotificationResponse(protocolVersion notify.ProtocolVersion, id uint6
 	msgNotification := notify.MsgNotification{
 		MsgHeader:            msgHeader,
 		NotificationType:     notify.APPARMOR_NOTIF_RESP,
-		Flags:                1,
+		Flags:                notify.URESPONSE_NO_CACHE,
 		KernelNotificationID: id,
 		Error:                0,
 	}
