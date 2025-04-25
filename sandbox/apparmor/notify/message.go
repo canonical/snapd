@@ -33,14 +33,14 @@ type MsgNotificationGeneric interface {
 	// Name is the identifier of the resource to which access is requested.
 	// For mediation class file, Name is the filepath of the requested file.
 	Name() string
-	// MetadataTagsets returns a TagsetMap, which is a map from AppArmor
+	// DeniedMetadataTagsets returns a TagsetMap, which is a map from AppArmor
 	// permission mask to the MetadataTags associated with that permission mask.
 	// Only tagsets associated with denied permissions are included in the
 	// output, as it is only those permissions which the profile marked to
 	// prompt (and did not have cached responses). Implementers should call the
 	// deniedTagsets method on their embedded MsgNotificationOp, passing in
 	// their mediation class-specific tagsets to get these filtered tagsets.
-	MetadataTagsets() TagsetMap
+	DeniedMetadataTagsets() TagsetMap
 }
 
 // TagsetMap maps from permission mask to the ordered list of tags associated
@@ -729,6 +729,6 @@ func (msg *MsgNotificationFile) Name() string {
 	return msg.Filename
 }
 
-func (msg *MsgNotificationFile) MetadataTagsets() TagsetMap {
+func (msg *MsgNotificationFile) DeniedMetadataTagsets() TagsetMap {
 	return msg.deniedTagsets(msg.Tagsets)
 }

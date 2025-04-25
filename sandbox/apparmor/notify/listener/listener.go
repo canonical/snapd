@@ -425,7 +425,7 @@ func (l *Listener) newRequest(msg notify.MsgNotificationGeneric) (*Request, erro
 		Class:      msg.MediationClass(),
 		Permission: aaDenied, // Request permissions which were initially denied
 		AaAllowed:  aaAllowed,
-		Tagsets:    msg.MetadataTagsets(),
+		Tagsets:    msg.DeniedMetadataTagsets(),
 
 		listener: l,
 	}, nil

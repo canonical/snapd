@@ -1033,5 +1033,5 @@ func testMsgNotificationGeneric(c *C, generic notify.MsgNotificationGeneric, id 
 	c.Check(msgDeny.AsAppArmorOpMask(), Equals, denied)
 	c.Check(generic.SubjectUID(), Equals, suid)
 	c.Check(generic.Name(), Equals, name)
-	c.Check(generic.MetadataTagsets(), DeepEquals, tagsets)
+	c.Check(generic.DeniedMetadataTagsets(), DeepEquals, tagsets)
 }
