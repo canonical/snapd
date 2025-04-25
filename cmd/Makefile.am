@@ -1,4 +1,3 @@
-
 EXTRA_DIST = VERSION snap-confine/PORTING
 CLEANFILES =
 TESTS =
@@ -7,7 +6,8 @@ dist_man_MANS =
 noinst_PROGRAMS =
 noinst_LIBRARIES =
 
-AM_CFLAGS = $(CHECK_CFLAGS)
+AM_CFLAGS = $(CHECK_CFLAGS) $(CODE_COVERAGE_CFLAGS)
+AM_LDFLAGS = $(CHECK_LDFLAGS) $(CODE_COVERAGE_LDFLAGS)
 if ENABLE_SANITIZE
 SANITIZE_CFLAGS = -fsanitize=address -fsanitize=undefined
 SANITIZE_LDFLAGS = -fsanitize=address -fsanitize=undefined
@@ -210,7 +210,7 @@ noinst_PROGRAMS += decode-mount-opts/decode-mount-opts
 decode_mount_opts_decode_mount_opts_SOURCES = \
 	decode-mount-opts/decode-mount-opts.c
 decode_mount_opts_decode_mount_opts_LDADD = libsnap-confine-private.a
-decode_mount_opts_decode_mount_opts_LDFLAGS = $(SANITIZE_LDFLAGS)
+decode_mount_opts_decode_mount_opts_LDFLAGS = $(SANITIZE_LDFLAGS) $(CODE_COVERAGE_LDFLAGS)
 decode_mount_opts_decode_mount_opts_STATIC =
 
 if STATIC_LIBCAP
@@ -583,3 +583,26 @@ APPARMOR_DISTCHECK_CONFIGURE_FLAGS=--with-apparmorconfigdir=$${dc_install_base}/
 else
 APPARMOR_DISTCHECK_CONFIGURE_FLAGS=--disable-apparmor
 endif
+
+GCOVR_OPTS = \
+	--gcov-executable '$(HAVE_GCOV)' \
+	--merge-mode-functions merge-use-line-0
+
+CLEANFILES += coverage.csv
+coverage.csv: check
+	$(HAVE_GCOVR) $(GCOVR_OPTS) --csv -o $@ $(builddir)
+
+CLEANFILES += coverage.lcov
+coverage.lcov: check
+	$(HAVE_GCOVR) $(GCOVR_OPTS) --lcov -o $@ $(builddir)
+
+CLEANFILES += coverage.xml
+coverage.xml: check
+	$(HAVE_GCOVR) $(GCOVR_OPTS) --xml -o $@ $(builddir)
+
+CLEANFILES += coverage.html coverage.*.html
+coverage.html: check
+	$(HAVE_GCOVR) $(GCOVR_OPTS) --html-details $@ $(builddir)
+
+clean-local:
+	-find . \( -name "*.gcda" -o -name "*.gcno" \) -delete

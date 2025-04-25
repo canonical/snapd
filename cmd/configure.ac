@@ -302,6 +302,25 @@ AC_ARG_ENABLE([host-binaries],
     [build_host_binaries=yes])
 AM_CONDITIONAL([BUILD_HOST_BINARIES], [test "x$build_host_binaries" = "xyes"])
 
+AC_ARG_ENABLE([test-coverage],
+    AS_HELP_STRING([--enable-test-coverage], [Enable test coverage]),
+    [case "${enableval}" in
+        yes) enable_test_coverage=yes ;;
+        no)  enable_test_coverage=no ;;
+        *) AC_MSG_ERROR([bad value ${enableval} for --enable-test-coverage])
+    esac], [enable_test_coverage=no])
+AM_CONDITIONAL([TEST_COVERAGE], [test "x$enable_test_coverage" = "xyes"])
+
+AC_PATH_PROGS([HAVE_GCOVR],[gcovr])
+AS_IF([test "x$HAVE_GCOVR" = "x" -a "x$enable_test_coverage" = "xyes"], [
+  AC_MSG_ERROR(["gcovr is required for coverage data"])
+])
+
+AC_PATH_PROGS([HAVE_GCOV],[gcov])
+AS_IF([test "x$HAVE_GCOV" = "x" -a "x$enable_test_coverage" = "xyes"], [
+  AC_MSG_ERROR(["gcov tool is required for coverage data"])
+])
+
 AX_APPEND_COMPILE_FLAGS([ dnl
   -Wall dnl
   -Wextra dnl
@@ -316,6 +335,13 @@ AS_IF([test "x$snapd_cv_missing_field_initializers_works" = "xno"], [
 
 AS_IF([test "x$with_unit_tests" = "xyes"], [
   AX_APPEND_COMPILE_FLAGS([-Werror], [CHECK_CFLAGS])
+])
+
+AS_IF([test "x$enable_test_coverage" = "xyes"], [
+  CODE_COVERAGE_CFLAGS="--coverage"
+  CODE_COVERAGE_LDFLAGS="--coverage"
+  AC_SUBST([CODE_COVERAGE_CFLAGS])
+  AC_SUBST([CODE_COVERAGE_LDFLAGS])
 ])
 
 AC_ARG_ENABLE([sanitize],
@@ -335,6 +361,7 @@ AC_ARG_ENABLE([sanitize],
 AM_CONDITIONAL([ENABLE_SANITIZE], [test "x$enable_sanitize" = "xyes"])
 
 AC_SUBST([CHECK_CFLAGS])
+AC_SUBST([CHECK_LDFLAGS])
 
 AC_ARG_WITH([apparmorconfigdir],
     [AS_HELP_STRING([--with-apparmorconfigdir], [path to apparmor.d configuration directory])], [
