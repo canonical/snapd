@@ -183,6 +183,8 @@ func (*ioctlSuite) TestIoctlString(c *C) {
 	c.Assert(notify.APPARMOR_NOTIF_IS_ID_VALID.String(), Equals, "APPARMOR_NOTIF_IS_ID_VALID")
 	c.Assert(notify.APPARMOR_NOTIF_RECV.String(), Equals, "APPARMOR_NOTIF_RECV")
 	c.Assert(notify.APPARMOR_NOTIF_SEND.String(), Equals, "APPARMOR_NOTIF_SEND")
+	c.Assert(notify.APPARMOR_NOTIF_REGISTER.String(), Equals, "APPARMOR_NOTIF_REGISTER")
+	c.Assert(notify.APPARMOR_NOTIF_RESEND.String(), Equals, "APPARMOR_NOTIF_RESEND")
 
 	arbitrary := notify.IoctlRequest(0xDEADBEEF)
 	c.Assert(arbitrary.String(), Equals, "IoctlRequest(deadbeef)")
