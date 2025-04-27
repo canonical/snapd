@@ -37,6 +37,7 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/inotify"
+	"github.com/snapcore/snapd/osutil/kmod"
 	"github.com/snapcore/snapd/strutil"
 )
 
@@ -125,9 +126,23 @@ var lockAggregator = func() (unlocker func(), err error) {
 	}, nil
 }
 
+var kmodLoadModule = kmod.LoadModule
 var aggregatorCreationTimeout = 120 * time.Second
 
 func addAggregatedChip(ctx context.Context, sourceChip *ChardevChip, lines strutil.Range) (chip *ChardevChip, err error) {
+	// Make sure the gpio-aggregator module is loaded because the
+	// systemd security backend comes before the kmod security
+	// backend, there is an edge case on first connection where
+	// the helper service could be started before the gpio-aggregator
+	// module is loaded.
+	if _, err := osStat(filepath.Join(dirs.GlobalRootDir, aggregatorDriverDir)); errors.Is(err, os.ErrNotExist) {
+		if err := kmodLoadModule("gpio-aggregator", nil); err != nil {
+			return nil, err
+		}
+	} else if err != nil {
+		return nil, err
+	}
+
 	// synchronize gpio helpers' access to the aggregator interface
 	unlocker, err := lockAggregator()
 	if err != nil {
