@@ -335,7 +335,7 @@ func removeExtraComponentsTasks(st *state.State, snapst *SnapState, targetRevisi
 	return unlinkTasks, discardTasks, nil
 }
 
-func doInstall(st *state.State, snapst *SnapState, snapsup SnapSetup, compsups []ComponentSetup, flags int, fromChange string, inUseCheck func(snap.Type) (boot.InUseFunc, error)) (*state.TaskSet, error) {
+func doInstall(st *state.State, snapst *SnapState, snapsup SnapSetup, compsups []ComponentSetup, flags int, fromChange string, inUseCheck func(snap.Type) (boot.InUseFunc, error), deviceCtx DeviceContext) (*state.TaskSet, error) {
 	tr := config.NewTransaction(st)
 	experimentalRefreshAppAwareness, err := features.Flag(tr, features.RefreshAppAwareness)
 	if err != nil && !config.IsNoOption(err) {
@@ -565,10 +565,7 @@ func doInstall(st *state.State, snapst *SnapState, snapsup SnapSetup, compsups [
 
 	// we need to know some of the characteristics of the device - it is
 	// expected to always have a model/device context at this point.
-	// TODO in a remodel this would use the old model, we need to fix this
-	// as needsKernelSetup needs to know the new model for UC2{0,2} -> UC24
-	// remodel case.
-	deviceCtx, err := DeviceCtx(st, nil, nil)
+	deviceCtx, err = DeviceCtx(st, nil, deviceCtx)
 	if err != nil {
 		return nil, err
 	}
@@ -2455,7 +2452,7 @@ func doUpdate(st *state.State, requested []string, updates []update, opts Option
 
 		// Do not set any default restart boundaries, we do it when we have access to all
 		// the task-sets in preparation for single-reboot.
-		ts, err := doInstall(st, &up.SnapState, up.Setup, up.Components, noRestartBoundaries, opts.FromChange, inUseFor(opts.DeviceCtx))
+		ts, err := doInstall(st, &up.SnapState, up.Setup, up.Components, noRestartBoundaries, opts.FromChange, inUseFor(opts.DeviceCtx), opts.DeviceCtx)
 		if err != nil {
 			if errors.Is(err, &timedBusySnapError{}) && ts != nil {
 				// snap is busy and pre-download tasks were made for it
@@ -4362,7 +4359,7 @@ func RevertToRevision(st *state.State, name string, rev snap.Revision, flags Fla
 		})
 	}
 
-	return doInstall(st, &snapst, snapsup, compsups, 0, fromChange, nil)
+	return doInstall(st, &snapst, snapsup, compsups, 0, fromChange, nil, nil)
 }
 
 // TransitionCore transitions from an old core snap name to a new core
@@ -4416,7 +4413,7 @@ func TransitionCore(st *state.State, oldName, newName string) ([]*state.TaskSet,
 			SideInfo:     &newInfo.SideInfo,
 			Type:         newInfo.Type(),
 			Version:      newInfo.Version,
-		}, nil, 0, "", nil)
+		}, nil, 0, "", nil, nil)
 		if err != nil {
 			return nil, err
 		}
