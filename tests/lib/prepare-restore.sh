@@ -162,37 +162,17 @@ build_arch_pkg() {
     base_version="$(head -1 debian/changelog | awk -F '[()]' '{print $2}')"
     version="1337.$base_version"
     packaging_path=packaging/arch
-    archive_name=snapd-$version.tar
 
     rm -rf /tmp/pkg
-    mkdir -p /tmp/pkg/sources/snapd
-    cp -ra -- * /tmp/pkg/sources/snapd/
+    mkdir -p /tmp/pkg/
+    cp -av "$packaging_path"/* /tmp/pkg
 
     # shellcheck disable=SC2086
-    tar -C /tmp/pkg/sources -cf "/tmp/pkg/$archive_name" "snapd"
-    cp "$packaging_path"/* "/tmp/pkg"
+    ./packaging/pack-source -v "$version" -o "/tmp/pkg/" -s
 
-    # fixup PKGBUILD which builds a package named snapd-git with dynamic version
-    #  - update pkgname to use snapd
-    #  - kill dynamic version
-    #  - packaging functions are named package_<pkgname>(), update it to package_snapd()
-    #  - update source path to point to local archive instead of git
-    #  - fix package version to $version
     sed -i \
-        -e "s/^source=.*/source=(\"$archive_name\")/" \
-        -e "s/pkgname=snapd.*/pkgname=snapd/" \
         -e "s/pkgver=.*/pkgver=$version/" \
-        -e "s/package_snapd-git()/package_snapd()/" \
         /tmp/pkg/PKGBUILD
-    # comment out automatic package version update block `pkgver() { ... }` as
-    # it's only useful when building the package manually
-    awk '
-    /BEGIN/ { strip = 0; last = 0 }
-    /pkgver\(\)/ { strip = 1 }
-    /^}/ { if (strip) last = 1 }
-    // { if (strip) { print "#" $0; if (last) { last = 0; strip = 0}} else { print $0}}
-    ' < /tmp/pkg/PKGBUILD > /tmp/pkg/PKGBUILD.tmp
-    mv /tmp/pkg/PKGBUILD.tmp /tmp/pkg/PKGBUILD
 
     chown -R test:test /tmp/pkg
     unshare -n -- \
