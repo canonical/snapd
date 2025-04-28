@@ -5869,5 +5869,5 @@ func (s *assertMgrSuite) TestSnapResourcePair(c *C) {
 }
 
 func (s *assertMgrSuite) TestEnsureLoopLogging(c *C) {
-	testutil.CheckEnsureLoopLogging("assertmgr.go", c, true)
+	testutil.CheckEnsureLoopLogging("assertmgr.go", c, false)
 }

@@ -578,5 +578,5 @@ func (s *earlyConfigSuite) TestEarlyConfigNoGadget(c *C) {
 }
 
 func (s *earlyConfigSuite) TestEnsureLoopLogging(c *C) {
-	testutil.CheckEnsureLoopLogging("configmgr.go", c, true)
+	testutil.CheckEnsureLoopLogging("configmgr.go", c, false)
 }

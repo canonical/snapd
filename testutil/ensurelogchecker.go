@@ -47,7 +47,7 @@ func getReceiver(funcDecl *ast.FuncDecl) (string, bool) {
 	return "", false
 }
 
-func getChildEnsureList(fset *token.FileSet, fileContent string, file *ast.File) []string {
+func getChildEnsureList(file *ast.File) []string {
 	for _, decl := range file.Decls {
 		funcDecl, ok := decl.(*ast.FuncDecl)
 		if !ok || funcDecl.Name.Name != "Ensure" {
@@ -56,14 +56,10 @@ func getChildEnsureList(fset *token.FileSet, fileContent string, file *ast.File)
 		var ensures []string
 		ast.Inspect(funcDecl.Body, func(n ast.Node) bool {
 			if callExpr, ok := n.(*ast.CallExpr); ok {
-				start := fset.Position(callExpr.Fun.Pos()).Offset
-				end := fset.Position(callExpr.Fun.End()).Offset
-				if strings.Contains(fileContent[start:end], "ensure") {
-					parts := strings.Split(fileContent[start:end], ".")
-					if len(parts) > 1 {
-						ensures = append(ensures, parts[1])
-					} else {
-						ensures = append(ensures, fileContent[start:end])
+				if selectorExpr, ok := callExpr.Fun.(*ast.SelectorExpr); ok {
+					functionName := selectorExpr.Sel.Name
+					if strings.HasPrefix(functionName, "ensure") {
+						ensures = append(ensures, functionName)
 					}
 				}
 			}
@@ -97,21 +93,24 @@ func checkBodyForString(fset *token.FileSet, fileContent string, block *ast.Bloc
 	return false
 }
 
-// if allEnsuresMustContainTrace, checks that the go source code
-// indicated by the given file name contains at least one trace log
-// inside each ensure* method called within that file's Ensure() method.
-func CheckEnsureLoopLogging(filename string, c *check.C, allEnsuresMustContainTrace bool) {
-	if !allEnsuresMustContainTrace {
-		return
-	}
+// if expectChildEnsureMethods, checks that the Ensure method in the go
+// source code, indicated by the given file name, has at least one child
+// ensure method and the file contains at least one trace log inside each
+// ensure* method called within that file's Ensure() method.
+// if not expectChildEnsureMethods, then the go source code must
+// not contain any child ensure methods.
+func CheckEnsureLoopLogging(filename string, c *check.C, expectChildEnsureMethods bool) {
 	fset := token.NewFileSet()
 	content, err := os.ReadFile(filename)
 	c.Assert(err, check.IsNil)
 	fileContent := string(content)
 	file, err := parser.ParseFile(fset, filename, fileContent, parser.AllErrors)
 	c.Assert(err, check.IsNil)
-	childEnsures := getChildEnsureList(fset, fileContent, file)
-	if len(childEnsures) == 0 {
+	childEnsures := getChildEnsureList(file)
+	if expectChildEnsureMethods {
+		c.Assert(len(childEnsures), IntGreaterThan, 0)
+	} else {
+		c.Assert(len(childEnsures), IntEqual, 0)
 		return
 	}
 	for _, decl := range file.Decls {

@@ -2117,5 +2117,5 @@ func (snapshotSuite) TestSetSnapshotOpInProgress(c *check.C) {
 }
 
 func (s *snapshotSuite) TestEnsureLoopLogging(c *check.C) {
-	testutil.CheckEnsureLoopLogging("snapshotmgr.go", c, true)
+	testutil.CheckEnsureLoopLogging("snapshotmgr.go", c, false)
 }

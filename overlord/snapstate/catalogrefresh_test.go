@@ -330,5 +330,5 @@ func (s *catalogRefreshTestSuite) TestSnapStoreOffline(c *C) {
 }
 
 func (s *snapStateSuite) TestCatalogRefreshEnsureLogging(c *C) {
-	testutil.CheckEnsureLoopLogging("catalogrefresh.go", c, true)
+	testutil.CheckEnsureLoopLogging("catalogrefresh.go", c, false)
 }

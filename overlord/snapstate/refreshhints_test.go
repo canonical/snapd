@@ -800,5 +800,5 @@ func (s *refreshHintsTestSuite) TestUpdateCandidatesDiscriminating(c *C) {
 }
 
 func (s *snapStateSuite) TestRefreshHintsEnsureLogging(c *C) {
-	testutil.CheckEnsureLoopLogging("refreshhints.go", c, true)
+	testutil.CheckEnsureLoopLogging("refreshhints.go", c, false)
 }

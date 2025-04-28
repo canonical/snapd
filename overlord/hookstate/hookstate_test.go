@@ -1455,5 +1455,5 @@ func (s *componentHookManagerSuite) TestComponentHookWithoutHookIsError(c *C) {
 }
 
 func (s *componentHookManagerSuite) TestEnsureLoopLogging(c *C) {
-	testutil.CheckEnsureLoopLogging("hookmgr.go", c, true)
+	testutil.CheckEnsureLoopLogging("hookmgr.go", c, false)
 }

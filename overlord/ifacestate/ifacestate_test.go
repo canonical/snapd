@@ -11586,5 +11586,5 @@ func (s *interfaceManagerSuite) TestSystemKeyMismatchCompat(c *C) {
 }
 
 func (s *interfaceManagerSuite) TestEnsureLoopLogging(c *C) {
-	testutil.CheckEnsureLoopLogging("ifacemgr.go", c, true)
+	testutil.CheckEnsureLoopLogging("ifacemgr.go", c, false)
 }
