@@ -51,7 +51,7 @@ func getChildEnsureList(fset *token.FileSet, fileContent string, file *ast.File)
 		if !ok || funcDecl.Name.Name != "Ensure" {
 			continue
 		}
-		ensures := []string{}
+		var ensures []string
 		ast.Inspect(funcDecl.Body, func(n ast.Node) bool {
 			if callExpr, ok := n.(*ast.CallExpr); ok {
 				start := fset.Position(callExpr.Fun.Pos()).Offset
@@ -112,7 +112,7 @@ func CheckEnsureLoopLogging(filename string, c *check.C) {
 			if !ok || !strutil.ListContains(childEnsures, funcDecl.Name.Name) {
 				continue
 			}
-			expected := fmt.Sprintf("logger.Trace(\"ensure\", \"manager\", \"%s\", \"func\", \"%s\")", mgr, funcDecl.Name.Name)
+			expected := fmt.Sprintf(`logger.Trace("ensure", "manager", "%s", "func", "%s")`, mgr, funcDecl.Name.Name)
 			foundTraceLog := checkBodyForString(fset, fileContent, funcDecl.Body, expected)
 			c.Assert(foundTraceLog, check.Equals, true, check.Commentf("In file %s in function %s, the following trace log was not found: %s", filename, funcDecl.Name.Name, expected))
 		}
