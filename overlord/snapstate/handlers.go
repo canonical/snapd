@@ -302,6 +302,31 @@ func (m *SnapManager) doPrerequisites(t *state.Task, _ *tomb.Tomb) error {
 	return nil
 }
 
+// willWaitOn returns true if graph waits (directly or transitively) on target.
+func willWaitOn(graph *state.Task, target *state.Task) bool {
+	seen := make(map[string]bool)
+	queue := append([]*state.Task(nil), graph.WaitTasks()...)
+	for i := 0; i < len(queue); i++ {
+		current := queue[i]
+		if seen[current.ID()] {
+			continue
+		}
+
+		seen[current.ID()] = true
+		if current.ID() == target.ID() {
+			return true
+		}
+
+		for _, child := range current.WaitTasks() {
+			if !seen[child.ID()] {
+				queue = append(queue, child)
+			}
+		}
+	}
+
+	return false
+}
+
 func (m *SnapManager) installOneBaseOrRequired(t *state.Task, snapName string, contentAttrs []string, requireTypeBase bool, channel string, onInFlight error, userID int, flags Flags) (*state.TaskSet, error) {
 	st := t.State()
 
@@ -334,6 +359,13 @@ func (m *SnapManager) installOneBaseOrRequired(t *state.Task, snapName string, c
 		if linkTask == nil {
 			// snap is not being installed
 			return false, nil
+		}
+
+		if onInFlight != nil && willWaitOn(linkTask, t) {
+			return false, fmt.Errorf(
+				"internal error: prerequisites task cannot wait on task %[1]q because task %[1]q is waiting on the prerequisites task",
+				linkTask.ID(),
+			)
 		}
 
 		// snap is being installed, retry later
