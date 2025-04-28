@@ -420,8 +420,6 @@ func NeedsKernelDriversTree(mod *asserts.Model) bool {
 
 	// We assume core24/hybrid 24.04 onwards have the generator, for older
 	// boot bases we return false.
-	// TODO this won't work for a UC2{0,2} -> UC24+ remodel as we need the
-	// new model here. Get to this ASAP after snapd 2.62 release.
 	switch mod.Base() {
 	case "core22":
 		if mod.Classic() {
