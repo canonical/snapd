@@ -11,7 +11,7 @@ require (
 	github.com/canonical/go-sp800.90a-drbg v0.0.0-20210314144037-6eeb1040d6c3 // indirect
 	github.com/canonical/go-tpm2 v1.12.2
 	github.com/coreos/go-systemd v0.0.0-20191104093116-d3cd4ed1dbcf
-	github.com/godbus/dbus v0.0.0-20190726142602-4481cbc300e2
+	github.com/godbus/dbus v4.1.0+incompatible
 	github.com/gorilla/mux v1.8.0
 	github.com/gvalkov/golang-evdev v0.0.0-20191114124502-287e62b94bcb
 	github.com/jessevdk/go-flags v1.5.1-0.20210607101731-3927b71304df
