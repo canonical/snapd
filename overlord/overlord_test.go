@@ -1417,6 +1417,7 @@ func (ovs *overlordSuite) TestEnsureLoopLogging(c *C) {
 		}
 		content, err := os.ReadFile(testPath)
 		c.Assert(err, IsNil)
-		c.Assert(strings.Contains(string(content), "TestEnsureLoopLogging"), Equals, true, Commentf("File %s does not contain a TestEnsureLoopLogging test.", testPath))
+		containsEnsureChecks := strings.Contains(string(content), "TestEnsureLoopLogging") && strings.Contains(string(content), "testutil.CheckEnsureLoopLogging")
+		c.Assert(containsEnsureChecks, Equals, true, Commentf("File %s does not contain a TestEnsureLoopLogging test that should call testutil.CheckEnsureLoopLogging on the file containing its Ensure() method", testPath))
 	}
 }

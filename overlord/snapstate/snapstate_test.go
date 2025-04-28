@@ -11442,5 +11442,5 @@ func (s *snapStateSuite) TestUnmountAllSnaps(c *C) {
 }
 
 func (s *snapStateSuite) TestEnsureLoopLogging(c *C) {
-	testutil.CheckEnsureLoopLogging("snapmgr.go", c)
+	testutil.CheckEnsureLoopLogging("snapmgr.go", c, true)
 }

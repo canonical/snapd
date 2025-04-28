@@ -1888,5 +1888,5 @@ func (s *confdbTestSuite) TestBadPathHookChecks(c *C) {
 }
 
 func (s *confdbTestSuite) TestEnsureLoopLogging(c *C) {
-	testutil.CheckEnsureLoopLogging("confdbmgr.go", c)
+	testutil.CheckEnsureLoopLogging("confdbmgr.go", c, true)
 }

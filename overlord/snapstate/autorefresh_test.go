@@ -1645,3 +1645,7 @@ func (s *autoRefreshTestSuite) TestAutoRefreshWithConfdbs(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(snapsup.PluggedConfdbIDs, DeepEquals, []snapstate.ConfdbSchemaID{{Account: "my-publisher", Name: "my-reg"}})
 }
+
+func (s *snapStateSuite) TestAutorefreshEnsureLogging(c *C) {
+	testutil.CheckEnsureLoopLogging("snapmgr.go", c, true)
+}

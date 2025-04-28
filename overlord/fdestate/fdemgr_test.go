@@ -664,5 +664,5 @@ func (s *fdeMgrSuite) TestGetEncryptedContainers(c *C) {
 }
 
 func (s *fdeMgrSuite) TestEnsureLoopLogging(c *C) {
-	testutil.CheckEnsureLoopLogging("fdemgr.go", c)
+	testutil.CheckEnsureLoopLogging("fdemgr.go", c, true)
 }

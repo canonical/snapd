@@ -2961,5 +2961,5 @@ func (s *deviceMgrSuite) TestConfdbControlFindExisting(c *C) {
 }
 
 func (s *deviceMgrSuite) TestEnsureLoopLogging(c *C) {
-	testutil.CheckEnsureLoopLogging("devicemgr.go", c)
+	testutil.CheckEnsureLoopLogging("devicemgr.go", c, true)
 }

@@ -1042,5 +1042,5 @@ func (s *snapServiceOptionsSuite) TestLogReaderNamespaces(c *C) {
 }
 
 func (s *snapServiceOptionsSuite) TestEnsureLoopLogging(c *C) {
-	testutil.CheckEnsureLoopLogging("servicemgr.go", c)
+	testutil.CheckEnsureLoopLogging("servicemgr.go", c, true)
 }

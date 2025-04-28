@@ -224,5 +224,5 @@ func (s *cmdSuite) TestExecTimeoutMissing(c *check.C) {
 }
 
 func (s *cmdSuite) TestEnsureLoopLogging(c *check.C) {
-	testutil.CheckEnsureLoopLogging("cmdmgr.go", c)
+	testutil.CheckEnsureLoopLogging("cmdmgr.go", c, true)
 }

@@ -1295,5 +1295,5 @@ func (s *notifyRebootRequiredSuite) TestFinishTaskWithRestartNotifiesRebootRequi
 }
 
 func (s *restartSuite) TestEnsureLoopLogging(c *C) {
-	testutil.CheckEnsureLoopLogging("restart.go", c)
+	testutil.CheckEnsureLoopLogging("restart.go", c, true)
 }

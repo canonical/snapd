@@ -95,7 +95,13 @@ func checkBodyForString(fset *token.FileSet, fileContent string, block *ast.Bloc
 	return false
 }
 
-func CheckEnsureLoopLogging(filename string, c *check.C) {
+// if allEnsuresMustContainTrace, checks that the go source code
+// indicated by the given file name contains at least one trace log
+// inside each ensure* method called within that file's Ensure() method.
+func CheckEnsureLoopLogging(filename string, c *check.C, allEnsuresMustContainTrace bool) {
+	if !allEnsuresMustContainTrace {
+		return
+	}
 	fset := token.NewFileSet()
 	content, err := os.ReadFile(filename)
 	c.Assert(err, check.IsNil)
