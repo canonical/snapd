@@ -1647,5 +1647,5 @@ func (s *autoRefreshTestSuite) TestAutoRefreshWithConfdbs(c *C) {
 }
 
 func (s *snapStateSuite) TestAutorefreshEnsureLogging(c *C) {
-	testutil.CheckEnsureLoopLogging("snapmgr.go", c, true)
+	testutil.CheckEnsureLoopLogging("autorefresh.go", c, true)
 }

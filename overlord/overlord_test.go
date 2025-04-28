@@ -1401,23 +1401,53 @@ func (ovs *overlordSuite) TestLockWithTimeoutFailed(c *C) {
 	})
 }
 
-func (ovs *overlordSuite) TestEnsureLoopLogging(c *C) {
+func (ovs *overlordSuite) TestAllStateManagersHaveEnsureLoggingTest(c *C) {
 	entries, err := os.ReadDir(".")
 	c.Assert(err, IsNil)
 
 	for _, entry := range entries {
-		if !entry.IsDir() || !strings.HasSuffix(entry.Name(), "state") {
+		if !entry.IsDir() {
 			continue
 		}
-		testPath := filepath.Join(entry.Name(), entry.Name()+"_test.go")
-		prefix := strings.TrimSuffix(entry.Name(), "state")
-		mgrPath := filepath.Join(entry.Name(), prefix+"mgr.go")
-		if !osutil.FileExists(testPath) || !osutil.FileExists(mgrPath) {
-			continue
-		}
-		content, err := os.ReadFile(testPath)
+		ensureFiles, err := testutil.GetListOfStateManagerImplementers(entry.Name())
 		c.Assert(err, IsNil)
-		containsEnsureChecks := strings.Contains(string(content), "TestEnsureLoopLogging") && strings.Contains(string(content), "testutil.CheckEnsureLoopLogging")
-		c.Assert(containsEnsureChecks, Equals, true, Commentf("File %s does not contain a TestEnsureLoopLogging test that should call testutil.CheckEnsureLoopLogging on the file containing its Ensure() method", testPath))
+		if len(ensureFiles) == 0 {
+			continue
+		}
+		ensureCheck := make(map[string]bool, len(ensureFiles))
+		for _, file := range ensureFiles {
+			ensureCheck[fmt.Sprintf(`testutil.CheckEnsureLoopLogging("%s"`, filepath.Base(file))] = false
+		}
+		folderContents, err := os.ReadDir(entry.Name())
+		c.Assert(err, IsNil)
+		for _, test := range folderContents {
+			if !strings.HasSuffix(test.Name(), "_test.go") {
+				continue
+			}
+			content, err := os.ReadFile(filepath.Join(entry.Name(), test.Name()))
+			c.Assert(err, IsNil)
+
+			for k, v := range ensureCheck {
+				if v {
+					continue
+				}
+				if strings.Contains(string(content), k) {
+					ensureCheck[k] = true
+				}
+			}
+			allTrue := true
+			for _, v := range ensureCheck {
+				if !v {
+					allTrue = false
+					break
+				}
+			}
+			if allTrue {
+				break
+			}
+		}
+		for k, v := range ensureCheck {
+			c.Assert(v, Equals, true, Commentf("Package %s is missing a test with the required check: %s", entry.Name(), k))
+		}
 	}
 }

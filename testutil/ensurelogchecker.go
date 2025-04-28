@@ -20,11 +20,13 @@
 package testutil
 
 import (
+	"bufio"
 	"fmt"
 	"go/ast"
 	"go/parser"
 	"go/token"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"gopkg.in/check.v1"
@@ -123,4 +125,46 @@ func CheckEnsureLoopLogging(filename string, c *check.C, allEnsuresMustContainTr
 			c.Assert(foundTraceLog, check.Equals, true, check.Commentf("In file %s in function %s, the following trace log was not found: %s", filename, funcDecl.Name.Name, expected))
 		}
 	}
+}
+
+// within a given folder, finds all files that contain an
+// implementation of the StateManager interface
+func GetListOfStateManagerImplementers(folder string) ([]string, error) {
+	pattern := ") Ensure()"
+
+	filepaths := []string{}
+	err := filepath.Walk(folder, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return nil
+		}
+		if info.IsDir() {
+			return nil
+		}
+		if !strings.HasSuffix(path, ".go") {
+			return nil
+		}
+		if strings.Contains(path, "_test.go") {
+			return nil
+		}
+
+		file, err := os.Open(path)
+		if err != nil {
+			return nil
+		}
+		defer file.Close()
+
+		scanner := bufio.NewScanner(file)
+		for scanner.Scan() {
+			if strings.Contains(scanner.Text(), pattern) {
+				filepaths = append(filepaths, path)
+				break
+			}
+		}
+
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return filepaths, nil
 }
