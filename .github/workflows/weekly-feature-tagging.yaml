@@ -12,6 +12,9 @@ on:
         type: number
         description: 'Maximum number of times to rerun failed spread tasks'
         default: 2
+      run-one-system:
+        type: string
+        description: 'When set, will only run this system in spread'
 
 jobs:
   set-inputs:
@@ -19,15 +22,18 @@ jobs:
     outputs:
       features: ${{ steps.set-inputs.outputs.features }}
       maximum-reruns: ${{ steps.set-inputs.outputs.maximum-reruns }}
+      run-one-system: ${{ steps.set-inputs.outputs.run-one-system }}
     steps:
       - name: Set inputs
         id: set-inputs
         run: |
           echo "features=${{ inputs.features || 'all' }}" >> $GITHUB_OUTPUT
           echo "maximum-reruns=${{ inputs.maximum-reruns || 2 }}" >> $GITHUB_OUTPUT
+          echo "run-one-system=${{ inputs.run-one-system || '' }}" >> $GITHUB_OUTPUT
 
   read-systems:
     runs-on: ubuntu-latest
+    needs: set-inputs
     outputs:
       fundamental-systems: ${{ steps.read-systems.outputs.fundamental-systems }}
       non-fundamental-systems: ${{ steps.read-systems.outputs.non-fundamental-systems }}
@@ -35,19 +41,41 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+      
+      - name: Filter systems
+        if: needs.set-inputs.outputs.run-one-system != ''
+        run: |
+          echo 'fundamental_systems=""' >> $GITHUB_ENV
+          echo 'non_fundamental_systems=""' >> $GITHUB_ENV
+          echo 'nested_systems=""' >> $GITHUB_ENV
+          if grep -q "${{ needs.set-inputs.outputs.run-one-system }}" .github/workflows/data-fundamental-systems.json; then
+            echo "fundamental_systems=$(jq -c ".include |= map(select(.systems == \"${{ needs.set-inputs.outputs.run-one-system }}\"))" .github/workflows/data-fundamental-systems.json)" >> $GITHUB_ENV
+          elif grep -q "${{ needs.set-inputs.outputs.run-one-system }}" .github/workflows/data-non-fundamental-systems.json; then
+            echo "non_fundamental_systems=$(jq -c ".include |= map(select(.systems == \"${{ needs.set-inputs.outputs.run-one-system }}\"))" .github/workflows/data-non-fundamental-systems.json)" >> $GITHUB_ENV
+          elif grep -q "${{ needs.set-inputs.outputs.run-one-system }}" .github/workflows/data-nested-systems.json; then
+            echo "nested_systems=$(jq -c ".include |= map(select(.systems == \"${{ needs.set-inputs.outputs.run-one-system }}\"))" .github/workflows/data-nested-systems.json)" >> $GITHUB_ENV
+          fi
+          
+      - name: Read all systems
+        if: needs.set-inputs.outputs.run-one-system == ''
+        run: |
+          echo "fundamental_systems=$(jq -c . ./.github/workflows/data-fundamental-systems.json)" >> $GITHUB_ENV
+          echo "non_fundamental_systems=$(jq -c . ./.github/workflows/data-non-fundamental-systems.json)" >> $GITHUB_ENV
+          echo "nested_systems=$(jq -c . ./.github/workflows/data-nested-systems.json)" >> $GITHUB_ENV
 
       - name: Read matrix file
         id: read-systems
         shell: bash
         run: |
-          echo "fundamental-systems=$(jq -c . ./.github/workflows/data-fundamental-systems.json)" >> $GITHUB_OUTPUT
-          echo "non-fundamental-systems=$(jq -c . ./.github/workflows/data-non-fundamental-systems.json)" >> $GITHUB_OUTPUT
-          echo "nested-systems=$(jq -c . ./.github/workflows/data-nested-systems.json)" >> $GITHUB_OUTPUT
+          echo "fundamental-systems=$fundamental_systems" >> $GITHUB_OUTPUT
+          echo "non-fundamental-systems=$non_fundamental_systems" >> $GITHUB_OUTPUT
+          echo "nested-systems=$nested_systems" >> $GITHUB_OUTPUT
 
   tag-features-fundamental:
     uses: ./.github/workflows/spread-tests.yaml
     needs: [set-inputs, read-systems]
     name: "spread ${{ matrix.group }}"
+    if: needs.read-systems.outputs.fundamental-systems != ''
     with:
       runs-on: '["self-hosted", "spread-enabled"]'
       group: ${{ matrix.group }}
@@ -66,6 +94,7 @@ jobs:
   tag-features-non-fundamental:
     uses: ./.github/workflows/spread-tests.yaml
     needs: [set-inputs, read-systems]
+    if: needs.read-systems.outputs.non-fundamental-systems != ''
     name: "spread ${{ matrix.group }}"
     with:
       runs-on: '["self-hosted", "spread-enabled"]'
@@ -84,6 +113,7 @@ jobs:
   tag-features-nested:
     uses: ./.github/workflows/spread-tests.yaml
     needs: [set-inputs, read-systems]
+    if: needs.read-systems.outputs.nested-systems != ''
     name: "spread ${{ matrix.group }}"
     with:
       runs-on: '["self-hosted", "spread-enabled"]'
@@ -115,7 +145,11 @@ jobs:
   create-reports:
     needs: [set-inputs, tag-features-fundamental, tag-features-non-fundamental, tag-features-nested]
     runs-on: ["self-hosted", "spread-enabled"]
-    if: success() || fromJSON(github.run_attempt) > fromJSON(needs.set-inputs.outputs.maximum-reruns)
+    if: |
+      (always() && (needs.tag-features-fundamental.result == 'success' || needs.tag-features-fundamental.result == 'skipped')
+      && (needs.tag-features-non-fundamental.result == 'success' || needs.tag-features-non-fundamental.result == 'skipped')
+      && (needs.tag-features-nested.result == 'success' || needs.tag-features-nested.result == 'skipped')) 
+      || fromJSON(github.run_attempt) > fromJSON(needs.set-inputs.outputs.maximum-reruns)
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
