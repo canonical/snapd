@@ -337,7 +337,7 @@ jobs:
         token: ${{ secrets.CODECOV_TOKEN }}
         flags: unittests
         name: codecov-umbrella
-        files: .coverage/coverage-*.cov
+        directory: .coverage
         verbose: true
 
   read-systems:
