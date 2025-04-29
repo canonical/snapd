@@ -115,6 +115,12 @@ func SealKeysWithFDESetupHook(runHook fde.RunSetupHookFunc, keys []SealKeyReques
 		if err := protectedKey.WriteAtomic(keyWriter); err != nil {
 			return err
 		}
+
+		if skr.SlotName == "default" {
+			// "default" key will only be using hook on data disk. "save" disk will be handled
+			// with the protector key.
+			skr.BootstrappedContainer.RegisterKeyAsUsed(primaryKeyOut, unlockKey)
+		}
 	}
 
 	if primaryKey != nil && params.AuxKeyFile != "" {

@@ -47,6 +47,8 @@ type BootstrappedContainer interface {
 	GetTokenWriter(slotName string) (KeyDataWriter, error)
 	// RemoveBootstrapKey removes the bootstrap key.
 	RemoveBootstrapKey() error
+	// RegisterKeyAsUsed registers an unlock key and its primary key in the kernel keyring.
+	RegisterKeyAsUsed(primaryKey []byte, unlockKey []byte)
 }
 
 func createBootstrappedContainerMockImpl(key DiskUnlockKey, devicePath string) BootstrappedContainer {
@@ -102,4 +104,7 @@ func (m *MockBootstrappedContainer) GetTokenWriter(slotName string) (KeyDataWrit
 func (l *MockBootstrappedContainer) RemoveBootstrapKey() error {
 	l.BootstrapKeyRemoved = true
 	return nil
+}
+
+func (l *MockBootstrappedContainer) RegisterKeyAsUsed(primaryKey []byte, unlockKey []byte) {
 }

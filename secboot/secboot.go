@@ -272,3 +272,7 @@ func MarkSuccessful() error {
 
 	return nil
 }
+
+const (
+	defaultKeyringPrefix = "ubuntu-fde"
+)
