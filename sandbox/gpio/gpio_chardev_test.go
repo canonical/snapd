@@ -170,7 +170,7 @@ func (s *exportUnexportTestSuite) SetUpTest(c *C) {
 	restore = gpio.MockOsStat(func(path string) (fs.FileInfo, error) {
 		target, ok := s.mockStats[path]
 		if !ok {
-			return nil, fmt.Errorf("unexpected path %s: %w", path, os.ErrNotExist)
+			return nil, fmt.Errorf("unexpected path %s", path)
 		}
 		return target, nil
 	})
@@ -187,7 +187,6 @@ func (s *exportUnexportTestSuite) SetUpTest(c *C) {
 
 	// Mock gpio-aggregator sysfs structure
 	c.Assert(os.MkdirAll(filepath.Join(s.rootdir, "/sys/bus/platform/drivers/gpio-aggregator"), 0755), IsNil)
-	s.mockStats[filepath.Join(s.rootdir, "/sys/bus/platform/drivers/gpio-aggregator")] = &fakeFileInfo{}
 	c.Assert(os.WriteFile(filepath.Join(s.rootdir, "/sys/bus/platform/drivers/gpio-aggregator/new_device"), nil, 0644), IsNil)
 	c.Assert(os.WriteFile(filepath.Join(s.rootdir, "/sys/bus/platform/drivers/gpio-aggregator/delete_device"), nil, 0644), IsNil)
 	// Mock gpio-aggregator new_device/delete_device sysfs calls
@@ -388,25 +387,6 @@ func (s *exportUnexportTestSuite) TestExportGadgetChardevChip(c *C) {
 	// And original permission bits and ownership are replicated
 	c.Check(chmodCalled, Equals, 1)
 	c.Check(chownCalled, Equals, 1)
-}
-
-func (s *exportUnexportTestSuite) TestExportGadgetChardevChipWithLoadModule(c *C) {
-	s.mockChip(c, "gpiochip0", filepath.Join(s.rootdir, "/dev/gpiochip0"), "label-0", 3, nil)
-
-	// Mock that the gpio-aggregator module is not loaded
-	delete(s.mockStats, filepath.Join(s.rootdir, "/sys/bus/platform/drivers/gpio-aggregator"))
-
-	called := 0
-	restore := gpio.MockKmodLoadModule(func(module string, options []string) error {
-		called++
-		return nil
-	})
-	defer restore()
-
-	err := gpio.ExportGadgetChardevChip(context.TODO(), []string{"label-0"}, strutil.Range{{Start: 0, End: 0}}, "gadget-name", "slot-name")
-	c.Check(err, IsNil)
-	// If gpio-aggreagtore module is not loaded, the exported attempts to load it.
-	c.Check(called, Equals, 1)
 }
 
 func (s *exportUnexportTestSuite) TestExportGadgetChardevChipMissingLine(c *C) {
