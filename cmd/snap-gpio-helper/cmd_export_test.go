@@ -29,9 +29,16 @@ import (
 )
 
 func (s *snapGpioHelperSuite) TestExportGpioChardevBadLine(c *C) {
-	called := 0
+	exportCalled := 0
 	restore := main.MockGpioExportGadgetChardevChip(func(ctx context.Context, chipLabels []string, lines strutil.Range, gadgetName, slotName string) error {
-		called++
+		exportCalled++
+		return nil
+	})
+	defer restore()
+
+	ensureDriverCalled := 0
+	restore = main.MockGpioEnsureAggregatorDriver(func() error {
+		ensureDriverCalled++
 		return nil
 	})
 	defer restore()
@@ -48,13 +55,14 @@ func (s *snapGpioHelperSuite) TestExportGpioChardevBadLine(c *C) {
 		c.Check(err, ErrorMatches, expectedErr)
 	}
 
-	c.Assert(called, Equals, 0)
+	c.Assert(exportCalled, Equals, 0)
+	c.Assert(ensureDriverCalled, Equals, 4)
 }
 
 func (s *snapGpioHelperSuite) TestExportGpioChardev(c *C) {
-	called := 0
+	exportCalled := 0
 	restore := main.MockGpioExportGadgetChardevChip(func(ctx context.Context, chipLabels []string, lines strutil.Range, gadgetName, slotName string) error {
-		called++
+		exportCalled++
 		c.Check(chipLabels, DeepEquals, []string{"label-0", "label-1"})
 		c.Check(lines, DeepEquals, strutil.Range{
 			{Start: 0, End: 6},
@@ -67,9 +75,17 @@ func (s *snapGpioHelperSuite) TestExportGpioChardev(c *C) {
 	})
 	defer restore()
 
+	ensureDriverCalled := 0
+	restore = main.MockGpioEnsureAggregatorDriver(func() error {
+		ensureDriverCalled++
+		return nil
+	})
+	defer restore()
+
 	err := main.Run([]string{
 		"export-chardev", "label-0,label-1", "7,0-6,8-100", "gadget-name", "slot-name",
 	})
 	c.Check(err, IsNil)
-	c.Assert(called, Equals, 1)
+	c.Assert(exportCalled, Equals, 1)
+	c.Assert(ensureDriverCalled, Equals, 1)
 }

@@ -36,3 +36,7 @@ func MockGpioExportGadgetChardevChip(f func(ctx context.Context, chipLabels []st
 func MockGpioUnxportGadgetChardevChip(f func(gadgetName string, slotName string) error) (restore func()) {
 	return testutil.Mock(&gpioUnexportGadgetChardevChip, f)
 }
+
+func MockGpioEnsureAggregatorDriver(f func() error) (restore func()) {
+	return testutil.Mock(&gpioEnsureAggregatorDriver, f)
+}
