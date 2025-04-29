@@ -65,6 +65,24 @@ prepare: |
 
   tests.nested build-image core
 
+  #shellcheck source=tests/lib/nested.sh
+  . "$TESTSLIB"/nested.sh
+
+  if os.query is-ubuntu-ge 24.04; then
+    # Let's repack the kernel with a new hash so we can force resealing
+    unsquashfs -d pc-kernel-new "${NESTED_ASSETS_DIR}"/pc-kernel.snap
+    objcopy -O binary -j .initrd pc-kernel-new/kernel.efi initrd.img
+    objcopy -O binary -j .linux pc-kernel-new/kernel.efi linux
+    /usr/lib/systemd/ukify build --linux=linux --initrd=initrd.img --section=.some:thing-new --output=pc-kernel-new/kernel.efi
+    rm linux initrd.img
+    KEY_NAME=$(tests.nested download snakeoil-key)
+    SNAKEOIL_KEY="${PWD}/${KEY_NAME}.key"
+    SNAKEOIL_CERT="${PWD}/${KEY_NAME}.pem"
+    tests.nested secboot-sign file "${PWD}/pc-kernel-new/kernel.efi" "${SNAKEOIL_KEY}" "${SNAKEOIL_CERT}"
+    snap pack pc-kernel-new --filename=pc-kernel-new.snap
+    rm -rf pc-kernel-new
+  fi
+
   "$TESTSTOOLS"/store-state teardown-fake-store "$NESTED_FAKESTORE_BLOB_DIR"
 
   tests.nested create-vm core
@@ -72,6 +90,8 @@ prepare: |
 restore: |
   "$TESTSTOOLS"/store-state teardown-fake-store "$NESTED_FAKESTORE_BLOB_DIR" || true
   rm -rf ~/.snap/gnupg
+  rm -rf pc-kernel-new
+  rm -f pc-kernel-new.snap
 
 execute: |
   #shellcheck source=tests/lib/nested.sh
@@ -139,4 +159,18 @@ execute: |
     remote.exec test -f /var/lib/snapd/device/fde/boot-chains
   else
     remote.exec not test -f /var/lib/snapd/device/fde/boot-chains
+  fi
+
+  # Now we check we have access to the unlock key and primary key
+  if [ "${INSTALL_MODE}" != none ]; then
+    # To be able to enroll a key we access to the unlock keys of the devices
+    remote.exec "sudo snap recovery --show-keys"
+
+    if os.query is-ubuntu-ge 24.04; then
+      # To be able to reseal we need the primary key
+      remote.push pc-kernel-new.snap
+      boot_id="$(tests.nested boot-id)"
+      remote.exec sudo snap install --dangerous pc-kernel-new.snap || true
+      remote.wait-for reboot "${boot_id}"
+    fi
   fi
