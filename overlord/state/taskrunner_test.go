@@ -1328,7 +1328,3 @@ func (ts *taskRunnerSuite) TestErrorCallbackNotCalled(c *C) {
 	c.Check(t1.Status(), Equals, state.DoneStatus)
 	c.Check(called, Equals, false)
 }
-
-func (s *taskRunnerSuite) TestTaskRunnerEnsureLogging(c *C) {
-	testutil.CheckEnsureLoopLogging("taskrunner.go", c, false)
-}

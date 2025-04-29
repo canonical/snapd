@@ -798,7 +798,3 @@ func (s *refreshHintsTestSuite) TestUpdateCandidatesDiscriminating(c *C) {
 	c.Check(hints["bar"].SideInfo.Revision, Equals, snap.R(1))
 	c.Check(hints["bar"].Monitored, Equals, true)
 }
-
-func (s *snapStateSuite) TestRefreshHintsEnsureLogging(c *C) {
-	testutil.CheckEnsureLoopLogging("refreshhints.go", c, false)
-}

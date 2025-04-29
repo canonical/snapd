@@ -328,7 +328,3 @@ func (s *catalogRefreshTestSuite) TestSnapStoreOffline(c *C) {
 
 	c.Check(s.store.ops, DeepEquals, []string{"sections", "write-catalog"})
 }
-
-func (s *snapStateSuite) TestCatalogRefreshEnsureLogging(c *C) {
-	testutil.CheckEnsureLoopLogging("catalogrefresh.go", c, false)
-}

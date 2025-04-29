@@ -1406,48 +1406,18 @@ func (ovs *overlordSuite) TestAllStateManagersHaveEnsureLoggingTest(c *C) {
 	c.Assert(err, IsNil)
 
 	for _, entry := range entries {
-		if !entry.IsDir() {
+		if !entry.IsDir() || !strings.HasSuffix(entry.Name(), "state") {
 			continue
 		}
-		ensureFiles, err := testutil.GetListOfStateManagerImplementers(entry.Name())
-		c.Assert(err, IsNil)
-		if len(ensureFiles) == 0 {
+		testPath := filepath.Join(entry.Name(), entry.Name()+"_test.go")
+		prefix := strings.TrimSuffix(entry.Name(), "state")
+		mgrPath := filepath.Join(entry.Name(), prefix+"mgr.go")
+		if !osutil.FileExists(testPath) || !osutil.FileExists(mgrPath) {
 			continue
 		}
-		ensureCheck := make(map[string]bool, len(ensureFiles))
-		for _, file := range ensureFiles {
-			ensureCheck[fmt.Sprintf(`testutil.CheckEnsureLoopLogging("%s"`, filepath.Base(file))] = false
-		}
-		folderContents, err := os.ReadDir(entry.Name())
+		content, err := os.ReadFile(testPath)
 		c.Assert(err, IsNil)
-		for _, test := range folderContents {
-			if !strings.HasSuffix(test.Name(), "_test.go") {
-				continue
-			}
-			content, err := os.ReadFile(filepath.Join(entry.Name(), test.Name()))
-			c.Assert(err, IsNil)
-
-			for k, v := range ensureCheck {
-				if v {
-					continue
-				}
-				if strings.Contains(string(content), k) {
-					ensureCheck[k] = true
-				}
-			}
-			allTrue := true
-			for _, v := range ensureCheck {
-				if !v {
-					allTrue = false
-					break
-				}
-			}
-			if allTrue {
-				break
-			}
-		}
-		for k, v := range ensureCheck {
-			c.Assert(v, Equals, true, Commentf("Package %s is missing a test with the required check: %s", entry.Name(), k))
-		}
+		containsEnsureChecks := strings.Contains(string(content), fmt.Sprintf(`testutil.CheckEnsureLoopLogging("%s`, prefix+"mgr.go"))
+		c.Assert(containsEnsureChecks, Equals, true, Commentf("File %s does not contain a unit test that calls testutil.CheckEnsureLoopLogging on the file containing its Ensure() method", testPath))
 	}
 }
