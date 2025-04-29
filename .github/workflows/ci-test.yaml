@@ -269,6 +269,7 @@ jobs:
           - { go-build-tags: faultinject,           snapd-debug: false, go-test-race: false}
           - { go-build-tags: statelocktrace,        snapd-debug: false, go-test-race: false}
           - { go-build-tags: snapdusergo,           snapd-debug: false, go-test-race: false}
+          - { go-build-tags: structuredlogging,     snapd-debug: false, go-test-race: false}
           - { go-build-tags: "",                    snapd-debug: false, go-test-race: true }
 
   unit-tests-cross-distro:
