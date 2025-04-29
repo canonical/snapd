@@ -107,7 +107,9 @@ func (s *snapdSuite) TestSyscheckFailGoesIntoDegradedMode(c *C) {
 		syscheckCheckWasRun = true
 	}
 	c.Check(syscheckCheckWasRun, Equals, true)
-	c.Check(logbuf.String(), testutil.Contains, "system does not fully support snapd: foo failed")
+	logger.WithLoggerLock(func() {
+		c.Check(logbuf.String(), testutil.Contains, "system does not fully support snapd: foo failed")
+	})
 
 	// verify that talking to the daemon yields the syscheck error
 	// message
