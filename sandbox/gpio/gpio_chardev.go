@@ -23,9 +23,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"path/filepath"
 
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/osutil/kmod"
 	"github.com/snapcore/snapd/strutil"
 )
 
@@ -90,4 +92,19 @@ func UnexportGadgetChardevChip(gadgetName, slotName string) error {
 		return err
 	}
 	return removeAggregatedChip(aggregatedChip)
+}
+
+var kmodLoadModule = kmod.LoadModule
+
+// EnsureAggregatorDriver attempts to load the gpio-aggregator kernel
+// module iff it was not already loaded.
+func EnsureAggregatorDriver() error {
+	_, err := os.Stat(filepath.Join(dirs.GlobalRootDir, aggregatorDriverDir))
+	if errors.Is(err, os.ErrNotExist) {
+		if err := kmodLoadModule("gpio-aggregator", nil); err != nil {
+			return err
+		}
+		return nil
+	}
+	return err
 }

@@ -53,6 +53,7 @@ var _ = Suite(&chardevTestSuite{})
 func (s *chardevTestSuite) TestSnapChardevPath(c *C) {
 	rootdir := c.MkDir()
 	dirs.SetRootDir(rootdir)
+	defer dirs.SetRootDir("")
 
 	devPath := gpio.SnapChardevPath("snap-name", "slot-name")
 	c.Check(devPath, Equals, filepath.Join(rootdir, "/dev/snap/gpio-chardev/snap-name/slot-name"))
@@ -126,6 +127,28 @@ func (s *chardevTestSuite) TestChardevChipInfoNoChipError(c *C) {
 	_, err := gpio.ChardevChipInfo(mockPath)
 	c.Assert(err, ErrorMatches, `cannot read gpio chip info from "/path/to/chip": boom!`)
 	c.Assert(called, Equals, 1)
+}
+
+func (s *chardevTestSuite) TestEnsureAggregatorDriver(c *C) {
+	rootdir := c.MkDir()
+	dirs.SetRootDir(rootdir)
+	defer dirs.SetRootDir("")
+
+	called := 0
+	restore := gpio.MocKKmodLoadModule(func(module string, options []string) error {
+		called++
+		return nil
+	})
+	defer restore()
+
+	// 1. gpio-aggregator module is already loaded, nothing to do
+	c.Assert(os.MkdirAll(filepath.Join(rootdir, "/sys/bus/platform/drivers/gpio-aggregator"), 0755), IsNil)
+	c.Check(gpio.EnsureAggregatorDriver(), IsNil)
+	c.Check(called, Equals, 0)
+	// 2. gpio-aggregator module is missing, attempt loading
+	c.Assert(os.RemoveAll(filepath.Join(rootdir, "/sys/bus/platform/drivers/gpio-aggregator")), IsNil)
+	c.Check(gpio.EnsureAggregatorDriver(), IsNil)
+	c.Check(called, Equals, 1)
 }
 
 type exportUnexportTestSuite struct {
