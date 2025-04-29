@@ -484,3 +484,7 @@ func MockSbNewOutOfProcessArgon2KDF(f func(newHandlerCmd func() (*exec.Cmd, erro
 func MockSbSetArgon2KDF(f func(kdf sb.Argon2KDF) sb.Argon2KDF) (restore func()) {
 	return testutil.Mock(&sbSetArgon2KDF, f)
 }
+
+func MockUnixAddKey(f func(keyType string, description string, payload []byte, ringid int) (int, error)) (restore func()) {
+	return testutil.Mock(&unixAddKey, f)
+}
