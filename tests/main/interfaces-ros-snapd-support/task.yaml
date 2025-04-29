@@ -1,0 +1,49 @@
+summary: Ensure that the ros-snapd-support interface works.
+
+details: |
+    The ros-snapd-support interface allows the ros-snapd snap to
+    control snap applications.
+
+    The ros-snapd and ros2-snapd snaps define the ros-snapd-support plug.
+
+    The snaps declaring a plug on this interface must be able to control
+    snap applications through the snapd-snap.socket.
+    The test snap used has a command to get the list of snap applications
+    (exercising the read capability on the socket) and a command stop a snap application
+    (which checks the write capability).
+    #TODO A network plug must
+    be defined and connected for the snap to be able to talk to the socket, the
+    ros-snapd-support is not enough by itself.
+
+environment:
+    # not all terminals support UTF-8, but Python tries to be smart and attempts
+    # to guess the encoding as if the output would go to the terminal, but in
+    # fact all the test does is pipe the output to gojq
+    PYTHONIOENCODING: utf-8
+
+execute: |
+    "$TESTSTOOLS"/snaps-state install-local api-apps-client
+    echo "The ros-snapd-support plugs on the api-app-sclient snap is initially disconnected"
+    snap connections api-apps-client | MATCH "ros-snapd-support +api-apps-client:ros-snapd-support +- +-"
+
+    echo "Connect the ros-snapd-support plug"
+    snap connect api-apps-client:ros-snapd-support
+
+    # Install a test snap running a service
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-simple-service
+
+    echo "Check for presence of a the example snap service"
+    api-apps-client > response.txt
+    gojq . < response.txt
+
+    gojq -r '.result[] | select(.snap == "test-snapd-simple-service").enabled' < response.txt | MATCH '^true'
+
+    echo "We can disable a snap service"
+    api-client --method=POST '{"action": "disable", "names": ["test-snapd-simple-service"]}' > response.txt
+    gojq . < response.txt
+
+    echo "Check if the service is now disabled"
+    api-apps-client > response.txt
+    gojq . < response.txt
+
+    gojq -r '.result[] | select(.snap == "test-snapd-simple-service").enabled' < response.txt | MATCH '^false'
