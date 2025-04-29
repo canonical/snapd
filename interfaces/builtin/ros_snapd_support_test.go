@@ -48,7 +48,8 @@ const rosSnapdSupportConsumerYaml = `name: consumer
  version: 0
  apps:
    app:
-	 plugs: [ros-snapd-support]
+	  command: foo
+	  plugs: [ros-snapd-support]
  `
 
 var _ = Suite(&RosSnapdSupportInterfaceSuite{
