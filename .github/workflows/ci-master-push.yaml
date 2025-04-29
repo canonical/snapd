@@ -48,6 +48,7 @@ jobs:
     uses: ./.github/workflows/unit-tests.yaml
     needs:
       - go-channels
+      - cache-build-deps
     name: "unit-tests (Go default ${{ matrix.gochannel }})"
     with:
       runs-on: ubuntu-latest
@@ -81,6 +82,7 @@ jobs:
     uses: ./.github/workflows/unit-tests.yaml
     needs:
       - go-channels
+      - cache-build-deps
     name: "unit-tests (Go ${{ matrix.gochannel }} ${{ matrix.test-case.go-build-tags }}
           ${{ matrix.test-case.go-test-race && ' test-race' || ''}}
           ${{ matrix.test-case.snapd-debug && ' snapd-debug' || ''}})"
