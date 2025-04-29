@@ -19,16 +19,16 @@
 
 package builtin
 
-const snapAppsControlSummary = `allows use of snapd's apps control API`
+const rosSnapdSupportSummary = `allows ros-snapd the use of snapd's apps control API`
 
-const snapAppsControlBaseDeclarationPlugs = `
-  snap-apps-control:
+const rosSnapdSupportBaseDeclarationPlugs = `
+  ros-snapd-support:
     allow-installation: false
     deny-auto-connection: true
 `
 
-const snapAppsControlBaseDeclarationSlots = `
-  snap-apps-control:
+const rosSnapdSupportBaseDeclarationSlots = `
+  ros-snapd-support:
     allow-installation:
       slot-snap-type:
         - core
@@ -37,11 +37,11 @@ const snapAppsControlBaseDeclarationSlots = `
 
 func init() {
 	registerIface(&commonInterface{
-		name:                 "snap-apps-control",
-		summary:              snapAppsControlSummary,
+		name:                 "ros-snapd-support",
+		summary:              rosSnapdSupportSummary,
 		implicitOnCore:       true,
 		implicitOnClassic:    true,
-		baseDeclarationPlugs: snapAppsControlBaseDeclarationPlugs,
-		baseDeclarationSlots: snapAppsControlBaseDeclarationSlots,
+		baseDeclarationPlugs: rosSnapdSupportBaseDeclarationPlugs,
+		baseDeclarationSlots: rosSnapdSupportBaseDeclarationSlots,
 	})
 }
