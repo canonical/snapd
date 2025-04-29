@@ -20,6 +20,7 @@
 package vfs
 
 import (
+	"fmt"
 	"io/fs"
 	"strings"
 )
@@ -42,7 +43,7 @@ func (v *VFS) Mount(fsFS fs.StatFS, mountPoint string) error {
 	defer v.mu.Unlock()
 
 	// Find the mount dominating the mount point.
-	_, dom, _, fsPath := v.dom(mountPoint)
+	_, dom, suffix, fsPath := v.dom(mountPoint)
 
 	// Stat the mount point through the file system.
 	fsFi, err := dom.fsFS.Stat(fsPath)
@@ -59,14 +60,51 @@ func (v *VFS) Mount(fsFS fs.StatFS, mountPoint string) error {
 	}
 
 	// Mount and return.
-	v.mounts = append(v.mounts, &mount{
+	m := &mount{
 		mountID:    v.nextMountID,
 		parentID:   dom.mountID,
 		mountPoint: mountPoint,
 		isDir:      true,
 		fsFS:       fsFS,
-	})
+	}
+
+	// The new mount entry is dominated by a shared mount, so it is also shared.
+	if dom.shared != 0 {
+		// Groups IDs start with 1
+		v.lastGroupID++
+		m.shared = v.lastGroupID
+		v.l.Logf("Made new mount shared:%d", m.shared)
+	}
+	// TODO: slave
+	// TODO: unbindable
+
+	v.mounts = append(v.mounts, m)
 	v.nextMountID++
+
+	v.sendEvent("mount", m)
+
+	// Propagate the mount to the peer group of dom.
+	if dom.shared != 0 {
+		for _, peer := range v.mounts {
+			// Do not self-propagate.
+			if peer == dom {
+				continue
+			}
+
+			// Propagate to peer gropup and to slaves.
+			if peer.shared == dom.shared && peer.master == dom.shared {
+				v.l.Logf("XXX: finish me, peer needs to see propagation %v\n", peer)
+				// TODO: constrain the mount with root dir.
+				// TODO: reuse logic from bind-mount path computation.
+				newMountPoint := peer.mountPoint + "/" + suffix
+				v.l.Logf("XXX: finish me, propagating from %s to %s\n", m.mountPoint, newMountPoint)
+				// TODO: what happens when we fail mid-way?
+				if _, err := v.unlockedBindMount(m.mountPoint, newMountPoint); err != nil {
+					return fmt.Errorf("cannot propagate mount: %w", err)
+				}
+			}
+		}
+	}
 
 	return nil
 }
@@ -95,6 +133,12 @@ func (v *VFS) unlockedBindMount(sourcePoint, mountPoint string) (*mount, error) 
 
 	// Find the mount dominating the source point and the mount point.
 	_, sourceDom, sourceSuffix, sourceFsPath := v.dom(sourcePoint)
+
+	// If source is unbindable then flat out refse.
+	if sourceDom.unbindable {
+		return nil, &fs.PathError{Op: "bind-mount", Path: "", Err: fs.ErrInvalid}
+	}
+
 	_, dom, _, fsPath := v.dom(mountPoint)
 
 	// Stat the source point through the file system.
@@ -145,10 +189,11 @@ func (v *VFS) unlockedBindMount(sourcePoint, mountPoint string) (*mount, error) 
 		rootDir:    rootDir,
 		isDir:      fsFi.IsDir(),
 		fsFS:       sourceDom.fsFS,
+		shared:     sourceDom.shared,
 	}
 	v.mounts = append(v.mounts, m)
-
 	v.nextMountID++
+	v.sendEvent("mount", m)
 
 	return m, nil
 }
@@ -241,6 +286,8 @@ func (v *VFS) Unmount(mountPoint string) error {
 
 	// Actually forget the mount.
 	v.mounts = append(v.mounts[:idx], v.mounts[idx+1:]...)
+
+	v.sendEvent("unmount", dom)
 
 	return nil
 }
