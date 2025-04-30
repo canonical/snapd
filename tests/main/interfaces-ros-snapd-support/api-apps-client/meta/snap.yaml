@@ -5,7 +5,7 @@ description: |
   A snap with the ros-snapd-support interface used for testing the interface.
 
 apps:
-  bin/api-apps-client:
+  api-apps-client:
     command: bin/api-apps-client.py
     plugs:
       - ros-snapd-support
