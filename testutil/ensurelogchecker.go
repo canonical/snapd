@@ -254,14 +254,19 @@ func CheckEnsureLoopLogging(filename string, c *check.C, expectChildEnsureMethod
 	for _, file := range submanagerFiles {
 		subParsedFile, err := newParsedFile(file)
 		c.Assert(err, check.IsNil)
-		receiver, ok := subParsedFile.ensureReceiver()
+		subreceiver, ok := subParsedFile.ensureReceiver()
 		c.Assert(ok, check.Equals, true)
-		c.Assert(strutil.ListContains(submanagerCalls, receiver), check.Equals, true)
-		foundCalls[receiver] = struct{}{}
+		c.Assert(strutil.ListContains(submanagerCalls, subreceiver), check.Equals, true)
+		foundCalls[subreceiver] = struct{}{}
 		leftovers := subParsedFile.checkFunctionsForLog(c, func(mgr, _ string) string {
 			return fmt.Sprintf(logTemplate, ensureReceiver, fmt.Sprintf("%s.Ensure", mgr))
 		}, "Ensure")
 		c.Assert(len(leftovers), IntEqual, 0)
+		subChildEnsures := functionList(subParsedFile.file, childEnsureFunc)
+		checkFunctions(subParsedFile, ensureReceiver, c, func(mgr, fun string) string {
+			return fmt.Sprintf(logTemplate, ensureReceiver, fmt.Sprintf("%s.%s", mgr, fun))
+		}, subChildEnsures...)
+
 	}
 	c.Assert(len(foundCalls), check.Equals, len(submanagerCalls))
 }

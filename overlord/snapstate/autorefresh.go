@@ -480,7 +480,7 @@ func (m *autoRefresh) ensureLastRefreshAnchor() {
 		return
 	}
 
-	logger.Trace("ensure", "manager", "autoRefresh", "func", "ensureLastRefreshAnchor")
+	logger.Trace("ensure", "manager", "SnapManager", "func", "autoRefresh.ensureLastRefreshAnchor")
 
 	// last core refresh
 	coreRefreshDate := snap.InstallDate("core")
