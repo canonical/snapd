@@ -9,7 +9,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/godbus/dbus"
+	"github.com/godbus/dbus/v5"
 
 	"github.com/snapcore/snapd/dbusutil"
 	"github.com/snapcore/snapd/logger"

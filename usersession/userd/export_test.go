@@ -20,7 +20,7 @@
 package userd
 
 import (
-	"github.com/godbus/dbus"
+	"github.com/godbus/dbus/v5"
 )
 
 func MockSnapFromSender(f func(*dbus.Conn, dbus.Sender) (string, error)) func() {
