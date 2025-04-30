@@ -28,7 +28,7 @@ def main(argv):
     response = conn.getresponse()
     body = response.read()
     print(body.decode('UTF-8'))
-    return response.status >= 300
+    return response.status >= 500
 
 if __name__ == '__main__':
     sys.exit(main(sys.argv))
