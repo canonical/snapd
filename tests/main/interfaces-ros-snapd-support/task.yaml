@@ -13,9 +13,9 @@ details: |
     (which checks the write capability).
 
 environment:
-    # not all terminals support UTF-8, but Python tries to be smart and attempts
-    # to guess the encoding as if the output would go to the terminal, but in
-    # fact all the test does is pipe the output to gojq
+    # Python determines the "encoding" of standard output and it historically chose
+    # to use 7-bit ascii, breaking everything.
+    # In this test we pipe the outputs to gojq.
     PYTHONIOENCODING: utf-8
 
 execute: |
