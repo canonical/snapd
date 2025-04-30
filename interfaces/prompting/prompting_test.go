@@ -49,14 +49,36 @@ func (s *promptingSuite) TestIDTypeStringMarshalUnmarshalJSON(c *C) {
 		{0xFFFFFFFFFFFFFFFF, "FFFFFFFFFFFFFFFF", []byte(`"FFFFFFFFFFFFFFFF"`)},
 	} {
 		c.Check(testCase.id.String(), Equals, testCase.str)
-		marshalled, err := testCase.id.MarshalJSON()
+		marshalled, err := json.Marshal(testCase.id)
 		c.Check(err, IsNil)
 		c.Check(marshalled, DeepEquals, testCase.marshalled)
 		var id prompting.IDType
-		err = id.UnmarshalJSON(testCase.marshalled)
+		err = json.Unmarshal(testCase.marshalled, &id)
 		c.Check(err, IsNil)
 		c.Check(id, Equals, testCase.id)
 	}
+
+	// Check that `IDType` as key in a map is marshalled correctly
+	asKey := map[prompting.IDType]string{prompting.IDType(0x1234): "foo"}
+	expected := []byte(`{"0000000000001234":"foo"}`)
+	marshalled, err := json.Marshal(asKey)
+	c.Check(err, IsNil)
+	c.Check(marshalled, DeepEquals, expected, Commentf("marshalled: %s\nexpected: %s", string(marshalled), string(expected)))
+	var unmarshalledAsKey map[prompting.IDType]string
+	err = json.Unmarshal(marshalled, &unmarshalledAsKey)
+	c.Check(err, IsNil)
+	c.Check(unmarshalledAsKey, DeepEquals, asKey)
+
+	// Check that `IDType` as value in a map is marshalled correctly
+	asValue := map[string]prompting.IDType{"foo": 0x5678}
+	expected = []byte(`{"foo":"0000000000005678"}`)
+	marshalled, err = json.Marshal(asValue)
+	c.Check(err, IsNil)
+	c.Check(marshalled, DeepEquals, expected, Commentf("marshalled: %s\nexpected: %s", string(marshalled), string(expected)))
+	var unmarshalledAsValue map[string]prompting.IDType
+	err = json.Unmarshal(marshalled, &unmarshalledAsValue)
+	c.Check(err, IsNil)
+	c.Check(unmarshalledAsValue, DeepEquals, asValue)
 }
 
 func (s *promptingSuite) TestOutcomeAsBool(c *C) {

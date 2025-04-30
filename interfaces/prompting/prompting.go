@@ -58,16 +58,12 @@ func (i IDType) String() string {
 	return fmt.Sprintf("%016X", uint64(i))
 }
 
-func (i *IDType) MarshalJSON() ([]byte, error) {
-	return json.Marshal(i.String())
+func (i IDType) MarshalText() ([]byte, error) {
+	return []byte(i.String()), nil
 }
 
-func (i *IDType) UnmarshalJSON(b []byte) error {
-	var s string
-	if err := json.Unmarshal(b, &s); err != nil {
-		return fmt.Errorf("cannot read ID into string: %w", err)
-	}
-	id, err := IDFromString(s)
+func (i *IDType) UnmarshalText(b []byte) error {
+	id, err := IDFromString(string(b))
 	if err != nil {
 		return err
 	}
