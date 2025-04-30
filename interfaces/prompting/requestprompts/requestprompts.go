@@ -668,8 +668,13 @@ func (pdb *PromptDB) AddOrMerge(metadata *prompting.Metadata, path string, reque
 				// long as the lifespan is not "single".
 
 				// The prompt matches the request, all is well. Re-add the
-				// request to the prompt, re-record a notice, and return.
-				prompt.listenerReqs = append(prompt.listenerReqs, listenerReq)
+				// request to the prompt (if it hasn't already been added),
+				// re-record a notice, and return.
+				if !slicesContainsFunc(prompt.listenerReqs, func(r *listener.Request) bool {
+					return r.ID == listenerReq.ID
+				}) {
+					prompt.listenerReqs = append(prompt.listenerReqs, listenerReq)
+				}
 				// Although the prompt itself has not changed, re-record a notice
 				// to re-notify clients to respond to this request. A client may
 				// have replied with a malformed response and not retried after
@@ -759,6 +764,16 @@ func (pdb *PromptDB) AddOrMerge(metadata *prompting.Metadata, path string, reque
 	userEntry.add(prompt)
 	pdb.notifyPrompt(metadata.User, promptID, nil)
 	return prompt, false, nil
+}
+
+// TODO: replace this with slices.ContainsFunc once on go 1.21+
+func slicesContainsFunc(s []*listener.Request, f func(r *listener.Request) bool) bool {
+	for _, element := range s {
+		if f(element) {
+			return true
+		}
+	}
+	return false
 }
 
 // Prompts returns a slice of all outstanding prompts for the given user.
