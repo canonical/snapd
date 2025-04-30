@@ -75,7 +75,7 @@ func subManagerFunc(callExpr *ast.CallExpr) (string, bool) {
 	return "", false
 }
 
-func functionList(file *ast.File, addFunc func(*ast.CallExpr) (string, bool)) []string {
+func ensureCallList(file *ast.File, addFunc func(*ast.CallExpr) (string, bool)) []string {
 	for _, decl := range file.Decls {
 		funcDecl, ok := decl.(*ast.FuncDecl)
 		if !ok || funcDecl.Name.Name != "Ensure" {
@@ -116,14 +116,14 @@ func newParsedFile(filename string) (parsedFile, error) {
 	return parsedFile{filename: filename, fset: fset, fileContent: fileContent, file: file}, nil
 }
 
-func (p *parsedFile) checkBodyForString(block *ast.BlockStmt, expected string) bool {
+func (p *parsedFile) bodyContainsString(block *ast.BlockStmt, expected string) bool {
 	for _, stmt := range block.List {
 		if ifStmt, ok := stmt.(*ast.IfStmt); ok {
-			if p.checkBodyForString(ifStmt.Body, expected) {
+			if p.bodyContainsString(ifStmt.Body, expected) {
 				return true
 			}
 			if elseStmt, ok := ifStmt.Else.(*ast.BlockStmt); ok {
-				if p.checkBodyForString(elseStmt, expected) {
+				if p.bodyContainsString(elseStmt, expected) {
 					return true
 				}
 			}
@@ -163,7 +163,7 @@ func (p *parsedFile) checkFunctionsForLog(c *check.C, createLogLine func(string,
 			}
 			checked = append(checked, funcDecl.Name.Name)
 			expected := createLogLine(mgr, funcDecl.Name.Name)
-			foundTraceLog := p.checkBodyForString(funcDecl.Body, expected)
+			foundTraceLog := p.bodyContainsString(funcDecl.Body, expected)
 			c.Assert(foundTraceLog, check.Equals, true, check.Commentf("In file %s in function %s, the following trace log was not found: %s", p.filename, funcDecl.Name.Name, expected))
 		}
 	}
@@ -230,7 +230,7 @@ func CheckEnsureLoopLogging(filename string, c *check.C, expectChildEnsureMethod
 	logTemplate := `logger.Trace("ensure", "manager", "%s", "func", "%s")`
 	parsedFile, err := newParsedFile(filename)
 	c.Assert(err, check.IsNil)
-	childEnsures := functionList(parsedFile.file, childEnsureFunc)
+	childEnsures := ensureCallList(parsedFile.file, childEnsureFunc)
 	if expectChildEnsureMethods {
 		c.Assert(len(childEnsures), IntGreaterThan, 0)
 	} else {
@@ -241,7 +241,7 @@ func CheckEnsureLoopLogging(filename string, c *check.C, expectChildEnsureMethod
 	c.Assert(ok, check.Equals, true)
 	checkFunctions(parsedFile, ensureReceiver, c, func(mgr, fun string) string { return fmt.Sprintf(logTemplate, mgr, fun) }, childEnsures...)
 
-	submanagerCalls := functionList(parsedFile.file, subManagerFunc)
+	submanagerCalls := ensureCallList(parsedFile.file, subManagerFunc)
 	c.Assert(len(submanagerFiles), IntEqual, len(submanagerCalls), check.Commentf(
 		"In the Ensure method, the number of submanager calls (%v) does not match the number of provided submanager files (%v). "+
 			"Did you add a new submanager in the Ensure method and not yet append its containing file to this function call?",
@@ -262,7 +262,7 @@ func CheckEnsureLoopLogging(filename string, c *check.C, expectChildEnsureMethod
 			return fmt.Sprintf(logTemplate, ensureReceiver, fmt.Sprintf("%s.Ensure", mgr))
 		}, "Ensure")
 		c.Assert(len(leftovers), IntEqual, 0)
-		subChildEnsures := functionList(subParsedFile.file, childEnsureFunc)
+		subChildEnsures := ensureCallList(subParsedFile.file, childEnsureFunc)
 		checkFunctions(subParsedFile, ensureReceiver, c, func(mgr, fun string) string {
 			return fmt.Sprintf(logTemplate, ensureReceiver, fmt.Sprintf("%s.%s", mgr, fun))
 		}, subChildEnsures...)
