@@ -26,11 +26,18 @@ import (
 )
 
 func (s *snapGpioHelperSuite) TestUnexportGpioChardev(c *C) {
-	called := 0
+	unexportCalled := 0
 	restore := main.MockGpioUnxportGadgetChardevChip(func(gadgetName, slotName string) error {
-		called++
+		unexportCalled++
 		c.Check(gadgetName, Equals, "gadget-name")
 		c.Check(slotName, Equals, "slot-name")
+		return nil
+	})
+	defer restore()
+
+	ensureDriverCalled := 0
+	restore = main.MockGpioEnsureAggregatorDriver(func() error {
+		ensureDriverCalled++
 		return nil
 	})
 	defer restore()
@@ -39,5 +46,6 @@ func (s *snapGpioHelperSuite) TestUnexportGpioChardev(c *C) {
 		"unexport-chardev", "label-0,label-1", "7,0-6,8-100", "gadget-name", "slot-name",
 	})
 	c.Check(err, IsNil)
-	c.Assert(called, Equals, 1)
+	c.Assert(unexportCalled, Equals, 1)
+	c.Assert(ensureDriverCalled, Equals, 1)
 }
