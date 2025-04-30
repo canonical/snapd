@@ -25,6 +25,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"time"
 
 	. "gopkg.in/check.v1"
@@ -46,13 +47,43 @@ import (
 	"github.com/snapcore/snapd/seed"
 	"github.com/snapcore/snapd/seed/seedtest"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/integrity"
 	"github.com/snapcore/snapd/snapdtool"
 	"github.com/snapcore/snapd/systemd"
 	"github.com/snapcore/snapd/testutil"
 	"github.com/snapcore/snapd/timings"
 )
 
-func (s *initramfsMountsSuite) TestInitramfsMountsInstallModeHappy(c *C) {
+func (s *initramfsMountsSuite) testInitramfsMountsInstallModeHappy(c *C, opts *testSnapOpts) {
+	restore := s.mockSystemdMountSequence(c, []systemdMount{
+		s.ubuntuLabelMount("ubuntu-seed", "install"),
+		opts.snaps[snap.TypeSnapd],
+		opts.snaps[snap.TypeKernel],
+		opts.snaps[snap.TypeBase],
+		opts.snaps[snap.TypeGadget],
+		{
+			"tmpfs",
+			boot.InitramfsDataDir,
+			tmpfsMountOpts,
+			nil,
+			nil,
+		},
+	}, nil)
+	defer restore()
+
+	s._testInitramfsMountsInstallMode(c, nil)
+}
+
+func (s *initramfsMountsSuite) testInitramfsMountsInstallModeError(c *C, expErr error) {
+	restore := s.mockSystemdMountSequence(c, []systemdMount{
+		s.ubuntuLabelMount("ubuntu-seed", "recover"),
+	}, nil)
+	defer restore()
+
+	s._testInitramfsMountsInstallMode(c, expErr)
+}
+
+func (s *initramfsMountsSuite) _testInitramfsMountsInstallMode(c *C, expErr error) {
 	logbuf, restore := logger.MockLogger()
 	defer restore()
 
@@ -68,23 +99,13 @@ func (s *initramfsMountsSuite) TestInitramfsMountsInstallModeHappy(c *C) {
 		return nil
 	})()
 
-	restore = s.mockSystemdMountSequence(c, []systemdMount{
-		s.ubuntuLabelMount("ubuntu-seed", "install"),
-		s.makeSeedSnapSystemdMount(snap.TypeSnapd),
-		s.makeSeedSnapSystemdMount(snap.TypeKernel),
-		s.makeSeedSnapSystemdMount(snap.TypeBase),
-		s.makeSeedSnapSystemdMount(snap.TypeGadget),
-		{
-			"tmpfs",
-			boot.InitramfsDataDir,
-			tmpfsMountOpts,
-			nil,
-		},
-	}, nil)
-	defer restore()
-
 	_, err := main.Parser().ParseArgs([]string{"initramfs-mounts"})
-	c.Assert(err, IsNil)
+	if expErr != nil {
+		c.Check(err, ErrorMatches, expErr.Error())
+		return
+	} else {
+		c.Assert(err, IsNil)
+	}
 
 	modeEnv := dirs.SnapModeenvFileUnder(filepath.Join(dirs.GlobalRootDir, "/run/mnt/data/system-data"))
 	c.Check(modeEnv, testutil.FileEquals, `mode=install
@@ -100,6 +121,19 @@ grade=signed
 	c.Check(sealedKeysLocked, Equals, true)
 
 	c.Check(logbuf.String(), testutil.Contains, "snap-bootstrap version 1.2.3 starting\n")
+}
+
+func (s *initramfsMountsSuite) TestInitramfsMountsInstallModeHappy(c *C) {
+	snaps := make(map[snap.Type]systemdMount)
+
+	for _, typ := range []snap.Type{snap.TypeSnapd, snap.TypeKernel, snap.TypeBase, snap.TypeGadget} {
+		snaps[typ] = s.makeSeedSnapSystemdMount(typ)
+	}
+
+	s.testInitramfsMountsInstallModeHappy(c, &testSnapOpts{
+		snaps: snaps,
+		base:  "core20",
+	})
 }
 
 func (s *initramfsMountsSuite) TestInitramfsMountsInstallModeWithCompsHappy(c *C) {
@@ -316,6 +350,7 @@ func (s *initramfsMountsSuite) testInitramfsMountsInstallModeWithCompsHappy(c *C
 				Private:   true,
 				Ephemeral: true},
 			nil,
+			nil,
 		},
 		{
 			filepath.Join(s.seedDir, "snaps/pc-kernel+kcomp2_77.comp"),
@@ -324,11 +359,13 @@ func (s *initramfsMountsSuite) testInitramfsMountsInstallModeWithCompsHappy(c *C
 				Private:   true,
 				Ephemeral: true},
 			nil,
+			nil,
 		},
 		{
 			filepath.Join(s.tmpDir, "/run/mnt/ubuntu-data"),
 			boot.InitramfsDataDir,
 			bindOpts,
+			nil,
 			nil,
 		}}
 	if failMount {
@@ -344,6 +381,7 @@ func (s *initramfsMountsSuite) testInitramfsMountsInstallModeWithCompsHappy(c *C
 					Private:   true,
 					Ephemeral: true},
 				nil,
+				nil,
 			},
 			{
 				filepath.Join(s.seedDir, "snaps/pc-kernel+kcomp2_77.comp"),
@@ -352,6 +390,7 @@ func (s *initramfsMountsSuite) testInitramfsMountsInstallModeWithCompsHappy(c *C
 					Private:   true,
 					Ephemeral: true},
 				errors.New("error mounting"),
+				nil,
 			},
 		}
 	}
@@ -476,6 +515,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsInstallModeBootFlagsSet(c *C) 
 				boot.InitramfsDataDir,
 				tmpfsMountOpts,
 				nil,
+				nil,
 			},
 		}, nil)
 		defer restore()
@@ -540,6 +580,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsInstallModeTimeMovesForwardHap
 				boot.InitramfsDataDir,
 				tmpfsMountOpts,
 				nil,
+				nil,
 			},
 		}, nil)
 		cleanups = append(cleanups, restore)
@@ -583,6 +624,7 @@ defaults:
 			"tmpfs",
 			boot.InitramfsDataDir,
 			tmpfsMountOpts,
+			nil,
 			nil,
 		},
 	}, nil)
@@ -634,6 +676,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsInstallModeBootedKernelPartiti
 			boot.InitramfsUbuntuSeedDir,
 			needsFsckAndNoSuidNoDevNoExecMountOpts,
 			nil,
+			nil,
 		},
 		s.makeSeedSnapSystemdMount(snap.TypeSnapd),
 		s.makeSeedSnapSystemdMount(snap.TypeKernel),
@@ -643,6 +686,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsInstallModeBootedKernelPartiti
 			"tmpfs",
 			boot.InitramfsDataDir,
 			tmpfsMountOpts,
+			nil,
 			nil,
 		},
 	}, nil)
@@ -874,4 +918,328 @@ func (s *initramfsMountsSuite) TestInitramfsMountsInstallModeUnsetMeasure(c *C) 
 	// snapd_recovery_mode="" and interpreted it as install mode, so test that
 	// case too
 	s.testInitramfsMountsInstallRecoverModeMeasure(c, "")
+}
+
+func (s *initramfsMountsSuite) TestInitramfsMountsInstallModeHappyWithIntegrityAssertionAndDataNotFound(c *C) {
+	asid := []asserts.SnapIntegrityData{
+		{
+			Type:          "dm-verity",
+			Version:       1,
+			HashAlg:       "sha256",
+			DataBlockSize: 4096,
+			HashBlockSize: 4096,
+			Digest:        "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+			Salt:          "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+		},
+	}
+
+	c.Assert(os.RemoveAll(s.seedDir), IsNil)
+
+	s.setupSeedWithIntegrityData(c, asid)
+
+	snaps := make(map[snap.Type]systemdMount)
+
+	for _, typ := range []snap.Type{snap.TypeSnapd, snap.TypeKernel, snap.TypeBase, snap.TypeGadget} {
+		sn := s.makeSeedSnapSystemdMount(typ)
+		snaps[typ] = sn.addIntegrityData(&asid[0])
+	}
+
+	// mock calls to veritysetup format so that the root hash is always the same
+	cmd := testutil.MockCommand(c, "veritysetup", `
+               echo -e "2.0.4"
+               echo -e "Root hash:        dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+               echo -e "Hash algorithm:   sha256"
+       `)
+	defer cmd.Restore()
+
+	s.testInitramfsMountsInstallModeHappy(c, &testSnapOpts{
+		snaps: snaps,
+	})
+
+	snapPath := filepath.Join(s.seedDir, "snaps", s.snapd.Filename())
+	fileInfo, err := os.Stat(snapPath)
+	c.Assert(err, IsNil)
+	dataBlocks := int(fileInfo.Size()) / 4096
+
+	var calls [][]string
+
+	for _, typ := range []snap.Type{snap.TypeSnapd, snap.TypeKernel, snap.TypeBase, snap.TypeGadget} {
+		calls = append(calls, []string{
+			"veritysetup",
+			"--version",
+		})
+
+		mnt := snaps[typ]
+
+		calls = append(calls, []string{
+			"veritysetup",
+			"format",
+			mnt.what,
+			mnt.what + ".verity",
+			"--format=" + strconv.Itoa(int(mnt.integrityData.Version)),
+			"--hash=" + mnt.integrityData.HashAlg,
+			"--data-blocks=" + strconv.Itoa(dataBlocks),
+			"--data-block-size=" + strconv.Itoa(int(mnt.integrityData.DataBlockSize)),
+			"--hash-block-size=" + strconv.Itoa(int(mnt.integrityData.HashBlockSize)),
+			"--salt=" + mnt.integrityData.Salt,
+		})
+	}
+
+	c.Assert(cmd.Calls(), DeepEquals, calls)
+}
+
+func (s *initramfsMountsSuite) TestInitramfsMountsInstallModeHappyWithIntegrityAssertionAndDataFound(c *C) {
+	asid := []asserts.SnapIntegrityData{
+		{
+			Type:          "dm-verity",
+			Version:       1,
+			HashAlg:       "sha256",
+			DataBlockSize: 4096,
+			HashBlockSize: 4096,
+			Digest:        "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+			Salt:          "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+		},
+	}
+
+	c.Assert(os.RemoveAll(s.seedDir), IsNil)
+
+	s.setupSeedWithIntegrityData(c, asid)
+
+	snaps := make(map[snap.Type]systemdMount)
+
+	for _, typ := range []snap.Type{snap.TypeSnapd, snap.TypeKernel, snap.TypeBase, snap.TypeGadget} {
+		sn := s.makeSeedSnapSystemdMount(typ)
+		snaps[typ] = sn.addIntegrityData(&asid[0])
+	}
+
+	// mock calls to veritysetup just to verify that it wasn't called if data were found on disk
+	cmd := testutil.MockCommand(c, "veritysetup", ``)
+	defer cmd.Restore()
+
+	restore := main.MockLookupDmVerityDataAndCrossCheck(func(snapPath string, params *integrity.IntegrityDataParams) (string, error) {
+		return snapPath + ".verity", nil
+	})
+	defer restore()
+
+	s.testInitramfsMountsInstallModeHappy(c, &testSnapOpts{
+		snaps: snaps,
+	})
+
+	c.Assert(len(cmd.Calls()), Equals, 0)
+}
+
+func (s *initramfsMountsSuite) TestInitramfsMountsInstallModeErrorWithIntegrityAssertionAndUnassertedDataFound(c *C) {
+	assertedRootHash := "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+	asid := []asserts.SnapIntegrityData{
+		{
+			Type:          "dm-verity",
+			Version:       1,
+			HashAlg:       "sha256",
+			DataBlockSize: 4096,
+			HashBlockSize: 4096,
+			Digest:        assertedRootHash,
+			Salt:          "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+		},
+	}
+
+	c.Assert(os.RemoveAll(s.seedDir), IsNil)
+
+	s.setupSeedWithIntegrityData(c, asid)
+
+	snaps := make(map[snap.Type]systemdMount)
+
+	// no need to create other snaps as snapd is mounted first during install so failure
+	// when accessing its integrity data will cause the execution to stop.
+	for _, typ := range []snap.Type{snap.TypeSnapd} {
+		sn := s.makeSeedSnapSystemdMount(typ)
+		snaps[typ] = sn.addIntegrityData(&asid[0])
+	}
+	// mock calls to veritysetup just to verify that it wasn't called if data were found on disk
+	cmd := testutil.MockCommand(c, "veritysetup", ``)
+	defer cmd.Restore()
+
+	restore := main.MockLookupDmVerityDataAndCrossCheck(func(snapPath string, params *integrity.IntegrityDataParams) (string, error) {
+		return "", integrity.ErrUnexpectedDmVerityData
+	})
+	defer restore()
+
+	s.testInitramfsMountsInstallModeError(c,
+		fmt.Errorf("dm-verity data from disk for snap %s don't match trusted data from assertion: unexpected dm-verity data", snaps[snap.TypeSnapd].what),
+	)
+
+	c.Assert(len(cmd.Calls()), Equals, 0)
+}
+
+func (s *initramfsMountsSuite) TestInitramfsMountsInstallModeErrorWithIntegrityAssertionAndUnexpectedDataFound(c *C) {
+	assertedRootHash := "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+	asid := []asserts.SnapIntegrityData{
+		{
+			Type:          "dm-verity",
+			Version:       1,
+			HashAlg:       "sha256",
+			DataBlockSize: 4096,
+			HashBlockSize: 4096,
+			Digest:        assertedRootHash,
+			Salt:          "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+		},
+	}
+
+	c.Assert(os.RemoveAll(s.seedDir), IsNil)
+
+	s.setupSeedWithIntegrityData(c, asid)
+
+	snaps := make(map[snap.Type]systemdMount)
+
+	for _, typ := range []snap.Type{snap.TypeSnapd, snap.TypeKernel, snap.TypeBase, snap.TypeGadget} {
+		sn := s.makeSeedSnapSystemdMount(typ)
+		snaps[typ] = sn.addIntegrityData(&asid[0])
+	}
+	// mock calls to veritysetup just to verify that it wasn't called if data were found on disk
+	cmd := testutil.MockCommand(c, "veritysetup", ``)
+	defer cmd.Restore()
+
+	restore := main.MockLookupDmVerityDataAndCrossCheck(func(snapPath string, params *integrity.IntegrityDataParams) (string, error) {
+		return "", errors.New("other error")
+	})
+	defer restore()
+
+	s.testInitramfsMountsInstallModeError(c,
+		errors.New("other error"),
+	)
+
+	c.Assert(len(cmd.Calls()), Equals, 0)
+}
+
+func (s *initramfsMountsSuite) TestInitramfsMountsInstallModeErrorWithIntegrityAssertionAndDataNotFoundAndErrorGenerating(c *C) {
+	asid := []asserts.SnapIntegrityData{
+		{
+			Type:          "dm-verity",
+			Version:       1,
+			HashAlg:       "sha256",
+			DataBlockSize: 4096,
+			HashBlockSize: 4096,
+			Digest:        "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+			Salt:          "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+		},
+	}
+
+	c.Assert(os.RemoveAll(s.seedDir), IsNil)
+
+	s.setupSeedWithIntegrityData(c, asid)
+
+	snaps := make(map[snap.Type]systemdMount)
+
+	for _, typ := range []snap.Type{snap.TypeSnapd, snap.TypeKernel, snap.TypeBase, snap.TypeGadget} {
+		sn := s.makeSeedSnapSystemdMount(typ)
+		snaps[typ] = sn.addIntegrityData(&asid[0])
+	}
+	// mock calls to veritysetup format to fake error in dm-verity data generation
+	cmd := testutil.MockCommand(c, "veritysetup", `
+               echo -e "2.0.4"
+       `)
+	defer cmd.Restore()
+
+	s.testInitramfsMountsInstallModeError(c,
+		fmt.Errorf("internal error: unexpected root hash length"),
+	)
+
+	snapPath := filepath.Join(s.seedDir, "snaps", s.snapd.Filename())
+	fileInfo, err := os.Stat(snapPath)
+	c.Assert(err, IsNil)
+	dataBlocks := int(fileInfo.Size()) / 4096
+
+	var calls [][]string
+
+	for _, typ := range []snap.Type{snap.TypeSnapd} {
+		calls = append(calls, []string{
+			"veritysetup",
+			"--version",
+		})
+
+		mnt := snaps[typ]
+
+		calls = append(calls, []string{
+			"veritysetup",
+			"format",
+			mnt.what,
+			mnt.what + ".verity",
+			"--format=" + strconv.Itoa(int(mnt.integrityData.Version)),
+			"--hash=" + mnt.integrityData.HashAlg,
+			"--data-blocks=" + strconv.Itoa(dataBlocks),
+			"--data-block-size=" + strconv.Itoa(int(mnt.integrityData.DataBlockSize)),
+			"--hash-block-size=" + strconv.Itoa(int(mnt.integrityData.HashBlockSize)),
+			"--salt=" + mnt.integrityData.Salt,
+		})
+	}
+
+	c.Assert(cmd.Calls(), DeepEquals, calls)
+}
+
+func (s *initramfsMountsSuite) TestInitramfsMountsInstallModeErrorWithIntegrityAssertionAndDataNotFoundAndErrorAssertingRootHash(c *C) {
+	assertedRootHash := "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+	asid := []asserts.SnapIntegrityData{
+		{
+			Type:          "dm-verity",
+			Version:       1,
+			HashAlg:       "sha256",
+			DataBlockSize: 4096,
+			HashBlockSize: 4096,
+			Digest:        assertedRootHash,
+			Salt:          "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+		},
+	}
+
+	c.Assert(os.RemoveAll(s.seedDir), IsNil)
+
+	s.setupSeedWithIntegrityData(c, asid)
+
+	snaps := make(map[snap.Type]systemdMount)
+
+	for _, typ := range []snap.Type{snap.TypeSnapd, snap.TypeKernel, snap.TypeBase, snap.TypeGadget} {
+		sn := s.makeSeedSnapSystemdMount(typ)
+		snaps[typ] = sn.addIntegrityData(&asid[0])
+	}
+	// mock calls to veritysetup format to return unasserted hash
+	computedRootHash := "ddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddde"
+	cmd := testutil.MockCommand(c, "veritysetup", `
+               echo -e "2.0.4"
+               echo -e "Root hash:        `+computedRootHash+`"
+               echo -e "Hash algorithm:   sha256"
+       `)
+	defer cmd.Restore()
+
+	s.testInitramfsMountsInstallModeError(c,
+		fmt.Errorf("computed root hash doesn't match trusted root hash from assertion: %s != %s", assertedRootHash, computedRootHash),
+	)
+
+	snapPath := filepath.Join(s.seedDir, "snaps", s.snapd.Filename())
+	fileInfo, err := os.Stat(snapPath)
+	c.Assert(err, IsNil)
+	dataBlocks := int(fileInfo.Size()) / 4096
+
+	var calls [][]string
+
+	for _, typ := range []snap.Type{snap.TypeSnapd} {
+		calls = append(calls, []string{
+			"veritysetup",
+			"--version",
+		})
+
+		mnt := snaps[typ]
+
+		calls = append(calls, []string{
+			"veritysetup",
+			"format",
+			mnt.what,
+			mnt.what + ".verity",
+			"--format=" + strconv.Itoa(int(mnt.integrityData.Version)),
+			"--hash=" + mnt.integrityData.HashAlg,
+			"--data-blocks=" + strconv.Itoa(dataBlocks),
+			"--data-block-size=" + strconv.Itoa(int(mnt.integrityData.DataBlockSize)),
+			"--hash-block-size=" + strconv.Itoa(int(mnt.integrityData.HashBlockSize)),
+			"--salt=" + mnt.integrityData.Salt,
+		})
+	}
+
+	c.Assert(cmd.Calls(), DeepEquals, calls)
 }
