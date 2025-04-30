@@ -395,6 +395,14 @@ func (s *mockDiskSuite) TestMockMountPointDisksToPartitionMapping(c *C) {
 		PartitionUUID:   "part1",
 	})
 
+	part, err = foundDisk.FindMatchingPartitionWithPartUUID("part1")
+	c.Assert(err, IsNil)
+	c.Assert(part, DeepEquals, disks.Partition{
+		PartitionLabel:  "part-label1",
+		FilesystemLabel: "label1",
+		PartitionUUID:   "part1",
+	})
+
 	// and it has the right set of partitions
 	parts, err := foundDisk.Partitions()
 	c.Assert(err, IsNil)
@@ -440,6 +448,14 @@ func (s *mockDiskSuite) TestMockMountPointDisksToPartitionMapping(c *C) {
 	})
 
 	part, err = foundDisk2.FindMatchingPartitionWithPartLabel("part-label2")
+	c.Assert(err, IsNil)
+	c.Assert(part, DeepEquals, disks.Partition{
+		PartitionLabel:  "part-label2",
+		FilesystemLabel: "label2",
+		PartitionUUID:   "part2",
+	})
+
+	part, err = foundDisk2.FindMatchingPartitionWithPartUUID("part2")
 	c.Assert(err, IsNil)
 	c.Assert(part, DeepEquals, disks.Partition{
 		PartitionLabel:  "part-label2",
