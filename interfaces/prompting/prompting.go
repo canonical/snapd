@@ -58,10 +58,18 @@ func (i IDType) String() string {
 	return fmt.Sprintf("%016X", uint64(i))
 }
 
+// MarshalText implements [encoding.TextMarshaler] for IDType. We need this so
+// that IDType can be marshalled consistently when used as a map key, which is
+// not addressible (so must have non-pointer receiver) and is converted to text
+// so keys can be sorted before being marshalled as JSON.
+//
+// For more information, see [json.Marshal], in particular the discussion of
+// marshalling map keys and values.
 func (i IDType) MarshalText() ([]byte, error) {
 	return []byte(i.String()), nil
 }
 
+// UnmarshalText implements [encoding.TextUnmarshaler] for IDType.
 func (i *IDType) UnmarshalText(b []byte) error {
 	id, err := IDFromString(string(b))
 	if err != nil {
