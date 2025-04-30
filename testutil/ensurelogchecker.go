@@ -36,7 +36,7 @@ import (
 // CheckEnsureLoopLogging checks for trace log statement coverage in
 // StateManager implementers.
 // The provided file (*mgr.go) should contain a StateManager Ensure implementation.
-// If the specified file contains submanagers, their source files must be included.
+// If the specified file uses submanagers, their source files must be included.
 // If expectChildEnsureMethods, will check that the Ensure method in the go
 // source code, indicated by the given file name, has at least one child
 // ensure method and the file contains at least one trace log inside each
