@@ -3,7 +3,8 @@ summary: Ensure that the GPIO chardev interface works.
 details: |
     The gpio-chardev interface allows read/write access to specified GPIO chip lines.
 
-systems: [ubuntu-core-2*]
+# Kernels on Ubuntu Core <24 does not contain the gpio-sim module.
+systems: [ubuntu-core-24]
 
 prepare: |
     # emulate GPIO chips using gpio-sim module
