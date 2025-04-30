@@ -1,2 +1,8 @@
+# Documentation:
+# https://docs.codecov.com/docs/codecovyml-reference
+
 fixes:
   - "github.com/snapcore/snapd/::"
+
+codecov:
+  disable_default_path_fixes: true
