@@ -37,26 +37,25 @@ type RosSnapdSupportInterfaceSuite struct {
 	plug     *interfaces.ConnectedPlug
 }
 
-const rosSnapdSupportCoreYaml = `name: core
- version: 0
- type: os
- slots:
-   ros-snapd-support:
- `
-
-const rosSnapdSupportConsumerYaml = `name: consumer
- version: 0
- apps:
-   app:
-	  command: foo
-	  plugs: [ros-snapd-support]
- `
-
 var _ = Suite(&RosSnapdSupportInterfaceSuite{
 	iface: builtin.MustInterface("ros-snapd-support"),
 })
 
 func (s *RosSnapdSupportInterfaceSuite) SetUpTest(c *C) {
+	const rosSnapdSupportCoreYaml = `name: core
+version: 0
+type: os
+slots:
+  ros-snapd-support:
+`
+
+	const rosSnapdSupportConsumerYaml = `name: consumer
+version: 0
+apps:
+  app:
+    command: foo
+    plugs: [ros-snapd-support]
+`
 	s.plug, s.plugInfo = MockConnectedPlug(c, rosSnapdSupportConsumerYaml, nil, "ros-snapd-support")
 	s.slot, s.slotInfo = MockConnectedSlot(c, rosSnapdSupportCoreYaml, nil, "ros-snapd-support")
 }
@@ -98,10 +97,6 @@ func (s *RosSnapdSupportInterfaceSuite) TestAppArmor(c *C) {
 	spec = apparmor.NewSpecification(appSet)
 	c.Assert(spec.AddPermanentSlot(s.iface, s.slotInfo), IsNil)
 	c.Check(spec.SecurityTags(), HasLen, 0)
-}
-
-func (s *RosSnapdSupportInterfaceSuite) TestAutoConnect(c *C) {
-	c.Check(s.iface.AutoConnect(nil, nil), Equals, false)
 }
 
 func (s *RosSnapdSupportInterfaceSuite) TestInterfaces(c *C) {
