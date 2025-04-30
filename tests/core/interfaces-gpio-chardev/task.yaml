@@ -7,7 +7,7 @@ systems: [ubuntu-core-2*]
 
 prepare: |
     # emulate GPIO chips using gpio-sim module
-    cat << \EOF > gpio-sim.service
+    cat << EOF > /etc/systemd/system/gpio-sim.service
     [Unit]
     Description=Emulate gpio chips early in boot
     After=sysinit.target
@@ -15,14 +15,11 @@ prepare: |
     [Service]
     Type=oneshot
     RemainAfterExit=true
-    ExecStart=PWD/mk-sim-chips.sh
-    ExecStop=PWD/rm-sim-chips.sh
+    ExecStart=$PWD/mk-sim-chips.sh
+    ExecStop=$PWD/rm-sim-chips.sh
     [Install]
     WantedBy=multi-user.target
     EOF
-    # inject current working directory
-    sed -i "s|PWD|$PWD|g" gpio-sim.service
-    mv gpio-sim.service /etc/systemd/system/gpio-sim.service
 
     systemctl enable gpio-sim.service
     systemctl start gpio-sim.service
@@ -72,14 +69,14 @@ execute: |
         snap set system experimental.gpio-chardev-interface=true
 
         # Check number of gpiochips before connection
-        find /dev/gpiochip* | wc -l | MATCH 2
+        find /dev/gpiochip* | wc -l | MATCH '^2$'
 
         echo "Connect to gadget slots"
         snap connect test-snapd-gpio-chardev:gpio-chardev-0 pc:gpio-chardev-0
         snap connect test-snapd-gpio-chardev:gpio-chardev-1 pc:gpio-chardev-1
         
         # Check number of gpiochips after connection
-        find /dev/gpiochip* | wc -l | MATCH 4
+        find /dev/gpiochip* | wc -l | MATCH '^4$'
 
         echo "The gpio chips are exported for the gadget slot"
         test -c /dev/snap/gpio-chardev/pc/gpio-chardev-0
@@ -100,18 +97,18 @@ execute: |
         echo "Snap service should have properly set the gpio lines for each chip"
 
         chip=/dev/snap/gpio-chardev/pc/gpio-chardev-0
-        test-snapd-gpio-chardev.cmd gpioget --chip "$chip" 0 | MATCH "inactive"
-        test-snapd-gpio-chardev.cmd gpioget --chip "$chip" 1 | MATCH "active"
-        test-snapd-gpio-chardev.cmd gpioget --chip "$chip" 2 | MATCH "inactive"
-        test-snapd-gpio-chardev.cmd gpioget --chip "$chip" 3 | MATCH "inactive"
-        test-snapd-gpio-chardev.cmd gpioget --chip "$chip" 4 | MATCH "inactive"
-        test-snapd-gpio-chardev.cmd gpioget --chip "$chip" 5 | MATCH "active"
-        test-snapd-gpio-chardev.cmd gpioget --chip "$chip" 6 | MATCH "inactive"
-        test-snapd-gpio-chardev.cmd gpioget --chip "$chip" 7 | MATCH "active"
+        test-snapd-gpio-chardev.cmd gpioget --chip "$chip" 0 | MATCH '^"0"=inactive$'
+        test-snapd-gpio-chardev.cmd gpioget --chip "$chip" 1 | MATCH '^"1"=active$'
+        test-snapd-gpio-chardev.cmd gpioget --chip "$chip" 2 | MATCH '^"2"=inactive$'
+        test-snapd-gpio-chardev.cmd gpioget --chip "$chip" 3 | MATCH '^"3"=inactive$'
+        test-snapd-gpio-chardev.cmd gpioget --chip "$chip" 4 | MATCH '^"4"=inactive$'
+        test-snapd-gpio-chardev.cmd gpioget --chip "$chip" 5 | MATCH '^"5"=active$'
+        test-snapd-gpio-chardev.cmd gpioget --chip "$chip" 6 | MATCH '^"6"=inactive$'
+        test-snapd-gpio-chardev.cmd gpioget --chip "$chip" 7 | MATCH '^"7"=active$'
 
         chip=/dev/snap/gpio-chardev/pc/gpio-chardev-1
-        test-snapd-gpio-chardev.cmd gpioget --chip "$chip" 0 | MATCH "active"
-        test-snapd-gpio-chardev.cmd gpioget --chip "$chip" 1 | MATCH "active"
+        test-snapd-gpio-chardev.cmd gpioget --chip "$chip" 0 | MATCH '^"0"=active$'
+        test-snapd-gpio-chardev.cmd gpioget --chip "$chip" 1 | MATCH '^"1"=active$'
 
         echo "Disconnecting unexports the aggregated devices"
         snap disconnect test-snapd-gpio-chardev:gpio-chardev-0 pc:gpio-chardev-0
@@ -126,7 +123,7 @@ execute: |
         REBOOT
     elif [ "$SPREAD_REBOOT" = 2 ]; then
         echo "Snap service runs"
-        retry -n 20 --wait 2 journalctl -u snap.test-snapd-gpio-chardev.svc | MATCH "no chips found under /var/snap/test-snapd-gpio-chardev/common/gpiochips, exiting..."
+        retry -n 20 --wait 2 sh -c 'journalctl -u snap.test-snapd-gpio-chardev.svc | MATCH "no chips found under /var/snap/test-snapd-gpio-chardev/common/gpiochips, exiting..."'
 
         echo "And aggregated devices are still unexported"
         not test -e /dev/snap/gpio-chardev/pc/gpio-chardev-0
