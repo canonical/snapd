@@ -33,6 +33,139 @@ import (
 	"github.com/snapcore/snapd/strutil"
 )
 
+// CheckEnsureLoopLogging checks for trace log statement coverage in
+// StateManager implementers.
+// The provided file (*mgr.go) should contain a StateManager Ensure implementation.
+// If the specified file contains submanagers, their source files must be included.
+// If expectChildEnsureMethods, will check that the Ensure method in the go
+// source code, indicated by the given file name, has at least one child
+// ensure method and the file contains at least one trace log inside each
+// ensure* method called within that file's Ensure() method.
+// If not expectChildEnsureMethods, then the go source code must
+// not contain any child ensure methods.
+func CheckEnsureLoopLogging(filename string, c *check.C, expectChildEnsureMethods bool, submanagerFiles ...string) {
+	logTemplate := `logger.Trace("ensure", "manager", "%s", "func", "%s")`
+	parsedMgrFile, err := newParsedFile(filename)
+	c.Assert(err, check.IsNil)
+	childEnsures := ensureCallList(parsedMgrFile.file, childEnsureFunc)
+	if expectChildEnsureMethods {
+		c.Assert(len(childEnsures), IntGreaterThan, 0)
+	} else {
+		c.Assert(len(childEnsures), IntEqual, 0)
+		return
+	}
+	ensureReceiver, ok := parsedMgrFile.ensureReceiver()
+	c.Assert(ok, check.Equals, true)
+	checkFunctions(parsedMgrFile, ensureReceiver, c, func(mgr, fun string) string { return fmt.Sprintf(logTemplate, mgr, fun) }, childEnsures...)
+
+	submanagerCalls := ensureCallList(parsedMgrFile.file, subManagerFunc)
+	c.Assert(len(submanagerFiles), IntEqual, len(submanagerCalls), check.Commentf(
+		"In the Ensure method, the number of submanager calls (%v) does not match the number of provided submanager files (%v). "+
+			"Did you add a new submanager in the Ensure method and not yet append its containing file to this function call?",
+		len(submanagerCalls), len(submanagerFiles),
+	))
+	foundCalls := map[string]struct{}{}
+	for _, file := range submanagerFiles {
+		subParsedFile, err := newParsedFile(file)
+		c.Assert(err, check.IsNil)
+		subreceiver, ok := subParsedFile.ensureReceiver()
+		c.Assert(ok, check.Equals, true)
+		c.Assert(strutil.ListContains(submanagerCalls, subreceiver), check.Equals, true)
+		foundCalls[subreceiver] = struct{}{}
+		leftovers := subParsedFile.checkFunctionsForLog(c, func(mgr, _ string) string {
+			return fmt.Sprintf(logTemplate, ensureReceiver, fmt.Sprintf("%s.Ensure", mgr))
+		}, "Ensure")
+		c.Assert(len(leftovers), IntEqual, 0)
+		subChildEnsures := ensureCallList(subParsedFile.file, childEnsureFunc)
+		checkFunctions(subParsedFile, ensureReceiver, c, func(mgr, fun string) string {
+			return fmt.Sprintf(logTemplate, ensureReceiver, fmt.Sprintf("%s.%s", mgr, fun))
+		}, subChildEnsures...)
+
+	}
+	c.Assert(len(foundCalls), check.Equals, len(submanagerCalls))
+}
+
+type parsedFile struct {
+	filename    string
+	fset        *token.FileSet
+	fileContent string
+	file        *ast.File
+}
+
+func newParsedFile(filename string) (parsedFile, error) {
+	fset := token.NewFileSet()
+	content, err := os.ReadFile(filename)
+	if err != nil {
+		return parsedFile{}, err
+	}
+	fileContent := string(content)
+	file, err := parser.ParseFile(fset, filename, fileContent, parser.AllErrors)
+	if err != nil {
+		return parsedFile{}, err
+	}
+	return parsedFile{filename: filename, fset: fset, fileContent: fileContent, file: file}, nil
+}
+
+func (p *parsedFile) ensureReceiver() (string, bool) {
+	for _, decl := range p.file.Decls {
+		if funcDecl, ok := decl.(*ast.FuncDecl); ok {
+			if funcDecl.Name.Name != "Ensure" {
+				continue
+			}
+			if mgr, ok := receiver(funcDecl); ok {
+				return mgr, true
+			}
+		}
+	}
+	return "", false
+}
+
+func (p *parsedFile) checkFunctionsForLog(c *check.C, createLogLine func(string, string) string, functions ...string) []string {
+	checked := []string{}
+	for _, decl := range p.file.Decls {
+		if funcDecl, ok := decl.(*ast.FuncDecl); ok {
+			mgr, ok := receiver(funcDecl)
+			if !ok || !strutil.ListContains(functions, funcDecl.Name.Name) {
+				continue
+			}
+			checked = append(checked, funcDecl.Name.Name)
+			expected := createLogLine(mgr, funcDecl.Name.Name)
+			foundTraceLog := p.bodyContainsString(funcDecl.Body, expected)
+			c.Assert(foundTraceLog, check.Equals, true, check.Commentf("In file %s in function %s, the following trace log was not found: %s", p.filename, funcDecl.Name.Name, expected))
+		}
+	}
+	difference := []string{}
+	for _, item := range functions {
+		if !strutil.ListContains(checked, item) {
+			difference = append(difference, item)
+		}
+	}
+	return difference
+}
+
+func (p *parsedFile) bodyContainsString(block *ast.BlockStmt, expected string) bool {
+	for _, stmt := range block.List {
+		if ifStmt, ok := stmt.(*ast.IfStmt); ok {
+			if p.bodyContainsString(ifStmt.Body, expected) {
+				return true
+			}
+			if elseStmt, ok := ifStmt.Else.(*ast.BlockStmt); ok {
+				if p.bodyContainsString(elseStmt, expected) {
+					return true
+				}
+			}
+		} else if exprStmt, ok := stmt.(*ast.ExprStmt); ok {
+			start := p.fset.Position(exprStmt.X.Pos()).Offset
+			end := p.fset.Position(exprStmt.X.End()).Offset
+			stringed := p.fileContent[start:end]
+			if expected == stringed {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 func receiver(funcDecl *ast.FuncDecl) (string, bool) {
 	if funcDecl.Recv != nil && len(funcDecl.Recv.List) > 0 {
 		if starExpr, ok := funcDecl.Recv.List[0].Type.(*ast.StarExpr); ok {
@@ -96,85 +229,16 @@ func ensureCallList(file *ast.File, addFunc func(*ast.CallExpr) (string, bool)) 
 	return nil
 }
 
-type parsedFile struct {
-	filename    string
-	fset        *token.FileSet
-	fileContent string
-	file        *ast.File
-}
-
-func newParsedFile(filename string) (parsedFile, error) {
-	fset := token.NewFileSet()
-	content, err := os.ReadFile(filename)
-	if err != nil {
-		return parsedFile{}, err
+func checkFunctions(fileWithEnsure parsedFile, receiver string, c *check.C, createLogLine func(string, string) string, functions ...string) {
+	leftovers := fileWithEnsure.checkFunctionsForLog(c, createLogLine, functions...)
+	for _, function := range leftovers {
+		file, err := fileWithFunction(receiver, function)
+		c.Assert(err, check.IsNil)
+		parsed, err := newParsedFile(file)
+		c.Assert(err, check.IsNil)
+		left := parsed.checkFunctionsForLog(c, createLogLine, function)
+		c.Assert(len(left), IntEqual, 0, check.Commentf("logline %s not found in file %s in function %s", createLogLine(receiver, function), file, function))
 	}
-	fileContent := string(content)
-	file, err := parser.ParseFile(fset, filename, fileContent, parser.AllErrors)
-	if err != nil {
-		return parsedFile{}, err
-	}
-	return parsedFile{filename: filename, fset: fset, fileContent: fileContent, file: file}, nil
-}
-
-func (p *parsedFile) bodyContainsString(block *ast.BlockStmt, expected string) bool {
-	for _, stmt := range block.List {
-		if ifStmt, ok := stmt.(*ast.IfStmt); ok {
-			if p.bodyContainsString(ifStmt.Body, expected) {
-				return true
-			}
-			if elseStmt, ok := ifStmt.Else.(*ast.BlockStmt); ok {
-				if p.bodyContainsString(elseStmt, expected) {
-					return true
-				}
-			}
-		} else if exprStmt, ok := stmt.(*ast.ExprStmt); ok {
-			start := p.fset.Position(exprStmt.X.Pos()).Offset
-			end := p.fset.Position(exprStmt.X.End()).Offset
-			stringed := p.fileContent[start:end]
-			if expected == stringed {
-				return true
-			}
-		}
-	}
-	return false
-}
-
-func (p *parsedFile) ensureReceiver() (string, bool) {
-	for _, decl := range p.file.Decls {
-		if funcDecl, ok := decl.(*ast.FuncDecl); ok {
-			if funcDecl.Name.Name != "Ensure" {
-				continue
-			}
-			if mgr, ok := receiver(funcDecl); ok {
-				return mgr, true
-			}
-		}
-	}
-	return "", false
-}
-
-func (p *parsedFile) checkFunctionsForLog(c *check.C, createLogLine func(string, string) string, functions ...string) []string {
-	checked := []string{}
-	for _, decl := range p.file.Decls {
-		if funcDecl, ok := decl.(*ast.FuncDecl); ok {
-			mgr, ok := receiver(funcDecl)
-			if !ok || !strutil.ListContains(functions, funcDecl.Name.Name) {
-				continue
-			}
-			checked = append(checked, funcDecl.Name.Name)
-			expected := createLogLine(mgr, funcDecl.Name.Name)
-			foundTraceLog := p.bodyContainsString(funcDecl.Body, expected)
-			c.Assert(foundTraceLog, check.Equals, true, check.Commentf("In file %s in function %s, the following trace log was not found: %s", p.filename, funcDecl.Name.Name, expected))
-		}
-	}
-	difference := []string{}
-	for _, item := range functions {
-		if !strutil.ListContains(checked, item) {
-			difference = append(difference, item)
-		}
-	}
-	return difference
 }
 
 func fileWithFunction(receiver, function string) (string, error) {
@@ -201,67 +265,4 @@ func fileWithFunction(receiver, function string) (string, error) {
 		}
 	}
 	return "", fmt.Errorf("function %s with receiver %s not found in package", function, receiver)
-}
-
-func checkFunctions(fileWithEnsure parsedFile, receiver string, c *check.C, createLogLine func(string, string) string, functions ...string) {
-	leftovers := fileWithEnsure.checkFunctionsForLog(c, createLogLine, functions...)
-	for _, function := range leftovers {
-		file, err := fileWithFunction(receiver, function)
-		c.Assert(err, check.IsNil)
-		parsed, err := newParsedFile(file)
-		c.Assert(err, check.IsNil)
-		left := parsed.checkFunctionsForLog(c, createLogLine, function)
-		c.Assert(len(left), IntEqual, 0, check.Commentf("logline %s not found in file %s in function %s", createLogLine(receiver, function), file, function))
-	}
-}
-
-// CheckEnsureLoopLogging checks for trace log statement coverage.
-// If the specified file contains submanagers, their source files must
-// be included.
-// If expectChildEnsureMethods, will check that the Ensure method in the go
-// source code, indicated by the given file name, has at least one child
-// ensure method and the file contains at least one trace log inside each
-// ensure* method called within that file's Ensure() method.
-// If not expectChildEnsureMethods, then the go source code must
-// not contain any child ensure methods.
-func CheckEnsureLoopLogging(filename string, c *check.C, expectChildEnsureMethods bool, submanagerFiles ...string) {
-	logTemplate := `logger.Trace("ensure", "manager", "%s", "func", "%s")`
-	parsedFile, err := newParsedFile(filename)
-	c.Assert(err, check.IsNil)
-	childEnsures := ensureCallList(parsedFile.file, childEnsureFunc)
-	if expectChildEnsureMethods {
-		c.Assert(len(childEnsures), IntGreaterThan, 0)
-	} else {
-		c.Assert(len(childEnsures), IntEqual, 0)
-		return
-	}
-	ensureReceiver, ok := parsedFile.ensureReceiver()
-	c.Assert(ok, check.Equals, true)
-	checkFunctions(parsedFile, ensureReceiver, c, func(mgr, fun string) string { return fmt.Sprintf(logTemplate, mgr, fun) }, childEnsures...)
-
-	submanagerCalls := ensureCallList(parsedFile.file, subManagerFunc)
-	c.Assert(len(submanagerFiles), IntEqual, len(submanagerCalls), check.Commentf(
-		"In the Ensure method, the number of submanager calls (%v) does not match the number of provided submanager files (%v). "+
-			"Did you add a new submanager in the Ensure method and not yet append its containing file to this function call?",
-		len(submanagerCalls), len(submanagerFiles),
-	))
-	foundCalls := map[string]struct{}{}
-	for _, file := range submanagerFiles {
-		subParsedFile, err := newParsedFile(file)
-		c.Assert(err, check.IsNil)
-		subreceiver, ok := subParsedFile.ensureReceiver()
-		c.Assert(ok, check.Equals, true)
-		c.Assert(strutil.ListContains(submanagerCalls, subreceiver), check.Equals, true)
-		foundCalls[subreceiver] = struct{}{}
-		leftovers := subParsedFile.checkFunctionsForLog(c, func(mgr, _ string) string {
-			return fmt.Sprintf(logTemplate, ensureReceiver, fmt.Sprintf("%s.Ensure", mgr))
-		}, "Ensure")
-		c.Assert(len(leftovers), IntEqual, 0)
-		subChildEnsures := ensureCallList(subParsedFile.file, childEnsureFunc)
-		checkFunctions(subParsedFile, ensureReceiver, c, func(mgr, fun string) string {
-			return fmt.Sprintf(logTemplate, ensureReceiver, fmt.Sprintf("%s.%s", mgr, fun))
-		}, subChildEnsures...)
-
-	}
-	c.Assert(len(foundCalls), check.Equals, len(submanagerCalls))
 }
