@@ -59,17 +59,18 @@ func childEnsureFunc(callExpr *ast.CallExpr) (string, bool) {
 func subManagerFunc(callExpr *ast.CallExpr) (string, bool) {
 	if selectorExpr, ok := callExpr.Fun.(*ast.SelectorExpr); ok {
 		functionName := selectorExpr.Sel.Name
-		if functionName == "Ensure" {
-			for {
-				if nextSelector, ok := selectorExpr.X.(*ast.SelectorExpr); ok {
-					selectorExpr = nextSelector
-				} else {
-					break
-				}
+		if functionName != "Ensure" {
+			return "", false
+		}
+		for {
+			if nextSelector, ok := selectorExpr.X.(*ast.SelectorExpr); ok {
+				selectorExpr = nextSelector
+			} else {
+				break
 			}
-			if xIdent := selectorExpr.Sel; xIdent != nil {
-				return xIdent.Name, true
-			}
+		}
+		if xIdent := selectorExpr.Sel; xIdent != nil {
+			return xIdent.Name, true
 		}
 	}
 	return "", false
@@ -204,9 +205,6 @@ func fileWithFunction(receiver, function string) (string, error) {
 
 func checkFunctions(fileWithEnsure parsedFile, receiver string, c *check.C, createLogLine func(string, string) string, functions ...string) {
 	leftovers := fileWithEnsure.checkFunctionsForLog(c, createLogLine, functions...)
-	if len(leftovers) == 0 {
-		return
-	}
 	for _, function := range leftovers {
 		file, err := fileWithFunction(receiver, function)
 		c.Assert(err, check.IsNil)
@@ -247,9 +245,6 @@ func CheckEnsureLoopLogging(filename string, c *check.C, expectChildEnsureMethod
 			"Did you add a new submanager in the Ensure method and not yet append its containing file to this function call?",
 		len(submanagerCalls), len(submanagerFiles),
 	))
-	if len(submanagerFiles) == 0 {
-		return
-	}
 	foundCalls := map[string]struct{}{}
 	for _, file := range submanagerFiles {
 		subParsedFile, err := newParsedFile(file)
