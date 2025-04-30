@@ -10,8 +10,8 @@ class UnixSocketHTTPConnection(http.client.HTTPConnection):
         super().__init__('localhost')
 
     def connect(self):
-        self.s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-        self.s.connect("/run/snapd-snap.socket")
+        self.sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        self.sock.connect('/run/snapd-snap.socket')
 
 
 def main(argv):
@@ -23,7 +23,7 @@ def main(argv):
     args = parser.parse_args(argv[1:])
 
     conn = UnixSocketHTTPConnection()
-    conn.request(args.method, "/v2/apps", args.body)
+    conn.request(args.method, '/v2/apps', args.body)
 
     response = conn.getresponse()
     body = response.read()
