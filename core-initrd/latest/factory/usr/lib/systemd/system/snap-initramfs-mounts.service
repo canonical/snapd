@@ -7,6 +7,9 @@ DefaultDependencies=no
 After=sysinit.target
 Before=initrd-root-device.target
 
+BindsTo=dev-disk-snapd-disk.device
+After=dev-disk-snapd-disk.device
+
 Wants=dbus.socket
 After=dbus.socket
 
