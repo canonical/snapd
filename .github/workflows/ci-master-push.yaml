@@ -151,5 +151,10 @@ jobs:
         token: ${{ secrets.CODECOV_TOKEN }}
         flags: unittests
         name: codecov-umbrella
-        files: .coverage/coverage-*
         verbose: true
+        # exclude codecov binaries
+        exclude: codecov*
+        disable_search: true
+        files: .coverage/*
+        # only pick files under .coverage directory
+        network_filter: .coverage/
