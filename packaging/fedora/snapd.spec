@@ -104,7 +104,7 @@
 %endif
 
 Name:           snapd
-Version:        2.69
+Version:        2.69.1
 Release:        0%{?dist}
 Summary:        A transactional software package manager
 License:        GPL-3.0-only
@@ -1005,6 +1005,18 @@ fi
 
 
 %changelog
+* Thu May 01 2025 Ernest Lotter <ernest.lotter@canonical.com>
+- New upstream release 2.69.1
+ - AppArmor prompting (experimental): avoid race between
+   closing/reading socket fd
+ - Fix potential validation set deadlock due to bases waiting on
+   snaps
+ - LP: #2104066 Only cancel notices requests on Stop/shutdown
+ - Run 'systemctl start' for mount units to ensure they are run also
+   when unchanged
+ - Interfaces: timeserver-control | allow timedatectl timesync
+   commands
+
 * Tue Apr 08 2025 Ernest Lotter <ernest.lotter@canonical.com>
 - New upstream release 2.69
  - FDE: re-factor listing of the disks based on run mode model and

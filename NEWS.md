@@ -1,3 +1,10 @@
+# New in snapd 2.69.1
+* AppArmor prompting (experimental): avoid race between closing/reading socket fd
+* Fix potential validation set deadlock due to bases waiting on snaps
+* LP: #2104066 Only cancel notices requests on Stop/shutdown
+* Run 'systemctl start' for mount units to ensure they are run also when unchanged
+* Interfaces: timeserver-control | allow timedatectl timesync commands
+
 # New in snapd 2.69
 * FDE: re-factor listing of the disks based on run mode model and model to correctly resolve paths
 * FDE: run snapd from snap-failure with the correct keyring mode
