@@ -132,7 +132,9 @@ func getNotices(c *Command, r *http.Request, user *auth.UserState) Response {
 
 	if timeout != 0 {
 		// Wait up to timeout for notices matching given filter to occur
-		ctx, cancel := context.WithTimeout(r.Context(), timeout)
+		// Use daemon's tomb context so that the request will get canceled as well
+		// when the tomb gets killed when shutting down the daemon
+		ctx, cancel := context.WithTimeout(c.d.tomb.Context(r.Context()), timeout)
 		defer cancel()
 
 		notices, err = st.WaitNotices(ctx, filter)

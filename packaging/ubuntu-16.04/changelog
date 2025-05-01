@@ -1,3 +1,18 @@
+snapd (2.69.1) xenial; urgency=medium
+
+  * New upstream release, LP: #2105854
+    - AppArmor prompting (experimental): avoid race between
+      closing/reading socket fd
+    - Fix potential validation set deadlock due to bases waiting on
+      snaps
+    - LP: #2104066 Only cancel notices requests on Stop/shutdown
+    - Run 'systemctl start' for mount units to ensure they are run also
+      when unchanged
+    - Interfaces: timeserver-control | allow timedatectl timesync
+      commands
+
+ -- Ernest Lotter <ernest.lotter@canonical.com>  Thu, 01 May 2025 16:51:32 +0200
+
 snapd (2.69) xenial; urgency=medium
 
   * New upstream release, LP: #2105854

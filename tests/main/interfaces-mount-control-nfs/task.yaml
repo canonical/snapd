@@ -6,8 +6,8 @@ details: |
 # limit to systems where we know NFS works without problems
 # ubuntu-core: no required dependencies to export NFS shares
 systems:
-  - ubuntu-22.04-*
-  - ubuntu-24.04-*
+  - ubuntu-22.04-64
+  - ubuntu-24.04-64
 
 prepare: |
     # Mount should not leak
@@ -55,7 +55,7 @@ restore: |
     tests.cleanup restore
 
 execute: |
-    snap install test-snapd-mount-control-nfs
+    snap install --edge   test-snapd-mount-control-nfs
     mkdir -p /media/mounted
     tests.cleanup defer rm -rf /media/mounted
 

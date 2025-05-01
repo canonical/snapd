@@ -232,13 +232,14 @@ func (m *mountCommand) ensureMount(sysd systemd.Systemd) (string, error) {
 		lifetime = systemd.Persistent
 	}
 	unitName, err := sysd.EnsureMountUnitFileWithOptions(&systemd.MountUnitOptions{
-		Lifetime:    lifetime,
-		Description: fmt.Sprintf("Mount unit for %s, revision %s via mount-control", snapName, revision),
-		What:        m.Positional.What,
-		Where:       m.Positional.Where,
-		Fstype:      m.Type,
-		Options:     m.optionsList,
-		Origin:      "mount-control",
+		Lifetime:               lifetime,
+		Description:            fmt.Sprintf("Mount unit for %s, revision %s via mount-control", snapName, revision),
+		What:                   m.Positional.What,
+		Where:                  m.Positional.Where,
+		Fstype:                 m.Type,
+		Options:                m.optionsList,
+		Origin:                 "mount-control",
+		EnsureStartIfUnchanged: true,
 	})
 	if err != nil {
 		_ = sysd.RemoveMountUnitFile(m.Positional.Where)

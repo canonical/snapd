@@ -89,8 +89,8 @@ execute: |
     spread-manager set-manual --project-path "checks/task1" "checks/task1"  2>&1 | MATCH "spread-manager: project spread file \"checks/task1/spread.yaml\" does not exist"
 
     spread-manager set-manual --project-path "$PWD" 2>&1 | MATCH "spread-manager: test path cannot be empty"
-    spread-manager set-manual --project-path "$PWD" "checks/task1/task.yaml" 2>&1 | MATCH "spread-manager: test path \"checks/task1/task.yaml\" has to be a directory"
-    spread-manager set-manual --project-path "$PWD" "checks/task5" 2>&1 | MATCH "spread-manager: test task \"checks/task5/task.yaml\" does not exist"
+    spread-manager set-manual --project-path "$PWD" "checks/task1/task.yaml" 2>&1 | MATCH "spread-manager: test path \"$PWD/checks/task1/task.yaml\" has to be a directory"
+    spread-manager set-manual --project-path "$PWD" "checks/task5" 2>&1 | MATCH "spread-manager: test task \"$PWD/checks/task5/task.yaml\" does not exist"
 
     spread-manager reset-manual --project-path "$PWD" "checks/task1" 2>&1 | MATCH "spread-manager: test task backup does not exist \"$PWD/checks/task1/task.yaml.back\""
     spread-manager set-manuals --project-path "$PWD" "checks/task1" 2>&1 | MATCH "spread-manager: no such command: set-manuals"

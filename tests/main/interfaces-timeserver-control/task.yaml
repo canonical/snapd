@@ -31,8 +31,14 @@ prepare: |
             ;;
     esac
 
-    # Install a snap declaring a plug on timeserver-control
-    "$TESTSTOOLS"/snaps-state install-local test-snapd-timedate-control-consumer
+    # Install a snap declaring a plug on timeserver-control.
+    if systemctl list-unit-files | grep systemd-timesyncd | awk '{print $2}' | MATCH "enabled"; then
+        # Install the base core20 variant with timedatectl that supports systemd-timesyncd commands.
+        "$TESTSTOOLS"/snaps-state install-local-variant test-snapd-timedate-control-consumer-core20 test-snapd-timedate-control-consumer
+    else
+        # Install the default version.
+        "$TESTSTOOLS"/snaps-state install-local test-snapd-timedate-control-consumer
+    fi
     tests.cleanup defer snap remove --purge test-snapd-timedate-control-consumer
 
 execute: |
@@ -48,6 +54,9 @@ execute: |
     echo "When the interface is connected"
     snap connect test-snapd-timedate-control-consumer:timeserver-control
 
+    # Use timedatectl without a subcommand
+    test-snapd-timedate-control-consumer.timedatectl-timeserver
+
     # Set NTP and check that the setting was propagated.
     for value in true false true; do
         test-snapd-timedate-control-consumer.timedatectl-timeserver set-ntp "$value"
@@ -55,6 +64,22 @@ execute: |
         # shellcheck disable=SC2016
         retry --wait 5 sh -c 'test "$(busctl get-property org.freedesktop.timedate1 /org/freedesktop/timedate1 org.freedesktop.timedate1 NTP)" = "b '"$value"'"'
     done
+
+    # We rely systemd-timesyncd to test timesyncd functionality.
+    if systemctl list-unit-files | grep systemd-timesyncd | awk '{print $2}' | MATCH "enabled"; then
+        # Test timesyncd functionality exposed via timedatectl.
+        echo "Check dbus access to org.freedesktop.timesync1 properties"
+        serverName=$(busctl get-property --system org.freedesktop.timesync1 /org/freedesktop/timesync1 org.freedesktop.timesync1.Manager ServerName | awk -F'"' '{print $2}')
+
+
+        echo "Check that timedatectl timesync commands can be used"
+        test-snapd-timedate-control-consumer.timedatectl-timeserver show-timesync --property=ServerName | cut -d= -f2 | MATCH "$serverName"
+        test-snapd-timedate-control-consumer.timedatectl-timeserver timesync-status | grep 'Server:' | cut -d'(' -f2 | cut -d')' -f1 | MATCH "$serverName"
+    elif os.query is-core-ge 20; then
+        # We expect to cover at least core 20+.
+        echo "Error: insufficient test coverage of timedatectl timesyncd commands"
+        exit 1
+    fi
 
     if [ "$(snap debug confinement)" = partial ] ; then
         exit 0

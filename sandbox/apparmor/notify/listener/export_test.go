@@ -101,13 +101,19 @@ func MockEpollWaitNotifyIoctl(protoVersion notify.ProtocolVersion) (recvChan cha
 	sendChanRW := make(chan []byte, 1) // need to have buffer size 1 since reply does not run in a goroutine and the test would otherwise block
 	internalRecvChan := make(chan []byte, 1)
 	epollF := func(l *Listener) ([]epoll.Event, error) {
+		// In the real listener, the epoll instance has its own FD and we don't
+		// need to get the notify FD, but here, we get the notify FD directly,
+		// so we need to get it with the socket mutex held to avoid a race.
+		l.socketMu.Lock()
+		socketFd := int(l.notifyFile.Fd())
+		l.socketMu.Unlock()
 		for {
 			select {
 			case request := <-recvChanRW:
 				internalRecvChan <- request
 				events := []epoll.Event{
 					{
-						Fd:        int(l.notifyFile.Fd()),
+						Fd:        socketFd,
 						Readiness: epoll.Readable,
 					},
 				}

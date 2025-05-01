@@ -8,7 +8,7 @@ details: |
 # Ubuntu 24.04: there is no longer any seeded snaps in base or minimal cloud images
 # https://bugs.launchpad.net/ubuntu/+source/ubuntu-meta/+bug/2051346
 # https://bugs.launchpad.net/ubuntu/+source/ubuntu-meta/+bug/2051572
-systems: [ubuntu-20*, ubuntu-22*, ubuntu-23*]
+systems: [ubuntu-20*, ubuntu-22*]
 
 environment:
   IMAGE_MOUNTPOINT: /mnt/cloudimg

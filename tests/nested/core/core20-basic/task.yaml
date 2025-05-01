@@ -3,9 +3,12 @@ summary: Run a smoke test on UC20 with encryption enabled
 details: |
     This test checks basic snapd commands on UC20 with secure boot and encryption enabled
 
-systems: [ubuntu-20.04-64, ubuntu-20.04-arm-64]
+systems: [ubuntu-2*.04-64, ubuntu-2*.04-arm-64]
 
 execute: |
+    #shellcheck source=tests/lib/nested.sh
+    . "$TESTSLIB/nested.sh"
+
     echo "Wait for the system to be seeded first"
     remote.exec "sudo snap wait system seed.loaded"
 
@@ -91,11 +94,13 @@ execute: |
     test "$(remote.exec "sudo cryptsetup luksDump /dev/vda5 |grep Key:" | wc -l)" = "2"
 
     echo "Check that the serial backed up to save is as expected"
-    remote.exec 'cat /var/lib/snapd/save/device/asserts-v0/serial/'"$(tests.nested get model-authority)"'/pc/*/active' >serial.saved
+    model_p="$(nested_get_model)"
+    model=$(grep "^model:" "$model_p" | cut -d ' ' -f2)
+    remote.exec 'cat /var/lib/snapd/save/device/asserts-v0/serial/'"$(tests.nested get model-authority)"'/'"$model"'/*/active' >serial.saved
     remote.exec snap model --serial --assertion >serial
     cmp serial serial.saved
 
-    echo "Check that we go the install log after the transition to run mode"
+    echo "Check that we get the install log after the transition to run mode"
     remote.exec "test -e /var/log/install-mode.log.gz"
 
     echo "Transparently verify that the format is gzip"

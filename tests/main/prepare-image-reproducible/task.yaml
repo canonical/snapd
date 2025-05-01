@@ -15,11 +15,10 @@ backends: [-autopkgtest]
 
 # disable the following distributions
 # ubuntu-14, lack of systemd-run
-# ubuntu-20.04-arm*, because we use pc kernel and gadget.
-# ubuntu-core-*-arm-*, because image generade is not amd64
+# ubuntu-*-arm*, because we use (developer1) amd64 model
 systems:
 - -ubuntu-14.04-*
-- -ubuntu-20.04-arm-*
+- -ubuntu-*-arm-*
 - -ubuntu-core-*-arm-*
 
 environment:

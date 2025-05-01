@@ -456,6 +456,80 @@ func (s *prereqSuite) TestDoPrereqRetryWhenBaseInFlight(c *C) {
 	c.Check(chg.Status(), Equals, state.DoneStatus)
 }
 
+func (s *prereqSuite) TestDoPrereqFailWhenCircularDependencyDetected(c *C) {
+	s.runner.AddHandler("link-snap",
+		func(task *state.Task, _ *tomb.Tomb) error {
+			st := task.State()
+			st.Lock()
+			defer st.Unlock()
+
+			// setup everything as if the snap is installed
+
+			snapsup, _ := snapstate.TaskSnapSetup(task)
+			var snapst snapstate.SnapState
+			snapstate.Get(st, snapsup.InstanceName(), &snapst)
+			snapst.Current = snapsup.Revision()
+			snapst.Sequence.Revisions = append(snapst.Sequence.Revisions, sequence.NewRevisionSideState(snapsup.SideInfo, nil))
+			snapstate.Set(st, snapsup.InstanceName(), &snapst)
+
+			return nil
+		}, nil)
+
+	s.state.Lock()
+
+	// these tasks will help us create the circular dependency
+	blocker := s.state.NewTask("blocker", "...")
+	waiter := s.state.NewTask("waiter", "...")
+	waiter.WaitFor(blocker)
+
+	link := s.state.NewTask("link-snap", "Pretend core gets installed")
+	link.Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: "core",
+			Revision: snap.R(11),
+		},
+	})
+	link.WaitFor(waiter)
+
+	// install snapd so that prerequisites handler won't try to install it
+	snapstate.Set(s.state, "snapd", &snapstate.SnapState{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
+			{RealName: "snapd", Revision: snap.R(1)},
+		}),
+		Current: snap.R(1),
+	})
+
+	// pretend foo gets installed and needs core (which is in progress)
+	prereqs := s.state.NewTask("prerequisites", "foo")
+	prereqs.Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: "foo",
+		},
+	})
+
+	// prereqs waits on link, out of band.
+	// link waits on waiter, which waits on blocker.
+	// blocker waits on prereqs.
+	//
+	// thus, link waits on prereqs and prereqs waits on link.
+	blocker.WaitFor(prereqs)
+
+	chg := s.state.NewChange("sample", "...")
+	chg.AddTask(prereqs)
+	chg.AddTask(link)
+
+	s.state.Unlock()
+	s.se.Ensure()
+	s.se.Wait()
+	s.state.Lock()
+
+	// we should pick up on this circular dependency and fail if we detect it
+	c.Check(chg.Err(), ErrorMatches, fmt.Sprintf(
+		"(?s).*prerequisites task cannot wait on task %[1]q because task %[1]q is waiting on the prerequisites task.*",
+		link.ID(),
+	))
+}
+
 func (s *prereqSuite) TestDoPrereqNoRetryWhenBaseInFlightDuringRemodel(c *C) {
 	restore := snapstate.MockPrerequisitesRetryTimeout(1 * time.Millisecond)
 	defer restore()
