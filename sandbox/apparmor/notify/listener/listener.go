@@ -312,7 +312,10 @@ func (l *Listener) Run() error {
 		// If there were pending requests at time of registration, then Register
 		// didn't set a real ready timer with callback, so do so now.
 		if l.pendingCount != 0 {
-			l.readyTimer = timeAfterFunc(readyTimeout, l.signalReady)
+			l.readyTimer = timeAfterFunc(readyTimeout, func() {
+				pendingCount := l.signalReady()
+				logger.Noticef("timeout waiting for resent messages from apparmor: still expected %d more resent messages", pendingCount)
+			})
 		}
 		defer func() {
 			if l.readyTimer.Stop() {
@@ -454,16 +457,29 @@ func (l *Listener) decodeAndDispatchRequest(buf []byte) error {
 			return err
 		}
 
+		// Keep track of whether this is the final pending request so that if
+		// so, after the request has been received by the manager, the listener
+		// can signal ready.
+		isFinalPendingReq := false
+
 		// Before sending the request, check if it is resent. The kernel is
 		// guaranteed to resend all previously-pending messages before it sends
 		// any new messages, so if it's NOT resent, then we know the kernel is
 		// done sending pending messages.
-		if !msg.Resent() {
+		if msg.Resent() {
+			// Message was previously sent, see if it was the last one we're
+			// waiting for. Also ensure the pending count is decremented before
+			// waiting for the request to be received, so the pending count in
+			// case of a timeout is reported correctly.
+			isFinalPendingReq = l.decrementPendingCheckFinal()
+		} else {
 			// It is not resent, so there are no more resent messages, and we
 			// should ensure that we're ready.
 			if l.readyTimer.Stop() {
 				// Timer was active so we weren't yet ready. Ready up now.
-				l.signalReady()
+				if pendingCount := l.signalReady(); pendingCount != 0 {
+					logger.Noticef("received non-resent message when pending count was %d", pendingCount)
+				}
 			}
 		}
 
@@ -481,11 +497,7 @@ func (l *Listener) decodeAndDispatchRequest(buf []byte) error {
 			return ErrClosed
 		}
 
-		if !msg.Resent() {
-			continue
-		}
-		// Message was previously sent, see if it was the last one we're waiting for
-		if isFinal := l.decrementPendingCheckFinal(); !isFinal {
+		if !isFinalPendingReq {
 			continue
 		}
 		// This is the final pending request we were waiting for.
@@ -547,15 +559,17 @@ func (l *Listener) decrementPendingCheckFinal() (isFinal bool) {
 }
 
 // signalReady is responsible for closing the ready channel and ensuring that
-// pendingCount is set to 0.
+// pendingCount is set to 0. Returns the pending count at time of readying.
 //
 // Potential callers must ensure that this method is only called once per
 // listener.
-func (l *Listener) signalReady() {
+func (l *Listener) signalReady() (pendingCount int) {
 	l.pendingMu.Lock()
 	defer l.pendingMu.Unlock()
+	pendingCount = l.pendingCount
 	l.pendingCount = 0 // if timed out, tell the run loop we're ready
 	close(l.ready)
+	return pendingCount
 }
 
 var encodeAndSendResponse = func(l *Listener, resp *notify.MsgNotificationResponse) error {

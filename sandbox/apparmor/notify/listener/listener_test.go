@@ -37,6 +37,7 @@ import (
 
 	"github.com/snapcore/snapd/arch"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil/epoll"
 	"github.com/snapcore/snapd/sandbox/apparmor"
 	"github.com/snapcore/snapd/sandbox/apparmor/notify"
@@ -618,6 +619,9 @@ func (*listenerSuite) TestRunWithPendingReady(c *C) {
 	restoreOpen := listener.MockOsOpenWithSocket()
 	defer restoreOpen()
 
+	logbuf, restore := logger.MockLogger()
+	defer restore()
+
 	protoVersion := notify.ProtocolVersion(12345)
 	pendingCount := 3
 
@@ -701,6 +705,8 @@ func (*listenerSuite) TestRunWithPendingReady(c *C) {
 
 	checkListenerReady(c, l, true)
 	c.Check(timer.Active(), Equals, false)
+
+	c.Check(logbuf.String(), Equals, "")
 }
 
 func (*listenerSuite) TestRunWithPendingReadyDropped(c *C) {
@@ -709,6 +715,9 @@ func (*listenerSuite) TestRunWithPendingReadyDropped(c *C) {
 	// This should only occur if the kernel times out/drops a pending message.
 	restoreOpen := listener.MockOsOpenWithSocket()
 	defer restoreOpen()
+
+	logbuf, restore := logger.MockLogger()
+	defer restore()
 
 	protoVersion := notify.ProtocolVersion(12345)
 	pendingCount := 3
@@ -799,6 +808,8 @@ func (*listenerSuite) TestRunWithPendingReadyDropped(c *C) {
 		c.Fatalf("failed to receive request 0x%x", id)
 	}
 
+	c.Check(logbuf.String(), testutil.Contains, "received non-resent message when pending count was 1")
+
 	// We're still ready, of course
 	checkListenerReady(c, l, true)
 }
@@ -811,6 +822,9 @@ func (*listenerSuite) TestRunWithPendingReadyTimeout(c *C) {
 	// new messages (at least until after the timeout).
 	restoreOpen := listener.MockOsOpenWithSocket()
 	defer restoreOpen()
+
+	logbuf, restore := logger.MockLogger()
+	defer restore()
 
 	protoVersion := notify.ProtocolVersion(12345)
 	pendingCount := 3
@@ -899,6 +913,8 @@ func (*listenerSuite) TestRunWithPendingReadyTimeout(c *C) {
 	case <-time.NewTimer(10 * time.Millisecond).C:
 		c.Fatalf("failed to receive request 0x%x", id)
 	}
+
+	c.Check(logbuf.String(), testutil.Contains, "timeout waiting for resent messages from apparmor: still expected 2 more resent messages")
 
 	// We're still ready
 	checkListenerReady(c, l, true)
@@ -1044,7 +1060,7 @@ func (*listenerSuite) TestRunEpoll(c *C) {
 	protoVersion := notify.ProtocolVersion(12345)
 
 	restoreRegisterFileDescriptor := listener.MockNotifyRegisterFileDescriptor(func(fd uintptr) (notify.ProtocolVersion, int, error) {
-		pendingCount := 0 // TODO: set to 1, send 2 messages, with second one UNOTIF_RESENT, and check that the second is received first
+		pendingCount := 0
 		return protoVersion, pendingCount, nil
 	})
 	defer restoreRegisterFileDescriptor()
