@@ -49,9 +49,9 @@ func CheckEnsureLoopLogging(filename string, c *check.C, expectChildEnsureMethod
 	c.Assert(err, check.IsNil)
 	childEnsures := ensureCallList(parsedMgrFile.file, childEnsureFunc)
 	if expectChildEnsureMethods {
-		c.Assert(len(childEnsures), IntGreaterThan, 0)
+		c.Assert(childEnsures, check.Not(check.HasLen), 0)
 	} else {
-		c.Assert(len(childEnsures), IntEqual, 0)
+		c.Assert(childEnsures, check.HasLen, 0)
 		return
 	}
 	ensureReceiver, ok := parsedMgrFile.ensureReceiver()
@@ -59,7 +59,7 @@ func CheckEnsureLoopLogging(filename string, c *check.C, expectChildEnsureMethod
 	checkFunctions(parsedMgrFile, ensureReceiver, c, func(mgr, fun string) string { return fmt.Sprintf(logTemplate, mgr, fun) }, childEnsures...)
 
 	submanagerCalls := ensureCallList(parsedMgrFile.file, subManagerFunc)
-	c.Assert(len(submanagerFiles), IntEqual, len(submanagerCalls), check.Commentf(
+	c.Assert(submanagerFiles, check.HasLen, len(submanagerCalls), check.Commentf(
 		"In the Ensure method, the number of submanager calls (%v) does not match the number of provided submanager files (%v). "+
 			"Did you add a new submanager in the Ensure method and not yet append its containing file to this function call?",
 		len(submanagerCalls), len(submanagerFiles),
@@ -75,14 +75,14 @@ func CheckEnsureLoopLogging(filename string, c *check.C, expectChildEnsureMethod
 		leftovers := subParsedFile.checkFunctionsForLog(c, func(mgr, _ string) string {
 			return fmt.Sprintf(logTemplate, ensureReceiver, fmt.Sprintf("%s.Ensure", mgr))
 		}, "Ensure")
-		c.Assert(len(leftovers), IntEqual, 0)
+		c.Assert(leftovers, check.HasLen, 0)
 		subChildEnsures := ensureCallList(subParsedFile.file, childEnsureFunc)
 		checkFunctions(subParsedFile, ensureReceiver, c, func(mgr, fun string) string {
 			return fmt.Sprintf(logTemplate, ensureReceiver, fmt.Sprintf("%s.%s", mgr, fun))
 		}, subChildEnsures...)
 
 	}
-	c.Assert(len(foundCalls), check.Equals, len(submanagerCalls))
+	c.Assert(foundCalls, check.HasLen, len(submanagerCalls))
 }
 
 type parsedFile struct {
@@ -237,7 +237,7 @@ func checkFunctions(fileWithEnsure parsedFile, receiver string, c *check.C, crea
 		parsed, err := newParsedFile(file)
 		c.Assert(err, check.IsNil)
 		left := parsed.checkFunctionsForLog(c, createLogLine, function)
-		c.Assert(len(left), IntEqual, 0, check.Commentf("logline %s not found in file %s in function %s", createLogLine(receiver, function), file, function))
+		c.Assert(left, check.HasLen, 0, check.Commentf("logline %s not found in file %s in function %s", createLogLine(receiver, function), file, function))
 	}
 }
 
