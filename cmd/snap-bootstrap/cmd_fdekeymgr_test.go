@@ -22,10 +22,9 @@ import (
 	"bytes"
 	"testing"
 
-	. "gopkg.in/check.v1"
-
-	main "github.com/snapcore/snapd/cmd/snap-fde-keymgr"
+	main "github.com/snapcore/snapd/cmd/snap-bootstrap"
 	"github.com/snapcore/snapd/secboot/keys"
+	. "gopkg.in/check.v1"
 )
 
 type mainSuite struct{}
@@ -45,7 +44,7 @@ func (s *mainSuite) TestChangeEncryptionKeyMissingKey(c *C) {
 	})
 	defer restore()
 
-	err := main.Run([]string{
+	_, err := main.Parser().ParseArgs([]string{
 		"change-encryption-key",
 		"--device", "/dev/vda4",
 		"--stage",
@@ -65,7 +64,7 @@ func (s *mainSuite) TestChangeEncryptionKey(c *C) {
 	})
 	defer restore()
 
-	err := main.Run([]string{
+	_, err := main.Parser().ParseArgs([]string{
 		"change-encryption-key",
 		"--device", "/dev/vda4",
 		"--transition",
