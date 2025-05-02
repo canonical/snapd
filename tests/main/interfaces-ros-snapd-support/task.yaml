@@ -41,7 +41,7 @@ execute: |
     gojq -r '.result[] | select(.snap == "test-snapd-simple-service").enabled' < response.txt | MATCH '^true'
 
     echo "We can disable a snap service"
-    api-apps-client --method=POST '{"action": "stop", "disable": "true", "names": ["test-snapd-simple-service"]}' > response.txt
+    api-apps-client --method=POST '{"action": "stop", "disable": true, "names": ["test-snapd-simple-service"]}' > response.txt
     gojq . < response.txt
 
     echo "Check if the service is now disabled"
