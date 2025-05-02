@@ -48,4 +48,4 @@ execute: |
     api-apps-client > response.txt
     gojq . < response.txt
 
-    gojq -r '.result[] | select(.snap == "test-snapd-simple-service").enabled' < response.txt | MATCH '^false'
+    gojq -r '.result[] | select(.snap == "test-snapd-simple-service").enabled' < response.txt | MATCH '^null'
