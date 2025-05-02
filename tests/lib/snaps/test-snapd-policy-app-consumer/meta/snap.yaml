@@ -149,6 +149,9 @@ apps:
   mpris:
     command: bin/run
     plugs: [ mpris ]
+  mtk_genio_usb:
+    command: bin/run
+    plugs: [ mtk-genio-usb ]
   multipass-support:
     command: bin/run
     plugs: [ multipass-support ]
