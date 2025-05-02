@@ -18,6 +18,7 @@ slots:
   microovn: null
   mir: null
   modem-manager: null
+  mtk-genio-usb: null
   network-manager: null
   network-manager-observe: null
   ofono: null
@@ -70,6 +71,9 @@ apps:
   modem-manager:
     command: bin/run
     slots: [ modem-manager ]
+  mtk-genio-usb:
+    command: bin/run
+    slots: [ mtk-genio-usb ]
   network-manager-observe:
     command: bin/run
     slots: [ network-manager-observe ]

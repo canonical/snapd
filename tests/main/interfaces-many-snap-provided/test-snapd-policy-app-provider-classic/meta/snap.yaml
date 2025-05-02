@@ -14,6 +14,7 @@ slots:
   mir: null
   mpris:
     name: test-policy-app-provider-classic
+  mtk-genio-usb: null
   online-accounts-service: null
   storage-framework-service: null
   thumbnailer-service: null
@@ -53,6 +54,9 @@ apps:
   mpris:
     command: bin/run
     slots: [ mpris ]
+  mtk-genio-usb:
+    command: bin/run
+    slots: [ mtk-genio-usb ]
   online-accounts-service:
     command: bin/run
     slots: [ online-accounts-service ]
