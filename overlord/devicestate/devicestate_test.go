@@ -2959,3 +2959,7 @@ func (s *deviceMgrSuite) TestConfdbControlFindExisting(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(found, DeepEquals, cc)
 }
+
+func (s *deviceMgrSuite) TestEnsureLoopLogging(c *C) {
+	testutil.CheckEnsureLoopLogging("devicemgr.go", c, true)
+}

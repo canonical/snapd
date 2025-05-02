@@ -1886,3 +1886,7 @@ func (s *confdbTestSuite) TestBadPathHookChecks(c *C) {
 	_, _, err = commitTxFunc()
 	c.Assert(err, ErrorMatches, `cannot check if write affects ephemeral data: cannot use "foo" as key in map`)
 }
+
+func (s *confdbTestSuite) TestEnsureLoopLogging(c *C) {
+	testutil.CheckEnsureLoopLogging("confdbmgr.go", c, false)
+}

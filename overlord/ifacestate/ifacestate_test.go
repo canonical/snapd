@@ -11584,3 +11584,7 @@ func (s *interfaceManagerSuite) TestSystemKeyMismatchCompat(c *C) {
 	// error can be precisely identified
 	c.Check(errors.Is(err, interfaces.ErrSystemKeyMismatchVersionTooHigh), Equals, true)
 }
+
+func (s *interfaceManagerSuite) TestEnsureLoopLogging(c *C) {
+	testutil.CheckEnsureLoopLogging("ifacemgr.go", c, false)
+}

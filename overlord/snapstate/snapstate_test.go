@@ -11612,3 +11612,7 @@ func (s *snapStateSuite) TestUnmountAllSnaps(c *C) {
 
 	c.Assert(calls, DeepEquals, expected)
 }
+
+func (s *snapStateSuite) TestEnsureLoopLogging(c *C) {
+	testutil.CheckEnsureLoopLogging("snapmgr.go", c, true, "autorefresh.go", "catalogrefresh.go", "refreshhints.go")
+}

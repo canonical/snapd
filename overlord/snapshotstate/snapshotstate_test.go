@@ -2115,3 +2115,7 @@ func (snapshotSuite) TestSetSnapshotOpInProgress(c *check.C) {
 	val = st.Cached("snapshot-ops")
 	c.Check(val, check.HasLen, 0)
 }
+
+func (s *snapshotSuite) TestEnsureLoopLogging(c *check.C) {
+	testutil.CheckEnsureLoopLogging("snapshotmgr.go", c, false)
+}

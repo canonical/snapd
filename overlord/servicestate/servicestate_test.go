@@ -1040,3 +1040,7 @@ func (s *snapServiceOptionsSuite) TestLogReaderNamespaces(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(jctlCalls, Equals, 1)
 }
+
+func (s *snapServiceOptionsSuite) TestEnsureLoopLogging(c *C) {
+	testutil.CheckEnsureLoopLogging("servicemgr.go", c, true)
+}

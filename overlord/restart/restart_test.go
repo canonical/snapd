@@ -1293,3 +1293,7 @@ func (s *notifyRebootRequiredSuite) TestFinishTaskWithRestartNotifiesRebootRequi
 	c.Check(mockNrr.Calls(), HasLen, 0)
 	c.Check(s.mockLog.String(), Equals, "")
 }
+
+func (s *restartSuite) TestEnsureLoopLogging(c *C) {
+	testutil.CheckEnsureLoopLogging("restart.go", c, false)
+}
