@@ -38,6 +38,11 @@ TASKS_IGNORE_SNAP_TYPE = {
     'exec-command',
     'request-serial',
     'enforce-validation-sets',
+    'mark-seeded',
+    'hotplug-add-slot',
+    'hotplug-connect',
+    'hotplug-disconnect',
+    'hotplug-remove-slot',
 
     # These two are only associated with app/gadget types
     # of snaps and so their snap types can be ignored
@@ -63,6 +68,10 @@ def _keys_in_dict(dictionary: dict[str, Any], *args) -> bool:
     return True
 
 
+class NotInStateError(Exception):
+    pass
+
+
 class State:
 
     def __init__(self, state_json: dict[str, Any]):
@@ -72,13 +81,14 @@ class State:
         try:
             return self.state[CHANGES][id]
         except KeyError:
-            raise KeyError('change {} not found in state.json'.format(id))
+            raise NotInStateError(
+                'change {} not found in state.json'.format(id))
 
     def get_task(self, id: str) -> dict[str, Any]:
         try:
             return self.state[TASKS][id]
         except KeyError:
-            raise KeyError('task {} not found in state.json'.format(id))
+            raise NotInStateError('task {} not found in state.json'.format(id))
 
     def get_snap_type(self, snap_name: str) -> str:
         '''
@@ -140,8 +150,8 @@ class State:
         elif _keys_in_dict(data, RECOVERY_SYSTEM_SETUP, SNAP_SETUP_TASKS):
             return list({snap_type for setup_task in data[RECOVERY_SYSTEM_SETUP][SNAP_SETUP_TASKS] for snap_type in self.get_snap_types_from_task_id(setup_task)})
 
-        raise KeyError('cannot find snap type for task id {} in task {}'.format(id, task))
-
+        raise RuntimeError(
+            'cannot find snap type for task id {} in task {}'.format(id, task))
 
     def get_snap_types_from_change_id(self, id: str) -> set[str]:
         change = self.get_change(id)
