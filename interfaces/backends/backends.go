@@ -33,6 +33,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/udev"
 	"github.com/snapcore/snapd/logger"
 	apparmor_sandbox "github.com/snapcore/snapd/sandbox/apparmor"
+	"github.com/snapcore/snapd/snapdenv"
 	systemd_tools "github.com/snapcore/snapd/systemd"
 )
 
@@ -69,7 +70,10 @@ func All() []interfaces.SecurityBackend {
 	// without understanding the consequences, switch the container to
 	// privileged mode. In this mode udev does start inside the container, but
 	// actively configures devices on the host with undesirable consequences.
-	if !systemd_tools.IsContainer() {
+	//
+	// But we want the backend active when preseeding so preseeded images
+	// actually have the files in /var/lib/snapd/cgroup.
+	if !systemd_tools.IsContainer() || snapdenv.Preseeding() {
 		all = append(all, &udev.Backend{})
 	}
 
