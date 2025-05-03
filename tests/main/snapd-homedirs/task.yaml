@@ -23,6 +23,7 @@ prepare: |
 restore: |
     userdel -f --remove "$USERNAME"
     rm -rf /remote/users
+    snap unset system homedirs
 
 debug: |
     # output custom snap-confine snippets

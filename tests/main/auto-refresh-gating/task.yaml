@@ -16,6 +16,9 @@ environment:
 prepare: |
   snap set system experimental.gate-auto-refresh-hook=true
 
+restore: |
+  snap unset system experimental.gate-auto-refresh-hook
+
 debug: |
   gojq -r '.data["snaps-hold"]' < /var/lib/snapd/state.json || true
   snap changes || true

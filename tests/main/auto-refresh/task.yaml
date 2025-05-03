@@ -16,7 +16,7 @@ prepare: |
 
 restore: |
     if [[ "$SPREAD_VARIANT" =~ parallel ]]; then
-        snap set system experimental.parallel-instances=null
+        snap unset system experimental.parallel-instances
     fi
 
 debug: |

@@ -11,6 +11,7 @@ systems: [ubuntu-18*, ubuntu-20*, ubuntu-22*]
 
 environment:
     USERNAME: home-sweet-home
+    PURGE_SNAPD: true
 
 prepare: |
     if [[ "$SNAP_REEXEC" = "0" ]]  || tests.info is-snapd-from-archive; then
@@ -36,12 +37,7 @@ restore: |
 
     userdel -f --remove "$USERNAME"
     rm -rf /remote/users
-
-    # Reinstall the original snap
-    #shellcheck source=tests/lib/pkgdb.sh
-    . "$TESTSLIB/pkgdb.sh"
-    distro_purge_package snapd
-    distro_install_build_snapd
+    snap unset system homedirs
 
 debug: |
     tests.exec is-skipped && exit 0

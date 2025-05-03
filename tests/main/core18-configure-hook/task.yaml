@@ -7,6 +7,9 @@ details: |
 
 systems: [-ubuntu-core-*]
 
+environment:
+    PURGE_SNAPD: true
+
 prepare: |
     echo "Ensure empty state"
     echo "Ensure all snaps are gone"

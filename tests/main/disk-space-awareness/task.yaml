@@ -22,6 +22,10 @@ prepare: |
   systemctl start snapd.{socket,service}
 
 restore: |
+  snap unset system experimental.check-disk-space-install
+  snap unset system experimental.check-disk-space-remove
+  snap unset system experimental.check-disk-space-refresh
+
   systemctl stop snapd.{socket,service}
   umount -l "$TMPFSMOUNT"
   systemctl start snapd.{socket,service}

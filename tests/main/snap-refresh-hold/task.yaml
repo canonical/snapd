@@ -17,6 +17,7 @@ restore: |
   snap refresh --unhold || true
   snap refresh --unhold test-snapd-tools || true
   snap remove --purge test-snapd-tools || true
+  snap unset system experimental.parallel-instances
 
 debug: |
   snap changes
