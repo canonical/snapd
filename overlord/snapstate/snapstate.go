@@ -62,8 +62,9 @@ import (
 
 // control flags for doInstall
 const (
-	skipConfigure = 1 << iota
-	noRestartBoundaries
+	skipConfigure       = 1 << iota // Do not create a task to run either default configure or configure hooks
+	noRestartBoundaries             // Do not set restart boundaries
+	configureDefaults               // Configure hook task must use defaults provided by gadget snap
 )
 
 // control flags for "Configure()"
@@ -76,6 +77,7 @@ const (
 	BeginEdge                        = state.TaskSetEdge("begin")
 	SnapSetupEdge                    = state.TaskSetEdge("snap-setup")
 	BeforeHooksEdge                  = state.TaskSetEdge("before-hooks")
+	ConfigureEdge                    = state.TaskSetEdge("configure") // XXX: Need to define this clearly, it can also fall on start-snap-services...
 	HooksEdge                        = state.TaskSetEdge("hooks")
 	MaybeRebootEdge                  = state.TaskSetEdge("maybe-reboot")
 	MaybeRebootWaitEdge              = state.TaskSetEdge("maybe-reboot-wait")
@@ -254,6 +256,15 @@ func configureSnapFlags(snapst *SnapState, snapsup *SnapSetup) int {
 	// config defaults cannot be retrieved without a snap ID
 	hasSnapID := snapsup.SideInfo != nil && snapsup.SideInfo.SnapID != ""
 
+	// XXX: The !isCoreSnap condition works with assumption that firstboot ALWAYS injects core snap
+	// so that whenever core is encountered here, it is post seed installation, and UseConfigDefaults
+	// does not apply anymore. However, if we transition firstboot code to only inject core configure when
+	// core is not one of the essential snaps (most modern cases), the we can remove the condition here and
+	// use configureSnapFlags also for firstboot essential snap installs.
+	//
+	// XXX: Furthermore, in firstboot code, hasSnapID is not required for kernel and gadget configure. Need to
+	// find out if this is intentional or not, but if not, consider making it coherent to require snap ID.
+	// Using this function would provide us that.
 	if !snapst.IsInstalled() && hasSnapID && !isCoreSnap(snapsup.InstanceName()) {
 		// installation, run configure using the gadget defaults if available, system config defaults (attached to
 		// "core") are consumed only during seeding, via an explicit configure step separate from installing
@@ -474,10 +485,15 @@ func doInstall(st *state.State, snapst *SnapState, snapsup SnapSetup, compsups [
 		tasks = append(tasks, t)
 		prev = t
 	}
-	addTasksFromTaskSet := func(ts *state.TaskSet) {
+	addTasksFromTaskSet := func(ts *state.TaskSet) *state.Task {
 		ts.WaitFor(prev)
+		firstTaskIndex := len(tasks)
 		tasks = append(tasks, ts.Tasks()...)
 		prev = tasks[len(tasks)-1]
+		if len(tasks) > firstTaskIndex {
+			return tasks[firstTaskIndex]
+		}
+		return nil
 	}
 
 	componentsTSS, err := splitComponentTasksForInstall(
@@ -720,11 +736,12 @@ func doInstall(st *state.State, snapst *SnapState, snapsup SnapSetup, compsups [
 		addTask(quotaAddSnapTask)
 	}
 
-	// only run default-configure hook if installing the snap for the first time and
-	// default-configure is allowed
-	if !snapst.IsInstalled() && isDefaultConfigureAllowed(&snapsup) {
+	// only run default-configure hook if installing the snap for the first time,
+	// default-configure is allowed and skip configure flag is not set
+	var defaultConfigureHook *state.Task
+	if !snapst.IsInstalled() && isDefaultConfigureAllowed(&snapsup) && flags&skipConfigure == 0 {
 		defaultConfigureSet := DefaultConfigure(st, snapsup.InstanceName())
-		addTasksFromTaskSet(defaultConfigureSet)
+		defaultConfigureHook = addTasksFromTaskSet(defaultConfigureSet)
 	}
 
 	// run new services
@@ -841,20 +858,48 @@ func doInstall(st *state.State, snapst *SnapState, snapsup SnapSetup, compsups [
 			return nil, err
 		}
 	}
-	if flags&skipConfigure != 0 {
+
+	// only run configure hook if configure is allowed skip configure flag is not set
+	var configureHook *state.Task
+	if isConfigureAllowed(&snapsup) && flags&skipConfigure == 0 {
+		confFlags := 0
+		if flags&configureDefaults == 0 {
+			// not seeding
+			confFlags = configureSnapFlags(snapst, &snapsup)
+		} else {
+			// seeding
+			confFlags |= UseConfigDefaults
+		}
+		configSet := ConfigureSnap(st, snapsup.InstanceName(), confFlags)
+		if len(configSet.Tasks()) > 0 {
+			configureHook = configSet.Tasks()[0]
+		}
+
+		configSet.WaitAll(installSet)
+		installSet.AddAll(configSet)
+	}
+
+	// XXX: Set configure edge
+	for _, task := range []*state.Task{defaultConfigureHook, startSnapServices, configureHook} {
+		if task != nil {
+			// XXX: If startSnapServices is always present, then this can be simplied to if/else
+			installSet.MarkEdge(task, ConfigureEdge)
+			break
+		}
+	}
+
+	// XXX: Consider if this is still correct. The spec questions/suggests
+	// if health check tasks should be added for essential snaps as well.
+	// Firstboot preseed and seed code changed to not skip configure anymore, which
+	// this is not used. If it turns out this is not applicable anymore, it may be
+	// removed and perhaps the whole skip configure concept.
+	if flags&skipConfigure != 0 || flags&configureDefaults != 0 {
 		if cleanupTask != nil {
 			installSet.MarkEdge(cleanupTask, EndEdge)
 		} else {
 			installSet.MarkEdge(startSnapServices, EndEdge)
 		}
 		return installSet, nil
-	}
-
-	if isConfigureAllowed(&snapsup) {
-		confFlags := configureSnapFlags(snapst, &snapsup)
-		configSet := ConfigureSnap(st, snapsup.InstanceName(), confFlags)
-		configSet.WaitAll(installSet)
-		installSet.AddAll(configSet)
 	}
 
 	healthCheck := CheckHealthHook(st, snapsup.InstanceName(), snapsup.Revision())
@@ -952,6 +997,8 @@ func ConfigureSnap(st *state.State, snapName string, confFlags int) *state.TaskS
 	// This is slightly ugly, ideally we would check the type instead
 	// of hardcoding the name here. Unfortunately we do not have the
 	// type until we actually run the change.
+	// XXX: We do not currently do this for seeding scenario, but moved configure hook creation
+	// do doInstall. So this is currently different from before. Need to clarify what we want.
 	if isCoreSnap(snapName) {
 		confFlags |= IgnoreHookError
 	}
