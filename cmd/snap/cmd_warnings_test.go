@@ -155,7 +155,7 @@ func (s *warningSuite) TestOkay(c *check.C) {
 		}
 		c.Check(r.URL.Path, check.Equals, "/v2/warnings")
 		c.Check(r.URL.Query(), check.HasLen, 0)
-		c.Assert(DecodedRequestBody(c, r), check.DeepEquals, map[string]interface{}{"action": "okay", "timestamp": t0.Format(time.RFC3339Nano)})
+		c.Assert(DecodedRequestBody(c, r), check.DeepEquals, map[string]any{"action": "okay", "timestamp": t0.Format(time.RFC3339Nano)})
 		c.Check(r.Method, check.Equals, "POST")
 		w.WriteHeader(200)
 		fmt.Fprintln(w, `{

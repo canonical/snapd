@@ -84,8 +84,8 @@ func (s *storeActionFetchAssertionsSuite) testFetch(c *C, assertionMaxFormats ma
 		jsonReq, err := io.ReadAll(r.Body)
 		c.Assert(err, IsNil)
 		var req struct {
-			Context []map[string]interface{} `json:"context"`
-			Actions []map[string]interface{} `json:"actions"`
+			Context []map[string]any `json:"context"`
+			Actions []map[string]any `json:"actions"`
 
 			AssertionMaxFormats map[string]int `json:"assertion-max-formats"`
 		}
@@ -95,13 +95,13 @@ func (s *storeActionFetchAssertionsSuite) testFetch(c *C, assertionMaxFormats ma
 
 		c.Assert(req.Context, HasLen, 0)
 		c.Assert(req.Actions, HasLen, 1)
-		expectedAction := map[string]interface{}{
+		expectedAction := map[string]any{
 			"action": "fetch-assertions",
 			"key":    "g1",
-			"assertions": []interface{}{
-				map[string]interface{}{
+			"assertions": []any{
+				map[string]any{
 					"type": "snap-declaration",
-					"primary-key": []interface{}{
+					"primary-key": []any{
 						"16",
 						"iEr2EpvaIaqrXxoM2JyHOmuXQYvSzUt5",
 					},
@@ -190,8 +190,8 @@ func (s *storeActionFetchAssertionsSuite) TestUpdateIfNewerThan(c *C) {
 		jsonReq, err := io.ReadAll(r.Body)
 		c.Assert(err, IsNil)
 		var req struct {
-			Context []map[string]interface{} `json:"context"`
-			Actions []map[string]interface{} `json:"actions"`
+			Context []map[string]any `json:"context"`
+			Actions []map[string]any `json:"actions"`
 
 			AssertionMaxFormats map[string]int `json:"assertion-max-formats"`
 		}
@@ -201,13 +201,13 @@ func (s *storeActionFetchAssertionsSuite) TestUpdateIfNewerThan(c *C) {
 
 		c.Assert(req.Context, HasLen, 0)
 		c.Assert(req.Actions, HasLen, 2)
-		expectedAction1 := map[string]interface{}{
+		expectedAction1 := map[string]any{
 			"action": "fetch-assertions",
 			"key":    "g1",
-			"assertions": []interface{}{
-				map[string]interface{}{
+			"assertions": []any{
+				map[string]any{
 					"type": "snap-declaration",
-					"primary-key": []interface{}{
+					"primary-key": []any{
 						"16",
 						"iEr2EpvaIaqrXxoM2JyHOmuXQYvSzUt5",
 					},
@@ -215,13 +215,13 @@ func (s *storeActionFetchAssertionsSuite) TestUpdateIfNewerThan(c *C) {
 				},
 			},
 		}
-		expectedAction2 := map[string]interface{}{
+		expectedAction2 := map[string]any{
 			"action": "fetch-assertions",
 			"key":    "g2",
-			"assertions": []interface{}{
-				map[string]interface{}{
+			"assertions": []any{
+				map[string]any{
 					"type": "snap-declaration",
-					"primary-key": []interface{}{
+					"primary-key": []any{
 						"16",
 						"CSO04Jhav2yK0uz97cr0ipQRyqg0qQL6",
 					},
@@ -229,9 +229,9 @@ func (s *storeActionFetchAssertionsSuite) TestUpdateIfNewerThan(c *C) {
 				},
 			},
 		}
-		expectedActions := []map[string]interface{}{expectedAction1, expectedAction2}
+		expectedActions := []map[string]any{expectedAction1, expectedAction2}
 		if req.Actions[0]["key"] != "g1" {
-			expectedActions = []map[string]interface{}{expectedAction2, expectedAction1}
+			expectedActions = []map[string]any{expectedAction2, expectedAction1}
 		}
 		c.Assert(req.Actions, DeepEquals, expectedActions)
 
@@ -321,8 +321,8 @@ func (s *storeActionFetchAssertionsSuite) TestFetchNotFound(c *C) {
 		jsonReq, err := io.ReadAll(r.Body)
 		c.Assert(err, IsNil)
 		var req struct {
-			Context []map[string]interface{} `json:"context"`
-			Actions []map[string]interface{} `json:"actions"`
+			Context []map[string]any `json:"context"`
+			Actions []map[string]any `json:"actions"`
 		}
 
 		err = json.Unmarshal(jsonReq, &req)
@@ -330,13 +330,13 @@ func (s *storeActionFetchAssertionsSuite) TestFetchNotFound(c *C) {
 
 		c.Assert(req.Context, HasLen, 0)
 		c.Assert(req.Actions, HasLen, 1)
-		expectedAction := map[string]interface{}{
+		expectedAction := map[string]any{
 			"action": "fetch-assertions",
 			"key":    "g1",
-			"assertions": []interface{}{
-				map[string]interface{}{
+			"assertions": []any{
+				map[string]any{
 					"type": "snap-declaration",
-					"primary-key": []interface{}{
+					"primary-key": []any{
 						"16",
 						"xEr2EpvaIaqrXxoM2JyHOmuXQYvSzUt5",
 					},
@@ -416,8 +416,8 @@ func (s *storeActionFetchAssertionsSuite) TestFetchValidationSetNotFound(c *C) {
 		jsonReq, err := io.ReadAll(r.Body)
 		c.Assert(err, IsNil)
 		var req struct {
-			Context []map[string]interface{} `json:"context"`
-			Actions []map[string]interface{} `json:"actions"`
+			Context []map[string]any `json:"context"`
+			Actions []map[string]any `json:"actions"`
 		}
 
 		err = json.Unmarshal(jsonReq, &req)
@@ -425,13 +425,13 @@ func (s *storeActionFetchAssertionsSuite) TestFetchValidationSetNotFound(c *C) {
 
 		c.Assert(req.Context, HasLen, 0)
 		c.Assert(req.Actions, HasLen, 1)
-		expectedAction := map[string]interface{}{
+		expectedAction := map[string]any{
 			"action": "fetch-assertions",
 			"key":    "g1",
-			"assertions": []interface{}{
-				map[string]interface{}{
+			"assertions": []any{
+				map[string]any{
 					"type": "validation-set",
-					"sequence-key": []interface{}{
+					"sequence-key": []any{
 						"16",
 						"foo",
 						"bar",
@@ -587,8 +587,8 @@ func (s *storeActionFetchAssertionsSuite) TestUpdateSequenceForming(c *C) {
 		jsonReq, err := io.ReadAll(r.Body)
 		c.Assert(err, IsNil)
 		var req struct {
-			Context []map[string]interface{} `json:"context"`
-			Actions []map[string]interface{} `json:"actions"`
+			Context []map[string]any `json:"context"`
+			Actions []map[string]any `json:"actions"`
 
 			AssertionMaxFormats map[string]int `json:"assertion-max-formats"`
 		}
@@ -598,21 +598,21 @@ func (s *storeActionFetchAssertionsSuite) TestUpdateSequenceForming(c *C) {
 
 		c.Assert(req.Context, HasLen, 0)
 		c.Assert(req.Actions, HasLen, 2)
-		expectedAction1 := map[string]interface{}{
+		expectedAction1 := map[string]any{
 			"action": "fetch-assertions",
 			"key":    "g1",
-			"assertions": []interface{}{
-				map[string]interface{}{
+			"assertions": []any{
+				map[string]any{
 					"type": "validation-set",
-					"sequence-key": []interface{}{
+					"sequence-key": []any{
 						"16",
 						"account-1/name-1",
 					},
 					"sequence": float64(3),
 				},
-				map[string]interface{}{
+				map[string]any{
 					"type": "validation-set",
-					"sequence-key": []interface{}{
+					"sequence-key": []any{
 						"16",
 						"account-1/name-2",
 					},
@@ -621,22 +621,22 @@ func (s *storeActionFetchAssertionsSuite) TestUpdateSequenceForming(c *C) {
 				},
 			},
 		}
-		expectedAction2 := map[string]interface{}{
+		expectedAction2 := map[string]any{
 			"action": "fetch-assertions",
 			"key":    "g2",
-			"assertions": []interface{}{
-				map[string]interface{}{
+			"assertions": []any{
+				map[string]any{
 					"type": "validation-set",
-					"sequence-key": []interface{}{
+					"sequence-key": []any{
 						"16",
 						"account-2/name",
 					},
 				},
 			},
 		}
-		expectedActions := []map[string]interface{}{expectedAction1, expectedAction2}
+		expectedActions := []map[string]any{expectedAction1, expectedAction2}
 		if req.Actions[0]["key"] != "g1" {
-			expectedActions = []map[string]interface{}{expectedAction2, expectedAction1}
+			expectedActions = []map[string]any{expectedAction2, expectedAction1}
 		}
 		c.Assert(req.Actions, DeepEquals, expectedActions)
 
@@ -737,8 +737,8 @@ func (s *storeActionFetchAssertionsSuite) TestUpdateSequenceFormingCommonGroupin
 		jsonReq, err := io.ReadAll(r.Body)
 		c.Assert(err, IsNil)
 		var req struct {
-			Context []map[string]interface{} `json:"context"`
-			Actions []map[string]interface{} `json:"actions"`
+			Context []map[string]any `json:"context"`
+			Actions []map[string]any `json:"actions"`
 
 			AssertionMaxFormats map[string]int `json:"assertion-max-formats"`
 		}
@@ -749,29 +749,29 @@ func (s *storeActionFetchAssertionsSuite) TestUpdateSequenceFormingCommonGroupin
 		c.Assert(req.Context, HasLen, 0)
 		c.Assert(req.Actions, HasLen, 2)
 
-		expectedAction1 := map[string]interface{}{
+		expectedAction1 := map[string]any{
 			"action": "fetch-assertions",
 			"key":    "g1",
-			"assertions": []interface{}{
-				map[string]interface{}{
+			"assertions": []any{
+				map[string]any{
 					"type": "snap-declaration",
-					"primary-key": []interface{}{
+					"primary-key": []any{
 						"16",
 						"iEr2EpvaIaqrXxoM2JyHOmuXQYvSzUt5",
 					},
 					"if-newer-than": float64(0),
 				},
-				map[string]interface{}{
+				map[string]any{
 					"type": "validation-set",
-					"sequence-key": []interface{}{
+					"sequence-key": []any{
 						"16",
 						"account-1/name-1",
 					},
 					"sequence": float64(3),
 				},
-				map[string]interface{}{
+				map[string]any{
 					"type": "validation-set",
-					"sequence-key": []interface{}{
+					"sequence-key": []any{
 						"16",
 						"account-1/name-2",
 					},
@@ -780,21 +780,21 @@ func (s *storeActionFetchAssertionsSuite) TestUpdateSequenceFormingCommonGroupin
 				},
 			},
 		}
-		expectedAction2 := map[string]interface{}{
+		expectedAction2 := map[string]any{
 			"action": "fetch-assertions",
 			"key":    "g2",
-			"assertions": []interface{}{
-				map[string]interface{}{
+			"assertions": []any{
+				map[string]any{
 					"type": "snap-declaration",
-					"primary-key": []interface{}{
+					"primary-key": []any{
 						"16",
 						"CSO04Jhav2yK0uz97cr0ipQRyqg0qQL6",
 					},
 					"if-newer-than": float64(1),
 				},
-				map[string]interface{}{
+				map[string]any{
 					"type": "validation-set",
-					"sequence-key": []interface{}{
+					"sequence-key": []any{
 						"16",
 						"account-2/name",
 					},
@@ -802,9 +802,9 @@ func (s *storeActionFetchAssertionsSuite) TestUpdateSequenceFormingCommonGroupin
 			},
 		}
 
-		expectedActions := []map[string]interface{}{expectedAction1, expectedAction2}
+		expectedActions := []map[string]any{expectedAction1, expectedAction2}
 		if req.Actions[0]["key"] != "g1" {
-			expectedActions = []map[string]interface{}{expectedAction2, expectedAction1}
+			expectedActions = []map[string]any{expectedAction2, expectedAction1}
 		}
 		c.Assert(req.Actions, DeepEquals, expectedActions)
 		c.Assert(req.AssertionMaxFormats, DeepEquals, asserts.MaxSupportedFormats(1))
@@ -902,8 +902,8 @@ func (s *storeActionFetchAssertionsSuite) TestFetchOptionalPrimaryKeys(c *C) {
 		jsonReq, err := io.ReadAll(r.Body)
 		c.Assert(err, IsNil)
 		var req struct {
-			Context []map[string]interface{} `json:"context"`
-			Actions []map[string]interface{} `json:"actions"`
+			Context []map[string]any `json:"context"`
+			Actions []map[string]any `json:"actions"`
 
 			AssertionMaxFormats map[string]int `json:"assertion-max-formats"`
 		}
@@ -913,13 +913,13 @@ func (s *storeActionFetchAssertionsSuite) TestFetchOptionalPrimaryKeys(c *C) {
 
 		c.Assert(req.Context, HasLen, 0)
 		c.Assert(req.Actions, HasLen, 1)
-		expectedAction := map[string]interface{}{
+		expectedAction := map[string]any{
 			"action": "fetch-assertions",
 			"key":    "g1",
-			"assertions": []interface{}{
-				map[string]interface{}{
+			"assertions": []any{
+				map[string]any{
 					"type": "snap-revision",
-					"primary-key": []interface{}{
+					"primary-key": []any{
 						"QlqR0uAWEAWF5Nwnzj5kqmmwFslYPu1IL16MKtLKhwhv0kpBv5wKZ_axf_nf_2cL",
 					},
 				},

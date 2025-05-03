@@ -83,7 +83,7 @@ var (
 )
 
 func sessionInfo(c *Command, r *http.Request) Response {
-	m := map[string]interface{}{
+	m := map[string]any{
 		"version": c.s.Version,
 	}
 	return SyncResponse(m)
@@ -152,7 +152,7 @@ func serviceStart(inst *client.ServiceInstruction, sysd systemd.Systemd) Respons
 		Result: &errorResult{
 			Message: "some user services failed to start",
 			Kind:    errorKindServiceControl,
-			Value: map[string]interface{}{
+			Value: map[string]any{
 				"start-errors": startErrors,
 				"stop-errors":  stopErrors,
 			},
@@ -189,7 +189,7 @@ func serviceRestart(inst *client.ServiceInstruction, sysd systemd.Systemd) Respo
 		Result: &errorResult{
 			Message: "some user services failed to restart",
 			Kind:    errorKindServiceControl,
-			Value: map[string]interface{}{
+			Value: map[string]any{
 				"restart-errors": restartErrors,
 			},
 		},
@@ -218,7 +218,7 @@ func serviceStop(inst *client.ServiceInstruction, sysd systemd.Systemd) Response
 			Result: &errorResult{
 				Message: "some user services failed to stop",
 				Kind:    errorKindServiceControl,
-				Value: map[string]interface{}{
+				Value: map[string]any{
 					"stop-errors": stopErrors,
 				},
 			},
@@ -349,7 +349,7 @@ func serviceStatus(c *Command, r *http.Request) Response {
 			Result: &errorResult{
 				Message: "some user services failed to respond to status query",
 				Kind:    errorKindServiceStatus,
-				Value: map[string]interface{}{
+				Value: map[string]any{
 					"status-errors": statusErrors,
 				},
 			},

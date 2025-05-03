@@ -437,11 +437,11 @@ func checkStream(brandID string, repairID int, r []asserts.Assertion) (repair *a
 }
 
 type peekResp struct {
-	Headers map[string]interface{} `json:"headers"`
+	Headers map[string]any `json:"headers"`
 }
 
 // Peek retrieves the headers for the repair with the given ids.
-func (run *Runner) Peek(brandID string, repairID int) (headers map[string]interface{}, err error) {
+func (run *Runner) Peek(brandID string, repairID int) (headers map[string]any, err error) {
 	if isStoreOffline(dirs.SnapRepairConfigFile) {
 		return nil, errStoreOffline
 	}
@@ -856,12 +856,12 @@ func (run *Runner) SaveState() error {
 	return nil
 }
 
-func stringList(headers map[string]interface{}, name string) ([]string, error) {
+func stringList(headers map[string]any, name string) ([]string, error) {
 	v, ok := headers[name]
 	if !ok {
 		return nil, nil
 	}
-	l, ok := v.([]interface{})
+	l, ok := v.([]any)
 	if !ok {
 		return nil, fmt.Errorf("header %q is not a list", name)
 	}
@@ -877,7 +877,7 @@ func stringList(headers map[string]interface{}, name string) ([]string, error) {
 }
 
 // Applicable returns whether a repair with the given headers is applicable to the device.
-func (run *Runner) Applicable(headers map[string]interface{}) bool {
+func (run *Runner) Applicable(headers map[string]any) bool {
 	if headers["disabled"] == "true" {
 		return false
 	}

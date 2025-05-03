@@ -61,7 +61,7 @@ func (cr ComponentRef) Validate() error {
 	return nil
 }
 
-func (cid *ComponentRef) UnmarshalYAML(unmarshall func(interface{}) error) error {
+func (cid *ComponentRef) UnmarshalYAML(unmarshall func(any) error) error {
 	idStr := ""
 	if err := unmarshall(&idStr); err != nil {
 		return err

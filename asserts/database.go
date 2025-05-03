@@ -383,7 +383,7 @@ func (db *Database) PublicKey(keyID string) (PublicKey, error) {
 
 // Sign assembles an assertion with the provided information and signs it
 // with the private key from `headers["authority-id"]` that has the provided key id.
-func (db *Database) Sign(assertType *AssertionType, headers map[string]interface{}, body []byte, keyID string) (Assertion, error) {
+func (db *Database) Sign(assertType *AssertionType, headers map[string]any, body []byte, keyID string) (Assertion, error) {
 	privKey, err := db.safeGetPrivateKey(keyID)
 	if err != nil {
 		return nil, err

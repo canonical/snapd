@@ -552,7 +552,7 @@ func (m *InterfaceManager) undoDiscardConns(task *state.Task, _ *tomb.Tomb) erro
 	return nil
 }
 
-func getDynamicHookAttributes(task *state.Task) (plugAttrs, slotAttrs map[string]interface{}, err error) {
+func getDynamicHookAttributes(task *state.Task) (plugAttrs, slotAttrs map[string]any, err error) {
 	if err = task.Get("plug-dynamic", &plugAttrs); err != nil && !errors.Is(err, state.ErrNoState) {
 		return nil, nil, err
 	}
@@ -560,16 +560,16 @@ func getDynamicHookAttributes(task *state.Task) (plugAttrs, slotAttrs map[string
 		return nil, nil, err
 	}
 	if plugAttrs == nil {
-		plugAttrs = make(map[string]interface{})
+		plugAttrs = make(map[string]any)
 	}
 	if slotAttrs == nil {
-		slotAttrs = make(map[string]interface{})
+		slotAttrs = make(map[string]any)
 	}
 
 	return plugAttrs, slotAttrs, nil
 }
 
-func setDynamicHookAttributes(task *state.Task, plugAttrs, slotAttrs map[string]interface{}) {
+func setDynamicHookAttributes(task *state.Task, plugAttrs, slotAttrs map[string]any) {
 	task.Set("plug-dynamic", plugAttrs)
 	task.Set("slot-dynamic", slotAttrs)
 }
@@ -1822,7 +1822,7 @@ func (m *InterfaceManager) doHotplugUpdateSlot(task *state.Task, _ *tomb.Tomb) e
 		return fmt.Errorf("internal error: cannot get hotplug task attributes: %s", err)
 	}
 
-	var attrs map[string]interface{}
+	var attrs map[string]any
 	if err := task.Get("slot-attrs", &attrs); err != nil {
 		return fmt.Errorf("internal error: cannot get slot-attrs attribute for device %s, interface %s: %s", hotplugKey, ifaceName, err)
 	}

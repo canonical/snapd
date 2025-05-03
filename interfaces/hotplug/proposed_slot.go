@@ -46,9 +46,9 @@ type ProposedSlot struct {
 	// Name is how the interface wants to name the slot. When left empty,
 	// one will be generated on demand. The hotplug machinery appends a
 	// suffix to ensure uniqueness of the name.
-	Name  string                 `json:"name"`
-	Label string                 `json:"label"`
-	Attrs map[string]interface{} `json:"attrs,omitempty"`
+	Name  string         `json:"name"`
+	Label string         `json:"label"`
+	Attrs map[string]any `json:"attrs,omitempty"`
 }
 
 // Clean returns a copy of the input slot with normalized attributes and validated slot name (unless its empty).
@@ -62,12 +62,12 @@ func (slot *ProposedSlot) Clean() (*ProposedSlot, error) {
 	}
 	attrs := slot.Attrs
 	if attrs == nil {
-		attrs = make(map[string]interface{})
+		attrs = make(map[string]any)
 	}
 
 	return &ProposedSlot{
 		Name:  slot.Name,
 		Label: slot.Label,
-		Attrs: utils.NormalizeInterfaceAttributes(attrs).(map[string]interface{}),
+		Attrs: utils.NormalizeInterfaceAttributes(attrs).(map[string]any),
 	}, nil
 }

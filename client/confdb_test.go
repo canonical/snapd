@@ -47,7 +47,7 @@ func (cs *clientSuite) TestConfdbSet(c *C) {
 	cs.status = 202
 	cs.rsp = `{"type": "async", "status-code": 202, "change": "123"}`
 
-	chgID, err := cs.cli.ConfdbSetViaView("a/b/c", map[string]interface{}{"foo": "bar", "baz": json.Number("1")})
+	chgID, err := cs.cli.ConfdbSetViaView("a/b/c", map[string]any{"foo": "bar", "baz": json.Number("1")})
 	c.Check(err, IsNil)
 	c.Check(chgID, Equals, "123")
 	c.Assert(cs.reqs, HasLen, 1)
@@ -58,8 +58,8 @@ func (cs *clientSuite) TestConfdbSet(c *C) {
 	c.Assert(err, IsNil)
 
 	// need to decode because entries may have been encoded in any order
-	res := make(map[string]interface{})
+	res := make(map[string]any)
 	err = json.Unmarshal(data, &res)
 	c.Assert(err, IsNil)
-	c.Check(res, DeepEquals, map[string]interface{}{"foo": "bar", "baz": float64(1)})
+	c.Check(res, DeepEquals, map[string]any{"foo": "bar", "baz": float64(1)})
 }

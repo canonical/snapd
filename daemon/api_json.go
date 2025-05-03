@@ -25,24 +25,24 @@ import (
 
 // plugJSON aids in marshaling snap.PlugInfo into JSON.
 type plugJSON struct {
-	Snap      string                 `json:"snap"`
-	Name      string                 `json:"plug"`
-	Interface string                 `json:"interface,omitempty"`
-	Attrs     map[string]interface{} `json:"attrs,omitempty"`
-	Apps      []string               `json:"apps,omitempty"`
-	Label     string                 `json:"label,omitempty"`
+	Snap      string         `json:"snap"`
+	Name      string         `json:"plug"`
+	Interface string         `json:"interface,omitempty"`
+	Attrs     map[string]any `json:"attrs,omitempty"`
+	Apps      []string       `json:"apps,omitempty"`
+	Label     string         `json:"label,omitempty"`
 	// Connections are synthesized, they are not on the original type.
 	Connections []interfaces.SlotRef `json:"connections,omitempty"`
 }
 
 // slotJSON aids in marshaling snap.SlotInfo into JSON.
 type slotJSON struct {
-	Snap      string                 `json:"snap"`
-	Name      string                 `json:"slot"`
-	Interface string                 `json:"interface,omitempty"`
-	Attrs     map[string]interface{} `json:"attrs,omitempty"`
-	Apps      []string               `json:"apps,omitempty"`
-	Label     string                 `json:"label,omitempty"`
+	Snap      string         `json:"snap"`
+	Name      string         `json:"slot"`
+	Interface string         `json:"interface,omitempty"`
+	Attrs     map[string]any `json:"attrs,omitempty"`
+	Apps      []string       `json:"apps,omitempty"`
+	Label     string         `json:"label,omitempty"`
 	// Connections are synthesized, they are not on the original type.
 	Connections []interfaces.PlugRef `json:"connections,omitempty"`
 }
@@ -67,13 +67,13 @@ type interfaceAction struct {
 // connectionsJSON aids in marshalling information about a single connection
 // into JSON
 type connectionJSON struct {
-	Slot      interfaces.SlotRef     `json:"slot"`
-	Plug      interfaces.PlugRef     `json:"plug"`
-	Interface string                 `json:"interface"`
-	Manual    bool                   `json:"manual,omitempty"`
-	Gadget    bool                   `json:"gadget,omitempty"`
-	SlotAttrs map[string]interface{} `json:"slot-attrs,omitempty"`
-	PlugAttrs map[string]interface{} `json:"plug-attrs,omitempty"`
+	Slot      interfaces.SlotRef `json:"slot"`
+	Plug      interfaces.PlugRef `json:"plug"`
+	Interface string             `json:"interface"`
+	Manual    bool               `json:"manual,omitempty"`
+	Gadget    bool               `json:"gadget,omitempty"`
+	SlotAttrs map[string]any     `json:"slot-attrs,omitempty"`
+	PlugAttrs map[string]any     `json:"plug-attrs,omitempty"`
 }
 
 // legacyConnectionsJSON aids in marshaling legacy connections into JSON.

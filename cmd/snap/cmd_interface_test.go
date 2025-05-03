@@ -58,7 +58,7 @@ func (s *SnapSuite) TestInterfaceListEmpty(c *C) {
 		body, err := io.ReadAll(r.Body)
 		c.Check(err, IsNil)
 		c.Check(body, DeepEquals, []byte{})
-		EncodeResponseBody(c, w, map[string]interface{}{
+		EncodeResponseBody(c, w, map[string]any{
 			"type":   "sync",
 			"result": []*client.Interface{},
 		})
@@ -78,7 +78,7 @@ func (s *SnapSuite) TestInterfaceListAllEmpty(c *C) {
 		body, err := io.ReadAll(r.Body)
 		c.Check(err, IsNil)
 		c.Check(body, DeepEquals, []byte{})
-		EncodeResponseBody(c, w, map[string]interface{}{
+		EncodeResponseBody(c, w, map[string]any{
 			"type":   "sync",
 			"result": []*client.Interface{},
 		})
@@ -98,7 +98,7 @@ func (s *SnapSuite) TestInterfaceList(c *C) {
 		body, err := io.ReadAll(r.Body)
 		c.Check(err, IsNil)
 		c.Check(body, DeepEquals, []byte{})
-		EncodeResponseBody(c, w, map[string]interface{}{
+		EncodeResponseBody(c, w, map[string]any{
 			"type": "sync",
 			"result": []*client.Interface{{
 				Name:    "network",
@@ -128,7 +128,7 @@ func (s *SnapSuite) TestInterfaceListAll(c *C) {
 		body, err := io.ReadAll(r.Body)
 		c.Check(err, IsNil)
 		c.Check(body, DeepEquals, []byte{})
-		EncodeResponseBody(c, w, map[string]interface{}{
+		EncodeResponseBody(c, w, map[string]any{
 			"type": "sync",
 			"result": []*client.Interface{{
 				Name:    "network",
@@ -162,7 +162,7 @@ func (s *SnapSuite) TestInterfaceDetails(c *C) {
 		body, err := io.ReadAll(r.Body)
 		c.Check(err, IsNil)
 		c.Check(body, DeepEquals, []byte{})
-		EncodeResponseBody(c, w, map[string]interface{}{
+		EncodeResponseBody(c, w, map[string]any{
 			"type": "sync",
 			"result": []*client.Interface{{
 				Name:    "network",
@@ -200,7 +200,7 @@ func (s *SnapSuite) TestInterfaceDetailsAndAttrs(c *C) {
 		body, err := io.ReadAll(r.Body)
 		c.Check(err, IsNil)
 		c.Check(body, DeepEquals, []byte{})
-		EncodeResponseBody(c, w, map[string]interface{}{
+		EncodeResponseBody(c, w, map[string]any{
 			"type": "sync",
 			"result": []*client.Interface{{
 				Name:    "serial-port",
@@ -212,7 +212,7 @@ func (s *SnapSuite) TestInterfaceDetailsAndAttrs(c *C) {
 					Snap:  "gizmo-gadget",
 					Name:  "debug-serial-port",
 					Label: "serial port for debugging",
-					Attrs: map[string]interface{}{
+					Attrs: map[string]any{
 						"header":   "pin-array",
 						"location": "internal",
 						"path":     "/dev/ttyS0",
@@ -245,7 +245,7 @@ func (s *SnapSuite) TestInterfaceCompletion(c *C) {
 		c.Assert(r.Method, Equals, "GET")
 		c.Check(r.URL.Path, Equals, "/v2/interfaces")
 		c.Check(r.URL.RawQuery, Equals, "select=all")
-		EncodeResponseBody(c, w, map[string]interface{}{
+		EncodeResponseBody(c, w, map[string]any{
 			"type": "sync",
 			"result": []*client.Interface{{
 				Name:    "network",

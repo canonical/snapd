@@ -967,7 +967,7 @@ func (s *SystemdTestSuite) TestLogs(c *C) {
 }
 
 // mustJSONMarshal panic's if the value cannot be marshaled
-func mustJSONMarshal(v interface{}) *json.RawMessage {
+func mustJSONMarshal(v any) *json.RawMessage {
 	b, err := json.Marshal(v)
 	if err != nil {
 		panic(fmt.Sprintf("couldn't marshal json in test fixture: %v", err))

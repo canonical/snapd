@@ -167,17 +167,17 @@ func (p4 patch4T) snapSetupAndState(task *state.Task) (*patch4SnapSetup, *patch4
 }
 
 // getMaybe calls task.Get and wraps any non-ErrNoState error in an informative message
-func (p4 patch4T) getMaybe(task *state.Task, key string, value interface{}) error {
+func (p4 patch4T) getMaybe(task *state.Task, key string, value any) error {
 	return p4.gget(task, key, true, value)
 }
 
 // get calls task.Get and wraps any error in an informative message
-func (p4 patch4T) get(task *state.Task, key string, value interface{}) error {
+func (p4 patch4T) get(task *state.Task, key string, value any) error {
 	return p4.gget(task, key, false, value)
 }
 
 // gget does the actual work of get and getMaybe
-func (patch4T) gget(task *state.Task, key string, passThroughMissing bool, value interface{}) error {
+func (patch4T) gget(task *state.Task, key string, passThroughMissing bool, value any) error {
 	err := task.Get(key, value)
 	if err == nil || (passThroughMissing && errors.Is(err, state.ErrNoState)) {
 		return err

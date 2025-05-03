@@ -189,7 +189,7 @@ func (r *Reader) Check(ctx context.Context, usernames []string) error {
 }
 
 // Logf is the type implemented by logging functions.
-type Logf func(format string, args ...interface{})
+type Logf func(format string, args ...any)
 
 // Restore the data from the snapshot.
 //

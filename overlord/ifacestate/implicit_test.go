@@ -42,7 +42,7 @@ func (implicitSuite) TestAddImplicitInterfacesOnCore(c *C) {
 		"foo": {
 			Name:        "foo",
 			Interface:   "empty",
-			StaticAttrs: map[string]interface{}{"attr": "value"},
+			StaticAttrs: map[string]any{"attr": "value"},
 			HotplugKey:  "1234",
 		}}
 	st.Lock()
@@ -71,7 +71,7 @@ func (implicitSuite) TestAddImplicitInterfacesOnCore(c *C) {
 	slot := info.Slots["foo"]
 	c.Assert(slot, NotNil)
 	c.Assert(slot.Interface, Equals, "empty")
-	c.Assert(slot.Attrs, DeepEquals, map[string]interface{}{"attr": "value"})
+	c.Assert(slot.Attrs, DeepEquals, map[string]any{"attr": "value"})
 	c.Assert(slot.HotplugKey, DeepEquals, snap.HotplugKey("1234"))
 }
 

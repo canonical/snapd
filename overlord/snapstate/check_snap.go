@@ -230,7 +230,7 @@ func validateInfoAndFlags(info *snap.Info, snapst *SnapState, flags Flags) error
 
 var openSnapFile = backend.OpenSnapFile
 
-func validateContainer(c snap.Container, s *snap.Info, logf func(format string, v ...interface{})) error {
+func validateContainer(c snap.Container, s *snap.Info, logf func(format string, v ...any)) error {
 	err := snap.ValidateSnapContainer(c, s, logf)
 	if err == nil {
 		return nil

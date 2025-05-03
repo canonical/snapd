@@ -34,7 +34,7 @@ type earlySuite struct {
 var _ = Suite(&earlySuite{})
 
 func (s *earlySuite) TestEarly(c *C) {
-	patch := map[string]interface{}{
+	patch := map[string]any{
 		"experimental.parallel-instances": true,
 		"experimental.user-daemons":       true,
 		"service.ssh.disable":             true,
@@ -46,7 +46,7 @@ func (s *earlySuite) TestEarly(c *C) {
 	// only early options as described by flags earlyConfigFilters
 	// were processed
 
-	c.Check(tr.conf, DeepEquals, map[string]interface{}{
+	c.Check(tr.conf, DeepEquals, map[string]any{
 		"experimental.parallel-instances": true,
 		"experimental.user-daemons":       true,
 	})
