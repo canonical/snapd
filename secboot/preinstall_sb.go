@@ -1,4 +1,5 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
+//go:build !nosecboot
 
 /*
  * Copyright (C) 2018-2025 Canonical Ltd
@@ -23,7 +24,7 @@ import (
 	"context"
 	"fmt"
 
-	secboot_efi "github.com/snapcore/secboot/efi"
+	sb_efi "github.com/snapcore/secboot/efi"
 	"github.com/snapcore/secboot/efi/preinstall"
 )
 
@@ -86,6 +87,7 @@ func convertActions(actions []preinstall.Action) []string {
 
 func newInternalErrorUnexpectedType(err error) PreinstallErrorAndActions {
 	message := fmt.Sprintf("cannot convert error of unexpected type %[1]T (%[1]v)", err)
+
 	return PreinstallErrorAndActions{
 		Kind:    string(preinstall.ErrorKindInternal),
 		Message: message,
@@ -93,18 +95,23 @@ func newInternalErrorUnexpectedType(err error) PreinstallErrorAndActions {
 }
 
 // PreinstallCheck runs preinstall checks without customization or profile generation options.
-func PreinstallCheck() error {
+func PreinstallCheck(tpmMode TPMProvisionMode) error {
+	// XXX: Expect preinstallNewRunChecksContext to require tpmMode in order to evaluate
+	// lockout when required. Complete implementation after preinstallNewRunChecksContext
+	// is modified.
+	_ = tpmMode
+
 	// do not customize preinstall checks
 	checkCustomizationFlags := preinstall.CheckFlags(0)
 	// do not customize TCG compliant PCR profile generation
 	profileOptionFlags := preinstall.PCRProfileOptionsFlags(0)
 	// no image required because we avoid profile option flags WithBootManagerCodeProfile and WithSecureBootPolicyProfile
-	loadedImages := []secboot_efi.Image{}
+	loadedImages := []sb_efi.Image{}
 	checksContext := preinstallNewRunChecksContext(checkCustomizationFlags, loadedImages, profileOptionFlags)
 
 	// no actions args due to no actions for preinstall checks
 	args := []any{}
 	// Ignore the returned *preinstall.CheckResult
-	_, err := preinstallRun(checksContext, context.Background(), preinstall.ActionNone, args)
+	_, err := preinstallRun(checksContext, context.Background(), preinstall.ActionNone, args...)
 	return err
 }

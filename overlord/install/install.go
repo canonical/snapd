@@ -118,9 +118,8 @@ type SystemSnapdVersions struct {
 var (
 	timeNow = time.Now
 
-	secbootCheckTPMKeySealingSupported = secboot.CheckTPMKeySealingSupported
-	secbootPreinstallCheck             = secboot.PreinstallCheck
-	sysconfigConfigureTargetSystem     = sysconfig.ConfigureTargetSystem
+	secbootPreinstallCheck         = secboot.PreinstallCheck
+	sysconfigConfigureTargetSystem = sysconfig.ConfigureTargetSystem
 
 	bootUseTokens = boot.UseTokens
 )
@@ -169,17 +168,8 @@ func BuildKernelBootInfo(kernInfo *snap.Info, compSeedInfos []ComponentSeedInfo,
 	}
 }
 
-// MockSecbootCheckTPMKeySealingSupported mocks secboot.CheckTPMKeySealingSupported usage by the package for testing.
-func MockSecbootCheckTPMKeySealingSupported(f func(tpmMode secboot.TPMProvisionMode) error) (restore func()) {
-	old := secbootCheckTPMKeySealingSupported
-	secbootCheckTPMKeySealingSupported = f
-	return func() {
-		secbootCheckTPMKeySealingSupported = old
-	}
-}
-
 // MockSecbootPreinstallCheck mocks secboot.PreinstallCheck usage by the package for testing.
-func MockSecbootPreinstallCheck(f func() error) (restore func()) {
+func MockSecbootPreinstallCheck(f func(secboot.TPMProvisionMode) error) (restore func()) {
 	old := secbootPreinstallCheck
 	secbootPreinstallCheck = f
 	return func() {
@@ -243,24 +233,17 @@ func GetEncryptionSupportInfo(model *asserts.Model, tpmMode secboot.TPMProvision
 	// secboot based encryption
 	checkSecbootEncryption := !checkFDESetupHookEncryption
 	var checkEncryptionErr error
-	var preinstallCheckErr error
 	switch {
 	case checkFDESetupHookEncryption:
 		res.Type, checkEncryptionErr = checkFDEFeatures(runSetupHook)
 	case checkSecbootEncryption:
-		preinstallCheckErr = secbootPreinstallCheck()
-		res.PreinstallCheckErr = preinstallCheckErr
-		checkEncryptionErr = secbootCheckTPMKeySealingSupported(tpmMode)
-
-		// XXX: There is overlap between secbootCheckTPMKeySealingSupported and
-		// PreinstallCheck. This needs to be investigated and unified if possible.
-		// This may require moving additional checks to secboot.
-		if preinstallCheckErr != nil {
-			checkEncryptionErr = preinstallCheckErr
-		}
-
+		// XXX: Remove this comment once confirmed that secbootCheckTPMKeySealingSupported
+		// is covered by PreinstallCheck.
+		checkEncryptionErr = secbootPreinstallCheck(tpmMode)
 		if checkEncryptionErr == nil {
 			res.Type = device.EncryptionTypeLUKS
+		} else {
+			res.PreinstallCheckErr = checkEncryptionErr
 		}
 	default:
 		return res, fmt.Errorf("internal error: no encryption checked in encryptionSupportInfo")
@@ -341,8 +324,8 @@ func NewGetEncryptionSupportInfo(model *asserts.Model, tpmMode secboot.TPMProvis
 	encrypted := model.StorageSafety() == asserts.StorageSafetyEncrypted
 
 	// setUnavailableErrorOrWarning is a helper to populate either
-	// UnavailableErr or UnavailableWarning. Add prefix to UnavailableErr
-	// to indicate when encryption is required and why.
+	// UnavailableErr or UnavailableWarning. Add prefix to Unavailable{Err,Warning}
+	// to indicate when encryption is required.
 	setUnavailableErrorOrWarning := func(err error) {
 		// if encryption is required interpret as error otherwise a
 		// warning (string)
@@ -378,13 +361,12 @@ func NewGetEncryptionSupportInfo(model *asserts.Model, tpmMode secboot.TPMProvis
 		}
 		encInfo.Type = encType
 	} else {
-		// tpm based ecryption, first check sealing support
-		err := secbootCheckTPMKeySealingSupported(tpmMode)
-		setUnavailableErrorOrWarning(fmt.Errorf("cannot use TPM based encryption: %v", err))
-		// then perform comprehensive secboot preinstall check
-		if err = secbootPreinstallCheck(); err != nil {
-			// prioritise preinstall check above sealing support
-			setUnavailableErrorOrWarning(fmt.Errorf("secboot preinstall checks failed: %v", err))
+		// comprehensive preinstall check
+		// XXX: Remove this comment once confirmed that secbootCheckTPMKeySealingSupported
+		// is covered by PreinstallCheck.
+		if err := secbootPreinstallCheck(tpmMode); err != nil {
+			// XXX: Remove this comment once agreed if the compound error will have simple high level message.
+			setUnavailableErrorOrWarning(fmt.Errorf("cannot use TPM based encryption: preinstall check failed"))
 			encInfo.PreinstallCheckErr = err
 			return encInfo, nil
 		}

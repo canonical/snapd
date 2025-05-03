@@ -21,6 +21,7 @@
 package secboot
 
 import (
+	"context"
 	"io"
 	"os"
 	"os/exec"
@@ -29,6 +30,7 @@ import (
 	"github.com/canonical/go-tpm2"
 	sb "github.com/snapcore/secboot"
 	sb_efi "github.com/snapcore/secboot/efi"
+	"github.com/snapcore/secboot/efi/preinstall"
 	sb_hooks "github.com/snapcore/secboot/hooks"
 	sb_tpm2 "github.com/snapcore/secboot/tpm2"
 
@@ -38,7 +40,21 @@ import (
 var (
 	EFIImageFromBootFile = efiImageFromBootFile
 	LockTPMSealedKeys    = lockTPMSealedKeys
+
+	// Preinstall
+	ConvertErrorType               = convertErrorType
+	ConvertActions                 = convertActions
+	NewInternalErrorUnexpectedType = newInternalErrorUnexpectedType
 )
+
+// Preinstall
+func MockSbPreinstallRun(f func(_ *preinstall.RunChecksContext, ctx context.Context, action preinstall.Action, args ...any) (*preinstall.CheckResult, error)) (restore func()) {
+	old := preinstallRun
+	preinstallRun = f
+	return func() {
+		preinstallRun = old
+	}
+}
 
 func MockSbConnectToDefaultTPM(f func() (*sb_tpm2.Connection, error)) (restore func()) {
 	old := sbConnectToDefaultTPM

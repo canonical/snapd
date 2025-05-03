@@ -2948,9 +2948,7 @@ func (s *modelAndGadgetInfoSuite) TestSystemAndGadgetAndEncyptionInfoHappy(c *C)
 	expectedGadgetInfo, err := gadget.InfoFromGadgetYaml([]byte(mockGadgetUCYaml), fakeModel)
 	c.Assert(err, IsNil)
 
-	restore := install.MockSecbootCheckTPMKeySealingSupported(func(secboot.TPMProvisionMode) error { return fmt.Errorf("really no tpm") })
-	defer restore()
-	restore = install.MockSecbootPreinstallCheck(func() error { return fmt.Errorf("preinstall check error: really no tpm") })
+	restore := install.MockSecbootPreinstallCheck(func(secboot.TPMProvisionMode) error { return fmt.Errorf("really no tpm") })
 	defer restore()
 
 	system, gadgetInfo, encInfo, err := s.mgr.SystemAndGadgetAndEncryptionInfo("some-label")
@@ -2968,8 +2966,8 @@ func (s *modelAndGadgetInfoSuite) TestSystemAndGadgetAndEncyptionInfoHappy(c *C)
 	c.Check(encInfo, DeepEquals, &install.EncryptionSupportInfo{
 		Available:          false,
 		StorageSafety:      asserts.StorageSafetyPreferEncrypted,
-		UnavailableWarning: "not encrypting device storage as checking TPM gave: preinstall check error: really no tpm",
-		PreinstallCheckErr: fmt.Errorf("preinstall check error: really no tpm"),
+		UnavailableWarning: "not encrypting device storage as checking TPM gave: really no tpm",
+		PreinstallCheckErr: fmt.Errorf("really no tpm"),
 	})
 }
 
@@ -2979,9 +2977,7 @@ func (s *modelAndGadgetInfoSuite) testSystemAndGadgetAndEncyptionInfoPassphraseS
 	expectedGadgetInfo, err := gadget.InfoFromGadgetYaml([]byte(mockGadgetUCYaml), fakeModel)
 	c.Assert(err, IsNil)
 
-	restore := install.MockSecbootCheckTPMKeySealingSupported(func(secboot.TPMProvisionMode) error { return nil })
-	defer restore()
-	restore = install.MockSecbootPreinstallCheck(func() error { return nil })
+	restore := install.MockSecbootPreinstallCheck(func(secboot.TPMProvisionMode) error { return nil })
 	defer restore()
 
 	system, gadgetInfo, encInfo, err := s.mgr.SystemAndGadgetAndEncryptionInfo("some-label")
