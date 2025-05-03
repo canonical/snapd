@@ -66,6 +66,8 @@ func (s *mainSuite) TestExecuteMountProfileUpdate(c *C) {
 
 	restore := update.MockChangePerform(func(chg *update.Change, as *update.Assumptions) ([]*update.Change, error) {
 		return nil, nil
+	}, func(chg *update.Change, as *update.Assumptions) error {
+		return nil
 	})
 	defer restore()
 
@@ -150,6 +152,9 @@ func (s *mainSuite) TestAddingSyntheticChanges(c *C) {
 				Options: []string{"bind", "ro", "x-snapd.synthetic", "x-snapd.needed-by=/usr/share/mysnap"}}},
 		}
 		return synthetic, nil
+	}, func(chg *update.Change, as *update.Assumptions) error {
+		// This is the doPerform side of the mock that is doing nothing in this test.
+		return nil
 	})
 	defer restore()
 
@@ -228,6 +233,9 @@ func (s *mainSuite) TestRemovingSyntheticChanges(c *C) {
 			panic(fmt.Sprintf("unexpected call n=%d, chg: %v", n, *chg))
 		}
 		return nil, nil
+	}, func(chg *update.Change, as *update.Assumptions) error {
+		// This is the doPerform side of the mock that is doing nothing in this test.
+		return nil
 	})
 	defer restore()
 
@@ -270,6 +278,9 @@ func (s *mainSuite) TestApplyingLayoutChanges(c *C) {
 		default:
 			panic(fmt.Sprintf("unexpected call n=%d, chg: %v", n, *chg))
 		}
+	}, func(chg *update.Change, as *update.Assumptions) error {
+		// This is the doPerform side of the mock that is doing nothing in this test.
+		return nil
 	})
 	defer restore()
 
@@ -313,6 +324,9 @@ func (s *mainSuite) TestApplyingParallelInstanceChanges(c *C) {
 		default:
 			panic(fmt.Sprintf("unexpected call n=%d, chg: %v", n, *chg))
 		}
+	}, func(chg *update.Change, as *update.Assumptions) error {
+		// This is the doPerform side of the mock that is doing nothing in this test.
+		return nil
 	})
 	defer restore()
 
@@ -341,6 +355,8 @@ func (s *mainSuite) TestApplyIgnoredMissingMount(c *C) {
 
 	n := -1
 	restore := update.MockChangePerform(func(chg *update.Change, as *update.Assumptions) ([]*update.Change, error) {
+		return nil, nil
+	}, func(chg *update.Change, as *update.Assumptions) error {
 		n++
 		switch n {
 		case 0:
@@ -353,7 +369,7 @@ func (s *mainSuite) TestApplyIgnoredMissingMount(c *C) {
 					Options: []string{"bind", "x-snapd.ignore-missing"},
 				},
 			})
-			return nil, update.ErrIgnoredMissingMount
+			return update.ErrIgnoredMissingMount
 		default:
 			panic(fmt.Sprintf("unexpected call n=%d, chg: %v", n, *chg))
 		}
@@ -375,6 +391,9 @@ func (s *mainSuite) TestApplyUserFstabHomeRequiredAndValid(c *C) {
 	restore := update.MockChangePerform(func(chg *update.Change, as *update.Assumptions) ([]*update.Change, error) {
 		changes = append(changes, *chg)
 		return nil, nil
+	}, func(chg *update.Change, as *update.Assumptions) error {
+		// This is the doPerform side of the mock that is doing nothing in this test.
+		return nil
 	})
 	defer restore()
 
@@ -413,6 +432,9 @@ func (s *mainSuite) TestApplyUserFstabErrorHomeRequiredAndMissing(c *C) {
 	restore := update.MockChangePerform(func(chg *update.Change, as *update.Assumptions) ([]*update.Change, error) {
 		changes = append(changes, *chg)
 		return nil, nil
+	}, func(chg *update.Change, as *update.Assumptions) error {
+		// This is the doPerform side of the mock that is doing nothing in this test.
+		return nil
 	})
 	defer restore()
 
