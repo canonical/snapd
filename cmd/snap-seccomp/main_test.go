@@ -847,6 +847,21 @@ func (s *snapSeccompSuite) TestRestrictionsWorkingArgsTermios(c *C) {
 	}
 }
 
+func (s *snapSeccompSuite) TestRestrictionsWorkingPipe2(c *C) {
+	for _, t := range []struct {
+		seccompAllowlist string
+		bpfInput         string
+		expected         int
+	}{
+		// good input
+		{"pipe2 - |O_NOTIFICATION_PIPE", "pipe2;native;-,O_NOTIFICATION_PIPE", Allow},
+		// bad input
+		{"pipe2 - |O_NOTIFICATION_PIPE", "quotactl;native;-,99", Deny},
+	} {
+		s.runBpf(c, t.seccompAllowlist, t.bpfInput, t.expected)
+	}
+}
+
 func (s *snapSeccompSuite) TestRestrictionsWorkingArgsUidGid(c *C) {
 	// while 'root' user usually has uid 0, 'daemon' user uid may vary
 	// across distributions, best lookup the uid directly
