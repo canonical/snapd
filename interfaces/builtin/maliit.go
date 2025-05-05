@@ -35,8 +35,7 @@ const maliitBaseDeclarationSlots = `
     allow-installation:
       slot-snap-type:
         - app
-    deny-connection: true
-    deny-auto-connection: true
+        - core
 `
 
 const maliitPermanentSlotAppArmor = `
@@ -114,8 +113,23 @@ dbus (send)
      interface=org.freedesktop.DBus.Properties
      peer=(label=###SLOT_SECURITY_TAGS###),
 
+dbus (send)
+    bus=session
+    interface="org.maliit.Server.Address"
+    path=/org/maliit/server/address
+    peer=(label=unconfined),
+
+dbus (send)
+     bus=session
+     path=/org/maliit/server/address
+     interface=org.freedesktop.DBus.Properties
+     peer=(label=unconfined),
+
 # Provide access to the peer-to-peer dbus socket assigned by the address service
 unix (send, receive, connect) type=stream addr=none peer=(label=###SLOT_SECURITY_TAGS###, addr="@/tmp/maliit-server/dbus-*"),
+
+# Provide access to individual maliit-server sockets
+/{,var/}run/user/*/maliit-server rw,
 `
 
 const maliitPermanentSlotSecComp = `
@@ -124,17 +138,12 @@ accept
 accept4
 `
 
-type maliitInterface struct{}
+type maliitInterface struct {
+	commonInterface
+}
 
 func (iface *maliitInterface) Name() string {
 	return "maliit"
-}
-
-func (iface *maliitInterface) StaticInfo() interfaces.StaticInfo {
-	return interfaces.StaticInfo{
-		Summary:              maliitSummary,
-		BaseDeclarationSlots: maliitBaseDeclarationSlots,
-	}
 }
 
 func (iface *maliitInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
@@ -169,5 +178,11 @@ func (iface *maliitInterface) AutoConnect(*snap.PlugInfo, *snap.SlotInfo) bool {
 }
 
 func init() {
-	registerIface(&maliitInterface{})
+	registerIface(&maliitInterface{commonInterface{
+		name:                  "maliit",
+		summary:               maliitSummary,
+		implicitOnClassic:     true,
+		baseDeclarationSlots:  maliitBaseDeclarationSlots,
+		connectedPlugAppArmor: maliitConnectedPlugAppArmor,
+        }})
 }
