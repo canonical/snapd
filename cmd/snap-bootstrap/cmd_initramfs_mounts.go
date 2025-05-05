@@ -995,14 +995,14 @@ func (m *recoverModeStateMachine) setMountState(part, where string, err error) e
 	return nil
 }
 
-func (m *recoverModeStateMachine) setUnlockStateWithRunKey(partName string, unlockRes secboot.UnlockResult, err error) error {
+func (m *recoverModeStateMachine) setUnlockStateWithRunKey(partName string, unlockRes secboot.UnlockResult, err error) {
 	if unlockRes.IsEncrypted {
 		m.isEncryptedDev = true
 	}
-	return m.degradedState.setUnlockStateWithRunKey(partName, unlockRes, err)
+	m.degradedState.setUnlockStateWithRunKey(partName, unlockRes, err)
 }
 
-func (d *recoverDegradedState) setUnlockStateWithRunKey(partName string, unlockRes secboot.UnlockResult, err error) error {
+func (d *recoverDegradedState) setUnlockStateWithRunKey(partName string, unlockRes secboot.UnlockResult, err error) {
 	part := d.partition(partName)
 	// save the device if we found it from secboot
 	if unlockRes.PartDevice != "" {
@@ -1025,7 +1025,7 @@ func (d *recoverDegradedState) setUnlockStateWithRunKey(partName string, unlockR
 			d.LogErrorf("cannot locate %s partition for mounting host data: %v", partName, err)
 		}
 
-		return nil
+		return
 	}
 
 	if unlockRes.IsEncrypted {
@@ -1044,8 +1044,6 @@ func (d *recoverDegradedState) setUnlockStateWithRunKey(partName string, unlockR
 			panic(fmt.Errorf("Unexpected unlock method: %v", unlockRes.UnlockMethod))
 		}
 	}
-
-	return nil
 }
 
 func (m *recoverModeStateMachine) setUnlockStateWithFallbackKey(partName string, unlockRes secboot.UnlockResult, err error) error {
@@ -1287,9 +1285,7 @@ func (m *recoverModeStateMachine) unlockDataRunKey() (stateFunc, error) {
 		BootMode:         m.mode,
 	}
 	unlockRes, unlockErr := secbootUnlockVolumeUsingSealedKeyIfEncrypted(m.disk, "ubuntu-data", runModeKey, unlockOpts)
-	if err := m.setUnlockStateWithRunKey("ubuntu-data", unlockRes, unlockErr); err != nil {
-		return nil, err
-	}
+	m.setUnlockStateWithRunKey("ubuntu-data", unlockRes, unlockErr)
 	if unlockErr != nil {
 		// we couldn't unlock ubuntu-data with the primary key, or we didn't
 		// find it in the unencrypted case
@@ -1389,9 +1385,7 @@ func (m *recoverModeStateMachine) unlockEncryptedSaveRunKey() (stateFunc, error)
 	}
 
 	unlockRes, unlockErr := secbootUnlockEncryptedVolumeUsingProtectorKey(m.disk, "ubuntu-save", key)
-	if err := m.setUnlockStateWithRunKey("ubuntu-save", unlockRes, unlockErr); err != nil {
-		return nil, err
-	}
+	m.setUnlockStateWithRunKey("ubuntu-save", unlockRes, unlockErr)
 	if unlockErr != nil {
 		// failed to unlock with run key, try fallback key
 		return m.unlockEncryptedSaveFallbackKey, nil
