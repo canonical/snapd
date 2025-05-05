@@ -1,5 +1,5 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
-//go:build linux && (arm || arm64)
+//go:build linux && arm64
 
 /*
  * Copyright (C) Canonical Ltd
