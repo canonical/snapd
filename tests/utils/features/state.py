@@ -99,7 +99,8 @@ class State:
             return self.state[DATA][SNAPS][snap_name][TYPE]
         for task in self.state[TASKS].values():
             if _keys_in_dict(task, DATA, SNAP_SETUP, SIDE_INFO, NAME) \
-                    and task[DATA][SNAP_SETUP][SIDE_INFO][NAME] == snap_name:
+                    and task[DATA][SNAP_SETUP][SIDE_INFO][NAME] == snap_name \
+                    and _keys_in_dict(task, DATA, SNAP_SETUP, TYPE):
                 return task[DATA][SNAP_SETUP][TYPE]
 
         return "NOT_FOUND: {}".format(snap_name)
