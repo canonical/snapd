@@ -462,15 +462,17 @@ func (l *Listener) decodeAndDispatchRequest(buf []byte) error {
 		// can signal ready.
 		isFinalPendingReq := false
 
-		// Before sending the request, check if it is resent. The kernel is
+		// Before forwarding the request, check if it is resent. The kernel is
 		// guaranteed to resend all previously-pending messages before it sends
 		// any new messages, so if it's NOT resent, then we know the kernel is
-		// done sending pending messages.
+		// done sending pending messages. Regardless, all requests are forwarded
+		// over the reqs channel.
 		if msg.Resent() {
 			// Message was previously sent, see if it was the last one we're
 			// waiting for. Also ensure the pending count is decremented before
 			// waiting for the request to be received, so the pending count in
-			// case of a timeout is reported correctly.
+			// case of a timeout is reported correctly. If the listener is
+			// already ready, this check will will return false.
 			isFinalPendingReq = l.decrementPendingCheckFinal()
 		} else {
 			// It is not resent, so there are no more resent messages, and we
