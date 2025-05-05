@@ -1495,13 +1495,13 @@ func (m *recoverModeStateMachine) mountSave() (stateFunc, error) {
 func (m *recoverModeStateMachine) writeRecoverUnlockState() error {
 	// write out degraded.json if we ended up falling back somewhere
 	if m.degraded() {
-		if err := m.degradedState.serializeTo("degraded.json"); err != nil {
+		if err := m.degradedState.serializeTo(boot.DegradedStateFileName); err != nil {
 			return err
 		}
 	}
 
 	// we always output unlocked.json
-	return m.degradedState.serializeTo("unlocked.json")
+	return m.degradedState.serializeTo(boot.UnlockedStateFileName)
 }
 
 func (m *recoverModeStateMachine) writeFactoryResetUnlockState() error {
@@ -1509,7 +1509,7 @@ func (m *recoverModeStateMachine) writeFactoryResetUnlockState() error {
 		return err
 	}
 
-	return m.degradedState.serializeTo("unlocked.json")
+	return m.degradedState.serializeTo(boot.UnlockedStateFileName)
 }
 
 func generateMountsModeRecover(mst *initramfsMountsState) error {
@@ -2449,7 +2449,7 @@ func generateMountsModeRun(mst *initramfsMountsState) error {
 
 	// All the required disks were unlocked. We now write down
 	// their unlock state.
-	diskState.serializeTo("unlocked.json")
+	diskState.serializeTo(boot.UnlockedStateFileName)
 
 	// 4.2. read modeenv
 	modeEnv, err := boot.ReadModeenv(rootfsDir)

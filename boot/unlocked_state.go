@@ -26,6 +26,11 @@ const (
 	KeyRun      = "run"
 	KeyFallback = "fallback"
 	KeyRecovery = "recovery"
+
+	// Name of file the unlock state
+	UnlockedStateFileName = "unlocked.json"
+	// Legacy name of file the unlock state for degraded cases
+	DegradedStateFileName = "degraded.json"
 )
 
 // PartitionState is the state of a partition after recover mode has completed
