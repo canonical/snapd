@@ -344,8 +344,5 @@ execute: |
   # model in the seed should match the one that was installed on the system
   remote.exec "diff <(snap model --assertion) /run/mnt/ubuntu-seed/systems/${LABEL}/model"
 
-  # TODO: update "tests.nested transition" to support rebooting with a passphrase
-  if [ -z "${NESTED_PASSPHRASE-}" ]; then
-    # test that we can actually boot into the installed recovery system
-    tests.nested transition "${LABEL}" recover
-  fi
+  # test that we can actually boot into the installed recovery system
+  tests.nested transition "${LABEL}" recover
