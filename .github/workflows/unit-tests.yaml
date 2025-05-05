@@ -136,9 +136,9 @@ jobs:
           if [ -n "$SKIP_COVERAGE" ]; then
               make check
           else
-              make coverage.xml
+              make coverage.lcov
               mkdir -p "${{ github.workspace }}/.coverage"
-              cp coverage.xml "${{ github.workspace }}/.coverage/coverage-c-code-gcovr-$CC.xml"
+              cp coverage.lcov "${{ github.workspace }}/.coverage/coverage-c-code-gcovr-$CC.lcov"
               make clean
           fi
 
