@@ -14,7 +14,7 @@ features_after_non_nested_task() {
     local task_dir
     task_dir="$(_prepare_artifacts_path feature-tags)"
     "$TESTSTOOLS"/journal-state get-log --no-pager --output cat | grep '"TRACE"' > "$task_dir"/journal.txt
-    cp /var/lib/snapd/state.json "$task_dir"
+    cp /var/lib/snapd/state.json "$task_dir" || true
 }
 
 features_after_nested_task() {
