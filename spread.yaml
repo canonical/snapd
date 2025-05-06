@@ -1132,6 +1132,22 @@ prepare: |
         apt update
     fi
 
+    if [[ "$SPREAD_SYSTEM" == ubuntu-25.04-64 ]]; then
+        if [[ "$SPREAD_REBOOT" = 0 ]]; then
+            # Add PPA for kernel with AppArmor support for metadata tagging
+            add-apt-repository --yes ppa:apparmor-dev/dbus-dev
+            # Install the kernel from the PPA. There's no signed image, so this
+            # must be done manually.
+            apt update && apt install --yes linux-image-unsigned-6.14.0-17-generic
+            # Tell grub to boot into kernel 6.14.0-17-generic
+            submenu="$(grep submenu /boot/grub/grub.cfg | cut -d "'" -f 4)"
+            menuentry="$(grep menuentry /boot/grub/grub.cfg | grep -v recovery | grep '6\.14\.0-17-generic' | cut -d "'" -f 4)"
+            sed -i 's/GRUB_DEFAULT=.*/GRUB_DEFAULT="'"${submenu}>${menuentry}"'"/' /etc/default/grub /etc/default/grub.d/50-cloudimg-settings.cfg
+            update-grub
+            REBOOT
+        fi
+    fi
+
     # Enable EPEL see https://docs.fedoraproject.org/en-US/epel/
     case "$SPREAD_SYSTEM" in
         centos-9-*)
