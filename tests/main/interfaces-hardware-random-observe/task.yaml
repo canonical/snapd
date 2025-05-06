@@ -27,11 +27,9 @@ execute: |
     snap connect test-snapd-hardware-random-observe:hardware-random-observe
 
     echo "Then the snap is able to read hardware random information"
-    test-snapd-hardware-random-observe.check 2>hw.error
-    if MATCH "Permission denied" < hw.error; then
-        echo "Permission error accessing hardware random information"
-        exit 1
-    fi
+    test-snapd-hardware-random-observe.check /dev/hwrng
+    test-snapd-hardware-random-observe.check /sys/class/misc/hw_random/rng_available
+    test-snapd-hardware-random-observe.check /sys/class/misc/hw_random/rng_current
 
     if [ "$(snap debug confinement)" = partial ] ; then
         exit 0
@@ -41,11 +39,11 @@ execute: |
     snap disconnect test-snapd-hardware-random-observe:hardware-random-observe
 
     echo "Then the snap is not able to read the hardware random information"
-    if test-snapd-hardware-random-observe.check 2>hw.error; then
-        echo "Expected permission error accessing hardware control information with disconnected plug"
-        exit 1
-    fi
-    MATCH "Permission denied" < hw.error
+    not test-snapd-hardware-random-observe.check /dev/hwrng 2>hw.error
+    # blocked by cgroups
+    MATCH "dd: .*: Operation not permitted" < hw.error
+    not test-snapd-hardware-random-observe.check /sys/class/misc/hw_random/rng_current 2>hw.error
+    MATCH "cat: .*: Permission denied" < hw.error
 
     echo "And the snap is able to reconnect"
     snap connect test-snapd-hardware-random-observe:hardware-random-observe
