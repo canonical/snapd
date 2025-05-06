@@ -112,6 +112,8 @@ parts:
       - squashfs-tools
       - xdelta3
       - zlib1g
+      - on armhf:
+        - libteec1
       - on arm64:
         - libteec1
     stage:
@@ -236,6 +238,8 @@ parts:
       - libseccomp-dev
       - libselinux1-dev
       - pkg-config
+      - on armhf:
+        - optee-client-dev
       - on arm64:
         - optee-client-dev
     override-pull: |
@@ -365,14 +369,18 @@ parts:
            *)
              export CGO_ENABLED=1
              GO_LD_FLAGS=()
+
+             case "${CRAFT_ARCH_BUILD_FOR}" in
+               arm64|armhf)
+                 GO_LD_FLAGS+=(-ldflags "-extldflags \"-L/usr/lib/${CRAFT_ARCH_TRIPLET_BUILD_FOR}"\")
+                 ;;
+             esac
+
              case "${CRAFT_ARCH_BUILD_FOR}" in
                armhf)
                  # https://bugs.launchpad.net/ubuntu/+source/snapd/+bug/1822738
                  ;;
                *)
-                 if [ "${CRAFT_ARCH_BUILD_FOR}" = "arm64" ]; then
-                   GO_LD_FLAGS+=(-ldflags "-extldflags \"-L/usr/lib/${CRAFT_ARCH_TRIPLET_BUILD_FOR}"\")
-                 fi
                  GO_LD_FLAGS+=(-buildmode=pie)
                  ;;
              esac
@@ -392,14 +400,14 @@ parts:
           lib/snapd/snap-bootstrap)
             TAGS+=(nomanagers)
             case "${CRAFT_ARCH_BUILD_FOR}" in
-              arm64)
+              arm64|armhf)
                 TAGS+=(withoptee)
                 ;;
             esac
             ;;
           lib/snapd/snapd)
             case "${CRAFT_ARCH_BUILD_FOR}" in
-              arm64)
+              arm64|armhf)
                 TAGS+=(withoptee)
                 ;;
             esac
