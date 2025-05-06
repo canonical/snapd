@@ -450,6 +450,15 @@ func updatePrereqIfOutdated(t *state.Task, snapName string, contentAttrs []strin
 		return nil, err
 	}
 
+	// TODO: as a temporary workaround for a bug that occurs when a snap updates
+	// a prereq, we disable rerefreshes.
+	//
+	// specifically, if the snap that pulls in the prereq contains a configure hook
+	// that creates some tasks via snapctl, then those tasks will end up waiting
+	// on the check-rerefresh task for the updated prereq. the check-rerefresh
+	// task panics if any tasks are found to be waiting on it.
+	flags.NoReRefresh = true
+
 	// default provider is missing some content tags (likely outdated) so update it
 	ts, err := UpdateWithDeviceContext(st, snapName, nil, userID, flags, nil, deviceCtx, "")
 	if err != nil {
