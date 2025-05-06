@@ -22,6 +22,8 @@ package secboot_test
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
 
 	"github.com/snapcore/secboot/efi/preinstall"
 	. "gopkg.in/check.v1"
@@ -40,12 +42,62 @@ func (s *preinstallSuite) SetUpTest(c *C) {
 }
 
 func (s *preinstallSuite) TestConvertErrorType(c *C) {
+	jsonArgs, err := json.Marshal(struct {
+		arg1 string
+		arg2 string
+	}{
+		arg1: "arg1",
+		arg2: "arg2",
+	})
+	c.Assert(err, IsNil)
+
+	errorAndAction := preinstall.ErrorKindAndActions{
+		ErrorKind: preinstall.ErrorKindRebootRequired,
+		ErrorArgs: jsonArgs,
+		Actions:   []preinstall.Action{preinstall.ActionReboot, preinstall.ActionShutdown},
+	}
+
+	//XXX: Need secboot helper for constructing errors
+	var convertedErr secboot.PreinstallErrorAndActions
+	c.Assert(func() { convertedErr = secboot.ConvertErrorType(&errorAndAction) }, PanicMatches, "runtime error: invalid memory address or nil pointer dereference")
+	c.Assert(convertedErr, DeepEquals, secboot.PreinstallErrorAndActions{})
 }
 
 func (s *preinstallSuite) TestConvertActions(c *C) {
+	testCases := []struct {
+		actions  []preinstall.Action
+		expected []string
+	}{
+		{nil, []string{}},
+		{[]preinstall.Action{}, []string{}},
+		{[]preinstall.Action{preinstall.ActionReboot, preinstall.ActionShutdown}, []string{"reboot", "shutdown"}},
+	}
+
+	for i, tc := range testCases {
+		convertedActions := secboot.ConvertActions(tc.actions)
+		c.Check(convertedActions, DeepEquals, tc.expected, Commentf("test case %d failed", i))
+	}
 }
 
 func (s *preinstallSuite) TestNewInternalErrorUnexpectedType(c *C) {
+	testCases := []struct {
+		err      error
+		expected secboot.PreinstallErrorAndActions
+	}{
+		{nil, secboot.PreinstallErrorAndActions{
+			Kind:    "internal-error",
+			Message: "cannot convert error of unexpected type <nil> (<nil>)"},
+		},
+		{fmt.Errorf("error message"), secboot.PreinstallErrorAndActions{
+			Kind:    "internal-error",
+			Message: "cannot convert error of unexpected type *errors.errorString (error message)",
+		}},
+	}
+
+	for i, tc := range testCases {
+		errorAndActions := secboot.NewInternalErrorUnexpectedType(tc.err)
+		c.Check(errorAndActions, DeepEquals, tc.expected, Commentf("test case %d failed", i))
+	}
 }
 
 func (s *preinstallSuite) TestPreinstallCheckHappy(c *C) {

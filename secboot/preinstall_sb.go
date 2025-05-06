@@ -33,6 +33,31 @@ var (
 	preinstallRun                 = (*preinstall.RunChecksContext).Run
 )
 
+type compoundPreinstallError struct {
+	errs []error
+}
+
+func (c *compoundPreinstallError) Error() string {
+	return fmt.Sprintf("preinstall check detected %d errors", len(c.errs))
+}
+
+func (c *compoundPreinstallError) Unwrap() []error {
+	return c.errs
+}
+
+func combineErrors(errs ...error) error {
+	return &compoundPreinstallError{errs: errs}
+}
+
+func NewPreinstallCompoundError(errorAndActions []preinstall.ErrorKindAndActions) error {
+	var errs []error
+	for _, err := range errorAndActions {
+		errs = append(errs, &err)
+	}
+
+	return combineErrors()
+}
+
 // UnpackPreinstallCheckError converts a single or compound preinstall check
 // error into a slice of PreinstallErrorAndActions. If the provided error or any
 // contained error is not of type *preinstall.ErrorKindAndActions, the function
