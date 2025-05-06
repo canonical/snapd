@@ -995,6 +995,12 @@ func (s *prereqSuite) TestPreReqContentAttrsNotSatisfied(c *C) {
 	c.Check(chg.Tasks()[0].Kind(), Equals, "prerequisites")
 	c.Check(chg.Tasks()[0].Status(), Equals, state.DoneStatus)
 	c.Check(chg.Tasks()[0].Log(), HasLen, 0)
+
+	// TODO: this check is here to verify that we're disabling rerefreshes when
+	// updating prereqs. should be removed when we change that behavior.
+	for _, t := range chg.Tasks() {
+		c.Assert(t.Kind(), Not(Equals), "check-rerefresh")
+	}
 }
 
 func (s *prereqSuite) TestPreReqContentAttrsNotSatisfiedSeeding(c *C) {
