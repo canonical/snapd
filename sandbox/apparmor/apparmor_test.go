@@ -429,6 +429,10 @@ func (s *apparmorSuite) TestProbeAppArmorKernelFeatures(c *C) {
 			[]string{"file", "network"},
 		},
 		{
+			"file, tags",
+			[]string{"file", "tags"},
+		},
+		{
 			"file\ndbus \n  network",
 			[]string{"dbus", "file", "network"},
 		},

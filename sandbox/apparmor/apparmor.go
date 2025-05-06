@@ -31,6 +31,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"unicode"
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
@@ -699,7 +700,9 @@ func probeKernelFeatures() ([]string, error) {
 		}
 	}
 	if data, err := os.ReadFile(filepath.Join(rootPath, featuresSysPath, "policy", "notify", "user")); err == nil {
-		notifyUserFeatures := strings.Fields(string(data))
+		notifyUserFeatures := strings.FieldsFunc(string(data), func(r rune) bool {
+			return unicode.IsSpace(r) || uint32(r) < unicode.MaxLatin1 && r == ','
+		})
 		for _, feat := range notifyUserFeatures {
 			features = append(features, "policy:notify:user:"+feat)
 		}
