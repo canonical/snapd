@@ -48,7 +48,7 @@ Depends: ${python3:Depends}, ${misc:Depends}, dracut-core (>= 051-1),
          udev,
          util-linux,
          dh-dlopenlibdeps,
-         optee-client-dev [arm64]
+         optee-client-dev [arm64 armhf]
 Description: standard embedded initrd
  Standard embedded initrd implementation to be used with Ubuntu Core
  systems. Currently targeting creating BLS Type2 like binaries.
