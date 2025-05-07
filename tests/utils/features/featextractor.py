@@ -7,7 +7,7 @@ from typing import Any, TextIO
 import sys
 
 from features import Cmd, Endpoint, Interface, Task, Change, Ensure, CmdLogLine, EndpointLogLine, InterfaceLogLine, EnsureLogLine, ChangeLogLine, TaskLogLine
-from state import State
+from state import State, NotInStateError
 
 
 def _check_msg(json_entry: dict[str, Any], msg: str) -> bool:
@@ -102,10 +102,13 @@ class ChangeFeature:
 
     @staticmethod
     def handle_feature(feature_dict: dict[str, list[Any]], json_entry: dict[str, Any], state: State):
-        snap_types = []
+        snap_types = ['NOT FOUND']
         if state:
-            snap_types = list(state.get_snap_types_from_change_id(
-                json_entry[ChangeLogLine.id]))
+            try:
+                snap_types = list(state.get_snap_types_from_change_id(
+                    json_entry[ChangeLogLine.id]))
+            except NotInStateError:
+                pass
         feature_dict[ChangeFeature.parent].append(
             Change(kind=json_entry[ChangeLogLine.kind], snap_types=snap_types))
 
@@ -125,10 +128,13 @@ class TaskFeature:
             if json_entry[TaskLogLine.id] == entry["id"]:
                 entry['last_status'] = json_entry[TaskLogLine.status]
                 return
-        snap_types = []
+        snap_types = ['NOT FOUND']
         if state:
-            snap_types = state.get_snap_types_from_task_id(
-                json_entry[TaskLogLine.id])
+            try:
+                snap_types = state.get_snap_types_from_task_id(
+                    json_entry[TaskLogLine.id])
+            except NotInStateError:
+                pass
         feature_dict[TaskFeature.parent].append(
             Task(id=json_entry[TaskLogLine.id],
                  kind=json_entry[TaskLogLine.task_name],
@@ -173,9 +179,9 @@ def get_feature_dictionary(log_file: TextIO, feature_list: list[str], state: Sta
                     try:
                         feature_class.handle_feature(
                             feature_dict, line_json, state)
-                    except KeyError as e:
+                    except Exception as e:
                         raise RuntimeError("Encountered error during {} feature processing for {}: {}".format(
-                            feature_class.name, line_json, e), file=sys.stderr)
+                            feature_class.name, line_json, e))
         except json.JSONDecodeError:
             raise RuntimeError("Could not parse line as json: {}".format(line))
 
