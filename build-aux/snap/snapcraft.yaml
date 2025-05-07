@@ -96,6 +96,7 @@ parts:
   runtime:
     plugin: nil
     stage-packages:
+      - libblkid1
       - libbrotli1
       - libc6
       - libcap2
@@ -233,6 +234,7 @@ parts:
       - autoconf-archive
       - automake
       - xfslibs-dev
+      - libblkid-dev
       - libudev-dev
       - libcap-dev
       - libseccomp-dev
