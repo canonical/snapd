@@ -828,10 +828,11 @@ func (s *systemsSuite) TestSystemsGetSystemDetailsForLabel(c *check.C) {
 	}
 
 	for _, tc := range []struct {
-		disabled, available, passphraseAuthAvailable bool
-		storageSafety                                asserts.StorageSafety
-		typ                                          device.EncryptionType
-		unavailableErr, unavailableWarning           string
+		disabled, available                       bool
+		passphraseAuthAvailable, pinAuthAvailable bool
+		storageSafety                             asserts.StorageSafety
+		typ                                       device.EncryptionType
+		unavailableErr, unavailableWarning        string
 
 		expectedSupport                                  client.StorageEncryptionSupport
 		expectedStorageSafety, expectedUnavailableReason string
@@ -884,6 +885,28 @@ func (s *systemsSuite) TestSystemsGetSystemDetailsForLabel(c *check.C) {
 			expectedStorageSafety:      "encrypted",
 			expectedEncryptionFeatures: []client.StorageEncryptionFeature{client.StorageEncryptionFeaturePassphraseAuth},
 		},
+		{
+			available:        true,
+			pinAuthAvailable: true,
+			storageSafety:    asserts.StorageSafetyEncrypted,
+
+			expectedSupport:            client.StorageEncryptionSupportAvailable,
+			expectedStorageSafety:      "encrypted",
+			expectedEncryptionFeatures: []client.StorageEncryptionFeature{client.StorageEncryptionFeaturePINAuth},
+		},
+		{
+			available:               true,
+			passphraseAuthAvailable: true,
+			pinAuthAvailable:        true,
+			storageSafety:           asserts.StorageSafetyEncrypted,
+
+			expectedSupport:       client.StorageEncryptionSupportAvailable,
+			expectedStorageSafety: "encrypted",
+			expectedEncryptionFeatures: []client.StorageEncryptionFeature{
+				client.StorageEncryptionFeaturePassphraseAuth,
+				client.StorageEncryptionFeaturePINAuth,
+			},
+		},
 	} {
 		mockEncryptionSupportInfo := &install.EncryptionSupportInfo{
 			Available:               tc.available,
@@ -892,6 +915,7 @@ func (s *systemsSuite) TestSystemsGetSystemDetailsForLabel(c *check.C) {
 			UnavailableErr:          errors.New(tc.unavailableErr),
 			UnavailableWarning:      tc.unavailableWarning,
 			PassphraseAuthAvailable: tc.passphraseAuthAvailable,
+			PINAuthAvailable:        tc.pinAuthAvailable,
 		}
 
 		r := daemon.MockDeviceManagerSystemAndGadgetAndEncryptionInfo(func(mgr *devicestate.DeviceManager, label string) (*devicestate.System, *gadget.Info, *install.EncryptionSupportInfo, error) {
@@ -1246,7 +1270,7 @@ func (s *systemsSuite) TestSystemInstallActionFinishCallsDevicestateAllAndSpecif
 	c.Check(rsp.Message, check.Equals, "cannot specify both all and individual optional snaps and components to install")
 }
 
-func (s *systemsSuite) TestSystemInstallActionSetupStorageEncryptionCallsDevicestate(c *check.C) {
+func (s *systemsSuite) testSystemInstallActionSetupStorageEncryptionCallsDevicestate(c *check.C, authMode device.AuthMode) {
 	d := s.daemon(c)
 	st := d.Overlord().State()
 
@@ -1277,10 +1301,18 @@ func (s *systemsSuite) TestSystemInstallActionSetupStorageEncryptionCallsDevices
 				"bootloader": "grub",
 			},
 		},
-		"volumes-auth": map[string]interface{}{
+	}
+	switch authMode {
+	case device.AuthModePassphrase:
+		body["volumes-auth"] = map[string]interface{}{
 			"mode":       "passphrase",
 			"passphrase": "1234",
-		},
+		}
+	case device.AuthModePIN:
+		body["volumes-auth"] = map[string]interface{}{
+			"mode": "pin",
+			"pin":  "1234",
+		}
 	}
 	b, err := json.Marshal(body)
 	c.Assert(err, check.IsNil)
@@ -1302,12 +1334,38 @@ func (s *systemsSuite) TestSystemInstallActionSetupStorageEncryptionCallsDevices
 			Bootloader: "grub",
 		},
 	})
-	c.Check(gotVolumesAuth, check.DeepEquals, &device.VolumesAuthOptions{
-		Mode:       device.AuthModePassphrase,
-		Passphrase: "1234",
-	})
+
+	switch authMode {
+	case device.AuthModePassphrase:
+		c.Check(gotVolumesAuth, check.DeepEquals, &device.VolumesAuthOptions{
+			Mode:       device.AuthModePassphrase,
+			Passphrase: "1234",
+		})
+	case device.AuthModePIN:
+		c.Check(gotVolumesAuth, check.DeepEquals, &device.VolumesAuthOptions{
+			Mode: device.AuthModePIN,
+			PIN:  "1234",
+		})
+	default:
+		c.Check(gotVolumesAuth, check.IsNil)
+	}
 
 	c.Check(soon, check.Equals, 1)
+}
+
+func (s *systemsSuite) TestSystemInstallActionSetupStorageEncryptionCallsDevicestate(c *check.C) {
+	const authMode = ""
+	s.testSystemInstallActionSetupStorageEncryptionCallsDevicestate(c, authMode)
+}
+
+func (s *systemsSuite) TestSystemInstallActionSetupStorageEncryptionCallsDevicestateWithPassphrase(c *check.C) {
+	const authMode = device.AuthModePassphrase
+	s.testSystemInstallActionSetupStorageEncryptionCallsDevicestate(c, authMode)
+}
+
+func (s *systemsSuite) TestSystemInstallActionSetupStorageEncryptionCallsDevicestateWithPIN(c *check.C) {
+	const authMode = device.AuthModePIN
+	s.testSystemInstallActionSetupStorageEncryptionCallsDevicestate(c, authMode)
 }
 
 func (s *systemsSuite) TestSystemInstallActionGeneratesTasks(c *check.C) {

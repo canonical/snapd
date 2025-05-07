@@ -21,8 +21,10 @@ package device_test
 
 import (
 	"errors"
+	"math"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -171,6 +173,9 @@ func (s *deviceSuite) TestVolumesAuthOptionsValidateHappy(c *C) {
 	// KDF type and time are optional
 	opts = &device.VolumesAuthOptions{Mode: device.AuthModePassphrase, Passphrase: "1234"}
 	c.Assert(opts.Validate(), IsNil)
+	// Check PINs validation for good measure
+	opts = &device.VolumesAuthOptions{Mode: device.AuthModePIN, PIN: "1234"}
+	c.Assert(opts.Validate(), IsNil)
 }
 
 func (s *deviceSuite) TestVolumesAuthOptionsValidateError(c *C) {
@@ -180,9 +185,19 @@ func (s *deviceSuite) TestVolumesAuthOptionsValidateError(c *C) {
 	// Empty passphrase
 	opts = &device.VolumesAuthOptions{Mode: device.AuthModePassphrase}
 	c.Assert(opts.Validate(), ErrorMatches, "passphrase cannot be empty")
-	// PIN mode not implemented yet
+	// Empty PIN
 	opts = &device.VolumesAuthOptions{Mode: device.AuthModePIN}
-	c.Assert(opts.Validate(), ErrorMatches, `"pin" authentication mode is not implemented`)
+	c.Assert(opts.Validate(), ErrorMatches, "PIN cannot be empty")
+	// Long PIN
+	var longPIN strings.Builder
+	for i := 0; i < math.MaxUint8+1; i++ {
+		longPIN.WriteString("0")
+	}
+	opts = &device.VolumesAuthOptions{Mode: device.AuthModePIN, PIN: longPIN.String()}
+	c.Assert(opts.Validate(), ErrorMatches, "PIN length cannot exceed 255")
+	// Non-digit PIN
+	opts = &device.VolumesAuthOptions{Mode: device.AuthModePIN, PIN: "abc123"}
+	c.Assert(opts.Validate(), ErrorMatches, "PIN can only contain base-10 digits")
 	// PIN mode + custom kdf type
 	opts = &device.VolumesAuthOptions{Mode: device.AuthModePIN, KDFType: "argon2i"}
 	c.Assert(opts.Validate(), ErrorMatches, `"pin" authentication mode does not support custom kdf types`)
