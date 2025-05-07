@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/sh -exu
 
 CONFIG_BASE=/sys/kernel/config/gpio-sim
 CHIP_NAME=snaptest

@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/bash -exu
 
 if [ ! -d "$SNAP_COMMON/gpiochips" ]; then
     echo "no chips found under $SNAP_COMMON/gpiochips, exiting..."

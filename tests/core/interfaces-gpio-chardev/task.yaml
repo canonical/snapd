@@ -1,10 +1,12 @@
 summary: Ensure that the GPIO chardev interface works.
 
 details: |
-    The gpio-chardev interface allows read/write access to specified GPIO chip lines.
+    The gpio-chardev interface allows read/write access to specified lines
+    of GPIO character devices. GPIO chip devices are emulated using the
+    gpio-sim module where they are setup early in boot.
 
 # Kernels on Ubuntu Core <24 does not contain the gpio-sim module.
-systems: [ubuntu-core-24]
+systems: [-ubuntu-core-18-*, -ubuntu-core-20-*, -ubuntu-core-22-*]
 
 prepare: |
     # emulate GPIO chips using gpio-sim module
@@ -21,13 +23,14 @@ prepare: |
     [Install]
     WantedBy=multi-user.target
     EOF
+    tests.cleanup defer rm /etc/systemd/system/gpio-sim.service
 
-    systemctl enable gpio-sim.service
-    systemctl start gpio-sim.service
+    systemctl enable --now gpio-sim.service
+    tests.cleanup defer systemctl disable --now gpio-sim.service
 
     # save the current revision of the pc snap. At this moment the pc snap is
     # the original snap.
-    readlink /snap/pc/current > original-revision.txt
+    original_revision=$(readlink /snap/pc/current)
 
     cp /var/lib/snapd/snaps/pc_*.snap gadget.snap
     unsquashfs -d pc-snap gadget.snap
@@ -46,19 +49,10 @@ prepare: |
 
     snap pack pc-snap --filename=pc_x1.snap
     snap install pc_x1.snap --dangerous
+    tests.cleanup defer snap revert pc --revision="$original_revision"
 
     snap install test-snapd-gpio-chardev
-
-restore: |
-    snap remove --purge test-snapd-gpio-chardev
-
-    # restore the state of the gadget snap.
-    snap revert pc --revision="$(cat original-revision.txt)"
-
-    # remove emulated gpio chips
-    systemctl stop gpio-sim || true
-    systemctl disable gpio-sim || true
-    rm /etc/systemd/system/gpio-sim.service
+    tests.cleanup defer snap remove --purge test-snapd-gpio-chardev
 
 execute: |
     if [ "$SPREAD_REBOOT" = 0 ]; then
@@ -86,7 +80,7 @@ execute: |
         readlink /dev/snap/gpio-chardev/test-snapd-gpio-chardev/gpio-chardev-0 | MATCH /dev/snap/gpio-chardev/pc/gpio-chardev-0
         readlink /dev/snap/gpio-chardev/test-snapd-gpio-chardev/gpio-chardev-1 | MATCH /dev/snap/gpio-chardev/pc/gpio-chardev-1
 
-        echo "And gpio-chardev setup dependency is inject into snap service"
+        echo "And gpio-chardev setup dependency was injected into snap service"
         systemctl show --property=After snap.test-snapd-gpio-chardev.svc.service | grep "gpio-chardev-setup.target"
         systemctl show --property=Wants snap.test-snapd-gpio-chardev.svc.service | grep "gpio-chardev-setup.target"
 

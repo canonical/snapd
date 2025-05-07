@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/sh -exu
 
 echo 0 > /sys/kernel/config/gpio-sim/snaptest/live
 rmdir /sys/kernel/config/gpio-sim/snaptest/gpio-bank1

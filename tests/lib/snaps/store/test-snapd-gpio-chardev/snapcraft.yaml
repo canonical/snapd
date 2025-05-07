@@ -29,13 +29,6 @@ parts:
     autotools-configure-parameters:
       - --prefix=/usr
       - --enable-tools=yes
-    build-packages:
-      - build-essential
-      - autoconf-archive
-      - autoconf
-      - automake
-      - libtool
-      - pkg-config
     stage:
       - -usr/lib/libgpiod.a
       - -usr/lib/libgpiod.la
@@ -46,5 +39,4 @@ parts:
     plugin: dump
     source: .
     override-build: |
-      install -D -m 755 -t "${CRAFT_PART_INSTALL}/bin" bin/cmd
-      install -D -m 755 -t "${CRAFT_PART_INSTALL}/bin" bin/service.sh
+      install -D -m 755 -t "${CRAFT_PART_INSTALL}/bin" bin/cmd bin/service.sh
