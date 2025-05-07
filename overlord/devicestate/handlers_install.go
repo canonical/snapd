@@ -1241,7 +1241,9 @@ func checkVolumesAuth(volumesAuth *device.VolumesAuthOptions, encryptInfo instal
 			return fmt.Errorf("%q authentication mode is not supported by target system", device.AuthModePassphrase)
 		}
 	case device.AuthModePIN:
-		return fmt.Errorf("%q authentication mode is not implemented", device.AuthModePIN)
+		if !encryptInfo.PINAuthAvailable {
+			return fmt.Errorf("%q authentication mode is not supported by target system", device.AuthModePIN)
+		}
 	default:
 		return fmt.Errorf("invalid authentication mode %q, only %q and %q modes are supported", volumesAuth.Mode, device.AuthModePassphrase, device.AuthModePIN)
 	}

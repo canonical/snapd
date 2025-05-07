@@ -343,6 +343,27 @@ func (s *installSuite) TestEncryptionSupportInfoWithTPM(c *C) {
 				PassphraseAuthAvailable: true,
 			},
 		},
+		// PINs support requires snapd 2.71+
+		{
+			"secured", "encrypted", "2.71", "2.71", nil,
+			install.EncryptionSupportInfo{
+				Available: true, Disabled: false,
+				StorageSafety:           asserts.StorageSafetyEncrypted,
+				Type:                    device.EncryptionTypeLUKS,
+				PassphraseAuthAvailable: true,
+				PINAuthAvailable:        true,
+			},
+		},
+		{
+			"secured", "encrypted", "2.72", "2.72", nil,
+			install.EncryptionSupportInfo{
+				Available: true, Disabled: false,
+				StorageSafety:           asserts.StorageSafetyEncrypted,
+				Type:                    device.EncryptionTypeLUKS,
+				PassphraseAuthAvailable: true,
+				PINAuthAvailable:        true,
+			},
+		},
 		{
 			"secured", "encrypted", "2.67", "2.68", nil,
 			install.EncryptionSupportInfo{
@@ -350,6 +371,7 @@ func (s *installSuite) TestEncryptionSupportInfoWithTPM(c *C) {
 				StorageSafety:           asserts.StorageSafetyEncrypted,
 				Type:                    device.EncryptionTypeLUKS,
 				PassphraseAuthAvailable: false,
+				PINAuthAvailable:        false,
 			},
 		},
 		{
@@ -359,6 +381,27 @@ func (s *installSuite) TestEncryptionSupportInfoWithTPM(c *C) {
 				StorageSafety:           asserts.StorageSafetyEncrypted,
 				Type:                    device.EncryptionTypeLUKS,
 				PassphraseAuthAvailable: false,
+				PINAuthAvailable:        false,
+			},
+		},
+		{
+			"secured", "encrypted", "2.71", "2.70", nil,
+			install.EncryptionSupportInfo{
+				Available: true, Disabled: false,
+				StorageSafety:           asserts.StorageSafetyEncrypted,
+				Type:                    device.EncryptionTypeLUKS,
+				PassphraseAuthAvailable: true,
+				PINAuthAvailable:        false,
+			},
+		},
+		{
+			"secured", "encrypted", "2.70", "2.71", nil,
+			install.EncryptionSupportInfo{
+				Available: true, Disabled: false,
+				StorageSafety:           asserts.StorageSafetyEncrypted,
+				Type:                    device.EncryptionTypeLUKS,
+				PassphraseAuthAvailable: true,
+				PINAuthAvailable:        false,
 			},
 		},
 	}

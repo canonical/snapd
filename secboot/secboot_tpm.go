@@ -521,7 +521,7 @@ func newTPMProtectedKey(tpm *sb_tpm2.Connection, creationParams *sb_tpm2.Protect
 			}
 			protectedKey, primaryKey, unlockKey, err = sbNewTPMPassphraseProtectedKey(tpm, passphraseParams, volumesAuth.Passphrase)
 		case device.AuthModePIN:
-			// TODO: Implement PIN authentication mode.
+			// TODO:FDEM:FIX use NewTPMPINProtectedKey from latest secboot
 			return nil, nil, nil, fmt.Errorf("%q authentication mode is not implemented", device.AuthModePIN)
 		default:
 			return nil, nil, nil, fmt.Errorf("internal error: invalid authentication mode %q", volumesAuth.Mode)

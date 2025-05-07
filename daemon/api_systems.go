@@ -145,6 +145,9 @@ func storageEncryption(encInfo *install.EncryptionSupportInfo) *client.StorageEn
 	if encInfo.PassphraseAuthAvailable {
 		storageEnc.Features = append(storageEnc.Features, client.StorageEncryptionFeaturePassphraseAuth)
 	}
+	if encInfo.PINAuthAvailable {
+		storageEnc.Features = append(storageEnc.Features, client.StorageEncryptionFeaturePINAuth)
+	}
 
 	return storageEnc
 }

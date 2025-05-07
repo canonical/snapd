@@ -2970,7 +2970,7 @@ func (s *modelAndGadgetInfoSuite) TestSystemAndGadgetAndEncyptionInfoHappy(c *C)
 	})
 }
 
-func (s *modelAndGadgetInfoSuite) testSystemAndGadgetAndEncyptionInfoPassphraseSupport(c *C, snapdVersionByType map[snap.Type]string, hasPassphraseSupport bool) {
+func (s *modelAndGadgetInfoSuite) testSystemAndGadgetAndEncyptionInfoAuthSupport(c *C, snapdVersionByType map[snap.Type]string, hasPassphraseSupport, hasPINSupport bool) {
 	isClassic := false
 	fakeModel := s.makeMockUC20SeedWithGadgetYaml(c, "some-label", mockGadgetUCYaml, isClassic, snapdVersionByType)
 	expectedGadgetInfo, err := gadget.InfoFromGadgetYaml([]byte(mockGadgetUCYaml), fakeModel)
@@ -2996,6 +2996,7 @@ func (s *modelAndGadgetInfoSuite) testSystemAndGadgetAndEncyptionInfoPassphraseS
 		Type:                    "cryptsetup",
 		StorageSafety:           asserts.StorageSafetyPreferEncrypted,
 		PassphraseAuthAvailable: hasPassphraseSupport,
+		PINAuthAvailable:        hasPINSupport,
 	})
 }
 
@@ -3005,7 +3006,18 @@ func (s *modelAndGadgetInfoSuite) TestSystemAndGadgetAndEncyptionInfoPassphraseS
 		snap.TypeKernel: "2.68",
 	}
 	const hasPassphraseSupport = false
-	s.testSystemAndGadgetAndEncyptionInfoPassphraseSupport(c, snapdVersionByType, hasPassphraseSupport)
+	const hasPINSupport = false
+	s.testSystemAndGadgetAndEncyptionInfoAuthSupport(c, snapdVersionByType, hasPassphraseSupport, hasPINSupport)
+}
+
+func (s *modelAndGadgetInfoSuite) TestSystemAndGadgetAndEncyptionInfoPINSupportOldSnapd(c *C) {
+	snapdVersionByType := map[snap.Type]string{
+		snap.TypeSnapd:  "2.70",
+		snap.TypeKernel: "2.71",
+	}
+	const hasPassphraseSupport = true
+	const hasPINSupport = false
+	s.testSystemAndGadgetAndEncyptionInfoAuthSupport(c, snapdVersionByType, hasPassphraseSupport, hasPINSupport)
 }
 
 func (s *modelAndGadgetInfoSuite) TestSystemAndGadgetAndEncyptionInfoPassphraseSupportOldKernel(c *C) {
@@ -3014,7 +3026,18 @@ func (s *modelAndGadgetInfoSuite) TestSystemAndGadgetAndEncyptionInfoPassphraseS
 		snap.TypeKernel: "2.67",
 	}
 	const hasPassphraseSupport = false
-	s.testSystemAndGadgetAndEncyptionInfoPassphraseSupport(c, snapdVersionByType, hasPassphraseSupport)
+	const hasPINSupport = false
+	s.testSystemAndGadgetAndEncyptionInfoAuthSupport(c, snapdVersionByType, hasPassphraseSupport, hasPINSupport)
+}
+
+func (s *modelAndGadgetInfoSuite) TestSystemAndGadgetAndEncyptionInfoPINSupportOldKernel(c *C) {
+	snapdVersionByType := map[snap.Type]string{
+		snap.TypeSnapd:  "2.71",
+		snap.TypeKernel: "2.70",
+	}
+	const hasPassphraseSupport = true
+	const hasPINSupport = false
+	s.testSystemAndGadgetAndEncyptionInfoAuthSupport(c, snapdVersionByType, hasPassphraseSupport, hasPINSupport)
 }
 
 func (s *modelAndGadgetInfoSuite) TestSystemAndGadgetAndEncyptionInfoPassphraseSupportAvailable(c *C) {
@@ -3023,7 +3046,18 @@ func (s *modelAndGadgetInfoSuite) TestSystemAndGadgetAndEncyptionInfoPassphraseS
 		snap.TypeKernel: "2.68",
 	}
 	const hasPassphraseSupport = true
-	s.testSystemAndGadgetAndEncyptionInfoPassphraseSupport(c, snapdVersionByType, hasPassphraseSupport)
+	const hasPINSupport = false
+	s.testSystemAndGadgetAndEncyptionInfoAuthSupport(c, snapdVersionByType, hasPassphraseSupport, hasPINSupport)
+}
+
+func (s *modelAndGadgetInfoSuite) TestSystemAndGadgetAndEncyptionInfoPINSupportAvailable(c *C) {
+	snapdVersionByType := map[snap.Type]string{
+		snap.TypeSnapd:  "2.71",
+		snap.TypeKernel: "2.71",
+	}
+	const hasPassphraseSupport = true
+	const hasPINSupport = true
+	s.testSystemAndGadgetAndEncyptionInfoAuthSupport(c, snapdVersionByType, hasPassphraseSupport, hasPINSupport)
 }
 
 func (s *modelAndGadgetInfoSuite) TestSystemAndGadgetInfoErrorInvalidLabel(c *C) {

@@ -173,8 +173,7 @@ func MockSecbootCheckTPMKeySealingSupported(f func(tpmMode secboot.TPMProvisionM
 	}
 }
 
-func checkPassphraseSupportedByTargetSystem(sysVer *SystemSnapdVersions) (bool, error) {
-	const minSnapdVersion = "2.68"
+func checkMinSystemSnapdVersion(sysVer *SystemSnapdVersions, minSnapdVersion string) (bool, error) {
 	if sysVer == nil {
 		return false, nil
 	}
@@ -200,6 +199,14 @@ func checkPassphraseSupportedByTargetSystem(sysVer *SystemSnapdVersions) (bool, 
 	}
 
 	return true, nil
+}
+
+func checkPassphraseSupportedByTargetSystem(sysVer *SystemSnapdVersions) (bool, error) {
+	return checkMinSystemSnapdVersion(sysVer, "2.68")
+}
+
+func checkPINSupportedByTargetSystem(sysVer *SystemSnapdVersions) (bool, error) {
+	return checkMinSystemSnapdVersion(sysVer, "2.71")
 }
 
 // GetEncryptionSupportInfo returns the encryption support information
@@ -260,16 +267,23 @@ func GetEncryptionSupportInfo(model *asserts.Model, tpmMode secboot.TPMProvision
 	// If encryption is available check if the gadget is
 	// compatible with encryption.
 	if res.Available {
-		// Passphrase support is only available for TPM based encryption for now.
+		// PIN/Passphrase support is only available for TPM based encryption for now.
 		// Hook based setup support does not make sense (at least for now) because
 		// it is usually in the context of embedded systems where passphrase
 		// authentication is not practical.
 		if checkSecbootEncryption {
+			// Check passphrase authentication is supported.
 			passphraseAuthAvailable, err := checkPassphraseSupportedByTargetSystem(systemSnapdVersions)
 			if err != nil {
 				return res, fmt.Errorf("cannot check passphrase support: %v", err)
 			}
 			res.PassphraseAuthAvailable = passphraseAuthAvailable
+			// Check PIN authentication is supported
+			pinAuthAvailable, err := checkPINSupportedByTargetSystem(systemSnapdVersions)
+			if err != nil {
+				return res, fmt.Errorf("cannot check PIN support: %v", err)
+			}
+			res.PINAuthAvailable = pinAuthAvailable
 		}
 		opts := &gadget.ValidationConstraints{
 			EncryptedData: true,
