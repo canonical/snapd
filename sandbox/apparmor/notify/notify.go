@@ -2,7 +2,6 @@
 package notify
 
 import (
-	"bytes"
 	"encoding/binary"
 	"errors"
 	"fmt"
@@ -147,6 +146,7 @@ func retrieveSavedListenerID() (id uint64, ok bool) {
 	if err != nil {
 		return 0, false
 	}
+	defer f.Close()
 	if err = binary.Read(f, nativeByteOrder, &id); err != nil {
 		return 0, false
 	}
@@ -161,14 +161,12 @@ func listenerIDFilepath() string {
 
 // saveListenerID writes the given listener ID to disk.
 func saveListenerID(id uint64) error {
-	buf := bytes.NewBuffer(make([]byte, 0, binary.Size(id)))
-	if err := binary.Write(buf, nativeByteOrder, id); err != nil {
-		return err
-	}
+	var buf [8]byte
+	nativeByteOrder.PutUint64(buf[:], id)
 	if err := os.MkdirAll(dirs.SnapInterfacesRequestsRunDir, 0o755); err != nil {
 		return err
 	}
-	return osutil.AtomicWriteFile(listenerIDFilepath(), buf.Bytes(), 0o600, 0)
+	return osutil.AtomicWriteFile(listenerIDFilepath(), buf[:], 0o600, 0)
 }
 
 // resendRequests tells the kernel to resend all pending requests previously
