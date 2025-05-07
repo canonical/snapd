@@ -47,6 +47,9 @@ jobs:
             dnf install -y python3-beautifulsoup4 # required by release-tools
             dnf install -y python3-debian # required by release-tools
             dnf install -y python3-flake8 # required by release-tools
+            # TODO drop; workaround for valgrind 3.25 causing EINVAL in
+            # glib test subprocess and thus failing the unit tests
+            dnf remove -y valgrind
             ;;
         opensuse/*)
             zypper --non-interactive dup -y
