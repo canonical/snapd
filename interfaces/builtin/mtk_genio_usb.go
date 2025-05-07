@@ -23,6 +23,7 @@ const mtkGenioUsbSummary = `Udev rules for Mediatek Genio USB devices`
 // Interface: mtk-genio-usb
 //
 // The mtk-genio-usb interface allows access to MediaTek Genio boards via USB.
+// Mediatek Genio tools environment setup: https://mediatek.gitlab.io/aiot/doc/aiot-dev-guide/master/sw/yocto/get-started/env-setup/flash-env-linux.html#usb-device-rules
 
 const mtkGenioUsbBaseDeclarationSlots = `
   mtk-genio-usb:
