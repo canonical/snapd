@@ -481,7 +481,6 @@ var seccompResolver = map[string]uint64{
 	"KCMP_EPOLL_TFD": C.KCMP_EPOLL_TFD,
 
 	// man 2 pipe
-	// The flag is just O_EXCL which is more easily defined.
 	"O_NOTIFICATION_PIPE": C.O_NOTIFICATION_PIPE,
 }
 
