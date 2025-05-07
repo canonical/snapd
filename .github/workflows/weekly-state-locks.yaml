@@ -37,7 +37,7 @@ jobs:
   create-reports:
     runs-on: ubuntu-latest
     needs: [run-spread-tests]
-    if: ${{ always() }}
+    if: always()
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
