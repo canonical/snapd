@@ -15,6 +15,10 @@ on:
       run-one-system:
         type: string
         description: 'When set, will only run this system in spread'
+      skip-tests:
+        type: string
+        description: 'Filters out all matches for each space-separated regex expression when running spread tests'
+        default: 'ubuntu-14.04-64 tests/lib/ tests/unit/ core/persistent-journal manual/snapd-refresh-from-old'
 
 jobs:
   set-inputs:
@@ -23,6 +27,7 @@ jobs:
       features: ${{ steps.set-inputs.outputs.features }}
       maximum-reruns: ${{ steps.set-inputs.outputs.maximum-reruns }}
       run-one-system: ${{ steps.set-inputs.outputs.run-one-system }}
+      skip-tests: ${{ steps.set-inputs.outputs.skip-tests }}
     steps:
       - name: Set inputs
         id: set-inputs
@@ -30,6 +35,7 @@ jobs:
           echo "features=${{ inputs.features || 'all' }}" >> $GITHUB_OUTPUT
           echo "maximum-reruns=${{ inputs.maximum-reruns || 2 }}" >> $GITHUB_OUTPUT
           echo "run-one-system=${{ inputs.run-one-system || '' }}" >> $GITHUB_OUTPUT
+          echo "skip-tests=${{ inputs.skip-tests || '' }}" >> $GITHUB_OUTPUT
 
   read-systems:
     runs-on: ubuntu-latest
@@ -87,6 +93,7 @@ jobs:
       use-snapd-snap-from-master: true
       spread-env: "SPREAD_TAG_FEATURES=1"
       upload-artifacts: true
+      skip-tests: ${{ needs.set-inputs.outputs.skip-tests }}
     strategy:
       fail-fast: false
       matrix: ${{ fromJson(needs.read-systems.outputs.fundamental-systems) }}
@@ -106,6 +113,7 @@ jobs:
       use-snapd-snap-from-master: true
       spread-env: "SPREAD_TAG_FEATURES=1"
       upload-artifacts: true
+      skip-tests: ${{ needs.set-inputs.outputs.skip-tests }}
     strategy:
       fail-fast: false
       matrix: ${{ fromJson(needs.read-systems.outputs.non-fundamental-systems) }}
@@ -125,6 +133,7 @@ jobs:
       use-snapd-snap-from-master: true
       spread-env: "SPREAD_TAG_FEATURES=1"
       upload-artifacts: true
+      skip-tests: ${{ needs.set-inputs.outputs.skip-tests }}
     strategy:
       fail-fast: false
       matrix: ${{ fromJson(needs.read-systems.outputs.nested-systems) }}
