@@ -238,6 +238,7 @@ parts:
       - libseccomp-dev
       - libselinux1-dev
       - pkg-config
+      - libcap2-bin
       - on armhf:
         - optee-client-dev
       - on arm64:
@@ -491,6 +492,11 @@ parts:
         touch "${CRAFT_PART_INSTALL}/fips-build-lp"
       fi
 
+      # ensure capabilities are set
+      setcap -q - "${CRAFT_PART_INSTALL}/usr/lib/snapd/snap-confine" \
+           < "${CRAFT_PART_INSTALL}/usr/lib/snapd/snap-confine.caps"
+      getcap "${CRAFT_PART_INSTALL}/usr/lib/snapd/snap-confine"
+
     <<:
       - *dynamic-linker
     prime:
@@ -503,6 +509,13 @@ parts:
       PATH="${CRAFT_STAGE}"/usr/local/bin:$PATH \
           "${CRAFT_PROJECT_DIR}/build-aux/snap/local/patch-dl.py" \
               "/snap/snapd/current/usr/lib/${CRAFT_ARCH_TRIPLET_BUILD_FOR}/${DYNAMIC_LINKER}"
+
+      # verify file capabilities
+      caps="$(getcap "${CRAFT_PART_INSTALL}/usr/lib/snapd/snap-confine" | awk '{print $2}')"
+      expected_caps="$(cat "${CRAFT_PART_INSTALL}/usr/lib/snapd/snap-confine.caps")"
+      echo "-- expecting caps: $expected_caps"
+      echo "-- actual caps:    $caps"
+      test "$caps" = "$expected_caps"
 
   libcrypto-fips:
     plugin: nil

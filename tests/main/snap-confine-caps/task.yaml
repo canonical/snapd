@@ -1,0 +1,28 @@
+summary: Verify that snap-confine has the right capabilities after install
+
+details: |
+    The test verifies that snap-confine has the right file capabilities during
+    runtime.
+
+systems:
+    # core18 has no getcap
+    - -ubuntu-core-18-*
+
+execute: |
+    SNAP_MOUNT_DIR="$(os.paths snap-mount-dir)"
+    LIBEXEC_DIR="$(os.paths libexec-dir)"
+    getcap "$SNAP_MOUNT_DIR/snapd/current/usr/lib/snapd/snap-confine" | tee s-c-snap.caps
+    # getcap output is different dependin on the version of libcap,
+    # old versions (e.g. 2.32 in Ubuntu 20.04):
+    # <file-name> = cap_sys_admin+ep
+    # newer version (at least 2.44+, Ubuntu 22.04+):
+    # <file-name> cap_sys_admin=ep
+    MATCH ' .*cap_sys_admin(.*)?(=|\+)p$' < s-c-snap.caps
+
+    if ! os.query is-core && ! tests.info is-snapd-from-archive; then
+        getcap "$LIBEXEC_DIR/snapd/snap-confine" | tee s-c-pkg.caps
+        MATCH ' .*cap_sys_admin(.*)?(=|\+)p$' < s-c-pkg.caps
+
+        echo "Capabilities from a snap and a local package are identical"
+        diff -up <(cut -f2 -d' ' < s-c-pkg.caps) <(cut -f2 -d' ' < s-c-snap.caps)
+    fi

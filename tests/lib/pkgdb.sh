@@ -834,6 +834,7 @@ pkg_dependencies_opensuse(){
         xdg-user-dirs
         xdg-utils
         zsh
+        libcap-progs
         "
     if os.query is-opensuse tumbleweed; then
         echo "
