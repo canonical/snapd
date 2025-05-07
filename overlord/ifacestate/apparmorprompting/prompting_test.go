@@ -1570,8 +1570,19 @@ func (s *apparmorpromptingSuite) TestListenerReadyBlocksRepliesNewRules(c *C) {
 	})
 
 	s.testReadyBlocks(c, func(mgr *apparmorprompting.InterfacesRequestsManager) {
+		rules, err := mgr.RemoveRules(1000, "foo", "bar")
+		c.Check(err, IsNil)
+		c.Check(rules, HasLen, 0)
+	})
+
+	s.testReadyBlocks(c, func(mgr *apparmorprompting.InterfacesRequestsManager) {
 		_, err := mgr.PatchRule(1000, 0, nil)
 		c.Check(err, Equals, prompting_errors.ErrRuleNotFound)
+	})
+
+	s.testReadyBlocks(c, func(mgr *apparmorprompting.InterfacesRequestsManager) {
+		_, err := mgr.RemoveRule(1000, 0)
+		c.Check(err, NotNil)
 	})
 }
 

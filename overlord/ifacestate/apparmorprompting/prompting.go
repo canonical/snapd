@@ -542,6 +542,10 @@ func (m *InterfacesRequestsManager) AddRule(userID uint32, snap string, iface st
 // RemoveRules removes all rules for the user with the given user ID and the
 // given snap and/or interface. Snap and iface can't both be unspecified.
 func (m *InterfacesRequestsManager) RemoveRules(userID uint32, snap string, iface string) ([]*requestrules.Rule, error) {
+	// Wait until the listener has re-sent pending requests and prompts have
+	// been re-created.
+	<-m.ready
+
 	// The lock need only be held for reading, since no synchronization is
 	// required between the rules and prompts backends, and the rules backend
 	// has an internal mutex.
@@ -591,6 +595,10 @@ func (m *InterfacesRequestsManager) PatchRule(userID uint32, ruleID prompting.ID
 }
 
 func (m *InterfacesRequestsManager) RemoveRule(userID uint32, ruleID prompting.IDType) (*requestrules.Rule, error) {
+	// Wait until the listener has re-sent pending requests and prompts have
+	// been re-created.
+	<-m.ready
+
 	// The lock need only be held for reading, since no synchronization is
 	// required between the rules and prompts backends, and the rules backend
 	// has an internal mutex.
