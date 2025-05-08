@@ -5,8 +5,9 @@ details: |
     of GPIO character devices. GPIO chip devices are emulated using the
     gpio-sim module where they are setup early in boot.
 
-# Kernels on Ubuntu Core <24 does not contain the gpio-sim module.
-systems: [-ubuntu-core-18-*, -ubuntu-core-20-*, -ubuntu-core-22-*]
+# Kernels on Ubuntu Core <24 does not contain the gpio-sim module and test
+# snap is not built for arm.
+systems: [-ubuntu-core-18-*, -ubuntu-core-20-*, -ubuntu-core-22-*, -ubuntu-core-*-arm-*]
 
 prepare: |
     # emulate GPIO chips using gpio-sim module
