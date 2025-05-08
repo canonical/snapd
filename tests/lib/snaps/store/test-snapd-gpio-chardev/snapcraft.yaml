@@ -1,0 +1,42 @@
+name: test-snapd-gpio-chardev
+version: "1.0"
+summary: Basic gpio-chardev snap
+description: A basic snap which access to exported gpiod device
+grade: stable
+confinement: strict
+base: core24
+
+apps:
+  cmd:
+    command: bin/cmd
+    plugs: [gpio-chardev-0, gpio-chardev-1]
+  svc:
+    command: bin/service.sh
+    daemon: oneshot
+    plugs: [gpio-chardev-0, gpio-chardev-1]
+
+plugs:
+  gpio-chardev-0:
+    interface: gpio-chardev
+  gpio-chardev-1:
+    interface: gpio-chardev
+
+parts:
+  libgpiod:
+    source: git://git.kernel.org/pub/scm/libs/libgpiod/libgpiod.git
+    source-branch: v2.1.x
+    plugin: autotools
+    autotools-configure-parameters:
+      - --prefix=/usr
+      - --enable-tools=yes
+    stage:
+      - -usr/lib/libgpiod.a
+      - -usr/lib/libgpiod.la
+      - -usr/include
+      - -usr/lib/pkgconfig
+
+  cmd:
+    plugin: dump
+    source: .
+    override-build: |
+      install -D -m 755 -t "${CRAFT_PART_INSTALL}/bin" bin/cmd bin/service.sh
