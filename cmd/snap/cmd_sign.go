@@ -44,8 +44,9 @@ type cmdSign struct {
 		Filename flags.Filename
 	} `positional-args:"yes"`
 
-	KeyName keyName `short:"k" default:"default"`
-	Chain   bool    `long:"chain"`
+	KeyName         keyName `short:"k" default:"default"`
+	Chain           bool    `long:"chain"`
+	UpdateTimestamp bool    `long:"update-timestamp"`
 }
 
 func init() {
@@ -56,6 +57,8 @@ func init() {
 		"k": i18n.G("Name of the key to use, otherwise use the default key"),
 		// TRANSLATORS: This should not start with a lowercase letter.
 		"chain": i18n.G("Append the account and account-key assertions necessary to allow any device to validate the signed assertion."),
+		// TRANSLATORS: This should not start with a lowercase letter.
+		"update-timestamp": i18n.G("Update the output \"timestamp\" header to the current time"),
 	}, []argDesc{{
 		// TRANSLATORS: This needs to begin with < and end with >
 		name: i18n.G("<filename>"),
@@ -100,9 +103,10 @@ func (x *cmdSign) Execute(args []string) error {
 	accountKey, _ := ak.(*asserts.AccountKey)
 
 	signOpts := signtool.Options{
-		KeyID:      privKey.PublicKey().ID(),
-		AccountKey: accountKey,
-		Statement:  statement,
+		KeyID:           privKey.PublicKey().ID(),
+		AccountKey:      accountKey,
+		Statement:       statement,
+		UpdateTimestamp: x.UpdateTimestamp,
 	}
 
 	encodedAssert, err := signtool.Sign(&signOpts, keypairMgr)
