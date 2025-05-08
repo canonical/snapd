@@ -542,7 +542,7 @@ export GO111MODULE=off
 %endif
 
 # Generate version files
-./mkversion.sh "%{version}-%{release}"
+DPKG_PARSECHANGELOG="" ./mkversion.sh "%{version}-%{release}"
 
 # see https://github.com/gofed/go-macros/blob/master/rpm/macros.d/macros.go-compilers-golang
 BUILDTAGS=
