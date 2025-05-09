@@ -23,7 +23,6 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
-#include <sys/types.h>
 #include <unistd.h>
 
 #include "cleanup-funcs.h"
@@ -120,7 +119,6 @@ void write_string_to_file(const char *filepath, const char *buf) {
     if (fclose(f) != 0) die("fclose failed");
 }
 
-// TODO drop completely, not used by current code
 sc_identity sc_set_effective_identity(sc_identity identity) {
     debug("set_effective_identity uid:%d (change: %s), gid:%d (change: %s)", identity.uid,
           identity.change_uid ? "yes" : "no", identity.gid, identity.change_gid ? "yes" : "no");
@@ -154,7 +152,7 @@ sc_identity sc_set_effective_identity(sc_identity identity) {
     return old;
 }
 
-int sc_nonfatal_mkpath(const char *const path, mode_t mode, uid_t uid, uid_t gid) {
+int sc_nonfatal_mkpath(const char *const path, mode_t mode) {
     // If asked to create an empty path, return immediately.
     if (strlen(path) == 0) {
         return 0;
@@ -194,7 +192,7 @@ int sc_nonfatal_mkpath(const char *const path, mode_t mode, uid_t uid, uid_t gid
         // this as it may stay stale (errno is not reset if mkdirat(2) returns
         // successfully).
         errno = 0;
-        if (sc_ensure_mkdirat(fd, path_segment, mode, uid, gid) != 0) {
+        if (mkdirat(fd, path_segment, mode) < 0 && errno != EEXIST) {
             return -1;
         }
         // Open the parent directory we just made (and close the previous one
