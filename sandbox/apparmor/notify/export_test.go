@@ -51,14 +51,6 @@ func MockVersionLikelySupportedChecks(pairs []VersionAndCheck) (restore func()) 
 	return restore
 }
 
-// TODO: remove this once v5 is no longer manually disabled
-func OverrideV5ManuallyDisabled() (restore func()) {
-	v5ManuallyDisabled = false
-	return func() {
-		v5ManuallyDisabled = true
-	}
-}
-
 func MockIoctl(f func(fd uintptr, req IoctlRequest, buf IoctlRequestBuffer) ([]byte, error)) (restore func()) {
 	return testutil.Mock(&doIoctl, f)
 }

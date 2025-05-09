@@ -36,10 +36,6 @@ case "$1" in
         fi
         # Ensure that the void directory has correct permissions.
         chmod 111 /var/lib/snapd/void
-
-        # ensure required caps on snap-confine
-        setcap -q - /usr/lib/snapd/snap-confine < /usr/lib/snapd/snap-confine.caps
-        ;;
 esac
 
 #DEBHELPER#
