@@ -24,9 +24,6 @@ case "$1" in
         # Ensure that the void directory has correct permissions.
         chmod 111 /var/lib/snapd/void
 
-        # ensure required caps on snap-confine
-        setcap -q - /usr/lib/snapd/snap-confine < /usr/lib/snapd/snap-confine.caps
-
 	case ":$PATH:" in
 	    *:"/snap/bin":*)
 		;;
