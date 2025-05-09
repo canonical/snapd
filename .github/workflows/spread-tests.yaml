@@ -54,6 +54,10 @@ on:
         type: boolean
         required: false
         default: false
+      skip-tests:
+        description: 'Space-separated list of regex expressions identifying tests to skip. As a regex, they can identify any part of the spread test like an entire suite or a single test. End a single test with $ to avoid inadvertently matching others.'
+        required: false
+        type: string
 
 
 jobs:
@@ -296,6 +300,19 @@ jobs:
           fi
 
           spread_list="$($SPREAD -list $RUN_TESTS 2>&1 || true)"
+          if [ -n "${{ inputs.skip-tests }}" ]; then
+            for test in ${{ inputs.skip-tests }}; do
+              spread_list=$(echo "$spread_list" | tr ' ' '\n' | grep -vE "$test" | tr '\n' ' ')
+            done
+            export RUN_TESTS=$spread_list
+            echo RUN_TESTS="$RUN_TESTS"  >> $GITHUB_ENV
+          fi
+
+          # If all spread tests are skipped, exit
+          if [ -z "$RUN_TESTS" ]; then
+            echo "All tests are skipped, exiting..."
+            exit 0
+          fi
 
           if [[ "$spread_list" =~ amazon-linux-2023 ]]; then
               # Amazon Linux 2023 has no xdelta, however we cannot disable
