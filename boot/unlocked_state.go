@@ -26,14 +26,21 @@ const (
 	KeyRun      = "run"
 	KeyFallback = "fallback"
 	KeyRecovery = "recovery"
+
+	// Name of file the unlock state
+	UnlockedStateFileName = "unlocked.json"
+	// Legacy name of file the unlock state for degraded cases
+	DegradedStateFileName = "degraded.json"
 )
 
 // PartitionState is the state of a partition after recover mode has completed
 // for degraded mode.
 type PartitionState struct {
 	// MountState is whether the partition was mounted successfully or not.
+	// This state is not provided in run mode.
 	MountState string `json:"mount-state,omitempty"`
 	// MountLocation is where the partition was mounted.
+	// This state is not provided in run mode.
 	MountLocation string `json:"mount-location,omitempty"`
 	// Device is what device the partition corresponds to. It can be the
 	// physical block device if the partition is unencrypted or if it was not
