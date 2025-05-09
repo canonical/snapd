@@ -23,6 +23,7 @@ import (
 	"time"
 
 	"github.com/snapcore/snapd/interfaces/prompting"
+	"github.com/snapcore/snapd/sandbox/apparmor/notify/listener"
 	"github.com/snapcore/snapd/testutil"
 	"github.com/snapcore/snapd/timeutil"
 )
@@ -31,6 +32,11 @@ const (
 	InitialTimeout               = initialTimeout
 	ActivityTimeout              = activityTimeout
 	MaxOutstandingPromptsPerUser = maxOutstandingPromptsPerUser
+)
+
+type (
+	IDMappingJSON = idMappingJSON
+	IDMapEntry    = idMapEntry
 )
 
 func NewPrompt(id prompting.IDType, timestamp time.Time, snap string, iface string, path string, outstandingPermissions []string, availablePermissions []string, originalPermissions []string) *Prompt {
@@ -48,6 +54,10 @@ func NewPrompt(id prompting.IDType, timestamp time.Time, snap string, iface stri
 		Constraints:  constraints,
 		listenerReqs: nil,
 	}
+}
+
+func (p *Prompt) ListenerReqs() []*listener.Request {
+	return p.listenerReqs
 }
 
 func (pdb *PromptDB) PerUser() map[uint32]*userPromptDB {
