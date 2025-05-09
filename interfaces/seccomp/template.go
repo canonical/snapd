@@ -320,6 +320,7 @@ openat
 pause
 personality
 pipe
+~pipe2 - |O_NOTIFICATION_PIPE
 pipe2
 poll
 ppoll
