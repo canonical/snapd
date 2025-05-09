@@ -122,10 +122,30 @@ func Sign(opts *Options, keypairMgr asserts.KeypairManager) ([]byte, error) {
 		}
 	}
 
+	if typ.JSONBody() && len(body) != 0 {
+		body, err = reformatJSON(body)
+		if err != nil {
+			return nil, fmt.Errorf("cannot reformat body: %v", err)
+		}
+	}
+
 	a, err := adb.Sign(typ, headers, body, opts.KeyID)
 	if err != nil {
 		return nil, err
 	}
 
 	return asserts.Encode(a), nil
+}
+
+func reformatJSON(raw []byte) ([]byte, error) {
+	var v map[string]interface{}
+	if err := json.Unmarshal(raw, &v); err != nil {
+		return nil, fmt.Errorf("cannot unmarshal unformatted JSON: %v", err)
+	}
+
+	raw, err := json.MarshalIndent(v, "", "  ")
+	if err != nil {
+		return nil, fmt.Errorf("cannot marshal into formatted JSON: %v", err)
+	}
+	return raw, nil
 }

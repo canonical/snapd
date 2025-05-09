@@ -124,6 +124,11 @@ func (at *AssertionType) AcceptablePrimaryKey(key []string) bool {
 	return true
 }
 
+// JSONBody returns true if the body for this assertion type must be JSON.
+func (at *AssertionType) JSONBody() bool {
+	return at.flags&jsonBody != 0
+}
+
 // Understood assertion types.
 var (
 	AccountType              = &AssertionType{"account", []string{"account-id"}, nil, assembleAccount, 0}
