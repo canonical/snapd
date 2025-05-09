@@ -204,6 +204,7 @@ func Register() (listener *Listener, err error) {
 	if err != nil {
 		return nil, err
 	}
+	logger.Debugf("registered listener with protocol version %d", protoVersion)
 
 	listener = &Listener{
 		reqs: make(chan *Request),
