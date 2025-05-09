@@ -590,6 +590,9 @@ func SealKeys(keys []SealKeyRequest, params *SealKeysParams) ([]byte, error) {
 			return nil, err
 		}
 
+		if key.SlotName == "default" {
+			key.BootstrappedContainer.RegisterKey(primaryKeyOut, unlockKey)
+		}
 	}
 
 	if primaryKey != nil && params.TPMPolicyAuthKeyFile != "" {

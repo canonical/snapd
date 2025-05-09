@@ -20,3 +20,4 @@ Environment="CORE24_PLUS_INITRAMFS=1"
 ExecStart=/usr/lib/snapd/snap-bootstrap initramfs-mounts
 StandardOutput=journal+console
 StandardError=journal+console
+KeyringMode=inherit
