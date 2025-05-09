@@ -13,7 +13,11 @@ features_after_non_nested_task() {
     # Write to the directory specified in the spread.yaml file for artifacts
     local task_dir
     task_dir="$(_prepare_artifacts_path feature-tags)"
-    "$TESTSTOOLS"/journal-state get-log --no-pager --output cat | grep '"TRACE"' > "$task_dir"/journal.txt
+    # On some systems, some log lines get broken into separate entries
+    # So for lines with snapd/snap identifiers, search for lines that begin with `{` 
+    # but don't end with `}` and have "TRACE", remove their new lines to recompose the entry.
+    # Then only grab TRACE-level entries.
+    "$TESTSTOOLS"/journal-state get-log --no-pager | grep -oP 'snapd?\[\d+\]: \K.*' | sed -e ':a' -e '/^{.*\"TRACE\".*[^}]$/ { N; s/\n//; ba }' | grep '"TRACE"' > "$task_dir"/journal.txt
     cp /var/lib/snapd/state.json "$task_dir" || true
 }
 
@@ -21,7 +25,7 @@ features_after_nested_task() {
     local task_dir
     task_dir="$(_prepare_artifacts_path feature-tags)"
 
-    "$TESTSTOOLS"/remote.exec "sudo journalctl --no-pager --output cat | grep '\"TRACE\"'" > "$task_dir"/journal.txt
+    "$TESTSTOOLS"/remote.exec "sudo journalctl --no-pager | grep -oP 'snapd?\[\d+\]: \K.*' | sed -e ':a' -e '/^{.*\\\"TRACE\\\".*[^}]$/ { N; s/\n//; ba }' | grep '\"TRACE\"'" > "$task_dir"/journal.txt
     "$TESTSTOOLS"/remote.exec "sudo chmod 777 /var/lib/snapd/state.json"
     "$TESTSTOOLS"/remote.pull "/var/lib/snapd/state.json" "$task_dir"
 }
