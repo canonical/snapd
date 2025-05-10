@@ -118,6 +118,8 @@ func norm(col int, msg []rune) []rune {
 				width -= runewidth.RuneWidth(out[i-1])
 				i -= 1
 			}
+			// '…' (U+2026) is used to indicate text is too long. In most of
+			// terminal applications, this character is rendered as 1 column.
 			out[i] = '…'
 			width += 1
 			i += 1
@@ -232,8 +234,7 @@ func (*ANSIMeter) Notify(msgstr string) {
 	for runeWidth(msg) > col {
 		endOfLine := 0
 		lineWidth := 0
-		for i = 0; i < len(msg); i++ {
-			r := msg[i]
+		for i, r := range msg {
 			w := runewidth.RuneWidth(r)
 			if w+lineWidth > col {
 				break
