@@ -23,6 +23,7 @@ HOME_DIR/snap(/.*)?			gen_context(system_u:object_r:snappy_home_t,s0)
 /usr/bin/snap			--	gen_context(system_u:object_r:snappy_cli_exec_t,s0)
 /usr/bin/snapctl		--	gen_context(system_u:object_r:snappy_cli_exec_t,s0)
 
+# TODO add policy for snapd-apparmor?
 ifdef(`distro_redhat',`
 /usr/libexec/snapd/snapctl		--	gen_context(system_u:object_r:snappy_cli_exec_t,s0)
 /usr/libexec/snapd/snap-confine		--	gen_context(system_u:object_r:snappy_confine_exec_t,s0)
