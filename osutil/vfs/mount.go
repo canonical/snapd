@@ -32,8 +32,7 @@ import (
 // contains other mount entries they are shadowed until the new entry is
 // unmounted.
 func (v *VFS) Mount(fsFS fs.StatFS, mountPoint string) error {
-	// The root directory cannot be mounted.
-	// XXX: or can it?
+	// Refuse to mount on rootfs.
 	if mountPoint == "" {
 		return &fs.PathError{Op: "mount", Path: mountPoint, Err: fs.ErrInvalid}
 	}
@@ -70,13 +69,10 @@ func (v *VFS) Mount(fsFS fs.StatFS, mountPoint string) error {
 
 	// The new mount entry is dominated by a shared mount, so it is also shared.
 	if dom.shared != 0 {
-		// Groups IDs start with 1
-		v.lastGroupID++
+		v.lastGroupID++ // Groups IDs start with 1
 		m.shared = v.lastGroupID
 		v.l.Logf("Made new mount shared:%d", m.shared)
 	}
-	// TODO: slave
-	// TODO: unbindable
 
 	v.mounts = append(v.mounts, m)
 	v.nextMountID++
@@ -85,18 +81,18 @@ func (v *VFS) Mount(fsFS fs.StatFS, mountPoint string) error {
 
 	// Propagate the mount to the peer group of dom.
 	if dom.shared != 0 {
-		for _, peer := range v.mounts {
+		for _, other := range v.mounts {
 			// Do not self-propagate.
-			if peer == dom {
+			if other == dom {
 				continue
 			}
 
-			// Propagate to peer gropup and to slaves.
-			if peer.shared == dom.shared && peer.master == dom.shared {
-				v.l.Logf("XXX: finish me, peer needs to see propagation %v\n", peer)
+			// Propagate to peer group and to slaves.
+			if other.shared == dom.shared || other.master == dom.shared {
+				v.l.Logf("XXX: finish me, peer needs to see propagation %v\n", other)
 				// TODO: constrain the mount with root dir.
 				// TODO: reuse logic from bind-mount path computation.
-				newMountPoint := peer.mountPoint + "/" + suffix
+				newMountPoint := other.mountPoint + "/" + suffix
 				v.l.Logf("XXX: finish me, propagating from %s to %s\n", m.mountPoint, newMountPoint)
 				// TODO: what happens when we fail mid-way?
 				if _, err := v.unlockedBindMount(m.mountPoint, newMountPoint); err != nil {
@@ -125,18 +121,17 @@ func (v *VFS) BindMount(sourcePoint, mountPoint string) error {
 }
 
 func (v *VFS) unlockedBindMount(sourcePoint, mountPoint string) (*mount, error) {
-	// The root directory cannot be the source or target of a bind-mount.
-	// XXX: or can it?
-	if sourcePoint == "" || mountPoint == "" {
+	// The root directory cannot be the target of a bind-mount.
+	if mountPoint == "" {
 		return nil, &fs.PathError{Op: "bind-mount", Path: "", Err: fs.ErrInvalid}
 	}
 
 	// Find the mount dominating the source point and the mount point.
 	_, sourceDom, sourceSuffix, sourceFsPath := v.dom(sourcePoint)
 
-	// If source is unbindable then flat out refse.
+	// If source is unbindable then flat out refuse.
 	if sourceDom.unbindable {
-		return nil, &fs.PathError{Op: "bind-mount", Path: "", Err: fs.ErrInvalid}
+		return nil, &fs.PathError{Op: "bind-mount", Path: sourcePoint, Err: errUnbindable}
 	}
 
 	_, dom, _, fsPath := v.dom(mountPoint)
@@ -181,6 +176,8 @@ func (v *VFS) unlockedBindMount(sourcePoint, mountPoint string) (*mount, error) 
 		rootDir = sourceFsPath
 	}
 
+	// TODO: unify mount and bind mount, somehow?
+
 	// Mount and return.
 	m := &mount{
 		mountID:    v.nextMountID,
@@ -194,6 +191,29 @@ func (v *VFS) unlockedBindMount(sourcePoint, mountPoint string) (*mount, error) 
 	v.mounts = append(v.mounts, m)
 	v.nextMountID++
 	v.sendEvent("mount", m)
+
+	// Propagate the mount to the peer group of dom.
+	if dom.shared != 0 {
+		for _, other := range v.mounts {
+			// Do not self-propagate.
+			if other == dom {
+				continue
+			}
+
+			// Propagate to peer group and to slaves.
+			if other.shared == dom.shared || other.master == dom.shared {
+				v.l.Logf("XXX: finish me, peer needs to see propagation %v\n", other)
+				// TODO: constrain the mount with root dir.
+				// TODO: reuse logic from bind-mount path computation.
+				newMountPoint := other.mountPoint + "/" + suffix
+				v.l.Logf("XXX: finish me, propagating from %s to %s\n", m.mountPoint, newMountPoint)
+				// TODO: what happens when we fail mid-way?
+				if _, err := v.unlockedBindMount(m.mountPoint, newMountPoint); err != nil {
+					return fmt.Errorf("cannot propagate mount: %w", err)
+				}
+			}
+		}
+	}
 
 	return m, nil
 }
@@ -267,27 +287,35 @@ func (v *VFS) Unmount(mountPoint string) error {
 	v.mu.Lock()
 	defer v.mu.Unlock()
 
+	return v.atMountPoint(mountPoint, "unmount", func(idx int, m *mount, suffix string) error {
+		// Is this mount point a parent of any other mount?
+		// By special case of the rootfs mount, it cannot ever be unmounted as it is its own parent.
+		for _, other := range v.mounts {
+			if other.parentID == m.mountID {
+				return &fs.PathError{Op: "unmount", Path: mountPoint, Err: errMountBusy}
+			}
+		}
+
+		// Actually forget the mount.
+		v.mounts = append(v.mounts[:idx], v.mounts[idx+1:]...)
+		v.sendEvent("unmount", m)
+
+		return nil
+	})
+}
+
+// atMountPoint calls [fn] if [mountPoint] is an existing mount point.
+//
+// If [mountPoint] is not a mount point then a [fs.PathError] is returned,
+// encapsulating the given path [mountPoint], and operation [op].
+func (v *VFS) atMountPoint(mountPoint, op string, fn func(idx int, m *mount, suffix string) error) error {
 	// Find the mount dominating the mount point.
-	// Keep track of the index as we may use it to reslice the mounts array.
-	idx, dom, suffix, _ := v.dom(mountPoint)
+	idx, m, suffix, _ := v.dom(mountPoint)
 
 	// If the VFS suffix is not empty then the given path is _not_ a mount point.
-	if suffix != "" {
-		return &fs.PathError{Op: "unmount", Path: mountPoint, Err: errNotMounted}
+	if suffix != "" && suffix != "." {
+		return &fs.PathError{Op: op, Path: mountPoint, Err: errNotMounted}
 	}
 
-	// Is this mount point a parent of any other mount?
-	// By special case of the rootfs mount, it cannot ever be unmounted as it is its own parent.
-	for _, m := range v.mounts {
-		if m.parentID == dom.mountID {
-			return &fs.PathError{Op: "unmount", Path: mountPoint, Err: errMountBusy}
-		}
-	}
-
-	// Actually forget the mount.
-	v.mounts = append(v.mounts[:idx], v.mounts[idx+1:]...)
-
-	v.sendEvent("unmount", dom)
-
-	return nil
+	return fn(idx, m, suffix)
 }

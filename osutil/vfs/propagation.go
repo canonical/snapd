@@ -19,10 +19,6 @@
 
 package vfs
 
-import (
-	"io/fs"
-)
-
 // MakeShared changes propagation of the given mount to "shared".
 //
 // The function fails if the path is not a mount point.
@@ -32,14 +28,14 @@ func (v *VFS) MakeShared(mountPoint string) error {
 	v.mu.Lock()
 	defer v.mu.Unlock()
 
-	return v.atMountPoint(mountPoint, "make-shared", func(m *mount, suffix string) error {
+	return v.atMountPoint(mountPoint, "make-shared", func(_ int, m *mount, suffix string) error {
 		if m.shared == 0 {
 			v.lastGroupID++
 			m.shared = v.lastGroupID
 		}
 		m.unbindable = false
 
-		return nil // XXX: should this ever fail?
+		return nil
 	})
 }
 
@@ -52,15 +48,14 @@ func (v *VFS) MakeSlave(mountPoint string) error {
 	v.mu.Lock()
 	defer v.mu.Unlock()
 
-	return v.atMountPoint(mountPoint, "make-private", func(m *mount, suffix string) error {
+	return v.atMountPoint(mountPoint, "make-private", func(_ int, m *mount, suffix string) error {
 		if m.shared != 0 {
 			m.master = m.shared
 		}
 		m.shared = 0
-
 		m.unbindable = false
 
-		return nil // XXX: should this ever fail?
+		return nil
 	})
 }
 
@@ -73,10 +68,10 @@ func (v *VFS) MakePrivate(mountPoint string) error {
 	v.mu.Lock()
 	defer v.mu.Unlock()
 
-	return v.atMountPoint(mountPoint, "make-private", func(m *mount, suffix string) error {
+	return v.atMountPoint(mountPoint, "make-private", func(_ int, m *mount, suffix string) error {
 		m.shared = 0
 		m.master = 0
-		m.unbindable = false // XXX: is this correct?
+		m.unbindable = false
 
 		return nil
 	})
@@ -86,27 +81,11 @@ func (v *VFS) MakeUnbindable(mountPoint string) error {
 	v.mu.Lock()
 	defer v.mu.Unlock()
 
-	return v.atMountPoint(mountPoint, "make-unbindable", func(m *mount, suffix string) error {
-		m.shared = 0 // XXX: is this correct?
-		m.master = 0 // XXX: is this correct?
+	return v.atMountPoint(mountPoint, "make-unbindable", func(_ int, m *mount, suffix string) error {
+		m.shared = 0
+		m.master = 0
 		m.unbindable = true
 
 		return nil
 	})
-}
-
-// atMountPoint calls [fn] if [mountPoint] is an existing mount point.
-//
-// If [mountPoint] is not a mount point then a [fs.PathError] is returned,
-// encapsulating the given path [mountPoint], and operation [op].
-func (v *VFS) atMountPoint(mountPoint, op string, fn func(m *mount, suffix string) error) error {
-	// Find the mount dominating the mount point.
-	_, m, suffix, _ := v.dom(mountPoint)
-
-	// If the VFS suffix is not empty then the given path is _not_ a mount point.
-	if suffix != "" && suffix != "." {
-		return &fs.PathError{Op: op, Path: mountPoint, Err: errNotMounted}
-	}
-
-	return fn(m, suffix)
 }

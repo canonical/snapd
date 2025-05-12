@@ -21,6 +21,12 @@
 // bind-mount and unmount work. The [VFS.Stat] function returns a [fs.FileInfo] whose
 // [fs.FileInfo.Sys] function returns information from the underlying [fs.StatFS].
 // The [VFS.Open] function panics, allowing the implementation to be simpler.
+//
+// The implementation does not contain some of the elements seen in the larger
+// versions: notably there are no directory entry nodes. The reason for that is
+// that the VFS sits on top of the go [fs.FS] abstraction which similarly lacks those.
+// Another reason is performance. The [VFS] type is much, much slower than what
+// prouction systems do.
 package vfs
 
 import (
@@ -36,23 +42,33 @@ var (
 	errNotDir     = errors.New("not a directory")
 	errNotMounted = errors.New("not mounted")
 	errMountBusy  = errors.New("mount is busy")
+	errUnbindable = errors.New("mount is unbindable")
 )
 
 // MountID is a 64 bit identifier of a mount.
 type MountID int64
 
-// XXX: what is the real type
+// GroupID is a 64 bit identifier of a peer group.
 type GroupID int64
 
 // RootMountID is the mount ID of the root file system in any VFS.
 const RootMountID MountID = -1 // LSMT_ROOT
 
 // VFS models a virtual file system.
+//
+// Zero value of VFS is not valid.
 type VFS struct {
-	mu          sync.RWMutex
-	mounts      []*mount
+	mu sync.RWMutex
+
+	// The most recently mounted element is the last element of the slice.
+	// The root file system is the first element of the slice.
+	// The slice is never empty.
+	mounts []*mount
+	// nextMountID is the ID assigned to the next mount.
 	nextMountID MountID
-	lastGroupID GroupID // Groups IDs start with 1 so that zero value is not a valid group.
+	// lastGroupID is the ID assigned to the last peer group.
+	// Groups have non-zero identifiers.
+	lastGroupID GroupID
 
 	observer func(Event)
 	l        logger
@@ -103,6 +119,7 @@ func (v *VFS) dom(path string) (idx int, m *mount, suffix, fsPath string) {
 		}
 	}
 
+	// This cannot happen if [NewVFS] was used to create the VFS.
 	panic("We should have found the rootfs while looking for mount dominating " + path)
 }
 
@@ -110,13 +127,13 @@ func (v *VFS) dom(path string) (idx int, m *mount, suffix, fsPath string) {
 type mount struct {
 	mountID    MountID
 	parentID   MountID
-	mountPoint string // Path of the mount point in the VFS. This might be a file.
-	rootDir    string // Path of fsFS that is actually mounted.
-	isDir      bool   // Mount is attached to a directory.
-	fsFS       fs.StatFS
-	shared     GroupID // ID of the shared peer group, zero is invalid.
-	master     GroupID // ID of the peer group that is the master, zero is invalid.
-	unbindable bool    // The mount cannot be used as source.
+	mountPoint string    // Path of the mount point in the VFS. This might be a file.
+	rootDir    string    // Path of fsFS that is actually mounted.
+	isDir      bool      // Mount is attached to a directory.
+	fsFS       fs.StatFS // The Go files system that provides actual content.
+	shared     GroupID   // ID of the shared peer group, zero is invalid.
+	master     GroupID   // ID of the peer group that is the master, zero is invalid.
+	unbindable bool      // The mount cannot be used as source.
 }
 
 // String returns a mountinfo-like representation of the mount.
@@ -128,22 +145,28 @@ type mount struct {
 func (m *mount) String() string {
 	var sb strings.Builder
 
+	var (
+		major = 0
+		minor = 0
+	)
+	if fs, ok := m.fsFS.(interface{ MajorMinor() (int, int) }); ok {
+		major, minor = fs.MajorMinor()
+	}
+
 	const (
-		major     = 0
-		minor     = 0
 		mountOpts = "rw"
 		sbOpts    = "rw"
 		fsType    = "(fstype)"
 		source    = "(source)"
 	)
-	fmt.Fprintf(&sb, "%-2d %d %d:%d %s %s %s", m.mountID, m.parentID, major, minor, "/"+m.rootDir, "/"+m.mountPoint, mountOpts)
+	fmt.Fprintf(&sb, "%-2d %d %d:%d /%s /%s %s", m.mountID, m.parentID, major, minor, m.rootDir, m.mountPoint, mountOpts)
 	if m.shared != 0 {
 		fmt.Fprintf(&sb, " shared:%d", m.shared)
 	}
 	if m.master != 0 {
 		fmt.Fprintf(&sb, " slave:%d", m.master)
 	}
-	// TODO: propagate_from:nnn if master is invisble (not possible yet, needs pivot or chroot or namespaces).
+	// NOTE: propagate_from:nnn if master is invisble (not possible yet, needs pivot or chroot or namespaces).
 	if m.unbindable {
 		fmt.Fprintf(&sb, " unbindable")
 	}
