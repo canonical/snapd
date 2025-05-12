@@ -12,6 +12,9 @@ systems:
   - ubuntu-18.04-*
   - ubuntu-2*
 
+environment:
+  PURGE_SNAPD: true
+
 prepare: |
   # Install a snap with a service running
   service_snap="$("${TESTSTOOLS}/snaps-state" pack-local test-snapd-service)"

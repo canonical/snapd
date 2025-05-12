@@ -12,7 +12,7 @@ prepare: |
     snap set system experimental.parallel-instances=true
 
 restore: |
-    snap set system experimental.parallel-instances=null
+    snap unset system experimental.parallel-instances
 
 execute: |
     SNAP_NAME=test-snapd-tools

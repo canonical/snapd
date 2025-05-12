@@ -9,6 +9,9 @@ details: |
 # livepatch works only on amd64 systems
 systems: [ubuntu-14.04-64]
 
+environment:
+    PURGE_SNAPD: true
+
 restore: |
     snap remove --purge canonical-livepatch || true
     # compat system will not do any cleanups, do them ourselves

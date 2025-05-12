@@ -9,7 +9,7 @@ details: |
     the presence of the instance key.
 
 restore: |
-    snap set system experimental.parallel-instances=
+    snap unset system experimental.parallel-instances
 
 execute: |
     not snap install test-snapd-tools_foo 2> run.err

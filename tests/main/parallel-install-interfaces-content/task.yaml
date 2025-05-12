@@ -19,6 +19,9 @@ environment:
 prepare: |
     snap set system experimental.parallel-instances=true
 
+restore: |
+    snap unset system experimental.parallel-instances
+
 execute: |
     "$TESTSTOOLS"/snaps-state install-local test-snapd-content-advanced-slot
 

@@ -313,24 +313,26 @@ EOF
 prepare_reexec_override() {
     local reexec_file=/etc/systemd/system/snapd.service.d/reexec.conf
  
-    # First time it is needed to save the initial env var value
-    if not tests.env is-set initial SNAP_REEXEC; then
-        tests.env set initial SNAP_REEXEC "$SNAP_REEXEC"
-    # Then if the new value is the same than the initial, then no new configuration needed
-    elif [ "$(tests.env get initial SNAP_REEXEC)" = "$SNAP_REEXEC" ]; then
-        return
-    fi
-
-    # Just update reexec configuration when the SNAP_REEXEC var has been updated
-    # Otherwise it is used the configuration set during project preparation
-    mkdir -p /etc/systemd/system/snapd.service.d
-    if [ -z "${SNAP_REEXEC:-}" ]; then
-        rm -f "$reexec_file"
-    else
-        cat <<EOF > "$reexec_file"
+    if [ -z "${SNAP_REEXEC:-}" ] || [ "${SNAP_REEXEC:-}" == 0 ]; then
+        if [ ! -f "$reexec_file" ]; then
+            return
+        else
+            rm -f "$reexec_file"
+        fi
+    elif [ "${SNAP_REEXEC:-}" == 1 ]; then
+        if [ -f "$reexec_file" ]; then
+            return
+        else
+            # Just update reexec configuration when the SNAP_REEXEC var has been updated
+            mkdir -p /etc/systemd/system/snapd.service.d
+            cat <<EOF > "$reexec_file"
 [Service]
 Environment=SNAP_REEXEC=$SNAP_REEXEC
 EOF
+        fi
+    else
+        echo "Unsupported re-exec scenario with SNAP_REEXEC={SNAP_REEXEC:-}"
+        exit 1
     fi
 
     systemctl daemon-reload

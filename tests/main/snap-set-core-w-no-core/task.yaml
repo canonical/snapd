@@ -10,6 +10,9 @@ warn-timeout: 1m
 
 kill-timeout: 5m
 
+environment:
+    PURGE_SNAPD: true
+
 restore: |
     #shellcheck source=tests/lib/pkgdb.sh
     . "$TESTSLIB/pkgdb.sh"

@@ -31,6 +31,9 @@ prepare: |
     # prerequisite for having a prompts handler service
     snap set system experimental.user-daemons=true
 
+restore: |
+    snap unset system experimental.user-daemons
+
 debug: |
     tests.exec is-skipped && exit 0
 

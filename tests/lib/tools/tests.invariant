@@ -119,18 +119,6 @@ check_stray_dbus_daemon() {
 	fi
 }
 
-check_leftover_defer_sh() {
-	n="$1" # invariant name
-	(
-		find "$PROJECT_PATH" -name defer.sh > "$TESTSTMP/tests.invariant.$n"
-	) > "$TESTSTMP/tests.invariant.$n"
-	if [ -s "$TESTSTMP/tests.invariant.$n" ]; then
-		echo "tests.invariant: leftover defer.sh script" >&2
-		cat "$TESTSTMP/tests.invariant.$n" >&2
-		return 1
-	fi
-}
-
 check_broken_snaps() {
 	n="$1" # invariant name
 	(
@@ -262,7 +250,6 @@ main() {
 	crashed-snap-confine
 	lxcfs-mounted
 	stray-dbus-daemon
-	leftover-defer-sh
 	broken-snaps
 	cgroup-scopes
 	cgroups

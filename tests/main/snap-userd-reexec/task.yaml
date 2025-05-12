@@ -10,6 +10,7 @@ systems: [ubuntu-1*, ubuntu-2*, debian-*]
 environment:
     # uploading the snapd snap triggers OOM
     SNAPD_NO_MEMORY_LIMIT: 1
+    PURGE_SNAPD: true
 
 restore: |
     tests.exec is-skipped && exit 0

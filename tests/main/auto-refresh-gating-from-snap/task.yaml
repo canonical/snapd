@@ -23,6 +23,9 @@ prepare: |
   snap install "$CONTENT_SNAP_NAME"
   "$TESTSTOOLS"/snaps-state install-local "$NOHOOK_SNAP"
 
+restore: |
+  snap unset system experimental.gate-auto-refresh-hook
+
 debug: |
   gojq -r '.data["snaps-hold"]' < /var/lib/snapd/state.json || true
 
