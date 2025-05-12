@@ -12,6 +12,7 @@ import (
 
 	"github.com/snapcore/snapd/arch"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 )
 
@@ -50,7 +51,14 @@ func RegisterFileDescriptor(fd uintptr) (version ProtocolVersion, pendingCount i
 			listenerID, err := registerListenerID(fd, protocolVersion)
 			if err != nil {
 				if errors.Is(err, unix.EINVAL) {
+					logger.Debugf("kernel returned EINVAL from APPARMOR_NOTIF_REGISTER with protocol version %d; marking version as unsupported and retrying", protocolVersion)
 					unsupported[protocolVersion] = true
+					continue
+				} else if errors.Is(err, unix.ENOENT) {
+					// Listener probably timed out in the kernel, so remove the
+					// saved ID and retry registration
+					logger.Debug("kernel returned ENOENT from APPARMOR_NOTIF_REGISTER (listener probably timed out); removing saved listener ID and retrying")
+					removeSavedListenerID()
 					continue
 				}
 				return 0, 0, err
@@ -113,6 +121,7 @@ func registerListenerID(fd uintptr, version ProtocolVersion) (listenerID uint64,
 		return 0, err
 	}
 	ioctlBuf := IoctlRequestBuffer(data)
+	logger.Debugf("performing APPARMOR_NOTIF_REGISTER with listener ID set to %d", listenerID)
 	buf, err := doIoctl(fd, APPARMOR_NOTIF_REGISTER, ioctlBuf)
 	if err != nil {
 		return 0, err
@@ -150,6 +159,7 @@ func retrieveSavedListenerID() (id uint64, ok bool) {
 	if err = binary.Read(f, nativeByteOrder, &id); err != nil {
 		return 0, false
 	}
+	logger.Debugf("retrieved saved listener ID from disk: %d", id)
 	return id, true
 }
 
@@ -166,7 +176,13 @@ func saveListenerID(id uint64) error {
 	if err := os.MkdirAll(dirs.SnapInterfacesRequestsRunDir, 0o755); err != nil {
 		return err
 	}
+	logger.Debugf("saving listener ID to disk: %d", id)
 	return osutil.AtomicWriteFile(listenerIDFilepath(), buf[:], 0o600, 0)
+}
+
+// removeSavedListenerID removes the file which stores the listener ID on disk.
+func removeSavedListenerID() error {
+	return os.Remove(listenerIDFilepath())
 }
 
 // resendRequests tells the kernel to resend all pending requests previously
