@@ -24,6 +24,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"time"
 
 	"github.com/snapcore/snapd/asserts"
 )
@@ -55,6 +56,10 @@ type Options struct {
 	// instead to match if present. Pseudo-header "body" can also
 	// be specified here.
 	Complement map[string]interface{}
+
+	// UpdateTimestamp is used to update the output "timestamp"
+	// header to the current time
+	UpdateTimestamp bool
 }
 
 // Sign produces the text of a signed assertion as specified by opts.
@@ -120,6 +125,11 @@ func Sign(opts *Options, keypairMgr asserts.KeypairManager) ([]byte, error) {
 		if accKey.ConstraintsPrecheck(typ, headers) != nil {
 			return nil, fmt.Errorf("the assertion headers do not match the constraints of the signing account-key")
 		}
+	}
+
+	if opts.UpdateTimestamp {
+		// Update the "timestamp" field with the current time in RFC3339 format.
+		headers["timestamp"] = time.Now().UTC().Format(time.RFC3339)
 	}
 
 	a, err := adb.Sign(typ, headers, body, opts.KeyID)
