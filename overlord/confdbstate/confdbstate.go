@@ -28,15 +28,21 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/confdb"
 	"github.com/snapcore/snapd/i18n"
+	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/ifacestate/ifacerepo"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/strutil"
 )
 
-var assertstateConfdbSchema = assertstate.ConfdbSchema
+var (
+	assertstateConfdbSchema               = assertstate.ConfdbSchema
+	assertstateFetchConfdbSchemaAssertion = assertstate.FetchConfdbSchemaAssertion
+)
 
 // SetViaView uses the view to set the requests in the transaction's databag.
 func SetViaView(bag confdb.Databag, view *confdb.View, requests map[string]any) error {
@@ -57,21 +63,38 @@ func SetViaView(bag confdb.Databag, view *confdb.View, requests map[string]any) 
 }
 
 // GetView returns the view identified by the account, confdb schema and view name.
-func GetView(st *state.State, account, dbSchemaName, viewName string) (*confdb.View, error) {
-	confdbSchemaAs, err := assertstateConfdbSchema(st, account, dbSchemaName)
+func GetView(st *state.State, account, schemaName, viewName string) (*confdb.View, error) {
+	confdbSchemaAs, err := assertstateConfdbSchema(st, account, schemaName)
 	if err != nil {
-		if errors.Is(err, &asserts.NotFoundError{}) {
-			// replace the not found error so the output matches the usual confdb ID layout
-			return nil, confdb.NewNotFoundError(i18n.G("cannot find confdb-schema %s/%s: assertion not found"), account, dbSchemaName)
+		if !errors.Is(err, &asserts.NotFoundError{}) {
+			return nil, err
+		}
+		logger.Noticef("confdb-schema %s/%s not found locally, fetching from store", account, schemaName)
+
+		userID := 0
+		fetchErr := assertstateFetchConfdbSchemaAssertion(st, userID, account, schemaName)
+		if fetchErr != nil {
+			if errors.Is(fetchErr, store.ErrStoreOffline) {
+				logger.Noticef(fetchErr.Error())
+				return nil, err
+			} else if errors.Is(fetchErr, &asserts.NotFoundError{}) {
+				// replace the not found error so the output matches the usual confdb ID layout
+				return nil, confdb.NewNotFoundError(i18n.G("cannot find confdb-schema %s/%s: assertion not found"), account, schemaName)
+			}
+			return nil, fetchErr
 		}
 
-		return nil, fmt.Errorf(i18n.G("cannot find confdb-schema assertion %s/%s: %v"), account, dbSchemaName, err)
+		confdbSchemaAs, err = assertstateConfdbSchema(st, account, schemaName)
+		if err != nil {
+			return nil, err
+		}
 	}
+
 	dbSchema := confdbSchemaAs.Schema()
 
 	view := dbSchema.View(viewName)
 	if view == nil {
-		return nil, confdb.NewNotFoundError(i18n.G("cannot find view %q in confdb schema %s/%s"), viewName, account, dbSchemaName)
+		return nil, confdb.NewNotFoundError(i18n.G("cannot find view %q in confdb schema %s/%s"), viewName, account, schemaName)
 	}
 
 	return view, nil
@@ -751,4 +774,13 @@ func createLoadConfdbTasks(st *state.State, tx *Transaction, view *confdb.View, 
 	ts.MarkEdge(clearTxTask, clearTxEdge)
 
 	return ts, nil
+}
+
+func MockFetchConfdbSchemaAssertion(f func(*state.State, int, string, string) error) func() {
+	osutil.MustBeTestBinary("mocking can only be done in tests")
+	old := assertstateFetchConfdbSchemaAssertion
+	assertstateFetchConfdbSchemaAssertion = f
+	return func() {
+		assertstateFetchConfdbSchemaAssertion = old
+	}
 }

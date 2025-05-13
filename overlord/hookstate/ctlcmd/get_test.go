@@ -44,6 +44,7 @@ import (
 	"github.com/snapcore/snapd/overlord/ifacestate/ifacerepo"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -912,8 +913,14 @@ func (s *confdbSuite) TestConfdbExperimentalFlag(c *C) {
 }
 
 func (s *confdbSuite) TestConfdbGetPreviousInvalid(c *C) {
-	// take this to mean that the parsing succeeded (to avoid mocking assertion, plugs, etc)
-	success := fmt.Sprintf(`cannot find confdb-schema %s/other: assertion not found`, s.devAccID)
+	restore := confdbstate.MockFetchConfdbSchemaAssertion(func(*state.State, int, string, string) error {
+		return store.ErrStoreOffline
+	})
+	defer restore()
+
+	// the parsing succeeded
+	success := fmt.Sprintf(`confdb-schema (other; account-id:%s) not found`, s.devAccID)
+	forbidMsg := `cannot use --previous outside of save-view, change-view or observe-view hooks`
 
 	type testcase struct {
 		hook string
@@ -927,7 +934,7 @@ func (s *confdbSuite) TestConfdbGetPreviousInvalid(c *C) {
 		},
 		{
 			hook: "load-view-plug",
-			err:  `cannot use --previous outside of save-view, change-view or observe-view hooks`,
+			err:  forbidMsg,
 		},
 		{
 			hook: "change-view-plug",
@@ -935,7 +942,7 @@ func (s *confdbSuite) TestConfdbGetPreviousInvalid(c *C) {
 		},
 		{
 			hook: "query-view-pug",
-			err:  `cannot use --previous outside of save-view, change-view or observe-view hooks`,
+			err:  forbidMsg,
 		},
 		{
 			hook: "observe-view-plug",
@@ -943,7 +950,7 @@ func (s *confdbSuite) TestConfdbGetPreviousInvalid(c *C) {
 		},
 		{
 			hook: "",
-			err:  `cannot use --previous outside of save-view, change-view or observe-view hooks`,
+			err:  forbidMsg,
 		},
 	}
 
@@ -964,13 +971,13 @@ func (s *confdbSuite) TestConfdbGetPreviousInvalid(c *C) {
 		}
 
 		stdout, stderr, err := ctlcmd.Run(ctx, []string{"get", "--view", "--previous", ":other", "foo"}, 0)
-		c.Assert(err, ErrorMatches, tc.err)
+		c.Assert(err.Error(), Equals, tc.err)
 		c.Check(stdout, IsNil)
 		c.Check(stderr, IsNil)
 	}
 
 	stdout, stderr, err := ctlcmd.Run(s.mockContext, []string{"get", "--previous", ":other", "foo"}, 0)
-	c.Assert(err, ErrorMatches, "cannot use --previous without --view")
+	c.Assert(err.Error(), Equals, "cannot use --previous without --view")
 	c.Check(stdout, IsNil)
 	c.Check(stderr, IsNil)
 }

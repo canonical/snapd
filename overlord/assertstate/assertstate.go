@@ -431,6 +431,19 @@ func autoRefreshConfdbAssertions(st *state.State, userID int, opts *RefreshAsser
 	return refreshConfdbAssertions(st, confdbSchemas, userID, opts)
 }
 
+// FetchConfdbSchemaAssertion fetches the confdb-schema assertion identified by
+// the account/name pair from the store and saves it to the db.
+func FetchConfdbSchemaAssertion(st *state.State, userID int, account, name string) error {
+	deviceCtx, err := snapstate.DevicePastSeeding(st, nil)
+	if err != nil {
+		return err
+	}
+
+	return doFetch(st, userID, deviceCtx, nil, func(f asserts.Fetcher) error {
+		return snapasserts.FetchConfdbSchema(f, account, name)
+	})
+}
+
 // refreshConfdbAssertions fetches new revisions for the assertions referenced
 // by the provided confdb schemas. It attempts a bulk refresh and if that
 // fails, it falls back to fetching the assertions one by one.
