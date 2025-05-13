@@ -35,11 +35,28 @@ func Test(t *testing.T) {
 
 type uDevSuite struct {
 	backend *udev.Backend
+	cmd     *testutil.MockCmd
 }
 
 var _ = Suite(&uDevSuite{})
 
 // Tests for ReloadRules()
+
+func (s *uDevSuite) SetUpSuite(c *C) {
+	s.cmd = testutil.MockCommand(c, "systemd-detect-virt", `
+       for arg in "$@"; do
+               if [ "$arg" = --container ]; then
+                       exit 1
+               fi
+       done
+
+       exit 0
+       `)
+}
+
+func (s *uDevSuite) TearDownSuite(c *C) {
+	s.cmd.Restore()
+}
 
 func (s *uDevSuite) SetUpTest(c *C) {
 	s.backend = &udev.Backend{}

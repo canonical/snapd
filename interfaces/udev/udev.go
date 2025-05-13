@@ -61,7 +61,7 @@ func udevadmTrigger(args ...string) error {
 //	udevadm trigger --subsystem-match=input
 //	udevadm trigger --property-match=ID_INPUT_JOYSTICK=1
 func (b *Backend) reloadRules(subsystemTriggers []string) error {
-	if b.preseed {
+	if b.preseed || b.isContainer {
 		return nil
 	}
 
