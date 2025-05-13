@@ -21,6 +21,7 @@ package main
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/jessevdk/go-flags"
@@ -34,12 +35,16 @@ type cmdDebugRAA struct {
 }
 
 func init() {
-	addDebugCommand("raa",
+	addDebugCommand("refresh-app-awareness",
 		"Obtain refresh-app-awareness details",
 		"obtain refresh-app-awareness details",
 		func() flags.Commander {
 			return &cmdDebugRAA{}
 		}, nil, nil)
+}
+
+type monitoredSnapInfo struct {
+	Pids map[string][]int `json:"pids"`
 }
 
 type refreshCandidateInfo struct {
@@ -61,7 +66,7 @@ func (x *cmdDebugRAA) Execute(args []string) error {
 		return ErrExtraArgs
 	}
 	var resp struct {
-		MonitoredSnaps    []string                        `json:"monitored-snaps,omitempty"`
+		MonitoredSnaps    map[string]monitoredSnapInfo    `json:"monitored-snaps,omitempty"`
 		RefreshCandidates map[string]refreshCandidateInfo `json:"refresh-candidates,omitempty"`
 	}
 	if err := x.client.DebugGet("raa", &resp, nil); err != nil {
@@ -70,16 +75,24 @@ func (x *cmdDebugRAA) Execute(args []string) error {
 
 	w := tabWriter()
 
-	fmt.Fprintf(w, "Monitored snaps:\n")
-	for _, snapName := range resp.MonitoredSnaps {
-		fmt.Fprintf(w, "- %s\n", snapName)
+	if len(resp.MonitoredSnaps) != 0 {
+		fmt.Fprintf(w, "Monitored snaps:\n")
+		fmt.Fprintf(w, "Name\tSecurity Tag\tPID\n")
+	}
+	for snapName, monitored := range resp.MonitoredSnaps {
+		for securityTag, pids := range monitored.Pids {
+			for _, pid := range pids {
+				line := []string{snapName, securityTag, strconv.Itoa(pid)}
+				fmt.Fprintln(w, strings.Join(line, "\t"))
+			}
+		}
 	}
 
-	fmt.Fprintf(w, "\nRefresh candidates:\n")
-	fmt.Fprintf(w, "Name\tVersion\tRev\tChannel\tMonitored\n")
-
+	if len(resp.RefreshCandidates) != 0 {
+		fmt.Fprintf(w, "\nRefresh candidates:\n")
+		fmt.Fprintf(w, "Name\tVersion\tRev\tChannel\tMonitored\n")
+	}
 	for snapName, candidate := range resp.RefreshCandidates {
-		// doing it this way because otherwise it's a sea of %s\t%s\t%s
 		line := []string{
 			snapName,
 			fmtVersion(candidate.Version),
@@ -89,7 +102,7 @@ func (x *cmdDebugRAA) Execute(args []string) error {
 		}
 		fmt.Fprintln(w, strings.Join(line, "\t"))
 	}
-	w.Flush()
 
+	w.Flush()
 	return nil
 }

@@ -25,12 +25,17 @@ import (
 	"fmt"
 
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/sandbox/cgroup"
 	"github.com/snapcore/snapd/snap"
 )
 
 type raaInfo struct {
-	MonitoredSnaps    []string                        `json:"monitored-snaps"`
+	MonitoredSnaps    map[string]monitoredSnapInfo    `json:"monitored-snaps"`
 	RefreshCandidates map[string]refreshCandidateInfo `json:"refresh-candidates"`
+}
+
+type monitoredSnapInfo struct {
+	Pids map[string][]int `json:"pids"`
 }
 
 type refreshCandidateInfo struct {
@@ -75,20 +80,27 @@ func getRAAInfo(st *state.State) Response {
 	}
 
 	data := &raaInfo{
-		MonitoredSnaps:    make([]string, 0, len(monitoringAborts)),
+		MonitoredSnaps:    make(map[string]monitoredSnapInfo, len(monitoringAborts)),
 		RefreshCandidates: make(map[string]refreshCandidateInfo, len(candidates)),
 	}
 	for snapName, candidate := range candidates {
-		candidateInfo := refreshCandidateInfo{
+		info := refreshCandidateInfo{
 			Revision:  candidate.SideInfo.Revision,
 			Version:   candidate.Version,
 			Channel:   candidate.Channel,
 			Monitored: candidate.Monitored,
 		}
-		data.RefreshCandidates[snapName] = candidateInfo
+		data.RefreshCandidates[snapName] = info
 	}
-	for snap := range monitoringAborts {
-		data.MonitoredSnaps = append(data.MonitoredSnaps, snap)
+	for snapName := range monitoringAborts {
+		pids, err := cgroup.PidsOfSnap(snapName)
+		if err != nil {
+			return InternalError(err.Error())
+		}
+		info := monitoredSnapInfo{
+			Pids: pids,
+		}
+		data.MonitoredSnaps[snapName] = info
 	}
 	return SyncResponse(data)
 }
