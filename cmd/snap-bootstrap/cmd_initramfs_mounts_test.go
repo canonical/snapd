@@ -595,7 +595,14 @@ func (s *baseInitramfsMountsSuite) setupSeed(c *C, modelAssertTime time.Time, ga
 				"id":              testSeed.AssertedSnapID("pc"),
 				"type":            "gadget",
 				"default-channel": channel,
-			}},
+			},
+			map[string]interface{}{
+				"name":            base,
+				"id":              testSeed.AssertedSnapID(base),
+				"type":            "base",
+				"default-channel": "latest",
+			},
+		},
 	}
 	if s.isClassic {
 		model["classic"] = "true"
