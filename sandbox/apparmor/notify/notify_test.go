@@ -56,8 +56,8 @@ var fakeNotifyVersions = []notify.VersionAndCheck{
 }
 
 func (s *notifySuite) TestRegisterFileDescriptor(c *C) {
-	restoreVersions := notify.MockVersionLikelySupportedChecks(fakeNotifyVersions)
-	defer restoreVersions()
+	restore := notify.MockVersionLikelySupportedChecks(fakeNotifyVersions)
+	defer restore()
 
 	var fakeFD uintptr = 1234
 
@@ -65,7 +65,7 @@ func (s *notifySuite) TestRegisterFileDescriptor(c *C) {
 	c.Check(filepath.Join(dirs.SnapInterfacesRequestsRunDir, "listener-id"), testutil.FileAbsent)
 
 	ioctlCalls := 0
-	restoreSyscall := notify.MockIoctl(func(fd uintptr, req notify.IoctlRequest, buf notify.IoctlRequestBuffer) ([]byte, error) {
+	restore = notify.MockIoctl(func(fd uintptr, req notify.IoctlRequest, buf notify.IoctlRequestBuffer) ([]byte, error) {
 		c.Assert(fd, Equals, fakeFD)
 
 		ioctlCalls++
@@ -99,7 +99,7 @@ func (s *notifySuite) TestRegisterFileDescriptor(c *C) {
 			return buf, nil
 		}
 	})
-	defer restoreSyscall()
+	defer restore()
 
 	receivedVersion, pendingCount, err := notify.RegisterFileDescriptor(fakeFD)
 	c.Check(err, IsNil)
@@ -189,8 +189,8 @@ func checkIoctlBufferSetFilter(c *C, receivedBuf notify.IoctlRequestBuffer, expe
 }
 
 func (s *notifySuite) TestRegisterFileDescriptorLoadsListenerID(c *C) {
-	restoreVersions := notify.MockVersionLikelySupportedChecks(fakeNotifyVersions)
-	defer restoreVersions()
+	restore := notify.MockVersionLikelySupportedChecks(fakeNotifyVersions)
+	defer restore()
 
 	var (
 		expectedVersion = notify.ProtocolVersion(7)
@@ -207,7 +207,7 @@ func (s *notifySuite) TestRegisterFileDescriptorLoadsListenerID(c *C) {
 	}
 
 	ioctlCalls := 0
-	restoreSyscall := notify.MockIoctl(func(fd uintptr, req notify.IoctlRequest, buf notify.IoctlRequestBuffer) ([]byte, error) {
+	restore = notify.MockIoctl(func(fd uintptr, req notify.IoctlRequest, buf notify.IoctlRequestBuffer) ([]byte, error) {
 		c.Assert(fd, Equals, fakeFD)
 
 		ioctlCalls++
@@ -255,7 +255,7 @@ func (s *notifySuite) TestRegisterFileDescriptorLoadsListenerID(c *C) {
 			return buf, nil
 		}
 	})
-	defer restoreSyscall()
+	defer restore()
 
 	// Check that there's no listener ID currently stored
 	c.Check(filepath.Join(dirs.SnapInterfacesRequestsRunDir, "listener-id"), testutil.FileAbsent)
@@ -278,8 +278,8 @@ func (s *notifySuite) TestRegisterFileDescriptorLoadsListenerID(c *C) {
 }
 
 func (s *notifySuite) TestRegisterFileDescriptorTimedOut(c *C) {
-	restoreVersions := notify.MockVersionLikelySupportedChecks(fakeNotifyVersions)
-	defer restoreVersions()
+	restore := notify.MockVersionLikelySupportedChecks(fakeNotifyVersions)
+	defer restore()
 
 	var (
 		expectedVersion = notify.ProtocolVersion(7)
@@ -301,7 +301,7 @@ func (s *notifySuite) TestRegisterFileDescriptorTimedOut(c *C) {
 	}
 
 	ioctlCalls := 0
-	restoreSyscall := notify.MockIoctl(func(fd uintptr, req notify.IoctlRequest, buf notify.IoctlRequestBuffer) ([]byte, error) {
+	restore = notify.MockIoctl(func(fd uintptr, req notify.IoctlRequest, buf notify.IoctlRequestBuffer) ([]byte, error) {
 		c.Assert(fd, Equals, fakeFD)
 
 		ioctlCalls++
@@ -340,7 +340,7 @@ func (s *notifySuite) TestRegisterFileDescriptorTimedOut(c *C) {
 			return buf, nil
 		}
 	})
-	defer restoreSyscall()
+	defer restore()
 
 	// Write listener ID to disk
 	c.Assert(os.MkdirAll(dirs.SnapInterfacesRequestsRunDir, 0o755), IsNil)
@@ -356,13 +356,13 @@ func (s *notifySuite) TestRegisterFileDescriptorTimedOut(c *C) {
 }
 
 func (s *notifySuite) TestRegisterFileDescriptorErrors(c *C) {
-	restoreVersions := notify.MockVersionLikelySupportedChecks(fakeNotifyVersions)
-	defer restoreVersions()
+	restore := notify.MockVersionLikelySupportedChecks(fakeNotifyVersions)
+	defer restore()
 
 	var fakeFD uintptr = 1234
 
 	ioctlCalls := 0
-	restoreSyscall := notify.MockIoctl(func(fd uintptr, req notify.IoctlRequest, buf notify.IoctlRequestBuffer) ([]byte, error) {
+	restore = notify.MockIoctl(func(fd uintptr, req notify.IoctlRequest, buf notify.IoctlRequestBuffer) ([]byte, error) {
 		c.Assert(fd, Equals, fakeFD)
 
 		ioctlCalls++
@@ -384,7 +384,7 @@ func (s *notifySuite) TestRegisterFileDescriptorErrors(c *C) {
 			return buf, fmt.Errorf("called Ioctl more than twice")
 		}
 	})
-	defer restoreSyscall()
+	defer restore()
 
 	receivedVersion, pendingCount, err := notify.RegisterFileDescriptor(fakeFD)
 	c.Check(err, ErrorMatches, "cannot register notify socket: no mutually supported protocol versions")
@@ -393,7 +393,7 @@ func (s *notifySuite) TestRegisterFileDescriptorErrors(c *C) {
 
 	// A non-recoverable error occurs during REGISTER
 	calledIoctl := false
-	restoreSyscallError := notify.MockIoctl(func(fd uintptr, req notify.IoctlRequest, buf notify.IoctlRequestBuffer) ([]byte, error) {
+	restore = notify.MockIoctl(func(fd uintptr, req notify.IoctlRequest, buf notify.IoctlRequestBuffer) ([]byte, error) {
 		c.Assert(fd, Equals, fakeFD)
 
 		c.Assert(calledIoctl, Equals, false, Commentf("called ioctl more than once after first returned error"))
@@ -404,7 +404,7 @@ func (s *notifySuite) TestRegisterFileDescriptorErrors(c *C) {
 		respBuf := checkIoctlBufferRegister(c, buf, notify.ProtocolVersion(7), 0, 123)
 		return respBuf, fmt.Errorf("cannot perform IOCTL request %v: %w (%s)", req, unix.EPERM, unix.ErrnoName(unix.EPERM))
 	})
-	defer restoreSyscallError()
+	defer restore()
 
 	receivedVersion, pendingCount, err = notify.RegisterFileDescriptor(fakeFD)
 	c.Check(err, ErrorMatches, `cannot perform IOCTL request APPARMOR_NOTIF_REGISTER: operation not permitted \(EPERM\)`)
@@ -413,7 +413,7 @@ func (s *notifySuite) TestRegisterFileDescriptorErrors(c *C) {
 
 	// REGISTER succeeds but a non-recoverable error occurs during RESEND
 	ioctlCount := 0
-	restoreSyscallError = notify.MockIoctl(func(fd uintptr, req notify.IoctlRequest, buf notify.IoctlRequestBuffer) ([]byte, error) {
+	restore = notify.MockIoctl(func(fd uintptr, req notify.IoctlRequest, buf notify.IoctlRequestBuffer) ([]byte, error) {
 		c.Assert(fd, Equals, fakeFD)
 
 		ioctlCount++
@@ -434,7 +434,7 @@ func (s *notifySuite) TestRegisterFileDescriptorErrors(c *C) {
 			return buf, nil
 		}
 	})
-	defer restoreSyscallError()
+	defer restore()
 
 	receivedVersion, pendingCount, err = notify.RegisterFileDescriptor(fakeFD)
 	c.Check(err, ErrorMatches, `cannot perform IOCTL request APPARMOR_NOTIF_RESEND: invalid argument \(EINVAL\)`)
@@ -443,7 +443,7 @@ func (s *notifySuite) TestRegisterFileDescriptorErrors(c *C) {
 
 	// REGISTER and RESEND succeed but a non-recoverable error occurs during SET_FILTER
 	ioctlCount = 0
-	restoreSyscallError = notify.MockIoctl(func(fd uintptr, req notify.IoctlRequest, buf notify.IoctlRequestBuffer) ([]byte, error) {
+	restore = notify.MockIoctl(func(fd uintptr, req notify.IoctlRequest, buf notify.IoctlRequestBuffer) ([]byte, error) {
 		c.Assert(fd, Equals, fakeFD)
 
 		ioctlCount++
@@ -469,7 +469,7 @@ func (s *notifySuite) TestRegisterFileDescriptorErrors(c *C) {
 			return buf, nil
 		}
 	})
-	defer restoreSyscallError()
+	defer restore()
 
 	receivedVersion, pendingCount, err = notify.RegisterFileDescriptor(fakeFD)
 	c.Check(err, ErrorMatches, `cannot perform IOCTL request APPARMOR_NOTIF_SET_FILTER: invalid argument \(EINVAL\)`)
