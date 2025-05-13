@@ -85,12 +85,17 @@ static void setup_private_tmp(const char *snap_instance) {
     int base_dir_fd SC_CLEANUP(sc_cleanup_close) = -1;
     int tmp_dir_fd SC_CLEANUP(sc_cleanup_close) = -1;
 
+    /* Switch to root group so that mkdir and open calls below create
+     * filesystem elements that are not owned by the user calling into
+     * snap-confine. */
+    sc_identity old = sc_set_effective_identity(sc_root_group_identity());
+
     // /tmp/snap-private-tmp should have already been created by
     // systemd-tmpfiles but we can try create it anyway since snapd may have
     // just been installed in which case the tmpfiles conf would not have
     // got executed yet
     if (sc_ensure_mkdir(SNAP_PRIVATE_TMP_ROOT_DIR, 0700, 0, 0) != 0) {
-        die("cannot create " SNAP_PRIVATE_TMP_ROOT_DIR);
+        die("cannot create /tmp/snap-private-tmp");
     }
     private_tmp_root_fd = open(SNAP_PRIVATE_TMP_ROOT_DIR, O_RDONLY | O_DIRECTORY | O_CLOEXEC | O_NOFOLLOW);
     if (private_tmp_root_fd < 0) {
@@ -108,7 +113,6 @@ static void setup_private_tmp(const char *snap_instance) {
     if (sc_ensure_mkdirat(private_tmp_root_fd, base, 0700, 0, 0) != 0) {
         die("cannot create base directory: %s", base);
     }
-
     base_dir_fd = openat(private_tmp_root_fd, base, O_RDONLY | O_DIRECTORY | O_CLOEXEC | O_NOFOLLOW);
     if (base_dir_fd < 0) {
         die("cannot open base directory: %s", base);
@@ -124,6 +128,7 @@ static void setup_private_tmp(const char *snap_instance) {
     if (sc_ensure_mkdirat(base_dir_fd, "tmp", 01777, 0, 0) != 0) {
         die("cannot create private tmp directory %s/tmp", base);
     }
+    (void)sc_set_effective_identity(old);
     tmp_dir_fd = openat(base_dir_fd, "tmp", O_RDONLY | O_DIRECTORY | O_CLOEXEC | O_NOFOLLOW);
     if (tmp_dir_fd < 0) {
         die("cannot open private tmp directory %s/tmp", base);
@@ -200,12 +205,14 @@ struct sc_mount_config {
  */
 static void sc_create_mount_points(const char *scratch_dir, const struct sc_mount *mounts) {
     char dst[PATH_MAX] = {0};
+    sc_identity old = sc_set_effective_identity(sc_root_group_identity());
     for (const struct sc_mount *mnt = mounts; mnt && mnt->path != NULL; mnt++) {
         sc_must_snprintf(dst, sizeof(dst), "%s/%s", scratch_dir, mnt->path);
-        if (sc_nonfatal_mkpath(dst, 0755, 0, 0) < 0) {
+        if (sc_nonfatal_mkpath(dst, 0755) < 0) {
             die("cannot create mount point %s", dst);
         }
     }
+    (void)sc_set_effective_identity(old);
 }
 
 /**
@@ -229,9 +236,11 @@ static void sc_do_mounts(const char *scratch_dir, const struct sc_mount *mounts)
     // disabling the "is_bidirectional" flag as can be seen below.
     for (const struct sc_mount *mnt = mounts; mnt && mnt->path != NULL; mnt++) {
         if (mnt->is_bidirectional) {
+            sc_identity old = sc_set_effective_identity(sc_root_group_identity());
             if (sc_ensure_mkdir(mnt->path, 0755, 0, 0) != 0) {
                 die("cannot create %s", mnt->path);
             }
+            (void)sc_set_effective_identity(old);
         }
         sc_must_snprintf(dst, sizeof dst, "%s/%s", scratch_dir, mnt->path);
         if (mnt->is_optional) {
@@ -281,8 +290,6 @@ static void sc_initialize_ns_fstab(const char *snap_instance_name) {
     char info_path[PATH_MAX] = {0};
     sc_must_snprintf(info_path, sizeof info_path, "/run/snapd/ns/snap.%s.fstab", snap_instance_name);
     int fd = -1;
-    /* no need for 0000 mode, parent directory is already owned and only
-     * writable by root */
     fd = open(info_path, O_WRONLY | O_CREAT | O_TRUNC | O_CLOEXEC | O_NOFOLLOW, 0644);
     if (fd < 0) {
         die("cannot open %s", info_path);
@@ -343,6 +350,8 @@ static void sc_replicate_base_rootfs(const char *scratch_dir, const char *rootfs
     if (rootfs == NULL) {
         die("cannot open directory \"%s\" from file descriptor", rootfs_dir);
     }
+    // Will create folders/links as 0:0
+    sc_identity old = sc_set_effective_identity(sc_root_group_identity());
 
     char full_path[PATH_MAX];
     // After we construct each entry's full path, we'll need to obtain the
@@ -364,13 +373,8 @@ static void sc_replicate_base_rootfs(const char *scratch_dir, const char *rootfs
 
         sc_must_snprintf(full_path, sizeof(full_path), "%s/%s", scratch_dir, ent->d_name);
         if (ent->d_type == DT_DIR) {
-            /* no need for 0000, parent directory already owned and writable by
-             * root only */
             if (mkdir(full_path, 0755) < 0) {
                 die("cannot create directory \"%s\"", full_path);
-            }
-            if (chown(full_path, 0, 0) < 0) {
-                die("cannot change ownership for \"%s\"", full_path);
             }
             // If the directory is listed in root_mounts skip it,
             // as it will be created and mounted in
@@ -408,19 +412,11 @@ static void sc_replicate_base_rootfs(const char *scratch_dir, const char *rootfs
             if (symlink(link_target, full_path) < 0) {
                 die("cannot create symbolic link \"%s\"", full_path);
             }
-            if (lchown(full_path, 0, 0) < 0) {
-                die("cannot change ownership for link \"%s\"", full_path);
-            }
         } else if (ent->d_type == DT_REG) {
-            // Create an empty file which can be used as a mount point, no need
-            // for 0000, parent directory already owned and writable by root
-            // only.
+            // Create an empty file which can be used as a mount point
             int fd = open(full_path, O_CREAT | O_TRUNC, 0644);
             if (fd < 0) {
                 die("cannot create mount point for file \"%s\"", full_path);
-            }
-            if (fchown(fd, 0, 0) < 0) {
-                die("cannot change ownership for file \"%s\"", full_path);
             }
             close(fd);
             char src_path[PATH_MAX];
@@ -435,6 +431,8 @@ static void sc_replicate_base_rootfs(const char *scratch_dir, const char *rootfs
     if (errno != 0) {
         die("cannot read directory entry in \"%s\"", rootfs_dir);
     }
+
+    (void)sc_set_effective_identity(old);
 }
 
 /**
@@ -1000,7 +998,9 @@ void sc_setup_user_mounts(struct sc_apparmor *apparmor, int snap_update_ns_fd, c
     // to slave mode, so we see changes from the parent namespace
     // but don't propagate our own changes.
     sc_do_mount("none", "/", NULL, MS_REC | MS_SLAVE, NULL);
+    sc_identity old = sc_set_effective_identity(sc_root_group_identity());
     sc_call_snap_update_ns_as_user(snap_update_ns_fd, snap_name, apparmor);
+    (void)sc_set_effective_identity(old);
 }
 
 void sc_ensure_snap_dir_shared_mounts(void) {

@@ -26,8 +26,6 @@ import (
 	"io"
 	"os"
 	"strings"
-
-	"github.com/snapcore/snapd/osutil/sys"
 )
 
 // MountProfile represents an array of mount entries.
@@ -66,14 +64,12 @@ func SaveMountProfileText(p *MountProfile) (string, error) {
 
 // Save saves a mount profile (fstab-like) to a given file.
 // The profile is saved with an atomic write+rename+sync operation.
-// If you don't want to alter the uid and gid of the created file, pass
-// osutil.NoChown.
-func SaveMountProfile(p *MountProfile, fname string, uid sys.UserID, gid sys.GroupID) error {
+func (p *MountProfile) Save(fname string) error {
 	var buf bytes.Buffer
 	if _, err := p.WriteTo(&buf); err != nil {
 		return err
 	}
-	return AtomicWriteFileChown(fname, buf.Bytes(), 0644, AtomicWriteFlags(0), uid, gid)
+	return AtomicWriteFile(fname, buf.Bytes(), 0644, AtomicWriteFlags(0))
 }
 
 // ReadMountProfile reads and parses a mount profile.
