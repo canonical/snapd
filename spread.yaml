@@ -931,6 +931,9 @@ prepare: |
 
     if [[ "$SPREAD_SYSTEM" == ubuntu-25.04-64 ]]; then
         if [[ "$SPREAD_REBOOT" = 0 ]]; then
+            if ! command -v add-apt-repository ; then
+                apt update && apt install --yes software-properties-common
+            fi
             # Add PPA for kernel with AppArmor support for metadata tagging
             add-apt-repository --yes ppa:apparmor-dev/dbus-dev
             # Install the kernel from the PPA. There's no signed image, so this
