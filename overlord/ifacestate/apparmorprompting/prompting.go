@@ -41,14 +41,16 @@ import (
 var (
 	// Allow mocking the listener for tests
 	listenerRegister = listener.Register
-	listenerClose    = func(l *listener.Listener) error { return l.Close() }
-	listenerRun      = func(l *listener.Listener) error { return l.Run() }
-	listenerReady    = func(l *listener.Listener) <-chan struct{} { return l.Ready() }
-	listenerReqs     = func(l *listener.Listener) <-chan *listener.Request { return l.Reqs() }
+	listenerClose    = (*listener.Listener).Close
+	listenerRun      = (*listener.Listener).Run
+	listenerReady    = (*listener.Listener).Ready
+	listenerReqs     = (*listener.Listener).Reqs
 
 	requestReply = func(req *listener.Request, allowedPermission notify.AppArmorPermission) error {
 		return req.Reply(allowedPermission)
 	}
+
+	promptsHandleReadying = (*requestprompts.PromptDB).HandleReadying
 
 	promptingInterfaceFromTagsets = prompting.InterfaceFromTagsets
 )
@@ -198,6 +200,18 @@ run_loop:
 			// waiting to be resent, or the listener timed out waiting for one.
 			// In either case, let method calls proceed.
 			logger.Debugf("received ready signal from the listener")
+			// Tell the requestprompts backend that the listener is ready, so
+			// it can discard ID mappings for requests which have not been
+			// re-received. For completeness, acquire the lock, though this
+			// shouldn't really be necessary since the API endpoints are still
+			// waiting on the manager signalling readiness. The lock only needs
+			// to be held for reading, since no synchronization is required
+			// between the rules and prompts backends, and the prompts backend
+			// has an internal mutex.
+			m.lock.RLock()
+			promptsHandleReadying(m.prompts)
+			m.lock.RUnlock()
+			// Close the ready channel to unblock method calls.
 			close(m.ready)
 		case req, ok := <-listenerReqs(m.listener):
 			if !ok {
