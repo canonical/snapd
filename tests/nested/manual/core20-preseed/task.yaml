@@ -1,23 +1,25 @@
 summary: Check that preseeding of core20 works and the image boots.
 
 details: |
-  This test checks that preseeding of UC20 image with ubuntu-image works
+  This test checks that preseeding of UC20+ image with ubuntu-image works
   and that the resulting image boots.
 
-systems: [ubuntu-20.04-64]
+systems: [ -ubuntu-1* ]
 
 environment:
   NESTED_UBUNTU_IMAGE_PRESEED_KEY: "\" (test)\""
   NESTED_ENABLE_TPM: false
   NESTED_ENABLE_SECURE_BOOT: true
   NESTED_BUILD_SNAPD_FROM_CURRENT: true
-  NESTED_CUSTOM_MODEL: $TESTSLIB/assertions/developer1-20-components-dangerous.model
   # for the fake store
   STORE_ADDR: localhost:11028
   NESTED_FAKESTORE_BLOB_DIR: $(pwd)/fake-store-blobdir
   NESTED_UBUNTU_IMAGE_SNAPPY_FORCE_SAS_URL: http://localhost:11028
 
 prepare: |
+  #shellcheck source=tests/lib/nested.sh
+  . "$TESTSLIB"/nested.sh
+
   "$TESTSTOOLS"/store-state setup-fake-store "$NESTED_FAKESTORE_BLOB_DIR"
 
   echo "Expose the needed assertions through the fakestore"
@@ -26,6 +28,10 @@ prepare: |
   cp "$TESTSLIB"/assertions/testrootorg-store.account-key "$NESTED_FAKESTORE_BLOB_DIR"/asserts
 
   "$TESTSTOOLS"/store-state teardown-staging-store
+
+  # Create model for this test UC version
+  version=$(nested_get_version)
+  gendeveloper1 sign-model < "$TESTSLIB"/assertions/developer1-"$version"-components-dangerous.json > pc.model
 
   echo "Creating a new key without a password"
   mkdir -p ~/.snap/gnupg
@@ -45,10 +51,14 @@ debug: |
   echo "gpg key id:$NESTED_UBUNTU_IMAGE_PRESEED_KEY"
 
 execute: |
+  #shellcheck source=tests/lib/nested.sh
+  . "$TESTSLIB"/nested.sh
+
   # have snap use the fakestore for assertions (but nothing else)
   export SNAPPY_FORCE_SAS_URL=http://$STORE_ADDR
 
   echo "Running pre-seeding"
+  export NESTED_CUSTOM_MODEL=$PWD/pc.model
   tests.nested build-image core
   tests.nested create-vm core
 
@@ -59,11 +69,19 @@ execute: |
   remote.exec "snap debug seeding" | MATCH "^preseeded: +true"
 
   echo "Check that no snaps are broken"
+  version=$(nested_get_version)
   remote.exec "snap list" | NOMATCH "broken"
-  remote.exec "snap list core20"
+  remote.exec "snap list core$version"
   remote.exec "snap list snapd"
   remote.exec "snap list test-snap-with-components"
 
   # both of these components should be installed, too
   remote.exec "snap run test-snap-with-components one"
   remote.exec "snap run test-snap-with-components two"
+
+  remote.exec cat /var/lib/snapd/modeenv | MATCH base=core"$version"_x1.snap
+
+  # Reboot to check things are fine in a normal run
+  boot_id=$(tests.nested boot-id)
+  remote.exec sudo reboot || true
+  tests.nested wait-for reboot "$boot_id"
