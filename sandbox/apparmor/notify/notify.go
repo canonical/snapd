@@ -58,7 +58,9 @@ func RegisterFileDescriptor(fd uintptr) (version ProtocolVersion, pendingCount i
 					// Listener probably timed out in the kernel, so remove the
 					// saved ID and retry registration
 					logger.Debug("kernel returned ENOENT from APPARMOR_NOTIF_REGISTER (listener probably timed out); removing saved listener ID and retrying")
-					removeSavedListenerID()
+					if e := removeSavedListenerID(); e != nil {
+						logger.Noticef("cannot remove saved listener ID: %v", e)
+					}
 					continue
 				}
 				return 0, 0, err

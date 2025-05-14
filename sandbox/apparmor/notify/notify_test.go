@@ -201,10 +201,8 @@ func (s *notifySuite) TestRegisterFileDescriptorLoadsListenerID(c *C) {
 		listenerID  uint64  = 0xf00ba4
 	)
 
-	listenerIDBytes := []byte{0xa4, 0x0b, 0xf0, 0x0, 0x0, 0x0, 0x0, 0x0}
-	if notify.NativeByteOrder == binary.BigEndian {
-		listenerIDBytes = []byte{0x0, 0x0, 0x0, 0x0, 0x0, 0xf0, 0x0b, 0xa4}
-	}
+	var listenerIDBytes [8]byte
+	notify.NativeByteOrder.PutUint64(listenerIDBytes[:], listenerID)
 
 	ioctlCalls := 0
 	restore = notify.MockIoctl(func(fd uintptr, req notify.IoctlRequest, buf notify.IoctlRequestBuffer) ([]byte, error) {
@@ -266,7 +264,7 @@ func (s *notifySuite) TestRegisterFileDescriptorLoadsListenerID(c *C) {
 	c.Check(pendingCount, Equals, 0)
 
 	// Check that there's now a listener ID stored
-	c.Check(filepath.Join(dirs.SnapInterfacesRequestsRunDir, "listener-id"), testutil.FileEquals, listenerIDBytes)
+	c.Check(filepath.Join(dirs.SnapInterfacesRequestsRunDir, "listener-id"), testutil.FileEquals, listenerIDBytes[:])
 
 	receivedVersion, pendingCount, err = notify.RegisterFileDescriptor(fakeFD)
 	c.Check(err, IsNil)
@@ -274,7 +272,7 @@ func (s *notifySuite) TestRegisterFileDescriptorLoadsListenerID(c *C) {
 	c.Check(pendingCount, Equals, int(fakePending))
 
 	// Check that there's still a listener ID stored
-	c.Check(filepath.Join(dirs.SnapInterfacesRequestsRunDir, "listener-id"), testutil.FileEquals, listenerIDBytes)
+	c.Check(filepath.Join(dirs.SnapInterfacesRequestsRunDir, "listener-id"), testutil.FileEquals, listenerIDBytes[:])
 }
 
 func (s *notifySuite) TestRegisterFileDescriptorTimedOut(c *C) {
@@ -290,15 +288,11 @@ func (s *notifySuite) TestRegisterFileDescriptorTimedOut(c *C) {
 		listenerID  uint64  = 0x1234
 	)
 
-	expectedIDBytes := []byte{0x34, 0x12, 0x00, 0x0, 0x0, 0x0, 0x0, 0x0}
-	if notify.NativeByteOrder == binary.BigEndian {
-		expectedIDBytes = []byte{0x0, 0x0, 0x0, 0x0, 0x0, 0x00, 0x12, 0x34}
-	}
+	var initialIDBytes [8]byte
+	notify.NativeByteOrder.PutUint64(initialIDBytes[:], 0x11235813)
 
-	initialIDBytes := []byte{0x13, 0x58, 0x23, 0x11, 0x0, 0x0, 0x0, 0x0}
-	if notify.NativeByteOrder == binary.BigEndian {
-		initialIDBytes = []byte{0x0, 0x0, 0x0, 0x0, 0x11, 0x23, 0x58, 0x13}
-	}
+	var expectedIDBytes [8]byte
+	notify.NativeByteOrder.PutUint64(expectedIDBytes[:], listenerID)
 
 	ioctlCalls := 0
 	restore = notify.MockIoctl(func(fd uintptr, req notify.IoctlRequest, buf notify.IoctlRequestBuffer) ([]byte, error) {
@@ -352,7 +346,7 @@ func (s *notifySuite) TestRegisterFileDescriptorTimedOut(c *C) {
 	c.Check(pendingCount, Equals, pendingCount)
 
 	// Check that the new listener ID stored
-	c.Check(filepath.Join(dirs.SnapInterfacesRequestsRunDir, "listener-id"), testutil.FileEquals, expectedIDBytes)
+	c.Check(filepath.Join(dirs.SnapInterfacesRequestsRunDir, "listener-id"), testutil.FileEquals, expectedIDBytes[:])
 }
 
 func (s *notifySuite) TestRegisterFileDescriptorErrors(c *C) {
