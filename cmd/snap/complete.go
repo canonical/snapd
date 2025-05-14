@@ -36,6 +36,84 @@ import (
 	"github.com/snapcore/snapd/snap"
 )
 
+// SnapAndApp holds a snap name and an application name
+type SnapAndApp struct {
+	Snap   string
+	App    string
+	hasDot bool
+}
+
+func (sa *SnapAndApp) FullName() string {
+	if sa.hasDot {
+		return fmt.Sprint(sa.Snap, ".", sa.App)
+	} else {
+		return sa.Snap
+	}
+}
+
+// UnmarshalFlag unmarshals the snap and application name. The following
+// combinations are allowed:
+// * <snap>.<app>
+// * <snap>
+// Every other combination results in an error.
+func (sa *SnapAndApp) UnmarshalFlag(value string) error {
+	parts := strings.Split(value, ".")
+	sa.Snap = ""
+	sa.App = ""
+	sa.hasDot = false
+	switch len(parts) {
+	case 1:
+		sa.Snap = parts[0]
+	case 2:
+		sa.Snap = parts[0]
+		sa.App = parts[1]
+		sa.hasDot = true // allows to know if it is "snap." or "snap.XXXX"
+	}
+	if sa.Snap == "" && sa.App != "" {
+		return fmt.Errorf(i18n.G("invalid value: %q (want snap.name or snap)"), value)
+	}
+	return nil
+}
+
+func (s SnapAndApp) Complete(match string) []flags.Completion {
+	var matchSnap SnapAndApp
+	matchSnap.UnmarshalFlag(match)
+	if !matchSnap.hasDot {
+		// No dot in match, so complete with snap names
+		installedSnaps, err := mkClient().List(nil, nil)
+		if err != nil {
+			return nil
+		}
+		var ret []flags.Completion
+		for _, installedSnap := range installedSnaps {
+			if !strings.HasPrefix(installedSnap.Name, matchSnap.Snap) {
+				continue
+			}
+			info, err := snap.ReadCurrentInfo(installedSnap.Name)
+			if err != nil {
+				continue
+			}
+			if len(info.Apps) == 0 {
+				continue
+			}
+			ret = append(ret, flags.Completion{Item: installedSnap.Name})
+		}
+		return ret
+	}
+	// A dot in match, so complete with the apps inside the specified snap
+	info, err := snap.ReadCurrentInfo(matchSnap.Snap)
+	if err != nil {
+		return nil
+	}
+	ret := make([]flags.Completion, 0, len(info.Apps))
+	for _, app := range info.Apps {
+		if strings.HasPrefix(app.Name, matchSnap.App) {
+			ret = append(ret, flags.Completion{Item: fmt.Sprint(matchSnap.Snap, ".", app.Name)})
+		}
+	}
+	return ret
+}
+
 type installedSnapName string
 
 func (s installedSnapName) Complete(match string) []flags.Completion {
