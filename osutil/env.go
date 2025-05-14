@@ -216,27 +216,29 @@ var envExpandRegExp, _ = regexp.Compile("[a-zA-Z0-9_]+:[+-]")
 func (env *Environment) expand(key string) string {
 	return os.Expand(key, func(varName string) string {
 		loc := envExpandRegExp.FindStringIndex(varName)
-		if loc != nil {
-			envvar := string(varName[loc[0]:(loc[1] - 2)])
-			operation := string(varName[loc[1]-1])
-			newval := string(varName[loc[1]:])
-			envvar_value := (*env)[envvar]
-			switch operation {
-			case "-":
-				if envvar_value == "" {
-					return env.expand(newval)
-				} else {
-					return envvar_value
-				}
-			case "+":
-				if envvar_value == "" {
-					return ""
-				} else {
-					return env.expand(newval)
-				}
-			}
+		if loc == nil {
+			return (*env)[varName]
 		}
-		return (*env)[varName]
+		envvar := string(varName[loc[0]:(loc[1] - 2)])
+		operation := string(varName[loc[1]-1])
+		newval := string(varName[loc[1]:])
+		envvar_value := (*env)[envvar]
+		switch operation {
+		case "-":
+			if envvar_value == "" {
+				return env.expand(newval)
+			} else {
+				return envvar_value
+			}
+		case "+":
+			if envvar_value == "" {
+				return ""
+			} else {
+				return env.expand(newval)
+			}
+		default: // never can really happen, but the compiler complains without it
+			return (*env)[varName]
+		}
 	})
 }
 
