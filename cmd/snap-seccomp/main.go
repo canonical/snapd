@@ -205,6 +205,9 @@ package main
 //#if LINUX_VERSION_CODE < KERNEL_VERSION(4,13,0)
 // #define KCMP_EPOLL_TFD 7
 //#endif // LINUX_VERSION_CODE < KERNEL_VERSION(4,13,0)
+// // The flag is just O_EXCL which is more easily defined.
+// // see: https://elixir.bootlin.com/linux/v6.5.13/source/include/uapi/linux/watch_queue.h#L9
+// #define O_NOTIFICATION_PIPE O_EXCL
 import "C"
 
 import (
@@ -476,6 +479,9 @@ var seccompResolver = map[string]uint64{
 	"KCMP_IO":        C.KCMP_IO,
 	"KCMP_SYSVSEM":   C.KCMP_SYSVSEM,
 	"KCMP_EPOLL_TFD": C.KCMP_EPOLL_TFD,
+
+	// man 2 pipe
+	"O_NOTIFICATION_PIPE": C.O_NOTIFICATION_PIPE,
 }
 
 // DpkgArchToScmpArch takes a dpkg architecture and converts it to
