@@ -123,6 +123,9 @@ ptrace (read),
 /sys/fs/cgroup/cpu,cpuacct/cpu.stat r,
 /sys/fs/cgroup/memory/memory.stat r,
 
+# Allow reading the system max CPU resource constraints 
+/sys/fs/cgroup/system.slice/cpu.max r,
+
 #include <abstractions/dbus-strict>
 
 # do not use peer=(label=unconfined) here since this is DBus activated
