@@ -5385,11 +5385,12 @@ func (s *assertMgrSuite) TestConfdb(c *C) {
     }
   }
 }`)
+
+	_, err = assertstate.ConfdbSchema(s.state, s.dev1Acct.AccountID(), "foo")
+	c.Assert(err, testutil.ErrorIs, &asserts.NotFoundError{})
+
 	err = assertstate.Add(s.state, confdbFoo)
 	c.Assert(err, IsNil)
-
-	_, err = assertstate.ConfdbSchema(s.state, "no-account", "foo")
-	c.Assert(err, testutil.ErrorIs, &asserts.NotFoundError{})
 
 	confdbSchemaAs, err := assertstate.ConfdbSchema(s.state, s.dev1AcctKey.AccountID(), "foo")
 	c.Assert(err, IsNil)
@@ -5678,7 +5679,7 @@ func (s *assertMgrSuite) setupConfdb(c *C) *snap.SideInfo {
 	return si
 }
 
-func (s *assertMgrSuite) TestFetchConfdbAssertion(c *C) {
+func (s *assertMgrSuite) TestSnapInstallFetchesPluggedConfdbAssertions(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -5729,6 +5730,40 @@ func (s *assertMgrSuite) TestFetchConfdbAssertion(c *C) {
 		"store": "my-brand-store",
 	})
 	c.Assert(err, IsNil)
+}
+
+func (s *assertMgrSuite) TestFetchConfdbAssertion(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	s.setupConfdb(c)
+
+	// have a model and the store assertion available
+	storeAs := s.setupModelAndStore(c)
+	err := s.storeSigning.Add(storeAs)
+	c.Assert(err, IsNil)
+
+	db, err := asserts.OpenDatabase(&asserts.DatabaseConfig{
+		Backstore: asserts.NewMemoryBackstore(),
+		Trusted:   s.storeSigning.Trusted,
+	})
+	c.Assert(err, IsNil)
+
+	assertstate.ReplaceDB(s.state, db)
+
+	// not found locally
+	_, err = assertstate.ConfdbSchema(s.state, s.dev1Acct.AccountID(), "my-confdb")
+	c.Assert(err, testutil.ErrorIs, &asserts.NotFoundError{})
+
+	userID := 0
+	err = assertstate.FetchConfdbSchemaAssertion(s.state, userID, s.dev1Acct.AccountID(), "my-confdb")
+	c.Assert(err, IsNil)
+
+	confdbAs, err := assertstate.ConfdbSchema(s.state, s.dev1Acct.AccountID(), "my-confdb")
+	c.Assert(err, IsNil)
+	c.Check(confdbAs.Type().Name, Equals, "confdb-schema")
+	c.Check(confdbAs.Header("account-id"), Equals, s.dev1Acct.AccountID())
+	c.Check(confdbAs.Header("name"), Equals, "my-confdb")
 }
 
 func (s *assertMgrSuite) TestConfdbAssertionsAutoRefreshBulkFetch(c *C) {

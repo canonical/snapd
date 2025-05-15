@@ -290,6 +290,29 @@ func (s *confdbTestSuite) TestConfdbstateGetEntireView(c *C) {
 	})
 }
 
+func (s *confdbTestSuite) TestGetViewUsesFetchedAssertion(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	db := assertstate.DB(s.state)
+	emptyDb, err := asserts.OpenDatabase(&asserts.DatabaseConfig{
+		Backstore: asserts.NewMemoryBackstore(),
+	})
+	c.Assert(err, IsNil)
+	assertstate.ReplaceDB(s.state, emptyDb)
+
+	restore := confdbstate.MockFetchConfdbSchemaAssertion(func(*state.State, int, string, string) error {
+		// use the DB with the assertion, to mock fetching the assertion
+		assertstate.ReplaceDB(s.state, db.(*asserts.Database))
+		return nil
+	})
+	defer restore()
+
+	view, err := confdbstate.GetView(s.state, s.devAccID, "network", "setup-wifi")
+	c.Assert(err, IsNil)
+	c.Assert(view, NotNil)
+}
+
 func (s *confdbTestSuite) TestGetViewNoAssertion(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -299,6 +322,12 @@ func (s *confdbTestSuite) TestGetViewNoAssertion(c *C) {
 	})
 	c.Assert(err, IsNil)
 	assertstate.ReplaceDB(s.state, db)
+
+	restore := confdbstate.MockFetchConfdbSchemaAssertion(func(*state.State, int, string, string) error {
+		// to avoid mocking the store for this one test
+		return &asserts.NotFoundError{}
+	})
+	defer restore()
 
 	_, err = confdbstate.GetView(s.state, s.devAccID, "network", "setup-wifi")
 	c.Assert(err, ErrorMatches, fmt.Sprintf("cannot find confdb-schema %s/network: assertion not found", s.devAccID))
