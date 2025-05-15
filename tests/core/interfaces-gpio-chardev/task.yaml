@@ -9,6 +9,10 @@ details: |
 # snap is not built for arm.
 systems: [-ubuntu-core-18-*, -ubuntu-core-20-*, -ubuntu-core-22-*, -ubuntu-core-*-arm-*]
 
+# This is explicitly disabled until gpio-aggregator configfs support
+# lands in kernel and snapd.
+manual: true
+
 prepare: |
     # emulate GPIO chips using gpio-sim module
     cat << EOF > /etc/systemd/system/gpio-sim.service

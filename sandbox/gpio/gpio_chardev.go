@@ -97,14 +97,27 @@ func UnexportGadgetChardevChip(gadgetName, slotName string) error {
 var kmodLoadModule = kmod.LoadModule
 
 // EnsureAggregatorDriver attempts to load the gpio-aggregator kernel
-// module iff it was not already loaded.
+// module iff it was not already loaded and checks if the configfs
+// interface for gpio-aggregator is available.
 func EnsureAggregatorDriver() error {
 	_, err := os.Stat(filepath.Join(dirs.GlobalRootDir, aggregatorDriverDir))
 	if errors.Is(err, os.ErrNotExist) {
 		if err := kmodLoadModule("gpio-aggregator", nil); err != nil {
 			return err
 		}
-		return nil
 	}
-	return err
+
+	return CheckConfigfsSupport()
+}
+
+// CheckConfigfsSupport checks if the configfs interface for
+// gpio-aggregator is available.
+func CheckConfigfsSupport() error {
+	// GPIO chardev support is hidden until kernel configfs gpio-aggregator interface
+	// makes it to the 24.04 kernel AND the snap-gpio-helper is updated to use the
+	// new configfs interface.
+	// https://bugs.launchpad.net/ubuntu/+source/linux/+bug/2103496
+
+	// The check should be as simple as checking that /sys/kernel/config/gpio-aggregator exists.
+	return errors.New("gpio-aggregator configfs support is missing")
 }
