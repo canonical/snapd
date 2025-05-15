@@ -126,6 +126,8 @@ umount /{,run/}media/**,
 
 # Needed for probing raw devices
 capability sys_rawio,
+# And chown to be able to set permissions in folders created at /media
+capability chown,
 
 /run/ rw,
 /run/cryptsetup/{,**} rwk,
@@ -219,6 +221,7 @@ dbus (send)
 
 const udisks2PermanentSlotSecComp = `
 bind
+chown
 chown32
 fchown
 fchown32
