@@ -302,12 +302,12 @@ func hasFDESetupHook(kernelInfo *snap.Info) (bool, error) {
 	return ok, nil
 }
 
-func readSnapInfoFromPath(path string) (*snap.Info, error) {
-	snapf, err := snapfile.Open(path)
+func readSnapInfoFromSeed(seedSnap *seed.Snap) (*snap.Info, error) {
+	snapf, err := snapfile.Open(seedSnap.Path)
 	if err != nil {
 		return nil, err
 	}
-	info, err := snap.ReadInfoFromSnapFile(snapf, nil)
+	info, err := snap.ReadInfoFromSnapFile(snapf, seedSnap.SideInfo)
 	if err != nil {
 		return nil, err
 
@@ -328,7 +328,7 @@ func doInstall(mst *initramfsMountsState, model *asserts.Model, sysSnaps map[sna
 	var baseSnap *snap.Info
 	if createSysrootMount() {
 		// On UC24+ the base is not mounted yet, peek into the file
-		baseSnap, err = readSnapInfoFromPath(sysSnaps[snap.TypeKernel].Path)
+		baseSnap, err = readSnapInfoFromSeed(sysSnaps[snap.TypeBase])
 	} else {
 		baseSnap, err = readSnapInfo(sysSnaps, snap.TypeBase)
 	}

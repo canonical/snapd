@@ -273,7 +273,11 @@ func (s *initramfsMountsSuite) testInitramfsMountsInstallModeWithCompsHappy(c *C
 		makeRunnableCalled = true
 		c.Assert(model.Model(), Equals, "my-model")
 		c.Assert(bootWith.RecoverySystemLabel, Equals, s.sysLabel)
+		c.Assert(bootWith.Base.Filename(), Equals, "core24_1.snap")
+		c.Assert(bootWith.BasePath, Equals, filepath.Join(s.seedDir, "snaps", "core24_1.snap"))
+		c.Assert(bootWith.Kernel.Filename(), Equals, "pc-kernel_1.snap")
 		c.Assert(bootWith.KernelPath, Equals, filepath.Join(s.seedDir, "snaps", "pc-kernel_1.snap"))
+		c.Assert(bootWith.Gadget.Filename(), Equals, "pc_1.snap")
 		c.Assert(bootWith.GadgetPath, Equals, filepath.Join(s.seedDir, "snaps", "pc_1.snap"))
 		c.Assert(len(bootWith.KernelMods), Equals, 2)
 		c.Check(bootWith.KernelMods, DeepEquals, []boot.BootableKModsComponents{
