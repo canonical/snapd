@@ -1,0 +1,46 @@
+summary: Ensure that classic confinement permissions are preseved
+
+details: |
+    Verify that execution of a snap with classic confinement has predicatble and
+    consistent behavior with respect to permissions.
+
+systems:
+    # classic confinement not supported by core
+    - -ubuntu-core-*
+      # no session bus
+    - -amazon-linux-2-*
+    - -ubuntu-14.04-*
+
+prepare: |
+    tests.session -u test prepare
+
+    case "$SPREAD_SYSTEM" in
+        fedora-*|arch-*|centos-*)
+            # although classic snaps do not work out of the box on fedora,
+            # Arch linux and Centos, we still want to verify if the basics
+            # do work if the user symlinks /snap to $SNAP_MOUNT_DIR themselves
+            SNAP_MOUNT_DIR="$(os.paths snap-mount-dir)"
+            ln -sf "$SNAP_MOUNT_DIR" /snap
+            tests.cleanup defer rm -f /snap
+            ;;
+    esac
+    # owned by root
+    echo foo > root-foo.file
+    # as user, accessing a user owned file
+    echo foo > /home/test/user-foo.file
+    chown test:test /home/test/user-foo.file
+    # such that DAC override is needed to access the file as root
+    chmod 600 /home/test/user-foo.file
+
+restore: |
+    tests.session -u test restore
+
+execute: |
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-classic-confinement --classic
+    echo "root can access their own files through relative path"
+    test-snapd-classic-confinement.sh -c "head -1 ./root-foo.file"
+    echo "root can access other user files through relative path"
+    # the current working directory is correctly restored
+    tests.session -u test exec sh -c "cd /home/test && sudo snap run test-snapd-classic-confinement.sh -c 'head -1 ./user-foo.file'"
+    echo "user can access their own files through relative path"
+    tests.session -u test exec sh -c "cd /home/test && snap run test-snapd-classic-confinement.sh -c 'head -1 ./user-foo.file'"
