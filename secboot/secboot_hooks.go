@@ -115,6 +115,10 @@ func SealKeysWithFDESetupHook(runHook fde.RunSetupHookFunc, keys []SealKeyReques
 		if err := protectedKey.WriteAtomic(keyWriter); err != nil {
 			return err
 		}
+
+		if skr.SlotName == "default" {
+			skr.BootstrappedContainer.RegisterKey(primaryKeyOut, unlockKey)
+		}
 	}
 
 	if primaryKey != nil && params.AuxKeyFile != "" {
