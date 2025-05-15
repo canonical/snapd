@@ -66,7 +66,7 @@ func getBaseDeclaration(st *state.State) Response {
 	if err != nil {
 		return InternalError("cannot get base declaration: %s", err)
 	}
-	return SyncResponse(map[string]interface{}{
+	return SyncResponse(map[string]any{
 		"base-declaration": string(asserts.Encode(bd)),
 	})
 
@@ -354,7 +354,7 @@ func getDebug(c *Command, r *http.Request, user *auth.UserState) Response {
 		if err != nil {
 			return InternalError("cannot get model: %v", err)
 		}
-		return SyncResponse(map[string]interface{}{
+		return SyncResponse(map[string]any{
 			"model": string(asserts.Encode(model)),
 		})
 

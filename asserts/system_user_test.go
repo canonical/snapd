@@ -292,14 +292,14 @@ func (s *systemUserSuite) TestSuggestedFormat(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(fmtnum, Equals, 0)
 
-	headers := map[string]interface{}{
-		"serials": []interface{}{"serialserial"},
+	headers := map[string]any{
+		"serials": []any{"serialserial"},
 	}
 	fmtnum, err = asserts.SuggestFormat(asserts.SystemUserType, headers, nil)
 	c.Assert(err, IsNil)
 	c.Check(fmtnum, Equals, 1)
 
-	headers = map[string]interface{}{
+	headers = map[string]any{
 		"user-presence": "until-expiration",
 	}
 	fmtnum, err = asserts.SuggestFormat(asserts.SystemUserType, headers, nil)

@@ -455,7 +455,7 @@ func (s *detailsV2Suite) TestInfoFromStoreSnap(c *C) {
 }
 
 // arg must be a pointer to a struct
-func fillStruct(a interface{}, c *C) {
+func fillStruct(a any, c *C) {
 	if t := reflect.TypeOf(a); t.Kind() != reflect.Ptr || t.Elem().Kind() != reflect.Struct {
 		k := t.Kind()
 		if k == reflect.Ptr {
@@ -467,7 +467,7 @@ func fillStruct(a interface{}, c *C) {
 	n := va.Elem().NumField()
 	for i := 0; i < n; i++ {
 		field := va.Elem().Field(i)
-		var x interface{}
+		var x any
 		switch field.Interface().(type) {
 		case string:
 			x = "foo"

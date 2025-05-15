@@ -39,7 +39,7 @@ var (
 	StringListAttribute         = stringListAttribute
 )
 
-func MprisGetName(iface interfaces.Interface, attribs map[string]interface{}) (string, error) {
+func MprisGetName(iface interfaces.Interface, attribs map[string]any) (string, error) {
 	return iface.(*mprisInterface).getName(attribs)
 }
 

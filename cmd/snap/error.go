@@ -130,7 +130,7 @@ Try 'snapcraft prime' in your project directory, then 'snap try' again.`)
 		}
 	case client.ErrorKindSnapChannelNotAvailable,
 		client.ErrorKindSnapArchitectureNotAvailable:
-		values, ok := err.Value.(map[string]interface{})
+		values, ok := err.Value.(map[string]any)
 		if ok {
 			candName, _ := values["snap-name"].(string)
 			if candName != "" {
@@ -139,7 +139,7 @@ Try 'snapcraft prime' in your project directory, then 'snap try' again.`)
 			action, _ := values["action"].(string)
 			arch, _ := values["architecture"].(string)
 			channel, _ := values["channel"].(string)
-			releases, _ := values["releases"].([]interface{})
+			releases, _ := values["releases"].([]any)
 			if snapName != "" && action != "" && arch != "" && channel != "" && len(releases) != 0 {
 				usesSnapName = false
 				msg = snapRevisionNotAvailableMessage(err.Kind, snapName, action, arch, channel, releases)
@@ -230,7 +230,7 @@ If you understand and want to proceed repeat the command including --classic.
 		isError = false
 		usesSnapName = false
 		msg = i18n.G("snapd is about to reboot the system")
-		values, ok := err.Value.(map[string]interface{})
+		values, ok := err.Value.(map[string]any)
 		if ok {
 			op, ok := values["op"].(string)
 			if ok {
@@ -245,10 +245,10 @@ If you understand and want to proceed repeat the command including --classic.
 	case client.ErrorKindInsufficientDiskSpace:
 		// this error carries multiple snap names
 		usesSnapName = false
-		values, ok := err.Value.(map[string]interface{})
+		values, ok := err.Value.(map[string]any)
 		if ok {
 			changeKind, _ := values["change-kind"].(string)
-			snaps, _ := values["snap-names"].([]interface{})
+			snaps, _ := values["snap-names"].([]any)
 			snapNames := make([]string, len(snaps))
 			for i, v := range snaps {
 				snapNames[i] = fmt.Sprint(v)
@@ -284,7 +284,7 @@ If you understand and want to proceed repeat the command including --classic.
 	return msg, nil
 }
 
-func snapRevisionNotAvailableMessage(kind client.ErrorKind, snapName, action, arch, snapChannel string, releases []interface{}) string {
+func snapRevisionNotAvailableMessage(kind client.ErrorKind, snapName, action, arch, snapChannel string, releases []any) string {
 	// releases contains all available (arch x channel)
 	// as reported by the store through the daemon
 	req, err := channel.Parse(snapChannel, arch)
@@ -296,7 +296,7 @@ func snapRevisionNotAvailableMessage(kind client.ErrorKind, snapName, action, ar
 	}
 	avail := make([]*channel.Channel, 0, len(releases))
 	for _, v := range releases {
-		rel, _ := v.(map[string]interface{})
+		rel, _ := v.(map[string]any)
 		relCh, _ := rel["channel"].(string)
 		relArch, _ := rel["architecture"].(string)
 		if relArch == "" {

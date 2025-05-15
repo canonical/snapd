@@ -95,8 +95,8 @@ func (s *snapsSuite) TestSnapsInfoIntegrationAllSome(c *check.C) {
 	s.checkSnapsInfoIntegration(c, true, []string{"foo", "baz"})
 }
 
-func snapList(rawSnaps interface{}) []map[string]interface{} {
-	snaps := make([]map[string]interface{}, len(rawSnaps.([]*json.RawMessage)))
+func snapList(rawSnaps any) []map[string]any {
+	snaps := make([]map[string]any, len(rawSnaps.([]*json.RawMessage)))
 	for i, raw := range rawSnaps.([]*json.RawMessage) {
 		err := json.Unmarshal([]byte(*raw), &snaps[i])
 		if err != nil {
@@ -167,7 +167,7 @@ func (s *snapsSuite) checkSnapsInfoIntegration(c *check.C, all bool, names []str
 		if !((all || s.active) && s.wanted) {
 			continue
 		}
-		var got map[string]interface{}
+		var got map[string]any
 		for _, got = range snaps {
 			if got["name"].(string) == s.name && got["revision"].(string) == snap.R(s.rev).String() {
 				break
@@ -214,7 +214,7 @@ func (s *snapsSuite) TestSnapsInfoOnlyLocal(c *check.C) {
 	snaps := snapList(rsp.Result)
 	c.Assert(snaps, check.HasLen, 1)
 	c.Assert(snaps[0]["name"], check.Equals, "local")
-	c.Check(snaps[0]["health"], check.DeepEquals, map[string]interface{}{
+	c.Check(snaps[0]["health"], check.DeepEquals, map[string]any{
 		"status":    "okay",
 		"revision":  "unset",
 		"timestamp": "0001-01-01T00:00:00Z",
@@ -237,7 +237,7 @@ func (s *snapsSuite) TestSnapsInfoAllMixedPublishers(c *check.C) {
 	snaps := snapList(rsp.Result)
 	c.Assert(snaps, check.HasLen, 3)
 
-	publisher := map[string]interface{}{
+	publisher := map[string]any{
 		"id":           "foo-id",
 		"username":     "foo",
 		"display-name": "Foo",
@@ -698,9 +698,9 @@ func (s *snapsSuite) testPostSnapsOp(c *check.C, extraJSON, contentType string) 
 	defer st.Unlock()
 	chg := st.Change(rsp.Change)
 	c.Check(chg.Summary(), check.Equals, `Refresh snaps "fake1", "fake2"`)
-	var apiData map[string]interface{}
+	var apiData map[string]any
 	c.Check(chg.Get("api-data", &apiData), check.IsNil)
-	c.Check(apiData["snap-names"], check.DeepEquals, []interface{}{"fake1", "fake2"})
+	c.Check(apiData["snap-names"], check.DeepEquals, []any{"fake1", "fake2"})
 	err = chg.Get("system-restart-immediate", &systemRestartImmediate)
 	if err != nil && !errors.Is(err, state.ErrNoState) {
 		c.Error(err)
@@ -1529,12 +1529,12 @@ func (s *snapsSuite) TestSnapManyInfosReturnsRefreshInhibitProceedTime(c *check.
 		testCmt := check.Commentf("snap %s failed", snap["name"])
 		switch snap["name"] {
 		case "snap-a":
-			refreshInhibit := snap["refresh-inhibit"].(map[string]interface{})
+			refreshInhibit := snap["refresh-inhibit"].(map[string]any)
 			proceedTime, err := time.Parse(time.RFC3339Nano, refreshInhibit["proceed-time"].(string))
 			c.Assert(err, check.IsNil)
 			c.Assert(proceedTime.Equal(expectedProceedTimeA), check.Equals, true, testCmt)
 		case "snap-b":
-			refreshInhibit := snap["refresh-inhibit"].(map[string]interface{})
+			refreshInhibit := snap["refresh-inhibit"].(map[string]any)
 			proceedTime, err := time.Parse(time.RFC3339Nano, refreshInhibit["proceed-time"].(string))
 			c.Assert(err, check.IsNil)
 			c.Assert(proceedTime.Equal(expectedProceedTimeB), check.Equals, true, testCmt)
@@ -1593,12 +1593,12 @@ func (s *snapsSuite) TestSnapManyInfosSelectRefreshInhibited(c *check.C) {
 		testCmt := check.Commentf("snap %s failed", snap["name"])
 		switch snap["name"] {
 		case "snap-a":
-			refreshInhibit := snap["refresh-inhibit"].(map[string]interface{})
+			refreshInhibit := snap["refresh-inhibit"].(map[string]any)
 			proceedTime, err := time.Parse(time.RFC3339Nano, refreshInhibit["proceed-time"].(string))
 			c.Assert(err, check.IsNil)
 			c.Assert(proceedTime.Equal(expectedProceedTimeA), check.Equals, true, testCmt)
 		case "snap-b":
-			refreshInhibit := snap["refresh-inhibit"].(map[string]interface{})
+			refreshInhibit := snap["refresh-inhibit"].(map[string]any)
 			proceedTime, err := time.Parse(time.RFC3339Nano, refreshInhibit["proceed-time"].(string))
 			c.Assert(err, check.IsNil)
 			c.Assert(proceedTime.Equal(expectedProceedTimeB), check.Equals, true, testCmt)
@@ -2086,9 +2086,9 @@ func (s *snapsSuite) testPostSnap(c *check.C, extraJSON string, checkOpts func(o
 	c.Check(soon, check.Equals, 1)
 	c.Check(chg.Tasks()[0].Summary(), check.Equals, "Doing a fake install")
 
-	var apiData map[string]interface{}
+	var apiData map[string]any
 	c.Check(chg.Get("api-data", &apiData), check.IsNil)
-	c.Check(apiData["snap-names"], check.DeepEquals, []interface{}{"foo"})
+	c.Check(apiData["snap-names"], check.DeepEquals, []any{"foo"})
 
 	summary = chg.Summary()
 	err = chg.Get("system-restart-immediate", &systemRestartImmediate)
@@ -3080,12 +3080,12 @@ func (s *snapsSuite) TestErrToResponseForRevisionNotAvailable(c *check.C) {
 		Status:  404,
 		Message: "no snap revision on specified channel",
 		Kind:    client.ErrorKindSnapChannelNotAvailable,
-		Value: map[string]interface{}{
+		Value: map[string]any{
 			"snap-name":    "foo",
 			"action":       "install",
 			"channel":      "stable",
 			"architecture": thisArch,
-			"releases": []map[string]interface{}{
+			"releases": []map[string]any{
 				{"architecture": thisArch, "channel": "beta"},
 			},
 		},
@@ -3103,12 +3103,12 @@ func (s *snapsSuite) TestErrToResponseForRevisionNotAvailable(c *check.C) {
 		Status:  404,
 		Message: "no snap revision on specified architecture",
 		Kind:    client.ErrorKindSnapArchitectureNotAvailable,
-		Value: map[string]interface{}{
+		Value: map[string]any{
 			"snap-name":    "foo",
 			"action":       "install",
 			"channel":      "stable",
 			"architecture": thisArch,
-			"releases": []map[string]interface{}{
+			"releases": []map[string]any{
 				{"architecture": "other-arch", "channel": "beta"},
 			},
 		},
@@ -3133,7 +3133,7 @@ func (s *snapsSuite) TestErrToResponseForChangeConflict(c *check.C) {
 		Status:  409,
 		Message: `snap "foo" has "install" change in progress`,
 		Kind:    client.ErrorKindSnapChangeConflict,
-		Value: map[string]interface{}{
+		Value: map[string]any{
 			"snap-name":   "foo",
 			"change-kind": "install",
 		},
@@ -3146,7 +3146,7 @@ func (s *snapsSuite) TestErrToResponseForChangeConflict(c *check.C) {
 		Status:  409,
 		Message: `snap "foo" has changes in progress`,
 		Kind:    client.ErrorKindSnapChangeConflict,
-		Value: map[string]interface{}{
+		Value: map[string]any{
 			"snap-name": "foo",
 		},
 	})
@@ -3158,7 +3158,7 @@ func (s *snapsSuite) TestErrToResponseForChangeConflict(c *check.C) {
 		Status:  409,
 		Message: "specific error msg",
 		Kind:    client.ErrorKindSnapChangeConflict,
-		Value: map[string]interface{}{
+		Value: map[string]any{
 			"change-kind": "some-global-op",
 		},
 	})
@@ -3195,30 +3195,30 @@ func (s *snapsSuite) TestPostSnapWrongTransaction(c *check.C) {
 }
 
 func (s *snapsSuite) TestRefreshEnforce(c *check.C) {
-	installValset := assertstest.FakeAssertion(map[string]interface{}{
+	installValset := assertstest.FakeAssertion(map[string]any{
 		"type":         "validation-set",
 		"authority-id": "foo",
 		"series":       "16",
 		"account-id":   "foo",
 		"name":         "baz",
 		"sequence":     "3",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":     "install-snap",
 				"id":       "mysnapdddddddddddddddddddddddddd",
 				"presence": "required",
 			},
 		},
 	}).(*asserts.ValidationSet)
-	updateValset := assertstest.FakeAssertion(map[string]interface{}{
+	updateValset := assertstest.FakeAssertion(map[string]any{
 		"type":         "validation-set",
 		"authority-id": "foo",
 		"series":       "16",
 		"account-id":   "foo",
 		"name":         "bar",
 		"sequence":     "2",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":     "update-snap",
 				"id":       "mysnapcccccccccccccccccccccccccc",
 				"presence": "required",
@@ -3262,15 +3262,15 @@ func (s *snapsSuite) TestRefreshEnforce(c *check.C) {
 }
 
 func (s *snapsSuite) TestRefreshEnforceWithPreexistingSet(c *check.C) {
-	unpinned := assertstest.FakeAssertion(map[string]interface{}{
+	unpinned := assertstest.FakeAssertion(map[string]any{
 		"type":         "validation-set",
 		"authority-id": "foo",
 		"series":       "16",
 		"account-id":   "foo",
 		"name":         "preexisting-unpinned",
 		"sequence":     "1",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":     "install-snap",
 				"id":       "mysnapdddddddddddddddddddddddddd",
 				"presence": "required",
@@ -3278,15 +3278,15 @@ func (s *snapsSuite) TestRefreshEnforceWithPreexistingSet(c *check.C) {
 		},
 	}).(*asserts.ValidationSet)
 
-	pinned := assertstest.FakeAssertion(map[string]interface{}{
+	pinned := assertstest.FakeAssertion(map[string]any{
 		"type":         "validation-set",
 		"authority-id": "foo",
 		"series":       "16",
 		"account-id":   "foo",
 		"name":         "preexisting-pinned",
 		"sequence":     "3",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":     "install-snap",
 				"id":       "mysnapdddddddddddddddddddddddddd",
 				"presence": "required",
@@ -3315,15 +3315,15 @@ func (s *snapsSuite) TestRefreshEnforceWithPreexistingSet(c *check.C) {
 	})
 	st.Unlock()
 
-	vset := assertstest.FakeAssertion(map[string]interface{}{
+	vset := assertstest.FakeAssertion(map[string]any{
 		"type":         "validation-set",
 		"authority-id": "foo",
 		"series":       "16",
 		"account-id":   "foo",
 		"name":         "new",
 		"sequence":     "2",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":     "install-snap",
 				"id":       "mysnapcccccccccccccccccccccccccc",
 				"presence": "required",
@@ -3509,9 +3509,9 @@ func (s *snapsSuite) TestHoldAllRefreshes(c *check.C) {
 
 	for _, time := range []string{"forever", "0001-02-03T00:00:00Z"} {
 		called := false
-		restore := daemon.MockConfigstateConfigureInstalled(func(s *state.State, name string, patchValues map[string]interface{}, flags int) (*state.TaskSet, error) {
+		restore := daemon.MockConfigstateConfigureInstalled(func(s *state.State, name string, patchValues map[string]any, flags int) (*state.TaskSet, error) {
 			called = true
-			c.Assert(patchValues, check.DeepEquals, map[string]interface{}{"refresh.hold": time})
+			c.Assert(patchValues, check.DeepEquals, map[string]any{"refresh.hold": time})
 			c.Assert(name, check.Equals, "core")
 			return state.NewTaskSet(s.NewTask("fake-task", "Fakeness")), nil
 		})
@@ -3599,8 +3599,8 @@ func (s *snapsSuite) TestHoldRefresh(c *check.C) {
 }
 
 func (s *snapsSuite) TestUnholdAllRefreshes(c *check.C) {
-	restore := daemon.MockConfigstateConfigureInstalled(func(s *state.State, name string, patchValues map[string]interface{}, flags int) (*state.TaskSet, error) {
-		c.Assert(patchValues, check.DeepEquals, map[string]interface{}{"refresh.hold": nil})
+	restore := daemon.MockConfigstateConfigureInstalled(func(s *state.State, name string, patchValues map[string]any, flags int) (*state.TaskSet, error) {
+		c.Assert(patchValues, check.DeepEquals, map[string]any{"refresh.hold": nil})
 		c.Assert(name, check.Equals, "core")
 		return state.NewTaskSet(s.NewTask("fake-task", "Fakeness")), nil
 	})
@@ -3802,11 +3802,11 @@ func (s *snapsSuite) TestPostRemoveComponents(c *check.C) {
 	c.Check(tasks[0], check.DeepEquals, t)
 	c.Check(chg.Summary(), check.Equals, `Remove component(s) [comp1 comp2] for "foo" snap`)
 
-	var apiData map[string]interface{}
+	var apiData map[string]any
 	c.Check(chg.Get("api-data", &apiData), check.IsNil)
 	c.Check(apiData["snap-names"], check.IsNil)
 	c.Check(apiData["components"], check.DeepEquals,
-		map[string]interface{}{"foo": []interface{}{"comp1", "comp2"}})
+		map[string]any{"foo": []any{"comp1", "comp2"}})
 }
 
 func (s *snapsSuite) TestPostComponentsWrongAction(c *check.C) {
@@ -3868,13 +3868,13 @@ func (s *snapsSuite) TestPostComponentsRemoveMany(c *check.C) {
 	c.Check(len(tasks), check.Equals, 2)
 	c.Check(numCalls, check.Equals, 2)
 
-	var apiData map[string]interface{}
+	var apiData map[string]any
 	c.Check(chg.Get("api-data", &apiData), check.IsNil)
 	c.Check(apiData["snap-names"], check.IsNil)
 	c.Check(apiData["components"], check.DeepEquals,
-		map[string]interface{}{
-			"snap1": []interface{}{"comp1", "comp2"},
-			"snap2": []interface{}{"comp3", "comp4"}},
+		map[string]any{
+			"snap1": []any{"comp1", "comp2"},
+			"snap2": []any{"comp3", "comp4"}},
 	)
 }
 
@@ -3926,13 +3926,13 @@ func (s *snapsSuite) TestPostComponentsRemoveManyWithSnaps(c *check.C) {
 	c.Check(len(tasks), check.Equals, 3)
 	c.Check(numCalls, check.Equals, 2)
 
-	var apiData map[string]interface{}
+	var apiData map[string]any
 	c.Check(chg.Get("api-data", &apiData), check.IsNil)
-	c.Check(apiData["snap-names"], check.DeepEquals, []interface{}{"foo", "bar"})
+	c.Check(apiData["snap-names"], check.DeepEquals, []any{"foo", "bar"})
 	c.Check(apiData["components"], check.DeepEquals,
-		map[string]interface{}{
-			"snap1": []interface{}{"comp1", "comp2"},
-			"snap2": []interface{}{"comp3", "comp4"}},
+		map[string]any{
+			"snap1": []any{"comp1", "comp2"},
+			"snap2": []any{"comp3", "comp4"}},
 	)
 }
 
@@ -3996,13 +3996,13 @@ func (s *snapsSuite) TestInstallWithComponents(c *check.C) {
 
 	c.Check(chg.Tasks(), check.HasLen, 1)
 
-	var data map[string]interface{}
+	var data map[string]any
 	err = chg.Get("api-data", &data)
 	c.Assert(err, check.IsNil)
-	c.Check(data, check.DeepEquals, map[string]interface{}{
-		"snap-names": []interface{}{"some-snap"},
-		"components": map[string]interface{}{
-			"some-snap": []interface{}{"comp1", "comp2"},
+	c.Check(data, check.DeepEquals, map[string]any{
+		"snap-names": []any{"some-snap"},
+		"components": map[string]any{
+			"some-snap": []any{"comp1", "comp2"},
 		},
 	})
 
@@ -4050,13 +4050,13 @@ func (s *snapsSuite) TestUpdateWithAdditionalComponents(c *check.C) {
 
 	c.Check(chg.Tasks(), check.HasLen, 1)
 
-	var data map[string]interface{}
+	var data map[string]any
 	err = chg.Get("api-data", &data)
 	c.Assert(err, check.IsNil)
-	c.Check(data, check.DeepEquals, map[string]interface{}{
-		"snap-names": []interface{}{"some-snap"},
-		"components": map[string]interface{}{
-			"some-snap": []interface{}{"comp1", "comp2"},
+	c.Check(data, check.DeepEquals, map[string]any{
+		"snap-names": []any{"some-snap"},
+		"components": map[string]any{
+			"some-snap": []any{"comp1", "comp2"},
 		},
 	})
 

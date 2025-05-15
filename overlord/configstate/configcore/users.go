@@ -28,7 +28,7 @@ func init() {
 	supportedConfigurations["core.users.create.automatic"] = true
 }
 
-func earlyUsersSettingsFilter(values, early map[string]interface{}) {
+func earlyUsersSettingsFilter(values, early map[string]any) {
 	for key, v := range values {
 		if strings.HasPrefix(key, "users.") && supportedConfigurations["core."+key] {
 			early[key] = v

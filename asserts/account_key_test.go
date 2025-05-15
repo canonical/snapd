@@ -265,7 +265,7 @@ func (aks *accountKeySuite) openDB(c *C) *asserts.Database {
 func (aks *accountKeySuite) prereqAccount(c *C, db *asserts.Database) {
 	trustedKey := testPrivKey0
 
-	headers := map[string]interface{}{
+	headers := map[string]any{
 		"authority-id": "canonical",
 		"display-name": "Acct1",
 		"account-id":   "acc-id1",
@@ -283,7 +283,7 @@ func (aks *accountKeySuite) prereqAccount(c *C, db *asserts.Database) {
 func (aks *accountKeySuite) TestAccountKeyCheck(c *C) {
 	trustedKey := testPrivKey0
 
-	headers := map[string]interface{}{
+	headers := map[string]any{
 		"authority-id":        "canonical",
 		"account-id":          "acc-id1",
 		"name":                "default",
@@ -305,7 +305,7 @@ func (aks *accountKeySuite) TestAccountKeyCheck(c *C) {
 func (aks *accountKeySuite) TestAccountKeyCheckNoAccount(c *C) {
 	trustedKey := testPrivKey0
 
-	headers := map[string]interface{}{
+	headers := map[string]any{
 		"authority-id":        "canonical",
 		"account-id":          "acc-id1",
 		"name":                "default",
@@ -329,7 +329,7 @@ func (aks *accountKeySuite) TestAccountKeyCheckUntrustedAuthority(c *C) {
 	storeDB := assertstest.NewSigningDB("canonical", trustedKey)
 	otherDB := setup3rdPartySigning(c, "other", storeDB, db)
 
-	headers := map[string]interface{}{
+	headers := map[string]any{
 		"account-id":          "acc-id1",
 		"name":                "default",
 		"public-key-sha3-384": aks.keyID,
@@ -346,7 +346,7 @@ func (aks *accountKeySuite) TestAccountKeyCheckUntrustedAuthority(c *C) {
 func (aks *accountKeySuite) TestAccountKeyCheckSameNameAndNewRevision(c *C) {
 	trustedKey := testPrivKey0
 
-	headers := map[string]interface{}{
+	headers := map[string]any{
 		"authority-id":        "canonical",
 		"account-id":          "acc-id1",
 		"name":                "default",
@@ -374,7 +374,7 @@ func (aks *accountKeySuite) TestAccountKeyCheckSameNameAndNewRevision(c *C) {
 func (aks *accountKeySuite) TestAccountKeyCheckSameAccountAndDifferentName(c *C) {
 	trustedKey := testPrivKey0
 
-	headers := map[string]interface{}{
+	headers := map[string]any{
 		"authority-id":        "canonical",
 		"account-id":          "acc-id1",
 		"name":                "default",
@@ -411,7 +411,7 @@ func (aks *accountKeySuite) TestAccountKeyCheckSameAccountAndDifferentName(c *C)
 func (aks *accountKeySuite) TestAccountKeyCheckSameNameAndDifferentAccount(c *C) {
 	trustedKey := testPrivKey0
 
-	headers := map[string]interface{}{
+	headers := map[string]any{
 		"authority-id":        "canonical",
 		"account-id":          "acc-id1",
 		"name":                "default",
@@ -438,7 +438,7 @@ func (aks *accountKeySuite) TestAccountKeyCheckSameNameAndDifferentAccount(c *C)
 	newPubKeyEncoded, err := asserts.EncodePublicKey(newPubKey)
 	c.Assert(err, IsNil)
 
-	acct2 := assertstest.NewAccount(db, "acc-id2", map[string]interface{}{
+	acct2 := assertstest.NewAccount(db, "acc-id2", map[string]any{
 		"authority-id": "canonical",
 		"account-id":   "acc-id2",
 	}, trustedKey.PublicKey().ID())
@@ -457,7 +457,7 @@ func (aks *accountKeySuite) TestAccountKeyCheckSameNameAndDifferentAccount(c *C)
 func (aks *accountKeySuite) TestAccountKeyCheckNameClash(c *C) {
 	trustedKey := testPrivKey0
 
-	headers := map[string]interface{}{
+	headers := map[string]any{
 		"authority-id":        "canonical",
 		"account-id":          "acc-id1",
 		"name":                "default",
@@ -494,7 +494,7 @@ func (aks *accountKeySuite) TestAccountKeyCheckNameClash(c *C) {
 func (aks *accountKeySuite) TestAccountKeyAddAndFind(c *C) {
 	trustedKey := testPrivKey0
 
-	headers := map[string]interface{}{
+	headers := map[string]any{
 		"authority-id":        "canonical",
 		"account-id":          "acc-id1",
 		"name":                "default",
@@ -799,7 +799,7 @@ func (aks *accountKeySuite) TestPrerequisites(c *C) {
 
 func (aks *accountKeySuite) TestAccountKeyRequestHappy(c *C) {
 	akr, err := asserts.SignWithoutAuthority(asserts.AccountKeyRequestType,
-		map[string]interface{}{
+		map[string]any{
 			"account-id":          "acc-id1",
 			"name":                "default",
 			"public-key-sha3-384": aks.keyID,
@@ -841,7 +841,7 @@ func (aks *accountKeySuite) TestAccountKeyRequestUntil(c *C) {
 
 	for _, test := range tests {
 		c.Log(test)
-		headers := map[string]interface{}{
+		headers := map[string]any{
 			"account-id":          "acc-id1",
 			"name":                "default",
 			"public-key-sha3-384": aks.keyID,
@@ -863,7 +863,7 @@ func (aks *accountKeySuite) TestAccountKeyRequestUntil(c *C) {
 
 func (aks *accountKeySuite) TestAccountKeyRequestAddAndFind(c *C) {
 	akr, err := asserts.SignWithoutAuthority(asserts.AccountKeyRequestType,
-		map[string]interface{}{
+		map[string]any{
 			"account-id":          "acc-id1",
 			"name":                "default",
 			"public-key-sha3-384": aks.keyID,
@@ -977,7 +977,7 @@ func (aks *accountKeySuite) TestAccountKeyRequestDecodeKeyIDMismatch(c *C) {
 }
 
 func (aks *accountKeySuite) TestAccountKeyRequestNoAccount(c *C) {
-	headers := map[string]interface{}{
+	headers := map[string]any{
 		"account-id":          "acc-id1",
 		"name":                "default",
 		"public-key-sha3-384": aks.keyID,
@@ -1063,8 +1063,8 @@ func (s *accountKeySuite) TestSuggestedFormat(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(fmtnum, Equals, 0)
 
-	headers := map[string]interface{}{
-		"constraints": []interface{}{map[string]interface{}{"headers": nil}},
+	headers := map[string]any{
+		"constraints": []any{map[string]any{"headers": nil}},
 	}
 	fmtnum, err = asserts.SuggestFormat(asserts.AccountKeyType, headers, nil)
 	c.Assert(err, IsNil)
@@ -1095,7 +1095,7 @@ func (aks *accountKeySuite) TestCanSignAndConstraintsPrecheck(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(a.Type(), Equals, asserts.AccountKeyType)
 	accKey := a.(*asserts.AccountKey)
-	headers := map[string]interface{}{
+	headers := map[string]any{
 		"type":         "model",
 		"authority-id": "my-brand",
 		"brand-id":     "my-brand",
@@ -1106,7 +1106,7 @@ func (aks *accountKeySuite) TestCanSignAndConstraintsPrecheck(c *C) {
 	c.Check(accKey.ConstraintsPrecheck(asserts.ModelType, headers), IsNil)
 	mfoo := assertstest.FakeAssertion(headers)
 	c.Check(accKey.CanSign(mfoo), Equals, true)
-	headers = map[string]interface{}{
+	headers = map[string]any{
 		"type":         "model",
 		"authority-id": "my-brand",
 		"brand-id":     "my-brand",
@@ -1117,20 +1117,20 @@ func (aks *accountKeySuite) TestCanSignAndConstraintsPrecheck(c *C) {
 	c.Check(accKey.ConstraintsPrecheck(asserts.ModelType, headers), ErrorMatches, `headers do not match the account-key constraints`)
 	mnotfoo := assertstest.FakeAssertion(headers)
 	c.Check(accKey.CanSign(mnotfoo), Equals, false)
-	headers = map[string]interface{}{
+	headers = map[string]any{
 		"type":              "preseed",
 		"authority-id":      "my-brand",
 		"series":            "16",
 		"brand-id":          "my-brand",
 		"model":             "goo-200",
 		"system-label":      "2023-07-17",
-		"snaps":             []interface{}{},
+		"snaps":             []any{},
 		"artifact-sha3-384": "KPIl7M4vQ9d4AUjkoU41TGAwtOMLc_bWUCeW8AvdRWD4_xcP60Oo4ABs1No7BtXj",
 	}
 	c.Check(accKey.ConstraintsPrecheck(asserts.PreseedType, headers), IsNil)
 	pr := assertstest.FakeAssertion(headers)
 	c.Check(accKey.CanSign(pr), Equals, true)
-	headers = map[string]interface{}{
+	headers = map[string]any{
 		"type":         "snap-declaration",
 		"authority-id": "my-brand",
 		"series":       "16",

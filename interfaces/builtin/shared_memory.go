@@ -167,7 +167,7 @@ func (iface *sharedMemoryInterface) BeforePrepareSlot(slot *snap.SlotInfo) error
 	}
 	if sharedMemory == "" {
 		if slot.Attrs == nil {
-			slot.Attrs = make(map[string]interface{})
+			slot.Attrs = make(map[string]any)
 		}
 		// shared-memory defaults to "slot" name if unspecified
 		slot.Attrs["shared-memory"] = slot.Name
@@ -238,7 +238,7 @@ func (iface *sharedMemoryInterface) BeforePreparePlug(plug *snap.PlugInfo) error
 		return fmt.Errorf(`shared-memory "private" attribute must be a bool, not %v`, privateAttr)
 	}
 	if plug.Attrs == nil {
-		plug.Attrs = make(map[string]interface{})
+		plug.Attrs = make(map[string]any)
 	}
 	plug.Attrs["private"] = private
 

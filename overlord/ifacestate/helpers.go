@@ -478,8 +478,8 @@ ConnsLoop:
 		var updateStaticAttrs bool
 		staticPlugAttrs := connState.StaticPlugAttrs
 		staticSlotAttrs := connState.StaticSlotAttrs
-		newStaticPlugAttrs := utils.NormalizeInterfaceAttributes(plugInfo.Attrs).(map[string]interface{})
-		newStaticSlotAttrs := utils.NormalizeInterfaceAttributes(slotInfo.Attrs).(map[string]interface{})
+		newStaticPlugAttrs := utils.NormalizeInterfaceAttributes(plugInfo.Attrs).(map[string]any)
+		newStaticSlotAttrs := utils.NormalizeInterfaceAttributes(slotInfo.Attrs).(map[string]any)
 
 		// if the interface was originally autoconnected, update the static attrs if it would
 		// still be allowed to autoconnect. Otherwise, update the static attrs if it would still
@@ -1086,10 +1086,10 @@ func getConns(st *state.State) (conns map[string]*schema.ConnState, err error) {
 		}
 		cref.PlugRef.Snap = RemapSnapFromState(cref.PlugRef.Snap)
 		cref.SlotRef.Snap = RemapSnapFromState(cref.SlotRef.Snap)
-		cstate.StaticSlotAttrs = utils.NormalizeInterfaceAttributes(cstate.StaticSlotAttrs).(map[string]interface{})
-		cstate.DynamicSlotAttrs = utils.NormalizeInterfaceAttributes(cstate.DynamicSlotAttrs).(map[string]interface{})
-		cstate.StaticPlugAttrs = utils.NormalizeInterfaceAttributes(cstate.StaticPlugAttrs).(map[string]interface{})
-		cstate.DynamicPlugAttrs = utils.NormalizeInterfaceAttributes(cstate.DynamicPlugAttrs).(map[string]interface{})
+		cstate.StaticSlotAttrs = utils.NormalizeInterfaceAttributes(cstate.StaticSlotAttrs).(map[string]any)
+		cstate.DynamicSlotAttrs = utils.NormalizeInterfaceAttributes(cstate.DynamicSlotAttrs).(map[string]any)
+		cstate.StaticPlugAttrs = utils.NormalizeInterfaceAttributes(cstate.StaticPlugAttrs).(map[string]any)
+		cstate.DynamicPlugAttrs = utils.NormalizeInterfaceAttributes(cstate.DynamicPlugAttrs).(map[string]any)
 		remapped[cref.ID()] = cstate
 	}
 	return remapped, nil
@@ -1463,10 +1463,10 @@ func addHotplugSeqWaitTask(hotplugChange *state.Change, hotplugKey snap.HotplugK
 }
 
 type HotplugSlotInfo struct {
-	Name        string                 `json:"name"`
-	Interface   string                 `json:"interface"`
-	StaticAttrs map[string]interface{} `json:"static-attrs,omitempty"`
-	HotplugKey  snap.HotplugKey        `json:"hotplug-key"`
+	Name        string          `json:"name"`
+	Interface   string          `json:"interface"`
+	StaticAttrs map[string]any  `json:"static-attrs,omitempty"`
+	HotplugKey  snap.HotplugKey `json:"hotplug-key"`
 
 	// device was unplugged but has connections, so slot is remembered
 	HotplugGone bool `json:"hotplug-gone"`

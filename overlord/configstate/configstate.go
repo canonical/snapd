@@ -96,7 +96,7 @@ func canConfigure(st *state.State, snapName string) error {
 // ConfigureInstalled returns a taskset to apply the given
 // configuration patch for an installed snap. It returns
 // snap.NotInstalledError if the snap is not installed.
-func ConfigureInstalled(st *state.State, snapName string, patch map[string]interface{}, flags int) (*state.TaskSet, error) {
+func ConfigureInstalled(st *state.State, snapName string, patch map[string]any, flags int) (*state.TaskSet, error) {
 	if err := canConfigure(st, snapName); err != nil {
 		return nil, err
 	}
@@ -106,7 +106,7 @@ func ConfigureInstalled(st *state.State, snapName string, patch map[string]inter
 }
 
 // Configure returns a taskset to apply the given configuration patch.
-func Configure(st *state.State, snapName string, patch map[string]interface{}, flags int) *state.TaskSet {
+func Configure(st *state.State, snapName string, patch map[string]any, flags int) *state.TaskSet {
 	summary := fmt.Sprintf(i18n.G("Run configure hook of %q snap"), snapName)
 	// regular configuration hook
 	hooksup := &hookstate.HookSetup{
@@ -117,11 +117,11 @@ func Configure(st *state.State, snapName string, patch map[string]interface{}, f
 		// all configure hooks must finish within this timeout
 		Timeout: ConfigureHookTimeout(),
 	}
-	var contextData map[string]interface{}
+	var contextData map[string]any
 	if flags&snapstate.UseConfigDefaults != 0 {
-		contextData = map[string]interface{}{"use-defaults": true}
+		contextData = map[string]any{"use-defaults": true}
 	} else if len(patch) > 0 {
-		contextData = map[string]interface{}{"patch": patch}
+		contextData = map[string]any{"patch": patch}
 	}
 
 	if hooksup.Optional {

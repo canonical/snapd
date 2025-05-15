@@ -83,7 +83,7 @@ func (s *aliasesSuite) TestAliasSuccess(c *check.C) {
 	rec := httptest.NewRecorder()
 	s.req(c, req, nil).ServeHTTP(rec, req)
 	c.Assert(rec.Code, check.Equals, 202)
-	var body map[string]interface{}
+	var body map[string]any
 	err = json.Unmarshal(rec.Body.Bytes(), &body)
 	c.Check(err, check.IsNil)
 	id := body["change"].(string)
@@ -135,16 +135,16 @@ func (s *aliasesSuite) TestAliasChangeConflict(c *check.C) {
 	s.req(c, req, nil).ServeHTTP(rec, req)
 	c.Check(rec.Code, check.Equals, 409)
 
-	var body map[string]interface{}
+	var body map[string]any
 	err = json.Unmarshal(rec.Body.Bytes(), &body)
 	c.Check(err, check.IsNil)
-	c.Check(body, check.DeepEquals, map[string]interface{}{
+	c.Check(body, check.DeepEquals, map[string]any{
 		"status-code": 409.,
 		"status":      "Conflict",
-		"result": map[string]interface{}{
+		"result": map[string]any{
 			"message": `snap "alias-snap" has "manip" change in progress`,
 			"kind":    "snap-change-conflict",
-			"value": map[string]interface{}{
+			"value": map[string]any{
 				"change-kind": "manip",
 				"snap-name":   "alias-snap",
 			},
@@ -215,7 +215,7 @@ func (s *aliasesSuite) TestUnaliasSnapSuccess(c *check.C) {
 	rec := httptest.NewRecorder()
 	s.req(c, req, nil).ServeHTTP(rec, req)
 	c.Assert(rec.Code, check.Equals, 202)
-	var body map[string]interface{}
+	var body map[string]any
 	err = json.Unmarshal(rec.Body.Bytes(), &body)
 	c.Check(err, check.IsNil)
 	id := body["change"].(string)
@@ -270,7 +270,7 @@ func (s *aliasesSuite) TestUnaliasDWIMSnapSuccess(c *check.C) {
 	rec := httptest.NewRecorder()
 	s.req(c, req, nil).ServeHTTP(rec, req)
 	c.Assert(rec.Code, check.Equals, 202)
-	var body map[string]interface{}
+	var body map[string]any
 	err = json.Unmarshal(rec.Body.Bytes(), &body)
 	c.Check(err, check.IsNil)
 	id := body["change"].(string)
@@ -326,7 +326,7 @@ func (s *aliasesSuite) TestUnaliasAliasSuccess(c *check.C) {
 	rec := httptest.NewRecorder()
 	s.req(c, req, nil).ServeHTTP(rec, req)
 	c.Assert(rec.Code, check.Equals, 202)
-	var body map[string]interface{}
+	var body map[string]any
 	err = json.Unmarshal(rec.Body.Bytes(), &body)
 	c.Check(err, check.IsNil)
 	id := body["change"].(string)
@@ -408,7 +408,7 @@ func (s *aliasesSuite) TestUnaliasDWIMAliasSuccess(c *check.C) {
 	rec := httptest.NewRecorder()
 	s.req(c, req, nil).ServeHTTP(rec, req)
 	c.Assert(rec.Code, check.Equals, 202)
-	var body map[string]interface{}
+	var body map[string]any
 	err = json.Unmarshal(rec.Body.Bytes(), &body)
 	c.Check(err, check.IsNil)
 	id := body["change"].(string)
@@ -489,7 +489,7 @@ func (s *aliasesSuite) TestPreferSuccess(c *check.C) {
 	rec := httptest.NewRecorder()
 	s.req(c, req, nil).ServeHTTP(rec, req)
 	c.Assert(rec.Code, check.Equals, 202)
-	var body map[string]interface{}
+	var body map[string]any
 	err = json.Unmarshal(rec.Body.Bytes(), &body)
 	c.Check(err, check.IsNil)
 	id := body["change"].(string)

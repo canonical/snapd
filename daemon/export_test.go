@@ -305,7 +305,7 @@ func MockSnapstateRemoveComponents(mock func(st *state.State, snapName string, c
 	}
 }
 
-func MockConfigstateConfigureInstalled(f func(st *state.State, name string, patchValues map[string]interface{}, flags int) (*state.TaskSet, error)) (restore func()) {
+func MockConfigstateConfigureInstalled(f func(st *state.State, name string, patchValues map[string]any, flags int) (*state.TaskSet, error)) (restore func()) {
 	old := configstateConfigureInstalled
 	configstateConfigureInstalled = f
 	return func() {
@@ -424,7 +424,7 @@ func MockConfdbstateGetView(f func(_ *state.State, _, _, _ string) (*confdb.View
 	return testutil.Mock(&confdbstateGetView, f)
 }
 
-func MockConfdbstateSetViaView(f func(confdb.Databag, *confdb.View, map[string]interface{}) error) (restore func()) {
+func MockConfdbstateSetViaView(f func(confdb.Databag, *confdb.View, map[string]any) error) (restore func()) {
 	return testutil.Mock(&confdbstateSetViaView, f)
 }
 
@@ -440,6 +440,6 @@ func ValidateFeatureFlag(st *state.State, feature features.SnapdFeature) *apiErr
 	return validateFeatureFlag(st, feature)
 }
 
-func MockDeviceStateSignConfdbControl(f func(m *devicestate.DeviceManager, groups []interface{}, revision int) (*asserts.ConfdbControl, error)) (restore func()) {
+func MockDeviceStateSignConfdbControl(f func(m *devicestate.DeviceManager, groups []any, revision int) (*asserts.ConfdbControl, error)) (restore func()) {
 	return testutil.Mock(&devicestateSignConfdbControl, f)
 }
