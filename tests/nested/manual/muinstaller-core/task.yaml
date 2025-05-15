@@ -258,7 +258,7 @@ execute: |
   muinstaller_args="-label $LABEL -device $install_disk"
   if [ -f optional-install.json ]; then
     remote.push optional-install.json
-    muinstaller_args="$muinstaller_args -optional ./optional-install.json"
+    muinstaller_args="$muinstaller_args -optional \$PWD/optional-install.json"
   fi
   if [ -n "$PASSPHRASE" ]; then
     muinstaller_args="$muinstaller_args -passphrase $PASSPHRASE"
