@@ -26,7 +26,6 @@ import (
 	"strings"
 
 	"github.com/snapcore/snapd/dirs"
-	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/systemd"
@@ -123,15 +122,10 @@ func (iface *gpioChardevInterface) BeforePrepareSlot(slot *snap.SlotInfo) error 
 	return nil
 }
 
+var gpioCheckConfigfsSupport = gpio.CheckConfigfsSupport
+
 func (iface *gpioChardevInterface) BeforeConnectPlug(plug *interfaces.ConnectedPlug) error {
-	// gpio-chardev is hidden behind an experimental feature flag until kernel
-	// improvements for the gpio-aggregator interface lands.
-	// https://lore.kernel.org/all/20250203031213.399914-1-koichiro.den@canonical.com
-	if !features.GPIOChardevInterface.IsEnabled() {
-		_, flag := features.GPIOChardevInterface.ConfigOption()
-		return fmt.Errorf("gpio-chardev interface requires the %q flag to be set", flag)
-	}
-	return nil
+	return gpioCheckConfigfsSupport()
 }
 
 func (iface *gpioChardevInterface) SystemdConnectedSlot(spec *systemd.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {

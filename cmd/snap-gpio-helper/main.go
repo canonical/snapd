@@ -25,7 +25,6 @@ import (
 
 	"github.com/jessevdk/go-flags"
 
-	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/sandbox/gpio"
 	"github.com/snapcore/snapd/snapdtool"
 )
@@ -38,11 +37,6 @@ type options struct {
 var gpioEnsureAggregatorDriver = gpio.EnsureAggregatorDriver
 
 func run(args []string) error {
-	if !features.GPIOChardevInterface.IsEnabled() {
-		_, flag := features.GPIOChardevInterface.ConfigOption()
-		return fmt.Errorf("gpio-chardev interface requires the %q flag to be set", flag)
-	}
-
 	// Make sure the gpio-aggregator module is loaded because the
 	// systemd security backend comes before the kmod security
 	// backend, there is an edge case on first connection where

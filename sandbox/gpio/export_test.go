@@ -68,6 +68,6 @@ func MockLockAggregator(f func() (unlocker func(), err error)) (restore func()) 
 	return testutil.Mock(&lockAggregator, f)
 }
 
-func MocKKmodLoadModule(f func(module string, options []string) error) (restore func()) {
+func MockKmodLoadModule(f func(module string, options []string) error) (restore func()) {
 	return testutil.Mock(&kmodLoadModule, f)
 }

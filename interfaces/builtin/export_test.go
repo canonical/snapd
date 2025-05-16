@@ -154,6 +154,10 @@ func MockDesktopFilesFromInstalledSnap(fn func(s *snap.Info) ([]string, error)) 
 	return testutil.Mock(&desktopFilesFromInstalledSnap, fn)
 }
 
+func MockGpioCheckConfigfsSupport(fn func() error) (restore func()) {
+	return testutil.Mock(&gpioCheckConfigfsSupport, fn)
+}
+
 func AllowedKernelMountOptions() []string {
 	return allowedKernelMountOptions
 }

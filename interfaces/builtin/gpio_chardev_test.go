@@ -20,15 +20,13 @@
 package builtin_test
 
 import (
+	"errors"
 	"fmt"
-	"os"
 	"path/filepath"
 
-	"gopkg.in/check.v1"
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/dirs"
-	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
@@ -87,9 +85,6 @@ func (s *GpioChardevInterfaceSuite) SetUpTest(c *C) {
 	s.rootdir = c.MkDir()
 	dirs.SetRootDir(s.rootdir)
 	s.AddCleanup(func() { dirs.SetRootDir("") })
-
-	c.Assert(os.MkdirAll(dirs.FeaturesDir, 0755), check.IsNil)
-	c.Assert(os.WriteFile(features.GPIOChardevInterface.ControlFile(), []byte(nil), 0644), check.IsNil)
 
 	s.slot, s.slotInfo = MockConnectedSlot(c, gpioChardevGadgetYaml, nil, "gpio-chardev-good-slot")
 	s.plug, s.plugInfo = MockConnectedPlug(c, gpioChardevConsumerYaml, nil, "gpio-chardev-good-plug")
@@ -200,11 +195,16 @@ func (s *GpioChardevInterfaceSuite) TestSanitizePlug(c *C) {
 	c.Assert(interfaces.BeforePreparePlug(s.iface, s.plugInfo), IsNil)
 }
 
-func (s *GpioChardevInterfaceSuite) TestBeforeConnectPlugExperimentalFlagRequired(c *C) {
+func (s *GpioChardevInterfaceSuite) TestBeforeConnectPlug(c *C) {
+	restore := builtin.MockGpioCheckConfigfsSupport(func() error { return nil })
+	defer restore()
+	// BeforeConnectPlug only checks that the gpio-aggregator kernel driver
+	// support the new configfs interface.
 	c.Assert(interfaces.BeforeConnectPlug(s.iface, s.plug), IsNil)
-	// Now without the experimental.gpio-chardev-interface flag set.
-	c.Assert(os.Remove(features.GPIOChardevInterface.ControlFile()), IsNil)
-	c.Assert(interfaces.BeforeConnectPlug(s.iface, s.plug), ErrorMatches, `gpio-chardev interface requires the "experimental.gpio-chardev-interface" flag to be set`)
+
+	restore = builtin.MockGpioCheckConfigfsSupport(func() error { return errors.New("boom!") })
+	defer restore()
+	c.Assert(interfaces.BeforeConnectPlug(s.iface, s.plug), ErrorMatches, "boom!")
 }
 
 func (s *GpioChardevInterfaceSuite) TestSystemdConnectedSlot(c *C) {
