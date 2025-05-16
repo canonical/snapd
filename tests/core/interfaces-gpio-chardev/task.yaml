@@ -9,10 +9,6 @@ details: |
 # snap is not built for arm.
 systems: [-ubuntu-core-18-*, -ubuntu-core-20-*, -ubuntu-core-22-*, -ubuntu-core-*-arm-*]
 
-# This is explicitly disabled until gpio-aggregator configfs support
-# lands in kernel and snapd.
-manual: true
-
 prepare: |
     # emulate GPIO chips using gpio-sim module
     cat << EOF > /etc/systemd/system/gpio-sim.service
@@ -60,14 +56,13 @@ prepare: |
     tests.cleanup defer snap remove --purge test-snapd-gpio-chardev
 
 execute: |
+    # TODO: remove when gpio-aggregator configfs support lands in kernel
+    # and snapd. This test should fail automatically when support lands.
+    not snap connect test-snapd-gpio-chardev:gpio-chardev-0 pc:gpio-chardev-0 2> out
+    MATCH "gpio-aggregator configfs support is missing" < out
+    exit 0
+
     if [ "$SPREAD_REBOOT" = 0 ]; then
-        # cannot connect without experimental flag
-        not snap connect test-snapd-gpio-chardev:gpio-chardev-0 pc:gpio-chardev-0 2> out
-        MATCH "gpio-chardev interface requires the \"experimental.gpio-chardev-interface\" flag to be set" < out
-
-        echo "enable experimental.gpio-chardev-interface to allow connection"
-        snap set system experimental.gpio-chardev-interface=true
-
         # Check number of gpiochips before connection
         find /dev/gpiochip* | wc -l | MATCH '^2$'
 
