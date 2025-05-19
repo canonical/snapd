@@ -34,12 +34,12 @@ def upload_documents(folder, verbose):
         collection = db.features
 
         requesting = []
+        timestamp = datetime.datetime.now(datetime.timezone.utc)
         for file in os.listdir(folder):
             if file.endswith(".json"):
                 with open(os.path.join(folder, file), 'r', encoding='utf-8') as f:
                     j = json.load(f)
-                    j['timestamp'] = datetime.datetime.now(
-                        datetime.timezone.utc)
+                    j['timestamp'] = timestamp
                     requesting.append(InsertOne(j))
 
         result = collection.bulk_write(requesting)
