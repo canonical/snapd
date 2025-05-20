@@ -6,7 +6,9 @@ Build-Depends: debhelper-compat (= 13), dh-python,
                cpio,
                fakeroot,
                fonts-ubuntu,
-               golang-go (>=2:1.18~) [!powerpc] | golang-1.18 [!powerpc] | golang-1.21
+               libblkid-dev,
+               golang-go (>=2:1.18~) [!powerpc] | golang-1.18 [!powerpc] | golang-1.21,
+               pkgconf
 Standards-Version: 4.4.1
 Homepage: https://launchpad.net/ubuntu-core-initramfs
 
@@ -29,6 +31,7 @@ Depends: ${python3:Depends}, ${misc:Depends}, dracut-core (>= 051-1),
          fdisk,
          git,
          kmod,
+         libblkid1,
          libgcc-s1,
          libkmod2,
          mount,
