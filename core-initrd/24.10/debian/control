@@ -3,12 +3,10 @@ Section: utils
 Priority: optional
 Maintainer: Alfonso Sanchez-Beato <alfonso.sanchez-beato@canonical.com>
 Build-Depends: debhelper-compat (= 13), dh-python,
-               amd64-microcode [amd64],
                cpio,
                fakeroot,
                fonts-ubuntu,
-               golang-go (>=2:1.18~) [!powerpc] | golang-1.18 [!powerpc] | golang-1.21,
-               intel-microcode [amd64]
+               golang-go (>=2:1.18~) [!powerpc] | golang-1.18 [!powerpc] | golang-1.21
 Standards-Version: 4.4.1
 Homepage: https://launchpad.net/ubuntu-core-initramfs
 
@@ -48,6 +46,8 @@ Depends: ${python3:Depends}, ${misc:Depends}, dracut-core (>= 051-1),
          udev,
          util-linux,
          dh-dlopenlibdeps,
+         amd64-microcode [amd64],
+         intel-microcode [amd64],
          optee-client-dev [arm64 armhf]
 Description: standard embedded initrd
  Standard embedded initrd implementation to be used with Ubuntu Core
