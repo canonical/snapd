@@ -947,3 +947,62 @@ func WriteFactoryResetMarker(marker string, hasEncryption bool) error {
 	}
 	return osutil.AtomicWriteFile(marker, buf.Bytes(), 0644, 0)
 }
+
+var (
+	secbootAddBootstrapKeyOnExistingDisk = secboot.AddBootstrapKeyOnExistingDisk
+	secbootRenameKeys                    = secboot.RenameKeys
+	secbootCreateBootstrappedContainer   = secboot.CreateBootstrappedContainer
+	secbootTemporaryNameOldKeys          = secboot.TemporaryNameOldKeys
+)
+
+func CreateSaveBootstrappedContainer(saveNode string) (secboot.BootstrappedContainer, error) {
+	// new encryption key for save
+	saveEncryptionKey, err := keys.NewEncryptionKey()
+	if err != nil {
+		return nil, fmt.Errorf("cannot create encryption key: %v", err)
+	}
+
+	// In order to manipulate the LUKS2 container, we need a
+	// bootstrap key. This key will be removed with
+	// secboot.BootstrappedContainer.RemoveBootstrapKey at the end
+	// of secboot.SealKeyToModeenv
+	if err := secbootAddBootstrapKeyOnExistingDisk(saveNode, saveEncryptionKey); err != nil {
+		return nil, err
+	}
+
+	// We cannot remove keys until we have completed the factory
+	// reset. Otherwise if we lose power during the reset, we
+	// might not be able to unlock the save partitions anymore.
+	// However, we cannot have multiple keys with the same
+	// name. So we need to rename the existing keys that we are
+	// going to create.
+	//
+	// TODO:FDEM:FIX: If we crash and reboot, and re-run factory reset,
+	// there will be already some old key saved. In that case, we
+	// need to keep those old keys and remove the new ones.  But
+	// we should also verify what keys we used from the
+	//
+	// TODO:FDEM:FIX: Do we maybe need to only save the default-fallback
+	// key and delete the default key? The default key will not be
+	// able to be used since we re created the data disk.
+	//
+	// TODO:FDEM:FIX: The keys should be renamed to reprovision-XX and keep
+	// track of the mapping XX to original key name.
+	renames := map[string]string{
+		"default":          "reprovision-default",
+		"default-fallback": "reprovision-default-fallback",
+	}
+	// Temporarily rename keyslots across the factory reset to
+	// allow to create the new ones.
+	if err := secbootRenameKeys(saveNode, renames); err != nil {
+		return nil, fmt.Errorf("cannot rename existing keys: %w", err)
+	}
+
+	// Deal as needed instead with naming unamed keyslots, they
+	// will be removed at the end of factory reset.
+	if err := secbootTemporaryNameOldKeys(saveNode); err != nil {
+		return nil, fmt.Errorf("cannot convert old keys: %w", err)
+	}
+
+	return secbootCreateBootstrappedContainer(secboot.DiskUnlockKey(saveEncryptionKey), saveNode), nil
+}

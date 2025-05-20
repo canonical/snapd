@@ -41,6 +41,7 @@ import (
 	"github.com/snapcore/snapd/gadget/install"
 	"github.com/snapcore/snapd/kernel"
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/disks"
 	installLogic "github.com/snapcore/snapd/overlord/install"
 	"github.com/snapcore/snapd/overlord/restart"
@@ -48,7 +49,6 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/secboot"
-	"github.com/snapcore/snapd/secboot/keys"
 	"github.com/snapcore/snapd/seed"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snapfile"
@@ -627,7 +627,7 @@ func (m *DeviceManager) doFactoryResetRunSystem(t *state.Task, _ *tomb.Tomb) err
 		}
 		saveNode = fmt.Sprintf("/dev/disk/by-uuid/%s", uuid)
 
-		saveBoostrapContainer, err := createSaveBootstrappedContainer(saveNode)
+		saveBoostrapContainer, err := installLogic.CreateSaveBootstrappedContainer(saveNode)
 		if err != nil {
 			return err
 		}
@@ -1195,64 +1195,9 @@ func (m *DeviceManager) doInstallSetupStorageEncryption(t *state.Task, _ *tomb.T
 }
 
 var (
-	secbootAddBootstrapKeyOnExistingDisk = secboot.AddBootstrapKeyOnExistingDisk
-	secbootRenameKeys                    = secboot.RenameKeys
-	secbootCreateBootstrappedContainer   = secboot.CreateBootstrappedContainer
-	secbootDeleteKeys                    = secboot.DeleteKeys
-	secbootDeleteOldKeys                 = secboot.DeleteOldKeys
+	secbootDeleteKeys    = secboot.DeleteKeys
+	secbootDeleteOldKeys = secboot.DeleteOldKeys
 )
-
-func createSaveBootstrappedContainer(saveNode string) (secboot.BootstrappedContainer, error) {
-	// new encryption key for save
-	saveEncryptionKey, err := keys.NewEncryptionKey()
-	if err != nil {
-		return nil, fmt.Errorf("cannot create encryption key: %v", err)
-	}
-
-	// In order to manipulate the LUKS2 container, we need a
-	// bootstrap key. This key will be removed with
-	// secboot.BootstrappedContainer.RemoveBootstrapKey at the end
-	// of secboot.SealKeyToModeenv
-	if err := secbootAddBootstrapKeyOnExistingDisk(saveNode, saveEncryptionKey); err != nil {
-		return nil, err
-	}
-
-	// We cannot remove keys until we have completed the factory
-	// reset. Otherwise if we lose power during the reset, we
-	// might not be able to unlock the save partitions anymore.
-	// However, we cannot have multiple keys with the same
-	// name. So we need to rename the existing keys that we are
-	// going to create.
-	//
-	// TODO:FDEM:FIX: If we crash and reboot, and re-run factory reset,
-	// there will be already some old key saved. In that case, we
-	// need to keep those old keys and remove the new ones.  But
-	// we should also verify what keys we used from the
-	//
-	// TODO:FDEM:FIX: Do we maybe need to only save the default-fallback
-	// key and delete the default key? The default key will not be
-	// able to be used since we re created the data disk.
-	//
-	// TODO:FDEM:FIX: The keys should be renamed to reprovision-XX and keep
-	// track of the mapping XX to original key name.
-	renames := map[string]string{
-		"default":          "reprovision-default",
-		"default-fallback": "reprovision-default-fallback",
-	}
-	// Temporarily rename keyslots across the factory reset to
-	// allow to create the new ones.
-	if err := secbootRenameKeys(saveNode, renames); err != nil {
-		return nil, fmt.Errorf("cannot rename existing keys: %w", err)
-	}
-
-	// Deal as needed instead with naming unamed keyslots, they
-	// will be removed at the end of factory reset.
-	if err := secbootTemporaryNameOldKeys(saveNode); err != nil {
-		return nil, fmt.Errorf("cannot convert old keys: %w", err)
-	}
-
-	return secbootCreateBootstrappedContainer(secboot.DiskUnlockKey(saveEncryptionKey), saveNode), nil
-}
 
 // rotateSaveKeyAndDeleteOldKeys removes old keys that were used in previous installation after successful factory reset.
 //   - Rotate ubuntu-save recovery key files: replace
