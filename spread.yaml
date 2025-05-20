@@ -381,7 +381,10 @@ backends:
         systems: *google-nested-systems
 
     openstack:
-        key: '$(HOST: echo "$SPREAD_OPENSTACK_ENV")'
+        key: '$(HOST: echo "$OS_PASSWORD")'
+        endpoint: "$(HOST: echo $OS_AUTH_URL)"
+        account: "$(HOST: echo $OS_USERNAME)"
+        location: "$(HOST: echo $OS_PROJECT_NAME/$OS_REGION_NAME)"
         plan: staging-cpu2-ram4-disk20
         halt-timeout: 2h
         wait-timeout: 5m
