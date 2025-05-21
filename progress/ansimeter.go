@@ -234,7 +234,8 @@ func (*ANSIMeter) Notify(msgstr string) {
 	for runeWidth(msg) > col {
 		endOfLine := 0
 		lineWidth := 0
-		for i, r := range msg {
+		for i = 0; i < len(msg); i++ {
+			r := msg[i]
 			w := runewidth.RuneWidth(r)
 			if w+lineWidth > col {
 				break
