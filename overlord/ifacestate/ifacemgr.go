@@ -246,7 +246,7 @@ func (m *InterfaceManager) StartUp() error {
 			return err
 		}
 	}
-	if snapdAppArmorServiceIsDisabled() {
+	if hasAppArmorBackend(m.repo.Backends()) && snapdAppArmorServiceIsDisabled() {
 		s.Warnf(`the snapd.apparmor service is disabled; snap applications will likely not start.
 Run "systemctl enable --now snapd.apparmor" to correct this.`)
 	}
