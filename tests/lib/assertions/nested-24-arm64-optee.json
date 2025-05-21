@@ -1,0 +1,32 @@
+{
+    "type": "model",
+    "series": "16",
+    "authority-id": "developer1",
+    "brand-id": "developer1",
+    "model": "optee-model",
+    "architecture": "arm64",
+    "timestamp": "2024-05-14T10:05:00+00:00",
+    "grade": "dangerous",
+    "base": "core24",
+    "serial-authority": ["generic"],
+    "snaps": [
+        {
+            "name": "test-qemu-optee-gadget",
+            "type": "gadget"
+        },
+        {
+            "name": "test-qemu-optee-kernel",
+            "type": "kernel"
+        },
+        {
+            "default-channel": "latest/stable",
+            "name": "core24",
+            "type": "base"
+        },
+        {
+            "default-channel": "latest/edge",
+            "name": "snapd",
+            "type": "snapd"
+        }
+    ]
+}
