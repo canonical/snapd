@@ -27,39 +27,9 @@ import (
 
 var Run = run
 
-func MockAddRecoveryKeyToLUKS(f func(recoveryKey keys.RecoveryKey, dev string) error) (restore func()) {
-	restore = testutil.Backup(&keymgrAddRecoveryKeyToLUKSDevice)
-	keymgrAddRecoveryKeyToLUKSDevice = f
-	return restore
-}
-
-func MockAddRecoveryKeyToLUKSUsingKey(f func(recoveryKey keys.RecoveryKey, key keys.EncryptionKey, dev string) error) (restore func()) {
-	restore = testutil.Backup(&keymgrAddRecoveryKeyToLUKSDeviceUsingKey)
-	keymgrAddRecoveryKeyToLUKSDeviceUsingKey = f
-	return restore
-}
-
-func MockRemoveRecoveryKeyFromLUKS(f func(dev string) error) (restore func()) {
-	restore = testutil.Backup(&keymgrRemoveRecoveryKeyFromLUKSDevice)
-	keymgrRemoveRecoveryKeyFromLUKSDevice = f
-	return restore
-}
-
-func MockRemoveRecoveryKeyFromLUKSUsingKey(f func(key keys.EncryptionKey, dev string) error) (restore func()) {
-	restore = testutil.Backup(&keymgrRemoveRecoveryKeyFromLUKSDeviceUsingKey)
-	keymgrRemoveRecoveryKeyFromLUKSDeviceUsingKey = f
-	return restore
-}
-
-func MockStageLUKSEncryptionKeyChange(f func(newKey keys.EncryptionKey, dev string) error) (restore func()) {
-	restore = testutil.Backup(&keymgrStageLUKSDeviceEncryptionKeyChange)
-	keymgrStageLUKSDeviceEncryptionKeyChange = f
-	return restore
-}
-
-func MockTransitionLUKSEncryptionKeyChange(f func(newKey keys.EncryptionKey, dev string) error) (restore func()) {
-	restore = testutil.Backup(&keymgrTransitionLUKSDeviceEncryptionKeyChange)
-	keymgrTransitionLUKSDeviceEncryptionKeyChange = f
+func MockChangeEncryptionKey(f func(device string, stage, transition bool, key keys.EncryptionKey) error) (restore func()) {
+	restore = testutil.Backup(&fdeKeymgrChangeEncryptionKey)
+	fdeKeymgrChangeEncryptionKey = f
 	return restore
 }
 

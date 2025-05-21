@@ -26,7 +26,6 @@ import (
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/bootloader"
-	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget/device"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
@@ -178,6 +177,7 @@ func sealKeyForBootChainsImpl(
 }
 
 var SealKeyForBootChains = sealKeyForBootChainsImpl
+var SeedDir = InitramfsUbuntuSeedDir
 
 func sealKeyToModeenvForMethod(
 	method device.SealingMethod,
@@ -230,7 +230,7 @@ func sealKeyToModeenvForMethod(
 		modeenv.RecoverySystem: {ModeRecover, ModeFactoryReset},
 	}
 	var err error
-	params.RecoveryBootChains, err = recoveryBootChainsForSystems(systems, modes, tbl, modeenv, includeTryModel, flags.SeedDir)
+	params.RecoveryBootChains, err = recoveryBootChainsForSystems(systems, modes, tbl, modeenv, includeTryModel, SeedDir)
 	if err != nil {
 		return fmt.Errorf("cannot compose recovery boot chains: %v", err)
 	}
@@ -353,7 +353,7 @@ func bootChains(modeenv *Modeenv, method device.SealingMethod) (*ResealKeyForBoo
 	includeTryModel := true
 	var err error
 	params.RecoveryBootChainsForRunKey, err = recoveryBootChainsForSystems(modeenv.CurrentRecoverySystems, modes, tbl,
-		modeenv, includeTryModel, dirs.SnapSeedDir)
+		modeenv, includeTryModel, SeedDir)
 	if err != nil {
 		return nil, fmt.Errorf("cannot compose recovery boot chains for run key: %v", err)
 	}
@@ -371,7 +371,7 @@ func bootChains(modeenv *Modeenv, method device.SealingMethod) (*ResealKeyForBoo
 	// use the current model as the recovery keys are not expected to be
 	// used during a remodel
 	includeTryModel = false
-	params.RecoveryBootChains, err = recoveryBootChainsForSystems(testedRecoverySystems, modes, tbl, modeenv, includeTryModel, dirs.SnapSeedDir)
+	params.RecoveryBootChains, err = recoveryBootChainsForSystems(testedRecoverySystems, modes, tbl, modeenv, includeTryModel, SeedDir)
 	if err != nil {
 		return nil, fmt.Errorf("cannot compose recovery boot chains: %v", err)
 	}
