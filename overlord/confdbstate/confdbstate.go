@@ -701,6 +701,8 @@ func createLoadConfdbTasks(st *state.State, tx *Transaction, view *confdb.View, 
 	}
 
 	hookPrefixes := []string{"load-view-", "query-view-"}
+	var hooks []*state.Task
+
 	// check for load-view and query-view hooks on custodians
 	for _, hookPrefix := range hookPrefixes {
 		var loadViewHookPresent bool
@@ -713,8 +715,8 @@ func createLoadConfdbTasks(st *state.State, tx *Transaction, view *confdb.View, 
 
 			loadViewHookPresent = true
 			const ignoreError = false
-			task := setupConfdbHook(st, name, hookPrefix+plug.Name, ignoreError)
-			linkTask(task)
+			hook := setupConfdbHook(st, name, hookPrefix+plug.Name, ignoreError)
+			hooks = append(hooks, hook)
 		}
 
 		// there must be least one load-view hook if we're accessing ephemeral data
@@ -723,10 +725,16 @@ func createLoadConfdbTasks(st *state.State, tx *Transaction, view *confdb.View, 
 		}
 	}
 
-	if len(ts.Tasks()) == 0 {
+	if len(hooks) == 0 {
 		// no hooks to run and not running from API (don't need task to populate)
 		// data in change so we can just read the databag synchronously
 		return nil, nil
+	}
+
+	// clear the tx from the state if the change fails
+	clearTxOnErrTask := st.NewTask("clear-confdb-tx-on-error", "Clears the ongoing confdb transaction from state (on error)")
+	for _, t := range append([]*state.Task{clearTxOnErrTask}, hooks...) {
+		linkTask(t)
 	}
 
 	// clear the ongoing tx from the state and unblock other writers waiting for it
