@@ -115,8 +115,8 @@ jobs:
             jq '.include.[] | select(.group == "ubuntu-daily") | .systems'
         }
 
-        wget -q -O master_fundsys.json https://raw.githubusercontent.com/snapcore/snapd/master/.github/workflows/fundamental-systems.json
-        wget -q -O master_nonfundsys.json https://raw.githubusercontent.com/snapcore/snapd/master/.github/workflows/non-fundamental-systems.json
+        wget -q -O master_fundsys.json https://raw.githubusercontent.com/snapcore/snapd/master/.github/workflows/data-fundamental-systems.json
+        wget -q -O master_nonfundsys.json https://raw.githubusercontent.com/snapcore/snapd/master/.github/workflows/data-non-fundamental-systems.json
         
         master_daily="$(get_daily_system master_fundsys.json master_nonfundsys.json)"
         branch_daily="$(get_daily_system .github/workflows/fundamental-systems.json .github/workflows/non-fundamental-systems.json)"
