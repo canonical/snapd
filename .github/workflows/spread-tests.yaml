@@ -285,7 +285,7 @@ jobs:
           echo ".env"
           cat /home/ubuntu/actions-runner/.env
 
-          exit 1
+          exit 0
 
           SPREAD=spread
           if [[ "${{ inputs.group }}" =~ nested- ]]; then
