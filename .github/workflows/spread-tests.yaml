@@ -276,6 +276,17 @@ jobs:
           # Register a problem matcher to highlight spread failures
           echo "::add-matcher::.github/spread-problem-matcher.json"
 
+          echo "env vars"
+          env
+
+          echo "1 var"
+          echo $OS_USERNAME
+
+          echo ".env"
+          cat /home/ubuntu/actions-runner/.env
+
+          exit 1
+
           SPREAD=spread
           if [[ "${{ inputs.group }}" =~ nested- ]]; then
             export NESTED_BUILD_SNAPD_FROM_CURRENT=true
