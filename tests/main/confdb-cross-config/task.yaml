@@ -13,7 +13,7 @@ prepare: |
   snap set system experimental.confdbs=true
 
 restore: |
-  snap unset system experimental.confdb
+  snap unset system experimental.confdbs
 
 execute: |
   changeAfterID() {
