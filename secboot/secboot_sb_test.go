@@ -2844,7 +2844,6 @@ func (tm *testModel) SignKeyID() string {
 }
 
 func (s *secbootSuite) TestResealKeysWithFDESetupHookV1(c *C) {
-	auxKey := []byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16}
 	key1 := []byte(`USK$blahblahblah`)
 
 	tmpdir := c.MkDir()
@@ -2862,7 +2861,11 @@ func (s *secbootSuite) TestResealKeysWithFDESetupHookV1(c *C) {
 		KeyFile:    key1Fn,
 	}
 
-	err = secboot.ResealKeysWithFDESetupHook([]secboot.KeyDataLocation{key1Location}, auxKey, []secboot.ModelForSealing{m}, []string{"run"})
+	primaryKeyGetter := func() ([]byte, error) {
+		c.Errorf("unexpected call")
+		return nil, fmt.Errorf("unexpected call")
+	}
+	err = secboot.ResealKeysWithFDESetupHook([]secboot.KeyDataLocation{key1Location}, primaryKeyGetter, []secboot.ModelForSealing{m}, []string{"run"})
 	c.Assert(err, IsNil)
 
 	// Nothing should have happened. But we make sure that they key is still there untouched.
@@ -2900,7 +2903,7 @@ func (s *secbootSuite) TestResealKeysWithFDESetupHookV2(c *C) {
 		KeyFile:    key1Fn,
 	}
 
-	err = secboot.ResealKeysWithFDESetupHook([]secboot.KeyDataLocation{key1Location}, auxKey, []secboot.ModelForSealing{m}, []string{"run"})
+	err = secboot.ResealKeysWithFDESetupHook([]secboot.KeyDataLocation{key1Location}, func() ([]byte, error) { return auxKey, nil }, []secboot.ModelForSealing{m}, []string{"run"})
 	c.Assert(err, IsNil)
 
 	afterReader, err := sb.NewFileKeyDataReader(key1Fn)
@@ -2986,7 +2989,7 @@ func (s *secbootSuite) TestResealKeysWithFDESetupHook(c *C) {
 		KeyFile:    key1Fn,
 	}
 
-	err = secboot.ResealKeysWithFDESetupHook([]secboot.KeyDataLocation{key1Location}, primaryKey, []secboot.ModelForSealing{newModel}, []string{"some-mode"})
+	err = secboot.ResealKeysWithFDESetupHook([]secboot.KeyDataLocation{key1Location}, func() ([]byte, error) { return primaryKey, nil }, []secboot.ModelForSealing{newModel}, []string{"some-mode"})
 	c.Assert(err, IsNil)
 	c.Check(modelSet, Equals, 1)
 	c.Check(bootModesSet, Equals, 1)
@@ -3057,7 +3060,7 @@ func (s *secbootSuite) TestResealKeysWithFDESetupHookFromFile(c *C) {
 		KeyFile:    key1Fn,
 	}
 
-	err = secboot.ResealKeysWithFDESetupHook([]secboot.KeyDataLocation{key1Location}, primaryKey, []secboot.ModelForSealing{newModel}, []string{"some-mode"})
+	err = secboot.ResealKeysWithFDESetupHook([]secboot.KeyDataLocation{key1Location}, func() ([]byte, error) { return primaryKey, nil }, []secboot.ModelForSealing{newModel}, []string{"some-mode"})
 	c.Assert(err, IsNil)
 	c.Check(modelSet, Equals, 1)
 	c.Check(bootModesSet, Equals, 1)
