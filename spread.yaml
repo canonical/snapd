@@ -381,10 +381,10 @@ backends:
         systems: *google-nested-systems
 
     openstack:
-        key: '$(HOST: echo "$OS_PASSWORD")'
-        endpoint: "$(HOST: echo $OS_AUTH_URL)"
-        account: "$(HOST: echo $OS_USERNAME)"
-        location: "$(HOST: echo $OS_PROJECT_NAME/$OS_REGION_NAME)"
+        key: '$(HOST: source $OS_CREDENTIALS_AMD64_PS6 && echo "$OS_PASSWORD")'
+        endpoint: "$(HOST: source $OS_CREDENTIALS_AMD64_PS6 && echo $OS_AUTH_URL)"
+        account: "$(HOST: source $OS_CREDENTIALS_AMD64_PS6 && echo $OS_USERNAME)"
+        location: "$(HOST: source $OS_CREDENTIALS_AMD64_PS6 && echo $OS_PROJECT_NAME/$OS_REGION_NAME)"
         plan: staging-cpu2-ram4-disk20
         halt-timeout: 2h
         wait-timeout: 5m
@@ -441,6 +441,40 @@ backends:
             - debian-sid-64:
                 image: snapd-spread/debian-sid-64
                 workers: 6
+
+    openstack-arm:
+        type: openstack
+        key: '$(HOST: source $OS_CREDENTIALS_ARM64_PS6 && echo "$OS_PASSWORD")'
+        endpoint: "$(HOST: source $OS_CREDENTIALS_ARM64_PS6 && echo $OS_AUTH_URL)"
+        account: "$(HOST: source $OS_CREDENTIALS_ARM64_PS6 && echo $OS_USERNAME)"
+        location: "$(HOST: source $OS_CREDENTIALS_ARM64_PS6 && echo $OS_PROJECT_NAME/$OS_REGION_NAME)"
+        plan: builder-arm64-cpu2-ram4-disk20
+        halt-timeout: 2h
+        wait-timeout: 5m
+        groups: [default]
+        environment:
+            HTTP_PROXY: 'http://squid.internal:3128'
+            HTTPS_PROXY: 'http://squid.internal:3128'
+            http_proxy: 'http://squid.internal:3128'
+            https_proxy: 'http://squid.internal:3128'
+            no_proxy: '127.0.0.1,ubuntu.com'
+            NO_PROXY: '127.0.0.1,ubuntu.com'
+        systems:
+            - ubuntu-20.04-arm-64:
+                image: snapd-spread/ubuntu-20.04-arm-64
+                workers: 8
+            - ubuntu-22.04-arm-64:
+                image: snapd-spread/ubuntu-22.04-arm-64
+                workers: 8
+            - ubuntu-24.04-arm-64:
+                image: snapd-spread/ubuntu-24.04-arm-64
+                workers: 8
+            - ubuntu-core-22-arm-64:
+                image: snapd-spread/ubuntu-22.04-arm-64
+                workers: 8
+            - ubuntu-core-24-arm-64:
+                image: snapd-spread/ubuntu-24.04-arm-64
+                workers: 8
 
     qemu-nested:
         memory: 4G
