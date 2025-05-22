@@ -541,8 +541,15 @@ parts:
           apt download openssl libssl3 openssl-fips-module-3
         )
       elif [ -f "${CRAFT_STAGE}/fips-build" ]; then
-        # grab the core22 from fips-updates channel
-        snap download --channel fips-updates/stable --basename core24-fips core24
+        # grab the core24 from fips-updates channel
+        # fips-updates/{beta,candidate,stable} are for FIPS certified
+        # bases for use in FIPS certified Ubuntu Core. "fips-build"
+        # build tag is not to be deployed. It is "fips-build-lp". We
+        # therefore do not need a FIPS cerified base. Instead we need
+        # to copy the latest versions of the FIPS module we can
+        # get. Which is available on fips-updates/edge. Because we
+        # cannot easily get them from ppas.
+        snap download --channel fips-updates/edge --basename core24-fips core24
       fi
 
       # TODO this is really a hack as we should likely be using on LP; The snapd
