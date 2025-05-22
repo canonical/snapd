@@ -3217,7 +3217,8 @@ func (s *secbootSuite) TestGetPCRHandle(c *C) {
 	})
 	defer restore()
 
-	handle, err := secboot.GetPCRHandle("foo", "some-key", "do-not-read")
+	const hintExpectFDEHook = false
+	handle, err := secboot.GetPCRHandle("foo", "some-key", "do-not-read", hintExpectFDEHook)
 	c.Assert(err, IsNil)
 	c.Check(handle, Equals, uint32(42))
 }
@@ -3242,7 +3243,8 @@ func (s *secbootSuite) TestGetPCRHandleNoKeyslotKeyfile(c *C) {
 	})
 	defer restore()
 
-	handle, err := secboot.GetPCRHandle("foo", "some-key", "read-this-file")
+	const hintExpectFDEHook = false
+	handle, err := secboot.GetPCRHandle("foo", "some-key", "read-this-file", hintExpectFDEHook)
 	c.Assert(err, IsNil)
 	c.Check(handle, Equals, uint32(42))
 }
@@ -3279,7 +3281,8 @@ func (s *secbootSuite) TestGetPCRHandleKeyslotNoKeyDataKeyfile(c *C) {
 	})
 	defer restore()
 
-	handle, err := secboot.GetPCRHandle("foo", "some-key", "read-this-file")
+	const hintExpectFDEHook = false
+	handle, err := secboot.GetPCRHandle("foo", "some-key", "read-this-file", hintExpectFDEHook)
 	c.Assert(err, IsNil)
 	c.Check(handle, Equals, uint32(42))
 }
@@ -3304,7 +3307,8 @@ func (s *secbootSuite) TestGetPCRHandleNoKeyslotKeyfileOldFormat(c *C) {
 	})
 	defer restore()
 
-	handle, err := secboot.GetPCRHandle("foo", "some-key", "read-this-file")
+	const hintExpectFDEHook = false
+	handle, err := secboot.GetPCRHandle("foo", "some-key", "read-this-file", hintExpectFDEHook)
 	c.Assert(err, IsNil)
 	c.Check(handle, Equals, uint32(42))
 }
