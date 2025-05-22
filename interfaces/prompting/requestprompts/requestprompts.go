@@ -132,7 +132,7 @@ func (p *Prompt) sendReplyWithPermission(allowedPermission notify.AppArmorPermis
 			if errors.Is(err, unix.ENOENT) {
 				// If err is ENOENT, then notification with the given ID does not
 				// exist, so it timed out in the kernel.
-				logger.Debugf("kernel returned ENOENT from APPARMOR_NOTIF_SEND (notification probably timed out)")
+				logger.Debugf("kernel returned ENOENT from APPARMOR_NOTIF_SEND for request (notification probably timed out): %+v", listenerReq)
 			} else {
 				// Other errors should only occur if reply is malformed, and
 				// since these listener requests should be identical, if a
