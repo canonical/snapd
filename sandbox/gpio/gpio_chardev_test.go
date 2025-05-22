@@ -135,19 +135,24 @@ func (s *chardevTestSuite) TestEnsureAggregatorDriver(c *C) {
 	defer dirs.SetRootDir("")
 
 	called := 0
-	restore := gpio.MocKKmodLoadModule(func(module string, options []string) error {
+	restore := gpio.MockKmodLoadModule(func(module string, options []string) error {
 		called++
 		return nil
 	})
 	defer restore()
 
-	// 1. gpio-aggregator module is already loaded, nothing to do
+	// 1. gpio-aggregator module is already loaded
 	c.Assert(os.MkdirAll(filepath.Join(rootdir, "/sys/bus/platform/drivers/gpio-aggregator"), 0755), IsNil)
-	c.Check(gpio.EnsureAggregatorDriver(), IsNil)
+	// But snapd (and kernel) support is not there yet
+	c.Check(gpio.EnsureAggregatorDriver(), ErrorMatches, "gpio-aggregator configfs support is missing")
+	// Loading the module is not attempted
 	c.Check(called, Equals, 0)
-	// 2. gpio-aggregator module is missing, attempt loading
+
+	// 2. gpio-aggregator module is missing
 	c.Assert(os.RemoveAll(filepath.Join(rootdir, "/sys/bus/platform/drivers/gpio-aggregator")), IsNil)
-	c.Check(gpio.EnsureAggregatorDriver(), IsNil)
+	// But snapd (and kernel) support is not there yet
+	c.Check(gpio.EnsureAggregatorDriver(), ErrorMatches, "gpio-aggregator configfs support is missing")
+	// Loading the module is attempted
 	c.Check(called, Equals, 1)
 }
 

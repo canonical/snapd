@@ -1120,7 +1120,8 @@ func (w *Writer) resolveChannel(whichSnap string, modSnap *asserts.ModelSnap, op
 	return resChannel, nil
 }
 
-func (w *Writer) checkBase(info *snap.Info, modes []string) error {
+func (w *Writer) checkBase(sn *SeedSnap) error {
+	info := sn.Info
 	// Validity check, note that we could support this case
 	// if we have a use-case but it requires changes in the
 	// devicestate/firstboot.go ordering code.
@@ -1133,7 +1134,16 @@ func (w *Writer) checkBase(info *snap.Info, modes []string) error {
 		return nil
 	}
 
-	return w.policy.checkBase(info, modes, w.availableByMode)
+	modes := sn.modes()
+	err := w.policy.checkBase(info, modes, w.availableByMode)
+	if err != nil {
+		// in dangerous mode check base only at the end
+		// allowing overrides to provide the new base as well
+		if w.policy.allowsDangerousFeatures() == nil && sn.optionSnap != nil {
+			return nil
+		}
+	}
+	return err
 }
 
 func (w *Writer) recordUsageWithThePolicy(modSnaps []*asserts.ModelSnap) {
@@ -1315,9 +1325,7 @@ func (w *Writer) downloaded(seedSnaps []*SeedSnap, fetchAsserts AssertsFetchFunc
 			}
 		}
 
-		modes := sn.modes()
-
-		if err := w.checkBase(info, modes); err != nil {
+		if err := w.checkBase(sn); err != nil {
 			return err
 		}
 	}

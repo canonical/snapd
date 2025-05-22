@@ -61,13 +61,6 @@ override_dh_auto_install:
 
 	touch debian/tmp/etc/machine-id
 
-override_dh_install:
-	dh_install
-ifeq ($(DEB_HOST_ARCH),amd64)
-	mkdir -p debian/ubuntu-core-initramfs/usr/lib/ubuntu-core-initramfs/early/
-	debian/generate-x86-microcode debian/ubuntu-core-initramfs/usr/lib/ubuntu-core-initramfs/early/microcode.cpio
-endif
-
 override_dh_clean:
 	dh_clean
 	rm -f snap-bootstrap

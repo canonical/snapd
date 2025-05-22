@@ -7239,13 +7239,17 @@ func (s *interfaceManagerSuite) TestStartupTimings(c *C) {
 	c.Check(tags, DeepEquals, map[string]interface{}{"startup": "ifacemgr"})
 }
 
-func (s *interfaceManagerSuite) TestStartupWarningForDisabledAppArmor(c *C) {
+func (s *interfaceManagerSuite) TestStartupWarningForDisabledAppArmorWithAppArmor(c *C) {
 	invocationCount := 0
 	restore := ifacestate.MockSnapdAppArmorServiceIsDisabled(func() bool {
 		invocationCount++
 		return true
 	})
 	defer restore()
+	s.extraBackends = append(s.extraBackends, &ifacetest.TestSecurityBackend{
+		// pretend apparmor backend is present
+		BackendName: interfaces.SecurityAppArmor,
+	})
 	_ = s.manager(c)
 
 	c.Check(invocationCount, Equals, 1)
@@ -7253,6 +7257,18 @@ func (s *interfaceManagerSuite) TestStartupWarningForDisabledAppArmor(c *C) {
 	warns := s.state.AllWarnings()
 	c.Assert(warns, HasLen, 1)
 	c.Check(warns[0].String(), Matches, `the snapd\.apparmor service is disabled.*\nRun .* to correct this\.`)
+}
+
+func (s *interfaceManagerSuite) TestStartupWarningForDisabledAppArmorNoAppArmor(c *C) {
+	restore := ifacestate.MockSnapdAppArmorServiceIsDisabled(func() bool {
+		return true
+	})
+	defer restore()
+	// no apparmor support, no warning, even if snapd.apparmor is disabled
+	_ = s.manager(c)
+
+	warns := s.state.AllWarnings()
+	c.Assert(warns, HasLen, 0)
 }
 
 func (s *interfaceManagerSuite) TestAutoconnectSelf(c *C) {
