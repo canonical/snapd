@@ -546,7 +546,7 @@ parts:
         )
       elif [ -f "${CRAFT_STAGE}/fips-build" ]; then
         # grab the core22 from fips-updates channel
-        snap download --channel fips-updates/stable --basename core24-fips core24
+        snap download --channel fips-updates/edge --basename core24-fips core24
       fi
 
       # TODO this is really a hack as we should likely be using on LP; The snapd
