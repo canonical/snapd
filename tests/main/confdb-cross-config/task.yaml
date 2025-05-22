@@ -12,6 +12,9 @@ systems: [ -ubuntu-16.04, -debian-11-64 ]
 prepare: |
   snap set system experimental.confdbs=true
 
+restore: |
+  snap unset system experimental.confdb
+
 execute: |
   changeAfterID() {
     local OLD_CHANGE="$1"
