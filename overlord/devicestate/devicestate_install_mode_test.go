@@ -359,7 +359,7 @@ func (s *deviceMgrInstallModeSuite) SetUpTest(c *C) {
 	})
 	s.AddCleanup(restore)
 
-	restore = installLogic.MockSecbootPreinstallCheck(func(tpmMode secboot.TPMProvisionMode) error {
+	restore = installLogic.MockSecbootPreinstallCheck(func(model *asserts.Model, tpmMode secboot.TPMProvisionMode) error {
 		c.Check(tpmMode, Equals, secboot.TPMProvisionFull)
 		return fmt.Errorf("TPM not available")
 	})
@@ -651,7 +651,7 @@ func (s *deviceMgrInstallModeSuite) doRunChangeTestWithEncryption(c *C, grade st
 	})
 	defer restore()
 
-	restore = installLogic.MockSecbootPreinstallCheck(func(tpmMode secboot.TPMProvisionMode) error {
+	restore = installLogic.MockSecbootPreinstallCheck(func(model *asserts.Model, tpmMode secboot.TPMProvisionMode) error {
 		c.Check(tpmMode, Equals, secboot.TPMProvisionFull)
 		if tc.tpm {
 			return nil
@@ -1786,7 +1786,7 @@ func (s *deviceMgrInstallModeSuite) TestInstallBootloaderVarSetFails(c *C) {
 	})
 	defer restore()
 
-	restore = installLogic.MockSecbootPreinstallCheck(func(secboot.TPMProvisionMode) error { return fmt.Errorf("no encrypted soup for you") })
+	restore = installLogic.MockSecbootPreinstallCheck(func(*asserts.Model, secboot.TPMProvisionMode) error { return fmt.Errorf("no encrypted soup for you") })
 	defer restore()
 
 	err := os.WriteFile(filepath.Join(dirs.GlobalRootDir, "/var/lib/snapd/modeenv"),
@@ -1826,7 +1826,7 @@ func (s *deviceMgrInstallModeSuite) testInstallEncryptionValidityChecks(c *C, er
 	restore := release.MockOnClassic(false)
 	defer restore()
 
-	restore = installLogic.MockSecbootPreinstallCheck(func(secboot.TPMProvisionMode) error { return nil })
+	restore = installLogic.MockSecbootPreinstallCheck(func(*asserts.Model, secboot.TPMProvisionMode) error { return nil })
 	defer restore()
 
 	err := os.WriteFile(filepath.Join(dirs.GlobalRootDir, "/var/lib/snapd/modeenv"),
@@ -2011,7 +2011,7 @@ func (s *deviceMgrInstallModeSuite) TestInstallWithEncryptionValidatesGadgetErr(
 	defer restore()
 
 	// pretend we have a TPM
-	restore = installLogic.MockSecbootPreinstallCheck(func(tpmMode secboot.TPMProvisionMode) error {
+	restore = installLogic.MockSecbootPreinstallCheck(func(model *asserts.Model, tpmMode secboot.TPMProvisionMode) error {
 		c.Check(tpmMode, Equals, secboot.TPMProvisionFull)
 		return nil
 	})
@@ -2043,7 +2043,7 @@ func (s *deviceMgrInstallModeSuite) TestInstallWithEncryptionValidatesGadgetWarn
 	defer restore()
 
 	// pretend we have a TPM
-	restore = installLogic.MockSecbootPreinstallCheck(func(secboot.TPMProvisionMode) error { return nil })
+	restore = installLogic.MockSecbootPreinstallCheck(func(*asserts.Model, secboot.TPMProvisionMode) error { return nil })
 	defer restore()
 
 	s.testInstallGadgetNoSave(c, "dangerous")
@@ -2067,7 +2067,7 @@ func (s *deviceMgrInstallModeSuite) TestInstallWithoutEncryptionValidatesGadgetW
 	defer restore()
 
 	// pretend we have a TPM
-	restore = installLogic.MockSecbootPreinstallCheck(func(secboot.TPMProvisionMode) error { return fmt.Errorf("TPM2 not available") })
+	restore = installLogic.MockSecbootPreinstallCheck(func(*asserts.Model, secboot.TPMProvisionMode) error { return fmt.Errorf("TPM2 not available") })
 	defer restore()
 
 	s.testInstallGadgetNoSave(c, "dangerous")
@@ -2143,7 +2143,7 @@ func (s *deviceMgrInstallModeSuite) TestInstallCheckEncrypted(c *C) {
 		} else {
 			makeInstalledMockKernelSnap(c, st, kernelYamlNoFdeSetup)
 		}
-		restore := installLogic.MockSecbootPreinstallCheck(func(secboot.TPMProvisionMode) error {
+		restore := installLogic.MockSecbootPreinstallCheck(func(*asserts.Model, secboot.TPMProvisionMode) error {
 			if tc.hasTPM {
 				return nil
 			}
@@ -2314,7 +2314,7 @@ func (s *deviceMgrInstallModeSuite) doRunFactoryResetChange(c *C, model *asserts
 	})
 	defer restore()
 
-	restore = installLogic.MockSecbootPreinstallCheck(func(secboot.TPMProvisionMode) error {
+	restore = installLogic.MockSecbootPreinstallCheck(func(*asserts.Model, secboot.TPMProvisionMode) error {
 		if tc.tpm {
 			return nil
 		} else {
@@ -3137,7 +3137,7 @@ func (s *deviceMgrInstallModeSuite) TestFactoryResetExpectedTasks(c *C) {
 	restore := release.MockOnClassic(false)
 	defer restore()
 
-	restore = installLogic.MockSecbootPreinstallCheck(func(tpmMode secboot.TPMProvisionMode) error {
+	restore = installLogic.MockSecbootPreinstallCheck(func(model *asserts.Model, tpmMode secboot.TPMProvisionMode) error {
 		c.Check(tpmMode, Equals, secboot.TPMPartialReprovision)
 		return fmt.Errorf("TPM not available")
 	})
@@ -3210,7 +3210,7 @@ func (s *deviceMgrInstallModeSuite) TestFactoryResetInstallDeviceHook(c *C) {
 	restore := release.MockOnClassic(false)
 	defer restore()
 
-	restore = installLogic.MockSecbootPreinstallCheck(func(tpmMode secboot.TPMProvisionMode) error {
+	restore = installLogic.MockSecbootPreinstallCheck(func(model *asserts.Model, tpmMode secboot.TPMProvisionMode) error {
 		c.Check(tpmMode, Equals, secboot.TPMPartialReprovision)
 		return fmt.Errorf("TPM not available")
 	})

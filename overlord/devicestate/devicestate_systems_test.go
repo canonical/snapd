@@ -2948,7 +2948,7 @@ func (s *modelAndGadgetInfoSuite) TestSystemAndGadgetAndEncyptionInfoHappy(c *C)
 	expectedGadgetInfo, err := gadget.InfoFromGadgetYaml([]byte(mockGadgetUCYaml), fakeModel)
 	c.Assert(err, IsNil)
 
-	restore := install.MockSecbootPreinstallCheck(func(secboot.TPMProvisionMode) error { return fmt.Errorf("really no tpm") })
+	restore := install.MockSecbootPreinstallCheck(func(*asserts.Model, secboot.TPMProvisionMode) error { return fmt.Errorf("really no tpm") })
 	defer restore()
 
 	system, gadgetInfo, encInfo, err := s.mgr.SystemAndGadgetAndEncryptionInfo("some-label")
@@ -2977,7 +2977,7 @@ func (s *modelAndGadgetInfoSuite) testSystemAndGadgetAndEncyptionInfoPassphraseS
 	expectedGadgetInfo, err := gadget.InfoFromGadgetYaml([]byte(mockGadgetUCYaml), fakeModel)
 	c.Assert(err, IsNil)
 
-	restore := install.MockSecbootPreinstallCheck(func(secboot.TPMProvisionMode) error { return nil })
+	restore := install.MockSecbootPreinstallCheck(func(*asserts.Model, secboot.TPMProvisionMode) error { return nil })
 	defer restore()
 
 	system, gadgetInfo, encInfo, err := s.mgr.SystemAndGadgetAndEncryptionInfo("some-label")

@@ -169,7 +169,7 @@ func BuildKernelBootInfo(kernInfo *snap.Info, compSeedInfos []ComponentSeedInfo,
 }
 
 // MockSecbootPreinstallCheck mocks secboot.PreinstallCheck usage by the package for testing.
-func MockSecbootPreinstallCheck(f func(secboot.TPMProvisionMode) error) (restore func()) {
+func MockSecbootPreinstallCheck(f func(*asserts.Model, secboot.TPMProvisionMode) error) (restore func()) {
 	old := secbootPreinstallCheck
 	secbootPreinstallCheck = f
 	return func() {
@@ -239,7 +239,7 @@ func GetEncryptionSupportInfo(model *asserts.Model, tpmMode secboot.TPMProvision
 	case checkSecbootEncryption:
 		// XXX: Remove this comment once confirmed that secbootCheckTPMKeySealingSupported
 		// is covered by PreinstallCheck.
-		checkEncryptionErr = secbootPreinstallCheck(tpmMode)
+		checkEncryptionErr = secbootPreinstallCheck(model, tpmMode)
 		if checkEncryptionErr == nil {
 			res.Type = device.EncryptionTypeLUKS
 		} else {
@@ -364,7 +364,7 @@ func NewGetEncryptionSupportInfo(model *asserts.Model, tpmMode secboot.TPMProvis
 		// comprehensive preinstall check
 		// XXX: Remove this comment once confirmed that secbootCheckTPMKeySealingSupported
 		// is covered by PreinstallCheck.
-		if err := secbootPreinstallCheck(tpmMode); err != nil {
+		if err := secbootPreinstallCheck(model, tpmMode); err != nil {
 			// XXX: Remove this comment once agreed if the compound error will have simple high level message.
 			setUnavailableErrorOrWarning(fmt.Errorf("cannot use TPM based encryption: preinstall check failed"))
 			encInfo.PreinstallCheckErr = err

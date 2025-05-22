@@ -369,7 +369,7 @@ func (s *installSuite) TestEncryptionSupportInfoWithTPM(c *C) {
 		},
 	}
 	for i, tc := range testCases {
-		restore := install.MockSecbootPreinstallCheck(func(secboot.TPMProvisionMode) error { return tc.preinstallCheckErr })
+		restore := install.MockSecbootPreinstallCheck(func(*asserts.Model, secboot.TPMProvisionMode) error { return tc.preinstallCheckErr })
 		defer restore()
 
 		mockModel := s.mockModel(map[string]interface{}{
@@ -484,7 +484,7 @@ func (s *installSuite) TestEncryptionSupportInfoForceUnencrypted(c *C) {
 	}
 
 	for i, tc := range testCases {
-		restore := install.MockSecbootPreinstallCheck(func(secboot.TPMProvisionMode) error { return tc.preinstallCheckErr })
+		restore := install.MockSecbootPreinstallCheck(func(*asserts.Model, secboot.TPMProvisionMode) error { return tc.preinstallCheckErr })
 		defer restore()
 
 		mockModel := s.mockModel(map[string]interface{}{
@@ -537,7 +537,7 @@ var gadgetUC20 = &gadget.Info{
 }
 
 func (s *installSuite) TestEncryptionSupportInfoGadgetIncompatibleWithEncryption(c *C) {
-	restore := install.MockSecbootPreinstallCheck(func(secboot.TPMProvisionMode) error { return nil })
+	restore := install.MockSecbootPreinstallCheck(func(*asserts.Model, secboot.TPMProvisionMode) error { return nil })
 	defer restore()
 
 	kernelInfo := s.kernelSnap(c, "pc-kernel=20")
@@ -680,7 +680,7 @@ func (s *installSuite) TestInstallCheckEncryptionSupportTPM(c *C) {
 		// happy: tpm,
 		{false, device.EncryptionTypeLUKS},
 	} {
-		restore := install.MockSecbootPreinstallCheck(func(secboot.TPMProvisionMode) error {
+		restore := install.MockSecbootPreinstallCheck(func(*asserts.Model, secboot.TPMProvisionMode) error {
 			if tc.preinstallCheckFailure {
 				return fmt.Errorf("no tpm")
 			}
@@ -721,7 +721,7 @@ func (s *installSuite) TestInstallCheckEncryptionSupportHook(c *C) {
 			return []byte(fmt.Sprintf(`{"features":%s}`, tc.fdeSetupHookFeatures)), nil
 		}
 
-		restore := install.MockSecbootPreinstallCheck(func(secboot.TPMProvisionMode) error {
+		restore := install.MockSecbootPreinstallCheck(func(*asserts.Model, secboot.TPMProvisionMode) error {
 			if tc.hasTPM {
 				return nil
 			}
@@ -743,7 +743,7 @@ func (s *installSuite) TestInstallCheckEncryptionSupportStorageSafety(c *C) {
 	kernelInfo := s.kernelSnap(c, "pc-kernel=20")
 	gadgetInfo, _ := s.mountedGadget(c)
 
-	restore := install.MockSecbootPreinstallCheck(func(secboot.TPMProvisionMode) error { return nil })
+	restore := install.MockSecbootPreinstallCheck(func(*asserts.Model, secboot.TPMProvisionMode) error { return nil })
 	defer restore()
 
 	var testCases = []struct {
@@ -780,7 +780,7 @@ func (s *installSuite) TestInstallCheckEncryptionSupportErrors(c *C) {
 	kernelInfo := s.kernelSnap(c, "pc-kernel=20")
 	gadgetInfo, _ := s.mountedGadget(c)
 
-	restore := install.MockSecbootPreinstallCheck(func(secboot.TPMProvisionMode) error { return fmt.Errorf("no tpm") })
+	restore := install.MockSecbootPreinstallCheck(func(*asserts.Model, secboot.TPMProvisionMode) error { return fmt.Errorf("no tpm") })
 	defer restore()
 
 	var testCases = []struct {
@@ -819,7 +819,7 @@ func (s *installSuite) TestInstallCheckEncryptionSupportErrorsLogsTPM(c *C) {
 	kernelInfo := s.kernelSnap(c, "pc-kernel=20")
 	gadgetInfo, _ := s.mountedGadget(c)
 
-	restore := install.MockSecbootPreinstallCheck(func(secboot.TPMProvisionMode) error { return fmt.Errorf("preinstall check error: tpm says no") })
+	restore := install.MockSecbootPreinstallCheck(func(*asserts.Model, secboot.TPMProvisionMode) error { return fmt.Errorf("preinstall check error: tpm says no") })
 	defer restore()
 
 	logbuf, restore := logger.MockLogger()

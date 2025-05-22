@@ -26,6 +26,8 @@ import (
 
 	sb_efi "github.com/snapcore/secboot/efi"
 	"github.com/snapcore/secboot/efi/preinstall"
+
+	"github.com/snapcore/snapd/asserts"
 )
 
 var (
@@ -120,7 +122,13 @@ func newInternalErrorUnexpectedType(err error) PreinstallErrorAndActions {
 }
 
 // PreinstallCheck runs preinstall checks without customization or profile generation options.
-func PreinstallCheck(tpmMode TPMProvisionMode) error {
+func PreinstallCheck(model *asserts.Model, tpmMode TPMProvisionMode) error {
+	isHybrid := model.Classic() && model.KernelSnap() != nil
+	if isHybrid {
+		// XXX: Need to return compound error to be consistent with preinstallRun
+		return CheckTPMKeySealingSupported(tpmMode)
+	}
+
 	// XXX: Expect preinstallNewRunChecksContext to require tpmMode in order to evaluate
 	// lockout when required. Complete implementation after preinstallNewRunChecksContext
 	// is modified.
