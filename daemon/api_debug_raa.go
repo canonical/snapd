@@ -39,7 +39,7 @@ type monitoredSnapInfo struct {
 }
 
 type refreshCandidateInfo struct {
-	Revision  snap.Revision `json:"revision"`
+	Revision  snap.Revision `json:"revision,omitzero"`
 	Version   string        `json:"version,omitempty"`
 	Channel   string        `json:"channel,omitempty"`
 	Monitored bool          `json:"monitored,omitempty"`

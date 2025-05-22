@@ -36,8 +36,8 @@ type cmdDebugRAA struct {
 
 func init() {
 	addDebugCommand("refresh-app-awareness",
-		"Obtain refresh-app-awareness details",
-		"obtain refresh-app-awareness details",
+		"(internal) list refresh-app-awareness details",
+		"(internal) list refresh-app-awareness details",
 		func() flags.Commander {
 			return &cmdDebugRAA{}
 		}, nil, nil)
