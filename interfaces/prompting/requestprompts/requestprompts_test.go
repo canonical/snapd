@@ -32,12 +32,15 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"golang.org/x/sys/unix"
+
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces/prompting"
 	prompting_errors "github.com/snapcore/snapd/interfaces/prompting/errors"
 	"github.com/snapcore/snapd/interfaces/prompting/internal/maxidmmap"
 	"github.com/snapcore/snapd/interfaces/prompting/patterns"
 	"github.com/snapcore/snapd/interfaces/prompting/requestprompts"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/sandbox/apparmor/notify"
 	"github.com/snapcore/snapd/sandbox/apparmor/notify/listener"
@@ -834,6 +837,79 @@ func (s *requestpromptsSuite) waitForListenerReqAndReply(c *C, listenerReqChan <
 		err = fmt.Errorf("failed to receive reply over channel")
 	}
 	return req, allowedPermission, err
+}
+
+func (s *requestpromptsSuite) TestReplyTimedOut(c *C) {
+	listenerReqChan := make(chan *listener.Request, 2)
+	replyChan := make(chan notify.AppArmorPermission, 2)
+	restore := requestprompts.MockSendReply(func(listenerReq *listener.Request, allowedPermission notify.AppArmorPermission) error {
+		listenerReqChan <- listenerReq
+		replyChan <- allowedPermission
+		// Return ENOENT, indicating that the notification does not exist.
+		// If the prompt exists but the notification does not, then the
+		// notification most likely timed out in the kernel.
+		return unix.ENOENT
+	})
+	defer restore()
+
+	logbuf, restore := logger.MockDebugLogger()
+	defer restore()
+
+	pdb, err := requestprompts.New(s.defaultNotifyPrompt)
+	c.Assert(err, IsNil)
+	defer pdb.Close()
+
+	metadata := &prompting.Metadata{
+		User:      s.defaultUser,
+		Snap:      "nextcloud",
+		PID:       123,
+		Interface: "home",
+	}
+	path := "/home/test/Documents/foo.txt"
+	permissions := []string{"read", "write", "execute"}
+	outcome := prompting.OutcomeAllow
+
+	listenerReq1 := &listener.Request{ID: 1}
+	listenerReq2 := &listener.Request{ID: 2}
+
+	prompt1, merged, err := pdb.AddOrMerge(metadata, path, permissions, permissions, listenerReq1)
+	c.Assert(err, IsNil)
+	c.Check(merged, Equals, false)
+
+	s.checkNewNoticesSimple(c, []prompting.IDType{prompt1.ID}, nil)
+
+	prompt2, merged, err := pdb.AddOrMerge(metadata, path, permissions, permissions, listenerReq2)
+	c.Assert(err, IsNil)
+	c.Check(merged, Equals, true)
+	c.Check(prompt2, Equals, prompt1)
+
+	// Merged prompts should re-record notice
+	s.checkNewNoticesSimple(c, []prompting.IDType{prompt1.ID}, nil)
+
+	clientActivity := true // doesn't matter if it's true or false for this test
+	repliedPrompt, err := pdb.Reply(metadata.User, prompt1.ID, outcome, clientActivity)
+	c.Check(err, IsNil)
+	c.Check(repliedPrompt, Equals, prompt1)
+	for _, listenerReq := range []*listener.Request{listenerReq1, listenerReq2} {
+		receivedReq, allowedPermission, err := s.waitForListenerReqAndReply(c, listenerReqChan, replyChan)
+		c.Check(err, IsNil, Commentf("expected reply for request %d", listenerReq.ID))
+		c.Check(receivedReq, Equals, listenerReq)
+		// Check that permissions in response map to prompt's permissions
+		abstractPermissions, err := prompting.AbstractPermissionsFromAppArmorPermissions(prompt1.Interface, allowedPermission)
+		c.Check(err, IsNil)
+		c.Check(abstractPermissions, DeepEquals, prompt1.Constraints.OutstandingPermissions())
+		// Check that prompt's permissions map to response's permissions
+		expectedPerm, err := prompting.AbstractPermissionsToAppArmorPermissions(prompt1.Interface, prompt1.Constraints.OutstandingPermissions())
+		c.Check(err, IsNil)
+		c.Check(allowedPermission, DeepEquals, expectedPerm)
+	}
+
+	expectedData := map[string]string{"resolved": "replied"}
+	s.checkNewNoticesSimple(c, []prompting.IDType{repliedPrompt.ID}, expectedData)
+
+	// Expect two messages containing the following:
+	logMsg := "kernel returned ENOENT from APPARMOR_NOTIF_SEND"
+	c.Check(logbuf.String(), testutil.MatchesWrapped, fmt.Sprintf(".*%s.*%s.*", logMsg, logMsg))
 }
 
 func (s *requestpromptsSuite) TestReplyErrors(c *C) {
