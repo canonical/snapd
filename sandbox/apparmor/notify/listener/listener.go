@@ -222,6 +222,10 @@ func Register() (listener *Listener, err error) {
 	// If there are no pending requests waiting to be re-sent, ready
 	// immediately, otherwise start the ready timer when Run is called.
 	if listener.pendingCount == 0 {
+		// Ensure timer is truly stopped, and no later call to readyTimer.Stop()
+		// can possibly return true.
+		listener.readyTimer.Stop()
+		// Ready up
 		listener.signalReady()
 	}
 	return listener, nil
