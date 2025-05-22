@@ -3217,7 +3217,8 @@ func (s *secbootSuite) TestGetPCRHandle(c *C) {
 	})
 	defer restore()
 
-	handle, err := secboot.GetPCRHandle("foo", "some-key", "do-not-read")
+	const hintExpectFDEHook = false
+	handle, err := secboot.GetPCRHandle("foo", "some-key", "do-not-read", hintExpectFDEHook)
 	c.Assert(err, IsNil)
 	c.Check(handle, Equals, uint32(42))
 }
@@ -3242,7 +3243,8 @@ func (s *secbootSuite) TestGetPCRHandleNoKeyslotKeyfile(c *C) {
 	})
 	defer restore()
 
-	handle, err := secboot.GetPCRHandle("foo", "some-key", "read-this-file")
+	const hintExpectFDEHook = false
+	handle, err := secboot.GetPCRHandle("foo", "some-key", "read-this-file", hintExpectFDEHook)
 	c.Assert(err, IsNil)
 	c.Check(handle, Equals, uint32(42))
 }
@@ -3279,7 +3281,8 @@ func (s *secbootSuite) TestGetPCRHandleKeyslotNoKeyDataKeyfile(c *C) {
 	})
 	defer restore()
 
-	handle, err := secboot.GetPCRHandle("foo", "some-key", "read-this-file")
+	const hintExpectFDEHook = false
+	handle, err := secboot.GetPCRHandle("foo", "some-key", "read-this-file", hintExpectFDEHook)
 	c.Assert(err, IsNil)
 	c.Check(handle, Equals, uint32(42))
 }
@@ -3304,9 +3307,37 @@ func (s *secbootSuite) TestGetPCRHandleNoKeyslotKeyfileOldFormat(c *C) {
 	})
 	defer restore()
 
-	handle, err := secboot.GetPCRHandle("foo", "some-key", "read-this-file")
+	const hintExpectFDEHook = false
+	handle, err := secboot.GetPCRHandle("foo", "some-key", "read-this-file", hintExpectFDEHook)
 	c.Assert(err, IsNil)
 	c.Check(handle, Equals, uint32(42))
+}
+
+func (s *secbootSuite) TestGetPCRHandleHookKeyV1(c *C) {
+	restore := secboot.MockListLUKS2ContainerUnlockKeyNames(func(devicePath string) ([]string, error) {
+		c.Check(devicePath, Equals, "foo")
+		return []string{}, nil
+	})
+	defer restore()
+
+	restore = secboot.MockMockableReadKeyFile(func(keyFile string, kl *secboot.MockableKeyLoader, hintExpectFDEHook bool) error {
+		c.Check(hintExpectFDEHook, Equals, true)
+		c.Check(keyFile, Equals, "read-this-file")
+		kl.FDEHookKeyV1 = []byte(`USK$blahblahblah`)
+		return nil
+	})
+	defer restore()
+
+	restore = secboot.MockSbNewLUKS2KeyDataReader(func(device, slot string) (sb.KeyDataReader, error) {
+		c.Errorf("unexpected call")
+		return nil, fmt.Errorf("unexpected")
+	})
+	defer restore()
+
+	const hintExpectFDEHook = true
+	handle, err := secboot.GetPCRHandle("foo", "some-key", "read-this-file", hintExpectFDEHook)
+	c.Assert(err, IsNil)
+	c.Check(handle, Equals, uint32(0))
 }
 
 func (s *secbootSuite) TestRemoveOldCounterHandles(c *C) {

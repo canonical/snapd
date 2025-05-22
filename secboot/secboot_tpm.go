@@ -983,7 +983,7 @@ var mockableReadKeyFile = mockableReadKeyFileImpl
 // GetPCRHandle returns the handle used by a key. The key will be
 // searched on the token of the keySlot from the node. If that keySlot
 // has no KeyData, then the key will be loaded at path keyFile.
-func GetPCRHandle(node, keySlot, keyFile string) (uint32, error) {
+func GetPCRHandle(node, keySlot, keyFile string, hintExpectFDEHook bool) (uint32, error) {
 	slots, err := sbListLUKS2ContainerUnlockKeyNames(node)
 	if err != nil {
 		return 0, fmt.Errorf("cannot list slots in partition save partition: %v", err)
@@ -1014,7 +1014,6 @@ func GetPCRHandle(node, keySlot, keyFile string) (uint32, error) {
 	}
 
 	loadedKey := &mockableKeyLoader{}
-	const hintExpectFDEHook = false
 	err = mockableReadKeyFile(keyFile, loadedKey, hintExpectFDEHook)
 	if err != nil {
 		if os.IsNotExist(err) {

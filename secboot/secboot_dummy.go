@@ -109,7 +109,7 @@ func FindFreeHandle() (uint32, error) {
 	return 0, errBuildWithoutSecboot
 }
 
-func GetPCRHandle(node, keySlot, keyFile string) (uint32, error) {
+func GetPCRHandle(node, keySlot, keyFile string, hintExpectFDEHook bool) (uint32, error) {
 	return 0, errBuildWithoutSecboot
 }
 
