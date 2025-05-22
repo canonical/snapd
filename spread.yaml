@@ -381,10 +381,7 @@ backends:
         systems: *google-nested-systems
 
     openstack:
-        key: '$(HOST: source $OS_CREDENTIALS_AMD64_PS6 && echo "$OS_PASSWORD || true)'
-        endpoint: "$(HOST: source $OS_CREDENTIALS_AMD64_PS6 && echo $OS_AUTH_URL || true)"
-        account: "$(HOST: source $OS_CREDENTIALS_AMD64_PS6 && echo $OS_USERNAME || true)"
-        location: "$(HOST: source $OS_CREDENTIALS_AMD64_PS6 && echo $OS_PROJECT_NAME/$OS_REGION_NAME || true)"
+        key: '$(HOST: echo "$OS_CREDENTIALS_AMD64_PS6")'
         plan: staging-cpu2-ram4-disk20
         halt-timeout: 2h
         wait-timeout: 5m
@@ -444,10 +441,7 @@ backends:
 
     openstack-arm:
         type: openstack
-        key: '$(HOST: source $OS_CREDENTIALS_ARM64_PS6 && echo "$OS_PASSWORD" || true)'
-        endpoint: "$(HOST: source $OS_CREDENTIALS_ARM64_PS6 && echo $OS_AUTH_URL || true)"
-        account: "$(HOST: source $OS_CREDENTIALS_ARM64_PS6 && echo $OS_USERNAME || true)"
-        location: "$(HOST: source $OS_CREDENTIALS_ARM64_PS6 && echo $OS_PROJECT_NAME/$OS_REGION_NAME || true)"
+        key: '$(HOST: echo "$OS_CREDENTIALS_ARM64_PS6")'
         plan: builder-arm64-cpu2-ram4-disk20
         halt-timeout: 2h
         wait-timeout: 5m
