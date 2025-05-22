@@ -166,7 +166,7 @@ execute: |
   snap list | MATCH "$CONTENT_SNAP_NAME +2\.0\.0"
 
   snap change --last=auto-refresh | MATCH "ERROR ignoring hook error:"
-  MATCH "error running snapctl: unknown flag .unknown-flag-to-force-snapctl-error'" < "$DEBUG_LOG_FILE"
+  MATCH "error: snapctl: unknown flag .unknown-flag-to-force-snapctl-error'" < "$DEBUG_LOG_FILE"
 
   systemctl stop snapd.{service,socket}
 

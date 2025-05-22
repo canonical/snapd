@@ -92,7 +92,7 @@ func runSnapctl(c *Command, r *http.Request, user *auth.UserState) Response {
 		if e, ok := err.(*flags.Error); ok && e.Type == flags.ErrHelp {
 			stdout = []byte(e.Error())
 		} else {
-			return BadRequest("error running snapctl: %s", err)
+			return BadRequest("snapctl: %s", err)
 		}
 	}
 
