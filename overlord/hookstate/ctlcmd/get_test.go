@@ -910,3 +910,67 @@ func (s *confdbSuite) TestConfdbExperimentalFlag(c *C) {
 		c.Check(stderr, IsNil)
 	}
 }
+
+func (s *confdbSuite) TestConfdbGetPreviousInvalid(c *C) {
+	// take this to mean that the parsing succeeded (to avoid mocking assertion, plugs, etc)
+	success := fmt.Sprintf(`cannot find confdb-schema %s/other: assertion not found`, s.devAccID)
+
+	type testcase struct {
+		hook string
+		err  string
+	}
+
+	tcs := []testcase{
+		{
+			hook: "save-view-plug",
+			err:  success,
+		},
+		{
+			hook: "load-view-plug",
+			err:  `cannot use --previous outside of save-view, change-view or observe-view hooks`,
+		},
+		{
+			hook: "change-view-plug",
+			err:  success,
+		},
+		{
+			hook: "query-view-pug",
+			err:  `cannot use --previous outside of save-view, change-view or observe-view hooks`,
+		},
+		{
+			hook: "observe-view-plug",
+			err:  success,
+		},
+		{
+			hook: "",
+			err:  `cannot use --previous outside of save-view, change-view or observe-view hooks`,
+		},
+	}
+
+	for _, tc := range tcs {
+		var ctx *hookstate.Context
+		var err error
+		if tc.hook != "" {
+			s.state.Lock()
+			task := s.state.NewTask("run-hook", "hook-task")
+			setup := &hookstate.HookSetup{Snap: "test-snap", Revision: snap.R(1), Hook: tc.hook}
+			s.state.Unlock()
+
+			ctx, err = hookstate.NewContext(task, s.state, setup, s.mockHandler, "")
+			c.Assert(err, IsNil)
+		} else {
+			ctx, err = hookstate.NewContext(nil, s.state, nil, s.mockHandler, "")
+			c.Assert(err, IsNil)
+		}
+
+		stdout, stderr, err := ctlcmd.Run(ctx, []string{"get", "--view", "--previous", ":other", "foo"}, 0)
+		c.Assert(err, ErrorMatches, tc.err)
+		c.Check(stdout, IsNil)
+		c.Check(stderr, IsNil)
+	}
+
+	stdout, stderr, err := ctlcmd.Run(s.mockContext, []string{"get", "--previous", ":other", "foo"}, 0)
+	c.Assert(err, ErrorMatches, "cannot use --previous without --view")
+	c.Check(stdout, IsNil)
+	c.Check(stderr, IsNil)
+}
