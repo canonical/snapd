@@ -11,6 +11,7 @@ show_help() {
 	echo "    leftover-defer-sh: defer.sh must not be left over by tests"
 	echo "    broken-snaps: snaps must not be left around that are in a broken state"
 	echo "    segmentation-violations: snapd must not have segmentation-violation errors in journal logs"
+	echo "    deleted-loop-devices: no loop devices associated with deleted files must exist"
 }
 
 if [ $# -eq 0 ]; then
@@ -217,6 +218,17 @@ check_fakestore_cleaned() {
     fi
 }
 
+check_deleted_loop_devices() {
+	n="$1" # invariant name
+
+	losetup -l | grep -F ' (deleted)' > "$TESTSTMP/tests.invariant.$n"
+	if [ -s "$TESTSTMP/tests.invariant.$n" ]; then
+		echo "tests.invariant: detected loopback devices associated with deleted files" >&2
+		cat "$TESTSTMP/tests.invariant.$n" >&2
+		return 1
+	fi
+}
+
 check_invariant() {
 	case "$1" in
 		root-files-in-home)
@@ -249,6 +261,9 @@ check_invariant() {
 		check-fakestore-cleaned)
 			check_fakestore_cleaned
 			;;
+		deleted-loop-devices)
+			check_deleted_loop_devices "$1"
+			;;
 		*)
 			echo "tests.invariant: unknown invariant $1" >&2
 			exit 1
@@ -268,6 +283,7 @@ main() {
 	cgroups
 	segmentation-violations
 	check-fakestore-cleaned
+  deleted-loop-devices
 	"
 
 	case "$action" in
