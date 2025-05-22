@@ -1068,7 +1068,7 @@ func (s *systemd) Stop(serviceNames []string) error {
 	errorRet := make(chan error)
 	quit := make(chan interface{})
 
-	go func() {
+	go func(serviceNames []string) {
 		// The polling routine is the 'errorRet' channel sender, so we make
 		// sure we exit closing the channel explicitly, even though we always
 		// return the error result first. Closing the channel does not free the
@@ -1139,7 +1139,7 @@ func (s *systemd) Stop(serviceNames []string) error {
 				notifyShowFirst = false
 			}
 		}
-	}()
+	}(serviceNames)
 
 	// This command blocks until the 'systemctl stop' completes
 	_, errStop := s.systemctl(append([]string{"stop"}, serviceNames...)...)
