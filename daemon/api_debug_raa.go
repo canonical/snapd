@@ -68,6 +68,8 @@ func getMonitoringAborts(st *state.State) (map[string]context.CancelFunc, error)
 	return aborts, nil
 }
 
+var cgroupPidsOfSnap = cgroup.PidsOfSnap
+
 func getRAAInfo(st *state.State) Response {
 	monitoringAborts, err := getMonitoringAborts(st)
 	if err != nil {
@@ -93,7 +95,7 @@ func getRAAInfo(st *state.State) Response {
 		data.RefreshCandidates[snapName] = info
 	}
 	for snapName := range monitoringAborts {
-		pids, err := cgroup.PidsOfSnap(snapName)
+		pids, err := cgroupPidsOfSnap(snapName)
 		if err != nil {
 			return InternalError(err.Error())
 		}

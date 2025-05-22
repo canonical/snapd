@@ -21,6 +21,7 @@ package daemon_test
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -335,4 +336,76 @@ func (s *postDebugSuite) TestMigrateHomeInternalError(c *check.C) {
 
 	c.Check(apiErr.Status, check.Equals, 500)
 	c.Check(apiErr.Message, check.Equals, `boom`)
+}
+
+func (s *postDebugSuite) TestRefreshAppAwarenessHappy(c *check.C) {
+	d := s.daemonWithOverlordMock()
+
+	st := d.Overlord().State()
+	st.Lock()
+	st.Cache("monitored-snaps", map[string]context.CancelFunc{
+		"snap-a": nil,
+	})
+	candidates := map[string]*daemon.RefreshCandidate{
+		"snap-a": {
+			Version:   "0.1",
+			Channel:   "edge",
+			SideInfo:  &snap.SideInfo{Revision: snap.R(14)},
+			Monitored: true,
+		},
+	}
+	st.Set("refresh-candidates", &candidates)
+	st.Unlock()
+
+	restore := daemon.MockCgroupPidsOfSnap(func(instanceName string) (map[string][]int, error) {
+		return map[string][]int{
+			"snap.snap-a.app": {101, 102, 103},
+		}, nil
+	})
+	defer restore()
+
+	req, err := http.NewRequest("GET", "/v2/debug?aspect=raa", nil)
+	c.Assert(err, check.IsNil)
+
+	rsp := s.syncReq(c, req, nil)
+	c.Check(rsp.Result, check.DeepEquals, &daemon.RAAInfo{
+		MonitoredSnaps: map[string]daemon.MonitoredSnapInfo{
+			"snap-a": {
+				Pids: map[string][]int{
+					"snap.snap-a.app": {101, 102, 103},
+				},
+			},
+		},
+		RefreshCandidates: map[string]daemon.RefreshCandidateInfo{
+			"snap-a": {
+				Version:   "0.1",
+				Channel:   "edge",
+				Revision:  snap.R(14),
+				Monitored: true,
+			},
+		},
+	})
+}
+
+func (s *postDebugSuite) TestRefreshAppAwarenessUnhappy(c *check.C) {
+	d := s.daemonWithOverlordMock()
+
+	st := d.Overlord().State()
+	st.Lock()
+	st.Cache("monitored-snaps", map[string]context.CancelFunc{
+		"snap-a": nil,
+	})
+	st.Unlock()
+
+	restore := daemon.MockCgroupPidsOfSnap(func(instanceName string) (map[string][]int, error) {
+		return nil, errors.New("boom!")
+	})
+	defer restore()
+
+	req, err := http.NewRequest("GET", "/v2/debug?aspect=raa", nil)
+	c.Assert(err, check.IsNil)
+
+	rsp := s.errorReq(c, req, nil)
+	c.Check(rsp.Status, check.Equals, 500)
+	c.Check(rsp.Message, check.Equals, "boom!")
 }
